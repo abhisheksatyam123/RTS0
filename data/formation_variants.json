@@ -1,0 +1,287 @@
+{
+ "athen_champion_infantry": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "athen_hero_pericles": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "athen_spearman": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "cart_infantry_spearman_b": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "cart_spearman": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "han_halberdman": [
+  "anti_cavalry_back",
+  "anti_cavalry_front",
+  "syntagma_01",
+  "syntagma_02",
+  "syntagma_03",
+  "syntagma_04",
+  "syntagma_back",
+  "syntagma_front"
+ ],
+ "han_infantry_spearman_b": [
+  "anti_cavalry_back",
+  "anti_cavalry_front"
+ ],
+ "hero": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "kush_pikeman_a": [
+  "syntagma_01",
+  "syntagma_02",
+  "syntagma_03",
+  "syntagma_04",
+  "syntagma_back",
+  "syntagma_front"
+ ],
+ "kush_pikeman_b": [
+  "syntagma_01",
+  "syntagma_02",
+  "syntagma_03",
+  "syntagma_04",
+  "syntagma_back",
+  "syntagma_front"
+ ],
+ "kush_pikeman_e": [
+  "syntagma_01",
+  "syntagma_02",
+  "syntagma_03",
+  "syntagma_04",
+  "syntagma_back",
+  "syntagma_front"
+ ],
+ "mace_champion_infantry_spearman": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "mace_champion_infantry_spearman_02": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "mace_spearman": [
+  "syntagma_01",
+  "syntagma_02",
+  "syntagma_03",
+  "syntagma_04",
+  "syntagma_back",
+  "syntagma_front"
+ ],
+ "ptol_infantry_pikeman_b": [
+  "syntagma_01",
+  "syntagma_02",
+  "syntagma_03",
+  "syntagma_04",
+  "syntagma_back",
+  "syntagma_front"
+ ],
+ "ptol_infantry_spearman_merc_b": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "ptol_spearman": [
+  "syntagma_01",
+  "syntagma_02",
+  "syntagma_03",
+  "syntagma_04",
+  "syntagma_back",
+  "syntagma_front"
+ ],
+ "rome_champion_infantry_spear_gladiator": [
+  "anti_cavalry_back",
+  "anti_cavalry_front",
+  "testudo_front",
+  "testudo_front_left",
+  "testudo_front_right",
+  "testudo_left",
+  "testudo_right",
+  "testudo_top"
+ ],
+ "rome_champion_infantry_sword_gladiator": [
+  "testudo_front",
+  "testudo_front_left",
+  "testudo_front_right",
+  "testudo_left",
+  "testudo_right",
+  "testudo_top"
+ ],
+ "rome_champion_infantry_swordsman_centurion": [
+  "testudo_front",
+  "testudo_front_left",
+  "testudo_front_right",
+  "testudo_left",
+  "testudo_right",
+  "testudo_top"
+ ],
+ "rome_hero": [
+  "testudo_front",
+  "testudo_front_left",
+  "testudo_front_right",
+  "testudo_left",
+  "testudo_right",
+  "testudo_top"
+ ],
+ "rome_infantry_antesignanus": [
+  "testudo_front",
+  "testudo_front_left",
+  "testudo_front_right",
+  "testudo_left",
+  "testudo_right",
+  "testudo_top"
+ ],
+ "rome_infantry_legionary": [
+  "testudo_front",
+  "testudo_front_left",
+  "testudo_front_right",
+  "testudo_left",
+  "testudo_right",
+  "testudo_top"
+ ],
+ "rome_infantry_spearman_a": [
+  "anti_cavalry_back",
+  "anti_cavalry_front",
+  "testudo_front",
+  "testudo_front_left",
+  "testudo_front_right",
+  "testudo_left",
+  "testudo_right",
+  "testudo_top"
+ ],
+ "rome_infantry_spearman_e": [
+  "anti_cavalry_back",
+  "anti_cavalry_front",
+  "testudo_front",
+  "testudo_front_left",
+  "testudo_front_right",
+  "testudo_left",
+  "testudo_right",
+  "testudo_top"
+ ],
+ "rome_infantry_swordsman_a": [
+  "testudo_front",
+  "testudo_front_left",
+  "testudo_front_right",
+  "testudo_left",
+  "testudo_right",
+  "testudo_top"
+ ],
+ "rome_infantry_swordsman_b": [
+  "testudo_front",
+  "testudo_front_left",
+  "testudo_front_right",
+  "testudo_left",
+  "testudo_right",
+  "testudo_top"
+ ],
+ "rome_infantry_swordsman_e": [
+  "testudo_front",
+  "testudo_front_left",
+  "testudo_front_right",
+  "testudo_left",
+  "testudo_right",
+  "testudo_top"
+ ],
+ "rome_spearman": [
+  "anti_cavalry_back",
+  "anti_cavalry_front",
+  "testudo_front",
+  "testudo_front_left",
+  "testudo_front_right",
+  "testudo_left",
+  "testudo_right",
+  "testudo_top"
+ ],
+ "rome_swordsman": [
+  "testudo_front",
+  "testudo_front_left",
+  "testudo_front_right",
+  "testudo_left",
+  "testudo_right",
+  "testudo_top"
+ ],
+ "sele_hero": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "sele_infantry_pikeman_b": [
+  "syntagma_01",
+  "syntagma_02",
+  "syntagma_03",
+  "syntagma_04",
+  "syntagma_back",
+  "syntagma_front"
+ ],
+ "sele_infantry_spearman_b": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "sele_spearman": [
+  "syntagma_01",
+  "syntagma_02",
+  "syntagma_03",
+  "syntagma_04",
+  "syntagma_back",
+  "syntagma_front"
+ ],
+ "spart_champion_infantry_spear_olympian": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "spart_hero": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "spart_hero_agis": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "spart_infantry_spearman_b": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "spart_infantry_spearman_neodamodes": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "spart_spearman": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "spart_swordsman": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ],
+ "spearman": [
+  "phalanx_back",
+  "phalanx_front",
+  "phalanx_mid"
+ ]
+}

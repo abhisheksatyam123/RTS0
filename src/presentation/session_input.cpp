@@ -381,6 +381,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_valid()) {
 		Vector2 mouse_pos = mb->get_position();
+		// input.js: a left or right click in the game world closes the session menu (g_Menu.close),
+		// and still does what it does.
+		if (mb->get_button_index() == MOUSE_BUTTON_LEFT || mb->get_button_index() == MOUSE_BUTTON_RIGHT)
+			if (CanvasLayer *menu = Object::cast_to<CanvasLayer>(get_node_or_null(NodePath("PauseMenu"))); menu && menu->is_visible())
+				_on_menu_button_pressed();
 
 		if (mb->get_button_index() == MOUSE_BUTTON_LEFT) {
 			if (mb->is_pressed()) {
@@ -925,43 +930,32 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						apply_default_formation(sel_ptr, sel_n);
 						sim->order_patrol(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift);
 					}
-				play_civ_voice("select");
+				// unit_actions.js PlaySound("order_patrol"): 0.28's units have no such sound group.
 				patrol_mode = false;
 				return;
 			}
+			// session.guard held: guard what is under the cursor (an own or allied unit or
+			// structure), else stop guarding (remove-guard, specificness 41), else the click is the
+			// usual order (hotkeyActionCheck fails). An armed Guard only guards.
 			if (guard_mode || rtso::hotkeys::held("session.guard")) {
-				auto uview = sim->units();
-				uint32_t target_ally_id = 0;
-				float best_ad2 = 3.0f * 3.0f;
-				for (size_t i = 0; i < uview.count; ++i) {
-					if (!uview.alive[i] || uview.team[i] != local_player()) continue;
-					float dx = uview.pos_x[i] - click_pos.x;
-					float dz = uview.pos_z[i] - click_pos.z;
-					float d2 = dx * dx + dz * dz;
-					if (d2 < best_ad2) {
-						best_ad2 = d2;
-						target_ally_id = uview.id[i];
-					}
-				}
-				// Guard.js guards structures too: one's own or an ally's under the cursor.
-				if (target_ally_id == 0) {
-					for (const auto &b : sim->buildings()) {
-						if (b.wrecked || (b.team != local_player() && !sim->is_ally(local_player(), b.team))) continue;
-						if (std::fabs(b.x - click_pos.x) <= b.half_size && std::fabs(b.z - click_pos.z) <= b.half_size) {
-							target_ally_id = b.id;
-							break;
-						}
-					}
-				}
-				if (target_ally_id != 0) {
+				const uint32_t target = guard_target_at(click_pos);
+				if (target != 0) {
 					if (turn_cmds())
-						post_lockstep(21, sel_ptr, sel_n, 0, 0, target_ally_id, qbit);
+						post_lockstep(21, sel_ptr, sel_n, 0, 0, target, qbit);
 					else
-						sim->order_guard(sel_ptr, sel_n, target_ally_id, queue_shift);
-					play_civ_voice("select");
+						sim->order_guard(sel_ptr, sel_n, target, queue_shift);
+					// PlaySound("order_guard"): no such sound group in 0.28's units either.
+					guard_mode = false;
+					return;
 				}
-				guard_mode = false;
-				return;
+				if (!guard_mode && selection_guarding()) {
+					_on_remove_guard_pressed();
+					return;
+				}
+				if (guard_mode) {
+					guard_mode = false;
+					return;
+				}
 			}
 
 			auto uview = sim->units();
@@ -1325,6 +1319,34 @@ bool RtsoMain::try_place_wall(const Vector3 &end, bool queued) {
 	return true;
 }
 
+uint32_t RtsoMain::guard_target_at(const Vector3 &at) const {
+	if (!sim) return 0;
+	const uint8_t me = local_player();
+	auto uv = sim->units();
+	uint32_t best = 0;
+	float best_d2 = 3.0f * 3.0f;
+	for (size_t i = 0; i < uv.count; ++i) {
+		if (!uv.alive[i] || (uv.team[i] != me && !sim->is_ally(me, uv.team[i])) || selected_ids.has((int32_t)uv.id[i]))
+			continue;
+		const float dx = uv.pos_x[i] - at.x, dz = uv.pos_z[i] - at.z, d2 = dx * dx + dz * dz;
+		if (d2 < best_d2) { best_d2 = d2; best = uv.id[i]; }
+	}
+	if (best) return best;
+	for (const auto &b : sim->buildings()) {
+		if (b.wrecked || (b.team != me && !sim->is_ally(me, b.team))) continue;
+		const float dx = b.x - at.x, dz = b.z - at.z, hit_r = b.half_size + 1.2f;
+		if (dx * dx + dz * dz <= hit_r * hit_r) return b.id;
+	}
+	return 0;
+}
+
+bool RtsoMain::selection_guarding() const {
+	if (!sim) return false;
+	for (int s = 0; s < selected_ids.size(); ++s)
+		if (sim->unit_is_guarding((uint32_t)selected_ids[s])) return true;
+	return false;
+}
+
 // unit_actions.js actionCheck of the armed action: whether the click under the cursor is a
 // target it takes (else the click does nothing and the action stays armed).
 bool RtsoMain::armed_target_ok(const Vector3 &at) const {
@@ -1339,6 +1361,7 @@ bool RtsoMain::armed_target_ok(const Vector3 &at) const {
 		if (repair_mode) return b.build_progress < 1.0f || b.hp < b.max_hp;
 		return true; // Guard.js guards own and allied structures
 	}
+	if (guard_mode) return guard_target_at(at) != 0;
 	if (garrison_mode) return transport_under(at.x, at.z) != 0;
 	if (guard_mode || repair_mode) {
 		auto uv = sim->units();

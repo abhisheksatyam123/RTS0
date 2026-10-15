@@ -4,6 +4,7 @@
 #include "terrain_blend.h"
 #include "session_audio.h"
 #include "user_config.h"
+#include "formation_variants.h"
 #include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -1162,13 +1163,73 @@ enum ClipId : uint8_t {
 	CLIP_CAPTURE,
 	CLIP_IDLE2,
 	CLIP_DEATH2,
-	CLIP_COUNT
+	// Formation variant clips (kFormClips), loaded from their PSA on first use.
+	CLIP_FORM_FIRST,
+	CLIP_COUNT = CLIP_FORM_FIRST + 36
 };
+
+// The clips the formation variants name (formation_variants.h variant_clips), each
+// once. "bare" clips belong to testudo_top, whose variant empties weapon_R.
+struct FormClip {
+	const char *psa;
+	bool bare;
+};
+static constexpr FormClip kFormClips[CLIP_COUNT - CLIP_FORM_FIRST] = {
+	{"biped_formations_anti_cavalry_back_idle", false},
+	{"biped_formations_anti_cavalry_front_idle", false},
+	{"biped_infantry_spearman_walk_relax", false},
+	{"biped_infantry_hoplite_idle_ready_back", false},
+	{"biped_infantry_hoplite_idle_ready_front", false},
+	{"biped_infantry_hoplite_idle_ready_01", false},
+	{"biped_infantry_hoplite_walk_ready", false},
+	{"biped_infantry_hoplite_walk_ready_front", false},
+	{"biped_infantry_hoplite_jog_ready", false},
+	{"biped_infantry_hoplite_run_ready", false},
+	{"biped_formations_syntagma_idle_ready_01", false},
+	{"biped_formations_syntagma_idle_ready_02", false},
+	{"biped_formations_syntagma_idle_ready_03", false},
+	{"biped_formations_syntagma_idle_ready_04", false},
+	{"biped_formations_syntagma_idle_ready_back", false},
+	{"biped_formations_syntagma_idle_ready_front", false},
+	{"biped_formations_syntagma_walk_ready_01", false},
+	{"biped_formations_syntagma_walk_ready_02", false},
+	{"biped_formations_syntagma_walk_ready_03", false},
+	{"biped_formations_syntagma_walk_ready_04", false},
+	{"biped_formations_syntagma_walk_relax_back", false},
+	{"biped_infantry_pikeman_walk_ready", false},
+	{"biped_infantry_pikeman_run_ready", false},
+	{"biped_infantry_pikeman_jog_ready", false},
+	{"biped_formations_testudo_front_idle", false},
+	{"biped_formations_testudo_front_walk", false},
+	{"biped_formations_testudo_front_left_idle", false},
+	{"biped_formations_testudo_front_left_walk", false},
+	{"biped_formations_testudo_front_right_idle", false},
+	{"biped_formations_testudo_front_right_walk", false},
+	{"biped_formations_testudo_left_idle", false},
+	{"biped_formations_testudo_left_walk", false},
+	{"biped_formations_testudo_right_idle", false},
+	{"biped_formations_testudo_right_walk", false},
+	{"biped_formations_testudo_top_idle", true},
+	{"biped_formations_testudo_top_walk", true},
+};
+
+static bool is_form_clip(int c) {
+	return c >= CLIP_FORM_FIRST && c < CLIP_COUNT;
+}
+
+// The formation clip playing `psa` (with testudo_top's empty weapon_R when bare).
+static ClipId form_clip_of(const char *psa, bool bare) {
+	if (!psa) return CLIP_NONE;
+	for (int i = 0; i < CLIP_COUNT - CLIP_FORM_FIRST; ++i)
+		if (kFormClips[i].bare == bare && std::strcmp(kFormClips[i].psa, psa) == 0) return (ClipId)(CLIP_FORM_FIRST + i);
+	return CLIP_NONE;
+}
 
 static const StringName &clip_name(ClipId id) {
 	// Leaked on purpose: Godot objects in statics would be destroyed after the
 	// engine has gone, crashing the exit (here and in the caches below).
-	static const StringName *names = new StringName[CLIP_COUNT]{
+	static const StringName *names = [] {
+		StringName *n = new StringName[CLIP_COUNT]{
 		StringName(), StringName("Idle"), StringName("Walk"), StringName("Run"),
 		StringName("Attack"), StringName("Death"), StringName("Gather"),
 		StringName("GatherTree"), StringName("GatherOre"), StringName("GatherRock"),
@@ -1179,7 +1240,12 @@ static const StringName &clip_name(ClipId id) {
 		StringName("CarryFood"), StringName("CarryMeat"), StringName("CarryWood"),
 		StringName("CarryStone"), StringName("CarryMetal"), StringName("Capture"),
 		StringName("Idle2"), StringName("Death2")
-	};
+		};
+		// ModelLibrary::apply_clip_tools: "Form" clips show the weapon, "FormBare" none.
+		for (int i = 0; i < CLIP_COUNT - CLIP_FORM_FIRST; ++i)
+			n[CLIP_FORM_FIRST + i] = StringName(String(kFormClips[i].bare ? "FormBare_" : "Form_") + kFormClips[i].psa);
+		return n;
+	}();
 	return names[id < CLIP_COUNT ? id : CLIP_NONE];
 }
 
@@ -1334,6 +1400,24 @@ static WantAnim with_variant(WantAnim w, uint32_t id) {
 	return w;
 }
 
+// UnitAI FORMATIONMEMBER: a member standing or walking in its slot plays its slot's
+// variant (Formation.js GetFormationAnimationVariant); a variant without a Run clip
+// keeps its Walk. Any other order takes the member out of that state, and its own
+// clips back.
+static WantAnim with_formation_variant(WantAnim w, uint8_t uaction, uint8_t variant) {
+	if (uaction != rtso::ACTION_IDLE && uaction != rtso::ACTION_MOVE && uaction != rtso::ACTION_ATTACK_MOVE &&
+			uaction != rtso::ACTION_PATROL)
+		return w;
+	const rtso::formvar::VariantClips &vc = rtso::formvar::variant_clips(variant);
+	const char *psa = nullptr;
+	if (w.clip == CLIP_IDLE || w.clip == CLIP_IDLE2) psa = vc.idle;
+	else if (w.clip == CLIP_WALK) psa = vc.walk;
+	else if (w.clip == CLIP_RUN) psa = vc.run ? vc.run : vc.walk;
+	const ClipId c = form_clip_of(psa, vc.drops_weapon);
+	if (c != CLIP_NONE) w.clip = c;
+	return w;
+}
+
 // Nearest clip a model actually ships, mirroring the extractor's own borrowing
 // (Run from Walk, Carry from Walk, Death from Idle for hulls that only float).
 static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
@@ -1370,7 +1454,12 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 		case CLIP_CAPTURE:   alt = CLIP_ATTACK; break;
 		case CLIP_IDLE2:     alt = CLIP_IDLE; break;
 		case CLIP_DEATH2:    alt = CLIP_DEATH; break;
-		default:             break;
+		default:
+			if (is_form_clip(want)) {
+				const char *psa = kFormClips[want - CLIP_FORM_FIRST].psa;
+				alt = std::strstr(psa, "idle") ? CLIP_IDLE : CLIP_WALK;
+			}
+			break;
 	}
 	if (alt != CLIP_NONE && anim->has_animation(clip_name(alt))) return alt;
 	// Death must not loop an idle forever; the caller clears loop for it.
@@ -1525,7 +1614,63 @@ Node *RtsoWorldView::instantiate_building_id(const String &id) {
 	return nullptr;
 }
 
-void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on, bool scaffold_on, uint8_t btype) {
+// The building GLB ModelLibrary::load draws for `id` (its alias, its own GLB, or
+// its base model after the civ code), as the key of the tables written per GLB.
+static std::string building_table_key(const String &id) {
+	const String glb = rtso::ModelLibrary::building_glb_id(id);
+	if (glb != id || rtso::Assets::res_exists("res://assets/models/buildings/" + id + ".glb"))
+		return glb.utf8().get_data();
+	const int us = id.find("_");
+	if (us <= 0 || us >= id.length() - 1) return glb.utf8().get_data();
+	return rtso::ModelLibrary::building_glb_id(id.substr(us + 1)).utf8().get_data();
+}
+
+void RtsoWorldView::load_foundations() {
+	foundations_loaded_ = true;
+	auto actor_frame_of = [](const Dictionary &e, const char *scale_key) {
+		ActorFrame f;
+		f.scale = (float)e.get(scale_key, 0.0);
+		Array o = e.get("origin", Array());
+		if (o.size() == 3) f.origin = Vector3((float)o[0], (float)o[1], (float)o[2]);
+		return f;
+	};
+	Ref<FileAccess> f = FileAccess::open("res://data/foundations.json", FileAccess::READ);
+	if (!f.is_valid()) return;
+	Dictionary root = JSON::parse_string(f->get_as_text());
+	Dictionary structures = root.get("structures", Dictionary());
+	Array civs = structures.keys();
+	for (int i = 0; i < civs.size(); ++i) {
+		Dictionary types = structures[civs[i]];
+		Array keys = types.keys();
+		for (int j = 0; j < keys.size(); ++j)
+			foundation_of_[(String(civs[i]) + "/" + String(keys[j])).utf8().get_data()] = String(types[keys[j]]).utf8().get_data();
+	}
+	Dictionary arts = root.get("foundations", Dictionary());
+	Array ids = arts.keys();
+	for (int i = 0; i < ids.size(); ++i) {
+		Dictionary e = arts[ids[i]];
+		FoundationArt a;
+		a.id = ids[i];
+		a.frame = actor_frame_of(e, "scale");
+		Dictionary s = e.get("scaffold", Dictionary());
+		if (!s.is_empty()) {
+			a.scaffold = s.get("id", "");
+			a.scaffold_frame = actor_frame_of(s, "scale");
+		}
+		foundation_art_[String(ids[i]).utf8().get_data()] = a;
+	}
+	Dictionary frames = root.get("frames", Dictionary());
+	Array glbs = frames.keys();
+	for (int i = 0; i < glbs.size(); ++i)
+		building_frames_[String(glbs[i]).utf8().get_data()] = actor_frame_of(frames[glbs[i]], "metre");
+}
+
+// 0 A.D. Foundation.js: a structure being built draws its template's
+// FoundationActor, switched to the "scaffold" variant once building starts. Both
+// sit on the entity's position: under the building model as drawn, the actor
+// origin of its GLB (data/foundations.json frames), at the model's scale.
+void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on, bool scaffold_on, uint8_t btype,
+		uint8_t civ, const String &model_id, float b_scale) {
 	auto drop = [&](Node *&n) {
 		if (!n) return;
 		if (v.root && n->get_parent() == v.root)
@@ -1562,8 +1707,45 @@ void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on
 		drop(v.scaffold);
 		v.overlay_type = (int)btype;
 	}
-	place(v.foundation, rtso::civ_building_foundation(btype), foundation_on);
-	place(v.scaffold, rtso::civ_building_scaffold(btype), scaffold_on);
+	if (!foundations_loaded_ && (foundation_on || scaffold_on)) load_foundations();
+	const FoundationArt *art = nullptr;
+	const ActorFrame *frame = nullptr;
+	if (foundation_on || scaffold_on || v.foundation) {
+		const auto fo = foundation_of_.find(std::string(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "/" + std::to_string(btype));
+		const auto fa = fo == foundation_of_.end() ? foundation_art_.end() : foundation_art_.find(fo->second);
+		const auto fr = building_frames_.find(building_table_key(model_id));
+		if (fa != foundation_art_.end() && fr != building_frames_.end() && fr->second.scale > 0.0f) {
+			art = &fa->second;
+			frame = &fr->second;
+		}
+	}
+	if (!art) {
+		place(v.foundation, rtso::civ_building_foundation(btype), foundation_on);
+		place(v.scaffold, rtso::civ_building_scaffold(btype), scaffold_on);
+		return;
+	}
+	// The actor origin in the root's space, on the ground (the root's height; the
+	// model is lifted until its lowest vertex meets it), and world units per metre.
+	const Vector3 origin(frame->origin.x * b_scale, 0.0f, frame->origin.z * b_scale);
+	const float metre = frame->scale * b_scale;
+	auto seat = [&](Node *&slot, const String &id, const ActorFrame &f, bool show) {
+		if (id.is_empty() || f.scale <= 0.0f) return;
+		if (!slot && show) {
+			slot = instantiate_building_id(id);
+			if (!slot) return;
+			v.root->add_child(slot);
+			v.fog_dim = -1.0f;
+			v.player_rgba = -1;
+		}
+		if (Node3D *n3 = Object::cast_to<Node3D>(slot)) {
+			const float k = metre / f.scale;
+			n3->set_scale(Vector3(k, k, k));
+			n3->set_position(origin - f.origin * k);
+			n3->set_visible(show);
+		}
+	};
+	seat(v.foundation, art->id, art->frame, foundation_on);
+	seat(v.scaffold, art->scaffold, art->scaffold_frame, scaffold_on);
 }
 
 // 0 A.D. WallSet segments (Simulation::cmd_build_wall) are 12, 24 or 36 m long and
@@ -1604,17 +1786,6 @@ void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_na
 		v.model = mi;
 	}
 	v.root->add_child(v.model);
-}
-
-// The building GLB ModelLibrary::load draws for `id` (its alias, its own GLB, or
-// its base model after the civ code), as the key of the tables written per GLB.
-static std::string building_table_key(const String &id) {
-	const String glb = rtso::ModelLibrary::building_glb_id(id);
-	if (glb != id || rtso::Assets::res_exists("res://assets/models/buildings/" + id + ".glb"))
-		return glb.utf8().get_data();
-	const int us = id.find("_");
-	if (us <= 0 || us >= id.length() - 1) return glb.utf8().get_data();
-	return rtso::ModelLibrary::building_glb_id(id.substr(us + 1)).utf8().get_data();
 }
 
 // 0 A.D. Upgrade.js SetUpgradeAnimationVariant: while a structure upgrades its
@@ -1773,16 +1944,24 @@ void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 
 // Crowd clip slots. 0 A.D. plays the real clip for every unit (gather_*,
 // build, carry, heal...); the crowd keeps one baked MultiMesh per slot.
-static const uint8_t kCrowdClips[] = {
-	CLIP_IDLE, CLIP_WALK, CLIP_ATTACK, CLIP_DEATH, CLIP_RUN, CLIP_CARRY, CLIP_BUILD,
-	CLIP_GATHER_TREE, CLIP_GATHER_ORE, CLIP_GATHER_ROCK, CLIP_GATHER_FRUIT, CLIP_GATHER_GRAIN,
-	CLIP_GATHER_MEAT, CLIP_GATHER_FISH, CLIP_HEAL, CLIP_SLAUGHTER,
-	CLIP_CARRY_FOOD, CLIP_CARRY_MEAT, CLIP_CARRY_WOOD, CLIP_CARRY_STONE, CLIP_CARRY_METAL,
-	CLIP_PROMOTION, CLIP_CAPTURE, CLIP_IDLE2, CLIP_DEATH2,
-};
-static_assert(sizeof(kCrowdClips) == 25, "kCrowdClips must match CROWD_CLIP_COUNT");
+// The formation variant clips take the slots after CROWD_FORM_SLOT, in kFormClips order.
+static constexpr int CROWD_FORM_SLOT = 25;
+static const uint8_t *crowd_clips() {
+	static const uint8_t *clips = [] {
+		static uint8_t c[CROWD_FORM_SLOT + (CLIP_COUNT - CLIP_FORM_FIRST)] = {
+			CLIP_IDLE, CLIP_WALK, CLIP_ATTACK, CLIP_DEATH, CLIP_RUN, CLIP_CARRY, CLIP_BUILD,
+			CLIP_GATHER_TREE, CLIP_GATHER_ORE, CLIP_GATHER_ROCK, CLIP_GATHER_FRUIT, CLIP_GATHER_GRAIN,
+			CLIP_GATHER_MEAT, CLIP_GATHER_FISH, CLIP_HEAL, CLIP_SLAUGHTER,
+			CLIP_CARRY_FOOD, CLIP_CARRY_MEAT, CLIP_CARRY_WOOD, CLIP_CARRY_STONE, CLIP_CARRY_METAL,
+			CLIP_PROMOTION, CLIP_CAPTURE, CLIP_IDLE2, CLIP_DEATH2,
+		};
+		for (int i = 0; i < CLIP_COUNT - CLIP_FORM_FIRST; ++i) c[CROWD_FORM_SLOT + i] = (uint8_t)(CLIP_FORM_FIRST + i);
+		return c;
+	}();
+	return clips;
+}
 // Death clips play once and hold their last frame (slots 3 and 24).
-static constexpr uint32_t CROWD_DEATH_SLOTS = (1u << 3) | (1u << 24);
+static constexpr uint64_t CROWD_DEATH_SLOTS = (1ull << 3) | (1ull << 24);
 // Fauna clip slots that hold their last frame: death (3) and the second death (5).
 static constexpr uint32_t FAUNA_DEATH_SLOTS = (1u << 3) | (1u << 5);
 
@@ -1813,7 +1992,7 @@ static int crowd_slot_of(ClipId clip) {
 		case CLIP_CAPTURE: return 22;
 		case CLIP_IDLE2: return 23;
 		case CLIP_DEATH2: return 24;
-		default: return 0;
+		default: return is_form_clip(clip) ? CROWD_FORM_SLOT + (clip - CLIP_FORM_FIRST) : 0;
 	}
 }
 
@@ -1897,8 +2076,97 @@ MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip) {
 	return b.mm[clip].ptr();
 }
 
+// The skeleton a clip library's bone tracks drive, with their path from the player's root.
+static Skeleton3D *clip_skeleton(AnimationPlayer *ap, const Ref<AnimationLibrary> &lib, String &skel_path) {
+	Ref<Animation> ref = lib->has_animation(clip_name(CLIP_IDLE)) ? lib->get_animation(clip_name(CLIP_IDLE)) : Ref<Animation>();
+	for (int t = 0; ref.is_valid() && t < ref->get_track_count(); ++t) {
+		NodePath tp = ref->track_get_path(t);
+		if (tp.get_subname_count() > 0) {
+			skel_path = tp.get_concatenated_names();
+			break;
+		}
+	}
+	Node *anim_root = ap->get_node_or_null(ap->get_root_node());
+	return (anim_root && !skel_path.is_empty())
+			? Object::cast_to<Skeleton3D>(anim_root->get_node_or_null(NodePath(skel_path))) : nullptr;
+}
+
+// One 0 A.D. PSA clip into `lib` as `name`, when its bones match the skeleton's.
+static bool add_psa_clip(const Ref<AnimationLibrary> &lib, Skeleton3D *sk, const String &skel_path,
+		const StringName &name, const char *psa_name) {
+	rtso::PsaAnim psa;
+	const int bones = sk->get_bone_count();
+	if (!psa.load_psa(psa_name) || !psa.is_valid() || (int)psa.numBones != bones) return false;
+	Ref<Animation> a;
+	a.instantiate();
+	const double dt = psa.frameTime / 1000.0;
+	a->set_length(dt * psa.numFrames);
+	// PSA keys are root-relative bone transforms, the same space as the
+	// extractor's flat bone nodes, so they are the bone poses as they stand.
+	for (int b = 0; b < bones; ++b) {
+		NodePath path(skel_path + String(":") + sk->get_bone_name(b));
+		const int tp = a->add_track(Animation::TYPE_POSITION_3D);
+		a->track_set_path(tp, path);
+		const int tr = a->add_track(Animation::TYPE_ROTATION_3D);
+		a->track_set_path(tr, path);
+		for (uint32_t f = 0; f < psa.numFrames; ++f) {
+			const rtso::PsaKey &k = psa.keys[(size_t)f * psa.numBones + b];
+			a->position_track_insert_key(tp, dt * f, k.t);
+			a->rotation_track_insert_key(tr, dt * f, k.q);
+		}
+	}
+	lib->add_animation(name, a);
+	return true;
+}
+
+// A formation variant clip loads from its PSA the first time a model plays it; a
+// model whose skeleton it does not fit is not asked again.
+static void ensure_form_clip(AnimationPlayer *ap, ClipId clip) {
+	if (!ap || !is_form_clip(clip) || ap->has_animation(clip_name(clip))) return;
+	Ref<AnimationLibrary> lib = ap->get_animation_library(StringName());
+	if (!lib.is_valid()) return;
+	static std::unordered_set<uint64_t> &failed = *new std::unordered_set<uint64_t>();
+	const uint64_t key = ((uint64_t)lib->get_instance_id() << 8) ^ (uint64_t)clip;
+	if (failed.count(key)) return;
+	String skel_path;
+	Skeleton3D *sk = clip_skeleton(ap, lib, skel_path);
+	if (!sk || !add_psa_clip(lib, sk, skel_path, clip_name(clip), kFormClips[clip - CLIP_FORM_FIRST].psa))
+		failed.insert(key);
+}
+
+// Which formation variants a unit model's 0 A.D. actor lists (data/formation_variants.json,
+// tools/extract_formation_variants.py), as bits by rtso::formvar::Variant.
+static uint32_t formation_variant_mask(const char *model) {
+	static std::unordered_map<std::string, uint32_t> &table = *new std::unordered_map<std::string, uint32_t>();
+	static bool loaded = false;
+	if (!loaded) {
+		loaded = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/formation_variants.json", FileAccess::READ);
+		if (f.is_valid()) {
+			Dictionary root = JSON::parse_string(f->get_as_text());
+			Array keys = root.keys();
+			for (int i = 0; i < keys.size(); ++i) {
+				Array names = root[keys[i]];
+				uint32_t m = 0;
+				for (int n = 0; n < names.size(); ++n)
+					m |= 1u << rtso::formvar::variant_by_name(String(names[n]).utf8().get_data());
+				table[String(keys[i]).utf8().get_data()] = m & ~1u;
+			}
+		}
+	}
+	auto it = model ? table.find(model) : table.end();
+	return it != table.end() ? it->second : 0u;
+}
+
+uint32_t RtsoWorldView::crowd_form_mask(uint8_t civ, uint16_t key) {
+	if (civ >= rtso::CIV_COUNT || key >= CROWD_KEY_COUNT) return 0;
+	uint32_t &m = crowd_form_mask_[civ][key];
+	if (!(m & 0x80000000u)) m = 0x80000000u | formation_variant_mask(crowd_key_model(civ, key));
+	return m;
+}
+
 void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-		const bool *needed, int count, uint32_t death_slots, bool female) {
+		const bool *needed, int count, uint64_t death_slots, bool female) {
 	AnimationPlayer *ap = find_anim_player(inst);
 	if (ap) {
 		ap->set_active(true);
@@ -1907,6 +2175,7 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 	for (int c = 0; c < count; ++c) {
 		if (!needed[c] || done[c]) continue;
 		done[c] = true;
+		ensure_form_clip(ap, (ClipId)want[c]);
 		ClipId play = resolve_clip_fallback(ap, (ClipId)want[c]);
 		int valid = 0;
 		if (ap && play != CLIP_NONE) {
@@ -1932,7 +2201,7 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 			for (int f = 0; f < n; ++f) {
 				double t = 0.0;
 				if (len > 0.0) {
-					if (death_slots & (1u << c)) {
+					if (death_slots & (1ull << c)) {
 						t = (n > 1) ? len * (double)f / (double)(n - 1) : 0.0;
 					} else {
 						t = len * (double)f / (double)n;
@@ -1954,11 +2223,11 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 	if (ap) ap->stop();
 }
 
-void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint32_t death_slots) {
+void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint64_t death_slots) {
 	for (int c = 0; c < count; ++c) {
 		if (!meshes[c].is_valid() || row[c].baked_count <= 0 || counts[c] <= 0) continue;
 		int frame;
-		if (death_slots & (1u << c)) {
+		if (death_slots & (1ull << c)) {
 			frame = (int)(anim_time * 5.0f);
 			if (frame > row[c].baked_count - 1) frame = row[c].baked_count - 1;
 		} else {
@@ -1984,6 +2253,8 @@ static Node *instantiate_for_bake(Node3D *bake_root, const Ref<PackedScene> &sce
 }
 
 void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint16_t key, const int *counts) {
+	static_assert(CROWD_CLIP_COUNT == CROWD_FORM_SLOT + (CLIP_COUNT - CLIP_FORM_FIRST),
+			"CROWD_CLIP_COUNT must cover the formation clips (crowd_clips)");
 	CrowdBatch &b = crowd_batch(civ, key);
 	const uint8_t utype = crowd_key_utype_[key < CROWD_KEY_COUNT ? key : 0];
 	if (b.no_scene) return;
@@ -2009,7 +2280,7 @@ void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint16_t key, const int *co
 	if (!inst) return;
 	const bool female = unit_is_female(utype);
 	ensure_runtime_clips(find_anim_player(inst), female);
-	bake_puppet_clips(inst, b.puppet, b.clip_baked, kCrowdClips, needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS, female);
+	bake_puppet_clips(inst, b.puppet, b.clip_baked, crowd_clips(), needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS, female);
 	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
 		if (needed[c] && b.mm[c].is_valid() && b.puppet[c].posed_frames[0].is_valid())
 			b.mm[c]->set_mesh(b.puppet[c].posed_frames[0]);
@@ -2075,17 +2346,7 @@ void RtsoWorldView::ensure_runtime_clips(AnimationPlayer *ap, bool female) {
 	if (!lib.is_valid() || !clip_libs_done_.insert((int64_t)lib->get_instance_id()).second) return;
 	// The bone tracks of a shipped clip give the skeleton's path from the player's root.
 	String skel_path;
-	Ref<Animation> ref = lib->has_animation(clip_name(CLIP_IDLE)) ? lib->get_animation(clip_name(CLIP_IDLE)) : Ref<Animation>();
-	for (int t = 0; ref.is_valid() && t < ref->get_track_count(); ++t) {
-		NodePath tp = ref->track_get_path(t);
-		if (tp.get_subname_count() > 0) {
-			skel_path = tp.get_concatenated_names();
-			break;
-		}
-	}
-	Node *anim_root = ap->get_node_or_null(ap->get_root_node());
-	Skeleton3D *sk = (anim_root && !skel_path.is_empty())
-			? Object::cast_to<Skeleton3D>(anim_root->get_node_or_null(NodePath(skel_path))) : nullptr;
+	Skeleton3D *sk = clip_skeleton(ap, lib, skel_path);
 	if (!sk) return;
 	struct Clip { ClipId id; const char *male; const char *female; };
 	static const Clip kClips[] = {
@@ -2096,30 +2357,9 @@ void RtsoWorldView::ensure_runtime_clips(AnimationPlayer *ap, bool female) {
 		{ CLIP_CARRY_METAL, "carry_ore", "biped_gatherer_carry_ore_f" },
 		{ CLIP_PROMOTION, "biped_infantry_promotion", "biped_infantry_promotion" },
 	};
-	const int bones = sk->get_bone_count();
 	for (const Clip &c : kClips) {
 		if (lib->has_animation(clip_name(c.id))) continue;
-		rtso::PsaAnim psa;
-		if (!psa.load_psa(female ? c.female : c.male) || !psa.is_valid() || (int)psa.numBones != bones) continue;
-		Ref<Animation> a;
-		a.instantiate();
-		const double dt = psa.frameTime / 1000.0;
-		a->set_length(dt * psa.numFrames);
-		// PSA keys are root-relative bone transforms, the same space as the
-		// extractor's flat bone nodes, so they are the bone poses as they stand.
-		for (int b = 0; b < bones; ++b) {
-			NodePath path(skel_path + ":" + sk->get_bone_name(b));
-			const int tp = a->add_track(Animation::TYPE_POSITION_3D);
-			a->track_set_path(tp, path);
-			const int tr = a->add_track(Animation::TYPE_ROTATION_3D);
-			a->track_set_path(tr, path);
-			for (uint32_t f = 0; f < psa.numFrames; ++f) {
-				const rtso::PsaKey &k = psa.keys[(size_t)f * psa.numBones + b];
-				a->position_track_insert_key(tp, dt * f, k.t);
-				a->rotation_track_insert_key(tr, dt * f, k.q);
-			}
-		}
-		lib->add_animation(clip_name(c.id), a);
+		add_psa_clip(lib, sk, skel_path, clip_name(c.id), female ? c.female : c.male);
 	}
 }
 
@@ -2874,8 +3114,21 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 		WantAnim w = resolve_unit_anim(uview.action_state[i], vx * vx + vz * vz, uview.alive[i] != 0,
 				uview.carry[i], ut, uview.res_type_carried[i], sub, sim->unit_capturing(i));
-		return with_variant(w, uview.id[i]);
+		w = with_variant(w, uview.id[i]);
+		auto fv = form_variant_.find(uview.id[i]);
+		if (fv != form_variant_.end()) {
+			uint8_t civ = sim->team_civ(uview.team[i]);
+			if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
+			const uint8_t dt = drawn_unit_type(ut, uview.tmpl[i], uview.id[i]);
+			const uint16_t key = crowd_key_of(civ, dt, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]);
+			if (crowd_form_mask(civ, key) & (1u << fv->second))
+				w = with_formation_variant(w, uview.action_state[i], fv->second);
+		}
+		return w;
 	};
+	form_variant_.clear();
+	for (const auto &fc : sim->formations())
+		rtso::formvar::for_each_member_variant(fc, [this](uint32_t ent, uint8_t v) { form_variant_[ent] = v; });
 	crowd_slot_scratch_.assign(uview.count, 0xFF);
 	static int counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
 	std::memset(counts, 0, sizeof(counts));
@@ -3060,6 +3313,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 		bool has_death_clip = v.anim && v.anim->has_animation(clip_name(CLIP_DEATH));
 		if (v.anim) {
+			ensure_form_clip(v.anim, want.clip);
 			ClipId play = resolve_clip_fallback(v.anim, want.clip);
 			// A borrowed Death is an idle standing in for a corpse; never loop it.
 			bool loop_clip = want.loop && play == want.clip;
@@ -3232,7 +3486,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		// Models face -z unrotated, so the sim's 0 A.D. rotation is offset by DEFAULT_BUILDING_ROT.
 		v.root->set_transform(Transform3D(Basis(Vector3(0, 1, 0), b.rot - rtso::Simulation::DEFAULT_BUILDING_ROT),
 				Vector3(b.x, base_y, b.z)));
-		set_building_site_visible(v, v.phase == 1 || v.phase == 2, v.phase == 2, b.type);
+		{
+			const auto &site = rtso::ModelLibrary::get(cat_b, mid);
+			set_building_site_visible(v, v.phase == 1 || v.phase == 2, v.phase == 2, b.type, bciv, mid,
+					site.scale > 0.05f ? site.scale : 1.0f);
+		}
 
 		if (Node3D *n3 = Object::cast_to<Node3D>(v.model)) {
 			n3->set_scale(Vector3(b_scale, b_scale, b_scale));

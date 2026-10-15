@@ -96,6 +96,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	AudioStreamPlayer *voice_player = nullptr;
 	AudioStreamPlayer *alarm_player = nullptr;
 	AudioStreamPlayer *sfx_player = nullptr;
+	AudioStreamPlayer *click_player_ = nullptr; // ui_button_click.ogg
+	int ui_clicks_ = 0; // tests: clicks played
+	void hook_ui_click_sounds(Node *n);
 	AudioStreamPlayer *ambient_player = nullptr;
 	AudioStreamPlayer *ambient_wind_player = nullptr;
 	AudioStreamPlayer *ambient_water_player = nullptr;
@@ -668,6 +671,11 @@ public:
 		return attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || turret_mode || repair_mode;
 	}
 	bool armed_target_ok(const Vector3 &at) const;
+	// unit_actions.js "guard" target under the cursor: an own or allied unit (not a selected
+	// one) or structure; 0 when none.
+	uint32_t guard_target_at(const Vector3 &at) const;
+	// unit_actions.js "remove-guard": some selected unit is guarding.
+	bool selection_guarding() const;
 	bool run_armed_click(const Ref<InputEventMouseButton> &press);
 	bool minimap_unit_order(Vector2 world_pos);
 	Dictionary debug_right_line() const {
@@ -710,6 +718,24 @@ public:
 	String placement_failure_text(int result, uint8_t btype, float x, float z) const;
 	Dictionary debug_placement_tip() const;
 	Dictionary debug_cursor_tip();
+	void _on_tree_node_added(Node *n);
+	void _on_ui_click();
+	void _on_ui_click_item(int) { _on_ui_click(); }
+	int debug_ui_clicks() const { return ui_clicks_; }
+	int voices_played_ = 0; // tests: unit voice lines started
+	int debug_voices() const { return voices_played_; }
+	// Tests: the control groups and camera as a save stores them, and setting the camera.
+	Dictionary debug_saved_gui() const {
+		Dictionary d;
+		Array groups;
+		for (int g = 0; g < 10; ++g) groups.push_back(selected_groups[g]);
+		d["groups"] = groups;
+		if (cam_rig) d["camera"] = cam_rig->camera_data();
+		return d;
+	}
+	void debug_set_camera_data(const Dictionary &c) { if (cam_rig) cam_rig->set_camera_data(c); }
+	// Menu.xml: the menu panel hangs under the Menu button.
+	Rect2 menu_button_rect() const { return menu_btn ? menu_btn->get_global_rect() : Rect2(); }
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
@@ -970,6 +996,7 @@ private:
 	void quit_confirmation(const String &kind, bool won = false, bool ask_exit = true);
 	void tick_quit_confirmation();
 	bool write_save_metadata(const String &path, const String &description) const;
+	void restore_saved_gui(const String &path);
 	void write_save_thumbnail(const String &path);
 };
 
