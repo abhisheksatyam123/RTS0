@@ -58,6 +58,13 @@ const LANGUAGE_NAMES := {
 	"uk": "Українська", "zh": "中文 (简体)", "zh_TW": "中文 (繁體)",
 }
 
+## The CJK languages' fonts (0.28 ships Source Han Sans; Noto Sans CJK has the same
+## glyphs), one subset per language by tools/subset_cjk_fonts.py. They load as raw
+## files (the export presets' include_filter) and become the fallback of every UI font
+## while that language is on.
+const CJK_FONT_DIR := "res://assets/fonts/cjk"
+const CJK_LANGS := ["ja", "ko", "zh", "zh_TW"]
+
 const DEFAULT_CURSOR := "res://assets/textures/cursors/default-arrow.png"
 
 var cfg := RtsoUserConfig.new()
@@ -80,6 +87,7 @@ var _hotkeys: RtsoHotkeyConfig
 var last_mouse_grab := false # what mousegrabtoggle last asked for
 var _locale := ""
 var _translation: Translation
+var _cjk_font: FontFile # the current CJK language's font, null otherwise
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -420,6 +428,46 @@ func _apply_locale() -> void:
 			loc = "en"
 	TranslationServer.set_locale(loc)
 	_locale = loc
+	_apply_cjk_font(loc)
+
+## The CJK font file for `loc`, "" for every other language.
+static func cjk_font_path(loc: String) -> String:
+	var lang := loc if CJK_LANGS.has(loc) else loc.get_slice("_", 0)
+	if not CJK_LANGS.has(lang):
+		return ""
+	return "%s/NotoSansCJK-%s-Regular.otf" % [CJK_FONT_DIR, lang]
+
+## The fonts the UI draws with: the theme's regular and bold, and Godot's fallback
+## font that code-built labels use.
+static func ui_fonts() -> Array[Font]:
+	var out: Array[Font] = [ThemeDB.fallback_font]
+	var theme = load("res://assets/themes/zeroad_theme.tres")
+	if theme is Theme:
+		for f in [theme.default_font, theme.get_font("font", "Button")]:
+			if f is Font and not out.has(f):
+				out.append(f)
+	return out
+
+## Puts the language's CJK font behind every UI font (Font.fallbacks), so Chinese,
+## Japanese and Korean text draws with it rather than with the system's fonts.
+func _apply_cjk_font(loc: String) -> void:
+	var path := cjk_font_path(loc)
+	var font: FontFile = null
+	if path != "" and FileAccess.file_exists(path):
+		font = FontFile.new()
+		if font.load_dynamic_font(path) != OK:
+			push_warning("Can't load " + path)
+			font = null
+	for f in ui_fonts():
+		var fb: Array[Font] = f.fallbacks.filter(func(x): return x != _cjk_font)
+		if font:
+			fb.push_front(font)
+		f.fallbacks = fb
+	_cjk_font = font
+
+## The CJK font in use, null when the language needs none.
+func cjk_font() -> FontFile:
+	return _cjk_font
 
 func _make_buses() -> void:
 	for bus in BUSES:
