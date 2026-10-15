@@ -11,12 +11,20 @@ does), and for skins whose actor pairs them with a real normTex writes:
   assets/textures/normal_maps/<normTex>_<w>x<h>.png   RGB, OpenGL convention (green up)
   data/normal_maps.json   {"buildings/barracks_tex0": <res path>}
 
+For actors whose material is a *_parallax* one (model_common.fs USE_PARALLAX),
+--heights also writes the height 0 A.D. keeps in normTex's alpha:
+
+  assets/textures/height_maps/<normTex>_<w>x<h>.png   L, 255 = surface top
+  data/parallax_maps.json   {"buildings/barracks_tex0": {"height": <res path>, "scale": effectSettings.z}}
+
+--heights-only writes just those and leaves the normal maps alone.
+
 0 A.D. samples its normal maps upside down relative to the image as shown
 (ntex green points down the image), so green is flipped for Godot. Flat
 placeholders (default_norm, null textures) and actors whose material has no
 normal mapping (neither *_norm* nor *_parallax*) are skipped.
 
-Usage: python3 tools/extract_normal_maps.py [--ref master] [--only id,id] [--max 512]
+Usage: python3 tools/extract_normal_maps.py [--ref master] [--only id,id] [--max 512] [--heights | --heights-only]
 """
 import argparse
 import concurrent.futures as cf
@@ -35,6 +43,8 @@ import extract_player_masks as M  # noqa: E402  (fetch, glb_images, match_score)
 
 NORM_DIR = "assets/textures/normal_maps"
 OUT_JSON = "data/normal_maps.json"
+HEIGHT_DIR = "assets/textures/height_maps"
+HEIGHT_JSON = "data/parallax_maps.json"
 MATCH_LIMIT = 24.0
 
 
@@ -92,7 +102,10 @@ def main():
     ap.add_argument("--ref", default="master")
     ap.add_argument("--only", default="")
     ap.add_argument("--max", type=int, default=512, help="largest side of a written normal map")
+    ap.add_argument("--heights", action="store_true", help="also write parallax height maps")
+    ap.add_argument("--heights-only", action="store_true", help="write only the parallax height maps")
     args = ap.parse_args()
+    args.heights = args.heights or args.heights_only
     os.chdir(ROOT)
 
     models = json.load(open("assets/models/manifest.json"))["models"]
@@ -117,6 +130,7 @@ def main():
     variant_xml = {}
     norm_of = {}
     votes = {}
+    parallax_mat = {}  # baseTex -> its actor's *_parallax* material
     for xml in actor_xml.values():
         if not xml:
             continue
@@ -146,6 +160,8 @@ def main():
             if base and norm and not is_flat(norm):
                 votes.setdefault(base, {}).setdefault(norm, 0)
                 votes[base][norm] += 1
+                if "parallax" in mat:
+                    parallax_mat[base] = mat
     for base, vs in votes.items():
         norm_of[base] = max(vs.items(), key=lambda kv: kv[1])[0]
 
@@ -161,8 +177,24 @@ def main():
           f"with a normal map {sum(1 for s in need_skins if s in norm_of)}, normal maps fetched "
           f"{sum(1 for x in norm_img.values() if x)}/{len(norms)}")
 
+    # effectSettings.z of each parallax material: model_common.fs's parallax scale.
+    scale_of = {}
+    for mat in set(parallax_mat.values()):
+        xml = M.fetch(args.ref, "art/materials/" + mat)
+        z = 0.0
+        try:
+            for u in ET.fromstring(xml).iter("uniform"):
+                if u.get("name") == "effectSettings":
+                    vals = u.get("value", "").split()
+                    z = float(vals[2]) if len(vals) > 2 else 0.0
+        except (ET.ParseError, TypeError, ValueError):
+            pass
+        scale_of[mat] = z
+
     out = json.load(open(OUT_JSON)) if only and os.path.exists(OUT_JSON) else {}
+    heights = json.load(open(HEIGHT_JSON)) if only and os.path.exists(HEIGHT_JSON) else {}
     written = set()
+    written_h = set()
     unmatched = 0
     for mid, v in sorted(todo.items()):
         cands = [s[5:] for s in v["sources"] if s.startswith("skin:") and skin_img.get(s[5:]) is not None]
@@ -188,17 +220,36 @@ def main():
             k = min(1.0, args.max / max(w, h))
             size = (max(1, int(w * k)), max(1, int(h * k)))
             rel = f"{os.path.splitext(norm)[0]}_{size[0]}x{size[1]}.png"
-            if rel not in written:
-                path = os.path.join(NORM_DIR, rel)
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                to_godot_normal(norm_img[norm], size).save(path, optimize=True)
-                written.add(rel)
-            out[f"{cat}/{base}_{name}"] = "res://" + os.path.join(NORM_DIR, rel)
+            if not args.heights_only:
+                if rel not in written:
+                    path = os.path.join(NORM_DIR, rel)
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    to_godot_normal(norm_img[norm], size).save(path, optimize=True)
+                    written.add(rel)
+                out[f"{cat}/{base}_{name}"] = "res://" + os.path.join(NORM_DIR, rel)
+            mat = parallax_mat.get(best[1])
+            if args.heights and mat and scale_of.get(mat, 0.0) > 0.0:
+                alpha = norm_img[norm].convert("RGBA").getchannel("A")
+                lo, hi = alpha.getextrema()
+                if lo == hi:
+                    continue  # no height in this normTex: parallax would do nothing
+                if rel not in written_h:
+                    path = os.path.join(HEIGHT_DIR, rel)
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    alpha.resize(size, Image.LANCZOS).save(path, optimize=True)
+                    written_h.add(rel)
+                heights[f"{cat}/{base}_{name}"] = {"height": "res://" + os.path.join(HEIGHT_DIR, rel), "scale": scale_of[mat]}
 
-    with open(OUT_JSON, "w") as f:
-        json.dump(out, f, indent=0, sort_keys=True)
-        f.write("\n")
-    print(f"{len(out)} images with a normal map, {len(written)} normal map files, {unmatched} images matched no skin")
+    if not args.heights_only:
+        with open(OUT_JSON, "w") as f:
+            json.dump(out, f, indent=0, sort_keys=True)
+            f.write("\n")
+        print(f"{len(out)} images with a normal map, {len(written)} normal map files, {unmatched} images matched no skin")
+    if args.heights:
+        with open(HEIGHT_JSON, "w") as f:
+            json.dump(heights, f, indent=0, sort_keys=True)
+            f.write("\n")
+        print(f"{len(heights)} images with a parallax height map, {len(written_h)} height map files")
 
 
 if __name__ == "__main__":
