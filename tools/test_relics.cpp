@@ -313,7 +313,10 @@ int main() {
 		// male citizens alike, 0.28's "Civilian" class) gather 15% slower.
 		give_relic(s, CIV_KUSHITES, 0);
 		run(s, 1.0f);
-		CHECK(std::fabs(s.tech_mods(1).gather[UNIT_FEMALE_CITIZEN][Simulation::GK_WOOD] - 0.85f) < 1e-5f);
+		// (Support units that are no Civilian, such as female citizens, keep theirs.)
+		const uint16_t civilian1 = civ_default_template(s.civ_of(1), UNIT_FEMALE_CITIZEN);
+		CHECK(std::fabs(s.unit_tech_mods(1, UNIT_FEMALE_CITIZEN, civilian1).gather[Simulation::GK_WOOD] - 0.85f) < 1e-5f);
+		CHECK(s.tech_mods(1).gather[UNIT_FEMALE_CITIZEN][Simulation::GK_WOOD] == 1.0f);
 		CHECK(s.tech_mods(0).gather[UNIT_FEMALE_CITIZEN][Simulation::GK_WOOD] == 1.0f);
 		CHECK(s.tech_mods(2).gather[UNIT_FEMALE_CITIZEN][Simulation::GK_WOOD] == 1.0f); // player 0's ally
 		CHECK(std::fabs(s.tech_mods(1).gather[UNIT_VILLAGER][Simulation::GK_WOOD] - 0.85f) < 1e-5f);

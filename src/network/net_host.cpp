@@ -203,6 +203,7 @@ bool NetHost::startClient(const std::string &h, uint16_t p) {
 	kicked_self_ = false;
 	banned_self_ = false;
 	disconnect_reason_ = -1;
+	host_software_version_.clear();
 	next_seq_ = 1;
 	peers_.clear();
 	pending_acks_.clear();
@@ -527,7 +528,7 @@ void NetHost::sendHandshake() {
 void NetHost::sendAuthenticate(const std::string &name, const std::string &password) {
 	AuthenticateMsg am;
 	am.name = name;
-	am.password = password;
+	am.password = password.empty() || !password_hasher_ ? password : password_hasher_(password, name);
 	std::vector<uint8_t> payload = NetPacketSerializer::frame_authenticate(am);
 	std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_AUTHENTICATE, 0, payload);
 	broadcastCommand(msg.data(), msg.size());
@@ -1008,6 +1009,7 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 		if (NetPacketSerializer::parse_authenticate(msg.payload.data(), msg.payload.size(), auth)) {
 			NetPeer *p = getPeer(peerId);
 			if (isHost() && p && !p->is_authenticated && !p->kick_disconnect_ms) {
+				const std::string sent_name = auth.name; // the password's salt, before any dedupe
 				// 0 A.D. NetServer::OnAuthenticate: a name already in the game is
 				// refused, or with network.duplicateplayernames made unique
 				// (DeduplicatePlayerName); unnamed (test) clients are left alone.
@@ -1031,7 +1033,8 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 						failed >= FAILED_PASSWORD_TRIES_BEFORE_BAN) {
 					res.code = ARC_BANNED;
 					res.message = "You have been banned from this game";
-				} else if (!password_.empty() && auth.password != password_) {
+				} else if (!password_.empty() &&
+						auth.password != (password_hasher_ ? password_hasher_(password_, sent_name) : password_)) {
 					++failed;
 					res.code = ARC_PASSWORD_INVALID;
 					res.message = "Wrong password";
@@ -1097,6 +1100,12 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 				}
 			}
 		}
+	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_SERVER_HANDSHAKE)) {
+		// The host's engine version, for 0.28's mismatch detail (network.js
+		// getMismatchMessage) should the host refuse this one.
+		ServerHandshakeMsg shm;
+		if (isClient() && NetPacketSerializer::parse_server_handshake(msg.payload.data(), msg.payload.size(), shm))
+			host_software_version_ = shm.engine_version;
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_SERVER_HANDSHAKE_RESPONSE)) {
 		if (isClient()) {
 			if (!peers_.empty()) peers_[0].connected = true;

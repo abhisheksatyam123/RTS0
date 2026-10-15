@@ -1,7 +1,8 @@
 // 0 A.D. gates (Gate.js): a wall across the map with one gate. The owner's units
 // open it and walk through; an enemy is kept out; a locked gate keeps everyone
 // out; a gate doesn't close on a unit standing in it; lock state reaches the nav
-// grid, open/closed doesn't; save/load and the lockstep hash cover both flags.
+// grid, open/closed doesn't; save/load and the lockstep hash cover both flags. Only the Door
+// opens: the gate's Left and Right parts keep blocking.
 //   g++ -std=c++20 -O2 -Isrc tools/test_gates.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_gates && /tmp/test_gates
@@ -250,6 +251,43 @@ int main() {
 		s.spawn_fauna(g->x + g->hu + 0.5f, 1.0f, FAUNA_SHEEP, 0);
 		run(s, 0.4f);
 		CHECK(find_bld(s, gate)->gate_open);
+	}
+
+	// 13. Gate.js switches only the Door shape: an open gate's Left and Right parts keep blocking
+	// movement and pathfinding. A Han gate's door is 8 of its 36 m (han/wall_gate.xml).
+	{
+		s.set_sim_seed(5);
+		s.reset();
+		s.player(0).active = 1, s.player(0).is_ai = 0;
+		s.player(0).civ = CIV_HAN;
+		s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t gate = s.spawn_map_wall_piece(0, WALLSET_STONE, Simulation::MAP_WALL_GATE, 10.0f, 10.0f, 0.0f, 9.0f);
+		const auto *g = find_bld(s, gate);
+		CHECK(g && g->type == BLD_GATE && g->civ == CIV_HAN);
+		auto parts = [&](float *hu_sum) {
+			int n = 0;
+			*hu_sum = 0.0f;
+			for (const auto &o : s.steer_obstacles_) if (o.id == gate) { ++n; *hu_sum += o.hu; }
+			return n;
+		};
+		const uint32_t far = s.spawn_unit(-30.0f, -30.0f, 0, UNIT_SPEARMAN); // units moving: the obstacle lists are built
+		s.cmd_move(&far, 1, -28.0f, -30.0f);
+		run(s, 0.2f);
+		float closed_hu = 0.0f;
+		const int closed = parts(&closed_hu);
+		s.spawn_unit(g->x, g->z + g->hv + 1.0f, 0, UNIT_SPEARMAN);
+		run(s, 0.4f);
+		g = find_bld(s, gate);
+		float open_hu = 0.0f;
+		const int open = parts(&open_hu);
+		const float door = g->hu * 8.0f / 36.0f, side_x = g->x + g->ux * 0.5f * (g->hu + door), side_z = g->z + g->uz * 0.5f * (g->hu + door);
+		auto [scx, scz] = s.nav_grid_.world_to_cell(side_x, side_z);
+		auto [ccx, ccz] = s.nav_grid_.world_to_cell(g->x, g->z);
+		std::printf("  open Han gate: %d part(s) block (%.2f of %.2f half-length), side navcell %s, centre %s\n", open,
+				open_hu, closed_hu, s.nav_grid_.cells.at(scx, scz) == NAV_OBSTRUCTED ? "blocked" : "open",
+				s.nav_grid_.cells.at(ccx, ccz) == NAV_OBSTRUCTED ? "blocked" : "open");
+		CHECK(g->gate_open && closed == 1 && std::fabs(closed_hu - g->hu) < 1e-3f && open == 2 && std::fabs(open_hu - (g->hu - door)) < 1e-3f);
+		CHECK(s.nav_grid_.cells.at(scx, scz) == NAV_OBSTRUCTED && s.nav_grid_.cells.at(ccx, ccz) != NAV_OBSTRUCTED);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
