@@ -18928,7 +18928,41 @@ void Simulation::petra_staff_foundations() {
 	// Builders path around buildings now (VertexPathfinder steering), so this
 	// only catches foundations nobody can reach; 0 A.D. has no such timer.
 	constexpr float kStallRelease = 40.0f;
-	struct Need { uint32_t id; float x, z; int missing; PetraFoundationWatch *watch; uint16_t land; };
+	auto is_anchor = [](uint8_t t) { return is_civic_centre(t) || t == BLD_MILITARY_COLONY; };
+	// baseManager.js:1131 update: a constructing base's anchor in a foe's territory, within
+	// 8000 m² (22.4 units) of that player's civic centre, is destroyed.
+	{
+		std::vector<uint32_t> doomed;
+		for (const Building &b : buildings_) {
+			if (b.team != petra_pid_ || b.build_progress >= 1.0f || b.hp <= 0.0f || b.wrecked || !is_anchor(b.type)) continue;
+			const int owner = territory_owner_at(b.x, b.z);
+			if (owner < 0 || owner >= MAX_PLAYERS || owner == petra_pid_ || is_ally(petra_pid_, (uint8_t)owner)) continue;
+			for (const Building &c : buildings_) {
+				if (c.team != owner || c.hp <= 0.0f || c.wrecked || !is_anchor(c.type)) continue;
+				const float dx = c.x - b.x, dz = c.z - b.z;
+				if (dx * dx + dz * dz <= 8000.0f / 16.0f) { doomed.push_back(b.id); break; }
+			}
+		}
+		if (!doomed.empty()) cmd_delete(petra_pid_, doomed.data(), doomed.size());
+	}
+	// baseManager.js:812 assignToFoundations: while a base is constructing, only its anchor is
+	// built. A foundation belongs to the base of the nearest anchor on its land (built or not);
+	// one whose base's anchor is still a foundation gets no builders, and its builders move on
+	// to that anchor.
+	auto constructing_anchor = [&](const Building &f) -> uint32_t {
+		if (is_anchor(f.type)) return 0;
+		const uint16_t land = petra_access_at(f.x, f.z);
+		const Building *best = nullptr;
+		float best_d2 = 1e30f;
+		for (const Building &a : buildings_) {
+			if (a.team != petra_pid_ || a.hp <= 0.0f || a.wrecked || !is_anchor(a.type)) continue;
+			if (petra_access_at(a.x, a.z) != land) continue;
+			const float dx = a.x - f.x, dz = a.z - f.z;
+			if (dx * dx + dz * dz < best_d2) { best_d2 = dx * dx + dz * dz; best = &a; }
+		}
+		return best && best->build_progress < 1.0f ? best->id : 0;
+	};
+	struct Need { uint32_t id; float x, z; int missing; PetraFoundationWatch *watch; uint16_t land; uint32_t anchor; };
 	std::vector<Need> needs;
 	std::vector<PetraFoundationWatch> watch;
 	watch.reserve(petra_fnd_watch_.size() + 4);
@@ -18974,7 +19008,7 @@ void Simulation::petra_staff_foundations() {
 				if (o.team == petra_pid_ && building_research_base(o.type) == kind && o.build_progress >= 1.0f && o.hp > 0.0f && !o.wrecked) { stands = true; break; }
 			if (!stands) want = 7;
 		}
-		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0});
+		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0, constructing_anchor(b)});
 	}
 
 	const std::unordered_set<uint32_t> launched = petra_launched_units();
@@ -18986,6 +19020,13 @@ void Simulation::petra_staff_foundations() {
 		if (units_.action_state[i] != ACTION_BUILD) continue;
 		for (auto &n : needs) {
 			if (n.id != units_.target_building_id[i]) continue;
+			if (n.anchor) {
+				const uint32_t uid = units_.id[i];
+				order_build_or_repair(&uid, 1, n.anchor);
+				for (auto &a : needs)
+					if (a.id == n.anchor) { --a.missing; ++building; }
+				break;
+			}
 			if (n.watch->stall >= kStallRelease) {
 				// Our movement only paths MOVE orders, so a builder blocked by
 				// terrain never arrives; free it and try a different worker.
@@ -19054,7 +19095,11 @@ void Simulation::petra_staff_foundations() {
 	for (auto &n : needs) {
 		const int wanted = n.missing;
 		const Building &nb = buildings_[building_id_to_idx_.at(n.id)];
-		if (n.missing <= 0 || near_invaders(nb)) continue;
+		if (n.missing <= 0 || n.anchor || near_invaders(nb)) continue;
+		// entityExtend.js isNotWorthBuilding: an own-territory-only structure on land we no
+		// longer hold gets no builders.
+		if (territory_owner_at(nb.x, nb.z) != petra_pid_ && build_restriction(nb.type, civ_of(petra_pid_)).territory == TERR_OWN)
+			continue;
 		int budget = budget_for(nb);
 		while (n.missing > 0 && budget > 0) {
 			const int best = pick_worker(n, n.land, none);
@@ -20422,12 +20467,13 @@ void Simulation::petra_manage_fields() {
 			}
 			if (want && petra_place_generic(BLD_FIELD, PETRA_Q_FIELD, nullptr, at)) { ++fields; ++field_foundations; }
 		}
-		if (!save_space) return; // needCorral: only a small starting land wants a corral as well
+		// needCorral: a small starting land, or a wood-poor start, wants a corral as well
+		if (!save_space && !petra_kept_.need_corral) return;
 	}
 	if (corrals == 0) {
 		if (!can_build(BLD_CORRAL)) return;
 		for (const BaseFood &bf : bases) {
-			if (!bf.by || !(bf.count < 900.0f || save_space)) continue;
+			if (!bf.by || !(bf.count < 900.0f || save_space || petra_kept_.need_corral)) continue;
 			const float at[2] = {bf.by_x, bf.by_z};
 			if (petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL, nullptr, at)) break;
 		}
@@ -21779,6 +21825,11 @@ void Simulation::petra_config_first_base() {
 		if (small_land) petra_kept_.need_fish = true;
 		else petra_kept_.need_farm = true;
 	}
+	// startingStrategy.js:493: with under 2000 starting wood, a corral instead of the first field.
+	if (petra_kept_.need_farm && petra_starting_wood(cc->x, cc->z) < 2000.0f) {
+		petra_kept_.need_corral = true;
+		petra_kept_.need_farm = false;
+	}
 }
 
 void Simulation::petra_manage_naval(float dt) {
@@ -22288,8 +22339,8 @@ void Simulation::petra_build_advanced() {
 			if (b.team == petra_pid_ && b.type == t && b.hp > 0.0f && !b.wrecked) ++n;
 		return n;
 	};
-	auto build = [&](uint8_t t) {
-		const uint32_t bid = petra_place_generic(t, PETRA_Q_MILITARY_BUILDING, nullptr, nullptr, true); // militaryBase
+	auto build = [&](uint8_t t, bool military_base = true) {
+		const uint32_t bid = petra_place_generic(t, PETRA_Q_MILITARY_BUILDING, nullptr, nullptr, military_base);
 		if (!bid) return;
 		auto idle = petra_idle_builders();
 		if (!idle.empty()) petra_order_builders(idle, 3, bid);
@@ -22312,7 +22363,7 @@ void Simulation::petra_build_advanced() {
 		if (civ_can_build(civ, t)) advanced.push_back(t);
 	// canBuild: one its EntityLimits refuse is skipped (the Mauryan Pillar only
 	// stands while Ashoka lives), so Petra goes on to the next.
-	const int pop = pop_current(petra_pid_);
+	const int pop = petra_accounted_population();
 	if (pop < 80 || advanced.empty()) return;
 	int n = 0;
 	for (uint8_t t : advanced) n += count(t);
@@ -22322,7 +22373,9 @@ void Simulation::petra_build_advanced() {
 		// Petra seeks sites in its own territory only, where Rome's army camp (neutral or
 		// enemy land) is refused, so it goes on to the next structure.
 		if (!(build_restriction(t, civ_of(petra_pid_)).territory & TERR_OWN)) continue;
-		build(t);
+		// headquarters.js:1770: militaryBase only for one with defensive fire or trainable units;
+		// a theatre or library takes the normal site.
+		build(t, civ_building_ai_info(civ, t).shoots() || trains_at(t));
 		return;
 	}
 }
@@ -24152,6 +24205,18 @@ bool Simulation::petra_plan_blocked(const AttackPlan &plan) const {
 // headquarters.js gameStart + attackManager.js setRushes: Petra plans village
 // rushes only when its base has wood to spare (one per 3000 above 8500) and
 // its personality is aggressive enough; a long ceasefire rules them out.
+float Simulation::petra_starting_wood(float x, float z) const {
+	float wood = petra_ps().res[RES_WOOD];
+	const uint16_t land = petra_access_at(x, z);
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.type[r] != RES_WOOD) continue;
+		const float dx = resources_.x[r] - x, dz = resources_.z[r] - z;
+		if (dx * dx + dz * dz < 90.0f * 90.0f && petra_access_at(resources_.x[r], resources_.z[r]) == land)
+			wood += resources_.amount[r];
+	}
+	return wood;
+}
+
 void Simulation::petra_set_rushes() {
 	auto &m = petra_attack_mgr_;
 	m.rushes_set = 1;
@@ -24162,14 +24227,7 @@ void Simulation::petra_set_rushes() {
 	// base's dropsite supplies, i.e. trees on the civic centre's own land (assignResourceToDropsite
 	// skips other land accesses, so another island's trees don't count) within
 	// maxDistResourceSquare, 360 m.
-	float wood = petra_ps().res[RES_WOOD];
-	const uint16_t land = petra_access_at(base->x, base->z);
-	for (size_t r = 0; r < resources_.count; ++r) {
-		if (!resources_.alive[r] || resources_.type[r] != RES_WOOD) continue;
-		const float dx = resources_.x[r] - base->x, dz = resources_.z[r] - base->z;
-		if (dx * dx + dz * dz < 90.0f * 90.0f && petra_access_at(resources_.x[r], resources_.z[r]) == land)
-			wood += resources_.amount[r];
-	}
+	const float wood = petra_starting_wood(base->x, base->z);
 	// startingStrategy.js gameStart: under 6000 wood, saveResources and an earlier town phase.
 	m.save_resources = wood < 6000.0f ? 1 : 0;
 	int allowed = (int)std::ceil((wood - 8500.0f) / 3000.0f);
@@ -25796,10 +25854,6 @@ void Simulation::petra_manage_raid(float dt) {
 }
 
 void Simulation::petra_manage_opening(float dt) {
-	if (petra_config_.difficulty == PETRA_SANDBOX) {
-		petra_opening_step_ = 4;
-		return;
-	}
 	if (petra_ps().phase > 1 || petra_opening_step_ >= 4) return;
 
 	petra_opening_timer_ += dt;
