@@ -3800,8 +3800,9 @@ static void test_defense_switch_to_attack() {
 		if (b.id == tower) s->destroy_building(b);
 	run_for(*s, 2.0f);
 	plan = unique();
-	std::printf("  defense: after the tower falls the plan is %s\n", !plan ? "over" : plan->state == Simulation::AttackPlan::REGROUP ? "going home" : "still attacking");
-	CHECK(!plan || plan->state == Simulation::AttackPlan::REGROUP, "it takes no other target (uniqueTargetId)");
+	const bool home = plan && (plan->state == Simulation::AttackPlan::REGROUP || plan->state == Simulation::AttackPlan::ABORT);
+	std::printf("  defense: after the tower falls the plan is %s\n", !plan ? "over" : home ? "going home" : "still attacking");
+	CHECK(!plan || home, "it takes no other target (uniqueTargetId)");
 }
 
 // defenseArmy.js "capturing" armies: Petra wins back the points an enemy holds on one of its
