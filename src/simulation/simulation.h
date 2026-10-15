@@ -3187,7 +3187,8 @@ private:
 	void petra_move_dropsites_to_gatherers(); // worker.js moveToGatherer for mobile dropsites
 	void petra_cancel_attacks_against(uint8_t player); // attackManager.js cancelAttacksAgainstPlayer
 	// navalManager.requireTransport for a worker: ship it from its land to a supply's on another.
-	bool petra_require_worker_transport(size_t unit_idx, uint16_t from_land, uint16_t to_land, float to_x, float to_z);
+	bool petra_require_worker_transport(size_t unit_idx, uint16_t from_land, uint16_t to_land, float to_x, float to_z,
+	                                    uint8_t owner = PETRA_TRANSPORT_WORKERS);
 	void petra_retreat_critical_ent(size_t unit_idx, bool emergency, std::vector<int> &incoming);
 	void petra_manage_critical_ent_guards();
 	void petra_manage_critical_ent_healers();

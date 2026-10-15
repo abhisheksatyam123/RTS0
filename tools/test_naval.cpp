@@ -181,7 +181,8 @@ static void test_petra_sea_trade() {
 }
 
 // tradeManager.js updateTrader: a land trader whose land has no route asks for a ship
-// (navalManager.requireTransport) to the nearer end of the best route on another land.
+// (navalManager.requireTransport) to the nearer end of the best route on another land. A second
+// trader there joins the same crossing while the ship boards.
 static void test_petra_trader_transport() {
 	static Simulation s;
 	fresh(s);
@@ -192,21 +193,27 @@ static void test_petra_trader_transport() {
 	s.spawn_building_world(-50.0f, 52.0f, BLD_MARKET, 1);
 	s.spawn_building_world(30.0f, 52.0f, BLD_MARKET, 1);
 	const uint32_t trader = s.spawn_unit(-30.0f, -40.0f, 1, UNIT_TRADER);
+	const uint32_t second = s.spawn_unit(-26.0f, -40.0f, 1, UNIT_TRADER);
 	s.spawn_unit(-30.0f, -10.0f, 1, UNIT_TRIREME);
-	bool planned = false;
-	for (int t = 0; t < 40 && !planned; ++t) {
+	bool planned = false, joined = false;
+	for (int t = 0; t < 40 && !(planned && joined); ++t) {
 		run(s, 1.0f);
-		for (const auto &tp : s.petra_transports_)
-			if (tp.owner == PETRA_TRANSPORT_TRADER && std::find(tp.passenger_ids.begin(), tp.passenger_ids.end(), trader) != tp.passenger_ids.end())
-				planned = true;
+		for (const auto &tp : s.petra_transports_) {
+			if (tp.owner != PETRA_TRANSPORT_TRADER) continue;
+			const auto has = [&](uint32_t id) { return std::find(tp.passenger_ids.begin(), tp.passenger_ids.end(), id) != tp.passenger_ids.end(); };
+			planned |= has(trader);
+			joined |= has(trader) && has(second);
+		}
 	}
 	bool routed = false;
 	for (int t = 0; t < 120 && !routed; ++t) {
 		run(s, 1.0f);
 		routed = s.trader_routes_.count(trader) && s.units_.action_state[s.lookup_unit(trader)] == ACTION_TRADE;
 	}
-	std::printf("Petra trader on the other land: transport %s, trading %s\n", planned ? "yes" : "no", routed ? "yes" : "no");
+	std::printf("Petra trader on the other land: transport %s, second trader on board %s, trading %s\n", planned ? "yes" : "no",
+	            joined ? "yes" : "no", routed ? "yes" : "no");
 	CHECK(planned);
+	CHECK(joined);
 	CHECK(routed);
 }
 

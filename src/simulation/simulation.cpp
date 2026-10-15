@@ -19338,8 +19338,11 @@ int Simulation::petra_target_traders() const {
 	float demand[RES_COUNT];
 	petra_resource_demand(demand);
 	const PlayerState &ps = petra_ps();
+	// setTradingGoods' wantedGatherRates (the economy's want_rate this turn; before it has run,
+	// the shortfall over 30 s). 0 A.D. holds the result for 60 AI turns (saved); here it is live.
+	const bool rates = petra_rates_this_turn();
 	for (uint8_t r : {RES_WOOD, RES_STONE, RES_GOLD}) {
-		const float wanted_rate = std::max(0.0f, demand[r] - ps.res[r]) / 30.0f;
+		const float wanted_rate = rates ? petra_want_rate_[r] : std::max(0.0f, demand[r] - ps.res[r]) / 30.0f;
 		if (ps.res[r] < 200.0f) target += std::min(5, 3 + (int)std::ceil(wanted_rate / 30.0f));
 		else if (ps.res[r] < 500.0f) target += 2;
 		else if (ps.res[r] < 1000.0f) target += 1;
@@ -19586,8 +19589,7 @@ void Simulation::petra_manage_trading(float dt) {
 						const float px = units_.pos_x[i], pz = units_.pos_z[i];
 						const Building &end = (s.x - px) * (s.x - px) + (s.z - pz) * (s.z - pz) <=
 						                      (t.x - px) * (t.x - px) + (t.z - pz) * (t.z - pz) ? s : t;
-						const uint16_t sea = topo.sea_between(access, r->land);
-						if (sea) petra_start_transport({uid}, px, pz, end.x, end.z, sea, PETRA_TRANSPORT_TRADER);
+						petra_require_worker_transport(i, access, r->land, end.x, end.z, PETRA_TRANSPORT_TRADER);
 					}
 				}
 				continue;
@@ -20045,16 +20047,17 @@ size_t Simulation::petra_go_home(const std::vector<uint32_t> &squad, float x, fl
 	return n_away;
 }
 
-// navalManager.requireTransport for a worker: it joins our workers' crossing from its land to
-// that one while the ship still boards, or a new crossing starts (one at a time, on a ship
-// already on that sea).
-bool Simulation::petra_require_worker_transport(size_t i, uint16_t from_land, uint16_t to_land, float to_x, float to_z) {
+// navalManager.requireTransport for a worker (or, with `owner`, a trader): it joins our crossing
+// of that kind from its land to that one while the ship still boards, or a new crossing starts
+// (one of each kind at a time, on a ship already on that sea).
+bool Simulation::petra_require_worker_transport(size_t i, uint16_t from_land, uint16_t to_land, float to_x, float to_z,
+                                                uint8_t owner) {
 	const uint32_t uid = units_.id[i];
 	if (!from_land || !to_land || from_land == to_land || petra_passenger(uid) || petra_aboard(uid)) return false;
 	uint16_t home = 0;
 	const PetraNavalTopo &topo = petra_classified_topo(home);
 	for (auto &tp : petra_transports_) {
-		if (tp.owner != PETRA_TRANSPORT_WORKERS) continue;
+		if (tp.owner != owner) continue;
 		if (tp.state != PetraTransportPlan::BOARDING || petra_land_at(tp.pickup_x, tp.pickup_z) != from_land ||
 		    petra_land_at(tp.drop_x, tp.drop_z) != to_land || !tp.ship_id ||
 		    tp.passenger_ids.size() >= (size_t)get_transport_capacity(tp.ship_id))
@@ -20067,7 +20070,7 @@ bool Simulation::petra_require_worker_transport(size_t i, uint16_t from_land, ui
 	}
 	const uint16_t sea = topo.sea_between(from_land, to_land);
 	if (!sea) return false;
-	return petra_start_transport({uid}, units_.pos_x[i], units_.pos_z[i], to_x, to_z, sea, PETRA_TRANSPORT_WORKERS);
+	return petra_start_transport({uid}, units_.pos_x[i], units_.pos_z[i], to_x, to_z, sea, owner);
 }
 
 const PetraTransportPlan *Simulation::petra_transport_for(uint8_t owner) const {
