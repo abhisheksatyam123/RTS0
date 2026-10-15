@@ -33,7 +33,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G23 | The chat window is a corner box with extra buttons, and Tab doesn't complete player names | low | B |
 | G24 | Circular maps show an extra 8 m ring past 0.28's edge; square maps have no 12 m edge frame | low | A |
 | G25 | Livestock that an easier Petra breeds skips the AI training-time handicap | low | A |
-| G26 | In multiplayer setup, a "Random" map shows the real map to every client at once (0.28 resolves it at launch) | low | Multiplayer |
+| G26 | ~~In multiplayer setup, a "Random" map shows the real map to every client at once (0.28 resolves it at launch)~~ Fixed by #1084: clients and the game list see "Random" until Start | low | Multiplayer |
 | G27 | -autostart-aiseed seeds only the AI personalities; Petra's other draws use the match's random stream | low | C |
 | G28 | The developer overlay lacks Control all units and the culling boxes | low | Stats |
 | G29 | Corinthian Isthmus is squeezed to 512 tiles; Continental is an RTS0 layout; 0.28's map-specific biomes and the Isthmus/Miletus vision revealers are missing | low | F |
