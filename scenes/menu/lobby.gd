@@ -143,6 +143,8 @@ func _build() -> void:
 	header.add_child(title)
 	header.add_child(_button("Leaderboard", _on_leaderboard_pressed))
 	header.add_child(_button("Player Profile Lookup", _on_lookup_pressed))
+	# LobbyPage.xml: "Account settings" (AccountSettingsPage).
+	header.add_child(_button("Account settings", _on_account_pressed))
 	header.add_child(_button("Back" if dialog else "Main Menu", _on_back_pressed))
 
 	var login := HBoxContainer.new()
@@ -433,6 +435,72 @@ func _build_lookup() -> AcceptDialog:
 		_lookup_values[r[0]] = _label(NOT_AVAILABLE)
 		_lookup_grid.add_child(_lookup_values[r[0]])
 	return dlg
+
+
+## AccountSettingsPage.xml: the new password twice, the request's result, and
+## Close / Change password.
+func _on_account_pressed() -> void:
+	if not LobbySession.signed_in():
+		_say("Sign in to change your account settings.")
+		return
+	var dlg := AcceptDialog.new()
+	dlg.name = "AccountSettings"
+	dlg.title = "Account settings"
+	dlg.ok_button_text = "Close"
+	dlg.min_size = Vector2i(460, 280)
+	var box := VBoxContainer.new()
+	dlg.add_child(box)
+	box.add_child(_label("New password:"))
+	var pw := _line("", 0)
+	pw.name = "Password"
+	pw.secret = true
+	box.add_child(pw)
+	box.add_child(_label("Confirm new password:"))
+	var pw2 := _line("", 0)
+	pw2.name = "PasswordConfirm"
+	pw2.secret = true
+	box.add_child(pw2)
+	var result := _label("")
+	result.name = "RequestResult"
+	box.add_child(result)
+	var change := dlg.add_button("Change password", true, "change")
+	dlg.custom_action.connect(func(_a: StringName) -> void: _change_password(pw.text, pw2.text, result, change))
+	dlg.confirmed.connect(dlg.queue_free)
+	dlg.canceled.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered()
+	pw.grab_focus()
+
+
+## AccountSettingsPage._changePassword: check the length and the confirmation,
+## ask the lobby, then keep lobby.password only when it is remembered.
+func _change_password(new_pass: String, confirm: String, result: Label, button: Button) -> void:
+	var fail := func(text: String) -> void:
+		result.add_theme_color_override("font_color", Color.RED)
+		result.text = text
+	result.add_theme_color_override("font_color", Color.WHITE)
+	result.text = "Changing password…"
+	if new_pass.length() < LobbySession.MIN_PASSWORD_LENGTH:
+		fail.call("Please choose a longer password")
+		return
+	if confirm != new_pass:
+		fail.call("Passwords do not match")
+		return
+	var encrypted: String = LobbySession.encrypt_password(new_pass, LobbySession.player_name)
+	button.disabled = true
+	LobbySession.change_password(encrypted, func(code: int, obj) -> void:
+		if not is_instance_valid(result):
+			return
+		button.disabled = false
+		if code == 0:
+			fail.call("Request timed out.")
+		elif code != 200:
+			fail.call(str(obj.get("error", "Error")) if obj is Dictionary else "Error")
+		else:
+			result.text = "Password changed successfully."
+			var cfg := RtsoUserConfig.new()
+			cfg.set_value("lobby.password", encrypted if cfg.get_bool("lobby.rememberpassword") else "")
+			cfg.save())
 
 
 func _on_lookup_pressed() -> void:
@@ -751,7 +819,8 @@ func _game_sort_value(r: Dictionary, column: String) -> Variant:
 			return int(r.get("max_players", MAX_PLAYERS))
 		"gameRating":
 			return _room_rating(r)
-	return "%d%s" % [GAME_STATES.find(str(r.get("state", "init"))), game_title(r).to_lower()]
+	# compatibility + state + name, as Game.js sortValues.gameName.
+	return "%s%d%s" % [str(LobbySession.game_compatible(r)), GAME_STATES.find(str(r.get("state", "init"))), game_title(r).to_lower()]
 
 
 static func game_title(r: Dictionary) -> String:
@@ -799,7 +868,9 @@ func _show_rooms() -> void:
 		var it := _games.create_item(top)
 		it.set_text(0, (BUDDY_SYMBOL + " " if room_buddies(r, buddy_list) else "") + game_title(r)
 			+ (" (password)" if int(r.get("password", 0)) else ""))
-		it.set_custom_color(0, STATE_COLORS.get(str(r.get("state", "init")), STATE_COLORS["init"]))
+		# Game.js IncompatibleTags: a game needing other mods is grey.
+		it.set_custom_color(0, STATE_COLORS.get(str(r.get("state", "init")), STATE_COLORS["init"])
+			if LobbySession.game_compatible(r) else Color8(128, 128, 128))
 		it.set_text(col.call("Map Name"), game_map_title(r))
 		it.set_text(col.call("Size"), str(r.get("map_size", "")))
 		var type_title := ""
@@ -1303,6 +1374,30 @@ func _on_host_saved_pressed() -> void:
 	_on_host_pressed(true)
 
 
+func _ask_mods(r: Dictionary) -> void:
+	var modlib: GDScript = load("res://scenes/menu/mods.gd")
+	var ask := ConfirmationDialog.new()
+	ask.name = "IncompatibleModsDialog"
+	ask.title = "Incompatible mods"
+	ask.dialog_text = "Your active mods do not match the mods of this game.\n\n" \
+		+ modlib.compared_mods_string(r.get("mods", []) if r.get("mods") is Array else [], modlib.engine_mods()) \
+		+ "\n\nDo you want to switch to the mod selection page?"
+	ask.ok_button_text = "Yes"
+	ask.cancel_button_text = "No"
+	add_child(ask)
+	ask.canceled.connect(ask.queue_free)
+	ask.confirmed.connect(func() -> void:
+		ask.queue_free()
+		# Engine.StopXmppClient, then the mod selection; closing it leaves for the main menu.
+		LobbySession.sign_out()
+		_update_signed_in()
+		var page: Node = load("res://scenes/menu/modmod.gd").open(self)
+		page.tree_exited.connect(func() -> void:
+			if is_inside_tree():
+				MatchSettings.go("res://scenes/menu/main_menu.tscn")))
+	ask.popup_centered()
+
+
 func _on_join_pressed(confirmed := false) -> void:
 	var r := _selected_room()
 	if _join_ip.text.strip_edges() == "" and not r.is_empty():
@@ -1310,6 +1405,10 @@ func _on_join_pressed(confirmed := false) -> void:
 		# signed-in player (0 A.D. XmppClient SendIqGetConnectionData).
 		if not LobbySession.signed_in():
 			_say("Sign in to join a listed game, or type the host's address.")
+			return
+		# JoinButton.js: a game with other mods offers the mod selection instead.
+		if not LobbySession.game_compatible(r):
+			_ask_mods(r)
 			return
 		# JoinButton.js: a running game we are not in is joined only to watch, if we say so.
 		if not confirmed and str(r.get("state", "init")) != "init" and not (r.get("player_names", []) as Array).any(
