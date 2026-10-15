@@ -3642,7 +3642,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			// Custom data reaches the shader raw; the close-up path's source_color
 			// instance uniform is converted to linear, so match it here.
 			const Color pc = player_display_color(sim, uview.team[i]).srgb_to_linear();
-			cmm->set_instance_custom_data(slot, Color(pc.r, pc.g, pc.b, 1.0f));
+			// Alpha 1 + the unit's body skin draw (player_color.gdshader variant_u).
+			cmm->set_instance_custom_data(slot, Color(pc.r, pc.g, pc.b, 1.0f + 0.999f * rtso::ModelLibrary::variant_draw(id)));
 		}
 
 		// StatusBars.js on a selected, highlighted (hovered or band-boxed) or, with
@@ -3683,6 +3684,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		v.yaw = yaw;
 		attach_unit_model(v, utype_str);
 		push_player_color(v.model, v.player_rgba, player_display_color(sim, uview.team[i]));
+		if (v.variant_model != v.model || v.variant_id != id) {
+			rtso::ModelLibrary::set_variant(v.model, rtso::ModelLibrary::variant_draw(id));
+			v.variant_model = v.model;
+			v.variant_id = id;
+		}
 		{
 			const Color sc = player_display_color(sim, uview.team[i]);
 			const int64_t key = silhouettes_ ? (int64_t)sc.to_rgba32() : -2;
