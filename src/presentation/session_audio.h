@@ -111,6 +111,8 @@ inline const std::vector<const char *> &voice_stems(const std::string &action) {
 		{"build", {"build"}},
 		{"repair", {"repair", "build"}},
 		{"gather", {"gather", "work_land", "gather_together", "wood", "mine"}},
+		// 0.28 collect_treasure: greek male As_you_wish, greek female and latin gather_together, persian/kushite gather.
+		{"collect_treasure", {"Asyouwish", "gather_together", "gather"}},
 		{"farm", {"work_land", "gather"}},
 		{"fish", {"fish", "gather"}},
 		{"hunt", {"hunt", "gather"}},
