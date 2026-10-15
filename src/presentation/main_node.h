@@ -937,6 +937,8 @@ private:
 	rtso::RtsoMusic music_;
 	rtso::RtsoSessionAudio session_audio_;
 	uint8_t music_civ_ = 0xFF;
+	uint32_t defeated_heard_ = 0; // players whose defeat this client already heard
+	bool music_primed_ = false;
 	ConfirmationDialog *delete_dialog_ = nullptr; // DeleteSelectionConfirmation
 	PackedInt32Array delete_pending_;
 	void play_alarm(const char *path);
