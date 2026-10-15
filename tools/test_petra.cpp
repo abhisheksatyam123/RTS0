@@ -170,12 +170,16 @@ static void test_roster_army() {
 			if (s->ticks_ % 20 != 0) continue; // once a second
 			// A strong economy can raze the idle player before its siege is out: give
 			// it a new fortress so the siege still has a target to march to and shell.
+			// Only until the siege has done both: a fortress rising in range of siege
+			// that never leaves keeps its attack going (attackPlan.js update ends one
+			// only when its army or targets are gone), and two such attacks block every
+			// later one (attackManager.js), with its hero and champions.
 			bool idle_alive = false;
 			for (const auto &b : s->buildings())
 				if (b.team == 0 && b.hp > 0.0f && !b.wrecked) idle_alive = true;
 			// Garrisoned like the first ones, so Petra shells it rather than capturing a string of
 			// fortresses that each keep 20 of its soldiers inside against decay (TYPE_DECAY).
-			if (!idle_alive) {
+			if (!idle_alive && !(packed_moved && unpacked_fired)) {
 				const uint32_t fort = s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
 				for (int k = 0; k < 10; ++k) {
 					const uint32_t man = s->spawn_unit(18.0f + (float)(k % 5), 31.0f - (float)(k / 5), 0, UNIT_SPEARMAN);
