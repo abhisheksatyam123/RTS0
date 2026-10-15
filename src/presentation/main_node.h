@@ -576,6 +576,21 @@ public:
 	bool debug_placing() const;
 	PackedInt32Array debug_highlight() const { return highlight_ids_; }
 	bool debug_structure_outlined(int64_t id) const;
+	int64_t debug_building_queue(int64_t id) const {
+		if (sim)
+			for (const auto &b : sim->buildings())
+				if (b.id == (uint32_t)id) {
+					int64_t n = 0;
+					for (const auto &q : b.queue) n += q.count > 0 ? q.count : 1;
+					return n;
+				}
+		return -1;
+	}
+	PackedInt32Array debug_selected_structures() const {
+		PackedInt32Array out;
+		for (uint32_t id : selected_structures()) out.push_back((int32_t)id);
+		return out;
+	}
 	int64_t debug_guard_target(int64_t uid) const { return sim ? (int64_t)sim->unit_guard_target((uint32_t)uid) : 0; }
 	Vector2 debug_ground_at(Vector2 screen) const {
 		const Vector3 g = get_ground_click_pos(screen);
@@ -691,6 +706,16 @@ private:
 	void update_hud();
 	void update_inspector();
 	void prune_selection();
+	// selection.js: any number of the player's structures can be selected. selected_building_id
+	// is the first (the one the single-structure panels show), extra_structures_ the others.
+	std::vector<uint32_t> extra_structures_;
+	uint32_t extras_primary_ = 0; // the selected_building_id the extras belong to
+	std::vector<uint32_t> selected_structures() const;
+	void set_selected_structures(const std::vector<uint32_t> &ids);
+	void prune_structure_selection();
+	// getBuildingsWhichCanTrainEntity: the selected structures that train `tmpl` now.
+	std::vector<uint32_t> structure_trainers(uint16_t tmpl, uint32_t holder) const;
+	std::vector<uint32_t> band_box_structures(Vector2 a, Vector2 b) const;
 	uint32_t own_fauna_at(float x, float z) const;
 	void update_command_panel();
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);
@@ -822,6 +847,7 @@ private:
 	void _on_civ_icon_gui_input(const Ref<InputEvent> &event); // CivIcon.onPress
 	void _on_flare_button_pressed(); // MiniMapFlareButton.onPress
 	bool selected_building_trains_units() const; // its Trainer has entities (session.autorallypoint)
+	bool building_trains_units(uint32_t id) const;
 	Dictionary debug_selected_building() const;
 	Dictionary debug_queue_slot(int i);
 	Dictionary debug_minimap_panel() const;

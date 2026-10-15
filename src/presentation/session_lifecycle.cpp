@@ -1010,9 +1010,7 @@ void RtsoMain::_process(double delta) {
 	view->set_local_player(viewer);
 	if (viewer < rtso::MAX_PLAYERS) sim->set_fow_viewer(viewer); // an observer reads the revealed grid
 	{
-		std::vector<uint32_t> sel_blds;
-		if (!sim->cinema_playing() && selected_building_id != 0) sel_blds.push_back(selected_building_id);
-		view->set_selected_buildings(sel_blds);
+		view->set_selected_buildings(sim->cinema_playing() ? std::vector<uint32_t>() : selected_structures());
 	}
 	if (sim->cinema_playing()) {
 		// ICmpSelectable::SetOverrideVisibility(false): no selection rings while a path plays.
@@ -1139,6 +1137,7 @@ void RtsoMain::_process(double delta) {
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
 	}
 	prune_selection();
+	prune_structure_selection();
 	if (!selected_ids.is_empty() || selected_building_id != 0) inspector_.clear();
 	update_inspector();
 	update_command_panel();

@@ -1,0 +1,145 @@
+extends SceneTree
+# selection.js / input.js: several of the player's structures can be selected at once
+# (Shift+click, double-click on a type, a band box with no units in it, Ctrl+click to
+# drop one), each is outlined, and training spreads over every selected structure that
+# trains the unit (addTrainingToQueue, flushTrainingBatch).
+#
+#   godot --headless --path . --fixed-fps 20 -s tools/e2e_multi_structure.gd
+# Exit code 0 = pass.
+
+var main
+var failures := 0
+
+func check(cond: bool, what: String) -> void:
+	print("  ok   " if cond else "  FAIL ", what)
+	if not cond:
+		failures += 1
+
+func _initialize() -> void:
+	main = load("res://scenes/main.tscn").instantiate()
+	root.add_child(main)
+	run.call_deferred()
+
+func frames(n: int) -> void:
+	for i in n:
+		await process_frame
+
+func move(pos: Vector2) -> void:
+	var mm := InputEventMouseMotion.new()
+	mm.position = root.get_final_transform() * pos
+	mm.global_position = mm.position
+	Input.parse_input_event(mm)
+	await frames(1)
+
+func key(code: int, down: bool) -> void:
+	var k := InputEventKey.new()
+	k.keycode = code
+	k.physical_keycode = code
+	k.shift_pressed = down and code == KEY_SHIFT
+	k.ctrl_pressed = down and code == KEY_CTRL
+	k.pressed = down
+	Input.parse_input_event(k)
+	await frames(1)
+
+func left(pos: Vector2, down: bool, double := false) -> void:
+	var mb := InputEventMouseButton.new()
+	mb.button_index = MOUSE_BUTTON_LEFT
+	mb.pressed = down
+	mb.double_click = double
+	mb.position = pos
+	mb.global_position = pos
+	root.push_input(mb, true)
+	await frames(1)
+
+func click(pos: Vector2, double := false) -> void:
+	await move(pos)
+	await left(pos, true, double)
+	await left(pos, false)
+	await frames(2)
+
+func structs() -> Array:
+	return Array(main.debug_selected_structures())
+
+func run() -> void:
+	await frames(60)
+	await move(Vector2(512, 400))
+	var r: Dictionary = main.debug_civic_centre_roof()
+	for i in 200:
+		await frames(1)
+		var r2: Dictionary = main.debug_civic_centre_roof()
+		var still: bool = (r2["roof"] as Vector2).distance_to(r["roof"]) < 0.5
+		r = r2
+		if still and i > 10:
+			break
+	for res in 4:
+		main.debug_set_resource(res, 5000)
+	var b1: int = main.debug_spawn_building(2, -4, -14)
+	var b2: int = main.debug_spawn_building(2, 8, -14)
+	await frames(10)
+	main.debug_select_entity(b2)
+	await frames(2)
+	var s2: Vector2 = main.debug_selected_building()["screen"]
+	main.debug_select_entity(b1)
+	await frames(2)
+	var s1: Vector2 = main.debug_selected_building()["screen"]
+	print("    barracks ", b1, " at ", s1, ", ", b2, " at ", s2)
+
+	print("1. Shift+click adds a structure")
+	await key(KEY_SHIFT, true)
+	await click(s2 + Vector2(0, -12))
+	await key(KEY_SHIFT, false)
+	print("    ", structs())
+	check(structs() == [b1, b2], "both barracks are selected")
+	check(main.debug_structure_outlined(b1) and main.debug_structure_outlined(b2), "both are outlined")
+
+	print("2. Training spreads over them")
+	var rl: ItemList = null
+	for n in main.find_children("*", "ItemList", true, false):
+		if n.is_visible_in_tree() and n.item_count > 0:
+			rl = n
+	var pick := 0
+	for i in rl.item_count:
+		if not rl.is_item_disabled(i):
+			pick = i
+			break
+	main._on_roster_item_clicked(pick, Vector2(), MOUSE_BUTTON_LEFT)
+	await frames(6)
+	print("    queues ", main.debug_building_queue(b1), " ", main.debug_building_queue(b2))
+	check(main.debug_building_queue(b1) == 1 and main.debug_building_queue(b2) == 1, "a click trains one in each")
+	await key(KEY_SHIFT, true)
+	main._on_roster_item_clicked(pick, Vector2(), MOUSE_BUTTON_LEFT)
+	await frames(2)
+	await key(KEY_SHIFT, false)
+	await frames(6)
+	print("    queues ", main.debug_building_queue(b1), " ", main.debug_building_queue(b2))
+	check(main.debug_building_queue(b1) == 6 and main.debug_building_queue(b2) == 6, "a batch of 5 goes to each")
+
+	print("3. Ctrl+click drops one, a plain click selects one alone")
+	await key(KEY_CTRL, true)
+	await click(s2 + Vector2(0, -12))
+	await key(KEY_CTRL, false)
+	check(structs() == [b1], "Ctrl+click removed the second")
+	check(not main.debug_structure_outlined(b2), "and its outline")
+
+	print("4. Double-click selects every barracks on screen")
+	await click(s1 + Vector2(0, -12))
+	await click(s1 + Vector2(0, -12), true)
+	print("    ", structs())
+	check(structs().has(b1) and structs().has(b2), "double-click took both barracks")
+	OS.delay_msec(600) # past the triple-click window
+	await click(s1 + Vector2(0, -12))
+	check(structs() == [b1], "a plain click keeps just the one")
+
+	print("5. A band box with no units takes the structures in it")
+	var lo := Vector2(minf(s1.x, s2.x) - 25, minf(s1.y, s2.y) - 25)
+	var hi := Vector2(maxf(s1.x, s2.x) + 25, maxf(s1.y, s2.y) + 25)
+	await move(lo)
+	await left(lo, true)
+	for k in range(1, 9):
+		await move(lo.lerp(hi, k / 8.0))
+	await left(hi, false)
+	await frames(2)
+	print("    ", structs(), " units ", main.debug_selection_grid(false)["selected"])
+	check(structs().has(b1) and structs().has(b2), "the box selected both barracks")
+	print("FAILURES: ", failures)
+	quit(1 if failures > 0 else 0)
