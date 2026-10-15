@@ -442,9 +442,9 @@ layout_mode = 2
 [node name="SpeedLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/SpeedRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Game speed at the start (the speed button in game still changes it)."
+tooltip_text = "Select game speed."
 mouse_filter = 1
-text = "Speed"
+text = "Game Speed"
 
 [node name="SpeedSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/SpeedRow"]
 unique_name_in_owner = true
