@@ -4288,14 +4288,14 @@
     },
     {
       "id": 2,
-      "team": 1,
+      "team": 0,
       "start_x": 58.21,
       "start_z": 6.25,
       "civ": 2
     },
     {
       "id": 3,
-      "team": 2,
+      "team": 0,
       "start_x": -20.51,
       "start_z": 37.93,
       "civ": 4

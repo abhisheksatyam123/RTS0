@@ -837,13 +837,22 @@ void RtsoMain::debug_attacked(int64_t target, int64_t attacker_owner) {
 	int64_t u = -1;
 	for (size_t i = 0; i < uv.count && u < 0; ++i)
 		if (uv.alive[i] && uv.id[i] == (uint32_t)target) u = (int64_t)i;
-	if (u < 0) return;
 	rtso::Simulation::AttackedEvent e{};
 	e.target_id = (uint32_t)target;
-	e.target_owner = uv.team[u];
 	e.attacker_owner = (uint8_t)attacker_owner;
-	e.x = uv.pos_x[u];
-	e.z = uv.pos_z[u];
+	if (u >= 0) {
+		e.target_owner = uv.team[u];
+		e.x = uv.pos_x[u];
+		e.z = uv.pos_z[u];
+	} else { // an owned animal (livestock)
+		const auto fv = sim->fauna();
+		size_t f = 0;
+		while (f < fv.count && fv.id[f] != (uint32_t)target) ++f;
+		if (f == fv.count) return;
+		e.target_owner = fv.owner[f];
+		e.x = fv.pos_x[f];
+		e.z = fv.pos_z[f];
+	}
 	detect_attacks({e});
 }
 

@@ -14210,6 +14210,67 @@
     ]
    ]
   },
+  "dust_cav": {
+   "add": false,
+   "angle": [
+    -3.14,
+    3.14
+   ],
+   "color": [
+    1.0,
+    1.0
+   ],
+   "force": [
+    0.0,
+    -0.5,
+    0.0
+   ],
+   "growth": 1.0,
+   "life": [
+    4.0,
+    7.0
+   ],
+   "pos": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0
+    ]
+   ],
+   "rate": 6.0,
+   "relative": false,
+   "size": [
+    1.5,
+    5.0
+   ],
+   "spin": [
+    -2.0,
+    2.0
+   ],
+   "start_full": false,
+   "tex": "dust_cav.png",
+   "vel": [
+    [
+     -0.3,
+     0.3
+    ],
+    [
+     2.0,
+     2.5
+    ],
+    [
+     -0.5,
+     0.5
+    ]
+   ]
+  },
   "flame": {
    "add": true,
    "angle": [
@@ -15003,6 +15064,680 @@
     ]
    ]
   }
+ },
+ "run": {
+  "athen_catafalque": [
+   "dust_cav"
+  ],
+  "athen_cavalry": [
+   "dust_cav"
+  ],
+  "athen_cavalry_javelineer_a": [
+   "dust_cav"
+  ],
+  "athen_cavalry_javelineer_b": [
+   "dust_cav"
+  ],
+  "athen_cavalry_javelineer_e": [
+   "dust_cav"
+  ],
+  "athen_cavalry_swordsman_a": [
+   "dust_cav"
+  ],
+  "athen_cavalry_swordsman_e": [
+   "dust_cav"
+  ],
+  "athen_trader": [
+   "dust_cav"
+  ],
+  "athenians_siege_rock_packed": [
+   "dust_cav"
+  ],
+  "athenians_siege_spear_packed": [
+   "dust_cav"
+  ],
+  "brit_cavalry": [
+   "dust_cav"
+  ],
+  "brit_cavalry_javelineer_a": [
+   "dust_cav"
+  ],
+  "brit_cavalry_javelineer_b": [
+   "dust_cav"
+  ],
+  "brit_cavalry_javelineer_e": [
+   "dust_cav"
+  ],
+  "brit_cavalry_swordsman_a": [
+   "dust_cav"
+  ],
+  "brit_cavalry_swordsman_e": [
+   "dust_cav"
+  ],
+  "brit_chariot": [
+   "dust_cav"
+  ],
+  "brit_hero_boudicca": [
+   "dust_cav"
+  ],
+  "brit_hero_boudicca_cavalry_javelineer": [
+   "dust_cav"
+  ],
+  "brit_hero_cunobelin": [
+   "dust_cav"
+  ],
+  "brit_scythed_chariot": [
+   "dust_cav"
+  ],
+  "camel": [
+   "dust_cav"
+  ],
+  "cart_cavalry": [
+   "dust_cav"
+  ],
+  "cart_cavalry_javelineer_a": [
+   "dust_cav"
+  ],
+  "cart_cavalry_javelineer_b": [
+   "dust_cav"
+  ],
+  "cart_cavalry_javelineer_e": [
+   "dust_cav"
+  ],
+  "cart_cavalry_spearman_ital_a": [
+   "dust_cav"
+  ],
+  "cart_cavalry_spearman_ital_b": [
+   "dust_cav"
+  ],
+  "cart_cavalry_spearman_ital_e": [
+   "dust_cav"
+  ],
+  "cart_cavalry_swordsman_gaul_a": [
+   "dust_cav"
+  ],
+  "cart_cavalry_swordsman_gaul_e": [
+   "dust_cav"
+  ],
+  "cart_cavalry_swordsman_iber_a": [
+   "dust_cav"
+  ],
+  "cart_cavalry_swordsman_iber_b": [
+   "dust_cav"
+  ],
+  "cart_cavalry_swordsman_iber_e": [
+   "dust_cav"
+  ],
+  "cart_elephant": [
+   "dust_cav"
+  ],
+  "cart_hero_hamilcar": [
+   "dust_cav"
+  ],
+  "cart_hero_hannibal": [
+   "dust_cav"
+  ],
+  "cart_hero_maharbal": [
+   "dust_cav"
+  ],
+  "cart_trader": [
+   "dust_cav"
+  ],
+  "carthaginians_siege_rock_packed": [
+   "dust_cav"
+  ],
+  "carthaginians_siege_spear_packed": [
+   "dust_cav"
+  ],
+  "cavalry": [
+   "dust_cav"
+  ],
+  "chariot": [
+   "dust_cav"
+  ],
+  "chariot_han": [
+   "dust_cav"
+  ],
+  "elephant": [
+   "dust_cav"
+  ],
+  "elephant_bush": [
+   "dust_cav"
+  ],
+  "elephant_forest": [
+   "dust_cav"
+  ],
+  "fauna_camel": [
+   "dust_cav"
+  ],
+  "fauna_elephant_african_baby": [
+   "dust_cav"
+  ],
+  "fauna_elephant_asian": [
+   "dust_cav"
+  ],
+  "fauna_horse": [
+   "dust_cav"
+  ],
+  "fauna_horse_lusitano": [
+   "dust_cav"
+  ],
+  "fauna_horse_marwari": [
+   "dust_cav"
+  ],
+  "fauna_horse_persian": [
+   "dust_cav"
+  ],
+  "fauna_pony": [
+   "dust_cav"
+  ],
+  "fauna_tiger": [
+   "dust_cav"
+  ],
+  "gaul_cavalry": [
+   "dust_cav"
+  ],
+  "gaul_cavalry_javelineer_a": [
+   "dust_cav"
+  ],
+  "gaul_cavalry_javelineer_b": [
+   "dust_cav"
+  ],
+  "gaul_cavalry_javelineer_e": [
+   "dust_cav"
+  ],
+  "gaul_champion_cavalry": [
+   "dust_cav"
+  ],
+  "gaul_hero_vercingetorix": [
+   "dust_cav"
+  ],
+  "germ_cavalry": [
+   "dust_cav"
+  ],
+  "germ_cavalry_javelineer_a": [
+   "dust_cav"
+  ],
+  "germ_cavalry_javelineer_b": [
+   "dust_cav"
+  ],
+  "germ_cavalry_javelineer_e": [
+   "dust_cav"
+  ],
+  "germ_cavalry_spearman_a": [
+   "dust_cav"
+  ],
+  "germ_cavalry_spearman_e": [
+   "dust_cav"
+  ],
+  "germ_champion_cavalry": [
+   "dust_cav"
+  ],
+  "germ_hero_boiorix": [
+   "dust_cav"
+  ],
+  "germ_hero_lugius": [
+   "dust_cav"
+  ],
+  "giraffe": [
+   "dust_cav"
+  ],
+  "han_cavalry_archer": [
+   "dust_cav"
+  ],
+  "han_cavalry_archer_a": [
+   "dust_cav"
+  ],
+  "han_cavalry_archer_e": [
+   "dust_cav"
+  ],
+  "han_cavalry_crossbow": [
+   "dust_cav"
+  ],
+  "han_cavalry_crossbowman_b": [
+   "dust_cav"
+  ],
+  "han_cavalry_spearman": [
+   "dust_cav"
+  ],
+  "han_cavalry_spearman_a": [
+   "dust_cav"
+  ],
+  "han_cavalry_spearman_b": [
+   "dust_cav"
+  ],
+  "han_cavalry_spearman_e": [
+   "dust_cav"
+  ],
+  "han_cavalry_swordsman": [
+   "dust_cav"
+  ],
+  "han_cavalry_swordsman_a": [
+   "dust_cav"
+  ],
+  "han_cavalry_swordsman_e": [
+   "dust_cav"
+  ],
+  "han_champion_chariot_academy": [
+   "dust_cav"
+  ],
+  "han_chariot_general": [
+   "dust_cav"
+  ],
+  "han_hero_cav_han_xin": [
+   "dust_cav"
+  ],
+  "han_hero_cav_liu_bang": [
+   "dust_cav"
+  ],
+  "han_hero_cav_wei_qing": [
+   "dust_cav"
+  ],
+  "han_hero_wei_qing_chariot": [
+   "dust_cav"
+  ],
+  "han_trader": [
+   "dust_cav"
+  ],
+  "hellenes_siege_heavy_artillery_packed": [
+   "dust_cav"
+  ],
+  "hellenes_siege_light_artillery_packed": [
+   "dust_cav"
+  ],
+  "hellenes_siege_spear_packed": [
+   "dust_cav"
+  ],
+  "iber_cavalry": [
+   "dust_cav"
+  ],
+  "iber_cavalry_javelineer_a": [
+   "dust_cav"
+  ],
+  "iber_cavalry_javelineer_b": [
+   "dust_cav"
+  ],
+  "iber_cavalry_javelineer_e": [
+   "dust_cav"
+  ],
+  "iber_cavalry_spearman_a": [
+   "dust_cav"
+  ],
+  "iber_cavalry_spearman_b": [
+   "dust_cav"
+  ],
+  "iber_cavalry_spearman_e": [
+   "dust_cav"
+  ],
+  "iber_hero_indibil": [
+   "dust_cav"
+  ],
+  "kush_camel": [
+   "dust_cav"
+  ],
+  "kush_cav_jav_a": [
+   "dust_cav"
+  ],
+  "kush_cav_jav_b": [
+   "dust_cav"
+  ],
+  "kush_cav_jav_e": [
+   "dust_cav"
+  ],
+  "kush_cav_spear_a": [
+   "dust_cav"
+  ],
+  "kush_cav_spear_e": [
+   "dust_cav"
+  ],
+  "kush_cavalry": [
+   "dust_cav"
+  ],
+  "kush_cavalry_javelineer_a": [
+   "dust_cav"
+  ],
+  "kush_cavalry_javelineer_e": [
+   "dust_cav"
+  ],
+  "kush_cavalry_spearman_a": [
+   "dust_cav"
+  ],
+  "kush_cavalry_spearman_b": [
+   "dust_cav"
+  ],
+  "kush_cavalry_spearman_e": [
+   "dust_cav"
+  ],
+  "kush_elephant": [
+   "dust_cav"
+  ],
+  "kush_hero_chariot_amanirenas": [
+   "dust_cav"
+  ],
+  "kush_hero_elephant": [
+   "dust_cav"
+  ],
+  "mace_cavalry_javelineer_a": [
+   "dust_cav"
+  ],
+  "mace_cavalry_javelineer_b": [
+   "dust_cav"
+  ],
+  "mace_cavalry_javelineer_e": [
+   "dust_cav"
+  ],
+  "mace_cavalry_spearman_a": [
+   "dust_cav"
+  ],
+  "mace_cavalry_spearman_b": [
+   "dust_cav"
+  ],
+  "mace_cavalry_spearman_e": [
+   "dust_cav"
+  ],
+  "mace_hero_alexander_iii": [
+   "dust_cav"
+  ],
+  "mace_trader": [
+   "dust_cav"
+  ],
+  "maur_cav_jav_a": [
+   "dust_cav"
+  ],
+  "maur_cav_jav_b": [
+   "dust_cav"
+  ],
+  "maur_cav_jav_e": [
+   "dust_cav"
+  ],
+  "maur_cav_sword_a": [
+   "dust_cav"
+  ],
+  "maur_cav_sword_e": [
+   "dust_cav"
+  ],
+  "maur_cavalry": [
+   "dust_cav"
+  ],
+  "maur_cavalry_javelineer_a": [
+   "dust_cav"
+  ],
+  "maur_cavalry_javelineer_e": [
+   "dust_cav"
+  ],
+  "maur_cavalry_swordsman_a": [
+   "dust_cav"
+  ],
+  "maur_cavalry_swordsman_e": [
+   "dust_cav"
+  ],
+  "maur_champion_elephant": [
+   "dust_cav"
+  ],
+  "maur_chariot": [
+   "dust_cav"
+  ],
+  "maur_eleph_archer_a": [
+   "dust_cav"
+  ],
+  "maur_eleph_archer_b": [
+   "dust_cav"
+  ],
+  "maur_elephant": [
+   "dust_cav"
+  ],
+  "maur_elephant_archer_a": [
+   "dust_cav"
+  ],
+  "maur_hero_ashoka_hero_chariot_archer_ashoka_m": [
+   "dust_cav"
+  ],
+  "maur_hero_elephant": [
+   "dust_cav"
+  ],
+  "maur_scythed_chariot": [
+   "dust_cav"
+  ],
+  "maur_worker_elephant": [
+   "dust_cav"
+  ],
+  "pers_cavalry": [
+   "dust_cav"
+  ],
+  "pers_cavalry_archer_a": [
+   "dust_cav"
+  ],
+  "pers_cavalry_archer_b": [
+   "dust_cav"
+  ],
+  "pers_cavalry_archer_e": [
+   "dust_cav"
+  ],
+  "pers_cavalry_axeman_a": [
+   "dust_cav"
+  ],
+  "pers_cavalry_axeman_e": [
+   "dust_cav"
+  ],
+  "pers_cavalry_javelineer_a": [
+   "dust_cav"
+  ],
+  "pers_cavalry_javelineer_b": [
+   "dust_cav"
+  ],
+  "pers_cavalry_javelineer_e": [
+   "dust_cav"
+  ],
+  "pers_cavalry_spearman_a": [
+   "dust_cav"
+  ],
+  "pers_cavalry_spearman_b": [
+   "dust_cav"
+  ],
+  "pers_cavalry_spearman_e": [
+   "dust_cav"
+  ],
+  "pers_champion_cavalry": [
+   "dust_cav"
+  ],
+  "pers_champion_cavalry_archer": [
+   "dust_cav"
+  ],
+  "pers_champion_chariot": [
+   "dust_cav"
+  ],
+  "pers_chariot": [
+   "dust_cav"
+  ],
+  "pers_elephant": [
+   "dust_cav"
+  ],
+  "pers_hero_cyrus_ii": [
+   "dust_cav"
+  ],
+  "pers_hero_darius_i": [
+   "dust_cav"
+  ],
+  "pers_hero_xerxes_i_chariot": [
+   "dust_cav"
+  ],
+  "pers_scythed_chariot": [
+   "dust_cav"
+  ],
+  "pers_trader": [
+   "dust_cav"
+  ],
+  "ptol_camel": [
+   "dust_cav"
+  ],
+  "ptol_cavalry": [
+   "dust_cav"
+  ],
+  "ptol_cavalry_archer_b": [
+   "dust_cav"
+  ],
+  "ptol_cavalry_archer_e": [
+   "dust_cav"
+  ],
+  "ptol_cavalry_javelineer_merc_a": [
+   "dust_cav"
+  ],
+  "ptol_cavalry_javelineer_merc_b": [
+   "dust_cav"
+  ],
+  "ptol_cavalry_javelineer_merc_e": [
+   "dust_cav"
+  ],
+  "ptol_cavalry_spearman_merc_a": [
+   "dust_cav"
+  ],
+  "ptol_cavalry_spearman_merc_b": [
+   "dust_cav"
+  ],
+  "ptol_cavalry_spearman_merc_e": [
+   "dust_cav"
+  ],
+  "ptol_elephant": [
+   "dust_cav"
+  ],
+  "ptol_hero_ptolemy_i": [
+   "dust_cav"
+  ],
+  "ptol_hero_ptolemy_iv": [
+   "dust_cav"
+  ],
+  "ptol_trader": [
+   "dust_cav"
+  ],
+  "ptolemies_siege_rock_packed": [
+   "dust_cav"
+  ],
+  "ptolemies_siege_spear_packed": [
+   "dust_cav"
+  ],
+  "romans_siege_onager_packed": [
+   "dust_cav"
+  ],
+  "romans_siege_rock_packed": [
+   "dust_cav"
+  ],
+  "romans_siege_scorpio_packed": [
+   "dust_cav"
+  ],
+  "rome_cavalry": [
+   "dust_cav"
+  ],
+  "rome_cavalry_javelineer_a": [
+   "dust_cav"
+  ],
+  "rome_cavalry_javelineer_auxiliary_a": [
+   "dust_cav"
+  ],
+  "rome_cavalry_javelineer_auxiliary_b": [
+   "dust_cav"
+  ],
+  "rome_cavalry_javelineer_auxiliary_e": [
+   "dust_cav"
+  ],
+  "rome_cavalry_javelineer_b": [
+   "dust_cav"
+  ],
+  "rome_cavalry_javelineer_e": [
+   "dust_cav"
+  ],
+  "rome_cavalry_spearman_a": [
+   "dust_cav"
+  ],
+  "rome_cavalry_spearman_auxiliary_a": [
+   "dust_cav"
+  ],
+  "rome_cavalry_spearman_auxiliary_b": [
+   "dust_cav"
+  ],
+  "rome_cavalry_spearman_auxiliary_e": [
+   "dust_cav"
+  ],
+  "rome_cavalry_spearman_e": [
+   "dust_cav"
+  ],
+  "rome_champion_cavalry": [
+   "dust_cav"
+  ],
+  "rome_hero_marcellus": [
+   "dust_cav"
+  ],
+  "rome_hero_maximus": [
+   "dust_cav"
+  ],
+  "rome_hero_scipio": [
+   "dust_cav"
+  ],
+  "rome_trader": [
+   "dust_cav"
+  ],
+  "scythed_chariot": [
+   "dust_cav"
+  ],
+  "sele_cavalry": [
+   "dust_cav"
+  ],
+  "sele_cavalry_spearman_merc_b": [
+   "dust_cav"
+  ],
+  "sele_cavalry_spearman_merc_e": [
+   "dust_cav"
+  ],
+  "sele_chariot": [
+   "dust_cav"
+  ],
+  "sele_elephant": [
+   "dust_cav"
+  ],
+  "sele_hero_antiochus_iii": [
+   "dust_cav"
+  ],
+  "sele_hero_antiochus_iv": [
+   "dust_cav"
+  ],
+  "sele_hero_seleucus_i": [
+   "dust_cav"
+  ],
+  "sele_scythed_chariot": [
+   "dust_cav"
+  ],
+  "sele_trader": [
+   "dust_cav"
+  ],
+  "spart_cavalry": [
+   "dust_cav"
+  ],
+  "spart_cavalry_javelineer_a": [
+   "dust_cav"
+  ],
+  "spart_cavalry_javelineer_b": [
+   "dust_cav"
+  ],
+  "spart_cavalry_javelineer_e": [
+   "dust_cav"
+  ],
+  "spart_cavalry_spearman_a": [
+   "dust_cav"
+  ],
+  "spart_cavalry_spearman_e": [
+   "dust_cav"
+  ],
+  "spart_trader": [
+   "dust_cav"
+  ],
+  "trader": [
+   "dust_cav"
+  ],
+  "worker_elephant": [
+   "dust_cav"
+  ],
+  "zebra": [
+   "dust_cav"
+  ]
  },
  "structures": {
   "athen_town_center_rubble": {
