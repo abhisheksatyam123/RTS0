@@ -539,6 +539,20 @@ public:
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	const PackedInt32Array &ui_selected_ids() const override { return selected_ids; }
 	std::vector<uint32_t> ui_selected_structures() const override { return selected_structures(); }
+	bool ui_observing() const override { return turn_mgr_.is_replaying() || spectating(); }
+	// Tests: the training roster's rows (name, disabled).
+	Array debug_roster() {
+		update_command_panel();
+		Array out;
+		if (ItemList *l = command_panel_.roster_list())
+			for (int i = 0; i < l->get_item_count(); ++i) {
+				Dictionary d;
+				d["text"] = l->get_item_text(i);
+				d["disabled"] = l->is_item_disabled(i);
+				out.push_back(d);
+			}
+		return out;
+	}
 	int ui_batch_size() const override { return user_opts_.batch_size; }
 	int ui_pending_batch(uint16_t tmpl) const override;
 	void _on_barter_requested(int sell_type, int buy_type, int amount);
@@ -738,6 +752,8 @@ public:
 	Rect2 menu_button_rect() const { return menu_btn ? menu_btn->get_global_rect() : Rect2(); }
 	// ChatInput.getOpenHotkeyTooltip (also the menu's Chat entry, MenuButtons.js).
 	String chat_open_hotkey_tooltip() const;
+	// input.js: session.flare held arms a flare, never in a replay (!g_IsReplay).
+	bool flare_held() const;
 	void refresh_chat_tooltips();
 	Dictionary debug_chat_tooltips() const { Dictionary d; d["input"] = chat_window_.input_tooltip(); d["open"] = chat_open_hotkey_tooltip(); return d; }
 	std::vector<uint32_t> trade_origin_traders_;

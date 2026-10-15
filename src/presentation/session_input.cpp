@@ -391,7 +391,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (mb->is_pressed()) {
 				// Hold K and click to send a flare (0 A.D. session.flare), or click once
 				// the flare button armed it (INPUT_FLARE).
-				if (flare_armed_ || rtso::hotkeys::held("session.flare")) {
+				if (flare_armed_ || flare_held()) {
 					flare_armed_ = false;
 					const Vector3 click_pos = get_ground_click_pos(mouse_pos);
 					trigger_flare(click_pos.x, click_pos.z);
