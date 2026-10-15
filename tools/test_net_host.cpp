@@ -28,6 +28,8 @@
 // 9. ENet's reliable channel: a message larger than a datagram (a stalled
 //    turn's batch, a rejoin header) arrives whole, split under the 1372-byte
 //    MTU, and reliable messages arrive in the order sent, also with 30% loss.
+// 10. 0.28 NetServer's late-joiner refusals: a refused client is told why
+//     (NDR_SERVER_ALREADY_IN_GAME), not "The host has ended the game." (2).
 #include "network/net_host.h"
 #include "network/chat_routing.h"
 
@@ -364,6 +366,21 @@ int main() {
 		for (size_t i = 0; in_order && i < got.size(); ++i)
 			in_order = got[i].size() == (i % 3 == 0 ? 3000u : 8u) && got[i][0] == (uint8_t)i;
 		CHECK(in_order, "60 messages, some split, arrive once each and in order with 30% loss");
+	}
+
+	// 10. A refusal names its reason.
+	{
+		NetHost h;
+		h.startHost(c);
+		std::vector<std::unique_ptr<NetHost>> cl;
+		cl.push_back(std::make_unique<NetHost>());
+		cl[0]->setLocalPlayerName("late");
+		cl[0]->startClient("127.0.0.1", h.localPort());
+		pump(h, cl, 3000, [&] { return cl[0]->getLocalPeerId() != 0 && cl[0]->authResult() == ARC_OK; });
+		h.refusePeer(cl[0]->getLocalPeerId(), NDR_SERVER_ALREADY_IN_GAME);
+		pump(h, cl, 6000, [&] { return cl[0]->connectionLost(); });
+		CHECK(cl[0]->connectionLost() && cl[0]->disconnectReason() == NDR_SERVER_ALREADY_IN_GAME,
+		      "a refused late observer is told the game has started (reason 5)");
 	}
 
 	if (failures) {

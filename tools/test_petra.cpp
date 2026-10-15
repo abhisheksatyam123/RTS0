@@ -1755,6 +1755,66 @@ static void test_siege_prefers_any_gate() {
 	CHECK(on == gate, "a palisade gate draws a wall-breaker first (Gate class +10000)");
 }
 
+// attackPlan.js checkTargetObstruction / isBlocked: a target walled in on the army's land
+// becomes the wall piece in the way, and soldiers without siege hack at it.
+static void test_attack_blocked_by_walls() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float hx = -tx * 0.3f, hz = -tz * 0.3f;
+	for (size_t j = 0; j < s->units_.count; ++j)
+		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
+	run_for(*s, 0.5f);
+	const uint32_t house = s->spawn_building_world(hx, hz, BLD_HOUSE, 0, 1.0f);
+	// A closed palisade round the house (one-cell pieces, as maps place them).
+	const float r = 7.0f;
+	size_t laid = 0;
+	for (float d = -r; d < r + 0.01f; d += 1.5f)
+		for (const auto &p : {std::pair{hx + d, hz - r}, std::pair{hx + d, hz + r}, std::pair{hx - r, hz + d}, std::pair{hx + r, hz + d}})
+			laid += s->spawn_building_world(p.first, p.second, BLD_PALISADE, 0, 1.0f) != 0;
+	s->rebuild_nav_grid();
+	const float ox = hx + (tx - hx) * 0.5f, oz = hz + (tz - hz) * 0.5f; // the army, outside
+	float bx = 0.0f, bz = 0.0f;
+	const uint32_t to = s->petra_target_obstruction(house, ox, oz, bx, bz);
+	const auto it = s->building_id_to_idx_.find(to);
+	const bool wall = to != house && it != s->building_id_to_idx_.end() && (building_tech_classes(s->buildings_[it->second].type) & TC_WALL).any();
+	std::printf("  %zu wall pieces round a house: the target becomes %s\n", laid, wall ? "a wall piece" : to == house ? "still the house" : "something else");
+	CHECK(laid >= 8, "the wall closes round the house");
+	CHECK(wall, "the wall piece in the way becomes the target (checkTargetObstruction)");
+	// The house in the open is reached as it is.
+	const uint32_t open = s->spawn_building_world(ox + 6.0f, oz, BLD_HOUSE, 0, 1.0f);
+	CHECK(s->petra_target_obstruction(open, ox, oz, bx, bz) == open, "an open target stays the target");
+	// Spearmen with the wall as target attack it.
+	std::vector<uint32_t> squad;
+	for (int k = 0; k < 4; ++k) {
+		const uint32_t u = s->spawn_unit(bx + (ox - bx) * 0.2f + (float)k, bz + (oz - bz) * 0.2f, 1, UNIT_SPEARMAN, 1.0e5f);
+		s->units_.stance[s->lookup_unit(u)] = STANCE_PASSIVE; // only Petra's orders: no wall piece of their own pick
+		squad.push_back(u);
+	}
+	auto &plan = s->petra_attack_plan_;
+	plan.squad = squad;
+	plan.initial_squad_size = squad.size();
+	plan.target_player = 0;
+	plan.target_building_id = to;
+	plan.target_x = bx; plan.target_z = bz;
+	plan.state = Simulation::AttackPlan::ATTACKED;
+	plan.state_timer = 0.0f;
+	run_ai_turns(*s, 2);
+	int on_wall = 0;
+	for (uint32_t u : squad) {
+		const int32_t i = s->lookup_unit(u);
+		on_wall += i >= 0 && s->units_.target_building_id[i] == to;
+	}
+	std::printf("  %d of 4 spearmen attack the blocking wall\n", on_wall);
+	CHECK(on_wall >= 3, "blocked soldiers hack at the wall (isBlocked: ent.attack(target))");
+}
+
 // attackPlan.js "Raid": FastMoving minSize 3 and targetSize 4 vary like any plan's (x0.8-1.2,
 // x0.2 below Easy), and each plan made counts toward the next one's name (totalNumber).
 static void test_raid_sizes_vary() {
@@ -4421,6 +4481,7 @@ int main(int argc, char **argv) {
 	RUN(test_attack_targets_target_player);
 	RUN(test_siege_prefers_any_gate);
 	RUN(test_raid_sizes_vary);
+	RUN(test_attack_blocked_by_walls);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
 	RUN(test_relic_capture);

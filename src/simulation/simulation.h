@@ -168,10 +168,11 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 83; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 84; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_CINEMA = 82; // CinemaManager's paths, queue and timers
 	static constexpr uint32_t SAVE_VERSION_STATUS_STACKS = 80; // each Poisoned/Burning hit its own status, on units, structures and animals
 	static constexpr uint32_t SAVE_VERSION_PETRA_PLAN_NAMES = 83; // Petra's plan counter, the main plan's siege class, the raid's sizes
+	static constexpr uint32_t SAVE_VERSION_SEEN_MASK = 84; // which players have seen each structure (Fogging seen)
 	static constexpr uint32_t SAVE_VERSION_HEADING = 77; // each unit's heading (Position rotation, turned at TurnRate)
 	static constexpr uint32_t SAVE_VERSION_PETRA_INACCESSIBLE = 81; // Petra workers' approach watch and supplies flagged inaccessible
 	static constexpr uint32_t SAVE_VERSION_PETRA_HUNT_SEARCH = 79; // each Petra hunter's last fruitless hunt search; storehouse checks per base
@@ -291,6 +292,9 @@ public:
 		float wonder_hold = 0.0f;
 		uint8_t wonder_owner = 255;
 		uint8_t wonder_allies = 0;
+		// Fogging.js seen[player]: the players who have seen this structure (in their own or shared
+		// sight, or in land explored at the start), so their mirage of it outlives a load or rejoin.
+		uint8_t seen_mask = 0;
 
 		// Multi-slot production queue
 		std::vector<ProductionOrder> queue;
@@ -1620,6 +1624,8 @@ public:
 	}
 	void set_player_civ(uint8_t civ) { set_team_civ(0, civ); }
 	uint8_t player_civ(uint8_t pid = 0) const { return player(pid).civ; }
+	// A field's MaxGatherers, from the civ it was placed as (its owner's when that is unset).
+	int field_cap(const Building &b) const { return field_max_gatherers(b.civ != CIV_COUNT ? b.civ : player(b.team).civ); }
 	// A civ chosen after the player's starting structures were placed re-templates them too.
 	void set_team_civ(uint8_t team, uint8_t civ);
 	uint8_t team_civ(uint8_t team) const { return (team < MAX_PLAYERS) ? players_[team].civ : CIV_ATHENIANS; }
@@ -1684,6 +1690,8 @@ public:
 	int phase_structures(uint8_t player_id, uint8_t phase) const;
 	// UnitAI.IsGuardOf: the unit's current order is to guard someone (remove-guard button).
 	bool unit_is_guarding(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx >= 0 && (size_t)idx < units_.count && units_.order_kind[idx] == ORDER_GUARD; }
+	// UnitAI.isGuarding: the entity the unit guards (a unit or structure id), or 0.
+	uint32_t unit_guard_target(uint32_t uid) const;
 	bool unit_has_work_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.work_kind[idx] != ORDER_NONE; } // UnitAI hasWorkOrders
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
 	const Grid<uint8_t>& territory_grid() const { return territory_grid_; }
@@ -2415,7 +2423,9 @@ private:
 	void tick_fow();  // updates FoW each sim tick
 	void tick_los();  // moves every LOS source that changed since the last tick
 	void explore_territories(); // InitGame.js ExploreTerritories, before the first turn
+	void mark_buildings_seen(); // Fogging seen from los_ (tick_los) and from cells explored at the start
 	void reset_los();
+	void rebuild_revealed_fow(); // revealed_fow_: all visible but a circular map's off-world cells
 	// The fog a player sees (FOW_* per cell) from its line of sight, los_shared_mask included.
 	void fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
@@ -2952,6 +2962,11 @@ private:
 	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);
 	void petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz, uint8_t avoid = 0);
 	uint8_t petra_attack_avoid(const AttackPlan &plan, bool siege) const;
+	// attackPlan.js checkTargetObstruction: the enemy structure (a wall, palisade or gate) that
+	// blocks the path from (px, pz) to target `id` on the same land, else `id` itself.
+	uint32_t petra_target_obstruction(uint32_t id, float px, float pz, float &tx, float &tz) const;
+	// attackPlan.js isBlocked: the plan's target is a wall piece that blocked its path.
+	bool petra_plan_blocked(const AttackPlan &plan) const;
 	bool petra_unit_reserved(uint32_t uid) const;
 	bool petra_mustering(uint32_t uid) const;
 	void petra_leave_mustering(uint32_t uid);
@@ -3106,6 +3121,8 @@ private:
 	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, std::vector<int> &incoming) const;
 	std::vector<int> petra_garrison_incoming() const;
 	bool petra_same_land(size_t unit_idx, const Building &b) const; // PETRA.getLandAccess match
+	// The unit's land is a pocket of at most 16 navcells (shut in among trees or structures).
+	bool stands_in_pocket(size_t unit_idx) const;
 	bool petra_mobile_dropsite_on_land(size_t unit_idx) const; // a supply wagon or worker elephant it may drop at, on its land
 	// defenseManager.js garrisonAttackedUnit: the nearest healing structure, or with
 	// emergency the nearest holder at all (unloading one unit when it is full).
@@ -3385,6 +3402,7 @@ private:
 	// rebuild_territory_grids() scratch: CalculateCostGrid's tile costs and CalculateTerritories'
 	// per-structure, per-player and best weights, flood queue and the tiles one structure reached.
 	static constexpr uint8_t TERRITORY_IMPASSABLE_COST = 4; // territorymanager.xml ImpassableCost
+	static constexpr uint8_t TERRITORY_OFF_WORLD_COST = 255; // CCmpTerritoryManager: past the map edge
 	Grid<uint8_t> territory_cost_;
 	std::vector<uint32_t> territory_entity_w_, territory_player_w_, territory_best_w_, territory_open_, territory_touched_;
 	int territory_roots_res_ = 0;
@@ -3491,6 +3509,10 @@ private:
 	void deposit_carry(size_t i);
 	void finish_order(size_t i, bool find_new_target = false);
 	void resume_order(size_t i);
+	bool guard_keeps_target(size_t i, size_t t) const;
+	void guard_answer(size_t i, size_t g, uint32_t attacker);
+	void walk_to_held_position(size_t i);
+	void find_targets_then_walk_back(size_t i);
 	void respond_to_attack(size_t i);
 	bool entity_xz(uint32_t id, float &x, float &z) const;
 	bool flee_done(size_t i);

@@ -255,6 +255,26 @@ public:
 		selection_grid_.build(panel_, Vector2(102, 60), Vector2(404, 120), owner, "_on_selection_group_clicked", 10, 36.0f);
 		selection_grid_.set_right_click("_on_selection_group_gui_input");
 		garrison_grid_.build(panel_, Vector2(102, 148), Vector2(404, 34), owner, "_on_garrison_group_clicked", 12, 30.0f);
+		// garrison_panel.xml healthGarrison: the garrisoned units' total health, a vertical
+		// bar left of the garrison icons (updateGarrisonHealthBar).
+		garrison_hp_bar_ = memnew(ProgressBar);
+		garrison_hp_bar_->set_name("healthGarrison");
+		garrison_hp_bar_->set_position(Vector2(99, 149));
+		garrison_hp_bar_->set_size(Vector2(3, 30));
+		garrison_hp_bar_->set_fill_mode(ProgressBar::FILL_BOTTOM_TO_TOP);
+		garrison_hp_bar_->set_show_percentage(false);
+		{
+			Ref<StyleBoxFlat> bg_sb;
+			bg_sb.instantiate();
+			bg_sb->set_bg_color(Color(0.10f, 0.12f, 0.16f, 0.85f));
+			garrison_hp_bar_->add_theme_stylebox_override("background", bg_sb);
+			Ref<StyleBoxFlat> fg_sb;
+			fg_sb.instantiate();
+			fg_sb->set_bg_color(Color(0.25f, 0.75f, 0.35f));
+			garrison_hp_bar_->add_theme_stylebox_override("fill", fg_sb);
+		}
+		garrison_hp_bar_->set_visible(false);
+		panel_->add_child(garrison_hp_bar_);
 		// The Barter panel's place (0.28's left panel, shared with the garrison panel); the
 		// command panel fills it.
 		barter_host_ = memnew(Control);
@@ -473,11 +493,14 @@ public:
 			d.resistance[0] = fi.hack_armor;
 			d.resistance[1] = fi.pierce_armor;
 			d.resistance[2] = fi.crush_armor;
+			// getSpeedTooltip: walk and run, in 0 A.D. metres a second (RTS0 walks at x0.356).
+			d.walk = fi.speed / 0.356f;
+			d.run = d.walk * (fi.run_mult > 0.0f ? fi.run_mult : 1.0f);
 			const String attack = rtso::seldet::attack_tooltip(d,
 					godot::Dictionary(rtso::portraits::fauna_entry(fv.fauna_type[f]).get("viewer", godot::Dictionary())).get("attacks", godot::Array())),
 					resistance = rtso::seldet::resistance_tooltip(d.resistance);
 			stats_->set_text(rtso::seldet::join_lines({body_lines(attack), body_lines(resistance)}));
-			stats_->set_tooltip_text(rtso::seldet::join_lines({attack, resistance}));
+			stats_->set_tooltip_text(rtso::seldet::join_lines({attack, resistance, rtso::seldet::speed_tooltip(d)}));
 			// resourceSection: the meat it yields, "Food: 100 / 100".
 			if (fv.food_amount[f] > 0)
 				extra_->set_text(rtso::seldet::resource_label(rtso::RES_FOOD) + " " +
@@ -577,6 +600,13 @@ public:
 					: flora_title(rv.flora ? rv.flora[r] : rtso::FLORA_BERRY);
 			kind = "Food";
 		}
+		// A tree or fruit: its template's SpecificName under the Tree or Fruit GenericName
+		// (gaia/tree and gaia/fruit templates set only SpecificName): "Aleppo Pine (Tree)".
+		if (rv.type[r] == rtso::RES_WOOD || (rv.type[r] == rtso::RES_FOOD && rv.subtype[r] != rtso::RES_SUB_MEAT &&
+				rv.subtype[r] != rtso::RES_SUB_FISH && rv.subtype[r] != rtso::RES_SUB_GRAIN)) {
+			const String generic = rtso::portraits::resource_entry(rv.type[r], rv.subtype[r], rv.flora ? rv.flora[r] : 0).get("generic_name", String());
+			if (!generic.is_empty()) title = rtso::entity_names(generic, title);
+		}
 		portrait_->set_texture(rtso::portraits::resource(rv.type[r], rv.subtype[r], rv.flora ? rv.flora[r] : 0));
 		title_->set_text(title);
 		set_owner(*sim, rtso::GAIA_PLAYER);
@@ -631,6 +661,7 @@ public:
 		};
 		// The stamina bar has no 0 A.D. counterpart.
 		show_bar(stamina_bar_, stamina_label_, false);
+		garrison_hp_bar_->set_visible(false); // fill_garrison_grid shows it
 		clear_tooltips();
 		stats_->set_position(Vector2(102, 108));
 		stats_->set_size(Vector2(404, 38));
@@ -1179,6 +1210,7 @@ private:
 		class_->add_theme_constant_override("outline_size", 0);
 	}
 	godot::ProgressBar *hp_bar_ = nullptr;
+	godot::ProgressBar *garrison_hp_bar_ = nullptr; // healthGarrison
 	godot::Label *hp_label_ = nullptr;
 	godot::ProgressBar *capture_bar_ = nullptr;
 	static constexpr int kCaptureParts = rtso::MAX_PLAYERS + 1;
@@ -1257,6 +1289,18 @@ private:
 		if (inside.empty()) return false;
 		auto uview = sim.units();
 		std::vector<RtsoSelectionGrid::Group> groups = RtsoSelectionGrid::group_units(uview, inside.data(), inside.size(), true);
+		// updateGarrisonHealthBar: every garrisoned unit's health summed, hidden at none.
+		float hp = 0.0f, max_hp = 0.0f;
+		for (const auto &g : groups) {
+			hp += g.hp;
+			max_hp += g.max_hp;
+		}
+		garrison_hp_bar_->set_visible(hp > 0.0f);
+		if (hp > 0.0f) {
+			garrison_hp_bar_->set_max(max_hp > 0.0f ? max_hp : 1.0f);
+			garrison_hp_bar_->set_value(hp);
+			garrison_hp_bar_->set_tooltip_text(rtso::seldet::health(hp, max_hp));
+		}
 		if (groups.size() > 12) groups.resize(12);
 		const uint8_t me = host_->local_player();
 		const bool observer = me >= rtso::MAX_PLAYERS;
