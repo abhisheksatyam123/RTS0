@@ -48,8 +48,10 @@ func run() -> void:
 	ms.map_id = ""
 	ms.pop_cap = 300
 	ms.team_pop = false
-	ms.lock_teams = false
+	ms.lock_teams = true
 	var page = await open_page()
+	# LockedTeams.onLoad: single player opens with open diplomacy (DefaultValue = HasNetClient()).
+	check(not left(page, "StartRow/LockTeams").button_pressed, "single player opens with Teams Locked off")
 
 	print("1. Population Cap Type")
 	var typ: RtsoSafeSelect = left(page, "PopCapTypeSlot").get_child(0)
