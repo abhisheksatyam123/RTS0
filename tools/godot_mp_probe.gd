@@ -49,6 +49,10 @@ func _run() -> void:
 	if args.has("stun"):
 		# The playtest's own STUN responder (tools/lobby_server.py serve_stun).
 		RtsoUserConfig.new().set_value("lobby.stun.port", args["stun"])
+	if role == "host":
+		# The setup set here, not the last scenario's host page that
+		# gamesetup.gd persists in matchsettings.mp.json.
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://config/matchsettings.mp.json"))
 	if role == "host" or role == "make_save":
 		# Two human slots: the joiner takes the second.
 		ms.slot_types = [0, 0]
