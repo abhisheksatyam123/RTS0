@@ -739,6 +739,7 @@ public:
 	void _on_ui_click();
 	void _on_ui_click_item(int) { _on_ui_click(); }
 	int debug_ui_clicks() const { return ui_clicks_; }
+	bool debug_overlay_visible() const { return debug_overlay && debug_overlay->is_visible(); }
 	int voices_played_ = 0; // tests: unit voice lines started
 	int debug_voices() const { return voices_played_; }
 	// Tests: the control groups and camera as a save stores them, and setting the camera.

@@ -197,7 +197,7 @@ void RtsoMain::_ready() {
 	ui_layer->add_child(sel_rect);
 
 	debug_overlay = memnew(RtsoDebugOverlay);
-	debug_overlay->set_visible(false); // fps.toggle (Alt+F) shows it, as 0 A.D.'s FPS counter
+	debug_overlay->set_visible(false); // shown with overlay.fps (refresh_user_options)
 	ui_layer->add_child(debug_overlay);
 
 	minimap_view = memnew(RtsoMiniMapView);
