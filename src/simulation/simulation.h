@@ -171,7 +171,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 91; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 92; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_SUPPLY_ROOM = 92; // each Petra gatherer's supply; structures with no room, for 90 s
 	static constexpr uint32_t SAVE_VERSION_PETRA_MOVE_TO_GATHERER = 91; // when each Petra mobile dropsite next looks for a gatherer
 	static constexpr uint32_t SAVE_VERSION_DECAY_DISABLED = 89; // each structure's map-set no-decay flag
 	static constexpr uint32_t SAVE_VERSION_PETRA_KEPT = 88; // Petra's needFish/needFarm, wanted fishing and transport ships, targetNumTraders
@@ -3210,6 +3211,25 @@ private:
 	// gatherer to walk to; one with no entry looks from 5 s on.
 	struct PetraNextMove { uint32_t id; float time; };
 	std::vector<PetraNextMove> petra_move_to_gatherer_;
+	// worker.js metadata "supply": the supply each gatherer was last sent to or confirmed on
+	// (worker.update rechecks a gatherer UnitAI moved to another), by unit id.
+	struct PetraSupplyMark { uint32_t unit, supply; };
+	std::vector<PetraSupplyMark> petra_supply_; // sorted by unit
+	uint32_t petra_supply_of(uint32_t unit) const;
+	void petra_set_supply(uint32_t unit, uint32_t supply);
+	// buildManager.js unbuildables for reason "room": a structure no spot was found for is not
+	// tried again until `until` (petra_timer_), 90 s on; any growth of our territory clears them
+	// (headquarters.js:2042). `tiles`: our territory when last looked at.
+	struct PetraRoom {
+		struct Mark { uint8_t type; float until; };
+		std::vector<Mark> marks;
+		uint32_t tiles = 0;
+	};
+	PetraRoom petra_room_;
+	void petra_set_no_room(uint8_t type);
+	bool petra_no_room(uint8_t type) const;
+	int petra_missing_room_count() const;
+	void petra_clear_no_room(uint8_t type);
 	// worker.js isInaccessibleSupply: each gatherer's or hunter's approach (approachingTarget, the
 	// petra_timer_ time and spot it was last seen moving from, time < 0 none yet, carriedBefore,
 	// alreadyTried), and the supplies it flagged (inaccessibleTime: skipped until `until`).
@@ -3576,7 +3596,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
@@ -3696,6 +3716,8 @@ private:
 	std::array<TerritoryTeam, MAX_PLAYERS> territory_teams_;
 	bool territory_teams_valid_ = false;
 	std::vector<uint8_t> territory_last_influence_;
+	// Territory tiles each player holds, counted as the grid is rebuilt (on load too): not saved.
+	std::array<uint32_t, MAX_PLAYERS> territory_tiles_{};
 	std::vector<WaypointPath> unit_paths_; // per-unit path (UNIT_CAP), SoA waypoint_cur/count sync
 	// move_units' copy of the buildings that block movement, in buildings_ order, and the mines, with
 	// only the fields nav/building_steering.h reads, so its per-unit scans read a short packed list.
