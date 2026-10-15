@@ -1077,11 +1077,35 @@ void RtsoWorldView::update_fog(const rtso::Simulation *sim, float delta) {
 
 void RtsoWorldView::play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db, float max_dist, float pitch_scale) {
 	if (!stream.is_valid()) return;
-	AudioStreamPlayer3D *player = spatial_players[next_spatial_idx];
-	next_spatial_idx = (next_spatial_idx + 1) % SPATIAL_AUDIO_POOL_SIZE;
+	// 0.28 SoundManager: a fixed set of voices. Take a free player from the pool; with
+	// kMaxSpatialVoices already sounding, the new sound is dropped rather than cutting
+	// one off (a stop and restart costs as much as a play).
+	// A voice is busy until its sound's length has passed (the audio thread updates
+	// is_playing() on its own time).
+	const uint64_t now = Time::get_singleton()->get_ticks_msec();
+	AudioStreamPlayer3D *player = nullptr;
+	size_t slot = 0;
+	int playing = 0;
+	for (size_t k = 0; k < SPATIAL_AUDIO_POOL_SIZE; ++k) {
+		const size_t i = (next_spatial_idx + k) % SPATIAL_AUDIO_POOL_SIZE;
+		if (!spatial_players[i]) continue;
+		if (now < spatial_end_ms_[i]) {
+			++playing;
+		} else if (!player) {
+			player = spatial_players[i];
+			slot = i;
+		}
+	}
+	if (playing >= kMaxSpatialVoices) {
+		++spatial_dropped_;
+		return;
+	}
 	if (player) {
 		player->set_position(pos);
-		player->set_stream(stream);
+		next_spatial_idx = (slot + 1) % SPATIAL_AUDIO_POOL_SIZE;
+		const double len = stream->get_length();
+		spatial_end_ms_[slot] = now + (uint64_t)(1000.0 * (len > 0.0 ? len / std::max(0.05f, pitch_scale) : 1.0));
+		if (player->get_stream() != stream) player->set_stream(stream);
 		player->set_volume_db(volume_db);
 		player->set_max_distance(max_dist);
 		player->set_pitch_scale(pitch_scale);

@@ -377,6 +377,19 @@ int main() {
 		std::printf("siege tower with 4 spearmen and Caros: %d arrows\n", s.siege_tower_arrows((size_t)ti));
 		CHECK(s.siege_tower_arrows((size_t)ti) == (int)std::lround((4 + (inf ? 1 : 0)) * 1.75f));
 		s.transport_passengers_.erase(tower);
+		// Auras.js ApplyGarrisonAura has no owner test: an ally's Caros in the tower counts too.
+		s.set_player_active(2, true, false);
+		s.set_team_civ(2, CIV_IBERIANS);
+		s.cmd_set_diplomacy(0, 2, Simulation::DIPLO_ALLY);
+		s.cmd_set_diplomacy(2, 0, Simulation::DIPLO_ALLY);
+		uint32_t st2 = s.spawn_building_world(-20.0f, 20.0f, BLD_SENTRY_TOWER, 0, 1.0f);
+		uint32_t g2[2] = {s.spawn_unit(-18.0f, 24.0f, 0, UNIT_ARCHER), s.spawn_unit(-18.0f, 23.0f, 0, UNIT_ARCHER)};
+		garrison(s, g2, 2, st2);
+		uint32_t ally_hero = s.spawn_unit(-18.0f, 22.0f, 2, UNIT_HERO, 0.0f, caros);
+		garrison(s, &ally_hero, 1, st2);
+		CHECK(s.get_garrison_count(st2) == 3);
+		std::printf("sentry tower with 2 archers and an ally's Caros: %d arrows (want %d)\n", s.building_arrow_count(*find_bld(s, st2)), want);
+		CHECK(s.building_arrow_count(*find_bld(s, st2)) == want);
 	}
 
 	// 12. Focus fire (0 A.D. "focus-fire", BuildingAI.AddFocusTarget): with a spearman and a

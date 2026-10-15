@@ -30,7 +30,7 @@ const ReplayPage = preload("res://scenes/menu/replay_browser.gd")
 const SetupPage = preload("res://scenes/menu/gamesetup.gd")
 const GOLD := Color(0.9, 0.75, 0.31)
 const INCOMPATIBLE := Color8(96, 96, 96)
-const COLUMNS := [["date", "Date / Time", 25], ["mapType", "Map Type", 15], ["mapName", "Map Name", 35], ["description", "Description", 25]]
+const COLUMNS := [["date", "Date / Time", 24], ["mapType", "Map Type", 21], ["mapName", "Map Name", 33], ["description", "Description", 22]] # load.xml widths
 
 var mode := "load" # "save" or "load"
 var game: Node = null # RtsoMain, or null in the main menu
@@ -43,6 +43,7 @@ var feedback: Label
 var compatibility_filter: CheckBox
 var description: LineEdit
 var details: Control
+var invalid_logo: TextureRect
 var labels := {}
 var players_text: RichTextLabel
 var btn_ok: Button
@@ -71,8 +72,6 @@ func _ready() -> void:
 	refresh()
 	if mode == "load":
 		select_save(0) # LoadGamePage: selectFirst
-	else:
-		description.grab_focus()
 
 # --- List (SavegameList.js) --------------------------------------------------------
 
@@ -96,6 +95,7 @@ func _entry(path: String, meta: Dictionary) -> Dictionary:
 
 ## updateSavegameList.
 func refresh() -> void:
+	var prev_index := list.get_selected().get_index() if list.get_selected() else -1
 	saves.clear()
 	var dir := DirAccess.open(SAVE_ROOT)
 	if dir:
@@ -108,11 +108,13 @@ func refresh() -> void:
 				# Saves from before metadata existed still list, by file date.
 				meta = {"timestamp": FileAccess.get_modified_time(path), "map_name": "?"}
 			var e := _entry(path, meta)
+			# SavegameList campaignFilter: a campaign's saves only inside that run, the others only outside one;
+			# with the filter off they list greyed, as incompatible.
+			if str(meta.get("settings", {}).get("campaign_run", "")) != MatchSettings.campaign_run:
+				if compatibility_filter.button_pressed or MatchSettings.campaign_run != "":
+					continue
+				e.compatible = false
 			if compatibility_filter.button_pressed and not e.compatible:
-				continue
-			# SavegameList campaignFilter: a campaign's saves only inside that run, the others only outside one.
-			if (compatibility_filter.button_pressed or MatchSettings.campaign_run != "") \
-					and str(meta.get("settings", {}).get("campaign_run", "")) != MatchSettings.campaign_run:
 				continue
 			saves.append(e)
 	saves.sort_custom(func(a, b):
@@ -133,10 +135,13 @@ func refresh() -> void:
 			for c in COLUMNS.size():
 				row.set_custom_color(c, INCOMPATIBLE)
 	for c in COLUMNS.size():
-		list.set_column_title(c, COLUMNS[c][1] + ("" if COLUMNS[c][0] != sort_column else ("  ▼" if sort_order < 0 else "  ▲")))
+		list.set_column_title(c, L10n.t(COLUMNS[c][1]) + ("" if COLUMNS[c][0] != sort_column else ("  ▼" if sort_order < 0 else "  ▲")))
 	feedback.visible = saves.is_empty()
-	# Keep the selected save if it is still listed.
+	list.mouse_filter = Control.MOUSE_FILTER_IGNORE if saves.is_empty() else Control.MOUSE_FILTER_STOP # gameSelection.enabled
+	# Keep the selected save if it is still listed, else the same row (or the last one).
 	var i := saves.map(func(s): return s.id).find(_selected_id)
+	if i < 0 and _selected_id != "" and prev_index >= 0 and not saves.is_empty():
+		i = mini(prev_index, saves.size() - 1)
 	if i >= 0:
 		list.set_selected(root.get_child(i), 0)
 	else:
@@ -192,6 +197,7 @@ func _on_selection_change() -> void:
 
 func _show_details(s: Dictionary) -> void:
 	details.visible = not s.is_empty()
+	invalid_logo.visible = s.is_empty() # invalidGame: the 0 A.D. logo
 	if s.is_empty():
 		return
 	var m: Dictionary = s.meta
@@ -209,7 +215,7 @@ func _show_details(s: Dictionary) -> void:
 	labels.victory.text = ReplayPage.victory_name(s.victory)
 	# 0 A.D. lists the save's mods here, in orange when they differ.
 	var v := int(m.get("save_version", 0))
-	labels.version.text = "Save format: v%d" % v
+	labels.version.text = L10n.sprintf(L10n.t("Mods: %(mods)s"), {"mods": "RTS0 (save format v%d)" % v})
 	labels.version.add_theme_color_override("font_color", Color.WHITE if s.compatible else Color.ORANGE)
 	players_text.text = ReplayPage.player_info(s, true)
 
@@ -230,16 +236,20 @@ func load_pressed() -> void:
 		return
 	var v := int(s.meta.get("save_version", 0))
 	if s.newer:
-		_show_message("This savegame needs a newer version of RTS0 (save format v%d, while you are running v%d)." % [v, RtsoMain.get_save_version()])
+		# A newer save format can't be read at all, so there is no Yes.
+		_show_message(L10n.sprintf(L10n.t("This savegame needs RTS0 save format %(required)s or compatible. You are running save format %(current)s."),
+			{"required": v, "current": RtsoMain.get_save_version()}))
 		return
-	_ask("Warning", "This savegame was written with save format v%d, while you are running v%d.\nDo you still want to proceed?" % [v, RtsoMain.get_save_version()], "load")
+	# SavegameLoader: the engine-version line, then "Do you still want to proceed?".
+	_ask(L10n.t("Warning"), L10n.sprintf(L10n.t("This savegame needs RTS0 save format %(required)s or compatible. You are running save format %(current)s."),
+		{"required": v, "current": RtsoMain.get_save_version()}) + "\n" + L10n.t("Do you still want to proceed?"), "load")
 
 func save_pressed() -> void:
 	var s := selected_save()
 	if s.is_empty():
 		_save_to(_new_name())
 	else:
-		_ask("OVERWRITE SAVE", "\"%s\"\nSaved game will be permanently overwritten, are you sure?" % save_label(s), "overwrite")
+		_ask(L10n.t("OVERWRITE SAVE"), "\"%s\"\n" % save_label(s) + L10n.t("Saved game will be permanently overwritten, are you sure?"), "overwrite")
 
 func delete_pressed(no_confirmation := false) -> void:
 	var s := selected_save()
@@ -248,7 +258,7 @@ func delete_pressed(no_confirmation := false) -> void:
 	if no_confirmation:
 		delete_selected()
 	else:
-		_ask("DELETE", "\"%s\"\nSaved game will be permanently deleted, are you sure?" % save_label(s), "delete")
+		_ask(L10n.t("DELETE"), "\"%s\"\n" % save_label(s) + L10n.t("Saved game will be permanently deleted, are you sure?"), "delete")
 
 func delete_selected() -> void:
 	var s := selected_save()
@@ -293,15 +303,15 @@ func _new_name() -> String:
 
 func _save_to(name: String) -> void:
 	if game == null or not game.has_method("save_game_as"):
-		_show_message("No match to save.")
+		_show_message(L10n.t("No match to save."))
 		return
 	if game.has_method("is_replay_playback") and game.is_replay_playback():
-		_show_message("A replay can't be saved.")
+		_show_message(L10n.t("A replay can't be saved."))
 		return
 	if game.save_game_as(name, description.text.strip_edges()):
 		close()
 	else:
-		_show_message("Saving failed.")
+		_show_message(L10n.t("Saving failed."))
 
 func _load(path: String) -> void:
 	# Loading ends the current match (as in 0 A.D.): the match scene starts over,
@@ -330,11 +340,21 @@ func _fired(event: InputEvent, hotkey: String) -> bool:
 			return true
 	return false
 
+## session.savedgames.delete's key, whatever modifiers are held (the noconfirmation one goes with it).
+func _delete_key(event: InputEventKey) -> bool:
+	if _hotkeys == null:
+		return event.keycode == KEY_DELETE
+	var name := str(_hotkeys.call("event_key_name", event)).to_lower()
+	for combo in _hotkeys.call("get_hotkey_map").get("session.savedgames.delete", PackedStringArray()):
+		if str(combo).to_lower().split("+")[-1] == name:
+			return true
+	return false
+
 ## SavegameDeleter deleteButtonTooltip: every key bound to the delete hotkeys.
 func _delete_tooltip() -> String:
 	var keys: Dictionary = _hotkeys.call("get_hotkey_map") if _hotkeys else {}
 	return L10n.sprintf(L10n.t("Delete the selected savegame using %(hotkey)s."), {"hotkey": ReplayPage.hotkey_text(keys, "session.savedgames.delete")}) + \
-		"\nHold %s to skip the confirmation dialog while deleting." % ReplayPage.hotkey_text(keys, "session.savedgames.noconfirmation")
+		"\n" + L10n.sprintf(L10n.t("Hold %(hotkey)s to skip the confirmation dialog while deleting."), {"hotkey": ReplayPage.hotkey_text(keys, "session.savedgames.noconfirmation")})
 
 ## session.savedgames.noconfirmation held, from the key event's own modifiers when it names one.
 func _skip_confirmation(event: InputEventKey) -> bool:
@@ -354,7 +374,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _fired(event, "cancel"):
 		get_viewport().set_input_as_handled()
 		close()
-	elif (event.keycode == KEY_DELETE or _fired(event, "session.savedgames.delete")) and not description.has_focus():
+	elif _delete_key(event) and not description.has_focus():
 		get_viewport().set_input_as_handled()
 		delete_pressed(_skip_confirmation(event))
 
@@ -378,7 +398,7 @@ func _button(parent: Node, text: String, cb: Callable) -> Button:
 
 func _info_row(parent: VBoxContainer, caption: String, key: String) -> void:
 	var row := HBoxContainer.new()
-	var cap := _label(caption, 14, GOLD)
+	var cap := _label(caption, 14) # ModernLeftLabelText: white
 	cap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(cap)
 	var val := _label("", 14)
@@ -400,7 +420,7 @@ func _build() -> void:
 	add_child(center)
 	var panel := PanelContainer.new() # ModernDialog, 920 x 650
 	panel.theme_type_variation = "ModernDialogContainer"
-	panel.custom_minimum_size = Vector2(920, 620)
+	panel.custom_minimum_size = Vector2(920, 650)
 	center.add_child(panel)
 	var outer := VBoxContainer.new()
 	outer.add_theme_constant_override("separation", 6)
@@ -485,8 +505,16 @@ func _build() -> void:
 	valid.add_theme_constant_override("separation", 3)
 	right.add_child(valid)
 	details = valid
+	invalid_logo = TextureRect.new() # invalidGame "650 105 870 205", sprite 0ADLogo
+	invalid_logo.name = "InvalidGame"
+	invalid_logo.texture = load("res://assets/textures/ui/pregame/logo/0ad_logo.png")
+	invalid_logo.custom_minimum_size = Vector2(220, 100)
+	invalid_logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	invalid_logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	invalid_logo.visible = false
+	right.add_child(invalid_logo)
 	valid.add_child(HSeparator.new())
-	var map_name := _label("", 16, GOLD)
+	var map_name := _label("", 14) # savedMapName: ModernLabelText, white, centred
 	map_name.name = "SavedMapName"
 	map_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	map_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
