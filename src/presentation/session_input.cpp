@@ -98,12 +98,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 		}
 
+		// Chat.openPage: each chat hotkey opens the window afresh on its addressee.
 		if (fired("chat")) {
-			toggle_chat();
+			chat_open_page();
 			return;
 		}
 		if (fired("teamchat") || fired("privatechat")) {
-			if (!chat_window_.is_open()) toggle_chat();
+			chat_open_page();
 			if (fired("teamchat")) chat_window_.select_team();
 			else chat_window_.select_last_private();
 			return;
