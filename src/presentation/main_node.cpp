@@ -141,6 +141,10 @@ Dictionary RtsoMain::get_audio_state() const {
 	d["workers_at_work"] = session_audio_.workers_at_work();
 	d["workers_in_earshot"] = session_audio_.workers_in_earshot();
 	d["listener"] = session_audio_.listener();
+	d["combat_sounds"] = session_audio_.combat_sounds_played();
+	d["combat_culled"] = session_audio_.combat_sounds_culled();
+	d["voices"] = view ? view->spatial_voices_playing() : 0;
+	d["voices_dropped"] = view ? view->spatial_sounds_dropped() : 0;
 	return d;
 }
 
@@ -1907,36 +1911,46 @@ void RtsoMain::select_group(int key, bool drop) {
 
 // The garrison panel's holder: the selected structure, or a lone selected ship, ram or
 // siege tower.
-uint32_t RtsoMain::selected_garrison_holder() const {
-	if (selected_building_id != 0) return selected_building_id;
-	if (sim && selected_ids.size() == 1 && sim->is_transport((uint32_t)selected_ids[0])) return (uint32_t)selected_ids[0];
-	return 0;
+// unloadTemplate's garrisonHolders: the selected structures and units that hold units.
+std::vector<uint32_t> RtsoMain::selected_garrison_holders() const {
+	std::vector<uint32_t> out;
+	if (!sim) return out;
+	for (uint32_t id : selected_structures())
+		if (!sim->holder_contents(id).empty()) out.push_back(id);
+	for (int s = 0; s < selected_ids.size(); ++s) {
+		const uint32_t id = (uint32_t)selected_ids[s];
+		if (sim->is_transport(id) && !sim->holder_contents(id).empty()) out.push_back(id);
+	}
+	return out;
 }
 
-// Garrison icon click (selection_panels.js Garrison.execute -> unloadTemplate): unload
-// one unit of the group (template and owner), or all of them with session.unloadtype (Shift).
+bool RtsoMain::ui_garrison_panel_shown() const { return !selected_garrison_holders().empty(); }
+
+// Garrison icon click (selection_panels.js Garrison.execute -> unloadTemplate): every selected
+// holder (Commands.js "unload-template" -> GarrisonHolder.UnloadTemplate) unloads one unit of the
+// group (template and owner), or all of them with session.unloadtype (Shift).
 void RtsoMain::_on_garrison_group_clicked(int key) {
-	const uint32_t holder = selected_garrison_holder();
-	if (!sim || holder == 0) return;
-	const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), holder);
-	if (mine.empty()) return;
+	if (!sim) return;
 	const bool all = rtso::hotkeys::held("session.unloadtype");
 	auto uview = sim->units();
-	std::vector<uint32_t> out;
-	for (uint32_t gid : mine) {
-		for (size_t i = 0; i < uview.count; ++i) {
-			if (uview.id[i] != gid) continue;
-			const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-			if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i]) == key) out.push_back(gid);
-			break;
+	for (uint32_t holder : selected_garrison_holders()) {
+		const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), holder);
+		std::vector<uint32_t> out;
+		for (uint32_t gid : mine) {
+			for (size_t i = 0; i < uview.count; ++i) {
+				if (uview.id[i] != gid) continue;
+				const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
+				if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i]) == key) out.push_back(gid);
+				break;
+			}
+			if (!all && !out.empty()) break;
 		}
-		if (!all && !out.empty()) break;
+		if (out.empty()) continue;
+		if (turn_cmds())
+			post_lockstep(13, out.data(), out.size(), 0, 0, holder, 0);
+		else
+			sim->cmd_unload(local_player(), holder, out.data(), out.size());
 	}
-	if (out.empty()) return;
-	if (turn_cmds())
-		post_lockstep(13, out.data(), out.size(), 0, 0, holder, 0);
-	else
-		sim->cmd_unload(local_player(), holder, out.data(), out.size());
 }
 
 void RtsoMain::update_command_panel() { command_panel_.update(); }
@@ -3648,6 +3662,22 @@ void RtsoMain::_on_chat_send_pressed() {
 void RtsoMain::_on_chat_text_submitted(const String &text) {
 	(void)text;
 	chat_window_.send_pressed();
+}
+
+void RtsoMain::_on_chat_input_gui(const Ref<InputEvent> &event) {
+	Ref<InputEventKey> k = event;
+	if (k.is_valid() && k->is_pressed() && k->get_keycode() == KEY_TAB) chat_window_.tab_complete();
+}
+
+std::vector<String> RtsoMain::chat_autocomplete_names() {
+	std::vector<String> out;
+	if (net_lockstep()) {
+		for (const auto &e : net_host_.playerAssignment())
+			if (!e.name.empty()) out.push_back(String::utf8(e.name.c_str()));
+	} else if (local_player() < rtso::MAX_PLAYERS) {
+		out.push_back(player_display_name(local_player()));
+	}
+	return out;
 }
 
 // 0 A.D. MatchSettingsDialog.toggle.

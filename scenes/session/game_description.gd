@@ -26,11 +26,11 @@ const CONQUEST_UNITS := ["Conquest Units", "Defeat opponents by killing all thei
 const CONQUEST_STRUCTURES := ["Conquest Structures", "Defeat opponents by destroying all their structures."]
 const CONQUEST_CIVIC_CENTRES := ["Conquest Civic Centers", "Defeat opponents by destroying all their fully built civic centers."]
 const REGICIDE := ["Regicide", "Defeat opponents by killing their hero."]
-const WONDER_DESC := "Be the first to build or capture a Wonder and keep it for a certain time to win the game. The timer will be reset when the Wonder is destroyed or captured."
+const WONDER_DESC := "Be the first to build or capture a Wonder and keep it for a certain time to win the game. The timer will be reset when the Wonder is destroyed or captured. If the allied victory mode is enabled, the timer will also be reset when the alliances of the owner change."
 const RELIC_DESC := "Capture all relics spread across the map and keep them for a certain time to win the game."
 
 # settings/population_capacities.json Name, Title, CapTitle.
-const POP_PLAYER := ["Player Population", "Population Cap"]
+const POP_PLAYER := ["Player Population", "Player Population Cap"]
 const POP_TEAM := ["Team Population", "Team Population Cap"]
 const POP_WORLD := ["World Population", "World Population Cap"]
 const TEAM_POP_FLAG := 100000 # Simulation::TEAM_POP_FLAG: pop_cap <= -flag is a Team Population

@@ -67,6 +67,8 @@ public:
 	// (`holder` among them).
 	virtual int ui_trainer_count(uint16_t tmpl, uint32_t holder) const { return 1; }
 	virtual std::vector<uint32_t> ui_selected_structures() const = 0;
+	// The Garrison panel shows (a selected holder has units inside): it wins over Formation.
+	virtual bool ui_garrison_panel_shown() const { return false; }
 	// g_IsObserver: an observer, a defeated player or a replay viewer.
 	virtual bool ui_observing() const { return false; }
 };
@@ -83,8 +85,8 @@ public:
 	}
 	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
 	// Where refresh_roster_state puts a training cell's Cost and batch lines in its base tooltip.
-	static constexpr const char *COST_SLOT = "\x01cost";
-	static constexpr const char *BATCH_SLOT = "\x01batch";
+	static constexpr const char *COST_SLOT = "\x01" "cost";
+	static constexpr const char *BATCH_SLOT = "\x01" "batch";
 	static constexpr int ROSTER_TECH = 0x20000;   // roster_list metadata flag: a training unit's technology
 
 	// owner: signal target (RtsoMain: the stance, formation, tech, build and command presses,
@@ -95,14 +97,15 @@ public:
 		owner_ = owner;
 		host_ = host;
 		panel_ = memnew(Panel);
-		panel_->set_anchor(SIDE_LEFT, 1.0f);
-		panel_->set_anchor(SIDE_RIGHT, 1.0f);
+		panel_->set_anchor(SIDE_LEFT, 0.5f);
+		panel_->set_anchor(SIDE_RIGHT, 0.5f);
 		panel_->set_anchor(SIDE_TOP, 1.0f);
 		panel_->set_anchor(SIDE_BOTTOM, 1.0f);
-		// session.xml unitCommands: the 402 x 166 commands panel (right), with the
-		// supplemental panel (206 x 166, left) overlapping it by 4 px.
-		panel_->set_offset(SIDE_LEFT, -12.0f - kRightW);
-		panel_->set_offset(SIDE_RIGHT, -12.0f);
+		// session.xml, in the 1024 px group centred at the bottom: the 402 x 166 commands
+		// panel (unitCommands, 50%+110 .. 50%+512) and the 206 x 166 supplemental panel
+		// (supplementalSelectionDetails, 50%-316 .. 50%-110) either side of the details.
+		panel_->set_offset(SIDE_LEFT, 110.0f);
+		panel_->set_offset(SIDE_RIGHT, 110.0f + kRightW);
 		panel_->set_offset(SIDE_TOP, -10.0f - kPanelH);
 		panel_->set_offset(SIDE_BOTTOM, -10.0f);
 
@@ -118,12 +121,12 @@ public:
 		// the stance, formation, alert, command and barter ones override it with the bold variant.
 		panel_->set_meta("tooltip_style", "session_bottom");
 		left_panel_ = memnew(Panel);
-		left_panel_->set_anchor(SIDE_LEFT, 1.0f);
-		left_panel_->set_anchor(SIDE_RIGHT, 1.0f);
+		left_panel_->set_anchor(SIDE_LEFT, 0.5f);
+		left_panel_->set_anchor(SIDE_RIGHT, 0.5f);
 		left_panel_->set_anchor(SIDE_TOP, 1.0f);
 		left_panel_->set_anchor(SIDE_BOTTOM, 1.0f);
-		left_panel_->set_offset(SIDE_LEFT, -8.0f - kRightW - kLeftW);
-		left_panel_->set_offset(SIDE_RIGHT, -8.0f - kRightW);
+		left_panel_->set_offset(SIDE_LEFT, -110.0f - kLeftW);
+		left_panel_->set_offset(SIDE_RIGHT, -110.0f);
 		left_panel_->set_offset(SIDE_TOP, -10.0f - kPanelH);
 		left_panel_->set_offset(SIDE_BOTTOM, -10.0f);
 		left_panel_->add_theme_stylebox_override("panel", cmd_style);
@@ -239,9 +242,29 @@ public:
 		panel_->add_child(queue_bar_);
 
 		production_queue_.build(owner, queue_bar_, queue_host);
+
+		// unit_commands.xml (0 100%-40 100% 100%-4 in the 228 px details panel): the
+		// g_EntityCommands icons, centred along the details panel's bottom.
+		commands_row_ = memnew(HBoxContainer);
+		commands_row_->set_name("unitCommandPanel");
+		commands_row_->set_anchor(SIDE_LEFT, 0.5f);
+		commands_row_->set_anchor(SIDE_RIGHT, 0.5f);
+		commands_row_->set_anchor(SIDE_TOP, 1.0f);
+		commands_row_->set_anchor(SIDE_BOTTOM, 1.0f);
+		commands_row_->set_offset(SIDE_LEFT, -110.0f);
+		commands_row_->set_offset(SIDE_RIGHT, 110.0f);
+		commands_row_->set_offset(SIDE_TOP, -10.0f - 40.0f);
+		commands_row_->set_offset(SIDE_BOTTOM, -10.0f - 4.0f);
+		commands_row_->set_alignment(BoxContainer::ALIGNMENT_CENTER);
+		commands_row_->add_theme_constant_override("separation", 1);
+		commands_row_->set_meta("tooltip_style", "session_bottom_bold");
+		if (theme.is_valid()) commands_row_->set_theme(theme);
+		parent->add_child(commands_row_);
 	}
 
 	godot::Panel *panel() const { return panel_; }
+	godot::Panel *left_panel() const { return left_panel_; }
+	godot::HBoxContainer *commands_row() const { return commands_row_; }
 	godot::HFlowContainer *production_bar() const { return production_bar_; }
 	void set_barter_sell(int r) { barter_sell_ = r; } // BarterButtonManager.setSelectedResource
 	void set_barter_host(godot::Control *c) {
@@ -309,6 +332,8 @@ public:
 		// one Button and its release on the next, so pressed never fired.
 		const int old_actions = actions_bar_->get_child_count();
 		const int old_production = production_bar_->get_child_count();
+		const int old_commands = commands_row_->get_child_count();
+		commands_base_ = old_commands;
 
 		if (selected_building_id != 0) {
 			const auto &bldgs = sim->buildings();
@@ -776,7 +801,8 @@ public:
 					for (uint8_t f = 1; f < rtso::FORMATION_COUNT && !any_can_form; ++f)
 						any_can_form = sim->unit_can_use_formation(sel_ids[i], f);
 				}
-				const uint32_t available = any_can_form ? sim->player_formation_mask(local_player()) : 0u;
+				// g_SelectionPanels.Formation conflictsWith Garrison.
+				const uint32_t available = any_can_form && !host_->ui_garrison_panel_shown() ? sim->player_formation_mask(local_player()) : 0u;
 				const uint8_t default_f = default_formation();
 				for (uint8_t f = 0; f < rtso::FORMATION_COUNT; ++f) {
 					if (!((available >> f) & 1u)) continue;
@@ -1220,11 +1246,13 @@ public:
 				if (!btn->has_theme_font_size_override("font_size")) btn->add_theme_font_size_override("font_size", 11);
 		keep_buttons(actions_bar_, old_actions);
 		keep_buttons(production_bar_, old_production);
+		keep_buttons(commands_row_, old_commands);
 		for (int st = 0; st < 5; ++st)
 			if (stance_buttons_[st] && stance_buttons_[st]->is_disabled() != read_only_) stance_buttons_[st]->set_disabled(read_only_);
 		if (read_only_) {
 			disable_buttons(actions_bar_);
 			disable_buttons(production_bar_);
+			disable_buttons(commands_row_);
 			if (roster_list_)
 				for (int i = 0; i < roster_list_->get_item_count(); ++i) roster_list_->set_item_disabled(i, true);
 		}
@@ -1687,6 +1715,8 @@ private:
 	void add_entity_command(const char *name, const char *label, const char *hotkey, const godot::String &tip,
 			const char *icon, bool enabled = true, int count = 0) {
 		using namespace godot;
+		// selection_panels.js Command getMaxNumberOfItems: 6, in g_EntityCommands order.
+		if (commands_row_->get_child_count() - commands_base_ >= 6) return;
 		Button *btn = memnew(Button);
 		const String text = count > 0 ? String(label) + " (" + String::num_int64(count) + ")" : String(label);
 		btn->set_meta("label", text);
@@ -1706,7 +1736,7 @@ private:
 		btn->set_disabled(!enabled);
 		btn->set_meta("tooltip_style", "session_bottom_bold"); // g_EntityCommands
 		btn->connect("pressed", Callable(owner_, "_on_entity_command").bind(String(name)));
-		production_bar_->add_child(btn);
+		commands_row_->add_child(btn);
 	}
 
 	// Everything that makes a command button look or act differently: its text,
@@ -1744,7 +1774,7 @@ private:
 						s += String("\x1e") + button_signature(n->get_child(i));
 			return s;
 		}
-		String s = b->get_text() + String("\x1f") + b->get_tooltip_text() + (b->is_disabled() ? "\x1fD" : "\x1fE");
+		String s = b->get_text() + String("\x1f") + b->get_tooltip_text() + (b->is_disabled() ? "\x1f" "D" : "\x1f" "E");
 		if (b->has_meta("progress")) s += String("\x1fg") + String::num_int64((int64_t)b->get_meta("progress"));
 		// Child overlays (the corners frame, a red mask, a greyed icon) change with state.
 		for (int i = 0; i < b->get_child_count(); ++i) {
@@ -1757,8 +1787,8 @@ private:
 		Ref<Texture2D> ico = b->get_button_icon();
 		if (ico.is_valid()) s += String("\x1fi") + (ico->get_path().is_empty() ? String::num_int64(ico->get_instance_id()) : ico->get_path());
 		s += String("\x1fm") + String(Variant(b->get_custom_minimum_size()));
-		if (b->has_theme_color_override("font_color")) s += String("\x1fc") + String(Variant(b->get_theme_color("font_color")));
-		if (b->has_theme_font_size_override("font_size")) s += String("\x1ff") + String::num_int64(b->get_theme_font_size("font_size"));
+		if (b->has_theme_color_override("font_color")) s += String("\x1f" "c") + String(Variant(b->get_theme_color("font_color")));
+		if (b->has_theme_font_size_override("font_size")) s += String("\x1f" "f") + String::num_int64(b->get_theme_font_size("font_size"));
 		TypedArray<Dictionary> conns = b->get_signal_connection_list("pressed");
 		for (int i = 0; i < conns.size(); ++i) {
 			Callable c = Dictionary(conns[i])["callable"];
@@ -2118,6 +2148,8 @@ private:
 	godot::HFlowContainer *production_bar_ = nullptr;
 	godot::HBoxContainer *queue_bar_ = nullptr;
 	godot::Panel *left_panel_ = nullptr;
+	godot::HBoxContainer *commands_row_ = nullptr;
+	int commands_base_ = 0; // the previous frame's command buttons, before this frame's
 	// session.xml's panel sizes.
 	static constexpr float kPanelH = 166.0f, kRightW = 402.0f, kLeftW = 206.0f;
 	static constexpr float kGridW = kRightW - 10.0f, kTrainH = 78.0f;

@@ -40,6 +40,7 @@
 #include <godot_cpp/classes/image_texture.hpp>
 #include <godot_cpp/classes/shader_material.hpp>
 #include <godot_cpp/classes/shader.hpp>
+#include <godot_cpp/classes/time.hpp>
 #include "../graphics/assets/assets.h"
 #include "../graphics/assets/procedural.h"
 #include "../graphics/assets/model_library.h"
@@ -383,6 +384,13 @@ class RtsoWorldView : public Node3D {
 	uint64_t crowd_bake_deadline_us_ = 0;
 	bool crowd_baked_this_frame_ = false;
 	bool crowd_bake_over_budget();
+	// The crowd clip being baked, pose by pose: a clip's poses may span frames, and its
+	// model instance stays for the batch's later clips.
+	struct CrowdBakeJob;
+	std::unique_ptr<CrowdBakeJob> crowd_job_;
+	void crowd_job_begin_clip(CrowdBatch &b, int c);
+	void crowd_job_bake_poses();
+	void crowd_job_release();
 	std::vector<uint8_t> crowd_slot_scratch_; // crowd clip slot per unit index this frame
 	// Formation.js GetFormationAnimationVariant per formation member this frame, and which
 	// variants each crowd key's 0 A.D. actor lists (bit 31: looked up).
@@ -418,6 +426,20 @@ class RtsoWorldView : public Node3D {
 	static constexpr size_t SPATIAL_AUDIO_POOL_SIZE = 32;
 	AudioStreamPlayer3D *spatial_players[SPATIAL_AUDIO_POOL_SIZE] = {nullptr};
 	size_t next_spatial_idx = 0;
+	static constexpr int kMaxSpatialVoices = 16;
+	int spatial_dropped_ = 0;
+	uint64_t spatial_end_ms_[SPATIAL_AUDIO_POOL_SIZE] = {}; // when each voice's sound ends
+
+public:
+	int spatial_voices_playing() const {
+		const uint64_t now = Time::get_singleton()->get_ticks_msec();
+		int n = 0;
+		for (size_t i = 0; i < SPATIAL_AUDIO_POOL_SIZE; ++i) n += spatial_players[i] && now < spatial_end_ms_[i];
+		return n;
+	}
+	int spatial_sounds_dropped() const { return spatial_dropped_; }
+
+private:
 
 
 
@@ -559,10 +581,9 @@ private:
 	void hide_unit_vis(UnitVis &v);
 	CrowdBatch &crowd_batch(uint8_t civ, uint16_t key);
 	MultiMesh *crowd_mm(CrowdBatch &b, int clip);
-	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks;
-	// with `budgeted`, stops once crowd_bake_over_budget() (the rest bake on later frames).
+	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks.
 	void bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-			const bool *needed, int count, uint64_t death_slots, bool female = false, bool budgeted = false);
+			const bool *needed, int count, uint64_t death_slots, bool female = false);
 	// Adds the 0 A.D. clips the unit GLBs lack (per-resource carry, promotion)
 	// to a biped's animation library from assets/animations/*.psa.
 	void ensure_runtime_clips(AnimationPlayer *ap, bool female);

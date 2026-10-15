@@ -419,7 +419,6 @@ public:
 	void _on_barter_sell_selected(int resource);
 	void _on_pack_cancel_pressed(int pack);
 	Array debug_barter_panel();
-	uint32_t selected_garrison_holder() const;
 	Array debug_garrison_icons() const;
 	void _on_stance_selected(int stance);
 	void _on_formation_selected(int formation);
@@ -568,6 +567,8 @@ public:
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	const PackedInt32Array &ui_selected_ids() const override { return selected_ids; }
 	std::vector<uint32_t> ui_selected_structures() const override { return selected_structures(); }
+	std::vector<uint32_t> ui_selected_garrison_holders() const override { return selected_garrison_holders(); }
+	bool ui_garrison_panel_shown() const override;
 	bool ui_observing() const override { return turn_mgr_.is_replaying() || spectating(); }
 	// Tests: the training roster's rows (name, disabled).
 	Array debug_roster() {
@@ -617,6 +618,8 @@ public:
 	void _on_chat_history_toggled(bool on); // ChatWindow.onToggleExtended: saved to chat.session.extended
 	bool chat_sender_is_player(const String &sender_guid) override { return chat_player_of(sender_guid) < rtso::MAX_PLAYERS; }
 	void _on_chat_text_submitted(const String &text);
+	void _on_chat_input_gui(const Ref<InputEvent> &event);
+	std::vector<String> chat_autocomplete_names() override;
 	void _on_chat_channel_btn_pressed(int channel_idx);
 
 	void toggle_diplomacy();
@@ -809,8 +812,15 @@ public:
 	String chat_open_hotkey_tooltip() const;
 	// input.js: session.flare held arms a flare, never in a replay (!g_IsReplay).
 	bool flare_held() const;
+	bool selected_building_shoots() const; // own, with BuildingAI arrows (try_focus_fire)
 	void refresh_chat_tooltips();
-	Dictionary debug_chat_tooltips() const { Dictionary d; d["input"] = chat_window_.input_tooltip(); d["open"] = chat_open_hotkey_tooltip(); return d; }
+	Dictionary debug_chat_tooltips() {
+		Dictionary d; d["input"] = chat_window_.input_tooltip(); d["open"] = chat_open_hotkey_tooltip();
+		PackedStringArray names;
+		for (const String &n : chat_autocomplete_names()) names.push_back(n);
+		d["names"] = names;
+		return d;
+	}
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
@@ -862,6 +872,7 @@ private:
 	std::vector<uint32_t> extra_structures_;
 	uint32_t extras_primary_ = 0; // the selected_building_id the extras belong to
 	std::vector<uint32_t> selected_structures() const;
+	std::vector<uint32_t> selected_garrison_holders() const; // the selection's holders with units inside
 	std::vector<uint32_t> selected_structures_like_primary() const;
 	void set_selected_structures(const std::vector<uint32_t> &ids);
 	void prune_structure_selection();
@@ -922,6 +933,7 @@ private:
 	void play_civ_voice(const char *action);
 	void update_music_state();
 	Dictionary get_audio_state() const;
+	bool debug_combat_sound(float x, float z) { return sim && session_audio_.debug_combat_sound(sim, local_player(), x, z); }
 	rtso::RtsoMusic music_;
 	rtso::RtsoSessionAudio session_audio_;
 	uint8_t music_civ_ = 0xFF;

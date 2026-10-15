@@ -100,13 +100,14 @@ func run() -> void:
 	check(d.labels.players.text == "2" and d.labels.time.text == "12:34" and d.labels.type.text == "Random"
 		and d.labels.size.text == "Normal" and d.labels.victory.text == "Conquest, Wonder",
 		"players, played time, type, size, victory: %s %s %s %s %s" % [d.labels.players.text, d.labels.time.text, d.labels.type.text, d.labels.size.text, d.labels.victory.text])
-	check(d.labels.version.text == "Save format: v%d" % v and d.players_text.get_parsed_text().contains("e2eAlpha (Athenians)"), "save format and players")
+	check(d.find_child("GameSelection", true, false).get_column_title(0).begins_with("Date / Time") and not d.invalid_logo.visible, "a selected save hides the logo")
+	check(d.labels.version.text == "Mods: RTS0 (save format v%d)" % v and d.players_text.get_parsed_text().contains("e2eAlpha (Athenians)"), "save format and players")
 
 	print("3. other save formats")
 	d.select_save(d.saves.map(func(s): return s.id).find(NAMES[3]))
 	d.load_pressed()
 	await frames(1)
-	check(d.message != null and d.message.message.contains("newer version"), "a newer save can't be loaded")
+	check(d.message != null and d.message.message.contains("needs RTS0 save format"), "a newer save can't be loaded")
 	d.message.find_child("Button1", true, false).pressed.emit() # OK
 	d.select_save(d.saves.map(func(s): return s.id).find(NAMES[2]))
 	d.load_pressed()

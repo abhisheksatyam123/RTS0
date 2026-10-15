@@ -179,7 +179,7 @@ Textures:
   - Reference portraits: `portraits/catafalque.png` for the Catafalque Overview.
   - Formations: 12 PNG (`formations/`). The 0 A.D. formation count of 14 comes from the 2026-08-29 audit and was not re-verified (zip absent).
   - Auras and minimap: 19 and 22 files matched by name. Runtime wiring of these was not re-audited.
-  - Cursors: 23 (`assets/textures/cursors/`: 22 `action-*` and `cursor-rally`), wired by `update_cursor`. 0 A.D.'s remaining cursors (the remaining set-rally variants, the disabled variants, the arrow) are not copied yet.
+  - Cursors: 23 (`assets/textures/cursors/`: 22 `action-*` and `cursor-rally`), wired by `update_cursor`. 0 A.D.'s remaining cursors (the remaining set-rally variants, the disabled variants, the arrow) are not copied yet. 0.28's `action-target`, `action-player-flare` and `action-observer-flare` aren't in the repo either: the session uses `action-attack` and `action-flare` in their place. The Barter & Trade dialog draws its (i) buttons and trade arrows as text, since `global/icon/info.png` and `global/button/arrowbox_*.dds` aren't copied.
 - **Translations.** `assets/l10n/`: 25 merged .po files (the 0 A.D. languages at least 75% translated, about 18 MB), written by `tools/fetch_0ad_l10n.py`. The other 0 A.D. languages and the CJK fonts 0 A.D. ships are not copied; Chinese, Japanese and Korean text uses the system's font fallback.
 - **2026-08-29 gap list: closed.** The 18 missing GLBs from the 2026-08-29 gap list are all shipped (see the matrices above). Re-export a single id with `python3 tools/extract_0ad_assets.py --only <ids>` (see [assets/README.md](../assets/README.md)).
 

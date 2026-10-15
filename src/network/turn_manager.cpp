@@ -207,6 +207,11 @@ void TurnManager::apply_peer_control(const NetCommand &c) {
 	if (id != 0 && id == local_client_id_ && c.cmd_type == CMD_PEER_JOINED && c.target_z > 0.5f)
 		rejoined_clients_.push_back(id); // the rejoiner hears it too
 	if (id == 0 || id == local_client_id_) return;
+	// A late observer loaded: everyone hears "has joined the game.", and it stays out of the lockstep.
+	if (c.cmd_type == CMD_PEER_JOINED && c.param >= MAX_PLAYERS) {
+		if (c.target_z > 0.5f) rejoined_clients_.push_back(id);
+		return;
+	}
 	if (c.cmd_type == CMD_PEER_LEFT) {
 		apply_peer_left(id, (uint32_t)c.target_x);
 		std::cerr << "[TurnManager] client " << id << " left after turn " << (uint32_t)c.target_x << "\n";
@@ -257,6 +262,13 @@ uint32_t TurnManager::turns_behind() {
 	uint32_t n = 0;
 	while (n < 64 && received_batches_.count(current_turn_ + n + 1) && turn_ready(current_turn_ + n + 1)) ++n;
 	return n;
+}
+
+uint32_t TurnManager::turns_in_hand() const {
+	uint32_t last = 0;
+	for (uint32_t n = 1; n <= 64; ++n)
+		if (received_batches_.count(current_turn_ + n)) last = n;
+	return last;
 }
 
 void TurnManager::drop_client(uint32_t client_id) {
@@ -415,6 +427,21 @@ void TurnManager::admit_rejoiner(uint32_t client_id) {
 	if (it == rejoin_loading_.end()) return;
 	const uint8_t seat = it->second;
 	rejoin_loading_.erase(it);
+	if (seat >= MAX_PLAYERS) {
+		// 0 A.D. NetServer OnRejoined multicasts NMT_REJOINED for an observer too
+		// ("has joined the game."); nobody waits on it, so it gets no lockstep turn.
+		NetCommand c;
+		c.cmd_type = CMD_PEER_JOINED;
+		c.target_id = client_id;
+		c.param = seat;
+		c.target_x = (float)(current_turn_ + COMMAND_DELAY + 1);
+		const bool joined = !saved_waiting_.count(client_id); // a saved game's observers load at Start
+		c.target_z = joined ? 1.0f : 0.0f;
+		pending_control_.push_back(c);
+		if (joined) rejoined_clients_.push_back(client_id);
+		std::cerr << "[TurnManager] observer " << client_id << " loaded\n";
+		return;
+	}
 	ensure_lockstep_peers();
 	const uint32_t L = current_turn_ + COMMAND_DELAY + 1;
 	if (std::find(lockstep_peers_.begin(), lockstep_peers_.end(), client_id) == lockstep_peers_.end())
@@ -584,8 +611,9 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 	lockstep_until_.erase(client_id);
 	left_clients_.erase(client_id);
 	net_host_->setPeerObserver(client_id, observer);
-	// A player joins the lockstep once it has loaded (admit_rejoiner).
-	if (!observer) rejoin_loading_[client_id] = seat;
+	// A player joins the lockstep once it has loaded (admit_rejoiner); an
+	// observer's "loaded" only tells everyone it has joined.
+	rejoin_loading_[client_id] = observer ? (uint8_t)0xFF : seat;
 	// 0 A.D. NetServer OnRejoined: the rejoiner is told who is pausing
 	// (it keeps the list through its rejoin reset; later changes reach it as
 	// they reach everyone).
@@ -781,10 +809,12 @@ bool TurnManager::apply_pending_rejoin(Simulation &sim) {
 	for (const auto &scm : batches) receive_remote_turn_batch(scm.turn, scm.client_id, scm.commands);
 	note_game_start_applied(&sim);
 	rejoined_ = true;
+	rejoin_fast_forward_ = true;
 	rejoin_turn_ = T;
-	if (seat < MAX_PLAYERS) {
-		// 0 A.D. NMT_LOADED_GAME: the host now lets the lockstep wait on us.
-		rejoin_lockstep_wait_ = true;
+	{
+		// 0 A.D. NMT_LOADED_GAME: the host now lets the lockstep wait on a player,
+		// and tells everyone an observer has joined.
+		rejoin_lockstep_wait_ = seat < MAX_PLAYERS;
 		RejoinMsg loaded;
 		loaded.kind = RejoinMsg::LOADED;
 		loaded.turn = T;
@@ -829,6 +859,8 @@ void TurnManager::reset() {
 	client_player_.clear();
 	current_turn_ = 0;
 	turn_timer_ = 0.0f;
+	observer_fast_ = false;
+	rejoin_fast_forward_ = false;
 	pending_local_cmds_.clear();
 	pending_remote_cmds_.clear();
 	turn_remote_cmds_.clear();
@@ -1428,13 +1460,23 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		turn_timer_ = std::min(turn_timer_, TURN_DURATION);
 		return false;
 	}
-	turn_timer_ += dt;
+	const bool net_client = net_game_started() && lockstep_net_active() && net_host_ && !net_host_->isHost();
+	if (rejoin_fast_forward_ && (!net_client || turns_in_hand() <= CATCH_UP_TURNS)) rejoin_fast_forward_ = false;
+	float rate = 1.0f;
+	if (auto_catch_up_ && net_client && is_observer() && !rejoin_fast_forward_) {
+		// NetworkDelayOverlay.CheckDelay: 10% faster while too far behind.
+		const uint32_t behind = turns_behind();
+		if (behind > OBSERVER_MAX_LIVE_DELAY) observer_fast_ = true;
+		else if (behind <= OBSERVER_NORMAL_DELAY) observer_fast_ = false;
+		if (observer_fast_) rate = OBSERVER_CATCH_UP_RATE;
+	} else {
+		observer_fast_ = false;
+	}
+	turn_timer_ += dt * rate;
 	if (turn_timer_ < TURN_DURATION) {
-		// 0 A.D. network.autocatchup: an observer behind the host runs the
-		// turns it holds without waiting out each turn length.
-		if (!(auto_catch_up_ && net_game_started() && lockstep_net_active() && !net_host_->isHost() &&
-				(is_observer() || rejoined_) && turns_behind() > CATCH_UP_TURNS))
-			return false;
+		// A rejoiner runs the turns it got while loading without waiting out
+		// each turn length (CNetClient::LoadFinished fast-forwards them).
+		if (!rejoin_fast_forward_) return false;
 		turn_timer_ = TURN_DURATION;
 	}
 

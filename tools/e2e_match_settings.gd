@@ -108,7 +108,7 @@ func run() -> void:
 	var scen: String = GameDescription.describe(info)
 	check(has_line(scen, "Map Type", "Scenario"), "a scenario's map type")
 	check(has_line(scen, "Starting Resources", "Per Player"), "its own resources read Per Player")
-	check(has_line(scen, "Population Cap", "300"), "a player cap")
+	check(has_line(scen, "Player Population Cap", "300"), "a player cap")
 	check(not scen.contains("Map Size") and not scen.contains("Nomad Mode"), "no random-map lines")
 	info["victory_mask"] = GameDescription.VK_CONQUEST | GameDescription.VK_WONDER
 	info["wonder_min"] = 1

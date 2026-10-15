@@ -139,6 +139,10 @@ int main() {
 				if (b.type == BLD_TOWN_CENTER && b.team < MAX_PLAYERS) tcs.push_back({b.x, b.z}); // not Danubius' Gaia villages
 			// wall_demo.js places walls alone, no player entities (test_wall_demo checks them).
 			CHECK((int)tcs.size() >= 2 || mt == MAP_WALL_DEMO, "%s %d: %zu town centres", map_type_info(mt).id, size, tcs.size());
+			// new_rms_test.js places the player bases alone: no resources or animals.
+			if (mt == MAP_NEW_RMS_TEST)
+				CHECK(sim.resources().count == 0 && sim.fauna().count == 0 && (int)tcs.size() == players,
+				      "new_rms_test %d: %zu resources, %zu animals, %zu town centres", size, sim.resources().count, sim.fauna().count, tcs.size());
 			for (size_t i = 0; i < tcs.size(); ++i) {
 				for (size_t j = 0; j < tcs.size(); ++j) {
 					if (i == j) continue;
@@ -236,6 +240,24 @@ int main() {
 			CHECK(std::hypot(ex - 120.0f, ez - 120.0f) < 2.0f, "path ends at (%.1f, %.1f), not (120, 120)", ex, ez);
 		}
 		CHECK(sim.fow_res() == 128, "256m map fow_res %d", sim.fow_res());
+	}
+
+	// 3c. caledonian_meadows.js's resource spots: in turn a stone mine, a metal mine, a fenced Gaia
+	// farmstead with sheep and a food bin, a grove and a camp of treasures and Gaia soldiers.
+	{
+		Simulation sim;
+		sim.generate_random_map(MAP_CALEDONIAN_MEADOWS, 7, 2, 256.0f);
+		int camp_treasures = 0, fences = 0, farmsteads = 0, gaia_units = 0, sheep = 0;
+		for (const auto &t : sim.treasures()) camp_treasures += t.type == TREASURE_METAL || t.type == TREASURE_STONE;
+		for (const auto &sc : sim.scenery()) fences += sc.type == scenery_type_by_name("fence_long");
+		for (const auto &b : sim.buildings()) farmsteads += b.hp > 0 && b.team == GAIA_PLAYER && b.type == BLD_FARMSTEAD;
+		const auto u = sim.units();
+		for (size_t i = 0; i < u.count; ++i) gaia_units += u.alive[i] && u.team[i] == GAIA_PLAYER;
+		const auto fv = sim.fauna();
+		for (size_t i = 0; i < fv.count; ++i) sheep += fv.alive[i] && fv.fauna_type[i] == FAUNA_SHEEP;
+		CHECK(camp_treasures >= 5 && gaia_units >= 10, "Caledonian camps: %d metal or stone treasures, %d Gaia soldiers", camp_treasures, gaia_units);
+		CHECK(farmsteads >= 5 && fences >= 3 * farmsteads && sheep >= 3 * farmsteads,
+				"Caledonian fences: %d farmsteads, %d long fences, %d sheep", farmsteads, fences, sheep);
 	}
 
 	// 4. FoW at the far corner of a Giant map.
