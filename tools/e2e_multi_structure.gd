@@ -92,6 +92,11 @@ func run() -> void:
 	check(structs() == [b1, b2], "both barracks are selected")
 	check(main.debug_structure_outlined(b1) and main.debug_structure_outlined(b2), "both are outlined")
 
+	var grid: Dictionary = main.debug_selection_grid(false)
+	var icons: Array = grid["icons"]
+	print("    grid ", icons.map(func(e): return str(e["tip"]).get_slice("\n", 0)))
+	check(icons.size() == 1 and str(icons[0]["tip"]).contains("Barracks"), "the details show one Barracks group")
+
 	print("2. Training spreads over them")
 	var rl: ItemList = null
 	for n in main.find_children("*", "ItemList", true, false):
@@ -141,5 +146,26 @@ func run() -> void:
 	await frames(2)
 	print("    ", structs(), " units ", main.debug_selection_grid(false)["selected"])
 	check(structs().has(b1) and structs().has(b2), "the box selected both barracks")
+
+	print("6. With units too, the group icon keeps only the structures")
+	var men: PackedInt32Array = main.debug_spawn_units("athen/infantry_spearman_b", 2)
+	main.debug_select_units(men)
+	await frames(2)
+	OS.delay_msec(600)
+	await key(KEY_SHIFT, true)
+	await click(s1 + Vector2(0, -12))
+	await key(KEY_SHIFT, false)
+	await frames(2)
+	icons = main.debug_selection_grid(false)["icons"]
+	print("    grid ", icons.map(func(e): return str(e["tip"]).get_slice("\n", 0)), " structs ", structs())
+	check(icons.size() == 2, "a unit group and a Barracks group")
+	var bar_icon = null
+	for e in icons:
+		if str(e["tip"]).contains("Barracks"):
+			bar_icon = instance_from_id(int(e["id"]))
+	if bar_icon:
+		bar_icon.emit_signal("pressed")
+	await frames(2)
+	check(main.debug_selection_grid(false)["selected"] == 0 and structs() == [b1], "pressing it keeps only the Barracks")
 	print("FAILURES: ", failures)
 	quit(1 if failures > 0 else 0)
