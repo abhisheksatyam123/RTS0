@@ -691,6 +691,8 @@ public:
 	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive, int count = 1);
 	// Trainer.js GetBatchTime: count^BatchTimeModifier of the building (civ version and techs).
 	float batch_time_multiplier(uint8_t player, uint8_t bld_type, int count) const;
+	// The same for a training unit (a trireme, Cyrus II): its Trainer/BatchTimeModifier.
+	float unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const;
 	// ProductionQueue.js EnableAutoQueue / DisableAutoQueue.
 	bool cmd_set_autoqueue(uint8_t player, uint32_t building_id, bool on);
 	// The technology a structure is researching now (the front of its queue), else TECH_NONE.
@@ -1491,7 +1493,9 @@ public:
 		PLACE_TERRITORY,  // territory the template does not allow
 		PLACE_SHORE,      // a dock not on a shoreline facing a sea
 		PLACE_DISTANCE,   // too close to the player's own building of the same class
+		PLACE_UNEXPLORED, // land the (human) player has never explored
 	};
+	bool placement_unexplored(uint8_t player, float x, float z) const;
 	PlacementResult check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type,
 			float angle = DEFAULT_BUILDING_ROT) const;
 	// What BuildRestrictions.CheckPlacement's GUI message names for `player` placing `b_type`
@@ -2463,7 +2467,6 @@ private:
 	float structure_build_time(const Building &b) const;
 	void tick_production(float dt);
 	void tick_unit_production(float dt); // units' Trainer queues (unit_queues_)
-	float unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const;
 	void tick_upgrades(float dt);
 	void tick_unit_upgrades(float dt);
 	std::vector<UnitUpgrade> unit_upgrades_; // in start order (saved v45)
@@ -2552,6 +2555,10 @@ private:
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
+public:
+	// Read-only, for the status bars' aura icons.
+	const AuraManager &aura_manager() const { return aura_mgr_; }
+private:
 	void apply_health_auras(); // Health/Max auras: rescale max_hp and hp as units enter or leave them
 	float structure_max_capture(const Building &b) const; // Capturable/CapturePoints with its owner's modifiers and auras
 	void refresh_capture_max(Building &b); // Capturable.js UpdateCachedValuesAndNotify: rescale every side's points
@@ -2665,6 +2672,9 @@ private:
 	// Turret units (unit id -> point height), rebuilt from the holders' garrison lists each
 	// tick, and the stance each had before it went up (UnitAI previousStance).
 	std::unordered_map<uint32_t, float> turret_height_;
+	// The turret_height_ units up on a Mauryan rampart tower: its TurretHolder has no
+	// wall_garrisoned aura. Rebuilt with turret_height_.
+	std::unordered_set<uint32_t> rampart_turrets_;
 	bool beach_goal_ = false; // set by order_walk(..., beach_goal) around its cmd_move
 	std::unordered_map<uint32_t, uint8_t> turret_prev_stance_;
 	const TurretPointSet *turret_points_of(const Building &b) const;
@@ -3577,14 +3587,21 @@ private:
 		o.ext = nav::footprint_extent(nav::Footprint{x, z, ux, uz, hu, hv});
 		return o;
 	}
-	// An open gate's Left and Right parts, which keep blocking (gate_door_fraction): f(x, z, hu) for
-	// each, along the gate's u axis either side of its Door.
+	// An open gate's Left and Right parts, which keep blocking (gate_door_fraction): f(x, z, hu, hv)
+	// for each, along the gate's width either side of its Door. The template's obstruction cluster
+	// lines Left, Door and Right up along the gate's width (structures/{civ}/wall_gate.xml). That
+	// width lies along u, or along v when the footprint is turned an odd number of quarter turns
+	// (Building::set_rot swaps hu and hv then): parts laid along u there would be two slabs the
+	// gate's whole length, shutting the open gate.
 	template <class F>
 	static void for_each_gate_side(const Building &b, F &&f) {
-		const float door = b.hu * gate_door_fraction(b.type, b.civ), side = 0.5f * (b.hu - door);
+		const bool along_v = b.hv > b.hu;
+		const float half_w = along_v ? b.hv : b.hu;
+		const float door = half_w * gate_door_fraction(b.type, b.civ), side = 0.5f * (half_w - door);
 		if (side <= 0.0f) return;
+		const nav::Vec2 w = along_v ? nav::footprint_v(b) : nav::Vec2(b.ux, b.uz);
 		for (const float sgn : {-1.0f, 1.0f})
-			f(b.x + b.ux * sgn * (door + side), b.z + b.uz * sgn * (door + side), side);
+			f(b.x + w.x * sgn * (door + side), b.z + w.y * sgn * (door + side), along_v ? b.hu : side, along_v ? side : b.hv);
 	}
 	// A finished gate that is open now: only its door lets units through.
 	static bool gate_open_now(const Building &b) {

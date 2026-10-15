@@ -99,8 +99,10 @@ func run() -> void:
 	print("    grid ", icons.map(func(e): return str(e["tip"]).get_slice("\n", 0)))
 	check(icons.size() == 1 and str(icons[0]["tip"]).contains("Barracks"), "the details show one Barracks group")
 	var ins: Dictionary = main.debug_inspector("current")
-	print("    capture ", ins["capture_parts"].size(), " parts")
-	check(ins["capture_parts"].size() == 1 and float(ins["capture_parts"][0]["width"]) > 300.0, "captureMultiple: their summed capture points show, all the owner's")
+	var cparts: Array = ins["capture_multiple_parts"]
+	print("    count ", ins["count"], " health ", ins["health_multiple"], " capture ", ins["capture_multiple"], " parts ", cparts)
+	check(String(ins["count"]) == "2" and String(ins["health_multiple"]).begins_with("Health:"), "displayMultiple: the count in large text and a vertical health bar")
+	check(cparts.size() == 1 and float(cparts[0]) > 35.0 and String(ins["capture_multiple"]) != "", "captureMultiple: their summed capture points show, all the owner's")
 
 	print("2. Training spreads over them")
 	var rl: ItemList = null

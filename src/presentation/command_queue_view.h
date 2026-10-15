@@ -62,6 +62,9 @@ public:
 	// The units a held Shift batch of this template holds so far (input.js g_NumberOfBatches
 	// x the batch size), 0 when none is being built.
 	virtual int ui_pending_batch(uint16_t tmpl) const = 0;
+	// getBuildingsWhichCanTrainEntity: the selected finished structures that train it
+	// (`holder` among them).
+	virtual int ui_trainer_count(uint16_t tmpl, uint32_t holder) const { return 1; }
 	virtual std::vector<uint32_t> ui_selected_structures() const = 0;
 	// g_IsObserver: an observer, a defeated player or a replay viewer.
 	virtual bool ui_observing() const { return false; }
@@ -78,6 +81,9 @@ public:
 		return rtso::FORMATION_NONE;
 	}
 	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
+	// Where refresh_roster_state puts a training cell's Cost and batch lines in its base tooltip.
+	static constexpr const char *COST_SLOT = "\x01cost";
+	static constexpr const char *BATCH_SLOT = "\x01batch";
 	static constexpr int ROSTER_TECH = 0x20000;   // roster_list metadata flag: a training unit's technology
 
 	// owner: signal target (RtsoMain: the stance, formation, tech, build and command presses,
@@ -1002,7 +1008,7 @@ public:
 						rtso::BLD_CORRAL, rtso::BLD_DOCK, rtso::BLD_BARRACKS, rtso::BLD_STABLE,
 						rtso::BLD_RANGE, rtso::BLD_SENTRY_TOWER, rtso::BLD_OUTPOST, rtso::BLD_PALISADE,
 						rtso::BLD_FORGE, rtso::BLD_MARKET, rtso::BLD_TEMPLE, rtso::BLD_TOWER,
-						rtso::BLD_EMBASSY, rtso::BLD_WALL_SEGMENT, rtso::BLD_WALL_TOWER, rtso::BLD_GATE,
+						rtso::BLD_EMBASSY, rtso::BLD_WALL_SEGMENT,
 						rtso::BLD_FORTRESS, rtso::BLD_ARSENAL, rtso::BLD_ELEPHANT_STABLE, rtso::BLD_THEATER,
 						rtso::BLD_WONDER
 					};
@@ -1343,11 +1349,15 @@ private:
 		roster_list_->set_visible(roster_list_->get_item_count() > 0);
 	}
 
-	// selection_panels.js Training setupButton, every frame: the count a click would train
-	// (getTrainingStatus: the held Shift batch so far plus one more batch size while Shift
-	// is down) under the portrait; requirements unmet, the entity limit reached or the
+	// selection_panels.js Training setupButton, every frame: getTrainingStatus's count a
+	// click would train (the held Shift batch so far plus one more batch while Shift is down,
+	// in every selected structure that trains it, cut to the entity limit) under the portrait;
+	// the tooltip's Cost line for that many (getEntityCostComponentsTooltipString: resources
+	// and population times the count, time ceil(time x GetBatchTime)) and its
+	// formatBatchTrainingString line; requirements unmet, the entity limit reached or the
 	// trainer upgrading grey and disable it ("Cannot train while upgrading."); resources
-	// short for that count mask it red and add what is needed.
+	// short for that count mask it red, and getNeededResourcesTooltip follows whatever else
+	// is wrong.
 	void refresh_roster_state(const rtso::Simulation::Building *b) {
 		using namespace godot;
 		rtso::Simulation *sim = host_->ui_sim();
@@ -1356,6 +1366,7 @@ private:
 		const int size = std::max(1, host_->ui_batch_size());
 		const bool shift = rtso::hotkeys::held("session.batchtrain");
 		const bool upgrading = b && b->upgrade_to != rtso::BLD_TYPE_COUNT;
+		const uint16_t trainer_tmpl = b ? 0 : sim->unit_template(trainer_unit_id_);
 		for (int idx = 0; idx < roster_list_->get_item_count() && idx < (int)roster_state_.size(); ++idx) {
 			const int meta = (int)roster_list_->get_item_metadata(idx);
 			if (meta & (ROSTER_ANIMAL | ROSTER_TECH) || meta >= rtso::CIV_UNIT_TEMPLATE_COUNT) continue;
@@ -1363,29 +1374,49 @@ private:
 			const uint8_t cat = rtso::UNIT_LIMITS[tmpl].category;
 			const int limit = cat == rtso::LIMIT_NONE || cat >= rtso::LIMIT_CATEGORY_COUNT ? -1 : sim->entity_limit(pid, cat);
 			const int allowed = limit < 0 ? -1 : std::max(0, limit - sim->entity_limit_count(pid, cat));
+			const int buildings = b ? std::max(1, host_->ui_trainer_count(tmpl, b->id)) : 1;
 			const int pending = host_->ui_pending_batch(tmpl);
-			int next = pending + (shift && (allowed < 0 || allowed > pending) ? size : 0);
+			int next = pending;
+			if (shift && (allowed < 0 || allowed > pending * buildings)) next += size;
 			next = std::max(next, 1);
-			if (allowed >= 0) next = std::min(next, std::max(allowed, 1));
+			int full = buildings, rest = 0;
+			if (allowed >= 0 && allowed < next * buildings) {
+				full = allowed / next;
+				rest = allowed % next;
+			}
+			const int num = full * next + rest;
+			const int batch = full > 0 ? next : rest;
 			const rtso::CivUnitTemplate &u = rtso::civ_unit_template(tmpl);
 			float cost[rtso::RES_COUNT];
 			sim->unit_train_cost(pid, tmpl, rtso::civ_template_unit_info(tmpl, u.unit_type), cost);
+			const float batch_mult = b ? sim->batch_time_multiplier(pid, b->type, batch) : sim->unit_trainer_batch_mult(trainer_tmpl, tmpl, batch);
+			const rtso::CostTip total{(int64_t)std::floor(cost[rtso::RES_FOOD] * num), (int64_t)std::floor(cost[rtso::RES_WOOD] * num),
+					(int64_t)std::floor(cost[rtso::RES_STONE] * num), (int64_t)std::floor(cost[rtso::RES_GOLD] * num),
+					(int64_t)u.pop_cost * num, (int64_t)std::ceil(sim->unit_train_seconds(pid, tmpl) * batch_mult)};
+			const int64_t costs[4] = {total.food, total.wood, total.stone, total.metal};
+			const int res_of[4] = {rtso::RES_FOOD, rtso::RES_WOOD, rtso::RES_STONE, rtso::RES_GOLD};
+			String sig = String::num_int64(full) + "," + String::num_int64(next) + "," + String::num_int64(rest) + "," +
+					String::num_int64(total.time);
 			bool short_of = false;
-			for (int r = 0; r < rtso::RES_COUNT; ++r) short_of |= ps.res[r] < cost[r] * (float)next;
+			for (int r = 0; r < 4; ++r) {
+				const int64_t need = costs[r] > ps.res[res_of[r]] ? (int64_t)std::ceil((double)costs[r] - ps.res[res_of[r]]) : 0;
+				short_of |= need > 0;
+				sig += "," + String::num_int64(need);
+			}
 			const bool grey = roster_req_disabled_[idx] || allowed == 0 || upgrading;
 			const bool red = !grey && short_of;
-			const rtso::CostTip need{(int64_t)(cost[rtso::RES_FOOD] * next), (int64_t)(cost[rtso::RES_WOOD] * next),
-					(int64_t)(cost[rtso::RES_STONE] * next), (int64_t)(cost[rtso::RES_GOLD] * next), 0, 0};
-			const String needed = red ? needed_text(need) : String();
-			const String sig = String::num_int64(next) + (grey ? "G" : "") + (upgrading ? "U" : "") + needed;
+			sig += String(grey ? "G" : "") + (upgrading ? "U" : "");
 			if (sig == roster_state_[idx]) continue;
 			roster_state_[idx] = sig;
-			roster_list_->set_item_text(idx, next > 1 ? String::num_int64(next) : String());
+			roster_list_->set_item_text(idx, num > 1 ? String::num_int64(num) : String());
 			roster_list_->set_item_icon_modulate(idx, grey ? Color(0.45f, 0.45f, 0.45f) : red ? Color(1.0f, 0.35f, 0.35f) : Color(1, 1, 1));
 			roster_list_->set_item_disabled(idx, grey);
-			String tip = roster_base_tips_[idx];
+			auto slot = [](const String &line) { return line.is_empty() ? String() : "\n" + line; };
+			String tip = roster_base_tips_[idx]
+								 .replace("\n" + String(COST_SLOT), slot(rtso::cost_tooltip(total, true)))
+								 .replace("\n" + String(BATCH_SLOT), slot(rtso::batch_training_string(full, next, rest)));
+			if (short_of) tip += "\n" + needed_text(total);
 			if (upgrading) tip += "\n" + rtso::objection_font(rtso::tr0("Cannot train while upgrading."));
-			if (red) tip += "\n" + needed;
 			roster_list_->set_item_tooltip(idx, tip);
 		}
 	}
@@ -1421,9 +1452,7 @@ private:
 		add_line(classes_tooltip(text));
 		add_line(auras_tooltip(u));
 		add_line(identity_tooltip(text));
-		const rtso::CostTip unit_cost{(int64_t)cost[rtso::RES_FOOD], (int64_t)cost[rtso::RES_WOOD], (int64_t)cost[rtso::RES_STONE],
-				(int64_t)cost[rtso::RES_GOLD], (int64_t)u.pop_cost, (int64_t)std::ceil(sim->unit_train_seconds(pid, i))};
-		add_line(rtso::cost_tooltip(unit_cost, true));
+		tip += "\n" + String(COST_SLOT); // the Cost line for the count a click trains (refresh_roster_state)
 		// formatLimitString, formatMatchLimitString (heroes: MatchLimit 1).
 		if (i < rtso::CIV_UNIT_TEMPLATE_COUNT) {
 			add_line(limit_tooltip(pid, rtso::UNIT_LIMITS[i].category));
@@ -1443,8 +1472,7 @@ private:
 			if (!it->second.is_empty()) tip += "\n" + it->second;
 		}
 		add_line(right_click_tooltip());
-		const String batch = rtso::batch_training_string(1, host_->ui_batch_size(), 0);
-		if (!batch.is_empty()) tip += "\n" + batch;
+		tip += "\n" + String(BATCH_SLOT); // formatBatchTrainingString, live too
 		return idx;
 	}
 

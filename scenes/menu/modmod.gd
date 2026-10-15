@@ -5,6 +5,7 @@ extends Control
 ## Negate and Filter compatible, Enable/Disable, the load-order arrows,
 ## Visit Website, Help, Save Configuration and Save and Restart. Mods are
 ## scenes/menu/mods.gd's; RTS0 has no mod.io, so Download Mods is left out.
+const MODERN := preload("res://scenes/common/modern_theme.gd")
 
 const L10n := preload("res://scenes/menu/l10n.gd")
 const Mods := preload("res://scenes/menu/mods.gd")
@@ -75,6 +76,7 @@ func recompute_compatibility() -> void:
 		compatible[f] = Mods.dependencies_met(f, enabled, mods)
 
 func _build() -> void:
+	theme = MODERN.theme() # 0.28's modern skin
 	var fade := ColorRect.new()
 	fade.color = Color(0, 0, 0, 0.85)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
