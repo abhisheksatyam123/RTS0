@@ -199,6 +199,7 @@ RtsoWorldView::UnitVis &RtsoWorldView::acquire_unit_slot(uint32_t sim_id) {
 	UnitVis &v = unit_pool[slot];
 	v.sim_id = sim_id;
 	v.yaw = 0.0f;
+	v.anim_debt = 0.0f;
 	v.root->set_visible(true);
 	v.hp_bg->set_visible(false);
 	v.hp_fg->set_visible(false);
@@ -1822,6 +1823,13 @@ String RtsoWorldView::building_visual_id(uint8_t civ, uint8_t type, float half_s
 		return String(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "_wall_gate";
 	// Palisade WallSet pieces (WALLSET_PALISADE) draw 0 A.D.'s palisades_short, _medium,
 	// _long, _tower and _gate; a one-cell palisade from a map keeps its model.
+	// Rome's siege WallSet (rome/wallset_siege) draws its own siege_wall_long, _medium,
+	// _short, _tower and _gate actors; segments are 36, 24 and 12 m like the stone walls'.
+	if (type == rtso::BLD_SIEGE_WALL_GATE) return "siege_wall_gate";
+	if (type == rtso::BLD_SIEGE_WALL) {
+		if (rtso::is_siege_wall_tower(type, half_size)) return "siege_wall_tower";
+		return half_size >= 3.75f ? "siege_wall_long" : half_size >= 2.25f ? "siege_wall_medium" : "siege_wall_short";
+	}
 	if (type == rtso::BLD_PALISADE_GATE) return "palisade_gate";
 	if (type == rtso::BLD_PALISADE && rtso::is_wallset_piece(type, half_size)) {
 		if (rtso::is_palisade_tower(type, half_size)) return "palisade_tower";
@@ -2109,15 +2117,14 @@ void RtsoWorldView::update_site_dust(BuildingVis &v, uint8_t kind, int builders,
 // before decals blend in, so they take the LOS brightness as their modulate.
 void RtsoWorldView::update_building_decals(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, float brightness) {
 	if (!v.root) return;
-	const String key = glb_id.is_empty() ? String() : glb_id + String("|") + String::num(k, 4) + String("|") + String::num(base.x, 3) + String("|") + String::num(base.z, 3);
-	if (key != v.decal_key) {
+	if (!v.decal_key.same(glb_id, k, base.x, base.z)) {
 		for (Decal *d : v.decals) {
 			if (d->get_parent()) d->get_parent()->remove_child(d);
 			d->queue_free();
 		}
 		v.decals.clear();
-		v.decal_key = key;
-		if (key.is_empty()) return;
+		v.decal_key.set(glb_id, k, base.x, base.z);
+		if (glb_id.is_empty()) return;
 		if (!building_decals_loaded_) {
 			building_decals_loaded_ = true;
 			Ref<FileAccess> f = FileAccess::open("res://data/building_decals.json", FileAccess::READ);
@@ -2394,17 +2401,16 @@ void RtsoWorldView::update_ambient_fx(BuildingVis &v, const String &glb_id, floa
 	if (!v.root) return;
 	std::vector<GPUParticles3D *> &emitters = death ? v.death_fx : v.ambient_fx;
 	std::vector<Vector3> &emitter_pos = death ? v.death_pos : v.ambient_pos;
-	String &vkey = death ? v.death_key : v.ambient_key;
-	const String key = glb_id.is_empty() ? String() : glb_id + String("|") + String::num(k, 4);
-	if (key != vkey) {
+	FxKey &vkey = death ? v.death_key : v.ambient_key;
+	if (!vkey.same(glb_id, k, 0.0f, 0.0f)) {
 		for (GPUParticles3D *p : emitters) {
 			if (p->get_parent()) p->get_parent()->remove_child(p);
 			p->queue_free();
 		}
 		emitters.clear();
 		emitter_pos.clear();
-		vkey = key;
-		if (key.is_empty()) return;
+		vkey.set(glb_id, k, 0.0f, 0.0f);
+		if (glb_id.is_empty()) return;
 		load_ambient_fx();
 		const auto &table = death ? death_fx_ : ambient_fx_;
 		const auto it = table.find(building_table_key(glb_id));
@@ -3759,11 +3765,20 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	}
 
 	Vector3 cam_pos;
+	std::vector<Plane> frustum; // outward planes: inside has distance <= 0
 	if (Viewport *vp = get_viewport()) {
 		if (Camera3D *cam = vp->get_camera_3d()) {
 			cam_pos = cam->get_global_position();
+			const TypedArray<Plane> planes = cam->get_frustum();
+			for (int p = 0; p < planes.size(); ++p) frustum.push_back(planes[p]);
 		}
 	}
+	// A sphere of `radius` at `at` is (maybe) in view; true with no camera.
+	auto in_view = [&](const Vector3 &at, float radius) {
+		for (const Plane &pl : frustum)
+			if (pl.distance_to(at) > radius) return false;
+		return true;
+	};
 	const float anim_dist_sq = 24.0f * 24.0f;
 	(void)anim_dist_sq;
 
@@ -4075,8 +4090,17 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			bool loop_clip = want.loop && play == want.clip;
 			if (play != CLIP_NONE) {
 				play_unit_clip(v, clip_name(play), loop_clip);
-				v.anim->advance((double)delta);
-				apply_unit_tools(v.model, clip_name(play));
+				// A detailed unit out of view (a ship, a dying or selected unit
+				// off screen) banks its time and catches up when seen again, so a
+				// death or sail clip is where it would be. The mixers were ~11% of a
+				// late-game frame with every corpse and fleet animating.
+				if (in_view(Vector3(x, y, z), std::max(2.0f, 4.0f * model_b.height * sc))) {
+					v.anim->advance((double)(delta + v.anim_debt));
+					v.anim_debt = 0.0f;
+					apply_unit_tools(v.model, clip_name(play));
+				} else {
+					v.anim_debt = std::min(v.anim_debt + delta, 10.0f);
+				}
 			}
 			const uint8_t prop_clip = is_carry_variant(play) ? (uint8_t)play : 0;
 			if (prop_clip != v.carry_clip) {
@@ -4443,13 +4467,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			building_pool[s].site_dust_kind = 0;
 			building_pool[s].site_dust_poll = 0.0f;
 			building_pool[s].decals.clear();
-			building_pool[s].decal_key = String();
+			building_pool[s].decal_key = FxKey();
 			building_pool[s].ambient_fx.clear();
 			building_pool[s].ambient_pos.clear();
-			building_pool[s].ambient_key = String();
+			building_pool[s].ambient_key = FxKey();
 			building_pool[s].death_fx.clear();
 			building_pool[s].death_pos.clear();
-			building_pool[s].death_key = String();
+			building_pool[s].death_key = FxKey();
 			building_slot.erase(building_pool[s].sim_id);
 		}
 	}
