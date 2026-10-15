@@ -7,7 +7,9 @@ extends SceneTree
 #      stands together with the pair connector, top first, and hovering one
 #      crosses out the other;
 #   3. a technology the stock can't pay for is disabled under a red mask with the
-#      missing resources; one whose requirements fail is disabled and grey.
+#      missing resources; one whose requirements fail is disabled and grey;
+#   4. a technology being researched leaves the panel (Researcher.js
+#      GetTechnologiesList: researched or in-progress techs give way to their successor).
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_research_panel.gd
 # Exit code 0 = pass.
@@ -66,7 +68,9 @@ func run() -> void:
 	main.debug_train_buttons(BLD_DOCK)
 	await frames(2)
 	row = main.debug_command_row()
-	var poor: Array = row.filter(func(e): return TT.plain(str(e["tip"])).contains("\nInsufficient resources: "))
+	# Requirements met, resources short (a phase-locked one lists them too, under grey).
+	var short := func(e): return TT.plain(str(e["tip"])).contains("\nInsufficient resources: ") and not TT.plain(str(e["tip"])).contains("Unlocked in")
+	var poor: Array = row.filter(short)
 	print("    ", row.map(func(e): return "%s %s" % [e["text"], "disabled" if e["disabled"] else ""]))
 	# Tribute wood away (100 at a time) until one is out of reach.
 	for i in 4:
@@ -75,11 +79,25 @@ func run() -> void:
 		main._on_diplo_tribute_pressed(1, 0)
 		await frames(10)
 		row = main.debug_command_row()
-		poor = row.filter(func(e): return TT.plain(str(e["tip"])).contains("\nInsufficient resources: "))
+		poor = row.filter(short)
 	check(not poor.is_empty(), "a technology the stock can't pay for")
 	if not poor.is_empty():
 		var b: Button = instance_from_id(poor[0]["id"])
 		var masks: Array = b.get_children().filter(func(c): return c is ColorRect)
 		check(poor[0]["disabled"] and masks.size() == 1, "is disabled under a red mask")
+
+	print("4. Researching one")
+	var ready: Array = row.filter(func(e): return not e["disabled"])
+	check(not ready.is_empty(), "a technology that can start")
+	if not ready.is_empty():
+		var name: String = ready[0]["text"]
+		(instance_from_id(ready[0]["id"]) as Button).pressed.emit()
+		await frames(10)
+		main.debug_train_buttons(BLD_DOCK)
+		await frames(2)
+		row = main.debug_command_row()
+		print("    ", row.map(func(e): return e["text"]))
+		check(row.all(func(e): return e["text"] != name), "%s leaves the panel while it is researched" % name)
+		check(row.all(func(e): return not TT.plain(str(e["tip"])).contains("Already being researched")), "no \"Already being researched\"")
 	print("RESULT: %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)
