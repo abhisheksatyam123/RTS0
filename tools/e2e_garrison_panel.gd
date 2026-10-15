@@ -85,8 +85,11 @@ func run() -> void:
 		g = icons()
 		check(g.size() == 1 and named(g, "Hoplite").is_empty(), "Shift+click unloads the rest of that type")
 		var archer_only: float = garrison_health().max_value
-		main._on_ungarrison_pressed() # Unload all
-		await frames(40)
+		for i in 10: # Unload all, until the tower finds room for everyone
+			if icons().is_empty():
+				break
+			main._on_ungarrison_pressed()
+			await frames(40)
 		check(icons().is_empty() and not garrison_health().visible and archer_only > 0.0, "4. no bar once empty")
 
 	print("3. An ally's Civic Center")
