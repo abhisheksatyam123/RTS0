@@ -96,6 +96,9 @@ func run() -> void:
 	var icons: Array = grid["icons"]
 	print("    grid ", icons.map(func(e): return str(e["tip"]).get_slice("\n", 0)))
 	check(icons.size() == 1 and str(icons[0]["tip"]).contains("Barracks"), "the details show one Barracks group")
+	var ins: Dictionary = main.debug_inspector("current")
+	print("    capture ", ins["capture_parts"].size(), " parts")
+	check(ins["capture_parts"].size() == 1 and float(ins["capture_parts"][0]["width"]) > 300.0, "captureMultiple: their summed capture points show, all the owner's")
 
 	print("2. Training spreads over them")
 	var rl: ItemList = null

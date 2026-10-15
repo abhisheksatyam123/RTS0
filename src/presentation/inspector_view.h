@@ -1228,8 +1228,12 @@ private:
 				rtso::unit_is_ship(uv.unit_type[u]) ? String() : garrison_size_tooltip(1, passengers)});
 		const uint16_t pop_tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
 		const int pop_bonus = pop_tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::unit_pop_bonus(pop_tmpl) : 0;
+		// getProjectilesTooltip for a siege tower's BuildingAI (DefaultArrowCount 0,
+		// GarrisonArrowMultiplier 1, MaxArrowCount 10): min(max, default + per unit x capacity).
+		const String projectiles = sim.is_siege_tower_at(u)
+				? projectiles_tooltip(std::min(rtso::SIEGE_TOWER_MAX_ARROWS, sim.get_transport_capacity(uv.id[u])), 0, 1.0f) : String();
 		stats_->set_tooltip_text(join_lines({attack, healer_tooltip(d), resistance, gather_tooltip(d), speed_tooltip(d),
-				garrison, population_bonus_tooltip(pop_bonus), loot_tooltip(loot)}));
+				garrison, population_bonus_tooltip(pop_bonus), projectiles, loot_tooltip(loot)}));
 		String auras;
 		const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
 		if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE)
@@ -1412,7 +1416,28 @@ private:
 		hp_bar_->set_max(max_hp > 0.0f ? max_hp : 1.0f);
 		hp_bar_->set_value(hp);
 		hp_label_->set_text(rtso::seldet::health(hp, max_hp));
-		show_bar(capture_bar_, capture_label_, false);
+		// captureMultiple: the selected structures' capture points summed per player, the owner's
+		// first ("Capture Points: 2500 / 2500"); hidden when none is capturable.
+		float pts[rtso::MAX_PLAYERS + 1] = {}, max_cp = 0.0f;
+		uint8_t owner = 0xFF;
+		for (uint32_t id : structs)
+			for (const auto &b : sim.buildings()) {
+				if (b.id != id) continue;
+				if (b.max_capture_points > 0.0f) {
+					owner = b.team; // selection keeps one owner's structures
+					max_cp += b.max_capture_points;
+					for (int p = 0; p < rtso::MAX_PLAYERS; ++p) pts[p] += b.capture_points_by_team[p];
+					if (b.team >= rtso::MAX_PLAYERS) pts[rtso::MAX_PLAYERS] += b.capture_points;
+				}
+				break;
+			}
+		show_bar(capture_bar_, capture_label_, max_cp > 0.0f);
+		if (max_cp > 0.0f) {
+			const float own = pts[owner < rtso::MAX_PLAYERS ? owner : rtso::MAX_PLAYERS];
+			capture_bar_->set_max(max_cp);
+			capture_label_->set_text(rtso::seldet::capture(own, max_cp));
+			set_capture_parts(sim, owner, pts, max_cp);
+		}
 		portrait_->set_texture(groups.empty() ? godot::Ref<godot::Texture2D>()
 				: groups.front().icon.is_valid() ? groups.front().icon : rtso::portraits::unit(groups.front().tmpl, groups.front().unit_type));
 		title_->set_text(godot::String::num_int64(total) + " selected");

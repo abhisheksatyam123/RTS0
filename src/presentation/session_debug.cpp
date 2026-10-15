@@ -220,6 +220,10 @@ Dictionary RtsoMain::debug_civic_centre_roof() {
 // "fauna": the first tree or mine / animal, inspected as a click would; a number: that unit.
 Dictionary RtsoMain::debug_inspector(const String &what) {
 	if (!sim) return Dictionary();
+	if (what == "current") { // the details of the selection as it stands
+		inspector_.update();
+		return inspector_.debug_state();
+	}
 	clear_selection();
 	inspector_.clear();
 	auto uview = sim->units();
