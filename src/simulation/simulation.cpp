@@ -3709,7 +3709,8 @@ bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_
 	// ProductionQueue.js RemoveItem: Trainer/Researcher refund what the item cost.
 	const ProductionOrder &item = b.queue[queue_idx];
 	if (item.is_tech() || item.paid[RES_FOOD] + item.paid[RES_WOOD] + item.paid[RES_GOLD] + item.paid[RES_STONE] > 0.0f) {
-		if (item.is_tech()) note_phase(SessionNotice::PHASE_ABORTED, player_id, item.tech);
+		// StoppedResearch: "aborted" only for research that had started.
+		if (item.is_tech() && item.timer > 0.0f) note_phase(SessionNotice::PHASE_ABORTED, player_id, item.tech);
 		ps.refund(item.paid[RES_FOOD], item.paid[RES_WOOD], item.paid[RES_GOLD], item.paid[RES_STONE]);
 		b.queue.erase(b.queue.begin() + queue_idx);
 		return true;
@@ -3922,7 +3923,6 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	tech_price(player_id, tech_id, b.type, order.paid.data(), order.duration);
 	players_[player_id].pay(order.paid[RES_FOOD], order.paid[RES_WOOD], order.paid[RES_GOLD], order.paid[RES_STONE]);
 	b.queue.push_back(order);
-	note_phase(SessionNotice::PHASE_STARTED, player_id, tech_id);
 	if (!triggers_.triggers.empty()) { // ProductionQueue.js AddItem: OnResearchQueued
 		TriggerEventData ev;
 		ev.entity = building_id;
@@ -12420,6 +12420,8 @@ void Simulation::tick_production(float dt) {
 			if (bteam < MAX_PLAYERS && pop_current(bteam) + order_pop(order, bteam) > pop_max(bteam)) continue;
 			order.started = true;
 		}
+		// TechnologyManager.js StartedResearch: "X is advancing to the Y." on the first work done.
+		if (order.is_tech() && order.timer == 0.0f) note_phase(SessionNotice::PHASE_STARTED, bteam, order.tech);
 		order.timer += dt;
 		if (order.timer < order.duration) continue;
 		const ProductionOrder done = order;

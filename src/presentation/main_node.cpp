@@ -421,7 +421,14 @@ void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent>
 		if (a.target_owner != me || a.attacker_owner == me) continue;
 		// AttackDetection.OnGlobalAttacked: every hit entity pings the minimap, before suppression.
 		if (minimap_view) minimap_view->ping_entity(a.target_id);
-		if (attack_detection_.report(a.x, a.z, match_elapsed_time)) {
+		// AttackDetection.js: an attack on livestock is a low-priority event (targetIsDomesticAnimal).
+		bool livestock = false;
+		if (!a.target_is_building) {
+			const auto fv = sim->fauna();
+			for (size_t f = 0; f < fv.count; ++f)
+				if (fv.id[f] == a.target_id) { livestock = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic(); break; }
+		}
+		if (attack_detection_.report(a.x, a.z, match_elapsed_time, livestock)) {
 			notify_attack(Vector3(a.x, 0, a.z), a.attacker_owner, a.target_is_building != 0, a.target_id);
 			// messages.js "attack": a followed player's attacked entity takes the camera and the selection.
 			if (follow_player_ && followed_view() == (int)me) follow_focus(a.target_id, true);
@@ -940,7 +947,9 @@ void RtsoMain::post_network_chat() {
 	for (; rejoined_chatted_ < rejoined.size(); ++rejoined_chatted_)
 		for (const auto &e : now)
 			if (e.client == rejoined[rejoined_chatted_] && e.status != rtso::PlayerAssignmentMsg::LEFT) {
-				chat_window_.append_kind(sprintf0(tr("%(player)s has rejoined the game."), {{"player", who(e)}}) + "\n", CHAT_FILTER_NETWORK);
+				// ChatMessageFormatNetwork.rejoined: an observer "has joined the game.".
+				chat_window_.append_kind(sprintf0(e.player < rtso::MAX_PLAYERS ? tr("%(player)s has rejoined the game.") : tr("%(player)s has joined the game."),
+						{{"player", who(e)}}) + "\n", CHAT_FILTER_NETWORK);
 				break;
 			}
 }
