@@ -229,6 +229,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	rtso::RtsoTutorialPanel tutorial_panel_;
 	rtso::RtsoCinemaView cinema_view_;
 	bool campaign_win_noted_ = false; // summary_screen.gd mark_campaign_won ran for this match
+	bool lobby_report_noted_ = false; // LobbySession._check_report ran on this seat's win or defeat
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
 	rtso::RtsoDevOverlay dev_overlay_; // Alt+D developer overlay
