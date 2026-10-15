@@ -57,6 +57,8 @@ func run() -> void:
 	main.quicksave()
 	var meta = JSON.parse_string(FileAccess.get_file_as_string("user://saves/quicksave.json"))
 	check(meta is Dictionary and meta.has("gui"), "the save's metadata has the GUI data")
+	var log_label: RichTextLabel = main.find_child("LogMessages", true, false)
+	check(log_label != null and log_label.visible and log_label.get_parsed_text() == "Quicksaved game", "\"Quicksaved game\" in the top-left log (LOGMESSAGERENDER)")
 
 	print("2. Change both, then quickload")
 	main.debug_select_units(PackedInt32Array([b]))
@@ -67,6 +69,7 @@ func run() -> void:
 	main.quickload()
 	await frames(3)
 	check(group(1) == [a], "the load brings group 1 back: " + str(group(1)))
+	check(log_label != null and log_label.get_parsed_text() == "Quicksaved game\nQuickloaded game", "then \"Quickloaded game\" under it")
 	var cam: Dictionary = main.debug_saved_gui()["camera"]
 	check(absf(cam["x"] - 12.0) < 0.5 and absf(cam["z"] + 7.0) < 0.5, "and the camera's spot: " + str(cam))
 	check(absf(cam["yaw"] - 0.5) < 0.01 and absf(cam["zoom"] - 30.0) < 0.01, "its rotation and zoom")
