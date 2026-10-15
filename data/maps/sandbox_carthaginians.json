@@ -7609,23 +7609,25 @@
     },
     {
       "type": "wall_segment",
-      "player": 1,
       "x": -94.84,
       "z": -36.4,
       "wallset": "stone",
       "piece": "wall",
       "angle": 2.1718,
-      "length": 6.0
+      "length": 6.0,
+      "player": 1,
+      "template": "cart/wall_medium"
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": -92.29,
       "z": -33.2,
       "wallset": "stone",
       "piece": "tower",
       "angle": -2.4863,
-      "length": 2.75
+      "length": 2.75,
+      "player": 1,
+      "template": "cart/wall_tower"
     },
     {
       "type": "house",
@@ -7717,13 +7719,14 @@
     },
     {
       "type": "wall_tower",
-      "player": 1,
       "x": -97.12,
       "z": -40.2,
       "wallset": "stone",
       "piece": "tower",
       "angle": 2.1848,
-      "length": 2.75
+      "length": 2.75,
+      "player": 1,
+      "template": "cart/wall_tower"
     },
     {
       "type": "tower",
