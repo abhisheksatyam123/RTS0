@@ -14655,6 +14655,7 @@ void Simulation::check_victory_conditions(float dt) {
 	int unit_count[MAX_TEAMS] = {};
 	int structure_count[MAX_TEAMS] = {};
 	int critical_count[MAX_TEAMS] = {}; // ConquestCritical+!Foundation (Conquest.js)
+	int critical_units[MAX_TEAMS] = {}; // ConquestCritical Unit
 	int tc_count[MAX_TEAMS] = {};
 	int built_cc_count[MAX_TEAMS] = {}; // CivilCentre+!Foundation (ConquestCivicCentres.js)
 	bool wonder[MAX_TEAMS] = {};
@@ -14672,7 +14673,7 @@ void Simulation::check_victory_conditions(float dt) {
 		uint8_t t = units_.team[u];
 		if (t >= MAX_TEAMS || !(units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED)) continue;
 		unit_count[t]++; // ConquestUnits.js "Unit+!Animal": every unit, catafalques and traders too
-		if (is_conquest_critical_unit(units_.unit_type[u])) critical_count[t]++;
+		if (is_conquest_critical_unit(units_.unit_type[u])) { critical_count[t]++; critical_units[t]++; }
 	}
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (unit_count[t] || structure_count[t]) participant_mask_ |= (uint8_t)(1u << t);
@@ -14732,14 +14733,21 @@ void Simulation::check_victory_conditions(float dt) {
 	}
 
 	// Each active condition defeats on its own (every Conquest*.js query and Regicide.js
-	// call SetState("defeated") independently). A partial conquest's second query
-	// ("ConquestCritical Unit+!Animal" and the like: critical OR its own class) can only
-	// empty after its first, so the first decides.
+	// call SetState("defeated") independently). A query only fires when the last entity in
+	// its list leaves the player (ConquestCommon.js), so a list that starts empty (a Nomad
+	// player's structures or civic centres) never does, and the partial conquests' second
+	// query ("ConquestCritical Structure", "ConquestCritical CivilCentre+!Foundation":
+	// critical OR its own class) decides then.
 	const uint8_t vk = victory_conditions();
 	using SN = SessionNotice;
 	auto defeated = [&](int t) -> int { // the reason, or -1 while the player holds on
 		bool no_units = unit_count[t] == 0;
 		bool no_structures = structure_count[t] == 0;
+		// A Nomad player's structures list starts empty: it fills with what they build or
+		// capture.
+		const PlayerStatistics &st = stats_[t];
+		const bool had_structure = !nomad_ || st.buildings_constructed[STAT_BLD_TOTAL] + st.buildings_captured[STAT_BLD_TOTAL]
+				+ st.buildings_lost[STAT_BLD_TOTAL] > 0;
 		// A query whose list starts empty never fires, so a nomad who has not built a civic
 		// centre yet is not out until one is lost.
 		bool no_ccs = built_cc_count[t] == 0 && stats_[t].buildings_lost[STAT_BLD_CIV_CENTRE] > 0;
@@ -14749,8 +14757,11 @@ void Simulation::check_victory_conditions(float dt) {
 		const bool lost_any = stats_[t].units_lost[STAT_UNIT_TOTAL] + stats_[t].buildings_lost[STAT_BLD_TOTAL] > 0;
 		if ((vk & VK_CONQUEST) && ((critical_count[t] == 0 && lost_any) || (no_units && no_structures))) return SN::END_CONQUEST;
 		if ((vk & VK_CONQUEST_UNITS) && no_units) return SN::END_UNITS;
-		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures) return SN::END_STRUCTURES;
+		const bool gone = lost_any || (no_units && no_structures);
+		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures && had_structure) return SN::END_STRUCTURES;
+		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures && critical_units[t] == 0 && gone) return SN::END_STRUCTURES_CRITICAL;
 		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) return SN::END_CIVIC_CENTRES;
+		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && built_cc_count[t] == 0 && critical_count[t] == 0 && gone) return SN::END_CIVIC_CENTRES_CRITICAL;
 		if ((vk & VK_REGICIDE) && regicide_hero_lost(t)) return SN::END_HERO;
 		return -1;
 	};

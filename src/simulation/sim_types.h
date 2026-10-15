@@ -602,7 +602,8 @@ inline constexpr bool is_civic_centre(uint8_t type) {
 }
 // 0 A.D. class ConquestCritical (template_structure_civic, _military and _wonder, less the
 // stoa and the forge): the structures that keep a player in a Conquest match. Towers, walls,
-// palisades, economic and other special structures don't.
+// palisades, economic and other special structures don't, nor the Persian hall
+// (template_structure_special) and the Han Laozi gate (plain template_structure).
 inline constexpr bool is_conquest_critical(uint8_t type) {
 	switch (type) {
 		case BLD_STOREHOUSE: case BLD_TOWER: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_GATE:
@@ -612,6 +613,7 @@ inline constexpr bool is_conquest_critical(uint8_t type) {
 		case BLD_LIGHTHOUSE: case BLD_ICE_HOUSE: case BLD_TOWER_GREAT: case BLD_PALISADE_GATE:
 		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: case BLD_TRADING_POST: case BLD_TOWER_BOLT:
 		case BLD_TOWER_ARTILLERY: case BLD_STOA: case BLD_TRIUMPHAL_ARCH: case BLD_TOWER_DOUBLE:
+		case BLD_HALL: case BLD_LAOZI_GATE:
 			return false;
 		default:
 			return type < BLD_TYPE_COUNT;
