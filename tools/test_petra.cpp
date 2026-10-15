@@ -1133,6 +1133,33 @@ static void test_hunters_028() {
 	CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) != meat, "a full carcass is skipped (isSupplyFull)");
 	full.on_carcass[meat] = 0;
 	CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) == meat, "the same carcass with room is picked");
+	// isHuntable: "Do not hunt retaliating animals" (a boar fights back), only their carcasses; a
+	// player's sheep in its ally's territory is that ally's to keep (worker.js startHunting).
+	{
+		Simulation::PetraHuntScan busy = s->petra_hunt_scan();
+		busy.on_carcass[meat] = 1;
+		const uint32_t boar = s->spawn_fauna(px + 8.5f, pz - 8.0f, FAUNA_BOAR);
+		bool l = false;
+		CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, busy, l) != boar, "a live boar is not hunted (isHuntable)");
+		const uint32_t deer2 = s->spawn_fauna(px + 8.2f, pz - 8.0f, FAUNA_DEER);
+		CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, busy, l) == deer2 && l, "a deer beside it is");
+		s->set_player_active(3, true, false);
+		s->set_diplomacy(1, 3, Simulation::DIPLO_ALLY);
+		s->set_diplomacy(3, 1, Simulation::DIPLO_ALLY);
+		s->spawn_building_world(px + 8.0f, pz - 22.0f, BLD_TOWN_CENTER, 3);
+		run_for(*s, 0.5f);
+		busy = s->petra_hunt_scan();
+		busy.on_carcass[meat] = 1;
+		const uint32_t sheep = s->spawn_fauna(px + 8.0f, pz - 21.0f, FAUNA_SHEEP, 3);
+		const uint32_t own = s->spawn_fauna(px + 8.0f, pz - 20.0f, FAUNA_SHEEP); // a little farther
+		const uint32_t pick = s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 21.0f, busy, l);
+		std::printf("  ally's sheep %u, Gaia sheep %u: Petra picks %u\n", sheep, own, pick);
+		CHECK(pick != sheep, "an ally's sheep in its territory is left alone");
+		for (uint32_t id : {boar, deer2, sheep, own})
+			if (auto it = s->fauna_id_to_idx_.find(id); it != s->fauna_id_to_idx_.end()) s->fauna_.alive[it->second] = 0;
+		s->set_diplomacy(1, 3, Simulation::DIPLO_ENEMY);
+		s->set_diplomacy(3, 1, Simulation::DIPLO_ENEMY);
+	}
 	// One walled in by blocked cells (deep in a circular map's edge) has no cell to be gathered from.
 	{
 		auto &g = s->nav_grid_;

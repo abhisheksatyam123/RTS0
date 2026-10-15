@@ -2417,7 +2417,7 @@ void Simulation::ensure_resource_block_cells() const {
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
 		const uint8_t sub = resources_.subtype[r];
-		if (sub == RES_SUB_GRAIN || sub == RES_SUB_MEAT) continue;
+		if (sub == RES_SUB_GRAIN || sub == RES_SUB_MEAT || sub == RES_SUB_FISH) continue;
 		nav::Footprint m;
 		if (mine_footprint(r, m)) {
 			// A mine blocks each cell its turned square overlaps.
@@ -2620,7 +2620,8 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		for (size_t r = 0; r < resources_.count; ++r) {
 			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
 			const uint8_t sub = resources_.subtype[r];
-			if (sub == RES_SUB_GRAIN || sub == RES_SUB_MEAT) continue;
+			// template_gaia_fish BlockFoundation false: fish go when construction starts.
+			if (sub == RES_SUB_GRAIN || sub == RES_SUB_MEAT || sub == RES_SUB_FISH) continue;
 			nav::Footprint o;
 			if (!mine_footprint(r, o)) {
 				o.x = resources_.x[r];
@@ -12292,6 +12293,13 @@ bool Simulation::try_commit_foundation(Building &b) {
 	}
 	if (blocked) return false;
 	b.committed = true;
+	// Foundation.js Commit: GetEntitiesDeletedUponConstruction, the fish under a dock's footprint.
+	for (size_t r = 0; building_blocks_movement(b.type) && r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.subtype[r] != RES_SUB_FISH) continue;
+		if (!nav::footprint_contains(b, resources_.x[r], resources_.z[r], resource_block_half(r))) continue;
+		resources_.alive[r] = 0;
+		resources_.amount[r] = 0;
+	}
 	rebuild_nav_grid();
 	if (!triggers_.triggers.empty()) { // Foundation.js Commit: OnConstructionStarted {foundation, template}
 		TriggerEventData ev;
@@ -19546,11 +19554,13 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 		if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f || fauna_.food_amount[f] <= 0) continue;
 		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 		if (info.is_naval() || (info.flags & FAUNA_F_FISH)) continue; // isHuntable skips SeaCreatures
+		if (info.attack_damage() > 0.0f) continue; // isHuntable: "Do not hunt retaliating animals" (only their carcasses)
 		// Herded or corralled (garrisoned) livestock is nobody's to hunt.
 		if (fauna_.behavior[f] == FAUNA_HERDED || fauna_.behavior[f] == FAUNA_CORRALLED || fauna_.behavior[f] == FAUNA_MOVING) continue;
 		auto git = scan.on_animal.find(fauna_.id[f]);
 		consider(fauna_.id[f], fauna_.pos_x[f], fauna_.pos_z[f], fauna_.food_amount[f], info.max_gatherers,
-		         git == scan.on_animal.end() ? 0 : git->second, !info.is_domestic(), -1, true);
+		         git == scan.on_animal.end() ? 0 : git->second, !info.is_domestic(),
+		         fauna_owner_[f] < MAX_PLAYERS ? (int)fauna_owner_[f] : -1, true);
 	}
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.subtype[r] != RES_SUB_MEAT) continue;
@@ -20045,11 +20055,13 @@ void Simulation::petra_manage_fields() {
 	}
 	const CorralTrainable &ct = CORRAL_TRAINABLE[civ < CIV_COUNT ? civ : 0];
 	for (const auto &b : buildings_) {
-		if (b.team != petra_pid_ || b.type != BLD_CORRAL || b.build_progress < 1.0f || b.hp <= 0.0f || !b.queue.empty()) continue;
+		if (b.team != petra_pid_ || b.type != BLD_CORRAL || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
 		for (uint8_t k = 0; k < ct.count; ++k) {
-			int have = 0; // countEntitiesByType: our own animals of that kind
+			int have = 0; // countEntitiesByType: our own animals of that kind, and this corral's batches of it
 			for (size_t f = 0; f < fauna_.count; ++f)
 				if (fauna_.alive[f] && fauna_.fauna_type[f] == ct.fauna[k] && fauna_owner_[f] == petra_pid_) ++have;
+			for (const ProductionOrder &o : b.queue)
+				if (o.unit_type == UNIT_TYPE_NONE && !o.is_tech() && o.tmpl == ct.fauna[k]) have += o.count;
 			if (have > corrals) continue;
 			if (!cmd_breed_livestock(petra_pid_, b.id, ct.fauna[k], 1)) continue; // not in this phase yet
 			return;
@@ -21568,7 +21580,7 @@ void Simulation::petra_manage_naval(float dt) {
 	}
 
 	// 3. worker.js startFishing: an idle boat, or one that drifted into enemy territory,
-	// takes the fish (or whale: getFishableSupplies is every SeaCreature) of its sea nearest
+	// takes the fish (not a live whale: filters.js isFishable skips what can move) of its sea nearest
 	// to one of our docks there (a mutual ally's shared dock with Diaspora), that it can
 	// fish safely, with a free gatherer slot (IsSupplyFull) and worth one more gatherer
 	// (amount / (1 + gatherers) of 30 or more). A boat whose sea has nothing left to fish
@@ -21626,12 +21638,6 @@ void Simulation::petra_manage_naval(float dt) {
 		for (size_t r = 0; r < resources_.count; ++r) {
 			if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.subtype[r] != RES_SUB_FISH) continue;
 			consider(resources_.id[r], resources_.x[r], resources_.z[r], resources_.amount[r], resources_.max_gatherers[r], false);
-		}
-		for (size_t f = 0; f < fauna_.count; ++f) {
-			if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f || fauna_.food_amount[f] <= 0) continue;
-			const auto &info = fauna_type_info(fauna_.fauna_type[f]);
-			if (!(info.flags & FAUNA_F_FISH)) continue;
-			consider(fauna_.id[f], fauna_.pos_x[f], fauna_.pos_z[f], fauna_.food_amount[f], info.max_gatherers, true);
 		}
 		if (exhausted) {
 			if (sea) spent_boats.push_back(units_.id[i]);
