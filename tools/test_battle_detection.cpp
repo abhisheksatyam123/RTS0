@@ -145,6 +145,33 @@ int main() {
 		CHECK(s.take_attacked_events().empty());
 	}
 
+	// 1b. Attack.js: a capture is an Attacked message too ("capture", damage 0), so the
+	//     owner's AttackDetection alerts on it; it adds no battle damage.
+	{
+		fresh(s);
+		const uint32_t bar = s.spawn_building_world(-6.0f, -14.0f, BLD_BARRACKS, 1, 1.0f);
+		float half = 0.0f;
+		for (const auto &b : s.buildings_)
+			if (b.id == bar) half = b.half_size;
+		const uint32_t sp = s.spawn_unit(-6.0f, -14.0f + half + 1.0f, 0, UNIT_SPEARMAN);
+		s.order_attack_building(&sp, 1, bar, false, true);
+		(void)s.take_attacked_events();
+		int captures = 0;
+		AttackDetection det;
+		int alerts = 0;
+		for (int t = 0; t < 200; ++t) {
+			s.tick(Simulation::FIXED_STEP);
+			for (const auto &e : s.take_attacked_events())
+				if (e.target_id == bar && e.target_is_building && e.attacker_id == sp && e.target_owner == 1 && e.damage == 0.0f) {
+					++captures;
+					if (det.report(e.x, e.z, t * Simulation::FIXED_STEP)) ++alerts;
+				}
+		}
+		std::printf("capture: %d attacked event(s), %d alert(s)\n", captures, alerts);
+		CHECK(captures >= 3 && alerts == 1);
+		CHECK(s.battle_damage_dealt(0) == 0.0);
+	}
+
 	// 2. Combat sound groups (template Sound/SoundGroups): every listed file ships in
 	//    assets/audio/, and the groups follow the templates.
 	{

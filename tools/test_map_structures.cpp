@@ -92,7 +92,9 @@ int main() {
 	CHECK(building_tech_classes(BLD_KUSH_SHRINE) & TC_TEMPLE);
 	// han/laozigate: Capturable disable="".
 	CHECK(building_type_info(BLD_LAOZI_GATE).capture_max_points == 0.0f);
-	CHECK(!is_conquest_critical(BLD_TOWER_DOUBLE) && is_conquest_critical(BLD_HALL));
+	// pers/hall (template_structure_special) and han/laozigate (template_structure) carry no
+	// ConquestCritical class.
+	CHECK(!is_conquest_critical(BLD_TOWER_DOUBLE) && !is_conquest_critical(BLD_HALL) && !is_conquest_critical(BLD_LAOZI_GATE));
 
 	// 2. A Roman player's map structures.
 	static Simulation s;
