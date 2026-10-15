@@ -59774,6 +59774,5 @@
       "template": "pers/support_civilian"
     }
   ],
-  "circular": true,
-  "lock_teams": true
+  "circular": true
 }
