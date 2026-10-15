@@ -76,6 +76,7 @@ func run() -> void:
 	print("    range ", rng_m.get_string(0) if rng_m else "none")
 	check(rng_m != null and (rng_m.get_string(3) == "" or int(rng_m.get_string(3)) != 0), "its range, with what the ground there adds")
 	check("\nResistance:\n" in String(b["stats_tooltip"]), "then its resistance")
+	check("\n  Status Effects: Blocks Poisoned" in String(b["stats_tooltip"]), "which blocks Poisoned, as every 0.28 structure's does")
 	check("Projectile Limit: " in String(b["stats_tooltip"]) and ", Per Unit: " in String(b["stats_tooltip"]), "its projectile limit, default and per unit")
 	check("Population Bonus: " in String(b["stats_tooltip"]) and "\nLoot: " in String(b["stats_tooltip"]), "its population bonus and loot")
 	check("Garrison Limit: " in String(b["stats_tooltip"]), "and its garrison limit")
