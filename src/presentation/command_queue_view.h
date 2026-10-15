@@ -1067,7 +1067,10 @@ public:
 						const rtso::CostTip b_cost{(int64_t)price[rtso::RES_FOOD], (int64_t)price[rtso::RES_WOOD],
 								(int64_t)price[rtso::RES_STONE], (int64_t)price[rtso::RES_GOLD], 0,
 								(int64_t)std::round(sim->structure_build_time_for(local_player(), (uint8_t)bt))};
-						add_line(rtso::cost_tooltip(b_cost, true));
+						if (const rtso::WallSetInfo ws = rtso::wallset_info(rtso::wallset_kind_of((uint8_t)bt), my_civ); ws.segment == bt)
+							add_line(wallset_cost_tooltip(ws));
+						else
+							add_line(rtso::cost_tooltip(b_cost, true));
 						add_line(dropsite_tooltip(text));
 						const int garrison = rtso::structure_garrison_max((uint8_t)bt, my_civ);
 						if (garrison > 0)
@@ -1531,6 +1534,45 @@ private:
 	godot::String requires_text(const godot::String &what) const {
 		using namespace godot;
 		return rtso::objection_font(rtso::sprintf0(owner_->tr("Requires %(technology)s"), {{"technology", owner_->tr(what)}}));
+	}
+
+	// getEntityCostTooltip for a wallset (structures/{civ}/wallset_*): getWallPieceTooltip's
+	// "Walls:  [stone] 14 to [stone] 36  [time] 4 to [time] 10" over the short, medium and long
+	// pieces, then "Towers:  [stone] 45  [time] 15".
+	godot::String wallset_cost_tooltip(const rtso::WallSetInfo &ws) const {
+		using namespace godot;
+		rtso::Simulation *sim = host_->ui_sim();
+		const uint8_t pid = local_player();
+		static const struct { int res; const char *icon; } kRes[] = {
+				{rtso::RES_FOOD, "food"}, {rtso::RES_WOOD, "wood"}, {rtso::RES_STONE, "stone"}, {rtso::RES_GOLD, "metal"}};
+		int64_t lo[5], hi[5];
+		for (int k = 0; k < 5; ++k) lo[k] = INT64_MAX, hi[k] = 0;
+		bool has[5] = {}, same = true;
+		for (int piece = 2; piece >= 0; --piece) { // short, medium, long
+			float price[rtso::RES_COUNT];
+			const int64_t t = (int64_t)std::ceil(sim->wall_piece_price(pid, ws.segment, 0.5f * ws.lengths[piece], price));
+			for (int k = 0; k < 5; ++k) {
+				const int64_t v = k < 4 ? (int64_t)price[kRes[k].res] : t;
+				if (piece == 2) has[k] = v > 0;
+				else if ((v > 0) != has[k]) same = false;
+				lo[k] = std::min(lo[k], v);
+				hi[k] = std::max(hi[k], v);
+			}
+		}
+		String walls;
+		for (int k = 0; k < 5 && same; ++k) {
+			if (!has[k]) continue;
+			const String icon = rtso::resource_icon(k < 4 ? kRes[k].icon : "time");
+			if (!walls.is_empty()) walls += "  ";
+			walls += rtso::sprintf0(rtso::tr0("%(resourceIcon)s %(minimum)s to %(resourceIcon)s %(maximum)s"),
+					{{"resourceIcon", icon}, {"minimum", String::num_int64(lo[k])}, {"maximum", String::num_int64(hi[k])}});
+		}
+		float tower[rtso::RES_COUNT];
+		const int64_t tower_time = (int64_t)std::ceil(sim->wall_piece_price(pid, ws.tower, ws.tower_half, tower));
+		const rtso::CostTip tower_cost{(int64_t)tower[rtso::RES_FOOD], (int64_t)tower[rtso::RES_WOOD], (int64_t)tower[rtso::RES_STONE],
+				(int64_t)tower[rtso::RES_GOLD], 0, tower_time};
+		return rtso::sprintf0(rtso::tr0("Walls:  %(costs)s"), {{"costs", walls}}) + "\n" +
+				rtso::sprintf0(rtso::tr0("Towers:  %(costs)s"), {{"costs", rtso::cost_components(tower_cost, "  ", true)}});
 	}
 
 	// getNeededResourcesTooltip for the local player's stock, called once the sim

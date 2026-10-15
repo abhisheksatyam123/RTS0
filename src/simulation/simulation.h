@@ -1666,6 +1666,9 @@ public:
 	// A structure of `type` as `player`'s build button shows it (0.28 GetTemplateData): its
 	// cost after civ, team and technology modifiers, and its BuildTime for one builder.
 	void structure_cost_for(uint8_t player, uint8_t type, float out[RES_COUNT]) const { structure_cost(player, type, -1.0f, out); }
+	// A WallSet piece of half length `half_w` (its civ's set): the price and build time `player`
+	// pays, as cmd_build_wall charges it and the foundation takes.
+	float wall_piece_price(uint8_t player, uint8_t type, float half_w, float out[RES_COUNT]) const;
 	// What cmd_build_wall pays for a planned WallSet piece (its length's own cost).
 	void wall_piece_cost(uint8_t player, const WallPiece &p, float out[RES_COUNT]) const {
 		structure_cost(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ), out);
