@@ -124,13 +124,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (save) {
 				selected_groups[grp].clear();
 				const bool disjoint = rtso::user_config::get_bool("gui.session.disjointcontrolgroups");
-				for (int s = 0; s < selected_ids.size(); ++s) {
+				// Any selected entity, a structure too (EntityGroupsContainer).
+				PackedInt32Array members = selected_ids;
+				if (selected_building_id != 0) members.push_back((int32_t)selected_building_id);
+				for (int s = 0; s < members.size(); ++s) {
 					for (int o = 0; o < 10 && disjoint; ++o) {
 						if (o == grp) continue;
-						const int64_t at = selected_groups[o].find(selected_ids[s]);
+						const int64_t at = selected_groups[o].find(members[s]);
 						if (at >= 0) selected_groups[o].remove_at(at);
 					}
-					if (!selected_groups[grp].has(selected_ids[s])) selected_groups[grp].push_back(selected_ids[s]);
+					if (!selected_groups[grp].has(members[s])) selected_groups[grp].push_back(members[s]);
 				}
 				return;
 			}
@@ -273,13 +276,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("rts0.stance.standground")) { apply_stance(rtso::STANCE_STAND_GROUND); return; }
 		if (fired("rts0.stance.violent")) { apply_stance(rtso::STANCE_VIOLENT); return; }
 		if (fired("rts0.stance.passive")) { apply_stance(rtso::STANCE_PASSIVE); return; }
-		if (fired("session.attackmoveunit")) {
-			if (!selected_ids.is_empty()) {
-				attack_move_mode = true;
-				patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = repair_mode = false;
-			}
-			return;
-		}
+		// session.attackmoveUnit is only a modifier held with a right-click (unit_actions.js),
+		// read where the order is given; a press arms nothing.
+		if (fired("session.attackmoveunit")) return;
 
 		// Training: Z X C V B N M , queue the selected building's 1st-8th
 		// trainee; Shift trains a batch of 5 (gui.session.batchtrainingsize).
@@ -696,8 +695,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					sim->cmd_unset_rally_point(local_player(), selected_building_id);
 				return;
 			}
-			// If building selected, right click sets Rally Point!
-			if (selected_building_id != 0) {
+			// A selected structure alone: a right-click sets its rally point. With units also
+			// selected (Shift+click), their orders come first (unit_actions.js: the units'
+			// actions are checked before "set-rallypoint").
+			if (selected_building_id != 0 && selected_ids.is_empty()) {
 				if (try_focus_fire(click_pos)) return;
 				uint32_t target_res = 0, target_bld = 0;
 				auto rview = sim->resources();
@@ -1140,7 +1141,6 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
 						else
 							sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
-						clear_selection();
 					} else if (force_repair && friendly && (b.build_progress < 1.0f || b.hp < b.max_hp)) {
 						// session.repair likewise wins over returning resources (unit_actions.js "repair").
 						if (turn_cmds())
@@ -1177,7 +1177,6 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
 								sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
-							clear_selection();
 						} else {
 							break; // nothing to do there: walk
 						}
@@ -1209,7 +1208,6 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
 								sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
-							clear_selection();
 						} else {
 							break; // no selected unit is on its GarrisonHolder List: walk
 						}

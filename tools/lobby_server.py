@@ -37,7 +37,8 @@ behind a small JSON API:
                   map_type, map_size, start_time and player_names are optional:
                   the details 0 A.D.'s lobby shows for a selected game (GameDetails.js).
                   player_names is a list of {name, team, civ, ai, observer}, an AI
-                  also with ai_difficulty and ai_behavior
+                  also with ai_difficulty and ai_behavior, and in a running game
+                  state (won or defeated) and offline
   POST /rooms/unregister {token, id}     removes it (unregisterGame)
                   A game belongs to the account that registered it (its token), or
                   without one to the address it came from, as 0 A.D.'s bot keys a
@@ -168,6 +169,11 @@ def _player_names(value):
         if entry["ai"]:
             entry["ai_difficulty"] = num("ai_difficulty", 3, 0, 5)
             entry["ai_behavior"] = num("ai_behavior", 2, 0, 3)
+        # LobbyGamelistReporter: State (won, defeated) and Offline in a running game.
+        if p.get("state") in ("won", "defeated"):
+            entry["state"] = p["state"]
+        if p.get("offline") and not entry["ai"]:
+            entry["offline"] = True
         out.append(entry)
         if len(out) >= MAX_ROOM_PLAYERS:
             break

@@ -415,12 +415,22 @@ struct PetraAttackManager {
 	// victoryManager.js tryCaptureGaiaRelicLapseTime: 2 s steps left before an attack may go
 	// for Gaia's relics again (0: it may, tryCaptureGaiaRelic).
 	uint8_t gaia_relic_lapse = 0;
+	// attackManager.js totalNumber: every plan made so far (rush, raid, attack, huge, unique);
+	// a plan's name is the count when it was made. attack_name is the main plan's.
+	uint8_t plans_made = 0;
+	uint8_t attack_name = 0;
+	// attackPlan.js addSiegeUnits SIEGE_ADDED: the main plan's siege class (1-3), 0 until picked.
+	uint8_t attack_siege = 0;
+	// The raid plan's unitStat FastMoving sizes (3 and 4 before variation and popScaling).
+	uint8_t raid_target = 4;
+	uint8_t raid_min = 3;
+	uint8_t spare[3] = {};
 	int32_t rush_size[3] = {};
 	int32_t target_size = 0;  // main plan's unitStat targetSize total
 	int32_t min_size = 0;     // and minSize total
 	int32_t launched[PETRA_ATTACK_KINDS] = {}; // plans of each kind that marched
 };
-static_assert(sizeof(PetraAttackManager) == 44, "PetraAttackManager is saved raw; keep it padding-free");
+static_assert(sizeof(PetraAttackManager) == 52, "PetraAttackManager is saved raw; keep it padding-free");
 
 // navalManager.js:58 seaWarShips — per-sea fleet accounting registry
 struct Petra {

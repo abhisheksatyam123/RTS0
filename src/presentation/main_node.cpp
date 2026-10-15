@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "network/chat_routing.h"
 #include "main_node.h"
 #include "l10n.h"
@@ -432,9 +433,11 @@ Array RtsoMain::debug_command_row() {
 		Label *cnt = Object::cast_to<Label>(btn->find_child("unitUpgradeCount", false, false));
 		e["count"] = cnt ? cnt->get_text().to_int() : 0;
 		e["progress"] = btn->has_meta("progress") ? (int)btn->get_meta("progress") : -1; // pixels left
-		e["grey"] = false;
+		e["grey"] = btn->has_meta("grey");
+		e["masked"] = btn->find_child("resourcesMask", false, false) != nullptr; // resourcesToAlphaMask
 		for (int k = 0; k < btn->get_child_count(); ++k)
-			if (TextureRect *ic = Object::cast_to<TextureRect>(btn->get_child(k))) e["grey"] = ic->get_material().is_valid();
+			if (TextureRect *ic = Object::cast_to<TextureRect>(btn->get_child(k)))
+				if (ic->get_material().is_valid()) e["grey"] = true;
 		out.push_back(e);
 	};
 	for (int i = 0; i < command_panel_.production_bar()->get_child_count(); ++i) {
@@ -2519,29 +2522,61 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 // "snap" also moves the camera to the first.
 void RtsoMain::perform_group(int grp, GroupAction action) {
 	if (!sim || grp < 0 || grp > 9) return;
-	PackedInt32Array recall;
-	Vector3 first_pos;
+	// input.js performGroup: the group's living units, and its structure (one at a time
+	// here); a member inside a structure stays in the group and the camera snaps to its
+	// holder when nothing else of the group is out.
+	PackedInt32Array recall, kept;
+	uint32_t recall_building = 0;
+	bool have_pos = false;
+	Vector3 first_pos, holder_pos;
+	bool have_holder = false;
 	auto gview = sim->units();
 	for (int m = 0; m < selected_groups[grp].size(); ++m) {
 		const int32_t gid = selected_groups[grp][m];
+		bool found = false;
 		for (size_t i = 0; i < gview.count; ++i) {
-			if (gview.alive[i] && gview.id[i] == (uint32_t)gid && gview.team[i] == local_player()) {
-				if (recall.is_empty()) first_pos = Vector3(gview.pos_x[i], 0, gview.pos_z[i]);
+			if (gview.id[i] != (uint32_t)gid || gview.team[i] != local_player()) continue;
+			if (gview.alive[i]) {
+				if (!have_pos) first_pos = Vector3(gview.pos_x[i], 0, gview.pos_z[i]);
+				have_pos = true;
 				recall.push_back(gid);
-				break;
+				found = true;
+			} else if (gview.hp[i] > 0.0f) {
+				for (const auto &b : sim->buildings())
+					if (std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), (uint32_t)gid) != b.garrisoned_units.end()) {
+						if (!have_holder) holder_pos = Vector3(b.x, 0, b.z);
+						have_holder = found = true;
+						break;
+					}
 			}
+			break;
 		}
+		if (!found)
+			for (const auto &b : sim->buildings())
+				if (b.id == (uint32_t)gid && b.team == local_player() && !b.wrecked && b.hp > 0.0f) {
+					if (!recall_building) recall_building = b.id;
+					if (!have_pos) first_pos = Vector3(b.x, 0, b.z);
+					have_pos = found = true;
+					break;
+				}
+		if (found) kept.push_back(gid);
 	}
-	selected_groups[grp] = recall;
-	if (recall.is_empty()) return;
+	selected_groups[grp] = kept;
+	if (kept.is_empty()) return;
+	if (recall.is_empty() && !recall_building) {
+		// Everyone is inside: snap to the holder, the selection stays.
+		if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(holder_pos);
+		return;
+	}
 	if (action == GROUP_ADD) {
 		for (int m = 0; m < recall.size(); ++m)
 			if (!selected_ids.has(recall[m])) selected_ids.push_back(recall[m]);
+		if (recall_building) selected_building_id = recall_building;
 	} else {
 		selected_ids = recall;
+		selected_building_id = recall_building;
 	}
-	selected_building_id = 0;
-	if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(first_pos);
+	if (action == GROUP_SNAP && cam_rig && (have_pos || have_holder)) cam_rig->set_target_pos(have_pos ? first_pos : holder_pos);
 	play_civ_voice("select");
 }
 
@@ -3520,6 +3555,12 @@ Dictionary RtsoMain::get_net_setup_state() const {
 		e["name"] = c >= 0 ? String::utf8(net_setup_.names[c].c_str()) : String();
 		// 0.28 ReadyController: 0 not ready, 1 ready, 2 stay ready (the host is).
 		e["ready"] = c == 0 ? 2 : c < 0 ? 0 : ((net_setup_.stay_ready >> c) & 1) ? 2 : ((net_setup_.ready >> c) & 1) ? 1 : 0;
+		// LobbyGamelistReporter: in the match, who won or was defeated, and
+		// which seated client dropped out (the slot is the player id).
+		if (net_game_started_ && sim) {
+			e["state"] = sim->is_victory_for(i) ? "won" : sim->is_defeated(i) ? "defeated" : "";
+			e["offline"] = host && c > 0 && turn_mgr_.client_left((uint32_t)c);
+		}
 		slots.push_back(e);
 	}
 	d["slots"] = slots;
