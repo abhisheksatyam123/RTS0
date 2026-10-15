@@ -16888,6 +16888,18 @@ void Simulation::tick_unit_ai(float dt) {
 			}
 			continue;
 		}
+		// WALKINGANDFIGHTING / PATROL Timer -> FindWalkAndFightTargets: a healer heals whoever is
+		// hurt nearby (FindNewHealTargets, an unforced Heal pushed in front), then walks on.
+		if ((now == ACTION_ATTACK_MOVE || now == ACTION_PATROL) && !interrupted && unit_heals(i) &&
+				(i + ticks_) % 4 == 0) {
+			const uint32_t t = find_heal_target(i);
+			if (t != 0) {
+				auto &q = order_queues_[units_.id[i]];
+				q.insert(q.begin(), current_order(i));
+				start_heal(i, t, 0);
+				continue;
+			}
+		}
 		// Patrol: turn round at each end (the queue's next order goes first).
 		if (now == ACTION_PATROL && units_.order_kind[i] == ORDER_PATROL) {
 			const float dx = units_.order_x[i] - units_.pos_x[i], dz = units_.order_z[i] - units_.pos_z[i];
