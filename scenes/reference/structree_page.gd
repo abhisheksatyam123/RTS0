@@ -113,6 +113,7 @@ func _init() -> void:
 	name = "Structure Tree"
 
 func _ready() -> void:
+	set_meta("tooltip_style", "reference") # 0.28 referenceTooltip (tooltips.gd)
 	add_theme_constant_override("separation", 6)
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 10)
