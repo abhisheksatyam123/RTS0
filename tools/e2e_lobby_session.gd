@@ -34,6 +34,9 @@ func until(cond: Callable, max_frames := 600) -> bool:
 		await process_frame
 	return cond.call()
 
+func MatchSettings_mode() -> String:
+	return str(root.get_node("/root/MatchSettings").net_mode)
+
 func open_lobby() -> Control:
 	var lobby: Control = load("res://scenes/menu/lobby.tscn").instantiate()
 	root.add_child(lobby)
@@ -94,7 +97,29 @@ func run() -> void:
 	check(ls.signed_in() and ls.player_name == "alice", "Yes signs alice in again")
 	check(lobby._chat_log.get_parsed_text().contains("Connected."), "and the page says Connected.")
 
-	print("3. back to the main menu signs out")
+	print("3. a running game asks before joining to watch")
+	var reg := [0]
+	ls.post_json("/rooms", {"token": bob[0], "id": "room-29999", "host_ip": "127.0.0.1", "host_port": 29999,
+		"name": "bob's game", "state": "running", "player_names": [{"name": "bob"}]}, func(c: int, _o) -> void: reg[0] = c)
+	await until(func() -> bool: return reg[0] != 0)
+	lobby._refresh()
+	await until(func() -> bool: return lobby._games.get_root() != null and lobby._games.get_root().get_child_count() > 0)
+	var row: TreeItem = lobby._games.get_root().get_child(0) if lobby._games.get_root() else null
+	if row:
+		row.select(0)
+		await process_frame
+	lobby._observe.button_pressed = false
+	lobby._on_join_pressed()
+	var ask: ConfirmationDialog = lobby.find_child("ObserveDialog", true, false)
+	check(ask != null and ask.dialog_text == "The game has already started. Do you want to join as observer?",
+		"Join asks whether to watch a game alice is not in")
+	check(MatchSettings_mode() == "", "and joins nothing until she answers")
+	if ask:
+		ask.canceled.emit()
+	await process_frame
+	check(MatchSettings_mode() == "" and lobby.find_child("ObserveDialog", true, false) == null, "No joins nothing")
+
+	print("4. back to the main menu signs out")
 	lobby._on_back_pressed()
 	check(not ls.signed_in(), "leaving the lobby signs alice out")
 	var listed := [null]
