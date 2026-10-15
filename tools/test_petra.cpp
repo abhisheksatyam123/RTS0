@@ -3454,6 +3454,75 @@ static void test_defense_animals() {
 	CHECK(dead && !still, "the wolf is killed and leaves the army");
 }
 
+// defenseArmy.js clear: defenders of a disbanded army standing outside our and allied land go
+// back to the nearest allied structure on their land that shoots (with no defender left in our
+// land to rally on), not to the primary base.
+static void test_defense_clear_destination() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr, *foe_cc = nullptr;
+	for (const auto &b : s->buildings_) {
+		if (b.type != BLD_TOWN_CENTER || b.build_progress < 1.0f) continue;
+		if (b.team == 1) cc = &b;
+		if (b.team == 0) foe_cc = &b;
+	}
+	CHECK(cc && foe_cc, "both players have a civic centre");
+	if (!cc || !foe_cc) return;
+	const float cx = cc->x, cz = cc->z;
+	// A neutral spot on our land, sideways of the line between the civic centres.
+	const float ux = foe_cc->z - cz, uz = cx - foe_cc->x, ul = std::hypot(ux, uz);
+	float spot_x = 0.0f, spot_z = 0.0f, edge_x = 0.0f, edge_z = 0.0f;
+	bool found = false;
+	for (float sign : {1.0f, -1.0f}) {
+		for (float d = 4.0f; d < 120.0f && !found; d += 1.0f) {
+			const float x = cx + sign * ux / ul * d, z = cz + sign * uz / ul * d;
+			if (std::fabs(x) > s->map_half_ - 8.0f || std::fabs(z) > s->map_half_ - 8.0f) break;
+			const int o = s->territory_owner_at(x, z);
+			if (o == 1) { edge_x = x; edge_z = z; continue; }
+			if (o < 0 && d > 20.0f && s->petra_land_at(x, z) == s->petra_land_at(cx, cz)) {
+				spot_x = x + sign * ux / ul * 4.0f;
+				spot_z = z + sign * uz / ul * 4.0f;
+				found = s->territory_owner_at(spot_x, spot_z) < 0;
+			}
+		}
+		if (found) break;
+	}
+	CHECK(found, "a neutral spot beside Petra's land");
+	if (!found) return;
+	const float tower_x = cx + (edge_x - cx) * 0.8f, tower_z = cz + (edge_z - cz) * 0.8f;
+	s->spawn_building_world(tower_x, tower_z, BLD_SENTRY_TOWER, 1);
+	std::vector<uint32_t> defenders;
+	for (int k = 0; k < 4; ++k) defenders.push_back(s->spawn_unit(spot_x + (float)k, spot_z + 2.0f, 1, UNIT_SPEARMAN));
+	const uint32_t foe = s->spawn_unit(spot_x, spot_z - 2.0f, 0, UNIT_SWORDSMAN, 1.0e4f);
+	s->petra_defense_armies_.clear();
+	s->petra_defense_armies_.emplace_back();
+	s->petra_defense_armies_.back().foe_ids.push_back(foe);
+	s->petra_defense_armies_.back().defender_ids = defenders;
+	bool gone = false;
+	for (int t = 0; t < 8 && !gone; ++t) {
+		run_ai_turns(*s, 1);
+		gone = !s->petra_is_defender(defenders[0]);
+	}
+	float to_tower = 0.0f, to_cc = 0.0f;
+	int n = 0;
+	for (uint32_t id : defenders) {
+		const int32_t i = s->lookup_unit(id);
+		if (i < 0) continue;
+		to_tower += std::hypot(s->units_.target_x[i] - tower_x, s->units_.target_z[i] - tower_z);
+		to_cc += std::hypot(s->units_.target_x[i] - cx, s->units_.target_z[i] - cz);
+		++n;
+	}
+	if (n) { to_tower /= (float)n; to_cc /= (float)n; }
+	std::printf("  clear: army disbanded %s, defenders head %.1f from the tower, %.1f from the civic centre (tower %.1f from it)\n",
+	            gone ? "yes" : "no", to_tower, to_cc, std::hypot(tower_x - cx, tower_z - cz));
+	CHECK(gone, "the army out of our land disbands");
+	CHECK(n > 0 && to_tower < 4.0f, "its defenders head for the nearest structure that shoots (defenseArmy.js clear)");
+}
+
 // defenseManager.js switchToAttack: an army whose foes are gone, with a defender within
 // 120 m of an enemy structure in our territory, attacks that structure alone and ends
 // once it falls (uniqueTargetId).
@@ -4998,6 +5067,7 @@ int main(int argc, char **argv) {
 	RUN(test_defense_armies);
 	RUN(test_defense_ignores_ships);
 	RUN(test_defense_animals);
+	RUN(test_defense_clear_destination);
 	RUN(test_defense_switch_to_attack);
 	RUN(test_capturing_armies);
 	RUN(test_defenders_stop_hopeless_capture);

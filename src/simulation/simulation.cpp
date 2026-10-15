@@ -26750,18 +26750,63 @@ void Simulation::petra_manage_defense(float dt) {
 		}
 	};
 	// defenseArmy.js clear: a defender below low health goes to heal in the nearest healing
-	// structure; the others come home instead of chasing foes out of territory.
+	// structure. The others stop where they stand in our or a mutual ally's land; those outside
+	// go back to the centre of the defenders standing in our land (else in allied land), or with
+	// none there to the nearest allied structure in allied land on their land, one that shoots
+	// first.
+	auto mutual_land = [&](float x, float z) {
+		const int o = territory_owner_at(x, z);
+		return o == petra_pid_ || (o >= 0 && o < MAX_PLAYERS && is_ally(petra_pid_, (uint8_t)o) && is_ally((uint8_t)o, petra_pid_));
+	};
 	auto clear_army = [&](PetraDefenseArmy &a) {
+		float sum[3][2] = {};
+		int n[3] = {};
+		for (uint32_t uid : a.defender_ids) {
+			const int32_t idx = lookup_unit(uid);
+			if (idx < 0 || !units_.alive[idx] || units_.action_state[idx] == ACTION_GARRISONED) continue;
+			const float x = units_.pos_x[idx], z = units_.pos_z[idx];
+			const int k = territory_owner_at(x, z) == petra_pid_ ? 0 : mutual_land(x, z) ? 1 : 2;
+			sum[k][0] += x;
+			sum[k][1] += z;
+			++n[k];
+		}
+		bool has_dest = false;
+		float dest_x = 0.0f, dest_z = 0.0f;
+		if (n[0] > 0 || n[1] > 0) {
+			const int k = n[0] > 0 ? 0 : 1;
+			dest_x = sum[k][0] / (float)n[k];
+			dest_z = sum[k][1] / (float)n[k];
+			has_dest = true;
+		} else if (n[2] > 0) {
+			const float ox = sum[2][0] / (float)n[2], oz = sum[2][1] / (float)n[2];
+			const uint16_t land = petra_land_at(ox, oz);
+			bool defensive_found = false;
+			float dist_min = 0.0f;
+			for (const Building &b : buildings_) {
+				if (b.hp <= 0.0f || b.wrecked || b.team >= MAX_PLAYERS || (b.team != petra_pid_ && !is_ally(petra_pid_, b.team))) continue;
+				if (!mutual_land(b.x, b.z) || petra_land_at(b.x, b.z) != land) continue;
+				const bool defensive = building_ai_info(b.type).shoots();
+				if (defensive_found && !defensive) continue;
+				const float d = (b.x - ox) * (b.x - ox) + (b.z - oz) * (b.z - oz);
+				if (has_dest && d > dist_min && (defensive_found || !defensive)) continue;
+				defensive_found |= defensive;
+				dist_min = d;
+				dest_x = b.x;
+				dest_z = b.z;
+				has_dest = true;
+			}
+		}
 		std::vector<int> incoming;
 		for (uint32_t uid : a.defender_ids) {
 			int32_t idx = lookup_unit(uid);
-			if (idx < 0) continue;
+			if (idx < 0 || !units_.alive[idx] || units_.action_state[idx] == ACTION_GARRISONED || petra_passenger(uid)) continue;
 			const float hp_ratio = units_.max_hp[idx] > 0.0f ? units_.hp[idx] / units_.max_hp[idx] : 1.0f;
 			if (hp_ratio < petra_config_.garrison_hp_low) {
 				if (incoming.empty()) incoming = petra_garrison_incoming();
 				if (petra_garrison_attacked_unit((size_t)idx, false, incoming)) continue;
 			}
-			if (home && units_.action_state[idx] == ACTION_ATTACK) order_walk(&uid, 1, home->x, home->z, false);
+			if (has_dest && !mutual_land(units_.pos_x[idx], units_.pos_z[idx])) order_walk(&uid, 1, dest_x, dest_z, false);
+			else if (units_.action_state[idx] == ACTION_ATTACK) cmd_stop(&uid, 1); // stopMoving
 		}
 		a.defender_ids.clear();
 		a.foe_ids.clear();
