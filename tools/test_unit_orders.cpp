@@ -2593,6 +2593,29 @@ static void test_structure_scan_by_centre() {
 	check(picks(-1.0f), "one whose centre is within vision is attacked");
 }
 
+static void test_healer_stances() {
+	std::printf("75. a healer standing its ground or defensive doesn't follow a wounded unit out of its leash (HEALING OutOfRange, WalkToHeldPosition)\n");
+	auto run_case = [](uint8_t stance) {
+		Simulation s;
+		setup(s);
+		uint32_t h = s.spawn_unit(0, 0, 0, UNIT_HEALER);
+		s.order_set_stance(&h, 1, stance);
+		uint32_t w = s.spawn_unit(1.5f, 0, 0, UNIT_SPEARMAN);
+		s.units_.hp[idx_of(s, w)] = 10.0f;
+		check(run_until(s, 5.0f, [&] { return act_of(s, h) == ACTION_HEAL && hp_of(s, w) > 10.0f; }), "the healer heals a wounded unit next to it");
+		s.order_walk(&w, 1, 16.0f, 0.0f);
+		float farthest = 0.0f;
+		run_until(s, 15.0f, [&] { farthest = std::max(farthest, dist(s, h, 0, 0)); return false; });
+		return std::make_pair(farthest, dist(s, h, 0, 0));
+	};
+	const auto [sg_far, sg_end] = run_case(STANCE_STAND_GROUND);
+	check(sg_far < 1.0f, "standing its ground, it stays put");
+	const auto [df_far, df_end] = run_case(STANCE_DEFENSIVE);
+	check(df_far < 12.0f && df_end < 1.5f, "defensive, it follows only so far and walks back to where it stood");
+	const auto [ag_far, ag_end] = run_case(STANCE_AGGRESSIVE);
+	check(ag_end > 10.0f, "aggressive, it follows the unit");
+}
+
 static void test_range_check_between_hits() {
 	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
 	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
@@ -2794,6 +2817,7 @@ int main(int argc, char **argv) {
 	test_guard_stances();
 	test_guard_towers_and_animals();
 	test_structure_scan_by_centre();
+	test_healer_stances();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

@@ -16193,7 +16193,13 @@ uint32_t Simulation::find_heal_target(size_t h) const {
 		if (!can_heal(h, (int32_t)t)) continue;
 		const float dx = units_.pos_x[t] - units_.pos_x[h], dz = units_.pos_z[t] - units_.pos_z[h];
 		const float d2 = dx * dx + dz * dz;
-		if (d2 <= best_d2) { best_d2 = d2; best = units_.id[t]; }
+		if (d2 > best_d2) continue;
+		if (units_.stance[h] == STANCE_DEFENSIVE) { // APPROACHING would give it up at once
+			const float hx = units_.pos_x[t] - units_.anchor_x[h], hz = units_.pos_z[t] - units_.anchor_z[h];
+			if (hx * hx + hz * hz > (range + vision * 0.5f) * (range + vision * 0.5f)) continue;
+		}
+		best_d2 = d2;
+		best = units_.id[t];
 	}
 	return best;
 }
@@ -16318,6 +16324,19 @@ void Simulation::tick_heal(size_t h) {
 		d2 = dx * dx + dz * dz;
 		// ShouldAbandonChase: an automatic target that wanders out of sight is dropped.
 		if (!forced && d2 > vision * vision) keep = false;
+		// HEALING OutOfRange / APPROACHING: a healer standing its ground doesn't follow (Order.Heal),
+		// a defensive one only as far as its held position allows (CheckTargetDistanceFromHeldPosition).
+		// A guard keeps healing the unit it guards.
+		auto q = order_queues_.find(units_.id[h]);
+		const bool charge = q != order_queues_.end() && !q->second.empty() && q->second.front().kind == ORDER_GUARD &&
+				q->second.front().target == units_.id[t];
+		const float range = healer_range_of(h);
+		if (!forced && !charge && units_.stance[h] == STANCE_STAND_GROUND && d2 > range * range) keep = false;
+		if (!forced && !charge && units_.stance[h] == STANCE_DEFENSIVE) {
+			const float hx = units_.pos_x[t] - units_.anchor_x[h], hz = units_.pos_z[t] - units_.anchor_z[h];
+			const float lim = range + vision * 0.5f;
+			if (hx * hx + hz * hz > lim * lim) keep = false;
+		}
 	}
 	if (!keep) { // FINDINGNEWTARGET
 		units_.target_unit_id[h] = 0;
@@ -16327,7 +16346,10 @@ void Simulation::tick_heal(size_t h) {
 		if (q != order_queues_.end() && !q->second.empty()) { finish_order(h); return; }
 		const uint32_t next = find_heal_target(h);
 		if (next != 0) start_heal(h, next, 0);
-		else set_order(h, ORDER_NONE, 0, 0, units_.pos_x[h], units_.pos_z[h]);
+		else {
+			set_order(h, ORDER_NONE, 0, 0, units_.pos_x[h], units_.pos_z[h]);
+			walk_to_held_position(h);
+		}
 		return;
 	}
 	units_.order_x[h] = units_.pos_x[t];
