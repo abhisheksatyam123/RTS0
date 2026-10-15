@@ -1136,6 +1136,8 @@ void RtsoMain::_process(double delta) {
 	show_session_notices(sim->take_session_notices());
 	show_trigger_dialogs(sim->take_trigger_dialogs());
 	update_cursor();
+	// input.js INPUT_BATCHTRAINING: releasing session.batchtrain posts the batch.
+	if (batch_training_.active && !rtso::hotkeys::held("session.batchtrain")) flush_training_batch();
 	chat_window_.tick_overlay();
 	if (objectives_dialog_.is_open()) objectives_dialog_.set_player_state(match_settings_player_state());
 	tutorial_panel_.refresh(sim);
