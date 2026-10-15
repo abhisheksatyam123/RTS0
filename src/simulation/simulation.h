@@ -566,6 +566,7 @@ public:
 			TEXT_UNLOAD_FAILED,        // Commands.js notifyUnloadFailure: "Unable to unload unit(s)."
 			TEXT_BACK_TO_WORK_FAILED,  // notifyBackToWorkFailure: "Some unit(s) can't go back to work"
 			TEXT_NO_BRIBABLE,          // Commands.js spy-request: "There are no bribable units"
+			TEXT_INSUFFICIENT_RESOURCES, // Player.js SubtractResourcesOrNotify: amounts[] per resource missing
 		};
 		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,

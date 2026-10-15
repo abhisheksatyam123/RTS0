@@ -4053,12 +4053,19 @@ bool Simulation::cmd_tribute(uint8_t from, uint8_t to, const int amounts[RES_COU
 	if (!amounts || from >= MAX_PLAYERS || to >= MAX_PLAYERS || from == to) return false;
 	if (!player_in_match(from) || !player_in_match(to)) return false;
 	int total = 0;
+	SessionNotice need{SessionNotice::TEXT, from, 0, SessionNotice::TEXT_INSUFFICIENT_RESOURCES, {}};
+	bool short_of = false;
 	for (int r = 0; r < RES_COUNT; ++r) {
 		if (amounts[r] < 0) return false;
-		if ((float)amounts[r] > players_[from].res[r]) return false;
+		if ((float)amounts[r] > players_[from].res[r]) {
+			// GetNeededResources: Math.ceil(amount - the player's stock).
+			need.amounts[r] = (int32_t)std::ceil((float)amounts[r] - players_[from].res[r]);
+			short_of = true;
+		}
 		total += amounts[r];
 	}
 	if (total == 0) return false;
+	if (short_of) return note_session(need), false;
 	for (int r = 0; r < RES_COUNT; ++r) {
 		players_[from].res[r] -= (float)amounts[r];
 		players_[to].res[r] += (float)amounts[r];

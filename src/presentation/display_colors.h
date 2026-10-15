@@ -70,7 +70,9 @@ inline uint32_t rgb(const Simulation &sim, uint8_t pid) {
 		return sim.player_color(pid);
 	}
 	if (pid == s.viewer) return s.self;
-	const uint8_t st = sim.get_diplomacy(s.viewer, pid);
+	// The ceasefire makes every enemy neutral while it lasts (CeasefireManager.js).
+	uint8_t st = sim.get_diplomacy(s.viewer, pid);
+	if (st == Simulation::DIPLO_ENEMY && sim.ceasefire_active()) st = Simulation::DIPLO_NEUTRAL;
 	if (st == Simulation::DIPLO_ALLY) return s.ally;
 	if (st == Simulation::DIPLO_NEUTRAL) return s.neutral;
 	return s.enemy;
