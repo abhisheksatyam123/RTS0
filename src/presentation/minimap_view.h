@@ -8,6 +8,7 @@
 #include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/variant/vector3.hpp>
 #include <godot_cpp/variant/color.hpp>
+#include <godot_cpp/variant/transform2d.hpp>
 #include <godot_cpp/classes/image_texture.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
 #include <cstdint>
@@ -29,6 +30,7 @@ class RtsoMiniMapView : public Control {
 
 	const rtso::Simulation *sim = nullptr;
 	Vector3 cam_pos;
+	Transform2D view_xf_; // minimap space -> control space: the camera's turn (CMiniMap::GetAngle) and m_MapScale
 	bool dragging = false;
 	bool show_territory = true;
 	bool show_resources = true;

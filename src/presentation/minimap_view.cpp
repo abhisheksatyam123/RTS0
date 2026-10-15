@@ -132,7 +132,7 @@ void RtsoMiniMapView::_gui_input(const Ref<InputEvent> &event) {
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_valid()) {
 		Vector2 sz = get_size();
-		Vector2 mpos = mb->get_position();
+		Vector2 mpos = view_xf_.affine_inverse().xform(mb->get_position());
 		float half = sim ? sim->map_half() : 64.0f;
 		float wx = (mpos.x / sz.x) * (half * 2.0f) - half;
 		float wz = (mpos.y / sz.y) * (half * 2.0f) - half;
@@ -155,7 +155,7 @@ void RtsoMiniMapView::_gui_input(const Ref<InputEvent> &event) {
 	Ref<InputEventMouseMotion> mm = event;
 	if (mm.is_valid() && dragging) {
 		Vector2 sz = get_size();
-		Vector2 mpos = mm->get_position();
+		Vector2 mpos = view_xf_.affine_inverse().xform(mm->get_position());
 		float half = sim ? sim->map_half() : 64.0f;
 		float wx = (mpos.x / sz.x) * (half * 2.0f) - half;
 		float wz = (mpos.y / sz.y) * (half * 2.0f) - half;
@@ -344,10 +344,27 @@ void RtsoMiniMapView::_draw() {
 	const Color panel(0.08f, 0.09f, 0.12f, 0.96f), rim(0.90f, 0.75f, 0.31f, 1.0f);
 	if (round) draw_circle(sz * 0.5f, std::min(sz.x, sz.y) * 0.5f, panel);
 	else draw_rect(Rect2(Vector2(0, 0), sz), panel, true);
-	if (sim && ensure_terrain_texture(round)) draw_texture_rect(terrain_tex_, Rect2(Vector2(0, 0), sz), false);
-	if (!round) draw_rect(Rect2(Vector2(0, 0), sz), rim, false, 2.0f);
-
-	if (!sim) return;
+	if (!sim) {
+		if (!round) draw_rect(Rect2(Vector2(0, 0), sz), rim, false, 2.0f);
+		return;
+	}
+	// CMiniMap::GetAngle and m_MapScale: the map turns with the camera so that the
+	// view points up, and a square map is drawn 1.414 times smaller so its corners
+	// stay inside when turned. Everything on the map is drawn through view_xf_.
+	{
+		float angle = 0.0f;
+		if (const Viewport *vp = get_viewport()) if (const Camera3D *cam = vp->get_camera_3d()) {
+			const Vector3 f = -cam->get_global_transform().basis.get_column(2);
+			// The minimap's +y is the world's +z: turn the forward (f.x, f.z) to (0, -1).
+			if (f.x * f.x + f.z * f.z > 1e-6f) angle = -0.5f * (float)Math_PI - std::atan2(f.z, f.x);
+		}
+		const float k = round ? 1.0f : 1.0f / 1.414f;
+		const Vector2 c = sz * 0.5f;
+		view_xf_ = Transform2D(0.0f, c) * Transform2D(angle, Vector2()) * Transform2D(Vector2(k, 0.0f), Vector2(0.0f, k), Vector2()) *
+				Transform2D(0.0f, -c);
+	}
+	draw_set_transform_matrix(view_xf_);
+	if (ensure_terrain_texture(round)) draw_texture_rect(terrain_tex_, Rect2(Vector2(0, 0), sz), false);
 
 	float half_map = sim->map_half();
 	auto map_to_mini = [&](float x, float z) -> Vector2 {
@@ -515,8 +532,11 @@ void RtsoMiniMapView::_draw() {
 						String("res://assets/textures/ui/archive/icons/minimap/") + kIcons[which] + ".png");
 				if (icon_tex_[which].is_null()) return;
 			}
-			draw_texture_rect(icon_tex_[which], Rect2(map_to_mini(x, z) - Vector2(icon, icon) * 0.5f, Vector2(icon, icon)),
+			// Upright at the turned position, as CMiniMap draws its icons.
+			draw_set_transform_matrix(Transform2D());
+			draw_texture_rect(icon_tex_[which], Rect2(view_xf_.xform(map_to_mini(x, z)) - Vector2(icon, icon) * 0.5f, Vector2(icon, icon)),
 					false, Color(1, 1, 1, opacity));
+			draw_set_transform_matrix(view_xf_);
 		};
 		if (show_resources)
 			for (const auto &r : mirages_.resources())
@@ -576,5 +596,7 @@ void RtsoMiniMapView::_draw() {
 	}
 
 	// The disc's rim, over everything like the square's frame.
+	draw_set_transform_matrix(Transform2D());
 	if (round) draw_arc(sz * 0.5f, std::min(sz.x, sz.y) * 0.5f - 1.0f, 0.0f, 6.2831853f, 96, rim, 2.0f);
+	else draw_rect(Rect2(Vector2(0, 0), sz), rim, false, 2.0f);
 }
