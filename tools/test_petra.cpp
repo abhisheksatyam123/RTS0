@@ -1958,6 +1958,56 @@ static void test_attack_request() {
 	CHECK(!asked_again, "a requested attack asks no one to join it");
 }
 
+// attackManager.js checkEvents AttackRequest counts every upcoming plan, the raid
+// mustering included, and force-starts each one of 3 units or more.
+static void test_attack_request_counts_raid() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 4, 128.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_player_active(0, true, false);
+	s->set_player_active(1, true, true);
+	s->set_player_active(2, true, true);
+	s->set_player_active(3, true, false);
+	for (uint8_t a = 0; a < 4; ++a)
+		for (uint8_t b = 0; b < 4; ++b)
+			if (a != b) s->set_diplomacy(a, b, a == 0 || b == 0 ? Simulation::DIPLO_ENEMY : Simulation::DIPLO_ALLY);
+	run_for(*s, 5.0f);
+	if (s->petra_slots_.size() <= 2) { CHECK(false, "AI 2 runs its own Petra"); return; }
+	float bx = 0.0f, bz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 2 && b.type == BLD_TOWN_CENTER) { bx = b.x; bz = b.z; }
+	auto &slot = s->petra_slots_[2];
+	auto &plan = slot.petra_attack_plan_;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	plan.squad.clear();
+	for (int k = 0; k < 10; ++k) plan.squad.push_back(s->spawn_unit(bx + 6.0f + (float)(k % 5), bz + 6.0f + (float)(k / 5), 2, UNIT_SPEARMAN));
+	slot.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
+	slot.petra_attack_mgr_.target_size = 60;
+	slot.petra_attack_mgr_.min_size = 30;
+	// The raid on an enemy outpost in AI 2's land, 4 riders mustering of 5 wanted.
+	auto &raid = slot.petra_raid_plan_;
+	raid.state = Simulation::AttackPlan::MUSTER;
+	raid.state_timer = 0.0f;
+	raid.target_building_id = s->spawn_building_world(bx - 10.0f, bz, BLD_OUTPOST, 0, 1.0f);
+	raid.target_x = bx - 10.0f; raid.target_z = bz;
+	raid.squad.clear();
+	for (int k = 0; k < 4; ++k) raid.squad.push_back(s->spawn_unit(bx - 6.0f, bz + 6.0f + (float)k, 2, UNIT_CAVALRY));
+	slot.petra_attack_mgr_.raid_target = 5;
+	slot.petra_attack_mgr_.raid_min = 5;
+	s->clear_petra_chat();
+	s->cmd_attack_request(3, 0);
+	run_ai_turns(*s, 1, 2);
+	bool join = false;
+	for (const auto &line : s->pending_petra_chat()) join |= line.kind == PETRA_CHAT_ATTACK_JOIN && line.from == 2;
+	std::printf("  10 mustering and a raid of 4: AI 2 joins %s (attack forced %d, raid forced %d, raid state %d)\n",
+	            join ? "yes" : "no", (int)plan.forced, (int)raid.forced, (int)raid.state);
+	CHECK(join && plan.forced, "the raid's riders count toward the 12 a join needs");
+	CHECK(raid.forced, "the raid of 3 or more starts at once too");
+}
+
 // victoryManager.js capture_the_relic: Petra goes for a Gaia relic in its
 // territory, not for one it has never seen.
 static void test_relic_capture() {
@@ -3144,6 +3194,41 @@ static void test_capturing_armies() {
 	CHECK(taken, "Petra captures a Gaia structure in its land");
 }
 
+// defenseArmy.js update: a defender capturing a structure allowCapture no longer allows
+// (its regeneration outruns the army) damages it instead.
+static void test_defenders_stop_hopeless_capture() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	if (!cc) { CHECK(false, "Petra has a civic centre"); return; }
+	const float cx = cc->x, cz = cc->z;
+	for (int k = 0; k < 10; ++k) s->spawn_unit(cx - 2.0f + (float)(k % 5), cz + 12.0f + (float)(k / 5), 1, UNIT_SPEARMAN);
+	const uint32_t tower = s->spawn_building_world(cx + 14.0f, cz - 12.0f, BLD_SENTRY_TOWER, MAX_PLAYERS, 1.0f);
+	auto on_tower = [&](bool capturing) {
+		int n = 0;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.target_building_id[i] == tower &&
+			    ((s->units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) != 0) == capturing) ++n;
+		return n;
+	};
+	int capturing = 0;
+	for (int t = 0; t < 60 && capturing == 0; ++t) { run_for(*s, 0.5f); capturing = on_tower(true); }
+	// Now the tower regenerates far faster than the army captures.
+	for (auto &b : s->buildings_)
+		if (b.id == tower) b.capture_regen_rate = 1.0e6f;
+	run_for(*s, 4.0f);
+	const int still = on_tower(true), hitting = on_tower(false);
+	std::printf("  hopeless capture: %d capturing first, then %d still capturing, %d damaging\n", capturing, still, hitting);
+	CHECK(capturing > 0, "the defenders first capture the Gaia tower");
+	CHECK(still == 0 && hitting > 0, "they damage it once capturing is hopeless");
+}
+
 // attackManager.js assignBombers: an idle stone thrower shells an enemy structure it can
 // reach from our land, and leaves alone those deep in enemy land.
 static void test_assign_bombers() {
@@ -4199,8 +4284,11 @@ static void test_new_cc_defenders() {
 		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
 	CHECK(cc != nullptr, "Petra has a civic centre");
 	if (!cc) return;
+	// Copy the position: spawning resizes buildings_ and would leave cc dangling.
+	const float ccx = cc->x, ccz = cc->z;
+	cc = nullptr;
 	for (const auto &b : s->petra_bases()) CHECK(b.needed_defenders == 0, "the first civic centre trains no defenders");
-	const uint32_t tc = s->spawn_building_world(cc->x * 0.1f, cc->z * 0.1f, BLD_TOWN_CENTER, 1, 1.0f);
+	const uint32_t tc = s->spawn_building_world(ccx * 0.1f, ccz * 0.1f, BLD_TOWN_CENTER, 1, 1.0f);
 	CHECK(tc != 0, "a second civic centre is placed");
 	if (!tc) return;
 	auto needed = [&]() -> int {
@@ -4220,7 +4308,7 @@ static void test_new_cc_defenders() {
 		auto it = s->building_id_to_idx_.find(tc);
 		if (it != s->building_id_to_idx_.end()) most = std::max(most, s->buildings_[it->second].garrisoned_units.size());
 	}
-	std::printf("  new civic centre at Hard (%.0f units from the first): %d defenders wanted, %d left, garrison up to %zu\n", 0.9f * std::hypot(cc->x, cc->z), start, needed(), most);
+	std::printf("  new civic centre at Hard (%.0f units from the first): %d defenders wanted, %d left, garrison up to %zu\n", 0.9f * std::hypot(ccx, ccz), start, needed(), most);
 	CHECK(start == 5, "a new civic centre at Hard wants 5 defenders (3 + 2 (4 - 3))");
 	CHECK(needed() == 0, "it trains them all");
 	CHECK(most >= 1, "they garrison it");
@@ -4484,6 +4572,7 @@ int main(int argc, char **argv) {
 	RUN(test_attack_blocked_by_walls);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
+	RUN(test_attack_request_counts_raid);
 	RUN(test_relic_capture);
 	RUN(test_relic_enemy_player);
 	RUN(test_relic_gaia_target);
@@ -4503,6 +4592,7 @@ int main(int argc, char **argv) {
 	RUN(test_defense_ignores_ships);
 	RUN(test_defense_switch_to_attack);
 	RUN(test_capturing_armies);
+	RUN(test_defenders_stop_hopeless_capture);
 	RUN(test_assign_bombers);
 	RUN(test_cancel_attacks_on_peace);
 	RUN(test_builders_per_foundation);

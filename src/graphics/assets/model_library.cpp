@@ -188,6 +188,33 @@ Ref<Texture2D> table_texture_for(HashMap<String, String> &table, const Ref<Textu
 	return ResourceLoader::get_singleton()->load(*path);
 }
 Ref<Texture2D> normal_map_for(const Ref<Texture2D> &albedo) { return table_texture_for(normal_maps(), albedo); }
+// data/parallax_maps.json (tools/extract_normal_maps.py --heights): for skins whose
+// actor uses a *_parallax* material, normTex's alpha as a height map and the
+// material's effectSettings.z.
+struct ParallaxMap {
+	String height;
+	float scale = 0.0f;
+};
+HashMap<String, ParallaxMap> &parallax_maps() {
+	static auto &m = *new HashMap<String, ParallaxMap>();
+	static bool loaded = false;
+	if (!loaded) {
+		loaded = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/parallax_maps.json", FileAccess::READ);
+		if (f.is_valid()) {
+			Dictionary root = JSON::parse_string(f->get_as_text());
+			Array keys = root.keys();
+			for (int i = 0; i < keys.size(); ++i) {
+				Dictionary e = root[keys[i]];
+				ParallaxMap pm;
+				pm.height = e.get("height", String());
+				pm.scale = (float)(double)e.get("scale", 0.0);
+				m.insert(keys[i], pm);
+			}
+		}
+	}
+	return m;
+}
 Ref<Texture2D> specular_map_for(const Ref<Texture2D> &albedo) { return table_texture_for(specular_maps(), albedo); }
 Ref<Shader> &player_color_shader() {
 	static Ref<Shader> &sh = *new Ref<Shader>();
@@ -198,8 +225,8 @@ HashMap<uint64_t, Ref<ShaderMaterial>> &player_color_mats() {
 	return m;
 }
 
-// Opaque skins with a specular map also take the shader without a mask, as
-// BaseMaterial3D has no per-pixel specular.
+// Opaque skins with a specular map or a parallax height map also take the shader
+// without a mask, as BaseMaterial3D has no per-pixel specular nor 0 A.D.'s parallax.
 Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 	const uint64_t id = bm->get_instance_id();
 	if (Ref<ShaderMaterial> *hit = player_color_mats().getptr(id)) return *hit;
@@ -212,9 +239,13 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 				: Ref<Texture2D>();
 		Ref<Texture2D> spec = specular_map_for(tex);
 		const bool opaque = bm->get_transparency() == BaseMaterial3D::TRANSPARENCY_DISABLED;
+		const ParallaxMap *px = parallax_maps().getptr(image_key(tex));
+		Ref<Texture2D> height = px && px->scale > 0.0f && ResourceLoader::get_singleton()->exists(px->height)
+				? Ref<Texture2D>(ResourceLoader::get_singleton()->load(px->height))
+				: Ref<Texture2D>();
 		Ref<Shader> &sh = player_color_shader();
 		if (sh.is_null()) sh = ResourceLoader::get_singleton()->load("res://shaders/player_color.gdshader");
-		if ((mask.is_valid() || (spec.is_valid() && opaque)) && sh.is_valid()) {
+		if ((mask.is_valid() || ((spec.is_valid() || height.is_valid()) && opaque)) && sh.is_valid()) {
 			out.instantiate();
 			out->set_shader(sh);
 			out->set_shader_parameter("albedo_tex", tex);
@@ -232,6 +263,13 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 			if (nm.is_valid()) out->set_shader_parameter("normal_tex", nm);
 			out->set_shader_parameter("use_specular_map", spec.is_valid());
 			if (spec.is_valid()) out->set_shader_parameter("specular_tex", spec);
+			// The heights only line up with the bumps the normal map draws.
+			const bool parallax = height.is_valid() && nm.is_valid();
+			out->set_shader_parameter("use_parallax", parallax);
+			if (parallax) {
+				out->set_shader_parameter("height_tex", height);
+				out->set_shader_parameter("parallax_scale", px->scale);
+			}
 		}
 	}
 	player_color_mats().insert(id, out);
