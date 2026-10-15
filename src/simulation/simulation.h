@@ -168,8 +168,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 83; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 84; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_CINEMA = 82; // CinemaManager's paths, queue and timers
+	static constexpr uint32_t SAVE_VERSION_TURRET_UNITS = 84; // the rampart tower's turret units beside its garrison
 	static constexpr uint32_t SAVE_VERSION_STATUS_STACKS = 80; // each Poisoned/Burning hit its own status, on units, structures and animals
 	static constexpr uint32_t SAVE_VERSION_PETRA_PLAN_NAMES = 83; // Petra's plan counter, the main plan's siege class, the raid's sizes
 	static constexpr uint32_t SAVE_VERSION_HEADING = 77; // each unit's heading (Position rotation, turned at TurnRate)
@@ -314,6 +315,9 @@ public:
 
 		// Garrison
 		std::vector<uint32_t> garrisoned_units;
+		// The units on the turret points of a holder that also has a garrison (the Mauryan
+		// rampart tower); a wall, gate or outpost keeps its turret units in garrisoned_units.
+		std::vector<uint32_t> turret_units;
 		int garrison_cap;
 
 		// ProductionQueue.js autoqueuing: a finished batch is queued again.
@@ -437,8 +441,19 @@ public:
 	// walls, gates and outposts, visible and fighting from the structure's height.
 	bool unit_turretable(size_t i) const;
 	uint32_t turret_holder_of(uint32_t unit_id) const;
+	// The turret points of `b`, whether it holds only turrets or a garrison too (null: none).
+	const TurretPointSet *turret_holder_points(const Building &b) const;
+	// Its turret units: garrisoned_units for a turret-only holder, else turret_units.
+	const std::vector<uint32_t> &turret_list(const Building &b) const {
+		return turret_points_of(b) ? b.garrisoned_units : b.turret_units;
+	}
+	// unit_actions.js "occupy-turret": the unit may stand on a turret point of this own or
+	// mutually allied holder (Turretable, TurretHolder.CanOccupy). Room is not checked.
+	bool can_occupy_turret_in(uint32_t unit_id, uint32_t building_id) const;
 	// Commands.js "leave-turret": `player`'s units among `unit_ids` step down from their turret points.
 	void cmd_leave_turret(uint8_t player, const uint32_t *unit_ids, size_t count);
+	// Commands.js "unload-turrets": everyone `player` may unload steps down from the holder's turret points.
+	void cmd_unload_turrets(uint8_t player, uint32_t building_id);
 	// Total damage `player`'s entities have dealt to other (non-Gaia) players this session
 	// (0 A.D. BattleDetection input); not saved, starts again at 0 after a load.
 	// One hit that cost an entity health: 0 A.D.'s MT_Attacked message, read by the
@@ -830,7 +845,10 @@ public:
 	const std::vector<FormationController> &formations() const { return formations_; }
 	// Controller id of the formation unit_id belongs to, 0 when none.
 	uint32_t formation_of_unit(uint32_t unit_id) const;
-	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false);
+	// turret: Commands.js "occupy-turret" (session.occupyturret), the holder's turret points
+	// instead of its garrison.
+	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false,
+			bool turret = false);
 	void order_ungarrison(uint32_t building_id);
 	// GarrisonHolder.EjectOrKill. With `keep_allies_of` a player, only units not owned by that
 	// player or a mutual ally of theirs leave (OnGlobalOwnershipChanged, OnDiplomacyChanged).
@@ -2550,6 +2568,9 @@ private:
 	const TurretPointSet *turret_points_of(const Building &b) const;
 	int structure_garrison_cap(const Building &b) const;
 	void occupy_turret(size_t i, Building &b);
+	bool structure_accepts_turret(const Building &b, size_t i) const;
+	bool turret_room(const Building &b) const;
+	void step_down_turret(Building &b, uint32_t unit_id);
 	void leave_turret(size_t i, const Building &b);
 	void tick_turrets();
 	void builder_stand_point(size_t i, const Building &b, float x, float z, float &tx, float &tz) const;

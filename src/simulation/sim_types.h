@@ -788,7 +788,9 @@ enum UnitOrderFlag : uint8_t {
 	// ORDER_BUILD only (bit 5 holds a gather order's subtype): a forced build that reached its
 	// site (REPAIRING enter, order.data.autoharvest), so ConstructionFinished farms the field
 	// or gathers near the new dropsite.
-	ORDER_FLAG_AUTOHARVEST = 32
+	ORDER_FLAG_AUTOHARVEST = 32,
+	// ORDER_GARRISON only: occupy a turret point of the holder (Commands.js "occupy-turret").
+	ORDER_FLAG_TURRET = 32
 };
 // A gather order keeps its resource's subtype (ResourceSubtype) in flag bits 5-7, so the
 // unit can look for the same kind once the resource is gone (UnitAI GATHER FINDINGNEWTARGET).

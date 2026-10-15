@@ -61,8 +61,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// clearSelection() (input.js:1709).
 			if (close_open_dialogs()) return;
 			if (build_mode) enter_build_mode(false);
-			else if (attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || repair_mode)
-				attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = repair_mode = false;
+			else if (attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || turret_mode || repair_mode)
+				attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
 			else clear_selection();
 			return;
 		}
@@ -251,6 +251,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		}
 		if (fired("session.unload")) {
 			_on_ungarrison_pressed();
+			return;
+		}
+		if (fired("session.unloadturrets")) { // unit_actions "unload-all-turrets"
+			_on_entity_command("unload-all-turrets");
 			return;
 		}
 		// Delete (0 A.D. session.kill, unit_actions "delete"): DeleteSelectionConfirmation
@@ -811,17 +815,34 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// The Garrison and Repair buttons arm one click, like holding the modifier.
 			const bool force_garrison = garrison_mode || rtso::hotkeys::held("session.garrison");
 			const bool force_repair = repair_mode || rtso::hotkeys::held("session.repair");
-			garrison_mode = repair_mode = false;
+			// "occupy-turret": the Occupy Turret button arms it (preSelectedActionCheck, ahead of
+			// everything); session.occupyturret comes after "garrison" (specificness 21 to 20).
+			const bool armed_turret = turret_mode;
+			const bool force_turret = turret_mode || rtso::hotkeys::held("session.occupyturret");
+			garrison_mode = turret_mode = repair_mode = false;
 			bool garrison_click = false;
-			if (force_garrison) {
+			uint32_t turret_target = 0;
+			if (force_garrison || force_turret) {
 				for (const auto &b : sim->buildings()) {
 					if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) continue; // own or allied
 					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z, hit_r = b.half_size + 1.2f;
 					if (dx * dx + dz * dz <= hit_r * hit_r) {
 						garrison_click = true;
+						turret_target = b.id;
 						break;
 					}
 				}
+			}
+			// The armed Occupy Turret takes this click whatever lies under it: the holder's points,
+			// or nothing (action-occupy-turret-disabled).
+			if (armed_turret) {
+				if (turret_target && selection_can_occupy_turret(turret_target)) {
+					if (turn_cmds())
+						post_lockstep(12, sel_ptr, sel_n, 0, 0, turret_target, (uint8_t)(qbit | rtso::NET_PARAM_OCCUPY_TURRET));
+					else
+						sim->order_garrison(sel_ptr, sel_n, turret_target, queue_shift, true);
+				}
+				return;
 			}
 			// session.calltoarms + right-click: Commands.js call-to-arms (drop loads, then attack-walk).
 			// unit_actions.js: session.attackmoveUnit fights units only (targetClasses Unit); call-to-arms
@@ -1121,6 +1142,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					// and its specificness 1 beats capture, attack and repair).
 					const uint32_t field_grain = b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
 					const bool friendly = b.team == local_player() || sim->is_ally(local_player(), b.team);
+					auto occupy_turret = [&]() {
+						if (turn_cmds())
+							post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, (uint8_t)(qbit | rtso::NET_PARAM_OCCUPY_TURRET));
+						else
+							sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift, true);
+					};
 					if (force_garrison && friendly && selection_can_garrison(b.id)) {
 						// session.garrison is a hotkeyActionCheck: it wins over returning
 						// resources and repairing (unit_actions.js "garrison").
@@ -1128,6 +1155,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
 						else
 							sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
+					} else if (force_turret && friendly && selection_can_occupy_turret(b.id)) {
+						occupy_turret();
 					} else if (force_repair && friendly && (b.build_progress < 1.0f || b.hp < b.max_hp)) {
 						// session.repair likewise wins over returning resources (unit_actions.js "repair").
 						if (turn_cmds())

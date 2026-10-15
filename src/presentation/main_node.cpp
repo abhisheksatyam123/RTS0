@@ -1033,6 +1033,8 @@ Dictionary RtsoMain::debug_selected_building() const {
 		d["rally_self"] = b.has_rally_point && b.rally_target_bld_id == b.id;
 		d["autoqueue"] = b.autoqueue;
 		d["queue"] = (int64_t)b.queue.size();
+		d["garrisoned"] = (int64_t)b.garrisoned_units.size();
+		d["turret_units"] = (int64_t)b.turret_units.size();
 		d["food"] = sim->player(b.team < rtso::MAX_PLAYERS ? b.team : 0).res[rtso::RES_FOOD];
 		Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
 		if (cam) d["screen"] = cam->unproject_position(Vector3(b.x, sim->get_terrain_height(b.x, b.z), b.z));
@@ -1449,6 +1451,15 @@ bool RtsoMain::selection_can_garrison(uint32_t building_id) const {
 	return false;
 }
 
+// unit_actions.js "occupy-turret" actionCheck: some selected unit may occupy a turret point of
+// this own or mutually allied holder (Turretable). Room is not checked.
+bool RtsoMain::selection_can_occupy_turret(uint32_t building_id) const {
+	if (!sim) return false;
+	for (int s = 0; s < selected_ids.size(); ++s)
+		if (sim->can_occupy_turret_in((uint32_t)(int64_t)selected_ids[s], building_id)) return true;
+	return false;
+}
+
 bool RtsoMain::select_first_own(bool building) {
 	if (!sim) return false;
 	selected_ids.clear();
@@ -1512,7 +1523,7 @@ void RtsoMain::_on_remove_guard_pressed() {
 void RtsoMain::_on_call_to_arms_pressed() {
 	if (selected_ids.is_empty()) return;
 	call_to_arms_mode = true;
-	attack_move_mode = patrol_mode = guard_mode = garrison_mode = repair_mode = false;
+	attack_move_mode = patrol_mode = guard_mode = garrison_mode = turret_mode = repair_mode = false;
 }
 
 // g_EntityCommands execute() for the command row, and the hotkeys that run them.
@@ -1522,7 +1533,7 @@ void RtsoMain::_on_entity_command(const String &name) {
 	const size_t n = selected_ids.size();
 	auto arm = [&](bool &mode) {
 		if (n == 0) return;
-		attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = repair_mode = false;
+		attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
 		mode = true;
 	};
 	if (name == "delete") {
@@ -1551,6 +1562,14 @@ void RtsoMain::_on_entity_command(const String &name) {
 		_on_call_to_arms_pressed();
 	} else if (name == "garrison") {
 		arm(garrison_mode);
+	} else if (name == "occupy-turret") {
+		arm(turret_mode);
+	} else if (name == "unload-all-turrets") { // unloadAllTurrets
+		for (const auto &b : sim->buildings()) {
+			if (b.id != selected_building_id || b.turret_units.empty()) continue;
+			if (turn_cmds()) post_lockstep(13, nullptr, 0, 0, 0, b.id, 3);
+			else sim->cmd_unload_turrets(local_player(), b.id);
+		}
 	} else if (name == "repair") {
 		arm(repair_mode);
 	} else if (name == "add-guard") {
