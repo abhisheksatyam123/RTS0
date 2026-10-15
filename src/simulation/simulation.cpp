@@ -16300,6 +16300,19 @@ void Simulation::guard_answer(size_t i, size_t g, uint32_t attacker) {
 		units_.waypoint_count[i] = 0;
 		units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
 	};
+	// GuardedAttacked: a Support guard (civilians, healers) tends its injured charge instead.
+	if ((unit_classes_at(i) & (TC_CIVILIAN | TC_HEALER)) && units_.hp[g] < units_.max_hp[g]) {
+		auto &q = order_queues_[units_.id[i]];
+		if (unit_heals(i) && can_heal(i, (int32_t)g)) {
+			q.insert(q.begin(), current_order(i));
+			start_heal(i, units_.id[g], 0);
+		} else if (can_repair_unit(i, (int32_t)g)) {
+			q.insert(q.begin(), current_order(i));
+			start_repair_unit(i, units_.id[g], 0);
+		}
+		if (q.empty()) order_queues_.erase(units_.id[i]);
+		return;
+	}
 	// Order.Attack: an unforced attack out of range ends at once for a unit standing its ground.
 	const bool stand = units_.stance[i] == STANCE_STAND_GROUND || unit_walk_speed(i) <= 0.0f;
 	const float reach = attack_reach(i);
@@ -16829,6 +16842,17 @@ void Simulation::tick_unit_ai(float dt) {
 				start_heal(i, units_.id[g], 0);
 				tick_heal(i);
 				continue;
+			}
+			// GUARDING Timer: a builder by its charge repairs it once it is damaged (a siege engine,
+			// a ship: PushOrderFront Repair), then guards again.
+			if (g >= 0 && (i + ticks_) % 4 == 0 && can_repair_unit(i, g)) {
+				const float dx = units_.pos_x[g] - units_.pos_x[i], dz = units_.pos_z[g] - units_.pos_z[i];
+				if (dx * dx + dz * dz <= GUARD_RANGE * GUARD_RANGE) {
+					auto &q = order_queues_[units_.id[i]];
+					q.insert(q.begin(), current_order(i));
+					start_repair_unit(i, units_.id[g], 0);
+					continue;
+				}
 			}
 			if (g >= 0 && units_.alive[g] && units_.attacked_by[g] != 0) guard_answer(i, (size_t)g, units_.attacked_by[g]);
 		}
