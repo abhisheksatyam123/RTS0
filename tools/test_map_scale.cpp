@@ -533,9 +533,10 @@ int main() {
 		bool seen[FLORA_COUNT] = {};
 		const auto rv = sim.resources();
 		for (size_t i = 0; i < rv.count; ++i) {
-			if (rv.subtype[i] != RES_SUB_NONE) continue;
+			if (!rv.alive[i] || rv.subtype[i] != RES_SUB_NONE) continue;
 			if (rv.type[i] == RES_WOOD) { ++trees; trees_ok += allowed[rv.flora[i]]; seen[rv.flora[i]] = true; }
-			if (rv.type[i] == RES_FOOD) { ++fruit; fruit_ok += rv.flora[i] == f->fruit; }
+			// The fruit bush, or a straggler slot that is a fruit tree (temperate's apple).
+			if (rv.type[i] == RES_FOOD) { ++fruit; fruit_ok += rv.flora[i] == f->fruit || (allowed[rv.flora[i]] && flora_is_fruit(rv.flora[i])); }
 		}
 		int kinds = 0;
 		for (bool b : seen) kinds += b;
@@ -740,6 +741,14 @@ int main() {
 			oak |= fam == FLORA_OAK; pine |= fam == FLORA_PINE; aleppo |= fam == FLORA_ALEPPO_PINE;
 		}
 		CHECK(oak && pine && aleppo, "temperate mixes oak (tree1/tree2) and pine and maritime pine (tree4/tree5) forests");
+		// createStragglerTrees' tree3 is gaia/fruit/apple: a 400-food fruit tree, not wood.
+		int apples = 0, apple_wood = 0;
+		for (size_t i = 0; i < rv.count; ++i) {
+			if (!rv.alive[i] || rv.flora[i] != FLORA_FRUIT_APPLE) continue;
+			if (rv.type[i] == RES_FOOD && rv.amount[i] == 400) ++apples; else ++apple_wood;
+		}
+		std::printf("  temperate stragglers: %d apple trees (400 food), %d wrong\n", apples, apple_wood);
+		CHECK(apples > 0 && apple_wood == 0, "temperate straggler apples are food supplies");
 		CHECK(flora_kind_by_name("aleppo_pine") == FLORA_ALEPPO_PINE && flora_kind_by_name("teak") == FLORA_TEAK &&
 		      flora_kind_by_name("dead") == FLORA_DEAD, "0 A.D. species families resolve");
 		CHECK(flora_kind_by_name("pine") == FLORA_PINE && flora_kind_by_name("berry") == FLORA_BERRY &&
