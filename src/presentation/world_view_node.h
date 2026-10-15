@@ -76,6 +76,8 @@ class RtsoWorldView : public Node3D {
 		StringName clip;
 		Node3D *carry_prop = nullptr; // BoneAttachment3D holding the carried shuttle
 		uint8_t carry_clip = 0;       // ClipId the prop was attached for
+		Node *tools_model = nullptr;  // the model and clip apply_clip_tools last ran for
+		StringName tools_clip;
 		int64_t player_rgba = -1;     // owner colour last pushed to the model (-1: none yet)
 		int64_t silhouette_rgba = -1; // silhouette colour last pushed (-1: none yet, -2: silhouettes off)
 	};
@@ -114,6 +116,12 @@ class RtsoWorldView : public Node3D {
 		float fog_dim = -1.0f; // overlay level last pushed (-1: none yet)
 		int64_t player_rgba = -1; // owner colour last pushed (-1: none yet)
 		String model_id;
+		// The root transform and the model's scale, rotation and position last set, so an
+		// unchanged structure moves no nodes (pose_set false: the model's pose is unset).
+		bool root_xf_set = false;
+		Transform3D root_xf;
+		bool pose_set = false;
+		Vector3 pose_scale, pose_rot, pose_pos;
 		// 0 A.D. damage variants: smoke from mediumdamage, fire from heavydamage.
 		GPUParticles3D *fx_smoke = nullptr;
 		GPUParticles3D *fx_flame = nullptr;
@@ -362,7 +370,7 @@ class RtsoWorldView : public Node3D {
 	// time a unit of that civ and type shows, so every civ in the match renders
 	// with its own 0 A.D. models. Each clip is a few baked poses cycled in place.
 	static constexpr int CROWD_CLIP_COUNT = 61; // see crowd_clips() in world_view_node.cpp
-	static constexpr int FAUNA_CLIP_COUNT = 6;  // idle, move, attack, death, idle2, death2
+	static constexpr int FAUNA_CLIP_COUNT = 7;  // idle, move, attack, death, idle2, death2, feeding
 	static constexpr int CROWD_FRAMES_PER_CLIP = 6;
 	struct CrowdPuppet {
 		String clip;
@@ -597,6 +605,8 @@ private:
 	void load_foundations();
 	static Node *instantiate_building_id(const String &id);
 	void play_unit_clip(UnitVis &v, const StringName &clip, bool loop);
+	void apply_vis_tools(UnitVis &v, const StringName &clip);
+	static void set_building_pose(BuildingVis &v, Node3D *n3, const Vector3 &scale, const Vector3 &rot, const Vector3 &pos);
 	void hide_unit_vis(UnitVis &v);
 	CrowdBatch &crowd_batch(uint8_t civ, uint16_t key);
 	MultiMesh *crowd_mm(CrowdBatch &b, int clip);

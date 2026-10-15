@@ -460,6 +460,10 @@ def play(args, lobby, leave):
     users = {role: said(role, "users").replace(" list=", " ") for role in ("host", "join")}
     ok = ok and users == {"host": "2 alice,_bob", "join": "2 alice,_bob"}
     ok = ok and not any("> /list" in outs[role] for role in ("host", "join"))
+    # 0.28 ChatAddressees: the other player as "■ name"; Tab completes alice and bob.
+    addressees = {role: said(role, "addressees").split(" names=") for role in ("host", "join")}
+    ok = ok and addressees == {"host": ["Everyone|Allies|Enemies|Observers|■_bob", "alice,bob"],
+                               "join": ["Everyone|Allies|Enemies|Observers|■_alice", "alice,bob"]}
     # 0.28 PauseOverlay: the host's pause reads on the client as its name in its player colour.
     paused_by = said("join", "paused_by")
     ok = ok and re.fullmatch(r"\[center\]Paused by \[color=#[0-9a-f]{6}\]alice\[/color\]\[/center\]", paused_by) is not None
