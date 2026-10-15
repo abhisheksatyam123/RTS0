@@ -284,13 +284,16 @@ Dictionary RtsoMain::debug_civic_centre_roof() {
 // Test hook: with select_all, selects every unit the local player owns; reports
 // the selection size and the selection panel's group icons (global rects).
 // "unit": the first own unit selected; "multi": all own units; "building": the first own
-// structure; "resource" / "fauna": the first tree or mine / animal, inspected as a click would.
+// structure; "resource" / "fauna": the first tree or mine / animal, inspected as a click would;
+// a number: that unit.
 Dictionary RtsoMain::debug_inspector(const String &what) {
 	if (!sim) return Dictionary();
 	clear_selection();
 	inspector_.clear();
 	auto uview = sim->units();
-	if (what == "unit" || what == "multi") {
+	if (what.is_valid_int()) {
+		selected_ids.push_back((int32_t)what.to_int());
+	} else if (what == "unit" || what == "multi") {
 		for (size_t i = 0; i < uview.count; ++i)
 			if (uview.alive[i] && uview.team[i] == local_player() && (what == "multi" || uview.unit_type[i] != rtso::UNIT_FEMALE_CITIZEN)) {
 				selected_ids.push_back((int32_t)uview.id[i]);
@@ -379,6 +382,8 @@ Dictionary RtsoMain::debug_selection_state() {
 		u["id"] = (int64_t)uview.id[i];
 		u["tmpl"] = (int64_t)uview.tmpl[i];
 		u["rank"] = (int64_t)uview.rank[i];
+		u["has_rank"] = sim->unit_has_rank(i);
+		u["xp"] = (int64_t)uview.xp[i];
 		u["pos"] = Vector2(uview.pos_x[i], uview.pos_z[i]);
 		u["formation"] = (int64_t)sim->formation_of_unit(uview.id[i]);
 		u["idle"] = uview.action_state[i] == rtso::ACTION_IDLE;
@@ -564,6 +569,12 @@ void RtsoMain::debug_delete_units(const PackedInt32Array &ids) {
 	std::vector<uint32_t> v;
 	for (int i = 0; i < ids.size(); ++i) v.push_back((uint32_t)ids[i]);
 	sim->cmd_delete(local_player(), v.data(), v.size());
+}
+
+// Test hook: the units gain experience as from combat.
+void RtsoMain::debug_add_xp(const PackedInt32Array &ids, float xp) {
+	if (!sim) return;
+	for (int i = 0; i < ids.size(); ++i) sim->debug_add_xp((uint32_t)ids[i], xp);
 }
 
 // Test hook: which session dialogs are open, the pause overlay's state, and
@@ -2342,6 +2353,9 @@ void RtsoMain::_on_dev_command(int command) {
 		case D::DEV_RANGE_OVERLAY: // RangeOverlay: SetRangeDebugOverlay
 			debug_overlays_.set(rtso::RtsoDebugOverlays::RANGE, on);
 			break;
+		case D::DEV_BOUNDING_BOX_OVERLAY: // BoundingBoxOverlay: Engine.SetBoundingBoxDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::BOUNDING_BOX, on);
+			break;
 		case D::DEV_REVEAL_MAP: // RevealMap: "reveal-map" with enable
 			cheat(rtso::Simulation::CHEAT_DEV_REVEAL_MAP, on ? 1 : 0, {});
 			break;
@@ -2445,6 +2459,7 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_OBSTRUCTION_OVERLAY, debug_overlays_.on(O::OBSTRUCTION));
 		dev_overlay_.set_checked(D::DEV_UNIT_MOTION_OVERLAY, debug_overlays_.on(O::UNIT_MOTION));
 		dev_overlay_.set_checked(D::DEV_RANGE_OVERLAY, debug_overlays_.on(O::RANGE));
+		dev_overlay_.set_checked(D::DEV_BOUNDING_BOX_OVERLAY, debug_overlays_.on(O::BOUNDING_BOX));
 		dev_overlay_.set_render_debug(render_debug_mode_);
 	}
 	if (!dev_overlay_.state_shown()) return;
@@ -2513,6 +2528,7 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 	d["obstruction_drawn"] = debug_overlays_.drawn(O::OBSTRUCTION);
 	d["unit_motion_drawn"] = debug_overlays_.drawn(O::UNIT_MOTION);
 	d["range_drawn"] = debug_overlays_.drawn(O::RANGE);
+	d["bounding_box_drawn"] = debug_overlays_.drawn(O::BOUNDING_BOX);
 	d["render_debug"] = render_debug_mode_;
 	d["viewport_debug_draw"] = get_viewport() ? (int)get_viewport()->get_debug_draw() : -1;
 	return d;

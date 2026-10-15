@@ -256,14 +256,17 @@ int main(int argc, char **argv) {
 			k.reported[kind] = true;
 			++counts[what];
 			const uint16_t tmpl = s.units_.tmpl[i];
-			char ob[160] = "";
-			const uint32_t ot = s.units_.order_target[i];
+			char ob[224] = "";
+			// The structure it is after: its attack target, else its order's.
+			const uint32_t ot = s.units_.target_building_id[i] ? s.units_.target_building_id[i] : s.units_.order_target[i];
 			auto bit = s.building_id_to_idx_.find(ot);
 			if (ot && bit != s.building_id_to_idx_.end()) {
 				const auto &bb = s.buildings_[bit->second];
-				std::snprintf(ob, sizeof ob, "order_bld type=%d team=%d hp=%.0f prog=%.2f garrison=%zu/%d dist=%.1f same_land=%d", bb.type, bb.team, bb.hp,
-						bb.build_progress, bb.garrisoned_units.size(), (int)bb.garrison_cap,
-						std::hypot(bb.x - s.units_.pos_x[i], bb.z - s.units_.pos_z[i]), (int)s.petra_same_land(i, bb));
+				std::snprintf(ob, sizeof ob, "order_bld type=%d team=%d hp=%.0f prog=%.2f garrison=%zu/%d dist=%.1f gap=%.1f dy=%.1f same_land=%d",
+						bb.type, bb.team, bb.hp, bb.build_progress, bb.garrisoned_units.size(), (int)bb.garrison_cap,
+						std::hypot(bb.x - s.units_.pos_x[i], bb.z - s.units_.pos_z[i]),
+						nav::footprint_gap(bb, s.units_.pos_x[i], s.units_.pos_z[i]).length(),
+						s.get_terrain_height(bb.x, bb.z) - s.unit_height(i), (int)s.petra_same_land(i, bb));
 			} else if (ot) {
 				std::snprintf(ob, sizeof ob, "order_target=%u", ot);
 			}

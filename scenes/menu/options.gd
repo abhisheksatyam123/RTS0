@@ -163,6 +163,9 @@ signal closed
 
 ## True when the page was opened over a game (open_overlay); Close then just
 ## removes it instead of going back to the main menu.
+## options.json "timeout": a dropdownNumber change that asks to be kept, else reverts.
+const TIMEOUTS := {"gui.scale": 5000}
+
 var overlay := false
 var cfg := RtsoUserConfig.new()
 var _controls := {} # key -> [type, control, extra]
@@ -297,7 +300,11 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 			ob.custom_minimum_size = Vector2(300, 30)
 			for item in extra:
 				ob.add_item(item[0])
-			ob.item_selected.connect(func(i): _changed(key, extra[i][1]))
+			ob.item_selected.connect(func(i):
+				var old := cfg.get_value(key)
+				_changed(key, extra[i][1])
+				if TIMEOUTS.has(key) and not _updating and old != extra[i][1]:
+					_ask_keep(key, old))
 			c = ob
 		"string":
 			var le := LineEdit.new()
@@ -454,6 +461,18 @@ func _ask(text: String, yes: Callable) -> void:
 	_confirm.answered.connect(func(i: int):
 		_confirm = null
 		if i == 1: yes.call())
+
+## options.js dropdownNumber timeout: timedConfirmation(500, 200, ...), No or the
+## countdown running out puts the old value back (revertChange).
+func _ask_keep(key: String, old: String) -> void:
+	_confirm = MSGBOX.open_timed(self, 500, 200,
+		tr("Changes will be reverted in %(time)s seconds. Do you want to keep changes?"), "time",
+		TIMEOUTS[key], tr("Warning"), [tr("No"), tr("Yes")])
+	_confirm.answered.connect(func(i: int):
+		_confirm = null
+		if i == 0:
+			cfg.set_value(key, old)
+			_load_controls())
 
 func _close() -> void:
 	closed.emit()
