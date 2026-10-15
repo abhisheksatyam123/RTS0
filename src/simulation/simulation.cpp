@@ -548,6 +548,7 @@ void Simulation::reset() {
 	// A new game brings its own terrain (set_terrain_data or load_state); the
 	// previous map's heights would otherwise move projectiles and water.
 	terrain_heights_.clear();
+	terrain_lowest_known_ = false;
 	terrain_res_ = 64;
 	terrain_tiles_ = TerrainTiles();
 	terrain_water_height_ = -1.0f;
@@ -12665,6 +12666,17 @@ void Simulation::tick_pack(float dt) {
 	}
 }
 
+float Simulation::lowest_terrain_height() const {
+	if (!terrain_lowest_known_) {
+		float lo = std::numeric_limits<float>::infinity();
+		for (const float h : terrain_heights_) lo = std::min(lo, h);
+		if (terrain_heights_.empty() || terrain_res_ <= 1) lo = 0.0f; // get_terrain_height's flat map
+		terrain_lowest_ = lo;
+		terrain_lowest_known_ = true;
+	}
+	return terrain_lowest_;
+}
+
 void Simulation::tick_combat(float dt) {
 	// G4: ensure auras rebuilt (tick_gather handles 0.4s timer); rebuild if empty for combat phase
 	if (aura_mgr_.sources.empty()) {
@@ -13399,8 +13411,31 @@ void Simulation::tick_combat(float dt) {
 	enum : uint8_t { ARROW_UNIT, ARROW_FAUNA, ARROW_BUILDING };
 	struct ArrowTarget { int32_t idx; uint8_t kind; uint8_t pref; float d2; };
 	std::vector<ArrowTarget> arrow_targets;
-	bool lowest_ground_known = false;
-	float lowest_ground = std::numeric_limits<float>::infinity(); // the lowest terrain height, once needed
+	// Structure-arrow targets among structures and animals by cell: a structure's scan visits
+	// only those within its ground reach on either axis (the others fail `beyond`), and the
+	// targets are sorted with a total order afterwards, so the walk's order does not matter.
+	uint8_t *arrow_bld_live = nb ? arena.alloc_array<uint8_t>(nb) : nullptr;
+	UnitGrid arrow_bgrid;
+	bool have_arrow_bgrid = false;
+	float arrow_bld_half_max = 0.0f;
+	if (nb && bld_x && bld_z && arrow_bld_live) {
+		for (size_t bi = 0; bi < nb; ++bi) {
+			const Building &ob = buildings_[bi];
+			arrow_bld_live[bi] = !ob.wrecked && ob.hp > 0.0f && ob.team != GAIA_PLAYER;
+			if (arrow_bld_live[bi]) arrow_bld_half_max = std::max(arrow_bld_half_max, ob.half_size);
+		}
+		have_arrow_bgrid = arrow_bgrid.build(arena, nb, bld_x, bld_z, arrow_bld_live, map_half_);
+	}
+	const size_t nf = fauna_.count;
+	uint8_t *arrow_fauna_live = nf ? arena.alloc_array<uint8_t>(nf) : nullptr;
+	UnitGrid arrow_fgrid;
+	bool have_arrow_fgrid = false;
+	if (nf && arrow_fauna_live) {
+		std::memset(arrow_fauna_live, 0, nf);
+		for (const uint16_t f : wild) arrow_fauna_live[f] = 1;
+		for (const uint16_t f : herd) arrow_fauna_live[f] = 1;
+		have_arrow_fgrid = arrow_fgrid.build(arena, nf, fauna_.pos_x, fauna_.pos_z, arrow_fauna_live, map_half_);
+	}
 	// Of Gaia, only what can attack is shot: Gaia units and the dangerous animals in `wild`
 	// (SetupGaiaRangeQuery, OnRangeUpdate's IsDangerousAnimal filter). Gaia structures have
 	// no UnitAI, so they are not shot.
@@ -13426,11 +13461,7 @@ void Simulation::tick_combat(float dt) {
 		// the parabolic range from there is in range: structures and animals beyond it on either
 		// axis are passed over before their ground height is looked up. The metre of margin keeps
 		// float rounding on the side of testing.
-		if (!lowest_ground_known) {
-			lowest_ground_known = true;
-			for (const float h : terrain_heights_) lowest_ground = std::min(lowest_ground, h);
-			if (terrain_heights_.empty() || terrain_res_ <= 1) lowest_ground = 0.0f; // get_terrain_height's flat map
-		}
+		const float lowest_ground = lowest_terrain_height();
 		const double reach2 = (double)max_r * max_r - 2.0 * (double)max_r * ((double)lowest_ground - (double)b_y);
 		const float ground_reach = max_r > 0.0f && reach2 > 0.0 ? (float)std::sqrt(reach2) + b.half_size + 1.0f : -1.0f;
 		auto beyond = [&](float dx, float dz, float other_half) {
@@ -13454,13 +13485,30 @@ void Simulation::tick_combat(float dt) {
 			const bool foe = owner < MAX_PLAYERS ? b.team != GAIA_PLAYER && can_attack(b.team, owner) : shoots_gaia;
 			return foe && !beyond(fx - b.x, fz - b.z, 0.0f) && in_range(fx - b.x, fz - b.z, 0.0f, get_terrain_height(fx, fz));
 		};
+		// Every structure and animal that could pass building_target / fauna_target (a superset).
+		auto each_building = [&](auto &&fn) {
+			if (have_arrow_bgrid && ground_reach >= 0.0f) {
+				const float r = ground_reach + arrow_bld_half_max + 1.0f;
+				arrow_bgrid.visit_radius_within(b.x, b.z, r, r, [&](int32_t o) { fn((size_t)o); });
+			} else {
+				for (size_t o = 0; o < buildings_.size(); ++o) fn(o);
+			}
+		};
+		auto each_fauna = [&](auto &&fn) {
+			if (have_arrow_fgrid && ground_reach >= 0.0f) {
+				const float r = ground_reach + 1.0f;
+				arrow_fgrid.visit_radius_within(b.x, b.z, r, r, [&](int32_t f) { fn(f); });
+			} else {
+				for (const std::vector<uint16_t> *list : {&wild, &herd})
+					for (const int32_t f : *list) fn(f);
+			}
+		};
 		if (!b.arrow_timer_on) {
 			// OnRangeUpdate -> StartTimer: the first round comes PrepareTime after an enemy enters.
 			bool any = false;
 			if (n) grid.visit_radius(b.x, b.z, max_r + b.half_size + UNIT_RANGE_MARGIN, [&](int32_t i) { any = any || unit_target(i); });
-			for (size_t k = 0; k < wild.size() && !any; ++k) any = fauna_target(wild[k]);
-			for (size_t k = 0; k < herd.size() && !any; ++k) any = fauna_target(herd[k]);
-			for (size_t o = 0; o < buildings_.size() && !any; ++o) any = building_target(buildings_[o]);
+			if (!any) each_fauna([&](int32_t f) { any = any || fauna_target(f); });
+			if (!any) each_building([&](size_t o) { any = any || building_target(buildings_[o]); });
 			if (!any) continue;
 			b.arrow_timer_on = true;
 			b.attack_timer = ai.prepare_time;
@@ -13484,21 +13532,20 @@ void Simulation::tick_combat(float dt) {
 				arrow_targets.push_back({i, ARROW_UNIT, (uint8_t)(preferred ? 0 : 49), dx * dx + dz * dz});
 			});
 		}
-		for (const std::vector<uint16_t> *list : {&wild, &herd})
-			for (const int32_t f : *list) {
-				if (!fauna_target(f)) continue;
-				in_reach = true;
-				const float dx = fauna_.pos_x[f] - b.x, dz = fauna_.pos_z[f] - b.z;
-				if (seen(fauna_.pos_x[f], fauna_.pos_z[f])) arrow_targets.push_back({f, ARROW_FAUNA, 49, dx * dx + dz * dz});
-			}
+		each_fauna([&](int32_t f) {
+			if (!fauna_target(f)) return;
+			in_reach = true;
+			const float dx = fauna_.pos_x[f] - b.x, dz = fauna_.pos_z[f] - b.z;
+			if (seen(fauna_.pos_x[f], fauna_.pos_z[f])) arrow_targets.push_back({f, ARROW_FAUNA, 49, dx * dx + dz * dz});
+		});
 		// Structures have Resistance and Health too, so enemy buildings in range draw arrows.
-		for (size_t o = 0; o < buildings_.size(); ++o) {
-			if (!building_target(buildings_[o])) continue;
+		each_building([&](size_t o) {
+			if (!building_target(buildings_[o])) return;
 			in_reach = true;
 			const float dx = buildings_[o].x - b.x, dz = buildings_[o].z - b.z;
 			if (seen_structure(buildings_[o].x, buildings_[o].z))
 				arrow_targets.push_back({(int32_t)o, ARROW_BUILDING, (uint8_t)(ai.prefers_inorganic ? 0 : 49), dx * dx + dz * dz});
-		}
+		});
 		if (!in_reach) { // FireArrows with no targets cancels the timer
 			b.arrow_timer_on = false;
 			b.attack_timer = 0.0f;
@@ -13905,8 +13952,21 @@ void Simulation::tick_capture(float dt) {
 			const float f = (v + half) / CELL;
 			return f >= 0.0f ? (f < (float)W ? (int)f : W - 1) : 0;
 		};
-		capture_cell_start_.assign((size_t)W * W + 1, 0);
-		for (int pass = 0; pass < 2; ++pass) {
+		// The grid depends only on the map and where the buildings stand, which rarely change.
+		bool same = capture_cell_key_.size() == 1 + 2 * buildings_.size() && !capture_cell_key_.empty()
+				&& capture_cell_key_[0] == half && capture_cell_start_.size() == (size_t)W * W + 1;
+		for (size_t i = 0; same && i < buildings_.size(); ++i)
+			same = capture_cell_key_[1 + 2 * i] == buildings_[i].x && capture_cell_key_[2 + 2 * i] == buildings_[i].z;
+		if (!same) {
+			capture_cell_key_.resize(1 + 2 * buildings_.size());
+			capture_cell_key_[0] = half;
+			for (size_t i = 0; i < buildings_.size(); ++i) {
+				capture_cell_key_[1 + 2 * i] = buildings_[i].x;
+				capture_cell_key_[2 + 2 * i] = buildings_[i].z;
+			}
+		}
+		if (!same) capture_cell_start_.assign((size_t)W * W + 1, 0);
+		for (int pass = 0; !same && pass < 2; ++pass) {
 			for (uint32_t i = 0; i < (uint32_t)buildings_.size(); ++i) {
 				const Building &b = buildings_[i];
 				const int x0 = cell_of(b.x - REACH), x1 = cell_of(b.x + REACH);
