@@ -547,9 +547,9 @@ max_value = 8.0
 step = 1.0
 value = 2.0
 
-[node name="SlotsHeader" type="Label" parent="VBox/HBox/Right/SlotsBox"]
+[node name="SlotsHeader" type="Control" parent="VBox/HBox/Right/SlotsBox"]
+custom_minimum_size = Vector2(0, 22)
 layout_mode = 2
-text = "Slot      Type        Civ                Team   AI   Colour"
 
 [node name="SlotsGrid" type="GridContainer" parent="VBox/HBox/Right/SlotsBox"]
 layout_mode = 2

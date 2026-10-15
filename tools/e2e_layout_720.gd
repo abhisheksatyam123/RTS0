@@ -45,6 +45,12 @@ func run() -> void:
 	check(absf(back.get_global_rect().position.y - start.get_global_rect().position.y) < 1.0 and back.get_global_rect().end.x <= start.get_global_rect().position.x
 		and (start as Button).text == "Start Game!" and (back as Button).tooltip_text == "Return to the main menu.", "0.28's Back and Start Game! side by side at the bottom")
 	check(page.get_node("VBox/Header/Title").text == "Match Setup", "titled Match Setup")
+	# PlayersPanel.xml headings, each over its column.
+	var heads: Array = page.get_node("VBox/HBox/Right/SlotsBox/SlotsHeader").get_children()
+	var cells: Array = page._slots_grid().get_children()
+	check(heads.map(func(h): return h.text) == ["Player Name", "Player Placement", "Civilization", "Team", "", "Color"]
+		and absf(heads[2].global_position.x - cells[2].global_position.x) < 1.0 and absf(heads[5].global_position.x - cells[5].global_position.x) < 1.0,
+		"0.28's headings over their columns")
 	var grid: Control = page.get_node("VBox/HBox/Right/SlotsBox/SlotsGrid")
 	var tallest := 0.0
 	for c in grid.find_children("*", "RtsoSafeSelect", true, false):
