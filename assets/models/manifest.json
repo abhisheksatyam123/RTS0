@@ -22738,7 +22738,8 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Feeding"
    ],
    "bones": 34,
    "file": "models/units/fauna_fox_arctic.glb",
@@ -22754,6 +22755,7 @@
    "sources": [
     "actor:art/actors/fauna/fox_arctic.xml",
     "anim:quadraped/fox_death.dae",
+    "anim:quadraped/fox_feeding.dae",
     "anim:quadraped/fox_idle.dae",
     "anim:quadraped/fox_run.dae",
     "anim:quadraped/fox_walk.dae",
