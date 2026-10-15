@@ -3399,6 +3399,22 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	if (selected_ids.size() > 0) sel_set.reserve((size_t)selected_ids.size());
 	for (int i = 0; i < selected_ids.size(); ++i) sel_set.insert(selected_ids[i]);
 
+	// StatusBars.js AddAuraIcons: an aura of an entity whose status bars show
+	// (GuiInterface GetEntitiesWithStatusBars) marks what it reaches with its icon.
+	if (!status_sprites_built_) {
+		status_sprites_.build(this);
+		status_sprites_built_ = true;
+	}
+	status_sprites_.begin_frame(get_viewport() ? get_viewport()->get_camera_3d() : nullptr);
+	aura_icon_sources_.clear();
+	for (const rtso::AuraSource &as : sim->aura_manager().sources) {
+		if (!as.alive || as.aura < 0) continue;
+		const int32_t sid = (int32_t)as.source_id;
+		if (!show_all_status_bars_ && !sel_set.count(sid) && !sel_buildings_.count(sid) && !highlight_set_.count(sid)) continue;
+		const int icon = status_sprites_.aura_icon(rtso::civ_hero_aura(as.aura).id);
+		if (icon >= 0) aura_icon_sources_.push_back({ &as, icon });
+	}
+
 	Vector3 cam_pos;
 	if (Viewport *vp = get_viewport()) {
 		if (Camera3D *cam = vp->get_camera_3d()) {
@@ -3629,6 +3645,37 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			cmm->set_instance_custom_data(slot, Color(pc.r, pc.g, pc.b, 1.0f));
 		}
 
+		// StatusBars.js on a selected, highlighted (hovered or band-boxed) or, with
+		// Tab, any unit: experience, pack and upgrade progress, health, the icons of
+		// the shown auras reaching it, and its rank.
+		if (!dying) {
+			const int32_t sid = (int32_t)id;
+			const bool bars = show_all_status_bars_ || sel_set.count(sid) || highlight_set_.count(sid);
+			StatusStack st;
+			if (bars) {
+				st.health = max_hp > 0.0f ? hp / max_hp : 1.0f;
+				st.health_color = is_player ? Color(0.2f, 0.95f, 0.3f, 0.95f) : Color(0.95f, 0.25f, 0.2f, 0.95f);
+				const float need_xp = status_xp_bar ? sim->promotion_required_xp(i) : 0.0f;
+				if (need_xp > 0.0f && uview.xp[i] > 0) st.xp = (float)uview.xp[i] / need_xp; // none at 0 XP
+				if (uview.pack_state[i] == rtso::PACK_PACKING || uview.pack_state[i] == rtso::PACK_UNPACKING) {
+					const float pt = sim->pack_time_s(i);
+					st.pack = pt > 0.0f ? uview.pack_elapsed[i] / pt : 0.0f;
+				}
+				if (const auto *up = sim->unit_upgrade_of(id); up && up->time > 0.0f) st.upgrade = up->elapsed / up->time;
+				// AddRankIcon: Basic too, for units whose template has a rank (Identity GetRank).
+				if (status_rank_icon && sim->unit_has_rank(i)) {
+					const uint8_t rank = std::max<uint8_t>(uview.rank[i], 1);
+					st.rank_icon = status_sprites_.icon_index(rank >= 3 ? "res://assets/textures/ui/archive/icons/ranks/Elite.png"
+							: rank == 2 ? "res://assets/textures/ui/archive/icons/ranks/Advanced.png"
+										: "res://assets/textures/ui/archive/icons/ranks/Basic.png");
+				}
+			}
+			if (!aura_icon_sources_.empty())
+				status_aura_icons(x, z, uview.team[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, false, st);
+			if (bars || st.n_icons > 0)
+				draw_status_stack(sim, Vector3(x, y + entry.aabb.size.y * sc + 0.3f, z), 0.9f, 0.08f, st);
+		}
+
 		if (detailed.count(id) == 0) continue;
 
 		UnitVis &v = acquire_unit_slot(id);
@@ -3699,52 +3746,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 		v.ring_on = ringed;
 
-		// Selected units, or every visible one while Tab is toggled (0 A.D. g_ShowAllStatusBars).
-		bool show_hp = (is_selected || show_all_status_bars_) && uview.alive[i];
-		v.hp_bg->set_visible(show_hp);
-		v.hp_fg->set_visible(show_hp);
-		if (show_hp) {
-			float hp_ratio = Math::clamp(hp / max_hp, 0.0f, 1.0f);
-			float bar_y = entry.aabb.size.y + 0.4f;
-			if (bar_y < 1.2f) bar_y = entry.scale * 1.8f + 0.4f;
-			Vector3 hp_pos(x, bar_y, z);
-			v.hp_bg->set_transform(Transform3D(Basis(), hp_pos));
-			v.hp_fg->set_material_override(is_player ? hp_green_mat : hp_red_mat);
-			Basis fg_basis;
-			fg_basis.scale(Vector3(hp_ratio, 1.0f, 1.0f));
-			Vector3 fg_offset((hp_ratio - 1.0f) * 0.44f, 0.0f, 0.01f);
-			v.hp_fg->set_transform(Transform3D(fg_basis, hp_pos + fg_offset));
-		}
-		// StatusBars.js: the experience bar under the health bar and the rank icon on top,
-		// per gui.session.experiencestatusbar and gui.session.rankabovestatusbar.
-		const float need_xp = show_hp && status_xp_bar ? sim->promotion_required_xp(i) : 0.0f;
-		const bool show_xp = need_xp > 0.0f && uview.xp[i] > 0; // AddExperienceBar: none at 0 XP
-		v.xp_bg->set_visible(show_xp);
-		v.xp_fg->set_visible(show_xp);
-		if (show_xp) {
-			const float xp_ratio = Math::clamp((float)uview.xp[i] / need_xp, 0.0f, 1.0f);
-			Vector3 xp_pos(x, v.hp_bg->get_transform().origin.y - 0.08f, z);
-			v.xp_bg->set_transform(Transform3D(Basis(), xp_pos));
-			Basis xb;
-			xb.scale(Vector3(std::max(xp_ratio, 0.001f), 1.0f, 1.0f));
-			v.xp_fg->set_transform(Transform3D(xb, xp_pos + Vector3((xp_ratio - 1.0f) * 0.44f, 0.0f, 0.01f)));
-		}
-		// AddRankIcon: Basic too, for units whose template has a rank (Identity GetRank).
-		const uint8_t rank = show_hp && status_rank_icon && sim->unit_has_rank(i) ? std::max<uint8_t>(uview.rank[i], 1) : 0;
-		if (rank >= 1) {
-			if (v.rank_shown != rank) {
-				v.rank_shown = rank;
-				v.rank_icon->set_texture(ResourceLoader::get_singleton()->load(rank >= 3 ?
-						"res://assets/textures/ui/archive/icons/ranks/Elite.png" : rank == 2 ?
-						"res://assets/textures/ui/archive/icons/ranks/Advanced.png" :
-						"res://assets/textures/ui/archive/icons/ranks/Basic.png"));
-				const Ref<Texture2D> tex = v.rank_icon->get_texture();
-				// Half a bar wide (StatusBars AddRankIcon: BarWidth / 2).
-				if (tex.is_valid() && tex->get_width() > 0) v.rank_icon->set_pixel_size(0.45f / tex->get_width());
-			}
-			v.rank_icon->set_position(Vector3(x, v.hp_bg->get_transform().origin.y + 0.3f, z));
-		}
-		v.rank_icon->set_visible(rank >= 1);
+		// The status bars are StatusBars.js sprites (draw_status_stack).
+		v.hp_bg->set_visible(false);
+		v.hp_fg->set_visible(false);
+		v.xp_bg->set_visible(false);
+		v.xp_fg->set_visible(false);
+		v.rank_icon->set_visible(false);
 	}
 
 	for (size_t s = 0; s < unit_pool.size(); ++s) {
@@ -3784,6 +3791,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// them (mirages); ones it never saw stay hidden.
 	const auto &buildings = mirages_.buildings();
 	std::unordered_set<uint32_t> alive_buildings;
+	// The live structure behind a FoggedBuilding, for its capture points and upgrade.
+	std::unordered_map<uint32_t, const rtso::Simulation::Building *> live_buildings;
+	auto live_building = [&](uint32_t bid) -> const rtso::Simulation::Building * {
+		if (live_buildings.empty())
+			for (const auto &lb : sim->buildings()) live_buildings[lb.id] = &lb;
+		auto it = live_buildings.find(bid);
+		return it == live_buildings.end() ? nullptr : it->second;
+	};
 
 	for (const auto &b : buildings) {
 		alive_buildings.insert(b.id);
@@ -3963,23 +3978,32 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		update_garrison_flag(v, visual_id, v.phase == 0 && !b.miraged && (sim->get_garrison_count(b.id) > 0 || (b.type == rtso::BLD_CORRAL && sim->corral_count(b.id) > 0)),
 				player_display_color(sim, b.team), b_scale, entry.y_offset);
 
-		// Building Health & Construction Progress Bar
-		bool show_bhp = !destroyed && (show_all_status_bars_ || b_progress < 1.0f || b.hp < b.max_hp * 0.98f);
-		v.hp_bg->set_visible(show_bhp);
-		v.hp_fg->set_visible(show_bhp);
-
-		if (show_bhp) {
-			float bar_ratio = (b_progress < 1.0f) ? b_progress : Math::clamp(b.hp / b.max_hp, 0.0f, 1.0f);
-			float bar_y = base_y + 5.0f;
-			Vector3 hp_pos(b.x, bar_y, b.z);
-
-			v.hp_bg->set_transform(Transform3D(Basis().scaled(Vector3(2.5f, 1.0f, 1.0f)), hp_pos));
-			v.hp_fg->set_material_override((b_progress < 1.0f) ? hp_blue_mat : hp_green_mat);
-
-			Basis fg_basis;
-			fg_basis.scale(Vector3(2.5f * bar_ratio, 1.0f, 1.0f));
-			Vector3 fg_offset((bar_ratio - 1.0f) * 1.1f, 0.0f, 0.02f);
-			v.hp_fg->set_transform(Transform3D(fg_basis, hp_pos + fg_offset));
+		// StatusBars.js on a selected, highlighted or (Tab) any structure: upgrade
+		// progress, a field's resource supply, the capture bar, health, and the
+		// icons of the shown auras that reach structures.
+		v.hp_bg->set_visible(false);
+		v.hp_fg->set_visible(false);
+		if (!destroyed) {
+			const int32_t sid = (int32_t)b.id;
+			const bool bars = show_all_status_bars_ || sel_buildings_.count(sid) || highlight_set_.count(sid);
+			StatusStack st;
+			if (bars) {
+				// A foundation's Health grows as it is built (Foundation.js).
+				st.health = b_progress < 1.0f ? b_progress : (b.max_hp > 0.0f ? b.hp / b.max_hp : 1.0f);
+				st.health_color = b_progress < 1.0f ? Color(0.25f, 0.65f, 1.0f, 0.95f) : Color(0.2f, 0.95f, 0.3f, 0.95f);
+				if (b.type == rtso::BLD_FIELD && b_progress >= 1.0f) st.supply = 1.0f; // an infinite ResourceSupply
+				if (const auto *lb = b.miraged ? nullptr : live_building(b.id)) {
+					if (lb->upgrade_to != rtso::BLD_TYPE_COUNT && lb->upgrade_duration > 0.0f) st.upgrade = lb->upgrade_timer / lb->upgrade_duration;
+					if (lb->max_capture_points > 0.0f && b_progress >= 1.0f) {
+						st.capture = lb->capture_points_by_team.data();
+						st.capture_max = lb->max_capture_points;
+						st.owner = lb->team;
+					}
+				}
+			}
+			if (!aura_icon_sources_.empty()) status_aura_icons(b.x, b.z, b.team, rtso::CIV_UNIT_TEMPLATE_NONE, true, st);
+			if (bars || st.n_icons > 0)
+				draw_status_stack(sim, Vector3(b.x, base_y + 5.0f, b.z), 2.25f, 0.1f, st);
 		}
 
 		// 3D Positional Building Fire Acoustics
@@ -4347,10 +4371,83 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			const float rs = std::max(1.0f, fsc * 1.4f);
 			r->set_transform(Transform3D(Basis().scaled(Vector3(rs, 0.12f, rs)), Vector3(fx, fy + 0.04f, fz)));
 			r->set_visible(true);
+			// StatusBars.js: an animal's food supply and, alive, its health.
+			StatusStack st;
+			const int food = rtso::fauna_type_info(ft).food_amount;
+			if (food > 0) st.supply = (float)fview.food_amount[f] / (float)food;
+			if (fview.alive[f] && fview.max_hp[f] > 0.0f) {
+				st.health = fview.hp[f] / fview.max_hp[f];
+				st.health_color = fview.owner[f] == local_player_ ? Color(0.2f, 0.95f, 0.3f, 0.95f) : Color(0.95f, 0.25f, 0.2f, 0.95f);
+			}
+			draw_status_stack(sim, Vector3(fx, fy + fent.y_offset + fent.aabb.size.y * fsc + 0.3f, fz), 0.9f, 0.08f, st);
 		}
 	}
 	for (size_t k = rings_used; k < fauna_rings_.size(); ++k) fauna_rings_[k]->set_visible(false);
+	status_sprites_.end_frame();
 	draw_structure_outlines(sim);
+}
+
+// The icons of the shown auras (aura_icon_sources_) reaching an entity of `team` at
+// (x, z): a unit of roster row tmpl the aura affects, or a structure when the aura
+// names the Structure class. Each icon once.
+void RtsoWorldView::status_aura_icons(float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const {
+	const uint16_t bit = rtso::aura_player_bit(team);
+	for (const AuraIconSource &a : aura_icon_sources_) {
+		const rtso::AuraSource &s = *a.src;
+		if (!(s.affected & bit)) continue;
+		if (structure ? !rtso::civ_hero_aura(s.aura).structures : !rtso::civ_aura_affects(s.aura, tmpl)) continue;
+		const float dx = x - s.x, dz = z - s.z;
+		if (dx * dx + dz * dz > s.range * s.range) continue;
+		bool dup = false;
+		for (int k = 0; k < st.n_icons && !dup; ++k) dup = st.icons[k] == a.icon;
+		if (!dup && st.n_icons < 8) st.icons[st.n_icons++] = a.icon;
+	}
+}
+
+// StatusBars.js RegenerateSprites: experience, pack, upgrade, resource supply,
+// capture, health, aura icons and rank, from `base` up, each bar BarHeight * 1.2
+// above the one under it (the experience bar 2/3 as tall, using the pack textures).
+void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3 &base, float width, float height, const StatusStack &st) {
+	float y = 0.0f;
+	auto at = [&](float h) { return base + Vector3(0.0f, y + 0.5f * h, 0.0f); };
+	auto bar = [&](RtsoStatusSprites::Bar type, float amount, float h) {
+		if (amount < 0.0f) return;
+		status_sprites_.bar(type, at(h), width, h, amount);
+		y += h * 1.2f;
+	};
+	bar(RtsoStatusSprites::BAR_PACK, st.xp, height * 2.0f / 3.0f);
+	bar(RtsoStatusSprites::BAR_PACK, st.pack, height);
+	bar(RtsoStatusSprites::BAR_UPGRADE, st.upgrade, height);
+	bar(RtsoStatusSprites::BAR_SUPPLY, st.supply, height);
+	if (st.capture && st.capture_max > 0.0f) {
+		// The owner's points first, on the left, then each other player's.
+		const Vector3 c = at(height);
+		float from = 0.0f;
+		auto part = [&](uint8_t p) {
+			const float to = from + st.capture[p] / st.capture_max;
+			status_sprites_.capture_part(c, width, height, from, std::min(to, 1.0f), player_display_color(sim, p));
+			from = to;
+		};
+		if (st.owner < 8) part(st.owner);
+		for (uint8_t p = 0; p < 8; ++p)
+			if (p != st.owner && st.capture[p] > 0.0f) part(p);
+		y += height * 1.2f;
+	}
+	if (st.health >= 0.0f) {
+		const Vector3 c = at(height);
+		const float hw = 0.5f * width;
+		status_sprites_.solid(c, -hw, hw, height, Color(0.15f, 0.15f, 0.18f, 0.85f));
+		status_sprites_.solid(c, -hw, -hw + width * Math::clamp(st.health, 0.0f, 1.0f), height * 0.85f, st.health_color);
+		y += height * 1.2f;
+	}
+	const float icon = std::min(width * 0.5f, 0.6f);
+	if (st.n_icons > 0) {
+		float dx = -icon * (st.n_icons - 1) * 0.6f;
+		const Vector3 c = at(icon);
+		for (int k = 0; k < st.n_icons; ++k, dx += icon * 1.2f) status_sprites_.icon(st.icons[k], c, dx, icon);
+		y += icon + height * 0.5f;
+	}
+	if (st.rank_icon >= 0) status_sprites_.icon(st.rank_icon, at(icon), 0.0f, icon);
 }
 
 // Selectable.js overlay for structures: an outline round the footprint of each selected

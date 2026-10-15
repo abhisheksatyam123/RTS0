@@ -150,6 +150,7 @@ int main() {
 	// 3c. A treasure's Obstruction/Static blocks foundations on it (a 20 x 10 m shipwreck too).
 	{
 		fresh(s);
+		s.set_explore_map(true); // placement in unexplored land is refused before obstruction
 		auto place = [&](float x, float z) {
 			const int foot = building_type_info(BLD_HOUSE).footprint;
 			return s.check_placement(0, (int)std::floor(x / Simulation::GRID) - foot / 2, (int)std::floor(z / Simulation::GRID) - foot / 2, BLD_HOUSE);
@@ -271,6 +272,7 @@ int main() {
 	//    along its length, turned by its orientation, and foundations on top; saved and loaded.
 	{
 		fresh(s);
+		s.set_explore_map(true); // placement in unexplored land is refused before obstruction
 		const uint8_t fence = scenery_type_by_name("fence_long");
 		CHECK(fence < SCENERY_TYPE_COUNT && scenery_type_info(fence).depth == 13.0f);
 		CHECK(scenery_type_by_name("nothing") == SCENERY_TYPE_COUNT);

@@ -198,6 +198,27 @@ int main() {
 		CHECK(s.unit_queue(ship) && s.unit_queue(ship)->size() == 1);
 	}
 
+	// 7. ProductionQueue OnGarrisonedStateChanged: a garrisoned trainer pauses its batch, and the
+	// timer runs on once it is out again.
+	{
+		fresh(s, CIV_PERSIANS);
+		s.player(0).phase = 3;
+		s.player(0).techs.set(TECH_UNLOCK_CHAMPION_INFANTRY);
+		const uint32_t cc = s.spawn_building_world(-20.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t hero = s.spawn_unit(-10.0f, 0.0f, 0, (UnitType)civ_unit_template(cyrus).unit_type, 0.0f, cyrus);
+		CHECK(s.cmd_train_from_unit(0, hero, immortal));
+		s.order_garrison(&hero, 1, cc);
+		run(s, 5.0f);
+		const float t0 = s.unit_queue(hero) ? s.unit_queue(hero)->front().timer : -1.0f;
+		run(s, 60.0f);
+		const float t1 = s.unit_queue(hero) ? s.unit_queue(hero)->front().timer : -1.0f;
+		std::printf("garrisoned Cyrus: batch timer %.2f -> %.2f in 60 s, %d Immortals\n", t0, t1, count_tmpl(s, immortal));
+		CHECK(t0 >= 0.0f && t1 == t0 && count_tmpl(s, immortal) == 0);
+		s.cmd_unload(0, cc, &hero, 1);
+		run(s, 60.0f);
+		CHECK(count_tmpl(s, immortal) == 1);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

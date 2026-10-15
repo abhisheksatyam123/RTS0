@@ -12,6 +12,7 @@ extends Control
 ## - Petra only drives team 1, RMS spawns team-per-spawn-index -> slots > 4
 ##   still spawn (base+units) but have no AI economy; teams beyond 2 share
 ##   teams 0/1 via diplomacy defaults. Slot cap is 8 like 0 A.D.
+const MODERN := preload("res://scenes/common/modern_theme.gd")
 
 const ScenarioStart = preload("res://scenes/menu/scenario_start.gd")
 const MapBrowser = preload("res://scenes/menu/map_browser.gd")
@@ -334,6 +335,12 @@ var _hotkeys := RtsoHotkeyConfig.new()
 var _rebuilding_slots := false
 
 func _ready() -> void:
+	# 0.28's modern skin over the stone theme's panels and popups.
+	var skin: Theme = theme.duplicate() if theme else Theme.new()
+	skin.merge_with(MODERN.theme())
+	theme = skin
+	for b in TAB_BUTTONS:
+		get_node("%" + b).theme_type_variation = "ModernTabButtonHorizontal"
 	_build_description()
 	_load_maps()
 	_build_map_type()
