@@ -905,6 +905,7 @@ void RtsoMain::_process(double delta) {
 		if (net_host_.isHost()) host_net_setup_tick(false);
 		else client_net_setup_tick();
 		update_net_setup_overlay();
+		update_net_connect_overlay();
 		// A host that turned us away mid-match says why (0 A.D. disconnect reasons).
 		if (!net_host_.isHost() && !net_game_started_ && lobby_status) {
 			const uint8_t why = turn_mgr_.rejoin_reject_reason();
