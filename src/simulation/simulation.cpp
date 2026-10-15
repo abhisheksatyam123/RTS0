@@ -11348,6 +11348,16 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 			if (i < unit_paths_.size()) unit_paths_[i].clear();
 			continue;
 		}
+		// The same likelyFailure in tick_gather's own return (GATHER.RETURNINGRESOURCE.APPROACHING):
+		// DROPPINGRESOURCES is out of range, so RETURNINGRESOURCE again: the nearest dropsite, and
+		// a new move to it from where the unit stands.
+		if (move_failed && st == ACTION_RETURN_DROPSITE) {
+			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+			units_.waypoint_cur[i] = 0;
+			units_.waypoint_count[i] = 0;
+			if (i < unit_paths_.size()) unit_paths_[i].clear();
+			continue;
+		}
 		const bool walking = (kind == ORDER_WALK && st == ACTION_MOVE) ||
 				(kind == ORDER_WALK_AND_FIGHT && st == ACTION_ATTACK_MOVE) ||
 				(kind == ORDER_PATROL && st == ACTION_PATROL);
@@ -11809,6 +11819,26 @@ void Simulation::tick_gather(float dt) {
 					units_.target_z[i] = drop_z;
 					units_.has_order[i] = 1;
 					units_.action_state[i] = ACTION_RETURN_DROPSITE;
+				}
+			} else {
+				// RETURNINGRESOURCE enter with no dropsite (FindNearestDropsite null): FinishOrder,
+				// the next queued order, else "the player expects the unit to move upon failure":
+				// it walks to the supply it was gathering, still carrying, and Petra can task it.
+				const uint32_t former = units_.target_resource_id[i];
+				auto qit = order_queues_.find(units_.id[i]);
+				if (qit != order_queues_.end() && !qit->second.empty()) {
+					finish_order(i);
+				} else {
+					auto rit = former ? res_id_to_idx_.find(former) : res_id_to_idx_.end();
+					units_.target_resource_id[i] = 0;
+					units_.action_state[i] = ACTION_IDLE;
+					units_.has_order[i] = 0;
+					set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
+					if (rit != res_id_to_idx_.end()) {
+						uint32_t id = units_.id[i];
+						cmd_move(&id, 1, resources_.x[rit->second], resources_.z[rit->second]);
+						set_order(i, ORDER_WALK, 0, 0, resources_.x[rit->second], resources_.z[rit->second]);
+					}
 				}
 			}
 			continue;
