@@ -150,8 +150,11 @@ Dictionary RtsoMain::get_audio_state() const {
 
 void RtsoMain::update_music_state() {
 	if (!sim) return;
-	const uint8_t me = local_player();
-	const uint8_t civ = sim->player_civ(me);
+	// session.js initializeMusic: the civ tracks of the player this client starts as,
+	// stored once (an observer or a replay viewer, player -1, keeps the default list).
+	const bool replay = turn_mgr_.is_replaying();
+	const uint8_t seat = replay ? (uint8_t)0xFF : seat_player();
+	const uint8_t civ = seat < rtso::MAX_PLAYERS ? sim->player_civ(seat) : (uint8_t)0xFE;
 	if (civ != music_civ_) {
 		music_civ_ = civ;
 		music_.store_civ_tracks(civ);
@@ -161,14 +164,30 @@ void RtsoMain::update_music_state() {
 			music_.set_state(keep);
 		}
 	}
-	rtso::RtsoMusic::State want = session_audio_.in_battle() ? rtso::RtsoMusic::BATTLE : rtso::RtsoMusic::PEACE;
-	if (sim->is_victory_for(me)) want = rtso::RtsoMusic::VICTORY;
-	else if (sim->is_victory() || sim->is_game_over() || sim->is_defeated(me)) want = rtso::RtsoMusic::DEFEAT;
-	const auto was = music_.state();
-	if (want == was) return;
-	if (want == rtso::RtsoMusic::VICTORY) session_audio_.play_victory();
-	else if (want == rtso::RtsoMusic::DEFEAT) session_audio_.play_defeat();
-	music_.set_state(want);
+	// Player.OnGlobalPlayerDefeated: this client's player hears "defeated" when it
+	// falls, "defeated_ally" when an ally does and "defeated_enemy" when an enemy
+	// does, unless it has already won (template_player has no "won" group).
+	uint32_t defeated = 0;
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
+		if (sim->is_defeated(p)) defeated |= 1u << p;
+	if (music_primed_ && seat < rtso::MAX_PLAYERS) {
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+			if (!((defeated & ~defeated_heard_) >> p & 1)) continue;
+			if (p == seat) session_audio_.play_defeat();
+			else if (sim->is_ally(seat, p)) session_audio_.play_defeated_ally();
+			else if (!sim->is_victory_for(seat)) session_audio_.play_defeated_enemy();
+		}
+	}
+	defeated_heard_ = defeated;
+	music_primed_ = true;
+	// session.js onSimulationUpdate: battle music only while not an observer (a replay
+	// viewer, an observer, or a player who has lost or won); VICTORY and DEFEAT only
+	// for this client's own player (the music doesn't follow the viewed player).
+	const bool observer = replay || seat >= rtso::MAX_PLAYERS || spectating();
+	rtso::RtsoMusic::State want = !observer && session_audio_.in_battle() ? rtso::RtsoMusic::BATTLE : rtso::RtsoMusic::PEACE;
+	if (seat < rtso::MAX_PLAYERS && sim->is_victory_for(seat)) want = rtso::RtsoMusic::VICTORY;
+	else if (seat < rtso::MAX_PLAYERS && sim->is_defeated(seat)) want = rtso::RtsoMusic::DEFEAT;
+	if (want != music_.state()) music_.set_state(want);
 }
 
 void RtsoMain::play_spatial_sfx(const char *path, Vector3 pos) {
@@ -894,6 +913,18 @@ void RtsoMain::update_net_status_overlay() {
 					tr("If the issue persists or occurs regularly, visit the official FAQ for detailed guidance and troubleshooting steps.");
 		}
 		net_status_label_->set_text(text);
+		// The timeout is a "Connection Error" box with Close and Open FAQ.
+		const bool timed_out = !joined && net_host_.disconnectReason() == 0;
+		if (net_status_title_) {
+			net_status_title_->set_text(timed_out ? tr("Connection Error") : String());
+			net_status_title_->set_visible(timed_out);
+		}
+		if (net_status_exit_) {
+			net_status_exit_->set_text(timed_out ? tr("Close") : tr("Exit"));
+			net_status_exit_->set_offset(SIDE_LEFT, timed_out ? -176 : -84);
+			net_status_exit_->set_offset(SIDE_RIGHT, timed_out ? -8 : 84);
+		}
+		if (net_status_faq_) net_status_faq_->set_visible(timed_out);
 		net_loading_clients_->set_visible(false);
 		net_status_overlay_->set_visible(true);
 		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n", " "));
@@ -922,6 +953,11 @@ void RtsoMain::update_net_status_overlay() {
 	if (net_loading_clients_->get_text() != centred) net_loading_clients_->set_text(centred);
 	net_loading_clients_->set_visible(!loading.is_empty());
 	if (net_status_overlay_->is_visible() == status.is_empty()) net_status_overlay_->set_visible(!status.is_empty());
+}
+
+// reportConnectionRequestTimeOut's Open FAQ.
+void RtsoMain::_on_open_faq_pressed() {
+	OS::get_singleton()->shell_open("https://gitea.wildfiregames.com/0ad/0ad/wiki/FAQ#what-shall-i-do-when-joining-multiplayer-matches-fails-with-an-error-message");
 }
 
 // disconnectedExitButton: endGame(true), the summary page.
@@ -1911,36 +1947,46 @@ void RtsoMain::select_group(int key, bool drop) {
 
 // The garrison panel's holder: the selected structure, or a lone selected ship, ram or
 // siege tower.
-uint32_t RtsoMain::selected_garrison_holder() const {
-	if (selected_building_id != 0) return selected_building_id;
-	if (sim && selected_ids.size() == 1 && sim->is_transport((uint32_t)selected_ids[0])) return (uint32_t)selected_ids[0];
-	return 0;
+// unloadTemplate's garrisonHolders: the selected structures and units that hold units.
+std::vector<uint32_t> RtsoMain::selected_garrison_holders() const {
+	std::vector<uint32_t> out;
+	if (!sim) return out;
+	for (uint32_t id : selected_structures())
+		if (!sim->holder_contents(id).empty()) out.push_back(id);
+	for (int s = 0; s < selected_ids.size(); ++s) {
+		const uint32_t id = (uint32_t)selected_ids[s];
+		if (sim->is_transport(id) && !sim->holder_contents(id).empty()) out.push_back(id);
+	}
+	return out;
 }
 
-// Garrison icon click (selection_panels.js Garrison.execute -> unloadTemplate): unload
-// one unit of the group (template and owner), or all of them with session.unloadtype (Shift).
+bool RtsoMain::ui_garrison_panel_shown() const { return !selected_garrison_holders().empty(); }
+
+// Garrison icon click (selection_panels.js Garrison.execute -> unloadTemplate): every selected
+// holder (Commands.js "unload-template" -> GarrisonHolder.UnloadTemplate) unloads one unit of the
+// group (template and owner), or all of them with session.unloadtype (Shift).
 void RtsoMain::_on_garrison_group_clicked(int key) {
-	const uint32_t holder = selected_garrison_holder();
-	if (!sim || holder == 0) return;
-	const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), holder);
-	if (mine.empty()) return;
+	if (!sim) return;
 	const bool all = rtso::hotkeys::held("session.unloadtype");
 	auto uview = sim->units();
-	std::vector<uint32_t> out;
-	for (uint32_t gid : mine) {
-		for (size_t i = 0; i < uview.count; ++i) {
-			if (uview.id[i] != gid) continue;
-			const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-			if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i]) == key) out.push_back(gid);
-			break;
+	for (uint32_t holder : selected_garrison_holders()) {
+		const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), holder);
+		std::vector<uint32_t> out;
+		for (uint32_t gid : mine) {
+			for (size_t i = 0; i < uview.count; ++i) {
+				if (uview.id[i] != gid) continue;
+				const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
+				if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i]) == key) out.push_back(gid);
+				break;
+			}
+			if (!all && !out.empty()) break;
 		}
-		if (!all && !out.empty()) break;
+		if (out.empty()) continue;
+		if (turn_cmds())
+			post_lockstep(13, out.data(), out.size(), 0, 0, holder, 0);
+		else
+			sim->cmd_unload(local_player(), holder, out.data(), out.size());
 	}
-	if (out.empty()) return;
-	if (turn_cmds())
-		post_lockstep(13, out.data(), out.size(), 0, 0, holder, 0);
-	else
-		sim->cmd_unload(local_player(), holder, out.data(), out.size());
 }
 
 void RtsoMain::update_command_panel() { command_panel_.update(); }
@@ -2137,7 +2183,9 @@ void RtsoMain::flush_training_batch() {
 void RtsoMain::try_train_template(uint32_t building_id, uint16_t tmpl, int count) {
 	if (building_id == 0 || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return;
 	if (turn_cmds()) {
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, (float)count, building_id, 0);
+		// input.js addTrainingToQueue / flushTrainingBatch: "pushFront" with session.pushorderfront.
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, (float)count, building_id,
+				rtso::hotkeys::held("session.pushorderfront") ? rtso::NET_PARAM_PUSH_FRONT_ORDER : 0);
 		play_civ_voice("select");
 		return;
 	}
@@ -2506,6 +2554,13 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["setup_page"] = net_setup_overlay_ != nullptr;
 	d["disconnect_reason"] = net_host_.disconnectReason();
 	d["net_status"] = net_status_overlay_ && net_status_overlay_->is_visible() ? net_status_label_->get_text() : String();
+	d["net_status_title"] = net_status_title_ && net_status_title_->is_visible() ? net_status_title_->get_text() : String();
+	{
+		String buttons;
+		for (Button *b : {net_status_exit_, net_status_faq_})
+			if (b && b->is_visible()) buttons += (buttons.is_empty() ? "" : ",") + b->get_text();
+		d["net_status_buttons"] = buttons;
+	}
 	d["net_loading"] = net_loading_clients_ && net_loading_clients_->is_visible() ? net_loading_clients_->get_parsed_text() : String();
 	d["chat"] = chat_window_.log_text();
 	d["net_warnings"] = net_warnings_label_ && net_warnings_label_->is_visible() ? net_warnings_label_->get_parsed_text() : String();
@@ -3123,6 +3178,10 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	c.target_z = z;
 	c.target_id = tid;
 	c.param = param;
+	// input.js: an order not queued with Shift goes first while session.pushorderfront is held.
+	if (rtso::net_cmd_takes_push_front(cmd_type) && !(param & rtso::NET_PARAM_QUEUED) &&
+			rtso::hotkeys::held("session.pushorderfront"))
+		c.param |= rtso::NET_PARAM_PUSH_FRONT_ORDER;
 	if (spectating()) return; // observers and defeated players order nothing
 	if (ids && (cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_MOVE || cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_PATROL))
 		apply_default_formation(ids, n);
@@ -3642,6 +3701,11 @@ std::vector<std::pair<String, String>> RtsoMain::chat_private_targets() {
 		                       : "[Player-" + String::num_int64((int)e.player + 1) + "]";
 		out.push_back({tag, chat_user("peer-" + String::num_int64(e.client))});
 	}
+	// sortGUIDsByPlayerID: players by id, observers after them.
+	std::stable_sort(out.begin(), out.end(), [](const auto &a, const auto &b) {
+		auto key = [](const String &tag) { return tag.begins_with("[Player-") ? tag.substr(8).to_int() : 1000; };
+		return key(a.first) < key(b.first);
+	});
 	return out;
 }
 

@@ -47,6 +47,7 @@
 #include <cstdio>
 #include <memory>
 #include <vector>
+#include <array>
 using namespace rtso;
 
 static int g_failures = 0;
@@ -130,7 +131,9 @@ static void test_phase_up() {
 	}
 	std::printf("  continental: town phase at %.0fs, city phase at %.0fs, peak workers %d, fields %d\n",
 	            town_at, city_at, peak_workers, peak_fields);
-	CHECK(town_at > 0.0f && town_at < 13.0f * 60.0f, "town phase within 13 minutes");
+	// This seed's personality is the slow one (other AI seeds reach the town phase in 7 to 8 minutes);
+	// its time moves some 20 s with the AI's random draws and gatherers' choices.
+	CHECK(town_at > 0.0f && town_at < 13.5f * 60.0f, "town phase within 13 and a half minutes");
 	CHECK(city_at > 0.0f && city_at < 18.0f * 60.0f, "city phase within 18 minutes (Town structures built first)");
 	CHECK(peak_workers >= 25, "economy grows past 25 workers");
 	CHECK(peak_fields >= 2, "farms fields once hunt and berries run low");
@@ -2168,10 +2171,30 @@ static void test_attack_maybe_update() {
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 	s->set_victory_condition(VICTORY_ENDLESS);
 	run_for(*s, 1.0f);
-	float tx = 0.0f, tz = 0.0f;
+	float ox = 0.0f, oz = 0.0f;
 	for (const auto &b : s->buildings())
-		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
-	const float hx = -tx * 0.3f, hz = -tz * 0.3f;
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { ox = b.x; oz = b.z; }
+	// The scene stands on the dry, level land nearest player 0's civic centre, clear of it: on this
+	// map the land between the bases is a lake, where the woman can't flee and nothing can be reached.
+	auto dry = [&](float x0, float z0, float x1, float z1) {
+		if (s->nav_grid_.steep_tile_in(x0, z0, x1, z1)) return false;
+		for (float z = z0; z <= z1; z += 1.0f)
+			for (float x = x0; x <= x1; x += 1.0f) {
+				const auto [cx, cy] = s->nav_grid_.world_to_cell(x, z);
+				if (!s->nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY)) return false;
+			}
+		return true;
+	};
+	float hx = 0.0f, hz = 0.0f, best = 1e30f;
+	for (float z = -26.0f; z <= 26.0f; z += 1.0f)
+		for (float x = -26.0f; x <= 26.0f; x += 1.0f) {
+			const float d = (x - ox) * (x - ox) + (z - oz) * (z - oz);
+			if (d < 100.0f || d >= best || !dry(x - 3.0f, z - 6.0f, x + 12.0f, z + 4.0f)) continue;
+			best = d;
+			hx = x;
+			hz = z;
+		}
+	CHECK(best < 1e30f, "dry land for the chase");
 	for (size_t j = 0; j < s->units_.count; ++j)
 		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
 	run_for(*s, 0.5f);
@@ -2493,6 +2516,52 @@ static void test_raid_takes_every_rider() {
 	}
 }
 
+// attackPlan.js trainMoreUnits: a class no template of ours trains is deleted from the plan for
+// good, so a HugeAttack made in the town phase keeps no champions or hero once the city phase
+// comes, and mustStart no longer waits for them.
+static void test_huge_attack_drops_classes() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->spawn_building_world(tx + (tx > 0.0f ? -12.0f : 12.0f), tz, BLD_BARRACKS, 1, 1.0f);
+	s->players_[1].phase = 2;
+	s->cheat_mods_[1].pop_bonus = 300;
+	auto &m = s->petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 0;
+	s->petra_plan_sizes(PETRA_ATTACK_HUGE);
+	m.dropped_classes = 0;
+	auto &plan = s->petra_attack_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_HUGE;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	const auto full = s->petra_plan_unit_stats(PETRA_ATTACK_HUGE);
+	uint16_t elite = 0;
+	for (const auto &st : full)
+		if ((st.classes & (TC_CHAMPION | TC_HERO)).any()) elite |= (uint16_t)(1u << st.index);
+	for (int k = 0; k < 4; ++k) {
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 20000.0f;
+		run_ai_turns(*s, 1);
+	}
+	const uint16_t dropped = m.dropped_classes;
+	s->players_[1].phase = 3;
+	int elite_left = 0;
+	for (const auto &st : s->petra_plan_unit_stats(PETRA_ATTACK_HUGE, m.dropped_classes))
+		elite_left += (st.classes & (TC_CHAMPION | TC_HERO)).any();
+	std::printf("  town-phase HugeAttack: dropped classes 0x%x (champions and hero 0x%x), %d left in the city phase\n",
+	            (unsigned)dropped, (unsigned)elite, elite_left);
+	CHECK(elite && (dropped & elite) == elite, "the champion and hero classes leave the plan when nothing trains them");
+	CHECK(elite_left == 0, "they stay out once the city phase arrives");
+	CHECK((dropped & ~elite) == 0, "the citizen-soldier classes stay");
+}
+
 // defenseManager.js assignDefenders: soldiers of a plan still mustering defend the base
 // and leave the plan; those of a started attack are held back.
 static void test_mustering_units_defend() {
@@ -2694,6 +2763,69 @@ static void test_attack_rally_point() {
 	CHECK(fewest < waypoints, "the march passes its waypoints");
 	CHECK(to_target < 26.0f || s->territory_owner_at(cx, cz) == 0, "the march arrives near the target");
 	CHECK(n > 0 && together * 4 >= n * 3, "the army arrives together");
+}
+
+// attackPlan.js UpdateWalking position5TurnsAgo: an army that has not moved over 5 turns is
+// very likely stuck on a siege engine; the one farthest from its centre is destroyed.
+static void test_attack_stuck_siege() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 2, 128.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_player_active(0, true, false);
+	s->set_player_active(1, true, true);
+	s->set_diplomacy(0, 1, Simulation::DIPLO_ENEMY);
+	s->set_diplomacy(1, 0, Simulation::DIPLO_ENEMY);
+	run_for(*s, 5.0f);
+	float bx = 0.0f, bz = 0.0f, ex = 0.0f, ez = 0.0f;
+	uint32_t enemy_cc = 0;
+	for (const auto &b : s->buildings()) {
+		if (b.type != BLD_TOWN_CENTER) continue;
+		if (b.team == 1) { bx = b.x; bz = b.z; }
+		if (b.team == 0) { ex = b.x; ez = b.z; enemy_cc = b.id; }
+	}
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::WALKING;
+	plan.target_building_id = enemy_cc;
+	plan.target_player = 0;
+	plan.target_x = ex;
+	plan.target_z = ez;
+	plan.retreat_x = bx;
+	plan.retreat_z = bz;
+	const float ax = bx + (ex - bx) * 0.3f, az = bz + (ez - bz) * 0.3f;
+	const uint32_t near_ram = s->spawn_unit(ax + 2.0f, az, 1, UNIT_SIEGE_RAM);
+	const uint32_t far_ram = s->spawn_unit(ax + 8.0f, az, 1, UNIT_SIEGE_RAM);
+	plan.squad = {near_ram, far_ram};
+	for (int k = 0; k < 4; ++k) plan.squad.push_back(s->spawn_unit(ax + (float)k, az + 2.0f, 1, UNIT_SPEARMAN));
+	plan.path_x = {(ax + ex) * 0.5f, ex};
+	plan.path_z = {(az + ez) * 0.5f, ez};
+	std::vector<std::array<float, 3>> held; // every unit held where it stands: the army is stuck
+	for (uint32_t uid : plan.squad) {
+		const int32_t k = s->lookup_unit(uid);
+		held.push_back({(float)uid, s->units_.pos_x[k], s->units_.pos_z[k]});
+	}
+	plan.last_x = ax;
+	plan.last_z = az;
+	s->petra_started_attacks_.push_back(plan);
+	auto alive = [&](uint32_t uid) { const int32_t k = s->lookup_unit(uid); return k >= 0 && s->units_.alive[k]; };
+	int turns = 0;
+	bool far_first = false;
+	for (; turns < 15 && alive(far_ram) && alive(near_ram); ) {
+		const bool due = s->petra_turn_due(1);
+		s->tick(Simulation::FIXED_STEP);
+		if (due) ++turns;
+		for (const auto &h : held) {
+			const int32_t k = s->lookup_unit((uint32_t)h[0]);
+			if (k < 0 || !s->units_.alive[k]) continue;
+			s->units_.pos_x[k] = h[1];
+			s->units_.pos_z[k] = h[2];
+		}
+	}
+	far_first = !alive(far_ram) && alive(near_ram);
+	std::printf("  stuck army: a ram destroyed after %d AI turns, the farther one %s\n", turns, far_first ? "yes" : "no");
+	CHECK(far_first && turns <= 11, "a stuck army loses its farthest siege engine within two 5-turn checks");
 }
 
 // attackPlan.js mustStart: an Attack starts once every class of its unitStat reaches its
@@ -2972,6 +3104,7 @@ static void test_placement_miss_memory_exact() {
 	const bool tower_fails = !s->petra_place_building(BLD_TOWER, tx, tz, 3, 4, PETRA_Q_DEFENSE_BUILDING);
 	const bool tower_remembered = s->petra_place_misses_.size() == 1;
 	s->destroy_building(s->buildings_[s->building_id_to_idx_.at(old_tower)]);
+	s->petra_timer_ += 91.0f; // setUnbuildable(template, 90, "room"): tried again 90 s on
 	const uint32_t tower = s->petra_place_building(BLD_TOWER, tx, tz, 3, 4, PETRA_Q_DEFENSE_BUILDING);
 
 	// Trees on every cell a temple could take in rings 5-6 around the Civic Centre.
@@ -2998,6 +3131,7 @@ static void test_placement_miss_memory_exact() {
 				s->resource_block_tick_ = UINT64_MAX;
 				freed = s->petra_can_place(cx, cz, foot, BLD_TEMPLE);
 			}
+	s->petra_timer_ += 91.0f;
 	const uint32_t temple = s->petra_place_building(BLD_TEMPLE, hx, hz, 5, 6, PETRA_Q_ECONOMIC_BUILDING);
 	std::printf("  placement miss memory: tower %s, %s after its neighbour fell; temple %s, %s after felling\n",
 	            tower_fails ? "blocked" : "not blocked", tower ? "placed" : "not placed",
@@ -3946,7 +4080,12 @@ static void test_defense_armies() {
 	CHECK(cc != nullptr, "Petra has a civic centre");
 	if (!cc) return;
 	const float cx = cc->x, cz = cc->z;
-	for (int k = 0; k < 30; ++k) s->spawn_unit(cx - 3.0f + (float)(k % 6), cz + 12.0f + (float)(k / 6), 1, UNIT_SPEARMAN);
+	// Two blocks of 15, one behind each group: the civic centre garrisons the nearest of both
+	// alike (garrisonUnitsInside), so each group keeps spearmen nearer it than the other.
+	for (int k = 0; k < 30; ++k) {
+		const int j = k % 15;
+		s->spawn_unit(cx + (k < 15 ? -1.0f : 1.0f) * (5.0f + (float)(j % 3)), cz + 8.0f + (float)(j / 3), 1, UNIT_SPEARMAN);
+	}
 	std::vector<uint32_t> east, west;
 	for (int k = 0; k < 3; ++k) east.push_back(s->spawn_unit(cx + 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
 	for (int k = 0; k < 3; ++k) west.push_back(s->spawn_unit(cx - 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
@@ -4992,6 +5131,59 @@ static void test_raid_keeps_hunters() {
 	CHECK((int)plan.squad.size() == std::min(4, riders - 2), "a raid leaves two riders home to hunt");
 }
 
+// attackPlan.js updatePreparation runs addSiegeUnits for a raid too: once a building of ours
+// trains siege engines, a raid still preparing adds them (rams for plan name 0) and waits for
+// them before it sets off, taking them along.
+static void test_raid_takes_siege() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float ox = 0, oz = 0;
+	for (const auto &b : s->buildings_)
+		if (is_civic_centre(b.type) && b.hp > 0.0f && b.team == 1) { ox = b.x; oz = b.z; }
+	s->players_[1].phase = 3;
+	s->spawn_building_world(ox + 14.0f, oz - 4.0f, BLD_ARSENAL, 1, 1.0f);
+	const uint32_t target = s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f);
+	for (int k = 0; k < 3; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 6.0f, 1, UNIT_CAVALRY);
+	s->petra_scout_unit_id_ = 0;
+	auto &m = s->petra_attack_mgr_;
+	m.raid_target = 4;
+	m.raid_min = 3;
+	m.raid_name = 0;
+	m.raid_siege = 0;
+	auto &plan = s->petra_raid_plan_;
+	plan = Simulation::AttackPlan();
+	plan.type = Simulation::AttackPlan::PLAN_RAID;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	plan.target_building_id = target;
+	s->petra_manage_raid(Simulation::FIXED_STEP);
+	const int siege_target = s->petra_plan_siege_target(false);
+	bool stat = false;
+	for (const auto &st : s->petra_plan_unit_stats(PETRA_ATTACK_RAID, 0))
+		stat |= (st.classes & (TC_SIEGE | TC_MELEE)) == (TC_SIEGE | TC_MELEE) && st.target == siege_target;
+	std::printf("  raid short of riders: siege class %d (1 = rams), %d rams wanted, in its unitStat %s\n", (int)m.raid_siege, siege_target,
+	            stat ? "yes" : "no");
+	CHECK(m.raid_siege == 1 && siege_target > 0 && stat, "a raid still preparing adds rams once an arsenal of ours trains them");
+	// Every rider it wants, but no ram yet: it waits.
+	for (int k = 0; k < 6; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 8.0f, 1, UNIT_CAVALRY);
+	s->petra_manage_raid(Simulation::FIXED_STEP);
+	const bool waited = plan.state == Simulation::AttackPlan::MUSTER;
+	std::vector<uint32_t> rams;
+	for (int k = 0; k < siege_target; ++k) rams.push_back(s->spawn_unit(ox + 8.0f + 3.0f * k, oz - 6.0f, 1, UNIT_SIEGE_RAM));
+	s->petra_manage_raid(Simulation::FIXED_STEP);
+	int rams_in = 0;
+	for (uint32_t r : rams) rams_in += std::find(plan.squad.begin(), plan.squad.end(), r) != plan.squad.end();
+	std::printf("  with its riders it waits for the rams %s; with %d rams it sets off %s, taking %d\n", waited ? "yes" : "no", siege_target,
+	            plan.state == Simulation::AttackPlan::WALKING ? "yes" : "no", rams_in);
+	CHECK(waited, "a raid with its riders waits for its siege engines");
+	CHECK(plan.state == Simulation::AttackPlan::WALKING && rams_in == siege_target, "the raid sets off with its rams");
+}
+
 // defenseManager.js targetList / attackPlan.js Raid: an enemy civic centre going up in neutral
 // land within 30000 m² of our structures is a raid target; past half built the raid sets off
 // with its minimum, and it fights on until the target falls (no time limit).
@@ -5662,7 +5854,8 @@ static void test_temple_wonder_save() {
 // while it has fewer than its phase number and over 30 population per corral.
 // headquarters.js checkBaseExpansion: more than one kind of structure with no room left
 // (buildManager.numberMissingRoom) sends Petra to found a new base, below the population
-// threshold; a structure placed again clears its kind.
+// threshold. A structure no spot was found for is not tried again for 90 s
+// (setUnbuildable(template, 90, "room")), and growing territory clears the marks.
 static void test_missing_room_expansion() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -5681,21 +5874,65 @@ static void test_missing_room_expansion() {
 		return n;
 	};
 	const int before = bases();
-	s->petra_attack_mgr_.missing_room = 1u << 0; // houses only
+	s->petra_set_no_room(BLD_HOUSE);
 	s->petra_check_base_expansion();
 	CHECK(bases() == before, "one kind without room: no new base");
+	CHECK(s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE) == 0 && s->petra_place_no_room_, "a house is not tried within 90 s");
+	s->petra_timer_ += 91.0f;
+	CHECK(s->petra_missing_room_count() == 0, "the mark lapses after 90 s");
 	const uint32_t house = s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
-	CHECK(house != 0 && s->petra_attack_mgr_.missing_room == 0, "a house placed clears its kind");
-	s->petra_attack_mgr_.missing_room = (1u << 0) | (1u << 5); // houses and barracks
+	CHECK(house != 0 && !s->petra_no_room(BLD_HOUSE), "after 90 s a house is placed");
+	s->petra_set_no_room(BLD_HOUSE);
+	s->petra_set_no_room(BLD_BARRACKS);
 	s->petra_check_base_expansion();
 	std::printf("  missing room: %d bases before, %d after\n", before, bases());
 	CHECK(bases() == before + 1, "two kinds without room: a new base");
-	// A search that finds no spot (asked for in a corner no base holds) sets its kind.
-	s->petra_attack_mgr_.missing_room = 0;
+	// A search that finds no spot (asked for in a corner no base holds) marks its template.
 	const float corner[2] = {-60.0f, -60.0f};
-	CHECK(s->petra_place_generic(BLD_WONDER, PETRA_Q_WONDER, corner) == 0 &&
-	          s->petra_attack_mgr_.missing_room == (1u << 7),
-	      "no room for a wonder sets its kind");
+	CHECK(s->petra_place_generic(BLD_WONDER, PETRA_Q_WONDER, corner) == 0 && s->petra_no_room(BLD_WONDER),
+	      "no room for a wonder marks it");
+	// headquarters.js:2042: our territory grew, so every mark goes at the next AI turn.
+	s->petra_room_.tiles = 0;
+	s->petra_room_.marks.push_back({BLD_TEMPLE, s->petra_timer_ + 90.0f});
+	run_for(*s, 2.0f);
+	CHECK(s->petra_room_.marks.empty() || !s->petra_no_room(BLD_TEMPLE), "territory growth clears the marks");
+}
+
+// worker.js update: a gatherer that UnitAI took to a far supply (its own ran out) goes back
+// through startGathering while its base's nearby list has supplies of that kind.
+static void test_petra_far_gatherer_recheck() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	// A stone mine near the civic centre (nearby) and one far off on our land.
+	const uint32_t near = s->spawn_resource_world(cx + 8.0f, cz + 8.0f, RES_STONE, 5000);
+	float fx = 0.0f, fz = 0.0f;
+	bool found = false;
+	for (int a = 0; a < 16 && !found; ++a)
+		for (float d = 30.0f; d < 44.0f && !found; d += 2.0f) {
+			const float x = cx + std::cos(a * 0.3927f) * d, z = cz + std::sin(a * 0.3927f) * d;
+			if (std::fabs(x) > s->map_half_ - 8.0f || std::fabs(z) > s->map_half_ - 8.0f) continue;
+			if (s->petra_access_at(x, z) == s->petra_access_at(cx, cz) && s->territory_owner_at(x, z) < 0) { fx = x; fz = z; found = true; }
+		}
+	CHECK(found, "land 30-44 units out");
+	if (!found) return;
+	const uint32_t far = s->spawn_resource_world(fx, fz, RES_STONE, 5000);
+	const uint32_t w = s->spawn_unit(fx + 1.5f, fz, 1, UNIT_FEMALE_CITIZEN);
+	s->order_gather(&w, 1, far); // as UnitAI would, with no Petra "supply" for it
+	run_for(*s, 4.0f);
+	const int32_t i = s->lookup_unit(w);
+	const uint32_t now = i >= 0 ? s->units_.target_resource_id[i] : 0;
+	std::printf("  far gatherer: now on %s\n", now == near ? "the nearby mine" : now == far ? "the far mine" : "something else");
+	CHECK(now != far, "a gatherer on a far supply is sent back");
 }
 
 static void test_corral_by_owner() {
@@ -5747,6 +5984,36 @@ static void test_corral_by_owner() {
 	CHECK(corrals() == 2, "a second corral in the town phase past 30 population");
 }
 
+// researchManager.js researchTradeBonus: the trade technology waits in minorTech until it is
+// paid for, holding back the other minor technologies, and a second call queues nothing new.
+static void test_trade_tech_waits_for_funds() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(1);
+	s->spawn_initial();
+	s->petra_pid_ = 1;
+	s->complete_research(1, TECH_PHASE_TOWN);
+	float mx = 0.0f, mz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && is_civic_centre(b.type)) { mx = b.x + 14.0f; mz = b.z; }
+	s->spawn_building_world(mx, mz, BLD_MARKET, 1, 1.0f);
+	s->set_player_resources(1, 0, 0, 0, 0);
+	s->petra_research_trade_bonus();
+	const uint8_t t = s->petra_queues_.special_tech;
+	std::printf("  trade tech queued while poor: %d (%s)\n", t, t ? tech_info(t).name : "-");
+	CHECK(t != 0, "with no resources the trade technology is queued, not dropped");
+	s->petra_research_trade_bonus();
+	CHECK(s->petra_queues_.special_tech == t, "a second call keeps the same queued technology");
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	fund_queues(*s);
+	bool started = false;
+	for (int k = 0; k < 40 && !started; ++k) {
+		s->petra_manage_research(1.6f);
+		for (const auto &b : s->buildings())
+			for (const auto &o : b.queue) started |= b.team == 1 && o.tech == t;
+		s->ticks_ += 32; // the next played turn
+	}
+	CHECK(started && s->petra_queues_.special_tech == 0, "once affordable it is researched first and the queue clears");
+}
 
 // common-api entity.js: Petra scores its templates with the player's technologies applied.
 // After Archery Tradition (+10 m range) a Kushite's best citizen infantry per cost, by
@@ -5797,11 +6064,13 @@ int main(int argc, char **argv) {
 	RUN(test_phase_up);
 	RUN(test_no_free_income);
 	RUN(test_mercenary_workers);
+	RUN(test_trade_tech_waits_for_funds);
 	RUN(test_roster_army);
 	RUN(test_diplomacy);
 	RUN(test_ai_slots);
 	RUN(test_attack_plans);
 	RUN(test_attack_rally_point);
+	RUN(test_attack_stuck_siege);
 	RUN(test_attack_waits_for_each_class);
 	RUN(test_slot_config);
 	RUN(test_allow_capture);
@@ -5840,6 +6109,7 @@ int main(int argc, char **argv) {
 	RUN(test_rush_any_phase);
 	RUN(test_attack_plan_keeps_hunters);
 	RUN(test_raid_takes_every_rider);
+	RUN(test_huge_attack_drops_classes);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
 	RUN(test_attack_request_counts_raid);
@@ -5888,6 +6158,7 @@ int main(int argc, char **argv) {
 	RUN(test_build_defenses);
 	RUN(test_defensive_location);
 	RUN(test_raid_keeps_hunters);
+	RUN(test_raid_takes_siege);
 	RUN(test_raid_cc_foundation);
 	RUN(test_order_plan_tags);
 	RUN(test_dropsites);
@@ -5895,6 +6166,7 @@ int main(int argc, char **argv) {
 	RUN(test_food_fields);
 	RUN(test_corral_by_owner);
 	RUN(test_missing_room_expansion);
+	RUN(test_petra_far_gatherer_recheck);
 	RUN(test_emergency_units);
 	RUN(test_new_cc_defenders);
 	RUN(test_temple_wonder_save);

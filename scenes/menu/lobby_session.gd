@@ -260,6 +260,20 @@ func sign_in(addr: String, name: String, cb: Callable, encrypted: String = "") -
 		cb.call(code, obj))
 
 
+## The lobby server's terms at addr (0 A.D. prelobby/common/terms): calls back
+## with [{page, title, text}], empty when the server has none or does not answer.
+func fetch_terms(addr: String, cb: Callable) -> void:
+	if not signed_in():
+		address = addr
+	get_json("/terms", func(code: int, obj) -> void:
+		cb.call(Array(obj.get("pages", [])) if code == 200 and obj is Dictionary else []))
+
+
+## termslobby.js getTermsHash: the accepted version, salted with the player name.
+static func terms_hash(who: String, text: String) -> String:
+	return (who + text).md5_text()
+
+
 ## ConnectionHandler askReconnect "Yes": sign in again as before.
 func reconnect(cb: Callable) -> void:
 	if _last_login.is_empty():

@@ -6,7 +6,10 @@ extends SceneTree
 #      and the game switches language; Cancel and Escape save nothing;
 #   2. Advanced builds a locale from language, country and script, refuses an
 #      invalid one ("invalid locale", Accept disabled), names the dictionary it
-#      would use, and its Accept fills the Language page's locale.
+#      would use, and its Accept fills the Language page's locale;
+#   3. Chinese, Japanese and Korean draw with the CJK font RTS0 ships (0.28's Source
+#      Han Sans; Noto Sans CJK here) behind every UI font, and other languages
+#      drop it.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_locale.gd
 # Exit code 0 = pass.
@@ -97,6 +100,34 @@ func run() -> void:
 		"Auto detect takes the system's: " + adv.resulting_locale.text)
 	adv._close("")
 	page._close("")
+
+	print("3. CJK fonts")
+	var us = root.get_node("UserSettings")
+	var label := Label.new()
+	label.theme = load("res://assets/themes/zeroad_theme.tres")
+	menu.add_child(label)
+	for loc in ["ja", "ko", "zh", "zh_TW"]:
+		cfg.set_value("locale", loc)
+		us.apply_all()
+		await frames(1)
+		var cjk: FontFile = us.cjk_font()
+		check(cjk != null and us.ui_fonts().all(func(f): return f.fallbacks.size() > 0 and f.fallbacks[0] == cjk),
+			"%s: the CJK font is behind every UI font" % loc)
+		label.text = menu.tr("Exit the game.")
+		var font: Font = label.get_theme_font("font")
+		var missing: Array = []
+		for c in label.text:
+			var u := c.unicode_at(0)
+			if not font.has_char(u) and not font.fallbacks.any(func(f): return f.has_char(u)):
+				missing.append(c)
+		check(TranslationServer.get_locale() == loc and missing.is_empty(),
+			"%s: \"%s\" has every glyph (missing %s)" % [loc, label.text, str(missing)])
+		check(cjk != null and cjk.has_char("日".unicode_at(0)) and cjk.has_char("한".unicode_at(0)),
+			"%s: the Language page's names draw too" % loc)
+	cfg.set_value("locale", "de")
+	us.apply_all()
+	check(us.cjk_font() == null and us.ui_fonts().all(func(f): return f.fallbacks.is_empty()), "German drops it")
+	label.queue_free()
 
 	cfg.set_value("locale", saved)
 	cfg.save()

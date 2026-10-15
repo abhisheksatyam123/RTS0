@@ -226,6 +226,7 @@ class Lobby:
         # 0 A.D. MUC roles: these names (lower case) are moderators.
         self.moderators = {str(m).strip().lower() for m in moderators if str(m).strip()}
         self.banned = set()  # names (lower case) kept out of the lobby
+        self.muted = set()   # names (lower case) with the XMPP "visitor" role: they read but cannot chat
         self.kicked = {}     # token -> the line its player gets on its next request
         self.subject = str(subject or "")[:MAX_TEXT]
         self.clock = clock
@@ -263,8 +264,11 @@ class Lobby:
             del self.players[t]
         self.rooms = [r for r in self.rooms if now - r["seen"] <= self.timeout]
 
-    def _say(self, sender, text):
-        self.chat.append({"id": self.next_chat, "time": time.time(), "from": sender or "", "text": text})
+    def _say(self, sender, text, event=None):
+        msg = {"id": self.next_chat, "time": time.time(), "from": sender or "", "text": text}
+        if event:
+            msg["event"] = event  # a status line each client words for itself (StatusMessageEvents.js)
+        self.chat.append(msg)
         self.next_chat += 1
         del self.chat[:-CHAT_KEEP]
 
@@ -303,6 +307,52 @@ class Lobby:
         else:
             name = nick
         self._say(None, f"{name} has been {'banned' if ban else 'kicked'} from the lobby.{suffix}")
+        return 200, {}
+
+    def mute(self, token, nick, muted=True):
+        """A moderator gives nick the "visitor" role (muted) or "participant" back
+        (StatusMessageEvents.js Role: "has been muted." / "has been unmuted.")."""
+        p = self.player(token)
+        if not p:
+            return self.not_signed_in(token)
+        if p["name"].lower() not in self.moderators:
+            return 403, {"error": "The command is restricted to moderators."}
+        nick = " ".join(str(nick or "").split())[:MAX_NAME]
+        target = next((q for q in self.players.values() if q["name"].lower() == nick.lower()), None)
+        if target is None:
+            return 404, {"error": "no such player"}
+        key = target["name"].lower()
+        if key in self.moderators:
+            return 403, {"error": "A moderator cannot be muted."}
+        if (key in self.muted) == bool(muted):
+            return 200, {}
+        old = self.role(target["name"])
+        if muted:
+            self.muted.add(key)
+        else:
+            self.muted.discard(key)
+        self._say(None, f"{target['name']} has been {'muted' if muted else 'unmuted'}.",
+                  {"kind": "role", "nick": target["name"], "newrole": self.role(target["name"]), "oldrole": old})
+        return 200, {}
+
+    def role(self, name):
+        """The XMPP MUC role: moderator, visitor (muted) or participant."""
+        key = str(name).lower()
+        return "visitor" if key in self.muted else "moderator" if key in self.moderators else "participant"
+
+    def announce(self, token, subject, text):
+        """A server-wide notice (AnnouncementHandler.js, an XMPP headline)."""
+        p = self.player(token)
+        if not p:
+            return self.not_signed_in(token)
+        if p["name"].lower() not in self.moderators:
+            return 403, {"error": "The command is restricted to moderators."}
+        subject = str(subject or "").strip()[:MAX_TEXT]
+        text = str(text or "").strip()[:MAX_TEXT]
+        if not subject and not text:
+            return 400, {"error": "empty notice"}
+        body = "\n\n".join(s for s in (subject, text) if s)
+        self._say(None, "== Notice:\n" + body, {"kind": "announcement", "subject": subject, "text": text})
         return 200, {}
 
     def set_subject(self, token, subject):
@@ -403,6 +453,8 @@ class Lobby:
             row = {"name": p["name"], "status": p["status"]}
             if p["name"].lower() in self.moderators:
                 row["moderator"] = True
+            if p["name"].lower() in self.muted:
+                row["muted"] = True  # the "visitor" role
             r = self.ratings.get(p["name"].lower())
             if r and r.get("rating") is not None:
                 row["rating"] = r["rating"]
@@ -666,6 +718,8 @@ class Lobby:
         p = self.player(token)
         if not p:
             return self.not_signed_in(token)
+        if p["name"].lower() in self.muted:
+            return 403, {"error": "You have been muted."}
         text = str(text or "").strip()[:MAX_TEXT]
         if not text:
             return 400, {"error": "empty message"}
@@ -674,6 +728,24 @@ class Lobby:
 
 
 LOBBY = Lobby()
+
+# 0 A.D. prelobby/common/terms: the Terms of Service, Terms of Use and Privacy
+# Policy a player reads and accepts before signing in or registering. This
+# server serves its operator's texts (--terms-dir); with none, it has no terms.
+TERMS_PAGES = (("Service", "Terms of Service", "Terms_of_Service.txt"),
+               ("Use", "Terms of Use", "Terms_of_Use.txt"),
+               ("Privacy", "Privacy Policy", "Privacy_Policy.txt"))
+TERMS = []
+
+
+def load_terms(directory):
+    pages = []
+    for page, title, name in TERMS_PAGES:
+        path = os.path.join(directory, name)
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                pages.append({"page": page, "title": title, "text": f.read()})
+    return pages
 
 
 class LobbyHandler(BaseHTTPRequestHandler):
@@ -708,6 +780,8 @@ class LobbyHandler(BaseHTTPRequestHandler):
                 code, obj = LOBBY.player_list()
             elif path == "/leaderboard":
                 code, obj = LOBBY.leaderboard()
+            elif path == "/terms":
+                code, obj = 200, {"pages": TERMS}
             elif path == "/profile":
                 code, obj = LOBBY.profile(parse_qs(url.query).get("name", [""])[0])
             elif path == "/chat":
@@ -767,6 +841,10 @@ class LobbyHandler(BaseHTTPRequestHandler):
                 elif path == "/kick":
                     code, obj = LOBBY.kick(data.get("token"), data.get("nick"), data.get("reason"),
                                            bool(data.get("ban")))
+                elif path == "/mute":
+                    code, obj = LOBBY.mute(data.get("token"), data.get("nick"), bool(data.get("muted", True)))
+                elif path == "/announce":
+                    code, obj = LOBBY.announce(data.get("token"), data.get("subject"), data.get("text"))
                 elif path == "/subject":
                     code, obj = LOBBY.set_subject(data.get("token"), data.get("subject"))
                 elif path == "/report":
@@ -850,13 +928,18 @@ def main():
     parser.add_argument("--moderators", default="",
                         help="comma-separated names that may /kick and /ban (0 A.D. lobby moderators)")
     parser.add_argument("--subject", default="", help="the lobby room's subject")
+    parser.add_argument("--terms-dir",
+                        help="folder with Terms_of_Service.txt, Terms_of_Use.txt and Privacy_Policy.txt, "
+                             "which players must accept before signing in (tools/lobby_terms has templates)")
     parser.add_argument("--exit-with-parent", action="store_true",
                         help="stop when the process that started this one ends (for test scripts, so a "
                              "crashed or killed test leaves no server holding its port and its players)")
     args = parser.parse_args()
     if args.exit_with_parent:
         watch_parent()
-    global LOBBY
+    global LOBBY, TERMS
+    if args.terms_dir:
+        TERMS = load_terms(args.terms_dir)
     LOBBY = Lobby(timeout=args.timeout, ratings_path=args.ratings, accounts_path=args.accounts,
                   accounts_only=args.accounts_only, moderators=args.moderators.split(","),
                   subject=args.subject)

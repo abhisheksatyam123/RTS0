@@ -207,6 +207,11 @@ void TurnManager::apply_peer_control(const NetCommand &c) {
 	if (id != 0 && id == local_client_id_ && c.cmd_type == CMD_PEER_JOINED && c.target_z > 0.5f)
 		rejoined_clients_.push_back(id); // the rejoiner hears it too
 	if (id == 0 || id == local_client_id_) return;
+	// A late observer loaded: everyone hears "has joined the game.", and it stays out of the lockstep.
+	if (c.cmd_type == CMD_PEER_JOINED && c.param >= MAX_PLAYERS) {
+		if (c.target_z > 0.5f) rejoined_clients_.push_back(id);
+		return;
+	}
 	if (c.cmd_type == CMD_PEER_LEFT) {
 		apply_peer_left(id, (uint32_t)c.target_x);
 		std::cerr << "[TurnManager] client " << id << " left after turn " << (uint32_t)c.target_x << "\n";
@@ -257,6 +262,13 @@ uint32_t TurnManager::turns_behind() {
 	uint32_t n = 0;
 	while (n < 64 && received_batches_.count(current_turn_ + n + 1) && turn_ready(current_turn_ + n + 1)) ++n;
 	return n;
+}
+
+uint32_t TurnManager::turns_in_hand() const {
+	uint32_t last = 0;
+	for (uint32_t n = 1; n <= 64; ++n)
+		if (received_batches_.count(current_turn_ + n)) last = n;
+	return last;
 }
 
 void TurnManager::drop_client(uint32_t client_id) {
@@ -415,6 +427,21 @@ void TurnManager::admit_rejoiner(uint32_t client_id) {
 	if (it == rejoin_loading_.end()) return;
 	const uint8_t seat = it->second;
 	rejoin_loading_.erase(it);
+	if (seat >= MAX_PLAYERS) {
+		// 0 A.D. NetServer OnRejoined multicasts NMT_REJOINED for an observer too
+		// ("has joined the game."); nobody waits on it, so it gets no lockstep turn.
+		NetCommand c;
+		c.cmd_type = CMD_PEER_JOINED;
+		c.target_id = client_id;
+		c.param = seat;
+		c.target_x = (float)(current_turn_ + COMMAND_DELAY + 1);
+		const bool joined = !saved_waiting_.count(client_id); // a saved game's observers load at Start
+		c.target_z = joined ? 1.0f : 0.0f;
+		pending_control_.push_back(c);
+		if (joined) rejoined_clients_.push_back(client_id);
+		std::cerr << "[TurnManager] observer " << client_id << " loaded\n";
+		return;
+	}
 	ensure_lockstep_peers();
 	const uint32_t L = current_turn_ + COMMAND_DELAY + 1;
 	if (std::find(lockstep_peers_.begin(), lockstep_peers_.end(), client_id) == lockstep_peers_.end())
@@ -584,8 +611,9 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 	lockstep_until_.erase(client_id);
 	left_clients_.erase(client_id);
 	net_host_->setPeerObserver(client_id, observer);
-	// A player joins the lockstep once it has loaded (admit_rejoiner).
-	if (!observer) rejoin_loading_[client_id] = seat;
+	// A player joins the lockstep once it has loaded (admit_rejoiner); an
+	// observer's "loaded" only tells everyone it has joined.
+	rejoin_loading_[client_id] = observer ? (uint8_t)0xFF : seat;
 	// 0 A.D. NetServer OnRejoined: the rejoiner is told who is pausing
 	// (it keeps the list through its rejoin reset; later changes reach it as
 	// they reach everyone).
@@ -783,9 +811,10 @@ bool TurnManager::apply_pending_rejoin(Simulation &sim) {
 	rejoined_ = true;
 	rejoin_fast_forward_ = true;
 	rejoin_turn_ = T;
-	if (seat < MAX_PLAYERS) {
-		// 0 A.D. NMT_LOADED_GAME: the host now lets the lockstep wait on us.
-		rejoin_lockstep_wait_ = true;
+	{
+		// 0 A.D. NMT_LOADED_GAME: the host now lets the lockstep wait on a player,
+		// and tells everyone an observer has joined.
+		rejoin_lockstep_wait_ = seat < MAX_PLAYERS;
 		RejoinMsg loaded;
 		loaded.kind = RejoinMsg::LOADED;
 		loaded.turn = T;
@@ -1432,7 +1461,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		return false;
 	}
 	const bool net_client = net_game_started() && lockstep_net_active() && net_host_ && !net_host_->isHost();
-	if (rejoin_fast_forward_ && (!net_client || turns_behind() <= CATCH_UP_TURNS)) rejoin_fast_forward_ = false;
+	if (rejoin_fast_forward_ && (!net_client || turns_in_hand() <= CATCH_UP_TURNS)) rejoin_fast_forward_ = false;
 	float rate = 1.0f;
 	if (auto_catch_up_ && net_client && is_observer() && !rejoin_fast_forward_) {
 		// NetworkDelayOverlay.CheckDelay: 10% faster while too far behind.
@@ -1593,6 +1622,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		const size_t n = owned.size();
 		const bool queued = (c.param & NET_PARAM_QUEUED) != 0;
 		const bool capture = (c.param & NET_PARAM_NO_CAPTURE) == 0;
+		struct PushFront { // input.js pushFront for this one command
+			Simulation &sim;
+			~PushFront() { sim.set_push_front_order(false); }
+		} push_front_reset{sim};
+		sim.set_push_front_order(!queued && (c.param & NET_PARAM_PUSH_FRONT_ORDER) && net_cmd_takes_push_front(c.cmd_type));
 		note_player_command(sim, pl, c);
 		if (record_applied_ && applied_cmds_.size() < 256) {
 			applied_cmds_.push_back({pl, c});
@@ -1631,7 +1665,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 8) { // Formation
 			sim.order_set_formation(ids, n, c.param);
 		} else if (c.cmd_type == 9) { // Research
-			sim.cmd_research(pl, c.target_id, c.param);
+			sim.cmd_research(pl, c.target_id, c.param, c.target_x == 1.0f);
 		} else if (c.cmd_type == 10) { // Attack-move
 			sim.order_attack_move(ids, n, c.target_x, c.target_z, queued, (c.param & NET_PARAM_UNITS_ONLY) != 0, capture);
 		} else if (c.cmd_type == 11) { // Patrol
@@ -1715,7 +1749,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.order_pack(ids, n, c.param == 1);
 		} else if (c.cmd_type == 25) { // Train roster template — target_id=building, target_x=template.
 			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT)
-				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x, batch_count(c.target_z));
+				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x, batch_count(c.target_z),
+						(c.param & NET_PARAM_PUSH_FRONT_ORDER) != 0);
 		} else if (c.cmd_type == 48) { // Unit Trainer/Researcher — target_id=unit, target_x=template (param 0), tech (2) or
 			// queue slot (param 1 cancels), target_z=batch.
 			if (c.param == 2) { // research technology target_x (Researcher on a unit)

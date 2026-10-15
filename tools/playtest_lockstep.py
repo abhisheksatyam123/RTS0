@@ -506,11 +506,14 @@ def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int
     h, b = read_hashes(logs["host"]), read_hashes(logs["back"])
     t0 = int(rep.get("join", {}).get("turn", "0"))
     # 0 A.D. NMT_REJOINED: the host and bob both hear "has rejoined the game."
-    # (bob's own client id is the one the host lists; mallory only watches).
+    # for bob, and the host also hears "has joined the game." for mallory, who
+    # only watches (she has left before bob is back).
     host_rejoined = peer_lines([outs[3]], "rejoined").get("host", {})
     back_rejoined = peer_lines([outs[2]], "rejoined").get("join", {})
     back_pause = peer_lines([outs[2]], "pause").get("join", {})
-    rejoined_ok = (back_rejoined.get("me") and host_rejoined.get("clients") == back_rejoined.get("me")
+    intruder_client = peer_lines([outs[1]], "rejoin").get("join", {}).get("client")
+    rejoined_ok = (back_rejoined.get("me") and intruder_client
+                   and set(host_rejoined.get("clients", "").split(",")) == {intruder_client, back_rejoined.get("me")}
                    and back_rejoined.get("clients") == back_rejoined.get("me"))
     pause_ok = back_pause.get("seen") == "1" and back_pause.get("by") == "0"
     after = [t for t in sorted(b) if t > t0]
@@ -695,6 +698,8 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
         "observer flags": observer_flags == {"host": "0", "join": "0", "obs": "1"},
         "second observer refused (reason 7)": refused,
         "stranger refused (reason 6)": stranger_refused,
+        # NMT_REJOINED for an observer: every peer hears "watcher has joined the game.".
+        "everyone heard the observer join": all("2" in lines(r, "rejoined").get("clients", "").split(",") for r in roles),
     }
     behind = float(lines("obs", "catchup").get("behind_late", "99"))
     if loss < 0.3:
@@ -705,7 +710,7 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
         print(f"[net] PASS observer: joined at turn {t0} as an observer, matched the host on turns {t0 + 1}-{turns}, "
               f"never waited on; every player list shows {sorted(want)}; a second observer past the limit "
               f"of 1 was refused (reason 7) and a stranger not on the buddy list (reason 6); it ran "
-              f"{behind:.1f} turns behind the host at the end (final hash {h[turns]})")
+              f"{behind:.1f} turns behind the host at the end; every peer heard it join (final hash {h[turns]})")
     else:
         for role in roles:
             for line in (outs[role] or "").splitlines():

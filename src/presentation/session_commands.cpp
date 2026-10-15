@@ -371,9 +371,11 @@ void RtsoMain::_on_tech_pressed(int tech_id) {
 void RtsoMain::_on_tech_pressed_at(int tech_id, int64_t building_id) {
 	if (building_id == 0) return;
 	if (turn_cmds())
-		post_lockstep(9, nullptr, 0, 0, 0, (uint32_t)building_id, (uint8_t)tech_id);
+		// selection_panels_helpers.js addResearchToQueue: "pushFront" (target_x 1).
+		post_lockstep(9, nullptr, 0, rtso::hotkeys::held("session.pushorderfront") ? 1.0f : 0.0f, 0, (uint32_t)building_id,
+				(uint8_t)tech_id);
 	else
-		sim->cmd_research(local_player(), (uint32_t)building_id, (uint8_t)tech_id);
+		sim->cmd_research(local_player(), (uint32_t)building_id, (uint8_t)tech_id, rtso::hotkeys::held("session.pushorderfront"));
 }
 
 // The selected structures of the primary one's type, primary first: 0.28's selection
@@ -414,14 +416,17 @@ void RtsoMain::_on_upgrade_pressed(int choice) {
 void RtsoMain::_on_gate_lock_pressed(int lock) {
 	if (selected_building_id == 0) return;
 	const std::vector<uint32_t> structs = selected_structures();
+	bool any = false;
 	for (const auto &b : sim->buildings()) {
 		if (!rtso::is_gate_type(b.type) || std::find(structs.begin(), structs.end(), b.id) == structs.end()) continue;
 		const uint32_t id = b.id;
+		any = any || (b.team == local_player() && b.gate_locked != (lock != 0));
 		if (turn_cmds())
 			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_LOCK_GATE, nullptr, 0, 0, 0, id, lock ? 1 : 0);
 		else
 			sim->cmd_lock_gate(local_player(), id, lock != 0);
 	}
+	if (any) session_audio_.play_gate_lock(); // Gate.js LockGate / UnlockGate: sel_gate
 }
 
 // 0 A.D. ProductionQueue.js EnableAutoQueue / DisableAutoQueue through lockstep command 44,
@@ -452,12 +457,14 @@ void RtsoMain::_on_dropsite_sharing_pressed(int shared) {
 // selected structure that raises alerts (raiseAlert: the selection's AlertRaisers).
 void RtsoMain::_on_alert_pressed(int end) {
 	if (selected_building_id == 0) return;
+	bool alerted = false;
 	for (uint32_t id : selected_structures()) {
 		rtso::AlertRaiserInfo ai;
 		bool raiser = false;
 		for (const auto &b : sim->buildings())
 			if (b.id == id) raiser = b.team == local_player() && rtso::building_alert_raiser(b.type, ai);
 		if (!raiser) continue;
+		alerted = true;
 		if (net_lockstep())
 			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_ALERT, nullptr, 0, 0, 0, id, end ? 1 : 0);
 		else if (end)
@@ -465,6 +472,7 @@ void RtsoMain::_on_alert_pressed(int end) {
 		else
 			sim->cmd_raise_alert(local_player(), id);
 	}
+	if (alerted) session_audio_.play_alert(end != 0); // AlertRaiser alert_raise / alert_end
 }
 
 // 0 A.D. unit Upgrade on the selection through lockstep command 43 (`to` = roster

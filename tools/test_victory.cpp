@@ -866,6 +866,14 @@ int main() {
 		CHECK(sim.spies().empty());
 		sim.tick_los();
 		CHECK(!sim.los_visible(0, ex + 6.0f, ez + 6.0f)); // the spy's vision ends with it
+		// VisionSharing.js AddSpy: Duration x 60 / the unit's modified vision, so Exploration's
+		// +20% trader vision shortens the spy to 12.5 s.
+		sim.complete_research(1, TECH_EXPLORATION);
+		sim.players_[0].res[RES_GOLD] = 1000.0f;
+		CHECK(sim.cmd_bribe(0, 1) == Simulation::BRIBE_OK && sim.spies().size() == 1 &&
+		      std::fabs(sim.spies()[0].remaining - 12.5f) < 1e-3f);
+		sim.tick_spies(12.5f);
+		CHECK(sim.spies().empty());
 		// Counterintelligence: x1.5 against the bribed player.
 		sim.complete_research(1, TECH_SPY_COUNTER);
 		CHECK(sim.bribe_cost(0, 1) == 750 && sim.bribe_cost(0, 1, true) == 187);

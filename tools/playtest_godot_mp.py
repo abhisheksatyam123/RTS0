@@ -206,13 +206,15 @@ def play_connect_timeout(args, lobby):
     out = log.read()
     status = next((l.split(" connect_status=", 1)[1] for l in gmp_lines(out) if " connect_status=" in l), "")
     scene = next((l.split(" connect_exit_scene=", 1)[1] for l in gmp_lines(out) if " connect_exit_scene=" in l), "")
+    box = next((l.split(" connect_box=", 1)[1] for l in gmp_lines(out) if " connect_box=" in l), "")
     ok = (p.returncode == 0 and status.startswith("Failed to connect to the server. The connection request has timed out.")
-          and "Please ensure" not in status and status.endswith("reason=0") and scene == "res://scenes/menu/lobby.tscn")
+          and "Please ensure" not in status and status.endswith("reason=0") and scene == "res://scenes/menu/lobby.tscn"
+          and box == "Connection Error buttons=Close,Open FAQ")
     for line in gmp_lines(out):
         print("   " + line)
     if ok:
         print(f"[gmp] PASS a join nobody answered gave up after {time.time() - t0:.0f}s with: {status.split(' | ')[0]}; "
-              "Exit went back to the lobby")
+              "in a \"Connection Error\" box with Close and Open FAQ; Close went back to the lobby")
         return True
     print("\n".join(l for l in out.splitlines() if "NetHost" in l or "[gmp]" in l)[-3000:])
     print(f"[gmp] FAIL connect timeout rc={p.returncode} status={status!r} scene={scene!r}")
@@ -244,8 +246,10 @@ def play_direct_join_refused(args, lobby):
     log.seek(0)
     out = log.read()
     status = next((l.split(" connect_status=", 1)[1] for l in gmp_lines(out) if " connect_status=" in l), "")
+    box = next((l.split(" connect_box=", 1)[1] for l in gmp_lines(out) if " connect_box=" in l), "")
     ok = (p.returncode == 0 and
-          status == "Failed to connect to the server. | Secure lobby authentication failed. Join via lobby. reason=10")
+          status == "Failed to connect to the server. | Secure lobby authentication failed. Join via lobby. reason=10"
+          and box == " buttons=Exit")
     for line in gmp_lines(out):
         print("   " + line)
     if ok:
@@ -456,6 +460,10 @@ def play(args, lobby, leave):
     users = {role: said(role, "users").replace(" list=", " ") for role in ("host", "join")}
     ok = ok and users == {"host": "2 alice,_bob", "join": "2 alice,_bob"}
     ok = ok and not any("> /list" in outs[role] for role in ("host", "join"))
+    # 0.28 ChatAddressees: the other player as "■ name"; Tab completes alice and bob.
+    addressees = {role: said(role, "addressees").split(" names=") for role in ("host", "join")}
+    ok = ok and addressees == {"host": ["Everyone|Allies|Enemies|Observers|■_bob", "alice,bob"],
+                               "join": ["Everyone|Allies|Enemies|Observers|■_alice", "alice,bob"]}
     # 0.28 PauseOverlay: the host's pause reads on the client as its name in its player colour.
     paused_by = said("join", "paused_by")
     ok = ok and re.fullmatch(r"\[center\]Paused by \[color=#[0-9a-f]{6}\]alice\[/color\]\[/center\]", paused_by) is not None
