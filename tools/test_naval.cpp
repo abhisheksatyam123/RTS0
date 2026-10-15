@@ -106,8 +106,10 @@ static void test_dock_trade() {
 	CHECK(athen_ship == cart_land);
 	std::printf("dock route %.0f m: Carthaginian ship %d, caravan %d, Athenian ship %d\n", metres, cart_ship, cart_land, athen_ship);
 
-	// A merchant ship in the sea finds the route itself and is paid on each arrival.
+	// A merchant ship in the sea takes the farthest pair of docks it can trade at (the route an
+	// AI's idle trader picks, order_trade_auto) and is paid on each arrival.
 	const uint32_t ship = s.spawn_unit(-40.0f, 8.0f, 0, UNIT_MERCHANT_SHIP);
+	s.order_trade_auto(&ship, 1);
 	run(s, 240.0f);
 	const int earned = total(s, 0);
 	std::printf("Carthaginian merchant ship earned %d in 240 s\n", earned);
@@ -132,6 +134,7 @@ static void test_dock_trade() {
 	const uint32_t cmarket = c.spawn_building_world(-40.0f, -40.0f, BLD_MARKET, 0);
 	c.spawn_building_world(5.0f, -45.0f, BLD_TOWN_CENTER, 0); // territory, or both decay to Gaia
 	const uint32_t caravan = c.spawn_unit(-30.0f, -40.0f, 0, UNIT_TRADER);
+	c.order_trade_auto(&caravan, 1);
 	run(c, 240.0f);
 	const auto route = c.trader_routes_.find(caravan);
 	CHECK(route != c.trader_routes_.end());

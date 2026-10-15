@@ -319,6 +319,14 @@ static void test_structures() {
 		structure_loot(BLD_WALL_SEGMENT, CIV_ATHENIANS, 0.5f * stone.lengths[0]).stone == 7 &&
 		structure_loot(BLD_WALL_SEGMENT, CIV_MAURYANS, 0.5f * stone.lengths[1]).wood == 5,
 		"wall pieces pay by length: short 3, long 7 stone; a Mauryan medium one 5 wood");
+	// Ptolemaic and Seleucid wall_* are 38/25/15 and 34/21/11 m long, still 7/5/3 stone.
+	for (uint8_t civ : {CIV_PTOLEMIES, CIV_SELEUCIDS}) {
+		const WallSetInfo own = wallset_info(WALLSET_STONE, civ);
+		check(structure_loot(BLD_WALL_SEGMENT, civ, 0.5f * own.lengths[0]).stone == 7 &&
+			structure_loot(BLD_WALL_SEGMENT, civ, 0.5f * own.lengths[1]).stone == 5 &&
+			structure_loot(BLD_WALL_SEGMENT, civ, 0.5f * own.lengths[2]).stone == 3,
+			"Ptolemaic and Seleucid wall pieces pay 7, 5 and 3 stone by their own lengths");
+	}
 	check(structure_loot(BLD_PALISADE, CIV_GAULS, 0.5f * pal.lengths[0]).wood == 3 && structure_loot(BLD_PALISADE, CIV_GAULS, pal.tower_half).wood == 3 &&
 		structure_loot(BLD_PALISADE, CIV_GAULS, 0.5f * pal.lengths[2]).wood == 1, "palisades pay 3, 1 and their tower 3 wood");
 	s.set_team_civ(1, CIV_PTOLEMIES);
