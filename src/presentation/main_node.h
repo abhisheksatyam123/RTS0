@@ -381,7 +381,6 @@ public:
 	void log_render(const String &text, bool error = false);
 	void update_log_messages(bool changed = false);
 	uint64_t notice_until_ = 0; // ticks_msec when show_notice's banner hides
-	void _on_replay_speed_selected(int index);
 	static String speed_text(float speed);
 	static String speed_title(float speed);
 	static Array speed_choices(bool fast_forward);
@@ -946,8 +945,6 @@ private:
 	bool replay_oos_shown_ = false;          // OutOfSyncReplay has asked
 	uint32_t net_oos_shown_turn_ = 0;        // OutOfSyncNetwork showed this turn (0 none)
 	static constexpr int kReplayViewGaiaId = 100;
-	OptionButton *replay_speed_picker_ = nullptr;
-	Button *replay_pause_btn_ = nullptr;
 	uint8_t replay_view_ = rtso::OBSERVER_VIEW; // replay perspective (0 A.D. replay "Player view")
 	// An observer's perspective (0 A.D. session "viewPlayer" dropdown): the whole
 	// map, or one player's sight and panels. Presentation only.
