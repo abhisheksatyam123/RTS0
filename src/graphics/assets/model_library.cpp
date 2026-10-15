@@ -32,6 +32,7 @@
 #include <godot_cpp/core/math.hpp>
 #include <godot_cpp/core/memory.hpp>
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <unordered_map>
 #include <vector>
@@ -43,6 +44,35 @@ namespace rtso {
 HashMap<String, ModelLibrary::Entry> &ModelLibrary::cache() {
 	static auto &c = *new HashMap<String, Entry>(); // leaked: no Godot dtor after the engine exits
 	return c;
+}
+
+// 0.28 draws every animal at its actor's own size. The extractors fitted each
+// animal GLB to a height of its own (a chicken 0.5, a horse 1.7), keeping the
+// factor as the GLB root's scale, so an animal drawn at FAUNA_SCALE / that factor
+// shows at 0.28's size next to the others: the civilians' scale
+// (female_citizen.glb's root is 0.387, drawn at 1.68 tall as fitted).
+static constexpr float FAUNA_SCALE = 0.39f;
+
+static bool is_fauna_model(const String &id) {
+	for (int f = 0; f < FAUNA_COUNT; ++f) {
+		if (id == fauna_type_info((uint8_t)f).model_id) return true;
+	}
+	return false;
+}
+
+// The scale of the GLB's root node (the first scaled node from the scene root).
+static float glb_root_scale(Node *n, int depth = 0) {
+	for (int i = 0; i < n->get_child_count(); ++i) {
+		Node3D *c = Object::cast_to<Node3D>(n->get_child(i));
+		if (c && std::fabs(c->get_scale().x - 1.0f) > 1e-3f) return c->get_scale().x;
+	}
+	if (depth < 2) {
+		for (int i = 0; i < n->get_child_count(); ++i) {
+			const float r = glb_root_scale(n->get_child(i), depth + 1);
+			if (r > 0.0f) return r;
+		}
+	}
+	return 0.0f;
 }
 
 float ModelLibrary::target_height(const String &category, const String &id, float natural_h) {
@@ -64,12 +94,7 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		if (id == "archer_maiden") return 1.7f;
 		if (id == "female_citizen" || id == "female") return 1.68f;
 		if (id == "healer") return 1.72f;
-		if (id == "deer") return 1.35f;
-		if (id == "boar") return 1.15f;
-		if (id == "sheep" || id == "sheep_gaia") return 0.95f;
-		if (id == "wolf") return 1.05f;
-		// Animal GLBs come out of the extractors already sized (a chicken 0.5,
-		// a bush elephant 3.2), so they keep their own height.
+		// Animals keep their height here; load() redraws them at one shared scale.
 		for (int f = 0; f < FAUNA_COUNT; ++f) {
 			if (id == fauna_type_info((uint8_t)f).model_id) return natural_h;
 		}
@@ -1320,6 +1345,10 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 							float want_h = target_height(category, id, natural_h);
 							if (natural_h > 0.05f && want_h > 0.05f)
 								e.scale = want_h / natural_h;
+							if (category == "units" && is_fauna_model(id)) {
+								const float rs = glb_root_scale(inst);
+								if (rs > 0.01f) e.scale = FAUNA_SCALE / rs;
+							}
 							// A template model is drawn at its class model's scale, so a
 							// hero's crest or a champion's spear doesn't shrink the body.
 							if (tm && tm->class_model) {
