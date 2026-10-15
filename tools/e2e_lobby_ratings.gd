@@ -33,8 +33,11 @@ func frames(n: int) -> void:
 	for i in n:
 		await process_frame
 
+# max_frames counts frames at 60 fps of real time: headless --fixed-fps runs
+# frames unthrottled, and the lobby's HTTP answers take wall-clock time.
 func until(cond: Callable, max_frames := 600) -> bool:
-	for i in max_frames:
+	var deadline := Time.get_ticks_msec() + max_frames * 1000 / 60
+	while Time.get_ticks_msec() < deadline:
 		if cond.call():
 			return true
 		await process_frame
