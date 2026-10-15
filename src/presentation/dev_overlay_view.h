@@ -9,8 +9,8 @@
 // commands it has something behind, in 0.28's order: Change perspective, Display
 // selection state, the pathfinder, hierarchical pathfinder, obstruction, unit motion, range and
 // bounding box overlays
-// (debug_overlays.h), Restrict camera, Reveal map, Enable time warp and Promote
-// selected units; then DeveloperOverlayControlDropDowns' Render Debug Mode
+// (debug_overlays.h), Restrict camera, Reveal map, Enable time warp, Activate Rejoin
+// Test and Promote selected units; then DeveloperOverlayControlDropDowns' Render Debug Mode
 // dropdown, a row of its own under the boxes.
 
 #include <godot_cpp/classes/check_box.hpp>
@@ -39,12 +39,14 @@ public:
 		DEV_RESTRICT_CAMERA,
 		DEV_REVEAL_MAP,
 		DEV_TIME_WARP,
+		DEV_REJOIN_TEST,
 		DEV_PROMOTE,
 		DEV_COUNT
 	};
 	static constexpr const char *kLabels[DEV_COUNT] = {
 		"Change perspective", "Display selection state", "Pathfinder overlay", "Hierarchical pathfinder overlay", "Obstruction overlay", "Unit motion overlay",
-		"Range overlay", "Bounding box overlay", "Restrict camera", "Reveal map", "Enable time warp", "Promote selected units",
+		"Range overlay", "Bounding box overlay", "Restrict camera", "Reveal map", "Enable time warp", "Activate Rejoin Test",
+		"Promote selected units",
 	};
 	static constexpr float kRow = 24.0f;
 	// RenderDebugMode values(): RENDER_DEBUG_MODE_NONE, _AO, _ALPHA, _CUSTOM.
@@ -117,6 +119,10 @@ public:
 	}
 
 	bool is_open() const { return panel_ && panel_->is_visible(); }
+	// The handler's enabled(): a box that can't be pressed.
+	void set_enabled(int c, bool on) {
+		if (c >= 0 && c < DEV_COUNT && boxes_[c] && boxes_[c]->is_disabled() == on) boxes_[c]->set_disabled(!on);
+	}
 	void set_open(bool open) {
 		if (panel_) panel_->set_visible(open);
 	}

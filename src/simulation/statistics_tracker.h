@@ -138,8 +138,9 @@ inline uint32_t stat_unit_classes(uint8_t unit_type, uint16_t roster_flags) {
 	}
 	if (roster_flags & ROSTER_HERO) set(STAT_UNIT_HERO);
 	if (roster_flags & ROSTER_CHAMPION) set(STAT_UNIT_CHAMPION);
-	// Citizen soldiers gather and build (template_unit_infantry/cavalry: Worker).
-	if ((roster_flags & ROSTER_CITIZEN) && (m & ((1u << STAT_UNIT_INFANTRY) | (1u << STAT_UNIT_CAVALRY)))) set(STAT_UNIT_WORKER);
+	// Citizen infantry gather and build (template_unit_infantry.xml: Worker); citizen cavalry
+	// only hunt, and template_unit_cavalry.xml has no Worker class.
+	if ((roster_flags & ROSTER_CITIZEN) && (m & (1u << STAT_UNIT_INFANTRY))) set(STAT_UNIT_WORKER);
 	if (roster_flags & ROSTER_SIEGE_TOWER) set(STAT_UNIT_SIEGE);
 	if (roster_flags & ROSTER_CIVILIAN) { set(STAT_UNIT_CIVILIAN); set(STAT_UNIT_WORKER); }
 	// 0 A.D. champions and heroes are not counted as citizen infantry or cavalry.

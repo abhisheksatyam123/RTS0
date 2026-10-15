@@ -1,0 +1,6184 @@
+{
+ "foundations": {
+  "fndn_10x12": {
+   "origin": [
+    0.0004,
+    0.3896,
+    -0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_10x12_mausoleum",
+    "origin": [
+     0.0357,
+     1.4683,
+     0.0334
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_10x18": {
+   "origin": [
+    -0.0,
+    2.8111,
+    -0.0054
+   ],
+   "scale": 0.21
+  },
+  "fndn_2x2": {
+   "origin": [
+    -0.0978,
+    0.4099,
+    0.022
+   ],
+   "scale": 0.21
+  },
+  "fndn_3x1": {
+   "origin": [
+    -0.0,
+    0.1246,
+    0.0166
+   ],
+   "scale": 0.21
+  },
+  "fndn_3x3": {
+   "origin": [
+    0.076,
+    0.4099,
+    -0.0324
+   ],
+   "scaffold": {
+    "id": "scaffold_up_3x3",
+    "origin": [
+     -0.7717,
+     0.7604,
+     -0.3192
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_3x3_tower": {
+   "origin": [
+    0.076,
+    0.4099,
+    -0.0324
+   ],
+   "scaffold": {
+    "id": "scaffold_up_3x3_tower",
+    "origin": [
+     -0.0045,
+     1.4744,
+     -0.1395
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_3x6": {
+   "origin": [
+    -0.0976,
+    0.4099,
+    0.0233
+   ],
+   "scaffold": {
+    "id": "scaffold_up_3x3",
+    "origin": [
+     -0.7717,
+     0.7604,
+     -0.3192
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_4x3": {
+   "origin": [
+    -0.0,
+    0.4099,
+    0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_scaffold",
+    "origin": [
+     -0.0097,
+     2.1457,
+     -0.0624
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_4x4": {
+   "origin": [
+    0.0004,
+    0.4099,
+    0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_scaffold",
+    "origin": [
+     -0.0097,
+     2.1457,
+     -0.0624
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_4x4_dock": {
+   "origin": [
+    -0.0171,
+    0.9986,
+    -0.0953
+   ],
+   "scaffold": {
+    "id": "scaffold_up_found_dock_4x4_chains",
+    "origin": [
+     0.0019,
+     -0.0928,
+     0.6766
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_4x5": {
+   "origin": [
+    0.0004,
+    0.4099,
+    -0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_4x4",
+    "origin": [
+     0.0365,
+     3.1738,
+     -0.0648
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_4x6": {
+   "origin": [
+    0.0338,
+    0.4099,
+    -0.0156
+   ],
+   "scaffold": {
+    "id": "scaffold_up_4x4",
+    "origin": [
+     0.0365,
+     3.1738,
+     -0.0648
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_4x8": {
+   "origin": [
+    -0.0424,
+    0.4099,
+    0.0
+   ],
+   "scaffold": {
+    "id": "scaffold_up_4x4",
+    "origin": [
+     0.0365,
+     3.1738,
+     -0.0648
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_5x3": {
+   "origin": [
+    -0.0065,
+    0.4099,
+    -0.0004
+   ],
+   "scale": 0.21
+  },
+  "fndn_5x4": {
+   "origin": [
+    0.0004,
+    0.4099,
+    0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_4x4",
+    "origin": [
+     0.0365,
+     3.1738,
+     -0.0648
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_5x5": {
+   "origin": [
+    0.0788,
+    0.4099,
+    -0.052
+   ],
+   "scaffold": {
+    "id": "scaffold_up_5x5",
+    "origin": [
+     0.0319,
+     3.1738,
+     -0.028
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_5x6": {
+   "origin": [
+    -0.0004,
+    0.4099,
+    -0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_5x5",
+    "origin": [
+     0.0319,
+     3.1738,
+     -0.028
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_5x7": {
+   "origin": [
+    0.0004,
+    0.4099,
+    0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_5x7_temple",
+    "origin": [
+     0.0095,
+     2.0783,
+     0.0336
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_5x7_temple": {
+   "origin": [
+    0.0995,
+    0.6392,
+    0.0091
+   ],
+   "scaffold": {
+    "id": "scaffold_up_5x7_temple",
+    "origin": [
+     0.0095,
+     2.0783,
+     0.0336
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_5x8": {
+   "origin": [
+    -0.0004,
+    0.4099,
+    0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_5x7_temple",
+    "origin": [
+     0.0095,
+     2.0783,
+     0.0336
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_5x9": {
+   "origin": [
+    -0.0004,
+    0.4163,
+    -0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_5x7_temple",
+    "origin": [
+     0.0095,
+     2.0783,
+     0.0336
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_6x2": {
+   "origin": [
+    -0.0,
+    0.4099,
+    -0.0125
+   ],
+   "scaffold": {
+    "id": "scaffold_up_6x3",
+    "origin": [
+     -0.0,
+     2.4505,
+     0.0
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_6x4": {
+   "origin": [
+    -0.0156,
+    0.4099,
+    -0.0338
+   ],
+   "scaffold": {
+    "id": "scaffold_up_6x3",
+    "origin": [
+     -0.0,
+     2.4505,
+     0.0
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_6x4_dock": {
+   "origin": [
+    -0.0,
+    0.9986,
+    -0.0692
+   ],
+   "scaffold": {
+    "id": "scaffold_up_found_dock_6x4_chains",
+    "origin": [
+     -0.0181,
+     -0.0928,
+     0.6806
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_6x5": {
+   "origin": [
+    0.0004,
+    0.4099,
+    -0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_4x4",
+    "origin": [
+     0.0365,
+     3.1738,
+     -0.0648
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_6x6": {
+   "origin": [
+    0.0004,
+    0.4099,
+    -0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_5x5_1",
+    "origin": [
+     -0.0528,
+     2.1457,
+     -0.0545
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_6x7": {
+   "origin": [
+    -0.0059,
+    0.4099,
+    0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_5x7_temple",
+    "origin": [
+     0.0095,
+     2.0783,
+     0.0336
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_6x9": {
+   "origin": [
+    -0.0075,
+    0.4099,
+    0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_5x7_temple",
+    "origin": [
+     0.0095,
+     2.0783,
+     0.0336
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_7x15": {
+   "origin": [
+    0.0,
+    2.8111,
+    -0.0054
+   ],
+   "scale": 0.21
+  },
+  "fndn_7x15_hele": {
+   "origin": [
+    0.0,
+    2.8111,
+    -0.0054
+   ],
+   "scale": 0.21
+  },
+  "fndn_7x5": {
+   "origin": [
+    0.0004,
+    0.4099,
+    -0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_4x4",
+    "origin": [
+     0.0365,
+     3.1738,
+     -0.0648
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_7x6": {
+   "origin": [
+    0.0004,
+    0.4099,
+    0.0059
+   ],
+   "scaffold": {
+    "id": "scaffold_up_4x4",
+    "origin": [
+     0.0365,
+     3.1738,
+     -0.0648
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_7x7": {
+   "origin": [
+    0.0004,
+    0.5327,
+    -0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_5x5_1",
+    "origin": [
+     -0.0528,
+     2.1457,
+     -0.0545
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_7x8": {
+   "origin": [
+    0.0141,
+    0.4099,
+    -0.0286
+   ],
+   "scaffold": {
+    "id": "scaffold_up_7x7",
+    "origin": [
+     0.1026,
+     2.5741,
+     -0.115
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_7x9": {
+   "origin": [
+    -0.0004,
+    0.4099,
+    -0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_4x4",
+    "origin": [
+     0.0365,
+     3.1738,
+     -0.0648
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_8x15": {
+   "origin": [
+    0.0,
+    2.8111,
+    -0.0054
+   ],
+   "scale": 0.21
+  },
+  "fndn_8x15_hele": {
+   "origin": [
+    0.0,
+    2.8111,
+    -0.0054
+   ],
+   "scale": 0.21
+  },
+  "fndn_8x4": {
+   "origin": [
+    0.0,
+    0.4099,
+    0.0424
+   ],
+   "scaffold": {
+    "id": "scaffold_up_3x3",
+    "origin": [
+     -0.7717,
+     0.7604,
+     -0.3192
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_8x7": {
+   "origin": [
+    0.0286,
+    0.4099,
+    0.0141
+   ],
+   "scaffold": {
+    "id": "scaffold_up_7x7",
+    "origin": [
+     0.1026,
+     2.5741,
+     -0.115
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_8x8": {
+   "origin": [
+    0.0141,
+    0.4099,
+    -0.0286
+   ],
+   "scaffold": {
+    "id": "scaffold_up_8x8",
+    "origin": [
+     0.1349,
+     2.5741,
+     -0.0222
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_8x9": {
+   "origin": [
+    -0.0004,
+    0.4099,
+    -0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_8x8",
+    "origin": [
+     0.1349,
+     2.5741,
+     -0.0222
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_9x2": {
+   "origin": [
+    0.0,
+    0.4099,
+    -0.0546
+   ],
+   "scale": 0.21
+  },
+  "fndn_9x3_wall": {
+   "origin": [
+    -0.0,
+    0.4099,
+    0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_9x3_wall",
+    "origin": [
+     0.1894,
+     1.4683,
+     0.0
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_9x7": {
+   "origin": [
+    -0.0004,
+    0.4099,
+    0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_7x5_temple",
+    "origin": [
+     -0.2548,
+     2.0783,
+     -0.2117
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_9x8": {
+   "origin": [
+    -0.0004,
+    0.4099,
+    0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_8x8",
+    "origin": [
+     0.1349,
+     2.5741,
+     -0.0222
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_9x9": {
+   "origin": [
+    0.0004,
+    0.5327,
+    -0.0004
+   ],
+   "scaffold": {
+    "id": "scaffold_up_8x8",
+    "origin": [
+     0.1349,
+     2.5741,
+     -0.0222
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_carthaginians_defense_tower": {
+   "origin": [
+    -0.2305,
+    1.6508,
+    0.0138
+   ],
+   "scaffold": {
+    "id": "scaffold_up_cart_defense_tower",
+    "origin": [
+     -0.1166,
+     1.6508,
+     0.0208
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_carthaginians_farmstead": {
+   "origin": [
+    0.2645,
+    0.8484,
+    0.0147
+   ],
+   "scaffold": {
+    "id": "scaffold_up_cart_farmstead",
+    "origin": [
+     0.3154,
+     1.0767,
+     -0.115
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_carthaginians_fortress": {
+   "origin": [
+    0.0019,
+    2.0519,
+    0.4409
+   ],
+   "scaffold": {
+    "id": "scaffold_up_cart_fortress",
+    "origin": [
+     0.2947,
+     2.0519,
+     0.1062
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_carthaginians_house": {
+   "origin": [
+    0.0001,
+    2.6288,
+    0.1548
+   ],
+   "scaffold": {
+    "id": "scaffold_up_cart_house",
+    "origin": [
+     0.0174,
+     2.6288,
+     0.128
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_carthaginians_wall_long": {
+   "origin": [
+    0.0405,
+    1.9174,
+    -0.0
+   ],
+   "scaffold": {
+    "id": "scaffold_up_9x3_wall",
+    "origin": [
+     0.1894,
+     1.4683,
+     0.0
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_carthaginians_wall_tower": {
+   "origin": [
+    -0.0,
+    2.2219,
+    -0.0043
+   ],
+   "scaffold": {
+    "id": "scaffold_up_cart_wall_tower",
+    "origin": [
+     0.061,
+     2.2219,
+     -0.1306
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_carthaginians_wooden_tower": {
+   "origin": [
+    -0.0087,
+    2.6216,
+    0.0159
+   ],
+   "scaffold": {
+    "id": "scaffold_up_cart_wooden_tower",
+    "origin": [
+     0.2002,
+     2.6216,
+     0.1029
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_celt_dock": {
+   "origin": [
+    0.0335,
+    0.8286,
+    0.0427
+   ],
+   "scale": 0.21
+  },
+  "fndn_dock_iber": {
+   "origin": [
+    -0.0004,
+    1.0,
+    -0.0193
+   ],
+   "scale": 0.21
+  },
+  "fndn_dock_super": {
+   "origin": [
+    0.0057,
+    1.6861,
+    1.4977
+   ],
+   "scaffold": {
+    "id": "scaffold_up_8x8",
+    "origin": [
+     0.1349,
+     2.5741,
+     -0.0222
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_stonehenge": {
+   "origin": [
+    0.0,
+    1.1926,
+    0.0
+   ],
+   "scaffold": {
+    "id": "scaffold_up_10x12_mausoleum",
+    "origin": [
+     0.0357,
+     1.4683,
+     0.0334
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  },
+  "fndn_theater": {
+   "origin": [
+    0.2544,
+    1.1926,
+    -0.5695
+   ],
+   "scaffold": {
+    "id": "scaffold_up_8x8",
+    "origin": [
+     0.1349,
+     2.5741,
+     -0.0222
+    ],
+    "scale": 0.21
+   },
+   "scale": 0.21
+  }
+ },
+ "frames": {
+  "academy": {
+   "metre": 0.22318,
+   "origin": [
+    -0.0,
+    2.6786,
+    0.2201
+   ]
+  },
+  "amphitheater": {
+   "metre": 0.09668,
+   "origin": [
+    -0.0,
+    0.7121,
+    -0.0
+   ]
+  },
+  "archery_range": {
+   "metre": 0.14662,
+   "origin": [
+    0.0008,
+    0.8699,
+    -0.0064
+   ]
+  },
+  "arsenal": {
+   "metre": 0.18142,
+   "origin": [
+    0.1006,
+    1.7202,
+    0.1039
+   ]
+  },
+  "athen_barracks": {
+   "metre": 0.18689,
+   "origin": [
+    -0.0,
+    0.9882,
+    -0.1487
+   ]
+  },
+  "athen_corral": {
+   "metre": 0.22415,
+   "origin": [
+    0.0156,
+    1.0789,
+    0.0106
+   ]
+  },
+  "athen_dock": {
+   "metre": 0.12874,
+   "origin": [
+    -0.0,
+    0.9325,
+    0.0729
+   ]
+  },
+  "athen_farmstead": {
+   "metre": 0.19117,
+   "origin": [
+    -0.1917,
+    0.9311,
+    0.0442
+   ]
+  },
+  "athen_fortress": {
+   "metre": 0.23877,
+   "origin": [
+    0.0173,
+    0.922,
+    0.0912
+   ]
+  },
+  "athen_gate": {
+   "metre": 0.10473,
+   "origin": [
+    -0.0005,
+    0.9871,
+    0.0
+   ]
+  },
+  "athen_house": {
+   "metre": 0.16252,
+   "origin": [
+    -0.0201,
+    0.8224,
+    -0.0498
+   ]
+  },
+  "athen_market": {
+   "metre": 0.13696,
+   "origin": [
+    -0.0,
+    0.8827,
+    0.0018
+   ]
+  },
+  "athen_storehouse": {
+   "metre": 0.22296,
+   "origin": [
+    -0.0894,
+    0.964,
+    -0.0334
+   ]
+  },
+  "athen_temple": {
+   "metre": 0.20862,
+   "origin": [
+    -0.0004,
+    1.0482,
+    0.0057
+   ]
+  },
+  "athen_tower": {
+   "metre": 0.21659,
+   "origin": [
+    -0.004,
+    2.0977,
+    -0.0007
+   ]
+  },
+  "athen_town_center": {
+   "metre": 0.20834,
+   "origin": [
+    0.2469,
+    1.1589,
+    0.0333
+   ]
+  },
+  "athen_town_center_rubble": {
+   "metre": 0.1969,
+   "origin": [
+    -0.0349,
+    1.3387,
+    0.1076
+   ]
+  },
+  "athen_wall": {
+   "metre": 0.05511,
+   "origin": [
+    -0.0003,
+    0.5194,
+    -0.0
+   ]
+  },
+  "athen_wall_segment": {
+   "metre": 0.05511,
+   "origin": [
+    -0.0003,
+    0.5194,
+    -0.0
+   ]
+  },
+  "athen_wall_tower": {
+   "metre": 0.21659,
+   "origin": [
+    -0.004,
+    2.0977,
+    -0.0007
+   ]
+  },
+  "athen_wonder": {
+   "metre": 0.11684,
+   "origin": [
+    -0.0012,
+    0.005,
+    0.0008
+   ]
+  },
+  "ballista_tower": {
+   "metre": 0.23533,
+   "origin": [
+    -0.0,
+    1.5549,
+    -0.0
+   ]
+  },
+  "barracks": {
+   "metre": 0.18689,
+   "origin": [
+    -0.0,
+    0.9882,
+    -0.1487
+   ]
+  },
+  "bireme": {
+   "metre": 0.14692,
+   "origin": [
+    0.004,
+    0.2334,
+    0.0455
+   ]
+  },
+  "bireme_han": {
+   "metre": 0.36458,
+   "origin": [
+    -0.0,
+    0.2946,
+    0.0092
+   ]
+  },
+  "bireme_rome": {
+   "metre": 0.15009,
+   "origin": [
+    0.0144,
+    0.2363,
+    0.0761
+   ]
+  },
+  "blacksmith": {
+   "metre": 0.22576,
+   "origin": [
+    -0.1303,
+    0.8913,
+    -0.0743
+   ]
+  },
+  "blacksmith_brit": {
+   "metre": 0.2045,
+   "origin": [
+    -0.0241,
+    1.4116,
+    -0.1292
+   ]
+  },
+  "blacksmith_kart": {
+   "metre": 0.2039,
+   "origin": [
+    -0.0154,
+    0.9468,
+    -0.0175
+   ]
+  },
+  "brit_barracks": {
+   "metre": 0.1659,
+   "origin": [
+    -0.0601,
+    0.9655,
+    -0.1334
+   ]
+  },
+  "brit_corral": {
+   "metre": 0.16639,
+   "origin": [
+    0.0168,
+    1.6123,
+    -0.2135
+   ]
+  },
+  "brit_dock": {
+   "metre": 0.20526,
+   "origin": [
+    0.0327,
+    1.2857,
+    0.0405
+   ]
+  },
+  "brit_farmstead": {
+   "metre": 0.21305,
+   "origin": [
+    0.2781,
+    1.1096,
+    0.0053
+   ]
+  },
+  "brit_fortress": {
+   "metre": 0.18483,
+   "origin": [
+    -0.1127,
+    1.5361,
+    -0.0635
+   ]
+  },
+  "brit_gate": {
+   "metre": 0.10197,
+   "origin": [
+    0.0125,
+    0.8135,
+    0.0
+   ]
+  },
+  "brit_house": {
+   "metre": 0.17788,
+   "origin": [
+    -0.0,
+    0.8965,
+    0.1181
+   ]
+  },
+  "brit_market": {
+   "metre": 0.19303,
+   "origin": [
+    0.0273,
+    0.9933,
+    0.026
+   ]
+  },
+  "brit_storehouse": {
+   "metre": 0.18523,
+   "origin": [
+    0.074,
+    1.704,
+    0.0796
+   ]
+  },
+  "brit_temple": {
+   "metre": 0.23087,
+   "origin": [
+    0.0785,
+    2.5744,
+    0.1745
+   ]
+  },
+  "brit_tower": {
+   "metre": 0.18923,
+   "origin": [
+    0.0181,
+    1.1284,
+    -0.0142
+   ]
+  },
+  "brit_town_center": {
+   "metre": 0.20251,
+   "origin": [
+    -0.0111,
+    1.9603,
+    -0.1084
+   ]
+  },
+  "brit_town_center_rubble": {
+   "metre": 0.19592,
+   "origin": [
+    -0.0908,
+    1.332,
+    -0.0115
+   ]
+  },
+  "brit_wall": {
+   "metre": 0.05321,
+   "origin": [
+    -0.0002,
+    0.3603,
+    0.0006
+   ]
+  },
+  "brit_wall_segment": {
+   "metre": 0.05321,
+   "origin": [
+    -0.0002,
+    0.3603,
+    0.0006
+   ]
+  },
+  "brit_wall_tower": {
+   "metre": 0.18923,
+   "origin": [
+    0.0181,
+    1.1284,
+    -0.0142
+   ]
+  },
+  "brit_wonder": {
+   "metre": 0.1112,
+   "origin": [
+    0.0181,
+    0.677,
+    -0.007
+   ]
+  },
+  "cart_barracks": {
+   "metre": 0.17916,
+   "origin": [
+    0.0015,
+    0.1056,
+    -0.0179
+   ]
+  },
+  "cart_corral": {
+   "metre": 0.2255,
+   "origin": [
+    0.03,
+    0.4905,
+    -0.001
+   ]
+  },
+  "cart_dock": {
+   "metre": 0.145,
+   "origin": [
+    0.0093,
+    1.4352,
+    -0.0312
+   ]
+  },
+  "cart_farmstead": {
+   "metre": 0.17192,
+   "origin": [
+    -0.1155,
+    0.8815,
+    0.012
+   ]
+  },
+  "cart_fortress": {
+   "metre": 0.15608,
+   "origin": [
+    0.0012,
+    1.5603,
+    0.3749
+   ]
+  },
+  "cart_gate": {
+   "metre": 0.20449,
+   "origin": [
+    -0.0,
+    2.0457,
+    -0.0672
+   ]
+  },
+  "cart_house": {
+   "metre": 0.16822,
+   "origin": [
+    0.0001,
+    2.1058,
+    0.221
+   ]
+  },
+  "cart_market": {
+   "metre": 0.13618,
+   "origin": [
+    -0.0658,
+    1.2173,
+    0.1204
+   ]
+  },
+  "cart_storehouse": {
+   "metre": 0.22362,
+   "origin": [
+    -0.207,
+    0.0133,
+    0.1721
+   ]
+  },
+  "cart_temple": {
+   "metre": 0.37018,
+   "origin": [
+    -0.1855,
+    -0.0,
+    -0.0023
+   ]
+  },
+  "cart_tower": {
+   "metre": 0.15568,
+   "origin": [
+    -0.0,
+    1.6472,
+    -0.0032
+   ]
+  },
+  "cart_town_center": {
+   "metre": 0.18414,
+   "origin": [
+    -0.0474,
+    2.0758,
+    0.1519
+   ]
+  },
+  "cart_town_center_rubble": {
+   "metre": 0.1969,
+   "origin": [
+    -0.0349,
+    1.3387,
+    0.1076
+   ]
+  },
+  "cart_wall": {
+   "metre": 0.05371,
+   "origin": [
+    -0.0,
+    0.5046,
+    -0.0
+   ]
+  },
+  "cart_wall_segment": {
+   "metre": 0.05371,
+   "origin": [
+    -0.0,
+    0.5046,
+    -0.0
+   ]
+  },
+  "cart_wall_tower": {
+   "metre": 0.15568,
+   "origin": [
+    -0.0,
+    1.6472,
+    -0.0032
+   ]
+  },
+  "cart_wonder": {
+   "metre": 0.10515,
+   "origin": [
+    -0.0234,
+    0.4937,
+    -0.2088
+   ]
+  },
+  "corral": {
+   "metre": 0.2255,
+   "origin": [
+    0.03,
+    0.4905,
+    -0.001
+   ]
+  },
+  "crannog": {
+   "metre": 0.11429,
+   "origin": [
+    -0.0407,
+    0.9457,
+    -0.8222
+   ]
+  },
+  "defense_tower": {
+   "metre": 0.34015,
+   "origin": [
+    -0.001,
+    1.6932,
+    -0.0
+   ]
+  },
+  "dock": {
+   "metre": 0.12874,
+   "origin": [
+    -0.0,
+    0.9325,
+    0.0729
+   ]
+  },
+  "embassy": {
+   "metre": 0.13688,
+   "origin": [
+    -0.0,
+    1.5885,
+    -0.0
+   ]
+  },
+  "farmstead": {
+   "metre": 0.19117,
+   "origin": [
+    -0.1917,
+    0.9311,
+    0.0442
+   ]
+  },
+  "field_plot": {
+   "metre": 0.13333,
+   "origin": [
+    -0.0,
+    -0.0093,
+    -0.0
+   ]
+  },
+  "fishing_han": {
+   "metre": 0.19889,
+   "origin": [
+    0.0416,
+    0.0406,
+    0.0384
+   ]
+  },
+  "fndn_10x12": {
+   "metre": 0.21,
+   "origin": [
+    0.0004,
+    0.3896,
+    -0.0004
+   ]
+  },
+  "fndn_10x18": {
+   "metre": 0.20999,
+   "origin": [
+    -0.0,
+    2.811,
+    -0.0054
+   ]
+  },
+  "fndn_2x2": {
+   "metre": 0.20999,
+   "origin": [
+    -0.0978,
+    0.4099,
+    0.022
+   ]
+  },
+  "fndn_3x1": {
+   "metre": 0.21007,
+   "origin": [
+    -0.0,
+    0.1247,
+    0.0166
+   ]
+  },
+  "fndn_3x3": {
+   "metre": 0.20999,
+   "origin": [
+    0.076,
+    0.4099,
+    -0.0324
+   ]
+  },
+  "fndn_3x3_tower": {
+   "metre": 0.20999,
+   "origin": [
+    0.076,
+    0.4099,
+    -0.0324
+   ]
+  },
+  "fndn_3x6": {
+   "metre": 0.21001,
+   "origin": [
+    -0.0976,
+    0.4099,
+    0.0233
+   ]
+  },
+  "fndn_4x3": {
+   "metre": 0.20999,
+   "origin": [
+    -0.0,
+    0.4099,
+    0.0004
+   ]
+  },
+  "fndn_4x4": {
+   "metre": 0.21001,
+   "origin": [
+    0.0004,
+    0.4099,
+    0.0004
+   ]
+  },
+  "fndn_4x4_dock": {
+   "metre": 0.20999,
+   "origin": [
+    -0.0171,
+    0.9985,
+    -0.0953
+   ]
+  },
+  "fndn_4x5": {
+   "metre": 0.21001,
+   "origin": [
+    0.0004,
+    0.4099,
+    -0.0004
+   ]
+  },
+  "fndn_4x6": {
+   "metre": 0.20999,
+   "origin": [
+    0.0338,
+    0.4099,
+    -0.0156
+   ]
+  },
+  "fndn_4x8": {
+   "metre": 0.20999,
+   "origin": [
+    -0.0424,
+    0.4099,
+    0.0
+   ]
+  },
+  "fndn_5x3": {
+   "metre": 0.20999,
+   "origin": [
+    -0.0065,
+    0.4099,
+    -0.0004
+   ]
+  },
+  "fndn_5x4": {
+   "metre": 0.21001,
+   "origin": [
+    0.0004,
+    0.4099,
+    0.0004
+   ]
+  },
+  "fndn_5x5": {
+   "metre": 0.21001,
+   "origin": [
+    0.0788,
+    0.4099,
+    -0.052
+   ]
+  },
+  "fndn_5x6": {
+   "metre": 0.21,
+   "origin": [
+    -0.0004,
+    0.4099,
+    -0.0004
+   ]
+  },
+  "fndn_5x7": {
+   "metre": 0.21,
+   "origin": [
+    0.0004,
+    0.4099,
+    0.0004
+   ]
+  },
+  "fndn_5x7_temple": {
+   "metre": 0.20999,
+   "origin": [
+    0.0995,
+    0.6391,
+    0.0091
+   ]
+  },
+  "fndn_5x8": {
+   "metre": 0.21001,
+   "origin": [
+    -0.0004,
+    0.4099,
+    0.0004
+   ]
+  },
+  "fndn_5x9": {
+   "metre": 0.21,
+   "origin": [
+    -0.0004,
+    0.4163,
+    -0.0004
+   ]
+  },
+  "fndn_6x2": {
+   "metre": 0.20999,
+   "origin": [
+    -0.0,
+    0.4099,
+    -0.0125
+   ]
+  },
+  "fndn_6x4": {
+   "metre": 0.20999,
+   "origin": [
+    -0.0156,
+    0.4099,
+    -0.0338
+   ]
+  },
+  "fndn_6x4_dock": {
+   "metre": 0.21,
+   "origin": [
+    -0.0,
+    0.9986,
+    -0.0692
+   ]
+  },
+  "fndn_6x5": {
+   "metre": 0.21,
+   "origin": [
+    0.0004,
+    0.4099,
+    -0.0004
+   ]
+  },
+  "fndn_6x6": {
+   "metre": 0.21,
+   "origin": [
+    0.0004,
+    0.4099,
+    -0.0004
+   ]
+  },
+  "fndn_6x7": {
+   "metre": 0.20999,
+   "origin": [
+    -0.0059,
+    0.4099,
+    0.0004
+   ]
+  },
+  "fndn_6x9": {
+   "metre": 0.21,
+   "origin": [
+    -0.0075,
+    0.4099,
+    0.0004
+   ]
+  },
+  "fndn_7x15": {
+   "metre": 0.20999,
+   "origin": [
+    0.0,
+    2.811,
+    -0.0054
+   ]
+  },
+  "fndn_7x15_hele": {
+   "metre": 0.21001,
+   "origin": [
+    0.0,
+    2.8113,
+    -0.0054
+   ]
+  },
+  "fndn_7x5": {
+   "metre": 0.21,
+   "origin": [
+    0.0004,
+    0.4099,
+    -0.0004
+   ]
+  },
+  "fndn_7x6": {
+   "metre": 0.20999,
+   "origin": [
+    0.0004,
+    0.4099,
+    0.0059
+   ]
+  },
+  "fndn_7x7": {
+   "metre": 0.21,
+   "origin": [
+    0.0004,
+    0.5327,
+    -0.0004
+   ]
+  },
+  "fndn_7x8": {
+   "metre": 0.20999,
+   "origin": [
+    0.0141,
+    0.4099,
+    -0.0286
+   ]
+  },
+  "fndn_7x9": {
+   "metre": 0.21,
+   "origin": [
+    -0.0004,
+    0.4099,
+    -0.0004
+   ]
+  },
+  "fndn_8x15": {
+   "metre": 0.21001,
+   "origin": [
+    0.0,
+    2.8112,
+    -0.0054
+   ]
+  },
+  "fndn_8x15_hele": {
+   "metre": 0.21001,
+   "origin": [
+    0.0,
+    2.8113,
+    -0.0054
+   ]
+  },
+  "fndn_8x4": {
+   "metre": 0.20999,
+   "origin": [
+    0.0,
+    0.4099,
+    0.0424
+   ]
+  },
+  "fndn_8x7": {
+   "metre": 0.20999,
+   "origin": [
+    0.0286,
+    0.4099,
+    0.0141
+   ]
+  },
+  "fndn_8x8": {
+   "metre": 0.20999,
+   "origin": [
+    0.0141,
+    0.4099,
+    -0.0286
+   ]
+  },
+  "fndn_8x9": {
+   "metre": 0.21,
+   "origin": [
+    -0.0004,
+    0.4099,
+    -0.0004
+   ]
+  },
+  "fndn_9x2": {
+   "metre": 0.20999,
+   "origin": [
+    0.0,
+    0.4099,
+    -0.0546
+   ]
+  },
+  "fndn_9x3_wall": {
+   "metre": 0.20999,
+   "origin": [
+    -0.0,
+    0.4099,
+    0.0004
+   ]
+  },
+  "fndn_9x7": {
+   "metre": 0.21,
+   "origin": [
+    -0.0004,
+    0.4099,
+    0.0004
+   ]
+  },
+  "fndn_9x8": {
+   "metre": 0.21,
+   "origin": [
+    -0.0004,
+    0.4099,
+    0.0004
+   ]
+  },
+  "fndn_9x9": {
+   "metre": 0.21,
+   "origin": [
+    0.0004,
+    0.5327,
+    -0.0004
+   ]
+  },
+  "fndn_carthaginians_defense_tower": {
+   "metre": 0.21003,
+   "origin": [
+    -0.2305,
+    1.651,
+    0.0138
+   ]
+  },
+  "fndn_carthaginians_farmstead": {
+   "metre": 0.21,
+   "origin": [
+    0.2645,
+    0.8484,
+    0.0147
+   ]
+  },
+  "fndn_carthaginians_fortress": {
+   "metre": 0.21,
+   "origin": [
+    0.0019,
+    2.0519,
+    0.4409
+   ]
+  },
+  "fndn_carthaginians_house": {
+   "metre": 0.21002,
+   "origin": [
+    0.0001,
+    2.6291,
+    0.1549
+   ]
+  },
+  "fndn_carthaginians_wall_long": {
+   "metre": 0.21,
+   "origin": [
+    0.0405,
+    1.9174,
+    -0.0
+   ]
+  },
+  "fndn_carthaginians_wall_tower": {
+   "metre": 0.20999,
+   "origin": [
+    -0.0,
+    2.2217,
+    -0.0043
+   ]
+  },
+  "fndn_carthaginians_wooden_tower": {
+   "metre": 0.20998,
+   "origin": [
+    -0.0087,
+    2.6213,
+    0.0159
+   ]
+  },
+  "fndn_celt_dock": {
+   "metre": 0.21002,
+   "origin": [
+    0.0335,
+    0.8287,
+    0.0427
+   ]
+  },
+  "fndn_dock_iber": {
+   "metre": 0.21001,
+   "origin": [
+    -0.0004,
+    1.0001,
+    -0.0193
+   ]
+  },
+  "fndn_dock_super": {
+   "metre": 0.21,
+   "origin": [
+    0.0057,
+    1.6861,
+    1.4978
+   ]
+  },
+  "fndn_stonehenge": {
+   "metre": 0.21001,
+   "origin": [
+    0.0,
+    1.1926,
+    0.0
+   ]
+  },
+  "fndn_theater": {
+   "metre": 0.21001,
+   "origin": [
+    0.2544,
+    1.1926,
+    -0.5695
+   ]
+  },
+  "forge_germ": {
+   "metre": 0.18513,
+   "origin": [
+    0.0441,
+    0.9964,
+    0.0729
+   ]
+  },
+  "forge_han": {
+   "metre": 0.19604,
+   "origin": [
+    -0.0,
+    2.3095,
+    0.2461
+   ]
+  },
+  "fortress": {
+   "metre": 0.23877,
+   "origin": [
+    0.0173,
+    0.922,
+    0.0912
+   ]
+  },
+  "foundation_3x3": {
+   "metre": 0.1698,
+   "origin": [
+    0.0615,
+    0.3314,
+    -0.0262
+   ]
+  },
+  "foundation_3x3_tower": {
+   "metre": 0.1698,
+   "origin": [
+    0.0615,
+    0.3314,
+    -0.0262
+   ]
+  },
+  "foundation_4x6": {
+   "metre": 0.20344,
+   "origin": [
+    0.0328,
+    0.3971,
+    -0.0151
+   ]
+  },
+  "foundation_5x5": {
+   "metre": 0.16998,
+   "origin": [
+    0.0638,
+    0.3318,
+    -0.0421
+   ]
+  },
+  "foundation_6x6": {
+   "metre": 0.18009,
+   "origin": [
+    0.0003,
+    0.3515,
+    -0.0003
+   ]
+  },
+  "foundation_8x8": {
+   "metre": 0.1896,
+   "origin": [
+    0.0127,
+    0.3701,
+    -0.0258
+   ]
+  },
+  "foundation_dock": {
+   "metre": 0.23424,
+   "origin": [
+    -0.0191,
+    1.1138,
+    -0.1063
+   ]
+  },
+  "foundation_large": {
+   "metre": 0.21806,
+   "origin": [
+    0.0004,
+    0.5532,
+    -0.0004
+   ]
+  },
+  "foundation_small": {
+   "metre": 0.14605,
+   "origin": [
+    0.0002,
+    0.2851,
+    0.0002
+   ]
+  },
+  "foundation_wall": {
+   "metre": 0.1074,
+   "origin": [
+    -0.0,
+    0.2096,
+    0.0002
+   ]
+  },
+  "gate": {
+   "metre": 0.10473,
+   "origin": [
+    -0.0005,
+    0.9871,
+    0.0
+   ]
+  },
+  "gaul_barracks": {
+   "metre": 0.18307,
+   "origin": [
+    0.1413,
+    0.9419,
+    0.0131
+   ]
+  },
+  "gaul_corral": {
+   "metre": 0.16639,
+   "origin": [
+    0.0168,
+    1.6123,
+    -0.2135
+   ]
+  },
+  "gaul_dock": {
+   "metre": 0.20526,
+   "origin": [
+    0.0327,
+    1.2857,
+    0.0405
+   ]
+  },
+  "gaul_farmstead": {
+   "metre": 0.16437,
+   "origin": [
+    -0.0054,
+    0.8121,
+    0.0334
+   ]
+  },
+  "gaul_fortress": {
+   "metre": 0.20954,
+   "origin": [
+    0.0134,
+    1.9622,
+    -0.0284
+   ]
+  },
+  "gaul_gate": {
+   "metre": 0.09756,
+   "origin": [
+    -0.0384,
+    0.7393,
+    0.0017
+   ]
+  },
+  "gaul_house": {
+   "metre": 0.16772,
+   "origin": [
+    0.0704,
+    0.9473,
+    0.0675
+   ]
+  },
+  "gaul_market": {
+   "metre": 0.1932,
+   "origin": [
+    0.1183,
+    1.6254,
+    -0.0366
+   ]
+  },
+  "gaul_storehouse": {
+   "metre": 0.1989,
+   "origin": [
+    0.0616,
+    1.0011,
+    -0.0381
+   ]
+  },
+  "gaul_temple": {
+   "metre": 0.23087,
+   "origin": [
+    0.0785,
+    2.5744,
+    0.1745
+   ]
+  },
+  "gaul_tower": {
+   "metre": 0.20928,
+   "origin": [
+    -0.0079,
+    1.0252,
+    0.0144
+   ]
+  },
+  "gaul_town_center": {
+   "metre": 0.23293,
+   "origin": [
+    -0.083,
+    1.3298,
+    0.1442
+   ]
+  },
+  "gaul_town_center_rubble": {
+   "metre": 0.25152,
+   "origin": [
+    -0.1177,
+    1.3981,
+    0.2445
+   ]
+  },
+  "gaul_wall": {
+   "metre": 0.05287,
+   "origin": [
+    -0.0168,
+    0.4187,
+    -0.0
+   ]
+  },
+  "gaul_wall_segment": {
+   "metre": 0.05287,
+   "origin": [
+    -0.0168,
+    0.4187,
+    -0.0
+   ]
+  },
+  "gaul_wall_tower": {
+   "metre": 0.20928,
+   "origin": [
+    -0.0079,
+    1.0252,
+    0.0144
+   ]
+  },
+  "gaul_wonder": {
+   "metre": 0.14973,
+   "origin": [
+    -0.0837,
+    1.9814,
+    -0.1029
+   ]
+  },
+  "germ_barracks": {
+   "metre": 0.17221,
+   "origin": [
+    0.042,
+    0.4918,
+    -0.064
+   ]
+  },
+  "germ_corral": {
+   "metre": 0.19037,
+   "origin": [
+    0.0044,
+    0.6771,
+    -0.0067
+   ]
+  },
+  "germ_dock": {
+   "metre": 0.18948,
+   "origin": [
+    -0.2024,
+    1.4095,
+    0.0202
+   ]
+  },
+  "germ_farmstead": {
+   "metre": 0.13866,
+   "origin": [
+    -0.2061,
+    0.2378,
+    0.2822
+   ]
+  },
+  "germ_fortress": {
+   "metre": 0.20015,
+   "origin": [
+    -0.0164,
+    1.0787,
+    -0.004
+   ]
+  },
+  "germ_house": {
+   "metre": 0.14261,
+   "origin": [
+    0.0847,
+    0.7222,
+    -0.0051
+   ]
+  },
+  "germ_market": {
+   "metre": 0.1434,
+   "origin": [
+    0.0256,
+    0.8192,
+    0.0049
+   ]
+  },
+  "germ_storehouse": {
+   "metre": 0.19633,
+   "origin": [
+    -0.0673,
+    0.9375,
+    0.1386
+   ]
+  },
+  "germ_temple": {
+   "metre": 0.16561,
+   "origin": [
+    -0.0293,
+    0.954,
+    0.1304
+   ]
+  },
+  "germ_tower": {
+   "metre": 0.29933,
+   "origin": [
+    -0.0009,
+    1.49,
+    -0.0
+   ]
+  },
+  "germ_town_center": {
+   "metre": 0.20408,
+   "origin": [
+    -0.0172,
+    1.3322,
+    0.0431
+   ]
+  },
+  "germ_wall_tower": {
+   "metre": 0.13143,
+   "origin": [
+    -0.0001,
+    1.4813,
+    -0.0121
+   ]
+  },
+  "germ_wonder": {
+   "metre": 0.1652,
+   "origin": [
+    0.0905,
+    1.4286,
+    -0.1004
+   ]
+  },
+  "great_hall": {
+   "metre": 0.21699,
+   "origin": [
+    0.0022,
+    1.0767,
+    0.0048
+   ]
+  },
+  "gymnasium": {
+   "metre": 0.17067,
+   "origin": [
+    0.0146,
+    0.9494,
+    0.5377
+   ]
+  },
+  "han_academy": {
+   "metre": 0.22318,
+   "origin": [
+    -0.0,
+    2.6786,
+    0.2201
+   ]
+  },
+  "han_arsenal": {
+   "metre": 0.18142,
+   "origin": [
+    0.1006,
+    1.7202,
+    0.1039
+   ]
+  },
+  "han_barracks": {
+   "metre": 0.18223,
+   "origin": [
+    -0.0,
+    1.4954,
+    0.0141
+   ]
+  },
+  "han_bireme": {
+   "metre": 0.36458,
+   "origin": [
+    -0.0,
+    0.2946,
+    0.0092
+   ]
+  },
+  "han_corral": {
+   "metre": 0.18918,
+   "origin": [
+    0.2121,
+    0.9836,
+    0.1344
+   ]
+  },
+  "han_dock": {
+   "metre": 0.1437,
+   "origin": [
+    -0.0166,
+    1.7531,
+    -0.0217
+   ]
+  },
+  "han_farmstead": {
+   "metre": 0.1776,
+   "origin": [
+    -0.1335,
+    0.2545,
+    -0.0444
+   ]
+  },
+  "han_fireship": {
+   "metre": 0.42022,
+   "origin": [
+    0.079,
+    0.0736,
+    0.121
+   ]
+  },
+  "han_fishing_ship": {
+   "metre": 0.19889,
+   "origin": [
+    0.0416,
+    0.0406,
+    0.0384
+   ]
+  },
+  "han_forge": {
+   "metre": 0.19604,
+   "origin": [
+    -0.0,
+    2.3095,
+    0.2461
+   ]
+  },
+  "han_fortress": {
+   "metre": 0.20056,
+   "origin": [
+    -0.0,
+    1.7889,
+    -0.0
+   ]
+  },
+  "han_fortress_old": {
+   "metre": 0.16832,
+   "origin": [
+    0.0,
+    0.7721,
+    0.1878
+   ]
+  },
+  "han_house": {
+   "metre": 0.13329,
+   "origin": [
+    0.0557,
+    0.5072,
+    0.0485
+   ]
+  },
+  "han_imperial_court": {
+   "metre": 0.13577,
+   "origin": [
+    0.0007,
+    1.7721,
+    0.0923
+   ]
+  },
+  "han_imperial_ministry": {
+   "metre": 0.15515,
+   "origin": [
+    -0.0,
+    0.8429,
+    -0.045
+   ]
+  },
+  "han_market": {
+   "metre": 0.17193,
+   "origin": [
+    0.0476,
+    0.2996,
+    -0.0617
+   ]
+  },
+  "han_outpost": {
+   "metre": 0.2826,
+   "origin": [
+    -0.0019,
+    2.2039,
+    0.042
+   ]
+  },
+  "han_pagoda": {
+   "metre": 0.50492,
+   "origin": [
+    0.0061,
+    0.0,
+    -0.0049
+   ]
+  },
+  "han_range": {
+   "metre": 0.1457,
+   "origin": [
+    0.0387,
+    1.3871,
+    -0.0
+   ]
+  },
+  "han_stable": {
+   "metre": 0.18482,
+   "origin": [
+    -0.0031,
+    2.4243,
+    0.2212
+   ]
+  },
+  "han_storehouse": {
+   "metre": 0.1648,
+   "origin": [
+    0.0406,
+    0.6138,
+    -0.0563
+   ]
+  },
+  "han_temple": {
+   "metre": 0.17271,
+   "origin": [
+    0.0252,
+    1.1633,
+    0.2546
+   ]
+  },
+  "han_temple_shrine": {
+   "metre": 0.13377,
+   "origin": [
+    0.0176,
+    0.2242,
+    0.0
+   ]
+  },
+  "han_tower_great": {
+   "metre": 0.2483,
+   "origin": [
+    0.0,
+    1.9354,
+    0.198
+   ]
+  },
+  "han_tower_large": {
+   "metre": 0.29069,
+   "origin": [
+    -0.0,
+    2.2658,
+    0.1706
+   ]
+  },
+  "han_tower_small": {
+   "metre": 0.15892,
+   "origin": [
+    0.0652,
+    0.4192,
+    -0.2706
+   ]
+  },
+  "han_towership": {
+   "metre": 0.15911,
+   "origin": [
+    0.0193,
+    0.3022,
+    0.3209
+   ]
+  },
+  "han_town_center": {
+   "metre": 0.15216,
+   "origin": [
+    0.0067,
+    1.986,
+    0.1034
+   ]
+  },
+  "han_wall_gate": {
+   "metre": 0.10353,
+   "origin": [
+    -0.0,
+    0.3948,
+    -0.0193
+   ]
+  },
+  "han_wall_long": {
+   "metre": 0.0544,
+   "origin": [
+    0.0015,
+    0.2075,
+    -0.0002
+   ]
+  },
+  "han_wall_medium": {
+   "metre": 0.06118,
+   "origin": [
+    0.0,
+    0.2333,
+    -0.0002
+   ]
+  },
+  "han_wall_short": {
+   "metre": 0.08125,
+   "origin": [
+    -0.0,
+    0.3099,
+    -0.0002
+   ]
+  },
+  "han_wall_tower": {
+   "metre": 0.20674,
+   "origin": [
+    0.0003,
+    0.7904,
+    0.0004
+   ]
+  },
+  "han_wonder": {
+   "metre": 0.14279,
+   "origin": [
+    -0.0,
+    0.8001,
+    -0.0
+   ]
+  },
+  "house": {
+   "metre": 0.14623,
+   "origin": [
+    0.051,
+    0.951,
+    -0.0
+   ]
+  },
+  "iber_barracks": {
+   "metre": 0.16487,
+   "origin": [
+    -0.0167,
+    0.7431,
+    -0.1345
+   ]
+  },
+  "iber_corral": {
+   "metre": 0.21123,
+   "origin": [
+    -0.0856,
+    0.6675,
+    0.0104
+   ]
+  },
+  "iber_dock": {
+   "metre": 0.19997,
+   "origin": [
+    0.383,
+    0.9523,
+    0.0057
+   ]
+  },
+  "iber_farmstead": {
+   "metre": 0.24521,
+   "origin": [
+    -0.1465,
+    0.0135,
+    0.1135
+   ]
+  },
+  "iber_fortress": {
+   "metre": 0.19792,
+   "origin": [
+    -0.0,
+    0.9901,
+    -0.0
+   ]
+  },
+  "iber_gate": {
+   "metre": 0.10466,
+   "origin": [
+    0.0313,
+    0.4356,
+    -0.0026
+   ]
+  },
+  "iber_house": {
+   "metre": 0.17817,
+   "origin": [
+    0.0003,
+    1.2559,
+    0.1363
+   ]
+  },
+  "iber_market": {
+   "metre": 0.19651,
+   "origin": [
+    0.0502,
+    0.0323,
+    -0.0304
+   ]
+  },
+  "iber_storehouse": {
+   "metre": 0.25864,
+   "origin": [
+    -0.0102,
+    0.002,
+    0.0326
+   ]
+  },
+  "iber_temple": {
+   "metre": 0.23566,
+   "origin": [
+    0.003,
+    0.0981,
+    -0.0442
+   ]
+  },
+  "iber_tower": {
+   "metre": 0.17279,
+   "origin": [
+    -0.0,
+    2.2012,
+    -0.0
+   ]
+  },
+  "iber_town_center": {
+   "metre": 0.18934,
+   "origin": [
+    -0.3513,
+    0.0335,
+    0.0242
+   ]
+  },
+  "iber_town_center_rubble": {
+   "metre": 0.17152,
+   "origin": [
+    -0.0349,
+    1.4098,
+    0.1076
+   ]
+  },
+  "iber_wall": {
+   "metre": 0.05516,
+   "origin": [
+    0.0,
+    0.6996,
+    -0.0
+   ]
+  },
+  "iber_wall_segment": {
+   "metre": 0.05516,
+   "origin": [
+    0.0,
+    0.6996,
+    -0.0
+   ]
+  },
+  "iber_wall_tower": {
+   "metre": 0.17279,
+   "origin": [
+    -0.0,
+    2.2012,
+    -0.0
+   ]
+  },
+  "iber_wonder": {
+   "metre": 0.11887,
+   "origin": [
+    -0.0008,
+    2.5508,
+    0.5898
+   ]
+  },
+  "kennel": {
+   "metre": 0.41334,
+   "origin": [
+    0.0422,
+    2.0807,
+    0.6218
+   ]
+  },
+  "kush_barracks": {
+   "metre": 0.1918,
+   "origin": [
+    0.0035,
+    1.4895,
+    0.0801
+   ]
+  },
+  "kush_bireme": {
+   "metre": 0.14657,
+   "origin": [
+    -0.0,
+    0.3318,
+    -0.1041
+   ]
+  },
+  "kush_blacksmith": {
+   "metre": 0.19289,
+   "origin": [
+    -0.0753,
+    1.9392,
+    -0.0917
+   ]
+  },
+  "kush_corral": {
+   "metre": 0.21407,
+   "origin": [
+    0.3603,
+    2.2801,
+    0.0136
+   ]
+  },
+  "kush_defense_tower_stone": {
+   "metre": 0.29524,
+   "origin": [
+    -0.0001,
+    2.2508,
+    0.0266
+   ]
+  },
+  "kush_dock": {
+   "metre": 0.17104,
+   "origin": [
+    0.0044,
+    2.041,
+    -0.0
+   ]
+  },
+  "kush_farmstead": {
+   "metre": 0.18097,
+   "origin": [
+    0.1659,
+    2.1416,
+    -0.0675
+   ]
+  },
+  "kush_fortress": {
+   "metre": 0.19147,
+   "origin": [
+    -0.0117,
+    1.6135,
+    0.2656
+   ]
+  },
+  "kush_gate": {
+   "metre": 0.1024,
+   "origin": [
+    -0.0,
+    1.1123,
+    -0.0
+   ]
+  },
+  "kush_house": {
+   "metre": 0.16671,
+   "origin": [
+    -0.0724,
+    1.414,
+    0.0422
+   ]
+  },
+  "kush_market": {
+   "metre": 0.13204,
+   "origin": [
+    0.0115,
+    2.205,
+    -0.0146
+   ]
+  },
+  "kush_pyramid_large": {
+   "metre": 0.18985,
+   "origin": [
+    -0.0,
+    2.516,
+    0.8688
+   ]
+  },
+  "kush_pyramid_small": {
+   "metre": 0.229,
+   "origin": [
+    -0.0,
+    2.748,
+    0.0352
+   ]
+  },
+  "kush_range": {
+   "metre": 0.14878,
+   "origin": [
+    0.0262,
+    1.2065,
+    0.0551
+   ]
+  },
+  "kush_shrine": {
+   "metre": 0.17476,
+   "origin": [
+    -0.0,
+    1.0991,
+    -0.0
+   ]
+  },
+  "kush_stable": {
+   "metre": 0.18056,
+   "origin": [
+    0.0535,
+    1.6407,
+    0.1181
+   ]
+  },
+  "kush_stable_elephant": {
+   "metre": 0.15087,
+   "origin": [
+    -0.0,
+    1.3355,
+    0.0157
+   ]
+  },
+  "kush_storehouse": {
+   "metre": 0.227,
+   "origin": [
+    -0.0206,
+    1.7527,
+    -0.1027
+   ]
+  },
+  "kush_temple": {
+   "metre": 0.16664,
+   "origin": [
+    0.0062,
+    2.5793,
+    0.1442
+   ]
+  },
+  "kush_tower": {
+   "metre": 0.27309,
+   "origin": [
+    -0.0,
+    2.9666,
+    0.0204
+   ]
+  },
+  "kush_town_center": {
+   "metre": 0.20834,
+   "origin": [
+    0.1105,
+    -0.0007,
+    0.0333
+   ]
+  },
+  "kush_town_center_rubble": {
+   "metre": 0.1969,
+   "origin": [
+    -0.0349,
+    1.3387,
+    0.1076
+   ]
+  },
+  "kush_wall": {
+   "metre": 0.05427,
+   "origin": [
+    -0.0028,
+    0.5896,
+    0.0005
+   ]
+  },
+  "kush_wall_segment": {
+   "metre": 0.05427,
+   "origin": [
+    -0.0028,
+    0.5896,
+    0.0005
+   ]
+  },
+  "kush_wall_tower": {
+   "metre": 0.27309,
+   "origin": [
+    -0.0,
+    2.9666,
+    0.0204
+   ]
+  },
+  "kush_wonder": {
+   "metre": 0.1068,
+   "origin": [
+    0.0054,
+    1.455,
+    -0.2791
+   ]
+  },
+  "kush_workshop": {
+   "metre": 0.15323,
+   "origin": [
+    0.1381,
+    1.0552,
+    0.1046
+   ]
+  },
+  "library": {
+   "metre": 0.13303,
+   "origin": [
+    -0.0,
+    0.7988,
+    -0.0009
+   ]
+  },
+  "lighthouse": {
+   "metre": 0.12595,
+   "origin": [
+    0.0222,
+    1.6863,
+    -0.8751
+   ]
+  },
+  "mace_barracks": {
+   "metre": 0.18689,
+   "origin": [
+    -0.0,
+    0.9882,
+    -0.1487
+   ]
+  },
+  "mace_corral": {
+   "metre": 0.22415,
+   "origin": [
+    0.0156,
+    1.0789,
+    0.0106
+   ]
+  },
+  "mace_dock": {
+   "metre": 0.12874,
+   "origin": [
+    -0.0,
+    0.9325,
+    0.0729
+   ]
+  },
+  "mace_farmstead": {
+   "metre": 0.19117,
+   "origin": [
+    -0.1917,
+    0.9311,
+    0.0442
+   ]
+  },
+  "mace_fortress": {
+   "metre": 0.23877,
+   "origin": [
+    0.0173,
+    0.922,
+    0.0912
+   ]
+  },
+  "mace_gate": {
+   "metre": 0.10472,
+   "origin": [
+    -0.0005,
+    0.987,
+    -0.0061
+   ]
+  },
+  "mace_house": {
+   "metre": 0.16252,
+   "origin": [
+    -0.0201,
+    0.8224,
+    -0.0498
+   ]
+  },
+  "mace_market": {
+   "metre": 0.13696,
+   "origin": [
+    -0.0,
+    0.8827,
+    0.0018
+   ]
+  },
+  "mace_storehouse": {
+   "metre": 0.22296,
+   "origin": [
+    -0.0894,
+    0.964,
+    -0.0334
+   ]
+  },
+  "mace_temple": {
+   "metre": 0.17288,
+   "origin": [
+    -0.0007,
+    0.8686,
+    0.0
+   ]
+  },
+  "mace_tower": {
+   "metre": 0.21658,
+   "origin": [
+    -0.004,
+    3.0232,
+    -0.0007
+   ]
+  },
+  "mace_town_center": {
+   "metre": 0.20598,
+   "origin": [
+    0.2091,
+    1.1458,
+    0.0329
+   ]
+  },
+  "mace_town_center_rubble": {
+   "metre": 0.1969,
+   "origin": [
+    -0.0349,
+    1.3387,
+    0.1076
+   ]
+  },
+  "mace_wall": {
+   "metre": 0.05511,
+   "origin": [
+    -0.0003,
+    0.5194,
+    -0.0
+   ]
+  },
+  "mace_wall_segment": {
+   "metre": 0.05511,
+   "origin": [
+    -0.0003,
+    0.5194,
+    -0.0
+   ]
+  },
+  "mace_wall_tower": {
+   "metre": 0.21658,
+   "origin": [
+    -0.004,
+    3.0232,
+    -0.0007
+   ]
+  },
+  "mace_wonder": {
+   "metre": 0.11595,
+   "origin": [
+    -0.0,
+    1.3364,
+    0.0405
+   ]
+  },
+  "market": {
+   "metre": 0.13696,
+   "origin": [
+    -0.0,
+    0.8827,
+    0.0018
+   ]
+  },
+  "maur_barracks": {
+   "metre": 0.17277,
+   "origin": [
+    0.0,
+    1.0629,
+    0.1704
+   ]
+  },
+  "maur_bireme": {
+   "metre": 0.17637,
+   "origin": [
+    -0.0064,
+    0.8166,
+    -0.0
+   ]
+  },
+  "maur_blacksmith": {
+   "metre": 0.19091,
+   "origin": [
+    -0.0184,
+    1.4392,
+    0.0255
+   ]
+  },
+  "maur_corral": {
+   "metre": 0.23648,
+   "origin": [
+    -0.1174,
+    1.0657,
+    -0.1012
+   ]
+  },
+  "maur_dock": {
+   "metre": 0.16915,
+   "origin": [
+    0.0022,
+    1.6771,
+    -0.3707
+   ]
+  },
+  "maur_farmstead": {
+   "metre": 0.19867,
+   "origin": [
+    -0.0429,
+    1.0164,
+    0.0726
+   ]
+  },
+  "maur_fortress": {
+   "metre": 0.21107,
+   "origin": [
+    -0.0,
+    1.3109,
+    -0.0
+   ]
+  },
+  "maur_gate": {
+   "metre": 0.10452,
+   "origin": [
+    -0.0,
+    1.4525,
+    0.0
+   ]
+  },
+  "maur_house": {
+   "metre": 0.25645,
+   "origin": [
+    0.0266,
+    0.8414,
+    0.0375
+   ]
+  },
+  "maur_market": {
+   "metre": 0.13629,
+   "origin": [
+    -0.0,
+    3.3539,
+    -0.0
+   ]
+  },
+  "maur_outpost": {
+   "metre": 0.2826,
+   "origin": [
+    -0.0019,
+    2.2039,
+    0.042
+   ]
+  },
+  "maur_palace": {
+   "metre": 0.1875,
+   "origin": [
+    -0.0,
+    1.4548,
+    -0.0705
+   ]
+  },
+  "maur_range": {
+   "metre": 0.14785,
+   "origin": [
+    -0.0166,
+    1.387,
+    0.0547
+   ]
+  },
+  "maur_scout_tower": {
+   "metre": 0.26562,
+   "origin": [
+    0.0111,
+    0.9419,
+    0.1361
+   ]
+  },
+  "maur_stable": {
+   "metre": 0.18162,
+   "origin": [
+    0.0759,
+    1.0309,
+    -0.0067
+   ]
+  },
+  "maur_stable_elephant": {
+   "metre": 0.15898,
+   "origin": [
+    -0.0,
+    1.4514,
+    0.0073
+   ]
+  },
+  "maur_storehouse": {
+   "metre": 0.24813,
+   "origin": [
+    0.0712,
+    1.8628,
+    0.0794
+   ]
+  },
+  "maur_super_dock": {
+   "metre": 0.1762,
+   "origin": [
+    0.0023,
+    1.747,
+    -0.3861
+   ]
+  },
+  "maur_temple": {
+   "metre": 0.17533,
+   "origin": [
+    -0.0,
+    1.1978,
+    0.1364
+   ]
+  },
+  "maur_tower": {
+   "metre": 0.23534,
+   "origin": [
+    -0.0,
+    3.2705,
+    -0.0
+   ]
+  },
+  "maur_tower_double": {
+   "metre": 0.34564,
+   "origin": [
+    0.0,
+    2.0695,
+    0.0
+   ]
+  },
+  "maur_town_center": {
+   "metre": 0.16881,
+   "origin": [
+    -0.0,
+    1.0966,
+    0.5161
+   ]
+  },
+  "maur_town_center_rubble": {
+   "metre": 0.1969,
+   "origin": [
+    -0.0349,
+    1.3387,
+    0.1076
+   ]
+  },
+  "maur_wall": {
+   "metre": 0.05526,
+   "origin": [
+    -0.0,
+    0.768,
+    -0.0
+   ]
+  },
+  "maur_wall_segment": {
+   "metre": 0.05526,
+   "origin": [
+    -0.0,
+    0.768,
+    -0.0
+   ]
+  },
+  "maur_wall_tower": {
+   "metre": 0.23534,
+   "origin": [
+    -0.0,
+    3.2705,
+    -0.0
+   ]
+  },
+  "maur_wonder": {
+   "metre": 0.11246,
+   "origin": [
+    -0.0,
+    0.9465,
+    -0.0
+   ]
+  },
+  "maur_wooden_tower": {
+   "metre": 0.24316,
+   "origin": [
+    -0.0,
+    1.3813,
+    0.0921
+   ]
+  },
+  "maur_workshop": {
+   "metre": 0.15487,
+   "origin": [
+    0.1762,
+    1.1891,
+    0.0446
+   ]
+  },
+  "mausoleum": {
+   "metre": 0.11243,
+   "origin": [
+    0.006,
+    0.9149,
+    -0.0171
+   ]
+  },
+  "merchant_han": {
+   "metre": 0.27916,
+   "origin": [
+    -0.0261,
+    0.2764,
+    -0.0
+   ]
+  },
+  "orchard_plot": {
+   "metre": 0.15458,
+   "origin": [
+    0.0537,
+    -0.0,
+    -0.062
+   ]
+  },
+  "outpost": {
+   "metre": 0.2826,
+   "origin": [
+    -0.0019,
+    2.2039,
+    0.042
+   ]
+  },
+  "palace": {
+   "metre": 0.18223,
+   "origin": [
+    -0.0178,
+    1.6973,
+    0.17
+   ]
+  },
+  "pers_barracks": {
+   "metre": 0.21136,
+   "origin": [
+    0.0818,
+    1.5772,
+    0.0504
+   ]
+  },
+  "pers_corral": {
+   "metre": 0.20068,
+   "origin": [
+    -0.0698,
+    0.295,
+    0.018
+   ]
+  },
+  "pers_dock": {
+   "metre": 0.2222,
+   "origin": [
+    -0.3058,
+    2.3777,
+    -0.0
+   ]
+  },
+  "pers_farmstead": {
+   "metre": 0.16721,
+   "origin": [
+    0.0236,
+    1.232,
+    0.0406
+   ]
+  },
+  "pers_fortress": {
+   "metre": 0.2444,
+   "origin": [
+    0.096,
+    2.2263,
+    0.0266
+   ]
+  },
+  "pers_gate": {
+   "metre": 0.10439,
+   "origin": [
+    0.0023,
+    1.5312,
+    -0.0271
+   ]
+  },
+  "pers_house": {
+   "metre": 0.14463,
+   "origin": [
+    -0.1519,
+    1.1301,
+    0.0213
+   ]
+  },
+  "pers_market": {
+   "metre": 0.1561,
+   "origin": [
+    -0.0048,
+    1.043,
+    -0.0094
+   ]
+  },
+  "pers_storehouse": {
+   "metre": 0.27313,
+   "origin": [
+    0.0266,
+    1.7089,
+    0.0187
+   ]
+  },
+  "pers_temple": {
+   "metre": 0.2849,
+   "origin": [
+    -0.0225,
+    2.376,
+    0.0423
+   ]
+  },
+  "pers_tower": {
+   "metre": 0.27381,
+   "origin": [
+    0.0032,
+    2.6961,
+    0.0022
+   ]
+  },
+  "pers_town_center": {
+   "metre": 0.15993,
+   "origin": [
+    -0.0,
+    0.9978,
+    -0.0311
+   ]
+  },
+  "pers_town_center_rubble": {
+   "metre": 0.1969,
+   "origin": [
+    -0.0349,
+    1.3387,
+    0.1076
+   ]
+  },
+  "pers_wall": {
+   "metre": 0.05475,
+   "origin": [
+    -0.0001,
+    0.9587,
+    -0.0
+   ]
+  },
+  "pers_wall_segment": {
+   "metre": 0.05475,
+   "origin": [
+    -0.0001,
+    0.9587,
+    -0.0
+   ]
+  },
+  "pers_wall_tower": {
+   "metre": 0.27381,
+   "origin": [
+    0.0032,
+    2.6961,
+    0.0022
+   ]
+  },
+  "pers_wonder": {
+   "metre": 0.20528,
+   "origin": [
+    0.151,
+    1.1995,
+    -0.0084
+   ]
+  },
+  "propylaea": {
+   "metre": 0.1623,
+   "origin": [
+    -0.0056,
+    0.0027,
+    -0.0237
+   ]
+  },
+  "prytaneion": {
+   "metre": 0.15921,
+   "origin": [
+    -0.0,
+    1.1887,
+    0.6955
+   ]
+  },
+  "ptol_barracks": {
+   "metre": 0.18027,
+   "origin": [
+    0.0,
+    1.5298,
+    -0.0184
+   ]
+  },
+  "ptol_corral": {
+   "metre": 0.17405,
+   "origin": [
+    -0.035,
+    1.3421,
+    0.0072
+   ]
+  },
+  "ptol_dock": {
+   "metre": 0.13996,
+   "origin": [
+    0.0178,
+    2.5953,
+    0.0598
+   ]
+  },
+  "ptol_farmstead": {
+   "metre": 0.16304,
+   "origin": [
+    0.0047,
+    0.7983,
+    -0.093
+   ]
+  },
+  "ptol_fortress": {
+   "metre": 0.24334,
+   "origin": [
+    -0.0,
+    1.7034,
+    -0.0
+   ]
+  },
+  "ptol_gate": {
+   "metre": 0.09678,
+   "origin": [
+    0.0053,
+    0.788,
+    -0.0013
+   ]
+  },
+  "ptol_house": {
+   "metre": 0.19708,
+   "origin": [
+    -0.0068,
+    1.1914,
+    0.009
+   ]
+  },
+  "ptol_market": {
+   "metre": 0.14285,
+   "origin": [
+    -0.1881,
+    1.2883,
+    0.0125
+   ]
+  },
+  "ptol_storehouse": {
+   "metre": 0.20282,
+   "origin": [
+    0.0134,
+    1.1336,
+    -0.0916
+   ]
+  },
+  "ptol_temple": {
+   "metre": 0.14703,
+   "origin": [
+    -0.006,
+    1.6435,
+    0.0099
+   ]
+  },
+  "ptol_tower": {
+   "metre": 0.25463,
+   "origin": [
+    -0.0,
+    1.2905,
+    -0.0
+   ]
+  },
+  "ptol_town_center": {
+   "metre": 0.15704,
+   "origin": [
+    -0.0,
+    2.0236,
+    -0.3777
+   ]
+  },
+  "ptol_town_center_rubble": {
+   "metre": 0.1969,
+   "origin": [
+    -0.0349,
+    1.3387,
+    0.1076
+   ]
+  },
+  "ptol_wall": {
+   "metre": 0.05214,
+   "origin": [
+    -0.0,
+    0.4045,
+    0.0003
+   ]
+  },
+  "ptol_wall_segment": {
+   "metre": 0.05214,
+   "origin": [
+    -0.0,
+    0.4045,
+    0.0003
+   ]
+  },
+  "ptol_wall_tower": {
+   "metre": 0.25463,
+   "origin": [
+    -0.0,
+    1.2905,
+    -0.0
+   ]
+  },
+  "ptol_wonder": {
+   "metre": 0.10239,
+   "origin": [
+    -0.0,
+    1.0906,
+    0.1445
+   ]
+  },
+  "quinquereme": {
+   "metre": 0.11803,
+   "origin": [
+    0.0039,
+    0.3428,
+    0.03
+   ]
+  },
+  "quinquereme_rome": {
+   "metre": 0.12466,
+   "origin": [
+    -0.0005,
+    0.3493,
+    -0.1353
+   ]
+  },
+  "range": {
+   "metre": 0.14662,
+   "origin": [
+    0.0008,
+    0.8699,
+    -0.0064
+   ]
+  },
+  "rome_barracks": {
+   "metre": 0.19585,
+   "origin": [
+    0.1754,
+    1.1544,
+    0.157
+   ]
+  },
+  "rome_corral": {
+   "metre": 0.18328,
+   "origin": [
+    -0.0455,
+    0.2579,
+    0.0088
+   ]
+  },
+  "rome_dock": {
+   "metre": 0.13834,
+   "origin": [
+    0.0347,
+    0.8489,
+    -0.5848
+   ]
+  },
+  "rome_farmstead": {
+   "metre": 0.13615,
+   "origin": [
+    -0.1162,
+    0.3799,
+    -0.0772
+   ]
+  },
+  "rome_fortress": {
+   "metre": 0.2153,
+   "origin": [
+    -0.0,
+    0.5435,
+    0.0539
+   ]
+  },
+  "rome_gate": {
+   "metre": 0.10207,
+   "origin": [
+    -0.0,
+    0.9307,
+    -0.0
+   ]
+  },
+  "rome_house": {
+   "metre": 0.14623,
+   "origin": [
+    0.051,
+    0.951,
+    -0.0
+   ]
+  },
+  "rome_market": {
+   "metre": 0.13265,
+   "origin": [
+    0.0005,
+    0.1365,
+    0.0059
+   ]
+  },
+  "rome_storehouse": {
+   "metre": 0.23827,
+   "origin": [
+    -0.0241,
+    0.065,
+    -0.0886
+   ]
+  },
+  "rome_temple": {
+   "metre": 0.17715,
+   "origin": [
+    -0.0,
+    -0.0,
+    0.0021
+   ]
+  },
+  "rome_tower": {
+   "metre": 0.20663,
+   "origin": [
+    0.0076,
+    2.6573,
+    -0.0082
+   ]
+  },
+  "rome_town_center": {
+   "metre": 0.16939,
+   "origin": [
+    -0.0,
+    0.1127,
+    -0.0026
+   ]
+  },
+  "rome_town_center_rubble": {
+   "metre": 0.17542,
+   "origin": [
+    0.0285,
+    1.1927,
+    0.0471
+   ]
+  },
+  "rome_wall": {
+   "metre": 0.0536,
+   "origin": [
+    -0.0028,
+    0.4888,
+    -0.0
+   ]
+  },
+  "rome_wall_segment": {
+   "metre": 0.0536,
+   "origin": [
+    -0.0028,
+    0.4888,
+    -0.0
+   ]
+  },
+  "rome_wall_tower": {
+   "metre": 0.20663,
+   "origin": [
+    0.0076,
+    2.6573,
+    -0.0082
+   ]
+  },
+  "rome_wonder": {
+   "metre": 0.14797,
+   "origin": [
+    0.0001,
+    1.219,
+    0.0199
+   ]
+  },
+  "rowboat": {
+   "metre": 0.27705,
+   "origin": [
+    -0.0,
+    0.2732,
+    -0.0
+   ]
+  },
+  "rubble_large": {
+   "metre": 0.1969,
+   "origin": [
+    -0.0349,
+    1.3387,
+    0.1076
+   ]
+  },
+  "rubble_small": {
+   "metre": 0.12193,
+   "origin": [
+    0.0416,
+    0.6778,
+    -0.0166
+   ]
+  },
+  "ruins": {
+   "metre": 0.04494,
+   "origin": [
+    -0.0005,
+    0.0019,
+    0.0003
+   ]
+  },
+  "s_athenians_wall_gate_door": {
+   "metre": 0.25002,
+   "origin": [
+    -0.0012,
+    2.3565,
+    -0.0145
+   ]
+  },
+  "s_athenians_wall_long": {
+   "metre": 0.25,
+   "origin": [
+    -0.0012,
+    2.3563,
+    -0.0
+   ]
+  },
+  "s_athenians_wall_medium": {
+   "metre": 0.25,
+   "origin": [
+    -0.0,
+    2.3563,
+    -0.0
+   ]
+  },
+  "s_athenians_wall_short": {
+   "metre": 0.25,
+   "origin": [
+    -0.0063,
+    2.3563,
+    -0.0
+   ]
+  },
+  "s_britons_blacksmith": {
+   "metre": 0.2045,
+   "origin": [
+    -0.0241,
+    1.4116,
+    -0.1292
+   ]
+  },
+  "s_britons_range": {
+   "metre": 0.17336,
+   "origin": [
+    0.0189,
+    1.0528,
+    0.0711
+   ]
+  },
+  "s_britons_stable": {
+   "metre": 0.19442,
+   "origin": [
+    -0.0326,
+    1.3824,
+    0.1571
+   ]
+  },
+  "s_britons_wall_gate": {
+   "metre": 0.25001,
+   "origin": [
+    0.0307,
+    1.9947,
+    0.0001
+   ]
+  },
+  "s_britons_wall_long": {
+   "metre": 0.25001,
+   "origin": [
+    -0.0012,
+    1.6925,
+    0.0029
+   ]
+  },
+  "s_britons_wall_medium": {
+   "metre": 0.25001,
+   "origin": [
+    0.0461,
+    1.7302,
+    0.0042
+   ]
+  },
+  "s_britons_wall_short": {
+   "metre": 0.25001,
+   "origin": [
+    -0.001,
+    1.7302,
+    0.0042
+   ]
+  },
+  "s_britons_wooden_tower": {
+   "metre": 0.22236,
+   "origin": [
+    -0.0149,
+    1.6005,
+    0.0174
+   ]
+  },
+  "s_britons_workshop": {
+   "metre": 0.15514,
+   "origin": [
+    -0.0,
+    1.2907,
+    -0.0
+   ]
+  },
+  "s_carthaginians_apartment": {
+   "metre": 0.18496,
+   "origin": [
+    -0.0,
+    2.0554,
+    -0.0
+   ]
+  },
+  "s_carthaginians_blacksmith": {
+   "metre": 0.2039,
+   "origin": [
+    -0.0154,
+    0.9468,
+    -0.0175
+   ]
+  },
+  "s_carthaginians_embassy_celtic": {
+   "metre": 0.22896,
+   "origin": [
+    0.01,
+    0.4568,
+    -0.0141
+   ]
+  },
+  "s_carthaginians_embassy_iberian": {
+   "metre": 0.22097,
+   "origin": [
+    0.0191,
+    0.7642,
+    0.249
+   ]
+  },
+  "s_carthaginians_embassy_italic": {
+   "metre": 0.23376,
+   "origin": [
+    0.0077,
+    1.0407,
+    0.0048
+   ]
+  },
+  "s_carthaginians_outpost": {
+   "metre": 0.29458,
+   "origin": [
+    -0.002,
+    2.2973,
+    0.0438
+   ]
+  },
+  "s_carthaginians_range": {
+   "metre": 0.14681,
+   "origin": [
+    0.0915,
+    0.9947,
+    -0.0017
+   ]
+  },
+  "s_carthaginians_stable": {
+   "metre": 0.18989,
+   "origin": [
+    0.073,
+    1.8199,
+    0.0432
+   ]
+  },
+  "s_carthaginians_wall_gate": {
+   "metre": 0.49768,
+   "origin": [
+    -0.0,
+    4.9786,
+    -0.1636
+   ]
+  },
+  "s_carthaginians_wall_long": {
+   "metre": 0.25,
+   "origin": [
+    -0.0,
+    2.3485,
+    -0.0
+   ]
+  },
+  "s_carthaginians_wall_medium": {
+   "metre": 0.25002,
+   "origin": [
+    -0.0008,
+    2.3371,
+    -0.0
+   ]
+  },
+  "s_carthaginians_wall_short": {
+   "metre": 0.25001,
+   "origin": [
+    0.0025,
+    2.2827,
+    -0.0
+   ]
+  },
+  "s_carthaginians_wooden_tower": {
+   "metre": 0.24331,
+   "origin": [
+    -0.0101,
+    2.748,
+    0.0196
+   ]
+  },
+  "s_carthaginians_workshop": {
+   "metre": 0.17214,
+   "origin": [
+    0.0935,
+    1.8903,
+    0.044
+   ]
+  },
+  "s_celts_outpost": {
+   "metre": 0.29458,
+   "origin": [
+    -0.002,
+    2.2973,
+    0.0438
+   ]
+  },
+  "s_celts_small_stone_monument": {
+   "metre": 0.20997,
+   "origin": [
+    0.0257,
+    0.0014,
+    -0.2032
+   ]
+  },
+  "s_celts_tavern": {
+   "metre": 0.21,
+   "origin": [
+    -0.006,
+    1.1023,
+    -0.0027
+   ]
+  },
+  "s_celts_wall_gate": {
+   "metre": 0.25001,
+   "origin": [
+    -0.0983,
+    1.8945,
+    0.0042
+   ]
+  },
+  "s_gauls_blacksmith": {
+   "metre": 0.22095,
+   "origin": [
+    0.0007,
+    1.5251,
+    0.016
+   ]
+  },
+  "s_gauls_range": {
+   "metre": 0.13631,
+   "origin": [
+    0.1012,
+    0.9014,
+    -0.1724
+   ]
+  },
+  "s_gauls_stable": {
+   "metre": 0.17844,
+   "origin": [
+    0.0525,
+    0.8912,
+    0.0448
+   ]
+  },
+  "s_gauls_theater": {
+   "metre": 0.1811,
+   "origin": [
+    0.0217,
+    1.024,
+    -0.3372
+   ]
+  },
+  "s_gauls_wall_long": {
+   "metre": 0.25,
+   "origin": [
+    -0.0795,
+    1.9797,
+    -0.0
+   ]
+  },
+  "s_gauls_wall_medium": {
+   "metre": 0.24998,
+   "origin": [
+    -0.086,
+    1.9796,
+    -0.0
+   ]
+  },
+  "s_gauls_wall_short": {
+   "metre": 0.25002,
+   "origin": [
+    -0.0861,
+    1.9799,
+    -0.0
+   ]
+  },
+  "s_gauls_wooden_tower": {
+   "metre": 0.25018,
+   "origin": [
+    0.0117,
+    2.5449,
+    0.0193
+   ]
+  },
+  "s_gauls_workshop": {
+   "metre": 0.16633,
+   "origin": [
+    0.09,
+    0.8433,
+    0.1082
+   ]
+  },
+  "s_germans_cult_statue": {
+   "metre": 0.21003,
+   "origin": [
+    -0.0,
+    0.0845,
+    -0.0071
+   ]
+  },
+  "s_germans_encampment": {
+   "metre": 0.11463,
+   "origin": [
+    0.0186,
+    3.3981,
+    -0.059
+   ]
+  },
+  "s_germans_encampment_fortified": {
+   "metre": 0.1146,
+   "origin": [
+    0.0294,
+    3.3971,
+    0.0294
+   ]
+  },
+  "s_germans_forge": {
+   "metre": 0.18513,
+   "origin": [
+    0.0441,
+    0.9964,
+    0.0729
+   ]
+  },
+  "s_germans_range": {
+   "metre": 0.16662,
+   "origin": [
+    0.0558,
+    0.8071,
+    -0.0078
+   ]
+  },
+  "s_germans_stable": {
+   "metre": 0.18173,
+   "origin": [
+    0.0259,
+    0.4636,
+    -0.0289
+   ]
+  },
+  "s_germans_wooden_wall_gate": {
+   "metre": 0.24999,
+   "origin": [
+    -0.0417,
+    2.3967,
+    0.2865
+   ]
+  },
+  "s_germans_wooden_wall_long": {
+   "metre": 0.25,
+   "origin": [
+    0.0016,
+    2.3968,
+    -0.0196
+   ]
+  },
+  "s_germans_wooden_wall_medium": {
+   "metre": 0.25,
+   "origin": [
+    -0.0287,
+    2.3968,
+    -0.0196
+   ]
+  },
+  "s_germans_wooden_wall_short": {
+   "metre": 0.24998,
+   "origin": [
+    -0.0393,
+    2.3966,
+    -0.0196
+   ]
+  },
+  "s_germans_workshop": {
+   "metre": 0.16638,
+   "origin": [
+    -0.0009,
+    0.4724,
+    -0.016
+   ]
+  },
+  "s_han_forge": {
+   "metre": 0.17465,
+   "origin": [
+    -0.0,
+    2.0575,
+    0.2192
+   ]
+  },
+  "s_han_pagoda": {
+   "metre": 0.20998,
+   "origin": [
+    0.0025,
+    0.0,
+    -0.0021
+   ]
+  },
+  "s_han_tower_small": {
+   "metre": 0.16616,
+   "origin": [
+    0.0681,
+    0.4383,
+    -0.2829
+   ]
+  },
+  "s_han_wall_gate": {
+   "metre": 0.10353,
+   "origin": [
+    -0.0,
+    0.3948,
+    -0.0193
+   ]
+  },
+  "s_han_wall_gate_wall_gate": {
+   "metre": 0.24999,
+   "origin": [
+    -0.0,
+    0.9534,
+    -0.0466
+   ]
+  },
+  "s_han_wall_long": {
+   "metre": 0.0544,
+   "origin": [
+    0.0015,
+    0.2075,
+    -0.0002
+   ]
+  },
+  "s_han_wall_long_wall_long": {
+   "metre": 0.25001,
+   "origin": [
+    0.0067,
+    0.9535,
+    -0.0008
+   ]
+  },
+  "s_han_wall_medium": {
+   "metre": 0.25001,
+   "origin": [
+    0.0,
+    0.9535,
+    -0.0008
+   ]
+  },
+  "s_han_wall_short": {
+   "metre": 0.25,
+   "origin": [
+    -0.0,
+    0.9535,
+    -0.0007
+   ]
+  },
+  "s_hellenes_shrine_01": {
+   "metre": 0.21001,
+   "origin": [
+    0.0027,
+    0.3082,
+    0.0133
+   ]
+  },
+  "s_hellenes_wall_gate": {
+   "metre": 0.25002,
+   "origin": [
+    -0.0012,
+    2.3565,
+    -0.0145
+   ]
+  },
+  "s_hellenes_wall_long": {
+   "metre": 0.25,
+   "origin": [
+    -0.0012,
+    2.3563,
+    -0.0
+   ]
+  },
+  "s_hellenes_wall_medium": {
+   "metre": 0.25,
+   "origin": [
+    -0.0,
+    2.3563,
+    -0.0
+   ]
+  },
+  "s_hellenes_wall_short": {
+   "metre": 0.25,
+   "origin": [
+    -0.0063,
+    2.3563,
+    -0.0
+   ]
+  },
+  "s_hellenes_wooden_tower": {
+   "metre": 0.28057,
+   "origin": [
+    -0.0,
+    2.4506,
+    -0.0
+   ]
+  },
+  "s_hellenes_workshop": {
+   "metre": 0.17539,
+   "origin": [
+    0.1527,
+    1.717,
+    0.0615
+   ]
+  },
+  "s_iberians_blacksmith": {
+   "metre": 0.21392,
+   "origin": [
+    -0.0143,
+    0.9564,
+    0.0303
+   ]
+  },
+  "s_iberians_outpost": {
+   "metre": 0.29458,
+   "origin": [
+    -0.002,
+    2.2973,
+    0.0438
+   ]
+  },
+  "s_iberians_range": {
+   "metre": 0.1521,
+   "origin": [
+    -0.0,
+    1.2849,
+    0.016
+   ]
+  },
+  "s_iberians_sb_1": {
+   "metre": 0.19799,
+   "origin": [
+    -0.0,
+    0.0149,
+    0.1071
+   ]
+  },
+  "s_iberians_stable": {
+   "metre": 0.17443,
+   "origin": [
+    -0.0,
+    1.4916,
+    0.0383
+   ]
+  },
+  "s_iberians_wall_gate": {
+   "metre": 0.25,
+   "origin": [
+    0.0748,
+    1.0404,
+    -0.0061
+   ]
+  },
+  "s_iberians_wall_long": {
+   "metre": 0.25001,
+   "origin": [
+    0.0,
+    3.1711,
+    -0.0
+   ]
+  },
+  "s_iberians_wall_medium": {
+   "metre": 0.25001,
+   "origin": [
+    0.0,
+    3.1711,
+    -0.0
+   ]
+  },
+  "s_iberians_wall_short": {
+   "metre": 0.25001,
+   "origin": [
+    0.0,
+    3.1711,
+    -0.0
+   ]
+  },
+  "s_iberians_wooden_tower": {
+   "metre": 0.15618,
+   "origin": [
+    -0.1356,
+    1.867,
+    0.1103
+   ]
+  },
+  "s_iberians_workshop": {
+   "metre": 0.15011,
+   "origin": [
+    0.0164,
+    1.2837,
+    -0.434
+   ]
+  },
+  "s_kushites_outpost": {
+   "metre": 0.29458,
+   "origin": [
+    -0.002,
+    2.2973,
+    0.0438
+   ]
+  },
+  "s_kushites_outpost_stone": {
+   "metre": 0.28988,
+   "origin": [
+    0.0022,
+    2.4151,
+    -0.0428
+   ]
+  },
+  "s_kushites_pyramid_small": {
+   "metre": 0.28625,
+   "origin": [
+    -0.0,
+    3.4349,
+    0.044
+   ]
+  },
+  "s_kushites_temple_amun": {
+   "metre": 0.08556,
+   "origin": [
+    -0.0065,
+    1.5419,
+    0.0171
+   ]
+  },
+  "s_kushites_wall_gate": {
+   "metre": 0.25,
+   "origin": [
+    -0.0,
+    2.7158,
+    -0.0
+   ]
+  },
+  "s_kushites_wall_long": {
+   "metre": 0.25001,
+   "origin": [
+    -0.013,
+    2.7159,
+    0.0021
+   ]
+  },
+  "s_kushites_wall_medium": {
+   "metre": 0.25,
+   "origin": [
+    0.0544,
+    2.7157,
+    0.0021
+   ]
+  },
+  "s_kushites_wall_short": {
+   "metre": 0.25003,
+   "origin": [
+    0.023,
+    2.716,
+    0.0021
+   ]
+  },
+  "s_kushites_workshop": {
+   "metre": 0.16655,
+   "origin": [
+    0.1501,
+    1.147,
+    0.1136
+   ]
+  },
+  "s_macedonians_theater": {
+   "metre": 0.12789,
+   "origin": [
+    -0.0008,
+    1.406,
+    0.092
+   ]
+  },
+  "s_mauryas_wall_gate": {
+   "metre": 0.25,
+   "origin": [
+    -0.0,
+    3.4742,
+    0.0
+   ]
+  },
+  "s_mauryas_wall_long": {
+   "metre": 0.25,
+   "origin": [
+    -0.0,
+    3.4743,
+    -0.0
+   ]
+  },
+  "s_mauryas_wall_medium": {
+   "metre": 0.25,
+   "origin": [
+    -0.0033,
+    3.4743,
+    -0.0
+   ]
+  },
+  "s_mauryas_wall_short": {
+   "metre": 0.25,
+   "origin": [
+    0.0034,
+    3.4743,
+    -0.0
+   ]
+  },
+  "s_mauryas_wooden_tower": {
+   "metre": 0.24316,
+   "origin": [
+    -0.0,
+    1.3813,
+    0.0921
+   ]
+  },
+  "s_mauryas_workshop": {
+   "metre": 0.16834,
+   "origin": [
+    0.1916,
+    1.2925,
+    0.0485
+   ]
+  },
+  "s_mercenaries_camp_blemmye": {
+   "metre": 0.13473,
+   "origin": [
+    0.0416,
+    0.4543,
+    -0.2238
+   ]
+  },
+  "s_mercenaries_camp_nuba": {
+   "metre": 0.12667,
+   "origin": [
+    0.1105,
+    0.6597,
+    -0.0927
+   ]
+  },
+  "s_persians_blacksmith": {
+   "metre": 0.21634,
+   "origin": [
+    -0.1251,
+    0.9497,
+    -0.0106
+   ]
+  },
+  "s_persians_hall": {
+   "metre": 0.18,
+   "origin": [
+    -0.0,
+    2.2786,
+    -0.0
+   ]
+  },
+  "s_persians_hall_palace": {
+   "metre": 0.216,
+   "origin": [
+    -0.0,
+    2.7343,
+    -0.0
+   ]
+  },
+  "s_persians_ice_house": {
+   "metre": 0.20946,
+   "origin": [
+    -0.0,
+    0.2325,
+    -0.0126
+   ]
+  },
+  "s_persians_market": {
+   "metre": 0.21,
+   "origin": [
+    -0.0064,
+    1.403,
+    -0.0126
+   ]
+  },
+  "s_persians_outpost": {
+   "metre": 0.29458,
+   "origin": [
+    -0.002,
+    2.2973,
+    0.0438
+   ]
+  },
+  "s_persians_range": {
+   "metre": 0.14857,
+   "origin": [
+    0.0503,
+    1.7567,
+    0.038
+   ]
+  },
+  "s_persians_shrine": {
+   "metre": 0.21004,
+   "origin": [
+    -0.0,
+    0.8718,
+    -0.0
+   ]
+  },
+  "s_persians_stable": {
+   "metre": 0.21254,
+   "origin": [
+    0.007,
+    1.6016,
+    -0.0576
+   ]
+  },
+  "s_persians_stable_elephant": {
+   "metre": 0.1668,
+   "origin": [
+    -0.0,
+    2.5484,
+    -0.0737
+   ]
+  },
+  "s_persians_tachara": {
+   "metre": 0.19545,
+   "origin": [
+    -0.0314,
+    2.2207,
+    0.0452
+   ]
+  },
+  "s_persians_wall_gate": {
+   "metre": 0.25,
+   "origin": [
+    0.0056,
+    3.667,
+    -0.0649
+   ]
+  },
+  "s_persians_wall_long": {
+   "metre": 0.25,
+   "origin": [
+    -0.0004,
+    4.378,
+    -0.0
+   ]
+  },
+  "s_persians_wall_medium": {
+   "metre": 0.25001,
+   "origin": [
+    0.0011,
+    4.3781,
+    -0.0
+   ]
+  },
+  "s_persians_wall_short": {
+   "metre": 0.24998,
+   "origin": [
+    0.0021,
+    4.3776,
+    -0.0
+   ]
+  },
+  "s_persians_wooden_tower": {
+   "metre": 0.35235,
+   "origin": [
+    -0.0,
+    4.1314,
+    -0.0
+   ]
+  },
+  "s_persians_workshop": {
+   "metre": 0.17907,
+   "origin": [
+    0.1771,
+    1.4578,
+    -0.0452
+   ]
+  },
+  "s_ptolemies_blacksmith": {
+   "metre": 0.19798,
+   "origin": [
+    -0.0166,
+    1.7676,
+    -0.0519
+   ]
+  },
+  "s_ptolemies_kiosk": {
+   "metre": 0.20998,
+   "origin": [
+    -0.0,
+    1.3207,
+    -0.0
+   ]
+  },
+  "s_ptolemies_library": {
+   "metre": 0.13344,
+   "origin": [
+    -0.0071,
+    1.6581,
+    -0.5128
+   ]
+  },
+  "s_ptolemies_military_colony": {
+   "metre": 0.1813,
+   "origin": [
+    -0.0,
+    1.5385,
+    -0.0138
+   ]
+  },
+  "s_ptolemies_range": {
+   "metre": 0.14583,
+   "origin": [
+    0.012,
+    2.4127,
+    0.0111
+   ]
+  },
+  "s_ptolemies_settlement": {
+   "metre": 0.14614,
+   "origin": [
+    -0.0,
+    1.2415,
+    -0.0
+   ]
+  },
+  "s_ptolemies_stable": {
+   "metre": 0.18056,
+   "origin": [
+    0.0535,
+    1.6407,
+    0.1181
+   ]
+  },
+  "s_ptolemies_stable_elephant": {
+   "metre": 0.16399,
+   "origin": [
+    -0.0,
+    1.4516,
+    0.0171
+   ]
+  },
+  "s_ptolemies_wall_gate": {
+   "metre": 0.25001,
+   "origin": [
+    0.0137,
+    2.0356,
+    -0.0033
+   ]
+  },
+  "s_ptolemies_wall_long": {
+   "metre": 0.25001,
+   "origin": [
+    -0.0,
+    1.9396,
+    0.0014
+   ]
+  },
+  "s_ptolemies_wall_medium": {
+   "metre": 0.25001,
+   "origin": [
+    -0.0364,
+    1.9396,
+    0.0014
+   ]
+  },
+  "s_ptolemies_wall_short": {
+   "metre": 0.25001,
+   "origin": [
+    -0.0,
+    1.9396,
+    -0.0
+   ]
+  },
+  "s_ptolemies_wooden_tower": {
+   "metre": 0.25967,
+   "origin": [
+    0.0001,
+    2.033,
+    0.0783
+   ]
+  },
+  "s_ptolemies_workshop": {
+   "metre": 0.16655,
+   "origin": [
+    0.1501,
+    1.147,
+    0.1136
+   ]
+  },
+  "s_romans_amphitheater_pompeii": {
+   "metre": 0.07251,
+   "origin": [
+    -0.0,
+    0.5341,
+    -0.0
+   ]
+  },
+  "s_romans_blacksmith": {
+   "metre": 0.23043,
+   "origin": [
+    -0.0869,
+    1.4559,
+    -0.0067
+   ]
+  },
+  "s_romans_camp": {
+   "metre": 0.09744,
+   "origin": [
+    -0.0,
+    0.8209,
+    -0.0
+   ]
+  },
+  "s_romans_outpost": {
+   "metre": 0.29458,
+   "origin": [
+    -0.002,
+    2.2973,
+    0.0438
+   ]
+  },
+  "s_romans_range": {
+   "metre": 0.1426,
+   "origin": [
+    0.0001,
+    0.8547,
+    -0.0076
+   ]
+  },
+  "s_romans_stable": {
+   "metre": 0.18475,
+   "origin": [
+    0.0318,
+    1.1133,
+    -0.0207
+   ]
+  },
+  "s_romans_temple_mars": {
+   "metre": 0.12583,
+   "origin": [
+    0.0,
+    1.3189,
+    0.0212
+   ]
+  },
+  "s_romans_temple_vesta": {
+   "metre": 0.27532,
+   "origin": [
+    0.0,
+    0.5518,
+    -0.0
+   ]
+  },
+  "s_romans_wall_gate": {
+   "metre": 0.24999,
+   "origin": [
+    -0.0,
+    2.2796,
+    -0.0
+   ]
+  },
+  "s_romans_wall_long": {
+   "metre": 0.24998,
+   "origin": [
+    -0.0129,
+    2.2795,
+    -0.0
+   ]
+  },
+  "s_romans_wall_medium": {
+   "metre": 0.24998,
+   "origin": [
+    0.0008,
+    2.2795,
+    -0.0
+   ]
+  },
+  "s_romans_wall_short": {
+   "metre": 0.24998,
+   "origin": [
+    -0.0004,
+    2.2795,
+    -0.0
+   ]
+  },
+  "s_romans_wooden_tower": {
+   "metre": 0.16616,
+   "origin": [
+    0.0681,
+    1.2321,
+    -0.2829
+   ]
+  },
+  "s_romans_workshop": {
+   "metre": 0.17339,
+   "origin": [
+    0.1301,
+    2.1906,
+    0.0048
+   ]
+  },
+  "s_seleucids_blacksmith": {
+   "metre": 0.18257,
+   "origin": [
+    -0.1196,
+    2.0176,
+    -0.0109
+   ]
+  },
+  "s_seleucids_library": {
+   "metre": 0.19247,
+   "origin": [
+    0.0307,
+    2.1271,
+    -0.0511
+   ]
+  },
+  "s_seleucids_military_colony": {
+   "metre": 0.19301,
+   "origin": [
+    -0.0043,
+    2.431,
+    0.0703
+   ]
+  },
+  "s_seleucids_outpost": {
+   "metre": 0.29458,
+   "origin": [
+    -0.002,
+    2.2973,
+    0.0438
+   ]
+  },
+  "s_seleucids_range": {
+   "metre": 0.14579,
+   "origin": [
+    0.1043,
+    1.4526,
+    0.0172
+   ]
+  },
+  "s_seleucids_stable": {
+   "metre": 0.1742,
+   "origin": [
+    -0.0648,
+    2.4182,
+    -0.0041
+   ]
+  },
+  "s_seleucids_stable_elephant": {
+   "metre": 0.17094,
+   "origin": [
+    -0.0,
+    1.3217,
+    0.0308
+   ]
+  },
+  "s_seleucids_wall_gate": {
+   "metre": 0.24999,
+   "origin": [
+    0.0586,
+    3.9385,
+    0.0028
+   ]
+  },
+  "s_seleucids_wall_long": {
+   "metre": 0.24999,
+   "origin": [
+    0.0403,
+    3.2894,
+    0.0004
+   ]
+  },
+  "s_seleucids_wall_medium": {
+   "metre": 0.24999,
+   "origin": [
+    -0.002,
+    3.2894,
+    0.0005
+   ]
+  },
+  "s_seleucids_wall_short": {
+   "metre": 0.24998,
+   "origin": [
+    0.0069,
+    3.2892,
+    0.0007
+   ]
+  },
+  "s_seleucids_wooden_tower": {
+   "metre": 0.22953,
+   "origin": [
+    0.0324,
+    1.2695,
+    -0.0074
+   ]
+  },
+  "s_seleucids_workshop": {
+   "metre": 0.16109,
+   "origin": [
+    -0.13,
+    2.2198,
+    -0.2028
+   ]
+  },
+  "s_spartans_blacksmith": {
+   "metre": 0.19967,
+   "origin": [
+    -0.0811,
+    1.717,
+    0.0301
+   ]
+  },
+  "s_spartans_gerousia": {
+   "metre": 0.18665,
+   "origin": [
+    0.0272,
+    1.7272,
+    0.4316
+   ]
+  },
+  "s_spartans_range": {
+   "metre": 0.12541,
+   "origin": [
+    0.3393,
+    0.7486,
+    0.0587
+   ]
+  },
+  "s_spartans_sentry_tower": {
+   "metre": 0.23186,
+   "origin": [
+    0.0037,
+    1.0185,
+    0.0065
+   ]
+  },
+  "s_spartans_stable": {
+   "metre": 0.17131,
+   "origin": [
+    0.0067,
+    1.2831,
+    0.0102
+   ]
+  },
+  "s_spartans_syssiton": {
+   "metre": 0.20466,
+   "origin": [
+    -0.0,
+    1.8116,
+    -0.0473
+   ]
+  },
+  "s_spartans_theater": {
+   "metre": 0.13161,
+   "origin": [
+    -0.0013,
+    1.3505,
+    -0.1826
+   ]
+  },
+  "s_spartans_workshop": {
+   "metre": 0.14676,
+   "origin": [
+    0.0014,
+    0.8157,
+    -0.3683
+   ]
+  },
+  "s_special_palisade_bamboo_long_palisade": {
+   "metre": 0.18691,
+   "origin": [
+    0.0233,
+    1.5377,
+    0.0047
+   ]
+  },
+  "scout_tower": {
+   "metre": 0.17456,
+   "origin": [
+    0.0079,
+    1.7707,
+    -0.0284
+   ]
+  },
+  "sele_barracks": {
+   "metre": 0.17703,
+   "origin": [
+    -0.0,
+    1.4305,
+    -0.0995
+   ]
+  },
+  "sele_corral": {
+   "metre": 0.2115,
+   "origin": [
+    0.013,
+    1.9789,
+    0.0962
+   ]
+  },
+  "sele_dock": {
+   "metre": 0.1821,
+   "origin": [
+    -0.0526,
+    2.5879,
+    0.016
+   ]
+  },
+  "sele_farmstead": {
+   "metre": 0.16214,
+   "origin": [
+    0.0324,
+    2.0241,
+    0.1528
+   ]
+  },
+  "sele_fortress": {
+   "metre": 0.17268,
+   "origin": [
+    -0.031,
+    2.524,
+    -0.0784
+   ]
+  },
+  "sele_gate": {
+   "metre": 0.1066,
+   "origin": [
+    0.025,
+    1.6795,
+    0.0012
+   ]
+  },
+  "sele_house": {
+   "metre": 0.14946,
+   "origin": [
+    -0.0755,
+    1.0452,
+    -0.0493
+   ]
+  },
+  "sele_market": {
+   "metre": 0.16812,
+   "origin": [
+    0.025,
+    1.3763,
+    0.07
+   ]
+  },
+  "sele_storehouse": {
+   "metre": 0.20589,
+   "origin": [
+    -0.0592,
+    2.5641,
+    -0.082
+   ]
+  },
+  "sele_temple": {
+   "metre": 0.16434,
+   "origin": [
+    0.0464,
+    2.052,
+    -0.0441
+   ]
+  },
+  "sele_tower": {
+   "metre": 0.23996,
+   "origin": [
+    -0.0048,
+    2.9842,
+    0.0019
+   ]
+  },
+  "sele_town_center": {
+   "metre": 0.15822,
+   "origin": [
+    -0.0232,
+    2.3732,
+    0.0025
+   ]
+  },
+  "sele_town_center_rubble": {
+   "metre": 0.1969,
+   "origin": [
+    -0.0349,
+    1.3387,
+    0.1076
+   ]
+  },
+  "sele_wall": {
+   "metre": 0.05557,
+   "origin": [
+    0.009,
+    0.7312,
+    0.0001
+   ]
+  },
+  "sele_wall_segment": {
+   "metre": 0.05557,
+   "origin": [
+    0.009,
+    0.7312,
+    0.0001
+   ]
+  },
+  "sele_wall_tower": {
+   "metre": 0.23996,
+   "origin": [
+    -0.0048,
+    2.9842,
+    0.0019
+   ]
+  },
+  "sele_wonder": {
+   "metre": 0.1012,
+   "origin": [
+    0.0378,
+    1.244,
+    -0.0699
+   ]
+  },
+  "sentry_tower": {
+   "metre": 0.26558,
+   "origin": [
+    -0.0043,
+    1.402,
+    0.0209
+   ]
+  },
+  "ship_karvi": {
+   "metre": 0.19766,
+   "origin": [
+    -0.0,
+    0.0912,
+    -0.0
+   ]
+  },
+  "ship_knarr": {
+   "metre": 0.16048,
+   "origin": [
+    -0.0,
+    0.0846,
+    -0.0
+   ]
+  },
+  "ship_snekkja": {
+   "metre": 0.15229,
+   "origin": [
+    -0.0,
+    0.0802,
+    0.1233
+   ]
+  },
+  "shrine": {
+   "metre": 0.13377,
+   "origin": [
+    0.0176,
+    0.2242,
+    0.0
+   ]
+  },
+  "siege_wall": {
+   "metre": 0.11962,
+   "origin": [
+    -0.0038,
+    0.0115,
+    -0.1108
+   ]
+  },
+  "skiff": {
+   "metre": 0.121,
+   "origin": [
+    0.0,
+    0.149,
+    0.0789
+   ]
+  },
+  "spart_barracks": {
+   "metre": 0.18432,
+   "origin": [
+    0.0114,
+    1.3806,
+    -0.3474
+   ]
+  },
+  "spart_corral": {
+   "metre": 0.21698,
+   "origin": [
+    -0.074,
+    1.2775,
+    0.1045
+   ]
+  },
+  "spart_dock": {
+   "metre": 0.14703,
+   "origin": [
+    -0.0,
+    1.8806,
+    0.3429
+   ]
+  },
+  "spart_farmstead": {
+   "metre": 0.1771,
+   "origin": [
+    0.0147,
+    1.8498,
+    -0.0826
+   ]
+  },
+  "spart_fortress": {
+   "metre": 0.21272,
+   "origin": [
+    0.0058,
+    1.0996,
+    -0.0388
+   ]
+  },
+  "spart_gate": {
+   "metre": 0.10472,
+   "origin": [
+    -0.0005,
+    0.987,
+    -0.0061
+   ]
+  },
+  "spart_house": {
+   "metre": 0.15792,
+   "origin": [
+    0.0538,
+    0.9183,
+    -0.0204
+   ]
+  },
+  "spart_market": {
+   "metre": 0.12888,
+   "origin": [
+    -0.0488,
+    2.3438,
+    -0.0823
+   ]
+  },
+  "spart_storehouse": {
+   "metre": 0.18995,
+   "origin": [
+    -0.0537,
+    1.0828,
+    -0.0371
+   ]
+  },
+  "spart_temple": {
+   "metre": 0.1436,
+   "origin": [
+    -0.0042,
+    0.5409,
+    0.0012
+   ]
+  },
+  "spart_tower": {
+   "metre": 0.26322,
+   "origin": [
+    -0.0,
+    1.3485,
+    0.1798
+   ]
+  },
+  "spart_town_center": {
+   "metre": 0.20025,
+   "origin": [
+    0.2373,
+    1.1241,
+    -0.1805
+   ]
+  },
+  "spart_town_center_rubble": {
+   "metre": 0.1969,
+   "origin": [
+    -0.0349,
+    1.3387,
+    0.1076
+   ]
+  },
+  "spart_wall": {
+   "metre": 0.05511,
+   "origin": [
+    -0.0003,
+    0.5194,
+    -0.0
+   ]
+  },
+  "spart_wall_segment": {
+   "metre": 0.05511,
+   "origin": [
+    -0.0003,
+    0.5194,
+    -0.0
+   ]
+  },
+  "spart_wall_tower": {
+   "metre": 0.26322,
+   "origin": [
+    -0.0,
+    1.3485,
+    0.1798
+   ]
+  },
+  "spart_wonder": {
+   "metre": 0.10373,
+   "origin": [
+    -0.0242,
+    1.0009,
+    -0.0261
+   ]
+  },
+  "stable": {
+   "metre": 0.18386,
+   "origin": [
+    -0.0802,
+    1.2756,
+    0.0397
+   ]
+  },
+  "stable_elephant": {
+   "metre": 0.16254,
+   "origin": [
+    -0.0,
+    1.4252,
+    -0.0557
+   ]
+  },
+  "stables": {
+   "metre": 0.18386,
+   "origin": [
+    -0.0802,
+    1.2756,
+    0.0397
+   ]
+  },
+  "stoa": {
+   "metre": 0.16802,
+   "origin": [
+    0.2494,
+    0.9347,
+    0.0036
+   ]
+  },
+  "storehouse": {
+   "metre": 0.22296,
+   "origin": [
+    -0.0894,
+    0.964,
+    -0.0334
+   ]
+  },
+  "super_dock": {
+   "metre": 0.07152,
+   "origin": [
+    0.0,
+    0.7545,
+    -0.678
+   ]
+  },
+  "temple": {
+   "metre": 0.08988,
+   "origin": [
+    -0.001,
+    0.0038,
+    0.0006
+   ]
+  },
+  "theater": {
+   "metre": 0.12789,
+   "origin": [
+    -0.0008,
+    1.406,
+    0.092
+   ]
+  },
+  "tower": {
+   "metre": 0.21658,
+   "origin": [
+    -0.004,
+    3.0232,
+    -0.0007
+   ]
+  },
+  "tower_artillery": {
+   "metre": 0.27285,
+   "origin": [
+    -0.0,
+    2.3116,
+    0.396
+   ]
+  },
+  "tower_bolt": {
+   "metre": 0.25145,
+   "origin": [
+    0.0,
+    2.5163,
+    0.3335
+   ]
+  },
+  "town_center": {
+   "metre": 0.20834,
+   "origin": [
+    0.1105,
+    -0.0007,
+    0.0333
+   ]
+  },
+  "trireme_han": {
+   "metre": 0.20687,
+   "origin": [
+    -0.0,
+    0.2308,
+    -0.059
+   ]
+  },
+  "triumphal_arch": {
+   "metre": 0.22267,
+   "origin": [
+    0.0032,
+    0.0012,
+    0.0
+   ]
+  },
+  "wall": {
+   "metre": 0.05511,
+   "origin": [
+    -0.0003,
+    0.5194,
+    -0.0
+   ]
+  },
+  "wall_segment": {
+   "metre": 0.05511,
+   "origin": [
+    -0.0003,
+    0.5194,
+    -0.0
+   ]
+  },
+  "wall_tower": {
+   "metre": 0.21658,
+   "origin": [
+    -0.004,
+    3.0232,
+    -0.0007
+   ]
+  },
+  "wonder": {
+   "metre": 0.10515,
+   "origin": [
+    -0.0234,
+    0.4937,
+    -0.2088
+   ]
+  },
+  "wooden_tower": {
+   "metre": 0.27793,
+   "origin": [
+    -0.0186,
+    2.0006,
+    0.0217
+   ]
+  },
+  "workshop": {
+   "metre": 0.14732,
+   "origin": [
+    0.1283,
+    1.4423,
+    0.0516
+   ]
+  }
+ },
+ "structures": {
+  "athen": {
+   "0": "fndn_8x8",
+   "1": "fndn_4x4",
+   "10": "fndn_7x15_hele",
+   "11": "fndn_6x4_dock",
+   "12": "fndn_9x3_wall",
+   "13": "fndn_3x3",
+   "15": "fndn_7x7",
+   "16": "fndn_7x7",
+   "17": "fndn_5x5",
+   "18": "fndn_8x8",
+   "19": "fndn_3x3",
+   "2": "fndn_6x6",
+   "20": "fndn_2x2",
+   "21": "fndn_3x1",
+   "22": "fndn_3x3_tower",
+   "23": "fndn_9x8",
+   "24": "fndn_theater",
+   "25": "fndn_4x4",
+   "26": "fndn_8x9",
+   "27": "fndn_5x5",
+   "3": "fndn_3x3",
+   "4": "fndn_3x3",
+   "5": "fndn_5x4",
+   "6": "fndn_8x8",
+   "60": "fndn_3x1",
+   "69": "fndn_4x6",
+   "7": "fndn_8x8",
+   "70": "fndn_8x8",
+   "71": "fndn_3x3",
+   "72": "fndn_3x3",
+   "73": "fndn_8x4",
+   "74": "fndn_6x4",
+   "8": "fndn_9x3_wall",
+   "9": "fndn_5x7_temple"
+  },
+  "brit": {
+   "0": "fndn_7x8",
+   "1": "fndn_3x3",
+   "10": "fndn_stonehenge",
+   "11": "fndn_celt_dock",
+   "12": "fndn_9x3_wall",
+   "13": "fndn_3x6",
+   "15": "fndn_6x5",
+   "16": "fndn_7x7",
+   "17": "fndn_5x5",
+   "18": "fndn_8x8",
+   "19": "fndn_3x3",
+   "2": "fndn_6x6",
+   "20": "fndn_2x2",
+   "21": "fndn_3x1",
+   "22": "fndn_3x3_tower",
+   "23": "fndn_9x8",
+   "24": "fndn_5x5",
+   "25": "fndn_4x4",
+   "3": "fndn_4x4",
+   "34": "fndn_2x2",
+   "4": "fndn_3x3",
+   "5": "fndn_3x3",
+   "6": "fndn_6x6",
+   "60": "fndn_3x1",
+   "65": "fndn_8x8",
+   "69": "fndn_4x6",
+   "7": "fndn_9x9",
+   "70": "fndn_8x8",
+   "74": "fndn_6x4",
+   "8": "fndn_9x3_wall",
+   "9": "fndn_7x7"
+  },
+  "cart": {
+   "0": "fndn_8x8",
+   "1": "fndn_carthaginians_house",
+   "10": "fndn_8x15",
+   "11": "fndn_6x4_dock",
+   "12": "fndn_carthaginians_wall_long",
+   "13": "fndn_3x3",
+   "15": "fndn_6x6",
+   "16": "fndn_7x7",
+   "17": "fndn_5x5",
+   "18": "fndn_8x8",
+   "19": "fndn_carthaginians_wooden_tower",
+   "2": "fndn_6x6",
+   "20": "fndn_2x2",
+   "21": "fndn_3x1",
+   "22": "fndn_carthaginians_wall_tower",
+   "23": "fndn_9x8",
+   "24": "fndn_5x5",
+   "25": "fndn_4x4",
+   "3": "fndn_3x3",
+   "4": "fndn_carthaginians_defense_tower",
+   "5": "fndn_carthaginians_farmstead",
+   "52": "fndn_dock_super",
+   "57": "fndn_carthaginians_house",
+   "6": "fndn_7x7",
+   "60": "fndn_3x1",
+   "61": "fndn_4x4",
+   "62": "fndn_4x4",
+   "69": "fndn_4x6",
+   "7": "fndn_carthaginians_fortress",
+   "70": "fndn_8x8",
+   "71": "fndn_3x3",
+   "72": "fndn_carthaginians_defense_tower",
+   "74": "fndn_6x4",
+   "8": "fndn_9x3_wall",
+   "9": "fndn_4x6"
+  },
+  "gaul": {
+   "0": "fndn_8x8",
+   "1": "fndn_3x3",
+   "10": "fndn_9x9",
+   "11": "fndn_celt_dock",
+   "12": "fndn_9x3_wall",
+   "13": "fndn_3x6",
+   "15": "fndn_6x6",
+   "16": "fndn_7x7",
+   "17": "fndn_5x5",
+   "18": "fndn_8x8",
+   "19": "fndn_3x3",
+   "2": "fndn_6x6",
+   "20": "fndn_2x2",
+   "21": "fndn_3x1",
+   "22": "fndn_3x3_tower",
+   "23": "fndn_9x8",
+   "24": "fndn_5x5",
+   "25": "fndn_4x4",
+   "3": "fndn_3x3",
+   "35": "fndn_6x6",
+   "4": "fndn_3x3",
+   "5": "fndn_5x5",
+   "6": "fndn_6x6",
+   "60": "fndn_3x1",
+   "69": "fndn_4x6",
+   "7": "fndn_8x8",
+   "70": "fndn_8x8",
+   "74": "fndn_6x4",
+   "8": "fndn_9x3_wall",
+   "80": "fndn_6x6",
+   "9": "fndn_7x7"
+  },
+  "germ": {
+   "0": "fndn_7x8",
+   "1": "fndn_4x4",
+   "10": "fndn_9x9",
+   "11": "fndn_4x4_dock",
+   "12": "fndn_9x3_wall",
+   "13": "fndn_5x5",
+   "15": "fndn_6x6",
+   "16": "fndn_7x7",
+   "17": "fndn_5x5",
+   "18": "fndn_8x8",
+   "19": "fndn_3x3",
+   "2": "fndn_6x6",
+   "20": "fndn_2x2",
+   "21": "fndn_3x1",
+   "22": "fndn_3x3_tower",
+   "23": "fndn_9x8",
+   "24": "fndn_5x5",
+   "25": "fndn_4x4",
+   "3": "fndn_4x4",
+   "36": "fndn_carthaginians_wooden_tower",
+   "4": "fndn_3x3",
+   "5": "fndn_4x3",
+   "6": "fndn_8x8",
+   "60": "fndn_3x1",
+   "66": "fndn_4x6",
+   "67": "fndn_9x9",
+   "68": "fndn_9x9",
+   "69": "fndn_4x6",
+   "7": "fndn_9x9",
+   "70": "fndn_8x8",
+   "74": "fndn_6x4",
+   "8": "fndn_9x3_wall",
+   "9": "fndn_7x5"
+  },
+  "han": {
+   "0": "fndn_8x8",
+   "1": "fndn_4x4",
+   "10": "fndn_theater",
+   "11": "fndn_6x4_dock",
+   "12": "fndn_9x3_wall",
+   "13": "fndn_4x4",
+   "15": "fndn_6x6",
+   "16": "fndn_4x4",
+   "17": "fndn_5x5",
+   "18": "fndn_8x8",
+   "19": "fndn_3x3",
+   "2": "fndn_5x5",
+   "20": "fndn_2x2",
+   "21": "fndn_3x1",
+   "22": "fndn_3x3_tower",
+   "23": "fndn_9x8",
+   "24": "fndn_5x5",
+   "25": "fndn_4x4",
+   "3": "fndn_4x4",
+   "4": "fndn_3x3",
+   "44": "fndn_6x6",
+   "45": "fndn_8x8",
+   "5": "fndn_4x4",
+   "58": "fndn_8x8",
+   "59": "fndn_3x3",
+   "6": "fndn_7x7",
+   "60": "fndn_3x1",
+   "69": "fndn_4x6",
+   "7": "fndn_8x8",
+   "70": "fndn_8x8",
+   "74": "fndn_6x4",
+   "8": "fndn_9x3_wall",
+   "83": "fndn_8x8",
+   "84": "fndn_6x2",
+   "9": "fndn_6x7"
+  },
+  "iber": {
+   "0": "fndn_8x8",
+   "1": "fndn_3x3",
+   "10": "fndn_theater",
+   "11": "fndn_dock_iber",
+   "12": "fndn_9x3_wall",
+   "13": "fndn_3x3",
+   "15": "fndn_6x5",
+   "16": "fndn_7x7",
+   "17": "fndn_5x5",
+   "18": "fndn_8x8",
+   "19": "fndn_3x3",
+   "2": "fndn_6x6",
+   "20": "fndn_2x2",
+   "21": "fndn_3x1",
+   "22": "fndn_3x3_tower",
+   "23": "fndn_9x8",
+   "24": "fndn_5x5",
+   "25": "fndn_4x4",
+   "3": "fndn_3x3",
+   "36": "fndn_2x2",
+   "4": "fndn_4x4",
+   "5": "fndn_4x4",
+   "6": "fndn_5x6",
+   "60": "fndn_3x1",
+   "69": "fndn_4x6",
+   "7": "fndn_8x8",
+   "70": "fndn_8x8",
+   "74": "fndn_6x4",
+   "8": "fndn_9x3_wall",
+   "9": "fndn_6x6"
+  },
+  "kush": {
+   "0": "fndn_8x8",
+   "1": "fndn_4x4",
+   "10": "fndn_9x9",
+   "11": "fndn_6x4_dock",
+   "12": "fndn_9x3_wall",
+   "13": "fndn_4x4",
+   "15": "fndn_6x7",
+   "16": "fndn_7x7",
+   "17": "fndn_5x5",
+   "18": "fndn_8x8",
+   "19": "fndn_3x3",
+   "2": "fndn_6x6",
+   "20": "fndn_2x2",
+   "21": "fndn_3x1",
+   "22": "fndn_3x3_tower",
+   "23": "fndn_9x8",
+   "24": "fndn_5x5",
+   "25": "fndn_4x4",
+   "3": "fndn_3x3",
+   "39": "fndn_5x7",
+   "4": "fndn_3x3",
+   "40": "fndn_4x5",
+   "46": "fndn_8x7",
+   "47": "fndn_8x8",
+   "48": "fndn_7x15",
+   "5": "fndn_5x5",
+   "6": "fndn_8x8",
+   "60": "fndn_3x1",
+   "69": "fndn_4x6",
+   "7": "fndn_8x8",
+   "70": "fndn_8x8",
+   "74": "fndn_6x4",
+   "8": "fndn_9x3_wall",
+   "82": "fndn_6x6",
+   "9": "fndn_6x9"
+  },
+  "mace": {
+   "0": "fndn_8x8",
+   "1": "fndn_4x4",
+   "10": "fndn_10x12",
+   "11": "fndn_6x4_dock",
+   "12": "fndn_9x3_wall",
+   "13": "fndn_3x3",
+   "15": "fndn_7x7",
+   "16": "fndn_7x7",
+   "17": "fndn_5x5",
+   "18": "fndn_8x8",
+   "19": "fndn_3x3",
+   "2": "fndn_6x6",
+   "20": "fndn_2x2",
+   "21": "fndn_3x1",
+   "22": "fndn_3x3_tower",
+   "23": "fndn_9x8",
+   "24": "fndn_theater",
+   "25": "fndn_4x4",
+   "3": "fndn_3x3",
+   "33": "fndn_7x9",
+   "4": "fndn_3x3",
+   "5": "fndn_5x4",
+   "6": "fndn_8x8",
+   "60": "fndn_3x1",
+   "69": "fndn_4x6",
+   "7": "fndn_8x8",
+   "70": "fndn_8x8",
+   "71": "fndn_3x3",
+   "72": "fndn_3x3",
+   "73": "fndn_8x4",
+   "74": "fndn_6x4",
+   "8": "fndn_9x3_wall",
+   "9": "fndn_5x8"
+  },
+  "maur": {
+   "0": "fndn_8x8",
+   "1": "fndn_3x3",
+   "10": "fndn_theater",
+   "11": "fndn_4x4_dock",
+   "12": "fndn_9x3_wall",
+   "13": "fndn_3x3",
+   "15": "fndn_7x7",
+   "16": "fndn_7x7",
+   "17": "fndn_5x5",
+   "18": "fndn_8x8",
+   "19": "fndn_3x3",
+   "2": "fndn_6x6",
+   "20": "fndn_2x2",
+   "21": "fndn_3x1",
+   "22": "fndn_3x3_tower",
+   "23": "fndn_9x8",
+   "24": "fndn_5x5",
+   "25": "fndn_4x4",
+   "3": "fndn_3x3",
+   "37": "fndn_8x8",
+   "38": "fndn_2x2",
+   "4": "fndn_3x3",
+   "5": "fndn_3x3",
+   "6": "fndn_8x7",
+   "60": "fndn_3x1",
+   "69": "fndn_4x6",
+   "7": "fndn_8x8",
+   "70": "fndn_8x8",
+   "74": "fndn_6x4",
+   "8": "fndn_9x3_wall",
+   "81": "fndn_3x3",
+   "9": "fndn_5x8"
+  },
+  "pers": {
+   "0": "fndn_9x7",
+   "1": "fndn_4x4",
+   "10": "fndn_8x8",
+   "11": "fndn_4x4_dock",
+   "12": "fndn_9x3_wall",
+   "13": "fndn_5x3",
+   "15": "fndn_6x5",
+   "16": "fndn_7x7",
+   "17": "fndn_5x5",
+   "18": "fndn_8x8",
+   "19": "fndn_3x3",
+   "2": "fndn_6x6",
+   "20": "fndn_2x2",
+   "21": "fndn_3x1",
+   "22": "fndn_3x3_tower",
+   "23": "fndn_9x8",
+   "24": "fndn_5x5",
+   "25": "fndn_4x4",
+   "3": "fndn_3x3",
+   "30": "fndn_8x9",
+   "4": "fndn_3x3",
+   "5": "fndn_5x5",
+   "51": "fndn_4x4",
+   "53": "fndn_8x9",
+   "54": "fndn_8x9",
+   "55": "fndn_8x9",
+   "56": "fndn_8x9",
+   "6": "fndn_7x7",
+   "60": "fndn_3x1",
+   "69": "fndn_4x6",
+   "7": "fndn_8x8",
+   "70": "fndn_8x8",
+   "74": "fndn_6x4",
+   "75": "fndn_3x3",
+   "78": "fndn_7x7",
+   "79": "fndn_3x3",
+   "8": "fndn_9x3_wall",
+   "9": "fndn_5x5"
+  },
+  "ptol": {
+   "0": "fndn_8x8",
+   "1": "fndn_4x4",
+   "10": "fndn_10x18",
+   "11": "fndn_6x4_dock",
+   "12": "fndn_9x3_wall",
+   "13": "fndn_4x6",
+   "15": "fndn_7x6",
+   "16": "fndn_7x7",
+   "17": "fndn_5x5",
+   "18": "fndn_8x8",
+   "19": "fndn_3x3",
+   "2": "fndn_6x6",
+   "20": "fndn_2x2",
+   "21": "fndn_3x1",
+   "22": "fndn_3x3_tower",
+   "23": "fndn_9x8",
+   "24": "fndn_theater",
+   "25": "fndn_4x4",
+   "3": "fndn_5x5",
+   "33": "fndn_7x9",
+   "4": "fndn_3x3",
+   "41": "fndn_7x7",
+   "42": "fndn_4x4_dock",
+   "43": "fndn_9x9",
+   "5": "fndn_5x5",
+   "6": "fndn_8x8",
+   "60": "fndn_3x1",
+   "69": "fndn_4x6",
+   "7": "fndn_8x8",
+   "70": "fndn_8x8",
+   "71": "fndn_3x3",
+   "72": "fndn_3x3",
+   "74": "fndn_6x4",
+   "8": "fndn_9x3_wall",
+   "85": "fndn_7x8",
+   "9": "fndn_5x9"
+  },
+  "rome": {
+   "0": "fndn_9x9",
+   "1": "fndn_4x4",
+   "10": "fndn_8x8",
+   "11": "fndn_4x4_dock",
+   "12": "fndn_9x3_wall",
+   "13": "fndn_4x5",
+   "15": "fndn_6x6",
+   "16": "fndn_7x7",
+   "17": "fndn_5x5",
+   "18": "fndn_8x8",
+   "19": "fndn_3x3",
+   "2": "fndn_6x6",
+   "20": "fndn_2x2",
+   "21": "fndn_3x1",
+   "22": "fndn_3x3_tower",
+   "23": "fndn_9x8",
+   "24": "fndn_5x5",
+   "25": "fndn_4x4",
+   "3": "fndn_3x3",
+   "31": "fndn_8x8",
+   "32": "fndn_6x6",
+   "4": "fndn_3x3",
+   "49": "fndn_5x5",
+   "5": "fndn_5x5",
+   "50": "fndn_4x6",
+   "6": "fndn_9x7",
+   "60": "fndn_3x1",
+   "63": "fndn_9x2",
+   "64": "fndn_9x3_wall",
+   "69": "fndn_4x6",
+   "7": "fndn_8x8",
+   "70": "fndn_8x8",
+   "71": "fndn_3x3",
+   "72": "fndn_3x3",
+   "74": "fndn_6x4",
+   "76": "fndn_3x3",
+   "77": "fndn_5x3",
+   "8": "fndn_9x3_wall",
+   "9": "fndn_4x6"
+  },
+  "sele": {
+   "0": "fndn_8x8",
+   "1": "fndn_4x4",
+   "10": "fndn_7x15_hele",
+   "11": "fndn_6x4_dock",
+   "12": "fndn_9x3_wall",
+   "13": "fndn_3x3",
+   "15": "fndn_7x6",
+   "16": "fndn_7x7",
+   "17": "fndn_5x5",
+   "18": "fndn_8x8",
+   "19": "fndn_3x3",
+   "2": "fndn_6x6",
+   "20": "fndn_2x2",
+   "21": "fndn_3x1",
+   "22": "fndn_3x3_tower",
+   "23": "fndn_9x8",
+   "24": "fndn_theater",
+   "25": "fndn_4x4",
+   "3": "fndn_3x3",
+   "33": "fndn_7x7",
+   "4": "fndn_3x3",
+   "43": "fndn_9x9",
+   "5": "fndn_5x5",
+   "6": "fndn_8x8",
+   "60": "fndn_3x1",
+   "69": "fndn_4x6",
+   "7": "fndn_8x8",
+   "70": "fndn_8x8",
+   "72": "fndn_3x3",
+   "74": "fndn_6x4",
+   "8": "fndn_9x3_wall",
+   "9": "fndn_5x8"
+  },
+  "spart": {
+   "0": "fndn_8x8",
+   "1": "fndn_4x4",
+   "10": "fndn_8x15_hele",
+   "11": "fndn_6x4_dock",
+   "12": "fndn_9x3_wall",
+   "13": "fndn_3x3",
+   "15": "fndn_6x6",
+   "16": "fndn_7x7",
+   "17": "fndn_5x5",
+   "18": "fndn_8x8",
+   "19": "fndn_3x3",
+   "2": "fndn_7x7",
+   "20": "fndn_2x2",
+   "21": "fndn_3x1",
+   "22": "fndn_3x3_tower",
+   "23": "fndn_9x8",
+   "24": "fndn_theater",
+   "25": "fndn_4x4",
+   "28": "fndn_5x5",
+   "29": "fndn_5x8",
+   "3": "fndn_3x3",
+   "4": "fndn_3x3",
+   "5": "fndn_5x5",
+   "6": "fndn_8x8",
+   "60": "fndn_3x1",
+   "69": "fndn_4x6",
+   "7": "fndn_8x8",
+   "70": "fndn_8x8",
+   "71": "fndn_3x3",
+   "73": "fndn_8x7",
+   "74": "fndn_6x4",
+   "8": "fndn_9x3_wall",
+   "9": "fndn_4x8"
+  }
+ }
+}

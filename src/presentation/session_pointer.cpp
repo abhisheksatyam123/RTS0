@@ -118,6 +118,11 @@ void RtsoMain::update_cursor() {
 			else if (garrison_mode) want = "action-garrison";
 			else if (turret_mode) want = "action-occupy-turret";
 			else if (repair_mode) want = "action-repair";
+			// An armed action over a target it can't take: its -disabled cursor (unit_actions.js
+			// preSelectedActionCheck, "cursor": "action-garrison-disabled" and so on).
+			if ((guard_mode || garrison_mode || turret_mode || repair_mode) && !armed_target_ok(at))
+				want = guard_mode ? "action-guard-disabled" : garrison_mode ? "action-garrison-disabled"
+						: turret_mode ? "action-occupy-turret-disabled" : "action-repair-disabled";
 			if (!*want) {
 				auto uv = sim->units();
 				bool healer = false, builder = false;
@@ -207,6 +212,26 @@ void RtsoMain::update_cursor() {
 					// 0 A.D. "capture" is the default on enemy structures; session.attack
 					// (or attack-move's Ctrl) attacks instead.
 					// unit_actions "gather" (specificness 1): any player's finished field.
+					// unit_actions.js "returnresource": a carrier over a dropsite that takes its load.
+					{
+						auto cv = sim->units();
+						for (int s = 0; s < selected_ids.size() && !*want; ++s) {
+							const uint32_t uid = (uint32_t)(int64_t)selected_ids[s];
+							if (!sim->can_return_resource(uid, b.id)) continue;
+							for (size_t i = 0; i < cv.count; ++i)
+								if (cv.id[i] == uid) {
+									switch (cv.res_type_carried[i]) {
+										case rtso::RES_FOOD: want = "action-return-food"; break;
+										case rtso::RES_WOOD: want = "action-return-wood"; break;
+										case rtso::RES_STONE: want = "action-return-stone"; break;
+										case rtso::RES_GOLD: want = "action-return-metal"; break;
+										default: break;
+									}
+									break;
+								}
+						}
+						if (*want) break;
+					}
 					const uint32_t grain = b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
 					if (grain && sim->any_can_gather((const uint32_t *)selected_ids.ptr(), selected_ids.size(), grain))
 						want = "action-gather-grain";

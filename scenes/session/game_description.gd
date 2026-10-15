@@ -7,6 +7,7 @@ extends RefCounted
 const SetupPage = preload("res://scenes/menu/gamesetup.gd")
 const ReplayPage = preload("res://scenes/menu/replay_browser.gd")
 const SummaryPage = preload("res://scenes/session/summary_screen.gd")
+const L10n := preload("res://scenes/menu/l10n.gd")
 
 const HIGHLIGHT := "orange" # g_DescriptionHighlight
 
@@ -35,11 +36,27 @@ const POP_WORLD := ["World Population", "World Population Cap"]
 const TEAM_POP_FLAG := 100000 # Simulation::TEAM_POP_FLAG: pop_cap <= -flag is a Team Population
 const UNLIMITED_POP := 10000
 
+# maps/random/rmbiome/generic/*.json Description Title and Description, by Game Setup BIOMES index.
+const BIOME_TEXT := {
+	1: ["Aegean-Anatolian", "Start in a region blessed with the Mediterranean climate, a warm and inviting land. The cypresses are in a perpetual struggle with the dominant fan palms while deer graze in their shadows, blissfully unaware."],
+	3: ["Subalpine", "Between the high summits of the Alps, the valleys are filled with fog in the early morning. The ground is full of gravel and rocks, but silver fir and spruce trees grow between them and provide shelter for deer and mountain goats."],
+	4: ["Sahara", "A semi-desert area that boasts numerous clumps of date palms and acacia trees. Herds of camels roam the wild and the occasional gazelle jumps up in fright at being disturbed."],
+	5: ["Temperate", "Lush grasslands carpet the land, in places giving way to magnificent and diverse broadleaf forests. Poplars, pines, beeches and oaks all vie for supremacy but this root-war is a never-ending struggle. Numerous apple trees dot the land, deer and sheep gorge themselves on this years fallen fruit."],
+	6: ["Eurasian Steppe", "Wide grasslands stretching to the horizon, without any trees blocking the view. The Steppe is home to large herds of wild horses, which graze peacefully on the empty land, but flee quickly if you try to catch them."],
+	7: ["Sudanian Savanna", "The transition between the dry Sahara to the north and the tropical forests to the south. The sunlight floods through the open canopy and lights the grassland between the trees, where herds of zebras, wildebeest, giraffes and elephants roam."],
+	8: ["Arctic", "A region in the high snowy mountains. Biting winds sweep through the abundant conifer forests, making even the more resilient deer and mountain goats shiver."],
+	9: ["India", "Explore the mysterious tropics. An extremely green, but also extremely humid environment awaits. The tall Toona trees look on disapprovingly at this invasion of their privacy and ferocious tigers are determined to defend their territory at all costs."],
+	10: ["Rhine Valley (Fall)", "The first leaves have fallen. The landscape is a dazzling dash of colors irrevocably intertwined. The native beech and oak trees of this temperate zone display a multi-colored foliage while animals try to prepare for the approaching winter."],
+	11: ["Nubia", "Nubia, a dry climate in which only the hardy Baobab trees thrive. Solitary gazelles graze the sparse grass, while herds of zebras, wildebeest, giraffes or elephants roam the wild in search of food."],
+}
+const RATING_DESC := "When the winner of this match is determined, the lobby score will be adapted."
+
 ## 0.28 messages.js g_PlayerStateMessages, for the dialog's player-state line.
 const PLAYER_STATE_MESSAGES := {"won": "You have won!", "defeated": "You have been defeated!"}
 
+## translatePlural("Wonder (%(min)s minute)", "Wonder (%(min)s minutes)", n).
 static func _minutes(n: int, what: String) -> String:
-	return "%s (%d %s)" % [what, n, "minute" if n == 1 else "minutes"]
+	return L10n.sprintf(L10n.t(what + (" (%(min)s minute)" if n == 1 else " (%(min)s minutes)")), {"min": n})
 
 ## The 0.28 map type ("random", "skirmish" or "scenario") and its title.
 static func map_type(map_id: String) -> String:
@@ -104,7 +121,7 @@ static func titles(info: Dictionary) -> Array:
 	var ceasefire := int(info.get("ceasefire_min", 0))
 	out.append(["Ceasefire", "disabled" if ceasefire == 0
 		else "For the first minute, other players will stay neutral." if ceasefire == 1
-		else "For the first %d minutes, other players will stay neutral." % ceasefire])
+		else L10n.sprintf(L10n.t("For the first %(min)s minutes, other players will stay neutral."), {"min": ceasefire})])
 
 	var map_id := str(info.get("map_id", ""))
 	var type := map_type(map_id)
@@ -119,6 +136,12 @@ static func titles(info: Dictionary) -> Array:
 			var tp: Array = SetupPage.TEAM_PLACEMENTS[clampi(int(info.get("team_placement", 0)), 0, SetupPage.TEAM_PLACEMENTS.size() - 1)]
 			out.append([tp[1], tp[2]] if int(info.get("team_placement", 0)) > 0
 				else ["Random Player Placement", "Randomly select a player placement from the list."])
+		# Biome: the Game Setup pick when the map's SupportedBiomes offer it ("Map default"
+		# keeps the map's own and, unlike 0.28's resolved random pick, has no line).
+		var biome := int(info.get("biome", 0))
+		var offered: Array = SetupPage.biome_values(SetupPage._map_types_data().get("random_biomes", {}).get(SetupPage.rms_script(map_id), []))
+		if biome > 0 and BIOME_TEXT.has(biome) and offered.has(biome) and not map_id in SetupPage.OWN_RMS_MAPS:
+			out.append(BIOME_TEXT[biome])
 		if SetupPage.TRIGGER_DIFFICULTY_MAPS.has(map_id):
 			out.append(SetupPage.TRIGGER_DIFFICULTIES[clampi(int(info.get("trigger_difficulty", 3)) - 1, 0, 4)])
 		var nomad := bool(info.get("nomad", false))
@@ -145,15 +168,25 @@ static func titles(info: Dictionary) -> Array:
 	out.append(["Revealed Map", bool(info.get("reveal_map", false))])
 	out.append(["Allied View", bool(info.get("ally_view", false))])
 	out.append(["Cheats", bool(info.get("cheats", false))])
+	# Rating.js RatingEnabled: a rated 1v1 says so; any other lobby game reads disabled.
+	var rated := bool(info.get("rated", false))
+	if rated and int(info.get("player_count", 0)) == 2:
+		out.append(["Rated game", RATING_DESC])
+	elif bool(info.get("lobby_game", false)):
+		out.append(["Rated game", RATING_DESC if rated else false])
 	return out
 
-## The dialog text: "label details" lines, a true value reading "enabled" and
-## a false or empty one "disabled".
+## The dialog text: translated "%(label)s %(details)s" lines, a true value
+## reading "enabled" and a false or empty one "disabled". Titles, descriptions
+## and map names are translated as 0.28 translates them; formatted ones
+## (_minutes, the ceasefire line) already are, and translating them again
+## returns them unchanged.
 static func describe(info: Dictionary) -> String:
 	var lines: PackedStringArray = []
+	var fmt := L10n.t("%(label)s %(details)s")
 	for t in titles(info):
 		var v: Variant = t[1]
-		var details: String = "enabled" if v is bool and v else \
-			"disabled" if (v is bool and not v) or str(v) == "" else str(v)
-		lines.append("[color=%s]%s[/color] %s" % [HIGHLIGHT, t[0], details])
+		var details: String = L10n.t("enabled") if v is bool and v else \
+			L10n.t("disabled") if (v is bool and not v) or str(v) == "" else L10n.t(str(v))
+		lines.append(L10n.sprintf(fmt, {"label": "[color=%s]%s[/color]" % [HIGHLIGHT, L10n.t(str(t[0]))], "details": details}))
 	return "\n".join(lines)
