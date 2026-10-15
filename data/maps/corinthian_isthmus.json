@@ -58394,6 +58394,7 @@
       "piece": "tower",
       "angle": 2.3562,
       "length": 1.488,
+      "no_capture": true,
       "template": "structures/palisades_fort"
     },
     {
@@ -58418,33 +58419,53 @@
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_straight",
       "x": 194.23,
-      "z": 70.84
+      "z": 70.84,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 3.927,
+      "length": 1.674,
+      "template": "structures/palisades_straight"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_straight",
       "x": 193.01,
-      "z": 72.09
+      "z": 72.09,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 3.927,
+      "length": 1.674,
+      "template": "structures/palisades_straight"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_straight",
       "x": 191.68,
-      "z": 73.45
+      "z": 73.45,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 3.927,
+      "length": 1.674,
+      "template": "structures/palisades_straight"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_straight",
       "x": 190.37,
-      "z": 74.78
+      "z": 74.78,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 3.927,
+      "length": 1.674,
+      "template": "structures/palisades_straight"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_straight",
       "x": 189.28,
-      "z": 76.26
+      "z": 76.26,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 4.1443,
+      "length": 1.674,
+      "template": "structures/palisades_straight"
     },
     {
       "type": "palisade",
@@ -58528,15 +58549,23 @@
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_watchtower",
       "x": 197.35,
-      "z": 71.34
+      "z": 71.34,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 0.93,
+      "template": "structures/palisades_watchtower"
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_watchtower",
       "x": 200.84,
-      "z": 68.48
+      "z": 68.48,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 0.93,
+      "template": "structures/palisades_watchtower"
     },
     {
       "type": "palisade",
