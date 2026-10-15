@@ -268,6 +268,7 @@ const DIFFS := ["Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"]
 const AI_BEHAVIOR_IDS := {"random": 0, "defensive": 1, "balanced": 2, "aggressive": 3}
 const BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
 # Random-map biome override (index - 1 == rtso::BiomeType) and 0 A.D. game speeds.
+const RANDOM_BIOME := 99 # the Biome dropdown's Random entry (its item id too); resolved at Start
 const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India", "Autumn", "Nubia"]
 ## 0.28 rmbiome ids -> BIOMES index, as tools/extract_0ad_map_types.py RTS0_BIOMES maps
 ## them to BiomeType for the sim (map_biomes_data.h); 0.28 biomes RTS0 lacks are left out.
@@ -336,7 +337,7 @@ var _sel_map: int = 0
 # The Player Placement picked (rtso::TeamPlacement), kept while maps change.
 var _pop_type := POP_TYPE_PLAYER
 var _team_placement := 0
-var _biome := 0 # the Biome pick (BIOMES index), kept across maps that offer it
+var _biome := RANDOM_BIOME # the Biome pick (BIOMES index or RANDOM_BIOME), kept across maps that offer it
 var _map_type := "skirmish"
 var _map_filter_name := "default"
 var _filter_names: Array = []  # the filters the map type has maps for, in dropdown order
@@ -462,18 +463,20 @@ static func rms_script(map_id: String) -> String:
 	var s := map_id.trim_prefix("random_").trim_suffix("_0ad")
 	return "neareastern_badlands" if s == "nearestern_badlands" else s
 
-## 0.28 gamesetup Biome: only the map's SupportedBiomes, hidden on a map with none;
-## "Map default" first (the map's own biome); the pick stays when the new map offers it.
+## 0.28 Dropdowns/Biome.js: Random (the default), then only the map's SupportedBiomes,
+## hidden on a map with none; the pick stays when the new map offers it, else Random.
 func _rebuild_biomes(values: Array) -> void:
 	var slot := get_node_or_null("%BiomeSlot")
 	if slot == null or slot.get_child_count() == 0:
 		return
 	var bio: RtsoSafeSelect = slot.get_child(0)
 	bio.clear()
-	bio.add_item(BIOMES[0], 0)
+	bio.add_item(tr("Random"), RANDOM_BIOME)
+	bio.set_item_tooltip(0, tr("Pick a biome at random."))
 	for v in values:
 		bio.add_item(BIOMES[v], v)
-	bio.select(maxi(([0] + values).find(_biome), 0))
+		bio.set_item_tooltip(bio.get_item_count() - 1, GameDescription.BIOME_TEXT.get(v, ["", ""])[1])
+	bio.select(maxi(([RANDOM_BIOME] + values).find(_biome), 0))
 	slot.visible = not values.is_empty()
 	%BiomeLabel.visible = not values.is_empty()
 
@@ -482,7 +485,7 @@ func _selected_biome() -> int:
 	if slot == null or slot.get_child_count() == 0 or not slot.visible:
 		return 0
 	var bio: RtsoSafeSelect = slot.get_child(0)
-	return maxi(bio.get_item_id(bio.get_selected()), 0) if bio.get_selected() >= 0 else 0
+	return bio.get_item_id(bio.get_selected()) if bio.get_selected() >= 0 else RANDOM_BIOME
 
 func _on_biome_selected(_index: int) -> void:
 	_biome = _selected_biome()
@@ -1677,7 +1680,9 @@ func _apply_settings(ms: Dictionary) -> void:
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
 			msz.select(i)
 	res.select(clampi(int(ms.get("start_res")), 0, START_RES.size() - 1))
-	_biome = clampi(int(ms.get("biome")), 0, BIOMES.size() - 1)
+	_biome = int(ms.get("biome"))
+	if _biome != RANDOM_BIOME:
+		_biome = clampi(_biome, 0, BIOMES.size() - 1)
 	_rebuild_biomes(_selected_map().get("biomes", []))
 	for i in range(SPEEDS.size()):
 		if is_equal_approx(float(SPEEDS[i][0]), float(ms.get("game_speed"))) and spd.get_item_index(i) >= 0:
@@ -1916,6 +1921,9 @@ func _on_start_pressed() -> void:
 	ms.disable_spies = bool(st["disable_spies"])
 	ms.disable_treasures = bool(st["disable_treasures"])
 	ms.biome = int(st["biome"])
+	var offered: Array = m.get("biomes", [])
+	if ms.biome == RANDOM_BIOME: # 0.28 picks the random biome at launch
+		ms.biome = int(offered[randi() % offered.size()]) if not offered.is_empty() else 0
 	ms.game_speed = float(st["speed"])
 	ms.player_count = int(st["slots"])
 	ms.player_civ = int(st["civs"][0])

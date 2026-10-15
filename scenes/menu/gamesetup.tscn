@@ -266,7 +266,7 @@ layout_mode = 2
 [node name="BiomeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab/BiomeSpeedRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Random maps: the map's own biome, or another one."
+tooltip_text = "Select the flora and fauna."
 mouse_filter = 1
 text = "Biome"
 
