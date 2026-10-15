@@ -22392,7 +22392,7 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 			delta = std::sqrt(d1) - favoured;
 			val += delta * delta;
 			if (d2 >= 0.0f) { delta = std::sqrt(d2) - favoured; val += delta * delta; }
-			if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) val += 10000.0f / 16.0f;
+			if (near_map_border(x, z, border)) val += 10000.0f / 16.0f; // the circular borderMap too
 			if (found && val > best) continue;
 			// The land last of the tests a tile can fail: its search costs the most.
 			const uint16_t l = petra_land_at(x, z);
@@ -22492,7 +22492,7 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 					if (c.ally && d < ally_dis) norm_max *= 0.5f;
 				}
 				if (near) continue;
-				if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) norm_max *= 0.5f;
+				if (near_map_border(x, z, border)) norm_max *= 0.5f;
 				float val_max = 2.0f * (float)maps[res_k][j] + (float)maps[0][j] + (float)maps[1][j] + (float)maps[2][j];
 				val_max *= norm_max;
 				if (!dps.empty()) val_max = std::max(val_max, cut + 0.1f);
@@ -22524,7 +22524,7 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 				}
 				if (norm == 0.0f) continue;
 			}
-			if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) norm *= 0.5f;
+			if (near_map_border(x, z, border)) norm *= 0.5f; // the circular borderMap too
 			float val = 2.0f * (float)maps[res_k][j] + (float)maps[0][j] + (float)maps[1][j] + (float)maps[2][j];
 			val *= norm;
 			if (oversea) val = std::max(val, cut + 0.1f);
@@ -22871,6 +22871,9 @@ void Simulation::petra_research_population_bonus() {
 	petra_available_techs(techs);
 	for (uint8_t t : techs) {
 		const TechInfo &ti = tech_info(t);
+		// modifications[0] must be Population/Bonus: Wagon Trains lists Promotion/RequiredXp first
+		// (its XP part lives in promotion_data.h).
+		if (t == TECH_WAGON_TRAINS) continue;
 		if (ti.effect_count && tech_effects_table()[ti.effect_begin].stat == TSTAT_POP_BONUS) {
 			petra_start_research(t);
 			return;
@@ -22990,7 +22993,14 @@ void Simulation::petra_manage_research(float dt) {
 		}
 		// buildTemple (not while saving resources): one temple, after a market, from the city
 		// phase (the town phase in regicide, for healer guards); Rome's is the Temple of Vesta.
-		if (!saving && have_building(BLD_MARKET) && !have_building(BLD_TEMPLE) && !have_building(BLD_TEMPLE_VESTA) &&
+		// The Temple class: template_structure_civic_temple's children (shrines, the Temples of
+		// Amun, Isis, Mars and Vesta), foundations included.
+		bool have_temple = false;
+		for (const auto &b : buildings_)
+			have_temple |= b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked &&
+			               ((building_tech_classes(b.type) & TC_TEMPLE) || b.type == BLD_TEMPLE_AMUN ||
+			                b.type == BLD_TEMPLE_VESTA || b.type == BLD_TEMPLE_MARS);
+		if (!saving && have_building(BLD_MARKET) && !have_temple &&
 		    (petra_ps().phase >= 3 || has_victory(VK_REGICIDE))) {
 			if (can_build(BLD_TEMPLE_VESTA)) petra_place_generic(BLD_TEMPLE_VESTA, PETRA_Q_ECONOMIC_BUILDING);
 			else if (can_build(BLD_TEMPLE)) petra_place_generic(BLD_TEMPLE, PETRA_Q_ECONOMIC_BUILDING);
@@ -23082,7 +23092,12 @@ void Simulation::petra_manage_research(float dt) {
 			// The Seleucid army reform, either one at random, likewise ahead of the rest.
 			uint8_t choice = t;
 			const uint8_t other = t == TECH_TRADITIONAL_ARMY_SELE ? TECH_REFORMED_ARMY_SELE : TECH_TRADITIONAL_ARMY_SELE;
-			if (std::find(techs.begin(), techs.end(), other) != techs.end() && sim_rng_.range_int(0, 1) == 1) choice = other;
+			// Drawn once and kept while it waits (researchManager.js:90): a hash of what Petra has
+			// researched, as the City-phase pick below, not a fresh draw each pass.
+			uint64_t h = 0xD6E8FEB86659FD93ull * (petra_pid_ + 1);
+			for (uint64_t w : petra_ps().techs.words) h = (h ^ w) * 0xBF58476D1CE4E5B9ull;
+			h ^= h >> 31;
+			if (std::find(techs.begin(), techs.end(), other) != techs.end() && (h & 1)) choice = other;
 			petra_change_priority(PETRA_Q_MINOR_TECH, 2 * petra_queue_base_priority(PETRA_Q_MINOR_TECH), PETRA_Q_MINOR_TECH);
 			pick(choice);
 			return;
@@ -25857,7 +25872,7 @@ static inline bool petra_military_structure(uint8_t t) {
 	switch (building_research_base(t)) {
 		case BLD_BARRACKS: case BLD_FORTRESS: case BLD_DOCK: case BLD_STABLE: case BLD_RANGE: case BLD_FORGE:
 		case BLD_ARSENAL: case BLD_ELEPHANT_STABLE: case BLD_EMBASSY: case BLD_ARMY_CAMP: case BLD_MERCENARY_CAMP:
-		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA:
+		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_KENNEL: case BLD_ACADEMY:
 			return true;
 		default:
 			return false;
@@ -26001,7 +26016,9 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 		const float cx = std::round((wx + map_half_) / GRID) - (float)m.x0, cy = std::round((wz + map_half_) / GRID) - (float)m.z0;
 		const float md = reach_m / 4.0f / GRID, md2 = md * md, str = strength / md;
 		const int x0 = (int)std::floor(std::max(0.0f, cx - md)), y0 = (int)std::floor(std::max(0.0f, cy - md));
-		const int x1 = (int)std::floor(std::min((float)(bw - 1), cx + md)), y1 = (int)std::floor(std::min((float)(bh - 1), cy + md));
+		// addInfluence stops short of the map's last column; this box's last column and row
+		// are our own territory, so they are in reach.
+		const int x1 = (int)std::floor(std::min((float)bw, cx + md)), y1 = (int)std::floor(std::min((float)bh, cy + md));
 		for (int y = y0; y < y1; ++y)
 			for (int x = x0; x < x1; ++x) {
 				const float r2 = ((float)x - cx) * ((float)x - cx) + ((float)y - cy) * ((float)y - cy);
