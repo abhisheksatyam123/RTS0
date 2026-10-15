@@ -2,6 +2,7 @@
 // the 3D scene and the session HUD, _process runs the frame (sim ticks, lockstep, HUD refresh).
 // Split out of main_node.cpp (PLAN P4.6); the state they set up is RtsoMain's.
 
+#include "network/chat_routing.h"
 #include "main_node.h"
 #include "l10n.h"
 #include <godot_cpp/classes/style_box_flat.hpp>
@@ -49,6 +50,12 @@ void RtsoMain::_ready() {
 	// thread from net_host_.poll() (_process), so appending to the chat
 	// widget (chat_window.h) is safe.
 	// net_host.cpp:540 dispatch -> onChat (:395) -> display here.
+	// 0 A.D. NetServer OnChat: as host, an addressed line goes only to the
+	// clients it is for (the receivers keep their own check too).
+	net_host_.setChatRouter([this](uint32_t from, uint32_t to, const std::string &message) {
+		const std::string tag = rtso::chat_wire_tag(message);
+		return tag.empty() || chat_reaches(chat_player_of_client(from), chat_player_of_client(to), tag);
+	});
 	net_host_.onChat([this](const rtso::ChatMsg &cm) {
 		String msg = String::utf8(cm.message.c_str());
 		// Tactical flare piggybacks NMT_CHAT (approximation of 0 A.D. minimap
@@ -156,13 +163,12 @@ void RtsoMain::_ready() {
 		mm_btns->set_offset(SIDE_BOTTOM, -206.0f);
 		mm_btns->add_theme_constant_override("separation", 4);
 		struct MmBtn { const char *label; const char *method; };
-		const MmBtn mm_btn_defs[4] = {
+		const MmBtn mm_btn_defs[3] = {
 			// 3-state shroud cycle (RtsoMiniMapView::cycle_shroud, minimap_view.h ShroudMode):
 			// On -> terrain-only -> off -> On. 0AD MiniMapPanel.js:8-11 panel buttons.
 			{"Shroud", "cycle_shroud"},
 			{"Terr", "toggle_territory"},
 			{"Res", "toggle_resources"},
-			{"Diplo", "toggle_diplomacy"},
 		};
 		for (const MmBtn &d : mm_btn_defs) {
 			Button *b = memnew(Button);
@@ -175,6 +181,7 @@ void RtsoMain::_ready() {
 		}
 		ui_layer->add_child(mm_btns);
 	}
+	minimap_panel_.build(ui_layer, this, [](const String &path) { return rtso::load_ui_texture(path); });
 
 	// =========================================================================
 	// 1. TOP HUD BAR PANEL (Civ Crest, 4 Resources, Pop, Idle, Clock, Speed, Menu)
@@ -219,22 +226,27 @@ void RtsoMain::_ready() {
 			const auto *combos = rtso::hotkeys::table().get(name);
 			return (combos && !combos->empty()) ? String::utf8(rtso::hotkeys::combo_to_string(combos->front()).c_str()) : String();
 		};
+		top_panel_.set_civ_icon_keys(first_key("civinfo"), first_key("structree"));
+		minimap_panel_.set_hotkeys(first_key("selection.idleworker"), first_key("session.diplomacycolors"), first_key("session.flare"));
 		top_panel_.set_dialog_tooltips(first_key("session.gui.diplomacy.toggle"),
 				first_key("session.gui.barter.toggle"),
 				first_key(rtso::hotkeys::table().get("session.gui.matchsettings.toggle") ? "session.gui.matchsettings.toggle" : "session.gui.objectives.toggle"));
 	}
 
-	time_notification_label_ = memnew(Label);
+	time_notification_label_ = memnew(RichTextLabel);
+	time_notification_label_->set_name("TimeNotificationText");
+	time_notification_label_->set_use_bbcode(true);
+	time_notification_label_->set_fit_content(true);
+	time_notification_label_->set_scroll_active(false);
 	time_notification_label_->set_anchor(SIDE_LEFT, 0.0f);
 	time_notification_label_->set_anchor(SIDE_RIGHT, 1.0f);
 	time_notification_label_->set_anchor(SIDE_TOP, 0.0f);
 	time_notification_label_->set_anchor(SIDE_BOTTOM, 0.0f);
 	time_notification_label_->set_offset(SIDE_TOP, 62.0f);
 	time_notification_label_->set_offset(SIDE_BOTTOM, 140.0f);
-	time_notification_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 	time_notification_label_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
-	time_notification_label_->add_theme_font_size_override("font_size", 16);
-	time_notification_label_->add_theme_color_override("font_color", Color(1.0f, 0.92f, 0.6f));
+	time_notification_label_->add_theme_font_size_override("normal_font_size", 16);
+	time_notification_label_->add_theme_color_override("default_color", Color(1.0f, 0.92f, 0.6f));
 	time_notification_label_->add_theme_color_override("font_outline_color", Color(0.0f, 0.0f, 0.0f));
 	time_notification_label_->add_theme_constant_override("outline_size", 4);
 	time_notification_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
@@ -263,6 +275,14 @@ void RtsoMain::_ready() {
 	net_delay_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 	net_delay_label_->set_visible(false);
 	ui_layer->add_child(net_delay_label_);
+
+	placement_tip_ = memnew(Label);
+	placement_tip_->set_name("placementTooltip");
+	placement_tip_->add_theme_font_size_override("font_size", 13);
+	placement_tip_->add_theme_color_override("font_color", Color(1.0f, 1.0f, 1.0f));
+	placement_tip_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+	placement_tip_->set_visible(false);
+	ui_layer->add_child(placement_tip_);
 
 	cursor_tip_ = memnew(Label);
 	cursor_tip_->add_theme_font_size_override("font_size", 13);
@@ -474,6 +494,7 @@ void RtsoMain::_ready() {
 	// 2. BOTTOM INSPECTOR PANEL (5-Bar Stack: Health, Capture, XP, Stamina, Aura)
 	// =========================================================================
 	inspector_.build(this, ui_layer, zeroad_theme, this);
+	command_panel_.set_barter_host(inspector_.barter_host());
 
 	// 0 A.D. selection_details.js: the "i" button opens the Template Viewer
 	// (gui/reference/viewer) for the selected unit or structure.
@@ -555,7 +576,22 @@ void RtsoMain::_ready() {
 		};
 		caption(tr("Game Paused"), -20.0f, 28);
 		pause_resume_label_ = caption(tr("Click to Resume Game"), 20.0f, 14);
-		pause_by_label_ = caption("", 50.0f, 14);
+		// "Paused by" names each client in its player's colour, so it is bbcode.
+		pause_by_label_ = memnew(RichTextLabel);
+		pause_by_label_->set_use_bbcode(true);
+		pause_by_label_->set_fit_content(true);
+		pause_by_label_->set_scroll_active(false);
+		pause_by_label_->set_anchor(SIDE_LEFT, 0.3f);
+		pause_by_label_->set_anchor(SIDE_RIGHT, 0.7f);
+		pause_by_label_->set_anchor(SIDE_TOP, 0.4f);
+		pause_by_label_->set_anchor(SIDE_BOTTOM, 0.4f);
+		pause_by_label_->set_offset(SIDE_TOP, 50.0f);
+		pause_by_label_->set_offset(SIDE_BOTTOM, 72.0f);
+		pause_by_label_->add_theme_font_size_override("normal_font_size", 14);
+		pause_by_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+		pause_by_label_->add_theme_constant_override("outline_size", 4);
+		pause_by_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		pause_overlay_->add_child(pause_by_label_);
 	}
 	ui_layer->add_child(pause_overlay_);
 
@@ -631,7 +667,7 @@ void RtsoMain::_ready() {
 	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
 	panel_entities_.build(ui_layer, this, "_on_panel_entity_gui_input", 58.0f); // PanelEntities.xml, under the top panel
 	research_progress_.build(ui_layer, this, "_on_research_progress_pressed", 58.0f);
-	dev_overlay_.build(ui_layer, this, "_on_dev_command");
+	dev_overlay_.build(ui_layer, this, "_on_dev_command", "_on_render_debug_mode");
 	control_groups_.build(ui_layer, this, "_on_control_group_gui_input");
 	rtso::strip_engine_popups(ui_layer);
 
@@ -743,6 +779,7 @@ void RtsoMain::_ready() {
 	rally_flag->set_visible(false);
 	add_child(rally_flag);
 	range_overlays_.build(this);
+	debug_overlays_.build(this);
 
 	// (Unit selection now happens in apply_match_settings, after the map
 	// exists - the old block here ran before any map loaded and selected
@@ -972,13 +1009,17 @@ void RtsoMain::_process(double delta) {
 	rtso::display_colors::state().viewer = viewer; // DiplomacyColors: g_ViewedPlayer's stances
 	view->set_local_player(viewer);
 	if (viewer < rtso::MAX_PLAYERS) sim->set_fow_viewer(viewer); // an observer reads the revealed grid
-	if (inspector_.kind() == RtsoInspectorView::INSPECT_UNIT || inspector_.kind() == RtsoInspectorView::INSPECT_FAUNA) {
+	if (sim->cinema_playing()) {
+		// ICmpSelectable::SetOverrideVisibility(false): no selection rings while a path plays.
+		view->sync(sim, (float)delta, PackedInt32Array());
+	} else if (inspector_.kind() == RtsoInspectorView::INSPECT_UNIT || inspector_.kind() == RtsoInspectorView::INSPECT_FAUNA) {
 		PackedInt32Array shown = selected_ids;
 		shown.push_back((int32_t)inspector_.id());
 		view->sync(sim, (float)delta, shown);
 	} else {
 		view->sync(sim, (float)delta, selected_ids);
 	}
+	cinema_view_.update(*sim, cam_rig, ui_layer, this, delta);
 	if (cam_rig) {
 		minimap_view->set_local_player(viewer);
 		minimap_view->sync(sim, cam_rig->get_target_pos());
@@ -999,17 +1040,27 @@ void RtsoMain::_process(double delta) {
 	update_hud();
 	update_net_delay_overlay(delta);
 	if (sim && time_notification_label_) {
+		// l10n.js timeToString: "mm:ss", or "HH:mm:ss" from an hour on (whole seconds dropped down).
+		auto time_to_string = [](int64_t ms) {
+			const int64_t t = std::max<int64_t>(0, ms) / 1000;
+			return t < 3600 ? vformat("%02d:%02d", t / 60, t % 60) : vformat("%02d:%02d:%02d", t / 3600, t / 60 % 60, t % 60);
+		};
 		String txt;
 		for (const rtso::TimeNotification *n : sim->time_notifications_for(local_player())) {
 			if (!txt.is_empty()) txt += "\n";
-			// GuiInterface time notifications: %(time)s is the time left (timeToString).
-			String line = String::utf8(n->text);
+			// TimeNotificationOverlay: the message translated, then its parameters
+			// ("\x1fname=value" after the format) and %(time)s, the time left (timeToString).
+			const PackedStringArray parts = String::utf8(n->text).split(String::chr(0x1f));
+			String line = rtso::tr0(parts[0]);
+			for (int k = 1; k < parts.size(); ++k) {
+				const int eq = parts[k].find("=");
+				if (eq > 0) line = line.replace("%(" + parts[k].substr(0, eq) + ")s", parts[k].substr(eq + 1));
+			}
 			if (line.contains("%(time)s")) {
 				const uint32_t now = sim->trigger_state().time_ms;
-				const int left_s = n->end_ms > now ? (int)((n->end_ms - now + 999) / 1000) : 0;
-				line = line.replace("%(time)s", vformat("%d:%02d", left_s / 60, left_s % 60));
+				line = line.replace("%(time)s", time_to_string(n->end_ms > now ? (int64_t)(n->end_ms - now) : 0));
 			}
-			txt += line;
+			txt += line.replace("[", "[lb]"); // a map's text, not markup
 		}
 		// WonderVictory.js and CaptureTheRelic.js time notifications, worded for the local
 		// player (the wonder's owner, its allies or everyone else).
@@ -1024,18 +1075,20 @@ void RtsoMain::_process(double delta) {
 					if (q != p && ((sim->participant_mask() >> q) & 1) && !sim->is_defeated(q) && mutual(p, q)) m |= (uint8_t)(1u << q);
 				return m;
 			};
-			auto clock = [](float s) { const int t = (int)std::ceil(std::max(0.0f, s)); return vformat("%d:%02d", t / 60, t % 60); };
+			auto clock = [&](float s) { return time_to_string((int64_t)(s * 1000.0f)); };
 			auto add = [&](const String &l) { if (!txt.is_empty()) txt += "\n"; txt += l; };
 			if (sim->has_victory(rtso::VK_WONDER) && !sim->is_game_over())
 				for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
 					if (sim->wonder_hold(p) <= 0.0f || sim->is_defeated(p)) continue;
 					const String left = clock(sim->wonder_duration() - sim->wonder_hold(p));
 					const uint8_t allies = allies_of(p);
-					if (p == me) add(allies ? "You own a Wonder and you and your allies will win in " + left + "."
-							: "You own a Wonder and will win in " + left + ".");
-					else if (me < rtso::MAX_PLAYERS && ((allies >> me) & 1)) add(colored_player_name(p) + " owns a Wonder and you will win in " + left + ".");
-					else add(colored_player_name(p) + " owns a Wonder and " + (allies ? colored_player_name(p) + " and their allies" : String()) +
-							(allies ? " will win in " : "will win in ") + left + ".");
+					const String who = colored_player_name(p);
+					if (p == me) add(rtso::sprintf0(rtso::tr0(allies ? "You own a Wonder and you and your allies will win in %(time)s."
+							: "You own a Wonder and will win in %(time)s."), {{"time", left}}));
+					else if (me < rtso::MAX_PLAYERS && ((allies >> me) & 1))
+						add(rtso::sprintf0(rtso::tr0("%(_player_)s owns a Wonder and you will win in %(time)s."), {{"_player_", who}, {"time", left}}));
+					else add(rtso::sprintf0(rtso::tr0(allies ? "%(_player_)s owns a Wonder and %(_player_)s and their allies will win in %(time)s."
+							: "%(_player_)s owns a Wonder and will win in %(time)s."), {{"_player_", who}, {"time", left}}));
 				}
 			if (sim->has_victory(rtso::VK_RELIC) && !sim->is_game_over() && sim->relic_victory_timer() > 0.0f && !sim->relics().empty()) {
 				// StartCaptureTheRelicCountdown: named after the first relic's owner, "and their
@@ -1046,11 +1099,11 @@ void RtsoMain::_process(double delta) {
 					const bool team = (side & (side - 1)) != 0;
 					const String left = clock(sim->relic_duration() - sim->relic_victory_timer());
 					if (me < rtso::MAX_PLAYERS && ((side >> me) & 1))
-						add(team ? "You and your allies have captured all relics and will win in " + left + "."
-								: "You have captured all relics and will win in " + left + ".");
+						add(rtso::sprintf0(rtso::tr0(team ? "You and your allies have captured all relics and will win in %(time)s."
+								: "You have captured all relics and will win in %(time)s."), {{"time", left}}));
 					else
-						add(colored_player_name(owner) + (team ? " and their allies have captured all relics and will win in "
-								: " has captured all relics and will win in ") + left + ".");
+						add(rtso::sprintf0(rtso::tr0(team ? "%(_player_)s and their allies have captured all relics and will win in %(time)s."
+								: "%(_player_)s has captured all relics and will win in %(time)s."), {{"_player_", colored_player_name(owner)}, {"time", left}}));
 				}
 			}
 		}
@@ -1059,10 +1112,11 @@ void RtsoMain::_process(double delta) {
 		if (sim->ceasefire_seconds() > 0.0f) {
 			const float left = sim->ceasefire_seconds() - sim->game_time();
 			String line;
-			if (left > 0.0f && left <= 10.0f) line = "You can attack in 0:" + String(left > 9.0f ? "" : "0") + String::num_int64((int64_t)std::ceil(left));
-			else if (left <= 0.0f && left > -5.0f) line = "You can attack now!";
+			if (left > 0.0f && left <= 10.0f) line = rtso::sprintf0(rtso::tr0("You can attack in %(time)s"), {{"time", time_to_string((int64_t)(left * 1000.0f))}});
+			else if (left <= 0.0f && left > -5.0f) line = rtso::tr0("You can attack now!");
 			if (!line.is_empty()) txt += (txt.is_empty() ? "" : "\n") + line;
 		}
+		if (!txt.is_empty()) txt = "[center]" + txt + "[/center]";
 		if (time_notification_label_->get_text() != txt) time_notification_label_->set_text(txt);
 	}
 	if (sim && chat_window_.is_ready()) {
@@ -1084,11 +1138,15 @@ void RtsoMain::_process(double delta) {
 	update_inspector();
 	update_command_panel();
 	follow_player_tick();
+	time_warp_tick();
 	const auto attacks = sim->take_attacked_events();
 	detect_attacks(attacks);
 	show_session_notices(sim->take_session_notices());
 	show_trigger_dialogs(sim->take_trigger_dialogs());
 	update_cursor();
+	update_highlight();
+	// input.js INPUT_BATCHTRAINING: releasing session.batchtrain posts the batch.
+	if (batch_training_.active && !rtso::hotkeys::held("session.batchtrain")) flush_training_batch();
 	chat_window_.tick_overlay();
 	if (objectives_dialog_.is_open()) objectives_dialog_.set_player_state(match_settings_player_state());
 	tutorial_panel_.refresh(sim);
@@ -1161,7 +1219,7 @@ void RtsoMain::_process(double delta) {
 			std::vector<rtso::Simulation::WallPiece> pieces;
 			uint32_t start_tower = 0, end_tower = 0;
 			const uint8_t wall_kind = rtso::wallset_kind_of((uint8_t)current_build_type);
-			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind);
+			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind, sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_COUNT);
 			if (sim)
 				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
 						drag_curr_pos.x, drag_curr_pos.z, &start_tower, &end_tower, wall_kind);
@@ -1175,9 +1233,19 @@ void RtsoMain::_process(double delta) {
 			uint8_t pciv = sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_ATHENIANS;
 			// Pieces of this wall don't block each other; the towers it snaps onto don't block it.
 			const uint32_t snapped[2] = {start_tower, end_tower};
+			// GuiInterface.js SetWallPlacementPreview: from the first piece that can't go down (or
+			// can't be paid for, as cmd_build_wall stops there too) on, every piece is invalid.
+			bool chain_ok = true;
+			float spent[rtso::RES_COUNT] = {};
+			float wall_cost[rtso::RES_COUNT] = {};
 			for (size_t i = 0; i < pieces.size(); ++i) {
 				const auto &p = pieces[i];
 				MeshInstance3D *g = wall_ghosts[i];
+				if (sim) {
+					float c[rtso::RES_COUNT];
+					sim->wall_piece_cost(local_player(), pieces[i], c);
+					for (int r = 0; r < rtso::RES_COUNT; ++r) wall_cost[r] += c[r];
+				}
 				// 0 A.D. previews each piece with its own actor (wall_long/medium/short, the
 				// tower): the model the world view will draw for it, turned the same way.
 				const auto entry = rtso::ModelLibrary::get("buildings", RtsoWorldView::building_visual_id(pciv, p.type, p.half_w));
@@ -1199,7 +1267,17 @@ void RtsoMain::_process(double delta) {
 					g->set_global_position(Vector3(p.x, h + 0.05f, p.z));
 				}
 				g->set_rotation(Vector3(0.0f, p.rot - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
-				const bool ok = sim && sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
+				if (chain_ok && sim) {
+					float c[rtso::RES_COUNT];
+					sim->wall_piece_cost(local_player(), p, c);
+					const auto &ps = sim->player(local_player());
+					for (int r = 0; r < rtso::RES_COUNT; ++r) {
+						spent[r] += c[r];
+						chain_ok = chain_ok && spent[r] <= ps.res[r] + 1e-3f;
+					}
+					chain_ok = chain_ok && sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
+				}
+				const bool ok = sim && chain_ok;
 				g->set_material_override(ok ? ghost_mat_ok : ghost_mat_bad);
 				g->set_visible(true);
 			}
@@ -1207,6 +1285,26 @@ void RtsoMain::_process(double delta) {
 				if (wall_ghosts[i] && wall_ghosts[i]->is_visible()) {
 					wall_ghosts[i]->set_visible(false);
 				}
+			}
+			// INPUT_BUILDING_WALL_PATHING: the wall's cost and what the stock lacks for it;
+			// after a refused click "Cannot build wall here!" until the cursor moves.
+			if (!wall_fail_tip_.is_empty() && mouse_pos.distance_to(wall_fail_mouse_) > 2.0f) wall_fail_tip_ = String();
+			if (!wall_fail_tip_.is_empty()) {
+				set_placement_tip(wall_fail_tip_, true);
+			} else if (sim && !pieces.empty()) {
+				rtso::CostTip cost;
+				cost.food = (int64_t)std::lround(wall_cost[rtso::RES_FOOD]);
+				cost.wood = (int64_t)std::lround(wall_cost[rtso::RES_WOOD]);
+				cost.stone = (int64_t)std::lround(wall_cost[rtso::RES_STONE]);
+				cost.metal = (int64_t)std::lround(wall_cost[rtso::RES_GOLD]);
+				const auto &ps = sim->player(local_player());
+				String tip = rtso::cost_tooltip(cost);
+				const String need = rtso::needed_resources_tooltip(cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
+						ps.res[rtso::RES_STONE], ps.res[rtso::RES_GOLD]);
+				if (!need.is_empty()) tip += (tip.is_empty() ? String() : String("\n")) + need;
+				set_placement_tip(tip, !chain_ok);
+			} else {
+				set_placement_tip(String(), false);
 			}
 		} else {
 			for (auto *wg : wall_ghosts) {
@@ -1236,12 +1334,31 @@ void RtsoMain::_process(double delta) {
 				const float ghost_angle = placement_angle_at(current_build_type, gx, gz);
 				ghost_mesh->set_rotation(Vector3(0.0f, ghost_angle - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
 
-				bool can_build = sim->check_placement(local_player(), cell_x, cell_y, current_build_type, ghost_angle) ==
-						rtso::Simulation::PLACE_OK;
+				const auto placed = sim->check_placement(local_player(), cell_x, cell_y, current_build_type, ghost_angle);
+				const bool can_build = placed == rtso::Simulation::PLACE_OK;
 				ghost_mesh->set_material_override(can_build ? ghost_mat_ok : ghost_mat_bad);
+				String range_tip;
+				if (can_build) {
+					// input.js updateBuildingPlacementPreview: a structure with a Ranged attack shows
+					// its basic range and the average bonus the terrain gives it there.
+					const float range = sim->structure_arrow_range(local_player(), (uint8_t)current_build_type);
+					if (range > 0.0f) {
+						constexpr float kM = rtso::AttackDetection::kMetresPerUnit;
+						const float origin = rtso::civ_building_ai_info(sim->team_civ(local_player()), (uint8_t)current_build_type).origin_y;
+						const int64_t basic = (int64_t)std::lround(range * kM);
+						const int64_t bonus = (int64_t)std::lround((sim->average_elevation_range(gx, gz, range, origin) - range) * kM);
+						range_tip = rtso::sprintf0(rtso::tr0(basic == 1 ? "Basic range: %(range)s meter" : "Basic range: %(range)s meters"),
+											{{"range", String::num_int64(basic)}}) + "\n" +
+								rtso::sprintf0(rtso::tr0(bonus == 1 || bonus == -1 ? "Average bonus range: %(range)s meter" : "Average bonus range: %(range)s meters"),
+										{{"range", String::num_int64(bonus)}});
+					}
+				}
+				set_placement_tip(can_build ? range_tip : placement_failure_text(placed, (uint8_t)current_build_type, gx, gz), !can_build);
 			}
 		}
 	} else {
+		set_placement_tip(String(), false);
+		wall_fail_tip_ = String();
 		if (ghost_mesh && ghost_mesh->is_visible()) ghost_mesh->set_visible(false);
 		for (auto *wg : wall_ghosts) {
 			if (wg && wg->is_visible()) wg->set_visible(false);
@@ -1252,6 +1369,7 @@ void RtsoMain::_process(double delta) {
 	rtso::update_rally_marker(rally_flag, sim, selected_building_id, local_player());
 	range_overlays_.tick((float)delta);
 	range_overlays_.update(sim, local_player(), selected_building_id, selected_ids.ptr(), selected_ids.size());
+	debug_overlays_.update(sim, view);
 
 	if ((sim->is_victory() || sim->is_game_over()) && !summary_shown_) {
 		summary_shown_ = true;
@@ -1262,6 +1380,12 @@ void RtsoMain::_process(double delta) {
 	update_observer_view_picker();
 	// Check Victory / Defeat Condition, from the local player's seat
 	if (sim->is_victory_for(seat_player())) {
+		if (!campaign_win_noted_ && !turn_mgr_.is_replaying()) {
+			// CampaignSession.onFinish: a campaign level is completed as soon as it is won.
+			campaign_win_noted_ = true;
+			Ref<Script> summary = ResourceLoader::get_singleton()->load("res://scenes/session/summary_screen.gd");
+			if (summary.is_valid()) summary->call("mark_campaign_won");
+		}
 		banner_panel->set_visible(true);
 		banner_label->set_text("VICTORY!\nYour side has prevailed.");
 		banner_label->add_theme_color_override("font_color", Color(0.3f, 1.0f, 0.5f));

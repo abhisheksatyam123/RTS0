@@ -400,6 +400,31 @@ static void test_transport() {
 	CHECK(isp2 >= 0 && s.units().alive[isp2] && s.get_terrain_height(s.units().pos_x[isp2], s.units().pos_z[isp2]) > 0.15f);
 	CHECK(!s.units().alive[idx(s, rider2)]);
 
+	// Warships (template_unit_ship_warship_arrow/_ram) eject Civilian Infantry Dog: a healer
+	// drowns there but swims from a scout ship (template_unit_ship's list); a cavalry hero
+	// (Hero Cavalry, not Infantry) drowns.
+	{
+		auto up = [&](uint32_t id) { const int32_t i = idx(s, id); return i >= 0 && s.units().alive[i]; };
+		const uint16_t heal_t = tmpl_of("athen/support_healer_b");
+		auto sink = [&](float x, const char *ship_t, uint32_t a, uint32_t b) {
+			const uint32_t sh = s.spawn_unit(x, 13.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of(ship_t));
+			uint32_t party[2] = {a, b};
+			s.order_board_transport(party, b ? 2 : 1, sh);
+			run(s, 3.0f);
+			CHECK(s.get_transport_passenger_count(sh) == (b ? 2u : 1u));
+			s.units_.hp[idx(s, sh)] = 0.0f;
+			s.units_.alive[idx(s, sh)] = 0;
+			run(s, 0.1f);
+		};
+		const uint32_t h1 = s.spawn_unit(-80.0f, 17.5f, 0, UNIT_HEALER, 0.0f, heal_t);
+		const uint32_t hero = s.spawn_unit(-79.0f, 17.5f, 0, UNIT_HERO, 0.0f, tmpl_of("mace/hero_alexander_iii"));
+		sink(-80.0f, "athen/ship_arrow", h1, hero);
+		CHECK(!up(h1) && !up(hero));
+		const uint32_t h2 = s.spawn_unit(-100.0f, 17.5f, 0, UNIT_HEALER, 0.0f, heal_t);
+		sink(-100.0f, "athen/ship_scout", h2, 0);
+		CHECK(up(h2));
+	}
+
 	// EjectClassesOnDestroy is "Civilian Infantry Healer Dog": a 0.28 civilian swims ashore, an
 	// old female citizen (FemaleCitizen Support only) drowns, and a loaded ram (Siege) sinks
 	// with its own passengers (EjectOrKill kills a holder's units when it dies out of the world).
@@ -688,6 +713,30 @@ static void test_petra_navy() {
 
 // attackPlan.js overseas: an attack on the other land waits for a transport ship,
 // which navalManager.js trains (getBestShip "transport"), then sails across.
+// transportPlan.js getBoardingPos with avoidEnnemy: an army lands on the shore of the
+// target's land nearest the ship and target outside enemy territory, not on the beach
+// below an enemy Civic Centre.
+static void test_petra_landing_spot() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(20.0f, -30.0f, BLD_TOWN_CENTER, 0);
+	run(s, 2.0f);
+	s.petra_pid_ = 1;
+	const uint16_t land = s.petra_land_at(20.0f, -40.0f);
+	auto [cx, cz] = s.nav_grid_.world_to_cell(0.0f, 0.0f);
+	const uint16_t sea = s.nav_grid_.global_region_at(cx, cz, PASS_SHIP);
+	CHECK(s.territory_owner_at(20.0f, -18.0f) == 0);
+	float nx = 0.0f, nz = 0.0f, ax = 0.0f, az = 0.0f;
+	CHECK(s.petra_boarding_pos(land, sea, 20.0f, 0.0f, 20.0f, -40.0f, false, nx, nz));
+	CHECK(s.petra_boarding_pos(land, sea, 20.0f, 0.0f, 20.0f, -40.0f, true, ax, az));
+	std::printf("Petra landing spot: (%.1f, %.1f) nearest, (%.1f, %.1f) outside enemy land\n", nx, nz, ax, az);
+	CHECK(std::fabs(nx - 20.0f) < 3.0f && nz < -15.0f && nz > -20.0f); // the beach below the target
+	CHECK(s.territory_owner_at(ax, az) != 0 && az < -15.0f && az > -20.0f); // a beach outside the enemy's land
+	CHECK(s.petra_land_at(ax, az) == land);
+}
+
 static void test_petra_overseas_attack() {
 	static Simulation s;
 	fresh(s);
@@ -815,7 +864,6 @@ static void test_petra_concurrent_transports() {
 	s.players_[1].phase = 2;
 	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
 	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
-	const uint32_t house = s.spawn_building_world(30.0f, -40.0f, BLD_OUTPOST, 0); // an outpost: no decay on neutral land
 	s.spawn_unit(-40.0f, 10.0f, 1, UNIT_TRIREME);
 	s.spawn_unit(-20.0f, 10.0f, 1, UNIT_TRIREME);
 	std::vector<uint32_t> army;
@@ -834,26 +882,35 @@ static void test_petra_concurrent_transports() {
 	CHECK(plan_of(PETRA_TRANSPORT_BUILDERS) != nullptr);
 	// One plan per owner: a second builders' crossing waits for the first.
 	CHECK(!s.petra_start_transport(army, -30.0f, 40.0f, -30.0f, -40.0f, 0, PETRA_TRANSPORT_BUILDERS));
+	// The target, placed now: Petra's soldiers would capture it while the builders cross.
+	const uint32_t house = s.spawn_building_world(30.0f, -40.0f, BLD_OUTPOST, 0); // an outpost: no decay on neutral land
 	s.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
 	s.petra_attack_mgr_.target_size = 6;
 	s.petra_attack_mgr_.min_size = 6;
 	s.petra_attack_mgr_.rushes_set = 1;
+	// A fresh plan: Petra may already muster its own, with the soldiers it trained meanwhile.
+	s.petra_attack_plan_ = Simulation::AttackPlan();
 	s.petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
 	s.petra_attack_plan_.target_building_id = house;
 	s.petra_attack_plan_.state_timer = 0.0f;
-	// The army is the six given above: drop the batches Petra queued for the attack before
-	// it, which the plan would wait for (updatePreparation waits for its units in training).
-	for (auto &b : s.buildings_)
-		if (b.team == 1)
-			b.queue.erase(std::remove_if(b.queue.begin(), b.queue.end(),
-			                             [](const ProductionOrder &o) { return o.petra_plan == PETRA_ORDER_ATTACK; }),
-			              b.queue.end());
+	// The army is the six given above: drop the batches Petra queues for the attack, which
+	// the plan would wait for (updatePreparation waits for its units in training), here and
+	// on each second below (trainMoreUnits keeps filling its ranged and cavalry classes).
+	auto drop_attack_batches = [&] {
+		for (auto &b : s.buildings_)
+			if (b.team == 1)
+				b.queue.erase(std::remove_if(b.queue.begin(), b.queue.end(),
+				                             [](const ProductionOrder &o) { return o.petra_plan == PETRA_ORDER_ATTACK; }),
+				              b.queue.end());
+	};
+	drop_attack_batches();
 	bool both = false, shared = false;
 	std::vector<uint32_t> landed;
 	// The most villagers on the south land at once: once the civic centre stands, Petra may ship a
 	// builder home again for a resource the new base lacks.
 	int villagers_south = 0;
 	for (int k = 0; k < 120; ++k) {
+		if (s.petra_attack_plan_.state == Simulation::AttackPlan::MUSTER) drop_attack_batches();
 		run(s, 1.0f);
 		const PetraTransportPlan *a = plan_of(PETRA_TRANSPORT_ATTACK), *b = plan_of(PETRA_TRANSPORT_BUILDERS);
 		if (a && b) {
@@ -915,8 +972,8 @@ static void test_petra_transport_ship_lost() {
 }
 
 // DeathDamage.js: a fire ship ignited (Upgrade/Ignition to ship_fire_fire, mixins/fireship.xml)
-// burns down at RegenRate -5 and, dying, deals 500 Fire over 20 m to everyone, its own side
-// too, with quadratic falloff. Before ignition it neither burns nor blasts. Other ships and
+// burns down at RegenRate -200 and, dying, deals Crush 500 over 22 m (x3 vs Ship and Building)
+// to enemies only, with quadratic falloff. Before ignition it neither burns nor blasts. Other ships and
 // structures deal nothing when they die.
 // TreasureCollector (0.28 template_unit_ship): ships collect treasures within 12 m, a shipwreck
 // out at sea and one on the shore alike; warships too, rams and siege engines on land not.
@@ -1157,18 +1214,18 @@ static void test_fire_ship() {
 	s.order_set_stance(&all[3], 1, STANCE_PASSIVE);
 	auto hp = [&](uint32_t id) { const int32_t i = idx(s, id); return i >= 0 ? s.units().hp[i] : -1.0f; };
 	const float f0 = hp(fire), e0 = hp(enemy), o0 = hp(own), x0 = hp(far_enemy);
-	run(s, 10.0f);
+	run(s, 0.5f);
 	const float burnt = f0 - hp(fire);
-	std::printf("fire ship: %.1f hp burnt in 10 s\n", burnt);
-	CHECK(burnt > 45.0f && burnt < 55.0f);
+	std::printf("fire ship: %.1f hp burnt in 0.5 s\n", burnt);
+	CHECK(burnt > 90.0f && burnt < 110.0f);
 	s.set_unit_hp(fire, 1.0f);
 	run(s, 1.0f);
 	CHECK(!s.units().alive[idx(s, fire)]);
 	std::printf("fire ship blast: enemy %.0f -> %.0f, own %.0f -> %.0f, far %.0f -> %.0f\n",
 			e0, hp(enemy), o0, hp(own), x0, hp(far_enemy));
 	CHECK(hp(enemy) < e0 - 100.0f);       // close: most of 500
-	CHECK(hp(own) < o0 - 50.0f);          // friendly fire
-	CHECK(hp(far_enemy) == x0);           // 16 units away is outside 20 m (x0.6)
+	CHECK(hp(own) == o0);                 // no FriendlyFire
+	CHECK(hp(far_enemy) == x0);           // 16 units away is outside 22 m (x0.6)
 
 	// A trireme that sinks hurts nobody (no DeathDamage in template_unit_ship).
 	const uint32_t a = s.spawn_unit(-3.0f, 20.0f, 0, UNIT_TRIREME);
@@ -1217,7 +1274,8 @@ static void test_petra_cothon() {
 		s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
 		const uint32_t dock = s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
 		s.spawn_building_world(-10.0f, 50.0f, BLD_MARKET, 1);
-		// 0.28 popPhase2 is 100 at the default 200 population limit.
+		// 0.28 popPhase2 is 100 at a 200 population limit.
+		s.set_pop_cap(200);
 		for (int k = 0; k < 120; ++k) s.spawn_unit(-40.0f + (float)(k % 15) * 2.0f, 50.0f + (float)(k / 15) * 2.0f, 1, UNIT_VILLAGER);
 		run(s, 8.0f);
 		const Simulation::Building *cothon = nullptr;
@@ -1541,6 +1599,7 @@ int main() {
 	test_warships_keep_off_shore();
 	test_petra_navy();
 	test_petra_overseas_attack();
+	test_petra_landing_spot();
 	test_petra_unreachable_target();
 	test_petra_overseas_base();
 	test_petra_concurrent_transports();

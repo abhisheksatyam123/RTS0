@@ -800,7 +800,7 @@ int main() {
 		CHECK(d[0] == 0.0f && d[1] == 0.0f && d[2] == 0.0f && std::fabs(d[3] - 15.0f) < 1e-3f);
 		const float vs_ship = n.unit_attack_damage(fire, foe), vs_soldier = n.unit_attack_damage(fire, hop);
 		CHECK(std::fabs(vs_ship - 45.0f) < 1e-3f && std::fabs(vs_soldier - 15.0f) < 1e-3f);
-		CHECK(n.unit_combat_at(fire).status == 2 && std::fabs(n.unit_combat_at(fire).status_dps - 1.0f) < 1e-4f);
+		CHECK(n.unit_combat_at(fire).status == 2 && n.unit_combat_at(fire).status_damage == 2.0f && n.unit_combat_at(fire).status_interval == 2.0f);
 		n.complete_research(0, TECH_WARSHIP_FIRESHIP_ATTACK);
 		n.unit_tech_damage(lit, d);
 		CHECK(std::fabs(d[3] - 18.75f) < 1e-3f && std::fabs(n.units_.attack_damage[lit] - 18.75f) < 1e-3f);
@@ -808,6 +808,31 @@ int main() {
 		CHECK(std::fabs(d[3] - 15.0f) < 1e-3f); // only the Ignited one
 		std::printf("fire ship: %.1f vs a ship, %.1f vs a soldier; ignited with Burning Pitch %.2f\n", vs_ship, vs_soldier,
 				n.units_.attack_damage[lit]);
+	}
+
+	// MaxRange technologies add metres, scaled x0.28 as the templates' ranges are: Archery
+	// Tradition's +10 m is 2.8 units on a Persian archer, existing and newly trained, and
+	// Arrow Shooters' +8 m is 2.24 units on a sentry tower.
+	{
+		static Simulation n;
+		const uint32_t cc = fresh(n);
+		(void)cc;
+		auto idx = [&](uint32_t id) { auto u = n.units(); for (size_t i = 0; i < u.count; ++i) if (u.id[i] == id) return i; return (size_t)0; };
+		const uint16_t arch_t = civ_unit_template_by_id("pers/infantry_archer_b");
+		CHECK(arch_t < CIV_UNIT_TEMPLATE_COUNT);
+		const size_t a = idx(n.spawn_unit(0.0f, 30.0f, 0, (UnitType)civ_unit_template(arch_t).unit_type, 0.0f, arch_t));
+		const float r0 = n.units_.attack_range[a];
+		n.complete_research(0, TECH_ARCHERY_TRADITION);
+		const size_t b = idx(n.spawn_unit(4.0f, 30.0f, 0, (UnitType)civ_unit_template(arch_t).unit_type, 0.0f, arch_t));
+		CHECK(std::fabs(n.units_.attack_range[a] - (r0 + 2.8f)) < 1e-3f);
+		CHECK(std::fabs(n.units_.attack_range[b] - (r0 + 2.8f)) < 1e-3f);
+		const uint32_t tw = n.spawn_building_world(20.0f, 0.0f, BLD_TOWER, 0, 1.0f);
+		const float t0 = n.building_arrow_range(*find_bld(n, tw));
+		n.complete_research(0, TECH_TOWER_RANGE);
+		const float t1 = n.building_arrow_range(*find_bld(n, tw));
+		CHECK(std::fabs(t1 - t0 - 2.24f) < 1e-3f);
+		std::printf("Archery Tradition: archer range %.2f -> %.2f; Arrow Shooters: sentry tower %.2f -> %.2f\n", r0,
+				n.units_.attack_range[a], t0, t1);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

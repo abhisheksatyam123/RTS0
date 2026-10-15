@@ -197,10 +197,9 @@ void RtsoMiniMapView::_draw() {
 	// 3-Tier Fog of War shroud (Unexplored black, Explored fog 40%, Visible 100%)
 	// matching 0 A.D.'s LOS bitmap (visible=255 / explored=127 / unexplored=0,
 	// graphics/LOSTexture.cpp:443-449 composited by MiniMapTexture.cpp:523).
-	// Draw order encodes the shroud state (see ShroudMode in minimap_view.h):
-	//   SHROUD_ON      -> drawn AFTER entities, masking them (original behaviour)
-	//   SHROUD_TERRAIN -> drawn BEFORE entities: shroud hits the terrain layer only
-	//   SHROUD_OFF     -> not drawn at all (and no entity masking)
+	// CMiniMapTexture draws terrain, territories, then the LOS layer, and the entity
+	// points (mirages included) last at full colour, so the shroud never masks them.
+	// SHROUD_OFF (observer / replay view) skips it.
 	auto draw_shroud = [&]() {
 		if (!fow) return;
 		float cell_w = sz.x / (float)fow_res;
@@ -233,9 +232,6 @@ void RtsoMiniMapView::_draw() {
 		}
 	};
 
-	// Terrain-only shroud pass (entities are drawn on top, unaffected).
-	if (shroud_mode == SHROUD_TERRAIN) draw_shroud();
-
 
 	// 1. Territory tint raster (territory_grid_ -> ImageTexture upload):
 	// drawn over terrain / under the smoothed circle outlines so the cells
@@ -266,7 +262,9 @@ void RtsoMiniMapView::_draw() {
 		}
 	}
 
-	// 2. Draw Resource Nodes: what the player has seen (mirages dimmed)
+	if (shroud_mode != SHROUD_OFF) draw_shroud();
+
+	// 2. Draw Resource Nodes: what the player has seen, live or miraged
 	if (show_resources) {
 		for (const auto &r : mirages_.resources()) {
 			Vector2 pos = map_to_mini(r.x, r.z);
@@ -275,15 +273,11 @@ void RtsoMiniMapView::_draw() {
 			else if (r.type == rtso::RES_STONE) col = Color(0.70f, 0.70f, 0.78f, 0.85f); // Stone
 			else if (r.type == rtso::RES_FOOD) col = Color(0.95f, 0.45f, 0.2f, 0.85f); // Food
 
-			if (mirages_.los_at(r.x, r.z) != rtso::Simulation::FOW_VISIBLE) {
-				col.a *= 0.55f;
-			}
 			draw_rect(Rect2(pos - Vector2(1.5f, 1.5f), Vector2(3.0f, 3.0f)), col, true);
 		}
 		// template_gaia_treasure Minimap: a white (250, 250, 250) dot.
 		for (const auto &t : mirages_.treasures()) {
 			Color col(0.98f, 0.98f, 0.98f, 0.95f);
-			if (mirages_.los_at(t.x, t.z) != rtso::Simulation::FOW_VISIBLE) col.a *= 0.55f;
 			draw_rect(Rect2(map_to_mini(t.x, t.z) - Vector2(1.5f, 1.5f), Vector2(3.0f, 3.0f)), col, true);
 		}
 	}
@@ -304,10 +298,20 @@ void RtsoMiniMapView::_draw() {
 			box_sz = 5.0f;
 		}
 
-		if (b.miraged) {
-			col.a *= 0.55f;
-		}
 		draw_rect(Rect2(pos - Vector2(box_sz * 0.5f, box_sz * 0.5f), Vector2(box_sz, box_sz)), col, true);
+	}
+
+	// 3b. Animals: template_unit_fauna.xml Minimap type "food", colour (227, 130, 141), and
+	// RetainInFog, so they show wherever the viewer has explored.
+	{
+		const bool sees_all = rtso::los_sees_all(*sim, local_player);
+		const Color fauna_col(227.0f / 255.0f, 130.0f / 255.0f, 141.0f / 255.0f, 1.0f);
+		auto fv = sim->fauna();
+		for (size_t f = 0; f < fv.count; ++f) {
+			if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED) continue;
+			if (!sees_all && mirages_.los_at(fv.pos_x[f], fv.pos_z[f]) == rtso::Simulation::FOW_UNEXPLORED) continue;
+			draw_rect(Rect2(map_to_mini(fv.pos_x[f], fv.pos_z[f]) - Vector2(1.0f, 1.0f), Vector2(2.0f, 2.0f)), fauna_col, true);
+		}
 	}
 
 	// 4. Draw Units: own and allied always, others only in direct LOS
@@ -324,9 +328,6 @@ void RtsoMiniMapView::_draw() {
 		draw_rect(Rect2(pos.x - rad * 0.5f, pos.y - rad * 0.5f, rad, rad), col, true);
 	}
 
-	// 5. Normal shroud pass — drawn over the entities so they are masked too
-	// (skipped in terrain-only mode, which drew it as a terrain layer above).
-	if (shroud_mode == SHROUD_ON) draw_shroud();
 
 	// 5b. Minimap icons (gui.session.minimap.icons.enabled; <Minimap><Icon size="16">):
 	// civic centres, wonders, shrines and trading posts, stone and metal mines and

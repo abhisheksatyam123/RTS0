@@ -18,7 +18,16 @@ behind a small JSON API:
                                          in with no password, as a guest
   POST /logout    {token}
   POST /presence  {token, status}        status: available, away or playing
-  GET  /players                          -> {players: [{name, status}]}
+  GET  /players                          -> {players: [{name, status, moderator}], subject}
+                                         subject is the room subject (0 A.D. Subject.js)
+  POST /kick      {token, nick, reason, ban}
+                                         a moderator (--moderators) kicks nick from the lobby, or
+                                         with ban also keeps the name out (0 A.D. XmppClient kick and
+                                         ban). The lobby chat says "<nick> has been kicked from the
+                                         lobby." (KickStrings.js); the kicked player's next request
+                                         answers 401 with "kicked": that line for them, and a banned
+                                         name's login 403. 403 for a player who is no moderator
+  POST /subject   {token, subject}       a moderator sets the room subject
   GET  /rooms                            -> {rooms: [...]}
   POST /rooms     {id, host_ip, host_port, players, max_players, map_id,
                    name, host_name, map_name, victory, state, password,
@@ -28,13 +37,20 @@ behind a small JSON API:
                   map_type, map_size, start_time and player_names are optional:
                   the details 0 A.D.'s lobby shows for a selected game (GameDetails.js).
                   player_names is a list of {name, team, civ, ai, observer}, an AI
-                  also with ai_difficulty and ai_behavior
-  POST /rooms/unregister {id}            removes it (unregisterGame)
+                  also with ai_difficulty and ai_behavior, and in a running game
+                  state (won or defeated) and offline
+  POST /rooms/unregister {token, id}     removes it (unregisterGame)
+                  A game belongs to the account that registered it (its token), or
+                  without one to the address it came from, as 0 A.D.'s bot keys a
+                  game by the host's JID: only that host updates or removes it.
+                  Another host sending the same id (two on the default port) gets a
+                  game of its own, listed as "<id>-2" and so on; its later posts
+                  with the old id still reach its own game.
   POST /rooms/punch {token, id, ip, port} a signed-in joiner's public game endpoint, from STUN (0 A.D.
                                          SendStunEndpointToHost). Answers {local_ip, local_port},
                                          the host's LAN address, when ip is the host's public
                                          address (one network: 0 A.D. then joins at the LAN address)
-  GET  /rooms/punch?id=R&since=N         -> {endpoints: [{seq, ip, port}], last}: the host punches
+  GET  /rooms/punch?id=R&since=N[&token=T] -> {endpoints: [{seq, ip, port}], last}: the host punches
                                             a hole towards each (0 A.D. SendHolePunchingMessage)
   GET  /chat?since=N                     -> {messages: [{id, time, from, text}], last}
   POST /chat      {token, text}
@@ -86,7 +102,7 @@ STATUSES = ("available", "away", "playing")
 ROOM_STATES = ("init", "running")
 PUNCH_KEEP = 16         # joiner endpoints kept per game
 PUNCH_TIMEOUT = 30.0    # seconds a joiner endpoint stays listed
-PRIVATE_ROOM_KEYS = ("seen", "punch", "next_punch", "local_ip", "local_port")
+PRIVATE_ROOM_KEYS = ("seen", "punch", "next_punch", "local_ip", "local_port", "base", "owner", "poster_ip")
 STUN_MAGIC_COOKIE = 0x2112A442
 
 
@@ -153,6 +169,11 @@ def _player_names(value):
         if entry["ai"]:
             entry["ai_difficulty"] = num("ai_difficulty", 3, 0, 5)
             entry["ai_behavior"] = num("ai_behavior", 2, 0, 3)
+        # LobbyGamelistReporter: State (won, defeated) and Offline in a running game.
+        if p.get("state") in ("won", "defeated"):
+            entry["state"] = p["state"]
+        if p.get("offline") and not entry["ai"]:
+            entry["offline"] = True
         out.append(entry)
         if len(out) >= MAX_ROOM_PLAYERS:
             break
@@ -168,8 +189,13 @@ def _split_list(value):
 
 class Lobby:
     def __init__(self, timeout=TIMEOUT, clock=time.monotonic, ratings_path=None,
-                 accounts_path=None, accounts_only=False):
+                 accounts_path=None, accounts_only=False, moderators=(), subject=""):
         self.timeout = timeout
+        # 0 A.D. MUC roles: these names (lower case) are moderators.
+        self.moderators = {str(m).strip().lower() for m in moderators if str(m).strip()}
+        self.banned = set()  # names (lower case) kept out of the lobby
+        self.kicked = {}     # token -> the line its player gets on its next request
+        self.subject = str(subject or "")[:MAX_TEXT]
         self.clock = clock
         self.lock = threading.Lock()
         self.players = {}   # token -> {name, status, seen}
@@ -216,6 +242,46 @@ class Lobby:
             p["seen"] = self.clock()
         return p
 
+    def not_signed_in(self, token):
+        """401 for a token with no player, saying why when a moderator kicked it."""
+        why = self.kicked.pop(token or "", None)
+        return 401, ({"error": "not signed in", "kicked": why} if why else {"error": "not signed in"})
+
+    def kick(self, token, nick, reason="", ban=False):
+        """XmppClient kick / ban: a moderator removes nick from the lobby."""
+        p = self.player(token)
+        if not p:
+            return self.not_signed_in(token)
+        if p["name"].lower() not in self.moderators:
+            return 403, {"error": "The command is restricted to moderators."}
+        nick = " ".join(str(nick or "").split())[:MAX_NAME]
+        reason = " ".join(str(reason or "").split())[:MAX_TEXT]
+        target = next((t for t, q in self.players.items() if q["name"].lower() == nick.lower()), None)
+        if not nick or (target is None and not ban):
+            return 404, {"error": "no such player"}
+        if ban:
+            self.banned.add(nick.lower())
+        suffix = f" Reason: {reason}" if reason else ""
+        if target is not None:
+            name = self.players.pop(target)["name"]
+            self.kicked[target] = ("You have been banned from the lobby!" if ban else
+                                   "You have been kicked from the lobby!") + suffix
+            while len(self.kicked) > 64:
+                self.kicked.pop(next(iter(self.kicked)))
+        else:
+            name = nick
+        self._say(None, f"{name} has been {'banned' if ban else 'kicked'} from the lobby.{suffix}")
+        return 200, {}
+
+    def set_subject(self, token, subject):
+        p = self.player(token)
+        if not p:
+            return self.not_signed_in(token)
+        if p["name"].lower() not in self.moderators:
+            return 403, {"error": "The command is restricted to moderators."}
+        self.subject = str(subject or "").strip()[:MAX_TEXT]
+        return 200, {"subject": self.subject}
+
     @staticmethod
     def _hash(salt, password):
         return hashlib.sha256((salt + str(password)).encode("utf-8")).hexdigest()
@@ -253,6 +319,8 @@ class Lobby:
             name = acct["name"]
         elif password or self.accounts_only:
             return 401, {"error": "Wrong username or password" if password else "Register an account first"}
+        if name.lower() in self.banned:
+            return 403, {"error": "You have been banned from the lobby!"}
         if any(p["name"].lower() == name.lower() for p in self.players.values()):
             return 409, {"error": "that name is in use"}
         token = secrets.token_hex(16)
@@ -270,7 +338,7 @@ class Lobby:
     def presence(self, token, status):
         p = self.player(token)
         if not p:
-            return 401, {"error": "not signed in"}
+            return self.not_signed_in(token)
         if status not in STATUSES:
             return 400, {"error": "status must be one of " + ", ".join(STATUSES)}
         p["status"] = status
@@ -280,11 +348,13 @@ class Lobby:
         rows = []
         for p in self.players.values():
             row = {"name": p["name"], "status": p["status"]}
+            if p["name"].lower() in self.moderators:
+                row["moderator"] = True
             r = self.ratings.get(p["name"].lower())
             if r and r.get("rating") is not None:
                 row["rating"] = r["rating"]
             rows.append(row)
-        return 200, {"players": sorted(rows, key=lambda r: r["name"].lower())}
+        return 200, {"players": sorted(rows, key=lambda r: r["name"].lower()), "subject": self.subject}
 
     def _save_ratings(self):
         if not self.ratings_path:
@@ -416,14 +486,28 @@ class Lobby:
             return 200, {"local_ip": room["local_ip"], "local_port": room["local_port"]}
         return 200, {}
 
-    def punches(self, room_id, since):
-        room = next((r for r in self.rooms if r["id"] == str(room_id)), None)
+    def punches(self, room_id, since, token=None, peer_ip="127.0.0.1"):
+        room = self._own_room(str(room_id), self._owner(token), peer_ip)
         if not room:
             return 404, {"error": "no such game"}
         now = self.clock()
         eps = [{"seq": e["seq"], "ip": e["ip"], "port": e["port"]} for e in room["punch"]
                if e["seq"] > since and now - e["time"] <= PUNCH_TIMEOUT]
         return 200, {"endpoints": eps, "last": room["next_punch"] - 1}
+
+    def _owner(self, token):
+        p = self.player(token) if token else None
+        return p["name"] if p else ""
+
+    def _own_room(self, rid, owner, peer_ip):
+        """The poster's own game under id rid (its listed id, or the id it asked
+        for): the signed-in account's, else the one posted from this address."""
+        def mine(r):
+            if owner and r["owner"] == owner:
+                return True
+            return r["poster_ip"] == peer_ip and (not owner or not r["owner"])
+        rooms = [r for r in self.rooms if r["id"] == rid] + [r for r in self.rooms if r["base"] == rid and r["id"] != rid]
+        return next((r for r in rooms if mine(r)), None)
 
     def room_list(self):
         return 200, {"rooms": [{k: v for k, v in r.items() if k not in PRIVATE_ROOM_KEYS} for r in self.rooms]}
@@ -433,13 +517,22 @@ class Lobby:
         left out keeps its value). Without host_ip the game is reached at the
         address the request came from, as 0 A.D.'s lobby bot records it."""
         rid = str(data.get("id") or f"room-{int(data.get('host_port') or 20595)}")[:64]
-        old = next((r for r in self.rooms if r["id"] == rid), {})
+        owner = self._owner(data.get("token"))
+        old = self._own_room(rid, owner, peer_ip) or {}
+        new_id = old.get("id", rid)
+        n = 2
+        while not old and any(r["id"] == new_id for r in self.rooms):
+            new_id = f"{rid}-{n}"
+            n += 1
 
         def field(key, default, kind):
             return kind(data[key]) if data.get(key) not in (None, "") else old.get(key, default)
 
         room = {
-            "id": rid,
+            "id": new_id,
+            "base": old.get("base", rid),
+            "owner": old.get("owner") or owner,
+            "poster_ip": old.get("poster_ip", peer_ip),
             "host_ip": field("host_ip", peer_ip, str)[:64],
             "host_port": field("host_port", 20595, int),
             "players": field("players", 1, int),
@@ -471,10 +564,14 @@ class Lobby:
         self.rooms.append(room)
         return 201, public
 
-    def unregister(self, room_id):
-        before = len(self.rooms)
-        self.rooms = [r for r in self.rooms if r["id"] != str(room_id)]
-        return (200, {}) if len(self.rooms) < before else (404, {"error": "no such game"})
+    def unregister(self, room_id, token=None, peer_ip="127.0.0.1"):
+        room = self._own_room(str(room_id), self._owner(token), peer_ip)
+        if not room:
+            if any(r["id"] == str(room_id) for r in self.rooms):
+                return 403, {"error": "not your game"}
+            return 404, {"error": "no such game"}
+        self.rooms.remove(room)
+        return 200, {}
 
     def chat_since(self, since):
         msgs = [m for m in self.chat if m["id"] > since]
@@ -483,7 +580,7 @@ class Lobby:
     def post_chat(self, token, text):
         p = self.player(token)
         if not p:
-            return 401, {"error": "not signed in"}
+            return self.not_signed_in(token)
         text = str(text or "").strip()[:MAX_TEXT]
         if not text:
             return 400, {"error": "empty message"}
@@ -540,7 +637,8 @@ class LobbyHandler(BaseHTTPRequestHandler):
                     since = int(q.get("since", ["0"])[0])
                 except ValueError:
                     since = 0
-                code, obj = LOBBY.punches(q.get("id", [""])[0], since)
+                code, obj = LOBBY.punches(q.get("id", [""])[0], since, q.get("token", [""])[0],
+                                          self.client_address[0])
             else:
                 code, obj = 404, {"error": "not found"}
         self._json(code, obj)
@@ -564,7 +662,7 @@ class LobbyHandler(BaseHTTPRequestHandler):
                 elif path == "/rooms/punch":
                     code, obj = LOBBY.add_punch(data)
                 elif path == "/rooms/unregister":
-                    code, obj = LOBBY.unregister(data.get("id"))
+                    code, obj = LOBBY.unregister(data.get("id"), data.get("token"), self.client_address[0])
                 elif path == "/login":
                     code, obj = LOBBY.login(data.get("name"), data.get("password"))
                 elif path == "/register":
@@ -575,6 +673,11 @@ class LobbyHandler(BaseHTTPRequestHandler):
                     code, obj = LOBBY.presence(data.get("token"), data.get("status"))
                 elif path == "/chat":
                     code, obj = LOBBY.post_chat(data.get("token"), data.get("text"))
+                elif path == "/kick":
+                    code, obj = LOBBY.kick(data.get("token"), data.get("nick"), data.get("reason"),
+                                           bool(data.get("ban")))
+                elif path == "/subject":
+                    code, obj = LOBBY.set_subject(data.get("token"), data.get("subject"))
                 elif path == "/report":
                     code, obj = LOBBY.report(data.get("token"), data)
                 else:
@@ -642,10 +745,14 @@ def main():
                         help="refuse names with no account (0 A.D.'s lobby has no guests)")
     parser.add_argument("--stun-port", type=int, default=3478,
                         help="UDP port that answers STUN Binding Requests (0 A.D. lobby.stun.port); 0 = off")
+    parser.add_argument("--moderators", default="",
+                        help="comma-separated names that may /kick and /ban (0 A.D. lobby moderators)")
+    parser.add_argument("--subject", default="", help="the lobby room's subject")
     args = parser.parse_args()
     global LOBBY
     LOBBY = Lobby(timeout=args.timeout, ratings_path=args.ratings, accounts_path=args.accounts,
-                  accounts_only=args.accounts_only)
+                  accounts_only=args.accounts_only, moderators=args.moderators.split(","),
+                  subject=args.subject)
     if args.stun_port:
         serve_stun(args.bind, args.stun_port)
     serve(args.bind, args.port, not args.quiet).serve_forever()

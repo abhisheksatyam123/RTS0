@@ -25,12 +25,16 @@ void FogMirages::reset() {
 }
 
 bool los_sees_all(const Simulation &sim, uint8_t viewer) {
-	return sim.reveal_map() || viewer == OBSERVER_VIEW || viewer == 0xFF || sim.is_defeated(viewer);
+	// Player.js: a defeated player observes, and SetLosRevealAll for a winner too.
+	return sim.reveal_map() || viewer == OBSERVER_VIEW || viewer == 0xFF || sim.is_defeated(viewer) ||
+	       sim.is_victory_for(viewer);
 }
 
 bool los_sees_unit(const Simulation &sim, uint8_t viewer, float x, float z, uint8_t team) {
 	if (los_sees_all(sim, viewer)) return true;
-	return sim.is_ally(viewer, team) || sim.los_visible(viewer, x, z);
+	// CCmpRangeManager: own entities, and an ally's once its sight is shared (Cartography); other
+	// units only in sight (units are not RetainInFog).
+	return sim.shares_los(viewer, team) || sim.los_visible(viewer, x, z);
 }
 
 void los_view_grid(const Simulation &sim, uint8_t viewer, std::vector<uint8_t> &out) {
@@ -239,13 +243,15 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		f.hp = b.hp;
 		f.max_hp = b.max_hp;
 		f.build_progress = b.build_progress;
+		f.capture_points = b.capture_points;
+		f.max_capture_points = b.max_capture_points;
 		f.type = b.type;
 		f.team = b.team;
 		f.civ = sim.team_civ(b.team);
 		f.committed = b.committed;
 		f.wrecked = b.wrecked;
 		f.is_burning = b.is_burning;
-		add_building(f, sim.is_ally(viewer, b.team));
+		add_building(f, sim.shares_los(viewer, b.team)); // an unshared ally's structures mirage like anyone's
 	}
 	const auto rv = sim.resources();
 	for (size_t i = 0; i < rv.count; ++i) {

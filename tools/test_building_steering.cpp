@@ -65,6 +65,21 @@
 //     and elephants, CCmpPathfinder ExpandImpassableCells). An elephant sent to a spot on the beach
 //     2 m off the water stops 3 m off it, where a swordsman gets to the spot, and a clump of elephants
 //     on the beach pushes apart along it, never out to within 3 m of the water.
+// 21. Trees, bushes and treasures: a 6 m baobab (gaia/tree/baobab_3_mature) blocks movement, so a
+//     swordsman sent through it walks round; one sent through a wood of oaks 4 m apart winds
+//     between them; women sent to a tree in that wood gather from it; and a soldier sent to a
+//     7 m treasure (half-buried barrels) collects it from beside it.
+// 22. A circular map's edge: no unit walks, is pushed or spawns past the impassable edge 12 m
+//     inside the circle (0.28 MAP_EDGE_TILES) less its class clearance, and no foundation reaches past it.
+// 24. Repair in a house cluster: Petra packs houses corner to corner, so the side of a damaged house
+//     a woman comes from can be shut by a neighbour touching it there. She repairs it from the
+//     nearest open spot she can reach (0 A.D. MoveToTargetRange's goal is the whole range round
+//     the house) instead of pushing at the shut one for good.
+// 25. Cliff clearance: 0.28 takes each navcell's slope from its 4 m terrain tile and grows steep
+//     tiles by the class clearance as it grows deep water. On a heightmap with a tile a unit, a
+//     rock (one raised height sample, steep tiles inside a navcell that is not steep) is walked
+//     round, never within the walker's clearance; an elephant and a swordsman sent to the foot of a
+//     one-tile cliff stop 3 m and 0.8 m off it.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -660,7 +675,9 @@ static void cliffs() {
 }
 
 // 16. Chases.
-static void channel_setup(Simulation &s, float half_width) {
+// A sea across the map, |z| < half_width. Its banks rise 6 over one 2-unit tile, a cliff, unless
+// `bank` gives them a slope (height per unit) a unit may stand on.
+static void channel_setup(Simulation &s, float half_width, float bank = 0.0f) {
 	setup(s);
 	constexpr int RES = 65;
 	constexpr float HALF = 64.0f;
@@ -669,7 +686,8 @@ static void channel_setup(Simulation &s, float half_width) {
 	for (int j = 0; j < RES; ++j)
 		for (int i = 0; i < RES; ++i) {
 			const float z = -HALF + 2.0f * HALF * j / (RES - 1);
-			h[(size_t)j * RES + i] = std::fabs(z) < half_width ? -3.0f : 3.0f;
+			h[(size_t)j * RES + i] = bank > 0.0f ? std::clamp((std::fabs(z) - half_width + 1.0f) * bank, -3.0f, 3.0f)
+			                       : std::fabs(z) < half_width ? -3.0f : 3.0f;
 		}
 	s.set_terrain_data(h, RES, 0.0f);
 	s.begin_bulk_spawn();
@@ -923,6 +941,122 @@ static float mine_penetration(const Simulation &s) {
 	return worst;
 }
 
+// Deepest overlap of any live team-0 unit's building clearance with a tree's, bush's or
+// treasure's square (Simulation::gaia_obstacles_), other than the one it works at.
+static float gaia_penetration(const Simulation &s) {
+	const Simulation::UnitView u = s.units();
+	float worst = 0.0f;
+	for (uint32_t k = 0; k < s.gaia_obstacles_.size(); ++k) {
+		const auto &o = s.gaia_obstacles_[k];
+		if (!s.gaia_obstacle_live(k)) continue;
+		for (size_t i = 0; i < u.count; ++i) {
+			if (!u.alive[i] || u.team[i] != 0 || s.units_.target_resource_id[i] == o.id || s.units_.target_unit_id[i] == o.id)
+				continue;
+			const float c = unit_building_clearance(u.tmpl[i], u.unit_type[i]);
+			const nav::Vec2 l = nav::footprint_local(o, u.pos_x[i], u.pos_z[i]);
+			const float ex = o.hu + c - std::fabs(l.x), ez = o.hv + c - std::fabs(l.y);
+			if (ex > 0.0f && ez > 0.0f) worst = std::max(worst, std::min(ex, ez));
+		}
+	}
+	return worst;
+}
+
+// 21. Trees, bushes and treasures.
+static void trees() {
+	{
+		Simulation s;
+		setup(s);
+		s.spawn_resource_world(0.0f, 0.0f, RES_WOOD, 200, RES_SUB_NONE, 0, FLORA_TREE_BAOBAB_3_MATURE);
+		const uint32_t id = s.spawn_unit(-8.0f, 0.1f, 0, UNIT_SWORDSMAN, 160.0f);
+		s.cmd_move(&id, 1, 8.0f, 0.1f);
+		int arrived = -1;
+		float pen = 0.0f, dev = 0.0f;
+		for (int t = 0; t < 1200 && arrived < 0; ++t) {
+			s.tick(DT);
+			pen = std::max(pen, gaia_penetration(s));
+			const int i = index_of(s, id);
+			if (i < 0) break;
+			const Simulation::UnitView u = s.units();
+			if (std::fabs(u.pos_x[i]) < 0.3f) dev = std::max(dev, std::fabs(u.pos_z[i]));
+			if (std::hypot(u.pos_x[i] - 8.0f, u.pos_z[i] - 0.1f) <= 1.0f) arrived = t;
+		}
+		std::printf("  through a baobab: arrived after %d ticks (-1 = never in 1200), %.2f off its middle passing it, "
+				"max penetration %.3f\n", arrived, dev, pen);
+		check(arrived >= 0, "a swordsman sent through a baobab never got past it");
+		check(dev > 6.0f / 8.0f, "a swordsman walked through a baobab");
+		check(pen <= MAX_PENETRATION, "a swordsman overlapped a baobab");
+	}
+	// A wood of oaks 1 unit (4 m) apart, 1.6 m wide: 2.4 m gaps, wider than an infantryman.
+	auto wood = [](Simulation &s) {
+		for (int x = -4; x <= 4; ++x)
+			for (int z = -4; z <= 4; ++z)
+				s.spawn_resource_world((float)x + (z & 1) * 0.5f, (float)z, RES_WOOD, 200, RES_SUB_NONE, 0, FLORA_OAK);
+	};
+	{
+		Simulation s;
+		setup(s);
+		wood(s);
+		const uint32_t id = s.spawn_unit(-8.0f, 0.3f, 0, UNIT_SWORDSMAN, 160.0f);
+		s.cmd_move(&id, 1, 8.0f, 0.3f);
+		int arrived = -1;
+		float pen = 0.0f;
+		for (int t = 0; t < 2400 && arrived < 0; ++t) {
+			s.tick(DT);
+			pen = std::max(pen, gaia_penetration(s));
+			const int i = index_of(s, id);
+			if (i < 0) break;
+			const Simulation::UnitView u = s.units();
+			if (std::hypot(u.pos_x[i] - 8.0f, u.pos_z[i] - 0.3f) <= 1.0f) arrived = t;
+		}
+		std::printf("  through a wood: arrived after %d ticks (-1 = never in 2400), max penetration %.3f\n", arrived, pen);
+		check(arrived >= 0, "a swordsman never got through a wood");
+		check(pen <= MAX_PENETRATION, "a swordsman walked into a tree");
+	}
+	{
+		Simulation s;
+		setup(s);
+		wood(s);
+		uint32_t tree = 0;
+		const Simulation::ResourceView rv = s.resources();
+		for (size_t r = 0; r < rv.count; ++r)
+			if (rv.x[r] == 0.0f && rv.z[r] == 0.0f) tree = rv.id[r];
+		std::vector<uint32_t> women;
+		for (int k = 0; k < 4; ++k) women.push_back(s.spawn_unit(-8.0f, -1.5f + 1.0f * k, 0, UNIT_FEMALE_CITIZEN));
+		s.order_gather(women.data(), women.size(), tree);
+		std::vector<bool> worked(women.size(), false);
+		float pen = 0.0f;
+		for (int t = 0; t < 1600; ++t) {
+			s.tick(DT);
+			pen = std::max(pen, gaia_penetration(s));
+			for (size_t k = 0; k < women.size(); ++k) {
+				const int i = index_of(s, women[k]);
+				if (i >= 0 && s.units_.carry[i] > 0 && s.units_.res_type_carried[i] == RES_WOOD) worked[k] = true;
+			}
+		}
+		const int n = (int)std::count(worked.begin(), worked.end(), true);
+		std::printf("  gather in a wood: %d of %zu women cut wood, max penetration %.3f\n", n, women.size(), pen);
+		check(n == (int)women.size(), "a woman never reached the tree she was sent to");
+		check(pen <= MAX_PENETRATION, "a woman walked into a tree");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t chest = s.spawn_treasure(0.0f, 0.0f, TREASURE_FOOD_BARRELS_BURIED);
+		const uint32_t id = s.spawn_unit(-6.0f, 0.0f, 0, UNIT_SWORDSMAN, 160.0f);
+		s.order_collect_treasure(&id, 1, chest);
+		bool taken = false;
+		float pen = 0.0f;
+		for (int t = 0; t < 800 && !taken; ++t) {
+			s.tick(DT);
+			taken = !s.is_treasure_id(chest);
+			if (!taken) pen = std::max(pen, gaia_penetration(s)); // gaia_obstacles_ drops it next tick
+		}
+		std::printf("  collect a 7 m treasure: %s, max penetration %.3f\n", taken ? "taken" : "never taken", pen);
+		check(taken, "a swordsman never collected a 7 m treasure");
+		check(pen <= MAX_PENETRATION, "a swordsman overlapped another obstacle on the way to a treasure");
+	}
+}
+
 // 19. Mines.
 static void mines() {
 	{
@@ -1000,11 +1134,12 @@ static void mines() {
 
 // 20. Shore clearance.
 static void shore_clearance() {
-	// channel_setup(s, 16) makes the navcells from z -14 to 14 deep (their centres lie under the sea).
+	// channel_setup(s, 16, 0.75) makes the navcells from z -14 to 14 deep (their centres lie under the
+	// sea) and a beach no steeper than 1.5 over a tile, so the water alone keeps units off.
 	auto gap = [](const Simulation &s, uint32_t id) { return s.units_.pos_z[index_of(s, id)] - 14.0f; };
 	for (int large = 0; large < 2; ++large) {
 		Simulation s;
-		channel_setup(s, 16.0f);
+		channel_setup(s, 16.0f, 0.75f);
 		if (!large) check(s.near_deep_water(0.0f, 13.9f, 0.0f) && !s.near_deep_water(0.0f, 14.1f, 0.0f), "the sea's edge is not at z 14");
 		// The spot (20, 14.5) lies half a unit off the water: within an elephant's 0.75, not a swordsman's 0.2.
 		const uint32_t id = s.spawn_unit(-20.0f, 18.0f, 0, large ? UNIT_ELEPHANT : UNIT_SWORDSMAN);
@@ -1027,7 +1162,7 @@ static void shore_clearance() {
 	}
 	{
 		Simulation s;
-		channel_setup(s, 16.0f);
+		channel_setup(s, 16.0f, 0.75f);
 		std::vector<uint32_t> herd;
 		for (int k = 0; k < 6; ++k) herd.push_back(s.spawn_unit(0.2f * (float)(k % 3), 14.9f + 0.2f * (float)(k / 3), 0, UNIT_ELEPHANT));
 		float min_gap = 99.0f, spread = 0.0f;
@@ -1043,6 +1178,244 @@ static void shore_clearance() {
 		check(min_gap >= CLEARANCE_LARGE - 0.01f, "pushing carried an elephant within its clearance of deep water");
 		check(spread > 2.0f, "a clump of elephants on the beach never pushed apart");
 	}
+}
+
+// 22. A circular map's edge (0.28 CCmpPathfinder off-world passability, MAP_EDGE_TILES): no unit
+// walks, is pushed or spawns past the circle 12 m inside the map's, less its class clearance, and
+// no foundation reaches past it.
+static void circle_setup(Simulation &s, bool circular) {
+	s.set_sim_seed(4242);
+	s.reset();
+	for (uint8_t p = 0; p < 2; ++p) s.player(p).active = 1, s.player(p).is_ai = 0;
+	constexpr int RES = 65;
+	constexpr float HALF = 64.0f;
+	s.set_map_half(HALF);
+	s.set_terrain_data(std::vector<float>((size_t)RES * RES, 3.0f), RES, 0.0f);
+	s.set_circular_map(circular);
+	s.begin_bulk_spawn();
+	s.spawn_building_world(40.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s.spawn_building_world(-40.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	s.end_bulk_spawn();
+}
+
+static void circular_map_edge() {
+	const float edge = 64.0f - MAP_EDGE_DIST; // 61
+	{
+		Simulation s;
+		circle_setup(s, true);
+		const auto [cx, cy] = s.nav_grid_.world_to_cell(62.0f, 0.0f);
+		const auto [ix, iy] = s.nav_grid_.world_to_cell(56.0f, 0.0f);
+		check(!s.nav_grid_.is_passable(cx, cy) && s.nav_grid_.is_passable(ix, iy), "the navcells past a circular map's edge stay passable");
+		// Sent past the edge, straight out and to the corner, a swordsman stops at it.
+		const float goals[2][2] = {{63.5f, 2.0f}, {60.0f, 60.0f}};
+		for (const auto &g : goals) {
+			const uint32_t id = s.spawn_unit(48.0f, 10.0f, 0, UNIT_SWORDSMAN);
+			s.cmd_move(&id, 1, g[0], g[1]);
+			float out = 0.0f;
+			int idle = -1;
+			for (int t = 0; t < 1200 && idle < 0; ++t) {
+				s.tick(DT);
+				const int i = index_of(s, id);
+				out = std::max(out, std::hypot(s.units_.pos_x[i], s.units_.pos_z[i]));
+				if (t > 0 && s.units_.action_state[i] == ACTION_IDLE) idle = t;
+			}
+			const int i = index_of(s, id);
+			const float r = std::hypot(s.units_.pos_x[i], s.units_.pos_z[i]);
+			std::printf("  circular map: a swordsman sent to (%.1f, %.1f) stopped after %d ticks (-1 = never in 1200) %.2f from the centre, "
+					"%.2f at most (edge %.2f less clearance %.2f)\n", g[0], g[1], idle, r, out, edge, CLEARANCE_DEFAULT);
+			check(idle >= 0, "a walk past a circular map's edge never ended");
+			check(out <= edge - CLEARANCE_DEFAULT + 0.01f, "a unit walked past a circular map's edge");
+			check(r >= edge - CLEARANCE_DEFAULT - 1.0f, "a unit sent past a circular map's edge stopped short of it");
+			s.units_.alive[i] = 0;
+		}
+		// A clump of elephants against the edge is never pushed past it.
+		std::vector<uint32_t> herd;
+		for (int k = 0; k < 6; ++k) herd.push_back(s.spawn_unit(59.6f - 0.2f * (float)(k / 3), -6.0f + 0.2f * (float)(k % 3), 0, UNIT_ELEPHANT));
+		float out = 0.0f;
+		for (int t = 0; t < 200; ++t) {
+			s.tick(DT);
+			for (uint32_t id : herd) {
+				const int i = index_of(s, id);
+				out = std::max(out, std::hypot(s.units_.pos_x[i], s.units_.pos_z[i]));
+			}
+		}
+		std::printf("  circular map: a clump of 6 elephants at the edge pushed apart, %.2f from the centre at most\n", out);
+		check(out <= edge - CLEARANCE_LARGE + 0.01f, "pushing carried an elephant past a circular map's edge");
+	}
+	// A house reaching past the edge can't be placed there; on a square map it can.
+	const int foot = building_type_info(BLD_HOUSE).footprint;
+	const int cell_x = (int)std::floor(60.0f / Simulation::GRID) - foot / 2, cell_y = -foot / 2;
+	Simulation::PlacementResult res[2];
+	for (int circular = 0; circular < 2; ++circular) {
+		Simulation s;
+		circle_setup(s, circular);
+		res[circular] = s.check_placement(0, cell_x, cell_y, BLD_HOUSE);
+	}
+	std::printf("  circular map: a house reaching %.1f out placed %d on a square map, %d on a circular one (0 = ok)\n",
+			(float)(cell_x + foot) * Simulation::GRID, (int)res[0], (int)res[1]);
+	check(res[0] == Simulation::PLACE_OK, "a house by a square map's edge couldn't be placed");
+	check(res[1] == Simulation::PLACE_OBSTRUCTED, "a house reaching past a circular map's edge was placed");
+}
+
+// 23. A wood too thick to walk through closes its navcells to long paths (0 A.D. rasterizes each
+// tree grown by the class clearance onto 1 m navcells, so oaks even 4 m apart leave no navcell
+// between them), a sparse one doesn't, and felling a lane through the thick one opens it again.
+static void forest_cells() {
+	Simulation s;
+	setup(s);
+	auto cell_at = [&](float x, float z) {
+		const auto [cx, cy] = s.nav_grid_.world_to_cell(x, z);
+		return s.nav_grid_.cells.at(cx, cy);
+	};
+	std::vector<uint32_t> lane;
+	for (int x = -12; x <= 12; ++x)
+		for (int z = -12; z <= 12; ++z) {
+			const uint32_t id = s.spawn_resource_world(0.5f * (float)x, 0.5f * (float)z, RES_WOOD, 200, RES_SUB_NONE, 0, FLORA_OAK);
+			if (std::abs(z) <= 1) lane.push_back(id);
+		}
+	for (int x = -3; x <= 3; ++x)
+		for (int z = -3; z <= 3; ++z)
+			s.spawn_resource_world(20.0f + 2.0f * (float)x, 2.0f * (float)z, RES_WOOD, 200, RES_SUB_NONE, 0, FLORA_OAK);
+	s.tick(DT);
+	const bool thick = cell_at(0.0f, 3.0f) == NAV_OBSTRUCTED, sparse = cell_at(21.0f, 1.0f) == NAV_OBSTRUCTED;
+	for (uint32_t id : lane) s.set_resource_amount(id, 0);
+	s.tick(DT);
+	const bool felled = cell_at(0.0f, 0.0f) == NAV_OBSTRUCTED, rest = cell_at(0.0f, 3.0f) == NAV_OBSTRUCTED;
+	std::printf("  woods: a wood of oaks 2 m apart closes its navcells (%d), one 8 m apart doesn't (%d); "
+			"a lane felled through the first opens (%d) and the rest stays shut (%d)\n", thick, !sparse, !felled, rest);
+	check(thick, "a wood of oaks 2 m apart stayed open to long paths");
+	check(!sparse, "a wood of oaks 8 m apart was closed to long paths");
+	check(!felled, "a lane felled through a thick wood stayed closed to long paths");
+	check(rest, "felling a lane opened the rest of a thick wood");
+}
+
+// 24. Repair in a house cluster (soak: Petra women stood 60 s or more at a neighbour's corner). The
+// two clusters are Petra's from soak matches, round the damaged house at the origin; each woman
+// comes from where one stood, and five of them cover every stand point spread (unit id % 5).
+static void repair_in_house_cluster() {
+	struct Case { const char *what; std::vector<std::pair<float, float>> nb; float from[2]; };
+	const Case cases[2] = {
+		{"a diagonal row touching its corner", {{2, 2}, {4, 4}, {6, 4}, {6, 6}, {8, 6}, {8, 8}}, {3.23f, 1.25f}},
+		{"a corner shut by two neighbours", {{0, -2}, {-2, -2}, {-2, -4}, {-4, -4}, {-6, -6}, {-8, -8}}, {1.0f, -3.23f}},
+	};
+	for (const Case &c : cases) {
+		int repaired = 0;
+		for (int k = 0; k < 5; ++k) {
+			Simulation s;
+			setup(s);
+			const uint32_t house = s.spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0, 1.0f);
+			for (const auto &n : c.nb) s.spawn_building_world(n.first, n.second, BLD_HOUSE, 0, 1.0f);
+			s.tick(DT);
+			float max_hp = 0.0f;
+			for (auto &b : s.buildings_) if (b.id == house) { max_hp = b.max_hp; b.hp = max_hp - 20.0f; }
+			for (int d = 0; d < k; ++d) s.spawn_unit(-40.0f, -40.0f + 2.0f * (float)d, 0, UNIT_FEMALE_CITIZEN);
+			const uint32_t woman = s.spawn_unit(c.from[0], c.from[1], 0, UNIT_FEMALE_CITIZEN);
+			s.order_build_or_repair(&woman, 1, house);
+			float hp = 0.0f;
+			for (int t = 0; t < 400; ++t) {
+				s.tick(DT);
+				for (const auto &b : s.buildings()) if (b.id == house) hp = b.hp;
+				if (hp >= max_hp) break;
+			}
+			if (hp >= max_hp) ++repaired;
+		}
+		std::printf("  repair, %s: %d of 5 women repaired the house within 20 s\n", c.what, repaired);
+		check(repaired == 5, "a woman never repaired a house whose near side a neighbour shuts");
+	}
+}
+
+// 25. Cliff clearance. A flat map with heights every unit (a terrain tile a unit, as on generated
+// maps), a cliff rising 8 over the tile x 0 to 1, and a rock: the height sample at (-20, -9) raised
+// 3, so the four tiles round it are steep and the 2-unit navcell holding them (its corners flat) is not.
+static void cliff_clearance_setup(Simulation &s) {
+	setup(s);
+	constexpr int RES = 129;
+	constexpr float HALF = 64.0f;
+	s.set_map_half(HALF);
+	std::vector<float> h((size_t)RES * RES);
+	for (int j = 0; j < RES; ++j)
+		for (int i = 0; i < RES; ++i) {
+			const float x = -HALF + 2.0f * HALF * i / (RES - 1), z = -HALF + 2.0f * HALF * j / (RES - 1);
+			h[(size_t)j * RES + i] = x >= 1.0f ? 8.0f : (x == -20.0f + 1.0f && z == -9.0f) ? 3.0f : 0.0f;
+		}
+	s.set_terrain_data(h, RES, -1.0f);
+	s.begin_bulk_spawn();
+	s.end_bulk_spawn();
+}
+
+static void cliff_clearance() {
+	{
+		Simulation s;
+		cliff_clearance_setup(s);
+		const auto [cx, cy] = s.nav_grid_.world_to_cell(-19.0f, -9.0f);
+		check(s.nav_grid_.near_steep_tile(-19.0f, -9.0f, 0.0f) && !s.nav_grid_.is_steep(cx, cy),
+				"the rock is not a steep tile in a navcell that is not steep");
+		const uint32_t id = s.spawn_unit(-30.0f, -9.0f, 0, UNIT_SWORDSMAN);
+		s.cmd_move(&id, 1, -8.0f, -9.0f);
+		int arrived = -1, near = 0;
+		for (int t = 0; t < 1200 && arrived < 0; ++t) {
+			s.tick(DT);
+			const int i = index_of(s, id);
+			near += s.nav_grid_.near_steep_tile(s.units_.pos_x[i], s.units_.pos_z[i], CLEARANCE_DEFAULT - 0.01f);
+			if (std::hypot(s.units_.pos_x[i] + 8.0f, s.units_.pos_z[i] + 9.0f) < 0.5f) arrived = t;
+		}
+		std::printf("  cliff clearance: a swordsman walked past a rock in %d ticks (-1 = never in 1200), %d ticks within its clearance of it\n",
+				arrived, near);
+		check(arrived >= 0, "a walk past a rock never got there");
+		check(near == 0, "a walker came within its clearance of a steep tile");
+	}
+	for (int large = 0; large < 2; ++large) {
+		Simulation s;
+		cliff_clearance_setup(s);
+		const uint32_t id = s.spawn_unit(-10.0f, 6.0f, 0, large ? UNIT_ELEPHANT : UNIT_SWORDSMAN);
+		s.cmd_move(&id, 1, -0.1f, 6.0f);
+		float max_x = -99.0f;
+		int idle = -1;
+		for (int t = 0; t < 1200 && idle < 0; ++t) {
+			s.tick(DT);
+			max_x = std::max(max_x, s.units_.pos_x[index_of(s, id)]);
+			if (s.units_.action_state[index_of(s, id)] == ACTION_IDLE) idle = t;
+		}
+		const int i = index_of(s, id);
+		const float c = unit_building_clearance(s.units_.tmpl[i], s.units_.unit_type[i]);
+		std::printf("  cliff clearance: %s sent to the cliff's foot stopped after %d ticks (-1 = never in 1200) at x %.2f, "
+				"%.2f off the cliff at least (clearance %.2f)\n", large ? "elephant" : "swordsman", idle, s.units_.pos_x[i], -max_x, c);
+		check(idle >= 0, "a walk to a cliff's foot never ended");
+		check(-max_x >= c - 0.01f, "a land unit came within its clearance of a cliff");
+		check(s.units_.pos_x[i] >= -c - 0.5f, "a land unit sent to a cliff's foot stopped short of where it could stand");
+	}
+	{
+		// A unit set down within its clearance of the rock may walk on across it, as CheckLineMovement
+		// lets a unit on impassable navcells cross more of them; it stuck there before.
+		Simulation s;
+		cliff_clearance_setup(s);
+		const uint32_t id = s.spawn_unit(-20.1f, -9.0f, 0, UNIT_SWORDSMAN);
+		const bool inside = s.nav_grid_.near_steep_tile(-20.1f, -9.0f, CLEARANCE_DEFAULT) && !s.nav_grid_.near_steep_tile(-20.1f, -9.0f, 0.0f);
+		s.cmd_move(&id, 1, -16.0f, -9.0f);
+		int arrived = -1;
+		for (int t = 0; t < 600 && arrived < 0; ++t) {
+			s.tick(DT);
+			const int i = index_of(s, id);
+			if (std::hypot(s.units_.pos_x[i] + 16.0f, s.units_.pos_z[i] + 9.0f) < 0.5f) arrived = t;
+		}
+		std::printf("  cliff clearance: a swordsman inside the rock's clearance (%s) walked across it in %d ticks (-1 = never in 600)\n",
+				inside ? "yes" : "no", arrived);
+		check(inside, "the swordsman didn't start within its clearance of the rock");
+		check(arrived >= 0, "a unit within its clearance of a rock couldn't walk across it");
+	}
+	// building-land judges slopes per tile too: no house on the rock, one beside it. The cliff cuts
+	// the land in two as Petra sees it (petra_access_at); the rock doesn't.
+	Simulation s;
+	cliff_clearance_setup(s);
+	const int on = (int)s.check_placement(0, -10, -5, BLD_HOUSE), beside = (int)s.check_placement(0, -12, -5, BLD_HOUSE);
+	const uint16_t below = s.petra_access_at(-5.0f, 0.0f), above = s.petra_access_at(5.0f, 0.0f);
+	const uint16_t west = s.petra_access_at(-25.0f, -9.0f), east = s.petra_access_at(-15.0f, -9.0f);
+	std::printf("  cliff clearance: a house on the rock placed %d, beside it %d (2 = terrain, 3 = no territory); land below the "
+			"cliff %u, above %u, either side of the rock %u and %u\n", on, beside, below, above, west, east);
+	check(on == Simulation::PLACE_TERRAIN, "a house was placed over steep tiles");
+	check(beside != Simulation::PLACE_TERRAIN, "a house beside a rock was refused for its terrain");
+	check(below && above && below != above, "a cliff didn't cut the land");
+	check(west && west == east && west == below, "a rock cut the land");
 }
 
 int main() {
@@ -1067,6 +1440,11 @@ int main() {
 	walk_to_structure_range();
 	mines();
 	shore_clearance();
+	trees();
+	circular_map_edge();
+	forest_cells();
+	repair_in_house_cluster();
+	cliff_clearance();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

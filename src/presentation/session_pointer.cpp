@@ -2,6 +2,7 @@
 // minimap orders and trade route clicks (P4.6, split out of main_node.cpp).
 
 #include "main_node.h"
+#include "fog_mirage.h"
 #include "l10n.h"
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
@@ -49,14 +50,16 @@ void RtsoMain::update_cursor() {
 	if (!sim || !vp) return;
 	const char *want = "";
 	String tip; // the action's tooltip, shown beside the cursor (0 A.D. cursor tooltips)
+	bool tip_orange = false; // coloredText(tooltip, "orange")
 	Vector2 hot(1, 1);
 	const Vector2 mouse = vp->get_mouse_position();
 	const bool over_ui = vp->gui_get_hovered_control() != nullptr;
 	if (!over_ui && !build_mode) {
-		if (rtso::hotkeys::held("session.flare")) {
+		if (flare_armed_ || rtso::hotkeys::held("session.flare")) {
 			want = "action-flare";
 		} else if (selected_building_id != 0 && selected_ids.is_empty()) {
-			if (over_own_rally_structure(get_ground_click_pos(mouse))) {
+			if (over_own_rally_structure(get_ground_click_pos(mouse)) &&
+					!(rtso::hotkeys::held("session.autorallypoint") && selected_building_trains_units())) {
 				want = "action-unset-rally";
 			} else {
 				want = "cursor-rally";
@@ -152,7 +155,9 @@ void RtsoMain::update_cursor() {
 					}
 					// 0 A.D. "capture" is the default on enemy structures; session.attack
 					// (or attack-move's Ctrl) attacks instead.
-					if (b.team == rtso::GAIA_PLAYER && b.type == rtso::BLD_FIELD && sim->field_resource_id(b.id))
+					// unit_actions "gather" (specificness 1): any player's finished field.
+					const uint32_t grain = b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
+					if (grain && sim->any_can_gather((const uint32_t *)selected_ids.ptr(), selected_ids.size(), grain))
 						want = "action-gather-grain";
 					else if (b.team != me && sim->is_hostile(me, b.team))
 						want = (rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove") ||
@@ -162,13 +167,22 @@ void RtsoMain::update_cursor() {
 					else if (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me)) want = "action-build";
 					else if (b.hp < b.max_hp) want = "action-repair"; // own or allied (unit_actions "repair")
 					// unit_actions "garrison": an own or allied holder whose List takes a selected unit.
-					else if (selection_can_garrison(b.id)) want = "action-garrison";
+					else if (selection_can_garrison(b.id)) {
+						want = "action-garrison";
+						// unit_actions "garrison" getActionInfo: the holder's slots, orange once full.
+						const int occupied = sim->get_garrison_occupied(b.id), capacity = sim->get_garrison_capacity(b.id);
+						tip = rtso::sprintf0(rtso::tr0("Current garrison: %(garrisoned)s/%(capacity)s"),
+								{{"garrisoned", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
+						tip_orange = occupied >= capacity;
+					}
 					break;
 				}
 			}
 		}
 	}
 	if (cursor_tip_) {
+		const Color tip_color = tip_orange ? Color(1.0f, 0.65f, 0.0f) : Color(1.0f, 1.0f, 1.0f);
+		if (cursor_tip_->get_theme_color("font_color") != tip_color) cursor_tip_->add_theme_color_override("font_color", tip_color);
 		cursor_tip_->set_visible(!tip.is_empty());
 		if (!tip.is_empty()) {
 			if (cursor_tip_->get_text() != tip) cursor_tip_->set_text(tip);
@@ -184,6 +198,42 @@ void RtsoMain::update_cursor() {
 	}
 	Ref<Texture2D> tex = load_tex(String("res://assets/textures/cursors/") + want + ".png");
 	in->set_custom_mouse_cursor(tex, Input::CURSOR_ARROW, hot);
+}
+
+// input.js INPUT_NORMAL mousemotion and INPUT_BANDBOXING: setHighlightList([PickEntityAtPoint])
+// while the mouse is over the world, and the band box's preferred entities while dragging.
+void RtsoMain::update_highlight() {
+	PackedInt32Array ids;
+	Viewport *vp = get_viewport();
+	if (sim && vp && view && !sim->cinema_playing()) {
+		const Vector2 mouse = vp->get_mouse_position();
+		if (dragging && drag_start.distance_to(mouse) >= user_opts_.drag_delta) {
+			for (int32_t id : band_box_ids(drag_start, mouse)) ids.push_back(id);
+		} else if (!dragging && !build_mode && !wall_drag_mode && vp->gui_get_hovered_control() == nullptr) {
+			const size_t u = own_unit_under_mouse(mouse, true);
+			if (u != (size_t)-1) {
+				ids.push_back((int32_t)sim->units().id[u]);
+			} else {
+				const Vector3 at = get_ground_click_pos(mouse);
+				auto fv = sim->fauna();
+				float best = 2.5f * 2.5f;
+				int32_t pick = 0;
+				for (size_t f = 0; f < fv.count; ++f) {
+					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED) continue;
+					const float dx = fv.pos_x[f] - at.x, dz = fv.pos_z[f] - at.z;
+					if (dx * dx + dz * dz >= best) continue;
+					if (!rtso::los_sees_unit(*sim, view_player(), fv.pos_x[f], fv.pos_z[f], rtso::GAIA_PLAYER)) continue;
+					best = dx * dx + dz * dz;
+					pick = (int32_t)fv.id[f];
+				}
+				if (pick) ids.push_back(pick);
+			}
+		}
+	}
+	if (ids != highlight_ids_) {
+		highlight_ids_ = ids;
+		if (view) view->set_highlight_ids(ids);
+	}
 }
 
 // The local player's structure whose box the mouse ray enters first: its
@@ -273,6 +323,10 @@ Vector3 RtsoMain::get_ground_click_pos(Vector2 mouse_pos) const {
 // with session.attackmove), queued with session.queue.
 void RtsoMain::_on_minimap_order(Vector2 world_pos) {
 	if (!sim) return;
+	if (flare_armed_) { // INPUT_FLARE: a right click cancels it
+		flare_armed_ = false;
+		return;
+	}
 	if (rtso::hotkeys::held("session.flare")) {
 		trigger_flare(world_pos.x, world_pos.y);
 		return;
@@ -305,7 +359,10 @@ void RtsoMain::_on_minimap_order(Vector2 world_pos) {
 	if (turn_cmds())
 		post_lockstep(1, sel_ptr, sel_n, world_pos.x, world_pos.y, 0, qbit);
 	else
-		sim->order_walk(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, true);
+		{
+			apply_default_formation(sel_ptr, sel_n);
+			sim->order_walk(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, true);
+		}
 	play_civ_voice("move");
 }
 

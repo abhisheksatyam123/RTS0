@@ -4,7 +4,10 @@ extends SceneTree
 #      addFormationMembers): clicking one unit of a formation selects all of it;
 #   2. Formation control (gui.session.formationwalkonly, AutoFormation.getNull):
 #      "Walk/Patrol Only" takes the units out of their formation for any other
-#      order (here gather); "No override" leaves the formation to do it.
+#      order (here gather); "No override" leaves the formation to do it;
+#   3. Default formation (gui.session.defaultformation, AutoFormation.js): a walk puts
+#      units in no formation into it (Box out of the box); right-click on a formation
+#      button makes it the default, on None turns the feature off.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_formation_options.gd
 # Exit code 0 = pass.
@@ -54,6 +57,27 @@ func click(at: Vector2) -> void:
 	root.push_input(mb, true)
 	await frames(3)
 
+func right_click_beside(ids: Array) -> void:
+	var u: Dictionary = units().filter(func(x): return ids.has(x["id"]))[0]
+	var at: Vector2 = root.get_camera_3d().unproject_position(Vector3(u["pos"].x + 5.0, 0.0, u["pos"].y + 5.0))
+	var mb := InputEventMouseButton.new()
+	mb.button_index = MOUSE_BUTTON_RIGHT
+	mb.position = at
+	mb.global_position = at
+	mb.pressed = true
+	root.push_input(mb, true)
+	await frames(1)
+	mb = mb.duplicate()
+	mb.pressed = false
+	root.push_input(mb, true)
+	await frames(10)
+
+func right_press_formation(f: int) -> void:
+	var mb := InputEventMouseButton.new()
+	mb.button_index = MOUSE_BUTTON_RIGHT
+	mb.pressed = true
+	main._on_formation_gui_input(mb, f)
+
 func run() -> void:
 	await frames(60)
 	var keep_walk: String = cfg.get_value("gui.session.formationwalkonly")
@@ -100,6 +124,25 @@ func run() -> void:
 	await frames(10)
 	check(formed(ids).is_empty(), "Walk/Patrol Only: gathering leaves the formation (%d formed)" % formed(ids).size())
 
+	print("3. Default formation")
+	var keep_default: String = cfg.get_value("gui.session.defaultformation")
+	check(RtsoUserConfig.new().get_value("gui.session.defaultformation") != "", "a default formation is configured")
+	right_press_formation(2)
+	check(cfg.get_value("gui.session.defaultformation") == "special/formations/box", "right-click on Box makes it the default")
+	ids = main.debug_selection_state()["selected"]
+	main._on_formation_selected(0) # leave the box
+	await frames(10)
+	check(formed(ids).is_empty(), "out of formation (%d formed)" % formed(ids).size())
+	await right_click_beside(ids)
+	check(formed(ids).size() == ids.size(), "a walk puts them in the default Box (%d of %d)" % [formed(ids).size(), ids.size()])
+	right_press_formation(0)
+	check(cfg.get_value("gui.session.defaultformation") == "special/formations/null", "right-click on None turns it off")
+	main._on_formation_selected(0)
+	await frames(10)
+	await right_click_beside(ids)
+	check(formed(ids).is_empty(), "then a walk keeps them loose (%d formed)" % formed(ids).size())
+
+	cfg.set_value("gui.session.defaultformation", keep_default)
 	cfg.set_value("gui.session.formationwalkonly", keep_walk)
 	cfg.set_value("gui.session.selectformationasone", keep_one)
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)

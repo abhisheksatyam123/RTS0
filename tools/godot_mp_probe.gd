@@ -84,6 +84,13 @@ func _run() -> void:
 			ms.load_save_path = "user://saves/%s.rts0sav" % args["saved"]
 			ms.net_saved_game = true
 		lobby._on_host_pressed()
+	elif args.has("join_addr"):
+		# A typed address nobody answers at.
+		var addr: PackedStringArray = str(args["join_addr"]).split(":")
+		lobby._join_ip.text = addr[0]
+		lobby._join_port.text = addr[1]
+		_say("joining %s" % args["join_addr"])
+		lobby._on_join_pressed()
 	else:
 		var row = null
 		while row == null:
@@ -110,6 +117,9 @@ func _run() -> void:
 	var refused := false
 	var ready_for := -1
 	var refusals: Array = []
+	var setup_leave: bool = args.get("setup_leave", "") == "1"
+	var saw_setup := false
+	var saw_observer := false
 	while true:
 		if Time.get_ticks_msec() > deadline:
 			return _fail("timed out at turn %s" % (main.get_lobby_state().get("turn", -1) if main else -1))
@@ -122,6 +132,50 @@ func _run() -> void:
 		if main == null:
 			continue
 		var st: Dictionary = main.get_lobby_state()
+		if args.has("join_addr"):
+			# 0.28 reportConnectionRequestTimeOut.
+			if st.get("disconnected", false):
+				_say("connect_status=%s reason=%d" % [str(st.get("net_status", "")).replace("\n", " | "),
+						int(st.get("disconnect_reason", -1))])
+				main._on_disconnected_exit_pressed()
+				await _wait(1.0)
+				_say("connect_exit_scene=" + (current_scene.scene_file_path if current_scene else ""))
+				break
+			continue
+		if setup_leave:
+			# 0.28 reportDisconnect in the setup: the host leaves before Start, and
+			# the client's page gives way to "Lost connection to the server.".
+			saw_setup = saw_setup or bool(st.get("setup_page", false))
+			if role == "join" and not saw_observer and main.is_net_pregame():
+				var ns: Dictionary = main.get_net_setup_state()
+				if int(ns.get("my_slot", 0)) == -1 and Array(ns.get("observers", [])).any(func(e): return str(e.get("name", "")) == "bob"):
+					saw_observer = true
+					var obs = root.find_child("NetObservers", true, false)
+					_say("moved_to_observers=%s" % (obs.text if obs else "-"))
+			if role == "host" and main.is_net_pregame() and int(st.get("players", 0)) >= 2:
+				await _wait(2.0)
+				# 0.28 PlayerAssignment: the host makes bob an observer from his slot's dropdown.
+				var cell := root.find_child("Assign1", true, false)
+				var pick = cell.find_child("AssignSelect", true, false) if cell else null
+				if pick:
+					for idx in pick.get_item_count():
+						if pick.get_item_text(idx) == "Unassigned":
+							pick.select(idx)
+							pick.item_selected.emit(idx)
+					_say("unassigned slot 2")
+				await _wait(3.0)
+				_say("leaving the setup")
+				main.leave_net_game()
+				await _wait(1.5)
+				break
+			if role == "join" and st.get("disconnected", false):
+				_say("setup_status=%s reason=%d saw_page=%s page=%s" % [str(st.get("net_status", "")).replace("\n", " | "),
+						int(st.get("disconnect_reason", -1)), str(saw_setup), str(st.get("setup_page", true))])
+				main._on_disconnected_exit_pressed()
+				await _wait(1.0)
+				_say("setup_exit_scene=" + (current_scene.scene_file_path if current_scene else ""))
+				break
+			continue
 		if not saw_wait and str(st.get("net_status", "")) != "":
 			saw_wait = true
 			_say("waiting=%s %s" % [st.get("net_status", ""), st.get("net_loading", "")])
@@ -148,6 +202,8 @@ func _run() -> void:
 					ready_for = int(ns.get("settings_version", 0))
 					main.set_net_ready(1)
 					_say("ready for settings version %d" % ready_for)
+					# 0.28 gamesetup ChatPanel: a line typed in the setup.
+					main.send_setup_chat("hello from bob")
 			if role == "host" and not started and int(st.get("players", 0)) >= 2:
 				if not bool(ns.get("can_start", false)):
 					if not refused:
@@ -156,15 +212,69 @@ func _run() -> void:
 						_say("start_refused=%s" % str(not bool(main.get_lobby_state().get("started", false))))
 				else:
 					started = true
+					# The setup page's chat: the join, the ready and bob's line.
+					var plain := ""
+					for i in 50:
+						plain = RegEx.create_from_string("\\[[^\\]]*\\]").sub(str(main.get_setup_chat().get("text", "")), "", true)
+						if plain.contains("hello from bob"):
+							break
+						await _wait(0.1)
+					_say("setup_chat=" + " | ".join(Array(plain.strip_edges().split("\n")).map(func(l): return l.strip_edges())))
+					# 0.28 LobbyButton: the lobby as a dialog over the setup, its own game listed, no Host or Join.
+					var lb_btn = root.find_child("LobbyButton", true, false)
+					if lb_btn and lb_btn.visible:
+						lb_btn.pressed.emit()
+						await _wait(0.2)
+						var dlg = root.find_child("LobbyDialog", true, false)
+						var dlobby = dlg.get_child(0) if dlg else null
+						var listed := false
+						for i in 40:
+							if dlobby and dlobby._games.get_root() and dlobby._games.get_root().get_child_count() > 0:
+								listed = true
+								break
+							await _wait(0.1)
+						var join_hidden := true
+						for b in dlobby.find_children("*", "Button", true, false) if dlobby else []:
+							if b.text in ["Join Game", "Host Game"] and b.is_visible_in_tree():
+								join_hidden = false
+						var opened: bool = dlobby != null and dlobby.dialog
+						if dlobby:
+							dlobby._on_back_pressed()
+						await _wait(0.2)
+						_say("lobby_dialog=%s listed=%s join_hidden=%s closed=%s" % [str(opened), str(listed), str(join_hidden),
+							str(root.find_child("LobbyDialog", true, false) == null)])
 					_say("both players in and ready, pressing Start")
 					main._on_lobby_start_pressed()
 		if st.get("oos", false):
 			return _fail("out of sync at turn %d" % int(st.get("oos_turn", 0)))
 		if int(st.get("turn", 0)) >= turns + 5:
+			# 0.28 /list: "Users (N): ..." in the chat, and the command is no chat line.
+			for le in main.find_children("*", "LineEdit", true, false):
+				if le.placeholder_text == "Type message...":
+					le.text = "/list"
+					main._on_chat_send_pressed()
+			var users := RegEx.create_from_string("Users \\((\\d+)\\): (.*)").search(str(main.get_lobby_state().get("chat", "")))
+			_say("users=%s list=%s" % [users.get_string(1) if users else "-", users.get_string(2).replace(" ", "_") if users else "-"])
+			st = main.get_lobby_state()
+			# 0.28 page_loading at "start": the networked Start loads under the loading page.
+			_say("start_loading=" + ",".join(load("res://scenes/menu/loading.gd").last_stages.map(func(x): return str(x[1]).replace(" ", "_"))))
 			_say("done turn=%d seat=%d hash=%08X speed=%s civ1=%d team1=%d color1=%d rejoined_lines=%d" % [turns, int(st.get("seat", -1)),
 					int(main.get_turn_hash(turns)), str(main.get_game_speed()), int(ms.slot_civs[1]),
 					int(ms.slot_teams[1]) if ms.slot_teams.size() > 1 else -1, int(ms.slot_colors[1]),
 					str(st.get("chat", "")).count("has rejoined the game.")])
+			# 0.28 PauseOverlay: the client sees "Paused by" the host's name in its colour.
+			if role == "host":
+				main.toggle_pause()
+				await _wait(4.0)
+				main.toggle_pause()
+			else:
+				var by := ""
+				for i in 40:
+					by = str(main.debug_dialogs().get("overlay_by", ""))
+					if by != "":
+						break
+					await _wait(0.2)
+				_say("paused_by=" + by)
 			break
 	var leave: String = args.get("leave", "")
 	if leave == role:
@@ -184,6 +294,9 @@ func _run() -> void:
 						left += 1
 						_say("chat_left=" + line.strip_edges())
 				_say("chat_left_lines=%d" % left)
+				# LobbyGamelistReporter: the lobby's game report marks bob offline.
+				var rep: Dictionary = session.room_details(root.get_node("/root/MatchSettings"), main.get_net_setup_state(), 0)
+				_say("report_offline=" + ",".join(rep["player_names"].filter(func(p): return p.get("offline", false)).map(func(p): return str(p["name"]))))
 				break
 			if role == "join" and st.get("disconnected", false):
 				_say("net_status=" + str(st.get("net_status", "")).replace("\n", " | ") +

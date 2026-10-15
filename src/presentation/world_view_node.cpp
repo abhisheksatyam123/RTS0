@@ -276,6 +276,14 @@ void RtsoWorldView::_ready() {
 	ring_enemy_mat.instantiate();
 	ring_enemy_mat->set_albedo(Color(0.92f, 0.25f, 0.2f));
 	ring_enemy_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+	// selection.js g_HighlightedAlpha = 0.75: the same ring, partly transparent.
+	for (Ref<StandardMaterial3D> *m : {&ring_hl_mat, &ring_enemy_hl_mat}) {
+		m->instantiate();
+		(*m)->set_albedo(m == &ring_hl_mat ? Color(0.2f, 1.0f, 0.4f, 0.75f) : Color(0.92f, 0.25f, 0.2f, 0.75f));
+		(*m)->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+		(*m)->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+		(*m)->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
+	}
 
 	// Floating Health Bar Meshes and Materials
 	hp_bg_mesh.instantiate();
@@ -519,7 +527,6 @@ void RtsoWorldView::_ready() {
 		return Ref<AudioStream>();
 	};
 
-	sfx_building_fire = load_s("res://assets/sounds/building/building_fire.ogg");
 
 	// Fog overlay: 0 A.D. model_common.fs multiplies every model by the LOS
 	// texture. Imported models keep their StandardMaterial3D, so a structure
@@ -944,7 +951,10 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 				"  float los = 1.0;\n"
 				"  if (los_map_half > 0.0) los = texture(los_tex, (wpos.xz + vec2(los_map_half)) / (2.0 * los_map_half)).r;\n"
 				"  ALBEDO = COLOR.rgb * mix(0.5, 1.0, los) * dash;\n"
-				"  ALPHA = max(core, glow) * smoothstep(0.02, 0.25, los);\n"
+				// CCmpTerritoryManager::Interpolate: a region cut off from its owner's
+				// civic centres (COLOR.a 0) blinks, alpha * (0.2 + 0.8 |cos(t pi)|).
+				"  float blink = mix(0.2 + 0.8 * abs(cos(TIME * PI)), 1.0, COLOR.a);\n"
+				"  ALPHA = max(core, glow) * smoothstep(0.02, 0.25, los) * blink;\n"
 				"}\n");
 		border_mat_.instantiate();
 		border_mat_->set_shader(sh);
@@ -965,12 +975,24 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 	PackedColorArray cols;
 	PackedVector2Array uvs;
 	PackedInt32Array idx;
-	auto boundaries = rtso::compute_territory_boundaries(grid.data.data(), grid.w, grid.h);
+	// TERRITORY_BLINKING_MASK: cells of a region holding none of its owner's
+	// territory roots get their own outline, which blinks.
+	constexpr uint8_t kBlinking = 0x40;
+	std::vector<uint8_t> cells(grid.data.begin(), grid.data.end());
+	for (int j = 0; j < grid.h; ++j) {
+		for (int i = 0; i < grid.w; ++i) {
+			uint8_t &c = cells[(size_t)j * grid.w + i];
+			if (c && c < kBlinking && sim->territory_blinking_cell(i, j)) c |= kBlinking;
+		}
+	}
+	auto boundaries = rtso::compute_territory_boundaries(cells.data(), grid.w, grid.h);
 	for (auto &b : boundaries) {
 		if (b.points.size() < 3) continue;
 		rtso::smooth_points_average(b.points);
 		rtso::interpolate_points_rns(b.points, separation / cell);
-		const Color col = player_display_color(sim, (uint8_t)(b.owner - 1));
+		const bool blinking = (b.owner & kBlinking) != 0;
+		Color col = player_display_color(sim, (uint8_t)((b.owner & ~kBlinking) - 1));
+		col.a = blinking ? 0.0f : 1.0f;
 		const int n = (int)b.points.size();
 		const int base = verts.size();
 		float run = 0.0f;
@@ -2583,7 +2605,7 @@ void RtsoWorldView::refresh_silhouettes() {
 			silhouette_mat_->set_shader(sh);
 		}
 	}
-	const bool on = rtso::user_config::get_bool("silhouettes") && silhouette_mat_.is_valid();
+	const bool on = rtso::user_config::get_bool("silhouettes") && silhouette_mat_.is_valid() && !cinema_playing_;
 	silhouettes_ = on;
 	const Ref<Material> overlay = on ? Ref<Material>(silhouette_mat_) : Ref<Material>();
 	for (auto &per_civ : crowd_)
@@ -2618,11 +2640,18 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		water_mesh_node->set_position(Vector3(0.0f, drawn_water_height(sim), 0.0f));
 	}
 	if (unit_vis_stamp == 0) unit_vis_stamp = 1;
+	// A cinema path playing (CCmpCinemaManager::SetEnabled) turns silhouettes and the
+	// territory borders off (session.js: renderer.silhouettes, TerritoryManager SetVisibility).
+	if (cinema_playing_ != sim->cinema_playing()) {
+		cinema_playing_ = sim->cinema_playing();
+		silhouette_gen_ = 0xFFFFFFFFu;
+	}
 	refresh_silhouettes();
 
 	update_fog(sim, delta);
 	if (paint_dirty_ && sim->resources().count > 0) build_ground_paint(sim);
 	update_territory_borders(sim);
+	if (border_mi_ && border_mi_->is_visible() == cinema_playing_) border_mi_->set_visible(!cinema_playing_);
 
 	// Update skeletal animation controllers
 	for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
@@ -2649,6 +2678,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto rview_g = sim->resources();
 	auto entity_visible = [sim, this](float x, float z, uint8_t team) {
 		return rtso::los_sees_unit(*sim, local_player_, x, z, team);
+	};
+	// template_unit_fauna.xml RetainInFog: an animal stays drawn where it is in explored fog
+	// (CCmpRangeManager VIS_FOGGED with no Fogging mirage), hidden only in unexplored land.
+	auto fauna_visible = [sim, this](float x, float z) {
+		return rtso::los_sees_all(*sim, local_player_) || mirages_.los_at(x, z) != rtso::Simulation::FOW_UNEXPLORED;
 	};
 	std::unordered_map<uint32_t, uint8_t> res_sub;
 	res_sub.reserve(rview_g.count);
@@ -2903,14 +2937,16 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 
 		bool is_selected = (sel_set.count((int32_t)id) > 0);
-		if (is_selected) {
-			v.ring->set_material_override(is_player ? ring_sel_mat : ring_enemy_mat);
+		const bool ringed = is_selected || highlight_set_.count((int32_t)id) > 0;
+		if (ringed) {
+			v.ring->set_material_override(is_selected ? (is_player ? ring_sel_mat : ring_enemy_mat)
+					: (is_player ? ring_hl_mat : ring_enemy_hl_mat));
 			v.ring->set_visible(true);
 			v.ring->set_transform(Transform3D(Basis(), Vector3(x, 0.04f, z)));
 		} else if (v.ring_on) {
 			v.ring->set_visible(false);
 		}
-		v.ring_on = is_selected;
+		v.ring_on = ringed;
 
 		// Selected units, or every visible one while Tab is toggled (0 A.D. g_ShowAllStatusBars).
 		bool show_hp = (is_selected || show_all_status_bars_) && uview.alive[i];
@@ -2931,7 +2967,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		// StatusBars.js: the experience bar under the health bar and the rank icon on top,
 		// per gui.session.experiencestatusbar and gui.session.rankabovestatusbar.
 		const float need_xp = show_hp && status_xp_bar ? sim->promotion_required_xp(i) : 0.0f;
-		const bool show_xp = need_xp > 0.0f;
+		const bool show_xp = need_xp > 0.0f && uview.xp[i] > 0; // AddExperienceBar: none at 0 XP
 		v.xp_bg->set_visible(show_xp);
 		v.xp_fg->set_visible(show_xp);
 		if (show_xp) {
@@ -2942,20 +2978,22 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			xb.scale(Vector3(std::max(xp_ratio, 0.001f), 1.0f, 1.0f));
 			v.xp_fg->set_transform(Transform3D(xb, xp_pos + Vector3((xp_ratio - 1.0f) * 0.44f, 0.0f, 0.01f)));
 		}
-		const uint8_t rank = show_hp && status_rank_icon ? uview.rank[i] : 0;
-		if (rank >= 2) {
+		// AddRankIcon: Basic too, for units whose template has a rank (Identity GetRank).
+		const uint8_t rank = show_hp && status_rank_icon && sim->unit_has_rank(i) ? std::max<uint8_t>(uview.rank[i], 1) : 0;
+		if (rank >= 1) {
 			if (v.rank_shown != rank) {
 				v.rank_shown = rank;
 				v.rank_icon->set_texture(ResourceLoader::get_singleton()->load(rank >= 3 ?
-						"res://assets/textures/ui/archive/icons/ranks/Elite.png" :
-						"res://assets/textures/ui/archive/icons/ranks/Advanced.png"));
+						"res://assets/textures/ui/archive/icons/ranks/Elite.png" : rank == 2 ?
+						"res://assets/textures/ui/archive/icons/ranks/Advanced.png" :
+						"res://assets/textures/ui/archive/icons/ranks/Basic.png"));
 				const Ref<Texture2D> tex = v.rank_icon->get_texture();
 				// Half a bar wide (StatusBars AddRankIcon: BarWidth / 2).
 				if (tex.is_valid() && tex->get_width() > 0) v.rank_icon->set_pixel_size(0.45f / tex->get_width());
 			}
 			v.rank_icon->set_position(Vector3(x, v.hp_bg->get_transform().origin.y + 0.3f, z));
 		}
-		v.rank_icon->set_visible(rank >= 2);
+		v.rank_icon->set_visible(rank >= 1);
 	}
 
 	for (size_t s = 0; s < unit_pool.size(); ++s) {
@@ -3124,24 +3162,17 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			st.hp = b.hp;
 			st.max_hp = b.max_hp;
 			st.type = b.type;
-			st.fire_timer = ((float)(rand() % 100) / 100.0f) * 2.0f;
 			st.live = !b.miraged;
 			tracked_buildings[b.id] = st;
 		} else if (b.miraged) {
-			// A memory: no live hit points to crackle over.
+			// A memory: no live hit points.
 			bit->second.live = false;
 		} else {
 			bit->second.live = true;
 			bit->second.hp = b.hp;
 			bit->second.max_hp = b.max_hp;
-			bit->second.fire_timer += delta;
-
-			// If damaged below 50% HP, periodically trigger fire crackle acoustics
-			if (b.hp < b.max_hp * 0.5f && b.hp > 0.0f && bit->second.fire_timer >= 2.8f) {
-				bit->second.fire_timer = 0.0f;
-				float by = sim->get_terrain_height(b.x, b.z);
-				play_spatial_sound(sfx_building_fire, Vector3(b.x, by + 1.5f, b.z), -4.0f, 55.0f, 0.95f + ((float)(rand() % 15) / 100.0f));
-			}
+			// 0.28 plays no sound for a damaged structure: Health.js only switches its
+			// damage variant (template_structure DamageVariants).
 		}
 	}
 
@@ -3417,7 +3448,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	int f_counts[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (fview.behavior[f] == rtso::FAUNA_CORRALLED) continue; // garrisoned: hidden, the corral flies its flag
-		if (!entity_visible(fview.pos_x[f], fview.pos_z[f], 255)) continue;
+		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f])) continue;
 		uint8_t ft = fview.fauna_type[f];
 		if (ft >= rtso::FAUNA_COUNT) continue;
 		// Baked before the first count, so both passes pick the same clips.
@@ -3439,7 +3470,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	size_t rings_used = 0;
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (fview.behavior[f] == rtso::FAUNA_CORRALLED) continue; // garrisoned: hidden, the corral flies its flag
-		if (!entity_visible(fview.pos_x[f], fview.pos_z[f], 255)) continue;
+		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f])) continue;
 		uint8_t ft = fview.fauna_type[f];
 		if (ft >= rtso::FAUNA_COUNT) continue;
 		float vx = fview.vel_x[f];
@@ -3460,16 +3491,18 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (fauna_mm[ft][clip].is_valid()) {
 			fauna_mm[ft][clip]->set_instance_transform(fslot, xf);
 		}
-		if (!sel_set.empty() && sel_set.count((int32_t)fview.id[f])) {
-			// The player's own selected livestock (0 A.D. livestock are units).
+		const bool f_sel = !sel_set.empty() && sel_set.count((int32_t)fview.id[f]);
+		if (f_sel || (!highlight_set_.empty() && highlight_set_.count((int32_t)fview.id[f]))) {
+			// The player's own selected livestock (0 A.D. livestock are units), or a hovered animal.
 			if (rings_used == fauna_rings_.size()) {
 				MeshInstance3D *r = memnew(MeshInstance3D);
 				r->set_mesh(ring_mesh);
-				r->set_material_override(ring_sel_mat);
 				add_child(r);
 				fauna_rings_.push_back(r);
 			}
 			MeshInstance3D *r = fauna_rings_[rings_used++];
+			const Ref<StandardMaterial3D> &fmat = f_sel ? ring_sel_mat : ring_hl_mat;
+			if (r->get_material_override() != fmat) r->set_material_override(fmat);
 			const float rs = std::max(1.0f, fsc * 1.4f);
 			r->set_transform(Transform3D(Basis().scaled(Vector3(rs, 0.12f, rs)), Vector3(fx, fy + 0.04f, fz)));
 			r->set_visible(true);

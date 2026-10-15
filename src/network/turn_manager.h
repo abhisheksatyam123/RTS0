@@ -44,12 +44,16 @@ public:
 	// Lockstep client -> player slot. Defaults to client_id (host 0 = player 0, joiner 1 =
 	// player 1); game setup may remap. Ids that map past MAX_PLAYERS issue nothing.
 	void set_client_player(uint32_t client_id, uint8_t player) { client_player_[client_id] = player; }
+	// Host: a client that dropped out of the running match (0.28 g_Players offline).
+	bool client_left(uint32_t client_id) const { return left_clients_.count(client_id) != 0; }
 	uint8_t player_for_client(uint32_t client_id) const {
 		auto it = client_player_.find(client_id);
 		if (it != client_player_.end()) return it->second;
 		return client_id < MAX_PLAYERS ? (uint8_t)client_id : (uint8_t)0xFF;
 	}
 	uint8_t local_player() const { return player_for_client(local_client_id_); }
+	// The developer overlay's Change perspective has re-seated this client (offline too).
+	bool perspective_changed() const { return perspective_changed_; }
 	// Seat lockstep clients from NMT_GAME_START: client k takes the k-th human
 	// ('h') slot, so host 0 gets the first one and joiner 1 the second. Both
 	// peers run this on the same setup, so they agree. A client with no human
@@ -86,7 +90,7 @@ public:
 	// scheduled for turn T + COMMAND_DELAY on every peer, and no peer runs turn
 	// N until it holds every player's batch for N (empty batches included).
 	// Turns 1..COMMAND_DELAY have no batches and run unconditionally.
-	static constexpr uint32_t COMMAND_DELAY = 2;
+	static constexpr uint32_t COMMAND_DELAY = 4;
 	// Client ids whose batch every turn waits on. Defaults on the first networked
 	// turn to {0} + connected peer ids (host) or {0, local id} (joiner).
 	void set_lockstep_peers(const std::vector<uint32_t> &ids) { lockstep_peers_ = ids; lockstep_peers_set_ = true; }
@@ -350,6 +354,7 @@ public:
 
 private:
 	bool record_applied_ = false;
+	bool perspective_changed_ = false;
 	std::vector<AppliedCommand> applied_cmds_;
 	uint32_t current_turn_ = 0;
 	float turn_timer_ = 0.0f;

@@ -105,7 +105,7 @@ STATUS_KINDS = {"Poisoned": 1, "Burning": 2}
 
 
 def status_of(atk):
-    """Attack/*/ApplyStatus: (kind, damage per second, duration in s), or (0, 0, 0)."""
+    """Attack/*/ApplyStatus: (kind, damage per tick, Interval in s, Duration in s), or zeros."""
     node = atk.get("ApplyStatus")
     for name, st in sorted((node.children.items() if node else []), key=lambda kv: kv[0]):
         kind = STATUS_KINDS.get(name)
@@ -114,8 +114,8 @@ def status_of(atk):
         interval = st.num("Interval", 1000.0) / 1000.0
         dmg = st.get("Damage")
         per_tick = sum(float(c.text or 0) for c in (dmg.children.values() if dmg else []))
-        return (kind, per_tick / interval if interval > 0 else 0.0, st.num("Duration") / 1000.0)
-    return (0, 0.0, 0.0)
+        return (kind, per_tick, interval, st.num("Duration") / 1000.0)
+    return (0, 0.0, 0.0, 0.0)
 
 
 def status_immunity(t):
@@ -130,7 +130,7 @@ def status_immunity(t):
 def attack_of(t):
     atk, _ranged = ex.primary_attack(t)
     if atk is None:
-        return {"restricted": [], "spread": 0.0, "bonuses": [], "status": (0, 0.0, 0.0),
+        return {"restricted": [], "spread": 0.0, "bonuses": [], "status": (0, 0.0, 0.0, 0.0),
                 "prepare": 0.0, "proj_speed": 0.0, "proj_gravity": 0.0, "fire": 0.0}
     restricted = [c for c in atk.tokens("RestrictedClasses") if not c.startswith("!")]
     bonuses = []
@@ -290,7 +290,7 @@ def emit(units, generic, buildings, classes):
     w("\tfloat hack_armor, pierce_armor, crush_armor; // structures only")
     w("\tfloat footprint; // Footprint radius in 0 A.D. metres (squares as the circle of equal area)")
     w("\tuint8_t status; // ApplyStatus its attack applies: 0 none, 1 Poisoned, 2 Burning")
-    w("\tfloat status_dps, status_time; // that status's damage per second and duration (s)")
+    w("\tfloat status_damage, status_interval, status_time; // that status's Damage per tick, Interval and Duration (s)")
     w("\tuint8_t status_immune; // statuses it blocks (bits 1 Poisoned, 2 Burning; BlockChance 1)")
     w("\tfloat prepare; // Attack PrepareTime (s): the first hit lands this long after an attack starts")
     w("\tfloat proj_speed, proj_gravity; // Projectile Speed (m/s, horizontal) and Gravity (m/s^2), 0 = melee")
@@ -313,10 +313,10 @@ def emit(units, generic, buildings, classes):
             bon.append("{{0, 0}, 1.0f, 255}")
         arm = row.get("armour", (0, 0, 0))
         st = a["status"]
-        return "\t\t{%s, %s, %s, %d, {%s}, %s, %s, %s, %s, %d, %s, %s, %d, %s, %s, %s, %s, %s, %s, {%s}, %d}, // %s" % (
+        return "\t\t{%s, %s, %s, %d, {%s}, %s, %s, %s, %s, %d, %s, %s, %s, %d, %s, %s, %s, %s, %s, %s, {%s}, %d}, // %s" % (
             mask(row["classes"], index), mask(a["restricted"], index), f(a["spread"]), len(a["bonuses"]),
             ", ".join(bon), f(arm[0]), f(arm[1]), f(arm[2]), f(round(row["footprint"], 3)),
-            st[0], f(round(st[1], 4)), f(st[2]), row["immune"], f(round(a["prepare"], 4)),
+            st[0], f(st[1]), f(st[2]), f(st[3]), row["immune"], f(round(a["prepare"], 4)),
             f(a["proj_speed"]), f(a["proj_gravity"]), f(row["capture"]), f(a["fire"]),
             "true" if "loot" in row else "false", ", ".join(str(v) for v in row.get("loot", (0, 0, 0, 0, 0))),
             row.get("garrison", 0), comment)

@@ -705,6 +705,8 @@ bool TurnManager::saved_game_hold() {
 bool TurnManager::apply_pending_rejoin(Simulation &sim) {
 	if (!rejoin_wanted_ || rejoined_) return false;
 	if (!rejoin_have_header_ || rejoin_received_ != rejoin_world_.size()) {
+		// Chunks held behind a lost one are progress: the resend is on its way.
+		if (net_host_ && net_host_->held_count(0)) rejoin_progress_ms_ = rejoin_now_ms();
 		if (rejoin_now_ms() - rejoin_progress_ms_ > REJOIN_RETRY_MS) {
 			std::cerr << "[TurnManager] rejoin transfer stalled; asking the host again\n";
 			request_rejoin(rejoin_observe_);
@@ -1552,6 +1554,16 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 	// drops every unit the sender doesn't own, so a peer can only order its own side.
 	std::vector<uint32_t> owned;
 	for (const auto &c : frame.commands) {
+		if (c.cmd_type == 39 && c.param == Simulation::CHEAT_DEV_PERSPECTIVE) {
+			// The developer overlay's Change perspective (PlayerViewControl: Engine.SetPlayerID):
+			// with cheats on, the sender plays `target_id` from here on, or watches (0xFF).
+			// Defeated players may use it too, as in 0.28 (the host drops observers' commands).
+			if (sim.cheats_enabled() && (c.target_id < MAX_PLAYERS || c.target_id == 0xFF)) {
+				client_player_[c.client_id] = (uint8_t)c.target_id;
+				if (c.client_id == local_client_id_ && !is_replaying_) perspective_changed_ = true;
+			}
+			continue;
+		}
 		const uint8_t pl = player_for_client(c.client_id);
 		if (pl >= MAX_PLAYERS || sim.is_defeated(pl)) continue; // defeated players only watch
 		sim.filter_owned_units(pl, c.entity_ids.data(), c.entity_ids.size(), owned);

@@ -51,7 +51,7 @@ def test_object():
     code, room = lb.register({"id": "g1", "host_port": 20600, "name": "Skirmish", "host_name": "alice",
                               "map_name": "Mainland", "players": 1, "max_players": 4, "password": True})
     check(code == 201 and room["password"] == 1 and room["state"] == "init", "a host registers a game")
-    code, room = lb.register({"id": "g1", "host_port": 20600, "players": 2, "state": "running"}, "10.0.0.5")
+    code, room = lb.register({"id": "g1", "host_port": 20600, "players": 2, "state": "running"})
     check(code == 200 and room["players"] == 2 and room["state"] == "running", "re-registering updates it")
     check(room["name"] == "Skirmish" and room["password"] == 1 and room["host_ip"] == "127.0.0.1",
           "fields left out keep their value")
@@ -190,6 +190,69 @@ def test_ratings():
           "ratings outlive the server in the --ratings file")
 
 
+def test_room_owners():
+    """0 A.D.'s bot keys a game by its host: two hosts on the default port get a
+    game each, and only a game's own host updates or removes it."""
+    lb = lobby_server.Lobby(timeout=60.0, clock=lambda: 1000.0)
+    alice = lb.login("alice")[1]["token"]
+    bob = lb.login("bob")[1]["token"]
+    code, a = lb.register({"token": alice, "id": "room-20595", "name": "A", "host_port": 20595}, "198.51.100.1")
+    code_b, b = lb.register({"token": bob, "id": "room-20595", "name": "B", "host_port": 20595}, "203.0.113.2")
+    check(code == 201 and code_b == 201 and a["id"] == "room-20595" and b["id"] == "room-20595-2",
+          "a second host on the same port gets a game of its own")
+    lb.register({"token": bob, "id": "room-20595", "players": 2}, "203.0.113.2")
+    lb.register({"id": "room-20595", "players": 3}, "198.51.100.1")  # the match scene's own post, no token
+    rooms = {r["id"]: r for r in lb.room_list()[1]["rooms"]}
+    check(len(rooms) == 2 and rooms["room-20595"]["host_ip"] == "198.51.100.1" and rooms["room-20595"]["players"] == 3
+          and rooms["room-20595-2"]["host_ip"] == "203.0.113.2" and rooms["room-20595-2"]["players"] == 2,
+          "each host's heartbeat with the old id updates only its own game")
+    check("owner" not in rooms["room-20595"] and "poster_ip" not in rooms["room-20595"], "the owner stays private")
+    mallory = lb.login("mallory")[1]["token"]
+    check(lb.unregister("room-20595", mallory, "192.0.2.66")[0] == 403 and len(lb.room_list()[1]["rooms"]) == 2,
+          "someone else cannot remove a game")
+    lb.add_punch({"token": mallory, "id": "room-20595-2", "ip": "192.0.2.66", "port": 5000})
+    check(lb.punches("room-20595", 0, bob, "203.0.113.2")[1]["endpoints"][0]["port"] == 5000 and
+          lb.punches("room-20595", 0, alice, "198.51.100.1")[1]["endpoints"] == [],
+          "each host reads the punches sent to its own game")
+    check(lb.unregister("room-20595", bob, "203.0.113.2")[0] == 200 and
+          [r["id"] for r in lb.room_list()[1]["rooms"]] == ["room-20595"], "a host removes its own game")
+
+
+def test_player_states():
+    """LobbyGamelistReporter: a running game's players carry State and Offline."""
+    out = lobby_server._player_names([{"name": "alice", "state": "won"}, {"name": "bob", "state": "defeated", "offline": 1},
+                                      {"name": "AI", "ai": 1, "offline": True, "state": "active"}])
+    check(out[0].get("state") == "won" and out[1].get("offline") is True and out[1].get("state") == "defeated"
+          and "offline" not in out[2] and "state" not in out[2] and "offline" not in out[0],
+          "won, defeated and offline are kept, anything else dropped")
+
+
+def test_moderation():
+    """0 A.D. XmppClient kick and ban, MUC roles and the room subject."""
+    lb = lobby_server.Lobby(timeout=60.0, clock=lambda: 1000.0, moderators=["Mod"], subject="Welcome")
+    mod = lb.login("mod")[1]["token"]
+    bob = lb.login("bob")[1]["token"]
+    carol = lb.login("carol")[1]["token"]
+    code, obj = lb.player_list()
+    rows = {r["name"]: r for r in obj["players"]}
+    check(rows["mod"].get("moderator") is True and "moderator" not in rows["bob"] and obj["subject"] == "Welcome",
+          "moderators are marked and the subject is listed")
+    check(lb.kick(bob, "carol")[0] == 403 and carol in lb.players, "a player who is no moderator cannot kick")
+    check(lb.set_subject(bob, "x")[0] == 403 and lb.set_subject(mod, " Be nice ")[1]["subject"] == "Be nice",
+          "only a moderator sets the subject")
+    check(lb.kick(mod, "nobody")[0] == 404, "kicking someone not in the lobby is refused")
+    check(lb.kick(mod, "Bob", "spam")[0] == 200 and bob not in lb.players, "a moderator kicks bob")
+    check(lb.chat[-1]["text"] == "bob has been kicked from the lobby. Reason: spam", "the lobby is told why")
+    check(lb.presence(bob, "available") == (401, {"error": "not signed in",
+          "kicked": "You have been kicked from the lobby! Reason: spam"}), "bob's next request says he was kicked")
+    check(lb.presence(bob, "available")[1] == {"error": "not signed in"}, "once")
+    check(lb.login("bob")[0] == 200, "a kicked player may sign in again")
+    check(lb.kick(mod, "carol", "", True)[0] == 200 and lb.post_chat(carol, "hi")[1].get("kicked") ==
+          "You have been banned from the lobby!", "a ban removes carol and tells her")
+    check(lb.chat[-1]["text"] == "carol has been banned from the lobby.", "the lobby hears of the ban")
+    check(lb.login("carol")[0] == 403 and lb.login("CAROL")[0] == 403, "a banned name cannot sign in")
+
+
 def test_punch():
     now = [1000.0]
     lb = lobby_server.Lobby(timeout=60.0, clock=lambda: now[0])
@@ -266,6 +329,9 @@ def test_accounts():
 if __name__ == "__main__":
     test_accounts()
     test_object()
+    test_room_owners()
+    test_moderation()
+    test_player_states()
     test_punch()
     test_ratings()
     test_http()

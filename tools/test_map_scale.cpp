@@ -122,7 +122,7 @@ int main() {
 	CHECK(Simulation::grid_res_for_map(100.0f) % CHUNK_SIZE == 0, "res is whole chunks");
 
 	// 2. Every map type at every size.
-	int paths = 0, truncated = 0;
+	int paths = 0, truncated = 0, steep_mines = 0;
 	for (int mt = 0; mt < MAP_TYPE_COUNT; ++mt) {
 		for (int size : kSizes) {
 			Simulation sim;
@@ -169,9 +169,40 @@ int main() {
 					}
 				}
 			}
+			// 2b. Every mine and bush stands on, and every tree beside, a terrain tile land
+			// units can stand on (0.28's passability: corner heights over the tile within the
+			// max slope; RmsGenerator::keep_resources_passable), the bases' mines always.
+			const auto &H = sim.terrain_heights();
+			const int hr = sim.terrain_res(), tr = hr - 1;
+			const float tile = (float)size / (float)tr;
+			auto steep = [&](float x, float z) {
+				const int i = std::clamp((int)std::floor((x + size * 0.5f) / tile), 0, tr - 1);
+				const int j = std::clamp((int)std::floor((z + size * 0.5f) / tile), 0, tr - 1);
+				const float a = H[(size_t)j * hr + i], b = H[(size_t)j * hr + i + 1], c = H[(size_t)(j + 1) * hr + i], d = H[(size_t)(j + 1) * hr + i + 1];
+				return (std::max(std::max(a, b), std::max(c, d)) - std::min(std::min(a, b), std::min(c, d))) / tile > LAND_MAX_TERRAIN_SLOPE;
+			};
+			const auto rv = sim.resources();
+			int on_steep = 0;
+			for (size_t r = 0; r < rv.count; ++r) {
+				if (!rv.alive[r] || (rv.type[r] != RES_GOLD && rv.type[r] != RES_STONE)) continue;
+				if (!steep(rv.x[r], rv.z[r])) continue;
+				++on_steep;
+				for (const auto &t : tcs)
+					CHECK(std::hypot(rv.x[r] - t.first, rv.z[r] - t.second) > 16.0f, "%s %d: a base mine at (%.1f, %.1f) on a cliff tile",
+					      map_type_info(mt).id, size, rv.x[r], rv.z[r]);
+			}
+			steep_mines += on_steep;
+			// 2c. Nothing starts in a circular map's impassable edge ring (rmgen MAP_BORDER_WIDTH).
+			if (sim.circular_map()) {
+				int ringed = 0;
+				for (size_t r = 0; r < rv.count; ++r) ringed += rv.alive[r] && sim.past_map_edge(rv.x[r], rv.z[r]);
+				const auto fv = sim.fauna();
+				for (size_t f = 0; f < fv.count; ++f) ringed += fv.alive[f] && sim.past_map_edge(fv.pos_x[f], fv.pos_z[f]);
+				CHECK(ringed == 0, "%s %d: %d animals and resources start past the circle's edge", map_type_info(mt).id, size, ringed);
+			}
 		}
 	}
-	std::printf("paths between town centres: %d, hit the %d-waypoint cap: %d\n", paths, WaypointPath::MAX_WP, truncated);
+	std::printf("paths between town centres: %d, hit the %d-waypoint cap: %d; mines on cliff tiles: %d\n", paths, WaypointPath::MAX_WP, truncated, steep_mines);
 
 	// 3. JSON map flow (main_node.cpp load_map): reset, set_map_half, terrain,
 	// then buildings inside begin/end_bulk_spawn.
