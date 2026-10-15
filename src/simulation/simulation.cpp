@@ -6772,22 +6772,27 @@ float Simulation::structure_arrow_range(uint8_t player, uint8_t type) const {
 // (out to twice the range) with d^2 <= range^2 + 2 range (y0 - ground(d)); their average.
 float Simulation::average_elevation_range(float x, float z, float range, float y_origin) const {
 	if (range <= 0.0f) return 0.0f;
-	constexpr int kSteps = 16, kSamples = 64;
-	const float y0 = get_terrain_height(x, z) + y_origin;
+	constexpr int kSteps = 16;
 	float sum = 0.0f;
 	for (int k = 0; k < kSteps; ++k) {
 		const float a = 6.2831853f * (float)k / (float)kSteps;
-		const float ux = std::sin(a), uz = std::cos(a);
-		float reach = 0.0f;
-		for (int i = 1; i <= kSamples; ++i) {
-			const float d = 2.0f * range * (float)i / (float)kSamples;
-			const float h = y0 - get_terrain_height(x + ux * d, z + uz * d);
-			const float r2 = range * range + 2.0f * range * h;
-			if (r2 > 0.0f && d * d <= r2) reach = d;
-		}
-		sum += reach;
+		sum += elevation_range_toward(x, z, std::sin(a), std::cos(a), range, y_origin);
 	}
 	return sum / (float)kSteps;
+}
+
+float Simulation::elevation_range_toward(float x, float z, float ux, float uz, float range, float y_origin) const {
+	if (range <= 0.0f) return 0.0f;
+	constexpr int kSamples = 64;
+	const float y0 = get_terrain_height(x, z) + y_origin;
+	float reach = 0.0f;
+	for (int i = 1; i <= kSamples; ++i) {
+		const float d = 2.0f * range * (float)i / (float)kSamples;
+		const float h = y0 - get_terrain_height(x + ux * d, z + uz * d);
+		const float r2 = range * range + 2.0f * range * h;
+		if (r2 > 0.0f && d * d <= r2) reach = d;
+	}
+	return reach;
 }
 
 // Who may board: same owner, not a transport itself; land siege only takes

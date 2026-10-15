@@ -1138,13 +1138,23 @@ private:
 	}
 	// displaySingle for a unit: the attack and resistance lines, the detailed tooltip
 	// (getAttackTooltip, getHealerTooltip, getResistanceTooltip, getGatherTooltip,
-	// getSpeedTooltip, getLootTooltip) and the portrait's (name, then getAurasTooltip).
+	// getSpeedTooltip, getGarrisonTooltip, getPopulationBonusTooltip, getLootTooltip) and the portrait's (name, then getAurasTooltip).
 	void fill_unit_details(const rtso::Simulation &sim, size_t u, const String &name) {
 		using namespace rtso::seldet;
 		const rtso::Simulation::UnitDetails d = sim.unit_details(u);
 		auto uv0 = sim.units();
 		const godot::Dictionary viewer = rtso::portraits::unit_entry(uv0.tmpl ? uv0.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE).get("viewer", godot::Dictionary());
-		const String attack = attack_tooltip(d, viewer.get("attacks", godot::Array())), resistance = resistance_tooltip(d.resistance);
+		// GuiInterface elevationAdaptedRange: a unit's Ranged reach in front of it (angle 0).
+		float relative = 0.0f;
+		if (d.ranged && d.max_range > 0.0f && uv0.alive[u]) {
+			constexpr float kM = rtso::AttackDetection::kMetresPerUnit;
+			float hx = uv0.heading_x ? uv0.heading_x[u] : 0.0f, hz = uv0.heading_z ? uv0.heading_z[u] : 1.0f;
+			const float len = std::sqrt(hx * hx + hz * hz);
+			if (len > 1e-4f) { hx /= len; hz /= len; } else { hx = 0.0f; hz = 1.0f; }
+			const float r = d.max_range / kM;
+			relative = (sim.elevation_range_toward(uv0.pos_x[u], uv0.pos_z[u], hx, hz, r, 0.0f) - r) * kM;
+		}
+		const String attack = attack_tooltip(d, viewer.get("attacks", godot::Array()), relative), resistance = resistance_tooltip(d.resistance);
 		stats_->set_text(join_lines({body_lines(attack), body_lines(resistance)}));
 		auto uv = sim.units();
 		Amounts loot;
@@ -1154,7 +1164,15 @@ private:
 		loot.res[rtso::RES_GOLD] = d.loot.metal;
 		loot.xp = d.loot.xp;
 		if (uv.carry[u] > 0 && uv.res_type_carried[u] < rtso::RES_COUNT) loot.res[uv.res_type_carried[u]] += uv.carry[u];
-		stats_->set_tooltip_text(join_lines({attack, healer_tooltip(d), resistance, gather_tooltip(d), speed_tooltip(d), loot_tooltip(loot)}));
+		// getGarrisonTooltip for a ship, ram or siege tower (its Garrison Limit; a ship is not
+		// Garrisonable) and getPopulationBonusTooltip.
+		const int passengers = (int)sim.get_transport_passenger_count(uv.id[u]);
+		const String garrison = join_lines({garrison_limit_tooltip(sim.get_transport_capacity(uv.id[u])),
+				rtso::unit_is_ship(uv.unit_type[u]) ? String() : garrison_size_tooltip(1, passengers)});
+		const uint16_t pop_tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
+		const int pop_bonus = pop_tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::unit_pop_bonus(pop_tmpl) : 0;
+		stats_->set_tooltip_text(join_lines({attack, healer_tooltip(d), resistance, gather_tooltip(d), speed_tooltip(d),
+				garrison, population_bonus_tooltip(pop_bonus), loot_tooltip(loot)}));
 		String auras;
 		const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
 		if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE)
@@ -1176,8 +1194,11 @@ private:
 		sim.structure_resistance(b, res);
 		const rtso::Simulation::StructureDetails d = sim.structure_details(b);
 		constexpr float kM = rtso::AttackDetection::kMetresPerUnit;
+		// GuiInterface elevationAdaptedRange: a structure's average over the terrain round it.
+		const float relative = d.shoots ? (sim.average_elevation_range(b.x, b.z, d.max_range,
+				rtso::civ_building_ai_info(b.civ, b.type).origin_y) - d.max_range) * kM : 0.0f;
 		const String attack = d.shoots ? structure_attack_tooltip(d.damage, d.min_range * kM, d.max_range * kM, d.repeat_time,
-				d.arrows ? d.arrows : d.default_arrows) : String();
+				d.arrows ? d.arrows : d.default_arrows, relative) : String();
 		const rtso::LootInfo l = rtso::structure_loot(b.type, b.civ, b.half_size);
 		Amounts loot;
 		loot.res[rtso::RES_FOOD] = l.food;

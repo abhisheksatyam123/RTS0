@@ -104,6 +104,19 @@ func run() -> void:
 	check(String(f["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/gaia/fauna_"), "an animal shows its template's icon")
 	check(String(f["owner"]) == "Gaia" and String(f["owner_tooltip"]) == "" and Color(f["owner_color"]).a == 0.0, "Gaia has no colour, emblem or tooltip")
 
+	var ram: PackedInt32Array = main.debug_spawn_units("athen/siege_ram", 1)
+	var crew: PackedInt32Array = main.debug_spawn_units("athen/infantry_spearman_b", 2)
+	main.debug_put_inside(crew, ram[0])
+	var rt: Dictionary = {}
+	for i in 30: # they walk aboard
+		await frames(10)
+		rt = main.debug_inspector(str(ram[0]))
+		if "Garrison Size: 1 + 2" in String(rt["stats_tooltip"]):
+			break
+	print("ram: ", String(rt["stats_tooltip"]).replace("\n", " | "))
+	check("\nGarrison Limit: " in String(rt["stats_tooltip"]), "a ram's tooltip gives its Garrison Limit (getGarrisonTooltip)")
+	check("\nGarrison Size: 1 + 2" in String(rt["stats_tooltip"]), "and its Garrison Size with what it carries")
+
 	main.debug_spawn_fauna(2, 2, true) # FAUNA_SHEEP
 	main.debug_spawn_fauna(31, 1, true) # FAUNA_GOAT
 	await frames(2)
