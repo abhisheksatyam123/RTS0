@@ -5024,7 +5024,9 @@ Simulation::TradeGain Simulation::garrisoned_trade_gain(size_t trader_idx, Trade
 	int traders = 0;
 	for (uint32_t puid : pit->second) {
 		const int32_t p = lookup_unit(puid);
-		if (p >= 0 && units_.alive[p] && units_.unit_type[p] == UNIT_TRADER) ++traders;
+		// Aboard (GarrisonHolder.GetEntities): boarded traders are kept with alive 0.
+		if (p >= 0 && (units_.alive[p] || units_.action_state[p] == ACTION_GARRISONED) &&
+				units_.unit_type[p] == UNIT_TRADER) ++traders;
 	}
 	if (traders == 0) return g;
 	const double mult = 1.0 + MERCHANT_SHIP_GARRISON_GAIN * traders;
@@ -5033,6 +5035,27 @@ Simulation::TradeGain Simulation::garrisoned_trade_gain(size_t trader_idx, Trade
 	g.market1 = scale(g.market1);
 	g.market2 = scale(g.market2);
 	return g;
+}
+
+// 0 A.D. Trader.js:303 OnGarrisonedUnitsChanged: a holder with both markets re-works
+// CalculateGain(markets[0], markets[1]) when its garrison changes, so traders boarding
+// or leaving a merchant ship mid-voyage change that leg's gain.
+void Simulation::refresh_ship_trade_gain(uint32_t transport_id) {
+	auto rit = trader_routes_.find(transport_id);
+	if (rit == trader_routes_.end()) return;
+	auto git = trader_goods_.find(transport_id);
+	if (git == trader_goods_.end()) return; // still empty: nothing loaded this leg
+	const int32_t tidx = lookup_unit(transport_id);
+	if (tidx < 0 || units_.unit_type[tidx] != UNIT_MERCHANT_SHIP) return;
+	auto itA = building_id_to_idx_.find(rit->second.first);
+	auto itB = building_id_to_idx_.find(rit->second.second);
+	if (itA == building_id_to_idx_.end() || itB == building_id_to_idx_.end()) return;
+	const Building &bA = buildings_[itA->second], &bB = buildings_[itB->second];
+	const uint8_t owner = units_.team[tidx];
+	if (!can_trade_at(owner, bA, UNIT_MERCHANT_SHIP) || !can_trade_at(owner, bB, UNIT_MERCHANT_SHIP)) return;
+	const TradeGain g = garrisoned_trade_gain((size_t)tidx, calculate_trade_gain(bA, bB, owner, UNIT_MERCHANT_SHIP));
+	git->second = g;
+	units_.carry[tidx] = g.trader + g.market1 + g.market2;
 }
 
 int Simulation::trader_gain_at(double dx, double dz, uint8_t trader_owner, uint8_t trader_type) const {
@@ -7394,6 +7417,7 @@ void Simulation::drop_from_holder(uint32_t unit_id) {
 		if (it == pit->second.end()) continue;
 		pit->second.erase(it);
 		if (pit->second.empty()) transport_passengers_.erase(pit);
+		refresh_ship_trade_gain(units_.id[t]);
 		return;
 	}
 }
@@ -7426,6 +7450,7 @@ void Simulation::eject_foreign_passengers(size_t transport) {
 	}
 	if (auto it = transport_passengers_.find(tid); it != transport_passengers_.end() && it->second.empty())
 		transport_passengers_.erase(it);
+	refresh_ship_trade_gain(tid);
 }
 
 void Simulation::tick_siege_garrisons() {
@@ -9091,6 +9116,7 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 			units_.vel_x[uidx] = 0.0f;
 			units_.vel_z[uidx] = 0.0f;
 			passengers.push_back(unit_ids[i]);
+			refresh_ship_trade_gain(transport_id);
 		} else {
 			units_.action_state[uidx] = ACTION_MOVE;
 			units_.has_order[uidx] = 1;
@@ -9224,6 +9250,7 @@ void Simulation::order_disembark(uint32_t transport_id, float target_x, float ta
 		units_.vel_z[idx] = 0.0f;
 	}
 	passengers.swap(stay);
+	refresh_ship_trade_gain(transport_id);
 }
 
 void Simulation::order_disembark_all(uint32_t transport_id) {
@@ -9261,6 +9288,7 @@ void Simulation::order_disembark_single(uint32_t transport_id, uint32_t unit_id)
 			units_.vel_z[idx] = 0.0f;
 		}
 		pit->second.erase(it);
+		refresh_ship_trade_gain(transport_id);
 	}
 }
 
@@ -10160,20 +10188,40 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		auto itB = building_id_to_idx_.find(rit->second.second);
 		const Building *bA = (itA != building_id_to_idx_.end()) ? &buildings_[itA->second] : nullptr;
 		const Building *bB = (itB != building_id_to_idx_.end()) ? &buildings_[itB->second] : nullptr;
+		int leg = 0;
+		auto lit = trader_leg_.find(uid);
+		if (lit != trader_leg_.end()) leg = lit->second;
 		if (!bA || !bB || !can_trade_at(owner, *bA, ttype) || !can_trade_at(owner, *bB, ttype)) {
 			// Market.js UpdateTraders: a market destroyed, captured by an enemy or
 			// at war with the trader's owner ends the route and drops the goods.
+			// 0 A.D. Trader.RemoveMarket + UnitAI TradingCanceled: instead of idling
+			// where it stands, the trader walks back to the other market (its heading
+			// first, so a leg whose far end is gone still finishes at the near one).
+			const bool a_ok = bA && can_trade_at(owner, *bA, ttype);
+			const bool b_ok = bB && can_trade_at(owner, *bB, ttype);
+			const Building *walk_to = leg == 0 ? (a_ok ? bA : (b_ok ? bB : nullptr))
+			                                  : (b_ok ? bB : (a_ok ? bA : nullptr));
 			trader_routes_.erase(rit);
 			trader_leg_.erase(uid);
 			trader_goods_.erase(uid);
 			units_.carry[ti] = 0;
 			units_.action_state[ti] = ACTION_IDLE;
 			units_.has_order[ti] = 0;
+			if (walk_to) {
+				// UnitAI WalkToTarget: a forced walk to the surviving market.
+				if (ttype == UNIT_MERCHANT_SHIP) {
+					float wx = walk_to->x, wz = walk_to->z;
+					nearest_water_for_ship(ti, walk_to->x, walk_to->z, wx, wz);
+					cmd_move(&uid, 1, wx, wz);
+				} else {
+					float sx, sz;
+					stand_outside(*walk_to, uid, px[ti], pz[ti], &sx, &sz,
+							unit_clearance_at(ti) + kStandMargin);
+					cmd_move(&uid, 1, sx, sz);
+				}
+			}
 			continue;
 		}
-		int leg = 0;
-		auto lit = trader_leg_.find(uid);
-		if (lit != trader_leg_.end()) leg = lit->second;
 		const Building &dest = leg == 0 ? *bA : *bB;
 		const Building &origin = leg == 0 ? *bB : *bA;
 		// Keep walking toward the destination market.
@@ -10807,6 +10855,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 						units_.vel_x[i] = 0.0f;
 						units_.vel_z[i] = 0.0f;
 						passengers.push_back(units_.id[i]);
+						refresh_ship_trade_gain(units_.id[tidx]);
 					} else {
 						// GARRISONING enter: Garrison fails on a full ship, FinishOrder.
 						units_.action_state[i] = ACTION_IDLE;
@@ -17724,9 +17773,12 @@ int Simulation::bribe_cost(uint8_t player, uint8_t target, bool failed) const {
 Simulation::BribeResult Simulation::cmd_bribe(uint8_t player, uint8_t target) {
 	if (!can_bribe(player, target)) return BRIBE_NOT_ALLOWED;
 	// template_unit_support_trader / template_unit_ship_merchant: VisionSharing/Bribable.
+	// 0 A.D. Commands.js "spy-request" picks any bribable entity of the target player,
+	// garrisoned or not (RangeManager.GetEntitiesByPlayer keeps them): a trader shut in a
+	// structure or aboard a ship can be bribed too.
 	std::vector<uint32_t> candidates;
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != target) continue;
+		if ((!units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED) || units_.team[i] != target) continue;
 		if (units_.unit_type[i] != UNIT_TRADER && units_.unit_type[i] != UNIT_MERCHANT_SHIP) continue;
 		bool spied = false;
 		for (const Spy &s : spies_) spied |= s.unit_id == units_.id[i] && s.player == player;
