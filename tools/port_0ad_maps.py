@@ -838,6 +838,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
         players = {}
         structures = []
         units = []
+        revealers = []  # 0 A.D. vision_revealers/*: {player, x, z, range} (metres, Simulation::explore_circle)
 
         # trigger/trigger_point_<ref> markers (TriggerPoint.js) and their owners, for the
         # map's TriggerScripts (Simulation::add_trigger_point).
@@ -928,7 +929,13 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     gaia[key].append(ent)
                     continue
                 if ltpl.startswith("vision_revealers/"):
-                    # A VisionRevealer marker: RTS0 has no such entity.
+                    # A VisionRevealer marker (simulation/templates/vision_revealers/*_meters.xml,
+                    # Vision/Range in metres): its owner's map starts explored round it
+                    # (Simulation::explore_circle). The range is in the template name.
+                    import re as _re
+                    _m = _re.search(r'(\d+)', ltpl)
+                    _rng = float(_m.group(1)) if _m else 50.0
+                    revealers.append({"player": ply, "x": wx, "z": wz, "range": _rng})
                     continue
 
                 # Structures
@@ -1067,7 +1074,8 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             "gaia_units": gaia["gaia_units"],
             "scenery": gaia["scenery"],
             "structures": structures,
-            "units": units
+            "units": units,
+            "revealers": revealers
         }
         # TriggerScripts, by base name; RTS0 runs its C++ port of each (Simulation::register_trigger_script).
         if pop_limit is not None:

@@ -1157,7 +1157,12 @@ inline constexpr float CLEARANCE_DEFAULT = 0.8f / 4.0f;
 inline constexpr float CLEARANCE_LARGE = 3.0f / 4.0f;
 // helpers/MapEdgeTiles.h MAP_EDGE_TILES in RTS0 units: 3 terrain tiles (12 m). On a circular map
 // CCmpPathfinder makes everything that far inside the LOS circle's edge impassable to every class.
+// The LOS circle itself (CCmpRangeManager.cpp:2154 LosIsOffWorld) sits 2 tiles (8 m) inside the
+// map's edge on a circular map, so the impassable edge is a ring 4 m inside what is drawn; on a
+// square map the outer 3 tiles are off the world entirely (LosIsOffWorld square branch,
+// CCmpPathfinder.cpp:711 edgeSize frame).
 inline constexpr float MAP_EDGE_DIST = 12.0f / 4.0f;
+inline constexpr float MAP_EDGE_LOS_INSET_CIRCULAR = 8.0f / 4.0f;
 
 inline bool unit_is_siege_engine(uint8_t type) {
 	return type == UNIT_SIEGE_RAM || type == UNIT_CATAPULT || type == UNIT_BOLT_SHOOTER;

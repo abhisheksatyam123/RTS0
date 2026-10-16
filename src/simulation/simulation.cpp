@@ -1590,10 +1590,22 @@ void Simulation::rebuild_nav_grid() {
 					nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
 			}
 	}
-	// Off-world passability (CCmpPathfinder::UpdateGrid): on a circular map every navcell whose
-	// centre lies past its edge is impassable to every class, ships included. The nodes of the long
-	// paths on the terrain tiles take the edge at their own spacing (NavGrid::point_terrain_open).
+	// Off-world passability (CCmpPathfinder::UpdateGrid, source/simulation2/components/CCmpPathfinder.cpp:711):
+	// on a circular map every navcell whose centre lies past its edge (MAP_EDGE_TILES inside
+	// the circle) is impassable to every class, ships included; on a square map the 12-cell
+	// border on every side is (else branch). The nodes of the long paths on the terrain tiles
+	// take the edge at their own spacing (NavGrid::point_terrain_open).
 	nav_grid_.edge_r = 0.0f;
+	{
+		const float e = map_half_ - MAP_EDGE_DIST;
+		for (int y = 0; y < nav_grid_.res; ++y) {
+			const float wz = nav_origin.y + ((float)y + 0.5f) * nav_cell;
+			for (int x = 0; x < nav_grid_.res; ++x) {
+				const float wx = nav_origin.x + ((float)x + 0.5f) * nav_cell;
+				if (std::fabs(wx) >= e || std::fabs(wz) >= e) nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
+			}
+		}
+	}
 	if (circular_map()) {
 		const float r = map_half_ - MAP_EDGE_DIST, r2 = r * r;
 		nav_grid_.edge_r = r;
@@ -1806,13 +1818,12 @@ void Simulation::rebuild_territory_grids() {
 					if (nav_grid_.cells.inside(cx, cy) && (nav_grid_.cells.at(cx, cy) == NAV_WATER || nav_grid_.is_steep(cx, cy)))
 						territory_cost_.at(x, y) = TERRITORY_IMPASSABLE_COST;
 				}
-		// 255 "off the world": tiles the unrestricted class can't enter, a circular map's edge band
+		// 255 "off the world": tiles the unrestricted class can't enter, the map's edge band
 		// and what lies past it. Territory doesn't spread there, and they don't count as map.
-		if (circular_map())
-			for (int y = 0; y < R; ++y)
-				for (int x = 0; x < R; ++x)
-					if (past_map_edge(((float)x + 0.5f) * cell - map_half_, ((float)y + 0.5f) * cell - map_half_))
-						territory_cost_.at(x, y) = TERRITORY_OFF_WORLD_COST;
+		for (int y = 0; y < R; ++y)
+			for (int x = 0; x < R; ++x)
+				if (past_map_edge(((float)x + 0.5f) * cell - map_half_, ((float)y + 0.5f) * cell - map_half_))
+					territory_cost_.at(x, y) = TERRITORY_OFF_WORLD_COST;
 		if (before != territory_cost_.data) territory_teams_valid_ = false; // every flood runs over it
 	}
 
@@ -5248,7 +5259,7 @@ bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along
 	const float clearance = unit_building_clearance(CIV_UNIT_TEMPLATE_COUNT, type);
 	auto free_at = [&](float px, float pz) {
 		if (std::fabs(px) >= map_half_ - rad || std::fabs(pz) >= map_half_ - rad) return false;
-		if (past_map_edge(px, pz, clearance)) return false; // nor past a circular map's edge
+		if (past_map_edge(px, pz, clearance)) return false; // nor past the map's edge
 		if (dry_ground && get_terrain_height(px, pz) < terrain_water_height_ + 0.15f) return false;
 		if (!nav_grid_.cells.blank()) {
 			const auto [gx, gy] = nav_grid_.world_to_cell(px, pz);
@@ -21645,7 +21656,7 @@ int Simulation::petra_find_market_location(float &out_x, float &out_z, int &out_
 			for (const auto &a : around) {
 				const float px = wx + a[0] * inside, pz = wz + a[1] * inside;
 				if (std::abs(px) > map_half_ || std::abs(pz) > map_half_) continue; // outside the map
-				if (past_map_edge(px, pz)) continue; // off a circular map's world (mapMask.outside)
+				if (past_map_edge(px, pz)) continue; // off the map's world (mapMask.outside)
 				if (territory_owner_at(px, pz) != petra_pid_) { frontier = true; break; }
 			}
 			if (frontier) continue;
@@ -22007,7 +22018,7 @@ uint16_t Simulation::petra_access_at(float x, float z) const {
 		a.stamp = nav_terrain_stamp_;
 		const auto &wc = nav_grid_.height_cache_;
 		const bool water_known = wc.water_valid && wc.water.size() == (size_t)nres * nres;
-		const float per = (float)nres / (float)res, r = map_half_ - MAP_EDGE_DIST;
+		const float per = (float)nres / (float)res;
 		std::vector<uint8_t> pass((size_t)res * res);
 		for (int y = 0; y < res; ++y) {
 			const int ny = std::min(nres - 1, (int)(((float)y + 0.5f) * per));
@@ -22016,9 +22027,9 @@ uint16_t Simulation::petra_access_at(float x, float z) const {
 				const uint8_t c = nav_grid_.cells.at(nx, ny);
 				bool land = c != NAV_WATER && !nav_grid_.is_steep(nx, ny) && !(tw > 0 && nav_grid_.tile_steep(x0, y));
 				if (land && c == NAV_OBSTRUCTED && water_known) land = wc.water[(size_t)ny * nres + nx] != NAV_WATER; // a dock on deep water
-				if (land && circular_map()) {
+				if (land) {
 					const float wx = -half + ((float)x0 + 0.5f) * cell, wz = -half + ((float)y + 0.5f) * cell;
-					land = wx * wx + wz * wz < r * r;
+					land = !past_map_edge(wx, wz);
 				}
 				pass[(size_t)y * res + x0] = land;
 			}
@@ -32710,6 +32721,27 @@ void Simulation::explore_territories() {
 		if (fog && c < fog->size() && (*fog)[c] == FOW_UNEXPLORED) (*fog)[c] = FOW_EXPLORED;
 	}
 	mark_buildings_seen();
+}
+
+// A 0 A.D. VisionRevealer (simulation/templates/vision_revealers/50_meters.xml, Vision/Range 50):
+// its owner's map starts explored in a circle round it. Live vision would need a new entity
+// (and a save version); explored is what the maps use it for (their starting ground), and it
+// rides in the explored bits saved since v41, so old saves load unchanged.
+void Simulation::explore_circle(uint8_t player, float x, float z, float range_units) {
+	if (player >= MAX_PLAYERS || los_.cells() == 0 || range_units <= 0.0f) return;
+	if (los_.res() != grid_res_) reset_los();
+	const int res = los_.res();
+	const float half = map_half_, cell = 2.0f * half / (float)res, r2 = range_units * range_units;
+	const uint8_t bits = (uint8_t)(1u << player);
+	for (int j = 0; j < res; ++j) {
+		const float wz = -half + ((float)j + 0.5f) * cell;
+		for (int i = 0; i < res; ++i) {
+			const float wx = -half + ((float)i + 0.5f) * cell;
+			const float dx = wx - x, dz = wz - z;
+			if (dx * dx + dz * dz > r2) continue;
+			los_.set_explored(j * res + i, bits);
+		}
+	}
 }
 
 bool Simulation::shares_los(uint8_t viewer, uint8_t owner) const {

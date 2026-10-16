@@ -1238,14 +1238,25 @@ public:
 	uint8_t circular_map_choice() const { return circular_map_choice_; }
 	bool circular_map() const { return setup_flags_ & SETUP_CIRCULAR_MAP; }
 	void set_circular_map(bool on);
-	// Off the world on a circular map: outside the circle of radius map_half() round the centre.
-	bool off_world(float x, float z) const { return circular_map() && x * x + z * z >= map_half_ * map_half_; }
-	// Past a circular map's passable edge, MAP_EDGE_DIST inside the circle, less a clearance c
-	// (0.28 CCmpPathfinder grows the impassable edge by each class's Clearance).
+	// Off the world (CCmpRangeManager.cpp:2145 LosIsOffWorld): on a circular map outside
+	// the LOS circle 8 m inside the edge (verts/2 - MAP_EDGE_TILES + 1); on a square map in
+	// the outer 3 tiles (12 m, MAP_EDGE_DIST) on any side.
+	bool off_world(float x, float z) const {
+		if (circular_map()) {
+			const float r = map_half_ - MAP_EDGE_LOS_INSET_CIRCULAR;
+			return r <= 0.0f || x * x + z * z >= r * r;
+		}
+		return std::fabs(x) >= map_half_ - MAP_EDGE_DIST || std::fabs(z) >= map_half_ - MAP_EDGE_DIST;
+	}
+	// Past a map's passable edge, MAP_EDGE_DIST (12 m) inside the circle on a circular map
+	// (CCmpPathfinder.cpp:711 UpdateGrid, MAP_EDGE_TILES) or inside the square on a square
+	// map (its else branch: the 12-cell border), less a clearance c (0.28 grows the edge by
+	// each class's Clearance).
 	bool past_map_edge(float x, float z, float c = 0.0f) const {
-		if (!circular_map()) return false;
 		const float r = map_half_ - MAP_EDGE_DIST - c;
-		return r <= 0.0f || x * x + z * z > r * r;
+		if (r <= 0.0f) return true;
+		if (circular_map()) return x * x + z * z > r * r;
+		return std::fabs(x) > r || std::fabs(z) > r;
 	}
 	// Within `b` of the map's edge, its circle on a circular map (Petra's mapModule.js
 	// createBorderMap fullBorder).
@@ -1253,10 +1264,9 @@ public:
 		if (circular_map()) return x * x + z * z >= (map_half_ - b) * (map_half_ - b);
 		return std::abs(x) >= map_half_ - b || std::abs(z) >= map_half_ - b;
 	}
-	// A footprint reaching past a circular map's passable edge (CheckBuildingPlacement).
+	// A footprint reaching past a map's passable edge (CheckBuildingPlacement).
 	template <class F>
 	bool footprint_past_map_edge(const F &f) const {
-		if (!circular_map()) return false;
 		const nav::Vec2 u = nav::footprint_u(f), v = nav::footprint_v(f);
 		for (float su : {-1.0f, 1.0f})
 			for (float sv : {-1.0f, 1.0f})
@@ -2615,6 +2625,7 @@ private:
 	void tick_fow();  // updates FoW each sim tick
 	void tick_los();  // moves every LOS source that changed since the last tick
 	void explore_territories(); // InitGame.js ExploreTerritories, before the first turn
+	void explore_circle(uint8_t player, float x, float z, float range_units); // a VisionRevealer's area, explored at the start
 	void mark_buildings_seen(); // Fogging seen from los_ (tick_los) and from cells explored at the start
 	void reset_los();
 	void rebuild_revealed_fow(); // revealed_fow_: all visible but a circular map's off-world cells
@@ -2632,10 +2643,12 @@ private:
 	bool near_impassable_terrain(float x, float z, float c) const; // deep water or a steep tile
 	// A land unit with clearance c may not step from (x0, z0) to (x1, z1) (move_units, pushes).
 	bool land_step_barred(float x0, float z0, float x1, float z1, float c) const;
-	// A unit with clearance c may not step past a circular map's edge (past_map_edge); one already
+	// A unit with clearance c may not step past a map's edge (past_map_edge); one already
 	// past it may step back in.
 	bool edge_step_barred(float x0, float z0, float x1, float z1, float c) const {
-		return past_map_edge(x1, z1, c) && x1 * x1 + z1 * z1 > x0 * x0 + z0 * z0;
+		if (!past_map_edge(x1, z1, c)) return false;
+		if (circular_map()) return x1 * x1 + z1 * z1 > x0 * x0 + z0 * z0;
+		return std::max(std::fabs(x1), std::fabs(z1)) > std::max(std::fabs(x0), std::fabs(z0));
 	}
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
