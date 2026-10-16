@@ -78,7 +78,7 @@ Shipped in PR #1; see the table above. Further pathfinding work (obstruction man
 
 ### P3 — Petra naval remaining
 
-navalManager.js is ported (see area C): docks per sea, fishers per sea, transport ships for overseas attacks and raids, ship choice by getBestShip, moveApart at 70 m. Open: one transport plan at a time where 0 A.D. runs several (requireTransport per unit, splitTransport); workers, traders and new bases on other islands asking for transports; shipyards (no RTS0 building yet); attack targets still prefer docks when Petra has warships (`find_petra_attack_target`), which 0 A.D.'s attackManager does not do. `TurnManager::maintain_fleet_upkeep` (`turn_manager.cpp`) is a no-op left from an earlier attempt; the sim trains Petra's ships itself.
+navalManager.js is ported (see area C): docks per sea, fishers per sea, transport ships for overseas attacks and raids, ship choice by getBestShip, moveApart at 70 m. Landed: several concurrent transport plans and ships per army (requireTransport joins the smallest boarding plan on the route, splitTransport starts a new one once the ship is full, at most 3 siege per plan; neededShips 1/1/3/5 feeds the per-sea wishlist; attacks ferry overflow on later crossings, builders/workers/traders/defenders join or start crossings per land). Open: shipyards (no RTS0 building yet); attack targets still prefer docks when Petra has warships (`find_petra_attack_target`), which 0 A.D.'s attackManager does not do. `TurnManager::maintain_fleet_upkeep` (`turn_manager.cpp`) is a no-op left from an earlier attempt; the sim trains Petra's ships itself.
 
 ### P4 — Session UI split + civ actors
 
