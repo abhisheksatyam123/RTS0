@@ -72,8 +72,15 @@ struct Projectile {
 	float progress = 0.0f;
 	float speed = 26.0f;
 	float arc_height = 2.5f;
-	float damage = 15.0f;
-	uint8_t damage_type = 1; // 0=hack, 1=pierce, 2=crush
+	// 0 A.D. Attack.js PerformAttack GetAttackEffectsData at fire time: the shooter's
+	// Damage strengths (hack, pierce, crush, fire) after its technologies, rank and
+	// attack auras. DelayedDamage.js Hit meets them with the victim's Resistance as it
+	// is at impact, times GetAttackBonus against the victim (the shooter's base bonus
+	// multipliers; a destroyed shooter applies no tech or aura modification to them).
+	float dmg_parts[4] = {};
+	uint16_t src_tmpl = CIV_UNIT_TEMPLATE_NONE; // shooter's roster template for its bonuses
+	uint8_t src_type = 0; // shooter's UnitType for its bonuses (generic classes when tmpl is NONE)
+	uint8_t src_kind = 0; // 0=unknown (older saves), 1=unit, 2=structure (no bonuses, as BuildingAI)
 	uint8_t visual = 0; // 0=arrow, 1=bolt (warship projectile prop), 2=stone
 	uint8_t status_effect = 0; // bitflags of StatusEffect
 	uint8_t team = 0;
@@ -125,6 +132,7 @@ struct PlayerState {
 	uint8_t team = 0;                      // alliance group: same team = allies
 	uint8_t active = 0;                    // slot is in the match
 	uint8_t is_ai = 0;                     // driven by Petra
+	uint8_t controls_all = 0;              // developer overlay's Control all units (Player.js controlAllUnits)
 
 	float &food() { return res[RES_FOOD]; }
 	float &wood() { return res[RES_WOOD]; }
@@ -171,7 +179,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 97; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 98; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PROJECTILE_DAMAGE = 98; // each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact); each unit's and animal's previous-turn position (aim velocity); each player's control-all-units flag
 	static constexpr uint32_t SAVE_VERSION_RALLY_COMMANDS = 97; // each rally position's command and unit or treasure
 	static constexpr uint32_t SAVE_VERSION_PETRA_RAID_SIEGE = 95; // the Petra raid's name and siege class
 	static constexpr uint32_t SAVE_VERSION_PETRA_SUPPLY_ROOM = 94; // each Petra gatherer's supply; structures with no room, for 90 s; the AIs' own random stream
@@ -544,7 +553,7 @@ public:
 			WON = 7,        // other: the winners' mask; tech: the EndReason
 			LOST = 8,       // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
 			TEXT = 9,       // GuiInterface PushNotification "text": tech: the TextMessage; amounts[0]: the entity
-			CHEAT = 10 };   // Commands.js "aichat" from `player`: tech 0 "(Cheat - reveal map)", 1 "(Cheat - promoted units)"
+			CHEAT = 10 };   // Commands.js "aichat" from `player`: tech 0 "(Cheat - reveal map)", 1 "(Cheat - promoted units)", 2 "(Cheat - control all units)"
 		// The "text" time notifications (10 s, centre top) the sim pushes for `player`.
 		enum TextMessage : uint8_t {
 			TEXT_QUEUE_FULL = 0,       // ProductionQueue.js AddItem: "The production queue is full."
@@ -824,7 +833,7 @@ public:
 		// The developer overlay's commands (Commands.js "reveal-map" with its enable flag, "promote").
 		// CHEAT_DEV_PERSPECTIVE (Change perspective: Engine.SetPlayerID) is applied by the
 		// TurnManager, which seats the sender as `parameter` (0xFF: observer).
-		CHEAT_DEV_REVEAL_MAP, CHEAT_DEV_PROMOTE, CHEAT_DEV_PERSPECTIVE, CHEAT_COUNT
+		CHEAT_DEV_REVEAL_MAP, CHEAT_DEV_PROMOTE, CHEAT_DEV_PERSPECTIVE, CHEAT_DEV_CONTROL_ALL, CHEAT_COUNT
 	};
 	// Per-player state of the population and fast-actions cheats (padding-free for saves).
 	struct CheatMods {
@@ -1181,6 +1190,9 @@ public:
 	// 0 A.D. map visibility options: everything visible, or terrain known from the start.
 	bool reveal_map() const { return reveal_map_; }
 	void set_reveal_map(bool on) { reveal_map_ = on; }
+	// Player.js controlAllUnits (the developer overlay's Control all units): the
+	// player orders every live unit. Saved (SAVE_VERSION_PROJECTILE_DAMAGE).
+	bool controls_all(uint8_t player) const { return player < MAX_PLAYERS && players_[player].controls_all; }
 	// Game Setup biome for random maps: BIOME_* or -1 for the map's own.
 	void set_biome_override(int b) { biome_override_ = (b >= 0 && b < BIOME_COUNT) ? b : -1; }
 	int biome_override() const { return biome_override_; }
@@ -1390,6 +1402,7 @@ public:
 	void set_ceasefire_seconds(float s) { ceasefire_seconds_ = std::max(0.0f, s); }
 	float ceasefire_remaining() const { return std::max(0.0f, ceasefire_seconds_ - (float)ticks_ * FIXED_STEP); }
 	float game_time() const { return (float)ticks_ * FIXED_STEP; } // seconds since the match started
+	float aim_clock() const { return aim_clock_; } // sim seconds since the last aim snapshot
 	bool ceasefire_active() const { return ceasefire_remaining() > 0.0f; }
 	// Whether a unit or structure of player a may attack one of player b right now.
 	bool can_attack(uint8_t a, uint8_t b) const { return !ceasefire_active() && is_hostile(a, b); }
@@ -1623,6 +1636,7 @@ public:
 	struct UnitView {
 		const float *pos_x, *pos_z;
 		const float *vel_x, *vel_z;
+		const float *prev_x, *prev_z; // previous-turn positions (CCmpPosition m_PrevX/m_PrevZ)
 		const float *target_x, *target_z;
 		const float *hp, *max_hp;
 		const uint32_t *id;
@@ -2672,7 +2686,17 @@ private:
 	static float projectile_speed(uint8_t visual);
 	const CombatProfile *projectile_profile(uint32_t source_id) const;
 	float projectile_speed_of(uint32_t source_id, uint8_t visual) const;
+	// Attack.js targetVelocity at fire: the target's average velocity over the last
+	// lockstep turn ((position - GetPreviousPosition()) / turnLength, CCmpPosition
+	// m_PrevX/m_PrevZ; a 0.2 s turn here, TICKS_PER_TURN FIXED_STEP ticks).
+	void aim_velocity_unit(size_t t, float &vx, float &vz) const;
+	void aim_velocity_fauna(size_t f, float &vx, float &vz) const;
 	int32_t projectile_hit_unit(const Projectile &p) const;
+	// helpers/Attack.js GetTotalAttackEffects at impact: the projectile's fire-time
+	// strengths against the victim's current Resistance, times the shooter's
+	// GetAttackBonus against it (base multipliers; RTS0 models no tech modification
+	// of bonus multipliers, dead shooter or not, matching every other attack).
+	float projectile_impact_damage(const Projectile &p, const CombatProfile &victim, uint8_t victim_civ, const float res[3]) const;
 	int32_t projectile_hit_fauna(const Projectile &p) const;
 	void projectile_hits_fauna(const Projectile &p, size_t f);
 	float unit_damage_to_fauna(size_t i, size_t f) const;
@@ -2768,6 +2792,11 @@ private:
 		float flee_distance[MAX_FAUNA] = {}; // UnitAI FLEEING distanceToFlee (was the unused fatten timer)
 		float home_x[MAX_FAUNA] = {}; // UnitAI heldPosition: where a hold-ground animal returns
 		float home_z[MAX_FAUNA] = {};
+		// Each animal's position at the end of the previous lockstep turn, for the
+		// same last-turn aim velocity as units (CCmpPosition m_PrevX/m_PrevZ). At the
+		// end, so saves before v98 are a prefix of the struct.
+		float prev_x[MAX_FAUNA] = {};
+		float prev_z[MAX_FAUNA] = {};
 	} fauna_;
 	// Each animal's owner (Ownership): GAIA_PLAYER, or the player whose corral trained it
 	// (0 A.D. Trainer spawns gaia/fauna_*_trainable owned by that player). Beside fauna_, not
@@ -3122,6 +3151,10 @@ private:
 
 	uint64_t tick_us_ = 0;
 	uint64_t ticks_ = 0;
+	// Sim seconds since the last aim snapshot (CCmpPosition m_PrevX/m_PrevZ are a
+	// turn old): a lockstep turn here, TICKS_PER_TURN FIXED_STEP ticks, whatever
+	// dt the tick ran with. Saved (SAVE_VERSION_PROJECTILE_DAMAGE).
+	float aim_clock_ = 0.0f;
 	mutable MapScaleStats map_scale_stats_;
 	FrameArena frame_arena_{4 * 1024 * 1024};
 

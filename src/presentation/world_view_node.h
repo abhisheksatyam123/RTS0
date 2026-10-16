@@ -14,6 +14,7 @@
 #include <godot_cpp/classes/cylinder_mesh.hpp>
 #include <godot_cpp/classes/standard_material3d.hpp>
 #include <godot_cpp/variant/packed_int32_array.hpp>
+#include <godot_cpp/variant/plane.hpp>
 #include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/classes/audio_stream_player3d.hpp>
 #include <godot_cpp/classes/audio_stream.hpp>
@@ -511,6 +512,12 @@ public:
 	// session.showstatusbars (Tab): bars over every visible unit and structure.
 	void set_show_all_status_bars(bool on) { show_all_status_bars_ = on; }
 	bool show_all_status_bars() const { return show_all_status_bars_; }
+	// The developer overlay's Enable culling (GameView.cpp Culling, on by default):
+	// off, every detailed mixer advances and nothing banks time for being unseen.
+	void set_anim_culling(bool on) { anim_cull_enabled_ = on; }
+	// Lock cull camera (GameView.cpp LockCullCamera, m_CullCamera): the frustum the
+	// animation culling tests, frozen until cleared (empty planes: follow the camera).
+	void set_locked_cull_frustum(const std::vector<Plane> &planes) { locked_cull_frustum_ = planes; }
 	// StatusBars.js sprites drawn this frame (tests).
 	int status_sprite_count() const { return status_sprites_.sprite_count(); }
 	const PackedStringArray &status_rank_icons() const { return status_rank_icons_; } // drawn last frame (tests)
@@ -526,6 +533,8 @@ public:
 private:
 	uint8_t local_player_ = 0;
 	bool show_all_status_bars_ = false;
+	bool anim_cull_enabled_ = true; // GameView.cpp Culling
+	std::vector<Plane> locked_cull_frustum_; // GameView.cpp m_CullCamera (empty: follow the camera)
 	// StatusBars.js sprites of every entity with status bars on (status_sprites.h).
 	RtsoStatusSprites status_sprites_;
 	bool status_sprites_built_ = false;

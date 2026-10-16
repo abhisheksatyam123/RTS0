@@ -797,6 +797,11 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 	d["unit_motion_drawn"] = debug_overlays_.drawn(O::UNIT_MOTION);
 	d["range_drawn"] = debug_overlays_.drawn(O::RANGE);
 	d["bounding_box_drawn"] = debug_overlays_.drawn(O::BOUNDING_BOX);
+	d["cull_camera_frustum_drawn"] = debug_overlays_.drawn(O::CULL_CAMERA_FRUSTUM);
+	d["shadows_frustum_drawn"] = debug_overlays_.drawn(O::SHADOWS_FRUSTUM);
+	d["culling_enabled"] = culling_enabled_;
+	d["lock_cull_camera"] = lock_cull_camera_;
+	d["control_all"] = sim ? sim->controls_all(local_player()) : false;
 	d["render_debug"] = render_debug_mode_;
 	d["viewport_debug_draw"] = get_viewport() ? (int)get_viewport()->get_debug_draw() : -1;
 	return d;

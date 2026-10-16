@@ -1134,6 +1134,8 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_float(uview.pos_z[i]);
 		mix_float(uview.vel_x[i]);
 		mix_float(uview.vel_z[i]);
+		mix_float(uview.prev_x[i]);
+		mix_float(uview.prev_z[i]);
 		mix_float(uview.target_x[i]);
 		mix_float(uview.target_z[i]);
 		mix_float(uview.hp[i]);
@@ -1229,6 +1231,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u8(ps.team);
 		mix_u8(ps.active);
 		mix_u8(ps.is_ai);
+		mix_u8(ps.controls_all);
 		for (int r = 0; r < RES_COUNT; ++r) mix_u8(sim.trading_goods(p)[r]);
 	}
 	// Match state: who is out (their orders are dropped) and who has won.
@@ -1237,6 +1240,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 	mix_u8(sim.winner_mask());
 	mix_u8(sim.is_game_over() ? 1 : 0);
 	// Map triggers (Trigger.js timers) and the water level the rising-water maps move.
+	mix_float(sim.aim_clock()); // aim snapshot phase
 	mix_u32(sim.trigger_hash());
 	mix_u32(sim.los_hash()); // per-player LOS (visible and explored bits)
 	mix_float(sim.water_height());
@@ -1254,9 +1258,11 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_float(p.target_x);
 		mix_float(p.target_y);
 		mix_float(p.target_z);
-		mix_float(p.damage);
+		for (float d : p.dmg_parts) mix_float(d);
+		mix_u16(p.src_tmpl);
+		mix_u8(p.src_type);
+		mix_u8(p.src_kind);
 		mix_u8(p.team);
-		mix_u8(p.damage_type);
 		mix_u8(p.visual);
 		mix_u8(p.status_effect);
 		mix_u32(p.target_unit_id);

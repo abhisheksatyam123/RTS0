@@ -689,7 +689,9 @@ private:
 
 	// template_unit_*.xml <trained>: alarm_create_{infantry,cav,female,worker,priest,warship},
 	// elephant_trained for elephants, complete_kennel for dogs, siege_select for the
-	// Germans' wagon; alarm_create_infantry (fs_gravel) for the male civilian.
+	// Germans' wagon, ram_trained (ram_move.ogg) for siege engines (template_unit_siege.xml
+	// and template_unit_siege_{ram,tower}.xml; the bolt shooter and stone thrower inherit
+	// it); alarm_create_infantry (fs_gravel) for the male civilian.
 	void play_trained(uint8_t civ, uint8_t type, bool voices_on) {
 		switch (type) {
 			case UNIT_FEMALE_CITIZEN: play_group("interface/alarm", "alarmcreatefemale", 1.0f); break;
@@ -701,6 +703,9 @@ private:
 				play_group("actor/fauna/animal", "elephant_trained", 1.0f);
 				break;
 			case UNIT_WAR_DOG: play_group("interface/complete/building", "complete_kennel", 1.0f); break;
+			case UNIT_CATAPULT: case UNIT_SIEGE_RAM: case UNIT_BOLT_SHOOTER:
+				play_group("attack/siege", "ram_move", 1.0f);
+				break;
 			case UNIT_WAGON: play_group("attack/siege", "siege_select", 1.0f); break;
 			case UNIT_HEALER: play_group("interface/alarm", "alarmcreatepriest", 1.0f); break;
 			case UNIT_TRIREME: case UNIT_FISHING_BOAT: case UNIT_MERCHANT_SHIP:

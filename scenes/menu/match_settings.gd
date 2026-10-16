@@ -1,6 +1,11 @@
 extends Node
 # Survives scene changes so Game Setup can start a match with the chosen civ.
 
+# The match's music for the summary page (0.28's summary keeps it playing until the
+# main menu): {track, position}, set by quit_confirmation end_game as the session
+# leaves, consumed by summary_screen. Empty anywhere else.
+var match_music: Dictionary = {}
+
 # Core match choices (legacy fields kept for back-compat).
 var player_civ: int = 0
 var ai_civ: int = 1

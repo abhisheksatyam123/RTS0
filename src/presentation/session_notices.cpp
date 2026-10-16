@@ -90,7 +90,7 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 		if (n.kind == N::CHEAT) {
 			// messages.js aichat: the player's own chat line, so everyone sees the cheating.
 			chat_window_.append_kind(String("<") + colored_player_name(n.player) + "> " +
-							tr(n.tech == 0 ? "(Cheat - reveal map)" : "(Cheat - promoted units)") + "\n",
+							tr(n.tech == 0 ? "(Cheat - reveal map)" : n.tech == 1 ? "(Cheat - promoted units)" : "(Cheat - control all units)") + "\n",
 					RtsoChatWindow::message_bits("", true));
 			continue;
 		}

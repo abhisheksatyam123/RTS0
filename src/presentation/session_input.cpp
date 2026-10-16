@@ -467,7 +467,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				dragging = true;
 				drag_start = mouse_pos;
 				if (sim) {
-					const size_t hit = own_unit_under_mouse(mouse_pos);
+					// selection.js addList: Control all units selects anyone visible.
+					const size_t hit = own_unit_under_mouse(mouse_pos, sim->controls_all(local_player()));
 					press_pick_unit_ = hit == (size_t)-1 ? 0 : sim->units().id[hit];
 				}
 				sel_rect->set_rect(drag_start, mouse_pos, true);
@@ -529,10 +530,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						// input.js: the entity hit on mouse-down is kept, so a unit that walked away
 						// before the release is still picked; else the one under the release.
 						size_t best_uidx = (size_t)-1;
+						const bool control_all = sim->controls_all(local_player());
 						if (press_pick_unit_ != 0)
 							for (size_t i = 0; i < uview.count; ++i)
-								if (uview.id[i] == press_pick_unit_ && uview.alive[i] && uview.team[i] == local_player()) best_uidx = i;
-						if (best_uidx == (size_t)-1) best_uidx = own_unit_under_mouse(mouse_pos);
+								if (uview.id[i] == press_pick_unit_ && uview.alive[i] &&
+										(uview.team[i] == local_player() || control_all)) best_uidx = i;
+						if (best_uidx == (size_t)-1) best_uidx = own_unit_under_mouse(mouse_pos, control_all);
 
 						if (best_uidx != (size_t)-1 && is_ctrl && !dbl_click) {
 							// Ctrl+click drops the unit from the selection (selection.remove).
@@ -1568,8 +1571,12 @@ std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
 		return sp.x >= min_p.x && sp.x <= max_p.x && sp.y >= min_p.y && sp.y <= max_p.y;
 	};
 	auto uview = sim->units();
+	const bool control_all = sim->controls_all(local_player());
 	for (size_t i = 0; i < uview.count; ++i) {
-		if (!uview.alive[i] || uview.team[i] != local_player()) continue;
+		if (!uview.alive[i]) continue;
+		if (uview.team[i] != local_player() &&
+				(!control_all || !rtso::los_sees_unit(*sim, view_player(), uview.pos_x[i], uview.pos_z[i], uview.team[i])))
+			continue;
 		const rtso::TechClasses cls = rtso::unit_tech_classes(uview.unit_type[i]);
 		const bool military = (cls & (rtso::TC_MELEE | rtso::TC_RANGED)) != 0;
 		if ((military_only && !military) || (nonmilitary_only && military)) continue;
