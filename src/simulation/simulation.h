@@ -477,6 +477,9 @@ public:
 	// 0 A.D. Promotion.js GetRequiredXp for unit index i after the owner's technologies,
 	// or -1 when the unit has no next rank.
 	float promotion_required_xp(size_t i) const;
+	// Promotion.js IncreaseXp's loop: the skipped ranks' RequiredXp comes from the promoted
+	// template (technologies and global auras), without the range auras at the unit.
+	float promotion_required_xp_template(uint8_t team, uint16_t tmpl, uint8_t type, uint8_t rank) const;
 	// 0 A.D. Identity Rank: only units whose template has a rank (citizen infantry,
 	// cavalry, elephants, healers; the ones with Promotion) show the Basic rank icon.
 	bool unit_has_rank(size_t i) const;
@@ -1614,6 +1617,7 @@ public:
 		const uint32_t *target_resource_id;
 		const int32_t *carry;
 		const float *death_timer;
+		const float *speed, *attack_damage; // current walk speed and damage (owner civ bonuses applied)
 		const uint16_t *kills;
 		const uint8_t *rank;
 		const uint8_t *status_effects;
@@ -3146,8 +3150,11 @@ private:
 	PetraDefenseBuild petra_defense_build_;
 	PetraDropsiteCheck petra_dropsite_check_;
 	PetraQueueManager petra_queues_;
-	std::vector<PetraTransportPlan> petra_transports_; // under way (BOARDING to UNLOADING), one per owner
+	std::vector<PetraTransportPlan> petra_transports_; // under way (BOARDING to UNLOADING), several per owner (navalManager.js transportPlans)
 	const PetraTransportPlan *petra_transport_for(uint8_t owner) const;
+	// navalManager.js requireTransport: the smallest BOARDING plan of `owner` between the same
+	// lands with room for one more (at most 3 siege engines per plan), else nullptr.
+	PetraTransportPlan *petra_transport_join(uint8_t owner, uint16_t from_land, uint16_t to_land, bool is_siege);
 	void petra_require_defense_transport(uint32_t uid, uint16_t from_land, uint16_t to_land, float to_x, float to_z);
 	bool petra_ship_in_plan(uint32_t ship_id) const;
 	size_t petra_go_home(const std::vector<uint32_t> &squad, float x, float z, uint8_t owner, bool order_here, bool attack = false);

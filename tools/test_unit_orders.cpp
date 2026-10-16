@@ -1845,6 +1845,42 @@ static void test_idle_at_dropsite() {
 	(void)store;
 }
 
+// UnitAI.js FINDINGNEWTARGET: a gatherer far from its exhausted patch, with nothing near it
+// or where it started, walks back to where it started and searches again first
+// (GatherNearPosition, UnitAI.js:2640), instead of going to a dropsite at once.
+static void test_gather_walk_back() {
+	std::printf("45b. a gatherer far from its exhausted patch walks back to start first (FINDINGNEWTARGET)\n");
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t tree = s.spawn_resource_world(10, 0, RES_WOOD, 500);
+	uint32_t w = s.spawn_unit(8, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&w, 1, tree);
+	check(run_until(s, 10.0f, [&] { return act_of(s, w) == ACTION_GATHER; }), "she gathers the tree");
+	// Driven far off, with the patch exhausted while away and nothing else around.
+	int wi = idx_of(s, w);
+	s.units_.pos_x[wi] = 40.0f;
+	s.units_.pos_z[wi] = 0.0f;
+	s.units_.target_x[wi] = 40.0f;
+	s.units_.target_z[wi] = 0.0f;
+	s.units_.waypoint_cur[wi] = 0;
+	s.units_.waypoint_count[wi] = 0;
+	s.units_.carry[wi] = 0;
+	const int ti = (int)s.res_id_to_idx_.at(tree);
+	s.resources_.amount[ti] = 0;
+	s.resources_.alive[ti] = 0;
+	const bool leg = run_until(s, 10.0f, [&] {
+		const int k = idx_of(s, w);
+		return s.unit_order(w).kind == ORDER_GATHER && s.units_.target_resource_id[k] == 0 &&
+			s.units_.action_state[k] == ACTION_MOVE;
+	});
+	check(leg, "she walks back to where the patch was");
+	const bool back = run_until(s, 60.0f, [&] { return dist(s, w, 10, 0) < 5.0f; });
+	check(back, "she reaches the old patch");
+	const bool idles = run_until(s, 60.0f, [&] { return dist(s, w, -20, 0) < 6.0f; });
+	check(idles, "with nothing there she goes on to the storehouse");
+}
+
 
 static void test_chase_into_fog() {
 	std::printf("46. a chase is dropped once the target is hidden in the fog (ShouldAbandonChase)\n");
@@ -3216,6 +3252,7 @@ int main(int argc, char **argv) {
 	test_flee_source();
 	test_autoharvest();
 	test_idle_at_dropsite();
+	test_gather_walk_back();
 	test_chase_into_fog();
 	test_hidden_attacker();
 	test_patrol_loop();

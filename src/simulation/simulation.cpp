@@ -1123,6 +1123,13 @@ uint32_t Simulation::spawn_unit(float x, float z, uint8_t team, UnitType u_type,
 		tmpl = CIV_UNIT_TEMPLATE_NONE;
 	size_t idx = units_.push(x, z, uid, team, u_type, tmpl);
 	if (hp > 0.0f) units_.hp[idx] = units_.max_hp[idx] = hp;
+	// A unit from a "{native}" trainer keeps its template but belongs to its owner: the
+	// owner's civ bonuses apply, not its template civ's baked ones (civ_unit_owner_bonus).
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && team < MAX_PLAYERS) {
+		float train_time = 0.0f;
+		civ_unit_owner_bonus(tmpl, civ_of(team), units_.speed[idx], units_.attack_damage[idx],
+			units_.attack_cooldown[idx], train_time);
+	}
 	// ResourceGatherer/Capacities of the unit's 0 A.D. gatherer class.
 	if (const int32_t cap = gather_class_capacity(unit_gather_class((uint8_t)u_type, tmpl))) units_.carry_capacity[idx] = cap;
 
@@ -11670,8 +11677,16 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		// GATHER APPROACHING MovementUpdate with likelyFailure: FINDINGNEWTARGET, which goes on to
 		// the next order, another resource of the kind nearby (not the one it couldn't reach) or the
 		// dropsite. A boat's fish are on its own sea, so its walks to them don't fail this way.
+		// Only a unit still walking to its supply goes: one already harvesting it (0 A.D. GATHER
+		// GATHERING has no likelyFailure handler) keeps at it even if pushes wedge it in place.
 		if (move_failed && units_.order_kind[i] == ORDER_GATHER && units_.action_state[i] == ACTION_GATHER &&
 				units_.target_resource_id[i] != 0 && !unit_is_ship(units_.unit_type[i])) {
+			if (auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+					rit != res_id_to_idx_.end() &&
+					gather_in_reach(i, rit->second, units_.pos_x[i], units_.pos_z[i])) {
+				m.failed = 0;
+				continue;
+			}
 			m.failed = 0;
 			finish_order(i, true);
 			continue;
@@ -11717,11 +11732,18 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		}
 		const bool walking = (kind == ORDER_WALK && st == ACTION_MOVE) ||
 				(kind == ORDER_WALK_AND_FIGHT && st == ACTION_ATTACK_MOVE) ||
-				(kind == ORDER_PATROL && st == ACTION_PATROL);
+				(kind == ORDER_PATROL && st == ACTION_PATROL) ||
+				// A gather order with no target walks back to where it started (FINDINGNEWTARGET
+				// GatherNearPosition, UnitAI.js:2640): it searches again once the walk ends.
+				(kind == ORDER_GATHER && st == ACTION_MOVE && units_.target_resource_id[i] == 0);
 		if (!walking || units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0) continue;
 		const float gx = units_.order_x[i] - units_.pos_x[i], gz = units_.order_z[i] - units_.pos_z[i];
 		if (!move_failed && gx * gx + gz * gz > RELAXED_RANGE * RELAXED_RANGE) continue;
 		m.failed = 0;
+		if (kind == ORDER_GATHER) {
+			finish_order(i, true); // search again where the walk back brought the unit
+			continue;
+		}
 		if (st == ACTION_PATROL) {
 			patrol_arrive(i);
 			continue;
@@ -11882,7 +11904,8 @@ void Simulation::obstructed_long_path(size_t i, uint8_t failed) {
 bool Simulation::walk_falls_short(size_t i) const {
 	const uint8_t kind = units_.order_kind[i], st = units_.action_state[i];
 	if (!((kind == ORDER_WALK && st == ACTION_MOVE) || (kind == ORDER_WALK_AND_FIGHT && st == ACTION_ATTACK_MOVE) ||
-	      (kind == ORDER_PATROL && st == ACTION_PATROL)) ||
+	      (kind == ORDER_PATROL && st == ACTION_PATROL) ||
+	      (kind == ORDER_GATHER && st == ACTION_MOVE && units_.target_resource_id[i] == 0)) ||
 			units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0 || i >= unit_paths_.size())
 		return false;
 	const WaypointPath &wp = unit_paths_[i];
@@ -13192,7 +13215,8 @@ void Simulation::tick_combat(float dt) {
 		if (st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE ||
 				st == ACTION_FLEE || st == ACTION_GARRISONED || st == ACTION_REPAIR)
 			return;
-		if (st == ACTION_MOVE && (units_.order_kind[i] == ORDER_WALK || units_.order_kind[i] == ORDER_GARRISON))
+		if (st == ACTION_MOVE && (units_.order_kind[i] == ORDER_WALK || units_.order_kind[i] == ORDER_GARRISON ||
+				(units_.order_kind[i] == ORDER_GATHER && units_.target_resource_id[i] == 0)))
 			return;
 		const bool guarding = st == ACTION_GUARD; // target_unit_id is the guarded unit
 		const uint32_t prev_unit = units_.target_unit_id[i], prev_bld = units_.target_building_id[i];
@@ -14223,7 +14247,14 @@ float Simulation::unit_train_seconds(uint8_t pid, uint16_t queued) const {
 	const uint8_t type = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).unit_type : (uint8_t)UNIT_VILLAGER;
 	float m = 1.0f; // unit_advanced.json / unit_elite.json Cost/BuildTime
 	for (uint8_t r = 2; r <= rank; ++r) m *= rank_bonus(r).train_time_mul;
-	return civ_template_unit_info(tmpl, type).train_time * team_bonus_mult(pid, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl) *
+	float train_time = civ_template_unit_info(tmpl, type).train_time;
+	// The roster train-time carries the template civ's baked bonus (maur_elephants x0.7):
+	// the training player's applies instead (civ_unit_owner_bonus).
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && pid < MAX_PLAYERS) {
+		float speed = 0.0f, damage = 0.0f, cooldown = 0.0f;
+		civ_unit_owner_bonus(tmpl, civ_of(pid), speed, damage, cooldown, train_time);
+	}
+	return train_time * team_bonus_mult(pid, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl) *
 	       unit_tech_mods(pid, type, tmpl).train_time * ai_time_mult(pid) * m;
 }
 
@@ -14236,23 +14267,30 @@ bool Simulation::unit_has_rank(size_t i) const {
 	return l && l->target_rank >= 2;
 }
 
-float Simulation::promotion_required_xp(size_t i) const {
-	if (i >= units_.count) return -1.0f;
-	const PromotionLink *l = promotion_link(units_.tmpl[i], units_.unit_type[i], units_.rank[i]);
+float Simulation::promotion_required_xp_template(uint8_t team, uint16_t tmpl, uint8_t type, uint8_t rank) const {
+	const PromotionLink *l = promotion_link(tmpl, type, rank);
 	if (!l) return -1.0f;
 	float xp = l->xp;
-	const uint8_t team = units_.team[i];
 	if (team < MAX_PLAYERS) {
-		const TechClasses cls = unit_classes(units_.tmpl[i], units_.unit_type[i]);
+		const TechClasses cls = unit_classes(tmpl, type);
 		for (const PromotionXpTech &t : PROMOTION_XP_TECHS)
-			if ((t.tech == TECH_NONE || players_[team].has_tech(t.tech)) && (!t.rank || t.rank == units_.rank[i]) &&
+			if ((t.tech == TECH_NONE || players_[team].has_tech(t.tech)) && (!t.rank || t.rank == rank) &&
 					(cls & t.need) == t.need && !(cls & t.forbid))
 				xp = t.replace_zero ? 0.0f : xp * t.multiply;
-		xp *= unit_tech_mods(team, units_.unit_type[i], units_.tmpl[i]).required_xp; // global RequiredXp auras
-		const float near = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], team, AURA_REQUIRED_XP,
-			units_.tmpl[i], &unit_combat_at(i).classes); // range ones
-		if (near > 0.0f) xp *= near;
+		xp *= unit_tech_mods(team, type, tmpl).required_xp; // global RequiredXp auras
 	}
+	return xp;
+}
+
+float Simulation::promotion_required_xp(size_t i) const {
+	if (i >= units_.count) return -1.0f;
+	const uint8_t team = units_.team[i];
+	float xp = promotion_required_xp_template(team, units_.tmpl[i], units_.unit_type[i], units_.rank[i]);
+	if (xp < 0.0f || team >= MAX_PLAYERS) return xp;
+	// Promotion.js GetRequiredXp: ApplyValueModificationsToEntity, range auras included.
+	const float near = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], team, AURA_REQUIRED_XP,
+		units_.tmpl[i], &unit_combat_at(i).classes); // range ones
+	if (near > 0.0f) xp *= near;
 	return xp;
 }
 
@@ -14319,7 +14357,8 @@ void Simulation::apply_rank_bonus(size_t i, uint8_t from_rank, uint8_t to_rank) 
 void Simulation::promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_rank) {
 	const float frac = units_.max_hp[i] > 0.0f ? units_.hp[i] / units_.max_hp[i] : 1.0f;
 	if (target_tmpl < CIV_UNIT_TEMPLATE_COUNT && target_tmpl != units_.tmpl[i]) {
-		// Another unit: its template's stats, the owner's technologies, then its rank.
+		// Another unit: its template's stats, the owner's civ bonuses (not its template civ's
+		// baked ones), the owner's technologies, then its rank.
 		const uint8_t type = civ_unit_template(target_tmpl).unit_type;
 		const UnitTypeInfo &info = civ_template_unit_info(target_tmpl, type);
 		units_.tmpl[i] = target_tmpl;
@@ -14329,6 +14368,11 @@ void Simulation::promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_ran
 		units_.attack_range[i] = info.attack_range;
 		units_.attack_damage[i] = info.attack_damage;
 		units_.attack_cooldown[i] = info.attack_cooldown;
+		if (units_.team[i] < MAX_PLAYERS) {
+			float train_time = 0.0f;
+			civ_unit_owner_bonus(target_tmpl, civ_of(units_.team[i]), units_.speed[i], units_.attack_damage[i],
+				units_.attack_cooldown[i], train_time);
+		}
 		// ResourceGatherer/Capacities of the new gatherer class, as at spawn (tech carry is read in carry_cap).
 		const int32_t cap = gather_class_capacity(unit_gather_class(type, target_tmpl));
 		units_.carry_capacity[i] = cap ? cap : info.carry_capacity;
@@ -14346,7 +14390,11 @@ void Simulation::promote_if_due(size_t i) {
 	if (!units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED) return;
 	if (!(units_.hp[i] > 0.0f)) return;
 	for (int guard = 0; guard < 4; ++guard) {
-		const float need = promotion_required_xp(i);
+		// Promotion.js IncreaseXp: the first step uses the unit's RequiredXp with the range
+		// auras reaching it; a step that skips ranks uses the promoted template's, without
+		// them (ApplyValueModificationsToTemplate).
+		const float need = guard == 0 ? promotion_required_xp(i)
+			: promotion_required_xp_template(units_.team[i], units_.tmpl[i], units_.unit_type[i], units_.rank[i]);
 		if (need < 0.0f) return;
 		const float have = (float)units_.xp[i] + units_.xp_partial[i];
 		if (have < need) return;
@@ -15667,6 +15715,8 @@ Simulation::UnitView Simulation::units() const {
 	v.rank = units_.rank;
 	v.status_effects = units_.status_effects;
 	v.xp = units_.xp;
+	v.speed = units_.speed;
+	v.attack_damage = units_.attack_damage;
 	v.pack_state = units_.pack_state;
 	v.pack_elapsed = units_.pack_elapsed;
 	v.heading_x = units_.heading_x;
@@ -16672,6 +16722,26 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 			units_.target_resource_id[i] = 0;
 			units_.action_state[i] = ACTION_RETURN_DROPSITE;
 			return;
+		}
+		// UnitAI.js FINDINGNEWTARGET: nothing near the unit or where it started, but it
+		// stands far from where it started (initPos, the order's target position when it
+		// was issued): walk back there and search again on arrival (GatherNearPosition,
+		// UnitAI.js:2640-2660), maybe finding supplies hidden in the fog, instead of
+		// giving up to a dropsite at once. Not twice: a leg that found nothing goes on.
+		if (units_.order_target[i] != 0) {
+			const float ix = units_.order_x[i] - units_.pos_x[i], iz = units_.order_z[i] - units_.pos_z[i];
+			constexpr float GATHER_NEAR_RANGE = 12.0f / 4.0f; // DefaultRelaxedMaxRange, as in motion_feedback
+			if (ix * ix + iz * iz > GATHER_NEAR_RANGE * GATHER_NEAR_RANGE) {
+				uint32_t id = uid;
+				order_walk(&id, 1, units_.order_x[i], units_.order_z[i], false);
+				// Keep the gather intent across the walk back: a gather order with no
+				// target searches again once the walk ends (motion_feedback arrival).
+				units_.order_kind[i] = ORDER_GATHER;
+				units_.order_flags[i] &= ORDER_FLAG_SUB_MASK; // keep the resource kind, drop FORCE
+				units_.order_target[i] = 0;
+				units_.target_resource_id[i] = 0;
+				return;
+			}
 		}
 		// Empty-handed: head to the dropsite anyway, "a nice enough place to congregate and idle".
 		if (const uint32_t d = nearest_dropsite(i); d != 0) {
@@ -22082,18 +22152,18 @@ bool Simulation::petra_aboard(uint32_t uid) const {
 }
 
 // headquarters.js assignEntity: a unit on another land than (x, z) comes back by sea
-// (navalManager.requireTransport, one plan for `owner`) rather than walking through
+// (navalManager.requireTransport, one plan per ship, several per owner) rather than walking through
 // it; while no ship is free it stays where it is. Those on that land walk (or
 // attack-move) there when `order_here`. Returns how many are still on another land.
 size_t Simulation::petra_go_home(const std::vector<uint32_t> &squad, float x, float z, uint8_t owner, bool order_here, bool attack) {
 	uint16_t home = 0;
 	const PetraNavalTopo &topo = petra_classified_topo(home);
 	const uint16_t dest = topo.naval_map ? petra_land_at(x, z) : 0;
-	std::vector<uint32_t> here, away;
-	uint16_t away_land = 0;
+	std::vector<uint32_t> here;
+	// navalManager.js requireTransport: units from each land join that land's boarding plan,
+	// else a new plan starts for them (one plan per ship, several per owner).
+	std::vector<std::pair<uint16_t, std::vector<uint32_t>>> away_by_land;
 	size_t n_away = 0;
-	const bool shipping = petra_transport_for(owner) != nullptr;
-	float ax = 0.0f, az = 0.0f;
 	for (uint32_t uid : squad) {
 		const int32_t i = lookup_unit(uid);
 		if (i < 0) continue;
@@ -22101,48 +22171,98 @@ size_t Simulation::petra_go_home(const std::vector<uint32_t> &squad, float x, fl
 		const uint16_t land = dest ? petra_land_at(units_.pos_x[i], units_.pos_z[i]) : 0;
 		if (!land || land == dest) { here.push_back(uid); continue; }
 		++n_away;
-		if (shipping) continue;
-		if (!away_land) away_land = land;
-		if (land != away_land) continue; // the next crossing takes them
-		away.push_back(uid);
-		ax += units_.pos_x[i];
-		az += units_.pos_z[i];
+		auto it = away_by_land.begin();
+		for (; it != away_by_land.end(); ++it)
+			if (it->first == land) break;
+		if (it == away_by_land.end()) { away_by_land.emplace_back(land, std::vector<uint32_t>{}); it = away_by_land.end() - 1; }
+		it->second.push_back(uid);
 	}
 	if (order_here && !here.empty()) {
 		if (attack) order_attack_move(here.data(), here.size(), x, z);
 		else order_walk(here.data(), here.size(), x, z, false);
 	}
-	if (!away.empty()) {
-		const uint16_t sea = topo.sea_between(away_land, dest);
-		if (sea) petra_start_transport(away, ax / (float)away.size(), az / (float)away.size(), x, z, sea, owner);
+	for (auto &g : away_by_land) {
+		const uint16_t sea = topo.sea_between(g.first, dest);
+		if (!sea) continue;
+		// First join the land's boarding plan, then ship the rest in new plans while ships are free.
+		std::vector<uint32_t> left;
+		for (uint32_t uid : g.second) {
+			if (petra_passenger(uid) || petra_aboard(uid)) continue;
+			const int32_t k = lookup_unit(uid);
+			const bool siege = k >= 0 && unit_is_siege_engine(units_.unit_type[k]);
+			bool joined = false;
+			if (PetraTransportPlan *tp = petra_transport_join(owner, g.first, dest, siege)) {
+				const int32_t s = tp->ship_id ? lookup_unit(tp->ship_id) : -1;
+				if (k >= 0 && s >= 0 && can_board((size_t)s, (size_t)k)) {
+					tp->passenger_ids.push_back(uid);
+					order_walk(&units_.id[k], 1, tp->pickup_x, tp->pickup_z, false);
+					joined = true;
+				}
+			}
+			if (!joined) left.push_back(uid);
+		}
+		if (left.empty()) continue;
+		float ax = 0.0f, az = 0.0f;
+		for (uint32_t uid : left) { const int32_t k = lookup_unit(uid); ax += units_.pos_x[k]; az += units_.pos_z[k]; }
+		ax /= (float)left.size();
+		az /= (float)left.size();
+		while (!left.empty()) {
+			const size_t before = left.size();
+			if (!petra_start_transport(left, ax, az, x, z, sea, owner)) break;
+			const PetraTransportPlan *tp = petra_transports_.empty() ? nullptr : &petra_transports_.back();
+			if (!tp) break;
+			for (uint32_t uid : tp->passenger_ids)
+				left.erase(std::remove(left.begin(), left.end(), uid), left.end());
+			if (left.size() >= before) break;
+		}
 	}
 	return n_away;
 }
 
-// navalManager.requireTransport for a worker (or, with `owner`, a trader): it joins our crossing
-// of that kind from its land to that one while the ship still boards, or a new crossing starts
-// (one of each kind at a time, on a ship already on that sea).
+// navalManager.requireTransport for a worker (or, with `owner`, a trader): it joins the
+// smallest boarding crossing of that kind from its land to that one with room (at most 3
+// siege engines per plan, navalManager.js:379), or a new crossing starts on a free ship
+// already on that sea (several plans per owner, one ship each).
 bool Simulation::petra_require_worker_transport(size_t i, uint16_t from_land, uint16_t to_land, float to_x, float to_z,
                                                 uint8_t owner) {
 	const uint32_t uid = units_.id[i];
 	if (!from_land || !to_land || from_land == to_land || petra_passenger(uid) || petra_aboard(uid)) return false;
+	if (PetraTransportPlan *tp = petra_transport_join(owner, from_land, to_land,
+			unit_is_siege_engine(units_.unit_type[i]))) {
+		const int32_t sidx = tp->ship_id ? lookup_unit(tp->ship_id) : -1;
+		if (sidx >= 0 && can_board((size_t)sidx, i)) {
+			tp->passenger_ids.push_back(uid);
+			order_walk(&units_.id[i], 1, tp->pickup_x, tp->pickup_z, false);
+			return true;
+		}
+	}
 	uint16_t home = 0;
 	const PetraNavalTopo &topo = petra_classified_topo(home);
-	for (auto &tp : petra_transports_) {
-		if (tp.owner != owner) continue;
-		if (tp.state != PetraTransportPlan::BOARDING || petra_land_at(tp.pickup_x, tp.pickup_z) != from_land ||
-		    petra_land_at(tp.drop_x, tp.drop_z) != to_land || !tp.ship_id ||
-		    tp.passenger_ids.size() >= (size_t)get_transport_capacity(tp.ship_id))
-			return false;
-		const int32_t sidx = lookup_unit(tp.ship_id);
-		if (sidx < 0 || !can_board((size_t)sidx, i)) return false;
-		tp.passenger_ids.push_back(uid);
-		order_walk(&units_.id[i], 1, tp.pickup_x, tp.pickup_z, false);
-		return true;
-	}
 	const uint16_t sea = topo.sea_between(from_land, to_land);
 	if (!sea) return false;
 	return petra_start_transport({uid}, units_.pos_x[i], units_.pos_z[i], to_x, to_z, sea, owner);
+}
+
+// navalManager.js requireTransport: the smallest BOARDING plan of `owner` between the same
+// lands with room for one more (at most 3 siege engines per plan, navalManager.js:379),
+// else nullptr for a new plan.
+PetraTransportPlan *Simulation::petra_transport_join(uint8_t owner, uint16_t from_land, uint16_t to_land, bool is_siege) {
+	PetraTransportPlan *best = nullptr;
+	for (auto &tp : petra_transports_) {
+		if (tp.owner != owner || tp.state != PetraTransportPlan::BOARDING || !tp.ship_id) continue;
+		if (petra_land_at(tp.pickup_x, tp.pickup_z) != from_land || petra_land_at(tp.drop_x, tp.drop_z) != to_land) continue;
+		if (tp.passenger_ids.size() >= (size_t)get_transport_capacity(tp.ship_id)) continue;
+		if (is_siege) {
+			int siege = 0;
+			for (uint32_t uid : tp.passenger_ids) {
+				const int32_t k = lookup_unit(uid);
+				if (k >= 0 && unit_is_siege_engine(units_.unit_type[k]) && ++siege > 3) break;
+			}
+			if (siege > 3) continue;
+		}
+		if (!best || tp.passenger_ids.size() < best->passenger_ids.size()) best = &tp;
+	}
+	return best;
 }
 
 const PetraTransportPlan *Simulation::petra_transport_for(uint8_t owner) const {
@@ -25944,15 +26064,11 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				plan.target_x = tx;
 				plan.target_z = tz;
 				// attackPlan.js updatePreparation: an army bound overseas waits for a
-				// transport ship on that sea (navalManager trains it meanwhile).
+				// transport ship on that sea (navalManager trains it meanwhile, up to
+				// neededShips per plan: attackPlan.js setMinimalTransportShips). Each army
+				// sails on its own ships (navalManager.js transportPlans, several per owner).
 				const uint16_t overseas = petra_plan_overseas(base_x, base_z, target_id, true);
 				if (overseas && petra_transport_ships_on(overseas) == 0) return;
-				// The attack's transport serves one army overseas at a time.
-				if (overseas) {
-					if (petra_transport_for(PETRA_TRANSPORT_ATTACK)) return;
-					for (const AttackPlan &p : petra_started_attacks_)
-						if (p.path_x.empty() && petra_plan_overseas(base_x, base_z, p.target_building_id)) return;
-				}
 
 				if (!overseas) {
 					// attackPlan.js chooseTarget: the rally point starts at our base on the
@@ -25992,15 +26108,29 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 						const uint16_t rally_land = rit != building_id_to_idx_.end() ? petra_building_land(buildings_[rit->second], &topo)
 						                                                              : petra_land_at(rx, rz);
 						ferry_sea = topo.sea_between(from_land, rally_land);
-						if (ferry_sea && (petra_transport_ships_on(ferry_sea) == 0 || petra_transport_for(PETRA_TRANSPORT_ATTACK))) return;
+						if (ferry_sea && petra_transport_ships_on(ferry_sea) == 0) return;
 					}
 					petra_plan_path(plan, rx, rz);
 					petra_strike_force_.staging_x = plan.staging_x;
 					petra_strike_force_.staging_z = plan.staging_z;
 					if (!away.empty()) {
+						// navalManager.js requireTransport per unit: the away units join the
+						// boarding ferry or board new ones (splitTransport) until none is left
+						// or no ship is free. Those no ship takes leave the plan.
 						std::vector<uint32_t> ferried;
-						if (ferry_sea && petra_start_transport(away, ax, az, plan.staging_x, plan.staging_z, ferry_sea, PETRA_TRANSPORT_ATTACK))
-							ferried = petra_transport_for(PETRA_TRANSPORT_ATTACK)->passenger_ids;
+						if (ferry_sea) {
+							std::vector<uint32_t> rest = away;
+							for (int tries = 0; tries < 8 && !rest.empty(); ++tries) {
+								const size_t nplans = petra_transports_.size();
+								if (!petra_start_transport(rest, ax, az, plan.staging_x, plan.staging_z, ferry_sea, PETRA_TRANSPORT_ATTACK)) break;
+								if (petra_transports_.size() == nplans) break;
+								for (uint32_t uid : petra_transports_.back().passenger_ids) {
+									ferried.push_back(uid);
+									rest.erase(std::remove(rest.begin(), rest.end(), uid), rest.end());
+								}
+								if (ferried.empty()) break;
+							}
+						}
 						for (uint32_t uid : away)
 							if (std::find(ferried.begin(), ferried.end(), uid) == ferried.end())
 								squad.erase(std::remove(squad.begin(), squad.end(), uid), squad.end());
@@ -26022,7 +26152,9 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				petra_strike_force_.staging_z = sz;
 
 				{
-					// attackPlan.js "transporting": the army sails, and gathers where it lands.
+					// attackPlan.js "transporting": the army sails, and gathers where it lands
+					// (requireTransport per unit, splitTransport once a ship is full: one
+					// shipful boards now, the WALKING state ferries whoever is left).
 					if (!petra_start_transport(squad, base_x, base_z, tx, tz, overseas, PETRA_TRANSPORT_ATTACK)) return; // no free ship
 					const PetraTransportPlan *tp = petra_transport_for(PETRA_TRANSPORT_ATTACK);
 					plan.staging_x = petra_strike_force_.staging_x = tp->drop_x;
@@ -26672,9 +26804,10 @@ void Simulation::petra_manage_raid(float dt) {
 		if (!ready && petra_can_build_units() && (rs == 0 || (rs == 0xFF && petra_turn_mod(5)))) petra_raid_add_siege();
 		if (!ready) return;
 		const float tx = plan.target_x, tz = plan.target_z;
-		// A raid overseas waits for a transport ship there, and for its last crossing to end.
+		// A raid overseas waits for a transport ship there (attackPlan.js updatePreparation,
+		// navalManager.js seaTransportShips), then sails on its own ships like an attack.
 		const uint16_t overseas = petra_plan_overseas(base_x, base_z, plan.target_building_id);
-		if (overseas && (petra_transport_ships_on(overseas) == 0 || petra_transport_for(PETRA_TRANSPORT_RAID)))
+		if (overseas && petra_transport_ships_on(overseas) == 0)
 			return;
 		plan.initial_squad_size = plan.squad.size();
 		plan.state = AttackPlan::WALKING;
@@ -27334,9 +27467,9 @@ uint32_t Simulation::petra_free_transport_ship(uint16_t sea, float x, float z) c
 
 bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z,
                                        uint16_t sea, uint8_t owner) {
-	// navalManager.transportPlans: one plan per owner (attack, raid, builders);
-	// plans run side by side, each on its own ship.
-	if (petra_transport_for(owner)) return false;
+	// navalManager.js transportPlans: several plans per owner run side by side, each on its
+	// own ship (requireTransport joins a boarding plan with room, splitTransport starts a
+	// new one once the ship is full).
 	float pickup_x = from_x, pickup_z = from_z;
 	float drop_x = to_x, drop_z = to_z;
 	petra_find_beach(from_x, from_z, to_x, to_z, pickup_x, pickup_z);
@@ -27377,20 +27510,21 @@ bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, fl
 	return true;
 }
 
-// navalManager.js requireTransport: a defender joins the defense transport still boarding
-// between the same lands, else one is planned for it (RTS0 keeps one plan per owner, H4).
+// navalManager.js requireTransport: a defender joins the smallest defense transport still
+// boarding between the same lands, else a new one is planned for it (several per owner,
+// one ship each).
 void Simulation::petra_require_defense_transport(uint32_t uid, uint16_t from_land, uint16_t to_land, float to_x, float to_z) {
 	const int32_t i = lookup_unit(uid);
 	if (i < 0 || !units_.alive[i]) return;
-	for (PetraTransportPlan &tp : petra_transports_) {
-		if (tp.owner != PETRA_TRANSPORT_DEFENSE) continue;
-		if (tp.state != PetraTransportPlan::BOARDING || petra_land_at(tp.pickup_x, tp.pickup_z) != from_land ||
-		    petra_land_at(tp.drop_x, tp.drop_z) != to_land) return;
-		const int32_t si = tp.ship_id ? lookup_unit(tp.ship_id) : -1;
-		if (si < 0 || tp.passenger_ids.size() >= (size_t)get_transport_capacity(tp.ship_id) || !can_board((size_t)si, (size_t)i)) return;
-		tp.passenger_ids.push_back(uid);
-		order_walk(&uid, 1, tp.pickup_x, tp.pickup_z, false);
-		return;
+	if (petra_passenger(uid) || petra_aboard(uid)) return;
+	const bool siege = unit_is_siege_engine(units_.unit_type[i]);
+	if (PetraTransportPlan *tp = petra_transport_join(PETRA_TRANSPORT_DEFENSE, from_land, to_land, siege)) {
+		const int32_t si = tp->ship_id ? lookup_unit(tp->ship_id) : -1;
+		if (si >= 0 && can_board((size_t)si, (size_t)i)) {
+			tp->passenger_ids.push_back(uid);
+			order_walk(&uid, 1, tp->pickup_x, tp->pickup_z, false);
+			return;
+		}
 	}
 	const uint16_t sea = petra_topo().sea_between(from_land, to_land);
 	if (!sea || petra_transport_ships_on(sea) == 0) return;
