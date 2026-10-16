@@ -3791,15 +3791,20 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 	Vector3 cam_pos;
 	std::vector<Plane> frustum; // outward planes: inside has distance <= 0
-	if (Viewport *vp = get_viewport()) {
+	if (!locked_cull_frustum_.empty() && anim_cull_enabled_) {
+		// Lock cull camera (GameView.cpp m_CullCamera): cull against the frozen frustum.
+		frustum = locked_cull_frustum_;
+	} else if (Viewport *vp = get_viewport()) {
 		if (Camera3D *cam = vp->get_camera_3d()) {
 			cam_pos = cam->get_global_position();
 			const TypedArray<Plane> planes = cam->get_frustum();
 			for (int p = 0; p < planes.size(); ++p) frustum.push_back(planes[p]);
 		}
 	}
-	// A sphere of `radius` at `at` is (maybe) in view; true with no camera.
+	// A sphere of `radius` at `at` is (maybe) in view; true with no camera, with
+	// culling off (GameView.cpp Culling), or with a locked frustum cleared.
 	auto in_view = [&](const Vector3 &at, float radius) {
+		if (!anim_cull_enabled_) return true;
 		for (const Plane &pl : frustum)
 			if (pl.distance_to(at) > radius) return false;
 		return true;

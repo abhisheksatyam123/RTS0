@@ -8,6 +8,14 @@ extends Node
 ## Options, Load Game, Replays and the other pages, and stops when a match
 ## starts (the session plays its own playlists, music_manager.h).
 ##
+## Match music: 0.28's summary page touches no music (gui/summary/summary.js has
+## no music calls; only the main menu sets MENU), so the match's track keeps
+## playing onto the summary until the main menu. The session hands its track and
+## position over through MatchSettings.match_music (quit_confirmation end_game);
+## the summary resumes it here and it loops that track (0.28 would continue the
+## playlist; the rest of it is the session's). Leaving the summary for anywhere
+## but the main menu keeps it playing, as 0.28's global music object does.
+##
 ## Clicks: every button, dropdown and tab outside a match plays
 ## ui_button_click.ogg on the UI volume (common/modern/styles.xml sound_pressed,
 ## sound_opened, sound_selected); the session hooks its own controls.
@@ -22,6 +30,9 @@ var _music: AudioStreamPlayer
 var _click: AudioStreamPlayer
 var _playlist: Array = []
 var _track := -1
+var _match_track := "" # the session's track, resumed onto the summary
+var session_music_tick := Callable() # the session's music tick, driven here so it
+# runs while the tree is paused (0.28's music is global and knows no pause)
 var clicks := 0 # for tests
 
 func _ready() -> void:
@@ -39,17 +50,55 @@ func _ready() -> void:
 	get_tree().node_added.connect(_on_node_added)
 
 ## music.js setState(MENU): starts the menu playlist unless it is already playing.
+## A resumed match track stops first: the main menu always plays MENU (MainMenuPage.js).
 func play_menu_music() -> void:
 	if _track >= 0:
 		return
+	_music.stop()
+	_match_track = ""
+	if _music.finished.is_connected(_replay_match_track):
+		_music.finished.disconnect(_replay_match_track)
+	if not _music.finished.is_connected(_next_track):
+		_music.finished.connect(_next_track)
 	var rest := MENU_TRACKS.slice(1)
 	rest.shuffle()
 	_playlist = [MENU_TRACKS[0]] + rest
 	_track = -1
 	_next_track()
 
+## The session's track, resumed onto the summary with its position: it loops there
+## until the main menu (or a new match) stops it.
+func play_match_track(track: String, position: float) -> void:
+	if track.is_empty():
+		return
+	if _match_track == track and _music.playing:
+		return
+	_track = -1
+	_playlist = []
+	_match_track = track
+	if _music.finished.is_connected(_next_track):
+		_music.finished.disconnect(_next_track)
+	if not _music.finished.is_connected(_replay_match_track):
+		_music.finished.connect(_replay_match_track)
+	var stream = load(MUSIC_PATH + track) if ResourceLoader.exists(MUSIC_PATH + track) else null
+	if stream == null:
+		_match_track = ""
+		return
+	_music.stream = stream
+	_music.play(position)
+
+func _replay_match_track() -> void:
+	if _match_track.is_empty():
+		return
+	_music.play()
+
+func match_music_track() -> String:
+	return _match_track if _music.playing else ""
+
 func stop_music() -> void:
 	_track = -1
+	_playlist = []
+	_match_track = ""
 	_music.stop()
 
 func menu_music_track() -> String:
@@ -72,8 +121,10 @@ static func _in_session(n: Node) -> bool:
 		n = n.get_parent()
 	return false
 
-func _process(_delta: float) -> void:
-	if _track < 0:
+func _process(delta: float) -> void:
+	if session_music_tick.is_valid():
+		session_music_tick.call(delta)
+	if _track < 0 and _match_track.is_empty():
 		return
 	for c in get_tree().root.get_children():
 		if c.has_method("is_game_paused"):
