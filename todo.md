@@ -1,4 +1,6 @@
 ## Tasks
+- [x] T16 [lead] Verify Temple of Vesta aura & team-bonus pricing coverage, update PLAN.md
+- [ ] T17 [lead] Commit docs/PLAN.md update and push to origin/main
 - [x] T14 [lead] Restrict captured mercenary camp recruitment to native Ptolemaic roster (building_trains_native)
 - [x] T15 [lead] Commit mercenary camp fix and PLAN.md update, push to origin/main (commit f1179caa6)
 - [x] T10 [lead] Close remaining 4 Petra AI parity gaps in tools/check_parity.py (37/37 100% PASS)
