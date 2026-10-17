@@ -1358,6 +1358,7 @@ public:
 	void cinema_clear_queue() { cinema_.queue.clear(); }
 	void cinema_delete_path(const char *name);
 	// TriggerPoint.js: a trigger point the map places (trigger/trigger_point_<ref>).
+	void explore_circle(uint8_t player, float x, float z, float range_units); // a VisionRevealer's area, explored at the start
 	void add_trigger_point(uint8_t ref, float x, float z, uint8_t owner = GAIA_PLAYER) { triggers_.add_point(ref, x, z, owner); }
 	// TriggerHelper.SetPlayerWon: pid and its allies win, everyone else is defeated.
 	void set_player_won(uint8_t pid, uint8_t reason = SessionNotice::END_GAME_MODE);
@@ -2664,7 +2665,6 @@ private:
 	void tick_fow();  // updates FoW each sim tick
 	void tick_los();  // moves every LOS source that changed since the last tick
 	void explore_territories(); // InitGame.js ExploreTerritories, before the first turn
-	void explore_circle(uint8_t player, float x, float z, float range_units); // a VisionRevealer's area, explored at the start
 	void mark_buildings_seen(); // Fogging seen from los_ (tick_los) and from cells explored at the start
 	void reset_los();
 	void rebuild_revealed_fow(); // revealed_fow_: all visible but a circular map's off-world cells

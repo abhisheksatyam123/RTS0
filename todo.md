@@ -16,3 +16,5 @@
 - 2026-10-17 [lead] Audited REMAINING_GAPS.md: identified open item P6 (trade-route waypoints).
 - 2026-10-17 [lead] Merged work/trade-p6 into main cleanly; updated docs/REMAINING_GAPS.md line 59.
 - 2026-10-17 [lead] Verified turn_manager.cpp compiles with g++ -c (exit 0); check_parity.py --unit netcode passes 17/17.
+- [x] T8 [lead] Fix G29 build error: make Simulation::explore_circle public so session_setup.cpp can call it for VisionRevealers (full scons build passes!)
+- [ ] T9 [lead] Commit the explore_circle public fix and push to origin/main
