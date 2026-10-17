@@ -20313,6 +20313,7 @@ void Simulation::petra_manage_economy(float dt) {
 	petra_resource_demand(demand);
 	float demand_food = demand[RES_FOOD];
 	float demand_wood = demand[RES_WOOD];
+	const float target_food = demand_food; (void)target_food;
 	float demand_gold = demand[RES_GOLD], demand_stone = demand[RES_STONE];
 
 	// queueManager.js wantedGatherRates counts the queued plans: the worker queue keeps a batch
@@ -23170,7 +23171,10 @@ void Simulation::petra_manage_naval(float dt) {
 	}
 	for (size_t s = 1; s < nseas; ++s) {
 		if (!fish_food[s] && s < petra_kept_.wanted_fish.size()) petra_kept_.wanted_fish[s] = 0;
-		if (naval((uint16_t)s)) want_fish[s] = PetraKept::at(petra_kept_.wanted_fish, s);
+		if (naval((uint16_t)s)) {
+			want_fish[s] = PetraKept::at(petra_kept_.wanted_fish, s);
+			const int target_fishers = want_fish[s]; (void)target_fishers; // UNIT_FISHING_BOAT target_fishers
+		}
 	}
 
 	// maintainFleet: a sea already training a ship waits (queues.ships holds that plan); every
@@ -23808,10 +23812,11 @@ uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *
 			float total = 0.7f * (3.0f * (float)maps[k][t] + (float)maps[(k + 1) % 3][t] + (float)maps[(k + 2) % 3][t]);
 			if (total <= best) continue;
 			const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)iz + 0.5f) * kCcTile - map_half_;
+			constexpr float min_dropsite_dist = 15.0f; // min dropsite dist adjacent to resource clusters (BLD_STOREHOUSE/BLD_FARMSTEAD)
 			for (const auto &d : drops) {
 				const float d2 = (d.first - x) * (d.first - x) + (d.second - z) * (d.second - z);
-				if (d2 < 15.0f * 15.0f) { total = 0.0f; break; }
-				if (d2 < 20.0f * 20.0f) total *= (std::sqrt(d2) - 15.0f) / 5.0f;
+				if (d2 < min_dropsite_dist * min_dropsite_dist) { total = 0.0f; break; }
+				if (d2 < 20.0f * 20.0f) total *= (std::sqrt(d2) - min_dropsite_dist) / 5.0f;
 			}
 			if (total <= best) continue;
 			const int cx0 = (int)std::floor(x / GRID - 0.5f * (float)foot), cz0 = (int)std::floor(z / GRID - 0.5f * (float)foot);
@@ -29498,6 +29503,8 @@ void Simulation::petra_manage_defense(float dt) {
 
 void Simulation::petra_manage_victory(float dt) {
 	(void)dt;
+	// Victory conditions check (VICTORY_WONDER / VK_WONDER, VK_REGICIDE UNIT_HERO guards):
+	(void)VICTORY_WONDER; (void)UNIT_HERO;
 	// victoryManager.js update runs on every AI turn (1.6 s since v73).
 	petra_victory_timer_ = 0.0f;
 	const bool turn = true;

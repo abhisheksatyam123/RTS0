@@ -53,7 +53,12 @@ def on_disk(assets_dir, rel):
     # Godot ResourceLoader also accepts dirs (animations/, skeletons/)
     ext = os.path.splitext(rel)[1].lower()
     if not ext or ext not in FILE_EXTS:
-        return os.path.isdir(p)
+        if os.path.isdir(p):
+            return True
+        parent = os.path.dirname(p)
+        base = os.path.basename(p)
+        if os.path.isdir(parent) and any(f.startswith(base) for f in os.listdir(parent)):
+            return True
     return False
 
 

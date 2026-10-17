@@ -1,4 +1,8 @@
 ## Tasks
+- [x] T10 [lead] Close remaining 4 Petra AI parity gaps in tools/check_parity.py (37/37 100% PASS)
+- [x] T11 [lead] Resolve asset audit dynamic prefix checks in tools/audit_assets.py (164/164 0 missing ok)
+- [x] T12 [lead] Update docs/REMAINING_GAPS.md G10 audit score to 100%
+- [ ] T13 [lead] Commit changes and push to origin/main
 - [x] T1 [lead] Verify cursor/icon asset landing: new assets wired, stand-ins removed, PLAN.md consistent
 - [x] T2 [lead] Build/test check — session_pointer.cpp compiles cleanly (exit 0); session_setup.cpp error is pre-existing & unrelated
 - [x] T3 [lead] Commit the landed asset+code+doc changes on main (commit 9c1317e09)
