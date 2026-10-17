@@ -91,12 +91,16 @@ func _section(parent: Control, title: String) -> void:
 	_place(line, parent, Vector2(0, 28), Vector2(parent.size.x, 1))
 
 # barterHelp / tradeHelp: a disabled StoneButton with the info icon; the
-# instructions are its tooltip.
+# instructions are its tooltip. 0 A.D.'s global/icon/info.png is copied to
+# assets/textures/ui/icons/info.png (see tools/extract_ui_assets.py).
 func _info_button() -> Button:
 	var b := Button.new()
-	b.text = "i"
+	b.text = ""
 	b.disabled = true
-	b.add_theme_font_size_override("font_size", 13)
+	var info_path := "res://assets/textures/ui/icons/info.png"
+	if ResourceLoader.exists(info_path):
+		b.icon = load(info_path)
+		b.expand_icon = true
 	return b
 
 # BarterButton.xml: a 38 px icon with the amount over its top half and, on the
@@ -182,15 +186,22 @@ func _build() -> void:
 		good.pressed.connect(_on_good_selected.bind(r))
 		_place(good, col, Vector2(4, 0), Vector2(32, 32))
 		(good.get_node("amount") as Label).size = Vector2(32, 32)
-		# StoneArrowUp / StoneArrowDn beside the button.
+		# StoneArrowUp / StoneArrowDn beside the button. 0 A.D.'s
+		# global/button/arrowbox_*.dds are copied to assets/textures/ui/icons/.
 		var up := Button.new()
-		up.text = "▲"
-		up.add_theme_font_size_override("font_size", 8)
+		up.text = ""
+		var up_path := "res://assets/textures/ui/icons/arrowbox_up.png"
+		if ResourceLoader.exists(up_path):
+			up.icon = load(up_path)
+			up.expand_icon = true
 		up.pressed.connect(_on_arrow.bind(r, 1))
 		_place(up, col, Vector2(36, 0), Vector2(16, 16))
 		var dn := Button.new()
-		dn.text = "▼"
-		dn.add_theme_font_size_override("font_size", 8)
+		dn.text = ""
+		var dn_path := "res://assets/textures/ui/icons/arrowbox_down.png"
+		if ResourceLoader.exists(dn_path):
+			dn.icon = load(dn_path)
+			dn.expand_icon = true
 		dn.pressed.connect(_on_arrow.bind(r, -1))
 		_place(dn, col, Vector2(36, 16), Vector2(16, 16))
 		_trade_rows[r] = {"up": up, "button": good, "dn": dn}
