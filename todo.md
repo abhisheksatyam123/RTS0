@@ -1,4 +1,6 @@
 ## Tasks
+- [x] T18 [lead] Reconcile remaining open items in docs/PLAN.md (Area B Nomad, Area E civ upgrades, Area H Petra Gaia exploitation, U21 minister & Tachara)
+- [x] T19 [lead] Commit docs/PLAN.md reconcile and push to origin/main
 - [x] T16 [lead] Verify Temple of Vesta aura & team-bonus pricing coverage, update PLAN.md
 - [x] T17 [lead] Commit docs/PLAN.md update and push to origin/main (commit 812229098)
 - [x] T14 [lead] Restrict captured mercenary camp recruitment to native Ptolemaic roster (building_trains_native)
@@ -26,3 +28,4 @@
 - 2026-10-17 [lead] Verified turn_manager.cpp compiles with g++ -c (exit 0); check_parity.py --unit netcode passes 17/17.
 - [x] T8 [lead] Fix G29 build error: make Simulation::explore_circle public so session_setup.cpp can call it for VisionRevealers (full scons build passes!)
 - [x] T9 [lead] Commit the explore_circle public fix and push to origin/main (commit 43e0353d2)
+- 2026-10-17 [lead] Reconciled PLAN.md open items against landed implementations in simulation.cpp/test_upgrades.cpp (Nomad CC placement, Tachara/Court/Great Tower upgrades, Petra hunting/treasure, Han minister builder aura); verified parity 37/37 & 17/17, assets 164/164, test_netcode 100% pass.
