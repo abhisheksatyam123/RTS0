@@ -4,8 +4,8 @@
 - [x] T3 [lead] Commit the landed asset+code+doc changes on main (commit 9c1317e09)
 - [x] T4 [lead] Review REMAINING_GAPS.md: identify open items (P6 trade-route waypoints on cmd 35 was open in Unit orders fifth pass)
 - [x] T5 [lead] Merge work/trade-p6 (e4985e5f6): cmd 35 variable route, per-trader route state, tick out/reversed, save v99 guard + hash; update REMAINING_GAPS.md
-- [ ] T6 [lead] Commit the P6 merge + docs update on main
-- [ ] T7 [lead] Push main to remote origin/main
+- [x] T6 [lead] Commit the P6 merge + docs update on main (commit 7d05cc478)
+- [x] T7 [lead] Push main to remote origin/main (c3814af16..7d05cc478 pushed)
 
 ## Systems
 - RTS0 = 0 A.D. native port (C++ SoA sim + Godot GDExtension).
