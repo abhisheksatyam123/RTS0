@@ -1203,6 +1203,36 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_float(kv.second.orders.front().timer);
 	}
 
+	// 2d. Trade routes (Trader.js markets, goods and SetupTradeRoute route): every trader's
+	// markets, leg, loaded gains, waypoints and leg progress, by unit id so the order is fixed.
+	{
+		std::vector<uint32_t> tids;
+		for (const auto &kv : sim.trader_routes_map()) tids.push_back(kv.first);
+		std::sort(tids.begin(), tids.end());
+		mix_u32((uint32_t)tids.size());
+		for (uint32_t tid : tids) {
+			const auto &mk = sim.trader_routes_map().at(tid);
+			mix_u32(tid);
+			mix_u32(mk.first);
+			mix_u32(mk.second);
+			auto lit = sim.trader_legs().find(tid);
+			mix_i32(lit == sim.trader_legs().end() ? 0 : lit->second);
+			auto git = sim.trader_goods_map().find(tid);
+			mix_i32(git == sim.trader_goods_map().end() ? 0 : git->second.trader);
+			mix_i32(git == sim.trader_goods_map().end() ? 0 : git->second.market1);
+			mix_i32(git == sim.trader_goods_map().end() ? 0 : git->second.market2);
+			auto pit = sim.trader_route_points_map().find(tid);
+			const size_t npts = pit == sim.trader_route_points_map().end() ? 0 : pit->second.size();
+			mix_u32((uint32_t)npts);
+			for (size_t k = 0; k < npts; ++k) {
+				mix_float(pit->second[k].first);
+				mix_float(pit->second[k].second);
+			}
+			auto iit = sim.trader_route_idx_map().find(tid);
+			mix_i32(iit == sim.trader_route_idx_map().end() ? 0 : iit->second);
+		}
+	}
+
 	// 3. Resource Nodes — amount, alive, type, coords
 	auto rview = sim.resources();
 	mix_u32((uint32_t)rview.count);
@@ -1729,9 +1759,13 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 34) { // Return resource
 			sim.order_return_resource(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 35) { // Trade route — target_id = first market, target_x = second market's id.
-			// Ids travel as floats; a whole number below 2^24 is exact.
+			// Ids travel as floats; a whole number below 2^24 is exact. The waypoints ride as
+			// flat x,z pairs (0 A.D. setup-trade-route cmd.route); an odd tail is dropped, and a
+			// non-finite point straightens that leg's walk (order_trade drops it too).
+			std::vector<std::pair<float, float>> route;
+			for (size_t k = 0; k + 1 < c.route.size(); k += 2) route.emplace_back(c.route[k], c.route[k + 1]);
 			if (c.target_x >= 1.0f && c.target_x < 16777216.0f && c.target_x == (float)(uint32_t)c.target_x)
-				sim.order_trade(ids, n, c.target_id, (uint32_t)c.target_x, queued);
+				sim.order_trade(ids, n, c.target_id, (uint32_t)c.target_x, queued, route);
 		} else if (c.cmd_type == 37) { // Remove guard
 			sim.order_remove_guard(ids, n);
 		} else if (c.cmd_type == 38) { // Call to arms — attack-walk to (target_x, target_z).
@@ -2009,10 +2043,11 @@ bool TurnManager::write_replay_file(const std::string &path) const {
 		for (const auto &c : f.commands)
 			if (c.entity_ids.size() > REPLAY_MAX_ENTITIES_PER_COMMAND) return false;
 	}
-	// Keep the established v2 wire layout. The format is native-endian and is
-	// intentionally an internal turn recorder, not a portable 0 A.D. replay.
+	// Keep the established wire layout, now v3: each command carries its trade route
+	// waypoints (flat x,z floats, empty on other commands). The format is native-endian
+	// and is intentionally an internal turn recorder, not a portable 0 A.D. replay.
 	const uint32_t magic = 0x52545330; // RTS0
-	const uint32_t version = 2;
+	const uint32_t version = 3;
 	out.write(reinterpret_cast<const char *>(&magic), sizeof(magic));
 	out.write(reinterpret_cast<const char *>(&version), sizeof(version));
 	const uint32_t count = static_cast<uint32_t>(turn_history_.size());
@@ -2032,6 +2067,9 @@ bool TurnManager::write_replay_file(const std::string &path) const {
 			const uint32_t ne = static_cast<uint32_t>(c.entity_ids.size());
 			out.write(reinterpret_cast<const char *>(&ne), sizeof(ne));
 			if (ne) out.write(reinterpret_cast<const char *>(c.entity_ids.data()), ne * sizeof(uint32_t));
+			const uint32_t nr = static_cast<uint32_t>(c.route.size());
+			out.write(reinterpret_cast<const char *>(&nr), sizeof(nr));
+			if (nr) out.write(reinterpret_cast<const char *>(c.route.data()), nr * sizeof(float));
 		}
 	}
 	return out.good();
@@ -2047,7 +2085,7 @@ bool TurnManager::read_replay_file(const std::string &path, std::vector<TurnFram
 	in.read(reinterpret_cast<char *>(&got_magic), sizeof(got_magic));
 	in.read(reinterpret_cast<char *>(&version), sizeof(version));
 	if (!in.good() || got_magic != magic) { error_out = "bad replay magic"; return false; }
-	if (version != 1 && version != 2) { error_out = "unsupported replay version"; return false; }
+	if (version != 1 && version != 2 && version != 3) { error_out = "unsupported replay version"; return false; }
 	in.read(reinterpret_cast<char *>(&count), sizeof(count));
 	if (!in.good() || count > REPLAY_MAX_FRAMES) { error_out = "invalid replay frame count"; return false; }
 	out.reserve(count);
@@ -2074,6 +2112,16 @@ bool TurnManager::read_replay_file(const std::string &path, std::vector<TurnFram
 			if (!in.good() || ne > REPLAY_MAX_ENTITIES_PER_COMMAND) { error_out = "invalid replay entity count"; return false; }
 			c.entity_ids.resize(ne);
 			if (ne) in.read(reinterpret_cast<char *>(c.entity_ids.data()), ne * sizeof(uint32_t));
+			if (!in.good()) { error_out = "truncated replay command"; return false; }
+			// v3: the command's trade route waypoints (flat x,z floats).
+			c.route.clear();
+			if (version >= 3) {
+				uint32_t nr = 0;
+				in.read(reinterpret_cast<char *>(&nr), sizeof(nr));
+				if (!in.good() || nr > REPLAY_MAX_ENTITIES_PER_COMMAND) { error_out = "invalid replay route count"; return false; }
+				c.route.resize(nr);
+				if (nr) in.read(reinterpret_cast<char *>(c.route.data()), nr * sizeof(float));
+			}
 			if (!in.good()) { error_out = "truncated replay command"; return false; }
 		}
 		out.push_back(std::move(f));

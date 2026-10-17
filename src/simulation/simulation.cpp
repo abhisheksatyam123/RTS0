@@ -677,6 +677,8 @@ void Simulation::reset() {
 	trader_routes_.clear();
 	trader_leg_.clear();
 	trader_goods_.clear();
+	trader_route_points_.clear();
+	trader_route_idx_.clear();
 
 	// Diplomacy reset: every player allies itself and its team, enemies the rest.
 	apply_team_diplomacy();
@@ -5374,7 +5376,7 @@ static float trade_market_bits(uint32_t id) { float f; std::memcpy(&f, &id, size
 static uint32_t trade_market_id(float bits) { uint32_t id; std::memcpy(&id, &bits, sizeof id); return id; }
 
 void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
-		bool queued) {
+		bool queued, const std::vector<std::pair<float, float>> &route) {
 	if (count == 0 || market_a_id == 0 || market_b_id == 0 || market_a_id == market_b_id) return;
 	auto itA = building_id_to_idx_.find(market_a_id);
 	auto itB = building_id_to_idx_.find(market_b_id);
@@ -5384,6 +5386,15 @@ void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t ma
 	for (size_t k = 0; k < count; ++k) {
 		const int32_t uidx = lookup_unit(unit_ids[k]);
 		if (uidx >= 0 && trade_route_ok((size_t)uidx, market_a_id, market_b_id)) traders.push_back(unit_ids[k]);
+	}
+	// P6 waypoints (0 A.D. UnitAI.js SetupTradeRoute route): kept per trader beside the markets.
+	// Only finite points within the map count, at most TRADE_ROUTE_MAX_POINTS; an empty route is
+	// the straight line as before.
+	std::vector<std::pair<float, float>> pts;
+	for (const auto &p : route) {
+		if (pts.size() >= TRADE_ROUTE_MAX_POINTS) break;
+		if (!std::isfinite(p.first) || !std::isfinite(p.second)) continue;
+		pts.emplace_back(std::clamp(p.first, -map_half_, map_half_), std::clamp(p.second, -map_half_, map_half_));
 	}
 	UnitOrder o; o.kind = ORDER_TRADE; o.target = market_a_id; o.x = bA.x; o.z = bA.z;
 	o.x2 = trade_market_bits(market_b_id);
@@ -5395,6 +5406,12 @@ void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t ma
 		auto rit = trader_routes_.find(uid);
 		if (rit != trader_routes_.end() && rit->second.first == market_a_id && rit->second.second == market_b_id &&
 				applying_queued_) {
+			// A queued re-apply carries no route (UnitOrder holds the two markets only):
+			// it keeps the stored waypoints. A fresh non-empty route replaces them.
+			if (!pts.empty() && pts != trader_route_points_[uid]) {
+				trader_route_points_[uid] = pts;
+				trader_route_idx_[uid] = 0;
+			}
 			const int leg = trader_leg_.count(uid) ? trader_leg_[uid] : 0;
 			auto dit = building_id_to_idx_.find(leg == 0 ? market_a_id : market_b_id);
 			units_.action_state[uidx] = ACTION_TRADE;
@@ -5412,6 +5429,8 @@ void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t ma
 		trader_routes_[uid] = {market_a_id, market_b_id};
 		trader_leg_[uid] = 0;
 		trader_goods_.erase(uid);
+		if (pts.empty()) { trader_route_points_.erase(uid); trader_route_idx_.erase(uid); }
+		else { trader_route_points_[uid] = pts; trader_route_idx_[uid] = 0; }
 		units_.action_state[uidx] = ACTION_TRADE;
 		units_.has_order[uidx] = 1;
 		set_order(uidx, ORDER_TRADE, 0, market_a_id, bA.x, bA.z);
@@ -10281,6 +10300,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			trader_routes_.erase(rit);
 			trader_leg_.erase(uid);
 			trader_goods_.erase(uid);
+			trader_route_points_.erase(uid);
+			trader_route_idx_.erase(uid);
 			units_.carry[ti] = 0;
 			units_.action_state[ti] = ACTION_IDLE;
 			units_.has_order[ti] = 0;
@@ -10301,10 +10322,38 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		}
 		const Building &dest = leg == 0 ? *bA : *bB;
 		const Building &origin = leg == 0 ? *bB : *bA;
-		// Keep walking toward the destination market.
-		if (!has[ti] && units_.action_state[ti] == ACTION_TRADE) {
-			tx[ti] = dest.x; tz[ti] = dest.z; has[ti] = 1;
+		// P6 waypoints (0 A.D. UnitAI.js TRADE TRADING enter + MoveToMarket): a loaded leg walks
+		// its route's points toward B in order and toward A reversed; the gain stays the per-leg
+		// distance (calculate_trade_gain), so the points only shape the path. The first empty
+		// walk to the first market stays straight (Order.Trade starts with no waypoints).
+		float goal_x = dest.x, goal_z = dest.z;
+		bool goal_is_market = true;
+		auto rpit = trader_route_points_.find(uid);
+		if (units_.carry[ti] > 0 && rpit != trader_route_points_.end() && !rpit->second.empty()) {
+			const auto &pts = rpit->second;
+			auto riit = trader_route_idx_.find(uid);
+			int idx = riit == trader_route_idx_.end() ? 0 : std::clamp(riit->second, 0, (int)pts.size());
+			// Walk past every waypoint already within reach (a load may land on one).
+			while (idx < (int)pts.size()) {
+				const auto &wp = leg == 0 ? pts[pts.size() - 1 - (size_t)idx] : pts[(size_t)idx];
+				const float wx = wp.first - px[ti], wz = wp.second - pz[ti];
+				if (wx * wx + wz * wz >= 2.5f * 2.5f) break;
+				++idx;
+			}
+			trader_route_idx_[uid] = idx;
+			if (idx < (int)pts.size()) {
+				const auto &wp = leg == 0 ? pts[pts.size() - 1 - (size_t)idx] : pts[(size_t)idx];
+				goal_x = wp.first; goal_z = wp.second;
+				goal_is_market = false;
+			}
+		} else {
+			trader_route_idx_.erase(uid);
 		}
+		// Keep walking toward the waypoint or the destination market.
+		if (!has[ti] && units_.action_state[ti] == ACTION_TRADE) {
+			tx[ti] = goal_x; tz[ti] = goal_z; has[ti] = 1;
+		}
+		if (!goal_is_market) continue;
 		const float dx = dest.x - px[ti];
 		const float dz = dest.z - pz[ti];
 		// A ship stops in the water beside the dock, a little further out.
@@ -10334,6 +10383,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			trader_routes_.erase(uid);
 			trader_leg_.erase(uid);
 			trader_goods_.erase(uid);
+			trader_route_points_.erase(uid);
+			trader_route_idx_.erase(uid);
 			units_.carry[ti] = 0;
 			units_.action_state[ti] = ACTION_IDLE;
 			units_.has_order[ti] = 0;
@@ -10346,6 +10397,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		units_.carry[ti] = g.trader + g.market1 + g.market2;
 		const int new_leg = 1 - leg;
 		trader_leg_[uid] = new_leg;
+		if (trader_route_points_.count(uid)) trader_route_idx_[uid] = 0; // the next leg walks the route again
 		const Building &next = new_leg == 0 ? *bA : *bB;
 		tx[ti] = next.x; tz[ti] = next.z;
 		units_.anchor_x[ti] = next.x;
@@ -15543,6 +15595,8 @@ void Simulation::convert_to_gaia(uint8_t players) {
 		trader_routes_.erase(units_.id[u]);
 		trader_leg_.erase(units_.id[u]);
 		trader_goods_.erase(units_.id[u]);
+		trader_route_points_.erase(units_.id[u]);
+		trader_route_idx_.erase(units_.id[u]);
 	}
 	bool roots = false;
 	for (auto &b : buildings_) {
@@ -17277,6 +17331,28 @@ void Simulation::apply_rally_point(uint32_t uid, const Building &b, bool ignore_
 	// RallyPoint.OrderToRallyPoint: when the first command is "garrison back in here" and that
 	// is ignored (units just unloaded), none of the commands run.
 	if (ignore_self_garrison && first.bld_id == b.id) return;
+	// RallyPointCommands.js trade route with waypoints: walks before a final trade are not
+	// orders but the route (ret.splice(0, waypoints), ret[0].route = route). A plain walk is a
+	// step with no target of any kind (anything else falls through to gather/repair below).
+	std::vector<Building::RallyStep> steps{first};
+	steps.insert(steps.end(), b.rally_more.begin(), b.rally_more.end());
+	auto is_plain_walk = [](const Building::RallyStep &st) {
+		return st.cmd == RALLY_CMD_AUTO && st.res_id == 0 && st.bld_id == 0 && st.ent_id == 0 && st.res_type == 0xFF;
+	};
+	if (steps.size() > 1 && steps.back().cmd == RALLY_CMD_TRADE) {
+		bool walks = true;
+		for (size_t k = 0; k + 1 < steps.size(); ++k) walks &= is_plain_walk(steps[k]);
+		if (walks) {
+			std::vector<std::pair<float, float>> route;
+			for (size_t k = 0; k + 1 < steps.size(); ++k) route.emplace_back(steps[k].x, steps[k].z);
+			const size_t before = order_queues_.count(uid) ? order_queues_[uid].size() : 0;
+			order_trade(&uid, 1, b.id, steps.back().bld_id, true, route);
+			const size_t after = order_queues_.count(uid) ? order_queues_[uid].size() : 0;
+			const int32_t i = lookup_unit(uid);
+			if (i >= 0 && (after > before || units_.order_kind[i] == ORDER_TRADE)) return;
+			// The trade did not take: fall through to the plain steps below.
+		}
+	}
 	apply_rally_step(uid, b, first, false, ignore_self_garrison);
 	for (const Building::RallyStep &st : b.rally_more) apply_rally_step(uid, b, st, true, false);
 }
@@ -17985,6 +18061,8 @@ void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
 			trader_routes_.erase(ids[k]);
 			trader_leg_.erase(ids[k]);
 			trader_goods_.erase(ids[k]);
+			trader_route_points_.erase(ids[k]);
+			trader_route_idx_.erase(ids[k]);
 			continue;
 		}
 		auto it = building_id_to_idx_.find(ids[k]);
@@ -30552,7 +30630,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state); v71 StatisticsTracker's unitsCaptured counters and value; v72 map scripts' OnRange queries and the entities in range of each (TriggerPoint.js currentCollections); v73 Petra plays one turn every 1.6 s, so the Attacked, civic centre capture, decay and attack request events since each AI's last turn are kept (savedEvents); v74 what Petra queued each batch for (worker, attack or raid; queueplanTraining metadata); v75 the time each AI last found nothing of a resource to gather (lastFailedGather), and PetraConfig without its unused workers, traders and muster fields; v76 the storehouse a Petra dropsite check decided on but could not pay for yet (PetraDropsiteCheck.pending); v77 each unit's heading (Position rotation, which UnitMotion turns at the template's TurnRate); v78 each wonder's own countdown, owner and allies (WonderVictory.js); v79 each Petra hunter's last fruitless hunt search (lastHuntSearch) and each Petra base's storehouse check (baseManager.js gatherers); v80 every Poisoned and Burning hit as its own status with its own timer, on units, structures and animals (StatusEffectsReceiver Stack; save_tick_state); v81 Petra workers' approach watch and the supplies they flagged inaccessible (worker.js isInaccessibleSupply); v82 CinemaManager's camera paths, path queue and timers (save_tick_state); v83 Petra's plan names (attackManager.js totalNumber), its main plan's siege class (SIEGE_ADDED) and its raid's unitStat sizes; v84 which players have seen each structure (Fogging seen, so mirages survive a load); v85 the Mauryan rampart tower's turret units beside its garrison (save_tick_state); v86 the attacks each player's AttackDetection is suppressing (map triggers' OnAttackDetected); v87 each Petra attack plan's completing step (gathering at its rally point), march waypoints and last position (attackPlan.js path, lastPosition); v88 what each Petra decides once or only raises: needFish and needFarm, its wanted fishing and transport ships per sea (navalManager.js), and targetNumTraders; v89 each structure's map-set no-decay flag (palisade spikes, Gallic Fields); v90 whether each Petra can produce units (canBuildUnits) and the units it sent to guard an ally's civic centre; v91 when each Petra mobile dropsite next looks for a gatherer to walk to (worker.js nextMoveToGatherer); v92 each unit's isGuardOf (UnitAI keeps the charge through other orders); v93 each Petra attack plan's position 5 turns ago (attackPlan.js position5TurnsAgo); v94 each Petra gatherer's supply (worker.js metadata "supply"), the structures it found no room for, with when it tries again (buildManager.js unbuildables "room"), and the AIs' own random stream (CCmpAIManager m_RNG); v95 the Petra raid's plan name and siege class (addSiegeUnits for raids); v96 each unit's workOrders queue (UnitAI UpdateWorkOrders, Back to Work); v97 each rally position's command and the unit or treasure it names (RallyPoint data.command); v98 each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact), each unit's and animal's previous-turn position (aim velocity), and each player's control-all-units flag
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state); v71 StatisticsTracker's unitsCaptured counters and value; v72 map scripts' OnRange queries and the entities in range of each (TriggerPoint.js currentCollections); v73 Petra plays one turn every 1.6 s, so the Attacked, civic centre capture, decay and attack request events since each AI's last turn are kept (savedEvents); v74 what Petra queued each batch for (worker, attack or raid; queueplanTraining metadata); v75 the time each AI last found nothing of a resource to gather (lastFailedGather), and PetraConfig without its unused workers, traders and muster fields; v76 the storehouse a Petra dropsite check decided on but could not pay for yet (PetraDropsiteCheck.pending); v77 each unit's heading (Position rotation, which UnitMotion turns at the template's TurnRate); v78 each wonder's own countdown, owner and allies (WonderVictory.js); v79 each Petra hunter's last fruitless hunt search (lastHuntSearch) and each Petra base's storehouse check (baseManager.js gatherers); v80 every Poisoned and Burning hit as its own status with its own timer, on units, structures and animals (StatusEffectsReceiver Stack; save_tick_state); v81 Petra workers' approach watch and the supplies they flagged inaccessible (worker.js isInaccessibleSupply); v82 CinemaManager's camera paths, path queue and timers (save_tick_state); v83 Petra's plan names (attackManager.js totalNumber), its main plan's siege class (SIEGE_ADDED) and its raid's unitStat sizes; v84 which players have seen each structure (Fogging seen, so mirages survive a load); v85 the Mauryan rampart tower's turret units beside its garrison (save_tick_state); v86 the attacks each player's AttackDetection is suppressing (map triggers' OnAttackDetected); v87 each Petra attack plan's completing step (gathering at its rally point), march waypoints and last position (attackPlan.js path, lastPosition); v88 what each Petra decides once or only raises: needFish and needFarm, its wanted fishing and transport ships per sea (navalManager.js), and targetNumTraders; v89 each structure's map-set no-decay flag (palisade spikes, Gallic Fields); v90 whether each Petra can produce units (canBuildUnits) and the units it sent to guard an ally's civic centre; v91 when each Petra mobile dropsite next looks for a gatherer to walk to (worker.js nextMoveToGatherer); v92 each unit's isGuardOf (UnitAI keeps the charge through other orders); v93 each Petra attack plan's position 5 turns ago (attackPlan.js position5TurnsAgo); v94 each Petra gatherer's supply (worker.js metadata "supply"), the structures it found no room for, with when it tries again (buildManager.js unbuildables "room"), and the AIs' own random stream (CCmpAIManager m_RNG); v95 the Petra raid's plan name and siege class (addSiegeUnits for raids); v96 each unit's workOrders queue (UnitAI UpdateWorkOrders, Back to Work); v97 each rally position's command and the unit or treasure it names (RallyPoint data.command); v98 each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact), each unit's and animal's previous-turn position (aim velocity), and each player's control-all-units flag; v99 each trader's route waypoints and leg progress (SetupTradeRoute route)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -30792,6 +30870,21 @@ bool Simulation::save_state(const char *filepath) const {
 		const int32_t v[3] = {g.trader, g.market1, g.market2};
 		out.write((const char *)&uid, sizeof(uid));
 		out.write((const char *)v, sizeof(v));
+	}
+	// v99: each trader's route waypoints (A-to-B order) and its leg progress, by unit id.
+	std::vector<std::pair<uint32_t, std::vector<std::pair<float, float>>>> routes(
+			trader_route_points_.begin(), trader_route_points_.end());
+	std::sort(routes.begin(), routes.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+	const uint32_t num_routes_wp = (uint32_t)routes.size();
+	out.write((const char *)&num_routes_wp, sizeof(num_routes_wp));
+	for (const auto &[uid, pts] : routes) {
+		const uint32_t npts = (uint32_t)pts.size();
+		auto iit = trader_route_idx_.find(uid);
+		const int32_t idx = iit == trader_route_idx_.end() ? 0 : iit->second;
+		out.write((const char *)&uid, sizeof(uid));
+		out.write((const char *)&npts, sizeof(npts));
+		for (const auto &p : pts) out.write((const char *)&p, sizeof(p));
+		out.write((const char *)&idx, sizeof(idx));
 	}
 
 	// 6. v15: everything else a tick reads (tools/test_save_hash.cpp checks it)
@@ -31290,12 +31383,36 @@ bool Simulation::load_state(const char *filepath) {
 				trader_goods_[uid] = TradeGain{v[0], v[1], v[2]};
 			}
 		}
+		// v99: older saves keep no waypoints: the routes run straight as before.
+		trader_route_points_.clear();
+		trader_route_idx_.clear();
+		if (version >= SAVE_VERSION_TRADE_ROUTE) {
+			uint32_t num_routes_wp = 0;
+			in.read((char *)&num_routes_wp, sizeof(num_routes_wp));
+			for (uint32_t k = 0; k < num_routes_wp; ++k) {
+				uint32_t uid, npts;
+				in.read((char *)&uid, sizeof(uid));
+				in.read((char *)&npts, sizeof(npts));
+				if (!in.good() || npts > TRADE_ROUTE_MAX_POINTS) return false;
+				std::vector<std::pair<float, float>> pts(npts);
+				for (uint32_t j = 0; j < npts; ++j) in.read((char *)&pts[j], sizeof(pts[j]));
+				int32_t idx = 0;
+				in.read((char *)&idx, sizeof(idx));
+				if (!in.good() || idx < 0 || idx > (int32_t)npts) return false;
+				if (npts) {
+					trader_route_points_[uid] = std::move(pts);
+					trader_route_idx_[uid] = idx;
+				}
+			}
+		}
 	} else {
 		for (int i = 0; i < 4; ++i) { barter_price_diff_[i] = 0.0f; market_trade_history_[i] = 0; }
 		barter_timer_ = 0.0f;
 		trader_routes_.clear();
 		trader_leg_.clear();
 		trader_goods_.clear();
+		trader_route_points_.clear();
+		trader_route_idx_.clear();
 	}
 
 	if (version < 3) {

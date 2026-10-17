@@ -179,7 +179,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 98; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 99; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_TRADE_ROUTE = 99; // each trader's route waypoints and leg progress (SetupTradeRoute route, reversed on the way back)
 	static constexpr uint32_t SAVE_VERSION_PROJECTILE_DAMAGE = 98; // each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact); each unit's and animal's previous-turn position (aim velocity); each player's control-all-units flag
 	static constexpr uint32_t SAVE_VERSION_RALLY_COMMANDS = 97; // each rally position's command and unit or treasure
 	static constexpr uint32_t SAVE_VERSION_PETRA_RAID_SIEGE = 95; // the Petra raid's name and siege class
@@ -1533,7 +1534,7 @@ public:
 	// of the overlap check (the one being placed).
 	bool pick_spawn_point(const Building &b, uint8_t type, uint32_t skip_uid, float &out_x, float &out_z) const;
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
-			bool queued = false);
+			bool queued = false, const std::vector<std::pair<float, float>> &route = {});
 	void order_trade_auto(const uint32_t *unit_ids, size_t count); // farthest pair of tradable markets
 	// Read-only: the trader's route (Trader.js markets) and which market it heads to
 	// next (0 = market_b, 1 = market_a). False when it has no route.
@@ -1556,6 +1557,30 @@ public:
 		out = it->second;
 		return true;
 	}
+	// P6 trade-route waypoints (0 A.D. UnitAI.js SetupTradeRoute route, Trader.js TRADING
+	// waypoints): the clicked points between market A and market B, in A-to-B order. A leg
+	// toward B walks them in order, a leg toward A reversed. Empty: the straight line as before.
+	static constexpr size_t TRADE_ROUTE_MAX_POINTS = 64;
+	bool trader_route_points(uint32_t unit_id, std::vector<std::pair<float, float>> &out) const {
+		auto it = trader_route_points_.find(unit_id);
+		if (it == trader_route_points_.end() || it->second.empty()) return false;
+		out = it->second;
+		return true;
+	}
+	// Waypoints of the current leg already walked past (MoveToMarket popping this.waypoints).
+	int trader_route_idx(uint32_t unit_id) const {
+		auto it = trader_route_idx_.find(unit_id);
+		return it == trader_route_idx_.end() ? 0 : it->second;
+	}
+	// Lockstep hash inputs (TurnManager::compute_sim_hash): every trader's markets, leg,
+	// loaded goods, route waypoints and leg progress, in no particular map order.
+	const std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>> &trader_routes_map() const { return trader_routes_; }
+	const std::unordered_map<uint32_t, int> &trader_legs() const { return trader_leg_; }
+	const std::unordered_map<uint32_t, TradeGain> &trader_goods_map() const { return trader_goods_; }
+	const std::unordered_map<uint32_t, std::vector<std::pair<float, float>>> &trader_route_points_map() const {
+		return trader_route_points_;
+	}
+	const std::unordered_map<uint32_t, int> &trader_route_idx_map() const { return trader_route_idx_; }
 	float get_market_buy_price(ResourceType t) const { return market_buy_price(t); }
 	float get_market_sell_price(ResourceType t) const { return market_sell_price(t); }
 	int get_market_history(ResourceType t) const { return market_trade_history_[t]; }
@@ -2997,6 +3022,10 @@ private:
 	std::unordered_map<uint32_t,int> trader_leg_; // unit_id -> 0=A->B, 1=B->A (which target next)
 	// unit_id -> the goods loaded at the last market (Trader.js goods.amount, fixed at loading).
 	std::unordered_map<uint32_t, TradeGain> trader_goods_;
+	// unit_id -> waypoints between market A and market B, in A-to-B order, and how many of
+	// this leg's are already walked past (saved from SAVE_VERSION_TRADE_ROUTE, in the hash).
+	std::unordered_map<uint32_t, std::vector<std::pair<float, float>>> trader_route_points_;
+	std::unordered_map<uint32_t, int> trader_route_idx_;
 
 	// Row a = player a's stances; set in reset() (self ally, everyone else enemy).
 	uint32_t trigger_event_calls_[TRIGGER_EVENT_COUNT] = {}; // trigger_event_calls
