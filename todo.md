@@ -1,4 +1,6 @@
 ## Tasks
+- [x] T14 [lead] Restrict captured mercenary camp recruitment to native Ptolemaic roster (building_trains_native)
+- [ ] T15 [lead] Commit mercenary camp fix and PLAN.md update, push to origin/main
 - [x] T10 [lead] Close remaining 4 Petra AI parity gaps in tools/check_parity.py (37/37 100% PASS)
 - [x] T11 [lead] Resolve asset audit dynamic prefix checks in tools/audit_assets.py (164/164 0 missing ok)
 - [x] T12 [lead] Update docs/REMAINING_GAPS.md G10 audit score to 100%

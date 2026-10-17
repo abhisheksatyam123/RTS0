@@ -3174,7 +3174,8 @@ inline bool civ_can_build(uint8_t civ, uint8_t type) {
 // Noba and Blemmye camps and the Carthaginian embassies.
 inline bool building_trains_native(uint8_t type) {
 	return type == BLD_SHRINE || type == BLD_CAMP_NOBA || type == BLD_CAMP_BLEMMYE ||
-	       type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC;
+	       type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC ||
+	       type == BLD_MERCENARY_CAMP;
 }
 
 // The civ whose roster `t` must come from to train at a `type` structure built by `bld_civ`
