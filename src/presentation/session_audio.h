@@ -212,7 +212,11 @@ public:
 		const VoiceKind kind = voice_kind(unit_type);
 		if (kind == VoiceKind::NONE) return false;
 		if (kind == VoiceKind::DOG) return play_group("voice/global", action == "select" ? "civ_dog_bark" : "civ_dog_move", 0.8f);
-		if (kind == VoiceKind::HORSE || kind == VoiceKind::ELEPHANT) {
+		if (kind == VoiceKind::HORSE) {
+			const char *pre = action == "select" ? "horse_select" : action == "attack" ? "horse_attack" : "horse_select";
+			return play_group("actor/fauna/animal", pre, 0.8f);
+		}
+		if (kind == VoiceKind::ELEPHANT) {
 			const char *pre = action == "select" ? "elephant_select" : action == "attack" ? "elephant_attack" : "elephant_order";
 			return play_group("actor/fauna/animal", pre, 0.8f);
 		}

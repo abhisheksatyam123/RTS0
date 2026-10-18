@@ -77,23 +77,6 @@ static float glb_root_scale(Node *n, int depth = 0) {
 
 float ModelLibrary::target_height(const String &category, const String &id, float natural_h) {
 	if (category == "units") {
-		if (id == "cavalry") return 2.6f;
-		if (id == "camel") return 2.7f;
-		if (id == "chariot" || id == "scythed_chariot") return 2.4f;
-		if (id == "worker_elephant" || id == "elephant") return 3.2f;
-		if (id == "ram" || id == "siege_ram") return 2.0f;
-		if (id == "bolt_projectile") return 1.15f;
-		if (id == "arrow_projectile") return 1.10f;
-		if (id == "stone_projectile") return 0.45f;
-		if (id == "bolt_shooter" || id == "ballista" || id == "oxybeles") return 1.8f;
-		if (id == "catapult") return 2.2f;
-		if (id == "fishing_boat") return 2.0f;
-		if (id == "merchant_ship" || id == "trireme" || id == "ship_merchant") return 3.5f;
-		if (id == "war_dog" || id == "dog") return 0.85f;
-		if (id == "carnyx") return 1.95f;
-		if (id == "archer_maiden") return 1.7f;
-		if (id == "female_citizen" || id == "female") return 1.68f;
-		if (id == "healer") return 1.72f;
 		// Animals keep their height here; load() redraws them at one shared scale.
 		for (int f = 0; f < FAUNA_COUNT; ++f) {
 			if (id == fauna_type_info((uint8_t)f).model_id) return natural_h;
@@ -103,6 +86,29 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		// And the Germans' ox wagons (ram-wide, extract_0ad_assets.py ZIP_UNITS),
 		// asked for by civ (germ_wagon) and drawn from wagon.glb.
 		if (id == "wagon" || id.ends_with("_wagon") || id.ends_with("wagon_house")) return natural_h;
+
+		String base = id;
+		int us = id.find("_");
+		if (us > 0 && us < id.length() - 1)
+			base = id.substr(us + 1);
+
+		if (base == "cavalry" || id.contains("cavalry")) return 2.85f;
+		if (base == "camel" || id.contains("camel")) return 2.9f;
+		if (id.contains("scythed_chariot") || id.contains("chariot")) return 2.4f;
+		if (id.contains("worker_elephant") || id.contains("elephant")) return 3.2f;
+		if (base == "ram" || base == "siege_ram" || id.ends_with("_ram")) return 2.0f;
+		if (id == "bolt_projectile") return 1.15f;
+		if (id == "arrow_projectile") return 1.10f;
+		if (id == "stone_projectile") return 0.45f;
+		if (id.contains("bolt_shooter") || id.contains("ballista") || id.contains("oxybeles")) return 1.8f;
+		if (id.contains("catapult") || id.contains("onager") || id.contains("lithobolos") || id.contains("mangonel")) return 2.2f;
+		if (id.contains("fishing_boat") || id.contains("fishing_ship")) return 2.0f;
+		if (id.contains("merchant_ship") || id.contains("trireme") || id.contains("ship_merchant") || id.contains("warship") || id.contains("ship")) return 3.5f;
+		if (id.contains("war_dog") || id.contains("dog")) return 0.85f;
+		if (id.contains("carnyx")) return 1.95f;
+		if (id.contains("archer_maiden")) return 1.7f;
+		if (id.contains("female_citizen") || id.contains("female")) return 1.68f;
+		if (id.contains("healer")) return 1.72f;
 		return 1.8f;
 	}
 	if (category == "buildings") {

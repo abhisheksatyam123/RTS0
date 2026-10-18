@@ -1,4 +1,5 @@
 ## Tasks
+- [x] T20 [lead] Fix unit scale, cavalry meat gathering anim, and mounted voice sound mappings
 - [x] T18 [lead] Reconcile remaining open items in docs/PLAN.md (Area B Nomad, Area E civ upgrades, Area H Petra Gaia exploitation, U21 minister & Tachara)
 - [x] T19 [lead] Commit docs/PLAN.md reconcile and push to origin/main
 - [x] T16 [lead] Verify Temple of Vesta aura & team-bonus pricing coverage, update PLAN.md
@@ -29,3 +30,5 @@
 - [x] T8 [lead] Fix G29 build error: make Simulation::explore_circle public so session_setup.cpp can call it for VisionRevealers (full scons build passes!)
 - [x] T9 [lead] Commit the explore_circle public fix and push to origin/main (commit 43e0353d2)
 - 2026-10-17 [lead] Reconciled PLAN.md open items against landed implementations in simulation.cpp/test_upgrades.cpp (Nomad CC placement, Tachara/Court/Great Tower upgrades, Petra hunting/treasure, Han minister builder aura); verified parity 37/37 & 17/17, assets 164/164, test_netcode 100% pass.
+- 2026-10-17 [lead] Fixed civ unit model scale resolution in model_library.cpp, cavalry gather meat fallback to attack anim in world_view_node.cpp, and horse select/attack sound group mapping in session_audio.h; verified 37/37 Petra, 17/17 netcode, 164/164 assets, test_netcode 100% pass.
+- 2026-10-17 [lead] Improved animation smoothness (doubled crowd baked poses to 12 frames, doubled cycle rate to 16 FPS), matched 0 A.D. camera FOV (45 deg in default.cfg), calibrated mounted unit scale (2.85m), and ground-anchored unit selection rings.

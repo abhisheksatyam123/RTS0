@@ -372,7 +372,7 @@ class RtsoWorldView : public Node3D {
 	// with its own 0 A.D. models. Each clip is a few baked poses cycled in place.
 	static constexpr int CROWD_CLIP_COUNT = 61; // see crowd_clips() in world_view_node.cpp
 	static constexpr int FAUNA_CLIP_COUNT = 7;  // idle, move, attack, death, idle2, death2, feeding
-	static constexpr int CROWD_FRAMES_PER_CLIP = 6;
+	static constexpr int CROWD_FRAMES_PER_CLIP = 12;
 	struct CrowdPuppet {
 		String clip;
 		Ref<ArrayMesh> posed_frames[CROWD_FRAMES_PER_CLIP];

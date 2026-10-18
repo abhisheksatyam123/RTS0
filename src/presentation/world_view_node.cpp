@@ -1470,9 +1470,13 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 		case CLIP_GATHER_ROCK:
 		case CLIP_GATHER_FRUIT:
 		case CLIP_GATHER_GRAIN:
-		case CLIP_GATHER_MEAT:
 		case CLIP_GATHER_FISH:
 			if (anim->has_animation(clip_name(CLIP_GATHER))) return CLIP_GATHER;
+			alt = CLIP_IDLE;
+			break;
+		case CLIP_GATHER_MEAT:
+			if (anim->has_animation(clip_name(CLIP_GATHER))) return CLIP_GATHER;
+			if (anim->has_animation(clip_name(CLIP_ATTACK))) return CLIP_ATTACK;
 			alt = CLIP_IDLE;
 			break;
 		case CLIP_GATHER:
@@ -2801,10 +2805,10 @@ void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes
 		if (!meshes[c].is_valid() || row[c].baked_count <= 0 || counts[c] <= 0) continue;
 		int frame;
 		if (death_slots & (1ull << c)) {
-			frame = (int)(anim_time * 5.0f);
+			frame = (int)(anim_time * 10.0f);
 			if (frame > row[c].baked_count - 1) frame = row[c].baked_count - 1;
 		} else {
-			frame = wrap_mod((int)(anim_time * 8.0f), row[c].baked_count);
+			frame = wrap_mod((int)(anim_time * 16.0f), row[c].baked_count);
 		}
 		if (frame != row[c].last_frame && row[c].posed_frames[frame].is_valid()) {
 			meshes[c]->set_mesh(row[c].posed_frames[frame]);
@@ -4160,7 +4164,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			v.ring->set_material_override(is_selected ? (is_player ? ring_sel_mat : ring_enemy_mat)
 					: (is_player ? ring_hl_mat : ring_enemy_hl_mat));
 			v.ring->set_visible(true);
-			v.ring->set_transform(Transform3D(Basis(), Vector3(x, 0.04f, z)));
+			v.ring->set_transform(Transform3D(Basis(), Vector3(x, ground + 0.06f, z)));
 		} else if (v.ring_on) {
 			v.ring->set_visible(false);
 		}
