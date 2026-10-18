@@ -11547,7 +11547,11 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			const float h2 = hx * hx + hz * hz;
 			if (h2 > reach2) return;
 			const int moving_push = same_group ? 0 : (int)mi + (int)mj;
-			if (moving_push == 1) return;
+			if (moving_push == 1) {
+				const float bdx = pxi - px[j], bdz = pzi - pz[j];
+				const float r_overlap = ri + b.r;
+				if (bdx * bdx + bdz * bdz >= r_overlap * r_overlap) return;
+			}
 			float combined = (ci + b.r * PUSH_CLEARANCE_PER_RADIUS) * PUSH_CORRECTION;
 			const float max_dist = same_group ? combined
 					: combined * PUSH_RADIUS + (moving_push ? PUSH_MOVING_EXT : PUSH_STATIC_EXT);

@@ -92,23 +92,45 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		if (us > 0 && us < id.length() - 1)
 			base = id.substr(us + 1);
 
+		// Infantry (0 A.D. template_unit_infantry: ~1.6-1.9 m eye height).
+		if (base == "infantry" || id.contains("infantry_")) return 1.8f;
+		if (id.contains("champion_infantry")) return 1.9f;
+		if (id.contains("hero_") || id.contains("_hero")) return 2.0f;
+		if (id.contains("support_female_citizen") || id.contains("female_citizen") || id.contains("female")) return 1.68f;
+		if (id.contains("archer_maiden")) return 1.7f;
+		if (id.contains("priestess") || id.contains("priest") || id.contains("healer")) return 1.72f;
+
+		// Cavalry and mounted units.
 		if (base == "cavalry" || id.contains("cavalry")) return 2.85f;
 		if (base == "camel" || id.contains("camel")) return 2.9f;
-		if (id.contains("scythed_chariot") || id.contains("chariot")) return 2.4f;
+		if (id.contains("champion_cavalry")) return 2.95f;
+		if (id.contains("hero_cav") || id.contains("_cav_")) return 3.0f;
 		if (id.contains("worker_elephant") || id.contains("elephant")) return 3.2f;
+
+		// Traders and merchants.
+		if (id.contains("trader") || id.contains("merchant")) return 1.8f;
+
+		// Siege engines.
+		if (id.contains("scythed_chariot") || id.contains("chariot")) return 2.4f;
 		if (base == "ram" || base == "siege_ram" || id.ends_with("_ram")) return 2.0f;
+		if (id.contains("siege_tower")) return 3.5f;
+		if (id.contains("bolt_shooter") || id.contains("ballista") || id.contains("oxybeles")) return 1.8f;
+		if (id.contains("catapult") || id.contains("onager") || id.contains("lithobolos") || id.contains("mangonel")) return 2.2f;
+
+		// Ships.
+		if (id.contains("fishing_boat") || id.contains("fishing_ship")) return 2.0f;
+		if (id.contains("merchant_ship") || id.contains("trireme") || id.contains("ship_merchant") || id.contains("warship") || id.contains("ship")) return 3.5f;
+
+		// Animals and special actors.
+		if (id.contains("war_dog") || id.contains("dog")) return 0.85f;
+		if (id.contains("carnyx")) return 1.95f;
+
+		// Projectiles.
 		if (id == "bolt_projectile") return 1.15f;
 		if (id == "arrow_projectile") return 1.10f;
 		if (id == "stone_projectile") return 0.45f;
-		if (id.contains("bolt_shooter") || id.contains("ballista") || id.contains("oxybeles")) return 1.8f;
-		if (id.contains("catapult") || id.contains("onager") || id.contains("lithobolos") || id.contains("mangonel")) return 2.2f;
-		if (id.contains("fishing_boat") || id.contains("fishing_ship")) return 2.0f;
-		if (id.contains("merchant_ship") || id.contains("trireme") || id.contains("ship_merchant") || id.contains("warship") || id.contains("ship")) return 3.5f;
-		if (id.contains("war_dog") || id.contains("dog")) return 0.85f;
-		if (id.contains("carnyx")) return 1.95f;
-		if (id.contains("archer_maiden")) return 1.7f;
-		if (id.contains("female_citizen") || id.contains("female")) return 1.68f;
-		if (id.contains("healer")) return 1.72f;
+
+		// Default human scale.
 		return 1.8f;
 	}
 	if (category == "buildings") {
@@ -119,17 +141,18 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		int us = id.find("_");
 		if (us > 0 && us < id.length() - 1)
 			base = id.substr(us + 1);
-		if (base == "town_center") return 6.0f;
+		if (base == "town_center" || base == "civil_centre") return 6.0f;
 		else if (base == "fortress") return 7.0f;
 		else if (base == "temple") return 6.4f;
 		else if (base == "wonder") return 8.5f;
-		else if (base == "barracks" || base == "market") return 4.4f;
-		else if (base == "wall_tower") return 4.6f;
-		else if (base == "wall" || base == "wall_segment") return 3.0f;
+		else if (base == "barracks" || base == "market" || base == "stable") return 4.4f;
+		else if (base == "wall_tower" || base == "tower") return 4.6f;
 		else if (base == "gate") return 4.5f;
-		else if (base == "dock" || base == "shipyard") return 4.0f;
-		else if (base == "corral") return 2.8f;
+		else if (base == "wall" || base == "wall_segment") return 3.0f;
+		else if (base == "dock" || base == "shipyard" || base == "blacksmith" || base == "siege_workshop") return 4.0f;
 		else if (base == "house" || base == "farmstead" || base == "storehouse") return 3.4f;
+		else if (base == "outpost") return 3.0f;
+		else if (base == "corral") return 2.8f;
 		else if (base == "ruins") return 2.4f;
 		// tools/extract_0ad_structures.py sized it already (data/building_models.json).
 		if (building_glb_id(id) != id) return natural_h;
@@ -137,12 +160,19 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 	}
 	// Props (0 A.D. treasures) are sized by the extractor (ZIP_PROPS).
 	if (category == "props") return natural_h;
-	if (id == "pine") return 8.0f;
-	else if (id == "palm") return 7.0f;
-	else if (id == "tree") return 6.0f;
-	else if (id == "stone_mine") return 1.4f;
-	else if (id == "gold_vein") return 1.1f;
-	else if (id == "fruit_bush") return 1.15f;
+	if (id.contains("pine")) return 8.0f;
+	else if (id.contains("palm")) return 7.0f;
+	else if (id.contains("oak")) return 9.0f;
+	else if (id.contains("fir")) return 10.0f;
+	else if (id.contains("tree")) return 6.0f;
+	else if (id.contains("stone_mine") || id.contains("mine")) return 1.4f;
+	else if (id.contains("gold_vein")) return 1.1f;
+	else if (id.contains("fruit_bush") || id.contains("bush") || id.contains("berry")) return 1.15f;
+	else if (id.contains("grain") || id.contains("field")) return 0.4f;
+	else if (id.contains("deer") || id.contains("gazelle")) return 1.0f;
+	else if (id.contains("sheep") || id.contains("pig") || id.contains("cow") || id.contains("boar")) return 1.0f;
+	else if (id.contains("chicken") || id.contains("hen") || id.contains("rooster")) return 0.5f;
+	else if (id.contains("goat")) return 0.9f;
 	return Math::clamp(natural_h, 0.8f, 8.0f);
 }
 
@@ -359,6 +389,7 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 			}
 			out->set_shader_parameter("albedo", bm->get_albedo());
 			out->set_shader_parameter("srgb_vertex_color", bm->get_flag(BaseMaterial3D::FLAG_SRGB_VERTEX_COLOR));
+			out->set_shader_parameter("use_vertex_color", bm->get_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR));
 			out->set_shader_parameter("roughness", bm->get_roughness());
 			out->set_shader_parameter("metallic", bm->get_metallic());
 			out->set_shader_parameter("specular", bm->get_specular());
@@ -630,6 +661,11 @@ static uint64_t material_merge_key(const Ref<Material> &mat) {
 		Ref<Texture2D> tex = bm->get_texture(BaseMaterial3D::TEXTURE_ALBEDO);
 		if (tex.is_valid()) return (uint64_t)tex->get_rid().get_id();
 	}
+	Ref<ShaderMaterial> sm = mat;
+	if (sm.is_valid()) {
+		Ref<Texture2D> tex = sm->get_shader_parameter(StringName("albedo_tex"));
+		if (tex.is_valid()) return (uint64_t)tex->get_rid().get_id();
+	}
 	if (mat.is_valid()) return (uint64_t)mat->get_rid().get_id();
 	return 0;
 }
@@ -788,7 +824,18 @@ static void collect_buckets(const Vector<MeshXform> &instances, bool skip_tiny,
 static Ref<ArrayMesh> flatten_to_one_surface(std::vector<SurfBucket> &buckets) {
 	if (buckets.empty()) return Ref<ArrayMesh>();
 	SurfBucket all;
-	all.mat = buckets[0].mat;
+	// Pick the primary body material (preferring player_color shader / largest surface)
+	int best_bi = 0;
+	for (size_t bi = 0; bi < buckets.size(); ++bi) {
+		if (ModelLibrary::is_player_color_material(buckets[bi].mat)) {
+			best_bi = (int)bi;
+			break;
+		}
+		if (buckets[bi].verts.size() > buckets[best_bi].verts.size()) {
+			best_bi = (int)bi;
+		}
+	}
+	all.mat = buckets[best_bi].mat;
 	const bool tan = tangents_wanted(all.mat);
 	int64_t nv = 0, ni = 0;
 	for (const SurfBucket &b : buckets) {

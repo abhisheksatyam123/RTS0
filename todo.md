@@ -1,34 +1,30 @@
 ## Tasks
-- [x] T20 [lead] Fix unit scale, cavalry meat gathering anim, and mounted voice sound mappings
-- [x] T18 [lead] Reconcile remaining open items in docs/PLAN.md (Area B Nomad, Area E civ upgrades, Area H Petra Gaia exploitation, U21 minister & Tachara)
-- [x] T19 [lead] Commit docs/PLAN.md reconcile and push to origin/main
-- [x] T16 [lead] Verify Temple of Vesta aura & team-bonus pricing coverage, update PLAN.md
-- [x] T17 [lead] Commit docs/PLAN.md update and push to origin/main (commit 812229098)
-- [x] T14 [lead] Restrict captured mercenary camp recruitment to native Ptolemaic roster (building_trains_native)
-- [x] T15 [lead] Commit mercenary camp fix and PLAN.md update, push to origin/main (commit f1179caa6)
-- [x] T10 [lead] Close remaining 4 Petra AI parity gaps in tools/check_parity.py (37/37 100% PASS)
-- [x] T11 [lead] Resolve asset audit dynamic prefix checks in tools/audit_assets.py (164/164 0 missing ok)
-- [x] T12 [lead] Update docs/REMAINING_GAPS.md G10 audit score to 100%
-- [x] T13 [lead] Commit changes and push to origin/main (commit 19ed5b539)
-- [x] T1 [lead] Verify cursor/icon asset landing: new assets wired, stand-ins removed, PLAN.md consistent
-- [x] T2 [lead] Build/test check — session_pointer.cpp compiles cleanly (exit 0); session_setup.cpp error is pre-existing & unrelated
-- [x] T3 [lead] Commit the landed asset+code+doc changes on main (commit 9c1317e09)
-- [x] T4 [lead] Review REMAINING_GAPS.md: identify open items (P6 trade-route waypoints on cmd 35 was open in Unit orders fifth pass)
-- [x] T5 [lead] Merge work/trade-p6 (e4985e5f6): cmd 35 variable route, per-trader route state, tick out/reversed, save v99 guard + hash; update REMAINING_GAPS.md
-- [x] T6 [lead] Commit the P6 merge + docs update on main (commit 7d05cc478)
-- [x] T7 [lead] Push main to remote origin/main (c3814af16..7d05cc478 pushed)
+- [x] T1 [lead] Audit and expand animation/scaling coverage across all model categories in model_library.cpp vs 0 A.D.
+- [x] T2 [lead] Implement per-unit animation phase desynchronization in MultiMesh crowd instancer via instance custom data time offset
+- [x] T3 [lead] Implement projected terrain decals for selection rings (Godot Decal node replacing flat mesh quad)
+- [x] T4 [lead] Rebuild with scons platform=linux target=template_debug -j4 and verify with run_game.sh + parity checks
+- [x] T5 [lead] Fix chicken slaughter carcass turning into berry bush (filter RES_SUB_MEAT from generic fruit bush MultiMesh instancer)
+- [x] T6 [lead] Fix units sliding while in sitting or gather/build/attack animation (speed-check guards in resolve_unit_anim)
+- [x] T7 [lead] Fix close-distance pathfinding and unit-to-unit pushing stuck behavior (nudge overlap in moving_push, ensure slaughter/gather_meat runtime clips)
 
 ## Systems
-- RTS0 = 0 A.D. native port (C++ SoA sim + Godot GDExtension).
-- P6 trade-route waypoints: variable-length route on lockstep cmd 35, per-trader route waypoints and leg progress in save v99 and sim hash, trader walks waypoints and reverses on return; rally points with waypoints before a market trade become the route (RallyPointCommands.js:147). Verified turn_manager.cpp compiles cleanly; netcode parity 17/17 (100%).
+- Repository: RTS0 = 0 A.D. native port (C++ SoA sim + Godot 4.3 GDExtension).
+- Model Scaling: expanded target_height categories across all unit types, siege weapons, ships, buildings, flora, and fauna in src/graphics/assets/model_library.cpp matching 0 A.D. dimensions.
+- Animation Crowd Instancer: 3-phase desynchronization (CROWD_PHASES = 3) in CrowdBatch and cycle_puppet_meshes so units playing identical clips do not animate in exact lockstep.
+- Selection Rings: projected terrain decals using Godot Decal nodes (unit_ring_decals_ pool) with DECAL_LAYER cull mask, normal fade, and dynamic tint/modulation for selected/highlighted units, livestock, and resources without clipping on steep slopes.
+- Fauna Slaughter & Carcass: 0 A.D. Health.js CreateCorpse spawns meat supplies from killed fauna. Filtered RES_SUB_MEAT out of fruit_bush MultiMesh instancer in `src/presentation/world_view_node.cpp` so killed chickens and animals retain their dead carcass visuals instead of turning into berry bushes.
+- Animation Sliding Fix: Checked `speed2 > 0.05f` in `resolve_unit_anim` for `ACTION_GATHER`, `ACTION_BUILD`, and `ACTION_ATTACK` so units that begin moving transition to walking/running animations rather than sliding in a sitting or ground-strike posture. Added `gather_meat` and `slaughter` PSA registration in `ensure_runtime_clips`.
+- Collision Separation & Pushing: Moving units nudge against idle units if their collision radiuses overlap (`r_overlap`), preventing moving units from getting stuck against stationary units.
+- Tests & Verification:
+  - SCons build: scons platform=linux target=template_debug -j4 -> 100% SUCCESS
+  - Parity tests: tools/check_parity.py --unit petra (37/37 100% PASS)
+  - Netcode tests: tools/check_parity.py --unit netcode (17/17 100% PASS) and ./bin/test_netcode (100% PASS)
+  - Asset audit: tools/audit_assets.py (165/165 unique paths 0 missing, 100% PASS)
 
 ## Log
-- 2026-10-17 [lead] Session started: inspected workspace; committed cursor/barter assets (9c1317e09).
-- 2026-10-17 [lead] Audited REMAINING_GAPS.md: identified open item P6 (trade-route waypoints).
-- 2026-10-17 [lead] Merged work/trade-p6 into main cleanly; updated docs/REMAINING_GAPS.md line 59.
-- 2026-10-17 [lead] Verified turn_manager.cpp compiles with g++ -c (exit 0); check_parity.py --unit netcode passes 17/17.
-- [x] T8 [lead] Fix G29 build error: make Simulation::explore_circle public so session_setup.cpp can call it for VisionRevealers (full scons build passes!)
-- [x] T9 [lead] Commit the explore_circle public fix and push to origin/main (commit 43e0353d2)
-- 2026-10-17 [lead] Reconciled PLAN.md open items against landed implementations in simulation.cpp/test_upgrades.cpp (Nomad CC placement, Tachara/Court/Great Tower upgrades, Petra hunting/treasure, Han minister builder aura); verified parity 37/37 & 17/17, assets 164/164, test_netcode 100% pass.
-- 2026-10-17 [lead] Fixed civ unit model scale resolution in model_library.cpp, cavalry gather meat fallback to attack anim in world_view_node.cpp, and horse select/attack sound group mapping in session_audio.h; verified 37/37 Petra, 17/17 netcode, 164/164 assets, test_netcode 100% pass.
-- 2026-10-17 [lead] Improved animation smoothness (doubled crowd baked poses to 12 frames, doubled cycle rate to 16 FPS), matched 0 A.D. camera FOV (45 deg in default.cfg), calibrated mounted unit scale (2.85m), and ground-anchored unit selection rings.
+- 2026-10-18 [lead] Session started: read model_library.cpp target_height/load, world_view_node crowd instancer + ring placement, todo.md updated with new tasks.
+- 2026-10-18 [lead] T1: Audited and expanded target_height in model_library.cpp for all units, siege, ships, buildings, flora, and fauna.
+- 2026-10-18 [lead] T2: Implemented 3-phase animation desynchronization in MultiMesh crowd instancer.
+- 2026-10-18 [lead] T3: Replaced flat TorusMesh quad selection rings with projected terrain Decal nodes for units, fauna, and resources.
+- 2026-10-18 [lead] T4: Rebuilt engine with scons; verified test suites.
+- 2026-10-18 [lead] T5-T7: Fixed chicken slaughter carcass turning into berry bush; fixed units sliding in sitting/harvest posture by gating action animations with speed check; fixed close-distance pushing overlap between moving and stationary units; registered gather_meat and slaughter animations in ensure_runtime_clips.
