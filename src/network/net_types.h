@@ -291,6 +291,11 @@ struct NetPeer {
 // 0 A.D. NetServer.cpp MAX_CLIENTS: connected sessions a host takes (players
 // and observers); one more is refused with NDR_SERVER_FULL.
 constexpr size_t NET_MAX_CLIENTS = 41;
+// Lockstep client ids the game setup lists, seats and counts for Ready (bit k
+// of the 64-bit setup masks; the host is 0). Before Start a joiner takes the
+// lowest free id, and at most NET_MAX_CLIENTS are connected, so every one fits.
+constexpr uint32_t NET_SETUP_CLIENTS = 64;
+static_assert(NET_MAX_CLIENTS <= NET_SETUP_CLIENTS, "every connected client needs a setup id");
 // 0 A.D. NetHost.h ENetDisconnectReason values a host sends with its disconnect.
 constexpr uint8_t NDR_INCORRECT_PROTOCOL_VERSION = 3;
 // 0 A.D. NetMessages.h: the handshake response flag of a host that checks a
@@ -434,10 +439,11 @@ struct GameSetupParams {
 	uint8_t slot_count = 2;
 	// 0 A.D. gamesetup observers (a client assigned no player): bit k = lockstep
 	// client k watches, takes no human slot and sends no orders.
-	uint8_t observers = 0;
+	uint64_t observers = 0;
 	// 0 A.D. gamesetup player assignment: seats[k] = the slot the host gave lockstep
 	// client k, 0xFF = none chosen (the client takes the next free human slot).
-	uint8_t seats[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+	uint8_t seats[NET_SETUP_CLIENTS];
+	GameSetupParams() { for (uint8_t &st : seats) st = 0xFF; }
 	// 0 A.D. GameSpeed in hundredths (25..300): a networked match plays at
 	// the speed set in game setup, on every peer.
 	uint16_t speed = 100;
@@ -538,16 +544,21 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	s += ";diff=" + std::to_string((unsigned)p.difficulty);
 	s += ";behavior=" + std::to_string((unsigned)p.behavior);
 	s += ";res=" + std::to_string((unsigned)p.start_res);
-	if (p.observers) s += ";obs=" + std::to_string((unsigned)p.observers);
+	if (p.observers) s += ";obs=" + std::to_string((unsigned long long)p.observers);
 	if (p.speed != 100) s += ";speed=" + std::to_string((unsigned)p.speed);
 	if (p.lock_players) s += ";lockplayers=1";
 	if (p.rated) s += ";rated=1";
 	if (p.ai_seed) s += ";aiseed=" + std::to_string(p.ai_seed);
 	{
+		// One char per client id, at least 8 (older builds read exactly 8).
 		std::string seats(8, '-');
 		bool any = false;
-		for (int k = 0; k < 8; ++k)
-			if (p.seats[k] < 8) { seats[k] = (char)('0' + p.seats[k]); any = true; }
+		for (uint32_t k = 0; k < NET_SETUP_CLIENTS; ++k)
+			if (p.seats[k] < 8) {
+				if (seats.size() <= k) seats.resize(k + 1, '-');
+				seats[k] = (char)('0' + p.seats[k]);
+				any = true;
+			}
 		if (any) s += ";seats=" + seats;
 	}
 	char types[9] = {0}, teamstr[64] = {0};
@@ -574,6 +585,19 @@ inline bool parse_u8(const std::string &v, uint8_t lo, uint8_t hi, uint8_t &out)
 	}
 	if (val < lo || val > hi) return false;
 	out = (uint8_t)val;
+	return true;
+}
+// A 64-bit client mask in decimal.
+inline bool parse_mask(const std::string &v, uint64_t &out) {
+	if (v.empty() || v.size() > 20) return false;
+	uint64_t val = 0;
+	for (char c : v) {
+		if (c < '0' || c > '9') return false;
+		const uint64_t d = (uint64_t)(c - '0');
+		if (val > (UINT64_MAX - d) / 10u) return false;
+		val = val * 10u + d;
+	}
+	out = val;
 	return true;
 }
 } // namespace detail
@@ -682,15 +706,15 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "diff") { uint8_t x; if (detail::parse_u8(v, 0, 5, x)) out.difficulty = x; }
 			else if (k == "behavior") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.behavior = x; }
 			else if (k == "res") { uint8_t x; if (detail::parse_u8(v, 0, 5, x)) out.start_res = x; }
-			else if (k == "obs") { uint8_t x; if (detail::parse_u8(v, 0, 255, x)) out.observers = x; }
+			else if (k == "obs") { uint64_t x; if (detail::parse_mask(v, x)) out.observers = x; }
 			else if (k == "speed" && !v.empty() && v.size() <= 3 && v.find_first_not_of("0123456789") == std::string::npos) {
 				unsigned x = (unsigned)std::stoul(v);
 				if (x >= 25 && x <= 300) out.speed = (uint16_t)x;
 			}
 			else if (k == "lockplayers") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.lock_players = x; }
 			else if (k == "rated") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.rated = x; }
-			else if (k == "seats" && v.size() == 8) {
-				for (int c = 0; c < 8; ++c) out.seats[c] = (v[c] >= '0' && v[c] <= '7') ? (uint8_t)(v[c] - '0') : 0xFF;
+			else if (k == "seats" && v.size() >= 8 && v.size() <= NET_SETUP_CLIENTS) {
+				for (size_t c = 0; c < v.size(); ++c) out.seats[c] = (v[c] >= '0' && v[c] <= '7') ? (uint8_t)(v[c] - '0') : 0xFF;
 			}
 			else if (k.size() == 4 && k[0] == 'c' && k[1] == 'i' && k[2] == 'v' && k[3] >= '0' && k[3] <= '7') {
 				// Any civ id (Germans is 15); callers drop Gaia with is_playable_civ.
@@ -725,19 +749,20 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 // the settings as NMT_GAME_START attributes plus who sits where and who is
 // ready (0 A.D.'s NMT_PLAYER_ASSIGNMENT statuses). Extra keys, which
 // parse_game_start_full ignores:
-//   nsv=<settings version> nsq=<broadcast sequence> nsc=<8 chars: slot i's
-//   client '0'..'7', '-' none> ncl=<connected clients mask> nsr=<ready mask> nss=<stay ready mask>
-//   nso=<observers mask> nsn=<client names, by client id>
+//   nsv=<settings version> nsq=<broadcast sequence> nsc=<8 comma-separated:
+//   slot i's client id, '-' none> ncl=<connected clients mask> nsr=<ready mask>
+//   nss=<stay ready mask> nso=<observers mask> nsn=<client names, by client id>
+// The masks are 64-bit (NET_SETUP_CLIENTS): a full 4v4 with observers lists all.
 struct NetSetupState {
 	GameSetupParams setup;
 	uint32_t settings_version = 0; // bumps when a setting or a seat changes
 	uint32_t seq = 0;              // bumps on every broadcast; clients keep the newest
 	int8_t slot_client[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
-	uint8_t clients = 0;   // bit k: client k is in the game (the host is client 0)
-	uint8_t ready = 0;     // bit k: client k is ready for these settings (the host never needs to be)
-	uint8_t stay_ready = 0; // bit k: client k stays ready whatever changes
-	uint8_t observers = 0; // bit k: client k watches
-	std::string names[8];  // by client id
+	uint64_t clients = 0;   // bit k: client k is in the game (the host is client 0)
+	uint64_t ready = 0;     // bit k: client k is ready for these settings (the host never needs to be)
+	uint64_t stay_ready = 0; // bit k: client k stays ready whatever changes
+	uint64_t observers = 0; // bit k: client k watches
+	std::string names[NET_SETUP_CLIENTS];  // by client id
 	// The slot client k plays, -1 if none.
 	int slot_of(uint32_t client) const {
 		for (int i = 0; i < 8; ++i)
@@ -746,21 +771,25 @@ struct NetSetupState {
 	}
 	// 0 A.D. gamesetup start button: every client that plays is ready.
 	bool all_ready() const {
-		for (int i = 1; i < 8; ++i)
+		for (uint32_t i = 1; i < NET_SETUP_CLIENTS; ++i)
 			if (((clients >> i) & 1) && slot_of(i) >= 0 && !(((ready | stay_ready) >> i) & 1)) return false;
 		return true;
 	}
 };
 inline std::string format_net_setup(const NetSetupState &n) {
 	std::string s = format_game_start_full(n.setup);
-	std::string seats(8, '-');
+	std::string seats;
 	for (int i = 0; i < 8; ++i)
-		if (n.slot_client[i] >= 0 && n.slot_client[i] < 8) seats[i] = (char)('0' + n.slot_client[i]);
+		seats += std::string(i ? "," : "") + (n.slot_client[i] >= 0 && (uint32_t)n.slot_client[i] < NET_SETUP_CLIENTS
+				? std::to_string(n.slot_client[i]) : std::string("-"));
 	s += ";nsv=" + std::to_string(n.settings_version) + ";nsq=" + std::to_string(n.seq) + ";nsc=" + seats;
-	s += ";ncl=" + std::to_string((unsigned)n.clients) + ";nsr=" + std::to_string((unsigned)n.ready) +
-	     ";nss=" + std::to_string((unsigned)n.stay_ready) +
-	     ";nso=" + std::to_string((unsigned)n.observers) + ";nsn=";
-	for (int i = 0; i < 8; ++i) s += (i ? "," : "") + detail::escape_name(n.names[i]);
+	s += ";ncl=" + std::to_string((unsigned long long)n.clients) + ";nsr=" + std::to_string((unsigned long long)n.ready) +
+	     ";nss=" + std::to_string((unsigned long long)n.stay_ready) +
+	     ";nso=" + std::to_string((unsigned long long)n.observers) + ";nsn=";
+	uint32_t count = 8; // names up to the highest client in the game
+	for (uint32_t i = 8; i < NET_SETUP_CLIENTS; ++i)
+		if ((n.clients >> i) & 1) count = i + 1;
+	for (uint32_t i = 0; i < count; ++i) s += (i ? "," : "") + detail::escape_name(n.names[i]);
 	return s;
 }
 inline bool parse_net_setup(const std::string &attrs, NetSetupState &out) {
@@ -782,15 +811,22 @@ inline bool parse_net_setup(const std::string &attrs, NetSetupState &out) {
 					(k == "nsv" ? out.settings_version : out.seq) = (uint32_t)x;
 					have_version |= k == "nsv";
 				}
-			} else if (k == "nsc" && v.size() == 8) {
-				for (int i = 0; i < 8; ++i) out.slot_client[i] = (v[i] >= '0' && v[i] <= '7') ? (int8_t)(v[i] - '0') : -1;
+			} else if (k == "nsc") {
+				size_t a = 0;
+				for (int i = 0; i < 8 && a <= v.size(); ++i) {
+					size_t b = v.find(',', a);
+					if (b == std::string::npos) b = v.size();
+					uint8_t c;
+					out.slot_client[i] = detail::parse_u8(v.substr(a, b - a), 0, NET_SETUP_CLIENTS - 1, c) ? (int8_t)c : -1;
+					a = b + 1;
+				}
 			} else if (k == "ncl" || k == "nsr" || k == "nss" || k == "nso") {
-				uint8_t x;
-				if (detail::parse_u8(v, 0, 255, x))
+				uint64_t x;
+				if (detail::parse_mask(v, x))
 					(k == "ncl" ? out.clients : k == "nsr" ? out.ready : k == "nss" ? out.stay_ready : out.observers) = x;
 			} else if (k == "nsn") {
 				size_t a = 0;
-				for (int c = 0; c < 8 && a <= v.size(); ++c) {
+				for (uint32_t c = 0; c < NET_SETUP_CLIENTS && a <= v.size(); ++c) {
 					size_t b = v.find(',', a);
 					if (b == std::string::npos) b = v.size();
 					out.names[c] = detail::unescape_name(v.substr(a, b - a));

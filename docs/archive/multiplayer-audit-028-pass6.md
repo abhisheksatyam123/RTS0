@@ -35,4 +35,5 @@ None of these touches simulation state or the save format.
 ## Fix log
 
 - 2026-10-15 #1143 pass 6 gap 1 (Teams Locked on by default in networked setups) merged.
-- 2026-10-15 #PR pass 6 gap 3 (lobby password page before a listed join, Host row 1024-65535 port check) merged.
+- 2026-10-15 #1146 pass 6 gap 3 (lobby password page before a listed join, Host row 1024-65535 port check) merged.
+- 2026-10-15 #PR pass 6 gap 2 (setup lists, seats and counts every client: 64-bit setup masks, lowest free id, host names every seat) merged.

@@ -143,7 +143,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	static constexpr int SEAT_AUTO = 100, SEAT_OBSERVER = 99;
 	void refresh_lobby_seats();
 	void prepare_lobby_seats(rtso::GameSetupParams &setup, bool commit);
-	void lobby_effective_seats(uint8_t out[8]);
+	void lobby_effective_seats(uint8_t out[rtso::NET_SETUP_CLIENTS]);
 	// Networked game setup before Start (0 A.D. NMT_GAME_SETUP / NMT_READY).
 	// The host's MatchSettings is the setup; the host sends it whenever it
 	// changes and clears every ready flag when a setting or a seat changes.
@@ -552,7 +552,7 @@ public:
 	std::vector<std::pair<String, String>> chat_private_targets() override;
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	uint8_t chat_player_of_client(uint32_t client) const;
-	void notify_setup_joins(uint8_t before, uint8_t after);
+	void notify_setup_joins(uint64_t before, uint64_t after);
 	// 0.28 gamesetup ChatMessages: joined, left, ready and not ready lines.
 	void post_setup_chat(const rtso::NetSetupState &before, const rtso::NetSetupState &after);
 	String setup_client_name(const rtso::NetSetupState &n, uint32_t client) const;
