@@ -27,6 +27,8 @@ struct TeamPlacementContext {
 	uint8_t teams[8] = {};
 };
 thread_local TeamPlacementContext t_team_placement;
+// Whether the map being generated is circular (Simulation::circular_map, set before generate).
+thread_local bool t_circular_map = true;
 
 std::vector<std::pair<float, float>> pattern_locs(const HeightmapGrid &hm, RmsRng &rng, int pattern, int n,
 		const uint8_t *teams, float distance, float grouped, float start);
@@ -1114,41 +1116,6 @@ void lift_area(HeightmapGrid &hm, float cx, float cz, float radius, float blend,
 	}
 }
 } // namespace
-
-void RmsGenerator::synth_mainland(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
-	// mainland.js: one land mass, no water, gentle hills.
-	water_h = -10.0f;
-	hm.init(hm.res, hm.map_half, 2.0f);
-	hm.apply_fbm(rng, 4, 0.018f, 0.5f, 2.0f, 3.0f);
-	hm.blur(2, 0.4f);
-	place_team_spawns(hm, rng, spawns, num_players, hm.map_half * 0.62f, rng.range_float(0.0f, 6.2831853f), 0.0f);
-}
-
-void RmsGenerator::synth_alpine_lakes(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
-	// alpine_lakes.js: ridged mountains with lakes in the low ground.
-	water_h = 1.0f;
-	hm.init(hm.res, hm.map_half, 3.0f);
-	const float half = hm.map_half;
-	hm.apply_ridged_noise(rng, 4, 0.020f, 0.5f, 2.1f, 12.0f);
-	hm.apply_fbm(rng, 3, 0.035f, 0.5f, 2.0f, 2.5f);
-	// The bases first, so the lakes keep clear of them (alpine_lakes.js: lakes avoid clPlayer).
-	place_team_spawns(hm, rng, spawns, num_players, half * 0.60f, rng.range_float(0.0f, 6.2831853f), 4.0f);
-	const int lakes = scale_by_map_size(3, 9, half);
-	for (int i = 0, tries = 0; i < lakes && tries < lakes * 20; ++tries) {
-		// Lakes sit between the bases: off the spawn ring, inside the border.
-		const float a = rng.range_float(0.0f, 6.2831853f);
-		const float r = rng.next_float() < 0.5f ? rng.range_float(0.0f, half * 0.35f) : rng.range_float(half * 0.80f, half * 0.88f);
-		const float lr = half * rng.range_float(0.07f, 0.11f), lx = std::cos(a) * r, lz = std::sin(a) * r;
-		bool clear = true;
-		for (const auto &sp : spawns) clear &= std::hypot(lx - sp.x, lz - sp.z) > lr + 6.0f + 20.0f;
-		if (!clear) continue;
-		hm.carve_crater_lake(lx, lz, lr, 6.0f, 3.0f, water_h);
-		++i;
-	}
-	hm.thermal_erosion(6, 0.7f, 0.2f);
-	hm.blur(1, 0.35f);
-	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
-}
 
 void RmsGenerator::synth_lake(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
 	// lake.js: a large central lake, players around it.
@@ -2430,13 +2397,14 @@ void paint_heightmap(HeightmapGrid &hm, const std::vector<uint8_t> &img, int n, 
 }
 
 // Distance in tiles from every grid vertex to the nearest vertex where
-// `mask` is set (0 on such vertices), by a two-pass 3-4 chamfer transform.
-std::vector<float> distance_to_mask(const std::vector<uint8_t> &mask, int res, float spacing) {
+// `mask` is set (0 on such vertices), by a two-pass 3-4 chamfer transform,
+// on a grid `res` vertices wide and `rows` deep.
+std::vector<float> distance_to_mask_rect(const std::vector<uint8_t> &mask, int res, int rows, float spacing) {
 	const float inf = 1e9f, a = spacing, b = spacing * 1.41421356f;
 	std::vector<float> d(mask.size());
 	for (size_t i = 0; i < mask.size(); ++i) d[i] = mask[i] ? 0.0f : inf;
 	auto at = [&](int x, int z) -> float & { return d[(size_t)z * (size_t)res + (size_t)x]; };
-	for (int z = 0; z < res; ++z)
+	for (int z = 0; z < rows; ++z)
 		for (int x = 0; x < res; ++x) {
 			float &c = at(x, z);
 			if (x > 0) c = std::min(c, at(x - 1, z) + a);
@@ -2446,11 +2414,11 @@ std::vector<float> distance_to_mask(const std::vector<uint8_t> &mask, int res, f
 				if (x + 1 < res) c = std::min(c, at(x + 1, z - 1) + b);
 			}
 		}
-	for (int z = res - 1; z >= 0; --z)
+	for (int z = rows - 1; z >= 0; --z)
 		for (int x = res - 1; x >= 0; --x) {
 			float &c = at(x, z);
 			if (x + 1 < res) c = std::min(c, at(x + 1, z) + a);
-			if (z + 1 < res) {
+			if (z + 1 < rows) {
 				c = std::min(c, at(x, z + 1) + a);
 				if (x + 1 < res) c = std::min(c, at(x + 1, z + 1) + b);
 				if (x > 0) c = std::min(c, at(x - 1, z + 1) + b);
@@ -2459,7 +2427,33 @@ std::vector<float> distance_to_mask(const std::vector<uint8_t> &mask, int res, f
 	return d;
 }
 
+std::vector<float> distance_to_mask(const std::vector<uint8_t> &mask, int res, float spacing) {
+	return distance_to_mask_rect(mask, res, res, spacing);
+}
+
 float grid_spacing(const HeightmapGrid &hm) { return 2.0f * hm.map_half / (float)(hm.res - 1); }
+
+// distance_to_mask(!mask) where only the vertices inside `mask` are read: the
+// transform runs on the mask's bounding box plus a ring of one vertex, which
+// gives the same values there (every path out of the box crosses the ring,
+// whose vertices are all sources), at a fraction of the cost for small areas.
+std::vector<float> distance_inside_mask(const std::vector<uint8_t> &mask, int res, float spacing) {
+	int x0 = res, z0 = res, x1 = -1, z1 = -1;
+	for (int z = 0; z < res; ++z)
+		for (int x = 0; x < res; ++x)
+			if (mask[(size_t)z * (size_t)res + (size_t)x]) { x0 = std::min(x0, x); x1 = std::max(x1, x); z0 = std::min(z0, z); z1 = std::max(z1, z); }
+	std::vector<float> d(mask.size(), 0.0f);
+	if (x1 < 0) return d;
+	x0 = std::max(0, x0 - 1); z0 = std::max(0, z0 - 1); x1 = std::min(res - 1, x1 + 1); z1 = std::min(res - 1, z1 + 1);
+	const int w = x1 - x0 + 1, h = z1 - z0 + 1;
+	std::vector<uint8_t> outside((size_t)w * (size_t)h);
+	for (int z = 0; z < h; ++z)
+		for (int x = 0; x < w; ++x) outside[(size_t)z * (size_t)w + (size_t)x] = !mask[(size_t)(z + z0) * (size_t)res + (size_t)(x + x0)];
+	const auto sub = distance_to_mask_rect(outside, w, h, spacing);
+	for (int z = 0; z < h; ++z)
+		for (int x = 0; x < w; ++x) d[(size_t)(z + z0) * (size_t)res + (size_t)(x + x0)] = sub[(size_t)z * (size_t)w + (size_t)x];
+	return d;
+}
 
 // SmoothElevationPainter(ELEVATION_SET, h, blend) on the vertices below
 // `below`: full depth `blend` tiles in from the shore, eased in before that.
@@ -2798,9 +2792,7 @@ inline float wade_height(float water_h) { return water_h + NAV_WATER_MARGIN - LA
 // SmoothElevationPainter(ELEVATION_SET, h, blend) over the vertices in
 // `mask`: full height `blend` tiles in from the area's edge, eased before.
 void paint_mask_elevation(HeightmapGrid &hm, const std::vector<uint8_t> &mask, float h, float blend) {
-	std::vector<uint8_t> outside(mask.size());
-	for (size_t i = 0; i < mask.size(); ++i) outside[i] = !mask[i];
-	const auto d = distance_to_mask(outside, hm.res, grid_spacing(hm));
+	const auto d = distance_inside_mask(mask, hm.res, grid_spacing(hm));
 	for (size_t i = 0; i < mask.size(); ++i) {
 		if (!mask[i]) continue;
 		const float t = std::clamp(d[i] / std::max(blend, 1e-3f), 0.0f, 1.0f);
@@ -4905,9 +4897,7 @@ std::vector<uint8_t> seas_path(const HeightmapGrid &hm, RmsRng &rng, float ax, f
 
 // SmoothElevationPainter(ELEVATION_MODIFY, dh, blend) over `mask`.
 void seas_paint_modify(HeightmapGrid &hm, const std::vector<uint8_t> &mask, float dh, float blend) {
-	std::vector<uint8_t> outside(mask.size());
-	for (size_t i = 0; i < mask.size(); ++i) outside[i] = !mask[i];
-	const auto d = distance_to_mask(outside, hm.res, grid_spacing(hm));
+	const auto d = distance_inside_mask(mask, hm.res, grid_spacing(hm));
 	for (size_t i = 0; i < mask.size(); ++i)
 		if (mask[i]) hm.data[i] += dh * std::clamp(d[i] / std::max(blend, 1e-3f), 0.0f, 1.0f);
 }
@@ -5075,7 +5065,164 @@ void seas_spawns(HeightmapGrid &hm, std::vector<RmsGenerator::PlayerSpawn> &spaw
 	for (const auto &s : spawns) lift_area(hm, s.x, s.z, radius, blend, s.base_height);
 }
 
+// createMountain (rmgen-common/gaia_terrain.js) on the vertex grid. Up to `circles` circles of
+// min_r..max_r tiles, each centred on a random edge of the ones before; the script's "edges"
+// are covered tiles whose four neighbours are all covered, kept within 14 tiles of the start.
+// Each circle's square box is checked against `allow` (the script compares a distance with the
+// squared radius), and a circle meeting a refused vertex is dropped. Each kept circle then sets
+// its disk to randInt(0, 2) + round(2/3 c (sin(2/3 pi (3/4 - d/r)) + 0.5)) metres above ref_h,
+// with c = r / max_r x max_h x randFloat(0.8, 1.2); ground already that high is set 4 m above
+// it while the start vertex is below that. Returns the disk vertices (the tile class).
+template <class Allow>
+std::vector<uint8_t> mountain_028(HeightmapGrid &hm, RmsRng &rng, float ref_h, float max_h, int min_r, int max_r, int circles,
+		float x, float z, const Allow &allow) {
+	const int res = hm.res;
+	const float sp = grid_spacing(hm);
+	const int start = seas_vertex(hm, x, z);
+	if (!allow(start)) return {};
+	const int ox = start % res, oz = start / res, fcc = (int)std::lround(14.0f / sp);
+	auto in_map = [&](int i) { return !t_circular_map || seas_in_circle(hm, i); };
+	std::vector<int> got((size_t)res * (size_t)res, -1);
+	std::vector<std::pair<int, int>> edges = {{ox, oz}};
+	struct Circle { int x, z, r; };
+	std::vector<Circle> kept;
+	min_r = std::max(1, std::min(min_r, max_r));
+	for (int c = 0; c < circles && !edges.empty(); ++c) {
+		const auto e = edges[rng.next_u32() % (uint32_t)edges.size()];
+		const int cx = e.first, cz = e.second, r = rng.range_int(min_r, max_r);
+		const int rv = std::max(1, (int)std::lround((float)r / sp));
+		const int sx = std::max(0, cx - rv), sz = std::max(0, cz - rv), lx = std::min(cx + rv, res - 1), lz = std::min(cz + rv, res - 1);
+		bool bad = false;
+		for (int ix = sx; ix <= lx && !bad; ++ix)
+			for (int iz = sz; iz <= lz; ++iz) {
+				const int i = iz * res + ix;
+				if (!in_map(i)) continue;
+				if (!allow(i)) { bad = true; break; }
+				const int s = got[(size_t)i];
+				if (s >= 0) {
+					edges.erase(edges.begin() + s);
+					for (size_t k = (size_t)s; k < edges.size(); ++k) --got[(size_t)(edges[k].second * res + edges[k].first)];
+				}
+				got[(size_t)i] = -2;
+			}
+		if (bad) continue;
+		kept.push_back({cx, cz, r});
+		for (int ix = sx; ix <= lx; ++ix)
+			for (int iz = sz; iz <= lz; ++iz) {
+				const int i = iz * res + ix;
+				if (got[(size_t)i] != -2 || std::abs(ox - ix) > fcc || std::abs(oz - iz) > fcc) continue;
+				if ((ix > 0 && got[(size_t)i - 1] == -1) || (iz > 0 && got[(size_t)(i - res)] == -1) ||
+				    (ix < res - 1 && got[(size_t)i + 1] == -1) || (iz < res - 1 && got[(size_t)(i + res)] == -1))
+					continue;
+				edges.push_back({ix, iz});
+				got[(size_t)i] = (int)edges.size() - 1;
+			}
+	}
+	std::vector<uint8_t> out(hm.data.size(), 0);
+	for (const Circle &c : kept) {
+		const int rv = std::max(1, (int)std::lround((float)c.r / sp));
+		const int sx = std::max(0, c.x - rv), sz = std::max(0, c.z - rv), lx = std::min(c.x + rv, res - 1), lz = std::min(c.z + rv, res - 1);
+		const float clump = (float)c.r / (float)max_r * max_h * rng.range_float(0.8f, 1.2f);
+		for (int ix = sx; ix <= lx; ++ix)
+			for (int iz = sz; iz <= lz; ++iz) {
+				const int i = iz * res + ix;
+				const float d = std::hypot((float)(ix - c.x), (float)(iz - c.z)) * sp;
+				const float nh = (float)rng.range_int(0, 2) +
+				                 std::round(2.0f / 3.0f * clump * (std::sin(kSeasPi * 2.0f / 3.0f * (0.75f - d / (float)c.r)) + 0.5f));
+				if (d > (float)c.r || !in_map(i)) continue;
+				const float cur = (hm.data[(size_t)i] - ref_h) / kMetre, origin = (hm.data[(size_t)start] - ref_h) / kMetre;
+				if (cur < nh) hm.data[(size_t)i] = metres(ref_h, nh);
+				else if (origin < nh + 4.0f) hm.data[(size_t)i] = metres(ref_h, nh + 4.0f);
+				out[(size_t)i] = 1;
+			}
+	}
+	return out;
+}
+
+// createMountains: `count` createMountain tries at random points, `spacing` tiles clear of the
+// mountains (and hills) already in `hills`, which each one joins.
+template <class Allow>
+void mountains_028(HeightmapGrid &hm, RmsRng &rng, float ref_h, float count, float max_h, int min_r, int max_r, int circles,
+		float spacing, std::vector<uint8_t> &hills, const Allow &allow) {
+	std::vector<float> to_hill = seas_any(hills) ? seas_dist_inside(hm, hills) : std::vector<float>(hm.data.size(), 1e9f);
+	for (int i = 0; (float)i < count; ++i) {
+		const auto p = seas_random_point(hm, rng);
+		const auto m = mountain_028(hm, rng, ref_h, max_h, min_r, max_r, circles, p.first, p.second,
+		                            [&](int k) { return allow(k) && to_hill[(size_t)k] > spacing; });
+		if (!seas_any(m)) continue;
+		record_area(hm, m, AREA_MOUNTAIN);
+		seas_add(hills, m);
+		to_hill = seas_dist_inside(hm, hills);
+	}
+}
+
+// The default createMountains (scaleByMapSize(30, 50) m, circles of floor(scaleByMapSize(3, 4))
+// to floor(scaleByMapSize(6, 12)) tiles, floor(scaleByMapSize(4, 10)) of them).
+template <class Allow>
+void default_mountains_028(HeightmapGrid &hm, RmsRng &rng, float ref_h, float count, float spacing, const Allow &allow) {
+	const float half = hm.map_half;
+	std::vector<uint8_t> hills(hm.data.size(), 0);
+	mountains_028(hm, rng, ref_h, count, std::floor(seas_scale(30, 50, half)), (int)std::floor(seas_scale(3, 4, half)),
+	              (int)std::floor(seas_scale(6, 12, half)), (int)std::floor(seas_scale(4, 10, half)), spacing, hills, allow);
+}
+
+// The players of a synth that placed them with place_team_spawns, as points.
+std::vector<std::pair<float, float>> spawn_points(const std::vector<RmsGenerator::PlayerSpawn> &spawns) {
+	std::vector<std::pair<float, float>> locs;
+	for (const auto &s : spawns) locs.push_back({s.x, s.z});
+	return locs;
+}
+
 } // namespace
+
+void RmsGenerator::synth_mainland(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// mainland.js (0.28), in 0 A.D. metres: land at heightLand 3 m and no water; players by
+	// playerPlacementByPattern at fractionToTiles(0.35), teammates fractionToTiles(0.1) apart;
+	// createBumps 20 from the players, then randBool: createHills (18 m) or createMountains
+	// (30-50 m), scaleByMapSize(3, 15) of them, 20 from the players and 15 from each other.
+	water_h = -10.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	hm.init(hm.res, half, metres(0.0f, 3.0f));
+	place_team_spawns(hm, rng, spawns, num_players, 0.35f * size, rng.range_float(0.0f, 2.0f * kSeasPi), 0.0f);
+	const auto to_player = seas_dist_to_players(hm, spawn_points(spawns), seas_scale(15, 25, half) / 3.0f);
+	const auto away = [&](int i) { return to_player[(size_t)i] > 20.0f; };
+	seas_bumps(hm, rng, seas_scale(100, 200, half), away);
+	if (rng.range_int(0, 1) == 0) seas_hills(hm, rng, 0.0f, seas_scale(3, 15, half), false, 15.0f, 18.0f, away);
+	else default_mountains_028(hm, rng, 0.0f, seas_scale(3, 15, half), 15.0f, away);
+}
+
+void RmsGenerator::synth_alpine_lakes(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// alpine_lakes.js (0.28), in 0 A.D. metres: land at 3 m; players by playerPlacementByPattern at
+	// fractionToTiles(0.35), teammates fractionToTiles(0.1) apart; scaleByMapSize(10, 40) x players
+	// createMountains of floor(scaleByMapSize(40, 60)) m (circles of floor(scaleByMapSize(4, 5))
+	// to floor(scaleByMapSize(7, 15)) tiles, floor(scaleByMapSize(5, 15)) of them) 20 from the
+	// players and 8 apart; scaleByMapSize(5, 16) lakes (ChainPlacer(1, floor(scaleByMapSize(4, 8)),
+	// floor(scaleByMapSize(40, 180)), 0.7), floor -5 m, blend 5, one try each) 20 from the
+	// players and 8 apart; then bumps 2 from the water and 20 from the players.
+	water_h = 1.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	const float land = metres(water_h, 3.0f);
+	hm.init(hm.res, half, land);
+	place_team_spawns(hm, rng, spawns, num_players, 0.35f * size, rng.range_float(0.0f, 2.0f * kSeasPi), land);
+	const auto to_player = seas_dist_to_players(hm, spawn_points(spawns), seas_scale(15, 25, half) / 3.0f);
+	const auto away = [&](int i) { return to_player[(size_t)i] > 20.0f; };
+	std::vector<uint8_t> hills(hm.data.size(), 0), water(hm.data.size(), 0);
+	mountains_028(hm, rng, water_h, seas_scale(10, 40, half) * (float)num_players, std::floor(seas_scale(40, 60, half)),
+	              (int)std::floor(seas_scale(4, 5, half)), (int)std::floor(seas_scale(7, 15, half)), (int)std::floor(seas_scale(5, 15, half)),
+	              8.0f, hills, away);
+	std::vector<float> to_water(hm.data.size(), 1e9f);
+	seas_create_areas(hm, rng, seas_scale(5, 16, half), 1, [&](float x, float z) {
+		const auto m = seas_chain(hm, rng, x, z, 1, (int)std::floor(seas_scale(4, 8, half)), (int)std::floor(seas_scale(40, 180, half)), 0.7f,
+		                          0.0f, {}, [&](int i) { return away(i) && to_water[(size_t)i] > 8.0f; });
+		if (!seas_any(m)) return false;
+		paint_mask_elevation(hm, m, metres(water_h, -5.0f), 5.0f);
+		record_area(hm, m, AREA_LAKE);
+		seas_add(water, m);
+		to_water = seas_dist_inside(hm, water);
+		return true;
+	});
+	seas_bumps(hm, rng, seas_scale(100, 200, half), [&](int i) { return to_water[(size_t)i] > 2.0f && away(i); });
+}
 
 void RmsGenerator::synth_canyon(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
 	// canyon.js: the map starts as high ground (heightHill 30 m) and the land (3 m) is cut into
@@ -11551,8 +11698,6 @@ void rescale_028(HeightmapGrid &hm, float lo, float hi) {
 // The paths caledonian_meadows.js lays between the players (clPath), a tile grid for its
 // resource spots (place_caledonian_spots) to keep off.
 thread_local std::vector<uint8_t> t_caledonian_paths;
-// Whether the map being generated is circular (Simulation::circular_map, set before generate).
-thread_local bool t_circular_map = true;
 
 void RmsGenerator::synth_caledonian_meadows(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
 	// caledonian_meadows.js, in metres: diamond-square land from a flat 2x2 seed (smoothness 0.8)
