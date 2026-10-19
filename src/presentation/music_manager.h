@@ -90,6 +90,11 @@ public:
 			p = memnew(godot::AudioStreamPlayer);
 			p->set_volume_db(-80.0f);
 			p->set_bus("Music"); // sound.musicgain
+			// 0 A.D.'s music is global, outside any page: it ignores the tree's
+			// pause (the defeat question pauses a single-player game, and the
+			// victory and defeat tracks must still start). Its tick is driven by
+			// the MenuAudio autoload for the same reason.
+			p->set_process_mode(godot::Node::PROCESS_MODE_ALWAYS);
 			parent->add_child(p);
 		}
 		rng_.seed(std::random_device{}());
@@ -142,6 +147,11 @@ public:
 		locked_ = !tracks.empty();
 	}
 	godot::String current_track() const { return current_name_; }
+	// Playback position of the current track in seconds (tests, summary handoff).
+	float current_position() const {
+		godot::AudioStreamPlayer *cur = players_[cur_];
+		return cur && cur->is_playing() ? (float)cur->get_playback_position() : 0.0f;
+	}
 
 	// Fades and moves to the next playlist item when a track ends (looping).
 	void tick(double dt) {

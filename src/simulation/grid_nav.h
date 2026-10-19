@@ -193,9 +193,10 @@ struct NavGrid {
     // 1 where a wood is closed to PASS_LARGE but not to the default class; empty, or as many as cells.
     std::vector<uint8_t> large_closed;
     Grid<uint8_t> dirty; // 0=clean, 1=needs hierarchical rebuild
-    // A circular map's passable edge (Simulation::past_map_edge), 0 on a square map. The navcells whose
-    // centre lies past it are closed (Simulation::rebuild_nav_grid); find_path_tiles' nodes take the
-    // edge at their own spacing, as units do (point_terrain_open).
+    // A circular map's passable edge radius (Simulation::past_map_edge), 0 on a square map.
+    // The navcells whose centre lies past it are closed (Simulation::rebuild_nav_grid); square
+    // maps close their 12 m frame instead (CCmpPathfinder.cpp:711 else branch); find_path_tiles'
+    // nodes take the edge at their own spacing, as units do (point_terrain_open).
     float edge_r = 0.0f;
 
     // Phase 8A: Hierarchical chunk region data.
@@ -551,6 +552,11 @@ struct NavGrid {
     bool point_terrain_open(float x, float z, int cls, bool live = false) const {
         const float c = tile_clearance(cls), g = c + TILE_HAIR;
         if (x - g < -map_half || x + g > map_half || z - g < -map_half || z + g > map_half) return false;
+        // Square maps keep 0.28's 12 m (3-unit) edge frame (CCmpPathfinder.cpp:711 else branch);
+        // on circular maps the radial check below already covers it (|x| past the frame implies
+        // past the circle).
+        const float sq = map_half - 3.0f - c;
+        if (sq <= 0.0f || std::fabs(x) > sq || std::fabs(z) > sq) return false;
         if (edge_r > 0.0f) {
             const float r = edge_r - c;
             if (r <= 0.0f || x * x + z * z > r * r) return false;
@@ -587,18 +593,21 @@ struct NavGrid {
         const size_t sw = static_cast<size_t>(tw) + 1, ww = static_cast<size_t>(res) + 1;
         const uint32_t *t = steep ? h.tiles_sum.data() : nullptr, *wt = water ? tile_water_sum_.data() : nullptr;
         const float r = edge_r - c;
+        const float sq = map_half - 3.0f - c;
         for (int b = 0; b < nw; ++b) {
             const TileSpan &zb = tile_span_[static_cast<size_t>(b)];
             if (!zb.in) continue;
             const float z = node_pos(b);
+            if (sq <= 0.0f || std::fabs(z) > sq) continue;
             const size_t j0 = static_cast<size_t>(zb.t0) * sw, j1 = static_cast<size_t>(zb.t1) * sw;
             const size_t k0 = static_cast<size_t>(zb.w0) * ww, k1 = static_cast<size_t>(zb.w1) * ww;
             uint8_t *row = open.data() + static_cast<size_t>(b) * static_cast<size_t>(nw);
             for (int a = 0; a < nw; ++a) {
                 const TileSpan &xa = tile_span_[static_cast<size_t>(a)];
                 if (!xa.in) continue;
+                const float x = node_pos(a);
+                if (std::fabs(x) > sq) continue;
                 if (edge_r > 0.0f) {
-                    const float x = node_pos(a);
                     if (r <= 0.0f || x * x + z * z > r * r) continue;
                 }
                 if (t) {

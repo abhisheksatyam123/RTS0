@@ -484,6 +484,17 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			sim->garrison_unit_now(gaia_unit_ids[i], gaia_structure_ids[str]);
 	}
 
+	// 0 A.D. vision_revealers/* (Vision/Range in metres): their owner's map starts explored
+	// round them (Simulation::explore_circle). Player 1 is slot 0; player 0 (Gaia) reveals nothing.
+	Array rev_arr = d.get("revealers", Array());
+	for (int i = 0; i < rev_arr.size(); ++i) {
+		Dictionary rv = rev_arr[i];
+		const int owner = (int)rv.get("player", 0);
+		if (owner <= 0 || owner > rtso::MAX_PLAYERS) continue;
+		const float range_m = (float)rv.get("range", 50.0);
+		sim->explore_circle((uint8_t)(owner - 1), (float)rv.get("x", 0.0), (float)rv.get("z", 0.0), range_m / 4.0f);
+	}
+
 	// TriggerPoint.js markers the scripts spawn at or aim for (owner 0 is Gaia).
 	Array tp_arr = d.get("trigger_points", Array());
 	for (int i = 0; i < tp_arr.size(); ++i) {

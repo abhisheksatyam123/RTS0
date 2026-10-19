@@ -158,22 +158,46 @@ private:
 			if (counts[row + (size_t)i]++ == 0 && !off_world_[row + (size_t)i]) state_[row + (size_t)i] |= bits;
 	}
 
-	// LosIsOffWorld for a circular map: a cell is off the world when its centre is at least
-	// the map's half width from the centre.
+	// LosIsOffWorld (CCmpRangeManager.cpp:2145): on a circular map a cell is off the world
+	// when its centre lies outside the LOS circle, which sits MAP_EDGE_TILES-1 tiles (8 m)
+	// inside the map's edge (r = verts/2 - MAP_EDGE_TILES + 1); on a square map the outer
+	// MAP_EDGE_TILES (12 m) are off the world on every side.
 	void build_off_world() {
 		off_world_.clear();
 		off_world_count_ = 0;
-		if (!circular_ || res_ <= 0) return;
+		if (res_ <= 0) return;
 		off_world_.assign((size_t)res_ * (size_t)res_, 0);
-		const int64_t r = (int64_t)res_; // radius res / 2, in half cells
-		for (int j = 0; j < res_; ++j)
-			for (int i = 0; i < res_; ++i) {
-				const int64_t dx = 2 * i + 1 - r, dz = 2 * j + 1 - r;
-				if (dx * dx + dz * dz >= r * r) {
-					off_world_[(size_t)j * (size_t)res_ + (size_t)i] = 1;
-					++off_world_count_;
-				}
+		if (circular_) {
+			// Circular: radius half_-8 m (2 RTS0 units).
+			const float r_world = half_ - 2.0f;
+			if (r_world <= 0.0f) {
+				std::fill(off_world_.begin(), off_world_.end(), 1);
+				off_world_count_ = off_world_.size();
+				return;
 			}
+			for (int j = 0; j < res_; ++j)
+				for (int i = 0; i < res_; ++i) {
+					const float x = -half_ + ((float)i + 0.5f) * cell_;
+					const float z = -half_ + ((float)j + 0.5f) * cell_;
+					if (x * x + z * z >= r_world * r_world) {
+						off_world_[(size_t)j * (size_t)res_ + (size_t)i] = 1;
+						++off_world_count_;
+					}
+				}
+		} else {
+			// Square: the outer 3 tiles (12 m, MAP_EDGE_DIST) on every side.
+			const float edge = 3.0f;
+			const float lim = half_ - edge;
+			for (int j = 0; j < res_; ++j)
+				for (int i = 0; i < res_; ++i) {
+					const float x = -half_ + ((float)i + 0.5f) * cell_;
+					const float z = -half_ + ((float)j + 0.5f) * cell_;
+					if (std::fabs(x) >= lim || std::fabs(z) >= lim) {
+						off_world_[(size_t)j * (size_t)res_ + (size_t)i] = 1;
+						++off_world_count_;
+					}
+				}
+		}
 	}
 	void remove_cells(uint16_t *counts, uint16_t vis, size_t row, int i0, int i1) {
 		for (int i = i0; i <= i1; ++i)
