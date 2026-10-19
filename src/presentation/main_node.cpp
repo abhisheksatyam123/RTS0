@@ -2686,7 +2686,7 @@ void RtsoMain::refresh_lobby_seats() {
 	if (net_host_.isHost() && !net_game_started_) {
 		clients.push_back({0, net_host_.localPlayerName(), lobby_observe && lobby_observe->is_pressed()});
 		for (const auto &p : net_host_.getPeers())
-			if (p.connected && p.is_authenticated && !p.kick_disconnect_ms && p.id != 0 && p.id < 8)
+			if (p.connected && p.is_authenticated && !p.kick_disconnect_ms && p.id != 0 && p.id < rtso::NET_SETUP_CLIENTS)
 				clients.push_back({p.id, p.player_name, p.is_observer});
 		if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) {
 			Array types = ms->get("slot_types");
@@ -2708,7 +2708,7 @@ void RtsoMain::refresh_lobby_seats() {
 		for (const auto &c : clients) here |= c.id == *it;
 		it = here ? std::next(it) : seat_seen_.erase(it);
 	}
-	uint8_t eff[8];
+	uint8_t eff[rtso::NET_SETUP_CLIENTS];
 	lobby_effective_seats(eff);
 	// 0 A.D. onClientJoin: gui.gamesetup.assignplayers decides whether a joiner
 	// gets a slot (everyone, only the host's buddies, or nobody until the host
@@ -2796,13 +2796,13 @@ void RtsoMain::_on_lobby_seat_selected(int index, int client) {
 }
 
 void RtsoMain::assign_lobby_seat(int client, int choice) {
-	if (client < 0 || client >= 8) return;
+	if (client < 0 || client >= (int)rtso::NET_SETUP_CLIENTS) return;
 	// 0 A.D. assignPlayer: a slot another client plays is swapped with this
 	// client's own slot, or leaves that client unassigned (an observer).
-	uint8_t eff[8];
+	uint8_t eff[rtso::NET_SETUP_CLIENTS];
 	lobby_effective_seats(eff);
 	if (choice < 8)
-		for (uint32_t other = 0; other < 8; ++other) {
+		for (uint32_t other = 0; other < rtso::NET_SETUP_CLIENTS; ++other) {
 			if (other == (uint32_t)client || eff[other] != choice) continue;
 			bool connected = other == 0;
 			for (const auto &p : net_host_.getPeers()) connected |= p.id == other && p.connected;
@@ -2823,12 +2823,12 @@ void RtsoMain::prepare_lobby_seats(rtso::GameSetupParams &setup, bool commit) {
 	const bool host_watches = lobby_observe && lobby_observe->is_pressed();
 	setup.observers = host_watches ? 1 : 0;
 	for (const auto &p : net_host_.getPeers())
-		if (p.connected && p.id != 0 && p.id < 8 && p.is_observer) setup.observers |= (uint8_t)(1u << p.id);
+		if (p.connected && p.id != 0 && p.id < rtso::NET_SETUP_CLIENTS && p.is_observer) setup.observers |= (1ull << p.id);
 	for (const auto &e : seat_choice_) {
-		if (e.first >= 8) continue;
-		const uint8_t bit = (uint8_t)(1u << e.first);
+		if (e.first >= rtso::NET_SETUP_CLIENTS) continue;
+		const uint64_t bit = 1ull << e.first;
 		if (e.second == SEAT_OBSERVER) { setup.observers |= bit; continue; }
-		setup.observers &= (uint8_t)~bit;
+		setup.observers &= ~bit;
 		if (e.second < 0 || e.second >= setup.slot_count || setup.slot_types[e.second] == 'x') continue;
 		// PlayerAssignment.rebuildList: a saved game's AI can't be replaced.
 		if (net_saved_setup() && setup.slot_types[e.second] != 'h') continue;
@@ -2841,24 +2841,33 @@ void RtsoMain::prepare_lobby_seats(rtso::GameSetupParams &setup, bool commit) {
 			if (setup.slot_types[i] == 'h' && (i >= net_saved_seats_.size() || net_saved_seats_[i].is_empty())) setup.slot_types[i] = 'x';
 		if (commit)
 			for (const auto &p : net_host_.getPeers())
-				if (p.connected && p.id != 0 && p.id < 8) net_host_.setPeerObserver(p.id, (setup.observers >> p.id) & 1);
+				if (p.connected && p.id != 0 && p.id < rtso::NET_SETUP_CLIENTS) net_host_.setPeerObserver(p.id, (setup.observers >> p.id) & 1);
 		return;
 	}
 	int need = (setup.observers & 1) ? 0 : 1;
 	for (const auto &p : net_host_.getPeers()) {
 		if (!p.connected || p.id == 0) continue;
-		const bool watches = p.id < 8 && ((setup.observers >> p.id) & 1);
-		if (commit && p.id < 8) net_host_.setPeerObserver(p.id, watches);
+		const bool watches = p.id < rtso::NET_SETUP_CLIENTS && ((setup.observers >> p.id) & 1);
+		if (commit && p.id < rtso::NET_SETUP_CLIENTS) net_host_.setPeerObserver(p.id, watches);
 		if (!watches) ++need;
 	}
 	for (uint8_t i = 0; i < setup.slot_count; ++i)
 		if (setup.slot_types[i] == 'h') --need;
 	for (uint8_t i = 0; i < setup.slot_count && need > 0; ++i)
 		if (setup.slot_types[i] == 'a') { setup.slot_types[i] = 'h'; --need; }
+	// Seat the connected clients only, and name each one's slot in seats=, so a
+	// client id freed by a leaver takes no slot from a later joiner.
+	uint64_t present = 1;
+	for (const auto &p : net_host_.getPeers())
+		if (p.connected && p.id != 0 && p.id < rtso::NET_SETUP_CLIENTS) present |= 1ull << p.id;
+	uint8_t eff[rtso::NET_SETUP_CLIENTS];
+	rtso::TurnManager::seat_clients(setup, eff, present);
+	for (uint32_t c = 0; c < rtso::NET_SETUP_CLIENTS; ++c)
+		if (eff[c] < 8) setup.seats[c] = eff[c];
 }
 
 // The slot each client would play if the host pressed Start now (0xFF: watches).
-void RtsoMain::lobby_effective_seats(uint8_t out[8]) {
+void RtsoMain::lobby_effective_seats(uint8_t out[rtso::NET_SETUP_CLIENTS]) {
 	rtso::GameSetupParams setup;
 	setup.slot_count = 0;
 	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) {
@@ -2882,10 +2891,10 @@ void RtsoMain::host_net_setup_tick(bool force) {
 	if (net_game_started_) {
 		// A client that connects mid-match (a rejoin) is told the setup too,
 		// for the game speed.
-		uint8_t now = 0;
+		uint64_t now = 0;
 		for (const auto &p : net_host_.getPeers())
-			if (p.id > 0 && p.id < 8 && p.connected && p.is_authenticated && !p.kick_disconnect_ms) {
-				now |= (uint8_t)(1u << p.id);
+			if (p.id > 0 && p.id < rtso::NET_SETUP_CLIENTS && p.connected && p.is_authenticated && !p.kick_disconnect_ms) {
+				now |= (1ull << p.id);
 				if (!((net_setup_.clients >> p.id) & 1)) net_host_.sendGameSetup(rtso::format_net_setup(net_setup_), p.id);
 			}
 		net_setup_.clients = now | 1;
@@ -2900,7 +2909,7 @@ void RtsoMain::host_net_setup_tick(bool force) {
 	// clients are told "random" and see which map only once it loads.
 	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings")))
 		if ((bool)ms->get("net_map_random")) n.setup.map_id = "random";
-	uint8_t eff[8];
+	uint8_t eff[rtso::NET_SETUP_CLIENTS];
 	{
 		rtso::GameSetupParams seated = n.setup;
 		prepare_lobby_seats(seated, false);
@@ -2909,18 +2918,18 @@ void RtsoMain::host_net_setup_tick(bool force) {
 	n.clients = 1;
 	n.names[0] = net_host_.localPlayerName();
 	for (const auto &p : net_host_.getPeers())
-		if (p.id > 0 && p.id < 8 && p.connected && p.is_authenticated && !p.kick_disconnect_ms) {
-			n.clients |= (uint8_t)(1u << p.id);
+		if (p.id > 0 && p.id < rtso::NET_SETUP_CLIENTS && p.connected && p.is_authenticated && !p.kick_disconnect_ms) {
+			n.clients |= (1ull << p.id);
 			n.names[p.id] = p.player_name;
 		}
-	for (uint32_t c = 0; c < 8; ++c) {
+	for (uint32_t c = 0; c < rtso::NET_SETUP_CLIENTS; ++c) {
 		if (!((n.clients >> c) & 1)) continue;
 		if (eff[c] < 8) n.slot_client[eff[c]] = (int8_t)c;
-		else n.observers |= (uint8_t)(1u << c);
+		else n.observers |= (1ull << c);
 	}
 	std::string key = rtso::format_game_start_full(n.setup) + ";";
 	for (int i = 0; i < 8; ++i) key += (char)('0' + n.slot_client[i] + 1);
-	key += ";" + std::to_string((unsigned)n.observers);
+	key += ";" + std::to_string((unsigned long long)n.observers);
 	n.settings_version = net_setup_.settings_version;
 	if (key != net_setup_key_) {
 		net_setup_key_ = key;
@@ -2928,9 +2937,9 @@ void RtsoMain::host_net_setup_tick(bool force) {
 		net_host_.clearAllReady();
 	}
 	for (const auto &p : net_host_.getPeers())
-		if (p.id > 0 && p.id < 8 && ((n.clients >> p.id) & 1)) {
-			if (p.ready_status == 2) n.stay_ready |= (uint8_t)(1u << p.id);
-			else if (p.ready_status == 1 && p.ready_version == n.settings_version) n.ready |= (uint8_t)(1u << p.id);
+		if (p.id > 0 && p.id < rtso::NET_SETUP_CLIENTS && ((n.clients >> p.id) & 1)) {
+			if (p.ready_status == 2) n.stay_ready |= (1ull << p.id);
+			else if (p.ready_status == 1 && p.ready_version == n.settings_version) n.ready |= (1ull << p.id);
 		}
 	const std::string body = rtso::format_net_setup(n);
 	n.seq = net_setup_.seq;
@@ -2959,7 +2968,7 @@ void RtsoMain::post_kick_chat() {
 // colorizePlayernameByGUID in the setup: the client's name in its slot's colour,
 // white while it has no slot.
 String RtsoMain::setup_client_name(const rtso::NetSetupState &n, uint32_t client) const {
-	String name = client < 8 ? String::utf8(n.names[client].c_str()) : String();
+	String name = client < rtso::NET_SETUP_CLIENTS ? String::utf8(n.names[client].c_str()) : String();
 	if (name.is_empty()) name = String::utf8(rtso::peer_guid(client).c_str());
 	const int slot = n.slot_of(client);
 	const uint32_t rgb = slot >= 0 && n.setup.colors[slot] < rtso::PLAYER_COLOR_COUNT
@@ -2973,7 +2982,7 @@ String RtsoMain::setup_client_name(const rtso::NetSetupState &n, uint32_t client
 // sends no ready message in 0.28, so it posts no "not ready" line here either.
 void RtsoMain::post_setup_chat(const rtso::NetSetupState &before, const rtso::NetSetupState &after) {
 	if (before.clients) {
-		for (uint32_t c = 1; c < 8; ++c) {
+		for (uint32_t c = 1; c < rtso::NET_SETUP_CLIENTS; ++c) {
 			const bool was = (before.clients >> c) & 1, is = (after.clients >> c) & 1;
 			if (!was && is)
 				chat_window_.append_line(sprintf0(tr("%(username)s has joined"),
@@ -2982,7 +2991,7 @@ void RtsoMain::post_setup_chat(const rtso::NetSetupState &before, const rtso::Ne
 				chat_window_.append_line(sprintf0(tr("%(username)s has left"), {{"username", setup_client_name(before, c)}}) + "\n");
 		}
 		const bool same_settings = before.settings_version == after.settings_version;
-		for (uint32_t c = 1; c < 8; ++c) {
+		for (uint32_t c = 1; c < rtso::NET_SETUP_CLIENTS; ++c) {
 			if (!((before.clients >> c) & (after.clients >> c) & 1) || after.slot_of(c) < 0) continue;
 			const bool stay = (after.stay_ready >> c) & 1;
 			const bool was = (before.ready >> c) & 1, is = (after.ready >> c) & 1;
@@ -3013,7 +3022,7 @@ void RtsoMain::send_setup_chat(const String &text) {
 
 // 0.28 sound.notify.gamesetup.join (off by default): a chime when a client joins
 // the game setup; `before` 0 is our first look at it, not a join.
-void RtsoMain::notify_setup_joins(uint8_t before, uint8_t after) {
+void RtsoMain::notify_setup_joins(uint64_t before, uint64_t after) {
 	if (before && (after & ~before) && rtso::user_config::get_bool("sound.notify.gamesetup.join"))
 		play_alarm("res://assets/audio/interface/ui/gamesetup_join.ogg");
 }
@@ -3027,6 +3036,9 @@ const char *RtsoMain::apply_net_setup_request(uint32_t client, const std::string
 	if (!ms || eq == std::string::npos) return "Unknown request";
 	if (slot < 0) return "You have no player slot";
 	if (net_saved_setup()) return "The controller loaded a saved game";
+	// 0.28 NetServer OnGameSetup: "Only the controller is allowed to send game
+	// setup updates"; a client's civ, team and colour are the host's to set.
+	if (client != 0) return "Only the controller can change the game setup";
 	if ((bool)ms->get("map_locks_players")) return "This map sets every player's civilization, team and color";
 	const std::string key = request.substr(0, eq);
 	const String sv = String(request.substr(eq + 1).c_str());
@@ -3108,7 +3120,7 @@ Dictionary RtsoMain::get_net_setup_state() const {
 	}
 	d["slots"] = slots;
 	Array observers;
-	for (int c = 0; c < 8; ++c)
+	for (uint32_t c = 0; c < rtso::NET_SETUP_CLIENTS; ++c)
 		if (((net_setup_.clients >> c) & 1) && ((net_setup_.observers >> c) & 1)) {
 			Dictionary e;
 			e["client"] = c;

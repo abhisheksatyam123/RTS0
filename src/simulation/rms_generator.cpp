@@ -1150,36 +1150,6 @@ void RmsGenerator::synth_alpine_lakes(HeightmapGrid &hm, RmsRng &rng, float &wat
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
 }
 
-void RmsGenerator::synth_lake(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
-	// lake.js: a large central lake, players around it.
-	water_h = 1.0f;
-	hm.init(hm.res, hm.map_half, 3.0f);
-	const float half = hm.map_half;
-	hm.apply_fbm(rng, 4, 0.022f, 0.5f, 2.0f, 2.5f);
-	hm.carve_crater_lake(0.0f, 0.0f, half * 0.34f, half * 0.10f, 4.0f, water_h);
-	hm.blur(1, 0.4f);
-	// lake.js: River puts the two banks 0.55 of the map apart, clear of the lake.
-	place_team_spawns(hm, rng, spawns, num_players, half * 0.68f, rng.range_float(0.0f, 6.2831853f), water_h + 1.5f, 1.1f * half);
-}
-
-void RmsGenerator::synth_gulf_of_bothnia(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
-	// gulf_of_bothnia.js: a gulf enters from the north (+z) edge to the
-	// map centre; players stand on a horseshoe around it.
-	water_h = 1.0f;
-	hm.init(hm.res, hm.map_half, 3.0f);
-	const float half = hm.map_half;
-	hm.apply_fbm(rng, 4, 0.024f, 0.5f, 2.0f, 3.0f);
-	const float wobble = rng.range_float(-0.12f, 0.12f) * half;
-	std::vector<std::pair<float, float>> gulf = {
-		{wobble, half * 1.10f}, {-wobble * 0.5f, half * 0.55f}, {wobble * 0.5f, half * 0.15f}, {0.0f, -half * 0.05f}};
-	hm.carve_spline_path(gulf, half * 0.24f, 4.0f, water_h);
-	hm.carve_crater_lake(0.0f, -half * 0.05f, half * 0.20f, half * 0.08f, 4.0f, water_h);
-	hm.blur(1, 0.4f);
-	// Horseshoe from the north-east round the south to the north-west.
-	place_ring_spawns(hm, spawns, num_players, half * 0.64f, 3.14159265f * 0.5f + 0.95f, 6.2831853f - 1.9f, water_h + 1.5f);
-	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
-}
-
 void RmsGenerator::synth_nearestern_badlands(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
 	// neareastern_badlands.js: eroded desert with canyons and small oases.
 	water_h = 0.0f;
@@ -5045,13 +5015,13 @@ void seas_bumps(HeightmapGrid &hm, RmsRng &rng, float amount, const Allow &allow
 }
 
 // createHills (18 m, ChainPlacer(1, floor(scaleByMapSize(4, 6)),
-// floor(scaleByMapSize(16, 40)), 0.5)) or createMountains (cones of
-// scaleByMapSize(30, 50) m from circles of floor(scaleByMapSize(3, 4)) to
+// floor(scaleByMapSize(16, 40)), 0.5), smoothing hill_blend) or createMountains
+// (cones of scaleByMapSize(30, 50) m, or mountain_m when set, from circles of floor(scaleByMapSize(3, 4)) to
 // floor(scaleByMapSize(6, 12)) tiles), avoiding each other by `spacing`.
 // `allow` is the script's other constraints.
 template <class Allow>
 void seas_hills(HeightmapGrid &hm, RmsRng &rng, float water_h, float amount, bool mountains, float spacing, float hill_m,
-		const Allow &allow) {
+		const Allow &allow, float hill_blend = 2.0f, float mountain_m = 0.0f) {
 	const float half = hm.map_half;
 	std::vector<uint8_t> hills(hm.data.size(), 0);
 	std::vector<float> to_hill(hm.data.size(), 1e9f);
@@ -5064,8 +5034,10 @@ void seas_hills(HeightmapGrid &hm, RmsRng &rng, float water_h, float amount, boo
 		else
 			m = seas_chain(hm, rng, x, z, 1, (int)std::floor(seas_scale(4, 6, half)), (int)std::floor(seas_scale(16, 40, half)), 0.5f, 0.0f, {}, ok);
 		if (!seas_any(m)) return false;
-		if (mountains) paint_mask_elevation(hm, m, metres(water_h, std::floor(seas_scale(30, 50, half))), (float)std::floor(seas_scale(6, 12, half)));
-		else paint_mask_elevation(hm, m, metres(water_h, hill_m), 2.0f);
+		if (mountains)
+			paint_mask_elevation(hm, m, metres(water_h, mountain_m > 0.0f ? mountain_m : std::floor(seas_scale(30, 50, half))),
+			                     (float)std::floor(seas_scale(6, 12, half)));
+		else paint_mask_elevation(hm, m, metres(water_h, hill_m), hill_blend);
 		record_area(hm, m, mountains ? AREA_MOUNTAIN : AREA_HILL);
 		seas_add(hills, m);
 		to_hill = seas_dist_inside(hm, hills);
@@ -5154,6 +5126,80 @@ void RmsGenerator::synth_canyon(HeightmapGrid &hm, RmsRng &rng, float &water_h, 
 		}
 	}
 	seas_spawns(hm, spawns, locs, 12.0f, 4.0f, water_h, land);
+}
+
+void RmsGenerator::synth_lake(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// lake.js: land at 3 m; players by the chosen pattern at f = 0.35 (River
+	// 0.55), teammates 0.1 apart; the lake is a ChainPlacer(2,
+	// floor(scaleByMapSize(5, 16)), floor(scaleByMapSize(35, 200)), Infinity)
+	// from the centre, first circle f = 0.2, set to -3 m (smoothing 4),
+	// avoiding the bases (addCivicCenterAreaToClass, a disk of 5) by 20.
+	// Then bumps (2 off the water, 20 off the bases) and either hills (18 m)
+	// or mountains, scaleByMapSize(1, 4) per player, 20 off the bases, 15
+	// apart, 2 off the water.
+	water_h = 1.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	const float land = metres(water_h, 3.0f);
+	hm.init(hm.res, hm.map_half, land);
+	const int pattern = t_team_placement.pattern;
+	const float start = rng.range_float(0.0f, 2.0f * kSeasPi);
+	const auto locs = pattern >= 0
+		? pattern_locs(hm, rng, pattern, num_players, t_team_placement.teams, (pattern == 4 ? 0.55f : 0.35f) * size, 0.1f * size, start)
+		: seas_circle_players(num_players, start, 0.35f * size, t_team_placement.teams);
+	const auto to_player = seas_dist_to_players(hm, locs, 5.0f);
+	const auto water = seas_chain(hm, rng, 0.0f, 0.0f, 2, (int)std::floor(seas_scale(5, 16, half)), (int)std::floor(seas_scale(35, 200, half)),
+	                              1e9f, 0.0f, {(int)std::floor(0.2f * size)}, [&](int i) { return to_player[(size_t)i] > 20.0f; });
+	paint_mask_elevation(hm, water, metres(water_h, -3.0f), 4.0f);
+	const auto to_water = seas_dist_inside(hm, water);
+	seas_bumps(hm, rng, seas_scale(100, 200, half), [&](int i) { return to_water[(size_t)i] > 2.0f && to_player[(size_t)i] > 20.0f; });
+	const bool mountains = rng.range_int(0, 1) == 0;
+	seas_hills(hm, rng, water_h, seas_scale(1, 4, half) * (float)num_players, mountains, 15.0f, 18.0f,
+	           [&](int i) { return to_player[(size_t)i] > 20.0f && to_water[(size_t)i] > 2.0f; });
+	seas_spawns(hm, spawns, locs, 16.0f, 6.0f, water_h, land);
+}
+
+void RmsGenerator::synth_gulf_of_bothnia(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// gulf_of_bothnia.js (unfrozen biomes): land at 3 m; players sorted by
+	// team on an arc at f = 0.35, from startAngle + pi/3 to startAngle +
+	// 5pi/3; the gulf is three ChainPlacer(2, floor(scaleByMapSize(5, 16)),
+	// floor(scaleByMapSize(35, n)), Infinity) lakes set to -3 m (smoothing 4)
+	// at f = 0, 0.3 and 0.5 from the centre towards startAngle (first circles
+	// f = 0.175, 0.2 and 0.225; n = 200, 120, 100), avoiding the bases by
+	// scaleByMapSize(20, 28). Then bumps (2 off the gulf, 10 off the bases)
+	// and either hills (18 m, smoothing 4) or mountains of
+	// floor(scaleByMapSize(20, 40)) m, scaleByMapSize(1, 4) per player, 20
+	// off the bases, 15 apart, off the gulf.
+	water_h = 1.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	const float land = metres(water_h, 3.0f);
+	hm.init(hm.res, hm.map_half, land);
+	const float start = rng.range_float(0.0f, 2.0f * kSeasPi);
+	std::vector<int> order((size_t)num_players);
+	for (int i = 0; i < num_players; ++i) order[(size_t)i] = i;
+	std::stable_sort(order.begin(), order.end(), [](int a, int b) { return t_team_placement.teams[a] < t_team_placement.teams[b]; });
+	std::vector<std::pair<float, float>> locs((size_t)num_players);
+	for (int k = 0; k < num_players; ++k) {
+		const float t = num_players == 1 ? 1.0f : 2.0f * (float)k / (float)(num_players - 1);
+		locs[(size_t)order[(size_t)k]] = polar(start + kSeasPi / 3.0f * (1.0f + 2.0f * t), 0.35f * size);
+	}
+	const auto to_player = seas_dist_to_players(hm, locs, 5.0f);
+	const float avoid = seas_scale(20, 28, half);
+	std::vector<uint8_t> gulf(hm.data.size(), 0);
+	const struct { float x, r; int circles; } lakes[] = {{0.0f, 0.175f, 200}, {0.3f, 0.2f, 120}, {0.5f, 0.225f, 100}};
+	for (const auto &l : lakes) {
+		const auto c = polar(start, l.x * size);
+		const auto m = seas_chain(hm, rng, c.first, c.second, 2, (int)std::floor(seas_scale(5, 16, half)),
+		                          (int)std::floor(seas_scale(35, (float)l.circles, half)), 1e9f, 0.0f, {(int)std::floor(l.r * size)},
+		                          [&](int i) { return to_player[(size_t)i] > avoid; });
+		paint_mask_elevation(hm, m, metres(water_h, -3.0f), 4.0f);
+		seas_add(gulf, m);
+	}
+	const auto to_gulf = seas_dist_inside(hm, gulf);
+	seas_bumps(hm, rng, seas_scale(100, 200, half), [&](int i) { return to_gulf[(size_t)i] > 2.0f && to_player[(size_t)i] > 10.0f; });
+	const bool mountains = rng.range_int(0, 1) == 0;
+	seas_hills(hm, rng, water_h, seas_scale(1, 4, half) * (float)num_players, mountains, 15.0f, 18.0f,
+	           [&](int i) { return to_player[(size_t)i] > 20.0f && to_gulf[(size_t)i] > 0.0f; }, 4.0f, std::floor(seas_scale(20, 40, half)));
+	seas_spawns(hm, spawns, locs, 16.0f, 6.0f, water_h, land);
 }
 
 void RmsGenerator::synth_aegean_sea(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
