@@ -1,13 +1,15 @@
 extends SceneTree
 # 0.28's developer overlay (gui/session/developer_overlay): Alt+D opens the panel
-# and says so in the chat; Display selection state shows the first selected
-# entity's state; Reveal map reveals and hides the map again ("reveal-map");
-# Restrict camera lets the camera leave the map when cleared; Promote selected
-# units raises the selection a rank ("promote"); Change perspective shows the
-# player view dropdown, and picking a player or Observer re-seats this client;
-# Enable time warp snapshots the game every 10 turns and rewinds to the last one;
-# the pathfinder, hierarchical pathfinder, obstruction, unit motion, range and
-# bounding box overlays draw while ticked; Activate Rejoin Test (not on random maps) rejoins a copy of
+# and says so in the chat; Control all units orders every live unit ("control-all");
+# Display selection state shows the first selected entity's state; Reveal map reveals
+# and hides the map again ("reveal-map"); Restrict camera lets the camera leave the
+# map when cleared; Promote selected units raises the selection a rank ("promote");
+# Change perspective shows the player view dropdown, and picking a player or Observer
+# re-seats this client; Enable time warp snapshots the game every 10 turns and rewinds
+# to the last one; the pathfinder, hierarchical pathfinder, obstruction, unit motion,
+# range and bounding box overlays draw while ticked; Enable culling, Lock cull camera,
+# Display camera frustum and Display shadows frustum drive the culling and its boxes;
+# Activate Rejoin Test (not on random maps) rejoins a copy of
 # the game and replays every turn onto it, an Out of Sync box naming any turn
 # where the two part.
 #
@@ -170,8 +172,10 @@ func run() -> void:
 	check(main.time_warp_snapshot_count() == 0, "turning it off drops the snapshots")
 
 	var rows: Array = Array(main.debug_dev_overlay()["commands"])
-	check(rows.slice(0, 7) == ["Change perspective", "Display selection state", "Pathfinder overlay",
+	check(rows.slice(0, 8) == ["Control all units", "Change perspective", "Display selection state", "Pathfinder overlay",
 		"Hierarchical pathfinder overlay", "Obstruction overlay", "Unit motion overlay", "Range overlay"], "the rows run in 0.28's order: %s" % [rows])
+	check(rows.slice(13) == ["Promote selected units", "Enable culling", "Lock cull camera",
+		"Display camera frustum", "Display shadows frustum"], "the culling boxes close the list: %s" % [rows.slice(13)])
 	for o in ["pathfinder", "hier_pathfinder", "obstruction", "unit_motion", "range", "bounding_box"]:
 		check(int(main.debug_dev_overlay()[o + "_drawn"]) == 0, "nothing drawn by the %s overlay while it is off" % o)
 	main.debug_selection_grid(true)
@@ -232,6 +236,37 @@ func run() -> void:
 	check(int(main.get_rejoin_test()["out_of_sync_turn"]) > 0 and oos != null, "a change the copy didn't get shows as Out of Sync (turn %d)" % int(main.get_rejoin_test()["out_of_sync_turn"]))
 	if oos:
 		oos.press(0)
+	await frames(2)
+
+	print("Control all units and the culling boxes")
+	press("Control all units")
+	await frames(3)
+	d = main.debug_dev_overlay()
+	check(d["control_all"], "Control all units sets the flag")
+	check(box("Control all units").button_pressed, "its box stays ticked")
+	check(main.debug_dev_overlay()["chat_log"].contains("> (Cheat - control all units)"), "and \"(Cheat - control all units)\" in the chat")
+	press("Control all units")
+	await frames(3)
+	check(not main.debug_dev_overlay()["control_all"], "clearing it drops the flag")
+
+	press("Enable culling")
+	await frames(2)
+	check(not main.debug_dev_overlay()["culling_enabled"], "Enable culling clears, and the box follows")
+	press("Enable culling")
+	await frames(2)
+	check(main.debug_dev_overlay()["culling_enabled"], "ticking it again restores culling")
+	press("Lock cull camera")
+	await frames(2)
+	check(main.debug_dev_overlay()["lock_cull_camera"], "Lock cull camera holds the cull frustum")
+	press("Display camera frustum")
+	press("Display shadows frustum")
+	await frames(2)
+	d = main.debug_dev_overlay()
+	check(int(d["cull_camera_frustum_drawn"]) > 0, "the cull camera frustum draws its box (%d)" % int(d["cull_camera_frustum_drawn"]))
+	check(int(d["shadows_frustum_drawn"]) > 0, "the shadow cascades draw their boxes (%d)" % int(d["shadows_frustum_drawn"]))
+	press("Display camera frustum")
+	press("Display shadows frustum")
+	press("Lock cull camera")
 	await frames(2)
 
 	var rdm = main.find_child("RenderDebugMode", true, false)

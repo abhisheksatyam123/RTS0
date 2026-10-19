@@ -37,9 +37,12 @@ CHECK_TOL = 1e-3
 # GLB -> (the idle PSA its Idle came from, the actor's feeding PSA): base_bovidae_wild
 # (bull, cow, sanga_cattle, wildebeest, zebu_wild) and base_fox (fox_red, fox_arctic).
 # The other 0.28 animals have no feeding (horse, zebra: idle) or feed with their
-# idles (pony, hippopotamus), except horse_breed (horse_breed_idle_04; its skeleton
-# has no standard skeleton file) and the peacock (its GLB clips don't come back
-# from their PSAs by any one map).
+# idles (pony, hippopotamus). horse_breed (horse_breed_idle_04, named "feeding" in
+# base_horse_breed_fauna.xml) and the peacock (peacock_feeding.dae) DO have their own
+# feeding clips, but this PSA tool cannot reach them: the breed rig is Blender-named
+# (no standard skeleton fits) and the peacock's rest pose was re-exported after the
+# release (its GLB Idle does not rebuild from the PSA). They are appended from the
+# source .dae instead: tools/extract_0ad_fauna_models.py --feeding-only.
 BOVID = ("quadraped/bovidae_idle_a.dae", "quadraped/bovidae_feeding.dae")
 FEEDING = {
     "fauna_bull": BOVID,

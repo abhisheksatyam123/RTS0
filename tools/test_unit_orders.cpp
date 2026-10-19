@@ -615,7 +615,9 @@ static void test_lockstep() {
 	bw.client_id = 0; bw.cmd_type = 31; bw.entity_ids = {w};
 	tm.post_local_command(bw);
 	turns(0.4f);
-	check(s.unit_order(w).kind == ORDER_NONE, "no work order yet: back to work does nothing");
+	// Stop keeps the queue from its first work order (UpdateWorkOrders): the queued gather.
+	check(s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == tree,
+			"Stop kept the queued gather: back to work goes to it");
 	c.cmd_type = 4; c.target_id = tree; c.param = 0; c.entity_ids = {w};
 	tm.post_local_command(c);
 	turns(1.0f);
@@ -1843,6 +1845,42 @@ static void test_idle_at_dropsite() {
 	(void)store;
 }
 
+// UnitAI.js FINDINGNEWTARGET: a gatherer far from its exhausted patch, with nothing near it
+// or where it started, walks back to where it started and searches again first
+// (GatherNearPosition, UnitAI.js:2640), instead of going to a dropsite at once.
+static void test_gather_walk_back() {
+	std::printf("45b. a gatherer far from its exhausted patch walks back to start first (FINDINGNEWTARGET)\n");
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t tree = s.spawn_resource_world(10, 0, RES_WOOD, 500);
+	uint32_t w = s.spawn_unit(8, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&w, 1, tree);
+	check(run_until(s, 10.0f, [&] { return act_of(s, w) == ACTION_GATHER; }), "she gathers the tree");
+	// Driven far off, with the patch exhausted while away and nothing else around.
+	int wi = idx_of(s, w);
+	s.units_.pos_x[wi] = 40.0f;
+	s.units_.pos_z[wi] = 0.0f;
+	s.units_.target_x[wi] = 40.0f;
+	s.units_.target_z[wi] = 0.0f;
+	s.units_.waypoint_cur[wi] = 0;
+	s.units_.waypoint_count[wi] = 0;
+	s.units_.carry[wi] = 0;
+	const int ti = (int)s.res_id_to_idx_.at(tree);
+	s.resources_.amount[ti] = 0;
+	s.resources_.alive[ti] = 0;
+	const bool leg = run_until(s, 10.0f, [&] {
+		const int k = idx_of(s, w);
+		return s.unit_order(w).kind == ORDER_GATHER && s.units_.target_resource_id[k] == 0 &&
+			s.units_.action_state[k] == ACTION_MOVE;
+	});
+	check(leg, "she walks back to where the patch was");
+	const bool back = run_until(s, 60.0f, [&] { return dist(s, w, 10, 0) < 5.0f; });
+	check(back, "she reaches the old patch");
+	const bool idles = run_until(s, 60.0f, [&] { return dist(s, w, -20, 0) < 6.0f; });
+	check(idles, "with nothing there she goes on to the storehouse");
+}
+
 
 static void test_chase_into_fog() {
 	std::printf("46. a chase is dropped once the target is hidden in the fog (ShouldAbandonChase)\n");
@@ -3049,6 +3087,122 @@ static void test_allied_builders_continue() {
 			"the allied builder goes on to its own player's foundation nearby");
 }
 
+static void test_work_order_queue() {
+	std::printf("87. Back to Work restores the work queue from its first work order (UpdateWorkOrders)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t tree = s.spawn_resource_world(5, 0, RES_WOOD, 500);
+	const uint32_t house = s.spawn_building_world(12.0f, 8.0f, BLD_HOUSE, 0, 0.0f);
+	uint32_t w = s.spawn_unit(3.5f, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&w, 1, tree);
+	s.order_build_or_repair(&w, 1, house, true); // Shift: build the house after
+	run(s, 2.0f);
+	s.order_walk(&w, 1, -20, 0);
+	s.cmd_stop(&w, 1); // a Stop after that keeps the work orders the walk kept
+	run(s, 1.0f);
+	check(s.unit_has_work_order(w), "the work orders are kept");
+	{
+		const char *path = "/tmp/rts0_test_work_orders.sav";
+		check(s.save_state(path), "saved");
+		Simulation t;
+		check(t.load_state(path), "loaded");
+		check(t.work_orders_.count(w) && t.work_orders_.at(w).size() == 2, "the work queue survives a save");
+	}
+	s.order_back_to_work(&w, 1);
+	const std::vector<UnitOrder> *q = s.unit_order_queue(w);
+	check(s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == tree, "back to the tree");
+	check(q && q->size() == 1 && (*q)[0].kind == ORDER_BUILD && (*q)[0].target == house, "with the house queued behind it");
+
+	// A trader sheltered in a house goes back to trading.
+	const uint32_t ma = s.spawn_building_world(-40, 20, BLD_MARKET, 0, 1.0f);
+	const uint32_t mb = s.spawn_building_world(40, 20, BLD_MARKET, 0, 1.0f);
+	const uint32_t shelter = s.spawn_building_world(-30, 30, BLD_HOUSE, 0, 1.0f);
+	uint32_t tr = s.spawn_unit(-38, 28, 0, UNIT_TRADER);
+	s.order_trade(&tr, 1, ma, mb, false);
+	run(s, 2.0f);
+	s.order_garrison(&tr, 1, shelter);
+	run_until(s, 10.0f, [&] { return act_of(s, tr) == ACTION_GARRISONED; });
+	s.order_ungarrison(shelter);
+	run(s, 1.0f);
+	s.order_back_to_work(&tr, 1);
+	check(s.unit_order(tr).kind == ORDER_TRADE && s.unit_order(tr).target == ma, "the trader resumes its route");
+}
+
+static void test_rally_commands() {
+	std::printf("88. rally commands a target alone doesn't give (RallyPointCommands.js)\n");
+	Simulation s;
+	setup(s);
+	s.set_diplomacy(0, 2, Simulation::DIPLO_ALLY);
+	s.set_diplomacy(2, 0, Simulation::DIPLO_ALLY);
+	const uint32_t brk = s.spawn_building_world(0.0f, 0.0f, BLD_BARRACKS, 0, 1.0f);
+	auto bref = [&]() -> const Simulation::Building & { return *bld(s, brk); };
+	auto trained = [&](UnitType t) {
+		const uint32_t u = s.spawn_unit(4.0f, 4.0f, 0, t);
+		s.apply_rally_point(u, bref());
+		return u;
+	};
+	s.cmd_set_rally_point(0, brk, 20.0f, 0.0f, 0, 0, false, RALLY_CMD_ATTACK_WALK);
+	check(s.unit_order(trained(UNIT_SPEARMAN)).kind == ORDER_WALK_AND_FIGHT, "attack-walk (session.attackmove)");
+	s.cmd_set_rally_point(0, brk, 20.0f, 0.0f, 0, 0, false, RALLY_CMD_ATTACK_WALK_UNITS);
+	{
+		const UnitOrder o = s.unit_order(trained(UNIT_SPEARMAN));
+		check(o.kind == ORDER_WALK_AND_FIGHT && (o.flags & ORDER_FLAG_UNITS_ONLY), "attack-walk on units only (session.attackmoveUnit)");
+	}
+	uint32_t foe = s.spawn_unit(22.0f, 0.0f, 1, UNIT_SPEARMAN);
+	s.cmd_set_rally_point(0, brk, 22.0f, 0.0f, 0, 0, false, RALLY_CMD_ATTACK, foe);
+	{
+		const UnitOrder o = s.unit_order(trained(UNIT_SPEARMAN));
+		check(o.kind == ORDER_ATTACK && o.target == foe, "attack an enemy unit");
+	}
+	s.cmd_delete(1, &foe, 1);
+	check(s.unit_order(trained(UNIT_SPEARMAN)).kind == ORDER_WALK_AND_FIGHT, "attack-walk there once it is gone");
+	const uint32_t treasure = s.spawn_treasure(-15.0f, 5.0f, 0);
+	s.cmd_set_rally_point(0, brk, -15.0f, 5.0f, 0, 0, false, RALLY_CMD_TREASURE, treasure);
+	{
+		const UnitOrder o = s.unit_order(trained(UNIT_FEMALE_CITIZEN));
+		check(o.kind == ORDER_COLLECT_TREASURE && o.target == treasure, "collect a treasure");
+	}
+	const uint32_t ally_house = s.spawn_building_world(-10.0f, -12.0f, BLD_HOUSE, 2, 1.0f);
+	s.cmd_set_rally_point(0, brk, -10.0f, -12.0f, 0, ally_house);
+	{
+		const UnitOrder o = s.unit_order(trained(UNIT_FEMALE_CITIZEN)); // a house takes support units
+		check(o.kind == ORDER_GARRISON && o.target == ally_house, "garrison in a mutual ally's structure");
+	}
+	const uint32_t ally_found = s.spawn_building_world(12.0f, -12.0f, BLD_HOUSE, 2, 0.0f);
+	s.cmd_set_rally_point(0, brk, 12.0f, -12.0f, 0, ally_found);
+	{
+		const UnitOrder o = s.unit_order(trained(UNIT_FEMALE_CITIZEN));
+		check(o.kind == ORDER_BUILD && o.target == ally_found, "repair an ally's foundation");
+	}
+	const uint32_t ma = s.spawn_building_world(-40, 20, BLD_MARKET, 0, 1.0f);
+	const uint32_t mb = s.spawn_building_world(40, 20, BLD_MARKET, 0, 1.0f);
+	s.cmd_set_rally_point(0, ma, 40.0f, 20.0f, 0, mb, false, RALLY_CMD_TRADE);
+	{
+		const uint32_t tr = s.spawn_unit(-36.0f, 24.0f, 0, UNIT_TRADER);
+		s.apply_rally_point(tr, *bld(s, ma));
+		const UnitOrder o = s.unit_order(tr);
+		check(o.kind == ORDER_TRADE && o.target == ma, "a trader trades from the market that trained it to the rally market");
+		const uint32_t w = s.spawn_unit(-36.0f, 26.0f, 0, UNIT_FEMALE_CITIZEN);
+		s.apply_rally_point(w, *bld(s, ma));
+		check(s.unit_order(w).kind != ORDER_TRADE, "anyone else doesn't trade");
+	}
+	// Shift-added steps keep their commands, through a save.
+	s.cmd_set_rally_point(0, brk, 20.0f, 0.0f, 0, 0, false, RALLY_CMD_ATTACK_WALK);
+	s.cmd_set_rally_point(0, brk, -15.0f, 5.0f, 0, 0, true, RALLY_CMD_TREASURE, treasure);
+	const char *path = "/tmp/rts0_test_rally_commands.sav";
+	check(s.save_state(path), "saved");
+	Simulation t;
+	check(t.load_state(path), "loaded");
+	const Simulation::Building *tb = bld(t, brk);
+	check(tb && tb->rally_cmd == RALLY_CMD_ATTACK_WALK && tb->rally_more.size() == 1 &&
+			tb->rally_more[0].cmd == RALLY_CMD_TREASURE && tb->rally_more[0].ent_id == treasure, "the commands survive a save");
+	const uint32_t u = t.spawn_unit(4.0f, 4.0f, 0, UNIT_FEMALE_CITIZEN);
+	t.apply_rally_point(u, *tb);
+	const std::vector<UnitOrder> *q = t.unit_order_queue(u);
+	check(t.unit_order(u).kind == ORDER_WALK_AND_FIGHT && q && q->size() == 1 && (*q)[0].kind == ORDER_COLLECT_TREASURE,
+			"attack-walk there, then the treasure");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3098,6 +3252,7 @@ int main(int argc, char **argv) {
 	test_flee_source();
 	test_autoharvest();
 	test_idle_at_dropsite();
+	test_gather_walk_back();
 	test_chase_into_fog();
 	test_hidden_attacker();
 	test_patrol_loop();
@@ -3139,6 +3294,8 @@ int main(int argc, char **argv) {
 	test_passive_siege_flees();
 	test_unload_self_garrison_rally();
 	test_allied_builders_continue();
+	test_work_order_queue();
+	test_rally_commands();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

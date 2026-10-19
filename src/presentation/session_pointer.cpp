@@ -80,10 +80,21 @@ void RtsoMain::update_cursor() {
 				// units will do there (RallyPoint orders: gather, repair, garrison, attack).
 				want = "cursor-rally";
 				hot = Vector2(5, 31);
-				uint32_t res = 0, bld = 0;
-				rally_target_at(at, res, bld);
+				uint32_t res = 0, bld = 0, ent = 0;
+				uint8_t rcmd = rtso::RALLY_CMD_AUTO;
+				rally_target_at(at, res, bld, &ent, &rcmd);
 				const uint8_t me = local_player();
-				if (res) {
+				if (rcmd == rtso::RALLY_CMD_ATTACK_WALK || rcmd == rtso::RALLY_CMD_ATTACK_WALK_UNITS) {
+					want = "action-attack-move";
+				} else if (rcmd == rtso::RALLY_CMD_ATTACK) {
+					want = "action-attack";
+				} else if (rcmd == rtso::RALLY_CMD_TREASURE) {
+					want = "action-collect-treasure";
+				} else if (rcmd == rtso::RALLY_CMD_TRADE) {
+					want = "action-setup-trade-route";
+				} else if (rcmd == rtso::RALLY_CMD_TURRET) {
+					want = "action-garrison";
+				} else if (res) {
 					auto rv = sim->resources();
 					for (size_t r = 0; r < rv.count; ++r) {
 						if (rv.id[r] != res) continue;
@@ -101,7 +112,7 @@ void RtsoMain::update_cursor() {
 				} else if (bld) {
 					for (const auto &b : sim->buildings()) {
 						if (b.id != bld) continue;
-						if (b.team == me) {
+						if (b.team == me || sim->is_ally(me, b.team)) {
 							if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) {
 								want = "action-repair";
 							} else if (const int capacity = sim->get_garrison_capacity(b.id); capacity > 0) {
@@ -296,13 +307,6 @@ void RtsoMain::update_cursor() {
 		return;
 	}
 	Ref<Texture2D> tex = load_tex(String("res://assets/textures/cursors/") + want + ".png");
-	if (tex.is_null()) {
-		// 0.28's own art for these isn't in the repo yet (ASSET_MANIFEST_TODO): the nearest cursor.
-		static const char *const kStandIn[][2] = {{"action-player-flare", "action-flare"},
-				{"action-observer-flare", "action-flare"}, {"action-target", "action-attack"}};
-		for (const auto &m : kStandIn)
-			if (std::strcmp(want, m[0]) == 0) tex = load_tex(String("res://assets/textures/cursors/") + m[1] + ".png");
-	}
 	if (tex.is_null()) {
 		// Cursors not ported yet (-disabled variants, cancel-setup-trade-route) use the base one.
 		String base = String(want).trim_suffix("-disabled").replace("action-cancel-", "action-");

@@ -143,6 +143,11 @@ static func end_game(m: Node, show_summary: bool) -> void:
 			g["replayDirectory"] = str(status.get("replay_dir", ""))
 		var summary_script: GDScript = load("res://scenes/session/summary_screen.gd")
 		summary_script.pending = {"gui": g, "data": m.get_match_statistics()}
+		# 0.28's summary keeps the match's music playing until the main menu
+		# (gui/summary/summary.js has no music calls): hand the track over, since
+		# the session scene (and its players) leaves the tree with the match.
+		var audio: Dictionary = m.get_audio_state()
+		ms.match_music = {"track": str(audio.get("track", "")), "position": float(audio.get("music_position", 0.0))}
 		ms.go("res://scenes/session/summary_screen.tscn")
 	elif ms.campaign_run != "":
 		load("res://scenes/session/summary_screen.gd").leave_campaign(m.get_summary_gui(false).get("victory", false))
