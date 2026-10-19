@@ -14,6 +14,7 @@
 #include <godot_cpp/classes/cylinder_mesh.hpp>
 #include <godot_cpp/classes/standard_material3d.hpp>
 #include <godot_cpp/variant/packed_int32_array.hpp>
+#include <godot_cpp/variant/plane.hpp>
 #include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/classes/audio_stream_player3d.hpp>
 #include <godot_cpp/classes/audio_stream.hpp>
@@ -57,7 +58,6 @@ class RtsoWorldView : public Node3D {
 		Node3D *root = nullptr;
 		Node *model = nullptr;
 		AnimationPlayer *anim = nullptr;
-		MeshInstance3D *ring = nullptr;
 		MeshInstance3D *hp_bg = nullptr;
 		MeshInstance3D *hp_fg = nullptr;
 		MeshInstance3D *xp_bg = nullptr; // StatusBars AddExperienceBar
@@ -344,17 +344,19 @@ class RtsoWorldView : public Node3D {
 	bool apply_sky_box(const godot::Ref<godot::Sky> &sky, const std::string &set, const std::string &map_id, float sun_yaw, const godot::Color &ground);
 	godot::Ref<godot::Shader> sky_box_shader_;
 
-	Ref<TorusMesh> ring_mesh;
-	Ref<StandardMaterial3D> ring_sel_mat;
-	std::vector<MeshInstance3D *> fauna_rings_; // selection rings of the player's own selected livestock
-	Ref<StandardMaterial3D> ring_enemy_mat;
-	// selection.js setHighlightList: the hovered or band-boxed entities, ringed at g_HighlightedAlpha.
-	Ref<StandardMaterial3D> ring_hl_mat, ring_enemy_hl_mat;
+	Ref<Texture2D> ring_decal_tex_;
+	std::vector<Decal *> unit_ring_decals_;
+	static inline const Color RING_SEL_COL = Color(0.2f, 1.0f, 0.4f, 1.0f);
+	static inline const Color RING_ENEMY_COL = Color(0.92f, 0.25f, 0.2f, 1.0f);
+	static inline const Color RING_HL_COL = Color(0.2f, 1.0f, 0.4f, 0.75f);
+	static inline const Color RING_ENEMY_HL_COL = Color(0.92f, 0.25f, 0.2f, 0.75f);
+	Ref<StandardMaterial3D> ring_sel_mat, ring_enemy_mat, ring_hl_mat, ring_enemy_hl_mat;
 	std::unordered_set<int32_t> highlight_set_;
 	std::unordered_set<int32_t> sel_buildings_; // the selected structures (outlined)
 	Ref<BoxMesh> outline_mesh_;
 	std::vector<MeshInstance3D *> outline_bars_;
 	void draw_structure_outlines(const rtso::Simulation *sim);
+	Decal *get_or_create_ring_decal(size_t index);
 
 	Ref<BoxMesh> hp_bg_mesh;
 	Ref<BoxMesh> hp_fg_mesh;
@@ -371,16 +373,17 @@ class RtsoWorldView : public Node3D {
 	// with its own 0 A.D. models. Each clip is a few baked poses cycled in place.
 	static constexpr int CROWD_CLIP_COUNT = 61; // see crowd_clips() in world_view_node.cpp
 	static constexpr int FAUNA_CLIP_COUNT = 7;  // idle, move, attack, death, idle2, death2, feeding
-	static constexpr int CROWD_FRAMES_PER_CLIP = 6;
+	static constexpr int CROWD_FRAMES_PER_CLIP = 12;
+	static constexpr int CROWD_PHASES = 3;
 	struct CrowdPuppet {
 		String clip;
 		Ref<ArrayMesh> posed_frames[CROWD_FRAMES_PER_CLIP];
 		int baked_count = 0;
-		int last_frame = -1;
+		int last_frame[CROWD_PHASES] = {-1, -1, -1};
 	};
 	struct CrowdBatch {
-		MultiMeshInstance3D *mmi[CROWD_CLIP_COUNT] = {};
-		Ref<MultiMesh> mm[CROWD_CLIP_COUNT];
+		MultiMeshInstance3D *mmi[CROWD_CLIP_COUNT][CROWD_PHASES] = {};
+		Ref<MultiMesh> mm[CROWD_CLIP_COUNT][CROWD_PHASES];
 		CrowdPuppet puppet[CROWD_CLIP_COUNT];
 		bool clip_baked[CROWD_CLIP_COUNT] = {};
 		Ref<Mesh> rest;
@@ -437,7 +440,7 @@ class RtsoWorldView : public Node3D {
 	// Skeletal animation controllers per unit type
 	rtso::AnimationController anim_controllers[rtso::UNIT_TYPE_COUNT];
 
-	static constexpr int MAX_DETAILED_UNITS = 24;
+	static constexpr int MAX_DETAILED_UNITS = 64;
 	float anim_time = 0.0f;
 	uint32_t unit_vis_stamp = 1;
 	// 0 A.D.'s "silhouettes" option (shaders/silhouette.gdshader): units hidden
@@ -511,6 +514,12 @@ public:
 	// session.showstatusbars (Tab): bars over every visible unit and structure.
 	void set_show_all_status_bars(bool on) { show_all_status_bars_ = on; }
 	bool show_all_status_bars() const { return show_all_status_bars_; }
+	// The developer overlay's Enable culling (GameView.cpp Culling, on by default):
+	// off, every detailed mixer advances and nothing banks time for being unseen.
+	void set_anim_culling(bool on) { anim_cull_enabled_ = on; }
+	// Lock cull camera (GameView.cpp LockCullCamera, m_CullCamera): the frustum the
+	// animation culling tests, frozen until cleared (empty planes: follow the camera).
+	void set_locked_cull_frustum(const std::vector<Plane> &planes) { locked_cull_frustum_ = planes; }
 	// StatusBars.js sprites drawn this frame (tests).
 	int status_sprite_count() const { return status_sprites_.sprite_count(); }
 	const PackedStringArray &status_rank_icons() const { return status_rank_icons_; } // drawn last frame (tests)
@@ -526,6 +535,8 @@ public:
 private:
 	uint8_t local_player_ = 0;
 	bool show_all_status_bars_ = false;
+	bool anim_cull_enabled_ = true; // GameView.cpp Culling
+	std::vector<Plane> locked_cull_frustum_; // GameView.cpp m_CullCamera (empty: follow the camera)
 	// StatusBars.js sprites of every entity with status bars on (status_sprites.h).
 	RtsoStatusSprites status_sprites_;
 	bool status_sprites_built_ = false;
@@ -609,7 +620,7 @@ private:
 	static void set_building_pose(BuildingVis &v, Node3D *n3, const Vector3 &scale, const Vector3 &rot, const Vector3 &pos);
 	void hide_unit_vis(UnitVis &v);
 	CrowdBatch &crowd_batch(uint8_t civ, uint16_t key);
-	MultiMesh *crowd_mm(CrowdBatch &b, int clip);
+	MultiMesh *crowd_mm(CrowdBatch &b, int clip, int phase = 0);
 	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks.
 	void bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
 			const bool *needed, int count, uint64_t death_slots, bool female = false);
@@ -618,7 +629,8 @@ private:
 	void ensure_runtime_clips(AnimationPlayer *ap, bool female);
 	// Parents the carry shuttle for `clip` (a carry variant) to its 0 A.D. prop point.
 	Node3D *attach_carry_prop(Node *model, uint8_t clip, bool female);
-	void cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint64_t death_slots);
+	void cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> meshes[][CROWD_PHASES], const int counts[][CROWD_PHASES], int count, uint64_t death_slots);
+	void cycle_fauna_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint64_t death_slots);
 	void ensure_crowd_frames(uint8_t civ, uint16_t key, const int *counts);
 	void ensure_fauna_frames(uint8_t ftype);
 	void init_animation_controllers();

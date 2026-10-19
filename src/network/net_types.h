@@ -172,7 +172,8 @@ enum class NetCommandType : uint8_t {
 	// load at dropsite target_id. param bit NET_PARAM_QUEUED queues it.
 	NET_CMD_RETURN_RESOURCE = 34,
 	// 0 A.D. "setup-trade-route" (Commands.js, UnitAI Trade): traders in entity_ids
-	// trade between market target_id and the market whose id is target_x.
+	// trade between market target_id and the market whose id is target_x; `route` holds
+	// the clicked waypoints between them as flat x,z pairs (UnitAI SetupTradeRoute route).
 	// param bit NET_PARAM_QUEUED queues it.
 	NET_CMD_SETUP_TRADE_ROUTE = 35,
 	// 0 A.D. "alert-raise" / "alert-end" (AlertRaiser.js) on structure target_id;
@@ -249,6 +250,9 @@ struct NetCommand {
 	float target_z = 0.0f;
 	uint32_t target_id = 0;
 	uint8_t param = 0;
+	// P6 trade-route waypoints (0 A.D. setup-trade-route cmd.route): flat x,z pairs between
+	// the two markets of NET_CMD_SETUP_TRADE_ROUTE (35). Empty on every other command.
+	std::vector<float> route;
 };
 
 struct NetMessage {
@@ -1058,6 +1062,12 @@ inline void serialize_net_command(std::vector<uint8_t> &buf, const NetCommand &c
 	for (uint32_t id : cmd.entity_ids) {
 		write_u32(buf, id);
 	}
+	// The trade route rides at the end, so commands from older builds (which end at
+	// entity_ids) still read: a missing tail is an empty route.
+	write_u32(buf, static_cast<uint32_t>(cmd.route.size()));
+	for (float v : cmd.route) {
+		write_float(buf, v);
+	}
 }
 
 inline bool deserialize_net_command(const uint8_t *data, size_t size, size_t &offset, NetCommand &cmd) {
@@ -1075,6 +1085,17 @@ inline bool deserialize_net_command(const uint8_t *data, size_t size, size_t &of
 		uint32_t id = 0;
 		if (!read_u32(data, size, offset, id)) return false;
 		cmd.entity_ids.push_back(id);
+	}
+	cmd.route.clear();
+	if (offset == size) return true; // an older build's command: no route
+	uint32_t nroute = 0;
+	if (!read_u32(data, size, offset, nroute)) return false;
+	if (nroute > 2 * 64) return false; // longer than any route order_trade keeps
+	cmd.route.reserve(nroute);
+	for (uint32_t i = 0; i < nroute; ++i) {
+		float v = 0.0f;
+		if (!read_float(data, size, offset, v)) return false;
+		cmd.route.push_back(v);
 	}
 	return true;
 }

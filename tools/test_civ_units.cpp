@@ -7,6 +7,7 @@
 #include "simulation/simulation.h"
 #include "simulation/entity_limits_data.h"
 #include "simulation/promotion_data.h"
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -584,6 +585,29 @@ int main() {
 		      BUILDING_LIMIT_CATEGORY[BLD_ICE_HOUSE] == LIMIT_YAKHCHAL && e.entity_limit(0, LIMIT_YAKHCHAL) == 5);
 		CHECK(!e.entity_limit_allows_unit(1, UNIT_HERO, find_template(CIV_PTOLEMIES, "Cleopatra VII")));
 	}
+
+	// A unit from a "{native}" trainer keeps its template but belongs to its owner: the
+	// owner's civ bonuses apply, not its template civ's baked ones (G34). A German misses
+	// nothing on a captured Briton civic centre's civilian, and pays no Briton bonus either.
+	s.set_team_civ(6, CIV_GERMANS);
+	const uint16_t brit_civ = roster_id("brit/support_civilian");
+	CHECK(brit_civ != CIV_UNIT_TEMPLATE_NONE);
+	const uint32_t bc = s.spawn_unit(20.0f, 20.0f, 6, UNIT_FEMALE_CITIZEN, 0.0f, brit_civ);
+	CHECK(s.unit_template(bc) == brit_civ);
+	const float brit_speed = civ_unit_template(brit_civ).speed;
+	// German civilians get germ_women +0.5 speed over the Briton base.
+	CHECK(std::fabs(s.units().speed[index_of(s, bc)] - (brit_speed + 0.5f)) < 1e-3f);
+	// Same-civ training is untouched: a Briton civilian for a Briton keeps its baked speed.
+	const uint32_t bc2 = s.spawn_unit(20.0f, 24.0f, 3, UNIT_FEMALE_CITIZEN, 0.0f, brit_civ);
+	CHECK(s.units().speed[index_of(s, bc2)] == brit_speed);
+	// Gaul cavalry damage is its owner's: an Athenian's loses the x1.1, a Gaul's keeps it.
+	const uint16_t gaul_cav = roster_id("gaul/cavalry_swordsman_b");
+	CHECK(gaul_cav != CIV_UNIT_TEMPLATE_NONE);
+	const float gaul_dmg = civ_unit_template(gaul_cav).attack_damage;
+	const uint32_t ac = s.spawn_unit(24.0f, 20.0f, 0, UNIT_CAVALRY, 0.0f, gaul_cav);
+	CHECK(std::fabs(s.units().attack_damage[index_of(s, ac)] - gaul_dmg / 1.1f) < 1e-3f * gaul_dmg);
+	const uint32_t gc = s.spawn_unit(24.0f, 24.0f, 4, UNIT_CAVALRY, 0.0f, gaul_cav);
+	CHECK(s.units().attack_damage[index_of(s, gc)] == gaul_dmg);
 
 	// Templates survive save/load.
 	const char *path = "/tmp/rtso_test_civ_units.sav";
