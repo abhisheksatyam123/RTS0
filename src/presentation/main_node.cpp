@@ -3036,6 +3036,9 @@ const char *RtsoMain::apply_net_setup_request(uint32_t client, const std::string
 	if (!ms || eq == std::string::npos) return "Unknown request";
 	if (slot < 0) return "You have no player slot";
 	if (net_saved_setup()) return "The controller loaded a saved game";
+	// 0.28 NetServer OnGameSetup: "Only the controller is allowed to send game
+	// setup updates"; a client's civ, team and colour are the host's to set.
+	if (client != 0) return "Only the controller can change the game setup";
 	if ((bool)ms->get("map_locks_players")) return "This map sets every player's civilization, team and color";
 	const std::string key = request.substr(0, eq);
 	const String sv = String(request.substr(eq + 1).c_str());
