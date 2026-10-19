@@ -308,13 +308,6 @@ void RtsoMain::update_cursor() {
 	}
 	Ref<Texture2D> tex = load_tex(String("res://assets/textures/cursors/") + want + ".png");
 	if (tex.is_null()) {
-		// 0.28's own art for these isn't in the repo yet (ASSET_MANIFEST_TODO): the nearest cursor.
-		static const char *const kStandIn[][2] = {{"action-player-flare", "action-flare"},
-				{"action-observer-flare", "action-flare"}, {"action-target", "action-attack"}};
-		for (const auto &m : kStandIn)
-			if (std::strcmp(want, m[0]) == 0) tex = load_tex(String("res://assets/textures/cursors/") + m[1] + ".png");
-	}
-	if (tex.is_null()) {
 		// Cursors not ported yet (-disabled variants, cancel-setup-trade-route) use the base one.
 		String base = String(want).trim_suffix("-disabled").replace("action-cancel-", "action-");
 		tex = load_tex(String("res://assets/textures/cursors/") + base + ".png");

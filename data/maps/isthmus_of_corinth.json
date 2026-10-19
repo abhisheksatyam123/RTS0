@@ -24599,5 +24599,19 @@
       "template": "units/default_support_civilian"
     }
   ],
-  "circular": true
+  "circular": true,
+  "revealers": [
+    {
+      "player": 1,
+      "x": -0.93,
+      "z": 2.97,
+      "range": 50.0
+    },
+    {
+      "player": 2,
+      "x": -0.97,
+      "z": 2.98,
+      "range": 50.0
+    }
+  ]
 }

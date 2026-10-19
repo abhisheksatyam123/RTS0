@@ -220,6 +220,27 @@ int main() {
 		CHECK(near(s.promotion_required_xp(j), 100.0f));
 	}
 
+	// 5c. A promotion that skips ranks uses the range auras only for the first step
+	//     (Promotion.js IncreaseXp): the skipped rank's RequiredXp comes from its template.
+	{
+		fresh(s, CIV_ROMANS);
+		s.spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN, 0.0f, tmpl_of("rome/champion_infantry_swordsman_centurion"));
+		const uint16_t spear = tmpl_of("rome/infantry_spearman_b");
+		const size_t i = idx(s, s.spawn_unit(3.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, spear));
+		s.rebuild_auras();
+		const float first = s.promotion_required_xp(i); // with the centurion's x0.75
+		const float first_template = s.promotion_required_xp_template(0, spear, UNIT_SPEARMAN, 1);
+		CHECK(near(first, first_template * 0.75f));
+		// Enough for both steps: the second is charged at the template rate, without the aura.
+		const float second_template = s.promotion_required_xp_template(0, spear, UNIT_SPEARMAN, 2);
+		CHECK(second_template > 0.0f);
+		s.units_.xp[i] = (uint16_t)(first + second_template + 7.0f);
+		s.units_.xp_partial[i] = 0.0f;
+		s.promote_if_due(i);
+		CHECK(s.units_.rank[i] == 3);
+		CHECK(near((float)s.units_.xp[i] + s.units_.xp_partial[i], 7.0f));
+	}
+
 	// 6. Rigorous Training: a unit garrisoned in a barracks gains 1 xp a second.
 	{
 		fresh(s, CIV_ATHENIANS);

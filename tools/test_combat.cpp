@@ -1381,6 +1381,153 @@ static void test_aura_vs_animals() {
 	check(plain > 0.0f && std::fabs(led - plain * 1.2f) < 1e-3f, "Hannibal's +20% attack applies to a spearman's hit on a boar");
 }
 
+
+// P14: 0.28 Health.js/Attack damage-at-impact semantics (Attack.js attackData at fire,
+// helpers/Attack.js GetTotalAttackEffects at impact, DelayedDamage.js Hit fall-through,
+// targetVelocity from the previous turn's position).
+
+// An arrow's damage is frozen at fire: an attack aura on the shooter at fire counts,
+// one that leaves before impact does not add more, and researching nothing mid-flight
+// changes nothing either way.
+static void test_p14_frozen_damage() {
+	std::printf("27. arrows keep their fire-time strengths to impact (P14)\n");
+	Simulation s;
+	setup(s);
+	s.set_player_active(1, true, false);
+	const uint16_t hannibal = template_named("hero_hannibal");
+	uint32_t ar = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
+	uint32_t han = s.spawn_unit(2.0f, 0.0f, 0, UNIT_HERO, 0.0f, hannibal);
+	uint32_t d = dummy(s, 20.0f, 0.0f, UNIT_SPEARMAN, 500.0f);
+	const int ai = idx(s, ar), di = idx(s, d);
+	s.units_.attack_damage[di] = 0.0f; // never answers
+	s.units_.attack_range[ai] = std::max(s.units_.attack_range[ai], 21.0f);
+	s.order_attack(&ar, 1, d);
+	// The first arrow in flight, with Hannibal's +20% in its frozen strengths.
+	float parts[4] = {};
+	bool flying = false;
+	for (int k = 0; k < 400 && !flying; ++k) {
+		s.tick(DT);
+		for (const Projectile &q : s.projectiles_)
+			if (q.alive && q.source_id == ar) {
+				parts[0] = q.dmg_parts[0]; parts[1] = q.dmg_parts[1];
+				parts[2] = q.dmg_parts[2]; parts[3] = q.dmg_parts[3];
+				check(q.src_kind == 1 && q.src_tmpl == s.units_.tmpl[ai], "the arrow records its shooter");
+				flying = true;
+			}
+	}
+	check(flying, "the archer looses an arrow");
+	check(parts[1] > 0.0f, "the arrow carries pierce from the fire-time attack");
+	// Hannibal marches off before it lands: under 0.28 the arrow keeps his aura.
+	const int hi = idx(s, han);
+	s.units_.pos_x[hi] = 60.0f;
+	s.units_.pos_z[hi] = 60.0f;
+	const float hp0 = s.units_.hp[di];
+	for (int k = 0; k < 400 && s.units_.hp[di] == hp0; ++k) s.tick(DT);
+	const float drop = hp0 - s.units_.hp[di];
+	float res[3];
+	s.unit_resistance((size_t)di, res);
+	const float bonus = combat_bonus(unit_combat(s.units_.tmpl[ai], s.units_.unit_type[ai]),
+			s.unit_combat_at((size_t)di), s.civ_of(1));
+	const float want = bonus * (parts[0] * powf(0.9f, res[0]) + parts[1] * powf(0.9f, res[1]) +
+			parts[2] * powf(0.9f, res[2]) + parts[3]);
+	std::printf("      arrow lands for %.3f, fire-time strengths say %.3f\n", drop, want);
+	check(drop > 0.0f && std::fabs(drop - want) < 1e-3f, "impact meets fire-time strengths with the victim's armour");
+}
+
+// A stray arrow of a dead shooter meets the animal or unit it lands on, not the aimed
+// target's armour: aimed at a ram, killing the archer mid-flight, it still guts the
+// swordsman it lands on.
+static void test_p14_stray_armour() {
+	std::printf("28. a dead shooter's stray uses its victim's armour (P14)\n");
+	Simulation s;
+	setup(s);
+	s.set_player_active(1, true, false);
+	uint32_t ar = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
+	uint32_t ram = dummy(s, 20.0f, 0.0f, UNIT_SIEGE_RAM, 500.0f);
+	uint32_t sw = dummy(s, 23.5f, 0.0f, UNIT_SWORDSMAN, 500.0f);
+	const int ai = idx(s, ar), si = idx(s, sw), ri = idx(s, ram);
+	s.units_.attack_damage[si] = 0.0f;
+	s.units_.attack_damage[ri] = 0.0f;
+	// Fired at the ram, landing exactly on the swordsman beside it.
+	s.fire_arrow(s.units_.pos_x[ai], 2.0f, s.units_.pos_z[ai], s.units_.pos_x[si], 0.8f, s.units_.pos_z[si],
+			999.0f, 0, ram, 0, 1, false, 0, ar);
+	float parts[4] = {s.projectiles_.back().dmg_parts[0], s.projectiles_.back().dmg_parts[1],
+		s.projectiles_.back().dmg_parts[2], s.projectiles_.back().dmg_parts[3]};
+	check(parts[1] > 0.0f, "the arrow carries the live shooter's strengths");
+	// The archer dies in flight: a destroyed attacker applies no tech or aura change,
+	// and the arrow still hurts whoever it lands on (0.28 keeps data.attackData).
+	s.units_.hp[ai] = 0.0f;
+	s.units_.alive[ai] = 0;
+	const float hp0 = s.units_.hp[si], ram0 = s.units_.hp[ri];
+	for (int k = 0; k < 400 && s.units_.hp[si] == hp0; ++k) s.tick(DT);
+	const float drop = hp0 - s.units_.hp[si];
+	float res[3];
+	s.unit_resistance((size_t)si, res);
+	const float bonus = combat_bonus(unit_combat(s.units_.tmpl[ai], s.units_.unit_type[ai]),
+			s.unit_combat_at((size_t)si), s.civ_of(1));
+	const float want = bonus * (parts[0] * powf(0.9f, res[0]) + parts[1] * powf(0.9f, res[1]) +
+			parts[2] * powf(0.9f, res[2]) + parts[3]);
+	std::printf("      stray on the swordsman: %.3f, fire-time strengths say %.3f (ram kept %.3f)\n",
+			drop, want, ram0 - s.units_.hp[ri]);
+	check(drop > 1.0f && std::fabs(drop - want) < 1e-3f, "the stray meets the swordsman's armour, not the ram's");
+	check(s.units_.hp[ri] == ram0, "the aimed ram, out of the footprint, takes nothing");
+}
+
+// An arrow aimed at an invulnerable unit falls through to the next unit the landing
+// point is inside of (DelayedDamage.js Hit: HandleAttackEffects is false for it).
+static void test_p14_invulnerable_fallthrough() {
+	std::printf("29. an arrow at an invulnerable unit falls to the next one (P14)\n");
+	Simulation s;
+	setup(s);
+	s.set_player_active(1, true, false);
+	uint32_t ar = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
+	uint32_t a = dummy(s, 20.0f, 0.0f, UNIT_SPEARMAN, 500.0f);
+	uint32_t b = dummy(s, 21.0f, 0.0f, UNIT_SPEARMAN, 500.0f);
+	s.units_.attack_damage[idx(s, a)] = 0.0f;
+	s.units_.attack_damage[idx(s, b)] = 0.0f;
+	s.triggers_.invulnerable.push_back(a);
+	// Lands on the mortal one, aimed at the invulnerable one beside it.
+	s.fire_arrow(s.units_.pos_x[idx(s, ar)], 2.0f, s.units_.pos_z[idx(s, ar)], 21.0f, 0.8f, 0.0f,
+			999.0f, 0, a, 0, 1, false, 0, ar);
+	const float hp0 = s.units_.hp[idx(s, b)], a0 = s.units_.hp[idx(s, a)];
+	for (int k = 0; k < 400 && s.units_.hp[idx(s, b)] == hp0; ++k) s.tick(DT);
+	std::printf("      mortal spearman -%.3f, invulnerable one -%.3f\n",
+			hp0 - s.units_.hp[idx(s, b)], a0 - s.units_.hp[idx(s, a)]);
+	check(s.units_.hp[idx(s, b)] < hp0, "the next unit inside the landing point takes the arrow");
+	check(s.units_.hp[idx(s, a)] == a0, "the invulnerable aimed target takes nothing");
+}
+
+// Aim predicts with the last turn's average velocity ((position - previous position) /
+// turn, CCmpPosition m_PrevX/m_PrevZ), not the instantaneous one.
+static void test_p14_aim_velocity() {
+	std::printf("30. aim uses the last turn's velocity (P14)\n");
+	Simulation s;
+	setup(s);
+	uint32_t w = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN);
+	const int wi = idx(s, w);
+	s.order_walk(&w, 1, 60.0f, 0.0f);
+	float px = 0.0f, cruise = 0.0f;
+	for (int k = 0; k < 10; ++k) {
+		s.tick(DT);
+		if (k == 5) px = s.units_.pos_x[wi];
+	}
+	cruise = (s.units_.pos_x[wi] - px) / 0.2f; // two lockstep turns of steady walking
+	check(cruise > 0.5f, "the walker cruises");
+	// Stop mid-turn: the instantaneous velocity is zero at once, but the aim velocity
+	// still reports the last turn's until the turn boundary snapshots it.
+	s.cmd_stop(&w, 1);
+	s.tick(DT);
+	float vx = 0.0f, vz = 0.0f;
+	s.aim_velocity_unit((size_t)wi, vx, vz);
+	std::printf("      cruising %.2f u/s, after one stopped tick aim says %.2f, instant %.2f\n",
+			cruise, vx, s.units_.vel_x[wi]);
+	check(std::fabs(s.units_.vel_x[wi]) < 1e-3f, "the stopped unit's instantaneous velocity is zero");
+	check(std::fabs(vx - 0.5f * cruise) < 0.35f * cruise, "aim still leads with the last turn's velocity");
+	for (int k = 0; k < 4; ++k) s.tick(DT); // cross the turn boundary
+	s.aim_velocity_unit((size_t)wi, vx, vz);
+	check(std::fabs(vx) < 1e-3f && std::fabs(vz) < 1e-3f, "past the boundary, aim knows it stopped");
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -1408,6 +1555,10 @@ int main() {
 	test_status_inside();
 	test_arrow_square_range();
 	test_aura_vs_animals();
+	test_p14_frozen_damage();
+	test_p14_stray_armour();
+	test_p14_invulnerable_fallthrough();
+	test_p14_aim_velocity();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;

@@ -12393,14 +12393,23 @@ void RmsGenerator::keep_resources_passable(Simulation &sim, uint8_t type) {
 				if (!steep[(size_t)j * tr + i]) return true;
 		return false;
 	};
-	// rmgen's MAP_BORDER_WIDTH: entities stay 3 tiles in from the edge; on a circular map the
-	// ring past_map_edge bars is impassable, so whatever starts there moves in across it.
+	// rmgen's MAP_BORDER_WIDTH (RandomMap.js:220 randomCoordinate, MapGenerator.cpp:126):
+	// entities stay 3 tiles in from the edge on every map; the ring/frame past_map_edge bars
+	// is impassable, so whatever starts there moves in across it.
 	const float inner = half - MAP_EDGE_DIST - 1.5f;
-	auto in_ring = [&](float x, float z) { return sim.circular_map() && x * x + z * z > inner * inner; };
+	auto in_ring = [&](float x, float z) {
+		if (sim.circular_map()) return x * x + z * z > inner * inner;
+		return std::fabs(x) > inner || std::fabs(z) > inner;
+	};
 	auto pull_in = [&](float &x, float &z) {
-		const float d = std::max(1e-3f, std::hypot(x, z)), k = (inner - 0.5f) / d;
-		x *= k;
-		z *= k;
+		if (sim.circular_map()) {
+			const float d = std::max(1e-3f, std::hypot(x, z)), k = (inner - 0.5f) / d;
+			x *= k;
+			z *= k;
+		} else {
+			x = std::clamp(x, -(inner - 0.5f), inner - 0.5f);
+			z = std::clamp(z, -(inner - 0.5f), inner - 0.5f);
+		}
 	};
 	const auto fv = sim.fauna();
 	for (size_t f = 0; f < fv.count; ++f) {

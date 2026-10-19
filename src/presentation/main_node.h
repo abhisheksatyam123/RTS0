@@ -3,6 +3,8 @@
 
 #include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/camera3d.hpp>
+#include <godot_cpp/variant/plane.hpp>
+#include <godot_cpp/variant/vector3.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/rich_text_label.hpp>
 #include <godot_cpp/classes/panel.hpp>
@@ -933,6 +935,9 @@ private:
 	void load_progress(int percent, const char *description) { emit_signal("load_progress", percent, String(description)); }
 	void play_civ_voice(const char *action);
 	void update_music_state();
+	// The session music's tick, driven by the MenuAudio autoload (methods bound for
+	// GDScript live in session_bindings.cpp) so tracks fade and advance while paused.
+	void tick_session_music(double delta) { music_.tick(delta); }
 	Dictionary get_audio_state() const;
 	bool debug_combat_sound(float x, float z) { return sim && session_audio_.debug_combat_sound(sim, local_player(), x, z); }
 	rtso::RtsoMusic music_;
@@ -973,6 +978,17 @@ private:
 	// The developer overlay's Change perspective: the player view dropdown shows for a
 	// player too, and picking in it takes that player over (PlayerViewControl.setChangePerspective).
 	bool change_perspective_ = false;
+	// The developer overlay's culling boxes (GameView.cpp Culling/LockCullCamera,
+	// SceneRenderer.cpp DisplayFrustum/RenderDebugBounds): culling on by default,
+	// the cull camera following the view camera until locked. Presentation only.
+	bool culling_enabled_ = true;
+	bool lock_cull_camera_ = false;
+	// Lock cull camera's frozen frustum: outward planes for the animation culling,
+	// corners for the frustum overlay (SceneRenderer.cpp draws m_CullCamera).
+	std::vector<godot::Plane> locked_cull_planes_;
+	std::vector<godot::Vector3> locked_cull_corners_;
+	void lock_cull_camera();
+	void sync_cull_camera();
 	// The developer overlay's time warp (TimeWarp.js, offline only): a snapshot every
 	// 10 turns, session.timewarp.rewind loads the latest (and drops it), and
 	// session.timewarp.fastforward runs the game at 20x while held.

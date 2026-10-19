@@ -6,12 +6,15 @@
 // developer command with its label and tick box (DeveloperOverlay.xml,
 // DeveloperOverlayControlCheckbox.js), and DeveloperOverlayEntityState's yellow
 // text on the left with the state of the first selected entity. RTS0 ports the
-// commands it has something behind, in 0.28's order: Change perspective, Display
-// selection state, the pathfinder, hierarchical pathfinder, obstruction, unit motion, range and
-// bounding box overlays
+// commands it has something behind, in 0.28's order: Control all units, Change
+// perspective, Display selection state, the pathfinder, hierarchical pathfinder,
+// obstruction, unit motion, range and bounding box overlays
 // (debug_overlays.h), Restrict camera, Reveal map, Enable time warp, Activate Rejoin
-// Test and Promote selected units; then DeveloperOverlayControlDropDowns' Render Debug Mode
-// dropdown, a row of its own under the boxes.
+// Test and Promote selected units, then Enable culling, Lock cull camera, Display
+// camera frustum and Display shadows frustum (GameView.cpp Culling/LockCullCamera,
+// SceneRenderer.cpp DisplayFrustum/RenderDebugBounds); then
+// DeveloperOverlayControlDropDowns' Render Debug Mode dropdown, a row of its own
+// under the boxes.
 
 #include <godot_cpp/classes/check_box.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
@@ -30,6 +33,7 @@ namespace rtso {
 class RtsoDevOverlay {
 public:
 	enum Command {
+		DEV_CONTROL_ALL,
 		DEV_CHANGE_PERSPECTIVE,
 		DEV_SELECTION_STATE,
 		DEV_PATHFINDER_OVERLAY,
@@ -43,12 +47,16 @@ public:
 		DEV_TIME_WARP,
 		DEV_REJOIN_TEST,
 		DEV_PROMOTE,
+		DEV_ENABLE_CULLING,
+		DEV_LOCK_CULL_CAMERA,
+		DEV_DISPLAY_CAMERA_FRUSTUM,
+		DEV_DISPLAY_SHADOWS_FRUSTUM,
 		DEV_COUNT
 	};
 	static constexpr const char *kLabels[DEV_COUNT] = {
-		"Change perspective", "Display selection state", "Pathfinder overlay", "Hierarchical pathfinder overlay", "Obstruction overlay", "Unit motion overlay",
+		"Control all units", "Change perspective", "Display selection state", "Pathfinder overlay", "Hierarchical pathfinder overlay", "Obstruction overlay", "Unit motion overlay",
 		"Range overlay", "Bounding box overlay", "Restrict camera", "Reveal map", "Enable time warp", "Activate Rejoin Test",
-		"Promote selected units",
+		"Promote selected units", "Enable culling", "Lock cull camera", "Display camera frustum", "Display shadows frustum",
 	};
 	static constexpr float kRow = 24.0f;
 	// RenderDebugMode values(): RENDER_DEBUG_MODE_NONE, _AO, _ALPHA, _CUSTOM.

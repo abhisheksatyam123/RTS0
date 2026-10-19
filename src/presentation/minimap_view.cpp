@@ -97,8 +97,9 @@ void RtsoMiniMapView::_gui_input(const Ref<InputEvent> &event) {
 		float half = sim ? sim->map_half() : 64.0f;
 		float wx = (mpos.x / sz.x) * (half * 2.0f) - half;
 		float wz = (mpos.y / sz.y) * (half * 2.0f) - half;
-		// CMiniMap::IsMouseOver: a circular map's minimap is the circle, so a press in a corner misses it.
-		if (sim && sim->circular_map() && mb->is_pressed() && wx * wx + wz * wz > half * half) return;
+		// CMiniMap::IsMouseOver: a circular map's minimap is the circle, so a press in a corner misses it;
+		// anywhere off the world (a square map's edge frame included) misses too.
+		if (sim && mb->is_pressed() && sim->off_world(wx, wz)) return;
 
 		if (mb->get_button_index() == MOUSE_BUTTON_LEFT) {
 			dragging = mb->is_pressed();
@@ -230,10 +231,11 @@ void RtsoMiniMapView::_draw() {
 		const Color black_shroud(0.03f, 0.04f, 0.06f, 1.0f);  // 100% black unexplored
 		const Color fog_shroud(0.01f, 0.02f, 0.04f, 0.40f);    // 40% explored fog
 
-		// On a circular map the cells off the world are left undrawn, so the shroud is round too.
+		// On a circular map the cells off the world are left undrawn, so the shroud is round too;
+		// on a square map the 12 m edge frame is off the world as well (LosIsOffWorld).
 		const float cell_world = half_map * 2.0f / (float)fow_res;
 		auto off_world = [&](int x, int z) {
-			return round && sim->off_world(-half_map + ((float)x + 0.5f) * cell_world, -half_map + ((float)z + 0.5f) * cell_world);
+			return sim->off_world(-half_map + ((float)x + 0.5f) * cell_world, -half_map + ((float)z + 0.5f) * cell_world);
 		};
 		for (int z = 0; z < fow_res; ++z) {
 			int x = 0;
