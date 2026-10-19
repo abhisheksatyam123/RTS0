@@ -467,7 +467,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				dragging = true;
 				drag_start = mouse_pos;
 				if (sim) {
-					const size_t hit = own_unit_under_mouse(mouse_pos);
+					// selection.js addList: Control all units selects anyone visible.
+					const size_t hit = own_unit_under_mouse(mouse_pos, sim->controls_all(local_player()));
 					press_pick_unit_ = hit == (size_t)-1 ? 0 : sim->units().id[hit];
 				}
 				sel_rect->set_rect(drag_start, mouse_pos, true);
@@ -529,10 +530,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						// input.js: the entity hit on mouse-down is kept, so a unit that walked away
 						// before the release is still picked; else the one under the release.
 						size_t best_uidx = (size_t)-1;
+						const bool control_all = sim->controls_all(local_player());
 						if (press_pick_unit_ != 0)
 							for (size_t i = 0; i < uview.count; ++i)
-								if (uview.id[i] == press_pick_unit_ && uview.alive[i] && uview.team[i] == local_player()) best_uidx = i;
-						if (best_uidx == (size_t)-1) best_uidx = own_unit_under_mouse(mouse_pos);
+								if (uview.id[i] == press_pick_unit_ && uview.alive[i] &&
+										(uview.team[i] == local_player() || control_all)) best_uidx = i;
+						if (best_uidx == (size_t)-1) best_uidx = own_unit_under_mouse(mouse_pos, control_all);
 
 						if (best_uidx != (size_t)-1 && is_ctrl && !dbl_click) {
 							// Ctrl+click drops the unit from the selection (selection.remove).
@@ -758,20 +761,23 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// actions are checked before "set-rallypoint").
 			if (selected_building_id != 0 && selected_ids.is_empty()) {
 				if (try_focus_fire(click_pos)) return;
-				uint32_t target_res = 0, target_bld = 0;
-				rally_target_at(click_pos, target_res, target_bld);
-				if (auto_rally) target_bld = selected_building_id;
+				uint32_t target_res = 0, target_bld = 0, target_ent = 0;
+				uint8_t rally_cmd = rtso::RALLY_CMD_AUTO;
+				rally_target_at(click_pos, target_res, target_bld, &target_ent, &rally_cmd);
+				if (auto_rally) target_bld = selected_building_id, rally_cmd = rtso::RALLY_CMD_AUTO;
 				// session.queue (Shift) adds a position after the ones set (RallyPoint.AddPosition).
 				const bool rally_queued = rtso::hotkeys::held("session.queue");
 				// unit_actions.js "set-rallypoint": every selected structure with a RallyPoint.
 				for (uint32_t sb : selected_structures()) {
 					if (sb != selected_building_id && !building_trains_units(sb)) continue;
+					// A trade route starts at each structure itself: only a market sets one up.
+					const uint8_t cmd_here = rally_cmd == rtso::RALLY_CMD_TRADE && sb != selected_building_id ? (uint8_t)rtso::RALLY_CMD_AUTO : rally_cmd;
 					if (turn_cmds()) {
-						uint32_t extra[2] = {target_res, auto_rally ? sb : target_bld};
-						post_lockstep(14, extra, 2, click_pos.x, click_pos.z, sb, rally_queued ? rtso::NET_PARAM_QUEUED : 0);
+						uint32_t extra[4] = {target_res, auto_rally ? sb : target_bld, target_ent, cmd_here};
+						post_lockstep(14, extra, 4, click_pos.x, click_pos.z, sb, rally_queued ? rtso::NET_PARAM_QUEUED : 0);
 					} else {
 						sim->cmd_set_rally_point(local_player(), sb, click_pos.x, click_pos.z, target_res, auto_rally ? sb : target_bld,
-								rally_queued);
+								rally_queued, cmd_here, target_ent);
 					}
 				}
 				play_civ_voice("select");
@@ -1565,8 +1571,12 @@ std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
 		return sp.x >= min_p.x && sp.x <= max_p.x && sp.y >= min_p.y && sp.y <= max_p.y;
 	};
 	auto uview = sim->units();
+	const bool control_all = sim->controls_all(local_player());
 	for (size_t i = 0; i < uview.count; ++i) {
-		if (!uview.alive[i] || uview.team[i] != local_player()) continue;
+		if (!uview.alive[i]) continue;
+		if (uview.team[i] != local_player() &&
+				(!control_all || !rtso::los_sees_unit(*sim, view_player(), uview.pos_x[i], uview.pos_z[i], uview.team[i])))
+			continue;
 		const rtso::TechClasses cls = rtso::unit_tech_classes(uview.unit_type[i]);
 		const bool military = (cls & (rtso::TC_MELEE | rtso::TC_RANGED)) != 0;
 		if ((military_only && !military) || (nonmilitary_only && military)) continue;

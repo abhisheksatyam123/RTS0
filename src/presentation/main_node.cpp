@@ -65,6 +65,11 @@ void RtsoMain::_notification(int p_what) {
 		toggle_pause();
 	}
 	if (p_what == NOTIFICATION_EXIT_TREE) {
+		// The MenuAudio autoload outlives the match: stop driving the session's tick.
+		if (SceneTree *exiting = get_tree()) {
+			if (Node *ma = exiting->get_root()->get_node_or_null(NodePath("MenuAudio")))
+				ma->set("session_music_tick", Callable());
+		}
 		write_replay(true); // leaving the match keeps its replay, with its summary (endGame)
 		// Menus get the normal arrow back (update_cursor sets action cursors).
 		if (!cursor_name_.empty()) reset_default_cursor();
@@ -135,6 +140,7 @@ Dictionary RtsoMain::get_audio_state() const {
 	Dictionary d;
 	d["music_state"] = kStates[music_.state()];
 	d["track"] = music_.current_track();
+	d["music_position"] = music_.current_position();
 	d["last_sound"] = session_audio_.last_played();
 	d["in_battle"] = session_audio_.in_battle();
 	d["work_sounds"] = session_audio_.work_sounds_played();
@@ -1576,6 +1582,37 @@ void RtsoMain::toggle_dev_overlay() {
 	refresh_dev_overlay();
 }
 
+// GameView.cpp m_CullCamera: freeze the view camera's frustum (outward planes for
+// the animation culling, corners for the frustum overlay); cleared on unlock.
+void RtsoMain::lock_cull_camera() {
+	locked_cull_planes_.clear();
+	locked_cull_corners_.clear();
+	Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+	if (!cam || !cam->get_viewport()) return;
+	const TypedArray<Plane> planes = cam->get_frustum();
+	for (int i = 0; i < planes.size(); ++i) locked_cull_planes_.push_back(planes[i]);
+	const Vector2 size = cam->get_viewport()->get_visible_rect().size;
+	if (size.x <= 0.0f || size.y <= 0.0f) return;
+	const float d_near = cam->get_near(), d_far = cam->get_far();
+	const Vector2 at[4] = { Vector2(0, 0), Vector2(size.x, 0), Vector2(0, size.y), Vector2(size.x, size.y) };
+	Vector3 corners[8];
+	for (int i = 0; i < 4; ++i) {
+		const Vector3 o = cam->project_ray_origin(at[i]);
+		const Vector3 d = cam->project_ray_normal(at[i]);
+		corners[i] = o + d * d_near;
+		corners[i + 4] = o + d * d_far;
+	}
+	for (int i = 0; i < 8; ++i) locked_cull_corners_.push_back(corners[i]);
+}
+
+void RtsoMain::sync_cull_camera() {
+	if (view) {
+		view->set_anim_culling(culling_enabled_);
+		view->set_locked_cull_frustum(lock_cull_camera_ ? locked_cull_planes_ : std::vector<Plane>());
+	}
+	debug_overlays_.set_cull_corners(lock_cull_camera_ ? locked_cull_corners_ : std::vector<Vector3>());
+}
+
 // DeveloperOverlayControlCheckboxes.js onPress handlers.
 void RtsoMain::_on_dev_command(int command) {
 	using D = rtso::RtsoDevOverlay;
@@ -1587,6 +1624,9 @@ void RtsoMain::_on_dev_command(int command) {
 		else sim->cmd_cheat(me, action, parameter, 0, ids.data(), ids.size());
 	};
 	switch (command) {
+		case D::DEV_CONTROL_ALL: // ControlAll: Commands.js "control-all", Player.js SetControlAllUnits
+			cheat(rtso::Simulation::CHEAT_DEV_CONTROL_ALL, on ? 1 : 0, {});
+			break;
 		case D::DEV_CHANGE_PERSPECTIVE: // ChangePerspective: PlayerViewControl.setChangePerspective
 			change_perspective_ = on;
 			update_observer_view_picker();
@@ -1630,6 +1670,25 @@ void RtsoMain::_on_dev_command(int command) {
 			if (!ids.empty()) cheat(rtso::Simulation::CHEAT_DEV_PROMOTE, 0, ids);
 			break;
 		}
+		case D::DEV_ENABLE_CULLING: // EnableCulling: GameView_SetCullingEnabled
+			culling_enabled_ = on;
+			sync_cull_camera();
+			break;
+		case D::DEV_LOCK_CULL_CAMERA: // LockCullCamera: GameView_SetLockCullCameraEnabled
+			lock_cull_camera_ = on;
+			if (on) lock_cull_camera();
+			else {
+				locked_cull_planes_.clear();
+				locked_cull_corners_.clear();
+			}
+			sync_cull_camera();
+			break;
+		case D::DEV_DISPLAY_CAMERA_FRUSTUM: // DisplayCameraFrustum: Renderer_SetDisplayFrustumEnabled
+			debug_overlays_.set(rtso::RtsoDebugOverlays::CULL_CAMERA_FRUSTUM, on);
+			break;
+		case D::DEV_DISPLAY_SHADOWS_FRUSTUM: // DisplayShadowsFrustum: Renderer_SetDisplayShadowsFrustumEnabled
+			debug_overlays_.set(rtso::RtsoDebugOverlays::SHADOWS_FRUSTUM, on);
+			break;
 		default:
 			break;
 	}
@@ -1753,9 +1812,15 @@ bool RtsoMain::time_warp_rewind() {
 void RtsoMain::refresh_dev_overlay() {
 	using D = rtso::RtsoDevOverlay;
 	if (!sim) return;
+	// ControlAll's checked(): the viewed player's controlsAll; the cheat applies to
+	// the local player, which is the viewed one outside observer views.
+	const uint8_t me = local_player();
 	if (dev_overlay_.is_open()) {
+		dev_overlay_.set_checked(D::DEV_CONTROL_ALL, sim->controls_all(me));
 		dev_overlay_.set_checked(D::DEV_REVEAL_MAP, sim->reveal_map());
 		dev_overlay_.set_checked(D::DEV_RESTRICT_CAMERA, cam_rig ? cam_rig->is_constrain_camera() : true);
+		dev_overlay_.set_checked(D::DEV_ENABLE_CULLING, culling_enabled_); // checked(): GameView_GetCullingEnabled
+		dev_overlay_.set_checked(D::DEV_LOCK_CULL_CAMERA, lock_cull_camera_); // checked(): GameView_GetLockCullCameraEnabled
 		dev_overlay_.set_checked(D::DEV_PROMOTE, false);
 		dev_overlay_.set_checked(D::DEV_TIME_WARP, time_warp_);
 		dev_overlay_.set_checked(D::DEV_REJOIN_TEST, rejoin_test_); // checked(): this.disabled
@@ -1768,6 +1833,8 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_UNIT_MOTION_OVERLAY, debug_overlays_.on(O::UNIT_MOTION));
 		dev_overlay_.set_checked(D::DEV_RANGE_OVERLAY, debug_overlays_.on(O::RANGE));
 		dev_overlay_.set_checked(D::DEV_BOUNDING_BOX_OVERLAY, debug_overlays_.on(O::BOUNDING_BOX));
+		dev_overlay_.set_checked(D::DEV_DISPLAY_CAMERA_FRUSTUM, debug_overlays_.on(O::CULL_CAMERA_FRUSTUM));
+		dev_overlay_.set_checked(D::DEV_DISPLAY_SHADOWS_FRUSTUM, debug_overlays_.on(O::SHADOWS_FRUSTUM));
 		dev_overlay_.set_render_debug(render_debug_mode_);
 	}
 	if (!dev_overlay_.state_shown()) return;

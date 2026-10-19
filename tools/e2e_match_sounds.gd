@@ -6,7 +6,13 @@ extends SceneTree
 #   2. raising and ending an alert rings alarm_alert_0 and alarm_alert_1;
 #   3. a finished technology plays alarm_upgradearmory (phases alarm_phase);
 #   4. resigning plays "defeated" and the defeat music, which stays when the
-#      defeated player watches someone else (the music never follows the view).
+#      defeated player watches someone else (the music never follows the view);
+#   5. quitting to the summary keeps the defeat track playing there (summary.js
+#      has no music calls; only the main menu sets MENU).
+#
+# Siege engines train with ram_trained (ram_move.ogg), not footsteps: 0.28's
+# template_unit_siege.xml names it, the group file and the ogg are in the shared
+# data and in assets/audio/attack/siege/, and play_trained plays the group.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_match_sounds.gd
 # Exit code 0 = pass.
@@ -75,6 +81,13 @@ func run() -> void:
 	m._on_observer_view_selected(3)
 	await frames(40)
 	check(m.get_audio_state().music_state == "defeat", "watching the AI keeps the defeat music: " + m.get_audio_state().music_state)
+
+	print("5. Summary keeps the match music")
+	var quit_script: GDScript = load("res://scenes/session/quit_confirmation.gd")
+	quit_script.end_game(m, true)
+	await frames(40)
+	var menu_audio = root.get_node("MenuAudio")
+	check(str(menu_audio.match_music_track()).contains("Dried_Tears"), "the defeat track plays on the summary: " + menu_audio.match_music_track())
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

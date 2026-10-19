@@ -35,6 +35,7 @@ RtsoCameraRig::~RtsoCameraRig() {}
 
 void RtsoCameraRig::_ready() {
 	cam = memnew(Camera3D);
+	cam->set_fov(45.0f); // 0 A.D. default.cfg: [view] fov = 45.0
 	add_child(cam);
 	zoom_height = 28.0f;
 	target_zoom = 28.0f;

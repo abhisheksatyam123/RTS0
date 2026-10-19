@@ -2304,61 +2304,6 @@ void RmsGenerator::synth_stronghold(HeightmapGrid &hm, RmsRng &rng, float &water
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
 }
 
-void RmsGenerator::synth_caledonian_meadows(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
-	// caledonian_meadows.js: diamond-square terrain from a flat 2x2 seed
-	// (roughness 0.8), water level set so about a fifth is under water, and
-	// players at start locations whose height lies between 4/8 and 6/8 of
-	// the way from the water up to the top (getStartLocationsByHeightmap,
-	// 1000 tries, 30 apart), grouped in a cycle (groupPlayersCycle).
-	const float half = hm.map_half;
-	hm.init(hm.res, hm.map_half, 0.0f);
-	hm.diamond_square(rng, 7.0f, 0.8f);
-	hm.blur(2, 0.5f);
-	std::vector<float> sorted = hm.data;
-	std::nth_element(sorted.begin(), sorted.begin() + sorted.size() / 5, sorted.end());
-	const float shift = 1.0f - sorted[sorted.size() / 5];
-	for (float &h : hm.data) h += shift;
-	water_h = 1.0f;
-	const float top = *std::max_element(hm.data.begin(), hm.data.end());
-	const float lo = water_h + (top - water_h) * 4.0f / 8.0f, hi = water_h + (top - water_h) * 6.0f / 8.0f;
-	std::vector<std::pair<float, float>> cand;
-	for (int i = 0; i < 1000; ++i) {
-		const float x = rng.range_float(-0.85f, 0.85f) * half, z = rng.range_float(-0.85f, 0.85f) * half;
-		const float h = hm.sample_world(x, z);
-		if (h >= lo && h <= hi) cand.push_back({x, z});
-	}
-	// Spread the picks: each next start is the candidate farthest from those
-	// already taken, and at least 30 from all of them.
-	std::vector<std::pair<float, float>> picks;
-	if (!cand.empty()) picks.push_back(cand[0]);
-	while ((int)picks.size() < num_players) {
-		float best = -1.0f; int bi = -1;
-		for (int i = 0; i < (int)cand.size(); ++i) {
-			float d = 1e9f;
-			for (const auto &p : picks) d = std::min(d, std::hypot(cand[i].first - p.first, cand[i].second - p.second));
-			if (d > best) { best = d; bi = i; }
-		}
-		if (bi < 0 || best < std::max(30.0f, half * 0.35f)) break;
-		picks.push_back(cand[bi]);
-	}
-	if ((int)picks.size() < num_players) {
-		place_ring_spawns(hm, spawns, num_players, half * 0.66f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, water_h + 1.5f);
-	} else {
-		// groupPlayersCycle: order the starts round the map centre.
-		std::sort(picks.begin(), picks.end(), [](const auto &a, const auto &b) {
-			return std::atan2(a.second, a.first) < std::atan2(b.second, b.first);
-		});
-		spawns.clear();
-		for (int i = 0; i < num_players; ++i) {
-			const float sx = picks[i].first, sz = picks[i].second, l = std::max(1e-3f, std::hypot(sx, sz));
-			const float bh = std::max(water_h + 1.5f, hm.sample_world(sx, sz));
-			spawns.push_back({(uint8_t)i, sx, sz, bh, -sx / l, -sz / l});
-			hm.level_area(sx, sz, 14.0f, 6.0f, bh);
-		}
-	}
-	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 20.0f, 6.0f, sp.base_height);
-}
-
 void RmsGenerator::synth_rhine_marshlands(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
 	// rhine_marshlands.js: low land (heightLand 1) with scaleByMapSize(300,
 	// 800) bumps, then 7 rounds of scaleByMapSize(4, 20) marshes (chains of
@@ -11507,40 +11452,276 @@ static void place_wall_demo(Simulation &sim, float map_half, RmsRng &rng) {
 }
 
 // =========================================================================
+// 0 A.D. rmgen heightmap.js (0.28) on a HeightmapGrid, in metres: setBaseTerrainDiamondSquare,
+// splashErodeMap, rescaleHeightmap and getStartLocationsByHeightmap, for the scripts that build
+// their land from them (caledonian_meadows.js).
+// =========================================================================
+namespace {
+
+// setBaseTerrainDiamondSquare(lo, hi, init, smoothness): the seed grid doubled until it covers
+// the grid, each new vertex the mean of its old neighbours plus a random offset scaled by where
+// that mean lies in [lo, hi] (low ground stays flat, high ground grows rough); the offset
+// shrinks by 2^smoothness a round. Then the middle is cut out.
+void diamond_square_028(HeightmapGrid &hm, RmsRng &rng, float lo, float hi, std::vector<std::vector<float>> cur, float smoothness) {
+	const float range = hi - lo;
+	float offset = range / 2.0f;
+	std::vector<std::vector<float>> next;
+	auto rough = [&](float v) { return v + (v - lo) / range * rng.range_float(-offset, offset); };
+	while ((int)cur.size() < hm.res) {
+		const int ow = (int)cur.size(), n = 2 * ow - 1;
+		next.assign((size_t)n, std::vector<float>((size_t)n, 0.0f));
+		std::vector<std::vector<uint8_t>> set((size_t)n, std::vector<uint8_t>((size_t)n, 0));
+		for (int x = 0; x < n; ++x) // square
+			for (int y = 0; y < n; ++y) {
+				if (x % 2 == 0 && y % 2 == 0) {
+					next[x][y] = cur[x / 2][y / 2];
+				} else if (x % 2 == 1 && y % 2 == 1) {
+					next[x][y] = rough((cur[(x - 1) / 2][(y - 1) / 2] + cur[(x + 1) / 2][(y - 1) / 2] +
+							cur[(x - 1) / 2][(y + 1) / 2] + cur[(x + 1) / 2][(y + 1) / 2]) / 4.0f);
+				} else {
+					continue;
+				}
+				set[x][y] = 1;
+			}
+		for (int x = 0; x < n; ++x) // diamond, with heightmap.js's border cases as written
+			for (int y = 0; y < n; ++y) {
+				if (set[x][y]) continue;
+				float v;
+				if (x > 0 && x + 1 < n - 1 && y > 0 && y + 1 < n - 1)
+					v = (next[x + 1][y] + next[x][y + 1] + next[x - 1][y] + next[x][y - 1]) / 4.0f;
+				else if (x < n - 1 && y > 0 && y < n - 1) // left border
+					v = (next[x + 1][y] + next[x][y + 1] + next[x][y - 1]) / 3.0f;
+				else if (x > 0 && y > 0 && y < n - 1) // right border
+					v = (next[x][y + 1] + next[x - 1][y] + next[x][y - 1]) / 3.0f;
+				else if (x > 0 && x < n - 1 && y < n - 1) // bottom border
+					v = (next[x + 1][y] + next[x][y + 1] + next[x - 1][y]) / 3.0f;
+				else if (x > 0 && x < n - 1 && y > 0) // top border
+					v = (next[x + 1][y] + next[x - 1][y] + next[x][y - 1]) / 3.0f;
+				else
+					continue;
+				next[x][y] = rough(v);
+			}
+		cur.swap(next);
+		offset /= std::pow(2.0f, smoothness);
+	}
+	const int shift = ((int)cur.size() - hm.res) / 2;
+	for (int z = 0; z < hm.res; ++z)
+		for (int x = 0; x < hm.res; ++x) hm.set(x, z, cur[(size_t)(x + shift)][(size_t)(z + shift)]);
+}
+
+// splashErodeMap(strength): each vertex, in turn, drains toward its downhill neighbours (the
+// gradients taken once, the map wrapped round at its edges), at most `strength` in all.
+void splash_erode_028(HeightmapGrid &hm, float strength) {
+	const int n = hm.res;
+	auto at = [&](int x, int y) -> float & { return hm.data[(size_t)y * (size_t)n + (size_t)x]; };
+	std::vector<float> gx((size_t)n * (size_t)n), gy((size_t)n * (size_t)n);
+	for (int x = 0; x < n; ++x)
+		for (int y = 0; y < n; ++y) {
+			gx[(size_t)x * n + y] = at((x + 1) % n, y) - at(x, y);
+			gy[(size_t)x * n + y] = at(x, (y + 1) % n) - at(x, y);
+		}
+	for (int x = 0; x < n; ++x) {
+		const int nx = (x + 1) % n, px = (x + n - 1) % n;
+		for (int y = 0; y < n; ++y) {
+			const int ny = (y + 1) % n, py = (y + n - 1) % n;
+			const float slopes[4] = {-gx[(size_t)x * n + y], -gy[(size_t)x * n + y], gx[(size_t)px * n + y], gy[(size_t)x * n + py]};
+			float sum = 0.0f;
+			for (float s : slopes) if (s > 0.0f) sum += s;
+			float drain[4] = {0.0f, 0.0f, 0.0f, 0.0f}, total = 0.0f;
+			for (int i = 0; i < 4; ++i)
+				if (slopes[i] > 0.0f) { drain[i] = std::min(strength * slopes[i] / sum, slopes[i]); total += drain[i]; }
+			at(x, y) -= total;
+			at(nx, y) += drain[0];
+			at(x, ny) += drain[1];
+			at(px, y) += drain[2];
+			at(x, py) += drain[3];
+		}
+	}
+}
+
+// rescaleHeightmap(lo, hi).
+void rescale_028(HeightmapGrid &hm, float lo, float hi) {
+	const auto [mn, mx] = std::minmax_element(hm.data.begin(), hm.data.end());
+	const float a = *mn, b = *mx;
+	for (float &h : hm.data) h = lo + (h - a) / std::max(b - a, 1e-6f) * (hi - lo);
+}
+
+} // namespace
+
+// The paths caledonian_meadows.js lays between the players (clPath), a tile grid for its
+// resource spots (place_caledonian_spots) to keep off.
+thread_local std::vector<uint8_t> t_caledonian_paths;
+// Whether the map being generated is circular (Simulation::circular_map, set before generate).
+thread_local bool t_circular_map = true;
+
+void RmsGenerator::synth_caledonian_meadows(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// caledonian_meadows.js, in metres: diamond-square land from a flat 2x2 seed (smoothness 0.8)
+	// over heightRange (MIN_HEIGHT and MAX_HEIGHT x (size + 256) / 768 / 4), 5 rounds of
+	// splashErodeMap(0.1), rescaled to the range; the water a fifth of the way up it. Players
+	// at getStartLocationsByHeightmap's spots between heighLimits 4 and 5 (1/8 and 3/8 of the
+	// way from the water to the top), 30 from the border (and the circle's edge), grouped in a cycle; each smoothed to
+	// its height over 35 tiles, and RandomPathPlacer paths (4 wide) between them blended 0.4
+	// toward the player height and smoothed (SmoothingPainter(5, 1, 1)) within 5 of them.
+	const float half = hm.map_half, size = 2.0f * half;
+	const float scale = (size + 256.0f) / 768.0f / 4.0f;
+	const float min_h = -20.0f * scale, max_h = (65535.0f / 92.0f - 20.0f) * scale; // MIN_HEIGHT, MAX_HEIGHT
+	const float sea = min_h + (max_h - min_h) / 5.0f; // heightSeaGroundAdjusted
+	const float med = (min_h + max_h) / 2.0f;
+	diamond_square_028(hm, rng, min_h, max_h, {{med, med}, {med, med}}, 0.8f);
+	for (int i = 0; i < 5; ++i) splash_erode_028(hm, 0.1f);
+	rescale_028(hm, min_h, max_h);
+	auto limit = [&](float r) { return sea + r * (max_h - sea); }; // heighLimits 3-10
+	const float sp = grid_spacing(hm);
+	auto height_at_tile = [&](int tx, int ty) { return hm.sample_world((float)tx - half, (float)ty - half); };
+
+	// getStartLocationsByHeightmap({L4, L5}, 1000, 30): of 1000 random draws of a spot for each
+	// player, the one whose closest two are farthest apart.
+	std::vector<std::pair<int, int>> valid;
+	const int tiles = (int)std::lround(size), border = 30;
+	for (int x = border; x < tiles - border; ++x)
+		for (int y = border; y < tiles - border; ++y) {
+			const float h = height_at_tile(x, y);
+			if (t_circular_map && !(std::hypot((float)x - half, (float)y - half) < half - (float)border)) continue;
+			if (h >= limit(2.0f / 8.0f) && h <= limit(3.0f / 8.0f)) valid.push_back({x, y});
+		}
+	std::vector<std::pair<int, int>> best;
+	float best_d = 0.0f;
+	for (int t = 0; t < 1000 && !valid.empty(); ++t) {
+		std::vector<std::pair<int, int>> draw;
+		for (int p = 0; p < num_players; ++p) draw.push_back(valid[rng.next_u32() % (uint32_t)valid.size()]);
+		float d = std::numeric_limits<float>::infinity();
+		for (int a = 0; a + 1 < num_players; ++a)
+			for (int b = a + 1; b < num_players; ++b)
+				d = std::min(d, std::hypot((float)(draw[a].first - draw[b].first), (float)(draw[a].second - draw[b].second)));
+		if (d > best_d) { best_d = d; best = draw; }
+	}
+
+	// From here on RTS0 heights: the water at 1, a metre kMetre.
+	water_h = 1.0f;
+	for (float &h : hm.data) h = water_h + (h - sea) * kMetre;
+	const float player_h = water_h + ((limit(2.0f / 8.0f) + limit(3.0f / 8.0f)) / 2.0f - sea) * kMetre; // playerHeight
+	if ((int)best.size() < num_players) {
+		place_ring_spawns(hm, spawns, num_players, half * 0.66f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, water_h + 1.5f);
+		t_caledonian_paths.clear();
+		return;
+	}
+	// groupPlayersCycle: the starts in a cycle round the map centre.
+	std::sort(best.begin(), best.end(), [&](const auto &a, const auto &b) {
+		return std::atan2((float)a.second - half, (float)a.first - half) < std::atan2((float)b.second - half, (float)b.first - half);
+	});
+	spawns.clear();
+	for (int i = 0; i < num_players; ++i) {
+		const float sx = (float)best[i].first - half, sz = (float)best[i].second - half, l = std::max(1e-3f, std::hypot(sx, sz));
+		const float bh = hm.sample_world(sx, sz);
+		spawns.push_back({(uint8_t)i, sx, sz, bh, -sx / l, -sz / l});
+		// DiskPlacer(35) with SmoothElevationPainter(ELEVATION_SET, its height, 35).
+		std::vector<uint8_t> disk(hm.data.size(), 0);
+		for (int z = 0; z < hm.res; ++z)
+			for (int x = 0; x < hm.res; ++x) {
+				float wx, wz;
+				hm.grid_to_world(x, z, wx, wz);
+				disk[(size_t)z * (size_t)hm.res + (size_t)x] = std::hypot(wx - sx, wz - sz) <= 35.0f;
+			}
+		paint_mask_elevation(hm, disk, bh, 35.0f);
+	}
+
+	// RandomPathPlacer(start, next start, 4, 2, false): from 2 tiles out, a step of a tile a
+	// turn, within a quarter turn either way of the straight line, until 2 from the end
+	// (at most 2 x the map size steps), a 4-tile disk at each.
+	std::vector<uint8_t> &path = t_caledonian_paths;
+	path.assign((size_t)tiles * (size_t)tiles, 0);
+	for (int i = 0; i < num_players && num_players > 1; ++i) {
+		const float ax = (float)best[i].first, ay = (float)best[i].second;
+		const float bx = (float)best[(i + 1) % num_players].first, by = (float)best[(i + 1) % num_players].second;
+		const float len = std::max(1e-3f, std::hypot(bx - ax, by - ay));
+		float px = std::round(ax + (bx - ax) / len * 2.0f), py = std::round(ay + (by - ay) / len * 2.0f);
+		const float dir = std::atan2(by - py, bx - px);
+		for (int steps = 0; (px - bx) * (px - bx) + (py - by) * (py - by) >= 4.0f && steps++ < 2 * tiles;) {
+			const float a = dir + 1.5707963f * rng.range_float(-1.0f, 1.0f);
+			px = std::round(px + std::cos(a));
+			py = std::round(py + std::sin(a));
+			for (int dy = -4; dy <= 4; ++dy)
+				for (int dx = -4; dx <= 4; ++dx) {
+					const int tx = (int)px + dx, ty = (int)py + dy;
+					if (dx * dx + dy * dy >= 16 || tx < 0 || ty < 0 || tx >= tiles || ty >= tiles) continue;
+					path[(size_t)ty * (size_t)tiles + (size_t)tx] = 1;
+				}
+		}
+	}
+	auto vertex_tile = [&](int x, int z) {
+		float wx, wz;
+		hm.grid_to_world(x, z, wx, wz);
+		const int tx = std::clamp((int)std::floor(wx + half), 0, tiles - 1), ty = std::clamp((int)std::floor(wz + half), 0, tiles - 1);
+		return (size_t)ty * (size_t)tiles + (size_t)tx;
+	};
+	// ElevationBlendingPainter(playerHeight, 0.4) on the path.
+	std::vector<uint8_t> on_path(hm.data.size(), 0);
+	for (int z = 0; z < hm.res; ++z)
+		for (int x = 0; x < hm.res; ++x) {
+			const size_t i = (size_t)z * (size_t)hm.res + (size_t)x;
+			if (!path[vertex_tile(x, z)]) continue;
+			on_path[i] = 1;
+			hm.data[i] = 0.4f * player_h + 0.6f * hm.data[i];
+		}
+	// SmoothingPainter(5, 1, 1) within 5 tiles of the path: each vertex, in turn, set to the
+	// mean of the heights in a box 5 tiles out, weighted by 1 / Manhattan distance.
+	const auto near = distance_to_mask(on_path, hm.res, sp);
+	const int brush = std::max(1, (int)std::lround(5.0f / sp));
+	for (int z = 0; z < hm.res; ++z)
+		for (int x = 0; x < hm.res; ++x) {
+			if (near[(size_t)z * (size_t)hm.res + (size_t)x] > 5.0f) continue;
+			float sum = 0.0f, wsum = 0.0f;
+			for (int dz = -brush; dz <= brush; ++dz)
+				for (int dx = -brush; dx <= brush; ++dx) {
+					const int nx = x + dx, nz = z + dz, d = std::abs(dx) + std::abs(dz);
+					if (!d || nx < 0 || nz < 0 || nx >= hm.res || nz >= hm.res) continue;
+					sum += hm.get(nx, nz) / (float)d;
+					wsum += 1.0f / (float)d;
+				}
+			hm.set(x, z, sum / wsum);
+		}
+	for (auto &sp_ : spawns) sp_.base_height = std::max(water_h + 0.5f, hm.sample_world(sp_.x, sp_.z));
+}
+
+// =========================================================================
 // 0 A.D. maps/random/caledonian_meadows.js (0.28): the resource spots. getPointsByHeight picks
 // vertices between the middles of heighLimits 3-4 and 5-6 (shore and low ground, player height
-// and high ground), 30 tiles from the players and 20 from each other and the border, in
+// and high ground), off the paths, 30 tiles from the players and 20 from each other and the border, in
 // 2 x mapSize tries; spot i is (i % 5, or % 4 under Nomad) a stone mine, a metal mine, a fenced
 // Gaia farmstead with sheep, a grove and a camp of treasures and Gaia soldiers. The decorations
-// (geology and flora actors, the campfire, eyecandy props), the grove and path terrains and
-// the paths the spots avoid are left out.
+// (geology and flora actors, the campfire, eyecandy props) and the grove and path terrains
+// are left out; the spots keep off the paths (t_caledonian_paths).
 // =========================================================================
 static void place_caledonian_spots(Simulation &sim, const HeightmapGrid &hm, float water_h,
 		const std::vector<RmsGenerator::PlayerSpawn> &spawns, uint32_t seed) {
 	RmsRng rng(seed ^ 0x43414C45u); // 'CALE': a stream of its own, so the map's other placements stay
 	constexpr double pi = kWallPi<double>;
 	const float half = hm.map_half, size = 2.0f * half;
-	const float top = *std::max_element(hm.data.begin(), hm.data.end());
+	const float scale = (size + 256.0f) / 768.0f / 4.0f;
+	const float min_h = -20.0f * scale, max_h = (65535.0f / 92.0f - 20.0f) * scale; // synth_caledonian_meadows'
+	const float top = water_h + (max_h - (min_h + (max_h - min_h) / 5.0f)) * kMetre;
 	auto limit = [&](float r) { return water_h + r * (top - water_h); }; // heighLimits above the sea
+	const std::vector<uint8_t> &path = t_caledonian_paths;
+	const int tiles = (int)std::lround(size);
+	auto on_path = [&](int x, int z) {
+		x = std::clamp(x, 0, tiles - 1);
+		z = std::clamp(z, 0, tiles - 1);
+		return !path.empty() && path[(size_t)z * (size_t)tiles + (size_t)x];
+	};
 	const float lo = 0.5f * (limit(1.0f / 8.0f) + limit(2.0f / 8.0f)), hi = 0.5f * (limit(3.0f / 8.0f) + limit(4.0f / 8.0f));
 	const int min_d = 20, verts = (int)std::lround(size) + 1;
 	std::vector<std::pair<float, float>> valid;
 	for (int x = min_d; x < verts - min_d; ++x)
 		for (int z = min_d; z < verts - min_d; ++z) {
+			if (on_path(x - 1, z) || on_path(x, z - 1) || on_path(x + 1, z) || on_path(x, z + 1)) continue; // avoidClasses(clPath)
 			const float wx = (float)x - half, wz = (float)z - half, h = hm.sample_world(wx, wz);
 			if (h > lo && h < hi && (!sim.circular_map() || half - std::hypot(wx, wz) >= (float)min_d)) valid.push_back({wx, wz});
 		}
 	struct Taken { float x, z, d; };
 	std::vector<Taken> taken;
 	for (const auto &sp : spawns) taken.push_back({sp.x, sp.z, 30.0f});
-	// One spot in five (four under Nomad) is a large stone mine, and 0.28 averages
-	// resource_counts_data.h's large stone mines; RTS0's diamond-square land puts more of the
-	// map in the band than 0.28's eroded and rescaled one, so the spots stop at that many.
-	const int kinds = sim.nomad() ? 4 : 5;
-	const MapResourceCounts *rc = map_resource_counts("caledonian_meadows");
-	const size_t most = rc ? (size_t)(kinds * std::max(1, map_resource_count(rc->stone_large, size, (int)spawns.size()))) : SIZE_MAX;
 	std::vector<std::pair<float, float>> spots;
-	for (int t = 0; t < 2 * (int)size && !valid.empty() && spots.size() < most; ++t) {
+	for (int t = 0; t < 2 * (int)size && !valid.empty(); ++t) {
 		const auto p = valid[rng.next_u32() % (uint32_t)valid.size()];
 		bool ok = true;
 		for (const Taken &q : taken)
@@ -11636,6 +11817,7 @@ static void place_caledonian_spots(Simulation &sim, const HeightmapGrid &hm, flo
 	};
 
 	sim.begin_bulk_spawn();
+	const int kinds = sim.nomad() ? 4 : 5;
 	for (size_t i = 0; i < spots.size(); ++i) {
 		const float x = spots[i].first, z = spots[i].second;
 		switch ((int)(i % (size_t)kinds)) {
@@ -11651,6 +11833,7 @@ static void place_caledonian_spots(Simulation &sim, const HeightmapGrid &hm, flo
 
 bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	sim.reset();
+	t_circular_map = sim.circular_map();
 
 	t_map_areas.clear();
 	RmsRng rng(config.seed ? config.seed : 1337);
@@ -12210,14 +12393,23 @@ void RmsGenerator::keep_resources_passable(Simulation &sim, uint8_t type) {
 				if (!steep[(size_t)j * tr + i]) return true;
 		return false;
 	};
-	// rmgen's MAP_BORDER_WIDTH: entities stay 3 tiles in from the edge; on a circular map the
-	// ring past_map_edge bars is impassable, so whatever starts there moves in across it.
+	// rmgen's MAP_BORDER_WIDTH (RandomMap.js:220 randomCoordinate, MapGenerator.cpp:126):
+	// entities stay 3 tiles in from the edge on every map; the ring/frame past_map_edge bars
+	// is impassable, so whatever starts there moves in across it.
 	const float inner = half - MAP_EDGE_DIST - 1.5f;
-	auto in_ring = [&](float x, float z) { return sim.circular_map() && x * x + z * z > inner * inner; };
+	auto in_ring = [&](float x, float z) {
+		if (sim.circular_map()) return x * x + z * z > inner * inner;
+		return std::fabs(x) > inner || std::fabs(z) > inner;
+	};
 	auto pull_in = [&](float &x, float &z) {
-		const float d = std::max(1e-3f, std::hypot(x, z)), k = (inner - 0.5f) / d;
-		x *= k;
-		z *= k;
+		if (sim.circular_map()) {
+			const float d = std::max(1e-3f, std::hypot(x, z)), k = (inner - 0.5f) / d;
+			x *= k;
+			z *= k;
+		} else {
+			x = std::clamp(x, -(inner - 0.5f), inner - 0.5f);
+			z = std::clamp(z, -(inner - 0.5f), inner - 0.5f);
+		}
 	};
 	const auto fv = sim.fauna();
 	for (size_t f = 0; f < fv.count; ++f) {

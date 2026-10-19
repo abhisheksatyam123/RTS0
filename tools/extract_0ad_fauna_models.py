@@ -77,12 +77,16 @@ MODELS = {
 }
 
 # RTS0 clip -> 0 A.D. animation names in the actor (lower case), best first.
+# "feeding" is 0.28 UnitAI animal IDLE.LINGERING's SelectAnimation("feeding"): the
+# grazing loop actors without one fall back from (horses, ponies and hippos alias
+# one of their idles, so they linger on those as in 0.28).
 CLIPS = {
     "Idle": ("idle",),
     "Walk": ("walk",),
     "Run": ("run", "trot", "gallop"),
     "Attack": ("attack_melee", "attack", "attack_melee1"),
     "Death": ("death",),
+    "Feeding": ("feeding",),
 }
 
 COLLADA = "{http://www.collada.org/2005/11/COLLADASchema}"
@@ -640,14 +644,106 @@ def load_texture(art, ref):
     raise SystemExit(f"missing texture {ref}")
 
 
+def append_feeding(art, model_id, actor):
+    """Append 0.28's "feeding" clip to an existing fauna GLB as "Feeding".
+
+    For the PSA-built animals tools/add_0ad_feeding_clips.py drops the release
+    .psa onto the GLB; horse_breed (Blender-named rig, no standard skeleton fit)
+    and the peacock (re-exported rest pose) need their source .dae sampled onto
+    their own rig instead, which is what this does (read_clip matches by node
+    name, so the rigs must come from the same source tree as the GLB).
+    """
+    import json as _json
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from add_0ad_clips import add_accessor, glb_bones, read_glb, write_glb  # noqa: E402
+    with open(MANIFEST) as fh:
+        man = _json.load(fh)
+    rec = man["models"][model_id]
+    path = os.path.join(REPO, "assets", rec["file"])
+    gltf, bin_ = read_glb(path)
+    if any(a.get("name") == "Feeding" for a in gltf.get("animations", [])):
+        print(f"[{model_id}]: has Feeding")
+        return False
+    a = resolve_actor(art, actor)
+    if not a["mesh"]:
+        raise SystemExit(f"{actor}: no mesh")
+    feed = pick_clip(a["anims"], CLIPS["Feeding"])
+    if not feed:
+        raise SystemExit(f"{actor}: no feeding animation")
+    m = read_mesh(art.path("meshes", a["mesh"]))
+    nodes = m["nodes"]
+    joint_set = set(m["joint_names"])
+    order = [n for n in nodes if n in joint_set or any(p in joint_set for p in _ancestors(nodes, n))]
+    joints, names, _ = glb_bones(gltf)
+    if list(names) != order:
+        raise SystemExit(f"{model_id}: GLB bones differ from the mesh rig ({len(names)} vs {len(order)})")
+    yaw = np.eye(4)
+    head = next((n for n in order if "head" in n.lower()), None)
+    if head is not None:
+        rest_world = m["rest_world"]
+        allp = np.array([p for part in [skin_part(m, {n: i for i, n in enumerate(order)})] for p in part.pos])
+        mid = (allp.min(axis=0) + allp.max(axis=0)) / 2
+        hp = (ZUP @ rest_world[head][:, 3])[:3] - mid
+        ang = np.arctan2(hp[0], -hp[2])
+        quarter = round(ang / (np.pi / 2)) * (np.pi / 2)
+        if abs(quarter) > 1e-6:
+            c, s_ = np.cos(quarter), np.sin(quarter)
+            yaw = np.array([[c, 0, s_, 0], [0, 1, 0, 0], [-s_, 0, c, 0], [0, 0, 0, 1]])
+    axis = yaw @ ZUP
+    axis_inv = np.linalg.inv(axis)
+
+    def bone_pose(world):
+        w = axis @ world @ axis_inv
+        lin = w[:3, :3]
+        u, _, vt = np.linalg.svd(lin)
+        r = u @ vt
+        if np.linalg.det(r) < 0:
+            u[:, -1] *= -1
+            r = u @ vt
+        return w[:3, 3], r, 1.0
+
+    anim = read_clip(art, feed, nodes, order, bone_pose)
+    if anim is None:
+        raise SystemExit(f"{feed}: no channels for this rig")
+    times, tracks = anim
+    anims = gltf.setdefault("animations", [])
+    t_acc = add_accessor(gltf, bin_, np.array(times, dtype=np.float32).reshape(-1, 1), "SCALAR")
+    samplers, channels = [], []
+    for i, node in enumerate(joints):
+        for path_name, arr, typ in (("translation", np.array(tracks[i]["translation"]), "VEC3"),
+                                    ("rotation", np.array(tracks[i]["rotation"]), "VEC4")):
+            samplers.append({"input": t_acc, "output": add_accessor(gltf, bin_, arr, typ), "interpolation": "LINEAR"})
+            channels.append({"sampler": len(samplers) - 1, "target": {"node": node, "path": path_name}})
+    anims.append({"name": "Feeding", "samplers": samplers, "channels": channels})
+    write_glb(path, gltf, bin_)
+    if "Feeding" not in rec.setdefault("animations", []):
+        rec["animations"].append("Feeding")
+    src = f"anim:{feed}"
+    if src not in rec.setdefault("sources", []):
+        rec["sources"] = sorted(rec["sources"] + [src])
+    with open(MANIFEST, "w") as fh:
+        _json.dump(man, fh, indent=1, sort_keys=True)
+        fh.write("\n")
+    print(f"[{model_id}] {actor}: +Feeding from {feed} ({len(times)} frames)")
+    return True
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--0ad", dest="zeroad", required=True, help="0 A.D. git checkout")
     ap.add_argument("--only", nargs="+")
     ap.add_argument("--out", default=OUT_DIR)
     ap.add_argument("--no-manifest", action="store_true")
+    ap.add_argument("--feeding-only", action="store_true",
+                    help="append 0.28's feeding clip to existing GLBs instead of converting")
     args = ap.parse_args()
     art = Art(args.zeroad)
+    if args.feeding_only:
+        for model_id, spec in MODELS.items():
+            if args.only and model_id not in args.only:
+                continue
+            append_feeding(art, model_id, spec[0])
+        return
     entries = {}
     for model_id, spec in MODELS.items():
         if args.only and model_id not in args.only:

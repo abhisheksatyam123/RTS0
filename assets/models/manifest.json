@@ -22876,7 +22876,8 @@
     "Walk",
     "Run",
     "Death",
-    "Idle2"
+    "Idle2",
+    "Feeding"
    ],
    "bones": 95,
    "file": "models/units/fauna_horse_breed.glb",
@@ -22897,6 +22898,7 @@
     "anim:quadraped/horse_breed_gallop.dae",
     "anim:quadraped/horse_breed_idle_01.dae",
     "anim:quadraped/horse_breed_idle_02.dae",
+    "anim:quadraped/horse_breed_idle_04.dae",
     "anim:quadraped/horse_breed_walk.dae",
     "mesh:props/horse/hair_mane_01_breed.dae",
     "mesh:props/horse/hair_tail_01_breed.dae",
@@ -23050,7 +23052,8 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Feeding"
    ],
    "bones": 34,
    "file": "models/units/fauna_peacock.glb",
@@ -23066,6 +23069,7 @@
    "sources": [
     "actor:art/actors/fauna/peacock.xml",
     "anim:quadraped/peacock_death.dae",
+    "anim:quadraped/peacock_feeding.dae",
     "anim:quadraped/peacock_idle.dae",
     "anim:quadraped/peacock_walk.dae",
     "mesh:skeletal/peacock.dae",

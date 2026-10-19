@@ -112,6 +112,15 @@ func _ready() -> void:
 		pending = {}
 		configure(p["gui"])
 		show_summary(p["gui"].get("victory", false), p["data"], float(p["data"].get("game_time", 0.0)))
+		# 0.28's summary keeps the match's music playing until the main menu
+		# (summary.js has no music calls; only the main menu sets MENU).
+		var ms = get_node_or_null("/root/MatchSettings")
+		if ms != null and not ms.match_music.is_empty():
+			var mm: Dictionary = ms.match_music
+			ms.match_music = {}
+			var menu_audio = get_node_or_null("/root/MenuAudio")
+			if menu_audio != null:
+				menu_audio.play_match_track(str(mm.get("track", "")), float(mm.get("position", 0.0)))
 
 func is_open() -> bool:
 	return visible
