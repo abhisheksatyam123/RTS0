@@ -366,6 +366,10 @@ Dictionary RtsoMain::debug_selection_state() {
 				: rtso::unit_tech_classes(uview.unit_type[i]);
 		u["civilian"] = (bool)(tc & rtso::TC_CIVILIAN);
 		u["target_resource"] = (int64_t)uview.target_resource_id[i];
+		const std::vector<rtso::UnitOrder> *oq = sim->unit_order_queue(uview.id[i]);
+		u["queued_orders"] = (int64_t)(oq ? oq->size() : 0);
+		u["order_kind"] = (int64_t)sim->unit_order(uview.id[i]).kind;
+		if (oq && !oq->empty()) u["queue_front_kind"] = (int64_t)oq->front().kind;
 		if (cam) {
 			const Vector3 wp(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
 			u["behind"] = cam->is_position_behind(wp);
@@ -677,6 +681,10 @@ Dictionary RtsoMain::debug_dialogs() {
 	d["chat_addressee"] = chat_window_.addressee_label();
 	d["chat_extended"] = chat_window_.extended();
 	d["chat_filters"] = (int64_t)chat_window_.filter_count();
+	Array names; // the plain names Tab completes (g_PlayerAssignments)
+	for (const String &n : const_cast<RtsoMain *>(this)->chat_autocomplete_names()) names.push_back(RtsoChatWindow::plain(n));
+	d["chat_names"] = names;
+	d["chat_addressees"] = chat_window_.addressee_list();
 	return d;
 }
 
@@ -789,6 +797,11 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 	d["unit_motion_drawn"] = debug_overlays_.drawn(O::UNIT_MOTION);
 	d["range_drawn"] = debug_overlays_.drawn(O::RANGE);
 	d["bounding_box_drawn"] = debug_overlays_.drawn(O::BOUNDING_BOX);
+	d["cull_camera_frustum_drawn"] = debug_overlays_.drawn(O::CULL_CAMERA_FRUSTUM);
+	d["shadows_frustum_drawn"] = debug_overlays_.drawn(O::SHADOWS_FRUSTUM);
+	d["culling_enabled"] = culling_enabled_;
+	d["lock_cull_camera"] = lock_cull_camera_;
+	d["control_all"] = sim ? sim->controls_all(local_player()) : false;
 	d["render_debug"] = render_debug_mode_;
 	d["viewport_debug_draw"] = get_viewport() ? (int)get_viewport()->get_debug_draw() : -1;
 	return d;

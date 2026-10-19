@@ -103,8 +103,10 @@ def main():
             if not m.get("file", "").startswith("models/units/"):
                 continue
             # The unit actor's body group, then its props' (heads, helmets, shields...).
+            # Animals too: most 0.28 fauna actors swap coats the same way (deer, horses, cattle).
             actors = [s[len("actor:"):] for s in m.get("sources", [])
-                      if s.startswith(("actor:art/actors/units/", "actor:art/actors/props/units/"))]
+                      if s.startswith(("actor:art/actors/units/", "actor:art/actors/props/units/",
+                                       "actor:art/actors/fauna/"))]
             actors.sort(key=lambda a: not a.startswith("art/actors/units/"))
             groups = []
             for a in actors:

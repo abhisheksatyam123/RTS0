@@ -1,3 +1,4 @@
+#include <godot_cpp/classes/image_texture.hpp>
 #include "world_view_node.h"
 #include "display_colors.h"
 #include "territory_boundary.h"
@@ -165,10 +166,7 @@ RtsoWorldView::UnitVis &RtsoWorldView::acquire_unit_slot(uint32_t sim_id) {
 		v.root = memnew(Node3D);
 		add_child(v.root);
 
-		v.ring = memnew(MeshInstance3D);
-		v.ring->set_mesh(ring_mesh);
-		v.ring->set_scale(Vector3(1.0f, 0.12f, 1.0f));
-		add_child(v.ring);
+
 
 		v.hp_bg = memnew(MeshInstance3D);
 		v.hp_bg->set_mesh(hp_bg_mesh);
@@ -199,6 +197,7 @@ RtsoWorldView::UnitVis &RtsoWorldView::acquire_unit_slot(uint32_t sim_id) {
 	UnitVis &v = unit_pool[slot];
 	v.sim_id = sim_id;
 	v.yaw = 0.0f;
+	v.anim_debt = 0.0f;
 	v.root->set_visible(true);
 	v.hp_bg->set_visible(false);
 	v.hp_fg->set_visible(false);
@@ -267,9 +266,26 @@ void RtsoWorldView::init_animation_controllers() {
 
 void RtsoWorldView::_ready() {
 	// Selection Ring
-	ring_mesh.instantiate();
-	ring_mesh->set_inner_radius(0.45f);
-	ring_mesh->set_outer_radius(0.58f);
+	// Selection Ring: create procedural smooth ring texture in memory so it never relies on disk import
+	{
+		const int sz = 256;
+		Ref<Image> img = Image::create_empty(sz, sz, false, Image::FORMAT_RGBA8);
+		const float center = (sz - 1) * 0.5f;
+		const float radius = sz * 0.42f;
+		const float half_w = sz * 0.045f;
+		const float feather = 1.5f;
+		for (int y = 0; y < sz; ++y) {
+			for (int x = 0; x < sz; ++x) {
+				const float dx = (float)x - center;
+				const float dy = (float)y - center;
+				const float dist = Math::sqrt(dx * dx + dy * dy);
+				const float diff = Math::abs(dist - radius);
+				const float a = Math::clamp((half_w - diff) / feather, 0.0f, 1.0f);
+				img->set_pixel(x, y, Color(1.0f, 1.0f, 1.0f, a));
+			}
+		}
+		ring_decal_tex_ = ImageTexture::create_from_image(img);
+	}
 
 	ring_sel_mat.instantiate();
 	ring_sel_mat->set_albedo(Color(0.2f, 1.0f, 0.4f));
@@ -505,6 +521,7 @@ void RtsoWorldView::_ready() {
 		for (int f = 0; f < rtso::FAUNA_COUNT; ++f) {
 			for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 				fauna_mm[f][c] = create_multimesh(fauna_rest[f], false);
+				fauna_mm[f][c]->set_use_custom_data(true); // the coat draw (player_color.gdshader variant_u)
 				fauna_mmi[f][c] = memnew(MultiMeshInstance3D);
 				fauna_mmi[f][c]->set_multimesh(fauna_mm[f][c]);
 				if (silhouettes_ && silhouette_mat_.is_valid()) fauna_mmi[f][c]->set_material_overlay(silhouette_mat_);
@@ -1190,6 +1207,7 @@ enum ClipId : uint8_t {
 	CLIP_CAPTURE,
 	CLIP_IDLE2,
 	CLIP_DEATH2,
+	CLIP_FEEDING, // 0.28 UnitAI animal IDLE.LINGERING (add_0ad_feeding_clips.py)
 	// Formation variant clips (kFormClips), loaded from their PSA on first use.
 	CLIP_FORM_FIRST,
 	CLIP_COUNT = CLIP_FORM_FIRST + 36
@@ -1266,7 +1284,7 @@ static const StringName &clip_name(ClipId id) {
 		StringName("Slaughter"), StringName("Promotion"),
 		StringName("CarryFood"), StringName("CarryMeat"), StringName("CarryWood"),
 		StringName("CarryStone"), StringName("CarryMetal"), StringName("Capture"),
-		StringName("Idle2"), StringName("Death2")
+		StringName("Idle2"), StringName("Death2"), StringName("Feeding")
 		};
 		// ModelLibrary::apply_clip_tools: "Form" clips show the weapon, "FormBare" none.
 		for (int i = 0; i < CLIP_COUNT - CLIP_FORM_FIRST; ++i)
@@ -1363,10 +1381,12 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 	switch (uaction) {
 		// Gather/build/attack block movement clips (SelectMovementAnimation early-out).
 		case rtso::ACTION_GATHER:
+			if (speed2 > 0.05f) return w_move;
 			w.clip = gather_clip_for(utype, res_type, res_sub);
 			w.state = rtso::AnimState::Gather;
 			return w;
 		case rtso::ACTION_BUILD:
+			if (speed2 > 0.05f) return w_move;
 			w.clip = CLIP_BUILD;
 			w.state = rtso::AnimState::Build;
 			return w;
@@ -1390,7 +1410,7 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 			return w;
 		case rtso::ACTION_ATTACK:
 			// Ships: Attack.js keeps attack_ranged until StopAttacking (sail falls back to idle).
-			if (speed2 <= 8.0f || rtso::unit_is_ship(utype)) {
+			if (speed2 <= 0.05f || rtso::unit_is_ship(utype)) {
 				const bool hunt = (utype == rtso::UNIT_VILLAGER || utype == rtso::UNIT_FEMALE_CITIZEN);
 				// variants/biped/attack_capture.xml: "capture" while taking a structure.
 				w.clip = capturing ? CLIP_CAPTURE : (hunt ? CLIP_SLAUGHTER : CLIP_ATTACK);
@@ -1467,9 +1487,13 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 		case CLIP_GATHER_ROCK:
 		case CLIP_GATHER_FRUIT:
 		case CLIP_GATHER_GRAIN:
-		case CLIP_GATHER_MEAT:
 		case CLIP_GATHER_FISH:
 			if (anim->has_animation(clip_name(CLIP_GATHER))) return CLIP_GATHER;
+			alt = CLIP_IDLE;
+			break;
+		case CLIP_GATHER_MEAT:
+			if (anim->has_animation(clip_name(CLIP_GATHER))) return CLIP_GATHER;
+			if (anim->has_animation(clip_name(CLIP_ATTACK))) return CLIP_ATTACK;
 			alt = CLIP_IDLE;
 			break;
 		case CLIP_GATHER:
@@ -1481,6 +1505,7 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 		case CLIP_CAPTURE:   alt = CLIP_ATTACK; break;
 		case CLIP_IDLE2:     alt = CLIP_IDLE; break;
 		case CLIP_DEATH2:    alt = CLIP_DEATH; break;
+		case CLIP_FEEDING:   alt = CLIP_IDLE; break;
 		default:
 			if (is_form_clip(want)) {
 				const char *psa = kFormClips[want - CLIP_FORM_FIRST].psa;
@@ -1580,6 +1605,14 @@ static void apply_unit_tools(Node *root, const StringName &clip) {
 	rtso::ModelLibrary::apply_clip_tools(root, clip);
 }
 
+// apply_unit_tools on a detailed unit's model, skipped when it already shows the clip's tools.
+void RtsoWorldView::apply_vis_tools(UnitVis &v, const StringName &clip) {
+	if (v.tools_model == v.model && v.tools_clip == clip) return;
+	apply_unit_tools(v.model, clip);
+	v.tools_model = v.model;
+	v.tools_clip = clip;
+}
+
 void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 	if (v.model_id == model_name && v.model) return;
 	if (v.anim) {
@@ -1611,7 +1644,8 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 			v.anim->set_speed_scale(1.0);
 			v.anim->advance(0.0);
 		}
-		apply_unit_tools(v.model, StringName("Idle"));
+		v.tools_model = nullptr;
+		apply_vis_tools(v, StringName("Idle"));
 		return;
 	}
 	MeshInstance3D *mi = memnew(MeshInstance3D);
@@ -1822,12 +1856,30 @@ String RtsoWorldView::building_visual_id(uint8_t civ, uint8_t type, float half_s
 		return String(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "_wall_gate";
 	// Palisade WallSet pieces (WALLSET_PALISADE) draw 0 A.D.'s palisades_short, _medium,
 	// _long, _tower and _gate; a one-cell palisade from a map keeps its model.
+	// Rome's siege WallSet (rome/wallset_siege) draws its own siege_wall_long, _medium,
+	// _short, _tower and _gate actors; segments are 36, 24 and 12 m like the stone walls'.
+	if (type == rtso::BLD_SIEGE_WALL_GATE) return "siege_wall_gate";
+	if (type == rtso::BLD_SIEGE_WALL) {
+		if (rtso::is_siege_wall_tower(type, half_size)) return "siege_wall_tower";
+		return half_size >= 3.75f ? "siege_wall_long" : half_size >= 2.25f ? "siege_wall_medium" : "siege_wall_short";
+	}
 	if (type == rtso::BLD_PALISADE_GATE) return "palisade_gate";
 	if (type == rtso::BLD_PALISADE && rtso::is_wallset_piece(type, half_size)) {
 		if (rtso::is_palisade_tower(type, half_size)) return "palisade_tower";
 		return half_size >= 1.5f ? "palisade_long" : half_size >= 0.9f ? "palisade_medium" : "palisade_short";
 	}
 	return String(rtso::civ_building_model(civ, type));
+}
+
+void RtsoWorldView::set_building_pose(BuildingVis &v, Node3D *n3, const Vector3 &scale, const Vector3 &rot, const Vector3 &pos) {
+	if (v.pose_set && v.pose_scale == scale && v.pose_rot == rot && v.pose_pos == pos) return;
+	n3->set_scale(scale);
+	n3->set_rotation(rot);
+	n3->set_position(pos);
+	v.pose_set = true;
+	v.pose_scale = scale;
+	v.pose_rot = rot;
+	v.pose_pos = pos;
 }
 
 void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_name) {
@@ -1841,6 +1893,7 @@ void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_na
 	v.upgrade_scaffold = nullptr; // freed with the old model
 	v.fog_dim = -1.0f; // new nodes: re-apply the fog overlay
 	v.player_rgba = -1;
+	v.pose_set = false;
 	v.model = instantiate_building_id(model_name);
 	if (!v.model) {
 		MeshInstance3D *mi = memnew(MeshInstance3D);
@@ -2109,15 +2162,14 @@ void RtsoWorldView::update_site_dust(BuildingVis &v, uint8_t kind, int builders,
 // before decals blend in, so they take the LOS brightness as their modulate.
 void RtsoWorldView::update_building_decals(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, float brightness) {
 	if (!v.root) return;
-	const String key = glb_id.is_empty() ? String() : glb_id + String("|") + String::num(k, 4) + String("|") + String::num(base.x, 3) + String("|") + String::num(base.z, 3);
-	if (key != v.decal_key) {
+	if (!v.decal_key.same(glb_id, k, base.x, base.z)) {
 		for (Decal *d : v.decals) {
 			if (d->get_parent()) d->get_parent()->remove_child(d);
 			d->queue_free();
 		}
 		v.decals.clear();
-		v.decal_key = key;
-		if (key.is_empty()) return;
+		v.decal_key.set(glb_id, k, base.x, base.z);
+		if (glb_id.is_empty()) return;
 		if (!building_decals_loaded_) {
 			building_decals_loaded_ = true;
 			Ref<FileAccess> f = FileAccess::open("res://data/building_decals.json", FileAccess::READ);
@@ -2394,17 +2446,16 @@ void RtsoWorldView::update_ambient_fx(BuildingVis &v, const String &glb_id, floa
 	if (!v.root) return;
 	std::vector<GPUParticles3D *> &emitters = death ? v.death_fx : v.ambient_fx;
 	std::vector<Vector3> &emitter_pos = death ? v.death_pos : v.ambient_pos;
-	String &vkey = death ? v.death_key : v.ambient_key;
-	const String key = glb_id.is_empty() ? String() : glb_id + String("|") + String::num(k, 4);
-	if (key != vkey) {
+	FxKey &vkey = death ? v.death_key : v.ambient_key;
+	if (!vkey.same(glb_id, k, 0.0f, 0.0f)) {
 		for (GPUParticles3D *p : emitters) {
 			if (p->get_parent()) p->get_parent()->remove_child(p);
 			p->queue_free();
 		}
 		emitters.clear();
 		emitter_pos.clear();
-		vkey = key;
-		if (key.is_empty()) return;
+		vkey.set(glb_id, k, 0.0f, 0.0f);
+		if (glb_id.is_empty()) return;
 		load_ambient_fx();
 		const auto &table = death ? death_fx_ : ambient_fx_;
 		const auto it = table.find(building_table_key(glb_id));
@@ -2433,7 +2484,6 @@ void RtsoWorldView::update_ambient_fx(BuildingVis &v, const String &glb_id, floa
 
 void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 	if (v.root) v.root->set_visible(false);
-	if (v.ring) v.ring->set_visible(false);
 	if (v.hp_bg) v.hp_bg->set_visible(false);
 	if (v.hp_fg) v.hp_fg->set_visible(false);
 	if (v.xp_bg) v.xp_bg->set_visible(false);
@@ -2595,19 +2645,20 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key)
 	return *slot;
 }
 
-MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip) {
-	if (!b.mmi[clip]) {
+MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip, int phase) {
+	if (phase < 0 || phase >= CROWD_PHASES) phase = 0;
+	if (!b.mmi[clip][phase]) {
 		Ref<Mesh> m = b.puppet[clip].posed_frames[0].is_valid() ? Ref<Mesh>(b.puppet[clip].posed_frames[0]) : b.rest;
-		b.mm[clip] = create_multimesh(m, true);
-		b.mm[clip]->set_use_custom_data(true); // owner colour for player_color.gdshader
-		b.mmi[clip] = memnew(MultiMeshInstance3D);
-		b.mmi[clip]->set_multimesh(b.mm[clip]);
+		b.mm[clip][phase] = create_multimesh(m, true);
+		b.mm[clip][phase]->set_use_custom_data(true); // owner colour for player_color.gdshader
+		b.mmi[clip][phase] = memnew(MultiMeshInstance3D);
+		b.mmi[clip][phase]->set_multimesh(b.mm[clip][phase]);
 		// 0 A.D. unit actors carry <castshadow/>.
-		b.mmi[clip]->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_ON);
-		if (silhouettes_ && silhouette_mat_.is_valid()) b.mmi[clip]->set_material_overlay(silhouette_mat_);
-		add_child(b.mmi[clip]);
+		b.mmi[clip][phase]->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_ON);
+		if (silhouettes_ && silhouette_mat_.is_valid()) b.mmi[clip][phase]->set_material_overlay(silhouette_mat_);
+		add_child(b.mmi[clip][phase]);
 	}
-	return b.mm[clip].ptr();
+	return b.mm[clip][phase].ptr();
 }
 
 // The skeleton a clip library's bone tracks drive, with their path from the player's root.
@@ -2733,7 +2784,7 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 			if (!captured) {
 				if (prop) detach_carry_props(find_skeleton3d(inst));
 				row[c].baked_count = 0;
-				row[c].last_frame = -1;
+				for (int p = 0; p < CROWD_PHASES; ++p) row[c].last_frame[p] = -1;
 				continue;
 			}
 			double len = 0.0;
@@ -2761,24 +2812,47 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 			if (prop) detach_carry_props(find_skeleton3d(inst));
 		}
 		row[c].baked_count = valid;
-		row[c].last_frame = -1;
+		for (int p = 0; p < CROWD_PHASES; ++p) row[c].last_frame[p] = -1;
 	}
 	if (ap) ap->stop();
 }
 
-void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint64_t death_slots) {
+void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> meshes[][CROWD_PHASES], const int counts[][CROWD_PHASES], int count, uint64_t death_slots) {
+	for (int c = 0; c < count; ++c) {
+		if (row[c].baked_count <= 0) continue;
+		const bool is_death = (death_slots & (1ull << c)) != 0;
+		for (int p = 0; p < CROWD_PHASES; ++p) {
+			if (!meshes[c][p].is_valid() || counts[c][p] <= 0) continue;
+			int frame;
+			if (is_death) {
+				frame = (int)(anim_time * 10.0f);
+				if (frame > row[c].baked_count - 1) frame = row[c].baked_count - 1;
+			} else {
+				// Desynchronize animation phases across sub-batches
+				const float phase_offset = (float)p * (row[c].baked_count / (float)CROWD_PHASES);
+				frame = wrap_mod((int)(anim_time * 16.0f + phase_offset), row[c].baked_count);
+			}
+			if (frame != row[c].last_frame[p] && row[c].posed_frames[frame].is_valid()) {
+				meshes[c][p]->set_mesh(row[c].posed_frames[frame]);
+				row[c].last_frame[p] = frame;
+			}
+		}
+	}
+}
+
+void RtsoWorldView::cycle_fauna_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint64_t death_slots) {
 	for (int c = 0; c < count; ++c) {
 		if (!meshes[c].is_valid() || row[c].baked_count <= 0 || counts[c] <= 0) continue;
 		int frame;
 		if (death_slots & (1ull << c)) {
-			frame = (int)(anim_time * 5.0f);
+			frame = (int)(anim_time * 10.0f);
 			if (frame > row[c].baked_count - 1) frame = row[c].baked_count - 1;
 		} else {
-			frame = wrap_mod((int)(anim_time * 8.0f), row[c].baked_count);
+			frame = wrap_mod((int)(anim_time * 16.0f), row[c].baked_count);
 		}
-		if (frame != row[c].last_frame && row[c].posed_frames[frame].is_valid()) {
+		if (frame != row[c].last_frame[0] && row[c].posed_frames[frame].is_valid()) {
 			meshes[c]->set_mesh(row[c].posed_frames[frame]);
-			row[c].last_frame = frame;
+			row[c].last_frame[0] = frame;
 		}
 	}
 }
@@ -2814,7 +2888,7 @@ void RtsoWorldView::crowd_job_begin_clip(CrowdBatch &b, int c) {
 	crowd_baked_this_frame_ = true;
 	b.clip_baked[c] = true;
 	b.puppet[c].baked_count = 0;
-	b.puppet[c].last_frame = -1;
+	for (int p = 0; p < CROWD_PHASES; ++p) b.puppet[c].last_frame[p] = -1;
 	AnimationPlayer *ap = j.ap;
 	const ClipId want = (ClipId)crowd_clips()[c];
 	ensure_form_clip(ap, want);
@@ -2873,8 +2947,10 @@ void RtsoWorldView::crowd_job_bake_poses() {
 	for (int f = 0; f < j.valid; ++f) row.posed_frames[f] = j.poses[f];
 	for (int f = 0; f < n; ++f) j.poses[f].unref();
 	row.baked_count = j.valid;
-	row.last_frame = -1;
-	if (b.mm[c].is_valid() && row.posed_frames[0].is_valid()) b.mm[c]->set_mesh(row.posed_frames[0]);
+	for (int p = 0; p < CROWD_PHASES; ++p) row.last_frame[p] = -1;
+	for (int p = 0; p < CROWD_PHASES; ++p) {
+		if (b.mm[c][p].is_valid() && row.posed_frames[0].is_valid()) b.mm[c][p]->set_mesh(row.posed_frames[0]);
+	}
 	j.clip = -1;
 }
 
@@ -2961,11 +3037,12 @@ void RtsoWorldView::ensure_fauna_frames(uint8_t ftype) {
 	if (!inst) return;
 	// Animals flee at a run when they have one.
 	AnimationPlayer *ap = find_anim_player(inst);
-	uint8_t want[FAUNA_CLIP_COUNT] = { CLIP_IDLE, CLIP_WALK, CLIP_ATTACK, CLIP_DEATH, CLIP_IDLE2, CLIP_DEATH2 };
+	uint8_t want[FAUNA_CLIP_COUNT] = { CLIP_IDLE, CLIP_WALK, CLIP_ATTACK, CLIP_DEATH, CLIP_IDLE2, CLIP_DEATH2, CLIP_FEEDING };
 	if (ap && ap->has_animation(clip_name(CLIP_RUN))) want[1] = CLIP_RUN;
-	// The second idle and death only when the model has them (with_fauna_variant).
+	// The second idle and death, and feeding, only when the model has them (with_fauna_variant).
 	const bool needed[FAUNA_CLIP_COUNT] = { true, true, true, true,
-			ap && ap->has_animation(clip_name(CLIP_IDLE2)), ap && ap->has_animation(clip_name(CLIP_DEATH2)) };
+			ap && ap->has_animation(clip_name(CLIP_IDLE2)), ap && ap->has_animation(clip_name(CLIP_DEATH2)),
+			ap && ap->has_animation(clip_name(CLIP_FEEDING)) };
 	bool done[FAUNA_CLIP_COUNT] = {};
 	bake_puppet_clips(inst, fauna_puppet[ftype], done, want, needed, FAUNA_CLIP_COUNT, FAUNA_DEATH_SLOTS);
 	for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
@@ -3019,7 +3096,7 @@ void RtsoWorldView::play_unit_clip(UnitVis &v, const StringName &clip, bool loop
 	}
 	v.anim->play(clip);
 	v.anim->advance(0.0);
-	apply_unit_tools(v.model, clip);
+	apply_vis_tools(v, clip);
 }
 
 // Biped skeletons (46 bones) share 0 A.D.'s gatherer and promotion clips;
@@ -3040,6 +3117,8 @@ void RtsoWorldView::ensure_runtime_clips(AnimationPlayer *ap, bool female) {
 		{ CLIP_CARRY_STONE, "carry_ore", "biped_gatherer_carry_ore_f" },
 		{ CLIP_CARRY_METAL, "carry_ore", "biped_gatherer_carry_ore_f" },
 		{ CLIP_PROMOTION, "biped_infantry_promotion", "biped_infantry_promotion" },
+		{ CLIP_GATHER_MEAT, "gather_meat", "gather_meat" },
+		{ CLIP_SLAUGHTER, "slaughter", "slaughter" },
 	};
 	for (const Clip &c : kClips) {
 		if (lib->has_animation(clip_name(c.id))) continue;
@@ -3689,8 +3768,9 @@ void RtsoWorldView::refresh_silhouettes() {
 	for (auto &per_civ : crowd_)
 		for (auto &b : per_civ)
 			if (b)
-				for (MultiMeshInstance3D *mmi : b->mmi)
-					if (mmi) mmi->set_material_overlay(overlay);
+				for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
+					for (int p = 0; p < CROWD_PHASES; ++p)
+						if (b->mmi[c][p]) b->mmi[c][p]->set_material_overlay(overlay);
 	for (auto &per_fauna : fauna_mmi)
 		for (MultiMeshInstance3D *mmi : per_fauna)
 			if (mmi) mmi->set_material_overlay(overlay);
@@ -3759,11 +3839,25 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	}
 
 	Vector3 cam_pos;
-	if (Viewport *vp = get_viewport()) {
+	std::vector<Plane> frustum; // outward planes: inside has distance <= 0
+	if (!locked_cull_frustum_.empty() && anim_cull_enabled_) {
+		// Lock cull camera (GameView.cpp m_CullCamera): cull against the frozen frustum.
+		frustum = locked_cull_frustum_;
+	} else if (Viewport *vp = get_viewport()) {
 		if (Camera3D *cam = vp->get_camera_3d()) {
 			cam_pos = cam->get_global_position();
+			const TypedArray<Plane> planes = cam->get_frustum();
+			for (int p = 0; p < planes.size(); ++p) frustum.push_back(planes[p]);
 		}
 	}
+	// A sphere of `radius` at `at` is (maybe) in view; true with no camera, with
+	// culling off (GameView.cpp Culling), or with a locked frustum cleared.
+	auto in_view = [&](const Vector3 &at, float radius) {
+		if (!anim_cull_enabled_) return true;
+		for (const Plane &pl : frustum)
+			if (pl.distance_to(at) > radius) return false;
+		return true;
+	};
 	const float anim_dist_sq = 24.0f * 24.0f;
 	(void)anim_dist_sq;
 
@@ -3803,6 +3897,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (int s = 0; s < selected_ids.size() && (int)detailed.size() < MAX_DETAILED_UNITS; ++s) {
 		detailed.insert((uint32_t)selected_ids[s]);
 	}
+	// Give full skeletal animation to heroes and active units in view
+	for (size_t i = 0; i < uview.count && (int)detailed.size() < MAX_DETAILED_UNITS; ++i) {
+		if (entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) {
+			uint8_t ut = uview.unit_type[i];
+			if (ut == rtso::UNIT_HERO || in_view(Vector3(uview.pos_x[i], 0.0f, uview.pos_z[i]), 8.0f)) {
+				detailed.insert(uview.id[i]);
+			}
+		}
+	}
 
 	// The clip each visible unit plays (0 A.D. VisualActor: the real clip for
 	// every unit, not just the nearby ones), and how many share each batch.
@@ -3841,9 +3944,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	}
 	// Per batch and clip: units drawn (counts) and placed so far (written). Only the rows of
 	// batches with units this frame are cleared and read; the rest count none.
-	static int counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
-	static int written[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
-	static const int no_units[CROWD_CLIP_COUNT] = {};
+	static int counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT][CROWD_PHASES];
+	static int total_counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
+	static int written[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT][CROWD_PHASES];
+	static const int no_units[CROWD_CLIP_COUNT][CROWD_PHASES] = {};
+	static const int no_total[CROWD_CLIP_COUNT] = {};
 	for (const uint32_t ck : crowd_seen_list_) crowd_seen_[ck >> 16][ck & 0xFFFF] = 0;
 	crowd_seen_list_.clear();
 	for (size_t i = 0; i < uview.count; ++i) {
@@ -3861,25 +3966,35 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			crowd_seen_[civ][key] = 1;
 			crowd_seen_list_.push_back((uint32_t)civ << 16 | key);
 			std::memset(counts[civ][key], 0, sizeof(counts[civ][key]));
+			std::memset(total_counts[civ][key], 0, sizeof(total_counts[civ][key]));
 			std::memset(written[civ][key], 0, sizeof(written[civ][key]));
 		}
-		counts[civ][key][slot]++;
+		const int phase = (int)(uview.id[i] % (uint32_t)CROWD_PHASES);
+		counts[civ][key][slot][phase]++;
+		total_counts[civ][key][slot]++;
 	}
 	// Every batch with units this frame exists before the walk, which goes civ by civ, key by key.
 	for (const uint32_t ck : crowd_seen_list_) crowd_batch((uint8_t)(ck >> 16), (uint16_t)(ck & 0xFFFF));
 	for (const uint32_t ck : crowd_made_) {
 		const int civ = (int)(ck >> 16), t = (int)(ck & 0xFFFF);
 		const bool any = crowd_seen_[civ][t] != 0;
-		const int *row = any ? counts[civ][t] : no_units;
+		const auto &row = any ? counts[civ][t] : no_units;
+		const int *t_row = any ? total_counts[civ][t] : no_total;
 		CrowdBatch &cb = *crowd_[civ][t];
 		if (any) {
-			ensure_crowd_frames((uint8_t)civ, (uint16_t)t, row);
-			for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
-				if (row[c] > 0) crowd_mm(cb, c);
+			ensure_crowd_frames((uint8_t)civ, (uint16_t)t, t_row);
+			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+				for (int p = 0; p < CROWD_PHASES; ++p) {
+					if (row[c][p] > 0) crowd_mm(cb, c, p);
+				}
+			}
 		}
 		cycle_puppet_meshes(cb.puppet, cb.mm, row, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS);
-		for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
-			if (cb.mm[c].is_valid()) cb.mm[c]->set_instance_count(row[c]);
+		for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+			for (int p = 0; p < CROWD_PHASES; ++p) {
+				if (cb.mm[c][p].is_valid()) cb.mm[c][p]->set_instance_count(row[c][p]);
+			}
+		}
 	}
 
 	const Color col_player(0.55f, 0.72f, 1.0f);
@@ -3887,6 +4002,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 	std::unordered_set<uint32_t> active_unit_ids;
 
+	size_t unit_rings_used = 0;
 	const bool status_rank_icon = rtso::user_config::get_bool("gui.session.rankabovestatusbar");
 	const bool status_xp_bar = rtso::user_config::get_bool("gui.session.experiencestatusbar");
 	for (size_t i = 0; i < uview.count; ++i) {
@@ -3979,9 +4095,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (want.clip == CLIP_RUN && !dying) emit_run_dust(utype_str, Vector3(x, ground, z), sc, delta);
 		if (!dying) emit_unit_fx(utype_str, xf, sc, delta);
 		const int clip = crowd_slot_scratch_[i];
-		MultiMesh *cmm = crowd_[uciv][ckey] ? crowd_[uciv][ckey]->mm[clip].ptr() : nullptr;
+		const int phase = (int)(id % (uint32_t)CROWD_PHASES);
+		MultiMesh *cmm = crowd_[uciv][ckey] ? crowd_[uciv][ckey]->mm[clip][phase].ptr() : nullptr;
 		if (cmm) {
-			const int slot = written[uciv][ckey][clip]++;
+			const int slot = written[uciv][ckey][clip][phase]++;
 			if (detailed.count(id) > 0) {
 				Transform3D hidden;
 				hidden.origin = Vector3(x, y, z);
@@ -4037,7 +4154,21 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				draw_status_stack(sim, Vector3(x, y + model_b.height * sc + 0.3f, z), 0.9f, 0.08f, st);
 		}
 
-		if (detailed.count(id) == 0) continue;
+				if (detailed.count(id) == 0) {
+			bool is_selected = (sel_set.count((int32_t)id) > 0);
+			const bool ringed = is_selected || highlight_set_.count((int32_t)id) > 0;
+			if (ringed) {
+				Decal *d = get_or_create_ring_decal(unit_rings_used++);
+				const Color &mod_col = is_selected ? (is_player ? RING_SEL_COL : RING_ENEMY_COL)
+				                                   : (is_player ? RING_HL_COL : RING_ENEMY_HL_COL);
+				d->set_modulate(mod_col);
+				const float rsize = std::max(1.1f, 1.25f * model_b.height * sc);
+				d->set_size(Vector3(rsize, 2.5f, rsize));
+				d->set_transform(Transform3D(Basis(), Vector3(x, ground + 0.1f, z)));
+				d->set_visible(true);
+			}
+			continue;
+		}
 
 		UnitVis &v = acquire_unit_slot(id);
 		v.vis_stamp = unit_vis_stamp;
@@ -4075,8 +4206,17 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			bool loop_clip = want.loop && play == want.clip;
 			if (play != CLIP_NONE) {
 				play_unit_clip(v, clip_name(play), loop_clip);
-				v.anim->advance((double)delta);
-				apply_unit_tools(v.model, clip_name(play));
+				// A detailed unit out of view (a ship, a dying or selected unit
+				// off screen) banks its time and catches up when seen again, so a
+				// death or sail clip is where it would be. The mixers were ~11% of a
+				// late-game frame with every corpse and fleet animating.
+				if (in_view(Vector3(x, y, z), std::max(2.0f, 4.0f * model_b.height * sc))) {
+					v.anim->advance((double)(delta + v.anim_debt));
+					v.anim_debt = 0.0f;
+					apply_vis_tools(v, clip_name(play));
+				} else {
+					v.anim_debt = std::min(v.anim_debt + delta, 10.0f);
+				}
 			}
 			const uint8_t prop_clip = is_carry_variant(play) ? (uint8_t)play : 0;
 			if (prop_clip != v.carry_clip) {
@@ -4103,12 +4243,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		bool is_selected = (sel_set.count((int32_t)id) > 0);
 		const bool ringed = is_selected || highlight_set_.count((int32_t)id) > 0;
 		if (ringed) {
-			v.ring->set_material_override(is_selected ? (is_player ? ring_sel_mat : ring_enemy_mat)
-					: (is_player ? ring_hl_mat : ring_enemy_hl_mat));
-			v.ring->set_visible(true);
-			v.ring->set_transform(Transform3D(Basis(), Vector3(x, 0.04f, z)));
-		} else if (v.ring_on) {
-			v.ring->set_visible(false);
+			Decal *d = get_or_create_ring_decal(unit_rings_used++);
+			const Color &mod_col = is_selected ? (is_player ? RING_SEL_COL : RING_ENEMY_COL)
+			                                   : (is_player ? RING_HL_COL : RING_ENEMY_HL_COL);
+			d->set_modulate(mod_col);
+			const float rsize = std::max(1.1f, 1.25f * model_b.height * sc);
+			d->set_size(Vector3(rsize, 2.5f, rsize));
+			d->set_transform(Transform3D(Basis(), Vector3(x, ground + 0.1f, z)));
+			d->set_visible(true);
 		}
 		v.ring_on = ringed;
 
@@ -4229,8 +4371,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float b_scale = entry.scale > 0.05f ? entry.scale : 1.0f;
 
 		// Models face -z unrotated, so the sim's 0 A.D. rotation is offset by DEFAULT_BUILDING_ROT.
-		v.root->set_transform(Transform3D(Basis(Vector3(0, 1, 0), b.rot - rtso::Simulation::DEFAULT_BUILDING_ROT),
-				Vector3(b.x, base_y, b.z)));
+		{
+			const Transform3D xf(Basis(Vector3(0, 1, 0), b.rot - rtso::Simulation::DEFAULT_BUILDING_ROT), Vector3(b.x, base_y, b.z));
+			if (!v.root_xf_set || !(xf == v.root_xf)) {
+				v.root->set_transform(xf);
+				v.root_xf = xf;
+				v.root_xf_set = true;
+			}
+		}
 		{
 			const auto &site = rtso::ModelLibrary::get(cat_b, mid);
 			set_building_site_visible(v, v.phase == 1 || v.phase == 2, v.phase == 2, b.type, bciv, mid,
@@ -4238,38 +4386,39 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 
 		if (Node3D *n3 = Object::cast_to<Node3D>(v.model)) {
-			n3->set_scale(Vector3(b_scale, b_scale, b_scale));
-			n3->set_rotation(Vector3());
+			Vector3 scale(b_scale, b_scale, b_scale), rot, pos;
 			if (v.phase == 1) {
 				n3->set_visible(false);
+				pos = v.pose_set ? v.pose_pos : n3->get_position();
 			} else if (v.phase == 2) {
 				n3->set_visible(true);
 				float dy = entry.aabb.size.y * b_scale;
 				if (dy < 1.0f)
 					dy = 4.0f;
-				n3->set_position(Vector3(0, entry.y_offset + (b_progress - 1.0f) * dy, 0));
+				pos = Vector3(0, entry.y_offset + (b_progress - 1.0f) * dy, 0);
 			} else if (v.phase == 3) {
 				n3->set_visible(true);
 				float t = Math::clamp(v.phase_t / 0.70f, 0.0f, 1.0f);
 				float dy = entry.aabb.size.y * b_scale;
 				if (dy < 1.0f)
 					dy = 4.0f;
-				n3->set_rotation(Vector3(t * 0.22f, t * 0.40f, t * -0.14f));
-				n3->set_position(Vector3((t - 0.5f) * 0.45f, entry.y_offset - t * dy * 0.90f, (0.5f - t) * 0.35f));
+				rot = Vector3(t * 0.22f, t * 0.40f, t * -0.14f);
+				pos = Vector3((t - 0.5f) * 0.45f, entry.y_offset - t * dy * 0.90f, (0.5f - t) * 0.35f);
 			} else if (v.phase == 4 && own_rubble) {
 				// template_rubble.xml Decay: it stands DelayTime 15 s, then sinks at SinkRate 0.2 m/s.
 				n3->set_visible(true);
-				n3->set_scale(Vector3(rubble_k, rubble_k, rubble_k));
+				scale = Vector3(rubble_k, rubble_k, rubble_k);
 				const float sink = std::max(0.0f, v.phase_t - 0.70f - 15.0f) * 0.2f * rubble_metre;
-				n3->set_position(rubble_pos - Vector3(0, sink, 0));
+				pos = rubble_pos - Vector3(0, sink, 0);
 			} else if (v.phase == 4) {
 				n3->set_visible(true);
 				float sink = Math::clamp((v.phase_t - 0.70f) / 2.40f, 0.0f, 1.0f);
-				n3->set_position(Vector3(0, entry.y_offset - sink * 1.20f, 0));
+				pos = Vector3(0, entry.y_offset - sink * 1.20f, 0);
 			} else {
 				n3->set_visible(true);
-				n3->set_position(Vector3(0, entry.y_offset, 0));
+				pos = Vector3(0, entry.y_offset, 0);
 			}
+			set_building_pose(v, n3, scale, rot, pos);
 		}
 
 		// Out of full sight (a mirage, or an own structure in the fog): darken it
@@ -4443,13 +4592,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			building_pool[s].site_dust_kind = 0;
 			building_pool[s].site_dust_poll = 0.0f;
 			building_pool[s].decals.clear();
-			building_pool[s].decal_key = String();
+			building_pool[s].decal_key = FxKey();
 			building_pool[s].ambient_fx.clear();
 			building_pool[s].ambient_pos.clear();
-			building_pool[s].ambient_key = String();
+			building_pool[s].ambient_key = FxKey();
 			building_pool[s].death_fx.clear();
 			building_pool[s].death_pos.clear();
-			building_pool[s].death_key = String();
+			building_pool[s].death_key = FxKey();
 			building_slot.erase(building_pool[s].sim_id);
 		}
 	}
@@ -4531,7 +4680,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		return it->second ? (metal ? MINE_METAL_LARGE : MINE_STONE_LARGE) : (metal ? MINE_METAL_SMALL : MINE_STONE_SMALL);
 	};
 	for (const auto &r : fres) {
-		if (r.subtype == rtso::RES_SUB_GRAIN) continue; // a field's grain; the field model shows it
+		if (r.subtype == rtso::RES_SUB_GRAIN || r.subtype == rtso::RES_SUB_MEAT) continue; // a field's grain or animal carcass
 		if (r.subtype == rtso::RES_SUB_RUINS) nru++;
 		else if (r.type == rtso::RES_WOOD) n_tree++;
 		else if (r.type == rtso::RES_GOLD || r.type == rtso::RES_STONE) n_mine[mine_of(r)]++;
@@ -4612,7 +4761,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			Transform3D xf(rot, Vector3(rx, ry + 0.3f, rz));
 			fish_mm->set_instance_transform((int)ifish, xf);
 			fish_mm->set_instance_color((int)ifish++, tint);
-		} else if (r.type == rtso::RES_FOOD && food_mm.is_valid()) {
+		} else if (r.type == rtso::RES_FOOD && r.subtype != rtso::RES_SUB_MEAT && food_mm.is_valid()) {
 			Transform3D xf(rot, Vector3(rx, ry + e_food.y_offset, rz));
 			food_mm->set_instance_transform((int)ifd, xf);
 			food_mm->set_instance_color((int)ifd++, tint);
@@ -4694,13 +4843,20 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (behavior == rtso::FAUNA_ATTACK) return 2;
 		if (behavior == rtso::FAUNA_FLEE) return 1;
 		if (speed2 > 0.001f) return 1;
+		// 0.28 UnitAI animal IDLE.LINGERING: SelectAnimation("feeding").
+		if (behavior == rtso::FAUNA_IDLE_GRAZE) return 6;
 		return 0;
 	};
 	// 0 A.D. plays one of an actor's same-named clips at random; as with units
 	// (with_variant), each animal keeps one by its id: half fall with the second
 	// death and a quarter stand with the second idle, when the model has them.
+	// An actor without a feeding clip lingers on its idle, as CModel falls back.
 	auto with_fauna_variant = [this](int clip, uint8_t ft, uint32_t id) -> int {
 		const uint32_t h = id * 2654435761u;
+		if (clip == 6) {
+			if (fauna_puppet[ft][6].baked_count > 0) return 6;
+			clip = 0;
+		}
 		if (clip == 3 && (h & 0x80000000u) && fauna_puppet[ft][5].baked_count > 0) return 5;
 		if (clip == 0 && (h >> 29) == 3u && fauna_puppet[ft][4].baked_count > 0) return 4;
 		return clip;
@@ -4719,7 +4875,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		f_counts[ft][with_fauna_variant(clip, ft, fview.id[f])]++;
 	}
 	for (int ft = 0; ft < rtso::FAUNA_COUNT; ++ft) {
-		cycle_puppet_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft], FAUNA_CLIP_COUNT, FAUNA_DEATH_SLOTS);
+		cycle_fauna_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft], FAUNA_CLIP_COUNT, FAUNA_DEATH_SLOTS);
 		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 			if (fauna_mm[ft][c].is_valid()) {
 				fauna_mm[ft][c]->set_instance_count(f_counts[ft][c]);
@@ -4727,7 +4883,6 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 	}
 	int f_written[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
-	size_t rings_used = 0;
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (fview.behavior[f] == rtso::FAUNA_CORRALLED) continue; // garrisoned: hidden, the corral flies its flag
 		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f])) continue;
@@ -4754,21 +4909,17 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		int fslot = f_written[ft][clip]++;
 		if (fauna_mm[ft][clip].is_valid()) {
 			fauna_mm[ft][clip]->set_instance_transform(fslot, xf);
+			// 0.28 picks each animal's coat by its variant frequencies (data/unit_variants.json).
+			fauna_mm[ft][clip]->set_instance_custom_data(fslot, Color(1.0f, 1.0f, 1.0f, 1.0f + 0.999f * rtso::ModelLibrary::variant_draw(fview.id[f])));
 		}
 		const bool f_sel = !sel_set.empty() && sel_set.count((int32_t)fview.id[f]);
 		if (f_sel || (!highlight_set_.empty() && highlight_set_.count((int32_t)fview.id[f]))) {
 			// The player's own selected livestock (0 A.D. livestock are units), or a hovered animal.
-			if (rings_used == fauna_rings_.size()) {
-				MeshInstance3D *r = memnew(MeshInstance3D);
-				r->set_mesh(ring_mesh);
-				add_child(r);
-				fauna_rings_.push_back(r);
-			}
-			MeshInstance3D *r = fauna_rings_[rings_used++];
-			const Ref<StandardMaterial3D> &fmat = f_sel ? ring_sel_mat : ring_hl_mat;
-			if (r->get_material_override() != fmat) r->set_material_override(fmat);
-			const float rs = std::max(1.0f, fsc * 1.4f);
-			r->set_transform(Transform3D(Basis().scaled(Vector3(rs, 0.12f, rs)), Vector3(fx, fy + 0.04f, fz)));
+			Decal *r = get_or_create_ring_decal(unit_rings_used++);
+			r->set_modulate(f_sel ? RING_SEL_COL : RING_HL_COL);
+			const float rs = std::max(1.1f, fsc * 1.6f);
+			r->set_size(Vector3(rs, 2.5f, rs));
+			r->set_transform(Transform3D(Basis(), Vector3(fx, fy + 0.1f, fz)));
 			r->set_visible(true);
 			// StatusBars.js: an animal's food supply and, alive, its health.
 			StatusStack st;
@@ -4804,16 +4955,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			} else if (r.type == rtso::RES_FOOD) {
 				bar_w = 3.0f, bar_h = 0.5f, offset = 4.0f;
 			}
-			if (rings_used == fauna_rings_.size()) {
-				MeshInstance3D *m = memnew(MeshInstance3D);
-				m->set_mesh(ring_mesh);
-				add_child(m);
-				fauna_rings_.push_back(m);
-			}
-			MeshInstance3D *ring = fauna_rings_[rings_used++];
-			if (ring->get_material_override() != ring_hl_mat) ring->set_material_override(ring_hl_mat);
+			Decal *ring = get_or_create_ring_decal(unit_rings_used++);
+			ring->set_modulate(RING_HL_COL);
 			const float rs = 2.0f * radius;
-			ring->set_transform(Transform3D(Basis().scaled(Vector3(rs, 0.12f, rs)), Vector3(r.x, ry + 0.04f, r.z)));
+			ring->set_size(Vector3(rs, 2.5f, rs));
+			ring->set_transform(Transform3D(Basis(), Vector3(r.x, ry + 0.1f, r.z)));
 			ring->set_visible(true);
 			const int32_t max = supply_max_.emplace(r.id, r.amount).first->second;
 			StatusStack st;
@@ -4821,7 +4967,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			draw_status_stack(sim, Vector3(r.x, ry + 0.25f * offset, r.z), 0.25f * bar_w, 0.25f * bar_h, st);
 		}
 	}
-	for (size_t k = rings_used; k < fauna_rings_.size(); ++k) fauna_rings_[k]->set_visible(false);
+	for (size_t k = unit_rings_used; k < unit_ring_decals_.size(); ++k) unit_ring_decals_[k]->set_visible(false);
 	status_sprites_.end_frame();
 	draw_structure_outlines(sim);
 }
@@ -4895,6 +5041,21 @@ void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3
 
 // Selectable.js overlay for structures: an outline round the footprint of each selected
 // structure, and a fainter one round a highlighted (hovered or band-boxed) one.
+Decal *RtsoWorldView::get_or_create_ring_decal(size_t index) {
+	while (unit_ring_decals_.size() <= index) {
+		Decal *d = memnew(Decal);
+		if (ring_decal_tex_.is_valid()) {
+			d->set_texture(Decal::TEXTURE_ALBEDO, ring_decal_tex_);
+		}
+		d->set_cull_mask(DECAL_LAYER);
+		d->set_normal_fade(0.2f);
+		d->set_visible(false);
+		add_child(d);
+		unit_ring_decals_.push_back(d);
+	}
+	return unit_ring_decals_[index];
+}
+
 void RtsoWorldView::draw_structure_outlines(const rtso::Simulation *sim) {
 	size_t used = 0;
 	if (!sel_buildings_.empty() || !highlight_set_.empty()) {

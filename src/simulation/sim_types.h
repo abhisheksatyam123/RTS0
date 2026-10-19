@@ -782,6 +782,20 @@ enum UnitStance : uint8_t {
 	STANCE_PASSIVE = 4      // never attack, flee when attacked (respondFlee)
 };
 
+// RallyPoint data.command (gui/session/unit_actions.js "set-rallypoint") where the target
+// alone doesn't say it; RALLY_CMD_AUTO picks gather, repair, garrison, attack or walk from
+// the target as before. Sent as lockstep command 14's fourth entity id.
+enum RallyCommand : uint8_t {
+	RALLY_CMD_AUTO = 0,
+	RALLY_CMD_ATTACK_WALK = 1,       // session.attackmove held
+	RALLY_CMD_ATTACK_WALK_UNITS = 2, // session.attackmoveUnit held: units only
+	RALLY_CMD_ATTACK = 3,            // an enemy unit (ent_id); attack-walk once it is gone
+	RALLY_CMD_TRADE = 4,             // a trader trades between the structure and bld_id
+	RALLY_CMD_TREASURE = 5,          // collect treasure ent_id, else the nearest near the spot
+	RALLY_CMD_TURRET = 6,            // occupy a turret point of bld_id
+	RALLY_CMD_COUNT
+};
+
 // The order a unit is carrying out (0 A.D. UnitAI order types). action_state says
 // what the unit is doing this tick; when an automatic fight or a flight ends the
 // unit goes back to this order, and when the order is done it takes the next one
@@ -1143,7 +1157,12 @@ inline constexpr float CLEARANCE_DEFAULT = 0.8f / 4.0f;
 inline constexpr float CLEARANCE_LARGE = 3.0f / 4.0f;
 // helpers/MapEdgeTiles.h MAP_EDGE_TILES in RTS0 units: 3 terrain tiles (12 m). On a circular map
 // CCmpPathfinder makes everything that far inside the LOS circle's edge impassable to every class.
+// The LOS circle itself (CCmpRangeManager.cpp:2154 LosIsOffWorld) sits 2 tiles (8 m) inside the
+// map's edge on a circular map, so the impassable edge is a ring 4 m inside what is drawn; on a
+// square map the outer 3 tiles are off the world entirely (LosIsOffWorld square branch,
+// CCmpPathfinder.cpp:711 edgeSize frame).
 inline constexpr float MAP_EDGE_DIST = 12.0f / 4.0f;
+inline constexpr float MAP_EDGE_LOS_INSET_CIRCULAR = 8.0f / 4.0f;
 
 inline bool unit_is_siege_engine(uint8_t type) {
 	return type == UNIT_SIEGE_RAM || type == UNIT_CATAPULT || type == UNIT_BOLT_SHOOTER;
@@ -2415,6 +2434,42 @@ inline float civ_bonus_mult(uint8_t civ, uint8_t stat, uint8_t building = BLD_TY
 	return m;
 }
 
+// 0 A.D. auto-researched civ bonuses on units (simulation/data/technologies/civbonuses/,
+// folded into civ_unit_template_table() by tools/extract_0ad_rosters.py apply_unit_bonuses
+// for the template's own civ): brit_woad_warriors.json (Infantry speed x1.05),
+// germ_women.json (Civilian speed +0.5), gaul_cavalry.json (Cavalry !Hero melee damage x1.1,
+// melee kinds only), rome_siege.json (StoneThrower cooldown x0.9, speed x1.2) and
+// maur_elephants.json (Elephant !Hero Cost/BuildTime x0.7). Trainer.js replaces {native}
+// with the building's civ and {civ} with the owner's (Trainer.js:563-565), so a unit
+// trained from a {native} list (Kushite camps, Carthaginian embassies, the civic centre's
+// support_civilian from template_structure_civic_civil_centre.xml) keeps its template but
+// belongs to its owner: 0 A.D.'s ModifiersManager applies the owner's civ bonuses to it,
+// not its template civ's. Loot (brit +1, collect_loot) and gather rates (cart_stone_01..03,
+// germ_meat, tick_gather) already apply by owner civ; the baked speed, damage, cooldown and
+// train-time parts are divided out from the template civ and re-applied for the owner below.
+inline float civ_unit_speed_mult(uint8_t civ, TechClasses c) {
+	float m = 1.0f;
+	if (civ == CIV_BRITONS && (c & TC_INFANTRY) != 0) m *= 1.05f;
+	if (civ == CIV_ROMANS && (c & TC_STONETHROWER) != 0) m *= 1.2f;
+	return m;
+}
+inline float civ_unit_speed_add(uint8_t civ, TechClasses c) {
+	if (civ == CIV_GERMANS && (c & TC_CIVILIAN) != 0) return 0.5f;
+	return 0.0f;
+}
+inline float civ_unit_damage_mult(uint8_t civ, TechClasses c) {
+	if (civ == CIV_GAULS && (c & TC_CAVALRY) != 0 && (c & TC_HERO) == 0 && (c & TC_RANGED) == 0) return 1.1f;
+	return 1.0f;
+}
+inline float civ_unit_cooldown_mult(uint8_t civ, TechClasses c) {
+	if (civ == CIV_ROMANS && (c & TC_STONETHROWER) != 0) return 0.9f;
+	return 1.0f;
+}
+inline float civ_unit_train_time_mult(uint8_t civ, TechClasses c) {
+	if (civ == CIV_MAURYANS && (c & TC_ELEPHANT) != 0 && (c & TC_HERO) == 0) return 0.7f;
+	return 1.0f;
+}
+
 // Product of the 0 A.D. team bonuses a player gets on `stat`: `own_civ` is the
 // player's civ, `ally_civs` the civ_bit() mask of its allies still in the match.
 // Each civ's bonus counts once even when several allies share the civ, as 0 A.D.
@@ -2505,6 +2560,24 @@ inline int unit_pop_bonus(uint16_t tmpl) {
 	for (const CivUnitPopBonus *b = civ_unit_pop_bonus_table(); b->tmpl != 0xFFFF; ++b)
 		if (b->tmpl == tmpl) return b->bonus;
 	return 0;
+}
+
+// Baked speed/damage/cooldown/train-time of roster row `tmpl` re-based from its template
+// civ to `owner_civ` (identity when they match, so same-civ training is bit-identical).
+// A unit from a "{native}" trainer (Kushite camps, Carthaginian embassies, a captured civic
+// centre's civilians) keeps its template but belongs to its owner, so the owner's civ
+// bonuses apply to it, not its template civ's (Promotion.js aside, 0 A.D. ModifiersManager).
+inline void civ_unit_owner_bonus(uint16_t tmpl, uint8_t owner_civ, float &speed, float &damage,
+		float &cooldown, float &train_time) {
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return;
+	const CivUnitTemplate &t = civ_unit_template(tmpl);
+	if (t.civ == owner_civ) return;
+	const TechClasses c = t.tech_classes;
+	speed = (speed - civ_unit_speed_add(t.civ, c)) / civ_unit_speed_mult(t.civ, c);
+	speed = speed * civ_unit_speed_mult(owner_civ, c) + civ_unit_speed_add(owner_civ, c);
+	damage = damage / civ_unit_damage_mult(t.civ, c) * civ_unit_damage_mult(owner_civ, c);
+	cooldown = cooldown / civ_unit_cooldown_mult(t.civ, c) * civ_unit_cooldown_mult(owner_civ, c);
+	train_time = train_time / civ_unit_train_time_mult(t.civ, c) * civ_unit_train_time_mult(owner_civ, c);
 }
 
 // Identity class Healer (Heal component): support healers and hero healers.
@@ -3101,7 +3174,8 @@ inline bool civ_can_build(uint8_t civ, uint8_t type) {
 // Noba and Blemmye camps and the Carthaginian embassies.
 inline bool building_trains_native(uint8_t type) {
 	return type == BLD_SHRINE || type == BLD_CAMP_NOBA || type == BLD_CAMP_BLEMMYE ||
-	       type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC;
+	       type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC ||
+	       type == BLD_MERCENARY_CAMP;
 }
 
 // The civ whose roster `t` must come from to train at a `type` structure built by `bld_civ`

@@ -65,6 +65,11 @@ void RtsoMain::_notification(int p_what) {
 		toggle_pause();
 	}
 	if (p_what == NOTIFICATION_EXIT_TREE) {
+		// The MenuAudio autoload outlives the match: stop driving the session's tick.
+		if (SceneTree *exiting = get_tree()) {
+			if (Node *ma = exiting->get_root()->get_node_or_null(NodePath("MenuAudio")))
+				ma->set("session_music_tick", Callable());
+		}
 		write_replay(true); // leaving the match keeps its replay, with its summary (endGame)
 		// Menus get the normal arrow back (update_cursor sets action cursors).
 		if (!cursor_name_.empty()) reset_default_cursor();
@@ -135,6 +140,7 @@ Dictionary RtsoMain::get_audio_state() const {
 	Dictionary d;
 	d["music_state"] = kStates[music_.state()];
 	d["track"] = music_.current_track();
+	d["music_position"] = music_.current_position();
 	d["last_sound"] = session_audio_.last_played();
 	d["in_battle"] = session_audio_.in_battle();
 	d["work_sounds"] = session_audio_.work_sounds_played();
@@ -150,8 +156,11 @@ Dictionary RtsoMain::get_audio_state() const {
 
 void RtsoMain::update_music_state() {
 	if (!sim) return;
-	const uint8_t me = local_player();
-	const uint8_t civ = sim->player_civ(me);
+	// session.js initializeMusic: the civ tracks of the player this client starts as,
+	// stored once (an observer or a replay viewer, player -1, keeps the default list).
+	const bool replay = turn_mgr_.is_replaying();
+	const uint8_t seat = replay ? (uint8_t)0xFF : seat_player();
+	const uint8_t civ = seat < rtso::MAX_PLAYERS ? sim->player_civ(seat) : (uint8_t)0xFE;
 	if (civ != music_civ_) {
 		music_civ_ = civ;
 		music_.store_civ_tracks(civ);
@@ -161,14 +170,30 @@ void RtsoMain::update_music_state() {
 			music_.set_state(keep);
 		}
 	}
-	rtso::RtsoMusic::State want = session_audio_.in_battle() ? rtso::RtsoMusic::BATTLE : rtso::RtsoMusic::PEACE;
-	if (sim->is_victory_for(me)) want = rtso::RtsoMusic::VICTORY;
-	else if (sim->is_victory() || sim->is_game_over() || sim->is_defeated(me)) want = rtso::RtsoMusic::DEFEAT;
-	const auto was = music_.state();
-	if (want == was) return;
-	if (want == rtso::RtsoMusic::VICTORY) session_audio_.play_victory();
-	else if (want == rtso::RtsoMusic::DEFEAT) session_audio_.play_defeat();
-	music_.set_state(want);
+	// Player.OnGlobalPlayerDefeated: this client's player hears "defeated" when it
+	// falls, "defeated_ally" when an ally does and "defeated_enemy" when an enemy
+	// does, unless it has already won (template_player has no "won" group).
+	uint32_t defeated = 0;
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
+		if (sim->is_defeated(p)) defeated |= 1u << p;
+	if (music_primed_ && seat < rtso::MAX_PLAYERS) {
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+			if (!((defeated & ~defeated_heard_) >> p & 1)) continue;
+			if (p == seat) session_audio_.play_defeat();
+			else if (sim->is_ally(seat, p)) session_audio_.play_defeated_ally();
+			else if (!sim->is_victory_for(seat)) session_audio_.play_defeated_enemy();
+		}
+	}
+	defeated_heard_ = defeated;
+	music_primed_ = true;
+	// session.js onSimulationUpdate: battle music only while not an observer (a replay
+	// viewer, an observer, or a player who has lost or won); VICTORY and DEFEAT only
+	// for this client's own player (the music doesn't follow the viewed player).
+	const bool observer = replay || seat >= rtso::MAX_PLAYERS || spectating();
+	rtso::RtsoMusic::State want = !observer && session_audio_.in_battle() ? rtso::RtsoMusic::BATTLE : rtso::RtsoMusic::PEACE;
+	if (seat < rtso::MAX_PLAYERS && sim->is_victory_for(seat)) want = rtso::RtsoMusic::VICTORY;
+	else if (seat < rtso::MAX_PLAYERS && sim->is_defeated(seat)) want = rtso::RtsoMusic::DEFEAT;
+	if (want != music_.state()) music_.set_state(want);
 }
 
 void RtsoMain::play_spatial_sfx(const char *path, Vector3 pos) {
@@ -1557,6 +1582,37 @@ void RtsoMain::toggle_dev_overlay() {
 	refresh_dev_overlay();
 }
 
+// GameView.cpp m_CullCamera: freeze the view camera's frustum (outward planes for
+// the animation culling, corners for the frustum overlay); cleared on unlock.
+void RtsoMain::lock_cull_camera() {
+	locked_cull_planes_.clear();
+	locked_cull_corners_.clear();
+	Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+	if (!cam || !cam->get_viewport()) return;
+	const TypedArray<Plane> planes = cam->get_frustum();
+	for (int i = 0; i < planes.size(); ++i) locked_cull_planes_.push_back(planes[i]);
+	const Vector2 size = cam->get_viewport()->get_visible_rect().size;
+	if (size.x <= 0.0f || size.y <= 0.0f) return;
+	const float d_near = cam->get_near(), d_far = cam->get_far();
+	const Vector2 at[4] = { Vector2(0, 0), Vector2(size.x, 0), Vector2(0, size.y), Vector2(size.x, size.y) };
+	Vector3 corners[8];
+	for (int i = 0; i < 4; ++i) {
+		const Vector3 o = cam->project_ray_origin(at[i]);
+		const Vector3 d = cam->project_ray_normal(at[i]);
+		corners[i] = o + d * d_near;
+		corners[i + 4] = o + d * d_far;
+	}
+	for (int i = 0; i < 8; ++i) locked_cull_corners_.push_back(corners[i]);
+}
+
+void RtsoMain::sync_cull_camera() {
+	if (view) {
+		view->set_anim_culling(culling_enabled_);
+		view->set_locked_cull_frustum(lock_cull_camera_ ? locked_cull_planes_ : std::vector<Plane>());
+	}
+	debug_overlays_.set_cull_corners(lock_cull_camera_ ? locked_cull_corners_ : std::vector<Vector3>());
+}
+
 // DeveloperOverlayControlCheckboxes.js onPress handlers.
 void RtsoMain::_on_dev_command(int command) {
 	using D = rtso::RtsoDevOverlay;
@@ -1568,6 +1624,9 @@ void RtsoMain::_on_dev_command(int command) {
 		else sim->cmd_cheat(me, action, parameter, 0, ids.data(), ids.size());
 	};
 	switch (command) {
+		case D::DEV_CONTROL_ALL: // ControlAll: Commands.js "control-all", Player.js SetControlAllUnits
+			cheat(rtso::Simulation::CHEAT_DEV_CONTROL_ALL, on ? 1 : 0, {});
+			break;
 		case D::DEV_CHANGE_PERSPECTIVE: // ChangePerspective: PlayerViewControl.setChangePerspective
 			change_perspective_ = on;
 			update_observer_view_picker();
@@ -1611,6 +1670,25 @@ void RtsoMain::_on_dev_command(int command) {
 			if (!ids.empty()) cheat(rtso::Simulation::CHEAT_DEV_PROMOTE, 0, ids);
 			break;
 		}
+		case D::DEV_ENABLE_CULLING: // EnableCulling: GameView_SetCullingEnabled
+			culling_enabled_ = on;
+			sync_cull_camera();
+			break;
+		case D::DEV_LOCK_CULL_CAMERA: // LockCullCamera: GameView_SetLockCullCameraEnabled
+			lock_cull_camera_ = on;
+			if (on) lock_cull_camera();
+			else {
+				locked_cull_planes_.clear();
+				locked_cull_corners_.clear();
+			}
+			sync_cull_camera();
+			break;
+		case D::DEV_DISPLAY_CAMERA_FRUSTUM: // DisplayCameraFrustum: Renderer_SetDisplayFrustumEnabled
+			debug_overlays_.set(rtso::RtsoDebugOverlays::CULL_CAMERA_FRUSTUM, on);
+			break;
+		case D::DEV_DISPLAY_SHADOWS_FRUSTUM: // DisplayShadowsFrustum: Renderer_SetDisplayShadowsFrustumEnabled
+			debug_overlays_.set(rtso::RtsoDebugOverlays::SHADOWS_FRUSTUM, on);
+			break;
 		default:
 			break;
 	}
@@ -1734,9 +1812,15 @@ bool RtsoMain::time_warp_rewind() {
 void RtsoMain::refresh_dev_overlay() {
 	using D = rtso::RtsoDevOverlay;
 	if (!sim) return;
+	// ControlAll's checked(): the viewed player's controlsAll; the cheat applies to
+	// the local player, which is the viewed one outside observer views.
+	const uint8_t me = local_player();
 	if (dev_overlay_.is_open()) {
+		dev_overlay_.set_checked(D::DEV_CONTROL_ALL, sim->controls_all(me));
 		dev_overlay_.set_checked(D::DEV_REVEAL_MAP, sim->reveal_map());
 		dev_overlay_.set_checked(D::DEV_RESTRICT_CAMERA, cam_rig ? cam_rig->is_constrain_camera() : true);
+		dev_overlay_.set_checked(D::DEV_ENABLE_CULLING, culling_enabled_); // checked(): GameView_GetCullingEnabled
+		dev_overlay_.set_checked(D::DEV_LOCK_CULL_CAMERA, lock_cull_camera_); // checked(): GameView_GetLockCullCameraEnabled
 		dev_overlay_.set_checked(D::DEV_PROMOTE, false);
 		dev_overlay_.set_checked(D::DEV_TIME_WARP, time_warp_);
 		dev_overlay_.set_checked(D::DEV_REJOIN_TEST, rejoin_test_); // checked(): this.disabled
@@ -1749,6 +1833,8 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_checked(D::DEV_UNIT_MOTION_OVERLAY, debug_overlays_.on(O::UNIT_MOTION));
 		dev_overlay_.set_checked(D::DEV_RANGE_OVERLAY, debug_overlays_.on(O::RANGE));
 		dev_overlay_.set_checked(D::DEV_BOUNDING_BOX_OVERLAY, debug_overlays_.on(O::BOUNDING_BOX));
+		dev_overlay_.set_checked(D::DEV_DISPLAY_CAMERA_FRUSTUM, debug_overlays_.on(O::CULL_CAMERA_FRUSTUM));
+		dev_overlay_.set_checked(D::DEV_DISPLAY_SHADOWS_FRUSTUM, debug_overlays_.on(O::SHADOWS_FRUSTUM));
 		dev_overlay_.set_render_debug(render_debug_mode_);
 	}
 	if (!dev_overlay_.state_shown()) return;
@@ -2164,7 +2250,9 @@ void RtsoMain::flush_training_batch() {
 void RtsoMain::try_train_template(uint32_t building_id, uint16_t tmpl, int count) {
 	if (building_id == 0 || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return;
 	if (turn_cmds()) {
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, (float)count, building_id, 0);
+		// input.js addTrainingToQueue / flushTrainingBatch: "pushFront" with session.pushorderfront.
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, (float)count, building_id,
+				rtso::hotkeys::held("session.pushorderfront") ? rtso::NET_PARAM_PUSH_FRONT_ORDER : 0);
 		play_civ_voice("select");
 		return;
 	}
@@ -3157,6 +3245,10 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	c.target_z = z;
 	c.target_id = tid;
 	c.param = param;
+	// input.js: an order not queued with Shift goes first while session.pushorderfront is held.
+	if (rtso::net_cmd_takes_push_front(cmd_type) && !(param & rtso::NET_PARAM_QUEUED) &&
+			rtso::hotkeys::held("session.pushorderfront"))
+		c.param |= rtso::NET_PARAM_PUSH_FRONT_ORDER;
 	if (spectating()) return; // observers and defeated players order nothing
 	if (ids && (cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_MOVE || cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_PATROL))
 		apply_default_formation(ids, n);
@@ -3676,6 +3768,11 @@ std::vector<std::pair<String, String>> RtsoMain::chat_private_targets() {
 		                       : "[Player-" + String::num_int64((int)e.player + 1) + "]";
 		out.push_back({tag, chat_user("peer-" + String::num_int64(e.client))});
 	}
+	// sortGUIDsByPlayerID: players by id, observers after them.
+	std::stable_sort(out.begin(), out.end(), [](const auto &a, const auto &b) {
+		auto key = [](const String &tag) { return tag.begins_with("[Player-") ? tag.substr(8).to_int() : 1000; };
+		return key(a.first) < key(b.first);
+	});
 	return out;
 }
 
