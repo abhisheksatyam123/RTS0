@@ -28155,7 +28155,9 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 		const float cx = std::round((wx + map_half_) / GRID) - (float)m.x0, cy = std::round((wz + map_half_) / GRID) - (float)m.z0;
 		const float md = reach_m / 4.0f / GRID, md2 = md * md, str = strength / md;
 		const int x0 = (int)std::floor(std::max(0.0f, cx - md)), y0 = (int)std::floor(std::max(0.0f, cy - md));
-		const int x1 = (int)std::floor(std::min((float)(bw - 1), cx + md)), y1 = (int)std::floor(std::min((float)(bh - 1), cy + md));
+		// addInfluence stops short of the map's last column only; this box's last column and row
+		// are our own territory, so they are in reach.
+		const int x1 = (int)std::floor(std::min((float)bw, cx + md)), y1 = (int)std::floor(std::min((float)bh, cy + md));
 		for (int y = y0; y < y1; ++y)
 			for (int x = x0; x < x1; ++x) {
 				const float r2 = ((float)x - cx) * ((float)x - cx) + ((float)y - cy) * ((float)y - cy);
