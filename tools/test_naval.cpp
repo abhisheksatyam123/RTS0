@@ -1055,6 +1055,48 @@ static void test_petra_start_at_sea() {
 	CHECK(cc != nullptr);
 }
 
+// defenseArmy.js assignUnit -> navalManager.requireTransport: defenders on another land than
+// the foe they are sent against are ferried over, instead of walking at the shore.
+static void test_petra_defenders_ferried() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	// A second civic centre on the south land, which an enemy squad attacks.
+	const uint32_t south_cc = s.spawn_building_world(-30.0f, -40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_unit(-40.0f, 10.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> army;
+	for (int k = 0; k < 6; ++k) army.push_back(s.spawn_unit(-36.0f + 2.0f * k, 30.0f, 1, UNIT_SPEARMAN));
+	s.petra_army_ids_[1] = army;
+	s.petra_attack_mgr_.rushes_set = 1;
+	const uint16_t south = s.petra_land_at(-30.0f, -40.0f), north = s.petra_land_at(-30.0f, 40.0f);
+	run(s, 2.0f);
+	for (int k = 0; k < 4; ++k) {
+		const uint32_t foe = s.spawn_unit(-22.0f + 2.0f * k, -34.0f, 0, UNIT_SPEARMAN);
+		s.order_attack_building(&foe, 1, south_cc, false, false);
+	}
+	bool planned = false;
+	int landed = 0;
+	for (int k = 0; k < 150 && landed < 2; ++k) {
+		run(s, 1.0f);
+		for (const auto &p : s.petra_transport_plans()) planned |= p.owner == PETRA_TRANSPORT_DEFENSE;
+		landed = 0;
+		for (uint32_t uid : army) {
+			const int32_t i = idx(s, uid);
+			if (i >= 0 && s.units().alive[i] && s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south) ++landed;
+		}
+	}
+	std::printf("Petra defenders ferried: lands %d -> %d, defense transport %s, %d of 6 spearmen on the south land\n",
+	            (int)north, (int)south, planned ? "planned" : "never planned", landed);
+	CHECK(north != south);
+	CHECK(planned);
+	CHECK(landed >= 2);
+}
+
 // navalManager.js keeps a transportPlan per ship: an army sailing to attack does
 // not wait for the builders bound for a new base, each crossing on its own ship.
 static void test_petra_concurrent_transports() {
@@ -1082,8 +1124,19 @@ static void test_petra_concurrent_transports() {
 	// The builders' crossing first; the attack sets out while it is under way.
 	for (int k = 0; k < 360 && !plan_of(PETRA_TRANSPORT_BUILDERS); ++k) run(s, 1.0f);
 	CHECK(plan_of(PETRA_TRANSPORT_BUILDERS) != nullptr);
-	// One plan per owner: a second builders' crossing waits for the first.
-	CHECK(!s.petra_start_transport(army, -30.0f, 40.0f, -30.0f, -40.0f, 0, PETRA_TRANSPORT_BUILDERS));
+	// Several plans per owner (navalManager.js requireTransport/splitTransport): a second
+	// builders' crossing starts on the free ship instead of waiting for the first.
+	std::vector<uint32_t> probe;
+	probe.push_back(s.spawn_unit(-44.0f, 52.0f, 1, UNIT_VILLAGER));
+	const size_t nplans = s.petra_transport_plans().size();
+	CHECK(s.petra_start_transport(probe, -30.0f, 40.0f, -30.0f, -40.0f, 0, PETRA_TRANSPORT_BUILDERS));
+	// Undo the probe, leaving the ships and units for the attack below.
+	if (s.petra_transport_plans().size() > nplans) {
+		uint32_t probe_ship = s.petra_transport_plans().back().ship_id;
+		s.cmd_stop(&probe_ship, 1);
+		s.petra_transports_.pop_back();
+	}
+	s.cmd_stop(probe.data(), probe.size());
 	// The target, placed now: Petra's soldiers would capture it while the builders cross.
 	const uint32_t house = s.spawn_building_world(30.0f, -40.0f, BLD_OUTPOST, 0); // an outpost: no decay on neutral land
 	s.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
@@ -2189,6 +2242,7 @@ int main() {
 	test_petra_oversea_dock();
 	test_petra_start_at_sea();
 	test_petra_concurrent_transports();
+	test_petra_defenders_ferried();
 	test_petra_transport_ship_lost();
 	test_petra_transport_sunk_at_sea();
 	test_petra_transport_wrong_land();

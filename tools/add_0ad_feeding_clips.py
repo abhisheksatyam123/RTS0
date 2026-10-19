@@ -12,8 +12,7 @@ joint outside the standard skeleton (a prop point) follows the bone it rode in
 the GLB's own Idle.
 
 Each GLB is checked first: its Idle must come back from the idle PSA it was made
-from (max error CHECK_TOL), or the GLB is left alone. The horses, pony, hippo,
-peacock, arctic fox and zebra do not pass yet (other skeleton maps or scales).
+from (max error CHECK_TOL), or the GLB is left alone.
 
 Usage: python3 -I tools/add_0ad_feeding_clips.py [--zip public.zip] [--check]
 """
@@ -36,7 +35,14 @@ MANIFEST = os.path.join(REPO, "assets", "models", "manifest.json")
 CHECK_TOL = 1e-3
 
 # GLB -> (the idle PSA its Idle came from, the actor's feeding PSA): base_bovidae_wild
-# (bull, cow, sanga_cattle, wildebeest, zebu_wild) and base_fox (fox_red).
+# (bull, cow, sanga_cattle, wildebeest, zebu_wild) and base_fox (fox_red, fox_arctic).
+# The other 0.28 animals have no feeding (horse, zebra: idle) or feed with their
+# idles (pony, hippopotamus). horse_breed (horse_breed_idle_04, named "feeding" in
+# base_horse_breed_fauna.xml) and the peacock (peacock_feeding.dae) DO have their own
+# feeding clips, but this PSA tool cannot reach them: the breed rig is Blender-named
+# (no standard skeleton fits) and the peacock's rest pose was re-exported after the
+# release (its GLB Idle does not rebuild from the PSA). They are appended from the
+# source .dae instead: tools/extract_0ad_fauna_models.py --feeding-only.
 BOVID = ("quadraped/bovidae_idle_a.dae", "quadraped/bovidae_feeding.dae")
 FEEDING = {
     "fauna_bull": BOVID,
@@ -45,6 +51,7 @@ FEEDING = {
     "fauna_wildebeest": BOVID,
     "fauna_zebu_wild": BOVID,
     "fox": ("quadraped/fox_idle.dae", "quadraped/fox_feeding.dae"),
+    "fauna_fox_arctic": ("quadraped/fox_idle.dae", "quadraped/fox_feeding.dae"),
 }
 
 
@@ -101,10 +108,20 @@ def build(zf, orders, path, idle_rel, feed_rel):
     if order is None or feed["numKeys"] != idle["numKeys"]:
         return None, "no standard skeleton fits"
     idx = [order.index(n) if n in order else -1 for n in names]
-    _, have = glb_frames(gltf, bin_, "Idle", joints)
+    have_t, have = glb_frames(gltf, bin_, "Idle", joints)
     rebuilt = fill_unmapped(clip_poses(idle, idx), have)
+    # Most Idles keep the PSA's frames, maybe at another speed; the arctic fox's was
+    # resampled (25 keys over 124 frames, looping), so compare its keys that land on
+    # a PSA frame (the first and last, the last one being the loop's first frame).
     nf = min(have.shape[1], idle["numFrames"])
     err = max(np.abs(rebuilt[i][f][:3, 3] - have[i, f, :3, 3]).max() for i in range(len(joints)) for f in range(nf))
+    if err > CHECK_TOL:
+        pairs = []
+        for k, t in enumerate(have_t):
+            x = int(round(t * 1000.0 / idle["frameTime"]))
+            if abs(t * 1000.0 / idle["frameTime"] - x) < 1e-3:
+                pairs.append((k, {min(x, idle["numFrames"] - 1), x % idle["numFrames"]} | ({0} if k == len(have_t) - 1 else set())))
+        err = max(min(np.abs(rebuilt[i][f][:3, 3] - have[i, k, :3, 3]).max() for f in fs) for i in range(len(joints)) for k, fs in pairs)
     if err > CHECK_TOL:
         return None, f"Idle does not rebuild from {idle_rel} (max error {err:.3g})"
     poses = fill_unmapped(clip_poses(feed, idx), have)
@@ -128,13 +145,15 @@ def main():
     orders = standard_orders(zf)
     for gid, (idle_rel, feed_rel) in FEEDING.items():
         path = os.path.join(REPO, "assets", manifest["models"][gid]["file"])
+        if "Feeding" in manifest["models"][gid].get("animations", []):
+            print(f"{gid}: has Feeding")  # a rerun would leave the old clip's data behind
+            continue
         res, msg = build(zf, orders, path, idle_rel, feed_rel)
         print(f"{gid}: {msg}")
         if res is None:
             continue
         gltf, bin_, joints, times, mats = res
         anims = gltf.setdefault("animations", [])
-        anims[:] = [a for a in anims if a["name"] != "Feeding"]
         tt, qq = to_tq(mats)
         t_acc = add_accessor(gltf, bin_, times.reshape(-1, 1), "SCALAR")
         samplers, channels = [], []

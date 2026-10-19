@@ -21267,5 +21267,13 @@
     "bloom": 0.160156,
     "post_effect": "hdr"
   },
-  "circular": true
+  "circular": true,
+  "revealers": [
+    {
+      "player": 1,
+      "x": 37.45,
+      "z": -85.83,
+      "range": 50.0
+    }
+  ]
 }
