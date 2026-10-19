@@ -9,6 +9,7 @@
 #include "network/turn_manager.h"
 #include <cmath>
 #include <cstdio>
+#include <vector>
 
 using namespace rtso;
 
@@ -264,24 +265,185 @@ static void test_trader_route() {
 			if (uv.id[i] == trader) CHECK(uv.carry[i] == carried.trader + carried.market1 + carried.market2);
 	}
 
-	// Declaring war on the other market's owner ends the route.
+	// Declaring war on the other market's owner ends the route and drops the goods;
+	// 0 A.D. walks the trader back to the other market (Trader.RemoveMarket, TradingCanceled).
 	s.set_diplomacy(0, 1, Simulation::DIPLO_ENEMY);
 	run(s, 1.0f);
-	auto u = s.units();
-	bool idle = false;
-	for (size_t i = 0; i < u.count; ++i)
-		if (u.id[i] == trader) idle = u.action_state[i] == ACTION_IDLE && u.carry[i] == 0;
-	CHECK(idle);
+	CHECK(!s.trader_routes_.count(trader)); // the route is over
 	CHECK(!s.trader_goods(trader, carried)); // the goods are dropped
+	{
+		const int32_t i = s.lookup_unit(trader);
+		CHECK(i >= 0 && s.units_.carry[i] == 0);
+		CHECK(s.units_.action_state[i] == ACTION_MOVE && s.units_.has_order[i]); // walking back
+	}
 	run(c, 1.0f);
 	const int frozen = total(s, 0) - total(c, 0);
 	run(s, 60.0f);
 	run(c, 60.0f);
 	CHECK(total(s, 0) - total(c, 0) == frozen); // no route, no income
+	// It walks back to its own market and idles there.
+	bool home = false;
+	for (int k = 0; k < (int)(180.0f / Simulation::FIXED_STEP) && !home; ++k) {
+		s.tick(Simulation::FIXED_STEP);
+		const int32_t i = s.lookup_unit(trader);
+		if (i < 0) break;
+		const float dx = s.units_.pos_x[i] + 80.0f, dz = s.units_.pos_z[i];
+		home = s.units_.action_state[i] == ACTION_IDLE && !s.units_.has_order[i] && dx * dx + dz * dz < 64.0f;
+	}
+	CHECK(home);
 }
 
-// Player.js SetTradingGoods / GetNextTradingGoods: each player picks the share
-// of each resource its traders load; 25% each until it does.
+// P4: 0 A.D. Trader.RemoveMarket + UnitAI TradingCanceled: a trader whose market is
+// destroyed walks back to the other market instead of idling where it stands.
+static void test_trader_market_destroyed() {
+	static Simulation s;
+	fresh(s);
+	const uint32_t m0 = s.spawn_building_world(-80.0f, 0.0f, BLD_MARKET, 0, 1.0f);
+	const uint32_t m1 = s.spawn_building_world(80.0f, 0.0f, BLD_MARKET, 1, 1.0f);
+	root_markets(s);
+	s.set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
+	const uint32_t trader = s.spawn_unit(-74.0f, 4.0f, 0, UNIT_TRADER);
+	s.order_trade(&trader, 1, m0, m1);
+	auto carry = [&]() {
+		const int32_t i = s.lookup_unit(trader);
+		return i < 0 ? -1 : s.units_.carry[i];
+	};
+	for (int k = 0; k < 240 && carry() <= 0; ++k) run(s, 0.5f);
+	CHECK(carry() > 0);
+	run(s, 15.0f); // mid-leg toward the far market, well away from the near one
+	for (auto &b : s.buildings_) if (b.id == m1) { s.destroy_building(b); break; }
+	run(s, 1.0f);
+	CHECK(!s.trader_routes_.count(trader)); // the route is over, the goods dropped
+	{
+		const int32_t i = s.lookup_unit(trader);
+		CHECK(i >= 0 && s.units_.carry[i] == 0);
+		CHECK(s.units_.action_state[i] == ACTION_MOVE && s.units_.has_order[i]); // walking back
+	}
+	bool home = false;
+	for (int k = 0; k < (int)(180.0f / Simulation::FIXED_STEP) && !home; ++k) {
+		s.tick(Simulation::FIXED_STEP);
+		const int32_t i = s.lookup_unit(trader);
+		if (i < 0) break;
+		const float dx = s.units_.pos_x[i] + 80.0f, dz = s.units_.pos_z[i];
+		home = s.units_.action_state[i] == ACTION_IDLE && !s.units_.has_order[i] && dx * dx + dz * dz < 64.0f;
+	}
+	CHECK(home); // back at its own market, idle
+}
+
+// G10: 0 A.D. Trader.js OnGarrisonedUnitsChanged: traders boarding or leaving a merchant
+// ship mid-voyage re-work that leg's gain (each trader aboard adds 20% to all three amounts).
+static float sea_height(float x, float z) {
+	(void)x;
+	return std::fabs(z) < 16.0f ? -3.0f : 3.0f;
+}
+
+static void test_ship_trade_gain_mid_voyage() {
+	static Simulation s;
+	s.set_sim_seed(11);
+	s.reset();
+	s.set_map_half(64.0f);
+	{
+		constexpr int RES = 65;
+		std::vector<float> h((size_t)RES * RES);
+		for (int j = 0; j < RES; ++j)
+			for (int i = 0; i < RES; ++i)
+				h[(size_t)j * RES + i] = sea_height(-64.0f + 128.0f * i / (RES - 1), -64.0f + 128.0f * j / (RES - 1));
+		s.set_terrain_data(h, RES, 0.0f);
+		s.begin_bulk_spawn();
+		s.end_bulk_spawn();
+	}
+	for (uint8_t p = 0; p < 4; ++p) {
+		s.set_player_active(p, true, false);
+		s.set_player_resources(p, 1000, 1000, 1000, 1000);
+	}
+	s.set_team_civ(1, CIV_CARTHAGINIANS); // its dock's international bonus differs, so the gain's direction shows
+	const uint32_t d0 = s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 0, 1.0f);
+	const uint32_t d1 = s.spawn_building_world(48.0f, -20.0f, BLD_DOCK, 1, 1.0f);
+	s.set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
+	const uint32_t ship = s.spawn_unit(-44.0f, 10.0f, 0, UNIT_MERCHANT_SHIP);
+	s.order_trade(&ship, 1, d0, d1);
+	auto carry = [&]() {
+		const int32_t i = s.lookup_unit(ship);
+		return i < 0 ? -1 : s.units_.carry[i];
+	};
+	for (int k = 0; k < 600 && carry() <= 0; ++k) run(s, 0.5f);
+	CHECK(carry() > 0); // loaded at the first dock with nobody aboard
+	Simulation::TradeGain base;
+	CHECK(s.trader_goods(ship, base));
+	const Simulation::TradeGain leg = s.calculate_trade_gain(*find_bld(s, d0), *find_bld(s, d1), 0, UNIT_MERCHANT_SHIP);
+	CHECK(base.trader == leg.trader && base.market1 == leg.market1 && base.market2 == leg.market2);
+	auto scaled = [](int v, double m) { return (int)std::floor(m * v + 0.5); };
+	auto board_at_ship = [&](void) {
+		const int32_t si = s.lookup_unit(ship);
+		return s.spawn_unit(s.units_.pos_x[si], s.units_.pos_z[si], 0, UNIT_TRADER);
+	};
+	const uint32_t t1 = board_at_ship();
+	s.order_board_transport(&t1, 1, ship);
+	run(s, 0.5f);
+	Simulation::TradeGain g1;
+	CHECK(s.trader_goods(ship, g1));
+	CHECK(g1.trader == scaled(base.trader, 1.2) && g1.market1 == scaled(base.market1, 1.2) &&
+			g1.market2 == scaled(base.market2, 1.2));
+	{
+		const int32_t si = s.lookup_unit(ship);
+		CHECK(s.units_.carry[si] == g1.trader + g1.market1 + g1.market2); // the lootable load tracks it
+	}
+	const uint32_t t2 = board_at_ship();
+	s.order_board_transport(&t2, 1, ship);
+	run(s, 0.5f);
+	Simulation::TradeGain g2;
+	CHECK(s.trader_goods(ship, g2));
+	CHECK(g2.trader == scaled(base.trader, 1.4) && g2.market1 == scaled(base.market1, 1.4) &&
+			g2.market2 == scaled(base.market2, 1.4));
+	// A trader killed aboard leaves the same way (GarrisonHolder's holder lets go of it).
+	{
+		const int32_t p = s.lookup_unit(t2);
+		CHECK(p >= 0 && !s.units_.alive[p]);
+		s.units_.hp[p] = 0.0f;
+		s.units_.action_state[p] = ACTION_DYING;
+		s.drop_from_holder(t2);
+	}
+	run(s, 0.5f);
+	Simulation::TradeGain g3;
+	CHECK(s.trader_goods(ship, g3));
+	CHECK(g3.trader == g1.trader && g3.market1 == g1.market1 && g3.market2 == g1.market2);
+	// Boarded traders count toward the next load too (they are aboard, alive 0).
+	const uint32_t t3 = board_at_ship();
+	s.order_board_transport(&t3, 1, ship);
+	run(s, 0.5f);
+	const int arrival_leg = s.trader_leg_[ship];
+	for (int k = 0; k < 1200 && s.trader_leg_[ship] == arrival_leg; ++k) run(s, 0.5f);
+	CHECK(s.trader_leg_[ship] != arrival_leg); // arrived at the far dock and loaded back
+	Simulation::TradeGain back;
+	CHECK(s.trader_goods(ship, back));
+	const Simulation::TradeGain back_leg = s.calculate_trade_gain(*find_bld(s, d1), *find_bld(s, d0), 0, UNIT_MERCHANT_SHIP);
+	CHECK(back.trader == scaled(back_leg.trader, 1.4) && back.market1 == scaled(back_leg.market1, 1.4) &&
+			back.market2 == scaled(back_leg.market2, 1.4));
+}
+
+// G11: 0 A.D. Commands.js "spy-request" bribes any bribable unit of the target player,
+// including garrisoned ones (shut in a structure or aboard a ship alike: both keep
+// ACTION_GARRISONED with alive 0).
+static void test_bribe_garrisoned_trader() {
+	static Simulation s;
+	fresh(s);
+	const uint32_t tc = s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	const uint32_t trader = s.spawn_unit(4.0f, 0.0f, 0, UNIT_TRADER);
+	s.order_garrison(&trader, 1, tc);
+	bool inside = false;
+	for (int k = 0; k < (int)(30.0f / Simulation::FIXED_STEP) && !inside; ++k) {
+		s.tick(Simulation::FIXED_STEP);
+		const int32_t i = s.lookup_unit(trader);
+		inside = i >= 0 && !s.units_.alive[i] && s.units_.action_state[i] == ACTION_GARRISONED;
+	}
+	CHECK(inside);
+	s.set_player_resources(1, 1000, 1000, 1000, 1000);
+	s.complete_research(1, TECH_UNLOCK_SPIES);
+	CHECK(s.cmd_bribe(1, 0) == Simulation::BRIBE_OK); // the only trader is shut in the town centre
+	CHECK(!s.spies_.empty());
+	CHECK(s.player_resource(1, RES_GOLD) == 500); // the spy's 500 metal, paid in gold
+	run(s, 0.5f); // the bribed trader shares what it sees without crashing
+}
 static void test_trading_goods() {
 	static Simulation s;
 	fresh(s);
@@ -468,8 +630,11 @@ int main() {
 	test_barter();
 	test_trade_gain();
 	test_trader_route();
+	test_trader_market_destroyed();
 	test_trader_goods();
 	test_garrisoned_trader_gain();
+	test_ship_trade_gain_mid_voyage();
+	test_bribe_garrisoned_trader();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

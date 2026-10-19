@@ -73,6 +73,8 @@ static void compare(const Simulation &a, const Simulation &b) {
 		CMP("unit pos_z", i, ua.pos_z[i], ub.pos_z[i]);
 		CMP("unit vel_x", i, ua.vel_x[i], ub.vel_x[i]);
 		CMP("unit vel_z", i, ua.vel_z[i], ub.vel_z[i]);
+		CMP("unit prev_x", i, ua.prev_x[i], ub.prev_x[i]);
+		CMP("unit prev_z", i, ua.prev_z[i], ub.prev_z[i]);
 		CMP("unit target_x", i, ua.target_x[i], ub.target_x[i]);
 		CMP("unit target_z", i, ua.target_z[i], ub.target_z[i]);
 		CMP("unit hp", i, ua.hp[i], ub.hp[i]);
@@ -139,6 +141,7 @@ static void compare(const Simulation &a, const Simulation &b) {
 		CMP("player team", p, x.team, y.team);
 		CMP("player active", p, x.active, y.active);
 		CMP("player is_ai", p, x.is_ai, y.is_ai);
+		CMP("player controls_all", p, x.controls_all, y.controls_all);
 	}
 	CMP("participant_mask", 0, a.participant_mask(), b.participant_mask());
 	CMP("defeated_mask", 0, a.defeated_mask(), b.defeated_mask());
@@ -153,7 +156,10 @@ static void compare(const Simulation &a, const Simulation &b) {
 		CMP("projectile current_x", i, pa[i].current_x, pb[i].current_x);
 		CMP("projectile current_y", i, pa[i].current_y, pb[i].current_y);
 		CMP("projectile progress", i, pa[i].progress, pb[i].progress);
-		CMP("projectile damage", i, pa[i].damage, pb[i].damage);
+		for (int k = 0; k < 4; ++k) CMP("projectile dmg_parts", i * 4 + k, pa[i].dmg_parts[k], pb[i].dmg_parts[k]);
+		CMP("projectile src_tmpl", i, pa[i].src_tmpl, pb[i].src_tmpl);
+		CMP("projectile src_type", i, pa[i].src_type, pb[i].src_type);
+		CMP("projectile src_kind", i, pa[i].src_kind, pb[i].src_kind);
 		CMP("projectile target_unit_id", i, pa[i].target_unit_id, pb[i].target_unit_id);
 	}
 	const auto &la = a.relics(), &lb = b.relics();

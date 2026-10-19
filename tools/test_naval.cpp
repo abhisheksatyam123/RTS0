@@ -1124,8 +1124,19 @@ static void test_petra_concurrent_transports() {
 	// The builders' crossing first; the attack sets out while it is under way.
 	for (int k = 0; k < 360 && !plan_of(PETRA_TRANSPORT_BUILDERS); ++k) run(s, 1.0f);
 	CHECK(plan_of(PETRA_TRANSPORT_BUILDERS) != nullptr);
-	// One plan per owner: a second builders' crossing waits for the first.
-	CHECK(!s.petra_start_transport(army, -30.0f, 40.0f, -30.0f, -40.0f, 0, PETRA_TRANSPORT_BUILDERS));
+	// Several plans per owner (navalManager.js requireTransport/splitTransport): a second
+	// builders' crossing starts on the free ship instead of waiting for the first.
+	std::vector<uint32_t> probe;
+	probe.push_back(s.spawn_unit(-44.0f, 52.0f, 1, UNIT_VILLAGER));
+	const size_t nplans = s.petra_transport_plans().size();
+	CHECK(s.petra_start_transport(probe, -30.0f, 40.0f, -30.0f, -40.0f, 0, PETRA_TRANSPORT_BUILDERS));
+	// Undo the probe, leaving the ships and units for the attack below.
+	if (s.petra_transport_plans().size() > nplans) {
+		uint32_t probe_ship = s.petra_transport_plans().back().ship_id;
+		s.cmd_stop(&probe_ship, 1);
+		s.petra_transports_.pop_back();
+	}
+	s.cmd_stop(probe.data(), probe.size());
 	// The target, placed now: Petra's soldiers would capture it while the builders cross.
 	const uint32_t house = s.spawn_building_world(30.0f, -40.0f, BLD_OUTPOST, 0); // an outpost: no decay on neutral land
 	s.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;

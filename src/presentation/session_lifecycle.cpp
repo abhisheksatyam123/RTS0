@@ -789,6 +789,8 @@ void RtsoMain::_ready() {
 	// 0 A.D. music.js playlists and in-game sound events (music_manager.h,
 	// session_audio.h).
 	music_.build(this);
+	if (Node *ma = get_tree() ? get_tree()->get_root()->get_node_or_null(NodePath("MenuAudio")) : nullptr)
+		ma->set("session_music_tick", Callable(this, "tick_session_music"));
 	session_audio_.build(this);
 	session_audio_.set_spatial([this](const Ref<AudioStream> &s, Vector3 pos, float db, float pitch) {
 		if (view) view->play_spatial_sound(s, pos, db, 75.0f, pitch);
@@ -952,7 +954,7 @@ void RtsoMain::_process(double delta) {
 	}
 	// Networked: keep running TurnManager::tick, which holds turns for everyone
 	// while any client is paused, so this peer still sees remote pauses end.
-	music_.tick(delta);
+	// (The music's own tick runs in the MenuAudio autoload, paused or not.)
 	if (notice_until_ && Time::get_singleton()->get_ticks_msec() >= notice_until_) {
 		notice_until_ = 0;
 		if (!hotkey_paused_ && banner_panel) banner_panel->set_visible(false);
