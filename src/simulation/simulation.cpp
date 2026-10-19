@@ -1556,8 +1556,10 @@ void Simulation::rebuild_nav_grid() {
 			});
 			continue;
 		}
-		// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction).
-		if ((b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
+		// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction). A
+		// wreck keeps `committed` but blocks nothing: 0.28 destroys the entity (Health.js HandleDeath)
+		// and its rubble (template_rubble.xml) has no Obstruction.
+		if (b.wrecked || (b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
 		int covered = 0;
 		rtso::nav::rasterize_rect_with_clearance(
 			rtso::nav::Vec2(b.x, b.z), rtso::nav::footprint_u(b), rtso::nav::footprint_v(b),
@@ -1778,8 +1780,8 @@ void Simulation::sync_tile_obstructions(bool structures) {
 				for_each_gate_side(b, [&](float x, float z, float hu, float hv) { put(K_GATE_SIDE, b.id, side++, x, z, u.x, u.y, hu, hv); });
 				continue;
 			}
-			// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction).
-			if ((b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
+			// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction); a wreck doesn't.
+			if (b.wrecked || (b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
 			put(K_BUILDING, b.id, 0, b.x, b.z, u.x, u.y, b.hu, b.hv);
 		}
 		for (const Scenery &sc : scenery_)
