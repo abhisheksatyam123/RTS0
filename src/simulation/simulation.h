@@ -3461,11 +3461,12 @@ private:
 	// researchManager.js: the techs Petra could research now at a structure it owns
 	// (gamestate.js findAvailableTech, phases left out), and one research start.
 	void petra_available_techs(std::vector<uint8_t> &out) const;
-	int petra_accounted_workers() const;
+	int petra_accounted_workers(bool queued = true) const; // false: units alive only (getOwnEntitiesByRole)
 	bool petra_phasing() const;
 	bool petra_start_research(uint8_t tech_id);
 	void petra_research_population_bonus();
 	bool petra_minor_tech_waiting() const;
+	bool petra_has_temple_class() const;
 	void petra_queue_special_tech(uint8_t t);
 	void petra_research_trade_bonus();
 	void petra_manage_military_production(float dt);
