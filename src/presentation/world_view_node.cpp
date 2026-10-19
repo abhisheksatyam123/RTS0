@@ -3074,7 +3074,41 @@ void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso
 		uint8_t t = uview.unit_type[i];
 		if (t >= rtso::UNIT_TYPE_COUNT) t = rtso::UNIT_VILLAGER;
 		const uint8_t civ = sim->team_civ(uview.team[i]);
-		want(civ, crowd_key_of(civ, drawn_unit_type(t, uview.tmpl[i], uview.id[i]), uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]));
+		const uint8_t dt = drawn_unit_type(t, uview.tmpl[i], uview.id[i]);
+		want(civ, crowd_key_of(civ, dt, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]));
+		// Its promotion draws the _a or _e actor.
+		if (uview.rank[i] < 3) want(civ, crowd_key_of(civ, dt, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i] + 1));
+	}
+	// Structures, drawn first when they come into sight: each one's model, its kind's
+	// foundation and scaffold (its owner builds more of that kind), and a damaged one's rubble.
+	if (!rubble_loaded_) load_rubble();
+	if (!foundations_loaded_) load_foundations();
+	auto want_building = [&](const String &id) {
+		if (id.is_empty() || !building_prefetched_.insert(id.utf8().get_data()).second) return;
+		rtso::ModelLibrary::prefetch("buildings", id);
+	};
+	for (const auto &b : sim->buildings()) {
+		if (b.wrecked) continue;
+		const uint8_t civ = sim->team_civ(b.team);
+		const uint32_t kind = (uint32_t)civ << 16 | b.type << 1;
+		const bool damaged = b.hp < b.max_hp;
+		want_building(building_visual_id(civ, b.type, b.half_size));
+		if (!building_kinds_prefetched_.insert(kind | (uint32_t)damaged).second) continue;
+		const std::string civ_type = std::string(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "/" + std::to_string(b.type);
+		if (!damaged) {
+			const auto fo = foundation_of_.find(civ_type);
+			const auto fa = fo == foundation_of_.end() ? foundation_art_.end() : foundation_art_.find(fo->second);
+			if (fa != foundation_art_.end()) {
+				want_building(fa->second.id);
+				want_building(fa->second.scaffold);
+			}
+			if (const char *f = rtso::civ_building_foundation(b.type)) want_building(String(f));
+			if (const char *f = rtso::civ_building_scaffold(b.type)) want_building(String(f));
+		} else {
+			const auto ro = rubble_of_.find(civ_type);
+			if (ro != rubble_of_.end()) want_building(String(ro->second.c_str()));
+			if (const char *r = rtso::civ_building_rubble(civ, b.type)) want_building(String(r));
+		}
 	}
 	for (const auto &b : sim->buildings()) {
 		for (const rtso::ProductionOrder &o : b.queue) {
