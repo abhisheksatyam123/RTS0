@@ -256,6 +256,8 @@ class RtsoWorldView : public Node3D {
 	void emit_unit_fx(const String &glb_id, const Transform3D &xf, float sc, float delta);
 	// Unit models started loading on a worker before their first draw (per civ and crowd key).
 	std::vector<bool> prefetched_;
+	std::unordered_set<std::string> building_prefetched_; // building GLB ids prefetch_unit_models requested
+	std::unordered_set<uint32_t> building_kinds_prefetched_; // civ << 16 | type << 1 | damaged, already looked at
 	float prefetch_poll_ = 0.0f;
 	void prefetch_unit_models(const rtso::Simulation *sim, const rtso::Simulation::UnitView &uview, float delta);
 	void update_site_dust(BuildingVis &v, uint8_t kind, int builders, const String &model_id, float b_scale);
