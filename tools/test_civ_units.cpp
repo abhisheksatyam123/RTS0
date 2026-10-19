@@ -7,6 +7,7 @@
 #include "simulation/simulation.h"
 #include "simulation/entity_limits_data.h"
 #include "simulation/promotion_data.h"
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -172,6 +173,30 @@ int main() {
 		CHECK(!m.cmd_train(0, bar, UNIT_HEALER));
 		CHECK(m.cmd_train(0, bar, UNIT_SPEARMAN));
 		CHECK(!m.cmd_train(0, tc, UNIT_SWORDSMAN));
+	}
+
+	// Another civ's unique structure trains its Trainer list's "units/{civ}/..." for the captor
+	// (Trainer.js): an Athenian Roman Army Camp trains Athenian rams, an Athenian Crannog
+	// Athenian infantry and fishing boats.
+	{
+		static Simulation k;
+		k.set_sim_seed(11);
+		k.set_team_civ(0, CIV_ATHENIANS);
+		k.set_team_civ(1, CIV_ROMANS);
+		k.reset();
+		k.set_player_resources(0, 5000, 5000, 5000, 5000);
+		k.player(0).phase = 3;
+		const uint32_t camp = k.spawn_building(-20, -20, BLD_ARMY_CAMP, 0, 1.0f);
+		CHECK(k.cmd_train(0, camp, UNIT_SIEGE_RAM));
+		const Simulation::Building *b = nullptr;
+		for (const Simulation::Building &x : k.buildings()) if (x.id == camp) b = &x;
+		CHECK(b && !b->queue.empty() && b->queue.back().tmpl == roster_id("athen/siege_ram"));
+		CHECK(!k.cmd_train(0, camp, UNIT_CAVALRY));
+		const uint32_t crannog = k.spawn_building(20, -20, BLD_CRANNOG, 0, 1.0f);
+		CHECK(k.cmd_train(0, crannog, UNIT_SPEARMAN));
+		CHECK(civ_unit_template(roster_id("athen/ship_fishing")).trainers.test(BLD_CRANNOG));
+		// A kind the captor builds itself keeps its own list: the Roman Army Camp adds nothing to Roman rows.
+		CHECK(civ_unit_template(roster_id("rome/infantry_swordsman_a")).trainers == bld_bit(BLD_ARMY_CAMP));
 	}
 
 	// Building health takes 0 A.D.'s civ structure bonus (Hellenic Architecture +10%).
@@ -343,8 +368,8 @@ int main() {
 		const uint16_t ram = roster_id("athen/siege_ram");
 		const uint16_t merc = roster_id("cart/infantry_swordsman_gaul_b");
 		CHECK(cav != CIV_UNIT_TEMPLATE_NONE && ram != CIV_UNIT_TEMPLATE_NONE && merc != CIV_UNIT_TEMPLATE_NONE);
-		CHECK(civ_unit_template(cav).trainers == bld_bit(BLD_STABLE));
-		CHECK(civ_unit_template(ram).trainers == bld_bit(BLD_ARSENAL));
+		CHECK(civ_unit_template(cav).trainers.test(BLD_STABLE) && !civ_unit_template(cav).trainers.test(BLD_BARRACKS));
+		CHECK(civ_unit_template(ram).trainers.test(BLD_ARSENAL) && !civ_unit_template(ram).trainers.test(BLD_BARRACKS));
 		CHECK(civ_unit_template(merc).trainers == bld_bit(BLD_EMBASSY));
 		// The Briton crannog (structures/brit/crannog.xml): a Town phase Civic Center that trains
 		// what the Civic Center trains and ships, and shoots like one.
@@ -366,7 +391,8 @@ int main() {
 			CHECK(civ_t != CIV_UNIT_TEMPLATE_NONE && std::strstr(civ_unit_template(civ_t).id, "/support_civilian"));
 		}
 		CHECK(civ_unit_template(roster_id("athen/support_civilian")).trainers == bld_bit(BLD_TOWN_CENTER));
-		CHECK(civ_unit_template(roster_id("athen/support_civilian_house")).trainers == bld_bit(BLD_HOUSE));
+		CHECK(civ_unit_template(roster_id("athen/support_civilian_house")).trainers.test(BLD_HOUSE));
+		CHECK(!civ_unit_template(roster_id("athen/support_civilian_house")).trainers.test(BLD_TOWN_CENTER));
 		CHECK(civ_unit_template(roster_id("athen/support_civilian_house")).unlock_tech == TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC);
 		CHECK(!civ_unit_template(roster_id("athen/support_female_citizen")).trainers);
 		CHECK(!civ_unit_template(roster_id("athen/support_female_citizen_house")).trainers);
@@ -559,6 +585,29 @@ int main() {
 		      BUILDING_LIMIT_CATEGORY[BLD_ICE_HOUSE] == LIMIT_YAKHCHAL && e.entity_limit(0, LIMIT_YAKHCHAL) == 5);
 		CHECK(!e.entity_limit_allows_unit(1, UNIT_HERO, find_template(CIV_PTOLEMIES, "Cleopatra VII")));
 	}
+
+	// A unit from a "{native}" trainer keeps its template but belongs to its owner: the
+	// owner's civ bonuses apply, not its template civ's baked ones (G34). A German misses
+	// nothing on a captured Briton civic centre's civilian, and pays no Briton bonus either.
+	s.set_team_civ(6, CIV_GERMANS);
+	const uint16_t brit_civ = roster_id("brit/support_civilian");
+	CHECK(brit_civ != CIV_UNIT_TEMPLATE_NONE);
+	const uint32_t bc = s.spawn_unit(20.0f, 20.0f, 6, UNIT_FEMALE_CITIZEN, 0.0f, brit_civ);
+	CHECK(s.unit_template(bc) == brit_civ);
+	const float brit_speed = civ_unit_template(brit_civ).speed;
+	// German civilians get germ_women +0.5 speed over the Briton base.
+	CHECK(std::fabs(s.units().speed[index_of(s, bc)] - (brit_speed + 0.5f)) < 1e-3f);
+	// Same-civ training is untouched: a Briton civilian for a Briton keeps its baked speed.
+	const uint32_t bc2 = s.spawn_unit(20.0f, 24.0f, 3, UNIT_FEMALE_CITIZEN, 0.0f, brit_civ);
+	CHECK(s.units().speed[index_of(s, bc2)] == brit_speed);
+	// Gaul cavalry damage is its owner's: an Athenian's loses the x1.1, a Gaul's keeps it.
+	const uint16_t gaul_cav = roster_id("gaul/cavalry_swordsman_b");
+	CHECK(gaul_cav != CIV_UNIT_TEMPLATE_NONE);
+	const float gaul_dmg = civ_unit_template(gaul_cav).attack_damage;
+	const uint32_t ac = s.spawn_unit(24.0f, 20.0f, 0, UNIT_CAVALRY, 0.0f, gaul_cav);
+	CHECK(std::fabs(s.units().attack_damage[index_of(s, ac)] - gaul_dmg / 1.1f) < 1e-3f * gaul_dmg);
+	const uint32_t gc = s.spawn_unit(24.0f, 24.0f, 4, UNIT_CAVALRY, 0.0f, gaul_cav);
+	CHECK(s.units().attack_damage[index_of(s, gc)] == gaul_dmg);
 
 	// Templates survive save/load.
 	const char *path = "/tmp/rtso_test_civ_units.sav";

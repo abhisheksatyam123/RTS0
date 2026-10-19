@@ -21913,7 +21913,8 @@
     "Attack",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Feeding"
    ],
    "bones": 35,
    "file": "models/units/cow.glb",
@@ -21927,6 +21928,7 @@
    "skeleton": "cow",
    "sources": [
     "actor:art/actors/fauna/cow.xml",
+    "anim:quadraped/bovidae_feeding.dae",
     "mesh:skeletal/cattle_female_a.dae",
     "skin:skeletal/animal_cattle_black_and_white.png"
    ],
@@ -22598,7 +22600,8 @@
     "Attack",
     "Death",
     "Idle2",
-    "Death2"
+    "Death2",
+    "Feeding"
    ],
    "bones": 31,
    "file": "models/units/fauna_bull.glb",
@@ -22616,6 +22619,7 @@
     "anim:quadraped/bovidae_attack.dae",
     "anim:quadraped/bovidae_death_a.dae",
     "anim:quadraped/bovidae_death_b.dae",
+    "anim:quadraped/bovidae_feeding.dae",
     "anim:quadraped/bovidae_idle_a.dae",
     "anim:quadraped/bovidae_idle_b.dae",
     "anim:quadraped/bovidae_run.dae",
@@ -22734,7 +22738,8 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Feeding"
    ],
    "bones": 34,
    "file": "models/units/fauna_fox_arctic.glb",
@@ -22750,6 +22755,7 @@
    "sources": [
     "actor:art/actors/fauna/fox_arctic.xml",
     "anim:quadraped/fox_death.dae",
+    "anim:quadraped/fox_feeding.dae",
     "anim:quadraped/fox_idle.dae",
     "anim:quadraped/fox_run.dae",
     "anim:quadraped/fox_walk.dae",
@@ -22870,7 +22876,8 @@
     "Walk",
     "Run",
     "Death",
-    "Idle2"
+    "Idle2",
+    "Feeding"
    ],
    "bones": 95,
    "file": "models/units/fauna_horse_breed.glb",
@@ -22891,6 +22898,7 @@
     "anim:quadraped/horse_breed_gallop.dae",
     "anim:quadraped/horse_breed_idle_01.dae",
     "anim:quadraped/horse_breed_idle_02.dae",
+    "anim:quadraped/horse_breed_idle_04.dae",
     "anim:quadraped/horse_breed_walk.dae",
     "mesh:props/horse/hair_mane_01_breed.dae",
     "mesh:props/horse/hair_tail_01_breed.dae",
@@ -23044,7 +23052,8 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Feeding"
    ],
    "bones": 34,
    "file": "models/units/fauna_peacock.glb",
@@ -23060,6 +23069,7 @@
    "sources": [
     "actor:art/actors/fauna/peacock.xml",
     "anim:quadraped/peacock_death.dae",
+    "anim:quadraped/peacock_feeding.dae",
     "anim:quadraped/peacock_idle.dae",
     "anim:quadraped/peacock_walk.dae",
     "mesh:skeletal/peacock.dae",
@@ -23215,7 +23225,8 @@
     "Attack",
     "Death",
     "Idle2",
-    "Death2"
+    "Death2",
+    "Feeding"
    ],
    "bones": 31,
    "file": "models/units/fauna_sanga_cattle.glb",
@@ -23233,6 +23244,7 @@
     "anim:quadraped/bovidae_attack.dae",
     "anim:quadraped/bovidae_death_a.dae",
     "anim:quadraped/bovidae_death_b.dae",
+    "anim:quadraped/bovidae_feeding.dae",
     "anim:quadraped/bovidae_idle_a.dae",
     "anim:quadraped/bovidae_idle_b.dae",
     "anim:quadraped/bovidae_run.dae",
@@ -23381,7 +23393,8 @@
     "Attack",
     "Death",
     "Idle2",
-    "Death2"
+    "Death2",
+    "Feeding"
    ],
    "bones": 31,
    "file": "models/units/fauna_wildebeest.glb",
@@ -23399,6 +23412,7 @@
     "anim:quadraped/bovidae_attack.dae",
     "anim:quadraped/bovidae_death_a.dae",
     "anim:quadraped/bovidae_death_b.dae",
+    "anim:quadraped/bovidae_feeding.dae",
     "anim:quadraped/bovidae_idle_a.dae",
     "anim:quadraped/bovidae_idle_b.dae",
     "anim:quadraped/bovidae_run.dae",
@@ -23417,7 +23431,8 @@
     "Attack",
     "Death",
     "Idle2",
-    "Death2"
+    "Death2",
+    "Feeding"
    ],
    "bones": 31,
    "file": "models/units/fauna_zebu_wild.glb",
@@ -23435,6 +23450,7 @@
     "anim:quadraped/bovidae_attack.dae",
     "anim:quadraped/bovidae_death_a.dae",
     "anim:quadraped/bovidae_death_b.dae",
+    "anim:quadraped/bovidae_feeding.dae",
     "anim:quadraped/bovidae_idle_a.dae",
     "anim:quadraped/bovidae_idle_b.dae",
     "anim:quadraped/bovidae_run.dae",
@@ -30455,7 +30471,8 @@
     "Walk",
     "Run",
     "Death",
-    "Attack"
+    "Attack",
+    "Feeding"
    ],
    "bones": 40,
    "file": "models/units/fox.glb",
@@ -30469,6 +30486,7 @@
    "skeleton": "fox",
    "sources": [
     "actor:art/actors/fauna/fox_red.xml",
+    "anim:quadraped/fox_feeding.dae",
     "mesh:skeletal/fox.dae",
     "skin:skeletal/animal_fox_red.png"
    ],

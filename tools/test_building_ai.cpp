@@ -162,9 +162,14 @@ int main() {
 		int32_t fi = idx_of(s, f);
 		float armor[3];
 		s.unit_resistance((size_t)fi, armor);
+		// P14: the arrow freezes the civic centre's 8 pierce at fire (a structure
+		// shooter, src_kind 2); the victim's armour meets it at impact.
 		const float want = 8.0f * std::pow(0.9f, armor[1]);
 		bool damage_ok = !arrows.fired.empty();
-		for (const Projectile &p : arrows.fired) damage_ok = damage_ok && near(p.damage, want) && p.target_unit_id == s.units().id[fi];
+		for (const Projectile &p : arrows.fired)
+			damage_ok = damage_ok && near(p.dmg_parts[1], 8.0f) && p.src_kind == 2 &&
+					near(s.projectile_impact_damage(p, s.unit_combat_at((size_t)fi), s.civ_of(1), armor), want) &&
+					p.target_unit_id == s.units().id[fi];
 		CHECK(damage_ok);
 	}
 

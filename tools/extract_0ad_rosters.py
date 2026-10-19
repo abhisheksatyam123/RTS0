@@ -142,6 +142,8 @@ RTS0_ONLY = ("UNIT_VILLAGER",)
 # closest one RTS0 has; the 0 A.D. name stays in the data for later remaps.
 # Gaia structures whose Trainer lists "units/{civ}/..." for their captor:
 # template stem -> structure kind (TRAINER_BUILDING key).
+# (civ, BuildingType, unit) a captured foreign structure adds (for --check output).
+CAPTURED_TRAINERS = set()
 GAIA_TRAINERS = {"merc_camp_egyptian": "mercenary_camp", "trading_post_desert": "trading_post"}
 # Gaia shrines (mixins/shrine.xml) train "units/{native}/support_healer_e": the Elite Healer
 # of the shrine's own civ (Identity/Civ), whoever holds it.
@@ -902,7 +904,8 @@ BUILDING_CLASS = {
     # Amun and Isis (ptol/temple_2) template_structure_civic_temple; han/academy and the
     # mercenary camps template_structure_military_barracks.
     "CivilCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG", "BLD_MILITARY_COLONY"],
-    "Temple": ["BLD_TEMPLE", "BLD_TEMPLE_VESTA", "BLD_TEMPLE_MARS", "BLD_TEMPLE_AMUN", "BLD_TEMPLE_ISIS"], "Forge": ["BLD_FORGE"],
+    "Temple": ["BLD_TEMPLE", "BLD_TEMPLE_VESTA", "BLD_TEMPLE_MARS", "BLD_TEMPLE_AMUN", "BLD_TEMPLE_ISIS",
+               "BLD_KUSH_SHRINE", "BLD_SHRINE"], "Forge": ["BLD_FORGE"],
     "Barracks": ["BLD_BARRACKS", "BLD_ACADEMY", "BLD_MERCENARY_CAMP"], "Stable": ["BLD_STABLE"], "Arsenal": ["BLD_ARSENAL"],
 }
 BUILDING_STAT = {
@@ -1288,6 +1291,29 @@ def collect(sim_root):
                 slot["buildings"].add(bld)
                 slot["kinds"].add(kind)
                 slot["phase"] = min(slot["phase"], sphase)
+        # Another civ's structure of a kind this civ has none of (the Roman Army Camp, the
+        # Athenian Gymnasium, the Briton Crannog, ...) trains "units/{civ}/..." for whoever
+        # captures it (Trainer.js): its type's bit on the rows this civ already trains, at
+        # their own phase. Kinds this civ builds keep its own lists.
+        if civ != MAP_CIV:
+            own = {TRAINER_BUILDING.get(kind) for _path, kind in structs}
+            for other in CIVS:
+                odir = os.path.join(loader.root, "structures", other)
+                if other == civ or not os.path.isdir(odir):
+                    continue
+                for fn in sorted(os.listdir(odir)):
+                    if not fn.endswith(".xml"):
+                        continue
+                    bld = TRAINER_BUILDING.get(structure_kind(fn[:-4]))
+                    if bld is None or bld in own:
+                        continue
+                    for e in loader.load("structures/%s/%s" % (other, fn[:-4])).tokens("Trainer/Entities"):
+                        if "{civ}" not in e:
+                            continue
+                        e = e.replace("{civ}", civ)
+                        if e in trainers and trainers[e]["buildings"]:
+                            trainers[e]["buildings"].add(bld)
+                            CAPTURED_TRAINERS.add((civ, bld, e))
         map_only = {ent for ent in MAP_ROWS if map_row_civ(ent) == civ and ent not in trainers and loader.exists(ent)}
         for ent in sorted(map_only):
             trainers[ent] = {"buildings": set(), "kinds": set(), "phase": 9}
@@ -1400,7 +1426,11 @@ def collect(sim_root):
             if len(hero_auras) > 3:  # three slots: range auras before garrison ones (the minister has four)
                 hero_auras.sort(key=lambda i: auras[i]["type"] == "garrison")
             rid = name.split("units/", 1)[-1]
-            phase = max(phase_of(t), trainers[name]["phase"] if trainers[name]["phase"] < 9 else 1)
+            # A trained row's phase is its own Identity/Requirements (Trainer.js checks only the
+            # unit's; the structure's phase gates building it, not training at a captured one).
+            # Rows no structure trains take the phase of the unit they promote or upgrade from.
+            phase = phase_of(t) if trainers[name]["buildings"] else \
+                max(phase_of(t), trainers[name]["phase"] if trainers[name]["phase"] < 9 else 1)
             blds = sorted(trainers[name]["buildings"], key=BUILDING_BITS.index)
             # --keep-trainers keeps a row's id; its trainers and phase are the release's while the
             # release has its template (0.28 trains Spartan heroes at the Gerousia, the Legionary

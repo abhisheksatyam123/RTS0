@@ -13,6 +13,8 @@
 // model drawn). Drawn for every entity whatever the line of sight, as 0 A.D. does, on one
 // ImmediateMesh that follows the terrain.
 
+#include <godot_cpp/classes/camera3d.hpp>
+#include <godot_cpp/classes/directional_light3d.hpp>
 #include <godot_cpp/classes/immediate_mesh.hpp>
 #include <godot_cpp/classes/mesh.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
@@ -20,6 +22,8 @@
 #include <godot_cpp/classes/multi_mesh_instance3d.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/standard_material3d.hpp>
+#include <godot_cpp/classes/viewport.hpp>
+#include <godot_cpp/variant/variant.hpp>
 #include <godot_cpp/core/math.hpp>
 #include <godot_cpp/core/memory.hpp>
 
@@ -32,7 +36,7 @@ namespace rtso {
 
 class RtsoDebugOverlays {
 public:
-	enum Kind { PATHFINDER, HIER_PATHFINDER, OBSTRUCTION, UNIT_MOTION, RANGE, BOUNDING_BOX, KIND_COUNT };
+	enum Kind { PATHFINDER, HIER_PATHFINDER, OBSTRUCTION, UNIT_MOTION, RANGE, BOUNDING_BOX, CULL_CAMERA_FRUSTUM, SHADOWS_FRUSTUM, KIND_COUNT };
 
 	void build(godot::Node *parent) {
 		using namespace godot;
@@ -77,9 +81,15 @@ public:
 		if (on_[UNIT_MOTION]) unit_motion();
 		if (on_[RANGE]) range();
 		if (on_[BOUNDING_BOX] && world) bounding_boxes(world);
+		if (on_[CULL_CAMERA_FRUSTUM] && world) cull_camera_frustum(world);
+		if (on_[SHADOWS_FRUSTUM] && world) shadows_frustum(world);
 		if (begun_) mesh_->surface_end();
 		sim_ = nullptr;
 	}
+
+	// The cull camera's corners (GameView.cpp m_CullCamera): the locked ones while
+	// Lock cull camera holds them, else empty and the live camera is drawn.
+	void set_cull_corners(const std::vector<Vector3> &corners) { cull_corners_ = corners; }
 
 private:
 	using Color = godot::Color;
@@ -242,9 +252,86 @@ private:
 	void obox(const godot::Transform3D &xf, const godot::AABB &a, const Color &c) {
 		Vector3 p[8];
 		for (int i = 0; i < 8; ++i) p[i] = xf.xform(a.get_endpoint(i));
+		edges(p, c);
+		++drawn_[BOUNDING_BOX];
+	}
+	// The 12 edges of 8 box corners.
+	void edges(const Vector3 p[8], const Color &c) {
 		static const int kEdges[12][2] = { { 0, 1 }, { 2, 3 }, { 4, 5 }, { 6, 7 }, { 0, 2 }, { 1, 3 }, { 4, 6 }, { 5, 7 }, { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 } };
 		for (const auto &e : kEdges) seg(p[e[0]], p[e[1]], c);
-		++drawn_[BOUNDING_BOX];
+	}
+
+	// SceneRenderer.cpp DisplayFrustum: the cull camera's frustum (the locked one
+	// while Lock cull camera holds it, else the live view camera's) as 12 edges.
+	void cull_camera_frustum(godot::Node *world) {
+		using namespace godot;
+		const Color c(1.0f, 1.0f, 1.0f, 0.8f);
+		Vector3 p[8];
+		if (cull_corners_.size() == 8) {
+			for (int i = 0; i < 8; ++i) p[i] = cull_corners_[(size_t)i];
+		} else {
+			Viewport *vp = world->get_viewport();
+			Camera3D *cam = vp ? vp->get_camera_3d() : nullptr;
+			if (!cam || !camera_slice(cam, cam->get_near(), cam->get_far(), p)) return;
+		}
+		edges(p, c);
+		++drawn_[CULL_CAMERA_FRUSTUM];
+	}
+
+	// CShadowMap::RenderDebugBounds: each PSSM cascade's ortho box, fitted round the
+	// view frustum's slice in sun space, as 12 edges apiece.
+	void shadows_frustum(godot::Node *world) {
+		using namespace godot;
+		Viewport *vp = world->get_viewport();
+		Camera3D *cam = vp ? vp->get_camera_3d() : nullptr;
+		Node *scene = world->get_parent();
+		DirectionalLight3D *sun = scene ? Object::cast_to<DirectionalLight3D>(scene->get_node_or_null(NodePath("Sun"))) : nullptr;
+		if (!cam || !sun || !sun->is_visible_in_tree()) return;
+		// The PSSM splits and range live on the light (main.tscn Sun); fall back to
+		// the camera's depth when unset.
+		auto prop = [&](const char *name, float fallback) {
+			godot::Variant v = sun->get(name);
+			return v.get_type() == godot::Variant::FLOAT || v.get_type() == godot::Variant::INT ? (float)v : fallback;
+		};
+		const float max_d = prop("directional_shadow_max_distance", cam->get_far());
+		const float splits[5] = { cam->get_near(), max_d * prop("directional_shadow_split_1", 0.1f),
+				max_d * prop("directional_shadow_split_2", 0.3f), max_d * prop("directional_shadow_split_3", 0.6f), max_d };
+		const Transform3D to_sun = sun->get_global_transform().affine_inverse();
+		const Transform3D to_world = sun->get_global_transform();
+		static const Color kCascade[4] = { Color(1, 1, 1, 0.8f), Color(0, 1, 1, 0.8f), Color(1, 1, 0, 0.8f), Color(1, 0, 1, 0.8f) };
+		for (int s = 0; s < 4; ++s) {
+			if (!(splits[s + 1] > splits[s])) continue;
+			Vector3 w[8];
+			if (!camera_slice(cam, splits[s], splits[s + 1], w)) continue;
+			Vector3 lo(1e30f, 1e30f, 1e30f), hi(-1e30f, -1e30f, -1e30f);
+			for (int i = 0; i < 8; ++i) {
+				const Vector3 l = to_sun.xform(w[i]);
+				lo.x = std::min(lo.x, l.x); lo.y = std::min(lo.y, l.y); lo.z = std::min(lo.z, l.z);
+				hi.x = std::max(hi.x, l.x); hi.y = std::max(hi.y, l.y); hi.z = std::max(hi.z, l.z);
+			}
+			Vector3 p[8];
+			for (int i = 0; i < 8; ++i)
+				p[i] = to_world.xform(Vector3(i & 1 ? hi.x : lo.x, i & 2 ? hi.y : lo.y, i & 4 ? hi.z : lo.z));
+			edges(p, kCascade[s]);
+			++drawn_[SHADOWS_FRUSTUM];
+		}
+	}
+
+	// The 8 world corners of a camera's frustum between two depths: each viewport
+	// corner's ray at each depth.
+	static bool camera_slice(godot::Camera3D *cam, float d_near, float d_far, Vector3 p[8]) {
+		using namespace godot;
+		if (!cam || !(d_far > d_near) || !cam->get_viewport()) return false;
+		const Vector2 size = cam->get_viewport()->get_visible_rect().size;
+		if (size.x <= 0.0f || size.y <= 0.0f) return false;
+		const Vector2 at[4] = { Vector2(0, 0), Vector2(size.x, 0), Vector2(0, size.y), Vector2(size.x, size.y) };
+		for (int i = 0; i < 4; ++i) {
+			const Vector3 o = cam->project_ray_origin(at[i]);
+			const Vector3 d = cam->project_ray_normal(at[i]);
+			p[i] = o + d * d_near;
+			p[i + 4] = o + d * d_far;
+		}
+		return true;
 	}
 
 	Vector3 ground(float x, float z) const { return Vector3(x, sim_->get_terrain_height(x, z) + 0.2f, z); }
@@ -298,6 +385,7 @@ private:
 
 	bool on_[KIND_COUNT] = {};
 	int drawn_[KIND_COUNT] = {};
+	std::vector<Vector3> cull_corners_; // Lock cull camera's frustum corners (empty: follow the camera)
 	const Simulation *sim_ = nullptr;
 	godot::Ref<godot::ImmediateMesh> mesh_;
 	godot::MeshInstance3D *inst_ = nullptr;

@@ -307,6 +307,27 @@ def test_moderation():
           "You have been banned from the lobby!", "a ban removes carol and tells her")
     check(lb.chat[-1]["text"] == "carol has been banned from the lobby.", "the lobby hears of the ban")
     check(lb.login("carol")[0] == 403 and lb.login("CAROL")[0] == 403, "a banned name cannot sign in")
+    # MUC roles: a moderator mutes ("visitor") and unmutes; a muted player reads but cannot chat.
+    dan = lb.login("dan")[1]["token"]
+    check(lb.mute(dan, "mod")[0] == 403, "only a moderator mutes")
+    check(lb.mute(mod, "nobody")[0] == 404, "muting someone not in the lobby is refused")
+    check(lb.mute(mod, "mod")[0] == 403, "a moderator cannot be muted (an XMPP moderator keeps its voice)")
+    check(lb.mute(mod, "DAN")[0] == 200 and lb.chat[-1]["event"] == {"kind": "role", "nick": "dan",
+          "newrole": "visitor", "oldrole": "participant"} and lb.chat[-1]["text"] == "dan has been muted.",
+          "a moderator mutes dan and the room hears of it")
+    rows = {r["name"]: r for r in lb.player_list()[1]["players"]}
+    check(rows["dan"].get("muted") is True and "muted" not in rows["mod"], "the player list marks the muted")
+    check(lb.post_chat(dan, "hi") == (403, {"error": "You have been muted."}), "a muted player cannot chat")
+    n = len(lb.chat)
+    check(lb.mute(mod, "dan") == (200, {}) and len(lb.chat) == n, "muting again says nothing")
+    check(lb.mute(mod, "dan", False)[0] == 200 and lb.chat[-1]["event"]["oldrole"] == "visitor"
+          and lb.chat[-1]["text"] == "dan has been unmuted." and lb.post_chat(dan, "hi")[0] == 200,
+          "unmuted, dan chats again")
+    # AnnouncementHandler: a moderator's notice to everyone.
+    check(lb.announce(dan, "x", "y")[0] == 403 and lb.announce(mod, " ", "")[0] == 400, "only a moderator's notice, never empty")
+    check(lb.announce(mod, "Maintenance", "Back at 10.")[0] == 200 and lb.chat[-1]["text"] == "== Notice:\nMaintenance\n\nBack at 10."
+          and lb.chat[-1]["event"] == {"kind": "announcement", "subject": "Maintenance", "text": "Back at 10."},
+          "the notice reaches the room")
 
 
 def test_punch():

@@ -19,6 +19,16 @@
 //     two blocked navcells that share a corner (plain Bresenham steps through those).
 //  7. A find_path start or goal on a blocked navcell moves to the nearest open navcell, as 0 A.D.'s
 //     FindNearestPassableNavcell and MakeGoalReachable do, not to the first one a scan meets.
+//  8. With the open cells as bits (nav::JpsBits, as NavGrid keeps its nodes), the straight scans
+//     stop on the same cells: every query gives the same path, reach, cost and expansions on grids
+//     whose sides are and aren't whole words, up to 512 a side, and a JpsBuffers kept from search to
+//     search (cleared only where the last search wrote) gives what a fresh one does.
+//  9. Turned obstructions on the nodes of the tile pass (NavGrid::tile_obs_raster): for rectangles
+//     turned every way, thin and wide, grown by each class's clearance, every node inside one is
+//     closed; no step between two open nodes (nor a diagonal one past two open nodes, as JPS takes
+//     it) passes inside one; and a node beside a wide one's face, more than 1.5 * sqrt(2) steps
+//     from its corners, stays open, as it does beside a rectangle square with the map (the nodes
+//     are not closed by a margin round every face). Taking each rectangle off again leaves no cover.
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/grid_nav.h"
 
@@ -274,6 +284,143 @@ int main() {
 		for (int i = 0; i < wp.count; ++i) below = below || wp.zs[i] < -24.0f;
 		if (!ok2 || wp.count < 1 || below)
 			fail("a goal on a wall snaps to its far side", 0, 20, 24, 20, 20, wp.count, 1);
+	}
+	{
+		int queries = 0, differ = 0;
+		nav::JpsBuffers kept;
+		static const int sizes[][2] = {{70, 130}, {128, 128}, {512, 512}, {65, 63}};
+		for (int g = 0; g < 24; ++g) {
+			const int w = sizes[g % 4][0], h = sizes[g % 4][1];
+			Rng rng{static_cast<uint32_t>(g) * 2246822519u + 7u};
+			std::vector<uint8_t> open(static_cast<size_t>(w) * static_cast<size_t>(h));
+			const int density = 5 + (g * 7) % 40;
+			for (uint8_t &o : open) o = rng.range(100) >= density ? 1 : 0;
+			for (int k = rng.range(6); k > 0; --k) { // walls with a gap
+				const bool vert = rng.range(2) == 0;
+				const int at = rng.range(vert ? w : h), len = vert ? h : w, gap = rng.range(len);
+				for (int t = 0; t < len; ++t)
+					if (t != gap) open[vert ? static_cast<size_t>(t) * w + at : static_cast<size_t>(at) * w + t] = 0;
+			}
+			const int rw = (w + 63) / 64, cw = (h + 63) / 64;
+			std::vector<uint64_t> rows(static_cast<size_t>(h) * rw, 0), cols(static_cast<size_t>(w) * cw, 0);
+			for (int y = 0; y < h; ++y)
+				for (int x = 0; x < w; ++x)
+					if (open[static_cast<size_t>(y) * w + x]) {
+						rows[static_cast<size_t>(y) * rw + x / 64] |= uint64_t{1} << (x % 64);
+						cols[static_cast<size_t>(x) * cw + y / 64] |= uint64_t{1} << (y % 64);
+					}
+			nav::JpsBits bits;
+			bits.row_words = rw;
+			bits.col_words = cw;
+			bits.rows = rows.data();
+			bits.cols = cols.data();
+			auto pass = [&](int x, int y) { return open[static_cast<size_t>(y) * w + x] != 0; };
+			for (int q = 0; q < 40; ++q) {
+				int sx, sy, tx, ty;
+				do { sx = rng.range(w); sy = rng.range(h); } while (!pass(sx, sy));
+				tx = rng.range(w);
+				ty = rng.range(h); // open or not: a closed goal is never reached
+				std::vector<std::pair<int, int>> a, b, c;
+				nav::JpsStats sa, sb, sc;
+				const bool ra = nav::compute_jps_path(w, h, pass, sx, sy, tx, ty, a, &sa);
+				const bool rb = nav::compute_jps_path(w, h, pass, sx, sy, tx, ty, b, &sb, nullptr, &bits);
+				const bool rc = nav::compute_jps_path(w, h, pass, sx, sy, tx, ty, c, &sc, &kept, &bits);
+				++queries;
+				if (ra != rb || ra != rc || a != b || a != c || sa.cost != sb.cost || sa.cost != sc.cost || sa.steps != sb.steps ||
+						sa.steps != sc.steps || sa.pushes != sb.pushes || sa.pushes != sc.pushes) {
+					++differ;
+					fail("bit scans find another path than cell scans", g, sx, sy, tx, ty, static_cast<long>(sb.cost), static_cast<long>(sa.cost));
+				}
+			}
+		}
+		std::printf("  bit scans: %d of %d queries differ from the cell scans\n", differ, queries);
+	}
+	{
+		// The nodes: heights a sample a unit on a 128-unit map of 64 navcells a side, so the tiles (1
+		// unit) are finer than the navcells (2 units) and their nodes are kept; one steep spot far off.
+		NavGrid nav;
+		nav.init(64.f, RES);
+		const int HR = 2 * RES + 1;
+		std::vector<float> heights(static_cast<size_t>(HR) * HR, 0.0f);
+		heights[static_cast<size_t>(4) * HR + 4] = 3.0f;
+		nav.set_slopes_from_heights(heights, HR);
+		const int nw = nav.node_res();
+		const float s = nav.node_step();
+		long shapes = 0, inside_open = 0, steps_through = 0, face_closed = 0, left_over = 0, closed_outside = 0;
+		if (nw != 4 * RES || std::fabs(s - 0.5f) > 1e-6f) fail("tile nodes not kept on a 1-unit heightmap", 0, nw, 0, 0, 0, nw, 4 * RES);
+		Rng rng{12345u};
+		for (int cls = 0; cls < NavGrid::TILE_CLASSES && nw == 4 * RES; ++cls) {
+			const float c = NavGrid::tile_clearance(cls);
+			std::vector<uint16_t> &count = nav.tile_obs_count_[cls];
+			for (int k = 0; k < 600; ++k) {
+				NavGrid::TileObstruction o;
+				o.key = static_cast<uint64_t>(k);
+				o.x = -20.0f + 40.0f * static_cast<float>(rng.range(10000)) / 10000.0f;
+				o.z = -20.0f + 40.0f * static_cast<float>(rng.range(10000)) / 10000.0f;
+				const float a = 0.002f + 1.5668f * static_cast<float>(rng.range(10000)) / 10000.0f;
+				o.ux = std::cos(a);
+				o.uz = -std::sin(a);
+				const bool thin = k % 4 == 0;
+				o.hu = thin ? 0.02f + 0.2f * static_cast<float>(rng.range(100)) / 100.0f : 0.3f + 3.0f * static_cast<float>(rng.range(100)) / 100.0f;
+				o.hv = 0.1f + 3.0f * static_cast<float>(rng.range(100)) / 100.0f;
+				count.assign(static_cast<size_t>(nw) * nw, 0);
+				nav.tile_obs_raster(o, cls, 1, nullptr);
+				++shapes;
+				const float hu = o.hu + c, hv = o.hv + c; // grown by the clearance
+				auto in_rect = [&](float x, float z) {
+					const float dx = x - o.x, dz = z - o.z;
+					return std::fabs(dx * o.ux + dz * o.uz) < hu && std::fabs(dz * o.ux - dx * o.uz) < hv;
+				};
+				auto open = [&](int i, int j) { return i >= 0 && j >= 0 && i < nw && j < nw && count[static_cast<size_t>(j) * nw + i] == 0; };
+				// The step from node (i, j) to (i2, j2), sampled every 1/64 of its length.
+				auto through = [&](int i, int j, int i2, int j2) {
+					for (int t = 1; t < 64; ++t) {
+						const float f = static_cast<float>(t) / 64.0f;
+						if (in_rect(nav.node_pos(i) + f * (nav.node_pos(i2) - nav.node_pos(i)), nav.node_pos(j) + f * (nav.node_pos(j2) - nav.node_pos(j))))
+							return true;
+					}
+					return false;
+				};
+				const int i0 = std::max(0, nav.node_of(o.x - 6.0f)), i1 = std::min(nw - 2, nav.node_of(o.x + 6.0f));
+				const int j0 = std::max(0, nav.node_of(o.z - 6.0f)), j1 = std::min(nw - 2, nav.node_of(o.z + 6.0f));
+				// The half sizes the nodes take the rectangle by (grown, and a hair).
+				const float gu = o.hu + c + NavGrid::TILE_HAIR, gv = o.hv + c + NavGrid::TILE_HAIR;
+				const bool wide = std::min(gu, gv) >= 0.75f * s;
+				for (int j = j0; j <= j1; ++j)
+					for (int i = i0; i <= i1; ++i) {
+						const float x = nav.node_pos(i), z = nav.node_pos(j);
+						if (in_rect(x, z) && open(i, j)) ++inside_open;
+						if (!open(i, j)) {
+							if (!in_rect(x, z)) ++closed_outside;
+							continue;
+						}
+						if (open(i + 1, j) && through(i, j, i + 1, j)) ++steps_through;
+						if (open(i, j + 1) && through(i, j, i, j + 1)) ++steps_through;
+						if (open(i + 1, j + 1) && open(i + 1, j) && open(i, j + 1) && through(i, j, i + 1, j + 1)) ++steps_through;
+						if (i > 0 && open(i - 1, j + 1) && open(i - 1, j) && open(i, j + 1) && through(i, j, i - 1, j + 1)) ++steps_through;
+					}
+				// Beside a wide rectangle's faces, more than 1.5 * sqrt(2) steps from its corners
+				// (the furthest a step that cuts a corner has a node), the nodes outside it stay open.
+				for (int j = j0; wide && j <= j1; ++j)
+					for (int i = i0; i <= i1; ++i) {
+						if (open(i, j)) continue;
+						const float dx = nav.node_pos(i) - o.x, dz = nav.node_pos(j) - o.z;
+						const float lu = dx * o.ux + dz * o.uz, lv = dz * o.ux - dx * o.uz;
+						if (std::fabs(lu) < gu && std::fabs(lv) < gv) continue; // inside, with the hair
+						if (std::fabs(lu) >= gu && std::fabs(lv) >= gv) continue; // off a corner
+						const float along = std::fabs(lu) < gu ? gu - std::fabs(lu) : gv - std::fabs(lv); // from the nearer corner
+						if (along > 1.5f * s * 1.4143f) ++face_closed;
+					}
+				nav.tile_obs_raster(o, cls, -1, nullptr);
+				for (uint16_t v : count) left_over += v != 0;
+			}
+		}
+		if (inside_open) fail("a node inside a turned obstruction is open", 0, 0, 0, 0, 0, inside_open, 0);
+		if (steps_through) fail("a step between open nodes passes through a turned obstruction", 0, 0, 0, 0, 0, steps_through, 0);
+		if (face_closed) fail("a node beside a turned obstruction's face is closed", 0, 0, 0, 0, 0, face_closed, 0);
+		if (left_over) fail("taking turned obstructions off leaves cover", 0, 0, 0, 0, 0, left_over, 0);
+		std::printf("  turned obstructions on the nodes: %ld shapes, %ld nodes inside open, %ld steps through, %ld closed beside a face, "
+				"%ld closed outside in all, %ld left covered\n", shapes, inside_open, steps_through, face_closed, closed_outside, left_over);
 	}
 	if (segments_clipping) fail("find_path segments pass through blocked navcells", 0, 0, 0, 0, 0, segments_clipping, 0);
 	if (lines_through_blocked) fail("line_clear accepts lines through blocked navcells", 0, 0, 0, 0, 0, lines_through_blocked, lines);

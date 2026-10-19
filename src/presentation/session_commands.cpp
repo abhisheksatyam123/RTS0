@@ -3,6 +3,7 @@
 #include <algorithm>
 #include "network/chat_routing.h"
 #include "main_node.h"
+#include "fog_mirage.h"
 #include "l10n.h"
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
@@ -62,9 +63,16 @@ uint32_t RtsoMain::transport_under(float x, float z) const {
 	return 0;
 }
 
-void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld) const {
+void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld, uint32_t *ent, uint8_t *cmd) const {
 	res = bld = 0;
+	uint32_t ent_id = 0;
+	uint8_t command = rtso::RALLY_CMD_AUTO;
+	struct Out { uint32_t *e; uint8_t *c; uint32_t &ev; uint8_t &cv; ~Out() { if (e) *e = ev; if (c) *c = cv; } } out{ent, cmd, ent_id, command};
 	if (!sim) return;
+	// unit_actions.js "set-rallypoint": walk, or attack-walk with session.attackmove held
+	// (units only with session.attackmoveUnit); a target below gives its own command.
+	if (rtso::hotkeys::held("session.attackmoveUnit")) command = rtso::RALLY_CMD_ATTACK_WALK_UNITS;
+	else if (rtso::hotkeys::held("session.attackmove")) command = rtso::RALLY_CMD_ATTACK_WALK;
 	float best = 2.0f * 2.0f;
 	auto rv = sim->resources();
 	for (size_t r = 0; r < rv.count; ++r) {
@@ -72,7 +80,26 @@ void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld) 
 		const float dx = rv.x[r] - at.x, dz = rv.z[r] - at.z, d2 = dx * dx + dz * dz;
 		if (d2 < best) { best = d2; res = rv.id[r]; }
 	}
-	if (res) return;
+	if (res) { command = rtso::RALLY_CMD_AUTO; return; }
+	// A treasure: collect it ("collect-treasure").
+	float best_t = 2.0f * 2.0f;
+	for (const auto &t : sim->treasures()) {
+		const float dx = t.x - at.x, dz = t.z - at.z, d2 = dx * dx + dz * dz;
+		if (d2 < best_t) { best_t = d2; ent_id = t.id; }
+	}
+	if (ent_id) { command = rtso::RALLY_CMD_TREASURE; return; }
+	const uint8_t me = local_player();
+	// An enemy unit in sight: attack it ("attack").
+	auto uv = sim->units();
+	float best_u = 1.2f * 1.2f;
+	for (size_t i = 0; i < uv.count; ++i) {
+		if (!uv.alive[i] || !sim->is_hostile(me, uv.team[i])) continue;
+		const float dx = uv.pos_x[i] - at.x, dz = uv.pos_z[i] - at.z, d2 = dx * dx + dz * dz;
+		if (d2 >= best_u || !rtso::los_sees_unit(*sim, view_player(), uv.pos_x[i], uv.pos_z[i], uv.team[i])) continue;
+		best_u = d2;
+		ent_id = uv.id[i];
+	}
+	if (ent_id) { command = rtso::RALLY_CMD_ATTACK; return; }
 	const std::vector<uint32_t> mine = selected_structures();
 	float best_b = 1e9f;
 	for (const auto &b : sim->buildings()) {
@@ -80,6 +107,26 @@ void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld) 
 		const float dx = b.x - at.x, dz = b.z - at.z, d2 = dx * dx + dz * dz, hit_r = b.half_size + 1.2f;
 		if (d2 <= hit_r * hit_r && d2 < best_b) { best_b = d2; bld = b.id; }
 	}
+	if (!bld) return;
+	const rtso::Simulation::Building *t = nullptr;
+	const rtso::Simulation::Building *from = nullptr;
+	for (const auto &b : sim->buildings()) {
+		if (b.id == bld) t = &b;
+		if (b.id == selected_building_id) from = &b;
+	}
+	if (!t) return;
+	command = rtso::RALLY_CMD_AUTO;
+	const bool friendly = t->team == me || sim->is_ally(me, t->team);
+	// Occupy a turret point of an own or allied wall or tower that has no garrison ("occupy-turret").
+	if (friendly && t->build_progress >= 1.0f && sim->get_garrison_capacity(t->id) <= 0 && sim->turret_holder_points(*t)) {
+		command = rtso::RALLY_CMD_TURRET;
+		return;
+	}
+	// From a market to another that isn't an enemy's: new traders trade between them ("trade").
+	auto market = [](uint8_t type) { return rtso::is_land_market(type) || type == rtso::BLD_DOCK; };
+	if (from && market(from->type) && market(t->type) && t->build_progress >= 1.0f && !sim->is_hostile(me, t->team) &&
+			(from->type == rtso::BLD_DOCK) == (t->type == rtso::BLD_DOCK))
+		command = rtso::RALLY_CMD_TRADE;
 }
 
 bool RtsoMain::selection_can_board(uint32_t holder) const {
@@ -371,9 +418,11 @@ void RtsoMain::_on_tech_pressed(int tech_id) {
 void RtsoMain::_on_tech_pressed_at(int tech_id, int64_t building_id) {
 	if (building_id == 0) return;
 	if (turn_cmds())
-		post_lockstep(9, nullptr, 0, 0, 0, (uint32_t)building_id, (uint8_t)tech_id);
+		// selection_panels_helpers.js addResearchToQueue: "pushFront" (target_x 1).
+		post_lockstep(9, nullptr, 0, rtso::hotkeys::held("session.pushorderfront") ? 1.0f : 0.0f, 0, (uint32_t)building_id,
+				(uint8_t)tech_id);
 	else
-		sim->cmd_research(local_player(), (uint32_t)building_id, (uint8_t)tech_id);
+		sim->cmd_research(local_player(), (uint32_t)building_id, (uint8_t)tech_id, rtso::hotkeys::held("session.pushorderfront"));
 }
 
 // The selected structures of the primary one's type, primary first: 0.28's selection
@@ -414,14 +463,17 @@ void RtsoMain::_on_upgrade_pressed(int choice) {
 void RtsoMain::_on_gate_lock_pressed(int lock) {
 	if (selected_building_id == 0) return;
 	const std::vector<uint32_t> structs = selected_structures();
+	bool any = false;
 	for (const auto &b : sim->buildings()) {
 		if (!rtso::is_gate_type(b.type) || std::find(structs.begin(), structs.end(), b.id) == structs.end()) continue;
 		const uint32_t id = b.id;
+		any = any || (b.team == local_player() && b.gate_locked != (lock != 0));
 		if (turn_cmds())
 			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_LOCK_GATE, nullptr, 0, 0, 0, id, lock ? 1 : 0);
 		else
 			sim->cmd_lock_gate(local_player(), id, lock != 0);
 	}
+	if (any) session_audio_.play_gate_lock(); // Gate.js LockGate / UnlockGate: sel_gate
 }
 
 // 0 A.D. ProductionQueue.js EnableAutoQueue / DisableAutoQueue through lockstep command 44,
@@ -452,12 +504,14 @@ void RtsoMain::_on_dropsite_sharing_pressed(int shared) {
 // selected structure that raises alerts (raiseAlert: the selection's AlertRaisers).
 void RtsoMain::_on_alert_pressed(int end) {
 	if (selected_building_id == 0) return;
+	bool alerted = false;
 	for (uint32_t id : selected_structures()) {
 		rtso::AlertRaiserInfo ai;
 		bool raiser = false;
 		for (const auto &b : sim->buildings())
 			if (b.id == id) raiser = b.team == local_player() && rtso::building_alert_raiser(b.type, ai);
 		if (!raiser) continue;
+		alerted = true;
 		if (net_lockstep())
 			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_ALERT, nullptr, 0, 0, 0, id, end ? 1 : 0);
 		else if (end)
@@ -465,6 +519,7 @@ void RtsoMain::_on_alert_pressed(int end) {
 		else
 			sim->cmd_raise_alert(local_player(), id);
 	}
+	if (alerted) session_audio_.play_alert(end != 0); // AlertRaiser alert_raise / alert_end
 }
 
 // 0 A.D. unit Upgrade on the selection through lockstep command 43 (`to` = roster

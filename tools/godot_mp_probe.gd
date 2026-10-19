@@ -300,6 +300,12 @@ func _run() -> void:
 					le.text = "/list"
 					main._on_chat_send_pressed()
 			var users := RegEx.create_from_string("Users \\((\\d+)\\): (.*)").search(str(main.get_lobby_state().get("chat", "")))
+			# 0.28 ChatAddressees: "■ name" for each other player, sorted by player id; Tab
+			# completes from every assigned name.
+			main.toggle_chat() # the list is filled when the window opens
+			var dd: Dictionary = main.debug_dialogs()
+			main.toggle_chat()
+			_say("addressees=%s names=%s" % [str(dd.get("chat_addressees", "")).replace(" ", "_"), ",".join(dd.get("chat_names", []))])
 			_say("users=%s list=%s" % [users.get_string(1) if users else "-", users.get_string(2).replace(" ", "_") if users else "-"])
 			st = main.get_lobby_state()
 			# 0.28 page_loading at "start": the networked Start loads under the loading page.

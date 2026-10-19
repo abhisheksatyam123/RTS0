@@ -13,6 +13,7 @@ uniform sampler2D mask_tex : filter_linear, hint_default_black;
 uniform vec4 albedo : source_color = vec4(1.0);
 uniform vec3 bake_tint = vec3(1.0);
 uniform bool srgb_vertex_color = false;
+uniform bool use_vertex_color = false;
 uniform float roughness = 1.0;
 uniform float metallic = 0.0;
 uniform float specular = 0.5;
@@ -100,7 +101,7 @@ void fragment() {
 		baked = vec3(1.0);
 	}
 	vec3 owner = mix(vec3(1.0), v_player, m);
-	ALBEDO = tex.rgb * owner / max(baked, vec3(0.05)) * COLOR.rgb;
+	ALBEDO = tex.rgb * owner / max(baked, vec3(0.05)) * (use_vertex_color ? COLOR.rgb : vec3(1.0));
 	ROUGHNESS = roughness;
 	METALLIC = metallic;
 	SPECULAR = specular;
