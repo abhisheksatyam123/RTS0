@@ -2296,7 +2296,10 @@ void RmsGenerator::synth_stronghold(HeightmapGrid &hm, RmsRng &rng, float &water
 			bool ok = true;
 			for (const auto &sp : spawns)
 				if (std::hypot(p.first - sp.x, p.second - sp.z) < 30.0f) { ok = false; break; }
-			if (ok) hm.level_area(p.first, p.second, half * rng.range_float(0.04f, 0.08f), 5.0f, land - rng.range_float(2.0f, 30.0f) * m);
+			if (ok) {
+				const float h_ = land - rng.range_float(2.0f, 30.0f) * m; const float r_ = half * rng.range_float(0.04f, 0.08f);
+				hm.level_area(p.first, p.second, r_, 5.0f, h_);
+			}
 		}
 	}
 	for (auto &sp : spawns) {
