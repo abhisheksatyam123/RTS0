@@ -13456,7 +13456,9 @@ void Simulation::tick_combat(float dt) {
 		if (st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE ||
 				st == ACTION_FLEE || st == ACTION_GARRISONED || st == ACTION_REPAIR)
 			return;
+		// UnitAI ReturnResource and CollectTreasure are forced walks too (no LosRangeUpdate).
 		if (st == ACTION_MOVE && (units_.order_kind[i] == ORDER_WALK || units_.order_kind[i] == ORDER_GARRISON ||
+				units_.order_kind[i] == ORDER_RETURN_RESOURCE || units_.order_kind[i] == ORDER_COLLECT_TREASURE ||
 				(units_.order_kind[i] == ORDER_GATHER && units_.target_resource_id[i] == 0)))
 			return;
 		const bool guarding = st == ACTION_GUARD; // target_unit_id is the guarded unit
@@ -16827,7 +16829,7 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
 		case ORDER_HEAL: order_heal(&uid, 1, o.target); break;
 		case ORDER_TRADE: order_trade(&uid, 1, o.target, trade_market_id(o.x2)); break;
-		case ORDER_RETURN_RESOURCE: order_return_resource(&uid, 1, o.target); break;
+		case ORDER_RETURN_RESOURCE: order_return_resource(&uid, 1, o.target, false, (o.flags & ORDER_FLAG_FORCE) != 0); break;
 		case ORDER_COLLECT_TREASURE: order_collect_treasure(&uid, 1, o.target); break;
 		case ORDER_CAPTURE_RELIC: order_capture_relic(&uid, 1, o.target); break;
 		default: break;
@@ -17554,7 +17556,7 @@ void Simulation::on_construction_finished(const Building &b, size_t builder) {
 				q.insert(q.begin(), current_order((size_t)k));
 			}
 			applying_queued_ = true; // keep the queue
-			order_return_resource(&uid, 1, b.id);
+			order_return_resource(&uid, 1, b.id, false, false);
 			applying_queued_ = false;
 		}
 	}
@@ -18399,7 +18401,7 @@ bool Simulation::can_return_resource(uint32_t unit_id, uint32_t dropsite_id) con
 			dropsite_accepts((size_t)i, buildings_[bit->second]);
 }
 
-void Simulation::order_return_resource(const uint32_t *unit_ids_in, size_t count_in, uint32_t dropsite_id, bool queued) {
+void Simulation::order_return_resource(const uint32_t *unit_ids_in, size_t count_in, uint32_t dropsite_id, bool queued, bool force) {
 	auto bit = building_id_to_idx_.find(dropsite_id);
 	if (bit == building_id_to_idx_.end()) return;
 	const Building &b = buildings_[bit->second];
@@ -18410,7 +18412,7 @@ void Simulation::order_return_resource(const uint32_t *unit_ids_in, size_t count
 		if (i >= 0 && units_.alive[i] && (queued || (units_.carry[i] > 0 && dropsite_accepts((size_t)i, b))))
 			carriers.push_back(unit_ids_in[k]);
 	}
-	UnitOrder o; o.kind = ORDER_RETURN_RESOURCE; o.target = dropsite_id; o.x = b.x; o.z = b.z;
+	UnitOrder o; o.kind = ORDER_RETURN_RESOURCE; o.flags = force ? ORDER_FLAG_FORCE : 0; o.target = dropsite_id; o.x = b.x; o.z = b.z;
 	const std::vector<uint32_t> now = split_queued(carriers.data(), carriers.size(), o, queued);
 	for (uint32_t uid : now) {
 		const int32_t i = lookup_unit(uid);
@@ -18424,7 +18426,7 @@ void Simulation::order_return_resource(const uint32_t *unit_ids_in, size_t count
 		stand_outside(b, uid, units_.pos_x[i], units_.pos_z[i], &sx, &sz, unit_clearance_at((size_t)i) + kStandMargin);
 		uint32_t id = uid;
 		cmd_move(&id, 1, sx, sz);
-		set_order((size_t)i, ORDER_RETURN_RESOURCE, 0, dropsite_id, b.x, b.z);
+		set_order((size_t)i, ORDER_RETURN_RESOURCE, force ? ORDER_FLAG_FORCE : 0, dropsite_id, b.x, b.z); // UnitAI ReturnResource
 		units_.target_resource_id[i] = 0;
 	}
 }
@@ -34464,11 +34466,11 @@ void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, 
 		if (treasure_reach((size_t)u) < 0.0f || units_.action_state[u] == ACTION_GARRISONED) continue;
 		collectors.push_back(unit_ids[k]);
 	}
-	UnitOrder o; o.kind = ORDER_COLLECT_TREASURE; o.target = treasure_id; o.x = t->x; o.z = t->z;
+	UnitOrder o; o.kind = ORDER_COLLECT_TREASURE; o.flags = ORDER_FLAG_FORCE; o.target = treasure_id; o.x = t->x; o.z = t->z;
 	for (uint32_t uid : split_queued(collectors.data(), collectors.size(), o, queued)) {
 		const int32_t u = lookup_unit(uid);
 		if (u < 0) continue;
-		set_order((size_t)u, ORDER_COLLECT_TREASURE, 0, treasure_id, t->x, t->z);
+		set_order((size_t)u, ORDER_COLLECT_TREASURE, ORDER_FLAG_FORCE, treasure_id, t->x, t->z); // UnitAI CollectTreasure: "force": true
 		units_.action_state[u] = ACTION_MOVE;
 		units_.has_order[u] = 1;
 		units_.target_unit_id[u] = treasure_id;
