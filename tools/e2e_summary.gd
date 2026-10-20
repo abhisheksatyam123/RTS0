@@ -104,6 +104,20 @@ func run() -> void:
 	var lobby_btn = s.find_child("LobbyButton", true, false)
 	check(lobby_btn is TextureButton and lobby_btn.texture_normal != null and lobby_btn.size == Vector2(16, 16),
 		"the lobby button is 0.28's 16 px speech bubble")
+	# summary.xml lobbyButton: the lobby as a dialog over the summary, which stays.
+	var ls = root.get_node("LobbySession")
+	var token = ls.token
+	ls.token = "e2e"
+	s.open_lobby()
+	await frames(2)
+	var dlg = root.get_node_or_null("LobbyDialog")
+	check(dlg != null and dlg.get_child(0).dialog and dlg.layer > s.layer and s.visible and s.is_inside_tree(),
+		"its Lobby opens the lobby as a dialog over the summary")
+	if dlg:
+		dlg.get_child(0)._on_back_pressed()
+	await frames(2)
+	check(root.get_node_or_null("LobbyDialog") == null and s.visible, "and Back returns to the summary")
+	ls.token = token
 
 	print("2. counters")
 	var econ: int = s.player_value(1, 0, 1)
