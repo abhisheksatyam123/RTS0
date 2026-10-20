@@ -20324,10 +20324,17 @@ int Simulation::petra_unplanned_workers(int &supports) {
 	int workers = 0;
 	supports = 0;
 	// getOwnUnits: a garrisoned unit (in a structure or aboard a ship) keeps its role and counts.
+	// baseManager.js assignRolelessUnits gives the Worker role to Worker, CitizenSoldier and
+	// FishingBoat units and to Support Elephants: the worker elephant counts as a support unit,
+	// fishing boats and citizen cavalry (the starting cavalry) as workers.
+	const auto &army = petra_army_ids_[petra_pid_];
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!(units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) || units_.team[i] != petra_pid_) continue;
 		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
-		if (gcls == GATHER_SUPPORT) { if (!in_plan(units_.id[i])) { ++workers; ++supports; } }
+		if (gcls == GATHER_SUPPORT || units_.unit_type[i] == UNIT_WORKER_ELEPHANT) { if (!in_plan(units_.id[i])) { ++workers; ++supports; } }
+		else if (gcls == GATHER_FISHING) ++workers;
+		else if (gcls == GATHER_CAVALRY && !in_plan(units_.id[i]) && !std::binary_search(army.begin(), army.end(), units_.id[i]))
+			++workers;
 		else if (petra_is_worker(i) && !in_plan(units_.id[i])) ++workers;
 		// Mercenaries trained as workers keep the Worker role in 0.28 though they cannot gather.
 		else if (unit_is_mercenary_infantry(units_.unit_type[i], units_.tmpl[i]) && !in_plan(units_.id[i]) &&
@@ -20348,7 +20355,7 @@ int Simulation::petra_train_more_workers() {
 	const int workers = petra_unplanned_workers(supports);
 	// What is in training: support units, and the citizen infantry queued as workers (role
 	// worker and no plan; an attack's soldiers and the emergency units have one).
-	int in_training = 0, queued_supports = 0, queued_soldiers = 0;
+	int in_training = 0, queued_supports = 0, queued_soldiers = 0, queued_boats = 0;
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_) continue;
 		for (const auto &o : b.queue) {
@@ -20358,9 +20365,11 @@ int Simulation::petra_train_more_workers() {
 			else if (o.petra_plan == PETRA_ORDER_WORKER && (unit_gather_class(o.unit_type, o.tmpl) == GATHER_INFANTRY ||
 					unit_is_mercenary_infantry(o.unit_type, o.tmpl)))
 				queued_soldiers += o.count;
+			else if (o.unit_type == UNIT_FISHING_BOAT) queued_boats += o.count; // navalManager.js: role worker, no plan
 		}
 	}
-	const int total = workers + queued_supports + queued_soldiers;
+	// numberTotal: the workers, the ones in training (fishing boats too) and the queued plans.
+	const int total = workers + queued_boats + queued_supports + queued_soldiers;
 	const int target = petra_target_workers();
 	const int shortfall = std::max(0, target - total);
 	if (total > target) return 0;
@@ -24405,8 +24414,9 @@ int Simulation::petra_accounted_workers(bool queued) const {
 		// getOwnEntitiesByRole: garrisoned units keep their role.
 		if (!(units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) || units_.team[i] != petra_pid_) continue;
 		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
-		const bool soldier = gcls == GATHER_INFANTRY || unit_is_mercenary_infantry(units_.unit_type[i], units_.tmpl[i]);
-		if (gcls == GATHER_FISHING || ((gcls == GATHER_SUPPORT || soldier) && !set_off(units_.id[i])))
+		const bool soldier = gcls == GATHER_INFANTRY || gcls == GATHER_CAVALRY || unit_is_mercenary_infantry(units_.unit_type[i], units_.tmpl[i]);
+		const bool support = gcls == GATHER_SUPPORT || units_.unit_type[i] == UNIT_WORKER_ELEPHANT;
+		if (gcls == GATHER_FISHING || ((support || soldier) && !set_off(units_.id[i])))
 			++workers;
 	}
 	for (const Building &b : buildings_) {
@@ -24415,8 +24425,8 @@ int Simulation::petra_accounted_workers(bool queued) const {
 		for (const ProductionOrder &o : b.queue) {
 			if (o.is_tech() || o.unit_type >= UNIT_TYPE_COUNT) continue;
 			const uint8_t gcls = unit_gather_class(o.unit_type, o.tmpl);
-			if (gcls == GATHER_SUPPORT || gcls == GATHER_INFANTRY || gcls == GATHER_FISHING ||
-					unit_is_mercenary_infantry(o.unit_type, o.tmpl))
+			if (gcls == GATHER_SUPPORT || gcls == GATHER_INFANTRY || gcls == GATHER_CAVALRY || gcls == GATHER_FISHING ||
+					o.unit_type == UNIT_WORKER_ELEPHANT || unit_is_mercenary_infantry(o.unit_type, o.tmpl))
 				workers += o.count;
 		}
 	}
