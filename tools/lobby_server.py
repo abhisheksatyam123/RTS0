@@ -64,6 +64,10 @@ behind a small JSON API:
   GET  /rooms/punch?id=R&since=N[&token=T] -> {endpoints: [{seq, ip, port}], last}: the host punches
                                             a hole towards each (0 A.D. SendHolePunchingMessage)
   GET  /chat?since=N                     -> {messages: [{id, time, from, text}], last}
+  GET  /events?since=V&wait=S             -> {version}: answers once the chat, the player list
+                                            or the game list changed after version V, or after
+                                            S seconds (at most 10); 0 A.D.'s XMPP pushes these,
+                                            so a page waiting here refreshes at once
   POST /chat      {token, text}
   POST /report    {token, matchID, players, playerStates, ...}
                   a player's end-of-game report (gui/session/lobby/LobbyRatingReporter.js);
@@ -109,6 +113,8 @@ TIMEOUT = 30.0          # seconds without a request before a player or game is d
 CHAT_KEEP = 200         # chat lines kept for late arrivals
 MAX_NAME = 32
 MAX_TEXT = 500
+# 0.28 lobby ChatPanel.xml: the chat input takes at most 1024 characters.
+MAX_CHAT = 1024
 STATUSES = ("available", "away", "playing")
 ROOM_STATES = ("init", "running")
 PUNCH_KEEP = 16         # joiner endpoints kept per game
@@ -231,6 +237,10 @@ class Lobby:
         self.subject = str(subject or "")[:MAX_TEXT]
         self.clock = clock
         self.lock = threading.Lock()
+        # /events: bumped whenever what the lists and chat show changes.
+        self.changed = threading.Condition(self.lock)
+        self.version = 0
+        self._sig = None
         self.players = {}   # token -> {name, status, seen}
         self.rooms = []     # dicts, plus "seen"
         self.chat = []      # {id, time, from, text}
@@ -428,6 +438,11 @@ class Lobby:
             return 409, {"error": "that name is in use"}
         token = secrets.token_hex(16)
         self.players[token] = {"name": name, "status": "available", "seen": self.clock()}
+        # EcheLOn _muc_online: get_or_create_player for everyone who joins, so a member
+        # with no finished game still has a profile ("-" rating, 0 games).
+        if name.lower() not in self.ratings:
+            self._row(name)
+            self._save_ratings()
         self._say(None, f"{name} has joined.")
         return 200, {"token": token, "name": name}
 
@@ -710,6 +725,28 @@ class Lobby:
         self.rooms.remove(room)
         return 200, {}
 
+    def touch(self):
+        """Under the lock: bump the version and wake /events waiters if the
+        chat, player list or game list differ from the last look."""
+        sig = (self.chat[-1]["id"] if self.chat else 0,
+               json.dumps(self.room_list()[1], sort_keys=True),
+               json.dumps(self.player_list()[1], sort_keys=True))
+        if sig != self._sig:
+            self._sig = sig
+            self.version += 1
+            self.changed.notify_all()
+
+    def wait_events(self, since, wait):
+        """Under the lock: the version once it passes `since`, or after `wait` s."""
+        deadline = time.monotonic() + max(0.0, min(float(wait), 10.0))
+        while True:
+            self.expire()
+            self.touch()
+            left = deadline - time.monotonic()
+            if self.version > since or left <= 0:
+                return 200, {"version": self.version}
+            self.changed.wait(min(left, 1.0))
+
     def chat_since(self, since):
         msgs = [m for m in self.chat if m["id"] > since]
         return 200, {"messages": msgs, "last": self.next_chat - 1}
@@ -720,7 +757,7 @@ class Lobby:
             return self.not_signed_in(token)
         if p["name"].lower() in self.muted:
             return 403, {"error": "You have been muted."}
-        text = str(text or "").strip()[:MAX_TEXT]
+        text = str(text or "").strip()[:MAX_CHAT]
         if not text:
             return 400, {"error": "empty message"}
         self._say(p["name"], text)
@@ -790,6 +827,13 @@ class LobbyHandler(BaseHTTPRequestHandler):
                 except ValueError:
                     since = 0
                 code, obj = LOBBY.chat_since(since)
+            elif path == "/events":
+                q = parse_qs(url.query)
+                try:
+                    since, wait = int(q.get("since", ["0"])[0]), float(q.get("wait", ["0"])[0])
+                except ValueError:
+                    since, wait = 0, 0.0
+                code, obj = LOBBY.wait_events(since, wait)
             elif path == "/rooms/punch":
                 q = parse_qs(url.query)
                 try:
@@ -853,6 +897,7 @@ class LobbyHandler(BaseHTTPRequestHandler):
                     code, obj = 404, {"error": "not found"}
             except (TypeError, ValueError):
                 code, obj = 400, {"error": "bad field"}
+            LOBBY.touch()
         self._json(code, obj)
 
 

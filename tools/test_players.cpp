@@ -189,6 +189,23 @@ int main() {
 		TurnManager::seat_clients(wire, out); // the host's lobby shows the same seating Start makes
 		for (uint32_t c = 0; c < 8; ++c) CHECK(out[c] == tmc.player_for_client(c));
 	}
+	{
+		// Only connected clients take slots: with clients 0, 1 and 9 here, client
+		// 9 gets the slot an absent id 2 would have taken (0.28 seats by GUID).
+		GameSetupParams far;
+		far.slot_count = 3;
+		far.slot_types[0] = 'h'; far.slot_types[1] = 'h'; far.slot_types[2] = 'h';
+		uint8_t out[NET_SETUP_CLIENTS];
+		TurnManager::seat_clients(far, out, (1ull << 0) | (1ull << 1) | (1ull << 9));
+		CHECK(out[0] == 0 && out[1] == 1 && out[9] == 2 && out[2] == 0xFF);
+		// The host names every seat, so the clients' Start seats client 9 the same.
+		for (uint32_t c = 0; c < NET_SETUP_CLIENTS; ++c) if (out[c] < 8) far.seats[c] = out[c];
+		far.observers = 1ull << 33;
+		GameSetupParams back;
+		CHECK(parse_game_start_full(format_game_start_full(far), back) && back.seats[9] == 2 && back.observers == far.observers);
+		tmc.assign_slot_players(back);
+		CHECK(tmc.player_for_client(9) == 2 && tmc.player_for_client(1) == 1 && tmc.player_for_client(33) == 0xFF);
+	}
 	for (uint8_t &st : seats.seats) st = 0xFF;
 	seats.slot_count = 4;
 	tmc.reset();

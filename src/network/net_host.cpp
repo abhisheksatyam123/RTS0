@@ -681,14 +681,15 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 				send_wire_packet(from_ip, from_port, 0, NET_FLAG_DISCONNECT, NDR_SERVER_FULL, nullptr, 0, false);
 			} else {
 				NetPeer np;
-				// Before Start, a joiner takes the lowest id 1-7 no connected peer
-				// holds: the setup seats and lists clients 0-7 (8-bit masks), so ids
-				// burnt by leavers and refused passwords must not push it past them.
+				// Before Start, a joiner takes the lowest id no connected peer holds:
+				// the setup seats and lists clients 0 to NET_SETUP_CLIENTS-1 (64-bit
+				// masks), so ids burnt by leavers and refused passwords must not
+				// push it past them.
 				// 0 A.D. keys assignments by GUID instead; after Start ids stay
 				// unique, since the turn manager still knows a dropped client's id.
 				uint32_t id = 0;
 				if (!game_start_sent_)
-					for (uint32_t c = 1; c < 8 && !id; ++c)
+					for (uint32_t c = 1; c < NET_SETUP_CLIENTS && !id; ++c)
 						if (std::none_of(peers_.begin(), peers_.end(),
 									[c](const NetPeer &p) { return p.id == c && p.connected; }))
 							id = c;

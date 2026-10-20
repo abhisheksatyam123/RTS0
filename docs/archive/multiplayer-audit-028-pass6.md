@@ -35,4 +35,11 @@ None of these touches simulation state or the save format.
 ## Fix log
 
 - 2026-10-15 #1143 pass 6 gap 1 (Teams Locked on by default in networked setups) merged.
-- 2026-10-15 #PR pass 6 gap 3 (lobby password page before a listed join, Host row 1024-65535 port check) merged.
+- 2026-10-15 #1146 pass 6 gap 3 (lobby password page before a listed join, Host row 1024-65535 port check) merged.
+- 2026-10-19 #1160 pass 6 gap 2 (setup lists, seats and counts every client: 64-bit setup masks, lowest free id, host names every seat) merged.
+- 2026-10-19 #1162 pass 6 gap 4 (civ, team and colour host-only, as 0.28; the client's colour pickers hidden) merged.
+- 2026-10-20 #1170 pass 6 gap 8 (no chat window once the connection is lost, as Chat.openPage) merged.
+- 2026-10-20 #1175 pass 6 gap 9 (setup and lobby chat take 1024 characters, the lobby server keeps them) merged.
+- 2026-10-20 #1178 pass 6 gap 7 (right-click Ready sets not ready; observers see no Ready button) merged.
+- 2026-10-20 gap 6 (player list sorting) was already fixed on main by Triggers (1d2a35096, sort_players_by); 0.28's buddy sort column is the one part not carried.
+- 2026-10-20 #PR5 pass 6 gap 5 (lobby /events long poll: chat, players and games refresh at once) merged. Pass 6 complete.
