@@ -257,6 +257,8 @@ class RtsoWorldView : public Node3D {
 	void emit_unit_fx(const String &glb_id, const Transform3D &xf, float sc, float delta);
 	// Unit models started loading on a worker before their first draw (per civ and crowd key).
 	std::vector<bool> prefetched_;
+	std::unordered_set<std::string> building_prefetched_; // building GLB ids prefetch_unit_models requested
+	std::unordered_set<uint32_t> building_kinds_prefetched_; // civ << 16 | type << 1 | damaged, already looked at
 	float prefetch_poll_ = 0.0f;
 	void prefetch_unit_models(const rtso::Simulation *sim, const rtso::Simulation::UnitView &uview, float delta);
 	void update_site_dust(BuildingVis &v, uint8_t kind, int builders, const String &model_id, float b_scale);
@@ -429,11 +431,20 @@ class RtsoWorldView : public Node3D {
 	uint32_t crowd_form_mask_[rtso::CIV_COUNT][CROWD_KEY_COUNT] = {};
 	uint32_t crowd_form_mask(uint8_t civ, uint16_t key);
 
-	// wildlife fauna batched (idle / move / attack / death / second idle / second death)
-	MultiMeshInstance3D *fauna_mmi[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
-	Ref<MultiMesh> fauna_mm[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT];
-	CrowdPuppet fauna_puppet[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
-	bool fauna_puppet_baked[rtso::FAUNA_COUNT] = {};
+	// wildlife fauna batched (idle / move / attack / death / second idle / second death),
+	// one row per species, then a row per other body of a species whose 0.28 actor
+	// picks its mesh by variant (<model_id>_v2.glb: the horned cattle, the billy goat).
+	static constexpr int FAUNA_LOOK_ROWS = 16;
+	static constexpr int FAUNA_ROWS = rtso::FAUNA_COUNT + FAUNA_LOOK_ROWS;
+	MultiMeshInstance3D *fauna_mmi[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
+	Ref<MultiMesh> fauna_mm[FAUNA_ROWS][FAUNA_CLIP_COUNT];
+	CrowdPuppet fauna_puppet[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
+	bool fauna_puppet_baked[FAUNA_ROWS] = {};
+	String fauna_row_model_[FAUNA_ROWS];
+	int fauna_rows_ = rtso::FAUNA_COUNT;
+	uint8_t fauna_look_first_[rtso::FAUNA_COUNT] = {}; // the species' first look row
+	uint8_t fauna_looks_[rtso::FAUNA_COUNT] = {};      // its looks besides the base
+	int fauna_row(uint8_t ftype, uint32_t id) const;
 
 	std::unordered_map<uint32_t, float> crowd_yaw;
 	std::unordered_map<uint32_t, Vector2> crowd_pos;
@@ -632,7 +643,7 @@ private:
 	void cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> meshes[][CROWD_PHASES], const int counts[][CROWD_PHASES], int count, uint64_t death_slots);
 	void cycle_fauna_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint64_t death_slots);
 	void ensure_crowd_frames(uint8_t civ, uint16_t key, const int *counts);
-	void ensure_fauna_frames(uint8_t ftype);
+	void ensure_fauna_frames(int row);
 	void init_animation_controllers();
 };
 

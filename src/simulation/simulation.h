@@ -179,7 +179,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 99; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 100; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
 	static constexpr uint32_t SAVE_VERSION_TRADE_ROUTE = 99; // each trader's route waypoints and leg progress (SetupTradeRoute route, reversed on the way back)
 	static constexpr uint32_t SAVE_VERSION_PROJECTILE_DAMAGE = 98; // each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact); each unit's and animal's previous-turn position (aim velocity); each player's control-all-units flag
 	static constexpr uint32_t SAVE_VERSION_RALLY_COMMANDS = 97; // each rally position's command and unit or treasure
@@ -2722,7 +2723,9 @@ private:
 	// GetAttackBonus against it (base multipliers; RTS0 models no tech modification
 	// of bonus multipliers, dead shooter or not, matching every other attack).
 	float projectile_impact_damage(const Projectile &p, const CombatProfile &victim, uint8_t victim_civ, const float res[3]) const;
-	int32_t projectile_hit_fauna(const Projectile &p) const;
+	int32_t projectile_hit_fauna(const Projectile &p, bool aimed_only = false) const;
+	const CombatProfile *projectile_status_profile(const Projectile &p) const;
+	static float predict_time_to_target(float sx, float sz, float speed, float tx, float tz, float vx, float vz);
 	void projectile_hits_fauna(const Projectile &p, size_t f);
 	float unit_damage_to_fauna(size_t i, size_t f) const;
 	void fire_at_fauna(size_t i, size_t f);
@@ -3354,6 +3357,19 @@ private:
 		uint32_t tiles = 0;
 	};
 	PetraRoom petra_room_;
+	// tradeManager.js routeProspection: set when an ally's (or our) market or dock is finished,
+	// destroyed or captured, diplomacy changes (checkEvents) or our territory grows by over 960 m²
+	// (headquarters.js:2044); cleared once prospectForNewMarket has looked. RTS0 sees those
+	// events as changes to `sig` (the finished Trade structures we and our allies hold, and the
+	// diplomacy) and to `foundations` (an ally Trade foundation gone, finished or cancelled).
+	struct PetraProspect {
+		bool active = false;
+		bool seen = false; // sig and foundations taken once, so the map's own markets don't count
+		uint32_t sig = 0;
+		std::vector<uint32_t> foundations; // sorted ids
+	};
+	PetraProspect petra_prospect_;
+	void petra_check_trade_events();
 	void petra_set_no_room(uint8_t type);
 	bool petra_no_room(uint8_t type) const;
 	int petra_missing_room_count() const;
@@ -3730,7 +3746,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};

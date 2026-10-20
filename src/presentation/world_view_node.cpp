@@ -545,13 +545,25 @@ void RtsoWorldView::_ready() {
 	{
 		auto deer = rtso::ModelLibrary::get("units", "deer");
 		Ref<Mesh> deer_mesh = deer.mesh.is_valid() ? deer.mesh : rtso::ModelLibrary::get("units", "war_dog").mesh;
-		// Each 0 A.D. species is drawn with its RTS0 model (gaia_data.h model_id), or the deer.
-		Ref<Mesh> fauna_rest[rtso::FAUNA_COUNT];
+		// Each 0 A.D. species is drawn with its RTS0 model (gaia_data.h model_id), or the deer,
+		// and its other bodies (<model_id>_v2.glb ..., tools/add_0ad_mesh_looks.py) in rows after.
 		for (int f = 0; f < rtso::FAUNA_COUNT; ++f) {
-			auto m = rtso::ModelLibrary::get("units", rtso::fauna_type_info((uint8_t)f).model_id);
+			const String id = rtso::fauna_type_info((uint8_t)f).model_id;
+			fauna_row_model_[f] = id;
+			fauna_look_first_[f] = (uint8_t)fauna_rows_;
+			for (int v = 2; v <= 4 && fauna_rows_ < FAUNA_ROWS; ++v) {
+				const String look = id + String("_v") + String::num_int64(v);
+				if (!ResourceLoader::get_singleton()->exists(String("res://assets/models/units/") + look + String(".glb"))) break;
+				fauna_row_model_[fauna_rows_++] = look;
+				fauna_looks_[f]++;
+			}
+		}
+		Ref<Mesh> fauna_rest[FAUNA_ROWS];
+		for (int f = 0; f < fauna_rows_; ++f) {
+			auto m = rtso::ModelLibrary::get("units", fauna_row_model_[f]);
 			fauna_rest[f] = m.mesh.is_valid() ? m.mesh : deer_mesh;
 		}
-		for (int f = 0; f < rtso::FAUNA_COUNT; ++f) {
+		for (int f = 0; f < fauna_rows_; ++f) {
 			for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 				fauna_mm[f][c] = create_multimesh(fauna_rest[f], false);
 				fauna_mm[f][c]->set_use_custom_data(true); // the coat draw (player_color.gdshader variant_u)
@@ -3057,14 +3069,21 @@ void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint16_t key, const int *co
 	crowd_job_release();
 }
 
-void RtsoWorldView::ensure_fauna_frames(uint8_t ftype) {
-	if (ftype >= rtso::FAUNA_COUNT) return;
-	if (fauna_puppet_baked[ftype]) return;
-	fauna_puppet_baked[ftype] = true;
+// 0.28 picks an animal's mesh variant by frequency (equal for every actor with
+// looks); each animal keeps one by its id, apart from its coat's draw.
+int RtsoWorldView::fauna_row(uint8_t ftype, uint32_t id) const {
+	const uint32_t n = 1u + fauna_looks_[ftype];
+	const uint32_t pick = ((id * 0x9E3779B1u) >> 16) % n;
+	return pick == 0 ? ftype : fauna_look_first_[ftype] + (int)pick - 1;
+}
+
+void RtsoWorldView::ensure_fauna_frames(int row) {
+	if (row < 0 || row >= fauna_rows_) return;
+	if (fauna_puppet_baked[row]) return;
+	fauna_puppet_baked[row] = true;
 
 	String cat_units = "units";
-	String id_str = rtso::fauna_type_info(ftype).model_id;
-	auto entry = rtso::ModelLibrary::get(cat_units, id_str);
+	auto entry = rtso::ModelLibrary::get(cat_units, fauna_row_model_[row]);
 	if (!entry.scene.is_valid()) return;
 
 	if (!crowd_bake_root) {
@@ -3083,10 +3102,10 @@ void RtsoWorldView::ensure_fauna_frames(uint8_t ftype) {
 			ap && ap->has_animation(clip_name(CLIP_IDLE2)), ap && ap->has_animation(clip_name(CLIP_DEATH2)),
 			ap && ap->has_animation(clip_name(CLIP_FEEDING)) };
 	bool done[FAUNA_CLIP_COUNT] = {};
-	bake_puppet_clips(inst, fauna_puppet[ftype], done, want, needed, FAUNA_CLIP_COUNT, FAUNA_DEATH_SLOTS);
+	bake_puppet_clips(inst, fauna_puppet[row], done, want, needed, FAUNA_CLIP_COUNT, FAUNA_DEATH_SLOTS);
 	for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
-		if (fauna_mm[ftype][c].is_valid() && fauna_puppet[ftype][c].posed_frames[0].is_valid()) {
-			fauna_mm[ftype][c]->set_mesh(fauna_puppet[ftype][c].posed_frames[0]);
+		if (fauna_mm[row][c].is_valid() && fauna_puppet[row][c].posed_frames[0].is_valid()) {
+			fauna_mm[row][c]->set_mesh(fauna_puppet[row][c].posed_frames[0]);
 		}
 	}
 	crowd_bake_root->remove_child(inst);
@@ -3113,7 +3132,41 @@ void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso
 		uint8_t t = uview.unit_type[i];
 		if (t >= rtso::UNIT_TYPE_COUNT) t = rtso::UNIT_VILLAGER;
 		const uint8_t civ = sim->team_civ(uview.team[i]);
-		want(civ, crowd_key_of(civ, drawn_unit_type(t, uview.tmpl[i], uview.id[i]), uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]));
+		const uint8_t dt = drawn_unit_type(t, uview.tmpl[i], uview.id[i]);
+		want(civ, crowd_key_of(civ, dt, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]));
+		// Its promotion draws the _a or _e actor.
+		if (uview.rank[i] < 3) want(civ, crowd_key_of(civ, dt, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i] + 1));
+	}
+	// Structures, drawn first when they come into sight: each one's model, its kind's
+	// foundation and scaffold (its owner builds more of that kind), and a damaged one's rubble.
+	if (!rubble_loaded_) load_rubble();
+	if (!foundations_loaded_) load_foundations();
+	auto want_building = [&](const String &id) {
+		if (id.is_empty() || !building_prefetched_.insert(id.utf8().get_data()).second) return;
+		rtso::ModelLibrary::prefetch("buildings", id);
+	};
+	for (const auto &b : sim->buildings()) {
+		if (b.wrecked) continue;
+		const uint8_t civ = sim->team_civ(b.team);
+		const uint32_t kind = (uint32_t)civ << 16 | b.type << 1;
+		const bool damaged = b.hp < b.max_hp;
+		want_building(building_visual_id(civ, b.type, b.half_size));
+		if (!building_kinds_prefetched_.insert(kind | (uint32_t)damaged).second) continue;
+		const std::string civ_type = std::string(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "/" + std::to_string(b.type);
+		if (!damaged) {
+			const auto fo = foundation_of_.find(civ_type);
+			const auto fa = fo == foundation_of_.end() ? foundation_art_.end() : foundation_art_.find(fo->second);
+			if (fa != foundation_art_.end()) {
+				want_building(fa->second.id);
+				want_building(fa->second.scaffold);
+			}
+			if (const char *f = rtso::civ_building_foundation(b.type)) want_building(String(f));
+			if (const char *f = rtso::civ_building_scaffold(b.type)) want_building(String(f));
+		} else {
+			const auto ro = rubble_of_.find(civ_type);
+			if (ro != rubble_of_.end()) want_building(String(ro->second.c_str()));
+			if (const char *r = rtso::civ_building_rubble(civ, b.type)) want_building(String(r));
+		}
 	}
 	for (const auto &b : sim->buildings()) {
 		for (const rtso::ProductionOrder &o : b.queue) {
@@ -4899,7 +4952,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// (with_variant), each animal keeps one by its id: half fall with the second
 	// death and a quarter stand with the second idle, when the model has them.
 	// An actor without a feeding clip lingers on its idle, as CModel falls back.
-	auto with_fauna_variant = [this](int clip, uint8_t ft, uint32_t id) -> int {
+	auto with_fauna_variant = [this](int clip, int ft, uint32_t id) -> int {
 		const uint32_t h = id * 2654435761u;
 		if (clip == 6) {
 			if (fauna_puppet[ft][6].baked_count > 0) return 6;
@@ -4909,12 +4962,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (clip == 0 && (h >> 29) == 3u && fauna_puppet[ft][4].baked_count > 0) return 4;
 		return clip;
 	};
-	int f_counts[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
+	int f_counts[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (fview.behavior[f] == rtso::FAUNA_CORRALLED) continue; // garrisoned: hidden, the corral flies its flag
 		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f])) continue;
-		uint8_t ft = fview.fauna_type[f];
-		if (ft >= rtso::FAUNA_COUNT) continue;
+		if (fview.fauna_type[f] >= rtso::FAUNA_COUNT) continue;
+		const int ft = fauna_row(fview.fauna_type[f], fview.id[f]);
 		// Baked before the first count, so both passes pick the same clips.
 		ensure_fauna_frames(ft);
 		float vx = fview.vel_x[f];
@@ -4922,7 +4975,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		int clip = fauna_clip_of(fview.behavior[f], vx * vx + vz * vz, fview.alive[f] != 0);
 		f_counts[ft][with_fauna_variant(clip, ft, fview.id[f])]++;
 	}
-	for (int ft = 0; ft < rtso::FAUNA_COUNT; ++ft) {
+	for (int ft = 0; ft < fauna_rows_; ++ft) {
 		cycle_fauna_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft], FAUNA_CLIP_COUNT, FAUNA_DEATH_SLOTS);
 		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 			if (fauna_mm[ft][c].is_valid()) {
@@ -4930,23 +4983,24 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			}
 		}
 	}
-	int f_written[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
+	int f_written[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (fview.behavior[f] == rtso::FAUNA_CORRALLED) continue; // garrisoned: hidden, the corral flies its flag
 		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f])) continue;
 		uint8_t ft = fview.fauna_type[f];
 		if (ft >= rtso::FAUNA_COUNT) continue;
+		const int row = fauna_row(ft, fview.id[f]);
 		float vx = fview.vel_x[f];
 		float vz = fview.vel_z[f];
 		int clip = with_fauna_variant(fauna_clip_of(fview.behavior[f], vx * vx + vz * vz, fview.alive[f] != 0),
-				ft, fview.id[f]);
+				row, fview.id[f]);
 		float fx = fview.pos_x[f];
 		float fz = fview.pos_z[f];
 		float fy = sim->get_terrain_height(fx, fz);
 		if (rtso::fauna_type_info(ft).is_naval()) fy = std::max(fy, drawn_water_height(sim)); // whales and sharks swim
 		float frot = fview.rot_y[f];
 		const char *fid = rtso::fauna_type_info(ft).model_id;
-		auto fent = rtso::ModelLibrary::get("units", String(fid));
+		auto fent = rtso::ModelLibrary::get("units", fauna_row_model_[row]);
 		float fsc = fent.scale > 0.05f ? fent.scale : 1.0f;
 		Transform3D xf(Basis(Vector3(0, 1, 0), frot).scaled(Vector3(fsc, fsc, fsc)),
 		               Vector3(fx, fy + fent.y_offset, fz));
@@ -4954,11 +5008,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (clip == 1 && (fview.behavior[f] == rtso::FAUNA_FLEE || vx * vx + vz * vz > 18.0f))
 			emit_run_dust(String(fid), Vector3(fx, fy, fz), fsc, delta);
 		if (fview.alive[f]) emit_unit_fx(String(fid), xf, fsc, delta);
-		int fslot = f_written[ft][clip]++;
-		if (fauna_mm[ft][clip].is_valid()) {
-			fauna_mm[ft][clip]->set_instance_transform(fslot, xf);
+		int fslot = f_written[row][clip]++;
+		if (fauna_mm[row][clip].is_valid()) {
+			fauna_mm[row][clip]->set_instance_transform(fslot, xf);
 			// 0.28 picks each animal's coat by its variant frequencies (data/unit_variants.json).
-			fauna_mm[ft][clip]->set_instance_custom_data(fslot, Color(1.0f, 1.0f, 1.0f, 1.0f + 0.999f * rtso::ModelLibrary::variant_draw(fview.id[f])));
+			fauna_mm[row][clip]->set_instance_custom_data(fslot, Color(1.0f, 1.0f, 1.0f, 1.0f + 0.999f * rtso::ModelLibrary::variant_draw(fview.id[f])));
 		}
 		const bool f_sel = !sel_set.empty() && sel_set.count((int32_t)fview.id[f]);
 		if (f_sel || (!highlight_set_.empty() && highlight_set_.count((int32_t)fview.id[f]))) {

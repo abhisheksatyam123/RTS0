@@ -2211,9 +2211,16 @@ static void test_board_rules() {
 	const uint32_t foe = s.spawn_unit(-60.0f, 19.5f, 1, UNIT_SPEARMAN);
 	s.order_set_stance(&foe, 1, STANCE_PASSIVE);
 	s.order_board_transport(&friend_, 1, ship2);
-	run(s, 10.0f);
+	// The walk to board is forced: the ally never turns on the enemy beside its path
+	// (the ship's own arrows may, once it is aboard).
+	bool fought = false;
+	for (int k = 0; k < (int)(10.0f / Simulation::FIXED_STEP); ++k) {
+		s.tick(Simulation::FIXED_STEP);
+		const int32_t fi = idx(s, friend_);
+		fought |= fi >= 0 && s.units().action_state[fi] == ACTION_ATTACK;
+	}
 	CHECK(aboard(s, ship2, friend_));
-	CHECK(s.units().hp[idx(s, foe)] == s.units().max_hp[idx(s, foe)]);
+	CHECK(!fought);
 }
 
 int main() {

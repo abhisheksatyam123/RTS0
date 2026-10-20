@@ -49,6 +49,10 @@ def test_object():
           "chat keeps join notices and lines in order")
     _, c2 = lb.chat_since(c["last"])
     check(c2["messages"] == [] and c2["last"] == c["last"], "since=last returns nothing new")
+    # 0.28 lobby ChatPanel.xml: a chat line is up to 1024 characters.
+    check(lb.post_chat(alice["token"], "y" * 1024)[0] == 200, "a 1024-character line is sent")
+    _, c3 = lb.chat_since(c["last"])
+    check([len(m["text"]) for m in c3["messages"]] == [1024], "and kept whole")
 
     code, room = lb.register({"id": "g1", "host_port": 20600, "name": "Skirmish", "host_name": "alice",
                               "map_name": "Mainland", "players": 1, "max_players": 4, "password": True})
@@ -179,7 +183,10 @@ def test_ratings():
     code, prof = lb.profile("BOB")
     check(code == 200 and prof == {"name": "bob", "rating": 1135, "highestRating": 1135, "rank": 2,
                                    "totalGamesPlayed": 1, "wins": 0, "losses": 1}, "a player's profile")
-    check(lb.profile("carol")[0] == 404, "a player the lobby has no game of has no profile")
+    check(lb.profile("carol")[1] == {"name": "carol", "totalGamesPlayed": 0, "wins": 0, "losses": 0,
+                                     "rating": "-", "rank": "-", "highestRating": "-"},
+          "a member with no finished game has a profile (EcheLOn get_or_create_player on join)")
+    check(lb.profile("dave")[0] == 404, "a player who never joined has no profile")
     team = {"matchID": "m2", "players": "alice,bob,carol,", "playerStates": "won,defeated,defeated,"}
     lb.report(a["token"], team)
     lb.report(b["token"], team)

@@ -292,13 +292,11 @@ static void test_real_sim() {
 	CHECK(agrees && seen > 0, "drawn fog matches Simulation::los_visible / los_explored");
 	std::vector<uint8_t> obs;
 	rtso::los_view_grid(sim, rtso::OBSERVER_VIEW, obs);
-	// The whole map, past its 12 m edge frame (LosIsOffWorld), which stays black for everyone.
-	bool all_seen = true;
-	for (int cz = 0; cz < G; ++cz)
-		for (int cx = 0; cx < G; ++cx)
-			if (!sim.off_world(-half + (cx + 0.5f) * cell, -half + (cz + 0.5f) * cell))
-				all_seen = all_seen && obs[(size_t)cz * G + cx] == Simulation::FOW_VISIBLE;
-	CHECK(all_seen, "an observer sees the whole map");
+	// The map's edge band stays off the world (LosIsOffWorld), revealed or not.
+	bool obs_all = obs.size() == sim.los().cells();
+	for (size_t i = 0; obs_all && i < obs.size(); ++i)
+		obs_all = obs[i] == (sim.los().off_world((int)i) ? Simulation::FOW_UNEXPLORED : Simulation::FOW_VISIBLE);
+	CHECK(obs_all, "an observer sees the whole map");
 	FogMirages enemy;
 	enemy.update(sim, 1);
 	CHECK(enemy.view() != m.view(), "each player draws its own LOS");
@@ -368,20 +366,20 @@ static void test_shared_sight_and_winner() {
 	static Simulation a;
 	a.set_sim_seed(7);
 	a.reset();
-	a.spawn_building_world(-50.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
-	a.spawn_building_world(50.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	a.spawn_building_world(-60.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	a.spawn_building_world(60.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
 	a.set_mutual_ally(1);
-	a.spawn_unit(50.0f, 6.0f, 1, UNIT_SPEARMAN);
+	a.spawn_unit(60.0f, 6.0f, 1, UNIT_SPEARMAN);
 	for (int i = 0; i < 10; ++i) a.tick(Simulation::FIXED_STEP);
-	const bool before = los_sees_unit(a, 0, 50.0f, 6.0f, 1);
-	const bool vis_before = a.is_entity_visible_to_viewer(50.0f, 6.0f, 1, 0);
+	const bool before = los_sees_unit(a, 0, 60.0f, 6.0f, 1);
+	const bool vis_before = a.is_entity_visible_to_viewer(60.0f, 6.0f, 1, 0);
 	FogMirages fm;
 	fm.update(a, 0);
 	size_t ally_bld_shown = 0;
 	for (const auto &b : a.buildings()) ally_bld_shown += b.team == 1 && find_b(fm, b.id) != nullptr;
 	a.player(0).techs.set(TECH_UNLOCK_SHARED_LOS);
 	for (int i = 0; i < 10; ++i) a.tick(Simulation::FIXED_STEP);
-	const bool after = los_sees_unit(a, 0, 50.0f, 6.0f, 1);
+	const bool after = los_sees_unit(a, 0, 60.0f, 6.0f, 1);
 	std::printf("ally unit far away: seen %d without Cartography, %d with; unseen ally structures shown %zu\n", before,
 			after, ally_bld_shown);
 	CHECK(!before && !vis_before && after && ally_bld_shown == 0, "ally sight shared only with Cartography");
