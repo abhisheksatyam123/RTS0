@@ -2928,8 +2928,10 @@ void RtsoMain::host_net_setup_tick(bool force) {
 		else n.observers |= (1ull << c);
 	}
 	std::string key = rtso::format_game_start_full(n.setup) + ";";
+	// ReadyController.js onClientJoin / onClientLeave / onPlayerAssignmentsChange:
+	// readiness resets when the settings or a seat's client change, not when an
+	// observer comes or goes.
 	for (int i = 0; i < 8; ++i) key += (char)('0' + n.slot_client[i] + 1);
-	key += ";" + std::to_string((unsigned long long)n.observers);
 	n.settings_version = net_setup_.settings_version;
 	if (key != net_setup_key_) {
 		net_setup_key_ = key;

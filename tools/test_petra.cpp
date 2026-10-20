@@ -3619,12 +3619,14 @@ static void test_worker_mix() {
 		if (std::find(rush.begin(), rush.end(), id) != rush.end() ||
 		    std::find(defenders.begin(), defenders.end(), id) != defenders.end()) continue;
 		++soldiers;
-		gathering += s->units_.action_state[i] == ACTION_GATHER || s->units_.action_state[i] == ACTION_RETURN_DROPSITE;
+		// Petra's workers gather or build (its builders are workers taken off a supply).
+		gathering += s->units_.action_state[i] == ACTION_GATHER || s->units_.action_state[i] == ACTION_RETURN_DROPSITE ||
+		             s->units_.action_state[i] == ACTION_BUILD;
 	}
-	std::printf("  7 min: %d support, %d worker soldiers at home (%d infantry at start, %d gathering), at most %d houses at once\n",
+	std::printf("  7 min: %d support, %d worker soldiers at home (%d infantry at start, %d gathering or building), at most %d houses at once\n",
 	            supports, soldiers, start_soldiers, gathering, max_houses);
 	CHECK(soldiers + (int)all_defenders(*s).size() >= 5, "trains citizen infantry as workers");
-	CHECK(gathering * 2 >= soldiers, "most worker soldiers gather");
+	CHECK(gathering * 2 >= soldiers, "most worker soldiers gather or build");
 	const float support_max = 0.5f * (float)s->petra_target_workers(); // supportRatio is 0.35-0.5 by difficulty
 	CHECK(supports > 10 && (float)supports <= support_max + 5.0f, "support units follow supportRatio");
 	CHECK(max_houses >= 1 && max_houses <= 3, "houses go up a few at a time");
