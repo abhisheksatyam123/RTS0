@@ -670,6 +670,23 @@ int64_t RtsoMain::debug_civic_centre_id(int player) const {
 }
 
 // Test hook: each player's structures by type name, {player: {name: count}}.
+Array RtsoMain::debug_building_looks() const {
+	Array out;
+	if (!sim || !view) return out;
+	const Array rows = view->building_looks_data();
+	for (int i = 0; i < rows.size(); ++i) {
+		Array row = rows[i];
+		for (const auto &b : sim->buildings())
+			if (b.id == (uint32_t)(int64_t)row[0]) {
+				row.push_back(b.x);
+				row.push_back(b.z);
+				out.push_back(row);
+				break;
+			}
+	}
+	return out;
+}
+
 Dictionary RtsoMain::debug_structure_types(bool with_civ) {
 	Dictionary d;
 	if (!sim) return d;
