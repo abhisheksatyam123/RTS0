@@ -4225,6 +4225,14 @@
     0.0432
    ]
   },
+  "s_carthaginians_temple_big": {
+   "metre": 0.17329,
+   "origin": [
+    0.0229,
+    0.0085,
+    -0.0303
+   ]
+  },
   "s_carthaginians_wall_gate": {
    "metre": 0.49768,
    "origin": [
@@ -4271,6 +4279,22 @@
     0.0935,
     1.8903,
     0.044
+   ]
+  },
+  "s_celts_hut": {
+   "metre": 0.24998,
+   "origin": [
+    -0.1752,
+    0.0177,
+    -0.1728
+   ]
+  },
+  "s_celts_longhouse": {
+   "metre": 0.24999,
+   "origin": [
+    0.2893,
+    0.0382,
+    0.1855
    ]
   },
   "s_celts_outpost": {
@@ -4705,6 +4729,14 @@
     -0.434
    ]
   },
+  "s_kushites_civic_centre_kush": {
+   "metre": 0.21423,
+   "origin": [
+    -0.0,
+    0.0107,
+    -0.0
+   ]
+  },
   "s_kushites_outpost": {
    "metre": 0.29458,
    "origin": [
@@ -4857,6 +4889,14 @@
     -0.0106
    ]
   },
+  "s_persians_gardens_struct": {
+   "metre": 0.10662,
+   "origin": [
+    -0.0731,
+    0.0053,
+    0.1128
+   ]
+  },
   "s_persians_hall": {
    "metre": 0.18,
    "origin": [
@@ -4993,6 +5033,22 @@
     -0.0452
    ]
   },
+  "s_plot_field_medit": {
+   "metre": 0.24999,
+   "origin": [
+    0.0323,
+    0.0125,
+    -0.0112
+   ]
+  },
+  "s_plot_field_temp": {
+   "metre": 0.24999,
+   "origin": [
+    0.0323,
+    0.0125,
+    -0.0112
+   ]
+  },
   "s_ptolemies_blacksmith": {
    "metre": 0.19798,
    "origin": [
@@ -5065,6 +5121,38 @@
     0.0171
    ]
   },
+  "s_ptolemies_stall_big": {
+   "metre": 0.25004,
+   "origin": [
+    -0.0693,
+    0.0125,
+    -0.0032
+   ]
+  },
+  "s_ptolemies_stall_med": {
+   "metre": 0.25003,
+   "origin": [
+    -0.006,
+    0.0125,
+    0.015
+   ]
+  },
+  "s_ptolemies_stall_small_a": {
+   "metre": 0.24999,
+   "origin": [
+    0.0162,
+    0.0125,
+    0.0002
+   ]
+  },
+  "s_ptolemies_stall_small_b": {
+   "metre": 0.24996,
+   "origin": [
+    -0.0016,
+    0.0125,
+    -0.0011
+   ]
+  },
   "s_ptolemies_wall_gate": {
    "metre": 0.25001,
    "origin": [
@@ -5111,6 +5199,14 @@
     0.1501,
     1.147,
     0.1136
+   ]
+  },
+  "s_rice_paddy": {
+   "metre": 0.25002,
+   "origin": [
+    0.0251,
+    0.0125,
+    -0.0017
    ]
   },
   "s_romans_amphitheater_pompeii": {
@@ -5391,6 +5487,14 @@
     -0.0811,
     1.717,
     0.0301
+   ]
+  },
+  "s_spartans_civic_center": {
+   "metre": 0.19523,
+   "origin": [
+    0.0007,
+    0.0098,
+    -0.0125
    ]
   },
   "s_spartans_gerousia": {

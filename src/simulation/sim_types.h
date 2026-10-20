@@ -525,7 +525,8 @@ enum BuildingType : uint8_t {
 	BLD_LAOZI_GATE = 84,      // han/laozigate (not capturable)
 	BLD_TEMPLE_ISIS = 85,     // ptol/temple_2 (Temple of Isis: City, one per player, trains the heroes)
 	BLD_MILL = 86,            // structures/mill_*, {brit,gaul}/rotarymill (Gaia; capture only, farmstead_60)
-	BLD_TYPE_COUNT = 87
+	BLD_TOPHET = 87,          // cart/tophet (a temple that trains only the healer)
+	BLD_TYPE_COUNT = 88
 };
 
 #include "civ_building_data.h"
@@ -550,7 +551,7 @@ inline constexpr uint8_t building_research_base(uint8_t type) {
 	       : (type == BLD_INN || type == BLD_TENT || type == BLD_WAREHOUSE || type == BLD_TAVERN) ? (uint8_t)BLD_HOUSE
 	       : type == BLD_FORTRESS_OLD ? (uint8_t)BLD_FORTRESS
 	       : type == BLD_MILL ? (uint8_t)BLD_FARMSTEAD
-	       : (type == BLD_KUSH_SHRINE || type == BLD_TEMPLE_ISIS) ? (uint8_t)BLD_TEMPLE
+	       : (type == BLD_KUSH_SHRINE || type == BLD_TEMPLE_ISIS || type == BLD_TOPHET) ? (uint8_t)BLD_TEMPLE
 	       : type == BLD_WAGON_ENCAMPMENT_FORTIFIED ? (uint8_t)BLD_WAGON_ENCAMPMENT
 	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
@@ -599,7 +600,7 @@ inline MapStructureTemplate map_structure_template(const char *tpl) {
 		{"mill_indian", BLD_MILL, CIV_MAURYANS}, {"mill_italian", BLD_MILL, CIV_ROMANS},
 		{"mill_middle_eastern", BLD_MILL, CIV_PERSIANS}, {"mill_saharan", BLD_MILL, CIV_KUSHITES},
 		{"mill_temperate_europe", BLD_MILL, CIV_GAULS}, {"gaul/rotarymill", BLD_MILL, CIV_GAULS},
-		{"brit/rotarymill", BLD_MILL, CIV_BRITONS},
+		{"brit/rotarymill", BLD_MILL, CIV_BRITONS}, {"cart/tophet", BLD_TOPHET, CIV_CARTHAGINIANS},
 	};
 	const char *stem = std::strncmp(tpl, "structures/", 11) == 0 ? tpl + 11 : tpl;
 	for (const auto &r : kRows)
@@ -2032,7 +2033,7 @@ inline float building_garrison_heal(uint8_t type) {
 		case BLD_WAGON_ENCAMPMENT: return 1.0f;
 		// kush/temple_amun, rome/temple_mars, rome/temple_vesta and the shrines keep template_structure_civic_temple's 3
 		case BLD_TEMPLE: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_MARS: case BLD_TEMPLE_VESTA: case BLD_SHRINE:
-		case BLD_TEMPLE_ISIS: return 3.0f;
+		case BLD_TEMPLE_ISIS: case BLD_TOPHET: return 3.0f;
 		case BLD_WONDER: return 5.0f;
 		default: return 0.0f;
 	}
@@ -2091,7 +2092,7 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_TEMPLE: return c | TC_TEMPLE | TC_CIVIC | TC_TEMPLEOFAPEDEMAK;
 		// template_structure_civic_temple's other children: the shrines, the temples of Isis,
 		// Amun, Vesta and Mars.
-		case BLD_SHRINE: case BLD_KUSH_SHRINE: case BLD_TEMPLE_ISIS:
+		case BLD_SHRINE: case BLD_KUSH_SHRINE: case BLD_TEMPLE_ISIS: case BLD_TOPHET:
 		case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA: case BLD_TEMPLE_MARS: return c | TC_TEMPLE | TC_CIVIC;
 		// Other template_structure_civic children.
 		case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL: case BLD_MINISTRY: return c | TC_CIVIC;
@@ -2350,6 +2351,11 @@ inline constexpr FlightProfile PLANE_FLIGHT = {
 };
 // UnitMotionFlying.js SHORT_FINAL: the final approach's descent constant (m/s, x kMetre here).
 inline constexpr float FLIGHT_SHORT_FINAL = 2.5f;
+// units/plane.xml GarrisonHolder: Max 1 of Support or Infantry, EjectHealth 0, BuffHeal 1 hp a
+// second, LoadingRange 5 m, and no EjectClassesOnDestroy (whoever is aboard dies with it).
+inline constexpr int PLANE_GARRISON = 1;
+inline constexpr float PLANE_LOADING_RANGE = 5.0f * 0.28f;
+inline constexpr float PLANE_BUFF_HEAL = 1.0f;
 
 struct CivUnitTemplate {
 	const char *id; // 0 A.D. template path under units/, e.g. "athen/infantry_spearman_b"

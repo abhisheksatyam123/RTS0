@@ -2121,24 +2121,6 @@ void RmsGenerator::synth_gear(HeightmapGrid &hm, RmsRng &rng, float &water_h, st
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
 }
 
-void RmsGenerator::synth_atlas_mountains(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
-	// atlas_mountains.js: rugged land (heightLand 3) with bumps and
-	// scaleByMapSize(20, 120) mountains (rmgen createMountains, up to 30 m)
-	// kept 20 tiles from the bases, players on a circle at f = 0.35, scarce
-	// wood. 0 A.D. metres (HEIGHT_PER_METRE): createBumps 2, createMountains up to
-	// scaleByMapSize(30, 50).
-	water_h = -10.0f;
-	constexpr float m = HEIGHT_PER_METRE;
-	hm.init(hm.res, hm.map_half, 3.0f * m);
-	const float half = hm.map_half;
-	hm.apply_fbm(rng, 4, 0.05f, 0.5f, 2.0f, 2.0f * m);
-	place_team_spawns(hm, rng, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 0.0f);
-	const float peak = (float)scale_by_map_size(30, 50, half) * m;
-	scatter_hills(hm, rng, spawns, scale_by_map_size(20, 120, half), 3.0f, 6.5f, peak * 0.6f, peak, 20.0f);
-	hm.blur(1, 0.3f);
-	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
-}
-
 // 0 A.D. rmbiome Gaia animals (maps/random/rmbiome/generic/*.json, savanna.js): the starting
 // animal by each civic centre, the main and secondary huntable animals, plus a predator that
 // RTS0 mixes into every fourth wildlife pack.
@@ -5328,6 +5310,20 @@ void RmsGenerator::synth_mainland(HeightmapGrid &hm, RmsRng &rng, float &water_h
 	seas_bumps(hm, rng, seas_scale(100, 200, half), away);
 	if (rng.range_int(0, 1) == 0) seas_hills(hm, rng, 0.0f, seas_scale(3, 15, half), false, 15.0f, 18.0f, away);
 	else default_mountains_028(hm, rng, 0.0f, seas_scale(3, 15, half), 15.0f, away);
+}
+
+void RmsGenerator::synth_atlas_mountains(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// atlas_mountains.js (0.28), in 0 A.D. metres: land at heightLand 3 m and no water; players by
+	// playerPlacementByPattern at fractionToTiles(0.35), teammates fractionToTiles(0.1) apart;
+	// createBumps 9 from the players, then scaleByMapSize(20, 120) createMountains (30-50 m) 20
+	// from the players and 8 from each other.
+	water_h = -10.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	hm.init(hm.res, half, metres(0.0f, 3.0f));
+	place_team_spawns(hm, rng, spawns, num_players, 0.35f * size, rng.range_float(0.0f, 2.0f * kSeasPi), 0.0f);
+	const auto to_player = seas_dist_to_players(hm, spawn_points(spawns), seas_scale(15, 25, half) / 3.0f);
+	seas_bumps(hm, rng, seas_scale(100, 200, half), [&](int i) { return to_player[(size_t)i] > 9.0f; });
+	default_mountains_028(hm, rng, 0.0f, seas_scale(20, 120, half), 8.0f, [&](int i) { return to_player[(size_t)i] > 20.0f; });
 }
 
 void RmsGenerator::synth_alpine_lakes(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {

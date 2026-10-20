@@ -232,6 +232,11 @@ struct PetraTransportPlan {
 	bool failed = false;
 	uint8_t owner = 0; // PetraTransportOwner: the plan that asked for it
 	uint16_t sea = 0;  // the sea it crosses (0: any, from an older save)
+	// transportPlan.js onBoarding: each passenger's position at the last 2 s check and how
+	// often it was found blocked beside the ship (posGarrison, nTry).
+	struct BoardTry { uint32_t uid = 0; float x = 0.0f, z = 0.0f; uint32_t tries = 0; };
+	std::vector<BoardTry> boarding;
+	float board_check = 0.0f; // seconds since the last check
 };
 // navalManager.js runs a transportPlan per ship; each asker here has at most one.
 // A crossing asked for again in the same pass (survivors of a sunk ship on another land).
@@ -305,11 +310,15 @@ struct PetraDiplomacy {
 	// A hash of every player's stances, the defeated players and the ceasefire at our last turn:
 	// a change is 0.28's DiplomacyChanged, PlayerDefeated or CeasefireEnded event, on which
 	// checkEvents runs lastManStandingCheck. In the padding before betray_lapse (no save bump).
+	// Its top bit is PETRA_EVENT_PENDING: a DiplomacyChanged since our last turn, which the hash
+	// alone misses when the stance went back before the turn.
 	uint16_t events_hash = 0;
 	float betray_lapse = -1.0f;
 	float elapsed = 0.0f;
 	float next_tribute = 90.0f;  // nextTributeUpdate
 };
+
+constexpr uint16_t PETRA_EVENT_PENDING = 0x8000;
 
 // PetraSentDiplomacy::current_enemy when currentEnemyPlayer is Gaia (player 0 in 0.28).
 constexpr uint8_t PETRA_CURRENT_ENEMY_GAIA = 0xFF;
@@ -415,6 +424,14 @@ struct PetraKept {
 	bool units_checked = false;
 	bool no_units = false;
 	std::vector<uint32_t> allied;
+	// headquarters.js buildMoreHouses: house plans waiting in queues.house (up to 3, 5 above 80
+	// population), started once houseNeeded holds (saved v113).
+	uint8_t house_plans = 0;
+	// headquarters.js handleNewBase, for each base anchor finished or captured after the first:
+	// saveResources, saveSpace and maxFields end for good; a finished market ends maxFields too.
+	// anchors_seen: the finished anchors met so far, sorted ids (saved v113).
+	std::vector<uint32_t> anchors_seen;
+	bool space_freed = false, fields_freed = false;
 	static uint8_t at(const std::vector<uint8_t> &v, size_t s) { return s < v.size() ? v[s] : 0; }
 	static void raise(std::vector<uint8_t> &v, size_t s, int n) {
 		if (s >= v.size()) v.resize(s + 1, 0);

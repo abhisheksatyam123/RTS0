@@ -429,10 +429,11 @@ public:
 		// DiplomacyDialogCeasefireCounter.
 		ceasefire_->set_visible(sim->ceasefire_active());
 		if (sim->ceasefire_active()) {
-			// timeToString truncates to the second.
-			const int s = (int)std::floor(sim->ceasefire_remaining());
-			set_text(ceasefire_, "Remaining ceasefire time: " + String::num_int64(s / 60) + ":" + (s % 60 < 10 ? "0" : "") +
-					String::num_int64(s % 60) + ".");
+			// translateWithContext("ceasefire", ...) with timeToString: "mm:ss", or
+			// "HH:mm:ss" from an hour on, truncated to the second.
+			const int64_t t = (int64_t)std::floor(sim->ceasefire_remaining());
+			const String time = t < 3600 ? vformat("%02d:%02d", t / 60, t % 60) : vformat("%02d:%02d:%02d", t / 3600, t / 60 % 60, t % 60);
+			set_text(ceasefire_, rtso::sprintf0(rtso::tr0("Remaining ceasefire time: %(time)s."), {{"time", time}}));
 		}
 	}
 
