@@ -15486,7 +15486,17 @@ bool Simulation::status_tick(const StatusInstance &st) {
 		// StatusEffect's damage: the kill and the loot still go to `src`, the xp doesn't.
 		units_.hp[i] -= dmg;
 		note_attacked(st.src, st.src_owner, units_.id[i], units_.team[i], false, dmg);
-		if (units_.hp[i] > 0.0f) return true;
+		if (units_.hp[i] > 0.0f) {
+			// Each tick is an Attacked message: the unit's own UnitAI ignores it
+			// (OnAttacked returns for fromStatusEffect), but Guard.js OnAttacked still sends
+			// its guards after the source.
+			if (!inside && st.src != 0 && (lookup_unit(st.src) >= 0 || building_id_to_idx_.count(st.src)))
+				for (size_t k = 0; k < units_.count; ++k)
+					if (units_.alive[k] && units_.order_kind[k] == ORDER_GUARD && units_.action_state[k] == ACTION_GUARD &&
+							units_.order_target[k] == units_.id[i])
+						guard_answer(k, i, st.src);
+			return true;
+		}
 		units_.alive[i] = 0;
 		units_.action_state[i] = ACTION_DYING;
 		note_kill(st.src, units_.id[i]);
