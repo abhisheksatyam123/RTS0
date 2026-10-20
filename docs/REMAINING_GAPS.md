@@ -125,7 +125,7 @@ StatisticsTracker callers and class mapping, the summary page, the replay menu a
 | # | Difference from 0.28 | Impact | Status |
 |---|---|---|---|
 | S1 | Control all units reaches units only: another player's structures can't be selected, trained or researched from, and nothing foreign can be deleted or promoted (Commands.js FilterEntityList, delete-entities, promote); box selection takes enemy units, where 0.28's PickPlayerEntitiesInRect keeps to your own | medium | Fixed: a click selects anyone's structure and shows its owner's panels; its commands run as the owner, who pays; delete skips the undeletable and capture checks; promote takes any unit; box selection keeps to your own |
-| S2 | The Mauryan Elephant Archer counts as a Champion and the Worker Elephant as a Worker in the Units tab (template_unit_elephant_archer.xml, template_unit_support_elephant.xml carry neither class) | medium | Open |
+| S2 | The Mauryan Elephant Archer counts as a Champion and the Worker Elephant as a Worker in the Units tab (template_unit_elephant_archer.xml, template_unit_support_elephant.xml carry neither class) | medium | Fixed: both count in Units Total only; champion elephants stay Champions |
 | S3 | Follow Player follows only Petra's attacks, not its other orders (Commands.js "playercommand" for every command) | medium | Open |
 | S4 | The Match Settings player-state line follows the viewed player; 0.28 uses the local seat (none in a replay or for an observer) | medium | Open |
 | S5 | "Rated game" in Match Settings reads a leftover setting: a later single-player game shows it, a rated replay may not (RatingEnabled) | low-medium | Open |
