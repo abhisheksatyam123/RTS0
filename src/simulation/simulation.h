@@ -1698,6 +1698,17 @@ public:
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
 			bool queued = false, const std::vector<std::pair<float, float>> &route = {});
 	void order_trade_auto(const uint32_t *unit_ids, size_t count); // farthest pair of tradable markets
+	// 0 A.D. UnitAI.SetupTradeRoute with no source (Trader.SetTargetMarket): a trader with no
+	// market or both takes `market_id` as its first (trader_route's market_b 0) and walks there,
+	// its Shift-queued walks gathering the route's waypoints (UnitAI expectedRoute); one with only
+	// a first market trades between it and `market_id`.
+	void order_setup_trade(const uint32_t *unit_ids, size_t count, uint32_t market_id, bool queued = false);
+	// UnitAI.CancelSetupTradeRoute: traders whose only market is `market_id` drop it.
+	void order_cancel_trade_setup(const uint32_t *unit_ids, size_t count, uint32_t market_id);
+	// Trader.markets with one market: that market's id, else 0.
+	uint32_t trader_first_market(uint32_t unit_id) const;
+	// trader_leg_ while a trader with only its first market gathers its expected route.
+	static constexpr int TRADER_LEG_EXPECTING_ROUTE = 2;
 	// Read-only: the trader's route (Trader.js markets) and which market it heads to
 	// next (0 = market_b, 1 = market_a). False when it has no route.
 	bool trader_route(uint32_t unit_id, uint32_t &market_a, uint32_t &market_b, int &leg) const {

@@ -174,7 +174,9 @@ enum class NetCommandType : uint8_t {
 	// 0 A.D. "setup-trade-route" (Commands.js, UnitAI Trade): traders in entity_ids
 	// trade between market target_id and the market whose id is target_x; `route` holds
 	// the clicked waypoints between them as flat x,z pairs (UnitAI SetupTradeRoute route).
-	// param bit NET_PARAM_QUEUED queues it.
+	// target_x 0 is a player's click with no source (Simulation::order_setup_trade): each
+	// trader takes target_id as its first or second market; with NET_PARAM_CANCEL_TRADE it
+	// is "cancel-setup-trade-route" on target_id. param bit NET_PARAM_QUEUED queues it.
 	NET_CMD_SETUP_TRADE_ROUTE = 35,
 	// 0 A.D. "alert-raise" / "alert-end" (AlertRaiser.js) on structure target_id;
 	// param 0 raises, 1 ends.
@@ -248,6 +250,7 @@ inline bool net_cmd_takes_push_front(uint8_t cmd) {
 	return cmd == 1 || cmd == 3 || cmd == 4 || cmd == 10 || cmd == 11 || cmd == 12 || cmd == 15 || cmd == 16 || cmd == 21;
 }
 inline constexpr uint8_t NET_PARAM_OCCUPY_TURRET = 0x01; // garrison: the holder's turret points (0 A.D. "occupy-turret")
+inline constexpr uint8_t NET_PARAM_CANCEL_TRADE = 0x01;  // setup-trade-route: "cancel-setup-trade-route" on market target_id
 inline constexpr uint8_t NET_HUNT_SCENERY_NO_CAPTURE = 3; // hunt (17) on scenery: attack it, don't capture it (Ctrl)
 
 struct NetCommand {
