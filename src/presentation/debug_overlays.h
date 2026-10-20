@@ -7,11 +7,13 @@
 // cross), Hierarchical pathfinder overlay (HierarchicalPathfinder's debug overlay: each
 // chunk region of navcells in a colour of its own), Obstruction overlay (CCmpObstructionManager::RenderSubmit: static shapes and
 // still units blue, moving units magenta, the world bounds yellow), Unit motion overlay
-// (CCmpUnitMotion::RenderSubmit: each unit's long path in white) and Range overlay
+// (g_Selection.SetMotionDebugOverlay, CCmpUnitMotion::RenderPath: each selected unit's
+// long path white and short path red, a square at each waypoint), Range overlay
 // (CCmpRangeManager::RenderSubmit: each attacker's range ring green, its MinRange ring
-// red) and Bounding box overlay (Engine.SetBoundingBoxDebugOverlay: the box round each
-// model drawn). Drawn for every entity whatever the line of sight, as 0 A.D. does, on one
-// ImmediateMesh that follows the terrain.
+// red) and Bounding box overlay (Engine.SetBoundingBoxDebugOverlay, CCmpSelectable's debug
+// overlays: each selected or hovered entity's model bounds red and its selection box
+// green). Drawn whatever the line of sight, as 0 A.D. does, on one ImmediateMesh that
+// follows the terrain.
 
 #include <godot_cpp/classes/camera3d.hpp>
 #include <godot_cpp/classes/directional_light3d.hpp>
@@ -66,7 +68,18 @@ public:
 	// Shapes drawn by each overlay last update (tests).
 	int drawn(Kind k) const { return drawn_[k]; }
 
-	// world: the node the models are drawn under (RtsoWorldView), for the bounding boxes.
+	// The units whose paths the unit motion overlay draws (the selection), and the
+	// bounding box overlay's boxes (RtsoWorldView::model_boxes of the selected and
+	// hovered entities), set before update.
+	void set_motion_units(const std::vector<uint32_t> &ids) { motion_units_ = ids; }
+	struct Box {
+		godot::AABB world;
+		godot::Transform3D xf;
+		godot::AABB local;
+	};
+	std::vector<Box> &boxes() { return boxes_; }
+
+	// world: the node the models are drawn under (RtsoWorldView), for the frustums.
 	void update(const Simulation *sim, godot::Node *world) {
 		if (!inst_ || (!any() && !inst_->is_visible())) return;
 		mesh_->clear_surfaces();
@@ -80,7 +93,7 @@ public:
 		if (on_[OBSTRUCTION]) obstruction();
 		if (on_[UNIT_MOTION]) unit_motion();
 		if (on_[RANGE]) range();
-		if (on_[BOUNDING_BOX] && world) bounding_boxes(world);
+		if (on_[BOUNDING_BOX]) bounding_boxes();
 		if (on_[CULL_CAMERA_FRUSTUM] && world) cull_camera_frustum(world);
 		if (on_[SHADOWS_FRUSTUM] && world) shadows_frustum(world);
 		if (begun_) mesh_->surface_end();
@@ -178,19 +191,32 @@ private:
 		else box(0.0f, 0.0f, 1.0f, 0.0f, m, m, bounds);
 	}
 
+	// CCmpUnitMotion::RenderPath: the path from the unit through each waypoint, with a 1 m
+	// square on each (ConstructSquareOnGround); the long path white, the short path red.
 	void unit_motion() {
-		const Color long_path(1.0f, 1.0f, 1.0f, 1.0f);
+		const Color long_path(1.0f, 1.0f, 1.0f, 1.0f), short_path(1.0f, 0.0f, 0.0f, 1.0f);
+		constexpr float kSquare = 0.5f * 0.25f; // half of 1 m, at 4 m a unit
 		auto uv = sim_->units();
+		if (motion_units_.empty()) return;
 		for (size_t i = 0; i < uv.count; ++i) {
-			if (!uv.alive[i]) continue;
+			if (!uv.alive[i] || std::find(motion_units_.begin(), motion_units_.end(), uv.id[i]) == motion_units_.end()) continue;
 			const float *xs = nullptr, *zs = nullptr;
 			const int n = sim_->unit_waypoints_left(i, &xs, &zs);
-			if (n <= 0) continue;
 			float px = uv.pos_x[i], pz = uv.pos_z[i];
 			for (int k = 0; k < n; ++k) {
 				line(px, pz, xs[k], zs[k], long_path);
+				box(xs[k], zs[k], 1.0f, 0.0f, kSquare, kSquare, long_path);
 				px = xs[k];
 				pz = zs[k];
+			}
+			// The short path leads to the next long-path waypoint, or the goal itself.
+			const float ax = n > 0 ? xs[0] : uv.target_x[i], az = n > 0 ? zs[0] : uv.target_z[i];
+			float wx, wz;
+			if (sim_->unit_short_waypoint(i, ax, az, &wx, &wz)) {
+				line(uv.pos_x[i], uv.pos_z[i], wx, wz, short_path);
+				line(wx, wz, ax, az, short_path);
+				box(wx, wz, 1.0f, 0.0f, kSquare, kSquare, short_path);
+				box(ax, az, 1.0f, 0.0f, kSquare, kSquare, short_path);
 			}
 			++drawn_[UNIT_MOTION];
 		}
@@ -218,34 +244,13 @@ private:
 		}
 	}
 
-	// The world-space box of every model shown: each MeshInstance3D and each visible instance of
-	// each MultiMeshInstance3D, turned with it. The terrain, water and anything else wider than
-	// kMaxModel is left out, as are instances scaled to nothing (hidden).
-	static constexpr float kMaxModel = 40.0f;
-	void bounding_boxes(godot::Node *world) {
-		using namespace godot;
-		const Color c(1.0f, 1.0f, 1.0f, 0.6f);
-		TypedArray<Node> gs = world->find_children("*", "GeometryInstance3D", true, false);
-		for (int k = 0; k < gs.size(); ++k) {
-			GeometryInstance3D *g = Object::cast_to<GeometryInstance3D>(gs[k]);
-			if (!g || g == inst_ || !g->is_visible_in_tree()) continue;
-			const Transform3D gx = g->get_global_transform();
-			if (MultiMeshInstance3D *mmi = Object::cast_to<MultiMeshInstance3D>(g)) {
-				Ref<MultiMesh> mm = mmi->get_multimesh();
-				if (mm.is_null() || mm->get_mesh().is_null() || mm->get_transform_format() != MultiMesh::TRANSFORM_3D) continue;
-				const AABB a = mm->get_mesh()->get_aabb();
-				if (a.get_longest_axis_size() > kMaxModel) continue;
-				const int n = mm->get_visible_instance_count() >= 0 ? mm->get_visible_instance_count() : mm->get_instance_count();
-				for (int i = 0; i < n; ++i) {
-					const Transform3D xf = gx * mm->get_instance_transform(i);
-					if (xf.basis.determinant() == 0.0f) continue;
-					obox(xf, a, c);
-				}
-			} else if (MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(g)) {
-				const AABB a = mi->get_aabb();
-				if (a.size == Vector3() || a.get_longest_axis_size() > kMaxModel) continue;
-				obox(gx, a, c);
-			}
+	// CCmpSelectable::RenderSubmit with ms_EnableDebugOverlays: the visual's bounds red
+	// (ConstructBoxOutline of GetBounds) and its selection box green (GetSelectionBox).
+	void bounding_boxes() {
+		const Color bounds(1.0f, 0.0f, 0.0f, 1.0f), selection(0.0f, 1.0f, 0.0f, 1.0f);
+		for (const Box &b : boxes_) {
+			obox(godot::Transform3D(), b.world, bounds);
+			obox(b.xf, b.local, selection);
 		}
 	}
 	// The 12 edges of box a turned by xf.
@@ -386,6 +391,8 @@ private:
 	bool on_[KIND_COUNT] = {};
 	int drawn_[KIND_COUNT] = {};
 	std::vector<Vector3> cull_corners_; // Lock cull camera's frustum corners (empty: follow the camera)
+	std::vector<uint32_t> motion_units_;
+	std::vector<Box> boxes_;
 	const Simulation *sim_ = nullptr;
 	godot::Ref<godot::ImmediateMesh> mesh_;
 	godot::MeshInstance3D *inst_ = nullptr;

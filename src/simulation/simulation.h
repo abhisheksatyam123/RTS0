@@ -483,6 +483,9 @@ public:
 		*zs = unit_paths_[i].zs + cur;
 		return n - cur;
 	}
+	// The next waypoint of the short path unit i walks round something on toward (aim_x, aim_z)
+	// (UnitMotion m_ShortPath, the unit motion overlay): what its ShortPathMemo keeps for that aim.
+	bool unit_short_waypoint(size_t i, float aim_x, float aim_z, float *wx, float *wz) const;
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
 	// A relic (catafalque) has no Health, so no attack but Capture reaches it.
 	bool unit_can_target(size_t i, size_t j) const {
@@ -808,7 +811,8 @@ public:
 	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive, int count = 1,
 			bool push_front = false);
 	// Trainer.js GetBatchTime: count^BatchTimeModifier of the building (civ version and techs).
-	float batch_time_multiplier(uint8_t player, uint8_t bld_type, int count) const;
+	// bld_civ: the structure's civ, whose template sets Trainer/BatchTimeModifier (the owner's when unknown).
+	float batch_time_multiplier(uint8_t player, uint8_t bld_type, int count, uint8_t bld_civ = 0xFF) const;
 	// The same for a training unit (a trireme, Cyrus II): its Trainer/BatchTimeModifier.
 	float unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const;
 	// ProductionQueue.js EnableAutoQueue / DisableAutoQueue.
