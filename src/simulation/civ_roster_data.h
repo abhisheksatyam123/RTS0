@@ -5,7 +5,7 @@
 
 // Included from sim_types.h inside namespace rtso.
 
-inline constexpr uint16_t CIV_UNIT_TEMPLATE_COUNT = 544;
+inline constexpr uint16_t CIV_UNIT_TEMPLATE_COUNT = 545;
 inline constexpr uint16_t CIV_HERO_AURA_COUNT = 123;
 inline constexpr uint16_t CIV_TEMPLATE_WORDS = 9; // uint64 words in a per-template bitset
 
@@ -1287,6 +1287,8 @@ inline const CivUnitTemplate *civ_unit_template_table() {
 		 100.0f, 3.382f, 1.8f, 8.0f, 0.75f, 8.0f, 0.0f, 0.0f, 3.0f, 3.0f, 15.0f, 50, 40, 10, 0, 1, 10.0f, 0, -1, -1, -1, TECH_NONE, 0x45cfull, 22.4f},
 		{"germ/support_healer_e", "Germanic Priest", "Gudjô", CIV_GERMANS, UNIT_HEALER, 2, 0, bld_bit(BLD_TEMPLE_AMUN),
 		 85.0f, 3.204f, 12.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 100, 0, 30, 0, 1, 15.0f, 0, -1, -1, -1, TECH_NONE, 0x8000013ull, 8.4f},
+		{"plane", "Unit", "P-51 Mustang", CIV_GAIA, UNIT_BOLT_SHOOTER, 1, ROSTER_RANGED | ROSTER_FLYING | ROSTER_MAP_ONLY, BldMask{},
+		 100.0f, 21.36f, 33.6f, 327.0f, 10.0f, 0.0f, 100.0f, 227.0f, 1.0f, 1.0f, 1.0f, 0, 0, 0, 0, 1, 1.0f, 0, -1, -1, -1, TECH_NONE, 0x3ull, 28.0f},
 	};
 	return kTable;
 }

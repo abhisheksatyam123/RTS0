@@ -152,6 +152,35 @@ func run() -> void:
 		assign.select(2)
 		assign.item_selected.emit(2)
 	check(int(page._slot_rows[1]["kind"]) == 1, "AI: Petra Bot makes the slot an AI")
+	# PlayerAssignment Client.onSelectionChange: alice moves to the AI's slot with
+	# her civ and colour, and the AI moves to hers with its difficulty and behaviour.
+	var r0: Dictionary = page._slot_rows[0].duplicate()
+	var r1: Dictionary = page._slot_rows[1].duplicate()
+	page._slot_rows[1]["civ"] = 4
+	page._slot_rows[1]["color"] = 5
+	page._slot_rows[1]["diff"] = 1
+	page._slot_rows[1]["beh"] = 0
+	page.refresh_slots()
+	await frames(2)
+	host.assigns.clear()
+	assign = cells(page)[6 + 2].get_node_or_null("AssignSelect")
+	var alice_at := -1
+	for idx in (assign.get_item_count() if assign else 0):
+		if assign.get_item_id(idx) == page.ASSIGN_CLIENT_ID:
+			alice_at = idx
+	if alice_at >= 0:
+		assign.select(alice_at)
+		assign.item_selected.emit(alice_at)
+	var a0: Dictionary = page._slot_rows[0]
+	var a1: Dictionary = page._slot_rows[1]
+	check(host.assigns == [[0, 1]] and int(a1["kind"]) == 0 and int(a1["civ"]) == int(r0["civ"]) and int(a1["color"]) == int(r0["color"])
+		and int(a0["kind"]) == 1 and int(a0["civ"]) == 4 and int(a0["color"]) == 5 and int(a0["diff"]) == 1 and int(a0["beh"]) == 0,
+		"a player moved onto an AI's slot takes civ and colour along, and the AI moves to the slot left (%s %s %s)" % [str(host.assigns), str(a0), str(a1)])
+	for key in r0:
+		page._slot_rows[0][key] = r0[key]
+	for key in r1:
+		page._slot_rows[1][key] = r1[key]
+	page._on_slot_kind(0, 0)
 	page._on_slot_kind(0, 1)
 	await frames(2)
 	# PlayerAssignmentsController.unassignInvalidPlayers: a player count below
@@ -253,6 +282,12 @@ func run() -> void:
 		and page.get_node("%MapList").disabled
 		and page.get_node("%Waves").disabled, "the host's settings are locked")
 	check(page._tab == -1 and not page.get_node("%MapTab").visible, "a client starts with no settings tab open (GameSettingTabs.onLoad)")
+	page._render_value_texts()
+	var ml: Control = page.get_node("%MapList")
+	var vt: Label = ml.get_node_or_null("ValueText")
+	var rated_box: CheckBox = page.get_node("%RatedGame")
+	check(vt != null and vt.text == ml.text and ml.self_modulate.a == 0.0 and rated_box.text.ends_with(": Yes"),
+		"GameSettingControl.updateVisibility: locked settings read as text, a checkbox Yes/No: %s / %s" % [vt.text if vt else "", rated_box.text])
 	check(picker(page, 0, 2).disabled and picker(page, 0, 3).disabled and picker(page, 1, 1).disabled and picker(page, 1, 4).disabled,
 		"other slots, and our slot's type and AI, are locked")
 	# 0.28 GameSettingControl/PlayerColor: only the controller sets civ, team and colour.
@@ -347,6 +382,9 @@ func run() -> void:
 	check(page.get_node("VBox/HBox/Right/SavedGameLabel").visible
 		and page.get_node("VBox/HBox/Right/SavedGameLabel").tooltip_text == "The controller loaded a saved game.",
 		"the host's page says Saved game")
+	page._apply_map_locks()
+	check(not page.get_node("VBox/HBox/Right/SlotsBox/SlotsHeader/ResetCivs").visible
+		and not page.get_node("VBox/HBox/Right/SlotsBox/SlotsHeader/ResetTeams").visible, "ResetCivsButton/ResetTeamsButton: hidden for a saved game")
 	check(not page.get_node("%SpinSeed").editable and page.get_node("%MapList").disabled
 		and page.get_node("%Waves").disabled and picker(page, 0, 2).disabled and picker(page, 2, 3).disabled
 		and picker(page, 1, 1).disabled and picker(page, 2, 5).disabled, "every setting of the save is locked")

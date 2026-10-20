@@ -181,7 +181,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 110; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 112; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_FLIGHT = 112; // each flying unit's UnitMotionFlying state
+	static constexpr uint32_t SAVE_VERSION_UNIT_AUTOQUEUE = 111; // unit trainers' queue clocks and autoqueue
 	static constexpr uint32_t SAVE_VERSION_QUEUE_CLOCK = 110; // each structure's time into its production queue's second
 	static constexpr uint32_t SAVE_VERSION_FAUNA_ROAM = 108; // each animal's MoveRandomly roamAngle and startAngle
 	static constexpr uint32_t SAVE_VERSION_PETRA_TILE_BASES = 107; // the base that claimed each of Petra's territory tiles
@@ -521,7 +523,8 @@ public:
 		if (units_.unit_type[j] == UNIT_CATAFALQUE || !combat_can_target(unit_combat_at(i), unit_combat_at(j))) return false;
 		// Attack.js CanAttack: no attack whose MaxRange is less than the height offset between
 		// the two (an archer on a wall's turret point is out of a swordsman's reach).
-		return turret_height_.empty() || std::fabs(unit_height_offset(i) - unit_height_offset(j)) <= units_.attack_range[i];
+		return (turret_height_.empty() && flight_.empty()) ||
+				std::fabs(unit_height_offset(i) - unit_height_offset(j)) <= units_.attack_range[i];
 	}
 	// Capturable.js CanCapture / Attack.js Capture: may unit i capture relic unit r?
 	bool can_capture_relic(size_t i, int32_t r) const;
@@ -668,11 +671,22 @@ public:
 		return out;
 	}
 	double battle_damage_dealt(uint8_t player) const { return player < MAX_PLAYERS ? battle_damage_[player] : 0.0; } // 0 when not on a turret
-	float unit_height_offset(size_t i) const { // above the terrain (a turret point's height)
+	float unit_height_offset(size_t i) const { // above the terrain (a turret point's or a plane's height)
+		if (!flight_.empty()) {
+			const float f = flight_offset(i);
+			if (f > 0.0f) return f;
+		}
 		if (turret_height_.empty()) return 0.0f;
 		auto it = turret_height_.find(units_.id[i]);
 		return it == turret_height_.end() ? 0.0f : it->second;
 	}
+	// UnitMotionFlying (units/plane): a flying unit's height above the ground or water under it
+	// (Position GetHeightOffset), 0 for any other unit.
+	float flight_offset(size_t i) const;
+	// For the renderer: a flying unit's absolute height, pitch and roll (Position SetXZRotation).
+	// False for a unit that doesn't fly.
+	bool unit_flight_pose(size_t i, float &y, float &pitch, float &roll) const;
+	bool unit_flies(size_t i) const { return !flight_.empty() && flight_.count(units_.id[i]) != 0; }
 	// Training time multiplier of a template trained above Basic (Cost/BuildTime per rank).
 	static float promotion_train_time_mult(uint16_t tmpl);
 	// Rank effects (unit_advanced.json, unit_elite.json) for unit index i.
@@ -862,6 +876,7 @@ public:
 	// The technology a training unit's Trainer list entry requires (unit_trainer_data.h), or TECH_NONE.
 	static uint8_t unit_trainee_tech(uint16_t trainer_tmpl, uint16_t trainee);
 	static bool unit_is_trainer(uint16_t tmpl); // trains or researches (Trainer or Researcher)
+	static bool unit_trains_units(uint16_t tmpl); // has a Trainer list (autoqueue applies)
 	// 0 A.D. Researcher on a unit (Athenian triremes: Iphicratean Reforms): the technologies the
 	// roster unit `tmpl` researches, and queueing one (research_check's rules, without a structure).
 	static std::vector<uint8_t> unit_researchables(uint16_t tmpl);
@@ -871,7 +886,12 @@ public:
 	struct UnitQueue {
 		uint8_t player = 0;
 		std::vector<ProductionOrder> orders; // never empty
+		float clock = 0.0f; // time into the queue's current second (ProgressTimeout)
 	};
+	// ProductionQueue.js autoqueuing on a unit that trains (kept while its queue is empty).
+	bool unit_autoqueue(uint32_t unit_id) const {
+		return std::binary_search(unit_autoqueue_.begin(), unit_autoqueue_.end(), unit_id);
+	}
 	const std::map<uint32_t, UnitQueue> &unit_queues() const { return unit_queues_; }
 	const std::vector<ProductionOrder> *unit_queue(uint32_t unit_id) const {
 		auto it = unit_queues_.find(unit_id);
@@ -1116,7 +1136,7 @@ public:
 	static constexpr float SHIP_LOADING_RANGE = 10.0f * 0.28f; // GarrisonHolder LoadingRange 10 m in RTS0 scale
 	void order_board_transport(const uint32_t *unit_ids, size_t count, uint32_t transport_id);
 	void order_disembark(uint32_t transport_id, float target_x, float target_z);
-	void order_disembark_all(uint32_t transport_id);
+	void order_disembark_all(uint32_t transport_id, uint8_t notify = 0xFF);
 	void order_disembark_single(uint32_t transport_id, uint32_t unit_id);
 	const std::vector<uint32_t> *get_transport_passengers(uint32_t transport_id) const;
 	const std::unordered_map<uint32_t, std::vector<uint32_t>> &transport_passengers() const { return transport_passengers_; }
@@ -2778,6 +2798,13 @@ private:
 	std::vector<UnitUpgrade> unit_upgrades_; // in start order (saved v45)
 	// Production queues of units that train, by unit id (saved SAVE_VERSION_UNIT_TRAINERS).
 	std::map<uint32_t, UnitQueue> unit_queues_;
+	std::vector<uint32_t> unit_autoqueue_; // sorted ids of units that autoqueue
+	void set_unit_autoqueue(uint32_t unit_id, bool on) {
+		auto pos = std::lower_bound(unit_autoqueue_.begin(), unit_autoqueue_.end(), unit_id);
+		const bool has = pos != unit_autoqueue_.end() && *pos == unit_id;
+		if (on && !has) unit_autoqueue_.insert(pos, unit_id);
+		else if (!on && has) unit_autoqueue_.erase(pos);
+	}
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
 	void tick_ship_pickups();
@@ -3015,6 +3042,16 @@ private:
 	float fauna_start_angle_[FaunaStorage::MAX_FAUNA] = {};
 	IdIndex fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
+	// UnitMotionFlying.js state of each flying unit (units/plane), by unit id, so it saves and
+	// ticks in id order; save v112 adds it.
+	struct FlightState {
+		float y = 0.0f; // absolute height (Position SetHeightFixed)
+		float speed = 0.0f, angle = 0.0f, pitch = 0.0f, roll = 0.0f; // angle: Position rotation y
+		float target_x = 0.0f, target_z = 0.0f;
+		uint8_t has_target = 0, landing = 0, on_ground = 1, water_death = 0;
+	};
+	static_assert(sizeof(FlightState) == 32, "saved as it is");
+	std::map<uint32_t, FlightState> flight_;
 	// Turret units (unit id -> point height), rebuilt from the holders' garrison lists each
 	// tick, and the stance each had before it went up (UnitAI previousStance).
 	std::unordered_map<uint32_t, float> turret_height_;
@@ -3031,6 +3068,8 @@ private:
 	void step_down_turret(Building &b, uint32_t unit_id);
 	bool leave_turret(size_t i, const Building &b, bool forced);
 	void tick_turrets();
+	// UnitMotionFlying.js OnUpdate for each flying unit, after the walkers' moves.
+	void tick_flight(float dt);
 	void builder_stand_point(size_t i, const Building &b, float x, float z, float &tx, float &tz) const;
 	std::vector<FormationController> formations_; // in creation order
 	uint32_t next_formation_id_ = 1;
