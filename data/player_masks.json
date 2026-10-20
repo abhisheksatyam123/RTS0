@@ -12991,6 +12991,566 @@
 0.82
 ]
 },
+"units/helm_hele_attic_a2_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_attic_a3_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_attic_a4_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_attic_e2_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_attic_e2_tex4": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_attic_e3_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_attic_e3_tex4": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_attic_e4_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_attic_e4_tex4": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_attic_r2_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_attic_r3_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_chalcidean_a1_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_chalcidean_a2_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_chalcidean_a3_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_chalcidean_a4_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_chalcidean_a5_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_chalcidean_b6_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/sele_hero_seleucus_nikator_diffuse_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_corinthian_e2_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_corinthian_e3_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_corinthian_e4_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_illyrian_b1_crested_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_illyrian_b2_crested_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_illyrian_b3_crested_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_phrygian_a11_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_phrygian_a1_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_phrygian_a1_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_romanized_02_bronze_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_phrygian_b5_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_romanized_02_bronze_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_phrygian_e11_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_phrygian_e1_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_phrygian_e1_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_romanized_02_bronze_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_phrygian_e1_tex4": {
+"mask": "res://assets/textures/player_masks/props/helmet/sele_hero_seleucus_nikator_diffuse_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_phrygian_p5_tex0": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_phrygian_05_player_color_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_phrygian_p5_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_romanized_02_bronze_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_pilos_a2_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_a8_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_b1_crested_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_b2_crested_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_b3_crested_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_b4_crested_tex0": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_04_bronze_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_b4_crested_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_b4_tex0": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_04_bronze_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_b5_crested_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_b6_crested_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_br_crested_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_p3_crested_tex0": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_03_player_color_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_p3_crested_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_mask_03_player_color_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_p3_crested_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_romanized_b2_crested_tex0": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_romanized_02_bronze_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_romanized_b2_crested_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_romanized_s2_crested_tex0": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_romanized_02_silver_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_romanized_s2_crested_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_s2_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_romanized_02_silver_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_hele_thracian_s2_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_iber_chalcidean_a2_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_iber_chalcidean_a2_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/sele_hero_seleucus_nikator_diffuse_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_iber_helmet_c_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/iber_crest_c_256x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_iber_helmet_montefortino_01_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/sele_hero_seleucus_nikator_diffuse_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_maur_inf_big_turban_tex0": {
+"mask": "res://assets/textures/player_masks/props/helmet/maur_inf_turban_a_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_maur_maiden_big_turban_tex0": {
+"mask": "res://assets/textures/player_masks/props/helmet/maur_inf_turban_a_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_pers_conical_a1_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/sele_hero_seleucus_nikator_diffuse_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_rome_apulo_corinthian_a1_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_rome_apulo_corinthian_a2_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_rome_apulo_corinthian_e1_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_rome_apulo_corinthian_e1_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_rome_apulo_corinthian_e2_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_rome_apulo_corinthian_e2_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_rome_apulo_itallic_a1_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_rome_helmet_gallic_centurion_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/ptol_romanized_brass_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_rome_helmet_montefortino_c_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/helm_samnite_helmet_montefortino_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "units/hero_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/spart/cuirass_leonidas_01_256x256.png",
 "tint": [

@@ -95,6 +95,10 @@ func run() -> void:
 	page._controls["fog"][1].button_pressed = false
 	await frames(2)
 	check(cfg.get_value("fog") == "false", "unchecking fog changes the setting")
+	# options.json repeats Fog in Graphics (advanced): the second row follows.
+	check(page._controls.has("fog#") and not page._controls["fog#"][1].button_pressed and page._controls.has("postproc#") and page._controls.has("shadows#"),
+		"the advanced tab's Fog row shows the change; Post-processing and Shadows repeat there too")
+	check(not page._controls.has("locale"), "no Language option (0.28 keeps it in the main menu)")
 	page._on_revert()
 	check(cfg.get_value("fog") == "true" and page._controls["fog"][1].button_pressed, "Revert goes back to the saved value")
 	cfg.set_value("lobby.login", "alice")
