@@ -160,6 +160,18 @@ Dictionary RtsoMain::get_audio_state() const {
 	d["combat_culled"] = session_audio_.combat_sounds_culled();
 	d["voices"] = view ? view->spatial_voices_playing() : 0;
 	d["voices_dropped"] = view ? view->spatial_sounds_dropped() : 0;
+	// Ambient.js: the one looping dayscape track and its level.
+	Array ambient;
+	for (int i = 0; i < get_child_count(); ++i) {
+		AudioStreamPlayer *p = Object::cast_to<AudioStreamPlayer>(get_child(i));
+		if (!p || p->get_bus() != StringName("Ambient")) continue;
+		Dictionary a;
+		a["path"] = p->get_stream().is_valid() ? p->get_stream()->get_path() : String();
+		a["db"] = p->get_volume_db();
+		a["playing"] = p->is_playing();
+		ambient.push_back(a);
+	}
+	d["ambient"] = ambient;
 	return d;
 }
 

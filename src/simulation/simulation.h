@@ -3765,6 +3765,7 @@ private:
 	void petra_retake_civic_centres(); // defenseManager.js OwnershipChanged -> switchDefenseToAttack
 	void petra_update_attack_plan(AttackPlan &plan, float base_x, float base_z); // one plan's attackPlan.js step
 	void petra_update_started_raid(AttackPlan &plan, float base_x, float base_z); // a raid once it set off
+	bool petra_raid_walk(AttackPlan &plan); // attackPlan.js UpdateWalking along a raid's path: true on arrival
 	void petra_attack_units(AttackPlan &plan); // attackPlan.js update while attacking: each unit's target
 	uint32_t petra_plan_next_target(AttackPlan &plan, float &tx, float &tz, uint16_t same_land = 0, bool must_start = false);
 	bool petra_in_attack_squad(uint32_t uid) const; // in the prepared or a started attack's army
