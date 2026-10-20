@@ -1010,9 +1010,14 @@ void RtsoMain::_process(double delta) {
 	}
 	if (net_lockstep()) {
 		if (net_game_started_) {
-			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
-			if (turn_mgr_.tick((float)scaled_delta, *sim)) {
-				ticks = rtso::TurnManager::TICKS_PER_TURN;
+			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick.
+			// CGame::Update: at most game-speed turns a frame (one at the normal rate),
+			// so a fast game is not bounded by the frame rate.
+			float step = (float)scaled_delta;
+			const int max_turns = std::max(1, (int)game_speed);
+			for (int t = 0; t < max_turns && turn_mgr_.tick(step, *sim); ++t) {
+				ticks += rtso::TurnManager::TICKS_PER_TURN;
+				step = 0.0f;
 				sim_tests_turn();
 				rejoin_test_turn();
 			}

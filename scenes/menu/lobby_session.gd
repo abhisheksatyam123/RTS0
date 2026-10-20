@@ -570,8 +570,12 @@ static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictio
 		if name == "":
 			continue # a closed or open seat
 		var civ := int(at.call("slot_civs", i, -1))
-		var p := {"name": name, "team": int(at.call("slot_teams", i, 0)) - 1, "ai": kind == 1,
+		var p := {"name": name, "ai": kind == 1,
 			"civ": "random" if civ < 0 else (str(setup.CIVS[civ]["code"]) if civ < setup.CIVS.size() else "")}
+		# LobbyGamelistReporter getPlayers: Team only with LockTeams (diplomacy
+		# may change it otherwise), so such a game lists its players unheaded.
+		if bool(ms.get("lock_teams")):
+			p["team"] = int(at.call("slot_teams", i, 0)) - 1
 		if kind == 1:
 			p["ai_difficulty"] = int(at.call("slot_diffs", i, ms.get("ai_difficulty")))
 			p["ai_behavior"] = int(at.call("slot_behs", i, ms.get("ai_behavior")))
