@@ -286,9 +286,9 @@ func _row(caption: String, control: Control) -> HBoxContainer:
 	row.add_child(control)
 	return row
 
+## colorizeHotkey's "[key]" in the hotkey colour, or "Unassigned hotkey: name".
 func _hotkey_text(name: String) -> String:
-	var keys: String = _hotkeys.display(name)
-	return keys if keys != "" else L10n.t("Unassigned")
+	return _hotkeys.colorize("%(hotkey)s", name)
 
 # MapFiltering.select: the type and filter, then the list.
 func select(filter_name: String, map_type: String) -> void:
@@ -470,7 +470,6 @@ func _render_page() -> void:
 	_zoom_out.disabled = column_count >= max_columns
 
 func _render_items() -> void:
-	var hint := tr("Click to select, double-click to choose a map.") if allow_selection else ""
 	for i in _items.size():
 		var b: Button = _items[i]
 		var idx := i + current_page * items_per_row
@@ -489,7 +488,8 @@ func _render_items() -> void:
 		box.add_theme_stylebox_override("panel", sb)
 		(box.get_node("Caption") as Label).text = tr(str(m["name"]))
 		(box.get_node("Preview") as TextureRect).texture = Setup.map_preview(str(m["id"]))
-		b.tooltip_text = tr(str(m["desc"])) + ("\n" + hint if not hint.is_empty() else "")
+		# MapGridBrowserItem: the description alone (the container's tooltip is empty).
+		b.tooltip_text = tr(str(m["desc"]))
 
 func _on_item_input(ev: InputEvent) -> void:
 	if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT and ev.double_click:
