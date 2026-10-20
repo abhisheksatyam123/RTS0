@@ -18,6 +18,8 @@ extends Control
 
 const GameSetupMp := preload("res://scenes/menu/gamesetup_mp.gd")
 const REFRESH_S := 3.0
+# /events: how long the server may hold a request (below LobbySession's 5 s timeout).
+const EVENTS_WAIT_S := 4.0
 
 var _server: LineEdit
 var _name: LineEdit
@@ -66,6 +68,7 @@ var _host_pwd: LineEdit
 var _status: Label
 var _timer: Timer
 var _chat_last := 0
+var _events_version := -1 # -1: not watching
 var _chat_backlog := true # the first fetch after signing in is the backlog (lobby.history)
 var _chat_replay := false # the first fetch of a page reopened in the session: its chat so far
 var _reconnect_dlg: ConfirmationDialog
@@ -115,6 +118,7 @@ func _ready() -> void:
 	_timer.timeout.connect(_refresh)
 	add_child(_timer)
 	_timer.start()
+	_watch_events()
 	_server.text = LobbySession.address
 	_name.text = LobbySession.player_name if LobbySession.signed_in() else multiplayer_name()
 	LobbySession.kicked.connect(_on_kicked)
@@ -889,6 +893,42 @@ func _register(who: String) -> void:
 			_say("The lobby server at %s does not answer." % _server.text)
 		else:
 			_say("Registration failed: %s" % (obj.get("error", code) if obj is Dictionary else str(code))))
+
+
+## XmppMessages.js: 0 A.D. reads pushed lobby messages every GUI tick. Here the
+## page waits on /events, which answers as soon as the chat, the player list or
+## the game list changes, and refreshes at once; the REFRESH_S timer stays as a
+## fallback (and for servers without /events).
+func _watch_events() -> void:
+	if _events_version >= 0:
+		return # already waiting
+	_events_version = 0
+	_wait_events()
+
+
+func _wait_events() -> void:
+	if not is_inside_tree():
+		_events_version = -1
+		return
+	if not LobbySession.signed_in():
+		get_tree().create_timer(1.0).timeout.connect(_wait_events)
+		return
+	var since := _events_version
+	LobbySession.get_json("/events?since=%d&wait=%s" % [since, EVENTS_WAIT_S], func(code: int, obj) -> void:
+		if not is_inside_tree():
+			_events_version = -1
+			return
+		if code == 404:
+			_events_version = -1 # an older server: the timer alone
+			return
+		if code == 200 and obj is Dictionary:
+			var v := int(obj.get("version", 0))
+			if v != since:
+				_events_version = v
+				_refresh()
+			_wait_events()
+		else:
+			get_tree().create_timer(1.0).timeout.connect(_wait_events))
 
 
 func _refresh() -> void:
