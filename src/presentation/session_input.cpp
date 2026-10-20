@@ -928,9 +928,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				range_overlays_.add_target_marker(click_pos.x, click_pos.z);
 				if (turn_cmds())
 					post_lockstep(10, sel_ptr, sel_n, click_pos.x, click_pos.z, 0,
-							(uint8_t)(qbit | (units_only ? rtso::NET_PARAM_UNITS_ONLY : 0)));
+							(uint8_t)(qbit | rtso::NET_PARAM_NO_CAPTURE | (units_only ? rtso::NET_PARAM_UNITS_ONLY : 0)));
 				else
-					sim->order_attack_move(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift, units_only, true);
+					sim->order_attack_move(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift, units_only, false);
 				play_civ_voice("attack");
 				attack_move_mode = false;
 				return;
@@ -1145,19 +1145,48 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				return;
 			}
 
-			// 3. Right click on Resource Node (Gather)
+			// 3. Right click on Resource Node (Gather): the supply as the player knows it (G/input.js
+			// picks Fogging mirages too), the hover's list. One used up in the fog is gone from the
+			// sim: its units gather the same kind near where it was (FINDINGNEWTARGET).
 			auto rview = sim->resources();
 			uint32_t clicked_res_id = 0;
+			const rtso::FoggedResource *gone = nullptr;
 			float best_rd2 = 2.2f * 2.2f;
-			for (size_t r = 0; r < rview.count; ++r) {
-				if (!rview.alive[r] || rview.amount[r] <= 0) continue;
-				float dx = rview.x[r] - click_pos.x;
-				float dz = rview.z[r] - click_pos.z;
-				float d2 = dx * dx + dz * dz;
-				if (d2 < best_rd2) {
-					best_rd2 = d2;
-					clicked_res_id = rview.id[r];
+			const auto live_supply = [&](uint32_t id) {
+				for (size_t r = 0; r < rview.count; ++r)
+					if (rview.id[r] == id) return rview.alive[r] && rview.amount[r] > 0;
+				return false;
+			};
+			if (view) {
+				for (const auto &r : view->resource_mirages()) {
+					if (r.amount <= 0 || r.subtype == rtso::RES_SUB_GRAIN) continue; // fields: the structure's click
+					const float dx = r.x - click_pos.x, dz = r.z - click_pos.z;
+					if (dx * dx + dz * dz >= best_rd2) continue;
+					best_rd2 = dx * dx + dz * dz;
+					clicked_res_id = r.id;
+					gone = &r;
 				}
+				if (clicked_res_id != 0 && live_supply(clicked_res_id)) gone = nullptr;
+			} else {
+				for (size_t r = 0; r < rview.count; ++r) {
+					if (!rview.alive[r] || rview.amount[r] <= 0) continue;
+					float dx = rview.x[r] - click_pos.x;
+					float dz = rview.z[r] - click_pos.z;
+					float d2 = dx * dx + dz * dz;
+					if (d2 < best_rd2) {
+						best_rd2 = d2;
+						clicked_res_id = rview.id[r];
+					}
+				}
+			}
+			if (gone) {
+				const uint32_t kind = (uint32_t)gone->type | ((uint32_t)gone->subtype << 8);
+				if (turn_cmds())
+					post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_GATHER_NEAR, sel_ptr, sel_n, gone->x, gone->z, kind, qbit);
+				else
+					sim->order_gather_near(sel_ptr, sel_n, gone->x, gone->z, gone->type, gone->subtype, queue_shift);
+				play_civ_voice("gather");
+				return;
 			}
 			if (clicked_res_id != 0) {
 				if (turn_cmds())
@@ -1509,13 +1538,14 @@ void RtsoMain::finish_right_line(const Ref<InputEventMouseButton> &release) {
 			c.entity_ids.assign(1, ents[k]);
 			c.target_x = dist[k].x;
 			c.target_z = dist[k].y;
-			c.param = (uint8_t)(qbit | (attack && units_only ? rtso::NET_PARAM_UNITS_ONLY : 0));
+			// unit_actions.js "attack-move" sends no allowCapture: UnitAI.DEFAULT_CAPTURE (false).
+			c.param = (uint8_t)(qbit | (attack ? rtso::NET_PARAM_NO_CAPTURE : 0) | (attack && units_only ? rtso::NET_PARAM_UNITS_ONLY : 0));
 			turn_mgr_.post_local_command(c);
 		}
 	} else {
 		for (size_t k = 0; k < n; ++k) {
 			if (attack)
-				sim->order_attack_move(&ents[k], 1, dist[k].x, dist[k].y, queued, units_only, true);
+				sim->order_attack_move(&ents[k], 1, dist[k].x, dist[k].y, queued, units_only, false);
 			else {
 				sim->order_walk(&ents[k], 1, dist[k].x, dist[k].y, queued, true);
 				sim->order_fauna_walk(local_player(), &ents[k], 1, dist[k].x, dist[k].y);

@@ -281,10 +281,13 @@ HashMap<String, ParallaxMap> &parallax_maps() {
 }
 Ref<Texture2D> specular_map_for(const Ref<Texture2D> &albedo) { return table_texture_for(specular_maps(), albedo); }
 // data/unit_variants.json (tools/extract_unit_variants.py): a unit body's 0 A.D.
-// skins (texture-only variant group) and their frequencies, by baked image.
+// skins (texture-only variant group) and their frequencies, by baked image; a
+// head's objectcolor material adds its hair colours (sRGB) and their frequencies.
 struct UnitVariants {
 	PackedStringArray layers;
 	std::vector<float> freq;
+	std::vector<Color> colors;
+	std::vector<float> color_freq;
 };
 HashMap<String, UnitVariants> &unit_variants() {
 	static auto &m = *new HashMap<String, UnitVariants>();
@@ -298,16 +301,39 @@ HashMap<String, UnitVariants> &unit_variants() {
 			for (int i = 0; i < keys.size(); ++i) {
 				Dictionary e = root[keys[i]];
 				Array layers = e.get("layers", Array()), freq = e.get("freq", Array());
+				Array colors = e.get("colors", Array()), color_freq = e.get("color_freq", Array());
 				UnitVariants uv;
 				for (int j = 0; j < layers.size() && j < freq.size() && j < 8; ++j) {
 					uv.layers.push_back(layers[j]);
 					uv.freq.push_back((float)(double)freq[j]);
 				}
-				if (uv.layers.size() > 1) m.insert(keys[i], uv);
+				for (int j = 0; j < colors.size() && j < color_freq.size() && j < 8; ++j) {
+					Array c = colors[j];
+					if (c.size() < 3) continue;
+					uv.colors.push_back(Color((float)(double)c[0] / 255.0f, (float)(double)c[1] / 255.0f, (float)(double)c[2] / 255.0f));
+					uv.color_freq.push_back((float)(double)color_freq[j]);
+				}
+				if (uv.layers.size() > 1 || (!uv.layers.is_empty() && !uv.colors.empty())) m.insert(keys[i], uv);
 			}
 		}
 	}
 	return m;
+}
+// Where each choice after the first starts in [0, 1), by frequency (2.0 past the last),
+// as the shader's variant_cut and object_cut take them.
+Array cumulative_cuts(const std::vector<float> &freq) {
+	float total = 0.0f;
+	for (float f : freq) total += f;
+	float cut[8] = { 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f };
+	float run = 0.0f;
+	for (size_t i = 0; i + 1 < freq.size() && i < 8 && total > 0.0f; ++i) {
+		run += freq[i];
+		cut[i] = run / total;
+	}
+	Array cuts;
+	cuts.push_back(Vector4(cut[0], cut[1], cut[2], cut[3]));
+	cuts.push_back(Vector4(cut[4], cut[5], cut[6], cut[7]));
+	return cuts;
 }
 // The skins as one array texture (RGBA8, the body image's size), shared by
 // every body that names the same skins.
@@ -410,21 +436,22 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 			if (uv) {
 				Ref<Texture2DArray> arr = unit_variant_array(*uv);
 				if (arr.is_valid()) {
-					float total = 0.0f;
-					for (float f : uv->freq) total += f;
-					float cut[8] = { 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f };
-					float run = 0.0f;
-					for (size_t i = 0; i + 1 < uv->freq.size() && total > 0.0f; ++i) {
-						run += uv->freq[i];
-						cut[i] = run / total;
-					}
 					out->set_shader_parameter("use_variants", true);
 					out->set_shader_parameter("variant_tex", arr);
-					Array cuts;
-					cuts.push_back(Vector4(cut[0], cut[1], cut[2], cut[3]));
-					cuts.push_back(Vector4(cut[4], cut[5], cut[6], cut[7]));
-					out->set_shader_parameter("variant_cut", cuts);
+					out->set_shader_parameter("variant_cut", cumulative_cuts(uv->freq));
 					out->set_shader_parameter("variant_salt", (float)(image_key(tex).hash() & 0xFFFFu) / 65536.0f);
+					// model_common.fs USE_OBJECTCOLOR: the hair (the layer's alpha) takes a colour
+					// the head's actor picks by variant, multiplied in sRGB as 0 A.D. draws it.
+					if (!uv->colors.empty()) {
+						Array cols;
+						for (int i = 0; i < 8; ++i) {
+							const Color c = uv->colors[MIN((size_t)i, uv->colors.size() - 1)].srgb_to_linear();
+							cols.push_back(Vector4(c.r, c.g, c.b, 1.0f));
+						}
+						out->set_shader_parameter("use_object_color", true);
+						out->set_shader_parameter("object_colors", cols);
+						out->set_shader_parameter("object_cut", cumulative_cuts(uv->color_freq));
+					}
 				}
 			}
 		}
