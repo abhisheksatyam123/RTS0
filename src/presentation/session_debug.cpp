@@ -249,6 +249,23 @@ Dictionary RtsoMain::debug_civic_centre_roof() {
 // "unit": the first own unit selected; "multi": all own units; "building": the first own
 // structure; "field": the first own finished field (spawning one if there is none); "resource" /
 // "fauna": the first tree or mine / animal, inspected as a click would; a number: that unit.
+void RtsoMain::debug_inspect_entity(int64_t id) {
+	if (!sim) return;
+	clear_selection();
+	// The click at its position (inspect_at reads the structures as the viewer knows them).
+	for (const auto &b : sim->buildings())
+		if (b.id == (uint32_t)id) {
+			inspector_.inspect_at(Vector3(b.x, 0.0f, b.z));
+			return;
+		}
+	auto uv = sim->units();
+	for (size_t i = 0; i < uv.count; ++i)
+		if (uv.id[i] == (uint32_t)id) {
+			inspector_.inspect_at(Vector3(uv.pos_x[i], 0.0f, uv.pos_z[i]));
+			return;
+		}
+}
+
 Dictionary RtsoMain::debug_inspector(const String &what) {
 	if (!sim) return Dictionary();
 	if (what == "current") { // the details of the selection as it stands
@@ -494,20 +511,25 @@ Vector2 RtsoMain::debug_spawn_offset(const String &template_id, int count, int p
 // Test hook: spawns `count` of the roster template `template_id` (e.g.
 // "athen/support_female_citizen") for the local player in a row by its Civic Centre,
 // 3 m apart from debug_spawn_offset.
-PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int count, int player) {
+PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int count, int player, int near) {
 	PackedInt32Array out;
 	if (!sim) return out;
 	const uint16_t t = rtso::civ_unit_template_by_id(template_id.utf8().get_data());
 	if (t >= rtso::CIV_UNIT_TEMPLATE_COUNT) return out;
 	const uint8_t me = player < 0 ? local_player() : (uint8_t)player;
+	const uint8_t by = near < 0 ? me : (uint8_t)near; // whose Civic Centre they spawn by
 	float cx = 0.0f, cz = 0.0f;
 	for (const auto &b : sim->buildings())
-		if (b.team == me && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
+		if (b.team == by && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
 	const Vector2 o = debug_spawn_offset(template_id, count, player);
 	for (int i = 0; i < count; ++i)
 		out.push_back((int32_t)sim->spawn_unit(cx + o.x + 3.0f * i, cz + o.y, me,
 				(rtso::UnitType)rtso::civ_unit_template(t).unit_type, 0.0f, t));
 	return out;
+}
+
+void RtsoMain::debug_complete_research(int player, int tech) {
+	if (sim) sim->debug_complete_research((uint8_t)player, (uint8_t)tech);
 }
 
 // Test hook: `count` animals of a FaunaType by the player's Civic Centre, owned by the

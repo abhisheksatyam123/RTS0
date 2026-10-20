@@ -205,7 +205,38 @@ bool RtsoMain::selection_can_occupy_turret(uint32_t building_id) const {
 	return false;
 }
 
+// Another player's live unit or structure the inspector shows alone (0.28 selects it): the
+// Command panel's Ally commands act on it.
+uint32_t RtsoMain::ui_inspected_foreign(bool *building) const {
+	if (!sim || selected_building_id != 0 || !selected_ids.is_empty()) return 0;
+	const uint32_t id = inspector_.id();
+	if (inspector_.kind() == RtsoInspectorView::INSPECT_BUILDING) {
+		for (const auto &b : sim->buildings())
+			if (b.id == id && !b.wrecked && b.team != local_player()) {
+				if (building) *building = true;
+				return id;
+			}
+	} else if (inspector_.kind() == RtsoInspectorView::INSPECT_UNIT) {
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == id && uv.alive[i] && uv.team[i] != local_player()) {
+				if (building) *building = false;
+				return id;
+			}
+	}
+	return 0;
+}
+
 void RtsoMain::_on_ungarrison_pressed() {
+	bool inspected_building = false;
+	if (const uint32_t f = ui_inspected_foreign(&inspected_building)) {
+		// unload-all on an ally's holder: unload-all-by-owner, only our own units.
+		if (turn_cmds())
+			post_lockstep(13, nullptr, 0, 0, 0, f, 0);
+		else
+			sim->cmd_unload(local_player(), f, nullptr, 0);
+		return;
+	}
 	if (selected_building_id != 0) {
 		// unloadAll: every selected structure empties.
 		for (uint32_t id : selected_structures()) {
@@ -307,7 +338,9 @@ void RtsoMain::_on_entity_command(const String &name) {
 	} else if (name == "occupy-turret") {
 		arm(turret_mode);
 	} else if (name == "unload-all-turrets") { // unloadAllTurrets, on every selected structure
-		const std::vector<uint32_t> structs = selected_structures();
+		std::vector<uint32_t> structs = selected_structures();
+		bool inspected_building = false;
+		if (const uint32_t f = ui_inspected_foreign(&inspected_building); f && inspected_building) structs.push_back(f);
 		for (const auto &b : sim->buildings()) {
 			if (b.turret_units.empty() || std::find(structs.begin(), structs.end(), b.id) == structs.end()) continue;
 			if (turn_cmds()) post_lockstep(13, nullptr, 0, 0, 0, b.id, 3);

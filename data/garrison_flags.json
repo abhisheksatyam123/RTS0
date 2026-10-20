@@ -2683,6 +2683,14 @@
    ],
    "flag": "persians"
   },
+  "s_plot_field_medit": {
+   "scale": 1.13974,
+   "ground": 0.057
+  },
+  "s_plot_field_temp": {
+   "scale": 1.13974,
+   "ground": 0.057
+  },
   "s_ptolemies_blacksmith": {
    "scale": 0.19798,
    "ground": 1.7676,
@@ -2794,6 +2802,10 @@
     -0.0352
    ],
    "flag": "ptol"
+  },
+  "s_rice_paddy": {
+   "scale": 2085.16202,
+   "ground": 104.2581
   },
   "s_romans_amphitheater_pompeii": {
    "scale": 0.07251,

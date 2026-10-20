@@ -547,7 +547,7 @@ private:
 		if (!spatial_) return;
 		constexpr float kHear2 = 40.0f * 40.0f;
 		constexpr int kMaxPerHalfSecond = 3;
-		if (t - work_window_start_ >= 0.5) {
+		if (t - work_window_start_ >= 0.5 || work_window_start_ > t) {
 			work_window_start_ = t;
 			work_in_window_ = 0;
 		}
