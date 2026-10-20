@@ -314,13 +314,11 @@ int main() {
 		sim.set_reveal_map(true);
 		sim.set_fow_viewer(3);
 		for (int i = 0; i < 10; ++i) sim.tick(Simulation::FIXED_STEP);
-		// Mainland is circular: everything inside the circle (m_LosStateRevealed), nothing off it.
+		// Mainland is circular: everything inside the circle's edge band (m_LosStateRevealed), nothing past it.
 		const int res = sim.fow_res();
-		const float cell = 2.0f * sim.map_half() / (float)res;
 		bool all0 = true, all3 = true;
 		for (int i = 0; i < res * res; ++i) {
-			const float cx = -sim.map_half() + ((float)(i % res) + 0.5f) * cell, cz = -sim.map_half() + ((float)(i / res) + 0.5f) * cell;
-			const uint8_t want = sim.off_world(cx, cz) ? Simulation::FOW_UNEXPLORED : Simulation::FOW_VISIBLE;
+			const uint8_t want = sim.los().off_world(i) ? Simulation::FOW_UNEXPLORED : Simulation::FOW_VISIBLE;
 			all0 &= sim.fow_grid(0)[i] == want;
 			all3 &= sim.fow_grid(3)[i] == want;
 		}

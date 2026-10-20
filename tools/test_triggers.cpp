@@ -890,7 +890,8 @@ static void check_gallic_fields() {
 		s.add_trigger_point('C', side * 40.0f, -30.0f, p);
 	}
 	CHECK(s.register_trigger_script("gallic_fields_3p"), "gallic_fields_3p not registered");
-	const uint16_t champion = civ_unit_template_by_id("rome/champion_infantry_swordsman");
+	const uint16_t champion = civ_unit_template_by_id("rome/champion_infantry_swordsman_02"); // gallic_fields_3p.js:4
+	CHECK(champion != CIV_UNIT_TEMPLATE_NONE, "no Marian Legionary row");
 	auto romans = [&](int *ordered) {
 		int n = 0;
 		if (ordered) *ordered = 0;
