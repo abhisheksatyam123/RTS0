@@ -3421,6 +3421,10 @@ static void test_hidden_targets() {
 	turns(0.4f);
 	check(!s.los_visible(0, -40.0f, 40.0f) && s.player_can_target_fauna(0, sheep),
 			"once explored, the sheep in the fog can still be targeted");
+	// gaia/fauna_*_trainable RetainInFog false: another player's corral sheep there is not.
+	const uint32_t penned = s.spawn_fauna(-40.0f, 41.0f, FAUNA_SHEEP_TRAINABLE, 1);
+	check(!s.player_can_target_fauna(0, penned) && s.player_can_target_fauna(1, penned),
+			"another player's livestock in the fog can't be targeted");
 }
 
 // Guard.js OnAttacked: a poison or burning tick on the guarded unit sends its guards after

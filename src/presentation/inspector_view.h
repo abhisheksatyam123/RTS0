@@ -287,6 +287,18 @@ public:
 		stats_->add_theme_color_override("font_color", Color(0.85f, 0.88f, 0.95f));
 		panel_->add_child(stats_);
 
+		// attackAndResistanceStats (97 0 129 32 in the row at 0 63): the defensive stance icon whose
+		// instant tooltip is displaySingle's detailed tooltip, hidden when that is empty.
+		attack_icon_ = memnew(TextureRect);
+		attack_icon_->set_name("attackAndResistanceStats");
+		attack_icon_->set_position(Vector2(4 + 97, 4 + 63));
+		attack_icon_->set_size(Vector2(32, 32));
+		attack_icon_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+		attack_icon_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/stances/defensive.png"));
+		attack_icon_->set_meta("tooltip_style", "session_instant");
+		attack_icon_->set_visible(false);
+		panel_->add_child(attack_icon_);
+
 		extra_ = memnew(Label);
 		extra_->set_position(Vector2(kW - 100.0f, 120));
 		extra_->set_size(Vector2(96, 16));
@@ -460,6 +472,7 @@ public:
 		d["capture_parts"] = capture_parts;
 		d["xp_tooltip"] = xp_bar_->get_tooltip_text();
 		d["stats_tooltip"] = stats_->get_tooltip_text();
+		d["attack_resistance"] = attack_icon_->is_visible() ? attack_icon_->get_tooltip_text() : godot::String();
 		d["extra"] = extra_->get_text();
 		d["resource"] = resource_bar_->is_visible() ? resource_name_->get_text() + " " + resource_stats_->get_text() : godot::String();
 		d["extra_tooltip"] = extra_->get_tooltip_text();
@@ -621,8 +634,8 @@ public:
 			const String attack = rtso::seldet::attack_tooltip(d,
 					godot::Dictionary(rtso::portraits::fauna_entry(fv.fauna_type[f]).get("viewer", godot::Dictionary())).get("attacks", godot::Array())),
 					resistance = rtso::seldet::resistance_tooltip(d.resistance);
-			stats_->set_text(rtso::seldet::join_lines({body_lines(attack), body_lines(resistance)}));
-			stats_->set_tooltip_text(rtso::seldet::join_lines({attack, resistance, rtso::seldet::speed_tooltip(d)}));
+			stats_->set_text(String());
+			set_detailed_tooltip(rtso::seldet::join_lines({attack, resistance, rtso::seldet::speed_tooltip(d)}));
 			// resourceSection: the meat it yields, "Food:" and 100 / 100 on the bar.
 			if (fv.food_amount[f] > 0)
 				show_resource_bar(rtso::RES_FOOD, fv.food_amount[f], std::max(fi.food_amount, fv.food_amount[f]), false);
@@ -686,7 +699,7 @@ public:
 			rtso::Simulation::BuildWork work;
 			if (sim->structure_build_work(*found, work)) show_build_work(work.repair, work.builders, work.remaining, work.remaining_new);
 			stats_->set_text(supply_lines(*sim, sim->field_resource_id(found->id)));
-			stats_->set_tooltip_text(structure_tooltip(*sim, *found));
+			set_detailed_tooltip(structure_tooltip(*sim, *found));
 			return true;
 		}
 		if (kind_ == INSPECT_TREASURE) {
@@ -697,10 +710,6 @@ public:
 				if (t.id == id_) { found = &t; break; }
 			if (!found) return false;
 			const auto &ti = rtso::treasure_type_info(found->type);
-			static const char *kRes[4] = {"Food", "Wood", "Stone", "Metal"};
-			String reward;
-			for (int k = 0; k < 4; ++k)
-				if (ti.amount[k] > 0) reward += (reward.is_empty() ? "" : ", ") + String::num_int64(ti.amount[k]) + " " + kRes[k];
 			portrait_->set_texture(rtso::portraits::treasure(found->type));
 			title_->set_text(String::utf8(ti.name));
 			set_portrait_target(false, 0, found->x, found->z, String(), -1, 0);
@@ -708,8 +717,7 @@ public:
 					rtso::seldet::reward_tooltip(ti.amount), false));
 			set_owner(*sim, rtso::GAIA_PLAYER);
 			bar(hp_bar_, hp_label_, false);
-			stats_->set_text("Reward: " + reward + "\nCollect time: " + String::num((double)ti.collect_time, 1) + " s");
-			extra_->set_text("Collect treasures for resources.");
+			stats_->set_text(String()); // the reward is on the portrait tooltip (getTreasureTooltip)
 			return true;
 		}
 		// A resource: its kind and what is left (selection_details.js resourceSupply), as the
@@ -836,9 +844,6 @@ public:
 			bar->set_value(value);
 			lbl->set_text(text);
 		};
-		auto armour_text = [](float hack, float pierce, float crush) {
-			return "Armor: " + String::num(hack, 0) + " hack, " + String::num(pierce, 0) + " pierce, " + String::num(crush, 0) + " crush";
-		};
 		// The stamina bar has no 0 A.D. counterpart.
 		show_bar(stamina_bar_, stamina_label_, false);
 		hide_resource_bar();
@@ -915,7 +920,7 @@ public:
 					stats_->set_size(kStatsSize);
 					stats_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
 				}
-				stats_->set_tooltip_text(structure_tooltip(*sim, *found_b));
+				set_detailed_tooltip(structure_tooltip(*sim, *found_b));
 
 				// Garrison panel; Unload All is the command row's icon (g_EntityCommands).
 				show_garrison_grid = fill_garrison_grid(*sim, found_b->id);
@@ -1067,10 +1072,16 @@ public:
 	}
 
 private:
+	void set_detailed_tooltip(const godot::String &text) {
+		attack_icon_->set_tooltip_text(text);
+		attack_icon_->set_visible(!text.is_empty());
+	}
+
 	void clear_tooltips() {
 		for (godot::Control *c : std::initializer_list<godot::Control *>{portrait_, title_, stats_, extra_, aura_label_, xp_bar_}) c->set_tooltip_text("");
 		rank_icon_->set_visible(false);
 		rank_icon_->set_tooltip_text("");
+		set_detailed_tooltip(String());
 		for (godot::ColorRect *r : capture_parts_) r->set_visible(false);
 		for (godot::TextureRect *icon : status_icons_) icon->set_visible(false);
 		set_portrait_target(false, 0, 0.0f, 0.0f, String(), -1, 0);
@@ -1325,18 +1336,7 @@ private:
 		const godot::Dictionary entry = rtso::portraits::structure_entry(b.civ, b.type);
 		portrait_->set_tooltip_text(portrait_tooltip(title_->get_text(), entry, rtso::seldet::structure_auras_tooltip(entry), String(), false));
 	}
-	// A "%(label)s\n%(details)s" tooltip's details, unindented, for the stats lines.
-	static String body_lines(const String &tip) {
-		const int nl = tip.find("\n");
-		if (nl < 0) return tip;
-		String out;
-		for (const String &line : tip.substr(nl + 1).split("\n")) {
-			if (line.begins_with("    ")) continue; // an attack's status and splash lines stay in the tooltip
-			out += String(out.is_empty() ? "" : "\n") + line.strip_edges();
-		}
-		return out;
-	}
-	// displaySingle for a unit: the attack and resistance lines, the detailed tooltip
+	// displaySingle for a unit: the stance icon's detailed tooltip
 	// (getAttackTooltip, getHealerTooltip, getResistanceTooltip, getGatherTooltip,
 	// getSpeedTooltip, getGarrisonTooltip, getPopulationBonusTooltip, getLootTooltip) and the portrait's (name, then getAurasTooltip).
 	void fill_unit_details(const rtso::Simulation &sim, size_t u, const String &name) {
@@ -1356,7 +1356,7 @@ private:
 		}
 		const String attack = attack_tooltip(d, viewer.get("attacks", godot::Array()), elevated), resistance = resistance_tooltip(d.resistance,
 				rtso::unit_is_ship(uv0.unit_type[u]) || sim.unit_combat_at(u).classes.has(rtso::CC_SIEGE));
-		stats_->set_text(join_lines({body_lines(attack), body_lines(resistance)}));
+		stats_->set_text(String());
 		auto uv = sim.units();
 		Amounts loot;
 		loot.res[rtso::RES_FOOD] = d.loot.food;
@@ -1376,7 +1376,7 @@ private:
 		// GarrisonArrowMultiplier 1, MaxArrowCount 10): min(max, default + per unit x capacity).
 		const String projectiles = sim.is_siege_tower_at(u)
 				? projectiles_tooltip(std::min(rtso::SIEGE_TOWER_MAX_ARROWS, sim.get_transport_capacity(uv.id[u])), 0, 1.0f) : String();
-		stats_->set_tooltip_text(join_lines({attack, healer_tooltip(d), resistance, gather_tooltip(d), speed_tooltip(d),
+		set_detailed_tooltip(join_lines({attack, healer_tooltip(d), resistance, gather_tooltip(d), speed_tooltip(d),
 				garrison, population_bonus_tooltip(pop_bonus), projectiles, loot_tooltip(loot)}));
 		const String auras = rtso::seldet::unit_auras_tooltip(uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE);
 		portrait_->set_tooltip_text(join_lines({name, auras}));
@@ -1510,6 +1510,7 @@ private:
 	godot::ProgressBar *aura_bar_ = nullptr;
 	godot::Label *aura_label_ = nullptr;
 	godot::Label *stats_ = nullptr;
+	godot::TextureRect *attack_icon_ = nullptr; // attackAndResistanceStats
 	godot::Label *extra_ = nullptr;
 	godot::Button *ungarrison_btn_ = nullptr;
 	rtso::FogMirages mirages_; // the viewer's structures: live in sight, mirages in the fog

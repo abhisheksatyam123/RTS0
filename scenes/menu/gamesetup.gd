@@ -2224,7 +2224,7 @@ func _apply_settings(ms: Dictionary) -> void:
 func _on_back_pressed() -> void:
 	if _mp_role != "none":
 		save_persisted() # GameSettingsController.onClose (the host's)
-		# 0 A.D. gamesetup's Back in a networked game: leave it for the lobby.
+		# 0 A.D. gamesetup's Back in a networked game: to the lobby while signed in, else the main menu.
 		net_main.leave_net_game()
 		return
 	save_persisted() # GameSettingsController.onClose
