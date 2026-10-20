@@ -165,6 +165,21 @@ void RtsoMain::update_cursor() {
 					if (!uv.alive[i] || !near2(uv.pos_x[i], uv.pos_z[i], 2.2f)) continue;
 					// PickEntityAtPoint picks only what the player sees: no unit in the fog.
 					if (!rtso::los_sees_unit(*sim, me, uv.pos_x[i], uv.pos_z[i], uv.team[i])) continue;
+					// "returnresource" on a supply wagon or worker elephant the carrier may drop at.
+					if (rtso::unit_is_mobile_dropsite(uv.unit_type[i])) {
+						for (int s = 0; s < selected_ids.size() && !*want; ++s) {
+							const uint32_t cid = (uint32_t)(int64_t)selected_ids[s];
+							if (!sim->can_return_resource(cid, uv.id[i])) continue;
+							for (size_t c = 0; c < uv.count; ++c)
+								if (uv.id[c] == cid) {
+									const uint8_t rt = uv.res_type_carried[c];
+									want = rt == rtso::RES_FOOD ? "action-return-food" : rt == rtso::RES_WOOD ? "action-return-wood"
+											: rt == rtso::RES_STONE ? "action-return-stone" : "action-return-metal";
+									break;
+								}
+						}
+						if (*want) break;
+					}
 					if (sim->is_hostile(me, uv.team[i])) want = "action-attack";
 					// unit_actions "repair": a builder over a damaged own or allied siege engine or ship.
 					else if (builder && uv.hp[i] < uv.max_hp[i] && (uv.team[i] == me || sim->is_ally(me, uv.team[i])) &&
@@ -230,13 +245,20 @@ void RtsoMain::update_cursor() {
 									: sub == rtso::RES_SUB_FISH ? "action-gather-fish" : "action-gather-fruit";
 					}
 				};
+				// unit_actions "gather" needs a selected unit that can gather the supply (else "move").
+				std::vector<uint32_t> sel;
+				for (int s2 = 0; s2 < selected_ids.size(); ++s2) sel.push_back((uint32_t)(int64_t)selected_ids[s2]);
+				const auto gatherable = [&](uint32_t id) {
+					return !sim->is_resource_id(id) || sim->any_can_gather(sel.data(), sel.size(), id); // a gone one: its mirage
+				};
 				if (view) {
 					for (const auto &r : view->resource_mirages())
-						if (r.amount > 0 && near2(r.x, r.z, 2.2f)) { want = gather_cursor(r.type, r.subtype); break; }
+						if (r.amount > 0 && near2(r.x, r.z, 2.2f) && gatherable(r.id)) { want = gather_cursor(r.type, r.subtype); break; }
 				} else {
 					auto rv = sim->resources();
 					for (size_t r = 0; r < rv.count && !*want; ++r)
-						if (rv.alive[r] && rv.amount[r] > 0 && near2(rv.x[r], rv.z[r], 2.2f)) want = gather_cursor(rv.type[r], rv.subtype[r]);
+						if (rv.alive[r] && rv.amount[r] > 0 && near2(rv.x[r], rv.z[r], 2.2f) && gatherable(rv.id[r]))
+							want = gather_cursor(rv.type[r], rv.subtype[r]);
 				}
 			}
 			if (!*want) {

@@ -821,7 +821,8 @@ int Simulation::pop_cap(uint8_t player) const {
 		    (team_cap == 0 || (player < MAX_PLAYERS && players_[p].team == team)))
 			++live;
 	if (team_cap > 0) return std::max(1, (int)std::lround((double)team_cap / std::max(1, live)));
-	return std::max(1, -pop_cap_ / std::max(1, live));
+	return std::max(1, (int)std::lround((double)-pop_cap_ / std::max(1, live))); // Math.round
+
 }
 
 void Simulation::set_pop_cap_setting(int setting) {
@@ -5742,13 +5743,18 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 	if (!queued && force && !formations_.empty()) now = formation_take_task(now, FTASK_GATHER, resource_id);
 	const uint32_t *unit_ids = now.data();
 	const size_t count = now.size();
+	std::vector<uint32_t> walkers;
 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
 		// ResourceGatherer.CanGather: the unit's class has a Rates entry for this supply
 		// (fishing ships only fish, citizen cavalry only meat, champions and heroes nothing).
-		if (!can_gather(uidx, ridx)) continue;
+		// A player's order walks the others there (PerformGather: WalkToTarget, UnitAI.js:5646).
+		if (!can_gather(uidx, ridx)) {
+			if (force) walkers.push_back(unit_ids[i]);
+			continue;
+		}
 
 		units_.target_x[uidx] = rx;
 		units_.target_z[uidx] = rz;
@@ -5761,6 +5767,7 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 		units_.target_building_id[uidx] = 0;
 		set_order(uidx, ORDER_GATHER, flags, resource_id, rx, rz);
 	}
+	if (!walkers.empty()) order_walk(walkers.data(), walkers.size(), rx, rz);
 }
 
 // A gather order on a supply the player remembers but which is gone (the click picked its
@@ -5783,8 +5790,7 @@ void Simulation::order_gather_near(const uint32_t *unit_ids_in, size_t count_in,
 			order_gather(&uid, 1, r);
 			continue;
 		}
-		if (unit_gather_class(units_.unit_type[i], units_.tmpl[i]) == GATHER_NONE) continue; // CanGather: no Rates
-		order_walk(&uid, 1, x, z);
+		order_walk(&uid, 1, x, z); // none near, or not one it can gather: WalkToTarget
 	}
 }
 
@@ -17095,6 +17101,7 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 		case ORDER_HEAL: return can_heal(i, lookup_unit(o.target));
 		case ORDER_TRADE: return trade_route_ok(i, o.target, trade_market_id(o.x2));
 		case ORDER_RETURN_RESOURCE: {
+			if (lookup_unit(o.target) >= 0) return can_return_resource(units_.id[i], o.target);
 			const Building *b = building(o.target);
 			return b && units_.carry[i] > 0 && dropsite_accepts(i, *b);
 		}
@@ -17193,15 +17200,6 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 				return;
 			}
 		}
-		// GATHER FINDINGNEWTARGET: nothing left to gather nearby; drop off what it carries.
-		if (units_.carry[i] > 0) {
-			set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
-			units_.target_resource_id[i] = 0;
-			units_.action_state[i] = ACTION_RETURN_DROPSITE;
-			units_.target_x[i] = units_.pos_x[i]; // no pick yet: tick_gather takes the nearest
-			units_.target_z[i] = units_.pos_z[i];
-			return;
-		}
 		// UnitAI.js FINDINGNEWTARGET: nothing near the unit or where it started, but it
 		// stands far from where it started (initPos, the order's target position when it
 		// was issued): walk back there and search again on arrival (GatherNearPosition,
@@ -17221,6 +17219,16 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 				units_.target_resource_id[i] = 0;
 				return;
 			}
+		}
+		// GATHER FINDINGNEWTARGET: nothing left to gather nearby nor where it was sent;
+		// drop off what it carries (ReturnResource comes after GatherNearPosition, UnitAI.js:2591-2690).
+		if (units_.carry[i] > 0) {
+			set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
+			units_.target_resource_id[i] = 0;
+			units_.action_state[i] = ACTION_RETURN_DROPSITE;
+			units_.target_x[i] = units_.pos_x[i]; // no pick yet: tick_gather takes the nearest
+			units_.target_z[i] = units_.pos_z[i];
+			return;
 		}
 		// Empty-handed: head to the dropsite anyway, "a nice enough place to congregate and idle".
 		if (const uint32_t d = nearest_dropsite(i); d != 0) {
@@ -18580,21 +18588,54 @@ bool Simulation::mobile_dropsite_usable_by(uint8_t player, size_t e) const {
 		players_[player].has_tech(TECH_UNLOCK_SHARED_DROPSITES) && is_ally(player, owner);
 }
 
-// set-dropsite-sharing (Commands.js): the owner of a dropsite turns sharing on or off; the
-// toggle exists once the owner has shared dropsites.
+// set-dropsite-sharing (Commands.js:853-860): the owner of a dropsite turns sharing on or off,
+// with no technology needed (Diaspora gates the ally that uses it).
 bool Simulation::cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end() || player >= MAX_PLAYERS) return false;
 	Building &b = buildings_[bit->second];
-	if (b.team != player || b.wrecked || !players_[player].has_tech(TECH_UNLOCK_SHARED_DROPSITES)) return false;
+	if (b.team != player || b.wrecked) return false;
 	if (!is_dropsite_type(b.type)) return false;
 	if (b.dropsite_shared == shared) return false;
 	b.dropsite_shared = shared;
 	return true;
 }
 
+// returnresource on a unit with ResourceDropsite (template_unit_support_wagon, _elephant; G/
+// unit_actions.js:561-583): the carriers walk to it, following it as it moves, and drop the load
+// within reach (tick_gather's return, which keeps the pick while the dropsite takes the load).
+void Simulation::order_return_to_unit(const uint32_t *unit_ids_in, size_t count_in, uint32_t dropsite_id, bool queued, bool force) {
+	const int32_t e = lookup_unit(dropsite_id);
+	if (e < 0 || !units_.alive[e] || !unit_is_mobile_dropsite(units_.unit_type[e])) return;
+	std::vector<uint32_t> carriers;
+	for (size_t k = 0; k < count_in; ++k) {
+		const int32_t i = lookup_unit(unit_ids_in[k]);
+		if (i < 0 || !units_.alive[i] || i == e) continue;
+		if (queued || can_return_resource(unit_ids_in[k], dropsite_id)) carriers.push_back(unit_ids_in[k]);
+		else if (force) { const uint32_t id = unit_ids_in[k]; order_walk(&id, 1, units_.pos_x[e], units_.pos_z[e]); }
+	}
+	UnitOrder o; o.kind = ORDER_RETURN_RESOURCE; o.flags = force ? ORDER_FLAG_FORCE : 0; o.target = dropsite_id;
+	o.x = units_.pos_x[e]; o.z = units_.pos_z[e];
+	for (uint32_t uid : split_queued(carriers.data(), carriers.size(), o, queued)) {
+		const int32_t i = lookup_unit(uid);
+		if (i < 0 || !can_return_resource(uid, dropsite_id)) continue;
+		set_order((size_t)i, ORDER_RETURN_RESOURCE, o.flags, dropsite_id, o.x, o.z);
+		units_.action_state[i] = ACTION_RETURN_DROPSITE;
+		units_.target_x[i] = o.x; // the pick tick_gather keeps
+		units_.target_z[i] = o.z;
+		units_.target_resource_id[i] = 0;
+		units_.target_unit_id[i] = 0;
+		units_.target_building_id[i] = 0;
+		units_.has_order[i] = 1;
+	}
+}
+
 bool Simulation::can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const {
 	const int32_t i = lookup_unit(unit_id);
+	if (const int32_t e = lookup_unit(dropsite_id); e >= 0) // a supply wagon or worker elephant
+		return i >= 0 && i != e && units_.alive[i] && units_.alive[e] && units_.carry[i] > 0 &&
+				units_.unit_type[i] != UNIT_FISHING_BOAT && unit_is_mobile_dropsite(units_.unit_type[e]) &&
+				mobile_dropsite_usable_by(units_.team[i], (size_t)e);
 	auto bit = building_id_to_idx_.find(dropsite_id);
 	return i >= 0 && units_.alive[i] && units_.carry[i] > 0 && bit != building_id_to_idx_.end() &&
 			dropsite_accepts((size_t)i, buildings_[bit->second]);
@@ -18602,14 +18643,23 @@ bool Simulation::can_return_resource(uint32_t unit_id, uint32_t dropsite_id) con
 
 void Simulation::order_return_resource(const uint32_t *unit_ids_in, size_t count_in, uint32_t dropsite_id, bool queued, bool force) {
 	auto bit = building_id_to_idx_.find(dropsite_id);
-	if (bit == building_id_to_idx_.end()) return;
+	if (bit == building_id_to_idx_.end()) return order_return_to_unit(unit_ids_in, count_in, dropsite_id, queued, force);
 	const Building &b = buildings_[bit->second];
-	std::vector<uint32_t> carriers;
+	std::vector<uint32_t> carriers, walkers;
 	for (size_t k = 0; k < count_in; ++k) {
 		const int32_t i = lookup_unit(unit_ids_in[k]);
 		// Queued: the load may only be picked up by an earlier order.
 		if (i >= 0 && units_.alive[i] && (queued || (units_.carry[i] > 0 && dropsite_accepts((size_t)i, b))))
 			carriers.push_back(unit_ids_in[k]);
+		else if (i >= 0 && units_.alive[i] && force)
+			walkers.push_back(unit_ids_in[k]);
+	}
+	// UnitAI ReturnResource with nothing the dropsite takes: WalkToTarget (UnitAI.js:5741-5747).
+	for (uint32_t uid : walkers) {
+		const int32_t i = lookup_unit(uid);
+		float sx, sz;
+		stand_outside(b, uid, units_.pos_x[i], units_.pos_z[i], &sx, &sz, unit_clearance_at((size_t)i) + kStandMargin);
+		order_walk(&uid, 1, sx, sz);
 	}
 	UnitOrder o; o.kind = ORDER_RETURN_RESOURCE; o.flags = force ? ORDER_FLAG_FORCE : 0; o.target = dropsite_id; o.x = b.x; o.z = b.z;
 	const std::vector<uint32_t> now = split_queued(carriers.data(), carriers.size(), o, queued);
@@ -34833,7 +34883,13 @@ void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, 
 	for (size_t k = 0; k < count; ++k) {
 		int32_t u = lookup_unit(unit_ids[k]);
 		if (u < 0 || !units_.alive[u] || units_.team[u] >= MAX_PLAYERS) continue;
-		if (treasure_reach((size_t)u) < 0.0f || units_.action_state[u] == ACTION_GARRISONED) continue;
+		if (units_.action_state[u] == ACTION_GARRISONED) continue;
+		if (treasure_reach((size_t)u) < 0.0f) {
+			// Order.CollectTreasure approaches for any unit that moves (UnitAI.js:673-682); one with no
+			// TreasureCollector just ends up there.
+			if (!queued) { const uint32_t id = unit_ids[k]; order_walk(&id, 1, t->x, t->z); }
+			continue;
+		}
 		collectors.push_back(unit_ids[k]);
 	}
 	UnitOrder o; o.kind = ORDER_COLLECT_TREASURE; o.flags = ORDER_FLAG_FORCE; o.target = treasure_id; o.x = t->x; o.z = t->z;

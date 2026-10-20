@@ -762,9 +762,10 @@ public:
 				if (found_b->type == rtso::BLD_MARKET && found_b->build_progress >= 1.0f)
 					add_entity_command("select-trading-goods", "Barter & Trade", "session.gui.barter.toggle",
 							"Barter & Trade\nOpen the dialog for managing resource trading and bartering.", "economics.png");
-				// share-dropsite: shown once the owner has Diaspora (ResourceDropsite sharable).
+				// share-dropsite (unit_actions.js:1830-1855): a sharable dropsite whose owner has a mutual
+				// ally. Diaspora gates the ally using it, not the owner.
 				if (rtso::Simulation::is_dropsite_type(found_b->type) && found_b->build_progress >= 1.0f &&
-						sim->player(local_player()).has_tech(rtso::TECH_UNLOCK_SHARED_DROPSITES))
+						sim->has_mutual_ally(local_player()))
 					add_entity_command("share-dropsite", found_b->dropsite_shared ? "Lock Dropsite" : "Share Dropsite", "",
 							found_b->dropsite_shared ? "Lock Dropsite\nPrevent allies from using this dropsite, now shared."
 													 : "Share Dropsite\nAllow allies to use this dropsite, now locked.",

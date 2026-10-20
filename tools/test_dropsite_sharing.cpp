@@ -50,8 +50,10 @@ int main() {
 	const uint32_t market = s.spawn_building_world(-40.0f, 16.0f, BLD_MARKET, 0, 1.0f);
 	CHECK(s.research_check(0, TECH_UNLOCK_SHARED_DROPSITES, cc) == Simulation::TECH_ERR_BUILDING);
 	CHECK(s.research_check(0, TECH_UNLOCK_SHARED_DROPSITES, market) == Simulation::TECH_OK);
-	// Only the owner of shared dropsites gets the toggle.
-	CHECK(!s.cmd_set_dropsite_sharing(1, ally_store, false));
+	// The owner toggles sharing with no technology (Commands.js set-dropsite-sharing); Diaspora
+	// gates the ally using it.
+	CHECK(s.cmd_set_dropsite_sharing(1, ally_store, false) && s.cmd_set_dropsite_sharing(1, ally_store, true));
+	CHECK(!s.cmd_set_dropsite_sharing(0, ally_store, false)); // not hers
 
 	// 2. With Diaspora: the ally's storehouse takes her wood, the enemy's doesn't.
 	CHECK(s.cmd_research(0, market, TECH_UNLOCK_SHARED_DROPSITES));
@@ -247,6 +249,28 @@ int main() {
 		std::printf("  sticky mobile dropsite: she follows the wagon to z %.1f and drops %d wood there\n",
 				r.units_.pos_z[q], r.player_resource(0, RES_WOOD) - wood1);
 		CHECK(followed && r.player_resource(0, RES_WOOD) == wood1 + 10 && r.units_.pos_z[q] > 45.0f);
+	}
+
+	// 10. returnresource on a mobile dropsite (G/unit_actions.js:561-583): a worker carrying wood
+	// ordered to the worker elephant unloads there, though a civic centre is nearer.
+	{
+		static Simulation r;
+		r.set_sim_seed(5);
+		r.reset();
+		r.set_player_active(0, true, false);
+		r.spawn_building_world(-8.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t ele = r.spawn_unit(25.0f, 0.0f, 0, UNIT_WORKER_ELEPHANT);
+		const uint32_t w = r.spawn_unit(6.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		const int32_t k = r.lookup_unit(w);
+		r.units_.res_type_carried[k] = RES_WOOD;
+		r.units_.carry[k] = 10;
+		CHECK(r.can_return_resource(w, ele));
+		const int wood0 = r.player_resource(0, RES_WOOD);
+		r.order_return_resource(&w, 1, ele);
+		for (int t = 0; t < 400 && r.units_.carry[k] > 0; ++t) r.tick(Simulation::FIXED_STEP);
+		std::printf("  ordered to the worker elephant: +%d wood, unloaded at x %.1f\n",
+				r.player_resource(0, RES_WOOD) - wood0, r.units_.pos_x[k]);
+		CHECK(r.player_resource(0, RES_WOOD) == wood0 + 10 && r.units_.pos_x[k] > 15.0f);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

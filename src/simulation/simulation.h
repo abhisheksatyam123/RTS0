@@ -1009,6 +1009,7 @@ public:
 	// dropsite, drop it, then take the next queued order or idle.
 	// force: a player's or Petra's ReturnResource; UnitAI's own drop-offs (PushOrderFront) are unforced.
 	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false, bool force = true);
+	void order_return_to_unit(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued, bool force);
 	bool dropsite_accepts(size_t unit_idx, const Building &b) const; // carried type, owner, finished
 	bool can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const;
 	// ResourceGatherer CanReturnResource's owner test: `player`'s own dropsite, or a shared one of a
@@ -1960,6 +1961,13 @@ public:
 		return diplomacy_[a][b] == DIPLO_ALLY && diplomacy_[b][a] == DIPLO_ALLY;
 	}
 	bool is_mutual_ally(uint8_t player_id) const { return player_id != 0 && is_ally(0, player_id); }
+	// Some other active player is a mutual ally of `player` (unit_actions "share-dropsite").
+	bool has_mutual_ally(uint8_t player) const {
+		if (player >= MAX_PLAYERS) return false;
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+			if (p != player && players_[p].active && is_ally(player, p) && is_ally(p, player)) return true;
+		return false;
+	}
 	// Hostile: whom a may shoot at. a's own stance decides, so a one-sided
 	// alliance leaves a holding fire while b keeps attacking (0 A.D. parity).
 	// Teammates are never hostile whatever the stances say.
@@ -2218,6 +2226,7 @@ public:
 		auto it = field_res_by_bld_.find(building_id);
 		return it != field_res_by_bld_.end() && res_id_to_idx_.count(it->second) ? it->second : 0;
 	}
+	bool is_resource_id(uint32_t id) const { return res_id_to_idx_.count(id) != 0; }
 	// Whether any of these units can gather this supply (unit_actions "gather" getActionInfo).
 	bool any_can_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id) const {
 		auto rit = res_id_to_idx_.find(resource_id);

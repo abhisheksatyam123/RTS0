@@ -981,6 +981,31 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// A loaded ship right-clicked on land just moves (unit_actions.js has no unload-on-click
 			// action): passengers leave through Unload All, the garrison icons or session.unload.
 
+			// 0. returnresource (specificness 2) on a supply wagon or worker elephant the carriers
+			// may drop at (ResourceDropsite on template_unit_support_wagon / _elephant).
+			{
+				uint32_t drop_id = 0;
+				float best = 2.2f * 2.2f;
+				for (size_t i = 0; i < uview.count; ++i) {
+					if (!uview.alive[i] || !rtso::unit_is_mobile_dropsite(uview.unit_type[i])) continue;
+					const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
+					if (dx * dx + dz * dz >= best) continue;
+					bool carriers = false;
+					for (size_t k = 0; k < sel_n && !carriers; ++k) carriers = sim->can_return_resource(sel_ptr[k], uview.id[i]);
+					if (!carriers) continue;
+					best = dx * dx + dz * dz;
+					drop_id = uview.id[i];
+				}
+				if (drop_id != 0) {
+					if (turn_cmds())
+						post_lockstep(34, sel_ptr, sel_n, 0, 0, drop_id, qbit);
+					else
+						sim->order_return_resource(sel_ptr, sel_n, drop_id, queue_shift);
+					play_civ_voice("gather");
+					return;
+				}
+			}
+
 			// 1. Right click on an own or allied ship, ram or siege tower (board it).
 			// unit_actions.js "garrison" takes any GarrisonHolder: warships, rams and siege towers.
 			// Its specificness 20 loses to "repair" (11) unless session.garrison forces it.
@@ -1195,6 +1220,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				play_civ_voice("gather");
 				return;
 			}
+			// unit_actions "gather" needs a unit that can gather it; else the click falls through (move).
+			if (clicked_res_id != 0 && !sim->any_can_gather(sel_ptr, sel_n, clicked_res_id)) clicked_res_id = 0;
 			if (clicked_res_id != 0) {
 				if (turn_cmds())
 					post_lockstep(4, sel_ptr, sel_n, 0, 0, clicked_res_id, qbit);
@@ -1254,8 +1281,17 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					} else if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) {
 						break; // neutral: walk there
 					} else if (b.team != local_player()) {
-						// An ally's structure: repair it, else garrison (Garrisonable / IsOwnedByMutualAllyOfEntity).
-						if (b.build_progress < 1.0f || b.hp < b.max_hp) {
+						// An ally's structure: return a load to its shared dropsite (returnresource, specificness
+						// 2, with Diaspora), else repair it, else garrison (Garrisonable / IsOwnedByMutualAllyOfEntity).
+						bool carriers = false;
+						for (size_t k = 0; k < sel_n && !carriers; ++k) carriers = sim->can_return_resource(sel_ptr[k], b.id);
+						if (carriers) {
+							if (turn_cmds())
+								post_lockstep(34, sel_ptr, sel_n, 0, 0, b.id, qbit);
+							else
+								sim->order_return_resource(sel_ptr, sel_n, b.id, queue_shift);
+							play_civ_voice("gather");
+						} else if (b.build_progress < 1.0f || b.hp < b.max_hp) {
 							if (turn_cmds())
 								post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
