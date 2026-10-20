@@ -471,6 +471,9 @@ func _build_lookup() -> AcceptDialog:
 	box.add_child(row)
 	_lookup_input = _line("", 180)
 	_lookup_input.text_submitted.connect(func(_t: String) -> void: _on_lookup_view())
+	# ProfilePage.js fetchInput: Tab completes from the online players and the board.
+	_lookup_input.tooltip_text = AUTOCOMPLETE_TIP
+	_lookup_input.gui_input.connect(_on_name_input.bind(_lookup_input, true))
 	row.add_child(_lookup_input)
 	row.add_child(_button("View Profile", _on_lookup_view))
 	_lookup_error = _label("")
@@ -1558,16 +1561,28 @@ func _online_names() -> Array:
 			names.append(str(it.get_metadata(0)))
 	return names
 
-## autoCompleteText: Tab in the search field or the chat line completes the
-## name before the caret.
-func _on_name_input(ev: InputEvent, line: LineEdit) -> void:
+## ProfilePage.autocomplete: the online players, then the board's names that
+## are not among them (the board list is lower case).
+func _profile_names() -> Array:
+	var names := _online_names()
+	var lower := names.map(func(n) -> String: return str(n).to_lower())
+	if _board and _board.get_root():
+		for it in _board.get_root().get_children():
+			var n := str(it.get_metadata(0))
+			if n != "" and not lower.has(n.to_lower()):
+				names.append(n)
+	return names
+
+## autoCompleteText: Tab in the search field, the chat line or the profile
+## lookup completes the name before the caret.
+func _on_name_input(ev: InputEvent, line: LineEdit, with_board := false) -> void:
 	var k := ev as InputEventKey
 	if k == null or not k.pressed or k.keycode != KEY_TAB:
 		return
 	line.accept_event()
 	var caret := line.caret_column
 	var before := line.text.substr(0, caret)
-	var done := autocomplete(before, _online_names())
+	var done := autocomplete(before, _profile_names() if with_board else _online_names())
 	line.text = done + line.text.substr(caret)
 	line.caret_column = caret + done.length() - before.length()
 
