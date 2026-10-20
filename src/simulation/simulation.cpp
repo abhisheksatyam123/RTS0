@@ -28392,7 +28392,9 @@ void Simulation::petra_clear_no_room(uint8_t type) {
 // ("nobuilder"), so no foundation is paid for once the citizens are gone.
 bool Simulation::petra_has_builder() const {
 	for (size_t i = 0; i < units_.count; ++i)
-		if (units_.alive[i] && units_.team[i] == petra_pid_ && unit_can_build(units_.unit_type[i], units_.tmpl[i])) return true;
+		if ((units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) && units_.hp[i] > 0.0f && units_.team[i] == petra_pid_ &&
+		    unit_can_build(units_.unit_type[i], units_.tmpl[i]))
+			return true; // garrisoned or aboard a ship included (builderCounters counts every entity)
 	return false;
 }
 
