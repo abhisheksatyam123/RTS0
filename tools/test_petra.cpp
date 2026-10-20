@@ -185,7 +185,7 @@ static void test_roster_army() {
 		// (MinRange) would hold both attack slots for the rest of the match (attackManager.js),
 		// so its hero and champions never march.
 		s->complete_research(0, TECH_TOWER_MURDERHOLES);
-		bool hero = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
+		bool hero = false, hero_planned = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		bool advanced = false, arsenal = false;
 		// 55 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
 		// the city phase around minute 15, as in 0 A.D., and its city army takes a while longer.
@@ -218,6 +218,15 @@ static void test_roster_army() {
 					if (b.type == BLD_GYMNASIUM || b.type == BLD_THEATER) advanced = true;
 					if (b.type == BLD_ARSENAL) arsenal = true;
 				}
+			// attackPlan.js unitStat Hero (priority 1, so it trains last): a city HugeAttack
+			// mustering with a hero it can train counts, since whether its turn comes before the
+			// plan sets out hangs on how its champions are funded.
+			if (!hero && s->petra_phase() >= 3 && s->petra_attack_plan_.state == Simulation::AttackPlan::MUSTER &&
+			    s->petra_attack_mgr_.kind == PETRA_ATTACK_HUGE) {
+				s->petra_pid_ = 1;
+				for (const auto &st : s->petra_plan_unit_stats(PETRA_ATTACK_HUGE, s->petra_attack_mgr_.dropped_classes))
+					if ((st.classes & TC_HERO).any() && s->petra_unit_stat_trainable(st)) hero_planned = true;
+			}
 			const auto u = s->units();
 			for (size_t i = 0; i < u.count; ++i) {
 				if (!u.alive[i] || u.team[i] != 1 || u.tmpl[i] >= CIV_UNIT_TEMPLATE_COUNT) continue;
@@ -232,12 +241,12 @@ static void test_roster_army() {
 			}
 		}
 		std::printf("  %s by 55 min: phase %d, hero %s, champions %s, siege %s, siege tower %s, siege moves packed %s, fires unpacked %s, arsenal %s, %s %s\n",
-		            civ_info((Civilization)civ).name, s->petra_phase(), hero ? "yes" : "no", champion ? "yes" : "no",
+		            civ_info((Civilization)civ).name, s->petra_phase(), hero ? "yes" : hero_planned ? "planned" : "no", champion ? "yes" : "no",
 		            siege ? "yes" : "no", tower ? "yes" : "no",
 		            packed_moved ? "yes" : "no", unpacked_fired ? "yes" : "no", arsenal ? "yes" : "no",
 		            civ == CIV_ATHENIANS ? "gymnasium" : "theater", advanced ? "yes" : "no");
 		CHECK(advanced, "builds the civ's advanced structure (config.js buildings)");
-		CHECK(hero, "trains a hero in the city phase");
+		CHECK(hero || hero_planned, "trains a hero in the city phase, or its HugeAttack can train one");
 		CHECK(champion, "trains roster champions in the city phase");
 		CHECK(siege, "trains siege engines");
 		// HQ.findBestTrainableUnit leaves siege towers out: Petra does not know how to use them.

@@ -3934,6 +3934,20 @@
     "tex": "decal_struct_mud_long"
    }
   ],
+  "s_carthaginians_temple_big": [
+   {
+    "angle": 90.0,
+    "pos": [
+     0.0229,
+     -0.0303
+    ],
+    "size": [
+     4.5056,
+     2.4261
+    ],
+    "tex": "decal_struct_sand_long"
+   }
+  ],
   "s_carthaginians_wooden_tower": [
    {
     "angle": 0.0,
@@ -4996,6 +5010,20 @@
      4.7921
     ],
     "tex": "spart_blacksmith_decal"
+   }
+  ],
+  "s_spartans_civic_center": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0007,
+     -0.0125
+    ],
+    "size": [
+     6.6377,
+     6.6377
+    ],
+    "tex": "decal_struct_paving_aegean_large"
    }
   ],
   "s_spartans_gerousia": [

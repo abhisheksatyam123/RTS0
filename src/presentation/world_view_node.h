@@ -412,6 +412,7 @@ class RtsoWorldView : public Node3D {
 		// The model's id and the ModelLibrary entry values a frame's unit loop reads.
 		String model_id;
 		float y_offset = 0.0f, scale = 1.0f, height = 0.0f;
+		float sil_radius = 0.0f; // world units from the unit's origin to its model's farthest corner
 		bool player_color = false; // has 0 A.D. player_trans surfaces (owner colour in custom data)
 	};
 	// Crowd keys: a unit type, UNIT_TYPE_COUNT + type for a siege engine
@@ -489,7 +490,9 @@ class RtsoWorldView : public Node3D {
 	uint32_t silhouette_gen_ = 0xFFFFFFFFu;
 	bool cinema_playing_ = false; // Simulation::cinema_playing() at the last sync
 	void refresh_silhouettes();
-	void set_silhouette(Node *model, const Color &c);
+	// The overlay and owner's colour on every mesh under `n`; `radius` (world units about
+	// the model's origin `root`) keeps the model's own parts from outlining it.
+	void set_silhouette(Node *n, const Color &c, float radius, const Node3D *root);
 
 	// 3D Positional Combat Acoustics
 	static constexpr size_t SPATIAL_AUDIO_POOL_SIZE = 32;
