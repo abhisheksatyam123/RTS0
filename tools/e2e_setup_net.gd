@@ -221,7 +221,7 @@ func run() -> void:
 		and page.get_node("%RatedGame").button_pressed
 		and page.get_node("%RatedGame").disabled, "the host's Rated Game shows, locked")
 	check(not page.get_node("%SpinSeed").editable
-		and page.get_node("%MapList").mouse_filter == Control.MOUSE_FILTER_IGNORE
+		and page.get_node("%MapList").disabled
 		and page.get_node("%Waves").disabled, "the host's settings are locked")
 	check(page._tab == -1 and not page.get_node("%MapTab").visible, "a client starts with no settings tab open (GameSettingTabs.onLoad)")
 	check(picker(page, 0, 2).disabled and picker(page, 0, 3).disabled and picker(page, 1, 1).disabled and picker(page, 1, 4).disabled,
@@ -318,7 +318,7 @@ func run() -> void:
 	check(page.get_node("VBox/HBox/Right/SavedGameLabel").visible
 		and page.get_node("VBox/HBox/Right/SavedGameLabel").tooltip_text == "The controller loaded a saved game.",
 		"the host's page says Saved game")
-	check(not page.get_node("%SpinSeed").editable and page.get_node("%MapList").mouse_filter == Control.MOUSE_FILTER_IGNORE
+	check(not page.get_node("%SpinSeed").editable and page.get_node("%MapList").disabled
 		and page.get_node("%Waves").disabled and picker(page, 0, 2).disabled and picker(page, 2, 3).disabled
 		and picker(page, 1, 1).disabled and picker(page, 2, 5).disabled, "every setting of the save is locked")
 	check(not cells(page)[0].get_node("AssignSelect").disabled and not cells(page)[12].get_node("AssignSelect").disabled

@@ -169,6 +169,10 @@ func run() -> void:
 		check(range(3).map(func(i): return wl.get_item_text(i)) == ["Rising", "Shallow", "Deep"] and wl.get_item_tooltip(2) == "The water doesn't rise. You have to use ships to travel to the mainland.",
 			"Flood's water levels by flood.json's names and descriptions")
 		check(page.get_node("%SeaRiseSlot").get_child(0).get_item_count() == 61, "Sea Level Rise Time offers every minute from 0 to 60")
+		# MapSelection.js: a Select Map dropdown, each map's description on its item.
+		var ml = page.get_node("%MapList")
+		check(ml is RtsoSafeSelect and ml.get_item_count() > 1 and ml.get_item_text(0) == "Random" and ml.get_item_tooltip(0) == "Pick any of the given maps at random.",
+			"Select Map is a dropdown: Random first, with its description")
 		# GameSettingControlSlider: Ceasefire, the victory durations, Relic Count and Sea
 		# Level Rise Time are sliders with their caption beside them.
 		var sliders: Array = ["CeasefireSlot", "WonderTimeSlot", "RelicTimeSlot", "RelicCountSlot", "SeaRiseSlot"].map(func(n): return page.get_node("%" + n).get_child(0))

@@ -846,8 +846,9 @@ func _select_map_id(map_id: String) -> void:
 	_rebuild_map_filter()
 	_want_map_id = map_id
 
+## MapSelection.js: the Select Map dropdown, each map's description on hover.
 func _build_map_list() -> void:
-	var list: ItemList = %MapList
+	var list: RtsoSafeSelect = %MapList
 	list.clear()
 	list.item_selected.connect(_on_map_list_selected)
 	# 0.28 Single/Buttons/MapBrowser.js "Browse Maps" and Panels/MapPreview.js: both open the Map Browser.
@@ -965,12 +966,14 @@ func open_civ_reference(tab: int) -> void:
 func refresh_map_list() -> void:
 	var keep := _want_map_id if not _want_map_id.is_empty() else str(_selected_map().get("id", ""))
 	_want_map_id = ""
-	var list: ItemList = %MapList
+	var list: RtsoSafeSelect = %MapList
 	list.clear()
 	_filtered = filtered_maps(_maps, _map_type, _map_filter_name)
 	_sel_map = 0
 	for i in range(_filtered.size()):
 		list.add_item(str(_filtered[i]["name"]))
+		var desc := str(_filtered[i].get("desc", ""))
+		list.set_item_tooltip(i, tr(desc) if desc != "" else tr("Select a map to play on."))
 		if str(_filtered[i]["id"]) == keep:
 			_sel_map = i
 	if not _filtered.is_empty():
