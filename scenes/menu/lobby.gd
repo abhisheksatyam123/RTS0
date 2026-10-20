@@ -132,6 +132,10 @@ func _ready() -> void:
 	# track a summary carried over stops here.
 	if not dialog:
 		MenuAudio.play_menu_music()
+	if LobbySession.signed_in():
+		LobbySession.lobby_opened(dialog)
+	if dialog:
+		tree_exiting.connect(LobbySession.lobby_dialog_closed)
 	_timer = Timer.new()
 	_timer.wait_time = REFRESH_S
 	_timer.timeout.connect(_refresh)

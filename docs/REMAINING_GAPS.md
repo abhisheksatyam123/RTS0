@@ -120,6 +120,23 @@ Right-click priorities on own and allied entities against unit_actions.js (speci
 
 Kept on purpose: the RTS0 villager rows stay as the worker class's default for old saves and pre-roster spawns, but nothing trains one by name (#1014); Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
 
+### Reference pages, selection details and flares: Compare's tenth 0.28 pass (2026-10-20)
+
+Checked against 0.28: the structure tree and template viewer (TemplateParser, ProductionRowManager, TreeSection), the multiple-selection details, and minimap and world flares. Owner: Compare.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| T1 | ~~The Persian tachara shows one upgrade instead of four~~ Fixed: the structure tree, structure pages and template viewer list every Upgrade choice. `tools/e2e_reference_pages.gd` | low | Fixed |
+| T2 | Walls, palisades and the Roman siege wall show their long segment, not the wall set. 0.28's TemplateParser.getEntity gives the wall set a health range over its pieces ("1000 to 3000"), the long piece's resistance, and a "Walls: ... Towers: ..." cost line (tooltips.js getEntityCostTooltip). | low | Open: Compare |
+| T3 | ~~The template viewer for a selected structure uses the owner's civ, and a portrait right-click doesn't pause single player~~ Fixed: a captured structure shows its own civ's data, and the right-click opens the viewer like the other entry points. | low | Fixed |
+| T4 | ~~Upgrade icons in the structure tree show the target's build cost and tooltip~~ Fixed: they show the Upgrade's own cost, time and tooltip. | low | Fixed |
+| T5 | ~~Technology specific names never appear in the reference pages~~ Fixed: techs carry the civ's specificName (Spartan agoge "Agōga"); civinfo shows both names. `tools/e2e_reference_pages.gd` | low | Fixed |
+| T6 | ~~The multiple-selection count tooltip is empty for structures, mixed selections and livestock~~ Fixed: garrison size counts each unit and every holder's occupied slots; loot adds the structures' Loot (selection_details.js displayMultiple). | low | Fixed |
+| T7 | ~~The "Flare display duration" option sets the world marker, not the minimap flare~~ Fixed: the minimap flare lasts gui.session.flarelifetime (0 hides it); the flare_target_marker keeps its 6 s Decay. | low | Fixed |
+| T8 | ~~An observer's flare is orange~~ Fixed: white, as Gaia's (renderAndPlayFlare owner 0). | low | Fixed |
+| T9 | ~~The sender gets no "has sent a flare" chat line~~ Fixed: renderAndPlayFlare adds it for the sender too, under gui.session.notifications.flare. | low | Fixed |
+| T10 | Structure tree boxes within a phase follow RTS0's building ids, not mixins/builder.xml's order (CC, house, storehouse, farmstead, field, corral, dock, barracks, ...). | low | Open: Compare |
+
 ### Status effects, Petra config, Allied View, the Germans and civ pages: Compare's ninth 0.28 pass (2026-10-20)
 
 Checked against 0.28: status effects, Petra difficulty and behaviour config, Allied View and shared LOS, the minimap, the Germans' own mechanics, and the civinfo and structure tree data. Owner: Compare. A row owned by another thread names that thread in its Status column.
@@ -255,7 +272,7 @@ StatisticsTracker callers and class mapping, the summary page, the replay menu a
 | S2 | The Mauryan Elephant Archer counts as a Champion and the Worker Elephant as a Worker in the Units tab (template_unit_elephant_archer.xml, template_unit_support_elephant.xml carry neither class) | medium | Fixed: both count in Units Total only; champion elephants stay Champions |
 | S3 | Follow Player follows only Petra's attacks, not its other orders (Commands.js "playercommand" for every command) | medium | Fixed: the simulation notes Petra's orders (walk, attack, gather, build, garrison, train, research...) and Follow Player follows them, with the walk markers |
 | S4 | The Match Settings player-state line follows the viewed player; 0.28 uses the local seat (none in a replay or for an observer) | medium | Fixed |
-| S5 | "Rated game" in Match Settings reads a leftover setting: a later single-player game shows it, a rated replay may not (RatingEnabled) | low-medium | Fixed: single-player matches clear it, and replays and saves keep it |
+| S5 | "Rated game" in Match Settings reads a leftover setting: a later single-player game shows it, a rated replay may not (RatingEnabled) | low-medium | Fixed: single-player matches clear it. As in 0.28, only Game Setup and a live lobby game show the line: a replay or save of a rated 1v1 has none, because the session's PlayerData counts Gaia (pass 7) |
 | S6 | Match Settings shows the live reveal-map state, not the match's setting | low | Fixed |
 | S7 | The save/load dialog keeps "(RMS)" in random map names | low | Fixed: trimmed as in the summary and replay menu |
 | S8 | A structure's value (captured, destroyed) uses its owner's civ costs, not its own template's; Gaia trading posts carry no Economic class | low | Fixed: the value comes from the civ the structure was built as, with its owner's modifiers (none for Gaia); trading posts count as Economic |
