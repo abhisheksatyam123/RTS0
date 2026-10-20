@@ -20770,6 +20770,7 @@ void Simulation::petra_staff_foundations() {
 	auto pick_worker = [&](const Need &n, uint16_t land, const std::vector<uint32_t> &taken, const std::vector<int> *left = nullptr) {
 		int best = -1;
 		float best_d2 = 1e18f;
+		const float build_time = std::max(1.0f, structure_build_time(buildings_[building_id_to_idx_.at(n.id)]));
 		for (size_t i = 0; i < units_.count; ++i) {
 			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 			if (!petra_builder_worker(i, launched)) continue;
@@ -20782,10 +20783,14 @@ void Simulation::petra_staff_foundations() {
 			if (left && (*left)[base_of(i)] <= 3) continue;
 			float dx = units_.pos_x[i] - n.x, dz = units_.pos_z[i] - n.z;
 			float d2 = dx * dx + dz * dz;
-			// Food gatherers count three times as far (assignToFoundations sort).
-			if (st != ACTION_IDLE && units_.res_type_carried[i] == RES_FOOD && units_.target_resource_id[i]) d2 *= 3.0f;
 			// idleBuilderWorkers first, but only within 200 m (50 units); every other worker by distance.
 			const bool near_idle = st == ACTION_IDLE && d2 <= 50.0f * 50.0f;
+			// The assignToFoundations sort: an elephant moves slowly, so far away it is only worth
+			// it for a long build (x0.5 (1 + metres / 5 / buildTime)); food gatherers count three
+			// times as far.
+			if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT)
+				d2 *= 0.5f * (1.0f + std::sqrt(d2) * 4.0f / 5.0f / build_time);
+			else if (st != ACTION_IDLE && units_.res_type_carried[i] == RES_FOOD && units_.target_resource_id[i]) d2 *= 3.0f;
 			d2 += (near_idle ? 0.0f : 1e6f);
 			if (d2 < best_d2) { best_d2 = d2; best = (int)i; }
 		}
@@ -24432,7 +24437,9 @@ int Simulation::petra_accounted_workers(bool queued) const {
 		if (!(units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) || units_.team[i] != petra_pid_) continue;
 		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
 		const bool soldier = gcls == GATHER_INFANTRY || unit_is_mercenary_infantry(units_.unit_type[i], units_.tmpl[i]);
-		if (gcls == GATHER_FISHING || ((gcls == GATHER_SUPPORT || soldier) && !set_off(units_.id[i])))
+		// The worker elephant has the worker role too (assignRolelessUnits).
+		if (gcls == GATHER_FISHING || units_.unit_type[i] == UNIT_WORKER_ELEPHANT ||
+		    ((gcls == GATHER_SUPPORT || soldier) && !set_off(units_.id[i])))
 			++workers;
 	}
 	for (const Building &b : buildings_) {
@@ -24441,7 +24448,7 @@ int Simulation::petra_accounted_workers(bool queued) const {
 		for (const ProductionOrder &o : b.queue) {
 			if (o.is_tech() || o.unit_type >= UNIT_TYPE_COUNT) continue;
 			const uint8_t gcls = unit_gather_class(o.unit_type, o.tmpl);
-			if (gcls == GATHER_SUPPORT || gcls == GATHER_INFANTRY || gcls == GATHER_FISHING ||
+			if (gcls == GATHER_SUPPORT || gcls == GATHER_INFANTRY || gcls == GATHER_FISHING || o.unit_type == UNIT_WORKER_ELEPHANT ||
 					unit_is_mercenary_infantry(o.unit_type, o.tmpl))
 				workers += o.count;
 		}
@@ -27950,10 +27957,13 @@ std::unordered_set<uint32_t> Simulation::petra_launched_units() const {
 // one an attack has taken.
 bool Simulation::petra_builder_worker(size_t i, const std::unordered_set<uint32_t> &launched) const {
 	const uint8_t g = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
-	if ((g != GATHER_INFANTRY && g != GATHER_SUPPORT) || !unit_builds(i)) return false;
+	// baseManager.js assignRolelessUnits: the Mauryan worker elephant (Support Elephant) has
+	// the worker role too; it builds but gathers nothing.
+	const bool elephant = units_.unit_type[i] == UNIT_WORKER_ELEPHANT;
+	if ((g != GATHER_INFANTRY && g != GATHER_SUPPORT && !elephant) || !unit_builds(i)) return false;
 	// Soldiers trained for an attack carry no "worker" role (attackPlan.js trainMoreUnits
 	// metadata), so they are none of the base's workers.
-	if (!petra_is_worker(i)) return false;
+	if (!elephant && !petra_is_worker(i)) return false;
 	const uint32_t uid = units_.id[i];
 	return uid != petra_scout_unit_id_ && !launched.count(uid) && !petra_is_defender(uid);
 }

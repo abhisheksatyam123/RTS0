@@ -1544,6 +1544,39 @@ static void test_idle_workers_repair_cc() {
 	CHECK(on_cc >= 1 && on_cc <= 2, "idle workers repair their damaged civic centre, at most 2");
 }
 
+// baseManager.js assignRolelessUnits gives the Mauryan worker elephant the worker role, and
+// assignToFoundations sends it to a foundation next to it.
+static void test_worker_elephant_builds() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_team_civ(1, (uint8_t)CIV_MAURYANS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	uint32_t fid = 0;
+	for (int r = 8; r < 20 && !fid; ++r)
+		for (int dy = -r; dy <= r && !fid; ++dy)
+			for (int dx = -r; dx <= r && !fid; ++dx) {
+				if (std::abs(dx) != r && std::abs(dy) != r) continue;
+				const int x = (int)std::floor(cx / Simulation::GRID) + dx, y = (int)std::floor(cz / Simulation::GRID) + dy;
+				if (s->check_placement(1, x, y, BLD_HOUSE) == Simulation::PLACE_OK) fid = s->cmd_build(1, x, y, BLD_HOUSE);
+			}
+	CHECK(fid != 0, "a house foundation goes down");
+	if (!fid) return;
+	const auto &f = s->buildings_[s->building_id_to_idx_.at(fid)];
+	const uint32_t ele = s->spawn_unit(f.x + 4.0f, f.z, 1, UNIT_WORKER_ELEPHANT);
+	const int32_t ei = s->lookup_unit(ele);
+	s->petra_staff_foundations();
+	const bool builds = ei >= 0 && s->units_.action_state[ei] == ACTION_BUILD && s->units_.target_building_id[ei] == fid;
+	std::printf("  worker elephant: builds the house next to it %d\n", (int)builds);
+	CHECK(builds, "the worker elephant builds a foundation next to it");
+}
+
 static void test_petra_phasing_needs_researcher() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -7258,6 +7291,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_garrisoned_workers_count);
 	RUN(test_idle_workers_repair_cc);
+	RUN(test_worker_elephant_builds);
 	RUN(test_city_phase_counts_foundations);
 	RUN(test_petra_research_order);
 	RUN(test_petra_minor_tech_kept);
