@@ -80,7 +80,7 @@ Orders, stances, garrison, capture, loot and fleeing against UnitAI.js and the 0
 | Q3 | ~~Poison and burning ticks don't count as attacks~~ Fixed: each tick is an Attacked message (StatusEffectsReceiver.js:141-153); the poisoned unit's own UnitAI ignores it (OnAttacked returns for fromStatusEffect), but Guard.js sends its guards after the source. `tools/test_unit_orders.cpp` 91 | low | Fixed |
 | Q4 | A defensive unit's held position follows it while it moves and gathers, and a given-up chase resumes the interrupted order instead of walking back (UnitAI.js:325, 341, 2100-2105) | low | Open |
 | Q5 | Only the killer cheers, and never a siege engine or ship; 0.28 cheers every attacker whose target died (UnitAI.js:2214-2217) | low | Open |
-| Q6 | A defeated player's units turned Gaia keep their stance, orders and queue (Player.js:494-512, UnitAI.js:3665-3702) | low | Open |
+| Q6 | ~~A defeated player's units turned Gaia keep their stance, orders and queue~~ Fixed: UnitAI.OnOwnershipChanged (UnitAI.js:3665-3702) stops them, drops the queue, work orders, trading and guarding, and resets the template's default stance, for Player.js defeat and the convert cheat alike. `tools/test_unit_orders.cpp` 92 | low | Fixed |
 | Q7 | A fleeing unit ignores a second attacker and ends flights from structures by centre distance; 0.28's own check re-aims on every attacker (UnitAI.js:2040-2057) | low | Open |
 
 

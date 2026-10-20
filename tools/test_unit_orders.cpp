@@ -3309,6 +3309,24 @@ static void test_status_tick_guards() {
 	check(target_of(s, charge) != src, "the charge itself doesn't answer the tick");
 }
 
+// Player.js on defeat makes a player's units Gaia's; UnitAI.OnOwnershipChanged stops them,
+// drops their queue and work orders and resets the template's default stance (Q6).
+static void test_defeated_units_reset() {
+	std::printf("92. a defeated player's units turned Gaia stop and take their default stance\n");
+	Simulation s;
+	setup(s);
+	uint32_t sp = s.spawn_unit(0.0f, 0.0f, 1, UNIT_SPEARMAN);
+	s.order_set_stance(&sp, 1, STANCE_PASSIVE);
+	s.order_walk(&sp, 1, 20.0f, 0.0f);
+	s.order_walk(&sp, 1, 20.0f, 20.0f, true);
+	check(s.unit_order_queue(sp) && !s.unit_order_queue(sp)->empty(), "a walk queued behind a walk");
+	s.convert_to_gaia(1u << 1);
+	const int i = idx_of(s, sp);
+	check(s.units().team[i] == GAIA_PLAYER, "the spearman is Gaia's");
+	check(s.unit_order(sp).kind == ORDER_NONE && !s.unit_order_queue(sp), "its orders and queue are gone");
+	check(s.units().stance[i] == unit_default_stance(UNIT_SPEARMAN, s.units().tmpl[i]), "its stance is the template default again");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3404,6 +3422,7 @@ int main(int argc, char **argv) {
 	test_rally_commands();
 	test_forced_treasure_and_return();
 	test_status_tick_guards();
+	test_defeated_units_reset();
 	test_range_aura_not_self();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
