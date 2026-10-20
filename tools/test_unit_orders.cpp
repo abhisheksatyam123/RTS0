@@ -3278,6 +3278,55 @@ static void test_forced_treasure_and_return() {
 	}
 }
 
+// Guard.js OnAttacked: a poison or burning tick on the guarded unit sends its guards after
+// the source, while the poisoned unit's own UnitAI ignores the tick (fromStatusEffect).
+static void test_status_tick_guards() {
+	std::printf("91. guards answer a status tick on their charge; the charge doesn't\n");
+	Simulation s;
+	setup(s);
+	uint16_t maiden = CIV_UNIT_TEMPLATE_NONE;
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT && maiden == CIV_UNIT_TEMPLATE_NONE; ++t) {
+		const char *id = civ_unit_template(t).id;
+		const size_t n = std::strlen(id), m = std::strlen("maur/champion_maiden_archer");
+		if (n >= m && std::strcmp(id + n - m, "maur/champion_maiden_archer") == 0) maiden = t;
+	}
+	check(maiden != CIV_UNIT_TEMPLATE_NONE, "the roster has a maiden archer");
+	uint32_t charge = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN, 1.0e6f);
+	uint32_t guard = s.spawn_unit(2.0f, 0.0f, 0, UNIT_SPEARMAN);
+	s.order_set_stance(&charge, 1, STANCE_STAND_GROUND);
+	const uint32_t src = s.spawn_unit(30.0f, 0.0f, 1, UNIT_ARCHER_MAIDEN, 0.0f, maiden);
+	s.units_.attack_damage[idx_of(s, src)] = 0.0f; // only the status hurts
+	s.order_guard(&guard, 1, charge);
+	for (int k = 0; k < 10; ++k) s.tick(Simulation::FIXED_STEP);
+	s.apply_status((size_t)idx_of(s, charge), unit_combat(maiden, UNIT_ARCHER_MAIDEN), src, 1);
+	bool guard_went = false;
+	for (int k = 0; k < 60 && !guard_went; ++k) {
+		s.tick(Simulation::FIXED_STEP);
+		guard_went = target_of(s, guard) == src;
+	}
+	check(hp_of(s, charge) < 1.0e6f, "the poison ticks on the charge");
+	check(guard_went, "its guard goes for the archer who poisoned it");
+	check(target_of(s, charge) != src, "the charge itself doesn't answer the tick");
+}
+
+// Player.js on defeat makes a player's units Gaia's; UnitAI.OnOwnershipChanged stops them,
+// drops their queue and work orders and resets the template's default stance (Q6).
+static void test_defeated_units_reset() {
+	std::printf("92. a defeated player's units turned Gaia stop and take their default stance\n");
+	Simulation s;
+	setup(s);
+	uint32_t sp = s.spawn_unit(0.0f, 0.0f, 1, UNIT_SPEARMAN);
+	s.order_set_stance(&sp, 1, STANCE_PASSIVE);
+	s.order_walk(&sp, 1, 20.0f, 0.0f);
+	s.order_walk(&sp, 1, 20.0f, 20.0f, true);
+	check(s.unit_order_queue(sp) && !s.unit_order_queue(sp)->empty(), "a walk queued behind a walk");
+	s.convert_to_gaia(1u << 1);
+	const int i = idx_of(s, sp);
+	check(s.units().team[i] == GAIA_PLAYER, "the spearman is Gaia's");
+	check(s.unit_order(sp).kind == ORDER_NONE && !s.unit_order_queue(sp), "its orders and queue are gone");
+	check(s.units().stance[i] == unit_default_stance(UNIT_SPEARMAN, s.units().tmpl[i]), "its stance is the template default again");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3372,6 +3421,8 @@ int main(int argc, char **argv) {
 	test_work_order_queue();
 	test_rally_commands();
 	test_forced_treasure_and_return();
+	test_status_tick_guards();
+	test_defeated_units_reset();
 	test_range_aura_not_self();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);

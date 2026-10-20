@@ -891,6 +891,58 @@ static void test_allow_capture() {
 	CHECK(u.order_flags[j] & ORDER_FLAG_ALLOW_CAPTURE, "a winnable capture goes on");
 }
 
+// garrisonManager.js:181: soldiers still walking to man a Town Center turn back
+// (leaveGarrison, stopMoving) once the enemy that called them has gone.
+static void test_garrison_recall() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	const Simulation::Building *tc = nullptr;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) tc = &b;
+	CHECK(tc != nullptr, "Petra has a Town Center");
+	if (!tc) return;
+	const float tx = tc->x, tz = tc->z;
+	const uint32_t tc_id = tc->id;
+	auto &u = s->units_;
+	std::vector<uint32_t> archers;
+	for (int i = 0; i < 2; ++i) archers.push_back(s->spawn_unit(tx + 24.0f + 2.0f * (float)i, tz + 18.0f, 1, UNIT_ARCHER));
+	std::vector<uint32_t> foes;
+	for (int i = 0; i < 3; ++i) foes.push_back(s->spawn_unit(tx - 10.0f, tz - 8.0f + 2.0f * (float)i, 0, UNIT_SPEARMAN));
+	auto walking = [&]() {
+		int n = 0;
+		for (uint32_t id : archers) {
+			const int32_t i = s->lookup_unit(id);
+			if (i >= 0 && u.alive[i] && u.order_kind[i] == ORDER_GARRISON && u.order_target[i] == tc_id) ++n;
+		}
+		return n;
+	};
+	int called = 0;
+	for (float t = 0.0f; t < 6.0f && called == 0; t += Simulation::FIXED_STEP) {
+		for (uint32_t id : foes) {
+			const int32_t f = s->lookup_unit(id);
+			if (f >= 0 && u.alive[f]) u.hp[f] = u.max_hp[f];
+		}
+		s->tick(Simulation::FIXED_STEP);
+		called = walking();
+	}
+	for (uint32_t id : foes) {
+		const int32_t i = s->lookup_unit(id);
+		if (i >= 0 && u.alive[i]) { u.pos_x[i] = -tx; u.pos_z[i] = -tz; u.has_order[i] = 0; u.hp[i] = 0.0f; }
+	}
+	run_for(*s, 3.5f);
+	const auto &b = s->buildings()[s->building_id_to_idx_.at(tc_id)];
+	int inside = 0;
+	for (uint32_t id : archers) inside += std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), id) != b.garrisoned_units.end() ? 1 : 0;
+	const int still = walking();
+	std::printf("  garrison recall: %d archers called to the Town Center, %d still walking and %d inside after the enemy left\n", called, still, inside);
+	CHECK(called > 0, "an enemy in range calls far soldiers to man the Town Center");
+	CHECK(still == 0 && inside == 0, "and they turn back once it is gone");
+}
+
 // garrisonManager.js / defenseManager.js: Petra's infantry man a Town Center
 // an enemy is in range of and leave once the enemy is gone; an attacked
 // woman below 55% health shelters in a healing structure.
@@ -3271,6 +3323,7 @@ static void test_structure_cost_by_civ() {
 	const BuildingTypeInfo &generic = building_type_info(BLD_BARRACKS);
 	std::printf("  Briton barracks %.0fw %.0fs (generic %dw %ds)\n", c[RES_WOOD], c[RES_STONE], generic.wood_cost, generic.stone_cost);
 	CHECK(c[RES_WOOD] == 300.0f && c[RES_STONE] == 0.0f, "a Briton barracks costs 300 wood and no stone");
+	s->spawn_unit(0.0f, 0.0f, 1, UNIT_FEMALE_CITIZEN); // a builder (hasBuilder)
 	CHECK(s->petra_try_pay_structure(PETRA_Q_MILITARY_BUILDING, BLD_BARRACKS), "Petra pays for it");
 	CHECK(s->players_[1].wood() == 700.0f && s->players_[1].stone() == 1000.0f, "with 300 wood and no stone");
 }
@@ -3569,12 +3622,14 @@ static void test_worker_mix() {
 		if (std::find(rush.begin(), rush.end(), id) != rush.end() ||
 		    std::find(defenders.begin(), defenders.end(), id) != defenders.end()) continue;
 		++soldiers;
-		gathering += s->units_.action_state[i] == ACTION_GATHER || s->units_.action_state[i] == ACTION_RETURN_DROPSITE;
+		// Petra's workers gather or build (its builders are workers taken off a supply).
+		gathering += s->units_.action_state[i] == ACTION_GATHER || s->units_.action_state[i] == ACTION_RETURN_DROPSITE ||
+		             s->units_.action_state[i] == ACTION_BUILD;
 	}
-	std::printf("  7 min: %d support, %d worker soldiers at home (%d infantry at start, %d gathering), at most %d houses at once\n",
+	std::printf("  7 min: %d support, %d worker soldiers at home (%d infantry at start, %d gathering or building), at most %d houses at once\n",
 	            supports, soldiers, start_soldiers, gathering, max_houses);
 	CHECK(soldiers + (int)all_defenders(*s).size() >= 5, "trains citizen infantry as workers");
-	CHECK(gathering * 2 >= soldiers, "most worker soldiers gather");
+	CHECK(gathering * 2 >= soldiers, "most worker soldiers gather or build");
 	const float support_max = 0.5f * (float)s->petra_target_workers(); // supportRatio is 0.35-0.5 by difficulty
 	CHECK(supports > 10 && (float)supports <= support_max + 5.0f, "support units follow supportRatio");
 	CHECK(max_houses >= 1 && max_houses <= 3, "houses go up a few at a time");
@@ -6228,6 +6283,26 @@ static void test_trade_tech_waits_for_funds() {
 	CHECK(started && s->petra_queues_.special_tech == 0, "once affordable it is researched first and the queue clears");
 }
 
+// buildManager.js hasBuilder: with no unit left that can build, canBuild refuses every
+// structure, so nothing is paid for a foundation nobody would raise.
+static void test_no_builder_no_foundation() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(1);
+	s->spawn_initial();
+	s->petra_pid_ = 1;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	fund_queues(*s);
+	CHECK(s->petra_has_builder(), "the starting citizens can build");
+	s->petra_turn_built_ = false;
+	CHECK(s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE) != 0, "a house goes down with builders alive");
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.team[i] == 1 && unit_can_build(s->units_.unit_type[i], s->units_.tmpl[i])) s->units_.alive[i] = false;
+	s->petra_turn_built_ = false;
+	const float wood = s->player(1).wood();
+	CHECK(!s->petra_has_builder() && s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE) == 0 && s->player(1).wood() == wood,
+	      "with no builder left no foundation is laid or paid for");
+}
+
 // common-api entity.js: Petra scores its templates with the player's technologies applied.
 // After Archery Tradition (+10 m range) a Kushite's best citizen infantry per cost, by
 // strength, is the archer, as in 0.28; on base stats it was the spearman.
@@ -6278,6 +6353,7 @@ int main(int argc, char **argv) {
 	RUN(test_no_free_income);
 	RUN(test_mercenary_workers);
 	RUN(test_trade_tech_waits_for_funds);
+	RUN(test_no_builder_no_foundation);
 	RUN(test_roster_army);
 	RUN(test_diplomacy);
 	RUN(test_ai_slots);
@@ -6288,6 +6364,7 @@ int main(int argc, char **argv) {
 	RUN(test_slot_config);
 	RUN(test_allow_capture);
 	RUN(test_garrisons);
+	RUN(test_garrison_recall);
 	RUN(test_diplomacy_requests);
 	RUN(test_tribute_request_paid_later);
 	RUN(test_hunting);

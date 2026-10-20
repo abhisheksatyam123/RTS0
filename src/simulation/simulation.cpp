@@ -1350,6 +1350,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	// A Gaia structure's points are Gaia's pool (what no player holds), not player 0's;
 	// giving them to player 0 handed it every Gaia tower on the first tick.
 	if (b.team < MAX_PLAYERS) b.capture_points_by_team[b.team] = b.max_capture_points;
+	record_foundation_cost(b);
 
 	buildings_.push_back(b);
 	building_id_to_idx_[bid] = buildings_.size() - 1;
@@ -3332,6 +3333,7 @@ uint32_t Simulation::spawn_wall_piece(const WallPiece &p, uint8_t team, float pr
 	b.rot = fp.rot;
 	b.set_extents(fp.half_size, building_half_depth(b.type, fp.half_size, b.civ)); // as a load sets it
 	b.garrison_cap = structure_garrison_cap(b); // its length's turret points
+	record_foundation_cost(b); // the piece's own price, by its length
 	if (const float health = wallset_piece_value(b.type, b.half_size, 0, b.civ); health > 0.0f) {
 		// wall_long/medium/short (palisades_*) Health by length, after the same civ and technology bonuses.
 		b.max_hp *= health / building_type_info(b.type).max_hp;
@@ -3348,14 +3350,29 @@ bool Simulation::pay_for_structure(uint8_t player, uint8_t b_type, float cost_ov
 	return players_[player].pay(c[RES_FOOD], c[RES_WOOD], c[RES_GOLD], c[RES_STONE]);
 }
 
-// Foundation.js OnOwnershipChanged: a foundation that is destroyed or deleted gives its
-// owner back ceil(cost x (1 - maxProgress)) of each resource. RTS0 keeps no cost per
-// foundation, so the cost is today's (techs researched since placing count).
-void Simulation::refund_foundation(const Building &b) {
-	if (b.wrecked || b.build_progress >= 1.0f || b.team >= MAX_PLAYERS) return;
+// Foundation.js InitialiseConstruction keeps the costs paid for a foundation; a foundation
+// can't upgrade, so they wait in upgrade_paid until it is finished or refunded.
+void Simulation::record_foundation_cost(Building &b) const {
+	b.upgrade_paid.fill(0.0f);
+	if (b.build_progress >= 1.0f || b.team >= MAX_PLAYERS) return;
 	const float piece = wallset_piece_value(b.type, b.half_size, 1, b.civ);
 	float c[RES_COUNT];
 	structure_cost(b.team, b.type, piece > 0.0f ? piece : -1.0f, c);
+	for (int r = 0; r < RES_COUNT; ++r) b.upgrade_paid[r] = c[r];
+}
+
+// Foundation.js OnOwnershipChanged: a foundation that is destroyed or deleted gives its
+// owner back ceil(costs x (1 - maxProgress)) of each resource, from the costs it was placed
+// for (a save from before they were kept refunds today's).
+void Simulation::refund_foundation(const Building &b) {
+	if (b.wrecked || b.build_progress >= 1.0f || b.team >= MAX_PLAYERS) return;
+	float c[RES_COUNT];
+	bool kept = false;
+	for (int r = 0; r < RES_COUNT; ++r) kept |= (c[r] = b.upgrade_paid[r]) > 0.0f;
+	if (!kept) {
+		const float piece = wallset_piece_value(b.type, b.half_size, 1, b.civ);
+		structure_cost(b.team, b.type, piece > 0.0f ? piece : -1.0f, c);
+	}
 	const float left = 1.0f - std::max(0.0f, b.build_progress);
 	players_[b.team].refund(std::ceil(c[RES_FOOD] * left), std::ceil(c[RES_WOOD] * left),
 		std::ceil(c[RES_GOLD] * left), std::ceil(c[RES_STONE] * left));
@@ -15473,7 +15490,17 @@ bool Simulation::status_tick(const StatusInstance &st) {
 		// StatusEffect's damage: the kill and the loot still go to `src`, the xp doesn't.
 		units_.hp[i] -= dmg;
 		note_attacked(st.src, st.src_owner, units_.id[i], units_.team[i], false, dmg);
-		if (units_.hp[i] > 0.0f) return true;
+		if (units_.hp[i] > 0.0f) {
+			// Each tick is an Attacked message: the unit's own UnitAI ignores it
+			// (OnAttacked returns for fromStatusEffect), but Guard.js OnAttacked still sends
+			// its guards after the source.
+			if (!inside && st.src != 0 && (lookup_unit(st.src) >= 0 || building_id_to_idx_.count(st.src)))
+				for (size_t k = 0; k < units_.count; ++k)
+					if (units_.alive[k] && units_.order_kind[k] == ORDER_GUARD && units_.action_state[k] == ACTION_GUARD &&
+							units_.order_target[k] == units_.id[i])
+						guard_answer(k, i, st.src);
+			return true;
+		}
 		units_.alive[i] = 0;
 		units_.action_state[i] = ACTION_DYING;
 		note_kill(st.src, units_.id[i]);
@@ -15737,22 +15764,40 @@ void Simulation::check_victory_conditions(float dt) {
 	if (one_side && fought) end_match(standing);
 }
 
+// UnitAI.OnOwnershipChanged on unit u (Player.js turns a defeated player's units Gaia's;
+// the convert cheat): orders, queue and work orders go (Stop), trading stops, it guards no
+// one, and its stance goes back to the template default (a turret keeps its turret stance
+// and gets the default back when it leaves).
+void Simulation::reset_unit_for_new_owner(size_t u) {
+	const uint32_t id = units_.id[u];
+	units_.has_order[u] = 0;
+	units_.target_unit_id[u] = 0;
+	units_.target_building_id[u] = 0;
+	units_.target_resource_id[u] = 0;
+	units_.waypoint_cur[u] = units_.waypoint_count[u] = 0;
+	if (u < unit_paths_.size()) unit_paths_[u].clear();
+	if (units_.action_state[u] != ACTION_GARRISONED) units_.action_state[u] = ACTION_IDLE;
+	set_order(u, ORDER_NONE, 0, 0, units_.pos_x[u], units_.pos_z[u]);
+	order_queues_.erase(id);
+	work_orders_.erase(id);
+	guard_of_.erase(id);
+	trader_routes_.erase(id);
+	trader_leg_.erase(id);
+	trader_goods_.erase(id);
+	trader_route_points_.erase(id);
+	trader_route_idx_.erase(id);
+	const uint8_t def = unit_default_stance(units_.unit_type[u], units_.tmpl[u]);
+	if (auto it = turret_prev_stance_.find(id); it != turret_prev_stance_.end()) it->second = def;
+	else units_.stance[u] = def;
+}
+
 void Simulation::convert_to_gaia(uint8_t players) {
 	if (!players) return;
 	auto out = [players](uint8_t t) { return t < MAX_PLAYERS && ((players >> t) & 1); };
 	for (size_t u = 0; u < units_.count; ++u) {
 		if (!out(units_.team[u])) continue;
 		units_.team[u] = GAIA_PLAYER;
-		units_.has_order[u] = 0;
-		units_.target_unit_id[u] = 0;
-		units_.target_building_id[u] = 0;
-		units_.target_resource_id[u] = 0;
-		if (units_.action_state[u] != ACTION_GARRISONED) units_.action_state[u] = ACTION_IDLE;
-		trader_routes_.erase(units_.id[u]);
-		trader_leg_.erase(units_.id[u]);
-		trader_goods_.erase(units_.id[u]);
-		trader_route_points_.erase(units_.id[u]);
-		trader_route_idx_.erase(units_.id[u]);
+		reset_unit_for_new_owner(u);
 	}
 	bool roots = false;
 	for (auto &b : buildings_) {
@@ -18214,18 +18259,7 @@ void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
 		if (u >= 0) {
 			if (!units_.alive[u] || is_relic_unit(u) || units_.team[u] == to) continue;
 			units_.team[u] = to;
-			units_.has_order[u] = 0;
-			units_.target_unit_id[u] = 0;
-			units_.target_building_id[u] = 0;
-			units_.target_resource_id[u] = 0;
-			if (units_.action_state[u] != ACTION_GARRISONED) units_.action_state[u] = ACTION_IDLE;
-			order_queues_.erase(ids[k]);
-			work_orders_.erase(ids[k]);
-			trader_routes_.erase(ids[k]);
-			trader_leg_.erase(ids[k]);
-			trader_goods_.erase(ids[k]);
-			trader_route_points_.erase(ids[k]);
-			trader_route_idx_.erase(ids[k]);
+			reset_unit_for_new_owner((size_t)u);
 			continue;
 		}
 		auto it = building_id_to_idx_.find(ids[k]);
@@ -19419,8 +19453,8 @@ void Simulation::petra_manage_military_production(float dt) {
 		float penalty[RES_COUNT] = {1.0f, 1.0f, 1.0f, 1.0f};
 		penalty[RES_STONE] = st.stone;
 		penalty[RES_GOLD] = st.metal;
-		for (int r = 0; r < RES_COUNT; ++r) {
-			if ((float)petra_ps().res[r] > 800.0f || remaining[r] > 800.0f) continue;
+		for (int r = 0; r < RES_COUNT; ++r) { // findBestTrainableUnit: getAvailableResources
+			if (petra_available_resource((uint8_t)r) > 800.0f || remaining[r] > 800.0f) continue;
 			const float scarce = remaining[r] > 400.0f ? 0.6f : 0.2f;
 			penalty[r] = std::min(penalty[r], scarce);
 		}
@@ -19455,7 +19489,7 @@ void Simulation::petra_manage_military_production(float dt) {
 	// checkPhase, headquarters.js checkPhaseRequirements at priority 1000) and the first fortress
 	// (defenseBuilding doubled). Here soldiers train only from what that price leaves.
 	float reserve[RES_COUNT] = {};
-	if (phase == 2) {
+	if (phase == 2 && petra_phasing()) { // researchManager.js:27: only past workPhase3
 		const ResearchCheck rc = research_check(petra_pid_, TECH_PHASE_CITY);
 		if (rc == TECH_OK || rc == TECH_ERR_COST) {
 			const TechInfo &city = tech_info(TECH_PHASE_CITY);
@@ -19471,6 +19505,7 @@ void Simulation::petra_manage_military_production(float dt) {
 
 	const uint8_t d = petra_config_.difficulty;
 	const float pop_scaling = petra_plan_pop_scaling();
+	bool asked[PETRA_Q_COUNT] = {};
 	auto train_for = [&](const AttackPlan &plan, uint8_t kind) {
 		const uint8_t order_plan = &plan == &petra_raid_plan_ ? PETRA_ORDER_RAID : PETRA_ORDER_ATTACK;
 		const bool main_plan = &plan == &petra_attack_plan_;
@@ -19531,7 +19566,11 @@ void Simulation::petra_manage_military_production(float dt) {
 			// batch would draw the villager queue's food away too (the tries above asked for it).
 			PetraQueueAccount &w = petra_queues_.wants[queue];
 			for (int r = 0; r < RES_COUNT; ++r) reserve[r] += cost[r];
-			w.food = cost[RES_FOOD]; w.wood = cost[RES_WOOD]; w.gold = cost[RES_GOLD]; w.stone = cost[RES_STONE];
+			// The raid and the attack share the plan queues: this turn's larger ask stands.
+			if (!asked[queue]) w = PetraQueueAccount{};
+			asked[queue] = true;
+			w.food = std::max(w.food, cost[RES_FOOD]); w.wood = std::max(w.wood, cost[RES_WOOD]);
+			w.gold = std::max(w.gold, cost[RES_GOLD]); w.stone = std::max(w.stone, cost[RES_STONE]);
 			petra_queues_.want_age[queue] = 0.0f;
 			return;
 		}
@@ -19885,7 +19924,7 @@ int Simulation::petra_train_more_workers() {
 				    territory_owner_at(resources_.x[r], resources_.z[r]) == (int)petra_pid_)
 					remaining[resources_.type[r]] += (float)resources_.amount[r];
 			for (int r = 0; r < RES_COUNT; ++r)
-				if ((float)petra_ps().res[r] <= 800.0f && remaining[r] <= 800.0f)
+				if (petra_available_resource((uint8_t)r) <= 800.0f && remaining[r] <= 800.0f) // getAvailableResources
 					penalty[r] = std::min(penalty[r], remaining[r] > 400.0f ? 0.6f : 0.2f);
 		}
 		uint16_t best = CIV_UNIT_TEMPLATE_NONE;
@@ -19980,10 +20019,19 @@ void Simulation::petra_order_builders(const std::vector<uint32_t> &workers, size
 // invading army only a civic centre or wall below half health is repaired.
 // assignToFoundations builderRatio (queueManager.getAvailableResources): under 200 of
 // anything caps builders at a fifth of the workers, under 1000 at that share of a thousand.
+float Simulation::petra_available_resource(uint8_t r) const {
+	float held = 0.0f;
+	for (int q = 0; q < PetraQueueManager::QUEUE_COUNT; ++q) {
+		const PetraQueueAccount &a = petra_queues_.accounts[q];
+		held += r == RES_FOOD ? a.food : r == RES_WOOD ? a.wood : r == RES_GOLD ? a.gold : a.stone;
+	}
+	return player(petra_pid_).res[r] - held;
+}
+
 float Simulation::petra_builder_ratio() const {
 	float ratio = 1.0f;
 	for (uint8_t r = 0; r < RES_COUNT; ++r) {
-		const float have = (float)player_resource(petra_pid_, r);
+		const float have = petra_available_resource(r);
 		if (have < 200.0f) return 0.2f;
 		if (have < 1000.0f) ratio = std::min(ratio, have / 1000.0f);
 	}
@@ -21325,7 +21373,7 @@ void Simulation::petra_build_first_base() {
 
 	// The civilCentre queue outranks every other (queueManager.js priority 950): pay
 	// from the stockpile at once, ahead of this tick's other spending.
-	if (petra_building_built()) return;
+	if (petra_building_built() || !petra_has_builder()) return;
 	if (!points[best].land) {
 		// Aboard a ship: a dock (findDockPosition with proximity, on the ship's sea), and the
 		// ship takes its passengers there (createTransportIfNeeded). findEconomicCCLocation's
@@ -23255,7 +23303,7 @@ void Simulation::petra_manage_naval(float dt) {
 				}
 				int cx = 0, cz = 0;
 				if (!petra_find_dock_position(land, sea, cx, cz)) break;
-				if (!petra_try_pay(PETRA_Q_DOCK, cost[0], cost[1], cost[2], cost[3])) break;
+				if (!petra_has_builder() || !petra_try_pay(PETRA_Q_DOCK, cost[0], cost[1], cost[2], cost[3])) break;
 				const uint32_t bid = petra_spawn_foundation(cx, cz, BLD_DOCK);
 				auto idle = petra_idle_builders();
 				if (bid && !idle.empty()) petra_order_builders(idle, 3, bid);
@@ -24234,7 +24282,7 @@ bool Simulation::petra_build_oversea_dock() {
 	search.lands = &lands;
 	if (!petra_find_dock_position(0, 0, cx, cz, &search)) return false;
 	const int foot = building_type_info(BLD_DOCK).footprint;
-	if (!petra_can_place(cx, cz, foot, BLD_DOCK)) return false;
+	if (!petra_can_place(cx, cz, foot, BLD_DOCK) || !petra_has_builder()) return false;
 	float f, w, g, st;
 	petra_structure_cost(BLD_DOCK, f, w, g, st);
 	const uint32_t bid = petra_spawn_foundation(cx, cz, BLD_DOCK);
@@ -24594,7 +24642,7 @@ void Simulation::petra_build_defenses() {
 		int cx = 0, cz = 0;
 		uint32_t bid = 0;
 		if (petra_find_defensive_location(btype, cx, cz)) {
-			if (petra_try_pay(PETRA_Q_DEFENSE_BUILDING, cf, cw, cg, cs))
+			if (petra_has_builder() && petra_try_pay(PETRA_Q_DEFENSE_BUILDING, cf, cw, cg, cs))
 				bid = petra_spawn_foundation(cx, cz, btype);
 		} else if (btype == BLD_FORTRESS) {
 			// queueplanBuilding.js findGoodPosition: a first fortress with no frontier spot
@@ -24756,8 +24804,21 @@ bool Simulation::petra_start_research(uint8_t tech_id) {
 	// Same civ / phase / prerequisite / structure rules as the player
 	// (cost is checked against the TECH account below).
 	ResearchCheck rc = research_check(petra_pid_, tech_id);
-	if (rc != TECH_OK && rc != TECH_ERR_COST) return false;
 	const TechInfo &tinfo = tech_info(tech_id);
+	if (rc == TECH_ERR_STRUCTURES && (tech_id == TECH_PHASE_TOWN || tech_id == TECH_PHASE_CITY)) {
+		// researchManager.js:31 queues the phase once a researcher stands (hasResearchers
+		// skips the requirements) and majorTech saves for it; canStart waits for the
+		// structures (queueplanResearch.js:22).
+		std::array<float, RES_COUNT> price{};
+		float duration = 0.0f;
+		tech_price(petra_pid_, tech_id, tinfo.researcher, price.data(), duration);
+		PetraQueueAccount &w = petra_queues_.wants[PETRA_Q_MAJOR_TECH];
+		w.food = std::max(w.food, price[RES_FOOD]); w.wood = std::max(w.wood, price[RES_WOOD]);
+		w.gold = std::max(w.gold, price[RES_GOLD]); w.stone = std::max(w.stone, price[RES_STONE]);
+		petra_queues_.want_age[PETRA_Q_MAJOR_TECH] = 0.0f;
+		return false;
+	}
+	if (rc != TECH_OK && rc != TECH_ERR_COST) return false;
 	// queueplanResearch.js start: the researcher with the shortest queue (trainingQueueTime).
 	Building *at = nullptr;
 	bool have = false;
@@ -27463,10 +27524,14 @@ int Simulation::petra_queue_base_priority(uint8_t q) const {
 		case PETRA_Q_WONDER: return 1;
 		case PETRA_Q_EMERGENCY: return 1000;
 		case PETRA_Q_PLAN: case PETRA_Q_PLAN_CHAMP: case PETRA_Q_PLAN_SIEGE: {
-			// The attack being mustered, else the raid.
-			const bool attack = petra_attack_plan_.state == AttackPlan::MUSTER || petra_raid_plan_.state != AttackPlan::MUSTER;
-			const uint8_t kind = attack ? petra_attack_mgr_.kind : (uint8_t)PETRA_ATTACK_RAID;
-			float p = kind == PETRA_ATTACK_RUSH ? 250.0f : kind == PETRA_ATTACK_RAID ? 150.0f : kind == PETRA_ATTACK_HUGE ? 90.0f : 70.0f;
+			// attackPlan.js:221: each mustering plan has its own queues at its kind's priority;
+			// RTS0's raid and attack share these, at the higher of the two.
+			auto kind_priority = [](uint8_t kind) {
+				return kind == PETRA_ATTACK_RUSH ? 250.0f : kind == PETRA_ATTACK_RAID ? 150.0f : kind == PETRA_ATTACK_HUGE ? 90.0f : 70.0f;
+			};
+			const bool raid = petra_raid_plan_.state == AttackPlan::MUSTER;
+			const bool attack = petra_attack_plan_.state == AttackPlan::MUSTER || !raid;
+			float p = std::max(attack ? kind_priority(petra_attack_mgr_.kind) : 0.0f, raid ? kind_priority(PETRA_ATTACK_RAID) : 0.0f);
 			if (c.difficulty < PETRA_EASY) p *= 0.4f;
 			else if (c.difficulty < PETRA_MEDIUM) p *= 0.8f;
 			return std::max(1, (int)p) + (q == PETRA_Q_PLAN_CHAMP ? 1 : 0);
@@ -27496,7 +27561,7 @@ void Simulation::petra_check_paused_queues() {
 	bool has_field = false, has_dock = false, has_fishing = false;
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
-		potential_base = potential_base || is_civic_centre(b.type);
+		potential_base = potential_base || petra_base_anchor_type(b.type); // hasPotentialBase: a CivCentre anchor, military colonies too
 		has_field = has_field || b.type == BLD_FIELD;
 		has_dock = has_dock || b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK;
 	}
@@ -27668,6 +27733,7 @@ void Simulation::petra_structure_cost(uint8_t btype, float &food, float &wood, f
 }
 
 bool Simulation::petra_try_pay_structure(uint8_t queue, uint8_t btype) {
+	if (!petra_has_builder()) return false; // canBuild/canStart: no plan without a builder
 	float f, w, g, st;
 	petra_structure_cost(btype, f, w, g, st);
 	return petra_try_pay(queue, f, w, g, st);
@@ -28583,6 +28649,16 @@ void Simulation::petra_clear_no_room(uint8_t type) {
 	std::erase_if(petra_room_.marks, [type](const PetraRoom::Mark &m) { return m.type == type; });
 }
 
+// buildManager.js hasBuilder: canBuild refuses a structure no living unit of ours can build
+// ("nobuilder"), so no foundation is paid for once the citizens are gone.
+bool Simulation::petra_has_builder() const {
+	for (size_t i = 0; i < units_.count; ++i)
+		if ((units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) && units_.hp[i] > 0.0f && units_.team[i] == petra_pid_ &&
+		    unit_can_build(units_.unit_type[i], units_.tmpl[i]))
+			return true; // garrisoned or aboard a ship included (builderCounters counts every entity)
+	return false;
+}
+
 // Every Petra foundation goes down here: queueplanBuilding.js start sets
 // HQ.turnCache.buildingBuilt, and canStart refuses further structures this AI turn.
 uint32_t Simulation::petra_spawn_foundation(int cx, int cz, uint8_t btype) {
@@ -28670,20 +28746,24 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 	return 0;
 }
 
-// garrisonManager.js update: the enemies within a holder's arrow range (80 m,
-// 20 world units, for a holder that doesn't shoot): defensive structures, melee or ranged
-// siege, or other units (Gaia's only while fighting; Gaia is no foe here).
+// garrisonManager.js update: the enemies within a holder's arrow range, centre to centre
+// (80 m, 20 world units, for a holder that doesn't shoot): defensive structures, melee or
+// ranged siege, or other units. getEnemyEntities holds Gaia too: its shooting structures,
+// and its units while they fight (UnitAI COMBAT).
 Simulation::PetraAround Simulation::petra_around(const Building &holder) const {
 	PetraAround around;
 	const float arrows = building_arrow_range(holder);
-	const float range = arrows > 0.0f ? arrows + holder.half_size : 20.0f;
+	const float range = arrows > 0.0f ? arrows : 20.0f;
 	for (const Building &b : buildings_) {
-		if (!petra_foe(b.team) || b.hp <= 0.0f || b.build_progress < 1.0f || !building_ai_info(b.type).shoots()) continue;
+		if ((!petra_foe(b.team) && b.team != GAIA_PLAYER) || b.hp <= 0.0f || b.build_progress < 1.0f || !building_ai_info(b.type).shoots()) continue;
 		const float dx = b.x - holder.x, dz = b.z - holder.z;
 		if (dx * dx + dz * dz <= range * range) { around.defense_structure = true; break; }
 	}
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || !petra_foe(units_.team[i])) continue;
+		if (!units_.alive[i]) continue;
+		if (units_.team[i] == GAIA_PLAYER) {
+			if (units_.action_state[i] != ACTION_ATTACK) continue;
+		} else if (!petra_foe(units_.team[i])) continue;
 		const float dx = units_.pos_x[i] - holder.x, dz = units_.pos_z[i] - holder.z;
 		if (dx * dx + dz * dz > range * range) continue;
 		const TechClasses c = unit_tech_classes(units_.unit_type[i]);
@@ -28700,7 +28780,7 @@ Simulation::PetraAround Simulation::petra_around(const Building &holder) const {
 
 // garrisonManager.js keepGarrisoned. Petra garrisons for protection (a hurt
 // unit healing, infantry adding arrows, support units and siege sheltering),
-// and its hero for an emergency.
+// and its critical hero (Regicide) for an emergency (defenseManager.js:913).
 bool Simulation::petra_keep_garrisoned(size_t i, const Building &holder, const PetraAround &around) const {
 	const uint8_t type = units_.unit_type[i];
 	const TechClasses c = unit_tech_classes(type);
@@ -28708,7 +28788,7 @@ bool Simulation::petra_keep_garrisoned(size_t i, const Building &holder, const P
 	const bool heals = structure_garrison_heal(holder) > 0.0f && unit_is_human(type);
 	const bool needs_heal = heals && health < 1.0f;
 	if (heals && health < petra_config_.garrison_hp_high) return true;
-	if (type == UNIT_HERO) // TYPE_EMERGENCY
+	if (petra_is_critical_ent(i)) // TYPE_EMERGENCY
 		return around.unit || around.defense_structure || around.melee_siege ||
 			(around.range_siege && health < petra_config_.garrison_hp_high) || needs_heal;
 	if (unit_classes_at(i) & building_ai_info(holder.type).garrison_arrow_classes) { // the holder's GarrisonArrowClasses
@@ -29005,6 +29085,22 @@ void Simulation::petra_manage_garrisons() {
 			if (!petra_keep_garrisoned((size_t)idx, b, around)) leave.push_back(uid);
 		}
 		for (uint32_t uid : leave) order_ungarrison_single(b.id, uid);
+		// garrisonManager.js:181: ours still walking to it are recalled (leaveGarrison,
+		// stopMoving) once they no longer need it.
+		std::vector<uint32_t> recall;
+		if (own && incoming[bi] > 0) {
+			for (size_t i = 0; i < units_.count; ++i) {
+				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] != ORDER_GARRISON ||
+				    units_.order_target[i] != b.id || units_.action_state[i] == ACTION_GARRISONED)
+					continue;
+				if (decay_min > 0 && unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f) continue;
+				if (!petra_keep_garrisoned(i, b, around)) recall.push_back(units_.id[i]);
+			}
+		}
+		if (!recall.empty()) {
+			cmd_stop(recall.data(), recall.size());
+			incoming[bi] -= (int)recall.size();
+		}
 		if (shoots && (around.unit || around.melee_siege || around.range_siege))
 			petra_garrison_units_inside(bi, around.defense_structure || around.unit, incoming);
 		if (decay_min > 0) petra_garrison_units_inside(bi, true, incoming, decay_min);
