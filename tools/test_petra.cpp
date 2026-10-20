@@ -3243,6 +3243,46 @@ static void test_relic_capture() {
 	}
 }
 
+// victoryManager.js targetedGaiaRelics: a relic Petra went for once is reinforced every 10th
+// turn until its owner changes, with no need to see it again, and dropped once someone takes it.
+static void test_relic_targeted_kept() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_RELIC);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->relics_.clear();
+	const float rx = tz * 0.7f, rz = -tx * 0.7f; // to the side, unseen
+	const uint32_t relic = s->spawn_relic(rx, rz);
+	std::printf("  targeted relic at (%.0f, %.0f), TC (%.0f, %.0f), territory %d\n", rx, rz, tx, tz, s->territory_owner_at(rx, rz));
+	for (int k = 0; k < 4; ++k) s->spawn_unit(tx + 6.0f + (float)k, tz + 6.0f, 1, UNIT_SPEARMAN);
+	run_ai_turns(*s, 10);
+	auto going = [&] {
+		int n = 0;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.order_kind[i] == ORDER_CAPTURE_RELIC && s->units_.order_target[i] == relic) ++n;
+		return n;
+	};
+	const int unseen = going();
+	// An expedition sent once, then lost: the relic stays targeted.
+	s->petra_targeted_relics_.push_back({relic, 1});
+	run_ai_turns(*s, 20);
+	const int kept = going();
+	std::printf("  targeted relic: %d units go for an unseen relic, %d once Petra went for it before\n", unseen, kept);
+	CHECK(unseen == 0, "Petra leaves an unseen relic outside its territory");
+	CHECK(kept > 0, "but keeps sending units to a relic it went for once (targetedGaiaRelics)");
+	const int32_t r = s->lookup_unit(relic);
+	s->units_.team[r] = 0;
+	run_ai_turns(*s, 20);
+	const bool dropped = std::none_of(s->petra_targeted_relics_.begin(), s->petra_targeted_relics_.end(),
+	                                  [&](const auto &t) { return t.relic == relic; });
+	CHECK(dropped && going() == 0, "and drops it, calling its units off, once another player takes it");
+}
+
 // attackManager.js getRelicEnemyPlayer: in capture the relic, Petra attacks the enemy
 // holding the most relics rather than its nearest one.
 static void test_relic_enemy_player() {
@@ -6682,6 +6722,7 @@ int main(int argc, char **argv) {
 	RUN(test_attack_request);
 	RUN(test_attack_request_counts_raid);
 	RUN(test_relic_capture);
+	RUN(test_relic_targeted_kept);
 	RUN(test_relic_enemy_player);
 	RUN(test_relic_gaia_target);
 	RUN(test_retreat_walk_forced);

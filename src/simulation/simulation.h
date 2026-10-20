@@ -180,7 +180,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 102; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 103; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_TARGETED_RELICS = 103; // each Petra's targetedGaiaRelics
 	static constexpr uint32_t SAVE_VERSION_AUTOQUEUE_BATCH = 102; // each queued batch's original size once part of it spawned
 	static constexpr uint32_t SAVE_VERSION_CARCASS_OWNER = 101; // each carcass's animal's owner
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
@@ -3471,6 +3472,10 @@ private:
 		std::vector<uint32_t> foundations; // sorted ids
 	};
 	PetraProspect petra_prospect_;
+	// victoryManager.js targetedGaiaRelics: the Gaia relics this AI goes for, reinforced every
+	// 10th turn until their owner changes. `sent` once a plan has gone for it (plans.length).
+	struct PetraTargetedRelic { uint32_t relic = 0; uint32_t sent = 0; };
+	std::vector<PetraTargetedRelic> petra_targeted_relics_;
 	void petra_check_trade_events();
 	void petra_set_no_room(uint8_t type);
 	bool petra_no_room(uint8_t type) const;
@@ -3861,7 +3866,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};

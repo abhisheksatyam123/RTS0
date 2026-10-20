@@ -25707,6 +25707,8 @@ bool Simulation::petra_unit_target_ok(int32_t t) const {
 // victoryManager.js targetedGaiaRelics: a relic one of our plans has as its target, or one
 // our units are on their way to capture.
 bool Simulation::petra_relic_targeted(uint32_t relic_id) const {
+	for (const PetraTargetedRelic &t : petra_targeted_relics_)
+		if (t.relic == relic_id) return true;
 	if (petra_attack_plan_.target_building_id == relic_id || petra_raid_plan_.target_building_id == relic_id) return true;
 	for (const AttackPlan &p : petra_started_attacks_)
 		if (p.target_building_id == relic_id) return true;
@@ -30690,7 +30692,89 @@ void Simulation::petra_manage_critical_ent_healers() {
 // territory (then no other new one this update), or any our units can see
 // outside enemy territory; send the nearest units that can capture it until they beat its regen.
 void Simulation::petra_capture_gaia_relics() {
-	bool own_started = false; // a new relic in our territory ends the search for new ones
+	auto listed = [&](uint32_t id) {
+		return std::find_if(petra_targeted_relics_.begin(), petra_targeted_relics_.end(),
+		                    [id](const PetraTargetedRelic &t) { return t.relic == id; });
+	};
+	auto gaia_relic = [&](uint32_t id) {
+		const int32_t r = lookup_unit(id);
+		return is_relic_unit(r) && units_.alive[r] && units_.team[r] == GAIA_PLAYER;
+	};
+	// attackPlan.js getNearestTarget: an attack going for a Gaia relic puts it in targetedGaiaRelics.
+	auto note_plan = [&](const AttackPlan &p) {
+		if (!p.target_building_id || !gaia_relic(p.target_building_id)) return;
+		if (auto it = listed(p.target_building_id); it != petra_targeted_relics_.end()) it->sent = 1;
+		else petra_targeted_relics_.push_back({p.target_building_id, 1});
+	};
+	note_plan(petra_attack_plan_);
+	for (const AttackPlan &p : petra_started_attacks_) note_plan(p);
+
+	// abortCaptureGaiaRelic / attackPlan.js Abort: an expedition called off withdraws to the
+	// nearest base anchor on its land. Attack plans keep theirs.
+	auto call_off = [&](uint32_t relic_id) {
+		for (size_t i = 0; i < units_.count; ++i) {
+			if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] != ORDER_CAPTURE_RELIC ||
+			    units_.order_target[i] != relic_id || petra_in_attack_squad(units_.id[i]))
+				continue;
+			const uint32_t uid = units_.id[i];
+			const uint16_t uland = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
+			const Building *anchor = nullptr;
+			float best = 1e30f;
+			for (const auto &b : buildings_) {
+				if (b.team != petra_pid_ || !is_civic_centre(b.type) || b.build_progress < 1.0f || b.wrecked) continue;
+				if (uland != 0 && petra_building_land(b, nullptr, uland) != uland) continue;
+				const float d2 = (b.x - units_.pos_x[i]) * (b.x - units_.pos_x[i]) + (b.z - units_.pos_z[i]) * (b.z - units_.pos_z[i]);
+				if (d2 < best) { best = d2; anchor = &b; }
+			}
+			if (anchor) order_walk(&uid, 1, anchor->x + anchor->half_size + 3.0f, anchor->z, false);
+			else cmd_stop(&uid, 1);
+		}
+	};
+
+	// captureGaiaRelic: send the nearest units that can capture it until they beat its regen
+	// by a 25th of the points, unless what is already on the way does by a 50th.
+	auto capture_relic = [&](PetraTargetedRelic &t) {
+		const int32_t r = lookup_unit(t.relic);
+		const float relx = units_.pos_x[r], relz = units_.pos_z[r];
+		float capture = -(float)RELIC_REGEN_RATE;
+		for (size_t i = 0; i < units_.count; ++i)
+			if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.order_kind[i] == ORDER_CAPTURE_RELIC &&
+			    units_.order_target[i] == t.relic)
+				capture += unit_capture_attack_at(i);
+		for (const AttackPlan &p : petra_started_attacks_) {
+			if (p.target_building_id != t.relic) continue;
+			for (uint32_t uid : p.squad) {
+				const int32_t k = lookup_unit(uid);
+				if (k >= 0 && units_.alive[k] && !(units_.order_kind[k] == ORDER_CAPTURE_RELIC && units_.order_target[k] == t.relic))
+					capture += unit_capture_attack_at((size_t)k);
+			}
+		}
+		if (capture > RELIC_CAPTURE_POINTS / 50.0f) return; // enough on the way
+		const uint16_t land = petra_land_at(relx, relz);
+		std::vector<std::pair<float, uint32_t>> near;
+		for (size_t i = 0; i < units_.count; ++i) {
+			if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] == ORDER_CAPTURE_RELIC) continue;
+			if (!can_capture_relic(i, r) || unit_is_ship(units_.unit_type[i])) continue;
+			if (units_.order_kind[i] == ORDER_GARRISON) continue;
+			if (petra_unit_reserved(units_.id[i]) || petra_guards_critical_ent(i)) continue;
+			const float dx = units_.pos_x[i] - relx, dz = units_.pos_z[i] - relz;
+			auto [ux, uz] = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
+			if (land != 0 && nav_grid_.global_region_at(ux, uz, PASS_INFANTRY) != land) continue;
+			near.push_back({dx * dx + dz * dz, units_.id[i]});
+		}
+		std::sort(near.begin(), near.end());
+		std::vector<uint32_t> expedition;
+		for (size_t k = 0; k < near.size() && capture <= RELIC_CAPTURE_POINTS / 25.0f; ++k) {
+			capture += unit_capture_attack_at((size_t)lookup_unit(near[k].second));
+			expedition.push_back(near[k].second);
+		}
+		// A first expedition too weak to out-capture a hundredth of the points stays home.
+		if (expedition.empty() || (!t.sent && capture < RELIC_CAPTURE_POINTS / 100.0f)) return;
+		order_capture_relic(expedition.data(), expedition.size(), t.relic);
+		t.sent = 1;
+	};
+
+	// Our relics go home; one someone else took first ends its expedition (OnOwnershipChanged).
 	for (const auto &rel : relics_) {
 		const int32_t r = lookup_unit(rel.id);
 		if (!is_relic_unit(r)) continue;
@@ -30709,77 +30793,40 @@ void Simulation::petra_capture_gaia_relics() {
 				const uint32_t uid = rel.id;
 				order_walk(&uid, 1, home->x + home->half_size + 3.0f, home->z, false);
 			}
+		}
+		if (units_.team[r] != GAIA_PLAYER) call_off(rel.id);
+	}
+
+	// Reinforce the relics we go for; drop those no longer Gaia's.
+	for (size_t k = 0; k < petra_targeted_relics_.size();) {
+		if (!gaia_relic(petra_targeted_relics_[k].relic)) {
+			petra_targeted_relics_.erase(petra_targeted_relics_.begin() + (std::ptrdiff_t)k);
 			continue;
 		}
-		if (units_.team[r] != GAIA_PLAYER) {
-			// victoryManager.js OnOwnershipChanged / abortCaptureGaiaRelic: someone else took it
-			// first, so the expedition (a Raid plan in 0.28) is called off. Attack plans keep theirs.
-			// attackPlan.js Abort: a started plan withdraws to the nearest base anchor on its land.
-			for (size_t i = 0; i < units_.count; ++i) {
-				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] != ORDER_CAPTURE_RELIC ||
-				    units_.order_target[i] != rel.id || petra_in_attack_squad(units_.id[i]))
-					continue;
-				const uint32_t uid = units_.id[i];
-				const uint16_t uland = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
-				const Building *anchor = nullptr;
-				float best = 1e30f;
-				for (const auto &b : buildings_) {
-					if (b.team != petra_pid_ || !is_civic_centre(b.type) || b.build_progress < 1.0f || b.wrecked) continue;
-					if (uland != 0 && petra_building_land(b, nullptr, uland) != uland) continue;
-					const float d2 = (b.x - units_.pos_x[i]) * (b.x - units_.pos_x[i]) + (b.z - units_.pos_z[i]) * (b.z - units_.pos_z[i]);
-					if (d2 < best) { best = d2; anchor = &b; }
-				}
-				if (anchor) order_walk(&uid, 1, anchor->x + anchor->half_size + 3.0f, anchor->z, false);
-				else cmd_stop(&uid, 1);
+		capture_relic(petra_targeted_relics_[k++]);
+	}
+
+	// And new Gaia relics: the first in our territory (then no more this turn), or any our units
+	// can see outside enemy territory.
+	for (const auto &rel : relics_) {
+		if (!gaia_relic(rel.id) || listed(rel.id) != petra_targeted_relics_.end()) continue;
+		const int32_t r = lookup_unit(rel.id);
+		const float relx = units_.pos_x[r], relz = units_.pos_z[r];
+		const int terr = territory_owner_at(relx, relz);
+		bool go = terr == (int)petra_pid_;
+		const bool own = go;
+		if (!go && (terr < 0 || terr == GAIA_PLAYER || !is_hostile(petra_pid_, (uint8_t)terr))) {
+			for (size_t i = 0; i < units_.count && !go; ++i) {
+				if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+				const float dx = units_.pos_x[i] - relx, dz = units_.pos_z[i] - relz;
+				const float v = unit_base_vision(i);
+				go = dx * dx + dz * dz <= v * v;
 			}
-			continue;
 		}
-		// captureGaiaRelic: the capture already under way, less the relic's regen.
-		float capture = -(float)RELIC_REGEN_RATE;
-		for (size_t i = 0; i < units_.count; ++i)
-			if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.order_kind[i] == ORDER_CAPTURE_RELIC &&
-			    units_.order_target[i] == rel.id)
-				capture += unit_capture_attack_at(i);
-		if (capture > RELIC_CAPTURE_POINTS / 50.0f) continue; // enough on the way
-		if (capture <= -(float)RELIC_REGEN_RATE) { // not targeted yet
-			if (own_started) continue;
-			const int terr = territory_owner_at(rel.x, rel.z);
-			bool go = terr == (int)petra_pid_;
-			own_started = go;
-			if (!go && (terr < 0 || !is_hostile(petra_pid_, (uint8_t)terr))) {
-				for (size_t i = 0; i < units_.count && !go; ++i) {
-					if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-					const float dx = units_.pos_x[i] - rel.x, dz = units_.pos_z[i] - rel.z;
-					const float v = unit_base_vision(i);
-					go = dx * dx + dz * dz <= v * v;
-				}
-			}
-			if (!go) continue;
-		}
-		const bool fresh = capture <= -(float)RELIC_REGEN_RATE;
-		auto [rx, rz] = nav_grid_.world_to_cell(rel.x, rel.z);
-		const uint16_t land = nav_grid_.global_region_at(rx, rz, PASS_INFANTRY);
-		std::vector<std::pair<float, uint32_t>> near;
-		for (size_t i = 0; i < units_.count; ++i) {
-			if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] == ORDER_CAPTURE_RELIC) continue;
-			if (!can_capture_relic(i, r) || unit_is_ship(units_.unit_type[i])) continue;
-			if (units_.order_kind[i] == ORDER_GARRISON) continue;
-			if (petra_unit_reserved(units_.id[i]) || petra_guards_critical_ent(i)) continue;
-			const float dx = units_.pos_x[i] - rel.x, dz = units_.pos_z[i] - rel.z;
-			auto [ux, uz] = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
-			if (land != 0 && nav_grid_.global_region_at(ux, uz, PASS_INFANTRY) != land) continue;
-			near.push_back({dx * dx + dz * dz, units_.id[i]});
-		}
-		std::sort(near.begin(), near.end());
-		// The nearest, until they out-capture the regen by a 25th of the points.
-		std::vector<uint32_t> expedition;
-		for (size_t k = 0; k < near.size() && capture <= RELIC_CAPTURE_POINTS / 25.0f; ++k) {
-			capture += unit_capture_attack_at((size_t)lookup_unit(near[k].second));
-			expedition.push_back(near[k].second);
-		}
-		// A new expedition too weak to out-capture a hundredth of the points stays home.
-		if (expedition.empty() || (fresh && capture < RELIC_CAPTURE_POINTS / 100.0f)) continue;
-		order_capture_relic(expedition.data(), expedition.size(), rel.id);
+		if (!go) continue;
+		petra_targeted_relics_.push_back({rel.id, 0});
+		capture_relic(petra_targeted_relics_.back());
+		if (own) break;
 	}
 }
 
@@ -31314,6 +31361,7 @@ void Simulation::petra_reset_ai_state() {
 	petra_supply_.clear();
 	petra_room_ = PetraRoom{};
 	petra_prospect_ = PetraProspect{};
+	petra_targeted_relics_.clear();
 	petra_approach_.clear();
 	petra_inaccessible_.clear();
 	petra_base_dropsite_checks_.clear();
@@ -33082,6 +33130,10 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					v.allied.clear();
 				}
 			} else v = PetraKept{}; // decided again at the next AI turn, from the game as loaded
+		} else if constexpr (std::is_same_v<T, std::vector<S::PetraTargetedRelic>>) {
+			if (ar.version >= Simulation::SAVE_VERSION_PETRA_TARGETED_RELICS)
+				io_vec(ar, v, 1u << 16, [&](S::PetraTargetedRelic &t) { ar.pod(t.relic); ar.pod(t.sent); });
+			else v.clear(); // older saves: the relics our units are on their way to count, as before
 		} else if constexpr (std::is_same_v<T, PetraFailedGather>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_FAILED_GATHER) ar.pod(v);
 			else v = PetraFailedGather{};
