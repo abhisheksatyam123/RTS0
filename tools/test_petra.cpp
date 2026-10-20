@@ -7451,6 +7451,43 @@ static void test_trade_tech_waits_for_funds() {
 	CHECK(started && s->petra_queues_.special_tech == 0, "once affordable it is researched first and the queue clears");
 }
 
+// researchManager.js update doesn't look at checkPausedQueues: with minorTech paused it still
+// picks, and the pick waits unpaid in the paused queue until the queue is funded again.
+static void test_minor_tech_paused_still_picks() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(1);
+	s->spawn_initial();
+	s->petra_pid_ = 1;
+	float mx = 0.0f, mz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && is_civic_centre(b.type)) { mx = b.x + 14.0f; mz = b.z; }
+	s->spawn_building_world(mx, mz, BLD_STOREHOUSE, 1, 1.0f);
+	s->spawn_building_world(mx, mz + 14.0f, BLD_FARMSTEAD, 1, 1.0f);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	auto researching = [&] {
+		for (const auto &b : s->buildings())
+			for (const auto &o : b.queue)
+				if (b.team == 1 && o.unit_type == UNIT_TYPE_TECH) return true;
+		return false;
+	};
+	for (int k = 0; k < 40 && !s->petra_queues_.special_tech; ++k) {
+		s->petra_queues_.paused[PETRA_Q_MINOR_TECH] = true;
+		s->petra_manage_research(1.6f);
+		s->ticks_ += 32; // the next played turn
+	}
+	const uint8_t t = s->petra_queues_.special_tech;
+	std::printf("  minorTech paused: picked %d (%s)\n", t, t ? tech_info(t).name : "-");
+	CHECK(t != 0, "a technology is picked while minorTech is paused");
+	CHECK(!researching(), "and not bought while it stays paused");
+	s->petra_queues_.paused[PETRA_Q_MINOR_TECH] = false;
+	fund_queues(*s);
+	for (int k = 0; k < 40 && !researching(); ++k) {
+		s->petra_manage_research(1.6f);
+		s->ticks_ += 32;
+	}
+	CHECK(researching() && s->petra_queues_.special_tech == 0, "once funded again it is researched");
+}
+
 // buildManager.js hasBuilder: with no unit left that can build, canBuild refuses every
 // structure, so nothing is paid for a foundation nobody would raise.
 static void test_no_builder_no_foundation() {
@@ -7618,6 +7655,7 @@ int main(int argc, char **argv) {
 	RUN(test_no_free_income);
 	RUN(test_mercenary_workers);
 	RUN(test_trade_tech_waits_for_funds);
+	RUN(test_minor_tech_paused_still_picks);
 	RUN(test_no_builder_no_foundation);
 	RUN(test_roster_army);
 	RUN(test_diplomacy);
