@@ -370,7 +370,7 @@ static bool load_json_map(Simulation &sim, const std::string &map_id, uint32_t s
 			}
 			// load_map_seeded leaves out a unit with no type and no template to stand in (units/plane).
 			if (!resolved && u.string("type").empty()) continue;
-			unit_ids[i] = sim.spawn_map_unit(ux, uz, team, ut, pick.c_str(), rank);
+			unit_ids[i] = sim.spawn_map_unit(ux, uz, team, ut, pick.c_str(), rank, t.ends_with("_unpacked"));
 			continue;
 		}
 		unit_ids[i] = sim.spawn_map_unit(ux, uz, team, ut, nullptr);

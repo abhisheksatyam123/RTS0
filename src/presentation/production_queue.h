@@ -352,8 +352,8 @@ public:
 							rtso::sprintf0(rtso::tr0("%(population)s %(neededSlots)s"),
 									{{"population", rtso::tr0("Population")}, {"neededSlots", String::num_int64(needed)}});
 			}
-			if (paused) tip += "\n" + rtso::tr0("This item is paused.");
 			if (!slot.kind.is_empty()) tip += "\n" + rtso::tr0("Right-click for more information.");
+			if (paused) tip += "\n" + rtso::tr0("This item is paused."); // selection_panels.js:616, after it
 			slot.panel->set_tooltip_text(tip);
 
 			slot.chip->set_text(po.count > 1 ? String::num_int64(po.count) : String());
