@@ -4287,13 +4287,24 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 }
 
 float Simulation::structure_max_hp(uint8_t type, uint8_t team) const {
-	float hp = civ_building_type_info(civ_of(team), type).max_hp;
-	if (team < MAX_PLAYERS) {
-		// 0 A.D. civ structure bonuses (Hellenic Architecture, Wooden Construction, walls, ...)
-		hp *= civ_bonus_mult(civ_of(team), CIV_BONUS_BUILDING_HP, type);
-		hp *= tech_mods(team).bld_health[type];
-	}
-	return hp;
+	return civ_building_type_info(civ_of(team), type).max_hp * structure_hp_mult(type, team);
+}
+
+// 0 A.D. civ structure bonuses (Hellenic Architecture, Wooden Construction, walls, ...) and
+// technologies on Health/Max: the owner's, so a capture swaps them (ModificationsManager).
+float Simulation::structure_hp_mult(uint8_t type, uint8_t team) const {
+	if (team >= MAX_PLAYERS || type >= BLD_TYPE_COUNT) return 1.0f;
+	return civ_bonus_mult(civ_of(team), CIV_BONUS_BUILDING_HP, type) * tech_mods(team).bld_health[type];
+}
+
+// Health.OnValueModification after an ownership change: max and current health scale by
+// the new owner's modifiers over the old one's.
+void Simulation::rescale_structure_hp(Building &b, uint8_t from) {
+	const float was = structure_hp_mult(b.type, from), now = structure_hp_mult(b.type, b.team);
+	if (was <= 0.0f || now == was) return;
+	const float r = now / was;
+	b.max_hp *= r;
+	b.hp *= r;
 }
 
 Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t building_id, int choice) const {
@@ -15113,6 +15124,7 @@ void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
 		b.focus_targets.clear(); // BuildingAI.OnOwnershipChanged
 		const uint8_t from = b.team;
 		b.team = best == GAIA ? GAIA_PLAYER : (uint8_t)best;
+		rescale_structure_hp(b, from);
 		// OnOwnershipChanged -> UpdateCachedValuesAndNotify: the new owner's modifiers.
 		if (b.max_capture_points > 0.0f) {
 			const float want = structure_max_capture(b);
@@ -18463,6 +18475,7 @@ void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
 					std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f));
 		}
 		b.team = to;
+		rescale_structure_hp(b, from);
 		refresh_capture_max(b);
 		b.capture_points = to < MAX_PLAYERS ? b.capture_points_by_team[to] : 0.0f;
 		roots |= has_territory_influence(b.type);

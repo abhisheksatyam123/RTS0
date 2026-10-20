@@ -1551,6 +1551,8 @@ public:
 	bool cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool lock);
 	// Maximum hit points of a `type` structure owned by `team`: template x civ bonus x techs.
 	float structure_max_hp(uint8_t type, uint8_t team) const;
+	float structure_hp_mult(uint8_t type, uint8_t team) const; // owner civ bonus x technologies on Health/Max
+	void rescale_structure_hp(Building &b, uint8_t from);
 	// 0 A.D. Barter.js: sell 100 or 500 (DEAL_AMOUNT x 1 or BATCH_SIZE) of one
 	// resource for another. Needs a finished Market owned by `player`.
 	bool cmd_barter(uint8_t player, ResourceType sell, ResourceType buy, int amount = 100);

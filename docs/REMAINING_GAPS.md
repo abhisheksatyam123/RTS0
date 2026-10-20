@@ -173,6 +173,17 @@ BuildingAI, focus fire, structure tooltips, merc camps and civ structure data ag
 | R3 | The structure attack tooltip always said "Bow"; the bolt tower's AttackName is Bolt, the artillery tower's Stone | low | Fixed |
 | R4 | The Projectile Limit and per-unit arrow tooltip ignored a garrisoned Caros (GetMaxArrowCount, GetGarrisonArrowMultiplier) | low | Fixed |
 
+### Technologies and structure data, seventh 0.28 pass (2026-10-20)
+
+All 138 technologies (cost, time, requirements, researchers, every modification) and 87 structure types x 15 civs (health, cost, capture, decay, territory, garrison, resistance, loot, arrows) compared by script against 0.28. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| S1 | ptol_structures (Economic !CivCentre !Naval) left out the mill, an Economic farmstead: a Ptolemaic-held mill kept 500 capture points and 20 wood loot (0.28: 300, 12) | low | Fixed |
+| S2 | A captured structure kept its builder's Health modifiers (civ bonus, technologies); 0.28 recomputes them for the new owner and scales health with them | low | Fixed |
+| S3 | TECH_WARSHIP_RAMMING_SPEED (id 114) and an extra ship_vision effect row have no 0.28 source; neither can be researched or reached | nit | Kept: id 114 stays reserved for saves |
+| S4 | extract_0ad_techs.py without --append yields 132 techs (agoge, celtic_auxiliaries and the rows above are kept by --append) | tooling | Kept: regenerate with --append |
+
 Checked and matching: queue limits, batch time modifiers, pop blocking, entity limits, research cost multipliers, upgrade cost/time/carry-over, foundation and repair rates, capture regen and ownership flip, territory decay rates, garrison healing, build restriction distances, every tech's cost/time/requirements/supersedes, researcher lists, civ bonuses, and the training/research/construction tooltips.
 
 ### Statistics, replays, summary, Match Settings and developer overlay, fifth 0.28 pass (2026-10-20)
