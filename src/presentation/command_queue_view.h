@@ -718,8 +718,7 @@ public:
 					return n;
 				};
 				if (const int inside = own(found_b->garrisoned_units))
-					add_entity_command("unload-all", "Unload All", "session.unload",
-							"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, inside);
+					add_unload_all(sim->turret_only_holder(*found_b), inside);
 				if (const int turrets = own(found_b->turret_units))
 					add_entity_command("unload-all-turrets", "Unload Turrets", "session.unloadturrets",
 							"Unload Turrets\nOrder all units to leave the selected turret points.", "garrison-out.png", true, turrets);
@@ -730,8 +729,7 @@ public:
 				const int inside = (int)found_b->garrisoned_units.size() +
 						(found_b->type == rtso::BLD_CORRAL ? sim->corral_count(found_b->id) : 0);
 				if (inside > 0)
-					add_entity_command("unload-all", "Unload All", "session.unload",
-							"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, inside);
+					add_unload_all(sim->turret_only_holder(*found_b), inside);
 				// "unload-all-turrets": the rampart tower's turret units (a wall's are its garrison above).
 				if (!found_b->turret_units.empty())
 					add_entity_command("unload-all-turrets", "Unload Turrets", "session.unloadturrets",
@@ -1709,6 +1707,17 @@ private:
 		const String need = rtso::needed_resources_tooltip(cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
 				ps.res[rtso::RES_STONE], ps.res[rtso::RES_GOLD], true);
 		return need.is_empty() ? rtso::objection_font(rtso::tr0("Insufficient resources:").trim_suffix(":")) : need;
+	}
+
+	// "unload-all", or for a wall, gate or outpost (turret points only) "Unload Turrets" as
+	// 0.28's unload-all-turrets shows it; the units are its garrison here either way.
+	void add_unload_all(bool turret_only, int count) {
+		if (turret_only)
+			add_entity_command("unload-all", "Unload Turrets", "session.unloadturrets",
+					"Unload Turrets\nOrder all units to leave the selected turret points.", "garrison-out.png", true, count);
+		else
+			add_entity_command("unload-all", "Unload All", "session.unload",
+					"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, count);
 	}
 
 	// One g_EntityCommands button (unit_actions.js): the hotkey and title on the
