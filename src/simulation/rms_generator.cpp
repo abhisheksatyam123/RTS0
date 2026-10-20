@@ -3811,6 +3811,7 @@ void RmsGenerator::place_elephantine_fish(Simulation &sim, const HeightmapGrid &
 	RmsRng rng(config.seed ^ 0x54494C41u); // 'TILA'
 	auto deep = [&](float x, float z) { // a water tile with water 2 tiles round it
 		if (x < -half + 2.0f || x > half - 2.0f || z < -half + 2.0f || z > half - 2.0f) return false;
+		if (sim.past_map_edge(x, z)) return false; // as distribute_fish
 		for (int dz = -2; dz <= 2; ++dz)
 			for (int dx = -2; dx <= 2; ++dx)
 				if (hm.sample_world(x + (float)dx, z + (float)dz) >= water_h) return false;
@@ -13259,6 +13260,8 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 	RmsRng rng(config.seed ^ 0x46495348u); // 'FISH'
 	auto open_water = [&](float x, float z, int margin) {
 		if (x < -half + 2.0f || x > half - 2.0f || z < -half + 2.0f || z > half - 2.0f) return false;
+		// Past the edge ships can't sail, and keep_resources_passable would pull a fish there onto the shore.
+		if (sim.past_map_edge(x, z)) return false;
 		for (int dz = -margin; dz <= margin; ++dz)
 			for (int dx = -margin; dx <= margin; ++dx)
 				if (hm.sample_world(x + (float)dx, z + (float)dz) >= water_h - 0.3f) return false;
