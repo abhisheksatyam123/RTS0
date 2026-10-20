@@ -2255,9 +2255,10 @@ public:
 	// Obstruction/Static rectangle blocks foundations along it.
 	static float treasure_angle(uint32_t id) { return (float)(id % 12) * 0.52f; }
 	void order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued = false);
-	// TreasureCollector MaxDistance of unit i in world units (+ the treasure's footprint), or a
+	// TreasureCollector MaxDistance of unit i in world units (edge to edge), or a
 	// negative value when its template has no TreasureCollector (dogs, siege, catafalques).
 	float treasure_reach(size_t i) const;
+	bool treasure_within(size_t i, const Treasure &t, float reach) const; // edge to edge
 	// Whether unit i stands within treasure_reach of treasure `id` it collects, where tick_treasures runs its timer.
 	bool treasure_in_reach(size_t i, uint32_t id) const;
 	const std::vector<Treasure> &treasures() const { return treasures_; }

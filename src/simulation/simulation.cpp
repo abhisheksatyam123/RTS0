@@ -35447,17 +35447,28 @@ float Simulation::treasure_reach(size_t i) const {
 			else if (std::strcmp(name, "ship_siege") == 0 || std::strcmp(name, "champion_juggernaut") == 0) m = 24.0f; // juggernaut: template_unit_ship_warship_siege
 		}
 	}
-	return m * 0.6f + 1.0f;
+	return m * 0.6f;
+}
+
+// TreasureCollector.IsTargetInRange: ObstructionManager IsInTargetRange measures from the
+// collector's obstruction to the treasure's Obstruction/Static rectangle, edge to edge.
+bool Simulation::treasure_within(size_t i, const Treasure &t, float reach) const {
+	const auto &ti = treasure_type_info(t.type);
+	float ux, uz;
+	bool swapped;
+	nav::footprint_axis(treasure_angle(t.id), ux, uz, swapped);
+	const float hu = (swapped ? ti.depth : ti.width) * 0.125f, hv = (swapped ? ti.width : ti.depth) * 0.125f;
+	const float dx = units_.pos_x[i] - t.x, dz = units_.pos_z[i] - t.z;
+	const float pu = std::max(0.0f, std::fabs(dx * ux + dz * uz) - hu), pv = std::max(0.0f, std::fabs(dz * ux - dx * uz) - hv);
+	const float r = reach + unit_collision_radius(units_.unit_type[i]);
+	return pu * pu + pv * pv <= r * r;
 }
 
 bool Simulation::treasure_in_reach(size_t i, uint32_t id) const {
 	const float reach = treasure_reach(i);
 	if (reach < 0.0f || units_.target_unit_id[i] != id || units_.pack_state[i] != PACK_NONE) return false;
 	for (const Treasure &t : treasures_)
-		if (t.id == id) {
-			const float dx = units_.pos_x[i] - t.x, dz = units_.pos_z[i] - t.z;
-			return dx * dx + dz * dz <= reach * reach;
-		}
+		if (t.id == id) return treasure_within(i, t, reach);
 	return false;
 }
 
@@ -35513,9 +35524,8 @@ void Simulation::tick_treasures(float dt) {
 		for (size_t k = 0; k < treasures_.size(); ++k) {
 			Treasure &t = treasures_[k];
 			if (t.id != tid) continue;
-			const float dx = units_.pos_x[i] - t.x, dz = units_.pos_z[i] - t.z;
 			const float reach = treasure_reach(i);
-			if (reach < 0.0f || units_.pack_state[i] != PACK_NONE || dx * dx + dz * dz > reach * reach) break;
+			if (reach < 0.0f || units_.pack_state[i] != PACK_NONE || !treasure_within(i, t, reach)) break;
 			// TreasureCollector.js: each collector in range runs its own CollectTime timer and the
 			// first to finish takes it. Collectors never pack, so pack_elapsed holds the timer.
 			collecting[i] = 1;
