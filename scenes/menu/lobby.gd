@@ -78,6 +78,21 @@ var _ratings := {} # player name -> rating, from the player list
 ## over the setup, without Host and Join; Back (or Escape) closes it.
 var dialog := false
 signal closed
+
+## The page as a dialog on its own layer over the game setup or the match (it frees
+## itself on Back); nothing without a lobby connection (Engine.HasXmppClient).
+static func open_dialog(tree: SceneTree) -> Node:
+	if not tree.root.get_node("LobbySession").signed_in():
+		return null
+	var layer := CanvasLayer.new()
+	layer.name = "LobbyDialog"
+	layer.layer = 40
+	var lobby: Control = load("res://scenes/menu/lobby.tscn").instantiate()
+	lobby.dialog = true
+	lobby.closed.connect(layer.queue_free)
+	layer.add_child(lobby)
+	tree.root.add_child(layer)
+	return lobby
 var _moderators := {} # names the lobby lists as moderators
 var _muted := {} # names with the "visitor" role (muted)
 var _notice_dlg: AcceptDialog

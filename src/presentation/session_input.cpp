@@ -375,10 +375,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("silhouettes")) { toggle_overlay("silhouettes"); return; }
 		// MenuButtons.js Lobby (hotkey "lobby"): the lobby over the game when a lobby client exists.
 		if (fired("lobby")) {
-			if (has_lobby_client()) {
-				close_open_dialogs();
-				_on_lobby_button_pressed();
-			}
+			open_lobby_page();
 			return;
 		}
 		// OverlayCounterElapsedTime / RemainingCeasefire Hotkey: the top-right counters.
