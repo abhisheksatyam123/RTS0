@@ -75,6 +75,9 @@ public:
 	virtual bool ui_garrison_panel_shown() const { return false; }
 	// g_IsObserver: an observer, a defeated player or a replay viewer.
 	virtual bool ui_observing() const { return false; }
+	// Another player's live unit or structure a click selected alone for its details (0.28
+	// selects it; RTS0's inspector), with nothing else selected; 0 when none. `building`: which.
+	virtual uint32_t ui_inspected_foreign(bool *building) const { return 0; }
 };
 
 class RtsoCommandPanelView {
@@ -286,8 +289,23 @@ public:
 		using namespace godot;
 		if (!panel_) return;
 		rtso::Simulation *sim = host_->ui_sim();
-		const godot::PackedInt32Array &selected_ids = host_->ui_selected_ids();
-		const uint32_t selected_building_id = host_->ui_selected_building_id();
+		godot::PackedInt32Array selected_ids = host_->ui_selected_ids();
+		uint32_t selected_building_id = host_->ui_selected_building_id();
+		// unit_commands.js updateUnitCommands: another player's entity selected alone gets the
+		// Command panel too, with what its owner's relationship allows (allowedPlayers Ally:
+		// unload-all, unload-all-turrets, is-dropsite-shared; nothing for Enemy).
+		bool foreign_units = false;
+		if (sim && selected_building_id == 0 && selected_ids.is_empty()) {
+			bool building = false;
+			if (const uint32_t id = host_->ui_inspected_foreign(&building)) {
+				if (building)
+					selected_building_id = id;
+				else {
+					selected_ids.push_back((int32_t)id);
+					foreign_units = true;
+				}
+			}
+		}
 		// unit_commands.js g_IsObserver: an observer gets every panel of the selection's owner
 		// (playerStates[entStates[0].player]), its buttons disabled (controlsPlayer).
 		panel_player_ = 0xFF;
@@ -317,7 +335,7 @@ public:
 		if (stances_bar_ && sim) {
 			bool held[5] = {};
 			bool any = false;
-			if (selected_building_id == 0 && !selected_ids.is_empty()) {
+			if (selected_building_id == 0 && !selected_ids.is_empty() && !foreign_units) {
 				auto uv = sim->units();
 				for (int s = 0; s < selected_ids.size(); ++s)
 					for (size_t i = 0; i < uv.count; ++i)
@@ -862,12 +880,14 @@ public:
 		} else {
 			// Non-building selected: clear visual queue slots, or show a training unit's (one selected).
 			trainer_unit_id_ = 0;
-			if (selected_ids.size() != 1 || !update_unit_roster((uint32_t)selected_ids[0])) {
+			if (foreign_units || selected_ids.size() != 1 || !update_unit_roster((uint32_t)selected_ids[0])) {
 				production_queue_.update(nullptr);
 				update_roster_list(nullptr);
 			}
 
-			if (!selected_ids.is_empty()) {
+			if (foreign_units)
+				add_foreign_unit_commands(sim, (uint32_t)selected_ids[0]);
+			else if (!selected_ids.is_empty()) {
 				auto uview = sim->units();
 
 				// 0 A.D. gui/session/selection_panels.js g_SelectionPanels.Formation: one button per
@@ -2018,6 +2038,36 @@ private:
 	// bar holds the previous frame's buttons (the first `old_count`) followed by
 	// this frame's. Keep the old ones when the two sets match, so a press and its
 	// release reach the same Button; otherwise swap in the new ones.
+	// An ally's unit selected alone (allowedPlayers Ally): Unload All for our own units aboard its
+	// ship or siege engine, and is-dropsite-shared on its sharable wagon once we have Diaspora.
+	void add_foreign_unit_commands(rtso::Simulation *sim, uint32_t id) {
+		uint8_t owner = 0xFF;
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == id) { owner = uv.team[i]; break; }
+		const uint8_t me = local_player();
+		if (owner >= rtso::MAX_PLAYERS || me >= rtso::MAX_PLAYERS || !sim->is_ally(me, owner)) return;
+		if (const auto *aboard = sim->get_transport_passengers(id)) {
+			int own = 0;
+			for (uint32_t p : *aboard)
+				for (size_t i = 0; i < uv.count; ++i)
+					if (uv.id[i] == p) { own += uv.team[i] == me; break; }
+			if (own > 0)
+				add_entity_command("unload-all", "Unload All", "session.unload",
+						"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, own);
+		}
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == id && rtso::unit_dropsite_sharable(uv.unit_type[i]) &&
+					sim->player(me).has_tech(rtso::TECH_UNLOCK_SHARED_DROPSITES)) {
+				const bool shared = sim->unit_dropsite_shared(id);
+				add_entity_command("is-dropsite-shared", shared ? "Shared Dropsite" : "Locked Dropsite", "",
+						shared ? "Shared Dropsite\nYou are allowed to use this dropsite."
+							   : "Locked Dropsite\nThe use of this dropsite is prohibited.",
+						shared ? "unlocked_small.png" : "locked_small.png", false);
+				break;
+			}
+	}
+
 	// The command row's last button, when it is `label` (not dropped past the six), stays
 	// pressable on an observer's read-only panel.
 	void observer_may_press_last(const char *label) {
