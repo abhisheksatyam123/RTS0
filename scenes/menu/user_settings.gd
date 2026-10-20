@@ -708,13 +708,22 @@ func _make_overlay() -> void:
 func overlay_height() -> float:
 	return _overlay_label.size.y if _overlay_label != null and _overlay_label.visible else 0.0
 
+## OverlayCounterRealtime: Date.toLocaleTimeString(), "3:45:12 PM" where the locale
+## keeps a 12-hour clock (ICU's h:mm:ss a), "15:45:12" elsewhere.
+const TWELVE_HOUR_REGIONS := ["US", "CA", "AU", "NZ", "IN", "PH", "PK", "BD", "EG", "SA", "MY", "CO", "MX"]
+static func local_time_string(t: Dictionary, locale: String) -> String:
+	var region := locale.get_slice("_", 1).left(2).to_upper()
+	if not (region in TWELVE_HOUR_REGIONS):
+		return "%02d:%02d:%02d" % [t.hour, t.minute, t.second]
+	var h: int = int(t.hour) % 12
+	return "%d:%02d:%02d %s" % [12 if h == 0 else h, t.minute, t.second, "PM" if int(t.hour) >= 12 else "AM"]
+
 func _update_overlay() -> void:
 	var lines: PackedStringArray = []
 	if cfg.get_bool("overlay.fps"):
 		lines.append("FPS: %4d" % int(Engine.get_frames_per_second())) # "FPS: %(fps)4s"
 	if cfg.get_bool("overlay.realtime"):
-		var t := Time.get_time_dict_from_system()
-		lines.append("%02d:%02d:%02d" % [t.hour, t.minute, t.second])
+		lines.append(local_time_string(Time.get_time_dict_from_system(), OS.get_locale()))
 	# OverlayCounterElapsedTime / OverlayCounterRemainingCeasefire, in a match.
 	var scene := get_tree().current_scene
 	if scene != null and scene.has_method("get_overlay_times"):

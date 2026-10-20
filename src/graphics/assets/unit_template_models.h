@@ -10,7 +10,7 @@
 namespace rtso {
 
 // The models roster templates draw with besides the civ class models.
-inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 433;
+inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 434;
 
 inline const char *unit_template_draw_model(int k) {
 	static const char *const kDraw[UNIT_TEMPLATE_DRAW_MODEL_COUNT] = {
@@ -447,6 +447,7 @@ inline const char *unit_template_draw_model(int k) {
 		"theb_sacred_band",
 		"thesp_melanochitones",
 		"plane",
+		"siege_shoushe",
 	};
 	return k >= 0 && k < UNIT_TEMPLATE_DRAW_MODEL_COUNT ? kDraw[k] : nullptr;
 }
@@ -971,7 +972,7 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		423, // athen/hero_xenophon
 		424, // spart/hero_leonidas_300
 		-1, // pers/arstibara (no model of its own: its owner civ's spearman model)
-		-1, // han/siege_shoushe (no model of its own: its owner civ's bolt_shooter model)
+		433, // han/siege_shoushe
 		212, // athen/infantry_spearman_a
 		-1, // athen/support_healer_e (no model of its own: its owner civ's healer model)
 		315, // spart/infantry_spearman_a
@@ -1012,7 +1013,7 @@ struct UnitTemplateModel {
 	const char *clip_donor; // a mesh-only model plays this model's clips (same bones), or nullptr
 };
 
-inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 375;
+inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 376;
 
 inline const UnitTemplateModel *unit_template_models() {
 	static const UnitTemplateModel kTable[UNIT_TEMPLATE_MODEL_COUNT] = {
@@ -1368,6 +1369,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"sele_ship_ram", "sele_trireme", nullptr},
 		{"sele_ship_siege", "sele_trireme", nullptr},
 		{"sele_siege_tower", "sele_bolt_shooter", nullptr},
+		{"siege_shoushe", "bolt_shooter", nullptr},
 		{"spart_cavalry_javelineer_a", "spart_cavalry", nullptr},
 		{"spart_cavalry_javelineer_b", "spart_cavalry", "spart_cavalry"},
 		{"spart_cavalry_javelineer_e", "spart_cavalry", nullptr},

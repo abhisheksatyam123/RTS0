@@ -191,9 +191,20 @@ func select_save(index: int) -> void:
 		return
 	list.set_selected(list.get_root().get_child(index), 0)
 
-## generateSavegameLabel.
+## generateSavegameLabel: the date, initAttributes.map (the map's path, such as
+## "maps/random/mainland") and the description.
 func save_label(s: Dictionary) -> String:
-	return "%s %s%s" % [s.date, s.map, (" - " + s.description) if s.description != "" else ""]
+	var fmt := "%(dateString)s %(map)s - %(description)s" if s.description != "" else "%(dateString)s %(map)s"
+	return L10n.sprintf(L10n.t(fmt), {"dateString": s.date, "map": map_path(str(s.get("map_id", ""))), "description": s.description})
+
+## The 0.28 map path behind a map id: maps/random/<script> for a random map, else
+## maps/<skirmishes|scenarios|tutorials>/<name>.
+static func map_path(map_id: String) -> String:
+	for r in SetupPage.RMS_MAPS:
+		if r[0] == map_id:
+			return "maps/random/" + SetupPage.rms_script(map_id)
+	var type := str(SetupPage._map_types_data().get("maps", {}).get(map_id, {}).get("type", "skirmish"))
+	return "maps/%s/%s" % [{"scenario": "scenarios", "tutorial": "tutorials"}.get(type, "skirmishes"), map_id]
 
 ## Every handler's onSelectionChange.
 func _on_selection_change() -> void:

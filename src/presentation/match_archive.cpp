@@ -758,7 +758,7 @@ bool RtsoMain::write_save_metadata(const String &path, const String &description
 	meta["map_id"] = String(sim->current_map_id().c_str());
 	meta["map_name"] = String(sim->current_map_name().c_str());
 	meta["game_time"] = (double)sim->stats().ticks * rtso::Simulation::FIXED_STEP;
-	meta["elapsed"] = match_elapsed_time;
+	meta["elapsed"] = match_elapsed_time();
 	meta["kind"] = net_lockstep() ? "mp" : "sp";
 	meta["settings"] = match_settings_snapshot(match_seed_);
 	meta["players"] = player_list();
@@ -822,7 +822,6 @@ bool RtsoMain::load_pending_save() {
 	apply_match_settings();
 	turn_mgr_.reset();
 	if (!load_game(path)) return false;
-	match_elapsed_time = (double)meta.get("elapsed", 0.0);
 	// Host Saved Game: host it once loaded; Start continues it for everyone.
 	net_saved_game_ = (bool)ms->get("net_saved_game") && String(ms->get("net_mode")) == "host" ? path : String();
 	ms->set("net_saved_game", false);
