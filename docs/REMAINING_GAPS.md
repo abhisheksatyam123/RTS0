@@ -346,7 +346,7 @@ researchManager.js, constructionPlan.js findGoodPosition and headquarters.js bui
 | X5 | Forge, temple and Town-phase structures don't wait for their queue's earlier plans; one merged want per queue starts whatever it can cover | low-medium | Open (C, queue order) |
 | X6 | At placement, 0.28 sends the first unit able to build; RTS0 sends idle builders to some structures and none to others | low | Open |
 | X7 | The house priority's free slots counted every foundation's population bonus; 0.28 counts house foundations at the house's bonus | low | Fixed |
-| X8 | Research is skipped while the minorTech queue is paused; 0.28 still picks and queues | low | Open |
+| X8 | Research was skipped while the minorTech queue was paused; 0.28 still picks (and raises the priority), and the pick waits in the paused queue | low | Fixed |
 | X9 | Town-phase houses are capped at 3 foundations rather than 3 plans | low | Open |
 
 Checked and matching: research lists and their priorities, findGoodPosition's influences and gaps, houseNeeded thresholds, market, temple, forge, wonder and defense timing, base expansion.

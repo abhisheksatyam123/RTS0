@@ -26887,15 +26887,17 @@ void Simulation::petra_manage_research(float dt) {
 	// headquarters.js:2295: researchManager.update every 5th AI turn, with an active base (a
 	// finished civic centre of ours, hasActiveBase).
 	if (!petra_turn_mod(5, 1) || !petra_has_active_base()) return;
-	// queueManager.js checkPausedQueues: minorTech waits while workers are short.
-	if (petra_queues_.paused[PETRA_Q_MINOR_TECH]) return;
+	// queueManager.js checkPausedQueues: minorTech waits while workers are short. update still
+	// picks (it checks only for a queued plan), so the pick and its priority wait in the
+	// paused queue (researchManager.js:161-180).
+	const bool minor_paused = petra_queues_.paused[PETRA_Q_MINOR_TECH];
 	// A minorTech plan waiting for its resources (a pick below, or researchTradeBonus /
 	// researchPopulationBonus): update returns while it waits (researchManager.js:163).
 	if (uint8_t &st = petra_queues_.special_tech; st) {
 		const ResearchCheck rc = research_check(petra_pid_, st);
 		if (petra_ps().has_tech(st) || (rc != TECH_OK && rc != TECH_ERR_COST)) st = 0;
 		else {
-			if (start_tech(st)) st = 0;
+			if (!minor_paused && start_tech(st)) st = 0;
 			return;
 		}
 	}
@@ -26933,7 +26935,7 @@ void Simulation::petra_manage_research(float dt) {
 	// A pick that can't start yet stays queued in minorTech (researchManager.js update returns
 	// while minorTech holds a plan), and is bought before anything else is picked.
 	auto pick = [&](uint8_t t) {
-		if (!start_tech(t)) petra_queues_.special_tech = t;
+		if (minor_paused || !start_tech(t)) petra_queues_.special_tech = t;
 	};
 	// increasePriority: a cheap pick (template cost under 400 in all) waits at twice
 	// minorTech's priority until it starts (queueToReset).
