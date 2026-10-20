@@ -770,6 +770,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				uint8_t rally_cmd = rtso::RALLY_CMD_AUTO;
 				rally_target_at(click_pos, target_res, target_bld, &target_ent, &rally_cmd);
 				if (auto_rally) target_bld = selected_building_id, rally_cmd = rtso::RALLY_CMD_AUTO;
+				// A market too close to this one: the "trade" rally action is disabled (no gain).
+				if (rally_cmd == rtso::RALLY_CMD_TRADE) {
+					rtso::Simulation::TradeGain g;
+					if (rally_route_gain(target_bld, g) && g.trader <= 0) return;
+				}
 				// session.queue (Shift) adds a position after the ones set (RallyPoint.AddPosition).
 				const bool rally_queued = rtso::hotkeys::held("session.queue");
 				// unit_actions.js "set-rallypoint": every selected structure with a RallyPoint.
