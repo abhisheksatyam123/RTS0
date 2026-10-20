@@ -2740,7 +2740,8 @@ private:
 				k == ORDER_RETURN_RESOURCE;
 	}
 	void formation_merge_twins();               // Formation.js ShapeUpdate twin merge
-	void formation_delete_twins(FormationController &fc); // Formation.js DeleteTwinFormations
+	void formation_delete_twins(FormationController &fc);
+	bool formation_current_order(const FormationController &fc, UnitOrder &o) const; // Formation.js DeleteTwinFormations
 	void formation_size(const FormationController &fc, float &width, float &depth) const; // GetSize
 	void attack_unit_one_by_one(const uint32_t *ids, size_t count, uint32_t target_unit_id);
 	void walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz, uint32_t follow = 0);
