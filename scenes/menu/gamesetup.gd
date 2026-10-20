@@ -1564,6 +1564,8 @@ func _on_slot_assign(id: int, slot: int) -> void:
 func _on_slot_kind(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
+	if idx != 0:
+		_unassign_net_slot(_net_rows().find(slot))
 	_slot_rows[slot]["kind"] = idx
 	if slot == _local_slot and idx != 0:
 		_local_slot = -1 # PlayerAssignment: you watch once your slot is given away
@@ -1572,6 +1574,27 @@ func _on_slot_kind(idx: int, slot: int) -> void:
 		refresh_slots.call_deferred() # the "(You)" label follows slot 1's kind
 	_render_ai_button(slot)
 	_update_preview()
+
+## Host: PlayerAssignment.js onSelectionChange, an AI or Removed slot leaves its
+## client unassigned (an observer); `k` is the slot in the sent setup.
+func _unassign_net_slot(k: int) -> void:
+	if _mp_role != "host" or k < 0:
+		return
+	var slots: Array = _net_state.get("slots", [])
+	var holder := int(slots[k].get("client", -1)) if k < slots.size() else -1
+	if holder >= 0:
+		net_main.assign_net_client(holder, -1)
+
+## Host: PlayerAssignmentsController.unassignInvalidPlayers, a lower player count
+## leaves the clients of the dropped slots unassigned.
+func _unassign_net_slots_from(count: int) -> void:
+	var k := 0
+	for i in _slot_rows.size():
+		if i > 0 and int(_slot_rows[i]["kind"]) == 2:
+			continue
+		if i >= count:
+			_unassign_net_slot(k)
+		k += 1
 
 ## The AI dialog's AI Player: Petra makes the slot an AI, None an unassigned one.
 func _set_slot_kind(slot: int, kind: int) -> void:
@@ -1772,6 +1795,7 @@ func _build_options() -> void:
 	_mute_spin($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots)
 	$VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value_changed.connect(
 		func(v: float) -> void:
+			_unassign_net_slots_from(int(v))
 			_render_player_count(int(v))
 			refresh_slots())
 	# 0.28 Dropdowns/PlayerCount.js: "Number of Players", 1 to g_MaxPlayers, in the Player tab

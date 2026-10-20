@@ -37,4 +37,5 @@ None of these touches simulation state or the save format.
 
 ## Fix log
 - 2026-10-20 #1263 pass 8 gap 1 (simulation chat notices, trigger dialogs and cheats go by the own seat; a replay viewer reads observer lines) merged.
-- 2026-10-20 #PR3 pass 8 gap 3 (at Start the host names each seated slot after its client, so the match, its replay and summary show the real players) merged.
+- 2026-10-20 #1271 pass 8 gap 3 (at Start the host names each seated slot after its client, so the match, its replay and summary show the real players) merged.
+- 2026-10-20 #PR4 pass 8 gap 2 (AI, Removed or a lower player count on a client's slot leaves that client an observer, as PlayerAssignment.js does) merged.

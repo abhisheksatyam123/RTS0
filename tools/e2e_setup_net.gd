@@ -20,7 +20,8 @@ extends SceneTree
 #      the single-player file; its next setup starts from it, a client's never,
 #      and a saved game's is not kept.
 # The host's slot names are 0.28's PlayerAssignment dropdowns: the clients and
-# Unassigned, which makes the slot's player an observer.
+# Unassigned, which makes the slot's player an observer, as AI, Removed or a
+# lower player count does.
 # A lobby game of two players is a Rated Game by default (0.28 Rating.js),
 # and a rated game has no cheats (Cheats.js).
 #
@@ -141,6 +142,17 @@ func run() -> void:
 		assign.select(2)
 		assign.item_selected.emit(2)
 	check(host.assigns == [[1, -1]], "Unassigned makes bob an observer (%s)" % str(host.assigns))
+	# PlayerAssignment.js: AI or Removed on a client's slot, or a player count
+	# below it, leaves the client unassigned (PlayerAssignmentsController.unassignInvalidPlayers).
+	host.assigns.clear()
+	page._on_slot_kind(1, 1)
+	check(host.assigns == [[1, -1]], "AI on bob's slot makes him an observer (%s)" % str(host.assigns))
+	page._on_slot_kind(0, 1)
+	host.assigns.clear()
+	page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots").value = 1
+	check(host.assigns == [[1, -1]], "one player: bob is unassigned (%s)" % str(host.assigns))
+	page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots").value = 2
+	await create_timer(0.4).timeout
 	var vis := "%"
 	var rated: CheckBox = page.get_node(vis + "RatedGame")
 	var cheats: CheckBox = page.get_node(vis + "Cheats")
