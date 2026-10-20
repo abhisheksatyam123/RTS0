@@ -2699,6 +2699,7 @@ private:
 	int garrison_size(size_t unit) const;                        // Garrisonable.TotalSize
 	int occupied_slots(const std::vector<uint32_t> &ids) const;  // GarrisonHolder.OccupiedSlots
 	bool garrison_room(const Building &b, size_t unit) const;
+	bool corral_has_room(const Building &b) const; // penned animals and garrisoned units under GarrisonHolder/Max
 	// The search behind pick_spawn_point and siege_spawn_point: the spots round a footprint centred
 	// on (cx, cz) and turned by rot, a square with half extents along_u (the front) and along_v, or a
 	// circle of radius circle_r when that is above 0. dry_ground also rejects spots under the water line.

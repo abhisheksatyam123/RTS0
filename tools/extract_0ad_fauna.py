@@ -219,6 +219,8 @@ def ruins_rows(loader):
             "res": RES[rtype],
             "amount": int(t.num("ResourceSupply/Max")),
             "gatherers": int(t.num("ResourceSupply/MaxGatherers")),
+            "width": float(t.get("Obstruction/Static").attrs["width"]),
+            "depth": float(t.get("Obstruction/Static").attrs["depth"]),
         })
     return rows
 
@@ -471,6 +473,7 @@ def emit(fauna, treasures, ruins, scenery, corral):
     w("\tuint8_t res_type;          // ResourceType")
     w("\tint amount;                // ResourceSupply/Max")
     w("\tuint8_t max_gatherers;")
+    w("\tfloat width, depth;       // Obstruction/Static (metres), along the entity's x and z axes")
     w("};")
     w("")
     w(f"static constexpr uint8_t RUINS_TYPE_COUNT = {len(ruins)};")
@@ -478,7 +481,7 @@ def emit(fauna, treasures, ruins, scenery, corral):
     w("inline const RuinsTypeInfo &ruins_type_info(uint8_t t) {")
     w("\tstatic const RuinsTypeInfo kTable[RUINS_TYPE_COUNT] = {")
     for r in ruins:
-        w(f"\t\t{{{cstr(r['stem'])}, {cstr(r['name'])}, {r['res']}, {r['amount']}, {r['gatherers']}}},")
+        w(f"\t\t{{{cstr(r['stem'])}, {cstr(r['name'])}, {r['res']}, {r['amount']}, {r['gatherers']}, {f(r['width'])}, {f(r['depth'])}}},")
     w("\t};")
     w("\treturn kTable[t < RUINS_TYPE_COUNT ? t : 0];")
     w("}")

@@ -2697,8 +2697,16 @@ bool Simulation::mine_footprint(size_t r, nav::Footprint &f) const {
 	// temperate_large_02 (RmsGenerator::set_mine_gatherers).
 	const uint8_t g = resources_.max_gatherers[r];
 	const bool ruins = sub == RES_SUB_RUINS;
-	const float w = ruins ? 7.0f : g >= 48 ? 22.0f : g >= 24 ? 13.0f : 7.0f;
-	const float d = !ruins && g >= 48 ? 14.0f : w;
+	float w = g >= 48 ? 22.0f : g >= 24 ? 13.0f : 7.0f, d = g >= 48 ? 14.0f : w;
+	if (ruins) {
+		// Each ruin's own Obstruction/Static (template_gaia_ruins 7x7 m; the Great Pyramid 59x59).
+		const uint8_t k = resources_.flora[r];
+		w = d = 7.0f;
+		if (k >= 1 && k <= RUINS_TYPE_COUNT) {
+			w = ruins_type_info((uint8_t)(k - 1)).width;
+			d = ruins_type_info((uint8_t)(k - 1)).depth;
+		}
+	}
 	// mine_angle takes 12 values: their footprint_axis once each.
 	struct Axis { float ux, uz; bool swapped; };
 	static const std::array<Axis, 12> axes = [] {
@@ -7954,7 +7962,13 @@ int Simulation::occupied_slots(const std::vector<uint32_t> &ids) const {
 }
 // GarrisonHolder.IsAllowedToGarrison's room test: the unit's TotalSize still fits.
 bool Simulation::garrison_room(const Building &b, size_t unit) const {
-	return occupied_slots(b.garrisoned_units) + garrison_size(unit) <= b.garrison_cap;
+	// A corral's one GarrisonHolder/Max counts the penned animals too (the Han corral holds ministers).
+	const int penned = b.type == BLD_CORRAL ? corral_count(b.id) : 0;
+	return occupied_slots(b.garrisoned_units) + penned + garrison_size(unit) <= b.garrison_cap;
+}
+
+bool Simulation::corral_has_room(const Building &b) const {
+	return corral_count(b.id) + occupied_slots(b.garrisoned_units) < CORRAL_GARRISON_MAX;
 }
 
 bool Simulation::can_garrison_in(uint32_t unit_id, uint32_t building_id) const {
@@ -13320,8 +13334,18 @@ void Simulation::tick_production(float dt) {
 				float sx = b.x + 1.6f;
 				float sz = b.z + 1.6f;
 				const bool pen = b.has_rally_point && b.rally_target_bld_id == b.id && structure_has_enough_health(b) &&
-					corral_count(b.id) < CORRAL_GARRISON_MAX;
-				if (!pen) pick_spawn_point(b, UNIT_FEMALE_CITIZEN, 0, sx, sz);
+					corral_has_room(b);
+				// With no free spot outside, the rest stays queued ("Can't find free space"), as for units.
+				if (!pen && !pick_spawn_point(b, UNIT_FEMALE_CITIZEN, 0, sx, sz)) {
+					ProductionOrder rest = done;
+					rest.count = done.count - n;
+					rest.batch = done.batch ? done.batch : done.count;
+					for (int r = 0; r < RES_COUNT; ++r) rest.paid[r] = done.paid[r] * rest.count / done.count;
+					b.queue.insert(b.queue.begin(), rest);
+					stuck = true;
+					if (bteam < MAX_PLAYERS) note_text(bteam, SessionNotice::TEXT_SPAWN_BLOCKED, b.id);
+					break;
+				}
 				// Owned by the corral's player, as Trainer.js spawns gaia/fauna_*_trainable.
 				uint32_t fid = spawn_fauna(sx, sz, corral_animal_for(civ_of(b.team), done.tmpl), b.team);
 				if (b.team < MAX_PLAYERS) stats_[b.team].livestock_bred++; // IncreaseTrainedUnitsCounter: Domestic
@@ -13330,6 +13354,10 @@ void Simulation::tick_production(float dt) {
 					size_t fidx = fit->second;
 					fauna_.corral_id[fidx] = b.id;
 					fauna_.behavior[fidx] = FAUNA_CORRALLED;
+				} else if (b.has_rally_point && b.team < MAX_PLAYERS) {
+					// Trainer.js Spawn: GetRallyPointCommands for each spawned entity; animals walk
+					// to the rally point, or garrison in the corral it names.
+					order_fauna_walk(b.team, &fid, 1, b.rally_x, b.rally_z, b.rally_target_bld_id);
 				}
 				continue;
 			}
@@ -15936,6 +15964,21 @@ void Simulation::convert_to_gaia(uint8_t players) {
 		units_.team[u] = GAIA_PLAYER;
 		reset_unit_for_new_owner(u);
 	}
+	// Player.js OnGlobalPlayerDefeated sets every owned entity to Gaia: livestock too (a walk
+	// order ends with the owner, so the animal grazes where it stands), and their carcasses.
+	for (size_t f = 0; f < fauna_.count; ++f) {
+		if (!fauna_.alive[f] || !out(fauna_owner_[f])) continue;
+		fauna_owner_[f] = GAIA_PLAYER;
+		if (fauna_.behavior[f] == FAUNA_MOVING) {
+			fauna_.behavior[f] = FAUNA_IDLE_GRAZE;
+			fauna_.vel_x[f] = fauna_.vel_z[f] = 0.0f;
+			fauna_.home_x[f] = fauna_.pos_x[f];
+			fauna_.home_z[f] = fauna_.pos_z[f];
+			fauna_.state_timer[f] = 0.0f;
+		}
+	}
+	for (size_t r = 0; r < resources_.count; ++r)
+		if (resources_.alive[r] && out(resources_.owner[r])) resources_.owner[r] = GAIA_PLAYER;
 	bool roots = false;
 	for (auto &b : buildings_) {
 		if (!out(b.team)) continue;
@@ -17718,6 +17761,8 @@ void Simulation::apply_rally_step(uint32_t uid, const Building &b, const Buildin
 			float best = NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE;
 			for (const Treasure &t : treasures_) {
 				if (t.id == st.ent_id) { tid = t.id; break; }
+				// Only a treasure the owner has seen (tick_treasures' fog rule).
+				if (b.team < MAX_PLAYERS && fow_state_at(t.x, t.z, b.team) == FOW_UNEXPLORED) continue;
 				const float dx = t.x - st.x, dz = t.z - st.z;
 				if (dx * dx + dz * dz < best) { best = dx * dx + dz * dz; tid = t.id; }
 			}
@@ -34055,7 +34100,9 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id, bool melee) {
 	const uint8_t b = fauna_.behavior[f];
 	// Penned livestock is garrisoned in its corral (GarrisonHolder), so it stays put; herded
 	// livestock is a passive Domestic animal and flees like any other (the herding ends).
-	if (b == FAUNA_CORRALLED) return;
+	// A player's walk or garrison order is forced (UnitAI.js Walk/Garrison force: true), and
+	// INDIVIDUAL.Attacked only reacts to an unforced order, so livestock sent to a pen keeps going.
+	if (b == FAUNA_CORRALLED || b == FAUNA_MOVING) return;
 	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 	if (info.attack_damage() > 0.0f && info.stance != FAUNA_STANCE_PASSIVE && info.stance != FAUNA_STANCE_SKITTISH) {
 		const int32_t a = lookup_unit(attacker_id);
@@ -34438,7 +34485,7 @@ void Simulation::tick_fauna(float dt) {
 
 			for (const auto &b : buildings_) {
 				if (b.team != owner || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
-				if (b.type == BLD_CORRAL && (corral_count(b.id) >= CORRAL_GARRISON_MAX || !structure_has_enough_health(b)))
+				if (b.type == BLD_CORRAL && (!corral_has_room(b) || !structure_has_enough_health(b)))
 					continue; // GarrisonHolder/Max, EjectHealth
 				if (b.type == BLD_CORRAL || (is_civic_centre(b.type) && nearest_cid == 0)) {
 					float dx = b.x - fx;
@@ -34511,7 +34558,7 @@ void Simulation::tick_fauna(float dt) {
 			const float dx = tx - fx, dz = tz - fz;
 			const float len = std::hypot(dx, dz);
 			if (corral && len <= 3.8f) {
-				if (corral_count(corral->id) < CORRAL_GARRISON_MAX && structure_has_enough_health(*corral)) {
+				if (corral_has_room(*corral) && structure_has_enough_health(*corral)) {
 					fauna_.behavior[i] = FAUNA_CORRALLED;
 					fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
 					continue;
@@ -34940,7 +34987,9 @@ void Simulation::destroy_scenery(size_t k, int32_t killer) {
 
 uint32_t Simulation::spawn_ruins(float x, float z, uint8_t ruins_type) {
 	const RuinsTypeInfo &r = ruins_type_info(ruins_type);
-	return spawn_resource_world(x, z, r.res_type, r.amount, RES_SUB_RUINS, (uint8_t)std::clamp<int>(r.max_gatherers, 1, 255));
+	// A ruin keeps its kind + 1 in the flora byte (0 = unknown) for its Obstruction size (mine_footprint).
+	return spawn_resource_world(x, z, r.res_type, r.amount, RES_SUB_RUINS, (uint8_t)std::clamp<int>(r.max_gatherers, 1, 255),
+			(uint8_t)(ruins_type < RUINS_TYPE_COUNT ? ruins_type + 1 : 0));
 }
 
 // 0.28 TreasureCollector MaxDistance: template_unit.xml 2 m; template_unit_ship.xml 12 m for
