@@ -41,6 +41,12 @@ public:
 	static constexpr float kMargin = 4.0f; // ResearchProgressButton.prototype.Margin
 
 	// parent: the HUD layer; owner gets `method`(slot) when a button is pressed.
+	// ResearchProgress.setTopOffset: the column moves down by the overlay counter's height.
+	void set_top(float top) {
+		if (!column_ || column_->get_offset(godot::SIDE_TOP) == top) return;
+		column_->set_offset(godot::SIDE_TOP, top);
+		column_->set_offset(godot::SIDE_BOTTOM, top + kButtons * (kSize + kMargin) + kMargin);
+	}
 	void build(godot::Node *parent, godot::Object *owner, const char *method, float top) {
 		using namespace godot;
 		column_ = memnew(Control);

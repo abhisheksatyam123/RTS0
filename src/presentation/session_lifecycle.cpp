@@ -1264,6 +1264,14 @@ void RtsoMain::_process(double delta) {
 	update_command_panel();
 	follow_player_tick();
 	time_warp_tick();
+	{
+		// OverlayCounterManager resize handlers: the research column moves down by the data
+		// counter's height and the network warnings sit left of it (displayGamestateNotifications).
+		float counter_h = 0.0f;
+		if (Node *us = get_node_or_null(NodePath("/root/UserSettings"))) counter_h = (float)(double)us->call("overlay_height");
+		research_progress_.set_top(58.0f + counter_h);
+		if (net_warnings_label_) net_warnings_label_->set_offset(SIDE_RIGHT, counter_h > 0.0f ? -110.0f : -15.0f);
+	}
 	const auto attacks = sim->take_attacked_events();
 	detect_attacks(attacks);
 	show_session_notices(sim->take_session_notices());
