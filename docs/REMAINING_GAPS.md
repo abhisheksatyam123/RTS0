@@ -129,6 +129,24 @@ Right-click priorities on own and allied entities against unit_actions.js (speci
 
 Kept on purpose: the RTS0 villager rows stay as the worker class's default for old saves and pre-roster spawns, but nothing trains one by name (#1014); Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
 
+### Unit orders, eighth 0.28 pass (2026-10-20)
+
+The command row against unit_actions.js g_EntityCommands (all 19 commands exist, in 0.28's order). Owner: Unit orders.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| C1 | ~~Guard and Patrol show for Soldier, Warship or Siege selections: siege gets Guard, civilians, healers, wagons and elephants get none, healers no Patrol~~ Fixed: UnitAI CanGuard / CanPatrol (template_unit true; siege, traders and ships off for guard; civilians, women, wagons, elephants, traders and ships off for patrol). `tools/e2e_entity_commands.gd` | high | Fixed |
+| C2 | ~~Barter & Trade shows only on a market~~ Fixed: any finished structure with a Market component, docks too | medium | Fixed |
+| C3 | ~~Delete is hidden for undeletable units, and a shrine or trading post (Identity/Undeletable) offers an enabled Delete~~ Fixed: Delete always shows; disabled, it lists each isUndeletable reason (killed before gathered, under half the capture points, undeletable) | medium-low | Fixed |
+| C4 | Own livestock get no Abort or Garrison button (RTS0 selects animals only for the stop hotkey and corral orders) | medium-low | Open |
+| C5 | Back to Work sends the whole selection, so soldiers in a mixed selection post "back to work failed" notices; 0.28 sends only units with work orders | medium-low | Open |
+| C6 | The delete hotkey opens the confirmation for a selection with nothing deletable | low | Open |
+| C7 | Focus on Rally Point reads only the clicked structure's rally point and isn't offered to observers | low | Open |
+| C8 | is-dropsite-shared is offered only for an ally's structures (not wagons) and not to observers | low | Open |
+| C9 | Leave Turret ignores ejectable and shows a hotkey in its tooltip | low | Open |
+| C10 | Leave Turret, Unload Turrets and Unload All post no notice when a unit can't get off | low | Open |
+| C11 | Unload Turrets isn't offered on a unit that holds turrets | low | Open |
+
 ### Aura icons, fogged selections and structure tooltips: Compare's eleventh 0.28 pass (2026-10-20)
 
 Checked against 0.28: aura data and status-bar icons, the selection details panel, poison and burning, Petra's difficulty branches, and Allied View and diplomacy colours. Owner: Compare.
