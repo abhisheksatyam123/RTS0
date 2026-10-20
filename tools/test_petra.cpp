@@ -1046,9 +1046,9 @@ static void test_diplomacy_requests() {
 	      "both AIs end up neutral to each other");
 }
 
-// diplomacyManager.js handleTributeRequest: an AI asked for a tribute in return
-// for a pact pays it once it can spare it; a request it can't pay at once
-// stands until the asker withdraws it (120 s), rather than being forgotten.
+// diplomacyManager.js:264-284 TributeRequest: an AI asked for a tribute in return for a
+// pact pays it at once if it can spare it, else lets it go (the TODO there: "Save this
+// event and wait"); the asker withdraws its offer 120 s later.
 static void test_tribute_request_paid_later() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(7);
@@ -1087,11 +1087,11 @@ static void test_tribute_request_paid_later() {
 	for (; t < 60.0f && !(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL);
 	     t += Simulation::FIXED_STEP)
 		s->tick(Simulation::FIXED_STEP);
-	std::printf("  tribute asked of a broke AI: request stood %s, paid and neutral %s after %.0fs more\n",
-	            asked ? "yes" : "no", s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL ? "yes" : "no", t);
-	CHECK(asked, "AI 3's tribute request stands while AI 1 is broke");
-	CHECK(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL,
-	      "AI 1 pays once it can, and the pact is sealed");
+	std::printf("  tribute asked of a broke AI: AI 3 waited %s, neutral after funds came back %s\n",
+	            asked ? "yes" : "no", s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL ? "yes" : "no");
+	CHECK(asked, "AI 3 waits for the tribute while AI 1 is broke");
+	CHECK(s->petra_tribute_request_wanted_[1][3] == 0, "AI 1 answered the request once");
+	CHECK(s->get_diplomacy(3, 1) != Simulation::DIPLO_NEUTRAL, "a request AI 1 couldn't pay at once is not paid later");
 }
 
 // worker.js startHunting: Petra's food gatherers slaughter the chickens by
@@ -1512,6 +1512,30 @@ static void test_petra_peace_ends_raid() {
 	raid.squad.push_back(s->spawn_unit(x + 12.0f, z, 1, UNIT_CAVALRY));
 	s->petra_change_diplomacy(0, Simulation::DIPLO_NEUTRAL);
 	CHECK(raid.state == Simulation::AttackPlan::REGROUP && raid.target_building_id == 0, "a raid on the new neutral goes home");
+}
+
+// diplomacyManager.js tributes (DM:73-124): every ally's gift is worked out from the same
+// available resources, so two broke allies get 30% of the stock each.
+static void test_petra_tributes_same_total() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 3, 128.0f);
+	for (uint8_t p = 0; p < 3; ++p) s->set_player_active(p, true, p == 0);
+	s->petra_pid_ = 0;
+	for (uint8_t p = 1; p < 3; ++p) {
+		s->cmd_set_diplomacy(0, p, Simulation::DIPLO_ALLY);
+		s->cmd_set_diplomacy(p, 0, Simulation::DIPLO_ALLY);
+	}
+	for (uint8_t p = 0; p < 3; ++p)
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[p].res[r] = 0.0f;
+	s->players_[0].res[RES_FOOD] = 1000.0f;
+	s->petra_diplo_.seen_init = true;
+	s->petra_diplo_.next_tribute = 0.0f;
+	s->petra_manage_diplomacy(1.6f);
+	std::printf("  tributes from one total: ally 1 got %.0f food, ally 2 %.0f, %.0f left\n", s->players_[1].res[RES_FOOD],
+	            s->players_[2].res[RES_FOOD], s->players_[0].res[RES_FOOD]);
+	CHECK(s->players_[1].res[RES_FOOD] == 300.0f && s->players_[2].res[RES_FOOD] == 300.0f, "each ally gets 30% of the same total");
 }
 
 // researchManager.js update returns while minorTech holds a plan: a pick waiting for its
@@ -6523,6 +6547,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_minor_tech_kept);
 	RUN(test_petra_diplomacy_counts);
 	RUN(test_petra_peace_ends_raid);
+	RUN(test_petra_tributes_same_total);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
 	RUN(test_market_prospection_events);
