@@ -357,7 +357,7 @@ researchManager.js, constructionPlan.js findGoodPosition and headquarters.js bui
 | X6 | At placement, 0.28 sends the first unit able to build; RTS0 sends idle builders to some structures and none to others | low | Fixed: the construct command in queueplanBuilding.js start goes out with autorepair false, so nobody is sent at placement; `petra_staff_foundations` (assignToFoundations) staffs every foundation on the next turn. The wonder victory's own builder feed stays |
 | X7 | The house priority's free slots counted every foundation's population bonus; 0.28 counts house foundations at the house's bonus | low | Fixed |
 | X8 | Research was skipped while the minorTech queue was paused; 0.28 still picks (and raises the priority), and the pick waits in the paused queue | low | Fixed |
-| X9 | Town-phase houses are capped at 3 foundations rather than 3 plans | low | Open |
+| X9 | Town-phase houses are capped at 3 foundations rather than 3 plans | low | Fixed: house foundations count toward the Village need, and the houses that go down are the queued house plans (`PetraKept::house_plans`), not a cap of 3 foundations |
 
 Checked and matching: research lists and their priorities, findGoodPosition's influences and gaps, houseNeeded thresholds, market, temple, forge, wonder and defense timing, base expansion.
 

@@ -26916,11 +26916,11 @@ void Simulation::petra_manage_research(float dt) {
 		for (const auto &b : buildings_)
 			if (b.team == petra_pid_ && b.build_progress < 1.0f && b.hp > 0.0f && !b.wrecked && building_phase_class(b.type, b.civ) == cls)
 				++laying;
-		// Village: houses for all that is missing, at most 3 at once. Town: foundations count
-		// (getOwnEntitiesByClass(class, true)), so market, temple and forge can go down together.
-		if (cls != 1) have += laying;
+		// Foundations count (Village: buildMoreHouses' getOwnStructures; Town:
+		// getOwnEntitiesByClass(class, true)), so market, temple and forge can go down together,
+		// and as many houses as there are house plans queued (3, or 5 above 80 population).
+		have += laying;
 		if (have >= need) return;
-		if (cls == 1 && laying >= std::min(need - have, 3)) return;
 		static constexpr uint8_t kVillage[] = {BLD_HOUSE};
 		static constexpr uint8_t kTown[] = {BLD_MARKET, BLD_TEMPLE, BLD_FORGE}; // checkPhaseRequirements order
 		// A Town structure the phase asks for goes at priority 1000 in its queue until started.
