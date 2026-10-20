@@ -513,6 +513,16 @@ public:
 		if (overlay_) rebuild_overlay();
 	}
 
+	// The game setup's clearChatMessages (/clear there) and the session's new
+	// ChatHistory at Start: the history and the overlay both start empty.
+	void clear_history() {
+		entries_.clear();
+		history_ = String();
+		++history_rev_;
+		redraw_log();
+		clear();
+	}
+
 	// The log's bbcode, for the networked game setup's chat panel (0.28 shows
 	// the same chat there before Start), and a counter that moves on each change.
 	const String &history() const { return history_; }

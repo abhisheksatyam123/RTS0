@@ -2882,8 +2882,26 @@ func _assignment_cell(i: int) -> Control:
 		if holder >= 0 and id < ASSIGN_CLIENT_ID:
 			net_main.assign_net_client(holder, -1)
 		if id >= ASSIGN_CLIENT_ID:
+			# PlayerAssignment Client.onSelectionChange: a seated player takes its
+			# civ and colour along (not on a scenario or a saved game), and an AI
+			# here moves to the slot the player left.
+			var src := _net_client_row(id - ASSIGN_CLIENT_ID)
+			var moved := src >= 0 and src != i
+			if moved:
+				var old: Dictionary = _slot_rows[src]
+				var row: Dictionary = _slot_rows[i]
+				var keys: Array = ["diff", "beh"] if kind == 1 else []
+				if not _is_scenario() and not saved:
+					keys += ["civ", "color"]
+				for key in keys:
+					var t = old[key]
+					old[key] = row[key]
+					row[key] = t
+				if kind == 1:
+					_on_slot_kind(1, src)
 			if kind != 0:
 				_on_slot_kind(0, i)
+			if moved or kind != 0:
 				_host_write_setup(true)
 			net_main.assign_net_client(id - ASSIGN_CLIENT_ID, _net_rows().find(i))
 		elif id != kind:
@@ -2892,6 +2910,15 @@ func _assignment_cell(i: int) -> Control:
 		_net_state = net_main.get_net_setup_state()
 		refresh_slots.call_deferred())
 	return cell
+
+## Host: the slot row client `c` plays in the sent setup (-1 while it watches).
+func _net_client_row(c: int) -> int:
+	var slots: Array = _net_state.get("slots", [])
+	var rows := _net_rows()
+	for k in mini(slots.size(), rows.size()):
+		if int(slots[k].get("client", -1)) == c:
+			return int(rows[k])
+	return -1
 
 ## Observers.js / the 0.28 player list: who watches, under the slots.
 func _update_net_observers() -> void:
