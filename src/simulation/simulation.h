@@ -180,9 +180,10 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 104; // save_state's format; see the history beside it
-	static constexpr uint32_t SAVE_VERSION_CHASE_TARGET = 104; // the target each unit was last in attack range of (UnitAI CHASING)
+	static constexpr uint32_t SAVE_VERSION = 105; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_CHASE_TARGET = 105; // the target each unit was last in attack range of (UnitAI CHASING)
 	static constexpr uint32_t SAVE_VERSION_WAGON_SHARING = 103; // the supply wagons their owners locked
+	static constexpr uint32_t SAVE_VERSION_PETRA_TARGETED_RELICS = 104; // each Petra's targetedGaiaRelics; each structure's petra_decay_hold
 	static constexpr uint32_t SAVE_VERSION_AUTOQUEUE_BATCH = 102; // each queued batch's original size once part of it spawned
 	static constexpr uint32_t SAVE_VERSION_CARCASS_OWNER = 101; // each carcass's animal's owner
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
@@ -401,6 +402,9 @@ public:
 		// 0 A.D. ResourceDropsite IsShared: allies with Diaspora may drop resources here. Sharable
 		// dropsites (Civic Centres, storehouses, farmsteads, docks) start shared.
 		bool dropsite_shared = true;
+		// garrisonManager.js addDecayingStructure(justCaptured): a Barracks-class structure
+		// captured while decaying, which its owner's AI garrisons until the decay stops.
+		bool petra_decay_hold = false;
 	};
 	// Whether `b` is rasterized into the nav grid (0 A.D. Obstruction BlockPathfinding).
 	static bool blocks_pathfinding(const Building &b) {
@@ -3425,6 +3429,7 @@ private:
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
+	void petra_update_capture_strength();
 	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);
 	void petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz, uint8_t avoid = 0);
 	uint8_t petra_attack_avoid(const AttackPlan &plan, bool siege) const;
@@ -3494,6 +3499,10 @@ private:
 		std::vector<uint32_t> foundations; // sorted ids
 	};
 	PetraProspect petra_prospect_;
+	// victoryManager.js targetedGaiaRelics: the Gaia relics this AI goes for, reinforced every
+	// 10th turn until their owner changes. `sent` once a plan has gone for it (plans.length).
+	struct PetraTargetedRelic { uint32_t relic = 0; uint32_t sent = 0; };
+	std::vector<PetraTargetedRelic> petra_targeted_relics_;
 	void petra_check_trade_events();
 	void petra_set_no_room(uint8_t type);
 	bool petra_no_room(uint8_t type) const;
@@ -3888,7 +3897,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
