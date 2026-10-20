@@ -962,6 +962,7 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // spart/hero_leonidas_300 (no model of its own: its owner civ's hero model)
 		-1, // pers/arstibara (no model of its own: its owner civ's spearman model)
 		-1, // han/siege_shoushe (no model of its own: its owner civ's bolt_shooter model)
+		-1, // plane (no model of its own: its owner civ's bolt_shooter model)
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -1504,6 +1505,6 @@ inline int unit_template_rank_draw_index(uint16_t tmpl, uint8_t rank) {
 	return kLookup[tmpl][rank >= 3 ? 1 : 0];
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 515, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 516, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso

@@ -545,7 +545,8 @@ def raw_stats(t):
         carry = max([_safe(c.text) for c in caps.children.values()] or [0.0])
     return {
         "hp": t.num("Health/Max"),
-        "speed": t.num("UnitMotion/WalkSpeed"),
+        # UnitMotionFlying.GetWalkSpeed is its MaxSpeed (units/plane).
+        "speed": t.num("UnitMotion/WalkSpeed") or t.num("UnitMotionFlying/MaxSpeed"),
         "vision": t.num("Vision/Range"),
         "range": rng,
         "damage": hack + pierce + crush + fire,
@@ -619,6 +620,10 @@ def rts0_class(name, t, civ):
     """RTS0 UnitType for a 0 A.D. unit template, or None to leave it out."""
     c = classes_of(t)
     stem = name.rsplit("/", 1)[-1]
+    if t.value("UnitMotionFlying/MaxSpeed", ""):
+        # units/plane (Flight Demo's P-51): no classes of its own; a ranged engine that neither
+        # packs, gathers nor promotes, so the bolt shooter's class, flagged ROSTER_FLYING.
+        return "UNIT_BOLT_SHOOTER"
     if "Minister" in c:
         return "UNIT_MINISTER"  # units/han/support_minister
     if "Relic" in c:
@@ -1150,7 +1155,7 @@ MAP_ROWS = (
     "units/rome/champion_infantry_swordsman_02", "units/rome/champion_infantry_swordsman_03",
     "units/rome/champion_infantry_swordsman_04", "units/rome/champion_infantry_swordsman_05",
     "units/spart/champion_infantry_pike", "units/spart/hero_leonidas_300",
-    "units/merc_black_cloak", "units/noldor_warship",
+    "units/merc_black_cloak", "units/noldor_warship", "units/plane",
     "units/pirates/ship_arrow", "units/pirates/ship_merchant", "units/pirates/ship_scout",
     "units/samnite_skirmisher", "units/samnite_spearman", "units/samnite_swordsman",
     "units/viking_longship",
@@ -1393,6 +1398,8 @@ def collect(sim_root):
                 flags.append("ROSTER_PACKABLE")  # 0 A.D. Pack: unpack before firing, pack to move
             if "SiegeTower" in c:
                 flags.append("ROSTER_SIEGE_TOWER")
+            if t.value("UnitMotionFlying/MaxSpeed", ""):
+                flags.append("ROSTER_FLYING")  # UnitMotionFlying: takes off, flies over everything, lands
             if name in map_only:
                 flags.append("ROSTER_MAP_ONLY")  # MAP_ROWS: only maps place it
             if "Relic" in c:

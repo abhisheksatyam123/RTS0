@@ -439,7 +439,7 @@ int main()
 			}
 		}
 		std::snprintf(msg, sizeof msg, "map-only rows (%d) are trained nowhere and sit in their civ's slot", map_rows);
-		check(map_rows_ok && map_rows == 52, msg); // 44 + the Marian legionaries _02-_05 + Xenophon, Leonidas 300, the Arstibara and Shoushe
+		check(map_rows_ok && map_rows == 53, msg); // 44 + the Marian legionaries _02-_05 + Xenophon, Leonidas 300, the Arstibara, Shoushe and plane
 		for (uint8_t c = 0; c < CIV_COUNT; ++c)
 			for (uint16_t i : civ_roster_ids(c))
 				if (civ_unit_template(i).flags & ROSTER_MAP_ONLY) check(false, "a map-only row is in a civ's trainable roster");
@@ -507,7 +507,7 @@ int main()
 			"rome/hero_marcellus_infantry", "rome/hero_maximus_infantry", "rome/hero_scipio_infantry",
 			"gaul/hero_vercingetorix_infantry", "iber/hero_indibil_infantry", "han/champion_infantry_archer_academy",
 			"han/cavalry_crossbowman_b", "pirates/ship_merchant", "pirates/ship_scout", "noldor_warship",
-			"viking_longship", "merc_black_cloak", "pers/arstibara", "han/siege_shoushe"};
+			"viking_longship", "merc_black_cloak", "pers/arstibara", "han/siege_shoushe", "plane"};
 		bool all_rows = true;
 		for (const char *id : kMapRows) all_rows = row_of(id) != CIV_UNIT_TEMPLATE_NONE && all_rows;
 		check(all_rows, "every map-only 0.28 template has its own row");
@@ -682,7 +682,7 @@ int main()
 						}
 		}
 		std::snprintf(msg, sizeof msg, "every unit template of the %d ported maps has a roster row (%d fall back, %d left out)", maps, missing, left_out);
-		check(maps >= 100 && missing == 0 && left_out <= 11, msg); // the planes of Flight Demo and Units Demo (SU3)
+		check(maps >= 100 && missing == 0 && left_out == 0, msg);
 	}
 
 	std::printf("%d/%d checks passed (%u unit templates, %u hero auras)\n",

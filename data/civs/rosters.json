@@ -27883,6 +27883,50 @@
     "range": 22.400000000000002,
     "carry": 0
    }
+  },
+  {
+   "id": "plane",
+   "civ": "gaia",
+   "class": "UNIT_BOLT_SHOOTER",
+   "name": "Unit",
+   "specific_name": "P-51 Mustang",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_FLYING",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Organic",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 10.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 100.0,
+    "crush_dmg": 227.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 1.0,
+    "pop": 1,
+    "speed": 21.36,
+    "vision": 28.000000000000004,
+    "damage": 327.0,
+    "range": 33.6,
+    "carry": 0
+   }
   }
  ],
  "auras": [

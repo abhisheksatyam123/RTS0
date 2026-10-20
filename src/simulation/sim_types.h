@@ -2223,7 +2223,8 @@ enum CivRosterFlag : uint16_t {
 	ROSTER_RELIC = 128, // a catafalque (template_unit_catafalque): Capture the Relic
 	ROSTER_NO_GATHER = 256, // a Citizen whose template disables ResourceGatherer (mercenaries)
 	ROSTER_CIVILIAN = 512, // 0.28's Civilian class (template_unit_support_civilian): StatisticsTracker's Civilian
-	ROSTER_MAP_ONLY = 1024 // only maps place it (scenario heroes, Samnites, pirate ships): no structure trains it
+	ROSTER_MAP_ONLY = 1024, // only maps place it (scenario heroes, Samnites, pirate ships): no structure trains it
+	ROSTER_FLYING = 2048 // 0 A.D. UnitMotionFlying (units/plane): flies at a height over everything, lands when stopped
 };
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
@@ -2330,6 +2331,25 @@ struct CivTeamBonus {
 	const char *description;
 	uint64_t units[CIV_TEMPLATE_WORDS_MAX]; // civ_unit_template_table() rows affected
 };
+
+// units/plane UnitMotionFlying (0.28), the one flying template: horizontal speeds and rates x the
+// roster's SPEED_SCALE (0.356), heights x kMetre (0.25). TurnRate is radians per second.
+struct FlightProfile {
+	float max_speed, takeoff_speed, landing_speed; // RTS0 units/s
+	float accel_rate, slowing_rate, braking_rate; // RTS0 units/s^2
+	float turn_rate, overshoot_time; // rad/s, s
+	float flying_height, climb_rate; // RTS0 units above the ground, units/s
+	bool dies_in_water;
+};
+inline constexpr FlightProfile PLANE_FLIGHT = {
+	60.0f * 0.356f, 50.0f * 0.356f, 40.0f * 0.356f,
+	25.0f * 0.356f, 5.0f * 0.356f, 10.0f * 0.356f,
+	2.0f, 2.0f,
+	50.0f * 0.25f, 15.0f * 0.25f,
+	true,
+};
+// UnitMotionFlying.js SHORT_FINAL: the final approach's descent constant (m/s, x kMetre here).
+inline constexpr float FLIGHT_SHORT_FINAL = 2.5f;
 
 struct CivUnitTemplate {
 	const char *id; // 0 A.D. template path under units/, e.g. "athen/infantry_spearman_b"
@@ -2630,6 +2650,7 @@ inline float unit_min_range_ratio(uint8_t type, uint16_t tmpl) {
 		if (type == UNIT_CATAPULT && std::strstr(t.id, "onager")) return 20.0f / 60.0f;
 		// template_unit_siege_flamethrower.xml (the Theban fire-raiser): MinRange 10 of MaxRange 15.
 		if (type == UNIT_BOLT_SHOOTER && std::strstr(t.id, "fireraiser")) return 10.0f / 15.0f;
+		if (t.flags & ROSTER_FLYING) return 80.0f / 120.0f; // units/plane: MinRange 80 of MaxRange 120
 	}
 	return unit_min_range_ratio(type);
 }

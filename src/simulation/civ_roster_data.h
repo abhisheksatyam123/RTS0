@@ -5,7 +5,7 @@
 
 // Included from sim_types.h inside namespace rtso.
 
-inline constexpr uint16_t CIV_UNIT_TEMPLATE_COUNT = 515;
+inline constexpr uint16_t CIV_UNIT_TEMPLATE_COUNT = 516;
 inline constexpr uint16_t CIV_HERO_AURA_COUNT = 123;
 inline constexpr uint16_t CIV_TEMPLATE_WORDS = 9; // uint64 words in a per-template bitset
 
@@ -1229,6 +1229,8 @@ inline const CivUnitTemplate *civ_unit_template_table() {
 		 120.0f, 3.382f, 2.4f, 15.72f, 1.0f, 8.5f, 7.225f, 0.0f, 4.0f, 5.0f, 20.0f, 50, 0, 80, 0, 1, 5.0f, 0, -1, -1, -1, TECH_UNLOCK_CHAMPION_INFANTRY, 0x40000000000a543ull, 22.4f},
 		{"han/siege_shoushe", "Bolt Shooter", "Nǔ Chē", CIV_HAN, UNIT_BOLT_SHOOTER, 3, ROSTER_RANGED | ROSTER_MAP_ONLY, BldMask{},
 		 200.0f, 2.163f, 22.4f, 240.0f, 6.0f, 0.0f, 240.0f, 0.0f, 6.0f, 25.0f, 5.0f, 0, 250, 250, 0, 2, 20.0f, 0, -1, -1, -1, TECH_NONE, 0x140801ull, 28.0f},
+		{"plane", "Unit", "P-51 Mustang", CIV_GAIA, UNIT_BOLT_SHOOTER, 1, ROSTER_RANGED | ROSTER_FLYING | ROSTER_MAP_ONLY, BldMask{},
+		 100.0f, 21.36f, 33.6f, 327.0f, 10.0f, 0.0f, 100.0f, 227.0f, 1.0f, 1.0f, 1.0f, 0, 0, 0, 0, 1, 1.0f, 0, -1, -1, -1, TECH_NONE, 0x3ull, 28.0f},
 	};
 	return kTable;
 }
