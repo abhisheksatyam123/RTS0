@@ -88,6 +88,14 @@ Orders, stances, garrison, capture, loot and fleeing against UnitAI.js and the 0
 | Q6 | ~~A defeated player's units turned Gaia keep their stance, orders and queue~~ Fixed: UnitAI.OnOwnershipChanged (UnitAI.js:3665-3702) stops them, drops the queue, work orders, trading and guarding, and resets the template's default stance, for Player.js defeat and the convert cheat alike. `tools/test_unit_orders.cpp` 92 | low | Fixed |
 | Q7 | ~~A fleeing unit ignores a second attacker farther off than the one it flees from~~ Fixed: FLEEING.Attacked (UnitAI.js:2040-2049) measures the unit's distance to itself (msg.data.target is the attacked entity), so it answers every attacker but the one fled from. Flights from structures need nothing: distanceToFlee and the range check both use edge distance, so the flight runs FleeDistance further either way. `tools/test_unit_orders.cpp` 43 | low | Fixed |
 
+### Unit orders, seventh 0.28 pass (2026-10-20)
+
+Right-click priorities on own and allied entities against unit_actions.js (specificness order, input.js determineAction).
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| R1 | ~~A plain right-click on an own or allied structure, ship, ram or siege tower garrisons the selection, and Ctrl over a ship attack-moves~~ Fixed: "move" (specificness 12) beats "garrison" (20) and "occupy-turret" (21), so a plain click walks there and garrisoning needs session.garrison (Ctrl) or the Garrison button; with Ctrl over a holder the selection can enter, garrison comes before attack-move (30), cursor included. An ally's shared dropsite (Diaspora) takes carried resources first ("returnresource", 2). `tools/e2e_garrison_cursor_tip.gd`, `tools/e2e_garrison_siege.gd`, `tools/e2e_rampart_turrets.gd` | medium | Fixed |
+
 
 Kept on purpose: the RTS0 villager rows stay as the worker class's default for old saves and pre-roster spawns, but nothing trains one by name (#1014); Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
 
@@ -142,7 +150,7 @@ StatisticsTracker callers and class mapping, the summary page, the replay menu a
 | S5 | "Rated game" in Match Settings reads a leftover setting: a later single-player game shows it, a rated replay may not (RatingEnabled) | low-medium | Fixed: single-player matches clear it, and replays and saves keep it |
 | S6 | Match Settings shows the live reveal-map state, not the match's setting | low | Fixed |
 | S7 | The save/load dialog keeps "(RMS)" in random map names | low | Fixed: trimmed as in the summary and replay menu |
-| S8 | A structure's value (captured, destroyed) uses its owner's civ costs, not its own template's; Gaia trading posts carry no Economic class | low | Open |
+| S8 | A structure's value (captured, destroyed) uses its owner's civ costs, not its own template's; Gaia trading posts carry no Economic class | low | Fixed: the value comes from the civ the structure was built as, with its owner's modifiers (none for Gaia); trading posts count as Economic |
 | S9 | Follow Player is hidden while viewing Gaia (FollowPlayer.js hides it for Observer only) | low | Open |
 | S10 | The replay menu's right panel sits 20-56 px higher with tighter spacing than replay_menu.xml | low | Open |
 | S11 | The FPS/time counter box sits over the top bar at y 4 in a 16 px font with no backing; 0.28 puts it at y 40 in mono 10 on black, moves the network warnings and research column aside, pads "FPS: %(fps)4s", and doesn't save the toggles | low | Open |

@@ -3042,11 +3042,10 @@ Dictionary RtsoMain::get_setup_chat() const {
 // The setup page's chat input: the chat window's send, so /kick, /ban, /list
 // and /clear (executeNetworkCommand) run before anything is sent.
 void RtsoMain::send_setup_chat(const String &text) {
-	LineEdit *in = chat_window_.input();
-	if (!in || text.strip_edges().is_empty()) return;
-	in->set_text(text);
-	chat_window_.send_pressed();
+	chat_window_.send_setup(text);
 }
+
+bool RtsoMain::chat_setup_verbatim() { return is_net_pregame(); }
 
 // 0.28 sound.notify.gamesetup.join (off by default): a chime when a client joins
 // the game setup; `before` 0 is our first look at it, not a join.
