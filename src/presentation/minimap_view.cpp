@@ -24,7 +24,7 @@ void RtsoMiniMapView::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("minimap_clicked", PropertyInfo(Variant::VECTOR2, "world_pos")));
 	ADD_SIGNAL(MethodInfo("flare_requested", PropertyInfo(Variant::VECTOR2, "world_pos")));
 	ADD_SIGNAL(MethodInfo("minimap_order", PropertyInfo(Variant::VECTOR2, "world_pos")));
-	ClassDB::bind_method(D_METHOD("add_ping", "world_pos", "color"), &RtsoMiniMapView::add_ping, DEFVAL(Color(1.0f, 0.85f, 0.2f)));
+	ClassDB::bind_method(D_METHOD("add_ping", "world_pos", "color", "life_s"), &RtsoMiniMapView::add_ping, DEFVAL(Color(1.0f, 0.85f, 0.2f)), DEFVAL(6.0f));
 	ClassDB::bind_method(D_METHOD("toggle_territory"), &RtsoMiniMapView::toggle_territory);
 	ClassDB::bind_method(D_METHOD("toggle_resources"), &RtsoMiniMapView::toggle_resources);
 	ClassDB::bind_method(D_METHOD("toggle_fow"), &RtsoMiniMapView::toggle_fow);
@@ -47,7 +47,6 @@ RtsoMiniMapView::RtsoMiniMapView() {
 
 RtsoMiniMapView::~RtsoMiniMapView() {}
 
-static constexpr uint64_t kFlareLifetimeMs = 6000; // MiniMap.xml flare_lifetime_seconds
 
 // The part of segment a-b inside the map (CMiniMap CropPointsByCircle on a circular
 // map; the square on a square one). False when none of it is.
@@ -84,7 +83,8 @@ static bool crop_segment(Vector2 &a, Vector2 &b, float half, bool round) {
 	return true;
 }
 
-void RtsoMiniMapView::add_ping(Vector2 world_pos, Color col) {
+void RtsoMiniMapView::add_ping(Vector2 world_pos, Color col, float life_s) {
+	if (!(life_s > 0.0f)) return; // MiniMap.js: Math.max(0, flarelifetime)
 	Vector2 sz = get_size();
 	float half_map = sim ? sim->map_half() : 64.0f;
 	float nx = (world_pos.x + half_map) / (half_map * 2.0f);
@@ -95,6 +95,7 @@ void RtsoMiniMapView::add_ping(Vector2 world_pos, Color col) {
 	p.mini_pos = mpos;
 	p.start_ms = Time::get_singleton()->get_ticks_msec();
 	p.color = col;
+	p.life_ms = (uint64_t)(life_s * 1000.0f);
 	pings.push_back(p);
 	queue_redraw();
 }
@@ -120,7 +121,7 @@ void RtsoMiniMapView::sync(const rtso::Simulation *s, Vector3 p_cam_pos) {
 	// Decay pings
 	const uint64_t now_ms = Time::get_singleton()->get_ticks_msec();
 	pings.erase(std::remove_if(pings.begin(), pings.end(),
-		[&](const MapPing &p) { return now_ms - p.start_ms >= kFlareLifetimeMs; }), pings.end());
+		[&](const MapPing &p) { return now_ms - p.start_ms >= p.life_ms; }), pings.end());
 	if (!entity_pings_.empty()) {
 		const uint64_t now = Time::get_singleton()->get_ticks_msec();
 		for (auto it = entity_pings_.begin(); it != entity_pings_.end();)
@@ -609,7 +610,7 @@ void RtsoMiniMapView::_draw() {
 	auto smooth = [](float x) { x = Math::clamp(x, 0.0f, 1.0f); return x * x * (3.0f - 2.0f * x); };
 	for (const auto &p : pings) {
 		const float t = (float)(now_ms - p.start_ms) / 1000.0f;
-		const float alpha = std::min(smooth(t / 0.25f), smooth((kFlareLifetimeMs / 1000.0f - t) / 0.5f));
+		const float alpha = std::min(smooth(t / 0.25f), smooth((p.life_ms / 1000.0f - t) / 0.5f));
 		const int step = (int)std::floor(t * 10.67f);
 		auto ring = [&](int frame) {
 			const float k = (float)(frame % 16 + 1) / 16.0f;
