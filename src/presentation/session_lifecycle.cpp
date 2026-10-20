@@ -1269,7 +1269,10 @@ void RtsoMain::_process(double delta) {
 	}
 	if (sim && chat_window_.is_ready()) {
 		for (const auto &line : sim->pending_petra_chat()) {
-			if (!sim->petra_chat_reaches(line, local_player())) continue; // addressed to someone else
+			// ChatMessageFormatPlayer isAddressee(sender, Engine.GetPlayerID()): the seat, so an
+			// observer following a player's view sees only what goes to everyone.
+			const uint8_t reader = turn_mgr_.is_replaying() ? local_player() : seat_player();
+			if (!sim->petra_chat_reaches(line, reader)) continue; // addressed to someone else
 			// messages.js: the line translated, its player names in their colours.
 			const std::string text = rtso::petra_chat_text(line, [&](uint8_t pid) {
 				return std::string(colored_player_name(pid).utf8().get_data());
@@ -1281,7 +1284,8 @@ void RtsoMain::_process(double delta) {
 			const bool allies = line.to == rtso::PETRA_CHAT_ALLIES, priv = !allies && line.to < rtso::MAX_PLAYERS;
 			const String ctx = allies ? "(" + tr("Ally") + ") " : priv ? "(" + tr("Private") + ") " : String();
 			chat_window_.append_kind(ctx + String("<") + colored_player_name(line.from) + String("> ") + String::utf8(text.c_str()) + "\n",
-					RtsoChatWindow::message_bits(allies ? "Ally" : priv ? "Private" : "", true));
+					// An AI has no GUID, so its lines aren't "Players chat" (ChatHistory senderID > 0).
+					RtsoChatWindow::message_bits(allies ? "Ally" : priv ? "Private" : "", false));
 		}
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
 	}
