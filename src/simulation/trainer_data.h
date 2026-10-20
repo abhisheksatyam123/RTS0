@@ -29,3 +29,195 @@ inline float trainer_batch_time_modifier(uint8_t civ, uint8_t type) {
 	if (civ >= TRAINER_CIV_ROWS || type >= TRAINER_BUILDING_ROWS) return 1.0f;
 	return kTable[civ][type];
 }
+
+// Trainer/Entities "units/{civ}/<name>" of each civ's own structure of a type (its
+// structures/<civ>/ template): Trainer.js fills {civ} with the holder's civ, so a structure
+// captured by another civ trains the captor's units of these names. Space-separated.
+struct TrainerCivList {
+	uint8_t civ;
+	uint8_t type;
+	const char *units;
+};
+inline constexpr TrainerCivList TRAINER_CIV_LISTS[] = {
+	{0, BLD_TOWN_CENTER, "infantry_spearman_b infantry_slinger_b cavalry_javelineer_b"}, // athen
+	{0, BLD_HOUSE, "support_civilian_house"}, // athen
+	{0, BLD_BARRACKS, "infantry_clubman infantry_spearman_b infantry_pikeman_b infantry_maceman_b infantry_axeman_b infantry_swordsman_b infantry_javelineer_b infantry_slinger_b infantry_archer_b champion_infantry_spearman champion_infantry_pikeman champion_infantry_maceman champion_infantry_axeman champion_infantry_swordsman champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer"}, // athen
+	{0, BLD_MARKET, "support_trader"}, // athen
+	{0, BLD_TEMPLE, "support_healer_b hero_hippocrates"}, // athen
+	{0, BLD_DOCK, "ship_fishing ship_merchant ship_scout ship_arrow ship_ram ship_fire ship_siege champion_marine_dock infantry_archer_b_dock"}, // athen
+	{0, BLD_STABLE, "cavalry_axeman_b cavalry_swordsman_b cavalry_spearman_b cavalry_javelineer_b cavalry_archer_b champion_cavalry champion_cavalry_spearman champion_cavalry_swordsman champion_cavalry_javelineer champion_cavalry_archer champion_chariot"}, // athen
+	{0, BLD_RANGE, "infantry_javelineer_b infantry_slinger_b infantry_archer_b infantry_crossbowman_b champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer champion_infantry_crossbowman"}, // athen
+	{0, BLD_ARSENAL, "champion_infantry_crossbowman siege_scorpio_packed siege_polybolos_packed siege_oxybeles_packed siege_onager_packed siege_lithobolos_packed siege_ballista_packed siege_ram siege_tower"}, // athen
+	{0, BLD_GYMNASIUM, "champion_marine champion_infantry champion_ranged"}, // athen
+	{0, BLD_PRYTANEION, "hero_themistocles hero_pericles hero_iphicrates"}, // athen
+	{1, BLD_TOWN_CENTER, "infantry_spearman_b infantry_javelineer_b cavalry_javelineer_b"}, // spart
+	{1, BLD_HOUSE, "support_civilian_house"}, // spart
+	{1, BLD_BARRACKS, "infantry_clubman infantry_spearman_b infantry_pikeman_b infantry_maceman_b infantry_axeman_b infantry_swordsman_b infantry_javelineer_b infantry_slinger_b infantry_archer_b champion_infantry_spearman champion_infantry_pikeman champion_infantry_maceman champion_infantry_axeman champion_infantry_swordsman champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer infantry_spearman_neodamodes"}, // spart
+	{1, BLD_MARKET, "support_trader"}, // spart
+	{1, BLD_TEMPLE, "support_healer_b"}, // spart
+	{1, BLD_DOCK, "ship_fishing ship_merchant ship_scout ship_arrow ship_ram ship_fire ship_siege"}, // spart
+	{1, BLD_STABLE, "cavalry_axeman_b cavalry_swordsman_b cavalry_spearman_b cavalry_javelineer_b cavalry_archer_b champion_cavalry champion_cavalry_spearman champion_cavalry_swordsman champion_cavalry_javelineer champion_cavalry_archer champion_chariot"}, // spart
+	{1, BLD_RANGE, "infantry_javelineer_b infantry_slinger_b infantry_archer_b infantry_crossbowman_b champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer champion_infantry_crossbowman"}, // spart
+	{1, BLD_ARSENAL, "champion_infantry_crossbowman siege_scorpio_packed siege_polybolos_packed siege_oxybeles_packed siege_onager_packed siege_lithobolos_packed siege_ballista_packed siege_ram siege_tower"}, // spart
+	{1, BLD_GEROUSIA, "hero_leonidas hero_brasidas hero_agis"}, // spart
+	{1, BLD_SYSSITON, "champion_infantry_spear"}, // spart
+	{2, BLD_TOWN_CENTER, "infantry_spearman_b infantry_archer_b cavalry_javelineer_b cavalry_axeman_b cavalry_swordsman_b cavalry_spearman_b cavalry_archer_b cavalry_crossbowman_b"}, // pers
+	{2, BLD_HOUSE, "support_civilian_house"}, // pers
+	{2, BLD_BARRACKS, "infantry_clubman infantry_spearman_b infantry_pikeman_b infantry_maceman_b infantry_axeman_b infantry_swordsman_b infantry_javelineer_b infantry_slinger_b infantry_archer_b champion_infantry_spearman champion_infantry_pikeman champion_infantry_maceman champion_infantry_axeman champion_infantry_swordsman champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer champion_infantry champion_infantry_archer_upgrade"}, // pers
+	{2, BLD_MARKET, "support_trader"}, // pers
+	{2, BLD_TEMPLE, "support_healer_b"}, // pers
+	{2, BLD_DOCK, "ship_fishing ship_merchant ship_scout ship_arrow ship_ram ship_fire ship_siege"}, // pers
+	{2, BLD_STABLE, "cavalry_axeman_b cavalry_swordsman_b cavalry_spearman_b cavalry_javelineer_b cavalry_archer_b champion_cavalry champion_cavalry_spearman champion_cavalry_swordsman champion_cavalry_javelineer champion_cavalry_archer champion_chariot"}, // pers
+	{2, BLD_RANGE, "infantry_javelineer_b infantry_slinger_b infantry_archer_b infantry_crossbowman_b champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer champion_infantry_crossbowman"}, // pers
+	{2, BLD_ARSENAL, "champion_infantry_crossbowman siege_scorpio_packed siege_polybolos_packed siege_oxybeles_packed siege_onager_packed siege_lithobolos_packed siege_ballista_packed siege_ram siege_tower"}, // pers
+	{2, BLD_ELEPHANT_STABLE, "support_elephant elephant_archer_b champion_elephant"}, // pers
+	{2, BLD_TACHARA, "hero_cyrus_ii hero_darius_i hero_xerxes_i"}, // pers
+	{2, BLD_TACHARA_FOOD, "hero_cyrus_ii hero_darius_i hero_xerxes_i"}, // pers
+	{2, BLD_TACHARA_WOOD, "hero_cyrus_ii hero_darius_i hero_xerxes_i"}, // pers
+	{2, BLD_TACHARA_STONE, "hero_cyrus_ii hero_darius_i hero_xerxes_i"}, // pers
+	{2, BLD_TACHARA_METAL, "hero_cyrus_ii hero_darius_i hero_xerxes_i"}, // pers
+	{2, BLD_INN, "support_civilian_house"}, // pers
+	{2, BLD_WAREHOUSE, "support_civilian_house"}, // pers
+	{3, BLD_TOWN_CENTER, "infantry_swordsman_b infantry_javelineer_b infantry_spearman_conscript cavalry_spearman_b"}, // rome
+	{3, BLD_HOUSE, "support_civilian_house"}, // rome
+	{3, BLD_BARRACKS, "infantry_clubman infantry_spearman_b infantry_pikeman_b infantry_maceman_b infantry_axeman_b infantry_swordsman_b infantry_javelineer_b infantry_slinger_b infantry_archer_b champion_infantry_spearman champion_infantry_pikeman champion_infantry_maceman champion_infantry_axeman champion_infantry_swordsman champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer"}, // rome
+	{3, BLD_MARKET, "support_trader"}, // rome
+	{3, BLD_FORTRESS, "hero_marcellus hero_maximus hero_scipio champion_infantry_swordsman_centurion"}, // rome
+	{3, BLD_TEMPLE, "support_healer_b"}, // rome
+	{3, BLD_DOCK, "ship_fishing ship_merchant ship_scout ship_arrow ship_ram ship_fire ship_siege"}, // rome
+	{3, BLD_STABLE, "cavalry_axeman_b cavalry_swordsman_b cavalry_spearman_b cavalry_javelineer_b cavalry_archer_b champion_cavalry champion_cavalry_spearman champion_cavalry_swordsman champion_cavalry_javelineer champion_cavalry_archer champion_chariot"}, // rome
+	{3, BLD_RANGE, "infantry_javelineer_b infantry_slinger_b infantry_archer_b infantry_crossbowman_b champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer champion_infantry_crossbowman"}, // rome
+	{3, BLD_ARSENAL, "champion_infantry_crossbowman siege_scorpio_packed siege_polybolos_packed siege_oxybeles_packed siege_onager_packed siege_lithobolos_packed siege_ballista_packed siege_ram siege_tower"}, // rome
+	{3, BLD_ARMY_CAMP, "infantry_axeman_a infantry_swordsman_a infantry_spearman_a infantry_pikeman_a infantry_antesignanus siege_onager_packed siege_ram"}, // rome
+	{3, BLD_AMPHITHEATER, "champion_infantry_spear_gladiator champion_infantry_sword_gladiator"}, // rome
+	{3, BLD_TEMPLE_VESTA, "support_healer_b"}, // rome
+	{3, BLD_TEMPLE_MARS, "support_healer_b"}, // rome
+	{4, BLD_TOWN_CENTER, "infantry_spearman_b infantry_archer_b cavalry_javelineer_b"}, // cart
+	{4, BLD_HOUSE, "support_civilian_house"}, // cart
+	{4, BLD_BARRACKS, "infantry_clubman infantry_spearman_b infantry_pikeman_b infantry_maceman_b infantry_axeman_b infantry_swordsman_b infantry_javelineer_b infantry_slinger_b infantry_archer_b champion_infantry_spearman champion_infantry_pikeman champion_infantry_maceman champion_infantry_axeman champion_infantry_swordsman champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer"}, // cart
+	{4, BLD_MARKET, "support_trader"}, // cart
+	{4, BLD_FORTRESS, "hero_hamilcar hero_hannibal hero_maharbal"}, // cart
+	{4, BLD_TEMPLE, "support_healer_b champion_infantry champion_cavalry"}, // cart
+	{4, BLD_DOCK, "ship_fishing ship_merchant ship_scout ship_arrow ship_ram ship_fire ship_siege"}, // cart
+	{4, BLD_STABLE, "cavalry_axeman_b cavalry_swordsman_b cavalry_spearman_b cavalry_javelineer_b cavalry_archer_b champion_cavalry_spearman champion_cavalry_swordsman champion_cavalry_javelineer champion_cavalry_archer champion_chariot"}, // cart
+	{4, BLD_RANGE, "infantry_javelineer_b infantry_slinger_b infantry_archer_b infantry_crossbowman_b champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer champion_infantry_crossbowman"}, // cart
+	{4, BLD_ARSENAL, "champion_infantry_crossbowman siege_scorpio_packed siege_polybolos_packed siege_oxybeles_packed siege_onager_packed siege_lithobolos_packed siege_ballista_packed siege_ram siege_tower"}, // cart
+	{4, BLD_ELEPHANT_STABLE, "support_elephant elephant_archer_b champion_elephant"}, // cart
+	{4, BLD_SUPER_DOCK, "ship_scout ship_arrow ship_ram ship_fire ship_siege"}, // cart
+	{4, BLD_APARTMENT, "support_civilian_house"}, // cart
+	{5, BLD_TOWN_CENTER, "infantry_pikeman_b infantry_javelineer_b cavalry_spearman_b"}, // mace
+	{5, BLD_HOUSE, "support_civilian_house"}, // mace
+	{5, BLD_BARRACKS, "infantry_clubman infantry_spearman_b infantry_pikeman_b infantry_maceman_b infantry_axeman_b infantry_swordsman_b infantry_javelineer_b infantry_slinger_b infantry_archer_b champion_infantry_spearman champion_infantry_pikeman champion_infantry_maceman champion_infantry_axeman champion_infantry_swordsman champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer"}, // mace
+	{5, BLD_MARKET, "support_trader"}, // mace
+	{5, BLD_FORTRESS, "hero_philip_ii hero_alexander_iii hero_demetrius_i"}, // mace
+	{5, BLD_TEMPLE, "support_healer_b"}, // mace
+	{5, BLD_DOCK, "ship_fishing ship_merchant ship_scout ship_arrow ship_ram ship_fire ship_siege"}, // mace
+	{5, BLD_STABLE, "cavalry_axeman_b cavalry_swordsman_b cavalry_spearman_b cavalry_javelineer_b cavalry_archer_b champion_cavalry champion_cavalry_spearman champion_cavalry_swordsman champion_cavalry_javelineer champion_cavalry_archer champion_chariot"}, // mace
+	{5, BLD_RANGE, "infantry_javelineer_b infantry_slinger_b infantry_archer_b infantry_crossbowman_b champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer champion_infantry_crossbowman"}, // mace
+	{5, BLD_ARSENAL, "champion_infantry_crossbowman siege_scorpio_packed siege_polybolos_packed siege_oxybeles_packed siege_onager_packed siege_lithobolos_packed siege_ballista_packed siege_ram siege_tower"}, // mace
+	{6, BLD_TOWN_CENTER, "infantry_spearman_b infantry_slinger_b cavalry_javelineer_b"}, // brit
+	{6, BLD_HOUSE, "support_civilian_house"}, // brit
+	{6, BLD_BARRACKS, "infantry_clubman infantry_spearman_b infantry_pikeman_b infantry_maceman_b infantry_axeman_b infantry_swordsman_b infantry_javelineer_b infantry_slinger_b infantry_archer_b champion_infantry_spearman champion_infantry_pikeman champion_infantry_maceman champion_infantry_axeman champion_infantry_swordsman champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer"}, // brit
+	{6, BLD_MARKET, "support_trader"}, // brit
+	{6, BLD_FORTRESS, "hero_boudicca hero_caratacos hero_cunobelin"}, // brit
+	{6, BLD_TEMPLE, "support_healer_b"}, // brit
+	{6, BLD_DOCK, "ship_fishing ship_merchant ship_scout ship_arrow ship_ram ship_fire ship_siege"}, // brit
+	{6, BLD_STABLE, "cavalry_axeman_b cavalry_swordsman_b cavalry_spearman_b cavalry_javelineer_b cavalry_archer_b champion_cavalry champion_cavalry_spearman champion_cavalry_swordsman champion_cavalry_javelineer champion_cavalry_archer champion_chariot"}, // brit
+	{6, BLD_RANGE, "infantry_javelineer_b infantry_slinger_b infantry_archer_b infantry_crossbowman_b champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer champion_infantry_crossbowman"}, // brit
+	{6, BLD_ARSENAL, "champion_infantry_crossbowman siege_scorpio_packed siege_polybolos_packed siege_oxybeles_packed siege_onager_packed siege_lithobolos_packed siege_ballista_packed siege_ram siege_tower"}, // brit
+	{6, BLD_KENNEL, "war_dog"}, // brit
+	{6, BLD_CRANNOG, "infantry_spearman_b infantry_slinger_b cavalry_javelineer_b ship_fishing ship_merchant ship_scout ship_arrow ship_ram ship_fire ship_siege"}, // brit
+	{7, BLD_TOWN_CENTER, "infantry_spearman_b infantry_javelineer_b cavalry_javelineer_b"}, // gaul
+	{7, BLD_HOUSE, "support_civilian_house"}, // gaul
+	{7, BLD_BARRACKS, "infantry_clubman infantry_spearman_b infantry_pikeman_b infantry_maceman_b infantry_axeman_b infantry_swordsman_b infantry_javelineer_b infantry_slinger_b infantry_archer_b champion_infantry_spearman champion_infantry_pikeman champion_infantry_maceman champion_infantry_axeman champion_infantry_swordsman champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer"}, // gaul
+	{7, BLD_MARKET, "support_trader"}, // gaul
+	{7, BLD_TEMPLE, "support_healer_b champion_fanatic"}, // gaul
+	{7, BLD_DOCK, "ship_fishing ship_merchant ship_scout ship_arrow ship_ram ship_fire ship_siege"}, // gaul
+	{7, BLD_STABLE, "cavalry_axeman_b cavalry_swordsman_b cavalry_spearman_b cavalry_javelineer_b cavalry_archer_b champion_cavalry champion_cavalry_spearman champion_cavalry_swordsman champion_cavalry_javelineer champion_cavalry_archer champion_chariot"}, // gaul
+	{7, BLD_RANGE, "infantry_javelineer_b infantry_slinger_b infantry_archer_b infantry_crossbowman_b champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer champion_infantry_crossbowman"}, // gaul
+	{7, BLD_ARSENAL, "champion_infantry_crossbowman siege_scorpio_packed siege_polybolos_packed siege_oxybeles_packed siege_onager_packed siege_lithobolos_packed siege_ballista_packed siege_ram siege_tower"}, // gaul
+	{7, BLD_ASSEMBLY, "champion_infantry_trumpeter hero_brennus hero_viridomarus hero_vercingetorix"}, // gaul
+	{7, BLD_TAVERN, "support_civilian_house"}, // gaul
+	{8, BLD_TOWN_CENTER, "infantry_swordsman_b infantry_javelineer_b cavalry_javelineer_b"}, // iber
+	{8, BLD_HOUSE, "support_civilian_house"}, // iber
+	{8, BLD_BARRACKS, "infantry_clubman infantry_spearman_b infantry_pikeman_b infantry_maceman_b infantry_axeman_b infantry_swordsman_b infantry_javelineer_b infantry_slinger_b infantry_archer_b champion_infantry_spearman champion_infantry_pikeman champion_infantry_maceman champion_infantry_axeman champion_infantry_swordsman champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer"}, // iber
+	{8, BLD_MARKET, "support_trader"}, // iber
+	{8, BLD_FORTRESS, "hero_caros hero_indibil hero_viriato"}, // iber
+	{8, BLD_TEMPLE, "support_healer_b"}, // iber
+	{8, BLD_DOCK, "ship_fishing ship_merchant ship_scout ship_arrow ship_ram ship_fire ship_siege"}, // iber
+	{8, BLD_STABLE, "cavalry_axeman_b cavalry_swordsman_b cavalry_spearman_b cavalry_javelineer_b cavalry_archer_b champion_cavalry champion_cavalry_spearman champion_cavalry_swordsman champion_cavalry_javelineer champion_cavalry_archer champion_chariot"}, // iber
+	{8, BLD_RANGE, "infantry_javelineer_b infantry_slinger_b infantry_archer_b infantry_crossbowman_b champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer champion_infantry_crossbowman"}, // iber
+	{8, BLD_ARSENAL, "champion_infantry_crossbowman siege_scorpio_packed siege_polybolos_packed siege_oxybeles_packed siege_onager_packed siege_lithobolos_packed siege_ballista_packed siege_ram siege_tower"}, // iber
+	{9, BLD_TOWN_CENTER, "infantry_spearman_b infantry_archer_b cavalry_javelineer_b support_elephant"}, // maur
+	{9, BLD_HOUSE, "support_civilian_house"}, // maur
+	{9, BLD_BARRACKS, "infantry_clubman infantry_spearman_b infantry_pikeman_b infantry_maceman_b infantry_axeman_b infantry_swordsman_b infantry_javelineer_b infantry_slinger_b infantry_archer_b champion_infantry_spearman champion_infantry_pikeman champion_infantry_maceman champion_infantry_axeman champion_infantry_swordsman champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer"}, // maur
+	{9, BLD_MARKET, "support_trader"}, // maur
+	{9, BLD_TEMPLE, "support_healer_b"}, // maur
+	{9, BLD_DOCK, "ship_fishing ship_merchant ship_scout ship_arrow ship_ram ship_fire ship_siege"}, // maur
+	{9, BLD_STABLE, "cavalry_axeman_b cavalry_swordsman_b cavalry_spearman_b cavalry_javelineer_b cavalry_archer_b champion_cavalry champion_cavalry_spearman champion_cavalry_swordsman champion_cavalry_javelineer champion_cavalry_archer champion_chariot"}, // maur
+	{9, BLD_RANGE, "infantry_javelineer_b infantry_slinger_b infantry_archer_b infantry_crossbowman_b champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer champion_infantry_crossbowman"}, // maur
+	{9, BLD_ARSENAL, "champion_infantry_crossbowman siege_scorpio_packed siege_polybolos_packed siege_oxybeles_packed siege_onager_packed siege_lithobolos_packed siege_ballista_packed siege_ram siege_tower"}, // maur
+	{9, BLD_ELEPHANT_STABLE, "support_elephant elephant_archer_b champion_elephant"}, // maur
+	{9, BLD_PALACE, "champion_maiden champion_maiden_archer hero_chanakya hero_chandragupta hero_ashoka"}, // maur
+	{10, BLD_TOWN_CENTER, "infantry_spearman_b infantry_archer_b cavalry_javelineer_b"}, // kush
+	{10, BLD_HOUSE, "support_civilian_house"}, // kush
+	{10, BLD_BARRACKS, "infantry_clubman infantry_spearman_b infantry_pikeman_b infantry_maceman_b infantry_axeman_b infantry_swordsman_b infantry_javelineer_b infantry_slinger_b infantry_archer_b champion_infantry_spearman champion_infantry_pikeman champion_infantry_maceman champion_infantry_axeman champion_infantry_swordsman champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer"}, // kush
+	{10, BLD_MARKET, "support_trader"}, // kush
+	{10, BLD_FORTRESS, "hero_nastasen hero_amanirenas hero_arakamani"}, // kush
+	{10, BLD_TEMPLE, "support_healer_b champion_infantry_apedemak"}, // kush
+	{10, BLD_DOCK, "ship_fishing ship_merchant ship_scout ship_arrow ship_ram ship_fire ship_siege"}, // kush
+	{10, BLD_STABLE, "cavalry_axeman_b cavalry_swordsman_b cavalry_spearman_b cavalry_javelineer_b cavalry_archer_b champion_cavalry champion_cavalry_spearman champion_cavalry_swordsman champion_cavalry_javelineer champion_cavalry_archer champion_chariot"}, // kush
+	{10, BLD_RANGE, "infantry_javelineer_b infantry_slinger_b infantry_archer_b infantry_crossbowman_b champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer champion_infantry_crossbowman"}, // kush
+	{10, BLD_ARSENAL, "champion_infantry_crossbowman siege_scorpio_packed siege_polybolos_packed siege_oxybeles_packed siege_onager_packed siege_lithobolos_packed siege_ballista_packed siege_ram siege_tower"}, // kush
+	{10, BLD_ELEPHANT_STABLE, "support_elephant elephant_archer_b champion_elephant"}, // kush
+	{10, BLD_TEMPLE_AMUN, "support_healer_e champion_infantry_amun"}, // kush
+	{11, BLD_TOWN_CENTER, "infantry_pikeman_b infantry_slinger_b cavalry_archer_b"}, // ptol
+	{11, BLD_HOUSE, "support_civilian_house"}, // ptol
+	{11, BLD_BARRACKS, "infantry_clubman infantry_spearman_b infantry_pikeman_b infantry_maceman_b infantry_axeman_b infantry_swordsman_b infantry_javelineer_b infantry_slinger_b infantry_archer_b champion_infantry_spearman champion_infantry_pikeman champion_infantry_maceman champion_infantry_axeman champion_infantry_swordsman champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer"}, // ptol
+	{11, BLD_MARKET, "support_trader"}, // ptol
+	{11, BLD_TEMPLE, "support_healer_b"}, // ptol
+	{11, BLD_DOCK, "ship_fishing ship_merchant ship_scout ship_arrow ship_ram ship_fire ship_siege"}, // ptol
+	{11, BLD_STABLE, "cavalry_axeman_b cavalry_swordsman_b cavalry_spearman_b cavalry_javelineer_b cavalry_archer_b champion_cavalry champion_cavalry_spearman champion_cavalry_swordsman champion_cavalry_javelineer champion_cavalry_archer champion_chariot"}, // ptol
+	{11, BLD_RANGE, "infantry_javelineer_b infantry_slinger_b infantry_archer_b infantry_crossbowman_b champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer champion_infantry_crossbowman"}, // ptol
+	{11, BLD_ARSENAL, "champion_infantry_crossbowman siege_scorpio_packed siege_polybolos_packed siege_oxybeles_packed siege_onager_packed siege_lithobolos_packed siege_ballista_packed siege_ram siege_tower"}, // ptol
+	{11, BLD_ELEPHANT_STABLE, "support_elephant elephant_archer_b champion_elephant"}, // ptol
+	{11, BLD_MERCENARY_CAMP, "infantry_clubman infantry_spearman_b infantry_pikeman_b infantry_maceman_b infantry_axeman_b infantry_swordsman_b infantry_javelineer_b infantry_slinger_b infantry_archer_b champion_infantry_spearman champion_infantry_pikeman champion_infantry_maceman champion_infantry_axeman champion_infantry_swordsman champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer infantry_spearman_merc_b infantry_swordsman_merc_b cavalry_spearman_merc_b cavalry_javelineer_merc_b"}, // ptol
+	{11, BLD_MILITARY_COLONY, "infantry_spearman_merc_b infantry_swordsman_merc_b cavalry_spearman_merc_b cavalry_javelineer_merc_b"}, // ptol
+	{11, BLD_TEMPLE_ISIS, "support_healer_b hero_ptolemy_i hero_ptolemy_iv hero_cleopatra_vii"}, // ptol
+	{12, BLD_TOWN_CENTER, "infantry_spearman_b infantry_javelineer_b cavalry_javelineer_b hero_seleucus_i hero_antiochus_iii hero_antiochus_iv"}, // sele
+	{12, BLD_HOUSE, "support_civilian_house"}, // sele
+	{12, BLD_BARRACKS, "infantry_clubman infantry_spearman_b infantry_pikeman_b infantry_maceman_b infantry_axeman_b infantry_swordsman_b infantry_javelineer_b infantry_slinger_b infantry_archer_b champion_infantry_spearman champion_infantry_pikeman champion_infantry_maceman champion_infantry_axeman champion_infantry_swordsman champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer"}, // sele
+	{12, BLD_MARKET, "support_trader"}, // sele
+	{12, BLD_TEMPLE, "support_healer_b"}, // sele
+	{12, BLD_DOCK, "ship_fishing ship_merchant ship_scout ship_arrow ship_ram ship_fire ship_siege"}, // sele
+	{12, BLD_STABLE, "cavalry_axeman_b cavalry_swordsman_b cavalry_spearman_b cavalry_javelineer_b cavalry_archer_b champion_cavalry champion_cavalry_spearman champion_cavalry_swordsman champion_cavalry_javelineer champion_cavalry_archer champion_chariot"}, // sele
+	{12, BLD_RANGE, "infantry_javelineer_b infantry_slinger_b infantry_archer_b infantry_crossbowman_b champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer champion_infantry_crossbowman"}, // sele
+	{12, BLD_ARSENAL, "champion_infantry_crossbowman siege_scorpio_packed siege_polybolos_packed siege_oxybeles_packed siege_onager_packed siege_lithobolos_packed siege_ballista_packed siege_ram siege_tower"}, // sele
+	{12, BLD_ELEPHANT_STABLE, "support_elephant elephant_archer_b champion_elephant"}, // sele
+	{13, BLD_TOWN_CENTER, "infantry_spearman_b infantry_crossbowman_b cavalry_swordsman_b"}, // han
+	{13, BLD_HOUSE, "support_civilian_house"}, // han
+	{13, BLD_BARRACKS, "infantry_clubman infantry_spearman_b infantry_pikeman_b infantry_maceman_b infantry_axeman_b infantry_swordsman_b infantry_javelineer_b infantry_slinger_b infantry_archer_b champion_infantry_spearman champion_infantry_pikeman champion_infantry_maceman champion_infantry_axeman champion_infantry_swordsman champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer infantry_crossbowman_b"}, // han
+	{13, BLD_MARKET, "support_trader"}, // han
+	{13, BLD_FORTRESS, "hero_han_xin_horse hero_liu_bang_horse hero_wei_qing_chariot"}, // han
+	{13, BLD_TEMPLE, "support_healer_b"}, // han
+	{13, BLD_DOCK, "ship_fishing ship_merchant ship_scout ship_arrow ship_ram ship_fire ship_siege"}, // han
+	{13, BLD_STABLE, "cavalry_axeman_b cavalry_swordsman_b cavalry_spearman_b cavalry_javelineer_b cavalry_archer_b champion_cavalry champion_cavalry_spearman champion_cavalry_swordsman champion_cavalry_javelineer champion_cavalry_archer champion_chariot"}, // han
+	{13, BLD_RANGE, "infantry_javelineer_b infantry_slinger_b infantry_archer_b infantry_crossbowman_b champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer champion_infantry_crossbowman"}, // han
+	{13, BLD_ARSENAL, "champion_infantry_crossbowman siege_scorpio_packed siege_polybolos_packed siege_oxybeles_packed siege_onager_packed siege_lithobolos_packed siege_ballista_packed siege_ram siege_tower siege_mangonel_packed"}, // han
+	{13, BLD_ACADEMY, "champion_infantry_spearman_academy champion_infantry_crossbowman_academy champion_cavalry_spearman_academy champion_chariot_academy"}, // han
+	{13, BLD_MINISTRY, "support_minister"}, // han
+	{13, BLD_IMPERIAL_COURT, "infantry_spearman_b infantry_crossbowman_b cavalry_swordsman_b hero_han_xin_horse hero_liu_bang_horse hero_wei_qing_chariot"}, // han
+	{15, BLD_TOWN_CENTER, "infantry_spearman_b infantry_slinger_b cavalry_javelineer_b support_wagon"}, // germ
+	{15, BLD_HOUSE, "support_civilian_house"}, // germ
+	{15, BLD_BARRACKS, "infantry_clubman infantry_spearman_b infantry_pikeman_b infantry_maceman_b infantry_axeman_b infantry_swordsman_b infantry_javelineer_b infantry_slinger_b infantry_archer_b champion_infantry_spearman champion_infantry_pikeman champion_infantry_maceman champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer"}, // germ
+	{15, BLD_MARKET, "support_trader"}, // germ
+	{15, BLD_FORTRESS, "hero_boiorix hero_teutobod hero_lugius"}, // germ
+	{15, BLD_TEMPLE, "support_healer_b champion_healer"}, // germ
+	{15, BLD_DOCK, "ship_fishing ship_merchant ship_scout ship_arrow ship_ram ship_fire ship_siege"}, // germ
+	{15, BLD_STABLE, "cavalry_axeman_b cavalry_swordsman_b cavalry_spearman_b cavalry_javelineer_b cavalry_archer_b champion_cavalry_spearman champion_cavalry_swordsman champion_cavalry_javelineer champion_cavalry_archer champion_chariot"}, // germ
+	{15, BLD_RANGE, "infantry_javelineer_b infantry_slinger_b infantry_archer_b infantry_crossbowman_b champion_infantry_javelineer champion_infantry_slinger champion_infantry_archer champion_infantry_crossbowman"}, // germ
+	{15, BLD_ARSENAL, "champion_infantry_crossbowman siege_scorpio_packed siege_polybolos_packed siege_oxybeles_packed siege_onager_packed siege_lithobolos_packed siege_ballista_packed siege_ram siege_tower"}, // germ
+	{15, BLD_GREAT_HALL, "champion_infantry_axeman champion_cavalry siege_ram"}, // germ
+	{15, BLD_WAGON_ENCAMPMENT, "infantry_spearman_b infantry_slinger_b support_wagon"}, // germ
+	{15, BLD_WAGON_ENCAMPMENT_FORTIFIED, "infantry_spearman_b infantry_slinger_b support_wagon siege_ram"}, // germ
+};

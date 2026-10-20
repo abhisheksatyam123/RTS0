@@ -602,7 +602,8 @@ static void test_diplomacy() {
 		// Hits on a Gaia animal and on an enemy structure count too (Attacked is sent for any entity).
 		const auto ally_hits = [&](const char *what, auto order) {
 			std::vector<uint32_t> bows;
-			for (int i = 0; i < 3; ++i) bows.push_back(s->spawn_unit(tx - 12.0f + 2.0f * (float)i, tz + 20.0f, 2, UNIT_ARCHER));
+			// Where the elephant fight above was: our land, the archers in reach.
+			for (int i = 0; i < 3; ++i) bows.push_back(s->spawn_unit(tx + 12.0f + 2.0f * (float)i, tz + 20.0f, 2, UNIT_ARCHER));
 			s->petra_config_slot(1).cooperative = 0.5f;
 			order(bows);
 			run_for(*s, 10.0f);
@@ -611,10 +612,13 @@ static void test_diplomacy() {
 			CHECK(now > 0.5f, "an ally's hits on it raise cooperativeness");
 			drop(bows);
 		};
-		const uint32_t deer = s->spawn_fauna(tx - 12.0f, tz + 12.0f, FAUNA_DEER);
-		ally_hits("deer", [&](std::vector<uint32_t> &bows) { s->order_attack(bows.data(), bows.size(), deer); });
-		const uint32_t house = s->spawn_building_world(tx - 12.0f, tz + 8.0f, BLD_HOUSE, 0);
-		ally_hits("house", [&](std::vector<uint32_t> &bows) { s->order_attack_building(bows.data(), bows.size(), house); });
+		if (const int32_t e = s->lookup_unit(foe); e >= 0) s->units_.alive[e] = false;
+		// A boar: Petra's hunters leave a live one alone (isHuntable), so only the ally hits it.
+		const uint32_t boar = s->spawn_fauna(tx + 12.0f, tz + 12.0f, FAUNA_BOAR);
+		ally_hits("boar", [&](std::vector<uint32_t> &bows) { s->order_hunt(bows.data(), bows.size(), boar); });
+		// Gaia's: a house of player 0 would claim its own ground (TerritoryInfluence).
+		const uint32_t house = s->spawn_building_world(tx + 12.0f, tz + 12.0f, BLD_HOUSE, GAIA_PLAYER);
+		ally_hits("Gaia house", [&](std::vector<uint32_t> &bows) { s->order_attack_building(bows.data(), bows.size(), house); });
 	}
 
 	// Last Man Standing with unlocked teams: lobby teams only set the starting
@@ -1573,6 +1577,38 @@ static void test_petra_tributes_same_total() {
 	std::printf("  tributes from one total: ally 1 got %.0f food, ally 2 %.0f, %.0f left\n", s->players_[1].res[RES_FOOD],
 	            s->players_[2].res[RES_FOOD], s->players_[0].res[RES_FOOD]);
 	CHECK(s->players_[1].res[RES_FOOD] == 300.0f && s->players_[2].res[RES_FOOD] == 300.0f, "each ally gets 30% of the same total");
+}
+
+// diplomacyManager.js handleDiplomacyRequest: moreEnemiesThanAllies counts getEnemies, where a
+// defeated enemy still is one (its stances outlive it), against getMutualAllies, us included.
+// tributes: an ally by our own stance gets gifts though it is not allied back.
+static void test_petra_defeated_still_enemies() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 4, 128.0f);
+	for (uint8_t p = 0; p < 4; ++p) s->set_player_active(p, true, p == 0);
+	s->petra_pid_ = 0;
+	s->set_team_civ(2, (uint8_t)s->players_[0].civ); // the same civ never declines for good at once
+	s->set_diplomacy(0, 3, Simulation::DIPLO_ALLY);
+	s->set_diplomacy(3, 0, Simulation::DIPLO_ALLY);
+	s->participant_mask_ = 0x0F; // seated at the start
+	s->defeated_mask_ |= 1u << 1; // an enemy already out: Gaia, it and player 2 against us and player 3
+	s->petra_diplo_.seen_init = true;
+	s->petra_handle_diplomacy_request(2, 0);
+	const auto &req = s->petra_diplo_.received[2];
+	std::printf("  alliance request with a defeated enemy left: status %d\n", (int)req.status);
+	CHECK(req.status != PetraReceivedRequest::NONE && req.status != PetraReceivedRequest::DECLINED_FOREVER,
+	      "more enemies than allies: not turned down out of hand");
+
+	for (uint8_t p = 0; p < 4; ++p)
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[p].res[r] = 0.0f;
+	s->players_[0].res[RES_FOOD] = 1000.0f;
+	s->set_diplomacy(3, 0, Simulation::DIPLO_NEUTRAL); // allied one way only
+	s->petra_diplo_.next_tribute = 0.0f;
+	s->petra_manage_diplomacy(1.6f);
+	std::printf("  one-way ally's gift: %.0f food\n", s->players_[3].res[RES_FOOD]);
+	CHECK(s->players_[3].res[RES_FOOD] == 300.0f, "an ally by our stance alone gets a tribute");
 }
 
 // diplomacyManager.js init: a player allied to us at the start while we are its enemy
@@ -6822,6 +6858,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_peace_ends_raid);
 	RUN(test_petra_tributes_same_total);
 	RUN(test_petra_init_one_way_ally);
+	RUN(test_petra_defeated_still_enemies);
 	RUN(test_petra_current_enemy_gaia);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);

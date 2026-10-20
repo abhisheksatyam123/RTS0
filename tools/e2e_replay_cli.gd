@@ -113,4 +113,8 @@ func run() -> void:
 	change_scene_to_file("res://scenes/menu/replay_browser.tscn")
 	await frames(60)
 	print("FAILURES: ", failures)
+	# A static Callable still holding this script's lambda when the engine clears
+	# GDScript statics at exit frees it twice (Godot 4.3): drop it before quitting.
+	ReplayCli.quit_hook = Callable()
+	ReplayCli.args_override = PackedStringArray()
 	quit(1 if failures else 0)
