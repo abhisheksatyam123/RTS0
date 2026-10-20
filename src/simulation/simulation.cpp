@@ -28167,6 +28167,17 @@ void Simulation::petra_answer_attack_request(uint8_t source, uint8_t target) {
 	petra_say(join ? PETRA_CHAT_ATTACK_JOIN : PETRA_CHAT_ATTACK_DECLINE, PETRA_CHAT_ALLIES, target);
 }
 
+bool Simulation::unit_short_waypoint(size_t i, float aim_x, float aim_z, float *wx, float *wz) const {
+	if (i >= units_.count) return false;
+	const ShortPathMemo &m = units_.short_path[i];
+	if (m.key == 0 || m.key == idle_stuck_key()) return false;
+	const float dx = m.aim_x - aim_x, dz = m.aim_z - aim_z;
+	if (dx * dx + dz * dz > nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK) return false;
+	*wx = m.x;
+	*wz = m.z;
+	return true;
+}
+
 uint8_t Simulation::petra_owner_of(uint32_t id) const {
 	if (auto it = building_id_to_idx_.find(id); it != building_id_to_idx_.end()) return buildings_[it->second].team;
 	const int32_t u = lookup_unit(id);

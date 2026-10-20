@@ -103,7 +103,7 @@ func run() -> void:
 				break
 	if cc_tip:
 		var raw: Dictionary = ref.get_tech(cc_tip.tip_id, 0)
-		check(cc_tip._tooltip_text().contains("Food %d" % roundi(int(raw["cost"]["food"]) * 0.7)),
+		check(load("res://scenes/common/tooltips.gd").plain(cc_tip._tooltip_text()).contains("Food %d" % roundi(int(raw["cost"]["food"]) * 0.7)),
 			"an Athenian Civic Center tech costs 30% less")
 	else:
 		check(false, "an Athenian Civic Center tech costs 30% less")
@@ -118,6 +118,16 @@ func run() -> void:
 		"the temple's tooltip lists its Medical Treatment aura and range")
 	var hero_auras: Array = ref.get_unit(int(ref.get_civ_info(1)["heroes"][0]["tmpl"]))["auras"]
 	check(hero_auras.size() >= 3 and hero_auras[0]["name"] == "Inspired Defense", "a hero lists Inspired Defense first")
+	# ViewerPage getUpgradeText: the Roman citizen spearman (as an elite) upgrades to the Centurion.
+	var ups: Array = []
+	for tm in 600:
+		var u: Dictionary = ref.get_unit(tm)
+		if u.is_empty():
+			break
+		if str(u.get("id", "")) == "rome/infantry_spearman_a":
+			ups = u.get("upgrades", [])
+			break
+	check(ups.size() == 1 and str(ups[0]["name"]).contains("Centurion"), "the Roman spearman is upgradable to the Centurion: " + str(ups))
 	var spart := 1
 	var spart_hero: Dictionary = ref.get_civ_info(spart)["heroes"][0]
 	var hc: Dictionary = Common.civ_costed(ref.get_unit(int(spart_hero["tmpl"])), "unit", spart)["cost"]

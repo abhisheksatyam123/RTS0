@@ -483,6 +483,9 @@ public:
 		*zs = unit_paths_[i].zs + cur;
 		return n - cur;
 	}
+	// The next waypoint of the short path unit i walks round something on toward (aim_x, aim_z)
+	// (UnitMotion m_ShortPath, the unit motion overlay): what its ShortPathMemo keeps for that aim.
+	bool unit_short_waypoint(size_t i, float aim_x, float aim_z, float *wx, float *wz) const;
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
 	// A relic (catafalque) has no Health, so no attack but Capture reaches it.
 	bool unit_can_target(size_t i, size_t j) const {
