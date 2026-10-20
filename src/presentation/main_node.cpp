@@ -2910,7 +2910,9 @@ Dictionary RtsoMain::get_lobby_state() const {
 		for (uint8_t i = 0; i < net_setup_.setup.slot_count && i < 8; ++i)
 			if (net_setup_.slot_client[i] >= 0) ++players;
 	} else if (hosting) {
-		players = 1;
+		// LobbyGamelistReporter.countConnectedPlayers: assignments with a player,
+		// so not a host who watches.
+		players = turn_mgr_.player_for_client(0) < rtso::MAX_PLAYERS ? 1 : 0;
 		for (const auto &p : net_host_.getPeers())
 			if (p.id != 0 && p.connected && p.is_authenticated && !p.is_observer) ++players;
 	}
@@ -3212,6 +3214,10 @@ void RtsoMain::host_net_setup_tick(bool force) {
 			if (p.id > 0 && p.id < rtso::NET_SETUP_CLIENTS && p.connected && p.is_authenticated && !p.kick_disconnect_ms) {
 				now |= (1ull << p.id);
 				if (!((net_setup_.clients >> p.id) & 1)) net_host_.sendGameSetup(rtso::format_net_setup(net_setup_), p.id);
+				// LobbyGamelistReporter getObservers: whoever watches now, a late observer too.
+				net_setup_.names[p.id] = p.player_name;
+				if (p.is_observer) net_setup_.observers |= (1ull << p.id);
+				else net_setup_.observers &= ~(1ull << p.id);
 			}
 		net_setup_.clients = now | 1;
 		return;
@@ -3285,9 +3291,19 @@ void RtsoMain::post_kick_chat() {
 	for (; kicks_chatted_ < kicks.size(); ++kicks_chatted_) {
 		const auto &k = kicks[kicks_chatted_];
 		const String name = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str()).replace("[", "[lb]");
-		const String line = sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}});
-		if (is_net_pregame()) chat_window_.append_line(setup_status_line(line));
-		else chat_window_.append_kind(line + String("\n"), CHAT_FILTER_NETWORK);
+		if (is_net_pregame()) {
+			chat_window_.append_line(setup_status_line(sprintf0(k.ban ? tr("%(username)s has been banned")
+					: tr("%(username)s has been kicked"), {{"username", name}})));
+			continue;
+		}
+		// ChatMessageFormatNetwork.kicked: colorizePlayernameHelper, the player's
+		// colour for the player of that name, white for anyone else.
+		uint32_t rgb = 0xFFFFFFu;
+		for (const auto &e : chat_assignments_)
+			if (e.name == k.name && e.player < rtso::MAX_PLAYERS && sim) rgb = rtso::display_colors::rgb(*sim, e.player);
+		const String colored = "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + name + "[/color]";
+		chat_window_.append_kind(sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"),
+				{{"username", colored}}) + String("\n"), CHAT_FILTER_NETWORK);
 	}
 }
 
@@ -3536,10 +3552,24 @@ void RtsoMain::update_net_connect_overlay() {
 	if (String(net_connect_overlay_->get("text")) != text) net_connect_overlay_->set("text", String(text));
 }
 
-// Game Setup's Back in a networked game: leave it for the lobby.
+// Game Setup's Back, the Connecting box's Cancel and the disconnect box's OK
+// before Start (SetupWindow.js closePage, gamesetup_mp.js cancelSetup): back to
+// the lobby while signed in to it, else to the main menu, where a join the
+// host never let in reopens the "Joining an existing game." form.
 void RtsoMain::leave_net_game() {
+	const int auth = net_host_.authResult();
+	const bool not_let_in = net_host_.getRole() == rtso::NetRole::Client &&
+			auth != rtso::ARC_OK && auth != rtso::ARC_OK_SAVED_GAME && auth != rtso::ARC_OK_REJOINING;
 	net_host_.stop();
-	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) ms->call("go", "res://scenes/menu/lobby.tscn");
+	Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
+	if (!ms) return;
+	Node *lobby = get_node_or_null(NodePath("/root/LobbySession"));
+	if (lobby && bool(lobby->call("signed_in"))) {
+		ms->call("go", "res://scenes/menu/lobby.tscn");
+		return;
+	}
+	ms->set("net_reopen", not_let_in ? String("join") : String());
+	ms->call("go", "res://scenes/menu/main_menu.tscn");
 }
 
 void RtsoMain::push_net_setup() {

@@ -234,6 +234,13 @@ struct PetraTransportPlan {
 	uint16_t sea = 0;  // the sea it crosses (0: any, from an older save)
 };
 // navalManager.js runs a transportPlan per ship; each asker here has at most one.
+// A crossing asked for again in the same pass (survivors of a sunk ship on another land).
+struct PetraReferry {
+	std::vector<uint32_t> unit_ids;
+	float from_x = 0.0f, from_z = 0.0f, to_x = 0.0f, to_z = 0.0f;
+	uint16_t sea = 0;
+	uint8_t owner = 0;
+};
 enum PetraTransportOwner : uint8_t { PETRA_TRANSPORT_ATTACK = 0, PETRA_TRANSPORT_RAID = 1, PETRA_TRANSPORT_BUILDERS = 2, PETRA_TRANSPORT_TRADER = 3,
                                       PETRA_TRANSPORT_WORKERS = 4,
                                       PETRA_TRANSPORT_DEFENSE = 5 }; // defenders for a foe on another land

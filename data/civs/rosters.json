@@ -49,7 +49,9 @@
     "athen/support_civilian",
     "athen/support_civilian_house",
     "athen/infantry_marine_archer_b",
-    "athen/hero_xenophon"
+    "athen/hero_xenophon",
+    "athen/infantry_spearman_a",
+    "athen/support_healer_e"
    ],
    "auto_bonuses": [
     {
@@ -110,7 +112,9 @@
     "spart/support_civilian",
     "spart/support_civilian_house",
     "spart/champion_infantry_pike",
-    "spart/hero_leonidas_300"
+    "spart/hero_leonidas_300",
+    "spart/infantry_spearman_a",
+    "spart/support_healer_e"
    ],
    "auto_bonuses": [
     {
@@ -176,7 +180,9 @@
     "pers/support_healer_e",
     "pers/hero_xerxes_i_chariot",
     "pers/kardakes_hoplite",
-    "pers/kardakes_skirmisher"
+    "pers/kardakes_skirmisher",
+    "pers/arstibara",
+    "pers/infantry_spearman_a"
    ],
    "auto_bonuses": [
     {
@@ -316,7 +322,9 @@
     "cart/support_civilian",
     "cart/support_civilian_house",
     "cart/infantry_spearman_ital_b",
-    "cart/champion_pikeman"
+    "cart/champion_pikeman",
+    "cart/infantry_spearman_a",
+    "cart/support_healer_e"
    ],
    "auto_bonuses": [
     {
@@ -381,7 +389,8 @@
     "mace/support_healer_e",
     "mace/hero_craterus",
     "mace/hero_philip_ii_pike",
-    "mace/hero_pyrrhus_i"
+    "mace/hero_pyrrhus_i",
+    "mace/infantry_pikeman_a"
    ],
    "auto_bonuses": [
     {
@@ -435,7 +444,9 @@
     "brit/support_civilian_house",
     "brit/hero_boudicca_cavalry_javelineer",
     "brit/hero_boudicca_sword",
-    "brit/hero_cunobelin_infantry"
+    "brit/hero_cunobelin_infantry",
+    "brit/infantry_spearman_a",
+    "brit/support_healer_e"
    ],
    "auto_bonuses": [
     {
@@ -489,7 +500,8 @@
     "gaul/support_civilian",
     "gaul/support_civilian_house",
     "gaul/support_healer_e",
-    "gaul/hero_vercingetorix_infantry"
+    "gaul/hero_vercingetorix_infantry",
+    "gaul/infantry_spearman_a"
    ],
    "auto_bonuses": [
     {
@@ -545,7 +557,10 @@
     "iber/ship_fire_fire",
     "iber/support_civilian",
     "iber/support_civilian_house",
-    "iber/hero_indibil_infantry"
+    "iber/hero_indibil_infantry",
+    "iber/infantry_spearman_a",
+    "iber/infantry_swordsman_a",
+    "iber/support_healer_e"
    ],
    "auto_bonuses": []
   },
@@ -585,7 +600,10 @@
     "maur/support_civilian_house",
     "maur/hero_ashoka_infantry",
     "maur/hero_bindusara_infantry",
-    "maur/hero_chandragupta_infantry"
+    "maur/hero_chandragupta_infantry",
+    "maur/infantry_spearman_a",
+    "maur/infantry_swordsman_a",
+    "maur/support_healer_e"
    ],
    "auto_bonuses": [
     {
@@ -649,7 +667,10 @@
     "kush/support_civilian",
     "kush/support_civilian_house",
     "kush/hero_amanirenas_infantry",
-    "kush/hero_harsiotef"
+    "kush/hero_harsiotef",
+    "kush/infantry_pikeman_a",
+    "kush/infantry_spearman_a",
+    "kush/infantry_swordsman_a"
    ],
    "auto_bonuses": []
   },
@@ -702,7 +723,8 @@
     "ptol/support_civilian",
     "ptol/support_civilian_house",
     "ptol/support_healer_e",
-    "ptol/champion_juggernaut"
+    "ptol/champion_juggernaut",
+    "ptol/infantry_pikeman_a"
    ],
    "auto_bonuses": [
     {
@@ -750,7 +772,10 @@
     "sele/rts0_villager",
     "sele/catafalque",
     "sele/support_civilian",
-    "sele/support_civilian_house"
+    "sele/support_civilian_house",
+    "sele/infantry_pikeman_a",
+    "sele/infantry_spearman_a",
+    "sele/support_healer_e"
    ],
    "auto_bonuses": [
     {
@@ -803,7 +828,10 @@
     "han/hero_han_xin",
     "han/hero_liu_bang",
     "han/hero_wei_qing",
-    "han/hero_wei_qing_horse"
+    "han/hero_wei_qing_horse",
+    "han/siege_shoushe",
+    "han/infantry_pikeman_a",
+    "han/infantry_spearman_a"
    ],
    "auto_bonuses": [
     {
@@ -857,7 +885,10 @@
     "germ/catafalque",
     "germ/ship_fire_fire",
     "germ/support_wagon",
-    "germ/support_wagon_house"
+    "germ/support_wagon_house",
+    "germ/infantry_spearman_a",
+    "germ/infantry_swordsman_a",
+    "germ/support_healer_e"
    ],
    "auto_bonuses": [
     {
@@ -27784,6 +27815,1629 @@
     "vision": 28.000000000000004,
     "damage": 27.0,
     "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "pers/arstibara",
+   "civ": "pers",
+   "class": "UNIT_SPEARMAN",
+   "name": "Persian Apple Bearer",
+   "specific_name": "Arštibara",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CHAMPION",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_INFANTRY",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Immortal",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 120.0,
+    "cooldown": 1.0,
+    "hack_dmg": 8.5,
+    "pierce_dmg": 7.225,
+    "crush_dmg": 0.0,
+    "hack_armor": 4.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 20.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 80,
+    "stone": 0,
+    "train_time": 5.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 15.725,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "han/siege_shoushe",
+   "civ": "han",
+   "class": "UNIT_BOLT_SHOOTER",
+   "name": "Bolt Shooter",
+   "specific_name": "Nǔ Chē",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "BoltShooter",
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 200.0,
+    "cooldown": 6.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 240.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 25.0,
+    "crush_armor": 5.0,
+    "food": 0,
+    "wood": 250,
+    "gold": 250,
+    "stone": 0,
+    "train_time": 20.0,
+    "pop": 2,
+    "speed": 2.1627,
+    "vision": 28.000000000000004,
+    "damage": 240.0,
+    "range": 22.400000000000002,
+    "carry": 0
+   }
+  },
+  {
+   "id": "athen/infantry_spearman_a",
+   "civ": "athen",
+   "class": "UNIT_SPEARMAN",
+   "name": "Athenian Hoplite",
+   "specific_name": "Hoplítēs Athēnaîos",
+   "phase": 1,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 1.0,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.5,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "athen/support_healer_e",
+   "civ": "athen",
+   "class": "UNIT_HEALER",
+   "name": "Surgeon",
+   "specific_name": "Iatros",
+   "phase": 2,
+   "trainers": [
+    "BLD_TEMPLE_AMUN"
+   ],
+   "trained_at_0ad": [
+    "temple_amun"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 85.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 100,
+    "wood": 0,
+    "gold": 30,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.4,
+    "damage": 0.0,
+    "range": 12.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "spart/infantry_spearman_a",
+   "civ": "spart",
+   "class": "UNIT_SPEARMAN",
+   "name": "Perioikoi Hoplite",
+   "specific_name": "Hoplítēs Períoikos",
+   "phase": 1,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 1.0,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.5,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "spart/support_healer_e",
+   "civ": "spart",
+   "class": "UNIT_HEALER",
+   "name": "Surgeon",
+   "specific_name": "Iatros",
+   "phase": 2,
+   "trainers": [
+    "BLD_TEMPLE_AMUN"
+   ],
+   "trained_at_0ad": [
+    "temple_amun"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 85.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 100,
+    "wood": 0,
+    "gold": 30,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.4,
+    "damage": 0.0,
+    "range": 12.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "pers/infantry_spearman_a",
+   "civ": "pers",
+   "class": "UNIT_SPEARMAN",
+   "name": "Shield Bearer",
+   "specific_name": "Sparabara",
+   "phase": 1,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 1.0,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.5,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "cart/infantry_spearman_a",
+   "civ": "cart",
+   "class": "UNIT_SPEARMAN",
+   "name": "Libyan Spearman",
+   "specific_name": "Sǝḫīr Ḥanīt",
+   "phase": 1,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 1.0,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.5,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "cart/support_healer_e",
+   "civ": "cart",
+   "class": "UNIT_HEALER",
+   "name": "Healer",
+   "specific_name": "Kehinit",
+   "phase": 2,
+   "trainers": [
+    "BLD_TEMPLE_AMUN"
+   ],
+   "trained_at_0ad": [
+    "temple_amun"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 85.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 100,
+    "wood": 0,
+    "gold": 30,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.4,
+    "damage": 0.0,
+    "range": 12.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "mace/infantry_pikeman_a",
+   "civ": "mace",
+   "class": "UNIT_SPEARMAN",
+   "name": "Foot Companion",
+   "specific_name": "Pezétairos",
+   "phase": 1,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Pikeman",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 2.0,
+    "hack_dmg": 4.0,
+    "pierce_dmg": 7.5,
+    "crush_dmg": 0.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.0438,
+    "vision": 22.400000000000002,
+    "damage": 11.5,
+    "range": 4.8,
+    "carry": 0
+   }
+  },
+  {
+   "id": "brit/infantry_spearman_a",
+   "civ": "brit",
+   "class": "UNIT_SPEARMAN",
+   "name": "Celtic Spearman",
+   "specific_name": "Catucos",
+   "phase": 1,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [
+    "brit_woad_warriors"
+   ],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 1.0,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.5511,
+    "vision": 22.400000000000002,
+    "damage": 8.5,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "brit/support_healer_e",
+   "civ": "brit",
+   "class": "UNIT_HEALER",
+   "name": "Druid",
+   "specific_name": "Druid",
+   "phase": 2,
+   "trainers": [
+    "BLD_TEMPLE_AMUN"
+   ],
+   "trained_at_0ad": [
+    "temple_amun"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    46
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 85.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 100,
+    "wood": 0,
+    "gold": 30,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.4,
+    "damage": 0.0,
+    "range": 12.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "gaul/infantry_spearman_a",
+   "civ": "gaul",
+   "class": "UNIT_SPEARMAN",
+   "name": "Spearman",
+   "specific_name": "Catucos",
+   "phase": 1,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 1.0,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.5,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "iber/infantry_spearman_a",
+   "civ": "iber",
+   "class": "UNIT_SPEARMAN",
+   "name": "Spearman",
+   "specific_name": "Ezkutari",
+   "phase": 2,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 1.0,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.5,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "iber/infantry_swordsman_a",
+   "civ": "iber",
+   "class": "UNIT_SWORDSMAN",
+   "name": "Swordsman",
+   "specific_name": "Ezpatari",
+   "phase": 1,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 0.75,
+    "hack_dmg": 8.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 40,
+    "gold": 10,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.0,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "iber/support_healer_e",
+   "civ": "iber",
+   "class": "UNIT_HEALER",
+   "name": "Priestess of Ataekina",
+   "specific_name": "Emakumezko Apaiz de Ataekina",
+   "phase": 2,
+   "trainers": [
+    "BLD_TEMPLE_AMUN"
+   ],
+   "trained_at_0ad": [
+    "temple_amun"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 85.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 100,
+    "wood": 0,
+    "gold": 30,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.4,
+    "damage": 0.0,
+    "range": 12.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "maur/infantry_spearman_a",
+   "civ": "maur",
+   "class": "UNIT_SPEARMAN",
+   "name": "Bamboo Spearman",
+   "specific_name": "Kauntika",
+   "phase": 1,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 1.0,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.5,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "maur/infantry_swordsman_a",
+   "civ": "maur",
+   "class": "UNIT_SWORDSMAN",
+   "name": "Indian Swordsman",
+   "specific_name": "Khadagdhari",
+   "phase": 2,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 0.75,
+    "hack_dmg": 8.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 40,
+    "gold": 10,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.0,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "maur/support_healer_e",
+   "civ": "maur",
+   "class": "UNIT_HEALER",
+   "name": "Brahmin Priest",
+   "specific_name": "Brāhmaṇa Pujari",
+   "phase": 2,
+   "trainers": [
+    "BLD_TEMPLE_AMUN"
+   ],
+   "trained_at_0ad": [
+    "temple_amun"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 85.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 100,
+    "wood": 0,
+    "gold": 30,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.4,
+    "damage": 0.0,
+    "range": 12.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "kush/infantry_pikeman_a",
+   "civ": "kush",
+   "class": "UNIT_SPEARMAN",
+   "name": "Meroitic Pikeman",
+   "specific_name": "Siȝwrd",
+   "phase": 2,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Pikeman",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 2.0,
+    "hack_dmg": 4.0,
+    "pierce_dmg": 7.5,
+    "crush_dmg": 0.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.0438,
+    "vision": 22.400000000000002,
+    "damage": 11.5,
+    "range": 4.8,
+    "carry": 0
+   }
+  },
+  {
+   "id": "kush/infantry_spearman_a",
+   "civ": "kush",
+   "class": "UNIT_SPEARMAN",
+   "name": "Nubian Spearman",
+   "specific_name": "Iry-rdwy Nhsyw",
+   "phase": 1,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 1.0,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.5,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "kush/infantry_swordsman_a",
+   "civ": "kush",
+   "class": "UNIT_SWORDSMAN",
+   "name": "Meroitic Swordsman",
+   "specific_name": "Knw hps",
+   "phase": 2,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 0.75,
+    "hack_dmg": 8.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 40,
+    "gold": 10,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.0,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "ptol/infantry_pikeman_a",
+   "civ": "ptol",
+   "class": "UNIT_SPEARMAN",
+   "name": "Egyptian Pikeman",
+   "specific_name": "Phalaggomákhimos",
+   "phase": 1,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Pikeman",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 2.0,
+    "hack_dmg": 4.0,
+    "pierce_dmg": 7.5,
+    "crush_dmg": 0.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.0438,
+    "vision": 22.400000000000002,
+    "damage": 11.5,
+    "range": 4.8,
+    "carry": 0
+   }
+  },
+  {
+   "id": "sele/infantry_pikeman_a",
+   "civ": "sele",
+   "class": "UNIT_SPEARMAN",
+   "name": "Phalangite",
+   "specific_name": "Phalangitēs",
+   "phase": 1,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Pikeman",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 2.0,
+    "hack_dmg": 4.0,
+    "pierce_dmg": 7.5,
+    "crush_dmg": 0.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.0438,
+    "vision": 22.400000000000002,
+    "damage": 11.5,
+    "range": 4.8,
+    "carry": 0
+   }
+  },
+  {
+   "id": "sele/infantry_spearman_a",
+   "civ": "sele",
+   "class": "UNIT_SPEARMAN",
+   "name": "Militia Thureos Spearman",
+   "specific_name": "Thureophóros Politès",
+   "phase": 1,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 1.0,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.5,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "sele/support_healer_e",
+   "civ": "sele",
+   "class": "UNIT_HEALER",
+   "name": "Surgeon",
+   "specific_name": "Iatros",
+   "phase": 2,
+   "trainers": [
+    "BLD_TEMPLE_AMUN"
+   ],
+   "trained_at_0ad": [
+    "temple_amun"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 85.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 100,
+    "wood": 0,
+    "gold": 30,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.4,
+    "damage": 0.0,
+    "range": 12.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "han/infantry_pikeman_a",
+   "civ": "han",
+   "class": "UNIT_SPEARMAN",
+   "name": "Halberdier",
+   "specific_name": "Jǐ Bīng",
+   "phase": 2,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Pikeman",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 2.0,
+    "hack_dmg": 10.0,
+    "pierce_dmg": 3.5,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.0438,
+    "vision": 22.400000000000002,
+    "damage": 13.5,
+    "range": 4.8,
+    "carry": 0
+   }
+  },
+  {
+   "id": "han/infantry_spearman_a",
+   "civ": "han",
+   "class": "UNIT_SPEARMAN",
+   "name": "Spearman",
+   "specific_name": "Máo Bīng",
+   "phase": 1,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 1.0,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.5,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "germ/infantry_spearman_a",
+   "civ": "germ",
+   "class": "UNIT_SPEARMAN",
+   "name": "Cimbrian Spearman",
+   "specific_name": "Gaizamannaz",
+   "phase": 1,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Guerilla",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 1.0,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.5,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "germ/infantry_swordsman_a",
+   "civ": "germ",
+   "class": "UNIT_SWORDSMAN",
+   "name": "Teutonic Swordsman",
+   "specific_name": "Swerdamannaz",
+   "phase": 2,
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 0.75,
+    "hack_dmg": 8.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 40,
+    "gold": 10,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.0,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "germ/support_healer_e",
+   "civ": "germ",
+   "class": "UNIT_HEALER",
+   "name": "Germanic Priest",
+   "specific_name": "Gudjô",
+   "phase": 2,
+   "trainers": [
+    "BLD_TEMPLE_AMUN"
+   ],
+   "trained_at_0ad": [
+    "temple_amun"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Healer",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 85.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 100,
+    "wood": 0,
+    "gold": 30,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.4,
+    "damage": 0.0,
+    "range": 12.0,
     "carry": 0
    }
   }

@@ -48,8 +48,8 @@ func run() -> void:
 	var dlg: Panel = page.main_text.get_parent().get_parent()
 	check(dlg.offset_right - dlg.offset_left == 620 and dlg.find_child("Title", true, false).text == "Welcome!"
 		and dlg.find_child("Title", true, false).offset_top == -16, "splashscreen.xml's 620x450 dialog, Welcome! on its top edge")
-	check(text.get_slice("\n", 0) == "Thank you for installing 0\u00a0A.D. Empires Ascendant!" and text.get_slice_count("\n") == 4,
-		"the heading and three paragraphs: " + str(text.get_slice_count("\n")))
+	check(text.get_slice("\n", 0) == "Thank you for installing 0\u00a0A.D. Empires Ascendant!" and page.main_text.text.count("[table=2]") == 3
+		and page.main_text.text.count("pregame/icons/") == 3, "the heading and three paragraphs, each with its icon")
 	check(page.display.button_pressed and page.display.text == "Show this message in the future", "the box is ticked")
 
 	print("2. Not again")

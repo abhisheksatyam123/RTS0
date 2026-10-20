@@ -149,6 +149,7 @@ def fauna_rows(loader):
             "crush_armor": t.num("Resistance/Entity/Damage/Crush"),
             "xp": t.num("Loot/xp"),
             "footprint": round(footprint_radius(t), 3),
+            "accel": r1(t.num("UnitMotion/Acceleration") * SPEED_SCALE),
             "corral_food": corral_food(loader, t),
             "cost": [int(t.num("Cost/Resources/" + r)) for r in ("food", "wood", "stone", "metal")],
             "build_time": t.num("Cost/BuildTime"),
@@ -343,6 +344,7 @@ def emit(fauna, treasures, ruins, scenery, corral):
     w("\tfloat hack_armor, pierce_armor, crush_armor; // Resistance levels (0.9^level)")
     w("\tfloat loot_xp;")
     w("\tfloat footprint;          // Footprint radius in 0 A.D. metres (a square as the circle of equal area)")
+    w("\tfloat acceleration;       // UnitMotion/Acceleration in RTS0 units/s^2 (0.28's m/s^2 x the speed scale)")
     w("\tbool is_domestic() const { return flags & FAUNA_F_DOMESTIC; }")
     w("\tbool is_naval() const { return flags & FAUNA_F_NAVAL; }")
     w("\tbool is_large() const { return flags & FAUNA_F_LARGE; }")
@@ -361,7 +363,7 @@ def emit(fauna, treasures, ruins, scenery, corral):
             str(r["food"]), str(r["gatherers"]), r["stance"], r["flags"], f(r["vision"]), f(r["flee"]),
             f(r["roam"]), f(r["roam_min"]), f(r["roam_max"]), f(r["feed_min"]), f(r["feed_max"]),
             f(r["hack"]), f(r["pierce"]), f(r["crush"]), f(r["range"]), f(r["repeat"]), f(r["prepare"]),
-            f(r["hack_armor"]), f(r["pierce_armor"]), f(r["crush_armor"]), f(r["xp"]), f(r["footprint"])]) + "},")
+            f(r["hack_armor"]), f(r["pierce_armor"]), f(r["crush_armor"]), f(r["xp"]), f(r["footprint"]), f(r["accel"])]) + "},")
     w("\t};")
     w("\treturn kTable[ftype < FAUNA_COUNT ? ftype : 0];")
     w("}")

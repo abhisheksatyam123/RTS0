@@ -107,7 +107,7 @@ func run() -> void:
 	var spin: SpinBox = page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots")
 	check(spin.editable, "the player count can be picked")
 	var pc: RtsoSafeSelect = page.get_node("%PlayerCountSlot").get_child(0)
-	check(not pc.disabled and pc.get_item_count() == 8 and page.get_node("%PlayerCountLabel").text == "Number of Players"
+	check(not pc.disabled and pc.get_item_count() == 8 and page.get_node("%PlayerCountLabel").text == "Number of Players:"
 		and page.get_node("%PlayerCountLabel").get_parent().name == "PlayerTab", "PlayerCount.js: Number of Players, 1-8, in the Player tab")
 	var before := int(spin.value)
 	pc.select(2)
@@ -124,7 +124,7 @@ func run() -> void:
 	var items := func(): return range(tpl.get_item_count()).map(func(i): return tpl.get_item_id(i))
 	if Setup.PLACEMENT_EVERY_MAP:
 		check(tp_slot.is_visible_in_tree() and items.call() == [0, 1, 5, 2, 3, 4], "Mainland: Random, Circle, River, Grouped Lines, Random Group, Stronghold: " + str(items.call()))
-		check(node(page, "MapOptionsRow/TeamPlacementLabel").text == "Player Placement", "titled Player Placement")
+		check(node(page, "MapOptionsRow/TeamPlacementLabel").text == "Player Placement:", "titled Player Placement")
 		tpl.select(2)
 		page._on_team_placement_selected(2)
 		check(tpl.text == "River" and tpl.tooltip_text == "Allied players are placed on two parallel lines.", "River, with 0.28's description: " + tpl.tooltip_text)
@@ -173,6 +173,10 @@ func run() -> void:
 		var ml = page.get_node("%MapList")
 		check(ml is RtsoSafeSelect and ml.get_item_count() > 1 and ml.get_item_text(0) == "Random" and ml.get_item_tooltip(0) == "Pick any of the given maps at random.",
 			"Select Map is a dropdown: Random first, with its description")
+		var civ0: RtsoSafeSelect = page._slots_grid().find_children("*", "RtsoSafeSelect", true, false).filter(func(o): return o.get_item_count() > 0 and o.get_item_text(0) == "Random")[0]
+		check(ml.get_item_color(0) == Color8(255, 165, 0) and ml.get_item_color(1).a == 0.0 and civ0.get_item_color(0) == Color8(255, 165, 0)
+			and (ml.get_selected() != 0 or ml.get_theme_color("font_color") == Color8(255, 165, 0)),
+			"RandomItemTags: the Random map and civ entries are orange, the others keep the theme colour")
 		# GameSettingControlSlider: Ceasefire, the victory durations, Relic Count and Sea
 		# Level Rise Time are sliders with their caption beside them.
 		var sliders: Array = ["CeasefireSlot", "WonderTimeSlot", "RelicTimeSlot", "RelicCountSlot", "SeaRiseSlot"].map(func(n): return page.get_node("%" + n).get_child(0))
@@ -200,7 +204,7 @@ func run() -> void:
 		check(tab.find("VictoryTimesRow") < tab.find("GameRow") and tab.find("GameRow") < tab.find("WonderRow") and names.call("GameRow") == ["RegicideGarrison"],
 			"Relic settings, then Hero Garrison, then Wonder Duration: " + str(tab))
 		check(names.call("VictoryTimesRow") == ["RelicCountLabel", "RelicCountSlot", "RelicLabel", "RelicTimeSlot"] and names.call("WonderRow") == ["WonderLabel", "WonderTimeSlot"]
-			and page.get_node("%RelicCountLabel").text == "Relic Count" and page.get_node("%RelicLabel").text == "Relic Duration"
+			and page.get_node("%RelicCountLabel").text == "Relic Count:" and page.get_node("%RelicLabel").text == "Relic Duration:"
 			and page.get_node_or_null("%VictoryLabel") == null, "Relic Count and Relic Duration apart, no Victory heading")
 		select_map(page, "random_mainland")
 		await frames(2)
@@ -234,7 +238,7 @@ func run() -> void:
 		select_map(page, "random_ambush")
 		await frames(2)
 		check(tp_slot.is_visible_in_tree() and items.call().size() > 1 and not items.call().has(5), "Ambush offers its patterns without River: " + str(items.call()))
-		check(node(page, "MapOptionsRow/TeamPlacementLabel").text == "Player Placement", "titled Player Placement")
+		check(node(page, "MapOptionsRow/TeamPlacementLabel").text == "Player Placement:", "titled Player Placement")
 	set_filter(page, "Default")
 	select_map(page, "random_mainland")
 	spin.value = 3
@@ -303,7 +307,7 @@ func run() -> void:
 	check(select_map(page, "miletus"), "Miletus")
 	await frames(2)
 	pop = node(page, "PopCapSlot").get_child(0)
-	check(pop.text == "Per Player" and pop.tooltip_text.contains("Player 1: 1000"), "its per-player population limit: " + pop.tooltip_text.replace("\n", " | "))
+	check(pop.text == "Per Player" and not pop.tooltip_text.contains("Player 1:"), "its per-player population limit reads Per Player (PopulationCap.js): " + pop.tooltip_text.replace("\n", " | "))
 	check(select_map(page, "the_persian_gates"), "back to The Persian Gates")
 	await frames(2)
 	page._on_start_pressed()
