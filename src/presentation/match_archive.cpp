@@ -778,7 +778,7 @@ void RtsoMain::write_save_thumbnail(const String &path) {
 	const String png = path.get_basename() + ".png";
 	if (FileAccess::file_exists(png)) DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(png));
 	Viewport *vp = get_viewport();
-	if (!vp) return;
+	if (!vp || DisplayServer::get_singleton()->get_name() == "headless") return;
 	Ref<ViewportTexture> tex = vp->get_texture();
 	if (tex.is_null()) return;
 	Ref<Image> img = tex->get_image();
