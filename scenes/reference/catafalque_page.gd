@@ -6,8 +6,9 @@ extends Control
 ## auras (getAurasTooltip). Opened from Learn to Play over the menu.
 
 const Ref = preload("res://scenes/reference/reference_common.gd")
+const L10n := preload("res://scenes/menu/l10n.gd")
 const PORTRAIT := "res://assets/textures/ui/portraits/catafalque.png"
-const DIALOG := Vector2(736, 738)
+const DIALOG := Vector2(800, 738) # ModernDialog 50%-400 50%-368 50%+400 50%+370
 const EMBLEM := Vector2(160, 128) # style "Emblem"
 
 ## [{civ, name, tooltip, emblem}] for each catafalque shown.
@@ -26,14 +27,23 @@ static func open(parent: Node) -> Control:
 static func primary_name(generic: String, specific: String) -> String:
 	return generic if specific == "" or Ref.name_mode == 3 else specific
 
-## getAurasTooltip: "<name>: <description>", with the range when it has one.
+## getAurasTooltip: "<name>:" in the header font, the description in the body font,
+## then "Range: N meter(s)" when it has one (the unit in the orange unit font).
 static func auras_tooltip(auras: Array) -> String:
 	var lines: PackedStringArray = []
 	for a in auras:
-		var line := "%s: %s" % [a.get("name", ""), a.get("description", "")]
+		var line := L10n.sprintf(L10n.t("%(auralabel)s %(aurainfo)s"), {
+			"auralabel": "[b]%s[/b]" % L10n.sprintf(L10n.t("%(auraname)s:"), {"auraname": L10n.t(str(a.get("name", "")))}),
+			"aurainfo": "[font_size=13]%s[/font_size]" % L10n.t(str(a.get("description", ""))),
+		})
 		var radius := float(a.get("radius", 0.0))
 		if radius > 0.0:
-			line += " Range: %d meters" % roundi(radius)
+			var n := roundi(radius)
+			line += " " + L10n.sprintf(TranslationServer.translate_plural("%(label)s %(val)s %(unit)s", "%(label)s %(val)s %(unit)s", n), {
+				"label": TranslationServer.translate("Range:", "aura"),
+				"val": str(n),
+				"unit": "[font_size=10][color=orange]%s[/color][/font_size]" % TranslationServer.translate_plural("meter", "meters", n),
+			})
 		lines.append(line)
 	return "\n".join(lines)
 
@@ -59,12 +69,16 @@ func _ready() -> void:
 	panel.pivot_offset = DIALOG / 2
 	_fit()
 	resized.connect(_fit)
-	var title := Label.new()
-	title.text = "Catafalque Bonuses"
+	var title := Label.new() # TitleText on the dialog's top edge: sans-bold-stroke-14
+	title.name = "Title"
+	title.text = tr("Catafalque Bonuses")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(DIALOG.x / 2 - 128, 4)
-	title.size = Vector2(256, 28)
-	title.add_theme_font_size_override("font_size", 18)
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title.position = Vector2(DIALOG.x / 2 - 128, -18)
+	title.size = Vector2(256, 32)
+	title.add_theme_font_size_override("font_size", 14)
+	title.add_theme_color_override("font_outline_color", Color.BLACK)
+	title.add_theme_constant_override("outline_size", 4)
 	panel.add_child(title)
 	var portrait := TextureRect.new()
 	portrait.texture = Ref.texture(PORTRAIT)
@@ -74,15 +88,20 @@ func _ready() -> void:
 	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(portrait)
 	_canvas = Control.new()
-	_canvas.position = Vector2(8, 8)
+	_canvas.position = Vector2(8, 4) # "canvas" 8 4 100%-8 100%-12
 	_canvas.size = DIALOG - Vector2(16, 16)
 	panel.add_child(_canvas)
 	_build_emblems()
-	var close := Button.new() # gui/reference/common/Buttons/CloseButton.xml
-	close.text = "Close"
-	close.tooltip_text = "Esc: Close Catafalque Bonuses."
-	close.position = Vector2(DIALOG.x - 8 - 190, DIALOG.y - 8 - 28)
-	close.size = Vector2(190, 28)
+	var close := Button.new() # gui/reference/common/Buttons/CloseButton.xml: 100%-216 100%-56 100%-24 100%-24
+	close.name = "CloseButton"
+	close.text = tr("Close")
+	close.tooltip_text = RtsoHotkeyConfig.new().colorize(L10n.t("%(hotkey)s: Close Catafalque Bonuses."), "cancel")
+	close.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	close.offset_left = -216
+	close.offset_top = -56
+	close.offset_right = -24
+	close.offset_bottom = -24
+	close.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	close.pressed.connect(close_page)
 	panel.add_child(close)
 
