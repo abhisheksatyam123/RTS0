@@ -958,7 +958,7 @@ enum UnitFormation : uint8_t {
 	FORMATION_SHIPS_FLANK = 13,  // ships/flank ("Flanking Formation")
 	FORMATION_SYNTAGMA = 14,     // syntagma (pikemen; kush, mace, ptol, sele)
 	FORMATION_TESTUDO = 15,      // testudo (melee infantry; rome)
-	FORMATION_ANTI_CAVALRY = 16, // anti_cavalry (han and roman spearmen; han, rome)
+	FORMATION_ANTI_CAVALRY = 16, // anti_cavalry (germ, han and roman spearmen; germ, han, rome)
 	FORMATION_SHIELD_WALL = 17,  // shield_wall (germ spearmen; germ)
 	FORMATION_COUNT = 18,
 	FORMATION_SCATTER = FORMATION_SKIRMISH // old name
@@ -2045,7 +2045,8 @@ inline TechClasses building_tech_classes(uint8_t type) {
 	switch (type) {
 		// The Crannog and the military colony are template_structure_civic_civil_centre too,
 		// whose VisibleClasses are Defensive CivilCentre (Danubius and Jebel Barkal aim at them).
-		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: case BLD_CRANNOG: return c | TC_CIVCENTRE | TC_CIVIC | TC_DEFENSIVE;
+		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: return c | TC_CIVCENTRE | TC_CIVIC | TC_DEFENSIVE;
+		case BLD_CRANNOG: return c | TC_CIVCENTRE | TC_CIVIC | TC_DEFENSIVE | TC_NAVAL; // brit/crannog.xml VisibleClasses Naval
 		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
 		// han/academy and ptol/mercenary_camp are template_structure_military_barracks.
 		case BLD_BARRACKS: case BLD_ACADEMY: case BLD_MERCENARY_CAMP: return c | TC_BARRACKS;
@@ -2075,7 +2076,7 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		// Other template_structure_civic children.
 		case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL: case BLD_MINISTRY: return c | TC_CIVIC;
 		case BLD_WONDER: return c | TC_WONDER;
-		case BLD_DOCK: return c | TC_DOCK;
+		case BLD_DOCK: return c | TC_DOCK | TC_NAVAL; // template_structure_military_dock: Economic Naval Trade
 		case BLD_STABLE: return c | TC_STABLE;
 		case BLD_ELEPHANT_STABLE: return c; // template_structure_military_elephant_stable: ElephantStable, no Stable
 		case BLD_FORGE: return c | TC_FORGE;

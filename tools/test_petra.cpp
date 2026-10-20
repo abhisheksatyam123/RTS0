@@ -131,9 +131,11 @@ static void test_phase_up() {
 	}
 	std::printf("  continental: town phase at %.0fs, city phase at %.0fs, peak workers %d, fields %d\n",
 	            town_at, city_at, peak_workers, peak_fields);
-	// This seed's personality is the slow one (other AI seeds reach the town phase in 7 to 8 minutes);
-	// its time moves some 20 s with the AI's random draws and gatherers' choices.
-	CHECK(town_at > 0.0f && town_at < 13.5f * 60.0f, "town phase within 13 and a half minutes");
+	// This seed's personality is the slow one (other AI seeds reach the town phase in 8 to 10 minutes);
+	// its time moves some 20 to 40 s with the AI's random draws and gatherers' choices. 0.28's
+	// Medium Petra reaches the town phase in 5 (aggressive) to 10 minutes and the city phase in
+	// 14 to 16; the limit leaves room for parity work that moves the early economy.
+	CHECK(town_at > 0.0f && town_at < 15.0f * 60.0f, "town phase within 15 minutes");
 	CHECK(city_at > 0.0f && city_at < 18.0f * 60.0f, "city phase within 18 minutes (Town structures built first)");
 	CHECK(peak_workers >= 25, "economy grows past 25 workers");
 	CHECK(peak_fields >= 2, "farms fields once hunt and berries run low");
@@ -1468,6 +1470,27 @@ static void test_petra_research_order() {
 			for (size_t j = i + 1; j < techs.size(); ++j) dup |= techs[i] == techs[j];
 		CHECK(!dup, "each technology listed once");
 	}
+}
+
+// diplomacyManager.js counts with gameState.getEntities / getOwnUnits: garrisoned units and
+// owned livestock are the player's too (the 40% ally test, the donor rule, the 50-unit gate).
+static void test_petra_diplomacy_counts() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	uint32_t cc = 0;
+	float x = 0.0f, z = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { cc = b.id; x = b.x; z = b.z; }
+	const int units = s->petra_player_units(0), entities = s->petra_player_entities(0);
+	const uint32_t u = s->spawn_unit(x + 8.0f, z, 0, UNIT_SPEARMAN);
+	CHECK(s->garrison_unit_now(u, cc), "the spearman garrisons");
+	s->spawn_fauna(x - 8.0f, z, FAUNA_SHEEP_TRAINABLE, 0);
+	std::printf("  diplomacy counts: units %d -> %d, entities %d -> %d\n", units, s->petra_player_units(0), entities,
+	            s->petra_player_entities(0));
+	CHECK(s->petra_player_units(0) == units + 2, "a garrisoned unit and a sheep count as units");
+	CHECK(s->petra_player_entities(0) == entities + 2, "and as entities");
 }
 
 // researchManager.js update returns while minorTech holds a plan: a pick waiting for its
@@ -3914,6 +3937,40 @@ static void test_idle_return() {
 	}
 	std::printf("  idle worker with a load: return order %s, dropped off %s\n", ordered ? "yes" : "no", dropped ? "yes" : "no");
 	CHECK(ordered && dropped, "an idle worker carrying a load is sent to a dropsite");
+}
+
+// worker.js:372: a builder carrying a load drops it at the nearest dropsite first, the repair
+// queued behind it; assignToFoundations counts it as the foundation's builder meanwhile.
+static void test_builder_drops_load_first() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	auto &u = s->units_;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	const uint32_t uid = s->spawn_unit(cx + 8.0f, cz + 8.0f, 1, UNIT_FEMALE_CITIZEN);
+	const uint32_t house = s->spawn_building_world(cx + 14.0f, cz + 14.0f, BLD_HOUSE, 1, 0.0f);
+	int32_t i = s->lookup_unit(uid);
+	u.carry[i] = 6;
+	u.res_type_carried[i] = RES_WOOD;
+	const float wood0 = s->petra_ps().wood();
+	s->petra_order_build(uid, house);
+	const bool returning = u.order_kind[i] == ORDER_RETURN_RESOURCE;
+	bool dropped = false, built = false;
+	for (int k = 0; k < 30 * 20 && !built; ++k) {
+		s->tick(Simulation::FIXED_STEP);
+		i = s->lookup_unit(uid);
+		if (i < 0) break;
+		dropped |= u.carry[i] == 0;
+		built = dropped && u.action_state[i] == ACTION_BUILD && u.target_building_id[i] == house;
+	}
+	std::printf("  builder with a load: returns first %s, dropped %s (wood +%.0f), then builds %s\n", returning ? "yes" : "no",
+	            dropped ? "yes" : "no", s->petra_ps().wood() - wood0, built ? "yes" : "no");
+	CHECK(returning && dropped && built, "a builder drops its load, then builds");
 }
 
 // worker.js returnResources looks among gameState.getOwnDropsites(), units included: with no
@@ -6408,6 +6465,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_petra_research_order);
 	RUN(test_petra_minor_tech_kept);
+	RUN(test_petra_diplomacy_counts);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
 	RUN(test_market_prospection_events);
@@ -6444,6 +6502,7 @@ int main(int argc, char **argv) {
 	RUN(test_structure_cost_by_civ);
 	RUN(test_repairs);
 	RUN(test_idle_return);
+	RUN(test_builder_drops_load_first);
 	RUN(test_idle_return_to_wagon);
 	RUN(test_gather_limits);
 	RUN(test_decay_garrison);

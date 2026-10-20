@@ -765,6 +765,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				uint8_t rally_cmd = rtso::RALLY_CMD_AUTO;
 				rally_target_at(click_pos, target_res, target_bld, &target_ent, &rally_cmd);
 				if (auto_rally) target_bld = selected_building_id, rally_cmd = rtso::RALLY_CMD_AUTO;
+				// A market too close to this one: the "trade" rally action is disabled (no gain).
+				if (rally_cmd == rtso::RALLY_CMD_TRADE) {
+					rtso::Simulation::TradeGain g;
+					if (rally_route_gain(target_bld, g) && g.trader <= 0) return;
+				}
 				// session.queue (Shift) adds a position after the ones set (RallyPoint.AddPosition).
 				const bool rally_queued = rtso::hotkeys::held("session.queue");
 				// unit_actions.js "set-rallypoint": every selected structure with a RallyPoint.
@@ -1065,6 +1070,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				uint32_t treasure_id = 0;
 				float best_td2 = 2.0f * 2.0f;
 				for (const auto &t : sim->treasures()) {
+					if (!sim->los_explored(local_player(), t.x, t.z)) continue; // none in the shroud
 					const float dx = t.x - click_pos.x, dz = t.z - click_pos.z;
 					if (dx * dx + dz * dz < best_td2) { best_td2 = dx * dx + dz * dz; treasure_id = t.id; }
 				}
@@ -1083,6 +1089,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			float best_ed2 = 2.2f * 2.2f;
 			for (size_t i = 0; i < uview.count; ++i) {
 				if (!uview.alive[i] || uview.team[i] == local_player()) continue;
+				// PickEntityAtPoint: only units the player sees (none in the fog or the shroud).
+				if (!rtso::los_sees_unit(*sim, local_player(), uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 				float dx = uview.pos_x[i] - click_pos.x;
 				float dz = uview.pos_z[i] - click_pos.z;
 				float d2 = dx * dx + dz * dz;
@@ -1108,6 +1116,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			size_t best_f = 0;
 			for (size_t f = 0; f < fview.count; ++f) {
 				if (!fview.alive[f]) continue;
+				if (!rtso::los_sees_unit(*sim, local_player(), fview.pos_x[f], fview.pos_z[f], fview.owner[f])) continue;
 				float dx = fview.pos_x[f] - click_pos.x;
 				float dz = fview.pos_z[f] - click_pos.z;
 				float d2 = dx * dx + dz * dz;
@@ -1199,6 +1208,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 			// 4. Right click on Building (Attack Enemy vs Build/Repair/Garrison Allied)
 			for (const auto &b : sim->buildings()) {
+				if (!sim->player_can_target_building(local_player(), b.id)) continue; // never seen: no mirage
 				float dx = b.x - click_pos.x;
 				float dz = b.z - click_pos.z;
 				float hit_r = b.half_size + 1.2f;

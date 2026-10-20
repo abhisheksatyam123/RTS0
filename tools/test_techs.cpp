@@ -452,6 +452,7 @@ int main() {
 		CHECK(s.tech_mods(0).bld_capture[BLD_TOWN_CENTER] == 2.0f);
 		CHECK(s.tech_mods(0).bld_health[BLD_MILITARY_COLONY] == 1.0f);
 		CHECK(s.tech_mods(0).bld_capture[BLD_MILITARY_COLONY] == 1.0f);
+		CHECK(s.tech_mods(0).bld_health[BLD_CRANNOG] == 1.0f); // !Naval: a captured crannog keeps its own
 
 		// Hippocratic Oath (cost_healer): healers cost no metal.
 		fresh(s);
