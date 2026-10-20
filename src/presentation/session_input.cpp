@@ -1482,13 +1482,15 @@ uint32_t RtsoMain::guard_target_at(const Vector3 &at) const {
 		const float dx = uv.pos_x[i] - at.x, dz = uv.pos_z[i] - at.z, d2 = dx * dx + dz * dz;
 		if (d2 < best_d2) { best_d2 = d2; best = uv.id[i]; }
 	}
-	if (best) return best;
-	for (const auto &b : sim->buildings()) {
-		if (b.wrecked || (b.team != me && !sim->is_ally(me, b.team))) continue;
-		const float dx = b.x - at.x, dz = b.z - at.z, hit_r = b.half_size + 1.2f;
-		if (dx * dx + dz * dz <= hit_r * hit_r) return b.id;
-	}
-	return 0;
+	if (!best)
+		for (const auto &b : sim->buildings()) {
+			if (b.wrecked || (b.team != me && !sim->is_ally(me, b.team))) continue;
+			const float dx = b.x - at.x, dz = b.z - at.z, hit_r = b.half_size + 1.2f;
+			if (dx * dx + dz * dz <= hit_r * hit_r) { best = b.id; break; }
+		}
+	// getActionInfo "guard": only when a selected unit may guard it (UnitAI canGuard).
+	if (best && !sim->any_can_guard((const uint32_t *)selected_ids.ptr(), (size_t)selected_ids.size(), best)) return 0;
+	return best;
 }
 
 bool RtsoMain::selection_guarding() const {
@@ -1502,6 +1504,7 @@ bool RtsoMain::selection_guarding() const {
 // target it takes (else the click does nothing and the action stays armed).
 bool RtsoMain::armed_target_ok(const Vector3 &at) const {
 	if (!(garrison_mode || turret_mode || repair_mode || guard_mode)) return true; // ground actions
+	if (guard_mode) return guard_target_at(at) != 0;
 	const uint8_t me = local_player();
 	for (const auto &b : sim->buildings()) {
 		if (b.wrecked || (b.team != me && !sim->is_ally(me, b.team))) continue;
@@ -1509,20 +1512,15 @@ bool RtsoMain::armed_target_ok(const Vector3 &at) const {
 		if (dx * dx + dz * dz > hit_r * hit_r) continue;
 		if (garrison_mode) return selection_can_garrison(b.id) || transport_under(at.x, at.z);
 		if (turret_mode) return selection_can_occupy_turret(b.id);
-		if (repair_mode) return b.build_progress < 1.0f || b.hp < b.max_hp;
-		return true; // Guard.js guards own and allied structures
+		return b.build_progress < 1.0f || b.hp < b.max_hp; // repair
 	}
-	if (guard_mode) return guard_target_at(at) != 0;
 	if (garrison_mode) return transport_under(at.x, at.z) != 0;
-	if (guard_mode || repair_mode) {
+	if (repair_mode) {
 		auto uv = sim->units();
 		for (size_t i = 0; i < uv.count; ++i) {
 			if (!uv.alive[i]) continue;
 			const float dx = uv.pos_x[i] - at.x, dz = uv.pos_z[i] - at.z;
-			if (guard_mode && uv.team[i] == me && dx * dx + dz * dz < 3.0f * 3.0f &&
-					!selected_ids.has((int32_t)uv.id[i]))
-				return true;
-			if (repair_mode && dx * dx + dz * dz <= 2.2f * 2.2f && uv.hp[i] < uv.max_hp[i] &&
+			if (dx * dx + dz * dz <= 2.2f * 2.2f && uv.hp[i] < uv.max_hp[i] &&
 					(uv.team[i] == me || sim->is_ally(me, uv.team[i])) && sim->is_repairable_unit(uv.id[i]))
 				return true;
 		}

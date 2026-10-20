@@ -336,6 +336,7 @@ public:
 		bool is_burning = false; // Structure fire under 33% HP
 		// WonderVictory.js wonderVictoryMessages[ent]: this wonder's own countdown, the player it
 		// runs for (255: none) and that player's mutual allies when it started (allied victory).
+		// A wonder the map placed holds -1 until it changes hands (no countdown).
 		float wonder_hold = 0.0f;
 		uint8_t wonder_owner = 255;
 		uint8_t wonder_allies = 0;
@@ -1153,7 +1154,8 @@ public:
 		int pop_bonus = 0;          // Population/Bonus
 		int turrets = 0;            // TurretHolder points
 		bool trickles = false;
-		float trickle[RES_COUNT] = {}; // ResourceTrickle Rates per TRICKLE_STRUCTURE_INTERVAL
+		float trickle[RES_COUNT] = {}; // ResourceTrickle Rates per trickle_interval
+		float trickle_interval = TRICKLE_STRUCTURE_INTERVAL; // a corral's 5 s (CORRAL_TRICKLE_INTERVAL)
 	};
 	StructureDetails structure_details(const Building &b) const;
 	// Foundation.js / Repairable.js GetBuildTime for the details panel: the builders at work on a
@@ -2321,6 +2323,10 @@ public:
 	// unit_actions.js "heal" firstAbleEntity: the first of unit_ids that heals and may heal the unit
 	// target_id (Heal.js CanHeal: an injured own or allied Human, not itself), else 0.
 	uint32_t first_able_healer(const uint32_t *unit_ids, size_t count, uint32_t target_id) const;
+	// unit_actions.js "guard": may one of unit_ids guard the unit or structure target_id (UnitAI
+	// CanGuard, not itself, its own player's or an ally's)?
+	bool any_can_guard(const uint32_t *unit_ids, size_t count, uint32_t target_id) const;
+	bool unit_can_guard(size_t i) const;
 	void tick_scenery_capture(); // Capturable.js TimerTick: territory decay, then regeneration
 	void scenery_check_owner(Scenery &sc); // RegisterCapturePointsChanged
 	float unit_damage_to_scenery(size_t i) const;
