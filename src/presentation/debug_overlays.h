@@ -4,7 +4,8 @@
 // The developer overlay's simulation overlays (0 A.D. 0.28
 // gui/session/developer_overlay/DeveloperOverlayControlCheckboxes.js, GPL-2.0-or-later):
 // Pathfinder overlay (CCmpPathfinder's passability grid: the navcells land units can't
-// cross), Hierarchical pathfinder overlay (HierarchicalPathfinder's debug overlay: each
+// cross, and the last long and short path searches: LongOverlay's reached tiles and
+// VertexPathfinderDebugOverlay's goal and visibility graph), Hierarchical pathfinder overlay (HierarchicalPathfinder's debug overlay: each
 // chunk region of navcells in a colour of its own, and white links between the regions an
 // edge joins), Obstruction overlay (CCmpObstructionManager::RenderSubmit: static shapes and
 // still units blue, moving units magenta, the world bounds yellow), Unit motion overlay
@@ -35,6 +36,7 @@
 #include <cstdint>
 
 #include "../simulation/simulation.h"
+#include "../simulation/nav/vertex_pathfinder.h"
 
 namespace rtso {
 
@@ -60,7 +62,14 @@ public:
 		parent->add_child(inst_);
 	}
 
-	void set(Kind k, bool on) { on_[k] = on; }
+	void set(Kind k, bool on) {
+		on_[k] = on;
+		// The pathfinders keep their last searches only while the overlay shows them.
+		if (k == PATHFINDER) {
+			nav::jps_debug().on.store(on, std::memory_order_relaxed);
+			nav::short_path_debug().on.store(on, std::memory_order_relaxed);
+		}
+	}
 	bool on(Kind k) const { return on_[k]; }
 	bool any() const {
 		for (bool b : on_)
@@ -72,6 +81,9 @@ public:
 	int range_subdivisions() const { return range_subdivisions_; }
 	int range_rays() const { return range_rays_; }
 	int region_link_count() const { return region_links_; }
+	// The last long path search's tiles and short path search's vertices drawn last update.
+	int path_search_tiles() const { return path_tiles_; }
+	int short_path_vertexes() const { return short_path_vertexes_; }
 
 	// The units whose paths the unit motion overlay draws (the selection), and the
 	// bounding box overlay's boxes (RtsoWorldView::model_boxes of the selected and
@@ -89,13 +101,14 @@ public:
 		if (!inst_ || (!any() && !inst_->is_visible())) return;
 		mesh_->clear_surfaces();
 		for (int &n : drawn_) n = 0;
-		range_subdivisions_ = range_rays_ = region_links_ = 0;
+		range_subdivisions_ = range_rays_ = region_links_ = path_tiles_ = short_path_vertexes_ = 0;
 		inst_->set_visible(sim && any());
 		if (!sim || !any()) return;
 		sim_ = sim;
 		if (on_[PATHFINDER]) pathfinder();
 		if (on_[HIER_PATHFINDER]) hier_pathfinder();
 		begun_ = false;
+		if (on_[PATHFINDER]) short_path_search();
 		if (on_[HIER_PATHFINDER]) region_links();
 		if (on_[OBSTRUCTION]) obstruction();
 		if (on_[UNIT_MOTION]) unit_motion();
@@ -136,7 +149,71 @@ private:
 				++drawn_[PATHFINDER];
 			}
 		}
+		// LongOverlay: the tiles the last long path search reached, open ones yellow and closed
+		// ones green, bluer the later the search reached them (0.28 shades by the step that
+		// last touched a tile, n.GetStep() / Steps).
+		{
+			nav::JpsDebug &d = nav::jps_debug();
+			std::lock_guard<std::mutex> lock(d.m);
+			const size_t n = d.x.size();
+			path_tiles_ = (int)n;
+			for (size_t k = 0; k < n; ++k) {
+				if (!open) {
+					mesh_->surface_begin(godot::Mesh::PRIMITIVE_TRIANGLES);
+					open = true;
+				}
+				const float c = (float)k / (float)std::max<size_t>(n - 1, 1);
+				const Color col = d.closed[k] ? Color(0.0f, 1.0f, c, 0.6f) : Color(1.0f, 1.0f, c, 0.6f);
+				const float h = d.size * 0.5f;
+				const Vector3 a = ground(d.x[k] - h, d.z[k] - h), b = ground(d.x[k] + h, d.z[k] - h),
+							  e = ground(d.x[k] + h, d.z[k] + h), f = ground(d.x[k] - h, d.z[k] + h);
+				tri(a, b, e, col);
+				tri(a, e, f, col);
+			}
+		}
 		if (open) mesh_->surface_end();
+	}
+
+	// VertexPathfinderDebugOverlay: the last short path search's goal red (a 0.2 m circle for a
+	// point), its vertices yellow 0.5 m circles (open towards their inward quadrant), its edges
+	// cyan with an arrowhead at their far end, and its edge squares cyan.
+	void short_path_search() {
+		nav::ShortPathDebug &d = nav::short_path_debug();
+		std::lock_guard<std::mutex> lock(d.m);
+		if (!d.searches) return;
+		constexpr float kM = 0.25f; // a metre, at 4 m a unit
+		const Color red(1.0f, 0.0f, 0.0f, 1.0f), yellow(1.0f, 1.0f, 0.0f, 1.0f), cyan(0.0f, 1.0f, 1.0f, 1.0f);
+		const nav::ShortPathGoal &g = d.goal;
+		if (g.type == nav::ShortPathGoal::POINT) ring(g.center.x, g.center.y, 0.2f * kM, red);
+		else if (g.type == nav::ShortPathGoal::CIRCLE) ring(g.center.x, g.center.y, g.hw, red);
+		else box(g.center.x, g.center.y, g.u.x, g.u.y, g.hw, g.hh, red);
+		for (const nav::vp::Vertex &v : d.vertexes) {
+			float a0 = 0.0f, a1 = 0.0f;
+			if (v.quadInward == nav::vp::QUADRANT_BL) { a0 = -0.25f; a1 = 0.50f; }
+			else if (v.quadInward == nav::vp::QUADRANT_TR) { a0 = 0.25f; a1 = 1.00f; }
+			else if (v.quadInward == nav::vp::QUADRANT_TL) { a0 = -0.50f; a1 = 0.25f; }
+			else if (v.quadInward == nav::vp::QUADRANT_BR) { a0 = 0.00f; a1 = 0.75f; }
+			if (a0 == a1) ring(v.p.x, v.p.y, 0.5f * kM, yellow);
+			else closed_arc(v.p.x, v.p.y, 0.5f * kM, a0 * (float)Math_TAU, a1 * (float)Math_TAU, yellow);
+		}
+		for (const nav::vp::Edge &e : d.edges) {
+			line(e.p0.x, e.p0.y, e.p1.x, e.p1.y, cyan);
+			float dx = e.p1.x - e.p0.x, dz = e.p1.y - e.p0.y;
+			const float len = godot::Math::sqrt(dx * dx + dz * dz);
+			if (len <= 0.0f) continue;
+			dx *= kM / 8.0f / len; // 1/8 m along the edge
+			dz *= kM / 8.0f / len;
+			const float bx = e.p1.x - 2.0f * dx, bz = e.p1.y - 2.0f * dz; // Perpendicular(): (dz, -dx)
+			line(bx + dz, bz - dx, bx - dz, bz + dx, cyan);
+			line(bx - dz, bz + dx, e.p1.x, e.p1.y, cyan);
+		}
+		for (const nav::vp::Square &q : d.squares) {
+			line(q.p0.x, q.p0.y, q.p0.x, q.p1.y, cyan);
+			line(q.p0.x, q.p1.y, q.p1.x, q.p1.y, cyan);
+			line(q.p1.x, q.p1.y, q.p1.x, q.p0.y, cyan);
+			line(q.p1.x, q.p0.y, q.p0.x, q.p0.y, cyan);
+		}
+		short_path_vertexes_ = (int)d.vertexes.size();
 	}
 
 	// Each passable navcell tinted by its chunk region (NavGrid chunk_regions_, 0 A.D.'s
@@ -535,6 +612,20 @@ private:
 		}
 	}
 
+	// SimRender::ConstructClosedArcOnGround: from the centre out to the arc from a0 to a1 (radians,
+	// measured as sin for x and cos for z) and back.
+	void closed_arc(float cx, float cz, float r, float a0, float a1, const Color &c) {
+		const int steps = 12;
+		Vector3 prev = ground(cx, cz);
+		for (int k = 0; k <= steps; ++k) {
+			const float t = a0 + (a1 - a0) * (float)k / steps;
+			const Vector3 p = ground(cx + r * godot::Math::sin(t), cz + r * godot::Math::cos(t));
+			seg(prev, p, c);
+			prev = p;
+		}
+		seg(prev, ground(cx, cz), c);
+	}
+
 	bool on_[KIND_COUNT] = {};
 	int drawn_[KIND_COUNT] = {};
 	std::vector<Vector3> cull_corners_; // Lock cull camera's frustum corners (empty: follow the camera)
@@ -544,6 +635,7 @@ private:
 	godot::Ref<godot::ImmediateMesh> mesh_;
 	godot::MeshInstance3D *inst_ = nullptr;
 	bool begun_ = false;
+	int path_tiles_ = 0, short_path_vertexes_ = 0; // the pathfinder overlay's search view last update (tests)
 	int region_links_ = 0; // the hierarchical overlay's region links last update (tests)
 	int range_subdivisions_ = 0, range_rays_ = 0; // the range overlay's grid squares and rays last update (tests)
 };
