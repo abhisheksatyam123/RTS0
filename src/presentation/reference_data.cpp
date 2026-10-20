@@ -377,6 +377,13 @@ Dictionary RtsoReference::get_unit(int tmpl) const {
 	const rtso::LootInfo loot = rtso::unit_loot(t, u.unit_type);
 	d["loot"] = cost_dict(loot.food, loot.wood, loot.stone, loot.metal);
 	d["loot_xp"] = loot.xp;
+	// ViewerPage getUpgradeText: the unit's Upgrade entries (the Centurion, the Persian
+	// champions, Chandragupta, fire ships).
+	Array unit_upgrades;
+	const rtso::CivUnitUpgrade *ups = rtso::civ_unit_upgrade_table();
+	for (uint16_t k = 0; ups[k].from != 0xFFFF; ++k)
+		if (ups[k].from == t && ups[k].to < rtso::CIV_UNIT_TEMPLATE_COUNT) unit_upgrades.push_back(unit_entry(ups[k].to));
+	d["upgrades"] = unit_upgrades;
 	Array trained_at;
 	for (uint8_t b = 0; b < rtso::BLD_TYPE_COUNT; ++b) {
 		if (!(u.trainers & rtso::bld_bit(b))) continue;

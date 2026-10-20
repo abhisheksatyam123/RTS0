@@ -13,6 +13,26 @@ func _ready() -> void:
 	# screens alone.
 	visible = OS.has_feature("mobile") or DisplayServer.is_touchscreen_available()
 
+func _exit_tree() -> void:
+	var touch = get_node_or_null("/root/TouchInput")
+	if touch:
+		touch.release_modifiers()
+
+# Latched modifier keys: on until tapped again.
+func _set_modifier(key: Key, on: bool) -> void:
+	var touch = get_node_or_null("/root/TouchInput")
+	if touch:
+		touch.set_modifier(key, on)
+
+func _on_shift_toggled(on: bool) -> void:
+	_set_modifier(KEY_SHIFT, on)
+
+func _on_ctrl_toggled(on: bool) -> void:
+	_set_modifier(KEY_CTRL, on)
+
+func _on_alt_toggled(on: bool) -> void:
+	_set_modifier(KEY_ALT, on)
+
 func _on_army_pressed() -> void:
 	emit_signal("select_all_army_requested")
 

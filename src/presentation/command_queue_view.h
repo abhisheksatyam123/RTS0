@@ -633,8 +633,15 @@ public:
 
 				// 0.28's Upgrade panel for a structure (g_SelectionPanels.Upgrade): an icon button per
 				// choice (the target's portrait), or "Cancel Upgrading" over the progress overlay
-				// while it upgrades.
-				if (found_b->team == local_player()) {
+				// while it upgrades. Upgrade.getItems shows nothing when the selection mixes templates.
+				bool one_template = true;
+				for (uint32_t id : host_->ui_selected_structures())
+					for (const auto &o : sim->buildings())
+						if (o.id == id) {
+							one_template = one_template && o.type == found_b->type && o.civ == found_b->civ;
+							break;
+						}
+				if (found_b->team == local_player() && one_template) {
 					const bool upgrading = found_b->upgrade_to != rtso::BLD_TYPE_COUNT;
 					for (int choice = 0; choice < rtso::building_upgrade_count(found_b->type, sim->structure_upgrade_civ(*found_b)); ++choice) {
 						const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, sim->structure_upgrade_civ(*found_b), choice);
@@ -1570,7 +1577,13 @@ private:
 		const auto &ps = sim->player(pid);
 		const int size = std::max(1, host_->ui_batch_size());
 		const bool shift = rtso::hotkeys::held("session.batchtrain");
-		const bool upgrading = b && b->upgrade_to != rtso::BLD_TYPE_COUNT;
+		// selection_panels.js Training: "Cannot train while upgrading." once every selected
+		// structure is upgrading.
+		bool upgrading = b && b->upgrade_to != rtso::BLD_TYPE_COUNT;
+		if (upgrading)
+			for (uint32_t id : host_->ui_selected_structures())
+				for (const auto &o : sim->buildings())
+					if (o.id == id) { upgrading = upgrading && o.upgrade_to != rtso::BLD_TYPE_COUNT; break; }
 		const uint16_t trainer_tmpl = b ? 0 : sim->unit_template(trainer_unit_id_);
 		for (int idx = 0; idx < roster_list_->get_item_count() && idx < (int)roster_state_.size(); ++idx) {
 			const int meta = (int)roster_list_->get_item_metadata(idx);
@@ -1609,7 +1622,7 @@ private:
 				pop = u.pop_cost;
 				seconds = sim->unit_train_seconds(pid, tmpl);
 			}
-			const float batch_mult = b ? sim->batch_time_multiplier(pid, b->type, batch) : sim->unit_trainer_batch_mult(trainer_tmpl, tmpl, batch);
+			const float batch_mult = b ? sim->batch_time_multiplier(pid, b->type, batch, b->civ) : sim->unit_trainer_batch_mult(trainer_tmpl, tmpl, batch);
 			const rtso::CostTip total{(int64_t)std::floor(cost[rtso::RES_FOOD] * num), (int64_t)std::floor(cost[rtso::RES_WOOD] * num),
 					(int64_t)std::floor(cost[rtso::RES_STONE] * num), (int64_t)std::floor(cost[rtso::RES_GOLD] * num),
 					(int64_t)pop * num, (int64_t)std::ceil(seconds * batch_mult)};

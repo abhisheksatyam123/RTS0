@@ -483,6 +483,9 @@ public:
 		*zs = unit_paths_[i].zs + cur;
 		return n - cur;
 	}
+	// The next waypoint of the short path unit i walks round something on toward (aim_x, aim_z)
+	// (UnitMotion m_ShortPath, the unit motion overlay): what its ShortPathMemo keeps for that aim.
+	bool unit_short_waypoint(size_t i, float aim_x, float aim_z, float *wx, float *wz) const;
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
 	// A relic (catafalque) has no Health, so no attack but Capture reaches it.
 	bool unit_can_target(size_t i, size_t j) const {
@@ -808,7 +811,8 @@ public:
 	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive, int count = 1,
 			bool push_front = false);
 	// Trainer.js GetBatchTime: count^BatchTimeModifier of the building (civ version and techs).
-	float batch_time_multiplier(uint8_t player, uint8_t bld_type, int count) const;
+	// bld_civ: the structure's civ, whose template sets Trainer/BatchTimeModifier (the owner's when unknown).
+	float batch_time_multiplier(uint8_t player, uint8_t bld_type, int count, uint8_t bld_civ = 0xFF) const;
 	// The same for a training unit (a trireme, Cyrus II): its Trainer/BatchTimeModifier.
 	float unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const;
 	// ProductionQueue.js EnableAutoQueue / DisableAutoQueue.
@@ -2699,6 +2703,7 @@ private:
 	int garrison_size(size_t unit) const;                        // Garrisonable.TotalSize
 	int occupied_slots(const std::vector<uint32_t> &ids) const;  // GarrisonHolder.OccupiedSlots
 	bool garrison_room(const Building &b, size_t unit) const;
+	bool corral_has_room(const Building &b) const; // penned animals and garrisoned units under GarrisonHolder/Max
 	// The search behind pick_spawn_point and siege_spawn_point: the spots round a footprint centred
 	// on (cx, cz) and turned by rot, a square with half extents along_u (the front) and along_v, or a
 	// circle of radius circle_r when that is above 0. dry_ground also rejects spots under the water line.

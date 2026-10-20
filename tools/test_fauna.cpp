@@ -1052,6 +1052,50 @@ int main() {
 		CHECK(!f_alive(s, deer));
 	}
 
+	// 16. Pass-6 livestock audit against 0.28.
+	{
+		// a. A walk order is forced (UnitAI.js Walk force: true): attacked, livestock keeps going.
+		fresh(s);
+		const uint32_t ewe = s.spawn_fauna(10.0f, 0.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		uint32_t wolf = s.spawn_fauna(8.0f, 0.0f, FAUNA_WOLF);
+		s.order_fauna_walk(1, &ewe, 1, 30.0f, 0.0f);
+		s.fauna_attacked((size_t)fidx(s, ewe), wolf, true);
+		CHECK(s.fauna_.behavior[fidx(s, ewe)] == FAUNA_MOVING);
+
+		// b. Livestock trained at a corral with a rally point walks to it (Trainer.js rally).
+		fresh(s);
+		const uint32_t pen = s.spawn_building_world(40.0f, 40.0f, BLD_CORRAL, 1, 1.0f);
+		s.cmd_set_rally_point(1, pen, 20.0f, 40.0f);
+		s.players_[1].res[RES_FOOD] = 1000;
+		s.cmd_breed_livestock(1, pen, FAUNA_SHEEP_TRAINABLE, 1);
+		uint32_t bred = 0;
+		for (int t = 0; t < 2400 && !bred; ++t) {
+			s.tick(Simulation::FIXED_STEP);
+			for (size_t f = 0; f < s.fauna_.count; ++f)
+				if (s.fauna_.alive[f] && s.fauna_.fauna_type[f] == FAUNA_SHEEP_TRAINABLE) bred = s.fauna_.id[f];
+		}
+		CHECK(bred != 0 && s.fauna_.behavior[fidx(s, bred)] == FAUNA_MOVING);
+		run(s, 15.0f);
+		CHECK(bred != 0 && std::hypot(s.fauna_.pos_x[fidx(s, bred)] - 20.0f, s.fauna_.pos_z[fidx(s, bred)] - 40.0f) < 3.0f);
+
+		// c. Defeat hands the player's livestock and carcasses to Gaia (Player.js OnGlobalPlayerDefeated).
+		fresh(s);
+		const uint32_t sheep = s.spawn_fauna(10.0f, 10.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		const uint32_t goat = s.spawn_fauna(12.0f, 10.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		s.order_fauna_walk(1, &goat, 1, 30.0f, 10.0f);
+		const uint32_t hunter = s.spawn_unit(10.0f, 11.0f, 1, UNIT_FEMALE_CITIZEN);
+		s.order_hunt(&hunter, 1, sheep);
+		for (int t = 0; t < 400 && f_alive(s, sheep); ++t) run(s, Simulation::FIXED_STEP);
+		int carcass = -1;
+		for (size_t r = 0; r < s.resources_.count; ++r)
+			if (s.resources_.alive[r] && s.resources_.owner[r] == 1) carcass = (int)r;
+		CHECK(!f_alive(s, sheep) && carcass >= 0);
+		s.defeat_player(1);
+		CHECK(s.fauna_owner(goat) == GAIA_PLAYER && s.fauna_.behavior[fidx(s, goat)] != FAUNA_MOVING);
+		CHECK(carcass >= 0 && s.resources_.owner[carcass] == GAIA_PLAYER);
+		std::printf("livestock audit: walk kept under attack, rally followed, defeat hands animals to Gaia\n");
+	}
+
 	if (failures) {
 		std::printf("test_fauna: %d failure(s)\n", failures);
 		return 1;

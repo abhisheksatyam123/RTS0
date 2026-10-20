@@ -958,7 +958,7 @@ enum UnitFormation : uint8_t {
 	FORMATION_SHIPS_FLANK = 13,  // ships/flank ("Flanking Formation")
 	FORMATION_SYNTAGMA = 14,     // syntagma (pikemen; kush, mace, ptol, sele)
 	FORMATION_TESTUDO = 15,      // testudo (melee infantry; rome)
-	FORMATION_ANTI_CAVALRY = 16, // anti_cavalry (han and roman spearmen; han, rome)
+	FORMATION_ANTI_CAVALRY = 16, // anti_cavalry (germ, han and roman spearmen; germ, han, rome)
 	FORMATION_SHIELD_WALL = 17,  // shield_wall (germ spearmen; germ)
 	FORMATION_COUNT = 18,
 	FORMATION_SCATTER = FORMATION_SKIRMISH // old name
@@ -2459,7 +2459,9 @@ inline float civ_unit_speed_mult(uint8_t civ, TechClasses c) {
 	return m;
 }
 inline float civ_unit_speed_add(uint8_t civ, TechClasses c) {
-	if (civ == CIV_GERMANS && (c & TC_CIVILIAN) != 0) return 0.5f;
+	// germ_women.json: +0.5 m/s walk speed for Civilian (the workers; healers carry RTS0's
+	// Support -> Civilian alias but aren't Civilians in 0.28), x 0.356 (extract_0ad_rosters.py SPEED_SCALE).
+	if (civ == CIV_GERMANS && (c & TC_CIVILIAN) != 0 && (c & TC_WORKER) != 0) return 0.5f * 0.356f;
 	return 0.0f;
 }
 inline float civ_unit_damage_mult(uint8_t civ, TechClasses c) {
@@ -3190,8 +3192,7 @@ inline bool civ_can_build(uint8_t civ, uint8_t type) {
 // Noba and Blemmye camps and the Carthaginian embassies.
 inline bool building_trains_native(uint8_t type) {
 	return type == BLD_SHRINE || type == BLD_CAMP_NOBA || type == BLD_CAMP_BLEMMYE ||
-	       type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC ||
-	       type == BLD_MERCENARY_CAMP;
+	       type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC;
 }
 
 // The civ whose roster `t` must come from to train at a `type` structure built by `bld_civ`
@@ -3199,9 +3200,10 @@ inline bool building_trains_native(uint8_t type) {
 // military colony and German encampments) list units/{native}/support_civilian, so a
 // captured one trains its builder's civilians (template_structure_civic_civil_centre.xml).
 inline uint8_t building_train_civ(uint8_t type, uint8_t bld_civ, uint8_t owner_civ, const CivUnitTemplate &t) {
-	// A Gaia mercenary camp (merc_camp_egyptian.xml) trains the holder's units/{civ}/..._merc_b, as
-	// 0.28; a player's own camp keeps its builder's mercenaries (building_trains_native).
-	if (building_trains_native(type) && !(type == BLD_MERCENARY_CAMP && bld_civ == CIV_GAIA)) return bld_civ;
+	// A mercenary camp lists units/{civ}/..._merc_b (ptol/mercenary_camp.xml, merc_camp_egyptian.xml):
+	// the holder's own mercenaries, so a Ptolemaic player's camp trains Ptolemaic ones and a
+	// captured camp, Gaia's or another player's, trains its captor's (0.28).
+	if (building_trains_native(type)) return bld_civ;
 	const bool civic = type == BLD_TOWN_CENTER || type == BLD_CRANNOG || type == BLD_IMPERIAL_COURT ||
 	                   type == BLD_MILITARY_COLONY || type == BLD_WAGON_ENCAMPMENT ||
 	                   type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
