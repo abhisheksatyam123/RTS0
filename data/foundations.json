@@ -4225,6 +4225,14 @@
     0.0432
    ]
   },
+  "s_carthaginians_temple_big": {
+   "metre": 0.17329,
+   "origin": [
+    0.0229,
+    0.0085,
+    -0.0303
+   ]
+  },
   "s_carthaginians_wall_gate": {
    "metre": 0.49768,
    "origin": [
@@ -4705,6 +4713,14 @@
     -0.434
    ]
   },
+  "s_kushites_civic_centre_kush": {
+   "metre": 0.21423,
+   "origin": [
+    -0.0,
+    0.0107,
+    -0.0
+   ]
+  },
   "s_kushites_outpost": {
    "metre": 0.29458,
    "origin": [
@@ -4855,6 +4871,14 @@
     -0.1251,
     0.9497,
     -0.0106
+   ]
+  },
+  "s_persians_gardens_struct": {
+   "metre": 0.10662,
+   "origin": [
+    -0.0731,
+    0.0053,
+    0.1128
    ]
   },
   "s_persians_hall": {
@@ -5391,6 +5415,14 @@
     -0.0811,
     1.717,
     0.0301
+   ]
+  },
+  "s_spartans_civic_center": {
+   "metre": 0.19523,
+   "origin": [
+    0.0007,
+    0.0098,
+    -0.0125
    ]
   },
   "s_spartans_gerousia": {
