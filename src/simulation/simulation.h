@@ -1207,6 +1207,10 @@ public:
 	// (map_has_team_placement); setup-time only, like the biome.
 	void set_team_placement(int t) { team_placement_ = (uint8_t)((t >= 0 && t < TEAM_PLACEMENT_COUNT) ? t : TEAM_PLACEMENT_RANDOM); }
 	uint8_t team_placement() const { return team_placement_; }
+	// The pattern the map generator placed players by (Random resolved, as 0.28's
+	// PlayerPlacement.pickRandomItems); TEAM_PLACEMENT_RANDOM on maps without the setting.
+	void set_played_team_placement(uint8_t t) { played_team_placement_ = t; }
+	uint8_t played_team_placement() const { return played_team_placement_; }
 	// 0 A.D. Landscape for the Unknown map (RmsGenerator::UNKNOWN_LANDSCAPE_*); setup-time only.
 	void set_map_landscape(int l) { map_landscape_ = (uint8_t)((l >= 0 && l < 16) ? l : 0); }
 	uint8_t map_landscape() const { return map_landscape_; }
@@ -3044,6 +3048,7 @@ private:
 	bool reveal_map_ = false;
 	int biome_override_ = -1; // setup-time only: applied when a random map is generated
 	uint8_t team_placement_ = TEAM_PLACEMENT_RANDOM; // setup-time only, like biome_override_
+	uint8_t played_team_placement_ = TEAM_PLACEMENT_RANDOM; // setup-time only, like team_placement_
 	uint8_t map_landscape_ = 0;                      // setup-time only, like team_placement_
 	uint8_t trigger_difficulty_ = 3;                 // setup-time; the match's copy is triggers_.difficulty
 	uint8_t circular_map_choice_ = 0; // setup-time Circular map choice (set_circular_map_choice)

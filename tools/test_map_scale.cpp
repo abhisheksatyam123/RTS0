@@ -873,6 +873,23 @@ int main() {
 		CHECK(sim.terrain_tiles().empty(), "set_terrain_tiles refuses a short tile array");
 	}
 
+	// Player Placement Random (gamesettings PlayerPlacement.pickRandomItems): the generator
+	// draws one of the map's patterns, and the sim reports it for Match Settings; a chosen
+	// pattern is reported as it is, and a map without the setting reports none.
+	{
+		Simulation sim;
+		sim.set_team_placement(TEAM_PLACEMENT_RANDOM);
+		sim.generate_random_map(MAP_MAINLAND, 7, 4, 128.0f);
+		const uint8_t drawn = sim.played_team_placement();
+		CHECK(drawn != TEAM_PLACEMENT_RANDOM && ((map_team_placements(MAP_MAINLAND) >> drawn) & 1), "Random drew %u", drawn);
+		sim.set_team_placement(TEAM_PLACEMENT_RIVER);
+		sim.generate_random_map(MAP_MAINLAND, 7, 4, 128.0f);
+		CHECK(sim.played_team_placement() == TEAM_PLACEMENT_RIVER, "a chosen placement is %u", sim.played_team_placement());
+		sim.set_team_placement(TEAM_PLACEMENT_RANDOM);
+		sim.generate_random_map(MAP_DANUBIUS, 7, 2, 128.0f);
+		CHECK(map_team_placements(MAP_DANUBIUS) || sim.played_team_placement() == TEAM_PLACEMENT_RANDOM, "Danubius reports a placement");
+	}
+
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

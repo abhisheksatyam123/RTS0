@@ -126,7 +126,7 @@ static func titles(info: Dictionary) -> Array:
 	var map_id := str(info.get("map_id", ""))
 	var type := map_type(map_id)
 	out.append(["Map Name", str(info.get("map_name", map_id)).trim_suffix(" (RMS)")])
-	out.append(["Map Description", str(ReplayPage.map_info(map_id).get("desc", ""))])
+	out.append(["Map Description", TranslationServer.translate(str(ReplayPage.map_info(map_id).get("desc", "")))])
 	out.append(["Map Type", _map_type_title(type)])
 	if type == "random":
 		var size: String = SummaryPage.MAP_SIZE_NAMES.get(int(info.get("map_size", 0)), "")

@@ -497,7 +497,7 @@ static func load_all_maps() -> Array:
 		maps.append({"id": r[0], "name": str(r[1]).trim_suffix(" (RMS)"), "kind": r[2], "type": "random",
 			"keywords": random_kw.get(rms_script(r[0]), []), "placements": [] if r[0] in OWN_RMS_MAPS or not (PLACEMENT_EVERY_MAP or r[0] in PLACEMENT_MAPS_BEFORE) else placement_values(placements.get(rms_script(r[0]), [])),
 			"players": r[3],
-			"size": r[4], "biome": r[5], "desc": r[6],
+			"size": r[4], "biome": r[5], "desc": rms_description(r),
 			"biomes": [] if r[0] in OWN_RMS_MAPS else biome_values(biomes.get(rms_script(r[0]), []))})
 	return maps
 
@@ -512,6 +512,13 @@ static func biome_values(ids: Array) -> Array:
 	return out
 
 ## The 0.28 maps/random script an RTS0 random map ports ("random_archipelago_0ad" -> "archipelago").
+## MapCache.getTranslatedMapDescription: a random map's Description is its 0.28
+## JSON's (maps/random/<script>.json settings.Description); RTS0's own maps keep theirs.
+static func rms_description(row: Array) -> String:
+	if row[0] in OWN_RMS_MAPS:
+		return str(row[6])
+	return str(_map_types_data().get("random_descriptions", {}).get(rms_script(row[0]), row[6]))
+
 static func rms_script(map_id: String) -> String:
 	var s := map_id.trim_prefix("random_").trim_suffix("_0ad")
 	return "neareastern_badlands" if s == "nearestern_badlands" else s
