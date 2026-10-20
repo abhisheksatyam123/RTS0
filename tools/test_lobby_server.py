@@ -8,6 +8,7 @@ import socket
 import struct
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 
@@ -49,6 +50,26 @@ def test_object():
           "chat keeps join notices and lines in order")
     _, c2 = lb.chat_since(c["last"])
     check(c2["messages"] == [] and c2["last"] == c["last"], "since=last returns nothing new")
+    # /events (0 A.D.'s XMPP push): a waiter wakes as soon as a line is posted.
+    with lb.lock:
+        v0 = lb.wait_events(0, 0)[1]["version"]
+        check(lb.wait_events(v0, 0)[1]["version"] == v0, "nothing new: the version stays")
+    got = {}
+
+    def waiter():
+        with lb.lock:
+            t0 = time.monotonic()
+            got["v"] = lb.wait_events(v0, 5)[1]["version"]
+            got["s"] = time.monotonic() - t0
+    th = threading.Thread(target=waiter)
+    th.start()
+    time.sleep(0.2)
+    with lb.lock:
+        lb.post_chat(alice["token"], "ping")
+        lb.touch()
+    th.join(6)
+    check(got.get("v", 0) > v0 and got.get("s", 9) < 2, "a waiting /events answers at once on a new line (%s)" % got)
+    _, c = lb.chat_since(0)
     # 0.28 lobby ChatPanel.xml: a chat line is up to 1024 characters.
     check(lb.post_chat(alice["token"], "y" * 1024)[0] == 200, "a 1024-character line is sent")
     _, c3 = lb.chat_since(c["last"])

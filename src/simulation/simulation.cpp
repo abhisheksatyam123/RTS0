@@ -1197,6 +1197,51 @@ void Simulation::set_resource_position(uint32_t res_id, float x, float z) {
 	resources_.z[it->second] = z;
 }
 
+size_t Simulation::snap_trees_to_tiles() {
+	// rmgen's SimpleTerrain.place (Terrain.js) puts a painted tree at its tile's centre and
+	// replaces whatever tree the tile had, so 0.28's woods have one tree per 4 m tile and
+	// infantry can thread them. RTS0's groves and stragglers are scattered: each tree takes its
+	// own tile, or the nearest free one of the eight round it (on dry ground), or goes.
+	const int hr = terrain_res_, tr = hr - 1;
+	if (tr <= 0) return 0;
+	const float tile = 2.0f * map_half_ / (float)tr;
+	std::vector<uint8_t> taken((size_t)tr * (size_t)tr, 0);
+	size_t removed = 0;
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.type[r] != RES_WOOD || resources_.subtype[r] != RES_SUB_NONE) continue;
+		const float x = resources_.x[r], z = resources_.z[r];
+		const int ti = std::clamp((int)std::floor((x + map_half_) / tile), 0, tr - 1);
+		const int tj = std::clamp((int)std::floor((z + map_half_) / tile), 0, tr - 1);
+		int best = -1;
+		float best_d2 = 1e30f, bx = x, bz = z;
+		for (int dj = -1; dj <= 1; ++dj)
+			for (int di = -1; di <= 1; ++di) {
+				const int i = ti + di, j = tj + dj;
+				if (i < 0 || j < 0 || i >= tr || j >= tr || taken[(size_t)j * tr + i]) continue;
+				const float cx = -map_half_ + ((float)i + 0.5f) * tile, cz = -map_half_ + ((float)j + 0.5f) * tile;
+				const float d2 = (cx - x) * (cx - x) + (cz - z) * (cz - z);
+				if (d2 >= best_d2) continue;
+				if ((di || dj) && get_terrain_height(cx, cz) < terrain_water_height_ + 0.15f) continue;
+				if (past_map_edge(cx, cz)) continue; // keep_resources_passable kept it inside the edge ring
+				best = j * tr + i;
+				best_d2 = d2;
+				bx = cx;
+				bz = cz;
+			}
+		if (best < 0) {
+			resources_.alive[r] = 0;
+			resources_.amount[r] = 0;
+			++removed;
+			continue;
+		}
+		taken[(size_t)best] = 1;
+		resources_.x[r] = bx;
+		resources_.z[r] = bz;
+	}
+	gaia_obstacles_sig_ = 0;
+	return removed;
+}
+
 void Simulation::set_fauna_position(uint32_t fauna_id, float x, float z) {
 	auto it = fauna_id_to_idx_.find(fauna_id);
 	if (it == fauna_id_to_idx_.end()) return;
@@ -1386,6 +1431,7 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	RmsGenerator::paint_terrain(*this, seed, (uint8_t)type);
 	RmsGenerator::plant_flora(*this, seed, (uint8_t)type);
 	RmsGenerator::keep_resources_passable(*this, (uint8_t)type);
+	snap_trees_to_tiles();
 	RmsGenerator::set_mine_gatherers(*this, (uint8_t)type);
 	if (nomad_) remove_player_structures();
 	register_map_triggers(type);
@@ -9420,7 +9466,7 @@ bool Simulation::loot_denied_unit(size_t i) const {
 	if (!aura_mgr_.has(AURA_NO_LOOT) || units_.action_state[i] == ACTION_GARRISONED) return false;
 	bool denied = false;
 	aura_mgr_.for_each_reaching(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_NO_LOOT, units_.tmpl[i],
-		&unit_combat_at(i).classes, false, [&](const AuraSource &) { denied = true; });
+		&unit_combat_at(i).classes, false, [&](const AuraSource &) { denied = true; }, units_.id[i]);
 	return denied;
 }
 
@@ -9428,7 +9474,7 @@ bool Simulation::loot_denied_building(const Building &b) const {
 	if (!aura_mgr_.has(AURA_NO_LOOT)) return false;
 	bool denied = false;
 	aura_mgr_.for_each_reaching(b.x, b.z, b.team, AURA_NO_LOOT, CIV_UNIT_TEMPLATE_NONE, nullptr, true,
-		[&](const AuraSource &) { denied = true; });
+		[&](const AuraSource &) { denied = true; }, b.id);
 	return denied;
 }
 
@@ -9477,7 +9523,7 @@ void Simulation::collect_loot(uint32_t looter_id, uint8_t looter_player, LootInf
 			&unit_combat_at((size_t)u).classes, false, [&](const AuraSource &s) {
 				const LooterRangeAura &a = looter_range_auras()[(size_t)s.value];
 				for (int r = 0; r < 4; ++r) { mul[r] *= a.multiply[r]; add[r] += a.add[r]; }
-			});
+			}, units_.id[u]);
 		for (int r = 0; r < 4; ++r) res[kRes[r]] = res[kRes[r]] * mul[r] + add[r];
 	}
 	if (infantry && civ_of(looter_player) == CIV_BRITONS)
@@ -9953,7 +9999,7 @@ void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, fl
 			const BuildingAIInfo &ai = building_ai_info(shooter_b.type);
 			const float pierce = ai.pierce * (shooter_b.team < MAX_PLAYERS ? tech_mods(shooter_b.team).bld_attack[shooter_b.type] : 1.0f);
 			const float aura = aura_mgr_.query_modifier(shooter_b.x, shooter_b.z, shooter_b.team, AURA_ATTACK,
-				CIV_UNIT_TEMPLATE_NONE, nullptr, true);
+				CIV_UNIT_TEMPLATE_NONE, nullptr, true, shooter_b.id);
 			const float mult = aura > 0.0f ? aura : 1.0f;
 			p.dmg_parts[0] = ai.hack * mult;
 			p.dmg_parts[1] = pierce * mult;
@@ -10151,7 +10197,7 @@ float Simulation::unit_base_walk_speed(size_t i) const {
 	float spd = units_.speed[i];
 	if (aura_mgr_.has(AURA_SPEED)) {
 		const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_SPEED,
-			units_.tmpl[i], &unit_combat_at(i).classes);
+			units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]);
 		if (aura > 0.0f) spd *= aura;
 	}
 	if (units_.unit_type[i] == UNIT_SIEGE_RAM) {
@@ -12587,13 +12633,13 @@ void Simulation::tick_gather(float dt) {
 					// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
 					// pyramid, catafalques, Han ministers): each one in reach, multiplied.
 					if (const float g = !aura_mgr_.has(AURA_GATHER) ? 0.0f : aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
-							units_.tmpl[i], &unit_combat_at(i).classes); g > 0.0f && g < 1.0f)
+							units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]); g > 0.0f && g < 1.0f)
 						rate /= 1.0f - g;
 					// Auras on ResourceGatherer/Rates/<type> (Iron Pelanors: metal ore), each once.
 					if (aura_mgr_.has(AURA_GATHER_RATE))
 						aura_mgr_.for_each_reaching(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER_RATE, units_.tmpl[i],
 							&unit_combat_at(i).classes, false,
-							[&](const AuraSource &s) { rate *= gather_rate_range_auras()[(uint16_t)s.value].multiply[kind]; });
+							[&](const AuraSource &s) { rate *= gather_rate_range_auras()[(uint16_t)s.value].multiply[kind]; }, units_.id[i]);
 					// unit_advanced.json / unit_elite.json: ResourceGatherer/BaseSpeed x0.7 per rank.
 					for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) rate *= rank_bonus(r).gather_mul;
 					if (field_efficiency > 0.0f) rate *= field_efficiency;
@@ -12728,7 +12774,7 @@ float Simulation::foundation_build_multiplier(int builders) {
 float Simulation::builder_rate(size_t unit_idx) const {
 	if (!aura_mgr_.has(AURA_BUILD)) return 1.0f;
 	const float m = aura_mgr_.query_modifier(units_.pos_x[unit_idx], units_.pos_z[unit_idx], units_.team[unit_idx],
-		AURA_BUILD, units_.tmpl[unit_idx], &unit_combat_at(unit_idx).classes);
+		AURA_BUILD, units_.tmpl[unit_idx], &unit_combat_at(unit_idx).classes, false, units_.id[unit_idx]);
 	return m > 0.0f ? m : 1.0f;
 }
 
@@ -14357,7 +14403,7 @@ void Simulation::tick_combat(float dt) {
 		if (!units_.alive[u] || units_.hp[u] <= 0.0f) continue;
 		if (!heal_drain && units_.hp[u] >= units_.max_hp[u]) continue;
 		float healMod = aura_mgr_.query_modifier(units_.pos_x[u], units_.pos_z[u], units_.team[u], AURA_HEAL,
-			units_.tmpl[u], &unit_combat_at(u).classes);
+			units_.tmpl[u], &unit_combat_at(u).classes, false, units_.id[u]);
 		if (healMod > 0.001f) {
 			units_.hp[u] = std::min(units_.max_hp[u], units_.hp[u] + dt * healMod);
 		} else if (healMod < -0.001f) {
@@ -14497,7 +14543,7 @@ float Simulation::promotion_required_xp(size_t i) const {
 	if (xp < 0.0f || team >= MAX_PLAYERS) return xp;
 	// Promotion.js GetRequiredXp: ApplyValueModificationsToEntity, range auras included.
 	const float near = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], team, AURA_REQUIRED_XP,
-		units_.tmpl[i], &unit_combat_at(i).classes); // range ones
+		units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]); // range ones
 	if (near > 0.0f) xp *= near;
 	return xp;
 }
@@ -14521,8 +14567,8 @@ float Simulation::unit_capture_attack_at(size_t i) const {
 				units_.action_state[i] != ACTION_GARRISONED) {
 			const CombatClasses *cls = &unit_combat_at(i).classes;
 			c = c * aura_mgr_.query_stacked(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_CAPTURE_MUL,
-				units_.tmpl[i], cls) + aura_mgr_.query_stacked(units_.pos_x[i], units_.pos_z[i], units_.team[i],
-				AURA_CAPTURE_ADD, units_.tmpl[i], cls);
+				units_.tmpl[i], cls, units_.id[i]) + aura_mgr_.query_stacked(units_.pos_x[i], units_.pos_z[i], units_.team[i],
+				AURA_CAPTURE_ADD, units_.tmpl[i], cls, units_.id[i]);
 		}
 	}
 	return c;
@@ -14547,7 +14593,7 @@ float Simulation::heal_amount_of(size_t h) const {
 	// Heal/Health auras (Hippocrates' Hippocratic Oath: allied healers +1).
 	if (aura_mgr_.has(AURA_HEAL_AMOUNT))
 		hp += aura_mgr_.query_modifier(units_.pos_x[h], units_.pos_z[h], units_.team[h], AURA_HEAL_AMOUNT,
-			units_.tmpl[h], &unit_combat_at(h).classes);
+			units_.tmpl[h], &unit_combat_at(h).classes, false, units_.id[h]);
 	return hp;
 }
 
@@ -15141,7 +15187,7 @@ float Simulation::unit_attack_damage(size_t i, size_t t) {
 void Simulation::unit_attack_effects(size_t i, float out[4]) const {
 	unit_tech_damage(i, out);
 	const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_ATTACK,
-		units_.tmpl[i], &unit_combat_at(i).classes);
+		units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]);
 	if (aura > 0.0f) // 0 = none in range
 		for (int k = 0; k < 4; ++k) out[k] *= aura;
 }
@@ -15150,7 +15196,7 @@ void Simulation::unit_attack_effects(size_t i, float out[4]) const {
 // Chandragupta's Elephant Corps x0.85), which speed up its splash and statuses with its hits.
 float Simulation::unit_repeat_time(size_t i) const {
 	const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_ATTACK_RATE,
-		units_.tmpl[i], &unit_combat_at(i).classes);
+		units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]);
 	return aura > 0.0f ? units_.attack_cooldown[i] * aura : units_.attack_cooldown[i]; // 0 = none in range
 }
 
@@ -15189,7 +15235,7 @@ float Simulation::structure_arrow_damage(const Building &shooter, const float re
 	const BuildingAIInfo &ai = building_ai_info(shooter.type);
 	const float pierce = ai.pierce * (shooter.team < MAX_PLAYERS ? tech_mods(shooter.team).bld_attack[shooter.type] : 1.0f);
 	const float aura = aura_mgr_.query_modifier(shooter.x, shooter.z, shooter.team, AURA_ATTACK,
-		CIV_UNIT_TEMPLATE_NONE, nullptr, true);
+		CIV_UNIT_TEMPLATE_NONE, nullptr, true, shooter.id);
 	const float dmg = ai.hack * powf(0.9f, res[0]) + pierce * powf(0.9f, res[1]) + ai.crush * powf(0.9f, res[2]);
 	return aura > 0.0f ? dmg * aura : dmg; // 0 = none in range
 }
@@ -16266,7 +16312,7 @@ void Simulation::structure_resistance(const Building &b, float out[3]) const {
 		return;
 	}
 	structure_armour(b.type, b.civ, out);
-	const float aura = aura_mgr_.query_modifier(b.x, b.z, b.team, AURA_ARMOR, CIV_UNIT_TEMPLATE_NONE, nullptr, true);
+	const float aura = aura_mgr_.query_modifier(b.x, b.z, b.team, AURA_ARMOR, CIV_UNIT_TEMPLATE_NONE, nullptr, true, b.id);
 	for (int k = 0; k < 3; ++k) out[k] += aura;
 }
 
@@ -16282,7 +16328,7 @@ void Simulation::unit_resistance(size_t i, float out[3]) const {
 	if (const float ra = rank_melee_armor(i); ra > 0.0f)
 		for (int k = 0; k < 3; ++k) out[k] += ra;
 	const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_ARMOR,
-			units_.tmpl[i], &unit_combat_at(i).classes);
+			units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]);
 	for (int k = 0; k < 3; ++k) out[k] += aura;
 	// 0 A.D. structures/wall_garrisoned: Soldiers turreted on a wall, gate or outpost (not the
 	// Mauryan rampart tower, whose template has no Auras)
@@ -33042,7 +33088,7 @@ float Simulation::building_vision_range(const Building &b) const {
 	// Vision/Range "add" auras naming Structure (Lugius' Terror Cimbricus).
 	if (aura_mgr_.has(AURA_VISION_ADD))
 		bvr = std::max(0.0f, bvr + aura_mgr_.query_modifier(b.x, b.z, b.team, AURA_VISION_ADD, CIV_UNIT_TEMPLATE_NONE,
-			nullptr, true) * COMBAT_DISTANCE_SCALE);
+			nullptr, true, b.id) * COMBAT_DISTANCE_SCALE);
 	return bvr;
 }
 
@@ -34694,7 +34740,7 @@ void Simulation::apply_health_auras() {
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i]) continue;
 		float m = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_HEALTH,
-			units_.tmpl[i], &unit_combat_at(i).classes);
+			units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]);
 		if (m <= 0.0f) m = 1.0f;
 		const float old = units_.aura_hp_mult[i];
 		if (m == old) continue;
@@ -34716,7 +34762,7 @@ void Simulation::apply_health_auras() {
 	}
 	for (Building &b : buildings_) {
 		if (b.wrecked || b.hp <= 0.0f) continue;
-		float m = aura_mgr_.query_modifier(b.x, b.z, b.team, AURA_HEALTH, CIV_UNIT_TEMPLATE_NONE, nullptr, true);
+		float m = aura_mgr_.query_modifier(b.x, b.z, b.team, AURA_HEALTH, CIV_UNIT_TEMPLATE_NONE, nullptr, true, b.id);
 		if (m <= 0.0f) m = 1.0f;
 		if (m == b.aura_hp_mult) continue;
 		const float r = m / b.aura_hp_mult;
@@ -34742,10 +34788,10 @@ float Simulation::unit_vision_at(size_t i) const {
 		v = v * um.vision + um.vision_add * 0.28f; // multiplied, then added metres x0.28
 	}
 	const float m = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_VISION,
-		units_.tmpl[i], &unit_combat_at(i).classes);
+		units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]);
 	// Vision/Range "add" auras (Lugius' Terror Cimbricus: enemies -20 m), metres x0.28.
 	const float add = aura_mgr_.has(AURA_VISION_ADD) ? aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i],
-		units_.team[i], AURA_VISION_ADD, units_.tmpl[i], &unit_combat_at(i).classes) * COMBAT_DISTANCE_SCALE : 0.0f;
+		units_.team[i], AURA_VISION_ADD, units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]) * COMBAT_DISTANCE_SCALE : 0.0f;
 	// structures/wall_garrisoned: a turreted Soldier sees 20 m further.
 	const float turret = !turret_height_.empty() && turret_height_.count(units_.id[i]) && !rampart_turrets_.count(units_.id[i]) &&
 			unit_combat_at(i).classes.has(CC_SOLDIER)
@@ -34770,7 +34816,7 @@ float Simulation::attack_reach(size_t i) const {
 		&unit_combat_at(i).classes, false, [&](const AuraSource &s) {
 			const RangeAddRangeAura &a = range_add_range_auras()[(uint16_t)s.value];
 			add += ranged ? a.ranged * COMBAT_DISTANCE_SCALE : a.melee * 0.6f;
-		});
+		}, units_.id[i]);
 	return r + add;
 }
 
