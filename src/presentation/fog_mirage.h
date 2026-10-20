@@ -57,9 +57,12 @@ struct FoggedResource {
 	uint32_t id = 0;
 	float x = 0.0f, z = 0.0f;
 	int32_t amount = 0;
+	uint16_t gatherers = 0; // ResourceSupply numGatherers, frozen with the amount (ResourceSupplyMirage)
 	uint8_t type = 0;
 	uint8_t subtype = 0;
 	uint8_t flora = 0; // FloraKind
+	uint8_t fauna = 0; // a carcass's animal (fauna type + 1), 0 none
+	uint8_t owner = 0xFF; // a carcass's owner (special/filter/resource.xml keeps Ownership)
 	bool miraged = false;
 };
 
@@ -113,6 +116,7 @@ public:
 	uint8_t los_at(float x, float z) const;
 
 private:
+	std::unordered_map<uint32_t, uint16_t> gatherers_; // update()'s scratch: supply id -> gatherers
 	struct BuildingMemory {
 		FoggedBuilding seen;
 		uint32_t stamp = 0;
