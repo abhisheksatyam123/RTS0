@@ -3881,6 +3881,12 @@ void RtsoWorldView::set_silhouette(Node *n, const Color &c) {
 	for (int i = 0; i < n->get_child_count(); ++i) set_silhouette(n->get_child(i), c);
 }
 
+// MultiMesh::set_instance_count goes to the RenderingServer every call; most batches keep their
+// count from one frame to the next, and every slot is written again after.
+static void set_mm_count(const Ref<MultiMesh> &mm, int n) {
+	if (mm->get_instance_count() != n) mm->set_instance_count(n);
+}
+
 void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids) {
 	if (!sim) return;
 	if (delta < 0.0f) delta = 0.0f;
@@ -3978,6 +3984,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	}
 
 	std::unordered_set<uint32_t> detailed;
+	detailed.reserve(MAX_DETAILED_UNITS * 2);
 	// Ships always need the real GLB (sail clips + oar nodes). Everyone else is
 	// crowd, which bakes the clip each unit plays (gather, build, carry...).
 	for (size_t i = 0; i < uview.count; ++i) {
@@ -4087,7 +4094,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		cycle_puppet_meshes(cb.puppet, cb.mm, row, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS);
 		for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
 			for (int p = 0; p < CROWD_PHASES; ++p) {
-				if (cb.mm[c][p].is_valid()) cb.mm[c][p]->set_instance_count(row[c][p]);
+				if (cb.mm[c][p].is_valid()) set_mm_count(cb.mm[c][p], row[c][p]);
 			}
 		}
 	}
@@ -4096,6 +4103,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	const Color col_enemy(1.0f, 0.52f, 0.42f);
 
 	std::unordered_set<uint32_t> active_unit_ids;
+	active_unit_ids.reserve(uview.count);
 
 	size_t unit_rings_used = 0;
 	const bool status_rank_icon = rtso::user_config::get_bool("gui.session.rankabovestatusbar");
@@ -4271,12 +4279,16 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		v.vis_stamp = unit_vis_stamp;
 		v.yaw = yaw;
 		attach_unit_model(v, utype_str);
-		push_player_color(v.model, v.player_rgba, player_display_color(sim, uview.team[i]));
 		if (v.variant_model != v.model || v.variant_id != id) {
+			// Props first: a look added for this entity takes the colour and skin draw below.
+			rtso::ModelLibrary::set_prop_looks(v.model, v.model_id, id);
 			rtso::ModelLibrary::set_variant(v.model, rtso::ModelLibrary::variant_draw(id));
 			v.variant_model = v.model;
 			v.variant_id = id;
+			v.player_rgba = -1;
+			v.silhouette_rgba = -1;
 		}
+		push_player_color(v.model, v.player_rgba, player_display_color(sim, uview.team[i]));
 		{
 			const Color sc = player_display_color(sim, uview.team[i]);
 			const int64_t key = silhouettes_ ? (int64_t)sc.to_rgba32() : -2;
@@ -4359,10 +4371,16 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		v.rank_icon->set_visible(false);
 	}
 
+	// Release the slots of units not drawn close up this frame. A slot already released keeps its
+	// old stamp and sim id, so only the slot the id still maps to is released: a second release
+	// would list it twice in unit_free (two units then share one model and rebuild it every
+	// frame), and would drop the id's mapping to the slot it has taken since.
 	for (size_t s = 0; s < unit_pool.size(); ++s) {
 		if (unit_pool[s].root && unit_pool[s].vis_stamp != unit_vis_stamp) {
+			auto it = unit_slot.find(unit_pool[s].sim_id);
+			if (it == unit_slot.end() || it->second != s) continue;
 			hide_unit_vis(unit_pool[s]);
-			unit_slot.erase(unit_pool[s].sim_id);
+			unit_slot.erase(it);
 			unit_free.push_back(s);
 		}
 	}
@@ -4715,9 +4733,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		else if (proj.visual == 1) bolt_n++;
 		else arrow_n++;
 	}
-	if (arrow_mm.is_valid()) arrow_mm->set_instance_count(arrow_n);
-	if (bolt_mm.is_valid()) bolt_mm->set_instance_count(bolt_n);
-	if (stone_proj_mm.is_valid()) stone_proj_mm->set_instance_count(stone_n);
+	if (arrow_mm.is_valid()) set_mm_count(arrow_mm, arrow_n);
+	if (bolt_mm.is_valid()) set_mm_count(bolt_mm, bolt_n);
+	if (stone_proj_mm.is_valid()) set_mm_count(stone_proj_mm, stone_n);
 
 	int arrow_i = 0, bolt_i = 0, stone_i = 0;
 
@@ -4809,14 +4827,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 	}
 	for (int k = 0; k < tree_kind_count; ++k)
-		for (int v = 0; v < tree_variants[k]; ++v) tree_mm[k][v]->set_instance_count((int)n_kind[k][v]);
+		for (int v = 0; v < tree_variants[k]; ++v) set_mm_count(tree_mm[k][v], (int)n_kind[k][v]);
 	for (int k = 1; k < FLORA_KINDS; ++k)
-		for (int v = 0; v < flora_variants[k]; ++v) flora_mm[k][v]->set_instance_count((int)n_flora[k][v]);
-	for (int k = 0; k < MINE_KINDS; ++k) mine_mm[k]->set_instance_count((int)n_mine[k]);
+		for (int v = 0; v < flora_variants[k]; ++v) set_mm_count(flora_mm[k][v], (int)n_flora[k][v]);
+	for (int k = 0; k < MINE_KINDS; ++k) set_mm_count(mine_mm[k], (int)n_mine[k]);
 	if (food_mm.is_valid())
-		food_mm->set_instance_count((int)fd);
-	ruins_mm->set_instance_count((int)nru);
-	fish_mm->set_instance_count((int)fish_n);
+		set_mm_count(food_mm, (int)fd);
+	set_mm_count(ruins_mm, (int)nru);
+	set_mm_count(fish_mm, (int)fish_n);
 
 	size_t ia[TREE_KINDS][TREE_VARIANTS] = {}, iflora[FLORA_KINDS][TREE_VARIANTS] = {}, imine[MINE_KINDS] = {}, ifd = 0, iru = 0, ifish = 0;
 	auto e_ruins = rtso::ModelLibrary::get("buildings", "ruins");
@@ -4876,7 +4894,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		int nt[rtso::TREASURE_TYPE_COUNT] = {};
 		for (const auto &t : tv)
 			if (t.type < rtso::TREASURE_TYPE_COUNT && los_brightness(t.x, t.z) > 0.0f) ++nt[t.type];
-		for (int k = 0; k < rtso::TREASURE_TYPE_COUNT; ++k) treasure_mm[k]->set_instance_count(nt[k]);
+		for (int k = 0; k < rtso::TREASURE_TYPE_COUNT; ++k) set_mm_count(treasure_mm[k], nt[k]);
 		int it[rtso::TREASURE_TYPE_COUNT] = {};
 		for (const auto &t : tv) {
 			const float lit = t.type < rtso::TREASURE_TYPE_COUNT ? los_brightness(t.x, t.z) : 0.0f;
@@ -4907,10 +4925,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (kinds.empty()) ++ns;
 			else ++kinds[sc.id % diverse_variants((int)kinds.size())].count;
 		}
-		scenery_mm->set_instance_count(ns);
+		set_mm_count(scenery_mm, ns);
 		for (auto &kinds : scenery_variants_)
 			for (auto &k : kinds) {
-				k.mm->set_instance_count(k.count);
+				set_mm_count(k.mm, k.count);
 				k.count = 0;
 			}
 		int is = 0;
@@ -4979,7 +4997,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		cycle_fauna_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft], FAUNA_CLIP_COUNT, FAUNA_DEATH_SLOTS);
 		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 			if (fauna_mm[ft][c].is_valid()) {
-				fauna_mm[ft][c]->set_instance_count(f_counts[ft][c]);
+				set_mm_count(fauna_mm[ft][c], f_counts[ft][c]);
 			}
 		}
 	}

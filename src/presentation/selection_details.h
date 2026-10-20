@@ -42,9 +42,10 @@ inline String health(float hp, float max) {
 	return sprintf0(tr0("%(healthLabel)s %(current)s / %(max)s"),
 			{{"healthLabel", tr0("Health:")}, {"current", num((int64_t)std::lround(hp))}, {"max", num((int64_t)std::lround(max))}});
 }
-inline String capture(float points, float max) {
+// label: displayMultiple passes "Capture Points:"; getCurrentCaptureTooltip's own is "Capture points:".
+inline String capture(float points, float max, const char *label = "Capture points:") {
 	return sprintf0(tr0("%(captureLabel)s %(current)s / %(max)s"),
-			{{"captureLabel", tr0("Capture points:")}, {"current", num((int64_t)std::lround(points))}, {"max", num((int64_t)std::lround(max))}});
+			{{"captureLabel", tr0(label)}, {"current", num((int64_t)std::lround(points))}, {"max", num((int64_t)std::lround(max))}});
 }
 
 // The single-selection bar captions (healthStats, captureStats): "%(hitpoints)s / %(maxHitpoints)s"
@@ -505,6 +506,44 @@ inline String join_lines(std::initializer_list<String> parts) {
 		if (!out.is_empty()) out += "\n";
 		out += p;
 	}
+	return out;
+}
+
+// getAurasTooltip over a unit template's resolved Auras. The token merge lists the class
+// auras of its parent templates first: template_unit_hero's units/heroes/hero_garrison,
+// then the infantry templates' units/ram_garrison. Their effects are simulated in
+// structure_capture_garrison_regen and unit_base_walk_speed.
+inline String unit_auras_tooltip(uint16_t tmpl) {
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return String();
+	const CivUnitTemplate &u = civ_unit_template(tmpl);
+	String out;
+	if (u.tech_classes & TC_HERO)
+		out = aura_line(tr0("Inspired Defense"), "When garrisoned, the Structure has +1 capture points garrison regeneration rate.", 0.0f);
+	if (u.tech_classes & TC_INFANTRY)
+		out = join_lines({out, aura_line(tr0("Battering Team"), "Battering Rams +0.15 speed for each garrisoned soldier.", 0.0f)});
+	for (int16_t a : u.auras) {
+		if (a < 0) continue;
+		const auto &aura = civ_hero_aura(a);
+		out = join_lines({out, aura_line(tr0(String::utf8(aura.name)), String::utf8(aura.description ? aura.description : ""), aura.radius)});
+	}
+	return out;
+}
+
+// getTradingTooltip: the trader's owner's gain plus what their own markets earn, then
+// each other market owner's, "20+5 (Alice), 5 (Bob)". market1 pays the arrival market's
+// owner and market2 the starting market's (CalculateTraderGain).
+template <class NameOf>
+inline String trading_gain(int trader, uint8_t owner, int market1, uint8_t market1_owner, int market2, uint8_t market2_owner, NameOf &&name_of) {
+	const struct { int gain; uint8_t owner; } markets[] = {{market1, market1_owner}, {market2, market2_owner}};
+	String primary = num(trader);
+	for (const auto &m : markets)
+		if (m.gain && m.owner == owner) primary += tr0("+") + num(m.gain);
+	auto gain_of = [&](const String &gain, uint8_t pid) {
+		return sprintf0(tr0("%(gain)s (%(player)s)"), {{"gain", gain}, {"player", name_of(pid)}});
+	};
+	String out = gain_of(primary, owner);
+	for (const auto &m : markets)
+		if (m.gain && m.owner != owner) out += tr0(", ") + gain_of(num(m.gain), m.owner);
 	return out;
 }
 

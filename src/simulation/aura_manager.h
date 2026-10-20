@@ -132,16 +132,23 @@ public:
     // stackable, so two carnyxes weaken an enemy no more than one). qtmpl and qclasses filter
     // units as in query_modifier; structure: the entity is a structure, which only auras
     // naming the Structure class reach.
+    // self_id: the entity asking. A range aura never reaches its own source (0 A.D.'s
+    // RangeManager leaves the querying entity out of an active query); a global one does
+    // (Auras.js ApplyTemplateAura on the source's own player).
+    bool is_self(const AuraSource &s, uint32_t self_id) const {
+        return self_id != 0 && s.source_id == self_id && !(s.aura >= 0 && civ_hero_aura(s.aura).radius <= 0.0f);
+    }
+
     template <class F>
     void for_each_reaching(float qx, float qz, uint8_t qowner, AuraType type, uint16_t qtmpl,
-            const CombatClasses *qclasses, bool structure, F &&f) const {
+            const CombatClasses *qclasses, bool structure, F &&f, uint32_t self_id = 0) const {
         if (type >= AURA_COUNT || of_type_[type].empty()) return;
         const uint16_t qbit = aura_player_bit(qowner);
         int16_t seen[16];
         int n_seen = 0;
         for (uint32_t k : of_type_[type]) {
             const AuraSource &s = sources[k];
-            if (!s.alive || !(s.affected & qbit)) continue;
+            if (!s.alive || !(s.affected & qbit) || is_self(s, self_id)) continue;
             if (structure) {
                 if (s.aura < 0 || !civ_hero_aura(s.aura).structures) continue;
             } else {
@@ -161,11 +168,11 @@ public:
     // AURA_CAPTURE_MUL (product, 1 when none) or AURA_CAPTURE_ADD (sum, 0 when none) on a
     // unit, as ModifiersManager stacks modifications.
     float query_stacked(float qx, float qz, uint8_t qowner, AuraType type, uint16_t qtmpl,
-            const CombatClasses *qclasses) const {
+            const CombatClasses *qclasses, uint32_t self_id = 0) const {
         const bool add = type == AURA_CAPTURE_ADD;
         float r = add ? 0.0f : 1.0f;
         for_each_reaching(qx, qz, qowner, type, qtmpl, qclasses, false,
-            [&](const AuraSource &s) { r = add ? r + s.value : r * s.value; });
+            [&](const AuraSource &s) { r = add ? r + s.value : r * s.value; }, self_id);
         return r;
     }
 
@@ -186,7 +193,7 @@ public:
     // class reach (CivHeroAura::structures).
     float query_modifier(float qx, float qz, uint8_t qowner, AuraType type,
             uint16_t qtmpl = CIV_UNIT_TEMPLATE_NONE, const CombatClasses *qclasses = nullptr,
-            bool structure = false) const {
+            bool structure = false, uint32_t self_id = 0) const {
         if (type >= AURA_COUNT || of_type_[type].empty()) return 0.0f;
         const uint16_t qbit = aura_player_bit(qowner);
         bool any = false;
@@ -198,7 +205,7 @@ public:
         // Only this type's sources, in the order they were registered.
         for (uint32_t k : of_type_[type]) {
             const AuraSource &s = sources[k];
-            if (!s.alive || !(s.affected & qbit)) continue;
+            if (!s.alive || !(s.affected & qbit) || is_self(s, self_id)) continue;
             if (structure) {
                 if (s.aura < 0 || !civ_hero_aura(s.aura).structures) continue;
             } else {
@@ -236,11 +243,14 @@ public:
                 keep *= 1.0f - s.value;
             } else {
                 // A roster aura by its index; an unlisted one (the carnyx) by its class filter.
-                const int16_t key = s.aura >= 0 ? s.aura : (int16_t)(-1 - (int16_t)s.need_class);
-                bool seen = false;
-                for (int k = 0; k < once_n; ++k) seen |= once[k] == key;
-                if (seen) continue;
-                if (once_n < 16) once[once_n++] = key;
+                // A stackable one (civ_aura_stackable) counts once per source.
+                if (!civ_aura_stackable(s.aura)) {
+                    const int16_t key = s.aura >= 0 ? s.aura : (int16_t)(-1 - (int16_t)s.need_class);
+                    bool seen = false;
+                    for (int k = 0; k < once_n; ++k) seen |= once[k] == key;
+                    if (seen) continue;
+                    if (once_n < 16) once[once_n++] = key;
+                }
                 product *= s.value;
                 sum += s.value;
             }

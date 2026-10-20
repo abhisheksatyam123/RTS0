@@ -265,8 +265,8 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_RANDOM_VALLEY, "random_valley", "Fertile Valley (RMS)", "latium", true, "A lush river valley bounded by towering mountain ridges with balanced contested resources."},
 		{MAP_RANDOM_MEDITERRANEAN, "random_mediterranean", "Mediterranean Sea (RMS)", "mediterranean", true, "A central sea ringed by continuous fertile mainland coasts for all civilizations."},
 		{MAP_DANUBIUS, "danubius", "Danubius (RMS)", "temperate", true, "Players start along the banks of the river Danube, where Gallic villages and the ships of Celtic reinforcements attack all of them."},
-		{MAP_SAHARAN_OASES, "saharan_oases", "Saharan Oases (RMS)", "oasis", true, "Arid desert with sinusoidal sand dunes, date palm groves, and freshwater oases."},
-		{MAP_ANATOLIAN_PLATEAU, "anatolian_plateau", "Anatolian Plateau (RMS)", "steppe", true, "High plateau steppe surrounded by perimeter canyon ravines and rich mineral outcrops."},
+		{MAP_SAHARAN_OASES, "saharan_oases", "Saharan Oases (RMS)", "oasis", true, "Flat desert sand with date palm groves and shallow freshwater oases."},
+		{MAP_ANATOLIAN_PLATEAU, "anatolian_plateau", "Anatolian Plateau (RMS)", "steppe", true, "Open, indefensible steppe of central Anatolia with rich mineral outcrops."},
 		{MAP_JEBEL_BARKAL, "jebel_barkal", "Jebel Barkal (RMS)", "savanna", true, "The Nile and the hill of Jebel Barkal: the walled Kushite city of Napata, guarded by archers and siege, sends patrols and attacks against the players."},
 		{MAP_MAINLAND, "mainland", "Mainland (RMS)", "mediterranean", true, "Open rolling land with no water barriers, scattered woods and mines. 0 A.D.'s standard land map."},
 		{MAP_ALPINE_LAKES, "alpine_lakes", "Alpine Lakes (RMS)", "alpine", true, "High mountain ridges cradling cold lakes, with valleys between the player bases."},
@@ -824,7 +824,7 @@ enum UnitOrderFlag : uint8_t {
 	ORDER_FLAG_ALLOW_CAPTURE = 2,// Attack.js allowCapture: capture structures instead of damaging them
 	ORDER_FLAG_UNITS_ONLY = 4,   // attack-move targetClasses "Unit" (session.attackmoveUnit)
 	ORDER_FLAG_INTERRUPTED = 8,  // fighting or fleeing; go back to the order afterwards
-	ORDER_FLAG_CHEER = 16,       // killed its target (UnitAI shouldCheer)
+	ORDER_FLAG_CHEER = 16,       // attacking a unit (UnitAI shouldCheer)
 	// ORDER_BUILD only (bit 5 holds a gather order's subtype): a forced build that reached its
 	// site (REPAIRING enter, order.data.autoharvest), so ConstructionFinished farms the field
 	// or gathers near the new dropsite.
@@ -1845,6 +1845,8 @@ struct TechInfo {
 };
 
 #include "tech_data.h"
+#include "research_order_data.h"
+static_assert(TECH_RESEARCH_RANK_ROWS == TECH_COUNT, "re-run tools/extract_0ad_research_order.py after adding technologies");
 #include "tech_tooltip_data.h"
 #include "building_ai_data.h"
 #include "trainer_data.h"
@@ -2205,8 +2207,10 @@ enum CivRosterFlag : uint16_t {
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
 
-// Roster tables hold at most 64 * CIV_TEMPLATE_WORDS_MAX unit templates.
-inline constexpr uint16_t CIV_TEMPLATE_WORDS_MAX = 8;
+// Roster tables hold at most 64 * CIV_TEMPLATE_WORDS_MAX unit templates: the generated aura
+// and civ-bonus row bitsets (affects, units) are this many words, the generator fills the
+// first CIV_TEMPLATE_WORDS. Saves store template ids only, so raising it needs no save bump.
+inline constexpr uint16_t CIV_TEMPLATE_WORDS_MAX = 16;
 
 // A unit's short path around buildings (nav/building_steering.h), kept between ticks as 0 A.D.'s
 // CCmpUnitMotion keeps m_ShortPath: the first waypoint (x, z), the aim it leads towards, and the
@@ -2756,6 +2760,17 @@ inline const CivHeroAura &civ_hero_aura(int16_t idx) {
 	return a[(idx >= 0 && idx < CIV_HERO_AURA_COUNT) ? idx : 0];
 }
 
+// A roster aura whose 0.28 JSON is "stackable" and that AuraManager::query_modifier counts
+// once per source rather than once: kush_temple_amun (each Temple of Amun x0.95 hero health).
+inline bool civ_aura_stackable(int16_t idx) {
+	static const int16_t amun = [] {
+		for (int16_t i = 0; i < CIV_HERO_AURA_COUNT; ++i)
+			if (std::strcmp(civ_hero_aura(i).id, "kush_temple_amun") == 0) return i;
+		return (int16_t)-1;
+	}();
+	return idx >= 0 && idx == amun;
+}
+
 // Roster of a civ is the template id range [civ_roster_begin, civ_roster_end).
 inline uint16_t civ_roster_begin(uint8_t civ) {
 	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
@@ -3183,7 +3198,9 @@ inline bool building_trains_native(uint8_t type) {
 // military colony and German encampments) list units/{native}/support_civilian, so a
 // captured one trains its builder's civilians (template_structure_civic_civil_centre.xml).
 inline uint8_t building_train_civ(uint8_t type, uint8_t bld_civ, uint8_t owner_civ, const CivUnitTemplate &t) {
-	if (building_trains_native(type)) return bld_civ;
+	// A Gaia mercenary camp (merc_camp_egyptian.xml) trains the holder's units/{civ}/..._merc_b, as
+	// 0.28; a player's own camp keeps its builder's mercenaries (building_trains_native).
+	if (building_trains_native(type) && !(type == BLD_MERCENARY_CAMP && bld_civ == CIV_GAIA)) return bld_civ;
 	const bool civic = type == BLD_TOWN_CENTER || type == BLD_CRANNOG || type == BLD_IMPERIAL_COURT ||
 	                   type == BLD_MILITARY_COLONY || type == BLD_WAGON_ENCAMPMENT ||
 	                   type == BLD_WAGON_ENCAMPMENT_FORTIFIED;

@@ -102,6 +102,7 @@ struct ProductionOrder {
 	uint8_t tech = TECH_NONE;   // the technology this item researches
 	bool started = false;       // Trainer.js Item.Start: the batch's population is reserved
 	uint8_t petra_plan = 0;     // PetraOrderPlan: what Petra queued the batch for (saved SAVE_VERSION_PETRA_ORDER_PLAN)
+	uint8_t batch = 0;          // the batch size queued (ProductionQueue.js originalItem.count) once part of it spawned; 0 = count
 	std::array<float, RES_COUNT> paid{}; // refunded when the item is removed (RemoveItem)
 	bool is_tech() const { return tech != TECH_NONE; }
 };
@@ -179,7 +180,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 100; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 102; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_AUTOQUEUE_BATCH = 102; // each queued batch's original size once part of it spawned
+	static constexpr uint32_t SAVE_VERSION_CARCASS_OWNER = 101; // each carcass's animal's owner
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
 	static constexpr uint32_t SAVE_VERSION_TRADE_ROUTE = 99; // each trader's route waypoints and leg progress (SetupTradeRoute route, reversed on the way back)
 	static constexpr uint32_t SAVE_VERSION_PROJECTILE_DAMAGE = 98; // each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact); each unit's and animal's previous-turn position (aim velocity); each player's control-all-units flag
@@ -505,6 +508,9 @@ public:
 	const std::vector<uint32_t> &turret_list(const Building &b) const {
 		return turret_points_of(b) ? b.garrisoned_units : b.turret_units;
 	}
+	// A wall, gate or outpost: a TurretHolder with no GarrisonHolder in 0.28, whose turret
+	// units RTS0 keeps as its garrison.
+	bool turret_only_holder(const Building &b) const { return turret_points_of(b) != nullptr; }
 	// unit_actions.js "occupy-turret": the unit may stand on a turret point of this own or
 	// mutually allied holder (Turretable, TurretHolder.CanOccupy). Room is not checked.
 	bool can_occupy_turret_in(uint32_t unit_id, uint32_t building_id) const;
@@ -629,6 +635,9 @@ public:
 	void set_resource_flora(uint32_t res_id, uint8_t flora);
 	// Map generation only: moves a resource before the nav grid is built.
 	void set_resource_position(uint32_t res_id, float x, float z);
+	// Map generation only: one tree per terrain tile, at the tile's centre (0.28's rmgen paints
+	// forests tile by tile). Returns how many trees had no free tile beside theirs and went.
+	size_t snap_trees_to_tiles();
 	// Map generation only: moves an animal (and the spot it roams round).
 	void set_fauna_position(uint32_t fauna_id, float x, float z);
 	// Sets a resource's amount, as map generation does for a tree whose 0 A.D. template holds more or
@@ -733,6 +742,7 @@ public:
 	// Commands
 	void cmd_move(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void cmd_stop(const uint32_t *unit_ids, size_t count);
+	void reset_unit_for_new_owner(size_t u);
 	// Player commands (0 A.D. Commands.js): `player` is the issuing player id. Each one
 	// rejects buildings the player doesn't own and charges/refunds that player's stock.
 	// `angle` is the placement rotation (0 A.D. placementSupport.angle); docks ignore it and face the sea.
@@ -807,6 +817,10 @@ public:
 	// A player's Gather and Repair are forced (UnitAI Gather / Repair) until work starts;
 	// UnitAI's own follow-up gathers and repairs (PerformGather force false) are not.
 	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id, bool queued = false, bool force = true);
+	// Gather from a supply that is gone (its mirage clicked): the nearest of the same kind near
+	// (x, z), else a walk there (UnitAI FINDINGNEWTARGET).
+	void order_gather_near(const uint32_t *unit_ids, size_t count, float x, float z, uint8_t res_type, uint8_t res_sub,
+			bool queued = false);
 	void order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// allow_capture: capture the structure (0 A.D.'s default right-click) instead of
 	// damaging it (Ctrl). Units that can't capture, or structures that can't be
@@ -983,7 +997,8 @@ public:
 	bool is_repairable_unit(uint32_t unit_id) const;
 	// 0 A.D. "returnresource" (UnitAI ReturnResource): carriers take their load to this
 	// dropsite, drop it, then take the next queued order or idle.
-	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false);
+	// force: a player's or Petra's ReturnResource; UnitAI's own drop-offs (PushOrderFront) are unforced.
+	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false, bool force = true);
 	bool dropsite_accepts(size_t unit_idx, const Building &b) const; // carried type, owner, finished
 	bool can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const;
 	// ResourceGatherer CanReturnResource's owner test: `player`'s own dropsite, or a shared one of a
@@ -1207,6 +1222,10 @@ public:
 	// (map_has_team_placement); setup-time only, like the biome.
 	void set_team_placement(int t) { team_placement_ = (uint8_t)((t >= 0 && t < TEAM_PLACEMENT_COUNT) ? t : TEAM_PLACEMENT_RANDOM); }
 	uint8_t team_placement() const { return team_placement_; }
+	// The pattern the map generator placed players by (Random resolved, as 0.28's
+	// PlayerPlacement.pickRandomItems); TEAM_PLACEMENT_RANDOM on maps without the setting.
+	void set_played_team_placement(uint8_t t) { played_team_placement_ = t; }
+	uint8_t played_team_placement() const { return played_team_placement_; }
 	// 0 A.D. Landscape for the Unknown map (RmsGenerator::UNKNOWN_LANDSCAPE_*); setup-time only.
 	void set_map_landscape(int l) { map_landscape_ = (uint8_t)((l >= 0 && l < 16) ? l : 0); }
 	uint8_t map_landscape() const { return map_landscape_; }
@@ -1769,6 +1788,10 @@ public:
 	// for population room (Trainer.js Item.Start, Player.BlockTraining).
 	bool training_blocked(uint8_t player) const;
 	int structure_pop_bonus(uint8_t type, uint8_t player) const;
+	// GarrisonHolder/BuffHeal of a structure type for a player: its template's plus garrison_heal.
+	float structure_garrison_heal_for(uint8_t type, uint8_t player) const {
+		return building_garrison_heal(type) + (player < MAX_PLAYERS && type < BLD_TYPE_COUNT ? tech_mods_[player].bld_garrison_heal[type] : 0.0f);
+	}
 	// A structure of `type` as `player`'s build button shows it (0.28 GetTemplateData): its
 	// cost after civ, team and technology modifiers, and its BuildTime for one builder.
 	void structure_cost_for(uint8_t player, uint8_t type, float out[RES_COUNT]) const { structure_cost(player, type, -1.0f, out); }
@@ -2966,6 +2989,7 @@ private:
 	uint32_t stat_unit_value(size_t unit_idx) const;      // StatisticsTracker's entity value (Cost)
 	uint32_t stat_building_value(const Building &b) const;
 	void refund_foundation(const Building &b);
+	void record_foundation_cost(Building &b) const;
 	// petra_place_building searches that found no spot, with the signature of what
 	// they read (petra_placement_signature). Exact, so derived state: never saved.
 	struct PetraPlaceMiss {
@@ -3044,6 +3068,7 @@ private:
 	bool reveal_map_ = false;
 	int biome_override_ = -1; // setup-time only: applied when a random map is generated
 	uint8_t team_placement_ = TEAM_PLACEMENT_RANDOM; // setup-time only, like biome_override_
+	uint8_t played_team_placement_ = TEAM_PLACEMENT_RANDOM; // setup-time only, like team_placement_
 	uint8_t map_landscape_ = 0;                      // setup-time only, like team_placement_
 	uint8_t trigger_difficulty_ = 3;                 // setup-time; the match's copy is triggers_.difficulty
 	uint8_t circular_map_choice_ = 0; // setup-time Circular map choice (set_circular_map_choice)
@@ -3237,6 +3262,8 @@ private:
 	// lands with room for one more (at most 3 siege engines per plan), else nullptr.
 	PetraTransportPlan *petra_transport_join(uint8_t owner, uint16_t from_land, uint16_t to_land, bool is_siege);
 	void petra_require_defense_transport(uint32_t uid, uint16_t from_land, uint16_t to_land, float to_x, float to_z);
+	uint32_t petra_defender_dropsite(size_t i) const; // entityExtend.js returnResources: 0 when none
+	void petra_fight_back(size_t i, int32_t attacker, const std::vector<PetraDefenseArmy> &armies, std::vector<uint32_t> &helped);
 	bool petra_ship_in_plan(uint32_t ship_id) const;
 	size_t petra_go_home(const std::vector<uint32_t> &squad, float x, float z, uint8_t owner, bool order_here, bool attack = false);
 	std::vector<PetraChatLine> petra_chat_;
@@ -3477,11 +3504,13 @@ private:
 	// researchManager.js: the techs Petra could research now at a structure it owns
 	// (gamestate.js findAvailableTech, phases left out), and one research start.
 	void petra_available_techs(std::vector<uint8_t> &out) const;
-	int petra_accounted_workers() const;
+	int petra_accounted_workers(bool queued = true) const; // false: units alive only (getOwnEntitiesByRole)
 	bool petra_phasing() const;
 	bool petra_start_research(uint8_t tech_id);
 	void petra_research_population_bonus();
 	bool petra_minor_tech_waiting() const;
+	bool petra_has_temple_class() const;
+	bool petra_has_builder() const;
 	void petra_queue_special_tech(uint8_t t);
 	void petra_research_trade_bonus();
 	void petra_manage_military_production(float dt);
@@ -3547,6 +3576,7 @@ private:
 	bool petra_near_invading_army(float x, float z, float dist2) const;
 	void petra_remove_defender(uint32_t uid);
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
+	float petra_available_resource(uint8_t r) const; // queueManager.getAvailableResources: stock less every queue's account
 	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
 	void petra_assign_bombers(); // attackManager.js assignBombers
 	void petra_move_dropsites_to_gatherers(); // worker.js moveToGatherer for mobile dropsites

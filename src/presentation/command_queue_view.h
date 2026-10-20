@@ -50,6 +50,7 @@
 #include "l10n.h"
 #include "template_portraits.h"
 #include "production_queue.h"
+#include "selection_details.h"
 #include "user_config.h"
 
 class RtsoCommandPanelHost {
@@ -662,7 +663,15 @@ public:
 						} else {
 							// Names, cost, the target's limit, requirements, needed resources, right-click.
 							tip = rtso::upgrade_to_text(generic, specific, String::utf8(up.tooltip ? up.tooltip : ""));
-							const rtso::CostTip up_cost{up.food_cost, up.wood_cost, up.stone_cost, up.gold_cost, 0, (int64_t)std::ceil(up.time)};
+							// Every selected structure of this type upgrades: the cost is for all of them
+							// (getEntityCostTooltip with unitEntStates.length), the time for one.
+							int64_t n_up = 0;
+							for (uint32_t id : host_->ui_selected_structures())
+								for (const auto &o : sim->buildings())
+									if (o.id == id && o.team == local_player() && o.type == found_b->type) ++n_up;
+							n_up = std::max<int64_t>(1, n_up);
+							const rtso::CostTip up_cost{up.food_cost * n_up, up.wood_cost * n_up, up.stone_cost * n_up, up.gold_cost * n_up, 0,
+									(int64_t)std::ceil(up.time)};
 							const String cost_tip = rtso::cost_tooltip(up_cost, true);
 							if (!cost_tip.is_empty()) tip += "\n" + cost_tip;
 							const String limit_tip = limit_tooltip(local_player(), rtso::BUILDING_LIMIT_CATEGORY[up.to]);
@@ -717,8 +726,7 @@ public:
 					return n;
 				};
 				if (const int inside = own(found_b->garrisoned_units))
-					add_entity_command("unload-all", "Unload All", "session.unload",
-							"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, inside);
+					add_unload_all(sim->turret_only_holder(*found_b), inside);
 				if (const int turrets = own(found_b->turret_units))
 					add_entity_command("unload-all-turrets", "Unload Turrets", "session.unloadturrets",
 							"Unload Turrets\nOrder all units to leave the selected turret points.", "garrison-out.png", true, turrets);
@@ -729,8 +737,7 @@ public:
 				const int inside = (int)found_b->garrisoned_units.size() +
 						(found_b->type == rtso::BLD_CORRAL ? sim->corral_count(found_b->id) : 0);
 				if (inside > 0)
-					add_entity_command("unload-all", "Unload All", "session.unload",
-							"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, inside);
+					add_unload_all(sim->turret_only_holder(*found_b), inside);
 				// "unload-all-turrets": the rampart tower's turret units (a wall's are its garrison above).
 				if (!found_b->turret_units.empty())
 					add_entity_command("unload-all-turrets", "Unload Turrets", "session.unloadturrets",
@@ -1186,7 +1193,7 @@ public:
 						if (garrison > 0)
 							tip += "\n" + rtso::sprintf0(rtso::tr0("%(label)s: %(garrisonLimit)s"),
 									{{"label", rtso::header_font(rtso::tr0("Garrison Limit"))}, {"garrisonLimit", String::num_int64(garrison)}});
-						if (const float heal = rtso::building_garrison_heal((uint8_t)bt); garrison > 0 && heal > 0.0f)
+						if (const float heal = sim->structure_garrison_heal_for((uint8_t)bt, local_player()); garrison > 0 && heal > 0.0f)
 							tip += "\n" + rtso::sprintf0(rtso::tr0("%(healRateLabel)s %(value)s %(health)s / %(second)s"),
 									{{"healRateLabel", rtso::header_font(rtso::tr0("Heal:"))}, {"value", String::num_int64(std::lround(heal))},
 											{"health", rtso::tr0("Health")}, {"second", rtso::tr0("second")}});
@@ -1626,7 +1633,7 @@ private:
 		auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
 		const Dictionary text = unit_template_text(u.id);
 		add_line(classes_tooltip(text));
-		add_line(auras_tooltip(u));
+		add_line(rtso::seldet::unit_auras_tooltip((uint16_t)i));
 		add_line(identity_tooltip(text));
 		tip += "\n" + String(COST_SLOT); // the Cost line for the count a click trains (refresh_roster_state)
 		// formatLimitString, formatMatchLimitString (heroes: MatchLimit 1).
@@ -1708,6 +1715,17 @@ private:
 		const String need = rtso::needed_resources_tooltip(cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
 				ps.res[rtso::RES_STONE], ps.res[rtso::RES_GOLD], true);
 		return need.is_empty() ? rtso::objection_font(rtso::tr0("Insufficient resources:").trim_suffix(":")) : need;
+	}
+
+	// "unload-all", or for a wall, gate or outpost (turret points only) "Unload Turrets" as
+	// 0.28's unload-all-turrets shows it; the units are its garrison here either way.
+	void add_unload_all(bool turret_only, int count) {
+		if (turret_only)
+			add_entity_command("unload-all", "Unload Turrets", "session.unloadturrets",
+					"Unload Turrets\nOrder all units to leave the selected turret points.", "garrison-out.png", true, count);
+		else
+			add_entity_command("unload-all", "Unload All", "session.unload",
+					"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, count);
 	}
 
 	// One g_EntityCommands button (unit_actions.js): the hotkey and title on the
@@ -1909,18 +1927,6 @@ private:
 					{{"label", rtso::tr0("Range:")}, {"val", String::num_int64(r)}, {"unit", rtso::tr0(r == 1 ? "meter" : "meters")}});
 		}
 		return line;
-	}
-
-	static godot::String auras_tooltip(const rtso::CivUnitTemplate &u) {
-		using namespace godot;
-		String out;
-		for (int16_t a : u.auras) {
-			if (a < 0) continue;
-			const auto &aura = rtso::civ_hero_aura(a);
-			const String line = aura_line(String::utf8(aura.name), String::utf8(aura.description ? aura.description : ""), aura.radius);
-			out += (out.is_empty() ? String() : String("\n")) + line;
-		}
-		return out;
 	}
 
 	// The same for a structure, from its 0.28 template's Auras (templates.json).

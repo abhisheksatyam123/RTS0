@@ -84,6 +84,10 @@ public:
 	// shaders/player_color.gdshader, data/unit_variants.json).
 	static void set_variant(godot::Node *root, float u);
 	static float variant_draw(uint32_t entity_id);
+	// The entity's head, helmet, shield and cape meshes, each drawn by its id from
+	// the prop's 0 A.D. variants (data/unit_prop_looks.json); the other meshes are
+	// added beside the baked part on first use. glb is the unit GLB's id.
+	static void set_prop_looks(godot::Node *root, const godot::String &glb, uint32_t entity_id);
 	static bool is_player_color_material(const godot::Ref<godot::Material> &mat);
 	// The GLB a building model id draws with (data/building_models.json), or id itself.
 	static godot::String building_glb_id(const godot::String &id);

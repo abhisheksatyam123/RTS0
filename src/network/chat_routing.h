@@ -44,19 +44,23 @@ inline bool chat_observer_client(const std::string &tag, uint32_t &client) {
 // at or above max_players are observers; "[Player-N]" names player id + 1, 0
 // for an observer (any observer: older senders). "[Observer-C]" names one
 // observer by its client id, as 0.28's /msg names a GUID: to_client is the
-// receiver's. ally(a, b) / enemy(a, b): a's stance toward b.
+// receiver's. ally(a, b) / enemy(a, b): a's stance toward b. from_done /
+// to_done: that player has won or been defeated, so it counts as an observer
+// for observer chat, flares and private messages (0.28 isPlayerObserver:
+// state != "active"), while Allies and Enemies still go by its seat (g_Players).
 template <class Ally, class Enemy>
 bool chat_tag_reaches(uint8_t from, uint8_t to, const std::string &tag, uint8_t max_players,
-		Ally &&ally, Enemy &&enemy, uint32_t to_client = UINT32_MAX) {
-	const bool from_obs = from >= max_players, to_obs = to >= max_players;
+		Ally &&ally, Enemy &&enemy, uint32_t to_client = UINT32_MAX, bool from_done = false, bool to_done = false) {
+	const bool from_seat = from < max_players, to_seat = to < max_players;
+	const bool from_obs = !from_seat || from_done, to_obs = !to_seat || to_done;
 	if (tag.empty()) return true;
 	if (tag == "[Observers]") return to_obs;
-	if (tag == "[Allies]") return !from_obs && !to_obs && ally(from, to) && ally(to, from);
-	if (tag == "[Enemies]") return !from_obs && !to_obs && enemy(from, to);
-	// 0 A.D. sends a flare to the sender's mutual allies and the observers.
-	if (tag == "[Flare]") return to_obs || (!from_obs && ally(from, to) && ally(to, from));
+	if (tag == "[Allies]") return from_seat && to_seat && ally(from, to) && ally(to, from);
+	if (tag == "[Enemies]") return from_seat && to_seat && enemy(from, to);
+	// 0 A.D. shows a flare to the observers and the sender's mutual allies.
+	if (tag == "[Flare]") return to_obs || (from_seat && ally(from, to) && ally(to, from));
 	uint32_t observer = 0;
-	if (chat_observer_client(tag, observer)) return to_obs && to_client == observer;
+	if (chat_observer_client(tag, observer)) return !to_seat && to_client == observer;
 	if (tag.compare(0, 8, "[Player-") == 0) {
 		int target = 0;
 		for (size_t i = 8; i + 1 < tag.size(); ++i) {
@@ -64,7 +68,7 @@ bool chat_tag_reaches(uint8_t from, uint8_t to, const std::string &tag, uint8_t 
 			target = target * 10 + (tag[i] - '0');
 		}
 		// No private message from an observer to a player.
-		return (to_obs ? target == 0 : target == (int)to + 1) && (!from_obs || to_obs);
+		return (to_seat ? target == (int)to + 1 : target == 0) && (!from_obs || to_obs);
 	}
 	return true;
 }

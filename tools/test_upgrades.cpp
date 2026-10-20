@@ -61,6 +61,8 @@ int main() {
 		CHECK(s.upgrade_check(1, st) == Simulation::UPGRADE_ERR_OWNER);
 		Simulation::Building *b = find_bld(s, st);
 		b->hp = b->max_hp * 0.5f;
+		b->has_rally_point = true;
+		b->autoqueue = true;
 		CHECK(s.cmd_upgrade_building(0, st));
 		CHECK(s.player(0).wood() == 950.0f && s.player(0).stone() == 900.0f);
 		CHECK(s.upgrade_check(0, st) == Simulation::UPGRADE_ERR_BUSY);
@@ -73,6 +75,7 @@ int main() {
 		CHECK(b->type == BLD_TOWER && b->upgrade_to == BLD_TYPE_COUNT);
 		CHECK(near(b->max_hp, s.structure_max_hp(BLD_TOWER, 0)));
 		CHECK(near(b->hp, b->max_hp * 0.5f));
+		CHECK(!b->has_rally_point && !b->autoqueue); // Transform.js: a new entity, no rally point
 		CHECK(b->garrison_cap == building_type_info(BLD_TOWER).garrison_cap);
 		CHECK(b->max_capture_points >= building_type_info(BLD_TOWER).capture_max_points && near(b->capture_points, b->max_capture_points));
 		CHECK(s.upgrade_check(0, st) == Simulation::UPGRADE_ERR_NONE);
