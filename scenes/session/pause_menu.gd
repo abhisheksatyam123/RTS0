@@ -20,6 +20,10 @@ func _unhandled_input(event):
 	if "cancel" in hk or "session.gui.menu.toggle" in hk:
 		get_viewport().set_input_as_handled()
 		_on_resume_pressed()
+		# misc.xml cancel: closeOpenDialogs() closes the chat and the other dialogs too.
+		var main := get_parent()
+		if "cancel" in hk and main and main.has_method("close_open_dialogs"):
+			main.close_open_dialogs()
 
 ## Menu.js MENU_SPEED: 1.2 px per ms, sliding down to open and back up to close.
 const MENU_SPEED := 1200.0
@@ -36,7 +40,8 @@ func _slide_down() -> void:
 		var r: Rect2 = main.menu_button_rect()
 		if r.size.x > 0.0:
 			at = r
-	box.position = Vector2(at.end.x - 164.0, at.end.y + 2.0)
+	# Menu.xml: the 164 px panel spans 100%-164 to 100%, 8 px past the button's right edge.
+	box.position = Vector2(at.end.x + 8.0 - 164.0, at.end.y + 2.0)
 	box.size = Vector2(164.0, h)
 	panel.size = Vector2(164.0, h)
 	panel.position = Vector2(0.0, -h)

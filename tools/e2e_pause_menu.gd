@@ -134,8 +134,29 @@ func run() -> void:
 	await frames(10)
 	var mrect: Rect2 = main.menu_button_rect()
 	var prect: Rect2 = menu.get_node("CenterContainer/Panel").get_global_rect()
-	check(absf(prect.end.x - mrect.end.x) < 1.0 and prect.position.y >= mrect.end.y and prect.size.x == 164.0,
-		"the panel hangs under the Menu button: %s under %s" % [prect, mrect])
+	check(absf(prect.end.x - (mrect.end.x + 8.0)) < 1.0 and prect.position.y >= mrect.end.y and prect.size.x == 164.0 and mrect.size.x == 156.0,
+		"the 164 px panel hangs under the 156 px Menu button, 8 px past its right edge: %s under %s" % [prect, mrect])
+	# Esc (cancel) closes the menu and every open dialog (closeOpenDialogs).
+	main.toggle_chat()
+	await frames(2)
+	main._on_menu_button_pressed()
+	await frames(10)
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.physical_keycode = KEY_ESCAPE
+	esc.pressed = true
+	menu._unhandled_input(esc)
+	await frames(10)
+	check(not menu.visible and not main.debug_dialogs()["chat"], "Esc closes the menu and the chat")
+	# Top panel: Game Speed first, then Diplomacy, Barter & Trade, Match Settings; their tooltips colorize the hotkey.
+	var speed: Button = main.find_child("GameSpeedButton", true, false)
+	main._refresh_menu_tooltip()
+	var row: Array = speed.get_parent().get_children().filter(func(c): return c is Button and c.visible)
+	var at: int = row.find(speed)
+	check(at >= 0 and at + 3 < row.size() and speed.tooltip_text == "Game Speed" and speed.text == ""
+		and str(row[at + 1].tooltip_text).ends_with(" Diplomacy") and str(row[at + 2].tooltip_text).ends_with(" Barter & Trade")
+		and str(row[at + 3].tooltip_text).ends_with(" Match Settings") and str(row[at + 1].tooltip_text).contains("[color="),
+		"Game Speed, then Diplomacy, Barter & Trade, Match Settings with coloured hotkeys: " + str(row[at + 1].tooltip_text if at >= 0 and at + 1 < row.size() else ""))
 	var mb: Button = null
 	for b in main.find_children("*", "Button", true, false):
 		if b.text == "Menu":
