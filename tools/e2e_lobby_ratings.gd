@@ -180,6 +180,7 @@ func run() -> void:
 	ms.slot_names = ["", "Cleopatra", ""]
 	ms.slot_diffs = [3, 4, 3]
 	ms.slot_behs = [2, 3, 2]
+	ms.lock_teams = true
 	var net := {"slots": [{"client": 0, "name": "alice"}, {"client": -1, "name": ""}, {"client": 1, "name": "bob"}],
 		"observers": [{"client": 2, "name": "carol"}]}
 	var det: Dictionary = LobbySessionScript.room_details(ms, net, 0)
@@ -192,6 +193,12 @@ func run() -> void:
 		and names[1].get("team") == 1 and names[1].get("ai_difficulty") == 4 and names[1].get("ai_behavior") == 3
 		and names[2].get("name") == "bob" and names[3] == {"name": "carol", "team": -1, "observer": true},
 		"the seated players, the AI and the observers (%s)" % str(names))
+	# LobbyGamelistReporter getPlayers: Team only when LockTeams is set.
+	ms.lock_teams = false
+	var unlocked: Array = LobbySessionScript.room_details(ms, net, 0)["player_names"]
+	check(not unlocked[0].has("team") and not unlocked[1].has("team") and unlocked[3].get("team") == -1,
+		"teams not locked: no player team, observers still marked (%s)" % str(unlocked))
+	ms.lock_teams = true
 	ms.slot_types = [0, 2, 0]
 	check(LobbySessionScript.room_details(ms, net, 0)["player_names"].size() == 3, "a closed seat lists nobody")
 	# LobbyGameRegistration.formatClientsForStanza: before Start only the names of
