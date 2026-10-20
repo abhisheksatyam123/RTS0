@@ -1204,6 +1204,15 @@ bool RtsoMain::load_game(String path) {
 		selected_ids.clear();
 		selected_building_id = 0;
 		restore_saved_gui(path);
+		// The models the saved world draws load here, behind the loading page (0.28's
+		// LDR_ProgressiveLoad), not on the first frame of play.
+		if (view) {
+			const uint64_t t0 = Time::get_singleton()->get_ticks_msec();
+			view->warm_models(sim, [this](int done, int total) {
+				load_progress(60 + 35 * done / std::max(1, total), "Loading models");
+			});
+			print_line(String("[RTS0] Loaded the saved world's models in ") + String::num_int64(Time::get_singleton()->get_ticks_msec() - t0) + " ms");
+		}
 		print_line("[RTS0] Game loaded successfully from " + path);
 		// The game goes on from the save as a new replay that starts from it.
 		if (!loading_replay_start_ && !net_lockstep()) begin_recording_from_save(path);

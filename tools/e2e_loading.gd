@@ -101,6 +101,8 @@ func run() -> void:
 	while is_instance_valid(page):
 		await process_frame
 	check(Loading.last_stages.map(func(s): return s[1]).has("Loading saved game"), "a save reports Loading saved game")
+	# The saved world's models load behind the page, not on the first frame of play.
+	check(Loading.last_stages.map(func(s): return s[1]).has("Loading models"), "a save reports Loading models")
 	ms.load_save_path = ""
 
 	print("4. manual")
