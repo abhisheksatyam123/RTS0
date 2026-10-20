@@ -295,6 +295,44 @@ func _build_project_information() -> void:
 	build.offset_top = -36
 	build.offset_bottom = 0
 	main_panel.add_child(build)
+	_project_info = info
+	_project_desc = desc
+	main_panel.resized.connect(_fit_project_information)
+	$MainPanel/Buttons.resized.connect(_fit_project_information)
+	_fit_project_information.call_deferred()
+
+var _project_info: Panel
+var _project_desc: RichTextLabel
+const INFO_BOTTOM := 94.0
+const INFO_TOP := 368.0
+
+## On short screens (a phone in landscape) the info panel would cover the menu buttons
+## with its link buttons: keep only the link rows that fit below the menu, bottom row
+## first, and drop the notice. Where all the link rows fit, it stays as 0.28 draws it
+## (the notice may tuck under the menu buttons at low resolutions).
+func _fit_project_information() -> void:
+	if _project_info == null:
+		return
+	var menu_bottom: float = $MainPanel/Buttons.position.y + $MainPanel/Buttons.size.y + 4.0
+	var room := main_panel.size.y - INFO_BOTTOM - menu_bottom
+	var links_top := 0.0
+	for b in community_buttons:
+		links_top = maxf(links_top, -b.offset_top + 8.0)
+	if room >= links_top:
+		_project_info.visible = true
+		_project_info.offset_top = -INFO_TOP
+		_project_desc.visible = true
+		for b in community_buttons:
+			b.visible = true
+		return
+	_project_desc.visible = false
+	var used := 0.0
+	for b in community_buttons:
+		b.visible = -b.offset_top + 8.0 <= room
+		if b.visible:
+			used = maxf(used, -b.offset_top + 8.0)
+	_project_info.visible = used > 0.0
+	_project_info.offset_top = -INFO_BOTTOM - used
 
 ## getBuildString: "Build: %(buildDate)s (%(version)s)", the date the GDExtension was
 ## built and the version.
