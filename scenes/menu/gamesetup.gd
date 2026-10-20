@@ -2215,6 +2215,7 @@ func _on_start_pressed() -> void:
 	ms.regicide_garrison = bool(st["regicide_garrison"])
 	ms.lock_teams = bool(st["lock_teams"])
 	ms.cheats = bool(st["cheats"])
+	ms.rated = false # RatingEnabled: only a lobby game is rated
 	ms.disable_spies = bool(st["disable_spies"])
 	ms.disable_treasures = bool(st["disable_treasures"])
 	ms.biome = int(st["biome"])
