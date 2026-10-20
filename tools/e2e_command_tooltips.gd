@@ -99,9 +99,10 @@ func run() -> void:
 		check(cc != null and cc.tooltip_text.contains("Current Count:"), "and its EntityLimits line")
 		var temple: Button = null
 		for b in buttons(main, []):
-			if b.tooltip_text.contains("\nMedical Treatment: "):
+			if preload("res://scenes/common/tooltips.gd").plain(b.tooltip_text).contains("\nMedical Treatment: "):
 				temple = b
-		check(temple != null and temple.tooltip_text.contains("Humans +1 health regeneration rate. Range: 40 meters"),
+		check(temple != null and preload("res://scenes/common/tooltips.gd").plain(temple.tooltip_text).contains("Humans +1 health regeneration rate. Range: 40 meters")
+				and temple.tooltip_text.contains("[font_size=13]Humans +1") and temple.tooltip_text.contains("[color=orange]meters"),
 				"a temple's aura line (getAurasTooltip)")
 		# getEntityCostTooltip for a wallset: the pieces' range and the tower's cost.
 		var pal: Button = null
