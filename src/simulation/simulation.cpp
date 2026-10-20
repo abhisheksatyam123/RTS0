@@ -8724,7 +8724,10 @@ const TurretPointSet *Simulation::turret_points_of(const Building &b) const {
 	}
 	const int kind = b.type == BLD_WALL_SEGMENT ? 0 : b.type == BLD_GATE ? 1 : b.type == BLD_OUTPOST ? 2 : -1;
 	if (kind < 0) return nullptr;
-	const uint8_t civ = b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_ATHENIANS;
+	// TurretHolder points come from the structure's own template, so a captured wall, gate or
+	// outpost keeps its civ's layout (b.civ survives capture).
+	const uint8_t civ = b.civ < CIV_COUNT && b.civ != CIV_GAIA ? b.civ
+			: b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_ATHENIANS;
 	const int c = civ < CIV_COUNT ? civ : 0;
 	if (is_wallset_piece(b.type, b.half_size)) {
 		// A WallSet piece holds its own template's points: wall_long's or wall_medium's by length,
