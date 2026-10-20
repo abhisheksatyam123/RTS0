@@ -866,7 +866,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
 
         # Convert entities into RTS0 format
         resources = []
-        gaia = {"fauna": [], "treasures": [], "ruins": [], "gaia_structures": [], "gaia_units": [], "scenery": []}
+        gaia = {"fauna": [], "treasures": [], "ruins": [], "gaia_structures": [], "gaia_units": [], "scenery": [], "relics": []}
         gaia_unit_index = {}       # uid -> index in gaia["gaia_units"]
         gaia_structure_index = {}  # uid -> index in gaia["gaia_structures"]
         fauna = gaia["fauna"]
@@ -938,6 +938,12 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 elif gaia_entity(ltpl, wx, wz):
                     key, ent = gaia_entity(ltpl, wx, wz)
                     gaia[key].append(ent)
+                elif ltpl.startswith("units/") and ltpl.endswith("/catafalque"):
+                    # A Gaia catafalque is a relic (template_unit_catafalque.xml, Identity class
+                    # Relic), there to be captured whatever the victory conditions; Capture the
+                    # Relic adds its relicCount on top (CaptureTheRelic.js). "civ": whose catafalque.
+                    code = ltpl.split("/")[1]
+                    gaia["relics"].append({"civ": CIV_CODES.index(code) if code in CIV_CODES else -1, "x": wx, "z": wz})
                 elif ltpl.startswith(("units/", "structures/")):
                     owned = gaia_owned(files, ltpl, wx, wz, angle_by_uid.get(uid, 0.0), scale)
                     if owned:
@@ -1126,6 +1132,8 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             "revealers": revealers
         }
         # TriggerScripts, by base name; RTS0 runs its C++ port of each (Simulation::register_trigger_script).
+        if gaia["relics"]:
+            map_data["relics"] = gaia["relics"]
         if pop_limit is not None:
             map_data["pop_limit"] = pop_limit
         if scripts:
@@ -1238,11 +1246,15 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 old = json.load(f)
             k = old.get("world_size", world_size_m) / world_size_m
             mine = [dict(e, x=round(e["x"] * k, 2), z=round(e["z"] * k, 2)) for e in units]
-            if mine != old.get("units", []):
+            relics = [dict(e, x=round(e["x"] * k, 2), z=round(e["z"] * k, 2)) for e in gaia["relics"]]
+            if mine != old.get("units", []) or relics != old.get("relics", []):
                 old["units"] = mine
+                old.pop("relics", None)
+                if relics:
+                    old["relics"] = relics
                 with open(out_path, "w") as f:
                     json.dump(old, f, indent=2)
-            print(f"  -> {out_path}: {len(mine)} units")
+            print(f"  -> {out_path}: {len(mine)} units, {len(relics)} relics")
             return
         if livestock_only:
             # Keep the existing map; only refresh the players' own livestock (fauna with a player).

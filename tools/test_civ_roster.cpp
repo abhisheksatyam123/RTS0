@@ -439,7 +439,7 @@ int main()
 			}
 		}
 		std::snprintf(msg, sizeof msg, "map-only rows (%d) are trained nowhere and sit in their civ's slot", map_rows);
-		check(map_rows_ok && map_rows == 48, msg); // 44 + the Marian legionaries _02-_05
+		check(map_rows_ok && map_rows == 50, msg); // 44 + the Marian legionaries _02-_05 + Xenophon, Leonidas 300
 		for (uint8_t c = 0; c < CIV_COUNT; ++c)
 			for (uint16_t i : civ_roster_ids(c))
 				if (civ_unit_template(i).flags & ROSTER_MAP_ONLY) check(false, "a map-only row is in a civ's trainable roster");
@@ -474,6 +474,28 @@ int main()
 				u.hack_damage == 26.0f && u.attack_damage == 26.0f && std::fabs(u.attack_cooldown - 0.75f) < 0.001f &&
 				u.auras[0] >= 0 && std::strcmp(civ_hero_aura(u.auras[0]).id, "mace_hero_craterus") == 0,
 				"Craterus: 1000 health, 26 hack every 0.75 s, his own aura");
+		}
+		// Regicide.js draws each player's hero from every Hero template of its civ
+		// (GetTemplateNamesByClasses), Xenophon and the 300's Leonidas included.
+		{
+			static const struct { uint8_t civ; int heroes; } kPools[] = {
+				{CIV_ATHENIANS, 5}, {CIV_SPARTANS, 4}, {CIV_PERSIANS, 4}, {CIV_ROMANS, 6}, {CIV_CARTHAGINIANS, 3},
+				{CIV_MACEDONIANS, 6}, {CIV_BRITONS, 6}, {CIV_GAULS, 4}, {CIV_IBERIANS, 4}, {CIV_MAURYANS, 6},
+				{CIV_KUSHITES, 5}, {CIV_PTOLEMIES, 3}, {CIV_SELEUCIDS, 3}, {CIV_HAN, 7}, {CIV_GERMANS, 3}};
+			bool pools = row_of("athen/hero_xenophon") != CIV_UNIT_TEMPLATE_NONE &&
+					row_of("spart/hero_leonidas_300") != CIV_UNIT_TEMPLATE_NONE;
+			for (const auto &p : kPools) {
+				int n = 0;
+				for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i) {
+					const CivUnitTemplate &u = civ_unit_template(i);
+					if (u.civ == p.civ && (u.flags & ROSTER_HERO) && !std::strstr(u.id, "/rts0_")) ++n;
+				}
+				if (n != p.heroes) {
+					std::printf("  civ %d: %d heroes, 0.28 has %d\n", p.civ, n, p.heroes);
+					pools = false;
+				}
+			}
+			check(pools, "each civ's Regicide hero pool holds all of 0.28's Hero templates");
 		}
 		static const char *const kMapRows[] = {"samnite_spearman", "samnite_skirmisher", "athen/infantry_marine_archer_b",
 			"pers/kardakes_hoplite", "pers/kardakes_skirmisher", "cart/champion_pikeman", "spart/champion_infantry_pike",
@@ -532,6 +554,13 @@ int main()
 		sim.reset();
 		sim.set_team_civ(0, CIV_MACEDONIANS);
 		sim.set_team_civ(1, CIV_ROMANS);
+		// A map's _unpacked siege stands in as its packed row, unpacked (REMAINING_GAPS SU2).
+		{
+			const int32_t up = sim.lookup_unit(sim.spawn_map_unit(-20.0f, 0.0f, 0, UNIT_SWORDSMAN, "athen/siege_lithobolos_packed", 0, true));
+			const int32_t pk = sim.lookup_unit(sim.spawn_map_unit(-30.0f, 0.0f, 0, UNIT_SWORDSMAN, "athen/siege_lithobolos_packed"));
+			check(up >= 0 && pk >= 0 && sim.units_.pack_state[up] == PACK_UNPACKED && sim.units_.pack_state[pk] == PACK_PACKED,
+				"a map's unpacked stone thrower starts unpacked, a packed one packed");
+		}
 		int32_t i = sim.lookup_unit(sim.spawn_map_unit(0.0f, 0.0f, 0, UNIT_HERO, "mace/hero_craterus"));
 		check(i >= 0 && sim.units_.tmpl[i] == civ_unit_template_by_id("mace/hero_craterus") && sim.units_.max_hp[i] == 1000.0f,
 			"a map's Craterus spawns as Craterus, not the Macedonian default hero");

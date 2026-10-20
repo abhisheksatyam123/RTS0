@@ -21,6 +21,11 @@ func check(cond: bool, what: String) -> void:
 		failures += 1
 
 func _initialize() -> void:
+	# One map for every run: the random default's trees can stand under the points below.
+	var ms = root.get_node("MatchSettings")
+	ms.map_id = "random_continental"
+	ms.seed = 11
+	ms.map_size = 128
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	run.call_deferred()

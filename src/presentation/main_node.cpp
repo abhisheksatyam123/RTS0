@@ -2146,11 +2146,11 @@ void RtsoMain::refresh_dev_overlay() {
 // "snap" also moves the camera to the first.
 void RtsoMain::perform_group(int grp, GroupAction action) {
 	if (!sim || grp < 0 || grp > 9) return;
-	// input.js performGroup: the group's living units, and its structure (one at a time
-	// here); a member inside a structure stays in the group and the camera snaps to its
-	// holder when nothing else of the group is out.
+	// input.js performGroup: the group's living units and structures (addList(toSelect)); a
+	// member inside a structure stays in the group and the camera snaps to its holder when
+	// nothing else of the group is out.
 	PackedInt32Array recall, kept;
-	uint32_t recall_building = 0;
+	std::vector<uint32_t> recall_buildings;
 	// The snap goes to the group's lowest id, or its holder (getEntityOrHolder(toSelect[0])).
 	int32_t snap_id = 0;
 	Vector3 snap_pos;
@@ -2178,7 +2178,7 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 		if (!found)
 			for (const auto &b : sim->buildings())
 				if (b.id == (uint32_t)gid && b.team == local_player() && !b.wrecked && b.hp > 0.0f) {
-					if (!recall_building) recall_building = b.id;
+					recall_buildings.push_back(b.id);
 					at = Vector3(b.x, 0, b.z);
 					found = true;
 					break;
@@ -2190,12 +2190,16 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 	}
 	selected_groups[grp] = kept;
 	if (kept.is_empty()) return;
-	if (recall.is_empty() && !recall_building) {
+	// addList(toSelect) brings each unit's formation along (addFormationMembers).
+	for (int m = 0, n = recall.size(); m < n; ++m)
+		for (int32_t uid : formation_mates(recall[m]))
+			if (!recall.has(uid)) recall.push_back(uid);
+	if (recall.is_empty() && recall_buildings.empty()) {
 		// Everyone is inside: performGroup's g_Selection.reset() still drops the old selection
 		// (the members inside can't be picked here), and the snap goes to the holder.
 		if (action != GROUP_ADD) {
 			selected_ids.clear();
-			selected_building_id = 0;
+			set_selected_structures({});
 		}
 		if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(snap_pos);
 		return;
@@ -2203,10 +2207,14 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 	if (action == GROUP_ADD) {
 		for (int m = 0; m < recall.size(); ++m)
 			if (!selected_ids.has(recall[m])) selected_ids.push_back(recall[m]);
-		if (recall_building) selected_building_id = recall_building;
+		if (!recall_buildings.empty()) {
+			std::vector<uint32_t> structures = selected_structures();
+			structures.insert(structures.end(), recall_buildings.begin(), recall_buildings.end());
+			set_selected_structures(structures);
+		}
 	} else {
 		selected_ids = recall;
-		selected_building_id = recall_building;
+		set_selected_structures(recall_buildings);
 	}
 	if (action == GROUP_SNAP && cam_rig && snap_id != 0) cam_rig->set_target_pos(snap_pos);
 	play_civ_voice("select");
