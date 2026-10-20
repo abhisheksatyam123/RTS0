@@ -1937,6 +1937,27 @@ static void test_gather_around_lake() {
 // navalManager.js buildNavalStructures: from the town phase, with a dock and a market
 // and population past popPhase2 + 15, a Carthaginian Petra lays out its Cothon (super
 // dock) on the dock's sea; a civ without one in its Builder lists builds none.
+// transportPlan.js:82: a crossing asked for with no free ship is planned all the same
+// (needTransportShips) and takes the first transport ship that comes.
+static void test_petra_crossing_waits_for_ship() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.petra_pid_ = 1;
+	const uint16_t north = s.petra_land_at(-30.0f, 40.0f), south = s.petra_land_at(-30.0f, -40.0f);
+	const uint16_t sea = s.petra_topo().sea_between(north, south);
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 3; ++k) crew.push_back(s.spawn_unit(-34.0f + 2.0f * k, 44.0f, 1, UNIT_VILLAGER));
+	const bool planned = s.petra_start_transport(crew, -30.0f, 44.0f, -30.0f, -40.0f, sea, PETRA_TRANSPORT_BUILDERS);
+	const uint32_t first = s.petra_transport_plans().empty() ? 1u : s.petra_transport_plans().back().ship_id;
+	const uint32_t ship = s.spawn_unit(-30.0f, 4.0f, 1, UNIT_TRIREME);
+	s.petra_manage_transport(Simulation::FIXED_STEP);
+	const uint32_t later = s.petra_transport_plans().empty() ? 0u : s.petra_transport_plans().back().ship_id;
+	std::printf("crossing with no ship: sea %u, planned %s, ship %u, then %u (trireme %u)\n", sea, planned ? "yes" : "no", first, later, ship);
+	CHECK(sea && planned && first == 0 && later == ship);
+	s.petra_transports_.clear();
+}
+
 static void test_petra_cothon() {
 	for (Civilization civ : {CIV_CARTHAGINIANS, CIV_ATHENIANS}) {
 		static Simulation s;
@@ -2343,6 +2364,7 @@ int main() {
 	test_petra_laden_ship_lands();
 	test_petra_merchantman_transport();
 	test_petra_cothon();
+	test_petra_crossing_waits_for_ship();
 	test_ship_treasure();
 	test_ship_round_wreck();
 	test_petra_ship_treasure();
