@@ -2312,6 +2312,9 @@ public:
 	// its capture points (CanAttack "Capture": a Capture attack and Capturable.CanCapture)?
 	bool any_can_damage_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const;
 	bool any_can_capture_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const;
+	// unit_actions.js "heal" firstAbleEntity: the first of unit_ids that heals and may heal the unit
+	// target_id (Heal.js CanHeal: an injured own or allied Human, not itself), else 0.
+	uint32_t first_able_healer(const uint32_t *unit_ids, size_t count, uint32_t target_id) const;
 	void tick_scenery_capture(); // Capturable.js TimerTick: territory decay, then regeneration
 	void scenery_check_owner(Scenery &sc); // RegisterCapturePointsChanged
 	float unit_damage_to_scenery(size_t i) const;

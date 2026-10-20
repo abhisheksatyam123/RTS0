@@ -18331,6 +18331,16 @@ bool Simulation::any_can_capture_building(const uint32_t *unit_ids, size_t count
 	return false;
 }
 
+uint32_t Simulation::first_able_healer(const uint32_t *unit_ids, size_t count, uint32_t target_id) const {
+	const int32_t t = lookup_unit(target_id);
+	for (size_t n = 0; t >= 0 && n < count; ++n) {
+		const int32_t u = lookup_unit(unit_ids[n]);
+		if (u < 0 || !units_.alive[u] || !unit_is_healer(units_.tmpl[u], units_.unit_type[u])) continue;
+		if (can_heal((size_t)u, t)) return unit_ids[n];
+	}
+	return 0;
+}
+
 bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 	if (b.wrecked || b.hp <= 0.0f || b.build_progress < 1.0f || b.max_capture_points <= 0.0f) return false;
 	if (player >= MAX_PLAYERS || ceasefire_active()) return false;
