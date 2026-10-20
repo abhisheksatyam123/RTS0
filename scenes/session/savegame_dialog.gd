@@ -352,9 +352,10 @@ func _delete_key(event: InputEventKey) -> bool:
 
 ## SavegameDeleter deleteButtonTooltip: every key bound to the delete hotkeys.
 func _delete_tooltip() -> String:
-	var keys: Dictionary = _hotkeys.call("get_hotkey_map") if _hotkeys else {}
-	return L10n.sprintf(L10n.t("Delete the selected savegame using %(hotkey)s."), {"hotkey": ReplayPage.hotkey_text(keys, "session.savedgames.delete")}) + \
-		"\n" + L10n.sprintf(L10n.t("Hold %(hotkey)s to skip the confirmation dialog while deleting."), {"hotkey": ReplayPage.hotkey_text(keys, "session.savedgames.noconfirmation")})
+	# colorizeHotkey: the gold "[key]", or "Unassigned hotkey: name" translated.
+	var cfg := RtsoHotkeyConfig.new()
+	return cfg.colorize(L10n.t("Delete the selected savegame using %(hotkey)s."), "session.savedgames.delete") + \
+		"\n" + cfg.colorize(L10n.t("Hold %(hotkey)s to skip the confirmation dialog while deleting."), "session.savedgames.noconfirmation")
 
 ## session.savedgames.noconfirmation held, from the key event's own modifiers when it names one.
 func _skip_confirmation(event: InputEventKey) -> bool:
@@ -425,10 +426,8 @@ func _build() -> void:
 	var outer := VBoxContainer.new()
 	outer.add_theme_constant_override("separation", 6)
 	panel.add_child(outer)
-	var title := _label("Save Game" if mode == "save" else "Load Game", 20, GOLD)
-	title.name = "Title"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	outer.add_child(title)
+	# load.xml: the title on the dialog's top edge (-18..14), as ModernDialog pages draw it.
+	load("res://scenes/menu/hotkeys.gd")._edge_title(panel, tr("Save Game") if mode == "save" else tr("Load Game"))
 	var cols := HBoxContainer.new()
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	cols.add_theme_constant_override("separation", 16)
