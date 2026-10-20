@@ -35,3 +35,4 @@ None of these touches simulation state or the save format.
 - 2026-10-20 #PR2 pass 11 gap 4 (`/clear` in the setup empties the setup chat, as clearChatMessages does there) merged.
 - 2026-10-20 pass 11 gap 5 (ready status as the name's colour, no " (Ready)" suffix) landed with Session UI's #1429 while this pass was open.
 - 2026-10-20 #PR2 pass 11 gap 6 (once disconnected the pause overlay hides and pausing is off, as PauseOverlay.rebuild and canPause do) merged.
+- 2026-10-20 #PR2 (outside the table; reported by Session UI) a lobby request whose page was freed before its answer no longer calls the dead page's callback ("Attempt to call function on a null instance", lobby_session.gd `_send`).
