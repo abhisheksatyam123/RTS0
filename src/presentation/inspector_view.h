@@ -517,22 +517,22 @@ public:
 			const float dx = m.x - cx, dz = m.z - cz;
 			if (dx * dx + dz * dz <= hr * hr) return pick(INSPECT_BUILDING, m.id);
 		}
+		// Resource supplies and treasures likewise (ResourceSupplyMirage): a supply used up or a
+		// treasure taken in the fog stays selectable until the spot is seen again.
 		{
-			auto rv = sim->resources();
-			size_t best = (size_t)-1;
+			uint32_t best = 0;
 			float best_d2 = 1.3f * 1.3f;
-			for (size_t r = 0; r < rv.count; ++r) {
-				if (!rv.alive[r] || rv.subtype[r] == rtso::RES_SUB_GRAIN || !explored(rv.x[r], rv.z[r])) continue;
-				const float dx = rv.x[r] - cx, dz = rv.z[r] - cz, d2 = dx * dx + dz * dz;
-				if (d2 < best_d2) { best_d2 = d2; best = r; }
+			for (const auto &m : mirages_.resources()) {
+				if (m.subtype == rtso::RES_SUB_GRAIN) continue;
+				const float dx = m.x - cx, dz = m.z - cz, d2 = dx * dx + dz * dz;
+				if (d2 < best_d2) { best_d2 = d2; best = m.id; }
 			}
-			if (best != (size_t)-1) return pick(INSPECT_RESOURCE, rv.id[best]);
+			if (best != 0) return pick(INSPECT_RESOURCE, best);
 		}
 		{
 			uint32_t best = 0;
 			float best_d2 = 1.3f * 1.3f;
-			for (const auto &t : sim->treasures()) {
-				if (!explored(t.x, t.z)) continue;
+			for (const auto &t : mirages_.treasures()) {
 				const float dx = t.x - cx, dz = t.z - cz, d2 = dx * dx + dz * dz;
 				if (d2 < best_d2) { best_d2 = d2; best = t.id; }
 			}
@@ -653,6 +653,13 @@ public:
 				stats_->set_text(seen->build_progress < 1.0f
 						? "Construction: " + String::num((double)(seen->build_progress * 100.0f), 0) + "%" : String());
 				stats_->set_tooltip_text(String());
+				// The mirage's portrait: its template's tooltip, a left click to its spot, a right
+				// click to the template viewer (selection_details.js displaySingle).
+				const uint8_t civ = rtso::is_playable_civ(seen->civ) ? seen->civ
+						: seen->team < rtso::MAX_PLAYERS ? sim->player_civ(seen->team) : sim->player_civ(host_->local_player());
+				set_portrait_target(false, seen->id, seen->x, seen->z, "structure", seen->type, civ);
+				const godot::Dictionary entry = rtso::portraits::structure_entry(seen->civ, seen->type);
+				portrait_->set_tooltip_text(portrait_tooltip(title_->get_text(), entry, rtso::seldet::structure_auras_tooltip(entry), String(), false));
 				return true;
 			}
 			const rtso::Simulation::Building *found = nullptr;
@@ -685,8 +692,9 @@ public:
 		}
 		if (kind_ == INSPECT_TREASURE) {
 			// selection_details.js: the treasure's name and its Treasure/Resources as the reward.
-			const rtso::Simulation::Treasure *found = nullptr;
-			for (const auto &t : sim->treasures())
+			mirages_.update(*sim, host_->view_player());
+			const rtso::FoggedTreasure *found = nullptr;
+			for (const auto &t : mirages_.treasures())
 				if (t.id == id_) { found = &t; break; }
 			if (!found) return false;
 			const auto &ti = rtso::treasure_type_info(found->type);
@@ -705,40 +713,44 @@ public:
 			extra_->set_text("Collect treasures for resources.");
 			return true;
 		}
-		// A resource: its kind and what is left (selection_details.js resourceSupply).
-		auto rv = sim->resources();
-		size_t r = 0;
-		for (; r < rv.count; ++r)
-			if (rv.id[r] == id_) break;
-		if (r == rv.count || !rv.alive[r] || rv.amount[r] <= 0) return false;
+		// A resource: its kind and what is left (selection_details.js resourceSupply), as the
+		// viewer last saw it when it is in the fog (ResourceSupplyMirage).
+		mirages_.update(*sim, host_->view_player());
+		const rtso::FoggedResource *res = nullptr;
+		for (const auto &m : mirages_.resources())
+			if (m.id == id_) { res = &m; break; }
+		if (!res) return false;
 		String title, kind;
-		switch (rv.type[r]) {
-		case rtso::RES_WOOD: title = flora_title(rv.flora ? rv.flora[r] : 0); kind = "Wood"; break;
-		case rtso::RES_GOLD: title = rv.subtype[r] == rtso::RES_SUB_RUINS ? "Ruins" : "Metal Mine"; kind = "Metal"; break;
-		case rtso::RES_STONE: title = rv.subtype[r] == rtso::RES_SUB_RUINS ? "Ruins" : "Stone Quarry"; kind = "Stone"; break;
+		switch (res->type) {
+		case rtso::RES_WOOD: title = flora_title(res->flora); kind = "Wood"; break;
+		case rtso::RES_GOLD: title = res->subtype == rtso::RES_SUB_RUINS ? "Ruins" : "Metal Mine"; kind = "Metal"; break;
+		case rtso::RES_STONE: title = res->subtype == rtso::RES_SUB_RUINS ? "Ruins" : "Stone Quarry"; kind = "Stone"; break;
 		default:
-			title = rv.subtype[r] == rtso::RES_SUB_MEAT ? String("Carcass") : rv.subtype[r] == rtso::RES_SUB_FISH ? String("Fish")
-					: flora_title(rv.flora ? rv.flora[r] : rtso::FLORA_BERRY);
+			title = res->subtype == rtso::RES_SUB_MEAT ? String("Carcass") : res->subtype == rtso::RES_SUB_FISH ? String("Fish")
+					: flora_title(res->flora);
 			kind = "Food";
 		}
 		// A tree or fruit: its template's SpecificName under the Tree or Fruit GenericName
 		// (gaia/tree and gaia/fruit templates set only SpecificName): "Aleppo Pine (Tree)".
-		if (rv.type[r] == rtso::RES_WOOD || (rv.type[r] == rtso::RES_FOOD && rv.subtype[r] != rtso::RES_SUB_MEAT &&
-				rv.subtype[r] != rtso::RES_SUB_FISH && rv.subtype[r] != rtso::RES_SUB_GRAIN)) {
-			const String generic = rtso::portraits::resource_entry(rv.type[r], rv.subtype[r], rv.flora ? rv.flora[r] : 0).get("generic_name", String());
+		if (res->type == rtso::RES_WOOD || (res->type == rtso::RES_FOOD && res->subtype != rtso::RES_SUB_MEAT &&
+				res->subtype != rtso::RES_SUB_FISH && res->subtype != rtso::RES_SUB_GRAIN)) {
+			const String generic = rtso::portraits::resource_entry(res->type, res->subtype, res->flora).get("generic_name", String());
 			if (!generic.is_empty()) title = rtso::entity_names(generic, title);
 		}
-		portrait_->set_texture(rtso::portraits::resource(rv.type[r], rv.subtype[r], rv.flora ? rv.flora[r] : 0));
+		// A carcass keeps its animal's Identity and Ownership (special/filter/resource.xml).
+		const bool carcass = res->subtype == rtso::RES_SUB_MEAT && res->fauna != 0;
+		if (carcass) title = String::utf8(rtso::fauna_type_info((uint8_t)(res->fauna - 1)).name);
+		portrait_->set_texture(carcass ? rtso::portraits::fauna((uint8_t)(res->fauna - 1)) : rtso::portraits::resource(res->type, res->subtype, res->flora));
 		title_->set_text(title);
-		set_owner(*sim, rtso::GAIA_PLAYER);
+		set_owner(*sim, carcass && res->owner < rtso::MAX_PLAYERS ? res->owner : rtso::GAIA_PLAYER);
 		bar(hp_bar_, hp_label_, false);
-		set_portrait_target(false, 0, rv.x[r], rv.z[r], String(), -1, 0);
-		portrait_->set_tooltip_text(portrait_tooltip(title, rtso::portraits::resource_entry(rv.type[r], rv.subtype[r], rv.flora ? rv.flora[r] : 0),
-				String(), String(), false));
+		set_portrait_target(false, 0, res->x, res->z, String(), -1, 0);
+		portrait_->set_tooltip_text(portrait_tooltip(title, carcass ? rtso::portraits::fauna_entry((uint8_t)(res->fauna - 1))
+				: rtso::portraits::resource_entry(res->type, res->subtype, res->flora), String(), String(), false));
 		// resourceSection ("Wood:" and amount / max, ∞ for a field) and the gatherers count
 		// (current / max, "Current/max gatherers").
 		(void)kind;
-		stats_->set_text(supply_lines(*sim, rv.id[r]));
+		stats_->set_text(supply_lines(*sim, res->id, res));
 		stats_->set_tooltip_text(rtso::tr0("Current/max gatherers"));
 		return true;
 	}
@@ -1186,8 +1198,13 @@ private:
 	}
 	// A resource's (or a field's) supply as the resource bar, and its gatherers, current / max,
 	// as the returned line (resourceCarryingText, "Current/max gatherers").
-	String supply_lines(const rtso::Simulation &sim, uint32_t res_id) {
+	// seen: the viewer's copy of the supply; a mirage shows its last-seen amount and gatherers.
+	String supply_lines(const rtso::Simulation &sim, uint32_t res_id, const rtso::FoggedResource *seen = nullptr) {
 		if (!res_id) return String();
+		if (seen && seen->miraged) {
+			show_resource_bar(seen->type, seen->amount, sim.resource_supply_max(res_id), seen->amount >= rtso::FIELD_FOOD_SUPPLY);
+			return rtso::seldet::amount_of(seen->gatherers, sim.resource_max_gatherers(res_id));
+		}
 		auto rv = sim.resources();
 		size_t r = 0;
 		for (; r < rv.count; ++r)
@@ -1304,7 +1321,8 @@ private:
 		const uint8_t civ = rtso::is_playable_civ(b.civ) ? b.civ
 				: b.team < rtso::MAX_PLAYERS ? sim.player_civ(b.team) : sim.player_civ(host_->local_player());
 		set_portrait_target(false, b.id, b.x, b.z, "structure", b.type, civ);
-		portrait_->set_tooltip_text(portrait_tooltip(title_->get_text(), rtso::portraits::structure_entry(b.civ, b.type), String(), String(), false));
+		const godot::Dictionary entry = rtso::portraits::structure_entry(b.civ, b.type);
+		portrait_->set_tooltip_text(portrait_tooltip(title_->get_text(), entry, rtso::seldet::structure_auras_tooltip(entry), String(), false));
 	}
 	// A "%(label)s\n%(details)s" tooltip's details, unindented, for the stats lines.
 	static String body_lines(const String &tip) {
