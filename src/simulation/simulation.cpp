@@ -22363,16 +22363,21 @@ void Simulation::petra_naval_topology(PetraNavalTopo &t) const {
 // id changed: attack plans ask about it on every AI tick. A pure function of the
 // nav grid, so the cache needs no saving.
 const Simulation::PetraNavalTopo &Simulation::petra_topo() const {
-	uint64_t key = 1469598103934665603ull ^ nav_grid_.cells.data.size() ^ (uint64_t)nav_grid_.regions_ready_;
-	for (uint8_t c : nav_grid_.cells.data) key = (key ^ c) * 1099511628211ull;
 	// Region ids too: a full rebuild (a loaded game) may number them afresh.
-	for (const GlobalRegionIds *g : {&nav_grid_.global_region_map_, &nav_grid_.ship_region_map_}) {
-		for (uint32_t f : g->first) key = (key ^ f) * 1099511628211ull;
-		for (uint16_t id : g->id) key = (key ^ id) * 1099511628211ull;
-	}
-	if (!petra_topo_cache_valid_ || key != petra_topo_cache_key_) {
+	const GlobalRegionIds *maps[2] = {&nav_grid_.global_region_map_, &nav_grid_.ship_region_map_};
+	bool same = petra_topo_cache_valid_ && petra_topo_regions_ready_ == nav_grid_.regions_ready_ &&
+			petra_topo_cells_ == nav_grid_.cells.data;
+	for (int g = 0; same && g < 2; ++g)
+		same = petra_topo_first_[g] == maps[g]->first && petra_topo_ids_[g] == maps[g]->id;
+	if (!same) {
 		petra_naval_topology(petra_topo_cache_);
-		petra_topo_cache_key_ = key;
+		petra_topo_cells_ = nav_grid_.cells.data;
+		for (int g = 0; g < 2; ++g) {
+			petra_topo_first_[g] = maps[g]->first;
+			petra_topo_ids_[g] = maps[g]->id;
+		}
+		petra_topo_regions_ready_ = nav_grid_.regions_ready_;
+		++petra_topo_cache_key_;
 		petra_topo_cache_valid_ = true;
 	}
 	return petra_topo_cache_;
@@ -33529,6 +33534,36 @@ bool Simulation::los_visible(uint8_t player, float x, float z) const {
 	if (reveal_map_) return true;
 	if (los_.cells() == 0) return false;
 	return (los_.visible_bits(los_.cell_of(x, z)) & los_shared_mask(player)) != 0;
+}
+
+bool Simulation::player_can_target_unit(uint8_t player, uint32_t unit_id) const {
+	const int32_t t = lookup_unit(unit_id);
+	if (t < 0 || player >= MAX_PLAYERS || los_.cells() == 0) return true;
+	const uint8_t owner = units_.team[t];
+	if (owner == player || (owner < MAX_PLAYERS && is_ally(player, owner))) return true;
+	return los_visible(player, units_.pos_x[t], units_.pos_z[t]);
+}
+
+bool Simulation::player_can_target_building(uint8_t player, uint32_t building_id) const {
+	const auto it = building_id_to_idx_.find(building_id);
+	if (it == building_id_to_idx_.end() || player >= MAX_PLAYERS || los_.cells() == 0) return true;
+	const Building &b = buildings_[it->second];
+	if (b.team == player || (b.team < MAX_PLAYERS && is_ally(player, b.team))) return true;
+	return ((b.seen_mask >> player) & 1) || los_visible(player, b.x, b.z);
+}
+
+bool Simulation::player_can_target_resource(uint8_t player, uint32_t resource_id) const {
+	const auto it = res_id_to_idx_.find(resource_id);
+	if (it == res_id_to_idx_.end() || player >= MAX_PLAYERS || los_.cells() == 0) return true;
+	return los_explored(player, resources_.x[it->second], resources_.z[it->second]);
+}
+
+bool Simulation::player_can_target_fauna(uint8_t player, uint32_t fauna_id) const {
+	const auto it = fauna_id_to_idx_.find(fauna_id);
+	if (it == fauna_id_to_idx_.end() || player >= MAX_PLAYERS || los_.cells() == 0) return true;
+	const uint8_t owner = fauna_owner_[it->second];
+	if (owner == player || (owner < MAX_PLAYERS && is_ally(player, owner))) return true;
+	return los_visible(player, fauna_.pos_x[it->second], fauna_.pos_z[it->second]);
 }
 
 bool Simulation::los_explored(uint8_t player, float x, float z) const {

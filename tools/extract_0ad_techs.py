@@ -100,6 +100,7 @@ CLASSES = [
     "Auxiliary",  # bit 66 (Marian Reforms: "Soldier !Auxiliary")
     "TempleOfApedemak",  # bit 67 (Arakamani's Follower of Apedemak: the Kushite temple)
     "Palisade",  # bit 68 (Themistoclean Walls: "Wall" or "Palisade")
+    "Naval",  # bit 69 (Hellenistic Metropolis: "CivCentre !Colony !Naval", the crannog)
 ]
 assert len(CLASSES) <= 128, "TechClasses is a 128-bit mask"
 
