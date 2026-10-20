@@ -550,6 +550,7 @@ public:
 	bool chat_reaches(uint8_t from, uint8_t to, const std::string &tag, uint32_t to_client = UINT32_MAX) const;
 	bool chat_is_addressee(const String &sender_guid, const String &tag) override;
 	bool chat_local_observer() override;
+	bool chat_setup_verbatim() override;
 	std::vector<std::pair<String, String>> chat_private_targets() override;
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	uint8_t chat_player_of_client(uint32_t client) const;
@@ -576,6 +577,7 @@ public:
 	std::vector<uint32_t> ui_selected_garrison_holders() const override { return selected_garrison_holders(); }
 	bool ui_garrison_panel_shown() const override;
 	bool ui_observing() const override { return turn_mgr_.is_replaying() || spectating(); }
+	bool ui_trains_units(uint32_t id) const override { return building_trains_units(id); }
 	// Tests: the training roster's rows (name, disabled).
 	Array debug_roster() {
 		update_command_panel();
