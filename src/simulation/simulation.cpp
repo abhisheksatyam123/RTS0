@@ -22370,16 +22370,21 @@ void Simulation::petra_naval_topology(PetraNavalTopo &t) const {
 // id changed: attack plans ask about it on every AI tick. A pure function of the
 // nav grid, so the cache needs no saving.
 const Simulation::PetraNavalTopo &Simulation::petra_topo() const {
-	uint64_t key = 1469598103934665603ull ^ nav_grid_.cells.data.size() ^ (uint64_t)nav_grid_.regions_ready_;
-	for (uint8_t c : nav_grid_.cells.data) key = (key ^ c) * 1099511628211ull;
 	// Region ids too: a full rebuild (a loaded game) may number them afresh.
-	for (const GlobalRegionIds *g : {&nav_grid_.global_region_map_, &nav_grid_.ship_region_map_}) {
-		for (uint32_t f : g->first) key = (key ^ f) * 1099511628211ull;
-		for (uint16_t id : g->id) key = (key ^ id) * 1099511628211ull;
-	}
-	if (!petra_topo_cache_valid_ || key != petra_topo_cache_key_) {
+	const GlobalRegionIds *maps[2] = {&nav_grid_.global_region_map_, &nav_grid_.ship_region_map_};
+	bool same = petra_topo_cache_valid_ && petra_topo_regions_ready_ == nav_grid_.regions_ready_ &&
+			petra_topo_cells_ == nav_grid_.cells.data;
+	for (int g = 0; same && g < 2; ++g)
+		same = petra_topo_first_[g] == maps[g]->first && petra_topo_ids_[g] == maps[g]->id;
+	if (!same) {
 		petra_naval_topology(petra_topo_cache_);
-		petra_topo_cache_key_ = key;
+		petra_topo_cells_ = nav_grid_.cells.data;
+		for (int g = 0; g < 2; ++g) {
+			petra_topo_first_[g] = maps[g]->first;
+			petra_topo_ids_[g] = maps[g]->id;
+		}
+		petra_topo_regions_ready_ = nav_grid_.regions_ready_;
+		++petra_topo_cache_key_;
 		petra_topo_cache_valid_ = true;
 	}
 	return petra_topo_cache_;
