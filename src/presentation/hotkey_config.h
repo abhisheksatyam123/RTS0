@@ -45,6 +45,10 @@ public:
 	String display_combo(const String &combo) const;
 	// Engine.HotkeyIsPressed(name): every key of one of its combinations is down.
 	bool is_held(const String &name) const;
+	// colorizeHotkey(text, name): text's %(hotkey)s becomes the hotkey's combinations
+	// in gold brackets, or "Unassigned hotkey: <name>" when nothing is bound.
+	static String colorize_hotkey(const String &text, const String &name);
+	String colorize(const String &text, const String &name) const { return colorize_hotkey(text, name); }
 };
 
 #endif

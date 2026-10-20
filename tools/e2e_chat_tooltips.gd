@@ -28,9 +28,9 @@ func run() -> void:
 	var t: Dictionary = main.debug_chat_tooltips()
 	print("    input: ", str(t["input"]).replace("\n", " | "))
 	var lines: PackedStringArray = str(t["input"]).split("\n")
-	check(lines.size() == 5 and lines[0] == "Type the message to send." and lines[1] == "Press Tab to autocomplete player names.",
+	check(lines.size() == 5 and lines[0] == "Type the message to send." and lines[1] == "Press [color=#fffb83][lb]Tab[rb][/color] to autocomplete player names.",
 		"the input's first lines")
-	check(str(t["open"]) == "Press Return to open the public chat.\nPress T to open the ally chat.\nPress L to open the previously selected private chat.",
+	check(str(t["open"]) == "Press [color=#fffb83][lb]Return[rb][/color] to open the public chat.\nPress [color=#fffb83][lb]T[rb][/color] to open the ally chat.\nPress [color=#fffb83][lb]L[rb][/color] to open the previously selected private chat.",
 		"the hotkey lines: " + str(t["open"]).replace("\n", " | "))
 	main._on_menu_button_pressed()
 	await frames(6)
