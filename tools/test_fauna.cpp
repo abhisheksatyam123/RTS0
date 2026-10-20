@@ -254,7 +254,8 @@ int main() {
 	}
 
 	// 7b. FLEEING runs FleeDistance further than the attacker was (UnitAI.js distanceToFlee),
-	// so a deer flees a ranged hunter too, and it only turns from a nearer new attacker.
+	// so a deer flees a ranged hunter too, and it turns from any new attacker (FLEEING.Attacked
+	// measures the distance to the attack's target, which is the deer itself).
 	{
 		fresh(s);
 		const auto &di = fauna_type_info(FAUNA_DEER);
@@ -265,16 +266,16 @@ int main() {
 		s.fauna_attacked((size_t)f, far_u);
 		CHECK(s.fauna_.behavior[f] == FAUNA_FLEE && s.fauna_.target_unit_id[f] == far_u);
 		CHECK(std::fabs(s.fauna_.flee_distance[f] - (10.0f + di.flee_distance)) < 0.01f);
-		s.fauna_attacked((size_t)f, near_u); // nearer: it now flees the spearman
+		s.fauna_attacked((size_t)f, near_u); // a new attacker: it now flees the spearman
 		CHECK(s.fauna_.target_unit_id[f] == near_u);
-		s.fauna_attacked((size_t)f, far_u); // farther: no change
-		CHECK(s.fauna_.target_unit_id[f] == near_u);
+		s.fauna_attacked((size_t)f, far_u); // and back to the archer, farther or not
+		CHECK(s.fauna_.target_unit_id[f] == far_u);
 		for (uint32_t u : {far_u, near_u}) s.units_.speed[uidx(s, u)] = 0.0f, s.cmd_stop(&u, 1);
 		run(s, 10.0f);
 		f = fidx(s, deer);
-		const float d = std::hypot(s.fauna_.pos_x[f] - s.units_.pos_x[uidx(s, near_u)], s.fauna_.pos_z[f] - s.units_.pos_z[uidx(s, near_u)]);
-		std::printf("flee: deer ran to %.1f from the spearman (needed %.1f)\n", d, 6.0f + di.flee_distance);
-		CHECK(d >= 6.0f + di.flee_distance - 0.5f && s.fauna_.behavior[f] != FAUNA_FLEE);
+		const float d = std::hypot(s.fauna_.pos_x[f] - s.units_.pos_x[uidx(s, far_u)], s.fauna_.pos_z[f] - s.units_.pos_z[uidx(s, far_u)]);
+		std::printf("flee: deer ran to %.1f from the archer (needed %.1f)\n", d, 10.0f + di.flee_distance);
+		CHECK(d >= 10.0f + di.flee_distance - 0.5f && s.fauna_.behavior[f] != FAUNA_FLEE);
 	}
 
 	// 7c. Chase leash (ShouldAbandonChase): an animal has no held position, so a hold-ground
@@ -802,7 +803,8 @@ int main() {
 
 	// 13. 0.28 audit (fauna/audit-028-behaviour.md).
 	{
-		// a. COMBAT approaches at walk speed and runs only after a fleeing target.
+		// a. COMBAT APPROACHING walks, even after a fleeing target; CHASING (after a first
+		//    ATTACKING) runs after a fleeing one.
 		fresh(s);
 		const auto &wi = fauna_type_info(FAUNA_WOLF);
 		uint32_t u = s.spawn_unit(6.0f, 0.0f, 0, UNIT_SPEARMAN);
@@ -818,9 +820,18 @@ int main() {
 		s.fauna_start_attack((size_t)fidx(s, wolf), sheep);
 		s.tick(Simulation::FIXED_STEP);
 		w = fidx(s, wolf);
-		const float run_sp = std::hypot(s.fauna_.vel_x[w], s.fauna_.vel_z[w]);
-		CHECK(std::fabs(run_sp - wi.speed * wi.run_mult) < 0.01f);
-		std::printf("wolf chase: walks at %.2f, runs at %.2f after a fleeing sheep\n", walk, run_sp);
+		CHECK(std::fabs(std::hypot(s.fauna_.vel_x[w], s.fauna_.vel_z[w]) - wi.speed) < 0.01f);
+		// The wolf is defensive (no respondChase): after its first ATTACKING it gives up instead.
+		// An aggressive mastiff that has struck once chases the fleeing sheep at a run.
+		const auto &mi = fauna_type_info(FAUNA_DOG_MASTIFF);
+		const uint32_t dog = s.spawn_fauna(0.0f, 4.0f, FAUNA_DOG_MASTIFF);
+		s.fauna_start_attack((size_t)fidx(s, dog), sheep);
+		s.fauna_.flee_distance[fidx(s, dog)] = 1.0f; // COMBAT ATTACKING once: the sheep got away
+		s.tick(Simulation::FIXED_STEP);
+		const int32_t m = fidx(s, dog);
+		const float run_sp = std::hypot(s.fauna_.vel_x[m], s.fauna_.vel_z[m]);
+		CHECK(std::fabs(run_sp - mi.speed * mi.run_mult) < 0.01f);
+		std::printf("chase: wolf walks at %.2f after a fleeing sheep, a mastiff that struck runs at %.2f\n", walk, run_sp);
 	}
 	{
 		// b. A predator goes for a player's livestock out of its corral (attackfilter: owner > 0).
