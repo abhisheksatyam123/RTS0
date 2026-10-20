@@ -19653,24 +19653,22 @@ void Simulation::petra_manage_military_production(float dt) {
 			const TechClasses tc = classes_of(tmpl, t.unit_type);
 			const uint8_t queue = (tc & (TC_SIEGE | TC_HERO)).any() ? PETRA_Q_PLAN_SIEGE
 			                    : (tc & TC_CHAMPION).any() ? PETRA_Q_PLAN_CHAMP : PETRA_Q_PLAN;
-			// The military queue's account seldom holds a whole batch while the other queues draw
-			// on the same income, so a smaller batch goes when the full one cannot (RTS0).
-			for (int n = batch; n >= 1; --n) {
-				bool leaves = true;
-				for (int r = 0; r < RES_COUNT; ++r)
-					if (cost[r] > 0.0f && petra_ps().res[r] - std::floor(cost[r] * (float)n) < reserve[r]) leaves = false;
-				if (leaves && petra_train_template(queue, trainer_for(tmpl), tmpl, n, false, order_plan)) return;
-			}
-			// The unit the plan's queue waits on (queueManager) keeps its price from the lower
-			// queues, and the military queue asks for one unit's price: asking for the whole
-			// batch would draw the villager queue's food away too (the tries above asked for it).
+			// attackPlan.js:688 TrainingPlan(template, max, max): the whole batch trains at once.
+			bool leaves = true;
+			for (int r = 0; r < RES_COUNT; ++r)
+				if (cost[r] > 0.0f && petra_ps().res[r] - std::floor(cost[r] * (float)batch) < reserve[r]) leaves = false;
+			if (leaves && petra_train_template(queue, trainer_for(tmpl), tmpl, batch, false, order_plan)) return;
+			// queue.js maxAccountWanted: the batch the plan's queue waits on, plus 60% of the next
+			// one while the class still wants more (queueManager keeps the batch's price from the
+			// lower queues).
+			const float ask = (float)batch * (st.count + batch < st.target ? 1.6f : 1.0f);
 			PetraQueueAccount &w = petra_queues_.wants[queue];
-			for (int r = 0; r < RES_COUNT; ++r) reserve[r] += cost[r];
+			for (int r = 0; r < RES_COUNT; ++r) reserve[r] += cost[r] * (float)batch;
 			// The raid and the attack share the plan queues: this turn's larger ask stands.
 			if (!asked[queue]) w = PetraQueueAccount{};
 			asked[queue] = true;
-			w.food = std::max(w.food, cost[RES_FOOD]); w.wood = std::max(w.wood, cost[RES_WOOD]);
-			w.gold = std::max(w.gold, cost[RES_GOLD]); w.stone = std::max(w.stone, cost[RES_STONE]);
+			w.food = std::max(w.food, cost[RES_FOOD] * ask); w.wood = std::max(w.wood, cost[RES_WOOD] * ask);
+			w.gold = std::max(w.gold, cost[RES_GOLD] * ask); w.stone = std::max(w.stone, cost[RES_STONE] * ask);
 			petra_queues_.want_age[queue] = 0.0f;
 			return;
 		}
