@@ -3104,7 +3104,7 @@ static_assert(COMBAT_TEMPLATE_COUNT == CIV_UNIT_TEMPLATE_COUNT,
 		"rosters changed: re-run tools/extract_0ad_attack.py");
 static_assert(COMBAT_CLASS_ROWS == UNIT_TYPE_COUNT, "unit types changed: re-run tools/extract_0ad_attack.py");
 static_assert(COMBAT_BUILDING_ROWS == BLD_TYPE_COUNT, "building types changed: re-run tools/extract_0ad_attack.py");
-// 0 A.D. UnitMotion Acceleration and InstantTurnAngle and Position TurnRate of a unit's template
+// 0 A.D. UnitMotion Acceleration and InstantTurnAngle, Position TurnRate and Footprint of a unit's template
 // (unit_motion_data.h, from tools/extract_0ad_motion.py).
 static_assert(MOTION_TEMPLATE_COUNT == CIV_UNIT_TEMPLATE_COUNT, "rosters changed: re-run tools/extract_0ad_motion.py");
 static_assert(MOTION_CLASS_ROWS == UNIT_TYPE_COUNT, "unit types changed: re-run tools/extract_0ad_motion.py");

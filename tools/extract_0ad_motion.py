@@ -7,6 +7,8 @@
   * UnitMotion/InstantTurnAngle: radians. A unit facing further than this from
     its way on stops and turns; nearer, it moves on at cos(angle) of its speed.
   * Position/TurnRate: radians per second a stopped unit turns at.
+  * Footprint/Circle@radius or Footprint/Square@width,depth: metres, the shape
+    Formation.js GetAvgFootprint spaces formation members by.
 
 Acceleration is written in RTS0 units, scaled like walk speeds
 (extract_0ad_rosters.py SPEED_SCALE), so a unit takes 0.28's time to reach
@@ -48,10 +50,21 @@ UNIT_TYPES = ["UNIT_VILLAGER", "UNIT_SWORDSMAN", "UNIT_ARCHER", "UNIT_SPEARMAN",
               "UNIT_MINISTER", "UNIT_CATAFALQUE", "UNIT_TYPE_TECH", "UNIT_WAGON"]
 
 
+def footprint(t):
+    """Footprint width and depth in metres, as Footprint.js GetShape gives them to Formation.js."""
+    sq = t.get("Footprint/Square")
+    if sq is not None and "width" in sq.attrs:
+        return float(sq.attrs["width"]), float(sq.attrs["depth"])
+    c = t.get("Footprint/Circle")
+    if c is not None and "radius" in c.attrs:
+        return 2.0 * float(c.attrs["radius"]), 2.0 * float(c.attrs["radius"])
+    return 1.0, 1.0
+
+
 def row_of(t):
     return (t.num("UnitMotion/Acceleration", 35.0) * ex.SPEED_SCALE,
             t.num("UnitMotion/InstantTurnAngle", 1.5),
-            t.num("Position/TurnRate", 14.0))
+            t.num("Position/TurnRate", 14.0)) + footprint(t)
 
 
 def collect(sim_root):
@@ -76,9 +89,9 @@ def f(x):
 
 
 def fields(row):
-    a, ita, tr = row
+    a, ita, tr, fw, fd = row
     c = -2.0 if ita >= math.pi else math.cos(ita)
-    return ", ".join((f(a), f(ita), f(tr), f(c)))
+    return ", ".join((f(a), f(ita), f(tr), f(c), f(fw), f(fd)))
 
 
 def emit(units, generic):
@@ -94,6 +107,7 @@ def emit(units, generic):
     w("\tfloat instant_turn_angle; // UnitMotion/InstantTurnAngle, radians")
     w("\tfloat turn_rate; // Position/TurnRate, radians per second")
     w("\tfloat cos_instant_turn; // cos(instant_turn_angle); -2 (no turn stops it) from pi up")
+    w("\tfloat footprint_width, footprint_depth; // Footprint (circle: its diameter), metres")
     w("};")
     w("")
     w("inline constexpr uint16_t MOTION_TEMPLATE_COUNT = %d; // = CIV_UNIT_TEMPLATE_COUNT" % len(units))
