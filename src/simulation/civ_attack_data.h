@@ -53,7 +53,7 @@ struct CombatProfile {
 // 0 A.D. metres to RTS0 units for ranged distances (extract_0ad_rosters.py RANGED_RANGE_SCALE).
 inline constexpr float COMBAT_DISTANCE_SCALE = 0.28f;
 
-inline constexpr uint16_t COMBAT_TEMPLATE_COUNT = 511; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t COMBAT_TEMPLATE_COUNT = 513; // = CIV_UNIT_TEMPLATE_COUNT
 inline const CombatProfile *combat_template_table() {
 	static const CombatProfile kTable[COMBAT_TEMPLATE_COUNT] = {
 		{{0x0000000000000932ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 4.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 2.394f, 0, 0.0f, 0.0f, 0.0f, 0, 0.4f, 70.0f, 35.0f, 1.75f, 0.0f, true, {130, 10, 5, 0, 0}, 0}, // athen/cavalry_javelineer_b
@@ -567,6 +567,8 @@ inline const CombatProfile *combat_template_table() {
 		{{0x0000000000000930ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0.0f, 0, 0.375f, 0.0f, 0.0f, 5.0f, 0.0f, true, {150, 8, 6, 0, 8}, 0}, // rome/champion_infantry_swordsman_03
 		{{0x0000000000000930ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0.0f, 0, 0.375f, 0.0f, 0.0f, 5.0f, 0.0f, true, {150, 8, 6, 0, 8}, 0}, // rome/champion_infantry_swordsman_04
 		{{0x0000000000000930ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0.0f, 0, 0.375f, 0.0f, 0.0f, 5.0f, 0.0f, true, {150, 8, 6, 0, 8}, 0}, // rome/champion_infantry_swordsman_05
+		{{0x0000000000000938ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.8f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0.0f, 0, 0.4f, 70.0f, 35.0f, 10.0f, 0.0f, true, {400, 10, 0, 0, 25}, 0}, // athen/hero_xenophon
+		{{0x0000000000000938ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 1, {{{0x0000000000000002ull, 0x0000000000000000ull}, 2.5f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0.0f, 0, 0.45f, 0.0f, 0.0f, 10.0f, 0.0f, true, {400, 10, 0, 0, 25}, 0}, // spart/hero_leonidas_300
 	};
 	return kTable;
 }
