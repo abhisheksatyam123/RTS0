@@ -48,7 +48,7 @@ func run() -> void:
 	# PlayersPanel.xml headings, each over its column.
 	var heads: Array = page.get_node("VBox/HBox/Right/SlotsBox/SlotsHeader").get_children().filter(func(h): return h is Label)
 	var cells: Array = page._slots_grid().get_children()
-	check(heads.map(func(h): return h.text) == ["Player Name", "Player Placement", "Civilization", "Team", "", "Color"]
+	check(heads.map(func(h): return h.text) == ["Player Name", "Color", "Player Placement", "", "Civilization", "Team"]
 		and absf(heads[2].global_position.x - cells[2].global_position.x) < 1.0 and absf(heads[5].global_position.x - cells[5].global_position.x) < 1.0,
 		"0.28's headings over their columns")
 	var grid: Control = page.get_node("VBox/HBox/Right/SlotsBox/SlotsGrid")

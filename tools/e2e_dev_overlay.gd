@@ -6,7 +6,7 @@ extends SceneTree
 # map when cleared; Promote selected units raises the selection a rank ("promote");
 # Change perspective shows the player view dropdown, and picking a player or Observer
 # re-seats this client; Enable time warp snapshots the game every 10 turns and rewinds
-# to the last one; the pathfinder, hierarchical pathfinder, obstruction, unit motion,
+# to the last one, keeping the selection and control groups; the pathfinder, hierarchical pathfinder, obstruction, unit motion,
 # range and bounding box overlays draw while ticked; Enable culling, Lock cull camera,
 # Display camera frustum and Display shadows frustum drive the culling and its boxes;
 # Activate Rejoin Test (not on random maps) rejoins a copy of
@@ -67,6 +67,16 @@ func _box(title: String) -> Node:
 	return null
 
 ## Pick a player view dropdown item by id (0 Observer, N player N) and wait for the turn.
+func key(code: int, ctrl: bool) -> void:
+	for down in [true, false]:
+		var k := InputEventKey.new()
+		k.keycode = code
+		k.physical_keycode = code
+		k.ctrl_pressed = ctrl
+		k.pressed = down
+		Input.parse_input_event(k)
+		await frames(1)
+
 func pick(id: int) -> void:
 	var dd: OptionButton = null
 	for o in main.find_children("*", "OptionButton", true, false):
@@ -187,9 +197,17 @@ func run() -> void:
 	await frames(20) # half way to the next snapshot
 	var snaps: int = main.time_warp_snapshot_count()
 	check(snaps >= 2, "it takes a snapshot every 10 turns (%d)" % snaps)
+	# A man the snapshot has and one trained after it, selected and in group 2.
+	main.select_first_own(false)
+	var kept: Array = Array(main.debug_selection_state()["selected"])
+	var late := int(main.debug_spawn_units("athen/infantry_spearman_b", 1)[0])
+	main.debug_select_units(PackedInt32Array(kept + [late]))
+	await key(KEY_2, true)
 	var t_before: float = main.get_match_statistics().get("game_time", 0.0)
 	check(main.time_warp_rewind(), "rewind loads the latest snapshot")
 	await frames(2)
+	check(Array(main.debug_selection_state()["selected"]) == kept and Array(main.debug_saved_gui()["groups"][2]) == kept,
+		"only the simulation goes back: the selection and group 2 keep the man the snapshot has (%s)" % str(kept))
 	var t_after: float = main.get_match_statistics().get("game_time", 0.0)
 	check(t_after < t_before and main.time_warp_snapshot_count() == snaps - 1, "back in time %.1f -> %.1f, that snapshot used up" % [t_before, t_after])
 	press("Enable time warp")

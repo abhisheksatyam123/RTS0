@@ -172,7 +172,7 @@ func run() -> void:
 	check(opt.call("PopCapTypeSlot").get_item_tooltip(2) == "Distributes the total population cap evenly over all living players.", "population cap types")
 	check(opt.call("MapTypeSlot").get_item_tooltip(2) == "A map with a predefined landscape and matchsettings.", "map types")
 	check(opt.call("MapFilterSlot").get_item_tooltip(0) == "All maps except naval and demo maps.", "map filters")
-	var civ_opts: Array = page._slots_grid().find_children("*", "RtsoSafeSelect", true, false).filter(func(o): return o.get_item_count() > 10)
+	var civ_opts: Array = page._slots_grid().find_children("*", "RtsoSafeSelect", true, false).filter(func(o): return o.get_item_count() > 10 and o.get_item_text(0) == "Random")
 	check(not civ_opts.is_empty() and civ_opts[0].get_item_tooltip(0) == "Picks one civilization at random when the game starts."
 		and civ_opts[0].get_item_tooltip(1).length() > 40, "civs: Random, then each civ's History (%s…)" % (civ_opts[0].get_item_tooltip(1).substr(0, 40) if civ_opts else ""))
 	print("PASS" if failures == 0 else "FAIL (%d)" % failures)

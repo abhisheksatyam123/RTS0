@@ -550,6 +550,42 @@ public:
 		out.swap(attacked_events_);
 		return out;
 	}
+	// An AI's order: in 0.28 Petra posts commands like a player, so Commands.js sends a
+	// "playercommand" notification for each and the session's Follow Player follows them.
+	// Presentation only like AttackedEvent, and recorded only while record_ai_commands is
+	// on; an order another order gives on its way (attack-walk walking) is not recorded.
+	struct AiCommandEvent {
+		enum Kind : uint8_t { WALK, ATTACK_WALK, PATROL, GATHER, ATTACK, REPAIR, GARRISON, GUARD, HEAL, RETURN_RESOURCE,
+			TRADE, STOP, DELETE, TRAIN, RESEARCH, OTHER };
+		uint8_t player;
+		uint8_t kind;
+		std::vector<uint32_t> ids; // cmd.entities: the units ordered, or the trainer
+		uint32_t target;           // cmd.target, 0 for none
+		float x, z;                // cmd.x, cmd.z for a position order
+	};
+	static constexpr size_t kMaxAiCommandEvents = 1024;
+	void set_record_ai_commands(bool on) {
+		record_ai_commands_ = on;
+		if (!on) ai_command_events_.clear();
+	}
+	std::vector<AiCommandEvent> take_ai_command_events() {
+		std::vector<AiCommandEvent> out;
+		out.swap(ai_command_events_);
+		return out;
+	}
+	// At the top of an order an AI may give: notes it once, for the outermost order only.
+	struct AiCommandScope {
+		Simulation &sim;
+		AiCommandScope(Simulation &s, uint8_t kind, const uint32_t *ids, size_t n, uint32_t target = 0, float x = 0.0f,
+				float z = 0.0f) : sim(s) {
+			if (sim.ai_command_depth_++ == 0 && sim.record_ai_commands_ && sim.petra_in_turn_) sim.note_ai_command(kind, ids, n, target, x, z);
+		}
+		~AiCommandScope() { --sim.ai_command_depth_; }
+	};
+	void note_ai_command(uint8_t kind, const uint32_t *ids, size_t n, uint32_t target, float x, float z) {
+		if (n == 0 || ai_command_events_.size() >= kMaxAiCommandEvents) return;
+		ai_command_events_.push_back({petra_pid_, kind, std::vector<uint32_t>(ids, ids + n), target, x, z});
+	}
 	// A unit's melee or Slaughter strike on an animal: presentation only like
 	// AttackedEvent (the striker's attack_melee or attack_slaughter sound plays on it).
 	struct FaunaStrikeEvent {
@@ -1009,6 +1045,7 @@ public:
 	// dropsite, drop it, then take the next queued order or idle.
 	// force: a player's or Petra's ReturnResource; UnitAI's own drop-offs (PushOrderFront) are unforced.
 	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false, bool force = true);
+	void order_return_to_unit(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued, bool force);
 	bool dropsite_accepts(size_t unit_idx, const Building &b) const; // carried type, owner, finished
 	bool can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const;
 	// ResourceGatherer CanReturnResource's owner test: `player`'s own dropsite, or a shared one of a
@@ -2229,6 +2266,7 @@ public:
 		auto it = field_res_by_bld_.find(building_id);
 		return it != field_res_by_bld_.end() && res_id_to_idx_.count(it->second) ? it->second : 0;
 	}
+	bool is_resource_id(uint32_t id) const { return res_id_to_idx_.count(id) != 0; }
 	// Whether any of these units can gather this supply (unit_actions "gather" getActionInfo).
 	bool any_can_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id) const {
 		auto rit = res_id_to_idx_.find(resource_id);
@@ -2819,6 +2857,9 @@ private:
 			bool target_is_building, float damage, bool melee = false, bool capture = false);
 	double battle_damage_[MAX_PLAYERS] = {};
 	std::vector<AttackedEvent> attacked_events_;
+	std::vector<AiCommandEvent> ai_command_events_;
+	bool record_ai_commands_ = false;
+	int ai_command_depth_ = 0;
 	std::vector<TriggerEventData> pending_attack_alerts_; // OnAttackDetected, raised at the end of the tick that detected them
 	std::vector<FaunaStrikeEvent> fauna_strikes_;
 	std::vector<SessionNotice> session_notices_;
