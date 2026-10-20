@@ -23,6 +23,11 @@ func check(cond: bool, what: String) -> void:
 		failures += 1
 
 func _initialize() -> void:
+	# One map for every run: the random default's coast or trees can stand in the walks below.
+	var ms = root.get_node("MatchSettings")
+	ms.map_id = "random_continental"
+	ms.seed = 11
+	ms.map_size = 128
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	run.call_deferred()
@@ -67,6 +72,14 @@ func click(pos: Vector2, double := false) -> void:
 	await frames(1)
 	button(pos, MOUSE_BUTTON_LEFT, false)
 	await frames(2)
+
+# Game time, not frames: n turns of 200 ms however fast the frames run.
+func turns(n: int) -> void:
+	var until: int = int(main.get_replay_status().turn) + n
+	var guard := 0
+	while int(main.get_replay_status().turn) < until and guard < n * 40:
+		await process_frame
+		guard += 1
 
 func state() -> Dictionary:
 	return main.debug_selection_state()
@@ -207,7 +220,7 @@ func run() -> void:
 	var from: Vector2 = a["pos"]
 	var target: Vector2 = from + Vector2(20, 0)
 	main._on_minimap_order(target)
-	await frames(80)
+	await turns(20)
 	var now := from
 	for u in state()["units"]:
 		if int(u["id"]) == int(a["id"]):
@@ -234,7 +247,7 @@ func run() -> void:
 			walker = u
 	main.debug_select_units(PackedInt32Array([int(a["id"])]))
 	main._on_minimap_order((walker["pos"] as Vector2) + Vector2(-30, 0))
-	await frames(10)
+	await turns(2)
 	main.clear_selection()
 	await frames(1)
 	for u in state()["units"]:
@@ -244,7 +257,7 @@ func run() -> void:
 	move(press_at)
 	await frames(2)
 	button(press_at, MOUSE_BUTTON_LEFT, true)
-	await frames(30)
+	await turns(6)
 	var moved := 0.0
 	for u in state()["units"]:
 		if int(u["id"]) == int(a["id"]):
