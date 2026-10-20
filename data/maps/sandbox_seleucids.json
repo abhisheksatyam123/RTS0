@@ -10626,6 +10626,20 @@
       "template": "sele/hero_seleucus_i"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": -19.66,
+      "z": -81.97,
+      "template": "sele/siege_lithobolos_packed"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -12.45,
+      "z": -71.76,
+      "template": "sele/siege_tower"
+    },
+    {
       "type": "villager",
       "player": 1,
       "x": 15.45,

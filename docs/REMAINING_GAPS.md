@@ -391,6 +391,15 @@ Trigger.js, TriggerPoint.js, Timer.js and every TriggerHelper.js helper were che
 | TH9 | GetLandSpawnPoints left out treasures and catafalques | low | Fixed |
 | TH10 | Gallic Fields rounds the wave delay to whole ms; float vs double in RandomTemplateComposition; RegisterTrigger has no duplicate guard | negligible | Open: Triggers |
 
+Scenario-only units: every unit the 0.28 scenario, demo and sandbox maps place was checked against the ported map JSON and the roster:
+
+| # | Gap | Severity | State |
+|---|---|---|---|
+| SU1 | The map porter dropped units whose template name has none of its keywords: We Are Legion's whole player-1 army (thureophoroi, thorakitai, Sacred Band), the mercenaries in Third Macedonian War, Death Canyon - Invasion Force, Peloponnese, Delphi and the demos, the Germans' wagons, Kushite macemen, Han crossbowmen, catafalques and siege towers in the sandboxes (about 400 units on 22 maps) | critical | Fixed: they are ported with their template and spawn as its roster row or a parent's |
+| SU2 | Unpacked siege on a map (oxybeles, lithobolos, polybolos, scorpio, mangonel) starts packed, as its packed row | low | Open: Triggers |
+| SU3 | pers/arstibara has no row of its own and stands in as pers/champion_infantry; Flight Demo's planes and han/siege_shoushe have none and are left out | low | Open: Triggers |
+| SU4 | The campaign test maps' army_* heroes and campaign_*_test structures map to the nearest civ templates (Alexander as the cavalry hero with auras, Leonidas with Last Stand, the test cities as Macedonian civic centres) | low | Open: Triggers |
+
 ## Read this first: whole-game parity (refreshed 2026-10-08, evening)
 
 The G1–G10 table below grades individual systems against 0 A.D.'s semantics, and `python3 tools/check_parity.py` reports 92% for them. Those scores are self-graded and only cover the systems listed. Judged by what a match actually plays like, RTS0 was **a little over half way** to 0 A.D. at that time (the open gaps now are in "Open gaps, re-check 3" below). That was an estimate from a code-only re-audit of main at `bff4f1c` (rechecked against `d8dd7af`, which adds a Gaia owner for defeated players' leftovers and sea fish) against 0 A.D.'s simulation components, UnitAI, session GUI, `config/default.cfg` hotkeys, game setup, gaia templates and renderer.

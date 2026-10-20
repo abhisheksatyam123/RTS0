@@ -1061,6 +1061,11 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     units.append({"type": "bolt_shooter", "player": ply, "x": wx, "z": wz})
                 elif any(k in ltpl for k in ["fishing_boat", "boat"]):
                     units.append({"type": "fishing_boat", "player": ply, "x": wx, "z": wz})
+                else:
+                    # No keyword in the name (merc_thureophoros, theb_sacred_band, support_wagon,
+                    # catafalque, siege_tower, the packed/unpacked siege variants): RTS0 spawns it by
+                    # its template or a parent's, and leaves it out when it has neither (type "").
+                    units.append({"type": "", "player": ply, "x": wx, "z": wz})
                 # The 0 A.D. template ("athen/infantry_javelineer_b"): RTS0 spawns that civ roster
                 # template or building when it has one, else falls back to "type".
                 short = tpl.split("/", 1)[1] if "/" in tpl else tpl

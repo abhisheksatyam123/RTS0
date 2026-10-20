@@ -4227,6 +4227,13 @@
       "template": "athen/infantry_spearman_b"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": 9.56,
+      "z": -1.86,
+      "template": "athen/siege_lithobolos_packed"
+    },
+    {
       "type": "cavalry",
       "player": 1,
       "x": 8.09,
