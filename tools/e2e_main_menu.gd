@@ -127,6 +127,17 @@ func run() -> void:
 			and mp.join_port.tooltip_text == "Leave blank to use the default port.",
 			"the last server, the default port for none, the multiplayer name")
 		check(mp.continue_button.text == "Continue" and mp.cancel_button.text == "Cancel", "Continue and Cancel")
+		# gamesetup_mp.js startJoin: a host name that does not resolve is reported at once, and the page stays.
+		mp.join_server.text = "no-such-host.invalid"
+		var joined_bad: bool = mp.confirm_setup()
+		var bad_box: AcceptDialog = mp.find_child("HostErrorDialog", false, false)
+		check(not joined_bad and bad_box != null and bad_box.title == "Error"
+			and bad_box.dialog_text == "Cannot join game: Failed to connect to server." and current_scene == menu
+			and menu.find_child("GameSetupMp", false, false) == mp,
+			"an unknown host name: \"Cannot join game: Failed to connect to server.\" and the page stays open")
+		if bad_box:
+			bad_box.queue_free()
+		mp.join_server.text = "192.0.2.7"
 		mp.cancel_button.pressed.emit()
 		await frames(2)
 		check(menu.find_child("GameSetupMp", false, false) == null and current_scene == menu, "Cancel closes it")
