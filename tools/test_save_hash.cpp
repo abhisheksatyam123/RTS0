@@ -232,7 +232,9 @@ static void check_reset_load(TurnManager &tm, const char *path) {
 	a.spawn_unit(-10.0f, 10.0f, 0, UNIT_CATAPULT);
 	const uint32_t unpacking = a.spawn_unit(-14.0f, 10.0f, 0, UNIT_CATAPULT);
 	a.order_pack(&unpacking, 1, false);
-	// Player 1 holds a wonder; player 2 loses its only unit and is defeated.
+	// Player 1 holds a wonder; player 2 loses its only unit and is defeated. The wonder is
+	// built after the first turn: one the map places runs no countdown (WonderVictory.js).
+	run(a, 1);
 	a.spawn_building_world(-30.0f, -30.0f, BLD_WONDER, 1);
 	a.spawn_unit(30.0f, 30.0f, 2, UNIT_SWORDSMAN);
 	run(a, 1);
