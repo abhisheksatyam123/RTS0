@@ -1,6 +1,7 @@
 #ifndef RTSO_SIM_TYPES_H
 #define RTSO_SIM_TYPES_H
 
+#include "core/math/det_math.h"
 #include <algorithm>
 #include <array>
 #include <cmath>

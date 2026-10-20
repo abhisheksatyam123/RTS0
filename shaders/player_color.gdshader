@@ -37,10 +37,13 @@ instance uniform vec4 player_color : source_color = vec4(1.0);
 // their actors' skin-only variant groups (tools/extract_unit_variants.py).
 // variant_tex holds the skins as 0 A.D. draws them, the player-colour mask in
 // alpha (0 for skins without player colour); variant_cut the cumulative
-// frequency where each layer after the first starts (2.0 past the last).
+// frequency where each layer after the first starts (2.0 past the last), up to
+// 12 layers (a horse's coats). With CUTOUT (ModelLibrary: an alpha-tested skin,
+// a horse's mane and tail) the alpha is the skin's own, for the alpha test.
 uniform bool use_variants = false;
 uniform sampler2DArray variant_tex : source_color, filter_linear, hint_default_white;
-uniform vec4 variant_cut[2];
+uniform vec4 variant_cut[3];
+uniform float alpha_scissor = 0.5;
 // Offsets the entity's draw per image, so its head, helmet and shield pick apart.
 uniform float variant_salt = 0.0;
 // The entity's draw in [0, 1): crowds pass it in INSTANCE_CUSTOM.a - 1.
@@ -50,9 +53,19 @@ instance uniform float variant_u = 0.0;
 uniform bool use_object_color = false;
 uniform vec4 object_colors[8];
 uniform vec4 object_cut[2];
+// A crowd's one surface for all of a unit's parts (ModelLibrary crowd_parts):
+// part_tex holds each part's skins as variant_tex does, UV2 = (first layer, part),
+// and each part draws by its own cut and salt (2.0 cuts: one layer). obj_part is
+// the part the object colours tint.
+uniform bool use_parts = false;
+uniform sampler2DArray part_tex : source_color, filter_linear_mipmap, hint_default_white;
+uniform vec4 part_cut[24];
+uniform float part_salt[8];
+uniform int obj_part = -1;
 
 varying vec3 v_player;
 varying float v_variant;
+varying flat vec2 v_part;
 varying float v_spec;
 varying float v_spec_pow;
 
@@ -63,6 +76,7 @@ void vertex() {
 	}
 	v_player = INSTANCE_CUSTOM.a > 0.5 ? INSTANCE_CUSTOM.rgb : player_color.rgb;
 	v_variant = INSTANCE_CUSTOM.a > 0.5 ? INSTANCE_CUSTOM.a - 1.0 : variant_u;
+	v_part = UV2;
 }
 
 // model_common.fs USE_PARALLAX: step along the eye ray in tangent space until it
@@ -98,17 +112,36 @@ void fragment() {
 	if (use_variants) {
 		float layer = 0.0;
 		float u = fract(v_variant + variant_salt);
-		for (int i = 0; i < 8; ++i)
+		for (int i = 0; i < 12; ++i)
 			layer += step(variant_cut[i / 4][i % 4], u);
 		vec4 vt = texture(variant_tex, vec3(uv, layer));
 		tex = vec4(vt.rgb, 1.0) * albedo;
 		m = vt.a;
 		baked = vec3(1.0);
+#ifdef CUTOUT
+		tex.a = vt.a * albedo.a;
+		m = 0.0;
+#endif
+	}
+	float salt = variant_salt;
+	bool obj_here = use_object_color;
+	if (use_parts) {
+		int p = int(v_part.y + 0.5);
+		salt = part_salt[p];
+		float u = fract(v_variant + salt);
+		float layer = v_part.x;
+		for (int i = 0; i < 12; ++i)
+			layer += step(part_cut[p * 3 + i / 4][i % 4], u);
+		vec4 vt = texture(part_tex, vec3(uv, layer));
+		tex = vec4(vt.rgb, 1.0) * albedo;
+		m = vt.a;
+		baked = vec3(1.0);
+		obj_here = use_object_color && p == obj_part;
 	}
 	vec3 tint = v_player;
-	if (use_object_color) {
+	if (obj_here) {
 		// Drawn apart from the skin: 0 A.D. picks each group of the actor by itself.
-		float u = fract(v_variant * 7.0 + variant_salt + 0.5);
+		float u = fract(v_variant * 7.0 + salt + 0.5);
 		int pick = 0;
 		for (int i = 0; i < 8; ++i)
 			pick += int(step(object_cut[i / 4][i % 4], u));
@@ -119,6 +152,10 @@ void fragment() {
 	ROUGHNESS = roughness;
 	METALLIC = metallic;
 	SPECULAR = specular;
+#ifdef CUTOUT
+	ALPHA = tex.a;
+	ALPHA_SCISSOR_THRESHOLD = alpha_scissor;
+#endif
 	v_spec = 0.0;
 	v_spec_pow = 1.0;
 	if (use_specular_map) {

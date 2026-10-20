@@ -695,7 +695,7 @@ void RtsoMain::set_game_speed(float speed) {
 	if (net_lockstep() || !(speed > 0.0f)) return;
 	const Array speeds = speed_choices(fast_forward_allowed());
 	game_speed = std::clamp(speed, (float)speeds[0], (float)speeds[speeds.size() - 1]);
-	if (speed_btn) speed_btn->set_text(speed_text(game_speed));
+	if (speed_btn && speed_btn->get_button_icon().is_null()) speed_btn->set_text(speed_text(game_speed));
 }
 
 // The pause hotkey and the replay's Pause button. Networked, the pause holds
@@ -1437,6 +1437,7 @@ void RtsoMain::update_hud() {
 	}
 	// GameSpeedButton: hidden in networked games (g_IsNetworked), shown in replays with Fast Forward.
 	if (speed_btn) speed_btn->set_visible(!net_lockstep());
+	top_panel_.set_player_buttons_visible(sim && view_player() < rtso::MAX_PLAYERS);
 }
 
 // Selection details (0 A.D. gui/session/selection_details.js): real values
@@ -2716,7 +2717,12 @@ Dictionary RtsoMain::get_lobby_state() const {
 	Dictionary d;
 	const bool hosting = net_host_.isHost();
 	int players = 0;
-	if (hosting) {
+	if (hosting && !net_game_started_) {
+		// LobbyGameRegistration.formatClientsForStanza: nbp counts the clients
+		// the player assignment seats, not the unassigned ones or a host who watches.
+		for (uint8_t i = 0; i < net_setup_.setup.slot_count && i < 8; ++i)
+			if (net_setup_.slot_client[i] >= 0) ++players;
+	} else if (hosting) {
 		players = 1;
 		for (const auto &p : net_host_.getPeers())
 			if (p.id != 0 && p.connected && p.is_authenticated && !p.is_observer) ++players;
@@ -3256,6 +3262,7 @@ Dictionary RtsoMain::get_net_setup_state() const {
 	d["can_start"] = host && !net_game_started_ && net_setup_.all_ready();
 	d["ready"] = host ? 2 : (int)net_ready_;
 	// SavedGameLabel and GameSettingControl EnabledWhenSavedGame.
+	d["started"] = net_game_started_;
 	d["saved_game"] = net_setup_.setup.saved_game != 0;
 	d["locked"] = net_setup_.setup.lock_players != 0 || net_setup_.setup.saved_game != 0;
 	d["version"] = (int64_t)net_setup_.seq;
@@ -3587,7 +3594,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 // refuses and the button is hidden, as session.js does when g_IsNetworked).
 void RtsoMain::start_net_speed(uint16_t speed) {
 	game_speed = std::clamp(speed, (uint16_t)25, (uint16_t)300) / 100.0f;
-	if (speed_btn) speed_btn->set_text(speed_text(game_speed));
+	if (speed_btn && speed_btn->get_button_icon().is_null()) speed_btn->set_text(speed_text(game_speed));
 }
 
 // 0.28 switches every peer to page_loading at "start": the loading page goes
@@ -3953,7 +3960,9 @@ void RtsoMain::_on_chat_text_submitted(const String &text) {
 
 void RtsoMain::_on_chat_input_gui(const Ref<InputEvent> &event) {
 	Ref<InputEventKey> k = event;
-	if (k.is_valid() && k->is_pressed() && k->get_keycode() == KEY_TAB) chat_window_.tab_complete();
+	// ChatInput's onTab is plain Tab: Ctrl+Tab stays the summary hotkey.
+	if (k.is_valid() && k->is_pressed() && k->get_keycode() == KEY_TAB && !k->is_ctrl_pressed() && !k->is_alt_pressed() && !k->is_meta_pressed())
+		chat_window_.tab_complete();
 }
 
 std::vector<String> RtsoMain::chat_autocomplete_names() {

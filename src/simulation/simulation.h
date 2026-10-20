@@ -180,7 +180,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 102; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 103; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_WAGON_SHARING = 103; // the supply wagons their owners locked
 	static constexpr uint32_t SAVE_VERSION_AUTOQUEUE_BATCH = 102; // each queued batch's original size once part of it spawned
 	static constexpr uint32_t SAVE_VERSION_CARCASS_OWNER = 101; // each carcass's animal's owner
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
@@ -1070,6 +1071,7 @@ public:
 	bool dropsite_usable_by(uint8_t player, const Building &b) const;
 	// The same test for unit `e` when it is a mobile dropsite (worker elephant, supply wagon).
 	bool mobile_dropsite_usable_by(uint8_t player, size_t e) const;
+	bool unit_dropsite_shared(uint32_t unit_id) const; // ResourceDropsite IsShared on a unit
 	// 0 A.D. "set-dropsite-sharing" (ResourceDropsite.SetSharing) on one of `player`'s dropsites;
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
 	bool cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared);
@@ -3348,6 +3350,11 @@ private:
 	PetraTransportPlan *petra_transport_join(uint8_t owner, uint16_t from_land, uint16_t to_land, bool is_siege);
 	void petra_require_defense_transport(uint32_t uid, uint16_t from_land, uint16_t to_land, float to_x, float to_z);
 	uint32_t petra_defender_dropsite(size_t i) const; // entityExtend.js returnResources: 0 when none
+	// entityExtend.js isSiegeUnit: Siege, or Elephant+Melee (war elephants knock down structures).
+	bool petra_is_siege_unit(size_t i) const {
+		const TechClasses c = unit_classes_at(i);
+		return unit_is_siege_engine(units_.unit_type[i]) || ((c & TC_ELEPHANT).any() && (c & TC_MELEE).any());
+	}
 	void petra_order_build(uint32_t uid, uint32_t bid); // worker.js: drop the load, then build
 	void petra_fight_back(size_t i, int32_t attacker, const std::vector<PetraDefenseArmy> &armies, std::vector<uint32_t> &helped);
 	bool petra_ship_in_plan(uint32_t ship_id) const;
@@ -3381,8 +3388,10 @@ private:
 	void petra_start_march(AttackPlan &plan);
 	// Whether some unit of the army still walks under a forced order (hasForceOrder).
 	bool petra_plan_has_force_order(const AttackPlan &plan) const;
-	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0, const AttackPlan *plan = nullptr) const;
-	uint8_t petra_enemy_player(uint8_t kind) const;
+	// must_start: the pick when a plan in preparation sets off (attackPlan.js chooseTarget at
+	// mustStart), where an Attack without siege takes only an undefended structure.
+	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0, const AttackPlan *plan = nullptr, bool must_start = false) const;
+	uint8_t petra_enemy_player(uint8_t kind, bool first = true, bool *gaia_relics = nullptr) const;
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
 	bool petra_defense_target(const Building &b) const; // defenseManager.js targetList
@@ -3390,7 +3399,8 @@ private:
 	bool petra_defendable(float x, float z) const; // headquarters.js isDefendable
 	void petra_scuttle_undefendable();
 	uint32_t petra_help_attack_target(const AttackPlan &plan, uint16_t land, float &tx, float &tz) const;
-	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
+	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF, const float *from = nullptr, uint16_t land = 0) const;
+	bool petra_squad_centre(const std::vector<uint32_t> &squad, float &cx, float &cz) const;
 	void petra_set_rushes();
 	float petra_starting_wood(float x, float z) const;
 	void petra_plan_sizes(uint8_t kind);
@@ -3609,11 +3619,14 @@ private:
 	void petra_manage_tactical_attacks(float dt);
 	void petra_retake_civic_centres(); // defenseManager.js OwnershipChanged -> switchDefenseToAttack
 	void petra_update_attack_plan(AttackPlan &plan, float base_x, float base_z); // one plan's attackPlan.js step
+	void petra_update_started_raid(AttackPlan &plan, float base_x, float base_z); // a raid once it set off
 	void petra_attack_units(AttackPlan &plan); // attackPlan.js update while attacking: each unit's target
-	uint32_t petra_plan_next_target(AttackPlan &plan, float &tx, float &tz, uint16_t same_land = 0);
+	uint32_t petra_plan_next_target(AttackPlan &plan, float &tx, float &tz, uint16_t same_land = 0, bool must_start = false);
 	bool petra_in_attack_squad(uint32_t uid) const; // in the prepared or a started attack's army
 	bool petra_attack_can_spare(uint32_t uid, bool decay) const; // garrisonUnitsInside's attack plan rule
 	void petra_attack_remove_unit(uint32_t uid); // attackPlan.js removeUnit, from every plan
+	void petra_out_of_plan(uint32_t uid); // attackPlan.js removeUnit: plan -1 (outOfPlan)
+	void petra_release_squad(std::vector<uint32_t> &squad); // every unit leaves the plan
 	uint8_t petra_attack_enemy() const; // the player Petra's attacks are aimed at, 0xFF for none
 	void petra_note_enemy(uint8_t enemy) const; // remember getEnemyPlayer's pick as currentEnemyPlayer
 	// This tick's civic centre captures (OwnershipChanged), appended in tick_capture and
@@ -3639,6 +3652,9 @@ private:
 	// filled by tick_capture and rebuild_territory, read by every Petra this tick and cleared after
 	// it, so never saved.
 	std::vector<uint32_t> petra_decay_events_, petra_decay_scratch_;
+	// This tick's hits on structures and animals (target, attacker): 0.28's Attacked events
+	// for them, kept with the units' attacked_by ones. Cleared every tick, so never saved.
+	std::vector<std::pair<uint32_t, uint32_t>> petra_hit_events_;
 	void rebuild_territory_grids();
 	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, std::vector<int> &incoming) const;
 	std::vector<int> petra_garrison_incoming() const;
@@ -3775,6 +3791,7 @@ private:
 	int petra_config_max_pop(int unlimited = 300) const; // config.js setConfig's getPopulationMax
 	float petra_config_pop_scaling() const; // Config.popScaling: pop_scaling times sqrt(maxPop/300) under 300
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT, int clearance = -1) const; // btype: also 0 A.D.'s placement rules; clearance -1: petra_clearance
+	bool petra_spot_free_but_distance(int cell_x, int cell_y, int footprint, uint8_t btype, int clearance = -1) const;
 	bool petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance = 1) const;
 	static uint8_t petra_clearance(uint8_t btype); // findGoodPosition's 0, 4 or 8 m gap, as 0, 1, 2
 	bool petra_limit_allows_building(uint8_t btype) const;
@@ -4114,6 +4131,7 @@ private:
 	// keep it and the IDLE Timer goes back to guarding; remove-guard, a guard order for
 	// someone else or a charge that is gone or no longer an ally ends it.
 	std::unordered_map<uint32_t, uint32_t> guard_of_;
+	std::vector<uint32_t> locked_dropsite_units_; // sorted ids of supply wagons whose owner locked them
 	// UnitAI workOrders: the queue from its first Gather, Trade, Repair or ReturnResource order,
 	// kept when an order that isn't work replaces it (UpdateWorkOrders), for Back to Work.
 	std::unordered_map<uint32_t, std::vector<UnitOrder>> work_orders_;

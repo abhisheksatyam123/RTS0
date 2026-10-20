@@ -1447,10 +1447,9 @@ private:
 		const char *phase = "hidden";
 		if (reveal) {
 			static const char *kPhase[] = {"village", "town", "city"};
-			static const char *kName[] = {"Village Phase", "Town Phase", "City Phase"};
 			const int p = std::clamp<int>(sim.player_phase(owner), 1, 3) - 1;
 			phase = kPhase[p];
-			tip += String::utf8(" — ") + rtso::tr0(kName[p]);
+			tip += String::utf8(" — ") + rtso::seldet::civ_phase_name(civ, p + 1);
 		}
 		owner_phase_->set_texture(rtso::load_ui_texture(String("res://assets/textures/ui/archive/panel_phase_emblems_") + phase + ".png"));
 		owner_phase_->set_visible(true);

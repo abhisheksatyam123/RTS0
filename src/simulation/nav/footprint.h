@@ -20,6 +20,7 @@
 // (uz == 0), with the same float operations as the axis-aligned code it replaced, so unturned
 // square buildings give bit-identical results.
 
+#include "core/math/det_math.h"
 #include "simulation/nav/geometry.h"
 
 #include <algorithm>
@@ -48,8 +49,8 @@ inline void footprint_axis(float rot, float& ux, float& uz, bool& swapped)
 		ux = 1.0f;
 		uz = 0.0f;
 	} else {
-		ux = std::cos(t);
-		uz = -std::sin(t);
+		ux = det::cos(t);
+		uz = -det::sin(t);
 	}
 	swapped = std::fabs(std::fmod(quarters, 2.0f)) == 1.0f; // false for NaN
 }

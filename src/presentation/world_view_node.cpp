@@ -1716,6 +1716,14 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 Node *RtsoWorldView::instantiate_building_id(const String &id) {
 	String cat = "buildings";
 	const rtso::ModelLibrary::Entry &e = rtso::ModelLibrary::get(cat, id);
+	// A static GLB (no AnimationPlayer; its root has no transform) draws as its
+	// merged mesh: a barracks of 232 parts is 14 draws, and fog, player colour and
+	// pose updates touch one node.
+	if (e.scene.is_valid() && !e.animated && e.mesh.is_valid()) {
+		MeshInstance3D *mi = memnew(MeshInstance3D);
+		mi->set_mesh(e.mesh);
+		return mi;
+	}
 	if (e.scene.is_valid()) {
 		Node *n = e.scene->instantiate();
 		rtso::ModelLibrary::apply_imported_material_fixups(n);
@@ -2688,11 +2696,12 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key)
 		slot->height = entry.aabb.size.y;
 		slot->rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
 		slot->no_scene = !entry.scene.is_valid();
-		// Owner-coloured: a player_color.gdshader surface with a mask (the shader also
-		// draws unmasked skins that vary by unit or carry specular or height maps).
+		// Owner-coloured: a player_color.gdshader surface with a mask, or a crowd's parts
+		// with one (the shader also draws unmasked skins that vary by unit or carry
+		// specular or height maps).
 		for (int s = 0; slot->rest.is_valid() && s < slot->rest->get_surface_count(); ++s) {
 			Ref<ShaderMaterial> sm = slot->rest->surface_get_material(s);
-			if (rtso::ModelLibrary::is_player_color_material(sm) && sm->get_shader_parameter("mask_tex").get_type() != Variant::NIL)
+			if (rtso::ModelLibrary::is_player_color_material(sm) && (sm->get_shader_parameter("mask_tex").get_type() != Variant::NIL || (bool)sm->get_meta("crowd_owner_coloured", false)))
 				slot->player_color = true;
 		}
 	}

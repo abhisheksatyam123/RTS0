@@ -29,6 +29,15 @@ func frames(n: int) -> void:
 	for i in n:
 		await process_frame
 
+# Game time, not frames: n turns of 200 ms however fast the frames run (the frame rate and
+# a slow machine change how many turns a frame count covers).
+func turns(m: Node, n: int) -> void:
+	var until: int = int(m.get_replay_status().turn) + n
+	var guard := 0
+	while int(m.get_replay_status().turn) < until and guard < n * 40:
+		await process_frame
+		guard += 1
+
 func main_node() -> Node:
 	return current_scene
 
@@ -59,12 +68,12 @@ func run() -> void:
 	var st: Dictionary = m.get_replay_status()
 	check(st.recording, "the match is being recorded")
 	var replay_dir: String = st.replay_dir
-	await frames(600) # 10 s of game time
+	await turns(m, 150) # 30 s of game time
 	m._on_stance_selected(1)
 	m._on_formation_selected(2)
-	await frames(600)
+	await turns(m, 150)
 	m._on_stance_selected(0)
-	await frames(1200)
+	await turns(m, 300)
 	check(m.save_game_as("e2e_test", "end-to-end test"), "save_game_as writes a save")
 	check(FileAccess.file_exists("user://saves/e2e_test.json"), "the save has its metadata")
 	m.quicksave()
