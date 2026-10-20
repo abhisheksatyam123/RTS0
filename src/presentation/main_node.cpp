@@ -2611,6 +2611,18 @@ void RtsoMain::_on_voice_button_pressed() {
 		voice_btn->set_text(use_english_voice_orders_ ? "Voice: EN" : "Voice: Civ");
 }
 
+bool RtsoMain::has_lobby_client() const {
+	Node *ls = get_node_or_null(NodePath("/root/LobbySession"));
+	return ls && (bool)ls->call("signed_in");
+}
+
+void RtsoMain::open_lobby_page() {
+	if (!has_lobby_client()) return;
+	close_open_dialogs();
+	Ref<Script> lobby = ResourceLoader::get_singleton()->load("res://scenes/menu/lobby.gd");
+	if (lobby.is_valid()) lobby->call("open_dialog", get_tree());
+}
+
 void RtsoMain::_on_lobby_button_pressed() {
 	if (!lobby_panel) return;
 	lobby_panel->set_visible(!lobby_panel->is_visible());
