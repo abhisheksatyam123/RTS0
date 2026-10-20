@@ -1133,7 +1133,7 @@ private:
 	void apply_settings_snapshot(const Dictionary &settings);
 	Array player_list() const;
 	void begin_match_recording(const rtso::GameSetupParams *mp_setup);
-	void write_replay(bool ended = false); // ended: leaving the match (0.28 endGame), which adds the summary
+	void write_replay(bool ended = false, bool force = false); // ended: leaving the match (0.28 endGame), which adds the summary; force: even under 3 s
 	void stop_replay_recording(bool ended = false);
 	bool start_pending_replay();
 	bool load_pending_save();
