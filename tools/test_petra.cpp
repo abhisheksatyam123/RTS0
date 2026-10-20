@@ -1480,6 +1480,41 @@ static void test_petra_phasing_needs_researcher() {
 	CHECK(!s->petra_phasing(), "no phasing without a structure researching the town phase");
 }
 
+// headquarters.js checkPhaseRequirements: the 3 Town structures the city phase needs count
+// their foundations (getOwnEntitiesByClass(class, true)), so the temple goes down while the
+// market is still a foundation.
+static void test_city_phase_counts_foundations() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->set_team_civ(1, (uint8_t)CIV_ATHENIANS);
+	s->players_[1].phase = 2;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->spawn_building((int)((tx + 12.0f) / Simulation::GRID), (int)(tz / Simulation::GRID), BLD_MARKET, 1, 0.0f);
+	s->petra_pid_ = 1;
+	PetraQueueAccount rich{};
+	rich.food = rich.wood = rich.gold = rich.stone = 5000.0f;
+	s->petra_queues_.accounts[PETRA_Q_ECONOMIC_BUILDING] = rich;
+	s->petra_queues_.accounts[PETRA_Q_MILITARY_BUILDING] = rich;
+	s->petra_queues_.wants[PETRA_Q_MAJOR_TECH].food = 1.0f; // the city phase waits in its queue
+	CHECK(s->petra_phasing(), "phasing to the city phase");
+	s->petra_manage_research(0.5f);
+	int temples = 0, markets = 0;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.build_progress < 1.0f) {
+			if (b.type == BLD_TEMPLE) ++temples;
+			if (b.type == BLD_MARKET) ++markets;
+		}
+	std::printf("  city phase: market foundations %d, temple foundations %d\n", markets, temples);
+	CHECK(markets == 1 && temples == 1, "the temple goes down while the market is a foundation");
+}
+
 // gameState.findAvailableTech (common-api gamestate.js:768): Petra's structures in creation
 // order, each one's Researcher list in template order. A storehouse built before the
 // farmstead offers Iron Axe Heads before Iron Plow, and Servants before Wedge and Mallet.
@@ -6966,6 +7001,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_config_pop_scaling);
 	RUN(test_petra_islands_wood_reserve);
 	RUN(test_petra_phasing_needs_researcher);
+	RUN(test_city_phase_counts_foundations);
 	RUN(test_petra_research_order);
 	RUN(test_petra_minor_tech_kept);
 	RUN(test_petra_diplomacy_counts);
