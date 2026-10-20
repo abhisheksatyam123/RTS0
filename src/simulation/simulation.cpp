@@ -7326,7 +7326,7 @@ float Simulation::ship_loading_reach(size_t ship, size_t unit) const {
 // The same for any transport: a ship's 10 m, or a ram's or siege tower's 2 m.
 float Simulation::transport_loading_reach(size_t holder, size_t unit) const {
 	if (unit_is_ship(units_.unit_type[holder])) return ship_loading_reach(holder, unit);
-	return SIEGE_LOADING_RANGE + unit_collision_radius(units_.unit_type[holder]) + unit_collision_radius(units_.unit_type[unit]);
+	return (is_plane_at(holder) ? PLANE_LOADING_RANGE : SIEGE_LOADING_RANGE) + unit_collision_radius(units_.unit_type[holder]) + unit_collision_radius(units_.unit_type[unit]);
 }
 
 // The water cell of the ship's own sea nearest to (x, z), searched out to 16
@@ -7482,10 +7482,23 @@ bool Simulation::is_siege_tower_at(size_t i) const {
 		&& (civ_unit_template(tmpl).flags & ROSTER_SIEGE_TOWER) != 0;
 }
 
+bool Simulation::is_plane_at(size_t i) const {
+	const uint16_t tmpl = units_.tmpl[i];
+	return tmpl != CIV_UNIT_TEMPLATE_NONE && tmpl < CIV_UNIT_TEMPLATE_COUNT
+		&& (civ_unit_template(tmpl).flags & ROSTER_FLYING) != 0;
+}
+
+bool Simulation::garrisoning_allowed(size_t holder) const {
+	if (flight_.empty()) return true;
+	const auto it = flight_.find(units_.id[holder]);
+	return it == flight_.end() || !it->second.has_target;
+}
+
 // GarrisonHolder/Max of the unit's own 0.28 template: Kushite and Persian rams hold 12, the
-// Germanic log ram nobody; a template with none falls back to the class.
+// Germanic log ram nobody, a plane one; a template with none falls back to the class.
 int Simulation::siege_garrison_capacity(size_t i) const {
 	const uint16_t tmpl = units_.tmpl[i];
+	if (is_plane_at(i)) return PLANE_GARRISON;
 	const bool siege = is_siege_tower_at(i) || units_.unit_type[i] == UNIT_SIEGE_RAM;
 	if (siege && tmpl < CIV_UNIT_TEMPLATE_COUNT && combat_template_table()[tmpl].has_loot)
 		return combat_template_table()[tmpl].garrison_max;
@@ -7659,9 +7672,10 @@ bool Simulation::can_board(size_t transport_idx, size_t unit_idx) const {
 		return !unit_is_ship(units_.unit_type[unit_idx]) && ship_garrison_allowed(transport_idx, unit_idx);
 	if (is_transport(units_.id[unit_idx])) return false;
 	if (siege_garrison_capacity(transport_idx) > 0 && !(unit_classes_at(unit_idx) & (TC_INFANTRY | TC_CIVILIAN))) return false;
-	// GarrisonHolder.Garrison: a siege engine below its EjectHealth takes nobody in.
-	if (units_.hp[transport_idx] <= std::floor(units_.max_hp[transport_idx] * SIEGE_EJECT_HEALTH)) return false;
-	return true;
+	// GarrisonHolder.Garrison: a siege engine below its EjectHealth takes nobody in, and a plane
+	// nobody while it is off the ground.
+	if (units_.hp[transport_idx] <= std::floor(units_.max_hp[transport_idx] * siege_eject_health(transport_idx))) return false;
+	return garrisoning_allowed(transport_idx);
 }
 
 // GarrisonHolder.EjectOrKill on a holder killed out of the world (a loaded ram aboard a sinking
@@ -7745,6 +7759,11 @@ void Simulation::tick_siege_garrisons() {
 		if (siege_garrison_capacity(i) == 0) continue;
 		if (units_.action_state[i] == ACTION_GARRISONED) continue;
 		const bool dead = !units_.alive[i];
+		// A plane's EjectClassesOnDestroy is empty: EjectOrKill kills everyone aboard.
+		if (is_plane_at(i)) {
+			if (dead) kill_passengers_of(i);
+			continue;
+		}
 		// GarrisonHolder.HasEnoughHealth: holds while hp > floor(EjectHealth x max).
 		if (!dead && units_.hp[i] > std::floor(units_.max_hp[i] * SIEGE_EJECT_HEALTH)) continue;
 		auto pit = transport_passengers_.find(units_.id[i]);
@@ -9528,6 +9547,7 @@ void Simulation::order_disembark(uint32_t transport_id, float target_x, float ta
 		units_.action_state[tidx] = ACTION_MOVE;
 		return;
 	}
+	if (!garrisoning_allowed((size_t)tidx)) return; // GarrisonHolder.Eject, not forced: a plane in the air
 
 	// Each passenger in turn steps down onto its own free spot, as GarrisonHolder.Unload asks
 	// Footprint.PickSpawnPoint for each: beside a ship's hull (ship_unload_point, with the passengers
@@ -9577,7 +9597,7 @@ void Simulation::order_disembark_single(uint32_t transport_id, uint32_t unit_id)
 	int32_t tidx = lookup_unit(transport_id);
 	if (tidx < 0) return;
 	auto pit = transport_passengers_.find(transport_id);
-	if (pit == transport_passengers_.end()) return;
+	if (pit == transport_passengers_.end() || !garrisoning_allowed((size_t)tidx)) return;
 	auto it = std::find(pit->second.begin(), pit->second.end(), unit_id);
 	if (it != pit->second.end()) {
 		int32_t idx = lookup_unit(unit_id);
@@ -11284,6 +11304,17 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (!units_.alive[i] || is_transport(units_.id[i])) continue;
 		if (units_.action_state[i] == ACTION_MOVE && units_.target_unit_id[i] != 0) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
+			// GARRISONING enter: a plane that has taken off refuses it (IsGarrisoningAllowed), FinishOrder.
+			if (tidx >= 0 && units_.alive[tidx] && !garrisoning_allowed((size_t)tidx)) {
+				const float rx = px[i] - px[tidx], rz = pz[i] - pz[tidx], rr = transport_loading_reach((size_t)tidx, i);
+				if (rx * rx + rz * rz <= rr * rr) {
+					units_.action_state[i] = ACTION_IDLE;
+					units_.has_order[i] = 0;
+					units_.target_unit_id[i] = 0;
+					units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+				}
+				continue;
+			}
 			if (tidx >= 0 && units_.alive[tidx] && is_transport(units_.id[tidx]) && can_board((size_t)tidx, i)) {
 				float dx = px[i] - px[tidx];
 				float dz = pz[i] - pz[tidx];
@@ -12198,6 +12229,7 @@ void Simulation::tick_flight(float dt) {
 		}
 		if (!f.has_target) {
 			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+			carry_plane_passengers(i, dt);
 			continue;
 		}
 
@@ -12321,6 +12353,21 @@ void Simulation::tick_flight(float dt) {
 		units_.vel_z[i] = f.speed * ca;
 		units_.heading_x[i] = det::sin(newangle);
 		units_.heading_z[i] = det::cos(newangle);
+		carry_plane_passengers(i, dt);
+	}
+}
+
+// The one aboard rides where the plane is and regains BuffHeal hitpoints a second.
+void Simulation::carry_plane_passengers(size_t plane, float dt) {
+	if (transport_passengers_.empty()) return;
+	const auto pit = transport_passengers_.find(units_.id[plane]);
+	if (pit == transport_passengers_.end()) return;
+	for (uint32_t puid : pit->second) {
+		const int32_t p = lookup_unit(puid);
+		if (p < 0) continue;
+		units_.pos_x[p] = units_.pos_x[plane];
+		units_.pos_z[p] = units_.pos_z[plane];
+		units_.hp[p] = std::min(units_.max_hp[p], units_.hp[p] + PLANE_BUFF_HEAL * dt);
 	}
 }
 

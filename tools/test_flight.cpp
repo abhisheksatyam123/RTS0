@@ -1,6 +1,8 @@
 // UnitMotionFlying tests (units/plane, Flight Demo): a plane takes off along the ground, climbs
 // to its flying height, circles a walk's point, is out of a swordsman's reach in the air, lands
-// when stopped, dies landing on water, and its flight survives a save/load round trip.
+// when stopped, dies landing on water, and its flight survives a save/load round trip. It takes
+// one Support or Infantry passenger on board while on the ground, none in the air, and whoever
+// is aboard dies with it.
 //   g++ -std=c++20 -O2 -Isrc tools/test_flight.cpp src/simulation/simulation.cpp
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_flight
 //       && /tmp/test_flight
@@ -146,7 +148,54 @@ int main() {
 		CHECK(c.flight_offset((size_t)index_of(c, cp)) == 0.0f);
 	}
 
-	// DiesInWater: one that lands on the sea is killed.
+	// GarrisonHolder: one Support or Infantry unit boards it on the ground (Max 1); it rides along,
+	// healing 1 hp a second, and can neither board nor get off once the take-off roll has begun.
+	{
+		static Simulation g;
+		g.set_sim_seed(7);
+		g.set_team_civ(0, CIV_ATHENIANS);
+		g.reset();
+		g.set_map_half(120.0f);
+		const uint32_t gp = g.spawn_unit(0.0f, 0.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, plane);
+		CHECK(g.is_transport(gp) && g.get_transport_capacity(gp) == 1);
+		const uint32_t inf = g.spawn_unit(3.0f, 0.0f, 0, UNIT_SPEARMAN);
+		const uint32_t inf2 = g.spawn_unit(-3.0f, 0.0f, 0, UNIT_SPEARMAN);
+		const uint32_t cav = g.spawn_unit(0.0f, 3.0f, 0, UNIT_CAVALRY);
+		CHECK(!g.can_board_unit(gp, cav));
+		g.set_unit_hp(inf, g.units().max_hp[index_of(g, inf)] - 40.0f);
+		g.order_board_transport(&inf, 1, gp);
+		run(g, 3.0f);
+		CHECK(g.get_transport_passenger_count(gp) == 1);
+		g.order_board_transport(&inf2, 1, gp);
+		run(g, 3.0f);
+		CHECK(g.get_transport_passenger_count(gp) == 1); // full
+		// Off it goes with its passenger, hurt.
+		int32_t ii = index_of(g, inf);
+		const float hp0 = g.units().hp[ii];
+		CHECK(hp0 < g.units().max_hp[ii] - 20.0f);
+		uint32_t gpm = gp;
+		g.cmd_move(&gpm, 1, 0.0f, 80.0f);
+		run(g, 10.0f);
+		const int32_t gi = index_of(g, gp);
+		CHECK(g.flight_offset((size_t)gi) > 0.0f);
+		ii = index_of(g, inf);
+		CHECK(g.units().pos_x[ii] == g.units().pos_x[gi] && g.units().pos_z[ii] == g.units().pos_z[gi]);
+		CHECK(std::fabs(g.units().hp[ii] - (hp0 + 10.0f)) < 0.1f);
+		g.order_disembark_single(gp, inf);
+		g.order_disembark_all(gp);
+		CHECK(g.get_transport_passenger_count(gp) == 1); // GarrisonHolder.Eject refused in the air
+		// Landed and stopped, it lets its passenger off.
+		g.cmd_stop(&gpm, 1);
+		run(g, 30.0f);
+		CHECK(g.flight_offset((size_t)index_of(g, gp)) == 0.0f);
+		g.order_disembark_all(gp);
+		CHECK(g.get_transport_passenger_count(gp) == 0);
+		ii = index_of(g, inf);
+		CHECK(ii >= 0 && g.units().alive[ii]);
+	}
+
+	// DiesInWater: one that lands on the sea is killed, and its passenger with it (no
+	// EjectClassesOnDestroy).
 	static Simulation w;
 	w.set_sim_seed(4);
 	w.set_team_civ(0, CIV_ATHENIANS);
@@ -155,6 +204,10 @@ int main() {
 	const int res = 65;
 	w.set_terrain_data(std::vector<float>((size_t)res * res, -3.0f), res, 0.0f);
 	uint32_t q = w.spawn_unit(0.0f, 0.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, plane);
+	const uint32_t rider = w.spawn_unit(1.0f, 0.0f, 0, UNIT_SPEARMAN);
+	w.order_board_transport(&rider, 1, q);
+	run(w, 2.0f);
+	CHECK(w.get_transport_passenger_count(q) == 1);
 	w.cmd_move(&q, 1, 60.0f, 0.0f);
 	run(w, 15.0f);
 	CHECK(w.flight_offset((size_t)index_of(w, q)) > 0.5f * PLANE_FLIGHT.flying_height);
@@ -162,6 +215,9 @@ int main() {
 	run(w, 40.0f);
 	const int32_t qi = index_of(w, q);
 	CHECK(qi < 0 || !w.units().alive[qi]);
+	const int32_t ri = index_of(w, rider);
+	CHECK(ri < 0 || (!w.units().alive[ri] && w.units().action_state[ri] != ACTION_GARRISONED));
+	CHECK(w.get_transport_passenger_count(q) == 0);
 
 	if (failures == 0) std::printf("ALL PASS\n");
 	return failures == 0 ? 0 : 1;
