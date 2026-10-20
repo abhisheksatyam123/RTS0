@@ -201,7 +201,7 @@ static void test_trade_gain() {
 	s.set_team_civ(0, CIV_HAN);
 	s.complete_research(0, TECH_SILK_ROAD);
 	g = s.calculate_trade_gain(a, b, 0);
-	CHECK(g.market1 == (int)std::lround(long_route * 0.3 * 1.2));
+	CHECK(g.market1 == (int)std::lround(long_route * (0.2 * 1.2 + 0.1))); // Commercial Treaty adds after the multiply
 	CHECK(g.market2 == (int)std::lround(long_route * 0.2 * 1.2)); // the ally's bonus is unchanged
 }
 
@@ -636,6 +636,91 @@ static void test_zero_gain_route() {
 	CHECK(i >= 0 && s.units_.action_state[i] == ACTION_IDLE && !s.trader_routes_.count(t));
 }
 
+// UnitAI.SetupTradeRoute with no source (a player's market clicks, lockstep command 35 with
+// target_x 0) and Trader.SetTargetMarket: the first click makes that market the trader's first
+// and walks it there, its Shift-queued walks become the route (expectedRoute), the second click
+// trades between them; the first market again cancels (CancelSetupTradeRoute); a click on a
+// trading trader's market starts over from it.
+static void test_setup_trade_clicks() {
+	static Simulation s;
+	fresh(s);
+	const uint32_t a = s.spawn_building_world(-80.0f, 0.0f, BLD_MARKET, 0, 1.0f);
+	const uint32_t b = s.spawn_building_world(80.0f, 0.0f, BLD_MARKET, 1, 1.0f);
+	root_markets(s);
+	s.set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
+	s.set_diplomacy(1, 0, Simulation::DIPLO_NEUTRAL);
+	const uint32_t t = s.spawn_unit(-60.0f, 20.0f, 0, UNIT_TRADER);
+	auto unit = [&]() { return (size_t)s.lookup_unit(t); };
+	uint32_t ma = 9, mb = 9;
+	int leg = 0;
+	CHECK(!s.trader_route(t, ma, mb, leg));
+
+	TurnManager net;
+	auto post = [&](uint32_t market, uint8_t param) {
+		NetCommand cmd;
+		cmd.client_id = 0;
+		cmd.cmd_type = (uint8_t)NetCommandType::NET_CMD_SETUP_TRADE_ROUTE;
+		cmd.entity_ids = {t};
+		cmd.target_id = market;
+		cmd.param = param;
+		net.post_local_command(cmd);
+		for (int i = 0; i < 5; ++i) net.tick(TurnManager::TURN_DURATION, s);
+	};
+	post(a, 0);
+	CHECK(s.trader_first_market(t) == a && s.trader_route(t, ma, mb, leg) && ma == a && mb == 0);
+	CHECK(s.units_.order_kind[unit()] == ORDER_WALK); // WalkToTarget the first market
+	// Shift-queued walks are the expected route, not orders; a pushed-front walk is an order.
+	s.order_walk(&t, 1, -20.0f, 40.0f, true);
+	s.order_walk(&t, 1, 20.0f, 40.0f, true);
+	CHECK(!s.order_queues_.count(t) || s.order_queues_[t].empty());
+	std::vector<std::pair<float, float>> pts;
+	CHECK(s.trader_route_points(t, pts) && pts.size() == 2 && pts[0].first == -20.0f && pts[1].first == 20.0f);
+	// The same market again changes nothing; the first market with the cancel flag drops it.
+	s.order_setup_trade(&t, 1, a);
+	CHECK(s.trader_first_market(t) == a && s.trader_route_points(t, pts) && pts.size() == 2);
+	post(a, NET_PARAM_CANCEL_TRADE);
+	CHECK(!s.trader_route(t, ma, mb, leg) && !s.trader_route_points(t, pts));
+
+	// Again, then the second market: Order.Trade from a to b along the expected route.
+	post(a, 0);
+	s.order_walk(&t, 1, 0.0f, 40.0f, true);
+	post(b, 0);
+	CHECK(s.trader_route(t, ma, mb, leg) && ma == a && mb == b && leg == 0);
+	CHECK(s.trader_route_points(t, pts) && pts.size() == 1 && pts[0].second == 40.0f);
+	CHECK(s.units_.action_state[unit()] == ACTION_TRADE);
+	run(s, 90.0f);
+	Simulation::TradeGain g;
+	CHECK(s.trader_goods(t, g) && g.trader > 0); // loaded at a, on its way to b
+
+	// A click on its own market starts over: a is its first market again, the goods dropped.
+	post(a, 0);
+	CHECK(s.trader_first_market(t) == a && !s.trader_goods(t, g) && s.units_.carry[unit()] == 0);
+	CHECK(!s.trader_route_points(t, pts));
+	// Any other order ends the expected route but keeps the first market (UnitAI.AddOrder).
+	s.order_walk(&t, 1, 0.0f, 0.0f, false);
+	s.order_walk(&t, 1, 10.0f, 10.0f, true);
+	CHECK(s.trader_first_market(t) == a && !s.trader_route_points(t, pts));
+	CHECK(s.order_queues_.count(t) && s.order_queues_[t].size() == 1); // a real queued walk now
+	// Saved: a load keeps the first market and the hash agrees.
+	const char *path = "/tmp/rtso_test_setup_trade.sav";
+	CHECK(s.save_state(path));
+	static Simulation l;
+	fresh(l);
+	CHECK(l.load_state(path));
+	CHECK(l.trader_first_market(t) == a);
+	CHECK(net.compute_sim_hash(s) == net.compute_sim_hash(l));
+	std::remove(path);
+
+	// A queued pick while trading ends the Trade order once it comes up: the trader keeps the
+	// new first market and walks there.
+	s.order_trade(&t, 1, a, b);
+	CHECK(s.units_.action_state[unit()] == ACTION_TRADE);
+	s.order_setup_trade(&t, 1, b, true);
+	CHECK(s.trader_first_market(t) == b);
+	run(s, 2.0f);
+	CHECK(s.units_.action_state[unit()] != ACTION_TRADE && s.trader_first_market(t) == b);
+}
+
 int main() {
 	test_zero_gain_route();
 	test_tribute();
@@ -648,6 +733,7 @@ int main() {
 	test_garrisoned_trader_gain();
 	test_ship_trade_gain_mid_voyage();
 	test_bribe_garrisoned_trader();
+	test_setup_trade_clicks();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

@@ -738,10 +738,7 @@ bool TurnManager::saved_game_hold() {
 		if (!p || !p->connected || lockstep_since_.count(*it) || watching_served) it = saved_waiting_.erase(it);
 		else ++it;
 	}
-	if (!saved_waiting_.empty() && rejoin_now_ms() - saved_since_ms_ > SAVED_GAME_WAIT_MS) {
-		std::cerr << "[TurnManager] saved game: starting without " << saved_waiting_.size() << " client(s)\n";
-		saved_waiting_.clear();
-	}
+	// NetServer CheckGameLoadStatus: no time limit; the host can kick a client that never loads.
 	return !saved_waiting_.empty();
 }
 
@@ -1811,7 +1808,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			// non-finite point straightens that leg's walk (order_trade drops it too).
 			std::vector<std::pair<float, float>> route;
 			for (size_t k = 0; k + 1 < c.route.size(); k += 2) route.emplace_back(c.route[k], c.route[k + 1]);
-			if (c.target_x >= 1.0f && c.target_x < 16777216.0f && c.target_x == (float)(uint32_t)c.target_x)
+			if (c.target_x == 0.0f && (c.param & NET_PARAM_CANCEL_TRADE))
+				sim.order_cancel_trade_setup(ids, n, c.target_id);
+			else if (c.target_x == 0.0f)
+				sim.order_setup_trade(ids, n, c.target_id, queued);
+			else if (c.target_x >= 1.0f && c.target_x < 16777216.0f && c.target_x == (float)(uint32_t)c.target_x)
 				sim.order_trade(ids, n, c.target_id, (uint32_t)c.target_x, queued, route);
 		} else if (c.cmd_type == 37) { // Remove guard
 			sim.order_remove_guard(ids, n);

@@ -141,7 +141,11 @@ def play_saved(args, lobby):
           # GameSettingControl EnabledWhenSavedGame: the joiner's own picks are refused.
           and "refused=The controller loaded a saved game" in outs["join"]
           # A saved game's clients load it at Start: nobody "has rejoined".
-          and h.get("rejoined_lines") == "0" and j.get("rejoined_lines") == "0")
+          and h.get("rejoined_lines") == "0" and j.get("rejoined_lines") == "0"
+          # NetClient OnSavedGameStart: the joiner loads under the loading page,
+          # not the rejoin box; NMT_CLIENTS_LOADING: the host names who loads.
+          and j.get("rejoin_box") == "false" and j.get("saved_loading") == "true"
+          and h.get("waiting", "-").startswith("Waiting_for_players_to_connect:"))
     for role in ("host", "join"):
         for line in gmp_lines(outs[role]):
             print("   " + line)
