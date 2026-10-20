@@ -173,6 +173,10 @@ static void test_roster_army() {
 				men.push_back(s->spawn_unit(at[0] - 6.0f + (float)(k % 5), at[1] - 6.0f - (float)(k / 5), 0, UNIT_SPEARMAN));
 			s->order_garrison(men.data(), men.size(), fort);
 		}
+		// Murder Holes: soldiers left from an attack hacking at a fortress from under its arrows
+		// (MinRange) would hold both attack slots for the rest of the match (attackManager.js),
+		// so its hero and champions never march.
+		s->complete_research(0, TECH_TOWER_MURDERHOLES);
 		bool hero = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		bool advanced = false, arsenal = false;
 		// 45 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
@@ -5818,6 +5822,74 @@ static void test_order_plan_tags() {
 }
 
 
+// headquarters.js:411 trainMoreWorkers counts only units with no plan: one an attack or raid
+// took keeps plan -1 after it leaves (attackPlan.js removeUnit), and so do the emergency units,
+// so Petra trains new workers in their place.
+static void test_out_of_plan_workers() {
+	auto make = [] {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		return s;
+	};
+	auto s = make();
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	int supports = 0;
+	const int before = s->petra_unplanned_workers(supports);
+	std::vector<uint32_t> soldiers;
+	for (size_t i = 0; i < s->units_.count && soldiers.size() < 2; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 && unit_gather_class(s->units_.unit_type[i], s->units_.tmpl[i]) == GATHER_INFANTRY &&
+		    s->petra_is_worker(i))
+			soldiers.push_back(s->units_.id[i]);
+	CHECK(soldiers.size() == 2, "Petra starts with two citizen infantry workers");
+	if (soldiers.size() < 2) return;
+	s->petra_raid_plan_.squad = soldiers;
+	CHECK(s->petra_unplanned_workers(supports) == before - 2, "a raid's soldiers aren't workers");
+	s->petra_raid_plan_.squad.clear();
+	CHECK(s->petra_unplanned_workers(supports) == before - 2, "nor once the raid let them go (plan -1)");
+	CHECK(s->petra_is_worker((size_t)s->lookup_unit(soldiers[0])), "though they still gather");
+	const char *path = "/tmp/rtso_test_petra_out_of_plan.sav";
+	CHECK(s->save_state(path), "saves");
+	auto t = make();
+	CHECK(t->load_state(path), "loads");
+	std::remove(path);
+	t->petra_pid_ = 1;
+	CHECK(t->petra_unplanned_workers(supports) == before - 2, "plan -1 survives a save and load");
+
+	// An emergency batch: its units are out of any plan from the start.
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : t->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type)) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const uint32_t cc_id = cc->id;
+	t->buildings_[t->building_id_to_idx_.at(cc_id)].queue.clear();
+	const uint16_t tmpl = t->units_.tmpl[(size_t)t->lookup_unit(soldiers[0])];
+	std::vector<uint32_t> had;
+	for (size_t i = 0; i < t->units_.count; ++i) if (t->units_.alive[i]) had.push_back(t->units_.id[i]);
+	ProductionOrder em;
+	em.unit_type = t->units_.unit_type[(size_t)t->lookup_unit(soldiers[0])];
+	em.tmpl = tmpl;
+	em.timer = 0.0f;
+	em.duration = 1.0f;
+	em.petra_plan = PETRA_ORDER_EMERGENCY; // as trainEmergencyUnits queues it (plan -1)
+	t->buildings_[t->building_id_to_idx_.at(cc_id)].queue.push_back(em);
+	for (int k = 0; k < 2400 && !t->buildings_[t->building_id_to_idx_.at(cc_id)].queue.empty(); ++k) t->tick(Simulation::FIXED_STEP);
+	CHECK(t->buildings_[t->building_id_to_idx_.at(cc_id)].queue.empty(), "it trains");
+	int emergency = 0, out = 0;
+	for (size_t i = 0; i < t->units_.count; ++i) {
+		if (!t->units_.alive[i] || t->units_.team[i] != 1 || t->units_.tmpl[i] != tmpl) continue;
+		if (std::find(had.begin(), had.end(), t->units_.id[i]) != had.end()) continue;
+		++emergency;
+		const auto &o = t->petra_out_of_plan_[1];
+		out += std::binary_search(o.begin(), o.end(), t->units_.id[i]);
+	}
+	CHECK(emergency >= 1 && out == emergency, "and is out of any plan, so it isn't counted as a worker");
+}
+
 // attackPlan.js addUnits for a raid: every free FastMoving soldier but two, kept back to hunt.
 static void test_raid_keeps_hunters() {
 	auto s = std::make_unique<Simulation>();
@@ -7028,6 +7100,7 @@ int main(int argc, char **argv) {
 	RUN(test_raid_takes_siege);
 	RUN(test_raid_cc_foundation);
 	RUN(test_order_plan_tags);
+	RUN(test_out_of_plan_workers);
 	RUN(test_dropsites);
 	RUN(test_building_plan_028);
 	RUN(test_food_fields);

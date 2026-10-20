@@ -143,8 +143,10 @@ func run() -> void:
 	rinfo["biome"] = SetupPage.RANDOM_BIOME
 	check(has_line(GameDescription.describe(rinfo), "Random Biome", "Randomly select a biome from the list."), "Random reads Random Biome until Start")
 	rinfo["rated"] = true
+	check(int(rinfo["player_count"]) == 3 and not GameDescription.describe(rinfo).contains("Rated game"),
+		"a rated 1v1's match, replay or save has no Rated game line outside the lobby (the session's PlayerData holds Gaia)")
 	rinfo["player_count"] = 2
-	check(has_line(GameDescription.describe(rinfo), "Rated game", GameDescription.RATING_DESC), "a rated 1v1 says so")
+	check(has_line(GameDescription.describe(rinfo), "Rated game", GameDescription.RATING_DESC), "Game Setup's rated 1v1 says so")
 	rinfo["rated"] = false
 	check(not GameDescription.describe(rinfo).contains("Rated game"), "no rated line outside a lobby game")
 	rinfo["lobby_game"] = true

@@ -9,6 +9,9 @@ extends SceneTree
 #      load order;
 #   3. disabling a mod takes the mods that need it along; the filter (and
 #      Negate) narrows the lists;
+#   3b. the Available list sorts by the clicked column; double-click enables
+#      and disables, keeping a row selected; missing enabled mods show as
+#      "This mod does not exist"; Help is the Pyrogenesis Mod Selector page;
 #   4. at startup an enabled mod's .zip and .pck files load over the game's.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_modmod.gd
@@ -98,10 +101,52 @@ func run() -> void:
 	page.compat_filter.button_pressed = false
 	page.filter_edit.text = "beta"
 	page.display_lists()
-	check(shown(page.disabled_list) == ["beta"], "the filter finds Beta")
+	check(shown(page.disabled_list) == ["beta"], "the filter finds Beta: " + str(shown(page.disabled_list)))
 	page.negate.button_pressed = true
 	check(not shown(page.disabled_list).has("beta") and shown(page.disabled_list).size() == 3, "Negate leaves the others")
 	page.queue_free()
+
+	print("3b. Sorting, double-click, selection, missing mods, Help")
+	cfg.set_value(Mods.CONFIG_KEY, cfg.get_default(Mods.CONFIG_KEY))
+	page = load("res://scenes/menu/modmod.gd").new()
+	root.add_child(page)
+	await frames(1)
+	page.init_mods(DIR)
+	page.compat_filter.button_pressed = false
+	check(shown(page.disabled_list) == ["alpha", "beta", "broken", "old"], "Available sorted by name: " + str(shown(page.disabled_list)))
+	page.disabled_list.column_title_clicked.emit(0, MOUSE_BUTTON_LEFT)
+	check(shown(page.disabled_list) == ["old", "broken", "beta", "alpha"], "a second click on Name reverses it: " + str(shown(page.disabled_list)))
+	page.disabled_list.column_title_clicked.emit(1, MOUSE_BUTTON_LEFT)
+	check(shown(page.disabled_list) == ["old", "alpha", "beta", "broken"], "Version sorts ascending: " + str(shown(page.disabled_list)))
+	page.sort_by(0)
+	select(page.disabled_list, "alpha", page)
+	page.disabled_list.item_activated.emit()
+	check(page.enabled.has("alpha"), "double-click enables")
+	check(page._selected_folder(page.disabled_list) == "beta", "the next row stays selected: " + page._selected_folder(page.disabled_list))
+	select(page.enabled_list, "alpha", page)
+	page.enabled_list.item_activated.emit()
+	check(not page.enabled.has("alpha"), "double-click disables")
+	check(page._selected_folder(page.enabled_list) == "public", "the last row is selected after Disable")
+	page.description.text = ""
+	check(page.description.get_theme_color("default_color") == Color8(180, 180, 180), "the description is grey")
+	var help = page.show_help()
+	await frames(1)
+	check(help.find_child("Title", true, false).text == "Pyrogenesis Mod Selector"
+		and help.find_child("Text", true, false).text.begins_with("0 A.D. is designed to be easily modded."), "Help is the Pyrogenesis Mod Selector page")
+	page.queue_free()
+	cfg.set_value(Mods.CONFIG_KEY, "mod public gone beta")
+	page = load("res://scenes/menu/modmod.gd").new()
+	page.has_incompatible = true
+	root.add_child(page)
+	await frames(1)
+	page.init_mods(DIR)
+	check(shown(page.enabled_list) == ["public", "gone", "beta"] and page._value("gone", "name") == "This mod does not exist",
+		"a missing enabled mod stays, as This mod does not exist: " + str(shown(page.enabled_list)))
+	page.disable_mod("public")
+	check(page.enabled.is_empty() and page.disabled.has("beta") and not page.disabled.has("gone"),
+		"disabling drops the incompatible mods too: " + str(page.enabled))
+	page.queue_free()
+	cfg.set_value(Mods.CONFIG_KEY, cfg.get_default(Mods.CONFIG_KEY))
 
 	print("4. Loading")
 	DirAccess.make_dir_recursive_absolute(DIR + "alpha")
@@ -126,6 +171,7 @@ func run() -> void:
 	var box = inc.find_child("MsgBox", true, false)
 	check(box != null and box.title == "Incompatible mods" and box.message.begins_with("You tried to start the game with incompatible or missing mods!")
 		and box.captions == ["Ok"], "the Mod Selection opens with the Incompatible mods notice")
+	check(box.find_child("Text", true, false).horizontal_alignment == HORIZONTAL_ALIGNMENT_LEFT, "its text is left-aligned")
 	host.queue_free()
 
 	cfg.set_value(Mods.CONFIG_KEY, saved)

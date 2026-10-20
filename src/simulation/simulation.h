@@ -108,7 +108,8 @@ struct ProductionOrder {
 };
 // The metadata Petra trains a batch with (queueplanTraining.js): a worker (role worker, no
 // plan), a soldier for the attack in preparation or for the raid (plan), or none.
-enum PetraOrderPlan : uint8_t { PETRA_ORDER_NONE = 0, PETRA_ORDER_WORKER, PETRA_ORDER_ATTACK, PETRA_ORDER_RAID };
+// PETRA_ORDER_EMERGENCY: headquarters.js trainEmergencyUnits queues them with metadata plan -1.
+enum PetraOrderPlan : uint8_t { PETRA_ORDER_NONE = 0, PETRA_ORDER_WORKER, PETRA_ORDER_ATTACK, PETRA_ORDER_RAID, PETRA_ORDER_EMERGENCY };
 // ProductionQueue.js MaxQueueSize.
 static constexpr size_t PRODUCTION_QUEUE_MAX = 16;
 
@@ -180,10 +181,11 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 105; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 106; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_CHASE_TARGET = 105; // the target each unit was last in attack range of (UnitAI CHASING)
 	static constexpr uint32_t SAVE_VERSION_WAGON_SHARING = 103; // the supply wagons their owners locked
 	static constexpr uint32_t SAVE_VERSION_PETRA_TARGETED_RELICS = 104; // each Petra's targetedGaiaRelics; each structure's petra_decay_hold
+	static constexpr uint32_t SAVE_VERSION_PETRA_OUT_OF_PLAN = 106; // Petra's units out of a plan (metadata plan -1); emergency batches
 	static constexpr uint32_t SAVE_VERSION_AUTOQUEUE_BATCH = 102; // each queued batch's original size once part of it spawned
 	static constexpr uint32_t SAVE_VERSION_CARCASS_OWNER = 101; // each carcass's animal's owner
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
@@ -644,7 +646,7 @@ public:
 		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
 			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER,
-			END_TREASURE, END_STRUCTURES_CRITICAL, END_CIVIC_CENTRES_CRITICAL };
+			END_TREASURE, END_STRUCTURES_CRITICAL, END_CIVIC_CENTRES_CRITICAL, END_CHEAT };
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
@@ -1537,8 +1539,22 @@ public:
 	// `choice`: which of building_upgrade()'s choices (the Tachara has four).
 	// The civ whose Upgrade choices a structure offers: its own template's (Upgrade.js reads
 	// the entity's template, so a captured Tachara keeps its four forms), else its owner's.
-	uint8_t structure_upgrade_civ(const Building &b) const {
+	uint8_t structure_upgrade_civ(const Building &b) const { return structure_template_civ(b); }
+	// The civ of the template a structure was placed as (a captured house keeps its builder's
+	// Population/Bonus and BuildTime), else its owner's.
+	uint8_t structure_template_civ(const Building &b) const {
 		return b.civ < CIV_COUNT && b.civ != CIV_GAIA ? b.civ : (uint8_t)civ_of(b.team);
+	}
+	// Upgrade.js DetermineUpgrades: that template's choices, its "{civ}" targets resolved
+	// with the owner's civ (the ones the owner's civ lacks dropped).
+	BuildingUpgradeInfo structure_upgrade(const Building &b, int choice) const {
+		return building_upgrade(b.type, structure_upgrade_civ(b), choice, structure_owner_civ(b));
+	}
+	int structure_upgrade_count(const Building &b) const {
+		return building_upgrade_count(b.type, structure_upgrade_civ(b), structure_owner_civ(b));
+	}
+	uint8_t structure_owner_civ(const Building &b) const {
+		return b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_GAIA;
 	}
 	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id, int choice = 0) const;
 	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice = 0);
@@ -1862,7 +1878,8 @@ public:
 	// Player.IsTrainingBlocked: a batch at the head of one of the player's queues waits
 	// for population room (Trainer.js Item.Start, Player.BlockTraining).
 	bool training_blocked(uint8_t player) const;
-	int structure_pop_bonus(uint8_t type, uint8_t player) const;
+	// `bld_civ`: the structure's template civ (structure_template_civ); 0xFF for the player's own.
+	int structure_pop_bonus(uint8_t type, uint8_t player, uint8_t bld_civ = 0xFF) const;
 	// GarrisonHolder/BuffHeal of a structure type for a player: its template's plus garrison_heal.
 	float structure_garrison_heal_for(uint8_t type, uint8_t player) const {
 		return building_garrison_heal(type) + (player < MAX_PLAYERS && type < BLD_TYPE_COUNT ? tech_mods_[player].bld_garrison_heal[type] : 0.0f);
@@ -1959,6 +1976,10 @@ public:
 	// infantry an AI player trained outside its civic centres, sorted ids (saved v52). Every
 	// other citizen soldier of an AI is a worker (trainMoreWorkers, the starting units).
 	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_army_ids_;
+	// Petra's units with metadata plan -1, sorted ids (saved v106): every unit an attack or
+	// raid squad held (attackPlan.js removeUnit) and the emergency units (trainEmergencyUnits).
+	// 0.28 never clears it, so trainMoreWorkers doesn't count them as workers again.
+	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_out_of_plan_;
 	bool petra_is_worker(size_t i) const;
 	int petra_target_workers() const;
 	int petra_work_phase3() const;
@@ -2283,6 +2304,11 @@ public:
 	// structure is, unless `allow_capture` is false (Ctrl: session.attack).
 	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id, bool allow_capture = true);
 	bool scenery_capturable(const Scenery &sc) const { return scenery_type_info(sc.type).capture_points > 0; }
+	// unit_actions.js "attack" and "capture" on a structure: may one of unit_ids damage it (Attack.js
+	// CanAttack "!Capture": an enemy's, with hitpoints, outside the attack's RestrictedClasses) or take
+	// its capture points (CanAttack "Capture": a Capture attack and Capturable.CanCapture)?
+	bool any_can_damage_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const;
+	bool any_can_capture_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const;
 	void tick_scenery_capture(); // Capturable.js TimerTick: territory decay, then regeneration
 	void scenery_check_owner(Scenery &sc); // RegisterCapturePointsChanged
 	float unit_damage_to_scenery(size_t i) const;
@@ -2697,6 +2723,7 @@ private:
 	// leave (UnitAI LeaveFoundation); enemies and Gaia keep it from starting. True once
 	// the site is clear and committed, after which the foundation blocks movement.
 	bool try_commit_foundation(Building &b);
+	void foundation_exit_point(const Building &b, float x, float z, float r, float &tx, float &tz) const;
 	void leave_foundation(size_t i, const Building &b);
 	void tick_repair(float dt);
 	static constexpr float REPAIR_TIME_RATIO = 2.0f; // template_structure.xml Repairable/RepairTimeRatio
@@ -3195,6 +3222,7 @@ private:
 	CinemaState cinema_; // saved from SAVE_VERSION_CINEMA
 	void tick_triggers(float dt);
 	void tick_cinema(float dt);
+	void cinema_drop_deleted_path(uint16_t idx); // a deleted path no longer queued
 	void set_cinema_enabled(bool enabled);
 	void register_map_triggers(MapType type);
 	void run_trigger_action(uint16_t action, float arg, const TriggerEventData &data);
@@ -3790,6 +3818,7 @@ private:
 	uint32_t petra_build_market(float home_x, float home_z, uint8_t queue); // ConstructionPlan for a Market
 	bool petra_find_defensive_location(uint8_t btype, int &out_cx, int &out_cz) const; // headquarters.js findDefensiveLocation
 	void petra_prospect_market(const PetraTradeRoutes &routes); // prospectForNewMarket
+	int petra_unplanned_workers(int &supports);
 	int petra_train_more_workers();
 	bool petra_wood_starved() const;
 	bool petra_wood_kept_for(int queue) const;

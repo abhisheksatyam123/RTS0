@@ -132,6 +132,15 @@ func run() -> void:
 	var spart_hero: Dictionary = ref.get_civ_info(spart)["heroes"][0]
 	var hc: Dictionary = Common.civ_costed(ref.get_unit(int(spart_hero["tmpl"])), "unit", spart)["cost"]
 	check(int(hc["food"]) + int(hc["wood"]) + int(hc["metal"]) == 0, "Spartan heroes are free")
+	# ProductionRowManager lists every Upgrade choice: the Persian tachara's four, with their
+	# own Upgrade cost; techs carry the civ's specificName (Spartan agoge "Agōga").
+	var tach_ups: Array = ref.get_structure(30, 2)["upgrades"]
+	check(tach_ups.size() == 4 and tach_ups[0].has("upgrade_cost") and tach_ups[0].has("upgrade_time"),
+			"the Persian tachara lists its four upgrades with their costs: %d" % tach_ups.size())
+	var agoga := false
+	for t in ref.get_civ_info(spart)["techs"]:
+		agoga = agoga or str(t.get("specific_name", "")) == "Agōga"
+	check(agoga, "a Spartan tech carries its specific name (Agōga)")
 	# 0.28 civinfo: civ bonuses from auto-researched civ techs and player auras besides
 	# {civ}.json, team bonuses from the player auras, (i) info hovers, and only the
 	# techs and structures 0.28 counts as civ specific.
@@ -234,8 +243,8 @@ func run() -> void:
 	print("1b. Page hotkeys (StructreePage.js / CivInfoPage.js)")
 	tabs.current_tab = 1
 	await frames(1)
-	check(page.get_node("Center/Panel/VBox/Header/BtnBack").tooltip_text == "Escape: Close Structure Tree."
-		and tabs.get_tab_bar().get_tab_tooltip(0) == "Alt+Shift+H: Switch to Civilization Overview.",
+	check(page.get_node("Center/Panel/VBox/Header/BtnBack").tooltip_text == "[color=#fffb83][lb]Escape[rb][/color]: Close Structure Tree."
+		and tabs.get_tab_bar().get_tab_tooltip(0) == "[color=#fffb83][lb]Alt+Shift+H[rb][/color]: Switch to Civilization Overview.",
 		"the close and switch tooltips: " + page.get_node("Center/Panel/VBox/Header/BtnBack").tooltip_text)
 	await key(KEY_H, true)
 	check(tabs.current_tab == 0, "Alt+Shift+H switches to the Civilization Overview")

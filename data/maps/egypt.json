@@ -16864,42 +16864,72 @@
       "team": 2,
       "start_x": -37.82,
       "start_z": -233.05,
-      "civ": 4
+      "civ": 4,
+      "color": [
+        128,
+        0,
+        128
+      ]
     },
     {
       "id": 6,
       "team": 5,
       "start_x": -240.05,
       "start_z": 56.26,
-      "civ": 3
+      "civ": 3,
+      "color": [
+        151,
+        0,
+        0
+      ]
     },
     {
       "id": 5,
       "team": 4,
       "start_x": 78.16,
       "start_z": 0.68,
-      "civ": 11
+      "civ": 11,
+      "color": [
+        0,
+        162,
+        170
+      ]
     },
     {
       "id": 1,
       "team": 0,
       "start_x": -63.6,
       "start_z": 155.83,
-      "civ": 12
+      "civ": 12,
+      "color": [
+        0,
+        44,
+        98
+      ]
     },
     {
       "id": 4,
       "team": 3,
       "start_x": 159.93,
       "start_z": 172.05,
-      "civ": 2
+      "civ": 2,
+      "color": [
+        231,
+        200,
+        5
+      ]
     },
     {
       "id": 2,
       "team": 1,
       "start_x": 116.02,
       "start_z": -121.3,
-      "civ": 10
+      "civ": 10,
+      "color": [
+        80,
+        40,
+        16
+      ]
     }
   ],
   "resources": [
