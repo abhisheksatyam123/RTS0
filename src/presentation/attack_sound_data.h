@@ -99,7 +99,7 @@ struct EntityAttackSounds {
 	uint8_t a, b, c, d;
 };
 
-inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 544;
+inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 545;
 inline constexpr uint8_t ATTACK_SOUND_GENERIC_ROWS = 27;
 inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 87;
 inline constexpr uint8_t ATTACK_SOUND_FAUNA_ROWS = 61;
@@ -651,6 +651,7 @@ inline const EntityAttackSounds *roster_attack_sounds() {
 		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // germ/infantry_spearman_a
 		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // germ/infantry_swordsman_a
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/support_healer_e
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // plane
 	};
 	return kRows;
 }
@@ -1401,6 +1402,7 @@ inline uint8_t roster_death_sound(uint16_t row) {
 		ATTACK_SOUND_PHENOTYPE, // germ/infantry_spearman_a
 		ATTACK_SOUND_PHENOTYPE, // germ/infantry_swordsman_a
 		ATTACK_SOUND_PHENOTYPE, // germ/support_healer_e
+		ATTACK_SOUND_NONE, // plane
 	};
 	return row < ATTACK_SOUND_ROSTER_ROWS ? kRows[row] : ATTACK_SOUND_NONE;
 }

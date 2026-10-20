@@ -20,7 +20,7 @@ struct PrefProfile { uint8_t count; PrefTerm term[4]; }; // terms by index, over
 // A unit's PreferredClasses and its own preference classes as a target.
 struct PrefUnitRow { PrefProfile prefs; uint8_t classes; };
 
-inline constexpr uint16_t PREF_TEMPLATE_COUNT = 544; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t PREF_TEMPLATE_COUNT = 545; // = CIV_UNIT_TEMPLATE_COUNT
 inline const PrefUnitRow *pref_template_table() {
 	static const PrefUnitRow kTable[PREF_TEMPLATE_COUNT] = {
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/cavalry_javelineer_b
@@ -567,6 +567,7 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/infantry_spearman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/infantry_swordsman_a
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/support_healer_e
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // plane
 	};
 	return kTable;
 }

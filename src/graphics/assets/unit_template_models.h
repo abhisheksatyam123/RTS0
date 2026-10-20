@@ -10,7 +10,7 @@
 namespace rtso {
 
 // The models roster templates draw with besides the civ class models.
-inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 425;
+inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 428;
 
 inline const char *unit_template_draw_model(int k) {
 	static const char *const kDraw[UNIT_TEMPLATE_DRAW_MODEL_COUNT] = {
@@ -439,6 +439,9 @@ inline const char *unit_template_draw_model(int k) {
 		"athen_female_citizen",
 		"athen_hero_xenophon",
 		"spart_hero_leonidas_300",
+		"rome_champion_infantry_swordsman_03",
+		"rome_champion_infantry_swordsman_04",
+		"rome_champion_infantry_swordsman_05",
 	};
 	return k >= 0 && k < UNIT_TEMPLATE_DRAW_MODEL_COUNT ? kDraw[k] : nullptr;
 }
@@ -954,12 +957,11 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // theb_sacred_band (no model of its own: its owner civ's spearman model)
 		-1, // thesp_melanochitones (no model of its own: its owner civ's swordsman model)
 		411, // theb_siege_fireraiser
-		// Hand-added until tools/extract_0ad_assets.py --templates runs again (it needs public.zip):
-		// the Marian legionary rows draw the Roman champion swordsman model, not their c2-c5 actors.
-		-1, // rome/champion_infantry_swordsman_02
-		-1, // rome/champion_infantry_swordsman_03
-		-1, // rome/champion_infantry_swordsman_04
-		-1, // rome/champion_infantry_swordsman_05
+		// The Marian legionary rows draw their c2-c5 actors (c2 is the Legionary's model; hand-added).
+		145, // rome/champion_infantry_swordsman_02
+		425, // rome/champion_infantry_swordsman_03
+		426, // rome/champion_infantry_swordsman_04
+		427, // rome/champion_infantry_swordsman_05
 		// Hand-added with their GLBs (extract_0ad_assets.py --templates --only, header left as is):
 		423, // athen/hero_xenophon
 		424, // spart/hero_leonidas_300
@@ -994,6 +996,7 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // germ/infantry_spearman_a (no model of its own: its owner civ's spearman model)
 		-1, // germ/infantry_swordsman_a (no model of its own: its owner civ's swordsman model)
 		-1, // germ/support_healer_e (no model of its own: its owner civ's healer model)
+		-1, // plane (no model of its own: its owner civ's bolt_shooter model)
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -1004,7 +1007,7 @@ struct UnitTemplateModel {
 	const char *clip_donor; // a mesh-only model plays this model's clips (same bones), or nullptr
 };
 
-inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 368;
+inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 371;
 
 inline const UnitTemplateModel *unit_template_models() {
 	static const UnitTemplateModel kTable[UNIT_TEMPLATE_MODEL_COUNT] = {
@@ -1311,6 +1314,9 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"rome_champion_infantry_spear_gladiator", "rome_spearman", nullptr},
 		{"rome_champion_infantry_sword_gladiator", "rome_swordsman", nullptr},
 		{"rome_champion_infantry_swordsman_centurion", "rome_swordsman", nullptr},
+		{"rome_champion_infantry_swordsman_03", "rome_swordsman", nullptr},
+		{"rome_champion_infantry_swordsman_04", "rome_swordsman", nullptr},
+		{"rome_champion_infantry_swordsman_05", "rome_swordsman", nullptr},
 		{"rome_champion_infantry_swordsman_first", "rome_swordsman", nullptr},
 		{"rome_hero_marcellus", "rome_cavalry", "rome_cavalry"},
 		{"rome_hero_marcellus_infantry", "rome_hero", nullptr},
@@ -1538,6 +1544,6 @@ inline int unit_template_rank_draw_index(uint16_t tmpl, uint8_t rank) {
 	return kLookup[tmpl][rank >= 3 ? 1 : 0];
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 544, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 545, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso
