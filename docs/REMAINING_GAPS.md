@@ -122,7 +122,6 @@ BuildingAI, focus fire, structure tooltips, merc camps and civ structure data ag
 | R2 | Towers and focus fire targeted structures without Health (shrines, trading posts, rotary mills); BuildingAI's query wants Resistance and Health | low | Fixed |
 | R3 | The structure attack tooltip always said "Bow"; the bolt tower's AttackName is Bolt, the artillery tower's Stone | low | Fixed |
 | R4 | The Projectile Limit and per-unit arrow tooltip ignored a garrisoned Caros (GetMaxArrowCount, GetGarrisonArrowMultiplier) | low | Fixed |
-| R5 | civ_building_vision() was unused (vision comes from the structure templates) | nit | Removed |
 
 Checked and matching: queue limits, batch time modifiers, pop blocking, entity limits, research cost multipliers, upgrade cost/time/carry-over, foundation and repair rates, capture regen and ownership flip, territory decay rates, garrison healing, build restriction distances, every tech's cost/time/requirements/supersedes, researcher lists, civ bonuses, and the training/research/construction tooltips.
 
