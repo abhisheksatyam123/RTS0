@@ -79833,6 +79833,86 @@
     "skin:skeletal/animal_zebra.dds"
    ],
    "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "cow_v2": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Attack",
+    "Walk",
+    "Run",
+    "Death",
+    "Feeding"
+   ],
+   "bones": 35,
+   "file": "models/units/cow_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.718,
+    1.4,
+    2.341
+   ],
+   "skeleton": "cow",
+   "sources": [
+    "actor:art/actors/fauna/cow.xml",
+    "anim:quadraped/bovidae_feeding.dae",
+    "mesh:skeletal/cattle_female_b.dae",
+    "skin:skeletal/animal_cattle_black_and_white.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "goat_v2": {
+   "animated": true,
+   "animations": [
+    "Walk",
+    "Idle",
+    "Death",
+    "Run",
+    "Attack"
+   ],
+   "bones": 25,
+   "file": "models/units/goat_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.321,
+    0.9,
+    1.299
+   ],
+   "skeleton": "goat",
+   "sources": [
+    "actor:art/actors/fauna/goat.xml",
+    "mesh:skeletal/goat_male.dae",
+    "skin:skeletal/animal_goat_grey.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "rabbit_v2": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death",
+    "Attack"
+   ],
+   "bones": 29,
+   "file": "models/units/rabbit_v2.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.222,
+    0.4,
+    0.661
+   ],
+   "skeleton": "deer",
+   "sources": [
+    "actor:art/actors/fauna/rabbit1.xml",
+    "mesh:skeletal/rabbit_02.dae",
+    "skin:skeletal/animal_rabbit_04.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
   }
  },
  "origin": "0 A.D. by Wildfire Games (public mod archive)",

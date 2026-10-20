@@ -3975,6 +3975,18 @@
    "res://assets/textures/unit_variants/skeletal/animal_zebu_white_and_brown_512x512_plain.png"
   ]
  },
+ "units/cow_v2_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_cattle_beige_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_cattle_black_and_white_512x512_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_zebu_white_and_brown_512x512_plain.png"
+  ]
+ },
  "units/deer_tex0": {
   "freq": [
    100,
@@ -6486,6 +6498,20 @@
   ]
  },
  "units/goat_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_goat_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_goat_black_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_goat_grey_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_goat_white_256x256_plain.png"
+  ]
+ },
+ "units/goat_v2_tex0": {
   "freq": [
    1,
    1,
@@ -14212,6 +14238,22 @@
   ]
  },
  "units/rabbit_tex0": {
+  "freq": [
+   100,
+   100,
+   100,
+   100,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/animal_rabbit_01_128x128_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_rabbit_02_128x128_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_rabbit_03_128x128_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_rabbit_04_128x128_plain.png",
+   "res://assets/textures/unit_variants/skeletal/animal_rabbit_05_128x128_plain.png"
+  ]
+ },
+ "units/rabbit_v2_tex0": {
   "freq": [
    100,
    100,
