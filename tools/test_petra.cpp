@@ -2409,6 +2409,16 @@ static void test_nomad_first_base() {
 	            at_start, town_centers(true), buildings, count_units(*s, 1, true));
 	CHECK(at_start == 0, "a Nomad start has no civic centre");
 	CHECK(town_centers(true) == 1, "Petra founds and builds its first Town Center");
+	// findEconomicCCLocation with proximity: the site is scored by the wood, stone and metal
+	// around it, so the civic centre stands within 60 m of wood.
+	float wood_d = 1e9f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && !b.wrecked)
+			for (size_t r = 0; r < s->resources_.count; ++r)
+				if (s->resources_.alive[r] && s->resources_.type[r] == RES_WOOD)
+					wood_d = std::min(wood_d, std::hypot(s->resources_.x[r] - b.x, s->resources_.z[r] - b.z) * 4.0f);
+	std::printf("  nomad: nearest wood %.0f m from the civic centre\n", wood_d);
+	CHECK(wood_d < 60.0f, "the first civic centre goes by wood (findEconomicCCLocation)");
 	// startingStrategy.js lays no opening houses: buildMoreHouses adds one once houseNeeded asks.
 	CHECK(buildings >= 2 && houses >= 1, "and builds on from it");
 }

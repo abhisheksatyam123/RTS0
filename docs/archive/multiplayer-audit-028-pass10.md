@@ -35,4 +35,8 @@ None of these touches simulation state or the save format.
 ## Fix log
 
 - 2026-10-20 #1416 pass 10 gap 1 (the lobby dialog takes the keyboard, the lobby hotkey closes it, and only one opens, as a 0.28 child page with QuitButton.js) merged.
-- 2026-10-20 #PR2 pass 10 gap 2 (the summary's Lobby button and hotkey open the lobby as a dialog over the summary, as summary.xml does) merged.
+- 2026-10-20 #1418 pass 10 gap 2 (the summary's Lobby button and hotkey open the lobby as a dialog over the summary, as summary.xml does) merged.
+- 2026-10-20 #1424 pass 10 gap 4 (a running game's lobby entry counts the host only when it plays, and lists observers who joined after Start, as LobbyGamelistReporter does) merged.
+- 2026-10-20 #1425 pass 10 gap 5 (Tab in the profile lookup box completes online names and leaderboard names, with the autocomplete tooltip, as lobby.xml's profilePanel does) merged.
+- 2026-10-20 #1425 pass 10 gap 6 (in a match, a kick or ban message colours the name in that player's colour, white for anyone else, as ChatMessageFormatNetwork.kicked does; pregame keeps the setup status line) merged.
+- 2026-10-20 pass 10 gap 3 kept on purpose: a match starts once the seated players have loaded, and a slow observer catches up rather than holding up the players. Starting only after every observer loads would put a slow caster's load time on every player.

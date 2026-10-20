@@ -441,7 +441,7 @@ func _build() -> void:
 	add_child(center)
 	var panel := PanelContainer.new() # ModernDialog, 920 x 650
 	panel.theme_type_variation = "ModernDialogContainer"
-	panel.custom_minimum_size = Vector2(920, 650)
+	preload("res://scenes/common/fit_screen.gd").cap(panel, Vector2(920, 650))
 	center.add_child(panel)
 	var outer := VBoxContainer.new()
 	outer.add_theme_constant_override("separation", 6)
