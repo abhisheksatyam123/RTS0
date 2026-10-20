@@ -611,6 +611,7 @@ void Simulation::reset() {
 	for (auto &v : petra_out_of_plan_) v.clear();
 	unit_upgrades_.clear();
 	unit_queues_.clear();
+	unit_autoqueue_.clear();
 
 	next_id_ = 1;
 	sim_rng_.set_seed(sim_seed_);
@@ -3763,7 +3764,15 @@ float Simulation::batch_time_multiplier(uint8_t player_id, uint8_t bld_type, int
 
 bool Simulation::cmd_set_autoqueue(uint8_t player_id, uint32_t building_id, bool on) {
 	auto bit = building_id_to_idx_.find(building_id);
-	if (bit == building_id_to_idx_.end()) return false;
+	if (bit == building_id_to_idx_.end()) {
+		// A unit that trains (Cyrus II, the trainer ships) has the same ProductionQueue.
+		const int32_t i = lookup_unit(building_id);
+		if (i < 0 || player_id >= MAX_PLAYERS || units_.team[i] != player_id || !(units_.hp[i] > 0.0f) ||
+				!unit_trains_units(units_.tmpl[i]))
+			return false;
+		set_unit_autoqueue(building_id, on);
+		return true;
+	}
 	Building &b = buildings_[bit->second];
 	if (b.team != player_id || player_id >= MAX_PLAYERS) return false;
 	b.autoqueue = on;
@@ -3841,6 +3850,8 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 	}
 	return true;
 }
+
+bool Simulation::unit_trains_units(uint16_t tmpl) { return !unit_trainees(tmpl).empty(); }
 
 bool Simulation::unit_is_trainer(uint16_t tmpl) { return !unit_trainees(tmpl).empty() || !unit_research_list(tmpl).empty(); }
 
@@ -3947,66 +3958,97 @@ bool Simulation::cmd_cancel_unit_train(uint8_t player, uint32_t unit_id, size_t 
 // position, so its batch waits until it comes out). Trainer.js OnOwnershipChanged: a trainer
 // that dies or changes hands refunds the whole queue to the player who paid.
 void Simulation::tick_unit_production(float dt) {
-	for (auto it = unit_queues_.begin(); it != unit_queues_.end();) {
+	// The same ProductionQueue.js ProgressTimeout as a structure's (tick_production): whole
+	// seconds from when the queue started, the rest of a second to the next item.
+	std::vector<uint32_t> ids;
+	ids.reserve(unit_queues_.size());
+	for (const auto &kv : unit_queues_) ids.push_back(kv.first);
+	for (const uint32_t uid : ids) {
+		auto it = unit_queues_.find(uid);
+		if (it == unit_queues_.end()) continue;
 		UnitQueue &q = it->second;
-		const int32_t i = lookup_unit(it->first);
+		const int32_t i = lookup_unit(uid);
 		const bool there = i >= 0 && units_.hp[i] > 0.0f && units_.team[i] == q.player &&
 		                   (units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED);
 		if (!there) {
 			if (q.player < MAX_PLAYERS)
 				for (const ProductionOrder &o : q.orders)
 					players_[q.player].refund(o.paid[RES_FOOD], o.paid[RES_WOOD], o.paid[RES_GOLD], o.paid[RES_STONE]);
-			it = unit_queues_.erase(it);
+			unit_queues_.erase(it);
 			continue;
 		}
-		// ProductionQueue OnGarrisonedStateChanged: PauseProduction while the trainer is inside a
-		// holder or ship; the timer resumes when it comes out.
-		if (!units_.alive[i]) { ++it; continue; }
-		ProductionOrder &order = q.orders.front();
-		if (order.is_tech()) {
-			order.timer += dt;
-			if (order.timer < order.duration) { ++it; continue; }
-			const uint8_t tech = order.tech, player = q.player;
-			q.orders.erase(q.orders.begin());
-			if (q.orders.empty()) it = unit_queues_.erase(it);
-			else ++it;
-			complete_research(player, tech);
+		// ProductionQueue OnGarrisonedStateChanged: PauseProduction (StopTimer) while the trainer
+		// is inside a holder or ship; the timer starts again when it comes out.
+		if (!units_.alive[i]) {
+			q.clock = 0.0f;
 			continue;
 		}
-		if (!order.started) {
-			if (pop_current(q.player) + order_pop(order, q.player) > pop_max(q.player)) { ++it; continue; }
-			order.started = true;
-		}
-		order.timer += dt;
-		if (order.timer < order.duration) { ++it; continue; }
-		// A footprint the size of the trainer, at its position.
-		Building at{};
-		at.id = 0;
-		at.x = units_.pos_x[i];
-		at.z = units_.pos_z[i];
-		const float rad = unit_collision_radius(units_.unit_type[i]);
-		at.set_extents(rad, rad);
-		int n = 0;
-		for (; n < order.count; ++n) {
-			float sx, sz;
-			if (!pick_spawn_point(at, order.unit_type, it->first, sx, sz)) break;
-			const uint32_t uid = spawn_unit(sx, sz, q.player, (UnitType)order.unit_type, 0.0f, order.tmpl);
-			if (const int32_t ti = lookup_unit(uid); ti >= 0) {
-				stat_unit_trained((size_t)ti);
-				face_away_from((size_t)ti, at.x, at.z);
+		q.clock += dt;
+		if (q.clock < 1.0f - 1e-4f) continue;
+		q.clock = std::max(0.0f, q.clock - 1.0f);
+		const uint8_t player = q.player;
+		float time = 1.0f;
+		bool more = true;
+		while (more) {
+			auto qi = unit_queues_.find(uid);
+			if (qi == unit_queues_.end() || qi->second.orders.empty()) break;
+			ProductionOrder &order = qi->second.orders.front();
+			if (!order.is_tech() && !order.started) {
+				if (pop_current(player) + order_pop(order, player) > pop_max(player)) break;
+				order.started = true;
 			}
-			if (civ_unit_template(order.tmpl).flags & ROSTER_HERO) match_trained_[q.player].push_back(order.tmpl);
+			const float left = order.duration - order.timer;
+			if (left > time) {
+				order.timer += time;
+				break;
+			}
+			order.timer = std::max(order.timer, order.duration);
+			time -= std::max(0.0f, left);
+			if (order.is_tech()) {
+				const uint8_t tech = order.tech;
+				qi->second.orders.erase(qi->second.orders.begin());
+				if (qi->second.orders.empty()) unit_queues_.erase(qi);
+				complete_research(player, tech);
+				continue;
+			}
+			// A footprint the size of the trainer, at its position.
+			Building at{};
+			at.id = 0;
+			at.x = units_.pos_x[i];
+			at.z = units_.pos_z[i];
+			const float rad = unit_collision_radius(units_.unit_type[i]);
+			at.set_extents(rad, rad);
+			int n = 0;
+			for (; n < order.count; ++n) {
+				float sx, sz;
+				if (!pick_spawn_point(at, order.unit_type, uid, sx, sz)) break;
+				const uint32_t nid = spawn_unit(sx, sz, player, (UnitType)order.unit_type, 0.0f, order.tmpl);
+				if (const int32_t ti = lookup_unit(nid); ti >= 0) {
+					stat_unit_trained((size_t)ti);
+					face_away_from((size_t)ti, at.x, at.z);
+				}
+				if (civ_unit_template(order.tmpl).flags & ROSTER_HERO) match_trained_[player].push_back(order.tmpl);
+			}
+			if (n < order.count) {
+				// Units with no room stay at the front, already paid, and try again next second.
+				for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = order.paid[r] * (float)(order.count - n) / (float)order.count;
+				if (!order.batch) order.batch = order.count; // originalItem: autoqueue re-adds the whole batch
+				order.count = (uint8_t)(order.count - n);
+				break;
+			}
+			const ProductionOrder done = order;
+			qi->second.orders.erase(qi->second.orders.begin());
+			if (qi->second.orders.empty()) unit_queues_.erase(qi);
+			// Autoqueue: the batch goes on again, paid again, and the rest of the second is unused;
+			// when it can't be, autoqueuing turns off.
+			if (unit_autoqueue(uid)) {
+				if (!cmd_train_from_unit(player, uid, done.tmpl, done.batch ? done.batch : done.count)) {
+					set_unit_autoqueue(uid, false);
+					note_text(player, SessionNotice::TEXT_AUTOQUEUE_OFF);
+				}
+				more = false;
+			}
 		}
-		if (n < order.count) {
-			// Units with no room stay at the front, already paid, and try again next turn.
-			for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = order.paid[r] * (float)(order.count - n) / (float)order.count;
-			order.count = (uint8_t)(order.count - n);
-			++it;
-			continue;
-		}
-		q.orders.erase(q.orders.begin());
-		if (q.orders.empty()) it = unit_queues_.erase(it);
-		else ++it;
 	}
 }
 
@@ -34243,9 +34285,13 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					                   o.count == 0) || o.petra_plan > PETRA_ORDER_EMERGENCY)
 						ar.ok = false;
 			});
+			if (ar.version >= S::SAVE_VERSION_UNIT_AUTOQUEUE) ar.pod(kv.second.clock);
+			else if constexpr (Ar::loading) kv.second.clock = 0.0f;
 			if constexpr (Ar::loading)
 				if (kv.second.player >= MAX_PLAYERS || kv.second.orders.empty()) ar.ok = false;
 		});
+		if (ar.version >= S::SAVE_VERSION_UNIT_AUTOQUEUE) io_vec_pod(ar, s.unit_autoqueue_, (uint32_t)S::UNIT_CAP);
+		else if constexpr (Ar::loading) s.unit_autoqueue_.clear();
 		if constexpr (Ar::loading) {
 			s.unit_queues_.clear();
 			for (auto &kv : queues) s.unit_queues_[kv.first] = std::move(kv.second);
