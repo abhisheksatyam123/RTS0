@@ -10185,10 +10185,11 @@ void Simulation::tick(float dt) {
 	if (ticks_ == 0) explore_territories();
 
 	// Master simulation tick pipeline in fixed, deterministic order:
-	// 0. Map triggers (0 A.D. Timer.js runs its timers at the start of a turn), then the
-	//    cinema queue (CCmpCinemaManager, on the same MT_Update)
-	tick_triggers(dt);
+	// 0. The cinema queue (CCmpCinemaManager), then the map triggers (Timer.js): on the same
+	//    MT_Update the native component comes before the scripted one, so a path that a
+	//    timer plays starts counting on the next turn
 	tick_cinema(dt);
+	tick_triggers(dt);
 
 	// 1. Movement & spatial separation
 	tick_pack(dt);           // 0 A.D. Pack.js: siege engines pack to move, unpack to fire
@@ -35977,8 +35978,17 @@ uint32_t Simulation::trigger_hash() const {
 	uint32_t h = triggers_.hash();
 	if (cinema_.paths.empty()) return h;
 	auto mix = [&](uint32_t v) { h = (h ^ v) * 16777619u; };
-	mix(cinema_.enabled); mix(cinema_.elapsed_ms); mix(cinema_.path_elapsed_ms); mix(cinema_.total_ms);
+	auto mixf = [&](float f) { uint32_t v; std::memcpy(&v, &f, sizeof v); mix(v); };
+	mix(cinema_.enabled); mix(cinema_.map_revealed); mix(cinema_.elapsed_ms); mix(cinema_.path_elapsed_ms); mix(cinema_.total_ms);
 	mix((uint32_t)cinema_.paths.size());
+	for (const CinemaPath &p : cinema_.paths) { // the paths too, as 0 A.D. hashes what it serializes
+		for (const char *c = p.info.name; *c; ++c) mix((uint8_t)*c);
+		mixf(p.info.timescale); mix(p.info.mode); mix(p.info.style); mix(p.info.look_at_target); mix(p.info.reserved);
+		for (const auto *list : {&p.nodes, &p.targets}) {
+			mix((uint32_t)list->size());
+			for (const CinemaNode &n : *list) { mixf(n.x); mixf(n.y); mixf(n.z); mixf(n.dt); }
+		}
+	}
 	for (uint16_t q : cinema_.queue) mix(q);
 	return h;
 }
@@ -35998,12 +36008,21 @@ void Simulation::cinema_queue_path(const char *name) {
 }
 
 void Simulation::cinema_delete_path(const char *name) {
+	// DeletePath removes the path from m_Paths only: the queue holds copies, so a queued
+	// one still plays. Here a queued path is marked deleted (find skips it) and dropped
+	// once it has left the queue.
 	const int idx = cinema_.find(name);
 	if (idx < 0) return;
-	std::vector<uint16_t> queue;
+	cinema_.paths[(size_t)idx].info.reserved = CINEMA_PATH_DELETED;
+	cinema_drop_deleted_path((uint16_t)idx);
+}
+
+void Simulation::cinema_drop_deleted_path(uint16_t idx) {
+	if (idx >= cinema_.paths.size() || cinema_.paths[idx].info.reserved != CINEMA_PATH_DELETED) return;
 	for (uint16_t q : cinema_.queue)
-		if (q != idx) queue.push_back(q > idx ? (uint16_t)(q - 1) : q);
-	cinema_.queue.swap(queue);
+		if (q == idx) return;
+	for (uint16_t &q : cinema_.queue)
+		if (q > idx) --q;
 	cinema_.paths.erase(cinema_.paths.begin() + idx);
 }
 
@@ -36035,10 +36054,15 @@ void Simulation::tick_cinema(float dt) {
 	cinema_.elapsed_ms += step;
 	cinema_.path_elapsed_ms += step;
 	if (cinema_.path_elapsed_ms >= cinema_.paths[cinema_.queue.front()].duration_ms()) {
+		// The message carries the path's name (CMessageCinemaPathEnded).
+		const uint16_t ended = cinema_.queue.front();
+		char name[sizeof(CinemaPathInfo::name)];
+		std::memcpy(name, cinema_.paths[ended].info.name, sizeof name);
 		TriggerEventData ev;
-		ev.value = cinema_.queue.front();
+		ev.name = name;
 		cinema_.queue.erase(cinema_.queue.begin());
 		cinema_.path_elapsed_ms = 0;
+		cinema_drop_deleted_path(ended);
 		trigger_event(TRIGGER_ON_CINEMA_PATH_ENDED, ev);
 	}
 	if (cinema_.elapsed_ms >= cinema_.total_ms) {

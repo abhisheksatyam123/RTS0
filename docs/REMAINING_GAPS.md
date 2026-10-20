@@ -291,6 +291,25 @@ gui/campaigns, gui/common/campaigns, session/campaigns and pregame/MainMenuItems
 | CA13 | 0.28 starts a level with mapName and mapPreview set to the level's Name and Preview, shown in saves and in game; RTS0 shows the map's own. The two tutorial levels are named as their maps, so nothing differs today | low | Open |
 | CA14 | The current run is kept in user://saves/campaigns/current, not user.cfg's "currentcampaign", so a 0.28 user.cfg's run isn't picked up | low | Deliberate |
 
+CCmpCinemaManager, CinemaManager, CCinemaPath and session.js's cinema handling were checked against cinema.h, tick_cinema and cinema_view.h:
+
+| # | Gap | Severity | State |
+|---|---|---|---|
+| CI1 | A path played from a timer counted from that turn; 0 A.D.'s native cinema manager updates before Timer.js, so it counts from the next turn | medium | Fixed (tick_cinema runs before tick_triggers) |
+| CI2 | Path ends are checked every 50 ms tick, 0 A.D.'s on 200 ms turns (Cinema Demo's end events at 61.45 s, 0.28 61.6 s) | low | Deliberate: RTS0's triggers and timers all run per tick |
+| CI3 | OnCinemaPathEnded carried the path's index; 0 A.D. sends its name | low | Fixed |
+| CI4 | The path time is reset before OnCinemaPathEnded, 0 A.D. after it | low | Matches in effect: no handler reads the time |
+| CI5 | ClearQueue while playing: 0 A.D. reads an empty queue (undefined), RTS0 stops quietly | low | Deliberate |
+| CI6 | At the end 0 A.D. always turns reveal-all off; RTS0 restores the state from before, so a Revealed Map game stays revealed | low | Deliberate |
+| CI7 | The camera runs on real time x timescale with no link to sim time in 0 A.D.; RTS0 keeps it within 0.15 s of sim time | low | Deliberate |
+| CI8 | 0 A.D.'s Deserialize recomputes the total from the remaining paths and doesn't re-hide the GUI; RTS0 saves the total and re-hides | low | Deliberate (0 A.D. bugs not copied) |
+| CI9 | The state hash left out map_revealed and the paths | low | Fixed |
+| CI10 | Status bars still showed with show-all or a highlight while a path played; 0 A.D. hides overlays (SetOverrideVisibility) | low | Fixed |
+| CI11 | Input while a path plays | low | Matches: only session input stops; fullscreen, screenshot, exit and the other global hotkeys work (UserSettings) |
+| CI12 | DeletePath on a queued path dropped it from the queue and could leave the camera flying the deleted path; 0 A.D.'s queue holds copies, which still play | low | Fixed |
+| CI13 | Path names are cut to 31 bytes (0 A.D. 128); a target path without targets becomes a plain path (0 A.D. ENSURE); a path without nodes is refused | low | Deliberate |
+| CI14 | 0 A.D. turns the silhouettes setting off and reloads the config afterwards, and keeps the GUI when disconnected; RTS0 hides silhouettes only on screen | cosmetic | Deliberate |
+
 ## Read this first: whole-game parity (refreshed 2026-10-08, evening)
 
 The G1–G10 table below grades individual systems against 0 A.D.'s semantics, and `python3 tools/check_parity.py` reports 92% for them. Those scores are self-graded and only cover the systems listed. Judged by what a match actually plays like, RTS0 was **a little over half way** to 0 A.D. at that time (the open gaps now are in "Open gaps, re-check 3" below). That was an estimate from a code-only re-audit of main at `bff4f1c` (rechecked against `d8dd7af`, which adds a Gaia owner for defeated players' leftovers and sea fish) against 0 A.D.'s simulation components, UnitAI, session GUI, `config/default.cfg` hotkeys, game setup, gaia templates and renderer.
