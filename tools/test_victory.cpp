@@ -525,7 +525,13 @@ int main() {
 		sim.generate_random_map(MAP_MAINLAND, 5, 2, 64.0f);
 		int structures = 0;
 		for (const auto &b : sim.buildings()) structures += b.team < MAX_PLAYERS;
-		const size_t units = sim.unit_count(), resources = sim.resources().count;
+		// Trees aside: the forests are drawn after the bases, so their count moves with the rng.
+		auto non_wood = [&]() {
+			size_t n = 0;
+			for (size_t i = 0; i < sim.resources().count; ++i) n += sim.resources().type[i] != RES_WOOD;
+			return n;
+		};
+		const size_t units = sim.unit_count(), resources = non_wood();
 		CHECK(structures > 0);
 		sim.set_nomad(true);
 		sim.generate_random_map(MAP_MAINLAND, 5, 2, 64.0f);
@@ -534,7 +540,7 @@ int main() {
 		CHECK(left == 0 && sim.unit_count() == units);
 		// placePlayerBase places nothing (no base berries, woodline or mines), and
 		// placePlayersNomad groups each player's units 1-3 tiles round one spot.
-		CHECK(sim.resources().count < resources);
+		CHECK(non_wood() < resources);
 		{
 			const auto uv = sim.units();
 			for (uint8_t p = 0; p < 2; ++p) {
