@@ -277,7 +277,7 @@ Upgrade.js, Builder.js, Foundation.js, Repairable.js and Population against RTS0
 | T2 | Builders kept building or repairing a structure captured or converted away; Builder.js PerformBuilding drops a target no longer an ally's | medium | Fixed |
 | T3 | A captured house gave the captor's civ's Population/Bonus, and foundations used the owner's civ's BuildTime; 0.28 keeps the structure's own template | low-medium | Fixed (owner's techs and civ bonuses still apply) |
 | T4 | Animals standing on a foundation were left inside it; 0.28's animals have UnitAI and walk off (WillMoveFromFoundation) before work starts | low | Fixed |
-| T5 | Liu Bang's wall regeneration skips wall foundations | low | Open (Han only) |
+| T5 | Liu Bang's wall regeneration skipped wall foundations; 0.28 foundations keep the Wall class, so their health regenerates (progress follows at the next builder's work) | low | Fixed |
 
 ### Statistics, replays, summary, Match Settings and developer overlay, fifth 0.28 pass (2026-10-20)
 
