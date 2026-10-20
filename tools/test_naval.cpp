@@ -1407,6 +1407,70 @@ static void test_petra_transport_wrong_land() {
 	CHECK(landed >= (int)aboard && on_islet == 0);
 }
 
+// navalManager.checkEvents: survivors of a ship sunk while sailing, set down on two lands (the
+// north shore and the islet), each ask for a transport (requireTransport) and all reach the
+// destination.
+static void test_petra_sunk_survivors_two_lands() {
+	static Simulation s;
+	fresh(s, islet_height_at);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t first = s.spawn_unit(-20.0f, 12.0f, 1, UNIT_TRIREME);
+	s.spawn_unit(30.0f, 8.0f, 1, UNIT_TRIREME);
+	s.spawn_unit(34.0f, 8.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 4; ++k) crew.push_back(s.spawn_unit(-24.0f + 2.0f * k, 26.0f, 1, UNIT_SPEARMAN));
+	run(s, 0.5f);
+	const uint16_t south = s.petra_land_at(-20.0f, -40.0f), islet = s.petra_land_at(-30.0f, 0.0f), north = s.petra_land_at(-30.0f, 30.0f);
+	CHECK(s.petra_start_transport(crew, -20.0f, 30.0f, -20.0f, -40.0f, 0, PETRA_TRANSPORT_ATTACK));
+	for (int k = 0; k < 120 && !(s.petra_transport_plans().size() == 1 && s.petra_transport_plans()[0].state == PetraTransportPlan::SAILING); ++k)
+		run(s, 0.5f);
+	const size_t aboard = s.get_transport_passenger_count(first);
+	const int32_t fi = idx(s, first);
+	s.units_.pos_x[fi] = -30.0f;
+	s.units_.pos_z[fi] = 13.0f;
+	s.cmd_delete(1, &first, 1);
+	s.tick(Simulation::FIXED_STEP);
+	// Two swam to the islet, the others back to the north shore.
+	int n = 0;
+	for (uint32_t uid : crew) {
+		const int32_t i = idx(s, uid);
+		if (i < 0 || !s.units().alive[i]) continue;
+		const bool to_islet = n++ < 2;
+		s.units_.pos_x[i] = to_islet ? -30.0f + (float)n : -30.0f + (float)n;
+		s.units_.pos_z[i] = to_islet ? 0.0f : 28.0f;
+		s.units_.target_x[i] = s.units_.pos_x[i];
+		s.units_.target_z[i] = s.units_.pos_z[i];
+	}
+	int on_islet = 0, on_north = 0;
+	for (uint32_t uid : crew) {
+		const int32_t i = idx(s, uid);
+		if (i < 0 || !s.units().alive[i]) continue;
+		const uint16_t land = s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]);
+		on_islet += land == islet;
+		on_north += land == north;
+	}
+	// Each counts once it stands on the south land (as workers they may be ferried home again).
+	std::vector<uint32_t> reached;
+	for (int k = 0; k < 240 && reached.size() < crew.size(); ++k) {
+		run(s, 0.5f);
+		for (uint32_t uid : crew) {
+			const int32_t i = idx(s, uid);
+			if (i >= 0 && s.units().alive[i] && s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south &&
+			    std::find(reached.begin(), reached.end(), uid) == reached.end())
+				reached.push_back(uid);
+		}
+	}
+	const int landed = (int)reached.size();
+	std::printf("Petra survivors on two lands: %zu aboard, %d on the islet, %d on the north shore, %d landed south\n", aboard, on_islet,
+	            on_north, landed);
+	CHECK(aboard == 4 && on_islet == 2 && on_north == 2);
+	CHECK(landed == 4);
+}
+
 // transportPlan.js never leaves units aboard: an idle ship of Petra's carrying units outside any
 // transport plan (one boarded after its plan gave up) sets them down on the shore.
 static void test_petra_laden_ship_lands() {
@@ -2362,6 +2426,7 @@ int main() {
 	test_petra_transport_ship_lost();
 	test_petra_transport_sunk_at_sea();
 	test_petra_transport_wrong_land();
+	test_petra_sunk_survivors_two_lands();
 	test_petra_laden_ship_lands();
 	test_petra_merchantman_transport();
 	test_petra_cothon();

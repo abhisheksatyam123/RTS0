@@ -29027,7 +29027,10 @@ void Simulation::petra_manage_transport(float dt) {
 		});
 		if (tp.passenger_ids.empty()) { tp.state = PetraTransportPlan::FAILED; tp.failed = true; }
 	}
-	for (auto &tp : petra_transports_) petra_step_transport(tp, dt);
+	std::vector<PetraReferry> referry;
+	for (auto &tp : petra_transports_) petra_step_transport(tp, dt, referry);
+	for (const PetraReferry &r : referry)
+		petra_start_transport(r.unit_ids, r.from_x, r.from_z, r.to_x, r.to_z, r.sea, r.owner);
 	// A unit that boarded after its plan gave up (a lingering board order) would ride for good:
 	// transportPlan.js never leaves units aboard. An idle ship of ours in no plan sets them down
 	// where it lies, else sails for the nearest shore of our home land.
@@ -29055,7 +29058,7 @@ void Simulation::petra_manage_transport(float dt) {
 	}), petra_transports_.end());
 }
 
-void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
+void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vector<PetraReferry> &referry) {
 	tp.state_timer += dt;
 
 	int32_t sidx = tp.ship_id ? lookup_unit(tp.ship_id) : -1;
@@ -29064,12 +29067,14 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 		// waiting for another (assignShipsToPlans). Lost at sea, its survivors (those it set
 		// down on a shore as it sank, and any left behind at the beach) not yet on the
 		// destination's land ask for another transport there (requireTransport); here the
-		// plan goes back to boarding with them, from the shore of the first one's land.
+		// plan goes back to boarding with those on the first one's land, from its shore, and
+		// those on each other land get a crossing of their own.
 		if (tp.state != PetraTransportPlan::BOARDING) {
 			if (sidx >= 0 && get_transport_passenger_count(tp.ship_id) > 0) return; // not set down yet
 			const uint16_t end_land = petra_land_at(tp.drop_x, tp.drop_z);
 			std::vector<uint32_t> stranded;
 			uint16_t from_land = 0;
+			std::vector<std::pair<uint16_t, uint32_t>> elsewhere; // (land, unit) beyond the first land
 			for (uint32_t uid : tp.passenger_ids) {
 				const int32_t i = lookup_unit(uid);
 				if (i < 0 || !units_.alive[i]) continue;
@@ -29077,6 +29082,26 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 				if (!land || land == end_land) continue;
 				if (!from_land) from_land = land;
 				if (land == from_land) stranded.push_back(uid);
+				else elsewhere.push_back({land, uid});
+			}
+			if (!elsewhere.empty() && end_land) {
+				uint16_t home = 0;
+				const PetraNavalTopo &topo = petra_classified_topo(home);
+				for (size_t k = 0; k < elsewhere.size(); ++k) {
+					const uint16_t land = elsewhere[k].first;
+					if (!land) continue;
+					PetraReferry r;
+					for (size_t m = k; m < elsewhere.size(); ++m)
+						if (elsewhere[m].first == land) { r.unit_ids.push_back(elsewhere[m].second); elsewhere[m].first = 0; }
+					const int32_t f = lookup_unit(r.unit_ids[0]);
+					r.from_x = units_.pos_x[f];
+					r.from_z = units_.pos_z[f];
+					r.to_x = tp.drop_x;
+					r.to_z = tp.drop_z;
+					r.sea = topo.sea_between(land, end_land);
+					r.owner = tp.owner;
+					if (r.sea) referry.push_back(std::move(r));
+				}
 			}
 			if (stranded.empty() || !end_land) {
 				tp.state = PetraTransportPlan::FAILED;
