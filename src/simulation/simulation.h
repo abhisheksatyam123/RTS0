@@ -644,7 +644,7 @@ public:
 		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
 			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER,
-			END_TREASURE, END_STRUCTURES_CRITICAL, END_CIVIC_CENTRES_CRITICAL };
+			END_TREASURE, END_STRUCTURES_CRITICAL, END_CIVIC_CENTRES_CRITICAL, END_CHEAT };
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target

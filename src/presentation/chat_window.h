@@ -373,12 +373,13 @@ public:
 			return;
 		}
 		if (!text.is_empty()) {
-			// ChatMessageFormatPlayer.parseMessageAddressee: a typed /allies, /enemies,
-			// /observers or /msg <name> picks the addressee of this message, otherwise
-			// the dropdown's. Any other command (but /me) goes to nobody.
+			// ChatMessageFormatPlayer.parseMessageAddressee: with To: Everyone a typed
+			// /allies, /enemies, /observers or /msg <name> picks the addressee, and any
+			// other command (but /me) goes to nobody. Chat.submitChat puts the dropdown's
+			// command first, so with another addressee the text goes as typed.
 			String tag = selected_tag();
 			const bool observer = host_->chat_local_observer();
-			const String cmd = text.begins_with("/") ? text.get_slice(" ", 0) : String();
+			const String cmd = tag.is_empty() && text.begins_with("/") ? text.get_slice(" ", 0) : String();
 			const String after = text.substr(cmd.length()).strip_edges();
 			if (cmd == "/allies" && !observer) { tag = "[Allies]"; text = after; }
 			else if (cmd == "/enemies" && !observer) { tag = "[Enemies]"; text = after; }
@@ -583,8 +584,8 @@ public:
 		{"Private chat", CHAT_FILTER_PRIVATE}, {"Game notifications", CHAT_FILTER_GAME},
 		{"Network notifications", CHAT_FILTER_NETWORK}};
 
-	// Drops overlay lines older than 30 s; hides the overlay while the chat
-	// window (which shows the full history) is open. Call once per frame.
+	// Drops overlay lines older than 30 s; the overlay stays up while the chat
+	// window is open, as 0.28's chatPanel. Call once per frame.
 	void tick_overlay() {
 		if (!overlay_) return;
 		const uint64_t now = Time::get_singleton()->get_ticks_msec();
@@ -594,7 +595,7 @@ public:
 			changed = true;
 		}
 		if (changed) rebuild_overlay();
-		overlay_->set_visible(!is_open() && !overlay_lines_.empty());
+		overlay_->set_visible(!overlay_lines_.empty()); // ChatWindow.openPage leaves chatPanel shown
 	}
 
 private:
