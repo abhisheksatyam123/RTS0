@@ -462,8 +462,6 @@ func _on_picker_reset() -> void:
 	cfg.set_hotkey(picker_name, defaults)
 	cfg.save_user()
 	pending.erase(picker_name)
-	for h in pending:
-		cfg.set_hotkey(h, hotkeys[h])
 	hotkeys[picker_name] = defaults
 	picker_combos = []
 	for c in defaults:
@@ -482,9 +480,9 @@ func _close_picker(save: bool) -> void:
 	for c in picker_combos:
 		if c != "":
 			combos.append(c)
+	# Only the page's copy: the live keys and Engine.GetConflicts keep the
+	# saved bindings until Save (HotkeysPage.js saveUserHotkeys).
 	hotkeys[picker_name] = combos
-	# Live table too, so conflicts reflect the edit straight away.
-	cfg.set_hotkey(picker_name, combos)
 	pending[picker_name] = true
 	dirty = true
 	save_btn.disabled = false
@@ -519,8 +517,6 @@ func _reset_all() -> void:
 	_setup_list()
 
 func _on_close() -> void:
-	if dirty:
-		cfg.reload() # drop unsaved edits from the live table
 	if overlay:
 		closed.emit()
 		queue_free()

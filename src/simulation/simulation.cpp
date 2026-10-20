@@ -16047,6 +16047,9 @@ void Simulation::reset_unit_for_new_owner(size_t u) {
 void Simulation::convert_to_gaia(uint8_t players) {
 	if (!players) return;
 	auto out = [players](uint8_t t) { return t < MAX_PLAYERS && ((players >> t) & 1); };
+	// Trigger points are owned entities too (template_trigger_point has Ownership).
+	for (TriggerPoint &p : triggers_.points)
+		if (out(p.owner)) p.owner = GAIA_PLAYER;
 	for (size_t u = 0; u < units_.count; ++u) {
 		if (!out(units_.team[u])) continue;
 		units_.team[u] = GAIA_PLAYER;
@@ -16093,7 +16096,7 @@ void Simulation::convert_to_gaia(uint8_t players) {
 
 // TriggerHelper.GetLandSpawnPoints: Gaia entities on land (not flying), those in no
 // player's territory if there are any. RTS0's Gaia entities are resources (trees, rocks,
-// mines, fruit), land animals, and Gaia units and structures.
+// mines, fruit), land animals, treasures, and Gaia units (relics too) and structures.
 std::vector<std::pair<float, float>> Simulation::relic_spawn_points() const {
 	std::vector<std::pair<float, float>> neutral, owned;
 	auto add = [&](float x, float z) {
@@ -16105,9 +16108,9 @@ std::vector<std::pair<float, float>> Simulation::relic_spawn_points() const {
 	for (size_t f = 0; f < fauna_.count; ++f)
 		if (fauna_.alive[f] && !fauna_type_info(fauna_.fauna_type[f]).is_naval()) add(fauna_.pos_x[f], fauna_.pos_z[f]);
 	for (size_t i = 0; i < units_.count; ++i)
-		if (units_.alive[i] && units_.team[i] == GAIA_PLAYER && units_.unit_type[i] != UNIT_CATAFALQUE &&
-				!unit_is_ship(units_.unit_type[i]))
+		if (units_.alive[i] && units_.team[i] == GAIA_PLAYER && !unit_is_ship(units_.unit_type[i]))
 			add(units_.pos_x[i], units_.pos_z[i]);
+	for (const Treasure &t : treasures_) add(t.x, t.z);
 	for (const Building &b : buildings_)
 		if (b.team == GAIA_PLAYER && b.hp > 0.0f) add(b.x, b.z);
 	return neutral.empty() ? owned : neutral;
@@ -18266,6 +18269,32 @@ void Simulation::tick_unit_ai(float dt) {
 		}
 	}
 	for (size_t i = 0; i < units_.count; ++i) units_.attacked_by[i] = 0;
+}
+
+bool Simulation::any_can_damage_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return false;
+	const Building &b = buildings_[bit->second];
+	if (b.wrecked || b.hp <= 0.0f) return false;
+	for (size_t n = 0; n < count; ++n) {
+		const int32_t u = lookup_unit(unit_ids[n]);
+		if (u < 0 || !units_.alive[u] || units_.attack_damage[u] <= 0.0f) continue;
+		if (units_.team[u] >= MAX_PLAYERS || !is_hostile(units_.team[u], b.team)) continue;
+		if (unit_can_target_building((size_t)u, b.type)) return true;
+	}
+	return false;
+}
+
+bool Simulation::any_can_capture_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return false;
+	const Building &b = buildings_[bit->second];
+	for (size_t n = 0; n < count; ++n) {
+		const int32_t u = lookup_unit(unit_ids[n]);
+		if (u < 0 || !units_.alive[u] || unit_capture_attack_at((size_t)u) <= 0.0f) continue;
+		if (can_capture_building(units_.team[u], b)) return true;
+	}
+	return false;
 }
 
 bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
@@ -29059,6 +29088,7 @@ void Simulation::petra_bases_map(PetraBasesMap &m) const {
 	m.x0 = x0; m.z0 = z0; m.x1 = x1; m.z1 = z1;
 	const int bw = x1 - x0 + 1;
 	m.base.assign((size_t)bw * (size_t)(z1 - z0 + 1), 0);
+	const bool claims = petra_tile_bases_.w == m.w && petra_tile_bases_.anchor.size() == (size_t)m.w * m.w;
 	for (int iz = z0; iz <= z1; ++iz)
 		for (int ix = x0; ix <= x1; ++ix) {
 			const float x = centre(ix), z = centre(iz);
@@ -29066,13 +29096,37 @@ void Simulation::petra_bases_map(PetraBasesMap &m) const {
 			// The tile's land (getLandAccess): a tile under a structure takes the land around it.
 			const uint16_t land = petra_access_at(x, z);
 			if (!land) continue;
+			uint8_t &out = m.base[(size_t)(iz - z0) * bw + (ix - x0)];
+			// The base that claimed it at an earlier turn keeps it while its anchor stands there.
+			if (const uint32_t claimed = claims ? petra_tile_bases_.anchor[(size_t)iz * m.w + ix] : 0) {
+				for (size_t a = 0; a < m.anchors.size() && !out; ++a)
+					if (m.anchors[a].id == claimed && m.anchors[a].land == land) out = (uint8_t)std::min<size_t>(a + 1, 255);
+				if (out) continue;
+			}
+			// Else the nearest anchor on its land (addTerritoryIndexToBase, reassignTerritories).
 			float best = 1e30f;
 			for (size_t a = 0; a < m.anchors.size(); ++a) {
 				if (m.anchors[a].land != land) continue;
 				const float d = (m.anchors[a].x - x) * (m.anchors[a].x - x) + (m.anchors[a].z - z) * (m.anchors[a].z - z);
-				if (d < best) { best = d; m.base[(size_t)(iz - z0) * bw + (ix - x0)] = (uint8_t)std::min<size_t>(a + 1, 255); }
+				if (d < best) { best = d; out = (uint8_t)std::min<size_t>(a + 1, 255); }
 			}
 		}
+}
+
+// headquarters.js updateTerritories: lost tiles leave their base (removeBaseFromTerritoryIndex),
+// new ones go to the nearest base, and the rest stay where they are.
+void Simulation::petra_update_tile_bases() {
+	PetraBasesMap m;
+	petra_bases_map(m);
+	PetraTileBases &t = petra_tile_bases_;
+	t.w = m.w;
+	t.anchor.assign((size_t)m.w * (size_t)m.w, 0);
+	if (m.base.empty()) return;
+	const int bw = m.x1 - m.x0 + 1;
+	for (int iz = m.z0; iz <= m.z1; ++iz)
+		for (int ix = m.x0; ix <= m.x1; ++ix)
+			if (const uint8_t k = m.base[(size_t)(iz - m.z0) * bw + (ix - m.x0)]; k && k <= m.anchors.size())
+				t.anchor[(size_t)iz * m.w + ix] = m.anchors[k - 1].id;
 }
 
 int Simulation::PetraBasesMap::at(float x, float z, float half) const {
@@ -31745,6 +31799,7 @@ void Simulation::tick_petra_ai_player(float dt) {
 		petra_room_.tiles = tiles;
 		std::erase_if(petra_room_.marks, [&](const PetraRoom::Mark &m) { return m.until <= petra_timer_; });
 	}
+	petra_update_tile_bases();
 
 	// 2. Multi-Base Expansion & Base Anchors (BasesManager / headquarters.js)
 	update_petra_bases(dt);
@@ -33385,6 +33440,24 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					v.allied.clear();
 				}
 			} else v = PetraKept{}; // decided again at the next AI turn, from the game as loaded
+		} else if constexpr (std::is_same_v<T, S::PetraTileBases>) {
+			// The claimed tiles only (index, anchor), in index order.
+			if (ar.version >= Simulation::SAVE_VERSION_PETRA_TILE_BASES) {
+				ar.pod(v.w);
+				if (v.w < 0 || v.w > 4096) { ar.ok = false; return; }
+				std::vector<std::pair<uint32_t, uint32_t>> claimed;
+				if constexpr (!Ar::loading)
+					for (uint32_t j = 0; j < (uint32_t)v.anchor.size(); ++j)
+						if (v.anchor[j]) claimed.push_back({j, v.anchor[j]});
+				io_vec(ar, claimed, 1u << 24, [&](std::pair<uint32_t, uint32_t> &c) { ar.pod(c.first); ar.pod(c.second); });
+				if constexpr (Ar::loading) {
+					v.anchor.assign((size_t)v.w * (size_t)v.w, 0);
+					for (const auto &c : claimed) {
+						if (c.first >= v.anchor.size()) { ar.ok = false; return; }
+						v.anchor[c.first] = c.second;
+					}
+				}
+			} else v = S::PetraTileBases{}; // older saves: each tile goes to the nearest base again
 		} else if constexpr (std::is_same_v<T, std::vector<S::PetraTargetedRelic>>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_TARGETED_RELICS)
 				io_vec(ar, v, 1u << 16, [&](S::PetraTargetedRelic &t) { ar.pod(t.relic); ar.pod(t.sent); });
@@ -36195,6 +36268,9 @@ void Simulation::tick_triggers(float dt) {
 		triggers_.init_game_done = 1;
 		trigger_event(TRIGGER_ON_INIT_GAME);
 	}
+	// 0 A.D. sends OnOwnershipChanged the moment an entity changes hands; the watches are
+	// polled, so a change from last turn is reported before this turn's timers run.
+	tick_trigger_watches();
 	// Timer.js OnUpdate: advance the clock, then run every timer due, by id;
 	// a repeating timer that is due again runs again in the same update.
 	triggers_.time_ms += (uint32_t)std::lround(dt * 1000.0f);
@@ -38142,7 +38218,8 @@ void Simulation::trigger_elephantine_init() {
 		const TechClasses c = u.tech_classes;
 		const size_t len = std::strlen(u.id);
 		const bool basic = len > 2 && std::strcmp(u.id + len - 2, "_b") == 0;
-		if ((c & TC_CITIZENSOLDIER) && (c & TC_INFANTRY) && !std::strstr(u.id, "_merc")) {
+		// The mercenaries count: their mixin only adds the Mercenary class.
+		if ((c & TC_CITIZENSOLDIER) && (c & TC_INFANTRY)) {
 			if (basic) infantry.push_back(t);
 		} else if ((c & TC_HEALER) && std::strstr(u.id, "_e")) {
 			support.push_back(t);
@@ -38374,11 +38451,12 @@ void Simulation::trigger_danubius_init() {
 		if (b.team == GAIA_PLAYER && is_civic_centre(b.type) && b.hp > 0.0f && !b.wrecked)
 			triggers_.watched.push_back({b.id, GAIA_PLAYER, 1, kDanubiusCivicCentre, 0});
 	triggers_.register_trigger(TRIGGER_ON_OWNERSHIP_CHANGED, TRIGGER_ACTION_DANUBIUS_OWNERSHIP, true);
-	// StartCelticRitual: the Gaia people on the map at the start hold a defensive stance.
+	// StartCelticRitual: every Gaia "Human" on the map at the start holds a defensive stance
+	// (the roster's living units: infantry, cavalry, support, champions, heroes).
 	std::vector<uint32_t> people;
 	for (size_t i = 0; i < units_.count; ++i)
 		if (units_.alive[i] && units_.team[i] == GAIA_PLAYER && units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT &&
-				(unit_classes_at(i) & (TC_INFANTRY | TC_FEMALECITIZEN | TC_HEALER)))
+				(unit_classes_at(i) & TC_ORGANIC))
 			people.push_back(units_.id[i]);
 	if (!people.empty()) order_set_stance(people.data(), people.size(), STANCE_DEFENSIVE);
 	// GarrisonAllGallicBuildings and TurretAllGallicBuildings, full.
@@ -38562,10 +38640,8 @@ void Simulation::trigger_danubius_ship_range() {
 		if (!point || det::hypot(units_.pos_x[s] - point->x, units_.pos_z[s] - point->z) > kDanubiusUnloadDistance) continue;
 		const auto *aboard = get_transport_passengers(w.id);
 		const std::vector<uint32_t> passengers = aboard ? *aboard : std::vector<uint32_t>{};
-		if (!passengers.empty()) {
-			order_disembark_all(w.id);
-			if (get_transport_passenger_count(w.id) == passengers.size()) continue;
-		}
+		// UnloadAll, then the ship's target is forgotten whether or not anyone got off.
+		if (!passengers.empty()) order_disembark_all(w.id);
 		triggers_.watched[k].role = kDanubiusShip;
 		std::vector<uint32_t> humans, siege;
 		for (uint32_t id : passengers) {
@@ -38574,8 +38650,10 @@ void Simulation::trigger_danubius_ship_range() {
 			((unit_classes_at((size_t)u) & TC_SIEGE) ? siege : humans).push_back(id);
 		}
 		danubius_attack_and_patrol({w.id}, DANUBIUS_TARGET_SHIP, 'B', true);
-		if (sim_rng_.range_float(0.0f, 1.0f) < kDanubiusFormationProbability && !humans.empty())
-			order_set_formation(humans.data(), humans.size(), kDanubiusFormations[sim_rng_.range_int(0, (int)std::size(kDanubiusFormations) - 1)]);
+		if (sim_rng_.range_float(0.0f, 1.0f) < kDanubiusFormationProbability) {
+			const uint8_t f = kDanubiusFormations[sim_rng_.range_int(0, (int)std::size(kDanubiusFormations) - 1)];
+			if (!humans.empty()) order_set_formation(humans.data(), humans.size(), f);
+		}
 		const uint8_t land = w.role == kDanubiusShipLeft ? 'E' : 'F';
 		danubius_attack_and_patrol(siege, DANUBIUS_TARGET_DEFENSIVE, land, true);
 		danubius_attack_and_patrol(humans, DANUBIUS_TARGET_UNIT, land, true);
@@ -38837,9 +38915,12 @@ void Simulation::trigger_jebel_barkal_attack() {
 	};
 	// targetClasses: "Unit+!Ship", or for the elephants "Defensive SiegeEngine Monument Wonder" or "Structure".
 	enum Target : uint8_t { TARGET_UNITS, TARGET_DEFENSIVE, TARGET_STRUCTURES };
-	auto targets_of = [&](Target target) {
+	// targetClasses() is called once per player inside the reduce: the elephants' pick
+	// between the two lists is drawn for each player.
+	auto targets_of = [&](bool elephants) {
 		std::vector<std::pair<float, float>> all;
 		for (uint8_t p : players) {
+			const Target target = !elephants ? TARGET_UNITS : (sim_rng_.range_int(0, 1) ? TARGET_STRUCTURES : TARGET_DEFENSIVE);
 			std::vector<std::pair<float, float>> mine;
 			if (target != TARGET_STRUCTURES)
 				for (size_t i = 0; i < units_.count; ++i) {
@@ -38903,8 +38984,7 @@ void Simulation::trigger_jebel_barkal_attack() {
 	int total = 0;
 	for (size_t r = 0; r < std::size(rows); ++r) {
 		const Row &row = rows[r];
-		const Target target = row.formation ? TARGET_UNITS : (sim_rng_.range_int(0, 1) ? TARGET_STRUCTURES : TARGET_DEFENSIVE);
-		const auto targets = targets_of(target);
+		const auto targets = targets_of(!row.formation);
 		if (targets.empty()) continue;
 		std::vector<uint32_t> sources;
 		for (const TriggerWatch &w : triggers_.watched) {
@@ -38976,12 +39056,14 @@ void Simulation::balanced_template_composition(const std::vector<TemplateBalance
 }
 
 void Simulation::trigger_volcano_garrison_towers() {
-	// extinct_volcano_triggers.js GarrisonWoodenTowers: every Gaia tower is
-	// filled with Roman champion swordsmen (TriggerHelper.SpawnGarrisonedUnits).
+	// extinct_volcano_triggers.js GarrisonWoodenTowers: every Gaia "Tower" (the map's
+	// palisades_fort sentry towers) is filled with Roman champion swordsmen
+	// (TriggerHelper.SpawnGarrisonedUnits).
 	const uint16_t tmpl = roster_template_named(kVolcanoTowerGarrison);
 	std::vector<uint32_t> towers;
 	for (const Building &b : buildings_)
-		if (b.team == GAIA_PLAYER && is_defense_tower(b.type) && b.build_progress >= 1.0f && b.hp > 0.0f) towers.push_back(b.id);
+		if (b.team == GAIA_PLAYER && (building_tech_classes(b.type) & TC_TOWER) && b.build_progress >= 1.0f && b.hp > 0.0f)
+			towers.push_back(b.id);
 	for (uint32_t id : towers) {
 		const int cap = get_garrison_capacity(id);
 		auto it = building_id_to_idx_.find(id);

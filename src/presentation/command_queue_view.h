@@ -1234,7 +1234,10 @@ public:
 						bb->set_meta("label", label);
 						// 0.28's Construction tooltip: names, Identity/Tooltip, cost and time, garrison,
 						// population bonus (selection_panels.js Construction setupButton).
-						const Dictionary text = structure_template_text(my_civ, bt);
+						// A wall's button is its WallSet proxy: the set's name, tooltip and classes,
+						// no auras or turrets of its own.
+						Dictionary text = structure_template_text(my_civ, bt);
+						if (text.has("wallset")) text = text["wallset"];
 						const String generic = text.get("generic_name", String::utf8(bi.name));
 						const String specific = text.get("specific_name", String());
 						String tip = rtso::entity_names_formatted(generic, specific);
