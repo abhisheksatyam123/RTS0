@@ -760,6 +760,7 @@ public:
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr, bool any_player = false) const;
 	size_t own_unit_under_mouse(Vector2 mouse_pos, bool any_player = false) const;
+	uint32_t entity_under_mouse(Vector2 mouse, bool with_props = true) const; // Engine.PickEntityAtPoint
 	std::vector<int32_t> band_box_ids(Vector2 a, Vector2 b) const;
 	// input.js INPUT_UNIT_POSITION: a right press with units selected, and the ground line
 	// drawn while the button is held.
@@ -799,6 +800,7 @@ public:
 	// The hover pick (PickEntityAtPoint) is redone when the mouse or camera moves, or
 	// every kHoverRepickMs while they stand still (units walk under the cursor).
 	PackedInt32Array hover_pick_;
+	uint32_t hover_target_ = 0; // the same pick with treasures and scenery: what a right click acts on
 	Vector2 hover_mouse_ = Vector2(-1e9f, -1e9f);
 	Transform3D hover_cam_;
 	uint64_t hover_at_ms_ = 0;
