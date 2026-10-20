@@ -58,12 +58,12 @@ func node(page, path: String):
 	return page.get_node("%" + path.get_file())
 
 func slot_selects(page) -> Array:
-	# Per row: name label, kind, civ, team, AI gear, colour.
+	# Per row (PlayersPanel.xml): name label, colour, assignment, AI gear, civ, team.
 	var out := []
 	var grid: GridContainer = page.get_node("VBox/HBox/Right/SlotsBox/SlotsGrid")
 	var kids := grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
 	for r in range(kids.size() / 6):
-		out.append({"civ": kids[r * 6 + 2].get_child(0), "team": kids[r * 6 + 3].get_child(0), "color": kids[r * 6 + 5]})
+		out.append({"civ": kids[r * 6 + 4].get_child(0), "team": kids[r * 6 + 5].get_child(0), "color": kids[r * 6 + 1]})
 	return out
 
 func run() -> void:
