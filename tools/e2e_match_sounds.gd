@@ -9,6 +9,7 @@ extends SceneTree
 #      defeated player watches someone else (the music never follows the view);
 #   5. quitting to the summary keeps the defeat track playing there (summary.js
 #      has no music calls; only the main menu sets MENU).
+# Section 1 also checks Ambient.js's one dayscape loop at a constant level.
 #
 # Siege engines train with ram_trained (ram_move.ogg), not footsteps: 0.28's
 # template_unit_siege.xml names it, the group file and the ogg are in the shared
@@ -49,6 +50,10 @@ func run() -> void:
 	var a: Dictionary = m.get_audio_state()
 	check(a.music_state == "peace" and GERM_TRACKS.any(func(t): return str(a.track).contains(t)),
 		"peace, on a German track: " + str(a.track))
+	# Ambient.js: one looping dayscape track at a constant sound.ambientgain.
+	var amb: Array = a.ambient
+	check(amb.size() == 1 and str(amb[0].path).ends_with("day_temperate_gen_03.ogg") and bool(amb[0].playing)
+		and absf(float(amb[0].db) + 1.3) < 0.01, "one dayscape loop at sound.ambientgain: %s" % str(amb))
 
 	print("2. Alert bells")
 	var cc: int = m.debug_civic_centre_id(0)

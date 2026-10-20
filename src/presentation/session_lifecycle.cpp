@@ -593,6 +593,7 @@ void RtsoMain::_ready() {
 	pause_overlay_->set_anchors_preset(Control::PRESET_FULL_RECT);
 	pause_overlay_->set_flat(true);
 	pause_overlay_->set_focus_mode(Control::FOCUS_NONE);
+	pause_overlay_->set_meta("rtso_no_click", true); // style sessionToolTip: no sound_pressed
 	pause_overlay_->set_visible(false);
 	pause_overlay_->connect("pressed", Callable(this, "_on_pause_overlay_pressed"));
 	{
@@ -810,7 +811,10 @@ void RtsoMain::_ready() {
 		if (view) view->play_spatial_sound(s, pos, db, 75.0f, pitch);
 	});
 
-	// gui/session/Ambient.js: one looping dayscape track ("TODO: Let the map decide the tracks").
+	// gui/session/Ambient.js: one looping dayscape track ("TODO: Let the map decide the tracks"),
+	// played by PlayAmbientSound at a constant sound.ambientgain. 0.28 plays it at 0.6 beside
+	// actions at 0.7; RTS0's buses are relative to their defaults, so it sits that ratio
+	// (about -1.3 dB) lower, as the music does (music_manager.h kGainDb).
 	{
 		Ref<AudioStream> amb_stream = rtso::load_audio("res://assets/audio/ambient/dayscape/day_temperate_gen_03.ogg");
 		if (amb_stream.is_null()) amb_stream = rtso::load_audio("res://assets/sounds/ambient/nature_ambient.ogg");
@@ -819,36 +823,10 @@ void RtsoMain::_ready() {
 			ambient_player = memnew(AudioStreamPlayer);
 			ambient_player->set_stream(amb_stream);
 			ambient_player->set_autoplay(true);
-			ambient_player->set_volume_db(-12.0f);
+			ambient_player->set_volume_db(-1.3f); // 20 log10(0.6 / 0.7)
 			ambient_player->set_bus("Ambient");
 			add_child(ambient_player);
 			ambient_player->play();
-		}
-	}
-
-	if (ResourceLoader::get_singleton()->exists("res://assets/sounds/ambient/wind_ambient.ogg")) {
-		Ref<AudioStream> wind_stream = ResourceLoader::get_singleton()->load("res://assets/sounds/ambient/wind_ambient.ogg");
-		if (wind_stream.is_valid()) {
-			ambient_wind_player = memnew(AudioStreamPlayer);
-			ambient_wind_player->set_stream(wind_stream);
-			ambient_wind_player->set_autoplay(true);
-			ambient_wind_player->set_volume_db(-25.0f);
-			ambient_wind_player->set_bus("Ambient");
-			add_child(ambient_wind_player);
-			ambient_wind_player->play();
-		}
-	}
-
-	if (ResourceLoader::get_singleton()->exists("res://assets/sounds/ambient/water_coast.ogg")) {
-		Ref<AudioStream> water_stream = ResourceLoader::get_singleton()->load("res://assets/sounds/ambient/water_coast.ogg");
-		if (water_stream.is_valid()) {
-			ambient_water_player = memnew(AudioStreamPlayer);
-			ambient_water_player->set_stream(water_stream);
-			ambient_water_player->set_autoplay(true);
-			ambient_water_player->set_volume_db(-80.0f);
-			ambient_water_player->set_bus("Ambient");
-			add_child(ambient_water_player);
-			ambient_water_player->play();
 		}
 	}
 
@@ -979,7 +957,6 @@ void RtsoMain::_process(double delta) {
 	if (hotkey_paused_ && !net_lockstep()) return;
 	if (app_unfocused_ && !net_lockstep() && rtso::user_config::get_bool("pauseonfocusloss")) return;
 	double scaled_delta = delta * game_speed;
-	match_elapsed_time += scaled_delta;
 
 	rtso::PerfTracker::begin_frame();
 	uint64_t start_us = Time::get_singleton()->get_ticks_usec();
@@ -1321,51 +1298,12 @@ void RtsoMain::_process(double delta) {
 		const Vector3 focus = cam_rig->get_target_pos();
 		session_audio_.set_listener(focus.x, focus.z);
 	}
-	session_audio_.tick(sim, local_player(), match_elapsed_time, true);
-	session_audio_.tick_combat(sim, local_player(), attacks, sim->take_fauna_strikes(), match_elapsed_time);
+	session_audio_.tick(sim, local_player(), match_elapsed_time(), true);
+	session_audio_.tick_combat(sim, local_player(), attacks, sim->take_fauna_strikes(), match_elapsed_time());
 	update_music_state();
 
-	// Environmental Ambience: Viewport Elevation & Coastal Water Proximity
-	Vector3 cam_world_pos(0, 30, 0);
-	if (cam_rig && cam_rig->get_camera()) {
-		cam_world_pos = cam_rig->get_camera()->get_global_position();
-	} else if (cam_rig) {
-		cam_world_pos = cam_rig->get_target_pos() + Vector3(0, 30, 0);
-	}
-
-	// 1. Wind & Nature elevation crossfade
-	float elev_factor = Math::clamp((cam_world_pos.y - 12.0f) / 38.0f, 0.0f, 1.0f);
-	float target_wind_db = Math::lerp(-32.0f, -8.0f, elev_factor);
-	float target_nature_db = Math::lerp(-12.0f, -28.0f, elev_factor);
-
-	if (ambient_wind_player) {
-		if (!ambient_wind_player->is_playing()) ambient_wind_player->play();
-		float cur_db = ambient_wind_player->get_volume_db();
-		ambient_wind_player->set_volume_db(Math::lerp(cur_db, target_wind_db, (float)delta * 3.5f));
-	}
-	if (ambient_player) {
-		if (!ambient_player->is_playing()) ambient_player->play();
-		float cur_db = ambient_player->get_volume_db();
-		ambient_player->set_volume_db(Math::lerp(cur_db, target_nature_db, (float)delta * 3.5f));
-	}
-
-	// 2. Coastal water proximity modulation
-	float target_water_db = -80.0f;
-	if (sim && sim->water_height() > 0.0f) {
-		float water_h = sim->water_height();
-		Vector3 target_pos = cam_rig ? cam_rig->get_target_pos() : cam_world_pos;
-		float terrain_h = sim->get_terrain_height(target_pos.x, target_pos.z);
-		float d_water = terrain_h - water_h;
-		if (d_water <= 3.5f) {
-			float coast_factor = Math::clamp(1.0f - (d_water / 3.5f), 0.0f, 1.0f);
-			target_water_db = Math::lerp(-40.0f, -10.0f, coast_factor);
-		}
-	}
-	if (ambient_water_player) {
-		if (!ambient_water_player->is_playing()) ambient_water_player->play();
-		float cur_db = ambient_water_player->get_volume_db();
-		ambient_water_player->set_volume_db(Math::lerp(cur_db, target_water_db, (float)delta * 3.0f));
-	}
+	// The dayscape loop never stops (PlayAmbientSound's looping track).
+	if (ambient_player && !ambient_player->is_playing()) ambient_player->play();
 
 	// Update Building Placement Ghost (0 A.D. gui/session/building_placement.js:45-92 BuildPreview parity)
 	if (build_mode) {
@@ -1677,7 +1615,10 @@ void RtsoMain::refresh_chat_tooltips() {
 
 // gui/common/styles.xml sound_pressed, and the dropdowns' sound_opened / sound_selected.
 void RtsoMain::hook_ui_click_sounds(Node *n) {
-	if (BaseButton *b = Object::cast_to<BaseButton>(n)) {
+	// A button whose 0.28 style has no sound_pressed is marked rtso_no_click.
+	BaseButton *b = Object::cast_to<BaseButton>(n);
+	if (b && b->has_meta("rtso_no_click")) b = nullptr;
+	if (b) {
 		const Callable click(this, "_on_ui_click");
 		if (!b->is_connected("pressed", click)) b->connect("pressed", click);
 		if (Object::cast_to<OptionButton>(n) || Object::cast_to<RtsoSafeSelect>(n)) {

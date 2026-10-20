@@ -983,6 +983,26 @@ def _fit_scale(fit, target, dim):
 # 0.28's Germans: structures extract_0ad_structures.py would convert from
 # Collada, which a release public.zip does not carry (cached .pmd only). The
 # ids follow that tool's s_<folder>_<actor>, mapped in data/building_models.json.
+# Structure actors whose 0.28 mesh reaches far below the actor origin (the
+# Kushite civic centre's mound, the Hanging Gardens' terraces). RTS0 grounds a
+# model at its lowest vertex, so compose_actor cuts the part under 0.28's ground
+# plane away: whole triangles below it are dropped and the rest clamped to it.
+GROUND_AT_ORIGIN = {
+    "art/actors/structures/spartans/civic_center.xml",
+    "art/actors/structures/kushites/civic_centre_kush.xml",
+    "art/actors/structures/persians/gardens_struct.xml",
+    # The fields' own mesh is a hidden prop carrier 27 m down.
+    "art/actors/structures/plot_field_medit.xml",
+    "art/actors/structures/plot_field_temp.xml",
+    "art/actors/structures/rice_paddy.xml",
+    # The Ptolemaic market stalls stand on plinths sunk up to 2 m.
+    "art/actors/structures/ptolemies/stall_small_a.xml",
+    "art/actors/structures/ptolemies/stall_small_b.xml",
+    "art/actors/structures/ptolemies/stall_med.xml",
+    "art/actors/structures/ptolemies/stall_big.xml",
+}
+GROUND_CUT_Y = -0.05
+
 ZIP_STRUCTURES = {
     "s_germans_stable":      ("art/actors/structures/germans/stable.xml",   "width", 4.2, None),
     "s_germans_range":       ("art/actors/structures/germans/range.xml",    "width", 3.8, None),
@@ -1016,6 +1036,27 @@ ZIP_STRUCTURES = {
     "s_romans_scout_tower": ("art/actors/structures/romans/scout_tower.xml", "width", 2.2, None),
     "s_seleucids_scout_tower": ("art/actors/structures/seleucids/scout_tower.xml", "width", 2.2, None),
     "s_ptolemies_defense_tower": ("art/actors/structures/ptolemies/defense_tower.xml", "width", 2.2, None),
+    # 0.28's own actors for a Spartan and a Kushite civic centre, the Persian
+    # wonder (the Hanging Gardens) and the Carthaginian temple, which drew an
+    # older actor (the Kushite one the Hellenic civic centre); sized like those.
+    "s_spartans_civic_center":       ("art/actors/structures/spartans/civic_center.xml",       "width", 6.2, None),
+    "s_kushites_civic_centre_kush":  ("art/actors/structures/kushites/civic_centre_kush.xml",  "width", 6.2, None),
+    "s_persians_gardens_struct":     ("art/actors/structures/persians/gardens_struct.xml",     "width", 6.5, None),
+    "s_carthaginians_temple_big":    ("art/actors/structures/carthaginians/temple_big.xml",    "width", 5.0, None),
+    # 0.28's fields (structures/<civ>/field.xml): the Mediterranean and temperate
+    # propped plots and the Han rice paddy, at 0.28's size (1 unit = 4 m).
+    "s_plot_field_medit": ("art/actors/structures/plot_field_medit.xml", "scale", 0.25, None),
+    "s_plot_field_temp":  ("art/actors/structures/plot_field_temp.xml",  "scale", 0.25, None),
+    "s_rice_paddy":       ("art/actors/structures/rice_paddy.xml",       "scale", 0.25, None),
+    # Houses maps place by their own 0.28 template (structures/stall_*,
+    # celt_hut, celt_longhouse), drawn by template as "look_*"
+    # (data/building_models.json, RtsoWorldView::set_building_look), at 0.28's size.
+    "s_ptolemies_stall_small_a": ("art/actors/structures/ptolemies/stall_small_a.xml", "scale", 0.25, None),
+    "s_ptolemies_stall_small_b": ("art/actors/structures/ptolemies/stall_small_b.xml", "scale", 0.25, None),
+    "s_ptolemies_stall_med":     ("art/actors/structures/ptolemies/stall_med.xml",     "scale", 0.25, None),
+    "s_ptolemies_stall_big":     ("art/actors/structures/ptolemies/stall_big.xml",     "scale", 0.25, None),
+    "s_celts_hut":               ("art/actors/structures/celts/hut.xml",               "scale", 0.25, None),
+    "s_celts_longhouse":         ("art/actors/structures/celts/longhouse.xml",         "scale", 0.25, None),
     # The Wagon Encampment, as wide as the Roman army camp it stood in for, and
     # its fortified Upgrade at the same scale (its palisade rings the wagons).
     "s_germans_encampment":           ("art/actors/structures/germans/encampment.xml",           "width", 4.0, None),
@@ -2579,7 +2620,47 @@ def _actor_path(ref):
     return r if r.startswith("art/") else f"art/actors/{r}"
 
 
+def _affine_inverse(m):
+    """Inverse of a 4x4 affine matrix (rotation, scale and translation)."""
+    a = [[m[i][j] for j in range(3)] for i in range(3)]
+    det = (a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1]) - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0])
+           + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]))
+    inv = [[(a[(j + 1) % 3][(i + 1) % 3] * a[(j + 2) % 3][(i + 2) % 3]
+             - a[(j + 1) % 3][(i + 2) % 3] * a[(j + 2) % 3][(i + 1) % 3]) / det for j in range(3)] for i in range(3)]
+    t = [-sum(inv[i][k] * m[k][3] for k in range(3)) for i in range(3)]
+    return [inv[i] + [t[i]] for i in range(3)] + [[0, 0, 0, 1]]
+
+
+def _cut_below_ground(parts):
+    """GROUND_AT_ORIGIN: drop triangles wholly under the ground plane and clamp
+    the rest to it, in each part's own mesh space; parts left empty are dropped."""
+    for part in parts:
+        md = part.mesh_data
+        if not md or md.get("bones"):
+            continue
+        xf = part.transform if part.transform is not None else trs((0, 0, 0), (0, 0, 0, 1))
+        world = [mat_apply(xf, p) for (p, _n) in md["verts"]]
+        if min(w[1] for w in world) >= GROUND_CUT_Y:
+            continue
+        inv = _affine_inverse(xf)
+        md = dict(md)
+        md["faces"] = [f for f in md["faces"] if max(world[i][1] for i in f) >= GROUND_CUT_Y]
+        md["verts"] = [(mat_apply(inv, (w[0], GROUND_CUT_Y, w[2])) if w[1] < GROUND_CUT_Y else p, n)
+                       for w, (p, n) in zip(world, md["verts"])]
+        part.mesh_data = md
+    # A part with nothing left above ground (the fields' prop carrier) goes.
+    return [p for p in parts if not p.mesh_data or p.mesh_data.get("bones") or p.mesh_data["faces"]]
+
+
 def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors=None, look=0):
+    """_compose_actor, with GROUND_AT_ORIGIN structures cut at the ground plane."""
+    parts, material = _compose_actor(vfs, actor_path, depth, tint, sources, skip_actors, look)
+    if depth == 0 and actor_path in GROUND_AT_ORIGIN:
+        parts = _cut_below_ground(parts)
+    return parts, material
+
+
+def _compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors=None, look=0):
     """Compose an actor into a list of Parts.
 
     Deterministic picks: highest-frequency variant per group (ties -> first).

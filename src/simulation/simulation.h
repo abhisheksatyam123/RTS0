@@ -109,7 +109,8 @@ struct ProductionOrder {
 // The metadata Petra trains a batch with (queueplanTraining.js): a worker (role worker, no
 // plan), a soldier for the attack in preparation or for the raid (plan), or none.
 // PETRA_ORDER_EMERGENCY: headquarters.js trainEmergencyUnits queues them with metadata plan -1.
-enum PetraOrderPlan : uint8_t { PETRA_ORDER_NONE = 0, PETRA_ORDER_WORKER, PETRA_ORDER_ATTACK, PETRA_ORDER_RAID, PETRA_ORDER_EMERGENCY };
+// PETRA_ORDER_TRADER: tradeManager.js trainMoreTraders (role trader; saved from v113).
+enum PetraOrderPlan : uint8_t { PETRA_ORDER_NONE = 0, PETRA_ORDER_WORKER, PETRA_ORDER_ATTACK, PETRA_ORDER_RAID, PETRA_ORDER_EMERGENCY, PETRA_ORDER_TRADER };
 // ProductionQueue.js MaxQueueSize.
 static constexpr size_t PRODUCTION_QUEUE_MAX = 16;
 
@@ -181,7 +182,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 112; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 113; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_PASS5 = 113; // Petra's trade and transport ships, house plans, new bases
 	static constexpr uint32_t SAVE_VERSION_FLIGHT = 112; // each flying unit's UnitMotionFlying state
 	static constexpr uint32_t SAVE_VERSION_UNIT_AUTOQUEUE = 111; // unit trainers' queue clocks and autoqueue
 	static constexpr uint32_t SAVE_VERSION_QUEUE_CLOCK = 110; // each structure's time into its production queue's second
@@ -1147,6 +1149,12 @@ public:
 	// Returns its capacity, 0 for anything else. `i` is a SoA index.
 	int siege_garrison_capacity(size_t i) const;
 	bool is_siege_tower_at(size_t i) const;
+	bool is_plane_at(size_t i) const;
+	// GarrisonHolder.IsGarrisoningAllowed: UnitMotionFlying shuts a plane from its take-off roll
+	// until it has landed and stopped.
+	bool garrisoning_allowed(size_t holder) const;
+	float siege_eject_health(size_t i) const { return is_plane_at(i) ? 0.0f : SIEGE_EJECT_HEALTH; }
+	void carry_plane_passengers(size_t plane, float dt);
 	// Garrisoned Infantry in a siege tower = arrows per volley (capped).
 	int siege_tower_arrows(size_t i) const;
 	// Auras.js "garrison" auras on BuildingAI (Caros' Valiant Defender) from the units `ids`
@@ -2024,6 +2032,11 @@ public:
 	// raid squad held (attackPlan.js removeUnit) and the emergency units (trainEmergencyUnits).
 	// 0.28 never clears it, so trainMoreWorkers doesn't count them as workers again.
 	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_out_of_plan_;
+	// Petra's merchant ships with the trader role, sorted ids (saved v113): trained by
+	// trainMoreTraders, or transport ships it switched; petra_switch_ships_ the ones to switch once
+	// their transport plan ends (ROLE_SWITCH_TO_TRADER). Every other merchant ship is a transport.
+	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_trade_ships_, petra_switch_ships_;
+	bool petra_trade_ship(uint32_t id) const;
 	bool petra_is_worker(size_t i) const;
 	int petra_target_workers() const;
 	int petra_work_phase3() const;
@@ -2049,7 +2062,11 @@ public:
 	bool unit_is_guarding(uint32_t uid) const { return unit_guard_target(uid) != 0; }
 	// UnitAI.isGuardOf: the entity the unit guards (a unit or structure id), or 0.
 	uint32_t unit_guard_target(uint32_t uid) const;
-	bool unit_has_work_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.work_kind[idx] != ORDER_NONE; } // UnitAI hasWorkOrders
+	// UnitAI HasWorkOrders: a work queue kept when a forced order replaced it (UpdateWorkOrders).
+	bool unit_has_work_order(uint32_t uid) const {
+		const auto w = work_orders_.find(uid);
+		return w != work_orders_.end() && !w->second.empty();
+	}
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
 	const Grid<uint8_t>& territory_grid() const { return territory_grid_; }
 	// ICmpTerritoryManager::IsTerritoryBlinking for territory_grid() cell (tx, tz): owned land in a
@@ -3539,8 +3556,8 @@ private:
 	};
 	// The plan's unitStat classes, less those whose bit is set in `dropped`.
 	std::vector<PetraUnitStat> petra_plan_unit_stats(uint8_t kind, uint16_t dropped = 0);
-	// Whether a building of ours trains some roster template of the class now (trainMoreUnits
-	// drops a class without one from the plan).
+	// Whether a finished building of ours trains some roster template of the class, busy or
+	// not (findTrainableUnits; trainMoreUnits drops a class without one from the plan).
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
@@ -3759,6 +3776,7 @@ private:
 	void petra_retake_civic_centres(); // defenseManager.js OwnershipChanged -> switchDefenseToAttack
 	void petra_update_attack_plan(AttackPlan &plan, float base_x, float base_z); // one plan's attackPlan.js step
 	void petra_update_started_raid(AttackPlan &plan, float base_x, float base_z); // a raid once it set off
+	bool petra_raid_walk(AttackPlan &plan); // attackPlan.js UpdateWalking along a raid's path: true on arrival
 	void petra_attack_units(AttackPlan &plan); // attackPlan.js update while attacking: each unit's target
 	uint32_t petra_plan_next_target(AttackPlan &plan, float &tx, float &tz, uint16_t same_land = 0, bool must_start = false);
 	bool petra_in_attack_squad(uint32_t uid) const; // in the prepared or a started attack's army

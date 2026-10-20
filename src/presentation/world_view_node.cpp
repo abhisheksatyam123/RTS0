@@ -921,7 +921,7 @@ float RtsoWorldView::turret_draw_y(const rtso::Simulation *sim, uint32_t unit_id
 			if (b.id == holder) { hb = &b; break; }
 	if (!hb) return sim->get_terrain_height(x, z) + offset;
 	if (!flags_loaded_) load_garrison_flags();
-	const String mid = building_visual_id(sim->team_civ(hb->team), hb->type, hb->half_size);
+	const String mid = building_model_of(hb->id, sim->team_civ(hb->team), hb->type, hb->half_size);
 	const auto &entry = rtso::ModelLibrary::get("buildings", mid);
 	const float b_scale = entry.scale > 0.05f ? entry.scale : 1.0f;
 	const float base = sim->get_terrain_height(hb->x, hb->z) + entry.y_offset;
@@ -2689,6 +2689,9 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key)
 		slot->y_offset = entry.y_offset;
 		slot->scale = entry.scale;
 		slot->height = entry.aabb.size.y;
+		// silhouette.gdshader: the model's bounding sphere about the unit's origin.
+		for (int k = 0; k < 8; ++k)
+			slot->sil_radius = std::max(slot->sil_radius, entry.aabb.get_endpoint(k).length() * entry.scale);
 		slot->rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
 		slot->no_scene = !entry.scene.is_valid();
 		// Owner-coloured: a player_color.gdshader surface with a mask, or a crowd's parts
@@ -2714,6 +2717,7 @@ MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip, int phase) {
 		// 0 A.D. unit actors carry <castshadow/>.
 		b.mmi[clip][phase]->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_ON);
 		if (silhouettes_ && silhouette_mat_.is_valid()) b.mmi[clip][phase]->set_material_overlay(silhouette_mat_);
+		rtso::set_instance_param(b.mmi[clip][phase], "silhouette_radius", b.sil_radius);
 		add_child(b.mmi[clip][phase]);
 	}
 	return b.mm[clip][phase].ptr();
@@ -3200,7 +3204,7 @@ void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso
 		const uint8_t civ = sim->team_civ(b.team);
 		const uint32_t kind = (uint32_t)civ << 16 | b.type << 1;
 		const bool damaged = b.hp < b.max_hp;
-		want_building(building_visual_id(civ, b.type, b.half_size));
+		want_building(building_model_of(b.id, civ, b.type, b.half_size));
 		if (!building_kinds_prefetched_.insert(kind | (uint32_t)damaged).second) continue;
 		const std::string civ_type = std::string(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "/" + std::to_string(b.type);
 		if (!damaged) {
@@ -3294,7 +3298,7 @@ void RtsoWorldView::warm_models(const rtso::Simulation *sim, const std::function
 	}
 	mirages_.update(*sim, local_player_);
 	for (const auto &fb : mirages_.buildings())
-		add("buildings", building_visual_id(fb.civ, fb.type, fb.half_size));
+		add("buildings", building_model_of(fb.id, fb.civ, fb.type, fb.half_size));
 	for (size_t i = 0; i < wanted.size(); ++i) {
 		rtso::ModelLibrary::get(String(wanted[i].first), wanted[i].second);
 		if (progress && (i % 8 == 7 || i + 1 == wanted.size())) progress((int)i + 1, (int)wanted.size());
@@ -3990,21 +3994,30 @@ void RtsoWorldView::refresh_silhouettes() {
 			if (b)
 				for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
 					for (int p = 0; p < CROWD_PHASES; ++p)
-						if (b->mmi[c][p]) b->mmi[c][p]->set_material_overlay(overlay);
+						if (b->mmi[c][p]) {
+							b->mmi[c][p]->set_material_overlay(overlay);
+							// Under Compatibility the value rides on the node's own copy of the overlay.
+							if (on) rtso::set_instance_param(b->mmi[c][p], "silhouette_radius", b->sil_radius);
+						}
 	for (auto &per_fauna : fauna_mmi)
 		for (MultiMeshInstance3D *mmi : per_fauna)
 			if (mmi) mmi->set_material_overlay(overlay);
 	for (UnitVis &v : unit_pool) v.silhouette_rgba = -1;
 }
 
-void RtsoWorldView::set_silhouette(Node *n, const Color &c) {
+void RtsoWorldView::set_silhouette(Node *n, const Color &c, float radius, const Node3D *root) {
 	if (!n) return;
 	if (MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(n)) {
 		const Ref<Material> overlay = silhouettes_ ? Ref<Material>(silhouette_mat_) : Ref<Material>();
 		if (!rtso::is_material_or_copy(mi->get_material_overlay(), overlay)) mi->set_material_overlay(overlay);
-		if (silhouettes_) rtso::set_instance_param(mi, "silhouette_color", c);
+		if (silhouettes_) {
+			rtso::set_instance_param(mi, "silhouette_color", c);
+			// The shader measures from this part's origin, so the sphere grows by its offset.
+			const float off = root ? mi->get_global_position().distance_to(root->get_global_position()) : 0.0f;
+			rtso::set_instance_param(mi, "silhouette_radius", radius + off);
+		}
 	}
-	for (int i = 0; i < n->get_child_count(); ++i) set_silhouette(n->get_child(i), c);
+	for (int i = 0; i < n->get_child_count(); ++i) set_silhouette(n->get_child(i), c, radius, root);
 }
 
 // MultiMesh::set_instance_count goes to the RenderingServer every call; most batches keep their
@@ -4463,7 +4476,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			const Color sc = player_display_color(sim, uview.team[i]);
 			const int64_t key = silhouettes_ ? (int64_t)sc.to_rgba32() : -2;
 			if (v.silhouette_rgba != key) {
-				set_silhouette(v.model, sc);
+				set_silhouette(v.model, sc, model_b.sil_radius, Object::cast_to<Node3D>(v.model));
 				v.silhouette_rgba = key;
 			}
 		}
@@ -4602,7 +4615,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (v.root) v.root->set_visible(!locked_out(b.x, b.z, b.half_size * 1.5f + 4.0f));
 
 		uint8_t bciv = b.civ;
-		const String mid = building_visual_id(bciv, b.type, b.half_size);
+		const String mid = building_model_of(b.id, bciv, b.type, b.half_size);
 		const char *rubble_id = rtso::civ_building_rubble(bciv, b.type);
 		float b_progress = b.build_progress;
 		bool destroyed = (b.hp <= 0.0f || b.wrecked);

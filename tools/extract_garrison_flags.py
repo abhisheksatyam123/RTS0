@@ -19,6 +19,11 @@ Turret points (0 A.D. TurretHolder heights in metres) sit at ground + h * scale.
 pos and flag are present only for models whose actor has a garrisoned variant.
 
 Usage: python3 tools/extract_garrison_flags.py [--ref master] [--jobs 8]
+       python3 tools/extract_garrison_flags.py --src <0 A.D. checkout> --only id,id
+--src reads actors and meshes from a local 0 A.D. checkout instead of GitHub;
+--only measures those models and keeps every other entry of the file.
+Structures in extract_0ad_assets.GROUND_AT_ORIGIN are cut at the ground plane,
+so their ground is that plane, not the mesh's lowest vertex.
 """
 import argparse
 import json
@@ -32,10 +37,21 @@ import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from extract_0ad_assets import GROUND_AT_ORIGIN, GROUND_CUT_Y  # noqa: E402
 NS = "{http://www.collada.org/2005/11/COLLADASchema}"
 
 
+SRC = None  # --src: a local 0 A.D. checkout
+
+
 def fetch(ref, path):
+    if SRC:
+        try:
+            with open(os.path.join(SRC, "binaries", "data", "mods", "public", path), "rb") as f:
+                return f.read()
+        except OSError:
+            return None
     url = f"https://raw.githubusercontent.com/0ad/0ad/{ref}/binaries/data/mods/public/{path}"
     try:
         with urllib.request.urlopen(url, timeout=60) as r:
@@ -191,6 +207,8 @@ def process(ref, mid, entry):
     # (p - (cx, miny, cz)) * scale. The structure mesh spans the actor's
     # footprint, so its bounds stand in for the composed actor's.
     lo, hi = bounds
+    if actors[0] in GROUND_AT_ORIGIN:
+        lo = [lo[0], max(lo[1], GROUND_CUT_Y), lo[2]]
     dw = max(hi[0] - lo[0], hi[2] - lo[2])
     gw = max(gb[1][0] - gb[0][0], gb[1][2] - gb[0][2])
     if dw <= 1e-6:
@@ -211,17 +229,29 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ref", default="master")
     ap.add_argument("--jobs", type=int, default=8)
+    ap.add_argument("--src")
+    ap.add_argument("--only")
     args = ap.parse_args()
+    global SRC
+    SRC = args.src
     manifest = json.load(open(os.path.join(ROOT, "assets", "models", "manifest.json")))["models"]
     todo = [(k, v) for k, v in manifest.items() if v["file"].startswith("models/buildings/")]
     out = {}
+    source = f"0ad/0ad@{args.ref} art/actors/structures (garrisoned variant, mesh ground plane)"
+    if args.only:
+        only = set(args.only.split(","))
+        todo = [(k, v) for k, v in todo if k in only]
+        with open(os.path.join(ROOT, "data", "garrison_flags.json")) as f:
+            old = json.load(f)
+        out = {k: v for k, v in old["models"].items() if k not in only}
+        source = old["source"]
     with ThreadPoolExecutor(args.jobs) as ex:
         for mid, res in ex.map(lambda kv: process(args.ref, *kv), todo):
             if res:
                 out[mid] = res
     path = os.path.join(ROOT, "data", "garrison_flags.json")
     with open(path, "w") as f:
-        json.dump({"source": f"0ad/0ad@{args.ref} art/actors/structures (garrisoned variant, mesh ground plane)",
+        json.dump({"source": source,
                    "models": dict(sorted(out.items()))}, f, indent=1)
         f.write("\n")
     flags = sum(1 for v in out.values() if "flag" in v)
