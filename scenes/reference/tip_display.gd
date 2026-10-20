@@ -103,7 +103,7 @@ func change_tip(step: int) -> void:
 	_title.text = str(tip.get("title", ""))
 	var bullets: PackedStringArray = []
 	for line in tip.get("lines", []):
-		bullets.append("• " + str(line)) # [icon="BulletPoint"]
+		bullets.append("• " + tr(str(line))) # [icon="BulletPoint"]; Engine.TranslateLines
 	_text.text = "\n\n".join(bullets)
 	_prev.disabled = not _prev.visible or tip_index == 0
 	_next.disabled = not _next.visible or tip_index >= tips.size() - 1
