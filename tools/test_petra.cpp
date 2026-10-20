@@ -4229,6 +4229,37 @@ static void test_decay_garrison() {
 	CHECK(ours && (int)inside >= std::min(need, cap), "Petra garrisons a decaying tower (TYPE_DECAY)");
 }
 
+// garrisonManager.js addDecayingStructure: a barracks is garrisoned against decay only when
+// Petra captured it while it decayed (justCaptured); one Petra built there is not.
+static void test_decay_barracks_captured() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	float fx = 0.0f, fz = 0.0f;
+	bool found = false;
+	for (const auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) { fx = b.x; fz = b.z; found = true; }
+	CHECK(found, "player 0 has a civic centre");
+	if (!found) return;
+	const uint32_t built = s->spawn_building_world(fx + 14.0f, fz, BLD_BARRACKS, 1);
+	const uint32_t taken = s->spawn_building_world(fx - 14.0f, fz, BLD_BARRACKS, 0);
+	{
+		Simulation::Building &b = s->buildings_[s->building_id_to_idx_[taken]];
+		b.team = 1; // captured from player 0 in its territory
+		s->stat_building_captured(b, 0);
+	}
+	s->rebuild_territory();
+	s->petra_pid_ = 1;
+	const int built_min = s->petra_decay_garrison_min(s->buildings_[s->building_id_to_idx_[built]]);
+	const int taken_min = s->petra_decay_garrison_min(s->buildings_[s->building_id_to_idx_[taken]]);
+	std::printf("  decaying barracks: built there wants %d inside, captured there %d\n", built_min, taken_min);
+	CHECK(built_min == 0, "a barracks Petra built in enemy land is not garrisoned against decay");
+	CHECK(taken_min > 0, "a barracks Petra captured while it decays is (justCaptured)");
+}
+
 // headquarters.js checkEvents: a structure Petra just captured in enemy land, which no
 // garrison will hold, is destroyed while an enemy holds part of it and Petra keeps under
 // 70-80% of its capture points; with 95% it is kept.
@@ -6688,6 +6719,7 @@ int main(int argc, char **argv) {
 	RUN(test_decay_garrison);
 	RUN(test_decay_garrison_from_attack);
 	RUN(test_decay_destroy);
+	RUN(test_decay_barracks_captured);
 	RUN(test_defense_by_strength);
 	RUN(test_defense_armies);
 	RUN(test_soldier_fights_back);
