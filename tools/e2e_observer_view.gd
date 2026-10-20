@@ -36,6 +36,7 @@ func run() -> void:
 	ms.slot_civs = [0, 1]
 	ms.replay_dir = ""
 	ms.load_save_path = ""
+	ms.cheats = true
 	change_scene_to_file("res://scenes/main.tscn")
 	await frames(60)
 	var m = current_scene
@@ -78,6 +79,10 @@ func run() -> void:
 	m._on_observer_view_selected(3)
 	pk = m.get_replay_status().observer_picker
 	check(not pk.gaia and int(pk.view) == 1 and not pk.observer_mode, "a player's view hides Observer Mode")
+	# Cheats.executeCheat: controlsPlayer(Engine.GetPlayerID()), the own (defeated) seat, so the
+	# code goes out as chat instead of cheating for the viewed player.
+	check(not m.chat_try_cheat("brainiac"), "viewing a player, a defeated player's cheat code is not run for them")
+	ms.cheats = false
 
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures else 0)

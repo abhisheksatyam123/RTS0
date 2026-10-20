@@ -770,6 +770,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				uint8_t rally_cmd = rtso::RALLY_CMD_AUTO;
 				rally_target_at(click_pos, target_res, target_bld, &target_ent, &rally_cmd);
 				if (auto_rally) target_bld = selected_building_id, rally_cmd = rtso::RALLY_CMD_AUTO;
+				// A market too close to this one: the "trade" rally action is disabled (no gain).
+				if (rally_cmd == rtso::RALLY_CMD_TRADE) {
+					rtso::Simulation::TradeGain g;
+					if (rally_route_gain(target_bld, g) && g.trader <= 0) return;
+				}
 				// session.queue (Shift) adds a position after the ones set (RallyPoint.AddPosition).
 				const bool rally_queued = rtso::hotkeys::held("session.queue");
 				// unit_actions.js "set-rallypoint": every selected structure with a RallyPoint.
@@ -1633,7 +1638,8 @@ std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
 	const bool idle_only = rtso::hotkeys::held("selection.idleonly");
 	const bool wounded_only = rtso::hotkeys::held("selection.woundedonly");
 	auto in_box = [&](float x, float z) {
-		const Vector3 world_pos(x, 0, z);
+		// The entity as drawn, on the ground (PickPlayerEntitiesInRect projects its position).
+		const Vector3 world_pos(x, sim->get_terrain_height(x, z), z);
 		if (cam->is_position_behind(world_pos)) return false;
 		const Vector2 sp = cam->unproject_position(world_pos);
 		return sp.x >= min_p.x && sp.x <= max_p.x && sp.y >= min_p.y && sp.y <= max_p.y;

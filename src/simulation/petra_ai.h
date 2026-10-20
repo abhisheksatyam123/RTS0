@@ -300,6 +300,9 @@ struct PetraDiplomacy {
 	float next_tribute = 90.0f;  // nextTributeUpdate
 };
 
+// PetraSentDiplomacy::current_enemy when currentEnemyPlayer is Gaia (player 0 in 0.28).
+constexpr uint8_t PETRA_CURRENT_ENEMY_GAIA = 0xFF;
+
 // diplomacyManager.js sentDiplomacyRequests, sentDiplomacyRequestLapseTime and
 // nextTributeRequest (save v27). Padding-free: saved raw.
 struct PetraSentDiplomacy {
@@ -309,7 +312,7 @@ struct PetraSentDiplomacy {
 	float next_tribute_request[4] = {};  // per resource
 	uint8_t sent_type[8] = {};        // 0 none, 1 ally, 2 neutral
 	uint8_t warned_trade = 0;         // tradeManager.js warnedAllies: players told of a route with them, by bit
-	uint8_t current_enemy = 0;        // attackManager.js currentEnemyPlayer + 1 (0: none), kept between attacks
+	uint8_t current_enemy = 0;        // attackManager.js currentEnemyPlayer + 1 (0: none, PETRA_CURRENT_ENEMY_GAIA: Gaia), kept between attacks
 	uint8_t pad[6] = {};
 };
 static_assert(sizeof(PetraSentDiplomacy) == 72, "PetraSentDiplomacy is saved raw: keep it padding-free");

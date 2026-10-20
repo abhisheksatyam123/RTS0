@@ -41,8 +41,13 @@ using rtso::sprintf0;
 void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices) {
 	if (notices.empty() || !sim || !chat_window_.is_ready()) return; // replays too (session.js handleNotifications)
 	using N = rtso::Simulation::SessionNotice;
+	// The time notifications follow the viewed player (GetTimeNotifications(g_ViewedPlayer));
+	// the chat lines below go by the seat and g_IsObserver (ChatMessageFormatSimulation),
+	// and a replay viewer has no seat (Engine.GetPlayerID() == -1).
 	const uint8_t me = local_player();
-	const bool observer = me >= rtso::MAX_PLAYERS || sim->is_defeated(me);
+	const bool replay = turn_mgr_.is_replaying();
+	const uint8_t seat = replay ? (uint8_t)0xFF : seat_player();
+	const bool observer = replay || observing_seat();
 	auto mutual_ally = [&](uint8_t a, uint8_t b) {
 		return a < rtso::MAX_PLAYERS && b < rtso::MAX_PLAYERS && sim->get_diplomacy(a, b) == rtso::Simulation::DIPLO_ALLY &&
 				sim->get_diplomacy(b, a) == rtso::Simulation::DIPLO_ALLY;
@@ -115,12 +120,12 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 			int32_t a[4];
 			for (int i = 0; i < 4; ++i) a[i] = n.amounts[kOrder[i]];
 			const String what = amounts_text(a, kOrder, 4);
-			if (n.other == me)
+			if (n.other == seat)
 				line = sprintf0(tr("%(player)s has sent you %(amounts)s."), {{"player", colored_player_name(n.player)}, {"amounts", what}});
-			else if (n.player == me)
+			else if (n.player == seat)
 				line = sprintf0(tr("You have sent %(player2)s %(amounts)s."), {{"player2", colored_player_name(n.other)}, {"amounts", what}});
 			else if (user_opts_.tribute_notice &&
-					(observer || (sim->teams_locked() && mutual_ally(n.player, me) && mutual_ally(n.other, me))))
+					(observer || (sim->teams_locked() && mutual_ally(n.player, seat) && mutual_ally(n.other, seat))))
 				line = sprintf0(tr("%(player)s has sent %(player2)s %(amounts)s."),
 						{{"player", colored_player_name(n.player)}, {"player2", colored_player_name(n.other)}, {"amounts", what}});
 		} else if (n.kind == N::BARTER) {
@@ -131,7 +136,7 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 						{{"player", colored_player_name(n.player)}, {"amountGiven", given}, {"amountGained", gained}});
 			}
 		} else if (n.kind == N::PHASE_STARTED || n.kind == N::PHASE_ABORTED || n.kind == N::PHASE_COMPLETED) {
-			if (user_opts_.phase_notice == 0 || (n.player != me && !observer && !mutual_ally(n.player, me))) continue;
+			if (user_opts_.phase_notice == 0 || (n.player != seat && !observer && !mutual_ally(n.player, seat))) continue;
 			const String phase = tr(String::utf8(rtso::tech_info(n.tech).name));
 			const String player = colored_player_name(n.player);
 			if (n.kind == N::PHASE_COMPLETED)
@@ -151,8 +156,8 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 			const int w = n.tech <= rtso::Simulation::DIPLO_ENEMY ? n.tech : 2;
 			if (observer)
 				line = sprintf0(tr(kObserver[w]), {{"player", colored_player_name(n.player)}, {"player2", colored_player_name(n.other)}});
-			else if (n.player == me) line = sprintf0(tr(kMine[w]), {{"player", colored_player_name(n.other)}});
-			else if (n.other == me) line = sprintf0(tr(kTheirs[w]), {{"player", colored_player_name(n.player)}});
+			else if (n.player == seat) line = sprintf0(tr(kMine[w]), {{"player", colored_player_name(n.other)}});
+			else if (n.other == seat) line = sprintf0(tr(kTheirs[w]), {{"player", colored_player_name(n.player)}});
 		} else if (n.kind == N::DEFEATED || n.kind == N::WON || n.kind == N::LOST) {
 			// ChatMessageFormatSimulation.playerstate, shown to everyone: the defeat reasons of
 			// Conquest*.js, Regicide.js, Commands.js "resign" and TriggerHelper.DefeatPlayer, and

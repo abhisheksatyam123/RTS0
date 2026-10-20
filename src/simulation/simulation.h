@@ -483,6 +483,22 @@ public:
 		*zs = unit_paths_[i].zs + cur;
 		return n - cur;
 	}
+	// The next waypoint of the short path unit i walks round something on toward (aim_x, aim_z)
+	// (UnitMotion m_ShortPath, the unit motion overlay): what its ShortPathMemo keeps for that aim.
+	bool unit_short_waypoint(size_t i, float aim_x, float aim_z, float *wx, float *wz) const;
+	// Unit i's range queries (CCmpRangeManager's m_Queries, the range overlay): UnitAI's
+	// LosRangeQuery over GetQueryRange(IID_Attack) by stance, enabled while the unit is idle,
+	// attack-walking, patrolling or guarding, and a healer's LosHealRangeQuery
+	// (GetQueryRange(IID_Heal)). max 0: no query.
+	struct RangeQuery {
+		float min = 0.0f, max = 0.0f; // the attack query
+		float heal_max = 0.0f;        // the heal query (healers)
+		bool enabled = false;
+	};
+	RangeQuery unit_range_query(size_t i) const;
+	// Cells a side of the grid the range queries look units up in (CCmpRangeManager's
+	// m_Subdivision), spread over the whole map.
+	static int unit_grid_res();
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
 	// A relic (catafalque) has no Health, so no attack but Capture reaches it.
 	bool unit_can_target(size_t i, size_t j) const {
@@ -549,6 +565,42 @@ public:
 		std::vector<AttackedEvent> out;
 		out.swap(attacked_events_);
 		return out;
+	}
+	// An AI's order: in 0.28 Petra posts commands like a player, so Commands.js sends a
+	// "playercommand" notification for each and the session's Follow Player follows them.
+	// Presentation only like AttackedEvent, and recorded only while record_ai_commands is
+	// on; an order another order gives on its way (attack-walk walking) is not recorded.
+	struct AiCommandEvent {
+		enum Kind : uint8_t { WALK, ATTACK_WALK, PATROL, GATHER, ATTACK, REPAIR, GARRISON, GUARD, HEAL, RETURN_RESOURCE,
+			TRADE, STOP, DELETE, TRAIN, RESEARCH, OTHER };
+		uint8_t player;
+		uint8_t kind;
+		std::vector<uint32_t> ids; // cmd.entities: the units ordered, or the trainer
+		uint32_t target;           // cmd.target, 0 for none
+		float x, z;                // cmd.x, cmd.z for a position order
+	};
+	static constexpr size_t kMaxAiCommandEvents = 1024;
+	void set_record_ai_commands(bool on) {
+		record_ai_commands_ = on;
+		if (!on) ai_command_events_.clear();
+	}
+	std::vector<AiCommandEvent> take_ai_command_events() {
+		std::vector<AiCommandEvent> out;
+		out.swap(ai_command_events_);
+		return out;
+	}
+	// At the top of an order an AI may give: notes it once, for the outermost order only.
+	struct AiCommandScope {
+		Simulation &sim;
+		AiCommandScope(Simulation &s, uint8_t kind, const uint32_t *ids, size_t n, uint32_t target = 0, float x = 0.0f,
+				float z = 0.0f) : sim(s) {
+			if (sim.ai_command_depth_++ == 0 && sim.record_ai_commands_ && sim.petra_in_turn_) sim.note_ai_command(kind, ids, n, target, x, z);
+		}
+		~AiCommandScope() { --sim.ai_command_depth_; }
+	};
+	void note_ai_command(uint8_t kind, const uint32_t *ids, size_t n, uint32_t target, float x, float z) {
+		if (n == 0 || ai_command_events_.size() >= kMaxAiCommandEvents) return;
+		ai_command_events_.push_back({petra_pid_, kind, std::vector<uint32_t>(ids, ids + n), target, x, z});
 	}
 	// A unit's melee or Slaughter strike on an animal: presentation only like
 	// AttackedEvent (the striker's attack_melee or attack_slaughter sound plays on it).
@@ -772,7 +824,8 @@ public:
 	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive, int count = 1,
 			bool push_front = false);
 	// Trainer.js GetBatchTime: count^BatchTimeModifier of the building (civ version and techs).
-	float batch_time_multiplier(uint8_t player, uint8_t bld_type, int count) const;
+	// bld_civ: the structure's civ, whose template sets Trainer/BatchTimeModifier (the owner's when unknown).
+	float batch_time_multiplier(uint8_t player, uint8_t bld_type, int count, uint8_t bld_civ = 0xFF) const;
 	// The same for a training unit (a trireme, Cyrus II): its Trainer/BatchTimeModifier.
 	float unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const;
 	// ProductionQueue.js EnableAutoQueue / DisableAutoQueue.
@@ -1511,6 +1564,8 @@ public:
 	bool cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool lock);
 	// Maximum hit points of a `type` structure owned by `team`: template x civ bonus x techs.
 	float structure_max_hp(uint8_t type, uint8_t team) const;
+	float structure_hp_mult(uint8_t type, uint8_t team) const; // owner civ bonus x technologies on Health/Max
+	void rescale_structure_hp(Building &b, uint8_t from);
 	// 0 A.D. Barter.js: sell 100 or 500 (DEAL_AMOUNT x 1 or BATCH_SIZE) of one
 	// resource for another. Needs a finished Market owned by `player`.
 	bool cmd_barter(uint8_t player, ResourceType sell, ResourceType buy, int amount = 100);
@@ -2663,11 +2718,12 @@ private:
 	int garrison_size(size_t unit) const;                        // Garrisonable.TotalSize
 	int occupied_slots(const std::vector<uint32_t> &ids) const;  // GarrisonHolder.OccupiedSlots
 	bool garrison_room(const Building &b, size_t unit) const;
+	bool corral_has_room(const Building &b) const; // penned animals and garrisoned units under GarrisonHolder/Max
 	// The search behind pick_spawn_point and siege_spawn_point: the spots round a footprint centred
 	// on (cx, cz) and turned by rot, a square with half extents along_u (the front) and along_v, or a
-	// circle of radius circle_r when that is above 0. dry_ground also rejects spots under the water line.
+	// circle of radius circle_r when that is above 0.
 	bool pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
-			bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid, bool dry_ground,
+			bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid,
 			float &out_x, float &out_z) const;
 	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
 	void tick_garrison_holders();
@@ -2744,6 +2800,7 @@ private:
 public:
 	// Read-only, for the status bars' aura icons.
 	const AuraManager &aura_manager() const { return aura_mgr_; }
+	float attack_reach(size_t i) const; // Attack MaxRange with MaxRange auras (Boiorix's High Ground)
 private:
 	void apply_health_auras(); // Health/Max auras: rescale max_hp and hp as units enter or leave them
 	float structure_max_capture(const Building &b) const; // Capturable/CapturePoints with its owner's modifiers and auras
@@ -2753,7 +2810,6 @@ private:
 	float unit_base_vision(size_t i) const; // the template's Vision/Range x0.28 (class default if none)
 	float unit_vision_at(size_t i) const; // Vision/Range with Vision auras (0 A.D. Vision.js)
 	float structure_decay_rate(const Building &b) const; // TerritoryDecay/DecayRate with the owner's techs
-	float attack_reach(size_t i) const; // Attack MaxRange with MaxRange auras (Boiorix's High Ground)
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0, uint8_t splash = 0);
 	static float projectile_speed(uint8_t visual);
@@ -2821,6 +2877,9 @@ private:
 			bool target_is_building, float damage, bool melee = false, bool capture = false);
 	double battle_damage_[MAX_PLAYERS] = {};
 	std::vector<AttackedEvent> attacked_events_;
+	std::vector<AiCommandEvent> ai_command_events_;
+	bool record_ai_commands_ = false;
+	int ai_command_depth_ = 0;
 	std::vector<TriggerEventData> pending_attack_alerts_; // OnAttackDetected, raised at the end of the tick that detected them
 	std::vector<FaunaStrikeEvent> fauna_strikes_;
 	std::vector<SessionNotice> session_notices_;

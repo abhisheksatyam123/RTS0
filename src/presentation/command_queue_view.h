@@ -452,7 +452,7 @@ public:
 					// right-click, requirements, needed resources.
 					const char *tech_specific = rtso::tech_specific_name((uint8_t)t, pciv);
 					String tip = rtso::entity_names_formatted(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
-					if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
+					if (ti.desc && *ti.desc) tip += "\n" + rtso::body_font(rtso::tr0(String::utf8(ti.desc)));
 					const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
 							(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
 					const String tech_cost_tip = rtso::cost_tooltip(tech_cost, true);
@@ -633,8 +633,15 @@ public:
 
 				// 0.28's Upgrade panel for a structure (g_SelectionPanels.Upgrade): an icon button per
 				// choice (the target's portrait), or "Cancel Upgrading" over the progress overlay
-				// while it upgrades.
-				if (found_b->team == local_player()) {
+				// while it upgrades. Upgrade.getItems shows nothing when the selection mixes templates.
+				bool one_template = true;
+				for (uint32_t id : host_->ui_selected_structures())
+					for (const auto &o : sim->buildings())
+						if (o.id == id) {
+							one_template = one_template && o.type == found_b->type && o.civ == found_b->civ;
+							break;
+						}
+				if (found_b->team == local_player() && one_template) {
 					const bool upgrading = found_b->upgrade_to != rtso::BLD_TYPE_COUNT;
 					for (int choice = 0; choice < rtso::building_upgrade_count(found_b->type, sim->structure_upgrade_civ(*found_b)); ++choice) {
 						const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, sim->structure_upgrade_civ(*found_b), choice);
@@ -1233,7 +1240,7 @@ public:
 						if (const float heal = sim->structure_garrison_heal_for((uint8_t)bt, local_player()); garrison > 0 && heal > 0.0f)
 							tip += "\n" + rtso::sprintf0(rtso::tr0("%(healRateLabel)s %(value)s %(health)s / %(second)s"),
 									{{"healRateLabel", rtso::header_font(rtso::tr0("Heal:"))}, {"value", String::num_int64(std::lround(heal))},
-											{"health", rtso::tr0("Health")}, {"second", rtso::tr0("second")}});
+											{"health", rtso::unit_font(rtso::tr0("Health"))}, {"second", rtso::unit_font(rtso::tr0("second"))}});
 						add_line(turrets_tooltip(text));
 						const int pop_bonus = sim->structure_pop_bonus((uint8_t)bt, local_player());
 						if (pop_bonus > 0)
@@ -1503,7 +1510,7 @@ private:
 			// The Research tooltip: names, tooltip, cost, right-click, requirements, needed resources.
 			const char *tech_specific = rtso::tech_specific_name(t, sim->player_civ(pid));
 			String tip = rtso::entity_names_formatted(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
-			if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
+			if (ti.desc && *ti.desc) tip += "\n" + rtso::body_font(rtso::tr0(String::utf8(ti.desc)));
 			const String cost_line = rtso::cost_tooltip(tech_cost, true);
 			if (!cost_line.is_empty()) tip += "\n" + cost_line;
 			tip += "\n" + right_click_tooltip();
@@ -1570,7 +1577,13 @@ private:
 		const auto &ps = sim->player(pid);
 		const int size = std::max(1, host_->ui_batch_size());
 		const bool shift = rtso::hotkeys::held("session.batchtrain");
-		const bool upgrading = b && b->upgrade_to != rtso::BLD_TYPE_COUNT;
+		// selection_panels.js Training: "Cannot train while upgrading." once every selected
+		// structure is upgrading.
+		bool upgrading = b && b->upgrade_to != rtso::BLD_TYPE_COUNT;
+		if (upgrading)
+			for (uint32_t id : host_->ui_selected_structures())
+				for (const auto &o : sim->buildings())
+					if (o.id == id) { upgrading = upgrading && o.upgrade_to != rtso::BLD_TYPE_COUNT; break; }
 		const uint16_t trainer_tmpl = b ? 0 : sim->unit_template(trainer_unit_id_);
 		for (int idx = 0; idx < roster_list_->get_item_count() && idx < (int)roster_state_.size(); ++idx) {
 			const int meta = (int)roster_list_->get_item_metadata(idx);
@@ -1609,7 +1622,7 @@ private:
 				pop = u.pop_cost;
 				seconds = sim->unit_train_seconds(pid, tmpl);
 			}
-			const float batch_mult = b ? sim->batch_time_multiplier(pid, b->type, batch) : sim->unit_trainer_batch_mult(trainer_tmpl, tmpl, batch);
+			const float batch_mult = b ? sim->batch_time_multiplier(pid, b->type, batch, b->civ) : sim->unit_trainer_batch_mult(trainer_tmpl, tmpl, batch);
 			const rtso::CostTip total{(int64_t)std::floor(cost[rtso::RES_FOOD] * num), (int64_t)std::floor(cost[rtso::RES_WOOD] * num),
 					(int64_t)std::floor(cost[rtso::RES_STONE] * num), (int64_t)std::floor(cost[rtso::RES_GOLD] * num),
 					(int64_t)pop * num, (int64_t)std::ceil(seconds * batch_mult)};
@@ -1972,12 +1985,12 @@ private:
 			if (k) list += rtso::tr0(", ");
 			list += rtso::tr0(String(classes[k]));
 		}
-		return rtso::tr0("Classes:") + " " + list;
+		return rtso::header_font(rtso::tr0("Classes:")) + " " + rtso::body_font(list);
 	}
 
 	// getEntityTooltip: the template's Identity/Tooltip.
 	static godot::String identity_tooltip(const godot::Dictionary &text) {
-		return text.get("tooltip", godot::String());
+		return rtso::body_font(text.get("tooltip", godot::String()));
 	}
 
 	// getAurasTooltip: "Name: description Range: 30 meters" per aura of a roster unit.
@@ -1985,12 +1998,12 @@ private:
 	static godot::String aura_line(const godot::String &name, const godot::String &description, float radius) {
 		using namespace godot;
 		String line = rtso::sprintf0(rtso::tr0("%(auralabel)s %(aurainfo)s"),
-				{{"auralabel", rtso::sprintf0(rtso::tr0("%(auraname)s:"), {{"auraname", rtso::tr0(name)}})},
-				 {"aurainfo", rtso::tr0(description)}});
+				{{"auralabel", rtso::header_font(rtso::sprintf0(rtso::tr0("%(auraname)s:"), {{"auraname", rtso::tr0(name)}}))},
+				 {"aurainfo", rtso::body_font(rtso::tr0(description))}});
 		if (radius > 0.0f) {
 			const int64_t r = (int64_t)std::lround(radius);
 			line += " " + rtso::sprintf0(rtso::tr0("%(label)s %(val)s %(unit)s"),
-					{{"label", rtso::tr0("Range:")}, {"val", String::num_int64(r)}, {"unit", rtso::tr0(r == 1 ? "meter" : "meters")}});
+					{{"label", rtso::tr0("Range:")}, {"val", String::num_int64(r)}, {"unit", rtso::unit_font(rtso::tr0(r == 1 ? "meter" : "meters"))}});
 		}
 		return line;
 	}
