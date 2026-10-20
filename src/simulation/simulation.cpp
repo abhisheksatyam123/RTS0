@@ -1222,7 +1222,8 @@ size_t Simulation::snap_trees_to_tiles() {
 				const float d2 = (cx - x) * (cx - x) + (cz - z) * (cz - z);
 				if (d2 >= best_d2) continue;
 				if ((di || dj) && get_terrain_height(cx, cz) < terrain_water_height_ + 0.15f) continue;
-				if (past_map_edge(cx, cz)) continue; // keep_resources_passable kept it inside the edge ring
+				// keep_resources_passable keeps resources 1.5 inside the edge ring, a lane to walk round a wood.
+				if (past_map_edge(cx, cz, 1.5f)) continue;
 				best = j * tr + i;
 				best_d2 = d2;
 				bx = cx;
