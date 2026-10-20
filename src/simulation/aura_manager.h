@@ -243,11 +243,14 @@ public:
                 keep *= 1.0f - s.value;
             } else {
                 // A roster aura by its index; an unlisted one (the carnyx) by its class filter.
-                const int16_t key = s.aura >= 0 ? s.aura : (int16_t)(-1 - (int16_t)s.need_class);
-                bool seen = false;
-                for (int k = 0; k < once_n; ++k) seen |= once[k] == key;
-                if (seen) continue;
-                if (once_n < 16) once[once_n++] = key;
+                // A stackable one (civ_aura_stackable) counts once per source.
+                if (!civ_aura_stackable(s.aura)) {
+                    const int16_t key = s.aura >= 0 ? s.aura : (int16_t)(-1 - (int16_t)s.need_class);
+                    bool seen = false;
+                    for (int k = 0; k < once_n; ++k) seen |= once[k] == key;
+                    if (seen) continue;
+                    if (once_n < 16) once[once_n++] = key;
+                }
                 product *= s.value;
                 sum += s.value;
             }

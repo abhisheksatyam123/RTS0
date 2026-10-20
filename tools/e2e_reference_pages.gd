@@ -107,6 +107,17 @@ func run() -> void:
 			"an Athenian Civic Center tech costs 30% less")
 	else:
 		check(false, "an Athenian Civic Center tech costs 30% less")
+	# getAurasTooltip: a structure's auras (templates.json) with their range, and a unit's
+	# token-merged class auras before its own.
+	var temple_tip: Button = null
+	for n in tree._rows.find_children("*", "Button", true, false):
+		if n.get("tip_kind") == "structure" and n.get("tip_id") == 9:
+			temple_tip = n
+			break
+	check(temple_tip != null and temple_tip._tooltip_text().contains("Medical Treatment:") and temple_tip._tooltip_text().contains("Range: 40 meters"),
+		"the temple's tooltip lists its Medical Treatment aura and range")
+	var hero_auras: Array = ref.get_unit(int(ref.get_civ_info(1)["heroes"][0]["tmpl"]))["auras"]
+	check(hero_auras.size() >= 3 and hero_auras[0]["name"] == "Inspired Defense", "a hero lists Inspired Defense first")
 	var spart := 1
 	var spart_hero: Dictionary = ref.get_civ_info(spart)["heroes"][0]
 	var hc: Dictionary = Common.civ_costed(ref.get_unit(int(spart_hero["tmpl"])), "unit", spart)["cost"]
