@@ -486,6 +486,19 @@ public:
 	// The next waypoint of the short path unit i walks round something on toward (aim_x, aim_z)
 	// (UnitMotion m_ShortPath, the unit motion overlay): what its ShortPathMemo keeps for that aim.
 	bool unit_short_waypoint(size_t i, float aim_x, float aim_z, float *wx, float *wz) const;
+	// Unit i's range queries (CCmpRangeManager's m_Queries, the range overlay): UnitAI's
+	// LosRangeQuery over GetQueryRange(IID_Attack) by stance, enabled while the unit is idle,
+	// attack-walking, patrolling or guarding, and a healer's LosHealRangeQuery
+	// (GetQueryRange(IID_Heal)). max 0: no query.
+	struct RangeQuery {
+		float min = 0.0f, max = 0.0f; // the attack query
+		float heal_max = 0.0f;        // the heal query (healers)
+		bool enabled = false;
+	};
+	RangeQuery unit_range_query(size_t i) const;
+	// Cells a side of the grid the range queries look units up in (CCmpRangeManager's
+	// m_Subdivision), spread over the whole map.
+	static int unit_grid_res();
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
 	// A relic (catafalque) has no Health, so no attack but Capture reaches it.
 	bool unit_can_target(size_t i, size_t j) const {
@@ -3626,6 +3639,9 @@ private:
 	// filled by tick_capture and rebuild_territory, read by every Petra this tick and cleared after
 	// it, so never saved.
 	std::vector<uint32_t> petra_decay_events_, petra_decay_scratch_;
+	// This tick's hits on structures and animals (target, attacker): 0.28's Attacked events
+	// for them, kept with the units' attacked_by ones. Cleared every tick, so never saved.
+	std::vector<std::pair<uint32_t, uint32_t>> petra_hit_events_;
 	void rebuild_territory_grids();
 	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, std::vector<int> &incoming) const;
 	std::vector<int> petra_garrison_incoming() const;

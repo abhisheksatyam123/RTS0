@@ -1,4 +1,5 @@
 #include "model_library.h"
+#include "instance_params.h"
 #include "procedural.h"
 #include "../../core/diagnostics/logger.h"
 #include "../../presentation/user_config.h"
@@ -402,7 +403,7 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 				? Ref<Texture2D>(ResourceLoader::get_singleton()->load(px->height))
 				: Ref<Texture2D>();
 		Ref<Shader> &sh = player_color_shader();
-		if (sh.is_null()) sh = ResourceLoader::get_singleton()->load("res://shaders/player_color.gdshader");
+		if (sh.is_null()) sh = load_instanced_shader("res://shaders/player_color.gdshader");
 		// A skin that varies by unit (data/unit_variants.json) needs the shader to pick it.
 		const UnitVariants *uv = unit_variants().getptr(image_key(tex));
 		if ((mask.is_valid() || ((spec.is_valid() || height.is_valid() || uv) && opaque)) && sh.is_valid()) {
@@ -513,7 +514,7 @@ void ModelLibrary::set_player_color(Node *n, const Color &c) {
 		const int count = mi->get_mesh().is_valid() ? mi->get_mesh()->get_surface_count() : 0;
 		for (int s = 0; s < count; ++s) {
 			if (is_player_color_material(mi->get_active_material(s))) {
-				mi->set_instance_shader_parameter("player_color", c);
+				set_instance_param(mi, "player_color", c);
 				break;
 			}
 		}
@@ -527,7 +528,7 @@ void ModelLibrary::set_variant(Node *n, float u) {
 		const int count = mi->get_mesh().is_valid() ? mi->get_mesh()->get_surface_count() : 0;
 		for (int s = 0; s < count; ++s) {
 			if (is_player_color_material(mi->get_active_material(s))) {
-				mi->set_instance_shader_parameter("variant_u", u);
+				set_instance_param(mi, "variant_u", u);
 				break;
 			}
 		}
@@ -688,8 +689,8 @@ void ModelLibrary::set_prop_looks(Node *root, const String &glb, uint32_t entity
 				look->set_surface_override_material(0, part->get_active_material(0));
 				look->set_material_overlay(part->get_material_overlay());
 				for (const char *param : { "player_color", "variant_u" }) {
-					const Variant val = part->get_instance_shader_parameter(param);
-					if (val.get_type() != Variant::NIL) look->set_instance_shader_parameter(param, val);
+					const Variant val = get_instance_param(part, param);
+					if (val.get_type() != Variant::NIL) set_instance_param(look, param, val);
 				}
 				parent->add_child(look);
 			}

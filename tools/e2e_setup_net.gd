@@ -20,7 +20,8 @@ extends SceneTree
 #      the single-player file; its next setup starts from it, a client's never,
 #      and a saved game's is not kept.
 # The host's slot names are 0.28's PlayerAssignment dropdowns: the clients and
-# Unassigned, which makes the slot's player an observer.
+# Unassigned, which makes the slot's player an observer, as AI, Removed or a
+# lower player count does.
 # A lobby game of two players is a Rated Game by default (0.28 Rating.js),
 # and a rated game has no cheats (Cheats.js).
 #
@@ -153,6 +154,13 @@ func run() -> void:
 	check(int(page._slot_rows[1]["kind"]) == 1, "AI: Petra Bot makes the slot an AI")
 	page._on_slot_kind(0, 1)
 	await frames(2)
+	# PlayerAssignmentsController.unassignInvalidPlayers: a player count below
+	# a client's slot leaves the client unassigned.
+	host.assigns.clear()
+	page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots").value = 1
+	check(host.assigns == [[1, -1]], "one player: bob is unassigned (%s)" % str(host.assigns))
+	page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots").value = 2
+	await create_timer(0.4).timeout
 	var vis := "%"
 	var rated: CheckBox = page.get_node(vis + "RatedGame")
 	var cheats: CheckBox = page.get_node(vis + "Cheats")
