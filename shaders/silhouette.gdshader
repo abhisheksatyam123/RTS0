@@ -10,6 +10,8 @@ render_mode unshaded, blend_mix, depth_test_disabled, depth_draw_never, cull_bac
 
 uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
 uniform float min_gap = 0.75;
+// Set under the Compatibility renderer (OpenGL), whose NDC depth runs -1 to 1, not 0 to 1.
+uniform bool gl_depth = false;
 // Close-up units set this per node; crowd MultiMeshes pass the owner's colour
 // in INSTANCE_CUSTOM (alpha 1), as player_color.gdshader reads it.
 instance uniform vec4 silhouette_color : source_color = vec4(1.0);
@@ -22,6 +24,7 @@ void vertex() {
 
 void fragment() {
 	float depth = textureLod(depth_tex, SCREEN_UV, 0.0).r;
+	if (gl_depth) depth = depth * 2.0 - 1.0;
 	vec4 view = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, depth, 1.0);
 	float scene_dist = -view.z / view.w;
 	if (-VERTEX.z - scene_dist < min_gap) discard;
