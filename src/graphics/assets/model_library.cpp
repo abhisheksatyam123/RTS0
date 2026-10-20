@@ -822,22 +822,26 @@ void ModelLibrary::apply_clip_tools(Node *root, const StringName &clip) {
 			tag == "Attack" || tag == "Death" || tag == "Slaughter" || tag == "Heal" ||
 			tag == "Promotion")
 		tag = "Weapon";
-	Node3D *pick = nullptr;
+	bool any = false;
+	for (Node3D *n3 : tools) any = any || tool_tag_of(n3->get_name()) == tag;
+	if (!any) tag = "Weapon";
+	// A tool is every node of its tag: tool_Weapon, tool_Weapon_2, ... are the
+	// parts of one prop (spear shaft and blade) or props on both hands. The
+	// extractor also writes some tools twice; draw one copy of identical parts.
+	std::vector<MeshInstance3D *> drawn;
 	for (Node3D *n3 : tools) {
-		if (tool_tag_of(n3->get_name()) == tag) {
-			pick = n3;
-			break;
+		if (tool_tag_of(n3->get_name()) != tag) continue;
+		if (MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(n3)) {
+			bool dup = false;
+			for (MeshInstance3D *d : drawn)
+				dup = dup || (d->get_parent() == mi->get_parent() &&
+									 d->get_transform().is_equal_approx(mi->get_transform()) &&
+									 d->get_aabb().is_equal_approx(mi->get_aabb()));
+			if (dup) continue;
+			drawn.push_back(mi);
 		}
+		set_tool_drawn(n3, true);
 	}
-	if (!pick) {
-		for (Node3D *n3 : tools) {
-			if (tool_tag_of(n3->get_name()) == String("Weapon")) {
-				pick = n3;
-				break;
-			}
-		}
-	}
-	if (pick) set_tool_drawn(pick, true);
 }
 
 static void collect_mesh_xforms(Node *n, const Transform3D &acc, Vector<MeshXform> &out) {

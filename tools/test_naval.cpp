@@ -673,6 +673,54 @@ static void test_siege_unloads_into_shallows() {
 		CHECK(idx(s, id) >= 0 && s.units().alive[(size_t)idx(s, id)]);
 }
 
+// A wall on a strip of dry land too narrow to stand on beside it (navcells round it deep water).
+static float g_strip_hu = 0.0f, g_strip_hv = 0.0f;
+static float strip_at(float x, float z) {
+	return (std::fabs(x) < g_strip_hu + 0.3f && std::fabs(z - 30.0f) < g_strip_hv + 0.3f) ? 3.0f : -3.0f;
+}
+
+// Turretable.LeaveTurret (Turretable.js 110-126): a unit comes down onto the holder's free spawn spot
+// (PositionHelper.GetSpawnPosition, Footprint.PickSpawnPoint): beside a wall on a shore, on the land,
+// not past the wall into the sea. With no free spot a "leave-turret" or an unload fails and the unit
+// stays up; a forced leave (its point gone, the wall destroyed) puts it on the wall's centre.
+static void test_turret_leave_spot() {
+	static Simulation s;
+	fresh(s);
+	const uint32_t wall = s.spawn_building_world(0.0f, 17.5f, BLD_WALL_SEGMENT, 0, 1.0f);
+	const auto &w = s.buildings_[s.building_id_to_idx_.at(wall)];
+	std::vector<uint32_t> men;
+	for (int k = 0; k < 4; ++k) {
+		men.push_back(s.spawn_unit(-1.0f + k, 20.0f, 0, UNIT_ARCHER));
+		CHECK(s.garrison_unit_now(men.back(), wall) && s.turret_holder_of(men.back()) == wall);
+	}
+	s.cmd_leave_turret(0, men.data(), men.size());
+	int dry = 0;
+	for (uint32_t id : men) {
+		const size_t i = (size_t)idx(s, id);
+		const float x = s.units().pos_x[i], z = s.units().pos_z[i];
+		const auto [gx, gy] = s.nav_grid().world_to_cell(x, z);
+		if (s.turret_holder_of(id) == 0 && !s.near_deep_water(x, z, CLEARANCE_DEFAULT) &&
+				s.nav_grid().is_passable_for(gx, gy, PASS_INFANTRY) && std::fabs(x) <= w.hu + 2.0f) ++dry;
+	}
+	std::printf("  4 archers down off a wall on the shore: %d beside it on dry land\n", dry);
+	CHECK(dry == 4);
+
+	static Simulation probe;
+	fresh(probe);
+	const uint32_t pw = probe.spawn_building_world(0.0f, 30.0f, BLD_WALL_SEGMENT, 0, 1.0f);
+	g_strip_hu = std::max(probe.buildings_[probe.building_id_to_idx_.at(pw)].hu, probe.buildings_[probe.building_id_to_idx_.at(pw)].hv);
+	g_strip_hv = std::min(probe.buildings_[probe.building_id_to_idx_.at(pw)].hu, probe.buildings_[probe.building_id_to_idx_.at(pw)].hv);
+	static Simulation t;
+	fresh(t, strip_at);
+	const uint32_t w2 = t.spawn_building_world(0.0f, 30.0f, BLD_WALL_SEGMENT, 0, 1.0f);
+	const uint32_t a = t.spawn_unit(0.0f, 30.0f, 0, UNIT_ARCHER);
+	CHECK(t.garrison_unit_now(a, w2) && t.turret_holder_of(a) == w2);
+	t.cmd_leave_turret(0, &a, 1);
+	t.cmd_unload(0, w2, &a, 1);
+	std::printf("  an archer on a wall with nowhere to step down: %s\n", t.turret_holder_of(a) == w2 ? "stays up" : "came down");
+	CHECK(t.turret_holder_of(a) == w2);
+}
+
 // A task walk's line is tested on every navcell it passes through, as CheckLineMovement walks
 // them: one that clips a deep-water navcell between its ends crosses it, where a Bresenham line
 // from navcell to navcell stepped round that cell.
@@ -2266,6 +2314,7 @@ int main() {
 	test_no_wading();
 	test_spawn_clearance();
 	test_siege_unloads_into_shallows();
+	test_turret_leave_spot();
 	test_line_clips_water();
 	test_gather_around_lake();
 	test_dock_trade();
