@@ -701,6 +701,16 @@ public:
 		return d;
 	}
 	// Tests: where a unit stands on screen (viewport pixels), or (-1, -1).
+	// Tests: a unit's ground position (x, z), or where it is walking to with `goal`;
+	// (0, 0) when it is gone.
+	Vector2 debug_unit_ground(int64_t uid, bool goal) const {
+		if (!sim) return Vector2();
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == (uint32_t)uid && uv.alive[i])
+				return goal ? Vector2(uv.target_x[i], uv.target_z[i]) : Vector2(uv.pos_x[i], uv.pos_z[i]);
+		return Vector2();
+	}
 	Vector2 debug_unit_screen(int64_t uid) const {
 		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
 		auto uv = sim->units();
@@ -971,6 +981,7 @@ private:
 		if (!cam_rig) return d;
 		d["target"] = Vector2(cam_rig->get_target_pos().x, cam_rig->get_target_pos().z);
 		d["follow"] = (int64_t)cam_rig->follow_id();
+		d["zoom"] = cam_rig->get_zoom();
 		return d;
 	}
 	void play_voice(const char *path);

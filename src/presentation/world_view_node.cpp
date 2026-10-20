@@ -980,30 +980,33 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 	if (!border_mi_) {
 		Ref<Shader> sh;
 		sh.instantiate();
-		// A player-coloured line (0 A.D. territory_border.png is not in RTS0's assets); darkened by LOS
-		// and hidden in unexplored land like 0 A.D.'s textured overlay lines.
+		// overlayline.fs with territory_border.png and its mask (CCmpTerritoryManager::
+		// UpdateBoundaryLines): the mask picks where the owner's colour replaces the
+		// texture, whose alpha shapes the line; darkened by LOS and hidden in unexplored
+		// land like 0 A.D.'s textured overlay lines.
 		sh->set_code(
 				"shader_type spatial;\n"
 				"render_mode blend_mix, unshaded, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;\n"
+				"uniform sampler2D base_tex : source_color, filter_linear, repeat_disable;\n"
+				"uniform sampler2D mask_tex : filter_linear, repeat_disable;\n"
 				"uniform sampler2D los_tex : hint_default_white, filter_linear, repeat_disable;\n"
 				"uniform float los_map_half = 0.0;\n"
 				"varying vec3 wpos;\n"
 				"void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }\n"
 				"void fragment() {\n"
-				// Across the line (UV.y 0..1, centred on the path): solid with soft edges.
-				"  float d = abs(UV.y - 0.5) * 2.0;\n"
-				"  float core = 1.0 - smoothstep(0.6, 1.0, d);\n"
-				"  float dash = 0.8 + 0.2 * step(0.5, fract(UV.x));\n"
+				"  vec4 b = texture(base_tex, UV);\n"
 				"  float los = 1.0;\n"
 				"  if (los_map_half > 0.0) los = texture(los_tex, (wpos.xz + vec2(los_map_half)) / (2.0 * los_map_half)).r;\n"
-				"  ALBEDO = COLOR.rgb * mix(0.5, 1.0, los) * dash;\n"
+				"  ALBEDO = mix(b.rgb, COLOR.rgb, texture(mask_tex, UV).r) * mix(0.5, 1.0, los);\n"
 				// CCmpTerritoryManager::Interpolate: a region cut off from its owner's
 				// civic centres (COLOR.a 0) blinks, alpha * (0.2 + 0.8 |cos(t pi)|).
 				"  float blink = mix(0.2 + 0.8 * abs(cos(TIME * PI)), 1.0, COLOR.a);\n"
-				"  ALPHA = core * smoothstep(0.02, 0.25, los) * blink;\n"
+				"  ALPHA = b.a * smoothstep(0.02, 0.25, los) * blink;\n"
 				"}\n");
 		border_mat_.instantiate();
 		border_mat_->set_shader(sh);
+		border_mat_->set_shader_parameter("base_tex", ResourceLoader::get_singleton()->load("res://assets/textures/misc/territory_border.png"));
+		border_mat_->set_shader_parameter("mask_tex", ResourceLoader::get_singleton()->load("res://assets/textures/misc/territory_border_mask.png"));
 		border_mi_ = memnew(MeshInstance3D);
 		border_mi_->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
 		border_mi_->set_material_override(border_mat_);
@@ -1045,7 +1048,6 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 		col.a = blinking ? 0.0f : 1.0f;
 		const int n = (int)b.points.size();
 		const int base = verts.size();
-		float run = 0.0f;
 		for (int k = 0; k <= n; ++k) {
 			const rtso::BoundaryPoint &p = b.points[k % n];
 			const rtso::BoundaryPoint &pn = b.points[(k + 1) % n];
@@ -1059,15 +1061,13 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 			// Owner's land is on the left of the walk: (-t.z, t.x) points inward.
 			const float ox = wx + tz * thickness, oz = wz - tx * thickness;
 			const float ix = wx - tz * thickness, iz = wz + tx * thickness;
-			if (k > 0) {
-				const rtso::BoundaryPoint &q = b.points[(k - 1) % n];
-				const float dx = (p.x - q.x) * cell, dz = (p.y - q.y) * cell;
-				run += Math::sqrt(dx * dx + dz * dz);
-			}
+			// CTexturedLineRData: u runs across the line, 0 on the owner's side (p1 + b)
+			// to 1 outside; v flips between 0 and 1 from one point to the next.
+			const float v = (float)(k & 1);
 			verts.push_back(Vector3(ox, line_y(ox, oz), oz));
 			verts.push_back(Vector3(ix, line_y(ix, iz), iz));
-			uvs.push_back(Vector2(run / 1.5f, 0.0f));
-			uvs.push_back(Vector2(run / 1.5f, 1.0f));
+			uvs.push_back(Vector2(1.0f, v));
+			uvs.push_back(Vector2(0.0f, v));
 			cols.push_back(col);
 			cols.push_back(col);
 			if (k > 0) {

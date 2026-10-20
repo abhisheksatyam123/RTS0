@@ -79,11 +79,16 @@ What each target needs on the host, beyond Godot 4.3-stable, its export template
   Capabilities, and run on a connected device. A free Apple ID works for 7-day device installs. The
   Xcode-project export itself also runs on Linux; only the extension needs the Mac.
 - **Touch.** On Android and iOS, `scenes/common/touch_input.gd` turns touches into mouse input:
-  tap = left click (double tap = double click), drag = box select, hold still = right click (orders),
-  two fingers = pan, pinch = zoom. The session's touch bar (`scenes/session/touch_controls.tscn`)
-  stands in for hotkeys, and its Shift, Ctrl and Alt buttons latch those modifiers until tapped again
-  (Shift queues orders and adds to the selection). `tools/e2e_touch_input.gd` checks all of it headless;
-  pass `-- --touch-input` to try it on a desktop touch screen.
+  tap = left click (double tap = double click), drag = box select, hold still or a two-finger tap =
+  right click (orders), two fingers = pan, pinch = zoom. Taps and holds work on the minimap and the
+  command panel, so buildings are placed by tapping the button, then the ground. Distances are in UI
+  pixels, so the same finger travel counts on any screen, and the pointer is parked off the screen
+  between touches so the camera never edge-scrolls. The session's touch bar
+  (`scenes/session/touch_controls.tscn`) stands in for hotkeys, and its Shift, Ctrl and Alt buttons latch
+  those modifiers until tapped again (Shift queues orders and adds to the selection).
+  `tools/e2e_touch_input.gd` checks the gestures and `tools/e2e_touch_match.gd` plays a match by touch
+  (select, orders, camera, minimap, placing a House), both headless; pass `-- --touch-input` to try it on
+  a desktop touch screen.
 - **Duplicate textures.** Godot unpacks each model's embedded images next to it, so about 6,000 images
   are byte-identical copies. The `addons/rts0_export` editor plugin packs each one once and exports the
   copies as `.import` remaps to it, which cut the Linux build from 3.2 GB to 2.1 GB. Byte-identical
