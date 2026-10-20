@@ -278,6 +278,8 @@ const BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
 ## The AI Behavior list order (0.28 settings.js loadAIBehaviors); entries are BEHAVIORS values.
 const BEHAVIOR_ORDER := [0, 2, 1, 3]
 # Random-map biome override (index - 1 == rtso::BiomeType) and 0 A.D. game speeds.
+# GameSettingControlDropdown.RandomItemTags: Random entries read in orange.
+const RANDOM_ITEM_COLOR := Color8(255, 165, 0)
 const RANDOM_BIOME := 99 # the Biome dropdown's Random entry (its item id too); resolved at Start
 const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India", "Autumn", "Nubia"]
 ## 0.28 rmbiome ids -> BIOMES index, as tools/extract_0ad_map_types.py RTS0_BIOMES maps
@@ -551,6 +553,7 @@ func _rebuild_biomes(values: Array) -> void:
 	bio.clear()
 	bio.add_item(tr("Random"), RANDOM_BIOME)
 	bio.set_item_tooltip(0, tr("Pick a biome at random."))
+	bio.set_item_color(0, RANDOM_ITEM_COLOR)
 	for v in values:
 		bio.add_item(GameDescription.BIOME_TEXT.get(v, [BIOMES[v]])[0], v) # the rmbiome's Title
 		bio.set_item_tooltip(bio.get_item_count() - 1, GameDescription.BIOME_TEXT.get(v, ["", ""])[1])
@@ -577,6 +580,7 @@ func _rebuild_team_placement(placements: Array) -> void:
 	var tpl: RtsoSafeSelect = slot.get_child(0)
 	tpl.clear()
 	tpl.add_item(TEAM_PLACEMENTS[0][1], 0)
+	tpl.set_item_color(0, RANDOM_ITEM_COLOR)
 	for v in placements:
 		tpl.add_item(TEAM_PLACEMENTS[v][1], v)
 	var i := ([0] + placements).find(_team_placement)
@@ -1004,6 +1008,8 @@ func refresh_map_list() -> void:
 		list.add_item(str(_filtered[i]["name"]))
 		var desc := str(_filtered[i].get("desc", ""))
 		list.set_item_tooltip(i, tr(desc) if desc != "" else tr("Select a map to play on."))
+		if str(_filtered[i]["id"]) == RANDOM_MAP_ID:
+			list.set_item_color(i, RANDOM_ITEM_COLOR)
 		if str(_filtered[i]["id"]) == keep:
 			_sel_map = i
 	if not _filtered.is_empty():
@@ -1169,6 +1175,7 @@ func _fill_daytimes(id: String) -> void:
 	dsel.clear()
 	dsel.add_item(tr("Random"))
 	dsel.set_item_tooltip(0, tr("Randomly pick a time of the day."))
+	dsel.set_item_color(0, RANDOM_ITEM_COLOR)
 	for d in DAYTIMES[id]:
 		dsel.add_item(tr(d[0]))
 		dsel.set_item_tooltip(dsel.get_item_count() - 1, tr(d[1]))
@@ -1540,6 +1547,7 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 		kind.add_item(tr("Unassigned"), 0)
 		if i > 0:
 			kind.add_item(tr("Removed"), 2)
+		_color_assignment_items(kind, [])
 		var k := KIND_YOU if i == _local_slot and int(row["kind"]) == 0 else int(row["kind"])
 		kind.select(maxi(kind.get_item_index(k), 0))
 		kind.tooltip_text = tr("Select player.")
@@ -1552,6 +1560,7 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	# 0.28 PlayerCiv.getItems: Random first, then the civs by name.
 	civ.add_item("Random")
 	civ.set_item_tooltip(0, tr("Picks one civilization at random when the game starts."))
+	civ.set_item_color(0, RANDOM_ITEM_COLOR)
 	for ci in _civ_order():
 		var c: Dictionary = CIVS[ci]
 		civ.add_item(c["name"]) # PlayerCiv.js: names only
@@ -1835,6 +1844,8 @@ func _build_options() -> void:
 	for l in LANDSCAPES:
 		lsc.add_item(tr(l[0]))
 		lsc.set_item_tooltip(lsc.get_item_count() - 1, tr(l[2]))
+		if int(l[1]) <= 2: # Random and the group headers (Landscape.js randomItems)
+			lsc.set_item_color(lsc.get_item_count() - 1, RANDOM_ITEM_COLOR)
 	%LandscapeLabel.tooltip_text = tr("Select one of the landscapes of this map.")
 	lsc.select(0)
 	var tdf := _make_option(%TriggerDifficultySlot)
@@ -1845,6 +1856,7 @@ func _build_options() -> void:
 	tdf.select(2)
 	var dsel := _make_option(%DaytimeSlot)
 	dsel.add_item("Random")
+	dsel.set_item_color(0, RANDOM_ITEM_COLOR)
 	dsel.select(0)
 	var res := _make_option(%ResSlot)
 	for r in START_RES:
@@ -2819,6 +2831,22 @@ func _ready_color(i: int) -> Color:
 ## changes it; a client sees it locked.
 const ASSIGN_CLIENT_ID := 10 # item id of client c: 10 + c
 
+## PlayerAssignmentItem tags: a player white, an observer 170 170 250, an AI
+## 70 150 70, Unassigned 140 140 140, Removed 255 140 140.
+func _color_assignment_items(sel: RtsoSafeSelect, observers: Array) -> void:
+	for ix in range(sel.get_item_count()):
+		var id := sel.get_item_id(ix)
+		var c := Color.WHITE
+		if id == 1:
+			c = Color8(70, 150, 70)
+		elif id == 0:
+			c = Color8(140, 140, 140)
+		elif id == 2:
+			c = Color8(255, 140, 140)
+		elif id >= ASSIGN_CLIENT_ID and observers.has(id - ASSIGN_CLIENT_ID):
+			c = Color8(170, 170, 250)
+		sel.set_item_color(ix, c)
+
 func _assignment_cell(i: int) -> Control:
 	var cell := Control.new()
 	cell.name = "Assign%d" % i
@@ -2841,6 +2869,8 @@ func _assignment_cell(i: int) -> Control:
 	ob.add_item(tr("Unassigned"), 0)
 	if i > 0 and (not saved or kind == 2):
 		ob.add_item(tr("Removed"), 2)
+	var observers: Array = Array(_net_state.get("observers", [])).map(func(e): return int(e.get("client", -1)))
+	_color_assignment_items(ob, observers)
 	var sel := ASSIGN_CLIENT_ID + holder if kind == 0 and holder >= 0 else kind
 	ob.select(maxi(ob.get_item_index(sel), 0))
 	ob.tooltip_text = tr("Select player.")

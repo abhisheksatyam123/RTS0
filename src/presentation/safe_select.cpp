@@ -14,6 +14,8 @@ void RtsoSafeSelect::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("select", "index"), &RtsoSafeSelect::select);
 	ClassDB::bind_method(D_METHOD("set_item_tooltip", "index", "tooltip"), &RtsoSafeSelect::set_item_tooltip);
 	ClassDB::bind_method(D_METHOD("get_item_tooltip", "index"), &RtsoSafeSelect::get_item_tooltip);
+	ClassDB::bind_method(D_METHOD("set_item_color", "index", "color"), &RtsoSafeSelect::set_item_color);
+	ClassDB::bind_method(D_METHOD("get_item_color", "index"), &RtsoSafeSelect::get_item_color);
 	ClassDB::bind_method(D_METHOD("get_selected"), &RtsoSafeSelect::get_selected);
 	ClassDB::bind_method(D_METHOD("get_item_id", "index"), &RtsoSafeSelect::get_item_id);
 	ClassDB::bind_method(D_METHOD("get_item_text", "index"), &RtsoSafeSelect::get_item_text);
@@ -70,7 +72,7 @@ void RtsoSafeSelect::add_item(const String &text, int id) {
 	if (id < 0) {
 		id = (int)items.size();
 	}
-	items.push_back({text, id, Ref<Texture2D>(), String()});
+	items.push_back({text, id, Ref<Texture2D>(), String(), Color(0, 0, 0, 0)});
 	if (selected < 0) {
 		select(0);
 	} else if (list && menu && menu->is_visible()) {
@@ -82,7 +84,7 @@ void RtsoSafeSelect::add_icon_item(const Ref<Texture2D> &icon, const String &tex
 	if (id < 0) {
 		id = (int)items.size();
 	}
-	items.push_back({text, id, icon, String()});
+	items.push_back({text, id, icon, String(), Color(0, 0, 0, 0)});
 	if (selected < 0) {
 		select(0);
 	} else if (list && menu && menu->is_visible()) {
@@ -110,6 +112,26 @@ String RtsoSafeSelect::get_item_tooltip(int index) const {
 		return String();
 	}
 	return items[(size_t)index].tooltip;
+}
+
+void RtsoSafeSelect::set_item_color(int index, const Color &color) {
+	if (index < 0 || index >= (int)items.size()) {
+		return;
+	}
+	items[(size_t)index].color = color;
+	if (index == selected) {
+		refresh_button();
+	}
+	if (list && menu && menu->is_visible()) {
+		rebuild_list();
+	}
+}
+
+Color RtsoSafeSelect::get_item_color(int index) const {
+	if (index < 0 || index >= (int)items.size()) {
+		return Color(0, 0, 0, 0);
+	}
+	return items[(size_t)index].color;
 }
 
 String RtsoSafeSelect::get_item_text(int index) const {
@@ -140,6 +162,7 @@ void RtsoSafeSelect::clear() {
 	selected = -1;
 	set_text(" ");
 	set_button_icon(Ref<Texture2D>());
+	set_text_color(Color(0, 0, 0, 0));
 	close_menu();
 }
 
@@ -152,6 +175,23 @@ void RtsoSafeSelect::refresh_button() {
 	const Item &it = items[(size_t)selected];
 	set_text(it.text);
 	set_button_icon(it.icon);
+	set_text_color(it.color);
+}
+
+void RtsoSafeSelect::set_text_color(const Color &color) {
+	static const char *const kinds[] = { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color" };
+	// Only undo overrides this control set, never a caller's own.
+	if (color.a <= 0.0f && !tinted) {
+		return;
+	}
+	for (const char *k : kinds) {
+		if (color.a > 0.0f) {
+			add_theme_color_override(k, color);
+		} else {
+			remove_theme_color_override(k);
+		}
+	}
+	tinted = color.a > 0.0f;
 }
 
 void RtsoSafeSelect::rebuild_list() {
@@ -164,6 +204,9 @@ void RtsoSafeSelect::rebuild_list() {
 		const int row = list->add_item(it.text, it.icon);
 		list->set_item_tooltip_enabled(row, !it.tooltip.is_empty());
 		list->set_item_tooltip(row, it.tooltip);
+		if (it.color.a > 0.0f) {
+			list->set_item_custom_fg_color(row, it.color);
+		}
 	}
 	if (selected >= 0 && selected < (int)items.size()) {
 		list->select(selected);

@@ -173,6 +173,10 @@ func run() -> void:
 		var ml = page.get_node("%MapList")
 		check(ml is RtsoSafeSelect and ml.get_item_count() > 1 and ml.get_item_text(0) == "Random" and ml.get_item_tooltip(0) == "Pick any of the given maps at random.",
 			"Select Map is a dropdown: Random first, with its description")
+		var civ0: RtsoSafeSelect = page._slots_grid().find_children("*", "RtsoSafeSelect", true, false).filter(func(o): return o.get_item_count() > 0 and o.get_item_text(0) == "Random")[0]
+		check(ml.get_item_color(0) == Color8(255, 165, 0) and ml.get_item_color(1).a == 0.0 and civ0.get_item_color(0) == Color8(255, 165, 0)
+			and (ml.get_selected() != 0 or ml.get_theme_color("font_color") == Color8(255, 165, 0)),
+			"RandomItemTags: the Random map and civ entries are orange, the others keep the theme colour")
 		# GameSettingControlSlider: Ceasefire, the victory durations, Relic Count and Sea
 		# Level Rise Time are sliders with their caption beside them.
 		var sliders: Array = ["CeasefireSlot", "WonderTimeSlot", "RelicTimeSlot", "RelicCountSlot", "SeaRiseSlot"].map(func(n): return page.get_node("%" + n).get_child(0))
