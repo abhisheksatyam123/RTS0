@@ -109,6 +109,7 @@ func run() -> void:
 	press("Reveal map")
 	await frames(3)
 	check(main.debug_dev_overlay()["map_revealed"], "Reveal map reveals it")
+	check(not main.get_match_settings_info()["reveal_map"], "Match Settings keeps the match's setting (g_InitAttributes)")
 	press("Reveal map")
 	await frames(3)
 	check(not main.debug_dev_overlay()["map_revealed"], "and clearing it hides it again")
