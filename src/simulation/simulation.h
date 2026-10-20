@@ -506,6 +506,9 @@ public:
 	const std::vector<uint32_t> &turret_list(const Building &b) const {
 		return turret_points_of(b) ? b.garrisoned_units : b.turret_units;
 	}
+	// A wall, gate or outpost: a TurretHolder with no GarrisonHolder in 0.28, whose turret
+	// units RTS0 keeps as its garrison.
+	bool turret_only_holder(const Building &b) const { return turret_points_of(b) != nullptr; }
 	// unit_actions.js "occupy-turret": the unit may stand on a turret point of this own or
 	// mutually allied holder (Turretable, TurretHolder.CanOccupy). Room is not checked.
 	bool can_occupy_turret_in(uint32_t unit_id, uint32_t building_id) const;

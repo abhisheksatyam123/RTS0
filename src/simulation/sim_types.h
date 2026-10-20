@@ -2760,6 +2760,17 @@ inline const CivHeroAura &civ_hero_aura(int16_t idx) {
 	return a[(idx >= 0 && idx < CIV_HERO_AURA_COUNT) ? idx : 0];
 }
 
+// A roster aura whose 0.28 JSON is "stackable" and that AuraManager::query_modifier counts
+// once per source rather than once: kush_temple_amun (each Temple of Amun x0.95 hero health).
+inline bool civ_aura_stackable(int16_t idx) {
+	static const int16_t amun = [] {
+		for (int16_t i = 0; i < CIV_HERO_AURA_COUNT; ++i)
+			if (std::strcmp(civ_hero_aura(i).id, "kush_temple_amun") == 0) return i;
+		return (int16_t)-1;
+	}();
+	return idx >= 0 && idx == amun;
+}
+
 // Roster of a civ is the template id range [civ_roster_begin, civ_roster_end).
 inline uint16_t civ_roster_begin(uint8_t civ) {
 	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
