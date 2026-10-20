@@ -588,6 +588,26 @@ static void test_diplomacy() {
 		const float after = s->petra_config_slot(1).cooperative;
 		std::printf("  ally fights in our territory: cooperative %.3f -> %.3f\n", before, after);
 		CHECK(after >= std::min(1.0f, before + 0.01f), "an ally's hits in our territory raise cooperativeness");
+		const auto drop = [&](const std::vector<uint32_t> &ids) {
+			for (uint32_t id : ids) if (const int32_t k = s->lookup_unit(id); k >= 0) s->units_.alive[k] = false;
+		};
+		drop(archers);
+		// Hits on a Gaia animal and on an enemy structure count too (Attacked is sent for any entity).
+		const auto ally_hits = [&](const char *what, auto order) {
+			std::vector<uint32_t> bows;
+			for (int i = 0; i < 3; ++i) bows.push_back(s->spawn_unit(tx - 12.0f + 2.0f * (float)i, tz + 20.0f, 2, UNIT_ARCHER));
+			s->petra_config_slot(1).cooperative = 0.5f;
+			order(bows);
+			run_for(*s, 10.0f);
+			const float now = s->petra_config_slot(1).cooperative;
+			std::printf("  ally hits a %s in our territory: cooperative 0.500 -> %.3f\n", what, now);
+			CHECK(now > 0.5f, "an ally's hits on it raise cooperativeness");
+			drop(bows);
+		};
+		const uint32_t deer = s->spawn_fauna(tx - 12.0f, tz + 12.0f, FAUNA_DEER);
+		ally_hits("deer", [&](std::vector<uint32_t> &bows) { s->order_attack(bows.data(), bows.size(), deer); });
+		const uint32_t house = s->spawn_building_world(tx - 12.0f, tz + 8.0f, BLD_HOUSE, 0);
+		ally_hits("house", [&](std::vector<uint32_t> &bows) { s->order_attack_building(bows.data(), bows.size(), house); });
 	}
 
 	// Last Man Standing with unlocked teams: lobby teams only set the starting

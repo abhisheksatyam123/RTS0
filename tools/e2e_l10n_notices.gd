@@ -97,7 +97,7 @@ func run() -> void:
 	var oos = QC.out_of_sync_network(main)
 	await frames(2)
 	var oos_title: String = oos.find_child("Title", true, false).text
-	var oos_text: String = oos.find_child("Caption", true, false).text
+	var oos_text: String = oos.find_child("Text", true, false).text
 	var want_oos: String = TranslationServer.translate("Out-Of-Sync error on turn %(turn)s.").replace("%(turn)s", "0")
 	print("  ", oos_title, " | ", oos_text.replace("\n", " | "))
 	check(oos_title == TranslationServer.translate("Out of Sync") and oos_title != "Out of Sync" and oos_text.begins_with(want_oos + "\n")
