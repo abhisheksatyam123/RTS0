@@ -529,6 +529,30 @@ void RtsoMain::debug_complete_research(int player, int tech) {
 	if (sim) sim->debug_complete_research((uint8_t)player, (uint8_t)tech);
 }
 
+// Test hooks: `player` holds `points` of a structure's capture points, taken from its owner;
+// and each player's points.
+void RtsoMain::debug_set_capture_points(int64_t building_id, int player, float points) {
+	if (!sim || player < 0 || player >= rtso::MAX_PLAYERS) return;
+	for (const auto &cb : sim->buildings()) {
+		if (cb.id != (uint32_t)building_id) continue;
+		auto &b = const_cast<rtso::Simulation::Building &>(cb);
+		const float moved = points - b.capture_points_by_team[player];
+		b.capture_points_by_team[player] = points;
+		if (b.team < rtso::MAX_PLAYERS && b.team != player)
+			b.capture_points_by_team[b.team] = std::max(0.0f, b.capture_points_by_team[b.team] - moved);
+		return;
+	}
+}
+
+PackedFloat32Array RtsoMain::debug_capture_points(int64_t building_id) const {
+	PackedFloat32Array out;
+	if (!sim) return out;
+	for (const auto &b : sim->buildings())
+		if (b.id == (uint32_t)building_id)
+			for (int p = 0; p < rtso::MAX_PLAYERS; ++p) out.push_back(b.capture_points_by_team[p]);
+	return out;
+}
+
 // Test hook: `count` animals of a FaunaType by the player's Civic Centre, owned by the
 // player (trained livestock) or Gaia.
 PackedInt32Array RtsoMain::debug_spawn_fauna(int fauna_type, int count, bool owned, float dx, float dz) {
@@ -646,6 +670,23 @@ int64_t RtsoMain::debug_civic_centre_id(int player) const {
 }
 
 // Test hook: each player's structures by type name, {player: {name: count}}.
+Array RtsoMain::debug_building_looks() const {
+	Array out;
+	if (!sim || !view) return out;
+	const Array rows = view->building_looks_data();
+	for (int i = 0; i < rows.size(); ++i) {
+		Array row = rows[i];
+		for (const auto &b : sim->buildings())
+			if (b.id == (uint32_t)(int64_t)row[0]) {
+				row.push_back(b.x);
+				row.push_back(b.z);
+				out.push_back(row);
+				break;
+			}
+	}
+	return out;
+}
+
 Dictionary RtsoMain::debug_structure_types(bool with_civ) {
 	Dictionary d;
 	if (!sim) return d;

@@ -10002,7 +10002,7 @@ bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
 		if (k != ORDER_NONE && k != ORDER_GARRISON) continue; // ShouldRespondToEndOfAlert
 		uint32_t uid = units_.id[i];
 		cmd_stop(&uid, 1);
-		if (units_.work_kind[i] != ORDER_NONE) order_back_to_work(&uid, 1);
+		if (unit_has_work_order(uid)) order_back_to_work(&uid, 1);
 	}
 	// Units inside nearby structures (and the raiser): unload, then back to work or stop.
 	std::vector<std::pair<uint32_t, uint32_t>> out;
@@ -10019,7 +10019,7 @@ bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
 		order_ungarrison_single(bid, uid);
 		cmd_stop(&uid, 1); // rather than walk to the rally point
 		const int32_t i = lookup_unit(uid);
-		if (i >= 0 && units_.work_kind[i] != ORDER_NONE) order_back_to_work(&uid, 1);
+		if (i >= 0 && unit_has_work_order(uid)) order_back_to_work(&uid, 1);
 	}
 	return true;
 }
@@ -19991,16 +19991,13 @@ void Simulation::order_back_to_work(const uint32_t *unit_ids, size_t count) {
 		// Commands.js back-to-work: notifyBackToWorkFailure for each unit that can't.
 		auto failed = [&] { if (units_.team[i] < MAX_PLAYERS) note_text(units_.team[i], SessionNotice::TEXT_BACK_TO_WORK_FAILED); };
 		// BackToWork: the kept work queue replaces the unit's orders (AddOrders), its first order
-		// now and the rest behind it; without one, the last Gather or Build order alone.
+		// now and the rest behind it; without one it fails.
 		std::vector<UnitOrder> rest;
 		UnitOrder o;
 		if (auto w = work_orders_.find(unit_ids[k]); w != work_orders_.end() && !w->second.empty()) {
 			o = w->second.front();
 			rest.assign(w->second.begin() + 1, w->second.end());
 			work_orders_.erase(w);
-		} else if (units_.work_kind[i] != ORDER_NONE) {
-			o.kind = units_.work_kind[i];
-			o.target = units_.work_target[i];
 		} else {
 			failed();
 			continue;

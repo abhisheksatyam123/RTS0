@@ -757,6 +757,8 @@ public:
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1, int near = -1);
 	void debug_complete_research(int player, int tech); // tests: the technology finishes for the player
+	void debug_set_capture_points(int64_t building_id, int player, float points); // tests: taken from the owner
+	PackedFloat32Array debug_capture_points(int64_t building_id) const; // tests: each player's points
 	Vector2 debug_spawn_offset(const String &template_id, int count, int player = -1) const;
 	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned, float dx = 16.0f, float dz = 16.0f);
 	int64_t debug_spawn_mine(float x, float z, int max_gatherers);
@@ -772,6 +774,7 @@ public:
 	int64_t debug_civic_centre_id(int player) const;
 	int64_t debug_spawn_building(int type, float dx, float dz, int player = -1);
 	Dictionary debug_research_any();
+	Array debug_building_looks() const; // [id, type, model, x, z] of each map structure drawn by its own template
 	Dictionary debug_structure_types(bool with_civ = false);
 	void debug_delete_units(const PackedInt32Array &ids);
 	void debug_add_xp(const PackedInt32Array &ids, float xp); // tests: Promotion IncreaseXp

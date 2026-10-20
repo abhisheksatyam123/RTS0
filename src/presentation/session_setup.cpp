@@ -137,9 +137,21 @@ static rtso::UnitType map_unit_type(const String &n) {
 	return rtso::UNIT_VILLAGER;
 }
 
+// The map structures 0.28 places by their own template that RTS0's sim folds into another type
+// (structures/stall_* and celt_hut/celt_longhouse are houses) draw that template's actor
+// (data/building_models.json "look_<template>").
+static String map_building_look(const String &tmpl) {
+	static const char *kLooks[] = {"stall_small_a", "stall_small_b", "stall_med", "stall_big", "celt_hut", "celt_longhouse"};
+	const String stem = tmpl.trim_prefix("structures/");
+	for (const char *l : kLooks)
+		if (stem == l) return String("look_") + l;
+	return String();
+}
+
 bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	if (!sim || !view) return false;
 	clear_selection();
+	view->clear_building_looks();
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
 		map_civ_[p] = -1;
 		map_has_res_[p] = false;
@@ -390,7 +402,9 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			if (stype_str.is_empty()) continue; // a civ structure RTS0 doesn't have
 			btype = rtso::BLD_HOUSE;
 		}
-		sim->spawn_building_world(bx, bz, btype, team, 1.0f);
+		const uint32_t bid = sim->spawn_building_world(bx, bz, btype, team, 1.0f);
+		const String look = map_building_look(tmpl);
+		if (bid && !look.is_empty()) view->set_building_look(bid, btype, look);
 	}
 	// Gaia-owned structures (Player 0 in 0 A.D.'s map: towers, palisades, houses, docks,
 	// structures/merc_camp_egyptian): hostile to everyone, captured or destroyed like 0 A.D.'s.
@@ -416,6 +430,8 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		if (btype >= rtso::BLD_TYPE_COUNT) continue;
 		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);
 		if (civ < rtso::CIV_COUNT && gaia_structure_ids[i]) sim->set_building_civ(gaia_structure_ids[i], civ);
+		const String look = map_building_look(gtmpl);
+		if (gaia_structure_ids[i] && !look.is_empty()) view->set_building_look(gaia_structure_ids[i], btype, look);
 	}
 	// Gaia scenery (fences, columns, obelisks): oriented obstructions.
 	Array scenery_arr = d.get("scenery", Array());
