@@ -10,7 +10,7 @@
 namespace rtso {
 
 // The models roster templates draw with besides the civ class models.
-inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 432;
+inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 433;
 
 inline const char *unit_template_draw_model(int k) {
 	static const char *const kDraw[UNIT_TEMPLATE_DRAW_MODEL_COUNT] = {
@@ -446,6 +446,7 @@ inline const char *unit_template_draw_model(int k) {
 		"merc_thureophoros",
 		"theb_sacred_band",
 		"thesp_melanochitones",
+		"plane",
 	};
 	return k >= 0 && k < UNIT_TEMPLATE_DRAW_MODEL_COUNT ? kDraw[k] : nullptr;
 }
@@ -1000,7 +1001,7 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		365, // germ/infantry_spearman_a
 		367, // germ/infantry_swordsman_a
 		370, // germ/support_healer_e
-		-1, // plane (no model of its own: its owner civ's bolt_shooter model)
+		432, // plane (Flight Demo's P-51, units/global/plane.xml; hand-added)
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }

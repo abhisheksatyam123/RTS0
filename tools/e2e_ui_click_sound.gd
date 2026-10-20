@@ -78,6 +78,21 @@ func run() -> void:
 	await click(Vector2(640, 615))
 	check(main.debug_ui_clicks() == before + 1, "a disabled one is silent")
 
+	print("2b. A session dropdown: sound_closed, and a pick that closes the list clicks once")
+	var sel := RtsoSafeSelect.new()
+	sel.add_item("A")
+	sel.add_item("B")
+	layer.add_child(sel)
+	await frames(2)
+	before = main.debug_ui_clicks()
+	sel.menu_closed.emit()
+	await frames(1)
+	check(main.debug_ui_clicks() == before + 1, "closing the list unpicked clicks (sound_closed)")
+	sel.item_selected.emit(1)
+	sel.menu_closed.emit()
+	await frames(1)
+	check(main.debug_ui_clicks() == before + 2, "a pick and the close in one frame click once: %d" % (main.debug_ui_clicks() - before))
+
 	print("3. A button outside the session")
 	var outside := CanvasLayer.new()
 	outside.layer = 121
@@ -87,8 +102,9 @@ func run() -> void:
 	outside.add_child(o)
 	root.add_child(outside)
 	await frames(2)
+	before = main.debug_ui_clicks()
 	await click(Vector2(340, 315))
-	check(main.debug_ui_clicks() == before + 1, "is not the session's to sound")
+	check(main.debug_ui_clicks() == before, "is not the session's to sound")
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

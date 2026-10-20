@@ -7,11 +7,14 @@ extends CanvasLayer
 # paused so its buttons, Esc ("cancel") and the menu hotkey keep working.
 
 const L10n = preload("res://scenes/menu/l10n.gd")
+const StoneTheme = preload("res://scenes/common/stone_theme.gd")
 
 var _hotkeys := RtsoHotkeyConfig.new()
 
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# Menu.xml: a StonePanelThinBorder of StoneButtonFancy buttons.
+	$CenterContainer/Panel.theme = StoneTheme.theme()
 
 func _unhandled_input(event):
 	if not visible or not (event is InputEventKey or event is InputEventMouseButton):

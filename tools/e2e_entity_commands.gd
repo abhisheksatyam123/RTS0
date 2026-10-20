@@ -22,6 +22,11 @@ func check(cond: bool, what: String) -> void:
 		failures += 1
 
 func _initialize() -> void:
+	# One map for every run: the livestock below need open, level ground to walk on.
+	var ms = root.get_node("MatchSettings")
+	ms.map_id = "random_continental"
+	ms.seed = 11
+	ms.map_size = 128
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	run.call_deferred()
@@ -212,5 +217,62 @@ func run() -> void:
 	await frames(2)
 	var unload: Dictionary = button("Unload All")
 	check(not unload.is_empty() and str(unload["text"]) == "Unload All (%d)" % n_vill, "the %d villagers went inside: %s" % [n_vill, str(unload.get("text"))])
+
+	# Own livestock are units in 0.28: Garrison (into a corral) and, while walking, Abort.
+	# The corral and the sheep go from the Civic Center toward the map's centre (open land);
+	# focus-rally with no rally point puts the camera's target on the selected structure.
+	main.debug_select_entity(main.debug_civic_centre_id(0))
+	main._on_entity_command("focus-rally")
+	var ccpos: Vector2 = main.debug_camera()["target"]
+	var inward: Vector2 = -ccpos.normalized()
+	var off: Vector2 = inward * 24.0
+	var side: Vector2 = Vector2(-inward.y, inward.x) * 8.0
+	var corral: int = main.debug_spawn_building(13, off.x, off.y) # BLD_CORRAL
+	var sheep: PackedInt32Array = main.debug_spawn_fauna(2, 2, true, off.x + side.x, off.y + side.y) # FAUNA_SHEEP
+	main.debug_select_entity(corral)
+	main._on_entity_command("focus-rally")
+	await frames(20) # the view glides there
+	main.debug_select_entity(sheep[0])
+	await frames(2)
+	print("    sheep row ", texts())
+	check(texts().has("Garrison") and texts().has("Delete") and not texts().has("Abort"), "an idle sheep: Garrison and Delete, no Abort")
+	check(press("Garrison") and main.debug_armed(), "pressing Garrison arms it")
+	var cs: Vector2 = main.debug_building_screen(corral)
+	mb = InputEventMouseButton.new()
+	mb.button_index = MOUSE_BUTTON_LEFT
+	mb.position = cs
+	mb.global_position = cs
+	mb.pressed = true
+	root.push_input(mb, true)
+	await frames(1)
+	mb = mb.duplicate()
+	mb.pressed = false
+	root.push_input(mb, true)
+	await frames(2)
+	check(not main.debug_armed(), "the click on the corral runs it")
+	await until(func(): return texts().has("Abort"))
+	check(texts().has("Abort"), "the sheep walking to the corral: Abort shows")
+	await until(func(): return not texts().has("Abort"), 60.0)
+	main.debug_select_entity(corral)
+	await frames(2)
+	var penned: Dictionary = button("Unload All")
+	check(not penned.is_empty() and str(penned["text"]) == "Unload All (1)", "the sheep is penned: %s" % str(penned.get("text")))
+	main.debug_select_entity(sheep[1])
+	await frames(2)
+	check(press("Garrison"), "the other sheep: Garrison")
+	cs = main.debug_building_screen(corral)
+	mb = mb.duplicate()
+	mb.position = cs
+	mb.global_position = cs
+	mb.pressed = true
+	root.push_input(mb, true)
+	await frames(1)
+	mb = mb.duplicate()
+	mb.pressed = false
+	root.push_input(mb, true)
+	await until(func(): return texts().has("Abort"))
+	check(press("Abort"), "pressing Abort while it walks")
+	await until(func(): return not texts().has("Abort"))
+	check(not texts().has("Abort"), "it stops: no Abort")
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

@@ -302,6 +302,34 @@ static void test_walk() {
 	check(fc && fc->order == Simulation::FORDER_IDLE && walking == 0, "a walk to where it stands ends at once");
 }
 
+// B pass 6: UnitAI MoveIntoFormation is PushOrderFront, so changing formation mid-march
+// keeps the walk; the IDLE timer brings idle members that wandered off back to their slots.
+static void test_change_and_regather() {
+	std::printf("4b. changing formation on the march, idle re-gather\n");
+	Simulation s;
+	setup(s, CIV_ATHENIANS);
+	auto inf = spawn_block(s, 9, -30, -30, 0, UNIT_SPEARMAN);
+	s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+	run(s, 6.0f);
+	const uint32_t fid = s.formations()[0].id;
+	s.cmd_move(inf.data(), inf.size(), 30.0f, -30.0f);
+	run(s, 2.0f);
+	s.order_set_formation(inf.data(), inf.size(), FORMATION_LINE);
+	run(s, 60.0f);
+	const auto *fc = ctrl(s, fid);
+	float cx, cz;
+	centroid(s, inf, cx, cz);
+	check(fc && fc->tmpl == FORMATION_LINE && std::hypot(cx - 30.0f, cz + 30.0f) < 3.0f,
+	      "a new formation mid-march re-forms and carries on to the goal");
+	// A member pushed off its slot while the formation stands idle walks back.
+	const int i = idx_of(s, inf[0]);
+	s.units_.pos_x[i] += 6.0f;
+	s.units_.pos_z[i] += 6.0f;
+	run(s, 8.0f);
+	fc = ctrl(s, fid);
+	check(fc && max_slot_error(s, *fc) < 1.5f, "an idle formation gathers a wandered member back");
+}
+
 static void test_attack_walk() {
 	std::printf("5. attack-walk\n");
 	Simulation s;
@@ -732,6 +760,7 @@ int main(int argc, char **argv) {
 	test_offsets();
 	test_form_up();
 	test_walk();
+	test_change_and_regather();
 	test_attack_walk();
 	test_leave();
 	test_save_load(save.c_str());

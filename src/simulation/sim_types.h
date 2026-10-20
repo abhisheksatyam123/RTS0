@@ -1300,7 +1300,7 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		{"House", "house", "house", 800.0f, 1, 0, 75, 0, 0, 5, 3, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f},
 		{"Barracks", "barracks", "barracks", 2000.0f, 2, 0, 200, 0, 100, 0, 10, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f},
 		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 0, 10.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Defense Tower", "wall_tower", "tower", 1000.0f, 1, 0, 100, 0, 100, 0, 5, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Defense Tower", "defense_tower", "tower", 1000.0f, 1, 0, 100, 0, 100, 0, 5, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f},
 		{"Farmstead", "farmstead", "farmstead", 900.0f, 1, 0, 100, 0, 0, 0, 0, 11.25f, 300.0f, 5.0f, 1.0f, 20.0f},
 		{"Market", "market", "market", 1500.0f, 2, 0, 300, 0, 0, 0, 0, 37.5f, 500.0f, 5.0f, 1.0f, 20.0f},
 		{"Fortress", "fortress", "fortress", 5200.0f, 2, 0, 300, 0, 600, 0, 20, 112.5f, 4000.0f, 45.0f, 1.0f, 40.0f},

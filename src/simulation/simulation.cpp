@@ -1554,15 +1554,127 @@ void Simulation::rebuild_nav_grid() {
 	// navcell, so it falls back to the navcell under its centre (the cell the old footprint block marked).
 	const float nav_cell = 2.0f * nav_grid_.map_half / static_cast<float>(nav_grid_.res);
 	const rtso::nav::Vec2 nav_origin(-nav_grid_.map_half, -nav_grid_.map_half);
+	// An unlocked WallSet gate. 0.28 rasterizes each part of the gate's obstruction cluster onto 1 m
+	// navcells, blocking those whose corners all lie within the class clearance plus 1 m of it
+	// (CCmpObstructionManager::RasterizeHelper, Rasterize.cpp RasterizeRectWithClearance), and Gate.js
+	// switches only the Door: the Left and Right parts, which the towers overlap (WallSet
+	// MinTowerOverlap), shut the wall from the Door to the towers, and only the Door's middle is open,
+	// its width less that clearance and 1 m at each side. The parts are thinner than an 8 m navcell, so
+	// the raster below leaves the navcells between the Door and the towers open; the gate pass at the end
+	// closes those the gate's centre line passes through, as a segment's line closes its own, save its
+	// door's (gate_doors): those the open middle of the Door's line passes through, and the way straight
+	// across through the centre, out a navcell's diagonal either side of the line.
+	// kMetre is one metre in world units (a world unit is a 4 m tile): 0.28's navcell side and its
+	// Pathfinding.h CLEARANCE_EXTENSION_RADIUS. The navcell raster keeps nav::kClearanceExtensionRadius,
+	// one world unit, the port's deliberate deviation for whole 8 m navcells (nav/rasterize.h); the door's
+	// open width and the 1 m check of the gate pass model 0.28's own 1 m navcells, so they take its 1 m.
+	constexpr float kMetre = 1.0f / 4.0f;
+	struct GateDoor {
+		const Building *gate;
+		float ex[2], ez[2]; // the ends of its centre line
+		const Building *tower[2]; // the tower each end lies in, if any
+		int door[32], doors, across; // its door navcells, the way across first
+		int ways[8], nways; // the way across where it meets the gate's own line
+		int covered[16], ncovered; // its door navcells its own parts' raster leaves to the gate pass
+	};
+	std::vector<GateDoor> gate_doors;
+	std::vector<int> door_ways; // every gate's ways, sorted, for a quick test
+	for (const auto &b : buildings_) {
+		if (!is_gate_type(b.type) || b.wrecked || b.build_progress < 0.99f || blocks_pathfinding(b) || !is_wallset_piece(b.type, b.half_size))
+			continue;
+		GateDoor &gd = gate_doors.emplace_back();
+		gd.gate = &b;
+		const bool along_v = b.hv > b.hu;
+		const float half_w = along_v ? b.hv : b.hu;
+		const rtso::nav::Vec2 w = rtso::nav::footprint_dir(b, along_v ? 0.0f : 1.0f, along_v ? 1.0f : 0.0f);
+		const rtso::nav::Vec2 n = rtso::nav::footprint_dir(b, along_v ? 1.0f : 0.0f, along_v ? 0.0f : 1.0f);
+		auto mark = [&](float s, const rtso::nav::Vec2 &d, bool ways) {
+			const auto [x0, y0] = nav_grid_.world_to_navcells(b.x - d.x * s, b.z - d.y * s);
+			const auto [x1, y1] = nav_grid_.world_to_navcells(b.x + d.x * s, b.z + d.y * s);
+			nav_grid_.walk_line(x0, y0, x1, y1, [&](int x, int y) {
+				const int c = y * nav_grid_.res + x;
+				if (!ways) {
+					if (gd.doors < 32 && std::find(gd.door, gd.door + gd.doors, c) == gd.door + gd.doors) gd.door[gd.doors++] = c;
+				} else if (gd.nways < 8 && std::find(gd.door, gd.door + gd.across, c) != gd.door + gd.across) {
+					gd.ways[gd.nways++] = c;
+					door_ways.push_back(c);
+				}
+				return true;
+			});
+		};
+		mark(1.4143f * nav_cell, n, false);
+		gd.across = gd.doors;
+		const float open = half_w * gate_door_fraction(b.type, b.civ) - (CLEARANCE_DEFAULT + kMetre);
+		if (open > 0.0f) mark(open, w, false);
+		mark(half_w, w, true);
+		for (int k = 0; k < 2; ++k) {
+			gd.ex[k] = b.x + (k ? w.x : -w.x) * half_w;
+			gd.ez[k] = b.z + (k ? w.y : -w.y) * half_w;
+		}
+	}
+	// The towers the gates reach into at their ends (WallSet MinTowerOverlap). A wrecked tower blocks
+	// nothing (0.28 destroys it, Health.js HandleDeath, and the raster below skips it), but the segments
+	// whose lines end where it stood still meet the gate there, and their 8 m lines can still reach its way
+	// across, so it still counts; a live tower in its place comes first.
+	if (!gate_doors.empty()) {
+		std::sort(door_ways.begin(), door_ways.end());
+		for (const auto &t : buildings_) {
+			if (t.hu != t.hv || !is_wall_piece(t.type) || is_gate_type(t.type)) continue;
+			const float reach = rtso::nav::footprint_extent(t) + 0.1f;
+			for (GateDoor &gd : gate_doors)
+				for (int k = 0; k < 2; ++k)
+					if ((!gd.tower[k] || (gd.tower[k]->wrecked && !t.wrecked)) && std::fabs(gd.ex[k] - t.x) < reach && std::fabs(gd.ez[k] - t.z) < reach &&
+							rtso::nav::footprint_contains(t, gd.ex[k], gd.ez[k], 0.1f))
+						gd.tower[k] = &t;
+		}
+	}
+	// A 14 m palisade gate is shorter than two navcells, and the pieces joined to it there (the towers
+	// its ends lie in, a tower too small to cover a navcell of its own blocking the one under its centre,
+	// and the segments whose lines end inside them) can reach a navcell of its way across: they leave
+	// those of the gates they are joined to open, as 0.28's Door leaves its middle open between them.
+	// Another wall's pieces, say a second wall in front of the gate, still close them.
+	auto joins = [&](const Building &b, const GateDoor &gd) {
+		if (&b == gd.tower[0] || &b == gd.tower[1]) return true;
+		if (b.hu == b.hv || !is_wall_piece(b.type)) return false;
+		const rtso::nav::Vec2 d = b.hv > b.hu ? rtso::nav::footprint_dir(b, 0.0f, b.hv) : rtso::nav::footprint_dir(b, b.hu, 0.0f);
+		for (const Building *t : gd.tower)
+			if (t && (rtso::nav::footprint_contains(*t, b.x - d.x, b.z - d.y, 0.1f) || rtso::nav::footprint_contains(*t, b.x + d.x, b.z + d.y, 0.1f)))
+				return true;
+		return false;
+	};
+	auto joined_way = [&](const Building &b, int x, int y) {
+		if (door_ways.empty()) return false;
+		const int c = y * nav_grid_.res + x;
+		if (!std::binary_search(door_ways.begin(), door_ways.end(), c)) return false;
+		for (const GateDoor &gd : gate_doors)
+			if (std::find(gd.ways, gd.ways + gd.nways, c) != gd.ways + gd.nways && joins(b, gd)) return true;
+		return false;
+	};
+	size_t next_door = 0; // gate_doors are in buildings_ order
 	for (const auto &b : buildings_) {
 		// An unlocked gate's sides still block pathfinding: only its Door is switched (Gate.js).
 		if (is_gate_type(b.type) && !b.wrecked && b.build_progress >= 0.99f && !blocks_pathfinding(b)) {
+			// A WallSet gate's parts leave its own door navcells to the gate pass: they reach those only
+			// by the port's 4 m extension, where 0.28's 1 m raster leaves the Door's middle open. The one
+			// under its centre (which the pass below keeps open) and one no land unit can stand on (deep
+			// water, a steep slope) don't wait: no 1 m way can keep them open.
+			GateDoor *own = next_door < gate_doors.size() && gate_doors[next_door].gate == &b ? &gate_doors[next_door++] : nullptr;
+			const auto [gcx, gcy] = nav_grid_.world_to_cell(b.x, b.z);
 			for_each_gate_side(b, [&](float x, float z, float hu, float hv) {
 				rtso::nav::rasterize_rect_with_clearance(
 					rtso::nav::Vec2(x, z), rtso::nav::footprint_u(b), rtso::nav::footprint_v(b),
 					rtso::nav::Vec2(hu, hv), 0.0f, nav_cell, nav_origin,
 					nav_grid_.cells.w, nav_grid_.cells.h,
-					[&](int cx, int cy) { nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED; });
+					[&](int cx, int cy) {
+						const int c = cy * nav_grid_.res + cx;
+						if (!own || std::find(own->door, own->door + own->doors, c) == own->door + own->doors ||
+								(cx == gcx && cy == gcy) || !nav_grid_.is_passable(cx, cy))
+							nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
+						else if (std::find(own->covered, own->covered + own->ncovered, c) == own->covered + own->ncovered) {
+							if (own->ncovered < 16) own->covered[own->ncovered++] = c;
+							else nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
+						}
+					});
 			});
 			continue;
 		}
@@ -1581,7 +1693,7 @@ void Simulation::rebuild_nav_grid() {
 			});
 		if (covered == 0) {
 			auto [cx, cy] = nav_grid_.world_to_cell(b.x, b.z);
-			nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
+			if (!joined_way(b, cx, cy)) nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
 		}
 		// A WallSet segment (a wall or palisade piece, or a locked gate: the only footprints longer than
 		// they are deep, building_half_depth) is 4 to 8 m thick, under an 8 m navcell: turned, the rule
@@ -1595,7 +1707,7 @@ void Simulation::rebuild_nav_grid() {
 			const auto [x0, y0] = nav_grid_.world_to_navcells(b.x - d.x, b.z - d.y);
 			const auto [x1, y1] = nav_grid_.world_to_navcells(b.x + d.x, b.z + d.y);
 			nav_grid_.walk_line(x0, y0, x1, y1, [&](int x, int y) {
-				nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
+				if (!joined_way(b, x, y)) nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
 				return true;
 			});
 		}
@@ -1610,9 +1722,15 @@ void Simulation::rebuild_nav_grid() {
 				nav_grid_.cells.at(cx, cy) = NAV_PASSABLE;
 		}
 	// Gaia scenery: oriented rectangles (CCmpObstruction::GetObstructionSquare: u = (cos a, -sin a),
-	// v = (sin a, cos a)), rasterized the same way.
+	// v = (sin a, cos a)), rasterized the same way. The gate pass below takes them, and the mines, as
+	// shapes for its 1 m check.
+	std::vector<rtso::nav::Footprint> gate_gaia;
 	for (const Scenery &sc : scenery_) {
 		const float c = det::cos(sc.angle), sn = det::sin(sc.angle);
+		if (!gate_doors.empty()) {
+			rtso::nav::Footprint &f = gate_gaia.emplace_back();
+			f.x = sc.x, f.z = sc.z, f.ux = c, f.uz = -sn, f.hu = sc.half_w, f.hv = sc.half_d;
+		}
 		int covered = 0;
 		rtso::nav::rasterize_rect_with_clearance(
 			rtso::nav::Vec2(sc.x, sc.z), rtso::nav::Vec2(c, -sn), rtso::nav::Vec2(sn, c),
@@ -1656,6 +1774,7 @@ void Simulation::rebuild_nav_grid() {
 	for (size_t r = 0; r < resources_.count; ++r) {
 		nav::Footprint m;
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || !mine_footprint(r, m)) continue;
+		if (!gate_doors.empty()) gate_gaia.push_back(m);
 		const float grow = CLEARANCE_DEFAULT + 1e-4f, e = nav::footprint_extent(m) + grow;
 		auto in = [&](float x, float z) { return nav::footprint_contains(m, x, z, grow); };
 		const auto [x0, y0] = nav_grid_.world_to_cell(m.x - e, m.z - e);
@@ -1694,6 +1813,561 @@ void Simulation::rebuild_nav_grid() {
 			}
 		}
 	}
+	// The open gates' centre lines (gate_doors above), last, as they read the navcells round them. The
+	// navcells a gate's line passes through between its Door and its towers hold its Left and Right
+	// parts, as do the door navcells its parts' raster covers whole (but the one under its centre, which
+	// the pass above keeps open); a long path through one goes where a part meets its tower (Random
+	// Highlands, map 8 seed 1, gate 1298 at (65.73, 38.55), whose doorway is steep). They close, as a
+	// segment's line closes its own, unless 0.28 crosses there: at 1 m such a navcell is the part and the
+	// ground either side of it. A run of part navcells side by side whose open neighbours join without it
+	// (through the door, round a tower) closes. One whose neighbours don't stays open when a model of
+	// 0.28's 1 m navcells joins their ground and joins it and them all close by, so it opens no way 0.28
+	// hasn't (map 8 seed 1, gate 1384 at (54.24, -32.63); a door navcell holding ground of both sides
+	// would carry one, as on map 8 seed 10 at map half 96, gate 1093 at (-51.64, 53.59)), whatever way
+	// 0.28's is: beside the Door, round the end of a piece that overlaps the wall (Random Valley, map 9
+	// seed 6, gate 1680 at (58.92, -11.26)), through the gap a wrecked tower leaves. Where 0.28 crosses the
+	// window and the door's navcells don't, the navcells must cross too. A way across a gate that shares a
+	// tower stays open, as the pieces joined to that gate leave it.
+	for (GatePassMemo &m : gate_pass_memo_) m.used = false;
+	if (!gate_doors.empty()) {
+		const int res = nav_grid_.res;
+		const int per = std::max(1, (int)std::lround(nav_cell / kMetre));
+		const float sub = nav_cell / (float)per;
+		const bool water = terrain_water_height_ >= -0.5f;
+		const float deep = terrain_water_height_ + NAV_WATER_MARGIN - LAND_MAX_WATER_DEPTH;
+		const int tiles = nav_grid_.steep_tile_res();
+		const float tile_inv = (float)tiles / (2.0f * nav_grid_.map_half);
+		const float rc = CLEARANCE_DEFAULT + kMetre;
+		const int d4[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+		auto in = [](const int *a, int k, int c) { return std::find(a, a + k, c) != a + k; };
+		// A window of navcells round a gate, and its 1 m navcells (lab: per navcell, the label of the open
+		// ones joined to it, 0 none; fine: 1 open, 2 shut, 0 not yet known; ground, a 1 m navcell wider each
+		// way: 1 passable terrain, 2 not, 0 not yet known; mark: flood stamps; comp: the label of the open
+		// 1 m navcells joined to it, 0 none, and comp_sides: per label, the sides of the wall it reaches;
+		// stands, main_comp and main_count: what a label of the navcells is in 0.28's terms, below; cell:
+		// per navcell, flood marks or a place in a list; cover: per navcell, shapes; memo_key: what a
+		// gate's 1 m check reads).
+		std::vector<uint8_t> fine, ground, comp_sides;
+		std::vector<uint32_t> lab, mark, comp, main_comp, main_count;
+		std::vector<uint64_t> stands;
+		std::vector<int> queue;
+		std::vector<int8_t> cell;
+		std::vector<uint64_t> cover;
+		std::vector<uint8_t> memo_key;
+		// Every gate's parts' navcells first: the line's but the door's, and the door's its parts cover. They
+		// all close (orig: what each was) before any gate's check, which then sees another gate's parts shut,
+		// as they stay unless that gate's own check keeps them: two players' walls can cross, one's door
+		// lying over the other's part (Random Valley, map 9 seed 6, gates 1640 and 1680).
+		struct GateParts {
+			int line[32], nline = 0, part[48], nparts = 0;
+			uint8_t orig[48];
+			uint64_t keep = 0; // bit k: part[k] stays open, as the gate's check below decides
+		};
+		std::vector<GateParts> gate_parts(gate_doors.size());
+		for (size_t d = 0; d < gate_doors.size(); ++d) {
+			const GateDoor &gd = gate_doors[d];
+			GateParts &gp = gate_parts[d];
+			const Building &g = *gd.gate;
+			const bool along_v = g.hv > g.hu;
+			const float half_w = along_v ? g.hv : g.hu;
+			const rtso::nav::Vec2 w = rtso::nav::footprint_dir(g, along_v ? 0.0f : 1.0f, along_v ? 1.0f : 0.0f);
+			const auto [x0, y0] = nav_grid_.world_to_navcells(g.x - w.x * half_w, g.z - w.y * half_w);
+			const auto [x1, y1] = nav_grid_.world_to_navcells(g.x + w.x * half_w, g.z + w.y * half_w);
+			nav_grid_.walk_line(x0, y0, x1, y1, [&](int x, int y) {
+				if (gp.nline < 32) gp.line[gp.nline++] = y * res + x;
+				return true;
+			});
+			auto shared_way = [&](int c) {
+				if (!std::binary_search(door_ways.begin(), door_ways.end(), c)) return false;
+				for (const GateDoor &o : gate_doors)
+					if (&o != &gd && in(o.ways, o.nways, c))
+						for (const Building *t : o.tower)
+							if (t && (t == gd.tower[0] || t == gd.tower[1])) return true;
+				return false;
+			};
+			for (int k = 0; k < gp.nline; ++k) {
+				const int c = gp.line[k];
+				if (in(gd.door, gd.doors, c) || shared_way(c)) continue;
+				if (nav_grid_.is_passable(c % res, c / res)) gp.part[gp.nparts++] = c;
+				else nav_grid_.cells.data[(size_t)c] = NAV_OBSTRUCTED;
+			}
+			for (int k = 0; k < gd.ncovered; ++k)
+				if (nav_grid_.is_passable(gd.covered[k] % res, gd.covered[k] / res)) gp.part[gp.nparts++] = gd.covered[k];
+		}
+		for (GateParts &gp : gate_parts)
+			for (int k = 0; k < gp.nparts; ++k) gp.orig[k] = nav_grid_.cells.data[(size_t)gp.part[k]];
+		for (const GateParts &gp : gate_parts)
+			for (int k = 0; k < gp.nparts; ++k) nav_grid_.cells.data[(size_t)gp.part[k]] = NAV_OBSTRUCTED;
+		for (size_t d = 0; d < gate_doors.size(); ++d) {
+			const GateDoor &gd = gate_doors[d];
+			GateParts &gp = gate_parts[d];
+			const int *line = gp.line, nline = gp.nline, *part = gp.part, nparts = gp.nparts;
+			if (nparts == 0) continue;
+			const Building &g = *gd.gate;
+			const bool along_v = g.hv > g.hu;
+			const float half_w = along_v ? g.hv : g.hu, half_d = along_v ? g.hu : g.hv;
+			const rtso::nav::Vec2 w = rtso::nav::footprint_dir(g, along_v ? 0.0f : 1.0f, along_v ? 1.0f : 0.0f);
+			const rtso::nav::Vec2 n = rtso::nav::footprint_dir(g, along_v ? 1.0f : 0.0f, along_v ? 0.0f : 1.0f);
+			// The window: the line's navcells, two more each way.
+			int cx0 = res, cy0 = res, cx1 = -1, cy1 = -1;
+			for (int k = 0; k < nline; ++k) {
+				cx0 = std::min(cx0, line[k] % res), cx1 = std::max(cx1, line[k] % res);
+				cy0 = std::min(cy0, line[k] / res), cy1 = std::max(cy1, line[k] / res);
+			}
+			cx0 = std::max(cx0 - 2, 0), cy0 = std::max(cy0 - 2, 0), cx1 = std::min(cx1 + 2, res - 1), cy1 = std::min(cy1 + 2, res - 1);
+			const int CW = cx1 - cx0 + 1, CH = cy1 - cy0 + 1;
+			// A navcell's centre (or a 1 m navcell's) across the line from the gate's centre: past `band`,
+			// a navcell's width beyond the gate's face, it is on that side of the wall.
+			const float band = half_d + nav_cell;
+			// Whether the doorway crosses the wall at 8 m (sides 3): from one of the door's navcells on the
+			// line, over open navcells but the parts' within the gate's width, to a navcell past `band` on
+			// each side.
+			int sides = 0;
+			cell.assign((size_t)CW * CH, 0);
+			for (int i = 0; i < gd.doors && sides != 3; ++i) {
+				const int c = gd.door[i], x = c % res - cx0, y = c / res - cy0;
+				if (x < 0 || y < 0 || x >= CW || y >= CH || cell[(size_t)y * CW + x] || !in(line, nline, c) || in(part, nparts, c) ||
+						!nav_grid_.is_passable(c % res, c / res))
+					continue;
+				cell[(size_t)y * CW + x] = 1;
+				queue.clear();
+				queue.push_back(c);
+				sides = 0;
+				for (size_t q = 0; q < queue.size() && sides != 3; ++q) {
+					const int qx = queue[q] % res, qy = queue[q] / res;
+					for (const auto &e : d4) {
+						const int ax = qx + e[0], ay = qy + e[1];
+						if (ax < cx0 || ay < cy0 || ax > cx1 || ay > cy1 || cell[(size_t)(ay - cy0) * CW + ax - cx0] ||
+								!nav_grid_.is_passable(ax, ay) || in(part, nparts, ay * res + ax))
+							continue;
+						const float dx = nav_origin.x + ((float)ax + 0.5f) * nav_cell - g.x, dz = nav_origin.y + ((float)ay + 0.5f) * nav_cell - g.z;
+						if (std::fabs(dx * w.x + dz * w.y) > half_w) continue;
+						cell[(size_t)(ay - cy0) * CW + ax - cx0] = 1;
+						queue.push_back(ay * res + ax);
+						const float s = dx * n.x + dz * n.y;
+						sides |= s >= band ? 1 : s <= -band ? 2 : 0;
+					}
+				}
+			}
+			uint64_t keep = 0; // bit k: part[k] stays open
+			// The window's open navcells, every gate's parts shut, labelled by what they join within it (lab, 0
+			// none). A run of part navcells side by side whose open neighbours all share a label carries no way
+			// the navcells round it lack (through the door, round a tower): it closes. If every run's do, the
+			// parts all close and no 1 m check runs.
+			lab.assign((size_t)CW * CH, 0);
+			auto at = [&](int x, int y) -> uint32_t & { return lab[(size_t)(y - cy0) * CW + x - cx0]; };
+			uint32_t labels = 0;
+			for (int y = cy0; y <= cy1; ++y)
+				for (int x = cx0; x <= cx1; ++x) {
+					if (at(x, y) || !nav_grid_.is_passable(x, y)) continue;
+					at(x, y) = ++labels;
+					queue.clear();
+					queue.push_back(y * res + x);
+					for (size_t q = 0; q < queue.size(); ++q) {
+						const int qx = queue[q] % res, qy = queue[q] / res;
+						for (const auto &e : d4) {
+							const int ax = qx + e[0], ay = qy + e[1];
+							if (ax < cx0 || ay < cy0 || ax > cx1 || ay > cy1 || at(ax, ay) || !nav_grid_.is_passable(ax, ay)) continue;
+							at(ax, ay) = labels;
+							queue.push_back(ay * res + ax);
+						}
+					}
+				}
+			// Whether the open neighbours of the part navcells in `bits` don't all share a label (one outside
+			// the window counts apart).
+			auto split = [&](uint64_t bits) {
+				uint32_t first = 0;
+				for (uint64_t m = bits; m; m &= m - 1) {
+					const int x = part[std::countr_zero(m)] % res, y = part[std::countr_zero(m)] / res;
+					for (const auto &e : d4) {
+						const int ax = x + e[0], ay = y + e[1];
+						if (!nav_grid_.is_passable(ax, ay)) continue;
+						if (ax < cx0 || ay < cy0 || ax > cx1 || ay > cy1) return true;
+						if (first && at(ax, ay) != first) return true;
+						first = at(ax, ay);
+					}
+				}
+				return false;
+			};
+			// Runs of the part navcells in `live` side by side: run[k] is the first part of k's run, -1 for
+			// a part not in `live`.
+			int run[48];
+			auto group = [&](uint64_t live) {
+				for (int k = 0; k < nparts; ++k) run[k] = -1;
+				for (int r = 0; r < nparts; ++r) {
+					if (run[r] >= 0 || !(live >> r & 1u)) continue;
+					int stack[48], top = 0;
+					run[r] = r;
+					stack[top++] = r;
+					while (top > 0) {
+						const int k = stack[--top];
+						for (int o = 0; o < nparts; ++o)
+							if (run[o] < 0 && (live >> o & 1u) && std::abs(part[o] % res - part[k] % res) + std::abs(part[o] / res - part[k] / res) == 1)
+								run[o] = r, stack[top++] = o;
+					}
+				}
+			};
+			auto bits_of = [&](int r) {
+				uint64_t bits = 0;
+				for (int o = 0; o < nparts; ++o)
+					if (run[o] == r) bits |= uint64_t{1} << o;
+				return bits;
+			};
+			group((uint64_t{1} << nparts) - 1);
+			bool check = false;
+			for (int r = 0; r < nparts && !check; ++r) check = run[r] == r && split(bits_of(r));
+			if (check) {
+				// 0.28 on 1 m navcells over the window. A 1 m navcell is impassable within one navcell of a
+				// terrain tile steeper than MaxTerrainSlope, of water too deep to wade or of the map's edge
+				// (CCmpPathfinder::TerrainUpdateHelper, CCmpPathfinder.cpp:661 and its off-world passability at
+				// :700, then ExpandImpassableCells at :760 by the default class's 0.8 m clearance rounded up to a
+				// navcell), and where its corners all lie within the default clearance plus 1 m of a static
+				// shape (RasterizeHelper, RasterizeRectWithClearance): the buildings as the raster above takes
+				// them, the gate's own Left and Right parts and its towers among them, and Gaia's scenery and
+				// mines. A deliberate deviation: 0.28 does this over the whole map for every passability class;
+				// here it is the default class over the window only, all that decides the parts' navcells.
+				const int W = CW * per, H = CH * per;
+				const float x0 = nav_origin.x + (float)cx0 * nav_cell, z0 = nav_origin.y + (float)cy0 * nav_cell;
+				const float xe = x0 + (float)W * sub, ze = z0 + (float)H * sub;
+				constexpr int kShapes = 64; // a bit each in `cover`
+				rtso::nav::Footprint shapes[kShapes];
+				float sx0[kShapes], sx1[kShapes], sz0[kShapes], sz1[kShapes]; // where each can cover a 1 m navcell's corners
+				int ns = 0;
+				bool overflow = false;
+				auto add = [&](const rtso::nav::Footprint &f) {
+					const float e = rtso::nav::footprint_extent(f) + rc;
+					if (f.x + e < x0 || f.x - e > xe || f.z + e < z0 || f.z - e > ze) return;
+					if (ns == kShapes) {
+						overflow = true;
+						return;
+					}
+					sx0[ns] = f.x - e, sx1[ns] = f.x + e, sz0[ns] = f.z - e, sz1[ns] = f.z + e;
+					shapes[ns++] = f;
+				};
+				auto add_part = [&](const Building &a, float x, float z, float hu, float hv) {
+					rtso::nav::Footprint f;
+					f.x = x, f.z = z, f.ux = a.ux, f.uz = a.uz, f.hu = hu, f.hv = hv;
+					add(f);
+				};
+				for (const auto &a : buildings_) {
+					const float e = a.hu + a.hv + rc;
+					if (a.x + e < x0 || a.x - e > xe || a.z + e < z0 || a.z - e > ze) continue;
+					if (is_gate_type(a.type) && !a.wrecked && a.build_progress >= 0.99f && !blocks_pathfinding(a)) {
+						for_each_gate_side(a, [&](float x, float z, float hu, float hv) { add_part(a, x, z, hu, hv); });
+						continue;
+					}
+					// A wreck blocks nothing, as in the raster above (Health.js HandleDeath destroys the entity,
+					// and its rubble, template_rubble.xml, has no Obstruction): a tower gone from a gate's end
+					// leaves a gap 0.28's 1 m navcells can cross.
+					if (a.wrecked || (a.build_progress < 0.99f && !a.committed) || !blocks_pathfinding(a)) continue;
+					add_part(a, a.x, a.z, a.hu, a.hv);
+				}
+				for (const rtso::nav::Footprint &f : gate_gaia) add(f);
+				// What the 1 m check reads, all of it: if it is as it was at the last rebuild, so is the answer
+				// (gate_pass_memo_). Water reaches no 1 m navcell here if no height the window's interpolate
+				// between lies below it; ground_ok reads the steep tiles under the ground's 1 m navcells.
+				memo_key.clear();
+				auto put = [&](const void *p, size_t bytes) { memo_key.insert(memo_key.end(), (const uint8_t *)p, (const uint8_t *)p + bytes); };
+				const float frame[8] = {nav_grid_.map_half, terrain_water_height_, g.x, g.z, g.ux, g.uz, g.hu, g.hv};
+				const int dims[11] = {res, tiles, terrain_res_, g.type, g.civ, cx0, cy0, cx1, cy1, circular_map() ? 1 : 0, sides};
+				put(frame, sizeof frame);
+				put(dims, sizeof dims);
+				put(&nparts, sizeof nparts);
+				put(part, sizeof(int) * (size_t)nparts);
+				for (int k = 0; k < ns; ++k) {
+					const float f[6] = {shapes[k].x, shapes[k].z, shapes[k].ux, shapes[k].uz, shapes[k].hu, shapes[k].hv};
+					put(f, sizeof f);
+				}
+				for (int y = cy0; y <= cy1; ++y)
+					for (int x = cx0; x <= cx1; ++x) memo_key.push_back(nav_grid_.is_passable(x, y) ? 1 : 0);
+				const float gx0 = x0 + (-1.0f + 0.5f) * sub, gx1 = x0 + ((float)W + 0.5f) * sub;
+				const float gz0 = z0 + (-1.0f + 0.5f) * sub, gz1 = z0 + ((float)H + 0.5f) * sub;
+				auto tile = [&](float v) { return std::clamp((int)std::floor((v + nav_grid_.map_half) * tile_inv), 0, tiles - 1); };
+				if (tiles > 0) {
+					const int ti0 = tile(gx0), ti1 = tile(gx1), tj0 = tile(gz0), tj1 = tile(gz1);
+					for (int tj = tj0; tj <= tj1; ++tj)
+						for (int ti = ti0; ti <= ti1; ++ti) memo_key.push_back(nav_grid_.tile_steep(ti, tj) ? 1 : 0);
+				} else {
+					const auto [nx0, ny0] = nav_grid_.world_to_cell(gx0, gz0);
+					const auto [nx1, ny1] = nav_grid_.world_to_cell(gx1, gz1);
+					for (int y = ny0; y <= ny1; ++y)
+						for (int x = nx0; x <= nx1; ++x) memo_key.push_back(nav_grid_.is_steep(x, y) ? 1 : 0);
+				}
+				bool wet = water && !terrain_heights_.empty() && terrain_res_ > 1;
+				if (wet) {
+					const float scale = (float)(terrain_res_ - 1) / (2.0f * nav_grid_.map_half);
+					auto vertex = [&](float v) { return std::clamp((int)std::floor((v + nav_grid_.map_half) * scale), 0, terrain_res_ - 1); };
+					const int i0 = vertex(x0 - sub), i1 = std::min(vertex(xe + sub) + 1, terrain_res_ - 1);
+					const int j0 = vertex(z0 - sub), j1 = std::min(vertex(ze + sub) + 1, terrain_res_ - 1);
+					float lo = std::numeric_limits<float>::max();
+					for (int j = j0; j <= j1; ++j)
+						for (int i = i0; i <= i1; ++i) lo = std::min(lo, terrain_heights_[(size_t)j * terrain_res_ + i]);
+					wet = lo < deep;
+					if (wet)
+						for (int j = j0; j <= j1; ++j) put(&terrain_heights_[(size_t)j * terrain_res_ + i0], sizeof(float) * (size_t)(i1 - i0 + 1));
+				}
+				memo_key.push_back(wet ? 1 : 0);
+				GatePassMemo *memo = nullptr;
+				for (GatePassMemo &m : gate_pass_memo_)
+					if (m.gate == g.id) memo = &m;
+				if (!memo) {
+					memo = &gate_pass_memo_.emplace_back();
+					memo->gate = g.id;
+				}
+				memo->used = true;
+				// More shapes than the check can hold (a window crowded with scenery): it can't tell, and the
+				// parts close as a segment's line does.
+				if (overflow) memo->key.clear();
+				else if (memo->key == memo_key) keep = memo->keep;
+				else {
+					// Per navcell of the window, the shapes that can reach one of its 1 m navcells.
+					cover.assign((size_t)CW * CH, 0);
+					for (int k = 0; k < ns; ++k) {
+						const int nx0 = std::clamp((int)std::floor((sx0[k] - x0) / nav_cell), 0, CW - 1), nx1 = std::clamp((int)std::floor((sx1[k] - x0) / nav_cell), 0, CW - 1);
+						const int ny0 = std::clamp((int)std::floor((sz0[k] - z0) / nav_cell), 0, CH - 1), ny1 = std::clamp((int)std::floor((sz1[k] - z0) / nav_cell), 0, CH - 1);
+						for (int y = ny0; y <= ny1; ++y)
+							for (int x = nx0; x <= nx1; ++x) cover[(size_t)y * CW + x] |= uint64_t{1} << k;
+					}
+					fine.assign((size_t)W * H, 0);
+					ground.assign((size_t)(W + 2) * (H + 2), 0);
+					mark.assign((size_t)W * H, 0);
+					auto ground_ok = [&](int i, int j) {
+						uint8_t &t = ground[(size_t)(j + 1) * (W + 2) + (i + 1)];
+						if (!t) {
+							const float cx = x0 + ((float)i + 0.5f) * sub, cz = z0 + ((float)j + 0.5f) * sub;
+							bool bad;
+							if (tiles > 0) bad = nav_grid_.tile_steep(tile(cx), tile(cz));
+							else {
+								const auto [nx, ny] = nav_grid_.world_to_cell(cx, cz);
+								bad = nav_grid_.is_steep(nx, ny);
+							}
+							if (!bad) bad = past_map_edge(cx, cz);
+							if (!bad && wet) bad = nav_grid_.sample_height_bilinear(cx, cz, terrain_heights_, terrain_res_) < deep;
+							t = bad ? 2 : 1;
+						}
+						return t == 1;
+					};
+					auto open_at = [&](int i, int j) {
+						uint8_t &f = fine[(size_t)j * W + i];
+						if (!f) {
+							bool ok = true;
+							for (int dj = -1; dj <= 1 && ok; ++dj)
+								for (int di = -1; di <= 1 && ok; ++di) ok = ground_ok(i + di, j + dj);
+							const float ax = x0 + (float)i * sub, az = z0 + (float)j * sub;
+							for (uint64_t m = cover[(size_t)(j / per) * CW + i / per]; m && ok; m &= m - 1) {
+								const int k = std::countr_zero(m);
+								if (ax < sx0[k] || ax + sub > sx1[k] || az < sz0[k] || az + sub > sz1[k]) continue;
+								auto near = [&](float qx, float qz) {
+									const rtso::nav::Vec2 d = rtso::nav::footprint_gap(shapes[k], qx, qz);
+									return d.x * d.x + d.y * d.y <= rc * rc;
+								};
+								ok = !(near(ax, az) && near(ax + sub, az) && near(ax, az + sub) && near(ax + sub, az + sub));
+							}
+							f = ok ? 1 : 2;
+						}
+						return f == 1;
+					};
+					// 0.28's 1 m navcells over the window, labelled by what they join (comp, 0 shut), and per
+					// label the sides of the wall past `band` it reaches (comp_sides: a way across reaches both).
+					auto across = [&](int i, int j) {
+						const float dx = x0 + ((float)i + 0.5f) * sub - g.x, dz = z0 + ((float)j + 0.5f) * sub - g.z;
+						return dx * n.x + dz * n.y;
+					};
+					comp.assign((size_t)W * H, 0);
+					comp_sides.assign(1, 0);
+					for (int j = 0; j < H; ++j)
+						for (int i = 0; i < W; ++i) {
+							if (comp[(size_t)j * W + i] || !open_at(i, j)) continue;
+							const uint32_t label = (uint32_t)comp_sides.size();
+							uint8_t reach = 0;
+							comp[(size_t)j * W + i] = label;
+							queue.clear();
+							queue.push_back(j * W + i);
+							for (size_t q = 0; q < queue.size(); ++q) {
+								const int a = queue[q] % W, b = queue[q] / W;
+								const float s = across(a, b);
+								reach |= s >= band ? 1 : s <= -band ? 2 : 0;
+								for (const auto &e : d4) {
+									const int ai = a + e[0], bj = b + e[1];
+									if (ai < 0 || bj < 0 || ai >= W || bj >= H || comp[(size_t)bj * W + ai] || !open_at(ai, bj)) continue;
+									comp[(size_t)bj * W + ai] = label;
+									queue.push_back(bj * W + ai);
+								}
+							}
+							comp_sides.push_back(reach);
+						}
+					// What a label of the navcells (lab) is in 0.28's terms: the 1 m label most of the open 1 m
+					// navcells in its navcells hold (main_comp, 0 if none, and main_count, how many; stands: per
+					// open 1 m navcell, the two labels, sorted). A navcell that holds 1 m navcells of two labels
+					// joins them at 8 m, but the label of the navcells stays what most of its ground is.
+					stands.clear();
+					for (int y = cy0; y <= cy1; ++y)
+						for (int x = cx0; x <= cx1; ++x)
+							for (int t = 0; t < per * per && at(x, y); ++t) {
+								const uint32_t c = comp[(size_t)((y - cy0) * per + t / per) * W + (x - cx0) * per + t % per];
+								if (c) stands.push_back((uint64_t)at(x, y) << 32 | c);
+							}
+					std::sort(stands.begin(), stands.end());
+					main_comp.assign((size_t)labels + 1, 0);
+					main_count.assign((size_t)labels + 1, 0);
+					for (size_t a = 0, b = 0; a < stands.size(); a = b) {
+						while (b < stands.size() && stands[b] == stands[a]) ++b;
+						const uint32_t l = (uint32_t)(stands[a] >> 32);
+						if (b - a > main_count[l]) main_count[l] = (uint32_t)(b - a), main_comp[l] = (uint32_t)stands[a];
+					}
+					// Whether 0.28 joins the labels of the open neighbours of the part navcells in `bits`: they
+					// are all the same 1 m label.
+					auto joins = [&](uint64_t bits) {
+						uint32_t one = 0;
+						for (uint64_t m = bits; m; m &= m - 1) {
+							const int x = part[std::countr_zero(m)] % res, y = part[std::countr_zero(m)] / res;
+							for (const auto &e : d4) {
+								const int ax = x + e[0], ay = y + e[1];
+								if (ax < cx0 || ay < cy0 || ax > cx1 || ay > cy1 || !nav_grid_.is_passable(ax, ay) || !main_comp[at(ax, ay)]) continue;
+								if (one && main_comp[at(ax, ay)] != one) return false;
+								one = main_comp[at(ax, ay)];
+							}
+						}
+						return true;
+					};
+					// The runs again, of the part navcells with an open 1 m navcell: one with none closes, as
+					// 0.28 has no ground there to carry anything. A run whose open neighbours don't all share a
+					// label stays open when 0.28 joins their labels and one 1 m flood within the navcells round
+					// it joins it and all of them, so it opens no way 0.28 hasn't, whatever way that is: beside
+					// the Door, round the end of a piece that overlaps the wall, through the gap a wrecked tower
+					// leaves.
+					uint64_t live = 0;
+					for (int k = 0; k < nparts; ++k) {
+						const int px = part[k] % res - cx0, py = part[k] / res - cy0;
+						for (int t = 0; t < per * per && !(live >> k & 1u); ++t)
+							if (open_at(px * per + t % per, py * per + t / per)) live |= uint64_t{1} << k;
+					}
+					group(live);
+					uint64_t unjoined = 0; // the runs whose neighbours 0.28 joins but the flood doesn't
+					uint32_t stamp = 0;
+					for (int r = 0; r < nparts; ++r) {
+						if (run[r] != r) continue;
+						const uint64_t bits = bits_of(r);
+						if (!split(bits) || !joins(bits)) continue;
+						unjoined |= bits;
+						int cells[48], nc = 0;
+						for (uint64_t m = bits; m; m &= m - 1) cells[nc++] = part[std::countr_zero(m)];
+						// The navcells the flood must reach: the run's, then their open neighbours.
+						int need[32], nneed = 0;
+						int bx0 = res, by0 = res, bx1 = -1, by1 = -1;
+						bool fits = nc <= 32;
+						for (int k = 0; k < nc && fits; ++k) need[nneed++] = cells[k];
+						for (int k = 0; k < nc && fits; ++k) {
+							const int x = cells[k] % res, y = cells[k] / res;
+							bx0 = std::min(bx0, x - 1), bx1 = std::max(bx1, x + 1), by0 = std::min(by0, y - 1), by1 = std::max(by1, y + 1);
+							for (const auto &e : d4) {
+								const int ax = x + e[0], ay = y + e[1], a = ay * res + ax;
+								if (!nav_grid_.is_passable(ax, ay) || in(need, nneed, a)) continue;
+								if (nneed == 32 || ax < cx0 || ay < cy0 || ax > cx1 || ay > cy1) fits = false;
+								else need[nneed++] = a;
+							}
+						}
+						if (!fits) continue;
+						bx0 = std::max(bx0, cx0), by0 = std::max(by0, cy0), bx1 = std::min(bx1, cx1), by1 = std::min(by1, cy1);
+						cell.assign((size_t)CW * CH, -1);
+						for (int t = 0; t < nneed; ++t) cell[(size_t)(need[t] / res - cy0) * CW + need[t] % res - cx0] = (int8_t)t;
+						const uint32_t all = nneed == 32 ? ~0u : (1u << nneed) - 1;
+						const uint32_t base = stamp;
+						bool joined = false;
+						for (int k = 0; k < nc && !joined; ++k) {
+							const int px = cells[k] % res - cx0, py = cells[k] / res - cy0;
+							for (int s = 0; s < per * per && !joined; ++s) {
+								const int si = px * per + s % per, sj = py * per + s / per;
+								if (mark[(size_t)sj * W + si] > base || !open_at(si, sj)) continue;
+								mark[(size_t)sj * W + si] = ++stamp;
+								queue.clear();
+								queue.push_back(sj * W + si);
+								uint32_t got = 0;
+								for (size_t q = 0; q < queue.size(); ++q) {
+									const int i = queue[q] % W, j = queue[q] / W;
+									const int t = cell[(size_t)(j / per) * CW + i / per];
+									if (t >= 0) got |= 1u << t;
+									for (const auto &e : d4) {
+										const int a = i + e[0], b = j + e[1];
+										if (a < (bx0 - cx0) * per || b < (by0 - cy0) * per || a >= (bx1 - cx0 + 1) * per || b >= (by1 - cy0 + 1) * per ||
+												mark[(size_t)b * W + a] > base || !open_at(a, b))
+											continue;
+										mark[(size_t)b * W + a] = stamp;
+										queue.push_back(b * W + a);
+									}
+								}
+								joined = got == all;
+							}
+						}
+						if (joined) keep |= bits, unjoined &= ~bits;
+					}
+					// 0.28 crosses the window, so a long path must too: if the door's navcells don't cross it at
+					// 8 m and those kept so far don't either, the runs whose neighbours' ground 0.28 joins and
+					// that one of its ways across passes through open as well, the fewest that do. They may then
+					// also join an open neighbour 0.28 reaches only beyond the navcells round them, as the 8 m
+					// grid joins whatever shares a navcell.
+					if (sides != 3 && unjoined) {
+						uint64_t passed = 0; // the runs not kept that a way across passes through
+						for (int r = 0; r < nparts; ++r) {
+							if (run[r] != r || !(unjoined >> r & 1u)) continue;
+							const uint64_t bits = bits_of(r);
+							bool way = false;
+							for (uint64_t m = bits; m && !way; m &= m - 1) {
+								const int px = part[std::countr_zero(m)] % res - cx0, py = part[std::countr_zero(m)] / res - cy0;
+								for (int t = 0; t < per * per && !way; ++t)
+									way = comp_sides[comp[(size_t)(py * per + t / per) * W + px * per + t % per]] == 3;
+							}
+							if (way) passed |= bits;
+						}
+						auto crosses_at = [&](uint64_t kept) {
+							auto shut = [&](int x, int y) {
+								for (int k = 0; k < nparts; ++k)
+									if (part[k] == y * res + x) return !(kept >> k & 1u);
+								return !nav_grid_.is_passable(x, y);
+							};
+							cell.assign((size_t)CW * CH, 0);
+							queue.clear();
+							for (int y = cy0; y <= cy1; ++y)
+								for (int x = cx0; x <= cx1; ++x) {
+									const float dx = nav_origin.x + ((float)x + 0.5f) * nav_cell - g.x, dz = nav_origin.y + ((float)y + 0.5f) * nav_cell - g.z;
+									if (dx * n.x + dz * n.y < band || shut(x, y)) continue;
+									cell[(size_t)(y - cy0) * CW + x - cx0] = 1;
+									queue.push_back(y * res + x);
+								}
+							for (size_t q = 0; q < queue.size(); ++q) {
+								const int qx = queue[q] % res, qy = queue[q] / res;
+								const float dx = nav_origin.x + ((float)qx + 0.5f) * nav_cell - g.x, dz = nav_origin.y + ((float)qy + 0.5f) * nav_cell - g.z;
+								if (dx * n.x + dz * n.y <= -band) return true;
+								for (const auto &e : d4) {
+									const int ax = qx + e[0], ay = qy + e[1];
+									if (ax < cx0 || ay < cy0 || ax > cx1 || ay > cy1 || cell[(size_t)(ay - cy0) * CW + ax - cx0]) continue;
+									cell[(size_t)(ay - cy0) * CW + ax - cx0] = 1;
+									if (!shut(ax, ay)) queue.push_back(ay * res + ax);
+								}
+							}
+							return false;
+						};
+						if (passed && !crosses_at(keep)) {
+							uint64_t add = 0;
+							for (int r = 0; r < nparts && !add; ++r) {
+								const uint64_t bits = run[r] == r ? bits_of(r) & passed : 0;
+								if (bits && crosses_at(keep | bits)) add = bits;
+							}
+							if (!add && crosses_at(keep | passed)) add = passed;
+							keep |= add;
+						}
+					}
+					memo->key = memo_key;
+					memo->keep = keep;
+				}
+			}
+			gp.keep = keep;
+		}
+		for (const GateParts &gp : gate_parts)
+			for (int k = 0; k < gp.nparts; ++k)
+				if (gp.keep >> k & 1u) nav_grid_.cells.data[(size_t)gp.part[k]] = gp.orig[k];
+	}
+	std::erase_if(gate_pass_memo_, [](const GatePassMemo &m) { return !m.used; });
 	// Precise dirty bits: diff new cells vs snapshot (covers placements,
 	// completions AND demolitions). Falls back to full remesh only when the
 	// grid was freshly initialised (no snapshot to diff against).
@@ -6286,14 +6960,48 @@ static uint8_t formation_walk_state(uint8_t order) {
 }
 
 float Simulation::formation_walking_distance(const FormationController &fc) const {
-	// UnitAI.js ComputeWalkingDistance: along the remaining path, then to the goal.
-	float d = 0.0f, px = fc.x, pz = fc.z;
-	for (int k = fc.path.cur; k < fc.path.count; ++k) {
-		d += det::hypot(fc.path.xs[k] - px, fc.path.zs[k] - pz);
-		px = fc.path.xs[k];
-		pz = fc.path.zs[k];
+	// UnitAI.js ComputeWalkingDistance over GetTargetPositions: straight lines from the
+	// controller through the current goal and each queued walk or patrol point; an order
+	// with a target adds its target's position and ends the sum.
+	float d = det::hypot(fc.goal_x - fc.x, fc.goal_z - fc.z), px = fc.goal_x, pz = fc.goal_z;
+	if (fc.order == FORDER_APPROACH) return d;
+	for (const UnitOrder &o : fc.queue) {
+		float x = o.x, z = o.z;
+		bool stop = false;
+		switch (o.kind) {
+			case ORDER_WALK: case ORDER_WALK_AND_FIGHT: case ORDER_PATROL: break;
+			case ORDER_ATTACK: case ORDER_HEAL: case ORDER_GUARD: {
+				const int32_t t = lookup_unit(o.target);
+				if (t < 0 || !units_.alive[t]) return d;
+				x = units_.pos_x[t];
+				z = units_.pos_z[t];
+				stop = true;
+				break;
+			}
+			case ORDER_ATTACK_BUILDING: case ORDER_BUILD: case ORDER_GARRISON: {
+				auto bit = building_id_to_idx_.find(o.target);
+				if (bit == building_id_to_idx_.end()) return d;
+				x = buildings_[bit->second].x;
+				z = buildings_[bit->second].z;
+				stop = true;
+				break;
+			}
+			case ORDER_GATHER: {
+				auto rit = res_id_to_idx_.find(o.target);
+				if (rit == res_id_to_idx_.end()) return d;
+				x = resources_.x[rit->second];
+				z = resources_.z[rit->second];
+				stop = true;
+				break;
+			}
+			default: return d;
+		}
+		d += det::hypot(x - px, z - pz);
+		if (stop) return d;
+		px = x;
+		pz = z;
 	}
-	return d + det::hypot(fc.goal_x - px, fc.goal_z - pz);
+	return d;
 }
 
 void Simulation::formation_disband(size_t ci) {
@@ -6634,12 +7342,48 @@ void Simulation::order_set_formation(const uint32_t *unit_ids, size_t count, uin
 		for (size_t ci = 0; ci < formations_.size(); ++ci)
 			if (formations_[ci].id == fid) {
 				FormationController &fc = formations_[ci];
+				// UnitAI MoveIntoFormation is PushOrderFront: the formation re-forms where it
+				// stands and then carries on with the order it had (FORMING FinishOrder).
+				UnitOrder carry;
+				if (formation_current_order(fc, carry) && fc.queue.size() < 64) fc.queue.insert(fc.queue.begin(), carry);
 				fc.order = FORDER_IDLE;
+				fc.returning = FORDER_IDLE;
+				fc.target_unit = fc.target_building = 0;
 				fc.goal_x = fc.x;
 				fc.goal_z = fc.z;
 				formation_move_members_into(ci, true, true);
 				break;
 			}
+}
+
+// The controller's current order as the command that gave it, for orders a pushed-front
+// order (MoveIntoFormation) leaves behind.
+bool Simulation::formation_current_order(const FormationController &fc, UnitOrder &o) const {
+	o = UnitOrder{};
+	o.x = fc.goal_x;
+	o.z = fc.goal_z;
+	const uint8_t walk = fc.order == FORDER_MEMBER ? fc.returning : fc.order;
+	if (walk == FORDER_WALK) { o.kind = ORDER_WALK; return true; }
+	if (walk == FORDER_ATTACK_WALK) { o.kind = ORDER_WALK_AND_FIGHT; return true; }
+	if (walk == FORDER_PATROL || walk == FORDER_PATROL_WAIT) {
+		o.kind = ORDER_PATROL;
+		o.flags = ORDER_FLAG_FORCE | ORDER_FLAG_UNITS_ONLY;
+		return true;
+	}
+	if (fc.order != FORDER_APPROACH && fc.order != FORDER_MEMBER) return false;
+	o.target = fc.target_unit ? fc.target_unit : fc.target_building;
+	if (!o.target) return false;
+	switch (formation_task(fc)) {
+		case FTASK_ATTACK:
+			o.kind = fc.target_unit ? ORDER_ATTACK : ORDER_ATTACK_BUILDING;
+			if (fc.task_flags & FTASK_CAPTURE) o.flags |= ORDER_FLAG_ALLOW_CAPTURE;
+			return true;
+		case FTASK_GATHER: o.kind = ORDER_GATHER; return true;
+		case FTASK_REPAIR: o.kind = ORDER_BUILD; return true;
+		case FTASK_GARRISON: o.kind = ORDER_GARRISON; return true;
+		case FTASK_HEAL: o.kind = ORDER_HEAL; return true;
+		default: return false;
+	}
 }
 
 void Simulation::formation_delete_twins(FormationController &fc) {
@@ -6999,7 +7743,9 @@ void Simulation::tick_formations(float dt) {
 		if (changed) {
 			formation_refresh_groups();
 			fc.has_offsets = 0;
-			formation_move_members_into(ci, true, false);
+			// Formation.js SetRearrange(false) in IDLE and MEMBER: the members fight on and
+			// re-form when the controller leaves MEMBER or its IDLE timer fires.
+			if (formation_order_walks(fc.order)) formation_move_members_into(ci, true, false);
 		}
 
 		// Formation.js ShapeUpdate (every second): column for long walks, the real shape near the goal.
@@ -7097,6 +7843,30 @@ void Simulation::tick_formations(float dt) {
 			std::swap(fc.goal_z, fc.patrol_z);
 			fc.order = FORDER_PATROL;
 			formation_move_members_into(ci, true, true);
+			continue;
+		}
+		if (fc.order == FORDER_IDLE) {
+			// FORMATIONCONTROLLER.IDLE timer (every 2 s): once every member is idle, the
+			// ones that wandered off (chasing or fleeing) walk back to their slots.
+			fc.member_timer += dt;
+			if (fc.member_timer < FORMATION_IDLE_REFORM_S) continue;
+			fc.member_timer -= FORMATION_IDLE_REFORM_S;
+			bool all_idle = true, drifted = !fc.has_offsets || fc.slots.size() != fc.members.size();
+			for (uint32_t id : fc.members) {
+				const int32_t idx = lookup_unit(id);
+				if (idx < 0 || !units_.alive[idx]) continue;
+				if (units_.action_state[idx] != ACTION_IDLE || units_.has_order[idx]) { all_idle = false; break; }
+			}
+			if (!all_idle) continue;
+			for (const FormationSlot &sl : fc.slots) {
+				if (drifted) break;
+				const int32_t idx = lookup_unit(sl.ent);
+				if (idx < 0) continue;
+				float wx, wz;
+				formation_slot_world(fc.x, fc.z, fc.rot, sl.x, sl.y, wx, wz);
+				drifted = det::hypot(units_.pos_x[idx] - wx, units_.pos_z[idx] - wz) > FORMATION_IDLE_DRIFT;
+			}
+			if (drifted) formation_move_members_into(ci, false, false);
 			continue;
 		}
 		if (!formation_order_walks(fc.order)) continue;
@@ -16172,7 +16942,7 @@ void Simulation::tick_barter(float dt) {
 
 uint8_t Simulation::side_of(uint8_t pid) const {
 	if (pid >= MAX_PLAYERS) return 0;
-	if (last_man_standing_) return (uint8_t)(1u << pid);
+	if (!allied_victory()) return (uint8_t)(1u << pid);
 	uint8_t side = 0;
 	for (uint8_t t = 0; t < MAX_PLAYERS; ++t) {
 		if (t == pid || (((participant_mask_ >> t) & 1) && is_ally(pid, t) && is_ally(t, pid))) side |= (uint8_t)(1u << t);
@@ -16372,7 +17142,7 @@ void Simulation::check_victory_conditions(float dt) {
 			if (!((standing >> a) & 1)) continue;
 			for (int b = a + 1; b < MAX_TEAMS; ++b) {
 				if (!((standing >> b) & 1)) continue;
-				if (last_man_standing_ || !is_ally((uint8_t)a, (uint8_t)b) || !is_ally((uint8_t)b, (uint8_t)a)) { one_side = false; break; }
+				if (!allied_victory() || !is_ally((uint8_t)a, (uint8_t)b) || !is_ally((uint8_t)b, (uint8_t)a)) { one_side = false; break; }
 			}
 		}
 		// Don't hand out a win on a map that never had an enemy on it.
@@ -22683,7 +23453,9 @@ void Simulation::petra_manage_fields() {
 
 	const uint8_t civ = petra_ps().civ;
 	auto can_build = [&](uint8_t t) {
-		return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
+		// template.available: the structure's Identity/Requirements (its phase) are met.
+		return civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
+		       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
 	// manageCorral's anchor, as a position: the fields and corrals placed below grow buildings_.
 	const Building *anchor_b = farmstead ? farmstead : tc;
@@ -22999,7 +23771,7 @@ int Simulation::petra_find_market_location(float &out_x, float &out_z, int &out_
 				if (std::abs(px) > map_half_ || std::abs(pz) > map_half_) continue; // outside the map
 				if (past_map_edge(px, pz)) continue; // off the map's world (mapMask.outside)
 				const int owner = territory_owner_at(px, pz);
-				if (owner != petra_pid_ && !(!last_man_standing() && owner >= 0 && is_ally(petra_pid_, (uint8_t)owner))) { frontier = true; break; }
+				if (owner != petra_pid_ && !(allied_victory() && owner >= 0 && is_ally(petra_pid_, (uint8_t)owner))) { frontier = true; break; }
 			}
 			if (frontier) continue;
 			const int cx = (int)std::floor((wx - half) / GRID), cz = (int)std::floor((wz - half) / GRID);
@@ -23894,7 +24666,7 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 	const int foot = info.footprint;
 	const float half = 0.5f * (float)foot * GRID; // halfDepth and halfWidth: a square footprint
 
-	const bool allied_victory = !last_man_standing();
+	const bool allied_victory = this->allied_victory();
 	auto ours = [&](float x, float z) {
 		const int owner = territory_owner_at(x, z);
 		return owner == (int)petra_pid_ || (allied_victory && owner >= 0 && owner < MAX_PLAYERS && is_ally(petra_pid_, (uint8_t)owner));
@@ -24606,7 +25378,12 @@ void Simulation::petra_manage_buildings(float dt) {
 			// queued trainees included), houses go at twice their priority.
 			// Under 5 such slots with the house set unbuildable for want of room, a population
 			// technology instead (headquarters.js:1500-1508).
-			const int accounted_free = free_slots - (petra_accounted_population() - pop);
+			// freeSlots (headquarters.js:1499-1501): the limit, plus the house foundations at the
+			// house's own bonus, less the accounted population (other foundations don't count).
+			int house_fnd = 0;
+			for (const auto &b : buildings_)
+				if (b.team == petra_pid_ && b.build_progress < 1.0f && b.hp > 0.0f && (building_tech_classes(b.type) & TC_HOUSE)) ++house_fnd;
+			const int accounted_free = pop_max(petra_pid_) + house_fnd * structure_pop_bonus(house, petra_pid_) - petra_accounted_population();
 			const bool house_no_room = petra_no_room(house);
 			petra_queues_.priority[PETRA_Q_HOUSE] =
 					accounted_free < 5 && !house_no_room ? (int16_t)(2 * petra_queue_base_priority(PETRA_Q_HOUSE)) : 0;
@@ -25582,7 +26359,7 @@ bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &
 	static const float kAround[8][2] = {{-0.7f, 0.7f}, {0, 1}, {0.7f, 0.7f}, {1, 0}, {0.7f, -0.7f}, {0, -1}, {-0.7f, -0.7f}, {-1, 0}};
 	const uint8_t mine = (uint8_t)(petra_pid_ + 1);
 	const bool cost_ok = territory_cost_.w == territory_grid_.w && territory_cost_.h == territory_grid_.h;
-	const bool allied_victory = !last_man_standing(); // an ally's land is ours only then (headquarters.js:2014)
+	const bool allied_victory = this->allied_victory(); // an ally's land is ours only then (headquarters.js:2014)
 	auto other = [&](int x, int z) { // territory that is neither ours nor an ally's, on the map
 		if (cost_ok && territory_cost_.at(x, z) == TERRITORY_OFF_WORLD_COST) return false; // mapMask.outside
 		const uint8_t v = territory_grid_.at(x, z);
@@ -25695,6 +26472,9 @@ void Simulation::petra_build_defenses() {
 				if (b.team == petra_pid_ && b.type == BLD_FORTRESS && b.hp > 0.0f && !b.wrecked) { has_fortress = true; break; }
 			const PetraBase *home = get_primary_petra_base();
 			if (!has_fortress && home) bid = petra_place_generic(BLD_FORTRESS, PETRA_Q_DEFENSE_BUILDING);
+			else petra_set_no_room(btype);
+		} else {
+			petra_set_no_room(btype); // setUnbuildable(template, 90, "room")
 		}
 		if (bid) {
 			auto idle = petra_idle_builders();
@@ -25707,7 +26487,9 @@ void Simulation::petra_build_defenses() {
 	if (saving && !can_barter(petra_pid_)) return;
 	const uint8_t civ = petra_ps().civ;
 	auto can_build = [&](uint8_t t) {
-		return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
+		// template.available: the structure's Identity/Requirements (its phase) are met.
+		return civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
+		       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
 	int n_fortresses = 0, n_fortress_fnd = 0, n_towers = 0, n_stone = 0, n_tower_fnd = 0, n_bases = 0;
 	for (const Building &b : buildings_) {
@@ -25738,7 +26520,14 @@ void Simulation::petra_build_defenses() {
 	const uint8_t phase = petra_ps().phase;
 	// A structure with no frontier spot is not queued, so its plan doesn't hold resources it
 	// can't spend; the next try waits 90 s (buildManager.js setUnbuildable "room").
-	auto has_spot = [&](uint8_t t) { int sx = 0, sz = 0; return petra_find_defensive_location(t, sx, sz); };
+	// The plan's start fails with no spot, and the structure is marked short of room (which
+	// counts towards a new base, buildManager.js numberMissingRoom).
+	auto has_spot = [&](uint8_t t) {
+		int sx = 0, sz = 0;
+		if (petra_find_defensive_location(t, sx, sz)) return true;
+		petra_set_no_room(t);
+		return false;
+	};
 	constexpr float kNoRoomWait = 90.0f;
 
 	// From City, or while City is being researched (gameState.isResearching(phase 3)); not
@@ -26039,7 +26828,9 @@ void Simulation::petra_manage_research(float dt) {
 		const bool saving = petra_attack_mgr_.save_resources != 0;
 		const uint8_t civ = petra_ps().civ;
 		auto can_build = [&](uint8_t t) {
-			return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
+			// template.available: the structure's Identity/Requirements (its phase) are met.
+			return civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
+			       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 		};
 		if (!have_building(BLD_MARKET)) {
 			// buildMarket: at three times economicBuilding's priority until started; once
@@ -28646,12 +29437,12 @@ void Simulation::apply_petra_config() {
 // Each AI draws its own personality within its behaviour's range (config.js setConfig),
 // from the match seed so every lockstep peer draws the same one.
 void Simulation::reroll_petra_personalities() {
-	petra_config_.recompute(petra_personality_seed(petra_pid_), teams_locked(), !last_man_standing());
+	petra_config_.recompute(petra_personality_seed(petra_pid_), teams_locked(), allied_victory());
 	for (size_t i = 0; i < petra_slots_.size(); ++i) {
 		// While another AI runs, PETRA_PLAYER's config sits in that AI's slot.
 		const uint8_t owner = (i == petra_pid_ && petra_pid_ != PETRA_PLAYER) ? PETRA_PLAYER : (uint8_t)i;
 		if (i == petra_pid_ && petra_pid_ == PETRA_PLAYER) continue; // lives in petra_config_
-		petra_slots_[i].petra_config_.recompute(petra_personality_seed(owner), teams_locked(), !last_man_standing());
+		petra_slots_[i].petra_config_.recompute(petra_personality_seed(owner), teams_locked(), allied_victory());
 	}
 }
 
@@ -28689,14 +29480,14 @@ void Simulation::set_petra_difficulty(uint8_t pid, uint8_t d) {
 	if (pid >= MAX_PLAYERS) return;
 	PetraConfig &c = petra_config_slot(pid);
 	c.difficulty = petra_clamp_difficulty(d);
-	c.recompute(petra_personality_seed(pid), teams_locked(), !last_man_standing());
+	c.recompute(petra_personality_seed(pid), teams_locked(), allied_victory());
 }
 
 void Simulation::set_petra_behavior(uint8_t pid, uint8_t b) {
 	if (pid >= MAX_PLAYERS) return;
 	PetraConfig &c = petra_config_slot(pid);
 	c.behavior = petra_clamp_behavior(b);
-	c.recompute(petra_personality_seed(pid), teams_locked(), !last_man_standing());
+	c.recompute(petra_personality_seed(pid), teams_locked(), allied_victory());
 }
 
 // config.js Config.priorities after setConfig; the plan queues take attackPlan.js's
@@ -31797,7 +32588,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			auto bit = building_id_to_idx_.find(attacker);
 			if (bit != building_id_to_idx_.end()) by = buildings_[bit->second].team;
 		}
-		if (by >= MAX_PLAYERS || by == petra_pid_ || !is_ally(petra_pid_, by)) continue;
+		if (by >= MAX_PLAYERS || by == petra_pid_ || get_diplomacy(petra_pid_, by) != DIPLO_ALLY) continue; // isPlayerAlly
 		if (territory_owner_at(tx, tz) != (int)petra_pid_) continue;
 		petra_config_.cooperative = std::min(1.0f, petra_config_.cooperative + 0.003f);
 	}
@@ -31819,7 +32610,8 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	// from a player we are waiting on seals the requested stance.
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		PetraReceivedRequest &req = dip.received[p];
-		if (req.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE) {
+		// (not from a player we already ally with, isPlayerAlly: our own stance)
+		if (req.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE && get_diplomacy(me, p) != DIPLO_ALLY) {
 			const float got = petra_tribute_inbox_[me][p][req.resource];
 			req.paid += got;
 			if (req.paid >= (float)req.wanted) {
@@ -31833,7 +32625,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			}
 		}
 		// Tribute from an ally slowly raises our cooperative trait (food counts once, the rest twice).
-		if (p != me && is_ally(me, p)) {
+		if (p != me && get_diplomacy(me, p) == DIPLO_ALLY) { // isPlayerAlly: our own stance
 			float tributes = 0.0f;
 			for (uint8_t r = 0; r < RES_COUNT; ++r) tributes += petra_tribute_inbox_[me][p][r] * (r == RES_FOOD ? 1.0f : 2.0f);
 			petra_config_.cooperative = std::min(1.0f, petra_config_.cooperative + 0.0001f * tributes);
@@ -31942,8 +32734,21 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		}
 	}
 
-	// lastManStandingCheck, re-run on its timer.
-	petra_last_man_standing_check();
+	// lastManStandingCheck: on any stance change, defeat or the ceasefire's end since our last
+	// turn (checkEvents; the first turn stands for init), and then on its own timer (update).
+	{
+		uint32_t h = 2166136261u;
+		auto mix = [&h](uint32_t w) { h = (h ^ w) * 16777619u; };
+		for (uint8_t a = 0; a < MAX_PLAYERS; ++a)
+			for (uint8_t b = 0; b < MAX_PLAYERS; ++b) mix(get_diplomacy(a, b));
+		mix((uint32_t)defeated_mask_);
+		mix(ceasefire_active() ? 1u : 0u);
+		const uint16_t ev = (uint16_t)((h ^ (h >> 16)) | 1u); // never 0, the value before the first turn
+		const bool changed = ev != dip.events_hash;
+		dip.events_hash = ev;
+		if (changed) petra_last_man_standing_check();
+	}
+	if (dip.waiting_to_betray && dip.elapsed > dip.betray_lapse) petra_last_man_standing_check();
 
 	// update(): now and then ask a player for an alliance or a neutrality pact
 	// (never during a ceasefire or with teams locked), and let an unanswered request lapse.
@@ -31995,7 +32800,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		// isPlayerAlly: our own stance, whatever theirs is toward us.
 		if (p == me || !(same_team(p, me) || get_diplomacy(me, p) == DIPLO_ALLY) || !player_in_match(p)) continue;
-		const bool donor = !last_man_standing() || petra_player_entities(p) < own_entities;
+		const bool donor = allied_victory() || petra_player_entities(p) < own_entities;
 		int amounts[RES_COUNT] = {};
 		bool any = false;
 		for (uint8_t r = 0; r < RES_COUNT; ++r) {
@@ -32184,11 +32989,11 @@ void Simulation::petra_last_man_standing_check() {
 	bool has_enemies = false, has_others = false, has_allies = false;
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		if (p == me || !((participant_mask_ >> p) & 1) || is_defeated(p)) continue;
-		if (is_ally(me, p)) has_allies = true;
+		if (get_diplomacy(me, p) == DIPLO_ALLY) has_allies = true; // gamestate.js hasAllies: our own stance
 		if (is_hostile(me, p)) has_enemies = true;
 		else has_others = true; // hasAllies() || hasNeutrals()
 	}
-	if (!last_man_standing() && has_allies) return; // allied victory: our allies win with us
+	if (allied_victory() && has_allies) return; // allied victory: our allies win with us
 	if (has_enemies || !has_others) {
 		dip.waiting_to_betray = false;
 		return;
@@ -32199,8 +33004,8 @@ void Simulation::petra_last_man_standing_check() {
 		dip.waiting_to_betray = true;
 		return;
 	}
-	if (dip.elapsed < dip.betray_lapse) return;
-	// Not yet strong enough.
+	// Not yet strong enough. Run on an event before the lapse is up too, as 0.28 does: another
+	// AI's betrayal sets the waiting ones off at once.
 	const int own_units = petra_player_units(me);
 	if (own_units < 50) {
 		dip.betray_lapse += 60.0f;
@@ -34037,7 +34842,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					o.wanted = r.wanted; o.paid = r.paid; o.warn_time = r.warn_time;
 				}
 				arr(d.seen_stance, x.seen_stance); d.seen_init = x.seen_init; d.waiting_to_betray = x.waiting_to_betray;
-				d.betray_lapse = x.betray_lapse; d.elapsed = x.elapsed; d.next_tribute = x.next_tribute;
+				d.events_hash = x.events_hash; d.betray_lapse = x.betray_lapse; d.elapsed = x.elapsed; d.next_tribute = x.next_tribute;
 			});
 		} else if constexpr (std::is_same_v<T, std::vector<S::PetraFoundationWatch>>) {
 			io_vec(ar, v, 1u << 16, [&](S::PetraFoundationWatch &w) { ar.pod(w.id); ar.pod(w.progress); ar.pod(w.stall); ids(w.banned); });

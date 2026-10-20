@@ -1972,26 +1972,6 @@ def emit_buildings(rows, generic_masks, upgrades=()):
     w("\t}")
     w("}")
     w("")
-    w("// TerritoryInfluence radius of a civ-specific territory root (0 = not a root).")
-    w("inline float civ_building_territory_radius(uint8_t type) {")
-    w("\tswitch (type) {")
-    for r in rows:
-        if r["territory"] > 0:
-            w("\t\tcase %s: return %s;" % (r["enum"], f(round(r["territory"], 1))))
-    w("\t\tdefault: return 0.0f;")
-    w("\t}")
-    w("}")
-    w("")
-    w("// Vision range of a civ-specific structure (0 = the default structure vision).")
-    w("inline float civ_building_vision(uint8_t type) {")
-    w("\tswitch (type) {")
-    for r in rows:
-        if r["vision"] > 18.0:
-            w("\t\tcase %s: return %s;" % (r["enum"], f(round(r["vision"], 1))))
-    w("\t\tdefault: return 0.0f;")
-    w("\t}")
-    w("}")
-    w("")
     w("// True for a structure only an Upgrade reaches (the Tachara's tribute forms, the apartment):")
     w("// no civ lays its foundation.")
     w("inline bool civ_building_upgrade_only(uint8_t type) {")
