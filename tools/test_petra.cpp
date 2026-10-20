@@ -1493,6 +1493,27 @@ static void test_petra_diplomacy_counts() {
 	CHECK(s->petra_player_entities(0) == entities + 2, "and as entities");
 }
 
+// attackManager.js cancelAttacksAgainstPlayer covers raids: peace with the raided player
+// sends the riders home.
+static void test_petra_peace_ends_raid() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, p == 1);
+	s->petra_pid_ = 1;
+	uint32_t target = 0;
+	float x = 0.0f, z = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { target = b.id; x = b.x; z = b.z; }
+	Simulation::AttackPlan &raid = s->petra_raid_plan_;
+	raid.state = Simulation::AttackPlan::ATTACKED;
+	raid.target_building_id = target;
+	raid.squad.push_back(s->spawn_unit(x + 12.0f, z, 1, UNIT_CAVALRY));
+	s->petra_change_diplomacy(0, Simulation::DIPLO_NEUTRAL);
+	CHECK(raid.state == Simulation::AttackPlan::REGROUP && raid.target_building_id == 0, "a raid on the new neutral goes home");
+}
+
 // researchManager.js update returns while minorTech holds a plan: a pick waiting for its
 // resources stays queued until it is researched or can no longer be, never swapped for another.
 static void test_petra_minor_tech_kept() {
@@ -2922,6 +2943,9 @@ static void test_attack_rally_point() {
 	s->petra_attack_mgr_.target_size = 12;
 	s->petra_attack_mgr_.min_size = 12;
 	const std::vector<uint32_t> army = plan.squad;
+	// attackPlan.js updatePreparation's max-population case: under 5 free slots, more than
+	// lengthMin units start the plan whatever classes it still lacks.
+	s->set_pop_cap(s->pop_current(1) + 2);
 	auto centre = [&](float &cx, float &cz) {
 		cx = cz = 0.0f;
 		int n = 0;
@@ -4896,7 +4920,8 @@ static void test_defend_allies() {
 	s->order_set_stance(foes.data(), foes.size(), STANCE_STAND_GROUND);
 	auto is_foe = [&](uint32_t id) { return std::find(foes.begin(), foes.end(), id) != foes.end(); };
 	int sent = 0, home = 0;
-	for (float t = 0.0f; t < 3.0f; t += Simulation::FIXED_STEP) {
+	// checkEnemyUnits looks at one player a turn: player 0's turn comes within 4 (3 players + Gaia).
+	for (float t = 0.0f; t < 7.0f; t += Simulation::FIXED_STEP) {
 		for (uint32_t id : foes) {
 			const int32_t f = s->lookup_unit(id);
 			if (f >= 0 && u.alive[f]) u.hp[f] = u.max_hp[f];
@@ -4973,7 +4998,8 @@ static void test_retake_civic_centre() {
 			if (f >= 0 && u.alive[f]) u.hp[f] = u.max_hp[f];
 		}
 	};
-	for (float t = 0.0f; t < 2.0f; t += Simulation::FIXED_STEP) { hold(); s->tick(Simulation::FIXED_STEP); }
+	// checkEnemyUnits looks at one player a turn: player 0's comes within 3 (2 players + Gaia).
+	for (float t = 0.0f; t < 5.0f; t += Simulation::FIXED_STEP) { hold(); s->tick(Simulation::FIXED_STEP); }
 	const size_t defenders = all_defenders(*s).size();
 	// The enemy takes the Town Center.
 	{
@@ -4983,7 +5009,7 @@ static void test_retake_civic_centre() {
 	}
 	bool lost = false, switched = false;
 	size_t squad = 0;
-	for (float t = 0.0f; t < 1.0f && !switched; t += Simulation::FIXED_STEP) {
+	for (float t = 0.0f; t < 9.0f && !switched; t += Simulation::FIXED_STEP) {
 		hold();
 		s->tick(Simulation::FIXED_STEP);
 		lost |= s->buildings()[s->building_id_to_idx_.at(tc_id)].team == 0;
@@ -5008,6 +5034,8 @@ static void test_concurrent_attacks() {
 		s->reset();
 		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 		s->set_victory_condition(VICTORY_ENDLESS);
+		// attackManager.js reads getPopulationMax, the population cap (not the houses' limit).
+		s->set_pop_cap(big ? 300 : 40);
 		run_for(*s, 1.0f);
 		float tx = 0.0f, tz = 0.0f;
 		for (const auto &b : s->buildings())
@@ -5032,7 +5060,7 @@ static void test_concurrent_attacks() {
 			if (b.team == 0 && b.type == BLD_TOWN_CENTER) { marching.target_building_id = b.id; marching.target_x = b.x; marching.target_z = b.z; }
 		s->petra_started_attacks_.push_back(marching);
 		run_ai_turns(*s, 2);
-		const int cap = s->pop_max(1);
+		const int cap = s->petra_population_max();
 		const bool second = s->petra_attack_plan().state == Simulation::AttackPlan::MUSTER;
 		std::printf("  concurrent attacks: population cap %d, one marching, a second musters %s\n", cap, second ? "yes" : "no");
 		if (big) CHECK(cap >= 100 && second, "a second Attack musters while one marches (popMax >= 100)");
@@ -6494,6 +6522,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_research_order);
 	RUN(test_petra_minor_tech_kept);
 	RUN(test_petra_diplomacy_counts);
+	RUN(test_petra_peace_ends_raid);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
 	RUN(test_market_prospection_events);

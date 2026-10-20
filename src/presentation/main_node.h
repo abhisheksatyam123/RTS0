@@ -393,7 +393,8 @@ public:
 	bool is_game_paused() const { return hotkey_paused_; }
 	bool can_pause() const;
 	// Engine.HasXmppClient: a game started from the lobby screen.
-	bool has_lobby_client() const { return lobby_btn && lobby_btn->is_visible(); }
+	bool has_lobby_client() const; // Engine.HasXmppClient: signed in to the lobby
+	void open_lobby_page(); // MenuButtons Lobby: page_lobby.xml with {"dialog": true}
 	PopupMenu *speed_menu_ = nullptr;
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
@@ -954,7 +955,6 @@ private:
 	uint8_t music_civ_ = 0xFF;
 	uint32_t defeated_heard_ = 0; // players whose defeat this client already heard
 	bool music_primed_ = false;
-	ConfirmationDialog *delete_dialog_ = nullptr; // DeleteSelectionConfirmation
 	PackedInt32Array delete_pending_;
 	void play_alarm(const char *path);
 	void play_sfx(const char *path);

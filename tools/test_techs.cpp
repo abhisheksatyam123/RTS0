@@ -230,6 +230,17 @@ int main() {
 	uint32_t woman2 = s.spawn_unit(2.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
 	CHECK(std::fabs(unit_max_hp(s, woman2) - 2.0f * hp0) < 0.01f);
 	CHECK(std::fabs(unit_max_hp(s, trader) - trader_hp0) < 0.01f);
+	// The detailed training tooltip reads the same Health: template_stat_mods (GetTemplateData).
+	{
+		auto u = s.units();
+		for (size_t k = 0; k < u.count; ++k)
+			if (u.id[k] == woman2) {
+				const uint16_t wt = s.units_.tmpl[k];
+				CHECK(std::fabs(s.template_stat_mods(0, wt).health - 2.0f) < 1e-4f);
+				CHECK(std::fabs(civ_unit_template(wt).hp * s.template_stat_mods(0, wt).health - unit_max_hp(s, woman2)) < 0.01f);
+				CHECK(std::fabs(s.template_stat_mods(1, wt).health - 1.0f) < 1e-4f); // not player 1's Loom
+			}
+	}
 
 	// Home Garden: houses +20% population bonus.
 	int pop0 = s.pop_max();

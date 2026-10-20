@@ -119,17 +119,18 @@ func run() -> void:
 	var victim := int(sel[0])
 	check(press("Delete"), "pressing Delete")
 	await frames(2)
-	var dialogs := root.find_children("*", "ConfirmationDialog", true, false)
-	var dlg: ConfirmationDialog = dialogs[0] if dialogs.size() > 0 else null
-	check(dlg != null and dlg.visible, "a confirmation asks first")
+	var QC = load("res://scenes/session/quit_confirmation.gd")
+	var boxes: Array = main.get_children().filter(func(c): return c.get_script() == QC)
+	var dlg = boxes[0] if boxes.size() == 1 else null
+	check(dlg != null and paused, "a message box asks first, pausing the game")
 	if dlg:
-		check(dlg.dialog_text == "Destroy everything currently selected?" and dlg.title == "Delete", "with 0.28's title and question")
-		check(dlg.get_ok_button().text == "Yes" and dlg.get_cancel_button().text == "No", "and Yes / No")
+		check(dlg.caption == "Destroy everything currently selected?" and dlg.title == "Delete", "with 0.28's title and question")
+		check(dlg.button_texts() == ["No", "Yes"], "and No / Yes")
 	await frames(10)
 	check(alive(victim), "nothing is destroyed before the answer")
 	if dlg:
-		dlg.emit_signal("confirmed")
-		dlg.hide()
+		dlg.press(1)
+	check(not paused, "answering resumes it")
 	await until(func(): return not alive(victim))
 	check(not alive(victim), "Yes destroys the selection")
 	main.debug_selection_grid(true)

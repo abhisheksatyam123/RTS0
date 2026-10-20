@@ -2070,7 +2070,7 @@ func _collect_setup() -> Dictionary:
 	var names := _player_names(types, civs, local)
 	# Single-player Petra settings: the first AI slot's picks (per-slot AI is next).
 	var diff := 3
-	var beh := 2
+	var beh := 0 # player_defaults.json AIBehavior "random"
 	for i in range(n):
 		if int(_slot_rows[i]["kind"]) == 1:
 			diff = int(_slot_rows[i]["diff"])
@@ -2180,6 +2180,7 @@ func _on_start_pressed() -> void:
 	ms.campaign_run = "" # a match from Game Setup is not a campaign level
 	ms.campaign_level = ""
 	ms.seed = int(st["seed"])
+	ms.seed_exact = false
 	ms.ai_seed = 0 # only -autostart-aiseed sets one
 	ms.victory = int(st["victory"])
 	ms.waves_enabled = bool(st["waves"])
@@ -2374,17 +2375,7 @@ func _build_net_controls() -> void:
 ## Engine.OpenChildPage("page_lobby.xml", {"dialog": true}): the lobby over
 ## the setup on its own layer; it frees itself on Back.
 func open_lobby_dialog() -> Node:
-	if not LobbySession.signed_in():
-		return null
-	var layer := CanvasLayer.new()
-	layer.name = "LobbyDialog"
-	layer.layer = 40
-	var lobby: Control = load("res://scenes/menu/lobby.tscn").instantiate()
-	lobby.dialog = true
-	lobby.closed.connect(layer.queue_free)
-	layer.add_child(lobby)
-	get_tree().root.add_child(layer)
-	return lobby
+	return load("res://scenes/menu/lobby.gd").open_dialog(get_tree())
 
 ## 0.28 Panels/Chat/ChatPanel: the chat under the player slots, where single
 ## player shows its tips. The input goes through RtsoMain's chat send, so
@@ -2643,7 +2634,7 @@ func _host_write_setup(force: bool) -> void:
 	ms.campaign_run = ""
 	ms.campaign_level = ""
 	ms.ai_difficulty = 3
-	ms.ai_behavior = 2
+	ms.ai_behavior = 0
 	for i in range(ps["slot_types"].size()):
 		if int(ps["slot_types"][i]) == 1:
 			ms.ai_difficulty = int(ps["slot_diffs"][i])
