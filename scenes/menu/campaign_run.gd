@@ -103,10 +103,11 @@ func destroy() -> void:
 ## when the player kept the campaign's own (unless full).
 func label(full := false) -> String:
 	var desc := str(meta.get("userDescription", ""))
-	var name := str(template.get("Name", filename))
+	var name: String = TranslationServer.translate(str(template["Name"])) if template.has("Name") else filename
 	if desc == "" or (not full and desc == name):
 		return name if desc == "" else desc
-	return "%s - %s" % [desc, name]
+	return TranslationServer.translate("%(userDesc)s - %(templateName)s") \
+		.replace("%(userDesc)s", desc).replace("%(templateName)s", name)
 
 # --- The current run -------------------------------------------------------------
 

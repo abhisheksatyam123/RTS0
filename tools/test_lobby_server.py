@@ -179,7 +179,10 @@ def test_ratings():
     code, prof = lb.profile("BOB")
     check(code == 200 and prof == {"name": "bob", "rating": 1135, "highestRating": 1135, "rank": 2,
                                    "totalGamesPlayed": 1, "wins": 0, "losses": 1}, "a player's profile")
-    check(lb.profile("carol")[0] == 404, "a player the lobby has no game of has no profile")
+    check(lb.profile("carol")[1] == {"name": "carol", "totalGamesPlayed": 0, "wins": 0, "losses": 0,
+                                     "rating": "-", "rank": "-", "highestRating": "-"},
+          "a member with no finished game has a profile (EcheLOn get_or_create_player on join)")
+    check(lb.profile("dave")[0] == 404, "a player who never joined has no profile")
     team = {"matchID": "m2", "players": "alice,bob,carol,", "playerStates": "won,defeated,defeated,"}
     lb.report(a["token"], team)
     lb.report(b["token"], team)
