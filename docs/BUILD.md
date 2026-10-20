@@ -107,9 +107,15 @@ What each target needs on the host, beyond Godot 4.3-stable, its export template
   time it draws them. A headless import never draws, so without this they stay lossless. Compressed,
   they are about 40% smaller in the pack and a quarter of the GPU memory. Terrain, UI and unit-variant
   textures stay lossless.
-- **Mobile renderer.** Android and iOS run the Mobile (Vulkan/Metal) renderer. On a GL-only phone Godot falls
-  back to Compatibility, which draws player colours, garrison flags and silhouettes too (#1260;
-  `tools/check_gl_shaders.py` checks it). Selection rings and decals don't draw there yet (G41).
+- **Mobile renderer and defaults.** Android and iOS run GL Compatibility
+  (`rendering/renderer/rendering_method.mobile`), which draws player colours, garrison flags, silhouettes,
+  rings and decals (#1260, #1306; `tools/check_gl_shaders.py` checks it). Phones also start with cheaper
+  defaults (`kMobileDefaults` in `src/presentation/user_config.cpp`): no shadows, post-processing or
+  particles, no water reflection or refraction, 3D at 0.75 resolution (bilinear; FSR is Forward+ only),
+  1x anisotropy, and 30 fps in menus and matches. In a match under GL (llvmpipe, 1280x720) the 0.75 scale
+  saves about 20% of the frame, shadows about 10% and a third of the draw calls, post-processing about
+  6%; water and particles cost little. The options page changes any of them, and Reset returns to these.
+  `-- -mobiledefaults` uses them on a desktop. Desktop defaults are 0 A.D.'s.
 
 ## CI (GitHub Actions)
 `.github/workflows/ci.yml`:
