@@ -154,7 +154,7 @@ StatisticsTracker callers and class mapping, the summary page, the replay menu a
 | S9 | Follow Player is hidden while viewing Gaia (FollowPlayer.js hides it for Observer only) | low | Open |
 | S10 | The replay menu's right panel sits 20-56 px higher with tighter spacing than replay_menu.xml | low | Open |
 | S11 | The FPS/time counter box sits over the top bar at y 4 in a 16 px font with no backing; 0.28 puts it at y 40 in mono 10 on black, moves the network warnings and research column aside, pads "FPS: %(fps)4s", and doesn't save the toggles | low | Open |
-| S12 | Unticking Restrict camera only lifts the map bounds; 0.28 also frees zoom and tilt | low | Open |
+| S12 | Unticking Restrict camera only lifts the map bounds; 0.28 also frees zoom and tilt | low | Fixed: zoom and tilt are free while unrestricted and come back in range when restricted again |
 | S13 | Time warp rewind empties the control groups, clears the selection and starts a new replay; 0.28 rewinds the simulation only | low | Open |
 | S14 | Developer overlay drawings: unit motion draws every unit's path (0.28: the selected units' long path white, short path red, waypoint squares); bounding boxes draw for every model in white (0.28: selected or hovered entities, red and green); the pathfinder overlays lack the search view and region links; the range overlay shows attack rings only | low | Open |
 | S15 | Enable culling and Lock cull camera only stop animations outside the cull camera; 0.28 stops drawing what's outside it | low | Open |
