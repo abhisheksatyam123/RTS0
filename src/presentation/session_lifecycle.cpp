@@ -80,6 +80,20 @@ void RtsoMain::_ready() {
 	rtso::Logger::info("Main", "RTS0 0 A.D. Reborn Ready - Full 0 A.D. UI & Simulation");
 	// 0 A.D. writes oos_dump.txt/.dat to its log dir; ours is user://.
 	turn_mgr_.set_oos_dump_dir(OS::get_singleton()->get_user_data_dir().utf8().get_data());
+	{
+		// 0.28's -ooslog, -serializationtest, -rejointest=N and -unique-logs (main.cpp).
+		Dictionary tests;
+		PackedStringArray args = OS::get_singleton()->get_cmdline_args();
+		args.append_array(OS::get_singleton()->get_cmdline_user_args());
+		for (const String &a : args) {
+			const String arg = a.trim_prefix("-").trim_prefix("-");
+			if (arg == "ooslog") tests["ooslog"] = true;
+			else if (arg == "serializationtest") tests["serializationtest"] = true;
+			else if (arg == "unique-logs") tests["unique_logs"] = true;
+			else if (arg.begins_with("rejointest=")) tests["rejointest"] = arg.get_slice("=", 1).to_int();
+		}
+		set_sim_tests(tests);
+	}
 
 	// Incoming chat: 0 A.D. NetMessages.h NMT_CHAT parity. Fires on the main
 	// thread from net_host_.poll() (_process), so appending to the chat
@@ -1012,6 +1026,7 @@ void RtsoMain::_process(double delta) {
 			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
 			if (turn_mgr_.tick((float)scaled_delta, *sim)) {
 				ticks = rtso::TurnManager::TICKS_PER_TURN;
+				sim_tests_turn();
 				rejoin_test_turn();
 			}
 			// OutOfSyncNetwork: the box opens once the dump is written, and again
@@ -1019,7 +1034,7 @@ void RtsoMain::_process(double delta) {
 			if (turn_mgr_.has_out_of_sync() && !turn_mgr_.oos_dump_pending() &&
 					net_oos_shown_turn_ != turn_mgr_.oos_turn()) {
 				net_oos_shown_turn_ = turn_mgr_.oos_turn();
-				write_replay(); // "Replay saved to"
+				write_replay(false, true); // "Replay saved to", however early
 				quit_confirmation("out_of_sync_network");
 			}
 			if (turn_mgr_.has_out_of_sync() && lobby_status) {
@@ -1097,6 +1112,7 @@ void RtsoMain::_process(double delta) {
 			for (int t = 0; t < max_turns && turn_mgr_.tick(step, *sim); ++t) {
 				ticks += rtso::TurnManager::TICKS_PER_TURN;
 				step = 0.0f;
+				sim_tests_turn();
 				rejoin_test_turn();
 			}
 		}
