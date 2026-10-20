@@ -1,6 +1,7 @@
 #ifndef RTSO_RMS_GENERATOR_H
 #define RTSO_RMS_GENERATOR_H
 
+#include "core/math/det_math.h"
 #include "sim_types.h"
 #include <cstdint>
 #include <vector>
@@ -46,7 +47,7 @@ public:
 	float next_gaussian(float mean = 0.0f, float stddev = 1.0f) {
 		float u1 = std::max(1e-6f, next_float());
 		float u2 = next_float();
-		float z0 = std::sqrt(-2.0f * std::log(u1)) * std::cos(6.28318530718f * u2);
+		float z0 = std::sqrt(-2.0f * det::log(u1)) * det::cos(6.28318530718f * u2);
 		return mean + z0 * stddev;
 	}
 

@@ -6,6 +6,7 @@
 // Units are wall_builder's: lengths and indents in terrain tiles (one tile is one RTS0 unit),
 // angles in radians as rmgen counts them (0 faces +x, growing counter-clockwise; the entity's
 // Position angle is pi/2 less, RandomMap.exportEntityList).
+#include "core/math/det_math.h"
 #include "sim_types.h"
 #include <charconv>
 #include <cmath>
@@ -354,7 +355,7 @@ struct WallAlignT {
 template <class T>
 std::vector<WallAlignT<T>> wall_alignment(T x, T y, const std::vector<WallElementT<T>> &wall, T overlap, T orientation) {
 	struct V { T x, z; };
-	auto rot = [](V v, T a) { return V{v.x * std::cos(a) + v.z * std::sin(a), -v.x * std::sin(a) + v.z * std::cos(a)}; };
+	auto rot = [](V v, T a) { return V{v.x * det::cos(a) + v.z * det::sin(a), -v.x * det::sin(a) + v.z * det::cos(a)}; };
 	const size_t n = wall.size();
 	std::vector<WallAlignT<T>> al(n);
 	V pos{x, y};
@@ -367,7 +368,7 @@ std::vector<WallAlignT<T>> wall_alignment(T x, T y, const std::vector<WallElemen
 		o += e.bend;
 		T d = (T)0.5 * (e.length + wall[i + 1].length) - overlap;
 		if (e.bend != (T)0 && e.indent != (T)0) {
-			d += e.indent * std::sin(e.bend); // indent correction to adjust the distance
+			d += e.indent * det::sin(e.bend); // indent correction to adjust the distance
 			const V back = rot({e.indent, (T)0}, -o);
 			pos = {pos.x + back.x, pos.z + back.z};
 		}

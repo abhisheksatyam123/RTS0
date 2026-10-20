@@ -454,6 +454,14 @@ jobs:
           g++ -std=c++20 -O2 -Isrc tools/test_net_host.cpp src/network/net_host.cpp -o /tmp/test_net_host
           /tmp/test_net_host
 
+      - name: Simulation maths goes through det_math.h
+        run: python3 tools/check_det_math.py
+
+      - name: Platform-independent maths (det_math.h hash)
+        run: |
+          g++ -std=c++20 -O2 -ffp-contract=off -Isrc tools/test_det_math.cpp -o /tmp/test_det_math
+          /tmp/test_det_math
+
       - name: Same match on g++ and on clang with FMA (cross-platform lockstep)
         run: python3 tools/test_cross_compiler.py
 
