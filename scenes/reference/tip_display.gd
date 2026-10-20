@@ -31,6 +31,9 @@ var _hotkeys := RtsoHotkeyConfig.new()
 var _image: TextureRect
 var _title: Label
 var _text: Label
+var _deco: Control
+var _rule: ColorRect
+var _ornament_right: TextureRect
 var _prev: Button
 var _next: Button
 var _image_panel: Control
@@ -105,9 +108,27 @@ func change_tip(step: int) -> void:
 	for line in tip.get("lines", []):
 		bullets.append("• " + tr(str(line))) # [icon="BulletPoint"]; Engine.TranslateLines
 	_text.text = "\n\n".join(bullets)
+	_fit_title()
 	_prev.disabled = not _prev.visible or tip_index == 0
 	_next.disabled = not _next.visible or tip_index >= tips.size() - 1
 	change_image(-image_index)
+
+## scaleGuiElementsToFit: the title grows to its text, the ornament spans the
+## title's width plus 12 px each side just under it, and the bullets start 16 px
+## below the ornament.
+func _fit_title() -> void:
+	var font := _title.get_theme_font("font")
+	var fs := _title.get_theme_font_size("font_size")
+	var text_size := font.get_multiline_string_size(_title.text, HORIZONTAL_ALIGNMENT_CENTER, _title.size.x, fs)
+	_title.size.y = text_size.y
+	var bottom := _title.position.y + _title.size.y # at least the Label's own minimum
+	var w := minf(text_size.x, _title.size.x)
+	_deco.position = Vector2(354 / 2.0 - (w / 2 + 12), bottom - 4)
+	_deco.size = Vector2(w + 24, 16)
+	_rule.size.x = _deco.size.x - 22
+	_ornament_right.position.x = _deco.size.x - 16
+	_text.position.y = _deco.position.y + _deco.size.y + 16
+	_text.size.y = 400 - 60 - _text.position.y
 
 ## onTipImageIndexChange.
 func change_image(step: int) -> void:
@@ -204,6 +225,7 @@ func _build() -> void:
 	side.add_child(_title)
 	# TipTitleDecoration: an ornament at each end of a black line under the title.
 	var deco := Control.new()
+	_deco = deco
 	deco.name = "TipTitleDecoration"
 	deco.position = Vector2(65, 49)
 	deco.size = Vector2(354 - 130, 16)
@@ -213,6 +235,7 @@ func _build() -> void:
 	rule.position = Vector2(11, 9)
 	rule.size = Vector2(deco.size.x - 22, 2)
 	deco.add_child(rule)
+	_rule = rule
 	for right in [false, true]:
 		var orn := TextureRect.new()
 		orn.texture = _tex("title-ornament.png")
@@ -220,6 +243,8 @@ func _build() -> void:
 		orn.position = Vector2(deco.size.x - 16 if right else 0, 0)
 		orn.size = Vector2(16, 16)
 		deco.add_child(orn)
+		if right:
+			_ornament_right = orn
 	_text = Label.new()
 	_text.name = "TipText"
 	_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
