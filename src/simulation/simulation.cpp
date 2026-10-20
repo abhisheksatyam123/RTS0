@@ -7164,8 +7164,14 @@ void Simulation::formation_move_members_into(size_t ci, bool move_center, bool f
 		const int32_t idx = lookup_unit(id);
 		if (idx < 0 || !units_.alive[idx]) continue;
 		const FormationUnitInfo info = formation_unit_info((size_t)idx);
-		const float w = 2.0f * unit_collision_radius(units_.unit_type[idx]); // GetAvgFootprint
-		active.push_back(FormationMember{id, info.classes, units_.pos_x[idx], units_.pos_z[idx], w, w});
+		// GetAvgFootprint: the template's Footprint (cavalry 3x6 m, elephants 4.5x9 m, rams 8x12 m).
+		// RTS0's units are wider than 0.28's (a cavalry radius of 0.85 units is 2.4 m, against a
+		// 3 m wide footprint), so a slot is never narrower than the unit itself or rows push apart.
+		const UnitMotionProfile &mp = unit_motion(units_.tmpl[idx], units_.unit_type[idx]);
+		const float clear = 2.0f * unit_collision_radius(units_.unit_type[idx]);
+		const float w = std::max(mp.footprint_width * FORMATION_METRE, clear);
+		const float d = std::max(mp.footprint_depth * FORMATION_METRE, clear);
+		active.push_back(FormationMember{id, info.classes, units_.pos_x[idx], units_.pos_z[idx], w, d});
 		ax += units_.pos_x[idx];
 		az += units_.pos_z[idx];
 		mounted = mounted || formation_unit_mounted(units_.unit_type[idx]);
@@ -7586,9 +7592,12 @@ bool Simulation::formation_target_in_range(const FormationController &fc) const 
 	float tx, tz;
 	if (!formation_target_pos(fc, tx, tz)) return false;
 	const uint8_t task = formation_task(fc);
+	// Order.Garrison: CheckTargetRange(target, IID_Garrisonable) is false for a controller (it
+	// has no Garrisonable, so GetRange is undefined), so GARRISON.GARRISONING hands every member
+	// its own Garrison order at once and they walk in one by one, never in shape.
+	if (task == FTASK_GARRISON) return true;
 	if (task != FTASK_ATTACK) {
-		// Order.Gather/Repair/Heal: CheckTargetRangeExplicit(target, 0, 10) from the controller;
-		// Order.Garrison: the holder's LoadingRange (Garrisonable GetRange).
+		// Order.Gather/Repair/Heal: CheckTargetRangeExplicit(target, 0, 10) from the controller.
 		float dist;
 		if (fc.target_building) {
 			const Building &b = buildings_[building_id_to_idx_.at(fc.target_building)];
@@ -7598,11 +7607,7 @@ bool Simulation::formation_target_in_range(const FormationController &fc) const 
 		} else {
 			dist = det::hypot(tx - fc.x, tz - fc.z);
 		}
-		const float range = task == FTASK_GARRISON && fc.target_building
-				? structure_loading_range(buildings_[building_id_to_idx_.at(fc.target_building)].type,
-						buildings_[building_id_to_idx_.at(fc.target_building)].civ) + nav::kClearanceExtensionRadius
-				: 10.0f * FORMATION_METRE;
-		return dist <= range;
+		return dist <= 10.0f * FORMATION_METRE;
 	}
 	float range = 0.0f;
 	for (uint32_t id : fc.members) {
@@ -7758,7 +7763,7 @@ std::vector<uint32_t> Simulation::formation_take_task(const std::vector<uint32_t
 			formation_members_attack(ci);
 			continue;
 		}
-		// Out of range: WalkToTargetRange / GARRISON.APPROACHING, in formation.
+		// Out of range: WalkToTargetRange, in formation.
 		fc.goal_x = std::clamp(tx, -map_half_ + 1.0f, map_half_ - 1.0f);
 		fc.goal_z = std::clamp(tz, -map_half_ + 1.0f, map_half_ - 1.0f);
 		fc.order = FORDER_APPROACH;
