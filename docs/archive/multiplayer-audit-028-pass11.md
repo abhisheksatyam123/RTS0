@@ -30,9 +30,10 @@ None of these touches simulation state or the save format.
 ## Fix log
 
 - 2026-10-20 #1435 pass 11 gap 1 (leaving a game before Start goes to the lobby only while signed in to it, else to the main menu, and a cancelled or refused direct join reopens its "Joining an existing game." form, as SetupWindow.js closePage and gamesetup_mp.js cancelSetup do) merged.
-- 2026-10-20 #PR2 pass 11 gap 2 (a player the host moves takes civ and colour along, except on a scenario or a saved game, and an AI in the target slot moves to the slot left, as PlayerAssignment Client.onSelectionChange does) merged.
-- 2026-10-20 #PR2 pass 11 gap 3 (the match's chat history and overlay start empty at Start, a saved game's Start and a rejoin, as the session's new ChatHistory does) merged.
-- 2026-10-20 #PR2 pass 11 gap 4 (`/clear` in the setup empties the setup chat, as clearChatMessages does there) merged.
+- 2026-10-20 #1447 pass 11 gap 2 (a player the host moves takes civ and colour along, except on a scenario or a saved game, and an AI in the target slot moves to the slot left, as PlayerAssignment Client.onSelectionChange does) merged.
+- 2026-10-20 #1447 pass 11 gap 3 (the match's chat history and overlay start empty at Start, a saved game's Start and a rejoin, as the session's new ChatHistory does) merged.
+- 2026-10-20 #1447 pass 11 gap 4 (`/clear` in the setup empties the setup chat, as clearChatMessages does there) merged.
 - 2026-10-20 pass 11 gap 5 (ready status as the name's colour, no " (Ready)" suffix) landed with Session UI's #1429 while this pass was open.
-- 2026-10-20 #PR2 pass 11 gap 6 (once disconnected the pause overlay hides and pausing is off, as PauseOverlay.rebuild and canPause do) merged.
-- 2026-10-20 #PR2 (outside the table; reported by Session UI) a lobby request whose page was freed before its answer no longer calls the dead page's callback ("Attempt to call function on a null instance", lobby_session.gd `_send`).
+- 2026-10-20 #1447 pass 11 gap 6 (once disconnected the pause overlay hides and pausing is off, as PauseOverlay.rebuild and canPause do) merged.
+- 2026-10-20 #1447 (outside the table; reported by Session UI) a lobby request whose page was freed before its answer no longer calls the dead page's callback ("Attempt to call function on a null instance", lobby_session.gd `_send`).
+- 2026-10-20 #PR3 (outside the table; reported by C) the lockstep observer case failed 2 of 10 runs on C's tree only on its "observer caught up" average (9.5 and 14.9 turns behind against 8), with every turn in sync. A slow frame late in the match leaves an observer behind for a while, as 0.28 catches up at 1.1x. The check now also passes when the observer ran several turns a frame (8 at x8; 1 with the bug #1389 fixed).
