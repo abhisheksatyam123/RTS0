@@ -8,7 +8,8 @@ extends SceneTree
 #   4. Shift+N adds control group N to the selection;
 #   5. a right-click on the minimap walks the selected units there and sets a
 #      selected structure's rally point;
-#   6. a unit pressed on and walking away before the release is still selected.
+#   6. a unit pressed on and walking away before the release is still selected;
+#   8. a Ctrl+click on empty ground keeps the selection (input.js:963-975).
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_selection_clicks.gd
 # Exit code 0 = pass.
@@ -283,6 +284,41 @@ func run() -> void:
 		check(main.debug_status_sprites() >= 2, "it shows its supply bar (%d sprites)" % main.debug_status_sprites())
 	else:
 		check(false, "a supply near the unit")
+
+	print("8. Ctrl+click on empty ground keeps the selection")
+	var fresh := {}
+	for u in state()["units"]:
+		fresh[int(u["id"])] = u
+	var fa: Dictionary = fresh.get(int(a["id"]), a)
+	var fb: Dictionary = fresh.get(int(b["id"]), b)
+	var pick_two := func() -> void:
+		main.clear_selection()
+		await frames(20)
+		await click(window_pos(fa))
+		await frames(12)
+		key(KEY_SHIFT, true, false, true)
+		await click(window_pos(fb))
+		key(KEY_SHIFT, false)
+		await frames(12)
+	# Empty ground: the first of a few spots where a plain click clears the selection.
+	var empty = null
+	for off in [Vector2(-160, 0), Vector2(160, 0), Vector2(-160, 60), Vector2(160, 60), Vector2(0, 120)]:
+		await pick_two.call()
+		await click(window_pos(fa) + off)
+		if selected().is_empty() and int(state()["building"]) == 0:
+			empty = window_pos(fa) + off
+			break
+	check(empty != null, "a plain click on empty ground clears the selection")
+	if empty != null:
+		await pick_two.call()
+		var before := selected()
+		key(KEY_CTRL, true, true)
+		await click(empty)
+		key(KEY_CTRL, false)
+		await frames(2)
+		s = selected()
+		check(not before.is_empty() and before.all(func(i): return s.has(i)),
+				"input.js: a Ctrl+click there leaves the selection (%s -> %s)" % [str(before), str(s)])
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)
