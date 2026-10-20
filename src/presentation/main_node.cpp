@@ -4170,8 +4170,10 @@ Dictionary RtsoMain::get_match_settings_info() const {
 		for (const char *k : {"map_size", "start_res", "team_placement", "trigger_difficulty", "biome", "rated"}) d[k] = ms->get(k);
 	// gamesettings PlayerPlacement.pickRandomItems: a Random pick shows the pattern in play.
 	if (sim->played_team_placement()) d["team_placement"] = (int)sim->played_team_placement();
-	// gamedescription.js Rated game: rated with two players, else "disabled" in a lobby game.
-	int players = 0;
+	// gamedescription.js Rated game tests PlayerData.length == 2, which only Game Setup's
+	// list meets: the session's PlayerData holds Gaia too (LobbyRatingReporter.js counts a
+	// 1v1 as 3), so in a match, replay or save only a lobby game has the line.
+	int players = 1;
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) players += sim->player(p).active ? 1 : 0;
 	d["player_count"] = players;
 	Node *ls = get_node_or_null(NodePath("/root/LobbySession"));
