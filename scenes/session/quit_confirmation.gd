@@ -71,6 +71,13 @@ static func return_question(m: Node) -> Node:
 			m.resign())
 	return q
 
+## DeleteSelectionConfirmation: the Delete command (Shift skips it); Yes destroys
+## what was selected when it was asked.
+static func delete_selection(m: Node) -> Node:
+	var q := _open(m, "Delete", "Destroy everything currently selected?", ["No", "Yes"])
+	q.pressed.connect(func(i): if i == 1: m._on_delete_confirmed())
+	return q
+
 ## ResignConfirmation: the menu's Resign.
 static func resign(m: Node) -> Node:
 	var q := _open(m, TITLE, CAPTION_RESIGN, ["No", "Yes"])
