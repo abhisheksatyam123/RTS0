@@ -3,7 +3,8 @@ extends SceneTree
 #   1. Shift-placing a house queues it for the builders (tryPlaceBuilding "queued"): they
 #      keep gathering, and placement goes on; Alt alone places once and ends it;
 #   2. Alt orders the first selected unit able to do it (popOneFromSelection): a woman, not
-#      the cavalryman ahead of her, for a house and for a resource;
+#      the cavalryman ahead of her, for a house and for a resource; a spearman, not the healer
+#      ahead of him, for an enemy;
 #   3. a control group keeps and brings back every structure saved to it (performGroup);
 #   4. a formation is selected as one (addFormationMembers) by Ctrl+click removal, a
 #      double-click and a control group.
@@ -12,6 +13,7 @@ extends SceneTree
 # Exit code 0 = pass.
 
 const BLD_HOUSE := 1
+const ORDER_ATTACK := 4
 const ORDER_GATHER := 6
 const ORDER_BUILD := 7
 
@@ -177,6 +179,20 @@ func run() -> void:
 		check(int(unit(woman2[0])["order_kind"]) == ORDER_GATHER, "she gathers it")
 	else:
 		check(false, "the women's resource is on screen")
+
+	var foe: PackedInt32Array = main.debug_spawn_units("athen/infantry_spearman_b", 1, 1, 0) # player 2's, by our Civic Center
+	var healer: PackedInt32Array = main.debug_spawn_units("athen/support_healer_b", 1)
+	var spear: PackedInt32Array = main.debug_spawn_units("athen/infantry_spearman_b", 1)
+	await turns(2)
+	main.debug_select_units(PackedInt32Array([healer[0], spear[0]]))
+	await frames(2)
+	await hold(KEY_ALT, true)
+	await click(main.debug_unit_screen(foe[0]), MOUSE_BUTTON_RIGHT)
+	await hold(KEY_ALT, false)
+	await turns(3)
+	check(selected() == [healer[0]], "Alt+right-click on an enemy sends the spearman, not the healer ahead of him: %s" % str(selected()))
+	check(int(unit(spear[0])["order_kind"]) == ORDER_ATTACK, "he attacks")
+	main.clear_selection()
 
 	print("3. A control group keeps every structure")
 	var h1: int = main.debug_spawn_building(BLD_HOUSE, 30.0, 30.0)

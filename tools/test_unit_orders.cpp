@@ -3179,6 +3179,7 @@ static void test_work_order_queue() {
 	s.order_gather(&w, 1, tree);
 	s.order_build_or_repair(&w, 1, house, true); // Shift: build the house after
 	run(s, 2.0f);
+	check(!s.unit_has_work_order(w), "a working unit has no work orders kept (no Back to Work button)");
 	s.order_walk(&w, 1, -20, 0);
 	s.cmd_stop(&w, 1); // a Stop after that keeps the work orders the walk kept
 	run(s, 1.0f);
@@ -3194,6 +3195,13 @@ static void test_work_order_queue() {
 	const std::vector<UnitOrder> *q = s.unit_order_queue(w);
 	check(s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == tree, "back to the tree");
 	check(q && q->size() == 1 && (*q)[0].kind == ORDER_BUILD && (*q)[0].target == house, "with the house queued behind it");
+	check(!s.unit_has_work_order(w), "Back to Work uses up the kept work orders");
+	s.order_walk(&w, 1, -25, 0);
+	s.order_back_to_work(&w, 1); // the walk keeps the restored queue
+	check(s.unit_order(w).kind == ORDER_GATHER, "a second walk keeps them again");
+	s.order_gather(&w, 1, tree);
+	s.order_back_to_work(&w, 1);
+	check(s.unit_order(w).kind == ORDER_GATHER && !s.unit_has_work_order(w), "a new Gather order clears them; Back to Work then fails");
 
 	// A trader sheltered in a house goes back to trading.
 	const uint32_t ma = s.spawn_building_world(-40, 20, BLD_MARKET, 0, 1.0f);
@@ -3204,6 +3212,7 @@ static void test_work_order_queue() {
 	run(s, 2.0f);
 	s.order_garrison(&tr, 1, shelter);
 	run_until(s, 10.0f, [&] { return act_of(s, tr) == ACTION_GARRISONED; });
+	check(s.unit_has_work_order(tr), "a sheltered trader keeps its trade route as its work orders");
 	s.order_ungarrison(shelter);
 	run(s, 1.0f);
 	s.order_back_to_work(&tr, 1);
@@ -3670,6 +3679,38 @@ static void test_cant_do_walks() {
 			"the loaded one returns, the empty-handed one walks to the storehouse");
 }
 
+static void test_walk_to_target() {
+	std::printf("100. Repair, Heal and Guard walk the units that can't do the task to the target (UnitAI WalkToTarget)\n");
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(0.0f, -30.0f, BLD_TOWN_CENTER, 0, 1.0f); // territory
+	const uint32_t house = s.spawn_building_world(20.0f, 0.0f, BLD_HOUSE, 0, 0.5f); // a foundation
+	uint32_t pair[2] = {s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN), s.spawn_unit(0, 3, 0, UNIT_CAVALRY)};
+	s.order_build_or_repair(pair, 2, house, false, true);
+	check(s.unit_order(pair[0]).kind == ORDER_BUILD, "the woman builds");
+	check(s.unit_order(pair[1]).kind == ORDER_WALK, "the horseman walks there");
+	run(s, 8.0f);
+	const Simulation::Building *hb = bld(s, house);
+	check(dist(s, pair[1], hb->x, hb->z) < hb->half_size + 4.0f, "beside the house");
+	uint32_t pair2[2] = {s.spawn_unit(-10, 0, 0, UNIT_FEMALE_CITIZEN), s.spawn_unit(-10, 3, 0, UNIT_CAVALRY)};
+	s.order_build_or_repair(pair2, 2, house, false, false); // not forced: an automatic follow-up
+	check(s.unit_order(pair2[1]).kind == ORDER_NONE, "an automatic repair walks nobody");
+
+	const uint32_t hurt = s.spawn_unit(-30, 20, 0, UNIT_SPEARMAN);
+	s.units_.hp[idx_of(s, hurt)] *= 0.5f;
+	uint32_t heal_pair[2] = {s.spawn_unit(-30, -10, 0, UNIT_HEALER), s.spawn_unit(-28, -10, 0, UNIT_SPEARMAN)};
+	s.order_heal(heal_pair, 2, hurt, false);
+	check(s.unit_order(heal_pair[0]).kind == ORDER_HEAL, "the healer heals");
+	check(s.unit_order(heal_pair[1]).kind == ORDER_WALK && s.unit_order(heal_pair[1]).target == hurt,
+			"the spearman walks after the wounded man");
+
+	const uint32_t trader = s.spawn_unit(10, 20, 0, UNIT_TRADER); // no CanGuard
+	s.order_guard(&trader, 1, hurt, false);
+	check(s.unit_order(trader).kind == ORDER_WALK && s.unit_order(trader).target == hurt, "a trader told to guard walks to him");
+	run(s, 15.0f);
+	check(dist(s, trader, x_of(s, hurt), z_of(s, hurt)) < 4.0f, "and reaches him");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3777,6 +3818,7 @@ int main(int argc, char **argv) {
 	test_rally_on_animal();
 	test_heal_click_targets();
 	test_guard_click_targets();
+	test_walk_to_target();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

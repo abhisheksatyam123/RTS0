@@ -5849,6 +5849,9 @@ bool Simulation::cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t st
 void Simulation::note_diplomacy_changed(uint8_t player, uint8_t other, uint8_t stance) {
 	// Diplomacy.js SetDiplomacyIndex: MT_DiplomacyChanged {player, otherPlayer, value},
 	// Trigger.js OnGlobalDiplomacyChanged -> OnDiplomacyChanged.
+	// Every Petra's checkEvents sees it at its next turn, even once undone (PETRA_EVENT_PENDING).
+	petra_diplo_.events_hash |= PETRA_EVENT_PENDING;
+	for (PetraSlot &slot : petra_slots_) slot.petra_diplo_.events_hash |= PETRA_EVENT_PENDING;
 	if (triggers_.triggers.empty()) return;
 	TriggerEventData ev;
 	ev.player = player;
@@ -6694,6 +6697,19 @@ void Simulation::order_attack_building(const uint32_t *unit_ids_in, size_t count
 // to (wx, wz)); a healer only into heal range of it, `reach` from (tx, tz), so it isn't easily
 // killed (0.28 WalkToTargetRange; one already in range stops there). A `follow` unit is
 // followed (follow_walk_target). A player's order: the walk is forced.
+// UnitAI WalkToTarget: Repair, Heal and Guard send a unit that can't do the task walking to
+// the target instead (forced): beside a structure, after a unit.
+void Simulation::walk_to_target(size_t i, uint32_t target) {
+	if (auto bit = building_id_to_idx_.find(target); bit != building_id_to_idx_.end()) {
+		const Building &b = buildings_[bit->second];
+		float wx = b.x, wz = b.z;
+		stand_outside(b, units_.id[i], units_.pos_x[i], units_.pos_z[i], &wx, &wz, unit_clearance_at(i) + kStandMargin);
+		walk_to_attack_target(i, b.x, b.z, 0.0f, wx, wz);
+	} else if (const int32_t t = lookup_unit(target); t >= 0 && units_.alive[t] && units_.id[i] != target) {
+		walk_to_attack_target(i, units_.pos_x[t], units_.pos_z[t], 0.0f, units_.pos_x[t], units_.pos_z[t], target);
+	}
+}
+
 void Simulation::walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz,
 		uint32_t follow) {
 	if (unit_is_healer(units_.tmpl[i], units_.unit_type[i])) {
@@ -6886,9 +6902,12 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
-		if (!unit_builds((size_t)uidx)) continue;
-		// Builder.js CanRepair: only the builder's own or allied foundations and structures.
-		if (!regards_as_ally(units_.team[uidx], b.team)) continue; // IsOwnedByAllyOfPlayer: one-sided
+		// Builder.js CanRepair: a builder, and only its own or allied foundations and structures
+		// (IsOwnedByAllyOfPlayer: one-sided); UnitAI.Repair walks anyone else there.
+		if (!unit_builds((size_t)uidx) || !regards_as_ally(units_.team[uidx], b.team)) {
+			if (force && units_.action_state[uidx] != ACTION_GARRISONED) walk_to_target((size_t)uidx, building_id);
+			continue;
+		}
 
 		// 0 A.D. UnitAI: workers sent to their own finished, undamaged field farm it.
 		if (b.type == BLD_FIELD && b.team == units_.team[uidx] && b.build_progress >= 1.0f && b.hp >= b.max_hp) {
@@ -10077,7 +10096,7 @@ bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
 		if (k != ORDER_NONE && k != ORDER_GARRISON) continue; // ShouldRespondToEndOfAlert
 		uint32_t uid = units_.id[i];
 		cmd_stop(&uid, 1);
-		if (units_.work_kind[i] != ORDER_NONE) order_back_to_work(&uid, 1);
+		if (unit_has_work_order(uid)) order_back_to_work(&uid, 1);
 	}
 	// Units inside nearby structures (and the raiser): unload, then back to work or stop.
 	std::vector<std::pair<uint32_t, uint32_t>> out;
@@ -10094,7 +10113,7 @@ bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
 		order_ungarrison_single(bid, uid);
 		cmd_stop(&uid, 1); // rather than walk to the rally point
 		const int32_t i = lookup_unit(uid);
-		if (i >= 0 && units_.work_kind[i] != ORDER_NONE) order_back_to_work(&uid, 1);
+		if (i >= 0 && unit_has_work_order(uid)) order_back_to_work(&uid, 1);
 	}
 	return true;
 }
@@ -18327,7 +18346,10 @@ void Simulation::order_guard(const uint32_t *unit_ids_in, size_t count_in, uint3
 	for (uint32_t uid : now) {
 		int32_t idx = lookup_unit(uid);
 		if (idx < 0 || !units_.alive[idx] || uid == target_unit_id) continue;
-		if (!unit_can_guard((size_t)idx)) continue;
+		if (!unit_can_guard((size_t)idx)) { // UnitAI.Guard: WalkToTarget
+			if (units_.action_state[idx] != ACTION_GARRISONED) walk_to_target((size_t)idx, target_unit_id);
+			continue;
+		}
 		// Guard.js: one's own or an ally's.
 		const uint8_t gteam = tb ? tb->team : units_.team[tidx];
 		if (gteam != units_.team[idx] && !is_ally(units_.team[idx], gteam)) continue;
@@ -20086,16 +20108,13 @@ void Simulation::order_back_to_work(const uint32_t *unit_ids, size_t count) {
 		// Commands.js back-to-work: notifyBackToWorkFailure for each unit that can't.
 		auto failed = [&] { if (units_.team[i] < MAX_PLAYERS) note_text(units_.team[i], SessionNotice::TEXT_BACK_TO_WORK_FAILED); };
 		// BackToWork: the kept work queue replaces the unit's orders (AddOrders), its first order
-		// now and the rest behind it; without one, the last Gather or Build order alone.
+		// now and the rest behind it; without one it fails.
 		std::vector<UnitOrder> rest;
 		UnitOrder o;
 		if (auto w = work_orders_.find(unit_ids[k]); w != work_orders_.end() && !w->second.empty()) {
 			o = w->second.front();
 			rest.assign(w->second.begin() + 1, w->second.end());
 			work_orders_.erase(w);
-		} else if (units_.work_kind[i] != ORDER_NONE) {
-			o.kind = units_.work_kind[i];
-			o.target = units_.work_target[i];
 		} else {
 			failed();
 			continue;
@@ -20331,8 +20350,11 @@ void Simulation::order_heal(const uint32_t *unit_ids_in, size_t count_in, uint32
 	if (!queued && !formations_.empty()) now = formation_take_task(now, FTASK_HEAL, target_unit_id);
 	for (uint32_t uid : now) {
 		const int32_t h = lookup_unit(uid);
-		if (h < 0 || !units_.alive[h] || !unit_heals((size_t)h)) continue;
-		if (!can_heal((size_t)h, t)) continue;
+		if (h < 0 || !units_.alive[h]) continue;
+		if (!unit_heals((size_t)h) || !can_heal((size_t)h, t)) { // UnitAI.Heal: WalkToTarget
+			if (units_.action_state[h] != ACTION_GARRISONED) walk_to_target((size_t)h, target_unit_id);
+			continue;
+		}
 		start_heal((size_t)h, target_unit_id, ORDER_FLAG_FORCE);
 	}
 }
@@ -20436,7 +20458,11 @@ void Simulation::order_repair_unit(const uint32_t *unit_ids_in, size_t count_in,
 	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
 	for (uint32_t uid : now) {
 		const int32_t i = lookup_unit(uid);
-		if (i < 0 || !units_.alive[i] || !can_repair_unit((size_t)i, t)) continue;
+		if (i < 0 || !units_.alive[i]) continue;
+		if (!can_repair_unit((size_t)i, t)) { // UnitAI.Repair: WalkToTarget
+			if (force && units_.action_state[i] != ACTION_GARRISONED) walk_to_target((size_t)i, target_unit_id);
+			continue;
+		}
 		start_repair_unit((size_t)i, target_unit_id, o.flags);
 	}
 }
@@ -21158,7 +21184,13 @@ bool Simulation::petra_unit_stat_trainable(const PetraUnitStat &st) const {
 		if (!hero_wanted && (t.flags & ROSTER_HERO)) continue;
 		if ((t.flags & ROSTER_SIEGE_TOWER) || (c & TC_SIEGETOWER).any() || triggers_.template_disabled(tmpl)) continue;
 		if (!match_limit_allows(petra_pid_, tmpl, 1)) continue;
-		if (petra_best_trainer(tmpl, t.unit_type, PRODUCTION_QUEUE_MAX)) return true;
+		// gameState.findTrainableUnits: any finished building of ours whose Trainer list has
+		// it, however busy (a full queue, an emergency rally or an upgrade only delays it).
+		for (const auto &b : buildings_) {
+			if (b.team != petra_pid_ || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
+			if (building_trains_template(b.type, b.civ, players_[petra_pid_].civ, tmpl) && can_train_at(petra_pid_, t.unit_type, b.type, tmpl))
+				return true;
+		}
 	}
 	return false;
 }
@@ -23342,8 +23374,7 @@ void Simulation::petra_build_first_base() {
 		} else {
 			petra_ps().food() -= cf; petra_ps().wood() -= cw; petra_ps().gold() -= cg; petra_ps().stone() -= cs;
 		}
-		const uint32_t bid = petra_spawn_foundation(cx, cz, goal);
-		if (bid != 0 && !workers.empty()) petra_order_builders(workers, workers.size(), bid);
+		petra_spawn_foundation(cx, cz, goal);
 	};
 	if (goal != BLD_DOCK) {
 		// The civic centre plan's position: findEconomicCCLocation for wood with proximity to
@@ -25318,9 +25349,7 @@ void Simulation::petra_manage_naval(float dt) {
 					break;
 				}
 				if (!petra_has_builder() || !petra_try_pay(PETRA_Q_DOCK, cost[0], cost[1], cost[2], cost[3])) break;
-				const uint32_t bid = petra_spawn_foundation(cx, cz, BLD_DOCK);
-				auto idle = petra_idle_builders();
-				if (bid && !idle.empty()) petra_order_builders(idle, 3, bid);
+				petra_spawn_foundation(cx, cz, BLD_DOCK);
 			}
 		}
 	}
@@ -25360,9 +25389,7 @@ void Simulation::petra_manage_naval(float dt) {
 							if (dock_sea(probe) != first_sea || petra_building_land(probe, &topo, land) != land) continue;
 							placed = true;
 							if (!petra_try_pay_structure(PETRA_Q_MILITARY_BUILDING, BLD_SUPER_DOCK)) break;
-							const uint32_t bid = petra_spawn_foundation(cx, cz, BLD_SUPER_DOCK);
-							auto idle = petra_idle_builders();
-							if (bid && !idle.empty()) petra_order_builders(idle, 4, bid);
+							petra_spawn_foundation(cx, cz, BLD_SUPER_DOCK);
 						}
 			}
 		}
@@ -25702,10 +25729,7 @@ void Simulation::petra_manage_buildings(float dt) {
 			// The first barracks or range goes at twice militaryBuilding's priority until started.
 			if (n_barracks + n_ranges == 0 && want != BLD_STABLE)
 				petra_change_priority(PETRA_Q_MILITARY_BUILDING, 2 * petra_queue_base_priority(PETRA_Q_MILITARY_BUILDING), PETRA_Q_MILITARY_BUILDING);
-			if (const uint32_t bid = petra_place_generic(want, PETRA_Q_MILITARY_BUILDING, nullptr, nullptr, true)) { // militaryBase
-				auto idle = petra_idle_builders();
-				if (!idle.empty()) petra_order_builders(idle, 3, bid);
-			}
+			petra_place_generic(want, PETRA_Q_MILITARY_BUILDING, nullptr, nullptr, true); // militaryBase
 		}
 	}
 
@@ -25752,10 +25776,7 @@ void Simulation::petra_build_advanced() {
 		return n;
 	};
 	auto build = [&](uint8_t t, bool military_base = true) {
-		const uint32_t bid = petra_place_generic(t, PETRA_Q_MILITARY_BUILDING, nullptr, nullptr, military_base);
-		if (!bid) return;
-		auto idle = petra_idle_builders();
-		if (!idle.empty()) petra_order_builders(idle, 3, bid);
+		petra_place_generic(t, PETRA_Q_MILITARY_BUILDING, nullptr, nullptr, military_base);
 	};
 	// canBuild (the civ's 0 A.D. Builder lists); the elephant stable and arsenal
 	// count only when the civ's roster trains something there.
@@ -26149,10 +26170,6 @@ uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *
 	if (!petra_try_pay_structure(PETRA_Q_DROPSITES, BLD_STOREHOUSE)) return 0;
 	petra_clear_no_room(BLD_STOREHOUSE);
 	const uint32_t bid = petra_spawn_foundation(best_cx, best_cz, BLD_STOREHOUSE);
-	if (bid) {
-		auto idle = petra_idle_builders();
-		if (!idle.empty()) petra_order_builders(idle, 3, bid);
-	}
 	return bid;
 }
 
@@ -26168,11 +26185,7 @@ void Simulation::petra_build_farmstead() {
 	}
 	if (!storehouse || !house || !civ_can_build(petra_ps().civ, BLD_FARMSTEAD) ||
 	    triggers_.building_disabled(petra_pid_, BLD_FARMSTEAD)) return;
-	const uint32_t bid = petra_place_generic(BLD_FARMSTEAD, PETRA_Q_ECONOMIC_BUILDING);
-	if (bid) {
-		auto idle = petra_idle_builders();
-		if (!idle.empty()) petra_order_builders(idle, 3, bid);
-	}
+	petra_place_generic(BLD_FARMSTEAD, PETRA_Q_ECONOMIC_BUILDING);
 }
 
 // A base anchor for Petra (baseManager.js anchors: class CivCentre, which in 0 A.D. includes
@@ -26270,14 +26283,7 @@ bool Simulation::petra_build_new_base(int res) {
 	const int foot = info.footprint;
 	const int cx = (int)std::floor(x / GRID - 0.5f * (float)foot), cz = (int)std::floor(z / GRID - 0.5f * (float)foot);
 	if (!petra_try_pay_structure(PETRA_Q_CIVIL_CENTRE, btype)) return false;
-	const uint32_t bid = petra_spawn_foundation(cx, cz, btype);
-	// Overseas, petra_staff_foundations ships the builders across.
-	uint16_t home_land = 0;
-	const PetraNavalTopo &topo = petra_classified_topo(home_land);
-	const bool overseas = topo.naval_map && petra_land_at(x, z) != home_land;
-	auto idle = petra_idle_builders();
-	if (!idle.empty() && !overseas) petra_order_builders(idle, 4, bid);
-	return bid != 0;
+	return petra_spawn_foundation(cx, cz, btype) != 0;
 }
 
 // queueplanBuilding.js buildOverseaDock: once we have a dock, one more on a land of 3600 m² or
@@ -26720,14 +26726,13 @@ void Simulation::petra_build_defenses() {
 		if (petra_building_built()) return; // the plan waits for a later turn
 		d.pending = 0;
 		int cx = 0, cz = 0;
-		uint32_t bid = 0;
 		if (petra_find_defensive_location(btype, cx, cz)) {
 			// queueplanBuilding.js onStart: the construct command fails at a spot BuildRestrictions
 			// refuses (Distance), and the plan is gone all the same.
 			if (petra_has_builder() && petra_can_place(cx, cz, building_type_info(btype).footprint, btype,
 			        (building_tech_classes(btype) & TC_TOWER) ? 0 : -1) &&
 			    petra_try_pay(PETRA_Q_DEFENSE_BUILDING, cf, cw, cg, cs))
-				bid = petra_spawn_foundation(cx, cz, btype);
+				petra_spawn_foundation(cx, cz, btype);
 		} else if (btype == BLD_FORTRESS) {
 			// queueplanBuilding.js findGoodPosition: a first fortress with no frontier spot
 			// takes the standard placement map (away from houses, off the border, +8 m).
@@ -26735,14 +26740,10 @@ void Simulation::petra_build_defenses() {
 			for (const Building &b : buildings_)
 				if (b.team == petra_pid_ && b.type == BLD_FORTRESS && b.hp > 0.0f && !b.wrecked) { has_fortress = true; break; }
 			const PetraBase *home = get_primary_petra_base();
-			if (!has_fortress && home) bid = petra_place_generic(BLD_FORTRESS, PETRA_Q_DEFENSE_BUILDING);
+			if (!has_fortress && home) petra_place_generic(BLD_FORTRESS, PETRA_Q_DEFENSE_BUILDING);
 			else petra_set_no_room(btype);
 		} else {
 			petra_set_no_room(btype); // setUnbuildable(template, 90, "room")
-		}
-		if (bid) {
-			auto idle = petra_idle_builders();
-			if (!idle.empty()) petra_order_builders(idle, btype == BLD_FORTRESS ? 4 : 2, bid);
 		}
 		return;
 	}
@@ -27042,11 +27043,11 @@ void Simulation::petra_manage_research(float dt) {
 		for (const auto &b : buildings_)
 			if (b.team == petra_pid_ && b.build_progress < 1.0f && b.hp > 0.0f && !b.wrecked && building_phase_class(b.type, b.civ) == cls)
 				++laying;
-		// Village: houses for all that is missing, at most 3 at once. Town: foundations count
-		// (getOwnEntitiesByClass(class, true)), so market, temple and forge can go down together.
-		if (cls != 1) have += laying;
+		// Foundations count (Village: buildMoreHouses' getOwnStructures; Town:
+		// getOwnEntitiesByClass(class, true)), so market, temple and forge can go down together,
+		// and as many houses as there are house plans queued (3, or 5 above 80 population).
+		have += laying;
 		if (have >= need) return;
-		if (cls == 1 && laying >= std::min(need - have, 3)) return;
 		static constexpr uint8_t kVillage[] = {BLD_HOUSE};
 		static constexpr uint8_t kTown[] = {BLD_MARKET, BLD_TEMPLE, BLD_FORGE}; // checkPhaseRequirements order
 		// A Town structure the phase asks for goes at priority 1000 in its queue until started.
@@ -33179,7 +33180,8 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			for (uint8_t b = 0; b < MAX_PLAYERS; ++b) mix(get_diplomacy(a, b));
 		mix((uint32_t)defeated_mask_);
 		mix(ceasefire_active() ? 1u : 0u);
-		const uint16_t ev = (uint16_t)((h ^ (h >> 16)) | 1u); // never 0, the value before the first turn
+		// Never 0, the value before the first turn, and never with PETRA_EVENT_PENDING set.
+		const uint16_t ev = (uint16_t)(((h ^ (h >> 16)) | 1u) & ~PETRA_EVENT_PENDING);
 		const bool changed = ev != dip.events_hash;
 		dip.events_hash = ev;
 		if (changed) petra_last_man_standing_check();
