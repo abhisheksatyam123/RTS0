@@ -25633,7 +25633,11 @@ bool Simulation::pick_petra_safe_staging(float base_x, float base_z, float targe
 // fight while it has entities, then the owner of the enemy civic centre nearest one of
 // ours on the same land; else the strongest enemy (entities, +500 with a civic centre).
 // Rushes leave out an enemy with more than 6 towers and fortresses. 0xFF: none.
-uint8_t Simulation::petra_enemy_player(uint8_t kind) const {
+// `first`: the plan has no target player yet (attack.targetPlayer undefined), so the pick
+// may keep currentEnemyPlayer. `gaia_relics` is set when getRelicEnemyPlayer picked Gaia
+// (resetCaptureGaiaRelic follows), whoever is returned.
+uint8_t Simulation::petra_enemy_player(uint8_t kind, bool first, bool *gaia_relics) const {
+	if (gaia_relics) *gaia_relics = false;
 	bool veto[MAX_PLAYERS] = {};
 	for (int p = 0; p < MAX_PLAYERS; ++p) veto[p] = !petra_foe(p) || is_defeated((uint8_t)p);
 	int wonder_enemy = -1;
@@ -25651,6 +25655,8 @@ uint8_t Simulation::petra_enemy_player(uint8_t kind) const {
 		return (uint8_t)wonder_enemy;
 	// attackManager.js getRelicEnemyPlayer: the enemy holding the most relics, Gaia first
 	// (player 0) while tryCaptureGaiaRelic holds (GAIA_PLAYER; the caller then waits the lapse).
+	// Gaia, player 0, is falsy to getEnemyPlayer: it is only had through currentEnemyPlayer,
+	// which a HugeAttack, or a plan with a target player already, does not keep.
 	if (has_victory(VK_RELIC)) {
 		int held[MAX_PLAYERS] = {}, gaia = 0;
 		for (const auto &rel : relics_) {
@@ -25664,8 +25670,9 @@ uint8_t Simulation::petra_enemy_player(uint8_t kind) const {
 		for (int p = 0; p < MAX_PLAYERS; ++p)
 			if (!veto[p] && held[p] > most) { most = held[p]; best = p; }
 		if (best >= 0 && best < MAX_PLAYERS) return (uint8_t)best;
+		if (best == GAIA_PLAYER && gaia_relics) *gaia_relics = true;
 		if (wonder_enemy >= 0) return (uint8_t)wonder_enemy;
-		if (best >= 0) return (uint8_t)best;
+		if (best == GAIA_PLAYER && first && kind != PETRA_ATTACK_HUGE) return GAIA_PLAYER;
 	}
 	int entities[MAX_PLAYERS] = {};
 	bool has_cc[MAX_PLAYERS] = {};
@@ -25682,7 +25689,9 @@ uint8_t Simulation::petra_enemy_player(uint8_t kind) const {
 		for (int p = 0; p < MAX_PLAYERS; ++p)
 			if (defense[p] > 6) veto[p] = true;
 	if (kind != PETRA_ATTACK_HUGE) {
-		const uint8_t current = petra_attack_enemy();
+		// Gaia, picked once for its relics, stays the enemy of later attacks (it always has entities).
+		const uint8_t current = first ? petra_attack_enemy() : 0xFF;
+		if (current == GAIA_PLAYER && has_victory(VK_RELIC)) return GAIA_PLAYER;
 		if (current < MAX_PLAYERS && !veto[current] && entities[current] > 0) return current;
 		float best_d = 1e30f;
 		int best = -1;
@@ -25864,19 +25873,20 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint
 	if (enemy == 0xFF && p.target_player < MAX_PLAYERS && petra_foe(p.target_player) && !is_defeated(p.target_player)) enemy = p.target_player;
 	// victoryManager.js resetCaptureGaiaRelic: once getEnemyPlayer picks Gaia for its relics,
 	// the next try waits 240 s, 30 s less per difficulty level above Medium.
-	auto pick_enemy = [&] {
-		const uint8_t e = petra_enemy_player(kind);
-		petra_note_enemy(e);
-		if (e == GAIA_PLAYER) {
+	auto pick_enemy = [&](bool first) {
+		bool gaia_relics = false;
+		const uint8_t e = petra_enemy_player(kind, first, &gaia_relics);
+		if (first) petra_note_enemy(e); // with a target player already, currentEnemyPlayer stays
+		if (gaia_relics) {
 			const int wait = 240 - 30 * ((int)petra_config_.difficulty - (int)PETRA_MEDIUM);
 			const_cast<PetraAttackManager &>(petra_attack_mgr_).gaia_relic_lapse = (uint8_t)std::clamp((wait + 1) / 2, 1, 255);
 		}
 		return e;
 	};
-	if (enemy == 0xFF) enemy = pick_enemy();
+	if (enemy == 0xFF) enemy = pick_enemy(true);
 	uint32_t id = petra_nearest_target(kind, forced, enemy, px, pz, same_land, out_tx, out_tz);
 	if (!id) { // attackPlan.js updatePreparation: then the enemy getEnemyPlayer picks now
-		const uint8_t other = pick_enemy();
+		const uint8_t other = pick_enemy(false);
 		if (other != enemy) id = petra_nearest_target(kind, forced, other, px, pz, same_land, out_tx, out_tz);
 	}
 	AttackPlan &w = const_cast<AttackPlan &>(p);

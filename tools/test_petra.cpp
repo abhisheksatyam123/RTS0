@@ -3357,7 +3357,11 @@ static void test_relic_gaia_target() {
 	std::printf("  Gaia relic: target %s, next try in %d s\n", target == relic ? "the relic" : "something else", 2 * lapse);
 	CHECK(target == relic, "the attack targets the Gaia relic");
 	CHECK(lapse == 120, "and the next try at Gaia's relics waits 240 s at Medium");
-	CHECK(s->petra_enemy_player(PETRA_ATTACK_ATTACK) != GAIA_PLAYER, "meanwhile another enemy is picked");
+	// getEnemyPlayer keeps currentEnemyPlayer, Gaia now, for later attacks but a HugeAttack, and
+	// not when the plan already has a target player.
+	CHECK(s->petra_enemy_player(PETRA_ATTACK_ATTACK) == GAIA_PLAYER, "meanwhile later attacks keep Gaia as their enemy");
+	CHECK(s->petra_enemy_player(PETRA_ATTACK_HUGE) != GAIA_PLAYER, "but a HugeAttack goes for a player");
+	CHECK(s->petra_enemy_player(PETRA_ATTACK_ATTACK, false) != GAIA_PLAYER, "as does a plan with a target player already");
 	plan.target_building_id = relic;
 	CHECK(s->find_petra_attack_target(tx, tz, 0, &plan) == relic, "a plan keeps the Gaia relic it targets");
 
