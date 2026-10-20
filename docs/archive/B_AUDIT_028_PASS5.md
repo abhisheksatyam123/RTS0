@@ -15,7 +15,7 @@ Area: the victory-condition simulation (ConquestCommon, Regicide, CaptureTheReli
 1. **Wonders the map places start counting at once.**
    - 0.28: WonderVictory.js:155-164 starts a countdown only on OwnershipChanged. Trigger scripts load after the map's entities, so a starting wonder never counts. Egypt 3v3 gives four players 5 wonders.
    - RTS0: every finished wonder counts from tick 0 (simulation.cpp, wonder countdown).
-   - Medium. Needs a per-building flag, so the save format changes. Its own PR.
+   - Medium. Fixed separately; the existing per-wonder countdown field holds the mark, so no save change.
 2. **Map relics are dropped, and the relic count trims them instead of adding.**
    - 0.28: CaptureTheRelic.js:15-21 spawns the relic count on top of the maps' Gaia catafalques (crocodilopolis_4p 3, north_african_savanna_2p 4, and one each on gallic_highlands_2p, magadha_2p and cycladic_archipelago_2p/3p).
    - RTS0: port_0ad_maps.py has no catafalque entry, and apply_relic_count trims to the setting.
@@ -42,5 +42,5 @@ Area: the victory-condition simulation (ConquestCommon, Regicide, CaptureTheReli
 ## Status (2026-10-20)
 
 - 4, 5, 7 and 8 are fixed in the pass-5 PR. tools/test_victory.cpp checks the foundation and the same-tick fall; test_trade checks the ceasefire market.
-- 1 is next, as its own save PR.
+- 1 is fixed in the starting-wonders PR. A map wonder's countdown field holds -1 until the wonder changes hands, so the save format is unchanged. test_victory 10b covers it.
 - 2 and 3 are REMAINING_GAPS G49, handed to F and D.

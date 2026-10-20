@@ -15905,11 +15905,25 @@ void Simulation::check_victory_conditions(float dt) {
 				continue;
 			}
 			const uint8_t allies = wonder_allies_of(b.team);
-			if (b.wonder_owner != b.team || b.wonder_allies != allies) {
+			if (ticks_ == 0) {
+				// The trigger scripts load after the map's entities, so a wonder the map
+				// gives a player has no countdown (WonderVictory.js listens to
+				// OwnershipChanged) until it changes hands: wonder_hold < 0 marks it.
+				b.wonder_hold = -1.0f;
+				b.wonder_owner = b.team;
+				b.wonder_allies = allies;
+				continue;
+			}
+			if (b.wonder_owner != b.team) {
 				b.wonder_hold = 0.0f;
 				b.wonder_owner = b.team;
 				b.wonder_allies = allies;
+			} else if (b.wonder_allies != allies) {
+				// WonderVictoryDiplomacyChanged restarts only the countdowns that run.
+				if (b.wonder_hold >= 0.0f) b.wonder_hold = 0.0f;
+				b.wonder_allies = allies;
 			}
+			if (b.wonder_hold < 0.0f) continue;
 			b.wonder_hold += dt;
 			wonder_hold_[b.team] = std::max(wonder_hold_[b.team], b.wonder_hold);
 			if (side_of(0) >> b.team & 1) { any_ours = true; ours = std::max(ours, b.wonder_hold); }
