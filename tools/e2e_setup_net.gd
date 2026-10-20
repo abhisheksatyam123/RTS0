@@ -132,13 +132,13 @@ func run() -> void:
 	check(host.pushes > 0 and not ms.cheats, "the host sends its setup, cheats off")
 	# LockedTeams.onLoad: DefaultValue = Engine.HasNetClient(), so a networked setup opens locked.
 	check(page.get_node("%LockTeams").button_pressed and ms.lock_teams, "a networked setup opens with Teams Locked on")
-	check(slot_text(cells(page)[0]) == "alice (You)" and slot_text(cells(page)[6]) == "bob", "slots show their players")
+	check(slot_text(cells(page)[0]) == "alice" and slot_text(cells(page)[6]) == "bob", "slots show their players")
 	# PlayerAssignment: one dropdown per slot, in the Player Placement column.
 	var assign = cells(page)[6 + 2].get_node_or_null("AssignSelect")
 	var items: Array = []
 	for i in (assign.get_item_count() if assign else 0):
 		items.append(assign.get_item_text(i))
-	check(items == ["alice (You)", "bob", "AI: Petra Bot", "Unassigned", "Removed"] and assign.get_item_text(assign.get_selected()) == "bob",
+	check(items == ["alice", "bob", "AI: Petra Bot", "Unassigned", "Removed"] and assign.get_item_text(assign.get_selected()) == "bob",
 		"the host assigns players, an AI, Unassigned or Removed from each slot (%s)" % str(items))
 	var first = cells(page)[2].get_node_or_null("AssignSelect")
 	check(first != null and first.get_item_count() == 4, "slot 1 can't be Removed")
@@ -218,7 +218,7 @@ func run() -> void:
 		"bob's own picks show on the host's page")
 	await create_timer(0.4).timeout
 	check(ms.slot_civs == [1, 15] and ms.slot_colors == [0, 5], "the host's page keeps them")
-	check(slot_text(cells(page)[6]) == "bob (Ready)", "bob is ready")
+	check(slot_text(cells(page)[6]) == "bob" and cells(page)[6].get_theme_color("font_color") == Color.GREEN, "bob is ready: his name turns green")
 	check(not start.disabled and start.tooltip_text == page.START_TOOLTIP, "every player ready: Start")
 	page._on_start_pressed()
 	check(host.started == 1, "Start starts the networked game")
