@@ -689,13 +689,41 @@ public:
 		return out;
 	}
 	int64_t debug_guard_target(int64_t uid) const { return sim ? (int64_t)sim->unit_guard_target((uint32_t)uid) : 0; }
+	// The unit's current order: kind (UnitOrderKind), target and whether it may capture (allowCapture).
+	Dictionary debug_unit_order(int64_t uid) const {
+		Dictionary d;
+		if (!sim) return d;
+		const rtso::UnitOrder o = sim->unit_order((uint32_t)uid);
+		d["kind"] = (int)o.kind;
+		d["target"] = (int64_t)o.target;
+		d["capture"] = (o.flags & rtso::ORDER_FLAG_ALLOW_CAPTURE) != 0;
+		return d;
+	}
 	// Tests: where a unit stands on screen (viewport pixels), or (-1, -1).
+	// Tests: a unit's ground position (x, z), or where it is walking to with `goal`;
+	// (0, 0) when it is gone.
+	Vector2 debug_unit_ground(int64_t uid, bool goal) const {
+		if (!sim) return Vector2();
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == (uint32_t)uid && uv.alive[i])
+				return goal ? Vector2(uv.target_x[i], uv.target_z[i]) : Vector2(uv.pos_x[i], uv.pos_z[i]);
+		return Vector2();
+	}
 	Vector2 debug_unit_screen(int64_t uid) const {
 		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
 		auto uv = sim->units();
 		for (size_t i = 0; i < uv.count; ++i)
 			if (uv.id[i] == (uint32_t)uid && uv.alive[i])
 				return cam_rig->get_camera()->unproject_position(Vector3(uv.pos_x[i], sim->get_terrain_height(uv.pos_x[i], uv.pos_z[i]), uv.pos_z[i]));
+		return Vector2(-1, -1);
+	}
+	// Tests: where a structure's centre is on screen, or (-1, -1).
+	Vector2 debug_building_screen(int64_t bid) const {
+		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
+		for (const auto &b : sim->buildings())
+			if (b.id == (uint32_t)bid)
+				return cam_rig->get_camera()->unproject_position(Vector3(b.x, sim->get_terrain_height(b.x, b.z), b.z));
 		return Vector2(-1, -1);
 	}
 	Vector2 debug_ground_at(Vector2 screen) const {
@@ -876,6 +904,12 @@ private:
 	void clear_selection();
 	bool selection_can_garrison(uint32_t building_id) const;
 	bool selection_can_occupy_turret(uint32_t building_id) const;
+	// unit_actions.js on an enemy structure or Gaia scenery: session.attack (F) asks "attack"
+	// (specificness 9) and session.capture (C) "capture" (10) first; else the first of the two
+	// possible in specificness order, attack before capture. CLICK_NONE: neither (a walk).
+	enum StructureClick { CLICK_NONE = 0, CLICK_ATTACK, CLICK_CAPTURE };
+	StructureClick structure_click(uint32_t building_id) const;
+	StructureClick scenery_click(uint32_t scenery_id) const;
 	uint32_t transport_under(float x, float z) const;
 	// unit_actions.js "set-rallypoint" target under the cursor: a resource, else a structure
 	// (not one of the selected).
@@ -946,6 +980,7 @@ private:
 		if (!cam_rig) return d;
 		d["target"] = Vector2(cam_rig->get_target_pos().x, cam_rig->get_target_pos().z);
 		d["follow"] = (int64_t)cam_rig->follow_id();
+		d["zoom"] = cam_rig->get_zoom();
 		return d;
 	}
 	void play_voice(const char *path);
@@ -965,6 +1000,7 @@ private:
 	bool music_primed_ = false;
 	PackedInt32Array delete_pending_;
 	void play_alarm(const char *path);
+	void render_flare(float x, float z, uint8_t seat, const String &guid);
 	void play_sfx(const char *path);
 	void play_spatial_sfx(const char *path, Vector3 pos);
 

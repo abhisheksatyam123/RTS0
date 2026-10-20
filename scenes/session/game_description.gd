@@ -170,7 +170,8 @@ static func titles(info: Dictionary) -> Array:
 	out.append(["Revealed Map", bool(info.get("reveal_map", false))])
 	out.append(["Allied View", bool(info.get("ally_view", false))])
 	out.append(["Cheats", bool(info.get("cheats", false))])
-	# Rating.js RatingEnabled: a rated 1v1 says so; any other lobby game reads disabled.
+	# Rating.js RatingEnabled: a rated 1v1 in Game Setup says so (player_count without Gaia,
+	# PlayerData.length == 2); any lobby game reads rated or disabled.
 	var rated := bool(info.get("rated", false))
 	if rated and int(info.get("player_count", 0)) == 2:
 		out.append(["Rated game", RATING_DESC])

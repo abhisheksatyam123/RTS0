@@ -205,6 +205,22 @@ def identity(t):
     }
 
 
+# The WallSet whose long piece a BuildingType is (structures/{civ}/wallset_stone,
+# {civ}/wallset_palisade else wallset_palisade, rome/wallset_siege).
+WALLSET_STEMS = {"BLD_WALL_SEGMENT": "wallset_stone", "BLD_PALISADE": "wallset_palisade",
+                 "BLD_SIEGE_WALL": "wallset_siege"}
+
+
+def wallset_template(loader, civ, enum):
+    st = WALLSET_STEMS.get(enum)
+    if st is None:
+        return None
+    for name in ("structures/%s/%s" % (civ, st), "structures/" + st):
+        if loader.exists(name):
+            return name
+    return None
+
+
 def structure_template(loader, civ, enum):
     stems, generic = STEMS[enum]
     for st in stems:
@@ -488,6 +504,12 @@ def collect(zad, prev=None):
             auras = auras_of(sim_root, t)
             if auras:
                 d["auras"] = auras
+            # The build button and the reference pages show the WallSet (TemplateParser.getEntity):
+            # its own name, tooltip, classes and icon over the long piece's stats and auras.
+            ws = wallset_template(loader, civ, enum)
+            if ws:
+                d["wallset"] = identity(loader.load(ws))
+                d["wallset"]["template"] = ws
             rows[str(i)] = d
         structures[civ] = rows
     # Gaia entities the selection panel shows: animals, treasures, ruins, and the generic

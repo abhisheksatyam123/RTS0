@@ -59,6 +59,7 @@ public:
 	void toggle_birds_eye();
 	bool is_birds_eye() const { return birds_eye_; }
 	float get_pitch_deg() const { return target_pitch_deg; }
+	float get_zoom() const { return target_zoom; }
 	void set_map_bounds_half(float h) { map_bounds_half = h; }
 	// The developer overlay's Restrict camera (GameView_SetConstrainCameraEnabled):
 	// off, the camera may leave the map.
