@@ -932,6 +932,7 @@ void RtsoMain::_process(double delta) {
 		}
 		if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
 			net_game_started_ = true;
+			chat_window_.clear_history(); // the session's chat starts empty (Chat.js)
 			// VisualReplay skips a rejoined client's replay ("Don't process files of rejoined
 			// clients"): its commands start mid-match, so it is not recorded at all.
 			replay_recording_ = false;
