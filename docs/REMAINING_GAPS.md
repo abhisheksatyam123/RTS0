@@ -127,7 +127,7 @@ Checked against 0.28: the structure tree and template viewer (TemplateParser, Pr
 | # | Difference from 0.28 | Impact | Status |
 |---|---|---|---|
 | T1 | ~~The Persian tachara shows one upgrade instead of four~~ Fixed: the structure tree, structure pages and template viewer list every Upgrade choice. `tools/e2e_reference_pages.gd` | low | Fixed |
-| T2 | Walls, palisades and the Roman siege wall show their long segment, not the wall set. 0.28's TemplateParser.getEntity gives the wall set a health range over its pieces ("1000 to 3000"), the long piece's resistance, and a "Walls: ... Towers: ..." cost line (tooltips.js getEntityCostTooltip). | low | Open: Compare |
+| T2 | ~~Walls, palisades and the Roman siege wall show their long segment, not the wall set~~ Fixed: the reference pages and the build button show the WallSet's name (Carthaginian Jdar, Han Yōng), tooltip and classes; the reference pages give Health over the pieces ("1000 to 3000") and the "Walls: ... Towers: ..." cost lines, with no Turret Positions. The palisade and siege wall boxes still have no tower icon: RTS0's palisade and siege towers share their segment's type. `tools/e2e_reference_pages.gd` | low | Fixed |
 | T3 | ~~The template viewer for a selected structure uses the owner's civ, and a portrait right-click doesn't pause single player~~ Fixed: a captured structure shows its own civ's data, and the right-click opens the viewer like the other entry points. | low | Fixed |
 | T4 | ~~Upgrade icons in the structure tree show the target's build cost and tooltip~~ Fixed: they show the Upgrade's own cost, time and tooltip. | low | Fixed |
 | T5 | ~~Technology specific names never appear in the reference pages~~ Fixed: techs carry the civ's specificName (Spartan agoge "Agōga"); civinfo shows both names. `tools/e2e_reference_pages.gd` | low | Fixed |
@@ -135,7 +135,7 @@ Checked against 0.28: the structure tree and template viewer (TemplateParser, Pr
 | T7 | ~~The "Flare display duration" option sets the world marker, not the minimap flare~~ Fixed: the minimap flare lasts gui.session.flarelifetime (0 hides it); the flare_target_marker keeps its 6 s Decay. | low | Fixed |
 | T8 | ~~An observer's flare is orange~~ Fixed: white, as Gaia's (renderAndPlayFlare owner 0). | low | Fixed |
 | T9 | ~~The sender gets no "has sent a flare" chat line~~ Fixed: renderAndPlayFlare adds it for the sender too, under gui.session.notifications.flare. | low | Fixed |
-| T10 | Structure tree boxes within a phase follow RTS0's building ids, not mixins/builder.xml's order (CC, house, storehouse, farmstead, field, corral, dock, barracks, ...). | low | Open: Compare |
+| T10 | ~~Structure tree boxes follow RTS0's building ids~~ Fixed: mixins/builder.xml's order (CC, house, storehouse, farmstead, field, corral, dock, barracks, ...), then the civ's own structures. `tools/e2e_reference_pages.gd` | low | Fixed |
 
 ### Status effects, Petra config, Allied View, the Germans and civ pages: Compare's ninth 0.28 pass (2026-10-20)
 
