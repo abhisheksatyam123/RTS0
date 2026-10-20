@@ -23814,7 +23814,6 @@ void Simulation::petra_config_first_base() {
 void Simulation::petra_manage_naval(float dt) {
 	// navalManager.js update: every AI turn; checkLevels, maintainFleet and
 	// buildNavalStructures every 3rd (navalManager.js:873).
-	const float naval_span = dt;
 	petra_naval_timer_ = 0.0f;
 	const bool third_turn = petra_turn_mod(3);
 	if (nav_grid_.cells.blank()) return;
@@ -23881,13 +23880,12 @@ void Simulation::petra_manage_naval(float dt) {
 					    petra_building_land(b, &topo, land) == land && dock_sea(b) == sea) { connected = true; break; }
 				if (connected) continue;
 				started = true; // the first unconnected sea of the first base without a dock there
-				// A search over our territory's shores: once each 10 s of AI time while no spot is
-				// found; while a dock found waits for its resources, each naval turn keeps the
-				// want alive and the search runs again once the queue can pay (the plan's start).
+				// canBuild: no dock plan for 90 s after a search found no room (queueplanBuilding.js
+				// start, setUnbuildable "room"). While a dock waits for its resources, each naval turn
+				// keeps the want alive and the search runs once the queue can pay (the plan's start).
+				if (petra_no_room(BLD_DOCK)) break;
 				const PetraQueueAccount &want = petra_queues_.wants[PETRA_Q_DOCK];
 				const bool waiting = want.food + want.wood + want.gold + want.stone > 0.0f;
-				// (Third turns only: the span since the last one.)
-				if (!waiting && (int)(petra_timer_ / 10.0f) == (int)((petra_timer_ - 3.0f * naval_span) / 10.0f)) break;
 				float cost[4];
 				petra_structure_cost(BLD_DOCK, cost[0], cost[1], cost[2], cost[3]);
 				const PetraQueueAccount &acc = petra_queues_.accounts[PETRA_Q_DOCK];
@@ -23905,7 +23903,10 @@ void Simulation::petra_manage_naval(float dt) {
 					break;
 				}
 				int cx = 0, cz = 0;
-				if (!petra_find_dock_position(land, sea, cx, cz)) break;
+				if (!petra_find_dock_position(land, sea, cx, cz)) {
+					petra_set_no_room(BLD_DOCK);
+					break;
+				}
 				if (!petra_has_builder() || !petra_try_pay(PETRA_Q_DOCK, cost[0], cost[1], cost[2], cost[3])) break;
 				const uint32_t bid = petra_spawn_foundation(cx, cz, BLD_DOCK);
 				auto idle = petra_idle_builders();
@@ -23914,11 +23915,11 @@ void Simulation::petra_manage_naval(float dt) {
 		}
 	}
 
-	// buildNavalStructures, second half: from the town phase, once population passes
-	// popPhase2 + 15 and a dock stands, one super dock (the Carthaginian Cothon) on the
+	// buildNavalStructures, second half: from the town phase, once the accounted population
+	// passes popPhase2 + 15 and a dock stands, one super dock (the Carthaginian Cothon) on the
 	// first dock's sea, after a market if there is none yet. No other civ has one.
 	if (third_turn && topo.naval_map && petra_ps().phase >= 2 && civ_can_build(civ_of(petra_pid_), BLD_SUPER_DOCK) &&
-	    pop_current(petra_pid_) >= petra_pop_phase2() + 15) {
+	    accounted_pop >= petra_pop_phase2() + 15) {
 		uint16_t first_sea = 0;
 		bool shipyard = false, market = false;
 		for (const Building &b : buildings_) {
