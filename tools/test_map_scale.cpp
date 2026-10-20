@@ -842,8 +842,10 @@ int main() {
 		};
 		const int latium = fish(MAP_LATIUM), gulf = fish(MAP_GULF_OF_BOTHNIA), corsica = fish(MAP_CORSICA);
 		CHECK(latium >= 40, "latium: %d fish, 0.28 places scaleByMapSize(45, 65) single fish", latium);
-		CHECK(gulf >= 100, "gulf_of_bothnia: %d fish, 0.28 places 4 * scaleByMapSize(5, 30) groups of 2-3", gulf);
-		CHECK(corsica >= 250, "corsica: %d fish, 0.28 places 50 and 70 groups of 2-3 per player", corsica);
+		// createFood is createObjectGroupsDeprecated: one try per group, so only the groups whose
+		// spot is deep enough in the water are placed.
+		CHECK(gulf >= 10 && gulf <= 3 * 53, "gulf_of_bothnia: %d fish, 0.28 tries 4 * scaleByMapSize(5, 30) groups of 2-3", gulf);
+		CHECK(corsica >= 60 && corsica <= 3 * 240, "corsica: %d fish, 0.28 tries 50 and 70 groups of 2-3 per player", corsica);
 	}
 	{
 		// Every map with a 0 A.D. script has at least the mines, fruit and hunt its script

@@ -971,8 +971,10 @@ static Ref<ArrayMesh> mesh_from_buckets(std::vector<SurfBucket> &buckets, int ma
 	return merged;
 }
 
+// exact_material buckets by the material itself rather than its albedo texture,
+// so a structure drawn from one merged mesh keeps every part's own material.
 static void collect_buckets(const Vector<MeshXform> &instances, bool skip_tiny,
-		std::vector<SurfBucket> &out) {
+		std::vector<SurfBucket> &out, bool exact_material = false) {
 	std::unordered_map<uint64_t, int> key_to_idx;
 	for (int i = 0; i < instances.size(); ++i) {
 		MeshInstance3D *mi = instances[i].mi;
@@ -987,7 +989,7 @@ static void collect_buckets(const Vector<MeshXform> &instances, bool skip_tiny,
 			if (skip_tiny && verts.size() < 3) continue;
 			Ref<Material> mat = mi->get_active_material(s);
 			if (!mat.is_valid()) mat = src->surface_get_material(s);
-			uint64_t key = material_merge_key(mat);
+			uint64_t key = exact_material ? (mat.is_valid() ? (uint64_t)mat->get_rid().get_id() : 0) : material_merge_key(mat);
 			auto it = key_to_idx.find(key);
 			int bi;
 			if (it == key_to_idx.end()) {
@@ -1270,9 +1272,9 @@ static Ref<ArrayMesh> crowd_mesh_from(std::vector<SurfBucket> &buckets) {
 	return out;
 }
 
-static Ref<ArrayMesh> merge_mesh_instances(const Vector<MeshXform> &instances) {
+static Ref<ArrayMesh> merge_mesh_instances(const Vector<MeshXform> &instances, bool exact_material = false) {
 	std::vector<SurfBucket> buckets;
-	collect_buckets(instances, false, buckets);
+	collect_buckets(instances, false, buckets, exact_material);
 	return mesh_from_buckets(buckets, 0);
 }
 
@@ -1771,7 +1773,9 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 					Vector<MeshXform> mesh_instances;
 					collect_mesh_xforms(inst, Transform3D(), mesh_instances);
 					if (mesh_instances.size() > 0) {
-						e.mesh = merge_mesh_instances(mesh_instances);
+						// A static structure is drawn from this mesh (instantiate_building_id):
+						// one draw per material instead of one per GLB part.
+						e.mesh = merge_mesh_instances(mesh_instances, category == "buildings" && !e.animated);
 						if (category == "units") {
 							e.crowd_mesh = merge_crowd_mesh(mesh_instances);
 						} else {

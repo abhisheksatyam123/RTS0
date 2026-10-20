@@ -15,16 +15,16 @@ namespace rtso {
 namespace {
 
 const StringName &instanced_meta() {
-	static const StringName n("rtso_instanced");
-	return n;
+	static const StringName *n = new StringName("rtso_instanced"); // never freed: outlives Godot's shutdown
+	return *n;
 }
 const StringName &owner_meta() {
-	static const StringName n("rtso_instance_owner");
-	return n;
+	static const StringName *n = new StringName("rtso_instance_owner"); // never freed: outlives Godot's shutdown
+	return *n;
 }
 const StringName &base_meta() {
-	static const StringName n("rtso_instance_base");
-	return n;
+	static const StringName *n = new StringName("rtso_instance_base"); // never freed: outlives Godot's shutdown
+	return *n;
 }
 StringName value_meta(const StringName &name) { return StringName(String("rtso_ip_") + String(name)); }
 
@@ -65,7 +65,8 @@ bool gl_compatibility() {
 }
 
 Ref<Shader> load_instanced_shader(const String &path) {
-	static HashMap<String, Ref<Shader>> cache;
+	// Never freed: a static Ref<Shader> would be destroyed after Godot shuts down (crash on exit).
+	static HashMap<String, Ref<Shader>> &cache = *new HashMap<String, Ref<Shader>>();
 	if (const Ref<Shader> *s = cache.getptr(path)) return *s;
 	Ref<Shader> sh;
 	if (!gl_compatibility()) {

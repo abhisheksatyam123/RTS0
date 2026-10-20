@@ -180,8 +180,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 103; // save_state's format; see the history beside it
-	static constexpr uint32_t SAVE_VERSION_PETRA_TARGETED_RELICS = 103; // each Petra's targetedGaiaRelics; each structure's petra_decay_hold
+	static constexpr uint32_t SAVE_VERSION = 104; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_WAGON_SHARING = 103; // the supply wagons their owners locked
+	static constexpr uint32_t SAVE_VERSION_PETRA_TARGETED_RELICS = 104; // each Petra's targetedGaiaRelics; each structure's petra_decay_hold
 	static constexpr uint32_t SAVE_VERSION_AUTOQUEUE_BATCH = 102; // each queued batch's original size once part of it spawned
 	static constexpr uint32_t SAVE_VERSION_CARCASS_OWNER = 101; // each carcass's animal's owner
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
@@ -1074,6 +1075,7 @@ public:
 	bool dropsite_usable_by(uint8_t player, const Building &b) const;
 	// The same test for unit `e` when it is a mobile dropsite (worker elephant, supply wagon).
 	bool mobile_dropsite_usable_by(uint8_t player, size_t e) const;
+	bool unit_dropsite_shared(uint32_t unit_id) const; // ResourceDropsite IsShared on a unit
 	// 0 A.D. "set-dropsite-sharing" (ResourceDropsite.SetSharing) on one of `player`'s dropsites;
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
 	bool cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared);
@@ -4137,6 +4139,7 @@ private:
 	// keep it and the IDLE Timer goes back to guarding; remove-guard, a guard order for
 	// someone else or a charge that is gone or no longer an ally ends it.
 	std::unordered_map<uint32_t, uint32_t> guard_of_;
+	std::vector<uint32_t> locked_dropsite_units_; // sorted ids of supply wagons whose owner locked them
 	// UnitAI workOrders: the queue from its first Gather, Trade, Repair or ReturnResource order,
 	// kept when an order that isn't work replaces it (UpdateWorkOrders), for Back to Work.
 	std::unordered_map<uint32_t, std::vector<UnitOrder>> work_orders_;
