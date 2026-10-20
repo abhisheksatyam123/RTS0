@@ -253,11 +253,26 @@ func run() -> void:
 	check(moved > 2.0 and selected() == [int(a["id"])], "walked %.1f away and still selected: %s" % [moved, str(selected())])
 
 	print("7. Hovering a supply")
-	main.debug_select_units(PackedInt32Array([int(a["id"])]))
-	await frames(2)
-	st = state()
-	main.clear_selection()
-	await frames(2)
+	# The supply nearest the unit is found while it is selected (selected units don't
+	# cover it), then the selection is cleared, so the unit itself, still walking from
+	# step 6, or another walking unit can pass over it and rightly win the pick
+	# (0.28 PickEntityAtPoint): wait until no unit is near it on screen.
+	for _i in 60:
+		main.debug_select_units(PackedInt32Array([int(a["id"])]))
+		await frames(2)
+		st = state()
+		main.clear_selection()
+		await frames(2)
+		if not st.has("nearest_resource_screen"):
+			break
+		var clear := true
+		for u in state()["units"]:
+			# A walking unit's model reaches well above its feet and moves on before the hover.
+			var near := 150.0 if not u["idle"] else 40.0
+			if window_pos(u).distance_to(st["nearest_resource_screen"]) < near:
+				clear = false
+		if clear:
+			break
 	if st.has("nearest_resource_screen"):
 		var rpos: Vector2 = st["nearest_resource_screen"]
 		move(rpos)
