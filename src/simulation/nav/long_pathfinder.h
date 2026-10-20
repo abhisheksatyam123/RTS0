@@ -33,9 +33,11 @@
 // callable so the same search serves PASS_INFANTRY / PASS_CAVALRY / PASS_SHIP.
 
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
+#include <mutex>
 #include <queue>
 #include <utility>
 #include <vector>
@@ -456,6 +458,39 @@ private:
 	JpsBuffers own_; // when the caller keeps none (declared before buf_, which may refer to it)
 	JpsBuffers &buf_;
 };
+
+// LongPathfinder m_Debug (Grid, Steps, set by ComputeJPSPath whichever thread runs it): the
+// tiles the last search reached, kept only while the pathfinder overlay is on
+// (RtsoDebugOverlays). The simulation never reads it.
+struct JpsDebug {
+	std::atomic<bool> on{false};
+	std::mutex m;
+	std::vector<float> x, z;     // each reached tile's centre, in the order the search reached it
+	std::vector<uint8_t> closed; // 1: closed, 0: still on the open list
+	float size = 0.0f;           // a tile's side
+	uint32_t searches = 0;       // searches kept so far
+};
+inline JpsDebug &jps_debug() {
+	static JpsDebug d;
+	return d;
+}
+// Keeps the search just run on `b` while the overlay is on: tile t of a w-wide grid lies at
+// (x0 + (t % w) * size, z0 + (t / w) * size).
+inline void jps_debug_keep(const JpsBuffers &b, int w, float x0, float z0, float size) {
+	JpsDebug &d = jps_debug();
+	if (!d.on.load(std::memory_order_relaxed)) return;
+	std::lock_guard<std::mutex> lock(d.m);
+	d.x.clear();
+	d.z.clear();
+	d.closed.clear();
+	for (const int t : b.touched) {
+		d.x.push_back(x0 + (float)(t % w) * size);
+		d.z.push_back(z0 + (float)(t / w) * size);
+		d.closed.push_back(b.status[(size_t)t] == 2 ? 1 : 0); // STATUS_CLOSED
+	}
+	d.size = size;
+	++d.searches;
+}
 
 template <typename PassFn>
 inline bool compute_jps_path(int w, int h, PassFn passable, int i0, int j0, int iGoal, int jGoal,
