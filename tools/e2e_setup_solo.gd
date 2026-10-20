@@ -32,7 +32,7 @@ func run() -> void:
 	await frames(12)
 	var page = current_scene
 	var spin: SpinBox = page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots")
-	check(spin.min_value == 1.0 and page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SlotsLabel").text == "Players (1-8)", "the count goes down to 1")
+	check(spin.min_value == 1.0 and page.get_node("%PlayerCountSlot").get_child(0).get_item_text(0) == "1", "the count goes down to 1")
 	page._select_map_id("random_mainland")
 	page.refresh_map_list()
 	spin.value = 1
