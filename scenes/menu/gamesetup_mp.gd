@@ -68,6 +68,27 @@ static func start_join(player: String, ip: String, port: int, password := "", ob
 	LobbySession.join_game(room_id)
 	ms.go("res://scenes/main.tscn")
 
+## Engine.StartNetworkHost throws "Failed to start server" when the port
+## cannot be opened (CNetServer::SetupConnection), and gamesetup_mp.js
+## startHost shows it as "Cannot host game: %(message)s." and stays open.
+static func host_port_error(port: int) -> String:
+	var probe := PacketPeerUDP.new()
+	var err := probe.bind(port)
+	probe.close()
+	return "" if err == OK else "Cannot host game: Failed to start server."
+
+## startHost's messageBox titled "Error".
+static func show_host_error(parent: Node, text: String) -> AcceptDialog:
+	var box := AcceptDialog.new()
+	box.name = "HostErrorDialog"
+	box.title = "Error"
+	box.dialog_text = text
+	parent.add_child(box)
+	box.confirmed.connect(box.queue_free)
+	box.canceled.connect(box.queue_free)
+	box.popup_centered()
+	return box
+
 ## gamesetup_mp.js startHost: the match scene hosts on port, registered in the
 ## lobby while signed in. A saved game is picked first (handleAuthenticated's
 ## page_loadgame.xml over `parent`); closing that page hosts nothing.
@@ -238,6 +259,10 @@ func confirm_setup() -> bool:
 	_keep_name(who)
 	if game_name == "":
 		game_name = "%s's game" % who
+	var failed := host_port_error(typed.to_int())
+	if failed != "":
+		show_host_error(self, failed)
+		return false
 	start_host(get_parent(), who, game_name, typed.to_int(), host_password.text if host_password else "", load_saved_game)
 	_close()
 	return true
