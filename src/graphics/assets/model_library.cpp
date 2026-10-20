@@ -84,6 +84,9 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		}
 		// So do the packed siege wagons (tools/extract_0ad_packed_siege.py).
 		if (is_packed_siege_model(id.utf8().get_data())) return natural_h;
+		// Flight Demo's P-51: 0.28's aeroplane.dae stands 5.5 units to a hoplite's 4.5,
+		// so ~2.2 m (a ~9 m wingspan) beside the 1.8 m infantry.
+		if (id == "plane") return 2.2f;
 		// And the Germans' ox wagons (ram-wide, extract_0ad_assets.py ZIP_UNITS),
 		// asked for by civ (germ_wagon) and drawn from wagon.glb.
 		if (id == "wagon" || id.ends_with("_wagon") || id.ends_with("wagon_house")) return natural_h;
@@ -147,7 +150,7 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		else if (base == "temple") return 6.4f;
 		else if (base == "wonder") return 8.5f;
 		else if (base == "barracks" || base == "market" || base == "stable") return 4.4f;
-		else if (base == "wall_tower" || base == "tower") return 4.6f;
+		else if (base == "wall_tower" || base == "tower" || base == "defense_tower") return 4.6f;
 		else if (base == "gate") return 4.5f;
 		else if (base == "wall" || base == "wall_segment") return 3.0f;
 		else if (base == "dock" || base == "shipyard" || base == "blacksmith" || base == "siege_workshop") return 4.0f;
