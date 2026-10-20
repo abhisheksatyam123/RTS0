@@ -6075,6 +6075,36 @@ static void test_worker_roles() {
 	CHECK(s->petra_accounted_workers(false) == accounted + 3, "and accounted workers");
 }
 
+// basesManager.js getTotalResourceLevel (findBestTrainableUnit's scarce-resource penalty): the
+// supplies within 180 m of one of a base's dropsites, not every supply in Petra's territory.
+static void test_total_resource_level() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float cc[2] = {}, enemy[2] = {};
+	for (const auto &b : s->buildings())
+		if (is_civic_centre(b.type)) {
+			float *at = b.team == 1 ? cc : enemy;
+			at[0] = b.x;
+			at[1] = b.z;
+		}
+	float before[RES_COUNT];
+	s->petra_total_resource_level(before);
+	s->spawn_resource_world(cc[0] + 8.0f, cc[1] + 8.0f, RES_STONE, 5000);
+	float near[RES_COUNT];
+	s->petra_total_resource_level(near);
+	CHECK(near[RES_STONE] == before[RES_STONE] + 5000.0f, "stone beside the civic centre counts");
+	// Beside the other player's civic centre: far from every dropsite of ours.
+	s->spawn_resource_world(enemy[0] + 8.0f, enemy[1] + 8.0f, RES_STONE, 5000);
+	float far[RES_COUNT];
+	s->petra_total_resource_level(far);
+	CHECK(far[RES_STONE] == near[RES_STONE], "stone 180 m and more from our dropsites does not");
+}
+
 static void test_out_of_plan_workers() {
 	auto make = [] {
 		auto s = std::make_unique<Simulation>();
@@ -7436,6 +7466,7 @@ int main(int argc, char **argv) {
 	RUN(test_raid_cc_foundation);
 	RUN(test_order_plan_tags);
 	RUN(test_worker_roles);
+	RUN(test_total_resource_level);
 	RUN(test_out_of_plan_workers);
 	RUN(test_dropsites);
 	RUN(test_building_plan_028);
