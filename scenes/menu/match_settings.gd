@@ -83,9 +83,9 @@ var trigger_difficulty: int = 3 # 0 A.D. Trigger Difficulty: 1 Very Easy .. 5 Ve
 var map_daytime: int = 0 # 0 A.D. Daytime: 0 = the map picks, else the option in DAYTIMES (1-based)
 # Random-map width in meters, 0 A.D.'s sizes 128 (Tiny) to 512 (Giant).
 var map_size: int = 256 # 0.28 map_sizes.json default, Normal
-# Petra difficulty 0..5 (sandbox..very hard), behavior 0..3.
+# Petra difficulty 0..5 (sandbox..very hard), behavior 0..3 (player_defaults.json: Medium, random).
 var ai_difficulty: int = 3
-var ai_behavior: int = 2
+var ai_behavior: int = 0
 # Starting resources preset index 0..3 (sparse/normal/generous/abundant).
 var start_res: int = 1
 # Per-slot setup, slot 0 is always the human player.
