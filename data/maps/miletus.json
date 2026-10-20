@@ -7299,6 +7299,13 @@
   ],
   "units": [
     {
+      "type": "",
+      "player": 1,
+      "x": -47.08,
+      "z": -38.99,
+      "template": "theb_sacred_band"
+    },
+    {
       "type": "trireme",
       "player": 1,
       "x": -14.5,

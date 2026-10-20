@@ -457,13 +457,17 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			// template it inherits from that RTS0 has ("parents"), at the variant's own rank.
 			int rank = 0;
 			CharString pick = t;
-			if (rtso::Simulation::resolve_map_template(t.get_data(), &rank) == rtso::CIV_UNIT_TEMPLATE_NONE) {
+			bool resolved = rtso::Simulation::resolve_map_template(t.get_data(), &rank) != rtso::CIV_UNIT_TEMPLATE_NONE;
+			if (!resolved) {
 				Array parents = u.get("parents", Array());
-				for (int k = 0; k < parents.size(); ++k) {
+				for (int k = 0; k < parents.size() && !resolved; ++k) {
 					const CharString pt = String(parents[k]).utf8();
-					if (rtso::Simulation::resolve_map_template(pt.get_data(), &rank) != rtso::CIV_UNIT_TEMPLATE_NONE) { pick = pt; break; }
+					if (rtso::Simulation::resolve_map_template(pt.get_data(), &rank) != rtso::CIV_UNIT_TEMPLATE_NONE) { pick = pt; resolved = true; }
 				}
 			}
+			// port_0ad_maps.py gives a unit no type when its name says nothing (units/plane): with
+			// no template of its own or a parent's to stand in, it is left out.
+			if (!resolved && utype_str.is_empty()) continue;
 			unit_ids[i] = sim->spawn_map_unit(ux, uz, team, utype, pick.get_data(), rank);
 			continue;
 		}
