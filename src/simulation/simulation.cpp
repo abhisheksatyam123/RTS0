@@ -18268,6 +18268,32 @@ void Simulation::tick_unit_ai(float dt) {
 	for (size_t i = 0; i < units_.count; ++i) units_.attacked_by[i] = 0;
 }
 
+bool Simulation::any_can_damage_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return false;
+	const Building &b = buildings_[bit->second];
+	if (b.wrecked || b.hp <= 0.0f) return false;
+	for (size_t n = 0; n < count; ++n) {
+		const int32_t u = lookup_unit(unit_ids[n]);
+		if (u < 0 || !units_.alive[u] || units_.attack_damage[u] <= 0.0f) continue;
+		if (units_.team[u] >= MAX_PLAYERS || !is_hostile(units_.team[u], b.team)) continue;
+		if (unit_can_target_building((size_t)u, b.type)) return true;
+	}
+	return false;
+}
+
+bool Simulation::any_can_capture_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return false;
+	const Building &b = buildings_[bit->second];
+	for (size_t n = 0; n < count; ++n) {
+		const int32_t u = lookup_unit(unit_ids[n]);
+		if (u < 0 || !units_.alive[u] || unit_capture_attack_at((size_t)u) <= 0.0f) continue;
+		if (can_capture_building(units_.team[u], b)) return true;
+	}
+	return false;
+}
+
 bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 	if (b.wrecked || b.hp <= 0.0f || b.build_progress < 1.0f || b.max_capture_points <= 0.0f) return false;
 	if (player >= MAX_PLAYERS || ceasefire_active()) return false;
