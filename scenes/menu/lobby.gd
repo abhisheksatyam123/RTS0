@@ -736,8 +736,8 @@ func _ask_reconnect() -> void:
 		_reconnect_dlg = null
 	_reconnect_dlg.confirmed.connect(func() -> void:
 		done.call()
-		_say("Signing in...")
-		LobbySession.reconnect(func(code: int, _obj) -> void:
+		_say("Connecting…")
+		LobbySession.reconnect(func(code: int, obj) -> void:
 			if not is_inside_tree():
 				return
 			if code == 200:
@@ -748,8 +748,7 @@ func _ask_reconnect() -> void:
 				_update_signed_in()
 				_refresh()
 			else:
-				_say("The lobby server at %s does not answer." % LobbySession.address if code == 0
-						else "Sign in refused.")))
+				_say(lobby_error(code, obj))))
 	_reconnect_dlg.canceled.connect(func() -> void:
 		LobbySession.lost = false
 		done.call())
@@ -863,9 +862,19 @@ func _encrypted_password(who: String) -> String:
 	return ""
 
 
+## feedback.js: the error's own text (XmppClient's, as lobby_server.py sends it),
+## else 0.28's "Unknown error." line; a server that does not answer is
+## ConnectionErrorToString's ConnConnectionRefused.
+static func lobby_error(code: int, obj) -> String:
+	if code == 0:
+		return "The connection was refused by the server"
+	var text := str(obj.get("error", "")) if obj is Dictionary else ""
+	return text if text != "" else "Unknown error. This usually occurs because the same IP address is not allowed to register more than one account within one hour."
+
+
 func _sign_in(who: String) -> void:
 	_sign_btn.disabled = true
-	_say("Signing in...")
+	_say("Connecting…") # login.js continueButton
 	var encrypted := _encrypted_password(who)
 	var done := func(code: int, obj) -> void:
 		_sign_btn.disabled = false
@@ -884,10 +893,8 @@ func _sign_in(who: String) -> void:
 			_chat_log.clear()
 			_update_signed_in()
 			_refresh()
-		elif code == 0:
-			_say("The lobby server at %s does not answer." % _server.text)
 		else:
-			_say("Sign in refused: %s" % (obj.get("error", code) if obj is Dictionary else str(code)))
+			_say(lobby_error(code, obj))
 	LobbySession.sign_in(_server.text.strip_edges(), who, done, encrypted)
 
 
@@ -902,16 +909,14 @@ func _on_register_pressed() -> void:
 
 func _register(who: String) -> void:
 	_register_btn.disabled = true
-	_say("Registering...")
+	_say("Registering…") # register.js continueButton
 	LobbySession.register(_server.text.strip_edges(), who, _password.text, func(code: int, obj) -> void:
 		_register_btn.disabled = false
 		if code == 200:
-			_say("Registered %s; signing in..." % who)
+			_say("Registered") # register.js onRegistered; RTS0 then signs in at once
 			_sign_in(who)
-		elif code == 0:
-			_say("The lobby server at %s does not answer." % _server.text)
 		else:
-			_say("Registration failed: %s" % (obj.get("error", code) if obj is Dictionary else str(code))))
+			_say(lobby_error(code, obj)))
 
 
 ## XmppMessages.js: 0 A.D. reads pushed lobby messages every GUI tick. Here the

@@ -1034,7 +1034,7 @@ void RtsoMain::_process(double delta) {
 			if (turn_mgr_.has_out_of_sync() && !turn_mgr_.oos_dump_pending() &&
 					net_oos_shown_turn_ != turn_mgr_.oos_turn()) {
 				net_oos_shown_turn_ = turn_mgr_.oos_turn();
-				write_replay(); // "Replay saved to"
+				write_replay(false, true); // "Replay saved to", however early
 				quit_confirmation("out_of_sync_network");
 			}
 			if (turn_mgr_.has_out_of_sync() && lobby_status) {
