@@ -5301,7 +5301,7 @@ bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip
 	const float along_v = std::fabs(fvx * bu.x + fvz * bu.y) * b.hu + std::fabs(fvx * bv.x + fvz * bv.y) * b.hv;
 	const bool circle = b.team < MAX_PLAYERS && building_footprint_round(players_[b.team].civ, b.type);
 	return pick_spawn_point_box(b.x, b.z, b.rot, along_u, along_v, circle ? std::max(b.hu, b.hv) : 0.0f,
-			b.has_rally_point, b.rally_x, b.rally_z, type, skip_uid, false, out_x, out_z);
+			b.has_rally_point, b.rally_x, b.rally_z, type, skip_uid, out_x, out_z);
 }
 
 // The search of CCmpFootprint::PickSpawnPoint round a footprint centred on (cx, cz) and turned by
@@ -5312,9 +5312,9 @@ bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip
 // nearest the rally point (the front without one), alternating either way round; the first point
 // whose navcell the unit's passability allows, a land unit's class clearance off deep water as on its
 // steps (the expanded grid CheckUnitPlacement tests), and where no other unit stands wins
-// (CheckUnitPlacement). dry_ground also rejects points under the water line (the siege landing rule).
+// (CheckUnitPlacement): shallow water the passenger can wade is a spot too.
 bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
-		bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid, bool dry_ground,
+		bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid,
 		float &out_x, float &out_z) const {
 	float rad = unit_collision_radius(type);
 	if (rad <= 0.0f) rad = 0.25f;
@@ -5380,7 +5380,6 @@ bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along
 	auto free_at = [&](float px, float pz) {
 		if (std::fabs(px) >= map_half_ - rad || std::fabs(pz) >= map_half_ - rad) return false;
 		if (past_map_edge(px, pz, clearance)) return false; // nor past the map's edge
-		if (dry_ground && get_terrain_height(px, pz) < terrain_water_height_ + 0.15f) return false;
 		if (!nav_grid_.cells.blank()) {
 			const auto [gx, gy] = nav_grid_.world_to_cell(px, pz);
 			if (!nav_grid_.is_passable_for(gx, gy, pass)) return false;
@@ -7361,8 +7360,9 @@ bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z, size
 // world unit is 4 m, so the half extents are 1.5 (half the depth, and half the tower's width) and 1.0
 // (half the ram's width). RTS0 units store no facing, so the footprint's front (its depth axis, u)
 // points from the engine toward (toward_x, toward_z), and the search starts on that side. An engine
-// with no separate target (toward within 1e-3 of its centre) faces +z, with no rally point. The
-// landing is on dry ground only, as before (the ship landing rule). No alive unit may stand within
+// with no separate target (toward within 1e-3 of its centre) faces +z, with no rally point. A spot
+// in shallow water the passenger can wade counts (CheckUnitPlacement with its passability class), so
+// an engine on a shore still empties on its land side and in the shallows. No alive unit may stand within
 // the two collision radii of the spot, except skip_uid (the passenger itself), so each passenger set
 // down earlier blocks the next.
 bool Simulation::siege_spawn_point(size_t holder, uint8_t type, uint32_t skip_uid, float toward_x, float toward_z,
@@ -7374,9 +7374,9 @@ bool Simulation::siege_spawn_point(size_t holder, uint8_t type, uint32_t skip_ui
 	const float len = std::hypot(dx, dz);
 	if (!(len >= 1e-3f))
 		return pick_spawn_point_box(cx, cz, 0.0f, half_d, half_w, 0.0f, false, 0.0f, 0.0f,
-			type, skip_uid, true, out_x, out_z);
+			type, skip_uid, out_x, out_z);
 	return pick_spawn_point_box(cx, cz, std::atan2(dx, dz), half_d, half_w, 0.0f, true, toward_x, toward_z,
-			type, skip_uid, true, out_x, out_z);
+			type, skip_uid, out_x, out_z);
 }
 
 bool Simulation::is_transport(uint32_t unit_id) const {
