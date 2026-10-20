@@ -104,6 +104,22 @@ Right-click priorities on own and allied entities against unit_actions.js (speci
 
 Kept on purpose: the RTS0 villager rows stay as the worker class's default for old saves and pre-roster spawns, but nothing trains one by name (#1014); Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
 
+### Range overlays, auras and Petra: Compare's eighth 0.28 pass (2026-10-20)
+
+Range overlays (RangeOverlayManager.js, Auras.js and Attack.js GetRangeOverlays), aura mechanics and icons, the Germans, reference pages, skirmish map teams and Petra base and emergency choices, checked against 0.28. Owner: Compare; rows owned by another thread name it in Status.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| R1 | ~~Structures never draw their aura range rings (temple 40 m, Iberian monument and Cerannus Totem 50 m, Kushite pyramids, Temple of Amun, Ashoka pillar, captured Rotary Mill)~~ Fixed: every applied range aura of a selected structure or unit draws a ring (Auras.js GetRangeOverlays). `tools/e2e_range_overlays.gd` | medium | Fixed |
+| R2 | ~~Siege engines and siege ships draw no attack ring, and nothing draws a MinRange ring~~ Fixed: stone and bolt throwers, the fire-raiser, siege towers and siege warships draw their attack reach. Towers, fortresses, civic centres and siege engines also draw their MinRange ring (Attack.js:799-815). | medium | Fixed |
+| R3 | ~~14 side-table aura rings were drawn at radius x0.25 while the aura acts at x0.28, and the Seeress showed her unapplied Human Sacrifice ring~~ Fixed: rings come from the auras the sim registers, at their range, so an aura that isn't applied draws none (Auras.js:89). | low-medium | Fixed |
+| R4 | ~~A selected hero wore its own range aura's icon~~ Fixed: a range aura's query leaves out its source (Auras.js CreateActiveQuery); a global aura still marks it. | low | Fixed |
+| R5 | A structure's attack ring is drawn at MaxRange plus half its footprint, where 0.28's renderer draws MaxRange around the centre. This is kept: BuildingAI's reach is measured from the structure's edge, so RTS0's ring shows the real reach. Rome's army camp has a RangeOverlay in 0.28 too. | low | Kept |
+| R6 | Petra's emergency check counts only civic centres and military colonies as territory roots. 0.28 (emergencyManager.js:66-74) also counts wonders, the Carthaginian super dock, the Han ministry, the Mauryan palace and the Persian tachara. Only the emergency chat to allies changes. | low | Open: Formations (Petra defense) |
+| R7 | ~~Petra's new-base choice counts a captured civic centre of another civ as its own~~ Fixed by C (0da3ec661): only its own civ's civic centre counts, as 0.28's headquarters.js:1566-1573 | low | Fixed |
+
+Checked and matching: Auras.js player rules, defeated owners, centre-to-centre range, self-exclusion, garrisoned sources, non-stackable reference counting, required-tech gating, Health/Max keeping the health fraction, the Seeress' negative regeneration, aura icons only on sources with shown status bars, the German heroes' auras (including 0.28's own no-op ones), techs, bonuses, totem and team bonus, the Rotary Mill aura, the catafalque reference page and structure tree trainers, minimap icons, skirmish map teams (scenarios only), and Petra's expansion gates and emergency thresholds.
+
 ### Auras, Germans, reference pages, Allied View, selection details, Petra cadence, skirmish maps, poison and burning: seventh 0.28 pass (2026-10-20)
 
 Checked against 0.28: selection details, global auras, the Germans, Allied View with shared LOS and the minimap, Petra cadence and difficulty, skirmish maps, and poison and burning. Owner: Compare. Rows owned by other threads are named in the Status column.

@@ -26,6 +26,9 @@
 #include <godot_cpp/core/memory.hpp>
 
 #include <algorithm>
+#include <cmath>
+#include <cstring>
+#include <utility>
 #include <cstdint>
 #include <vector>
 
@@ -82,6 +85,8 @@ public:
 		return n;
 	}
 	size_t marker_count() const { return markers_.size(); }
+	// Radii of the rings the last update drew (tests).
+	const std::vector<float> &ring_radii() const { return radii_; }
 
 	// RangeOverlayManager: the selection and the highlighted (hovered or band-boxed)
 	// entities. GuiInterface.SetSelectionHighlight turns the overlays on only for
@@ -90,6 +95,7 @@ public:
 		if (!inst_ || !sim) return;
 		mesh_->clear_surfaces();
 		begun_ = false;
+		radii_.clear();
 		for (auto &m : markers_) {
 			if (m.actor) m.actor->set_position(Vector3(m.x, sim->get_terrain_height(m.x, m.z), m.z));
 			else flag(sim, m.x, m.z, m.color);
@@ -98,37 +104,79 @@ public:
 		std::sort(ids_.begin(), ids_.end());
 		auto listed = [&](uint32_t id) { return std::binary_search(ids_.begin(), ids_.end(), id); };
 		auto shown_for = [&](uint8_t team) { return me >= rtso::MAX_PLAYERS || team == me; };
-		if (!ids_.empty() && show_attack) {
-			for (const auto &b : sim->buildings()) {
-				if (!listed(b.id) || !shown_for(b.team)) continue;
-				const float arrows = sim->building_arrow_range(b);
-				if (arrows > 0.0f && b.build_progress >= 1.0f)
-					ring(sim, b.x, b.z, arrows + b.half_size, Color(1.0f, 0.3f, 0.25f, 0.7f));
+		if (ids_.empty()) {
+			if (begun_) mesh_->surface_end();
+			return;
+		}
+		// Where each listed entity stands now (the AuraManager keeps the spot of its last rebuild).
+		spots_.clear();
+		const Color attack_col(1.0f, 0.3f, 0.25f, 0.7f), aura_col(0.85f, 0.5f, 1.0f, 0.6f);
+		for (const auto &b : sim->buildings()) {
+			if (!listed(b.id) || !shown_for(b.team) || b.build_progress < 1.0f) continue;
+			spots_.push_back({b.id, b.x, b.z});
+			// Attack.js GetRangeOverlays: the Attack's MinRange and MaxRange rings.
+			if (show_attack && sim->building_arrow_range(b) > 0.0f) {
+				const rtso::Simulation::StructureDetails d = sim->structure_details(b);
+				ring(sim, b.x, b.z, d.max_range + b.half_size, attack_col);
+				if (d.min_range > 0.0f) ring(sim, b.x, b.z, d.min_range + b.half_size, attack_col);
 			}
 		}
-		if (!ids_.empty() && (show_auras || show_heal)) {
-			auto uv = sim->units();
-			for (size_t i = 0; i < uv.count; ++i) {
-				if (!uv.alive[i] || !listed(uv.id[i]) || !shown_for(uv.team[i])) continue;
-				const uint16_t ht = uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-				if (show_heal && rtso::unit_is_healer(ht, uv.unit_type[i])) {
-					const float extra = (rtso::unit_heal_range_base(ht, uv.unit_type[i]) - 12.0f) * rtso::COMBAT_DISTANCE_SCALE;
-					ring(sim, uv.pos_x[i], uv.pos_z[i], sim->healer_range(uv.team[i]) + extra, Color(0.3f, 1.0f, 0.4f, 0.6f));
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i) {
+			if (!uv.alive[i] || !listed(uv.id[i]) || !shown_for(uv.team[i])) continue;
+			spots_.push_back({uv.id[i], uv.pos_x[i], uv.pos_z[i]});
+			const uint16_t ht = uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
+			if (show_heal && rtso::unit_is_healer(ht, uv.unit_type[i])) {
+				const float extra = (rtso::unit_heal_range_base(ht, uv.unit_type[i]) - 12.0f) * rtso::COMBAT_DISTANCE_SCALE;
+				ring(sim, uv.pos_x[i], uv.pos_z[i], sim->healer_range(uv.team[i]) + extra, Color(0.3f, 1.0f, 0.4f, 0.6f));
+			}
+			// The siege templates with an Attack RangeOverlay: stone and bolt throwers, the
+			// flamethrower, siege towers and siege warships.
+			if (show_attack && has_attack_overlay(ht)) {
+				const float reach = sim->attack_reach(i);
+				const float min_ratio = rtso::unit_min_range_ratio(uv.unit_type[i], ht);
+				if (reach > 0.0f) {
+					ring(sim, uv.pos_x[i], uv.pos_z[i], reach, attack_col);
+					if (min_ratio > 0.0f) ring(sim, uv.pos_x[i], uv.pos_z[i], reach * min_ratio, attack_col);
 				}
-				if (show_auras && uv.tmpl && uv.tmpl[i] != rtso::CIV_UNIT_TEMPLATE_NONE) {
-					for (int16_t a : rtso::civ_unit_template(uv.tmpl[i]).auras) {
-						if (a < 0) continue;
-						const auto &aura = rtso::civ_hero_aura(a);
-						const float r = aura.range > 0.0f ? aura.range : aura.radius / rtso::AttackDetection::kMetresPerUnit;
-						if (r > 0.0f) ring(sim, uv.pos_x[i], uv.pos_z[i], r, Color(0.85f, 0.5f, 1.0f, 0.6f));
-					}
-				}
+			}
+		}
+		// Auras.js GetRangeOverlays: a ring for every applied range aura, on structures and
+		// units alike, at the range the sim applies it (global auras reach 1000 and get none).
+		if (show_auras) {
+			std::sort(spots_.begin(), spots_.end(), [](const Spot &a, const Spot &b) { return a.id < b.id; });
+			drawn_.clear();
+			for (const auto &src : sim->aura_manager().sources) {
+				if (!src.alive || src.range <= 0.0f || src.range >= 500.0f || !listed(src.source_id)) continue;
+				auto it = std::lower_bound(spots_.begin(), spots_.end(), src.source_id,
+						[](const Spot &a, uint32_t id) { return a.id < id; });
+				if (it == spots_.end() || it->id != src.source_id) continue;
+				// One ring per distinct range of an entity: an aura's several effects share it.
+				const std::pair<uint32_t, int> key{src.source_id, (int)std::lround(src.range * 100.0f)};
+				if (std::find(drawn_.begin(), drawn_.end(), key) != drawn_.end()) continue;
+				drawn_.push_back(key);
+				ring(sim, it->x, it->z, src.range, aura_col);
 			}
 		}
 		if (begun_) mesh_->surface_end();
 	}
 
 private:
+	struct Spot {
+		uint32_t id;
+		float x, z;
+	};
+	std::vector<Spot> spots_;
+	std::vector<float> radii_;
+	std::vector<std::pair<uint32_t, int>> drawn_;
+	static bool has_attack_overlay(uint16_t tmpl) {
+		if (tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return false;
+		const rtso::CivUnitTemplate &t = rtso::civ_unit_template(tmpl);
+		if (t.flags & rtso::ROSTER_SIEGE_TOWER) return true;
+		const char *id = t.id;
+		return std::strstr(id, "ship_siege") || std::strstr(id, "fireraiser") ||
+				(std::strstr(id, "/siege_") && !std::strstr(id, "siege_ram") && !std::strstr(id, "siege_tower"));
+	}
 	void begin() {
 		if (begun_) return;
 		mesh_->surface_begin(Mesh::PRIMITIVE_LINES);
@@ -145,6 +193,7 @@ private:
 	}
 	void ring(const rtso::Simulation *sim, float cx, float cz, float r, const Color &c) {
 		begin();
+		radii_.push_back(r);
 		const int steps = std::max(24, (int)(r * 3.0f));
 		Vector3 prev = ground(sim, cx + r, cz);
 		for (int k = 1; k <= steps; ++k) {

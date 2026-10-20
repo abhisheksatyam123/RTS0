@@ -644,6 +644,11 @@ public:
 	std::vector<uint64_t> flare_received_ms_;
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
 	int get_target_marker_actor_count() const { return range_overlays_.marker_actor_count(); } // tests
+	PackedFloat32Array debug_range_rings() const { // tests: radii of the selection's range rings
+		PackedFloat32Array out;
+		for (float r : range_overlays_.ring_radii()) out.push_back(r);
+		return out;
+	}
 	bool select_first_own(bool building); // tests
 	int get_work_sound_count() const { return session_audio_.work_sounds_played(); } // tests
 	void debug_gather_nearest();
