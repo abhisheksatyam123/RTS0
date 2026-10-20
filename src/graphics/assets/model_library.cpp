@@ -285,6 +285,7 @@ Ref<Texture2D> specular_map_for(const Ref<Texture2D> &albedo) { return table_tex
 // skins (texture-only variant group) and their frequencies, by baked image; a
 // head's objectcolor material adds its hair colours (sRGB) and their frequencies.
 struct UnitVariants {
+	String salt; // shared by the images one draw picks together (a horse's coat and hair)
 	PackedStringArray layers;
 	std::vector<float> freq;
 	std::vector<Color> colors;
@@ -304,7 +305,8 @@ HashMap<String, UnitVariants> &unit_variants() {
 				Array layers = e.get("layers", Array()), freq = e.get("freq", Array());
 				Array colors = e.get("colors", Array()), color_freq = e.get("color_freq", Array());
 				UnitVariants uv;
-				for (int j = 0; j < layers.size() && j < freq.size() && j < 8; ++j) {
+				uv.salt = e.get("salt", String());
+				for (int j = 0; j < layers.size() && j < freq.size() && j < 12; ++j) {
 					uv.layers.push_back(layers[j]);
 					uv.freq.push_back((float)(double)freq[j]);
 				}
@@ -321,19 +323,18 @@ HashMap<String, UnitVariants> &unit_variants() {
 	return m;
 }
 // Where each choice after the first starts in [0, 1), by frequency (2.0 past the last),
-// as the shader's variant_cut and object_cut take them.
-Array cumulative_cuts(const std::vector<float> &freq) {
+// as the shader's variant_cut (vec4s = 3) and object_cut (2) take them.
+Array cumulative_cuts(const std::vector<float> &freq, int vec4s) {
 	float total = 0.0f;
 	for (float f : freq) total += f;
-	float cut[8] = { 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f };
+	float cut[12] = { 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f };
 	float run = 0.0f;
-	for (size_t i = 0; i + 1 < freq.size() && i < 8 && total > 0.0f; ++i) {
+	for (size_t i = 0; i + 1 < freq.size() && (int)i < 4 * vec4s && total > 0.0f; ++i) {
 		run += freq[i];
 		cut[i] = run / total;
 	}
 	Array cuts;
-	cuts.push_back(Vector4(cut[0], cut[1], cut[2], cut[3]));
-	cuts.push_back(Vector4(cut[4], cut[5], cut[6], cut[7]));
+	for (int v = 0; v < vec4s && v < 3; ++v) cuts.push_back(Vector4(cut[v * 4], cut[v * 4 + 1], cut[v * 4 + 2], cut[v * 4 + 3]));
 	return cuts;
 }
 // The skins as one array texture (RGBA8, the body image's size), shared by
@@ -366,6 +367,23 @@ Ref<Texture2DArray> unit_variant_array(const UnitVariants &uv) {
 }
 Ref<Shader> &player_color_shader() {
 	static Ref<Shader> &sh = *new Ref<Shader>();
+	return sh;
+}
+// The same shader with CUTOUT defined: an alpha-tested skin that varies by unit
+// (a horse's mane and tail) keeps its alpha test.
+Ref<Shader> &player_color_cutout_shader() {
+	static Ref<Shader> &sh = *new Ref<Shader>();
+	if (sh.is_null() && player_color_shader().is_valid()) {
+		const String code = player_color_shader()->get_code();
+		const int at = code.find("shader_type spatial;");
+		if (at >= 0) {
+			const int end = at + String("shader_type spatial;").length();
+			sh.instantiate();
+			sh->set_code(code.substr(0, end) + "\n#define CUTOUT" + code.substr(end));
+			const TypedArray<StringName> metas = player_color_shader()->get_meta_list();
+			for (int i = 0; i < metas.size(); ++i) sh->set_meta(metas[i], player_color_shader()->get_meta(metas[i]));
+		}
+	}
 	return sh;
 }
 HashMap<uint64_t, Ref<ShaderMaterial>> &player_color_mats() {
@@ -406,9 +424,12 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 		if (sh.is_null()) sh = load_instanced_shader("res://shaders/player_color.gdshader");
 		// A skin that varies by unit (data/unit_variants.json) needs the shader to pick it.
 		const UnitVariants *uv = unit_variants().getptr(image_key(tex));
-		if ((mask.is_valid() || ((spec.is_valid() || height.is_valid() || uv) && opaque)) && sh.is_valid()) {
+		const bool cutout = uv && !mask.is_valid() && bm->get_transparency() == BaseMaterial3D::TRANSPARENCY_ALPHA_SCISSOR;
+		Ref<Shader> use = cutout ? player_color_cutout_shader() : sh;
+		if ((mask.is_valid() || ((spec.is_valid() || height.is_valid() || uv) && opaque) || cutout) && use.is_valid()) {
 			out.instantiate();
-			out->set_shader(sh);
+			out->set_shader(use);
+			if (cutout) out->set_shader_parameter("alpha_scissor", bm->get_alpha_scissor_threshold());
 			out->set_shader_parameter("albedo_tex", tex);
 			if (mask.is_valid()) {
 				out->set_shader_parameter("mask_tex", mask);
@@ -439,8 +460,9 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 				if (arr.is_valid()) {
 					out->set_shader_parameter("use_variants", true);
 					out->set_shader_parameter("variant_tex", arr);
-					out->set_shader_parameter("variant_cut", cumulative_cuts(uv->freq));
-					out->set_shader_parameter("variant_salt", (float)(image_key(tex).hash() & 0xFFFFu) / 65536.0f);
+					out->set_shader_parameter("variant_cut", cumulative_cuts(uv->freq, 3));
+					const String salt = uv->salt.is_empty() ? image_key(tex) : uv->salt;
+					out->set_shader_parameter("variant_salt", (float)(salt.hash() & 0xFFFFu) / 65536.0f);
 					// model_common.fs USE_OBJECTCOLOR: the hair (the layer's alpha) takes a colour
 					// the head's actor picks by variant, multiplied in sRGB as 0 A.D. draws it.
 					if (!uv->colors.empty()) {
@@ -451,7 +473,7 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 						}
 						out->set_shader_parameter("use_object_color", true);
 						out->set_shader_parameter("object_colors", cols);
-						out->set_shader_parameter("object_cut", cumulative_cuts(uv->color_freq));
+						out->set_shader_parameter("object_cut", cumulative_cuts(uv->color_freq, 2));
 					}
 				}
 			}
@@ -505,7 +527,8 @@ String ModelLibrary::building_glb_id(const String &id) {
 
 bool ModelLibrary::is_player_color_material(const Ref<Material> &mat) {
 	Ref<ShaderMaterial> sm = mat;
-	return sm.is_valid() && sm->get_shader().is_valid() && sm->get_shader() == player_color_shader();
+	return sm.is_valid() && sm->get_shader().is_valid() &&
+			(sm->get_shader() == player_color_shader() || sm->get_shader() == player_color_cutout_shader());
 }
 
 void ModelLibrary::set_player_color(Node *n, const Color &c) {
@@ -1131,17 +1154,14 @@ static const CrowdParts *crowd_parts(const std::vector<SurfBucket> &buckets) {
 	PackedFloat32Array salts;
 	salts.resize(CROWD_MAX_PARTS);
 	for (int i = 0; i < CROWD_MAX_PARTS; ++i) salts.set(i, 0.0f);
-	for (int i = 0; i < CROWD_MAX_PARTS * 2; ++i) cuts.push_back(Vector4(2, 2, 2, 2));
+	for (int i = 0; i < CROWD_MAX_PARTS * 3; ++i) cuts.push_back(Vector4(2, 2, 2, 2));
 	for (size_t i = 0; i < parts.size(); ++i) {
 		const Part &p = parts[i];
 		cp->part_of[keys[i]] = (int)i;
 		cp->first_layer.push_back(images.size());
 		if (p.variants.is_valid()) {
 			for (int l = 0; l < p.layers; ++l) images.push_back(crowd_layer_image(p.variants->get_layer_data(l), size));
-			if (p.cut.size() >= 2) {
-				cuts[i * 2] = p.cut[0];
-				cuts[i * 2 + 1] = p.cut[1];
-			}
+			for (int v = 0; v < p.cut.size() && v < 3; ++v) cuts[i * 3 + v] = p.cut[v];
 			salts.set(i, p.salt);
 		} else {
 			images.push_back(crowd_masked_layer(p.albedo, p.mask, p.tint, size));
@@ -1261,7 +1281,9 @@ static Ref<ArrayMesh> crowd_mesh_from(std::vector<SurfBucket> &buckets) {
 	std::vector<SurfBucket> body, apart;
 	for (SurfBucket &b : buckets) {
 		Ref<BaseMaterial3D> bm = b.mat;
-		const bool cutout = bm.is_valid() && bm->get_transparency() != BaseMaterial3D::TRANSPARENCY_DISABLED;
+		Ref<ShaderMaterial> sm = b.mat;
+		const bool cutout = (bm.is_valid() && bm->get_transparency() != BaseMaterial3D::TRANSPARENCY_DISABLED) ||
+				(sm.is_valid() && sm->get_shader().is_valid() && sm->get_shader() == player_color_cutout_shader());
 		(b.own_surface || cutout ? apart : body).push_back(std::move(b));
 	}
 	if (body.empty()) return mesh_from_buckets(apart, 0);
