@@ -1033,6 +1033,25 @@ private:
 	std::unique_ptr<rtso::TurnManager> rejoin_tm_;
 	uint32_t rejoin_from_turn_ = 0, rejoin_turns_ = 0, rejoin_oos_turn_ = 0;
 	void rejoin_test_turn();
+public:
+	// 0.28's simulation test flags (main.cpp, readme.txt), from the command line or
+	// set_sim_tests: {"ooslog": bool, "serializationtest": bool, "rejointest": int turn
+	// (-1 off), "unique_logs": bool}. -ooslog writes the state, readable (.txt) and
+	// binary (.dat), after every turn to user://sim_log/<pid>/; -serializationtest
+	// loads a copy of the game from a snapshot each turn, runs the next turn on both and
+	// compares them, a mismatch printed, logged to sim_log/<pid>/serializationtest/ and
+	// the test stopped; -rejointest=N starts the rejoin test at turn N; -unique-logs
+	// names the OOS dump oos_dump_<unix time>_<pid>.
+	void set_sim_tests(const Dictionary &d);
+	Dictionary get_sim_tests() const;
+private:
+	bool ooslog_ = false, serialization_test_ = false;
+	int rejoin_test_turn_ = -1;
+	String sim_log_dir_;
+	std::unique_ptr<rtso::Simulation> serial_sim_;
+	std::unique_ptr<rtso::TurnManager> serial_tm_;
+	uint32_t serial_turns_ = 0, serial_fail_turn_ = 0;
+	void sim_tests_turn();
 	int perspective_pick_ = -1; // the dropdown item picked, until the lockstep turn seats us there
 	OptionButton *observer_view_picker_ = nullptr;
 	Label *observer_mode_label_ = nullptr;

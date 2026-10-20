@@ -1019,7 +1019,8 @@ public:
 	// instead of its garrison.
 	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false,
 			bool turret = false);
-	void order_ungarrison(uint32_t building_id);
+	// forced_turrets: turret units step down even with no free spot (GetSpawnPosition forced).
+	void order_ungarrison(uint32_t building_id, bool forced_turrets = false);
 	// GarrisonHolder.EjectOrKill. With `keep_allies_of` a player, only units not owned by that
 	// player or a mutual ally of theirs leave (OnGlobalOwnershipChanged, OnDiplomacyChanged).
 	void eject_or_kill(Building &b, uint8_t keep_allies_of = 0xFF);
@@ -2958,7 +2959,7 @@ private:
 	bool structure_accepts_turret(const Building &b, size_t i) const;
 	bool turret_room(const Building &b) const;
 	void step_down_turret(Building &b, uint32_t unit_id);
-	void leave_turret(size_t i, const Building &b);
+	bool leave_turret(size_t i, const Building &b, bool forced);
 	void tick_turrets();
 	void builder_stand_point(size_t i, const Building &b, float x, float z, float &tx, float &tz) const;
 	std::vector<FormationController> formations_; // in creation order

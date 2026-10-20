@@ -28,6 +28,9 @@ void los_view_grid(const Simulation &sim, uint8_t viewer, std::vector<uint8_t> &
 bool los_sees_all(const Simulation &sim, uint8_t viewer);
 // A unit the viewer sees: an ally's always, others in the viewer's LOS.
 bool los_sees_unit(const Simulation &sim, uint8_t viewer, float x, float z, uint8_t team);
+// An animal the viewer sees: template_unit_fauna.xml RetainInFog keeps it shown, picked and
+// ordered on in explored fog (VIS_FOGGED), hidden only where the viewer never explored.
+bool los_sees_fauna(const Simulation &sim, uint8_t viewer, float x, float z, uint8_t owner);
 
 // A structure as the viewer knows it: live when in sight, a mirage when fogged.
 struct FoggedBuilding {

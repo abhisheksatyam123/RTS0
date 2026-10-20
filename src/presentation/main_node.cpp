@@ -617,9 +617,10 @@ bool RtsoMain::building_trains_units(uint32_t id) const {
 	if (!sim || id == 0) return false;
 	for (const auto &b : sim->buildings()) {
 		if (b.id != id) continue;
-		const uint8_t civ = rtso::building_trains_native(b.type) ? b.civ : sim->player_civ(b.team);
-		for (uint16_t i : rtso::civ_roster_ids(civ))
-			if (rtso::civ_unit_template(i).trainers & rtso::bld_bit(b.type)) return true;
+		const uint8_t owner = sim->player_civ(b.team);
+		for (uint8_t civ : {b.civ, owner})
+			for (uint16_t i : rtso::civ_roster_ids(civ))
+				if (rtso::building_trains_template(b.type, b.civ, owner, i)) return true;
 		return false;
 	}
 	return false;
@@ -695,7 +696,7 @@ void RtsoMain::set_game_speed(float speed) {
 	if (net_lockstep() || !(speed > 0.0f)) return;
 	const Array speeds = speed_choices(fast_forward_allowed());
 	game_speed = std::clamp(speed, (float)speeds[0], (float)speeds[speeds.size() - 1]);
-	if (speed_btn) speed_btn->set_text(speed_text(game_speed));
+	if (speed_btn && speed_btn->get_button_icon().is_null()) speed_btn->set_text(speed_text(game_speed));
 }
 
 // The pause hotkey and the replay's Pause button. Networked, the pause holds
@@ -955,9 +956,11 @@ void RtsoMain::update_net_status_overlay() {
 			for (const auto &e : net_host_.playerAssignment())
 				if (e.client == c && !e.name.empty()) name = String::utf8(e.name.c_str()).replace("[", "[lb]");
 			const uint8_t pl = turn_mgr_.player_for_client(c);
-			if (name.is_empty()) name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : String("an observer");
-			if (pl < rtso::MAX_PLAYERS && sim)
-				name = "[color=#" + String::num_int64(rtso::display_colors::rgb(*sim, pl), 16).lpad(6, "0") + "]" + name + "[/color]";
+			// colorizePlayernameByGUID: "Unknown Player" without a name, white for an observer.
+			const bool seated = pl < rtso::MAX_PLAYERS;
+			if (name.is_empty()) name = seated ? player_display_name(pl) : tr("Unknown Player");
+			const uint32_t rgb = seated && sim ? rtso::display_colors::rgb(*sim, pl) : 0xFFFFFFu;
+			name = "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + name + "[/color]";
 			loading += (loading.is_empty() ? "" : tr(", ")) + name;
 		}
 		if (!loading.is_empty()) status = tr("Waiting for players to connect:");
@@ -1437,6 +1440,7 @@ void RtsoMain::update_hud() {
 	}
 	// GameSpeedButton: hidden in networked games (g_IsNetworked), shown in replays with Fast Forward.
 	if (speed_btn) speed_btn->set_visible(!net_lockstep());
+	top_panel_.set_player_buttons_visible(sim && view_player() < rtso::MAX_PLAYERS);
 }
 
 // Selection details (0 A.D. gui/session/selection_details.js): real values
@@ -1540,7 +1544,7 @@ std::vector<uint32_t> RtsoMain::structure_trainers(uint16_t tmpl, uint32_t holde
 		for (const auto &b : sim->buildings()) {
 			if (b.id != id) continue;
 			if ((b.team == local_player() || control_all) && b.build_progress >= 1.0f && !b.wrecked && b.upgrade_to == rtso::BLD_TYPE_COUNT &&
-					(u.trainers & rtso::bld_bit(b.type)))
+					rtso::building_trains_template(b.type, b.civ, sim->player_civ(b.team), tmpl))
 				out.push_back(id);
 			break;
 		}
@@ -1750,7 +1754,8 @@ void RtsoMain::activate_rejoin_test() {
 // one replays that turn's commands onto the copy, whose turn manager checks the copy's
 // hash against the turn's.
 void RtsoMain::rejoin_test_turn() {
-	if (!rejoin_test_ || !sim || turn_mgr_.is_replaying() || turn_mgr_.turn_history().empty()) return;
+	rtso::TurnFrame frame;
+	if (!rejoin_test_ || !sim || !turn_mgr_.last_turn_frame(frame)) return;
 	if (!rejoin_sim_) {
 		const String path = ProjectSettings::get_singleton()->globalize_path("user://rejoin_test.rts0sav");
 		const std::string p = path.utf8().get_data();
@@ -1766,13 +1771,101 @@ void RtsoMain::rejoin_test_turn() {
 		rejoin_from_turn_ = turn_mgr_.current_turn();
 		return;
 	}
-	rejoin_tm_->push_shadow_frame(turn_mgr_.turn_history().back());
+	rejoin_tm_->push_shadow_frame(frame);
 	if (!rejoin_tm_->tick(rtso::TurnManager::TURN_DURATION, *rejoin_sim_)) return;
 	++rejoin_turns_;
 	if (rejoin_tm_->replay_out_of_sync() && !rejoin_oos_turn_) {
 		rejoin_oos_turn_ = rejoin_tm_->replay_out_of_sync_turn();
-		quit_confirmation("out_of_sync_rejoin_test");
+		// A replay (-rejointest with -replay) reports it on the command line instead.
+		if (turn_mgr_.is_replaying()) UtilityFunctions::printerr(String("Rejoin test failure on turn %d").replace("%d", String::num_int64(rejoin_oos_turn_)));
+		else quit_confirmation("out_of_sync_rejoin_test");
 	}
+}
+
+void RtsoMain::set_sim_tests(const Dictionary &d) {
+	ooslog_ = bool(d.get("ooslog", false));
+	serialization_test_ = bool(d.get("serializationtest", false));
+	rejoin_test_turn_ = int(d.get("rejointest", -1));
+	if (bool(d.get("unique_logs", false)))
+		turn_mgr_.set_oos_dump_name(("oos_dump_" + String::num_int64((int64_t)Time::get_singleton()->get_unix_time_from_system()) +
+				"_" + String::num_int64(OS::get_singleton()->get_process_id())).utf8().get_data());
+	else
+		turn_mgr_.set_oos_dump_name("oos_dump");
+	// CSimulation2: sim_log/<pid> under the log directory.
+	sim_log_dir_ = OS::get_singleton()->get_user_data_dir() + "/sim_log/" + String::num_int64(OS::get_singleton()->get_process_id()) + "/";
+	serial_sim_.reset();
+	serial_tm_.reset();
+	serial_turns_ = serial_fail_turn_ = 0;
+}
+
+Dictionary RtsoMain::get_sim_tests() const {
+	Dictionary d;
+	d["ooslog"] = ooslog_;
+	d["serializationtest"] = serialization_test_;
+	d["rejointest"] = rejoin_test_turn_;
+	d["sim_log"] = sim_log_dir_;
+	d["oos_dump_name"] = String::utf8(turn_mgr_.oos_dump_name().c_str());
+	d["serialization_turns"] = serial_turns_;
+	d["serialization_failure_turn"] = serial_fail_turn_;
+	d["rejoin_failure_turn"] = rejoin_oos_turn_;
+	return d;
+}
+
+// After every turn (CSimulation2::Update): the OOS log, the serialization test, and
+// the rejoin test's start at its turn.
+void RtsoMain::sim_tests_turn() {
+	rtso::TurnFrame frame;
+	if (!sim || !turn_mgr_.last_turn_frame(frame)) return;
+	const String turn = String::num_int64(frame.turn_index).lpad(8, "0");
+	if (ooslog_) {
+		DirAccess::make_dir_recursive_absolute(sim_log_dir_);
+		const std::string base = (sim_log_dir_ + turn).utf8().get_data();
+		std::ofstream file(base + ".txt", std::ios::out | std::ios::trunc);
+		if (file) {
+			file << "turn: " << frame.turn_index << "\nhash: " << frame.sim_state_hash << "\n";
+			rtso::TurnManager::write_state_text(file, *sim);
+		}
+		sim->save_state((base + ".dat").c_str());
+	}
+	if (rejoin_test_turn_ >= 0 && !rejoin_test_ && frame.turn_index >= (uint32_t)rejoin_test_turn_) {
+		rejoin_test_ = true;
+		refresh_dev_overlay();
+	}
+	if (!serialization_test_) return;
+	// The copy loaded last turn has run this turn too: it must agree.
+	if (serial_sim_) {
+		serial_tm_->push_shadow_frame(frame);
+		if (serial_tm_->tick(rtso::TurnManager::TURN_DURATION, *serial_sim_)) {
+			++serial_turns_;
+			if (serial_tm_->replay_out_of_sync()) {
+				serial_fail_turn_ = frame.turn_index;
+				const String dir = sim_log_dir_ + "serializationtest/";
+				DirAccess::make_dir_recursive_absolute(dir);
+				for (int i = 0; i < 2; ++i) {
+					const rtso::Simulation &s = i ? *serial_sim_ : *sim;
+					const std::string base = (dir + turn + (i ? ".deserialized" : ".original")).utf8().get_data();
+					std::ofstream file(base + ".txt", std::ios::out | std::ios::trunc);
+					if (file) rtso::TurnManager::write_state_text(file, s);
+					s.save_state((base + ".dat").c_str());
+				}
+				UtilityFunctions::printerr(String("Serialization test failure on turn %d; logs in ").replace("%d", String::num_int64(frame.turn_index)) + dir);
+				serialization_test_ = false; // 0.28 turns the test off after a failure
+				serial_sim_.reset();
+				serial_tm_.reset();
+				return;
+			}
+		}
+	}
+	const String path = sim_log_dir_ + "serializationtest.rts0sav";
+	DirAccess::make_dir_recursive_absolute(sim_log_dir_);
+	const std::string p = path.utf8().get_data();
+	auto copy = std::make_unique<rtso::Simulation>();
+	const bool ok = sim->save_state(p.c_str()) && copy->load_state(p.c_str());
+	DirAccess::remove_absolute(path);
+	if (!ok) return;
+	serial_sim_ = std::move(copy);
+	if (!serial_tm_) serial_tm_ = std::make_unique<rtso::TurnManager>();
+	serial_tm_->begin_shadow_replay(turn_mgr_);
 }
 
 Dictionary RtsoMain::get_rejoin_test() const {
@@ -3593,7 +3686,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 // refuses and the button is hidden, as session.js does when g_IsNetworked).
 void RtsoMain::start_net_speed(uint16_t speed) {
 	game_speed = std::clamp(speed, (uint16_t)25, (uint16_t)300) / 100.0f;
-	if (speed_btn) speed_btn->set_text(speed_text(game_speed));
+	if (speed_btn && speed_btn->get_button_icon().is_null()) speed_btn->set_text(speed_text(game_speed));
 }
 
 // 0.28 switches every peer to page_loading at "start": the loading page goes

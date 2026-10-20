@@ -1556,8 +1556,10 @@ void Simulation::rebuild_nav_grid() {
 			});
 			continue;
 		}
-		// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction).
-		if ((b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
+		// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction). A
+		// wreck keeps `committed` but blocks nothing: 0.28 destroys the entity (Health.js HandleDeath)
+		// and its rubble (template_rubble.xml) has no Obstruction.
+		if (b.wrecked || (b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
 		int covered = 0;
 		rtso::nav::rasterize_rect_with_clearance(
 			rtso::nav::Vec2(b.x, b.z), rtso::nav::footprint_u(b), rtso::nav::footprint_v(b),
@@ -1778,8 +1780,8 @@ void Simulation::sync_tile_obstructions(bool structures) {
 				for_each_gate_side(b, [&](float x, float z, float hu, float hv) { put(K_GATE_SIDE, b.id, side++, x, z, u.x, u.y, hu, hv); });
 				continue;
 			}
-			// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction).
-			if ((b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
+			// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction); a wreck doesn't.
+			if (b.wrecked || (b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
 			put(K_BUILDING, b.id, 0, b.x, b.z, u.x, u.y, b.hu, b.hv);
 		}
 		for (const Scenery &sc : scenery_)
@@ -3802,7 +3804,8 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 	// units/{native}/... lists (shrines, Kushite camps, Carthaginian embassies, civic centres'
 	// civilians) train the structure's own civ's units, whoever holds it.
 	if (t.civ != building_train_civ(b.type, b.civ, ps.civ, t)) return false;
-	if (exclusive && !(t.trainers & bld_bit(b.type))) return false; // 0 A.D. Trainer list
+	// 0 A.D. Trainer list: a captured structure's is its builder's ({civ} = ours).
+	if (exclusive && !building_trains_template(b.type, b.civ, ps.civ, tmpl)) return false;
 	if (t.phase > ps.phase) return false; // 0 A.D. Identity/Requirements: phase_town / phase_city
 
 	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
@@ -8020,13 +8023,13 @@ void Simulation::step_down_turret(Building &b, uint32_t unit_id) {
 	}
 	auto it = std::find(b.turret_units.begin(), b.turret_units.end(), unit_id);
 	if (it == b.turret_units.end()) return;
-	b.turret_units.erase(it);
 	if (const int32_t i = lookup_unit(unit_id); i >= 0) {
+		if (!leave_turret((size_t)i, b, false)) return; // no free spot: it stays up there
 		units_.action_state[i] = ACTION_IDLE;
 		units_.has_order[i] = 0;
 		units_.vel_x[i] = units_.vel_z[i] = 0.0f;
-		leave_turret((size_t)i, b);
 	}
+	b.turret_units.erase(it);
 	rally_after_ungarrison(unit_id, b.id);
 }
 
@@ -8101,29 +8104,26 @@ void Simulation::occupy_turret(size_t i, Building &b) {
 	if (b.type == BLD_TOWER_DOUBLE) rampart_turrets_.insert(units_.id[i]);
 }
 
-// Turretable.LeaveTurret: down beside the structure, on the side of the unit's point,
-// with its stance back (ResetTurretStance). Its new order, if any, stands. The rampart
-// tower's turret units step onto its free spawn spots (PositionHelper.GetSpawnPosition), as
-// its sixteen points would otherwise drop pairs of them on one spot.
-void Simulation::leave_turret(size_t i, const Building &b) {
-	float sx, sz;
-	if (!turret_points_of(b) && pick_spawn_point(b, units_.unit_type[i], units_.id[i], sx, sz)) {
-		units_.pos_x[i] = sx;
-		units_.pos_z[i] = sz;
-		face_away_from(i, b.x, b.z);
-	} else {
-		float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
-		const float len = std::sqrt(dx * dx + dz * dz);
-		if (len < 1e-3f) { dx = 0.0f; dz = 1.0f; } else { dx /= len; dz /= len; }
-		const float r = b.half_size + 1.2f;
-		units_.pos_x[i] = std::clamp(b.x + dx * r, -map_half_ + 1.0f, map_half_ - 1.0f);
-		units_.pos_z[i] = std::clamp(b.z + dz * r, -map_half_ + 1.0f, map_half_ - 1.0f);
+// Turretable.LeaveTurret: down onto the holder's free spawn spot (PositionHelper.GetSpawnPosition,
+// Footprint.PickSpawnPoint), facing away from it, with its stance back (ResetTurretStance). Its new
+// order, if any, stands. With no free spot a forced leave (the holder destroyed or its point gone)
+// sets the unit down on the holder's centre; any other leave fails and the unit stays up there.
+bool Simulation::leave_turret(size_t i, const Building &b, bool forced) {
+	float sx = b.x, sz = b.z;
+	if (!pick_spawn_point(b, units_.unit_type[i], units_.id[i], sx, sz)) {
+		if (!forced) return false;
+		sx = b.x;
+		sz = b.z;
 	}
+	units_.pos_x[i] = sx;
+	units_.pos_z[i] = sz;
+	face_away_from(i, b.x, b.z);
 	auto it = turret_prev_stance_.find(units_.id[i]);
 	units_.stance[i] = it != turret_prev_stance_.end() ? it->second : unit_default_stance(units_.unit_type[i], units_.tmpl[i]);
 	if (it != turret_prev_stance_.end()) turret_prev_stance_.erase(it);
 	turret_height_.erase(units_.id[i]);
 	rampart_turrets_.erase(units_.id[i]);
+	return true;
 }
 
 void Simulation::tick_turrets() {
@@ -8137,7 +8137,7 @@ void Simulation::tick_turrets() {
 		auto &list = own_list ? b.turret_units : b.garrisoned_units;
 		if (own_list && (b.wrecked || b.hp <= 0.0f)) { // TurretHolder.OnDestroy: everyone steps down
 			for (uint32_t uid : list)
-				if (const int32_t u = lookup_unit(uid); u >= 0 && units_.alive[u]) leave_turret((size_t)u, b);
+				if (const int32_t u = lookup_unit(uid); u >= 0 && units_.alive[u]) leave_turret((size_t)u, b, true);
 				else turret_prev_stance_.erase(uid);
 			list.clear();
 			continue;
@@ -8151,11 +8151,14 @@ void Simulation::tick_turrets() {
 				continue;
 			}
 			if (!units_.alive[u]) { ++k; continue; } // garrisoned before turrets: left as it was
-			// An owner that is no longer a mutual ally, or a point that is gone, takes the unit down.
-			if (!(units_.team[u] == b.team || is_ally(units_.team[u], b.team)) || (int)k >= pts->count) {
-				leave_turret((size_t)u, b);
-				list.erase(list.begin() + (std::ptrdiff_t)k);
-				continue;
+			// An owner that is no longer a mutual ally (LeaveTurret, which fails with no free spot),
+			// or a point that is gone (forced), takes the unit down.
+			const bool point_gone = (int)k >= pts->count;
+			if (!(units_.team[u] == b.team || is_ally(units_.team[u], b.team)) || point_gone) {
+				if (leave_turret((size_t)u, b, point_gone)) {
+					list.erase(list.begin() + (std::ptrdiff_t)k);
+					continue;
+				}
 			}
 			// SetTurretStance makes the unit immobile: an order to walk, gather, build, garrison and
 			// so on finishes at once (UnitAI Order.* with !AbleToMove), and only an attack stands.
@@ -8860,7 +8863,7 @@ void Simulation::tick_garrison_holders() {
 
 // GarrisonHolder.UnloadEntities: each unit leaves onto its own spawn point
 // (PositionHelper.GetSpawnPosition); one with no free spot stays inside. Turrets step down.
-void Simulation::order_ungarrison(uint32_t building_id) {
+void Simulation::order_ungarrison(uint32_t building_id, bool forced_turrets) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	Building &b = buildings_[bit->second];
@@ -8872,7 +8875,7 @@ void Simulation::order_ungarrison(uint32_t building_id) {
 		if (idx < 0) continue;
 		const bool turret = turret_height_.count(uid) != 0;
 		float ex = b.x, ez = b.z;
-		if (!turret && !pick_spawn_point(b, units_.unit_type[idx], uid, ex, ez)) {
+		if (turret ? !leave_turret((size_t)idx, b, forced_turrets) : !pick_spawn_point(b, units_.unit_type[idx], uid, ex, ez)) {
 			stay.push_back(uid);
 			continue;
 		}
@@ -8886,7 +8889,6 @@ void Simulation::order_ungarrison(uint32_t building_id) {
 		units_.has_order[idx] = 0;
 		units_.vel_x[idx] = 0.0f;
 		units_.vel_z[idx] = 0.0f;
-		if (turret) leave_turret((size_t)idx, b);
 		out.push_back(uid);
 	}
 	b.garrisoned_units = std::move(stay);
@@ -8909,7 +8911,7 @@ void Simulation::eject_or_kill(Building &b, uint8_t keep_allies_of) {
 		if (leave.empty()) return;
 		b.garrisoned_units = std::move(leave);
 	}
-	order_ungarrison(b.id);
+	order_ungarrison(b.id, true); // TurretHolder.EjectOrKill: LeaveTurret(true)
 	for (uint32_t uid : b.garrisoned_units) {
 		const int32_t i = lookup_unit(uid);
 		if (i < 0) continue;
@@ -8946,6 +8948,7 @@ void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id)
 		int32_t idx = lookup_unit(unit_id);
 		if (idx >= 0) {
 			const bool turret = turret_height_.count(unit_id) != 0;
+			if (turret && !leave_turret((size_t)idx, b, false)) return; // no free spot: it stays up there
 			if (!turret) {
 				float ex = b.x, ez = b.z;
 				// GarrisonHolder.Eject: no free spot outside, and the unit stays in.
@@ -8959,7 +8962,6 @@ void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id)
 			units_.has_order[idx] = 0;
 			units_.vel_x[idx] = 0.0f;
 			units_.vel_z[idx] = 0.0f;
-			if (turret) leave_turret((size_t)idx, b);
 		}
 		b.garrisoned_units.erase(it);
 		rally_after_ungarrison(unit_id, building_id);
@@ -19856,10 +19858,9 @@ uint32_t Simulation::petra_best_trainer(uint16_t tmpl, uint8_t unit_type, size_t
 		if (b.team != petra_pid_ || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked ||
 		    b.upgrade_to != BLD_TYPE_COUNT || b.queue.size() >= max_queue) continue;
 		if (petra_emergency_rally(b)) continue; // its queue is for the emergency units
-		if (tmpl < CIV_UNIT_TEMPLATE_COUNT && !(civ_unit_template(tmpl).trainers & bld_bit(b.type))) continue; // its Trainer list
-		// A captured civic centre trains its builder's civilians, not ours.
-		if (tmpl < CIV_UNIT_TEMPLATE_COUNT &&
-		    building_train_civ(b.type, b.civ, players_[petra_pid_].civ, civ_unit_template(tmpl)) != civ_unit_template(tmpl).civ) continue;
+		// Its Trainer list (a captured one's is its builder's, and a captured civic centre
+		// trains its builder's civilians, not ours).
+		if (tmpl < CIV_UNIT_TEMPLATE_COUNT && !building_trains_template(b.type, b.civ, players_[petra_pid_].civ, tmpl)) continue;
 		// The civ's support worker is the civic centre's support_civilian (a house's own
 		// support_civilian_house waits on a technology).
 		if (tmpl == CIV_UNIT_TEMPLATE_NONE && unit_type == UNIT_VILLAGER && !is_civic_centre(b.type)) continue;
@@ -19880,7 +19881,7 @@ bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint1
 	const uint8_t pid = petra_pid_;
 	if (b.team != pid || b.build_progress < 1.0f || b.queue.size() >= 8 || b.upgrade_to != BLD_TYPE_COUNT) return false;
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
-	if (t.civ != building_train_civ(b.type, b.civ, players_[pid].civ, t) || t.phase > players_[pid].phase || triggers_.template_disabled(tmpl)) return false;
+	if (!building_trains_template(b.type, b.civ, players_[pid].civ, tmpl) || t.phase > players_[pid].phase || triggers_.template_disabled(tmpl)) return false;
 	if ((!wait_for_pop && petra_pop_room() < count) || !can_train_at(pid, t.unit_type, b.type, tmpl)) return false;
 	if (count > 1 && !entity_limit_allows_unit(pid, t.unit_type, tmpl, count)) return false;
 	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
@@ -24092,10 +24093,12 @@ static bool petra_tech_modifies(uint8_t tech_id, std::initializer_list<uint8_t> 
 	return false;
 }
 
-// Does any of the technology's effects list `cls` alone among its affects?
+// researchManager.js:209 tests the template's top-level affects: one class, `cls`. Every effect
+// of such a tech lists `cls` alone. Grove of Fetters names Healer on its modification only (no
+// top-level affects), so 0.28 Petra keeps it; it is the one tech where the two tests differ.
 static bool petra_tech_affects_only(uint8_t tech_id, TechClasses cls) {
 	const TechInfo &ti = tech_info(tech_id);
-	if (ti.effect_count == 0) return false;
+	if (ti.effect_count == 0 || tech_id == TECH_GROVE_OF_FETTERS) return false;
 	const TechEffect *fx = tech_effects_table() + ti.effect_begin;
 	for (uint16_t i = 0; i < ti.effect_count; ++i) {
 		if (fx[i].affects_count != 1) return false;
@@ -31123,7 +31126,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		PetraSentDiplomacy &sd = petra_sent_diplo_;
 		int enemies = 0, mutual_allies = 0;
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
-			if (p == me || !((participant_mask_ >> p) & 1) || is_defeated(p)) continue; // seated players only
+			if (p == me || !((participant_mask_ >> p) & 1)) continue; // seated players, defeated ones too
 			if (get_diplomacy(me, p) == DIPLO_ENEMY) ++enemies;
 			else if (is_ally(me, p) && is_ally(p, me)) ++mutual_allies;
 		}
@@ -31165,7 +31168,8 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	const int own_entities = petra_player_entities(me);
 	const int own_pop = pop_current(me);
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
-		if (p == me || !is_ally(me, p) || !player_in_match(p)) continue;
+		// isPlayerAlly: our own stance, whatever theirs is toward us.
+		if (p == me || !(same_team(p, me) || get_diplomacy(me, p) == DIPLO_ALLY) || !player_in_match(p)) continue;
 		const bool donor = !last_man_standing() || petra_player_entities(p) < own_entities;
 		int amounts[RES_COUNT] = {};
 		bool any = false;
@@ -31289,10 +31293,12 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 	if (teams_locked()) return; // no answer: diplomacy can't change
 	const uint8_t me = petra_pid_;
 	PetraReceivedRequest &req = petra_diplo_.received[player];
-	int enemies = 1, allies = 0; // 0 A.D. counts Gaia as an enemy and us as an ally
+	// getEnemies / getMutualAllies: Gaia is an enemy, we are a mutual ally, and a defeated
+	// player keeps its stances (Player.js SetState leaves Diplomacy alone), so it still counts.
+	int enemies = 1, allies = 0;
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
-		if (p != me && (!((participant_mask_ >> p) & 1) || is_defeated(p))) continue;
-		if (is_ally(me, p)) ++allies;
+		if (p != me && !((participant_mask_ >> p) & 1)) continue;
+		if (is_ally(me, p)) ++allies; // both ways, as isMutualAlly
 		else if (is_hostile(me, p)) ++enemies;
 	}
 	const bool more_enemies_than_allies = enemies > allies;
@@ -34222,7 +34228,8 @@ bool Simulation::player_can_target_fauna(uint8_t player, uint32_t fauna_id) cons
 	if (it == fauna_id_to_idx_.end() || player >= MAX_PLAYERS || los_.cells() == 0) return true;
 	const uint8_t owner = fauna_owner_[it->second];
 	if (owner == player || (owner < MAX_PLAYERS && is_ally(player, owner))) return true;
-	return los_visible(player, fauna_.pos_x[it->second], fauna_.pos_z[it->second]);
+	// template_unit_fauna.xml RetainInFog: an animal in explored fog is still a target.
+	return los_explored(player, fauna_.pos_x[it->second], fauna_.pos_z[it->second]);
 }
 
 bool Simulation::los_explored(uint8_t player, float x, float z) const {
