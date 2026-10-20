@@ -225,7 +225,7 @@ researchManager.js (every tech classified by script: same wanted/preferred categ
 | P2 | Town-phase structures wait for each other: RTS0 counts finished ones and waits while a Town foundation stands; 0.28 counts foundations (getOwnEntitiesByClass(class, true)) and queues the next when the queues are empty | medium | Open: C (phase-up) |
 | P3 | Resource maps weighed what is left of each tree or mine; 0.28 adds ResourceSupply Max until it is gone | low-medium | Fixed: trees and mines keep their Max (older saves: what is left) |
 | P4 | RTS0-only wood-starved rules (one civic centre, under 1550 wood): queues held 1150 wood back (650 in Town), Town phase once houses are full | low | Kept (#1027) |
-| P5 | Territory tiles go to the nearest base each time; 0.28 gives a tile to a base once (basesManager.js:678) | low | Open |
+| P5 | Territory tiles go to the nearest base each time; 0.28 gives a tile to a base once (basesManager.js:678) | low | Fixed: each AI keeps the anchor that claimed each tile (saved, v106); lost tiles leave, a lost anchor's go to the nearest base left |
 | P6 | Techs whose researchers had full queues were dropped before the pick; 0.28 picks them and the plan waits | low | Fixed |
 | P7 | 0.28 lists Rome's army camp first among advanced buildings and fails to place it in own territory; RTS0 skips it | low | Kept (0.28 quirk with no outcome but a held queue) |
 

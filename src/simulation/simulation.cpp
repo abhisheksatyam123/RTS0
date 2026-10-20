@@ -29035,6 +29035,7 @@ void Simulation::petra_bases_map(PetraBasesMap &m) const {
 	m.x0 = x0; m.z0 = z0; m.x1 = x1; m.z1 = z1;
 	const int bw = x1 - x0 + 1;
 	m.base.assign((size_t)bw * (size_t)(z1 - z0 + 1), 0);
+	const bool claims = petra_tile_bases_.w == m.w && petra_tile_bases_.anchor.size() == (size_t)m.w * m.w;
 	for (int iz = z0; iz <= z1; ++iz)
 		for (int ix = x0; ix <= x1; ++ix) {
 			const float x = centre(ix), z = centre(iz);
@@ -29042,13 +29043,37 @@ void Simulation::petra_bases_map(PetraBasesMap &m) const {
 			// The tile's land (getLandAccess): a tile under a structure takes the land around it.
 			const uint16_t land = petra_access_at(x, z);
 			if (!land) continue;
+			uint8_t &out = m.base[(size_t)(iz - z0) * bw + (ix - x0)];
+			// The base that claimed it at an earlier turn keeps it while its anchor stands there.
+			if (const uint32_t claimed = claims ? petra_tile_bases_.anchor[(size_t)iz * m.w + ix] : 0) {
+				for (size_t a = 0; a < m.anchors.size() && !out; ++a)
+					if (m.anchors[a].id == claimed && m.anchors[a].land == land) out = (uint8_t)std::min<size_t>(a + 1, 255);
+				if (out) continue;
+			}
+			// Else the nearest anchor on its land (addTerritoryIndexToBase, reassignTerritories).
 			float best = 1e30f;
 			for (size_t a = 0; a < m.anchors.size(); ++a) {
 				if (m.anchors[a].land != land) continue;
 				const float d = (m.anchors[a].x - x) * (m.anchors[a].x - x) + (m.anchors[a].z - z) * (m.anchors[a].z - z);
-				if (d < best) { best = d; m.base[(size_t)(iz - z0) * bw + (ix - x0)] = (uint8_t)std::min<size_t>(a + 1, 255); }
+				if (d < best) { best = d; out = (uint8_t)std::min<size_t>(a + 1, 255); }
 			}
 		}
+}
+
+// headquarters.js updateTerritories: lost tiles leave their base (removeBaseFromTerritoryIndex),
+// new ones go to the nearest base, and the rest stay where they are.
+void Simulation::petra_update_tile_bases() {
+	PetraBasesMap m;
+	petra_bases_map(m);
+	PetraTileBases &t = petra_tile_bases_;
+	t.w = m.w;
+	t.anchor.assign((size_t)m.w * (size_t)m.w, 0);
+	if (m.base.empty()) return;
+	const int bw = m.x1 - m.x0 + 1;
+	for (int iz = m.z0; iz <= m.z1; ++iz)
+		for (int ix = m.x0; ix <= m.x1; ++ix)
+			if (const uint8_t k = m.base[(size_t)(iz - m.z0) * bw + (ix - m.x0)]; k && k <= m.anchors.size())
+				t.anchor[(size_t)iz * m.w + ix] = m.anchors[k - 1].id;
 }
 
 int Simulation::PetraBasesMap::at(float x, float z, float half) const {
@@ -31721,6 +31746,7 @@ void Simulation::tick_petra_ai_player(float dt) {
 		petra_room_.tiles = tiles;
 		std::erase_if(petra_room_.marks, [&](const PetraRoom::Mark &m) { return m.until <= petra_timer_; });
 	}
+	petra_update_tile_bases();
 
 	// 2. Multi-Base Expansion & Base Anchors (BasesManager / headquarters.js)
 	update_petra_bases(dt);
@@ -33361,6 +33387,24 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					v.allied.clear();
 				}
 			} else v = PetraKept{}; // decided again at the next AI turn, from the game as loaded
+		} else if constexpr (std::is_same_v<T, S::PetraTileBases>) {
+			// The claimed tiles only (index, anchor), in index order.
+			if (ar.version >= Simulation::SAVE_VERSION_PETRA_TILE_BASES) {
+				ar.pod(v.w);
+				if (v.w < 0 || v.w > 4096) { ar.ok = false; return; }
+				std::vector<std::pair<uint32_t, uint32_t>> claimed;
+				if constexpr (!Ar::loading)
+					for (uint32_t j = 0; j < (uint32_t)v.anchor.size(); ++j)
+						if (v.anchor[j]) claimed.push_back({j, v.anchor[j]});
+				io_vec(ar, claimed, 1u << 24, [&](std::pair<uint32_t, uint32_t> &c) { ar.pod(c.first); ar.pod(c.second); });
+				if constexpr (Ar::loading) {
+					v.anchor.assign((size_t)v.w * (size_t)v.w, 0);
+					for (const auto &c : claimed) {
+						if (c.first >= v.anchor.size()) { ar.ok = false; return; }
+						v.anchor[c.first] = c.second;
+					}
+				}
+			} else v = S::PetraTileBases{}; // older saves: each tile goes to the nearest base again
 		} else if constexpr (std::is_same_v<T, std::vector<S::PetraTargetedRelic>>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_TARGETED_RELICS)
 				io_vec(ar, v, 1u << 16, [&](S::PetraTargetedRelic &t) { ar.pod(t.relic); ar.pod(t.sent); });
