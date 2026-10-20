@@ -86,8 +86,8 @@ What each target needs on the host, beyond Godot 4.3-stable, its export template
   copies as `.import` remaps to it, which cut the Linux build from 3.2 GB to 2.1 GB. The editor and
   in-project runs are unchanged.
 - **Mobile renderer.** Android and iOS run the Mobile (Vulkan/Metal) renderer. On a GL-only phone Godot falls
-  back to Compatibility, where the player colour, garrison flag and silhouette shaders don't compile yet
-  (instance uniforms).
+  back to Compatibility, which draws player colours, garrison flags and silhouettes too (#1260;
+  `tools/check_gl_shaders.py` checks it). Selection rings and decals don't draw there yet (G41).
 
 ## CI (GitHub Actions)
 `.github/workflows/ci.yml`:
