@@ -34765,8 +34765,10 @@ bool Simulation::player_can_target_fauna(uint8_t player, uint32_t fauna_id) cons
 	if (it == fauna_id_to_idx_.end() || player >= MAX_PLAYERS || los_.cells() == 0) return true;
 	const uint8_t owner = fauna_owner_[it->second];
 	if (owner == player || (owner < MAX_PLAYERS && is_ally(player, owner))) return true;
-	// template_unit_fauna.xml RetainInFog: an animal in explored fog is still a target.
-	return los_explored(player, fauna_.pos_x[it->second], fauna_.pos_z[it->second]);
+	// template_unit_fauna.xml RetainInFog: an animal in explored fog is still a target, but not
+	// corral livestock (gaia/fauna_*_trainable RetainInFog false), which must be in sight.
+	const float x = fauna_.pos_x[it->second], z = fauna_.pos_z[it->second];
+	return fauna_retained_in_fog(fauna_.fauna_type[it->second]) ? los_explored(player, x, z) : los_visible(player, x, z);
 }
 
 bool Simulation::los_explored(uint8_t player, float x, float z) const {
@@ -34841,8 +34843,10 @@ uint32_t Simulation::find_nearby_prey(size_t i, float x, float z, float max_d2, 
 		const float d2 = dx * dx + dz * dz;
 		if (d2 >= best_d2) continue;
 		// CheckTargetVisible: template_unit_fauna RetainInFog, so an animal in explored fog counts
-		// (GetLosVisibility "fogged", not "hidden").
-		if (fog && !los_explored(units_.team[i], fauna_.pos_x[f], fauna_.pos_z[f])) continue;
+		// (GetLosVisibility "fogged", not "hidden"); corral livestock (RetainInFog false) only in sight.
+		if (fog && fauna_owner_[f] != units_.team[i] && !(fauna_retained_in_fog(fauna_.fauna_type[f])
+				? los_explored(units_.team[i], fauna_.pos_x[f], fauna_.pos_z[f])
+				: los_visible(units_.team[i], fauna_.pos_x[f], fauna_.pos_z[f]))) continue;
 		best_d2 = d2;
 		best = fauna_.id[f];
 	}
@@ -35305,6 +35309,23 @@ void Simulation::tick_fauna(float dt) {
 	auto timer = [&](float lo, float hi) {
 		return lo + (float)sim_rng_.range_int(0, (int)std::max(0.0f, hi - lo));
 	};
+	// UnitMotion: an animal gains speed at its Acceleration (template_unit_fauna x0.7, times each
+	// template's own factor) from the speed it had along its new way (ux, uz, a unit vector),
+	// up to max_speed. Sets its velocity to the speed it ends the tick at and returns the
+	// tick's mean speed, which the step walks.
+	auto accelerate_fauna = [&](size_t i, float ux, float uz, float max_speed) {
+		const float a = fauna_type_info(fauna_.fauna_type[i]).acceleration;
+		const float s = std::max(0.0f, fauna_.vel_x[i] * ux + fauna_.vel_z[i] * uz);
+		float end = max_speed, mean = max_speed;
+		if (s < max_speed && a > 0.0f) {
+			const float ta = std::min(dt, (max_speed - s) / a);
+			end = s + a * ta;
+			mean = (s * ta + 0.5f * a * ta * ta + max_speed * (dt - ta)) / std::max(dt, 1e-6f);
+		}
+		fauna_.vel_x[i] = ux * end;
+		fauna_.vel_z[i] = uz * end;
+		return mean;
+	};
 
 	// UnitAI MoveRandomly: animals roam in polygons that approximate circles, to keep from
 	// drifting across the map. roamAngle is +-30 degrees, its sign drawn on the first roam
@@ -35326,8 +35347,10 @@ void Simulation::tick_fauna(float dt) {
 		const float half = roam_angle * (0.25f + 0.5f * (float)sim_rng_.range_int(0, 1000) / 1000.0f);
 		ang += 2.0f * half;
 		fauna_.rot_y[i] = ang;
-		fauna_.vel_x[i] = det::sin(ang) * ri.speed;
-		fauna_.vel_z[i] = det::cos(ang) * ri.speed;
+		const float ux = det::sin(ang), uz = det::cos(ang);
+		const float s = std::max(0.0f, fauna_.vel_x[i] * ux + fauna_.vel_z[i] * uz);
+		fauna_.vel_x[i] = ux * s;
+		fauna_.vel_z[i] = uz * s;
 		fauna_.flee_distance[i] = ri.roam_distance * (0.5f + (float)sim_rng_.range_int(0, 1000) / 1000.0f);
 	};
 
@@ -35444,18 +35467,20 @@ void Simulation::tick_fauna(float dt) {
 						continue;
 					}
 				} else {
-					fauna_.vel_x[i] = (dx / len) * (info.speed * 1.15f);
-					fauna_.vel_z[i] = (dz / len) * (info.speed * 1.15f);
+					const float mean = accelerate_fauna(i, dx / len, dz / len, info.speed * 1.15f);
 					fauna_.rot_y[i] = det::atan2(dx, dz);
+					step(i, dx / len * mean, dz / len * mean);
+					continue;
 				}
 			} else {
 				float dx = units_.pos_x[herder_idx] - fx;
 				float dz = units_.pos_z[herder_idx] - fz;
 				float len = det::hypot(dx, dz);
 				if (len > 2.5f) {
-					fauna_.vel_x[i] = (dx / len) * (info.speed * 1.1f);
-					fauna_.vel_z[i] = (dz / len) * (info.speed * 1.1f);
+					const float mean = accelerate_fauna(i, dx / len, dz / len, info.speed * 1.1f);
 					fauna_.rot_y[i] = det::atan2(dx, dz);
+					step(i, dx / len * mean, dz / len * mean);
+					continue;
 				} else {
 					fauna_.vel_x[i] = 0.0f;
 					fauna_.vel_z[i] = 0.0f;
@@ -35502,10 +35527,10 @@ void Simulation::tick_fauna(float dt) {
 					const float c = det::cos(a), sn = det::sin(a);
 					const float vx = (adx * c - adz * sn) / alen * sp, vz = (adx * sn + adz * c) / alen * sp;
 					if (!fauna_can_step(i, fx + vx * dt, fz + vz * dt)) continue;
-					fauna_.vel_x[i] = vx;
-					fauna_.vel_z[i] = vz;
+					const float ux = vx / sp, uz = vz / sp;
+					const float mean = accelerate_fauna(i, ux, uz, sp);
 					fauna_.rot_y[i] = det::atan2(vx, vz);
-					step(i, vx, vz);
+					step(i, ux * mean, uz * mean);
 					stop = false;
 					break;
 				}
@@ -35580,17 +35605,18 @@ void Simulation::tick_fauna(float dt) {
 				float ax, az;
 				fauna_path_aim(i, fx + dx, fz + dz, ax, az);
 				const float adx = ax - fx, adz = az - fz, alen = std::max(det::hypot(adx, adz), 1e-4f);
-				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+				bool moved = false;
 				for (float a : kTurn) {
 					const float c = det::cos(a), sn = det::sin(a);
-					const float vx = (adx * c - adz * sn) / alen * sp, vz = (adx * sn + adz * c) / alen * sp;
-					if (!fauna_can_step(i, fx + vx * dt, fz + vz * dt)) continue;
-					fauna_.vel_x[i] = vx;
-					fauna_.vel_z[i] = vz;
-					fauna_.rot_y[i] = det::atan2(vx, vz);
-					step(i, vx, vz);
+					const float ux = (adx * c - adz * sn) / alen, uz = (adx * sn + adz * c) / alen;
+					if (!fauna_can_step(i, fx + ux * sp * dt, fz + uz * sp * dt)) continue;
+					const float mean = accelerate_fauna(i, ux, uz, sp);
+					fauna_.rot_y[i] = det::atan2(ux, uz);
+					step(i, ux * mean, uz * mean);
+					moved = true;
 					break;
 				}
+				if (!moved) fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
 			} else {
 				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
 				fauna_.flee_distance[i] = 1.0f; // COMBAT ATTACKING
@@ -35619,12 +35645,10 @@ void Simulation::tick_fauna(float dt) {
 				continue;
 			}
 			if (dist < 0.01f) { away_x = det::sin(fauna_.rot_y[i]); away_z = det::cos(fauna_.rot_y[i]); dist = 1.0f; }
-			const float sp = info.speed * info.run_mult;
-			fauna_.vel_x[i] = away_x / dist * sp;
-			fauna_.vel_z[i] = away_z / dist * sp;
+			const float sp = accelerate_fauna(i, away_x / dist, away_z / dist, info.speed * info.run_mult);
 			fauna_.rot_y[i] = det::atan2(away_x, away_z);
 			const float before_x = fauna_.pos_x[i], before_z = fauna_.pos_z[i];
-			step(i, fauna_.vel_x[i], fauna_.vel_z[i]);
+			step(i, away_x / dist * sp, away_z / dist * sp);
 			if (fauna_.pos_x[i] == before_x && fauna_.pos_z[i] == before_z) {
 				// Blocked (water, cliff, wall): MoveToTargetRange's long path to a spot flee distance
 				// from the attacker, the pathfinder taking the nearest reachable one.
@@ -35690,8 +35714,10 @@ void Simulation::tick_fauna(float dt) {
 		if (fauna_.behavior[i] == FAUNA_ROAMING && info.speed > 0.0f) {
 			// MovementUpdate (the leg is walked, or blocked): MoveRandomly again.
 			const float before_x = fauna_.pos_x[i], before_z = fauna_.pos_z[i];
-			step(i, fauna_.vel_x[i], fauna_.vel_z[i]);
-			fauna_.flee_distance[i] -= info.speed * dt;
+			const float ux = det::sin(fauna_.rot_y[i]), uz = det::cos(fauna_.rot_y[i]);
+			const float mean = accelerate_fauna(i, ux, uz, info.speed);
+			step(i, ux * mean, uz * mean);
+			fauna_.flee_distance[i] -= mean * dt;
 			if (fauna_.flee_distance[i] <= 0.0f || (fauna_.pos_x[i] == before_x && fauna_.pos_z[i] == before_z)) roam_leg(i);
 		}
 	}
