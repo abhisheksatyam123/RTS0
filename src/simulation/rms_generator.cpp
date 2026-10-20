@@ -4220,7 +4220,6 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 	else if (config.map_type == MAP_NEARESTERN_BADLANDS) num_groves = num_groves * 2 / 5;
 	else if (config.map_type == MAP_BELGIAN_UPLANDS) num_groves = num_groves * 3 / 2;
 	else if (config.map_type == MAP_HYRCANIAN_SHORES) num_groves = num_groves * 3 / 2;
-	else if (config.map_type == MAP_CANYON) num_groves = num_groves / 2;
 	else if (config.map_type == MAP_NORTHERN_LIGHTS) num_groves = num_groves / 3;
 	else if (config.map_type == MAP_POLAR_SEA) num_groves = num_groves / 5;
 	else if (config.map_type == MAP_SAHEL) num_groves = num_groves / 2;
@@ -4243,6 +4242,34 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 	// stragglers, mines and hunt are place_ngorongoro_entities'.
 	else if (config.map_type == MAP_NGORONGORO) num_groves = 0;
 	else if (config.map_type == MAP_RIVER_ARCHIPELAGO) num_groves = 0; // its own forests, place_river_archipelago_entities
+	// 0.28 scripts that size their woods by the biome (getTreeCounts(...rBiomeTreeCount(m)),
+	// randombiome.js): forest trees are scaleByMapSize(trees.min, trees.max) * forestProbability
+	// from rmbiome/generic/<biome>.json. The counts above are temperate's (1000-3000 at 0.7),
+	// so a drier biome gets its share of them: about a quarter on nubia, sahara and savanna.
+	switch (config.map_type) {
+		case MAP_ARCHIPELAGO_0AD: case MAP_CANTABRIAN_HIGHLANDS: case MAP_CANYON: case MAP_COAST_RANGE:
+		case MAP_CONTINENT: case MAP_FLOOD: case MAP_FOOTHILLS: case MAP_GEAR: case MAP_ISLAND_STRONGHOLD:
+		case MAP_ISLANDS: case MAP_LAKE: case MAP_LAND_GRAB: case MAP_MAINLAND: case MAP_MIGRATION:
+		case MAP_RIVERS: case MAP_SNOWFLAKE_SEAROCKS: case MAP_SURVIVAL_OF_THE_FITTEST: case MAP_UNKNOWN: {
+			struct TreeCounts { float min, max, forest; };
+			auto counts = [](BiomeType b) -> TreeCounts {
+				switch (b) {
+					case BIOME_AEGEAN: case BIOME_POLAR: return {500, 2000, 0.6f}; // aegean, arctic
+					case BIOME_ALPINE: return {1000, 2000, 0.85f};
+					case BIOME_INDIA: return {900, 1500, 0.8f};
+					case BIOME_OASIS: case BIOME_NUBIA: return {500, 1000, 0.4f}; // sahara, nubia
+					case BIOME_SAVANNA: return {500, 1500, 0.3f};
+					case BIOME_STEPPE: return {800, 1400, 0.7f};
+					default: return {1000, 3000, 0.7f}; // temperate, autumn
+				}
+			};
+			const float t = std::clamp((2.0f * half - 128.0f) / 384.0f, 0.0f, 1.0f);
+			auto forest = [&](const TreeCounts &c) { return (c.min + (c.max - c.min) * t) * c.forest; };
+			num_groves = (int)std::lround((float)num_groves * forest(counts(config.biome)) / forest(counts(BIOME_TEMPERATE)));
+			break;
+		}
+		default: break;
+	}
 
 	// Map-specific landmark resource clusters
 	if (config.map_type == MAP_SAHARAN_OASES) {
@@ -13246,7 +13273,7 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 	// (rmbiome/generic/temperate.json). On any other generic biome tree3 is a plain tree, so
 	// its fruit here is the biome's fruitBush alone, left unnamed for plant_flora, without
 	// the apple share.
-	const bool generic = own_terrains(sim, config.map_type) == nullptr && sim.current_map_biome() != "temperate";
+	const bool generic = own_terrains(sim, config.map_type) == nullptr && config.biome != BIOME_TEMPERATE;
 	int fruit_want = target(rc->fruit);
 	const ResourceKindShare *bush = &rc->fruit_kinds[0];
 	if (generic) {
@@ -13260,7 +13287,12 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 		if (generic) k = bush;
 		else if (rc->fruit_kinds[1].name && rng.range_int(1, 100) > rc->fruit_kinds[0].percent) k = &rc->fruit_kinds[1];
 		if (generic && !std::strcmp(k->name, "apple")) break;
-		const uint8_t flora = generic ? (uint8_t)FLORA_BERRY : flora_kind_by_name(k->name);
+		uint8_t flora = generic ? (uint8_t)FLORA_BERRY : flora_kind_by_name(k->name);
+		// Game setup chose temperate: its apples are the biome's tree3 (fruit/apple).
+		if (!generic && !own_terrains(sim, config.map_type) && !std::strcmp(k->name, "apple"))
+			if (const BiomeFlora *bf = biome_flora("temperate"))
+				for (uint8_t t : bf->tree3)
+					if (flora_is_fruit(t)) { flora = t; break; }
 		float x, z;
 		if (flora == FLORA_COUNT || !pick(kBaseGap, food, 10.0f, x, z)) break;
 		food.push_back({x, z});

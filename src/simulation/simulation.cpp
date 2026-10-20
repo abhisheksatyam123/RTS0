@@ -26903,6 +26903,9 @@ std::unordered_set<uint32_t> Simulation::petra_launched_units() const {
 bool Simulation::petra_builder_worker(size_t i, const std::unordered_set<uint32_t> &launched) const {
 	const uint8_t g = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
 	if ((g != GATHER_INFANTRY && g != GATHER_SUPPORT) || !unit_builds(i)) return false;
+	// Soldiers trained for an attack carry no "worker" role (attackPlan.js trainMoreUnits
+	// metadata), so they are none of the base's workers.
+	if (!petra_is_worker(i)) return false;
 	const uint32_t uid = units_.id[i];
 	return uid != petra_scout_unit_id_ && !launched.count(uid) && !petra_is_defender(uid);
 }
@@ -35006,7 +35009,7 @@ const char *const kVolcanoWarnings[4] = {
 	"The lakes start swallowing the land, we have to find shelter!",
 };
 // garrisonedUnits = "units/rome/champion_infantry_swordsman_02"
-const char *const kVolcanoTowerGarrison = "rome/champion_infantry_swordsman";
+const char *const kVolcanoTowerGarrison = "rome/champion_infantry_swordsman_02";
 
 // maps/random/polar_sea_triggers.js
 constexpr uint8_t kPolarSeaWolves = FAUNA_WOLF_ARCTIC_VIOLENT; // attackerTemplate
@@ -35598,7 +35601,7 @@ void Simulation::trigger_gallic_fields(bool attack) {
 	// "units/rome/champion_infantry_swordsman_02", attackSize, 0): Roman champions as Gaia on
 	// every point of the set, each group sent to attack-walk to its point owner's A point.
 	const uint8_t ref = sim_rng_.range_int(0, 1) ? 'C' : 'B';
-	const uint16_t tmpl = roster_template_named("rome/champion_infantry_swordsman");
+	const uint16_t tmpl = roster_template_named("rome/champion_infantry_swordsman_02");
 	for (const TriggerPoint &p : triggers_.points) {
 		if (p.ref != ref || tmpl == CIV_UNIT_TEMPLATE_NONE) continue;
 		std::vector<uint32_t> ids;

@@ -31,6 +31,10 @@ var _setup: GDScript = load("res://scenes/menu/gamesetup.gd")
 var game_sort_column := "Name"
 var game_sort_order := 1
 var _players: Tree
+## PlayerList.xml playersBox: sortable by status, name or rating, name ascending first.
+var player_sort_column := 1
+var player_sort_order := 1
+var _last_players: Variant = null
 var _players_filter: LineEdit
 var _requests_sent := {} # _get_latest: per kind, the last request made
 var _requests_applied := {} # and the last one whose answer was used
@@ -313,8 +317,8 @@ func _build() -> void:
 	_players.columns = 3
 	_players.hide_root = true
 	_players.column_titles_visible = true
-	for i in 3:
-		_players.set_column_title(i, ["Status", "Name", "Rating"][i])
+	_update_player_titles()
+	_players.column_title_clicked.connect(func(c: int, _b: int) -> void: sort_players_by(c))
 	_players.set_column_expand_ratio(1, 2)
 	_players.custom_minimum_size = Vector2(0, 140)
 	_players.item_selected.connect(func() -> void:
@@ -934,6 +938,45 @@ static func rating_passes(filter: String, rating: int) -> bool:
 	return rating >= n if filter.begins_with(">") else rating < n
 
 
+func sort_players_by(column: int) -> void:
+	if column == player_sort_column:
+		player_sort_order = -player_sort_order
+	else:
+		player_sort_column = column
+		player_sort_order = 1
+	_update_player_titles()
+	if _last_players != null:
+		_on_players(200, _last_players)
+
+
+func _update_player_titles() -> void:
+	for i in 3:
+		_players.set_column_title(i, ["Status", "Name", "Rating"][i]
+			+ (("  ▲" if player_sort_order > 0 else "  ▼") if i == player_sort_column else ""))
+
+
+## PlayerList.js parsePlayer and sortPlayers: status sorts by presence order
+## (Online, Away, Busy) then name, name by lowercase name, rating by number
+## (unrated as 0).
+func sorted_players(list: Array) -> Array:
+	const STATUS_ORDER := ["available", "away", "playing", "offline", "unknown"]
+	var keyed := []
+	for p in list:
+		var key: Variant
+		match player_sort_column:
+			0:
+				var at := STATUS_ORDER.find(str(p.get("status", "available")))
+				key = str(at if at >= 0 else STATUS_ORDER.size() - 1) + str(p.get("name", "")).to_lower()
+			2:
+				key = float(p["rating"]) if p.get("rating") != null else 0.0
+			_:
+				key = str(p.get("name", "")).to_lower()
+		keyed.append([key, p])
+	keyed.sort_custom(func(a: Array, b: Array) -> bool:
+		return a[0] < b[0] if player_sort_order > 0 else a[0] > b[0])
+	return keyed.map(func(e: Array) -> Variant: return e[1])
+
+
 func sort_games_by(column: String) -> void:
 	if column == game_sort_column:
 		game_sort_order = -game_sort_order
@@ -1148,13 +1191,14 @@ func _on_players(code: int, obj) -> void:
 		if code == 0:
 			_say("Lost the lobby server at %s." % LobbySession.address)
 		return
+	_last_players = obj
 	_players.clear()
 	_ratings = {}
 	_moderators = {}
 	_muted = {}
 	var buddy_list := buddies()
 	var top := _players.create_item()
-	for p in obj.get("players", []):
+	for p in sorted_players(obj.get("players", [])):
 		if p.get("rating") != null:
 			_ratings[str(p.get("name", ""))] = p["rating"]
 		var st := str(p.get("status", "available"))
@@ -1169,7 +1213,9 @@ func _on_players(code: int, obj) -> void:
 		it.set_custom_color(0, col)
 		it.set_text(1, (BUDDY_SYMBOL + " " if buddy_list.has(str(p.get("name", ""))) else "") + _nick(str(p.get("name", ""))))
 		it.set_custom_color(1, player_color(str(p.get("name", ""))))
-		it.set_text(2, str(p.get("rating", "")))
+		# PlayerList.js: an unrated player shows "-", in the status colour like the rating.
+		it.set_text(2, str(p["rating"]) if p.get("rating") != null else "-")
+		it.set_custom_color(2, col)
 		it.set_metadata(0, str(p.get("name", "")))
 		if str(p.get("name", "")) == _selected_player:
 			it.select(0)
