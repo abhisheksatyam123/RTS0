@@ -106,7 +106,7 @@ Production queues, upgrades, foundations, capture/decay, build restrictions, tec
 | Q12 | Hellenistic Metropolis also doubled Seleucid military colonies (CivCentre !Colony) | medium | Fixed (a captured crannog, !Naval, still gets it) |
 | Q13 | Corralled animals didn't get garrison_heal's +1 | low | Fixed |
 | Q14 | An upgraded structure kept its rally point and autoqueue (Transform.js makes a new entity) | low | Fixed |
-| Q15 | Autoqueue re-adds the remainder of a batch whose spawning was blocked, not the chosen batch size | low | Open |
+| Q15 | Autoqueue re-adds the remainder of a batch whose spawning was blocked, not the chosen batch size | low | Fixed (save v102): each queued batch keeps its original size |
 | Q16 | A destroyed foundation refunds from today's price, not the price paid (Foundation.js stores costs) | low | Fixed: the costs are kept at placement |
 | Q17 | Construction tooltip's Heal line ignores garrison_heal; detailed training tooltips show base template stats, not the player's | low | Heal line fixed (garrison_heal counted); detailed training stats per player open |
 | Q18 | Upgrade tooltip cost isn't multiplied by the number of selected same-template structures | low | Fixed: every selected structure of the type upgrades, so the cost is for all of them |
