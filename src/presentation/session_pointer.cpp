@@ -249,7 +249,7 @@ void RtsoMain::update_cursor() {
 				for (size_t f = 0; f < fv.count && !*want; ++f) {
 					// A penned animal is garrisoned in its corral: nothing to do with it.
 					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
-					if (!rtso::los_sees_unit(*sim, me, fv.pos_x[f], fv.pos_z[f], fv.owner[f])) continue; // in sight only
+					if (!rtso::los_sees_fauna(*sim, me, fv.pos_x[f], fv.pos_z[f], fv.owner[f])) continue; // RetainInFog
 					// Slaughter for livestock as for game (0 A.D.); Alt herds your own to a corral.
 					const bool herd = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() && fv.owner[f] == local_player() &&
 					                  Input::get_singleton()->is_key_pressed(KEY_ALT);
@@ -425,7 +425,7 @@ void RtsoMain::update_highlight() {
 					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED) continue;
 					const float dx = fv.pos_x[f] - at.x, dz = fv.pos_z[f] - at.z;
 					if (dx * dx + dz * dz >= best) continue;
-					if (!rtso::los_sees_unit(*sim, view_player(), fv.pos_x[f], fv.pos_z[f], rtso::GAIA_PLAYER)) continue;
+					if (!rtso::los_sees_fauna(*sim, view_player(), fv.pos_x[f], fv.pos_z[f], fv.owner[f])) continue;
 					best = dx * dx + dz * dz;
 					pick = (int32_t)fv.id[f];
 				}
