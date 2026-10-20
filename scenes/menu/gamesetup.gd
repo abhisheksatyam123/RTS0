@@ -2065,7 +2065,7 @@ func _collect_setup() -> Dictionary:
 	var names := _player_names(types, civs, local)
 	# Single-player Petra settings: the first AI slot's picks (per-slot AI is next).
 	var diff := 3
-	var beh := 2
+	var beh := 0 # player_defaults.json AIBehavior "random"
 	for i in range(n):
 		if int(_slot_rows[i]["kind"]) == 1:
 			diff = int(_slot_rows[i]["diff"])
@@ -2637,7 +2637,7 @@ func _host_write_setup(force: bool) -> void:
 	ms.campaign_run = ""
 	ms.campaign_level = ""
 	ms.ai_difficulty = 3
-	ms.ai_behavior = 2
+	ms.ai_behavior = 0
 	for i in range(ps["slot_types"].size()):
 		if int(ps["slot_types"][i]) == 1:
 			ms.ai_difficulty = int(ps["slot_diffs"][i])

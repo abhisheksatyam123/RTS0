@@ -1116,6 +1116,8 @@ static void test_petra_concurrent_transports() {
 	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
 	s.spawn_unit(-40.0f, 10.0f, 1, UNIT_TRIREME);
 	s.spawn_unit(-20.0f, 10.0f, 1, UNIT_TRIREME);
+	// A ship for the attack besides the two the builders' crossings may take.
+	s.spawn_unit(-30.0f, 4.0f, 1, UNIT_TRIREME);
 	std::vector<uint32_t> army;
 	for (int k = 0; k < 6; ++k) army.push_back(s.spawn_unit(-36.0f + 2.0f * k, 30.0f, 1, UNIT_SPEARMAN));
 	s.petra_army_ids_[1] = army; // trained for the attack, not as workers (ids rise, so sorted)
@@ -1175,7 +1177,11 @@ static void test_petra_concurrent_transports() {
 	// whoever is idle first, the women it trained meanwhile as well as the starting villagers.
 	int villagers_south = 0;
 	for (int k = 0; k < 120; ++k) {
-		if (s.petra_attack_plan_.state == Simulation::AttackPlan::MUSTER) drop_attack_batches();
+		// Petra may replace the plan with its own (it picks the same target): that one is forced too.
+		if (s.petra_attack_plan_.state == Simulation::AttackPlan::MUSTER) {
+			drop_attack_batches();
+			s.petra_attack_plan_.forced = true;
+		}
 		run(s, 1.0f);
 		const PetraTransportPlan *a = plan_of(PETRA_TRANSPORT_ATTACK), *b = plan_of(PETRA_TRANSPORT_BUILDERS);
 		if (a && b) {

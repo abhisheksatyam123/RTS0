@@ -1989,6 +1989,9 @@ public:
 	bool is_position_safe(float x, float z, float threshold = 6.0f) const;
 	int ai_pop_current() const;
 	int ai_pop_max() const;
+	// Petra's gameState.getPopulationMax(): the population cap after its modifiers (300 by
+	// default; 10000 when unlimited), not the housing-limited pop_max.
+	int petra_population_max() const;
 
 
 	// Petra Multi-Base HQ & BasesManager (0 A.D. ai/petra/headquarters.js / baseManager.js)
