@@ -332,6 +332,82 @@ int main() {
 		CHECK(find_bld(s, t1)->hp > building_type_info(BLD_TOWER).max_hp);
 	}
 
+	// 11. A captured structure keeps its own template (Upgrade.js DetermineUpgrades): its
+	// Upgrade list, with "{civ}" resolved by the new owner's civ and the targets that civ lacks
+	// dropped; its Population/Bonus and BuildTime. Builders drop a structure that is no longer an
+	// ally's (Builder.js PerformBuilding), and animals walk off a foundation before it starts.
+	{
+		fresh(s);
+		s.set_team_civ(0, CIV_ATHENIANS);
+		s.set_player_resources(0, 2000, 2000, 2000, 2000);
+		s.player(0).phase = 3;
+		// A Han tower held by Athenians: no Great Tower (structures/athen/defense_tower_great).
+		const uint32_t ht = s.spawn_building_world(0.0f, -40.0f, BLD_TOWER, 0, 1.0f);
+		s.set_building_civ(ht, CIV_HAN);
+		CHECK(s.structure_upgrade_count(*find_bld(s, ht)) == 0);
+		CHECK(s.upgrade_check(0, ht) == Simulation::UPGRADE_ERR_NONE);
+		s.set_team_civ(0, CIV_HAN);
+		CHECK(s.structure_upgrade_count(*find_bld(s, ht)) == 1);
+		s.set_team_civ(0, CIV_ATHENIANS);
+		// A Persian Tachara names its four forms outright: an Athenian captor keeps them.
+		const uint32_t tc = s.spawn_building_world(40.0f, 0.0f, BLD_TACHARA, 0, 1.0f);
+		s.set_building_civ(tc, CIV_PERSIANS);
+		CHECK(s.structure_upgrade_count(*find_bld(s, tc)) == 4);
+		// An Iberian sentry tower costs its own template's 250 stone and becomes the Athenians'
+		// structures/athen/defense_tower.
+		const uint32_t st = s.spawn_building_world(-40.0f, -26.0f, BLD_SENTRY_TOWER, 0, 1.0f);
+		s.set_building_civ(st, CIV_IBERIANS);
+		CHECK(s.structure_upgrade(*find_bld(s, st), 0).stone_cost == 250);
+		CHECK(s.cmd_upgrade_building(0, st));
+		CHECK(s.player(0).stone() == 1750.0f);
+		run(s, 120.5f);
+		CHECK(find_bld(s, st)->type == BLD_TOWER && find_bld(s, st)->civ == CIV_ATHENIANS);
+
+		// Population/Bonus comes from the house's own template.
+		uint8_t other = CIV_COUNT;
+		for (uint8_t c = 0; c < CIV_COUNT && other == CIV_COUNT; ++c)
+			if (c != CIV_GAIA && civ_can_build(c, BLD_HOUSE) &&
+					civ_building_type_info(c, BLD_HOUSE).pop_bonus != civ_building_type_info(CIV_ATHENIANS, BLD_HOUSE).pop_bonus)
+				other = c;
+		CHECK(other != CIV_COUNT);
+		const int pop0 = s.pop_max_uncapped(0);
+		const uint32_t hs = s.spawn_building_world(20.0f, -20.0f, BLD_HOUSE, 0, 1.0f);
+		s.set_building_civ(hs, other);
+		CHECK(s.pop_max_uncapped(0) - pop0 == s.structure_pop_bonus(BLD_HOUSE, 0, other));
+		CHECK(s.structure_pop_bonus(BLD_HOUSE, 0, other) != s.structure_pop_bonus(BLD_HOUSE, 0));
+
+		// A builder on a foundation that changes hands drops it.
+		const uint32_t f1 = s.spawn_building_world(30.0f, 30.0f, BLD_HOUSE, 0, 0.0f);
+		const float fx = find_bld(s, f1)->x, fz = find_bld(s, f1)->z;
+		const uint32_t w = s.spawn_unit(fx + 8.0f, fz, 0, UNIT_VILLAGER);
+		s.order_build_or_repair(&w, 1, f1);
+		run(s, 6.0f);
+		const float built = find_bld(s, f1)->build_progress;
+		CHECK(built > 0.0f);
+		find_bld(s, f1)->team = 1; // test-only: as if captured
+		run(s, 3.0f);
+		CHECK(find_bld(s, f1)->build_progress == built);
+		{
+			const auto u = s.units();
+			for (size_t i = 0; i < u.count; ++i)
+				if (u.id[i] == w) CHECK(u.action_state[i] != ACTION_BUILD);
+		}
+
+		// A sheep standing on a new foundation walks off it, then the work starts.
+		const uint32_t f2 = s.spawn_building_world(-10.0f, 40.0f, BLD_HOUSE, 0, 0.0f);
+		const Simulation::Building fb = *find_bld(s, f2);
+		const uint32_t sheep = s.spawn_fauna(fb.x, fb.z, FAUNA_SHEEP);
+		const uint32_t w2 = s.spawn_unit(fb.x + 8.0f, fb.z, 0, UNIT_VILLAGER);
+		s.order_build_or_repair(&w2, 1, f2);
+		run(s, 12.0f);
+		{
+			const auto fv = s.fauna();
+			for (size_t i = 0; i < fv.count; ++i)
+				if (fv.id[i] == sheep) CHECK(!nav::footprint_contains(fb, fv.pos_x[i], fv.pos_z[i], 0.0f));
+		}
+		CHECK(find_bld(s, f2)->committed && find_bld(s, f2)->build_progress > 0.0f);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

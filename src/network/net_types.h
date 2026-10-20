@@ -713,9 +713,9 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "behavior") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.behavior = x; }
 			else if (k == "res") { uint8_t x; if (detail::parse_u8(v, 0, 5, x)) out.start_res = x; }
 			else if (k == "obs") { uint64_t x; if (detail::parse_mask(v, x)) out.observers = x; }
-			else if (k == "speed" && !v.empty() && v.size() <= 3 && v.find_first_not_of("0123456789") == std::string::npos) {
+			else if (k == "speed" && !v.empty() && v.size() <= 4 && v.find_first_not_of("0123456789") == std::string::npos) {
 				unsigned x = (unsigned)std::stoul(v);
-				if (x >= 25 && x <= 300) out.speed = (uint16_t)x;
+				if (x >= 10 && x <= 2000) out.speed = (uint16_t)x; // game_speeds.json: Turtle 0.1x .. 20x
 			}
 			else if (k == "lockplayers") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.lock_players = x; }
 			else if (k == "rated") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.rated = x; }
