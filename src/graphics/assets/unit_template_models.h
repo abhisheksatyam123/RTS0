@@ -952,6 +952,12 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // theb_sacred_band (no model of its own: its owner civ's spearman model)
 		-1, // thesp_melanochitones (no model of its own: its owner civ's swordsman model)
 		411, // theb_siege_fireraiser
+		// Hand-added until tools/extract_0ad_assets.py --templates runs again (it needs public.zip):
+		// the Marian legionary rows draw the Roman champion swordsman model, not their c2-c5 actors.
+		-1, // rome/champion_infantry_swordsman_02
+		-1, // rome/champion_infantry_swordsman_03
+		-1, // rome/champion_infantry_swordsman_04
+		-1, // rome/champion_infantry_swordsman_05
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -1494,6 +1500,6 @@ inline int unit_template_rank_draw_index(uint16_t tmpl, uint8_t rank) {
 	return kLookup[tmpl][rank >= 3 ? 1 : 0];
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 507, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 511, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso

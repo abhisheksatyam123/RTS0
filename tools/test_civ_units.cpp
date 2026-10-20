@@ -449,6 +449,12 @@ int main() {
 			CHECK(promotes_to("rome/cavalry_spearman_b", "rome/cavalry_spearman_auxiliary_b"));
 			CHECK(promotes_to("rome/cavalry_javelineer_b", "rome/cavalry_javelineer_auxiliary_b"));
 			CHECK(promotes_to("rome/champion_infantry_swordsman", "rome/champion_infantry_swordsman_first"));
+			// The map-only Marian legionaries: _02 -> _03 at 150 xp, _03 -> the Centurion at 300.
+			CHECK(promotes_to("rome/champion_infantry_swordsman_02", "rome/champion_infantry_swordsman_03"));
+			CHECK(promotes_to("rome/champion_infantry_swordsman_03", "rome/champion_infantry_swordsman_04"));
+			CHECK(!promotes_to("rome/champion_infantry_swordsman_04", "rome/champion_infantry_swordsman_05"));
+			CHECK(civ_unit_template(roster_id("rome/champion_infantry_swordsman_04")).hp == 140.0f);
+			CHECK(civ_unit_template(roster_id("rome/champion_infantry_swordsman_05")).hp == 180.0f);
 		}
 		CHECK(civ_unit_template(roster_id("cart/cavalry_swordsman_gaul_b")).trainers == bld_bit(BLD_EMBASSY));
 		CHECK(std::strcmp(building_type_info(BLD_EMBASSY).name, "Celtic Embassy") == 0 &&

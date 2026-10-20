@@ -34979,7 +34979,7 @@ const char *const kVolcanoWarnings[4] = {
 	"The lakes start swallowing the land, we have to find shelter!",
 };
 // garrisonedUnits = "units/rome/champion_infantry_swordsman_02"
-const char *const kVolcanoTowerGarrison = "rome/champion_infantry_swordsman";
+const char *const kVolcanoTowerGarrison = "rome/champion_infantry_swordsman_02";
 
 // maps/random/polar_sea_triggers.js
 constexpr uint8_t kPolarSeaWolves = FAUNA_WOLF_ARCTIC_VIOLENT; // attackerTemplate
@@ -35571,7 +35571,7 @@ void Simulation::trigger_gallic_fields(bool attack) {
 	// "units/rome/champion_infantry_swordsman_02", attackSize, 0): Roman champions as Gaia on
 	// every point of the set, each group sent to attack-walk to its point owner's A point.
 	const uint8_t ref = sim_rng_.range_int(0, 1) ? 'C' : 'B';
-	const uint16_t tmpl = roster_template_named("rome/champion_infantry_swordsman");
+	const uint16_t tmpl = roster_template_named("rome/champion_infantry_swordsman_02");
 	for (const TriggerPoint &p : triggers_.points) {
 		if (p.ref != ref || tmpl == CIV_UNIT_TEMPLATE_NONE) continue;
 		std::vector<uint32_t> ids;
