@@ -5103,6 +5103,46 @@
 1.0
 ]
 },
+"buildings/s_celts_hut_tex0": {
+"mask": "res://assets/textures/player_masks/structural/celt_struct_1_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_celts_hut_tex1": {
+"mask": "res://assets/textures/player_masks/props/celt_prop_1_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_celts_hut_tex2": {
+"mask": "res://assets/textures/player_masks/props/celt_props_new_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_celts_longhouse_tex0": {
+"mask": "res://assets/textures/player_masks/structural/celt_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_celts_longhouse_tex2": {
+"mask": "res://assets/textures/player_masks/props/celt_props_new_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_celts_tavern_tex0": {
 "mask": "res://assets/textures/player_masks/structural/celt_struct_512x512.png",
 "tint": [
@@ -6440,6 +6480,46 @@
 ]
 },
 "buildings/s_ptolemies_stable_tex0": {
+"mask": "res://assets/textures/player_masks/structural/ptol_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_ptolemies_stall_big_tex0": {
+"mask": "res://assets/textures/player_masks/structural/ptol_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_ptolemies_stall_med_tex0": {
+"mask": "res://assets/textures/player_masks/structural/ptol_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_ptolemies_stall_med_tex2": {
+"mask": "res://assets/textures/player_masks/props/stall_med_cloth_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_ptolemies_stall_small_a_tex0": {
+"mask": "res://assets/textures/player_masks/structural/ptol_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_ptolemies_stall_small_b_tex0": {
 "mask": "res://assets/textures/player_masks/structural/ptol_struct_512x256.png",
 "tint": [
 1.0,

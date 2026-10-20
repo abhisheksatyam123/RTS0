@@ -995,6 +995,11 @@ GROUND_AT_ORIGIN = {
     "art/actors/structures/plot_field_medit.xml",
     "art/actors/structures/plot_field_temp.xml",
     "art/actors/structures/rice_paddy.xml",
+    # The Ptolemaic market stalls stand on plinths sunk up to 2 m.
+    "art/actors/structures/ptolemies/stall_small_a.xml",
+    "art/actors/structures/ptolemies/stall_small_b.xml",
+    "art/actors/structures/ptolemies/stall_med.xml",
+    "art/actors/structures/ptolemies/stall_big.xml",
 }
 GROUND_CUT_Y = -0.05
 
@@ -1043,6 +1048,15 @@ ZIP_STRUCTURES = {
     "s_plot_field_medit": ("art/actors/structures/plot_field_medit.xml", "scale", 0.25, None),
     "s_plot_field_temp":  ("art/actors/structures/plot_field_temp.xml",  "scale", 0.25, None),
     "s_rice_paddy":       ("art/actors/structures/rice_paddy.xml",       "scale", 0.25, None),
+    # Houses maps place by their own 0.28 template (structures/stall_*,
+    # celt_hut, celt_longhouse), drawn by template as "look_*"
+    # (data/building_models.json, RtsoWorldView::set_building_look), at 0.28's size.
+    "s_ptolemies_stall_small_a": ("art/actors/structures/ptolemies/stall_small_a.xml", "scale", 0.25, None),
+    "s_ptolemies_stall_small_b": ("art/actors/structures/ptolemies/stall_small_b.xml", "scale", 0.25, None),
+    "s_ptolemies_stall_med":     ("art/actors/structures/ptolemies/stall_med.xml",     "scale", 0.25, None),
+    "s_ptolemies_stall_big":     ("art/actors/structures/ptolemies/stall_big.xml",     "scale", 0.25, None),
+    "s_celts_hut":               ("art/actors/structures/celts/hut.xml",               "scale", 0.25, None),
+    "s_celts_longhouse":         ("art/actors/structures/celts/longhouse.xml",         "scale", 0.25, None),
     # The Wagon Encampment, as wide as the Roman army camp it stood in for, and
     # its fortified Upgrade at the same scale (its palisade rings the wagons).
     "s_germans_encampment":           ("art/actors/structures/germans/encampment.xml",           "width", 4.0, None),
