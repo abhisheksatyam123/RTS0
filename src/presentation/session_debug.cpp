@@ -861,6 +861,7 @@ Dictionary RtsoMain::debug_placement_tip() const {
 
 // Tests: the action tooltip beside the cursor and the cursor's name.
 Dictionary RtsoMain::debug_cursor_tip() {
+	update_highlight();
 	update_cursor();
 	Dictionary d;
 	d["visible"] = cursor_tip_ && cursor_tip_->is_visible();

@@ -200,6 +200,16 @@ int main() {
 		else CHECK(s.is_game_over() && (s.winner_mask_ & 0x5) == 0x5 && !(s.winner_mask_ & 0x2));
 	}
 
+	// 8b2. CaptureTheRelic.js:15-21 spawns relicCount on top of the map's own catafalques.
+	{
+		fresh(s);
+		s.set_victory_condition(VICTORY_RELIC);
+		s.set_relic_count(2);
+		s.spawn_relic(0.0f, 30.0f);
+		run(s, 0.1f);
+		CHECK(s.relics_.size() == 3);
+	}
+
 	// 8c. CaptureTheRelic.js: each relic is a different catafalque, spawned beside a random
 	// Gaia entity on land outside every player's territory (TriggerHelper.GetLandSpawnPoints).
 	{

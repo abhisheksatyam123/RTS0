@@ -44,3 +44,4 @@ Area: the victory-condition simulation (ConquestCommon, Regicide, CaptureTheReli
 - 4, 5, 7 and 8 are fixed in the pass-5 PR. tools/test_victory.cpp checks the foundation and the same-tick fall; test_trade checks the ceasefire market.
 - 1 is fixed in the starting-wonders PR. A map wonder's countdown field holds -1 until the wonder changes hands, so the save format is unchanged. test_victory 10b covers it.
 - 2 and 3 are REMAINING_GAPS G52, handed to F and D.
+- 2: F ported the catafalques (#1414), and the relic count is now spawned on top of them. 0.28's Gaia counter quirk is not copied.

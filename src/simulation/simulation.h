@@ -965,6 +965,8 @@ public:
 	// 0 A.D. Pack/Unpack command (UnitAI Order.Pack / Order.Unpack): drops the units' current
 	// orders and packs (pack=true) or unpacks them. Units without Pack are ignored.
 	void order_pack(const uint32_t *unit_ids, size_t count, bool pack);
+	// A map's "_unpacked" siege engine: a packed one stands unpacked at once, ready to fire.
+	void set_unit_unpacked(uint32_t unit_id);
 	// Seconds a pack or unpack takes for this unit (0 A.D. Pack/Time).
 	float pack_time_s(size_t unit_idx) const;
 	// 0 A.D. "formation" command (Commands.js): the units form up in `formation` where they
@@ -1482,6 +1484,11 @@ public:
 	bool undeletable_unit(uint32_t unit_id) const { return invulnerable(unit_id); }
 	// unit_can_build (Builder) for unit i, less a nonbuilder.
 	bool unit_builds(size_t i) const { return unit_can_build(units_.unit_type[i], units_.tmpl[i]) && !nonbuilder(units_.id[i]); }
+	// unit_builds by unit id (false for a dead or unknown unit).
+	bool unit_id_builds(uint32_t id) const {
+		const int32_t u = lookup_unit(id);
+		return u >= 0 && units_.alive[u] && unit_builds((size_t)u);
+	}
 	bool has_map_triggers() const { return !triggers_.triggers.empty(); }
 	// Commands.js ProcessCommand's OnPlayerCommand (kind: TriggerCommand). target and other
 	// are the command's targets (see TriggerCommand), hunt 1 when target is an animal,
@@ -2353,7 +2360,9 @@ public:
 	// ("gaul/infantry_javelineer_a"; a rank suffix falls back to the _b template), else the
 	// u_type class. rank 2/3 = Advanced/Elite, reached through Promotion xp on the next tick.
 	uint32_t spawn_gaia_unit(float x, float z, UnitType u_type, const char *template_id, int rank = 1);
-	uint32_t spawn_map_unit(float x, float z, uint8_t team, UnitType u_type, const char *template_id, int rank = 0);
+	// unpacked: the map placed the "_unpacked" template, so a siege engine starts unpacked.
+	uint32_t spawn_map_unit(float x, float z, uint8_t team, UnitType u_type, const char *template_id, int rank = 0,
+	                        bool unpacked = false);
 	static uint16_t resolve_map_template(const char *template_id, int *rank);
 	// Puts a unit inside a structure of its owner at once, as a map's <Garrison> does.
 	bool garrison_unit_now(uint32_t unit_id, uint32_t building_id);
@@ -3815,7 +3824,8 @@ private:
 	void petra_check_base_expansion(); // headquarters.js checkBaseExpansion
 	bool petra_build_new_base(int res = -1); // headquarters.js buildNewBase (res: RES_* or none)
 	bool petra_find_strategic_cc_location(uint8_t btype, float &out_x, float &out_z);
-	bool petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z);
+	bool petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z,
+	                                     const float *proximity = nullptr);
 	bool petra_cc_tile_ok(uint8_t btype, float x, float z) const;
 	// queueplanBuilding.js findDockPosition: a dock site on `land` by `sea` (cell of its corner).
 	// findDockPosition's other searches, over the whole map: buildOverseaDock's (on any of
@@ -3909,6 +3919,7 @@ private:
 	                           uint8_t owner);
 	void petra_step_transport(PetraTransportPlan &tp, float dt);
 	uint32_t petra_free_transport_ship(uint16_t sea, float x, float z) const;
+	void petra_pickup_point(uint32_t ship, uint16_t sea, float from_x, float from_z, float to_x, float to_z, float &out_x, float &out_z) const;
 	uint32_t petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue);
 	// queueplanBuilding.js findPosition (basesMap, influences, findBestTile).
 	struct PetraBasesMap {
