@@ -107,6 +107,22 @@ Right-click priorities on own and allied entities against unit_actions.js (speci
 
 Kept on purpose: the RTS0 villager rows stay as the worker class's default for old saves and pre-roster spawns, but nothing trains one by name (#1014); Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
 
+### Status effects, Petra config, Allied View, the Germans and civ pages: Compare's ninth 0.28 pass (2026-10-20)
+
+Checked against 0.28: status effects, Petra difficulty and behaviour config, Allied View and shared LOS, the minimap, the Germans' own mechanics, and the civinfo and structure tree data. Owner: Compare. A row owned by another thread names that thread in its Status column.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| S1 | German Petra never picks Grove of Fetters in its random city-phase research. 0.28 (researchManager.js:204-222) skips a tech only when its top-level `affects` is just Healer, Outpost or Wall. RTS0's `petra_tech_affects_only` checks each effect's affects, and grove_of_fetters puts "Healer" only on its effect. It is the only tech where the two checks differ. | low | Open: E (Petra research) |
+| S2 | ~~The civ emblem tooltip names the phase "Village/Town/City Phase"~~ Fixed: getEntityNames of phase_<phase>_<civ>, else phase_<phase> (selection_details.js:318-322). Every civ but the Germans gets its village name; only the Athenians and Persians have their own town and city names. | low | Fixed |
+
+Checked and matching:
+- Poison and burning: stacking modes, tick count and timing, resistance, no XP, kill and loot credit to the source, poison immunity, and the values of the units and ships that apply them.
+- Petra: PetraConfig per difficulty and personality, the update cadence, the wanted and preferred research lists, and the soldier-worker choice.
+- Shared vision: Cartography, shared LOS and the minimap, explored bits, and ally stats.
+- The Germans' mechanics: wagons and wagon_trains, encampments, the totem, the great hall, resettlement, the Seeress, mobile dropsites, and the team bonus.
+- Civ reference pages: histories, bonuses and specific structures.
+
 ### Range overlays, auras and Petra: Compare's eighth 0.28 pass (2026-10-20)
 
 Range overlays (RangeOverlayManager.js, Auras.js and Attack.js GetRangeOverlays), aura mechanics and icons, the Germans, reference pages, skirmish map teams and Petra base and emergency choices, checked against 0.28. Owner: Compare; rows owned by another thread name it in Status.
