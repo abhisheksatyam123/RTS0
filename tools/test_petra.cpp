@@ -173,6 +173,10 @@ static void test_roster_army() {
 				men.push_back(s->spawn_unit(at[0] - 6.0f + (float)(k % 5), at[1] - 6.0f - (float)(k / 5), 0, UNIT_SPEARMAN));
 			s->order_garrison(men.data(), men.size(), fort);
 		}
+		// Murder Holes: soldiers left from an attack hacking at a fortress from under its arrows
+		// (MinRange) would hold both attack slots for the rest of the match (attackManager.js),
+		// so its hero and champions never march.
+		s->complete_research(0, TECH_TOWER_MURDERHOLES);
 		bool hero = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		bool advanced = false, arsenal = false;
 		// 45 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
@@ -5818,6 +5822,74 @@ static void test_order_plan_tags() {
 }
 
 
+// headquarters.js:411 trainMoreWorkers counts only units with no plan: one an attack or raid
+// took keeps plan -1 after it leaves (attackPlan.js removeUnit), and so do the emergency units,
+// so Petra trains new workers in their place.
+static void test_out_of_plan_workers() {
+	auto make = [] {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		return s;
+	};
+	auto s = make();
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	int supports = 0;
+	const int before = s->petra_unplanned_workers(supports);
+	std::vector<uint32_t> soldiers;
+	for (size_t i = 0; i < s->units_.count && soldiers.size() < 2; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 && unit_gather_class(s->units_.unit_type[i], s->units_.tmpl[i]) == GATHER_INFANTRY &&
+		    s->petra_is_worker(i))
+			soldiers.push_back(s->units_.id[i]);
+	CHECK(soldiers.size() == 2, "Petra starts with two citizen infantry workers");
+	if (soldiers.size() < 2) return;
+	s->petra_raid_plan_.squad = soldiers;
+	CHECK(s->petra_unplanned_workers(supports) == before - 2, "a raid's soldiers aren't workers");
+	s->petra_raid_plan_.squad.clear();
+	CHECK(s->petra_unplanned_workers(supports) == before - 2, "nor once the raid let them go (plan -1)");
+	CHECK(s->petra_is_worker((size_t)s->lookup_unit(soldiers[0])), "though they still gather");
+	const char *path = "/tmp/rtso_test_petra_out_of_plan.sav";
+	CHECK(s->save_state(path), "saves");
+	auto t = make();
+	CHECK(t->load_state(path), "loads");
+	std::remove(path);
+	t->petra_pid_ = 1;
+	CHECK(t->petra_unplanned_workers(supports) == before - 2, "plan -1 survives a save and load");
+
+	// An emergency batch: its units are out of any plan from the start.
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : t->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type)) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const uint32_t cc_id = cc->id;
+	t->buildings_[t->building_id_to_idx_.at(cc_id)].queue.clear();
+	const uint16_t tmpl = t->units_.tmpl[(size_t)t->lookup_unit(soldiers[0])];
+	std::vector<uint32_t> had;
+	for (size_t i = 0; i < t->units_.count; ++i) if (t->units_.alive[i]) had.push_back(t->units_.id[i]);
+	ProductionOrder em;
+	em.unit_type = t->units_.unit_type[(size_t)t->lookup_unit(soldiers[0])];
+	em.tmpl = tmpl;
+	em.timer = 0.0f;
+	em.duration = 1.0f;
+	em.petra_plan = PETRA_ORDER_EMERGENCY; // as trainEmergencyUnits queues it (plan -1)
+	t->buildings_[t->building_id_to_idx_.at(cc_id)].queue.push_back(em);
+	for (int k = 0; k < 2400 && !t->buildings_[t->building_id_to_idx_.at(cc_id)].queue.empty(); ++k) t->tick(Simulation::FIXED_STEP);
+	CHECK(t->buildings_[t->building_id_to_idx_.at(cc_id)].queue.empty(), "it trains");
+	int emergency = 0, out = 0;
+	for (size_t i = 0; i < t->units_.count; ++i) {
+		if (!t->units_.alive[i] || t->units_.team[i] != 1 || t->units_.tmpl[i] != tmpl) continue;
+		if (std::find(had.begin(), had.end(), t->units_.id[i]) != had.end()) continue;
+		++emergency;
+		const auto &o = t->petra_out_of_plan_[1];
+		out += std::binary_search(o.begin(), o.end(), t->units_.id[i]);
+	}
+	CHECK(emergency >= 1 && out == emergency, "and is out of any plan, so it isn't counted as a worker");
+}
+
 // attackPlan.js addUnits for a raid: every free FastMoving soldier but two, kept back to hunt.
 static void test_raid_keeps_hunters() {
 	auto s = std::make_unique<Simulation>();
@@ -5975,6 +6047,79 @@ static PetraDropsiteCheck &base_dropsite_check(Simulation &s) {
 		if (c.anchor_id == m.anchors.at(0).id) return c.check;
 	s.petra_base_dropsite_checks_.push_back({m.anchors.at(0).id, PetraDropsiteCheck{}});
 	return s.petra_base_dropsite_checks_.back().check;
+}
+
+// basesManager.js basesMap: a tile stays with the base that first claimed it. A second civic
+// centre takes only the tiles it adds (addTerritoryIndexToBase), not the first base's tiles
+// that are nearer to it; once the first anchor is gone its tiles go to the nearest base left
+// (reassignTerritories). Saved with the game.
+static void test_tile_bases_028() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->petra_pid_ = 1;
+	uint32_t a_id = 0;
+	float ax = 0, az = 0;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type)) { a_id = b.id; ax = b.x; az = b.z; }
+	CHECK(a_id != 0, "player 1 has a civic centre");
+	s->petra_update_tile_bases();
+	// The first base's tiles, and a spot for a second civic centre at its territory's edge.
+	Simulation::PetraBasesMap m0;
+	s->petra_bases_map(m0);
+	float bx = ax, bz = az, far = 0.0f;
+	const int bw0 = m0.x1 - m0.x0 + 1;
+	auto centre = [&](int i) { return ((float)i + 0.5f) * Simulation::GRID - s->map_half(); };
+	for (int iz = m0.z0; iz <= m0.z1; ++iz)
+		for (int ix = m0.x0; ix <= m0.x1; ++ix) {
+			if (!m0.base[(size_t)(iz - m0.z0) * bw0 + (ix - m0.x0)]) continue;
+			const float x = centre(ix), z = centre(iz), d = (x - ax) * (x - ax) + (z - az) * (z - az);
+			if (d > far && s->petra_access_at(x, z) == s->petra_access_at(ax, az)) {
+				far = d; bx = x; bz = z;
+			}
+		}
+	const uint32_t b_id = s->spawn_building_world(bx, bz, BLD_TOWN_CENTER, 1, 1.0f);
+	s->rebuild_territory();
+	s->petra_update_tile_bases();
+	Simulation::PetraBasesMap m;
+	s->petra_bases_map(m);
+	int kept = 0, stolen = 0, to_b = 0;
+	const int bw = m.x1 - m.x0 + 1;
+	for (int iz = m.z0; iz <= m.z1; ++iz)
+		for (int ix = m.x0; ix <= m.x1; ++ix) {
+			const int k = m.base[(size_t)(iz - m.z0) * bw + (ix - m.x0)];
+			if (!k) continue;
+			const uint32_t id = m.anchors[k - 1].id;
+			const bool was_a = ix >= m0.x0 && ix <= m0.x1 && iz >= m0.z0 && iz <= m0.z1 &&
+					m0.base[(size_t)(iz - m0.z0) * bw0 + (ix - m0.x0)] != 0;
+			const float x = centre(ix), z = centre(iz);
+			const bool nearer_b = (x - bx) * (x - bx) + (z - bz) * (z - bz) < (x - ax) * (x - ax) + (z - az) * (z - az);
+			if (was_a && nearer_b) (id == a_id ? kept : stolen)++;
+			if (id == b_id) ++to_b;
+		}
+	std::printf("  tile bases: %d of the first base's tiles nearer the second civic centre kept, %d moved; %d tiles to the second\n",
+	            kept, stolen, to_b);
+	CHECK(kept > 0 && stolen == 0, "the first base keeps the tiles it claimed");
+	CHECK(to_b > 0, "the second civic centre's new tiles go to it");
+	// Saved and loaded.
+	const char *path = "/tmp/rtso_petra_tile_bases.sav";
+	CHECK(s->save_state(path), "saves");
+	auto l = std::make_unique<Simulation>();
+	CHECK(l->load_state(path), "loads");
+	l->petra_pid_ = 1;
+	Simulation::PetraBasesMap ml;
+	l->petra_bases_map(ml);
+	CHECK(ml.base == m.base, "the claims survive a save");
+	// The first anchor gone: its tiles go to the nearest base left.
+	s->buildings_[s->building_id_to_idx_[a_id]].hp = 0.0f;
+	s->tick(Simulation::FIXED_STEP);
+	s->petra_update_tile_bases();
+	Simulation::PetraBasesMap m2;
+	s->petra_bases_map(m2);
+	bool all_b = !m2.base.empty();
+	for (uint8_t k : m2.base) all_b = all_b && (k == 0 || m2.anchors[k - 1].id == b_id);
+	CHECK(all_b, "a lost anchor's tiles go to the base left");
 }
 
 // startingStrategy.js buildFirstBase lays the first wood dropsite and no houses: houses wait for
@@ -7028,8 +7173,10 @@ int main(int argc, char **argv) {
 	RUN(test_raid_takes_siege);
 	RUN(test_raid_cc_foundation);
 	RUN(test_order_plan_tags);
+	RUN(test_out_of_plan_workers);
 	RUN(test_dropsites);
 	RUN(test_building_plan_028);
+	RUN(test_tile_bases_028);
 	RUN(test_food_fields);
 	RUN(test_corral_by_owner);
 	RUN(test_missing_room_expansion);

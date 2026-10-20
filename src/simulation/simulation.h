@@ -108,7 +108,8 @@ struct ProductionOrder {
 };
 // The metadata Petra trains a batch with (queueplanTraining.js): a worker (role worker, no
 // plan), a soldier for the attack in preparation or for the raid (plan), or none.
-enum PetraOrderPlan : uint8_t { PETRA_ORDER_NONE = 0, PETRA_ORDER_WORKER, PETRA_ORDER_ATTACK, PETRA_ORDER_RAID };
+// PETRA_ORDER_EMERGENCY: headquarters.js trainEmergencyUnits queues them with metadata plan -1.
+enum PetraOrderPlan : uint8_t { PETRA_ORDER_NONE = 0, PETRA_ORDER_WORKER, PETRA_ORDER_ATTACK, PETRA_ORDER_RAID, PETRA_ORDER_EMERGENCY };
 // ProductionQueue.js MaxQueueSize.
 static constexpr size_t PRODUCTION_QUEUE_MAX = 16;
 
@@ -180,10 +181,12 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 105; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 107; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_TILE_BASES = 107; // the base that claimed each of Petra's territory tiles
 	static constexpr uint32_t SAVE_VERSION_CHASE_TARGET = 105; // the target each unit was last in attack range of (UnitAI CHASING)
 	static constexpr uint32_t SAVE_VERSION_WAGON_SHARING = 103; // the supply wagons their owners locked
 	static constexpr uint32_t SAVE_VERSION_PETRA_TARGETED_RELICS = 104; // each Petra's targetedGaiaRelics; each structure's petra_decay_hold
+	static constexpr uint32_t SAVE_VERSION_PETRA_OUT_OF_PLAN = 106; // Petra's units out of a plan (metadata plan -1); emergency batches
 	static constexpr uint32_t SAVE_VERSION_AUTOQUEUE_BATCH = 102; // each queued batch's original size once part of it spawned
 	static constexpr uint32_t SAVE_VERSION_CARCASS_OWNER = 101; // each carcass's animal's owner
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
@@ -1974,6 +1977,10 @@ public:
 	// infantry an AI player trained outside its civic centres, sorted ids (saved v52). Every
 	// other citizen soldier of an AI is a worker (trainMoreWorkers, the starting units).
 	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_army_ids_;
+	// Petra's units with metadata plan -1, sorted ids (saved v106): every unit an attack or
+	// raid squad held (attackPlan.js removeUnit) and the emergency units (trainEmergencyUnits).
+	// 0.28 never clears it, so trainMoreWorkers doesn't count them as workers again.
+	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_out_of_plan_;
 	bool petra_is_worker(size_t i) const;
 	int petra_target_workers() const;
 	int petra_work_phase3() const;
@@ -2299,6 +2306,11 @@ public:
 	// structure is, unless `allow_capture` is false (Ctrl: session.attack).
 	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id, bool allow_capture = true);
 	bool scenery_capturable(const Scenery &sc) const { return scenery_type_info(sc.type).capture_points > 0; }
+	// unit_actions.js "attack" and "capture" on a structure: may one of unit_ids damage it (Attack.js
+	// CanAttack "!Capture": an enemy's, with hitpoints, outside the attack's RestrictedClasses) or take
+	// its capture points (CanAttack "Capture": a Capture attack and Capturable.CanCapture)?
+	bool any_can_damage_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const;
+	bool any_can_capture_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const;
 	void tick_scenery_capture(); // Capturable.js TimerTick: territory decay, then regeneration
 	void scenery_check_owner(Scenery &sc); // RegisterCapturePointsChanged
 	float unit_damage_to_scenery(size_t i) const;
@@ -3212,6 +3224,7 @@ private:
 	CinemaState cinema_; // saved from SAVE_VERSION_CINEMA
 	void tick_triggers(float dt);
 	void tick_cinema(float dt);
+	void cinema_drop_deleted_path(uint16_t idx); // a deleted path no longer queued
 	void set_cinema_enabled(bool enabled);
 	void register_map_triggers(MapType type);
 	void run_trigger_action(uint16_t action, float arg, const TriggerEventData &data);
@@ -3520,6 +3533,14 @@ private:
 	// 10th turn until their owner changes. `sent` once a plan has gone for it (plans.length).
 	struct PetraTargetedRelic { uint32_t relic = 0; uint32_t sent = 0; };
 	std::vector<PetraTargetedRelic> petra_targeted_relics_;
+	// basesManager.js basesMap kept between turns: the anchor (civic centre or colony id) that
+	// claimed each of petra_bases_map's tiles (w x w), 0 none. A tile stays with the base that
+	// first claimed it (addTerritoryIndexToBase) until the territory or that anchor is lost.
+	struct PetraTileBases {
+		int w = 0;
+		std::vector<uint32_t> anchor;
+	};
+	PetraTileBases petra_tile_bases_;
 	void petra_check_trade_events();
 	void petra_set_no_room(uint8_t type);
 	bool petra_no_room(uint8_t type) const;
@@ -3807,6 +3828,7 @@ private:
 	uint32_t petra_build_market(float home_x, float home_z, uint8_t queue); // ConstructionPlan for a Market
 	bool petra_find_defensive_location(uint8_t btype, int &out_cx, int &out_cz) const; // headquarters.js findDefensiveLocation
 	void petra_prospect_market(const PetraTradeRoutes &routes); // prospectForNewMarket
+	int petra_unplanned_workers(int &supports);
 	int petra_train_more_workers();
 	bool petra_wood_starved() const;
 	bool petra_wood_kept_for(int queue) const;
@@ -3871,6 +3893,7 @@ private:
 		int at(float x, float z, float half) const;
 	};
 	void petra_bases_map(PetraBasesMap &m) const;
+	void petra_update_tile_bases();
 	mutable std::vector<int> petra_bases_tile_scratch_; // petra_bases_map's territory tile per column, then per row
 	// `bmap` and `base` (from 1) limit the search to that base's territory.
 	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 50.0f, bool *no_site = nullptr, float fund_above = -1.0f,
@@ -3914,7 +3937,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};

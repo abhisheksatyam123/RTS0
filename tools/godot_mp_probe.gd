@@ -254,6 +254,17 @@ func _run() -> void:
 					main.send_setup_chat("hello from bob")
 					# ChatInputPanel: no addressees in the setup; sent to everyone as typed.
 					main.send_setup_chat("/allies team up")
+					# 0.28 /list in the setup: g_PlayerAssignments, seated or not.
+					main.send_setup_chat("/list")
+					var listed := ""
+					for i in 30:
+						for l in RegEx.create_from_string("\\[[^\\]]*\\]").sub(str(main.get_setup_chat().get("text", "")), "", true).split("\n"):
+							if l.contains("Users ("):
+								listed = l.strip_edges()
+						if listed != "":
+							break
+						await _wait(0.1)
+					_say("setup_list=" + listed.substr(listed.find("Users (")))
 			# Once the joiner is seated: before its slot is given it needs no
 			# ready (0.28 ReadyController), so Start would not be refused yet.
 			# 0.28: only the host sets a player's civ, team and colour, on its page.
@@ -301,6 +312,18 @@ func _run() -> void:
 								listed = true
 								break
 							await _wait(0.1)
+						# LobbyHandler: with the lobby open over the setup, alice is Online, not Busy.
+						var presence := ""
+						for i in 40:
+							if dlobby:
+								dlobby._refresh()
+								await _wait(0.1)
+								for it in dlobby._players.get_root().get_children() if dlobby._players.get_root() else []:
+									if str(it.get_metadata(0)) == "alice":
+										presence = it.get_text(0)
+							if presence == "Online":
+								break
+						_say("dialog_presence=" + presence)
 						var join_hidden := true
 						for b in dlobby.find_children("*", "Button", true, false) if dlobby else []:
 							if b.text in ["Join Game", "Host Game"] and b.is_visible_in_tree():
