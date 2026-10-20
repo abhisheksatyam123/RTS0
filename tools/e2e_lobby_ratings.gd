@@ -201,7 +201,7 @@ func run() -> void:
 	check(pre == [{"name": "alice"}, {"name": "bob"}, {"name": "carol", "team": -1, "observer": true}],
 		"in setup: the players' names and the observers (%s)" % str(pre))
 	var pre_text: String = LobbySessionScript.game_details({"name": "g", "player_names": pre}, {})
-	check(pre_text.contains("\nalice\nbob\n") and pre_text.contains("Observer:\ncarol") and not pre_text.contains("Civilization"),
+	check(pre_text.contains("\nalice\nbob\n") and pre_text.contains("Observer:[/b]\ncarol") and not pre_text.contains("Civilization"),
 		"and the details list them by name: " + pre_text.replace("\n", " | "))
 	ms.slot_types = [0, 2, 0]
 	ms.map_id = "acropolis_bay"
