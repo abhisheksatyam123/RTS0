@@ -181,7 +181,7 @@ public:
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
 	static constexpr uint32_t SAVE_VERSION = 103; // save_state's format; see the history beside it
-	static constexpr uint32_t SAVE_VERSION_PETRA_TARGETED_RELICS = 103; // each Petra's targetedGaiaRelics
+	static constexpr uint32_t SAVE_VERSION_PETRA_TARGETED_RELICS = 103; // each Petra's targetedGaiaRelics; each structure's petra_decay_hold
 	static constexpr uint32_t SAVE_VERSION_AUTOQUEUE_BATCH = 102; // each queued batch's original size once part of it spawned
 	static constexpr uint32_t SAVE_VERSION_CARCASS_OWNER = 101; // each carcass's animal's owner
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
@@ -400,6 +400,9 @@ public:
 		// 0 A.D. ResourceDropsite IsShared: allies with Diaspora may drop resources here. Sharable
 		// dropsites (Civic Centres, storehouses, farmsteads, docks) start shared.
 		bool dropsite_shared = true;
+		// garrisonManager.js addDecayingStructure(justCaptured): a Barracks-class structure
+		// captured while decaying, which its owner's AI garrisons until the decay stops.
+		bool petra_decay_hold = false;
 	};
 	// Whether `b` is rasterized into the nav grid (0 A.D. Obstruction BlockPathfinding).
 	static bool blocks_pathfinding(const Building &b) {

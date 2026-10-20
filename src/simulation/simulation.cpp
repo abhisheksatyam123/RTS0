@@ -1821,6 +1821,13 @@ void Simulation::rebuild_territory() {
 	for (const Building &b : buildings_)
 		if (petra_decays(b)) decaying_before.push_back(b.id);
 	rebuild_territory_grids();
+	// garrisonManager.js removeDecayingStructure: a held barracks no longer decaying is let go.
+	for (Building &b : buildings_) {
+		if (!b.petra_decay_hold) continue;
+		std::array<float, MAX_PLAYERS> to;
+		float to_gaia;
+		b.petra_decay_hold = !b.wrecked && b.territory_decay_rate > 0.0f && territory_decay_targets(b, to, to_gaia);
+	}
 	for (const Building &b : buildings_)
 		if (petra_decays(b) && std::find(decaying_before.begin(), decaying_before.end(), b.id) == decaying_before.end())
 			petra_decay_events_.push_back(b.id);
@@ -9864,6 +9871,14 @@ void Simulation::stat_building_lost(const Building &b, uint8_t killer) {
 
 void Simulation::stat_building_captured(const Building &b, uint8_t from) {
 	petra_decay_events_.push_back(b.id); // OwnershipChanged for Petra's decaying structures
+	// headquarters.js OwnershipChanged: a decaying Barracks just captured is garrisoned (justCaptured).
+	if (auto it = building_id_to_idx_.find(b.id); it != building_id_to_idx_.end()) {
+		Building &cb = buildings_[it->second];
+		std::array<float, MAX_PLAYERS> to;
+		float to_gaia;
+		cb.petra_decay_hold = (building_tech_classes(cb.type) & TC_BARRACKS) && cb.build_progress >= 1.0f &&
+		                      cb.territory_decay_rate > 0.0f && territory_decay_targets(cb, to, to_gaia);
+	}
 	// The new owner captured it (CapturedBuilding); the old one lost it (LostEntity).
 	const uint32_t cls = stat_building_classes(b.type);
 	const uint32_t value = stat_building_value(b);
@@ -29368,9 +29383,9 @@ bool Simulation::petra_garrison_attacked_unit(size_t i, bool emergency, std::vec
 }
 
 int Simulation::petra_decay_garrison_min(const Building &b) {
-	// Structures useful for defence (DefaultArrowCount), and barracks (0 A.D. only just after
-	// capturing one; RTS0 keeps no capture history, so any decaying barracks of ours).
-	if (!building_ai_info(b.type).shoots() && b.type != BLD_BARRACKS) return 0;
+	// Structures useful for defence (DefaultArrowCount), and Barracks-class ones captured while
+	// decaying, until the decay stops (addDecayingStructure with justCaptured).
+	if (!building_ai_info(b.type).shoots() && !b.petra_decay_hold) return 0;
 	if (b.territory_decay_rate <= 0.0f || b.capture_garrison_regen_rate <= 0.0f) return 0;
 	std::array<float, MAX_PLAYERS> to;
 	float to_gaia = 0.0f;
@@ -31750,6 +31765,7 @@ bool Simulation::save_state(const char *filepath) const {
 			out.write((const char *)&st.cmd, sizeof(st.cmd));
 			out.write((const char *)&st.ent_id, sizeof(st.ent_id));
 		}
+		out.write((const char *)&b.petra_decay_hold, sizeof(b.petra_decay_hold));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -32213,6 +32229,8 @@ bool Simulation::load_state(const char *filepath) {
 			}
 			if (bld.rally_cmd >= RALLY_CMD_COUNT) return false;
 		}
+		bld.petra_decay_hold = false; // older saves: a captured barracks is not held
+		if (version >= SAVE_VERSION_PETRA_TARGETED_RELICS) in.read((char *)&bld.petra_decay_hold, sizeof(bld.petra_decay_hold));
 		bld.set_extents(bld.half_size, building_half_depth(bld.type, bld.half_size, bld.civ)); // its civ's wall depth
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;

@@ -4187,6 +4187,18 @@ static void test_decay_garrison() {
 	std::printf("  decaying tower in enemy land: needs %d, garrisoned %zu, still ours %s\n", need, inside, ours ? "yes" : "no");
 	CHECK(need > 0, "a tower in enemy territory decays");
 	CHECK(ours && (int)inside >= std::min(need, cap), "Petra garrisons a decaying tower (TYPE_DECAY)");
+	// A barracks is held only just after Petra captures it (addDecayingStructure justCaptured).
+	const uint32_t bar = s->spawn_building_world(tx, tz + 16.0f, BLD_BARRACKS, 0);
+	auto bi = s->building_id_to_idx_.find(bar);
+	CHECK(bi != s->building_id_to_idx_.end(), "player 0's barracks stands");
+	if (bi == s->building_id_to_idx_.end()) return;
+	Simulation::Building &bb = s->buildings_[bi->second];
+	bb.team = 1;
+	const int built = s->petra_decay_garrison_min(bb);
+	s->stat_building_captured(bb, 0);
+	const int captured = s->petra_decay_garrison_min(bb);
+	std::printf("  decaying barracks: needs %d as if built, %d just captured\n", built, captured);
+	CHECK(built == 0 && captured > 0, "Petra garrisons a decaying barracks only when it just captured it");
 }
 
 // headquarters.js checkEvents: a structure Petra just captured in enemy land, which no
