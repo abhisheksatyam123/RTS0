@@ -17292,8 +17292,8 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 			prey = sub == RES_SUB_MEAT ? find_nearby_prey(i, x, z, NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE, species) : 0;
 			if (r != 0 && prey != 0) {
 				const size_t ri = res_id_to_idx_.at(r), fi = fauna_id_to_idx_.at(prey);
-				const float rd = std::hypot(resources_.x[ri] - x, resources_.z[ri] - z);
-				const float fd = std::hypot(fauna_.pos_x[fi] - x, fauna_.pos_z[fi] - z);
+				const float rd = det::hypot(resources_.x[ri] - x, resources_.z[ri] - z);
+				const float fd = det::hypot(fauna_.pos_x[fi] - x, fauna_.pos_z[fi] - z);
 				if (fd < rd) r = 0;
 				else prey = 0;
 			}
