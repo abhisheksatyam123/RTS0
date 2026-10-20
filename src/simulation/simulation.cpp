@@ -572,6 +572,7 @@ void Simulation::reset() {
 	territory_regions_dirty_ = true;
 	played_team_placement_ = TEAM_PLACEMENT_RANDOM; // a scenario or skirmish map has none
 	petra_decay_events_.clear();
+	petra_hit_events_.clear();
 	petra_attack_requests_.clear();
 	petra_ev_attacked_.clear();
 	petra_ev_captures_.clear();
@@ -9514,6 +9515,7 @@ void Simulation::gain_xp(size_t idx, float amount) {
 void Simulation::note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
 		bool target_is_building, float damage, bool melee, bool capture) {
 	if (!(damage > 0.0f) && !capture) return;
+	if (target_is_building && attacker_id != 0) petra_hit_events_.emplace_back(target_id, attacker_id);
 	// The Attacked message for the session's AttackDetection (presentation only), and the
 	// player's AttackDetection.AttackAlert for map triggers listening on OnAttackDetected
 	// (attacks by other players only).
@@ -10219,6 +10221,7 @@ void Simulation::tick(float dt) {
 	}
 	tick_petra_ai(dt);
 	cc_captures_.clear();
+	petra_hit_events_.clear(); // a hit later in the tick (an animal's) is dropped: no pending state between ticks
 	tick_fauna(dt);
 	tick_scenery_attackers();
 	tick_scenery_capture();  // Capturable.js TimerTick on scenery
@@ -30702,11 +30705,23 @@ void Simulation::petra_capture_gaia_relics() {
 }
 
 void Simulation::petra_manage_diplomacy(float dt) {
-	// checkEvents Attacked (every turn): an ally hitting an enemy inside our territory
-	// raises our cooperative trait, once per hit since the last turn.
+	// checkEvents Attacked (every turn): an ally hitting an enemy's unit, structure or animal
+	// (Gaia's included) inside our territory raises our cooperative trait, once per hit since the last turn.
 	for (const auto &[target, attacker] : petra_turn_attacks_) {
-		const int32_t t = lookup_unit(target);
-		if (t < 0 || !units_.alive[t] || !is_hostile(petra_pid_, units_.team[t])) continue;
+		float tx, tz;
+		uint8_t owner;
+		if (const int32_t t = lookup_unit(target); t >= 0) {
+			if (!units_.alive[t]) continue;
+			tx = units_.pos_x[t]; tz = units_.pos_z[t]; owner = units_.team[t];
+		} else if (auto bit = building_id_to_idx_.find(target); bit != building_id_to_idx_.end()) {
+			const Building &b = buildings_[bit->second];
+			if (b.hp <= 0.0f) continue;
+			tx = b.x; tz = b.z; owner = b.team;
+		} else if (auto fit = fauna_id_to_idx_.find(target); fit != fauna_id_to_idx_.end()) {
+			if (!fauna_.alive[fit->second]) continue;
+			tx = fauna_.pos_x[fit->second]; tz = fauna_.pos_z[fit->second]; owner = fauna_owner_[fit->second];
+		} else continue;
+		if (!is_hostile(petra_pid_, owner)) continue;
 		const int32_t a = lookup_unit(attacker);
 		uint8_t by = a >= 0 ? units_.team[a] : GAIA_PLAYER;
 		if (a < 0) {
@@ -30714,7 +30729,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			if (bit != building_id_to_idx_.end()) by = buildings_[bit->second].team;
 		}
 		if (by >= MAX_PLAYERS || by == petra_pid_ || !is_ally(petra_pid_, by)) continue;
-		if (territory_owner_at(units_.pos_x[t], units_.pos_z[t]) != (int)petra_pid_) continue;
+		if (territory_owner_at(tx, tz) != (int)petra_pid_) continue;
 		petra_config_.cooperative = std::min(1.0f, petra_config_.cooperative + 0.003f);
 	}
 
@@ -31296,6 +31311,7 @@ void Simulation::petra_record_events() {
 	std::erase_if(petra_attack_requests_, [&](const PetraAttackRequest &e) { return stale(e.tick); });
 	for (size_t i = 0; i < units_.count; ++i)
 		if (units_.attacked_by[i] != 0 && units_.alive[i]) petra_ev_attacked_.push_back({now, units_.id[i], units_.attacked_by[i]});
+	for (const auto &[target, attacker] : petra_hit_events_) petra_ev_attacked_.push_back({now, target, attacker});
 	for (const CivicCentreCapture &c : cc_captures_) petra_ev_captures_.push_back({now, c});
 	for (uint32_t id : petra_decay_events_) petra_ev_decay_.push_back({now, id});
 	petra_decay_events_.clear();
@@ -34157,6 +34173,7 @@ bool Simulation::fauna_threat_pos(uint32_t id, float &x, float &z) const {
 // attacker takes over the fight (it may be blocking the way to the target).
 void Simulation::fauna_attacked(size_t f, uint32_t attacker_id, bool melee) {
 	if (!fauna_.alive[f]) return;
+	if (attacker_id != 0) petra_hit_events_.emplace_back(fauna_.id[f], attacker_id);
 	const uint8_t b = fauna_.behavior[f];
 	// Penned livestock is garrisoned in its corral (GarrisonHolder), so it stays put; herded
 	// livestock is a passive Domestic animal and flees like any other (the herding ends).
