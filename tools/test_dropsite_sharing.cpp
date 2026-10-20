@@ -127,12 +127,26 @@ int main() {
 	CHECK(heads_for(40.0f, -4.0f) == own_wagon); // no Diaspora yet: past the ally's wagon to her own
 	m.player(0).techs.set(TECH_UNLOCK_SHARED_DROPSITES);
 	CHECK(heads_for(40.0f, -8.0f) == ally_wagon);
+	// The ally's owner locks its wagon (ResourceDropsite.SetSharing on a Sharable unit): she walks
+	// past it again. Only the owner sets it, and the elephant is not Sharable. It survives a save.
+	CHECK(m.cmd_set_dropsite_sharing(1, ally_wagon, false));
+	CHECK(!m.cmd_set_dropsite_sharing(1, ally_wagon, false) && !m.cmd_set_dropsite_sharing(0, ally_wagon, true));
+	CHECK(!m.cmd_set_dropsite_sharing(1, ally_elephant, false));
+	CHECK(heads_for(40.0f, -12.0f) == own_wagon);
+	{
+		static Simulation l;
+		const char *path = "/tmp/test_dropsite_sharing_wagon.sav";
+		CHECK(m.save_state(path) && l.load_state(path));
+		CHECK(!l.unit_dropsite_shared(ally_wagon) && l.unit_dropsite_shared(own_wagon));
+		std::remove(path);
+	}
+	CHECK(m.cmd_set_dropsite_sharing(1, ally_wagon, true) && m.unit_dropsite_shared(ally_wagon));
 	CHECK(heads_for(-40.0f, -4.0f) == own_wagon); // an ally's worker elephant is not Sharable
 	CHECK(heads_for(0.0f, 36.0f) == own_wagon);   // nor is an enemy's wagon
 	run(m, 20.0f);
-	std::printf("  mobile dropsites: five loads of wood dropped at wagons give her player +%d, the ally +%d\n",
+	std::printf("  mobile dropsites: six loads of wood dropped at wagons give her player +%d, the ally +%d\n",
 			m.player_resource(0, RES_WOOD) - mwood0, m.player_resource(1, RES_WOOD) - mwood1);
-	CHECK(m.player_resource(0, RES_WOOD) == mwood0 + 50 && m.player_resource(1, RES_WOOD) == mwood1);
+	CHECK(m.player_resource(0, RES_WOOD) == mwood0 + 60 && m.player_resource(1, RES_WOOD) == mwood1);
 
 	// 7. A worker shut in among obstructions (her navcell's land is a pocket of 9 navcells) heads for
 	// the nearest dropsite, as 0.28's FindNearestDropsite (no reachability test) does, rather than

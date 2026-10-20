@@ -107,6 +107,22 @@ Right-click priorities on own and allied entities against unit_actions.js (speci
 
 Kept on purpose: the RTS0 villager rows stay as the worker class's default for old saves and pre-roster spawns, but nothing trains one by name (#1014); Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
 
+### Status effects, Petra config, Allied View, the Germans and civ pages: Compare's ninth 0.28 pass (2026-10-20)
+
+Checked against 0.28: status effects, Petra difficulty and behaviour config, Allied View and shared LOS, the minimap, the Germans' own mechanics, and the civinfo and structure tree data. Owner: Compare. A row owned by another thread names that thread in its Status column.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| S1 | German Petra never picks Grove of Fetters in its random city-phase research. 0.28 (researchManager.js:204-222) skips a tech only when its top-level `affects` is just Healer, Outpost or Wall. RTS0's `petra_tech_affects_only` checks each effect's affects, and grove_of_fetters puts "Healer" only on its effect. It is the only tech where the two checks differ. | low | Open: E (Petra research) |
+| S2 | ~~The civ emblem tooltip names the phase "Village/Town/City Phase"~~ Fixed: getEntityNames of phase_<phase>_<civ>, else phase_<phase> (selection_details.js:318-322). Every civ but the Germans gets its village name; only the Athenians and Persians have their own town and city names. | low | Fixed |
+
+Checked and matching:
+- Poison and burning: stacking modes, tick count and timing, resistance, no XP, kill and loot credit to the source, poison immunity, and the values of the units and ships that apply them.
+- Petra: PetraConfig per difficulty and personality, the update cadence, the wanted and preferred research lists, and the soldier-worker choice.
+- Shared vision: Cartography, shared LOS and the minimap, explored bits, and ally stats.
+- The Germans' mechanics: wagons and wagon_trains, encampments, the totem, the great hall, resettlement, the Seeress, mobile dropsites, and the team bonus.
+- Civ reference pages: histories, bonuses and specific structures.
+
 ### Range overlays, auras and Petra: Compare's eighth 0.28 pass (2026-10-20)
 
 Range overlays (RangeOverlayManager.js, Auras.js and Attack.js GetRangeOverlays), aura mechanics and icons, the Germans, reference pages, skirmish map teams and Petra base and emergency choices, checked against 0.28. Owner: Compare; rows owned by another thread name it in Status.
@@ -208,7 +224,7 @@ StatisticsTracker callers and class mapping, the summary page, the replay menu a
 | S11 | The FPS/time counter box sits over the top bar at y 4 in a 16 px font with no backing; 0.28 puts it at y 40 in mono 10 on black, moves the network warnings and research column aside, pads "FPS: %(fps)4s", and doesn't save the toggles | low | Fixed: under the top panel in mono 10 on a black backing sized to its text, the warnings and research column move aside, the FPS pads to 4, and the counter toggles last for the run only |
 | S12 | Unticking Restrict camera only lifts the map bounds; 0.28 also frees zoom and tilt | low | Fixed: zoom and tilt are free while unrestricted and come back in range when restricted again |
 | S13 | Time warp rewind empties the control groups, clears the selection and starts a new replay; 0.28 rewinds the simulation only | low | Fixed: the selection and control groups stay, less entities the snapshot doesn't have; the new replay from the snapshot stays on purpose, as 0.28's replay can't be played after a rewind |
-| S14 | Developer overlay drawings: unit motion draws every unit's path (0.28: the selected units' long path white, short path red, waypoint squares); bounding boxes draw for every model in white (0.28: selected or hovered entities, red and green); the pathfinder overlays lack the search view and region links; the range overlay shows attack rings only | low | Partly fixed: unit motion, bounding boxes and the range overlay (every unit's attack and heal query, structures' arrows and range auras, green while enabled and red while off, rays to what each matches, the queries' grid) match 0.28, and the hierarchical overlay links its regions (AddDebugEdges); the pathfinder search view is open |
+| S14 | Developer overlay drawings: unit motion draws every unit's path (0.28: the selected units' long path white, short path red, waypoint squares); bounding boxes draw for every model in white (0.28: selected or hovered entities, red and green); the pathfinder overlays lack the search view and region links; the range overlay shows attack rings only | low | Fixed: unit motion, bounding boxes, the range overlay (every query's rings, rays to its matches, the queries' grid), the hierarchical overlay's region links and the pathfinder overlay's search view (the last long path search's tiles, the last short path search's goal and visibility graph) match 0.28 |
 | S15 | Enable culling and Lock cull camera only stop animations outside the cull camera; 0.28 stops drawing what's outside it | low | Fixed: a locked cull camera hides the units, structures and projectiles outside it (terrain, trees and animals still draw) |
 | S16 | The selection state dump lacks most simulation fields (map size, ceasefire, victory, population cap) and a template block for structures | low | Fixed: GetSimulationState's keys in its order, and a structure's rotation, garrison, capture points and template block |
 
