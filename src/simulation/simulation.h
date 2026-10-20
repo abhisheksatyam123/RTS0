@@ -179,7 +179,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 100; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 101; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_CARCASS_OWNER = 101; // each carcass's animal's owner
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
 	static constexpr uint32_t SAVE_VERSION_TRADE_ROUTE = 99; // each trader's route waypoints and leg progress (SetupTradeRoute route, reversed on the way back)
 	static constexpr uint32_t SAVE_VERSION_PROJECTILE_DAMAGE = 98; // each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact); each unit's and animal's previous-turn position (aim velocity); each player's control-all-units flag
@@ -986,7 +987,8 @@ public:
 	bool is_repairable_unit(uint32_t unit_id) const;
 	// 0 A.D. "returnresource" (UnitAI ReturnResource): carriers take their load to this
 	// dropsite, drop it, then take the next queued order or idle.
-	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false);
+	// force: a player's or Petra's ReturnResource; UnitAI's own drop-offs (PushOrderFront) are unforced.
+	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false, bool force = true);
 	bool dropsite_accepts(size_t unit_idx, const Building &b) const; // carried type, owner, finished
 	bool can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const;
 	// ResourceGatherer CanReturnResource's owner test: `player`'s own dropsite, or a shared one of a
