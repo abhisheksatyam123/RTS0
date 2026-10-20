@@ -244,8 +244,9 @@ func run() -> void:
 	check(ls.rated_player_name() == "alice", "unrated: the plain nick")
 	ls.player_name = ls_name
 	ls.rating = ls_rating
-	check(lobby.game_columns(true) == ["Name", "Map Name", "Size", "Type", "Players", "Rating"]
-		and lobby.game_columns(false).size() == 5, "the Rating column only with lobby.columns.gamerating")
+	check(lobby.game_columns(true) == ["Password", "Name", "Map Name", "Size", "Players", "Rating"]
+		and lobby.game_columns(false) == ["Password", "Name", "Map Name", "Size", "Type", "Players"],
+		"the Rating column only with lobby.columns.gamerating, and Type then hidden (GameList.js hidden_mapType)")
 	check(lobby.rating_passes(">1300", 1300) and not lobby.rating_passes(">1300", 1299)
 		and lobby.rating_passes("<1200", 1199) and not lobby.rating_passes("<1200", 1200)
 		and lobby.rating_passes("", 0), "the Rating filter as GameListFilters/Rating.js")
@@ -262,10 +263,10 @@ func run() -> void:
 	var game_item: TreeItem = lobby._games.get_root().get_child(0) if lobby._games.get_root() and lobby._games.get_root().get_child_count() else null
 	check(game_item != null, "the game is listed")
 	if game_item:
-		check(game_item.get_text(1) == "Continental" and game_item.get_text(2) == "Medium" and game_item.get_text(3) == "Random"
-			and game_item.get_text(4) == "2/8 +1" and game_item.get_custom_color(0) == Color8(219, 0, 0),
+		check(game_item.get_text(2) == "Continental" and game_item.get_text(3) == "Medium" and game_item.get_text(4) == "Random"
+			and game_item.get_text(5) == "2/8 +1" and game_item.get_custom_color(1) == Color8(219, 0, 0),
 			"its row: map, size, type, \"2/8 +1\" with carol watching, red while running: %s | %s | %s | %s" % [
-			game_item.get_text(1), game_item.get_text(2), game_item.get_text(3), game_item.get_text(4)])
+			game_item.get_text(2), game_item.get_text(3), game_item.get_text(4), game_item.get_text(5)])
 	if game_item:
 		game_item.select(0)
 	await frames(2)

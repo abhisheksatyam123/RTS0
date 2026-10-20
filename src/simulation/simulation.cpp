@@ -5266,7 +5266,9 @@ bool Simulation::can_trade_at(uint8_t trader_owner, const Building &b, uint8_t t
 	// land traders use markets and docks, merchant ships docks only.
 	const bool kind = trader_type == UNIT_MERCHANT_SHIP ? b.type == BLD_DOCK : (is_land_market(b.type) || b.type == BLD_DOCK);
 	return kind && b.build_progress >= 1.0f && b.hp > 0.0f &&
-	       b.team < MAX_PLAYERS && trader_owner < MAX_PLAYERS && !is_hostile(trader_owner, b.team);
+	       b.team < MAX_PLAYERS && trader_owner < MAX_PLAYERS &&
+	       // CeasefireManager sets enemies neutral, so their markets trade until it ends.
+	       (ceasefire_active() || !is_hostile(trader_owner, b.team));
 }
 
 uint16_t Simulation::dock_sea(const Building &b) const {
@@ -7535,6 +7537,14 @@ Simulation::StructureDetails Simulation::structure_details(const Building &b) co
 	if (owned) d.pop_bonus = structure_pop_bonus(b.type, b.team, structure_template_civ(b));
 	if (const TurretPointSet *t = turret_points_of(b)) d.turrets = t->count;
 	d.trickles = structure_trickle_rates(b, d.trickle);
+	// ResourceTrickle.js on a corral: Rates 0 plus the corral_garrison_* aura of each animal in it.
+	if (b.type == BLD_CORRAL && owned) {
+		d.trickles = true;
+		d.trickle_interval = CORRAL_TRICKLE_INTERVAL;
+		for (size_t f = 0; f < fauna_.count; ++f)
+			if (fauna_.alive[f] && fauna_.behavior[f] == FAUNA_CORRALLED && fauna_.corral_id[f] == b.id)
+				d.trickle[RES_FOOD] += fauna_corral_food(fauna_.fauna_type[f]);
+	}
 	return d;
 }
 
@@ -15897,9 +15907,9 @@ void Simulation::check_victory_conditions(float dt) {
 	int built_cc_count[MAX_TEAMS] = {}; // CivilCentre+!Foundation (ConquestCivicCentres.js)
 	bool wonder[MAX_TEAMS] = {};
 	for (const auto &b : buildings_) {
-		// Unstarted foundations don't keep a player alive (an AI with no units left can still
-		// queue them).
-		if (b.team >= MAX_TEAMS || b.hp <= 0.0f || b.build_progress <= 0.0f) continue;
+		// A placed foundation is a Structure (special/filter/foundation keeps the class), so it
+		// keeps a Conquest Structures player in; the critical and civic-centre counts skip it.
+		if (b.team >= MAX_TEAMS || b.hp <= 0.0f) continue;
 		structure_count[b.team]++;
 		if (is_conquest_critical(b.type) && b.build_progress >= 1.0f) critical_count[b.team]++;
 		if (is_civic_centre(b.type)) tc_count[b.team]++;
@@ -15934,11 +15944,25 @@ void Simulation::check_victory_conditions(float dt) {
 				continue;
 			}
 			const uint8_t allies = wonder_allies_of(b.team);
-			if (b.wonder_owner != b.team || b.wonder_allies != allies) {
+			if (ticks_ == 0) {
+				// The trigger scripts load after the map's entities, so a wonder the map
+				// gives a player has no countdown (WonderVictory.js listens to
+				// OwnershipChanged) until it changes hands: wonder_hold < 0 marks it.
+				b.wonder_hold = -1.0f;
+				b.wonder_owner = b.team;
+				b.wonder_allies = allies;
+				continue;
+			}
+			if (b.wonder_owner != b.team) {
 				b.wonder_hold = 0.0f;
 				b.wonder_owner = b.team;
 				b.wonder_allies = allies;
+			} else if (b.wonder_allies != allies) {
+				// WonderVictoryDiplomacyChanged restarts only the countdowns that run.
+				if (b.wonder_hold >= 0.0f) b.wonder_hold = 0.0f;
+				b.wonder_allies = allies;
 			}
+			if (b.wonder_hold < 0.0f) continue;
 			b.wonder_hold += dt;
 			wonder_hold_[b.team] = std::max(wonder_hold_[b.team], b.wonder_hold);
 			if (side_of(0) >> b.team & 1) { any_ours = true; ours = std::max(ours, b.wonder_hold); }
@@ -16003,44 +16027,47 @@ void Simulation::check_victory_conditions(float dt) {
 		return -1;
 	};
 
+	// The match ends once everyone still standing is mutually allied (0 A.D.'s allied
+	// victory), or, under Last Man Standing, once one player is left.
+	auto settle = [&]() -> bool {
+		const uint8_t standing = participant_mask_ & ~defeated_mask_;
+		if (participant_mask_ && !standing) { // nobody left (a lone player fell)
+			end_match(0);
+			return true;
+		}
+		if (waves_enabled_ && is_defeated(0)) { // wave defense is player 0's match
+			end_match(standing);
+			return true;
+		}
+		bool one_side = true;
+		for (int a = 0; a < MAX_TEAMS && one_side; ++a) {
+			if (!((standing >> a) & 1)) continue;
+			for (int b = a + 1; b < MAX_TEAMS; ++b) {
+				if (!((standing >> b) & 1)) continue;
+				if (last_man_standing_ || !is_ally((uint8_t)a, (uint8_t)b) || !is_ally((uint8_t)b, (uint8_t)a)) { one_side = false; break; }
+			}
+		}
+		// Don't hand out a win on a map that never had an enemy on it.
+		bool fought = defeated_mask_ != 0 || record_.enemies_killed > 0 || record_.buildings_destroyed > 0 || wave_number_ > 0;
+		if (one_side && fought) { end_match(standing); return true; }
+		return false;
+	};
+
 	// Defeat is permanent (Player.js SetState("defeated")). Wave defense keeps its old rule:
-	// lose the Town Center and the match is lost.
-	uint8_t fallen = 0;
+	// lose the Town Center and the match is lost. Players fall one at a time, each followed
+	// by the allied-victory check (OnGlobalPlayerDefeated), so once the match is won a
+	// loser on the same tick stays in the winners' list (SetState acts on active players).
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (!((participant_mask_ >> t) & 1) || is_defeated((uint8_t)t)) continue;
 		int why = defeated(t);
 		if (why < 0 && waves_enabled_ && t == 0 && tc_count[0] == 0) why = SN::END_OBJECTIVE;
 		if (why < 0) continue;
-		fallen |= (uint8_t)(1u << t);
 		note_session({SN::DEFEATED, (uint8_t)t, 0, (uint8_t)why, {}});
+		convert_to_gaia((uint8_t)(1u << t));
+		mark_players_defeated((uint8_t)(1u << t));
+		if (settle()) return;
 	}
-	if (fallen) {
-		convert_to_gaia(fallen);
-		mark_players_defeated(fallen);
-	}
-	const uint8_t standing = participant_mask_ & ~defeated_mask_;
-	if (participant_mask_ && !standing) { // everyone fell on the same tick
-		end_match(0);
-		return;
-	}
-	if (waves_enabled_ && is_defeated(0)) { // wave defense is player 0's match
-		end_match(standing);
-		return;
-	}
-
-	// The match ends once everyone still standing is mutually allied (0 A.D.'s allied
-	// victory), or, under Last Man Standing, once one player is left.
-	bool one_side = true;
-	for (int a = 0; a < MAX_TEAMS && one_side; ++a) {
-		if (!((standing >> a) & 1)) continue;
-		for (int b = a + 1; b < MAX_TEAMS; ++b) {
-			if (!((standing >> b) & 1)) continue;
-			if (last_man_standing_ || !is_ally((uint8_t)a, (uint8_t)b) || !is_ally((uint8_t)b, (uint8_t)a)) { one_side = false; break; }
-		}
-	}
-	// Don't hand out a win on a map that never had an enemy on it.
-	bool fought = defeated_mask_ != 0 || record_.enemies_killed > 0 || record_.buildings_destroyed > 0 || wave_number_ > 0;
-	if (one_side && fought) end_match(standing);
+	settle();
 }
 
 // UnitAI.OnOwnershipChanged on unit u (Player.js turns a defeated player's units Gaia's;
@@ -16272,7 +16299,8 @@ void Simulation::spawn_regicide_heroes() {
 				float x = 0.0f, z = 0.0f;
 				uint32_t ship = 0;
 				if (s.building) {
-					if (!pick_spawn_point(buildings_[s.bi], utype, 0, x, z)) continue;
+					// TriggerHelper.SpawnUnits: no free spot puts the hero on the structure's position.
+					if (!pick_spawn_point(buildings_[s.bi], utype, 0, x, z)) { x = buildings_[s.bi].x; z = buildings_[s.bi].z; }
 				} else {
 					const int32_t u = lookup_unit(s.id);
 					if (u < 0) continue;
