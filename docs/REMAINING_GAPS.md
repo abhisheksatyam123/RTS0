@@ -135,7 +135,7 @@ BuildingAI, focus fire, structure tooltips, merc camps and civ structure data ag
 
 | # | Difference from 0.28 | Impact | Status |
 |---|---|---|---|
-| R1 | A captured Ptolemaic mercenary camp trains Ptolemaic mercenaries; 0.28's Trainer list is units/{civ}, the holder's own (f1179caa6 made it native on purpose) | medium | Open: decision with stan (D's merc camp card) |
+| R1 | A captured Ptolemaic mercenary camp trains Ptolemaic mercenaries; 0.28's Trainer list is units/{civ}, the holder's own (f1179caa6 made it native on purpose) | medium | Fixed: any captured camp trains its captor's mercenaries; a builder's own camp keeps its native roster (one rule with #1208) |
 | R2 | Towers and focus fire targeted structures without Health (shrines, trading posts, rotary mills); BuildingAI's query wants Resistance and Health | low | Fixed |
 | R3 | The structure attack tooltip always said "Bow"; the bolt tower's AttackName is Bolt, the artillery tower's Stone | low | Fixed |
 | R4 | The Projectile Limit and per-unit arrow tooltip ignored a garrisoned Caros (GetMaxArrowCount, GetGarrisonArrowMultiplier) | low | Fixed |
