@@ -740,7 +740,7 @@ int main() {
 		const uint32_t sh = m.spawn_building_world(20.0f, -20.0f, BLD_STOREHOUSE, 0, 1.0f);
 		CHECK(m.cmd_research(0, sh, TECH_WOODCUTTING_1));
 		CHECK(queued_duration(m, sh) == 0.0f);
-		run(m, 0.2f);
+		run(m, 1.1f); // done at the queue's first second (ProgressTimeout)
 		CHECK(m.players_[0].techs.has(TECH_WOODCUTTING_1));
 		CHECK(civ_bonus_mult(CIV_MACEDONIANS, CIV_BONUS_BUILDING_RESEARCH_TIME, BLD_TOWN_CENTER) == 1.0f);
 		std::printf("Resource-Rich Economy: storehouse tech %.0f s for Athenians, instant for Macedonians\n",
