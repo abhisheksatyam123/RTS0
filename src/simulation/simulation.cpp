@@ -28198,6 +28198,33 @@ bool Simulation::unit_short_waypoint(size_t i, float aim_x, float aim_z, float *
 	return true;
 }
 
+Simulation::RangeQuery Simulation::unit_range_query(size_t i) const {
+	RangeQuery q;
+	if (i >= units_.count || !units_.alive[i]) return q;
+	const float vision = unit_vision_at(i);
+	const float range = attack_reach(i);
+	const uint8_t stance = units_.stance[i];
+	// GetQueryRange: stand ground keeps to the attack range (and its MinRange), defensive
+	// reaches half its vision past it, aggressive and violent look over their vision.
+	if (range > 0.0f && stance == STANCE_STAND_GROUND) {
+		q.max = std::min(range, vision);
+		q.min = range * unit_min_range_ratio(units_.unit_type[i], units_.tmpl[i]);
+	} else if (range > 0.0f && stance == STANCE_DEFENSIVE)
+		q.max = std::min(range + vision * 0.5f, vision);
+	else if (stance == STANCE_AGGRESSIVE || stance == STANCE_VIOLENT)
+		q.max = vision;
+	if (unit_is_healer(units_.tmpl[i], units_.unit_type[i])) { // as find_heal_target
+		const float hv = unit_base_vision(i), hr = healer_range_of(i);
+		q.heal_max = stance == STANCE_STAND_GROUND ? std::min(hr, hv)
+				: stance == STANCE_DEFENSIVE ? std::min(hr + hv * 0.5f, hv) : hv;
+	}
+	const uint8_t st = units_.action_state[i];
+	q.enabled = st == ACTION_IDLE || st == ACTION_ATTACK_MOVE || st == ACTION_PATROL || st == ACTION_GUARD;
+	return q;
+}
+
+int Simulation::unit_grid_res() { return kUnitGridRes; }
+
 uint8_t Simulation::petra_owner_of(uint32_t id) const {
 	if (auto it = building_id_to_idx_.find(id); it != building_id_to_idx_.end()) return buildings_[it->second].team;
 	const int32_t u = lookup_unit(id);
