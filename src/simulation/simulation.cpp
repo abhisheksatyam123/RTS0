@@ -22668,7 +22668,9 @@ void Simulation::petra_manage_fields() {
 
 	const uint8_t civ = petra_ps().civ;
 	auto can_build = [&](uint8_t t) {
-		return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
+		// template.available: the structure's Identity/Requirements (its phase) are met.
+		return civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
+		       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
 	// manageCorral's anchor, as a position: the fields and corrals placed below grow buildings_.
 	const Building *anchor_b = farmstead ? farmstead : tc;
@@ -24591,7 +24593,12 @@ void Simulation::petra_manage_buildings(float dt) {
 			// queued trainees included), houses go at twice their priority.
 			// Under 5 such slots with the house set unbuildable for want of room, a population
 			// technology instead (headquarters.js:1500-1508).
-			const int accounted_free = free_slots - (petra_accounted_population() - pop);
+			// freeSlots (headquarters.js:1499-1501): the limit, plus the house foundations at the
+			// house's own bonus, less the accounted population (other foundations don't count).
+			int house_fnd = 0;
+			for (const auto &b : buildings_)
+				if (b.team == petra_pid_ && b.build_progress < 1.0f && b.hp > 0.0f && (building_tech_classes(b.type) & TC_HOUSE)) ++house_fnd;
+			const int accounted_free = pop_max(petra_pid_) + house_fnd * structure_pop_bonus(house, petra_pid_) - petra_accounted_population();
 			const bool house_no_room = petra_no_room(house);
 			petra_queues_.priority[PETRA_Q_HOUSE] =
 					accounted_free < 5 && !house_no_room ? (int16_t)(2 * petra_queue_base_priority(PETRA_Q_HOUSE)) : 0;
@@ -25680,6 +25687,9 @@ void Simulation::petra_build_defenses() {
 				if (b.team == petra_pid_ && b.type == BLD_FORTRESS && b.hp > 0.0f && !b.wrecked) { has_fortress = true; break; }
 			const PetraBase *home = get_primary_petra_base();
 			if (!has_fortress && home) bid = petra_place_generic(BLD_FORTRESS, PETRA_Q_DEFENSE_BUILDING);
+			else petra_set_no_room(btype);
+		} else {
+			petra_set_no_room(btype); // setUnbuildable(template, 90, "room")
 		}
 		if (bid) {
 			auto idle = petra_idle_builders();
@@ -25692,7 +25702,9 @@ void Simulation::petra_build_defenses() {
 	if (saving && !can_barter(petra_pid_)) return;
 	const uint8_t civ = petra_ps().civ;
 	auto can_build = [&](uint8_t t) {
-		return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
+		// template.available: the structure's Identity/Requirements (its phase) are met.
+		return civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
+		       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
 	int n_fortresses = 0, n_fortress_fnd = 0, n_towers = 0, n_stone = 0, n_tower_fnd = 0, n_bases = 0;
 	for (const Building &b : buildings_) {
@@ -25723,7 +25735,14 @@ void Simulation::petra_build_defenses() {
 	const uint8_t phase = petra_ps().phase;
 	// A structure with no frontier spot is not queued, so its plan doesn't hold resources it
 	// can't spend; the next try waits 90 s (buildManager.js setUnbuildable "room").
-	auto has_spot = [&](uint8_t t) { int sx = 0, sz = 0; return petra_find_defensive_location(t, sx, sz); };
+	// The plan's start fails with no spot, and the structure is marked short of room (which
+	// counts towards a new base, buildManager.js numberMissingRoom).
+	auto has_spot = [&](uint8_t t) {
+		int sx = 0, sz = 0;
+		if (petra_find_defensive_location(t, sx, sz)) return true;
+		petra_set_no_room(t);
+		return false;
+	};
 	constexpr float kNoRoomWait = 90.0f;
 
 	// From City, or while City is being researched (gameState.isResearching(phase 3)); not
@@ -26024,7 +26043,9 @@ void Simulation::petra_manage_research(float dt) {
 		const bool saving = petra_attack_mgr_.save_resources != 0;
 		const uint8_t civ = petra_ps().civ;
 		auto can_build = [&](uint8_t t) {
-			return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
+			// template.available: the structure's Identity/Requirements (its phase) are met.
+			return civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
+			       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 		};
 		if (!have_building(BLD_MARKET)) {
 			// buildMarket: at three times economicBuilding's priority until started; once
