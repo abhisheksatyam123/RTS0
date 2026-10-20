@@ -148,12 +148,16 @@ private:
 	int key_res_ = 0;
 };
 
-// 0 A.D. CLOSTexture: one byte per LOS cell, 255 visible / 127 explored /
+// 0 A.D. CLOSTexture: one byte per LOS vertex, 255 visible / 127 explored /
 // 0 unexplored, blurred with a 7-tap binomial filter, then eased toward each
 // new bitmap over about half a second (InterpolateLOS, los_interp.fs).
+// 0.28's LOS vertices are LOS_TILE_SIZE (4 m, one RTS0 unit) apart and RTS0's
+// FOW cells two units, so the bitmap is the FOW grid upsampled twice (bilinear)
+// before the blur: the fog edge is as wide as 0.28's, not twice as wide.
 class LosShading {
 public:
 	static constexpr int BLUR = 7;
+	static constexpr int UPSAMPLE = 2; // bitmap pixels per FOW cell, each way
 
 	// Rebuild the target bitmap from a FOW grid (called when the fog changed).
 	void set_target(const uint8_t *fow, int res);
@@ -163,11 +167,11 @@ public:
 	// Jump straight to the target (map load, viewer switch).
 	void snap();
 
-	int res() const { return res_; }
+	int res() const { return res_ * UPSAMPLE; } // bitmap pixels per side
 	const std::vector<uint8_t> &target() const { return target_; }
 	const std::vector<uint8_t> &shown() const { return shown_; }
 
-	// CLOSTexture::GenerateBitmap, exposed for tests.
+	// CLOSTexture::GenerateBitmap, exposed for tests: out is res * UPSAMPLE pixels a side.
 	static void generate_bitmap(const uint8_t *fow, int res, std::vector<uint8_t> &out);
 
 private:
