@@ -5849,6 +5849,9 @@ bool Simulation::cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t st
 void Simulation::note_diplomacy_changed(uint8_t player, uint8_t other, uint8_t stance) {
 	// Diplomacy.js SetDiplomacyIndex: MT_DiplomacyChanged {player, otherPlayer, value},
 	// Trigger.js OnGlobalDiplomacyChanged -> OnDiplomacyChanged.
+	// Every Petra's checkEvents sees it at its next turn, even once undone (PETRA_EVENT_PENDING).
+	petra_diplo_.events_hash |= PETRA_EVENT_PENDING;
+	for (PetraSlot &slot : petra_slots_) slot.petra_diplo_.events_hash |= PETRA_EVENT_PENDING;
 	if (triggers_.triggers.empty()) return;
 	TriggerEventData ev;
 	ev.player = player;
@@ -33056,7 +33059,8 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			for (uint8_t b = 0; b < MAX_PLAYERS; ++b) mix(get_diplomacy(a, b));
 		mix((uint32_t)defeated_mask_);
 		mix(ceasefire_active() ? 1u : 0u);
-		const uint16_t ev = (uint16_t)((h ^ (h >> 16)) | 1u); // never 0, the value before the first turn
+		// Never 0, the value before the first turn, and never with PETRA_EVENT_PENDING set.
+		const uint16_t ev = (uint16_t)(((h ^ (h >> 16)) | 1u) & ~PETRA_EVENT_PENDING);
 		const bool changed = ev != dip.events_hash;
 		dip.events_hash = ev;
 		if (changed) petra_last_man_standing_check();

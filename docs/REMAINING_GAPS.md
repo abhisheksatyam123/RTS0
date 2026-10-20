@@ -478,7 +478,7 @@ diplomacyManager.js, chatHelper.js and their callers were checked line by line. 
 | D9 | Under Last Man Standing each AI waited out its own 10-110 s lapse before turning. 0.28's checkEvents also runs lastManStandingCheck on every DiplomacyChanged, PlayerDefeated or CeasefireEnded event, so one AI's betrayal sets off the others still waiting (twelfth pass) | low-medium | Fixed |
 | D10 | The allied-victory gate on betrayal, the gift to an ally and Petra's allied-victory settings counted Last Man Standing alone. Setup.js makes allied victory LockTeams or not LastManStanding, so a scenario with both keeps allies winning together; the victory check now does too | low | Fixed |
 | D11 | hasAllies (the betrayal gate) and the cooperative boosts from an ally's tribute or its attacks in our land needed a mutual alliance; 0.28 reads only our own stance (isPlayerAlly). A tribute from a player we already ally with no longer counts against its waiting request | low | Fixed |
-| D12 | Stance changes toward us are read once per AI turn, so a change and its undoing inside one 1.6 s turn go unseen; 0.28 handles each DiplomacyChanged event | low | Open: Triggers |
+| D12 | Stance changes toward us are read once per AI turn, so a change and its undoing inside one 1.6 s turn go unseen; 0.28 handles each DiplomacyChanged event | low | Fixed: every DiplomacyChanged marks each Petra's diplomacy state (`PETRA_EVENT_PENDING`, the top bit of its event hash), so its next turn runs lastManStandingCheck even after the stance went back. Triggers |
 
 ### Triggers, tenth 0.28 pass (2026-10-20): campaigns, cinema, trigger helpers
 
