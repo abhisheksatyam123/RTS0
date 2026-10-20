@@ -4070,12 +4070,19 @@ bool Simulation::cmd_tribute(uint8_t from, uint8_t to, const int amounts[RES_COU
 	if (!amounts || from >= MAX_PLAYERS || to >= MAX_PLAYERS || from == to) return false;
 	if (!player_in_match(from) || !player_in_match(to)) return false;
 	int total = 0;
+	SessionNotice need{SessionNotice::TEXT, from, 0, SessionNotice::TEXT_INSUFFICIENT_RESOURCES, {}};
+	bool short_of = false;
 	for (int r = 0; r < RES_COUNT; ++r) {
 		if (amounts[r] < 0) return false;
-		if ((float)amounts[r] > players_[from].res[r]) return false;
+		if ((float)amounts[r] > players_[from].res[r]) {
+			// GetNeededResources: Math.ceil(amount - the player's stock).
+			need.amounts[r] = (int32_t)std::ceil((float)amounts[r] - players_[from].res[r]);
+			short_of = true;
+		}
 		total += amounts[r];
 	}
 	if (total == 0) return false;
+	if (short_of) return note_session(need), false;
 	for (int r = 0; r < RES_COUNT; ++r) {
 		players_[from].res[r] -= (float)amounts[r];
 		players_[to].res[r] += (float)amounts[r];
@@ -12212,6 +12219,7 @@ void Simulation::abandon_chase(size_t i) {
 	units_.target_unit_id[i] = 0;
 	units_.target_x[i] = units_.pos_x[i];
 	units_.target_z[i] = units_.pos_z[i];
+	units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_CHEER; // ShouldAbandonChase skips FINDINGNEWTARGET
 	if (own) finish_order(i);
 }
 
@@ -13791,6 +13799,8 @@ void Simulation::tick_combat(float dt) {
 		const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i], units_.tmpl[i]);
 		const bool in_range = in_parabolic_range(d2, att_y, def_y, attack_reach(i)) && d2 >= minr * minr; // Attack.js MinRange
 		if (!in_range && range_check_due(i, dt)) stop_attack(i);
+		// COMBAT.ATTACKING enter: attacking a unit sets shouldCheer, whoever lands the kill.
+		if (in_range) units_.order_flags[i] |= ORDER_FLAG_CHEER;
 		if (!attack_ready(i, in_range, unit_combat_at(i).prepare)) continue;
 
 		attack_done(i, in_range, unit_repeat_time(i));
@@ -13948,6 +13958,7 @@ void Simulation::tick_combat(float dt) {
 
 		const bool in_range = capture ? eff_d <= CAPTURE_RANGE
 				: in_parabolic_range(eff_d * eff_d, att_y, bld_y, attack_reach(i));
+		if (in_range) units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_CHEER; // a structure has no UnitAI: no cheer
 		if (!in_range) {
 			// Move toward building if out of range
 			stand_outside(b, units_.id[i],
@@ -17383,16 +17394,10 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 	const uint8_t st = units_.action_state[i];
 	// TRADE "Attacked": a trader keeps trading.
 	if (st == ACTION_TRADE) return;
-	// FLEEING "Attacked": ignore the one fled from and anyone farther away; a nearer attacker
-	// is answered (a fresh flight from it, or a fight).
-	if (st == ACTION_FLEE && units_.flee_from[i] != 0) {
-		if (attacker_id == units_.flee_from[i]) return;
-		float sx, sz;
-		if (entity_xz(units_.flee_from[i], sx, sz)) {
-			const float px = units_.pos_x[i], pz = units_.pos_z[i];
-			if ((px - ax) * (px - ax) + (pz - az) * (pz - az) > (px - sx) * (px - sx) + (pz - sz) * (pz - sz)) return;
-		}
-	}
+	// FLEEING "Attacked": ignore the one fled from; any other attacker is answered (a fresh
+	// flight from it, or a fight). 0.28's farther-attacker test measures the unit's distance
+	// to itself (msg.data.target is the attacked entity), so it never holds.
+	if (st == ACTION_FLEE && units_.flee_from[i] != 0 && attacker_id == units_.flee_from[i]) return;
 	const uint8_t stance = units_.stance[i];
 	// Forced orders ignore attackers, unless the stance is violent (targetAttackersAlways);
 	// an automatic fight (ORDER_FLAG_INTERRUPTED) is not forced.
@@ -17951,7 +17956,7 @@ void Simulation::tick_unit_ai(float dt) {
 			continue;
 		}
 		if (now == ACTION_ATTACK && units_.target_unit_id[i] == 0 && units_.target_building_id[i] == 0) {
-			// COMBAT.FINDINGNEWTARGET: queued orders first, then cheer if the unit killed its target.
+			// COMBAT.FINDINGNEWTARGET: queued orders first, then cheer if the unit was attacking a unit.
 			const bool cheer = (units_.order_flags[i] & ORDER_FLAG_CHEER) != 0;
 			units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_CHEER;
 			if (interrupted) resume_order(i);
@@ -18698,7 +18703,7 @@ void Simulation::tick_repair_unit(size_t i) {
 	units_.vel_x[i] = units_.vel_z[i] = 0.0f;
 }
 
-// UnitAI CHEERING: CheeringTime standing still after a kill; idle units of the same
+// UnitAI CHEERING: CheeringTime standing still after a fight (template_unit.xml, siege and ships too); idle units of the same
 // player within notifyToCheerInRange cheer too (CallPlayerOwnedEntitiesFunctionInRange).
 void Simulation::start_cheer(size_t i) {
 	auto cheer = [&](size_t k) {
@@ -18711,7 +18716,7 @@ void Simulation::start_cheer(size_t i) {
 	const uint8_t team = units_.team[i];
 	for (size_t k = 0; k < units_.count; ++k) {
 		if (k == i || !units_.alive[k] || units_.team[k] != team || units_.action_state[k] != ACTION_IDLE ||
-				units_.order_kind[k] != ORDER_NONE || unit_is_siege_engine(units_.unit_type[k]) || unit_is_ship(units_.unit_type[k]))
+				units_.order_kind[k] != ORDER_NONE)
 			continue;
 		const float dx = units_.pos_x[k] - units_.pos_x[i], dz = units_.pos_z[k] - units_.pos_z[i];
 		if (dx * dx + dz * dz <= CHEER_NOTIFY_RANGE * CHEER_NOTIFY_RANGE) cheer(k);
@@ -18721,7 +18726,6 @@ void Simulation::start_cheer(size_t i) {
 void Simulation::note_kill(uint32_t killer_id, uint32_t victim_id) {
 	const int32_t k = lookup_unit(killer_id);
 	if (k < 0 || !units_.alive[k] || units_.target_unit_id[k] != victim_id) return;
-	if (unit_is_siege_engine(units_.unit_type[k]) || unit_is_ship(units_.unit_type[k])) return; // no CheeringTime
 	units_.order_flags[k] |= ORDER_FLAG_CHEER;
 }
 
@@ -25060,8 +25064,8 @@ void Simulation::petra_manage_research(float dt) {
 	if (!active_base) return;
 	// queueManager.js checkPausedQueues: minorTech waits while workers are short.
 	if (petra_queues_.paused[PETRA_Q_MINOR_TECH]) return;
-	// A trade or population technology queued by researchTradeBonus/researchPopulationBonus:
-	// update returns while it waits (researchManager.js:163), so it is bought before any other.
+	// A minorTech plan waiting for its resources (a pick below, or researchTradeBonus /
+	// researchPopulationBonus): update returns while it waits (researchManager.js:163).
 	if (uint8_t &st = petra_queues_.special_tech; st) {
 		const ResearchCheck rc = research_check(petra_pid_, st);
 		if (petra_ps().has_tech(st) || (rc != TECH_OK && rc != TECH_ERR_COST)) st = 0;
@@ -25100,9 +25104,11 @@ void Simulation::petra_manage_research(float dt) {
 		for (int r = 0; r < 4; ++r) short_max = std::max(short_max, cost[r] - (stock[r] - held[r]));
 		return 10.0f * (float)workers < short_max;
 	};
-	// The picks are deterministic, so a technology waiting for its resources is
-	// picked again until paid for (queueManager keeps the plan queued).
-	auto pick = [&](uint8_t t) { start_tech(t); };
+	// A pick that can't start yet stays queued in minorTech (researchManager.js update returns
+	// while minorTech holds a plan), and is bought before anything else is picked.
+	auto pick = [&](uint8_t t) {
+		if (!start_tech(t)) petra_queues_.special_tech = t;
+	};
 	// increasePriority: a cheap pick (template cost under 400 in all) waits at twice
 	// minorTech's priority until it starts (queueToReset).
 	auto pick_cheap_first = [&](uint8_t t) {
@@ -33928,7 +33934,7 @@ void Simulation::award_fauna_xp(size_t i, size_t f, float damage) {
 }
 
 // Animal f killed by unit i: the carcass becomes a meat supply (fish for a whale), and
-// everyone hunting it goes on: gatherers to the carcass, the killer of a dangerous animal
+// everyone hunting it goes on: gatherers to the carcass, fighters of a dangerous animal
 // to a cheer.
 uint32_t Simulation::spawn_carcass(size_t f) {
 	if (fauna_.food_amount[f] <= 0) return 0;
@@ -33945,7 +33951,7 @@ uint32_t Simulation::spawn_carcass(size_t f) {
 	return rid;
 }
 
-void Simulation::fauna_killed(size_t f, size_t i) {
+void Simulation::fauna_killed(size_t f, size_t /*killer*/) {
 	const size_t n = units_.count;
 	const auto &finfo = fauna_type_info(fauna_.fauna_type[f]);
 	const uint32_t tid = fauna_.id[f];
@@ -33961,9 +33967,8 @@ void Simulation::fauna_killed(size_t f, size_t i) {
 		if (rid != 0 && carry_cap(h, RES_FOOD) > 0 &&
 				!(units_.order_flags[h] & ORDER_FLAG_INTERRUPTED)) {
 			order_gather(&units_.id[h], 1, rid, false, false);
-		} else if (h == i && finfo.is_dangerous() && !unit_is_siege_engine(units_.unit_type[h]) &&
-				!unit_is_ship(units_.unit_type[h])) {
-			// shouldCheer: killing a dangerous animal is cheered like a kill in battle;
+		} else if (finfo.is_dangerous()) {
+			// shouldCheer: fighting a dangerous animal is cheered like a fight in battle, whoever killed it;
 			// COMBAT.FINDINGNEWTARGET in tick_unit_ai goes on from here.
 			units_.order_flags[h] |= ORDER_FLAG_CHEER;
 			units_.action_state[h] = ACTION_ATTACK;
