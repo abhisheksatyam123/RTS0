@@ -659,6 +659,7 @@ public:
 	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip, const char **cursor = nullptr);
 	Dictionary debug_trade_route_clicks();
 	Dictionary debug_trade_tip(int64_t market);
+	Dictionary debug_trade_click(int64_t market, bool queued);
 	Dictionary debug_tutorial_panel() const { return tutorial_panel_.debug_state(); }
 	Dictionary debug_guard_step(int step);
 	PackedStringArray debug_train_buttons(int btype);
@@ -839,7 +840,6 @@ public:
 	Dictionary debug_unset_rally_step(int step);
 	// Tests: `building_id`'s owner sets its rally point at (x, z) (no lockstep).
 	void debug_set_rally(int64_t building_id, float x, float z);
-	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
 	// 0.28 placementTooltip (input.js updateBuildingPlacementPreview): why the structure or
 	// wall can't go where the cursor is, or a wall's cost; wall_fail_tip_ ("Cannot build wall
@@ -888,7 +888,6 @@ public:
 		d["names"] = names;
 		return d;
 	}
-	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 	void _on_diplo_spy_pressed(int player_idx);

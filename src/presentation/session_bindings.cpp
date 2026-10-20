@@ -185,6 +185,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_gather_nearest"), &RtsoMain::debug_gather_nearest);
 	ClassDB::bind_method(D_METHOD("debug_trade_route_clicks"), &RtsoMain::debug_trade_route_clicks);
 	ClassDB::bind_method(D_METHOD("debug_trade_tip", "market"), &RtsoMain::debug_trade_tip);
+	ClassDB::bind_method(D_METHOD("debug_trade_click", "market", "queued"), &RtsoMain::debug_trade_click);
 	ClassDB::bind_method(D_METHOD("debug_tutorial_panel"), &RtsoMain::debug_tutorial_panel);
 	ClassDB::bind_method(D_METHOD("debug_guard_step", "step"), &RtsoMain::debug_guard_step);
 	ClassDB::bind_method(D_METHOD("debug_train_buttons", "btype"), &RtsoMain::debug_train_buttons);
