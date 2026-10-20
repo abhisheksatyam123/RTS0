@@ -73,6 +73,9 @@ public:
 	virtual std::vector<std::pair<String, String>> chat_private_targets() = 0;
 	// ChatInput.autoComplete: the names of g_PlayerAssignments (every connected human).
 	virtual std::vector<String> chat_autocomplete_names() { return {}; }
+	// 0.28 game setup chat (ChatInputPanel, ClientChat): no addressees and no /me;
+	// every line goes to everyone and shows as typed.
+	virtual bool chat_setup_verbatim() { return false; }
 };
 
 // functions_utility.js tryAutoComplete: the last word of `text` becomes the one
@@ -419,6 +422,12 @@ public:
 	// Returns whether the message was shown (it reached one of its addressees).
 	bool append_incoming(const String &sender_guid, const String &raw_msg) {
 		if (!log_) return false;
+		if (host_ && host_->chat_setup_verbatim()) {
+			const String line = format_line("", host_->chat_user(sender_guid), raw_msg, false);
+			add_log(line + String("\n"), message_bits("", host_->chat_sender_is_player(sender_guid)));
+			post_overlay(line);
+			return true;
+		}
 		String msg = raw_msg;
 		// The wire tag is the addressee; 0.28 shows it as the context (ChatAddressees.js)
 		// and shows the message only to its addressees (isAddressee).
@@ -453,6 +462,18 @@ public:
 		add_log(line + String("\n"), message_bits(context, !host_ || host_->chat_sender_is_player(sender_guid)));
 		post_overlay(line);
 		return true;
+	}
+
+	// ChatInputPanel.submitChatInput in the game setup: a network command, or
+	// Engine.SendNetworkChat(text) to everyone exactly as typed.
+	void send_setup(const String &typed) {
+		if (!log_ || !host_) return;
+		const String text = typed.strip_edges();
+		if (text.is_empty() || host_->chat_network_command(text)) return;
+		const String line = format_line("", host_->chat_user(""), text, false);
+		add_log(line + String("\n"), message_bits("", !host_->chat_local_observer()));
+		post_overlay(line);
+		if (host_->net_lockstep()) host_->chat_send_wire(text.utf8().get_data());
 	}
 
 	// A message from the local player that isn't typed (the developer overlay's
@@ -579,8 +600,8 @@ public:
 private:
 	// ChatMessageFormatPlayer strings: "(context) <user> message", or with /me
 	// "(context) * user message". The text is escaped (escapeText).
-	static String format_line(const String &context, const String &user, String text) {
-		const bool me = text.begins_with("/me ");
+	static String format_line(const String &context, const String &user, String text, bool actions = true) {
+		const bool me = actions && text.begins_with("/me ");
 		if (me) text = text.substr(4);
 		text = text.replace("[", "[lb]");
 		const String ctx = context.is_empty() ? String() : "(" + context + ") ";

@@ -1,7 +1,8 @@
 extends SceneTree
 # unit_actions.js "garrison" getActionInfo: with units selected, hovering an own
-# structure they can garrison in shows the garrison cursor and "Current garrison: x/y"
-# beside it, in orange once the structure is full.
+# structure they can garrison in with session.garrison (Ctrl) held shows the garrison
+# cursor and "Current garrison: x/y" beside it, in orange once the structure is full.
+# Without the hotkey "move" (specificness 12) beats "garrison" (20): no garrison cursor.
 # selection.js: a right-click garrison order keeps the units selected until they are
 # inside (hidden), then they leave the selection.
 #
@@ -32,6 +33,15 @@ func move(pos: Vector2) -> void:
 	Input.parse_input_event(mm)
 	await frames(2)
 
+func key(code: int, down: bool) -> void:
+	var k := InputEventKey.new()
+	k.keycode = code
+	k.physical_keycode = code
+	k.ctrl_pressed = down and code == KEY_CTRL
+	k.pressed = down
+	Input.parse_input_event(k)
+	await frames(1)
+
 func run() -> void:
 	await frames(60)
 	# The camera settles on the Civic Center first.
@@ -54,7 +64,12 @@ func run() -> void:
 	await move(at)
 	var t: Dictionary = main.debug_cursor_tip()
 	print("    ", t)
-	check(t["cursor"] == "action-garrison", "the garrison cursor over the Civic Center")
+	check(t["cursor"] != "action-garrison" and not t["visible"], "no garrison cursor without Ctrl (move wins)")
+	await key(KEY_CTRL, true)
+	await move(at)
+	t = main.debug_cursor_tip()
+	print("    ", t)
+	check(t["cursor"] == "action-garrison", "Ctrl: the garrison cursor over the Civic Center")
 	check(t["visible"] and str(t["text"]).begins_with("Current garrison: 0/"), "Current garrison: 0/capacity")
 	check(t["color"] == Color(1, 1, 1), "white while there is room")
 	var cap := int(str(t["text"]).get_slice("/", 1))
@@ -66,6 +81,7 @@ func run() -> void:
 		mb.global_position = at
 		root.push_input(mb, true)
 		await frames(1)
+	await key(KEY_CTRL, false)
 	check(main.debug_selection_grid(false)["selected"] == 1, "the garrison order keeps the unit selected")
 	for i in 400:
 		await frames(1)
@@ -74,6 +90,7 @@ func run() -> void:
 	check(main.debug_selection_grid(false)["selected"] == 0, "inside, it leaves the selection")
 	main.debug_select_units(main.debug_spawn_units("athen/infantry_spearman_b", 1))
 	await frames(4)
+	await key(KEY_CTRL, true)
 	await move(at)
 	cap -= 1
 	var fill: PackedInt32Array = main.debug_spawn_units("athen/infantry_spearman_b", cap)
@@ -83,5 +100,6 @@ func run() -> void:
 	print("    ", t)
 	check(str(t["text"]) == "Current garrison: %d/%d" % [cap + 1, cap + 1], "full: Current garrison: cap/cap")
 	check(t["color"] == Color(1.0, 0.65, 0.0), "orange once full")
+	await key(KEY_CTRL, false)
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures else 0)
