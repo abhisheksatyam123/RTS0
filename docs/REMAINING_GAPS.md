@@ -294,7 +294,7 @@ This pass covers save and replay metadata, compatibility, quicksave and quickloa
 
 | # | Gap | Severity | Status |
 |---|---|---|---|
-| T1 | The lobby rating report sends each player's civ display name and the simulation's team id, so a 1v1 without teams reports "1,2,". 0.28 sends the civ code and the Diplomacy team, -1 when the player has none (LobbyRatingReport/Players.js) | low | Open (Triggers) |
+| T1 | The lobby rating report sends each player's civ display name and the simulation's team id, so a 1v1 without teams reports "1,2,". 0.28 sends the civ code and the Diplomacy team, -1 when the player has none (LobbyRatingReport/Players.js) | low | Fixed: the report sends civ codes and the Game Setup team, -1 for none |
 | T2 | Saves and replays don't record the mods they were made with. Their compatibility checks compare format numbers only, so a save or replay made under a gameplay mod lists as compatible without it. 0.28 stores the mods, filters and colours on them, and warns before loading (SavegameList.js, SavegameDetails.js, SavegameLoader.js, replay_menu.js) | medium | Fixed: saves and replays record engine_mods(); the save and replay lists filter, colour and warn on them as 0.28 does |
 | T3 | Game Setup's Turtle (0.1×) and Fast Forward (5×, 10×, 20×) speeds start the match at Normal, and networked games clamp to 0.25-3× | medium | Fixed: the session and the network setup take game_speeds.json's whole 0.1-20× range |
 | T4 | Quickload restores the quicksave's camera and starts a new replay. 0.28's quicksave keeps only the control groups, so the camera stays where it is | low | Fixed: the quicksave keeps only the control groups, so quickload leaves the camera where it is. Deliberate: the game still goes on as a new replay from the quicksave, because 0.28's replay keeps recording past a quickload and no longer plays back |
@@ -335,7 +335,7 @@ gui/campaigns, gui/common/campaigns, session/campaigns and pregame/MainMenuItems
 | CA10 | Captions: OK/Cancel in place of Cancel/Start Campaign on the new-run dialog (title and prompt untranslated), "Name" for "Scenario Name", "Back to Main Menu" for the setup page's "Main Menu"; the load page lacked "Name of selected run:" and RTS0 added "No campaigns." / "No levels." texts | cosmetic | Fixed |
 | CA11 | List colours: names 172 172 212, status 192 192 192, locked names "gray" 143 142 140 (RTS0 white and 128) | cosmetic | Fixed |
 | CA12 | A campaign without an Image showed no picture; 0.28 shows nopreview.png | cosmetic | Fixed |
-| CA13 | 0.28 starts a level with mapName and mapPreview set to the level's Name and Preview, shown in saves and in game; RTS0 shows the map's own. The two tutorial levels are named as their maps, so nothing differs today | low | Open |
+| CA13 | 0.28 starts a level with mapName and mapPreview set to the level's Name and Preview, shown in saves and in game; RTS0 shows the map's own. The two tutorial levels are named as their maps, so nothing differs today | low | Open: Triggers |
 | CA14 | The current run is kept in user://saves/campaigns/current, not user.cfg's "currentcampaign", so a 0.28 user.cfg's run isn't picked up | low | Deliberate |
 
 CCmpCinemaManager, CinemaManager, CCinemaPath and session.js's cinema handling were checked against cinema.h, tick_cinema and cinema_view.h:
