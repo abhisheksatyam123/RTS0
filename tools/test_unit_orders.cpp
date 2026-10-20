@@ -3614,6 +3614,21 @@ static void test_rally_on_animal() {
 	check(s.unit_order(sp).kind == ORDER_WALK, "with no deer left the spearman walks to the spot");
 }
 
+static void test_heal_click_targets() {
+	std::printf("98. right-click heals only a unit a selected healer may heal (unit_actions.js heal, Heal.js CanHeal)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t h1 = s.spawn_unit(0.0f, 0.0f, 0, UNIT_HEALER), h2 = s.spawn_unit(2.0f, 0.0f, 0, UNIT_HEALER);
+	const uint32_t ram = s.spawn_unit(5.0f, 0.0f, 0, UNIT_SIEGE_RAM), sp = s.spawn_unit(0.0f, 5.0f, 0, UNIT_SPEARMAN);
+	for (uint32_t id : {h1, ram, sp}) s.units_.hp[idx_of(s, id)] *= 0.5f;
+	const uint32_t both[2] = {h1, h2};
+	check(s.first_able_healer(both, 2, ram) == 0, "an injured ram is not healable");
+	check(s.first_able_healer(both, 2, sp) == h1, "an injured spearman: the first healer heals");
+	check(s.first_able_healer(&h1, 1, h1) == 0, "a lone healer can't heal itself");
+	check(s.first_able_healer(both, 2, h1) == h2, "the other healer heals an injured healer");
+	check(s.first_able_healer(&sp, 1, sp) == 0, "a spearman heals nobody");
+}
+
 static void test_cant_do_walks() {
 	std::printf("units that can't gather or return walk to the target\n");
 	Simulation s;
@@ -3742,6 +3757,7 @@ int main(int argc, char **argv) {
 	test_approach_walks();
 	test_rally_repair_or_garrison();
 	test_rally_on_animal();
+	test_heal_click_targets();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
