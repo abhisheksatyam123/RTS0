@@ -20262,7 +20262,7 @@ void Simulation::petra_assign_repairs() {
 	std::vector<uint32_t> taken; // sent this pass: their state changes next tick
 	for (size_t k : damaged) {
 		const Building &b = buildings_[k];
-		const bool anchor = is_civic_centre(b.type);
+		const bool anchor = is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY; // CivCentre: colonies too
 		const bool wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER || b.type == BLD_PALISADE || b.type == BLD_SIEGE_WALL || is_gate_type(b.type);
 		const bool wonder = b.type == BLD_WONDER && has_victory(VK_WONDER);
 		const float health = b.hp / b.max_hp;
@@ -24856,7 +24856,8 @@ bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &
 			}
 			if (near_army) continue;
 			for (const Building &b : buildings_) {
-				if (!petra_foe(b.team) || b.hp <= 0.0f || b.build_progress < 1.0f || !building_ai_info(b.type).shoots()) continue;
+				// getEnemyStructures: Gaia's (player 0's) too.
+				if (!(petra_foe(b.team) || b.team == GAIA_PLAYER) || b.hp <= 0.0f || b.build_progress < 1.0f || !building_ai_info(b.type).shoots()) continue;
 				const float r = half + building_arrow_range(b);
 				if ((b.x - x) * (b.x - x) + (b.z - z) * (b.z - z) < r * r) { bad = true; break; }
 			}
@@ -24932,9 +24933,11 @@ void Simulation::petra_build_defenses() {
 		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
 		const bool fnd = b.build_progress < 1.0f;
 		if (b.type == BLD_FORTRESS) { ++n_fortresses; n_fortress_fnd += fnd; }
-		if (is_defense_tower(b.type) || b.type == BLD_SENTRY_TOWER) { ++n_towers; n_tower_fnd += fnd; }
+		// Classes Tower (Han bolt and artillery towers too), WallTower and StoneTower.
+		const TechClasses tc = building_tech_classes(b.type);
+		if (tc & TC_TOWER) { ++n_towers; n_tower_fnd += fnd; }
 		if (b.type == BLD_WALL_TOWER) ++n_towers;
-		if (is_defense_tower(b.type)) ++n_stone;
+		if (tc & TC_STONETOWER) ++n_stone;
 		if (petra_base_anchor_type(b.type) && !fnd) ++n_bases; // numActiveBases: built base anchors, colonies included
 	}
 	const float now = game_time();
@@ -24962,8 +24965,11 @@ void Simulation::petra_build_defenses() {
 	if (!saving && (phase > 2 || (phase == 2 && research_check(petra_pid_, TECH_PHASE_CITY) == TECH_ERR_IN_PROGRESS))) {
 		if (can_build(BLD_FORTRESS) &&
 		    (n_fortresses == 0 || now > (1.0f + 0.1f * (float)n_fortresses) * fortress_lapse + d.fortress_start) &&
-		    n_fortresses < n_bases + 1 + extra_fortresses && n_fortresses < pop / 25 && n_fortress_fnd < 2 &&
-		    (n_fortresses == 0 || has_spot(BLD_FORTRESS))) {
+		    n_fortresses < n_bases + 1 + extra_fortresses && n_fortresses < pop / 25 && n_fortress_fnd < 2) {
+			if (n_fortresses > 0 && !has_spot(BLD_FORTRESS)) { // setUnbuildable for 90 s
+				d.fortress_start = now + kNoRoomWait - (1.0f + 0.1f * (float)n_fortresses) * fortress_lapse;
+				return;
+			}
 			d.fortress_start = now;
 			d.pending = BLD_FORTRESS + 1;
 			// The first fortress at twice defenseBuilding's priority, until it is started.
@@ -25460,7 +25466,7 @@ bool Simulation::petra_dangerous_location(float x, float z, float radius) const 
 	if (petra_near_invading_army(x, z, centres)) return true;
 	// isUnderEnemyFire
 	for (const Building &eb : buildings_) {
-		if (!petra_foe(eb.team) || eb.hp <= 0.0f || eb.wrecked || eb.build_progress < 1.0f || !building_ai_info(eb.type).shoots()) continue;
+		if (!(petra_foe(eb.team) || eb.team == GAIA_PLAYER) || eb.hp <= 0.0f || eb.wrecked || eb.build_progress < 1.0f || !building_ai_info(eb.type).shoots()) continue;
 		const float range = radius + building_arrow_range(eb);
 		if ((eb.x - x) * (eb.x - x) + (eb.z - z) * (eb.z - z) < range * range) return true;
 	}
