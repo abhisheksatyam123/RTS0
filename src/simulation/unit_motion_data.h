@@ -10,7 +10,7 @@ struct UnitMotionProfile {
 	float cos_instant_turn; // cos(instant_turn_angle); -2 (no turn stops it) from pi up
 };
 
-inline constexpr uint16_t MOTION_TEMPLATE_COUNT = 507; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t MOTION_TEMPLATE_COUNT = 511; // = CIV_UNIT_TEMPLATE_COUNT
 inline const UnitMotionProfile *motion_template_table() {
 	static const UnitMotionProfile kTable[MOTION_TEMPLATE_COUNT] = {
 		{11.214f, 1.5f, 10.0f, 0.0707f}, // athen/cavalry_javelineer_b
@@ -520,6 +520,10 @@ inline const UnitMotionProfile *motion_template_table() {
 		{12.46f, 1.5f, 8.0f, 0.0707f}, // theb_sacred_band
 		{12.46f, 1.5f, 8.0f, 0.0707f}, // thesp_melanochitones
 		{1.869f, 0.75f, 4.0f, 0.7317f}, // theb_siege_fireraiser
+		{12.46f, 1.5f, 8.0f, 0.0707f}, // rome/champion_infantry_swordsman_02
+		{12.46f, 1.5f, 8.0f, 0.0707f}, // rome/champion_infantry_swordsman_03
+		{12.46f, 1.5f, 8.0f, 0.0707f}, // rome/champion_infantry_swordsman_04
+		{12.46f, 1.5f, 8.0f, 0.0707f}, // rome/champion_infantry_swordsman_05
 	};
 	return kTable;
 }
