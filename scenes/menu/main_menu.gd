@@ -279,10 +279,7 @@ static func build_string() -> String:
 ## openURL: open it in the browser, saying so in a message box.
 func open_url(url: String) -> void:
 	opened_url = url
-	if DisplayServer.get_name() != "headless":
-		OS.shell_open(url)
-	preload("res://scenes/common/msgbox.gd").open(self, 600, 200,
-		L10n.sprintf(tr("Opening %(url)s\n in default web browser. Please wait…"), {"url": url}), tr("Opening page"))
+	preload("res://scenes/common/msgbox.gd").open_url(self, url)
 
 func _setup_background(civ_name: String) -> void:
 	# Clean existing layers

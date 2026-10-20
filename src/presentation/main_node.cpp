@@ -49,6 +49,11 @@ static bool building_trains_class(uint8_t civ, uint8_t utype, uint8_t btype) {
 	return false;
 }
 
+// 0.28 CTurnManager::QuickSave keeps the quicksave in memory for this match only; the
+// simulation writes its state to a file, so it goes outside user://saves (out of the save
+// and load dialogs) and is deleted when the match ends.
+static const char *const kQuicksavePath = "user://quicksave.rts0sav";
+
 RtsoMain::RtsoMain() {
 	sim = new rtso::Simulation();
 }
@@ -71,6 +76,7 @@ void RtsoMain::_notification(int p_what) {
 				ma->set("session_music_tick", Callable());
 		}
 		write_replay(true); // leaving the match keeps its replay, with its summary (endGame)
+		if (quicksaved_) DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(kQuicksavePath));
 		// Menus get the normal arrow back (update_cursor sets action cursors).
 		if (!cursor_name_.empty()) reset_default_cursor();
 		// The Render Debug Mode is the session's; the menus draw normally.
@@ -279,7 +285,8 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 	if (!cheat) return false;
 	String parameter = text.substr(String(cheat->name).length() + 1).strip_edges();
 	if (parameter.is_empty()) parameter = cheat->def;
-	if (cheat->numeric && !parameter.is_empty() && !parameter.is_valid_int()) {
+	// Cheats.js reads the number with +parameter, so "1.5" and "1e3" count.
+	if (cheat->numeric && !parameter.is_empty() && !parameter.is_valid_float()) {
 		// Cheats.js NoNumericMessage: a chat message from the player, shown only here.
 		chat_window_.append_kind(String("<") + colored_player_name(me) + "> " + tr("This cheat requires a numeric parameter.") + "\n",
 				RtsoChatWindow::message_bits("", true));
@@ -293,7 +300,7 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 		music_.play_custom(tracks);
 		return true;
 	}
-	int64_t number = cheat->numeric && !parameter.is_empty() ? parameter.to_int() : 0;
+	int64_t number = cheat->numeric && !parameter.is_empty() ? (int64_t)parameter.to_float() : 0;
 	uint32_t extra = (uint32_t)std::max(cheat->resource, 0);
 	if (cheat->action == S::CHEAT_CONVERT_UNITS || cheat->action == S::CHEAT_DEFEAT_PLAYER)
 		number = number < 0 ? -1 : (number == 0 ? rtso::GAIA_PLAYER : number - 1);
@@ -302,17 +309,36 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 	if (selected_building_id) ids.push_back(selected_building_id);
 	for (int i = 0; i < selected_ids.size(); ++i) ids.push_back((uint32_t)selected_ids[i]);
 	if (cheat->action == S::CHEAT_RESEARCH) {
-		// "brainiac N" researches the selected structure's Nth technology, else a tech by its 0 A.D. name.
+		// "brainiac N [top|bottom]" researches the selected structure's Nth research icon
+		// (Researcher.js GetTechnologiesList: a chain shows its next step, a pair is one
+		// entry, "top" by default), else a tech by its 0 A.D. name.
 		extra = rtso::TECH_NONE;
-		int btype = -1; // the selected structure's type
+		const rtso::Simulation::Building *rb = nullptr; // the selected structure
 		for (const auto &bb : sim->buildings())
-			if (selected_building_id && bb.id == selected_building_id) btype = bb.type;
-		if (btype >= 0 && parameter.is_valid_int()) {
-			int nth = (int)parameter.to_int();
-			for (int t = 1; t < rtso::TECH_COUNT && nth > 0; ++t) {
-				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
-				if (!rtso::building_researches_tech((uint8_t)btype, (uint8_t)t, sim->player_civ(me)) || !(ti.civ_mask & rtso::civ_bit(sim->player_civ(me)))) continue;
-				if (--nth == 0) extra = (uint32_t)t;
+			if (selected_building_id && bb.id == selected_building_id) rb = &bb;
+		const String first = parameter.get_slice(" ", 0), half = parameter.get_slice(" ", 1);
+		if (rb && first.is_valid_float()) {
+			const uint8_t pciv = sim->player_civ(me);
+			std::vector<std::pair<uint8_t, uint8_t>> entries; // top, bottom (TECH_NONE unless paired)
+			for (int t = 1; t < rtso::TECH_COUNT; ++t) {
+				if (!rtso::building_researches_tech(rb->type, (uint8_t)t, pciv) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+				if (const uint8_t sup = rtso::tech_supersedes((uint8_t)t); sup != rtso::TECH_NONE
+						&& rtso::building_researches_tech(rb->type, sup, pciv) && rtso::tech_available_to_civ(sup, pciv)) {
+					const rtso::Simulation::ResearchCheck sc = sim->research_check(me, sup, 0);
+					if (sc != rtso::Simulation::TECH_ERR_RESEARCHED && sc != rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
+				}
+				const rtso::Simulation::ResearchCheck rc = sim->research_check(me, (uint8_t)t, rb->id);
+				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_IN_PROGRESS || rc == rtso::Simulation::TECH_ERR_CIV
+						|| rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
+				const uint8_t partner = rtso::tech_pair_partner((uint8_t)t);
+				auto paired = std::find_if(entries.begin(), entries.end(), [&](const auto &e) { return partner != rtso::TECH_NONE && e.first == partner; });
+				if (paired != entries.end()) paired->second = (uint8_t)t;
+				else entries.push_back({(uint8_t)t, rtso::TECH_NONE});
+			}
+			const double nth = first.to_float();
+			if (nth >= 1.0 && nth <= (double)entries.size()) {
+				const auto &e = entries[(size_t)nth - 1];
+				extra = half == "bottom" && e.second != rtso::TECH_NONE ? e.second : e.first;
 			}
 		} else {
 			const std::string want = parameter.utf8().get_data();
@@ -626,7 +652,6 @@ bool RtsoMain::building_trains_units(uint32_t id) const {
 	return false;
 }
 
-static const char *const kQuicksavePath = "user://saves/quicksave.rts0sav";
 
 // 0 A.D. 0.28 simulation/data/settings/game_speeds.json: the session's speed
 // dropdown. The Fast Forward speeds are offered only while this client has no
@@ -711,18 +736,27 @@ void RtsoMain::show_notice(const String &text) {
 }
 
 void RtsoMain::quicksave() {
-	if (net_lockstep() || turn_mgr_.is_replaying()) return;
-	const bool ok = save_game(kQuicksavePath, "Quicksave");
+	if (net_lockstep() || turn_mgr_.is_replaying() || !sim) return;
+	const bool ok = sim->save_state(ProjectSettings::get_singleton()->globalize_path(kQuicksavePath).utf8().get_data());
+	if (ok) {
+		// session.js getSavedGameData: QuickSave keeps only the control groups, so a
+		// quickload leaves the camera where it is.
+		Array groups;
+		for (int g = 0; g < 10; ++g) groups.push_back(selected_groups[g]);
+		quicksave_gui_ = Dictionary();
+		quicksave_gui_["groups"] = groups;
+		quicksaved_ = true;
+	}
 	log_render(ok ? "Quicksaved game" : "Quicksave failed", !ok);
 }
 
 void RtsoMain::quickload() {
 	if (net_lockstep() || turn_mgr_.is_replaying()) return;
-	if (!FileAccess::file_exists(kQuicksavePath)) {
-		log_render("No quicksave to load", true);
+	if (!quicksaved_) {
+		log_render("Cannot quickload game - no game was quicksaved", true);
 		return;
 	}
-	const bool ok = load_game(kQuicksavePath);
+	const bool ok = load_world(kQuicksavePath, quicksave_gui_);
 	log_render(ok ? "Quickloaded game" : "Quickload failed", !ok);
 }
 
@@ -1214,6 +1248,12 @@ bool RtsoMain::save_game(String path, String description) {
 }
 
 bool RtsoMain::load_game(String path) {
+	return load_world(path, saved_gui(path));
+}
+
+// session.js restoreSavedGameData gets the save's GUI data: a saved game's camera and
+// control groups, or a quicksave's groups alone.
+bool RtsoMain::load_world(const String &path, const Dictionary &gui) {
 	if (!sim) return false;
 	String global_path = ProjectSettings::get_singleton()->globalize_path(path);
 	load_progress(50, "Loading saved game");
@@ -1224,7 +1264,7 @@ bool RtsoMain::load_game(String path) {
 	if (success) {
 		selected_ids.clear();
 		selected_building_id = 0;
-		restore_saved_gui(path);
+		restore_saved_gui(gui);
 		// The models the saved world draws load here, behind the loading page (0.28's
 		// LDR_ProgressiveLoad), not on the first frame of play.
 		if (view) {
