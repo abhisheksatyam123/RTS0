@@ -2159,14 +2159,17 @@ static void test_nomad_first_base() {
 	for (size_t i = 0; i < s->units_.count; ++i)
 		if (s->units_.alive[i] && s->units_.team[i] == 0) idle_army.push_back(s->units_.id[i]);
 	s->order_set_stance(idle_army.data(), idle_army.size(), STANCE_PASSIVE);
-	run_for(*s, 150.0f);
+	// worker.js: the civic centre's builders go idle (autocontinue only for houses) and gather,
+	// and the fields wait for a food gatherer (buildAnyField), so the first house comes later
+	// than 150 s on this seed.
+	run_for(*s, 240.0f);
 	int buildings = 0, houses = 0;
 	for (const auto &b : s->buildings())
 		if (b.team == 1 && !b.wrecked && b.build_progress >= 1.0f) {
 			++buildings;
 			houses += b.type == BLD_HOUSE;
 		}
-	std::printf("  nomad: Town Centers at start %d, built after 150 s %d, finished buildings %d, workers %d\n",
+	std::printf("  nomad: Town Centers at start %d, built after 240 s %d, finished buildings %d, workers %d\n",
 	            at_start, town_centers(true), buildings, count_units(*s, 1, true));
 	CHECK(at_start == 0, "a Nomad start has no civic centre");
 	CHECK(town_centers(true) == 1, "Petra founds and builds its first Town Center");
@@ -5116,6 +5119,17 @@ static void test_mobile_dropsite_cadence() {
 	const float fx = 0.5f * (tx + ex), fz = 0.5f * (tz + ez);
 	s->spawn_building_world(fx, fz, BLD_TOWN_CENTER, 1, 1.0f);
 	run_for(*s, 3.0f);
+	// No gatherers there yet: stop any worker Petra sent to a supply nearer the new base.
+	for (size_t i = 0; i < s->units_.count; ++i) {
+		if (!s->units_.alive[i] || s->units_.team[i] != 1) continue;
+		auto rit = s->res_id_to_idx_.find(s->units_.target_resource_id[i]);
+		if (rit == s->res_id_to_idx_.end()) continue;
+		const float rx = s->resources_.x[rit->second], rz = s->resources_.z[rit->second];
+		if (std::hypot(rx - fx, rz - fz) < std::hypot(rx - tx, rz - tz)) {
+			const uint32_t id = s->units_.id[i];
+			s->cmd_stop(&id, 1);
+		}
+	}
 	// The home wagon 10 to the side of the first civic centre, across from the enemy line.
 	const float len = std::max(1.0f, std::hypot(ex - tx, ez - tz)), sx = -(ez - tz) / len, sz = (ex - tx) / len;
 	const uint32_t home = s->spawn_unit(tx + 10.0f * sx, tz + 10.0f * sz, 1, UNIT_WAGON);
