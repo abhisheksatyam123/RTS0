@@ -921,6 +921,32 @@ int main() {
 		CHECK(bld(house)->team == 1 && std::fabs(bld(house)->max_hp - want) < 0.01f && bld(house)->hp <= bld(house)->max_hp + 0.01f);
 	}
 
+	// Researcher.js GetTechnologiesList reads a structure's own template: a captured Carthaginian
+	// dock keeps cart/dock's "-warship_health", an Athenian one researches it; a Han player can
+	// research Espionage at a captured Athenian Civic Center (han/civil_centre drops it).
+	{
+		static Simulation k;
+		k.set_sim_seed(5);
+		k.set_team_civ(0, CIV_ATHENIANS);
+		k.set_team_civ(1, CIV_HAN);
+		k.reset();
+		for (uint8_t p : {0, 1}) {
+			k.player(p).phase = 3;
+			k.set_player_resources(p, 5000, 5000, 5000, 5000);
+		}
+		const uint32_t cart_dock = k.spawn_building(-30, 30, BLD_DOCK, 0, 1.0f);
+		const uint32_t athen_dock = k.spawn_building(30, 30, BLD_DOCK, 0, 1.0f);
+		k.set_building_civ(cart_dock, CIV_CARTHAGINIANS);
+		k.set_building_civ(athen_dock, CIV_ATHENIANS);
+		CHECK(k.research_check(0, TECH_WARSHIP_HEALTH, cart_dock) == Simulation::TECH_ERR_BUILDING);
+		CHECK(k.research_check(0, TECH_WARSHIP_HEALTH, athen_dock) != Simulation::TECH_ERR_BUILDING);
+		const uint32_t cc = k.spawn_building(30, -30, BLD_TOWN_CENTER, 1, 1.0f);
+		k.set_building_civ(cc, CIV_ATHENIANS);
+		CHECK(k.research_check(1, TECH_UNLOCK_SPIES, cc) != Simulation::TECH_ERR_BUILDING);
+		k.set_building_civ(cc, CIV_HAN);
+		CHECK(k.research_check(1, TECH_UNLOCK_SPIES, cc) == Simulation::TECH_ERR_BUILDING);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
