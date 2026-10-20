@@ -1879,8 +1879,12 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 	if (is_replaying_) {
 		replay_expected_hash_ = replay_expected_hash;
 		replay_computed_hash_ = frame.sim_state_hash;
-		replay_oos_ = replay_expected_hash != 0 && replay_expected_hash != frame.sim_state_hash;
-		replay_oos_turn_ = replay_oos_ ? frame.turn_index : 0;
+		// The first mismatch stays (0.28 OutOfSyncReplay reports it once): a later
+		// turn that happens to match doesn't hide it.
+		if (!replay_oos_ && replay_expected_hash != 0 && replay_expected_hash != frame.sim_state_hash) {
+			replay_oos_ = true;
+			replay_oos_turn_ = frame.turn_index;
+		}
 		replay_complete_ = replay_frame_idx_ >= turn_history_.size();
 	}
 
