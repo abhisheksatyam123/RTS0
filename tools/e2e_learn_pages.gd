@@ -44,8 +44,11 @@ func run() -> void:
 		check(cat.entries.size() == 15, "15 catafalques, one per civ (0.28's Germans too): %d" % cat.entries.size())
 		var athen: Dictionary = cat.entries.filter(func(e): return e["civ"] == 0)[0] if not cat.entries.is_empty() else {}
 		check(str(athen.get("name", "")).contains("Solon"), "the Athenian catafalque is Solon's: " + str(athen.get("name", "")))
-		check(str(athen.get("tooltip", "")).begins_with("Economic Reforms: ") and str(athen.get("tooltip", "")).contains("Economic Fortune: "),
-			"its tooltip lists its auras")
+		check(str(athen.get("tooltip", "")).begins_with("[b]Economic Reforms:[/b] ") and str(athen.get("tooltip", "")).contains("[b]Economic Fortune:[/b] "),
+			"its tooltip lists its auras, each name in the header font")
+		var close_btn: Button = cat.find_child("CloseButton", true, false)
+		check(close_btn != null and close_btn.size.x == 192.0 and close_btn.size.y <= 40.0 and close_btn.tooltip_text.ends_with(": Close Catafalque Bonuses."),
+			"Close is 192x32 with the hotkey-led tooltip: %s %s %s" % [close_btn.size if close_btn else null, close_btn.get_combined_minimum_size() if close_btn else null, close_btn.tooltip_text if close_btn else ""])
 		check(cat.entries.all(func(e): return e["tooltip"] != "" and e["emblem"] != ""), "every catafalque has auras and an emblem")
 		# 15 round the circle: the first on top, the eighth and ninth either side of the bottom.
 		var first: Control = cat.find_child("Emblem0", true, false)

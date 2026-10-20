@@ -4551,6 +4551,27 @@
       "template": "samnite_swordsman"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": -49.59,
+      "z": -25.28,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -43.49,
+      "z": -38.48,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -75.84,
+      "z": -24.6,
+      "template": "merc_black_cloak"
+    },
+    {
       "type": "swordsman",
       "player": 1,
       "x": -57.29,
