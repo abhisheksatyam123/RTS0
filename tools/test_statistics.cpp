@@ -70,6 +70,11 @@ static void test_kill_credit() {
 	CHECK(stat_unit_classes(UNIT_CAVALRY, ROSTER_CITIZEN) == (1u << STAT_UNIT_CAVALRY));
 	CHECK(stat_unit_classes(UNIT_SPEARMAN, ROSTER_CHAMPION) == ((1u << STAT_UNIT_INFANTRY) | (1u << STAT_UNIT_CHAMPION)));
 	CHECK(stat_unit_classes(UNIT_MERCHANT_SHIP, 0) == ((1u << STAT_UNIT_SHIP) | (1u << STAT_UNIT_TRADER)));
+	// template_unit_elephant_archer.xml, template_unit_support_elephant.xml: no counted class;
+	// champion elephants are Champions.
+	CHECK(stat_unit_classes(UNIT_ELEPHANT, ROSTER_RANGED | ROSTER_CITIZEN | ROSTER_NO_GATHER) == 0);
+	CHECK(stat_unit_classes(UNIT_WORKER_ELEPHANT, 0) == 0);
+	CHECK(stat_unit_classes(UNIT_ELEPHANT, ROSTER_CHAMPION) == (1u << STAT_UNIT_CHAMPION));
 	CHECK(stat_building_classes(BLD_TOWN_CENTER) == (1u << STAT_BLD_CIV_CENTRE));
 	CHECK(stat_building_classes(BLD_MILITARY_COLONY) == (1u << STAT_BLD_CIV_CENTRE));
 	CHECK(stat_building_classes(BLD_WALL_SEGMENT) == 0);
@@ -80,6 +85,7 @@ static void test_kill_credit() {
 	CHECK(stat_building_classes(BLD_DOCK) == ((1u << STAT_BLD_ECONOMIC) | (1u << STAT_BLD_MILITARY)));
 	CHECK(stat_building_classes(BLD_FORTRESS) == ((1u << STAT_BLD_FORTRESS) | (1u << STAT_BLD_MILITARY)));
 	CHECK(stat_building_classes(BLD_MERCENARY_CAMP) == (1u << STAT_BLD_MILITARY));
+	CHECK(stat_building_classes(BLD_TRADING_POST) == (1u << STAT_BLD_ECONOMIC)); // trading_post|template_structure_economic_market
 }
 
 static void test_tribute_barter() {
