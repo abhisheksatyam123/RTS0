@@ -109,7 +109,7 @@ func _run() -> void:
 						row = it
 		# The list is rebuilt whenever the lobby pushes a change (/events), which
 		# frees its TreeItems: never hold one across an await.
-		var picked: String = row.get_text(0)
+		var picked: String = row.get_text(1)
 		row.select(0)
 		await _wait(0.1)
 		_say("picked %s (address %s)" % [picked, "hidden" if lobby._join_ip.text == "" else lobby._join_ip.text])

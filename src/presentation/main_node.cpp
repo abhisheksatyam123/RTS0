@@ -321,9 +321,9 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 			const uint8_t pciv = sim->player_civ(me);
 			std::vector<std::pair<uint8_t, uint8_t>> entries; // top, bottom (TECH_NONE unless paired)
 			for (int t = 1; t < rtso::TECH_COUNT; ++t) {
-				if (!rtso::building_researches_tech(rb->type, (uint8_t)t, pciv) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+				if (!rtso::building_researches_tech(rb->type, (uint8_t)t, sim->structure_template_civ(*rb)) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 				if (const uint8_t sup = rtso::tech_supersedes((uint8_t)t); sup != rtso::TECH_NONE
-						&& rtso::building_researches_tech(rb->type, sup, pciv) && rtso::tech_available_to_civ(sup, pciv)) {
+						&& rtso::building_researches_tech(rb->type, sup, sim->structure_template_civ(*rb)) && rtso::tech_available_to_civ(sup, pciv)) {
 					const rtso::Simulation::ResearchCheck sc = sim->research_check(me, sup, 0);
 					if (sc != rtso::Simulation::TECH_ERR_RESEARCHED && sc != rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
 				}
@@ -979,8 +979,10 @@ void RtsoMain::update_net_status_overlay() {
 			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = mismatch_detail(); break;
 			default: why = tr("An unknown error occurred."); break;
 		}
-		String text = (net_game_started_ ? tr("Connection to the server has been lost.")
-				: joined ? tr("Lost connection to the server.") : tr("Failed to connect to the server.")) + "\n" + why;
+		// NetworkStatusOverlay (in the match): one line break, no title.
+		// reportDisconnect (before Start): a blank line, titled "Disconnected".
+		String text = net_game_started_ ? tr("Connection to the server has been lost.") + "\n" + why
+				: (joined ? tr("Lost connection to the server.") : tr("Failed to connect to the server.")) + "\n\n" + why;
 		if (!joined && net_host_.disconnectReason() == 0) {
 			// reportConnectionRequestTimeOut, with getRequestTimeOutMessage's
 			// address advice only outside the lobby.
@@ -995,8 +997,8 @@ void RtsoMain::update_net_status_overlay() {
 		// The timeout is a "Connection Error" box with Close and Open FAQ.
 		const bool timed_out = !joined && net_host_.disconnectReason() == 0;
 		if (net_status_title_) {
-			net_status_title_->set_text(timed_out ? tr("Connection Error") : String());
-			net_status_title_->set_visible(timed_out);
+			net_status_title_->set_text(timed_out ? tr("Connection Error") : net_game_started_ ? String() : tr("Disconnected"));
+			net_status_title_->set_visible(!net_game_started_);
 		}
 		if (net_status_exit_) {
 			net_status_exit_->set_text(timed_out ? tr("Close") : tr("Exit"));
@@ -1006,7 +1008,7 @@ void RtsoMain::update_net_status_overlay() {
 		if (net_status_faq_) net_status_faq_->set_visible(timed_out);
 		net_loading_clients_->set_visible(false);
 		net_status_overlay_->set_visible(true);
-		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n", " "));
+		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n\n", "\n").replace("\n", " "));
 		update_net_setup_overlay(); // the setup page gives way at once
 		return;
 	}

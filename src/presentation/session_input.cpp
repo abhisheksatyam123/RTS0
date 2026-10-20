@@ -1169,27 +1169,25 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 
-			// 1c. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor).
+			// 1c. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor):
+			// only a unit a selected healer may heal (Heal.js CanHeal: a Human, not the healer itself).
 			{
-				// With orderone the first healer of the selection is the one ordered
+				// With orderone the first able healer of the selection is the one ordered
 				// (input.js firstAbleEntity).
 				uint32_t first_healer = 0;
-				for (int k = 0; k < selected_ids.size() && !first_healer; ++k) {
-					for (size_t i = 0; i < uview.count; ++i)
-						if (uview.id[i] == (uint32_t)selected_ids[k]) {
-							if (rtso::unit_is_healer(uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, uview.unit_type[i])) first_healer = uview.id[i];
-							break;
-						}
-				}
-				const bool any_healer = first_healer != 0;
 				uint32_t heal_id = 0;
 				float best_hd2 = 2.2f * 2.2f;
-				for (size_t i = 0; any_healer && i < uview.count; ++i) {
+				for (size_t i = 0; i < uview.count; ++i) {
 					if (!uview.alive[i] || uview.hp[i] >= uview.max_hp[i]) continue;
 					if (uview.team[i] != local_player() && !sim->is_ally(local_player(), uview.team[i])) continue;
 					const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
 					const float d2 = dx * dx + dz * dz;
-					if (d2 < best_hd2) { best_hd2 = d2; heal_id = uview.id[i]; }
+					if (d2 >= best_hd2) continue;
+					const uint32_t h = sim->first_able_healer((const uint32_t *)selected_ids.ptr(), (size_t)selected_ids.size(), uview.id[i]);
+					if (h == 0) continue;
+					best_hd2 = d2;
+					heal_id = uview.id[i];
+					first_healer = h;
 				}
 				if (heal_id != 0) {
 					if (one_id != 0) one_id = first_healer;
@@ -1527,13 +1525,15 @@ uint32_t RtsoMain::guard_target_at(const Vector3 &at) const {
 		const float dx = uv.pos_x[i] - at.x, dz = uv.pos_z[i] - at.z, d2 = dx * dx + dz * dz;
 		if (d2 < best_d2) { best_d2 = d2; best = uv.id[i]; }
 	}
-	if (best) return best;
-	for (const auto &b : sim->buildings()) {
-		if (b.wrecked || (b.team != me && !sim->is_ally(me, b.team))) continue;
-		const float dx = b.x - at.x, dz = b.z - at.z, hit_r = b.half_size + 1.2f;
-		if (dx * dx + dz * dz <= hit_r * hit_r) return b.id;
-	}
-	return 0;
+	if (!best)
+		for (const auto &b : sim->buildings()) {
+			if (b.wrecked || (b.team != me && !sim->is_ally(me, b.team))) continue;
+			const float dx = b.x - at.x, dz = b.z - at.z, hit_r = b.half_size + 1.2f;
+			if (dx * dx + dz * dz <= hit_r * hit_r) { best = b.id; break; }
+		}
+	// getActionInfo "guard": only when a selected unit may guard it (UnitAI canGuard).
+	if (best && !sim->any_can_guard((const uint32_t *)selected_ids.ptr(), (size_t)selected_ids.size(), best)) return 0;
+	return best;
 }
 
 bool RtsoMain::selection_guarding() const {
@@ -1547,6 +1547,7 @@ bool RtsoMain::selection_guarding() const {
 // target it takes (else the click does nothing and the action stays armed).
 bool RtsoMain::armed_target_ok(const Vector3 &at) const {
 	if (!(garrison_mode || turret_mode || repair_mode || guard_mode)) return true; // ground actions
+	if (guard_mode) return guard_target_at(at) != 0;
 	const uint8_t me = local_player();
 	for (const auto &b : sim->buildings()) {
 		if (b.wrecked || (b.team != me && !sim->is_ally(me, b.team))) continue;
@@ -1554,20 +1555,15 @@ bool RtsoMain::armed_target_ok(const Vector3 &at) const {
 		if (dx * dx + dz * dz > hit_r * hit_r) continue;
 		if (garrison_mode) return selection_can_garrison(b.id) || transport_under(at.x, at.z);
 		if (turret_mode) return selection_can_occupy_turret(b.id);
-		if (repair_mode) return b.build_progress < 1.0f || b.hp < b.max_hp;
-		return true; // Guard.js guards own and allied structures
+		return b.build_progress < 1.0f || b.hp < b.max_hp; // repair
 	}
-	if (guard_mode) return guard_target_at(at) != 0;
 	if (garrison_mode) return transport_under(at.x, at.z) != 0;
-	if (guard_mode || repair_mode) {
+	if (repair_mode) {
 		auto uv = sim->units();
 		for (size_t i = 0; i < uv.count; ++i) {
 			if (!uv.alive[i]) continue;
 			const float dx = uv.pos_x[i] - at.x, dz = uv.pos_z[i] - at.z;
-			if (guard_mode && uv.team[i] == me && dx * dx + dz * dz < 3.0f * 3.0f &&
-					!selected_ids.has((int32_t)uv.id[i]))
-				return true;
-			if (repair_mode && dx * dx + dz * dz <= 2.2f * 2.2f && uv.hp[i] < uv.max_hp[i] &&
+			if (dx * dx + dz * dz <= 2.2f * 2.2f && uv.hp[i] < uv.max_hp[i] &&
 					(uv.team[i] == me || sim->is_ally(me, uv.team[i])) && sim->is_repairable_unit(uv.id[i]))
 				return true;
 		}

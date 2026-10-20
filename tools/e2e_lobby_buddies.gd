@@ -104,49 +104,58 @@ func run() -> void:
 	lobby._rooms = [room("with bob", 2, 2, "init", "Normal", "random", [{"name": "alice"}, {"name": "bob", "team": 0}]),
 		room("bob watches", 1, 4, "running", "Small", "skirmish", [{"name": "carol"}, {"name": "bob", "observer": true}]),
 		room("AI bob", 2, 4, "init", "Normal", "skirmish", [{"name": "dave"}, {"name": "bob", "ai": true}])]
+	lobby._rooms[2]["password"] = 1
 	lobby._show_rooms()
-	check(names(lobby._games, 0) == ["AI bob", "• with bob", "• bob watches"],
-		"games with bob playing or watching are marked, an AI named bob is not: %s" % [names(lobby._games, 0)])
+	check(names(lobby._games, 1) == ["AI bob", "• with bob", "• bob watches"],
+		"games with bob playing or watching are marked, an AI named bob is not: %s" % [names(lobby._games, 1)])
 	check(lobby.room_buddies(lobby._rooms[0], lobby.buddies()) == 2 and lobby.room_buddies(lobby._rooms[1], lobby.buddies()) == 1,
 		"a playing buddy ranks above a watching one (Game.js hasBuddies)")
 	check(ls.game_details(lobby._rooms[0], {}).contains("\n• bob"), "the game details mark bob")
 
 	print("2. filters")
 	lobby._open_filter.button_pressed = true
-	check(names(lobby._games, 0) == ["AI bob"], "open games: in setup with a free slot")
+	check(names(lobby._games, 1) == ["AI bob"], "open games: in setup with a free slot")
 	lobby._open_filter.button_pressed = false
 	lobby._size_filter.select(2) # Small
 	lobby._size_filter.item_selected.emit(2)
-	check(names(lobby._games, 0) == ["• bob watches"], "map size Small")
+	check(names(lobby._games, 1) == ["• bob watches"], "map size Small")
 	lobby._size_filter.select(0)
 	lobby._type_filter.select(2) # Random
 	lobby._type_filter.item_selected.emit(2)
-	check(names(lobby._games, 0) == ["• with bob"], "map type Random")
+	check(names(lobby._games, 1) == ["• with bob"], "map type Random")
 	lobby._type_filter.select(0)
 	lobby._count_filter.select(4) # 4 players
 	lobby._count_filter.item_selected.emit(4)
-	check(names(lobby._games, 0) == ["AI bob", "• bob watches"], "4 player slots")
+	check(names(lobby._games, 1) == ["AI bob", "• bob watches"], "4 player slots")
 	lobby._count_filter.select(0)
 	lobby._count_filter.item_selected.emit(0)
-	check(names(lobby._games, 0).size() == 3, "Any shows every game again")
+	check(names(lobby._games, 1).size() == 3, "Any shows every game again")
 
 	print("2b. sorting and colours (GameList.js, Game.js)")
-	check(lobby._games.get_column_title(0) == "Name  ▲" and lobby._games.get_column_title(1) == "Map Name"
-		and lobby._games.get_column_title(2) == "Size" and lobby._games.get_column_title(3) == "Type",
-		"0.28's columns, sorted on Name: " + lobby._games.get_column_title(0))
+	check(lobby._games.get_column_title(0) == "" and lobby._games.get_column_title(1) == "Name  ▲"
+		and lobby._games.get_column_title(2) == "Map Name" and lobby._games.get_column_title(3) == "Size"
+		and lobby._games.get_column_title(4) == "Type",
+		"0.28's columns, the unheaded password one first, sorted on Name: " + lobby._games.get_column_title(1))
 	var rows: Array = lobby._games.get_root().get_children()
-	check(rows[0].get_custom_color(0) == Color8(0, 219, 0) and rows[2].get_custom_color(0) == Color8(219, 0, 0),
+	check(rows[0].get_custom_color(1) == Color8(0, 219, 0) and rows[2].get_custom_color(1) == Color8(219, 0, 0),
 		"setups listed first in green, running games in red")
-	check(rows[2].get_text(2) == "Small" and rows[2].get_text(3) == "Skirmish" and rows[2].get_text(4) == "1/4 +1"
-		and rows[1].get_text(3) == "Random" and rows[1].get_text(4) == "2/2", "size, type and the observer count \"1/4 +1\"")
-	lobby._games.column_title_clicked.emit(4, MOUSE_BUTTON_LEFT) # Players
-	check(names(lobby._games, 0) == ["• with bob", "AI bob", "• bob watches"] and lobby._games.get_column_title(4) == "Players  ▲",
-		"a heading click sorts on it: %s" % [names(lobby._games, 0)])
-	lobby._games.column_title_clicked.emit(2, MOUSE_BUTTON_LEFT) # Size
-	lobby._games.column_title_clicked.emit(2, MOUSE_BUTTON_LEFT)
-	check(names(lobby._games, 0)[2] == "• bob watches" and lobby._games.get_column_title(2) == "Size  ▼",
-		"a second click reverses it: %s" % [names(lobby._games, 0)])
+	check(rows[2].get_text(3) == "Small" and rows[2].get_text(4) == "Skirmish" and rows[2].get_text(5) == "1/4 +1"
+		and rows[1].get_text(4) == "Random" and rows[1].get_text(5) == "2/2", "size, type and the observer count \"1/4 +1\"")
+	# Game.js: a lock in the private column, the name left as it is.
+	check(rows[0].get_text(1) == "AI bob" and rows[0].get_icon(0) != null and rows[1].get_icon(0) == null,
+		"a game with a password has a lock, not \" (password)\" in its name")
+	lobby._games.column_title_clicked.emit(5, MOUSE_BUTTON_LEFT) # Players
+	check(names(lobby._games, 1) == ["• with bob", "AI bob", "• bob watches"] and lobby._games.get_column_title(5) == "Players  ▲",
+		"a heading click sorts on it: %s" % [names(lobby._games, 1)])
+	lobby._games.column_title_clicked.emit(3, MOUSE_BUTTON_LEFT) # Size
+	lobby._games.column_title_clicked.emit(3, MOUSE_BUTTON_LEFT)
+	check(names(lobby._games, 1)[2] == "• bob watches" and lobby._games.get_column_title(3) == "Size  ▼",
+		"a second click reverses it: %s" % [names(lobby._games, 1)])
+	lobby._games.column_title_clicked.emit(0, MOUSE_BUTTON_LEFT) # the password column
 	lobby._games.column_title_clicked.emit(0, MOUSE_BUTTON_LEFT)
+	check(names(lobby._games, 1)[0] == "AI bob" and lobby._games.get_column_title(0) == "  ▼",
+		"the password column sorts, games with one first when reversed: %s" % [names(lobby._games, 1)])
+	lobby._games.column_title_clicked.emit(1, MOUSE_BUTTON_LEFT)
 
 	print("3. unmark")
 	lobby._buddy_btn.pressed.emit()

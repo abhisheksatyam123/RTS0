@@ -1107,6 +1107,32 @@ int main() {
 		std::printf("livestock audit: walk kept under attack, rally followed, defeat hands animals to Gaia\n");
 	}
 
+	// 17. MoveRandomly: roamAngle (+-30 degrees) is drawn on the first roam and kept, its sign
+	//     redrawn when the heading comes back round; save/load keeps it.
+	{
+		fresh(s);
+		const uint32_t deer = s.spawn_fauna(0.0f, 0.0f, FAUNA_DEER);
+		CHECK(s.fauna_roam_angle_[fidx(s, deer)] == 0.0f);
+		int flips = 0;
+		float last = 0.0f;
+		for (int k = 0; k < 600; ++k) {
+			run(s, 1.0f);
+			const float a = s.fauna_roam_angle_[fidx(s, deer)];
+			if (last != 0.0f && a != last) ++flips;
+			if (a != 0.0f) last = a;
+		}
+		CHECK(std::fabs(std::fabs(last) - 3.14159265f / 6.0f) < 1e-5f);
+		std::printf("roam: roamAngle %.3f, %d sign flips in 10 minutes\n", last, flips);
+		const char *path = "/tmp/rts0_test_fauna_roam.sav";
+		CHECK(s.save_state(path));
+		static Simulation t;
+		CHECK(t.load_state(path));
+		CHECK(t.fauna_roam_angle_[fidx(t, deer)] == s.fauna_roam_angle_[fidx(s, deer)] &&
+		      t.fauna_start_angle_[fidx(t, deer)] == s.fauna_start_angle_[fidx(s, deer)]);
+		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(t));
+		std::remove(path);
+	}
+
 	if (failures) {
 		std::printf("test_fauna: %d failure(s)\n", failures);
 		return 1;

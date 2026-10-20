@@ -181,9 +181,11 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 107; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 109; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_FAUNA_ROAM = 108; // each animal's MoveRandomly roamAngle and startAngle
 	static constexpr uint32_t SAVE_VERSION_PETRA_TILE_BASES = 107; // the base that claimed each of Petra's territory tiles
 	static constexpr uint32_t SAVE_VERSION_CHASE_TARGET = 105; // the target each unit was last in attack range of (UnitAI CHASING)
+	static constexpr uint32_t SAVE_VERSION_PETRA_TARGET_LIST = 109; // each Petra's defenseManager targetList
 	static constexpr uint32_t SAVE_VERSION_WAGON_SHARING = 103; // the supply wagons their owners locked
 	static constexpr uint32_t SAVE_VERSION_PETRA_TARGETED_RELICS = 104; // each Petra's targetedGaiaRelics; each structure's petra_decay_hold
 	static constexpr uint32_t SAVE_VERSION_PETRA_OUT_OF_PLAN = 106; // Petra's units out of a plan (metadata plan -1); emergency batches
@@ -334,6 +336,7 @@ public:
 		bool is_burning = false; // Structure fire under 33% HP
 		// WonderVictory.js wonderVictoryMessages[ent]: this wonder's own countdown, the player it
 		// runs for (255: none) and that player's mutual allies when it started (allied victory).
+		// A wonder the map placed holds -1 until it changes hands (no countdown).
 		float wonder_hold = 0.0f;
 		uint8_t wonder_owner = 255;
 		uint8_t wonder_allies = 0;
@@ -1151,7 +1154,8 @@ public:
 		int pop_bonus = 0;          // Population/Bonus
 		int turrets = 0;            // TurretHolder points
 		bool trickles = false;
-		float trickle[RES_COUNT] = {}; // ResourceTrickle Rates per TRICKLE_STRUCTURE_INTERVAL
+		float trickle[RES_COUNT] = {}; // ResourceTrickle Rates per trickle_interval
+		float trickle_interval = TRICKLE_STRUCTURE_INTERVAL; // a corral's 5 s (CORRAL_TRICKLE_INTERVAL)
 	};
 	StructureDetails structure_details(const Building &b) const;
 	// Foundation.js / Repairable.js GetBuildTime for the details panel: the builders at work on a
@@ -2272,9 +2276,10 @@ public:
 	// Obstruction/Static rectangle blocks foundations along it.
 	static float treasure_angle(uint32_t id) { return (float)(id % 12) * 0.52f; }
 	void order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued = false);
-	// TreasureCollector MaxDistance of unit i in world units (+ the treasure's footprint), or a
+	// TreasureCollector MaxDistance of unit i in world units (edge to edge), or a
 	// negative value when its template has no TreasureCollector (dogs, siege, catafalques).
 	float treasure_reach(size_t i) const;
+	bool treasure_within(size_t i, const Treasure &t, float reach) const; // edge to edge
 	// Whether unit i stands within treasure_reach of treasure `id` it collects, where tick_treasures runs its timer.
 	bool treasure_in_reach(size_t i, uint32_t id) const;
 	const std::vector<Treasure> &treasures() const { return treasures_; }
@@ -2320,6 +2325,13 @@ public:
 	// its capture points (CanAttack "Capture": a Capture attack and Capturable.CanCapture)?
 	bool any_can_damage_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const;
 	bool any_can_capture_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const;
+	// unit_actions.js "heal" firstAbleEntity: the first of unit_ids that heals and may heal the unit
+	// target_id (Heal.js CanHeal: an injured own or allied Human, not itself), else 0.
+	uint32_t first_able_healer(const uint32_t *unit_ids, size_t count, uint32_t target_id) const;
+	// unit_actions.js "guard": may one of unit_ids guard the unit or structure target_id (UnitAI
+	// CanGuard, not itself, its own player's or an ally's)?
+	bool any_can_guard(const uint32_t *unit_ids, size_t count, uint32_t target_id) const;
+	bool unit_can_guard(size_t i) const;
 	void tick_scenery_capture(); // Capturable.js TimerTick: territory decay, then regeneration
 	void scenery_check_owner(Scenery &sc); // RegisterCapturePointsChanged
 	float unit_damage_to_scenery(size_t i) const;
@@ -2982,6 +2994,10 @@ private:
 	// (0 A.D. Trainer spawns gaia/fauna_*_trainable owned by that player). Beside fauna_, not
 	// in it, so the saved FaunaStorage layout stays; save v58 adds it.
 	uint8_t fauna_owner_[FaunaStorage::MAX_FAUNA] = {};
+	// UnitAI MoveRandomly's roamAngle (+-pi/6, 0 until the first roam) and startAngle, beside
+	// fauna_ like fauna_owner_; save v108 adds them.
+	float fauna_roam_angle_[FaunaStorage::MAX_FAUNA] = {};
+	float fauna_start_angle_[FaunaStorage::MAX_FAUNA] = {};
 	IdIndex fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
 	// Turret units (unit id -> point height), rebuilt from the holders' garrison lists each
@@ -3544,6 +3560,10 @@ private:
 	// 10th turn until their owner changes. `sent` once a plan has gone for it (plans.length).
 	struct PetraTargetedRelic { uint32_t relic = 0; uint32_t sent = 0; };
 	std::vector<PetraTargetedRelic> petra_targeted_relics_;
+	// defenseManager.js targetList: enemy structures seen being built in our territory, or
+	// enemy civic centres going up near our structures; kept until gone or no longer an enemy's.
+	struct PetraDefenseTargets { std::vector<uint32_t> ids; }; // sorted
+	PetraDefenseTargets petra_defense_targets_;
 	// basesManager.js basesMap kept between turns: the anchor (civic centre or colony id) that
 	// claimed each of petra_bases_map's tiles (w x w), 0 none. A tile stays with the base that
 	// first claimed it (addTerritoryIndexToBase) until the territory or that anchor is lost.
@@ -3949,7 +3969,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
