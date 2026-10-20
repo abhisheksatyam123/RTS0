@@ -1509,6 +1509,41 @@ static void test_garrisoned_workers_count() {
 	CHECK(sheltered == 3 && after == before && s->petra_accounted_workers(false) == accounted, "garrisoned workers still count");
 }
 
+// baseManager.js:708 reassignIdleWorkers: an idle builder repairs its base's damaged civic centre
+// while fewer than 2 units are on it, even next to an invading army (where assignToFoundations
+// leaves a civic centre above half health alone).
+static void test_idle_workers_repair_cc() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	Simulation::Building *cc = nullptr;
+	for (auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "AI 1 has a civic centre");
+	if (!cc) return;
+	const uint32_t cc_id = cc->id;
+	cc->hp = cc->max_hp * 0.7f;
+	const uint32_t foe = s->spawn_unit(cc->x + 12.0f, cc->z, 0, UNIT_FEMALE_CITIZEN);
+	PetraDefenseArmy army;
+	army.foe_ids.push_back(foe);
+	s->petra_defense_armies_.push_back(army);
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1) {
+			const uint32_t uid = s->units_.id[i];
+			s->cmd_stop(&uid, 1);
+		}
+	s->petra_manage_economy(0.0f);
+	int on_cc = 0;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.action_state[i] == ACTION_BUILD &&
+		    s->units_.target_building_id[i] == cc_id) ++on_cc;
+	std::printf("  idle repairs: %d workers on the civic centre at 70%% next to a foe\n", on_cc);
+	CHECK(on_cc >= 1 && on_cc <= 2, "idle workers repair their damaged civic centre, at most 2");
+}
+
 static void test_petra_phasing_needs_researcher() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -7222,6 +7257,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_islands_wood_reserve);
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_garrisoned_workers_count);
+	RUN(test_idle_workers_repair_cc);
 	RUN(test_city_phase_counts_foundations);
 	RUN(test_petra_research_order);
 	RUN(test_petra_minor_tech_kept);

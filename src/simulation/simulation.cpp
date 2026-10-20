@@ -21349,6 +21349,41 @@ void Simulation::petra_manage_economy(float dt) {
 		!(civ_can_build(my_civ, BLD_CORRAL) && petra_limit_allows_building(BLD_CORRAL));
 	for (size_t w = 0; w < reassignable_workers.size(); ++w) {
 		const size_t widx = reassignable_workers[w];
+		const float wx = units_.pos_x[widx], wz = units_.pos_z[widx];
+		const uint16_t wland = petra_access_at(wx, wz);
+		// The worker's base: the one whose tile it stands on, else the nearest on its land.
+		int my_base = bmap.at(wx, wz, map_half_);
+		if (my_base > 0 && bmap.anchors[my_base - 1].land != wland) my_base = 0;
+		if (my_base == 0) {
+			float best = 1e30f;
+			for (size_t a = 0; a < bmap.anchors.size(); ++a) {
+				if (bmap.anchors[a].land != wland) continue;
+				const float d = (bmap.anchors[a].x - wx) * (bmap.anchors[a].x - wx) + (bmap.anchors[a].z - wz) * (bmap.anchors[a].z - wz);
+				if (d < best) { best = d; my_base = (int)a + 1; }
+			}
+		}
+		const bool builder = unit_builds((size_t)widx);
+		const uint32_t uid = units_.id[widx];
+		// baseManager.js:708 reassignIdleWorkers: an idle builder repairs its base's damaged
+		// anchor first while fewer than 2 units are on it (an emergency repair; assignToFoundations
+		// manages the rest).
+		if (builder && my_base > 0 && gather_type[w] == RES_COUNT) {
+			const uint32_t aid = bmap.anchors[my_base - 1].id;
+			auto ait = building_id_to_idx_.find(aid);
+			if (ait != building_id_to_idx_.end()) {
+				const Building &a = buildings_[ait->second];
+				if (a.build_progress >= 1.0f && a.hp > 0.0f && a.hp < a.max_hp) {
+					int on_it = 0;
+					for (size_t i = 0; i < units_.count && on_it < 2; ++i)
+						if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.action_state[i] == ACTION_BUILD &&
+						    units_.target_building_id[i] == aid) ++on_it;
+					if (on_it < 2) {
+						petra_order_builders({uid}, 1, aid);
+						continue;
+					}
+				}
+			}
+		}
 		// baseManager.js reassignIdleWorkers: the most needed resource that is not (food aside)
 		// exhausted and that no worker failed to find in the last 20 s; with none the worker
 		// stays idle. A switched gatherer keeps the type it was switched to.
@@ -21378,21 +21413,6 @@ void Simulation::petra_manage_economy(float dt) {
 			continue;
 		}
 
-		const float wx = units_.pos_x[widx], wz = units_.pos_z[widx];
-		const uint16_t wland = petra_access_at(wx, wz);
-		// The worker's base: the one whose tile it stands on, else the nearest on its land.
-		int my_base = bmap.at(wx, wz, map_half_);
-		if (my_base > 0 && bmap.anchors[my_base - 1].land != wland) my_base = 0;
-		if (my_base == 0) {
-			float best = 1e30f;
-			for (size_t a = 0; a < bmap.anchors.size(); ++a) {
-				if (bmap.anchors[a].land != wland) continue;
-				const float d = (bmap.anchors[a].x - wx) * (bmap.anchors[a].x - wx) + (bmap.anchors[a].z - wz) * (bmap.anchors[a].z - wz);
-				if (d < best) { best = d; my_base = (int)a + 1; }
-			}
-		}
-		const bool builder = unit_builds((size_t)widx);
-		const uint32_t uid = units_.id[widx];
 
 		// findSupply: the first listed supply with room, that the worker gathers, and that is
 		// worth one more gatherer (amount / (1 + gatherers) of at least 30).
