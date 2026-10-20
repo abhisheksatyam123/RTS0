@@ -3460,7 +3460,13 @@ private:
 	void petra_naval_topology(PetraNavalTopo &t) const;
 	const PetraNavalTopo &petra_topo() const;
 	mutable PetraNavalTopo petra_topo_cache_; // derived from nav_grid_.cells, not saved
-	mutable uint64_t petra_topo_cache_key_ = 0;
+	mutable uint64_t petra_topo_cache_key_ = 0; // bumped each time petra_topo_cache_ is worked out again
+	// The nav grid petra_topo_cache_ was worked out from (cells, region ids, regions_ready_):
+	// comparing these is cheaper than hashing the grid on every call.
+	mutable std::vector<uint8_t> petra_topo_cells_;
+	mutable std::vector<uint32_t> petra_topo_first_[2];
+	mutable std::vector<uint16_t> petra_topo_ids_[2];
+	mutable bool petra_topo_regions_ready_ = false;
 	mutable bool petra_topo_cache_valid_ = false;
 	uint16_t petra_land_at(float x, float z) const;
 	// terrain-analysis.js landPassMap (accessibility.js getAccessValue): the land at (x, z) by
