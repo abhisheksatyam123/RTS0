@@ -203,6 +203,20 @@ All 138 technologies (cost, time, requirements, researchers, every modification)
 | S3 | TECH_WARSHIP_RAMMING_SPEED (id 114) and an extra ship_vision effect row have no 0.28 source; neither can be researched or reached | nit | Kept: id 114 stays reserved for saves |
 | S4 | extract_0ad_techs.py without --append yields 132 techs (agoge, celtic_auxiliaries and the rows above are kept by --append) | tooling | Kept: regenerate with --append |
 
+### Petra research and placement, eighth 0.28 pass (2026-10-20)
+
+researchManager.js (every tech classified by script: same wanted/preferred categories), queueplanBuilding.js findPosition / findDockPosition, buildManager.js and headquarters.js placement against RTS0. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| P1 | findDefensiveLocation skipped spots BuildRestrictions Distance refuses (tower 60 m, fortress 80 m); 0.28's obstruction map ignores Distance, picks the spot, and the construct command fails with the plan gone | medium | Fixed: the spot is picked as in 0.28, and a refused one drops the plan |
+| P2 | Town-phase structures wait for each other: RTS0 counts finished ones and waits while a Town foundation stands; 0.28 counts foundations (getOwnEntitiesByClass(class, true)) and queues the next when the queues are empty | medium | Open: C (phase-up) |
+| P3 | Resource maps weighed what is left of each tree or mine; 0.28 adds ResourceSupply Max until it is gone | low-medium | Fixed: trees and mines keep their Max (older saves: what is left) |
+| P4 | RTS0-only wood-starved rules (one civic centre, under 1550 wood): queues held 1150 wood back (650 in Town), Town phase once houses are full | low | Kept (#1027) |
+| P5 | Territory tiles go to the nearest base each time; 0.28 gives a tile to a base once (basesManager.js:678) | low | Open |
+| P6 | Techs whose researchers had full queues were dropped before the pick; 0.28 picks them and the plan waits | low | Fixed |
+| P7 | 0.28 lists Rome's army camp first among advanced buildings and fails to place it in own territory; RTS0 skips it | low | Kept (0.28 quirk with no outcome but a held queue) |
+
 Checked and matching: queue limits, batch time modifiers, pop blocking, entity limits, research cost multipliers, upgrade cost/time/carry-over, foundation and repair rates, capture regen and ownership flip, territory decay rates, garrison healing, build restriction distances, every tech's cost/time/requirements/supersedes, researcher lists, civ bonuses, and the training/research/construction tooltips.
 
 ### Statistics, replays, summary, Match Settings and developer overlay, fifth 0.28 pass (2026-10-20)
