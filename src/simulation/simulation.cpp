@@ -7535,6 +7535,14 @@ Simulation::StructureDetails Simulation::structure_details(const Building &b) co
 	if (owned) d.pop_bonus = structure_pop_bonus(b.type, b.team, structure_template_civ(b));
 	if (const TurretPointSet *t = turret_points_of(b)) d.turrets = t->count;
 	d.trickles = structure_trickle_rates(b, d.trickle);
+	// ResourceTrickle.js on a corral: Rates 0 plus the corral_garrison_* aura of each animal in it.
+	if (b.type == BLD_CORRAL && owned) {
+		d.trickles = true;
+		d.trickle_interval = CORRAL_TRICKLE_INTERVAL;
+		for (size_t f = 0; f < fauna_.count; ++f)
+			if (fauna_.alive[f] && fauna_.behavior[f] == FAUNA_CORRALLED && fauna_.corral_id[f] == b.id)
+				d.trickle[RES_FOOD] += fauna_corral_food(fauna_.fauna_type[f]);
+	}
 	return d;
 }
 

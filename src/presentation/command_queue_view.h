@@ -452,7 +452,9 @@ public:
 					// right-click, requirements, needed resources.
 					const char *tech_specific = rtso::tech_specific_name((uint8_t)t, pciv);
 					String tip = rtso::entity_names_formatted(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
-					if (ti.desc && *ti.desc) tip += "\n" + rtso::body_font(rtso::tr0(String::utf8(ti.desc)));
+					// The civ's own phase_*_<civ>.json tooltip where it has one (Athenian and Persian phases).
+					const char *tech_desc = rtso::tech_civ_tooltip((uint8_t)t, pciv) ? rtso::tech_civ_tooltip((uint8_t)t, pciv) : ti.desc;
+					if (tech_desc && *tech_desc) tip += "\n" + rtso::body_font(rtso::tr0(String::utf8(tech_desc)));
 					const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
 							(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
 					const String tech_cost_tip = rtso::cost_tooltip(tech_cost, true);
@@ -473,7 +475,7 @@ public:
 							const uint8_t sup = rtso::tech_supersedes((uint8_t)t);
 							const bool need_prev = sup != rtso::TECH_NONE && !sim->player(local_player()).has_tech(sup);
 							if (const char *req = rtso::tech_requirements_tooltip((uint8_t)t)) why = rtso::objection_font(owner_->tr(String::utf8(req)));
-							else why = requires_text(String::utf8(rtso::tech_info(need_prev ? sup : ti.prerequisite).name));
+							else why = requires_tech_text(need_prev ? sup : ti.prerequisite, pciv);
 							reqs_failed = true;
 							break;
 						}
@@ -642,13 +644,32 @@ public:
 							break;
 						}
 				if (found_b->team == local_player() && one_template) {
-					const bool upgrading = found_b->upgrade_to != rtso::BLD_TYPE_COUNT;
+					// The selected structures of this template the local player owns (unitEntStates).
+					std::vector<const rtso::Simulation::Building *> mates;
+					for (uint32_t id : host_->ui_selected_structures())
+						for (const auto &o : sim->buildings())
+							if (o.id == id && o.team == local_player() && o.type == found_b->type) {
+								mates.push_back(&o);
+								break;
+							}
+					if (mates.empty()) mates.push_back(found_b);
 					for (int choice = 0; choice < sim->structure_upgrade_count(*found_b); ++choice) {
 						const rtso::BuildingUpgradeInfo up = sim->structure_upgrade(*found_b, choice);
-						const rtso::Simulation::UpgradeCheck check = sim->upgrade_check(local_player(), found_b->id, choice);
+						// upgradingEntStates / upgradableEntStates: the check comes from any selected
+						// structure that can still upgrade, and "busy" only when none can.
+						const rtso::Simulation::Building *upgrading_b = nullptr;
+						rtso::Simulation::UpgradeCheck check = rtso::Simulation::UPGRADE_ERR_BUSY;
+						int64_t n_free = 0;
+						for (const rtso::Simulation::Building *m : mates) {
+							if (m->upgrade_to == up.to && !upgrading_b) upgrading_b = m;
+							const rtso::Simulation::UpgradeCheck c = sim->upgrade_check(local_player(), m->id, choice);
+							if (c == rtso::Simulation::UPGRADE_ERR_BUSY) continue;
+							if (check == rtso::Simulation::UPGRADE_ERR_BUSY) check = c;
+							++n_free;
+						}
+						const bool upgrading = upgrading_b != nullptr;
 						// Not this piece's (only wall_long and palisades_long become gates).
 						if (check == rtso::Simulation::UPGRADE_ERR_NONE && !upgrading) continue;
-						if (upgrading && up.to != found_b->upgrade_to) continue;
 						const Dictionary text = structure_template_text(pciv, up.to);
 						const String generic = text.get("generic_name", String::utf8(rtso::building_type_name(up.to)));
 						const String specific = text.get("specific_name", String());
@@ -657,7 +678,10 @@ public:
 						String tip;
 						if (upgrading) {
 							tip = rtso::tr0("Cancel Upgrading");
-							const float progress = found_b->upgrade_duration > 0.0f ? found_b->upgrade_timer / found_b->upgrade_duration : 1.0f;
+							float progress = 0.0f;
+							for (const rtso::Simulation::Building *m : mates)
+								if (m->upgrade_to == up.to)
+									progress = std::max(progress, m->upgrade_duration > 0.0f ? m->upgrade_timer / m->upgrade_duration : 1.0f);
 							const int left_px = (int)std::lround((1.0f - std::clamp(progress, 0.0f, 1.0f)) * 32.0f);
 							btn->set_meta("progress", left_px);
 							ColorRect *slider = memnew(ColorRect);
@@ -669,7 +693,8 @@ public:
 							btn->add_child(slider);
 							btn->connect("pressed", Callable(owner_, "_on_upgrade_pressed").bind(-1));
 						} else if (check == rtso::Simulation::UPGRADE_ERR_BUSY) {
-							tip = rtso::tr0("Cannot upgrade when the entity is training, researching or already upgrading.");
+							tip = rtso::objection_font(rtso::tr0(mates.size() > 1 ? "Cannot upgrade when all entities are training, researching or already upgrading."
+															     : "Cannot upgrade when the entity is training, researching or already upgrading."));
 							btn->set_disabled(true);
 							icon->set_material(grayscale_material());
 							icon->set_self_modulate(Color(0.5f, 0.5f, 0.5f));
@@ -678,12 +703,11 @@ public:
 							tip = rtso::upgrade_to_text(generic, specific, String::utf8(up.tooltip ? up.tooltip : ""));
 							// Every selected structure of this type upgrades: the cost is for all of them
 							// (getEntityCostTooltip with unitEntStates.length), the time for one.
-							int64_t n_up = 0;
-							for (uint32_t id : host_->ui_selected_structures())
-								for (const auto &o : sim->buildings())
-									if (o.id == id && o.team == local_player() && o.type == found_b->type) ++n_up;
-							n_up = std::max<int64_t>(1, n_up);
+							const int64_t n_up = (int64_t)mates.size();
 							const rtso::CostTip up_cost{up.food_cost * n_up, up.wood_cost * n_up, up.stone_cost * n_up, up.gold_cost * n_up, 0,
+									(int64_t)std::ceil(up.time)};
+							// GetNeededResources counts only those that can upgrade.
+							const rtso::CostTip free_cost{up.food_cost * n_free, up.wood_cost * n_free, up.stone_cost * n_free, up.gold_cost * n_free, 0,
 									(int64_t)std::ceil(up.time)};
 							const String cost_tip = rtso::cost_tooltip(up_cost, true);
 							if (!cost_tip.is_empty()) tip += "\n" + cost_tip;
@@ -691,10 +715,10 @@ public:
 							if (!limit_tip.is_empty()) tip += "\n" + limit_tip;
 							if (check == rtso::Simulation::UPGRADE_ERR_PHASE) tip += "\n" + requires_text(up.required_phase >= 3 ? "City Phase" : "Town Phase");
 							const auto &stock = sim->player(local_player());
-							const String up_need = rtso::needed_resources_tooltip(up_cost, stock.res[rtso::RES_FOOD], stock.res[rtso::RES_WOOD],
+							const String up_need = rtso::needed_resources_tooltip(free_cost, stock.res[rtso::RES_FOOD], stock.res[rtso::RES_WOOD],
 									stock.res[rtso::RES_STONE], stock.res[rtso::RES_GOLD], true);
 							if (!up_need.is_empty()) tip += "\n" + up_need;
-							else if (check == rtso::Simulation::UPGRADE_ERR_COST) tip += "\n" + needed_text(up_cost);
+							else if (check == rtso::Simulation::UPGRADE_ERR_COST) tip += "\n" + needed_text(free_cost);
 							tip += "\n" + right_click_tooltip();
 							if (check == rtso::Simulation::UPGRADE_ERR_PHASE || check == rtso::Simulation::UPGRADE_ERR_LIMIT) {
 								btn->set_disabled(true);
@@ -1445,13 +1469,16 @@ private:
 			listed.push_back(i);
 			String tip;
 			const int idx = add_roster_item(pid, i, tip);
-			if (u.phase > phase) {
+			// getRequirementsTooltip: a template that names its unlocking technology (champions'
+			// "-phase_city unlock_champion_infantry") requires only that, in every phase.
+			const uint8_t gate = sim->train_unlock_tech(pid, u.unit_type, ob->type, i);
+			const bool need_tech = gate != rtso::TECH_NONE && !sim->player(pid).has_tech(gate);
+			if (u.phase > phase && !need_tech) {
 				roster_list_->set_item_disabled(idx, true);
 				tip += "\n" + requires_text(u.phase >= 3 ? "City Phase" : "Town Phase");
-			} else if (!sim->can_train_at(pid, u.unit_type, ob->type, i)) {
+			} else if (u.phase > phase || !sim->can_train_at(pid, u.unit_type, ob->type, i)) {
 				roster_list_->set_item_disabled(idx, true);
-				uint8_t gate = sim->train_unlock_tech(pid, u.unit_type, ob->type, i);
-				if (gate != rtso::TECH_NONE) tip += "\n" + requires_text(String::utf8(rtso::tech_info(gate).name));
+				if (gate != rtso::TECH_NONE) tip += "\n" + requires_tech_text(gate, civ);
 			}
 			set_roster_tip(idx, tip);
 		}
@@ -1529,7 +1556,8 @@ private:
 			// The Research tooltip: names, tooltip, cost, right-click, requirements, needed resources.
 			const char *tech_specific = rtso::tech_specific_name(t, sim->player_civ(pid));
 			String tip = rtso::entity_names_formatted(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
-			if (ti.desc && *ti.desc) tip += "\n" + rtso::body_font(rtso::tr0(String::utf8(ti.desc)));
+			const char *tech_desc = rtso::tech_civ_tooltip(t, sim->player_civ(pid)) ? rtso::tech_civ_tooltip(t, sim->player_civ(pid)) : ti.desc;
+			if (tech_desc && *tech_desc) tip += "\n" + rtso::body_font(rtso::tr0(String::utf8(tech_desc)));
 			const String cost_line = rtso::cost_tooltip(tech_cost, true);
 			if (!cost_line.is_empty()) tip += "\n" + cost_line;
 			tip += "\n" + right_click_tooltip();
@@ -1747,6 +1775,15 @@ private:
 	godot::String requires_text(const godot::String &what) const {
 		using namespace godot;
 		return rtso::objection_font(rtso::sprintf0(owner_->tr("Requires %(technology)s"), {{"technology", owner_->tr(what)}}));
+	}
+
+	// The same line for a technology, named by getEntityNames: the civ's specificName with the
+	// generic one ("Requires Thesmophoria (Fertility Festival)").
+	godot::String requires_tech_text(uint8_t tech, uint8_t civ) const {
+		using namespace godot;
+		const char *specific = rtso::tech_specific_name(tech, civ);
+		const String names = rtso::entity_names(String::utf8(rtso::tech_info(tech).name), specific ? String::utf8(specific) : String());
+		return rtso::objection_font(rtso::sprintf0(owner_->tr("Requires %(technology)s"), {{"technology", names}}));
 	}
 
 	// getEntityCostTooltip for a wallset (structures/{civ}/wallset_*): getWallPieceTooltip's
