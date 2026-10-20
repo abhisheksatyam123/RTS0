@@ -4247,14 +4247,24 @@
         "stone": 10000,
         "wood": 10000
       },
-      "pop_limit": 10000
+      "pop_limit": 10000,
+      "color": [
+        46,
+        46,
+        200
+      ]
     },
     {
       "id": 2,
       "team": 1,
       "start_x": 11.27,
       "start_z": -119.95,
-      "civ": 0
+      "civ": 0,
+      "color": [
+        150,
+        20,
+        20
+      ]
     }
   ],
   "resources": [

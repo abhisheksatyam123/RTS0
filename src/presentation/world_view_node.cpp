@@ -4058,7 +4058,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (const rtso::AuraSource &as : sim->aura_manager().sources) {
 		if (!as.alive || as.aura < 0) continue;
 		const int32_t sid = (int32_t)as.source_id;
-		if (!show_all_status_bars_ && !sel_set.count(sid) && !sel_buildings_.count(sid) && !highlight_set_.count(sid)) continue;
+		if (cinema_playing_ || (!show_all_status_bars_ && !sel_set.count(sid) && !sel_buildings_.count(sid) && !highlight_set_.count(sid))) continue;
 		const int icon = status_sprites_.aura_icon(rtso::civ_hero_aura(as.aura).id);
 		if (icon >= 0) aura_icon_sources_.push_back({ &as, icon });
 	}
@@ -4361,7 +4361,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		// the shown auras reaching it, and its rank.
 		if (!dying) {
 			const int32_t sid = (int32_t)id;
-			const bool bars = show_all_status_bars_ || sel_set.count(sid) || highlight_set_.count(sid);
+			// A cinema path hides them all (CCmpCinemaManager: ICmpOverlayRenderer::SetOverrideVisibility).
+			const bool bars = !cinema_playing_ && (show_all_status_bars_ || sel_set.count(sid) || highlight_set_.count(sid));
 			StatusStack st;
 			if (bars) {
 				st.health = max_hp > 0.0f ? hp / max_hp : 1.0f;
@@ -4412,6 +4413,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (v.variant_model != v.model || v.variant_id != id) {
 			// Props first: a look added for this entity takes the colour and skin draw below.
 			rtso::ModelLibrary::set_prop_looks(v.model, v.model_id, id);
+			rtso::ModelLibrary::set_unit_helmet(v.model, v.model_id, id);
 			rtso::ModelLibrary::set_variant(v.model, rtso::ModelLibrary::variant_draw(id));
 			v.variant_model = v.model;
 			v.variant_id = id;
@@ -4759,7 +4761,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		v.hp_fg->set_visible(false);
 		if (!destroyed) {
 			const int32_t sid = (int32_t)b.id;
-			const bool bars = show_all_status_bars_ || sel_buildings_.count(sid) || highlight_set_.count(sid);
+			const bool bars = !cinema_playing_ && (show_all_status_bars_ || sel_buildings_.count(sid) || highlight_set_.count(sid));
 			StatusStack st;
 			if (bars) {
 				// A foundation's Health grows as it is built (Foundation.js).

@@ -319,7 +319,7 @@ func visit_website() -> void:
 		return
 	if not url.begins_with("http://") and not url.begins_with("https://"):
 		url = "http://" + url
-	OS.shell_open(url)
+	load("res://scenes/common/msgbox.gd").open_url(self, url)
 
 ## page_modhelp.xml.
 func show_help() -> void:

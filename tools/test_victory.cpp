@@ -807,7 +807,14 @@ int main() {
 		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_KILL_UNITS, 0, 0, &enemy, 1) && !sim.units_.alive[sim.lookup_unit(enemy)]);
 		const int pop = sim.pop_current(0);
 		CHECK(tc && sim.cmd_cheat(0, Simulation::CHEAT_CREATE_UNITS, 3, 0, &tc, 1) && sim.pop_current(0) == pop + 3);
+		(void)sim.take_session_notices();
 		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_DEFEAT_PLAYER, 1, 0, nullptr, 0) && sim.is_defeated(1));
+		{ // Cheat.js: "%(player)s has been defeated (cheat)."
+			bool noted = false;
+			for (const Simulation::SessionNotice &n : sim.take_session_notices())
+				noted |= n.kind == Simulation::SessionNotice::DEFEATED && n.player == 1 && n.tech == Simulation::SessionNotice::END_CHEAT;
+			CHECK(noted);
+		}
 		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_REVEAL_MAP, 0, 0, nullptr, 0) && sim.reveal_map());
 		// the hive master: house bonuses jump to the population limit + 500; TARDIS: limit + 500.
 		sim.set_pop_cap(300);

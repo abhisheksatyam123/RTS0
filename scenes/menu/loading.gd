@@ -125,8 +125,10 @@ func set_progress(percent: int, description: String) -> void:
 	if _bar_text == null:
 		return
 	var shown := mini(progress + 1, 100)
-	_bar_text.text = description if _show_description else "%d%%" % shown
-	var w := roundf(shown * _bar_width / 100.0)
+	_bar_text.text = description if _show_description else \
+		tr("%(percentage)s%%", "loading screen progress").replace("%(percentage)s", str(shown)).replace("%%", "%")
+	# progressBarSize: the bar less half the right cap (16 px).
+	var w := roundf(shown * (_bar_width - 8.0) / 100.0)
 	_bar_fill.size.x = w
 	_bar_right.position.x = _bar_fill.position.x + w
 
@@ -139,7 +141,7 @@ func _read_json(path: String) -> Dictionary:
 func _pick(data: Dictionary) -> void:
 	var quotes: Array = data.get("quotes", [])
 	if not quotes.is_empty():
-		quote = str(quotes.pick_random())
+		quote = tr(str(quotes.pick_random()))
 	title = _title()
 
 ## Engine.HasNetClient(): a multiplayer match weighs the tips by their MP share.
@@ -171,7 +173,7 @@ func _title() -> String:
 	if map_name == "":
 		map_name = map_display_name(map_id)
 	var random := map_id.begins_with("random_") or map_id.begins_with("procedural_")
-	return ("Generating “%s”" if random else "Loading “%s”") % map_name
+	return tr("Generating “%(map)s”" if random else "Loading “%(map)s”").replace("%(map)s", tr(map_name))
 
 static func map_display_name(map_id: String) -> String:
 	for r in load("res://scenes/menu/gamesetup.gd").RMS_MAPS:
@@ -267,10 +269,11 @@ func _build() -> void:
 	title_label.anchor_left = 0.5
 	title_label.anchor_right = 0.5
 	title_label.anchor_bottom = 0.5
-	title_label.offset_left = -400
-	title_label.offset_right = 400
+	title_label.offset_left = -256 # loading.xml: 50%-256 .. 50%+256
+	title_label.offset_right = 256
 	title_label.offset_top = 36
 	title_label.offset_bottom = -196
+	title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_outlined(title_label, 26)

@@ -1151,7 +1151,13 @@ private:
 	void quit_confirmation(const String &kind, bool won = false, bool ask_exit = true);
 	void tick_quit_confirmation();
 	bool write_save_metadata(const String &path, const String &description) const;
-	void restore_saved_gui(const String &path);
+	static Dictionary saved_gui(const String &path);
+	void restore_saved_gui(const Dictionary &gui);
+	bool load_world(const String &path, const Dictionary &gui);
+	// The quicksave's GUI data (its control groups), kept for this match like 0.28's
+	// CTurnManager::m_QuickSaveMetadata.
+	Dictionary quicksave_gui_;
+	bool quicksaved_ = false;
 	void write_save_thumbnail(const String &path);
 };
 

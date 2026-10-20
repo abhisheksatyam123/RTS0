@@ -1,7 +1,8 @@
 extends SceneTree
 # input.js performGroup / EntityGroupsContainer: a control group holds structures too,
 # so Ctrl+2 on the Civic Center and then 2 selects it again; a group whose units are
-# all inside a structure keeps them, and selecting it leaves the selection as it is.
+# all inside a structure keeps them, and selecting it drops the old selection
+# (g_Selection.reset()). The idle-builder hotkey skips citizen cavalry (not a Builder).
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_control_group_structures.gd
 # Exit code 0 = pass.
@@ -53,6 +54,17 @@ func run() -> void:
 	main.debug_select_entity(cc)
 	await frames(4)
 	await key(KEY_3)
-	check(main.debug_selection_state()["building"] == cc, "3, all inside: the selection stays")
+	var st: Dictionary = main.debug_selection_state()
+	check(int(st["building"]) == 0 and Array(st["selected"]).is_empty(), "3, all inside: the old selection is dropped: %s" % str(st["selected"]))
+
+	# hotkeys/misc.xml findIdleUnit(["Builder"]): the cycle never lands on a horseman.
+	var horse: PackedInt32Array = main.debug_spawn_units("athen/cavalry_javelineer_b", 1)
+	await frames(4)
+	var picked := {}
+	for i in 16:
+		await key(KEY_SEMICOLON)
+		for id in Array(main.debug_selection_state()["selected"]):
+			picked[int(id)] = true
+	check(not picked.is_empty() and not picked.has(int(horse[0])), "the idle-builder cycle picks builders only (%d picked)" % picked.size())
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures else 0)

@@ -128,8 +128,9 @@ func signed_in() -> bool:
 	return token != ""
 
 
+## lobby.tls (XmppClient's TLS): https to the lobby when on.
 func base_url() -> String:
-	return "http://" + address
+	return ("https://" if RtsoUserConfig.new().get_bool("lobby.tls") else "http://") + address
 
 
 # Calls back with (http_code, parsed_json); code 0 when the lobby is unreachable.
