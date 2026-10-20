@@ -1134,7 +1134,7 @@ private:
 			if (slot != owner_slot) part(slot);
 		for (int i = used; i < kCaptureParts; ++i) cap_vbar_parts_[i]->set_visible(false);
 		set_vbar(cap_vbar_, 0.0f, 1.0f);
-		cap_vbar_->set_tooltip_text(rtso::seldet::capture(pts[owner_slot], max));
+		cap_vbar_->set_tooltip_text(rtso::seldet::capture(pts[owner_slot], max, "Capture Points:"));
 		cap_vbar_->set_visible(true);
 	}
 	void set_capture_parts(const rtso::Simulation &sim, uint8_t owner, const float *pts, float max) {
@@ -1364,14 +1364,7 @@ private:
 				? projectiles_tooltip(std::min(rtso::SIEGE_TOWER_MAX_ARROWS, sim.get_transport_capacity(uv.id[u])), 0, 1.0f) : String();
 		stats_->set_tooltip_text(join_lines({attack, healer_tooltip(d), resistance, gather_tooltip(d), speed_tooltip(d),
 				garrison, population_bonus_tooltip(pop_bonus), projectiles, loot_tooltip(loot)}));
-		String auras;
-		const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
-		if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE)
-			for (int16_t a : rtso::civ_unit_template(tmpl).auras) {
-				if (a < 0) continue;
-				const auto &aura = rtso::civ_hero_aura(a);
-				auras = join_lines({auras, aura_line(String::utf8(aura.name), String::utf8(aura.description ? aura.description : ""), aura.radius)});
-			}
+		const String auras = rtso::seldet::unit_auras_tooltip(uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE);
 		portrait_->set_tooltip_text(join_lines({name, auras}));
 		aura_label_->set_tooltip_text(auras);
 	}
@@ -1570,7 +1563,7 @@ private:
 		if (max_cp > 0.0f) {
 			const float own = pts[owner < rtso::MAX_PLAYERS ? owner : rtso::MAX_PLAYERS];
 			capture_bar_->set_max(max_cp);
-			capture_label_->set_text(rtso::seldet::capture(own, max_cp));
+			capture_label_->set_text(rtso::seldet::capture(own, max_cp, "Capture Points:"));
 		}
 		portrait_->set_texture(groups.empty() ? godot::Ref<godot::Texture2D>()
 				: groups.front().icon.is_valid() ? groups.front().icon : rtso::portraits::unit(groups.front().tmpl, groups.front().unit_type));
