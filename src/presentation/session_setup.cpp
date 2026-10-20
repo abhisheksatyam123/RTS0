@@ -468,7 +468,8 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			// port_0ad_maps.py gives a unit no type when its name says nothing (units/plane): with
 			// no template of its own or a parent's to stand in, it is left out.
 			if (!resolved && utype_str.is_empty()) continue;
-			unit_ids[i] = sim->spawn_map_unit(ux, uz, team, utype, pick.get_data(), rank);
+			unit_ids[i] = sim->spawn_map_unit(ux, uz, team, utype, pick.get_data(), rank,
+					String::utf8(t.get_data()).ends_with("_unpacked"));
 			continue;
 		}
 		unit_ids[i] = sim->spawn_map_unit(ux, uz, team, utype, nullptr);
@@ -480,6 +481,15 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		int holder = (int)u.get("garrison_in", -1);
 		if (holder < 0 || holder >= (int)unit_ids.size() || !unit_ids[i] || !unit_ids[holder]) continue;
 		sim->order_board_transport(&unit_ids[i], 1, unit_ids[holder]);
+	}
+	// The map's Gaia catafalques (relics), each its own civ's ("civ"; -1 picks one from the id).
+	Array relics_arr = d.get("relics", Array());
+	for (int i = 0; i < relics_arr.size(); ++i) {
+		Dictionary r = relics_arr[i];
+		const int civ = (int)r.get("civ", -1);
+		// spawn_relic takes the index playable_civ() maps to the civ.
+		const int pick = rtso::is_playable_civ(civ) ? (civ < rtso::CIV_GAIA ? civ : civ - 1) : -1;
+		sim->spawn_relic((float)r.get("x", 0.0), (float)r.get("z", 0.0), pick);
 	}
 	// Gaia-owned units: 0 A.D. template ("gaul/infantry_javelineer_a"), its rank, and the
 	// Gaia ship or structure it starts in.

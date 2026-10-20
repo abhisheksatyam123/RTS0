@@ -719,6 +719,14 @@ public:
 				return cam_rig->get_camera()->unproject_position(Vector3(uv.pos_x[i], sim->get_terrain_height(uv.pos_x[i], uv.pos_z[i]), uv.pos_z[i]));
 		return Vector2(-1, -1);
 	}
+	Vector2 debug_resource_screen(int64_t rid) const {
+		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
+		auto rv = sim->resources();
+		for (size_t r = 0; r < rv.count; ++r)
+			if (rv.id[r] == (uint32_t)rid && rv.alive[r])
+				return cam_rig->get_camera()->unproject_position(Vector3(rv.x[r], sim->get_terrain_height(rv.x[r], rv.z[r]), rv.z[r]));
+		return Vector2(-1, -1);
+	}
 	// Tests: where a structure's centre is on screen, or (-1, -1).
 	Vector2 debug_building_screen(int64_t bid) const {
 		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
@@ -759,7 +767,8 @@ public:
 	void debug_set_observer_view(int player) { set_observer_view(player); } // tests: an observer follows a player (-1: none)
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr, bool any_player = false) const;
-	size_t own_unit_under_mouse(Vector2 mouse_pos, bool any_player = false) const;
+	size_t own_unit_under_mouse(Vector2 mouse_pos, bool any_player = false, float radius = 2.0f) const;
+	uint32_t entity_under_mouse(Vector2 mouse, bool with_props = true) const; // Engine.PickEntityAtPoint
 	std::vector<int32_t> band_box_ids(Vector2 a, Vector2 b) const;
 	// input.js INPUT_UNIT_POSITION: a right press with units selected, and the ground line
 	// drawn while the button is held.
@@ -799,6 +808,7 @@ public:
 	// The hover pick (PickEntityAtPoint) is redone when the mouse or camera moves, or
 	// every kHoverRepickMs while they stand still (units walk under the cursor).
 	PackedInt32Array hover_pick_;
+	uint32_t hover_target_ = 0; // the same pick with treasures and scenery: what a right click acts on
 	Vector2 hover_mouse_ = Vector2(-1e9f, -1e9f);
 	Transform3D hover_cam_;
 	uint64_t hover_at_ms_ = 0;
@@ -940,6 +950,7 @@ private:
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);
 	// Commands.js "construct-wall" from wall_drag_start_pos to `end` (input.js tryPlaceWall): false when no piece can go down.
 	bool try_place_wall(const Vector3 &end, bool queued);
+	uint32_t first_selected_builder() const;
 	void update_ghost_mesh();
 	// The placement rotation for a building at (x, z): docks face the sea (GetDockAngle).
 	float placement_angle_at(uint8_t btype, float x, float z) const;

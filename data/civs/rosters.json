@@ -49,6 +49,7 @@
     "athen/support_civilian",
     "athen/support_civilian_house",
     "athen/infantry_marine_archer_b",
+    "athen/hero_xenophon",
     "athen/infantry_spearman_a",
     "athen/support_healer_e"
    ],
@@ -111,6 +112,7 @@
     "spart/support_civilian",
     "spart/support_civilian_house",
     "spart/champion_infantry_pike",
+    "spart/hero_leonidas_300",
     "spart/infantry_spearman_a",
     "spart/support_healer_e"
    ],
@@ -27710,6 +27712,107 @@
     "vision": 22.400000000000002,
     "damage": 25.0,
     "range": 1.7999999999999998,
+    "carry": 0
+   }
+  },
+  {
+   "id": "athen/hero_xenophon",
+   "civ": "athen",
+   "class": "UNIT_HERO",
+   "name": "Xenophon",
+   "specific_name": "Xenophōn",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_RANGED",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 1.5,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 62.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 200,
+    "gold": 150,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
+    "damage": 62.0,
+    "range": 8.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "spart/hero_leonidas_300",
+   "civ": "spart",
+   "class": "UNIT_HERO",
+   "name": "Leonidas I",
+   "specific_name": "Leōnidēs",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    16
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 1.0,
+    "hack_dmg": 15.0,
+    "pierce_dmg": 12.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 12.0,
+    "pierce_armor": 12.0,
+    "crush_armor": 25.0,
+    "food": 200,
+    "wood": 200,
+    "gold": 150,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 28.000000000000004,
+    "damage": 27.0,
+    "range": 2.4,
     "carry": 0
    }
   },

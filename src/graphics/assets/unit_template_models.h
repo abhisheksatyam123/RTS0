@@ -958,6 +958,8 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // rome/champion_infantry_swordsman_03
 		-1, // rome/champion_infantry_swordsman_04
 		-1, // rome/champion_infantry_swordsman_05
+		-1, // athen/hero_xenophon (no model of its own: its owner civ's hero model)
+		-1, // spart/hero_leonidas_300 (no model of its own: its owner civ's hero model)
 		-1, // athen/infantry_spearman_a (no model of its own: its owner civ's spearman model)
 		-1, // athen/support_healer_e (no model of its own: its owner civ's healer model)
 		-1, // spart/infantry_spearman_a (no model of its own: its owner civ's spearman model)
@@ -1529,6 +1531,6 @@ inline int unit_template_rank_draw_index(uint16_t tmpl, uint8_t rank) {
 	return kLookup[tmpl][rank >= 3 ? 1 : 0];
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 540, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 542, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso

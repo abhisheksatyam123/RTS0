@@ -659,6 +659,8 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_03
 	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_04
 	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_05
+	{LIMIT_HERO, 1}, // athen/hero_xenophon
+	{LIMIT_HERO, 1}, // spart/hero_leonidas_300
 	{LIMIT_NONE, 0}, // athen/infantry_spearman_a
 	{LIMIT_NONE, 0}, // athen/support_healer_e
 	{LIMIT_NONE, 0}, // spart/infantry_spearman_a

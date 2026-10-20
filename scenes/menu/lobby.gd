@@ -84,9 +84,13 @@ signal closed
 static func open_dialog(tree: SceneTree) -> Node:
 	if not tree.root.get_node("LobbySession").signed_in():
 		return null
+	var open := tree.root.get_node_or_null("LobbyDialog")
+	if open and not open.is_queued_for_deletion():
+		return open.get_child(0) # one lobby page at a time
 	var layer := CanvasLayer.new()
 	layer.name = "LobbyDialog"
 	layer.layer = 40
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS # over a paused match or its summary too
 	var lobby: Control = load("res://scenes/menu/lobby.tscn").instantiate()
 	lobby.dialog = true
 	lobby.closed.connect(layer.queue_free)
@@ -763,9 +767,29 @@ func _ask_reconnect() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if dialog and event.is_action_pressed("ui_cancel"):
+	if not dialog:
+		return
+	if event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
 		_on_back_pressed()
+		return
+	if event is InputEventKey:
+		# QuitButton.js: the "lobby" hotkey closes the dialog again.
+		if event.pressed and "lobby" in _dialog_hotkeys().fired(event):
+			get_viewport().set_input_as_handled()
+			_on_back_pressed()
+			return
+		# A child page (Engine.OpenChildPage) is the top of the page stack and
+		# takes the keyboard: no key reaches the setup or the match behind it.
+		get_viewport().set_input_as_handled()
+
+
+var _hotkeys: RtsoHotkeyConfig
+
+func _dialog_hotkeys() -> RtsoHotkeyConfig:
+	if _hotkeys == null:
+		_hotkeys = RtsoHotkeyConfig.new()
+	return _hotkeys
 
 
 ## termslobby.js initLobbyTerms: each page's title, instruction and config key.

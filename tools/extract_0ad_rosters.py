@@ -1119,7 +1119,8 @@ PREVIOUS_SIM_ROOT = None
 KEEP_TRAINERS_NEW_BUILDINGS = {"BLD_CRANNOG": ("crannog", "BLD_TOWN_CENTER")}
 # --append: new rows --keep-trainers still adds (after every existing row, so no id moves).
 APPEND_ROWS = set()
-# Templates only 0.28's maps place (scenario heroes, the Samnite, Kardakes and pirate units,
+# Templates only 0.28's maps or Regicide place (scenario heroes, Xenophon and the 300's Leonidas, whom
+# Regicide.js draws with every Hero template of the civ, the Samnite, Kardakes and pirate units,
 # Juggernaut, Noldor and Viking ships): no structure trains them, so the civ walk never reaches
 # them, and a map spawning one fell back to its owner's generic unit of the class. Each is a
 # row of its own (ROSTER_MAP_ONLY, no trainers), after every existing row (name them in
@@ -1129,7 +1130,7 @@ APPEND_ROWS = set()
 # An _a/_e template stays its _b row at that rank (Simulation::resolve_map_template).
 MAP_CIV = "gaia"
 MAP_ROWS = (
-    "units/athen/infantry_marine_archer_b",
+    "units/athen/hero_xenophon", "units/athen/infantry_marine_archer_b",
     "units/brit/hero_boudicca_cavalry_javelineer", "units/brit/hero_boudicca_sword", "units/brit/hero_cunobelin_infantry",
     "units/cart/champion_pikeman",
     "units/gaul/hero_vercingetorix_infantry",
@@ -1147,7 +1148,7 @@ MAP_ROWS = (
     # at 150 xp and _03 to the Centurion (_04) at 300; the Praetorian Guard (_05) never promotes.
     "units/rome/champion_infantry_swordsman_02", "units/rome/champion_infantry_swordsman_03",
     "units/rome/champion_infantry_swordsman_04", "units/rome/champion_infantry_swordsman_05",
-    "units/spart/champion_infantry_pike",
+    "units/spart/champion_infantry_pike", "units/spart/hero_leonidas_300",
     "units/merc_black_cloak", "units/noldor_warship",
     "units/pirates/ship_arrow", "units/pirates/ship_merchant", "units/pirates/ship_scout",
     "units/samnite_skirmisher", "units/samnite_spearman", "units/samnite_swordsman",

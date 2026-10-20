@@ -22680,5 +22680,12 @@
       "template": "units/default_support_civilian"
     }
   ],
-  "circular": true
+  "circular": true,
+  "relics": [
+    {
+      "civ": 7,
+      "x": 59.76,
+      "z": -30.15
+    }
+  ]
 }
