@@ -391,7 +391,8 @@ public:
 				String tip = "Bribe a random unit from this player and share its vision during a limited period.\n";
 				bool can = sim->can_bribe(me, p);
 				if (!sim->player(me).has_tech(rtso::TECH_UNLOCK_SPIES)) {
-					tip += "Requires Espionage (research it at the market).";
+					// getRequirementsTooltip: "Requires %(technology)s".
+					tip += "Requires Espionage";
 				} else {
 					rtso::CostTip cost, failed;
 					cost.metal = sim->bribe_cost(me, p);
@@ -428,7 +429,8 @@ public:
 		// DiplomacyDialogCeasefireCounter.
 		ceasefire_->set_visible(sim->ceasefire_active());
 		if (sim->ceasefire_active()) {
-			const int s = (int)std::ceil(sim->ceasefire_remaining());
+			// timeToString truncates to the second.
+			const int s = (int)std::floor(sim->ceasefire_remaining());
 			set_text(ceasefire_, "Remaining ceasefire time: " + String::num_int64(s / 60) + ":" + (s % 60 < 10 ? "0" : "") +
 					String::num_int64(s % 60) + ".");
 		}
@@ -567,8 +569,9 @@ private:
 		const uint8_t res = TRIBUTE_RES[t];
 		// The button's click is its only sound; "You have sent ..." comes from the tribute
 		// notice once the turn runs.
+		// Sent even when it can't be paid: the sim answers "Insufficient resources - ..." (Player.js).
 		if (host_->turn_cmds()) {
-			if (sim->player_resource(me, res) >= amount) host_->post_lockstep(27, nullptr, 0, (float)amount, 0, (uint32_t)to, res);
+			host_->post_lockstep(27, nullptr, 0, (float)amount, 0, (uint32_t)to, res);
 		} else if (sim->cmd_tribute(me, to, res, amount)) {
 			host_->update_hud();
 		}

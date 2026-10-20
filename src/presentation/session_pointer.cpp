@@ -163,6 +163,8 @@ void RtsoMain::update_cursor() {
 						}
 				for (size_t i = 0; i < uv.count && !*want; ++i) {
 					if (!uv.alive[i] || !near2(uv.pos_x[i], uv.pos_z[i], 2.2f)) continue;
+					// PickEntityAtPoint picks only what the player sees: no unit in the fog.
+					if (!rtso::los_sees_unit(*sim, me, uv.pos_x[i], uv.pos_z[i], uv.team[i])) continue;
 					if (sim->is_hostile(me, uv.team[i])) want = "action-attack";
 					// unit_actions "repair": a builder over a damaged own or allied siege engine or ship.
 					else if (builder && uv.hp[i] < uv.max_hp[i] && (uv.team[i] == me || sim->is_ally(me, uv.team[i])) &&
@@ -194,13 +196,14 @@ void RtsoMain::update_cursor() {
 							break;
 						}
 				for (const auto &t : sim->treasures())
-					if (collector && near2(t.x, t.z, 2.0f)) { want = "action-collect-treasure"; break; }
+					if (collector && near2(t.x, t.z, 2.0f) && sim->los_explored(me, t.x, t.z)) { want = "action-collect-treasure"; break; }
 			}
 			if (!*want) {
 				auto fv = sim->fauna();
 				for (size_t f = 0; f < fv.count && !*want; ++f) {
 					// A penned animal is garrisoned in its corral: nothing to do with it.
 					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
+					if (!rtso::los_sees_unit(*sim, me, fv.pos_x[f], fv.pos_z[f], fv.owner[f])) continue; // in sight only
 					// Slaughter for livestock as for game (0 A.D.); Alt herds your own to a corral.
 					const bool herd = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() && fv.owner[f] == local_player() &&
 					                  Input::get_singleton()->is_key_pressed(KEY_ALT);
@@ -215,23 +218,31 @@ void RtsoMain::update_cursor() {
 				}
 			}
 			if (!*want) {
-				auto rv = sim->resources();
-				for (size_t r = 0; r < rv.count && !*want; ++r) {
-					if (!rv.alive[r] || rv.amount[r] <= 0 || !near2(rv.x[r], rv.z[r], 2.2f)) continue;
-					switch (rv.type[r]) {
-						case rtso::RES_WOOD: want = "action-gather-tree"; break;
-						case rtso::RES_GOLD: want = "action-gather-ore"; break;
-						case rtso::RES_STONE: want = "action-gather-rock"; break;
+				// Supplies as the player knows them (Fogging mirages; none in unexplored land).
+				const auto gather_cursor = [&](uint8_t type, uint8_t sub) {
+					switch (type) {
+						case rtso::RES_WOOD: return "action-gather-tree";
+						case rtso::RES_GOLD: return "action-gather-ore";
+						case rtso::RES_STONE: return "action-gather-rock";
 						default:
-							want = rv.subtype[r] == rtso::RES_SUB_MEAT ? "action-gather-meat"
-									: rv.subtype[r] == rtso::RES_SUB_GRAIN ? "action-gather-grain"
-									: rv.subtype[r] == rtso::RES_SUB_FISH ? "action-gather-fish" : "action-gather-fruit";
+							return sub == rtso::RES_SUB_MEAT ? "action-gather-meat"
+									: sub == rtso::RES_SUB_GRAIN ? "action-gather-grain"
+									: sub == rtso::RES_SUB_FISH ? "action-gather-fish" : "action-gather-fruit";
 					}
+				};
+				if (view) {
+					for (const auto &r : view->resource_mirages())
+						if (r.amount > 0 && near2(r.x, r.z, 2.2f)) { want = gather_cursor(r.type, r.subtype); break; }
+				} else {
+					auto rv = sim->resources();
+					for (size_t r = 0; r < rv.count && !*want; ++r)
+						if (rv.alive[r] && rv.amount[r] > 0 && near2(rv.x[r], rv.z[r], 2.2f)) want = gather_cursor(rv.type[r], rv.subtype[r]);
 				}
 			}
 			if (!*want) {
 				for (const auto &b : sim->buildings()) {
 					if (b.wrecked || !near2(b.x, b.z, b.half_size + 1.2f)) continue;
+					if (!sim->player_can_target_building(me, b.id)) continue; // never seen: no mirage to pick
 					if (const char *tc = nullptr; trade_route_click(b, false, false, &tip, &tc)) {
 						want = tc;
 						break;

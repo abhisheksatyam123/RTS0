@@ -269,6 +269,14 @@ public:
 	bool shares_los(uint8_t viewer, uint8_t owner) const;
 	bool los_visible(uint8_t player, float x, float z) const;
 	bool los_explored(uint8_t player, float x, float z) const;
+	// UnitAI CheckTargetVisible (UnitAI.js:4922-4941) for a player's command: an entity the
+	// player can't see and has no mirage of can't be targeted. Own and allied ones always can;
+	// a unit or animal only while in sight, a structure once seen (Fogging), a supply where the
+	// land is explored. True when the game keeps no line of sight.
+	bool player_can_target_unit(uint8_t player, uint32_t unit_id) const;
+	bool player_can_target_building(uint8_t player, uint32_t building_id) const;
+	bool player_can_target_resource(uint8_t player, uint32_t resource_id) const;
+	bool player_can_target_fauna(uint8_t player, uint32_t fauna_id) const;
 	const LosGrid &los() const { return los_; }
 	uint32_t los_hash() const { return los_.hash(); }
 	bool is_entity_visible_to_viewer(float x, float z, uint8_t entity_team, uint8_t viewer_team = 0) const;
@@ -572,6 +580,7 @@ public:
 			TEXT_UNLOAD_FAILED,        // Commands.js notifyUnloadFailure: "Unable to unload unit(s)."
 			TEXT_BACK_TO_WORK_FAILED,  // notifyBackToWorkFailure: "Some unit(s) can't go back to work"
 			TEXT_NO_BRIBABLE,          // Commands.js spy-request: "There are no bribable units"
+			TEXT_INSUFFICIENT_RESOURCES, // Player.js SubtractResourcesOrNotify: amounts[] per resource missing
 		};
 		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
@@ -3263,6 +3272,7 @@ private:
 	PetraTransportPlan *petra_transport_join(uint8_t owner, uint16_t from_land, uint16_t to_land, bool is_siege);
 	void petra_require_defense_transport(uint32_t uid, uint16_t from_land, uint16_t to_land, float to_x, float to_z);
 	uint32_t petra_defender_dropsite(size_t i) const; // entityExtend.js returnResources: 0 when none
+	void petra_order_build(uint32_t uid, uint32_t bid); // worker.js: drop the load, then build
 	void petra_fight_back(size_t i, int32_t attacker, const std::vector<PetraDefenseArmy> &armies, std::vector<uint32_t> &helped);
 	bool petra_ship_in_plan(uint32_t ship_id) const;
 	size_t petra_go_home(const std::vector<uint32_t> &squad, float x, float z, uint8_t owner, bool order_here, bool attack = false);
@@ -3459,7 +3469,13 @@ private:
 	void petra_naval_topology(PetraNavalTopo &t) const;
 	const PetraNavalTopo &petra_topo() const;
 	mutable PetraNavalTopo petra_topo_cache_; // derived from nav_grid_.cells, not saved
-	mutable uint64_t petra_topo_cache_key_ = 0;
+	mutable uint64_t petra_topo_cache_key_ = 0; // bumped each time petra_topo_cache_ is worked out again
+	// The nav grid petra_topo_cache_ was worked out from (cells, region ids, regions_ready_):
+	// comparing these is cheaper than hashing the grid on every call.
+	mutable std::vector<uint8_t> petra_topo_cells_;
+	mutable std::vector<uint32_t> petra_topo_first_[2];
+	mutable std::vector<uint16_t> petra_topo_ids_[2];
+	mutable bool petra_topo_regions_ready_ = false;
 	mutable bool petra_topo_cache_valid_ = false;
 	uint16_t petra_land_at(float x, float z) const;
 	// terrain-analysis.js landPassMap (accessibility.js getAccessValue): the land at (x, z) by

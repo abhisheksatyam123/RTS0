@@ -3177,6 +3177,37 @@ void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso
 	}
 }
 
+// 0.28 loads a match's models behind the loading page. Loads the ones the first frame
+// draws (the units the viewer sees, the structures it has seen), reporting how far it got,
+// so the first frame after a load (a save, a rewind) finds them cached. The rest (units in
+// the fog, next ranks, foundations, rubble) are prefetch_unit_models' to read ahead once
+// the match runs: requested all at once here, those worker loads slowed these ones ~3x.
+void RtsoWorldView::warm_models(const rtso::Simulation *sim, const std::function<void(int, int)> &progress) {
+	if (!sim) return;
+	const auto uview = sim->units();
+	std::vector<std::pair<const char *, String>> wanted;
+	std::unordered_set<std::string> seen;
+	auto add = [&](const char *cat, const String &id) {
+		if (!id.is_empty() && seen.insert(std::string(cat) + "/" + id.utf8().get_data()).second) wanted.emplace_back(cat, id);
+	};
+	for (size_t i = 0; i < uview.count; ++i) {
+		if (!rtso::los_sees_unit(*sim, local_player_, uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
+		uint8_t t = uview.unit_type[i];
+		if (t >= rtso::UNIT_TYPE_COUNT) t = rtso::UNIT_VILLAGER;
+		uint8_t civ = sim->team_civ(uview.team[i]);
+		if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
+		const uint16_t key = crowd_key_of(civ, drawn_unit_type(t, uview.tmpl[i], uview.id[i]), uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]);
+		if (key < CROWD_KEY_COUNT && !crowd_[civ][key]) add("units", crowd_key_model(civ, key));
+	}
+	mirages_.update(*sim, local_player_);
+	for (const auto &fb : mirages_.buildings())
+		add("buildings", building_visual_id(fb.civ, fb.type, fb.half_size));
+	for (size_t i = 0; i < wanted.size(); ++i) {
+		rtso::ModelLibrary::get(String(wanted[i].first), wanted[i].second);
+		if (progress && (i % 8 == 7 || i + 1 == wanted.size())) progress((int)i + 1, (int)wanted.size());
+	}
+}
+
 void RtsoWorldView::play_unit_clip(UnitVis &v, const StringName &clip, bool loop) {
 	if (!v.anim || !UtilityFunctions::is_instance_valid(v.anim) || clip == StringName()) return;
 	if (v.clip == clip) return;

@@ -193,8 +193,8 @@ Each `synth_<id>` function generates RTS0's version of the 0 A.D. map script of 
 
 | RTS0 map | 0 A.D. source | Kind |
 |---|---|---|
-| Mainland | `maps/random/mainland.js` | Modelled on it, layout from memory |
-| Alpine Lakes | `maps/random/alpine_lakes.js` | Modelled on it, layout from memory |
+| Mainland | `maps/random/mainland.js` | Layout read from the script, in 0 A.D. metres: land at 3 m, players by playerPlacementByPattern at 0.35 of the map, bumps, then hills (18 m) or createMountains, which is ported from `rmgen-common/gaia_terrain.js` |
+| Alpine Lakes | `maps/random/alpine_lakes.js` | Layout read from the script, in 0 A.D. metres: land at 3 m, scaleByMapSize(10, 40) x players createMountains of 40-60 m (gaia_terrain.js port), scaleByMapSize(5, 16) lakes at -5 m, bumps |
 | Lake | `maps/random/lake.js` | Modelled on it, layout from memory |
 | Gulf of Bothnia | `maps/random/gulf_of_bothnia.js` | Modelled on it, layout from memory; fish from 0.28's script (4 x scaleByMapSize of the winter biome's 5-30 groups of 2-3, 12 tiles apart) |
 | Ardennes Forest | `maps/random/ardennes_forest.js` | Ported: central dip, rim noise, hills, ravines and general noise |
