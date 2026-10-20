@@ -110,7 +110,7 @@ void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld, 
 	for (size_t f = 0; f < fv.count; ++f) {
 		if (!fv.alive[f] || fv.food_amount[f] <= 0 || fv.behavior[f] == rtso::FAUNA_CORRALLED) continue;
 		const float dx = fv.pos_x[f] - at.x, dz = fv.pos_z[f] - at.z, d2 = dx * dx + dz * dz;
-		if (d2 >= best_f || !rtso::los_sees_fauna(*sim, view_player(), fv.pos_x[f], fv.pos_z[f], fv.owner[f])) continue;
+		if (d2 >= best_f || !rtso::los_sees_fauna(*sim, view_player(), fv.pos_x[f], fv.pos_z[f], fv.owner[f], fv.fauna_type[f])) continue;
 		best_f = d2;
 		ent_id = (uint32_t)fv.fauna_type[f] + 1;
 	}
