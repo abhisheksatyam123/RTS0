@@ -419,7 +419,7 @@ void RtsoMain::trigger_flare(float x, float z) {
 	if (now < last_flare_time_ + 3.0) return;
 	last_flare_time_ = now;
 	// The flare_target_marker and minimap flare take the sender's colour.
-	const Color c = player_flare_color(local_player());
+	const Color c = player_flare_color(own_seat()); // the sender's seat, not a viewed player
 	range_overlays_.add_flare(x, z, c, user_opts_.flare_time);
 	if (minimap_view) minimap_view->add_ping(Vector2(x, z), c);
 	_on_flare_requested(Vector2(x, z));
@@ -748,11 +748,11 @@ void RtsoMain::update_log_messages(bool changed) {
 	log_label_->set_visible(!log_lines_.empty());
 }
 
-// PauseControl.js canPause(explicit): an observer who is not the host cannot
-// pause a multiplayer match (resuming their own pause stays allowed).
+// PauseControl.js canPause(explicit): an observer, or a player whose game is
+// over, who is not the host cannot pause a multiplayer match (resuming their
+// own pause stays allowed). The player an observer views does not count.
 bool RtsoMain::can_pause() const {
-	return hotkey_paused_ || !net_lockstep() || turn_mgr_.is_replaying() || local_player() < rtso::MAX_PLAYERS ||
-			net_host_.isHost();
+	return hotkey_paused_ || !net_lockstep() || turn_mgr_.is_replaying() || !observing_seat() || net_host_.isHost();
 }
 
 void RtsoMain::toggle_pause() {
@@ -3737,7 +3737,7 @@ String RtsoMain::mismatch_detail() const {
 }
 
 uint8_t RtsoMain::chat_player_of(const String &sender_guid) {
-	if (!net_lockstep()) return local_player();
+	if (!net_lockstep()) return own_seat();
 	uint32_t client = turn_mgr_.local_client_id();
 	if (sender_guid.begins_with("peer-")) client = (uint32_t)sender_guid.substr(5).to_int();
 	return chat_player_of_client(client);
@@ -3751,7 +3751,7 @@ uint8_t RtsoMain::chat_player_of_client(uint32_t client) const {
 
 // ChatAddressees.js AddresseeTypes isAddressee, with the local player as the receiver.
 bool RtsoMain::chat_is_addressee(const String &sender_guid, const String &tag) {
-	return chat_reaches(chat_player_of(sender_guid), local_player(), tag.utf8().get_data(),
+	return chat_reaches(chat_player_of(sender_guid), own_seat(), tag.utf8().get_data(),
 			net_lockstep() ? turn_mgr_.local_client_id() : UINT32_MAX);
 }
 
@@ -3761,10 +3761,28 @@ bool RtsoMain::chat_reaches(uint8_t from, uint8_t to, const std::string &tag, ui
 	auto stance = [this](uint8_t a, uint8_t b, uint8_t s) { return sim && sim->get_diplomacy(a, b) == s; };
 	return rtso::chat_tag_reaches(from, to, tag, rtso::MAX_PLAYERS,
 			[&](uint8_t a, uint8_t b) { return stance(a, b, rtso::Simulation::DIPLO_ALLY); },
-			[&](uint8_t a, uint8_t b) { return stance(a, b, rtso::Simulation::DIPLO_ENEMY); }, to_client);
+			[&](uint8_t a, uint8_t b) { return stance(a, b, rtso::Simulation::DIPLO_ENEMY); }, to_client,
+			player_finished(from), player_finished(to));
 }
 
-bool RtsoMain::chat_local_observer() { return local_player() >= rtso::MAX_PLAYERS; }
+// session.js isPlayerObserver: a seat whose game is over (won or defeated).
+bool RtsoMain::player_finished(uint8_t pid) const {
+	return pid < rtso::MAX_PLAYERS && sim && (sim->is_defeated(pid) || sim->is_victory_for(pid));
+}
+
+// session.js g_IsObserver: no seat, or a seat whose game is over. It goes by the
+// seat (Engine.GetPlayerID), not the player an observer picked to view.
+bool RtsoMain::observing_seat() const {
+	if (turn_mgr_.is_replaying()) return local_player() >= rtso::MAX_PLAYERS;
+	const uint8_t seat = seat_player();
+	return seat >= rtso::MAX_PLAYERS || player_finished(seat);
+}
+
+// This client's own seat (Engine.GetPlayerID): what it chats, pauses, resigns
+// and is summarised as, whichever player it views. A replay keeps its viewed player.
+uint8_t RtsoMain::own_seat() const { return turn_mgr_.is_replaying() ? local_player() : seat_player(); }
+
+bool RtsoMain::chat_local_observer() { return observing_seat(); }
 
 std::vector<std::pair<String, String>> RtsoMain::chat_private_targets() {
 	std::vector<std::pair<String, String>> out;
@@ -3773,7 +3791,7 @@ std::vector<std::pair<String, String>> RtsoMain::chat_private_targets() {
 	const bool me_obs = chat_local_observer();
 	for (const auto &e : net_host_.playerAssignment()) {
 		if (e.client == mine) continue;
-		const bool obs = e.player >= rtso::MAX_PLAYERS;
+		const bool obs = e.player >= rtso::MAX_PLAYERS || player_finished(e.player);
 		if (me_obs && !obs) continue; // no private message from an observer to a player
 		// 0.28 /msg names the addressee's GUID: an observer by its client, so a
 		// line to one observer reaches no other.
