@@ -27,6 +27,7 @@
 #include <godot_cpp/classes/sky.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/templates/hash_map.hpp>
+#include <functional>
 #include <map>
 #include <memory>
 #include <unordered_map>
@@ -504,6 +505,8 @@ public:
 
 	void _ready() override;
 	void sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids);
+	// Loads the models the map's units and structures draw; progress(done, total).
+	void warm_models(const rtso::Simulation *sim, const std::function<void(int, int)> &progress);
 	// The entities under the cursor or inside the band box (0 A.D. EntitySelection.setHighlightList).
 	void set_selected_buildings(const std::vector<uint32_t> &ids) {
 		sel_buildings_.clear();
