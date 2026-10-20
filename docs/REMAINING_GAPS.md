@@ -322,6 +322,16 @@ TechnologyManager.js, Researcher.js, data/technologies (about 30 techs row by ro
 | U1 | A captured structure's research list followed the captor's civ; Researcher.js reads the structure's own template (cart/dock drops warship_health, cart/super_dock lists nine dock techs, han/civil_centre drops the spy techs, han/forge archer_attack_spread) and the owner's civ only filters it | low | Fixed |
 
 Checked and matching: requirements (all/any, class counts without foundations, civ/notciv), pairs and autoResearch, supersedes chains, cost multipliers (library, team bonuses, heroes, catafalques) and cancel refunds, unit researchers, civ bonus autoresearch, tech modifications, own-civ researcher lists, structure auras (temples, wonders, theatre, pillars, monuments, regen and trickle auras).
+### Structure attacks and upgrades, fifteenth 0.28 pass (2026-10-20)
+
+The same 454 templates against what the simulation reads for structure arrows (Attack/Ranged damage, ranges x0.28, Origin, Prepare/Repeat, Projectile speed, spread and gravity, preferred classes), BuildingAI arrow counts and garrison classes, Upgrade targets, costs, times and phases, Trainer BatchTimeModifier, Repairable RepairTimeRatio, Market InternationalBonus, dropsite types and sharing, GarrisonHolder BuffHeal, foundation resistance and starting health, and every structure aura: no data differences (a mutation run planted 24 wrong values and all 24 were reported).
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| Y5 | Upgrade and research times are 0.28's full values while BuildTime is x0.25, so a sentry tower takes 100 s to upgrade but a new stone tower builds in 37.5 s | low | Kept (follows the build-time decision on #705) |
+| Y6 | Structure arrows are drawn from 3.5 units up for every shooter; 0.28's LaunchPoint is 0 for civic centres and 3 m for towers. Flight time depends only on horizontal distance, so this is visual | none | Kept |
+| Y7 | A captured wall, gate or outpost took its turret points from the captor's civ; 0.28 reads them from the structure's own template | low | Fixed (b.civ; test_turrets section 10) |
+
 ### Structure data, fourteenth 0.28 pass (2026-10-20)
 
 Every structures/<civ>/*.xml of the 15 civ folders, inheritance resolved, against the values the simulation reads (440 templates, 1,425 civ x type x wall-piece rows): Health, Resistance, Cost, BuildTime (x0.25), Population bonus, garrison size, capture points, territory decay and influence (x0.25), vision (x0.28), Loot and EntityLimits all match. Owner: E.
