@@ -58,6 +58,10 @@ func run() -> void:
 		and us._overlay_label.get_theme_stylebox("normal").bg_color == Color8(0, 0, 0, 100), "under the top panel at the right edge, on a black backing (dataCounter)")
 	await press(KEY_T, true)
 	check(cfg.get_bool("overlay.realtime"), "Alt+T turns the real time on")
+	var noon := {"hour": 15, "minute": 45, "second": 12}
+	check(us.local_time_string(noon, "en_US") == "3:45:12 PM" and us.local_time_string({"hour": 0, "minute": 5, "second": 9}, "en_US") == "12:05:09 AM"
+		and us.local_time_string(noon, "de_DE") == "15:45:12" and us.local_time_string(noon, "fr") == "15:45:12",
+		"in the locale's clock, as toLocaleTimeString (OverlayCounterRealtime)")
 	await press(KEY_T, true)
 	await press(KEY_F, true)
 	check(not cfg.get_bool("overlay.fps") and not cfg.get_bool("overlay.realtime"), "and again off")
