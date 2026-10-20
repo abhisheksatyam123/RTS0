@@ -37,6 +37,10 @@ func run() -> void:
 	check(tip.begins_with("Attack:\n  Capture: ") and "\n  Spear: " in tip, "each attack of the template in its order, under the weapon's name (getAttackTooltip)")
 	check("Resistance:\n  Damage: " in tip and "%)" in tip, "resistance lists levels with reduction percentages")
 	check("Gather Rates: " in tip and "Speed: " in tip and " Walk, " in tip and " Acceleration" in tip, "gather rates and walk, run and acceleration follow")
+	var gather := tip.substr(tip.find("Gather Rates: "))
+	gather = gather.substr(0, gather.find("\n"))
+	check("grain_small.png" in gather and gather.find("fruit_small.png") < gather.find("grain_small.png") and gather.find("grain_small.png") < gather.find("wood_small.png"),
+			"gather rates show 0.28's subtype icons in data/resources order (getGatherTooltip): " + gather)
 	check("Loot: " in tip, "the loot closes the tooltip")
 	check(String(u["stats"]).contains("Damage: "), "the stats lines show the attack and resistance")
 	var ptip := String(u["portrait_tooltip"])

@@ -958,7 +958,7 @@ enum UnitFormation : uint8_t {
 	FORMATION_SHIPS_FLANK = 13,  // ships/flank ("Flanking Formation")
 	FORMATION_SYNTAGMA = 14,     // syntagma (pikemen; kush, mace, ptol, sele)
 	FORMATION_TESTUDO = 15,      // testudo (melee infantry; rome)
-	FORMATION_ANTI_CAVALRY = 16, // anti_cavalry (han and roman spearmen; han, rome)
+	FORMATION_ANTI_CAVALRY = 16, // anti_cavalry (germ, han and roman spearmen; germ, han, rome)
 	FORMATION_SHIELD_WALL = 17,  // shield_wall (germ spearmen; germ)
 	FORMATION_COUNT = 18,
 	FORMATION_SCATTER = FORMATION_SKIRMISH // old name

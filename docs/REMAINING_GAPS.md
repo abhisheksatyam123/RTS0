@@ -87,6 +87,23 @@ Orders, stances, garrison, capture, loot and fleeing against UnitAI.js and the 0
 
 Kept on purpose: the RTS0 villager rows stay as the worker class's default for old saves and pre-roster spawns, but nothing trains one by name (#1014); Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
 
+### Auras, Germans, reference pages, Allied View, selection details, Petra cadence, skirmish maps, poison and burning: seventh 0.28 pass (2026-10-20)
+
+Checked against 0.28: selection details, global auras, the Germans, Allied View with shared LOS and the minimap, Petra cadence and difficulty, skirmish maps, and poison and burning. Owner: Compare. Rows owned by other threads are named in the Status column.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| P1 | Petra's accounted population (`petra_accounted_population`) skips batches already in training and counts every unit as 1. 0.28's getAccountedPopulation (headquarters.js:2178-2197) counts every queued item times its Cost/Population. This changes phase-up, house, forge and barracks timing. Measured on Continental (10 seeds, Medium): Town comes about 31 s earlier and City 30-40 s later. The fix is one line: `pop += order_pop(o, petra_pid_)` for every non-tech order. | medium | Open: handed to C (phase-up and houses) |
+| P2 | ~~A skirmish map's per-player starting resources override the lobby~~ Fixed: StartingResources.onMapChange applies a map's PlayerData Resources only to scenarios, so White Cliffs of Dover now keeps the lobby's resources. A map's civs stay locked on every map type, as in 0.28 (PlayerCiv._set). | low-medium | Fixed |
+| P3 | Petra keeps another AI's tribute request open until it can pay. In 0.28 (diplomacyManager.js:262-283), Petra answers once and drops a request it can't afford. | low | Open: Triggers (Petra diplomacy) |
+| P4 | When Petra feeds several allies, RTS0 subtracts each tribute from its resources before working out the next one, and needs the alliance to be mutual. 0.28 (diplomacyManager.js:63-125) works out every tribute from the same total and needs only its own ally stance. | low | Open: Triggers (Petra diplomacy) |
+| P5 | The map port drops PlayerData StartingCamera (libyan_oasis_2p, sicilia_nomad_2p) and Color (egypt_3pv3p). 0.28 applies StartingCamera on every map type, and uses a map's colours as the slot defaults. | low | Open: F (map port) |
+| P6 | ~~Gather Rates tooltip lists food as the words Grain/Fruit/Meat/Fish~~ Fixed: 0.28's getGatherTooltip shows one icon per subtype in data/resources order (fish, fruit, grain, meat, then wood, stone, metal). | low | Fixed |
+| P7 | ~~The reference viewer has no "Upgradable to:" line for units, and its cost line uses words~~ Fixed: ViewerPage getUpgradeText lists unit upgrades (Roman spearman to Centurion); the cost line uses 0.28's resource icons in getCostTypes order. `tools/e2e_reference_pages.gd` | low | Fixed |
+| P8 | ~~A market's rally point set on another market gives no route gain and accepts a route that is too close~~ Fixed: the setup-trade-route rally cursor shows "Gain:" or "This market is too close to the origin market." and refuses that route. | low | Fixed |
+
+Checked and matching: barter, poison and burning, Allied View and shared vision, the Germans' roster, buildings and formations, phase requirements of every civ's techs, Petra's research, cadence and config, selection-panel details, and map names, resources and victory settings. Minor differences, left as they are: Petra's "enemies around" check leaves out attacking wild animals, and keepGarrisoned applies to all of a holder's own units, not only holders Petra registered.
+
 ### Buildings, techs and Petra research/placement, fifth 0.28 pass (2026-10-19)
 
 Production queues, upgrades, foundations, capture/decay, build restrictions, tech data, tooltips and Petra's research and placement against 0.28. Owner: E.
