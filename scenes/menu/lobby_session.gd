@@ -800,8 +800,10 @@ static func rating_report(stats: Dictionary, summary: Dictionary, seat: int) -> 
 		"timeElapsed": int(float(stats.get("game_time", 0.0)) * 1000.0),
 		"players": ",".join(names) + ",",
 		"playerStates": join.call("state"),
-		"civs": join.call("civ_name"),
-		"teams": join.call("team"),
+		# Players.js: playerState.civ is the civ code and playerState.team the Diplomacy
+		# team (-1 for none), not RTS0's simulation team.
+		"civs": join.call("civ_code"),
+		"teams": join.call("setup_team"),
 		"economyScore": join.call("economyScore"),
 		"militaryScore": join.call("militaryScore"),
 		"totalScore": join.call("totalScore"),
