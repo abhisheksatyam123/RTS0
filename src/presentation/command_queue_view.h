@@ -742,13 +742,17 @@ public:
 					}
 				}
 			}
-			// is-dropsite-shared: an ally's sharable dropsite, once we have Diaspora (always disabled).
-			if (found_b && found_b->team != local_player() && local_player() < rtso::MAX_PLAYERS &&
-					sim->is_ally(local_player(), found_b->team) && rtso::Simulation::is_dropsite_type(found_b->type) &&
-					sim->player(local_player()).has_tech(rtso::TECH_UNLOCK_SHARED_DROPSITES))
+			// is-dropsite-shared (always disabled): an ally's sharable dropsite once we have Diaspora,
+			// and any sharable dropsite for an observer (allowedPlayers Ally and Observer).
+			const bool observing = host_->ui_observing();
+			if (found_b && rtso::Simulation::is_dropsite_type(found_b->type) && found_b->build_progress >= 1.0f &&
+					(observing || (found_b->team != local_player() && local_player() < rtso::MAX_PLAYERS &&
+					sim->is_ally(local_player(), found_b->team) &&
+					sim->player(local_player()).has_tech(rtso::TECH_UNLOCK_SHARED_DROPSITES))))
 				add_entity_command("is-dropsite-shared", found_b->dropsite_shared ? "Shared Dropsite" : "Locked Dropsite", "",
-						found_b->dropsite_shared ? "Shared Dropsite\nYou are allowed to use this dropsite."
-												 : "Locked Dropsite\nThe use of this dropsite is prohibited.",
+						!found_b->dropsite_shared ? "Locked Dropsite\nThe use of this dropsite is prohibited."
+						: observing ? "Shared Dropsite\nAllies are allowed to use this dropsite."
+									: "Shared Dropsite\nYou are allowed to use this dropsite.",
 						found_b->dropsite_shared ? "unlocked_small.png" : "locked_small.png", false);
 			// unload-all / unload-all-turrets on an ally's structure (allowedPlayers Player and Ally):
 			// counts and unloads only our own units in it (unload-all-by-owner).
@@ -784,6 +788,7 @@ public:
 				// A corral's penned animals are its garrison too (GarrisonHolder List Animal).
 				int inside = 0, turrets = 0;
 				bool turret_only = true, deletable = false, market = false, sharable = false, any_locked = false;
+				bool reason_capture = false, reason_undeletable = false; // isUndeletable's reasons
 				bool rally = false, queue_off = false, queue_on = false;
 				for (const auto *o : own) {
 					const int n = (int)o->garrisoned_units.size() + (o->type == rtso::BLD_CORRAL ? sim->corral_count(o->id) : 0);
@@ -792,12 +797,18 @@ public:
 						turret_only = turret_only && sim->turret_only_holder(*o);
 					}
 					turrets += (int)o->turret_units.size();
-					// isUndeletable: you must hold half the capture points.
-					deletable = deletable || o->max_capture_points <= 0.0f ||
-							o->capture_points_by_team[o->team] >= o->max_capture_points * 0.5f;
+					// isUndeletable (Commands.js delete-entities): Identity/Undeletable (shrines, trading
+					// posts), or under half the capture points; never for a controlAll player.
+					const bool undeletable = !rtso::structure_has_health(o->type);
+					const bool captured = o->max_capture_points > 0.0f && o->build_progress >= 1.0f &&
+							o->capture_points_by_team[o->team] < o->max_capture_points * 0.5f;
+					const bool all = sim->controls_all(local_player());
+					deletable = deletable || all || !(undeletable || captured);
+					reason_capture = reason_capture || (!all && !undeletable && captured);
+					reason_undeletable = reason_undeletable || (!all && undeletable);
 					rally = rally || o->has_rally_point;
 					const bool done = o->build_progress >= 1.0f;
-					market = market || (o->type == rtso::BLD_MARKET && done);
+					market = market || ((o->type == rtso::BLD_MARKET || o->type == rtso::BLD_DOCK) && done); // Market component
 					if (rtso::Simulation::is_dropsite_type(o->type) && done) {
 						sharable = true;
 						any_locked = any_locked || !o->dropsite_shared;
@@ -815,14 +826,15 @@ public:
 							tip("Unload Turrets", "Order all units to leave the selected turret points."), "garrison-out.png", true,
 							turrets);
 				if (!deletable)
-					add_entity_command("delete", "Delete", "",
-							tr0("You cannot destroy this entity as you own less than half the capture points"), "kill_small_disabled.png",
-							false);
+					add_entity_command("delete", "Delete", "", undeletable_tooltip(false, reason_capture, reason_undeletable),
+							"kill_small_disabled.png", false);
 				else
 					add_entity_command("delete", "Delete", "session.kill", self_destruct_tooltip(), "kill_small.png");
-				if (rally)
+				if (rally) {
 					add_entity_command("focus-rally", "Focus on Rally Point", "camera.rallypointfocus",
 							tip("Focus on Rally Point", "Center the view on the selected rally point."), "focus-rally.png");
+					observer_may_press_last("Focus on Rally Point"); // allowedPlayers Player and Observer
+				}
 				if (market)
 					add_entity_command("select-trading-goods", "Barter & Trade", "session.gui.barter.toggle",
 							tip("Barter & Trade", "Open the dialog for managing resource trading and bartering."), "economics.png");
@@ -1127,11 +1139,13 @@ public:
 				// its getInfo would (any selected unit it applies to).
 				{
 					bool any_guarding = false, any_busy = false, any_work = false, any_fighter = false;
-					bool any_guard = false, any_can_add_guard = false, any_garrison = false, any_deletable = false;
+					bool any_patrol = false, any_can_add_guard = false, any_garrison = false, any_deletable = false;
 					bool any_turret = false; // "leave-turret": a selected unit on a turret point
+					bool reason_kill = false, reason_undeletable = false; // isUndeletable's reasons
 					bool any_turretable = false; // "occupy-turret": a Turretable unit not on one
 					int passengers = 0;
 					bool any_wagon = false, wagon_locked = false; // "share-dropsite": an own Sharable unit
+					bool queue_off = false, queue_on = false;     // autoqueue-on / -off: an own unit that trains
 					for (int s = 0; s < selected_ids.size(); ++s) {
 						const uint32_t id = (uint32_t)selected_ids[s];
 						for (size_t u = 0; u < uview.count; ++u) {
@@ -1145,27 +1159,57 @@ public:
 							any_work = any_work || sim->unit_has_work_order(id);
 							// "call-to-arms": Soldier, Warship, Siege or Healer.
 							any_fighter = any_fighter || (cls & (rtso::TC_SOLDIER | rtso::TC_WARSHIP | rtso::TC_SIEGE | rtso::TC_HEALER)) != 0;
-							// UnitAI CanGuard / CanPatrol: soldiers, warships and siege.
-							const bool can_guard = (cls & (rtso::TC_SOLDIER | rtso::TC_WARSHIP | rtso::TC_SIEGE)) != 0;
-							any_guard = any_guard || can_guard;
-							any_can_add_guard = any_can_add_guard || (can_guard && !guarding);
+							// UnitAI CanGuard / CanPatrol (template_unit's true, off for siege, traders,
+							// civilians and so on).
+							any_patrol = any_patrol || sim->unit_can_patrol(u);
+							any_can_add_guard = any_can_add_guard || (sim->unit_can_guard(u) && !guarding);
 							any_garrison = any_garrison || !rtso::unit_is_ship(ut); // Garrisonable
 							any_turret = any_turret || sim->turret_holder_of(id) != 0;
 							any_turretable = any_turretable || (sim->turret_holder_of(id) == 0 && (cls & rtso::TC_INFANTRY) != 0 && (cls & rtso::TC_RANGED) != 0);
 							if (sim->is_transport(id)) passengers += sim->get_transport_passenger_count(id);
-							any_deletable = any_deletable || (ut != rtso::UNIT_CATAFALQUE && !sim->undeletable_unit(id)); // isUndeletable
+							// isUndeletable: Identity/Undeletable (the catafalque, invulnerable units).
+							const bool undeletable = !sim->controls_all(local_player()) &&
+									(ut == rtso::UNIT_CATAFALQUE || sim->undeletable_unit(id));
+							any_deletable = any_deletable || !undeletable;
+							reason_undeletable = reason_undeletable || undeletable;
 							if (rtso::unit_dropsite_sharable(ut) && uview.team[u] == local_player()) {
 								any_wagon = true;
 								wagon_locked = wagon_locked || !sim->unit_dropsite_shared(id);
 							}
+							if (uview.team[u] == local_player() && rtso::Simulation::unit_trains_units(tm)) {
+								const bool q = sim->unit_autoqueue(id);
+								queue_off = queue_off || !q;
+								queue_on = queue_on || q;
+							}
 							break;
+						}
+					}
+					// Own livestock are units in 0.28 (UnitAI, Garrisonable into a corral): Abort while
+					// walking or herded, Garrison.
+					{
+						auto fv = sim->fauna();
+						for (int s = 0; s < selected_ids.size(); ++s) {
+							const uint32_t id = (uint32_t)selected_ids[s];
+							if (!sim->fauna_selectable_by(local_player(), id)) continue;
+							any_garrison = true;
+							for (size_t f = 0; f < fv.count; ++f)
+								if (fv.id[f] == id) {
+									any_busy = any_busy || fv.behavior[f] == rtso::FAUNA_MOVING || fv.behavior[f] == rtso::FAUNA_HERDED;
+									break;
+								}
 						}
 					}
 					if (passengers > 0)
 						add_entity_command("unload-all", "Unload All", "session.unload",
 								"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, passengers);
+					// Own livestock are units in 0.28 (KillBeforeGather): Delete stays, disabled.
+					for (int s = 0; s < selected_ids.size() && !reason_kill; ++s)
+						reason_kill = sim->fauna_selectable_by(local_player(), (uint32_t)selected_ids[s]) && !sim->controls_all(local_player());
 					if (any_deletable)
 						add_entity_command("delete", "Delete", "session.kill", self_destruct_tooltip(), "kill_small.png");
+					else
+						add_entity_command("delete", "Delete", "", undeletable_tooltip(reason_kill, false, reason_undeletable),
+								"kill_small_disabled.png", false);
 					if (any_busy)
 						add_entity_command("stop", "Abort", "session.stop",
 								"Abort\nCancel the current orders for the selected units.", "stop.png");
@@ -1180,7 +1224,7 @@ public:
 						add_entity_command("occupy-turret", "Occupy Turret", "session.occupyturret",
 								"Occupy Turret\nOrder the selected units to occupy a turret point.", "occupy-turret.png");
 					if (any_turret)
-						add_entity_command("leave-turret", "Unload", "session.leaveturret",
+						add_entity_command("leave-turret", "Unload", "", // no hotkey on its tooltip in 0.28
 								"Unload\nOrder the selected units to leave their turret points.", "leave-turret.png");
 					if (has_worker)
 						add_entity_command("repair", "Repair", "session.repair",
@@ -1194,7 +1238,7 @@ public:
 					if (any_guarding)
 						add_entity_command("remove-guard", "Abort Guard", "",
 								"Abort Guard\nOrder the selected units to stop guarding.", "remove-guard.png");
-					if (any_guard)
+					if (any_patrol)
 						add_entity_command("patrol", "Patrol", "session.patrol",
 								"Patrol\nOrder to repeatedly go to a point and come back, attacking all enemies along the way.",
 								"patrol.png");
@@ -1210,6 +1254,15 @@ public:
 												 : tip("Lock Dropsite", "Prevent allies from using this dropsite, now shared."),
 									wagon_locked ? "locked_small.png" : "unlocked_small.png");
 					}
+					auto aq_tip = [](const char *title, const char *body) { return rtso::tr0(title) + "\n" + rtso::tr0(body); };
+					if (queue_off)
+						add_entity_command("autoqueue-on", "Activate Auto-Queue", "session.queueunit.autoqueueon",
+								aq_tip("Activate Auto-Queue", "Activate the production auto-queue for the selected structures."),
+								"autoqueue-on.png");
+					if (queue_on)
+						add_entity_command("autoqueue-off", "Deactivate Auto-Queue", "session.queueunit.autoqueueoff",
+								aq_tip("Deactivate Auto-Queue", "Deactivate the production auto-queue for the selected structures."),
+								"autoqueue-off.png");
 				}
 
 				if (has_worker) {
@@ -1849,6 +1902,18 @@ private:
 	}
 
 	// unit_actions.js "delete": Self-Destruct, its body and the colorized noconfirmation line.
+	// unit_actions.js "delete" disabled: every isUndeletable reason of the selection, once each.
+	static godot::String undeletable_tooltip(bool kill_first, bool capture, bool undeletable) {
+		godot::String t;
+		auto add = [&](const char *line) {
+			if (!t.is_empty()) t += "\n";
+			t += rtso::tr0(line);
+		};
+		if (kill_first) add("The entity has to be killed before it can be gathered from");
+		if (capture) add("You cannot destroy this entity as you own less than half the capture points");
+		if (undeletable) add("This entity is undeletable");
+		return t;
+	}
 	static godot::String self_destruct_tooltip() {
 		using rtso::tr0;
 		return tr0("Self-Destruct") + "\n" + tr0("Destroy the selected entities.") + "\n" +
@@ -1953,9 +2018,17 @@ private:
 	// bar holds the previous frame's buttons (the first `old_count`) followed by
 	// this frame's. Keep the old ones when the two sets match, so a press and its
 	// release reach the same Button; otherwise swap in the new ones.
+	// The command row's last button, when it is `label` (not dropped past the six), stays
+	// pressable on an observer's read-only panel.
+	void observer_may_press_last(const char *label) {
+		if (const int c = commands_row_->get_child_count(); c > commands_base_) {
+			godot::Node *btn = commands_row_->get_child(c - 1);
+			if (godot::String(btn->get_meta("label", "")) == label) btn->set_meta("observer_ok", true);
+		}
+	}
 	static void disable_buttons(godot::Node *n) {
 		if (!n) return;
-		if (godot::BaseButton *b = godot::Object::cast_to<godot::BaseButton>(n)) b->set_disabled(true);
+		if (godot::BaseButton *b = godot::Object::cast_to<godot::BaseButton>(n); b && !b->has_meta("observer_ok")) b->set_disabled(true);
 		for (int i = 0; i < n->get_child_count(); ++i) disable_buttons(n->get_child(i));
 	}
 	static void keep_buttons(godot::Control *bar, int old_count) {

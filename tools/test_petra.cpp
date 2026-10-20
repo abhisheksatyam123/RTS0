@@ -187,9 +187,12 @@ static void test_roster_army() {
 		s->complete_research(0, TECH_TOWER_MURDERHOLES);
 		bool hero = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		bool advanced = false, arsenal = false;
-		// 45 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
+		// 55 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
 		// the city phase around minute 15, as in 0 A.D., and its city army takes a while longer.
-		for (float t = 0.0f; t < 45.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
+		// Macedonian heroes come from the fortress, which Petra can only lay once City is done
+		// (canBuild's template.available), so the first attack after City may find no hero
+		// to train and drop it (attackPlan.js:676-681); a later one carries it.
+		for (float t = 0.0f; t < 55.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (s->ticks_ % 20 != 0) continue; // once a second
 			// A strong economy can raze the idle player before its siege is out: give
@@ -228,7 +231,7 @@ static void test_roster_army() {
 				else if (u.unit_type[i] == UNIT_CATAPULT || u.unit_type[i] == UNIT_SIEGE_RAM || u.unit_type[i] == UNIT_BOLT_SHOOTER) siege = true;
 			}
 		}
-		std::printf("  %s by 45 min: phase %d, hero %s, champions %s, siege %s, siege tower %s, siege moves packed %s, fires unpacked %s, arsenal %s, %s %s\n",
+		std::printf("  %s by 55 min: phase %d, hero %s, champions %s, siege %s, siege tower %s, siege moves packed %s, fires unpacked %s, arsenal %s, %s %s\n",
 		            civ_info((Civilization)civ).name, s->petra_phase(), hero ? "yes" : "no", champion ? "yes" : "no",
 		            siege ? "yes" : "no", tower ? "yes" : "no",
 		            packed_moved ? "yes" : "no", unpacked_fired ? "yes" : "no", arsenal ? "yes" : "no",
@@ -686,6 +689,83 @@ static void test_diplomacy() {
 		CHECK(first == 3, "the ally with a finished wonder is betrayed first");
 	}
 
+	// Last Man Standing with teams locked: Setup.js makes that an allied victory, so allies
+	// share the win and never fall out (lastManStandingCheck returns at once; DM:293-295).
+	{
+		auto s = three_player_match(7);
+		s->set_last_man_standing(true);
+		s->set_mutual_ally(1, 2);
+		s->set_lock_teams(true);
+		CHECK(s->allied_victory(), "locked teams make Last Man Standing an allied victory");
+		run_for(*s, 5.0f);
+		auto &u = s->units_;
+		for (size_t i = 0; i < u.count; ++i) if (u.team[i] == 0) u.alive[i] = false;
+		for (auto &b : s->buildings_) if (b.team == 0) b.hp = 0.0f;
+		run_for(*s, 4.0f * 60.0f);
+		std::printf("  last man standing, teams locked: allies still allied %d, AI 1 waiting %d\n",
+		            (int)s->is_ally(1, 2), (int)s->petra_diplo_.waiting_to_betray);
+		CHECK(s->is_ally(1, 2) && !s->petra_diplo_.waiting_to_betray, "allies don't betray each other");
+	}
+
+	// Last Man Standing, three allied AIs: lastManStandingCheck also runs on every diplomacy
+	// change (checkEvents), so one AI's betrayal sets off another still waiting out its lapse.
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(11);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 11, 4, 96.0f);
+		for (uint8_t p = 0; p < 4; ++p) s->set_player_active(p, true, p != 0);
+		s->set_last_man_standing(true);
+		s->set_mutual_ally(1, 2);
+		s->set_mutual_ally(1, 3);
+		s->set_mutual_ally(2, 3);
+		run_for(*s, 5.0f);
+		auto &u = s->units_;
+		for (size_t i = 0; i < u.count; ++i) if (u.team[i] == 0) u.alive[i] = false;
+		for (auto &b : s->buildings_) if (b.team == 0) b.hp = 0.0f;
+		for (uint8_t p = 1; p <= 3; ++p) {
+			float tx = 0.0f, tz = 0.0f;
+			for (const auto &b : s->buildings()) if (b.type == BLD_TOWN_CENTER && b.team == p) { tx = b.x; tz = b.z; }
+			for (int i = 0; i < 50; ++i) s->spawn_unit(tx + 8.0f + (float)(i % 10), tz + 8.0f + (float)(i / 10), p, UNIT_SPEARMAN);
+		}
+		const auto wars = [&]() {
+			int n = 0;
+			for (uint8_t a = 1; a <= 3; ++a)
+				for (uint8_t b = a + 1; b <= 3; ++b)
+					if (s->get_diplomacy(a, b) == Simulation::DIPLO_ENEMY || s->get_diplomacy(b, a) == Simulation::DIPLO_ENEMY) ++n;
+			return n;
+		};
+		// PETRA_PLAYER's state is the live one, the others' parked in their slots between turns.
+		const auto dip_of = [&](uint8_t p) -> PetraDiplomacy & {
+			return p == Simulation::PETRA_PLAYER ? s->petra_diplo_ : s->petra_slots_[p].petra_diplo_;
+		};
+		// As each AI starts waiting, AIs 2 and 3 get 1000 s more on their own timers; AI 1 turns
+		// once all three wait.
+		bool held[4] = {}, all_waiting = false;
+		float first = -1.0f, second = -1.0f;
+		for (float t = 0.0f; t < 150.0f && second < 0.0f; t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			all_waiting = true;
+			for (uint8_t p = 1; p <= 3; ++p) {
+				PetraDiplomacy &d = dip_of(p);
+				if (d.waiting_to_betray && !held[p]) {
+					held[p] = true;
+					d.betray_lapse = d.elapsed + 1000.0f;
+				}
+				all_waiting = all_waiting && held[p];
+			}
+			if (all_waiting && first < 0.0f && dip_of(1).betray_lapse > 0.0f && wars() == 0)
+				dip_of(1).betray_lapse = dip_of(1).elapsed;
+			const int w = wars();
+			if (w >= 1 && first < 0.0f) first = t;
+			if (w >= 2) second = t; // a second pair at war: another AI turned too
+		}
+		CHECK(all_waiting, "every AI waits to betray once the human is out");
+		const float when = first >= 0.0f && second >= 0.0f ? second - first : -1.0f;
+		std::printf("  last man standing, three AIs: first betrayal at %.1fs, a second AI turns %.1fs later\n", first, when);
+		CHECK(when >= 0.0f && when < 5.0f, "one AI's betrayal sets off another waiting AI at once");
+	}
+
 	// Tribute: 0.28 gives an ally 30% of any resource we have over 200 and it
 	// lacks, our own scarcest included.
 	{
@@ -729,6 +809,7 @@ static void test_attack_plans() {
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
 		const uint32_t store = s->spawn_building_world(-3.0f, 25.0f, BLD_STOREHOUSE, 0, 1.0f);
 		bool rushed = false, rush_at_store = false, told_allies = true, named_target = false;
+		int rush_phase = 0;
 		int attack_size = 0, huge_size = 0;
 		// A first Attack that razes the idle player leaves nothing for a second one.
 		auto enemy_left = [&] {
@@ -756,7 +837,10 @@ static void test_attack_plans() {
 			for (const auto &plan : s->petra_started_attacks()) {
 				// A rush that musters within reach of its target attacks on the tick it sets out.
 				if (plan.state != Simulation::AttackPlan::WALKING && plan.state != Simulation::AttackPlan::ATTACKED) continue;
-				if (plan.kind == PETRA_ATTACK_RUSH && s->petra_phase() == 1) {
+				// A rush is planned in the village phase; it may set out just after the town phase
+				// (the economy's pace decides).
+				if (plan.kind == PETRA_ATTACK_RUSH) {
+					if (!rushed) rush_phase = s->petra_phase();
 					rushed = true;
 					rush_at_store |= plan.target_building_id == store;
 				}
@@ -765,11 +849,11 @@ static void test_attack_plans() {
 			}
 		}
 		const auto &m = s->petra_attack_manager();
-		std::printf("  aggressive: rushes allowed %d, village rush %s (at the storehouse %s), launched rush %d attack %d huge %d, sizes %d / %d\n",
-		            m.max_rushes, rushed ? "yes" : "no", rush_at_store ? "yes" : "no", m.launched[PETRA_ATTACK_RUSH],
+		std::printf("  aggressive: rushes allowed %d, rush %s (phase %d, at the storehouse %s), launched rush %d attack %d huge %d, sizes %d / %d\n",
+		            m.max_rushes, rushed ? "yes" : "no", rush_phase, rush_at_store ? "yes" : "no", m.launched[PETRA_ATTACK_RUSH],
 		            m.launched[PETRA_ATTACK_ATTACK], m.launched[PETRA_ATTACK_HUGE], attack_size, huge_size);
 		CHECK(m.max_rushes == 3, "an aggressive AI on a wood-rich base plans three rushes");
-		CHECK(rushed && rush_at_store, "rushes the undefended storehouse in the village phase");
+		CHECK(rushed && rush_at_store, "rushes the undefended storehouse");
 		CHECK(told_allies && named_target, "each attack is announced to allies only, naming the player attacked");
 		CHECK(attacks_done(), "launches two attacks, or one that razes the enemy");
 	}
@@ -1507,6 +1591,91 @@ static void test_garrisoned_workers_count() {
 	std::printf("  garrisoned workers: %d sheltered, workers %d -> %d, accounted %d -> %d\n", sheltered, before, after, accounted,
 	            s->petra_accounted_workers(false));
 	CHECK(sheltered == 3 && after == before && s->petra_accounted_workers(false) == accounted, "garrisoned workers still count");
+}
+
+// baseManager.js:708 reassignIdleWorkers: an idle builder repairs its base's damaged civic centre
+// while fewer than 2 units are on it, even next to an invading army (where assignToFoundations
+// leaves a civic centre above half health alone).
+static void test_idle_workers_repair_cc() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	Simulation::Building *cc = nullptr;
+	for (auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "AI 1 has a civic centre");
+	if (!cc) return;
+	const uint32_t cc_id = cc->id;
+	cc->hp = cc->max_hp * 0.7f;
+	const uint32_t foe = s->spawn_unit(cc->x + 12.0f, cc->z, 0, UNIT_FEMALE_CITIZEN);
+	PetraDefenseArmy army;
+	army.foe_ids.push_back(foe);
+	s->petra_defense_armies_.push_back(army);
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1) {
+			const uint32_t uid = s->units_.id[i];
+			s->cmd_stop(&uid, 1);
+		}
+	s->petra_manage_economy(0.0f);
+	int on_cc = 0;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.action_state[i] == ACTION_BUILD &&
+		    s->units_.target_building_id[i] == cc_id) ++on_cc;
+	std::printf("  idle repairs: %d workers on the civic centre at 70%% next to a foe\n", on_cc);
+	CHECK(on_cc >= 1 && on_cc <= 2, "idle workers repair their damaged civic centre, at most 2");
+}
+
+// baseManager.js assignRolelessUnits gives the Mauryan worker elephant the worker role, and
+// assignToFoundations sends it to a foundation next to it.
+static void test_worker_elephant_builds() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_team_civ(1, (uint8_t)CIV_MAURYANS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	uint32_t fid = 0;
+	for (int r = 8; r < 20 && !fid; ++r)
+		for (int dy = -r; dy <= r && !fid; ++dy)
+			for (int dx = -r; dx <= r && !fid; ++dx) {
+				if (std::abs(dx) != r && std::abs(dy) != r) continue;
+				const int x = (int)std::floor(cx / Simulation::GRID) + dx, y = (int)std::floor(cz / Simulation::GRID) + dy;
+				if (s->check_placement(1, x, y, BLD_HOUSE) == Simulation::PLACE_OK) fid = s->cmd_build(1, x, y, BLD_HOUSE);
+			}
+	CHECK(fid != 0, "a house foundation goes down");
+	if (!fid) return;
+	const auto &f = s->buildings_[s->building_id_to_idx_.at(fid)];
+	const uint32_t ele = s->spawn_unit(f.x + 4.0f, f.z, 1, UNIT_WORKER_ELEPHANT);
+	const int32_t ei = s->lookup_unit(ele);
+	s->petra_staff_foundations();
+	const bool builds = ei >= 0 && s->units_.action_state[ei] == ACTION_BUILD && s->units_.target_building_id[ei] == fid;
+	std::printf("  worker elephant: builds the house next to it %d\n", (int)builds);
+	CHECK(builds, "the worker elephant builds a foundation next to it");
+}
+
+// baseManager.js:248: Petra unshares its base anchor's dropsite with its allies.
+static void test_anchor_dropsite_unshared() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	s->petra_manage_economy(0.0f);
+	int shared = -1;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) shared = b.dropsite_shared;
+	std::printf("  anchor dropsite shared %d\n", shared);
+	CHECK(shared == 0, "the base anchor's dropsite is not shared");
 }
 
 static void test_petra_phasing_needs_researcher() {
@@ -2409,6 +2578,16 @@ static void test_nomad_first_base() {
 	            at_start, town_centers(true), buildings, count_units(*s, 1, true));
 	CHECK(at_start == 0, "a Nomad start has no civic centre");
 	CHECK(town_centers(true) == 1, "Petra founds and builds its first Town Center");
+	// findEconomicCCLocation with proximity: the site is scored by the wood, stone and metal
+	// around it, so the civic centre stands within 60 m of wood.
+	float wood_d = 1e9f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && !b.wrecked)
+			for (size_t r = 0; r < s->resources_.count; ++r)
+				if (s->resources_.alive[r] && s->resources_.type[r] == RES_WOOD)
+					wood_d = std::min(wood_d, std::hypot(s->resources_.x[r] - b.x, s->resources_.z[r] - b.z) * 4.0f);
+	std::printf("  nomad: nearest wood %.0f m from the civic centre\n", wood_d);
+	CHECK(wood_d < 60.0f, "the first civic centre goes by wood (findEconomicCCLocation)");
 	// startingStrategy.js lays no opening houses: buildMoreHouses adds one once houseNeeded asks.
 	CHECK(buildings >= 2 && houses >= 1, "and builds on from it");
 }
@@ -5789,6 +5968,29 @@ static void test_build_defenses() {
 	at(1300.0f);
 	s->petra_build_defenses();
 	CHECK(s->petra_defense_build_.pending == 0, "the second stone tower waits 1.1 x towerLapseTime");
+
+	// A fortress is tried while the City phase is researched, but canBuild's template.available
+	// needs phase_city (Identity/Requirements), so none is laid before City.
+	for (int k = 0; k < 30; ++k) s->spawn_unit(-40.0f + (float)(k % 6), -40.0f + (float)(k / 6), 1, UNIT_SPEARMAN);
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) {
+			ProductionOrder city;
+			city.unit_type = UNIT_TYPE_TECH;
+			city.tech = TECH_PHASE_CITY;
+			city.timer = 0.0f;
+			city.duration = 60.0f;
+			b.queue.push_back(city);
+			break;
+		}
+	CHECK(s->research_check(1, TECH_PHASE_CITY) == Simulation::TECH_ERR_IN_PROGRESS, "City is being researched");
+	at(3000.0f);
+	s->petra_build_defenses();
+	CHECK(s->petra_defense_build_.pending != BLD_FORTRESS + 1, "no fortress plan before the City phase");
+	s->petra_defense_build_.pending = 0;
+	s->players_[1].phase = 3;
+	at(4000.0f);
+	s->petra_build_defenses();
+	CHECK(s->petra_defense_build_.pending == BLD_FORTRESS + 1, "a fortress is queued in the City phase");
 }
 
 // headquarters.js findDefensiveLocation: a tower goes on our frontier at the spot nearest an enemy
@@ -5950,6 +6152,62 @@ static void test_order_plan_tags() {
 // headquarters.js:411 trainMoreWorkers counts only units with no plan: one an attack or raid
 // took keeps plan -1 after it leaves (attackPlan.js removeUnit), and so do the emergency units,
 // so Petra trains new workers in their place.
+// baseManager.js assignRolelessUnits: Worker, CitizenSoldier and FishingBoat units and Support
+// Elephants take the Worker role, so trainMoreWorkers and getAccountedWorkers count fishing
+// boats, citizen cavalry and worker elephants (as support units) too.
+static void test_worker_roles() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	int supports = 0;
+	const int before = s->petra_unplanned_workers(supports);
+	const int supports_before = supports;
+	const int accounted = s->petra_accounted_workers(false);
+	float x = 0.0f, z = 0.0f;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1) { x = s->units_.pos_x[i]; z = s->units_.pos_z[i]; break; }
+	s->spawn_unit(x + 2.0f, z, 1, UNIT_CAVALRY);
+	s->spawn_unit(x, z + 2.0f, 1, UNIT_WORKER_ELEPHANT);
+	s->spawn_unit(x - 2.0f, z, 1, UNIT_FISHING_BOAT);
+	CHECK(s->petra_unplanned_workers(supports) == before + 3, "a citizen cavalryman, a worker elephant and a fishing boat are workers");
+	CHECK(supports == supports_before + 1, "the worker elephant as a support unit");
+	CHECK(s->petra_accounted_workers(false) == accounted + 3, "and accounted workers");
+}
+
+// basesManager.js getTotalResourceLevel (findBestTrainableUnit's scarce-resource penalty): the
+// supplies within 180 m of one of a base's dropsites, not every supply in Petra's territory.
+static void test_total_resource_level() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float cc[2] = {}, enemy[2] = {};
+	for (const auto &b : s->buildings())
+		if (is_civic_centre(b.type)) {
+			float *at = b.team == 1 ? cc : enemy;
+			at[0] = b.x;
+			at[1] = b.z;
+		}
+	float before[RES_COUNT];
+	s->petra_total_resource_level(before);
+	s->spawn_resource_world(cc[0] + 8.0f, cc[1] + 8.0f, RES_STONE, 5000);
+	float near[RES_COUNT];
+	s->petra_total_resource_level(near);
+	CHECK(near[RES_STONE] == before[RES_STONE] + 5000.0f, "stone beside the civic centre counts");
+	// Beside the other player's civic centre: far from every dropsite of ours.
+	s->spawn_resource_world(enemy[0] + 8.0f, enemy[1] + 8.0f, RES_STONE, 5000);
+	float far[RES_COUNT];
+	s->petra_total_resource_level(far);
+	CHECK(far[RES_STONE] == near[RES_STONE], "stone 180 m and more from our dropsites does not");
+}
+
 static void test_out_of_plan_workers() {
 	auto make = [] {
 		auto s = std::make_unique<Simulation>();
@@ -6635,6 +6893,40 @@ static void test_personality_draw() {
 // headquarters.js trainEmergencyUnits: citizen infantry from the civic centre nearest the
 // threat, garrisoned inside (the centre rallies to itself while they train), and the
 // centre's unstarted items stopped; the rally goes once they are out.
+// trainEmergencyUnits: the anchor's trainableEntities(civ), so a captured civic centre offers
+// our units of the names in its builder's list. A Persian holding an Athenian civic centre
+// (spearman, slinger, cavalry javelineer) trains pers/infantry_spearman_b there, never the
+// Persian civic centre's archer.
+static void test_emergency_units_captured_cc() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_team_civ(1, CIV_PERSIANS);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	uint32_t cc_id = 0;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) { cc_id = b.id; b.civ = CIV_ATHENIANS; }
+	CHECK(cc_id != 0, "Petra has a civic centre");
+	if (!cc_id) return;
+	const uint16_t spearman = civ_unit_template_by_id("pers/infantry_spearman_b");
+	int spearmen = 0, others = 0;
+	for (int k = 0; k < 12; ++k) {
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 2000.0f;
+		Simulation::Building &cc = s->buildings_[s->building_id_to_idx_.at(cc_id)];
+		for (size_t q = cc.queue.size(); q-- > 0;) s->cmd_cancel_train(1, cc_id, q);
+		if (!s->petra_train_emergency_units({{cc.x + 10.0f, cc.z}})) continue;
+		for (const auto &o : s->buildings_[s->building_id_to_idx_.at(cc_id)].queue)
+			(o.tmpl == spearman ? spearmen : others)++;
+	}
+	std::printf("  captured Athenian civic centre: %d Persian spearmen, %d others\n", spearmen, others);
+	// The Persian archer, which the Athenian centre does not list, is never picked (and then
+	// refused there, leaving no emergency unit).
+	CHECK(spearmen == 12 && others == 0, "a captured civic centre's emergency units are our units of its builder's names");
+}
+
 static void test_emergency_units() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -7212,6 +7504,9 @@ int main(int argc, char **argv) {
 	RUN(test_petra_islands_wood_reserve);
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_garrisoned_workers_count);
+	RUN(test_idle_workers_repair_cc);
+	RUN(test_worker_elephant_builds);
+	RUN(test_anchor_dropsite_unshared);
 	RUN(test_city_phase_counts_foundations);
 	RUN(test_petra_research_order);
 	RUN(test_petra_minor_tech_kept);
@@ -7307,6 +7602,8 @@ int main(int argc, char **argv) {
 	RUN(test_raid_takes_siege);
 	RUN(test_raid_cc_foundation);
 	RUN(test_order_plan_tags);
+	RUN(test_worker_roles);
+	RUN(test_total_resource_level);
 	RUN(test_out_of_plan_workers);
 	RUN(test_dropsites);
 	RUN(test_building_plan_028);
@@ -7316,6 +7613,7 @@ int main(int argc, char **argv) {
 	RUN(test_missing_room_expansion);
 	RUN(test_petra_far_gatherer_recheck);
 	RUN(test_emergency_units);
+	RUN(test_emergency_units_captured_cc);
 	RUN(test_new_cc_defenders);
 	RUN(test_temple_wonder_save);
 	RUN(test_personality_draw);

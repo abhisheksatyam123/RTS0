@@ -10,7 +10,7 @@ struct UnitMotionProfile {
 	float cos_instant_turn; // cos(instant_turn_angle); -2 (no turn stops it) from pi up
 };
 
-inline constexpr uint16_t MOTION_TEMPLATE_COUNT = 511; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t MOTION_TEMPLATE_COUNT = 545; // = CIV_UNIT_TEMPLATE_COUNT
 inline const UnitMotionProfile *motion_template_table() {
 	static const UnitMotionProfile kTable[MOTION_TEMPLATE_COUNT] = {
 		{11.214f, 1.5f, 10.0f, 0.0707f}, // athen/cavalry_javelineer_b
@@ -524,6 +524,40 @@ inline const UnitMotionProfile *motion_template_table() {
 		{12.46f, 1.5f, 8.0f, 0.0707f}, // rome/champion_infantry_swordsman_03
 		{12.46f, 1.5f, 8.0f, 0.0707f}, // rome/champion_infantry_swordsman_04
 		{12.46f, 1.5f, 8.0f, 0.0707f}, // rome/champion_infantry_swordsman_05
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/hero_xenophon
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/hero_leonidas_300
+		{12.46f, 1.5f, 8.0f, 0.0707f}, // pers/arstibara
+		{1.2616f, 0.75f, 4.0f, 0.7317f}, // han/siege_shoushe
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // pers/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // cart/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // cart/support_healer_e
+		{11.214f, 1.5f, 14.0f, 0.0707f}, // mace/infantry_pikeman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/infantry_swordsman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/infantry_swordsman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/support_healer_e
+		{11.214f, 1.5f, 14.0f, 0.0707f}, // kush/infantry_pikeman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/infantry_swordsman_a
+		{11.214f, 1.5f, 14.0f, 0.0707f}, // ptol/infantry_pikeman_a
+		{11.214f, 1.5f, 14.0f, 0.0707f}, // sele/infantry_pikeman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // sele/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // sele/support_healer_e
+		{11.214f, 1.5f, 14.0f, 0.0707f}, // han/infantry_pikeman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // germ/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // germ/infantry_swordsman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f}, // germ/support_healer_e
+		{12.46f, 1.5f, 1.0f, 0.0707f}, // plane
 	};
 	return kTable;
 }

@@ -1964,6 +1964,70 @@
    0.011225
   ]
  },
+ "merc_thorakites": {
+  "freq": [
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_romanized_b1_crested.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "merc_thorakites_part4",
+   "merc_thorakites_part5",
+   "merc_thorakites_part6"
+  ],
+  "salt": "art/actors/units/hellenes/infantry_swordsman_c_thorakites.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "merc_thureophoros": {
+  "freq": [
+   9,
+   3,
+   9
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_pilos_a2.glb",
+   "res://assets/models/units/helm_hele_thracian_b5_crested.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "merc_thureophoros_part12",
+   "merc_thureophoros_part13",
+   "merc_thureophoros_part14"
+  ],
+  "salt": "art/actors/units/hellenes/infantry_javelinist_c_thureophoros.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
  "ptol_bolt_shooter": {
   "freq": [
    1,
@@ -2244,6 +2308,70 @@
    "rome_champion_infantry_sword_gladiator_part5"
   ],
   "salt": "art/actors/units/romans/infantry_gladiator_swordsman.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "rome_champion_infantry_swordsman_03": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_rome_gallic_type_f.glb",
+   "res://assets/models/units/helm_rome_gallic_type_h.glb"
+  ],
+  "joint": 6,
+  "parts": [
+   "rome_champion_infantry_swordsman_03_part9"
+  ],
+  "salt": "art/actors/units/romans/infantry_swordsman_c3.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "rome_champion_infantry_swordsman_05": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_rome_nieder_mormter_type_a.glb",
+   "res://assets/models/units/helm_rome_nieder_mormter_type_b.glb",
+   "res://assets/models/units/helm_rome_nieder_bieber.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "rome_champion_infantry_swordsman_05_part9"
+  ],
+  "salt": "art/actors/units/romans/infantry_swordsman_c5.xml#helmet",
   "xf": [
    1.0,
    -0.0,
@@ -3304,6 +3432,56 @@
    0.011225
   ]
  },
+ "theb_sacred_band": {
+  "freq": [
+   7,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_chalcidean_a3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a5.glb",
+   "res://assets/models/units/helm_hele_chalcidean_s3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_s5.glb",
+   "res://assets/models/units/helm_hele_thracian_b1.glb",
+   "res://assets/models/units/helm_hele_thracian_b1_crested.glb",
+   "res://assets/models/units/helm_hele_thracian_b5_crested.glb",
+   "res://assets/models/units/helm_hele_boeotian_b2.glb",
+   "res://assets/models/units/helm_hele_boeotian_b2_laurel.glb",
+   "res://assets/models/units/helm_hele_boeotian_s2.glb",
+   "res://assets/models/units/helm_hele_boeotian_s2_laurel.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "theb_sacred_band_part8",
+   "theb_sacred_band_part9"
+  ],
+  "salt": "art/actors/units/thebans/infantry_spearman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
  "theb_siege_fireraiser": {
   "freq": [
    1,
@@ -3345,6 +3523,41 @@
    -2.265254,
    3.685606,
    9.360626
+  ]
+ },
+ "thesp_melanochitones": {
+  "freq": [
+   3,
+   3,
+   3,
+   3
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_corinthian_i2.glb",
+   "res://assets/models/units/helm_hele_corinthian_i3.glb",
+   "res://assets/models/units/helm_hele_corinthian_i4.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "thesp_melanochitones_part7",
+   "thesp_melanochitones_part8",
+   "thesp_melanochitones_part9"
+  ],
+  "salt": "art/actors/units/thebans/infantry_swordsman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
   ]
  }
 }

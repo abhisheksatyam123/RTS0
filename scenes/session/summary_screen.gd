@@ -120,7 +120,7 @@ func _ready() -> void:
 			ms.match_music = {}
 			var menu_audio = get_node_or_null("/root/MenuAudio")
 			if menu_audio != null:
-				menu_audio.play_match_track(str(mm.get("track", "")), float(mm.get("position", 0.0)))
+				menu_audio.play_match_track(str(mm.get("track", "")), float(mm.get("position", 0.0)), mm.get("playlist", []))
 
 func is_open() -> bool:
 	return visible
@@ -1209,12 +1209,13 @@ func _lobby_signed_in() -> bool:
 	var lobby := get_tree().root.get_node_or_null("LobbySession")
 	return lobby != null and lobby.signed_in()
 
-## The lobby button: RTS0's lobby is a page, not a dialog, so it is opened in place of the summary.
+## summary.xml lobbyButton: the lobby as a dialog over the summary (lobby.js attribs.dialog).
 func open_lobby() -> void:
 	if not _lobby_signed_in():
 		return
-	get_tree().paused = false
-	MatchSettings.go("res://scenes/menu/lobby.tscn")
+	var page: Node = load("res://scenes/menu/lobby.gd").open_dialog(get_tree())
+	if page:
+		(page.get_parent() as CanvasLayer).layer = layer + 1
 
 ## 0 A.D. session CampaignSession.onFinish and campaigns/default_menu/endgame: the
 ## level is completed the moment the player wins it, before the summary (the main
@@ -1268,7 +1269,8 @@ func _fired(event: InputEvent, hotkey: String) -> bool:
 	return false
 
 func _input(event: InputEvent) -> void:
-	if not visible:
+	# The lobby dialog over the summary takes the keyboard (and closes on its hotkey).
+	if not visible or get_tree().root.get_node_or_null("LobbyDialog"):
 		return
 	if _fired(event, "summary") or (gui.get("isInGame", false) and event is InputEventKey and event.pressed
 			and "cancel" in RtsoHotkeyConfig.new().fired(event)):

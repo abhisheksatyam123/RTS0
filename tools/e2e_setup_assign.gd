@@ -55,6 +55,9 @@ func run() -> void:
 	check(items(kind_select(page, 1)) == [you, "AI: Petra Bot", "Unassigned", "Removed"], "a slot offers you, AI, Unassigned and Removed: " + str(items(kind_select(page, 1))))
 	check(items(kind_select(page, 0)) == [you, "AI: Petra Bot", "Unassigned"] and kind_select(page, 0).text == you, "slot 1 has no Removed, and is you")
 	check(kind_select(page, 1).tooltip_text == "Select player.", "the 0.28 tooltip")
+	var ks1: RtsoSafeSelect = kind_select(page, 1)
+	check([0, 1, 2, 3].map(func(ix): return ks1.get_item_color(ix)) == [Color.WHITE, Color8(70, 150, 70), Color8(140, 140, 140), Color8(255, 140, 140)],
+		"PlayerAssignmentItem colours: you white, AI green, Unassigned grey, Removed red")
 
 	print("2. Moving yourself")
 	var ks := kind_select(page, 2)

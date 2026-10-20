@@ -89,6 +89,14 @@ What each target needs on the host, beyond Godot 4.3-stable, its export template
   `tools/e2e_touch_input.gd` checks the gestures and `tools/e2e_touch_match.gd` plays a match by touch
   (select, orders, camera, minimap, placing a House), both headless; pass `-- --touch-input` to try it on
   a desktop touch screen.
+- **Phone screens.** On a phone (a mobile screen under 7.5 inches across, or `-- --phone-ui` on a
+  desktop) `scenes/menu/user_settings.gd` enlarges the whole UI so the layout is at least 1200x540 UI
+  pixels: 1.33x on 2400x1080 and 1600x720 phones, on top of the GUI scale option. Tablets and desktops
+  keep 1.0, so 1080p is unchanged. On short screens the main menu keeps only the community links that
+  fit below its buttons, and the big fixed-size dialogs (encyclopedia, tech tree, save/load) shrink to
+  the screen (`scenes/common/fit_screen.gd`). `tools/shot_layouts.gd` screenshots every menu and session
+  dialog at a given window size, for checking layouts: `xvfb-run -a -s "-screen 0 2560x1600x24" godot
+  --rendering-driver opengl3 --path . -s tools/shot_layouts.gd -- --size 2400x1080 --out DIR --phone-ui`.
 - **Duplicate textures.** Godot unpacks each model's embedded images next to it, so about 6,000 images
   are byte-identical copies. The `addons/rts0_export` editor plugin packs each one once and exports the
   copies as `.import` remaps to it, which cut the Linux build from 3.2 GB to 2.1 GB. Byte-identical
@@ -99,9 +107,15 @@ What each target needs on the host, beyond Godot 4.3-stable, its export template
   time it draws them. A headless import never draws, so without this they stay lossless. Compressed,
   they are about 40% smaller in the pack and a quarter of the GPU memory. Terrain, UI and unit-variant
   textures stay lossless.
-- **Mobile renderer.** Android and iOS run the Mobile (Vulkan/Metal) renderer. On a GL-only phone Godot falls
-  back to Compatibility, which draws player colours, garrison flags and silhouettes too (#1260;
-  `tools/check_gl_shaders.py` checks it). Selection rings and decals don't draw there yet (G41).
+- **Mobile renderer and defaults.** Android and iOS run GL Compatibility
+  (`rendering/renderer/rendering_method.mobile`), which draws player colours, garrison flags, silhouettes,
+  rings and decals (#1260, #1306; `tools/check_gl_shaders.py` checks it). Phones also start with cheaper
+  defaults (`kMobileDefaults` in `src/presentation/user_config.cpp`): no shadows, post-processing or
+  particles, no water reflection or refraction, 3D at 0.75 resolution (bilinear; FSR is Forward+ only),
+  1x anisotropy, and 30 fps in menus and matches. In a match under GL (llvmpipe, 1280x720) the 0.75 scale
+  saves about 20% of the frame, shadows about 10% and a third of the draw calls, post-processing about
+  6%; water and particles cost little. The options page changes any of them, and Reset returns to these.
+  `-- -mobiledefaults` uses them on a desktop. Desktop defaults are 0 A.D.'s.
 
 ## CI (GitHub Actions)
 `.github/workflows/ci.yml`:

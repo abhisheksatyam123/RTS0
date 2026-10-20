@@ -113,6 +113,9 @@ var net_lobby_ticket: String = ""
 # 0 A.D. "Host Saved Game": with net_mode "host", the save in load_save_path is
 # continued in multiplayer (cleared once used).
 var net_saved_game: bool = false
+# A direct join the host never let in, left by Cancel or a refusal's OK: the
+# main menu reopens this gamesetup_mp page ("join") over itself (cleared once used).
+var net_reopen: String = ""
 # Host, before Start: the map is Random (MapSelection.js). map_id holds the map
 # it picked, which RtsoMain sends as "random" until NMT_GAME_START.
 var net_map_random: bool = false

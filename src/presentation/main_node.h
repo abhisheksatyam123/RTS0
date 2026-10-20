@@ -101,6 +101,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	AudioStreamPlayer *sfx_player = nullptr;
 	AudioStreamPlayer *click_player_ = nullptr; // ui_button_click.ogg
 	int ui_clicks_ = 0; // tests: clicks played
+	uint64_t ui_click_frame_ = UINT64_MAX; // the frame the last click played
 	void hook_ui_click_sounds(Node *n);
 	AudioStreamPlayer *ambient_player = nullptr;
 	AudioStreamPlayer *ambient_wind_player = nullptr;
@@ -719,6 +720,13 @@ public:
 				return cam_rig->get_camera()->unproject_position(Vector3(uv.pos_x[i], sim->get_terrain_height(uv.pos_x[i], uv.pos_z[i]), uv.pos_z[i]));
 		return Vector2(-1, -1);
 	}
+	Vector2 debug_unit_pos(int64_t uid) const { // tests: any player's unit, world x/z
+		if (!sim) return Vector2();
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == (uint32_t)uid) return Vector2(uv.pos_x[i], uv.pos_z[i]);
+		return Vector2();
+	}
 	Vector2 debug_resource_screen(int64_t rid) const {
 		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
 		auto rv = sim->resources();
@@ -746,7 +754,7 @@ public:
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
 	Vector2 debug_spawn_offset(const String &template_id, int count, int player = -1) const;
-	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned);
+	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned, float dx = 16.0f, float dz = 16.0f);
 	int64_t debug_spawn_mine(float x, float z, int max_gatherers);
 	String debug_unit_model_path(int civ, int unit_type);
 	String debug_template_model_path(const String &template_id);
@@ -767,7 +775,8 @@ public:
 	void debug_set_observer_view(int player) { set_observer_view(player); } // tests: an observer follows a player (-1: none)
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr, bool any_player = false) const;
-	size_t own_unit_under_mouse(Vector2 mouse_pos, bool any_player = false) const;
+	size_t own_unit_under_mouse(Vector2 mouse_pos, bool any_player = false, float radius = 2.0f) const;
+	uint32_t entity_under_mouse(Vector2 mouse, bool with_props = true) const; // Engine.PickEntityAtPoint
 	std::vector<int32_t> band_box_ids(Vector2 a, Vector2 b) const;
 	// input.js INPUT_UNIT_POSITION: a right press with units selected, and the ground line
 	// drawn while the button is held.
@@ -781,6 +790,7 @@ public:
 	PackedInt32Array last_line_entities_;
 	void finish_right_line(const Ref<InputEventMouseButton> &release);
 	// input.js INPUT_PRESELECTEDACTION: a command button armed an action for the next left click.
+	bool debug_armed() const { return any_armed_mode(); } // tests: an armed action (input.js preSelectedAction)
 	bool any_armed_mode() const {
 		return attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || turret_mode || repair_mode;
 	}
@@ -807,6 +817,7 @@ public:
 	// The hover pick (PickEntityAtPoint) is redone when the mouse or camera moves, or
 	// every kHoverRepickMs while they stand still (units walk under the cursor).
 	PackedInt32Array hover_pick_;
+	uint32_t hover_target_ = 0; // the same pick with treasures and scenery: what a right click acts on
 	Vector2 hover_mouse_ = Vector2(-1e9f, -1e9f);
 	Transform3D hover_cam_;
 	uint64_t hover_at_ms_ = 0;
@@ -826,6 +837,8 @@ public:
 	bool can_afford_template(uint16_t tmpl, int count) const;
 	uint32_t press_pick_unit_ = 0; // the own unit under the left press (input.js clickedEntity)
 	Dictionary debug_unset_rally_step(int step);
+	// Tests: `building_id`'s owner sets its rally point at (x, z) (no lockstep).
+	void debug_set_rally(int64_t building_id, float x, float z);
 	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
 	// 0.28 placementTooltip (input.js updateBuildingPlacementPreview): why the structure or

@@ -84,9 +84,13 @@ signal closed
 static func open_dialog(tree: SceneTree) -> Node:
 	if not tree.root.get_node("LobbySession").signed_in():
 		return null
+	var open := tree.root.get_node_or_null("LobbyDialog")
+	if open and not open.is_queued_for_deletion():
+		return open.get_child(0) # one lobby page at a time
 	var layer := CanvasLayer.new()
 	layer.name = "LobbyDialog"
 	layer.layer = 40
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS # over a paused match or its summary too
 	var lobby: Control = load("res://scenes/menu/lobby.tscn").instantiate()
 	lobby.dialog = true
 	lobby.closed.connect(layer.queue_free)
@@ -467,6 +471,9 @@ func _build_lookup() -> AcceptDialog:
 	box.add_child(row)
 	_lookup_input = _line("", 180)
 	_lookup_input.text_submitted.connect(func(_t: String) -> void: _on_lookup_view())
+	# ProfilePage.js fetchInput: Tab completes from the online players and the board.
+	_lookup_input.tooltip_text = AUTOCOMPLETE_TIP
+	_lookup_input.gui_input.connect(_on_name_input.bind(_lookup_input, true))
 	row.add_child(_lookup_input)
 	row.add_child(_button("View Profile", _on_lookup_view))
 	_lookup_error = _label("")
@@ -763,9 +770,29 @@ func _ask_reconnect() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if dialog and event.is_action_pressed("ui_cancel"):
+	if not dialog:
+		return
+	if event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
 		_on_back_pressed()
+		return
+	if event is InputEventKey:
+		# QuitButton.js: the "lobby" hotkey closes the dialog again.
+		if event.pressed and "lobby" in _dialog_hotkeys().fired(event):
+			get_viewport().set_input_as_handled()
+			_on_back_pressed()
+			return
+		# A child page (Engine.OpenChildPage) is the top of the page stack and
+		# takes the keyboard: no key reaches the setup or the match behind it.
+		get_viewport().set_input_as_handled()
+
+
+var _hotkeys: RtsoHotkeyConfig
+
+func _dialog_hotkeys() -> RtsoHotkeyConfig:
+	if _hotkeys == null:
+		_hotkeys = RtsoHotkeyConfig.new()
+	return _hotkeys
 
 
 ## termslobby.js initLobbyTerms: each page's title, instruction and config key.
@@ -1534,16 +1561,28 @@ func _online_names() -> Array:
 			names.append(str(it.get_metadata(0)))
 	return names
 
-## autoCompleteText: Tab in the search field or the chat line completes the
-## name before the caret.
-func _on_name_input(ev: InputEvent, line: LineEdit) -> void:
+## ProfilePage.autocomplete: the online players, then the board's names that
+## are not among them (the board list is lower case).
+func _profile_names() -> Array:
+	var names := _online_names()
+	var lower := names.map(func(n) -> String: return str(n).to_lower())
+	if _board and _board.get_root():
+		for it in _board.get_root().get_children():
+			var n := str(it.get_metadata(0))
+			if n != "" and not lower.has(n.to_lower()):
+				names.append(n)
+	return names
+
+## autoCompleteText: Tab in the search field, the chat line or the profile
+## lookup completes the name before the caret.
+func _on_name_input(ev: InputEvent, line: LineEdit, with_board := false) -> void:
 	var k := ev as InputEventKey
 	if k == null or not k.pressed or k.keycode != KEY_TAB:
 		return
 	line.accept_event()
 	var caret := line.caret_column
 	var before := line.text.substr(0, caret)
-	var done := autocomplete(before, _online_names())
+	var done := autocomplete(before, _profile_names() if with_board else _online_names())
 	line.text = done + line.text.substr(caret)
 	line.caret_column = caret + done.length() - before.length()
 
