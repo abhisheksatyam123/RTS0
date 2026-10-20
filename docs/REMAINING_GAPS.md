@@ -228,6 +228,18 @@ researchManager.js (every tech classified by script: same wanted/preferred categ
 
 Checked and matching: queue limits, batch time modifiers, pop blocking, entity limits, research cost multipliers, upgrade cost/time/carry-over, foundation and repair rates, capture regen and ownership flip, territory decay rates, garrison healing, build restriction distances, every tech's cost/time/requirements/supersedes, researcher lists, civ bonuses, and the training/research/construction tooltips.
 
+### Structure runtime, ninth 0.28 pass (2026-10-20)
+
+Upgrade.js, Builder.js, Foundation.js, Repairable.js and Population against RTS0 for structures that change hands. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| T1 | A captured structure offered its builder's "{civ}" upgrades (a Han tower's Great Tower to an Athenian); 0.28 resolves {civ} with the owner's civ and drops the ones it lacks, and the result is the owner's template (a captured Iberian sentry tower becomes an Athenian defense tower) | medium | Fixed (the Tachara, Carthaginian apartment and Roman siege gate name their targets outright and keep them) |
+| T2 | Builders kept building or repairing a structure captured or converted away; Builder.js PerformBuilding drops a target no longer an ally's | medium | Fixed |
+| T3 | A captured house gave the captor's civ's Population/Bonus, and foundations used the owner's civ's BuildTime; 0.28 keeps the structure's own template | low-medium | Fixed (owner's techs and civ bonuses still apply) |
+| T4 | Animals standing on a foundation were left inside it; 0.28's animals have UnitAI and walk off (WillMoveFromFoundation) before work starts | low | Fixed |
+| T5 | Liu Bang's wall regeneration skips wall foundations | low | Open (Han only) |
+
 ### Statistics, replays, summary, Match Settings and developer overlay, fifth 0.28 pass (2026-10-20)
 
 StatisticsTracker callers and class mapping, the summary page, the replay menu and playback, Match Settings, the save/load dialog, the developer overlay and the overlay counters against 0.28 (main 50f2e95b1). Owner: Stats. Pass 4's open items are done: Match Settings names the random placement actually picked, and random maps carry 0.28's descriptions.
