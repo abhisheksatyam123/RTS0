@@ -170,10 +170,11 @@ void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld, 
 		command = rtso::RALLY_CMD_TURRET;
 		return;
 	}
-	// From a market to another that isn't an enemy's: new traders trade between them ("trade").
+	// From a market to another that isn't an enemy's: new traders trade between them ("trade"). A land market
+	// may send its traders to a dock (docks take land traders too); a dock only rallies to docks.
 	auto market = [](uint8_t type) { return rtso::is_land_market(type) || type == rtso::BLD_DOCK; };
 	if (from && market(from->type) && market(t->type) && t->build_progress >= 1.0f && !sim->is_hostile(me, t->team) &&
-			(from->type == rtso::BLD_DOCK) == (t->type == rtso::BLD_DOCK))
+			(from->type != rtso::BLD_DOCK || t->type == rtso::BLD_DOCK))
 		command = rtso::RALLY_CMD_TRADE;
 }
 

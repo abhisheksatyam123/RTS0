@@ -5968,15 +5968,16 @@ Simulation::TradeGain Simulation::calculate_trade_gain(const Building &from, con
 	g.trader = trader_gain_at((double)from.x - (double)to.x, (double)from.z - (double)to.z, trader_owner, trader_type);
 	if (from.team != to.team) {
 		// Market.js GetInternationalBonus: the market's own InternationalBonus (0.2, plus
-		// Carthage's 0.1) with its owner's modifications: Commercial Treaty adds 0.1,
+		// Carthage's template 0.1) with its owner's modifications: Commercial Treaty adds 0.1,
 		// Han's Silk Road technology and their allies' Silk Road team bonus multiply by 1.2.
+		// GetTechModifiedProperty applies every multiply first, then the adds.
 		auto bonus = [&](const Building &m) {
 			const uint8_t owner = m.team;
 			if (owner >= MAX_PLAYERS || m.type >= BLD_TYPE_COUNT) return MARKET_INTERNATIONAL_BONUS;
 			const TechMods &tm = tech_mods(owner);
-			return (MARKET_INTERNATIONAL_BONUS + (double)civ_info(civ_of(owner)).international_bonus_add +
-			        (double)tm.bld_international_add[m.type]) *
-			       (double)tm.bld_international_mul[m.type] * (double)team_bonus_mult(owner, TEAM_BONUS_TRADE_INTERNATIONAL);
+			return (MARKET_INTERNATIONAL_BONUS + (double)civ_info(civ_of(owner)).international_bonus_add) *
+			               (double)tm.bld_international_mul[m.type] * (double)team_bonus_mult(owner, TEAM_BONUS_TRADE_INTERNATIONAL) +
+			       (double)tm.bld_international_add[m.type];
 		};
 		g.market1 = (int)std::lround(g.trader * bonus(from));
 		g.market2 = (int)std::lround(g.trader * bonus(to));
@@ -6305,6 +6306,63 @@ void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t ma
 		units_.target_z[uidx] = bA.z;
 		units_.anchor_x[uidx] = bA.x;
 		units_.anchor_z[uidx] = bA.z;
+	}
+}
+
+uint32_t Simulation::trader_first_market(uint32_t unit_id) const {
+	auto it = trader_routes_.find(unit_id);
+	return it != trader_routes_.end() && it->second.second == 0 ? it->second.first : 0;
+}
+
+// 0 A.D. UnitAI.SetupTradeRoute with no source (a player's right-click on a market) and
+// Trader.SetTargetMarket. A trader picks the market as its first one (trader_routes_ {market, 0})
+// when it has none or both, drops its goods and walks there (WalkToTarget); its Shift-queued
+// walks then become the route's waypoints (expectedRoute, TRADER_LEG_EXPECTING_ROUTE). With only
+// a first market, another market sets the second and the trader trades between them.
+void Simulation::order_setup_trade(const uint32_t *unit_ids, size_t count, uint32_t market_id, bool queued) {
+	auto mit = building_id_to_idx_.find(market_id);
+	if (count == 0 || market_id == 0 || mit == building_id_to_idx_.end()) return;
+	for (size_t k = 0; k < count; ++k) {
+		uint32_t uid = unit_ids[k];
+		const int32_t i = lookup_unit(uid);
+		if (i < 0 || !units_.alive[i] || !unit_is_trader(units_.unit_type[i])) continue;
+		const Building &m = buildings_[mit->second];
+		if (!can_trade_at(units_.team[i], m, units_.unit_type[i])) continue;
+		const uint32_t first = trader_first_market(uid);
+		if (first == market_id) continue; // SetTargetMarket: the same market again changes nothing
+		if (first) {
+			// The second market: Order.Trade with the expected route, if it gathered any.
+			std::vector<std::pair<float, float>> route;
+			if (trader_leg_.count(uid) && trader_leg_[uid] == TRADER_LEG_EXPECTING_ROUTE)
+				if (auto pit = trader_route_points_.find(uid); pit != trader_route_points_.end()) route = pit->second;
+			order_trade(&uid, 1, first, market_id, queued, route);
+			continue;
+		}
+		// The first market: the old route and its goods go.
+		trader_leg_.erase(uid);
+		trader_goods_.erase(uid);
+		trader_route_points_.erase(uid);
+		trader_route_idx_.erase(uid);
+		units_.carry[i] = 0; // a trader carries only its goods
+		float wx = m.x, wz = m.z;
+		if (units_.unit_type[i] == UNIT_MERCHANT_SHIP) nearest_water_for_ship((size_t)i, m.x, m.z, wx, wz);
+		else stand_outside(m, uid, units_.pos_x[i], units_.pos_z[i], &wx, &wz, unit_clearance_at((size_t)i) + kStandMargin);
+		order_walk(&uid, 1, wx, wz, queued);
+		trader_routes_[uid] = {market_id, 0};
+		trader_leg_[uid] = TRADER_LEG_EXPECTING_ROUTE;
+	}
+}
+
+// 0 A.D. UnitAI.CancelSetupTradeRoute (Trader.RemoveTargetMarket): a trader whose only market
+// is `market_id` forgets it; the walk there carries on.
+void Simulation::order_cancel_trade_setup(const uint32_t *unit_ids, size_t count, uint32_t market_id) {
+	for (size_t k = 0; k < count; ++k) {
+		const uint32_t uid = unit_ids[k];
+		if (market_id == 0 || trader_first_market(uid) != market_id) continue;
+		trader_routes_.erase(uid);
+		trader_leg_.erase(uid);
+		trader_route_points_.erase(uid);
+		trader_route_idx_.erase(uid);
 	}
 }
 
@@ -6737,6 +6795,23 @@ void Simulation::attack_building_one_by_one(const uint32_t *unit_ids, size_t cou
 void Simulation::order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued, bool beach_goal) {
 	AiCommandScope ai_cmd(*this, AiCommandEvent::WALK, unit_ids, count, 0, tx, tz);
 	UnitOrder o; o.kind = ORDER_WALK; o.flags = ORDER_FLAG_FORCE; o.x = tx; o.z = tz;
+	// UnitAI.Walk: a queued walk of a trader that has picked only its first market adds a
+	// waypoint to its expected route instead of an order.
+	std::vector<uint32_t> walkers;
+	if (queued && !push_front_order_ && !applying_queued_ && !trader_leg_.empty()) {
+		for (size_t k = 0; k < count; ++k) {
+			auto lit = trader_leg_.find(unit_ids[k]);
+			if (lit == trader_leg_.end() || lit->second != TRADER_LEG_EXPECTING_ROUTE || !trader_first_market(unit_ids[k])) {
+				walkers.push_back(unit_ids[k]);
+				continue;
+			}
+			auto &pts = trader_route_points_[unit_ids[k]];
+			if (pts.size() < TRADE_ROUTE_MAX_POINTS && std::isfinite(tx) && std::isfinite(tz))
+				pts.emplace_back(std::clamp(tx, -map_half_, map_half_), std::clamp(tz, -map_half_, map_half_));
+		}
+		unit_ids = walkers.data();
+		count = walkers.size();
+	}
 	const std::vector<uint32_t> now = split_queued(unit_ids, count, o, queued);
 	beach_goal_ = beach_goal;
 	cmd_move(now.data(), now.size(), tx, tz);
@@ -11407,6 +11482,17 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			    !(ttype == UNIT_MERCHANT_SHIP && petra_runs_for(owner) &&
 			      !std::binary_search(petra_trade_ships_[owner].begin(), petra_trade_ships_[owner].end(), uid)))
 				order_trade_auto(&uid, 1);
+			continue;
+		}
+		if (rit->second.second == 0) {
+			// A queued first-market pick changed its markets under the order: Order.Trade ends
+			// (UnitAI TRADE with no second market) and the walk to that market comes next.
+			trader_goods_.erase(uid);
+			units_.carry[ti] = 0;
+			units_.action_state[ti] = ACTION_IDLE;
+			units_.has_order[ti] = 0;
+			has[ti] = 0;
+			finish_order(ti);
 			continue;
 		}
 		auto itA = building_id_to_idx_.find(rit->second.first);
@@ -18355,6 +18441,15 @@ const std::vector<UnitOrder> *Simulation::unit_order_queue(uint32_t unit_id) con
 }
 
 std::vector<uint32_t> Simulation::split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued) {
+	// UnitAI.AddOrder: any new order ends a trader's expected route (its first market stays).
+	if (!applying_queued_ && !trader_leg_.empty())
+		for (size_t k = 0; k < count; ++k) {
+			auto lit = trader_leg_.find(ids[k]);
+			if (lit == trader_leg_.end() || lit->second != TRADER_LEG_EXPECTING_ROUTE) continue;
+			trader_leg_.erase(lit);
+			trader_route_points_.erase(ids[k]);
+			trader_route_idx_.erase(ids[k]);
+		}
 	std::vector<uint32_t> loose; // with whole formations taken out
 	if (!formations_.empty() && !applying_queued_ && !formation_acting_) {
 		// A whole formation's orders go to its controller's own queue (UnitAI AddOrder on
