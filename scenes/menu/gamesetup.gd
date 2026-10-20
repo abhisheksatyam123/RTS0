@@ -1841,17 +1841,14 @@ func _render_mode_checks() -> void:
 ## 0.28 WonderDuration / RelicCount / RelicDuration: shown only while their condition
 ## is checked, and fixed (disabled) on a scenario.
 func _refresh_victory_times(mask: int) -> void:
-	var row := %VictoryTimesRow
+	# GameSettingsLayout.js: Relic Count, Relic Duration, Hero Garrison, Wonder Duration.
 	var wonder := (mask & 16) != 0
 	var relic := (mask & 32) != 0
-	row.visible = wonder or relic
-	for n in ["WonderLabel", "WonderTimeSlot"]:
-		row.get_node(n).visible = wonder
-	for n in ["RelicCountLabel", "RelicCountSlot", "RelicLabel", "RelicTimeSlot"]:
-		row.get_node(n).visible = relic
+	%VictoryTimesRow.visible = relic
+	%WonderRow.visible = wonder
 	var scen := _is_scenario()
 	for n in ["WonderTimeSlot", "RelicCountSlot", "RelicTimeSlot"]:
-		var slot: Node = row.get_node(n)
+		var slot: Node = get_node("%" + n)
 		if slot.get_child_count() > 0:
 			slot.get_child(0).disabled = scen
 
