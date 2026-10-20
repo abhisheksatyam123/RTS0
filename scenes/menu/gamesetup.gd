@@ -169,8 +169,12 @@ static var CEASEFIRES: Array = range(0, 46)
 static var VICTORY_TIMES: Array = range(0, 61)
 static var RELIC_COUNTS: Array = range(1, CIVS.size() + 1)
 # 0 A.D. map trigger options: Flood's WaterLevel and Extinct Volcano's SeaLevelRiseTime.
-const WATER_LEVELS := ["Rising water", "Shallow water", "Deep water"]
-const SEA_RISE_TIMES := [0, 5, 10, 15, 20, 25, 30, 40, 50, 60]
+# flood.json WaterLevels: [Name, Description] (WaterLevel.js shows the hovered one's Description).
+const WATER_LEVELS := [["Rising", "The water rises. The homeislands will become uninhabitable."],
+	["Shallow", "The water doesn't rise. Ships and troops can battle in chest deep waters."],
+	["Deep", "The water doesn't rise. You have to use ships to travel to the mainland."]]
+# extinct_volcano.json SeaLevelRise: Min 0, Max 60, a minute a step (SeaLevelRiseTime.js).
+static var SEA_RISE_TIMES: Array = range(0, 61)
 # 0 A.D. 0.28 Player Placement (simulation/data/settings/player_placements.json,
 # gamesetup PlayerPlacement.js), index == rtso::TeamPlacement: [0.28 id, name,
 # description]. A random map offers the patterns its JSON lists in
@@ -191,21 +195,23 @@ const PLACEMENT_EVERY_MAP := true
 const PLACEMENT_MAPS_BEFORE := ["random_ambush", "random_frontier"]
 const TEAM_PLACEMENT_TOOLTIP := "Select one of the starting position patterns of this map."
 # 0 A.D. Landscape (unknown.json Landscapes, gamesettings Landscape.js): [name,
-# value, description]; value is RmsGenerator::UNKNOWN_LANDSCAPE_* (3 + landscape).
-const LANDSCAPES := [["Random", 0, "Choose a random landscape."],
+# value, description];
+# value is RmsGenerator::UNKNOWN_LANDSCAPE_* (3 + landscape). Landscape.js order:
+# Random, the group headers, then each group's items sorted by name.
+const LANDSCAPES := [["Random", 0, "Select a random landscape."],
 	["Random Land", 1, "Choose a random land landscape"],
-	["Continent", 4, "All players starts on a continent surrounded by water."],
-	["Isthmus", 6, "Two Mediterranean land masses connected by a narrow spit of land, called an 'Isthmus'."],
+	["Random Naval", 2, "Choose a random naval landscape"],
 	["Central River", 7, "A small central river."],
+	["Continent", 4, "All players starts on a continent surrounded by water."],
 	["Edge Seas", 10, "Players are aligned on a strip of land with seas bordering on one or both sides that may hold islands."],
 	["Gulf", 11, "Land shaped like a concrescent moon around a central lake."],
+	["Isthmus", 6, "Two Mediterranean land masses connected by a narrow spit of land, called an 'Isthmus'."],
 	["Lakes", 12, "Mainland style with some small random lakes."],
-	["Passes", 13, "A large hill encompasses the map and leaves players only a small passage to the two neighboring players."],
 	["Lowlands", 14, "The land is enclosed by a hill that leaves a small area per player connected to the large central place."],
 	["Mainland", 15, "A typical map without any water."],
-	["Random Naval", 2, "Choose a random naval landscape"],
-	["Naval: Central Sea", 5, "A huge sea is dividing the map into two halves."],
+	["Passes", 13, "A large hill encompasses the map and leaves players only a small passage to the two neighboring players."],
 	["Naval: Archipelago", 3, "Players are scattered across island chains and disconnected islands."],
+	["Naval: Central Sea", 5, "A huge sea is dividing the map into two halves."],
 	["Naval: Lake and rivers", 9, "A central lake with rivers possibly separating neighboring players."]]
 const LANDSCAPE_MAPS := ["random_unknown"]
 # 0 A.D. data/settings/trigger_difficulties.json: [name, tooltip], value = index + 1.
@@ -534,7 +540,7 @@ func _rebuild_biomes(values: Array) -> void:
 	bio.add_item(tr("Random"), RANDOM_BIOME)
 	bio.set_item_tooltip(0, tr("Pick a biome at random."))
 	for v in values:
-		bio.add_item(BIOMES[v], v)
+		bio.add_item(GameDescription.BIOME_TEXT.get(v, [BIOMES[v]])[0], v) # the rmbiome's Title
 		bio.set_item_tooltip(bio.get_item_count() - 1, GameDescription.BIOME_TEXT.get(v, ["", ""])[1])
 	bio.select(maxi(([RANDOM_BIOME] + values).find(_biome), 0))
 	slot.visible = not values.is_empty()
@@ -1118,12 +1124,12 @@ func _fill_daytimes(id: String) -> void:
 	var dsel: RtsoSafeSelect = slot.get_child(0)
 	var keep := maxi(dsel.get_selected(), 0)
 	dsel.clear()
-	dsel.add_item("Random")
-	var tips := PackedStringArray(["Random: Pick one of the daytime options at random."])
+	dsel.add_item(tr("Random"))
+	dsel.set_item_tooltip(0, tr("Randomly pick a time of the day."))
 	for d in DAYTIMES[id]:
-		dsel.add_item(d[0])
-		tips.append("%s: %s" % [d[0], d[1]])
-	%DaytimeLabel.tooltip_text = "Select whether the match starts by day or by night.\n" + "\n".join(tips)
+		dsel.add_item(tr(d[0]))
+		dsel.set_item_tooltip(dsel.get_item_count() - 1, tr(d[1]))
+	%DaytimeLabel.tooltip_text = tr("Select whether the match takes place at daylight or night.")
 	dsel.select(clampi(keep, 0, dsel.get_item_count() - 1))
 
 func _selected_map() -> Dictionary:
@@ -1705,7 +1711,8 @@ func _build_options() -> void:
 	rc.tooltip_text = tr("Total number of relics spawned on the map. Relic victory is most realistic with only one or two relics. With greater numbers, the relics are important to capture to receive aura bonuses.")
 	var wl := _make_option(%WaterLevelSlot)
 	for w in WATER_LEVELS:
-		wl.add_item(w)
+		wl.add_item(tr(w[0]))
+		wl.set_item_tooltip(wl.get_item_count() - 1, tr(w[1]))
 	wl.select(0)
 	wl.tooltip_text = tr("Select the water level of this map.")
 	var sr := _make_option(%SeaRiseSlot)
@@ -1717,18 +1724,16 @@ func _build_options() -> void:
 	tpl.item_selected.connect(_on_team_placement_selected)
 	_rebuild_team_placement([])
 	var lsc := _make_option(%LandscapeSlot)
-	var ltips := PackedStringArray()
 	for l in LANDSCAPES:
-		lsc.add_item(l[0])
-		ltips.append("%s: %s" % [l[0], l[2]])
-	%LandscapeLabel.tooltip_text = "\n".join(ltips)
+		lsc.add_item(tr(l[0]))
+		lsc.set_item_tooltip(lsc.get_item_count() - 1, tr(l[2]))
+	%LandscapeLabel.tooltip_text = tr("Select one of the landscapes of this map.")
 	lsc.select(0)
 	var tdf := _make_option(%TriggerDifficultySlot)
-	var dtips := PackedStringArray()
 	for d in TRIGGER_DIFFICULTIES:
-		tdf.add_item(d[0])
-		dtips.append("%s: %s" % [d[0], d[1]])
-	%TriggerDifficultyLabel.tooltip_text = "Select the difficulty of this scenario.\n" + "\n".join(dtips)
+		tdf.add_item(tr(d[0]))
+		tdf.set_item_tooltip(tdf.get_item_count() - 1, tr(d[1]))
+	%TriggerDifficultyLabel.tooltip_text = tr("Select the difficulty of this scenario.")
 	tdf.select(2)
 	var dsel := _make_option(%DaytimeSlot)
 	dsel.add_item("Random")
