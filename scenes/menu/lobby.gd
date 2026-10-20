@@ -128,6 +128,10 @@ const RATING_FILTERS := ["", ">1500", ">1400", ">1300", ">1200", "<1200", "<1100
 
 func _ready() -> void:
 	_build()
+	# LobbyHandler: the page (not the dialog) plays the menu music, so the match
+	# track a summary carried over stops here.
+	if not dialog:
+		MenuAudio.play_menu_music()
 	_timer = Timer.new()
 	_timer.wait_time = REFRESH_S
 	_timer.timeout.connect(_refresh)

@@ -433,8 +433,7 @@ func _item_tooltip(item: Dictionary) -> String:
 	var tip := tr(str(item.get("tooltip", "")))
 	if not item.has("hotkey"):
 		return tip
-	var keys: String = _hotkeys.display(item["hotkey"])
-	return L10n.sprintf(tip, {"hotkey": keys if keys != "" else L10n.t("Unassigned")})
+	return _hotkeys.colorize(tip, item["hotkey"])
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):

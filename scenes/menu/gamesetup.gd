@@ -854,9 +854,7 @@ func _build_map_list() -> void:
 	var browse := Button.new()
 	browse.name = "BrowseMaps"
 	browse.text = tr("Browse Maps")
-	var keys: String = _hotkeys.display(MAP_BROWSER_HOTKEY)
-	browse.tooltip_text = L10n.sprintf(L10n.t("Press %(hotkey)s to view the list of available maps."),
-		{"hotkey": keys if keys != "" else L10n.t("Unassigned")})
+	browse.tooltip_text = _hotkeys.colorize(L10n.t("Press %(hotkey)s to view the list of available maps."), MAP_BROWSER_HOTKEY)
 	browse.pressed.connect(_open_map_browser)
 	list.get_parent().add_child(browse)
 	list.get_parent().move_child(browse, list.get_index() + 1)
@@ -898,6 +896,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif "civinfo" in fired or "structree" in fired:
 		get_viewport().set_input_as_handled()
 		open_civ_reference(0 if "civinfo" in fired else 1)
+	elif "lobby" in fired and LobbySession.signed_in():
+		# LobbyButton.xml hotkey="lobby": the lobby dialog over the setup.
+		get_viewport().set_input_as_handled()
+		open_lobby_dialog()
 	elif "cancel" in fired and get_node_or_null("CivReference"):
 		get_viewport().set_input_as_handled()
 		get_node("CivReference").queue_free()
@@ -1339,11 +1341,10 @@ func _build_slot_headings() -> void:
 	info.add_theme_color_override("font_hover_color", Color.WHITE)
 	info.custom_minimum_size = Vector2(16, 16)
 	info.size = Vector2(16, 16)
-	var ck: String = _hotkeys.display("civinfo")
-	var sk: String = _hotkeys.display("structree")
+	# CivInfoButton.js: colorizeHotkey for each of the two keys.
 	info.tooltip_text = L10n.sprintf(L10n.t("%(hotkey_civinfo)s / %(hotkey_structree)s: View Civilization Overview / Structure Tree\nLast opened will be reopened on click."),
-		{"hotkey_civinfo": ck if ck != "" else L10n.t("Unassigned"),
-		"hotkey_structree": sk if sk != "" else L10n.t("Unassigned")})
+		{"hotkey_civinfo": _hotkeys.colorize("%(hotkey)s", "civinfo"),
+		"hotkey_structree": _hotkeys.colorize("%(hotkey)s", "structree")})
 	info.pressed.connect(func(): open_civ_reference(_civ_ref_tab))
 	header.add_child(info)
 	var grid := _slots_grid()
@@ -2356,7 +2357,6 @@ var _net_names_key := ""
 var _net_names: Array = []
 var _net_tick := 0.0
 var _ready_btn: Button
-var _wait_label: Label
 var _rated: CheckBox
 var _setting_warning: Label
 var _saved_label: Label
@@ -2370,7 +2370,6 @@ const READY_TOOLTIPS := ["State that you are ready to play.", "Stay ready even w
 ## 0.28 StartGameButton tooltips.
 const START_TOOLTIP := "Start a new game with the current settings."
 const START_WAIT_TOOLTIP := "Start a new game with the current settings (disabled until all players are ready)."
-const WAIT_TEXT := "Waiting for the host to start the game."
 const NET_SLOT_KEYS := ["slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors"]
 
 func _init_net() -> void:
@@ -2400,12 +2399,6 @@ func _init_net() -> void:
 func _build_net_controls() -> void:
 	var right := $VBox/HBox/Right
 	var start := $VBox/HBox/Right/Buttons/BtnStart as Button
-	_wait_label = Label.new()
-	_wait_label.name = "NetWaitLabel"
-	_wait_label.text = WAIT_TEXT
-	_wait_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	right.add_child(_wait_label)
-	right.move_child(_wait_label, $VBox/HBox/Right/Buttons.get_index())
 	_ready_btn = Button.new()
 	_ready_btn.name = "BtnReady"
 	_ready_btn.custom_minimum_size = Vector2(0, 48)
@@ -2421,7 +2414,7 @@ func _build_net_controls() -> void:
 	_setting_warning.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_setting_warning.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
 	right.add_child(_setting_warning)
-	right.move_child(_setting_warning, _wait_label.get_index())
+	right.move_child(_setting_warning, $VBox/HBox/Right/Buttons.get_index())
 	# 0.28 SavedGameLabel: shown while the controller hosts a saved game.
 	_saved_label = Label.new()
 	_saved_label.name = "SavedGameLabel"
@@ -2431,8 +2424,7 @@ func _build_net_controls() -> void:
 	_saved_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_saved_label.visible = false
 	right.add_child(_saved_label)
-	right.move_child(_saved_label, _wait_label.get_index())
-	_wait_label.visible = _mp_role == "client"
+	right.move_child(_saved_label, $VBox/HBox/Right/Buttons.get_index())
 	_ready_btn.visible = _mp_role == "client"
 	start.visible = _mp_role == "host"
 	# 0.28 LobbyButton: with a lobby connection, the lobby opens as a dialog.
@@ -2498,12 +2490,14 @@ func _build_net_chat() -> void:
 	input.max_length = 1024 # gamesetup ChatPanel.xml chatInput max_length
 	input.text_submitted.connect(func(_t: String) -> void: _send_net_chat())
 	# ChatInputPanel.onTab / Tooltip: Tab completes player names, then civs and settings.
-	input.tooltip_text = "Press Tab to autocomplete player names or settings."
+	# colorizeAutocompleteHotkey: the hard-coded Tab, in the hotkey colour.
+	input.tooltip_text = L10n.sprintf(L10n.t("Press %(hotkey)s to autocomplete player names or settings."),
+		{"hotkey": "[color=#fffb83][lb]" + tr("Tab", "hotkey") + "[rb][/color]"})
 	input.gui_input.connect(func(ev: InputEvent) -> void: _on_net_chat_key(ev, input))
 	row.add_child(input)
 	var send := Button.new()
 	send.name = "NetChatSend"
-	send.text = "Send"
+	send.text = tr("Send")
 	send.pressed.connect(_send_net_chat)
 	row.add_child(send)
 	var right := $VBox/HBox/Right

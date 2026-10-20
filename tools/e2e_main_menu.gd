@@ -47,6 +47,12 @@ func run() -> void:
 	change_scene_to_file("res://scenes/menu/main_menu.tscn")
 	await frames(10)
 	var menu = current_scene
+	# colorizeHotkey: the gold "[key]", as in the session.
+	var tree_tip: String = menu._item_tooltip({"tooltip": "%(hotkey)s: View the structure tree of civilizations featured in 0 A.D.", "hotkey": "structree"})
+	check(tree_tip.begins_with("[color=#fffb83][lb]") and tree_tip.contains("[rb][/color]: View the structure tree"),
+		"menu item tooltips colour their hotkey: " + tree_tip)
+	check(menu._item_tooltip({"tooltip": "%(hotkey)s", "hotkey": "zz.none"}).contains("Unassigned hotkey: zz.none"),
+		"an unbound one says \"Unassigned hotkey: name\"")
 	print("1. Main buttons")
 	var btns: Node = menu.get_node("MainPanel/Buttons")
 	check(btns.get_node("BtnSingle").tooltip_text == "Start, load, or replay a single-player game.", "Single-player tooltip")
