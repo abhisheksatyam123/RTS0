@@ -24118,10 +24118,12 @@ static bool petra_tech_modifies(uint8_t tech_id, std::initializer_list<uint8_t> 
 	return false;
 }
 
-// Does any of the technology's effects list `cls` alone among its affects?
+// researchManager.js:209 tests the template's top-level affects: one class, `cls`. Every effect
+// of such a tech lists `cls` alone. Grove of Fetters names Healer on its modification only (no
+// top-level affects), so 0.28 Petra keeps it; it is the one tech where the two tests differ.
 static bool petra_tech_affects_only(uint8_t tech_id, TechClasses cls) {
 	const TechInfo &ti = tech_info(tech_id);
-	if (ti.effect_count == 0) return false;
+	if (ti.effect_count == 0 || tech_id == TECH_GROVE_OF_FETTERS) return false;
 	const TechEffect *fx = tech_effects_table() + ti.effect_begin;
 	for (uint16_t i = 0; i < ti.effect_count; ++i) {
 		if (fx[i].affects_count != 1) return false;
