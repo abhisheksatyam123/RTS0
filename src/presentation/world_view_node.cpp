@@ -4413,6 +4413,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (v.variant_model != v.model || v.variant_id != id) {
 			// Props first: a look added for this entity takes the colour and skin draw below.
 			rtso::ModelLibrary::set_prop_looks(v.model, v.model_id, id);
+			rtso::ModelLibrary::set_unit_helmet(v.model, v.model_id, id);
 			rtso::ModelLibrary::set_variant(v.model, rtso::ModelLibrary::variant_draw(id));
 			v.variant_model = v.model;
 			v.variant_id = id;

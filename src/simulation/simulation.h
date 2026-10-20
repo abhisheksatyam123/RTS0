@@ -644,7 +644,7 @@ public:
 		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
 			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER,
-			END_TREASURE, END_STRUCTURES_CRITICAL, END_CIVIC_CENTRES_CRITICAL };
+			END_TREASURE, END_STRUCTURES_CRITICAL, END_CIVIC_CENTRES_CRITICAL, END_CHEAT };
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
@@ -1537,8 +1537,22 @@ public:
 	// `choice`: which of building_upgrade()'s choices (the Tachara has four).
 	// The civ whose Upgrade choices a structure offers: its own template's (Upgrade.js reads
 	// the entity's template, so a captured Tachara keeps its four forms), else its owner's.
-	uint8_t structure_upgrade_civ(const Building &b) const {
+	uint8_t structure_upgrade_civ(const Building &b) const { return structure_template_civ(b); }
+	// The civ of the template a structure was placed as (a captured house keeps its builder's
+	// Population/Bonus and BuildTime), else its owner's.
+	uint8_t structure_template_civ(const Building &b) const {
 		return b.civ < CIV_COUNT && b.civ != CIV_GAIA ? b.civ : (uint8_t)civ_of(b.team);
+	}
+	// Upgrade.js DetermineUpgrades: that template's choices, its "{civ}" targets resolved
+	// with the owner's civ (the ones the owner's civ lacks dropped).
+	BuildingUpgradeInfo structure_upgrade(const Building &b, int choice) const {
+		return building_upgrade(b.type, structure_upgrade_civ(b), choice, structure_owner_civ(b));
+	}
+	int structure_upgrade_count(const Building &b) const {
+		return building_upgrade_count(b.type, structure_upgrade_civ(b), structure_owner_civ(b));
+	}
+	uint8_t structure_owner_civ(const Building &b) const {
+		return b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_GAIA;
 	}
 	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id, int choice = 0) const;
 	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice = 0);
@@ -1862,7 +1876,8 @@ public:
 	// Player.IsTrainingBlocked: a batch at the head of one of the player's queues waits
 	// for population room (Trainer.js Item.Start, Player.BlockTraining).
 	bool training_blocked(uint8_t player) const;
-	int structure_pop_bonus(uint8_t type, uint8_t player) const;
+	// `bld_civ`: the structure's template civ (structure_template_civ); 0xFF for the player's own.
+	int structure_pop_bonus(uint8_t type, uint8_t player, uint8_t bld_civ = 0xFF) const;
 	// GarrisonHolder/BuffHeal of a structure type for a player: its template's plus garrison_heal.
 	float structure_garrison_heal_for(uint8_t type, uint8_t player) const {
 		return building_garrison_heal(type) + (player < MAX_PLAYERS && type < BLD_TYPE_COUNT ? tech_mods_[player].bld_garrison_heal[type] : 0.0f);
@@ -2697,6 +2712,7 @@ private:
 	// leave (UnitAI LeaveFoundation); enemies and Gaia keep it from starting. True once
 	// the site is clear and committed, after which the foundation blocks movement.
 	bool try_commit_foundation(Building &b);
+	void foundation_exit_point(const Building &b, float x, float z, float r, float &tx, float &tz) const;
 	void leave_foundation(size_t i, const Building &b);
 	void tick_repair(float dt);
 	static constexpr float REPAIR_TIME_RATIO = 2.0f; // template_structure.xml Repairable/RepairTimeRatio

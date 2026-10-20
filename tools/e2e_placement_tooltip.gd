@@ -5,7 +5,8 @@ extends SceneTree
 #   2. a House out of its territory: "cannot be built in neutral territory. Valid territories: own";
 #   3. a Civic Center by your own: "too close to a CivilCentre, must be at least 200 meters away";
 #   4. a free spot shows nothing;
-#   5. a palisade: its cost while dragging, "Cannot build wall here!" after a refused click;
+#   5. a palisade: no start on the Civic Center, its cost while dragging, and a click with no
+#      length that lays nothing and ends the placement (input.js tryPlaceWall);
 #   6. a sentry tower on a free spot: "Basic range: N meters" and "Average bonus range: M meters".
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_placement_tooltip.gd
@@ -25,6 +26,11 @@ func check(cond: bool, what: String) -> void:
 		failures += 1
 
 func _initialize() -> void:
+	# One map for every run: the random default's coast can leave no neutral land in the grid.
+	var ms = root.get_node("MatchSettings")
+	ms.map_id = "random_continental"
+	ms.seed = 11
+	ms.map_size = 128
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	run.call_deferred()
@@ -109,16 +115,21 @@ func run() -> void:
 
 	print("5. Palisade")
 	main.enter_build_mode(true, BLD_PALISADE)
+	# input.js:1095-1101: a start whose tower can't stand there is not taken.
+	await click(cc_ground)
+	await move(cc_ground + Vector2(40, 0))
+	t = tip()
+	check(not str(t["text"]).begins_with("Cost: "), "a start on the Civic Center is refused: " + str(t["text"]))
 	var start: Vector2 = free[0]["at"]
 	await click(start)
 	await move(start + Vector2(40, 0))
 	t = tip()
 	check(t["visible"] and str(t["text"]).begins_with("Cost: "), "dragging shows its cost: " + str(t["text"]))
+	# tryPlaceWall: a wall no longer than a tower has no segment, lays nothing and ends the placement.
 	await click(start)
-	t = tip()
-	check(t["visible"] and t["error"] and t["text"] == "Cannot build wall here!", "a refused click (no length): " + str(t["text"]))
 	await move(start + Vector2(30, 30))
-	check(tip()["text"] != "Cannot build wall here!", "until the cursor moves")
+	t = tip()
+	check(not t["visible"], "a click with no length lays nothing and ends the placement: " + str(t["text"]))
 	main.enter_build_mode(false)
 
 	print("6. Sentry tower")

@@ -4308,7 +4308,12 @@
       "id": 1,
       "team": 0,
       "start_x": 33.45,
-      "start_z": 107.97
+      "start_z": 107.97,
+      "color": [
+        183,
+        92,
+        0
+      ]
     }
   ],
   "resources": [

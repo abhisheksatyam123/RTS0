@@ -224,6 +224,16 @@ func run() -> void:
 	le.text = "/allies hold the line"
 	main._on_chat_send_pressed()
 	await frames(2)
+	# Chat.submitChat: To: Allies puts "/allies" first, so a typed "/enemies" is text.
+	main.toggle_chat()
+	await frames(2)
+	main._on_chat_channel_btn_pressed(1)
+	var to_allies: String = dlg()["chat_addressee"]
+	le.text = "/enemies flank left"
+	main._on_chat_send_pressed()
+	await frames(2)
+	check(to_allies == "Allies" and dlg()["chat_log"].contains("/enemies flank left") and not dlg()["chat_log"].contains("(Enemy)"),
+		"with To: Allies a typed /enemies goes to allies as text: " + to_allies)
 	check(dlg()["chat_filters"] == 8, "eight filters offline, no Network notifications: %d" % dlg()["chat_filters"])
 	main._on_chat_filter_selected(1) # Chat messages
 	log = dlg()["chat_log"]

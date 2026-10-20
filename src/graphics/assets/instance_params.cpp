@@ -90,7 +90,8 @@ void set_instance_param(GeometryInstance3D *gi, const StringName &name, const Va
 		return;
 	}
 	const StringName key = value_meta(name);
-	const bool unchanged = gi->get_meta(key, Variant()) == value;
+	// get_meta with a nil default reports an error when the key is missing.
+	const bool unchanged = gi->has_meta(key) && gi->get_meta(key) == value;
 	if (!unchanged) gi->set_meta(key, value);
 	if (Ref<Material> m = gi->get_material_override(); instanced(m)) {
 		set_on_own(gi, m, unchanged, name, value, [gi](const Ref<ShaderMaterial> &c) { gi->set_material_override(c); });
@@ -115,7 +116,8 @@ bool is_material_or_copy(const Ref<Material> &current, const Ref<Material> &base
 Variant get_instance_param(GeometryInstance3D *gi, const StringName &name) {
 	if (!gi) return Variant();
 	if (!gl_compatibility()) return gi->get_instance_shader_parameter(name);
-	return gi->get_meta(value_meta(name), Variant());
+	const StringName key = value_meta(name);
+	return gi->has_meta(key) ? gi->get_meta(key) : Variant();
 }
 
 } // namespace rtso
