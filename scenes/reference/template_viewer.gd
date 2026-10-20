@@ -649,13 +649,21 @@ static func detailed_tooltip(tmpl: int, mods: Dictionary = {}) -> String:
 	var vw: Dictionary = Common.unit_text(d.get("id", "")).get("viewer", {})
 	var keep := ["Health:", "Attack:", "Heal:", "Resistance:", "Garrison Limit", "Turret Positions", "Projectile Limit", "Speed:", "Dropsite for:"]
 	var out: PackedStringArray = []
+	# The reference page lists the dropsite first; the training tooltip puts it after speed.
+	var drop: PackedStringArray = []
 	var on := false
+	var in_drop := false
 	var plain := _plain(stats_text(d, vw))
 	for line in plain.split("\n"):
 		if not line.begins_with(" ") and not line.begins_with("\t"):
 			on = keep.any(func(k): return line.begins_with(k))
+			in_drop = line.begins_with("Dropsite for:")
 		if on:
-			out.append(line)
+			if in_drop:
+				drop.append(line)
+			else:
+				out.append(line)
+	out.append_array(drop)
 	return "\n".join(out)
 
 ## A template's stats after a player's technologies and bonuses (Simulation::template_stat_mods):

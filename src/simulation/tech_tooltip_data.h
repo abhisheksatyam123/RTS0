@@ -422,3 +422,23 @@ inline const char *tech_specific_name(uint8_t tech, uint8_t civ) {
 		default: return nullptr;
 	}
 }
+
+// The tooltip of a civ's own phase_*_<civ>.json where it differs from the generic one
+// (nullptr: the technology's own).
+inline const char *tech_civ_tooltip(uint8_t tech, uint8_t civ) {
+	switch (tech) {
+		case TECH_PHASE_TOWN: // phase_town_generic
+			switch (civ) {
+				case CIV_ATHENIANS: return "Advance to Town Phase, which unlocks more entities and technologies. Civic Centers +25% territory influence radius. Structures +20% damage and +0.5 capture points regeneration rate for garrisoned units. Workers +10% metal gather rate.";
+				case CIV_PERSIANS: return "Advance to Town Phase, which unlocks more entities and technologies. Civic Centers +25% territory influence radius. Structures +20% damage and +0.5 capture points regeneration rate for garrisoned units. Decrease batch training time of units trained in Stables.";
+				default: return nullptr;
+			}
+		case TECH_PHASE_CITY: // phase_city_generic
+			switch (civ) {
+				case CIV_ATHENIANS: return "Advance to City Phase, which unlocks more entities and technologies. Civic Centers +25% territory influence radius. Structures +20% damage and +1 capture points regeneration rate for garrisoned units. Workers +10% metal gather rate.";
+				case CIV_PERSIANS: return "Advance to City Phase, which unlocks more entities and technologies. Civic Centers +25% territory influence radius. Structures +20% damage and +1 capture points regeneration rate for garrisoned units. Decrease batch training time of units trained in Stables.";
+				default: return nullptr;
+			}
+		default: return nullptr;
+	}
+}

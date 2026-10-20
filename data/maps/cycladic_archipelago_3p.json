@@ -27368,5 +27368,12 @@
       "z": 116.15,
       "template": "units/default_support_civilian"
     }
+  ],
+  "relics": [
+    {
+      "civ": 0,
+      "x": 17.93,
+      "z": -97.05
+    }
   ]
 }
