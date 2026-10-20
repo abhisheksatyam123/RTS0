@@ -48,7 +48,7 @@ func run() -> void:
 		"the replay and dump paths")
 	check(q.button_texts() == ["OK"] and not paused, "one OK button, and the match runs on")
 	var panel: Control = q.find_child("MessageBox", true, false)
-	check(panel != null and panel.custom_minimum_size == Vector2(600, 280), "OutOfSyncNetwork's 600 x 280")
+	check(panel != null and Vector2(panel.width, panel.height) == Vector2(600, 280), "OutOfSyncNetwork's 600 x 280, on the msgbox page")
 	q.press(0)
 	await process_frame
 
