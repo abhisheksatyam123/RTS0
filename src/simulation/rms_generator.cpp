@@ -1560,7 +1560,7 @@ void RmsGenerator::synth_alpine_valley(HeightmapGrid &hm, RmsRng &rng, float &wa
 
 // =========================================================================
 // Maps modelled on 0 A.D. maps/random/{syria,cantabrian_highlands,
-// pyrenean_sierra,sahel_watering_holes,persian_highlands,volcanic_lands}.js
+// sahel_watering_holes,persian_highlands,volcanic_lands}.js
 // (same coordinate convention as above).
 // =========================================================================
 
@@ -1656,26 +1656,6 @@ void RmsGenerator::synth_cantabrian_highlands(HeightmapGrid &hm, RmsRng &rng, fl
 		sp.base_height = hm.sample_world(sp.x, sp.z);
 		lift_area(hm, sp.x, sp.z, 8.0f, 1.5f, sp.base_height);
 	}
-}
-
-void RmsGenerator::synth_pyrenean_sierra(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
-	// pyrenean_sierra.js: a mountain range f = 0.68 long through the centre
-	// splits the two teams, with passes at 0.35 and 0.65 of its length.
-	water_h = -10.0f;
-	hm.init(hm.res, hm.map_half, 3.0f);
-	const float half = hm.map_half;
-	// The lowland's sinusoidal noise, about 4 m either way, and hills of 7 m.
-	hm.apply_fbm(rng, 4, 0.025f, 0.5f, 2.0f, 1.1f);
-	const float len = half * 0.68f;
-	const float w = (float)scale_by_map_size(15, 55, half) * 0.25f;
-	const float wob = rng.range_float(-0.06f, 0.06f) * half;
-	const float pass = (float)scale_by_map_size(8, 50, half) * 0.5f + 6.0f;
-	raise_ridge(hm, {{-len, wob}, {-len * 0.5f, -wob}, {0.0f, wob * 0.5f}}, w, 18.0f, len * 0.70f, pass);
-	raise_ridge(hm, {{0.0f, wob * 0.5f}, {len * 0.5f, -wob}, {len, wob}}, w, 18.0f, len * 0.30f, pass);
-	hm.thermal_erosion(3, 0.9f, 0.2f);
-	hm.blur(1, 0.35f);
-	place_side_spawns(hm, spawns, num_players, true, half * 0.60f, half * 0.62f, 0.0f);
-	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
 }
 
 void RmsGenerator::synth_sahel_watering_holes(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
@@ -11853,14 +11833,15 @@ void rescale_028(HeightmapGrid &hm, float lo, float hi) {
 	for (float &h : hm.data) h = lo + (h - a) / std::max(b - a, 1e-6f) * (hi - lo);
 }
 
-// SmoothingPainter(size, strength, iterations) over the whole map (MapBoundsPlacer): each vertex,
-// in turn and in place, moves `strength` of the way to the mean of the heights in a box `size`
-// tiles out, weighted by 1 / Manhattan distance.
-void smoothing_painter_028(HeightmapGrid &hm, float size, float strength, int iterations) {
+// SmoothingPainter(size, strength, iterations) over the whole map (MapBoundsPlacer), or over the
+// vertices in `only`: each vertex, in turn and in place, moves `strength` of the way to the mean
+// of the heights in a box `size` tiles out, weighted by 1 / Manhattan distance.
+void smoothing_painter_028(HeightmapGrid &hm, float size, float strength, int iterations, const std::vector<uint8_t> *only = nullptr) {
 	const int n = hm.res, brush = std::max(1, (int)std::lround(std::floor(size) / grid_spacing(hm)));
 	for (int it = 0; it < iterations; ++it)
 		for (int x = 0; x < n; ++x)
 			for (int z = 0; z < n; ++z) {
+				if (only && !(*only)[(size_t)z * (size_t)n + (size_t)x]) continue;
 				float sum = 0.0f, wsum = 0.0f;
 				for (int dx = -brush; dx <= brush; ++dx)
 					for (int dz = -brush; dz <= brush; ++dz) {
@@ -11926,6 +11907,57 @@ void smoothed_start_spawns_028(HeightmapGrid &hm, std::vector<RmsGenerator::Play
 	}
 }
 
+// playerPlacementArcs(sortAllPlayers(), centre, r, map_angle, a0, a1): partitionPlayers splits the
+// players into two sides (each team on one side, filled greedily, the largest team first; the
+// players without a team alone; a single team in half), the east side spread evenly between
+// map_angle + a0 and map_angle + a1 (playerPlacementArc, both ends left out), the west side between
+// map_angle - a0 and map_angle - a1, rounded to tiles.
+std::vector<std::pair<float, float>> placement_arcs_028(const HeightmapGrid &hm, RmsRng &rng, int n, const uint8_t *teams,
+		float r, float map_angle, float a0, float a1) {
+	const float half = hm.map_half;
+	const auto ids = misc_maps::sort_all_players(rng, n, teams);
+	std::vector<int> team_ids;
+	std::vector<std::vector<int>> groups;
+	for (int id : ids) {
+		const int t = teams ? teams[id] : 0;
+		const auto it = std::find(team_ids.begin(), team_ids.end(), t);
+		if (it == team_ids.end()) {
+			team_ids.push_back(t);
+			groups.push_back({id});
+		} else {
+			groups[(size_t)(it - team_ids.begin())].push_back(id);
+		}
+	}
+	const auto none = std::find(team_ids.begin(), team_ids.end(), 0);
+	if (none != team_ids.end()) {
+		const size_t k = (size_t)(none - team_ids.begin());
+		const std::vector<int> alone = groups[k];
+		groups.erase(groups.begin() + (long)k);
+		for (int id : alone) groups.push_back({id});
+	}
+	if (groups.size() == 1) {
+		const std::vector<int> all = groups[0];
+		const long mid = (long)all.size() / 2;
+		groups = {std::vector<int>(all.begin() + mid, all.end()), std::vector<int>(all.begin(), all.begin() + mid)};
+	}
+	std::stable_sort(groups.begin(), groups.end(), [](const auto &a, const auto &b) { return a.size() > b.size(); });
+	std::vector<int> east, west;
+	for (const auto &g : groups) {
+		auto &side = east.size() > west.size() ? west : east;
+		side.insert(side.end(), g.begin(), g.end());
+	}
+	std::vector<std::pair<float, float>> locs((size_t)n);
+	auto arc = [&](const std::vector<int> &side, float from, float to) {
+		const int k = (int)side.size() + 2;
+		for (int j = 1; j + 1 < k; ++j) {
+			const float a = from + (to - from) * (float)j / (float)(k - 1);
+			locs[(size_t)side[(size_t)j - 1]] = {std::round(half + r * det::cos(a)) - half, std::round(half + r * det::sin(a)) - half};
+		}
+	};
+	arc(east, map_angle + a0, map_angle + a1);
+	arc(west, map_angle - a0, map_angle - a1);
+	return locs;
+}
 
 } // namespace
 
@@ -11997,6 +12029,125 @@ void RmsGenerator::synth_schwarzwald(HeightmapGrid &hm, RmsRng &rng, float &wate
 		lift_area(hm, s.x, s.z, 26.0f, 4.0f, metres(water_h, 1.0f));
 	}
 	ensure_land_links(hm, water_h, locs);
+}
+
+void RmsGenerator::synth_pyrenean_sierra(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+		const uint8_t *teams) {
+	// pyrenean_sierra.js (0.28), in 0 A.D. map metres (the water at heightWaterLevel 8, 12 below
+	// SEA_LEVEL): land at heightBase -6 with randFloat(-1, 1) and scaleByMapSize(1, 3) x (cos(x /
+	// s) + sin(z / s)) of noise, s = scaleByMapSize(5, 30); players on playerPlacementArcs at
+	// fractionToTiles(0.35), the arcs 0.1 pi to 0.9 pi either side of oceanAngle (startAngle +-
+	// pi / 12). The Pyrenees: a range fractionToTiles(0.68) long through the centre, square to
+	// startAngle, of 100 x scaleByMapSize(1, 10) peaks scaleByMapSize(15, 55) wide, each line of
+	// heights (heightPassage + 25 + randFloat(0, 10) + randFloat(-9, 9)) x sigmoid (flattened
+	// towards the ends) over the noise, the range wobbling scaleByMapSize(1, 12); a 7-tile
+	// passage at heightPassage scaleByMapSize(25, 40) across it at 0.35 and 0.65 of its length,
+	// scaleByMapSize(8, 50) out to each side; SmoothingPainter(1, 0.3, 1) within a tile of the
+	// range (above 15 m); two oceans of diskArea(fractionToTiles(0.18)) (ClumpPlacer 0.9, 0.05)
+	// at -22 m, fractionToTiles(0.48) out at oceanAngle and opposite, SmoothingPainter(5, 0.9, 1)
+	// within 5 tiles of them; scaleByMapSize(5, 35) hills (ClumpPlacer(scaleByMapSize(60, 120),
+	// 0.3, 0.06), 7 m over 4 tiles) 5 from the water, 20 from the players and 2 from the range.
+	// The range's lines are sampled at RTS0's vertices; the passages are 9 tiles wide, not 7, so
+	// their flat floor spans RTS0's 2-tile nav cells (7 leaves 3 tiles, and the sides often don't
+	// connect); the hills leave out their 2 m of random elevation, and keep off the bases by the
+	// players' 20 alone (clBaseResource 6 lies inside it).
+	const float half = hm.map_half, size = 2.0f * half;
+	const size_t N = hm.data.size();
+	auto sc = [&](float a, float b) { return seas_scale(a, b, half); };
+	const float sea = 8.0f - 20.0f, h_passage = sc(25, 40), h_mountain = h_passage + 25.0f;
+	const float start_angle = rng.range_float(0.0f, kTwoPi);
+	const float ocean_angle = start_angle + rng.range_float(-1.0f, 1.0f) * kSeasPi / 12.0f;
+	const float m_len = 0.68f * size, m_width = sc(15, 55), peaks = 100.0f * sc(1, 10);
+	const float m_offset = rng.range_float(-1.0f, 1.0f) * sc(1, 12), pass_len = sc(8, 50);
+
+	const float amp = sc(1, 3), per = sc(5, 30);
+	std::vector<float> base(N);
+	for (size_t i = 0; i < N; ++i) {
+		float wx, wz;
+		seas_world(hm, (int)i, wx, wz);
+		const float r = rng.range_float(-1.0f, 1.0f);
+		base[i] = -6.0f + r + amp * (det::cos((wx + half) / per) + det::sin((wz + half) / per));
+	}
+	hm.data = base;
+	const auto locs = placement_arcs_028(hm, rng, num_players, teams, 0.35f * size, ocean_angle,
+	                                     0.1f * kSeasPi, 0.9f * kSeasPi);
+
+	// The range, from mountainStart (the centre less half its length) along mountainDirection.
+	const auto vec = rotate_0ad(m_len, 0.0f, -start_angle);
+	const float sx = -vec.first / 2.0f, sz = -vec.second / 2.0f, dx = vec.first / m_len, dz = vec.second / m_len;
+	for (int p = 0; (float)p < peaks; ++p) {
+		const float pos_f = (float)p / peaks, peak_h = rng.range_float(0.0f, 10.0f);
+		const auto off = rotate_0ad(m_offset, 0.0f, -pos_f * kSeasPi * 4.0f);
+		const float flat = (0.2f - std::max(0.0f, std::fabs(0.5f - pos_f) - 0.3f)) * 5.0f;
+		for (float d = 0.0f; d < m_width; d += 1.0f / 3.0f) {
+			const float rest = 2.0f * (1.0f - d / m_width);
+			const float r1 = rng.range_float(0.9f, 1.1f);
+			const float r2 = rng.range_float(0.9f, 1.1f);
+			const float r3 = rng.range_float(0.9f, 1.1f);
+			const float sig_x = -(rest - 1.9f) - 4.0f * (rest - r1) * (rest - r2) * (rest - r3);
+			for (int dir : {-1, 1}) {
+				const auto w = rotate_0ad(d, 0.0f, -start_angle - (float)dir * kSeasPi / 2.0f);
+				const float px = std::round(half + sx + dx * pos_f * m_len + off.first + w.first) - half;
+				const float pz = std::round(half + sz + dz * pos_f * m_len + off.second + w.second) - half;
+				const float jitter = rng.range_float(-9.0f, 9.0f);
+				// Only the tile at a vertex sets it.
+				const int v = seas_vertex(hm, px, pz);
+				float vx, vz;
+				seas_world(hm, v, vx, vz);
+				if (std::fabs(vx - px) > 0.5f || std::fabs(vz - pz) > 0.5f) continue;
+				hm.data[(size_t)v] = base[(size_t)v] + (h_mountain + peak_h + jitter) * flat / (1.0f + det::exp(sig_x));
+			}
+		}
+	}
+	std::vector<uint8_t> range(N);
+	for (size_t i = 0; i < N; ++i) range[i] = hm.data[i] > 15.0f; // heightPyreneans, ExcludeMin
+
+	// The passages: startHeight heightPassage, endHeight the ground at their end.
+	const float pvx = -dz * pass_len, pvz = dx * pass_len; // mountainDirection.perpendicular()
+	for (float at : {0.35f, 0.65f})
+		for (int dir : {1, -1}) {
+			const float ax = sx + vec.first * at, az = sz + vec.second * at;
+			const float bx = ax + pvx * (float)dir, bz = az + pvz * (float)dir;
+			const float hb = hm.sample_world(std::round(half + bx) - half, std::round(half + bz) - half);
+			create_passage(hm, ax, az, bx, bz, 9.0f, 9.0f, 2.0f, h_passage, hb);
+		}
+	auto near = [&](const std::vector<uint8_t> &m, float r) {
+		const auto d = seas_dist_inside(hm, m);
+		std::vector<uint8_t> out(N);
+		for (size_t i = 0; i < N; ++i) out[i] = d[i] <= r;
+		return out;
+	};
+	const auto near_range = near(range, 1.0f);
+	smoothing_painter_028(hm, 1.0f, 0.3f, 1, &near_range);
+
+	// The oceans.
+	std::vector<uint8_t> water(N, 0);
+	for (int k = 0; k < 2; ++k) {
+		const float a = ocean_angle + kSeasPi * (float)k, r = 0.48f * size, cr = 0.18f * size;
+		const auto m = seas_clump(hm, rng, kSeasPi * cr * cr, 0.9f, 0.05f, 1e9f, r * det::cos(a), r * det::sin(a), [](int) { return true; });
+		for (size_t i = 0; i < N; ++i)
+			if (!m.empty() && m[i]) hm.data[i] = -22.0f;
+		if (!m.empty()) seas_add(water, m);
+	}
+	const auto near_water = near(water, 5.0f);
+	smoothing_painter_028(hm, 5.0f, 0.9f, 1, &near_water);
+
+	// The hills.
+	const auto to_water = seas_dist_inside(hm, water), to_range = seas_dist_inside(hm, range);
+	const auto to_player = seas_dist_to_players(hm, locs, 5.0f); // addCivicCenterAreaToClass: a disk of 5
+	seas_create_areas(hm, rng, sc(5, 35), 10, [&](float x, float z) {
+		const auto m = seas_clump(hm, rng, sc(60, 120), 0.3f, 0.06f, 1e9f, x, z, [&](int i) {
+			return to_water[(size_t)i] > 5.0f && to_player[(size_t)i] > 20.0f && to_range[(size_t)i] > 2.0f;
+		});
+		if (!seas_any(m)) return false;
+		seas_paint_modify(hm, m, 7.0f, 4.0f);
+		record_area(hm, m, AREA_HILL);
+		return true;
+	});
+
+	water_h = 1.0f;
+	for (float &h : hm.data) h = coast_metres(water_h, h - sea);
+	seas_spawns(hm, spawns, locs, 16.0f, 6.0f, water_h, coast_metres(water_h, 1.0f));
 }
 
 // The paths caledonian_meadows.js lays between the players (clPath), a tile grid for its
@@ -12383,7 +12534,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			synth_cantabrian_highlands(hm, rng, water_h, spawns, config.num_players);
 			break;
 		case MAP_PYRENEAN_SIERRA:
-			synth_pyrenean_sierra(hm, rng, water_h, spawns, config.num_players);
+			synth_pyrenean_sierra(hm, rng, water_h, spawns, config.num_players, config.teams);
 			break;
 		case MAP_SAHEL_WATERING_HOLES:
 			synth_sahel_watering_holes(hm, rng, water_h, spawns, config.num_players);
