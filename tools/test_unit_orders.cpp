@@ -3556,6 +3556,20 @@ static void test_heal_click_targets() {
 	check(s.first_able_healer(&sp, 1, sp) == 0, "a spearman heals nobody");
 }
 
+static void test_guard_click_targets() {
+	std::printf("99. G guards only when a selected unit may guard the target (unit_actions.js guard, UnitAI CanGuard)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t ram = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SIEGE_RAM), sp = s.spawn_unit(3.0f, 0.0f, 0, UNIT_SPEARMAN);
+	const uint32_t friend_ = s.spawn_unit(6.0f, 0.0f, 0, UNIT_ARCHER), foe = s.spawn_unit(9.0f, 0.0f, 1, UNIT_ARCHER);
+	const uint32_t house = s.spawn_building_world(0.0f, 12.0f, BLD_HOUSE, 0, 1.0f);
+	const uint32_t both[2] = {ram, sp};
+	check(!s.any_can_guard(&ram, 1, friend_) && !s.any_can_guard(&ram, 1, house), "a ram alone guards nothing");
+	check(s.any_can_guard(both, 2, friend_) && s.any_can_guard(both, 2, house), "with a spearman the selection guards a unit or a house");
+	check(!s.any_can_guard(both, 2, foe), "nobody guards an enemy");
+	check(!s.any_can_guard(&sp, 1, sp), "a unit can't guard itself");
+}
+
 static void test_cant_do_walks() {
 	std::printf("units that can't gather or return walk to the target\n");
 	Simulation s;
@@ -3684,6 +3698,7 @@ int main(int argc, char **argv) {
 	test_rally_repair_or_garrison();
 	test_rally_on_animal();
 	test_heal_click_targets();
+	test_guard_click_targets();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
