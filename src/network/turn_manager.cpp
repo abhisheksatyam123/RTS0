@@ -1113,13 +1113,20 @@ void TurnManager::receive_sync_check(uint32_t turn, uint32_t client_id, uint32_t
 }
 
 uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
-	// Phase4 HashSerializer parity — comprehensive FNV-1a state hashing for lockstep desync verification.
+	// Phase4 HashSerializer parity — comprehensive state hashing for lockstep desync verification.
 	// Hashes all unit SoA columns (pos_x, pos_z, hp, action_state, unit_type, team, carry, kills, rank, status_effects),
 	// buildings (hp, build_progress, type, team, capture_points), resource nodes (amount, alive, type),
 	// the per-player table (stockpiles, researched tech masks, phase, civ, team),
 	// active projectiles, relics, territory grid, and market prices.
 	uint32_t hash = 2166136261u;
-	auto mix_u32 = [&](uint32_t v) { hash = (hash ^ v) * 16777619u; };
+	// Each word is xored in and avalanched with MurmurHash3's fmix32 (a bijection), so a difference in
+	// any bit reaches every hash bit and two differences cancel only by chance. Word-wise FNV-1a let two
+	// flips of the same high bit cancel (bit 31 only ever reached bit 31), e.g. two mirrored sign flips.
+	auto mix_u32 = [&](uint32_t v) {
+		uint32_t h = hash ^ v;
+		h ^= h >> 16; h *= 0x85ebca6bu; h ^= h >> 13; h *= 0xc2b2ae35u; h ^= h >> 16;
+		hash = h;
+	};
 	auto mix_float = [&](float f) { uint32_t bits; std::memcpy(&bits, &f, sizeof(float)); mix_u32(bits); };
 	auto mix_i32 = [&](int32_t v) { mix_u32((uint32_t)v); };
 	auto mix_u8 = [&](uint8_t v) { mix_u32((uint32_t)v); };
