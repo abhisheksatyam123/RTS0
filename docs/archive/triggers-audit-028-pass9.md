@@ -19,3 +19,8 @@
 | Death Canyon - Invasion Force | pass 6: p2's army gone by 4 min, p4 keeps 38 | the invasion armies clash. On seeds 33, 44 and the default, p2 wins and then takes p3's base by 4-6 min. On seeds 11 and 22, p3 holds | match: the two 80-100-unit Petra armies decide it, and the winner changes with the seed |
 
 No differences from 0.28 were found in the trigger maps in this pass.
+
+## Lobby ratings and scenario-only units
+
+- **Lobby ratings.** `tools/lobby_server.py` get_rating_adjustment was compared line by line with lobby-bots `xpartamupp/elo.py`: the same constants (sure-win difference 600, K-factor rating 2200, volatility after 20 games, anti-inflation 0.015) and the same rounding. elo.py also refuses ratings below -2199, which no game reaches.
+- **Scenario-only units.** Every template that the trigger scripts spawn in the runs above resolved to a roster template. No spawn was dropped for a missing one.
