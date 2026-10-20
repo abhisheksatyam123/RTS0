@@ -451,13 +451,16 @@ static func player_info(r: Dictionary, spoiler: bool) -> String:
 static func _player_description(p: Dictionary, spoiler: bool) -> String:
 	var c: Variant = p.get("color", null)
 	var color := Color(float(c["r"]), float(c["g"]), float(c["b"])) if c is Dictionary else Color.WHITE
-	var parts := [str(p.get("civ_name", "Unknown Civilization"))]
-	if p.get("ai", false):
-		parts.append(SummaryPage.ai_description(p))
 	var state := str(p.get("state", "won" if p.get("winner", false) else ("defeated" if p.get("defeated", false) else "active")))
-	if spoiler and state != "active" and state != "":
-		parts.append("defeated" if state == "defeated" else "won")
-	return "[color=#%s]%s[/color] (%s)" % [color.to_html(false), str(p.get("name", "?")).replace("[", "[lb]"), ", ".join(parts)]
+	var shown_state := spoiler and state != "active" and state != ""
+	# formatPlayerInfo: one msgid per combination, so a language can reorder them.
+	var fmt := "%(playerName)s (%(civ)s, %(AIdescription)s" if p.get("ai", false) else "%(playerName)s (%(civ)s"
+	fmt += ", %(state)s)" if shown_state else ")"
+	return L10n.sprintf(L10n.t(fmt), {
+		"playerName": "[color=#%s]%s[/color]" % [color.to_html(false), str(p.get("name", "?")).replace("[", "[lb]")],
+		"civ": L10n.t(str(p.get("civ_name", "Unknown Civilization"))),
+		"AIdescription": SummaryPage.ai_description(p) if p.get("ai", false) else "",
+		"state": L10n.t("defeated" if state == "defeated" else "won")})
 
 ## displayReplayDetails.
 func display_replay_details() -> void:

@@ -131,9 +131,11 @@ void RtsoMain::update_cursor() {
 					for (const auto &b : sim->buildings()) {
 						if (b.id != bld) continue;
 						if (b.team == me || sim->is_ally(me, b.team)) {
-							if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) {
+							const bool repairable = b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD;
+							const int capacity = b.build_progress >= 1.0f ? sim->get_garrison_capacity(b.id) : 0;
+							if (repairable && (rtso::hotkeys::held("session.repair") || capacity <= 0)) {
 								want = "action-repair";
-							} else if (const int capacity = sim->get_garrison_capacity(b.id); capacity > 0) {
+							} else if (capacity > 0) {
 								want = "action-garrison";
 								const int occupied = sim->get_garrison_occupied(b.id);
 								tip = rtso::sprintf0(rtso::tr0("Current garrison: %(garrisoned)s/%(capacity)s"),
@@ -258,9 +260,7 @@ void RtsoMain::update_cursor() {
 			}
 			if (!*want) {
 				if (const uint32_t sid = scenery_at(at.x, at.z); sid != 0) {
-					const int32_t k = sim->scenery_index(sid);
-					const bool ctrl = rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove");
-					want = k >= 0 && sim->scenery_capturable(sim->scenery()[k]) && !ctrl ? "action-capture" : "action-attack";
+					want = scenery_click(sid) == CLICK_CAPTURE ? "action-capture" : "action-attack";
 				}
 			}
 			if (!*want) {
@@ -300,8 +300,6 @@ void RtsoMain::update_cursor() {
 						want = tc;
 						break;
 					}
-					// 0 A.D. "capture" is the default on enemy structures; session.attack
-					// (or attack-move's Ctrl) attacks instead.
 					// unit_actions "gather" (specificness 1): any player's finished field.
 					// unit_actions.js "returnresource": a carrier over a dropsite that takes its load.
 					{
@@ -326,10 +324,11 @@ void RtsoMain::update_cursor() {
 					const uint32_t grain = b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
 					if (grain && sim->any_can_gather((const uint32_t *)selected_ids.ptr(), selected_ids.size(), grain))
 						want = "action-gather-grain";
-					else if (b.team != me && sim->is_hostile(me, b.team))
-						want = (rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove") ||
-										  b.max_capture_points <= 0.0f)
-								? "action-attack" : "action-capture";
+					// "attack" (9) before "capture" (10); session.capture (C) captures (structure_click).
+					else if (b.team != me && sim->is_hostile(me, b.team)) {
+						const StructureClick c = structure_click(b.id);
+						want = c == CLICK_CAPTURE ? "action-capture" : c == CLICK_ATTACK ? "action-attack" : "";
+					}
 					else if (b.team != me && !sim->is_ally(me, b.team)) want = ""; // neutral
 					else if (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me)) want = "action-build";
 					else if (b.hp < b.max_hp) want = "action-repair"; // own or allied (unit_actions "repair")
