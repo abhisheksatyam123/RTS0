@@ -352,7 +352,7 @@ gui/campaigns, gui/common/campaigns, session/campaigns and pregame/MainMenuItems
 | CA10 | Captions: OK/Cancel in place of Cancel/Start Campaign on the new-run dialog (title and prompt untranslated), "Name" for "Scenario Name", "Back to Main Menu" for the setup page's "Main Menu"; the load page lacked "Name of selected run:" and RTS0 added "No campaigns." / "No levels." texts | cosmetic | Fixed |
 | CA11 | List colours: names 172 172 212, status 192 192 192, locked names "gray" 143 142 140 (RTS0 white and 128) | cosmetic | Fixed |
 | CA12 | A campaign without an Image showed no picture; 0.28 shows nopreview.png | cosmetic | Fixed |
-| CA13 | 0.28 starts a level with mapName and mapPreview set to the level's Name and Preview, shown in saves and in game; RTS0 shows the map's own. The two tutorial levels are named as their maps, so nothing differs today | low | Open: Triggers |
+| CA13 | 0.28 starts a level with mapName and mapPreview set to the level's Name and Preview, shown in saves and in game; RTS0 showed the map's own | low | Fixed (the name; a level Preview is the same picture as its map's in both shipped templates) |
 | CA14 | The current run is kept in user://saves/campaigns/current, not user.cfg's "currentcampaign", so a 0.28 user.cfg's run isn't picked up | low | Deliberate |
 
 CCmpCinemaManager, CinemaManager, CCinemaPath and session.js's cinema handling were checked against cinema.h, tick_cinema and cinema_view.h:
@@ -382,12 +382,12 @@ Trigger.js, TriggerPoint.js, Timer.js and every TriggerHelper.js helper were che
 | TH2 | Elephantine's tower and temple garrisons left out the Noba skirmishers and macemen (merc_e); GetTemplateNamesByClasses keeps them | low-medium | Fixed |
 | TH3 | OnOwnershipChanged is polled after the turn's timers, so a timer could act on an entity that changed hands the turn before (a Survival wave at a fallen CC); 0 A.D. sends it at once | low | Fixed in effect: the watches also run before the timers. Still polled within a turn |
 | TH4 | A defeated player's trigger points kept their owner; 0.28 hands them to Gaia, so Gallic Fields' waves from them walk to a Gaia A point | low | Fixed |
-| TH5 | SpawnUnits places units round the trigger point's 2 m footprint (PickSpawnPoint); RTS0 spreads them on a spiral or ring | cosmetic | Open |
+| TH5 | SpawnUnits places units round the trigger point's 2 m footprint (PickSpawnPoint); RTS0 spread them on a spiral | cosmetic | Fixed for units (Gallic Fields, Survival). Polar Sea's wolves keep a small ring (spawn_fauna has no spawn-point search) |
 | TH6 | Jebel Barkal's elephants drew their target classes once per wave; 0.28 draws once per player | low | Fixed |
 | TH7 | Danubius ships that couldn't unload kept their landing point and retried every 5 s; 0.28 unloads once and moves on either way, and draws the formation even when nobody is aboard | low | Fixed |
 | TH8 | Danubius' ritual made only infantry, women and healers defensive; 0.28 does every Gaia Human (cavalry too) | low | Fixed |
 | TH9 | GetLandSpawnPoints left out treasures and catafalques | low | Fixed |
-| TH10 | Gallic Fields rounds the wave delay to whole ms; float vs double in RandomTemplateComposition; RegisterTrigger has no duplicate guard | negligible | Open |
+| TH10 | Gallic Fields rounds the wave delay to whole ms; float vs double in RandomTemplateComposition; RegisterTrigger has no duplicate guard | negligible | Open: Triggers |
 
 ## Read this first: whole-game parity (refreshed 2026-10-08, evening)
 

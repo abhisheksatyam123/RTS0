@@ -36830,6 +36830,15 @@ bool Simulation::cmd_resign(uint8_t pid) {
 	return true;
 }
 
+bool Simulation::trigger_point_spawn_spot(const TriggerPoint &p, uint8_t type, float &x, float &z) const {
+	// TriggerHelper.SpawnUnits: Footprint.PickSpawnPoint round the point's <Circle radius="2.0"/>
+	// (metres x0.28, as pick_spawn_point_box's MaxSpawnDistance), else the point itself.
+	if (pick_spawn_point_box(p.x, p.z, 0.0f, 0.0f, 0.0f, 2.0f * 0.28f, false, 0.0f, 0.0f, type, 0, x, z)) return true;
+	x = p.x;
+	z = p.z;
+	return false;
+}
+
 void Simulation::tick_trigger_watches() {
 	// OnOwnershipChanged for the entities the scripts follow (see TriggerWatch).
 	if (triggers_.watched.empty()) return;
@@ -36985,10 +36994,9 @@ void Simulation::trigger_gallic_fields(bool attack) {
 		if (p.ref != ref || tmpl == CIV_UNIT_TEMPLATE_NONE) continue;
 		std::vector<uint32_t> ids;
 		for (int k = 0; k < v[0]; ++k) {
-			// TriggerHelper.SpawnUnits puts them all on the point; spread them a little.
-			const float a = 2.3999632f * (float)k, r = 0.8f * std::sqrt((float)k);
-			if (const uint32_t id = spawn_unit(p.x + det::cos(a) * r, p.z + det::sin(a) * r, GAIA_PLAYER,
-					(UnitType)civ_unit_template(tmpl).unit_type, 0.0f, tmpl))
+			float x, z;
+			trigger_point_spawn_spot(p, civ_unit_template(tmpl).unit_type, x, z);
+			if (const uint32_t id = spawn_unit(x, z, GAIA_PLAYER, (UnitType)civ_unit_template(tmpl).unit_type, 0.0f, tmpl))
 				ids.push_back(id);
 		}
 		for (const TriggerPoint &t : triggers_.points)
@@ -37702,9 +37710,9 @@ void Simulation::trigger_survival_wave() {
 			std::vector<uint32_t> ids;
 			const CivUnitTemplate &t = civ_unit_template(tmpl);
 			for (int k = 0; k < n; ++k) {
-				// TriggerHelper.SpawnUnits puts them all on the point; spread them a little.
-				const float a = 2.3999632f * (float)k, r = 0.8f * std::sqrt((float)k);
-				if (const uint32_t id = spawn_unit(p.x + det::cos(a) * r, p.z + det::sin(a) * r, GAIA_PLAYER, (UnitType)t.unit_type, 0.0f, tmpl))
+				float x, z;
+				trigger_point_spawn_spot(p, t.unit_type, x, z);
+				if (const uint32_t id = spawn_unit(x, z, GAIA_PLAYER, (UnitType)t.unit_type, 0.0f, tmpl))
 					ids.push_back(id);
 			}
 			if (ids.empty()) continue;
