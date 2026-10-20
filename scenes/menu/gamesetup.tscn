@@ -130,11 +130,11 @@ tooltip_text = "Select a map to play on."
 mouse_filter = 1
 text = "Select Map"
 
-[node name="MapList" type="ItemList" parent="VBox/HBox/LeftScroll/Left/MapTab"]
+[node name="MapList" type="RtsoSafeSelect" parent="VBox/HBox/LeftScroll/Left/MapTab"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 190)
+custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
-size_flags_vertical = 3
+tooltip_text = "Select a map to play on."
 
 [node name="SeedRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left/MapTab"]
 unique_name_in_owner = true
