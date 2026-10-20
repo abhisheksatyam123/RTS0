@@ -16975,6 +16975,33 @@ bool Simulation::cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool loc
 
 // Guard.js guards any entity: a unit, or a structure (target_unit_id stays 0 then and
 // order_target names the structure). Unit and structure ids share one id space.
+// UnitAI CanGuard: siege engines, traders, merchant and fishing ships and catafalques never
+// guard (template_unit_* CanGuard false).
+bool Simulation::unit_can_guard(size_t i) const {
+	const uint8_t ut = units_.unit_type[i];
+	return !(unit_is_siege_engine(ut) || ut == UNIT_TRADER || ut == UNIT_MERCHANT_SHIP || ut == UNIT_FISHING_BOAT ||
+			ut == UNIT_CATAFALQUE);
+}
+
+bool Simulation::any_can_guard(const uint32_t *unit_ids, size_t count, uint32_t target_id) const {
+	const int32_t t = lookup_unit(target_id);
+	uint8_t team;
+	if (t >= 0) {
+		if (!units_.alive[t]) return false;
+		team = units_.team[t];
+	} else if (auto it = building_id_to_idx_.find(target_id); it != building_id_to_idx_.end() && !buildings_[it->second].wrecked) {
+		team = buildings_[it->second].team;
+	} else {
+		return false;
+	}
+	for (size_t n = 0; n < count; ++n) {
+		const int32_t u = lookup_unit(unit_ids[n]);
+		if (u < 0 || !units_.alive[u] || unit_ids[n] == target_id || !unit_can_guard((size_t)u)) continue;
+		if (team == units_.team[u] || is_ally(units_.team[u], team)) return true;
+	}
+	return false;
+}
+
 void Simulation::order_guard(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_unit_id, bool queued) {
 	AiCommandScope ai_cmd(*this, AiCommandEvent::GUARD, unit_ids_in, count_in, target_unit_id);
 	int32_t tidx = lookup_unit(target_unit_id);
@@ -16992,12 +17019,7 @@ void Simulation::order_guard(const uint32_t *unit_ids_in, size_t count_in, uint3
 	for (uint32_t uid : now) {
 		int32_t idx = lookup_unit(uid);
 		if (idx < 0 || !units_.alive[idx] || uid == target_unit_id) continue;
-		// UnitAI CanGuard: siege engines, traders, merchant and fishing ships and
-		// catafalques never guard (template_unit_* CanGuard false).
-		const uint8_t ut = units_.unit_type[idx];
-		if (unit_is_siege_engine(ut) || ut == UNIT_TRADER || ut == UNIT_MERCHANT_SHIP || ut == UNIT_FISHING_BOAT ||
-				ut == UNIT_CATAFALQUE)
-			continue;
+		if (!unit_can_guard((size_t)idx)) continue;
 		// Guard.js: one's own or an ally's.
 		const uint8_t gteam = tb ? tb->team : units_.team[tidx];
 		if (gteam != units_.team[idx] && !is_ally(units_.team[idx], gteam)) continue;
@@ -17417,12 +17439,17 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 			const float ix = units_.order_x[i] - units_.pos_x[i], iz = units_.order_z[i] - units_.pos_z[i];
 			constexpr float GATHER_NEAR_RANGE = 12.0f / 4.0f; // DefaultRelaxedMaxRange, as in motion_feedback
 			if (ix * ix + iz * iz > GATHER_NEAR_RANGE * GATHER_NEAR_RANGE) {
+				// GatherNearPosition keeps the order's type and template (UnitAI.js:5705-5711, its
+				// order data "type" and "template"), so the search on arrival takes the same
+				// type.specific, and a hunter the same animal (UnitAI.js:2622-2629). order_walk
+				// sets the walk's own flags, so the resource kind is read before it.
+				const uint8_t kind_bits = units_.order_flags[i] & ORDER_FLAG_SUB_MASK;
 				uint32_t id = uid;
 				order_walk(&id, 1, units_.order_x[i], units_.order_z[i], false);
 				// Keep the gather intent across the walk back: a gather order with no
 				// target searches again once the walk ends (motion_feedback arrival).
 				units_.order_kind[i] = ORDER_GATHER;
-				units_.order_flags[i] &= ORDER_FLAG_SUB_MASK; // keep the resource kind, drop FORCE
+				units_.order_flags[i] = kind_bits; // keep the resource kind, drop FORCE ("force": false)
 				units_.order_target[i] = 0;
 				units_.target_resource_id[i] = 0;
 				return;
