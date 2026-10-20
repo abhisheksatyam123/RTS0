@@ -7,6 +7,7 @@
 #include "simulation/simulation.h"
 #include "simulation/entity_limits_data.h"
 #include "simulation/promotion_data.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -245,6 +246,21 @@ int main() {
 		CHECK(!building_trains_template(BLD_TOWN_CENTER, CIV_ATHENIANS, CIV_PERSIANS, roster_id("pers/support_civilian")));
 		// Nothing of the builder's other units.
 		CHECK(!building_trains_template(BLD_TOWN_CENTER, CIV_ATHENIANS, CIV_PERSIANS, roster_id("athen/infantry_spearman_b")));
+		// Units only the captured structure trains for the captor get rows of their own: a Roman
+		// Army Camp held by Athenians trains athen/infantry_spearman_a, and a Kushite Temple of
+		// Amun the Athenian elite healer (G34); neither comes from the captor's own structures.
+		const uint16_t athen_spear_a = roster_id("athen/infantry_spearman_a"), athen_healer_e = roster_id("athen/support_healer_e");
+		CHECK(building_trains_template(BLD_ARMY_CAMP, CIV_ROMANS, CIV_ATHENIANS, athen_spear_a));
+		CHECK(!building_trains_template(BLD_ARMY_CAMP, CIV_ROMANS, CIV_ATHENIANS, roster_id("athen/infantry_spearman_b")));
+		CHECK(!building_trains_template(BLD_BARRACKS, CIV_ATHENIANS, CIV_ATHENIANS, athen_spear_a));
+		CHECK(building_trains_template(BLD_TEMPLE_AMUN, CIV_KUSHITES, CIV_ATHENIANS, athen_healer_e));
+		CHECK(!building_trains_template(BLD_TEMPLE, CIV_ATHENIANS, CIV_ATHENIANS, athen_healer_e));
+		CHECK(building_trains_template(BLD_ARMY_CAMP, CIV_ROMANS, CIV_MAURYANS, roster_id("maur/infantry_swordsman_a")));
+		CHECK(building_trains_template(BLD_ARMY_CAMP, CIV_ROMANS, CIV_MACEDONIANS, roster_id("mace/infantry_pikeman_a")));
+		{
+			const std::vector<uint16_t> &ids = civ_roster_ids(CIV_ATHENIANS);
+			CHECK(std::find(ids.begin(), ids.end(), athen_spear_a) != ids.end());
+		}
 
 		static Simulation k;
 		k.set_sim_seed(17);

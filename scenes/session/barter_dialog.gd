@@ -103,6 +103,17 @@ func _info_button() -> Button:
 		b.expand_icon = true
 	return b
 
+func _arrow_button(dir: String) -> TextureButton:
+	var b := TextureButton.new()
+	b.name = "arrow_" + dir
+	b.ignore_texture_size = true
+	b.stretch_mode = TextureButton.STRETCH_SCALE
+	for pair in [["texture_normal", ""], ["texture_hover", "_over"]]:
+		var path := "res://assets/textures/ui/icons/arrowbox_%s%s.png" % [dir, pair[1]]
+		if ResourceLoader.exists(path):
+			b.set(pair[0], load(path))
+	return b
+
 # BarterButton.xml: a 38 px icon with the amount over its top half and, on the
 # selected sell button, the corners frame.
 func _icon_button(r: int, size: Vector2) -> Button:
@@ -186,22 +197,13 @@ func _build() -> void:
 		good.pressed.connect(_on_good_selected.bind(r))
 		_place(good, col, Vector2(4, 0), Vector2(32, 32))
 		(good.get_node("amount") as Label).size = Vector2(32, 32)
-		# StoneArrowUp / StoneArrowDn beside the button. 0 A.D.'s
-		# global/button/arrowbox_*.dds are copied to assets/textures/ui/icons/.
-		var up := Button.new()
-		up.text = ""
-		var up_path := "res://assets/textures/ui/icons/arrowbox_up.png"
-		if ResourceLoader.exists(up_path):
-			up.icon = load(up_path)
-			up.expand_icon = true
+		# StoneArrowUp / StoneArrowDn beside the button: bare sprites, the _over
+		# one on hover. 0 A.D.'s global/button/arrowbox_*.dds are copied to
+		# assets/textures/ui/icons/.
+		var up := _arrow_button("up")
 		up.pressed.connect(_on_arrow.bind(r, 1))
 		_place(up, col, Vector2(36, 0), Vector2(16, 16))
-		var dn := Button.new()
-		dn.text = ""
-		var dn_path := "res://assets/textures/ui/icons/arrowbox_down.png"
-		if ResourceLoader.exists(dn_path):
-			dn.icon = load(dn_path)
-			dn.expand_icon = true
+		var dn := _arrow_button("down")
 		dn.pressed.connect(_on_arrow.bind(r, -1))
 		_place(dn, col, Vector2(36, 16), Vector2(16, 16))
 		_trade_rows[r] = {"up": up, "button": good, "dn": dn}
@@ -302,8 +304,8 @@ func _update_trade(st: Dictionary) -> void:
 		b.disabled = not controls
 		if b.has_node("selection"):
 			b.get_node("selection").visible = controls and is_sel
-		(row["up"] as Button).visible = controls and not is_sel and current != 100 and selected_amount != 0
-		(row["dn"] as Button).visible = controls and not is_sel and current != 0 and selected_amount != 100
+		(row["up"] as BaseButton).visible = controls and not is_sel and current != 100 and selected_amount != 0
+		(row["dn"] as BaseButton).visible = controls and not is_sel and current != 0 and selected_amount != 100
 	# TraderStatusText: the land and ship texts a blank line apart.
 	_trader_text.text = _land_text(st.get("land", {})) + "\n\n" + _ship_text(st.get("ship", {}))
 

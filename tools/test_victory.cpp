@@ -1022,7 +1022,7 @@ int main() {
 		CHECK(std::none_of(ns.begin(), ns.end(), [](const auto &n) { return n.kind == N::PHASE_STARTED || n.kind == N::PHASE_ABORTED; }));
 		for (int r = 0; r < RES_COUNT; ++r) sim.players_[1].res[r] = 5000.0f;
 		CHECK(sim.cmd_research(1, tc1, TECH_PHASE_TOWN));
-		for (int i = 0; i < 10; ++i) sim.tick(0.05f);
+		for (int i = 0; i < 25; ++i) sim.tick(0.05f); // the queue's first second (ProgressInterval)
 		CHECK(sim.cmd_cancel_train(1, tc1, 0));
 		ns = sim.take_session_notices();
 		std::erase_if(ns, [](const auto &n) { return n.kind != N::PHASE_STARTED && n.kind != N::PHASE_ABORTED; });

@@ -91,14 +91,19 @@ func run() -> void:
 	TranslationServer.set_locale("en")
 	TranslationServer.remove_translation(de)
 	check(guard_tip.ends_with("Bewachen\nAusgewählten Einheiten befehlen, ein Gebäude oder eine Einheit zu bewachen."), "Guard's tooltip is translated: " + guard_tip.replace("\n", " | "))
-	# The first group icon is the villagers (e2e_command_panel narrows to them).
+	# The civilians' group icon (Athenians start with artisans; the groups' order varies).
 	var g: Dictionary = main.debug_selection_grid(false)
-	instance_from_id(g["icons"][0]["id"]).emit_signal("pressed")
+	var women_icon: int = g["icons"][0]["id"]
+	for ic in g["icons"]:
+		if str(ic["tip"]).contains("Female Citizen") or str(ic["tip"]).contains("Artisan"):
+			women_icon = ic["id"]
+	instance_from_id(women_icon).emit_signal("pressed")
 	await frames(2)
 	t = texts()
 	print("  villagers: ", t)
 	check(t.has("Delete") and t.has("Garrison") and t.has("Repair"), "civilians can delete, garrison and repair")
-	check(not t.has("Call to Arms") and not t.has("Guard") and not t.has("Patrol"), "but have no Call to Arms, Guard or Patrol")
+	# UnitAI CanGuard is template_unit's true; civilians' templates set CanPatrol false.
+	check(not t.has("Call to Arms") and t.has("Guard") and not t.has("Patrol"), "they guard, but have no Call to Arms or Patrol")
 	var tip: String = button("Delete").get("tip", "")
 	check(tip.contains("Self-Destruct") and tip.contains("to avoid the confirmation dialog"), "Delete's tooltip is 0.28's: " + tip.replace("\n", " | "))
 

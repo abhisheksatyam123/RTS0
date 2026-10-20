@@ -83,7 +83,11 @@ func run() -> void:
 	main.debug_selection_grid(true)
 	await frames(2)
 	var g: Dictionary = main.debug_selection_grid(false)
-	instance_from_id(g["icons"][0]["id"]).emit_signal("pressed")  # the villagers
+	var civ_icon: int = g["icons"][0]["id"]
+	for ic in g["icons"]: # the civilians (Athenians start with artisans; the groups' order varies)
+		if str(ic["tip"]).contains("Female Citizen") or str(ic["tip"]).contains("Artisan"):
+			civ_icon = ic["id"]
+	instance_from_id(civ_icon).emit_signal("pressed")
 	await frames(4)
 	var row: Array = main.debug_command_row()
 	var builds: Array = []

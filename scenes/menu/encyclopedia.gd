@@ -18,6 +18,7 @@ var _tabs: TabContainer
 var _hotkeys := RtsoHotkeyConfig.new()
 
 func _ready() -> void:
+	preload("res://scenes/common/fit_screen.gd").cap($Center/Panel, Vector2(1100, 680))
 	var tabs: TabContainer = $Center/Panel/VBox/TabContainer
 	_tabs = tabs
 	_civinfo = CivInfo.new()

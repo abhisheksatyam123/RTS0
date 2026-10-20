@@ -181,7 +181,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 109; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 110; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_QUEUE_CLOCK = 110; // each structure's time into its production queue's second
 	static constexpr uint32_t SAVE_VERSION_FAUNA_ROAM = 108; // each animal's MoveRandomly roamAngle and startAngle
 	static constexpr uint32_t SAVE_VERSION_PETRA_TILE_BASES = 107; // the base that claimed each of Petra's territory tiles
 	static constexpr uint32_t SAVE_VERSION_CHASE_TARGET = 105; // the target each unit was last in attack range of (UnitAI CHASING)
@@ -398,6 +399,9 @@ public:
 		uint8_t upgrade_to = BLD_TYPE_COUNT;
 		float upgrade_timer = 0.0f;
 		float upgrade_duration = 0.0f;
+		// ProductionQueue.js ProgressTimeout: the queue works in whole seconds from when it
+		// started; this is the time into the current one (0 while the queue is empty).
+		float queue_clock = 0.0f;
 		std::array<float, RES_COUNT> upgrade_paid{};
 
 		// 0 A.D. Gate.js (gates: is_gate_type). An unlocked gate never blocks long-range
@@ -2070,6 +2074,13 @@ public:
 		return diplomacy_[a][b] == DIPLO_ALLY && diplomacy_[b][a] == DIPLO_ALLY;
 	}
 	bool is_mutual_ally(uint8_t player_id) const { return player_id != 0 && is_ally(0, player_id); }
+	// cmpPlayer.IsAlly: a teammate, or a player a has declared an ally, whatever b answered
+	// (IsOwnedByAllyOfPlayer, as Builder.CanRepair uses).
+	bool regards_as_ally(uint8_t a, uint8_t b) const {
+		if (a == b) return true;
+		if (a >= MAX_PLAYERS || b >= MAX_PLAYERS) return false;
+		return players_[a].team == players_[b].team || diplomacy_[a][b] == DIPLO_ALLY;
+	}
 	// Hostile: whom a may shoot at. a's own stance decides, so a one-sided
 	// alliance leaves a holding fire while b keeps attacking (0 A.D. parity).
 	// Teammates are never hostile whatever the stances say.
@@ -3824,7 +3835,8 @@ private:
 	void petra_check_base_expansion(); // headquarters.js checkBaseExpansion
 	bool petra_build_new_base(int res = -1); // headquarters.js buildNewBase (res: RES_* or none)
 	bool petra_find_strategic_cc_location(uint8_t btype, float &out_x, float &out_z);
-	bool petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z);
+	bool petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z,
+	                                     const float *proximity = nullptr);
 	bool petra_cc_tile_ok(uint8_t btype, float x, float z) const;
 	// queueplanBuilding.js findDockPosition: a dock site on `land` by `sea` (cell of its corner).
 	// findDockPosition's other searches, over the whole map: buildOverseaDock's (on any of
@@ -3916,8 +3928,9 @@ private:
 	                        bool avoid_enemy, float &out_x, float &out_z, const float *skip_near = nullptr) const;
 	bool petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z, uint16_t sea,
 	                           uint8_t owner);
-	void petra_step_transport(PetraTransportPlan &tp, float dt);
+	void petra_step_transport(PetraTransportPlan &tp, float dt, std::vector<PetraReferry> &referry);
 	uint32_t petra_free_transport_ship(uint16_t sea, float x, float z) const;
+	void petra_pickup_point(uint32_t ship, uint16_t sea, float from_x, float from_z, float to_x, float to_z, float &out_x, float &out_z) const;
 	uint32_t petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue);
 	// queueplanBuilding.js findPosition (basesMap, influences, findBestTile).
 	struct PetraBasesMap {

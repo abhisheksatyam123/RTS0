@@ -1191,6 +1191,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u8(b.is_burning ? 1 : 0);
 		mix_u8(b.upgrade_to);
 		mix_float(b.upgrade_timer);
+		mix_float(b.queue_clock);
 		mix_u8((uint8_t)((b.gate_open ? 1 : 0) | (b.gate_locked ? 2 : 0)));
 	}
 
