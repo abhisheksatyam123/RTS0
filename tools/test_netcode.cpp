@@ -1082,7 +1082,12 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             std::printf("[net-peer] host: kick %s peer=%u turn=%u ok=%d\n", opt.kick_name.c_str(), victim,
                         tm.current_turn(), net.kickPeer(victim, opt.ban) ? 1 : 0);
         }
-        if (tm.tick(dt, sim)) {
+        // CGame::Update runs up to sim-rate turns a frame. Seated peers run one,
+        // so each scripted turn above posts its orders; an observer, which
+        // posts nothing, may run more to catch up at speeds the frame rate
+        // alone could not reach.
+        const int max_turns = tm.is_observer() ? std::max(1, (int)speed) : 1;
+        for (int ran = 0; ran < max_turns && tm.current_turn() < turns && tm.tick(ran ? 0.0f : dt, sim); ++ran) {
             const auto &f = tm.turn_history().back();
             // Both peers stand on the same state at this turn boundary: wipe the
             // joiner's player out so the conquest check defeats it. It keeps

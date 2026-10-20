@@ -31,4 +31,4 @@ None of these touches simulation state or the save format.
 ## Fix log
 - 2026-10-20 #1365 pass 9 gap 1 (before Start, /list lists every connected client and /kickspecs and /banspecs reach the unassigned ones, as g_PlayerAssignments does) merged.
 - 2026-10-20 gap 5 ("== " setup status lines) fixed by Session UI's #1342; nothing left to do here.
-- 2026-10-20 #PR2 pass 9 gap 2 (opening the lobby page or dialog sets the presence to Online and clears Away; closing the dialog over a game makes it Busy again, as LobbyHandler does) merged.
+- 2026-10-20 #1367 pass 9 gap 2 (opening the lobby page or dialog sets the presence to Online and clears Away; closing the dialog over a game makes it Busy again, as LobbyHandler does) merged.
