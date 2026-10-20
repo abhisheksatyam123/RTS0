@@ -156,7 +156,8 @@ func run() -> void:
 	hk._on_picker_reset()
 	var after := FileAccess.get_file_as_string(cfg_path)
 	check(not after.contains("Ctrl+Shift+F10") and not after.contains("Ctrl+Shift+F9")
-		and Array(hk.cfg.get_hotkey_map()["summary"]).has("Ctrl+Shift+F9"), "Reset saves that hotkey's default straight away, and only it")
+		and Array(hk.hotkeys["summary"]).has("Ctrl+Shift+F9") and not Array(hk.cfg.get_hotkey_map()["summary"]).has("Ctrl+Shift+F9"),
+		"Reset saves that hotkey's default straight away, and only it; the other edit stays on the page, not in the live keys")
 	hk._close_picker(false)
 	hk.cfg.reload()
 	var f := FileAccess.open(cfg_path, FileAccess.WRITE)
