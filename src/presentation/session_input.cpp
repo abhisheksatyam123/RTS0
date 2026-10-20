@@ -209,6 +209,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 		if (fired("pause")) {
+			// Menu.js initButton: the Pause entry's own hotkey closes the menu first.
+			if (Node *menu = get_node_or_null(NodePath("PauseMenu"))) menu->call("_close");
 			toggle_pause();
 			return;
 		}
@@ -609,7 +611,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						} else {
 							// Check building hit: any visible part (0 A.D. picks the
 							// rendered entity), then the old ground test round its base.
-							uint32_t hit_bld = building_under_mouse(mouse_pos, nullptr);
+							// Control all units: anyone's structure (selection.js addList force).
+							uint32_t hit_bld = building_under_mouse(mouse_pos, nullptr, sim->controls_all(local_player()));
 							for (const auto &b : sim->buildings()) {
 								if (hit_bld != 0) break;
 								if (b.team != local_player()) continue;
@@ -891,11 +894,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) continue; // own or allied
 					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z, hit_r = b.half_size + 1.2f;
 					if (dx * dx + dz * dz <= hit_r * hit_r) {
-						garrison_click = true;
+						// "garrison" (20) and "occupy-turret" (21) come before "attack-move" (30) when
+						// their hotkeyActionCheck finds something to do; otherwise Ctrl attack-moves.
+						garrison_click = armed_turret || (force_garrison && selection_can_garrison(b.id)) ||
+								(force_turret && selection_can_occupy_turret(b.id));
 						turret_target = b.id;
 						break;
 					}
 				}
+				// A ship, ram or siege tower a selected unit may board ("garrison" takes any GarrisonHolder).
+				if (!garrison_click && force_garrison && transport_under(click_pos.x, click_pos.z) != 0) garrison_click = true;
 			}
 			// The armed Occupy Turret takes this click whatever lies under it: the holder's points,
 			// or nothing (action-occupy-turret-disabled).
@@ -978,9 +986,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// A loaded ship right-clicked on land just moves (unit_actions.js has no unload-on-click
 			// action): passengers leave through Unload All, the garrison icons or session.unload.
 
-			// 1. Right click on an own or allied ship, ram or siege tower (board it).
+			// 1. session.garrison + right click on an own or allied ship, ram or siege tower (board it).
 			// unit_actions.js "garrison" takes any GarrisonHolder: warships, rams and siege towers.
-			// Its specificness 20 loses to "repair" (11) unless session.garrison forces it.
+			// Its specificness 20 loses to "repair" (11) and "move" (12): a plain click walks there.
 			const uint32_t clicked_transport_id = transport_under(click_pos.x, click_pos.z);
 			auto board = [&]() {
 				if (turn_cmds())
@@ -1021,10 +1029,6 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					play_civ_voice("build");
 					return;
 				}
-			}
-			if (clicked_transport_id != 0) {
-				board();
-				return;
 			}
 
 			// 1c. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor).
@@ -1251,18 +1255,23 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					} else if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) {
 						break; // neutral: walk there
 					} else if (b.team != local_player()) {
-						// An ally's structure: repair it, else garrison (Garrisonable / IsOwnedByMutualAllyOfEntity).
-						if (b.build_progress < 1.0f || b.hp < b.max_hp) {
+						// An ally's structure: return resources to its shared dropsite ("returnresource", 2,
+						// Diaspora), else repair it, else walk there ("move", 12, beats "garrison", 20,
+						// which needs session.garrison).
+						bool carriers = false;
+						for (size_t k = 0; k < sel_n && !carriers; ++k) carriers = sim->can_return_resource(sel_ptr[k], b.id);
+						if (carriers) {
+							if (turn_cmds())
+								post_lockstep(34, sel_ptr, sel_n, 0, 0, b.id, qbit);
+							else
+								sim->order_return_resource(sel_ptr, sel_n, b.id, queue_shift);
+							play_civ_voice("gather");
+						} else if (b.build_progress < 1.0f || b.hp < b.max_hp) {
 							if (turn_cmds())
 								post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
 								sim->order_build_or_repair(sel_ptr, sel_n, b.id, queue_shift);
 							play_civ_voice("build");
-						} else if (selection_can_garrison(b.id)) {
-							if (turn_cmds())
-								post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
-							else
-								sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
 						} else {
 							break; // nothing to do there: walk
 						}
@@ -1289,13 +1298,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							else
 								sim->cmd_upgrade_building(local_player(), b.id);
 							play_civ_voice("build");
-						} else if (selection_can_garrison(b.id)) {
-							if (turn_cmds())
-								post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
-							else
-								sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
 						} else {
-							break; // no selected unit is on its GarrisonHolder List: walk
+							break; // "move" (12) beats "garrison" (20) without session.garrison: walk
 						}
 					}
 					return;
@@ -1606,12 +1610,10 @@ std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
 		return sp.x >= min_p.x && sp.x <= max_p.x && sp.y >= min_p.y && sp.y <= max_p.y;
 	};
 	auto uview = sim->units();
-	const bool control_all = sim->controls_all(local_player());
 	for (size_t i = 0; i < uview.count; ++i) {
-		if (!uview.alive[i]) continue;
-		if (uview.team[i] != local_player() &&
-				(!control_all || !rtso::los_sees_unit(*sim, view_player(), uview.pos_x[i], uview.pos_z[i], uview.team[i])))
-			continue;
+		// PickPlayerEntitiesInRect(..., g_ViewedPlayer): own units only, Control all units or not
+		// (only a click or Shift-click takes another player's, selection.js addList force).
+		if (!uview.alive[i] || uview.team[i] != local_player()) continue;
 		const rtso::TechClasses cls = rtso::unit_tech_classes(uview.unit_type[i]);
 		const bool military = (cls & (rtso::TC_MELEE | rtso::TC_RANGED)) != 0;
 		if ((military_only && !military) || (nonmilitary_only && military)) continue;

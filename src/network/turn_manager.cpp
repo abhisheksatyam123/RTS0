@@ -1653,11 +1653,33 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			}
 			continue;
 		}
-		const uint8_t pl = player_for_client(c.client_id);
+		uint8_t pl = player_for_client(c.client_id);
 		if (pl >= MAX_PLAYERS || sim.is_defeated(pl)) continue; // defeated players only watch
 		sim.filter_owned_units(pl, c.entity_ids.data(), c.entity_ids.size(), owned);
 		const uint32_t *ids = owned.data();
 		const size_t n = owned.size();
+		if (sim.controls_all(pl)) {
+			// Control all units (Commands.js FilterEntityList with controlAllUnits): a command on
+			// another player's structure or unit trainer runs as that entity's owner, who pays
+			// for it (ProductionQueue, Researcher and Upgrade charge QueryOwnerInterface).
+			uint32_t on = 0;
+			switch (c.cmd_type) {
+			case 6: case 9: case 14: case 20: case 25: case 26: case 28: case 36: case 44: case 45: case 48:
+				on = c.target_id;
+				break;
+			case 13: // unload (0) and unload-turrets (3) name the holder
+				if (c.param == 0 || c.param == 3) on = c.target_id;
+				break;
+			case 43: // unit upgrade: the first selected unit's owner
+				if (n) on = ids[0];
+				break;
+			default: break;
+			}
+			if (on) {
+				const uint8_t owner = sim.entity_owner(on);
+				if (owner < MAX_PLAYERS) pl = owner;
+			}
+		}
 		const bool queued = (c.param & NET_PARAM_QUEUED) != 0;
 		const bool capture = (c.param & NET_PARAM_NO_CAPTURE) == 0;
 		struct PushFront { // input.js pushFront for this one command

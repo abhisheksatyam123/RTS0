@@ -26,4 +26,8 @@ void fragment() {
 	float scene_dist = -view.z / view.w;
 	if (-VERTEX.z - scene_dist < min_gap) discard;
 	ALBEDO = v_color;
+	// effects/model.xml MODE_SILHOUETTEDISPLAY: blended at constant alpha 191 / 255.
+	// 0 A.D.'s stencil keeps each pixel to one silhouette; Godot 4.3 spatial shaders
+	// have none, so a model's own overlapping parts can blend twice.
+	ALPHA = 191.0 / 255.0;
 }

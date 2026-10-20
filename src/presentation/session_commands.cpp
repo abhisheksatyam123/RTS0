@@ -213,9 +213,15 @@ void RtsoMain::_on_entity_command(const String &name) {
 		request_delete();
 	} else if (name == "autoqueue-on" || name == "autoqueue-off") { // turnAutoQueueOn / Off
 		_on_autoqueue_pressed(name == "autoqueue-on" ? 1 : 0);
-	} else if (name == "share-dropsite") { // set-dropsite-sharing, toggled from the first structure's state
-		for (const auto &b : sim->buildings())
-			if (b.id == selected_building_id) { _on_dropsite_sharing_pressed(b.dropsite_shared ? 0 : 1); break; }
+	} else if (name == "share-dropsite") { // set-dropsite-sharing: shared when any selected one is locked
+		bool any_locked = false;
+		for (uint32_t id : selected_structures())
+			for (const auto &b : sim->buildings())
+				if (b.id == id) {
+					any_locked = any_locked || (rtso::Simulation::is_dropsite_type(b.type) && !b.dropsite_shared);
+					break;
+				}
+		_on_dropsite_sharing_pressed(any_locked ? 1 : 0);
 	} else if (name == "stop") { // stopUnits
 		if (n == 0) return;
 		if (turn_cmds())
@@ -281,9 +287,11 @@ void RtsoMain::request_delete() {
 	delete_pending_.clear();
 	for (int s = 0; s < selected_ids.size(); ++s) delete_pending_.push_back(selected_ids[s]);
 	const std::vector<uint32_t> structs = selected_structures();
+	const bool control_all = sim->controls_all(local_player()); // unit_actions.js "delete": no checks with controlsAll
 	for (const auto &b : sim->buildings())
-		if (std::find(structs.begin(), structs.end(), b.id) != structs.end() && b.team == local_player() && !(b.max_capture_points > 0.0f &&
-				b.capture_points_by_team[b.team] < b.max_capture_points * 0.5f))
+		if (std::find(structs.begin(), structs.end(), b.id) != structs.end() &&
+				(control_all || (b.team == local_player() && !(b.max_capture_points > 0.0f &&
+				b.capture_points_by_team[b.team] < b.max_capture_points * 0.5f))))
 			delete_pending_.push_back((int32_t)b.id);
 	if (delete_pending_.is_empty()) return;
 	if (rtso::hotkeys::held("session.noconfirmation")) {

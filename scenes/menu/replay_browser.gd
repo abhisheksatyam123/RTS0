@@ -683,20 +683,20 @@ func _build() -> void:
 	# Right panel: compatibility, game-type and victory filters, then details.
 	var right := Control.new()
 	right.name = "RightPanel"
-	add_child(_anchor(right, 1, 0, 1, 1, -250, 30, -20, -70))
+	add_child(_anchor(right, 1, 0, 1, 1, -250, 48, -20, -70)) # rightPanel 100%-250 48; details end 100%-60 of 100%-10
 	_compatibility_filter = CheckBox.new()
 	_compatibility_filter.name = "CompatibilityFilter"
 	_compatibility_filter.text = "Filter compatible replays"
 	_compatibility_filter.button_pressed = true
 	_compatibility_filter.flat = true
 	_compatibility_filter.toggled.connect(func(_on): display_replay_list())
-	right.add_child(_anchor(_compatibility_filter, 0, 0, 1, 0, 0, 0, 0, 26))
+	right.add_child(_anchor(_compatibility_filter, 0, 0, 1, 0, 0, 12, 0, 38)) # caption 20 0 100% 50, centred
 	_singleplayer_filter = _dropdown("SingleplayerFilter", "")
-	right.add_child(_anchor(_singleplayer_filter, 0, 0, 1, 0, 0, 30, 0, 55))
+	right.add_child(_anchor(_singleplayer_filter, 0, 0, 1, 0, 0, 55, 0, 80))
 	_victory_filter = _dropdown("VictoryConditionFilter", "")
-	right.add_child(_anchor(_victory_filter, 0, 0, 1, 0, 0, 60, 0, 85))
+	right.add_child(_anchor(_victory_filter, 0, 0, 1, 0, 0, 90, 0, 115))
 	_rated_filter = _dropdown("RatedGamesFilter", "")
-	right.add_child(_anchor(_rated_filter, 0, 0, 1, 0, 0, 90, 0, 115))
+	right.add_child(_anchor(_rated_filter, 0, 0, 1, 0, 0, 125, 0, 150))
 	var frame := StyleBoxFlat.new()
 	frame.bg_color = Color(0, 0, 0, 0.35)
 	frame.border_color = GOLD.darkened(0.3)
@@ -709,11 +709,11 @@ func _build() -> void:
 	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_info_empty.add_child(logo)
-	right.add_child(_anchor(_info_empty, 0, 0, 1, 1, 0, 122, 0, 0))
+	right.add_child(_anchor(_info_empty, 0, 0, 1, 1, 0, 160, 0, 0))
 	_info = PanelContainer.new()
 	_info.name = "ReplayInfo"
 	_info.add_theme_stylebox_override("panel", frame)
-	right.add_child(_anchor(_info, 0, 0, 1, 1, 0, 122, 0, 0))
+	right.add_child(_anchor(_info, 0, 0, 1, 1, 0, 160, 0, 0))
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 3)
 	_info.add_child(box)

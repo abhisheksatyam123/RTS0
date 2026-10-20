@@ -50,8 +50,8 @@ int main() {
 	const uint32_t market = s.spawn_building_world(-40.0f, 16.0f, BLD_MARKET, 0, 1.0f);
 	CHECK(s.research_check(0, TECH_UNLOCK_SHARED_DROPSITES, cc) == Simulation::TECH_ERR_BUILDING);
 	CHECK(s.research_check(0, TECH_UNLOCK_SHARED_DROPSITES, market) == Simulation::TECH_OK);
-	// Only the owner of shared dropsites gets the toggle.
-	CHECK(!s.cmd_set_dropsite_sharing(1, ally_store, false));
+	// Only the owner sets it (Commands.js set-dropsite-sharing needs no technology).
+	CHECK(!s.cmd_set_dropsite_sharing(0, ally_store, false));
 
 	// 2. With Diaspora: the ally's storehouse takes her wood, the enemy's doesn't.
 	CHECK(s.cmd_research(0, market, TECH_UNLOCK_SHARED_DROPSITES));
@@ -69,8 +69,7 @@ int main() {
 			s.player_resource(0, RES_WOOD) - wood0, s.player_resource(1, RES_WOOD) - wood1);
 	CHECK(s.player_resource(0, RES_WOOD) == wood0 + 10 && s.player_resource(1, RES_WOOD) == wood1);
 
-	// 3. The owner (with Diaspora) stops sharing: the ally's gatherers can't drop there.
-	s.player(1).techs.set(TECH_UNLOCK_SHARED_DROPSITES);
+	// 3. The owner stops sharing: the ally's gatherers can't drop there.
 	CHECK(s.cmd_set_dropsite_sharing(1, ally_store, false));
 	s.units_.res_type_carried[w] = RES_WOOD;
 	s.units_.carry[w] = 10;
