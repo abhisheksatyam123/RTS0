@@ -3332,6 +3332,18 @@ static void test_hidden_targets() {
 	check(s.unit_order(man).kind == ORDER_ATTACK, "and the attack goes through");
 	// Own and allied entities are never refused.
 	check(s.player_can_target_building(1, foe_cc) && s.player_can_target_unit(1, foe), "a player's own are always targetable");
+	// template_unit_fauna.xml RetainInFog: an animal in unexplored land is hidden, but once its
+	// land is explored it stays a target in the fog.
+	const uint32_t sheep = s.spawn_fauna(-40.0f, 40.0f, FAUNA_SHEEP);
+	turns(0.4f);
+	check(!s.player_can_target_fauna(0, sheep), "a sheep in unexplored land is hidden");
+	s.units_.pos_x[idx_of(s, woman)] = -40.0f;
+	s.units_.pos_z[idx_of(s, woman)] = 36.0f;
+	turns(0.4f);
+	s.units_.pos_z[idx_of(s, woman)] = -36.0f;
+	turns(0.4f);
+	check(!s.los_visible(0, -40.0f, 40.0f) && s.player_can_target_fauna(0, sheep),
+			"once explored, the sheep in the fog can still be targeted");
 }
 
 // Guard.js OnAttacked: a poison or burning tick on the guarded unit sends its guards after
