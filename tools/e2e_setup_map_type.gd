@@ -16,6 +16,7 @@ extends SceneTree
 # Exit code 0 = pass.
 
 # Loaded at run time: the page script names autoloads, which -s scripts compile before.
+const SettingSlider := preload("res://scenes/menu/setting_slider.gd")
 var Setup
 
 var failures := 0
@@ -168,6 +169,18 @@ func run() -> void:
 		check(range(3).map(func(i): return wl.get_item_text(i)) == ["Rising", "Shallow", "Deep"] and wl.get_item_tooltip(2) == "The water doesn't rise. You have to use ships to travel to the mainland.",
 			"Flood's water levels by flood.json's names and descriptions")
 		check(page.get_node("%SeaRiseSlot").get_child(0).get_item_count() == 61, "Sea Level Rise Time offers every minute from 0 to 60")
+		# GameSettingControlSlider: Ceasefire, the victory durations, Relic Count and Sea
+		# Level Rise Time are sliders with their caption beside them.
+		var sliders: Array = ["CeasefireSlot", "WonderTimeSlot", "RelicTimeSlot", "RelicCountSlot", "SeaRiseSlot"].map(func(n): return page.get_node("%" + n).get_child(0))
+		check(sliders.all(func(c): return c is SettingSlider), "the five are sliders")
+		var cfs: SettingSlider = sliders[0]
+		check(cfs.get_caption() == "No ceasefire" and cfs.get_slider().max_value == 45, "Ceasefire: No ceasefire, up to 45 minutes")
+		cfs.get_slider().value = 10
+		check(cfs.get_caption() == "10 minutes" and int(page._collect_setup()["ceasefire"]) == 10, "dragged to 10: \"10 minutes\", and the match gets 10")
+		cfs.select(0)
+		var rcs: SettingSlider = sliders[3]
+		check(rcs.get_caption() == "2 relics" and rcs.get_slider().min_value == 0 and rcs.get_item_text(0) == "1 relic", "Relic Count: 2 relics, from 1 relic")
+		check(sliders[1].get_caption() == "20 minutes" and sliders[1].get_item_text(0) == "Immediate Victory.", "Wonder Duration: 20 minutes, from Immediate Victory.")
 		select_map(page, "random_danubius")
 		await frames(2)
 		var ds: RtsoSafeSelect = page.get_node("%DaytimeSlot").get_child(0)
@@ -257,9 +270,9 @@ func run() -> void:
 	check(rows.size() == 2 and rows[0]["color"].modulate.a == 0.0, "no colour picker")
 	var res: RtsoSafeSelect = node(page, "ResSlot").get_child(0)
 	var pop: RtsoSafeSelect = node(page, "PopCapSlot").get_child(0)
-	var cf: RtsoSafeSelect = node(page, "CeasefireSlot").get_child(0)
+	var cf: SettingSlider = node(page, "CeasefireSlot").get_child(0)
 	check(res.disabled and res.text == "Per Player", "starting resources Per Player: " + res.text)
-	check(pop.disabled and cf.disabled and cf.text == "No ceasefire", "population and ceasefire locked")
+	check(pop.disabled and cf.disabled and cf.get_caption() == "No ceasefire", "population and ceasefire locked")
 	for path in ["LastManStanding", "StartRow/LockTeams", "StartRow/DisableTreasures", "MapVisRow/RevealMap", "MapVisRow/ExploreMap", "MapVisRow/AlliedView", "MapVisRow/DisableSpies"]:
 		check(node(page, path).disabled, path + " locked")
 	check(not page.get_node("%Nomad").visible and not page.get_node("%RegicideGarrison").visible, "no Nomad or Hero Garrison on a scenario")

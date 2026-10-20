@@ -164,9 +164,14 @@ static func load_enabled_packs(dir: String = MODS_DIR) -> Array:
 	return loaded
 
 ## Engine.SetModsAndRestartEngine.
+## 0.28 restarts the engine in place and reads -mod only on the first start
+## (GameSetup.cpp INIT_MODS), so the new run leaves the command line's -mod out.
 static func restart(tree: SceneTree) -> void:
-	OS.set_restart_on_exit(true, OS.get_cmdline_args())
+	OS.set_restart_on_exit(true, restart_args(OS.get_cmdline_args()))
 	tree.quit()
+
+static func restart_args(args: PackedStringArray) -> PackedStringArray:
+	return PackedStringArray(Array(args).filter(func(a: String): return not (a.begins_with("-mod=") or a.begins_with("--mod="))))
 
 ## Engine.GetEngineInfo().mods: the mods this run plays with, in load order,
 ## as {name, version, ignoreInCompatibilityChecks} (mod.json's own fields).
