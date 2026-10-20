@@ -123,7 +123,7 @@ static func map_info(map_id: String) -> Dictionary:
 	var random := false
 	for r in SetupPage.RMS_MAPS:
 		if r[0] == map_id:
-			info = {"desc": str(r[6]), "size": 0, "type": "Random"}
+			info = {"desc": SetupPage.rms_description(r), "size": 0, "type": "Random"}
 			random = true
 	if not random:
 		# Map Type's title (Skirmish or Scenario) from the map's map_types.json entry.

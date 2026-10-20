@@ -809,6 +809,26 @@ int main() {
 			if (v2.id[i] == id) CHECK(v2.flora[i] == FLORA_DEFAULT, "an out-of-range FloraKind falls back to the default");
 	}
 	{
+		// rmgen paints a wood one tree per tile, at the tile's centre (Terrain.js SimpleTerrain.place).
+		for (MapType mt : {MAP_DEEP_FOREST, MAP_ARDENNES_FOREST, MAP_MAINLAND}) {
+			static Simulation s;
+			s.reset();
+			s.generate_random_map(mt, 7, 2, 128.0f);
+			const auto rv = s.resources();
+			std::set<std::pair<int, int>> tiles;
+			int trees = 0, shared = 0, off_centre = 0;
+			for (size_t i = 0; i < rv.count; ++i) {
+				if (!rv.alive[i] || rv.type[i] != RES_WOOD || rv.subtype[i] != RES_SUB_NONE) continue;
+				++trees;
+				const int tx = (int)std::floor(rv.x[i]), tz = (int)std::floor(rv.z[i]);
+				shared += !tiles.insert({tx, tz}).second;
+				off_centre += std::fabs(rv.x[i] - (float)tx - 0.5f) > 1e-3f || std::fabs(rv.z[i] - (float)tz - 0.5f) > 1e-3f;
+			}
+			CHECK(trees > 100 && shared == 0 && off_centre == 0, "%s: %d trees, %d share a tile, %d off its centre",
+			      map_type_info(mt).id, trees, shared, off_centre);
+		}
+	}
+	{
 		// 0.28's per-map fish passes (latium.js, gulf_of_bothnia.js, corsica.js).
 		auto fish = [](MapType mt) {
 			static Simulation s;
@@ -871,6 +891,23 @@ int main() {
 		bad.tiles = {0, 0, 0};
 		sim.set_terrain_tiles(bad);
 		CHECK(sim.terrain_tiles().empty(), "set_terrain_tiles refuses a short tile array");
+	}
+
+	// Player Placement Random (gamesettings PlayerPlacement.pickRandomItems): the generator
+	// draws one of the map's patterns, and the sim reports it for Match Settings; a chosen
+	// pattern is reported as it is, and a map without the setting reports none.
+	{
+		Simulation sim;
+		sim.set_team_placement(TEAM_PLACEMENT_RANDOM);
+		sim.generate_random_map(MAP_MAINLAND, 7, 4, 128.0f);
+		const uint8_t drawn = sim.played_team_placement();
+		CHECK(drawn != TEAM_PLACEMENT_RANDOM && ((map_team_placements(MAP_MAINLAND) >> drawn) & 1), "Random drew %u", drawn);
+		sim.set_team_placement(TEAM_PLACEMENT_RIVER);
+		sim.generate_random_map(MAP_MAINLAND, 7, 4, 128.0f);
+		CHECK(sim.played_team_placement() == TEAM_PLACEMENT_RIVER, "a chosen placement is %u", sim.played_team_placement());
+		sim.set_team_placement(TEAM_PLACEMENT_RANDOM);
+		sim.generate_random_map(MAP_DANUBIUS, 7, 2, 128.0f);
+		CHECK(map_team_placements(MAP_DANUBIUS) || sim.played_team_placement() == TEAM_PLACEMENT_RANDOM, "Danubius reports a placement");
 	}
 
 	if (g_failures) {
