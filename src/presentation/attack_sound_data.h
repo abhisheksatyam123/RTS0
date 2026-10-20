@@ -101,7 +101,7 @@ struct EntityAttackSounds {
 
 inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 545;
 inline constexpr uint8_t ATTACK_SOUND_GENERIC_ROWS = 27;
-inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 87;
+inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 88;
 inline constexpr uint8_t ATTACK_SOUND_FAUNA_ROWS = 61;
 
 // Melee, ranged and impact groups of a civ roster row (civ_unit_template_table order).
@@ -781,6 +781,7 @@ inline const EntityAttackSounds &building_attack_sounds(uint8_t type) {
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_LAOZI_GATE: structures/han/laozigate
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TEMPLE_ISIS: structures/ptol/temple_2
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_MILL: structures/mill_greek
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TOPHET: structures/cart/tophet
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // default: template_structure
 	};
 	return kRows[type < ATTACK_SOUND_BUILDING_ROWS ? type : ATTACK_SOUND_BUILDING_ROWS];

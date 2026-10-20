@@ -163,6 +163,28 @@ int main() {
 	}
 	CHECK(ptol_heroes == 3);
 
+	// The Carthaginian Tophet (cart/tophet): a map-only temple that trains the healer, not the
+	// Carthaginian temple's champions, costs 200 stone and 100 metal and doesn't decay.
+	CHECK(map_structure_template("structures/cart/tophet").type == BLD_TOPHET);
+	CHECK(map_structure_template("cart/tophet").civ == CIV_CARTHAGINIANS);
+	for (uint8_t c = 0; c < CIV_COUNT; ++c) CHECK(!civ_can_build(c, BLD_TOPHET));
+	CHECK(building_type_info(BLD_TOPHET).stone_cost == 200 && building_type_info(BLD_TOPHET).gold_cost == 100 &&
+		building_type_info(BLD_TOPHET).territory_decay_rate == 0.0f);
+	CHECK(building_garrison_heal(BLD_TOPHET) == 3.0f && (building_tech_classes(BLD_TOPHET) & TC_TEMPLE));
+	CHECK(building_researches_tech(BLD_TOPHET, TECH_HEAL_RATE, CIV_CARTHAGINIANS));
+	{
+		int healers = 0, champions = 0, temple_champions = 0;
+		for (uint16_t id : civ_roster_ids(CIV_CARTHAGINIANS)) {
+			const CivUnitTemplate &u = civ_unit_template(id);
+			if (building_trains_template(BLD_TOPHET, CIV_CARTHAGINIANS, CIV_CARTHAGINIANS, id))
+				(u.unit_type == UNIT_HEALER ? healers : champions)++;
+			if (u.unit_type != UNIT_HEALER && building_trains_template(BLD_TEMPLE, CIV_CARTHAGINIANS, CIV_CARTHAGINIANS, id))
+				++temple_champions;
+		}
+		CHECK(healers == 1 && champions == 0 && temple_champions > 0);
+		std::printf("tophet: %d healer, %d others (the temple trains %d champions)\n", healers, champions, temple_champions);
+	}
+
 	// The Gaia mills (structures/mill_*, {brit,gaul}/rotarymill, mixins/rotary_mill.xml): a
 	// food dropsite captured but never damaged, whose farmstead_60 aura makes its owner's grain
 	// gatherers within 60 m gather x1.75.
