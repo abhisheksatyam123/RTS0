@@ -812,6 +812,7 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 	d["shadows_frustum_drawn"] = debug_overlays_.drawn(O::SHADOWS_FRUSTUM);
 	d["culling_enabled"] = culling_enabled_;
 	d["lock_cull_camera"] = lock_cull_camera_;
+	d["structures_shown"] = view ? view->shown_structures() : 0;
 	d["control_all"] = sim ? sim->controls_all(local_player()) : false;
 	d["render_debug"] = render_debug_mode_;
 	d["viewport_debug_draw"] = get_viewport() ? (int)get_viewport()->get_debug_draw() : -1;

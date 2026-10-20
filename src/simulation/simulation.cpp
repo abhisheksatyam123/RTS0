@@ -17873,23 +17873,31 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 	{
 		// A queued order goes first (FinishOrder); fields and dropsites only apply without one.
 		// Fields and dropsites only for the player's own builders (oldData.force || autoharvest),
-		// not for those UnitAI sent over from a finished structure or a guard. Petra's builders
-		// keep gathering by what they built: RTS0's Petra counts on it (0 A.D.'s Petra sends
-		// autocontinue false and reassigns them itself).
+		// not for those UnitAI sent over from a finished structure or a guard.
 		// An ally's builders (Foundation.GetBuilders holds them too) can't farm or drop at
 		// someone else's structure here; they only look for a foundation of their own.
 		const bool own = units_.team[k] == b.team;
-		const bool harvest = own && (petra_runs_for(units_.team[k]) || (units_.order_kind[k] == ORDER_BUILD &&
-				(units_.order_flags[k] & (ORDER_FLAG_FORCE | ORDER_FLAG_AUTOHARVEST)) != 0));
+		const bool harvest = own && units_.order_kind[k] == ORDER_BUILD &&
+				(units_.order_flags[k] & (ORDER_FLAG_FORCE | ORDER_FLAG_AUTOHARVEST)) != 0;
 		auto q = order_queues_.find(uid);
 		if (q != order_queues_.end() && !q->second.empty()) { finish_order(k); return; }
+		// worker.js:375 repair(target, target.hasClass("House")): Petra sends autocontinue only
+		// for a house, which is neither gathered nor a dropsite, so its builders look for a
+		// foundation nearby; any other structure leaves them idle for Petra to reassign.
+		if (petra_runs_for(units_.team[k])) {
+			const uint32_t f = b.type == BLD_HOUSE ? find_nearby_foundation(b.x, b.z, units_.team[k]) : 0;
+			if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); return; }
+			set_order(k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
+			units_.has_order[k] = 0;
+			return;
+		}
 		if (harvest && b.type == BLD_FIELD) {
 			order_gather(&uid, 1, ensure_field_resource(b), false, false);
 			return;
 		}
 		// food wood stone metal: civic centres, docks, military colonies, Germanic encampments
 		const bool takes_all = is_civic_centre(b.type) || b.type == BLD_DOCK || civ_building_is_dropsite(b.type);
-		if (harvest && !petra_runs_for(units_.team[k]) && (food || other || takes_all)) {
+		if (harvest && (food || other || takes_all)) {
 			// FindNearbyResource round the new dropsite: the nearest supply of any type it takes
 			// that the builder can gather, whatever it gathered last.
 			uint32_t r = 0;
@@ -17901,17 +17909,6 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 				if (c == 0 || ci == res_id_to_idx_.end() || !can_gather(k, ci->second)) continue;
 				const float dx = resources_.x[ci->second] - b.x, dz = resources_.z[ci->second] - b.z;
 				if (dx * dx + dz * dz < best) { best = dx * dx + dz * dz; r = c; }
-			}
-			if (r != 0) { order_gather(&uid, 1, r, false, false); return; }
-		} else if (harvest && (food || other || takes_all)) {
-			// Petra's builders: what the unit gathered last (lastGathered), if the dropsite takes it.
-			uint8_t pref = units_.res_type_carried[k];
-			const bool takes_pref = takes_all || (food ? pref == RES_FOOD : pref != RES_FOOD);
-			uint32_t r = takes_pref ? find_nearby_resource(b.x, b.z, pref, b.team) : 0;
-			if (r == 0) {
-				if (food) r = find_nearby_resource(b.x, b.z, RES_FOOD, b.team);
-				else for (uint8_t t : {(uint8_t)RES_WOOD, (uint8_t)RES_STONE, (uint8_t)RES_GOLD})
-					if (r == 0) r = find_nearby_resource(b.x, b.z, t, b.team);
 			}
 			if (r != 0) { order_gather(&uid, 1, r, false, false); return; }
 		}
@@ -21097,6 +21094,12 @@ void Simulation::petra_manage_economy(float dt) {
 			return (r == RES_FOOD || !exhausted[r]) && !petra_failed_gather_.recent(r, petra_timer_);
 		};
 		uint8_t chosen_res_type = gather_type[w];
+		// worker.js update: an idle gatherer (one we sent to a supply, metadata "supply") keeps its
+		// gather-type and looks for that resource again (startGathering); the type is what it
+		// gathered last. Builders and new units go through reassignIdleWorkers below.
+		if (chosen_res_type == RES_COUNT && petra_supply_of(units_.id[widx]) != 0 &&
+		    units_.res_type_carried[widx] < RES_COUNT && may_try(units_.res_type_carried[widx]))
+			chosen_res_type = units_.res_type_carried[widx];
 		if (chosen_res_type == RES_COUNT) {
 			for (uint8_t r : needed)
 				if (may_try(r)) { chosen_res_type = r; break; }
@@ -24490,9 +24493,11 @@ bool Simulation::petra_build_new_base(int res) {
 		return civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
 		       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
+	// hasOwnCC: a civil centre of our own civ (it may allow specific units or techs); a captured
+	// one of another civ does not count (headquarters.js:1566).
 	bool own_cc = false;
 	for (const Building &b : buildings_)
-		if (b.team == petra_pid_ && b.type == BLD_TOWN_CENTER && b.hp > 0.0f && !b.wrecked) { own_cc = true; break; }
+		if (b.team == petra_pid_ && b.type == BLD_TOWN_CENTER && b.civ == civ && b.hp > 0.0f && !b.wrecked) { own_cc = true; break; }
 	uint8_t btype;
 	if (own_cc && can_build(BLD_MILITARY_COLONY)) btype = BLD_MILITARY_COLONY;
 	else if (can_build(BLD_TOWN_CENTER)) btype = BLD_TOWN_CENTER;
@@ -27409,14 +27414,16 @@ void Simulation::petra_attack_remove_unit(uint32_t uid) {
 }
 
 // attackManager.js getEnemyPlayer, for a new attack: the player it picked is remembered
-// as currentEnemyPlayer (Gaia, for its relics, clears it) until the next pick.
+// as currentEnemyPlayer (Gaia too, for its relics) until the next pick.
 void Simulation::petra_note_enemy(uint8_t enemy) const {
-	const_cast<PetraSentDiplomacy &>(petra_sent_diplo_).current_enemy = enemy < MAX_PLAYERS ? (uint8_t)(enemy + 1) : 0;
+	const_cast<PetraSentDiplomacy &>(petra_sent_diplo_).current_enemy =
+		enemy < MAX_PLAYERS ? (uint8_t)(enemy + 1) : enemy == GAIA_PLAYER ? PETRA_CURRENT_ENEMY_GAIA : 0;
 }
 
 // attackManager.js currentEnemyPlayer; before any pick, the owner of the newest started
 // attack's target, else of the plan in preparation's.
 uint8_t Simulation::petra_attack_enemy() const {
+	if (petra_sent_diplo_.current_enemy == PETRA_CURRENT_ENEMY_GAIA) return GAIA_PLAYER;
 	if (petra_sent_diplo_.current_enemy) return (uint8_t)(petra_sent_diplo_.current_enemy - 1);
 	auto owner = [&](const AttackPlan &p) -> uint8_t {
 		auto it = building_id_to_idx_.find(p.target_building_id);
@@ -28402,6 +28409,7 @@ void Simulation::petra_order_build(uint32_t uid, uint32_t bid) {
 	const int32_t i = lookup_unit(uid);
 	const uint32_t drop = i >= 0 ? petra_defender_dropsite((size_t)i) : 0;
 	if (drop) order_return_resource(&uid, 1, drop, false);
+	if (petra_supply_of(uid)) petra_set_supply(uid, 0); // subrole builder: no gather-type kept
 	order_build_or_repair(&uid, 1, bid, drop != 0);
 }
 
@@ -30742,12 +30750,13 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			if (req.status == PetraReceivedRequest::ACCEPTED) req.status = PetraReceivedRequest::ALLIANCE_BROKEN;
 			else if (req.status != PetraReceivedRequest::ALLIANCE_BROKEN) req.status = PetraReceivedRequest::DECLINED_FOREVER;
 			petra_tribute_request_wanted_[p][me] = 0;
-		} else if (theirs == DIPLO_ALLY && mine == DIPLO_ENEMY) {
-			// An enemy can't become an ally at once: refuse, or suggest neutrality first.
+		} else if (theirs == DIPLO_ALLY && mine == DIPLO_ENEMY && dip.seen_init) {
+			// An enemy can't become an ally at once: refuse, or suggest neutrality first
+			// (DM:225). At game start, init (DM:44-60) answers it as an alliance request.
 			const bool refused = req.status == PetraReceivedRequest::DECLINED_FOREVER ||
 			                     req.status == PetraReceivedRequest::ALLIANCE_BROKEN;
 			petra_say(refused ? PETRA_CHAT_ANSWER_DECLINE : PETRA_CHAT_ANSWER_DECLINE_SUGGEST_NEUTRAL, p, p, 0);
-		} else if (theirs == DIPLO_ALLY && mine == DIPLO_NEUTRAL) {
+		} else if (theirs == DIPLO_ALLY && mine != DIPLO_ALLY) {
 			petra_handle_diplomacy_request(p, 0);
 		} else if (theirs == DIPLO_NEUTRAL && mine == DIPLO_ENEMY) {
 			petra_handle_diplomacy_request(p, 1);
