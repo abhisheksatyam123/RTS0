@@ -28,6 +28,7 @@ signal closed
 const SAVE_ROOT := "user://saves"
 const ReplayPage = preload("res://scenes/menu/replay_browser.gd")
 const SetupPage = preload("res://scenes/menu/gamesetup.gd")
+const Mods := preload("res://scenes/menu/mods.gd")
 const GOLD := Color(0.9, 0.75, 0.31)
 const INCOMPATIBLE := Color8(96, 96, 96)
 const COLUMNS := [["date", "Date / Time", 24], ["mapType", "Map Type", 21], ["mapName", "Map Name", 33], ["description", "Description", 22]] # load.xml widths
@@ -85,13 +86,24 @@ func _entry(path: String, meta: Dictionary) -> Dictionary:
 	if meta.has("timestamp"):
 		var local := int(meta.timestamp) + int(Time.get_time_zone_from_system().get("bias", 0)) * 60
 		date = Time.get_datetime_string_from_unix_time(local, true)
+	# hasSameMods: a save from before saves kept their mods is checked on its format alone.
+	var mods_ok: bool = not (meta.get("mods") is Array) or Mods.play_compatible(meta.mods, _active_mods())
 	return {"path": path, "id": path.get_file().get_basename(), "meta": meta,
-		"compatible": v == RtsoMain.get_save_version(), "newer": v > RtsoMain.get_save_version(),
+		"compatible": v == RtsoMain.get_save_version() and mods_ok, "mods_ok": mods_ok,
+		"newer": v > RtsoMain.get_save_version(),
 		"timestamp": int(meta.get("timestamp", 0)), "date": date, "map": str(meta.get("map_name", map_id)).trim_suffix(" (RMS)"),
 		"map_id": map_id, "map_type": info["type"],
 		"size": int(settings.get("map_size", 0)) if info["type"] == "Random" else int(info["size"]),
 		"victory": int(settings.get("victory", 0)), "description": str(meta.get("description", "")),
 		"players": meta.get("players", [])}
+
+var _mods_cache = null
+
+## Engine.GetEngineInfo().mods, read once per dialog.
+func _active_mods() -> Array:
+	if _mods_cache == null:
+		_mods_cache = Mods.engine_mods()
+	return _mods_cache
 
 ## updateSavegameList.
 func refresh() -> void:
@@ -213,9 +225,12 @@ func _show_details(s: Dictionary) -> void:
 	labels.type.text = s.map_type
 	labels.size.text = ReplayPage.map_size_name(s.size)
 	labels.victory.text = ReplayPage.victory_name(s.victory)
-	# 0 A.D. lists the save's mods here, in orange when they differ.
+	# SavegameDetails: the save's mods (modsToString), in orange when they differ.
 	var v := int(m.get("save_version", 0))
-	labels.version.text = L10n.sprintf(L10n.t("Mods: %(mods)s"), {"mods": "RTS0 (save format v%d)" % v})
+	var mods_text := "RTS0 (save format v%d)" % v
+	if m.get("mods") is Array:
+		mods_text = ", ".join((m.mods as Array).map(func(x) -> String: return Mods.mod_to_string(x) if x is Dictionary else ""))
+	labels.version.text = L10n.sprintf(L10n.t("Mods: %(mods)s"), {"mods": mods_text})
 	labels.version.add_theme_color_override("font_color", Color.WHITE if s.compatible else Color.ORANGE)
 	players_text.text = ReplayPage.player_info(s, true)
 
@@ -240,9 +255,14 @@ func load_pressed() -> void:
 		_show_message(L10n.sprintf(L10n.t("This savegame needs RTS0 save format %(required)s or compatible. You are running save format %(current)s."),
 			{"required": v, "current": RtsoMain.get_save_version()}))
 		return
-	# SavegameLoader: the engine-version line, then "Do you still want to proceed?".
-	_ask(L10n.t("Warning"), L10n.sprintf(L10n.t("This savegame needs RTS0 save format %(required)s or compatible. You are running save format %(current)s."),
-		{"required": v, "current": RtsoMain.get_save_version()}) + "\n" + L10n.t("Do you still want to proceed?"), "load")
+	# SavegameLoader: the engine-version line, the mods line, then "Do you still want to proceed?".
+	var text := ""
+	if v != RtsoMain.get_save_version():
+		text += L10n.sprintf(L10n.t("This savegame needs RTS0 save format %(required)s or compatible. You are running save format %(current)s."),
+			{"required": v, "current": RtsoMain.get_save_version()}) + "\n"
+	if not s.mods_ok:
+		text += L10n.t("This savegame needs a different sequence of mods:") + "\n" + Mods.compared_mods_string(s.meta.mods, _active_mods()) + "\n"
+	_ask(L10n.t("Warning"), text + L10n.t("Do you still want to proceed?"), "load")
 
 func save_pressed() -> void:
 	var s := selected_save()

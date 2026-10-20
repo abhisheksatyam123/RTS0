@@ -9473,7 +9473,12 @@
       "start_x": -133.89,
       "start_z": -112.77,
       "civ": 6,
-      "pop_limit": 500
+      "pop_limit": 500,
+      "color": [
+        0,
+        128,
+        255
+      ]
     },
     {
       "id": 2,
@@ -9481,7 +9486,12 @@
       "start_x": -106.93,
       "start_z": -134.44,
       "civ": 2,
-      "pop_limit": 500
+      "pop_limit": 500,
+      "color": [
+        206,
+        0,
+        0
+      ]
     }
   ],
   "resources": [],
@@ -10307,6 +10317,6 @@
       "template": "spart/ship_arrow"
     }
   ],
-  "pop_limit": 500,
-  "circular": true
+  "circular": true,
+  "pop_limit": 500
 }

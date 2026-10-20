@@ -4187,14 +4187,24 @@
       "team": 0,
       "start_x": 55.1,
       "start_z": 63.35,
-      "civ": 1
+      "civ": 1,
+      "color": [
+        46,
+        46,
+        200
+      ]
     },
     {
       "id": 2,
       "team": 1,
       "start_x": -69.9,
       "start_z": -59.26,
-      "civ": 7
+      "civ": 7,
+      "color": [
+        150,
+        20,
+        20
+      ]
     }
   ],
   "resources": [

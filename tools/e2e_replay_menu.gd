@@ -103,6 +103,12 @@ func run() -> void:
 		"a Team Population reads \"N (team)\", single player and multiplayer")
 	check(team.map_type == "Skirmish" and b.map_info("arcadia").type == "Scenario" and team_mp.map_type == "Random",
 		"Map Type is the map's own: Skirmish, Scenario or Random")
+	# isReplayCompatible / displayReplayCompatibilityError: the replay's mods.
+	var modded: Dictionary = b._entry("z", {"map_id": "random_oasis", "save_version": RtsoMain.get_save_version(),
+		"mods": [{"name": "zz_other_mod", "version": "9", "ignoreInCompatibilityChecks": false}]})
+	var same: Dictionary = b._entry("w", {"map_id": "random_oasis", "save_version": RtsoMain.get_save_version(), "mods": b._active_mods()})
+	check(not modded.compatible and modded.mods_only and modded.why.contains("needs a different sequence of mods") and modded.why.contains("zz_other_mod (9)")
+		and same.compatible, "a replay made with other mods is incompatible and names them; the same mods are fine")
 	var first := visible_dirs(b)
 	b.sort_by("popCapacity")
 	check(visible_dirs(b) == [first[1], first[0]], "Population sorts by cap, then type")
