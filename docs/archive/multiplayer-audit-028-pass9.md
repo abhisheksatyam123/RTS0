@@ -29,5 +29,6 @@ None of these touches simulation state or the save format.
 - **Assign players option.** `gui.gamesetup.assignplayers` with everyone, buddies or disabled (`mn:2934-2939`, as `PlayerAssignmentsController.js:96-105`).
 
 ## Fix log
-- 2026-10-20 #PR1 pass 9 gap 1 (before Start, /list lists every connected client and /kickspecs and /banspecs reach the unassigned ones, as g_PlayerAssignments does) merged.
+- 2026-10-20 #1365 pass 9 gap 1 (before Start, /list lists every connected client and /kickspecs and /banspecs reach the unassigned ones, as g_PlayerAssignments does) merged.
 - 2026-10-20 gap 5 ("== " setup status lines) fixed by Session UI's #1342; nothing left to do here.
+- 2026-10-20 #PR2 pass 9 gap 2 (opening the lobby page or dialog sets the presence to Online and clears Away; closing the dialog over a game makes it Busy again, as LobbyHandler does) merged.

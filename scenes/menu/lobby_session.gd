@@ -454,6 +454,9 @@ func _match_node() -> Node:
 ## 0.28 lobby /away and /back: the presence chosen in the lobby, kept by every
 ## heartbeat until a match makes it "playing".
 var away := false
+## The lobby page is open as a dialog over the setup or the match: the presence
+## stays "available" until it closes (LobbyHandler, QuitButton.js).
+var dialog_open := false
 ## The lobby lists us as a moderator (0 A.D. LobbyGetPlayerRole "moderator").
 var moderator := false
 
@@ -461,8 +464,21 @@ func _beat() -> void:
 	if token == "":
 		return
 	var main := _match_node()
-	post_json("/presence", {"token": token, "status": "playing" if main != null else ("away" if away else "available")})
+	post_json("/presence", {"token": token, "status": "playing" if main != null and not dialog_open else ("away" if away else "available")})
 	_room_tick(true)
+
+
+## LobbyHandler: opening the lobby page, or its dialog, makes us "available"
+## (clearing Away); closing the dialog over a game makes us "playing" again.
+func lobby_opened(as_dialog: bool) -> void:
+	away = false
+	dialog_open = as_dialog
+	_beat()
+
+
+func lobby_dialog_closed() -> void:
+	dialog_open = false
+	_beat()
 
 
 # LobbyGameRegistration.js: the host re-registers its game soon after any
