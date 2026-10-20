@@ -173,6 +173,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_match_settings_info"), &RtsoMain::get_match_settings_info);
 	ClassDB::bind_method(D_METHOD("_on_tutorial_ready_pressed"), &RtsoMain::_on_tutorial_ready_pressed);
 	ClassDB::bind_method(D_METHOD("resign"), &RtsoMain::resign);
+	ClassDB::bind_method(D_METHOD("chat_try_cheat", "text"), &RtsoMain::chat_try_cheat);
 	ClassDB::bind_method(D_METHOD("tick_session_music", "delta"), &RtsoMain::tick_session_music);
 	ClassDB::bind_method(D_METHOD("_toggle_session_dialog", "name"), &RtsoMain::_toggle_session_dialog);
 	ClassDB::bind_method(D_METHOD("get_target_marker_count"), &RtsoMain::get_target_marker_count);
@@ -245,6 +246,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("is_use_english_voice_orders"), &RtsoMain::is_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("_on_lobby_button_pressed"), &RtsoMain::_on_lobby_button_pressed);
 	ClassDB::bind_method(D_METHOD("has_lobby_client"), &RtsoMain::has_lobby_client);
+	ClassDB::bind_method(D_METHOD("open_lobby_page"), &RtsoMain::open_lobby_page);
 	ClassDB::bind_method(D_METHOD("_on_voice_button_pressed"), &RtsoMain::_on_voice_button_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_host_pressed"), &RtsoMain::_on_lobby_host_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_join_pressed"), &RtsoMain::_on_lobby_join_pressed);

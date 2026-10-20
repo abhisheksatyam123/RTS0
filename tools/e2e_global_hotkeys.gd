@@ -1,7 +1,7 @@
 extends SceneTree
 # 0.28's global hotkeys on every page (hotkeys/misc.xml, OverlayCounter.js, main.cpp):
-#   1. fps.toggle (Alt+F) and realtime.toggle (Alt+T) flip and save overlay.fps
-#      and overlay.realtime from the main menu;
+#   1. fps.toggle (Alt+F) and realtime.toggle (Alt+T) flip overlay.fps and
+#      overlay.realtime for the run (OverlayCounter.js: not saved) from the main menu;
 #   2. in a match Alt+F does the same, and shows the session's timing line with it;
 #   3. screenshot (F2) and bigscreenshot (Shift+F2) are taken on every page (headless
 #      has no image to save, so only the hotkey routing is checked there);
@@ -52,7 +52,10 @@ func run() -> void:
 	await press(KEY_F, true)
 	check(cfg.get_bool("overlay.fps"), "Alt+F turns the FPS counter on")
 	us._update_overlay()
-	check(us._overlay_label.text.begins_with("FPS:"), "and it shows")
+	var fps_line: String = us._overlay_label.text.split("\n")[0]
+	check(fps_line.begins_with("FPS:") and fps_line.length() == 9, "and it shows, padded as \"FPS: %(fps)4s\": [" + fps_line + "]")
+	check(us._overlay_label.offset_top == us.OVERLAY_TOP and us._overlay_label.offset_right == -5.0
+		and us._overlay_label.get_theme_stylebox("normal").bg_color == Color8(0, 0, 0, 100), "under the top panel at the right edge, on a black backing (dataCounter)")
 	await press(KEY_T, true)
 	check(cfg.get_bool("overlay.realtime"), "Alt+T turns the real time on")
 	await press(KEY_T, true)

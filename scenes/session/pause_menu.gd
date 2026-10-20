@@ -162,8 +162,8 @@ func _on_summary_pressed():
 func _on_lobby_pressed():
 	_close_dialogs()
 	var main := get_parent()
-	if main.has_method("has_lobby_client") and main.has_lobby_client():
-		main._on_lobby_button_pressed()
+	if main.has_method("open_lobby_page"):
+		main.open_lobby_page()
 
 # MenuButtons Save: 0 A.D.'s saved-game page in save mode (gui/savedgames); 0.28's
 # session menu has no Load, which stays on the main menu and F6 (quickload).

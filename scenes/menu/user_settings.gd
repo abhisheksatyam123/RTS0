@@ -121,11 +121,10 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		toggle_mouse_grab()
 	elif "fps.toggle" in fired or "realtime.toggle" in fired:
-		# OverlayCounter.js: the toggle is saved (ConfigDB_CreateAndSaveValue).
+		# OverlayCounter.js toggle: ConfigDB_CreateValue, for this run only (not saved).
 		get_viewport().set_input_as_handled()
 		var key := "overlay.fps" if "fps.toggle" in fired else "overlay.realtime"
 		cfg.set_value(key, "false" if cfg.get_bool(key) else "true")
-		cfg.save()
 	elif "bigscreenshot" in fired:
 		get_viewport().set_input_as_handled()
 		take_big_screenshot()
@@ -488,6 +487,8 @@ func _gain_db(key: String) -> float:
 
 func _apply_sound() -> void:
 	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Master"), _gain_db("sound.mastergain"))
+	# -nosound and -quickstart (Config.cpp g_DisableAudio): no sound at all.
+	AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), cfg.is_audio_disabled())
 	for bus in BUSES:
 		var i := AudioServer.get_bus_index(bus)
 		if i >= 0:
@@ -560,6 +561,14 @@ func _apply_window() -> void:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 	elif not windowed and not full:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	# xres / yres (-xres=N -yres=N, or -conf=xres:N): the window's size; 0 keeps it.
+	var xres := int(cfg.get_number("xres"))
+	var yres := int(cfg.get_number("yres"))
+	if windowed and (xres > 0 or yres > 0):
+		var size := DisplayServer.window_get_size()
+		var want := Vector2i(xres if xres > 0 else size.x, yres if yres > 0 else size.y)
+		if want != size:
+			DisplayServer.window_set_size(want)
 	var grab := cfg.get_bool("window.mousegrabinwindowmode") if windowed else cfg.get_bool("window.mousegrabinfullscreen")
 	if grab and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
 		Input.mouse_mode = Input.MOUSE_MODE_CONFINED
@@ -622,26 +631,42 @@ func _apply_node(n) -> void:
 			n.remove_meta("rtso_hidden")
 			n.visible = true
 
-## overlay.fps and overlay.realtime: top-right corner, as in 0 A.D.
+## overlay.fps and overlay.realtime (global.xml dataCounter): right-aligned mono-10 white
+## on a black 100/255 backing, sized to its text, under the top panel at the right edge
+## ("100%-100 40 100%-5 54" under 0.28's 36 px panel; RTS0's panel is 67 px).
+const OVERLAY_TOP := 71.0
+
 func _make_overlay() -> void:
 	_overlay = CanvasLayer.new()
 	_overlay.layer = 128
 	add_child(_overlay)
 	_overlay_label = Label.new()
+	_overlay_label.name = "DataCounter"
 	_overlay_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_overlay_label.offset_left = -220
-	_overlay_label.offset_right = -8
-	_overlay_label.offset_top = 4
+	_overlay_label.offset_left = -5
+	_overlay_label.offset_right = -5
+	_overlay_label.offset_top = OVERLAY_TOP
+	_overlay_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_overlay_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_overlay_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_overlay_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	_overlay_label.add_theme_constant_override("outline_size", 3)
+	_overlay_label.add_theme_font_override("font", load("res://assets/fonts/DejaVuSansMono.ttf"))
+	_overlay_label.add_theme_font_size_override("font_size", 10)
+	_overlay_label.add_theme_color_override("font_color", Color.WHITE)
+	_overlay_label.add_theme_constant_override("line_spacing", 0)
+	var backing := StyleBoxFlat.new()
+	backing.bg_color = Color8(0, 0, 0, 100)
+	_overlay_label.add_theme_stylebox_override("normal", backing)
 	_overlay.add_child(_overlay_label)
+
+## OverlayCounterManager's lastHeight: what the counter takes below the top panel (0 when
+## hidden); the network warnings and the research column make room for it.
+func overlay_height() -> float:
+	return _overlay_label.size.y if _overlay_label != null and _overlay_label.visible else 0.0
 
 func _update_overlay() -> void:
 	var lines: PackedStringArray = []
 	if cfg.get_bool("overlay.fps"):
-		lines.append("FPS: %d" % int(Engine.get_frames_per_second()))
+		lines.append("FPS: %4d" % int(Engine.get_frames_per_second())) # "FPS: %(fps)4s"
 	if cfg.get_bool("overlay.realtime"):
 		var t := Time.get_time_dict_from_system()
 		lines.append("%02d:%02d:%02d" % [t.hour, t.minute, t.second])
@@ -657,6 +682,10 @@ func _update_overlay() -> void:
 			lines.append(_time_string(times["ceasefire"]))
 	_overlay_label.text = "\n".join(lines)
 	_overlay_label.visible = not lines.is_empty()
+	# resizeGUIObjectToCaption: the box fits the text, right edge fixed.
+	var need := _overlay_label.get_combined_minimum_size()
+	_overlay_label.offset_left = -5.0 - need.x
+	_overlay_label.offset_bottom = OVERLAY_TOP + need.y
 
 ## 0 A.D. timeToString: "MM:SS", or "HH:MM:SS" from an hour on.
 static func _time_string(seconds: float) -> String:

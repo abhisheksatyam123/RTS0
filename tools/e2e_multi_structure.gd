@@ -240,7 +240,10 @@ func run() -> void:
 	print("    selected ", structs())
 	var before := int(main.debug_structure_types().get(0, {}).get("Barracks", 0))
 	main._on_entity_command("delete")
-	main._on_delete_confirmed()
+	await frames(1)
+	# DeleteSelectionConfirmation: Yes.
+	for q in main.get_children().filter(func(c): return c.get_script() == load("res://scenes/session/quit_confirmation.gd")):
+		q.press(1)
 	await frames(20)
 	var after := int(main.debug_structure_types().get(0, {}).get("Barracks", 0))
 	print("    barracks ", before, " -> ", after)

@@ -92,8 +92,11 @@ func slot_text(cell) -> String:
 	var pick = cell.get_node_or_null("AssignSelect")
 	return pick.get_item_text(pick.get_selected()) if pick else str(cell.text)
 
+## col: 0 name, 1 assignment, 2 civ, 3 team, 4 AI gear, 5 colour (PlayersPanel.xml lays
+## them out name, colour, assignment, gear, civ, team).
+const COL := [0, 2, 4, 5, 3, 1]
 func picker(page, slot: int, col: int):
-	return cells(page)[slot * 6 + col].get_child(0)
+	return cells(page)[slot * 6 + COL[col]].get_child(0)
 
 func run() -> void:
 	saved_persist = cfg.get_value("persistmatchsettings")
@@ -225,7 +228,7 @@ func run() -> void:
 		"other slots, and our slot's type and AI, are locked")
 	# 0.28 GameSettingControl/PlayerColor: only the controller sets civ, team and colour.
 	check(picker(page, 1, 2).disabled and picker(page, 1, 3).disabled and picker(page, 1, 5).disabled
-		and cells(page)[1 * 6 + 5].modulate.a == 0.0, "our own civ and team are locked too, and the colours hidden")
+		and cells(page)[1 * 6 + 1].modulate.a == 0.0, "our own civ and team are locked too, and the colours hidden")
 	check(ready_btn.text == "I'm ready" and not ready_btn.disabled, "Ready: I'm ready")
 	ready_btn.pressed.emit()
 	check(client.is_ready == 1 and ready_btn.text == "Stay ready", "pressed: ready, then Stay ready")

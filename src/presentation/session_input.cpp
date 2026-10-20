@@ -375,15 +375,17 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("silhouettes")) { toggle_overlay("silhouettes"); return; }
 		// MenuButtons.js Lobby (hotkey "lobby"): the lobby over the game when a lobby client exists.
 		if (fired("lobby")) {
-			if (has_lobby_client()) {
-				close_open_dialogs();
-				_on_lobby_button_pressed();
-			}
+			open_lobby_page();
 			return;
 		}
 		// OverlayCounterElapsedTime / RemainingCeasefire Hotkey: the top-right counters.
-		if (fired("timeelapsedcounter.toggle")) { toggle_overlay("gui.session.timeelapsedcounter"); return; }
-		if (fired("ceasefirecounter.toggle")) { toggle_overlay("gui.session.ceasefirecounter"); return; }
+		// OverlayCounter.js toggle: ConfigDB_CreateValue, for this run only (not saved).
+		auto toggle_counter = [this](const char *key) {
+			rtso::user_config::set(key, rtso::user_config::get_bool(key) ? "false" : "true");
+			refresh_user_options();
+		};
+		if (fired("timeelapsedcounter.toggle")) { toggle_counter("gui.session.timeelapsedcounter"); return; }
+		if (fired("ceasefirecounter.toggle")) { toggle_counter("gui.session.ceasefirecounter"); return; }
 
 		// fps.toggle, realtime.toggle, screenshot and bigscreenshot are global
 		// (scenes/menu/user_settings.gd), as in 0.28.
@@ -986,6 +988,31 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// A loaded ship right-clicked on land just moves (unit_actions.js has no unload-on-click
 			// action): passengers leave through Unload All, the garrison icons or session.unload.
 
+			// 0. returnresource (specificness 2) on a supply wagon or worker elephant the carriers
+			// may drop at (ResourceDropsite on template_unit_support_wagon / _elephant).
+			{
+				uint32_t drop_id = 0;
+				float best = 2.2f * 2.2f;
+				for (size_t i = 0; i < uview.count; ++i) {
+					if (!uview.alive[i] || !rtso::unit_is_mobile_dropsite(uview.unit_type[i])) continue;
+					const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
+					if (dx * dx + dz * dz >= best) continue;
+					bool carriers = false;
+					for (size_t k = 0; k < sel_n && !carriers; ++k) carriers = sim->can_return_resource(sel_ptr[k], uview.id[i]);
+					if (!carriers) continue;
+					best = dx * dx + dz * dz;
+					drop_id = uview.id[i];
+				}
+				if (drop_id != 0) {
+					if (turn_cmds())
+						post_lockstep(34, sel_ptr, sel_n, 0, 0, drop_id, qbit);
+					else
+						sim->order_return_resource(sel_ptr, sel_n, drop_id, queue_shift);
+					play_civ_voice("gather");
+					return;
+				}
+			}
+
 			// 1. session.garrison + right click on an own or allied ship, ram or siege tower (board it).
 			// unit_actions.js "garrison" takes any GarrisonHolder: warships, rams and siege towers.
 			// Its specificness 20 loses to "repair" (11) and "move" (12): a plain click walks there.
@@ -1196,6 +1223,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				play_civ_voice("gather");
 				return;
 			}
+			// unit_actions "gather" needs a unit that can gather it; else the click falls through (move).
+			if (clicked_res_id != 0 && !sim->any_can_gather(sel_ptr, sel_n, clicked_res_id)) clicked_res_id = 0;
 			if (clicked_res_id != 0) {
 				if (turn_cmds())
 					post_lockstep(4, sel_ptr, sel_n, 0, 0, clicked_res_id, qbit);

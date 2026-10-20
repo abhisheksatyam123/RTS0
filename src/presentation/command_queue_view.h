@@ -41,6 +41,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <map>
 #include <unordered_map>
 #include <vector>
 
@@ -787,11 +788,7 @@ public:
 							tr0("You cannot destroy this entity as you own less than half the capture points"), "kill_small_disabled.png",
 							false);
 				else
-					add_entity_command("delete", "Delete", "session.kill",
-							tr0("Self-Destruct") + "\n" + tr0("Destroy the selected entities.") + "\n" +
-									rtso::sprintf0(tr0("Use %(hotkey)s to avoid the confirmation dialog."),
-											{{"hotkey", rtso::hotkey_tag(rtso::hotkeys::table().label("session.noconfirmation").c_str())}}),
-							"kill_small.png");
+					add_entity_command("delete", "Delete", "session.kill", self_destruct_tooltip(), "kill_small.png");
 				if (rally)
 					add_entity_command("focus-rally", "Focus on Rally Point", "camera.rallypointfocus",
 							tip("Focus on Rally Point", "Center the view on the selected rally point."), "focus-rally.png");
@@ -1132,10 +1129,7 @@ public:
 						add_entity_command("unload-all", "Unload All", "session.unload",
 								"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, passengers);
 					if (any_deletable)
-						add_entity_command("delete", "Delete", "session.kill",
-								String("Self-Destruct\nDestroy the selected entities.\nUse ") +
-										rtso::hotkeys::table().label("session.noconfirmation").c_str() + " to avoid the confirmation dialog.",
-								"kill_small.png");
+						add_entity_command("delete", "Delete", "session.kill", self_destruct_tooltip(), "kill_small.png");
 					if (any_busy)
 						add_entity_command("stop", "Abort", "session.stop",
 								"Abort\nCancel the current orders for the selected units.", "stop.png");
@@ -1688,13 +1682,27 @@ private:
 		}
 		// Options' Detailed tooltips (showdetailedtooltips, off by default): health, attack,
 		// healer, resistance, garrison, turrets, projectiles, speed and dropsite, from the
-		// Template Viewer's lines (template_viewer.gd detailed_tooltip).
+		// Template Viewer's lines (template_viewer.gd detailed_tooltip), with the player's
+		// technologies and bonuses applied (0.28 GetTemplateData).
 		if (rtso::user_config::get_bool("showdetailedtooltips")) {
-			auto it = detailed_tips_.find(i);
+			const rtso::Simulation::TemplateStatMods m = host_->ui_sim()->template_stat_mods(pid, i);
+			Dictionary mods;
+			mods["health"] = m.health;
+			mods["speed"] = m.speed;
+			mods["range_mul"] = m.range_mul;
+			mods["range_add"] = m.range_add;
+			Array armor, atk_mul, atk_add;
+			for (int k = 0; k < 3; ++k) armor.push_back(m.armor[k]);
+			for (int k = 0; k < 4; ++k) { atk_mul.push_back(m.atk_mul[k]); atk_add.push_back(m.atk_add[k]); }
+			mods["armor"] = armor;
+			mods["atk_mul"] = atk_mul;
+			mods["atk_add"] = atk_add;
+			const String key = String::num_int64(i) + JSON::stringify(mods); // a research changes the lines
+			auto it = detailed_tips_.find(key);
 			if (it == detailed_tips_.end()) {
 				Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
-				String lines = viewer.is_valid() ? (String)viewer->call("detailed_tooltip", (int)i) : String();
-				it = detailed_tips_.emplace(i, lines).first;
+				String lines = viewer.is_valid() ? (String)viewer->call("detailed_tooltip", (int)i, mods) : String();
+				it = detailed_tips_.emplace(key, lines).first;
 			}
 			if (!it->second.is_empty()) tip += "\n" + it->second;
 		}
@@ -1771,6 +1779,14 @@ private:
 					"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, count);
 	}
 
+	// unit_actions.js "delete": Self-Destruct, its body and the colorized noconfirmation line.
+	static godot::String self_destruct_tooltip() {
+		using rtso::tr0;
+		return tr0("Self-Destruct") + "\n" + tr0("Destroy the selected entities.") + "\n" +
+				rtso::sprintf0(tr0("Use %(hotkey)s to avoid the confirmation dialog."),
+						{{"hotkey", rtso::hotkey_tag(rtso::hotkeys::table().label("session.noconfirmation").c_str())}});
+	}
+
 	// One g_EntityCommands button (unit_actions.js): the hotkey and title on the
 	// tooltip's first line, the body below, the icon, and a count where it has one.
 	void add_entity_command(const char *name, const char *label, const char *hotkey, const godot::String &tip,
@@ -1782,7 +1798,14 @@ private:
 		const String text = count > 0 ? String(label) + " (" + String::num_int64(count) + ")" : String(label);
 		btn->set_meta("label", text);
 		const std::string key = (hotkey && *hotkey) ? rtso::hotkeys::table().label(hotkey) : std::string();
-		btn->set_tooltip_text(key.empty() ? tip : rtso::hotkey_tag(String(key.c_str())) + " " + tip);
+		// A "Title\nBody" literal is two msgids (translate(title) + "\n" + translate(body)).
+		String text_tip = tip;
+		const int nl = tip.find("\n");
+		if (nl < 0)
+			text_tip = rtso::tr0(tip);
+		else if (tip.find("\n", nl + 1) < 0)
+			text_tip = rtso::tr0(tip.substr(0, nl)) + "\n" + rtso::tr0(tip.substr(nl + 1));
+		btn->set_tooltip_text(key.empty() ? text_tip : rtso::hotkey_tag(String(key.c_str())) + " " + text_tip);
 		Ref<Texture2D> ico = rtso::load_ui_texture(String("res://assets/textures/ui/archive/icons/") + icon);
 		if (ico.is_valid()) {
 			// 0.28's command row is icons, with the count (Unload All) on the icon.
@@ -2212,7 +2235,7 @@ private:
 	std::vector<godot::String> roster_state_;     // the live state last applied (refresh_roster_state)
 	std::vector<bool> roster_req_disabled_;       // disabled by its requirements at the rebuild
 	int roster_list_batch_ = 0; // the batch size the tooltips' batch line was built for
-	std::unordered_map<uint16_t, godot::String> detailed_tips_; // template -> detailed_tooltip()
+	std::map<godot::String, godot::String> detailed_tips_; // template + mods -> detailed_tooltip()
 	uint32_t roster_list_gen_ = 0; // user_config::generation() it was built at
 	uint32_t trainer_unit_id_ = 0;
 	int barter_sell_ = rtso::RES_FOOD; // BarterButtonManager.selectedResource
