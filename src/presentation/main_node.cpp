@@ -617,9 +617,10 @@ bool RtsoMain::building_trains_units(uint32_t id) const {
 	if (!sim || id == 0) return false;
 	for (const auto &b : sim->buildings()) {
 		if (b.id != id) continue;
-		const uint8_t civ = rtso::building_trains_native(b.type) ? b.civ : sim->player_civ(b.team);
-		for (uint16_t i : rtso::civ_roster_ids(civ))
-			if (rtso::civ_unit_template(i).trainers & rtso::bld_bit(b.type)) return true;
+		const uint8_t owner = sim->player_civ(b.team);
+		for (uint8_t civ : {b.civ, owner})
+			for (uint16_t i : rtso::civ_roster_ids(civ))
+				if (rtso::building_trains_template(b.type, b.civ, owner, i)) return true;
 		return false;
 	}
 	return false;
@@ -955,9 +956,11 @@ void RtsoMain::update_net_status_overlay() {
 			for (const auto &e : net_host_.playerAssignment())
 				if (e.client == c && !e.name.empty()) name = String::utf8(e.name.c_str()).replace("[", "[lb]");
 			const uint8_t pl = turn_mgr_.player_for_client(c);
-			if (name.is_empty()) name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : String("an observer");
-			if (pl < rtso::MAX_PLAYERS && sim)
-				name = "[color=#" + String::num_int64(rtso::display_colors::rgb(*sim, pl), 16).lpad(6, "0") + "]" + name + "[/color]";
+			// colorizePlayernameByGUID: "Unknown Player" without a name, white for an observer.
+			const bool seated = pl < rtso::MAX_PLAYERS;
+			if (name.is_empty()) name = seated ? player_display_name(pl) : tr("Unknown Player");
+			const uint32_t rgb = seated && sim ? rtso::display_colors::rgb(*sim, pl) : 0xFFFFFFu;
+			name = "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + name + "[/color]";
 			loading += (loading.is_empty() ? "" : tr(", ")) + name;
 		}
 		if (!loading.is_empty()) status = tr("Waiting for players to connect:");
@@ -1541,7 +1544,7 @@ std::vector<uint32_t> RtsoMain::structure_trainers(uint16_t tmpl, uint32_t holde
 		for (const auto &b : sim->buildings()) {
 			if (b.id != id) continue;
 			if ((b.team == local_player() || control_all) && b.build_progress >= 1.0f && !b.wrecked && b.upgrade_to == rtso::BLD_TYPE_COUNT &&
-					(u.trainers & rtso::bld_bit(b.type)))
+					rtso::building_trains_template(b.type, b.civ, sim->player_civ(b.team), tmpl))
 				out.push_back(id);
 			break;
 		}
