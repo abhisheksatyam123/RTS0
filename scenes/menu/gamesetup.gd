@@ -1480,11 +1480,11 @@ func _place_slot_headings() -> void:
 		info.position = Vector2(cc.position.x + cc.size.x - 37.0, 2.0) # 85%-37 .. 85%-21
 		var rc := header.get_node_or_null("ResetCivs") as Control
 		if rc:
-			rc.position = Vector2(cc.position.x + cc.size.x - 16.0, 2.0) # 85%-16 .. 85%
+			rc.position = Vector2(cc.position.x + cc.size.x - 16.0, 3.0) # 85%-16 .. 85%; iconReset draws 3 px down
 	var rt := header.get_node_or_null("ResetTeams") as Control
 	if rt and cells.size() > 5:
 		var tc: Control = cells[5]
-		rt.position = Vector2(tc.position.x + maxf(tc.size.x, 48.0) - 21.0, 2.0) # 100%-21 .. 100%-5
+		rt.position = Vector2(tc.position.x + maxf(tc.size.x, 48.0) - 21.0, 3.0) # 100%-21 .. 100%-5
 	grid.queue_redraw()
 
 func _slots_grid() -> GridContainer:
