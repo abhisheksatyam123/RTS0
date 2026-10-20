@@ -1447,10 +1447,9 @@ private:
 		const char *phase = "hidden";
 		if (reveal) {
 			static const char *kPhase[] = {"village", "town", "city"};
-			static const char *kName[] = {"Village Phase", "Town Phase", "City Phase"};
 			const int p = std::clamp<int>(sim.player_phase(owner), 1, 3) - 1;
 			phase = kPhase[p];
-			tip += String::utf8(" — ") + rtso::tr0(kName[p]);
+			tip += String::utf8(" — ") + rtso::seldet::civ_phase_name(civ, p + 1);
 		}
 		owner_phase_->set_texture(rtso::load_ui_texture(String("res://assets/textures/ui/archive/panel_phase_emblems_") + phase + ".png"));
 		owner_phase_->set_visible(true);
@@ -1498,7 +1497,7 @@ private:
 		const godot::PackedInt32Array &selected_ids = host_->ui_selected_ids();
 		auto uview = sim.units();
 		std::vector<RtsoSelectionGrid::Group> groups = selection_groups(sim, uview,
-				RtsoSelectionGrid::group_units(uview, (const uint32_t *)selected_ids.ptr(), selected_ids.size()));
+				RtsoSelectionGrid::group_units(uview, (const uint32_t *)selected_ids.ptr(), selected_ids.size()), false);
 		for (uint32_t id : structs)
 			for (const auto &b : sim.buildings()) {
 				if (b.id != id) continue;
@@ -1570,6 +1569,7 @@ private:
 		stats_->set_text("");
 		extra_->set_text("");
 		ungarrison_btn_->set_visible(false);
+		sort_groups(groups);
 		if (groups.size() > RtsoSelectionGrid::kMaxSelectionGroups) groups.resize(RtsoSelectionGrid::kMaxSelectionGroups);
 		selection_grid_.update(groups, "");
 	}
@@ -1581,8 +1581,29 @@ private:
 	// 0.28's Selection panel (g_SelectionPanels.Selection setupButton): each group's tooltip
 	// is its names, what its units carry (a trader its goods' total gain, while it has goods) and, for an
 	// observer, the owner, whose colour then shows behind the icon.
+	// selection.js getKeys: the panel's groups in sorted "p<player>&<template>" order, so
+	// structures/ come before units/ and the 16-icon cap drops the same ones every time.
+	static void sort_groups(std::vector<RtsoSelectionGrid::Group> &groups) {
+		auto key = [](const RtsoSelectionGrid::Group &g) {
+			String t;
+			if (RtsoSelectionGrid::is_structure_key(g.key))
+				t = String(rtso::portraits::structure_entry((uint8_t)((g.key >> 8) & 0xFF), (uint8_t)(g.key & 0xFF)).get("template", String()));
+			else if (g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE)
+				t = "units/" + String::utf8(rtso::civ_unit_template(g.tmpl).id);
+			else
+				t = "units/" + String(rtso::unit_type_info(g.unit_type).name);
+			return "p" + String::num_int64(g.player) + "&" + t;
+		};
+		std::vector<std::pair<String, size_t>> order;
+		for (size_t k = 0; k < groups.size(); ++k) order.push_back({key(groups[k]), k});
+		std::stable_sort(order.begin(), order.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+		std::vector<RtsoSelectionGrid::Group> sorted;
+		for (const auto &o : order) sorted.push_back(groups[o.second]);
+		groups.swap(sorted);
+	}
+
 	std::vector<RtsoSelectionGrid::Group> selection_groups(const rtso::Simulation &sim,
-			const rtso::Simulation::UnitView &uview, std::vector<RtsoSelectionGrid::Group> groups) {
+			const rtso::Simulation::UnitView &uview, std::vector<RtsoSelectionGrid::Group> groups, bool cap = true) {
 		const PackedInt32Array &selected_ids = host_->ui_selected_ids();
 		const bool observer = host_->local_player() >= rtso::MAX_PLAYERS;
 		for (auto &g : groups) {
@@ -1610,7 +1631,10 @@ private:
 			}
 			g.tip += "\n" + rtso::tr0("Click to select only these, Ctrl+click or right-click to deselect them.");
 		}
-		if (groups.size() > RtsoSelectionGrid::kMaxSelectionGroups) groups.resize(RtsoSelectionGrid::kMaxSelectionGroups);
+		if (cap) {
+			sort_groups(groups);
+			if (groups.size() > RtsoSelectionGrid::kMaxSelectionGroups) groups.resize(RtsoSelectionGrid::kMaxSelectionGroups);
+		}
 		return groups;
 	}
 

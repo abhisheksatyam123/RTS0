@@ -47,13 +47,44 @@ func run() -> void:
 	change_scene_to_file("res://scenes/menu/main_menu.tscn")
 	await frames(10)
 	var menu = current_scene
+	# colorizeHotkey: the gold "[key]", as in the session.
+	var tree_tip: String = menu._item_tooltip({"tooltip": "%(hotkey)s: View the structure tree of civilizations featured in 0 A.D.", "hotkey": "structree"})
+	check(tree_tip.begins_with("[color=#fffb83][lb]") and tree_tip.contains("[rb][/color]: View the structure tree"),
+		"menu item tooltips colour their hotkey: " + tree_tip)
+	check(menu._item_tooltip({"tooltip": "%(hotkey)s", "hotkey": "zz.none"}).contains("Unassigned hotkey: zz.none"),
+		"an unbound one says \"Unassigned hotkey: name\"")
 	print("1. Main buttons")
 	var btns: Node = menu.get_node("MainPanel/Buttons")
 	check(btns.get_node("BtnSingle").tooltip_text == "Start, load, or replay a single-player game.", "Single-player tooltip")
 	check(btns.get_node("BtnExit").tooltip_text == "Exit the game.", "Exit tooltip")
 	var cont: Button = btns.get_node("BtnContinue")
-	check(cont.get_index() == btns.get_node("BtnLearn").get_index() + 1 and cont.disabled == (CampaignRun.current_run() == null),
+	check(cont.get_index() == btns.get_node("BtnLearn").get_index() + 1 and cont.disabled == (CampaignRun.current_filename() == ""),
 		"Continue Campaign after Learn to Play, enabled only with a campaign run")
+
+	print("1b. Project information")
+	var info: Control = menu.get_node_or_null("MainPanel/ProjectInformation")
+	check(info != null and info.get_index() < btns.get_index(), "ProjectInformation's panel, under the menu buttons")
+	check(menu.community_buttons.map(func(b): return b.text) == ["Website", "Chat", "Report a Bug", "FAQ", "Translate the Game", "Donate"],
+		"the six community buttons")
+	check(str(menu.get_node("MainPanel/ProjectInformation/ProductDescription").text).contains("Release XXVIII: Boiorix"), "the release line")
+	check(str(menu.get_node("MainPanel/ProductBuild").text).begins_with("Build: "), "the build string: " + str(menu.get_node("MainPanel/ProductBuild").text))
+	menu.community_buttons[0].pressed.emit()
+	await frames(2)
+	var url_box: Node = menu.find_child("MsgBox", true, false)
+	check(menu.opened_url == "https://play0ad.com/" and url_box != null and url_box.title == "Opening page", "Website opens play0ad.com, saying so")
+	if url_box:
+		url_box._answer(0)
+	await frames(2)
+	# Scenario Editor without Atlas: 0.28's error box, and no Switch Scene control.
+	menu._on_editor_pressed()
+	await frames(2)
+	var ed_box: Node = menu.find_child("MsgBox", true, false)
+	check(ed_box != null and ed_box.title == "Error" and ed_box.message.begins_with("The scenario editor is not available"),
+		"Scenario Editor says it is not available")
+	if ed_box:
+		ed_box._answer(0)
+	await frames(2)
+	check(menu.get_node_or_null("CivSwitcher") == null, "no Switch Scene button or civ label (0.28's tooltip panel sits there)")
 
 	print("2. Submenus")
 	var learn: Array = items(menu, "learn").map(func(b): return b.text)
@@ -127,6 +158,17 @@ func run() -> void:
 			and mp.join_port.tooltip_text == "Leave blank to use the default port.",
 			"the last server, the default port for none, the multiplayer name")
 		check(mp.continue_button.text == "Continue" and mp.cancel_button.text == "Cancel", "Continue and Cancel")
+		# gamesetup_mp.js startJoin: a host name that does not resolve is reported at once, and the page stays.
+		mp.join_server.text = "no-such-host.invalid"
+		var joined_bad: bool = mp.confirm_setup()
+		var bad_box: AcceptDialog = mp.find_child("HostErrorDialog", false, false)
+		check(not joined_bad and bad_box != null and bad_box.title == "Error"
+			and bad_box.dialog_text == "Cannot join game: Failed to connect to server." and current_scene == menu
+			and menu.find_child("GameSetupMp", false, false) == mp,
+			"an unknown host name: \"Cannot join game: Failed to connect to server.\" and the page stays open")
+		if bad_box:
+			bad_box.queue_free()
+		mp.join_server.text = "192.0.2.7"
 		mp.cancel_button.pressed.emit()
 		await frames(2)
 		check(menu.find_child("GameSetupMp", false, false) == null and current_scene == menu, "Cancel closes it")

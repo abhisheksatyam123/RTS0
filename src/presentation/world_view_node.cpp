@@ -488,18 +488,9 @@ void RtsoWorldView::_ready() {
 				const auto &t = rtso::flora_template_info(k - rtso::FLORA_TEMPLATE_FIRST);
 				kd = Kind{ t.model_id, 0.3f, !t.fruit };
 			}
-			rtso::ModelLibrary::Entry models[TREE_VARIANTS];
-			flora_variants[k] = tree_family_models(kd.id, models, TREE_VARIANTS);
+			flora_model_[k] = kd.id;
+			flora_sways_[k] = kd.tree;
 			flora_scale[k] = kd.scale;
-			for (int v = 0; v < flora_variants[k]; ++v) {
-				const auto &e = models[v];
-				enable_instance_tint(e.mesh);
-				flora_mm[k][v] = create_multimesh(kd.tree ? wind_mesh(e.mesh) : e.mesh, true);
-				flora_y[k][v] = e.y_offset * kd.scale;
-				flora_mmi[k][v] = memnew(MultiMeshInstance3D);
-				flora_mmi[k][v]->set_multimesh(flora_mm[k][v]);
-				add_child(flora_mmi[k][v]);
-			}
 		}
 	}
 	for (int k = 0; k < MINE_KINDS; ++k) {
@@ -514,15 +505,6 @@ void RtsoWorldView::_ready() {
 	food_mmi = memnew(MultiMeshInstance3D); food_mmi->set_multimesh(food_mm); add_child(food_mmi);
 	ruins_mm = create_multimesh(tinted(rtso::ModelLibrary::get("buildings", "ruins").mesh), true);
 	ruins_mmi = memnew(MultiMeshInstance3D); ruins_mmi->set_multimesh(ruins_mm); add_child(ruins_mmi);
-	for (int k = 0; k < rtso::TREASURE_TYPE_COUNT; ++k) {
-		auto e = rtso::ModelLibrary::get("props", rtso::treasure_type_info((uint8_t)k).model_id);
-		if (!e.mesh.is_valid()) e = rtso::ModelLibrary::get("vegetation", "treasure_chest");
-		treasure_y_offset[k] = e.y_offset;
-		treasure_mm[k] = create_multimesh(tinted(e.mesh), true);
-		treasure_mmi[k] = memnew(MultiMeshInstance3D);
-		treasure_mmi[k]->set_multimesh(treasure_mm[k]);
-		add_child(treasure_mmi[k]);
-	}
 	{
 		Ref<BoxMesh> box;
 		box.instantiate();
@@ -559,14 +541,9 @@ void RtsoWorldView::_ready() {
 				fauna_looks_[f]++;
 			}
 		}
-		Ref<Mesh> fauna_rest[FAUNA_ROWS];
-		for (int f = 0; f < fauna_rows_; ++f) {
-			auto m = rtso::ModelLibrary::get("units", fauna_row_model_[f]);
-			fauna_rest[f] = m.mesh.is_valid() ? m.mesh : deer_mesh;
-		}
 		for (int f = 0; f < fauna_rows_; ++f) {
 			for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
-				fauna_mm[f][c] = create_multimesh(fauna_rest[f], false);
+				fauna_mm[f][c] = create_multimesh(deer_mesh, false);
 				fauna_mm[f][c]->set_use_custom_data(true); // the coat draw (player_color.gdshader variant_u)
 				fauna_mmi[f][c] = memnew(MultiMeshInstance3D);
 				fauna_mmi[f][c]->set_multimesh(fauna_mm[f][c]);
@@ -1713,9 +1690,33 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 	v.anim = nullptr;
 }
 
+void RtsoWorldView::ensure_flora(int k) {
+	if (k <= 0 || k >= FLORA_KINDS || flora_loaded_[k]) return;
+	flora_loaded_[k] = true;
+	rtso::ModelLibrary::Entry models[TREE_VARIANTS];
+	flora_variants[k] = tree_family_models(flora_model_[k], models, TREE_VARIANTS);
+	for (int v = 0; v < flora_variants[k]; ++v) {
+		const auto &e = models[v];
+		enable_instance_tint(e.mesh);
+		flora_mm[k][v] = create_multimesh(flora_sways_[k] ? wind_mesh(e.mesh) : e.mesh, true);
+		flora_y[k][v] = e.y_offset * flora_scale[k];
+		flora_mmi[k][v] = memnew(MultiMeshInstance3D);
+		flora_mmi[k][v]->set_multimesh(flora_mm[k][v]);
+		add_child(flora_mmi[k][v]);
+	}
+}
+
 Node *RtsoWorldView::instantiate_building_id(const String &id) {
 	String cat = "buildings";
 	const rtso::ModelLibrary::Entry &e = rtso::ModelLibrary::get(cat, id);
+	// A static GLB (no AnimationPlayer; its root has no transform) draws as its
+	// merged mesh: a barracks of 232 parts is 14 draws, and fog, player colour and
+	// pose updates touch one node.
+	if (e.scene.is_valid() && !e.animated && e.mesh.is_valid()) {
+		MeshInstance3D *mi = memnew(MeshInstance3D);
+		mi->set_mesh(e.mesh);
+		return mi;
+	}
 	if (e.scene.is_valid()) {
 		Node *n = e.scene->instantiate();
 		rtso::ModelLibrary::apply_imported_material_fixups(n);
@@ -2214,7 +2215,7 @@ void RtsoWorldView::update_site_dust(BuildingVis &v, uint8_t kind, int builders,
 // only; `k` and `base` place the GLB's units under the root (the model's scale,
 // or the foundation's seat). The terrain shader darkens out-of-sight ground
 // before decals blend in, so they take the LOS brightness as their modulate.
-void RtsoWorldView::update_building_decals(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, float brightness) {
+void RtsoWorldView::update_building_decals(const rtso::Simulation *sim, BuildingVis &v, const String &glb_id, float k, const Vector3 &base, float brightness) {
 	if (!v.root) return;
 	if (!v.decal_key.same(glb_id, k, base.x, base.z)) {
 		for (Decal *d : v.decals) {
@@ -2264,8 +2265,10 @@ void RtsoWorldView::update_building_decals(BuildingVis &v, const String &glb_id,
 		}
 	}
 	const Color mod(brightness, brightness, brightness, 1.0f);
-	for (Decal *d : v.decals)
+	for (Decal *d : v.decals) {
 		if (d->get_modulate() != mod) d->set_modulate(mod);
+		sync_gl_decal(sim, d);
+	}
 }
 
 // 0 A.D. structure actors prop particle emitters in the variants they always show
@@ -2688,11 +2691,12 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key)
 		slot->height = entry.aabb.size.y;
 		slot->rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
 		slot->no_scene = !entry.scene.is_valid();
-		// Owner-coloured: a player_color.gdshader surface with a mask (the shader also
-		// draws unmasked skins that vary by unit or carry specular or height maps).
+		// Owner-coloured: a player_color.gdshader surface with a mask, or a crowd's parts
+		// with one (the shader also draws unmasked skins that vary by unit or carry
+		// specular or height maps).
 		for (int s = 0; slot->rest.is_valid() && s < slot->rest->get_surface_count(); ++s) {
 			Ref<ShaderMaterial> sm = slot->rest->surface_get_material(s);
-			if (rtso::ModelLibrary::is_player_color_material(sm) && sm->get_shader_parameter("mask_tex").get_type() != Variant::NIL)
+			if (rtso::ModelLibrary::is_player_color_material(sm) && (sm->get_shader_parameter("mask_tex").get_type() != Variant::NIL || (bool)sm->get_meta("crowd_owner_coloured", false)))
 				slot->player_color = true;
 		}
 	}
@@ -3080,9 +3084,52 @@ int RtsoWorldView::fauna_row(uint8_t ftype, uint32_t id) const {
 	return pick == 0 ? ftype : fauna_look_first_[ftype] + (int)pick - 1;
 }
 
+// The plants, animals and treasures the map has, seen or not, load as they appear
+// (behind the loading page, or warm_models for a save), so exploring never stalls
+// a frame on a model; a scan runs when a list's length changes.
+void RtsoWorldView::ensure_map_models(const rtso::Simulation *sim) {
+	if (const auto rv = sim->resources(); rv.count != flora_scan_count_) {
+		flora_scan_count_ = rv.count;
+		for (size_t i = 0; i < rv.count; ++i)
+			if (rv.flora[i] != 0 && rv.flora[i] < FLORA_KINDS && !flora_loaded_[rv.flora[i]]) ensure_flora(rv.flora[i]);
+	}
+	if (const auto fview = sim->fauna(); fview.count != fauna_scan_count_) {
+		fauna_scan_count_ = fview.count;
+		for (size_t f = 0; f < fview.count; ++f)
+			if (fview.fauna_type[f] < rtso::FAUNA_COUNT) ensure_fauna_row(fauna_row(fview.fauna_type[f], fview.id[f]));
+	}
+	if (sim->treasures().size() != treasure_scan_count_) {
+		treasure_scan_count_ = sim->treasures().size();
+		for (const auto &t : sim->treasures()) ensure_treasure(t.type);
+	}
+}
+
+void RtsoWorldView::ensure_treasure(int k) {
+	if (k < 0 || k >= rtso::TREASURE_TYPE_COUNT || treasure_loaded_[k]) return;
+	treasure_loaded_[k] = true;
+	auto e = rtso::ModelLibrary::get("props", rtso::treasure_type_info((uint8_t)k).model_id);
+	if (!e.mesh.is_valid()) e = rtso::ModelLibrary::get("vegetation", "treasure_chest");
+	treasure_y_offset[k] = e.y_offset;
+	enable_instance_tint(e.mesh);
+	treasure_mm[k] = create_multimesh(e.mesh, true);
+	treasure_mmi[k] = memnew(MultiMeshInstance3D);
+	treasure_mmi[k]->set_multimesh(treasure_mm[k]);
+	add_child(treasure_mmi[k]);
+}
+
+void RtsoWorldView::ensure_fauna_row(int row) {
+	if (row < 0 || row >= fauna_rows_ || fauna_row_loaded_[row]) return;
+	fauna_row_loaded_[row] = true;
+	const auto &m = rtso::ModelLibrary::get("units", fauna_row_model_[row]);
+	if (!m.mesh.is_valid()) return;
+	for (int c = 0; c < FAUNA_CLIP_COUNT; ++c)
+		if (fauna_mm[row][c].is_valid()) fauna_mm[row][c]->set_mesh(m.mesh);
+}
+
 void RtsoWorldView::ensure_fauna_frames(int row) {
 	if (row < 0 || row >= fauna_rows_) return;
 	if (fauna_puppet_baked[row]) return;
+	ensure_fauna_row(row);
 	fauna_puppet_baked[row] = true;
 
 	String cat_units = "units";
@@ -3227,6 +3274,7 @@ void RtsoWorldView::model_boxes(const std::vector<uint32_t> &ids, std::vector<Mo
 
 void RtsoWorldView::warm_models(const rtso::Simulation *sim, const std::function<void(int, int)> &progress) {
 	if (!sim) return;
+	ensure_map_models(sim);
 	const auto uview = sim->units();
 	std::vector<std::pair<const char *, String>> wanted;
 	std::unordered_set<std::string> seen;
@@ -4364,6 +4412,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (v.variant_model != v.model || v.variant_id != id) {
 			// Props first: a look added for this entity takes the colour and skin draw below.
 			rtso::ModelLibrary::set_prop_looks(v.model, v.model_id, id);
+			rtso::ModelLibrary::set_unit_helmet(v.model, v.model_id, id);
 			rtso::ModelLibrary::set_variant(v.model, rtso::ModelLibrary::variant_draw(id));
 			v.variant_model = v.model;
 			v.variant_id = id;
@@ -4647,7 +4696,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 					dbase = fn->get_position();
 				}
 			}
-			update_building_decals(v, decal_glb, dk, dbase, Math::round(los_brightness(b.x, b.z) * (FOG_OVERLAY_LEVELS - 1)) / (FOG_OVERLAY_LEVELS - 1));
+			update_building_decals(sim, v, decal_glb, dk, dbase, Math::round(los_brightness(b.x, b.z) * (FOG_OVERLAY_LEVELS - 1)) / (FOG_OVERLAY_LEVELS - 1));
 			// The particles the structure's actor, or its rubble's, always props.
 			if (v.phase == 0)
 				update_ambient_fx(v, visual_id, b_scale, Vector3(0.0f, entry.y_offset, 0.0f));
@@ -4891,6 +4940,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 	if (sim->current_map_biome() != tree_biome_) pick_tree_kinds(sim->current_map_biome());
 	// A tree or fruit bush with a FloraKind whose model loaded draws in that kind's batch.
+	ensure_map_models(sim);
 	auto flora_of = [&](const rtso::FoggedResource &r) -> int {
 		if (r.flora == 0 || r.flora >= FLORA_KINDS || flora_variants[r.flora] == 0) return 0;
 		if (r.subtype != rtso::RES_SUB_NONE || (r.type != rtso::RES_WOOD && r.type != rtso::RES_FOOD)) return 0;
@@ -4976,11 +5026,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		int nt[rtso::TREASURE_TYPE_COUNT] = {};
 		for (const auto &t : tv)
 			if (t.type < rtso::TREASURE_TYPE_COUNT && los_brightness(t.x, t.z) > 0.0f) ++nt[t.type];
-		for (int k = 0; k < rtso::TREASURE_TYPE_COUNT; ++k) set_mm_count(treasure_mm[k], nt[k]);
+		for (int k = 0; k < rtso::TREASURE_TYPE_COUNT; ++k)
+			if (treasure_mm[k].is_valid()) set_mm_count(treasure_mm[k], nt[k]);
 		int it[rtso::TREASURE_TYPE_COUNT] = {};
 		for (const auto &t : tv) {
 			const float lit = t.type < rtso::TREASURE_TYPE_COUNT ? los_brightness(t.x, t.z) : 0.0f;
-			if (lit <= 0.0f) continue;
+			if (lit <= 0.0f || !treasure_mm[t.type].is_valid()) continue;
 			// Wrecks and floating cargo sit on the water, the rest on the ground.
 			const float ground = std::max(sim->get_terrain_height(t.x, t.z), sim->water_height());
 			Basis rot(Vector3(0, 1, 0), rtso::Simulation::treasure_angle(t.id));
@@ -5170,6 +5221,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			draw_status_stack(sim, Vector3(r.x, ry + 0.25f * offset, r.z), 0.25f * bar_w, 0.25f * bar_h, 0.25f, st);
 		}
 	}
+	for (size_t k = 0; k < unit_rings_used; ++k) sync_gl_decal(sim, unit_ring_decals_[k]);
 	for (size_t k = unit_rings_used; k < unit_ring_decals_.size(); ++k) unit_ring_decals_[k]->set_visible(false);
 	status_sprites_.end_frame();
 	draw_structure_outlines(sim);
@@ -5245,6 +5297,79 @@ void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3
 
 // Selectable.js overlay for structures: an outline round the footprint of each selected
 // structure, and a fainter one round a highlighted (hovered or band-boxed) one.
+void RtsoWorldView::sync_gl_decal(const rtso::Simulation *sim, Decal *d) {
+	if (!rtso::gl_compatibility() || !sim || !d || !d->is_inside_tree()) return;
+	Ref<Texture2D> tex = d->get_texture(Decal::TEXTURE_ALBEDO);
+	if (tex.is_null()) return;
+	MeshInstance3D *mi = d->get_child_count() > 0 ? Object::cast_to<MeshInstance3D>(d->get_child(0)) : nullptr;
+	if (!mi) {
+		mi = memnew(MeshInstance3D);
+		mi->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+		d->add_child(mi);
+	}
+	// Rebuilt only when the decal moves, turns, resizes or changes colour.
+	const Transform3D xf = d->get_global_transform();
+	const Vector3 size = d->get_size();
+	const Color mod = d->get_modulate();
+	const Array key = Array::make(xf, size, mod);
+	if (mi->get_meta("gl_key", Variant()) == Variant(key)) return;
+	mi->set_meta("gl_key", key);
+	Ref<StandardMaterial3D> &mat = gl_decal_mats_[tex.ptr()];
+	if (mat.is_null()) {
+		mat.instantiate();
+		mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+		mat->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+		mat->set_cull_mode(BaseMaterial3D::CULL_DISABLED);
+		mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+		mat->set_flag(BaseMaterial3D::FLAG_SRGB_VERTEX_COLOR, true);
+		mat->set_flag(BaseMaterial3D::FLAG_DISABLE_FOG, true);
+		mat->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, tex);
+	}
+	// A grid about a world unit (4 m) apart, each vertex on the terrain under it,
+	// UVs as the Decal maps its albedo (u along x, v along z).
+	const int n = Math::clamp((int)Math::ceil(std::max(size.x, size.z)), 2, 16);
+	const Transform3D inv = xf.affine_inverse();
+	PackedVector3Array verts;
+	PackedVector2Array uvs;
+	PackedColorArray cols;
+	PackedInt32Array idx;
+	verts.resize((n + 1) * (n + 1));
+	uvs.resize(verts.size());
+	cols.resize(verts.size());
+	for (int j = 0; j <= n; ++j) {
+		for (int i = 0; i <= n; ++i) {
+			const float u = (float)i / n, v = (float)j / n;
+			Vector3 w = xf.xform(Vector3((u - 0.5f) * size.x, 0.0f, (v - 0.5f) * size.z));
+			w.y = sim->get_terrain_height(w.x, w.z) + 0.03f;
+			const int k = j * (n + 1) + i;
+			verts.set(k, inv.xform(w));
+			uvs.set(k, Vector2(u, v));
+			cols.set(k, mod);
+		}
+	}
+	for (int j = 0; j < n; ++j) {
+		for (int i = 0; i < n; ++i) {
+			const int a = j * (n + 1) + i, b = a + 1, c = a + n + 1, e = c + 1;
+			idx.append(a), idx.append(b), idx.append(c);
+			idx.append(b), idx.append(e), idx.append(c);
+		}
+	}
+	Array arrays;
+	arrays.resize(Mesh::ARRAY_MAX);
+	arrays[Mesh::ARRAY_VERTEX] = verts;
+	arrays[Mesh::ARRAY_TEX_UV] = uvs;
+	arrays[Mesh::ARRAY_COLOR] = cols;
+	arrays[Mesh::ARRAY_INDEX] = idx;
+	Ref<ArrayMesh> mesh = mi->get_mesh();
+	if (mesh.is_null()) {
+		mesh.instantiate();
+		mi->set_mesh(mesh);
+	}
+	mesh->clear_surfaces();
+	mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
+	mesh->surface_set_material(0, mat);
+}
+
 Decal *RtsoWorldView::get_or_create_ring_decal(size_t index) {
 	while (unit_ring_decals_.size() <= index) {
 		Decal *d = memnew(Decal);

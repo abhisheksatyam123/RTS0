@@ -37,6 +37,11 @@ bool los_sees_unit(const Simulation &sim, uint8_t viewer, float x, float z, uint
 	return sim.shares_los(viewer, team) || sim.los_visible(viewer, x, z);
 }
 
+bool los_sees_fauna(const Simulation &sim, uint8_t viewer, float x, float z, uint8_t owner) {
+	if (los_sees_all(sim, viewer)) return true;
+	return (owner < MAX_PLAYERS && sim.shares_los(viewer, owner)) || sim.los_explored(viewer, x, z);
+}
+
 void los_view_grid(const Simulation &sim, uint8_t viewer, std::vector<uint8_t> &out) {
 	const int res = sim.fow_res();
 	const size_t n = (size_t)res * (size_t)res;

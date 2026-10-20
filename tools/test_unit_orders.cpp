@@ -3332,6 +3332,18 @@ static void test_hidden_targets() {
 	check(s.unit_order(man).kind == ORDER_ATTACK, "and the attack goes through");
 	// Own and allied entities are never refused.
 	check(s.player_can_target_building(1, foe_cc) && s.player_can_target_unit(1, foe), "a player's own are always targetable");
+	// template_unit_fauna.xml RetainInFog: an animal in unexplored land is hidden, but once its
+	// land is explored it stays a target in the fog.
+	const uint32_t sheep = s.spawn_fauna(-40.0f, 40.0f, FAUNA_SHEEP);
+	turns(0.4f);
+	check(!s.player_can_target_fauna(0, sheep), "a sheep in unexplored land is hidden");
+	s.units_.pos_x[idx_of(s, woman)] = -40.0f;
+	s.units_.pos_z[idx_of(s, woman)] = 36.0f;
+	turns(0.4f);
+	s.units_.pos_z[idx_of(s, woman)] = -36.0f;
+	turns(0.4f);
+	check(!s.los_visible(0, -40.0f, 40.0f) && s.player_can_target_fauna(0, sheep),
+			"once explored, the sheep in the fog can still be targeted");
 }
 
 // Guard.js OnAttacked: a poison or burning tick on the guarded unit sends its guards after
@@ -3455,6 +3467,34 @@ static void test_defensive_held_position() {
 // WalkToTarget (UnitAI.js:5646-5652, :5741-5747, :673-682). A citizen cavalryman sent with a
 // woman to a tree rides there while she gathers; an empty-handed spearman sent with a loaded one
 // to the storehouse walks along.
+// UnitAI COMBAT (UnitAI.js 2080, 2311): APPROACHING walks, whatever the target does; only CHASING,
+// which follows ATTACKING once the target leaves its range, runs after a fleeing target.
+static void test_approach_walks() {
+	std::printf("95. a unit walks up to a fleeing target and runs only once it has been in range of it (APPROACHING, CHASING)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t woman = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_set_stance(&woman, 1, STANCE_PASSIVE);
+	const uint32_t archer = s.spawn_unit(-8, 0, 1, UNIT_ARCHER);
+	s.order_attack(&archer, 1, woman);
+	const bool fled = run_until(s, 10.0f, [&] { return act_of(s, woman) == ACTION_FLEE; });
+	const uint32_t sp = s.spawn_unit(30, 0, 1, UNIT_SPEARMAN);
+	s.order_attack(&sp, 1, woman);
+	s.tick(DT);
+	const size_t si = (size_t)idx_of(s, sp);
+	check(fled && act_of(s, woman) == ACTION_FLEE && act_of(s, sp) == ACTION_ATTACK && !s.unit_running(si),
+			"a spearman sent at a fleeing woman walks up to her");
+	check(std::fabs(s.unit_walk_speed(si) - s.units_.speed[si]) < 1e-4f, "at his walk speed");
+	s.order_walk(&archer, 1, -40.0f, 0.0f);
+	bool walked = true;
+	const bool ran = run_until(s, 40.0f, [&] {
+		if (!s.unit_running(si)) return false;
+		walked = walked && s.units_.chase_target[si] == woman;
+		return true;
+	});
+	check(ran && walked, "once he has been in range of her and she flees again, he runs after her");
+}
+
 static void test_cant_do_walks() {
 	std::printf("units that can't gather or return walk to the target\n");
 	Simulation s;
@@ -3579,6 +3619,7 @@ int main(int argc, char **argv) {
 	test_range_aura_not_self();
 	test_hidden_targets();
 	test_cant_do_walks();
+	test_approach_walks();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

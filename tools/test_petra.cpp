@@ -72,6 +72,13 @@ static int count_units(const Simulation &s, uint8_t team, bool workers_only) {
 	return n;
 }
 
+// attackManager.js startedAttacks.Raid: the first raid that set off, if any.
+static Simulation::AttackPlan *launched_raid(Simulation &s) {
+	for (auto &p : s.petra_started_attacks_)
+		if (p.kind == PETRA_ATTACK_RAID) return &p;
+	return nullptr;
+}
+
 static void test_no_early_rush() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(1);
@@ -595,7 +602,8 @@ static void test_diplomacy() {
 		// Hits on a Gaia animal and on an enemy structure count too (Attacked is sent for any entity).
 		const auto ally_hits = [&](const char *what, auto order) {
 			std::vector<uint32_t> bows;
-			for (int i = 0; i < 3; ++i) bows.push_back(s->spawn_unit(tx - 12.0f + 2.0f * (float)i, tz + 20.0f, 2, UNIT_ARCHER));
+			// Where the elephant fight above was: our land, the archers in reach.
+			for (int i = 0; i < 3; ++i) bows.push_back(s->spawn_unit(tx + 12.0f + 2.0f * (float)i, tz + 20.0f, 2, UNIT_ARCHER));
 			s->petra_config_slot(1).cooperative = 0.5f;
 			order(bows);
 			run_for(*s, 10.0f);
@@ -604,10 +612,13 @@ static void test_diplomacy() {
 			CHECK(now > 0.5f, "an ally's hits on it raise cooperativeness");
 			drop(bows);
 		};
-		const uint32_t deer = s->spawn_fauna(tx - 12.0f, tz + 12.0f, FAUNA_DEER);
-		ally_hits("deer", [&](std::vector<uint32_t> &bows) { s->order_attack(bows.data(), bows.size(), deer); });
-		const uint32_t house = s->spawn_building_world(tx - 12.0f, tz + 8.0f, BLD_HOUSE, 0);
-		ally_hits("house", [&](std::vector<uint32_t> &bows) { s->order_attack_building(bows.data(), bows.size(), house); });
+		if (const int32_t e = s->lookup_unit(foe); e >= 0) s->units_.alive[e] = false;
+		// A boar: Petra's hunters leave a live one alone (isHuntable), so only the ally hits it.
+		const uint32_t boar = s->spawn_fauna(tx + 12.0f, tz + 12.0f, FAUNA_BOAR);
+		ally_hits("boar", [&](std::vector<uint32_t> &bows) { s->order_hunt(bows.data(), bows.size(), boar); });
+		// Gaia's: a house of player 0 would claim its own ground (TerritoryInfluence).
+		const uint32_t house = s->spawn_building_world(tx + 12.0f, tz + 12.0f, BLD_HOUSE, GAIA_PLAYER);
+		ally_hits("Gaia house", [&](std::vector<uint32_t> &bows) { s->order_attack_building(bows.data(), bows.size(), house); });
 	}
 
 	// Last Man Standing with unlocked teams: lobby teams only set the starting
@@ -712,8 +723,11 @@ static void test_attack_plans() {
 			for (const auto &b : s->buildings()) if (b.team == 0 && b.hp > 0.0f) return true;
 			return false;
 		};
+		// An Attack without siege that finds no undefended structure when it must start fails
+		// (getNearestTarget), and the next plan may be a HugeAttack: either counts.
 		auto attacks_done = [&] {
-			const int n = s->petra_attack_manager().launched[PETRA_ATTACK_ATTACK];
+			const auto &l = s->petra_attack_manager().launched;
+			const int n = l[PETRA_ATTACK_ATTACK] + l[PETRA_ATTACK_HUGE];
 			return n >= 2 || (n == 1 && !enemy_left());
 		};
 		// 25 minutes, or up to 30 while the second Attack is still to come (a second
@@ -745,7 +759,7 @@ static void test_attack_plans() {
 		CHECK(m.max_rushes == 3, "an aggressive AI on a wood-rich base plans three rushes");
 		CHECK(rushed && rush_at_store, "rushes the undefended storehouse in the village phase");
 		CHECK(told_allies && named_target, "each attack is announced to allies only, naming the player attacked");
-		CHECK(attacks_done(), "launches two Attack plans, or one that razes the enemy");
+		CHECK(attacks_done(), "launches two attacks, or one that razes the enemy");
 	}
 	{
 		// The kind of each plan as it starts mustering (whether a HugeAttack
@@ -770,12 +784,17 @@ static void test_attack_plans() {
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
 		// At 0 A.D.'s gather rates the HugeAttack starts mustering around minute 14-27 on this
-		// map (later once traders take a market-dock route); 30 min leaves room for map changes.
+		// map (later once traders take a market-dock route); up to 40 min leaves room for map
+		// changes and for an Attack lost under the fortresses. It stops once three plans marched.
 		// An army that razes the idle player finds it rebuilt, so every plan has a target.
 		float home_x = 0.0f, home_z = 0.0f;
 		for (const auto &b : s->buildings()) if (b.team == 0 && b.type == BLD_TOWN_CENTER) { home_x = b.x; home_z = b.z; }
 		int step = 0;
-		for (float t = 0.0f; t < 30.0f * 60.0f; t += Simulation::FIXED_STEP) {
+		auto marched = [&] {
+			const auto &m = s->petra_attack_manager();
+			return kinds.size() >= 3 && m.launched[PETRA_ATTACK_ATTACK] >= 1 && m.launched[PETRA_ATTACK_ATTACK] + m.launched[PETRA_ATTACK_HUGE] >= 3;
+		};
+		for (float t = 0.0f; t < 40.0f * 60.0f && !marched(); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (++step % 200 == 0) {
 				bool any = false;
@@ -800,7 +819,8 @@ static void test_attack_plans() {
 		      "the first two plans are Attack");
 		CHECK(kinds.size() >= 3 && kinds[2] == PETRA_ATTACK_HUGE, "then HugeAttack");
 		// With a HugeAttack under way the next plan is an Attack again (attackManager.js).
-		CHECK(m.launched[PETRA_ATTACK_ATTACK] >= 2, "both Attack plans march");
+		// A siege-less Attack that only finds defended structures fails and is made again.
+		CHECK(m.launched[PETRA_ATTACK_ATTACK] >= 1 && m.launched[PETRA_ATTACK_ATTACK] + m.launched[PETRA_ATTACK_HUGE] >= 3, "the Attack and HugeAttack plans march");
 		CHECK(huge_size > 2 * attack_size, "a HugeAttack musters a much larger army");
 	}
 	{
@@ -821,8 +841,9 @@ static void test_attack_plans() {
 		size_t raiders = 0;
 		for (float t = 0.0f; t < 20.0f && !raided; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
-			const auto &raid = s->petra_raid_plan();
-			if (raid.state != Simulation::AttackPlan::WALKING || raid.target_building_id != outpost) continue;
+			const Simulation::AttackPlan *r = launched_raid(*s);
+			if (!r || r->state != Simulation::AttackPlan::WALKING || r->target_building_id != outpost) continue;
+			const auto &raid = *r;
 			raided = true;
 			raiders = raid.squad.size();
 			const auto u = s->units();
@@ -1556,6 +1577,38 @@ static void test_petra_tributes_same_total() {
 	std::printf("  tributes from one total: ally 1 got %.0f food, ally 2 %.0f, %.0f left\n", s->players_[1].res[RES_FOOD],
 	            s->players_[2].res[RES_FOOD], s->players_[0].res[RES_FOOD]);
 	CHECK(s->players_[1].res[RES_FOOD] == 300.0f && s->players_[2].res[RES_FOOD] == 300.0f, "each ally gets 30% of the same total");
+}
+
+// diplomacyManager.js handleDiplomacyRequest: moreEnemiesThanAllies counts getEnemies, where a
+// defeated enemy still is one (its stances outlive it), against getMutualAllies, us included.
+// tributes: an ally by our own stance gets gifts though it is not allied back.
+static void test_petra_defeated_still_enemies() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 4, 128.0f);
+	for (uint8_t p = 0; p < 4; ++p) s->set_player_active(p, true, p == 0);
+	s->petra_pid_ = 0;
+	s->set_team_civ(2, (uint8_t)s->players_[0].civ); // the same civ never declines for good at once
+	s->set_diplomacy(0, 3, Simulation::DIPLO_ALLY);
+	s->set_diplomacy(3, 0, Simulation::DIPLO_ALLY);
+	s->participant_mask_ = 0x0F; // seated at the start
+	s->defeated_mask_ |= 1u << 1; // an enemy already out: Gaia, it and player 2 against us and player 3
+	s->petra_diplo_.seen_init = true;
+	s->petra_handle_diplomacy_request(2, 0);
+	const auto &req = s->petra_diplo_.received[2];
+	std::printf("  alliance request with a defeated enemy left: status %d\n", (int)req.status);
+	CHECK(req.status != PetraReceivedRequest::NONE && req.status != PetraReceivedRequest::DECLINED_FOREVER,
+	      "more enemies than allies: not turned down out of hand");
+
+	for (uint8_t p = 0; p < 4; ++p)
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[p].res[r] = 0.0f;
+	s->players_[0].res[RES_FOOD] = 1000.0f;
+	s->set_diplomacy(3, 0, Simulation::DIPLO_NEUTRAL); // allied one way only
+	s->petra_diplo_.next_tribute = 0.0f;
+	s->petra_manage_diplomacy(1.6f);
+	std::printf("  one-way ally's gift: %.0f food\n", s->players_[3].res[RES_FOOD]);
+	CHECK(s->players_[3].res[RES_FOOD] == 300.0f, "an ally by our stance alone gets a tribute");
 }
 
 // diplomacyManager.js init: a player allied to us at the start while we are its enemy
@@ -2820,8 +2873,9 @@ static void test_raid_takes_every_rider() {
 		bool champion_in = false, spear_in = false;
 		for (float t = 0.0f; t < 20.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
-			const auto &raid = s->petra_raid_plan_;
-			if (raid.state != Simulation::AttackPlan::WALKING) continue;
+			const Simulation::AttackPlan *r = launched_raid(*s);
+			if (!r || r->state != Simulation::AttackPlan::WALKING) continue;
+			const auto &raid = *r;
 			raiders = raid.squad.size();
 			champion_in = std::find(raid.squad.begin(), raid.squad.end(), champion) != raid.squad.end();
 			spear_in = std::find(raid.squad.begin(), raid.squad.end(), spear) != raid.squad.end();
@@ -3031,6 +3085,8 @@ static void test_attack_rally_point() {
 	s->petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
 	s->petra_attack_mgr_.target_size = 12;
 	s->petra_attack_mgr_.min_size = 12;
+	// Forced: it sets off with these twelve, whatever classes the plan would still train.
+	plan.forced = true;
 	const std::vector<uint32_t> army = plan.squad;
 	// attackPlan.js updatePreparation's max-population case: under 5 free slots, more than
 	// lengthMin units start the plan whatever classes it still lacks.
@@ -3289,9 +3345,12 @@ static void test_relic_capture() {
 	CHECK(!far.claimed, "and leaves a relic it has never seen");
 	// abortCaptureGaiaRelic: a relic someone else takes first ends the expedition.
 	const uint32_t taken = s->spawn_relic(tx - 12.0f, tz + 12.0f);
-	const uint32_t seeker = s->spawn_unit(tx - 4.0f, tz + 4.0f, 1, UNIT_SPEARMAN);
+	const uint32_t seeker = s->spawn_unit(tx - 24.0f, tz + 24.0f, 1, UNIT_SPEARMAN);
 	s->order_capture_relic(&seeker, 1, taken);
 	const int32_t tr = s->lookup_unit(taken), su = s->lookup_unit(seeker);
+	// The expedition is a Raid plan in 0.28: its units are no longer workers.
+	CHECK(s->petra_unit_reserved(seeker), "a relic capturer is not a worker while it goes");
+	const float far0 = std::hypot(s->units_.pos_x[su] - tx, s->units_.pos_z[su] - tz);
 	s->units_.team[tr] = 0;
 	for (auto &rel : s->relics_)
 		if (rel.id == taken) { rel.claimed = true; rel.owner_team = 0; }
@@ -3301,6 +3360,62 @@ static void test_relic_capture() {
 	// Called off, it may go back to work or into the civic centre (garrisoned units are not alive).
 	CHECK((s->units_.alive[su] || s->units_.action_state[su] == ACTION_GARRISONED) &&
 			s->units_.order_kind[su] != ORDER_CAPTURE_RELIC, "Petra calls off a capture of a relic an enemy took");
+	// attackPlan.js Abort: it withdraws to the nearest base anchor rather than stopping where it is.
+	if (s->units_.alive[su]) {
+		const float far1 = std::hypot(s->units_.pos_x[su] - tx, s->units_.pos_z[su] - tz);
+		std::printf("  called-off capturer: %.0f from the civic centre, then %.0f\n", far0, far1);
+		CHECK(far1 < far0 - 4.0f, "and the capturer withdraws toward its civic centre");
+	}
+}
+
+// victoryManager.js targetedGaiaRelics: a relic Petra went for once is reinforced every 10th
+// turn until its owner changes, with no need to see it again, and dropped once someone takes it.
+static void test_relic_targeted_kept() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_RELIC);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->relics_.clear();
+	const float rx = tz * 0.7f, rz = -tx * 0.7f; // to the side, unseen
+	const uint32_t relic = s->spawn_relic(rx, rz);
+	std::printf("  targeted relic at (%.0f, %.0f), TC (%.0f, %.0f), territory %d\n", rx, rz, tx, tz, s->territory_owner_at(rx, rz));
+	for (int k = 0; k < 4; ++k) s->spawn_unit(tx + 6.0f + (float)k, tz + 6.0f, 1, UNIT_SPEARMAN);
+	run_ai_turns(*s, 10);
+	auto going = [&] {
+		int n = 0;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.order_kind[i] == ORDER_CAPTURE_RELIC && s->units_.order_target[i] == relic) ++n;
+		return n;
+	};
+	const int unseen = going();
+	// An expedition sent once, then lost: the relic stays targeted.
+	s->petra_targeted_relics_.push_back({relic, 1});
+	run_ai_turns(*s, 20);
+	const int kept = going();
+	std::printf("  targeted relic: %d units go for an unseen relic, %d once Petra went for it before\n", unseen, kept);
+	CHECK(unseen == 0, "Petra leaves an unseen relic outside its territory");
+	CHECK(kept > 0, "but keeps sending units to a relic it went for once (targetedGaiaRelics)");
+	const int32_t r = s->lookup_unit(relic);
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::WALKING;
+	plan.target_building_id = relic;
+	plan.squad.push_back(s->spawn_unit(tx + 3.0f, tz + 3.0f, 1, UNIT_SPEARMAN));
+	s->petra_started_attacks_.push_back(plan);
+	s->units_.team[r] = 0;
+	run_ai_turns(*s, 20);
+	bool plan_on = false;
+	for (const auto &p : s->petra_started_attacks_)
+		plan_on |= p.target_building_id == relic && p.state != Simulation::AttackPlan::ABORT && p.state != Simulation::AttackPlan::REGROUP;
+	CHECK(!plan_on, "an attack going for the relic is aborted once another player takes it (abortCaptureGaiaRelic)");
+	const bool dropped = std::none_of(s->petra_targeted_relics_.begin(), s->petra_targeted_relics_.end(),
+	                                  [&](const auto &t) { return t.relic == relic; });
+	CHECK(dropped && going() == 0, "and drops it, calling its units off, once another player takes it");
 }
 
 // attackManager.js getRelicEnemyPlayer: in capture the relic, Petra attacks the enemy
@@ -3357,7 +3472,11 @@ static void test_relic_gaia_target() {
 	std::printf("  Gaia relic: target %s, next try in %d s\n", target == relic ? "the relic" : "something else", 2 * lapse);
 	CHECK(target == relic, "the attack targets the Gaia relic");
 	CHECK(lapse == 120, "and the next try at Gaia's relics waits 240 s at Medium");
-	CHECK(s->petra_enemy_player(PETRA_ATTACK_ATTACK) != GAIA_PLAYER, "meanwhile another enemy is picked");
+	// getEnemyPlayer keeps currentEnemyPlayer, Gaia now, for later attacks but a HugeAttack, and
+	// not when the plan already has a target player.
+	CHECK(s->petra_enemy_player(PETRA_ATTACK_ATTACK) == GAIA_PLAYER, "meanwhile later attacks keep Gaia as their enemy");
+	CHECK(s->petra_enemy_player(PETRA_ATTACK_HUGE) != GAIA_PLAYER, "but a HugeAttack goes for a player");
+	CHECK(s->petra_enemy_player(PETRA_ATTACK_ATTACK, false) != GAIA_PLAYER, "as does a plan with a target player already");
 	plan.target_building_id = relic;
 	CHECK(s->find_petra_attack_target(tx, tz, 0, &plan) == relic, "a plan keeps the Gaia relic it targets");
 
@@ -4215,6 +4334,49 @@ static void test_gather_limits() {
 	CHECK(on_tree + on_mine > 8, "the rest go to another supply");
 }
 
+// headquarters.js updateCaptureStrength: units of ours outside any plan capturing a structure
+// pool their strength; too weak together, they switch to damaging it, strong enough they capture.
+static void test_update_capture_strength() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const uint32_t house = s->spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0);
+	auto hi = s->building_id_to_idx_.find(house);
+	CHECK(hi != s->building_id_to_idx_.end(), "player 0's house stands");
+	if (hi == s->building_id_to_idx_.end()) return;
+	std::vector<uint32_t> men;
+	auto add = [&](int n) {
+		for (int k = 0; k < n; ++k) {
+			const uint32_t u = s->spawn_unit(6.0f + (float)men.size(), 6.0f, 1, UNIT_SPEARMAN);
+			s->order_attack_building(&u, 1, house, false, true);
+			men.push_back(u);
+		}
+	};
+	auto capturing = [&] {
+		int n = 0;
+		for (uint32_t u : men) {
+			const int32_t i = s->lookup_unit(u);
+			if (s->units_.order_kind[i] == ORDER_ATTACK_BUILDING && (s->units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE)) ++n;
+		}
+		return n;
+	};
+	// Points the house's regen outdoes for one spearman, not for twenty.
+	add(1);
+	s->petra_update_capture_strength();
+	const int alone = capturing();
+	add(19);
+	for (uint32_t u : men) s->order_attack_building(&u, 1, house, false, true);
+	s->petra_update_capture_strength();
+	const int pooled = capturing();
+	std::printf("  capture strength: 1 spearman %s, 20 together: %d capture\n", alone ? "captures" : "damages", pooled);
+	CHECK(alone == 0, "one spearman too weak for the house damages it instead");
+	CHECK(pooled == 20, "twenty together pool their strength and capture it");
+}
+
 // garrisonManager.js addDecayingStructure: a defence tower of Petra's standing in enemy
 // territory decays, so Petra garrisons the soldiers that stop the decay and keeps them in.
 static void test_decay_garrison() {
@@ -4247,6 +4409,18 @@ static void test_decay_garrison() {
 	std::printf("  decaying tower in enemy land: needs %d, garrisoned %zu, still ours %s\n", need, inside, ours ? "yes" : "no");
 	CHECK(need > 0, "a tower in enemy territory decays");
 	CHECK(ours && (int)inside >= std::min(need, cap), "Petra garrisons a decaying tower (TYPE_DECAY)");
+	// A barracks is held only just after Petra captures it (addDecayingStructure justCaptured).
+	const uint32_t bar = s->spawn_building_world(tx, tz + 16.0f, BLD_BARRACKS, 0);
+	auto bi = s->building_id_to_idx_.find(bar);
+	CHECK(bi != s->building_id_to_idx_.end(), "player 0's barracks stands");
+	if (bi == s->building_id_to_idx_.end()) return;
+	Simulation::Building &bb = s->buildings_[bi->second];
+	bb.team = 1;
+	const int built = s->petra_decay_garrison_min(bb);
+	s->stat_building_captured(bb, 0);
+	const int captured = s->petra_decay_garrison_min(bb);
+	std::printf("  decaying barracks: needs %d as if built, %d just captured\n", built, captured);
+	CHECK(built == 0 && captured > 0, "Petra garrisons a decaying barracks only when it just captured it");
 }
 
 // headquarters.js checkEvents: a structure Petra just captured in enemy land, which no
@@ -5171,8 +5345,6 @@ static void test_concurrent_attacks() {
 			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
 		s->players_[1].phase = 2;
 		s->spawn_building_world(tx + 14.0f, tz, BLD_BARRACKS, 1, 1.0f);
-		if (big)
-			for (int k = 0; k < 16; ++k) s->spawn_building_world(tx - 16.0f + 4.0f * (float)(k % 4), tz + 12.0f + 4.0f * (float)(k / 4), BLD_HOUSE, 1, 1.0f);
 		auto &mgr = s->petra_attack_mgr_;
 		mgr.rushes_set = 1;
 		mgr.max_rushes = 0;
@@ -5726,12 +5898,14 @@ static void test_raid_takes_siege() {
 	std::vector<uint32_t> rams;
 	for (int k = 0; k < siege_target; ++k) rams.push_back(s->spawn_unit(ox + 8.0f + 3.0f * k, oz - 6.0f, 1, UNIT_SIEGE_RAM));
 	s->petra_manage_raid(Simulation::FIXED_STEP);
+	const Simulation::AttackPlan *off = launched_raid(*s);
 	int rams_in = 0;
-	for (uint32_t r : rams) rams_in += std::find(plan.squad.begin(), plan.squad.end(), r) != plan.squad.end();
+	if (off)
+		for (uint32_t r : rams) rams_in += std::find(off->squad.begin(), off->squad.end(), r) != off->squad.end();
 	std::printf("  with its riders it waits for the rams %s; with %d rams it sets off %s, taking %d\n", waited ? "yes" : "no", siege_target,
-	            plan.state == Simulation::AttackPlan::WALKING ? "yes" : "no", rams_in);
+	            off && off->state == Simulation::AttackPlan::WALKING ? "yes" : "no", rams_in);
 	CHECK(waited, "a raid with its riders waits for its siege engines");
-	CHECK(plan.state == Simulation::AttackPlan::WALKING && rams_in == siege_target, "the raid sets off with its rams");
+	CHECK(off && off->state == Simulation::AttackPlan::WALKING && rams_in == siege_target, "the raid sets off with its rams");
 }
 
 // defenseManager.js targetList / attackPlan.js Raid: an enemy civic centre going up in neutral
@@ -5778,15 +5952,19 @@ static void test_raid_cc_foundation() {
 	s->petra_attack_mgr_.raid_target = 40;
 	s->petra_attack_mgr_.raid_min = 2;
 	s->petra_manage_raid(Simulation::FIXED_STEP);
-	const bool set_off = plan.state == Simulation::AttackPlan::WALKING;
+	Simulation::AttackPlan *off = launched_raid(*s);
+	const bool set_off = off && off->state == Simulation::AttackPlan::WALKING;
 	// Keep the foundation standing a while: the raid must not give up on it.
 	s->buildings_[s->building_id_to_idx_[target]].hp = s->buildings_[s->building_id_to_idx_[target]].max_hp * 50.0f;
-	for (int k = 0; k < 40; ++k) s->petra_manage_raid(1.6f);
-	const bool fighting = plan.state == Simulation::AttackPlan::WALKING || plan.state == Simulation::AttackPlan::ATTACKED;
+	for (int k = 0; k < 40 && off; ++k) {
+		off->state_timer += 1.6f;
+		s->petra_update_started_raid(*off, ox, oz);
+	}
+	const bool fighting = off && (off->state == Simulation::AttackPlan::WALKING || off->state == Simulation::AttackPlan::ATTACKED);
 	std::printf("  raid on a civic centre foundation at 60%%: set off with %zu of %d %s, still on it after 64 s %s\n",
-	            plan.squad.size(), (int)s->petra_attack_mgr_.raid_target, set_off ? "yes" : "no", fighting ? "yes" : "no");
+	            off ? off->squad.size() : 0, (int)s->petra_attack_mgr_.raid_target, set_off ? "yes" : "no", fighting ? "yes" : "no");
 	CHECK(set_off, "a raid on a foundation past half built sets off at its minimum (mustStart)");
-	CHECK(fighting && plan.target_building_id == target, "the raid fights on while its target stands");
+	CHECK(fighting && off->target_building_id == target, "the raid fights on while its target stands");
 }
 
 // The first base's storehouse check (baseManager.js gatherers), added when it has none yet.
@@ -6620,6 +6798,104 @@ static void test_strength_with_techs() {
 	CHECK(after != CIV_UNIT_TEMPLATE_NONE && (civ_unit_template(after).tech_classes & TC_RANGED), "Archery Tradition: the archer");
 }
 
+// attackPlan.js removeUnit sets plan -1: a worker soldier that leaves a plan (here a
+// failed one) is outOfPlan, and the next plan takes it busy or not, with no keep rule.
+static void test_out_of_plan() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 5.0f);
+	s->petra_pid_ = 1;
+	size_t worker = SIZE_MAX;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 && unit_gather_class(s->units_.unit_type[i], s->units_.tmpl[i]) == GATHER_INFANTRY) { worker = i; break; }
+	CHECK(worker != SIZE_MAX, "Petra starts with a citizen soldier");
+	if (worker == SIZE_MAX) return;
+	const uint32_t uid = s->units_.id[worker];
+	const bool was_worker = s->petra_is_worker(worker);
+	s->petra_attack_plan_.squad.push_back(uid);
+	s->petra_attack_remove_unit(uid);
+	std::printf("  out of plan: worker before %s, after leaving the plan %s\n", was_worker ? "yes" : "no", s->petra_is_worker(worker) ? "yes" : "no");
+	CHECK(was_worker && !s->petra_is_worker(worker), "a worker soldier that leaves a plan is outOfPlan, no longer a worker");
+	// A unit that was never in a plan stays a worker.
+	size_t other = SIZE_MAX;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (i != worker && s->units_.alive[i] && s->units_.team[i] == 1 && unit_gather_class(s->units_.unit_type[i], s->units_.tmpl[i]) == GATHER_INFANTRY) { other = i; break; }
+	if (other != SIZE_MAX) {
+		s->petra_attack_remove_unit(s->units_.id[other]);
+		CHECK(s->petra_is_worker(other), "removing a unit that is in no plan changes nothing");
+	}
+}
+
+// attackPlan.js UpdateTarget: a unit target is followed as it moves, and once it garrisons
+// in an enemy structure that structure becomes the target.
+static void test_attack_follows_unit_target() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float ex = 0.0f, ez = 0.0f;
+	for (const auto &b : s->buildings()) if (b.team == 0 && b.type == BLD_TOWN_CENTER) { ex = b.x; ez = b.z; }
+	const uint32_t hero = s->spawn_unit(ex + 12.0f, ez, 0, UNIT_HERO);
+	const uint32_t fort = s->spawn_building_world(ex + 20.0f, ez + 8.0f, BLD_FORTRESS, 0, 1.0f);
+	const uint32_t mine = s->spawn_unit(ex + 30.0f, ez + 30.0f, 1, UNIT_SPEARMAN);
+	Simulation::AttackPlan plan;
+	plan.state = Simulation::AttackPlan::ATTACKED;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.target_player = 0;
+	plan.target_building_id = hero;
+	plan.target_x = ex; plan.target_z = ez; // where it was picked
+	plan.squad.push_back(mine);
+	s->petra_update_attack_plan(plan, 0.0f, 0.0f);
+	const int32_t h = s->lookup_unit(hero);
+	const bool followed = h >= 0 && plan.target_x == s->units_.pos_x[h] && plan.target_z == s->units_.pos_z[h];
+	const bool inside = s->garrison_unit_now(hero, fort);
+	s->petra_update_attack_plan(plan, 0.0f, 0.0f);
+	std::printf("  unit target: position followed %s, garrisoned %s, target the fortress %s\n", followed ? "yes" : "no",
+	            inside ? "yes" : "no", plan.target_building_id == fort ? "yes" : "no");
+	CHECK(followed, "a unit target's position is refreshed");
+	CHECK(inside && plan.target_building_id == fort, "a unit target that garrisons makes its holder the target");
+}
+
+// attackManager.js: a raid that set off joins startedAttacks.Raid, and another raid is planned
+// while it runs (only an unexecuted raid holds the next back).
+static void test_raids_at_once() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float ox = 0, oz = 0;
+	for (const auto &b : s->buildings_)
+		if (is_civic_centre(b.type) && b.hp > 0.0f && b.team == 1) { ox = b.x; oz = b.z; }
+	const uint32_t target = s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f);
+	for (int k = 0; k < 8; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 6.0f, 1, UNIT_CAVALRY);
+	s->petra_scout_unit_id_ = 0;
+	auto &m = s->petra_attack_mgr_;
+	m.raid_target = 3;
+	m.raid_min = 3;
+	m.raid_siege = 0xFE; // no siege class to wait for
+	auto &plan = s->petra_raid_plan_;
+	plan = Simulation::AttackPlan();
+	plan.type = Simulation::AttackPlan::PLAN_RAID;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	plan.target_building_id = target;
+	s->petra_manage_raid(Simulation::FIXED_STEP);
+	const Simulation::AttackPlan *off = launched_raid(*s);
+	s->petra_manage_raid(Simulation::FIXED_STEP); // the target is still in our land
+	std::printf("  raids at once: first set off %s, next raid %s\n", off ? "yes" : "no",
+	            plan.state == Simulation::AttackPlan::MUSTER ? "mustering" : "not planned");
+	CHECK(off && off->state == Simulation::AttackPlan::WALKING, "a raid that sets off is a started attack");
+	CHECK(plan.state == Simulation::AttackPlan::MUSTER && plan.target_building_id == target, "another raid is planned while it runs");
+}
+
 int main(int argc, char **argv) {
 	// Optional test names on the command line run just those.
 	auto want = [&](const char *name) {
@@ -6665,6 +6941,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_peace_ends_raid);
 	RUN(test_petra_tributes_same_total);
 	RUN(test_petra_init_one_way_ally);
+	RUN(test_petra_defeated_still_enemies);
 	RUN(test_petra_current_enemy_gaia);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
@@ -6694,6 +6971,7 @@ int main(int argc, char **argv) {
 	RUN(test_attack_request);
 	RUN(test_attack_request_counts_raid);
 	RUN(test_relic_capture);
+	RUN(test_relic_targeted_kept);
 	RUN(test_relic_enemy_player);
 	RUN(test_relic_gaia_target);
 	RUN(test_retreat_walk_forced);
@@ -6705,6 +6983,7 @@ int main(int argc, char **argv) {
 	RUN(test_builder_drops_load_first);
 	RUN(test_idle_return_to_wagon);
 	RUN(test_gather_limits);
+	RUN(test_update_capture_strength);
 	RUN(test_decay_garrison);
 	RUN(test_decay_garrison_from_attack);
 	RUN(test_decay_destroy);
@@ -6712,6 +6991,9 @@ int main(int argc, char **argv) {
 	RUN(test_defense_armies);
 	RUN(test_soldier_fights_back);
 	RUN(test_defender_orders);
+	RUN(test_out_of_plan);
+	RUN(test_attack_follows_unit_target);
+	RUN(test_raids_at_once);
 	RUN(test_defense_ignores_ships);
 	RUN(test_defense_animals);
 	RUN(test_defense_clear_destination);

@@ -443,10 +443,12 @@ void RtsoMain::begin_recording_from_save(const String &save_path) {
 	replay_meta_["start_time"] = (double)sim->stats().ticks * rtso::Simulation::FIXED_STEP;
 }
 
-void RtsoMain::write_replay(bool ended) {
+void RtsoMain::write_replay(bool ended, bool force) {
 	if (!replay_recording_ || replay_dir_.is_empty() || !sim) return;
 	const uint32_t turns = (uint32_t)turn_mgr_.turn_history().size();
-	if (turns < 15) return; // VisualReplay lists no replay shorter than 3 s (minimumReplayDuration)
+	// VisualReplay lists no replay shorter than 3 s (minimumReplayDuration), but
+	// the replay logger has written one: an out-of-sync box names it (force).
+	if (turns < 15 && !force) return;
 	const String cmd_path = ProjectSettings::get_singleton()->globalize_path(replay_dir_ + "commands.rts0rec");
 	if (!turn_mgr_.save_replay(cmd_path.utf8().get_data())) {
 		UtilityFunctions::printerr("[RTS0] Replay write failed: ", cmd_path);

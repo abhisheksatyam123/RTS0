@@ -64,7 +64,7 @@ func run() -> void:
 	var signed := [0]
 	# Wait for the server to answer, then sign in once: retrying a sign-in that
 	# is slow to answer (a loaded machine) leaves the first one signed in on the
-	# server and the retries refused as "that name is in use".
+	# server and the retries refused as "Player already logged in".
 	ls.address = "127.0.0.1:%d" % PORT
 	var up := [false]
 	for attempt in 100:
@@ -109,7 +109,7 @@ func run() -> void:
 		"games with bob playing or watching are marked, an AI named bob is not: %s" % [names(lobby._games, 0)])
 	check(lobby.room_buddies(lobby._rooms[0], lobby.buddies()) == 2 and lobby.room_buddies(lobby._rooms[1], lobby.buddies()) == 1,
 		"a playing buddy ranks above a watching one (Game.js hasBuddies)")
-	check(ls.game_details(lobby._rooms[0], {}).contains("• bob ("), "the game details mark bob")
+	check(ls.game_details(lobby._rooms[0], {}).contains("\n• bob"), "the game details mark bob")
 
 	print("2. filters")
 	lobby._open_filter.button_pressed = true

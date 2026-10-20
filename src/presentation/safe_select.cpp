@@ -24,6 +24,8 @@ void RtsoSafeSelect::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_list_selected", "index"), &RtsoSafeSelect::_on_list_selected);
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "selected"), "select", "get_selected");
 	ADD_SIGNAL(MethodInfo("item_selected", PropertyInfo(Variant::INT, "index")));
+	// The list closing, picked or not (CDropDown's sound_closed).
+	ADD_SIGNAL(MethodInfo("menu_closed"));
 }
 
 RtsoSafeSelect::RtsoSafeSelect() {
@@ -196,7 +198,9 @@ void RtsoSafeSelect::open_menu() {
 
 void RtsoSafeSelect::close_menu() {
 	if (menu) {
+		const bool was_open = menu->is_visible();
 		menu->set_visible(false);
+		if (was_open) emit_signal("menu_closed");
 	}
 	set_process_input(false);
 }

@@ -177,9 +177,27 @@ void NetHost::publishLobbyRoom(const LobbyRoom &room) {
 	lobby_rooms_.push_back(room);
 }
 
-bool NetHost::startClient(const std::string &h, uint16_t p) {
+bool NetHost::startClient(const std::string &host, uint16_t p) {
 	stop();
 	ensure_socket_subsystem();
+	// CNetClientSession::Connect: the host's name is resolved once, and a name
+	// that does not resolve fails the join at once.
+	std::string h = host;
+	in_addr numeric{};
+	if (inet_pton(AF_INET, host.c_str(), &numeric) <= 0) {
+		addrinfo hints{};
+		hints.ai_family = AF_INET;
+		hints.ai_socktype = SOCK_DGRAM;
+		addrinfo *res = nullptr;
+		if (getaddrinfo(host.c_str(), nullptr, &hints, &res) != 0 || !res) {
+			std::cerr << "[NetHost] Cannot resolve " << host << "\n";
+			return false;
+		}
+		char ip[INET_ADDRSTRLEN] = {0};
+		inet_ntop(AF_INET, &reinterpret_cast<sockaddr_in *>(res->ai_addr)->sin_addr, ip, sizeof(ip));
+		freeaddrinfo(res);
+		h = ip;
+	}
 	server_ip_ = h;
 	server_port_ = p;
 

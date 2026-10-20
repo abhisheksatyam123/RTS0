@@ -186,7 +186,9 @@ func load_replays() -> void:
 			if not FileAccess.file_exists(path.path_join("commands.rts0rec")):
 				continue
 			var meta := _read_json(path.path_join("metadata.json"))
-			if not meta.is_empty():
+			# VisualReplay::LoadReplays: none shorter than minimumReplayDuration (3 s),
+			# such as an early out-of-sync's.
+			if not meta.is_empty() and not (meta.has("duration") and float(meta["duration"]) < 3.0):
 				_all.append(_entry(path, meta))
 	_player_names.clear()
 	_map_names.clear()

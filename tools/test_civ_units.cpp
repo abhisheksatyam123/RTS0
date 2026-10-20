@@ -229,6 +229,37 @@ int main() {
 		CHECK(pc && pc->civ == CIV_PTOLEMIES && !pc->queue.empty() && civ_unit_template(pc->queue.back().tmpl).civ == CIV_ATHENIANS);
 	}
 
+	// A captured structure trains the captor's units of the names its builder's template lists
+	// (Trainer.js fills units/{civ}/ with the holder's civ): a Persian holding an Athenian civic
+	// centre gets Persian spearmen and javelin cavalry but not the axe cavalry the Persian civic
+	// centre adds, and the Athenian temple's hero_hippocrates has no Persian row.
+	{
+		const uint16_t pers_axe_cav = roster_id("pers/cavalry_axeman_b"), pers_spear = roster_id("pers/infantry_spearman_b");
+		CHECK(building_trains_template(BLD_TOWN_CENTER, CIV_PERSIANS, CIV_PERSIANS, pers_axe_cav));
+		CHECK(!building_trains_template(BLD_TOWN_CENTER, CIV_ATHENIANS, CIV_PERSIANS, pers_axe_cav));
+		CHECK(building_trains_template(BLD_TOWN_CENTER, CIV_ATHENIANS, CIV_PERSIANS, pers_spear));
+		CHECK(building_trains_template(BLD_TOWN_CENTER, CIV_ATHENIANS, CIV_PERSIANS, roster_id("pers/cavalry_javelineer_b")));
+		CHECK(building_trains_template(BLD_TEMPLE, CIV_ATHENIANS, CIV_PERSIANS, roster_id("pers/support_healer_b")));
+		// The builder's own civilians still come from a captured civic centre, and never the captor's.
+		CHECK(building_trains_template(BLD_TOWN_CENTER, CIV_ATHENIANS, CIV_PERSIANS, roster_id("athen/support_civilian")));
+		CHECK(!building_trains_template(BLD_TOWN_CENTER, CIV_ATHENIANS, CIV_PERSIANS, roster_id("pers/support_civilian")));
+		// Nothing of the builder's other units.
+		CHECK(!building_trains_template(BLD_TOWN_CENTER, CIV_ATHENIANS, CIV_PERSIANS, roster_id("athen/infantry_spearman_b")));
+
+		static Simulation k;
+		k.set_sim_seed(17);
+		k.set_team_civ(0, CIV_PERSIANS);
+		k.set_team_civ(1, CIV_ATHENIANS);
+		k.reset();
+		k.set_player_resources(0, 5000, 5000, 5000, 5000);
+		k.spawn_building(-20, -20, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t cc = k.spawn_building(20, 20, BLD_TOWN_CENTER, 1, 1.0f);
+		for (const Simulation::Building &x : k.buildings())
+			if (x.id == cc) const_cast<Simulation::Building &>(x).team = 0; // captured (it keeps civ Athenian)
+		CHECK(!k.cmd_train_template(0, cc, pers_axe_cav, 1));
+		CHECK(k.cmd_train_template(0, cc, pers_spear, 1));
+	}
+
 	// Building health takes 0 A.D.'s civ structure bonus (Hellenic Architecture +10%).
 	uint32_t ath_house = s.spawn_building(10, 10, BLD_HOUSE, 0, 1.0f);
 	s.set_team_civ(5, CIV_PERSIANS);

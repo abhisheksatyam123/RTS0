@@ -1113,13 +1113,20 @@ void TurnManager::receive_sync_check(uint32_t turn, uint32_t client_id, uint32_t
 }
 
 uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
-	// Phase4 HashSerializer parity — comprehensive FNV-1a state hashing for lockstep desync verification.
+	// Phase4 HashSerializer parity — comprehensive state hashing for lockstep desync verification.
 	// Hashes all unit SoA columns (pos_x, pos_z, hp, action_state, unit_type, team, carry, kills, rank, status_effects),
 	// buildings (hp, build_progress, type, team, capture_points), resource nodes (amount, alive, type),
 	// the per-player table (stockpiles, researched tech masks, phase, civ, team),
 	// active projectiles, relics, territory grid, and market prices.
 	uint32_t hash = 2166136261u;
-	auto mix_u32 = [&](uint32_t v) { hash = (hash ^ v) * 16777619u; };
+	// Each word is xored in and avalanched with MurmurHash3's fmix32 (a bijection), so a difference in
+	// any bit reaches every hash bit and two differences cancel only by chance. Word-wise FNV-1a let two
+	// flips of the same high bit cancel (bit 31 only ever reached bit 31), e.g. two mirrored sign flips.
+	auto mix_u32 = [&](uint32_t v) {
+		uint32_t h = hash ^ v;
+		h ^= h >> 16; h *= 0x85ebca6bu; h ^= h >> 13; h *= 0xc2b2ae35u; h ^= h >> 16;
+		hash = h;
+	};
 	auto mix_float = [&](float f) { uint32_t bits; std::memcpy(&bits, &f, sizeof(float)); mix_u32(bits); };
 	auto mix_i32 = [&](int32_t v) { mix_u32((uint32_t)v); };
 	auto mix_u8 = [&](uint8_t v) { mix_u32((uint32_t)v); };
@@ -1814,7 +1821,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			// target_x = which upgrade choice (the Tachara's four tribute forms).
 			if (c.param == 1) sim.cmd_cancel_upgrade(pl, c.target_id);
 			else if (c.target_x >= 0.0f && c.target_x < 8.0f) sim.cmd_upgrade_building(pl, c.target_id, (int)c.target_x);
-		} else if (c.cmd_type == 45) { // Dropsite sharing — target_id=building, param 1 share / 0 stop.
+		} else if (c.cmd_type == 45) { // Dropsite sharing — target_id=building or supply wagon, param 1 share / 0 stop.
 			sim.cmd_set_dropsite_sharing(pl, c.target_id, c.param == 1);
 		} else if (c.cmd_type == 28) { // Gate lock — target_id=building, param 1 lock / 0 unlock.
 			sim.cmd_lock_gate(pl, c.target_id, c.param == 1);
@@ -1879,8 +1886,12 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 	if (is_replaying_) {
 		replay_expected_hash_ = replay_expected_hash;
 		replay_computed_hash_ = frame.sim_state_hash;
-		replay_oos_ = replay_expected_hash != 0 && replay_expected_hash != frame.sim_state_hash;
-		replay_oos_turn_ = replay_oos_ ? frame.turn_index : 0;
+		// The first mismatch stays (0.28 OutOfSyncReplay reports it once): a later
+		// turn that happens to match doesn't hide it.
+		if (!replay_oos_ && replay_expected_hash != 0 && replay_expected_hash != frame.sim_state_hash) {
+			replay_oos_ = true;
+			replay_oos_turn_ = frame.turn_index;
+		}
 		replay_complete_ = replay_frame_idx_ >= turn_history_.size();
 	}
 
@@ -1989,7 +2000,7 @@ void TurnManager::receive_sync_error(const SyncErrorMsg &msg) {
 void TurnManager::write_oos_dump(const Simulation &sim) {
 	oos_dump_pending_ = false;
 	if (oos_dump_dir_.empty()) return;
-	const std::string base = oos_dump_dir_ + "/oos_dump";
+	const std::string base = oos_dump_dir_ + "/" + oos_dump_name_;
 	std::ofstream file(base + ".txt", std::ios::out | std::ios::trunc);
 	if (!file) return;
 	char buf[16];
@@ -2005,7 +2016,12 @@ void TurnManager::write_oos_dump(const Simulation &sim) {
 	if (current_turn_ != oos_turn_)
 		file << "WARNING: dump is from turn " << current_turn_ << "; OOS was detected on turn " << oos_turn_
 		     << " -- state may have advanced past the diverge point.\n";
-	// A readable state (0 A.D. DumpDebugState), so two peers' dumps diff.
+	write_state_text(file, sim);
+	file.close();
+	if (sim.save_state((base + ".dat").c_str())) oos_dump_written_ = base + ".txt";
+}
+
+void TurnManager::write_state_text(std::ostream &file, const Simulation &sim) {
 	file.precision(9); // every float bit that differs shows
 	file << "\n-- players (food wood stone metal)\n";
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
@@ -2025,8 +2041,6 @@ void TurnManager::write_oos_dump(const Simulation &sim) {
 	for (const auto &b : sim.buildings())
 		file << b.id << " " << (unsigned)b.type << " " << (unsigned)b.team << " " << b.x << " " << b.z << " "
 		     << b.hp << " " << b.build_progress << " " << b.queue.size() << " " << b.garrisoned_units.size() << "\n";
-	file.close();
-	if (sim.save_state((base + ".dat").c_str())) oos_dump_written_ = base + ".txt";
 }
 
 void TurnManager::set_local_paused(bool paused) {

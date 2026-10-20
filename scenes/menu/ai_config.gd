@@ -94,8 +94,8 @@ func _ready() -> void:
 	_desc.anchor_left = 0.08
 	_desc.anchor_right = 0.92
 	_desc.anchor_bottom = 1.0
-	_desc.offset_top = 140
-	_desc.offset_bottom = -50
+	_desc.offset_top = 110 # AIConfigPage.xml: 8% 110 92% 100%-30
+	_desc.offset_bottom = -30
 	dialog.add_child(_desc)
 	var ok := Button.new()
 	ok.name = "OK"
@@ -134,8 +134,21 @@ func _row(dialog: Control, i: int, caption: String) -> OptionButton:
 	dd.offset_right = 190
 	dd.offset_top = top
 	dd.offset_bottom = top + ROW_HEIGHT
-	dd.disabled = not enabled
+	dd.visible = enabled
 	dialog.add_child(dd)
+	# GameSettingControl.updateVisibility: a non-host reads the value as text in its place.
+	var text := Label.new()
+	text.name = dd.name + "Text"
+	text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	text.anchor_left = 0.5
+	text.anchor_right = 0.5
+	text.offset_left = 6
+	text.offset_right = 190
+	text.offset_top = top
+	text.offset_bottom = top + ROW_HEIGHT
+	text.visible = not enabled
+	dialog.add_child(text)
+	dd.set_meta("text", text)
 	return dd
 
 ## The controls and description from the slot's settings (AISelection.render,
@@ -147,8 +160,11 @@ func render() -> void:
 	_diff.select(clampi(int(row["diff"]), 0, _diff.item_count - 1))
 	_beh.select(maxi(_beh.get_item_index(int(row["beh"])), 0))
 	for c in [_diff, _beh]:
-		c.visible = has_ai
+		c.visible = has_ai and enabled
 		c.get_parent().get_child(c.get_index() - 1).visible = has_ai
+		(c.get_meta("text") as Label).visible = has_ai and not enabled
+	for c in [_ai, _diff, _beh]:
+		(c.get_meta("text") as Label).text = c.get_item_text(c.selected) if c.selected >= 0 else ""
 	_desc.text = tr(PETRA_DESCRIPTION) if has_ai else tr(NO_AI_DESCRIPTION)
 
 func _on_ai_selected(i: int) -> void:
