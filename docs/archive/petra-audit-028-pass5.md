@@ -7,7 +7,7 @@ Read-only audit of RTS0's Petra port (area C) against 0 A.D. 0.28 Petra: `baseMa
 | B1 | Bases | Medium | save | 0.28 updates one anchored base per turn (basesManager.js:767); RTS0 runs every base every turn, so idle re-tasking, foundation staffing and dropsite used/lost counts run N times as often | Open |
 | T1 | Trade | Medium-High | no | A trader that flees (or is otherwise busy) with a route was ordered back to trade every AI turn, dropping its goods; 0.28 orders only idle traders (tradeManager.js:133) | **Fixed** |
 | T2 | Trade | Medium | no | A prospected market that could not be placed that turn was dropped; 0.28 queues the plan until it starts (tradeManager.js:664) | **Fixed** |
-| H1 | First base | Medium (High on Nomad) | no | The first civic centre goes at the first free spot within 96 m of the units; 0.28 runs findEconomicCCLocation with proximity over the whole land (startingStrategy.js:341) | Open |
+| H1 | First base | Medium (High on Nomad) | no | The first civic centre goes at the first free spot within 96 m of the units; 0.28 runs findEconomicCCLocation with proximity over the whole land (startingStrategy.js:341) | **Fixed** |
 | H2 | Workers | Medium | no | Garrisoned and shipped workers drop out of trainMoreWorkers, getAccountedWorkers and checkBaseExpansion counts; 0.28 keeps counting them | **Fixed** |
 | B2 | Builders | Medium (Mauryans) | no | The Mauryan worker elephant never builds; 0.28 gives it the worker role and prefers it for nearby foundations (baseManager.js:592, 934) | Open |
 | H3 | Houses | Medium-Low | no | While phasing, the relaxed house placement (requireHouses) never ran: the retry hit the 90 s no-room mark; 0.28 calls setBuildable first (headquarters.js:1464) | **Fixed** |
@@ -46,6 +46,7 @@ Not ported on purpose: B10, a 0.28 bug (basesManager.js:121 calls `reset(type)` 
 - **B7.** Every dropsite structure (military colony, imperial court, crannog, wagon encampment) counts for isResourceExhausted.
 - **B8.** targetNB and the house +2 test classes Barracks and House (the academy, mercenary camp and apartment too).
 - **T8.** A small start land raises only seas already wanting fishing boats.
+- **H1.** `petra_build_first_base` asks `petra_find_economic_cc_location` for wood with proximity to the units' starting point (norm 0.5/(1+d²/250²), 400 m from a ship or a land under 24000 m², 8 m more room, cut 30, the units' land unless we have a transport ship). RTS0 keeps its old nearest-free-spot search as a fallback when no tile reaches the cut, where 0.28 would wait or try an oversea dock. Test: test_nomad_first_base's wood distance.
 
 ## Checked and matching
 

@@ -21876,6 +21876,29 @@ void Simulation::petra_build_first_base() {
 		return;
 	}
 	const BuildingTypeInfo &info = building_type_info(goal);
+	auto lay = [&](int cx, int cz) {
+		float cf, cw, cg, cs;
+		petra_structure_cost(goal, cf, cw, cg, cs);
+		if (queued) {
+			if (!petra_try_pay(PETRA_Q_CIVIL_CENTRE, cf, cw, cg, cs)) return; // the want is registered
+		} else {
+			petra_ps().food() -= cf; petra_ps().wood() -= cw; petra_ps().gold() -= cg; petra_ps().stone() -= cs;
+		}
+		const uint32_t bid = petra_spawn_foundation(cx, cz, goal);
+		if (bid != 0 && !workers.empty()) petra_order_builders(workers, workers.size(), bid);
+	};
+	if (goal != BLD_DOCK) {
+		// The civic centre plan's position: findEconomicCCLocation for wood with proximity to
+		// the units (startingStrategy.js:341, queueplanBuilding.js:146).
+		const float near[2] = {points[best].x, points[best].z};
+		float x = 0.0f, z = 0.0f;
+		if (petra_find_economic_cc_location(goal, RES_WOOD, false, x, z, near)) {
+			lay((int)std::floor(x / GRID - 0.5f * (float)info.footprint), (int)std::floor(z / GRID - 0.5f * (float)info.footprint));
+			return;
+		}
+		// RTS0, not 0.28: with no tile reaching the cut (0.28 waits, or tries an oversea dock),
+		// the nearest free spot to the units.
+	}
 	const int sx = (int)(points[best].x / GRID), sz = (int)(points[best].z / GRID);
 	const int max_r = goal == BLD_DOCK ? 24 : 12;
 	for (int r = 0; r <= max_r; ++r) {
@@ -21883,15 +21906,7 @@ void Simulation::petra_build_first_base() {
 			for (int dz = -r; dz <= r; ++dz) {
 				if (std::abs(dx) != r && std::abs(dz) != r) continue;
 				if (!petra_can_place(sx + dx, sz + dz, info.footprint, goal)) continue;
-				float cf, cw, cg, cs;
-				petra_structure_cost(goal, cf, cw, cg, cs);
-				if (queued) {
-					if (!petra_try_pay(PETRA_Q_CIVIL_CENTRE, cf, cw, cg, cs)) return; // the want is registered
-				} else {
-					petra_ps().food() -= cf; petra_ps().wood() -= cw; petra_ps().gold() -= cg; petra_ps().stone() -= cs;
-				}
-				const uint32_t bid = petra_spawn_foundation(sx + dx, sz + dz, goal);
-				if (bid != 0 && !workers.empty()) petra_order_builders(workers, workers.size(), bid);
+				lay(sx + dx, sz + dz);
 				return;
 			}
 		}
@@ -24882,7 +24897,12 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 // for a colony and 30 m * defensive), within 80 m of a dropsite and on the map border; at
 // least 60 (30 from findStrategicCCLocation). A tile across the sea by one of our docks just
 // clears the cut.
-bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z) {
+// With `proximity` (our first civic centre, startingStrategy.js:341): no civic centre or dropsite
+// cuts, the value scaled by 0.5 / (1 + d^2 / 250^2 m^2) from the units (400 m from a ship or a
+// small island), 8 m more room around the footprint, the cut at 30, and only the units' land
+// unless a ship could carry them.
+bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z,
+                                                 const float *proximity) {
 	const int w = std::max(1, (int)std::floor(2.0f * map_half_ / kCcTile));
 	const size_t n = (size_t)w * (size_t)w;
 	// ccResourceMaps for wood, stone and metal.
@@ -24937,15 +24957,45 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 	const float near_rej = 120.0f * 120.0f / 16.0f, ally_rej = 200.0f * 200.0f / 16.0f, ally_dis = 250.0f * 250.0f / 16.0f;
 	const float max_acc_rej = 410.0f * 410.0f / 16.0f, max_acc_dis = (360.0f - reduce) * (360.0f - reduce) / 16.0f;
 	const float max_noacc_dis = 500.0f * 500.0f / 16.0f;
-	const float cut = from_strategic ? 30.0f : 60.0f;
+	const float cut = from_strategic || proximity ? 30.0f : 60.0f;
 	const float border = 80.0f / 4.0f;
 	bool found = false;
 	float best = 0.0f;
+	uint16_t proxy_land = 0;
+	float scale = 250.0f * 250.0f / 16.0f;
+	bool ships = false;
+	if (proximity) {
+		proxy_land = petra_land_at(proximity[0], proximity[1]);
+		if (!proxy_land || proxy_land >= topo.land_size.size() || topo.cell_m2 * (float)topo.land_size[proxy_land] < 24000.0f)
+			scale = 400.0f * 400.0f / 16.0f;
+		for (size_t i = 0; i < units_.count && !ships; ++i) // navalManager.transportShips
+			ships = units_.alive[i] && units_.team[i] == petra_pid_ && petra_is_transport_ship(i);
+	}
+	const int foot = building_type_info(btype).footprint;
 	for (int iz = 0; iz < w; ++iz) {
 		for (int ix = 0; ix < w; ++ix) {
 			const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)iz + 0.5f) * kCcTile - map_half_;
 			const int owner = territory_owner_at(x, z);
 			if (owner >= 0 && owner < MAX_PLAYERS) continue; // neutral or Gaia's only
+			if (proximity) {
+				const size_t j = (size_t)iz * w + ix;
+				const float dx = x - proximity[0], dz = z - proximity[1];
+				float norm = 0.5f / (1.0f + (dx * dx + dz * dz) / scale);
+				if (near_map_border(x, z, border)) norm *= 0.5f;
+				const float val = norm * (2.0f * (float)maps[res_k][j] + (float)maps[0][j] + (float)maps[1][j] + (float)maps[2][j]);
+				if (val < cut || (found && val < best)) continue;
+				// landRegions: any land (the topology isn't classified before our first base).
+				const uint16_t l = petra_land_at(x, z);
+				if (!l || (proxy_land && !ships && l != proxy_land)) continue;
+				// getNonObstructedTile(radius + 8 m): one more cell of room on every side.
+				const int cx = (int)std::floor(x / GRID - 0.5f * (float)foot), cz = (int)std::floor(z / GRID - 0.5f * (float)foot);
+				if (!petra_can_place(cx - 1, cz - 1, foot + 2, btype) || !petra_cc_tile_ok(btype, x, z)) continue;
+				found = true;
+				best = val;
+				out_x = x;
+				out_z = z;
+				continue;
+			}
 			// The tests below that don't need the tile's land go first, as its search costs the
 			// most: a civic centre too near, and a value that can't reach the cut or the best so
 			// far whatever the land (norm only shrinks from these halvings; across the sea by a
