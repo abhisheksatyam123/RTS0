@@ -179,6 +179,8 @@ static func _num(v) -> String:
 ## getEntityCostComponentsTooltipString in getCostTypes() order (resources, population,
 ## time), each its icon then the amount, as l10n.h cost_components(rich) writes it.
 static func cost_line(d: Dictionary) -> String:
+	if d.has("wallset"):
+		return wallset_cost_lines(d["wallset"])
 	var parts: PackedStringArray = []
 	var cost: Dictionary = d.get("cost", {})
 	for r in ["food", "wood", "stone", "metal"]:
@@ -189,6 +191,22 @@ static func cost_line(d: Dictionary) -> String:
 	if float(d.get("time", 0)) > 0:
 		parts.append("%s %s" % [_cost_icon("time"), _num(d["time"])])
 	return "  ".join(parts)
+
+## getEntityCostTooltip for a WallSet: the short, medium and long segments' costs as one
+## "min to max" per cost type (getWallPieceTooltip, all pieces paying the same types), then
+## the tower's.
+static func wallset_cost_lines(ws: Dictionary) -> String:
+	var walls: PackedStringArray = []
+	for r in ["food", "wood", "stone", "metal", "time"]:
+		var vals: Array = []
+		for p in ws.get("walls", []):
+			vals.append(float(p["time"]) if r == "time" else float(p["cost"].get(r, 0)))
+		if vals.is_empty() or vals.max() <= 0.0:
+			continue
+		var icon := _cost_icon(r)
+		walls.append("%s %s to %s %s" % [icon, _num(vals.min()), icon, _num(vals.max())])
+	var tower := cost_line(ws.get("tower", {}))
+	return "%s  %s\n%s  %s" % [_h("Walls:"), "  ".join(walls), _h("Towers:"), tower]
 
 static func _cost_icon(code: String) -> String:
 	return "[img=16x16]res://assets/textures/ui/archive/icons/resources/%s_small.png[/img]" % code
@@ -371,14 +389,19 @@ static func resistance_text(d: Dictionary, vw: Dictionary) -> String:
 static func stats_text(d: Dictionary, vw: Dictionary = {}) -> String:
 	var lines: PackedStringArray = []
 	var cost := cost_line(d)
-	if cost != "":
+	if d.has("wallset"):
+		lines.append(cost)
+	elif cost != "":
 		lines.append(_h("Cost:") + " " + cost)
 	if vw.has("dropsite"):
 		var icons: PackedStringArray = []
 		for r in vw["dropsite"]:
 			icons.append(_res_icon(r))
 		lines.append(_h("Dropsite for:") + " " + "  ".join(icons))
-	if d.has("hp"):
+	if d.has("wallset"):
+		var hm := float(d.get("hp_mul", 1.0))
+		lines.append("%s %s to %s" % [_h("Health:"), _num(float(d["wallset"]["hp_min"]) * hm), _num(float(d["wallset"]["hp_max"]) * hm)])
+	elif d.has("hp"):
 		lines.append(_h("Health:") + " " + str(int(round(float(d["hp"])))))
 	var atk := attack_text(d, vw)
 	if atk != "":
@@ -591,6 +614,7 @@ static func _with_mods(base: Dictionary, mods: Dictionary) -> Dictionary:
 	var d := base.duplicate(true)
 	if d.has("hp"):
 		d["hp"] = float(d["hp"]) * float(mods["health"])
+		d["hp_mul"] = float(mods["health"])
 	if d.has("walk_speed"):
 		d["walk_speed"] = float(d["walk_speed"]) * float(mods["speed"])
 	if d.has("attack"):
