@@ -39,8 +39,8 @@ The 0.28 regen runs --keep-trainers --previous-0ad with --append taking the row 
 /mnt/project-files/d-civ-rosters/roster-append-028.txt followed by
 ",rome/champion_infantry_swordsman_02,rome/champion_infantry_swordsman_03,
 rome/champion_infantry_swordsman_04,rome/champion_infantry_swordsman_05,athen/hero_xenophon,
-spart/hero_leonidas_300" (rows 507-512, added after that file was
-last written) and --retire the patterns in roster-retire-028.txt.
+spart/hero_leonidas_300,pers/arstibara,han/siege_shoushe" (rows 507-514, added after that
+file was last written) and --retire the patterns in roster-retire-028.txt.
 """
 
 import argparse
@@ -1142,11 +1142,12 @@ MAP_ROWS = (
     "units/gaul/hero_vercingetorix_infantry",
     "units/han/cavalry_crossbowman_b", "units/han/champion_infantry_archer_academy",
     "units/han/hero_han_xin", "units/han/hero_liu_bang", "units/han/hero_wei_qing", "units/han/hero_wei_qing_horse",
+    "units/han/siege_shoushe",
     "units/iber/hero_indibil_infantry",
     "units/kush/hero_amanirenas_infantry", "units/kush/hero_harsiotef",
     "units/mace/hero_craterus", "units/mace/hero_philip_ii_pike", "units/mace/hero_pyrrhus_i",
     "units/maur/hero_ashoka_infantry", "units/maur/hero_bindusara_infantry", "units/maur/hero_chandragupta_infantry",
-    "units/pers/hero_xerxes_i_chariot", "units/pers/kardakes_hoplite", "units/pers/kardakes_skirmisher",
+    "units/pers/arstibara", "units/pers/hero_xerxes_i_chariot", "units/pers/kardakes_hoplite", "units/pers/kardakes_skirmisher",
     "units/ptol/champion_juggernaut",
     "units/rome/hero_marcellus_infantry", "units/rome/hero_maximus_infantry", "units/rome/hero_scipio_infantry",
     "units/rome/infantry_swordsman_slave",
