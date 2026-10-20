@@ -7927,6 +7927,30 @@
 0.28
 ]
 },
+"units/athen_hero_xenophon_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/athen/linothorax_lamellar_xenophon_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/athen_hero_xenophon_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/athen_hero_xenophon_tex5": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_athen_alpha_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
 "units/athen_infantry_archer_b_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/hele/tunic_01_01_256x256.png",
 "tint": [
@@ -23529,6 +23553,30 @@
 },
 "units/spart_hero_brasidas_tex6": {
 "mask": "res://assets/textures/player_masks/props/shield/aspis_spart_lambda_06_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/spart_hero_leonidas_300_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/spart/300_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/spart_hero_leonidas_300_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_spart_lambda_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/spart_hero_leonidas_300_tex8": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
 "tint": [
 0.92,
 0.32,

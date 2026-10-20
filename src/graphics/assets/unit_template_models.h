@@ -10,7 +10,7 @@
 namespace rtso {
 
 // The models roster templates draw with besides the civ class models.
-inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 423;
+inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 425;
 
 inline const char *unit_template_draw_model(int k) {
 	static const char *const kDraw[UNIT_TEMPLATE_DRAW_MODEL_COUNT] = {
@@ -437,6 +437,8 @@ inline const char *unit_template_draw_model(int k) {
 		"siege_mangonel",
 		"han_siege_mangonel_pivot_packed",
 		"athen_female_citizen",
+		"athen_hero_xenophon",
+		"spart_hero_leonidas_300",
 	};
 	return k >= 0 && k < UNIT_TEMPLATE_DRAW_MODEL_COUNT ? kDraw[k] : nullptr;
 }
@@ -958,10 +960,40 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // rome/champion_infantry_swordsman_03
 		-1, // rome/champion_infantry_swordsman_04
 		-1, // rome/champion_infantry_swordsman_05
-		-1, // athen/hero_xenophon (no model of its own: its owner civ's hero model)
-		-1, // spart/hero_leonidas_300 (no model of its own: its owner civ's hero model)
+		// Hand-added with their GLBs (extract_0ad_assets.py --templates --only, header left as is):
+		423, // athen/hero_xenophon
+		424, // spart/hero_leonidas_300
 		-1, // pers/arstibara (no model of its own: its owner civ's spearman model)
 		-1, // han/siege_shoushe (no model of its own: its owner civ's bolt_shooter model)
+		-1, // athen/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // athen/support_healer_e (no model of its own: its owner civ's healer model)
+		-1, // spart/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // spart/support_healer_e (no model of its own: its owner civ's healer model)
+		-1, // pers/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // cart/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // cart/support_healer_e (no model of its own: its owner civ's healer model)
+		-1, // mace/infantry_pikeman_a (no model of its own: its owner civ's spearman model)
+		-1, // brit/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // brit/support_healer_e (no model of its own: its owner civ's healer model)
+		-1, // gaul/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // iber/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // iber/infantry_swordsman_a (no model of its own: its owner civ's swordsman model)
+		-1, // iber/support_healer_e (no model of its own: its owner civ's healer model)
+		-1, // maur/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // maur/infantry_swordsman_a (no model of its own: its owner civ's swordsman model)
+		-1, // maur/support_healer_e (no model of its own: its owner civ's healer model)
+		-1, // kush/infantry_pikeman_a (no model of its own: its owner civ's spearman model)
+		-1, // kush/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // kush/infantry_swordsman_a (no model of its own: its owner civ's swordsman model)
+		-1, // ptol/infantry_pikeman_a (no model of its own: its owner civ's spearman model)
+		-1, // sele/infantry_pikeman_a (no model of its own: its owner civ's spearman model)
+		-1, // sele/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // sele/support_healer_e (no model of its own: its owner civ's healer model)
+		-1, // han/infantry_pikeman_a (no model of its own: its owner civ's spearman model)
+		-1, // han/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // germ/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // germ/infantry_swordsman_a (no model of its own: its owner civ's swordsman model)
+		-1, // germ/support_healer_e (no model of its own: its owner civ's healer model)
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -972,7 +1004,7 @@ struct UnitTemplateModel {
 	const char *clip_donor; // a mesh-only model plays this model's clips (same bones), or nullptr
 };
 
-inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 366;
+inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 368;
 
 inline const UnitTemplateModel *unit_template_models() {
 	static const UnitTemplateModel kTable[UNIT_TEMPLATE_MODEL_COUNT] = {
@@ -986,6 +1018,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"athen_hero_hippocrates", "athen_hero", nullptr},
 		{"athen_hero_iphicrates", "athen_hero", nullptr},
 		{"athen_hero_pericles", "athen_hero", nullptr},
+		{"athen_hero_xenophon", "athen_hero", nullptr},
 		{"athen_infantry_archer_b", "athen_archer", nullptr},
 		{"athen_infantry_archer_e", "athen_archer", nullptr},
 		{"athen_infantry_javelineer_a", "athen_archer", nullptr},
@@ -1331,6 +1364,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"spart_champion_infantry_spear_olympian", "spart_spearman", nullptr},
 		{"spart_hero_agis", "spart_hero", nullptr},
 		{"spart_hero_brasidas", "spart_hero", nullptr},
+		{"spart_hero_leonidas_300", "spart_hero", nullptr},
 		{"spart_infantry_javelineer_a", "spart_archer", nullptr},
 		{"spart_infantry_javelineer_b", "spart_archer", nullptr},
 		{"spart_infantry_javelineer_e", "spart_archer", nullptr},
@@ -1504,6 +1538,6 @@ inline int unit_template_rank_draw_index(uint16_t tmpl, uint8_t rank) {
 	return kLookup[tmpl][rank >= 3 ? 1 : 0];
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 515, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 544, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso
