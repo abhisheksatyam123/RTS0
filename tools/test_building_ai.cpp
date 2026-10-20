@@ -626,6 +626,31 @@ int main() {
 		CHECK(fired > 0);
 	}
 
+	// 15. MinRange 10 m (template_structure_military_fortress.xml): spearmen hacking at a
+	// garrisoned fortress's wall stand inside it, so its arrows stop once they arrive, as in
+	// 0.28; Murder Holes (tower_murderholes.json, MinRange 0) lets it shoot them there.
+	for (int holes = 0; holes < 2; ++holes) {
+		fresh(s);
+		if (holes) s.complete_research(0, TECH_TOWER_MURDERHOLES);
+		uint32_t fort = s.spawn_building_world(-30.0f, -30.0f, BLD_FORTRESS, 0, 1.0f);
+		const float half = find_bld(s, fort)->half_size;
+		std::vector<uint32_t> g;
+		for (int k = 0; k < 10; ++k) g.push_back(s.spawn_unit(-30.0f + half + 4.0f, -30.0f + k * 0.5f, 0, UNIT_ARCHER));
+		garrison(s, g.data(), g.size(), fort);
+		uint32_t foes[2] = {s.spawn_unit(-30.0f - half - 6.0f, -31.0f, 1, UNIT_SPEARMAN, 100000.0f), s.spawn_unit(-30.0f - half - 6.0f, -29.0f, 1, UNIT_SPEARMAN, 100000.0f)};
+		s.order_attack_building(foes, 2, fort, false);
+		ArrowCounter a;
+		int early = 0, late = 0;
+		for (int t = 0; t < (int)std::lround(60.0f / Simulation::FIXED_STEP); ++t) {
+			s.tick(Simulation::FIXED_STEP);
+			(t * Simulation::FIXED_STEP < 20.0f ? early : late) += a.step(s, fort);
+		}
+		std::printf("fortress%s, 2 spearmen at its wall: %d arrows in 20 s, %d in the next 40 s\n",
+				holes ? " with Murder Holes" : "", early, late);
+		CHECK(early > 0);
+		CHECK(holes ? late > 0 : late == 0);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

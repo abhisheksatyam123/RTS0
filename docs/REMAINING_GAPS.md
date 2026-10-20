@@ -193,6 +193,7 @@ BuildingAI, focus fire, structure tooltips, merc camps and civ structure data ag
 | R2 | Towers and focus fire targeted structures without Health (shrines, trading posts, rotary mills); BuildingAI's query wants Resistance and Health | low | Fixed |
 | R3 | The structure attack tooltip always said "Bow"; the bolt tower's AttackName is Bolt, the artillery tower's Stone | low | Fixed |
 | R4 | The Projectile Limit and per-unit arrow tooltip ignored a garrisoned Caros (GetMaxArrowCount, GetGarrisonArrowMultiplier) | low | Fixed |
+| R5 | Checked (D's test_roster_army trace): a garrisoned fortress stops shooting infantry hacking at its wall, since they stand inside its 10 m MinRange; 0.28 does the same until Murder Holes (MinRange 0) | none | Matches 0.28 (`tools/test_building_ai.cpp` 15) |
 
 ### Technologies and structure data, seventh 0.28 pass (2026-10-20)
 
