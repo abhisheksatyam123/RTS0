@@ -200,7 +200,8 @@ int main() {
 	}
 
 	// A captured Gaia mercenary camp (merc_camp_egyptian.xml: units/{civ}/..._merc_b) recruits the
-	// holder's own mercenaries; a Ptolemaic camp keeps its builder's.
+	// holder's own mercenaries; so does a Ptolemaic camp another player captures, while its
+	// builder's own camp trains Ptolemaic ones.
 	{
 		static Simulation k;
 		k.set_sim_seed(13);
@@ -216,7 +217,16 @@ int main() {
 		const Simulation::Building *b = nullptr;
 		for (const Simulation::Building &x : k.buildings()) if (x.id == camp) b = &x;
 		CHECK(b && !b->queue.empty() && civ_unit_template(b->queue.back().tmpl).civ == CIV_ATHENIANS);
-		CHECK(building_train_civ(BLD_MERCENARY_CAMP, CIV_PTOLEMIES, CIV_ATHENIANS, civ_unit_template(b->queue.back().tmpl)) == CIV_PTOLEMIES);
+		CHECK(building_train_civ(BLD_MERCENARY_CAMP, CIV_PTOLEMIES, CIV_ATHENIANS, civ_unit_template(b->queue.back().tmpl)) == CIV_ATHENIANS);
+		CHECK(building_train_civ(BLD_MERCENARY_CAMP, CIV_PTOLEMIES, CIV_PTOLEMIES, civ_unit_template(b->queue.back().tmpl)) == CIV_PTOLEMIES);
+		// A Ptolemaic camp an Athenian captures trains Athenian mercenaries.
+		const uint32_t ptol_camp = k.spawn_building(-5, -5, BLD_MERCENARY_CAMP, 0, 1.0f);
+		for (const Simulation::Building &x : k.buildings())
+			if (x.id == ptol_camp) const_cast<Simulation::Building &>(x).civ = CIV_PTOLEMIES; // built by a Ptolemaic player
+		CHECK(k.cmd_train(0, ptol_camp, UNIT_SPEARMAN));
+		const Simulation::Building *pc = nullptr;
+		for (const Simulation::Building &x : k.buildings()) if (x.id == ptol_camp) pc = &x;
+		CHECK(pc && pc->civ == CIV_PTOLEMIES && !pc->queue.empty() && civ_unit_template(pc->queue.back().tmpl).civ == CIV_ATHENIANS);
 	}
 
 	// Building health takes 0 A.D.'s civ structure bonus (Hellenic Architecture +10%).
@@ -621,8 +631,9 @@ int main() {
 	const uint32_t bc = s.spawn_unit(20.0f, 20.0f, 6, UNIT_FEMALE_CITIZEN, 0.0f, brit_civ);
 	CHECK(s.unit_template(bc) == brit_civ);
 	const float brit_speed = civ_unit_template(brit_civ).speed;
-	// German civilians get germ_women +0.5 speed over the Briton base.
-	CHECK(std::fabs(s.units().speed[index_of(s, bc)] - (brit_speed + 0.5f)) < 1e-3f);
+	// German civilians get germ_women +0.5 m/s (x 0.356) over the Briton base: 9.5 m/s.
+	CHECK(std::fabs(s.units().speed[index_of(s, bc)] - (brit_speed + 0.5f * 0.356f)) < 1e-3f);
+	CHECK(std::fabs(s.units().speed[index_of(s, bc)] - civ_unit_template(roster_id("germ/support_civilian")).speed) < 1e-3f);
 	// Same-civ training is untouched: a Briton civilian for a Briton keeps its baked speed.
 	const uint32_t bc2 = s.spawn_unit(20.0f, 24.0f, 3, UNIT_FEMALE_CITIZEN, 0.0f, brit_civ);
 	CHECK(s.units().speed[index_of(s, bc2)] == brit_speed);

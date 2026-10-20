@@ -1509,6 +1509,24 @@ void RtsoMain::_process(double delta) {
 		for (int i = 0; i < highlight_ids_.size(); ++i) ranged.push_back((uint32_t)highlight_ids_[i]);
 		range_overlays_.update(sim, spectating() ? (uint8_t)0xFF : local_player(), ranged); // observers: everyone's
 	}
+	{
+		using O = rtso::RtsoDebugOverlays;
+		std::vector<uint32_t> units;
+		if (debug_overlays_.on(O::UNIT_MOTION))
+			for (int i = 0; i < selected_ids.size(); ++i) units.push_back((uint32_t)selected_ids[i]);
+		debug_overlays_.set_motion_units(units);
+		// Selectable's debug boxes show while its highlight does: selected or hovered.
+		auto &boxes = debug_overlays_.boxes();
+		boxes.clear();
+		if (debug_overlays_.on(O::BOUNDING_BOX) && view) {
+			std::vector<uint32_t> ids = selected_structures();
+			for (int i = 0; i < selected_ids.size(); ++i) ids.push_back((uint32_t)selected_ids[i]);
+			for (int i = 0; i < highlight_ids_.size(); ++i) ids.push_back((uint32_t)highlight_ids_[i]);
+			std::vector<RtsoWorldView::ModelBoxes> mb;
+			view->model_boxes(ids, mb);
+			for (const auto &b : mb) boxes.push_back({ b.world, b.xf, b.local });
+		}
+	}
 	debug_overlays_.update(sim, view);
 
 	if ((sim->is_victory() || sim->is_game_over()) && !summary_shown_) {

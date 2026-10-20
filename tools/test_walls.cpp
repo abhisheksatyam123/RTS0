@@ -459,6 +459,18 @@ int main() {
 		CHECK(tw == 0 && lw == 0 && gt == 0);
 		walls_of(CIV_ATHENIANS, MAP_MAINLAND, 128.0f, tw, lw, gt, rmin, rmax);
 		CHECK(tw == 0 && lw == 0 && gt == 0);
+		// Nomad: placePlayerBase returns before the walls (rmgen2 player.js), so none.
+		{
+			static Simulation n;
+			n.reset();
+			for (int p = 0; p < MAX_PLAYERS; ++p) n.player(p).civ = CIV_IBERIANS;
+			n.set_nomad(true);
+			n.generate_random_map(MAP_MAINLAND, 7, 2, 128.0f);
+			int nomad_walls = 0;
+			for (const auto &b : n.buildings())
+				nomad_walls += b.team < MAX_PLAYERS && (b.type == BLD_WALL_TOWER || b.type == BLD_WALL_SEGMENT || b.type == BLD_GATE);
+			CHECK(nomad_walls == 0);
+		}
 	}
 
 	// 12. fortress.js's "Spahbod" (placeCustomFortress): a closed square of WallSet pieces round
