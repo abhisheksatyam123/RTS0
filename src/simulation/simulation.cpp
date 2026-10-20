@@ -30772,14 +30772,15 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			petra_tribute_request_res_[from][me] = req.resource;
 		}
 	}
-	// checkEvents TributeRequest: an AI we asked wants a tribute; pay it once we
-	// can spare it (resources no queue holds). The request stands until paid or
-	// until the AI that made it drops it, so a short moment doesn't lose the pact.
+	// checkEvents TributeRequest: an AI we asked wants a tribute; pay it at once if we can
+	// spare it (resources no queue holds), else let it go (diplomacyManager.js:264-284 answers
+	// each request event once).
 	for (uint8_t from = 0; from < MAX_PLAYERS; ++from) {
 		const int wanted = petra_tribute_request_wanted_[me][from];
 		if (wanted <= 0) continue;
+		petra_tribute_request_wanted_[me][from] = 0;
 		const uint8_t res = petra_tribute_request_res_[me][from];
-		if (res >= RES_COUNT || is_defeated(from)) { petra_tribute_request_wanted_[me][from] = 0; continue; }
+		if (res >= RES_COUNT || is_defeated(from)) continue;
 		float available = petra_ps().res[res];
 		for (const auto &acc : petra_queues_.accounts) {
 			const float held[RES_COUNT] = {acc.wood, acc.gold, acc.stone, acc.food};
@@ -30788,10 +30789,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		if ((float)wanted < available) {
 			int amounts[RES_COUNT] = {};
 			amounts[res] = wanted;
-			if (cmd_tribute(me, from, amounts)) {
-				dip.next_tribute = dip.elapsed + 15.0f;
-				petra_tribute_request_wanted_[me][from] = 0;
-			}
+			if (cmd_tribute(me, from, amounts)) dip.next_tribute = dip.elapsed + 15.0f;
 		}
 	}
 
@@ -30885,10 +30883,12 @@ void Simulation::petra_manage_diplomacy(float dt) {
 				petra_say(PETRA_CHAT_TRIBUTE_REQUEST, PETRA_CHAT_ALLIES, 0xFF, 0, 0, r);
 			}
 		}
-		if (any && cmd_tribute(me, p, amounts)) {
-			for (uint8_t r = 0; r < RES_COUNT; ++r) available[r] -= (float)amounts[r];
+		// Every ally's gift is worked out from the same available resources (DM:73-124); the
+		// tribute command is all or nothing, so one we can no longer cover is not paid.
+		if (any) {
 			const auto *pbase = get_primary_petra_base();
 			petra_say(PETRA_CHAT_TRIBUTE, PETRA_CHAT_ALLIES, p, 0, 0, 0, pbase ? pbase->x : 0.0f, pbase ? pbase->z : 0.0f);
+			cmd_tribute(me, p, amounts);
 		}
 	}
 }

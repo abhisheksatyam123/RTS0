@@ -7,7 +7,10 @@ extends Node
 #   drag              left drag (box select, scroll a list)
 #   hold still        right click (order the selection: move, gather, attack, build)
 #   two fingers       pan the camera; pinch to zoom
-# Desktop builds never load this behaviour (it returns at once without a touch screen).
+# The session's touch bar latches Shift, Ctrl and Alt through set_modifier(): while one
+# is on, Input reports the key held and every touch-made mouse event carries it, so
+# Shift queues orders and adds to the selection, Ctrl and Alt work as with a keyboard.
+# Desktop builds leave it off.
 
 const HOLD_SEC := 0.45
 const DRAG_PX := 18.0
@@ -24,24 +27,59 @@ var _last_tap_pos := Vector2.ZERO
 var _pinch_dist := 0.0
 var _pinch_mid := Vector2.ZERO
 var _active := false
+var _mods := {KEY_SHIFT: false, KEY_CTRL: false, KEY_ALT: false}
 
 func _ready() -> void:
-	_active = OS.has_feature("mobile")
-	if not _active:
+	# --touch-input (after --) turns it on elsewhere, for touchscreen laptops and tools/e2e_touch_input.gd.
+	if OS.has_feature("mobile") or "--touch-input" in OS.get_cmdline_user_args():
+		activate()
+	else:
 		set_process(false)
 		set_process_input(false)
-		return
+
+func activate() -> void:
+	_active = true
 	Input.emulate_mouse_from_touch = false
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	set_process(true)
+	set_process_input(true)
+
+# Latch (on) or release a modifier key for touch play.
+func set_modifier(key: Key, on: bool) -> void:
+	if not _mods.has(key) or _mods[key] == on:
+		return
+	_mods[key] = on
+	var k := InputEventKey.new()
+	k.keycode = key
+	k.physical_keycode = key
+	k.pressed = on
+	_apply_mods(k)
+	Input.parse_input_event(k)
+
+func is_modifier_on(key: Key) -> bool:
+	return _mods.get(key, false)
+
+func release_modifiers() -> void:
+	for key in _mods.keys():
+		set_modifier(key, false)
+
+func _apply_mods(e: InputEventWithModifiers) -> void:
+	e.shift_pressed = _mods[KEY_SHIFT]
+	e.ctrl_pressed = _mods[KEY_CTRL]
+	e.alt_pressed = _mods[KEY_ALT]
 
 func _now() -> float:
 	return Time.get_ticks_msec() / 1000.0
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventScreenTouch:
-		_on_touch(event)
-	elif event is InputEventScreenDrag:
-		_on_drag(event)
+	# Events reach _input in viewport coordinates (after the canvas_items stretch), but
+	# parse_input_event wants window coordinates, so map the touch back first.
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		var e: InputEvent = event.xformed_by(get_viewport().get_final_transform())
+		if e is InputEventScreenTouch:
+			_on_touch(e)
+		else:
+			_on_drag(e)
 
 func _on_touch(e: InputEventScreenTouch) -> void:
 	if e.pressed:
@@ -138,6 +176,7 @@ func _motion(pos: Vector2, mask: int) -> void:
 	m.position = pos
 	m.global_position = pos
 	m.button_mask = mask
+	_apply_mods(m)
 	Input.parse_input_event(m)
 
 func _button(idx: MouseButton, pressed: bool, pos: Vector2, dbl := false) -> void:
@@ -148,4 +187,5 @@ func _button(idx: MouseButton, pressed: bool, pos: Vector2, dbl := false) -> voi
 	b.position = pos
 	b.global_position = pos
 	b.button_mask = (MOUSE_BUTTON_MASK_LEFT if idx == MOUSE_BUTTON_LEFT else MOUSE_BUTTON_MASK_RIGHT) if pressed else 0
+	_apply_mods(b)
 	Input.parse_input_event(b)

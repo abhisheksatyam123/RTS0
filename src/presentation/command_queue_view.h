@@ -1577,7 +1577,13 @@ private:
 		const auto &ps = sim->player(pid);
 		const int size = std::max(1, host_->ui_batch_size());
 		const bool shift = rtso::hotkeys::held("session.batchtrain");
-		const bool upgrading = b && b->upgrade_to != rtso::BLD_TYPE_COUNT;
+		// selection_panels.js Training: "Cannot train while upgrading." once every selected
+		// structure is upgrading.
+		bool upgrading = b && b->upgrade_to != rtso::BLD_TYPE_COUNT;
+		if (upgrading)
+			for (uint32_t id : host_->ui_selected_structures())
+				for (const auto &o : sim->buildings())
+					if (o.id == id) { upgrading = upgrading && o.upgrade_to != rtso::BLD_TYPE_COUNT; break; }
 		const uint16_t trainer_tmpl = b ? 0 : sim->unit_template(trainer_unit_id_);
 		for (int idx = 0; idx < roster_list_->get_item_count() && idx < (int)roster_state_.size(); ++idx) {
 			const int meta = (int)roster_list_->get_item_metadata(idx);
