@@ -10,12 +10,14 @@ extends Control
 ## (building type, for civ) or "tech" (technology id, for civ).
 
 const Common := preload("res://scenes/reference/reference_common.gd")
+const L10n := preload("res://scenes/menu/l10n.gd")
 
 var kind := ""
 var id := -1
 var civ := 0
 var _history: Array = []
 
+const DIALOG := Vector2(500, 640)
 var _icon: TextureRect
 var _rank: TextureRect
 const RANK_ICONS := "res://assets/textures/ui/archive/icons/ranks/%s.png"
@@ -41,68 +43,120 @@ func _init() -> void:
 	dim.color = Color(0, 0, 0, 0.55)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
-	var panel := PanelContainer.new()
-	preload("res://scenes/common/fit_screen.gd").cap(panel, Vector2(760, 560))
-	center.add_child(panel)
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 8)
-	panel.add_child(vb)
-	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 12)
-	vb.add_child(top)
-	_icon = TextureRect.new()
-	_icon.custom_minimum_size = Vector2(96, 96)
+	# viewer.xml: a 500x640 ModernDialog, "Information" on its top edge.
+	var panel := Panel.new()
+	panel.name = "Dialog"
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.offset_left = -DIALOG.x / 2
+	panel.offset_right = DIALOG.x / 2
+	panel.offset_top = -DIALOG.y / 2
+	panel.offset_bottom = DIALOG.y / 2
+	add_child(panel)
+	var title := Label.new() # TitleText: sans-bold-stroke-14
+	title.name = "Title"
+	title.text = tr("Information")
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title.position = Vector2(DIALOG.x / 2 - 128, -18)
+	title.size = Vector2(256, 32)
+	title.add_theme_font_size_override("font_size", 14)
+	title.add_theme_color_override("font_outline_color", Color.BLACK)
+	title.add_theme_constant_override("outline_size", 4)
+	panel.add_child(title)
+	_name = RichTextLabel.new() # entityName 16 24 100%-16 56, centred
+	_name.name = "EntityName"
+	_name.bbcode_enabled = true
+	_name.scroll_active = false
+	_name.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_name.clip_contents = true
+	_name.position = Vector2(16, 24)
+	_name.size = Vector2(DIALOG.x - 32, 32)
+	panel.add_child(_name)
+	_icon = TextureRect.new() # entityIcon 16 60 144 188 in an IconFrameGold
+	_icon.name = "EntityIcon"
+	_icon.position = Vector2(16, 60)
+	_icon.size = Vector2(128, 128)
 	_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	top.add_child(_icon)
-	_rank = TextureRect.new()
-	_rank.custom_minimum_size = Vector2(24, 24)
-	_rank.size = Vector2(24, 24)
-	_rank.position = Vector2(72, 0)
+	panel.add_child(_icon)
+	_icon.add_child(_icon_frame())
+	_rank = TextureRect.new() # RankGlyph 4 6 20 22
+	_rank.position = Vector2(4, 6)
+	_rank.size = Vector2(16, 16)
 	_rank.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_rank.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_rank.visible = false
 	_icon.add_child(_rank)
-	var right := VBoxContainer.new()
-	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(right)
-	_name = RichTextLabel.new()
-	_name.bbcode_enabled = true
-	_name.fit_content = true
-	_name.scroll_active = false
-	right.add_child(_name)
-	_stats = RichTextLabel.new()
+	_stats = RichTextLabel.new() # entityStats 160 48 100%-16 50%
 	_stats.bbcode_enabled = true
-	_stats.fit_content = true
-	_stats.scroll_active = false
+	_stats.scroll_active = true
+	_stats.position = Vector2(160, 48)
+	_stats.size = Vector2(DIALOG.x - 176, DIALOG.y / 2 - 48)
 	_stats.add_theme_font_size_override("normal_font_size", 13)
 	_stats.add_theme_font_size_override("bold_font_size", 13)
-	right.add_child(_stats)
-	_info = Common.rich_text()
-	_info.custom_minimum_size = Vector2(0, 260)
+	panel.add_child(_stats)
+	_info = Common.rich_text() # entityInfo 16 200 100%-16 100%-72
+	_info.position = Vector2(16, 200)
+	_info.size = Vector2(DIALOG.x - 32, DIALOG.y - 272)
 	_info.add_theme_font_size_override("normal_font_size", 13)
 	_info.add_theme_font_size_override("bold_font_size", 13)
 	_info.add_theme_font_size_override("italics_font_size", 13)
 	_info.meta_clicked.connect(_on_meta)
 	_stats.meta_clicked.connect(_on_meta)
-	vb.add_child(_info)
-	var buttons := HBoxContainer.new()
-	buttons.alignment = BoxContainer.ALIGNMENT_END
-	vb.add_child(buttons)
-	_back = Button.new()
-	_back.text = "Back"
-	_back.custom_minimum_size = Vector2(100, 32)
+	panel.add_child(_info)
+	_back = Button.new() # RTS0's link history; 0.28 has no Back
+	_back.text = tr("Back")
+	_back.position = Vector2(24, DIALOG.y - 56)
+	_back.size = Vector2(100, 32)
 	_back.pressed.connect(_go_back)
-	buttons.add_child(_back)
-	var close := Button.new()
+	panel.add_child(_back)
+	var close := Button.new() # CloseButton.xml: 100%-216 100%-56 100%-24 100%-24
 	close.name = "Close"
-	close.text = "Close"
-	close.custom_minimum_size = Vector2(100, 32)
+	close.text = tr("Close")
+	close.tooltip_text = RtsoHotkeyConfig.new().colorize(L10n.t("%(hotkey)s: Close Template Viewer"), "cancel")
+	close.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	close.offset_left = -216
+	close.offset_top = -56
+	close.offset_right = -24
+	close.offset_bottom = -24
+	close.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	close.pressed.connect(close_viewer)
-	buttons.add_child(close)
+	panel.add_child(close)
+	_fit.call_deferred()
+	resized.connect(_fit)
+
+## viewer/sprites.xml IconFrameGold: a 1 px gold edge round a 1 px black one.
+static func _icon_frame() -> Control:
+	var outer := Panel.new()
+	outer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	outer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var gold := StyleBoxFlat.new()
+	gold.draw_center = false
+	gold.border_color = Color8(163, 163, 103)
+	gold.set_border_width_all(1)
+	outer.add_theme_stylebox_override("panel", gold)
+	var inner := Panel.new()
+	inner.set_anchors_preset(Control.PRESET_FULL_RECT)
+	inner.offset_left = 1
+	inner.offset_top = 1
+	inner.offset_right = -1
+	inner.offset_bottom = -1
+	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var black := StyleBoxFlat.new()
+	black.draw_center = false
+	black.border_color = Color.BLACK
+	black.set_border_width_all(1)
+	inner.add_theme_stylebox_override("panel", black)
+	outer.add_child(inner)
+	return outer
+
+## Laid out for 0 A.D.'s 1024x768 minimum; shrink it on shorter screens.
+func _fit() -> void:
+	var panel: Control = get_node_or_null("Dialog")
+	if panel and size.y > 0.0:
+		var k := minf(1.0, minf((size.y - 40.0) / DIALOG.y, (size.x - 8.0) / DIALOG.x))
+		panel.pivot_offset = DIALOG / 2
+		panel.scale = Vector2(k, k)
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and "cancel" in RtsoHotkeyConfig.new().fired(event):
@@ -153,11 +207,7 @@ func show_template(p_kind: String, p_id: int, p_civ: int, reset_history: bool = 
 	var extra := _text_for(d)
 	_icon.texture = Common.icon_for(kind, d, civ)
 	var specific: String = extra.get("specific_name", d.get("specific_name", ""))
-	var generic: String = d["name"]
-	var title := "[font_size=22][b]%s[/b][/font_size]" % (specific if specific != "" and specific != generic else generic)
-	if specific != "" and specific != generic:
-		title += "\n[color=%s]%s[/color]" % [Common.DIM, generic]
-	_name.text = title
+	_name.text = "[center]%s[/center]" % Common.entity_names_formatted(extra.get("generic_name", d["name"]), specific)
 	var vw: Dictionary = extra.get("viewer", {})
 	_stats.text = stats_text(d, vw)
 	# ViewerPage entityRankGlyph: session/icons/ranks/<Identity/Rank>.png on the portrait.

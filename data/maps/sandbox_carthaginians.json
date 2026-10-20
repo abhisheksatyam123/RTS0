@@ -8709,6 +8709,300 @@
       "template": "pers/champion_elephant"
     },
     {
+      "type": "",
+      "player": 2,
+      "x": 89.74,
+      "z": -63.06,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 87.15,
+      "z": -63.26,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 88.24,
+      "z": -60.34,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 89.53,
+      "z": -60.5,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 88.93,
+      "z": -62.03,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 90.57,
+      "z": -62.08,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 86.31,
+      "z": -60.01,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 85.53,
+      "z": -61.0,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 85.16,
+      "z": -62.37,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 85.11,
+      "z": -64.44,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 87.71,
+      "z": -65.37,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 88.53,
+      "z": -65.45,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 90.7,
+      "z": -64.62,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 91.32,
+      "z": -63.02,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 92.05,
+      "z": -60.68,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 88.05,
+      "z": -58.25,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 87.38,
+      "z": -58.12,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 87.11,
+      "z": -59.64,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 87.58,
+      "z": -61.71,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 86.58,
+      "z": -62.08,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 86.03,
+      "z": -62.88,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 86.16,
+      "z": -64.3,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 88.26,
+      "z": -63.77,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 89.41,
+      "z": -65.64,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 68.59,
+      "z": 37.14,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 68.96,
+      "z": 37.51,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 69.3,
+      "z": 37.92,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 69.55,
+      "z": 38.2,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 69.85,
+      "z": 38.52,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 70.11,
+      "z": 38.79,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 69.13,
+      "z": 36.62,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 69.48,
+      "z": 36.92,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 69.77,
+      "z": 37.31,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 70.04,
+      "z": 37.61,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 70.28,
+      "z": 37.94,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 70.57,
+      "z": 38.26,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 69.6,
+      "z": 36.17,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 70.24,
+      "z": 36.8,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 70.51,
+      "z": 37.05,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 70.74,
+      "z": 37.35,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 71.03,
+      "z": 37.63,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 69.94,
+      "z": 36.5,
+      "template": "theb_sacred_band"
+    },
+    {
       "type": "archer",
       "player": 2,
       "x": 56.24,
@@ -8987,6 +9281,76 @@
       "x": 57.78,
       "z": -39.65,
       "template": "samnite_swordsman"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -22.47,
+      "z": -116.02,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -22.3,
+      "z": -115.46,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -22.04,
+      "z": -114.85,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -21.79,
+      "z": -114.32,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -22.73,
+      "z": -116.49,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -23.37,
+      "z": -116.32,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -22.36,
+      "z": -113.91,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -22.66,
+      "z": -114.3,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -22.86,
+      "z": -114.99,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -23.16,
+      "z": -115.59,
+      "template": "thesp_melanochitones"
     },
     {
       "type": "trireme",
@@ -9315,6 +9679,146 @@
       "x": -106.94,
       "z": 55.0,
       "template": "athen/ship_arrow"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -121.2,
+      "z": -10.92,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -120.75,
+      "z": -10.39,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -120.34,
+      "z": -9.8,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -120.01,
+      "z": -9.24,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -119.69,
+      "z": -8.62,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -120.4,
+      "z": -8.24,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -120.73,
+      "z": -8.87,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -121.06,
+      "z": -9.36,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -121.27,
+      "z": -9.8,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -121.69,
+      "z": -10.47,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -120.65,
+      "z": -11.55,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -120.27,
+      "z": -10.95,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -119.89,
+      "z": -10.27,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -119.56,
+      "z": -9.69,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -119.27,
+      "z": -9.05,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -119.96,
+      "z": -11.82,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -119.64,
+      "z": -11.39,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -119.34,
+      "z": -10.7,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -119.07,
+      "z": -9.89,
+      "template": "thesp_melanochitones"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": -118.76,
+      "z": -9.48,
+      "template": "thesp_melanochitones"
     },
     {
       "type": "cavalry",

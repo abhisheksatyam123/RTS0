@@ -157,6 +157,7 @@ func _ready() -> void:
 	if has_node("/root/MatchSettings"):
 		get_node("/root/MatchSettings").campaign_run = ""
 		get_node("/root/MatchSettings").campaign_level = ""
+		get_node("/root/MatchSettings").campaign_map_name = ""
 
 	# Connect main navigation buttons
 	$MainPanel/Buttons/BtnLearn.pressed.connect(func(): _toggle_submenu("learn", $MainPanel/Buttons/BtnLearn))

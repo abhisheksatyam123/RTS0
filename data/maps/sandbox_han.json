@@ -4954,6 +4954,48 @@
   ],
   "units": [
     {
+      "type": "",
+      "player": 1,
+      "x": -0.54,
+      "z": -38.75,
+      "template": "han/infantry_crossbowman_e",
+      "parents": [
+        "han/infantry_crossbowman_a",
+        "han/infantry_crossbowman_b"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.83,
+      "z": -35.64,
+      "template": "han/infantry_crossbowman_e",
+      "parents": [
+        "han/infantry_crossbowman_a",
+        "han/infantry_crossbowman_b"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -4.58,
+      "z": -36.3,
+      "template": "han/infantry_crossbowman_a",
+      "parents": [
+        "han/infantry_crossbowman_b"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -4.37,
+      "z": -35.52,
+      "template": "han/infantry_crossbowman_a",
+      "parents": [
+        "han/infantry_crossbowman_b"
+      ]
+    },
+    {
       "type": "spearman",
       "player": 1,
       "x": 6.9,
@@ -5141,6 +5183,23 @@
       "x": -1.44,
       "z": -37.56,
       "template": "han/champion_infantry_spearman_academy"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 21.2,
+      "z": -60.87,
+      "template": "han/siege_tower"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 16.36,
+      "z": -63.59,
+      "template": "han/siege_mangonel_unpacked",
+      "parents": [
+        "han/siege_mangonel_packed"
+      ]
     },
     {
       "type": "siege_ram",

@@ -122,6 +122,9 @@ var campaign_run: String = ""
 # 0 A.D. -autostart-disable-replay: false, and matches this run write no replay.
 var record_replay: bool = true
 var campaign_level: String = ""
+# CampaignMenu.startScenario's mapName: the level's Name, shown for the map in game,
+# saves and replays; empty outside a campaign (the map's own name).
+var campaign_map_name: String = ""
 
 func strip_engine_popups(n: Node) -> void:
 	if n == null:

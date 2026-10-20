@@ -79,6 +79,14 @@ static Simulation::AttackPlan *launched_raid(Simulation &s) {
 	return nullptr;
 }
 
+// defenseManager.js targetList: tests that place an enemy structure as if Petra had seen it
+// being built (isDangerous) put it in AI 1's list.
+static uint32_t seen_built(Simulation &s, uint32_t id) {
+	auto &ids = s.petra_defense_targets_.ids;
+	if (!std::binary_search(ids.begin(), ids.end(), id)) ids.insert(std::lower_bound(ids.begin(), ids.end(), id), id);
+	return id;
+}
+
 static void test_no_early_rush() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(1);
@@ -784,6 +792,12 @@ static void test_attack_plans() {
 		// Murder Holes: soldiers hacking at a fortress from under its arrows (MinRange) would
 		// hold both attack slots for the rest of the match.
 		s->complete_research(0, TECH_TOWER_MURDERHOLES);
+		// A storehouse in its territory but over 80 m from the fortresses and its Town Center, put
+		// back whenever it falls: a siege-less Attack goes only for undefended structures
+		// (attackPlan.js getNearestTarget rushTargetFinder) and fails at start without one, so
+		// otherwise whether an Attack marches hangs on this run's timing (siege trained in time).
+		auto add_store = [&] { s->spawn_building_world(44.0f, 6.0f, BLD_STOREHOUSE, 0, 1.0f); };
+		add_store();
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
@@ -801,9 +815,13 @@ static void test_attack_plans() {
 		for (float t = 0.0f; t < 40.0f * 60.0f && !marched(); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (++step % 200 == 0) {
-				bool any = false;
-				for (const auto &b : s->buildings()) any |= b.team == 0 && b.hp > 0.0f;
+				bool any = false, store = false;
+				for (const auto &b : s->buildings()) {
+					any |= b.team == 0 && b.hp > 0.0f;
+					store |= b.team == 0 && b.hp > 0.0f && !b.wrecked && b.type == BLD_STOREHOUSE;
+				}
 				if (!any) s->spawn_building_world(home_x, home_z, BLD_TOWN_CENTER, 0, 1.0f);
+				if (!store) add_store();
 			}
 			const auto &m = s->petra_attack_manager();
 			const auto st = s->petra_attack_plan().state;
@@ -838,7 +856,7 @@ static void test_attack_plans() {
 		// outpost claims no territory; a house's TerritoryInfluence would own its own ground.)
 		// Six riders: two stay home to hunt (attackPlan.js addUnits).
 		auto s = match(PETRA_BEHAVIOR_BALANCED);
-		const uint32_t outpost = s->spawn_building_world(-10.0f, -40.0f, BLD_OUTPOST, 0, 1.0f);
+		const uint32_t outpost = seen_built(*s, s->spawn_building_world(-10.0f, -40.0f, BLD_OUTPOST, 0, 1.0f));
 		for (int i = 0; i < 6; ++i) s->spawn_unit(-30.0f + 2.0f * (float)i, -12.0f, 1, UNIT_CAVALRY);
 		for (int i = 0; i < 4; ++i) s->spawn_unit(-30.0f + 2.0f * (float)i, -10.0f, 1, UNIT_SPEARMAN);
 		bool raided = false, cavalry_only = true;
@@ -1464,6 +1482,33 @@ static void test_pop_phase2_save_resources() {
 // researchManager.js checkPhase: Petra plans the next phase only with a finished structure that
 // researches it (hasResearchers); with its civic centre gone it doesn't count as phasing, so
 // its minor research and expansion aren't held for a phase it can't research.
+// getOwnUnits / getOwnEntitiesByRole: workers sheltering in a structure keep their role, so
+// trainMoreWorkers and getAccountedWorkers still count them.
+static void test_garrisoned_workers_count() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->petra_pid_ = 1;
+	int supports = 0;
+	const int before = s->petra_unplanned_workers(supports);
+	const int accounted = s->petra_accounted_workers(false);
+	Simulation::Building *cc = nullptr;
+	for (auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "AI 1 has a civic centre");
+	if (!cc) return;
+	int sheltered = 0;
+	for (size_t i = 0; i < s->units_.count && sheltered < 3; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 && unit_gather_class(s->units_.unit_type[i], s->units_.tmpl[i]) == GATHER_SUPPORT) {
+			s->garrison_now(i, *cc);
+			++sheltered;
+		}
+	const int after = s->petra_unplanned_workers(supports);
+	std::printf("  garrisoned workers: %d sheltered, workers %d -> %d, accounted %d -> %d\n", sheltered, before, after, accounted,
+	            s->petra_accounted_workers(false));
+	CHECK(sheltered == 3 && after == before && s->petra_accounted_workers(false) == accounted, "garrisoned workers still count");
+}
+
 static void test_petra_phasing_needs_researcher() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -1482,6 +1527,41 @@ static void test_petra_phasing_needs_researcher() {
 	for (auto &b : s->buildings_)
 		if (b.team == 0 && b.type == BLD_TOWN_CENTER) s->destroy_building(b);
 	CHECK(!s->petra_phasing(), "no phasing without a structure researching the town phase");
+}
+
+// headquarters.js checkPhaseRequirements: the 3 Town structures the city phase needs count
+// their foundations (getOwnEntitiesByClass(class, true)), so the temple goes down while the
+// market is still a foundation.
+static void test_city_phase_counts_foundations() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->set_team_civ(1, (uint8_t)CIV_ATHENIANS);
+	s->players_[1].phase = 2;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->spawn_building((int)((tx + 12.0f) / Simulation::GRID), (int)(tz / Simulation::GRID), BLD_MARKET, 1, 0.0f);
+	s->petra_pid_ = 1;
+	PetraQueueAccount rich{};
+	rich.food = rich.wood = rich.gold = rich.stone = 5000.0f;
+	s->petra_queues_.accounts[PETRA_Q_ECONOMIC_BUILDING] = rich;
+	s->petra_queues_.accounts[PETRA_Q_MILITARY_BUILDING] = rich;
+	s->petra_queues_.wants[PETRA_Q_MAJOR_TECH].food = 1.0f; // the city phase waits in its queue
+	CHECK(s->petra_phasing(), "phasing to the city phase");
+	s->petra_manage_research(0.5f);
+	int temples = 0, markets = 0;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.build_progress < 1.0f) {
+			if (b.type == BLD_TEMPLE) ++temples;
+			if (b.type == BLD_MARKET) ++markets;
+		}
+	std::printf("  city phase: market foundations %d, temple foundations %d\n", markets, temples);
+	CHECK(markets == 1 && temples == 1, "the temple goes down while the market is a foundation");
 }
 
 // gameState.findAvailableTech (common-api gamestate.js:768): Petra's structures in creation
@@ -2059,6 +2139,19 @@ static void test_market_dock_route() {
 	std::printf("  route %u -> %u (dock %u): traders queued at the market %d, elsewhere %d\n", routes.best.source, routes.best.target, dock,
 	            at_market, at_dock);
 	CHECK(at_market == 1 && at_dock == 0, "the land trader trains at the market");
+
+	// tradeManager.js:133: only idle traders get orders. A trader of the route that flees keeps
+	// fleeing with its goods; a new order_trade would drop them.
+	float mx = 0.0f, mz = 0.0f;
+	for (const auto &b : s->buildings()) if (b.id == market) { mx = b.x; mz = b.z; }
+	const uint32_t trader = s->spawn_unit(mx + 6.0f, mz + 6.0f, 1, UNIT_TRADER);
+	s->order_trade(&trader, 1, market, dock);
+	const int32_t k = s->lookup_unit(trader);
+	s->units_.action_state[k] = ACTION_FLEE;
+	s->units_.carry[k] = 7;
+	s->petra_manage_trading(Simulation::FIXED_STEP);
+	std::printf("  fleeing trader: still fleeing %d, carrying %d\n", s->units_.action_state[k] == ACTION_FLEE, (int)s->units_.carry[k]);
+	CHECK(s->units_.action_state[k] == ACTION_FLEE && s->units_.carry[k] == 7, "a fleeing trader is not sent back to trade");
 }
 
 static void test_civ_structures() {
@@ -2746,7 +2839,7 @@ static void test_raid_sizes_vary() {
 		float tx = 0.0f, tz = 0.0f;
 		for (const auto &b : s->buildings())
 			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
-		s->spawn_building_world(tx + 10.0f, tz, BLD_OUTPOST, 0, 1.0f); // an enemy structure in Petra's land
+		seen_built(*s, s->spawn_building_world(tx + 10.0f, tz, BLD_OUTPOST, 0, 1.0f)); // an enemy structure in Petra's land, seen built
 		const uint8_t made = s->petra_attack_mgr_.plans_made;
 		for (int k = 0; k < 20 && s->petra_raid_plan_.state != Simulation::AttackPlan::MUSTER; ++k) run_for(*s, 1.0f);
 		const auto &m = s->petra_attack_mgr_;
@@ -2872,7 +2965,7 @@ static void test_raid_takes_every_rider() {
 		}
 		for (int i = 0; i < 8; ++i) s->spawn_unit(tx + 2.0f * (float)i - 8.0f, tz + 6.0f, 1, UNIT_CAVALRY);
 		if (!main_musters) champion = s->spawn_unit(tx, tz + 9.0f, 1, UNIT_CAVALRY, 0.0f, champion_tmpl);
-		s->spawn_building_world(tx + 10.0f, tz, BLD_OUTPOST, 0, 1.0f); // an enemy structure in Petra's land
+		seen_built(*s, s->spawn_building_world(tx + 10.0f, tz, BLD_OUTPOST, 0, 1.0f)); // an enemy structure in Petra's land, seen built
 		size_t raiders = 0;
 		bool champion_in = false, spear_in = false;
 		for (float t = 0.0f; t < 20.0f; t += Simulation::FIXED_STEP) {
@@ -3304,6 +3397,7 @@ static void test_attack_request_counts_raid() {
 	raid.state = Simulation::AttackPlan::MUSTER;
 	raid.state_timer = 0.0f;
 	raid.target_building_id = s->spawn_building_world(bx - 10.0f, bz, BLD_OUTPOST, 0, 1.0f);
+	slot.petra_defense_targets_.ids.push_back(raid.target_building_id); // seen built by AI 2
 	raid.target_x = bx - 10.0f; raid.target_z = bz;
 	raid.squad.clear();
 	for (int k = 0; k < 4; ++k) raid.squad.push_back(s->spawn_unit(bx - 6.0f, bz + 6.0f + (float)k, 2, UNIT_CAVALRY));
@@ -4427,6 +4521,37 @@ static void test_decay_garrison() {
 	CHECK(built == 0 && captured > 0, "Petra garrisons a decaying barracks only when it just captured it");
 }
 
+// garrisonManager.js addDecayingStructure: a barracks is garrisoned against decay only when
+// Petra captured it while it decayed (justCaptured); one Petra built there is not.
+static void test_decay_barracks_captured() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	float fx = 0.0f, fz = 0.0f;
+	bool found = false;
+	for (const auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) { fx = b.x; fz = b.z; found = true; }
+	CHECK(found, "player 0 has a civic centre");
+	if (!found) return;
+	const uint32_t built = s->spawn_building_world(fx + 14.0f, fz, BLD_BARRACKS, 1);
+	const uint32_t taken = s->spawn_building_world(fx - 14.0f, fz, BLD_BARRACKS, 0);
+	{
+		Simulation::Building &b = s->buildings_[s->building_id_to_idx_[taken]];
+		b.team = 1; // captured from player 0 in its territory
+		s->stat_building_captured(b, 0);
+	}
+	s->rebuild_territory();
+	s->petra_pid_ = 1;
+	const int built_min = s->petra_decay_garrison_min(s->buildings_[s->building_id_to_idx_[built]]);
+	const int taken_min = s->petra_decay_garrison_min(s->buildings_[s->building_id_to_idx_[taken]]);
+	std::printf("  decaying barracks: built there wants %d inside, captured there %d\n", built_min, taken_min);
+	CHECK(built_min == 0, "a barracks Petra built in enemy land is not garrisoned against decay");
+	CHECK(taken_min > 0, "a barracks Petra captured while it decays is (justCaptured)");
+}
+
 // headquarters.js checkEvents: a structure Petra just captured in enemy land, which no
 // garrison will hold, is destroyed while an enemy holds part of it and Petra keeps under
 // 70-80% of its capture points; with 95% it is kept.
@@ -5011,7 +5136,7 @@ static void test_defense_switch_to_attack() {
 	if (!cc) return;
 	const float cx = cc->x, cz = cc->z;
 	for (int k = 0; k < 20; ++k) s->spawn_unit(cx - 3.0f + (float)(k % 5), cz + 12.0f + (float)(k / 5), 1, UNIT_SPEARMAN);
-	const uint32_t tower = s->spawn_building_world(cx + 12.0f, cz - 10.0f, BLD_SENTRY_TOWER, 0, 0.2f);
+	const uint32_t tower = seen_built(*s, s->spawn_building_world(cx + 12.0f, cz - 10.0f, BLD_SENTRY_TOWER, 0, 0.2f));
 	for (int k = 0; k < 3; ++k) s->spawn_unit(cx + 10.0f, cz - 7.0f + (float)k, 0, UNIT_SWORDSMAN, 20.0f);
 	const auto unique = [&]() -> const Simulation::AttackPlan * {
 		for (const auto &p : s->petra_started_attacks())
@@ -5906,7 +6031,7 @@ static void test_raid_keeps_hunters() {
 		if (b.team == 1) { ox = b.x; oz = b.z; }
 	}
 	// An enemy outpost inside our territory is the raid's target (raidTargetEntity).
-	target = s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f);
+	target = seen_built(*s, s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f));
 	for (int k = 0; k < 3; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 6.0f, 1, UNIT_CAVALRY);
 	s->petra_scout_unit_id_ = 0;
 	int riders = 0;
@@ -5942,7 +6067,7 @@ static void test_raid_takes_siege() {
 		if (is_civic_centre(b.type) && b.hp > 0.0f && b.team == 1) { ox = b.x; oz = b.z; }
 	s->players_[1].phase = 3;
 	s->spawn_building_world(ox + 14.0f, oz - 4.0f, BLD_ARSENAL, 1, 1.0f);
-	const uint32_t target = s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f);
+	const uint32_t target = seen_built(*s, s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f));
 	for (int k = 0; k < 3; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 6.0f, 1, UNIT_CAVALRY);
 	s->petra_scout_unit_id_ = 0;
 	auto &m = s->petra_attack_mgr_;
@@ -6012,6 +6137,12 @@ static void test_raid_cc_foundation() {
 	auto it = s->building_id_to_idx_.find(target);
 	CHECK(it != s->building_id_to_idx_.end(), "the foundation stands");
 	if (it == s->building_id_to_idx_.end()) return;
+	CHECK(!s->petra_raid_target_ok(target), "no one seen building it, it is no target yet");
+	// isDangerous: an enemy seen building it near our structures puts it in the targetList.
+	const uint32_t mason = s->spawn_unit(fx + 6.0f, fz, 0, UNIT_FEMALE_CITIZEN, 1.0e4f);
+	s->order_build_or_repair(&mason, 1, target);
+	for (int k = 0; k < 12 && !s->petra_raid_target_ok(target); ++k) run_ai_turns(*s, 1);
+	if (const int32_t m = s->lookup_unit(mason); m >= 0) { s->units_.alive[m] = false; s->units_.action_state[m] = ACTION_DYING; }
 	CHECK(s->petra_raid_target_ok(target), "an enemy civic centre foundation near our structures is a raid target");
 	auto &plan = s->petra_raid_plan_;
 	// More riders wanted than there are: only the minimum can be met.
@@ -7020,7 +7151,7 @@ static void test_raids_at_once() {
 	float ox = 0, oz = 0;
 	for (const auto &b : s->buildings_)
 		if (is_civic_centre(b.type) && b.hp > 0.0f && b.team == 1) { ox = b.x; oz = b.z; }
-	const uint32_t target = s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f);
+	const uint32_t target = seen_built(*s, s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f));
 	for (int k = 0; k < 8; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 6.0f, 1, UNIT_CAVALRY);
 	s->petra_scout_unit_id_ = 0;
 	auto &m = s->petra_attack_mgr_;
@@ -7080,6 +7211,8 @@ int main(int argc, char **argv) {
 	RUN(test_petra_config_pop_scaling);
 	RUN(test_petra_islands_wood_reserve);
 	RUN(test_petra_phasing_needs_researcher);
+	RUN(test_garrisoned_workers_count);
+	RUN(test_city_phase_counts_foundations);
 	RUN(test_petra_research_order);
 	RUN(test_petra_minor_tech_kept);
 	RUN(test_petra_diplomacy_counts);
@@ -7132,6 +7265,7 @@ int main(int argc, char **argv) {
 	RUN(test_decay_garrison);
 	RUN(test_decay_garrison_from_attack);
 	RUN(test_decay_destroy);
+	RUN(test_decay_barracks_captured);
 	RUN(test_defense_by_strength);
 	RUN(test_defense_armies);
 	RUN(test_soldier_fights_back);
