@@ -36,7 +36,7 @@ func run() -> void:
 	await frames(10)
 	var page = current_scene
 	var info: Button = page.find_child("CivInfoButton", true, false)
-	check(info != null and info.tooltip_text.begins_with("Alt+Shift+H / Alt+Shift+T: View Civilization Overview / Structure Tree"), "the info button and its tooltip: " + (info.tooltip_text if info else ""))
+	check(info != null and info.tooltip_text.begins_with("[color=#fffb83][lb]Alt+Shift+H[rb][/color] / [color=#fffb83][lb]Alt+Shift+T[rb][/color]: View Civilization Overview / Structure Tree"), "the info button and its tooltip: " + (info.tooltip_text if info else ""))
 	check(page.find_child("CivPreview", true, false) == null, "no invented civ blurb above the slots")
 	info.pressed.emit()
 	await frames(3)
@@ -45,6 +45,16 @@ func run() -> void:
 	check(tabs != null and tabs.current_tab == 0 and tabs.get_current_tab_control().name == "Civilization", "the button opens the Civilization Overview")
 	await press(KEY_T, {"alt": true, "shift": true})
 	check(tabs != null and tabs.current_tab == 1, "the structree hotkey switches to the Structure Tree")
+	var close: Button = layer.find_child("Close", true, false) if layer else null
+	check(close != null and close.tooltip_text.ends_with(": Close Structure Tree.") and close.tooltip_text.contains("[color="),
+		"Close names its key and page: " + (close.tooltip_text if close else ""))
+	await press(KEY_T, {"alt": true, "shift": true})
+	await frames(2)
+	check(page.get_node_or_null("CivReference") == null, "the Structure Tree's own hotkey closes it")
+	info.pressed.emit()
+	await frames(3)
+	layer = page.get_node_or_null("CivReference")
+	tabs = layer.find_child("Pages", true, false) if layer else null
 	await press(KEY_ESCAPE)
 	await frames(2)
 	check(page.get_node_or_null("CivReference") == null, "Esc closes it")

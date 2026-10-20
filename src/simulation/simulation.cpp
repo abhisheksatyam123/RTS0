@@ -760,8 +760,8 @@ int Simulation::pop_current(uint8_t player) const {
 
 // Population/Bonus of a finished structure for its owner (the big house for nine civs,
 // Population/Bonus technologies, multiplied then added as ApplyValueModifications does).
-int Simulation::structure_pop_bonus(uint8_t type, uint8_t player) const {
-	const int base = civ_building_type_info(civ_of(player), type).pop_bonus;
+int Simulation::structure_pop_bonus(uint8_t type, uint8_t player, uint8_t bld_civ) const {
+	const int base = civ_building_type_info(bld_civ != 0xFF ? bld_civ : (uint8_t)civ_of(player), type).pop_bonus;
 	if (!base) return 0;
 	const TechMods &m = tech_mods(player);
 	return (int)std::lround(base * m.bld_pop_bonus[type] + m.bld_pop_bonus_add[type]);
@@ -771,7 +771,7 @@ int Simulation::pop_max_uncapped(uint8_t player) const {
 	// Player.js popBonuses start at 0: a Civic Centre gives 20, houses 5 or 10, a wagon house 5.
 	int cap = 0;
 	for (const auto &b : buildings_) {
-		if (b.team == player && b.build_progress >= 1.0f) cap += structure_pop_bonus(b.type, player);
+		if (b.team == player && b.build_progress >= 1.0f) cap += structure_pop_bonus(b.type, player, structure_template_civ(b));
 	}
 	if (player < MAX_PLAYERS) cap += cheat_mods_[player].pop_bonus + unit_pop_bonus_[player];
 	return cap;
@@ -4327,7 +4327,7 @@ Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t b
 	if (bit == building_id_to_idx_.end() || player_id >= MAX_PLAYERS) return UPGRADE_ERR_NONE;
 	const Building &b = buildings_[bit->second];
 	if (b.team != player_id) return UPGRADE_ERR_OWNER;
-	const BuildingUpgradeInfo up = building_upgrade(b.type, structure_upgrade_civ(b), choice);
+	const BuildingUpgradeInfo up = structure_upgrade(b, choice);
 	if (up.to >= BLD_TYPE_COUNT || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) return UPGRADE_ERR_NONE;
 	// Of the WallSet segments only wall_long has an Upgrade (to the gate).
 	if (b.type == BLD_WALL_SEGMENT && is_wallset_piece(b.type, b.half_size) &&
@@ -4384,7 +4384,7 @@ bool Simulation::cmd_upgrade_building(uint8_t player_id, uint32_t building_id, i
 		return false;
 	}
 	Building &b = buildings_[building_id_to_idx_[building_id]];
-	const BuildingUpgradeInfo up = building_upgrade(b.type, structure_upgrade_civ(b), choice);
+	const BuildingUpgradeInfo up = structure_upgrade(b, choice);
 	players_[player_id].pay((float)up.food_cost, (float)up.wood_cost, (float)up.gold_cost, (float)up.stone_cost);
 	b.upgrade_paid.fill(0.0f);
 	b.upgrade_paid[RES_FOOD] = (float)up.food_cost;
@@ -4425,6 +4425,9 @@ void Simulation::finish_upgrade(Building &b) {
 	const BuildingTypeInfo &ninfo = building_type_info(to);
 	const float health_level = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
 	b.type = to;
+	// A "{civ}" target is the owner's civ's template (a captured Iberian sentry tower becomes
+	// an Athenian defense tower).
+	if (building_upgrade_target_is_owner_civ(to) && b.team < MAX_PLAYERS) b.civ = (uint8_t)civ_of(b.team);
 	// ChangeEntityTemplate makes a new entity: no rally point, and a fresh queue with
 	// autoqueue off (Transform.js copies position, health, capture points and garrison only).
 	b.has_rally_point = false;
@@ -7528,7 +7531,7 @@ Simulation::StructureDetails Simulation::structure_details(const Building &b) co
 		}
 	}
 	if (b.garrison_cap > 0) d.heal = structure_garrison_heal(b);
-	if (owned) d.pop_bonus = structure_pop_bonus(b.type, b.team);
+	if (owned) d.pop_bonus = structure_pop_bonus(b.type, b.team, structure_template_civ(b));
 	if (const TurretPointSet *t = turret_points_of(b)) d.turrets = t->count;
 	d.trickles = structure_trickle_rates(b, d.trickle);
 	return d;
@@ -9181,8 +9184,9 @@ void Simulation::order_fauna_stop(uint8_t player, const uint32_t *ids, size_t co
 		fauna_.target_unit_id[f] = 0;
 		fauna_.corral_id[f] = 0;
 		fauna_.vel_x[f] = fauna_.vel_z[f] = 0.0f;
+		// IDLE, then LINGERING for a random FeedTime (UnitAI.js ROAMING.LINGERING).
 		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
-		fauna_.state_timer[f] = info.feed_time_min;
+		fauna_.state_timer[f] = info.feed_time_min + (float)sim_rng_.range_int(0, (int)std::max(0.0f, info.feed_time_max - info.feed_time_min));
 	}
 }
 
@@ -12817,12 +12821,14 @@ void Simulation::tick_gather(float dt) {
 				const uint32_t rid = units_.target_resource_id[i];
 				FieldGatherers &sg = supply_gatherers_[rid];
 				uint32_t alt = 0;
+				// A hunter only goes on to the same animal (FINDINGNEWTARGET's template filter).
+				const uint8_t species = resources_.subtype[ridx] == RES_SUB_MEAT ? units_.hunt_fauna[i] : 0;
 				if (!(units_.order_flags[i] & ORDER_FLAG_FORCE))
 					alt = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], rt, uteam,
-							resources_.subtype[ridx], &supply_gatherers_, rid);
+							resources_.subtype[ridx], &supply_gatherers_, rid, species);
 				if (alt == 0)
 					alt = find_nearby_resource(resources_.x[ridx], resources_.z[ridx], rt, uteam,
-							resources_.subtype[ridx], &supply_gatherers_, rid);
+							resources_.subtype[ridx], &supply_gatherers_, rid, species);
 				sg.total--;
 				if (alt != 0) {
 					// The new supply has a free slot (find_nearby_resource skips full ones).
@@ -13051,7 +13057,7 @@ float Simulation::structure_build_time(const Building &b) const {
 	const uint8_t type = b.type < BLD_TYPE_COUNT ? b.type : 0;
 	// A WallSet piece takes its own BuildTime (wall_long/medium/short, palisades_*).
 	const float piece = wallset_piece_value(type, b.half_size, 2, b.civ);
-	const float base = piece > 0.0f ? piece : civ_building_type_info(civ_of(b.team), type).build_time;
+	const float base = piece > 0.0f ? piece : civ_building_type_info(structure_template_civ(b), type).build_time;
 	float t = base * tech_mods(b.team).bld_build_time[type] * ai_time_mult(b.team);
 	t *= civ_bonus_mult(civ_of(b.team), CIV_BONUS_BUILDING_BUILD_TIME, b.type);
 	t *= team_bonus_mult(b.team, TEAM_BONUS_BUILDING_BUILD_TIME, -1, CIV_UNIT_TEMPLATE_NONE, b.type);
@@ -13067,7 +13073,7 @@ void Simulation::tick_construction(float dt) {
 			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 			if (bit == building_id_to_idx_.end()) continue;
 			const Building &b = buildings_[bit->second];
-			if (b.build_progress < 1.0f && outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
+			if (b.build_progress < 1.0f && is_ally(units_.team[i], b.team) && outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
 				unit_clearance_at(i)))
 				builders_per_bld[b.id]++;
 		}
@@ -13083,7 +13089,9 @@ void Simulation::tick_construction(float dt) {
 			continue;
 		}
 		Building &b = buildings_[bit->second];
-		if (b.hp <= 0.0f) {
+		// Builder.js PerformBuilding: CanRepair needs the target owned by an ally (a foundation
+		// or structure captured or converted away is dropped).
+		if (b.hp <= 0.0f || !is_ally(units_.team[i], b.team)) {
 			units_.target_building_id[i] = 0;
 			units_.action_state[i] = ACTION_IDLE;
 			continue;
@@ -13147,17 +13155,15 @@ void Simulation::tick_construction(float dt) {
 // UnitAI LeaveFoundation: unless it is already walking off, the unit puts its current
 // order back on the front of its queue and walks to the nearest point clear of the
 // footprint (PushOrderFront), then carries on with what it was doing.
-void Simulation::leave_foundation(size_t i, const Building &b) {
-	const float r = unit_collision_radius(units_.unit_type[i]);
+// The nearest point just off a foundation for something of radius r standing at (x, z), in the
+// footprint's own axes (nav/footprint.h), so a turned foundation is left the short way.
+void Simulation::foundation_exit_point(const Building &b, float x, float z, float r, float &tx, float &tz) const {
 	const float reach_u = b.hu + r, reach_v = b.hv + r;
-	auto outside = [&](float x, float z) { return !nav::footprint_contains(b, x, z, r); };
-	if (units_.order_kind[i] == ORDER_WALK && units_.has_order[i] && outside(units_.order_x[i], units_.order_z[i]))
-		return;
-	// In the footprint's own axes (nav/footprint.h), so a turned foundation is left the short way.
-	const nav::Vec2 l = nav::footprint_local(b, units_.pos_x[i], units_.pos_z[i]);
+	const nav::Vec2 l = nav::footprint_local(b, x, z);
 	const float dx = l.x, dz = l.y;
 	const float out_u = reach_u + 0.5f, out_v = reach_v + 0.5f;
-	float tx = units_.pos_x[i], tz = units_.pos_z[i];
+	tx = x;
+	tz = z;
 	if (nav::footprint_aligned(b)) {
 		if (reach_u - std::fabs(dx) <= reach_v - std::fabs(dz)) tx = b.x + (dx < 0.0f ? -out_u : out_u);
 		else tz = b.z + (dz < 0.0f ? -out_v : out_v);
@@ -13170,6 +13176,15 @@ void Simulation::leave_foundation(size_t i, const Building &b) {
 	}
 	tx = std::clamp(tx, -map_half_ + 1.0f, map_half_ - 1.0f);
 	tz = std::clamp(tz, -map_half_ + 1.0f, map_half_ - 1.0f);
+}
+
+void Simulation::leave_foundation(size_t i, const Building &b) {
+	const float r = unit_collision_radius(units_.unit_type[i]);
+	auto outside = [&](float x, float z) { return !nav::footprint_contains(b, x, z, r); };
+	if (units_.order_kind[i] == ORDER_WALK && units_.has_order[i] && outside(units_.order_x[i], units_.order_z[i]))
+		return;
+	float tx, tz;
+	foundation_exit_point(b, units_.pos_x[i], units_.pos_z[i], r, tx, tz);
 	const uint32_t uid = units_.id[i];
 	const UnitOrder cur = current_order(i);
 	if (cur.kind != ORDER_NONE && cur.kind != ORDER_WALK) {
@@ -13251,6 +13266,25 @@ bool Simulation::try_commit_foundation(Building &b) {
 			continue;
 		leave_foundation(i, b);
 	}
+	// Animals have UnitAI too (WillMoveFromFoundation): a live one on the site walks off it.
+	for (size_t f = 0; building_blocks_movement(b.type) && f < fauna_.count; ++f) {
+		if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f) continue;
+		const uint8_t st = fauna_.behavior[f];
+		if (st == FAUNA_CARCASS || st == FAUNA_CORRALLED) continue;
+		if (!nav::footprint_contains(b, fauna_.pos_x[f], fauna_.pos_z[f], 0.0f)) continue;
+		blocked = true;
+		if (st == FAUNA_ATTACK || st == FAUNA_HERDED) continue; // fighting, or led by its herder
+		float tx, tz;
+		foundation_exit_point(b, fauna_.pos_x[f], fauna_.pos_z[f], 0.5f, tx, tz);
+		if (st == FAUNA_MOVING && fauna_.corral_id[f] == 0 &&
+				!nav::footprint_contains(b, fauna_.home_x[f], fauna_.home_z[f], 0.5f))
+			continue; // already walking off it
+		fauna_.behavior[f] = FAUNA_MOVING;
+		fauna_.corral_id[f] = 0;
+		fauna_.target_unit_id[f] = 0;
+		fauna_.home_x[f] = tx;
+		fauna_.home_z[f] = tz;
+	}
 	if (blocked) return false;
 	b.committed = true;
 	// Foundation.js Commit: GetEntitiesDeletedUponConstruction, the fish under a dock's footprint
@@ -13284,7 +13318,7 @@ void Simulation::tick_repair(float dt) {
 			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 			if (bit != building_id_to_idx_.end()) {
 				const Building &b = buildings_[bit->second];
-				if (b.build_progress >= 1.0f && b.hp > 0.0f && b.hp < b.max_hp &&
+				if (b.build_progress >= 1.0f && b.hp > 0.0f && b.hp < b.max_hp && is_ally(units_.team[i], b.team) &&
 						outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
 				unit_clearance_at(i))) {
 					repairers_per_bld[b.id]++;
@@ -13299,6 +13333,11 @@ void Simulation::tick_repair(float dt) {
 		if (bit == building_id_to_idx_.end()) continue;
 		Building &b = buildings_[bit->second];
 		if (b.build_progress < 1.0f || b.hp <= 0.0f || b.hp >= b.max_hp) continue;
+		if (!is_ally(units_.team[i], b.team)) { // Builder.js PerformBuilding: TargetInvalidated
+			units_.target_building_id[i] = 0;
+			units_.action_state[i] = ACTION_IDLE;
+			continue;
+		}
 
 		if (outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
 				unit_clearance_at(i))) {
@@ -17303,28 +17342,34 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 		const uint8_t species = sub == RES_SUB_MEAT ? units_.hunt_fauna[i] : 0;
 		const uint32_t previous = units_.target_resource_id[i];
 		uint32_t r = 0;
-		// A field takes MaxGatherers farmers (IsAvailableTo): skip the full ones.
-		const auto *busy = sub == RES_SUB_GRAIN ? &field_gatherers_ : nullptr;
-		if (!(units_.order_flags[i] & ORDER_FLAG_FORCE))
-			r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub, busy, previous, species);
-		if (r == 0)
-			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub, busy, previous, species);
+		// IsAvailableTo: a field or a carcass that has its MaxGatherers is skipped.
+		const auto *busy = sub == RES_SUB_GRAIN ? &field_gatherers_ : sub == RES_SUB_MEAT ? &supply_gatherers_ : nullptr;
+		// FindNearbyResource takes live animals too (PerformGather then kills one first): a
+		// hunter goes on to the nearer of a carcass and a live animal of the kind.
+		uint32_t prey = 0;
+		auto search = [&](float x, float z) {
+			r = find_nearby_resource(x, z, units_.res_type_carried[i], units_.team[i], sub, busy, previous, species);
+			prey = sub == RES_SUB_MEAT ? find_nearby_prey(i, x, z, NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE, species) : 0;
+			if (r != 0 && prey != 0) {
+				const size_t ri = res_id_to_idx_.at(r), fi = fauna_id_to_idx_.at(prey);
+				const float rd = det::hypot(resources_.x[ri] - x, resources_.z[ri] - z);
+				const float fd = det::hypot(fauna_.pos_x[fi] - x, fauna_.pos_z[fi] - z);
+				if (fd < rd) r = 0;
+				else prey = 0;
+			}
+			return r != 0 || prey != 0;
+		};
+		if (!(units_.order_flags[i] & ORDER_FLAG_FORCE)) search(units_.pos_x[i], units_.pos_z[i]);
+		if (r == 0 && prey == 0) search(units_.order_x[i], units_.order_z[i]);
 		if (r != 0) {
 			UnitOrder o = current_order(i);
 			o.target = r;
 			apply_order(uid, o);
 			return;
 		}
-		// A hunter whose carcass is eaten goes for the next animal of the kind nearby
-		// (FindNearbyResource takes live animals too; PerformGather then kills it first).
-		if (sub == RES_SUB_MEAT) {
-			const bool forced = (units_.order_flags[i] & ORDER_FLAG_FORCE) != 0;
-			const uint32_t prey = find_nearby_prey(i, forced ? units_.order_x[i] : units_.pos_x[i],
-					forced ? units_.order_z[i] : units_.pos_z[i], NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE, species);
-			if (prey != 0) {
-				order_hunt(&uid, 1, prey);
-				return;
-			}
+		if (prey != 0) {
+			order_hunt(&uid, 1, prey);
+			return;
 		}
 		// UnitAI.js FINDINGNEWTARGET: nothing near the unit or where it started, but it
 		// stands far from where it started (initPos, the order's target position when it
@@ -18371,6 +18416,7 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		participant_mask_ |= bit;
 		convert_to_gaia(bit);
 		mark_players_defeated(bit);
+		note_session({SessionNotice::DEFEATED, (uint8_t)parameter, 0, SessionNotice::END_CHEAT, {}}); // Cheat.js Defeat("... (cheat).")
 		return true;
 	}
 	case CHEAT_CREATE_UNITS: { // "salad bowl": a spearman of each civ in turn from the selected trainer;
@@ -23957,7 +24003,7 @@ void Simulation::petra_manage_buildings(float dt) {
 			int free_slots = pop_max(petra_pid_) - pop;
 			for (const auto &b : buildings_) {
 				if (b.team != petra_pid_ || b.build_progress >= 1.0f) continue;
-				free_slots += structure_pop_bonus(b.type, petra_pid_);
+				free_slots += structure_pop_bonus(b.type, petra_pid_, structure_template_civ(b));
 			}
 			// buildMoreHouses: structures/{civ}/apartment once it may be built (Carthage from
 			// the Town phase), else the house.
@@ -34338,8 +34384,9 @@ uint32_t Simulation::find_nearby_prey(size_t i, float x, float z, float max_d2, 
 		const float dx = fauna_.pos_x[f] - x, dz = fauna_.pos_z[f] - z;
 		const float d2 = dx * dx + dz * dz;
 		if (d2 >= best_d2) continue;
-		// CheckTargetVisible: animals don't stay in the fog, so the hunter must see it now.
-		if (fog && !los_visible(units_.team[i], fauna_.pos_x[f], fauna_.pos_z[f])) continue;
+		// CheckTargetVisible: template_unit_fauna RetainInFog, so an animal in explored fog counts
+		// (GetLosVisibility "fogged", not "hidden").
+		if (fog && !los_explored(units_.team[i], fauna_.pos_x[f], fauna_.pos_z[f])) continue;
 		best_d2 = d2;
 		best = fauna_.id[f];
 	}
@@ -34528,14 +34575,14 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id, bool melee) {
 		return;
 	}
 	// INDIVIDUAL.FLEEING: run until FleeDistance further away than the attacker was, so a
-	// ranged hunter is fled from too. A new attacker takes over only if it is nearer.
+	// ranged hunter is fled from too. Any other attacker takes over: FLEEING.Attacked compares
+	// DistanceToTarget(self, msg.data.target), and the attack's target is the animal itself.
 	auto dist_to = [&](uint32_t id) {
 		float x, z;
 		return fauna_threat_pos(id, x, z) ? det::hypot(x - fauna_.pos_x[f], z - fauna_.pos_z[f]) : 1e9f;
 	};
 	if (b == FAUNA_FLEE) {
 		if (attacker_id == fauna_.target_unit_id[f]) return;
-		if (dist_to(attacker_id) > dist_to(fauna_.target_unit_id[f])) return;
 	}
 	const float d = dist_to(attacker_id);
 	fauna_.behavior[f] = FAUNA_FLEE;
@@ -35056,9 +35103,10 @@ void Simulation::tick_fauna(float dt) {
 			if (len > info.attack_range + 0.6f) {
 				// Out of reach: the next bite comes PrepareTime after it gets there (Attack.js).
 				fauna_.attack_timer[i] = std::max(fauna_.attack_timer[i], info.attack_prepare);
-				// COMBAT APPROACHING and CHASING walk, and run only after a target that flees
-				// (UnitAI.js: "if (cmpUnitAI.IsFleeing()) this.SetSpeedMultiplier(this.GetRunMultiplier())").
-				const bool fleeing = t >= 0 ? units_.action_state[t] == ACTION_FLEE : fauna_.behavior[tf] == FAUNA_FLEE;
+				// COMBAT APPROACHING walks; CHASING (after a first ATTACKING, flee_distance > 0) runs
+				// after a target that flees (UnitAI.js CHASING enter: "IsFleeing()) this.Run()").
+				const bool fleeing = fauna_.flee_distance[i] > 0.0f &&
+				                     (t >= 0 ? units_.action_state[t] == ACTION_FLEE : fauna_.behavior[tf] == FAUNA_FLEE);
 				const float sp = info.speed * (fleeing ? info.run_mult : 1.0f);
 				// Along the long path round ponds, cliffs and walls (UnitMotion; polar_sea_triggers.js
 				// sends its wolves across the whole map); a building corner 45 or 90 degrees to either side.
@@ -35550,12 +35598,13 @@ void Simulation::tick_treasures(float dt) {
 		if (units_.target_unit_id[i] == units_.order_target[i]) units_.target_unit_id[i] = 0;
 		if (units_.action_state[i] == ACTION_MOVE) units_.action_state[i] = ACTION_IDLE;
 		units_.has_order[i] = 0;
-		const float ox = units_.order_x[i], oz = units_.order_z[i];
+		// TargetPosOrEntPos(oldTarget): the treasure is gone, so the search is round the collector.
+		const float ox = units_.pos_x[i], oz = units_.pos_z[i];
 		finish_order(i);
 		if (units_.order_kind[i] == ORDER_NONE) next_hunt.push_back({units_.id[i], ox, oz});
 	}
 	// COLLECTTREASURE.FINDINGNEWTARGET: with no next order, the nearest treasure within
-	// 64 m of the one that is gone (FindNearbyTreasure).
+	// 64 m (FindNearbyTreasure).
 	for (const NextTreasure &nt : next_hunt) {
 		const int32_t i = lookup_unit(nt.uid);
 		if (i < 0 || !units_.alive[i] || units_.order_kind[i] != ORDER_NONE) continue;

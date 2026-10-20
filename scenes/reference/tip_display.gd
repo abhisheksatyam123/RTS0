@@ -289,9 +289,8 @@ func _tip_button(parent: Control, node_name: String, caption: String, x: float, 
 		box.texture = tex
 		box.set_expand_margin_all(10)
 		b.add_theme_stylebox_override(state[0], box)
-	var keys: String = _hotkeys.display(hotkey)
 	# colorizeHotkey("%(hotkey)s: ", hotkey) + tooltip
-	b.tooltip_text = (keys if keys != "" else tr("Unassigned")) + ": " + tooltip
+	b.tooltip_text = _hotkeys.colorize("%(hotkey)s: ", hotkey) + tooltip
 	parent.add_child(b)
 	return b
 

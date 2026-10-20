@@ -25,12 +25,11 @@ const SCHEMA := [
 	["General", [
 		["string", "playername.singleplayer", "Player name (single-player)", "How you want to be addressed in single-player matches."],
 		["string", "playername.multiplayer", "Player name (multiplayer)", "How you want to be addressed in multiplayer matches (except lobby)."],
-		["dropdown", "locale", "Language", "Choose the language of the game.", "locales"],
 		["boolean", "pauseonfocusloss", "Background pause", "Pause single-player games when window loses focus."],
 		["boolean", "gui.splashscreen.enable", "Enable welcome screen", "If you disable it, the welcome screen will still appear, each time a new version is available. You can always launch it from the main menu."],
 	]],
 	["Graphics (general)", [
-		["boolean", "windowed", "Windowed mode", "Start RTS0 in a window."],
+		["boolean", "windowed", "Windowed mode", "Start 0 A.D. in a window."],
 		["boolean", "fog", "Fog", "Enable fog."],
 		["boolean", "postproc", "Post-processing", "Use screen-space post-processing filters (HDR, Bloom, DOF, etc)."],
 		["dropdown", "renderer.scale", "Resolution scale", "A smaller scale makes rendering faster but produces a more blurry picture, a large scale makes rendering slower but produces a better picture.",
@@ -52,6 +51,9 @@ const SCHEMA := [
 		["boolean", "window.mousegrabinwindowmode", "Mouse grab in window mode", "Constrain mouse in the window mode to the window boundaries."],
 	]],
 	["Graphics (advanced)", [
+		# options.json repeats Fog, Post-processing and Shadows here; both rows set one value.
+		["boolean", "fog", "Fog", "Enable fog."],
+		["boolean", "postproc", "Post-processing", "Use screen-space post-processing filters (HDR, Bloom, DOF, etc)."],
 		["dropdown", "antialiasing", "Antialiasing", "Reduce aliasing effect on edges.",
 			[["Disabled", "disabled"], ["FXAA", "fxaa"], ["MSAA (2×)", "msaa2"], ["MSAA (4×)", "msaa4"], ["MSAA (8×)", "msaa8"]]],
 		["dropdown", "sharpening", "Sharpening", "Reduce blurry effects.",
@@ -60,6 +62,7 @@ const SCHEMA := [
 		["dropdown", "variant_diversity", "Model appearance randomization", "Randomize the appearance of entities. Disabling gives a small performance improvement.",
 			[["None", "none"], ["Limited", "limited"], ["Normal", "full"]]],
 		["slider", "materialmgr.quality", "Shader effects", "Number of shader effects. REQUIRES GAME RESTART", [0, 10]],
+		["boolean", "shadows", "Shadows", "Enable shadows."],
 		["dropdown", "shadowquality", "Quality", "Shadow map resolution. High values can crash the game when using a graphics card with low memory!",
 			[["Low", "-1"], ["Medium", "0"], ["High", "1"], ["Very High", "2"]]],
 		["boolean", "shadowpcf", "Filtering", "Smooth shadows."],
@@ -96,6 +99,7 @@ const SCHEMA := [
 			[["Everyone", "everyone"], ["Buddies", "buddies"], ["Disabled", "disabled"]]],
 	]],
 	["Networking / Lobby", [
+		["boolean", "lobby.tls", "TLS encryption", "Protect login and data exchanged with the lobby server using TLS encryption."],
 		["number", "lobby.history", "Chat backlog", "Number of backlogged messages to load when joining the lobby.", [0, null]],
 		["boolean", "lobby.columns.gamerating", "Game rating column", "Show the average rating of the participating players in a column of the gamelist."],
 		["boolean", "overlay.netwarnings", "Network warnings", "Show which player has a bad connection in multiplayer games."],
@@ -179,7 +183,7 @@ const TIMEOUTS := {"gui.scale": 5000}
 ## options.json list items' tooltips, by option and value (shown with the chosen item).
 const ITEM_TIPS := {
 	"renderer.upscale.technique": {
-		"fsr": "Advanced upscale technique. For better results, use FSR with antialiasing enabled.",
+		"fsr": "Advanced upscale technique. For better results, use FSR with antialiasing enabled. Using it with the OpenGL backend may have some issues, consider using Vulkan backend instead.",
 		"bilinear": "Bilinear upscale technique. Produces a slightly blurry picture depending on the scale.",
 		"pixelated": "Simplest upscale technique. Used mostly for stylized effect.",
 	},
@@ -232,8 +236,8 @@ const ITEM_TIPS := {
 
 var overlay := false
 var cfg := RtsoUserConfig.new()
-var _controls := {} # key -> [type, control, extra]
-var _labels := {} # key -> its Label
+var _controls := {} # row id (the key, "key#" for its repeat) -> [type, control, extra, key]
+var _labels := {} # row id -> its Label
 var _saved := {} # key -> value at the last save / load
 var _tabs: TabContainer
 var _tab_buttons: VBoxContainer # tab_buttons.xml, vertical
@@ -376,12 +380,15 @@ func _button(text: String, cb: Callable, node_name: String = "") -> Button:
 func _add_option(grid: GridContainer, opt: Array) -> void:
 	var type: String = opt[0]
 	var key: String = opt[1]
+	var row_id := key
+	while _controls.has(row_id) or _labels.has(row_id):
+		row_id += "#"
 	var label := Label.new()
 	label.text = opt[2]
 	label.custom_minimum_size = Vector2(320, 0) # option_label: 65% of the 545 px box
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.mouse_filter = Control.MOUSE_FILTER_PASS
-	_labels[key] = label
+	_labels[row_id] = label
 	if DEPENDENCIES.has(key):
 		# g_DependentLabelIndentation: an option that depends on another sits 25 px in.
 		var indent := MarginContainer.new()
@@ -473,7 +480,7 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 	label.mouse_entered.connect(func(): _description.text = _describe(opt))
 	c.mouse_entered.connect(func(): _description.text = _describe(opt))
 	grid.add_child(c)
-	_controls[key] = [type, c, extra]
+	_controls[row_id] = [type, c, extra, key]
 
 ## options.js control tooltips: the description, then what the type adds for the current
 ## value (slider "Value: (min, max)", number "Min: , Max: ", colour "Default: ") or the
@@ -553,11 +560,11 @@ static func _fmt(x: float) -> String:
 ## Shows every control at its current config value.
 func _load_controls() -> void:
 	_updating = true
-	for key in _controls:
-		var type: String = _controls[key][0]
-		var c: Control = _controls[key][1]
-		var extra = _controls[key][2]
-		var v := cfg.get_value(key)
+	for row_id in _controls:
+		var type: String = _controls[row_id][0]
+		var c: Control = _controls[row_id][1]
+		var extra = _controls[row_id][2]
+		var v := cfg.get_value(_controls[row_id][3])
 		match type:
 			"boolean": c.button_pressed = v == "true"
 			"slider":
@@ -593,12 +600,16 @@ func has_unsaved_changes() -> bool:
 func _changed(key: String, value: String) -> void:
 	if not _updating:
 		cfg.set_value(key, value)
-		_apply_dependencies()
+		if _controls.has(key + "#"):
+			_load_controls() # the repeated row shows the new value too
+		else:
+			_apply_dependencies()
 
 ## options.js updateOptionPanel: options whose dependencies fail are disabled.
 func _apply_dependencies() -> void:
-	for key in DEPENDENCIES:
-		if not _controls.has(key):
+	for row_id in _controls:
+		var key: String = _controls[row_id][3]
+		if not DEPENDENCIES.has(key):
 			continue
 		var on := true
 		for d in DEPENDENCIES[key]:
@@ -610,9 +621,9 @@ func _apply_dependencies() -> void:
 					"<": on = on and float(v) < float(d[2])
 					"==": on = on and v == str(d[2])
 					"!=": on = on and v != str(d[2])
-		var c: Control = _controls[key][1]
-		_labels[key].modulate.a = 1.0 if on else 0.5 # the label greys out with its control
-		match _controls[key][0]:
+		var c: Control = _controls[row_id][1]
+		_labels[row_id].modulate.a = 1.0 if on else 0.5 # the label greys out with its control
+		match _controls[row_id][0]:
 			"boolean": c.disabled = not on
 			"dropdown": c.disabled = not on
 			"slider": c.get_child(0).editable = on

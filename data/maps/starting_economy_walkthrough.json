@@ -4301,7 +4301,12 @@
       "team": 0,
       "start_x": 29.51,
       "start_z": 84.6,
-      "civ": 0
+      "civ": 0,
+      "color": [
+        46,
+        46,
+        200
+      ]
     }
   ],
   "resources": [

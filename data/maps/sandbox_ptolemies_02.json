@@ -6677,7 +6677,12 @@
       "team": 2,
       "start_x": 109.43,
       "start_z": -55.53,
-      "civ": 12
+      "civ": 12,
+      "color": [
+        0,
+        0,
+        0
+      ]
     }
   ],
   "resources": [
