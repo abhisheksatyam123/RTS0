@@ -325,6 +325,15 @@ func run() -> void:
 	spin = page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots")
 	check(not spin.editable and (page.get_node("%PlayerCountSlot").get_child(0) as RtsoSafeSelect).disabled, "a skirmish keeps its player count")
 
+	print("Map colours (PlayerColor.onMapChange)")
+	var GS = load("res://scenes/menu/gamesetup.gd")
+	check(GS.nearest_color(Color8(46, 46, 200)) == 8 and GS.nearest_color(Color8(150, 20, 20)) == 1, "a map colour takes the nearest palette entry")
+	page._ensure_slot_rows(3)
+	page._slot_rows[2]["color"] = 8
+	page.apply_map_colors([{"id": 1, "color": [46, 46, 200]}, {"id": 2, "color": [44, 44, 190]}, {"id": 3}])
+	var cols: Array = page._slot_rows.slice(0, 3).map(func(r): return int(r["color"]))
+	check(cols[0] == 8 and cols[1] != 8 and cols[2] != 8 and cols[2] != cols[1], "each map colour is its own; a player without one gives way: " + str(cols))
+
 	print("6. Start on Random")
 	page._on_map_type_selected(1)
 	await frames(2)

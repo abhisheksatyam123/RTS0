@@ -2275,6 +2275,7 @@ inline bool NavGrid::find_path_tiles(float sx, float sz, float tx, float tz, Way
         bits.cols = tile_bits_cols_[cls].data();
     }
     reached = nav::compute_jps_path(nw, nw, open, si, sj, gi, gj, path_cells, nullptr, &jps, cached ? &bits : nullptr);
+    nav::jps_debug_keep(jps, nw, -map_half, -map_half, node_step());
     if (path_cells.empty()) return false;
 
     // The jump points after the start node, the last one replaced by the goal when the path gets
@@ -2331,7 +2332,10 @@ inline bool NavGrid::search_cells_jps(int scx, int scy, int tcx, int tcy, uint8_
         std::vector<std::pair<int,int>> &path_cells) const {
     auto passable = [this, pass](int x, int y) { return is_passable_for(x, y, pass); };
     thread_local nav::JpsBuffers jps; // find_path runs on the worker threads: one search state each
-    return nav::compute_jps_path(res, res, passable, scx, scy, tcx, tcy, path_cells, nullptr, &jps);
+    const bool reached = nav::compute_jps_path(res, res, passable, scx, scy, tcx, tcy, path_cells, nullptr, &jps);
+    const float cell = map_half * 2.0f / static_cast<float>(res);
+    nav::jps_debug_keep(jps, res, -map_half + 0.5f * cell, -map_half + 0.5f * cell, cell);
+    return reached;
 }
 
 } // namespace rtso

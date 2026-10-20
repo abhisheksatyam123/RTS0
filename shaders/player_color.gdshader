@@ -37,10 +37,13 @@ instance uniform vec4 player_color : source_color = vec4(1.0);
 // their actors' skin-only variant groups (tools/extract_unit_variants.py).
 // variant_tex holds the skins as 0 A.D. draws them, the player-colour mask in
 // alpha (0 for skins without player colour); variant_cut the cumulative
-// frequency where each layer after the first starts (2.0 past the last).
+// frequency where each layer after the first starts (2.0 past the last), up to
+// 12 layers (a horse's coats). With CUTOUT (ModelLibrary: an alpha-tested skin,
+// a horse's mane and tail) the alpha is the skin's own, for the alpha test.
 uniform bool use_variants = false;
 uniform sampler2DArray variant_tex : source_color, filter_linear, hint_default_white;
-uniform vec4 variant_cut[2];
+uniform vec4 variant_cut[3];
+uniform float alpha_scissor = 0.5;
 // Offsets the entity's draw per image, so its head, helmet and shield pick apart.
 uniform float variant_salt = 0.0;
 // The entity's draw in [0, 1): crowds pass it in INSTANCE_CUSTOM.a - 1.
@@ -56,7 +59,7 @@ uniform vec4 object_cut[2];
 // the part the object colours tint.
 uniform bool use_parts = false;
 uniform sampler2DArray part_tex : source_color, filter_linear_mipmap, hint_default_white;
-uniform vec4 part_cut[16];
+uniform vec4 part_cut[24];
 uniform float part_salt[8];
 uniform int obj_part = -1;
 
@@ -109,12 +112,16 @@ void fragment() {
 	if (use_variants) {
 		float layer = 0.0;
 		float u = fract(v_variant + variant_salt);
-		for (int i = 0; i < 8; ++i)
+		for (int i = 0; i < 12; ++i)
 			layer += step(variant_cut[i / 4][i % 4], u);
 		vec4 vt = texture(variant_tex, vec3(uv, layer));
 		tex = vec4(vt.rgb, 1.0) * albedo;
 		m = vt.a;
 		baked = vec3(1.0);
+#ifdef CUTOUT
+		tex.a = vt.a * albedo.a;
+		m = 0.0;
+#endif
 	}
 	float salt = variant_salt;
 	bool obj_here = use_object_color;
@@ -123,8 +130,8 @@ void fragment() {
 		salt = part_salt[p];
 		float u = fract(v_variant + salt);
 		float layer = v_part.x;
-		for (int i = 0; i < 8; ++i)
-			layer += step(part_cut[p * 2 + i / 4][i % 4], u);
+		for (int i = 0; i < 12; ++i)
+			layer += step(part_cut[p * 3 + i / 4][i % 4], u);
 		vec4 vt = texture(part_tex, vec3(uv, layer));
 		tex = vec4(vt.rgb, 1.0) * albedo;
 		m = vt.a;
@@ -145,6 +152,10 @@ void fragment() {
 	ROUGHNESS = roughness;
 	METALLIC = metallic;
 	SPECULAR = specular;
+#ifdef CUTOUT
+	ALPHA = tex.a;
+	ALPHA_SCISSOR_THRESHOLD = alpha_scissor;
+#endif
 	v_spec = 0.0;
 	v_spec_pow = 1.0;
 	if (use_specular_map) {
