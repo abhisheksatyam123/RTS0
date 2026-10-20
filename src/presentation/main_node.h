@@ -836,6 +836,8 @@ public:
 	bool can_afford_template(uint16_t tmpl, int count) const;
 	uint32_t press_pick_unit_ = 0; // the own unit under the left press (input.js clickedEntity)
 	Dictionary debug_unset_rally_step(int step);
+	// Tests: `building_id`'s owner sets its rally point at (x, z) (no lockstep).
+	void debug_set_rally(int64_t building_id, float x, float z);
 	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
 	// 0.28 placementTooltip (input.js updateBuildingPlacementPreview): why the structure or
