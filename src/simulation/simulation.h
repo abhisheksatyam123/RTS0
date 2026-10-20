@@ -3953,7 +3953,7 @@ private:
 	                        bool avoid_enemy, float &out_x, float &out_z, const float *skip_near = nullptr) const;
 	bool petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z, uint16_t sea,
 	                           uint8_t owner);
-	void petra_step_transport(PetraTransportPlan &tp, float dt);
+	void petra_step_transport(PetraTransportPlan &tp, float dt, std::vector<PetraReferry> &referry);
 	uint32_t petra_free_transport_ship(uint16_t sea, float x, float z) const;
 	void petra_pickup_point(uint32_t ship, uint16_t sea, float from_x, float from_z, float to_x, float to_z, float &out_x, float &out_z) const;
 	uint32_t petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue);

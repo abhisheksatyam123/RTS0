@@ -30,7 +30,8 @@ var _data: Dictionary = {}
 var _hotkeys := RtsoHotkeyConfig.new()
 var _image: TextureRect
 var _title: Label
-var _text: Label
+const BULLET := "[img=8x8]res://assets/textures/ui/tipdisplay/bullet-point.png[/img] "
+var _text: RichTextLabel
 var _deco: Control
 var _rule: ColorRect
 var _ornament_right: TextureRect
@@ -106,7 +107,8 @@ func change_tip(step: int) -> void:
 	_title.text = str(tip.get("title", ""))
 	var bullets: PackedStringArray = []
 	for line in tip.get("lines", []):
-		bullets.append("• " + tr(str(line))) # [icon="BulletPoint"]; Engine.TranslateLines
+		# [icon="BulletPoint"] (8x8 tipdisplay/bullet-point.png); Engine.TranslateLines.
+		bullets.append(BULLET + tr(str(line)).replace("[", "[lb]"))
 	_text.text = "\n\n".join(bullets)
 	_fit_title()
 	_prev.disabled = not _prev.visible or tip_index == 0
@@ -245,13 +247,15 @@ func _build() -> void:
 		deco.add_child(orn)
 		if right:
 			_ornament_right = orn
-	_text = Label.new()
+	_text = RichTextLabel.new()
 	_text.name = "TipText"
+	_text.bbcode_enabled = true
+	_text.scroll_active = false
 	_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_text.position = Vector2(30, 73)
 	_text.size = Vector2(354 - 55, 400 - 60 - 73)
-	_text.add_theme_color_override("font_color", Color.BLACK)
-	_text.add_theme_font_size_override("font_size", 14)
+	_text.add_theme_color_override("default_color", Color.BLACK)
+	_text.add_theme_font_size_override("normal_font_size", 14)
 	side.add_child(_text)
 	_prev = _tip_button(side, "PreviousTipButton", tr("Previous"), 354 / 2.0 - 140, "item.prev", tr("Switch to the previous tip."))
 	_prev.pressed.connect(change_tip.bind(-1))
