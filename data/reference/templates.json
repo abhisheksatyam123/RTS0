@@ -27444,6 +27444,100 @@
      "acceleration": 35
     }
    }
+  },
+  "pers/arstibara": {
+   "generic_name": "Persian Apple Bearer",
+   "specific_name": "Arštibara",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Spearman",
+    "Immortal"
+   ],
+   "icon": "units/pers/arstibara.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Melee",
+      "name": "Spear",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "damage": {
+       "Hack": 8.5,
+       "Pierce": 7.225
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9.5,
+     "run": 15.865,
+     "acceleration": 35
+    }
+   }
+  },
+  "han/siege_shoushe": {
+   "generic_name": "Bolt Shooter",
+   "specific_name": "Nǔ Chē",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Siege",
+    "Ranged",
+    "BoltShooter"
+   ],
+   "icon": "units/han/siege_boltshooter.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Ranged",
+      "name": "Bolt",
+      "min_range": 15,
+      "max_range": 80,
+      "y_origin": 0,
+      "repeat_time": 6,
+      "damage": {
+       "Pierce": 240
+      },
+      "splash": {
+       "damage": {
+        "Pierce": 80
+       },
+       "shape": "Linear",
+       "friendly_fire": false
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 6.075,
+     "run": 6.075,
+     "acceleration": 3.5438
+    },
+    "status_resistance": {
+     "Poisoned": {
+      "block": 1,
+      "duration": 0
+     }
+    }
+   }
   }
  },
  "structures": {
