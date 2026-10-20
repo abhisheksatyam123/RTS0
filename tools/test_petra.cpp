@@ -5272,15 +5272,23 @@ static void test_defense_switch_to_attack() {
 	const float cx = cc->x, cz = cc->z;
 	for (int k = 0; k < 20; ++k) s->spawn_unit(cx - 3.0f + (float)(k % 5), cz + 12.0f + (float)(k / 5), 1, UNIT_SPEARMAN);
 	const uint32_t tower = seen_built(*s, s->spawn_building_world(cx + 12.0f, cz - 10.0f, BLD_SENTRY_TOWER, 0, 0.2f));
-	for (int k = 0; k < 3; ++k) s->spawn_unit(cx + 10.0f, cz - 7.0f + (float)k, 0, UNIT_SWORDSMAN, 20.0f);
+	std::vector<uint32_t> foes;
+	for (int k = 0; k < 3; ++k) foes.push_back(s->spawn_unit(cx + 10.0f, cz - 7.0f + (float)k, 0, UNIT_SWORDSMAN, 20.0f));
 	const auto unique = [&]() -> const Simulation::AttackPlan * {
 		for (const auto &p : s->petra_started_attacks())
 			if (p.kind == PETRA_ATTACK_UNIQUE) return &p;
 		return nullptr;
 	};
+	// The foes fall once an army has formed against them, before its defenders can bring the
+	// tower down by chance (which of the two goes first depends on the fight).
 	const Simulation::AttackPlan *plan = nullptr;
+	bool foes_gone = false;
 	for (int t = 0; t < 60 && !plan; ++t) {
 		run_for(*s, 0.5f);
+		if (!foes_gone && !s->petra_defense_armies().empty()) {
+			s->cmd_delete(0, foes.data(), foes.size());
+			foes_gone = true;
+		}
 		plan = unique();
 	}
 	std::printf("  defense: army switched to attack: %s, target %s, %zu units\n", plan ? "yes" : "no",
