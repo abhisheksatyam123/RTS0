@@ -49,6 +49,11 @@ struct FoggedBuilding {
 	bool is_burning = false;
 	bool upgrading = false; // Upgrade.js in progress: the actor's "upgrading" variant
 	uint8_t production = 0; // ProductionQueue.js SetAnimation: 1 "researching", 2 "training"
+	// FoundationMirage / RepairableMirage: the builders at work and the time left, as last
+	// seen (filled only for another player's foundation or damaged structure in sight).
+	bool work = false, work_repair = false;
+	uint16_t work_builders = 0;
+	float work_remaining = 0.0f, work_remaining_new = 0.0f;
 	bool miraged = false; // true: last-seen copy (0 A.D. Mirage entity), not the live structure
 };
 
