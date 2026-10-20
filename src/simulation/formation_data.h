@@ -574,6 +574,8 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_05
 		{0x007cfu, 0x031u}, // athen/hero_xenophon
 		{0x0879fu, 0x029u}, // spart/hero_leonidas_300
+		{0x0878fu, 0x02au}, // pers/arstibara
+		{0x0078fu, 0x010u}, // han/siege_shoushe
 	};
 	return kRows;
 }
