@@ -10,8 +10,15 @@ This builds the map-hash tool and the late-game bench twice, with g++ and with
 -ffp-contract=off, and fails unless every random map and a 12-minute 4-player Petra
 match end on the same hashes.
 
-It also lints the build files: SConstruct must turn contraction off, and nothing may
-add -ffast-math, -Ofast, -ffp-contract=fast or /fp:fast.
+Each OS's C library rounds sin, cos, atan2, pow and the rest differently, so the simulation
+computes them with src/core/math/det_math.h. Under both compilers this fails if simulation.o or
+rms_generator.o imports one of those functions from libm (`nm -u`), or if
+tools/test_det_math.cpp does not reproduce its expected hash of det_math.h's results and
+the bits its special-value table stores.
+
+It also lints the build files: SConstruct must turn contraction off (clang-cl's too), build
+MSVC as C++20 and 32-bit x86 on SSE2 rather than x87, and nothing may add -ffast-math, -Ofast,
+-ffp-contract=fast or /fp:fast.
 
 Usage:
   python3 tools/test_cross_compiler.py [--jobs N] [--seeds N]
@@ -32,21 +39,33 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SIM = ['src/simulation/simulation.cpp', 'src/simulation/rms_generator.cpp', 'src/core/job_system.cpp',
        'src/network/turn_manager.cpp', 'src/network/net_host.cpp']
 TOOLS = ['tools/map_hashes.cpp', 'tools/bench_late.cpp']
+DET_TEST = 'tools/test_det_math.cpp'  # standalone: det_math.h only
+NO_LIBM = ['src/simulation/simulation.cpp', 'src/simulation/rms_generator.cpp']
+# The C library's transcendental functions (with f/l suffixes, glibc's __*_finite, Apple's leading _
+# and __sincos_stret, and a symbol version): each OS rounds them differently.
+LIBM = re.compile(r'^_?(?:__)?(?:sin|cos|tan|asin|acos|atan|atan2|sincos|exp|exp2|expm1|log|log2|log10|log1p|pow|'
+                  r'hypot|cbrt)[fl]?(?:_finite|_stret)?(?:@.*)?$')
 FMA = ['-mfma'] if platform.machine() in ('x86_64', 'AMD64') else []  # arm64 always has FMA
 BUILDS = {
     'g++': ['g++', '-std=c++20', '-O2', '-ffp-contract=off', '-Isrc'],
     'clang++ fma': ['clang++', '-std=c++20', '-O2', *FMA, '-ffp-contract=off', '-Isrc'],
 }
+# SConstruct's flags: no contraction (GCC/Clang, MSVC, clang-cl), C++20 under cl too, and SSE2
+# rather than x87 on 32-bit x86.
+REQUIRED = [('CCFLAGS', '-ffp-contract=off'), ('CCFLAGS', '/fp:precise'), ('CCFLAGS', '/clang:-ffp-contract=off'),
+            ('CXXFLAGS', '/std:c++20'), ('CCFLAGS', '-msse2'), ('CCFLAGS', '-mfpmath=sse')]
 UNSAFE = re.compile(r'-ffast-math|-Ofast|-ffp-contract=fast|/fp:fast|-funsafe-math-optimizations|'
                     r'-fassociative-math|-freciprocal-math')
 
 
 def lint():
     errors = []
-    sconstruct = open(os.path.join(ROOT, 'SConstruct')).read()
-    for flag in ('-ffp-contract=off', '/fp:precise'):
-        if flag not in sconstruct:
-            errors.append(f'SConstruct does not add {flag}')
+    # Each in its variable's list outside comments, so neither a LINKFLAGS copy nor
+    # "/clang:-ffp-contract=off" can stand in for the compile flag.
+    sconstruct = ''.join(l for l in open(os.path.join(ROOT, 'SConstruct')) if not l.lstrip().startswith('#'))
+    for var, flag in REQUIRED:
+        if not re.search(rf'\b{var}=\[[^\]]*"{re.escape(flag)}"', sconstruct):
+            errors.append(f'SConstruct does not add {flag} to {var}')
     me = os.path.abspath(__file__)
     scripts = glob.glob(os.path.join(ROOT, 'tools', '*.py')) + glob.glob(os.path.join(ROOT, 'tools', '*.sh'))
     files = ['SConstruct', '.github/workflows/ci.yml'] + sorted(os.path.relpath(p, ROOT) for p in scripts)
@@ -82,17 +101,26 @@ def build(name, flags, out, jobs):
             sys.exit(f'{name}: {src} failed to compile\n{r.stderr[-3000:]}')
         return obj
 
+    srcs = SIM + TOOLS + [DET_TEST]
     with ThreadPoolExecutor(jobs) as ex:
-        objs = dict(zip(SIM + TOOLS, ex.map(compile_one, SIM + TOOLS)))
+        objs = dict(zip(srcs, ex.map(compile_one, srcs)))
     bins = {}
-    for tool in TOOLS:
+    for tool, deps in [(t, SIM) for t in TOOLS] + [(DET_TEST, [])]:
         exe = os.path.join(objdir, os.path.basename(tool)[:-4])
-        r = subprocess.run([flags[0], objs[tool]] + [objs[s] for s in SIM] + ['-lpthread', '-o', exe],
+        r = subprocess.run([flags[0], objs[tool]] + [objs[s] for s in deps] + ['-lpthread', '-o', exe],
                            capture_output=True, text=True)
         if r.returncode:
             sys.exit(f'{name}: linking {tool} failed\n{r.stderr[-3000:]}')
         bins[tool] = exe
-    return bins
+    return bins, objs
+
+
+def libm_imports(obj):
+    """The C library transcendental functions an object file calls."""
+    r = subprocess.run(['nm', '-u', obj], capture_output=True, text=True)
+    if r.returncode:
+        sys.exit(f'nm -u {obj} failed\n{r.stderr[-3000:]}')
+    return sorted({l.split()[-1] for l in r.stdout.splitlines() if l.strip() and LIBM.match(l.split()[-1])})
 
 
 def run(cmd):
@@ -125,7 +153,20 @@ def main():
     try:
         results = {}
         for name, flags in BUILDS.items():
-            bins = build(name, flags, out, args.jobs)
+            bins, objs = build(name, flags, out, args.jobs)
+            for src in NO_LIBM:
+                bad = libm_imports(objs[src])
+                obj = os.path.basename(objs[src])
+                if bad:
+                    errors.append(f'{name}: {obj} calls the C library\'s {", ".join(bad)}, which rounds differently on '
+                                  'each OS: call rtso::det:: (src/core/math/det_math.h) instead')
+                print(f'{"FAIL" if bad else "ok"}: {name} {obj} imports no libm sin/cos/atan2/pow/exp/log')
+            r = subprocess.run([bins[DET_TEST]], cwd=ROOT, capture_output=True, text=True)
+            det = next((l for l in r.stdout.splitlines() if l.startswith('det hash')), 'no det hash')
+            if r.returncode:
+                errors.append(f'{name}: {DET_TEST} printed "{det}", not its EXPECTED hash: det_math.h computes '
+                              'other bits under this compiler')
+            print(f'{"FAIL" if r.returncode else "ok"}: {name} {DET_TEST}: {det}')
             maps = run([bins['tools/map_hashes.cpp'], '--seeds', str(args.seeds), '--size', '256']).splitlines()
             bench = run([bins['tools/bench_late.cpp'], '--players', '4', '--size', '256', '--minutes', '12',
                          '--threads', '0'])
@@ -136,6 +177,16 @@ def main():
                 with open(os.path.join(args.save, 'maps_' + name.split()[0].replace('+', 'p') + '.txt'), 'w') as f:
                     f.write('\n'.join(maps) + '\n')
             print(f'{name}: {len(maps)} maps generated, match ended on hash {end["hash"]}')
+
+        # g++ fuses a*b+c by default too, as a Linux arm64 build would: with the flag it must still match.
+        exe = os.path.join(out, 'test_det_math_gpp_fma')
+        r = subprocess.run(['g++', '-std=c++20', '-O3', *FMA, '-ffp-contract=off', '-Isrc', DET_TEST, '-o', exe],
+                           cwd=ROOT, capture_output=True, text=True)
+        r = r if r.returncode else subprocess.run([exe], cwd=ROOT, capture_output=True, text=True)
+        det = next((l for l in r.stdout.splitlines() if l.startswith('det hash')), 'no det hash')
+        if r.returncode:
+            errors.append(f'g++ -O3 {" ".join(FMA)}: {DET_TEST} printed "{det}", not its EXPECTED hash')
+        print(f'{"FAIL" if r.returncode else "ok"}: g++ -O3 {" ".join(FMA)} {DET_TEST}: {det}')
 
         (a, (maps_a, hash_a)), (b, (maps_b, hash_b)) = results.items()
         diff = [(x, y) for x, y in zip(maps_a, maps_b) if x != y]
