@@ -408,7 +408,7 @@ Scenario-only units: every unit the 0.28 scenario, demo and sandbox maps place w
 | # | Gap | Severity | State |
 |---|---|---|---|
 | SU1 | The map porter dropped units whose template name has none of its keywords: We Are Legion's whole player-1 army (thureophoroi, thorakitai, Sacred Band), the mercenaries in Third Macedonian War, Death Canyon - Invasion Force, Peloponnese, Delphi and the demos, the Germans' wagons, Kushite macemen, Han crossbowmen, catafalques and siege towers in the sandboxes (about 400 units on 22 maps) | critical | Fixed: they are ported with their template and spawn as its roster row or a parent's |
-| SU2 | Unpacked siege on a map (oxybeles, lithobolos, polybolos, scorpio, mangonel) starts packed, as its packed row | low | Open: Triggers |
+| SU2 | Unpacked siege on a map (oxybeles, lithobolos, polybolos, scorpio, mangonel) starts packed, as its packed row; Jebel Barkal's hilltop Ptolemaic siege too | low | Fixed: an "_unpacked" template spawns as its packed row standing unpacked, ready to fire |
 | SU3 | pers/arstibara has no row of its own and stands in as pers/champion_infantry; Flight Demo's planes and han/siege_shoushe have none and are left out | low | Open: Triggers |
 | SU4 | The campaign test maps' army_* heroes and campaign_*_test structures map to the nearest civ templates (Alexander as the cavalry hero with auras, Leonidas with Last Stand, the test cities as Macedonian civic centres) | low | Open: Triggers |
 | LR1 | A rated game left Teams Locked as it was. 0.28 LockedTeams.onRatingChange turns it on and makes it unchangeable while the game is rated, and off when the game is unrated | medium | Fixed: rating the game locks the teams, unrating it unlocks them |
