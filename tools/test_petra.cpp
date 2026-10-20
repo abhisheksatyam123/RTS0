@@ -72,6 +72,15 @@ static int count_units(const Simulation &s, uint8_t team, bool workers_only) {
 	return n;
 }
 
+// attackPlan.js updatePreparation for a raid ready to go: it gathers at its rally point
+// ("completing") and sets off by its maxCompletingTime, 20 s later (G42).
+static Simulation::AttackPlan *launched_raid(Simulation &s);
+static Simulation::AttackPlan *complete_raid(Simulation &s) {
+	s.petra_manage_raid(Simulation::FIXED_STEP);
+	if (s.petra_raid_plan_.completing) s.petra_manage_raid(20.0f);
+	return launched_raid(s);
+}
+
 // attackManager.js startedAttacks.Raid: the first raid that set off, if any.
 static Simulation::AttackPlan *launched_raid(Simulation &s) {
 	for (auto &p : s.petra_started_attacks_)
@@ -952,10 +961,15 @@ static void test_attack_plans() {
 		const uint32_t outpost = seen_built(*s, s->spawn_building_world(-10.0f, -40.0f, BLD_OUTPOST, 0, 1.0f));
 		for (int i = 0; i < 6; ++i) s->spawn_unit(-30.0f + 2.0f * (float)i, -12.0f, 1, UNIT_CAVALRY);
 		for (int i = 0; i < 4; ++i) s->spawn_unit(-30.0f + 2.0f * (float)i, -10.0f, 1, UNIT_SPEARMAN);
-		bool raided = false, cavalry_only = true;
+		bool raided = false, cavalry_only = true, gathered = false;
 		size_t raiders = 0;
-		for (float t = 0.0f; t < 20.0f && !raided; t += Simulation::FIXED_STEP) {
+		// attackPlan.js updatePreparation: the raid first gathers at its rally point, its path to
+		// the target taken (getPathToTarget), for at most 20 s (G42).
+		for (float t = 0.0f; t < 45.0f && !raided; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
+			const Simulation::AttackPlan &prep = s->petra_raid_plan_;
+			gathered |= prep.completing && prep.target_building_id == outpost && !prep.path_x.empty() &&
+			            prep.path_x.back() == prep.target_x && prep.path_z.back() == prep.target_z;
 			const Simulation::AttackPlan *r = launched_raid(*s);
 			if (!r || r->state != Simulation::AttackPlan::WALKING || r->target_building_id != outpost) continue;
 			const auto &raid = *r;
@@ -968,6 +982,7 @@ static void test_attack_plans() {
 		}
 		std::printf("  raid on an outpost in Petra's territory: %s with %zu riders, cavalry only %s\n",
 		            raided ? "yes" : "no", raiders, cavalry_only ? "yes" : "no");
+		CHECK(gathered, "the raid gathers at its rally point with a path to its target first");
 		CHECK(raided && raiders >= 3, "raids an enemy structure in its territory");
 		CHECK(cavalry_only, "raids with cavalry only");
 	}
@@ -6405,8 +6420,7 @@ static void test_raid_takes_siege() {
 	const bool waited = plan.state == Simulation::AttackPlan::MUSTER;
 	std::vector<uint32_t> rams;
 	for (int k = 0; k < siege_target; ++k) rams.push_back(s->spawn_unit(ox + 8.0f + 3.0f * k, oz - 6.0f, 1, UNIT_SIEGE_RAM));
-	s->petra_manage_raid(Simulation::FIXED_STEP);
-	const Simulation::AttackPlan *off = launched_raid(*s);
+	const Simulation::AttackPlan *off = complete_raid(*s);
 	int rams_in = 0;
 	if (off)
 		for (uint32_t r : rams) rams_in += std::find(off->squad.begin(), off->squad.end(), r) != off->squad.end();
@@ -6465,8 +6479,7 @@ static void test_raid_cc_foundation() {
 	plan.target_building_id = target;
 	s->petra_attack_mgr_.raid_target = 40;
 	s->petra_attack_mgr_.raid_min = 2;
-	s->petra_manage_raid(Simulation::FIXED_STEP);
-	Simulation::AttackPlan *off = launched_raid(*s);
+	Simulation::AttackPlan *off = complete_raid(*s);
 	const bool set_off = off && off->state == Simulation::AttackPlan::WALKING;
 	// Keep the foundation standing a while: the raid must not give up on it.
 	s->buildings_[s->building_id_to_idx_[target]].hp = s->buildings_[s->building_id_to_idx_[target]].max_hp * 50.0f;
@@ -7508,8 +7521,7 @@ static void test_raids_at_once() {
 	plan.type = Simulation::AttackPlan::PLAN_RAID;
 	plan.state = Simulation::AttackPlan::MUSTER;
 	plan.target_building_id = target;
-	s->petra_manage_raid(Simulation::FIXED_STEP);
-	const Simulation::AttackPlan *off = launched_raid(*s);
+	const Simulation::AttackPlan *off = complete_raid(*s);
 	s->petra_manage_raid(Simulation::FIXED_STEP); // the target is still in our land
 	std::printf("  raids at once: first set off %s, next raid %s\n", off ? "yes" : "no",
 	            plan.state == Simulation::AttackPlan::MUSTER ? "mustering" : "not planned");

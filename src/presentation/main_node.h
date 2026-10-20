@@ -104,8 +104,6 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	uint64_t ui_click_frame_ = UINT64_MAX; // the frame the last click played
 	void hook_ui_click_sounds(Node *n);
 	AudioStreamPlayer *ambient_player = nullptr;
-	AudioStreamPlayer *ambient_wind_player = nullptr;
-	AudioStreamPlayer *ambient_water_player = nullptr;
 	AudioStreamPlayer3D *spatial_sfx_player = nullptr;
 
 	// 1. Top HUD Bar
