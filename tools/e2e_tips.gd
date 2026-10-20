@@ -110,8 +110,42 @@ func run() -> void:
 	d.change_tip(single - d.tip_index)
 	await frames(1)
 	check(not panel.visible, "a tip with one picture has no arrows")
+	# scaleGuiElementsToFit: the ornament hugs the title, the bullets follow it.
+	var deco: Control = d.find_child("TipTitleDecoration", true, false)
+	var text_box: Control = d.find_child("TipText", true, false)
+	var short_w: float = deco.size.x
+	title.text = "A much longer tip title that has to wrap over two lines here"
+	d._fit_title()
+	check(title.size.y > 30 and deco.position.y >= title.position.y + title.size.y - 4 and text_box.position.y == deco.position.y + 32,
+		"a two-line title pushes the ornament and bullets down")
+	check(deco.size.x > short_w, "the ornament spans the title's width (%d > %d)" % [deco.size.x, short_w])
 	await key(KEY_ESCAPE)
 	await frames(2)
 	check(menu.find_child("TipsPage", true, false) == null, "Escape closes it")
+
+	print("4. Translated (fr)")
+	TranslationServer.add_translation(load("res://assets/l10n/fr.po"))
+	TranslationServer.set_locale("fr")
+	item[0].pressed.emit()
+	await frames(4)
+	var tp = menu.find_child("TipsPage", true, false)
+	var auto := first_with(tp.display.tips, func(t): return t["name"] == "autoqueue")
+	if auto >= 0:
+		tp.display.change_tip(auto - tp.display.tip_index)
+		await frames(1)
+	var body: String = tp.display.find_child("TipText", true, false).text
+	check(auto >= 0 and body.contains("Activez la fonction de mise en file d'attente automatique"), "TranslateLines: the bullets in French")
+	await key(KEY_ESCAPE)
+	await frames(2)
+	var Credits = load("res://scenes/reference/credits_page.gd")
+	var cp = Credits.open(menu)
+	await frames(2)
+	var all := "".join(cp.panels.map(func(p): return str(p["content"])))
+	check(all.contains("Directeurs de la programmation") and not all.contains("Programming managers"), "translateObjectKeys: credit titles in French")
+	check(cp.find_child("CreditsFade", true, false) != null, "the credits text sits on a ModernFade")
+	var ct: Label = cp.find_child("Title", true, false)
+	check(ct != null and ct.offset_top == -18, "the credits title sits across the top edge")
+	cp.queue_free()
+	TranslationServer.set_locale("en")
 	print("PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures else 0)

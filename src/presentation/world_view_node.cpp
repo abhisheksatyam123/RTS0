@@ -1716,6 +1716,14 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 Node *RtsoWorldView::instantiate_building_id(const String &id) {
 	String cat = "buildings";
 	const rtso::ModelLibrary::Entry &e = rtso::ModelLibrary::get(cat, id);
+	// A static GLB (no AnimationPlayer; its root has no transform) draws as its
+	// merged mesh: a barracks of 232 parts is 14 draws, and fog, player colour and
+	// pose updates touch one node.
+	if (e.scene.is_valid() && !e.animated && e.mesh.is_valid()) {
+		MeshInstance3D *mi = memnew(MeshInstance3D);
+		mi->set_mesh(e.mesh);
+		return mi;
+	}
 	if (e.scene.is_valid()) {
 		Node *n = e.scene->instantiate();
 		rtso::ModelLibrary::apply_imported_material_fixups(n);
