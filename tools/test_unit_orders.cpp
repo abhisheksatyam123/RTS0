@@ -3179,6 +3179,7 @@ static void test_work_order_queue() {
 	s.order_gather(&w, 1, tree);
 	s.order_build_or_repair(&w, 1, house, true); // Shift: build the house after
 	run(s, 2.0f);
+	check(!s.unit_has_work_order(w), "a working unit has no work orders kept (no Back to Work button)");
 	s.order_walk(&w, 1, -20, 0);
 	s.cmd_stop(&w, 1); // a Stop after that keeps the work orders the walk kept
 	run(s, 1.0f);
@@ -3194,6 +3195,13 @@ static void test_work_order_queue() {
 	const std::vector<UnitOrder> *q = s.unit_order_queue(w);
 	check(s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == tree, "back to the tree");
 	check(q && q->size() == 1 && (*q)[0].kind == ORDER_BUILD && (*q)[0].target == house, "with the house queued behind it");
+	check(!s.unit_has_work_order(w), "Back to Work uses up the kept work orders");
+	s.order_walk(&w, 1, -25, 0);
+	s.order_back_to_work(&w, 1); // the walk keeps the restored queue
+	check(s.unit_order(w).kind == ORDER_GATHER, "a second walk keeps them again");
+	s.order_gather(&w, 1, tree);
+	s.order_back_to_work(&w, 1);
+	check(s.unit_order(w).kind == ORDER_GATHER && !s.unit_has_work_order(w), "a new Gather order clears them; Back to Work then fails");
 
 	// A trader sheltered in a house goes back to trading.
 	const uint32_t ma = s.spawn_building_world(-40, 20, BLD_MARKET, 0, 1.0f);
@@ -3204,6 +3212,7 @@ static void test_work_order_queue() {
 	run(s, 2.0f);
 	s.order_garrison(&tr, 1, shelter);
 	run_until(s, 10.0f, [&] { return act_of(s, tr) == ACTION_GARRISONED; });
+	check(s.unit_has_work_order(tr), "a sheltered trader keeps its trade route as its work orders");
 	s.order_ungarrison(shelter);
 	run(s, 1.0f);
 	s.order_back_to_work(&tr, 1);

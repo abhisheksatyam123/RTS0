@@ -184,6 +184,12 @@ func run() -> void:
 	send.call("/back")
 	await until(func() -> bool: return state.call("alice") == "Online")
 	check(state.call("alice") == "Online" and not ls.away, "/back shows alice as Online")
+	# PlayerList.js PlayerStatuses: Online is "0 219 0".
+	var online_col := Color()
+	for it in lobby._players.get_root().get_children():
+		if str(it.get_metadata(0)) == "alice":
+			online_col = it.get_custom_color(0)
+	check(online_col == Color8(0, 219, 0), "Online in 0.28's green (%s)" % str(online_col))
 	send.call("/dance")
 	check(lobby._chat_log.get_parsed_text().contains("The command 'dance' is not supported. Try /help"), "an unknown command is refused")
 	send.call("/kick bob")

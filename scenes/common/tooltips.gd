@@ -106,6 +106,11 @@ func _in_session() -> bool:
 
 func _process(delta: float) -> void:
 	var vp := get_viewport()
+	# Godot hovers afresh only when the mouse moves, so a page or dialog opened under a
+	# still cursor (the Summary on Ctrl+Tab) would leave the covered control's tooltip
+	# drawn over it. While one is shown or pending, hover the cursor's control again.
+	if is_instance_valid(_owner):
+		vp.update_mouse_cursor_state()
 	var c := vp.gui_get_hovered_control()
 	var mouse := vp.get_mouse_position()
 	var text := ""

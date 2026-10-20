@@ -113,13 +113,8 @@ static func start_host(parent: Node, player: String, game_name: String, port: in
 	cfg.set_value("multiplayerhosting.port", str(port))
 	cfg.save()
 	LobbySession.map_upnp(port)
-	if saved:
-		ms.net_saved_game = true
-		var d: Node = load("res://scenes/session/savegame_dialog.gd").open(parent, "load")
-		d.closed.connect(func() -> void:
-			ms.net_saved_game = false
-			ms.net_mode = "")
-		return
+	# SetupWindow's LobbyGameRegistrationController: a saved game is listed as
+	# any other; the match fills in its map and players once the save loads.
 	if LobbySession.signed_in():
 		# The same id main_node registers, so both update one entry (the lobby
 		# matches main_node's untokened post to it by address).
@@ -135,6 +130,14 @@ static func start_host(parent: Node, player: String, game_name: String, port: in
 			"password": password != "",
 			"state": "init",
 		})
+	if saved:
+		ms.net_saved_game = true
+		var d: Node = load("res://scenes/session/savegame_dialog.gd").open(parent, "load")
+		d.closed.connect(func() -> void:
+			ms.net_saved_game = false
+			ms.net_mode = ""
+			LobbySession.unhost_game())
+		return
 	ms.go("res://scenes/main.tscn")
 
 static func multiplayer_name() -> String:

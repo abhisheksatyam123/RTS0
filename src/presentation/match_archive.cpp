@@ -769,6 +769,7 @@ bool RtsoMain::write_save_metadata(const String &path, const String &description
 	for (int g = 0; g < 10; ++g) groups.push_back(selected_groups[g]);
 	gui["groups"] = groups;
 	if (cam_rig) gui["camera"] = cam_rig->camera_data();
+	if (view) gui["building_looks"] = view->building_looks_data();
 	meta["gui"] = gui;
 	return write_text(path.get_basename() + ".json", JSON::stringify(meta, "\t"));
 }
@@ -919,6 +920,7 @@ Dictionary RtsoMain::saved_gui(const String &path) {
 // session.js restoreSavedGameData: the camera, an empty selection and the control groups.
 void RtsoMain::restore_saved_gui(const Dictionary &gui) {
 	if (cam_rig && gui.has("camera")) cam_rig->set_camera_data(gui["camera"]);
+	if (view) view->set_building_looks_data(gui.get("building_looks", Array()));
 	const Array groups = gui.get("groups", Array());
 	for (int g = 0; g < 10; ++g) {
 		selected_groups[g].clear();

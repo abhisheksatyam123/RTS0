@@ -155,6 +155,18 @@ The command row against unit_actions.js g_EntityCommands (all 19 commands exist,
 | C11 | ~~Unload Turrets isn't offered on a unit that holds turrets~~ Closed: no 0.28 unit template has a TurretHolder (only walls, gates, outposts and towers do), so there is nothing to offer | low | Closed |
 | C12 | A click on another player's unit or structure already showed it alone with its details (inspect_at). Now its Command panel keeps to what that relationship allows (allowedPlayers): a mutual ally's holder shows its Garrison panel, and Unload All / Unload Turrets take out only our own units; tested by `tools/e2e_ally_unload.gd`. A click never puts another player's entity in the selection, so the full command row only shows for hook-selected ones | medium | Fixed |
 
+### Unit orders, ninth 0.28 pass (2026-10-20)
+
+Right-click actions, Back to Work and Shift-queueing against unit_actions.js, input.js and UnitAI.js. Owner: Unit orders.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| N1 | ~~A right-click on one's own or an ally's structure that an enemy holds capture points of walks or repairs~~ Fixed: "capture" (specificness 10, Capturable.CanCapture) shows the capture cursor and recaptures it, before repair and move (C too); tested by `tools/e2e_recapture.gd` | high | Fixed |
+| N2 | ~~Back to Work follows the last Gather or Build order, never cleared: the button shows for working units and stays after use, and a sheltered trader never gets it~~ Fixed: HasWorkOrders is the kept work queue (UpdateWorkOrders), used up by Back to Work and cleared by a new work order; end of alert follows it too; test_unit_orders 87 | medium | Fixed |
+| N3 | Repair, Heal and Guard skip selected units that can't do the task (and drop their queued orders); 0.28 sends them walking to the target (UnitAI.js Repair 5896, Heal 5719, Guard 5355) | medium | Open |
+| N4 | Shift is ignored when hunting or slaughtering an animal, attacking scenery and boarding a ship, ram or siege tower: the order replaces the queue (unit_actions.js gather, attack and garrison pass queued) | medium | Open |
+| N5 | Alt (orderone) on an enemy unit, structure or scenery orders the first selected unit, not the first able one (getActionInfo firstAbleEntity, input.js popOneFromSelection) | low | Open |
+
 ### Aura icons, fogged selections and structure tooltips: Compare's eleventh 0.28 pass (2026-10-20)
 
 Checked against 0.28: aura data and status-bar icons, the selection details panel, poison and burning, Petra's difficulty branches, and Allied View and diplomacy colours. Owner: Compare.
