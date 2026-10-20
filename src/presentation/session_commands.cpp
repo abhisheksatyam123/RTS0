@@ -533,9 +533,21 @@ void RtsoMain::_on_gate_lock_pressed(int lock) {
 // 0 A.D. ProductionQueue.js EnableAutoQueue / DisableAutoQueue through lockstep command 44,
 // on every selected structure that trains.
 void RtsoMain::_on_autoqueue_pressed(int on) {
-	if (selected_building_id == 0) return;
-	for (uint32_t id : selected_structures()) {
-		if (!building_trains_units(id)) continue;
+	std::vector<uint32_t> targets;
+	if (selected_building_id != 0) {
+		for (uint32_t id : selected_structures())
+			if (building_trains_units(id)) targets.push_back(id);
+	} else {
+		// Units that train (Cyrus II, the trainer ships) have the same ProductionQueue.
+		auto uview = sim->units();
+		for (int s = 0; s < selected_ids.size(); ++s)
+			for (size_t u = 0; u < uview.count; ++u)
+				if (uview.id[u] == (uint32_t)selected_ids[s]) {
+					if (uview.team[u] == local_player() && rtso::Simulation::unit_trains_units(uview.tmpl[u])) targets.push_back(uview.id[u]);
+					break;
+				}
+	}
+	for (uint32_t id : targets) {
 		if (turn_cmds())
 			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_AUTOQUEUE, nullptr, 0, 0, 0, id, on ? 1 : 0);
 		else
