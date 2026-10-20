@@ -11828,6 +11828,28 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					return false;
 				};
 				constexpr float WAYPOINT_NEAR = 4.0f;
+				// Nor can a unit stand on a waypoint inside a tree, a bush or a treasure, grown by its
+				// clearance. RTS0's long paths don't go round them (gaia_obstacles_: its navcells are wider
+				// than a tree), where 0.28's never lead into one: CCmpPathfinder rasterizes each one's
+				// obstruction square, grown by the clearance, onto its 1 m navcells (CCmpPathfinder.cpp:583,
+				// CCmpObstructionManager.cpp:1166-1185). The unit moves on from such a waypoint once within
+				// WAYPOINT_NEAR too, as 0.28's HandleObstructedMove drops a long waypoint the unit has come
+				// close to, which may be unreachable (CCmpUnitMotion.h:1416-1426). Heading on for it, the
+				// unit would press into the tree, or walk between the corners of one in its way for good,
+				// every turn a free move. As with a crowded waypoint above, it doesn't wait to be
+				// obstructed first, where 0.28 drops the waypoint only in HandleObstructedMove.
+				auto in_small_obstacle = [&](float wx, float wz) {
+					if (unit_is_ship(units_.unit_type[i])) return false;
+					const float c = unit_clearance_at(i);
+					thread_local std::vector<SteerObstacle> at_wp;
+					at_wp.clear();
+					gaia_obstacles_near(wx, wz, c, at_wp);
+					for (const SteerObstacle &o : at_wp)
+						if (nav::PointIsInSquare(nav::Vec2(wx - o.x, wz - o.z), nav::footprint_u(o), nav::footprint_v(o),
+								nav::Vec2(o.hu + c, o.hv + c)))
+							return true;
+					return false;
+				};
 				// Skip every waypoint already within ARRIVE_DIST (inclusive). Advancing one per tick
 				// with a strict < let the arrival check below stop the unit on a waypoint exactly
 				// ARRIVE_DIST away, or on a second one just as close, short of its target.
@@ -11837,7 +11859,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					const float pdz = wp.zs[cur] - pz[i];
 					const float pd2 = pdx * pdx + pdz * pdz;
 					if (pd2 > ARRIVE_DIST * ARRIVE_DIST &&
-					    (cur + 1 >= cnt || pd2 > WAYPOINT_NEAR * WAYPOINT_NEAR || !crowded(wp.xs[cur], wp.zs[cur])))
+					    (cur + 1 >= cnt || pd2 > WAYPOINT_NEAR * WAYPOINT_NEAR ||
+					     !(crowded(wp.xs[cur], wp.zs[cur]) || in_small_obstacle(wp.xs[cur], wp.zs[cur]))))
 						break;
 					cur++;
 					advanced = true;
@@ -12047,6 +12070,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// (nav/building_steering.h), or round idle units (avoid_idle_units), until the unit reaches
 		// it. The arrival check above still uses the real aim point.
 		bool steered = false, round_units = false;
+		// The waypoint after the one steered for, on a short path the unit keeps (nav::SteerNext).
+		rtso::nav::SteerNext after;
 		if (!unit_is_ship(units_.unit_type[i]) && !backing_off) {
 			walk[i] |= WALK_STEER;
 			rtso::nav::Vec2 steer;
@@ -12062,15 +12087,25 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			thread_local std::vector<SteerObstacle> near_gaia;
 			near_gaia.clear();
 			const float clear = unit_clearance_at(i);
-			if (round_units || rtso::nav::steer_around_obstacles(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
-					clear, steer_obstacles_,
-					steer_line_blocked(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z), nav::BUILDING_STEER_RANGE, clear,
-							units_.target_building_id[i]),
-					near_gaia,
-					gaia_in_the_way(px[i], pz[i], aim_x, aim_z, GAIA_STEER_REACH, clear, units_.target_building_id[i]),
-					[&](std::vector<SteerObstacle> &out) { gaia_obstacles_near(px[i], pz[i], GAIA_STEER_REACH, out); },
-					GAIA_STEER_REACH, units_.target_building_id[i], nav_grid_, short_path_key_, memo, steer,
-					&short_path_search_[i])) {
+			// A unit follows its short path round trees or steep ground to its end (nav::steer_around_obstacles;
+			// CCmpUnitMotion::PerformMove, CCmpUnitMotion.h:1238-1250, 1299-1326), but a formation's member,
+			// whose TryGoingStraightToTarget walks straight at its slot whenever it can (CCmpUnitMotion.h:
+			// 1503-1507).
+			const bool follow = !((size_t)i < formation_group_.size() && formation_group_[i] != 0);
+			// A unit standing on a waypoint of the short path it keeps heads for the next one at once, as
+			// PerformMove pops a waypoint it reaches and goes on (CCmpUnitMotion.h:1299-1326). Each pass
+			// moves the memo on by one waypoint of at most SHORT_PATH_KEPT_MAX, or ends.
+			for (int pass = 0; pass <= SHORT_PATH_KEPT_MAX; ++pass) {
+				if (!round_units && !rtso::nav::steer_around_obstacles(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
+						clear, steer_obstacles_,
+						steer_line_blocked(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z), nav::BUILDING_STEER_RANGE,
+								clear, units_.target_building_id[i]),
+						near_gaia,
+						gaia_in_the_way(px[i], pz[i], aim_x, aim_z, GAIA_STEER_REACH, clear, units_.target_building_id[i]),
+						[&](rtso::nav::Vec2 c, std::vector<SteerObstacle> &out) { gaia_obstacles_near(c.x, c.y, GAIA_STEER_REACH, out); },
+						GAIA_STEER_REACH, units_.target_building_id[i], nav_grid_, short_path_key_, memo, steer,
+						&short_path_search_[i], follow, &after, final_aim))
+					break;
 				const float sdx = steer.x - px[i];
 				const float sdz = steer.y - pz[i];
 				if (sdx * sdx + sdz * sdz > 1e-6f) {
@@ -12078,9 +12113,17 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					dz = sdz;
 					d2 = sdx * sdx + sdz * sdz;
 					steered = true;
-				} else {
-					units_.short_path[i].key = round_units ? idle_corner_key() : 0; // standing on the waypoint
+					break;
 				}
+				// Standing on the waypoint: next tick decides from the corner, or the unit heads for the
+				// next waypoint of the path it keeps.
+				if (round_units || !after.more) {
+					units_.short_path[i].key = round_units ? idle_corner_key() : 0;
+					break;
+				}
+				++units_.short_path[i].key;
+				after = rtso::nav::SteerNext{};
+				near_gaia.clear();
 			}
 			// avoid_idle_units' note that its last search from here found no way stays while the unit
 			// does, whatever way round buildings it is heading for.
@@ -12105,9 +12148,24 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// Formation members walk to the slot tick_formations gives them (Formation.js FormationWalk).
 		float move_dx = ux * step;
 		float move_dz = uz * step;
-		// A short-path waypoint reached this tick is done: next tick searches from the corner.
+		// A short-path waypoint reached this tick is done: next tick searches from the corner. On a
+		// short path the unit keeps, PerformMove moves it onto the waypoint, pops it and spends the
+		// rest of the step heading for the next one, which the memo moves on to (CCmpUnitMotion.h:
+		// 1299-1326).
 		const bool corner_reached = steered && step > 0.0f && d2 <= step * step;
-		if (corner_reached) units_.short_path[i].key = round_units ? idle_corner_key() : 0;
+		const bool kept_on = corner_reached && !round_units && after.more;
+		float rest_x = aim_x, rest_z = aim_z; // where the rest of a step that reaches the waypoint heads
+		if (kept_on) {
+			++units_.short_path[i].key;
+			rest_x = after.next.x;
+			rest_z = after.next.y;
+			const float rx = rest_x - (px[i] + dx), rz = rest_z - (pz[i] + dz), rl = std::sqrt(rx * rx + rz * rz);
+			const float rest = std::min(step - std::sqrt(d2), rl);
+			move_dx = dx + (rl > 1e-6f ? rx * (rest / rl) : 0.0f);
+			move_dz = dz + (rl > 1e-6f ? rz * (rest / rl) : 0.0f);
+		} else if (corner_reached) {
+			units_.short_path[i].key = round_units ? idle_corner_key() : 0;
+		}
 		want_x[i] = move_dx;
 		want_z[i] = move_dz;
 		npx[i] = std::clamp(px[i] + move_dx, -map_half_, map_half_);
@@ -12133,18 +12191,19 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			};
 			if (barred(npx[i], npz[i])) {
 				// A refused step that reaches a short-path waypoint ends on it and spends the rest heading on
-				// for the aim, as PerformMove moves a unit within its step of a waypoint onto it and then
-				// towards the next: the waypoint is kept off steep ground, the step past it may not be. The
-				// rest slides along an axis when the way to the aim is barred too, and the unit stays on the
-				// waypoint when both are; next tick searches from where it stands. The rest that is barred
-				// counts as obstructed (motion_feedback), as 0.28's move that stops at the waypoint does.
+				// for the aim (or a kept short path's next waypoint), as PerformMove moves a unit within its
+				// step of a waypoint onto it and then towards the next: the waypoint is kept off steep ground,
+				// the step past it may not be. The rest slides along an axis when the way to the aim is barred
+				// too, and the unit stays on the waypoint when both are; next tick searches from where it
+				// stands. The rest that is barred counts as obstructed (motion_feedback), as 0.28's move that
+				// stops at the waypoint does.
 				const float wx = std::clamp(px[i] + dx, -map_half_, map_half_), wz = std::clamp(pz[i] + dz, -map_half_, map_half_);
 				if (corner_reached && !barred(wx, wz)) {
 					npx[i] = wx;
 					npz[i] = wz;
 					want_x[i] = dx;
 					want_z[i] = dz;
-					const float rx = aim_x - wx, rz = aim_z - wz, rl = std::sqrt(rx * rx + rz * rz);
+					const float rx = rest_x - wx, rz = rest_z - wz, rl = std::sqrt(rx * rx + rz * rz);
 					const float rest = std::min(step - std::sqrt(d2), rl);
 					if (rest > 1e-4f) {
 						const float ex = std::clamp(wx + rx * (rest / rl), -map_half_, map_half_);
@@ -12447,7 +12506,10 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		if (obstructed) {
 			// Obstructed: the unit stays put this tick. One within reach of its task is where 0 A.D.'s
 			// move to the target's range would have ended: it works from there without a short path.
-			if (memo.key == key) memo.key = 0; // the way to its waypoint is blocked now
+			// The way to its waypoint is blocked now. So is the way along a short path it keeps round trees
+			// or steep ground (nav::kept_path_key): 0.28's HandleObstructedMove replaces the short path the
+			// unit follows with a new one (CCmpUnitMotion.h:1436-1441).
+			if (memo.key == key || nav::is_kept_path_key(memo.key, short_path_key_)) memo.key = 0;
 			npx[i] = x0;
 			npz[i] = z0;
 			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
@@ -30240,6 +30302,19 @@ bool Simulation::unit_short_waypoint(size_t i, float aim_x, float aim_z, float *
 	if (m.key == 0 || m.key == idle_stuck_key()) return false;
 	const float dx = m.aim_x - aim_x, dz = m.aim_z - aim_z;
 	if (dx * dx + dz * dz > nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK) return false;
+	// A kept short path of several waypoints holds where the unit searched from: the waypoint it heads
+	// for comes from the same search again (nav::kept_path_key), answered from a copy of its memo.
+	if (nav::is_kept_path_key(m.key, short_path_key_)) {
+		ShortPathSearchMemo cached = i < short_path_search_.size() ? short_path_search_[i] : ShortPathSearchMemo{};
+		auto fetch = [&](nav::Vec2 c, std::vector<SteerObstacle> &out) { gaia_obstacles_near(c.x, c.y, GAIA_STEER_REACH, out); };
+		nav::Vec2 w;
+		if (!nav::detail::kept_waypoint<std::vector<SteerObstacle>, SteerObstacle>(m, short_path_key_, unit_clearance_at(i),
+				GAIA_STEER_REACH, units_.target_building_id[i], steer_obstacles_, fetch, nav_grid_, &cached, w, nullptr))
+			return false;
+		*wx = w.x;
+		*wz = w.y;
+		return true;
+	}
 	*wx = m.x;
 	*wz = m.z;
 	return true;
