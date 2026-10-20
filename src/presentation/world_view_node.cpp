@@ -4322,7 +4322,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				}
 			}
 			if (!aura_icon_sources_.empty())
-				status_aura_icons(x, z, uview.team[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, false, st);
+				status_aura_icons(uview.id[i], x, z, uview.team[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, false, st);
 			if (bars || st.n_icons > 0) {
 				// The GLBs are in metres, so the model's scale is world units per metre.
 				const rtso::StatusBarsSize sb = unit_status_bars(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
@@ -4715,7 +4715,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 					}
 				}
 			}
-			if (!aura_icon_sources_.empty()) status_aura_icons(b.x, b.z, b.team, rtso::CIV_UNIT_TEMPLATE_NONE, true, st);
+			if (!aura_icon_sources_.empty()) status_aura_icons(b.id, b.x, b.z, b.team, rtso::CIV_UNIT_TEMPLATE_NONE, true, st);
 			if (bars || st.n_icons > 0) {
 				// In the model's metres (its actor frame), as the GLBs are not drawn 1 unit = 4 m.
 				float m = 0.25f;
@@ -5166,12 +5166,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 // The icons of the shown auras (aura_icon_sources_) reaching an entity of `team` at
 // (x, z): a unit of roster row tmpl the aura affects, or a structure when the aura
-// names the Structure class. Each icon once.
-void RtsoWorldView::status_aura_icons(float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const {
+// names the Structure class. Each icon once. A range aura's query leaves its own source
+// out (Auras.js CreateActiveQuery), so a hero doesn't wear its own range aura's icon.
+void RtsoWorldView::status_aura_icons(uint32_t id, float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const {
 	const uint16_t bit = rtso::aura_player_bit(team);
 	for (const AuraIconSource &a : aura_icon_sources_) {
 		const rtso::AuraSource &s = *a.src;
 		if (!(s.affected & bit)) continue;
+		if (s.source_id == id && rtso::civ_hero_aura(s.aura).radius > 0.0f) continue;
 		if (structure ? !rtso::civ_hero_aura(s.aura).structures : !rtso::civ_aura_affects(s.aura, tmpl)) continue;
 		const float dx = x - s.x, dz = z - s.z;
 		if (dx * dx + dz * dz > s.range * s.range) continue;
