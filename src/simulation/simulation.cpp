@@ -23247,8 +23247,7 @@ void Simulation::petra_build_first_base() {
 		} else {
 			petra_ps().food() -= cf; petra_ps().wood() -= cw; petra_ps().gold() -= cg; petra_ps().stone() -= cs;
 		}
-		const uint32_t bid = petra_spawn_foundation(cx, cz, goal);
-		if (bid != 0 && !workers.empty()) petra_order_builders(workers, workers.size(), bid);
+		petra_spawn_foundation(cx, cz, goal);
 	};
 	if (goal != BLD_DOCK) {
 		// The civic centre plan's position: findEconomicCCLocation for wood with proximity to
@@ -25223,9 +25222,7 @@ void Simulation::petra_manage_naval(float dt) {
 					break;
 				}
 				if (!petra_has_builder() || !petra_try_pay(PETRA_Q_DOCK, cost[0], cost[1], cost[2], cost[3])) break;
-				const uint32_t bid = petra_spawn_foundation(cx, cz, BLD_DOCK);
-				auto idle = petra_idle_builders();
-				if (bid && !idle.empty()) petra_order_builders(idle, 3, bid);
+				petra_spawn_foundation(cx, cz, BLD_DOCK);
 			}
 		}
 	}
@@ -25265,9 +25262,7 @@ void Simulation::petra_manage_naval(float dt) {
 							if (dock_sea(probe) != first_sea || petra_building_land(probe, &topo, land) != land) continue;
 							placed = true;
 							if (!petra_try_pay_structure(PETRA_Q_MILITARY_BUILDING, BLD_SUPER_DOCK)) break;
-							const uint32_t bid = petra_spawn_foundation(cx, cz, BLD_SUPER_DOCK);
-							auto idle = petra_idle_builders();
-							if (bid && !idle.empty()) petra_order_builders(idle, 4, bid);
+							petra_spawn_foundation(cx, cz, BLD_SUPER_DOCK);
 						}
 			}
 		}
@@ -25607,10 +25602,7 @@ void Simulation::petra_manage_buildings(float dt) {
 			// The first barracks or range goes at twice militaryBuilding's priority until started.
 			if (n_barracks + n_ranges == 0 && want != BLD_STABLE)
 				petra_change_priority(PETRA_Q_MILITARY_BUILDING, 2 * petra_queue_base_priority(PETRA_Q_MILITARY_BUILDING), PETRA_Q_MILITARY_BUILDING);
-			if (const uint32_t bid = petra_place_generic(want, PETRA_Q_MILITARY_BUILDING, nullptr, nullptr, true)) { // militaryBase
-				auto idle = petra_idle_builders();
-				if (!idle.empty()) petra_order_builders(idle, 3, bid);
-			}
+			petra_place_generic(want, PETRA_Q_MILITARY_BUILDING, nullptr, nullptr, true); // militaryBase
 		}
 	}
 
@@ -25657,10 +25649,7 @@ void Simulation::petra_build_advanced() {
 		return n;
 	};
 	auto build = [&](uint8_t t, bool military_base = true) {
-		const uint32_t bid = petra_place_generic(t, PETRA_Q_MILITARY_BUILDING, nullptr, nullptr, military_base);
-		if (!bid) return;
-		auto idle = petra_idle_builders();
-		if (!idle.empty()) petra_order_builders(idle, 3, bid);
+		petra_place_generic(t, PETRA_Q_MILITARY_BUILDING, nullptr, nullptr, military_base);
 	};
 	// canBuild (the civ's 0 A.D. Builder lists); the elephant stable and arsenal
 	// count only when the civ's roster trains something there.
@@ -26054,10 +26043,6 @@ uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *
 	if (!petra_try_pay_structure(PETRA_Q_DROPSITES, BLD_STOREHOUSE)) return 0;
 	petra_clear_no_room(BLD_STOREHOUSE);
 	const uint32_t bid = petra_spawn_foundation(best_cx, best_cz, BLD_STOREHOUSE);
-	if (bid) {
-		auto idle = petra_idle_builders();
-		if (!idle.empty()) petra_order_builders(idle, 3, bid);
-	}
 	return bid;
 }
 
@@ -26073,11 +26058,7 @@ void Simulation::petra_build_farmstead() {
 	}
 	if (!storehouse || !house || !civ_can_build(petra_ps().civ, BLD_FARMSTEAD) ||
 	    triggers_.building_disabled(petra_pid_, BLD_FARMSTEAD)) return;
-	const uint32_t bid = petra_place_generic(BLD_FARMSTEAD, PETRA_Q_ECONOMIC_BUILDING);
-	if (bid) {
-		auto idle = petra_idle_builders();
-		if (!idle.empty()) petra_order_builders(idle, 3, bid);
-	}
+	petra_place_generic(BLD_FARMSTEAD, PETRA_Q_ECONOMIC_BUILDING);
 }
 
 // A base anchor for Petra (baseManager.js anchors: class CivCentre, which in 0 A.D. includes
@@ -26175,14 +26156,7 @@ bool Simulation::petra_build_new_base(int res) {
 	const int foot = info.footprint;
 	const int cx = (int)std::floor(x / GRID - 0.5f * (float)foot), cz = (int)std::floor(z / GRID - 0.5f * (float)foot);
 	if (!petra_try_pay_structure(PETRA_Q_CIVIL_CENTRE, btype)) return false;
-	const uint32_t bid = petra_spawn_foundation(cx, cz, btype);
-	// Overseas, petra_staff_foundations ships the builders across.
-	uint16_t home_land = 0;
-	const PetraNavalTopo &topo = petra_classified_topo(home_land);
-	const bool overseas = topo.naval_map && petra_land_at(x, z) != home_land;
-	auto idle = petra_idle_builders();
-	if (!idle.empty() && !overseas) petra_order_builders(idle, 4, bid);
-	return bid != 0;
+	return petra_spawn_foundation(cx, cz, btype) != 0;
 }
 
 // queueplanBuilding.js buildOverseaDock: once we have a dock, one more on a land of 3600 m² or
@@ -26625,14 +26599,13 @@ void Simulation::petra_build_defenses() {
 		if (petra_building_built()) return; // the plan waits for a later turn
 		d.pending = 0;
 		int cx = 0, cz = 0;
-		uint32_t bid = 0;
 		if (petra_find_defensive_location(btype, cx, cz)) {
 			// queueplanBuilding.js onStart: the construct command fails at a spot BuildRestrictions
 			// refuses (Distance), and the plan is gone all the same.
 			if (petra_has_builder() && petra_can_place(cx, cz, building_type_info(btype).footprint, btype,
 			        (building_tech_classes(btype) & TC_TOWER) ? 0 : -1) &&
 			    petra_try_pay(PETRA_Q_DEFENSE_BUILDING, cf, cw, cg, cs))
-				bid = petra_spawn_foundation(cx, cz, btype);
+				petra_spawn_foundation(cx, cz, btype);
 		} else if (btype == BLD_FORTRESS) {
 			// queueplanBuilding.js findGoodPosition: a first fortress with no frontier spot
 			// takes the standard placement map (away from houses, off the border, +8 m).
@@ -26640,14 +26613,10 @@ void Simulation::petra_build_defenses() {
 			for (const Building &b : buildings_)
 				if (b.team == petra_pid_ && b.type == BLD_FORTRESS && b.hp > 0.0f && !b.wrecked) { has_fortress = true; break; }
 			const PetraBase *home = get_primary_petra_base();
-			if (!has_fortress && home) bid = petra_place_generic(BLD_FORTRESS, PETRA_Q_DEFENSE_BUILDING);
+			if (!has_fortress && home) petra_place_generic(BLD_FORTRESS, PETRA_Q_DEFENSE_BUILDING);
 			else petra_set_no_room(btype);
 		} else {
 			petra_set_no_room(btype); // setUnbuildable(template, 90, "room")
-		}
-		if (bid) {
-			auto idle = petra_idle_builders();
-			if (!idle.empty()) petra_order_builders(idle, btype == BLD_FORTRESS ? 4 : 2, bid);
 		}
 		return;
 	}

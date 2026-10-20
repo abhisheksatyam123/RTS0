@@ -354,7 +354,7 @@ researchManager.js, constructionPlan.js findGoodPosition and headquarters.js bui
 | X3 | "No room" marks were set while placing, before the plan was paid; 0.28 searches only in start(), after the queue can afford it | medium-low | Open (C, queue start) |
 | X4 | Towers and fortresses with no frontier spot never counted as missing room, so they never led to a new base | low-medium | Fixed |
 | X5 | Forge, temple and Town-phase structures don't wait for their queue's earlier plans; one merged want per queue starts whatever it can cover | low-medium | Open (C, queue order) |
-| X6 | At placement, 0.28 sends the first unit able to build; RTS0 sends idle builders to some structures and none to others | low | Open |
+| X6 | At placement, 0.28 sends the first unit able to build; RTS0 sends idle builders to some structures and none to others | low | Fixed: the construct command in queueplanBuilding.js start goes out with autorepair false, so nobody is sent at placement; `petra_staff_foundations` (assignToFoundations) staffs every foundation on the next turn. The wonder victory's own builder feed stays |
 | X7 | The house priority's free slots counted every foundation's population bonus; 0.28 counts house foundations at the house's bonus | low | Fixed |
 | X8 | Research was skipped while the minorTech queue was paused; 0.28 still picks (and raises the priority), and the pick waits in the paused queue | low | Fixed |
 | X9 | Town-phase houses are capped at 3 foundations rather than 3 plans | low | Open |
