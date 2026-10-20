@@ -110,6 +110,15 @@ func run() -> void:
 	d.change_tip(single - d.tip_index)
 	await frames(1)
 	check(not panel.visible, "a tip with one picture has no arrows")
+	# scaleGuiElementsToFit: the ornament hugs the title, the bullets follow it.
+	var deco: Control = d.find_child("TipTitleDecoration", true, false)
+	var text_box: Control = d.find_child("TipText", true, false)
+	var short_w: float = deco.size.x
+	title.text = "A much longer tip title that has to wrap over two lines here"
+	d._fit_title()
+	check(title.size.y > 30 and deco.position.y >= title.position.y + title.size.y - 4 and text_box.position.y == deco.position.y + 32,
+		"a two-line title pushes the ornament and bullets down")
+	check(deco.size.x > short_w, "the ornament spans the title's width (%d > %d)" % [deco.size.x, short_w])
 	await key(KEY_ESCAPE)
 	await frames(2)
 	check(menu.find_child("TipsPage", true, false) == null, "Escape closes it")
