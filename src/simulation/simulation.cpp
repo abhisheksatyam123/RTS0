@@ -19287,8 +19287,8 @@ void Simulation::petra_manage_military_production(float dt) {
 		float penalty[RES_COUNT] = {1.0f, 1.0f, 1.0f, 1.0f};
 		penalty[RES_STONE] = st.stone;
 		penalty[RES_GOLD] = st.metal;
-		for (int r = 0; r < RES_COUNT; ++r) {
-			if ((float)petra_ps().res[r] > 800.0f || remaining[r] > 800.0f) continue;
+		for (int r = 0; r < RES_COUNT; ++r) { // findBestTrainableUnit: getAvailableResources
+			if (petra_available_resource((uint8_t)r) > 800.0f || remaining[r] > 800.0f) continue;
 			const float scarce = remaining[r] > 400.0f ? 0.6f : 0.2f;
 			penalty[r] = std::min(penalty[r], scarce);
 		}
@@ -19323,7 +19323,7 @@ void Simulation::petra_manage_military_production(float dt) {
 	// checkPhase, headquarters.js checkPhaseRequirements at priority 1000) and the first fortress
 	// (defenseBuilding doubled). Here soldiers train only from what that price leaves.
 	float reserve[RES_COUNT] = {};
-	if (phase == 2) {
+	if (phase == 2 && petra_phasing()) { // researchManager.js:27: only past workPhase3
 		const ResearchCheck rc = research_check(petra_pid_, TECH_PHASE_CITY);
 		if (rc == TECH_OK || rc == TECH_ERR_COST) {
 			const TechInfo &city = tech_info(TECH_PHASE_CITY);
@@ -19339,6 +19339,7 @@ void Simulation::petra_manage_military_production(float dt) {
 
 	const uint8_t d = petra_config_.difficulty;
 	const float pop_scaling = petra_plan_pop_scaling();
+	bool asked[PETRA_Q_COUNT] = {};
 	auto train_for = [&](const AttackPlan &plan, uint8_t kind) {
 		const uint8_t order_plan = &plan == &petra_raid_plan_ ? PETRA_ORDER_RAID : PETRA_ORDER_ATTACK;
 		const bool main_plan = &plan == &petra_attack_plan_;
@@ -19399,7 +19400,11 @@ void Simulation::petra_manage_military_production(float dt) {
 			// batch would draw the villager queue's food away too (the tries above asked for it).
 			PetraQueueAccount &w = petra_queues_.wants[queue];
 			for (int r = 0; r < RES_COUNT; ++r) reserve[r] += cost[r];
-			w.food = cost[RES_FOOD]; w.wood = cost[RES_WOOD]; w.gold = cost[RES_GOLD]; w.stone = cost[RES_STONE];
+			// The raid and the attack share the plan queues: this turn's larger ask stands.
+			if (!asked[queue]) w = PetraQueueAccount{};
+			asked[queue] = true;
+			w.food = std::max(w.food, cost[RES_FOOD]); w.wood = std::max(w.wood, cost[RES_WOOD]);
+			w.gold = std::max(w.gold, cost[RES_GOLD]); w.stone = std::max(w.stone, cost[RES_STONE]);
 			petra_queues_.want_age[queue] = 0.0f;
 			return;
 		}
@@ -19753,7 +19758,7 @@ int Simulation::petra_train_more_workers() {
 				    territory_owner_at(resources_.x[r], resources_.z[r]) == (int)petra_pid_)
 					remaining[resources_.type[r]] += (float)resources_.amount[r];
 			for (int r = 0; r < RES_COUNT; ++r)
-				if ((float)petra_ps().res[r] <= 800.0f && remaining[r] <= 800.0f)
+				if (petra_available_resource((uint8_t)r) <= 800.0f && remaining[r] <= 800.0f) // getAvailableResources
 					penalty[r] = std::min(penalty[r], remaining[r] > 400.0f ? 0.6f : 0.2f);
 		}
 		uint16_t best = CIV_UNIT_TEMPLATE_NONE;
@@ -19848,10 +19853,19 @@ void Simulation::petra_order_builders(const std::vector<uint32_t> &workers, size
 // invading army only a civic centre or wall below half health is repaired.
 // assignToFoundations builderRatio (queueManager.getAvailableResources): under 200 of
 // anything caps builders at a fifth of the workers, under 1000 at that share of a thousand.
+float Simulation::petra_available_resource(uint8_t r) const {
+	float held = 0.0f;
+	for (int q = 0; q < PetraQueueManager::QUEUE_COUNT; ++q) {
+		const PetraQueueAccount &a = petra_queues_.accounts[q];
+		held += r == RES_FOOD ? a.food : r == RES_WOOD ? a.wood : r == RES_GOLD ? a.gold : a.stone;
+	}
+	return player(petra_pid_).res[r] - held;
+}
+
 float Simulation::petra_builder_ratio() const {
 	float ratio = 1.0f;
 	for (uint8_t r = 0; r < RES_COUNT; ++r) {
-		const float have = (float)player_resource(petra_pid_, r);
+		const float have = petra_available_resource(r);
 		if (have < 200.0f) return 0.2f;
 		if (have < 1000.0f) ratio = std::min(ratio, have / 1000.0f);
 	}
@@ -24593,8 +24607,21 @@ bool Simulation::petra_start_research(uint8_t tech_id) {
 	// Same civ / phase / prerequisite / structure rules as the player
 	// (cost is checked against the TECH account below).
 	ResearchCheck rc = research_check(petra_pid_, tech_id);
-	if (rc != TECH_OK && rc != TECH_ERR_COST) return false;
 	const TechInfo &tinfo = tech_info(tech_id);
+	if (rc == TECH_ERR_STRUCTURES && (tech_id == TECH_PHASE_TOWN || tech_id == TECH_PHASE_CITY)) {
+		// researchManager.js:31 queues the phase once a researcher stands (hasResearchers
+		// skips the requirements) and majorTech saves for it; canStart waits for the
+		// structures (queueplanResearch.js:22).
+		std::array<float, RES_COUNT> price{};
+		float duration = 0.0f;
+		tech_price(petra_pid_, tech_id, tinfo.researcher, price.data(), duration);
+		PetraQueueAccount &w = petra_queues_.wants[PETRA_Q_MAJOR_TECH];
+		w.food = std::max(w.food, price[RES_FOOD]); w.wood = std::max(w.wood, price[RES_WOOD]);
+		w.gold = std::max(w.gold, price[RES_GOLD]); w.stone = std::max(w.stone, price[RES_STONE]);
+		petra_queues_.want_age[PETRA_Q_MAJOR_TECH] = 0.0f;
+		return false;
+	}
+	if (rc != TECH_OK && rc != TECH_ERR_COST) return false;
 	// queueplanResearch.js start: the researcher with the shortest queue (trainingQueueTime).
 	Building *at = nullptr;
 	bool have = false;
@@ -27307,10 +27334,14 @@ int Simulation::petra_queue_base_priority(uint8_t q) const {
 		case PETRA_Q_WONDER: return 1;
 		case PETRA_Q_EMERGENCY: return 1000;
 		case PETRA_Q_PLAN: case PETRA_Q_PLAN_CHAMP: case PETRA_Q_PLAN_SIEGE: {
-			// The attack being mustered, else the raid.
-			const bool attack = petra_attack_plan_.state == AttackPlan::MUSTER || petra_raid_plan_.state != AttackPlan::MUSTER;
-			const uint8_t kind = attack ? petra_attack_mgr_.kind : (uint8_t)PETRA_ATTACK_RAID;
-			float p = kind == PETRA_ATTACK_RUSH ? 250.0f : kind == PETRA_ATTACK_RAID ? 150.0f : kind == PETRA_ATTACK_HUGE ? 90.0f : 70.0f;
+			// attackPlan.js:221: each mustering plan has its own queues at its kind's priority;
+			// RTS0's raid and attack share these, at the higher of the two.
+			auto kind_priority = [](uint8_t kind) {
+				return kind == PETRA_ATTACK_RUSH ? 250.0f : kind == PETRA_ATTACK_RAID ? 150.0f : kind == PETRA_ATTACK_HUGE ? 90.0f : 70.0f;
+			};
+			const bool raid = petra_raid_plan_.state == AttackPlan::MUSTER;
+			const bool attack = petra_attack_plan_.state == AttackPlan::MUSTER || !raid;
+			float p = std::max(attack ? kind_priority(petra_attack_mgr_.kind) : 0.0f, raid ? kind_priority(PETRA_ATTACK_RAID) : 0.0f);
 			if (c.difficulty < PETRA_EASY) p *= 0.4f;
 			else if (c.difficulty < PETRA_MEDIUM) p *= 0.8f;
 			return std::max(1, (int)p) + (q == PETRA_Q_PLAN_CHAMP ? 1 : 0);
@@ -27340,7 +27371,7 @@ void Simulation::petra_check_paused_queues() {
 	bool has_field = false, has_dock = false, has_fishing = false;
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
-		potential_base = potential_base || is_civic_centre(b.type);
+		potential_base = potential_base || petra_base_anchor_type(b.type); // hasPotentialBase: a CivCentre anchor, military colonies too
 		has_field = has_field || b.type == BLD_FIELD;
 		has_dock = has_dock || b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK;
 	}
@@ -28442,20 +28473,24 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 	return 0;
 }
 
-// garrisonManager.js update: the enemies within a holder's arrow range (80 m,
-// 20 world units, for a holder that doesn't shoot): defensive structures, melee or ranged
-// siege, or other units (Gaia's only while fighting; Gaia is no foe here).
+// garrisonManager.js update: the enemies within a holder's arrow range, centre to centre
+// (80 m, 20 world units, for a holder that doesn't shoot): defensive structures, melee or
+// ranged siege, or other units. getEnemyEntities holds Gaia too: its shooting structures,
+// and its units while they fight (UnitAI COMBAT).
 Simulation::PetraAround Simulation::petra_around(const Building &holder) const {
 	PetraAround around;
 	const float arrows = building_arrow_range(holder);
-	const float range = arrows > 0.0f ? arrows + holder.half_size : 20.0f;
+	const float range = arrows > 0.0f ? arrows : 20.0f;
 	for (const Building &b : buildings_) {
-		if (!petra_foe(b.team) || b.hp <= 0.0f || b.build_progress < 1.0f || !building_ai_info(b.type).shoots()) continue;
+		if ((!petra_foe(b.team) && b.team != GAIA_PLAYER) || b.hp <= 0.0f || b.build_progress < 1.0f || !building_ai_info(b.type).shoots()) continue;
 		const float dx = b.x - holder.x, dz = b.z - holder.z;
 		if (dx * dx + dz * dz <= range * range) { around.defense_structure = true; break; }
 	}
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || !petra_foe(units_.team[i])) continue;
+		if (!units_.alive[i]) continue;
+		if (units_.team[i] == GAIA_PLAYER) {
+			if (units_.action_state[i] != ACTION_ATTACK) continue;
+		} else if (!petra_foe(units_.team[i])) continue;
 		const float dx = units_.pos_x[i] - holder.x, dz = units_.pos_z[i] - holder.z;
 		if (dx * dx + dz * dz > range * range) continue;
 		const TechClasses c = unit_tech_classes(units_.unit_type[i]);
@@ -28472,7 +28507,7 @@ Simulation::PetraAround Simulation::petra_around(const Building &holder) const {
 
 // garrisonManager.js keepGarrisoned. Petra garrisons for protection (a hurt
 // unit healing, infantry adding arrows, support units and siege sheltering),
-// and its hero for an emergency.
+// and its critical hero (Regicide) for an emergency (defenseManager.js:913).
 bool Simulation::petra_keep_garrisoned(size_t i, const Building &holder, const PetraAround &around) const {
 	const uint8_t type = units_.unit_type[i];
 	const TechClasses c = unit_tech_classes(type);
@@ -28480,7 +28515,7 @@ bool Simulation::petra_keep_garrisoned(size_t i, const Building &holder, const P
 	const bool heals = structure_garrison_heal(holder) > 0.0f && unit_is_human(type);
 	const bool needs_heal = heals && health < 1.0f;
 	if (heals && health < petra_config_.garrison_hp_high) return true;
-	if (type == UNIT_HERO) // TYPE_EMERGENCY
+	if (petra_is_critical_ent(i)) // TYPE_EMERGENCY
 		return around.unit || around.defense_structure || around.melee_siege ||
 			(around.range_siege && health < petra_config_.garrison_hp_high) || needs_heal;
 	if (unit_classes_at(i) & building_ai_info(holder.type).garrison_arrow_classes) { // the holder's GarrisonArrowClasses
@@ -28777,6 +28812,22 @@ void Simulation::petra_manage_garrisons() {
 			if (!petra_keep_garrisoned((size_t)idx, b, around)) leave.push_back(uid);
 		}
 		for (uint32_t uid : leave) order_ungarrison_single(b.id, uid);
+		// garrisonManager.js:181: ours still walking to it are recalled (leaveGarrison,
+		// stopMoving) once they no longer need it.
+		std::vector<uint32_t> recall;
+		if (own && incoming[bi] > 0) {
+			for (size_t i = 0; i < units_.count; ++i) {
+				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] != ORDER_GARRISON ||
+				    units_.order_target[i] != b.id || units_.action_state[i] == ACTION_GARRISONED)
+					continue;
+				if (decay_min > 0 && unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f) continue;
+				if (!petra_keep_garrisoned(i, b, around)) recall.push_back(units_.id[i]);
+			}
+		}
+		if (!recall.empty()) {
+			cmd_stop(recall.data(), recall.size());
+			incoming[bi] -= (int)recall.size();
+		}
 		if (shoots && (around.unit || around.melee_siege || around.range_siege))
 			petra_garrison_units_inside(bi, around.defense_structure || around.unit, incoming);
 		if (decay_min > 0) petra_garrison_units_inside(bi, true, incoming, decay_min);

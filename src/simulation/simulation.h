@@ -3547,6 +3547,7 @@ private:
 	bool petra_near_invading_army(float x, float z, float dist2) const;
 	void petra_remove_defender(uint32_t uid);
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
+	float petra_available_resource(uint8_t r) const; // queueManager.getAvailableResources: stock less every queue's account
 	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
 	void petra_assign_bombers(); // attackManager.js assignBombers
 	void petra_move_dropsites_to_gatherers(); // worker.js moveToGatherer for mobile dropsites
