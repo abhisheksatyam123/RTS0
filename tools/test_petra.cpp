@@ -1538,6 +1538,48 @@ static void test_petra_tributes_same_total() {
 	CHECK(s->players_[1].res[RES_FOOD] == 300.0f && s->players_[2].res[RES_FOOD] == 300.0f, "each ally gets 30% of the same total");
 }
 
+// diplomacyManager.js init: a player allied to us at the start while we are its enemy
+// is answered as an alliance request (accept, ask a tribute or decline), not with the
+// "become neutral first" refusal a later change gets.
+static void test_petra_init_one_way_ally() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 3, 128.0f);
+	for (uint8_t p = 0; p < 3; ++p) s->set_player_active(p, true, p == 0);
+	s->petra_pid_ = 0;
+	s->set_diplomacy(1, 0, Simulation::DIPLO_ALLY); // as a map's player data can set it
+	s->set_diplomacy(0, 1, Simulation::DIPLO_ENEMY);
+	s->petra_manage_diplomacy(1.6f);
+	const auto &req = s->petra_diplo_.received[1];
+	std::printf("  one-way ally at the start: request status %d, type %d\n", (int)req.status, (int)req.type);
+	CHECK(req.status != PetraReceivedRequest::NONE && req.type == 0, "answered as an alliance request");
+}
+
+// attackManager.js getRelicEnemyPlayer sets currentEnemyPlayer to Gaia (0) when it picks
+// Gaia's relics; it stays Gaia, not the owner of some started attack's target.
+static void test_petra_current_enemy_gaia() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	for (const auto &b : s->buildings())
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) {
+			Simulation::AttackPlan plan;
+			plan.state = Simulation::AttackPlan::WALKING;
+			plan.target_building_id = b.id;
+			s->petra_started_attacks_.push_back(plan);
+		}
+	CHECK(s->petra_attack_enemy() == 0, "before any pick, the started attack's target owner");
+	s->petra_note_enemy(GAIA_PLAYER);
+	CHECK(s->petra_attack_enemy() == GAIA_PLAYER, "after a Gaia relic pick, Gaia");
+	s->petra_note_enemy(0);
+	CHECK(s->petra_attack_enemy() == 0, "then the next player picked");
+	s->petra_started_attacks_.clear();
+}
+
 // researchManager.js update returns while minorTech holds a plan: a pick waiting for its
 // resources stays queued until it is researched or can no longer be, never swapped for another.
 static void test_petra_minor_tech_kept() {
@@ -6602,6 +6644,8 @@ int main(int argc, char **argv) {
 	RUN(test_petra_diplomacy_counts);
 	RUN(test_petra_peace_ends_raid);
 	RUN(test_petra_tributes_same_total);
+	RUN(test_petra_init_one_way_ally);
+	RUN(test_petra_current_enemy_gaia);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
 	RUN(test_market_prospection_events);

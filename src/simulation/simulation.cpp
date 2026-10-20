@@ -27414,14 +27414,16 @@ void Simulation::petra_attack_remove_unit(uint32_t uid) {
 }
 
 // attackManager.js getEnemyPlayer, for a new attack: the player it picked is remembered
-// as currentEnemyPlayer (Gaia, for its relics, clears it) until the next pick.
+// as currentEnemyPlayer (Gaia too, for its relics) until the next pick.
 void Simulation::petra_note_enemy(uint8_t enemy) const {
-	const_cast<PetraSentDiplomacy &>(petra_sent_diplo_).current_enemy = enemy < MAX_PLAYERS ? (uint8_t)(enemy + 1) : 0;
+	const_cast<PetraSentDiplomacy &>(petra_sent_diplo_).current_enemy =
+		enemy < MAX_PLAYERS ? (uint8_t)(enemy + 1) : enemy == GAIA_PLAYER ? PETRA_CURRENT_ENEMY_GAIA : 0;
 }
 
 // attackManager.js currentEnemyPlayer; before any pick, the owner of the newest started
 // attack's target, else of the plan in preparation's.
 uint8_t Simulation::petra_attack_enemy() const {
+	if (petra_sent_diplo_.current_enemy == PETRA_CURRENT_ENEMY_GAIA) return GAIA_PLAYER;
 	if (petra_sent_diplo_.current_enemy) return (uint8_t)(petra_sent_diplo_.current_enemy - 1);
 	auto owner = [&](const AttackPlan &p) -> uint8_t {
 		auto it = building_id_to_idx_.find(p.target_building_id);
@@ -30748,12 +30750,13 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			if (req.status == PetraReceivedRequest::ACCEPTED) req.status = PetraReceivedRequest::ALLIANCE_BROKEN;
 			else if (req.status != PetraReceivedRequest::ALLIANCE_BROKEN) req.status = PetraReceivedRequest::DECLINED_FOREVER;
 			petra_tribute_request_wanted_[p][me] = 0;
-		} else if (theirs == DIPLO_ALLY && mine == DIPLO_ENEMY) {
-			// An enemy can't become an ally at once: refuse, or suggest neutrality first.
+		} else if (theirs == DIPLO_ALLY && mine == DIPLO_ENEMY && dip.seen_init) {
+			// An enemy can't become an ally at once: refuse, or suggest neutrality first
+			// (DM:225). At game start, init (DM:44-60) answers it as an alliance request.
 			const bool refused = req.status == PetraReceivedRequest::DECLINED_FOREVER ||
 			                     req.status == PetraReceivedRequest::ALLIANCE_BROKEN;
 			petra_say(refused ? PETRA_CHAT_ANSWER_DECLINE : PETRA_CHAT_ANSWER_DECLINE_SUGGEST_NEUTRAL, p, p, 0);
-		} else if (theirs == DIPLO_ALLY && mine == DIPLO_NEUTRAL) {
+		} else if (theirs == DIPLO_ALLY && mine != DIPLO_ALLY) {
 			petra_handle_diplomacy_request(p, 0);
 		} else if (theirs == DIPLO_NEUTRAL && mine == DIPLO_ENEMY) {
 			petra_handle_diplomacy_request(p, 1);

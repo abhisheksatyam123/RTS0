@@ -165,6 +165,7 @@ State &state() {
 }
 
 void parse_command_args(State &s, const PackedStringArray &args) {
+	std::string mods; // GameSetup.cpp InitVfs: -mod=NAME (repeatable) replaces mod.enabledmods
 	for (int i = 0; i < args.size(); ++i) {
 		std::string a = args[i].utf8().get_data();
 		if (a.rfind("--", 0) == 0) a = a.substr(2);
@@ -182,8 +183,12 @@ void parse_command_args(State &s, const PackedStringArray &args) {
 			s.command[name] = value;
 		} else if (name == "nosound" || name == "quickstart") {
 			s.audio_disabled = true;
+		} else if (name == "mod" && !value.empty()) {
+			mods += " " + value;
 		}
 	}
+	// Mod.cpp EnableMods: "mod" always first.
+	if (!mods.empty()) s.command["mod.enabledmods"] = "mod" + mods;
 }
 
 std::string trim(const std::string &s) {
