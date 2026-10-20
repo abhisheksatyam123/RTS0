@@ -281,9 +281,11 @@ void RtsoMain::request_delete() {
 	delete_pending_.clear();
 	for (int s = 0; s < selected_ids.size(); ++s) delete_pending_.push_back(selected_ids[s]);
 	const std::vector<uint32_t> structs = selected_structures();
+	const bool control_all = sim->controls_all(local_player()); // unit_actions.js "delete": no checks with controlsAll
 	for (const auto &b : sim->buildings())
-		if (std::find(structs.begin(), structs.end(), b.id) != structs.end() && b.team == local_player() && !(b.max_capture_points > 0.0f &&
-				b.capture_points_by_team[b.team] < b.max_capture_points * 0.5f))
+		if (std::find(structs.begin(), structs.end(), b.id) != structs.end() &&
+				(control_all || (b.team == local_player() && !(b.max_capture_points > 0.0f &&
+				b.capture_points_by_team[b.team] < b.max_capture_points * 0.5f))))
 			delete_pending_.push_back((int32_t)b.id);
 	if (delete_pending_.is_empty()) return;
 	if (rtso::hotkeys::held("session.noconfirmation")) {

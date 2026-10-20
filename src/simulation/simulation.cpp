@@ -18056,26 +18056,30 @@ void Simulation::destroy_building(Building &b) {
 }
 
 void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
+	// Commands.js delete-entities: Control all units reaches anyone's entities and skips the
+	// undeletable and capture-point checks.
+	const bool control_all = controls_all(player);
 	for (size_t k = 0; k < count; ++k) {
 		const uint32_t id = ids[k];
 		const int32_t i = lookup_unit(id);
-		if (is_relic_unit(i) || undeletable_unit(id)) continue; // template_unit_catafalque.xml Identity/Undeletable; Survival's seekers
-		if (i >= 0 && units_.alive[i] && units_.team[i] == player) {
+		if (!control_all && (is_relic_unit(i) || undeletable_unit(id))) continue; // template_unit_catafalque.xml Identity/Undeletable; Survival's seekers
+		if (i >= 0 && units_.alive[i] && (units_.team[i] == player || control_all)) {
+			const uint8_t owner = units_.team[i];
 			units_.hp[i] = 0.0f;
 			units_.alive[i] = 0;
 			units_.action_state[i] = ACTION_DYING;
 			order_queues_.erase(id);
 			work_orders_.erase(id);
-			record_unit_death(i, player);
+			record_unit_death(i, owner);
 			continue;
 		}
 		auto it = building_id_to_idx_.find(id);
 		if (it == building_id_to_idx_.end()) continue;
 		Building &b = buildings_[it->second];
-		if (b.team != player || b.wrecked) continue;
+		if ((b.team != player && !control_all) || b.wrecked) continue;
 		if (!structure_has_health(b.type)) continue; // mixins/shrine.xml, trading_post.xml Identity/Undeletable
 		// Commands.js delete-entities: not while the owner holds under half the capture points.
-		if (b.max_capture_points > 0.0f && b.build_progress >= 1.0f &&
+		if (!control_all && b.max_capture_points > 0.0f && b.build_progress >= 1.0f &&
 				b.capture_points_by_team[player] < b.max_capture_points * 0.5f)
 			continue;
 		destroy_building(b);
@@ -18110,7 +18114,7 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		note_session({SessionNotice::CHEAT, player, 0, 1, {}}); // "(Cheat - promoted units)"
 		for (size_t k = 0; k < count; ++k) {
 			const int32_t i = lookup_unit(selected[k]);
-			if (i < 0 || !units_.alive[i] || units_.team[i] != player) continue;
+			if (i < 0 || !units_.alive[i]) continue; // cmd.entities unfiltered: anyone's units
 			const float need = promotion_required_xp((size_t)i);
 			if (need < 0.0f) continue;
 			units_.xp[i] = (uint16_t)std::min(65535.0f, std::ceil(need));
