@@ -18889,7 +18889,7 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		if (a >= 0 && !unit_can_target(i, (size_t)a)) return;
 	}
 	const float range = attack_reach(i);
-	const float vision = unit_base_vision(i);
+	const float vision = unit_vision_at(i);
 	const Building *sb = nullptr;
 	if (structure) {
 		sb = &buildings_[building_id_to_idx_.at(attacker_id)];
@@ -19936,7 +19936,7 @@ bool Simulation::can_heal(size_t h, int32_t t) const {
 
 uint32_t Simulation::find_heal_target(size_t h) const {
 	// GetQueryRange(IID_Heal): passive healers search their vision too.
-	const float vision = unit_base_vision(h);
+	const float vision = unit_vision_at(h);
 	const float range = healer_range_of(h);
 	float lim = vision;
 	if (units_.stance[h] == STANCE_STAND_GROUND) lim = std::min(range, vision);
@@ -20139,7 +20139,7 @@ void Simulation::order_heal(const uint32_t *unit_ids_in, size_t count_in, uint32
 void Simulation::tick_heal(size_t h) {
 	const int32_t t = lookup_unit(units_.target_unit_id[h]);
 	const bool forced = (units_.order_flags[h] & ORDER_FLAG_FORCE) != 0;
-	const float vision = unit_base_vision(h);
+	const float vision = unit_vision_at(h);
 	bool keep = can_heal(h, t);
 	float d2 = 0.0f;
 	if (keep) {
@@ -29875,7 +29875,7 @@ Simulation::RangeQuery Simulation::unit_range_query(size_t i) const {
 	else if (stance == STANCE_AGGRESSIVE || stance == STANCE_VIOLENT)
 		q.max = vision;
 	if (unit_is_healer(units_.tmpl[i], units_.unit_type[i])) { // as find_heal_target
-		const float hv = unit_base_vision(i), hr = healer_range_of(i);
+		const float hv = vision, hr = healer_range_of(i);
 		q.heal_max = stance == STANCE_STAND_GROUND ? std::min(hr, hv)
 				: stance == STANCE_DEFENSIVE ? std::min(hr + hv * 0.5f, hv) : hv;
 	}
