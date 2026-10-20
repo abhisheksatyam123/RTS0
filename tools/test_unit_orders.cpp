@@ -3163,7 +3163,21 @@ static void test_rally_commands() {
 		return u;
 	};
 	s.cmd_set_rally_point(0, brk, 20.0f, 0.0f, 0, 0, false, RALLY_CMD_ATTACK_WALK);
-	check(s.unit_order(trained(UNIT_SPEARMAN)).kind == ORDER_WALK_AND_FIGHT, "attack-walk (session.attackmove)");
+	{
+		// RallyPointCommands.js attack-walk sends no allowCapture (UnitAI.DEFAULT_CAPTURE).
+		const UnitOrder o = s.unit_order(trained(UNIT_SPEARMAN));
+		check(o.kind == ORDER_WALK_AND_FIGHT, "attack-walk (session.attackmove)");
+		check(!(o.flags & ORDER_FLAG_ALLOW_CAPTURE), "an attack-walk rally damages structures, it doesn't capture them");
+	}
+	{
+		// unit_actions.js "attack" on an enemy structure with hitpoints: allowCapture stays off.
+		const uint32_t ebrk = s.spawn_building_world(40.0f, 20.0f, BLD_BARRACKS, 1, 1.0f);
+		s.cmd_set_rally_point(0, brk, 40.0f, 20.0f, 0, ebrk, false);
+		const UnitOrder o = s.unit_order(trained(UNIT_SPEARMAN));
+		check(o.kind == ORDER_ATTACK_BUILDING && o.target == ebrk && !(o.flags & ORDER_FLAG_ALLOW_CAPTURE),
+				"a rally on an enemy barracks attacks it with weapons");
+		s.cmd_set_rally_point(0, brk, 20.0f, 0.0f, 0, 0, false);
+	}
 	s.cmd_set_rally_point(0, brk, 20.0f, 0.0f, 0, 0, false, RALLY_CMD_ATTACK_WALK_UNITS);
 	{
 		const UnitOrder o = s.unit_order(trained(UNIT_SPEARMAN));

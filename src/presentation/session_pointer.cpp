@@ -566,9 +566,9 @@ bool RtsoMain::minimap_unit_order(Vector2 world_pos) {
 	} else if (attack_move_mode || rtso::hotkeys::held("session.attackmove") || units_only) {
 		if (turn_cmds())
 			post_lockstep(10, sel_ptr, sel_n, world_pos.x, world_pos.y, 0,
-					(uint8_t)(qbit | (units_only ? rtso::NET_PARAM_UNITS_ONLY : 0)));
+					(uint8_t)(qbit | rtso::NET_PARAM_NO_CAPTURE | (units_only ? rtso::NET_PARAM_UNITS_ONLY : 0)));
 		else
-			sim->order_attack_move(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, units_only, true);
+			sim->order_attack_move(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, units_only, false);
 		play_civ_voice("attack");
 	} else if (patrol_mode || rtso::hotkeys::held("session.patrol")) {
 		if (turn_cmds())
