@@ -3545,10 +3545,24 @@ void RtsoMain::update_net_connect_overlay() {
 	if (String(net_connect_overlay_->get("text")) != text) net_connect_overlay_->set("text", String(text));
 }
 
-// Game Setup's Back in a networked game: leave it for the lobby.
+// Game Setup's Back, the Connecting box's Cancel and the disconnect box's OK
+// before Start (SetupWindow.js closePage, gamesetup_mp.js cancelSetup): back to
+// the lobby while signed in to it, else to the main menu, where a join the
+// host never let in reopens the "Joining an existing game." form.
 void RtsoMain::leave_net_game() {
+	const int auth = net_host_.authResult();
+	const bool not_let_in = net_host_.getRole() == rtso::NetRole::Client &&
+			auth != rtso::ARC_OK && auth != rtso::ARC_OK_SAVED_GAME && auth != rtso::ARC_OK_REJOINING;
 	net_host_.stop();
-	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) ms->call("go", "res://scenes/menu/lobby.tscn");
+	Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
+	if (!ms) return;
+	Node *lobby = get_node_or_null(NodePath("/root/LobbySession"));
+	if (lobby && bool(lobby->call("signed_in"))) {
+		ms->call("go", "res://scenes/menu/lobby.tscn");
+		return;
+	}
+	ms->set("net_reopen", not_let_in ? String("join") : String());
+	ms->call("go", "res://scenes/menu/main_menu.tscn");
 }
 
 void RtsoMain::push_net_setup() {

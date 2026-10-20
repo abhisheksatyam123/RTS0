@@ -158,6 +158,10 @@ func _ready() -> void:
 		get_node("/root/MatchSettings").campaign_run = ""
 		get_node("/root/MatchSettings").campaign_level = ""
 		get_node("/root/MatchSettings").campaign_map_name = ""
+		# gamesetup_mp.js cancelSetup: a refused or cancelled direct join is back at its form.
+		if get_node("/root/MatchSettings").net_reopen == "join":
+			get_node("/root/MatchSettings").net_reopen = ""
+			_execute_action.call_deferred("open_mp_join")
 
 	# Connect main navigation buttons
 	$MainPanel/Buttons/BtnLearn.pressed.connect(func(): _toggle_submenu("learn", $MainPanel/Buttons/BtnLearn))
