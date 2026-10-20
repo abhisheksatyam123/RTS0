@@ -598,7 +598,7 @@ int main() {
 		const auto rv = sim.resources();
 		int baobabs = 0, baobab_600 = 0, acacias = 0, acacia_200 = 0, bushes = 0, bush_ok = 0;
 		for (size_t i = 0; i < rv.count; ++i) {
-			if (rv.type[i] != RES_WOOD || rv.subtype[i] != RES_SUB_NONE) continue;
+			if (!rv.alive[i] || rv.type[i] != RES_WOOD || rv.subtype[i] != RES_SUB_NONE) continue; // a removed tree keeps its slot at 0 wood
 			if (flora_family(rv.flora[i]) == FLORA_BAOBAB) { ++baobabs; baobab_600 += rv.amount[i] == 600; }
 			if (flora_family(rv.flora[i]) == FLORA_ACACIA) { ++acacias; acacia_200 += rv.amount[i] == 200; }
 			if (flora_family(rv.flora[i]) == FLORA_BUSH) { ++bushes; bush_ok += rv.amount[i] == 50 || rv.amount[i] == 100; }

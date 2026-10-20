@@ -70,8 +70,8 @@
 //     takes live animals), not a dangerous one.
 // 42. Rally points: Shift adds positions, unset-rallypoint (cmd 14 param 1), gather near a
 //     gone target, and a save round trip.
-// 43. UnitAI FLEEING: the flight re-aims from where the attacker is now, ignores attackers
-//     farther than the one fled from, and the source survives a save.
+// 43. UnitAI FLEEING: the flight re-aims from where the attacker is now, answers every attacker
+//     but the one fled from, and the source survives a save.
 // 44. UnitAI REPAIRING autoharvest: a forced build turns into autoharvest at work, and only
 //     such builders farm the field or gather near the dropsite they finish.
 // 45. GATHER FINDINGNEWTARGET: an empty-handed gatherer with nothing left nearby walks to the
@@ -574,6 +574,7 @@ static void test_lockstep() {
 	std::printf("15. lockstep commands\n");
 	Simulation s;
 	setup(s);
+	s.set_explore_map(true); // the tree is in land player 0 hasn't seen: a gather there is refused
 	const uint32_t tree = s.spawn_resource_world(20, 0, RES_WOOD, 500);
 	uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
 	uint32_t doomed = s.spawn_unit(5, 5, 0, UNIT_SPEARMAN);
@@ -1760,7 +1761,7 @@ static void test_rally_positions() {
 
 
 static void test_flee_source() {
-	std::printf("43. a flight re-aims from a chasing attacker and ignores farther ones (UnitAI FLEEING)\n");
+	std::printf("43. a flight re-aims from a chasing attacker and from any other one (UnitAI FLEEING)\n");
 	Simulation s;
 	setup(s);
 	uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
@@ -1776,10 +1777,14 @@ static void test_flee_source() {
 	s.units_.pos_x[si] = 2.0f;
 	s.units_.pos_z[si] = 0.0f;
 	check(!s.flee_done((size_t)wi) && s.units_.target_x[wi] < 0.0f, "the flight turns away from where he is now");
-	// A farther attacker is ignored; a nearer one takes over.
+	// The one fled from is ignored; any other attacker takes over, a farther one too (0.28's
+	// distance check compares the unit's distance to itself).
+	s.units_.attacked_by[wi] = sp;
+	s.respond_to_attack((size_t)wi);
+	check(s.units_.flee_from[wi] == sp && s.units_.target_x[wi] < 0.0f, "another hit from the spearman changes nothing");
 	s.units_.attacked_by[wi] = far;
 	s.respond_to_attack((size_t)wi);
-	check(s.units_.flee_from[wi] == sp, "an archer farther off than the spearman is ignored");
+	check(s.units_.flee_from[wi] == far && s.units_.target_x[wi] < 0.0f, "an archer farther off is fled from instead");
 	uint32_t near = s.spawn_unit(0, 1, 1, UNIT_SPEARMAN);
 	s.units_.attacked_by[idx_of(s, w)] = near;
 	s.respond_to_attack((size_t)idx_of(s, w));
@@ -3278,6 +3283,57 @@ static void test_forced_treasure_and_return() {
 	}
 }
 
+// UnitAI CheckTargetVisible (UnitAI.js:4922-4941): a player's command on an entity it can't see
+// and has no mirage of is refused for every peer, whatever the sender's interface let through:
+// an enemy unit in the fog, a structure never seen, a supply in unexplored land. Once in sight
+// (the structure: once seen) the same command goes through.
+static void test_hidden_targets() {
+	std::printf("hidden targets\n");
+	Simulation s;
+	setup(s);
+	const uint32_t man = s.spawn_unit(-40, -40, 0, UNIT_SPEARMAN);
+	const uint32_t foe = s.spawn_unit(20, -40, 1, UNIT_SPEARMAN);
+	const uint32_t tree = s.spawn_resource_world(40, -20, RES_WOOD, 200);
+	const uint32_t woman = s.spawn_unit(-40, -36, 0, UNIT_FEMALE_CITIZEN);
+	uint32_t foe_cc = 0;
+	for (const auto &b : s.buildings()) if (b.team == 1) foe_cc = b.id;
+	TurnManager tm;
+	auto turns = [&](float seconds) {
+		int n = (int)std::lround(seconds / TurnManager::TURN_DURATION);
+		for (int i = 0; i < n; ++i) tm.tick(TurnManager::TURN_DURATION, s);
+	};
+	turns(0.4f);
+	check(!s.player_can_target_unit(0, foe) && !s.player_can_target_building(0, foe_cc) &&
+			!s.player_can_target_resource(0, tree), "the foe, its civic centre and the tree are hidden from player 0");
+	auto post = [&](uint8_t cmd, uint32_t who, uint32_t target) {
+		NetCommand c;
+		c.client_id = 0;
+		c.entity_ids = {who};
+		c.cmd_type = cmd;
+		c.target_id = target;
+		c.param = 0;
+		tm.post_local_command(c);
+	};
+	post(3, man, foe);
+	post(4, woman, tree);
+	turns(0.4f);
+	check(s.unit_order(man).kind != ORDER_ATTACK && s.unit_order(woman).kind != ORDER_GATHER,
+			"an attack on a unit in the fog and a gather in the shroud are refused");
+	post(15, man, foe_cc);
+	turns(0.4f);
+	check(s.unit_order(man).kind != ORDER_ATTACK_BUILDING, "an attack on a structure never seen is refused");
+	// In sight: the foe walks up.
+	s.units_.pos_x[idx_of(s, foe)] = -36.0f;
+	s.units_.pos_z[idx_of(s, foe)] = -40.0f;
+	turns(0.4f);
+	check(s.player_can_target_unit(0, foe), "the foe in sight can be targeted");
+	post(3, man, foe);
+	turns(0.4f);
+	check(s.unit_order(man).kind == ORDER_ATTACK, "and the attack goes through");
+	// Own and allied entities are never refused.
+	check(s.player_can_target_building(1, foe_cc) && s.player_can_target_unit(1, foe), "a player's own are always targetable");
+}
+
 // Guard.js OnAttacked: a poison or burning tick on the guarded unit sends its guards after
 // the source, while the poisoned unit's own UnitAI ignores the tick (fromStatusEffect).
 static void test_status_tick_guards() {
@@ -3307,6 +3363,92 @@ static void test_status_tick_guards() {
 	check(hp_of(s, charge) < 1.0e6f, "the poison ticks on the charge");
 	check(guard_went, "its guard goes for the archer who poisoned it");
 	check(target_of(s, charge) != src, "the charge itself doesn't answer the tick");
+}
+
+// Player.js on defeat makes a player's units Gaia's; UnitAI.OnOwnershipChanged stops them,
+// drops their queue and work orders and resets the template's default stance (Q6).
+static void test_defeated_units_reset() {
+	std::printf("92. a defeated player's units turned Gaia stop and take their default stance\n");
+	Simulation s;
+	setup(s);
+	uint32_t sp = s.spawn_unit(0.0f, 0.0f, 1, UNIT_SPEARMAN);
+	s.order_set_stance(&sp, 1, STANCE_PASSIVE);
+	s.order_walk(&sp, 1, 20.0f, 0.0f);
+	s.order_walk(&sp, 1, 20.0f, 20.0f, true);
+	check(s.unit_order_queue(sp) && !s.unit_order_queue(sp)->empty(), "a walk queued behind a walk");
+	s.convert_to_gaia(1u << 1);
+	const int i = idx_of(s, sp);
+	check(s.units().team[i] == GAIA_PLAYER, "the spearman is Gaia's");
+	check(s.unit_order(sp).kind == ORDER_NONE && !s.unit_order_queue(sp), "its orders and queue are gone");
+	check(s.units().stance[i] == unit_default_stance(UNIT_SPEARMAN, s.units().tmpl[i]), "its stance is the template default again");
+}
+
+static void test_all_attackers_cheer() {
+	std::printf("93. every unit attacking a unit cheers when it falls, siege engines too (shouldCheer)\n");
+	Simulation s;
+	setup(s);
+	uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+	uint32_t b = s.spawn_unit(0, 3, 0, UNIT_SWORDSMAN);
+	uint32_t bolt = s.spawn_unit(-6, 0, 0, UNIT_BOLT_SHOOTER);
+	s.order_set_stance(&bolt, 1, STANCE_PASSIVE); // stays idle rather than unpacking to shoot
+	uint32_t e = s.spawn_unit(2, 1, 1, UNIT_SPEARMAN, 1.0f);
+	s.order_set_stance(&e, 1, STANCE_PASSIVE);
+	uint32_t both[2] = {a, b};
+	s.order_attack(both, 2, e);
+	check(run_until(s, 10.0f, [&] { return !alive(s, e); }), "the two swordsmen kill the enemy");
+	check(run_until(s, 1.0f, [&] { return act_of(s, a) == ACTION_CHEER && act_of(s, b) == ACTION_CHEER; }),
+			"both cheer, not only the one that landed the kill");
+	check(act_of(s, bolt) == ACTION_CHEER, "an idle bolt shooter nearby cheers too");
+}
+
+static void test_defensive_held_position() {
+	std::printf("94. a defensive unit holds its walk or attack-walk destination, not its work, and walks back there after a given-up chase (heldPosition)\n");
+	{
+		// Attack-walk: a target near the route but far from the destination is given up at the
+		// chase timer, and WalkToHeldPosition turns the attack-walk into a plain walk.
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+		s.order_set_stance(&a, 1, STANCE_DEFENSIVE);
+		uint32_t w = s.spawn_unit(6, 7, 1, UNIT_FEMALE_CITIZEN);
+		s.order_set_stance(&w, 1, STANCE_STAND_GROUND);
+		s.order_walk(&w, 1, -20, 60); // she walks off, so catching her takes a while
+		s.order_attack_move(&a, 1, 60, 0);
+		check(run_until(s, 5.0f, [&] { return act_of(s, a) == ACTION_ATTACK; }), "the attack-walker goes for the woman");
+		check(run_until(s, 4.0f, [&] { return s.unit_order(a).kind == ORDER_WALK; }),
+				"gives her up, so far from its destination, and walks on");
+		check(!(s.unit_order(a).flags & ORDER_FLAG_FORCE) && !s.unit_order_queue(a), "an unforced walk that replaced the attack-walk");
+		run(s, 20.0f);
+		check(dist(s, a, 60, 0) < 3.0f && alive(s, w), "it ends at the destination, the woman untouched");
+	}
+	{
+		// Gathering keeps the held position where the last walk ended. An unforced gather (a
+		// rally point's or Back to Work's) answers attacks; a player's own is forced.
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+		s.order_set_stance(&a, 1, STANCE_DEFENSIVE);
+		const uint32_t tree = s.spawn_resource_world(30, 0, RES_WOOD, 5000);
+		s.order_gather(&a, 1, tree, false, false);
+		check(run_until(s, 15.0f, [&] { return act_of(s, a) == ACTION_GATHER && s.units().carry[idx_of(s, a)] > 0; }),
+				"the spearman cuts the tree");
+		uint32_t c = s.spawn_unit(32, 2, 1, UNIT_CAVALRY, 5000.0f);
+		s.order_set_stance(&c, 1, STANCE_PASSIVE);
+		const int ai = idx_of(s, a);
+		s.units_.attacked_by[ai] = c;
+		s.respond_to_attack((size_t)ai);
+		check(act_of(s, a) == ACTION_GATHER, "an attacker at the tree, far from where its last walk ended, is ignored");
+		s.order_walk(&a, 1, 27, 0);
+		s.order_gather(&a, 1, tree, true, false);
+		check(run_until(s, 10.0f, [&] { return act_of(s, a) == ACTION_GATHER; }), "walked to the tree's side, it cuts again");
+		s.units_.attacked_by[idx_of(s, a)] = c;
+		s.respond_to_attack((size_t)idx_of(s, a));
+		check(act_of(s, a) == ACTION_ATTACK, "now it answers");
+		s.order_walk(&c, 1, 80, 0); // the rider makes off
+		check(run_until(s, 10.0f, [&] { return s.unit_order(a).kind == ORDER_WALK; }), "it gives up the chase");
+		run(s, 15.0f);
+		check(dist(s, a, 27, 0) < 3.0f && s.unit_order(a).kind != ORDER_GATHER, "and walks back, its gathering dropped");
+	}
 }
 
 int main(int argc, char **argv) {
@@ -3404,7 +3546,11 @@ int main(int argc, char **argv) {
 	test_rally_commands();
 	test_forced_treasure_and_return();
 	test_status_tick_guards();
+	test_defeated_units_reset();
+	test_all_attackers_cheer();
+	test_defensive_held_position();
 	test_range_aura_not_self();
+	test_hidden_targets();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

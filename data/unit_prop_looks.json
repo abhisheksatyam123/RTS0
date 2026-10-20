@@ -29,6 +29,96 @@
    ]
   }
  ],
+ "athen_cavalry_javelineer_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "athen_cavalry_javelineer_a_part8",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "athen_cavalry_javelineer_b": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "athen_cavalry_javelineer_b_part7",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "athen_cavalry_javelineer_e": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "athen_cavalry_javelineer_e_part8",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
  "athen_cavalry_swordsman_e": [
   {
    "freq": [
@@ -197,6 +287,38 @@
     0.501163,
     0.01513
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "athen_hero_iphicrates_part10",
+   "xf": [
+    -1.0,
+    0.0,
+    -1e-06,
+    -0.0,
+    -1.0,
+    0.0,
+    -1e-06,
+    0.0,
+    1.0,
+    0.0,
+    0.411635,
+    0.0
+   ]
   }
  ],
  "athen_hero_pericles": [
@@ -224,6 +346,38 @@
     0.0,
     0.710294,
     0.350551
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "athen_hero_pericles_part9",
+   "xf": [
+    -1.0,
+    0.0,
+    -1e-06,
+    -0.0,
+    -1.0,
+    0.0,
+    -1e-06,
+    0.0,
+    1.0,
+    0.0,
+    0.411635,
+    0.0
    ]
   }
  ],
@@ -311,6 +465,34 @@
     0.017954,
     0.011225
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "athen_infantry_javelineer_a_part7",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
   }
  ],
  "athen_infantry_javelineer_b": [
@@ -340,6 +522,34 @@
     -0.0,
     0.0,
     0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "athen_infantry_javelineer_b_part6",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -396,6 +606,34 @@
     -0.0,
     0.017954,
     0.011225
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "athen_infantry_javelineer_e_part7",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -483,6 +721,38 @@
     0.488922,
     0.001741
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "athen_infantry_spearman_e_part7",
+   "xf": [
+    -1.0,
+    -1e-06,
+    -0.0,
+    1e-06,
+    -1.0,
+    1e-06,
+    -0.0,
+    1e-06,
+    1.0,
+    -0.0,
+    0.411635,
+    1e-06
+   ]
   }
  ],
  "athen_swordsman": [
@@ -569,6 +839,32 @@
     6.355697,
     -0.484542
    ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 36,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "brit_cavalry_part7",
+   "xf": [
+    0.820721,
+    -0.114109,
+    0.559818,
+    0.283373,
+    0.932136,
+    -0.225439,
+    -0.496102,
+    0.34366,
+    0.797359,
+    -0.366219,
+    6.155969,
+    -0.881876
+   ]
   }
  ],
  "brit_cavalry_javelineer_a": [
@@ -596,6 +892,34 @@
     1.002587,
     6.051641,
     -0.703689
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "brit_cavalry_javelineer_a_part7",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
    ]
   }
  ],
@@ -625,6 +949,34 @@
     6.051641,
     -0.703689
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "brit_cavalry_javelineer_b_part7",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
   }
  ],
  "brit_cavalry_javelineer_e": [
@@ -652,6 +1004,34 @@
     1.002587,
     6.051641,
     -0.703689
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "brit_cavalry_javelineer_e_part7",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
    ]
   }
  ],
@@ -681,6 +1061,32 @@
     6.355697,
     -0.484542
    ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 36,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "brit_cavalry_swordsman_a_part7",
+   "xf": [
+    0.820721,
+    -0.114109,
+    0.559818,
+    0.283373,
+    0.932136,
+    -0.225439,
+    -0.496102,
+    0.34366,
+    0.797359,
+    -0.366219,
+    6.155969,
+    -0.881876
+   ]
   }
  ],
  "brit_cavalry_swordsman_e": [
@@ -709,6 +1115,32 @@
     6.355697,
     -0.484542
    ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 36,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "brit_cavalry_swordsman_e_part7",
+   "xf": [
+    0.820721,
+    -0.114109,
+    0.559818,
+    0.283373,
+    0.932136,
+    -0.225439,
+    -0.496102,
+    0.34366,
+    0.797359,
+    -0.366219,
+    6.155969,
+    -0.881876
+   ]
   }
  ],
  "brit_chariot": [
@@ -736,6 +1168,62 @@
     0.048492,
     3.25112,
     2.032522
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "brit_chariot_part16",
+   "xf": [
+    -0.195874,
+    -0.184804,
+    0.963058,
+    0.908412,
+    -0.404095,
+    0.107217,
+    0.369352,
+    0.895854,
+    0.24703,
+    0.431025,
+    3.019413,
+    2.265484
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_loaded_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_loaded_c.glb"
+   ],
+   "node": "brit_chariot_part14",
+   "xf": [
+    0.989406,
+    0.093727,
+    0.110866,
+    -0.144693,
+    0.698884,
+    0.700447,
+    -0.011831,
+    -0.709068,
+    0.705041,
+    -0.739047,
+    4.585738,
+    2.863085
    ]
   }
  ],
@@ -766,6 +1254,126 @@
     -0.0,
     0.0,
     0.0
+   ]
+  }
+ ],
+ "brit_hero_boudicca": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "brit_hero_boudicca_part18",
+   "xf": [
+    -0.195875,
+    -0.184804,
+    0.963058,
+    0.908412,
+    -0.404095,
+    0.107217,
+    0.369352,
+    0.895854,
+    0.24703,
+    0.431025,
+    1.864864,
+    0.715672
+   ]
+  }
+ ],
+ "brit_hero_boudicca_cavalry_javelineer": [
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 36,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "brit_hero_boudicca_cavalry_javelineer_part14",
+   "xf": [
+    -0.820721,
+    0.114109,
+    -0.559818,
+    -0.283372,
+    -0.932136,
+    0.22544,
+    -0.496102,
+    0.34366,
+    0.797359,
+    -0.256505,
+    6.516867,
+    -0.96916
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "brit_hero_boudicca_cavalry_javelineer_part7",
+   "xf": [
+    -0.992428,
+    -0.121278,
+    -0.01942,
+    -0.015819,
+    -0.030588,
+    0.999407,
+    -0.1218,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 36,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "brit_hero_boudicca_cavalry_javelineer_part13",
+   "xf": [
+    0.820721,
+    -0.114109,
+    0.559818,
+    0.283372,
+    0.932136,
+    -0.225439,
+    -0.496102,
+    0.34366,
+    0.797359,
+    -0.366219,
+    6.155969,
+    -0.881876
    ]
   }
  ],
@@ -851,6 +1459,32 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "brit_hero_cunobelin_infantry_part9",
+   "xf": [
+    1.0,
+    -0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    -0.0,
+    -0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
   }
  ],
  "brit_infantry_javelineer_a": [
@@ -878,6 +1512,34 @@
     0.0,
     -1e-06,
     -0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "brit_infantry_javelineer_a_part4",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -907,6 +1569,34 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "brit_infantry_javelineer_b_part4",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
   }
  ],
  "brit_infantry_javelineer_e": [
@@ -934,6 +1624,34 @@
     0.0,
     -1e-06,
     -0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "brit_infantry_javelineer_e_part4",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -1103,6 +1821,66 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "brit_spearman_part3",
+   "xf": [
+    -1.0,
+    0.0,
+    -0.0,
+    -0.0,
+    -1.0,
+    0.0,
+    -0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.387173,
+    0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "brit_spearman_part2",
+   "xf": [
+    1.0,
+    -0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    -0.0,
+    -0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
   }
  ],
  "brit_support_female_citizen": [
@@ -1160,6 +1938,32 @@
     0.0,
     -1e-06,
     -0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "brit_swordsman_part3",
+   "xf": [
+    1.0,
+    -0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    -0.0,
+    -0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0
    ]
   }
  ],
@@ -1283,6 +2087,96 @@
    ]
   }
  ],
+ "cart_cavalry_javelineer_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "cart_cavalry_javelineer_a_part8",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "cart_cavalry_javelineer_b": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "cart_cavalry_javelineer_b_part10",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "cart_cavalry_javelineer_e": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "cart_cavalry_javelineer_e_part8",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
  "cart_cavalry_spearman_ital_e": [
   {
    "freq": [
@@ -1337,6 +2231,32 @@
     6.355697,
     -0.484542
    ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 36,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "cart_cavalry_swordsman_gaul_a_part7",
+   "xf": [
+    0.820721,
+    -0.114109,
+    0.559818,
+    0.283373,
+    0.932136,
+    -0.225439,
+    -0.496102,
+    0.34366,
+    0.797359,
+    -0.366219,
+    6.155969,
+    -0.881876
+   ]
   }
  ],
  "cart_cavalry_swordsman_gaul_e": [
@@ -1364,6 +2284,32 @@
     0.960326,
     6.355697,
     -0.484542
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 36,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "cart_cavalry_swordsman_gaul_e_part7",
+   "xf": [
+    0.820721,
+    -0.114109,
+    0.559818,
+    0.283373,
+    0.932136,
+    -0.225439,
+    -0.496102,
+    0.34366,
+    0.797359,
+    -0.366219,
+    6.155969,
+    -0.881876
    ]
   }
  ],
@@ -1394,6 +2340,36 @@
     -0.0,
     0.0,
     0.0
+   ]
+  }
+ ],
+ "cart_elephant": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "cart_elephant_part5",
+   "xf": [
+    -0.992428,
+    -0.122123,
+    -0.013127,
+    -0.015818,
+    0.021098,
+    0.999652,
+    -0.121804,
+    0.992291,
+    -0.02287,
+    0.805487,
+    8.241136,
+    -1.894408
    ]
   }
  ],
@@ -1539,6 +2515,60 @@
     -6.08004,
     0.222043
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "cart_hero_hannibal_part16",
+   "xf": [
+    -0.992428,
+    -0.122121,
+    -0.013127,
+    -0.015818,
+    0.021097,
+    0.999652,
+    -0.121801,
+    0.992291,
+    -0.022869,
+    0.805487,
+    10.008574,
+    -2.903237
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 0,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__sarissa_b.glb"
+   ],
+   "node": "cart_hero_hannibal_part2",
+   "xf": [
+    -0.998296,
+    0.03481,
+    0.046836,
+    -0.048475,
+    -0.047833,
+    -0.997678,
+    -0.032488,
+    -0.998249,
+    0.049439,
+    0.837807,
+    -4.04015,
+    0.051771
+   ]
   }
  ],
  "cart_hero_maharbal": [
@@ -1566,6 +2596,156 @@
     0.0,
     8.025136,
     -0.405806
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 37,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_falcata_b.glb",
+    "res://assets/models/props/looks/props__weap_falcata_c.glb",
+    "res://assets/models/props/looks/props__weap_falcata_d.glb",
+    "res://assets/models/props/looks/props__weap_falcata_e.glb"
+   ],
+   "node": "cart_hero_maharbal_part20",
+   "xf": [
+    -0.820721,
+    -0.114109,
+    0.559818,
+    0.283373,
+    -0.932136,
+    0.22544,
+    0.496101,
+    0.34366,
+    0.797359,
+    0.272754,
+    6.552277,
+    -0.93812
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "cart_hero_maharbal_part13",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "cart_infantry_javelineer_iber_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "cart_infantry_javelineer_iber_a_part4",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "cart_infantry_javelineer_iber_b": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "cart_infantry_javelineer_iber_b_part4",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "cart_infantry_javelineer_iber_e": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "cart_infantry_javelineer_iber_e_part4",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -1713,6 +2893,32 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "cart_infantry_swordsman_gaul_a_part2",
+   "xf": [
+    1.0,
+    -0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    -0.0,
+    -0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
   }
  ],
  "cart_infantry_swordsman_gaul_b": [
@@ -1794,6 +3000,32 @@
     0.0,
     -1e-06,
     -0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "cart_infantry_swordsman_gaul_e_part2",
+   "xf": [
+    1.0,
+    -0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    -0.0,
+    -0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0
    ]
   }
  ],
@@ -1907,6 +3139,38 @@
     0.501163,
     0.01513
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "cart_spearman_part6",
+   "xf": [
+    -1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    -1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.411634,
+    0.0
+   ]
   }
  ],
  "cart_villager": [
@@ -1995,6 +3259,92 @@
     3.25112,
     2.032522
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "chariot_part13",
+   "xf": [
+    -0.195874,
+    -0.184804,
+    0.963058,
+    0.908412,
+    -0.404095,
+    0.107217,
+    0.369352,
+    0.895854,
+    0.24703,
+    0.431025,
+    3.019413,
+    2.265484
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_loaded_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_loaded_c.glb"
+   ],
+   "node": "chariot_part11",
+   "xf": [
+    0.989406,
+    0.093727,
+    0.110866,
+    -0.144693,
+    0.698884,
+    0.700447,
+    -0.011831,
+    -0.709068,
+    0.705041,
+    -0.739047,
+    4.585738,
+    2.863085
+   ]
+  }
+ ],
+ "elephant": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "elephant_part5",
+   "xf": [
+    -0.992428,
+    -0.122123,
+    -0.013127,
+    -0.015818,
+    0.021098,
+    0.999652,
+    -0.121804,
+    0.992291,
+    -0.02287,
+    0.805487,
+    8.241136,
+    -1.894408
+   ]
   }
  ],
  "fishing_boat": [
@@ -2053,6 +3403,32 @@
     6.355697,
     -0.484542
    ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 36,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "gaul_cavalry_part7",
+   "xf": [
+    0.820721,
+    -0.114109,
+    0.559818,
+    0.283373,
+    0.932136,
+    -0.225439,
+    -0.496102,
+    0.34366,
+    0.797359,
+    -0.366219,
+    6.155969,
+    -0.881876
+   ]
   }
  ],
  "gaul_cavalry_javelineer_a": [
@@ -2107,6 +3483,34 @@
     6.051641,
     -0.703689
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "gaul_cavalry_javelineer_a_part6",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
   }
  ],
  "gaul_cavalry_javelineer_b": [
@@ -2134,6 +3538,34 @@
     1.002587,
     6.051641,
     -0.703689
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "gaul_cavalry_javelineer_b_part7",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
    ]
   }
  ],
@@ -2188,6 +3620,34 @@
     1.002587,
     6.051641,
     -0.703689
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "gaul_cavalry_javelineer_e_part7",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
    ]
   }
  ],
@@ -2300,6 +3760,32 @@
     0.0,
     -1e-06,
     -0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "gaul_hero_part9",
+   "xf": [
+    1.0,
+    -0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    -0.0,
+    -0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0
    ]
   }
  ],
@@ -2437,6 +3923,40 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "gaul_hero_viridomarus_part13",
+   "xf": [
+    -1.0,
+    0.0,
+    -0.0,
+    -0.0,
+    -1.0,
+    0.0,
+    -0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.387173,
+    0.0
+   ]
   }
  ],
  "gaul_infantry_javelineer_a": [
@@ -2464,6 +3984,34 @@
     0.0,
     -1e-06,
     -0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "gaul_infantry_javelineer_a_part3",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -2493,6 +4041,34 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "gaul_infantry_javelineer_b_part4",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
   }
  ],
  "gaul_infantry_javelineer_e": [
@@ -2520,6 +4096,34 @@
     0.0,
     -1e-06,
     -0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "gaul_infantry_javelineer_e_part4",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -2605,6 +4209,66 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 0,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "gaul_infantry_spearman_a_part2",
+   "xf": [
+    -1.0,
+    -0.0,
+    0.0,
+    0.0,
+    -1.0,
+    1e-06,
+    0.0,
+    1e-06,
+    1.0,
+    -0.0,
+    0.387173,
+    0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 0,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "gaul_infantry_spearman_a_part1",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    -0.0,
+    1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    1.0,
+    -0.0,
+    -0.0,
+    0.0
+   ]
   }
  ],
  "gaul_infantry_spearman_b": [
@@ -2661,6 +4325,66 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "gaul_infantry_spearman_e_part3",
+   "xf": [
+    -1.0,
+    -0.0,
+    0.0,
+    0.0,
+    -1.0,
+    1e-06,
+    0.0,
+    1e-06,
+    1.0,
+    -0.0,
+    0.387173,
+    0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "gaul_infantry_spearman_e_part2",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    -0.0,
+    1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    1.0,
+    -0.0,
+    -0.0,
+    0.0
+   ]
   }
  ],
  "gaul_spearman": [
@@ -2715,6 +4439,66 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "gaul_spearman_part3",
+   "xf": [
+    -1.0,
+    0.0,
+    -0.0,
+    -0.0,
+    -1.0,
+    0.0,
+    -0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.387173,
+    0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "gaul_spearman_part2",
+   "xf": [
+    1.0,
+    -0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    -0.0,
+    -0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
   }
  ],
  "gaul_swordsman": [
@@ -2742,6 +4526,32 @@
     0.0,
     -1e-06,
     -0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "gaul_swordsman_part2",
+   "xf": [
+    1.0,
+    -0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    -0.0,
+    -0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0
    ]
   }
  ],
@@ -2771,6 +4581,34 @@
     6.051641,
     -0.703689
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "germ_cavalry_javelineer_a_part7",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
   }
  ],
  "germ_cavalry_javelineer_b": [
@@ -2798,6 +4636,34 @@
     1.002587,
     6.051641,
     -0.703689
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "germ_cavalry_javelineer_b_part7",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
    ]
   }
  ],
@@ -2852,6 +4718,34 @@
     1.002587,
     6.051641,
     -0.703689
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "germ_cavalry_javelineer_e_part7",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
    ]
   }
  ],
@@ -2966,6 +4860,32 @@
     0.960326,
     6.355697,
     -0.484542
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 37,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "germ_champion_cavalry_part9",
+   "xf": [
+    0.820721,
+    0.114109,
+    -0.559818,
+    -0.283373,
+    0.932136,
+    -0.22544,
+    0.496102,
+    0.34366,
+    0.797359,
+    0.366219,
+    6.155969,
+    -0.881876
    ]
   }
  ],
@@ -3223,6 +5143,32 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "germ_hero_part8",
+   "xf": [
+    1.0,
+    -0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    -0.0,
+    -0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
   }
  ],
  "germ_hero_boiorix": [
@@ -3250,6 +5196,32 @@
     0.960326,
     6.355697,
     -0.484542
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 37,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "germ_hero_boiorix_part10",
+   "xf": [
+    0.820721,
+    0.114109,
+    -0.559818,
+    -0.283373,
+    0.932136,
+    -0.22544,
+    0.496101,
+    0.34366,
+    0.797359,
+    0.366219,
+    6.15597,
+    -0.881876
    ]
   }
  ],
@@ -3279,6 +5251,66 @@
     6.355697,
     -0.484542
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 37,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "germ_hero_lugius_part15",
+   "xf": [
+    -0.820721,
+    -0.114109,
+    0.559818,
+    0.283373,
+    -0.932136,
+    0.22544,
+    0.496102,
+    0.34366,
+    0.797358,
+    0.256505,
+    6.516868,
+    -0.96916
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 37,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "germ_hero_lugius_part14",
+   "xf": [
+    0.820721,
+    0.114109,
+    -0.559818,
+    -0.283373,
+    0.932136,
+    -0.22544,
+    0.496101,
+    0.34366,
+    0.797359,
+    0.366219,
+    6.15597,
+    -0.881876
+   ]
   }
  ],
  "germ_infantry_javelineer_a": [
@@ -3306,6 +5338,34 @@
     0.0,
     -1e-06,
     -0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "germ_infantry_javelineer_a_part3",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -3335,6 +5395,34 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "germ_infantry_javelineer_b_part5",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
   }
  ],
  "germ_infantry_javelineer_e": [
@@ -3362,6 +5450,34 @@
     0.0,
     -1e-06,
     -0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "germ_infantry_javelineer_e_part4",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -3947,6 +6063,38 @@
     0.504926,
     0.040533
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "hero_part10",
+   "xf": [
+    -1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    -1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.411634,
+    0.0
+   ]
   }
  ],
  "iber_cavalry": [
@@ -3974,6 +6122,124 @@
     -0.0,
     7.531901,
     -0.371315
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "iber_cavalry_part7",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "iber_cavalry_javelineer_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "iber_cavalry_javelineer_a_part8",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "iber_cavalry_javelineer_b": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "iber_cavalry_javelineer_b_part7",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "iber_cavalry_javelineer_e": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "iber_cavalry_javelineer_e_part7",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
    ]
   }
  ],
@@ -4004,6 +6270,36 @@
     -0.0,
     0.0,
     0.0
+   ]
+  }
+ ],
+ "iber_hero": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "iber_hero_part5",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -4169,6 +6465,96 @@
    ]
   }
  ],
+ "iber_infantry_javelineer_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "iber_infantry_javelineer_a_part4",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "iber_infantry_javelineer_b": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "iber_infantry_javelineer_b_part4",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "iber_infantry_javelineer_e": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "iber_infantry_javelineer_e_part4",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
  "iber_infantry_spearman_a": [
   {
    "freq": [
@@ -4194,6 +6580,38 @@
     0.0,
     -1e-06,
     -0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_falcata_b.glb",
+    "res://assets/models/props/looks/props__weap_falcata_c.glb",
+    "res://assets/models/props/looks/props__weap_falcata_d.glb",
+    "res://assets/models/props/looks/props__weap_falcata_e.glb"
+   ],
+   "node": "iber_infantry_spearman_a_part10",
+   "xf": [
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    1e-06,
+    -0.0,
+    1e-06,
+    1.0,
+    -0.0,
+    0.408577,
+    0.044982
    ]
   }
  ],
@@ -4249,6 +6667,38 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_falcata_b.glb",
+    "res://assets/models/props/looks/props__weap_falcata_c.glb",
+    "res://assets/models/props/looks/props__weap_falcata_d.glb",
+    "res://assets/models/props/looks/props__weap_falcata_e.glb"
+   ],
+   "node": "iber_infantry_spearman_e_part10",
+   "xf": [
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    1e-06,
+    -0.0,
+    1e-06,
+    1.0,
+    -0.0,
+    0.408577,
+    0.044982
+   ]
   }
  ],
  "iber_spearman": [
@@ -4277,6 +6727,38 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_falcata_b.glb",
+    "res://assets/models/props/looks/props__weap_falcata_c.glb",
+    "res://assets/models/props/looks/props__weap_falcata_d.glb",
+    "res://assets/models/props/looks/props__weap_falcata_e.glb"
+   ],
+   "node": "iber_spearman_part10",
+   "xf": [
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    1e-06,
+    -0.0,
+    1e-06,
+    1.0,
+    -0.0,
+    0.408577,
+    0.044982
+   ]
   }
  ],
  "iber_swordsman": [
@@ -4304,6 +6786,216 @@
     -0.0,
     0.017954,
     0.011225
+   ]
+  }
+ ],
+ "kush_camel": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_loaded_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_loaded_c.glb"
+   ],
+   "node": "kush_camel_part5",
+   "xf": [
+    0.998209,
+    -0.059743,
+    -0.002928,
+    -0.059448,
+    -0.985466,
+    -0.15913,
+    0.006621,
+    0.159019,
+    -0.987253,
+    -0.859156,
+    -0.353416,
+    -0.470093
+   ]
+  }
+ ],
+ "kush_cav_jav_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "kush_cav_jav_a_part9",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "kush_cav_jav_b": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "kush_cav_jav_b_part8",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "kush_cav_jav_e": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "kush_cav_jav_e_part11",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "kush_cavalry_javelineer_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "kush_cavalry_javelineer_a_part9",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "kush_cavalry_javelineer_e": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "kush_cavalry_javelineer_e_part11",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "kush_elephant": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 13,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "kush_elephant_part5",
+   "xf": [
+    0.997606,
+    0.043733,
+    -0.053575,
+    0.056706,
+    -0.073807,
+    0.995659,
+    0.039589,
+    -0.996313,
+    -0.07611,
+    0.8569,
+    8.164888,
+    -1.689896
    ]
   }
  ],
@@ -4481,6 +7173,212 @@
    ]
   }
  ],
+ "kush_infantry_javelineer_merc_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "kush_infantry_javelineer_merc_a_part5",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "kush_infantry_javelineer_merc_e": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "kush_infantry_javelineer_merc_e_part6",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "kush_infantry_swordsman_a": [
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_02.glb"
+   ],
+   "node": "kush_infantry_swordsman_a_part5",
+   "xf": [
+    0.036379,
+    0.997269,
+    -0.064275,
+    -0.49581,
+    -0.037832,
+    -0.867606,
+    -0.867669,
+    0.063431,
+    0.49308,
+    0.63036,
+    -0.329072,
+    1.157338
+   ]
+  }
+ ],
+ "kush_infantry_swordsman_e": [
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_02.glb"
+   ],
+   "node": "kush_infantry_swordsman_e_part5",
+   "xf": [
+    0.036379,
+    0.997269,
+    -0.064275,
+    -0.49581,
+    -0.037832,
+    -0.867606,
+    -0.867669,
+    0.063431,
+    0.49308,
+    0.63036,
+    -0.329072,
+    1.157338
+   ]
+  }
+ ],
+ "kush_javelinist_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "kush_javelinist_a_part5",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "kush_javelinist_b": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "kush_javelinist_b_part5",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "kush_javelinist_e": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "kush_javelinist_e_part6",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
  "kush_swordsman": [
   {
    "freq": [
@@ -4506,6 +7404,90 @@
     0.0,
     -1e-06,
     -0.0
+   ]
+  }
+ ],
+ "kush_swordsman_a": [
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_02.glb"
+   ],
+   "node": "kush_swordsman_a_part5",
+   "xf": [
+    0.036379,
+    0.997269,
+    -0.064275,
+    -0.49581,
+    -0.037832,
+    -0.867606,
+    -0.867669,
+    0.063431,
+    0.49308,
+    0.63036,
+    -0.329072,
+    1.157338
+   ]
+  }
+ ],
+ "kush_swordsman_b": [
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_02.glb"
+   ],
+   "node": "kush_swordsman_b_part4",
+   "xf": [
+    0.036379,
+    0.997269,
+    -0.064275,
+    -0.49581,
+    -0.037832,
+    -0.867606,
+    -0.867669,
+    0.063431,
+    0.49308,
+    0.63036,
+    -0.329072,
+    1.157338
+   ]
+  }
+ ],
+ "kush_swordsman_e": [
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_02.glb"
+   ],
+   "node": "kush_swordsman_e_part5",
+   "xf": [
+    0.036379,
+    0.997269,
+    -0.064275,
+    -0.49581,
+    -0.037832,
+    -0.867606,
+    -0.867669,
+    0.063431,
+    0.49308,
+    0.63036,
+    -0.329072,
+    1.157338
    ]
   }
  ],
@@ -4647,6 +7629,34 @@
     8.286864,
     -0.529431
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "mace_cavalry_javelineer_a_part6",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
   }
  ],
  "mace_cavalry_javelineer_b": [
@@ -4674,6 +7684,64 @@
     -0.0,
     7.531901,
     -0.371315
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "mace_cavalry_javelineer_b_part7",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "mace_cavalry_javelineer_e": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "mace_cavalry_javelineer_e_part7",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
    ]
   }
  ],
@@ -4901,6 +7969,34 @@
     0.017954,
     0.011225
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "mace_infantry_javelineer_a_part7",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
   }
  ],
  "mace_infantry_javelineer_b": [
@@ -4928,6 +8024,64 @@
     -0.0,
     0.017954,
     0.011225
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "mace_infantry_javelineer_b_part7",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "mace_infantry_javelineer_e": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "mace_infantry_javelineer_e_part6",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -5012,6 +8166,36 @@
     -0.0,
     0.017954,
     0.011225
+   ]
+  }
+ ],
+ "mace_swordsman": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "mace_swordsman_part4",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -5187,6 +8371,34 @@
     7.614472,
     -0.413118
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "maur_cav_jav_a_part7",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
   }
  ],
  "maur_cav_jav_b": [
@@ -5217,6 +8429,34 @@
     7.614472,
     -0.413118
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "maur_cav_jav_b_part7",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
   }
  ],
  "maur_cav_jav_e": [
@@ -5246,6 +8486,34 @@
     0.0,
     7.614472,
     -0.413118
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "maur_cav_jav_e_part7",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
    ]
   }
  ],
@@ -5337,6 +8605,34 @@
     7.614472,
     -0.413118
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "maur_cavalry_javelineer_a_part7",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
   }
  ],
  "maur_cavalry_javelineer_e": [
@@ -5366,6 +8662,34 @@
     0.0,
     7.614472,
     -0.413118
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "maur_cavalry_javelineer_e_part7",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
    ]
   }
  ],
@@ -5571,6 +8895,34 @@
     2.796995,
     2.149277
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 0,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "maur_eleph_archer_a_part3",
+   "xf": [
+    0.735111,
+    -0.460182,
+    -0.49784,
+    -0.527493,
+    0.073043,
+    -0.846413,
+    0.425867,
+    0.884815,
+    -0.189048,
+    -1.082383,
+    1.362951,
+    1.664841
+   ]
   }
  ],
  "maur_eleph_archer_b": [
@@ -5601,6 +8953,34 @@
     2.796995,
     2.149277
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 0,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "maur_eleph_archer_b_part3",
+   "xf": [
+    0.735111,
+    -0.460182,
+    -0.49784,
+    -0.527493,
+    0.073043,
+    -0.846413,
+    0.425867,
+    0.884815,
+    -0.189048,
+    -1.082383,
+    1.362951,
+    1.664841
+   ]
   }
  ],
  "maur_eleph_archer_d": [
@@ -5630,6 +9010,34 @@
     -0.0,
     0.0,
     0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "maur_eleph_archer_d_part2",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -5691,6 +9099,60 @@
     9.609779,
     -2.869833
    ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 24,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sagaris_02.glb"
+   ],
+   "node": "maur_elephant_part10",
+   "xf": [
+    0.986526,
+    0.050009,
+    0.155775,
+    0.10322,
+    0.548471,
+    -0.829774,
+    -0.126934,
+    0.834673,
+    0.535919,
+    -0.662903,
+    8.245369,
+    -2.695124
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 24,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "maur_elephant_part3",
+   "xf": [
+    -0.73511,
+    -0.622063,
+    0.269537,
+    0.527493,
+    -0.275074,
+    0.803794,
+    -0.425868,
+    0.733056,
+    0.530344,
+    1.08238,
+    8.102254,
+    -3.005933
+   ]
   }
  ],
  "maur_elephant_archer_a": [
@@ -5720,6 +9182,34 @@
     0.0,
     -5.789598,
     -1.324114
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "maur_elephant_archer_a_part15",
+   "xf": [
+    -0.992428,
+    -0.12212,
+    -0.013127,
+    -0.015818,
+    0.021097,
+    0.999652,
+    -0.121801,
+    0.992291,
+    -0.022869,
+    0.805487,
+    10.008575,
+    -2.903237
    ]
   }
  ],
@@ -6529,6 +10019,36 @@
    ]
   }
  ],
+ "pers_cavalry_javelineer_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "pers_cavalry_javelineer_a_part9",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
  "pers_cavalry_javelineer_b": [
   {
    "freq": [
@@ -6556,6 +10076,34 @@
     0.0,
     7.614472,
     -0.413118
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "pers_cavalry_javelineer_b_part7",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
    ]
   }
  ],
@@ -6612,6 +10160,34 @@
     0.0,
     8.197344,
     -0.404289
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "pers_cavalry_javelineer_e_part29",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
    ]
   }
  ],
@@ -6814,6 +10390,60 @@
     2e-06,
     12.236358,
     -1.491474
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 25,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_axe_b.glb"
+   ],
+   "node": "pers_elephant_part19",
+   "xf": [
+    0.998295,
+    -0.036185,
+    0.045795,
+    0.048486,
+    0.077382,
+    -0.995822,
+    0.03249,
+    0.996345,
+    0.079005,
+    -0.837807,
+    9.99652,
+    -3.376805
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "pers_elephant_part6",
+   "xf": [
+    0.998295,
+    -0.036009,
+    0.045933,
+    0.048486,
+    0.073564,
+    -0.996111,
+    0.03249,
+    0.99664,
+    0.075185,
+    -0.837806,
+    10.042938,
+    -1.681136
    ]
   }
  ],
@@ -7081,6 +10711,34 @@
     0.0,
     0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "pers_infantry_javelineer_a_part7",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
   }
  ],
  "pers_infantry_javelineer_b": [
@@ -7111,6 +10769,34 @@
     0.0,
     0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "pers_infantry_javelineer_b_part6",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
   }
  ],
  "pers_infantry_javelineer_e": [
@@ -7140,6 +10826,34 @@
     -0.0,
     0.0,
     0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "pers_infantry_javelineer_e_part7",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -7262,6 +10976,34 @@
     -0.0,
     0.0,
     0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "pers_kardakes_skirmisher_part7",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -7497,6 +11239,40 @@
    ]
   }
  ],
+ "ptol_cavalry": [
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 39,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "ptol_cavalry_part14",
+   "xf": [
+    -0.928808,
+    -0.20959,
+    0.305596,
+    0.291011,
+    -0.923104,
+    0.251379,
+    0.22941,
+    0.322414,
+    0.918379,
+    0.351763,
+    6.524348,
+    -0.776621
+   ]
+  }
+ ],
  "ptol_cavalry_archer_b": [
   {
    "freq": [
@@ -7557,6 +11333,66 @@
    ]
   }
  ],
+ "ptol_cavalry_javelineer_merc_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "ptol_cavalry_javelineer_merc_a_part24",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "ptol_cavalry_javelineer_merc_b": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "ptol_cavalry_javelineer_merc_b_part20",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
  "ptol_cavalry_javelineer_merc_e": [
   {
    "freq": [
@@ -7582,6 +11418,34 @@
     0.0,
     8.037762,
     -0.419163
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "ptol_cavalry_javelineer_merc_e_part27",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
    ]
   }
  ],
@@ -7611,6 +11475,38 @@
     8.025136,
     -0.405806
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 39,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "ptol_cavalry_spearman_merc_e_part12",
+   "xf": [
+    -0.928808,
+    -0.20959,
+    0.305596,
+    0.291011,
+    -0.923104,
+    0.251379,
+    0.22941,
+    0.322414,
+    0.918379,
+    0.351763,
+    6.524348,
+    -0.776621
+   ]
   }
  ],
  "ptol_elephant": [
@@ -7638,6 +11534,60 @@
     1e-06,
     10.422052,
     0.207795
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "ptol_elephant_part16",
+   "xf": [
+    -0.992428,
+    -0.122123,
+    -0.013127,
+    -0.015818,
+    0.021098,
+    0.999652,
+    -0.121804,
+    0.992291,
+    -0.02287,
+    0.805487,
+    8.241136,
+    -1.894408
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__sarissa_b.glb"
+   ],
+   "node": "ptol_elephant_part9",
+   "xf": [
+    0.998296,
+    -0.036159,
+    0.045803,
+    0.048475,
+    0.076862,
+    -0.995863,
+    0.032489,
+    0.996386,
+    0.078484,
+    -0.837807,
+    8.413062,
+    0.006787
    ]
   }
  ],
@@ -7695,6 +11645,60 @@
     -6.087035,
     0.19677
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "ptol_hero_ptolemy_i_part21",
+   "xf": [
+    -0.992428,
+    -0.122121,
+    -0.013127,
+    -0.015818,
+    0.021097,
+    0.999652,
+    -0.121801,
+    0.992291,
+    -0.022869,
+    0.805487,
+    10.008574,
+    -2.903237
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 0,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__sarissa_b.glb"
+   ],
+   "node": "ptol_hero_ptolemy_i_part8",
+   "xf": [
+    -0.998296,
+    0.03481,
+    0.046836,
+    -0.048475,
+    -0.047833,
+    -0.997678,
+    -0.032488,
+    -0.998249,
+    0.049439,
+    0.837807,
+    -4.04015,
+    0.051771
+   ]
   }
  ],
  "ptol_infantry_archer_a": [
@@ -7725,6 +11729,164 @@
    ]
   }
  ],
+ "ptol_infantry_javelineer_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "ptol_infantry_javelineer_a_part6",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "ptol_infantry_javelineer_b": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "ptol_infantry_javelineer_b_part6",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "ptol_infantry_javelineer_e": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "ptol_infantry_javelineer_e_part6",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "ptol_infantry_pikeman_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "ptol_infantry_pikeman_a_part6",
+   "xf": [
+    -1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    -1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.411634,
+    0.0
+   ]
+  }
+ ],
+ "ptol_infantry_pikeman_b": [
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "ptol_infantry_pikeman_b_part7",
+   "xf": [
+    -1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    -1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.411634,
+    0.0
+   ]
+  }
+ ],
  "ptol_infantry_pikeman_e": [
   {
    "freq": [
@@ -7750,6 +11912,38 @@
     -0.0,
     0.501163,
     0.01513
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "ptol_infantry_pikeman_e_part6",
+   "xf": [
+    -1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    -1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.411634,
+    0.0
    ]
   }
  ],
@@ -7843,6 +12037,36 @@
    ]
   }
  ],
+ "ptol_infantry_spearman_merc_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "ptol_infantry_spearman_merc_a_part5",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
  "ptol_infantry_spearman_merc_b": [
   {
    "freq": [
@@ -7868,6 +12092,92 @@
     -0.0,
     0.017954,
     0.011225
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "ptol_infantry_spearman_merc_b_part5",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "ptol_infantry_spearman_merc_e": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "ptol_infantry_spearman_merc_e_part5",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "ptol_infantry_swordsman_merc_e": [
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__sheath_celt_b.glb"
+   ],
+   "node": "ptol_infantry_swordsman_merc_e_part2",
+   "xf": [
+    1.0,
+    -0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    -0.0,
+    -0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0
    ]
   }
  ],
@@ -7896,6 +12206,38 @@
     -0.0,
     0.501163,
     0.01513
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "ptol_spearman_part7",
+   "xf": [
+    -1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    -1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.411634,
+    0.0
    ]
   }
  ],
@@ -7987,6 +12329,70 @@
    ]
   }
  ],
+ "rome_archer": [
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "rome_archer_part5",
+   "xf": [
+    -1.0,
+    0.0,
+    -1e-06,
+    -0.0,
+    -1.0,
+    0.0,
+    -1e-06,
+    0.0,
+    1.0,
+    0.0,
+    0.394727,
+    0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "rome_archer_part8",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
  "rome_bolt_shooter": [
   {
    "freq": [
@@ -8069,6 +12475,98 @@
     6.355697,
     -0.484542
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 36,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "rome_cavalry_auxiliary_b_part19",
+   "xf": [
+    -0.820721,
+    0.114109,
+    -0.559818,
+    -0.283372,
+    -0.932136,
+    0.225439,
+    -0.496102,
+    0.34366,
+    0.797359,
+    -0.254364,
+    6.523909,
+    -0.970863
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "rome_cavalry_auxiliary_b_part8",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "rome_cavalry_javelineer_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "rome_cavalry_javelineer_a_part7",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
   }
  ],
  "rome_cavalry_javelineer_auxiliary_a": [
@@ -8096,6 +12594,68 @@
     0.960326,
     6.355697,
     -0.484542
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 36,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "rome_cavalry_javelineer_auxiliary_a_part18",
+   "xf": [
+    -0.820721,
+    0.114109,
+    -0.559818,
+    -0.283372,
+    -0.932136,
+    0.225439,
+    -0.496102,
+    0.34366,
+    0.797359,
+    -0.254364,
+    6.523909,
+    -0.970863
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "rome_cavalry_javelineer_auxiliary_a_part7",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
    ]
   }
  ],
@@ -8125,6 +12685,68 @@
     6.355697,
     -0.484542
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 36,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "rome_cavalry_javelineer_auxiliary_b_part19",
+   "xf": [
+    -0.820721,
+    0.114109,
+    -0.559818,
+    -0.283372,
+    -0.932136,
+    0.225439,
+    -0.496102,
+    0.34366,
+    0.797359,
+    -0.254364,
+    6.523909,
+    -0.970863
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "rome_cavalry_javelineer_auxiliary_b_part8",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
   }
  ],
  "rome_cavalry_javelineer_auxiliary_e": [
@@ -8152,6 +12774,68 @@
     0.960326,
     6.355697,
     -0.484542
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 36,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "rome_cavalry_javelineer_auxiliary_e_part18",
+   "xf": [
+    -0.820721,
+    0.114109,
+    -0.559818,
+    -0.283372,
+    -0.932136,
+    0.225439,
+    -0.496102,
+    0.34366,
+    0.797359,
+    -0.254364,
+    6.523909,
+    -0.970863
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "rome_cavalry_javelineer_auxiliary_e_part7",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
    ]
   }
  ],
@@ -8181,6 +12865,34 @@
     7.531901,
     -0.371315
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "rome_cavalry_javelineer_b_part7",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
   }
  ],
  "rome_cavalry_javelineer_e": [
@@ -8209,6 +12921,106 @@
     8.037762,
     -0.419163
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "rome_cavalry_javelineer_e_part8",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "rome_cavalry_spearman_auxiliary_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 36,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "rome_cavalry_spearman_auxiliary_a_part8",
+   "xf": [
+    -0.820721,
+    0.114109,
+    -0.559818,
+    -0.283372,
+    -0.932136,
+    0.225439,
+    -0.496102,
+    0.34366,
+    0.797359,
+    -0.254364,
+    6.523909,
+    -0.970863
+   ]
+  }
+ ],
+ "rome_cavalry_spearman_auxiliary_b": [
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 36,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "rome_cavalry_spearman_auxiliary_b_part8",
+   "xf": [
+    -0.820721,
+    0.114109,
+    -0.559818,
+    -0.283372,
+    -0.932136,
+    0.225439,
+    -0.496102,
+    0.34366,
+    0.797359,
+    -0.254364,
+    6.523909,
+    -0.970863
+   ]
   }
  ],
  "rome_cavalry_spearman_auxiliary_e": [
@@ -8236,6 +13048,40 @@
     -0.0,
     7.531901,
     -0.371315
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 36,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "rome_cavalry_spearman_auxiliary_e_part11",
+   "xf": [
+    -0.820721,
+    0.114109,
+    -0.559818,
+    -0.283372,
+    -0.932136,
+    0.225439,
+    -0.496102,
+    0.34366,
+    0.797359,
+    -0.254364,
+    6.523909,
+    -0.970863
    ]
   }
  ],
@@ -8627,6 +13473,196 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "rome_infantry_antesignanus_part14",
+   "xf": [
+    -1.0,
+    0.0,
+    -1e-06,
+    -0.0,
+    -1.0,
+    0.0,
+    -1e-06,
+    0.0,
+    1.0,
+    0.0,
+    0.394727,
+    0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "rome_infantry_antesignanus_part3",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "rome_infantry_javelineer_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "rome_infantry_javelineer_a_part5",
+   "xf": [
+    -1.0,
+    0.0,
+    -1e-06,
+    -0.0,
+    -1.0,
+    0.0,
+    -1e-06,
+    0.0,
+    1.0,
+    0.0,
+    0.394727,
+    0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "rome_infantry_javelineer_a_part8",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "rome_infantry_javelineer_e": [
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "rome_infantry_javelineer_e_part5",
+   "xf": [
+    -1.0,
+    0.0,
+    -1e-06,
+    -0.0,
+    -1.0,
+    0.0,
+    -1e-06,
+    0.0,
+    1.0,
+    0.0,
+    0.394727,
+    0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "rome_infantry_javelineer_e_part8",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
   }
  ],
  "rome_infantry_legionary": [
@@ -8683,6 +13719,40 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "rome_infantry_spearman_a_part3",
+   "xf": [
+    -1.0,
+    0.0,
+    -1e-06,
+    -0.0,
+    -1.0,
+    0.0,
+    -1e-06,
+    0.0,
+    1.0,
+    0.0,
+    0.394727,
+    0.0
+   ]
   }
  ],
  "rome_infantry_spearman_conscript": [
@@ -8711,6 +13781,40 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 0,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "rome_infantry_spearman_conscript_part2",
+   "xf": [
+    -1.0,
+    0.0,
+    -1e-06,
+    -0.0,
+    -1.0,
+    0.0,
+    -1e-06,
+    0.0,
+    1.0,
+    0.0,
+    0.394727,
+    0.0
+   ]
   }
  ],
  "rome_infantry_spearman_e": [
@@ -8738,6 +13842,40 @@
     7.7e-05,
     0.597536,
     0.102321
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "rome_infantry_spearman_e_part3",
+   "xf": [
+    -1.0,
+    0.0,
+    -1e-06,
+    -0.0,
+    -1.0,
+    0.0,
+    -1e-06,
+    0.0,
+    1.0,
+    0.0,
+    0.394727,
+    0.0
    ]
   }
  ],
@@ -8933,6 +14071,40 @@
     -1e-06,
     -0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weapons__gladius_04.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_05.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_06.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_07.glb",
+    "res://assets/models/props/looks/props__weapons__gladius_08.glb"
+   ],
+   "node": "rome_spearman_part3",
+   "xf": [
+    -1.0,
+    0.0,
+    -1e-06,
+    -0.0,
+    -1.0,
+    0.0,
+    -1e-06,
+    0.0,
+    1.0,
+    0.0,
+    0.394727,
+    0.0
+   ]
   }
  ],
  "rome_swordsman": [
@@ -8990,6 +14162,36 @@
     2.312454,
     3.778592,
     -1.022308
+   ]
+  }
+ ],
+ "samnite_skirmisher": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "samnite_skirmisher_part6",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -9191,6 +14393,32 @@
     11.526347,
     -3.11142
    ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__sarissa_b.glb"
+   ],
+   "node": "sele_elephant_part4",
+   "xf": [
+    0.998296,
+    -0.036159,
+    0.045803,
+    0.048475,
+    0.076858,
+    -0.995863,
+    0.032489,
+    0.996386,
+    0.07848,
+    -0.837806,
+    9.865132,
+    -0.143569
+   ]
   }
  ],
  "sele_female_citizen": [
@@ -9279,6 +14507,38 @@
     0.783875,
     -0.080077
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "sele_hero_part11",
+   "xf": [
+    -1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    -1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.411634,
+    0.0
+   ]
   }
  ],
  "sele_hero_antiochus_iv": [
@@ -9337,6 +14597,64 @@
     -6.316791,
     0.052758
    ]
+  },
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 0,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__sarissa_b.glb"
+   ],
+   "node": "sele_hero_seleucus_i_part2",
+   "xf": [
+    -0.998296,
+    0.03481,
+    0.046836,
+    -0.048475,
+    -0.047833,
+    -0.997678,
+    -0.032488,
+    -0.998249,
+    0.049439,
+    0.837807,
+    -4.04015,
+    0.051771
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 0,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "sele_hero_seleucus_i_part11",
+   "xf": [
+    0.928807,
+    0.184066,
+    0.321616,
+    -0.291011,
+    0.899627,
+    0.325552,
+    -0.229411,
+    -0.395969,
+    0.889145,
+    -0.351762,
+    -4.540018,
+    -0.050405
+   ]
   }
  ],
  "sele_infantry_javelineer_a": [
@@ -9366,6 +14684,34 @@
     -0.0,
     0.0,
     0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "sele_infantry_javelineer_a_part6",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -9397,6 +14743,34 @@
     0.0,
     0.0
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "sele_infantry_javelineer_b_part5",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
   }
  ],
  "sele_infantry_javelineer_e": [
@@ -9426,6 +14800,34 @@
     -0.0,
     0.0,
     0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "sele_infantry_javelineer_e_part5",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -9483,6 +14885,38 @@
     0.512313,
     0.020121
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "sele_infantry_pikeman_e_part10",
+   "xf": [
+    -1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    -1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.411634,
+    0.0
+   ]
   }
  ],
  "sele_infantry_spearman_a": [
@@ -9510,6 +14944,34 @@
     -0.0,
     0.017954,
     0.011225
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "sele_infantry_spearman_a_part5",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -9539,6 +15001,34 @@
     0.017954,
     0.011225
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "sele_infantry_spearman_b_part5",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
   }
  ],
  "sele_infantry_spearman_e": [
@@ -9566,6 +15056,34 @@
     -0.0,
     0.501163,
     0.01513
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "sele_infantry_spearman_e_part4",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -9623,6 +15141,34 @@
     0.017954,
     0.011225
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "sele_infantry_swordsman_merc_a_part5",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
   }
  ],
  "sele_infantry_swordsman_merc_b": [
@@ -9652,6 +15198,34 @@
     -0.0,
     0.0,
     0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "sele_infantry_swordsman_merc_b_part5",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
    ]
   }
  ],
@@ -9709,6 +15283,34 @@
     0.783875,
     -0.080077
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "sele_infantry_swordsman_merc_e_part4",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
   }
  ],
  "sele_scythed_chariot": [
@@ -9736,6 +15338,40 @@
     0.795729,
     6.362348,
     2.625774
+   ]
+  }
+ ],
+ "sele_spearman": [
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "sele_spearman_part7",
+   "xf": [
+    -1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    -1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.411634,
+    0.0
    ]
   }
  ],
@@ -9967,6 +15603,96 @@
    ]
   }
  ],
+ "spart_cavalry_javelineer_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "spart_cavalry_javelineer_a_part9",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "spart_cavalry_javelineer_b": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "spart_cavalry_javelineer_b_part7",
+   "xf": [
+    -0.992428,
+    -0.12128,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121802,
+    0.992147,
+    0.028437,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
+ "spart_cavalry_javelineer_e": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 12,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "spart_cavalry_javelineer_e_part8",
+   "xf": [
+    -0.992428,
+    -0.121279,
+    -0.01942,
+    -0.015818,
+    -0.030588,
+    0.999407,
+    -0.121801,
+    0.992147,
+    0.028438,
+    0.805487,
+    6.005398,
+    -0.241841
+   ]
+  }
+ ],
  "spart_champion_infantry_pike": [
   {
    "freq": [
@@ -9993,6 +15719,72 @@
     -2e-06,
     -0.0,
     0.0,
+    0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "spart_champion_infantry_pike_part6",
+   "xf": [
+    -1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    -1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.411634,
+    0.0
+   ]
+  }
+ ],
+ "spart_champion_infantry_spear_olympian": [
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "spart_champion_infantry_spear_olympian_part8",
+   "xf": [
+    -1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    -1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.411634,
     0.0
    ]
   }
@@ -10053,6 +15845,38 @@
     0.504926,
     0.040533
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "spart_hero_part10",
+   "xf": [
+    -1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    -1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.411634,
+    0.0
+   ]
   }
  ],
  "spart_hero_agis": [
@@ -10109,6 +15933,38 @@
     0.526062,
     0.019397
    ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "spart_hero_agis_part11",
+   "xf": [
+    -1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    -1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.411634,
+    0.0
+   ]
   }
  ],
  "spart_hero_brasidas": [
@@ -10139,6 +15995,96 @@
    ]
   }
  ],
+ "spart_infantry_javelineer_a": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "spart_infantry_javelineer_a_part7",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "spart_infantry_javelineer_b": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "spart_infantry_javelineer_b_part7",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
+ "spart_infantry_javelineer_e": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "spart_infantry_javelineer_e_part7",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
  "spart_infantry_spearman_a": [
   {
    "freq": [
@@ -10164,6 +16110,38 @@
     0.0,
     0.681598,
     0.01084
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "spart_infantry_spearman_a_part9",
+   "xf": [
+    -1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    -1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.411634,
+    0.0
    ]
   }
  ],
@@ -10276,6 +16254,38 @@
     -0.0,
     0.488922,
     0.001741
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "spart_spearman_part6",
+   "xf": [
+    -1.0,
+    -1e-06,
+    0.0,
+    1e-06,
+    -1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.411634,
+    0.0
    ]
   }
  ],

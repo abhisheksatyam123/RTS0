@@ -824,7 +824,7 @@ enum UnitOrderFlag : uint8_t {
 	ORDER_FLAG_ALLOW_CAPTURE = 2,// Attack.js allowCapture: capture structures instead of damaging them
 	ORDER_FLAG_UNITS_ONLY = 4,   // attack-move targetClasses "Unit" (session.attackmoveUnit)
 	ORDER_FLAG_INTERRUPTED = 8,  // fighting or fleeing; go back to the order afterwards
-	ORDER_FLAG_CHEER = 16,       // killed its target (UnitAI shouldCheer)
+	ORDER_FLAG_CHEER = 16,       // attacking a unit (UnitAI shouldCheer)
 	// ORDER_BUILD only (bit 5 holds a gather order's subtype): a forced build that reached its
 	// site (REPAIRING enter, order.data.autoharvest), so ConstructionFinished farms the field
 	// or gathers near the new dropsite.
@@ -2045,7 +2045,8 @@ inline TechClasses building_tech_classes(uint8_t type) {
 	switch (type) {
 		// The Crannog and the military colony are template_structure_civic_civil_centre too,
 		// whose VisibleClasses are Defensive CivilCentre (Danubius and Jebel Barkal aim at them).
-		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: case BLD_CRANNOG: return c | TC_CIVCENTRE | TC_CIVIC | TC_DEFENSIVE;
+		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: return c | TC_CIVCENTRE | TC_CIVIC | TC_DEFENSIVE;
+		case BLD_CRANNOG: return c | TC_CIVCENTRE | TC_CIVIC | TC_DEFENSIVE | TC_NAVAL; // brit/crannog.xml VisibleClasses Naval
 		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
 		// han/academy and ptol/mercenary_camp are template_structure_military_barracks.
 		case BLD_BARRACKS: case BLD_ACADEMY: case BLD_MERCENARY_CAMP: return c | TC_BARRACKS;
@@ -2075,7 +2076,7 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		// Other template_structure_civic children.
 		case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL: case BLD_MINISTRY: return c | TC_CIVIC;
 		case BLD_WONDER: return c | TC_WONDER;
-		case BLD_DOCK: return c | TC_DOCK;
+		case BLD_DOCK: return c | TC_DOCK | TC_NAVAL; // template_structure_military_dock: Economic Naval Trade
 		case BLD_STABLE: return c | TC_STABLE;
 		case BLD_ELEPHANT_STABLE: return c; // template_structure_military_elephant_stable: ElephantStable, no Stable
 		case BLD_FORGE: return c | TC_FORGE;
@@ -3198,7 +3199,9 @@ inline bool building_trains_native(uint8_t type) {
 // military colony and German encampments) list units/{native}/support_civilian, so a
 // captured one trains its builder's civilians (template_structure_civic_civil_centre.xml).
 inline uint8_t building_train_civ(uint8_t type, uint8_t bld_civ, uint8_t owner_civ, const CivUnitTemplate &t) {
-	if (building_trains_native(type)) return bld_civ;
+	// A Gaia mercenary camp (merc_camp_egyptian.xml) trains the holder's units/{civ}/..._merc_b, as
+	// 0.28; a player's own camp keeps its builder's mercenaries (building_trains_native).
+	if (building_trains_native(type) && !(type == BLD_MERCENARY_CAMP && bld_civ == CIV_GAIA)) return bld_civ;
 	const bool civic = type == BLD_TOWN_CENTER || type == BLD_CRANNOG || type == BLD_IMPERIAL_COURT ||
 	                   type == BLD_MILITARY_COLONY || type == BLD_WAGON_ENCAMPMENT ||
 	                   type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
