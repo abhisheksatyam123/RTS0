@@ -13797,8 +13797,9 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 		}
 	}
 
-	// Fruit: berry bushes in clusters of 5 (the scripts' SimpleObject(oFruitBush, 5, 5, 0, 3)),
-	// fruit trees in clusters of 2-4, each kind by its share of the script's fruit.
+	// Fruit: berry bushes in clusters of 5-7 within 4 tiles (createFood's SimpleObject(oFruitBush,
+	// 5, 7, 0, 4) in most 0.28 scripts), fruit trees in clusters of 2-4, each kind by its share of
+	// the script's fruit.
 	// A script on a generic biome was measured on temperate, whose tree3 is the apple
 	// (rmbiome/generic/temperate.json). On any other generic biome tree3 is a plain tree, so
 	// its fruit here is the biome's fruitBush alone, left unnamed for plant_flora, without
@@ -13826,42 +13827,48 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 		float x, z;
 		if (flora == FLORA_COUNT || !pick(kBaseGap, food, 10.0f, x, z)) break;
 		food.push_back({x, z});
-		const int n = std::min(fruit_left, flora == FLORA_BERRY ? 5 : rng.range_int(2, 4));
+		const bool berries = flora == FLORA_BERRY;
+		const int n = std::min(fruit_left, berries ? rng.range_int(5, 7) : rng.range_int(2, 4));
 		int placed = 0;
 		for (int i = 0; i < n; ++i) {
-			const float a = rng.range_float(0.0f, 6.2831853f), r = i ? rng.range_float(1.0f, 3.0f) : 0.0f;
+			const float a = rng.range_float(0.0f, 6.2831853f);
+			const float r = i ? rng.range_float(1.0f, berries ? 4.0f : 3.0f) : 0.0f;
 			placed += place(x + det::cos(a) * r, z + det::sin(a) * r, RES_FOOD, generic ? 200 : k->amount, generic ? FLORA_DEFAULT : flora);
 		}
 		fruit_left -= std::max(placed, 1);
 	}
 
-	// Hunt: herds of 3-6 (predators and other dangerous animals alone or in pairs), each
-	// herd one of the script's species by share; a generic-biome script's animals are
-	// the biome's (main hunt twice as often as the secondary), as when the game setup
-	// picks another biome.
+	// Hunt: each herd one of the script's species by share; a generic-biome script's animals
+	// are the biome's (main hunt twice as often as the secondary), as when the game setup picks
+	// another biome. 0.28's createFood herds: the main hunt 5-7 within 4 tiles, the secondary
+	// 2-3 within 2 (mainland.js and the like); dangerous animals alone or in pairs.
 	const bool own_kinds = rc->hunt_kinds[0].name && sim.map_biome_pick(config.map_type) < 0;
 	int hunt_left = target(rc->hunt) - have_hunt;
 	for (int herd = 0; hunt_left > 0; ++herd) {
 		uint8_t ftype = FAUNA_COUNT;
+		bool main_hunt = true; // the script's largest share, or the biome's main hunt
 		if (own_kinds) {
 			int roll = rng.range_int(1, 100);
+			int kind = 0;
 			for (const auto &k : rc->hunt_kinds) {
 				if (!k.name) break;
 				ftype = fauna_type_by_name(k.name);
+				main_hunt = kind++ == 0;
 				if ((roll -= k.percent) <= 0) break;
 			}
 		}
 		if (ftype >= FAUNA_COUNT) {
 			const BiomeFauna bf = biome_fauna(config.biome, herd);
-			ftype = herd % 3 == 2 ? bf.secondary_hunt : bf.main_hunt;
+			main_hunt = herd % 3 != 2;
+			ftype = main_hunt ? bf.main_hunt : bf.secondary_hunt;
 		}
 		const FaunaTypeInfo &fi = fauna_type_info(ftype);
 		float x, z;
 		if (!pick(kBaseGap, food, 10.0f, x, z)) break;
 		food.push_back({x, z});
-		const int n = std::min(hunt_left, fi.is_dangerous() ? rng.range_int(1, 2) : rng.range_int(3, 6));
+		const int n = std::min(hunt_left, fi.is_dangerous() ? rng.range_int(1, 2) : main_hunt ? rng.range_int(5, 7) : rng.range_int(2, 3));
 		for (int i = 0; i < n; ++i) {
-			const float a = 6.2831853f * (float)i / (float)n, r = rng.range_float(1.0f, 3.0f);
+			const float a = 6.2831853f * (float)i / (float)n, r = rng.range_float(1.0f, main_hunt ? 4.0f : 2.0f);
 			sim.spawn_fauna(x + det::cos(a) * r, z + det::sin(a) * r, ftype);
 		}
 		hunt_left -= n;

@@ -34525,8 +34525,10 @@ bool Simulation::player_can_target_fauna(uint8_t player, uint32_t fauna_id) cons
 	if (it == fauna_id_to_idx_.end() || player >= MAX_PLAYERS || los_.cells() == 0) return true;
 	const uint8_t owner = fauna_owner_[it->second];
 	if (owner == player || (owner < MAX_PLAYERS && is_ally(player, owner))) return true;
-	// template_unit_fauna.xml RetainInFog: an animal in explored fog is still a target.
-	return los_explored(player, fauna_.pos_x[it->second], fauna_.pos_z[it->second]);
+	// template_unit_fauna.xml RetainInFog: an animal in explored fog is still a target, but not
+	// corral livestock (gaia/fauna_*_trainable RetainInFog false), which must be in sight.
+	const float x = fauna_.pos_x[it->second], z = fauna_.pos_z[it->second];
+	return fauna_retained_in_fog(fauna_.fauna_type[it->second]) ? los_explored(player, x, z) : los_visible(player, x, z);
 }
 
 bool Simulation::los_explored(uint8_t player, float x, float z) const {
@@ -34601,8 +34603,10 @@ uint32_t Simulation::find_nearby_prey(size_t i, float x, float z, float max_d2, 
 		const float d2 = dx * dx + dz * dz;
 		if (d2 >= best_d2) continue;
 		// CheckTargetVisible: template_unit_fauna RetainInFog, so an animal in explored fog counts
-		// (GetLosVisibility "fogged", not "hidden").
-		if (fog && !los_explored(units_.team[i], fauna_.pos_x[f], fauna_.pos_z[f])) continue;
+		// (GetLosVisibility "fogged", not "hidden"); corral livestock (RetainInFog false) only in sight.
+		if (fog && fauna_owner_[f] != units_.team[i] && !(fauna_retained_in_fog(fauna_.fauna_type[f])
+				? los_explored(units_.team[i], fauna_.pos_x[f], fauna_.pos_z[f])
+				: los_visible(units_.team[i], fauna_.pos_x[f], fauna_.pos_z[f]))) continue;
 		best_d2 = d2;
 		best = fauna_.id[f];
 	}
