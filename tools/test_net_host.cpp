@@ -281,6 +281,25 @@ int main() {
 	CHECK(chat_wire_tag("[Observer-12] x") == "[Observer-12]" && chat_wire_tag("[Observer-] x").empty() &&
 	      chat_wire_tag("[Observer-99999999999] x").empty(), "the observer tag is parsed strictly");
 	CHECK(has("host", "hello all") && has("A", "hello all") && has("O", "hello all"), "an untagged line reaches everyone");
+	{
+		// A player whose game is over is an observer for chat (0.28 isPlayerObserver):
+		// player 1 defeated, player 0 active and allied with it, 9 a seatless observer.
+		auto ally = [](uint8_t, uint8_t) { return true; };
+		auto enemy = [](uint8_t, uint8_t) { return false; };
+		auto reach = [&](uint8_t from, uint8_t to, const char *tag, bool from_done, bool to_done) {
+			return chat_tag_reaches(from, to, tag, 8, ally, enemy, 7, from_done, to_done);
+		};
+		CHECK(reach(9, 1, "[Observers]", false, true) && !reach(9, 0, "[Observers]", false, false),
+		      "observer chat reaches a defeated player, not an active one");
+		CHECK(reach(1, 9, "[Player-0]", true, false) && reach(9, 1, "[Player-2]", false, true),
+		      "a defeated player and an observer can message each other privately");
+		CHECK(!reach(1, 0, "[Player-1]", true, false), "a defeated player cannot message an active one privately");
+		CHECK(reach(0, 1, "[Player-2]", false, true), "an active player can message a defeated one");
+		CHECK(reach(0, 1, "[Allies]", false, true) && reach(0, 1, "[Flare]", false, true) && reach(1, 0, "[Flare]", true, false),
+		      "allies and flares still go by the seat");
+		CHECK(!reach(0, 1, "[Observer-7]", false, true) && reach(0, 9, "[Observer-7]", false, false),
+		      "an [Observer-C] line reaches only that seatless client");
+	}
 	for (auto &p : people) p->stop();
 
 	// 6. After Start, a dropped id is not handed out again.

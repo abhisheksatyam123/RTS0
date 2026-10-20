@@ -998,6 +998,7 @@ static void test_petra_oversea_dock() {
 		s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
 		s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
 		s.spawn_building_world(30.0f, -40.0f, BLD_TOWN_CENTER, 2);
+		s.spawn_unit(-30.0f, 30.0f, 1, UNIT_VILLAGER); // a builder (hasBuilder)
 		if (c == 2) s.spawn_building_world(40.0f, -20.0f, BLD_DOCK, 1);
 		s.petra_pid_ = 1;
 		const int before = dock_south();
@@ -1588,6 +1589,7 @@ static void test_petra_small_land_fields() {
 	s.set_player_resources(1, 5000, 5000, 5000, 5000);
 	s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 1);
 	s.spawn_building_world(-8.0f, 0.0f, BLD_FIELD, 1);
+	s.spawn_unit(6.0f, 6.0f, 1, UNIT_FEMALE_CITIZEN); // a builder (hasBuilder)
 	s.petra_pid_ = 1;
 	auto count = [&](uint8_t type) {
 		int n = 0;
