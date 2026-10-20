@@ -32,3 +32,6 @@ None of these touches simulation state or the save format.
 - 2026-10-20 #1365 pass 9 gap 1 (before Start, /list lists every connected client and /kickspecs and /banspecs reach the unassigned ones, as g_PlayerAssignments does) merged.
 - 2026-10-20 gap 5 ("== " setup status lines) fixed by Session UI's #1342; nothing left to do here.
 - 2026-10-20 #1367 pass 9 gap 2 (opening the lobby page or dialog sets the presence to Online and clears Away; closing the dialog over a game makes it Busy again, as LobbyHandler does) merged.
+- 2026-10-20 #1389 lockstep playtest failures (a loading rejoiner no longer hears another client's join notice, as NetServer sends NMT_REJOINED only to clients in the game; a net game and the test observer run up to sim-rate turns a frame, as CGame::Update does) merged.
+- 2026-10-20 #1397 pass 9 gap 3 (a running game's details carry player teams only with Teams Locked, as LobbyGamelistReporter does) merged.
+- 2026-10-20 #PR5 pass 9 gap 4 (a disconnect before Start is titled "Disconnected" with a blank line before the reason, as reportDisconnect does; in the match it stays the untitled one-line-break overlay) merged. gamesetup_mp.js reportConnectionFail ("Connection failed") covers XMPP-side join failures (not_server, local_ip_failed) RTS0 does not have.
