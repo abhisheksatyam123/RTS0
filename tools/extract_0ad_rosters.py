@@ -35,6 +35,12 @@ PATH/TO/0ad is a checkout of https://github.com/0ad/0ad (only
 binaries/data/mods/public/simulation is read). Writes
 src/simulation/civ_roster_data.h and data/civs/rosters.json.
 --check regenerates into memory and fails if the checked-in files differ.
+The 0.28 regen runs --keep-trainers --previous-0ad with --append taking the row list in
+/mnt/project-files/d-civ-rosters/roster-append-028.txt followed by
+",rome/champion_infantry_swordsman_02,rome/champion_infantry_swordsman_03,
+rome/champion_infantry_swordsman_04,rome/champion_infantry_swordsman_05,athen/hero_xenophon,
+spart/hero_leonidas_300" (rows 507-512, added after that file was
+last written) and --retire the patterns in roster-retire-028.txt.
 """
 
 import argparse

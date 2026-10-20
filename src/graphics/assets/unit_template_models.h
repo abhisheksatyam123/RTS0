@@ -10,7 +10,7 @@
 namespace rtso {
 
 // The models roster templates draw with besides the civ class models.
-inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 423;
+inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 425;
 
 inline const char *unit_template_draw_model(int k) {
 	static const char *const kDraw[UNIT_TEMPLATE_DRAW_MODEL_COUNT] = {
@@ -437,6 +437,8 @@ inline const char *unit_template_draw_model(int k) {
 		"siege_mangonel",
 		"han_siege_mangonel_pivot_packed",
 		"athen_female_citizen",
+		"athen_hero_xenophon",
+		"spart_hero_leonidas_300",
 	};
 	return k >= 0 && k < UNIT_TEMPLATE_DRAW_MODEL_COUNT ? kDraw[k] : nullptr;
 }
@@ -958,8 +960,9 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // rome/champion_infantry_swordsman_03
 		-1, // rome/champion_infantry_swordsman_04
 		-1, // rome/champion_infantry_swordsman_05
-		-1, // athen/hero_xenophon (no model of its own: its owner civ's hero model)
-		-1, // spart/hero_leonidas_300 (no model of its own: its owner civ's hero model)
+		// Hand-added with their GLBs (extract_0ad_assets.py --templates --only, header left as is):
+		423, // athen/hero_xenophon
+		424, // spart/hero_leonidas_300
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -970,7 +973,7 @@ struct UnitTemplateModel {
 	const char *clip_donor; // a mesh-only model plays this model's clips (same bones), or nullptr
 };
 
-inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 366;
+inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 368;
 
 inline const UnitTemplateModel *unit_template_models() {
 	static const UnitTemplateModel kTable[UNIT_TEMPLATE_MODEL_COUNT] = {
@@ -984,6 +987,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"athen_hero_hippocrates", "athen_hero", nullptr},
 		{"athen_hero_iphicrates", "athen_hero", nullptr},
 		{"athen_hero_pericles", "athen_hero", nullptr},
+		{"athen_hero_xenophon", "athen_hero", nullptr},
 		{"athen_infantry_archer_b", "athen_archer", nullptr},
 		{"athen_infantry_archer_e", "athen_archer", nullptr},
 		{"athen_infantry_javelineer_a", "athen_archer", nullptr},
@@ -1329,6 +1333,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"spart_champion_infantry_spear_olympian", "spart_spearman", nullptr},
 		{"spart_hero_agis", "spart_hero", nullptr},
 		{"spart_hero_brasidas", "spart_hero", nullptr},
+		{"spart_hero_leonidas_300", "spart_hero", nullptr},
 		{"spart_infantry_javelineer_a", "spart_archer", nullptr},
 		{"spart_infantry_javelineer_b", "spart_archer", nullptr},
 		{"spart_infantry_javelineer_e", "spart_archer", nullptr},
