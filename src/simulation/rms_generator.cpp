@@ -3704,7 +3704,8 @@ void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGr
 			for (const auto &t : towers)
 				if (det::hypot(x - t.first, z - t.second) < 60.0f) { ok = false; break; }
 			if (!ok) continue;
-			sim.spawn_building_world(x, z, BLD_TOWER, GAIA_PLAYER, 1.0f);
+			// structures/palisades_fort: a template_structure_defensive_tower_sentry (3 slots).
+			sim.spawn_building_world(x, z, BLD_SENTRY_TOWER, GAIA_PLAYER, 1.0f);
 			towers.push_back({x, z});
 		}
 	} else if (config.map_type == MAP_POLAR_SEA) {

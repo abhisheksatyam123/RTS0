@@ -390,7 +390,7 @@ func show_help() -> Control:
 	dlg.offset_top = -275
 	dlg.offset_bottom = 275
 	page.add_child(dlg)
-	preload("res://scenes/menu/hotkeys.gd")._edge_title(dlg, L10n.t("Pyrogenesis Mod Selector"))
+	load("res://scenes/menu/hotkeys.gd")._edge_title(dlg, L10n.t("Pyrogenesis Mod Selector"))
 	var panel := ColorRect.new()
 	panel.color = Color(0, 0, 0, 0.5)
 	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
