@@ -171,10 +171,12 @@ def get_rating_adjustment(rating, opponent_rating, games_played, opponent_games_
     return round(rating_adjustment)
 
 
-MAX_ROOM_PLAYERS = 24
+MAX_ROOM_PLAYERS = 72 # 8 players and the host's observers (0.28 lists every assignment)
 
 
 MAX_ROOM_MODS = 32
+# gamesetup_mp.xml's 256-character fields: a game's name, map and victory list in full.
+MAX_GAME_TEXT = 256
 
 
 def _mods(value):
@@ -689,10 +691,10 @@ class Lobby:
             "players": field("players", 1, int),
             "max_players": field("max_players", 8, int),
             "map_id": field("map_id", "default", str)[:64],
-            "name": field("name", "", str)[:64],
+            "name": field("name", "", str)[:MAX_GAME_TEXT],
             "host_name": field("host_name", "", str)[:MAX_NAME],
-            "map_name": field("map_name", "", str)[:64],
-            "victory": field("victory", "", str)[:32],
+            "map_name": field("map_name", "", str)[:MAX_GAME_TEXT],
+            "victory": field("victory", "", str)[:MAX_GAME_TEXT],
             "state": field("state", "init", str),
             "password": (1 if data["password"] else 0) if "password" in data else old.get("password", 0),
             "map_type": field("map_type", "", str)[:32],
