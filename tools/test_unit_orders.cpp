@@ -3128,6 +3128,27 @@ static void test_work_order_queue() {
 	check(s.unit_order(tr).kind == ORDER_TRADE && s.unit_order(tr).target == ma, "the trader resumes its route");
 }
 
+static void test_range_aura_not_self() {
+	std::printf("89. a range aura buffs the troops around its source but not the source itself (RangeManager queries leave out their own entity)\n");
+	Simulation s;
+	s.set_team_civ(0, CIV_SPARTANS);
+	setup(s);
+	const uint32_t leo = s.spawn_unit(-20.0f, -20.0f, 0, UNIT_HERO, 0.0f, roster_named("spart/hero_leonidas"));
+	const uint32_t hop = s.spawn_unit(-21.0f, -20.0f, 0, UNIT_SPEARMAN, 0.0f, roster_named("spart/infantry_spearman_b"));
+	run(s, 1.0f);
+	auto ratio = [&](uint32_t id) {
+		const size_t i = (size_t)idx_of(s, id);
+		float base[4], eff[4];
+		s.unit_tech_damage(i, base);
+		s.unit_attack_effects(i, eff);
+		return base[0] > 0.0f ? eff[0] / base[0] : 0.0f;
+	};
+	const float rh = ratio(hop), rl = ratio(leo);
+	std::printf("  hack x%.2f on the spearman, x%.2f on Leonidas\n", rh, rl);
+	check(std::fabs(rh - 1.25f) < 1e-4f, "Last Stand: a nearby spearman +25% melee attack");
+	check(std::fabs(rl - 1.0f) < 1e-4f, "but not Leonidas himself");
+}
+
 static void test_rally_commands() {
 	std::printf("88. rally commands a target alone doesn't give (RallyPointCommands.js)\n");
 	Simulation s;
@@ -3142,7 +3163,21 @@ static void test_rally_commands() {
 		return u;
 	};
 	s.cmd_set_rally_point(0, brk, 20.0f, 0.0f, 0, 0, false, RALLY_CMD_ATTACK_WALK);
-	check(s.unit_order(trained(UNIT_SPEARMAN)).kind == ORDER_WALK_AND_FIGHT, "attack-walk (session.attackmove)");
+	{
+		// RallyPointCommands.js attack-walk sends no allowCapture (UnitAI.DEFAULT_CAPTURE).
+		const UnitOrder o = s.unit_order(trained(UNIT_SPEARMAN));
+		check(o.kind == ORDER_WALK_AND_FIGHT, "attack-walk (session.attackmove)");
+		check(!(o.flags & ORDER_FLAG_ALLOW_CAPTURE), "an attack-walk rally damages structures, it doesn't capture them");
+	}
+	{
+		// unit_actions.js "attack" on an enemy structure with hitpoints: allowCapture stays off.
+		const uint32_t ebrk = s.spawn_building_world(40.0f, 20.0f, BLD_BARRACKS, 1, 1.0f);
+		s.cmd_set_rally_point(0, brk, 40.0f, 20.0f, 0, ebrk, false);
+		const UnitOrder o = s.unit_order(trained(UNIT_SPEARMAN));
+		check(o.kind == ORDER_ATTACK_BUILDING && o.target == ebrk && !(o.flags & ORDER_FLAG_ALLOW_CAPTURE),
+				"a rally on an enemy barracks attacks it with weapons");
+		s.cmd_set_rally_point(0, brk, 20.0f, 0.0f, 0, 0, false);
+	}
 	s.cmd_set_rally_point(0, brk, 20.0f, 0.0f, 0, 0, false, RALLY_CMD_ATTACK_WALK_UNITS);
 	{
 		const UnitOrder o = s.unit_order(trained(UNIT_SPEARMAN));
@@ -3296,6 +3331,7 @@ int main(int argc, char **argv) {
 	test_allied_builders_continue();
 	test_work_order_queue();
 	test_rally_commands();
+	test_range_aura_not_self();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

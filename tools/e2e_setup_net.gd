@@ -231,8 +231,14 @@ func run() -> void:
 	check(client.is_ready == 1 and ready_btn.text == "Stay ready", "pressed: ready, then Stay ready")
 	ready_btn.pressed.emit()
 	check(client.is_ready == 2 and ready_btn.text == "I'm not ready!", "pressed again: stays ready, then I'm not ready!")
-	ready_btn.pressed.emit()
-	check(client.is_ready == 0 and ready_btn.text == "I'm ready", "pressed again: not ready")
+	# ReadyButton.onPressRight: a right-click is the quick way out of Stay ready.
+	var rc := InputEventMouseButton.new()
+	rc.button_index = MOUSE_BUTTON_RIGHT
+	rc.pressed = true
+	ready_btn.gui_input.emit(rc)
+	check(client.is_ready == 0 and ready_btn.text == "I'm ready", "a right-click: not ready")
+	ready_btn.gui_input.emit(rc)
+	check(client.is_ready == 0, "and again it stays not ready")
 	ready_btn.pressed.emit()
 	ms.seed = 555
 	client.is_ready = 0 # RtsoMain takes a Ready (not a Stay ready) back when a setting changes
@@ -241,6 +247,16 @@ func run() -> void:
 	check(page.get_node("%SpinSeed").value == 555 and ready_btn.text == "I'm ready",
 		"a new setup shows, and Ready is back")
 	check(picker(page, 1, 2).disabled and picker(page, 0, 2).disabled, "the locks hold after the update")
+	# ReadyButton.onPlayerAssignmentsChange: an unassigned client (observer) has no Ready button.
+	var seat_was = client.state["my_slot"]
+	client.state["my_slot"] = -1
+	client.net_setup_changed.emit()
+	await frames(3)
+	check(not ready_btn.visible, "an observer sees no Ready button")
+	client.state["my_slot"] = seat_was
+	client.net_setup_changed.emit()
+	await frames(3)
+	check(ready_btn.visible, "seated again, it shows")
 	ms.map_id = "random"
 	client.net_setup_changed.emit()
 	await frames(3)
@@ -251,6 +267,7 @@ func run() -> void:
 		and not page.get_node("%NetChatSend").disabled, "a client may still go Back and chat")
 	# ChatInputPanel.onTab / ChatInputAutocomplete: names first, then civs, then settings.
 	var chat_in: LineEdit = page.get_node("%NetChatInput")
+	check(chat_in.max_length == 1024, "the setup chat takes 1024 characters, as 0.28's")
 	check(chat_in.tooltip_text == "Press Tab to autocomplete player names or settings.", "the chat tooltip names Tab")
 	var entries: Array = page.autocomplete_entries()
 	check(entries.find("bob") >= 0 and entries.find("bob") < entries.find("Britons")

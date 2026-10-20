@@ -75,6 +75,7 @@ func run() -> void:
 	check(names(lobby._players, 1) == ["@alice", "bob"], "alice is listed as @alice: %s" % [names(lobby._players, 1)])
 	check(ls.moderator, "and knows she is a moderator")
 	check(lobby._details.visible and lobby._details.get_parsed_text() == "Welcome to the lobby", "the subject shows")
+	check(lobby._chat_line.max_length == 1024, "the lobby chat takes 1024 characters, as 0.28's")
 	lobby._chat_line.text = "hello"
 	lobby._on_send_pressed()
 	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("@alice: hello"))

@@ -89,6 +89,16 @@ func run() -> void:
 	lobby._refresh()
 	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("bob: hi alice"))
 	check(lobby._chat_log.get_parsed_text().contains("bob: hi alice"), "the page shows bob's line")
+	# XmppMessages.js: lobby messages arrive pushed. With the fallback timer stopped,
+	# /events alone brings bob's next line at once.
+	lobby._timer.stop()
+	var t0 := Time.get_ticks_msec()
+	await say.call("pushed")
+	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("bob: pushed"), 120)
+	var took := Time.get_ticks_msec() - t0
+	check(lobby._chat_log.get_parsed_text().contains("bob: pushed") and took < 1500,
+		"a line shows without waiting for the 3 s refresh (%d ms)" % took)
+	lobby._timer.start()
 	lobby.queue_free()
 	await process_frame
 	await say.call("are you there?")

@@ -18,6 +18,8 @@ extends Control
 
 const GameSetupMp := preload("res://scenes/menu/gamesetup_mp.gd")
 const REFRESH_S := 3.0
+# /events: how long the server may hold a request (below LobbySession's 5 s timeout).
+const EVENTS_WAIT_S := 4.0
 
 var _server: LineEdit
 var _name: LineEdit
@@ -66,6 +68,7 @@ var _host_pwd: LineEdit
 var _status: Label
 var _timer: Timer
 var _chat_last := 0
+var _events_version := -1 # -1: not watching
 var _chat_backlog := true # the first fetch after signing in is the backlog (lobby.history)
 var _chat_replay := false # the first fetch of a page reopened in the session: its chat so far
 var _reconnect_dlg: ConfirmationDialog
@@ -115,6 +118,7 @@ func _ready() -> void:
 	_timer.timeout.connect(_refresh)
 	add_child(_timer)
 	_timer.start()
+	_watch_events()
 	_server.text = LobbySession.address
 	_name.text = LobbySession.player_name if LobbySession.signed_in() else multiplayer_name()
 	LobbySession.kicked.connect(_on_kicked)
@@ -352,6 +356,7 @@ func _build() -> void:
 	var chat_row := HBoxContainer.new()
 	right.add_child(chat_row)
 	_chat_line = _line("", 0)
+	_chat_line.max_length = LobbySession.MAX_CHAT # lobby ChatPanel.xml chatInput max_length
 	_chat_line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_chat_line.placeholder_text = "Chat"
 	_chat_line.text_submitted.connect(func(_t: String) -> void: _on_send_pressed())
@@ -890,6 +895,42 @@ func _register(who: String) -> void:
 			_say("Registration failed: %s" % (obj.get("error", code) if obj is Dictionary else str(code))))
 
 
+## XmppMessages.js: 0 A.D. reads pushed lobby messages every GUI tick. Here the
+## page waits on /events, which answers as soon as the chat, the player list or
+## the game list changes, and refreshes at once; the REFRESH_S timer stays as a
+## fallback (and for servers without /events).
+func _watch_events() -> void:
+	if _events_version >= 0:
+		return # already waiting
+	_events_version = 0
+	_wait_events()
+
+
+func _wait_events() -> void:
+	if not is_inside_tree():
+		_events_version = -1
+		return
+	if not LobbySession.signed_in():
+		get_tree().create_timer(1.0).timeout.connect(_wait_events)
+		return
+	var since := _events_version
+	LobbySession.get_json("/events?since=%d&wait=%s" % [since, EVENTS_WAIT_S], func(code: int, obj) -> void:
+		if not is_inside_tree():
+			_events_version = -1
+			return
+		if code == 404:
+			_events_version = -1 # an older server: the timer alone
+			return
+		if code == 200 and obj is Dictionary:
+			var v := int(obj.get("version", 0))
+			if v != since:
+				_events_version = v
+				_refresh()
+			_wait_events()
+		else:
+			get_tree().create_timer(1.0).timeout.connect(_wait_events))
+
+
 func _refresh() -> void:
 	if not LobbySession.signed_in():
 		return
@@ -1247,6 +1288,10 @@ func _on_chat(code: int, obj) -> void:
 	var me := LobbySession.player_name
 	var notify := not backlog and not replay and me != "" and RtsoUserConfig.new().get_bool("sound.notify.nick")
 	for m in messages:
+		# Two requests in flight (the /events refresh and the timer's, or a
+		# post's) can both carry a line: show each id once.
+		if int(m.get("id", 0)) <= _chat_last:
+			continue
 		var who := str(m.get("from", ""))
 		if notify and who != "" and who != me and str(m.get("text", "")).findn(me) >= 0:
 			notify = false
@@ -1256,7 +1301,7 @@ func _on_chat(code: int, obj) -> void:
 		_chat_log.append_text(_chat_time(m) + (line if line != "" else _format_chat(who, str(m.get("text", "")), me)) + "\n")
 		if str(event.get("kind", "")) == "announcement" and not backlog and not replay:
 			_show_notice(str(event.get("subject", "")), str(event.get("text", "")))
-	_chat_last = int(obj.get("last", _chat_last))
+	_chat_last = maxi(_chat_last, int(obj.get("last", _chat_last)))
 
 
 ## ChatMessageFormat: a system line in grey; a player's line with their name
