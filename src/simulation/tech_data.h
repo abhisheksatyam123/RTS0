@@ -328,6 +328,7 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_RAM, 0}, // siege_health: Ram or SiegeTower
 		{TC_SIEGETOWER, 0},
 		{TC_COLONY, 0},
+		{TC_CIVCENTRE, TC_COLONY}, // 83 hellenistic_metropolis: CivCentre !Colony (!Naval: crannogs, Briton-only)
 	};
 	return kAffects;
 }
@@ -401,9 +402,9 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_HEAL_INTERVAL, TOP_MUL, 15, 1, 0.8f}, // heal_rate
 		{TSTAT_HEAL_INTERVAL, TOP_MUL, 15, 1, 0.8f}, // heal_rate_2
 		{TSTAT_HEALTH, TOP_MUL, 16, 1, 2.0f}, // health_civilians_01
-		{TSTAT_ARROWS, TOP_MUL, 17, 1, 2.0f}, // hellenistic_metropolis
-		{TSTAT_HEALTH, TOP_MUL, 17, 1, 2.0f}, // hellenistic_metropolis
-		{TSTAT_CAPTURE_POINTS, TOP_MUL, 48, 1, 2.0f}, // hellenistic_metropolis
+		{TSTAT_ARROWS, TOP_MUL, 83, 1, 2.0f}, // hellenistic_metropolis
+		{TSTAT_HEALTH, TOP_MUL, 83, 1, 2.0f}, // hellenistic_metropolis
+		{TSTAT_CAPTURE_POINTS, TOP_MUL, 83, 1, 2.0f}, // hellenistic_metropolis
 		{TSTAT_BUILD_TIME, TOP_MUL, 18, 1, 0.75f}, // hoplite_tradition
 		{TSTAT_HEALTH, TOP_MUL, 18, 1, 1.1f}, // hoplite_tradition
 		{TSTAT_HEALTH, TOP_MUL, 19, 1, 1.25f}, // juggernauts
