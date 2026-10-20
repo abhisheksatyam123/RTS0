@@ -53,6 +53,7 @@ static func open(parent: Node) -> Control:
 ## have splashscreen.txt's msgids, so a paragraph 0.28 doesn't translate yet
 ## falls back to those lines, tags left out.
 const HEADING := "Thank you for installing 0 A.D. Empires Ascendant!"
+const ICONS := ["experimental", "lag", "map"]
 const PARAGRAPHS := [
 	["This game is still in development. You may encounter bugs, and some features are not as fleshed out as we would like.", [2]],
 	["The game can have performance problems, especially with large maps and a great number of units.", [4]],
@@ -123,10 +124,15 @@ func _ready() -> void:
 	main_text.offset_bottom = -34
 	# sans-bold-20 centred heading, then sans-16 paragraphs 20 px apart.
 	var parts := PackedStringArray(["[center][b][font_size=20]%s[/font_size][/b][/center]" % heading().replace("[", "[lb]")])
-	for p in paragraphs():
-		parts.append("[font_size=16]%s[/font_size]" % p.replace("[", "[lb]"))
+	# Each paragraph beside its 32 px pregame/icons picture, 15 px in (splashscreen.js).
+	var texts := paragraphs()
+	for i in texts.size():
+		var icon := "res://assets/textures/ui/pregame/icons/%s.png" % ICONS[i]
+		var img := "    [img=32x32]%s[/img]    " % icon if ResourceLoader.exists(icon) else ""
+		parts.append("[table=2][cell]%s[/cell][cell expand=1][font_size=16]%s[/font_size][/cell][/table]" % [img, texts[i].replace("[", "[lb]")])
 	main_text.add_theme_constant_override("paragraph_separation", 20)
-	main_text.text = "\n".join(parts)
+	# paragraphSpacing 20: a spacer line between the paragraph tables.
+	main_text.text = "\n[font_size=8] [/font_size]\n".join(parts)
 	box.add_child(main_text)
 	display = CheckBox.new() # size="8 100%-30 ..."
 	display.name = "displaySplashScreen"

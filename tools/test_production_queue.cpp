@@ -90,7 +90,7 @@ int main() {
 		CHECK(bld(s, b).queue.front().timer == 0.0f);
 		CHECK(s.training_blocked(0) && !s.training_blocked(1)); // Player.IsTrainingBlocked: the counter flashes
 		s.spawn_building_world(30.0f, 30.0f, BLD_HOUSE, 0, 1.0f);
-		run(s, 0.5f);
+		run(s, 1.1f); // tried again at the queue's next second
 		CHECK(bld(s, b).queue.front().started);
 		CHECK(!s.training_blocked(0));
 		const int pop_started = s.pop_current(0);
@@ -170,7 +170,7 @@ int main() {
 		CHECK(s.cmd_set_autoqueue(0, b, true));
 		CHECK(s.cmd_train(0, b, UNIT_SPEARMAN, 2));
 		const float t = bld(s, b).queue.front().duration;
-		run(s, 3.0f * t + 1.0f);
+		run(s, 3.0f * std::ceil(t) + 1.0f); // each autoqueued batch ends on a whole second
 		CHECK(count_units(s, 0, UNIT_SPEARMAN) >= 6);
 		CHECK(bld(s, b).queue.size() == 1 && bld(s, b).queue.front().count == 2);
 		CHECK(bld(s, b).autoqueue);
@@ -317,7 +317,7 @@ int main() {
 		const Simulation::Building bb = bld(s, b);
 		CHECK(s.cmd_train(0, b, UNIT_SPEARMAN, 5));
 		const float t = bld(s, b).queue.front().duration;
-		for (int k = 0; k < (int)(t / Simulation::FIXED_STEP) + 1 && count_units(s, 0, UNIT_SPEARMAN) == 0; ++k) s.tick(Simulation::FIXED_STEP);
+		for (int k = 0; k < (int)(std::ceil(t) / Simulation::FIXED_STEP) + 1 && count_units(s, 0, UNIT_SPEARMAN) == 0; ++k) s.tick(Simulation::FIXED_STEP);
 		float mean_x = 0.0f;
 		CHECK(count_units(s, 0, UNIT_SPEARMAN) == 5);
 		CHECK(spread(s, 0, UNIT_SPEARMAN, mean_x)); // checked on the tick they appear, before any pushing
@@ -428,7 +428,7 @@ int main() {
 		const uint32_t fb = fresh(f);
 		f.cmd_set_rally_point(0, fb, bld(f, fb).x, bld(f, fb).z, 0, fb);
 		CHECK(f.cmd_train(0, fb, UNIT_SPEARMAN, 2));
-		run(f, bld(f, fb).queue.front().duration - 0.5f);
+		run(f, std::ceil(bld(f, fb).queue.front().duration) - 0.5f); // done on a whole second
 		ringed(f, fb);
 		run(f, 1.0f);
 		CHECK(bld(f, fb).queue.empty() && bld(f, fb).garrisoned_units.size() == 2);
@@ -516,6 +516,46 @@ int main() {
 		CHECK(bld(s, tc).queue.empty() && std::fabs(total_res(s) - before) < 1.0f);
 		CHECK(s.pop_current(0) == 0 && !s.tech_queued(0, TECH_PHASE_TOWN));
 		CHECK(s.research_check(0, TECH_PHASE_TOWN, tc2) == Simulation::TECH_OK);
+	}
+
+	// 14. ProductionQueue.js ProgressTimeout: the queue works in whole seconds from when it
+	//     started, so a lone batch ends on the second after its time is up, and what is left
+	//     of a second goes to the next item.
+	{
+		Simulation s;
+		const uint32_t b = fresh(s);
+		CHECK(s.cmd_train(0, b, UNIT_SPEARMAN, 5));
+		const float t = bld(s, b).queue.front().duration;
+		CHECK(std::fabs(t - std::ceil(t)) > 0.05f); // 10 x 5^0.8 = 36.24 s
+		int ticks = 0;
+		while (!bld(s, b).queue.empty() && ticks < 4000) { s.tick(Simulation::FIXED_STEP); ++ticks; }
+		std::printf("batch of 5: %.2f s train time, done after %.2f s\n", t, ticks * Simulation::FIXED_STEP);
+		CHECK(ticks == (int)std::lround(std::ceil(t) / Simulation::FIXED_STEP));
+		CHECK(count_units(s, 0, UNIT_SPEARMAN) == 5);
+
+		Simulation s2;
+		const uint32_t b2 = fresh(s2);
+		CHECK(s2.cmd_train(0, b2, UNIT_SPEARMAN, 5));
+		CHECK(s2.cmd_train(0, b2, UNIT_SPEARMAN, 5));
+		const float both = bld(s2, b2).queue[0].duration + bld(s2, b2).queue[1].duration;
+		ticks = 0;
+		while (!bld(s2, b2).queue.empty() && ticks < 8000) { s2.tick(Simulation::FIXED_STEP); ++ticks; }
+		CHECK(ticks == (int)std::lround(std::ceil(both) / Simulation::FIXED_STEP)); // 73 s, not 74
+	}
+
+	// 15. Builder.CanRepair (IsOwnedByAllyOfPlayer): a player who has declared another an ally
+	//     builds that player's foundations, whether or not the alliance is returned.
+	{
+		Simulation s;
+		fresh(s);
+		s.set_diplomacy(0, 1, Simulation::DIPLO_ALLY);
+		s.set_diplomacy(1, 0, Simulation::DIPLO_NEUTRAL);
+		const uint32_t house = s.spawn_building_world(-40.0f, -40.0f, BLD_HOUSE, 1, 0.0f);
+		const uint32_t woman = s.spawn_unit(-44.0f, -40.0f, 0, UNIT_FEMALE_CITIZEN);
+		s.order_build_or_repair(&woman, 1, house);
+		run(s, 10.0f);
+		std::printf("one-sided ally builds: progress %.2f\n", bld(s, house).build_progress);
+		CHECK(bld(s, house).build_progress > 0.05f);
 	}
 
 	if (failures) {

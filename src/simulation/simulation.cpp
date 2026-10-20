@@ -6087,7 +6087,7 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count
 		if (uidx < 0 || !units_.alive[uidx]) continue;
 		if (!unit_builds((size_t)uidx)) continue;
 		// Builder.js CanRepair: only the builder's own or allied foundations and structures.
-		if (b.team != units_.team[uidx] && !is_ally(units_.team[uidx], b.team)) continue;
+		if (!regards_as_ally(units_.team[uidx], b.team)) continue; // IsOwnedByAllyOfPlayer: one-sided
 
 		// 0 A.D. UnitAI: workers sent to their own finished, undamaged field farm it.
 		if (b.type == BLD_FIELD && b.team == units_.team[uidx] && b.build_progress >= 1.0f && b.hp >= b.max_hp) {
@@ -13108,7 +13108,7 @@ float Simulation::structure_build_time(const Building &b) const {
 	float t = base * tech_mods(b.team).bld_build_time[type] * ai_time_mult(b.team);
 	t *= civ_bonus_mult(civ_of(b.team), CIV_BONUS_BUILDING_BUILD_TIME, b.type);
 	t *= team_bonus_mult(b.team, TEAM_BONUS_BUILDING_BUILD_TIME, -1, CIV_UNIT_TEMPLATE_NONE, b.type);
-	return std::max(1.0f, t);
+	return std::max(0.001f, t); // Foundation.js has no minimum; this only keeps the rate finite
 }
 
 void Simulation::tick_construction(float dt) {
@@ -13120,7 +13120,7 @@ void Simulation::tick_construction(float dt) {
 			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 			if (bit == building_id_to_idx_.end()) continue;
 			const Building &b = buildings_[bit->second];
-			if (b.build_progress < 1.0f && is_ally(units_.team[i], b.team) && outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
+			if (b.build_progress < 1.0f && regards_as_ally(units_.team[i], b.team) && outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
 				unit_clearance_at(i)))
 				builders_per_bld[b.id]++;
 		}
@@ -13138,7 +13138,7 @@ void Simulation::tick_construction(float dt) {
 		Building &b = buildings_[bit->second];
 		// Builder.js PerformBuilding: CanRepair needs the target owned by an ally (a foundation
 		// or structure captured or converted away is dropped).
-		if (b.hp <= 0.0f || !is_ally(units_.team[i], b.team)) {
+		if (b.hp <= 0.0f || !regards_as_ally(units_.team[i], b.team)) {
 			units_.target_building_id[i] = 0;
 			units_.action_state[i] = ACTION_IDLE;
 			continue;
@@ -13365,7 +13365,7 @@ void Simulation::tick_repair(float dt) {
 			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 			if (bit != building_id_to_idx_.end()) {
 				const Building &b = buildings_[bit->second];
-				if (b.build_progress >= 1.0f && b.hp > 0.0f && b.hp < b.max_hp && is_ally(units_.team[i], b.team) &&
+				if (b.build_progress >= 1.0f && b.hp > 0.0f && b.hp < b.max_hp && regards_as_ally(units_.team[i], b.team) &&
 						outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
 				unit_clearance_at(i))) {
 					repairers_per_bld[b.id]++;
@@ -13380,7 +13380,7 @@ void Simulation::tick_repair(float dt) {
 		if (bit == building_id_to_idx_.end()) continue;
 		Building &b = buildings_[bit->second];
 		if (b.build_progress < 1.0f || b.hp <= 0.0f || b.hp >= b.max_hp) continue;
-		if (!is_ally(units_.team[i], b.team)) { // Builder.js PerformBuilding: TargetInvalidated
+		if (!regards_as_ally(units_.team[i], b.team)) { // Builder.js PerformBuilding: TargetInvalidated
 			units_.target_building_id[i] = 0;
 			units_.action_state[i] = ACTION_IDLE;
 			continue;
@@ -13428,138 +13428,167 @@ void Simulation::tick_production(float dt) {
 	// 0 A.D. ProductionQueue.js ProgressTimeout: only the front item progresses; Trainer.js
 	// Item.Start reserves the batch's population first and waits while there is no room
 	// (Player.BlockTraining), and Researcher.js finishes a technology when its time is up.
+	// ProgressTimeout runs once a second from when the queue started (ProgressInterval), and
+	// gives that second to as many items as it takes; an item that finishes leaves the rest
+	// of the second to the next one. A batch that cannot spawn yet tries again each second.
 	for (auto &b : buildings_) {
-		if (b.build_progress < 1.0f || b.queue.empty()) continue;
-		const uint8_t bteam = b.team;
-		ProductionOrder &order = b.queue.front();
-		const bool animal = b.type == BLD_CORRAL || order.unit_type == UNIT_TYPE_NONE;
-		if (!order.is_tech() && !animal && !order.started) {
-			if (bteam < MAX_PLAYERS && pop_current(bteam) + order_pop(order, bteam) > pop_max(bteam)) continue;
-			order.started = true;
-		}
-		// TechnologyManager.js StartedResearch: "X is advancing to the Y." on the first work done.
-		if (order.is_tech() && order.timer == 0.0f) note_phase(SessionNotice::PHASE_STARTED, bteam, order.tech);
-		order.timer += dt;
-		if (order.timer < order.duration) continue;
-		const ProductionOrder done = order;
-		b.queue.erase(b.queue.begin());
-
-		if (done.is_tech()) {
-			complete_research(bteam, done.tech);
+		if (b.build_progress < 1.0f || b.queue.empty()) {
+			b.queue_clock = 0.0f; // StopTimer
 			continue;
 		}
-		bool stuck = false;
-		for (int n = 0; n < done.count; ++n) {
-			if (animal) {
-				// An animal from the corral's Trainer list (Trainer.js Spawn): it steps out beside the
-				// corral, or is penned straight away while there is room if the rally point is the
-				// corral itself (autoGarrison).
-				float sx = b.x + 1.6f;
-				float sz = b.z + 1.6f;
-				const bool pen = b.has_rally_point && b.rally_target_bld_id == b.id && structure_has_enough_health(b) &&
-					corral_has_room(b);
-				// With no free spot outside, the rest stays queued ("Can't find free space"), as for units.
-				if (!pen && !pick_spawn_point(b, UNIT_FEMALE_CITIZEN, 0, sx, sz)) {
+		b.queue_clock += dt;
+		if (b.queue_clock < 1.0f - 1e-4f) continue;
+		b.queue_clock = std::max(0.0f, b.queue_clock - 1.0f);
+		float time = 1.0f;
+		const uint8_t bteam = b.team;
+		while (!b.queue.empty()) {
+			ProductionOrder &order = b.queue.front();
+			const bool animal = b.type == BLD_CORRAL || order.unit_type == UNIT_TYPE_NONE;
+			// Trainer.js Item.Progress: an item that cannot start (no population room) uses the second.
+			if (!order.is_tech() && !animal && !order.started) {
+				if (bteam < MAX_PLAYERS && pop_current(bteam) + order_pop(order, bteam) > pop_max(bteam)) break;
+				order.started = true;
+			}
+			// TechnologyManager.js StartedResearch: "X is advancing to the Y." on the first work done.
+			if (order.is_tech() && order.timer == 0.0f) note_phase(SessionNotice::PHASE_STARTED, bteam, order.tech);
+			const float left = order.duration - order.timer;
+			if (left > time) {
+				order.timer += time;
+				break;
+			}
+			order.timer = std::max(order.timer, order.duration);
+			time -= std::max(0.0f, left);
+			const ProductionOrder done = order;
+			b.queue.erase(b.queue.begin());
+
+			if (done.is_tech()) {
+				complete_research(bteam, done.tech);
+				continue;
+			}
+			bool stuck = false;
+			int spawned = done.count;
+			for (int n = 0; n < done.count; ++n) {
+				if (animal) {
+					// An animal from the corral's Trainer list (Trainer.js Spawn): it steps out beside the
+					// corral, or is penned straight away while there is room if the rally point is the
+					// corral itself (autoGarrison).
+					float sx = b.x + 1.6f;
+					float sz = b.z + 1.6f;
+					const bool pen = b.has_rally_point && b.rally_target_bld_id == b.id && structure_has_enough_health(b) &&
+						corral_has_room(b);
+					// With no free spot outside, the rest stays queued ("Can't find free space"), as for units.
+					if (!pen && !pick_spawn_point(b, UNIT_FEMALE_CITIZEN, 0, sx, sz)) {
+						ProductionOrder rest = done;
+						rest.count = done.count - n;
+						rest.batch = done.batch ? done.batch : done.count;
+						for (int r = 0; r < RES_COUNT; ++r) rest.paid[r] = done.paid[r] * rest.count / done.count;
+						b.queue.insert(b.queue.begin(), rest);
+						stuck = true;
+						spawned = n;
+						if (bteam < MAX_PLAYERS) note_text(bteam, SessionNotice::TEXT_SPAWN_BLOCKED, b.id);
+						break;
+					}
+					// Owned by the corral's player, as Trainer.js spawns gaia/fauna_*_trainable.
+					uint32_t fid = spawn_fauna(sx, sz, corral_animal_for(civ_of(b.team), done.tmpl), b.team);
+					if (b.team < MAX_PLAYERS) stats_[b.team].livestock_bred++; // IncreaseTrainedUnitsCounter: Domestic
+					auto fit = fauna_id_to_idx_.find(fid);
+					if (pen && fit != fauna_id_to_idx_.end()) {
+						size_t fidx = fit->second;
+						fauna_.corral_id[fidx] = b.id;
+						fauna_.behavior[fidx] = FAUNA_CORRALLED;
+					} else if (b.has_rally_point && b.team < MAX_PLAYERS) {
+						// Trainer.js Spawn: GetRallyPointCommands for each spawned entity; animals walk
+						// to the rally point, or garrison in the corral it names.
+						order_fauna_walk(b.team, &fid, 1, b.rally_x, b.rally_z, b.rally_target_bld_id);
+					}
+					continue;
+				}
+				// Trainer.js Spawn: a rally point that garrisons in the trainer itself puts each
+				// unit straight inside while there is room (autoGarrison), with no spot outside needed.
+				// GarrisonHolder.IsAllowedToGarrison: only a unit on the trainer's List goes in.
+				if (self_garrison_rally(b, done.unit_type, done.tmpl) && occupied_slots(b.garrisoned_units) < b.garrison_cap &&
+						structure_accepts_classes(b, garrison_classes(done.tmpl, done.unit_type))) {
+					const uint32_t uid = spawn_unit(b.x, b.z, bteam, (UnitType)done.unit_type, 0.0f, done.tmpl);
+					if (const int32_t ti = lookup_unit(uid); ti >= 0) {
+						stat_unit_trained((size_t)ti);
+						garrison_now((size_t)ti, b); // a trained unit is never the Regicide hero
+					}
+					if (bteam < MAX_PLAYERS && done.tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(done.tmpl).flags & ROSTER_HERO))
+						match_trained_[bteam].push_back(done.tmpl);
+					continue;
+				}
+				// Each other unit on its own free spot (Footprint.PickSpawnPoint, ships on
+				// the water by their passability). Units with no room stay queued, already paid,
+				// and the batch tries again next turn ("Can't find free space to spawn trained units").
+				float sx, sz;
+				if (!pick_spawn_point(b, done.unit_type, 0, sx, sz) &&
+				    !(unit_is_ship(done.unit_type) && nearest_ship_cell(b, sx, sz))) {
 					ProductionOrder rest = done;
 					rest.count = done.count - n;
-					rest.batch = done.batch ? done.batch : done.count;
+					rest.batch = done.batch ? done.batch : done.count; // originalItem: autoqueue re-adds the whole batch
 					for (int r = 0; r < RES_COUNT; ++r) rest.paid[r] = done.paid[r] * rest.count / done.count;
 					b.queue.insert(b.queue.begin(), rest);
 					stuck = true;
-					if (bteam < MAX_PLAYERS) note_text(bteam, SessionNotice::TEXT_SPAWN_BLOCKED, b.id);
+					spawned = n;
+					if (bteam < MAX_PLAYERS) note_text(bteam, SessionNotice::TEXT_SPAWN_BLOCKED, b.id); // shown once a blockage (main_node)
 					break;
 				}
-				// Owned by the corral's player, as Trainer.js spawns gaia/fauna_*_trainable.
-				uint32_t fid = spawn_fauna(sx, sz, corral_animal_for(civ_of(b.team), done.tmpl), b.team);
-				if (b.team < MAX_PLAYERS) stats_[b.team].livestock_bred++; // IncreaseTrainedUnitsCounter: Domestic
-				auto fit = fauna_id_to_idx_.find(fid);
-				if (pen && fit != fauna_id_to_idx_.end()) {
-					size_t fidx = fit->second;
-					fauna_.corral_id[fidx] = b.id;
-					fauna_.behavior[fidx] = FAUNA_CORRALLED;
-				} else if (b.has_rally_point && b.team < MAX_PLAYERS) {
-					// Trainer.js Spawn: GetRallyPointCommands for each spawned entity; animals walk
-					// to the rally point, or garrison in the corral it names.
-					order_fauna_walk(b.team, &fid, 1, b.rally_x, b.rally_z, b.rally_target_bld_id);
-				}
-				continue;
-			}
-			// Trainer.js Spawn: a rally point that garrisons in the trainer itself puts each
-			// unit straight inside while there is room (autoGarrison), with no spot outside needed.
-			// GarrisonHolder.IsAllowedToGarrison: only a unit on the trainer's List goes in.
-			if (self_garrison_rally(b, done.unit_type, done.tmpl) && occupied_slots(b.garrisoned_units) < b.garrison_cap &&
-					structure_accepts_classes(b, garrison_classes(done.tmpl, done.unit_type))) {
-				const uint32_t uid = spawn_unit(b.x, b.z, bteam, (UnitType)done.unit_type, 0.0f, done.tmpl);
-				if (const int32_t ti = lookup_unit(uid); ti >= 0) {
+				uint32_t uid = spawn_unit(sx, sz, bteam, (UnitType)done.unit_type, 0.0f, done.tmpl);
+				if (int32_t ti = lookup_unit(uid); ti >= 0) {
 					stat_unit_trained((size_t)ti);
-					garrison_now((size_t)ti, b); // a trained unit is never the Regicide hero
+					face_away_from((size_t)ti, b.x, b.z);
 				}
+				// MatchLimit: a trained hero counts for the rest of the match.
 				if (bteam < MAX_PLAYERS && done.tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(done.tmpl).flags & ROSTER_HERO))
 					match_trained_[bteam].push_back(done.tmpl);
-				continue;
+				// attackPlan.js trainMoreUnits: the soldiers Petra trained for an attack or a raid are
+				// its army; trainMoreWorkers' and the emergency ones are workers.
+				if (bteam < MAX_PLAYERS && (done.petra_plan == PETRA_ORDER_ATTACK || done.petra_plan == PETRA_ORDER_RAID) && petra_runs_for(bteam) &&
+				    unit_gather_class(done.unit_type, done.tmpl) == GATHER_INFANTRY) {
+					auto &army = petra_army_ids_[bteam];
+					army.insert(std::upper_bound(army.begin(), army.end(), uid), uid);
+				}
+				if (bteam < MAX_PLAYERS && done.petra_plan == PETRA_ORDER_EMERGENCY) {
+					auto &out = petra_out_of_plan_[bteam];
+					out.insert(std::upper_bound(out.begin(), out.end(), uid), uid);
+				}
+				if (b.has_rally_point) apply_rally_point(uid, b);
 			}
-			// Each other unit on its own free spot (Footprint.PickSpawnPoint, ships on
-			// the water by their passability). Units with no room stay queued, already paid,
-			// and the batch tries again next turn ("Can't find free space to spawn trained units").
-			float sx, sz;
-			if (!pick_spawn_point(b, done.unit_type, 0, sx, sz) &&
-			    !(unit_is_ship(done.unit_type) && nearest_ship_cell(b, sx, sz))) {
-				ProductionOrder rest = done;
-				rest.count = done.count - n;
-				rest.batch = done.batch ? done.batch : done.count; // originalItem: autoqueue re-adds the whole batch
-				for (int r = 0; r < RES_COUNT; ++r) rest.paid[r] = done.paid[r] * rest.count / done.count;
-				b.queue.insert(b.queue.begin(), rest);
-				stuck = true;
-				if (bteam < MAX_PLAYERS) note_text(bteam, SessionNotice::TEXT_SPAWN_BLOCKED, b.id); // shown once a blockage (main_node)
-				break;
+			// Trainer.js Spawn: OnTrainingFinished for the units each spawn created, a batch that
+			// steps out in parts included.
+			if (!animal && spawned > 0 && !triggers_.triggers.empty()) {
+				TriggerEventData ev;
+				ev.entity = b.id;
+				ev.player = bteam;
+				ev.value = done.tmpl;
+				ev.count = spawned;
+				trigger_event(TRIGGER_ON_TRAINING_FINISHED, ev);
 			}
-			uint32_t uid = spawn_unit(sx, sz, bteam, (UnitType)done.unit_type, 0.0f, done.tmpl);
-			if (int32_t ti = lookup_unit(uid); ti >= 0) {
-				stat_unit_trained((size_t)ti);
-				face_away_from((size_t)ti, b.x, b.z);
+			// Autoqueue: the same batch goes on the queue again, paid again; when it can't be,
+			// autoqueuing turns off ("Could not auto-queue unit, de-activating."). A batch that
+			// spawned in parts goes again at the size it was queued at (originalItem.count).
+			// The rest of the batch waits for the next second (Item.IsFinished false).
+			if (stuck) break;
+			const bool autoqueued = b.autoqueue && bteam < MAX_PLAYERS;
+			if (autoqueued) {
+				const uint8_t batch = done.batch ? done.batch : done.count;
+				bool again;
+				if (animal) {
+					again = cmd_breed_livestock(bteam, b.id, (uint8_t)done.tmpl, batch);
+				} else {
+					again = done.tmpl < CIV_UNIT_TEMPLATE_COUNT
+						? cmd_train_template_at(bteam, b.id, done.tmpl, false, batch)
+						: cmd_train(bteam, b.id, (UnitType)done.unit_type, batch);
+				}
+				if (!again) {
+					b.autoqueue = false;
+					note_text(bteam, SessionNotice::TEXT_AUTOQUEUE_OFF);
+				}
 			}
-			// MatchLimit: a trained hero counts for the rest of the match.
-			if (bteam < MAX_PLAYERS && done.tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(done.tmpl).flags & ROSTER_HERO))
-				match_trained_[bteam].push_back(done.tmpl);
-			// attackPlan.js trainMoreUnits: the soldiers Petra trained for an attack or a raid are
-			// its army; trainMoreWorkers' and the emergency ones are workers.
-			if (bteam < MAX_PLAYERS && (done.petra_plan == PETRA_ORDER_ATTACK || done.petra_plan == PETRA_ORDER_RAID) && petra_runs_for(bteam) &&
-			    unit_gather_class(done.unit_type, done.tmpl) == GATHER_INFANTRY) {
-				auto &army = petra_army_ids_[bteam];
-				army.insert(std::upper_bound(army.begin(), army.end(), uid), uid);
-			}
-			if (bteam < MAX_PLAYERS && done.petra_plan == PETRA_ORDER_EMERGENCY) {
-				auto &out = petra_out_of_plan_[bteam];
-				out.insert(std::upper_bound(out.begin(), out.end(), uid), uid);
-			}
-			if (b.has_rally_point) apply_rally_point(uid, b);
+			// Autoqueue re-adds the batch but leaves the rest of the second unused.
+			if (autoqueued) break;
 		}
-		if (!animal && !stuck && !triggers_.triggers.empty()) { // Trainer.js SpawnUnits: OnTrainingFinished
-			TriggerEventData ev;
-			ev.entity = b.id;
-			ev.player = bteam;
-			ev.value = done.tmpl;
-			ev.count = done.count;
-			trigger_event(TRIGGER_ON_TRAINING_FINISHED, ev);
-		}
-		// Autoqueue: the same batch goes on the queue again, paid again; when it can't be,
-		// autoqueuing turns off ("Could not auto-queue unit, de-activating."). A batch that
-		// spawned in parts goes again at the size it was queued at (originalItem.count).
-		if (b.autoqueue && bteam < MAX_PLAYERS && !stuck) {
-			const uint8_t batch = done.batch ? done.batch : done.count;
-			bool again;
-			if (animal) {
-				again = cmd_breed_livestock(bteam, b.id, (uint8_t)done.tmpl, batch);
-			} else {
-				again = done.tmpl < CIV_UNIT_TEMPLATE_COUNT
-					? cmd_train_template_at(bteam, b.id, done.tmpl, false, batch)
-					: cmd_train(bteam, b.id, (UnitType)done.unit_type, batch);
-			}
-			if (!again) {
-				b.autoqueue = false;
-				note_text(bteam, SessionNotice::TEXT_AUTOQUEUE_OFF);
-			}
-		}
+		if (b.queue.empty()) b.queue_clock = 0.0f;
 	}
 }
 
@@ -17336,7 +17365,7 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 			const int32_t t = lookup_unit(o.target);
 			if (t >= 0) return can_repair_unit(i, t);
 			const Building *b = building(o.target);
-			return b && (b->team == team || is_ally(team, b->team)) && (b->build_progress < 1.0f || b->hp < b->max_hp ||
+			return b && regards_as_ally(team, b->team) && (b->build_progress < 1.0f || b->hp < b->max_hp ||
 					b->type == BLD_FIELD);
 		}
 		case ORDER_GARRISON: {
@@ -32416,6 +32445,7 @@ bool Simulation::save_state(const char *filepath) const {
 			out.write((const char *)&st.ent_id, sizeof(st.ent_id));
 		}
 		out.write((const char *)&b.petra_decay_hold, sizeof(b.petra_decay_hold));
+		out.write((const char *)&b.queue_clock, sizeof(b.queue_clock));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -32881,6 +32911,8 @@ bool Simulation::load_state(const char *filepath) {
 		}
 		bld.petra_decay_hold = false; // older saves: a captured barracks is not held
 		if (version >= SAVE_VERSION_PETRA_TARGETED_RELICS) in.read((char *)&bld.petra_decay_hold, sizeof(bld.petra_decay_hold));
+		bld.queue_clock = 0.0f; // older saves: the queue's second starts again
+		if (version >= SAVE_VERSION_QUEUE_CLOCK) in.read((char *)&bld.queue_clock, sizeof(bld.queue_clock));
 		bld.set_extents(bld.half_size, building_half_depth(bld.type, bld.half_size, bld.civ)); // its civ's wall depth
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;
