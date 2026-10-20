@@ -76,7 +76,7 @@ Orders, stances, garrison, capture, loot and fleeing against UnitAI.js and the 0
 | # | Difference from 0.28 | Impact | Status |
 |---|---|---|---|
 | Q1 | ~~Attack-move, attack-walk rallies and rallies on an enemy structure capture structures~~ Fixed: unit_actions.js "attack-move" and RallyPointCommands.js attack-walk send no allowCapture (UnitAI DEFAULT_CAPTURE false), and a rally "attack" captures only a target without hitpoints, so they damage structures; right-click capture, call-to-arms with session.capture and Petra keep their choice. `tools/test_unit_orders.cpp` 88 | high | Fixed |
-| Q2 | Collect-treasure and return-resource aren't forced orders: walkers fight or flee on the way (UnitAI.js:5742-5774) | medium | Open |
+| Q2 | ~~Collect-treasure and return-resource aren't forced orders: walkers fight or flee on the way~~ Fixed: a player's or Petra's CollectTreasure and ReturnResource are forced (UnitAI.js:5742-5774), so attacks don't turn them, and neither walk picks targets it sees; UnitAI's own drop-offs stay unforced. `tools/test_unit_orders.cpp` 90 | medium | Fixed |
 | Q3 | Poison and burning ticks don't count as attacks: the unit and its guards react only to the first hit (StatusEffectsReceiver.js:141-153) | low | Open |
 | Q4 | A defensive unit's held position follows it while it moves and gathers, and a given-up chase resumes the interrupted order instead of walking back (UnitAI.js:325, 341, 2100-2105) | low | Open |
 | Q5 | Only the killer cheers, and never a siege engine or ship; 0.28 cheers every attacker whose target died (UnitAI.js:2214-2217) | low | Open |
