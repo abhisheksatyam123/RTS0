@@ -92,6 +92,18 @@ func run() -> void:
 	check(want_diplo != "You are now neutral with " and text.contains(want_diplo), "diplomacy in German: " + want_diplo)
 	var wood: String = TranslationServer.translate("Wood")
 	check(wood != "Wood" and text.contains("100 " + wood), "tribute in German with the German resource name: 100 " + wood)
+	# The session's message boxes translate each line (OutOfSyncNetwork's captions).
+	var QC = load("res://scenes/session/quit_confirmation.gd")
+	var oos = QC.out_of_sync_network(main)
+	await frames(2)
+	var oos_title: String = oos.find_child("Title", true, false).text
+	var oos_text: String = oos.find_child("Caption", true, false).text
+	var want_oos: String = TranslationServer.translate("Out-Of-Sync error on turn %(turn)s.").replace("%(turn)s", "0")
+	print("  ", oos_title, " | ", oos_text.replace("\n", " | "))
+	check(oos_title == TranslationServer.translate("Out of Sync") and oos_title != "Out of Sync" and oos_text.begins_with(want_oos + "\n")
+		and oos_text.contains(TranslationServer.translate("Ensure all players use the same mods.")) and not oos_text.contains("Ensure all players"), "the Out of Sync box in German")
+	oos.press(0)
+	await frames(2)
 	print("3. Requirements")
 	main.debug_train_buttons(11)  # a dock: its Town Phase techs
 	await frames(2)
@@ -113,21 +125,34 @@ func run() -> void:
 	check(nets.size() == 1 and RegEx.create_from_string("\nInsufficient resources: Wood \\d+$").search(nets[0]) != null, "Insufficient resources: Wood N")
 
 	print("4. Counters")
-	await frames(4)
 	var pop: Control = null
 	var food: Control = null
-	for c in main.find_children("*", "HBoxContainer", true, false):
-		if c.tooltip_text.begins_with("Population: current/limit (max)"):
-			pop = c
-		elif c.tooltip_text.begins_with("Food"):
-			food = c
+	# The counters refresh every 200 ms of wall time, so wait for one back in English.
+	var t1 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t1 < 3000:
+		await frames(1)
+		for c in main.find_children("*", "HBoxContainer", true, false):
+			if c.tooltip_text.begins_with("Population: current/limit (max)"):
+				pop = c
+			elif c.tooltip_text.begins_with("Food"):
+				food = c
+		if pop != null and food != null:
+			break
 	check(pop != null and food != null, "the population and food counters")
 	if pop and food:
 		var cap: String = pop.find_children("*", "Label", true, false).map(func(l): return l.text).filter(func(t): return t.contains("/"))[0]
 		check(RegEx.create_from_string("^\\d+/\\d+ \\(\\d+\\)$").search(cap) != null, "caption \"count/limit (max)\": " + cap)
 		check(pop.tooltip_text == "Population: current/limit (max)" and food.tooltip_text == "Food", "no allies' stats while playing: " + food.tooltip_text)
 		main.resign()
-		await frames(10)
+		# The defeat question pauses a single-player game (messageBox, resumeGame on "No").
+		var t0 := Time.get_ticks_msec()
+		while Time.get_ticks_msec() - t0 < 3000 and not paused:
+			await frames(1)
+		for q in main.get_children().filter(func(c): return c.get_script() == load("res://scenes/session/quit_confirmation.gd") and c.title == "DEFEATED!"):
+			q.press(0)
+		t0 = Time.get_ticks_msec()
+		while Time.get_ticks_msec() - t0 < 3000 and food.tooltip_text == "Food":
+			await frames(1)
 		var tip: String = food.tooltip_text
 		print("  ", tip.replace("\n", " | "))
 		check(tip.begins_with("Food\nUnordered: [Click] to change order.\n") and tip.contains(": "), "a defeated player sees the others' food")

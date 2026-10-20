@@ -87,7 +87,7 @@ func _entry(path: String, meta: Dictionary) -> Dictionary:
 		date = Time.get_datetime_string_from_unix_time(local, true)
 	return {"path": path, "id": path.get_file().get_basename(), "meta": meta,
 		"compatible": v == RtsoMain.get_save_version(), "newer": v > RtsoMain.get_save_version(),
-		"timestamp": int(meta.get("timestamp", 0)), "date": date, "map": str(meta.get("map_name", map_id)),
+		"timestamp": int(meta.get("timestamp", 0)), "date": date, "map": str(meta.get("map_name", map_id)).trim_suffix(" (RMS)"),
 		"map_id": map_id, "map_type": info["type"],
 		"size": int(settings.get("map_size", 0)) if info["type"] == "Random" else int(info["size"]),
 		"victory": int(settings.get("victory", 0)), "description": str(meta.get("description", "")),

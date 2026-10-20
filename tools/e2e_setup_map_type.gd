@@ -16,6 +16,7 @@ extends SceneTree
 # Exit code 0 = pass.
 
 # Loaded at run time: the page script names autoloads, which -s scripts compile before.
+const SettingSlider := preload("res://scenes/menu/setting_slider.gd")
 var Setup
 
 var failures := 0
@@ -58,12 +59,12 @@ func node(page, path: String):
 	return page.get_node("%" + path.get_file())
 
 func slot_selects(page) -> Array:
-	# Per row: name label, kind, civ, team, AI gear, colour.
+	# Per row (PlayersPanel.xml): name label, colour, assignment, AI gear, civ, team.
 	var out := []
 	var grid: GridContainer = page.get_node("VBox/HBox/Right/SlotsBox/SlotsGrid")
 	var kids := grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
 	for r in range(kids.size() / 6):
-		out.append({"civ": kids[r * 6 + 2].get_child(0), "team": kids[r * 6 + 3].get_child(0), "color": kids[r * 6 + 5]})
+		out.append({"civ": kids[r * 6 + 4].get_child(0), "team": kids[r * 6 + 5].get_child(0), "color": kids[r * 6 + 1]})
 	return out
 
 func run() -> void:
@@ -92,7 +93,7 @@ func run() -> void:
 	check(filter_titles(page) == ["Default", "Naval Maps", "Demo Maps", "Trigger Maps", "All Maps"], "a skirmish's filters (Demo Maps since the test maps came over): " + str(filter_titles(page)))
 	check(not ids(page).has("cycladic_archipelago"), "Default hides naval maps")
 	set_filter(page, "Naval Maps")
-	check(ids(page).has("cycladic_archipelago") and ids(page).has("nile_river") and ids(page).has("yangtze") and ids(page).has("sporades_islands") and ids(page).size() == 5, "Naval Maps: " + str(ids(page)))
+	check(ids(page).has("cycladic_archipelago") and ids(page).has("nile_river") and ids(page).has("yangtze") and ids(page).has("sporades_islands") and ids(page).has("corsica_and_sardinia") and ids(page).size() == 6, "Naval Maps (Corsica and Sardinia since f8e994736): " + str(ids(page)))
 	set_filter(page, "Default")
 
 	print("3. Random maps")
@@ -105,6 +106,15 @@ func run() -> void:
 	check(filter_titles(page).has("Best for MP") and filter_titles(page).has("Naval Maps"), "random filters: " + str(filter_titles(page)))
 	var spin: SpinBox = page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots")
 	check(spin.editable, "the player count can be picked")
+	var pc: RtsoSafeSelect = page.get_node("%PlayerCountSlot").get_child(0)
+	check(not pc.disabled and pc.get_item_count() == 8 and page.get_node("%PlayerCountLabel").text == "Number of Players"
+		and page.get_node("%PlayerCountLabel").get_parent().name == "PlayerTab", "PlayerCount.js: Number of Players, 1-8, in the Player tab")
+	var before := int(spin.value)
+	pc.select(2)
+	pc.item_selected.emit(2)
+	check(int(spin.value) == 3, "picking 3 sets three players")
+	spin.value = before
+	check(pc.get_selected() == before - 1, "and the dropdown follows the count")
 	print("3b. Player Placement")
 	var tp_slot: Control = node(page, "MapOptionsRow/TeamPlacementSlot")
 	set_filter(page, "All Maps")
@@ -143,7 +153,58 @@ func run() -> void:
 		check(page._collect_setup()["biome"] == 7, "Savanna goes to the match")
 		select_map(page, "random_mainland")
 		await frames(2)
-		check(bio_ids.call().has(7) and bio.text == "Savanna", "Mainland offers Savanna too and keeps it: " + bio.text)
+		check(bio_ids.call().has(7) and bio.text == "Sudanian Savanna", "Mainland offers Savanna too and keeps it: " + bio.text)
+		check(bio.get_item_text(1) == "Aegean-Anatolian", "entries carry the rmbiome Title (Biome.js): " + bio.get_item_text(1))
+		print("3c2. Landscape, Water level, Sea Level Rise Time and Daytime as 0.28")
+		select_map(page, "random_unknown")
+		await frames(2)
+		var lsc: RtsoSafeSelect = page.get_node("%LandscapeSlot").get_child(0)
+		check(range(4).map(func(i): return lsc.get_item_text(i)) == ["Random", "Random Land", "Random Naval", "Central River"],
+			"Landscape.js order: Random, the group headers, then names sorted: " + str(range(4).map(func(i): return lsc.get_item_text(i))))
+		check(lsc.get_item_tooltip(0) == "Select a random landscape." and page.get_node("%LandscapeLabel").tooltip_text == "Select one of the landscapes of this map.",
+			"each entry has its description, the label 0.28's tooltip")
+		select_map(page, "random_flood")
+		await frames(2)
+		var wl: RtsoSafeSelect = page.get_node("%WaterLevelSlot").get_child(0)
+		check(range(3).map(func(i): return wl.get_item_text(i)) == ["Rising", "Shallow", "Deep"] and wl.get_item_tooltip(2) == "The water doesn't rise. You have to use ships to travel to the mainland.",
+			"Flood's water levels by flood.json's names and descriptions")
+		check(page.get_node("%SeaRiseSlot").get_child(0).get_item_count() == 61, "Sea Level Rise Time offers every minute from 0 to 60")
+		# MapSelection.js: a Select Map dropdown, each map's description on its item.
+		var ml = page.get_node("%MapList")
+		check(ml is RtsoSafeSelect and ml.get_item_count() > 1 and ml.get_item_text(0) == "Random" and ml.get_item_tooltip(0) == "Pick any of the given maps at random.",
+			"Select Map is a dropdown: Random first, with its description")
+		# GameSettingControlSlider: Ceasefire, the victory durations, Relic Count and Sea
+		# Level Rise Time are sliders with their caption beside them.
+		var sliders: Array = ["CeasefireSlot", "WonderTimeSlot", "RelicTimeSlot", "RelicCountSlot", "SeaRiseSlot"].map(func(n): return page.get_node("%" + n).get_child(0))
+		check(sliders.all(func(c): return c is SettingSlider), "the five are sliders")
+		var cfs: SettingSlider = sliders[0]
+		check(cfs.get_caption() == "No ceasefire" and cfs.get_slider().max_value == 45, "Ceasefire: No ceasefire, up to 45 minutes")
+		cfs.get_slider().value = 10
+		check(cfs.get_caption() == "10 minutes" and int(page._collect_setup()["ceasefire"]) == 10, "dragged to 10: \"10 minutes\", and the match gets 10")
+		cfs.select(0)
+		var rcs: SettingSlider = sliders[3]
+		check(rcs.get_caption() == "2 relics" and rcs.get_slider().min_value == 0 and rcs.get_item_text(0) == "1 relic", "Relic Count: 2 relics, from 1 relic")
+		check(sliders[1].get_caption() == "20 minutes" and sliders[1].get_item_text(0) == "Immediate Victory.", "Wonder Duration: 20 minutes, from Immediate Victory.")
+		select_map(page, "random_danubius")
+		await frames(2)
+		var ds: RtsoSafeSelect = page.get_node("%DaytimeSlot").get_child(0)
+		check(ds.get_item_tooltip(0) == "Randomly pick a time of the day." and ds.get_item_tooltip(1) == "Bright daylight illuminates the scene."
+			and page.get_node("%DaytimeLabel").tooltip_text == "Select whether the match takes place at daylight or night.", "Daytime's entries carry their descriptions")
+		print("3c3. GameSettingsLayout.js order")
+		var names := func(n: String): return page.get_node("%" + n).get_children().map(func(c): return str(c.name))
+		check(names.call("MapOptionsRow") == ["TeamPlacementLabel", "TeamPlacementSlot", "LandscapeLabel", "LandscapeSlot", "BiomeLabel", "BiomeSlot",
+			"WaterLevelLabel", "WaterLevelSlot", "SeaRiseLabel", "SeaRiseSlot", "DaytimeLabel", "DaytimeSlot", "TriggerDifficultyLabel", "TriggerDifficultySlot"],
+			"Map tab: placement, landscape, biome, water, sea rise, daytime, difficulty")
+		check(names.call("MapVisRow").slice(0, 3) == ["ExploreMap", "RevealMap", "AlliedView"], "Explored, Revealed, Allied View")
+		var tab: Array = page.get_node("%GameTypeTab").get_children().map(func(c): return str(c.name))
+		check(tab.find("VictoryTimesRow") < tab.find("GameRow") and tab.find("GameRow") < tab.find("WonderRow") and names.call("GameRow") == ["RegicideGarrison"],
+			"Relic settings, then Hero Garrison, then Wonder Duration: " + str(tab))
+		check(names.call("VictoryTimesRow") == ["RelicCountLabel", "RelicCountSlot", "RelicLabel", "RelicTimeSlot"] and names.call("WonderRow") == ["WonderLabel", "WonderTimeSlot"]
+			and page.get_node("%RelicCountLabel").text == "Relic Count" and page.get_node("%RelicLabel").text == "Relic Duration"
+			and page.get_node_or_null("%VictoryLabel") == null, "Relic Count and Relic Duration apart, no Victory heading")
+		select_map(page, "random_mainland")
+		await frames(2)
+		check(page.get_node("%MapOptionsRow").visible and page.get_node("%BiomeLabel").visible, "Mainland's Biome shows in the options row")
 		print("3d. 0.28's Last Man Standing, Nomad and Hero Garrison rules")
 		var lock: CheckBox = page.get_node("%LockTeams")
 		var lms: CheckBox = page.get_node("%LastManStanding")
@@ -183,12 +244,13 @@ func run() -> void:
 	var msz: RtsoSafeSelect = node(page, "MapSizeSlot").get_child(0)
 	check(node(page, "MapSizeSlot").visible and msz.text == "Normal", "map size Normal: " + msz.text)
 	var vt: Control = node(page, "VictoryTimesRow")
+	var wr: Control = page.get_node("%WonderRow")
 	page._set_victory_mask(1)
-	check(not vt.visible, "no wonder or relic settings under Conquest")
+	check(not vt.visible and not wr.visible, "no wonder or relic settings under Conquest")
 	page._set_victory_mask(1 | 16)
-	check(vt.visible and vt.get_node("WonderTimeSlot").visible and not vt.get_node("RelicCountSlot").visible, "Wonder shows its duration only")
+	check(wr.visible and not vt.visible, "Wonder shows its duration only")
 	page._set_victory_mask(32)
-	check(vt.visible and not vt.get_node("WonderTimeSlot").visible and vt.get_node("RelicCountSlot").visible and vt.get_node("RelicTimeSlot").visible, "Capture the Relic shows its count and duration")
+	check(vt.visible and not wr.visible and vt.get_node("RelicCountSlot").visible and vt.get_node("RelicTimeSlot").visible, "Capture the Relic shows its count and duration")
 	page._set_victory_mask(1)
 	var civs: RtsoSafeSelect = slot_selects(page)[2]["civ"]
 	check(civs.get_selected() == 0 and civs.text == "Random", "a new slot is Random, listed first: " + civs.text)
@@ -216,9 +278,9 @@ func run() -> void:
 	check(rows.size() == 2 and rows[0]["color"].modulate.a == 0.0, "no colour picker")
 	var res: RtsoSafeSelect = node(page, "ResSlot").get_child(0)
 	var pop: RtsoSafeSelect = node(page, "PopCapSlot").get_child(0)
-	var cf: RtsoSafeSelect = node(page, "CeasefireSlot").get_child(0)
+	var cf: SettingSlider = node(page, "CeasefireSlot").get_child(0)
 	check(res.disabled and res.text == "Per Player", "starting resources Per Player: " + res.text)
-	check(pop.disabled and cf.disabled and cf.text == "No ceasefire", "population and ceasefire locked")
+	check(pop.disabled and cf.disabled and cf.get_caption() == "No ceasefire", "population and ceasefire locked")
 	for path in ["LastManStanding", "StartRow/LockTeams", "StartRow/DisableTreasures", "MapVisRow/RevealMap", "MapVisRow/ExploreMap", "MapVisRow/AlliedView", "MapVisRow/DisableSpies"]:
 		check(node(page, path).disabled, path + " locked")
 	check(not page.get_node("%Nomad").visible and not page.get_node("%RegicideGarrison").visible, "no Nomad or Hero Garrison on a scenario")
@@ -261,7 +323,7 @@ func run() -> void:
 	res = node(page, "ResSlot").get_child(0)
 	check(not res.disabled and res.text != "Per Player" and not node(page, "MapVisRow/RevealMap").disabled, "and the match settings")
 	spin = page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots")
-	check(not spin.editable, "a skirmish keeps its player count")
+	check(not spin.editable and (page.get_node("%PlayerCountSlot").get_child(0) as RtsoSafeSelect).disabled, "a skirmish keeps its player count")
 
 	print("6. Start on Random")
 	page._on_map_type_selected(1)

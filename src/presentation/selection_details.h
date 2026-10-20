@@ -150,14 +150,16 @@ inline String healer_tooltip(const Simulation::UnitDetails &d) {
 			part("Interval:", String::num(d.heal_interval, 1), d.heal_interval == 1.0f ? "second" : "seconds");
 }
 
-// getGatherTooltip: "Gather Rates: Food (grain) 0.25  Wood 0.75 ...". Ruins are left out, as in 0.28.
+// getGatherTooltip: "Gather Rates: [fish] 0.80  [fruit] 1.00 ...", one icon per resource subtype in
+// data/resources order (food: fish, fruit, grain, meat; then wood, stone, metal). Ruins are left out, as in 0.28.
 inline String gather_tooltip(const Simulation::UnitDetails &d) {
-	static const char *const kKinds[] = {"Grain", "Fruit", "Meat", "Fish", "Wood", "Stone", "Metal"};
+	static const struct { int k; const char *icon; } kKinds[] = {
+		{3, "fish"}, {1, "fruit"}, {0, "grain"}, {2, "meat"}, {4, "wood"}, {5, "stone"}, {6, "metal"}};
 	String rates;
-	for (int k = 0; k < 7; ++k) {
-		if (d.gather[k] <= 0.0f) continue;
+	for (const auto &kind : kKinds) {
+		if (d.gather[kind.k] <= 0.0f) continue;
 		if (!rates.is_empty()) rates += "  ";
-		rates += sprintf0(tr0("%(resourceIcon)s %(rate)s"), {{"resourceIcon", tr0(kKinds[k])}, {"rate", fixed(d.gather[k], 2)}});
+		rates += sprintf0(tr0("%(resourceIcon)s %(rate)s"), {{"resourceIcon", resource_icon(kind.icon)}, {"rate", fixed(d.gather[kind.k], 2)}});
 	}
 	return rates.is_empty() ? rates : sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Gather Rates:")}, {"details", rates}});
 }
@@ -176,8 +178,9 @@ inline String speed_tooltip(const Simulation::UnitDetails &d) {
 // getGarrisonTooltip for a holder: "Garrison Limit: 20".
 // getAttackTooltip for a structure's BuildingAI: "Bow: 12.0 Pierce, Range: 60 meters, Rate: 3
 // arrows / 2 seconds", or "Garrison to fire arrows" while it has none (attackRateDetails).
+// attack_name is the template's AttackName: Bow, Bolt (bolt tower) or Stone (artillery tower).
 inline String structure_attack_tooltip(const float damage[3], float min_m, float max_m, float repeat_s, int projectiles,
-		float elevated_m = 0.0f) {
+		float elevated_m = 0.0f, const char *attack_name = "Bow") {
 	String effects;
 	for (int k = 0; k < 3; ++k) {
 		if (damage[k] <= 0.0f) continue;
@@ -200,7 +203,7 @@ inline String structure_attack_tooltip(const float damage[3], float min_m, float
 			rate = sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Interval:")}, {"details", secs}});
 	}
 	const String line = sprintf0(tr0("%(attackLabel)s: %(effects)s, %(range)s, %(rate)s%(statusEffects)s%(splash)s"),
-			{{"attackLabel", tr0("Bow")}, {"effects", effects}, {"range", range_details(min_m, max_m, elevated_m)}, {"rate", rate},
+			{{"attackLabel", tr0(attack_name)}, {"effects", effects}, {"range", range_details(min_m, max_m, elevated_m)}, {"rate", rate},
 			 {"statusEffects", ""}, {"splash", ""}});
 	return sprintf0(tr0("%(label)s\n%(details)s"), {{"label", tr0("Attack:")}, {"details", "  " + line}});
 }

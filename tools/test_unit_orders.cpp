@@ -3451,6 +3451,33 @@ static void test_defensive_held_position() {
 	}
 }
 
+// UnitAI PerformGather / ReturnResource / CollectTreasure on a unit that can't do them:
+// WalkToTarget (UnitAI.js:5646-5652, :5741-5747, :673-682). A citizen cavalryman sent with a
+// woman to a tree rides there while she gathers; an empty-handed spearman sent with a loaded one
+// to the storehouse walks along.
+static void test_cant_do_walks() {
+	std::printf("units that can't gather or return walk to the target\n");
+	Simulation s;
+	setup(s);
+	s.set_explore_map(true);
+	const uint32_t tree = s.spawn_resource_world(20, 0, RES_WOOD, 500);
+	const uint32_t woman = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+	const uint32_t cav = s.spawn_unit(0, 3, 0, UNIT_CAVALRY);
+	const uint32_t both[2] = {woman, cav};
+	s.order_gather(both, 2, tree);
+	check(s.unit_order(woman).kind == ORDER_GATHER, "the woman gathers the tree");
+	check(s.unit_order(cav).kind == ORDER_WALK && std::fabs(s.unit_order(cav).x - 20.0f) < 0.01f,
+			"the citizen cavalryman (meat only) rides to it");
+	const uint32_t store = s.spawn_building_world(-20, 20, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t loaded = s.spawn_unit(-5, 20, 0, UNIT_SPEARMAN), empty = s.spawn_unit(-5, 23, 0, UNIT_SPEARMAN);
+	s.units_.carry[idx_of(s, loaded)] = 10;
+	s.units_.res_type_carried[idx_of(s, loaded)] = RES_WOOD;
+	const uint32_t pair[2] = {loaded, empty};
+	s.order_return_resource(pair, 2, store);
+	check(s.unit_order(loaded).kind == ORDER_RETURN_RESOURCE && s.unit_order(empty).kind == ORDER_WALK,
+			"the loaded one returns, the empty-handed one walks to the storehouse");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3551,6 +3578,7 @@ int main(int argc, char **argv) {
 	test_defensive_held_position();
 	test_range_aura_not_self();
 	test_hidden_targets();
+	test_cant_do_walks();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

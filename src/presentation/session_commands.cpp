@@ -129,6 +129,17 @@ void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld, 
 		command = rtso::RALLY_CMD_TRADE;
 }
 
+bool RtsoMain::rally_route_gain(uint32_t to, rtso::Simulation::TradeGain &g) const {
+	const rtso::Simulation::Building *from = nullptr, *dest = nullptr;
+	for (const auto &b : sim->buildings()) {
+		if (b.id == selected_building_id) from = &b;
+		if (b.id == to) dest = &b;
+	}
+	if (!from || !dest) return false;
+	g = sim->calculate_trade_gain(*from, *dest, local_player(), from->type == rtso::BLD_DOCK ? rtso::UNIT_MERCHANT_SHIP : rtso::UNIT_TRADER);
+	return true;
+}
+
 bool RtsoMain::selection_can_board(uint32_t holder) const {
 	if (!sim || !sim->is_transport(holder)) return false;
 	for (int s = 0; s < selected_ids.size(); ++s)
@@ -213,9 +224,15 @@ void RtsoMain::_on_entity_command(const String &name) {
 		request_delete();
 	} else if (name == "autoqueue-on" || name == "autoqueue-off") { // turnAutoQueueOn / Off
 		_on_autoqueue_pressed(name == "autoqueue-on" ? 1 : 0);
-	} else if (name == "share-dropsite") { // set-dropsite-sharing, toggled from the first structure's state
-		for (const auto &b : sim->buildings())
-			if (b.id == selected_building_id) { _on_dropsite_sharing_pressed(b.dropsite_shared ? 0 : 1); break; }
+	} else if (name == "share-dropsite") { // set-dropsite-sharing: shared when any selected one is locked
+		bool any_locked = false;
+		for (uint32_t id : selected_structures())
+			for (const auto &b : sim->buildings())
+				if (b.id == id) {
+					any_locked = any_locked || (rtso::Simulation::is_dropsite_type(b.type) && !b.dropsite_shared);
+					break;
+				}
+		_on_dropsite_sharing_pressed(any_locked ? 1 : 0);
 	} else if (name == "stop") { // stopUnits
 		if (n == 0) return;
 		if (turn_cmds())
@@ -281,25 +298,21 @@ void RtsoMain::request_delete() {
 	delete_pending_.clear();
 	for (int s = 0; s < selected_ids.size(); ++s) delete_pending_.push_back(selected_ids[s]);
 	const std::vector<uint32_t> structs = selected_structures();
+	const bool control_all = sim->controls_all(local_player()); // unit_actions.js "delete": no checks with controlsAll
 	for (const auto &b : sim->buildings())
-		if (std::find(structs.begin(), structs.end(), b.id) != structs.end() && b.team == local_player() && !(b.max_capture_points > 0.0f &&
-				b.capture_points_by_team[b.team] < b.max_capture_points * 0.5f))
+		if (std::find(structs.begin(), structs.end(), b.id) != structs.end() &&
+				(control_all || (b.team == local_player() && !(b.max_capture_points > 0.0f &&
+				b.capture_points_by_team[b.team] < b.max_capture_points * 0.5f))))
 			delete_pending_.push_back((int32_t)b.id);
 	if (delete_pending_.is_empty()) return;
 	if (rtso::hotkeys::held("session.noconfirmation")) {
 		_on_delete_confirmed();
 		return;
 	}
-	if (!delete_dialog_) {
-		delete_dialog_ = memnew(ConfirmationDialog);
-		delete_dialog_->set_title(tr("Delete"));
-		delete_dialog_->set_text(tr("Destroy everything currently selected?"));
-		delete_dialog_->get_ok_button()->set_text(tr("Yes"));
-		delete_dialog_->get_cancel_button()->set_text(tr("No"));
-		delete_dialog_->connect("confirmed", Callable(this, "_on_delete_confirmed"));
-		ui_layer->add_child(delete_dialog_);
-	}
-	delete_dialog_->popup_centered();
+	// DeleteSelectionConfirmation, a SessionMessageBox: closes the other dialogs and
+	// pauses a single-player game until answered.
+	Ref<Script> q = ResourceLoader::get_singleton()->load("res://scenes/session/quit_confirmation.gd");
+	if (q.is_valid()) q->call("delete_selection", this);
 }
 
 void RtsoMain::_on_delete_confirmed() {

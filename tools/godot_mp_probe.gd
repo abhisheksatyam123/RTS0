@@ -107,9 +107,12 @@ func _run() -> void:
 				for it in top.get_children():
 					if str(it.get_metadata(0)) == "room-%d" % port:
 						row = it
+		# The list is rebuilt whenever the lobby pushes a change (/events), which
+		# frees its TreeItems: never hold one across an await.
+		var picked: String = row.get_text(0)
 		row.select(0)
 		await _wait(0.1)
-		_say("picked %s (address %s)" % [row.get_text(0), "hidden" if lobby._join_ip.text == "" else lobby._join_ip.text])
+		_say("picked %s (address %s)" % [picked, "hidden" if lobby._join_ip.text == "" else lobby._join_ip.text])
 		lobby._on_join_pressed()
 		# The lobby hands the address over on request (/rooms/connect).
 		while ms.net_mode != "join":
@@ -249,6 +252,8 @@ func _run() -> void:
 					_say("ready for settings version %d" % ready_for)
 					# 0.28 gamesetup ChatPanel: a line typed in the setup.
 					main.send_setup_chat("hello from bob")
+					# ChatInputPanel: no addressees in the setup; sent to everyone as typed.
+					main.send_setup_chat("/allies team up")
 			# Once the joiner is seated: before its slot is given it needs no
 			# ready (0.28 ReadyController), so Start would not be refused yet.
 			# 0.28: only the host sets a player's civ, team and colour, on its page.
@@ -279,7 +284,7 @@ func _run() -> void:
 					var plain := ""
 					for i in 50:
 						plain = RegEx.create_from_string("\\[[^\\]]*\\]").sub(str(main.get_setup_chat().get("text", "")), "", true)
-						if plain.contains("hello from bob"):
+						if plain.contains("hello from bob") and plain.contains("team up"):
 							break
 						await _wait(0.1)
 					_say("setup_chat=" + " | ".join(Array(plain.strip_edges().split("\n")).map(func(l): return l.strip_edges())))
@@ -335,6 +340,8 @@ func _run() -> void:
 					int(main.get_turn_hash(turns)), str(main.get_game_speed()), int(ms.slot_civs[1]),
 					int(ms.slot_teams[1]) if ms.slot_teams.size() > 1 else -1, int(ms.slot_colors[1]),
 					str(st.get("chat", "")).count("has rejoined the game.")])
+			# PlayerName onFinalizeAttributes: the seated clients' names are the players' names.
+			_say("slot_names=" + "|".join(Array(ms.slot_names).slice(0, 2)))
 			# 0.28 PauseOverlay: the client sees "Paused by" the host's name in its colour.
 			if role == "host":
 				main.toggle_pause()

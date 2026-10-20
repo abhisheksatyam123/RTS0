@@ -1,14 +1,15 @@
 extends SceneTree
 # 0.28's developer overlay (gui/session/developer_overlay): Alt+D opens the panel
 # and says so in the chat; Control all units orders every live unit ("control-all");
-# Display selection state shows the first selected entity's state; Reveal map reveals
+# Display selection state shows the simulation state and the first selected entity's (a unit, then a structure, with its template); Reveal map reveals
 # and hides the map again ("reveal-map"); Restrict camera lets the camera leave the
 # map when cleared; Promote selected units raises the selection a rank ("promote");
 # Change perspective shows the player view dropdown, and picking a player or Observer
 # re-seats this client; Enable time warp snapshots the game every 10 turns and rewinds
-# to the last one; the pathfinder, hierarchical pathfinder, obstruction, unit motion,
+# to the last one, keeping the selection and control groups; the pathfinder, hierarchical pathfinder, obstruction, unit motion,
 # range and bounding box overlays draw while ticked; Enable culling, Lock cull camera,
-# Display camera frustum and Display shadows frustum drive the culling and its boxes;
+# Display camera frustum and Display shadows frustum drive the culling and its boxes (a locked
+# cull camera hides the units and structures outside it);
 # Activate Rejoin Test (not on random maps) rejoins a copy of
 # the game and replays every turn onto it, an Out of Sync box naming any turn
 # where the two part.
@@ -67,6 +68,16 @@ func _box(title: String) -> Node:
 	return null
 
 ## Pick a player view dropdown item by id (0 Observer, N player N) and wait for the turn.
+func key(code: int, ctrl: bool) -> void:
+	for down in [true, false]:
+		var k := InputEventKey.new()
+		k.keycode = code
+		k.physical_keycode = code
+		k.ctrl_pressed = ctrl
+		k.pressed = down
+		Input.parse_input_event(k)
+		await frames(1)
+
 func pick(id: int) -> void:
 	var dd: OptionButton = null
 	for o in main.find_children("*", "OptionButton", true, false):
@@ -79,6 +90,12 @@ func pick(id: int) -> void:
 	dd.select(index)
 	dd.item_selected.emit(index)
 	await frames(20)
+
+func _listed(id: int) -> bool:
+	for u in main.debug_selection_state()["units"]:
+		if int(u["id"]) == id:
+			return true
+	return false
 
 func run() -> void:
 	await frames(60)
@@ -99,10 +116,23 @@ func run() -> void:
 	check(d["state_shown"] and str(d["state"]).contains("entity: {") and str(d["state"]).contains("hitpoints:")
 		and str(d["state"]).contains("velocity:") and str(d["state"]).contains("template: {name:"),
 		"Display selection state shows the selected entity")
+	var st := str(d["state"])
+	check(st.begins_with("simulation: {players:\"<<<omitted>>>\", circularMap:") and st.contains(", mapSize:")
+		and st.contains("ceasefireActive:false") and st.contains("victoryConditions:[\"conquest\"]")
+		and st.contains("alliedVictory:true") and st.contains("populationCapType:\"player\", populationCap:"),
+		"it lists GetSimulationState's fields (map size, ceasefire, victory, population cap): " + st.get_slice("\n", 0))
+	main.debug_select_entity(main.debug_civic_centre_id(0))
+	await frames(2)
+	st = str(main.debug_dev_overlay()["state"])
+	check(st.contains("buildProgress:") and st.contains("capturePoints:") and st.contains("template: {template:\"structures/")
+		and st.contains("cost:{food:") and st.contains("garrisonHolder:{max:"), "and a structure's state with its template block")
+	main.select_first_own(false)
+	await frames(2)
 
 	press("Reveal map")
 	await frames(3)
 	check(main.debug_dev_overlay()["map_revealed"], "Reveal map reveals it")
+	check(not main.get_match_settings_info()["reveal_map"], "Match Settings keeps the match's setting (g_InitAttributes)")
 	press("Reveal map")
 	await frames(3)
 	check(not main.debug_dev_overlay()["map_revealed"], "and clearing it hides it again")
@@ -113,10 +143,16 @@ func run() -> void:
 	await frames(1)
 	rig.set_target_pos(Vector3(100000, 0, 100000))
 	check(float(main.debug_dev_overlay()["camera_x"]) > 10000.0, "unrestricted, the camera may leave the map")
+	rig.zoom(500.0)
+	check(float(rig.camera_data()["zoom"]) > 65.0, "and zoom past its limit (CameraController m_ConstrainCamera)")
 	press("Restrict camera")
 	await frames(1)
 	rig.set_target_pos(Vector3(100000, 0, 100000))
 	check(float(main.debug_dev_overlay()["camera_x"]) < 10000.0, "restricted again, it stays on the map")
+	await frames(2)
+	check(float(rig.camera_data()["zoom"]) <= 65.0, "and the zoom comes back in range")
+	rig.reset_camera()
+	await frames(10)
 
 	main.debug_selection_grid(true) # every own unit: the citizen soldiers rise a rank, women don't
 	var before: int = int(main.debug_dev_overlay()["selection_ranks"])
@@ -162,9 +198,17 @@ func run() -> void:
 	await frames(20) # half way to the next snapshot
 	var snaps: int = main.time_warp_snapshot_count()
 	check(snaps >= 2, "it takes a snapshot every 10 turns (%d)" % snaps)
+	# A man the snapshot has and one trained after it, selected and in group 2.
+	main.select_first_own(false)
+	var kept: Array = Array(main.debug_selection_state()["selected"])
+	var late := int(main.debug_spawn_units("athen/infantry_spearman_b", 1)[0])
+	main.debug_select_units(PackedInt32Array(kept + [late]))
+	await key(KEY_2, true)
 	var t_before: float = main.get_match_statistics().get("game_time", 0.0)
 	check(main.time_warp_rewind(), "rewind loads the latest snapshot")
 	await frames(2)
+	check(Array(main.debug_selection_state()["selected"]) == kept and Array(main.debug_saved_gui()["groups"][2]) == kept,
+		"only the simulation goes back: the selection and group 2 keep the man the snapshot has (%s)" % str(kept))
 	var t_after: float = main.get_match_statistics().get("game_time", 0.0)
 	check(t_after < t_before and main.time_warp_snapshot_count() == snaps - 1, "back in time %.1f -> %.1f, that snapshot used up" % [t_before, t_after])
 	press("Enable time warp")
@@ -192,6 +236,17 @@ func run() -> void:
 	check(int(d["range_drawn"]) > 0, "the range overlay rings the attackers (%d)" % int(d["range_drawn"]))
 	check(int(d["bounding_box_drawn"]) > 0, "the bounding box overlay boxes the models (%d)" % int(d["bounding_box_drawn"]))
 	check(main.find_child("DebugOverlays", true, false).visible, "and they are shown")
+	var nsel: int = Array(main.debug_selection_state()["selected"]).size()
+	check(int(d["unit_motion_drawn"]) <= nsel and int(d["bounding_box_drawn"]) % 2 == 0 and int(d["bounding_box_drawn"]) <= 2 * (nsel + 4),
+		"only the selection's paths (%d of %d), and two boxes per selected or hovered model, bounds and selection box (%d)"
+		% [int(d["unit_motion_drawn"]), nsel, int(d["bounding_box_drawn"])])
+	main.clear_selection()
+	await frames(2)
+	d = main.debug_dev_overlay()
+	check(int(d["unit_motion_drawn"]) == 0 and int(d["obstruction_drawn"]) > 0,
+		"with nothing selected no path is drawn, the other overlays stay")
+	main.debug_selection_grid(true)
+	await frames(2)
 	for label in ["Pathfinder overlay", "Hierarchical pathfinder overlay", "Obstruction overlay", "Unit motion overlay", "Range overlay", "Bounding box overlay"]:
 		check(box(label).button_pressed, "%s stays ticked" % label)
 		press(label)
@@ -245,6 +300,29 @@ func run() -> void:
 	check(d["control_all"], "Control all units sets the flag")
 	check(box("Control all units").button_pressed, "its box stays ticked")
 	check(main.debug_dev_overlay()["chat_log"].contains("> (Cheat - control all units)"), "and \"(Cheat - control all units)\" in the chat")
+	# Commands.js FilterEntityList with controlAllUnits: another player's structure trains for its owner.
+	var their_cc: int = int(main.debug_civic_centre_id(1))
+	main.debug_select_entity(their_cc)
+	await frames(2)
+	var their_roster: Array = main.debug_roster()
+	var first_row: int = -1
+	for row in their_roster.size():
+		if not their_roster[row]["disabled"]:
+			first_row = row
+			break
+	check(first_row >= 0, "another player's Civic Center shows its training roster (%d rows)" % their_roster.size())
+	var queued_before: int = int(main.debug_building_queue(their_cc))
+	if first_row >= 0:
+		main._on_roster_item_clicked(first_row, Vector2(), MOUSE_BUTTON_LEFT)
+	await frames(20)
+	check(int(main.debug_building_queue(their_cc)) > queued_before, "and a click there queues a unit in it")
+	var theirs: PackedInt32Array = main.debug_spawn_units("athen/infantry_spearman_b", 1, 1)
+	main.debug_select_units(theirs)
+	check(_listed(theirs[0]), "another player's unit is listed while selected")
+	main.debug_delete_units(theirs)
+	await frames(2)
+	check(not _listed(theirs[0]), "and it can be deleted")
+	main.debug_select_units(PackedInt32Array())
 	press("Control all units")
 	await frames(3)
 	check(not main.debug_dev_overlay()["control_all"], "clearing it drops the flag")
@@ -255,9 +333,20 @@ func run() -> void:
 	press("Enable culling")
 	await frames(2)
 	check(main.debug_dev_overlay()["culling_enabled"], "ticking it again restores culling")
+	var shown_all: int = int(main.debug_dev_overlay()["structures_shown"])
+	# Lock the cull camera over the far side of the map, then look back at the base.
+	var home_cam: Dictionary = rig.camera_data()
+	var home := Vector3(float(home_cam["x"]), 0, float(home_cam["z"]))
+	rig.set_target_pos(Vector3(-home.x, 0, -home.z))
+	await frames(2)
 	press("Lock cull camera")
 	await frames(2)
 	check(main.debug_dev_overlay()["lock_cull_camera"], "Lock cull camera holds the cull frustum")
+	rig.set_target_pos(home)
+	await frames(2)
+	var shown_locked: int = int(main.debug_dev_overlay()["structures_shown"])
+	check(shown_locked < shown_all,
+		"and what lies outside it is not drawn: %d of %d structures shown" % [shown_locked, shown_all])
 	press("Display camera frustum")
 	press("Display shadows frustum")
 	await frames(2)
@@ -268,6 +357,7 @@ func run() -> void:
 	press("Display shadows frustum")
 	press("Lock cull camera")
 	await frames(2)
+	check(int(main.debug_dev_overlay()["structures_shown"]) == shown_all, "unlocked, every structure is drawn again")
 
 	var rdm = main.find_child("RenderDebugMode", true, false)
 	check(rdm != null and rdm.get_item_count() == 4 and rdm.get_item_text(0) == "Render Debug Mode Disabled"

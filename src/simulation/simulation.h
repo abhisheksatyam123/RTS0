@@ -225,10 +225,11 @@ public:
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
 	// resolution grows with the map: 64 cells on the default 128m map, 256 on a
-	// 512m 0 A.D. "Giant" map. grid_res_for_map() gives the resolution.
+	// 512m 0 A.D. "Giant" map, 344 on 0.28's largest map, Corinthian Isthmus (688 tiles).
+	// grid_res_for_map() gives the resolution.
 	static constexpr float SPATIAL_CELL = 2.0f;
 	static constexpr int MIN_GRID_RES = 64;
-	static constexpr int MAX_GRID_RES = 256;
+	static constexpr int MAX_GRID_RES = 344;
 	static int grid_res_for_map(float map_half);
 
 	enum FowState : uint8_t {
@@ -482,6 +483,9 @@ public:
 		*zs = unit_paths_[i].zs + cur;
 		return n - cur;
 	}
+	// The next waypoint of the short path unit i walks round something on toward (aim_x, aim_z)
+	// (UnitMotion m_ShortPath, the unit motion overlay): what its ShortPathMemo keeps for that aim.
+	bool unit_short_waypoint(size_t i, float aim_x, float aim_z, float *wx, float *wz) const;
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
 	// A relic (catafalque) has no Health, so no attack but Capture reaches it.
 	bool unit_can_target(size_t i, size_t j) const {
@@ -548,6 +552,42 @@ public:
 		std::vector<AttackedEvent> out;
 		out.swap(attacked_events_);
 		return out;
+	}
+	// An AI's order: in 0.28 Petra posts commands like a player, so Commands.js sends a
+	// "playercommand" notification for each and the session's Follow Player follows them.
+	// Presentation only like AttackedEvent, and recorded only while record_ai_commands is
+	// on; an order another order gives on its way (attack-walk walking) is not recorded.
+	struct AiCommandEvent {
+		enum Kind : uint8_t { WALK, ATTACK_WALK, PATROL, GATHER, ATTACK, REPAIR, GARRISON, GUARD, HEAL, RETURN_RESOURCE,
+			TRADE, STOP, DELETE, TRAIN, RESEARCH, OTHER };
+		uint8_t player;
+		uint8_t kind;
+		std::vector<uint32_t> ids; // cmd.entities: the units ordered, or the trainer
+		uint32_t target;           // cmd.target, 0 for none
+		float x, z;                // cmd.x, cmd.z for a position order
+	};
+	static constexpr size_t kMaxAiCommandEvents = 1024;
+	void set_record_ai_commands(bool on) {
+		record_ai_commands_ = on;
+		if (!on) ai_command_events_.clear();
+	}
+	std::vector<AiCommandEvent> take_ai_command_events() {
+		std::vector<AiCommandEvent> out;
+		out.swap(ai_command_events_);
+		return out;
+	}
+	// At the top of an order an AI may give: notes it once, for the outermost order only.
+	struct AiCommandScope {
+		Simulation &sim;
+		AiCommandScope(Simulation &s, uint8_t kind, const uint32_t *ids, size_t n, uint32_t target = 0, float x = 0.0f,
+				float z = 0.0f) : sim(s) {
+			if (sim.ai_command_depth_++ == 0 && sim.record_ai_commands_ && sim.petra_in_turn_) sim.note_ai_command(kind, ids, n, target, x, z);
+		}
+		~AiCommandScope() { --sim.ai_command_depth_; }
+	};
+	void note_ai_command(uint8_t kind, const uint32_t *ids, size_t n, uint32_t target, float x, float z) {
+		if (n == 0 || ai_command_events_.size() >= kMaxAiCommandEvents) return;
+		ai_command_events_.push_back({petra_pid_, kind, std::vector<uint32_t>(ids, ids + n), target, x, z});
 	}
 	// A unit's melee or Slaughter strike on an animal: presentation only like
 	// AttackedEvent (the striker's attack_melee or attack_slaughter sound plays on it).
@@ -771,7 +811,8 @@ public:
 	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive, int count = 1,
 			bool push_front = false);
 	// Trainer.js GetBatchTime: count^BatchTimeModifier of the building (civ version and techs).
-	float batch_time_multiplier(uint8_t player, uint8_t bld_type, int count) const;
+	// bld_civ: the structure's civ, whose template sets Trainer/BatchTimeModifier (the owner's when unknown).
+	float batch_time_multiplier(uint8_t player, uint8_t bld_type, int count, uint8_t bld_civ = 0xFF) const;
 	// The same for a training unit (a trireme, Cyrus II): its Trainer/BatchTimeModifier.
 	float unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const;
 	// ProductionQueue.js EnableAutoQueue / DisableAutoQueue.
@@ -1008,6 +1049,7 @@ public:
 	// dropsite, drop it, then take the next queued order or idle.
 	// force: a player's or Petra's ReturnResource; UnitAI's own drop-offs (PushOrderFront) are unforced.
 	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false, bool force = true);
+	void order_return_to_unit(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued, bool force);
 	bool dropsite_accepts(size_t unit_idx, const Building &b) const; // carried type, owner, finished
 	bool can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const;
 	// ResourceGatherer CanReturnResource's owner test: `player`'s own dropsite, or a shared one of a
@@ -1219,6 +1261,7 @@ public:
 	// Player.js controlAllUnits (the developer overlay's Control all units): the
 	// player orders every live unit. Saved (SAVE_VERSION_PROJECTILE_DAMAGE).
 	bool controls_all(uint8_t player) const { return player < MAX_PLAYERS && players_[player].controls_all; }
+	uint8_t entity_owner(uint32_t id) const { return petra_owner_of(id); } // a structure's or unit's owner, 0xFF if gone
 	// Game Setup biome for random maps: BIOME_* or -1 for the map's own.
 	void set_biome_override(int b) { biome_override_ = (b >= 0 && b < BIOME_COUNT) ? b : -1; }
 	int biome_override() const { return biome_override_; }
@@ -1801,6 +1844,14 @@ public:
 	float structure_garrison_heal_for(uint8_t type, uint8_t player) const {
 		return building_garrison_heal(type) + (player < MAX_PLAYERS && type < BLD_TYPE_COUNT ? tech_mods_[player].bld_garrison_heal[type] : 0.0f);
 	}
+	// What `player`'s technologies and bonuses do to a roster template's stats, as 0.28's
+	// GetTemplateData gives the detailed training tooltip: Health and Speed multipliers,
+	// MaxRange x range_mul + range_add metres, resistance levels added, each damage type's mul/add.
+	struct TemplateStatMods {
+		float health = 1.0f, speed = 1.0f, range_mul = 1.0f, range_add = 0.0f;
+		float armor[3] = {}, atk_mul[4] = {1.0f, 1.0f, 1.0f, 1.0f}, atk_add[4] = {};
+	};
+	TemplateStatMods template_stat_mods(uint8_t player, uint16_t tmpl) const;
 	// A structure of `type` as `player`'s build button shows it (0.28 GetTemplateData): its
 	// cost after civ, team and technology modifiers, and its BuildTime for one builder.
 	void structure_cost_for(uint8_t player, uint8_t type, float out[RES_COUNT]) const { structure_cost(player, type, -1.0f, out); }
@@ -1997,6 +2048,9 @@ public:
 	bool is_position_safe(float x, float z, float threshold = 6.0f) const;
 	int ai_pop_current() const;
 	int ai_pop_max() const;
+	// Petra's gameState.getPopulationMax(): the population cap after its modifiers (300 by
+	// default; 10000 when unlimited), not the housing-limited pop_max.
+	int petra_population_max() const;
 
 
 	// Petra Multi-Base HQ & BasesManager (0 A.D. ai/petra/headquarters.js / baseManager.js)
@@ -2216,6 +2270,7 @@ public:
 		auto it = field_res_by_bld_.find(building_id);
 		return it != field_res_by_bld_.end() && res_id_to_idx_.count(it->second) ? it->second : 0;
 	}
+	bool is_resource_id(uint32_t id) const { return res_id_to_idx_.count(id) != 0; }
 	// Whether any of these units can gather this supply (unit_actions "gather" getActionInfo).
 	bool any_can_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id) const {
 		auto rit = res_id_to_idx_.find(resource_id);
@@ -2403,8 +2458,8 @@ private:
 	void avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, const float *aim_x, const float *aim_z,
 			float *npx, float *npz, float *want_x, float *want_z, uint8_t *blocked);
 	// A walker at (x, z) already within reach of the task it walks for (a resource it gathers, a
-	// foundation it builds, a unit it attacks, a structure it garrisons in): 0 A.D.'s move to the
-	// target's range is done there.
+	// foundation it builds, a unit it attacks, a structure it garrisons in, a relic it captures):
+	// 0 A.D.'s move to the target's range is done there.
 	bool walk_in_reach(size_t i, float x, float z) const;
 	// tick_gather's reach of unit i at (x, z) to resource r: 2.5 units from its centre (FISH_GATHER_REACH
 	// for fish), and for a mine, which no unit stands on, MINE_GATHER_REACH from its square.
@@ -2648,6 +2703,7 @@ private:
 	int garrison_size(size_t unit) const;                        // Garrisonable.TotalSize
 	int occupied_slots(const std::vector<uint32_t> &ids) const;  // GarrisonHolder.OccupiedSlots
 	bool garrison_room(const Building &b, size_t unit) const;
+	bool corral_has_room(const Building &b) const; // penned animals and garrisoned units under GarrisonHolder/Max
 	// The search behind pick_spawn_point and siege_spawn_point: the spots round a footprint centred
 	// on (cx, cz) and turned by rot, a square with half extents along_u (the front) and along_v, or a
 	// circle of radius circle_r when that is above 0. dry_ground also rejects spots under the water line.
@@ -2806,6 +2862,9 @@ private:
 			bool target_is_building, float damage, bool melee = false, bool capture = false);
 	double battle_damage_[MAX_PLAYERS] = {};
 	std::vector<AttackedEvent> attacked_events_;
+	std::vector<AiCommandEvent> ai_command_events_;
+	bool record_ai_commands_ = false;
+	int ai_command_depth_ = 0;
 	std::vector<TriggerEventData> pending_attack_alerts_; // OnAttackDetected, raised at the end of the tick that detected them
 	std::vector<FaunaStrikeEvent> fauna_strikes_;
 	std::vector<SessionNotice> session_notices_;
@@ -2994,7 +3053,9 @@ private:
 	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
 	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);
-	void structure_cost(uint8_t player, uint8_t b_type, float cost_override, float out[RES_COUNT]) const;
+	// `template_civ`: the civ whose template the structure is (a captured one keeps its builder's);
+	// CIV_COUNT for the player's own.
+	void structure_cost(uint8_t player, uint8_t b_type, float cost_override, float out[RES_COUNT], uint8_t template_civ = CIV_COUNT) const;
 	uint32_t stat_unit_value(size_t unit_idx) const;      // StatisticsTracker's entity value (Cost)
 	uint32_t stat_building_value(const Building &b) const;
 	void refund_foundation(const Building &b);
@@ -3729,6 +3790,7 @@ private:
 	void petra_end_emergency_rallies();
 	void petra_change_diplomacy(uint8_t player, uint8_t stance);
 	void petra_last_man_standing_check();
+	int petra_player_units(uint8_t player) const;
 	int petra_player_entities(uint8_t player) const;
 	bool petra_path_crosses_water(float x0, float z0, float x1, float z1) const;
 	bool petra_find_beach(float land_x, float land_z, float toward_x, float toward_z, float &out_x, float &out_z) const;

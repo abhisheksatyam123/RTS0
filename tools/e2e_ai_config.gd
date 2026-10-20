@@ -49,7 +49,7 @@ func run() -> void:
 	page._slot_rows[2]["kind"] = 0
 	page.refresh_slots()
 	await frames(2)
-	check(page._slots_grid().columns == 6, "six columns: slot, type, civ, team, AI, colour")
+	check(page._slots_grid().columns == 6, "six columns: name, colour, assignment, AI, civ, team")
 	var gear: Button = page._ai_buttons[1]
 	check(gear != null and gear.modulate.a == 1.0 and gear.tooltip_text == "Configure AI: Medium Balanced Petra Bot.", "AI row's gear: " + (gear.tooltip_text if gear else "none"))
 	var human: Button = page._ai_buttons[2]

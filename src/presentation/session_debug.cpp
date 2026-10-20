@@ -352,7 +352,8 @@ Dictionary RtsoMain::debug_selection_state() {
 	Array units;
 	auto uview = sim->units();
 	for (size_t i = 0; i < uview.count; ++i) {
-		if (!uview.alive[i] || uview.team[i] != local_player()) continue;
+		// Own units, and any selected one (another player's, under Control all units).
+		if (!uview.alive[i] || (uview.team[i] != local_player() && !selected_ids.has((int32_t)uview.id[i]))) continue;
 		Dictionary u;
 		u["id"] = (int64_t)uview.id[i];
 		u["tmpl"] = (int64_t)uview.tmpl[i];
@@ -387,8 +388,17 @@ Dictionary RtsoMain::debug_selection_state() {
 		auto rv = sim->resources();
 		float best = 1e30f;
 		for (size_t r = 0; r < rv.count; ++r) {
-			if (!rv.alive[r]) continue;
+			// A field's grain is hovered as the field (the supply pick skips it), and a
+			// unit other than the selected ones standing over a supply is picked before it.
+			if (!rv.alive[r] || rv.subtype[r] == rtso::RES_SUB_GRAIN) continue;
 			const float dd = (rv.x[r] - ux) * (rv.x[r] - ux) + (rv.z[r] - uz) * (rv.z[r] - uz);
+			if (dd >= best) continue;
+			bool covered = false;
+			for (size_t i = 0; i < uview.count && !covered; ++i) {
+				const float ex = uview.pos_x[i] - rv.x[r], ez = uview.pos_z[i] - rv.z[r];
+				covered = uview.alive[i] && ex * ex + ez * ez < 3.0f * 3.0f && !selected_ids.has((int32_t)uview.id[i]);
+			}
+			if (covered) continue;
 			if (dd < best) {
 				best = dd;
 				d["nearest_resource"] = (int64_t)rv.id[r];
@@ -588,7 +598,8 @@ void RtsoMain::debug_select_entity(int64_t id) {
 	selected_ids.clear();
 	selected_building_id = 0;
 	for (const auto &b : sim->buildings())
-		if (b.id == (uint32_t)id) { selected_building_id = b.id; return; }
+		if (b.id == (uint32_t)id) { set_selected_structures({b.id}); return; }
+	set_selected_structures({});
 	selected_ids.push_back((int32_t)id);
 }
 
@@ -801,6 +812,7 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 	d["shadows_frustum_drawn"] = debug_overlays_.drawn(O::SHADOWS_FRUSTUM);
 	d["culling_enabled"] = culling_enabled_;
 	d["lock_cull_camera"] = lock_cull_camera_;
+	d["structures_shown"] = view ? view->shown_structures() : 0;
 	d["control_all"] = sim ? sim->controls_all(local_player()) : false;
 	d["render_debug"] = render_debug_mode_;
 	d["viewport_debug_draw"] = get_viewport() ? (int)get_viewport()->get_debug_draw() : -1;

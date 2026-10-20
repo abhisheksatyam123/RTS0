@@ -57,6 +57,39 @@
 
 using namespace godot;
 
+static float drawn_water_height(const rtso::Simulation *sim);
+
+// 0 A.D. 0.28 template_unit*.xml StatusBars, in metres: BarWidth, BarHeight, HeightOffset.
+static rtso::StatusBarsSize unit_status_bars(uint8_t type, uint16_t tmpl) {
+	rtso::TechClasses c = rtso::unit_tech_classes(type);
+	if (tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT) c = rtso::civ_unit_template(tmpl).tech_classes;
+	if (rtso::unit_is_siege_engine(type)) return {nullptr, 4.0f, 0.5f, 5.0f}; // template_unit_siege
+	if (type == rtso::UNIT_TRIREME || type == rtso::UNIT_MERCHANT_SHIP) return {nullptr, 6.0f, 0.5f, 6.0f}; // template_unit_ship
+	if (type == rtso::UNIT_WORKER_ELEPHANT) return {nullptr, 2.0f, 0.333f, 9.0f}; // template_unit_support_elephant
+	if (c & rtso::TC_ELEPHANT) return {nullptr, 2.0f, 0.333f, 10.0f}; // template_unit_champion_elephant
+	if (c & rtso::TC_CAVALRY) return {nullptr, 2.0f, 0.333f, 7.0f}; // template_unit_cavalry
+	if (type == rtso::UNIT_WAR_DOG) return {nullptr, 2.0f, 0.333f, 2.5f}; // template_unit_dog
+	return {nullptr, 2.0f, 0.333f, 5.0f}; // template_unit (and template_unit_ship_fishing)
+}
+
+// 0 A.D. 0.28 StatusBars/HeightOffset of a structure, in metres: template_structure's 12
+// unless its template sets another (towers and walls: the middle of the civs' values).
+static float structure_status_bar_offset(uint8_t type) {
+	switch (type) {
+		case rtso::BLD_HOUSE: case rtso::BLD_APARTMENT: case rtso::BLD_KENNEL: case rtso::BLD_FIELD: return 8.0f;
+		case rtso::BLD_OUTPOST: return 14.0f;
+		case rtso::BLD_SENTRY_TOWER: return 18.0f;
+		case rtso::BLD_TOWER: case rtso::BLD_WALL_TOWER: return 21.0f;
+		case rtso::BLD_TOWER_ARTILLERY: case rtso::BLD_TOWER_BOLT: case rtso::BLD_TOWER_DOUBLE: case rtso::BLD_TOWER_GREAT: return 19.0f;
+		case rtso::BLD_WALL_SEGMENT: return 12.6f;
+		case rtso::BLD_GATE: return 17.5f;
+		case rtso::BLD_SIEGE_WALL: return 7.7f;
+		case rtso::BLD_SIEGE_WALL_GATE: return 13.5f;
+		case rtso::BLD_PYRAMID_LARGE: return 15.0f;
+		default: return 12.0f;
+	}
+}
+
 void RtsoWorldView::_bind_methods() {
 	// Internal C++ sync call
 }
@@ -967,7 +1000,7 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 	if (!border_mi_) {
 		Ref<Shader> sh;
 		sh.instantiate();
-		// Player-coloured stripe on the outer edge fading inward; darkened by LOS
+		// A player-coloured line (0 A.D. territory_border.png is not in RTS0's assets); darkened by LOS
 		// and hidden in unexplored land like 0 A.D.'s textured overlay lines.
 		sh->set_code(
 				"shader_type spatial;\n"
@@ -977,9 +1010,9 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 				"varying vec3 wpos;\n"
 				"void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }\n"
 				"void fragment() {\n"
-				"  float v = UV.y;\n"
-				"  float core = smoothstep(0.0, 0.10, v) * (1.0 - smoothstep(0.28, 0.40, v));\n"
-				"  float glow = (1.0 - smoothstep(0.28, 1.0, v)) * 0.40;\n"
+				// Across the line (UV.y 0..1, centred on the path): solid with soft edges.
+				"  float d = abs(UV.y - 0.5) * 2.0;\n"
+				"  float core = 1.0 - smoothstep(0.6, 1.0, d);\n"
 				"  float dash = 0.8 + 0.2 * step(0.5, fract(UV.x));\n"
 				"  float los = 1.0;\n"
 				"  if (los_map_half > 0.0) los = texture(los_tex, (wpos.xz + vec2(los_map_half)) / (2.0 * los_map_half)).r;\n"
@@ -987,7 +1020,7 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 				// CCmpTerritoryManager::Interpolate: a region cut off from its owner's
 				// civic centres (COLOR.a 0) blinks, alpha * (0.2 + 0.8 |cos(t pi)|).
 				"  float blink = mix(0.2 + 0.8 * abs(cos(TIME * PI)), 1.0, COLOR.a);\n"
-				"  ALPHA = max(core, glow) * smoothstep(0.02, 0.25, los) * blink;\n"
+				"  ALPHA = core * smoothstep(0.02, 0.25, los) * blink;\n"
 				"}\n");
 		border_mat_.instantiate();
 		border_mat_->set_shader(sh);
@@ -1000,8 +1033,12 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 
 	// RTS0 maps are a quarter of 0 A.D.'s scale (Tiny: 128 m against 512 m).
 	const float kScale = 0.25f;
-	const float thickness = 3.5f * kScale;  // BorderThickness
-	const float separation = 0.5f * kScale; // BorderSeparation
+	// mods/mod/simulation/data/territorymanager.xml.
+	const float thickness = 0.75f * kScale;  // BorderThickness
+	const float separation = 0.85f * kScale; // BorderSeparation
+	// CTexturedLineRData: points on water float on its surface.
+	const float water = sim->water_height() > -0.5f ? drawn_water_height(sim) : -1e9f;
+	auto line_y = [&](float x, float z) { return std::max(sim->get_terrain_height(x, z), water) + 0.12f; };
 	const float cell = (border_half_ * 2.0f) / (float)grid.w;
 
 	PackedVector3Array verts;
@@ -1038,15 +1075,17 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 			float tx = pn.x - pp.x, tz = pn.y - pp.y;
 			const float tl = Math::sqrt(tx * tx + tz * tz);
 			if (tl > 1e-5f) { tx /= tl; tz /= tl; }
+			// CTexturedLineRData: the line is centred on the path, `thickness` to each side.
 			// Owner's land is on the left of the walk: (-t.z, t.x) points inward.
+			const float ox = wx + tz * thickness, oz = wz - tx * thickness;
 			const float ix = wx - tz * thickness, iz = wz + tx * thickness;
 			if (k > 0) {
 				const rtso::BoundaryPoint &q = b.points[(k - 1) % n];
 				const float dx = (p.x - q.x) * cell, dz = (p.y - q.y) * cell;
 				run += Math::sqrt(dx * dx + dz * dz);
 			}
-			verts.push_back(Vector3(wx, sim->get_terrain_height(wx, wz) + 0.12f, wz));
-			verts.push_back(Vector3(ix, sim->get_terrain_height(ix, iz) + 0.12f, iz));
+			verts.push_back(Vector3(ox, line_y(ox, oz), oz));
+			verts.push_back(Vector3(ix, line_y(ix, iz), iz));
 			uvs.push_back(Vector2(run / 1.5f, 0.0f));
 			uvs.push_back(Vector2(run / 1.5f, 1.0f));
 			cols.push_back(col);
@@ -3143,6 +3182,46 @@ void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso
 // so the first frame after a load (a save, a rewind) finds them cached. The rest (units in
 // the fog, next ranks, foundations, rubble) are prefetch_unit_models' to read ahead once
 // the match runs: requested all at once here, those worker loads slowed these ones ~3x.
+void RtsoWorldView::model_boxes(const std::vector<uint32_t> &ids, std::vector<ModelBoxes> &out) const {
+	out.clear();
+	for (uint32_t id : ids) {
+		Node3D *root = nullptr;
+		Node *models[3] = {};
+		if (auto it = unit_slot.find(id); it != unit_slot.end() && it->second < unit_pool.size()) {
+			root = unit_pool[it->second].root;
+			models[0] = unit_pool[it->second].model;
+		} else if (auto bt = building_slot.find(id); bt != building_slot.end() && bt->second < building_pool.size()) {
+			const BuildingVis &v = building_pool[bt->second];
+			root = v.root;
+			models[0] = v.model;
+			models[1] = v.foundation;
+			models[2] = v.scaffold;
+		}
+		if (!root || !root->is_visible_in_tree()) continue;
+		const Transform3D xf = root->get_global_transform();
+		const Transform3D to_local = xf.affine_inverse();
+		ModelBoxes b{ AABB(), xf, AABB() };
+		bool any = false;
+		for (Node *m : models) {
+			if (!m) continue;
+			TypedArray<Node> meshes = m->find_children("*", "MeshInstance3D", true, false);
+			if (MeshInstance3D *self = Object::cast_to<MeshInstance3D>(m)) meshes.push_back(self);
+			for (int k = 0; k < meshes.size(); ++k) {
+				MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(meshes[k]);
+				if (!mi || !mi->is_visible_in_tree()) continue;
+				const AABB a = mi->get_aabb();
+				if (a.size == Vector3()) continue;
+				const Transform3D g = mi->get_global_transform();
+				const AABB w = g.xform(a), l = (to_local * g).xform(a);
+				b.world = any ? b.world.merge(w) : w;
+				b.local = any ? b.local.merge(l) : l;
+				any = true;
+			}
+		}
+		if (any) out.push_back(b);
+	}
+}
+
 void RtsoWorldView::warm_models(const rtso::Simulation *sim, const std::function<void(int, int)> &progress) {
 	if (!sim) return;
 	const auto uview = sim->units();
@@ -3705,6 +3784,9 @@ void apply_terrain_tiles(const Ref<ShaderMaterial> &mat, const rtso::Simulation 
 
 } // namespace
 
+// The minimap's terrain colours read the same layers (minimap_view.cpp).
+Ref<Image> rtso_terrain_layer_image(const String &name) { return terrain_layer_image(name); }
+
 void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	if (!sim || !terrain) return;
 	float half = sim->map_half();
@@ -3957,8 +4039,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto uview = sim->units();
 	prefetch_unit_models(sim, uview, delta);
 	auto rview_g = sim->resources();
-	auto entity_visible = [sim, this](float x, float z, uint8_t team) {
-		return rtso::los_sees_unit(*sim, local_player_, x, z, team);
+	// Lock cull camera (GameView.cpp m_CullCamera): what lies outside the frozen frustum is
+	// not drawn, so moving the view camera shows what the cull camera culled.
+	const bool cull_locked = !locked_cull_frustum_.empty() && anim_cull_enabled_;
+	auto locked_out = [&](float x, float z, float radius) {
+		return cull_locked && !in_view(Vector3(x, sim->get_terrain_height(x, z), z), radius);
+	};
+	auto entity_visible = [&](float x, float z, uint8_t team) {
+		return rtso::los_sees_unit(*sim, local_player_, x, z, team) && !locked_out(x, z, 4.0f);
 	};
 	// template_unit_fauna.xml RetainInFog: an animal stays drawn where it is in explored fog
 	// (CCmpRangeManager VIS_FOGGED with no Fogging mirage), hidden only in unexplored land.
@@ -4224,7 +4312,6 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			StatusStack st;
 			if (bars) {
 				st.health = max_hp > 0.0f ? hp / max_hp : 1.0f;
-				st.health_color = is_player ? Color(0.2f, 0.95f, 0.3f, 0.95f) : Color(0.95f, 0.25f, 0.2f, 0.95f);
 				const float need_xp = status_xp_bar ? sim->promotion_required_xp(i) : 0.0f;
 				if (need_xp > 0.0f && uview.xp[i] > 0) st.xp = (float)uview.xp[i] / need_xp; // none at 0 XP
 				if (uview.pack_state[i] == rtso::PACK_PACKING || uview.pack_state[i] == rtso::PACK_UNPACKING) {
@@ -4242,8 +4329,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			}
 			if (!aura_icon_sources_.empty())
 				status_aura_icons(x, z, uview.team[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, false, st);
-			if (bars || st.n_icons > 0)
-				draw_status_stack(sim, Vector3(x, y + model_b.height * sc + 0.3f, z), 0.9f, 0.08f, st);
+			if (bars || st.n_icons > 0) {
+				// The GLBs are in metres, so the model's scale is world units per metre.
+				const rtso::StatusBarsSize sb = unit_status_bars(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
+				draw_status_stack(sim, Vector3(x, y - model_b.y_offset + sb.height_offset * sc, z), sb.bar_width * sc, sb.bar_height * sc, sc, st);
+			}
 		}
 
 				if (detailed.count(id) == 0) {
@@ -4413,7 +4503,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (const auto &b : buildings) {
 		alive_buildings.insert(b.id);
 		BuildingVis &v = acquire_building_slot(b.id);
-		if (v.root) v.root->set_visible(true);
+		if (v.root) v.root->set_visible(!locked_out(b.x, b.z, b.half_size * 1.5f + 4.0f));
 
 		uint8_t bciv = b.civ;
 		const String mid = building_visual_id(bciv, b.type, b.half_size);
@@ -4621,7 +4711,6 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (bars) {
 				// A foundation's Health grows as it is built (Foundation.js).
 				st.health = b_progress < 1.0f ? b_progress : (b.max_hp > 0.0f ? b.hp / b.max_hp : 1.0f);
-				st.health_color = b_progress < 1.0f ? Color(0.25f, 0.65f, 1.0f, 0.95f) : Color(0.2f, 0.95f, 0.3f, 0.95f);
 				if (b.type == rtso::BLD_FIELD && b_progress >= 1.0f) st.supply = 1.0f; // an infinite ResourceSupply
 				if (const auto *lb = b.miraged ? nullptr : live_building(b.id)) {
 					if (lb->upgrade_to != rtso::BLD_TYPE_COUNT && lb->upgrade_duration > 0.0f) st.upgrade = lb->upgrade_timer / lb->upgrade_duration;
@@ -4633,8 +4722,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				}
 			}
 			if (!aura_icon_sources_.empty()) status_aura_icons(b.x, b.z, b.team, rtso::CIV_UNIT_TEMPLATE_NONE, true, st);
-			if (bars || st.n_icons > 0)
-				draw_status_stack(sim, Vector3(b.x, base_y + 5.0f, b.z), 2.25f, 0.1f, st);
+			if (bars || st.n_icons > 0) {
+				// In the model's metres (its actor frame), as the GLBs are not drawn 1 unit = 4 m.
+				float m = 0.25f;
+				const auto fr = building_frames_.find(building_table_key(mid));
+				if (fr != building_frames_.end() && fr->second.scale > 0.0f) m = fr->second.scale * b_scale;
+				draw_status_stack(sim, Vector3(b.x, base_y + structure_status_bar_offset(b.type) * m, b.z), 6.0f * m, 0.6f * m, m, st);
+			}
 		}
 
 		// 3D Positional Building Fire Acoustics
@@ -5030,9 +5124,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (food > 0) st.supply = (float)fview.food_amount[f] / (float)food;
 			if (fview.alive[f] && fview.max_hp[f] > 0.0f) {
 				st.health = fview.hp[f] / fview.max_hp[f];
-				st.health_color = fview.owner[f] == local_player_ ? Color(0.2f, 0.95f, 0.3f, 0.95f) : Color(0.95f, 0.25f, 0.2f, 0.95f);
 			}
-			draw_status_stack(sim, Vector3(fx, fy + fent.y_offset + fent.aabb.size.y * fsc + 0.3f, fz), 0.9f, 0.08f, st);
+			// The animal GLBs are in metres (fsc is world units per metre).
+			const rtso::StatusBarsSize sb = rtso::fauna_status_bars(rtso::fauna_type_info(ft).template_name);
+			draw_status_stack(sim, Vector3(fx, fy + sb.height_offset * fsc, fz), sb.bar_width * fsc, sb.bar_height * fsc, fsc, st);
 		}
 	}
 	// A hovered tree, mine, bush or shoal (as last seen): its selection ring and
@@ -5067,7 +5162,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			const int32_t max = supply_max_.emplace(r.id, r.amount).first->second;
 			StatusStack st;
 			st.supply = max > 0 ? (float)r.amount / (float)max : 1.0f;
-			draw_status_stack(sim, Vector3(r.x, ry + 0.25f * offset, r.z), 0.25f * bar_w, 0.25f * bar_h, st);
+			draw_status_stack(sim, Vector3(r.x, ry + 0.25f * offset, r.z), 0.25f * bar_w, 0.25f * bar_h, 0.25f, st);
 		}
 	}
 	for (size_t k = unit_rings_used; k < unit_ring_decals_.size(); ++k) unit_ring_decals_[k]->set_visible(false);
@@ -5095,7 +5190,9 @@ void RtsoWorldView::status_aura_icons(float x, float z, uint8_t team, uint16_t t
 // StatusBars.js RegenerateSprites: experience, pack, upgrade, resource supply,
 // capture, health, aura icons and rank, from `base` up, each bar BarHeight * 1.2
 // above the one under it (the experience bar 2/3 as tall, using the pack textures).
-void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3 &base, float width, float height, const StatusStack &st) {
+// `base` is the entity's position raised by HeightOffset; `metre` is world units per
+// 0 A.D. metre at the entity's drawn size.
+void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3 &base, float width, float height, float metre, const StatusStack &st) {
 	float y = 0.0f;
 	auto at = [&](float h) { return base + Vector3(0.0f, y + 0.5f * h, 0.0f); };
 	auto bar = [&](RtsoStatusSprites::Bar type, float amount, float h) {
@@ -5122,22 +5219,19 @@ void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3
 			if (p != st.owner && st.capture[p] > 0.0f) part(p);
 		y += height * 1.2f;
 	}
-	if (st.health >= 0.0f) {
-		const Vector3 c = at(height);
-		const float hw = 0.5f * width;
-		status_sprites_.solid(c, -hw, hw, height, Color(0.15f, 0.15f, 0.18f, 0.85f));
-		status_sprites_.solid(c, -hw, -hw + width * Math::clamp(st.health, 0.0f, 1.0f), height * 0.85f, st.health_color);
-		y += height * 1.2f;
-	}
-	const float icon = std::min(width * 0.5f, 0.6f);
+	bar(RtsoStatusSprites::BAR_HEALTH, st.health, height);
+	const float icon = width * 0.5f;
 	if (st.n_icons > 0) {
+		// AddAuraIcons adds yoffset to both the sprite and its offset, so the icons
+		// sit twice as high as the bars under them.
 		float dx = -icon * (st.n_icons - 1) * 0.6f;
-		const Vector3 c = at(icon);
+		const Vector3 c = base + Vector3(0.0f, 2.0f * y + 0.5f * icon, 0.0f);
 		for (int k = 0; k < st.n_icons; ++k, dx += icon * 1.2f) status_sprites_.icon(st.icons[k], c, dx, icon);
 		y += icon + height * 0.5f;
 	}
 	if (st.rank_icon >= 0) {
-		status_sprites_.icon(st.rank_icon, at(icon), 0.0f, icon);
+		// AddRankIcon: HeightOffset + 0.1.
+		status_sprites_.icon(st.rank_icon, at(icon) + Vector3(0.0f, 0.1f * metre, 0.0f), 0.0f, icon);
 		status_rank_icons_.push_back(status_sprites_.icon_path(st.rank_icon));
 	}
 }

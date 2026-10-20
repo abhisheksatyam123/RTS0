@@ -63,7 +63,7 @@ func run() -> void:
 	Dialog = load("res://scenes/session/savegame_dialog.gd")
 	cleanup()
 	var v: int = RtsoMain.get_save_version()
-	write_save(NAMES[0], v, 1893510000, "random_continental", "E2E Continental", "before the attack")
+	write_save(NAMES[0], v, 1893510000, "random_continental", "E2E Continental (RMS)", "before the attack")
 	write_save(NAMES[1], v, 1896300000, "random_oasis", "E2E Oasis", "")
 	write_save(NAMES[2], v - 1, 1896400000, "random_oasis", "E2E Oasis", "old")
 	write_save(NAMES[3], v + 1, 1896500000, "random_oasis", "E2E Oasis", "new")
@@ -80,7 +80,7 @@ func run() -> void:
 	check(d.find_child("Title", true, false).text == "Load Game" and d.btn_ok.text == "Load", "Load Game with a Load button")
 	check(ids(d) == [NAMES[1], NAMES[0]], "compatible saves only, newest first: " + str(ids(d)))
 	var row: TreeItem = d.list.get_root().get_child(d.saves.map(func(s): return s.id).find(NAMES[0]))
-	check(row.get_text(1) == "Random" and row.get_text(2) == "E2E Continental" and row.get_text(3) == "before the attack",
+	check(row.get_text(1) == "Random" and row.get_text(2) == "E2E Continental" and row.get_text(3) == "before the attack", # " (RMS)" trimmed
 		"a row shows map type, map and description")
 	check(d.selected_save().get("id", "") == d.saves[0].id, "the first save is selected")
 	d.sort_by("mapName")

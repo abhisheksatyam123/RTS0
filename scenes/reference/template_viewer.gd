@@ -32,6 +32,7 @@ static func open(parent: Node, p_kind: String, p_id: int, p_civ: int) -> Control
 	return v
 
 func _init() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS # it can pause the game it opens over
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	if ResourceLoader.exists("res://assets/themes/zeroad_theme.tres"):
@@ -175,17 +176,22 @@ static func _num(v) -> String:
 	var f := float(v)
 	return str(int(round(f))) if absf(f - round(f)) < 0.05 else "%.1f" % f
 
+## getEntityCostComponentsTooltipString in getCostTypes() order (resources, population,
+## time), each its icon then the amount, as l10n.h cost_components(rich) writes it.
 static func cost_line(d: Dictionary) -> String:
 	var parts: PackedStringArray = []
 	var cost: Dictionary = d.get("cost", {})
 	for r in ["food", "wood", "stone", "metal"]:
 		if int(cost.get(r, 0)) > 0:
-			parts.append("%s %d" % [r.capitalize(), int(cost[r])])
-	if float(d.get("time", 0)) > 0:
-		parts.append("Time %s s" % _num(d["time"]))
+			parts.append("%s %d" % [_cost_icon(r), int(cost[r])])
 	if int(d.get("pop", 0)) > 0:
-		parts.append("Population %d" % int(d["pop"]))
+		parts.append("%s %d" % [_cost_icon("population"), int(d["pop"])])
+	if float(d.get("time", 0)) > 0:
+		parts.append("%s %s" % [_cost_icon("time"), _num(d["time"])])
 	return "  ".join(parts)
+
+static func _cost_icon(code: String) -> String:
+	return "[img=16x16]res://assets/textures/ui/archive/icons/resources/%s_small.png[/img]" % code
 
 const RES := ["food", "wood", "stone", "metal"]
 const DAMAGE_ORDER := ["Hack", "Pierce", "Crush", "Poison", "Fire"]
@@ -500,6 +506,8 @@ func info_text(d: Dictionary, extra: Dictionary) -> String:
 				blocks.append("[b]Trains:[/b] " + _links(d["trains"], "unit", "tmpl"))
 			if not d.get("researches", []).is_empty():
 				blocks.append("[b]Researches:[/b] " + _links(d["researches"], "tech", "id"))
+			if not d.get("upgrades", []).is_empty():
+				blocks.append("[b]Upgradable to:[/b] " + _links(d["upgrades"], "unit", "tmpl"))
 		"structure":
 			var by := _built_by()
 			if not by.is_empty():
@@ -558,11 +566,13 @@ func _built_by() -> Array:
 ## The Training panel's lines with Options' Detailed tooltips (showdetailedtooltips;
 ## selection_panels.js: health, attack, healer, resistance, garrison, turrets,
 ## projectiles, speed and dropsite tooltips), as plain text for a list tooltip.
-static func detailed_tooltip(tmpl: int) -> String:
+static func detailed_tooltip(tmpl: int, mods: Dictionary = {}) -> String:
 	var d: Dictionary = Common.ref().get_unit(tmpl)
 	if d.is_empty():
 		return ""
 	d = Common.civ_costed(d, "unit", int(d.get("civ", 0)))
+	if not mods.is_empty():
+		d = _with_mods(d, mods)
 	var vw: Dictionary = Common.unit_text(d.get("id", "")).get("viewer", {})
 	var keep := ["Health:", "Attack:", "Heal:", "Resistance:", "Garrison Limit", "Turret Positions", "Projectile Limit", "Speed:", "Dropsite for:"]
 	var out: PackedStringArray = []
@@ -574,6 +584,27 @@ static func detailed_tooltip(tmpl: int) -> String:
 		if on:
 			out.append(line)
 	return "\n".join(out)
+
+## A template's stats after a player's technologies and bonuses (Simulation::template_stat_mods):
+## Health and walk speed scaled, each damage type x mul + add, MaxRange x mul + add, resistance + levels.
+static func _with_mods(base: Dictionary, mods: Dictionary) -> Dictionary:
+	var d := base.duplicate(true)
+	if d.has("hp"):
+		d["hp"] = float(d["hp"]) * float(mods["health"])
+	if d.has("walk_speed"):
+		d["walk_speed"] = float(d["walk_speed"]) * float(mods["speed"])
+	if d.has("attack"):
+		var a: Dictionary = d["attack"]
+		var keys := ["hack", "pierce", "crush"]
+		for k in 3:
+			a[keys[k]] = float(a[keys[k]]) * float(mods["atk_mul"][k]) + float(mods["atk_add"][k])
+		a["range"] = float(a["range"]) * float(mods["range_mul"]) + float(mods["range_add"])
+	if d.has("armour"):
+		var r: Dictionary = d["armour"]
+		var types := ["hack", "pierce", "crush"]
+		for k in 3:
+			r[types[k]] = float(r[types[k]]) + float(mods["armor"][k])
+	return d
 
 ## BBCode to plain text: a resource icon becomes its name.
 static func _plain(t: String) -> String:

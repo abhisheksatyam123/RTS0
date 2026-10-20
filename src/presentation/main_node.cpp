@@ -59,11 +59,11 @@ RtsoMain::~RtsoMain() {
 }
 
 void RtsoMain::_notification(int p_what) {
-	// 0 A.D. "pauseonfocusloss": a single-player game pauses when the window loses focus.
-	if (p_what == NOTIFICATION_APPLICATION_FOCUS_OUT && sim && !net_lockstep() && !is_game_paused() &&
-			rtso::user_config::get_bool("pauseonfocusloss")) {
-		toggle_pause();
-	}
+	// 0 A.D. "pauseonfocusloss" (main.cpp Frame: isUnfocusedSP): while the window has
+	// no focus a single-player game's simulation doesn't advance; it carries on when
+	// focus returns, with no pause overlay.
+	if (p_what == NOTIFICATION_APPLICATION_FOCUS_OUT) app_unfocused_ = true;
+	if (p_what == NOTIFICATION_APPLICATION_FOCUS_IN) app_unfocused_ = false;
 	if (p_what == NOTIFICATION_EXIT_TREE) {
 		// The MenuAudio autoload outlives the match: stop driving the session's tick.
 		if (SceneTree *exiting = get_tree()) {
@@ -269,8 +269,10 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 		{"TARDIS", S::CHEAT_CHANGE_MAX_POPULATION, 0, "", false},
 		{"i am too busy", S::CHEAT_FAST_ACTIONS, 0, "", false},
 	};
-	const uint8_t me = local_player();
-	if (!sim || !sim->cheats_enabled() || me >= rtso::MAX_PLAYERS || sim->is_defeated(me)) return false;
+	// Cheats.executeCheat: controlsPlayer(Engine.GetPlayerID()), the own seat, not a viewed player.
+	const uint8_t me = seat_player();
+	if (!sim || turn_mgr_.is_replaying() || !sim->cheats_enabled() || me >= rtso::MAX_PLAYERS || sim->is_defeated(me))
+		return false;
 	const CheatCode *cheat = nullptr;
 	for (const CheatCode &c : kCheats)
 		if (text.begins_with(c.name)) { cheat = &c; break; }
@@ -534,7 +536,7 @@ void RtsoMain::show_trigger_dialogs(const std::vector<rtso::Simulation::TriggerD
 	// messages.js "dialog": a message box with the two buttons, for the players it names.
 	// Its "dialog-answer" command only reaches a script's OnPlayerCommand, which no
 	// ported script reads, so the answer just closes it.
-	const uint8_t me = local_player();
+	const uint8_t me = seat_player(); // messages.js: player == Engine.GetPlayerID(), not the viewed one
 	if (!sim || turn_mgr_.is_replaying() || me >= rtso::MAX_PLAYERS) return;
 	for (const auto &d : dialogs) {
 		if (!((d.players >> me) & 1u)) continue;
@@ -764,6 +766,8 @@ void RtsoMain::toggle_pause() {
 	hotkey_paused_ = !hotkey_paused_;
 	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_);
 	update_pause_overlay();
+	// MenuButtons Pause: its caption follows the pause (registerPauseHandler).
+	if (Node *menu = get_node_or_null(NodePath("PauseMenu"))) menu->call("rebuild_pause");
 }
 
 // PauseOverlay.rebuild: shown for your own pause and while another client
@@ -1057,8 +1061,19 @@ void RtsoMain::_on_template_info_pressed() {
 		show_notice("No details for this selection.");
 		return;
 	}
+	open_template_viewer(kind, id, civ);
+}
+
+// selection_panels.js showTemplateDetails: the Template Viewer over the game; a
+// single-player game waits while it is open (implicitPause, then resumeGame).
+void RtsoMain::open_template_viewer(const String &kind, int id, int civ) {
 	Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
-	if (viewer.is_valid()) viewer->call("open", ui_layer, kind, id, civ);
+	if (!viewer.is_valid() || !ui_layer) return;
+	Node *v = Object::cast_to<Node>(viewer->call("open", ui_layer, kind, id, civ));
+	SceneTree *tree = get_tree();
+	if (!v || !tree || net_lockstep() || tree->is_paused()) return;
+	tree->set_pause(true);
+	v->connect("tree_exited", Callable(tree, "set_pause").bind(false), CONNECT_ONE_SHOT);
 }
 
 // A command panel button's right click (selection_panels.js onPressRight showTemplateDetails):
@@ -1066,8 +1081,7 @@ void RtsoMain::_on_template_info_pressed() {
 void RtsoMain::_on_template_details_input(const Ref<InputEvent> &event, const String &kind, int id, int civ) {
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_RIGHT || !ui_layer) return;
-	Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
-	if (viewer.is_valid()) viewer->call("open", ui_layer, kind, id, civ);
+	open_template_viewer(kind, id, civ);
 }
 
 // The selection panel portrait (selection_details.js iconBorder): a left click follows the unit
@@ -1521,10 +1535,11 @@ std::vector<uint32_t> RtsoMain::structure_trainers(uint16_t tmpl, uint32_t holde
 	std::vector<uint32_t> structs = selected_structures();
 	if (std::find(structs.begin(), structs.end(), holder) == structs.end()) structs.assign(1, holder);
 	const rtso::CivUnitTemplate &u = rtso::civ_unit_template(tmpl);
+	const bool control_all = sim->controls_all(local_player()); // anyone's structures (Control all units)
 	for (uint32_t id : structs)
 		for (const auto &b : sim->buildings()) {
 			if (b.id != id) continue;
-			if (b.team == local_player() && b.build_progress >= 1.0f && !b.wrecked && b.upgrade_to == rtso::BLD_TYPE_COUNT &&
+			if ((b.team == local_player() || control_all) && b.build_progress >= 1.0f && !b.wrecked && b.upgrade_to == rtso::BLD_TYPE_COUNT &&
 					(u.trainers & rtso::bld_bit(b.type)))
 				out.push_back(id);
 			break;
@@ -1680,7 +1695,7 @@ void RtsoMain::_on_dev_command(int command) {
 		case D::DEV_PROMOTE: { // PromoteSelectedUnits: "promote" the selection; checked() is always false
 			std::vector<uint32_t> ids;
 			for (int k = 0; k < selected_ids.size(); ++k) ids.push_back((uint32_t)(int64_t)selected_ids[k]);
-			if (!ids.empty()) cheat(rtso::Simulation::CHEAT_DEV_PROMOTE, 0, ids);
+			cheat(rtso::Simulation::CHEAT_DEV_PROMOTE, 0, ids); // "(Cheat - promoted units)" even with nothing selected
 			break;
 		}
 		case D::DEV_ENABLE_CULLING: // EnableCulling: GameView_SetCullingEnabled
@@ -1809,14 +1824,36 @@ void RtsoMain::time_warp_tick() {
 }
 
 // CTurnManager::RewindTimeWarp: back to the latest snapshot, which is then dropped, so
-// rewinding again goes further back. The game goes on as a new replay from there.
+// rewinding again goes further back. Only the simulation goes back: the control groups
+// and selection stay, less what the snapshot doesn't have (0.28's GUI drops entities
+// that no longer exist). The game goes on as a new replay from there, where 0.28 keeps
+// writing a replay that can no longer be played.
 bool RtsoMain::time_warp_rewind() {
 	if (!time_warp_ || time_warp_snapshots_.empty()) return false;
 	const String path = time_warp_snapshots_.back();
 	time_warp_snapshots_.pop_back();
+	PackedInt32Array groups[10];
+	for (int g = 0; g < 10; ++g) groups[g] = selected_groups[g];
+	const PackedInt32Array units = selected_ids;
+	const std::vector<uint32_t> structures = selected_structures();
 	const bool ok = load_game(path);
 	DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(path));
 	time_warp_turn_ = turn_mgr_.current_turn(); // no snapshot of the state just restored
+	if (ok) {
+		auto exists = [this](int32_t id) { return sim->entity_owner((uint32_t)id) != 0xFF; };
+		for (int g = 0; g < 10; ++g) {
+			selected_groups[g].clear();
+			for (int32_t id : groups[g])
+				if (exists(id)) selected_groups[g].push_back(id);
+		}
+		selected_ids.clear();
+		for (int32_t id : units)
+			if (exists(id)) selected_ids.push_back(id);
+		std::vector<uint32_t> kept;
+		for (uint32_t id : structures)
+			if (exists((int32_t)id)) kept.push_back(id);
+		set_selected_structures(kept);
+	}
 	return ok;
 }
 
@@ -1851,7 +1888,29 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_render_debug(render_debug_mode_);
 	}
 	if (!dev_overlay_.state_shown()) return;
-	String text = vformat("simulation: {timeElapsed:%d, players:\"<<<omitted>>>\"}", (int64_t)(match_elapsed_time * 1000.0));
+	// GuiInterface GetSimulationState's keys in its order, players omitted (DeveloperOverlayEntityState.update).
+	// mapSize is in 0.28 metres (4 per tile); times in milliseconds, as cmpTimer.
+	String text = vformat("simulation: {players:\"<<<omitted>>>\", circularMap:%s, mapSize:%d, timeElapsed:%d",
+			sim->circular_map() ? "true" : "false", (int64_t)std::lround(sim->map_half() * 2.0f * 4.0f),
+			(int64_t)(match_elapsed_time * 1000.0));
+	text += vformat(", ceasefireActive:%s, ceasefireTimeRemaining:%d, cinemaPlaying:%s", sim->ceasefire_active() ? "true" : "false",
+			(int64_t)std::lround(sim->ceasefire_remaining() * 1000.0f), sim->cinema_playing() ? "true" : "false");
+	{
+		// EndGameManager GetVictoryConditions: the victory_conditions/*.json names.
+		static constexpr struct { uint8_t bit; const char *name; } kVictory[] = {
+			{rtso::VK_CONQUEST, "conquest"}, {rtso::VK_CONQUEST_UNITS, "conquest_units"},
+			{rtso::VK_CONQUEST_STRUCTURES, "conquest_structures"}, {rtso::VK_CONQUEST_CIVIC_CENTRES, "conquest_civic_centers"},
+			{rtso::VK_WONDER, "wonder"}, {rtso::VK_RELIC, "capture_the_relic"}, {rtso::VK_REGICIDE, "regicide"},
+		};
+		String vc;
+		for (const auto &v : kVictory)
+			if (sim->has_victory(v.bit)) vc += String(vc.is_empty() ? "\"" : ", \"") + v.name + "\"";
+		// PopulationCapManager: "player", "world" or "team" and its value.
+		const char *cap_type = sim->world_pop_cap() ? "world" : sim->team_pop_cap() ? "team" : "player";
+		const int cap = sim->world_pop_cap() ? sim->world_pop_cap() : sim->team_pop_cap() ? sim->team_pop_cap() : sim->pop_cap_setting();
+		text += vformat(", victoryConditions:[%s], alliedVictory:%s, populationCapType:\"%s\", populationCap:%d}", vc,
+				sim->last_man_standing() ? "false" : "true", cap_type, (int64_t)cap);
+	}
 	const uint32_t first = !selected_ids.is_empty() ? (uint32_t)(int64_t)selected_ids[0] : 0;
 	if (first) {
 		auto uv = sim->units();
@@ -1896,8 +1955,22 @@ void RtsoMain::refresh_dev_overlay() {
 			text += "\n\nentity: {\n";
 			text += vformat("  id:%d\n  type:%d\n  player:%d\n  hitpoints:%.1f\n  maxHitpoints:%.1f\n", (int64_t)b.id,
 					(int64_t)b.type, (int64_t)b.team, b.hp, b.max_hp);
-			text += vformat("  position:{x:%.2f, z:%.2f}\n  buildProgress:%.2f\n  queue:%d\n}", b.x, b.z, b.build_progress,
-					(int64_t)b.queue.size());
+			text += vformat("  position:{x:%.2f, z:%.2f}\n  rotation:%.2f\n  buildProgress:%.2f\n  queue:%d\n", b.x, b.z, b.rot,
+					b.build_progress, (int64_t)b.queue.size());
+			text += vformat("  garrisoned:%d\n  capturePoints:%.1f\n  maxCapturePoints:%.1f\n}", (int64_t)sim->get_garrison_count(b.id),
+					b.capture_points, b.max_capture_points);
+			// template: GetTemplateData of the structure's template (its civ's, Gaia's plain one).
+			const rtso::BuildingTypeInfo &info = rtso::building_type_info(b.type);
+			const Dictionary e = rtso::portraits::structure_entry(b.civ, b.type);
+			float cost[rtso::RES_COUNT] = {};
+			sim->structure_cost_for(b.team, b.type, cost);
+			text += vformat("\n\ntemplate: {template:\"%s\", name:{generic:\"%s\", specific:\"%s\"}, civ:%d, ", e.get("template", String()),
+					e.get("generic_name", String(info.name)), e.get("specific_name", String()), (int64_t)b.civ);
+			text += vformat("cost:{food:%d, wood:%d, stone:%d, metal:%d, time:%.1f}, ", (int64_t)std::lround(cost[rtso::RES_FOOD]),
+					(int64_t)std::lround(cost[rtso::RES_WOOD]), (int64_t)std::lround(cost[rtso::RES_STONE]),
+					(int64_t)std::lround(cost[rtso::RES_GOLD]), sim->structure_build_time_for(b.team, b.type));
+			text += vformat("maxHitpoints:%.1f, population:{bonus:%d}, garrisonHolder:{max:%d}, capturable:{max:%.1f}}",
+					sim->structure_max_hp(b.type, b.team), (int64_t)info.pop_bonus, (int64_t)info.garrison_cap, info.capture_max_points);
 			break;
 		}
 	}
@@ -2286,10 +2359,14 @@ CheckBox *RtsoMain::new_follow_player_box() {
 	return box;
 }
 
-// The player an observer or replay viewer is watching, or -1 (Observer, Gaia, or playing).
+// The player an observer or replay viewer is watching (GAIA_PLAYER for Gaia), or -1
+// (Observer, or playing). FollowPlayer.js hides the box for Observer only: "Following
+// gaia can be interesting on scripted maps".
 int RtsoMain::followed_view() const {
-	if (turn_mgr_.is_replaying()) return replay_view_ < rtso::MAX_PLAYERS ? (int)replay_view_ : -1;
-	if (spectating()) return observer_view_ < rtso::MAX_PLAYERS ? (int)observer_view_ : -1;
+	if (turn_mgr_.is_replaying())
+		return replay_view_gaia_ ? (int)rtso::GAIA_PLAYER : replay_view_ < rtso::MAX_PLAYERS ? (int)replay_view_ : -1;
+	if (spectating())
+		return observer_view_gaia_ ? (int)rtso::GAIA_PLAYER : observer_view_ < rtso::MAX_PLAYERS ? (int)observer_view_ : -1;
 	return -1;
 }
 
@@ -2300,18 +2377,36 @@ void RtsoMain::set_follow_player(bool on) {
 }
 
 // messages.js "playercommand": with Follow Player on, each command the watched player
-// gives moves the camera to it and selects the units it ordered. Commands come from the
-// TurnManager, so these are the commands players gave; Petra's own orders are not
-// commands in RTS0 and only its attacks are followed.
+// gives moves the camera to it and selects the units it ordered. Players' commands come
+// from the TurnManager; Petra gives its orders in the simulation, which notes them
+// (AiCommandEvent), as 0.28's Petra posts commands like a player.
 void RtsoMain::follow_player_tick() {
 	const int view = followed_view();
 	for (CheckBox *box : {observer_follow_box_, replay_follow_box_})
 		if (box) box->set_visible(view >= 0);
 	const bool on = follow_player_ && view >= 0 && sim;
 	turn_mgr_.set_record_applied(on);
+	if (sim) sim->set_record_ai_commands(on);
 	if (!on) return;
 	for (const auto &a : turn_mgr_.take_applied_commands())
 		if ((int)a.player == view) follow_command(a.cmd);
+	using E = rtso::Simulation::AiCommandEvent;
+	using T = rtso::NetCommandType;
+	for (const auto &e : sim->take_ai_command_events()) {
+		if ((int)e.player != view) continue;
+		static constexpr T kType[] = {T::NET_CMD_MOVE, T::NET_CMD_ATTACK_MOVE, T::NET_CMD_PATROL, T::NET_CMD_GATHER,
+			T::NET_CMD_ATTACK, T::NET_CMD_BUILD_REPAIR, T::NET_CMD_GARRISON, T::NET_CMD_GUARD, T::NET_CMD_HEAL,
+			T::NET_CMD_RETURN_RESOURCE, T::NET_CMD_SETUP_TRADE_ROUTE, T::NET_CMD_STOP, T::NET_CMD_DELETE, T::NET_CMD_TRAIN,
+			T::NET_CMD_RESEARCH, T::NET_CMD_NONE};
+		static_assert(sizeof(kType) / sizeof(kType[0]) == E::OTHER + 1);
+		rtso::NetCommand c;
+		c.cmd_type = (uint8_t)kType[std::min<uint8_t>(e.kind, E::OTHER)];
+		c.entity_ids = e.ids;
+		c.target_id = e.target;
+		c.target_x = e.x;
+		c.target_z = e.z;
+		follow_command(c);
+	}
 }
 
 void RtsoMain::follow_command(const rtso::NetCommand &c) {
@@ -2332,6 +2427,9 @@ void RtsoMain::follow_command(const rtso::NetCommand &c) {
 		// Focus the commanded entities, but keep the focus when training.
 		follow_focus(c.entity_ids[0], false);
 	}
+	// DrawTargetMarker for "walk", "attack-walk" and "patrol".
+	if (type == NetCommandType::NET_CMD_MOVE || type == NetCommandType::NET_CMD_ATTACK_MOVE || type == NetCommandType::NET_CMD_PATROL)
+		range_overlays_.add_target_marker(c.target_x, c.target_z);
 	// Select the units the command affected, and its target.
 	if (type == NetCommandType::NET_CMD_RALLY) return;
 	clear_selection();
@@ -2534,6 +2632,18 @@ void RtsoMain::_on_voice_button_pressed() {
 	use_english_voice_orders_ = !use_english_voice_orders_;
 	if (voice_btn)
 		voice_btn->set_text(use_english_voice_orders_ ? "Voice: EN" : "Voice: Civ");
+}
+
+bool RtsoMain::has_lobby_client() const {
+	Node *ls = get_node_or_null(NodePath("/root/LobbySession"));
+	return ls && (bool)ls->call("signed_in");
+}
+
+void RtsoMain::open_lobby_page() {
+	if (!has_lobby_client()) return;
+	close_open_dialogs();
+	Ref<Script> lobby = ResourceLoader::get_singleton()->load("res://scenes/menu/lobby.gd");
+	if (lobby.is_valid()) lobby->call("open_dialog", get_tree());
 }
 
 void RtsoMain::_on_lobby_button_pressed() {
@@ -3029,11 +3139,10 @@ Dictionary RtsoMain::get_setup_chat() const {
 // The setup page's chat input: the chat window's send, so /kick, /ban, /list
 // and /clear (executeNetworkCommand) run before anything is sent.
 void RtsoMain::send_setup_chat(const String &text) {
-	LineEdit *in = chat_window_.input();
-	if (!in || text.strip_edges().is_empty()) return;
-	in->set_text(text);
-	chat_window_.send_pressed();
+	chat_window_.send_setup(text);
 }
+
+bool RtsoMain::chat_setup_verbatim() { return is_net_pregame(); }
 
 // 0.28 sound.notify.gamesetup.join (off by default): a chime when a client joins
 // the game setup; `before` 0 is our first look at it, not a join.
@@ -3420,8 +3529,9 @@ void RtsoMain::_on_lobby_start_pressed() {
 	}
 	rtso::GameSetupParams setup;
 	match_settings_setup(setup);
-	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) ms->set("net_map_random", false);
-	if (setup.seed == 0) setup.seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
+	Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
+	if (ms) ms->set("net_map_random", false);
+	if (setup.seed == 0 && !(ms && (bool)ms->get("seed_exact"))) setup.seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
 	// A Random civ is picked here, so every peer is told the same one.
 	for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i)
 		if (!rtso::is_playable_civ(setup.civs[i])) setup.civs[i] = rtso::playable_civ(setup.seed / 7u + i * 2654435761u);
@@ -3430,6 +3540,16 @@ void RtsoMain::_on_lobby_start_pressed() {
 	// peers seat players identically in assign_slot_players).
 	{
 		prepare_lobby_seats(setup, true);
+	}
+	// PlayerName onFinalizeAttributes: a seated client's name becomes its slot's
+	// PlayerData Name, so the replay and the summary name the real players.
+	for (uint32_t c = 0; c < rtso::NET_SETUP_CLIENTS; ++c) {
+		const uint8_t slot = setup.seats[c];
+		if (slot >= setup.slot_count || slot >= 8 || setup.slot_types[slot] != 'h') continue;
+		std::string name = c == 0 ? net_host_.localPlayerName() : std::string();
+		for (const auto &p : net_host_.getPeers())
+			if (c != 0 && p.id == c && p.connected) name = p.player_name;
+		if (!name.empty()) setup.names[slot] = name;
 	}
 	turn_mgr_.reset();
 	turn_mgr_.set_net_host(&net_host_, 0);
@@ -3884,7 +4004,9 @@ Dictionary RtsoMain::get_match_settings_info() const {
 	d["disable_treasures"] = sim->disable_treasures();
 	d["explore_map"] = sim->explore_map();
 	d["ally_view"] = sim->ally_view();
-	d["reveal_map"] = sim->reveal_map();
+	// The match's setting (g_InitAttributes), not the live state the reveal-map cheats change.
+	Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
+	d["reveal_map"] = ms ? bool(ms->get("reveal_map")) : sim->reveal_map();
 	d["cheats"] = sim->cheats_enabled();
 	return d;
 }
@@ -3895,8 +4017,11 @@ String RtsoMain::match_settings_description() const {
 }
 
 // MatchSettingsDialog.rebuild: g_PlayerStateMessages for a player who has won or lost.
+// It names the local seat (Engine.GetPlayerID()), whoever is viewed: none in a replay or
+// for an observer.
 String RtsoMain::match_settings_player_state() const {
-	const uint8_t me = local_player();
+	if (turn_mgr_.is_replaying()) return String();
+	const uint8_t me = seat_player();
 	if (!sim || me >= rtso::MAX_PLAYERS) return String();
 	if (sim->is_victory_for(me)) return "You have won!";
 	if (sim->is_defeated(me)) return "You have been defeated!";
@@ -3951,8 +4076,10 @@ bool RtsoMain::close_open_dialogs() {
 // last goal's Leave opens the session menu (0 A.D. ends the game there).
 void RtsoMain::_on_tutorial_ready_pressed() {
 	if (!sim || !sim->tutorial_ready_button()) return;
+	// messages.js: on the leave goal the button reads Quit and calls endGame(true).
 	if (tutorial_panel_.on_last_goal(*sim)) {
-		_on_menu_button_pressed();
+		Ref<Script> q = ResourceLoader::get_singleton()->load("res://scenes/session/quit_confirmation.gd");
+		if (q.is_valid()) q->call("end_game", this, true);
 		return;
 	}
 	post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TUTORIAL_READY, nullptr, 0, 0.0f, 0.0f, 0, 0);

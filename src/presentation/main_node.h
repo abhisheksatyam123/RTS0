@@ -326,6 +326,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	CameraBookmark camera_jump_last_;
 	// Single-player pause from the pause hotkey (Pause, Shift+Space).
 	bool hotkey_paused_ = false;
+	bool app_unfocused_ = false; // the window lost focus (pauseonfocusloss)
 	// Where the local player was last attacked (camera.lastattackfocus = Space).
 	bool has_last_attack_ = false;
 	Vector3 last_attack_pos_;
@@ -392,7 +393,8 @@ public:
 	bool is_game_paused() const { return hotkey_paused_; }
 	bool can_pause() const;
 	// Engine.HasXmppClient: a game started from the lobby screen.
-	bool has_lobby_client() const { return lobby_btn && lobby_btn->is_visible(); }
+	bool has_lobby_client() const; // Engine.HasXmppClient: signed in to the lobby
+	void open_lobby_page(); // MenuButtons Lobby: page_lobby.xml with {"dialog": true}
 	PopupMenu *speed_menu_ = nullptr;
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
@@ -549,6 +551,7 @@ public:
 	bool chat_reaches(uint8_t from, uint8_t to, const std::string &tag, uint32_t to_client = UINT32_MAX) const;
 	bool chat_is_addressee(const String &sender_guid, const String &tag) override;
 	bool chat_local_observer() override;
+	bool chat_setup_verbatim() override;
 	std::vector<std::pair<String, String>> chat_private_targets() override;
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	uint8_t chat_player_of_client(uint32_t client) const;
@@ -575,6 +578,7 @@ public:
 	std::vector<uint32_t> ui_selected_garrison_holders() const override { return selected_garrison_holders(); }
 	bool ui_garrison_panel_shown() const override;
 	bool ui_observing() const override { return turn_mgr_.is_replaying() || spectating(); }
+	bool ui_trains_units(uint32_t id) const override { return building_trains_units(id); }
 	// Tests: the training roster's rows (name, disabled).
 	Array debug_roster() {
 		update_command_panel();
@@ -819,6 +823,9 @@ public:
 	bool flare_held() const;
 	bool selected_building_shoots() const; // own, with BuildingAI arrows (try_focus_fire)
 	void refresh_chat_tooltips();
+	void _refresh_menu_tooltip();
+	void open_template_viewer(const String &kind, int id, int civ);
+	bool is_chat_open() const { return chat_window_.is_open(); }
 	Dictionary debug_chat_tooltips() {
 		Dictionary d; d["input"] = chat_window_.input_tooltip(); d["open"] = chat_open_hotkey_tooltip();
 		PackedStringArray names;
@@ -869,6 +876,9 @@ private:
 	// (not one of the selected).
 	// cmd and ent: the RallyCommand and unit or treasure the target alone doesn't give.
 	void rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld, uint32_t *ent = nullptr, uint8_t *cmd = nullptr) const;
+	// GetTradingRouteGain for a default route from the selected market to market `to`, for
+	// the trader it trains (a merchant ship at a dock). False when either is gone.
+	bool rally_route_gain(uint32_t to, rtso::Simulation::TradeGain &g) const;
 	bool selection_can_board(uint32_t holder) const;
 	void update_hud();
 	void update_inspector();
@@ -948,7 +958,6 @@ private:
 	uint8_t music_civ_ = 0xFF;
 	uint32_t defeated_heard_ = 0; // players whose defeat this client already heard
 	bool music_primed_ = false;
-	ConfirmationDialog *delete_dialog_ = nullptr; // DeleteSelectionConfirmation
 	PackedInt32Array delete_pending_;
 	void play_alarm(const char *path);
 	void play_sfx(const char *path);

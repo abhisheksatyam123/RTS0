@@ -1046,9 +1046,9 @@ static void test_diplomacy_requests() {
 	      "both AIs end up neutral to each other");
 }
 
-// diplomacyManager.js handleTributeRequest: an AI asked for a tribute in return
-// for a pact pays it once it can spare it; a request it can't pay at once
-// stands until the asker withdraws it (120 s), rather than being forgotten.
+// diplomacyManager.js:264-284 TributeRequest: an AI asked for a tribute in return for a
+// pact pays it at once if it can spare it, else lets it go (the TODO there: "Save this
+// event and wait"); the asker withdraws its offer 120 s later.
 static void test_tribute_request_paid_later() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(7);
@@ -1087,11 +1087,11 @@ static void test_tribute_request_paid_later() {
 	for (; t < 60.0f && !(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL);
 	     t += Simulation::FIXED_STEP)
 		s->tick(Simulation::FIXED_STEP);
-	std::printf("  tribute asked of a broke AI: request stood %s, paid and neutral %s after %.0fs more\n",
-	            asked ? "yes" : "no", s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL ? "yes" : "no", t);
-	CHECK(asked, "AI 3's tribute request stands while AI 1 is broke");
-	CHECK(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL,
-	      "AI 1 pays once it can, and the pact is sealed");
+	std::printf("  tribute asked of a broke AI: AI 3 waited %s, neutral after funds came back %s\n",
+	            asked ? "yes" : "no", s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL ? "yes" : "no");
+	CHECK(asked, "AI 3 waits for the tribute while AI 1 is broke");
+	CHECK(s->petra_tribute_request_wanted_[1][3] == 0, "AI 1 answered the request once");
+	CHECK(s->get_diplomacy(3, 1) != Simulation::DIPLO_NEUTRAL, "a request AI 1 couldn't pay at once is not paid later");
 }
 
 // worker.js startHunting: Petra's food gatherers slaughter the chickens by
@@ -1470,6 +1470,114 @@ static void test_petra_research_order() {
 			for (size_t j = i + 1; j < techs.size(); ++j) dup |= techs[i] == techs[j];
 		CHECK(!dup, "each technology listed once");
 	}
+}
+
+// diplomacyManager.js counts with gameState.getEntities / getOwnUnits: garrisoned units and
+// owned livestock are the player's too (the 40% ally test, the donor rule, the 50-unit gate).
+static void test_petra_diplomacy_counts() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	uint32_t cc = 0;
+	float x = 0.0f, z = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { cc = b.id; x = b.x; z = b.z; }
+	const int units = s->petra_player_units(0), entities = s->petra_player_entities(0);
+	const uint32_t u = s->spawn_unit(x + 8.0f, z, 0, UNIT_SPEARMAN);
+	CHECK(s->garrison_unit_now(u, cc), "the spearman garrisons");
+	s->spawn_fauna(x - 8.0f, z, FAUNA_SHEEP_TRAINABLE, 0);
+	std::printf("  diplomacy counts: units %d -> %d, entities %d -> %d\n", units, s->petra_player_units(0), entities,
+	            s->petra_player_entities(0));
+	CHECK(s->petra_player_units(0) == units + 2, "a garrisoned unit and a sheep count as units");
+	CHECK(s->petra_player_entities(0) == entities + 2, "and as entities");
+}
+
+// attackManager.js cancelAttacksAgainstPlayer covers raids: peace with the raided player
+// sends the riders home.
+static void test_petra_peace_ends_raid() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, p == 1);
+	s->petra_pid_ = 1;
+	uint32_t target = 0;
+	float x = 0.0f, z = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { target = b.id; x = b.x; z = b.z; }
+	Simulation::AttackPlan &raid = s->petra_raid_plan_;
+	raid.state = Simulation::AttackPlan::ATTACKED;
+	raid.target_building_id = target;
+	raid.squad.push_back(s->spawn_unit(x + 12.0f, z, 1, UNIT_CAVALRY));
+	s->petra_change_diplomacy(0, Simulation::DIPLO_NEUTRAL);
+	CHECK(raid.state == Simulation::AttackPlan::REGROUP && raid.target_building_id == 0, "a raid on the new neutral goes home");
+}
+
+// diplomacyManager.js tributes (DM:73-124): every ally's gift is worked out from the same
+// available resources, so two broke allies get 30% of the stock each.
+static void test_petra_tributes_same_total() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 3, 128.0f);
+	for (uint8_t p = 0; p < 3; ++p) s->set_player_active(p, true, p == 0);
+	s->petra_pid_ = 0;
+	for (uint8_t p = 1; p < 3; ++p) {
+		s->cmd_set_diplomacy(0, p, Simulation::DIPLO_ALLY);
+		s->cmd_set_diplomacy(p, 0, Simulation::DIPLO_ALLY);
+	}
+	for (uint8_t p = 0; p < 3; ++p)
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[p].res[r] = 0.0f;
+	s->players_[0].res[RES_FOOD] = 1000.0f;
+	s->petra_diplo_.seen_init = true;
+	s->petra_diplo_.next_tribute = 0.0f;
+	s->petra_manage_diplomacy(1.6f);
+	std::printf("  tributes from one total: ally 1 got %.0f food, ally 2 %.0f, %.0f left\n", s->players_[1].res[RES_FOOD],
+	            s->players_[2].res[RES_FOOD], s->players_[0].res[RES_FOOD]);
+	CHECK(s->players_[1].res[RES_FOOD] == 300.0f && s->players_[2].res[RES_FOOD] == 300.0f, "each ally gets 30% of the same total");
+}
+
+// diplomacyManager.js init: a player allied to us at the start while we are its enemy
+// is answered as an alliance request (accept, ask a tribute or decline), not with the
+// "become neutral first" refusal a later change gets.
+static void test_petra_init_one_way_ally() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 3, 128.0f);
+	for (uint8_t p = 0; p < 3; ++p) s->set_player_active(p, true, p == 0);
+	s->petra_pid_ = 0;
+	s->set_diplomacy(1, 0, Simulation::DIPLO_ALLY); // as a map's player data can set it
+	s->set_diplomacy(0, 1, Simulation::DIPLO_ENEMY);
+	s->petra_manage_diplomacy(1.6f);
+	const auto &req = s->petra_diplo_.received[1];
+	std::printf("  one-way ally at the start: request status %d, type %d\n", (int)req.status, (int)req.type);
+	CHECK(req.status != PetraReceivedRequest::NONE && req.type == 0, "answered as an alliance request");
+}
+
+// attackManager.js getRelicEnemyPlayer sets currentEnemyPlayer to Gaia (0) when it picks
+// Gaia's relics; it stays Gaia, not the owner of some started attack's target.
+static void test_petra_current_enemy_gaia() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	for (const auto &b : s->buildings())
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) {
+			Simulation::AttackPlan plan;
+			plan.state = Simulation::AttackPlan::WALKING;
+			plan.target_building_id = b.id;
+			s->petra_started_attacks_.push_back(plan);
+		}
+	CHECK(s->petra_attack_enemy() == 0, "before any pick, the started attack's target owner");
+	s->petra_note_enemy(GAIA_PLAYER);
+	CHECK(s->petra_attack_enemy() == GAIA_PLAYER, "after a Gaia relic pick, Gaia");
+	s->petra_note_enemy(0);
+	CHECK(s->petra_attack_enemy() == 0, "then the next player picked");
+	s->petra_started_attacks_.clear();
 }
 
 // researchManager.js update returns while minorTech holds a plan: a pick waiting for its
@@ -2117,14 +2225,17 @@ static void test_nomad_first_base() {
 	for (size_t i = 0; i < s->units_.count; ++i)
 		if (s->units_.alive[i] && s->units_.team[i] == 0) idle_army.push_back(s->units_.id[i]);
 	s->order_set_stance(idle_army.data(), idle_army.size(), STANCE_PASSIVE);
-	run_for(*s, 150.0f);
+	// worker.js: the civic centre's builders go idle (autocontinue only for houses) and gather,
+	// and the fields wait for a food gatherer (buildAnyField), so the first house comes later
+	// than 150 s on this seed.
+	run_for(*s, 240.0f);
 	int buildings = 0, houses = 0;
 	for (const auto &b : s->buildings())
 		if (b.team == 1 && !b.wrecked && b.build_progress >= 1.0f) {
 			++buildings;
 			houses += b.type == BLD_HOUSE;
 		}
-	std::printf("  nomad: Town Centers at start %d, built after 150 s %d, finished buildings %d, workers %d\n",
+	std::printf("  nomad: Town Centers at start %d, built after 240 s %d, finished buildings %d, workers %d\n",
 	            at_start, town_centers(true), buildings, count_units(*s, 1, true));
 	CHECK(at_start == 0, "a Nomad start has no civic centre");
 	CHECK(town_centers(true) == 1, "Petra founds and builds its first Town Center");
@@ -2901,6 +3012,9 @@ static void test_attack_rally_point() {
 	s->petra_attack_mgr_.target_size = 12;
 	s->petra_attack_mgr_.min_size = 12;
 	const std::vector<uint32_t> army = plan.squad;
+	// attackPlan.js updatePreparation's max-population case: under 5 free slots, more than
+	// lengthMin units start the plan whatever classes it still lacks.
+	s->set_pop_cap(s->pop_current(1) + 2);
 	auto centre = [&](float &cx, float &cz) {
 		cx = cz = 0.0f;
 		int n = 0;
@@ -3696,6 +3810,46 @@ static void test_unit_choice() {
 	CHECK(disabled == 0, "never trains a disabled template");
 }
 
+// headquarters.js:1566 buildNewBase hasOwnCC: a Seleucid Petra builds a military colony only
+// while it holds a civil centre of its own civ; a captured one of another civ calls for a
+// civil centre.
+static void test_new_base_own_civ_cc() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->set_team_civ(1, CIV_SELEUCIDS);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 128.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	Simulation::Building *cc = nullptr;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const uint32_t cc_id = cc->id;
+	// A hero lifts the Seleucid CivilCentre limit (EntityLimits LimitRemovers RequiredClasses Hero).
+	s->spawn_unit(cc->x + 12.0f, cc->z + 12.0f, 1, UNIT_HERO);
+	auto lay = [&](uint8_t civ) {
+		for (auto &b : s->buildings_)
+			if (b.id == cc_id) b.civ = civ;
+		s->petra_pid_ = 1;
+		s->players_[1].phase = 2;
+		s->set_player_resources(1, 5000, 5000, 5000, 5000);
+		s->petra_queues_.accounts[PETRA_Q_CIVIL_CENTRE] = PetraQueueAccount{1000.0f, 1000.0f, 1000.0f, 1000.0f};
+		const size_t before = s->buildings_.size();
+		s->petra_build_new_base();
+		int laid = -1;
+		for (size_t k = before; k < s->buildings_.size(); ++k)
+			if (s->buildings_[k].team == 1 && s->buildings_[k].build_progress < 1.0f) laid = s->buildings_[k].type;
+		for (size_t k = before; k < s->buildings_.size(); ++k) s->buildings_[k].wrecked = true; // out of the way
+		return laid;
+	};
+	const int own = lay(CIV_SELEUCIDS), captured = lay(CIV_ATHENIANS);
+	std::printf("  new base: with a Seleucid civic centre lays %d, with only an Athenian one lays %d\n", own, captured);
+	CHECK(own == BLD_MILITARY_COLONY, "a military colony while our own civ's civic centre stands");
+	CHECK(captured == BLD_TOWN_CENTER, "a civil centre when the only one is captured from another civ");
+}
+
 // victoryManager.js: in wonder victory a finished wonder is a critical entity,
 // guarded by up to 10 + 5 * defensive soldiers, champions first, who turn on
 // whoever attacks it.
@@ -4171,6 +4325,39 @@ static void test_builders_per_foundation() {
 	std::printf("  builders: barracks %d, house %d\n", on(barracks), on(house));
 	CHECK(on(barracks) == 4, "a barracks foundation takes 4 builders");
 	CHECK(on(house) == 3, "a house foundation takes 3 builders");
+}
+
+// basesManager.js bulkPickWorkers: with a base standing, a new civic centre's foundation
+// takes 10 workers, and the standing base keeps 3 (baseManager.js pickBuilders).
+static void test_new_base_builders() {
+	for (int extra : {30, 8}) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 20.0f);
+		s->set_player_resources(1, 5000, 5000, 5000, 5000);
+		const Simulation::Building *cc = nullptr;
+		for (const auto &b : s->buildings_)
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+		CHECK(cc != nullptr, "Petra has a civic centre");
+		if (!cc) return;
+		const float cx = cc->x, cz = cc->z;
+		if (extra == 8)
+			for (size_t i = 0; i < s->units_.count; ++i)
+				if (s->units_.alive[i] && s->units_.team[i] == 1) s->units_.alive[i] = 0;
+		for (int k = 0; k < extra; ++k) s->spawn_unit(cx - 8.0f + (float)(k % 6), cz + 8.0f + (float)(k / 6), 1, UNIT_FEMALE_CITIZEN);
+		const float ang = std::atan2(-cz, -cx);
+		const uint32_t anchor = s->spawn_building_world(cx + std::cos(ang) * 36.0f, cz + std::sin(ang) * 36.0f, BLD_TOWN_CENTER, 1, 0.0f);
+		run_for(*s, 3.0f);
+		int n = 0;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.target_building_id[i] == anchor) ++n;
+		std::printf("  new base with %d more women: %d builders on the civic centre\n", extra, n);
+		if (extra == 30) CHECK(n == 10, "a new civic centre takes 10 workers");
+		else CHECK(n == 5, "the standing base keeps 3 workers");
+	}
 }
 
 // baseManager.js assignToFoundations: while a new base's civic centre is a foundation, only it
@@ -4842,7 +5029,8 @@ static void test_defend_allies() {
 	s->order_set_stance(foes.data(), foes.size(), STANCE_STAND_GROUND);
 	auto is_foe = [&](uint32_t id) { return std::find(foes.begin(), foes.end(), id) != foes.end(); };
 	int sent = 0, home = 0;
-	for (float t = 0.0f; t < 3.0f; t += Simulation::FIXED_STEP) {
+	// checkEnemyUnits looks at one player a turn: player 0's turn comes within 4 (3 players + Gaia).
+	for (float t = 0.0f; t < 7.0f; t += Simulation::FIXED_STEP) {
 		for (uint32_t id : foes) {
 			const int32_t f = s->lookup_unit(id);
 			if (f >= 0 && u.alive[f]) u.hp[f] = u.max_hp[f];
@@ -4919,7 +5107,8 @@ static void test_retake_civic_centre() {
 			if (f >= 0 && u.alive[f]) u.hp[f] = u.max_hp[f];
 		}
 	};
-	for (float t = 0.0f; t < 2.0f; t += Simulation::FIXED_STEP) { hold(); s->tick(Simulation::FIXED_STEP); }
+	// checkEnemyUnits looks at one player a turn: player 0's comes within 3 (2 players + Gaia).
+	for (float t = 0.0f; t < 5.0f; t += Simulation::FIXED_STEP) { hold(); s->tick(Simulation::FIXED_STEP); }
 	const size_t defenders = all_defenders(*s).size();
 	// The enemy takes the Town Center.
 	{
@@ -4929,7 +5118,7 @@ static void test_retake_civic_centre() {
 	}
 	bool lost = false, switched = false;
 	size_t squad = 0;
-	for (float t = 0.0f; t < 1.0f && !switched; t += Simulation::FIXED_STEP) {
+	for (float t = 0.0f; t < 9.0f && !switched; t += Simulation::FIXED_STEP) {
 		hold();
 		s->tick(Simulation::FIXED_STEP);
 		lost |= s->buildings()[s->building_id_to_idx_.at(tc_id)].team == 0;
@@ -4954,6 +5143,8 @@ static void test_concurrent_attacks() {
 		s->reset();
 		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 		s->set_victory_condition(VICTORY_ENDLESS);
+		// attackManager.js reads getPopulationMax, the population cap (not the houses' limit).
+		s->set_pop_cap(big ? 300 : 40);
 		run_for(*s, 1.0f);
 		float tx = 0.0f, tz = 0.0f;
 		for (const auto &b : s->buildings())
@@ -4978,7 +5169,7 @@ static void test_concurrent_attacks() {
 			if (b.team == 0 && b.type == BLD_TOWN_CENTER) { marching.target_building_id = b.id; marching.target_x = b.x; marching.target_z = b.z; }
 		s->petra_started_attacks_.push_back(marching);
 		run_ai_turns(*s, 2);
-		const int cap = s->pop_max(1);
+		const int cap = s->petra_population_max();
 		const bool second = s->petra_attack_plan().state == Simulation::AttackPlan::MUSTER;
 		std::printf("  concurrent attacks: population cap %d, one marching, a second musters %s\n", cap, second ? "yes" : "no");
 		if (big) CHECK(cap >= 100 && second, "a second Attack musters while one marches (popMax >= 100)");
@@ -5034,6 +5225,17 @@ static void test_mobile_dropsite_cadence() {
 	const float fx = 0.5f * (tx + ex), fz = 0.5f * (tz + ez);
 	s->spawn_building_world(fx, fz, BLD_TOWN_CENTER, 1, 1.0f);
 	run_for(*s, 3.0f);
+	// No gatherers there yet: stop any worker Petra sent to a supply nearer the new base.
+	for (size_t i = 0; i < s->units_.count; ++i) {
+		if (!s->units_.alive[i] || s->units_.team[i] != 1) continue;
+		auto rit = s->res_id_to_idx_.find(s->units_.target_resource_id[i]);
+		if (rit == s->res_id_to_idx_.end()) continue;
+		const float rx = s->resources_.x[rit->second], rz = s->resources_.z[rit->second];
+		if (std::hypot(rx - fx, rz - fz) < std::hypot(rx - tx, rz - tz)) {
+			const uint32_t id = s->units_.id[i];
+			s->cmd_stop(&id, 1);
+		}
+	}
 	// The home wagon 10 to the side of the first civic centre, across from the enemy line.
 	const float len = std::max(1.0f, std::hypot(ex - tx, ez - tz)), sx = -(ez - tz) / len, sz = (ex - tx) / len;
 	const uint32_t home = s->spawn_unit(tx + 10.0f * sx, tz + 10.0f * sz, 1, UNIT_WAGON);
@@ -6439,6 +6641,11 @@ int main(int argc, char **argv) {
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_petra_research_order);
 	RUN(test_petra_minor_tech_kept);
+	RUN(test_petra_diplomacy_counts);
+	RUN(test_petra_peace_ends_raid);
+	RUN(test_petra_tributes_same_total);
+	RUN(test_petra_init_one_way_ally);
+	RUN(test_petra_current_enemy_gaia);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
 	RUN(test_market_prospection_events);
@@ -6494,6 +6701,7 @@ int main(int argc, char **argv) {
 	RUN(test_assign_bombers);
 	RUN(test_cancel_attacks_on_peace);
 	RUN(test_builders_per_foundation);
+	RUN(test_new_base_builders);
 	RUN(test_petra_constructing_base);
 	RUN(test_petra_wood_poor_corral);
 	RUN(test_petra_sandbox_first_storehouse);
@@ -6511,6 +6719,7 @@ int main(int argc, char **argv) {
 	RUN(test_mobile_dropsite_cadence);
 	RUN(test_worker_mix);
 	RUN(test_unit_choice);
+	RUN(test_new_base_own_civ_cc);
 	RUN(test_build_defenses);
 	RUN(test_defensive_location);
 	RUN(test_raid_keeps_hunters);

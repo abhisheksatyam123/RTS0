@@ -130,11 +130,11 @@ tooltip_text = "Select a map to play on."
 mouse_filter = 1
 text = "Select Map"
 
-[node name="MapList" type="ItemList" parent="VBox/HBox/LeftScroll/Left/MapTab"]
+[node name="MapList" type="RtsoSafeSelect" parent="VBox/HBox/LeftScroll/Left/MapTab"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 190)
+custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
-size_flags_vertical = 3
+tooltip_text = "Select a map to play on."
 
 [node name="SeedRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left/MapTab"]
 unique_name_in_owner = true
@@ -176,32 +176,6 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 2
 
-[node name="WaterLevelLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Select the water level of this map."
-mouse_filter = 1
-text = "Water level"
-
-[node name="WaterLevelSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(120, 32)
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="SeaRiseLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Set the time when the water will start to rise."
-mouse_filter = 1
-text = "Sea Level Rise Time"
-
-[node name="SeaRiseSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(120, 32)
-layout_mode = 2
-size_flags_horizontal = 3
-
 [node name="TeamPlacementLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -228,6 +202,58 @@ custom_minimum_size = Vector2(160, 32)
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="BiomeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Select the flora and fauna."
+mouse_filter = 1
+text = "Biome"
+
+[node name="BiomeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="WaterLevelLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Select the water level of this map."
+mouse_filter = 1
+text = "Water level"
+
+[node name="WaterLevelSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SeaRiseLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Set the time when the water will start to rise."
+mouse_filter = 1
+text = "Sea Level Rise Time"
+
+[node name="SeaRiseSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="DaytimeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Select whether the match takes place at daylight or night."
+mouse_filter = 1
+text = "Daytime"
+
+[node name="DaytimeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+
 [node name="TriggerDifficultyLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -238,36 +264,6 @@ text = "Difficulty"
 [node name="TriggerDifficultySlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(120, 32)
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="DaytimeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Select whether the match starts by day or by night."
-mouse_filter = 1
-text = "Daytime"
-
-[node name="DaytimeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapTab/MapOptionsRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(110, 32)
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="BiomeSpeedRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left/MapTab"]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="BiomeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapTab/BiomeSpeedRow"]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Select the flora and fauna."
-mouse_filter = 1
-text = "Biome"
-
-[node name="BiomeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapTab/BiomeSpeedRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(110, 32)
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -291,17 +287,17 @@ text = "Disable Treasures"
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="RevealMap" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapTab/MapVisRow"]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Toggle revealed map (see everything)."
-text = "Revealed Map"
-
 [node name="ExploreMap" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapTab/MapVisRow"]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Toggle explored map (see initial map)."
 text = "Explored Map"
+
+[node name="RevealMap" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapTab/MapVisRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Toggle revealed map (see everything)."
+text = "Revealed Map"
 
 [node name="AlliedView" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapTab/MapVisRow"]
 unique_name_in_owner = true
@@ -313,6 +309,18 @@ text = "Allied View"
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 6
+
+[node name="PlayerCountLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/PlayerTab"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Select number of players."
+mouse_filter = 1
+text = "Number of Players"
+
+[node name="PlayerCountSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/PlayerTab"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
 
 [node name="PopCapTypeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/PlayerTab"]
 unique_name_in_owner = true
@@ -367,13 +375,6 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="VictoryLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/GameTypeTab"]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Select the victory conditions; with none checked nobody wins."
-mouse_filter = 1
-text = "Victory conditions"
-
 [node name="VictorySlot" type="HFlowContainer" parent="VBox/HBox/LeftScroll/Left/GameTypeTab"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -388,31 +389,25 @@ text = "Wave defense"
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="WonderLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
+[node name="RelicCountLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Minutes until the player has achieved Wonder Victory"
+tooltip_text = "Total number of relics spawned on the map. Relic victory is most realistic with only one or two relics. With greater numbers, the relics are important to capture to receive aura bonuses."
 mouse_filter = 1
-text = "Wonder Duration"
-
-[node name="WonderTimeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(70, 32)
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="RelicLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Total number of relics spawned on the map, and the minutes until the player has achieved Relic Victory."
-mouse_filter = 1
-text = "Relic Count, Duration"
+text = "Relic Count"
 
 [node name="RelicCountSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(50, 32)
 layout_mode = 2
 size_flags_horizontal = 3
+
+[node name="RelicLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Minutes until the player has achieved Relic Victory."
+mouse_filter = 1
+text = "Relic Duration"
 
 [node name="RelicTimeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
 unique_name_in_owner = true
@@ -429,6 +424,23 @@ unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Toggle whether heroes can be garrisoned."
 text = "Hero Garrison"
+
+[node name="WonderRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left/GameTypeTab"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="WonderLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/WonderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Minutes until the player has achieved Wonder Victory"
+mouse_filter = 1
+text = "Wonder Duration"
+
+[node name="WonderTimeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/WonderRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(70, 32)
+layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="SpeedRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left/GameTypeTab"]
 unique_name_in_owner = true
@@ -520,10 +532,12 @@ layout_mode = 2
 
 [node name="SlotsLabel" type="Label" parent="VBox/HBox/Right/SlotsBox/SlotCountRow"]
 custom_minimum_size = Vector2(140, 0)
+visible = false
 layout_mode = 2
 text = "Players (1-8)"
 
 [node name="SpinSlots" type="SpinBox" parent="VBox/HBox/Right/SlotsBox/SlotCountRow"]
+visible = false
 layout_mode = 2
 size_flags_horizontal = 3
 min_value = 1.0

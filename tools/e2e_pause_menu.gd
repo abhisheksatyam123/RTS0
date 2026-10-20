@@ -63,12 +63,28 @@ func run() -> void:
 	await frames(10) # the slide down
 	check(menu.visible and not paused and not main.is_game_paused(), "the menu opens over the running game")
 	check(btn(menu, "BtnLobby").disabled, "Lobby is disabled without a lobby connection")
-	check(btn(menu, "BtnSummary").tooltip_text == "Press Ctrl+Tab to open the summary screen.", "Summary's tooltip names the summary hotkey: " + btn(menu, "BtnSummary").tooltip_text)
+	check(btn(menu, "BtnSummary").tooltip_text == "Press [color=#fffb83][lb]Ctrl+Tab[rb][/color] to open the summary screen.",
+		"Summary's tooltip names the summary hotkey in gold (colorizeHotkey): " + btn(menu, "BtnSummary").tooltip_text)
 	await key(KEY_ESCAPE)
 	check(not menu.visible, "Esc closes the menu")
 	check(main.get_node_or_null("PauseMenuClosing") != null, "and its panel slides back up (Menu.js close)")
 	await frames(10)
 	check(main.get_node_or_null("PauseMenuClosing") == null, "then the sliding copy is gone")
+	# MenuButtons Lobby: enabled while signed in (Engine.HasXmppClient), and it opens
+	# the lobby page as a dialog (page_lobby.xml {"dialog": true}), not the host/join panel.
+	var ls = root.get_node("LobbySession")
+	ls.token = "e2e"
+	main._on_menu_button_pressed()
+	await frames(10)
+	check(not btn(menu, "BtnLobby").disabled, "Lobby is enabled once signed in")
+	menu._on_lobby_pressed()
+	await frames(2)
+	var page = root.get_node_or_null("LobbyDialog")
+	check(page != null and page.get_child(0).dialog and not menu.visible, "it opens the lobby page as a dialog and closes the menu")
+	if page:
+		page.queue_free()
+	ls.token = ""
+	await frames(2)
 
 	main._on_menu_button_pressed()
 	await frames(10) # the slide down
@@ -126,7 +142,48 @@ func run() -> void:
 			mb = b
 	check(mb != null and mb.tooltip_text.begins_with("Press ") and mb.tooltip_text.ends_with(" to toggle this menu."),
 		"the Menu button's tooltip: " + (mb.tooltip_text if mb else ""))
+	check(mb != null and "[color=#fffb83][lb]F10[rb][/color]" in mb.tooltip_text, "in gold, as colorizeHotkey: " + (mb.tooltip_text if mb else ""))
 	await click(root.get_visible_rect().size / 2)
 	check(not menu.visible, "a click in the game world closes it")
+
+	print("Pass 10: the pause hotkey, Chat, the window focus and the Template Viewer")
+	main._on_menu_button_pressed()
+	await frames(10)
+	await key(KEY_PAUSE)
+	check(not menu.visible and main.is_game_paused(), "the pause hotkey closes the menu and pauses (Menu.js initButton)")
+	main._on_menu_button_pressed()
+	await frames(10)
+	check(btn(menu, "BtnPause").text == "Resume", "the reopened menu reads Resume")
+	await key(KEY_PAUSE)
+	await frames(2)
+	check(not menu.visible and not main.is_game_paused(), "and the hotkey resumes")
+	main._on_menu_button_pressed()
+	await frames(10)
+	await click(btn(menu, "BtnChat").get_global_rect().get_center())
+	await frames(2)
+	check(main.is_chat_open(), "Chat opens the chat")
+	main._on_menu_button_pressed()
+	await frames(10)
+	await click(btn(menu, "BtnChat").get_global_rect().get_center())
+	await frames(2)
+	check(main.is_chat_open(), "and pressing it again keeps it open (Chat.openPage, not a toggle)")
+	await key(KEY_ESCAPE)
+	await frames(2)
+	var t0: float = main.get_overlay_times()["elapsed"]
+	main.notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
+	await frames(20)
+	var t1: float = main.get_overlay_times()["elapsed"]
+	check(t1 == t0 and not main.is_game_paused(), "with the window unfocused the game waits, with no pause overlay (pauseonfocusloss): %.2f -> %.2f" % [t0, t1])
+	main.notification(NOTIFICATION_APPLICATION_FOCUS_IN)
+	await frames(20)
+	check(main.get_overlay_times()["elapsed"] > t1, "and it carries on when focus returns")
+	main.open_template_viewer("unit", 0, 0)
+	await frames(2)
+	var viewers: Array = main.find_children("TemplateViewer", "Control", true, false)
+	check(viewers.size() == 1 and paused, "the Template Viewer pauses the single-player game (showTemplateDetails)")
+	if viewers.size() == 1:
+		viewers[0].close_viewer()
+	await frames(3)
+	check(not paused, "and closing it resumes")
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

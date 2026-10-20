@@ -453,7 +453,8 @@ def play(args, lobby, leave):
     ok = ok and said("join", "refused") == "Only the controller can change the game setup"
     # 0.28 gamesetup ChatPanel: the host's setup chat shows bob join, get ready and talk.
     setup_chat = said("host", "setup_chat")
-    ok = ok and all(t in setup_chat for t in ("bob has joined", "* bob is ready!", "hello from bob"))
+    ok = ok and all(t in setup_chat for t in ("bob has joined", "* bob is ready!", "hello from bob",
+                                              "<bob> /allies team up"))
     # 0.28 LobbyButton: the host opens the lobby as a dialog over the setup and closes it again.
     ok = ok and said("host", "lobby_dialog") == "true listed=true join_hidden=true closed=true"
     # 0.28 /list on both: the users by seat, and the command is not a chat line.
@@ -469,6 +470,8 @@ def play(args, lobby, leave):
     ok = ok and (join_lost or addressees["join"] == ["Everyone|Allies|Enemies|Observers|■_alice", "alice,bob"])
     # 0.28 PauseOverlay: the host's pause reads on the client as its name in its player colour.
     paused_by = said("join", "paused_by")
+    # The match (and so its replay and summary) names the players after their clients.
+    ok = ok and all(said(r, "slot_names") == "alice|bob" for r in ("host", "join"))
     # 0.28 PauseControl.canPause: "Waiting for players to connect:" allows no pause.
     wait_pause = [said(r, "wait_can_pause") for r in ("host", "join")]
     ok = ok and all(w in ("", "false") for w in wait_pause)

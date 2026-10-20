@@ -180,6 +180,7 @@ func _ready() -> void:
 		if lobby:
 			# Host password is only used on games started through the lobby.
 			host_password = _row(panel, "Server Password:", 148, w, "hostPassword", "")
+			host_password.tooltip_text = "Leave blank to not require it."
 			host_password.secret = true
 			host_password.max_length = 256
 	host_feedback = Label.new()

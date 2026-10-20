@@ -51,7 +51,7 @@ func run() -> void:
 		"-autostart-aidiff=3:5", "-autostart-seed=42", "-autostart-victory=wonder", "-autostart-victory=capture_the_relic",
 		"-autostart-biome=generic/arctic", "-autostart-ceasefire=5"])), maps)
 	check(err == "" and ms.map_id == "random_mainland" and ms.player_count == 3 and ms.map_size == 320, "Mainland, 3 players, 320 tiles")
-	check(ms.slot_types == [0, 1, 1] and ms.slot_diffs == [3, 3, 5] and ms.slot_behs == [2, 2, 2], "you, then Petra Medium and Very Hard, Balanced")
+	check(ms.slot_types == [0, 1, 1] and ms.slot_diffs == [3, 3, 5] and ms.slot_behs == [0, 0, 0], "you, then Petra Medium and Very Hard, Random")
 	check(ms.slot_civs == [1, 0, 15] and ms.slot_teams == [0, 2, 2], "civs (Athenians unless named) and teams")
 	check(ms.seed == 42 and ms.ceasefire_min == 5 and ms.biome == 8 and ms.cheats, "seed, ceasefire, biome, cheats")
 	check(GameSetup.victory_mask(ms.victory) == 16 | 32, "Wonder and Capture the Relic: " + GameSetup.victory_title(ms.victory))
@@ -59,6 +59,9 @@ func run() -> void:
 	check(GameSetup.victory_mask(ms.victory) == 0 and ms.slot_types == [0, 0], "endless; a seat with no AI stays a player nobody controls")
 	Autostart.configure(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland"])), maps)
 	check(GameSetup.victory_mask(ms.victory) == 1, "conquest by default")
+	check(ms.seed == 0 and ms.seed_exact, "seed 0 by default, played as seed 0 (not randomized)")
+	Autostart.configure(ms, Autostart.parse(PackedStringArray(["-autostart=random/mainland", "-autostart-seed=-1"])), maps)
+	check(ms.seed >= 0 and not ms.seed_exact, "-autostart-seed=-1 picks one")
 
 	print("3. Scenario")
 	err = Autostart.configure(ms, Autostart.parse(PackedStringArray(["-autostart=scenarios/arcadia",
