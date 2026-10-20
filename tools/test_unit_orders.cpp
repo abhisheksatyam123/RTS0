@@ -574,6 +574,7 @@ static void test_lockstep() {
 	std::printf("15. lockstep commands\n");
 	Simulation s;
 	setup(s);
+	s.set_explore_map(true); // the tree is in land player 0 hasn't seen: a gather there is refused
 	const uint32_t tree = s.spawn_resource_world(20, 0, RES_WOOD, 500);
 	uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
 	uint32_t doomed = s.spawn_unit(5, 5, 0, UNIT_SPEARMAN);
@@ -3282,6 +3283,57 @@ static void test_forced_treasure_and_return() {
 	}
 }
 
+// UnitAI CheckTargetVisible (UnitAI.js:4922-4941): a player's command on an entity it can't see
+// and has no mirage of is refused for every peer, whatever the sender's interface let through:
+// an enemy unit in the fog, a structure never seen, a supply in unexplored land. Once in sight
+// (the structure: once seen) the same command goes through.
+static void test_hidden_targets() {
+	std::printf("hidden targets\n");
+	Simulation s;
+	setup(s);
+	const uint32_t man = s.spawn_unit(-40, -40, 0, UNIT_SPEARMAN);
+	const uint32_t foe = s.spawn_unit(20, -40, 1, UNIT_SPEARMAN);
+	const uint32_t tree = s.spawn_resource_world(40, -20, RES_WOOD, 200);
+	const uint32_t woman = s.spawn_unit(-40, -36, 0, UNIT_FEMALE_CITIZEN);
+	uint32_t foe_cc = 0;
+	for (const auto &b : s.buildings()) if (b.team == 1) foe_cc = b.id;
+	TurnManager tm;
+	auto turns = [&](float seconds) {
+		int n = (int)std::lround(seconds / TurnManager::TURN_DURATION);
+		for (int i = 0; i < n; ++i) tm.tick(TurnManager::TURN_DURATION, s);
+	};
+	turns(0.4f);
+	check(!s.player_can_target_unit(0, foe) && !s.player_can_target_building(0, foe_cc) &&
+			!s.player_can_target_resource(0, tree), "the foe, its civic centre and the tree are hidden from player 0");
+	auto post = [&](uint8_t cmd, uint32_t who, uint32_t target) {
+		NetCommand c;
+		c.client_id = 0;
+		c.entity_ids = {who};
+		c.cmd_type = cmd;
+		c.target_id = target;
+		c.param = 0;
+		tm.post_local_command(c);
+	};
+	post(3, man, foe);
+	post(4, woman, tree);
+	turns(0.4f);
+	check(s.unit_order(man).kind != ORDER_ATTACK && s.unit_order(woman).kind != ORDER_GATHER,
+			"an attack on a unit in the fog and a gather in the shroud are refused");
+	post(15, man, foe_cc);
+	turns(0.4f);
+	check(s.unit_order(man).kind != ORDER_ATTACK_BUILDING, "an attack on a structure never seen is refused");
+	// In sight: the foe walks up.
+	s.units_.pos_x[idx_of(s, foe)] = -36.0f;
+	s.units_.pos_z[idx_of(s, foe)] = -40.0f;
+	turns(0.4f);
+	check(s.player_can_target_unit(0, foe), "the foe in sight can be targeted");
+	post(3, man, foe);
+	turns(0.4f);
+	check(s.unit_order(man).kind == ORDER_ATTACK, "and the attack goes through");
+	// Own and allied entities are never refused.
+	check(s.player_can_target_building(1, foe_cc) && s.player_can_target_unit(1, foe), "a player's own are always targetable");
+}
+
 // Guard.js OnAttacked: a poison or burning tick on the guarded unit sends its guards after
 // the source, while the poisoned unit's own UnitAI ignores the tick (fromStatusEffect).
 static void test_status_tick_guards() {
@@ -3447,6 +3499,7 @@ int main(int argc, char **argv) {
 	test_defeated_units_reset();
 	test_all_attackers_cheer();
 	test_range_aura_not_self();
+	test_hidden_targets();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
