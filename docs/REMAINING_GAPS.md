@@ -316,6 +316,24 @@ TechnologyManager.js, Researcher.js, data/technologies (about 30 techs row by ro
 | U1 | A captured structure's research list followed the captor's civ; Researcher.js reads the structure's own template (cart/dock drops warship_health, cart/super_dock lists nine dock techs, han/civil_centre drops the spy techs, han/forge archer_attack_spread) and the owner's civ only filters it | low | Fixed |
 
 Checked and matching: requirements (all/any, class counts without foundations, civ/notciv), pairs and autoResearch, supersedes chains, cost multipliers (library, team bonuses, heroes, catafalques) and cancel refunds, unit researchers, civ bonus autoresearch, tech modifications, own-civ researcher lists, structure auras (temples, wonders, theatre, pillars, monuments, regen and trickle auras).
+### Petra structures and research, thirteenth 0.28 pass (2026-10-20)
+
+researchManager.js, constructionPlan.js findGoodPosition and headquarters.js building decisions against RTS0's Petra, after passes 4-6 and the audits in docs/archive. Owner: E (queue mechanics: C).
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| X1 | A fortress could be laid while City was still researching; canBuild's template.available needs phase_city | medium | Fixed |
+| X2 | A Wonder could be laid in the Town phase near the population cap | low | Fixed (all Petra canBuild checks now test the structure's phase) |
+| X3 | "No room" marks were set while placing, before the plan was paid; 0.28 searches only in start(), after the queue can afford it | medium-low | Open (C, queue start) |
+| X4 | Towers and fortresses with no frontier spot never counted as missing room, so they never led to a new base | low-medium | Fixed |
+| X5 | Forge, temple and Town-phase structures don't wait for their queue's earlier plans; one merged want per queue starts whatever it can cover | low-medium | Open (C, queue order) |
+| X6 | At placement, 0.28 sends the first unit able to build; RTS0 sends idle builders to some structures and none to others | low | Open |
+| X7 | The house priority's free slots counted every foundation's population bonus; 0.28 counts house foundations at the house's bonus | low | Fixed |
+| X8 | Research is skipped while the minorTech queue is paused; 0.28 still picks and queues | low | Open |
+| X9 | Town-phase houses are capped at 3 foundations rather than 3 plans | low | Open |
+
+Checked and matching: research lists and their priorities, findGoodPosition's influences and gaps, houseNeeded thresholds, market, temple, forge, wonder and defense timing, base expansion.
+
 ### Structure runtime, twelfth 0.28 pass (2026-10-20)
 
 BuildingAI, Trainer, ProductionQueue, Foundation, Repairable, Capturable, TerritoryDecay, ResourceTrickle and Pack against RTS0. Owner: E.
@@ -401,6 +419,10 @@ diplomacyManager.js, chatHelper.js and their callers were checked line by line. 
 | D6 | Another AI's tribute request was kept and paid later once funds came in; 0.28 answers it once and drops it if it can't pay | low | Fixed |
 | D7 | Gifts to several allies were each worked out from what the previous gift left; 0.28 works every gift out from the same starting total | low | Fixed |
 | D8 | Defeated players were left out of the enemy and ally counts behind accepting a request and sending one; 0.28 keeps their stances, so they still count (Gaia and we were already counted). Gifts went only to mutual allies; 0.28 gifts any player we are allied to | low | Fixed |
+| D9 | Under Last Man Standing each AI waited out its own 10-110 s lapse before turning. 0.28's checkEvents also runs lastManStandingCheck on every DiplomacyChanged, PlayerDefeated or CeasefireEnded event, so one AI's betrayal sets off the others still waiting (twelfth pass) | low-medium | Fixed |
+| D10 | The allied-victory gate on betrayal, the gift to an ally and Petra's allied-victory settings counted Last Man Standing alone. Setup.js makes allied victory LockTeams or not LastManStanding, so a scenario with both keeps allies winning together; the victory check now does too | low | Fixed |
+| D11 | hasAllies (the betrayal gate) and the cooperative boosts from an ally's tribute or its attacks in our land needed a mutual alliance; 0.28 reads only our own stance (isPlayerAlly). A tribute from a player we already ally with no longer counts against its waiting request | low | Fixed |
+| D12 | Stance changes toward us are read once per AI turn, so a change and its undoing inside one 1.6 s turn go unseen; 0.28 handles each DiplomacyChanged event | low | Open: Triggers |
 
 ### Triggers, tenth 0.28 pass (2026-10-20): campaigns, cinema, trigger helpers
 
@@ -463,7 +485,7 @@ Scenario-only units: every unit the 0.28 scenario, demo and sandbox maps place w
 |---|---|---|---|
 | SU1 | The map porter dropped units whose template name has none of its keywords: We Are Legion's whole player-1 army (thureophoroi, thorakitai, Sacred Band), the mercenaries in Third Macedonian War, Death Canyon - Invasion Force, Peloponnese, Delphi and the demos, the Germans' wagons, Kushite macemen, Han crossbowmen, catafalques and siege towers in the sandboxes (about 400 units on 22 maps) | critical | Fixed: they are ported with their template and spawn as its roster row or a parent's |
 | SU2 | Unpacked siege on a map (oxybeles, lithobolos, polybolos, scorpio, mangonel) starts packed, as its packed row; Jebel Barkal's hilltop Ptolemaic siege too | low | Fixed: an "_unpacked" template spawns as its packed row standing unpacked, ready to fire |
-| SU3 | pers/arstibara has no row of its own and stands in as pers/champion_infantry; Flight Demo's planes and han/siege_shoushe have none and are left out | low | Fixed: the Arstibara and the Shoushe are map-only rows (#1427), and so is the plane, which flies as UnitMotionFlying.js does (take-off roll, climb to 50 m, circling, landing when stopped, death landing in water; save v112). The Arstibara draws its 0.28 actor; the Shoushe's own model waits on G41's self-outline, and the plane's on Animal models. Left: a plane carries no passenger (its GarrisonHolder Max 1), and an attacking plane keeps flying where 0.28 starts a landing that the next chase cancels. Triggers |
+| SU3 | pers/arstibara has no row of its own and stands in as pers/champion_infantry; Flight Demo's planes and han/siege_shoushe have none and are left out | low | Fixed: the Arstibara and the Shoushe are map-only rows (#1427), and so is the plane, which flies as UnitMotionFlying.js does (take-off roll, climb to 50 m, circling, landing when stopped, death landing in water; save v112). The Arstibara draws its 0.28 actor; the Shoushe's own model waits on G41's self-outline, and the plane draws 0.28's P-51 (`plane.glb`). Left: a plane carries no passenger (its GarrisonHolder Max 1), and an attacking plane keeps flying where 0.28 starts a landing that the next chase cancels. Triggers |
 | SU4 | The campaign test maps' army_* heroes and campaign_*_test structures map to the nearest civ templates (Alexander as the cavalry hero with auras, Leonidas with Last Stand, the test cities as Macedonian civic centres) | low | Partly fixed: Units Demo's two test cities and its test temple were dropped at load (stale entries with no type from before the stand-ins); they are now a Macedonian civic centre each and a temple, beside the army stand-ins its units already had. Left: the stand-ins keep their civ templates' stats where 0.28's test cities have a 48 m footprint, 3 and 5 arrows at 50 m and 150 and 300 m territory, and the armies a 7 m melee reach, 50-60 m vision and an 8 m footprint. Triggers |
 | LR1 | A rated game left Teams Locked as it was. 0.28 LockedTeams.onRatingChange turns it on and makes it unchangeable while the game is rated, and off when the game is unrated | medium | Fixed: rating the game locks the teams, unrating it unlocks them |
 | LR2 | Lobby players hosted and joined with their bare nick. 0.28 hosts and joins as "nick (rating)" once rated, so Game Setup, chat, the session and the summary show the rating; a rejoin keeps the rating the player joined with (JoinButton.getRejoinRating) | low | Fixed: the game list reads the rating in the name (Game.js), and the report and buddy marks use the nick |
