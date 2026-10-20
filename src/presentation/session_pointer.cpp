@@ -201,6 +201,9 @@ void RtsoMain::update_cursor() {
 							builder = builder || (rtso::unit_can_build(uv.unit_type[i], tm) && !sim->nonbuilder(uv.id[i]));
 							break;
 						}
+				auto heal_able = [&](uint32_t target) {
+					return sim->first_able_healer((const uint32_t *)selected_ids.ptr(), (size_t)selected_ids.size(), target) != 0;
+				};
 				for (size_t i = 0; i < uv.count && !*want; ++i) {
 					if (!uv.alive[i] || !near2(uv.pos_x[i], uv.pos_z[i], 2.2f)) continue;
 					// PickEntityAtPoint picks only what the player sees: no unit in the fog.
@@ -226,7 +229,7 @@ void RtsoMain::update_cursor() {
 							sim->is_repairable_unit(uv.id[i]))
 						want = "action-repair";
 					// 0 A.D. unit_actions "heal": a healer over a wounded own or allied unit.
-					else if (healer && uv.hp[i] < uv.max_hp[i] && (uv.team[i] == me || sim->is_ally(me, uv.team[i])))
+					else if (healer && heal_able(uv.id[i]))
 						want = "action-heal";
 					// unit_actions "garrison" (session.garrison): an own or allied ship, ram or siege tower a
 					// selected unit may board. Without the hotkey "move" (12) wins.
