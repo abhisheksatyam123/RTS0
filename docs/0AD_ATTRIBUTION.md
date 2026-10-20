@@ -213,7 +213,7 @@ Each `synth_<id>` function generates RTS0's version of the 0 A.D. map script of 
 | Alpine Valley | `maps/random/alpine_valley.js` | Layout read from the script: mountain ranges from f = 0.49 to 0.18 between players, with passages |
 | Syria | `maps/random/syria.js` | Layout read from the script: players at f = 0.35, scaleByMapSize(1, 3) * 3 hills per player |
 | Cantabrian Highlands | `maps/random/cantabrian_highlands.js` | Layout read from the script: each player on a cliff-ringed hill with a ramp towards the centre, 1-4 lakes per player |
-| Pyrenean Sierra | `maps/random/pyrenean_sierra.js` | Layout read from the script: a range f = 0.68 long through the centre, passes at 0.35 and 0.65; RTS0 leaves out the ocean |
+| Pyrenean Sierra | `maps/random/pyrenean_sierra.js` | Layout read from the script, in 0 A.D. metres: the sinusoidal lowland noise, the sigmoid range fractionToTiles(0.68) long square to startAngle (sampled at RTS0's vertices), createPassage at 0.35 and 0.65 of it (9 tiles wide, not 7, for RTS0's 2-tile nav cells), the SmoothingPainter passes, the two oceans at its ends, the hills, and players on playerPlacementArcs |
 | Sahel Watering Holes | `maps/random/sahel_watering_holes.js` | Layout read from the script: water lines from f = 0.15 to 0.49 between neighbours, pools at both ends, shallows |
 | Persian Highlands | `maps/random/persian_highlands.js` | Layout read from the script: high land with a sunken central plateau, rocky hills, players at f = 0.35 |
 | Volcanic Lands | `maps/random/volcanic_lands.js` | Layout read from the script: a volcano (cone and crater) in the centre, 2-8 hills per player |
