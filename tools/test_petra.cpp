@@ -1636,6 +1636,68 @@ static void test_market_prospection() {
 	      "a third market only when it would double the route's gain");
 }
 
+// tradeManager.js checkEvents and headquarters.js:2044: routeProspection turns on when a
+// market or dock of ours or an ally's is finished, destroyed or captured, when an ally's Trade
+// foundation goes, when diplomacy changes or our territory grows by over 960 m², and not on
+// the AI's own clock; prospectForNewMarket clears it once it has looked.
+static void test_market_prospection_events() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 128.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_ai_turns(*s, 2);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	// Village phase: prospectForNewMarket returns before it looks (canBuild), so the flag stays.
+	CHECK(!s->petra_prospect_.active, "no prospection at the start (routeProspection false)");
+	run_ai_turns(*s, 8);
+	const bool idle = !s->petra_prospect_.active;
+	const uint32_t first = s->spawn_building((int)((tx + 12.0f) / Simulation::GRID), (int)(tz / Simulation::GRID), BLD_MARKET, 1, 1.0f);
+	run_ai_turns(*s, 1);
+	const bool built = s->petra_prospect_.active;
+	s->petra_prospect_.active = false;
+	run_ai_turns(*s, 6);
+	const bool quiet = !s->petra_prospect_.active;
+	s->set_diplomacy(1, 0, Simulation::DIPLO_NEUTRAL);
+	run_ai_turns(*s, 1);
+	const bool diplomacy = s->petra_prospect_.active;
+	s->petra_prospect_.active = false;
+	const uint32_t fnd = s->spawn_building((int)((tx - 14.0f) / Simulation::GRID), (int)((tz + 10.0f) / Simulation::GRID), BLD_MARKET, 1, 0.0f);
+	run_ai_turns(*s, 1);
+	const bool placed = s->petra_prospect_.active;
+	s->cmd_delete(1, &fnd, 1);
+	run_ai_turns(*s, 1);
+	const bool cancelled = s->petra_prospect_.active;
+	s->petra_prospect_.active = false;
+	s->cmd_delete(1, &first, 1);
+	run_ai_turns(*s, 1);
+	const bool destroyed = s->petra_prospect_.active;
+	s->petra_prospect_.active = false;
+	const float len = std::sqrt(tx * tx + tz * tz);
+	s->spawn_building_world(tx - tx / len * 50.0f, tz - tz / len * 50.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	run_ai_turns(*s, 2);
+	const bool grown = s->petra_prospect_.active;
+	std::printf("  prospection: idle %d, market built %d, quiet after %d, diplomacy %d, foundation placed %d, cancelled %d, market destroyed %d, territory grown %d\n",
+	            idle, built, quiet, diplomacy, placed, cancelled, destroyed, grown);
+	CHECK(fnd != 0 && first != 0, "the markets were placed");
+	CHECK(idle && quiet, "nothing to look at, no look (no 20 s clock)");
+	CHECK(built && diplomacy && cancelled && destroyed && grown, "a market built or lost, a foundation gone, a diplomacy change and wider territory each turn it on");
+	CHECK(!placed, "a foundation laid does not (checkEvents skips foundations)");
+	// Town phase with a market again: it looks. A spot that pays clears the flag; none (this
+	// map's spot gains under minimalGain) marks the market unbuildable for 90 s and keeps it.
+	s->spawn_building((int)((tx + 12.0f) / Simulation::GRID), (int)(tz / Simulation::GRID), BLD_MARKET, 1, 1.0f);
+	s->players_[1].phase = 2;
+	run_ai_turns(*s, 1);
+	float x = 0.0f, z = 0.0f;
+	int gain = 0;
+	const bool spot = s->petra_find_market_location(x, z, gain) == 1;
+	std::printf("  town phase: spot %d, prospection %d, market waiting for room %d\n", spot, s->petra_prospect_.active, s->petra_no_room(BLD_MARKET));
+	CHECK(spot ? !s->petra_prospect_.active : s->petra_prospect_.active && s->petra_no_room(BLD_MARKET),
+	      "prospectForNewMarket clears it once a spot is found, else the market waits for room");
+}
+
 // checkRoutes: docks are Trade markets too, so a market and a dock on one land make a land
 // route, priced for a land trader.
 static void test_market_dock_route() {
@@ -6189,6 +6251,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
+	RUN(test_market_prospection_events);
 	RUN(test_market_dock_route);
 	RUN(test_civ_structures);
 	RUN(test_emergency);

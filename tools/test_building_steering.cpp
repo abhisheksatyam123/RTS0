@@ -1308,19 +1308,24 @@ static void circular_map_edge() {
 		std::printf("  circular map: a clump of 6 elephants at the edge pushed apart, %.2f from the centre at most\n", out);
 		check(out <= edge - CLEARANCE_LARGE + 0.01f, "pushing carried an elephant past a circular map's edge");
 	}
-	// A house reaching past the edge can't be placed there; on a square map it can.
+	// A house reaching past the edge can't be placed there, on a circular map or a square one
+	// (CCmpPathfinder UpdateGrid makes the outer MAP_EDGE_TILES impassable on both); one further
+	// in is placed on the square map, where the circle doesn't cut its corner.
 	const int foot = building_type_info(BLD_HOUSE).footprint;
 	const int cell_x = (int)std::floor(60.0f / Simulation::GRID) - foot / 2, cell_y = -foot / 2;
-	Simulation::PlacementResult res[2];
+	const int in_x = (int)std::floor((64.0f - MAP_EDGE_DIST) / Simulation::GRID) - foot - 1;
+	Simulation::PlacementResult res[2], in_square = Simulation::PLACE_OK;
 	for (int circular = 0; circular < 2; ++circular) {
 		Simulation s;
 		circle_setup(s, circular);
 		s.set_explore_map(true); // the edge rule, not the shroud
 		res[circular] = s.check_placement(0, cell_x, cell_y, BLD_HOUSE);
+		if (!circular) in_square = s.check_placement(0, in_x, cell_y, BLD_HOUSE);
 	}
-	std::printf("  circular map: a house reaching %.1f out placed %d on a square map, %d on a circular one (0 = ok)\n",
-			(float)(cell_x + foot) * Simulation::GRID, (int)res[0], (int)res[1]);
-	check(res[0] == Simulation::PLACE_OK, "a house by a square map's edge couldn't be placed");
+	std::printf("  map edge: a house reaching %.1f out placed %d on a square map, %d on a circular one; reaching %.1f, %d on the square (0 = ok)\n",
+			(float)(cell_x + foot) * Simulation::GRID, (int)res[0], (int)res[1], (float)(in_x + foot) * Simulation::GRID, (int)in_square);
+	check(res[0] == Simulation::PLACE_OBSTRUCTED, "a house reaching past a square map's edge frame was placed");
+	check(in_square == Simulation::PLACE_OK, "a house inside a square map's edge frame couldn't be placed");
 	check(res[1] == Simulation::PLACE_OBSTRUCTED, "a house reaching past a circular map's edge was placed");
 }
 

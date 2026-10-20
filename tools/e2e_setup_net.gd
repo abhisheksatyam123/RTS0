@@ -223,12 +223,9 @@ func run() -> void:
 	check(page._tab == -1 and not page.get_node("%MapTab").visible, "a client starts with no settings tab open (GameSettingTabs.onLoad)")
 	check(picker(page, 0, 2).disabled and picker(page, 0, 3).disabled and picker(page, 1, 1).disabled and picker(page, 1, 4).disabled,
 		"other slots, and our slot's type and AI, are locked")
-	check(not picker(page, 1, 2).disabled and not picker(page, 1, 3).disabled and not picker(page, 1, 5).disabled,
-		"our own civ, team and colour are not")
-	page._on_slot_civ(1, 1) # the first civ by name; 0 is Random
-	page._on_slot_team(3, 1)
-	page._on_slot_color(6, 1)
-	check(client.requests == [["civ", int(page.CIVS[page._civ_order()[0]]["id"])], ["team", 3], ["color", 6]], "picks are asked of the host: " + str(client.requests))
+	# 0.28 GameSettingControl/PlayerColor: only the controller sets civ, team and colour.
+	check(picker(page, 1, 2).disabled and picker(page, 1, 3).disabled and picker(page, 1, 5).disabled
+		and cells(page)[1 * 6 + 5].modulate.a == 0.0, "our own civ and team are locked too, and the colours hidden")
 	check(ready_btn.text == "I'm ready" and not ready_btn.disabled, "Ready: I'm ready")
 	ready_btn.pressed.emit()
 	check(client.is_ready == 1 and ready_btn.text == "Stay ready", "pressed: ready, then Stay ready")
@@ -243,7 +240,7 @@ func run() -> void:
 	await frames(3)
 	check(page.get_node("%SpinSeed").value == 555 and ready_btn.text == "I'm ready",
 		"a new setup shows, and Ready is back")
-	check(not picker(page, 1, 2).disabled and picker(page, 0, 2).disabled, "the locks hold after the update")
+	check(picker(page, 1, 2).disabled and picker(page, 0, 2).disabled, "the locks hold after the update")
 	ms.map_id = "random"
 	client.net_setup_changed.emit()
 	await frames(3)
@@ -254,6 +251,7 @@ func run() -> void:
 		and not page.get_node("%NetChatSend").disabled, "a client may still go Back and chat")
 	# ChatInputPanel.onTab / ChatInputAutocomplete: names first, then civs, then settings.
 	var chat_in: LineEdit = page.get_node("%NetChatInput")
+	check(chat_in.max_length == 1024, "the setup chat takes 1024 characters, as 0.28's")
 	check(chat_in.tooltip_text == "Press Tab to autocomplete player names or settings.", "the chat tooltip names Tab")
 	var entries: Array = page.autocomplete_entries()
 	check(entries.find("bob") >= 0 and entries.find("bob") < entries.find("Britons")

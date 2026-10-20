@@ -217,7 +217,7 @@ func start_pressed() -> void:
 		return
 	match mode:
 		"setup":
-			name_edit.text = str(entries[selected].get("Name", ""))
+			name_edit.text = template_text(entries[selected], "Name")
 			name_dialog.popup_centered(Vector2i(420, 120))
 			name_edit.grab_focus()
 		"load":

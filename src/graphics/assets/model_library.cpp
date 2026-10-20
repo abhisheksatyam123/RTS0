@@ -1109,7 +1109,9 @@ Ref<ArrayMesh> ModelLibrary::bake_crowd_skin(CrowdSkin &skin, const Ref<ArrayMes
 
 	for (const CrowdSkin::Surf &surf : skin.surfs) {
 		SurfBucket &b = bucket_for(surf.mat, surf.attached);
-		const bool want_t = tangents_wanted(surf.mat);
+		// By the bucket's material: surfaces sharing a merge key but not normal mapping would
+		// otherwise leave the bucket's tangent array short, shifting later surfaces' tangents.
+		const bool want_t = tangents_wanted(b.mat);
 		const int n = (int)surf.rest_v.size();
 		const int base = b.verts.size();
 		const bool skinned = surf.rig_i >= 0 && surf.rig_i < (int)palettes.size() && !palettes[surf.rig_i].empty();

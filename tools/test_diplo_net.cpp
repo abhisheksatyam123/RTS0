@@ -758,6 +758,20 @@ static bool run_game_setup_wire(const char *ph) {
 	CHECK(!back.all_ready(), "a seated client not ready holds the start", ph);
 	back.stay_ready = 0x2;
 	CHECK(back.all_ready(), "stay ready counts as ready", ph);
+	// 0.28 NetServer MAX_CLIENTS 41: clients past id 7 are listed, seated and counted too.
+	n.slot_client[3] = 12;
+	n.clients |= (1ull << 12) | (1ull << 40);
+	n.observers |= 1ull << 40;
+	n.names[12] = "dave";
+	n.names[40] = "erin";
+	NetSetupState wide;
+	CHECK(parse_net_setup(format_net_setup(n), wide), "a setup with clients 12 and 40 parses back", ph);
+	CHECK(wide.slot_client[3] == 12 && wide.slot_of(12) == 3 && wide.clients == n.clients && wide.observers == n.observers,
+	      "client 12's seat and the 64-bit masks survive", ph);
+	CHECK(wide.names[12] == "dave" && wide.names[40] == "erin" && wide.names[1] == "b;o,b=%", "names past client 7 survive", ph);
+	CHECK(!wide.all_ready(), "a seated client 12 that is not ready holds the start", ph);
+	wide.ready |= 1ull << 12;
+	CHECK(wide.all_ready(), "and counts once ready", ph);
 	GameSetupParams plain;
 	CHECK(!parse_net_setup(format_game_start_full(plain), back), "a GAME_START string is no setup", ph);
 	GameSetupParams g;
