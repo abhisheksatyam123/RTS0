@@ -3029,7 +3029,9 @@ static void test_liu_bang_wall_regen() {
 	const uint32_t pal = s.spawn_building_world(-20.0f, 36.0f, BLD_PALISADE, 0, 1.0f);
 	const uint32_t theirs = s.spawn_building_world(20.0f, -20.0f, BLD_WALL_SEGMENT, 1, 1.0f);
 	auto wound = [&](uint32_t id) { bld_mut(s, id)->hp = bld_mut(s, id)->max_hp * 0.25f; return bld_mut(s, id)->hp; };
+	const uint32_t fnd = s.spawn_building_world(20.0f, 20.0f, BLD_WALL_SEGMENT, 0, 0.2f);
 	const float w0 = wound(wall), p0 = wound(pal), t0 = wound(theirs);
+	const float f0 = bld_mut(s, fnd)->hp, fp0 = bld_mut(s, fnd)->build_progress;
 	run(s, 5.0f);
 	check(bld_mut(s, wall)->hp == w0, "no Liu Bang: the wall stays damaged");
 	const uint32_t hero = s.spawn_unit(-40.0f, -40.0f, 0, UNIT_HERO, 0.0f, roster_named("han/hero_liu_bang"));
@@ -3038,6 +3040,8 @@ static void test_liu_bang_wall_regen() {
 	std::printf("  wall %.1f -> %.1f in 10 s\n", w0, w1);
 	check(std::fabs(w1 - (w0 + 100.0f)) < 1.0f, "with Liu Bang: +10 hp/s");
 	check(bld_mut(s, pal)->hp == p0 && bld_mut(s, theirs)->hp == t0, "not palisades, not the enemy's walls");
+	check(std::fabs(bld_mut(s, fnd)->hp - std::min(bld_mut(s, fnd)->max_hp, f0 + 100.0f)) < 1.0f && bld_mut(s, fnd)->build_progress == fp0,
+		"a wall foundation's health regenerates too, its build progress waits for a builder");
 	s.cmd_delete(0, &hero, 1);
 	run(s, 3.0f);
 	const float w2 = bld_mut(s, wall)->hp;

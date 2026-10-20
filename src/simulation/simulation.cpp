@@ -14701,8 +14701,10 @@ void Simulation::tick_combat(float dt) {
 		if (rate > 0.0f) units_.hp[u] = std::min(units_.max_hp[u], units_.hp[u] + dt * rate);
 	}
 	// Liu Bang's Confucian Reforms (han_hero_liu_bang_1: global, own Walls Health/RegenRate +10):
-	// while either Liu Bang template lives, garrisoned included, the owner's finished stone walls,
-	// gates and wall towers regenerate 10 hp/s (Health.js regenerates structures too).
+	// while either Liu Bang template lives, garrisoned included, the owner's stone walls, gates and
+	// wall towers regenerate 10 hp/s (Health.js regenerates structures too). Their foundations as
+	// well: a foundation keeps the structure's classes, and its health rises without its build
+	// progress, which the next builder's work takes up (Foundation.js maxProgress).
 	static const int16_t liu_bang_walls = [] {
 		for (uint16_t a = 0; a < CIV_HERO_AURA_COUNT; ++a)
 			if (std::strcmp(civ_hero_aura(a).id, "han_hero_liu_bang_1") == 0) return (int16_t)a;
@@ -14722,7 +14724,7 @@ void Simulation::tick_combat(float dt) {
 		if (regen_players)
 			for (Building &b : buildings_)
 				if (b.team < MAX_PLAYERS && (regen_players >> b.team & 1u) && !b.wrecked && b.hp > 0.0f &&
-						b.build_progress >= 1.0f && b.hp < b.max_hp && (building_tech_classes(b.type) & TC_WALL))
+						b.hp < b.max_hp && (building_tech_classes(b.type) & TC_WALL))
 					b.hp = std::min(b.max_hp, b.hp + dt * rate);
 	}
 	// A negative template RegenRate (fire ships) wears the unit down, even at full health.
@@ -16388,7 +16390,9 @@ Simulation::ResourceView Simulation::resources() const {
 		resources_.type, resources_.subtype, resources_.alive,
 		resources_.flora,
 		resources_.id,
-		resources_.count
+		resources_.count,
+		resources_.fauna,
+		resources_.owner
 	};
 }
 

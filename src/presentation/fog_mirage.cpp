@@ -267,6 +267,13 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 				viewer < MAX_PLAYERS && ((b.seen_mask >> viewer) & 1));
 	}
 	const auto rv = sim.resources();
+	// Each supply's gatherers at work (ResourceSupply numGatherers), remembered with its amount.
+	gatherers_.clear();
+	{
+		const auto uv = sim.units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.alive[i] && uv.action_state[i] == ACTION_GATHER && uv.target_resource_id[i]) ++gatherers_[uv.target_resource_id[i]];
+	}
 	for (size_t i = 0; i < rv.count; ++i) {
 		if (!rv.alive[i] || rv.amount[i] <= 0) continue;
 		FoggedResource r;
@@ -274,9 +281,12 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		r.x = rv.x[i];
 		r.z = rv.z[i];
 		r.amount = rv.amount[i];
+		if (auto g = gatherers_.find(r.id); g != gatherers_.end()) r.gatherers = g->second;
 		r.type = rv.type[i];
 		r.subtype = rv.subtype ? rv.subtype[i] : 0;
 		r.flora = rv.flora ? rv.flora[i] : 0;
+		r.fauna = rv.fauna ? rv.fauna[i] : 0;
+		r.owner = rv.owner ? rv.owner[i] : 0xFF;
 		add_resource(r);
 	}
 	for (const auto &tr : sim.treasures()) {
