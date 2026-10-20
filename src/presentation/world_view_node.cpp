@@ -1097,13 +1097,13 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 void RtsoWorldView::update_fog(const rtso::Simulation *sim, float delta) {
 	mirages_.update(*sim, local_player_);
 	const int res = sim->fow_res();
-	const bool new_map = res != los_.res() || los_half_ != sim->map_half();
+	const bool new_map = res * rtso::LosShading::UPSAMPLE != los_.res() || los_half_ != sim->map_half();
 	// The sim's per-player LOS (Simulation::los), as FogMirages built it this frame.
 	los_.set_target(mirages_.view().size() == (size_t)res * (size_t)res ? mirages_.view().data() : nullptr, res);
 	if (new_map) {
 		los_.snap();
 		los_half_ = sim->map_half();
-		los_image_ = Image::create(res, res, false, Image::FORMAT_L8);
+		los_image_ = Image::create(los_.res(), los_.res(), false, Image::FORMAT_L8);
 		los_tex_ = ImageTexture::create_from_image(los_image_);
 		if (terrain) bind_los(terrain->get_material_override());
 		if (water_mesh_node) bind_los(water_mesh_node->get_material_override());
@@ -1119,7 +1119,7 @@ void RtsoWorldView::update_fog(const rtso::Simulation *sim, float delta) {
 	const auto &shown = los_.shown();
 	if (los_bytes_.size() != (int64_t)shown.size()) los_bytes_.resize((int64_t)shown.size());
 	memcpy(los_bytes_.ptrw(), shown.data(), shown.size());
-	los_image_->set_data(res, res, false, Image::FORMAT_L8, los_bytes_);
+	los_image_->set_data(los_.res(), los_.res(), false, Image::FORMAT_L8, los_bytes_);
 	los_tex_->update(los_image_);
 }
 
