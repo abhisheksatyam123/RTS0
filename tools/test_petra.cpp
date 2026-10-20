@@ -1598,6 +1598,37 @@ static void test_anchor_dropsite_unshared() {
 	CHECK(shared == 0, "the base anchor's dropsite is not shared");
 }
 
+// headquarters.js handleNewBase runs when a further base anchor is finished (ConstructionFinished),
+// not laid out: only then does saving stop, and saveSpace and maxFields end for good, so they don't
+// come back when that civic centre falls.
+static void test_new_base_ends_saving_when_finished() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	s->update_petra_bases(0.0f);
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	s->petra_attack_mgr_.save_resources = 1;
+	const uint32_t second = s->spawn_building_world(cx * 0.4f, cz * 0.4f, BLD_TOWN_CENTER, 1, 0.0f);
+	s->update_petra_bases(0.0f);
+	const bool saving_while_laid = s->petra_attack_mgr_.save_resources != 0 && !s->petra_kept_.space_freed;
+	auto &f = s->buildings_[s->building_id_to_idx_.at(second)];
+	f.build_progress = 1.0f;
+	f.hp = f.max_hp;
+	s->update_petra_bases(0.0f);
+	const bool ended = s->petra_attack_mgr_.save_resources == 0 && s->petra_kept_.space_freed && s->petra_kept_.fields_freed;
+	s->destroy_building(s->buildings_[s->building_id_to_idx_.at(second)]);
+	s->update_petra_bases(0.0f);
+	const bool for_good = s->petra_kept_.space_freed && s->petra_kept_.fields_freed;
+	std::printf("  second civic centre: saving while laid out %d, ended once finished %d, for good %d\n", saving_while_laid, ended, for_good);
+	CHECK(second != 0 && saving_while_laid && ended && for_good, "handleNewBase fires when the base anchor is finished, for good");
+}
+
 static void test_petra_phasing_needs_researcher() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -7319,6 +7350,7 @@ int main(int argc, char **argv) {
 	RUN(test_idle_workers_repair_cc);
 	RUN(test_worker_elephant_builds);
 	RUN(test_anchor_dropsite_unshared);
+	RUN(test_new_base_ends_saving_when_finished);
 	RUN(test_city_phase_counts_foundations);
 	RUN(test_petra_research_order);
 	RUN(test_petra_minor_tech_kept);

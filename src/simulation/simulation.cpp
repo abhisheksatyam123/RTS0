@@ -19573,15 +19573,29 @@ void Simulation::update_petra_bases(float dt) {
 			// A civic centre we lay out or capture trains 3 + 2 (difficulty - 3) defenders from Medium.
 			const uint8_t diff = petra_difficulty();
 			if (diff >= PETRA_MEDIUM && diff <= PETRA_VERY_HARD) new_base.needed_defenders = (uint8_t)(3 + 2 * (diff - PETRA_MEDIUM));
-			// handleNewBase: a further base should end a resource shortage, so stop saving.
-			if (!petra_bases_.empty() && petra_attack_mgr_.save_resources) {
-				petra_attack_mgr_.save_resources = 0;
-				petra_attack_mgr_.phase2_cut_kept = 1;
-			}
 			// The territory grows: there may be room again (resetMissingRoom).
 			petra_room_.marks.clear();
 			petra_bases_.push_back(new_base);
 		}
+	}
+
+	// basesManager.js checkEvents: handleNewBase for each base anchor we finish (ConstructionFinished)
+	// or capture. The first configures the first base; each later one should end a resource
+	// shortage, so saving stops, and saveSpace and maxFields end for good.
+	for (const Building &b : buildings_) {
+		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
+		if (!is_civic_centre(b.type) && b.type != BLD_MILITARY_COLONY) continue;
+		auto &seen = petra_kept_.anchors_seen;
+		auto at = std::lower_bound(seen.begin(), seen.end(), b.id);
+		if (at != seen.end() && *at == b.id) continue;
+		const bool first = seen.empty();
+		seen.insert(at, b.id);
+		if (first) continue;
+		if (petra_attack_mgr_.save_resources) {
+			petra_attack_mgr_.save_resources = 0;
+			petra_attack_mgr_.phase2_cut_kept = 1;
+		}
+		petra_kept_.space_freed = petra_kept_.fields_freed = true;
 	}
 
 	// 4. Update threat level, assigned workers, and resource depletion per base
@@ -22295,12 +22309,11 @@ void Simulation::petra_manage_fields() {
 	};
 	std::vector<BaseFood> bases(anchors.size());
 	const Building *farmstead = nullptr, *tc = nullptr;
-	int fields = 0, field_foundations = 0, corrals = 0, civic_centres = 0;
-	bool market = false;
+	int fields = 0, field_foundations = 0, corrals = 0;
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
-		civic_centres += is_civic_centre(b.type);
-		market |= b.type == BLD_MARKET && b.build_progress >= 1.0f;
+		// headquarters.js checkEvents: a finished market ends maxFields for good.
+		if (b.type == BLD_MARKET && b.build_progress >= 1.0f) petra_kept_.fields_freed = true;
 		if (b.type == BLD_FIELD) {
 			++fields;
 			field_foundations += b.build_progress < 1.0f;
@@ -22356,17 +22369,18 @@ void Simulation::petra_manage_fields() {
 	const bool anchor = anchor_b != nullptr;
 	const float anchor_at[2] = {anchor ? anchor_b->x : 0.0f, anchor ? anchor_b->z : 0.0f};
 	// configFirstBase: a starting land under 25000 m² saves space (one field at most, one field
-	// foundation fewer, and a corral), one under 60000 m² takes two fields at most; a second
-	// civic centre (handleNewBase) or a finished market (checkEvents) lifts both.
+	// foundation fewer, and a corral), one under 60000 m² takes two fields at most; a further
+	// base anchor finished or captured (handleNewBase) ends both for good, a finished market
+	// (checkEvents) the field cap.
 	int max_fields = 0;
 	bool save_space = false;
-	if (civic_centres <= 1 && !market) {
+	if (!petra_kept_.space_freed || !petra_kept_.fields_freed) {
 		uint16_t home = 0;
 		const PetraNavalTopo &topo = petra_classified_topo(home);
 		if (tc) home = petra_building_land(*tc, &topo);
 		const float m2 = home && home < topo.land_size.size() ? topo.cell_m2 * (float)topo.land_size[home] : 1e9f;
-		save_space = m2 < 25000.0f;
-		max_fields = save_space ? 1 : m2 < 60000.0f ? 2 : 0;
+		save_space = !petra_kept_.space_freed && m2 < 25000.0f;
+		if (!petra_kept_.fields_freed) max_fields = m2 < 25000.0f ? 1 : m2 < 60000.0f ? 2 : 0;
 	}
 	if (can_build(BLD_FIELD)) {
 		for (const BaseFood &bf : bases) {
@@ -33861,9 +33875,15 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				}
 				if (ar.version >= Simulation::SAVE_VERSION_PETRA_PASS5) {
 					ar.pod(v.house_plans);
+					io_vec(ar, v.anchors_seen, 1u << 16, [&](uint32_t &id) { ar.pod(id); });
+					ar.pod(v.space_freed); ar.pod(v.fields_freed);
 					if constexpr (Ar::loading)
-						if (v.house_plans > 5) ar.ok = false;
-				} else v.house_plans = 3; // the house queue full, as it is in play
+						if (v.house_plans > 5 || !std::is_sorted(v.anchors_seen.begin(), v.anchors_seen.end())) ar.ok = false;
+				} else {
+					v.house_plans = 3; // the house queue full, as it is in play
+					v.anchors_seen.clear(); // met again at the next AI turn
+					v.space_freed = v.fields_freed = false;
+				}
 			} else v = PetraKept{}; // decided again at the next AI turn, from the game as loaded
 		} else if constexpr (std::is_same_v<T, S::PetraDefenseTargets>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_TARGET_LIST) {
