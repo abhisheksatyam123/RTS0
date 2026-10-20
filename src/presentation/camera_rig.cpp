@@ -20,6 +20,7 @@ using namespace godot;
 
 void RtsoCameraRig::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_target_pos", "pos"), &RtsoCameraRig::set_target_pos);
+	ClassDB::bind_method(D_METHOD("camera_data"), &RtsoCameraRig::camera_data);
 	ClassDB::bind_method(D_METHOD("zoom", "delta_zoom"), &RtsoCameraRig::zoom);
 	ClassDB::bind_method(D_METHOD("reset_camera"), &RtsoCameraRig::reset_camera);
 	ClassDB::bind_method(D_METHOD("toggle_birds_eye"), &RtsoCameraRig::toggle_birds_eye);
@@ -52,7 +53,8 @@ void RtsoCameraRig::set_target_pos(Vector3 pos) {
 }
 
 void RtsoCameraRig::zoom(float delta_zoom) {
-	target_zoom = Math::clamp(target_zoom + delta_zoom, 8.0f, 65.0f);
+	// CameraController: the zoom limits hold only while the camera is constrained.
+	target_zoom = constrain_ ? Math::clamp(target_zoom + delta_zoom, 8.0f, 65.0f) : Math::clamp(target_zoom + delta_zoom, 1.0f, 1000.0f);
 }
 
 void RtsoCameraRig::reset_camera() {
@@ -197,8 +199,10 @@ void RtsoCameraRig::_process(double delta) {
 		const float rot = speed_mul_[SPEED_ROTATE] * (float)delta, zm = speed_mul_[SPEED_ZOOM] * (float)delta;
 		if (on("camera.rotate.cw")) target_yaw += 2.0f * rot;
 		if (on("camera.rotate.ccw")) target_yaw -= 2.0f * rot;
-		if (!birds_eye_ && on("camera.rotate.up")) target_pitch_deg = Math::clamp(target_pitch_deg - 40.0f * rot, 25.0f, 85.0f);
-		if (!birds_eye_ && on("camera.rotate.down")) target_pitch_deg = Math::clamp(target_pitch_deg + 40.0f * rot, 25.0f, 85.0f);
+		// ViewRotateXMin/Max hold only while constrained (straight down at most unconstrained).
+		const float pmin = constrain_ ? 25.0f : 1.0f, pmax = constrain_ ? 85.0f : 89.9f;
+		if (!birds_eye_ && on("camera.rotate.up")) target_pitch_deg = Math::clamp(target_pitch_deg - 40.0f * rot, pmin, pmax);
+		if (!birds_eye_ && on("camera.rotate.down")) target_pitch_deg = Math::clamp(target_pitch_deg + 40.0f * rot, pmin, pmax);
 		if (on("camera.zoom.in")) zoom(-30.0f * zm);
 		if (on("camera.zoom.out")) zoom(30.0f * zm);
 	}
@@ -243,6 +247,10 @@ void RtsoCameraRig::_process(double delta) {
 	yaw_angle = Math::lerp(yaw_angle, target_yaw, (float)delta * 8.0f);
 	set_rotation(Vector3(0, yaw_angle, 0));
 
+	if (constrain_) { // ClampSmoothly each frame: re-constraining brings zoom and tilt back in range
+		target_zoom = Math::clamp(target_zoom, 8.0f, 65.0f);
+		if (!birds_eye_) target_pitch_deg = Math::clamp(target_pitch_deg, 25.0f, 85.0f);
+	}
 	zoom_height = Math::lerp(zoom_height, target_zoom, (float)delta * 8.0f);
 	pitch_deg = Math::lerp(pitch_deg, target_pitch_deg, (float)delta * 8.0f);
 	if (cam) {

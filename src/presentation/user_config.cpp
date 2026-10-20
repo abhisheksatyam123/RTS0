@@ -42,6 +42,7 @@ const Default kDefaults[] = {
 	{"shadowquality", "0"},
 	{"shadowpcf", "true"},
 	{"shadowscutoffdistance", "300.0"},
+	{"shadowscascadecount", "1"},
 	{"silhouettes", "true"},
 	{"shadowscovermap", "false"},
 	{"watereffects", "true"},
