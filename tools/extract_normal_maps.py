@@ -24,12 +24,13 @@ For actors whose material is a *_parallax* one (model_common.fs USE_PARALLAX),
 placeholders (default_norm, null textures) and actors whose material has no
 normal mapping (neither *_norm* nor *_parallax*) are skipped.
 
-Usage: python3 tools/extract_normal_maps.py [--ref master] [--only id,id] [--max 512] [--heights | --heights-only]
+Usage: python3 tools/extract_normal_maps.py [--ref master | --zip public.zip] [--only id,id] [--max 512] [--heights | --heights-only]
 """
 import argparse
 import concurrent.futures as cf
 import io
 import json
+import zipfile
 import os
 import sys
 import xml.etree.ElementTree as ET
@@ -101,10 +102,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ref", default="master")
     ap.add_argument("--only", default="")
+    ap.add_argument("--zip", help="read a 0 A.D. release public.zip instead of GitHub")
     ap.add_argument("--max", type=int, default=512, help="largest side of a written normal map")
     ap.add_argument("--heights", action="store_true", help="also write parallax height maps")
     ap.add_argument("--heights-only", action="store_true", help="write only the parallax height maps")
     args = ap.parse_args()
+    if args.zip:
+        M.ZIP = zipfile.ZipFile(args.zip)
     args.heights = args.heights or args.heights_only
     os.chdir(ROOT)
 

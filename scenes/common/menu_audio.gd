@@ -16,14 +16,18 @@ extends Node
 ## playlist; the rest of it is the session's). Leaving the summary for anywhere
 ## but the main menu keeps it playing, as 0.28's global music object does.
 ##
-## Clicks: every button, dropdown and tab outside a match plays
+## Clicks: every button, slider, dropdown and tab outside a match plays
 ## ui_button_click.ogg on the UI volume (common/modern/styles.xml sound_pressed,
-## sound_opened, sound_selected); the session hooks its own controls.
+## sound_opened, sound_closed, sound_selected); the session hooks its own controls.
+## Sounds that fall in one frame (a pick also closes the list) play once.
 
 const MUSIC_PATH := "res://assets/audio/music/"
 const MENU_TRACKS := ["Honor_Bound.ogg", "An_old_Warhorse_goes_to_Pasture.ogg", "Calm_Before_the_Storm.ogg",
 		"Juno_Protect_You.ogg"]
-const MUSIC_DB := -10.5 # musicGain 0.3
+# 0.28 plays music at sound.musicgain (0.2) beside actions at 0.7; RTS0's buses are
+# relative to their defaults, so the music sits that ratio (about -10.5 dB) lower.
+# (music.js's musicGain 0.3 is never read.)
+const MUSIC_DB := -10.5
 const CLICK := "res://assets/sounds/ui/ui_button_click.ogg"
 
 var _music: AudioStreamPlayer
@@ -34,6 +38,7 @@ var _match_track := "" # the session's track, resumed onto the summary
 var session_music_tick := Callable() # the session's music tick, driven here so it
 # runs while the tree is paused (0.28's music is global and knows no pause)
 var clicks := 0 # for tests
+var _click_frame := -1
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -132,7 +137,7 @@ func _process(delta: float) -> void:
 			return
 
 func _on_node_added(n: Node) -> void:
-	if not (n is BaseButton or n is TabBar or n is ItemList):
+	if not (n is BaseButton or n is TabBar or n is ItemList or n is Slider):
 		return
 	if n.has_meta("_menu_click"):
 		return
@@ -147,12 +152,21 @@ func _hook(id: int) -> void:
 		n.pressed.connect(_play_click)
 		if n.has_signal("item_selected"): # OptionButton and RtsoSafeSelect: sound_selected
 			n.item_selected.connect(func(_i): _play_click())
+		if n.has_signal("menu_closed"): # RtsoSafeSelect: sound_closed
+			n.menu_closed.connect(_play_click)
+	elif n is Slider: # ModernSlider sound_pressed
+		n.gui_input.connect(func(ev: InputEvent) -> void:
+			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+				_play_click())
 	elif n is TabBar:
 		n.tab_clicked.connect(func(_i): _play_click())
 	elif n is ItemList and not n.get_parent().get_parent() is BaseButton: # not a dropdown's own list
 		n.item_selected.connect(func(_i): _play_click())
 
 func _play_click() -> void:
+	if Engine.get_process_frames() == _click_frame:
+		return
+	_click_frame = Engine.get_process_frames()
 	clicks += 1
 	if _click.stream:
 		_click.play()

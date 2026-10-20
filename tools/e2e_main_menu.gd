@@ -75,6 +75,16 @@ func run() -> void:
 	if url_box:
 		url_box._answer(0)
 	await frames(2)
+	# Scenario Editor without Atlas: 0.28's error box, and no Switch Scene control.
+	menu._on_editor_pressed()
+	await frames(2)
+	var ed_box: Node = menu.find_child("MsgBox", true, false)
+	check(ed_box != null and ed_box.title == "Error" and ed_box.message.begins_with("The scenario editor is not available"),
+		"Scenario Editor says it is not available")
+	if ed_box:
+		ed_box._answer(0)
+	await frames(2)
+	check(menu.get_node_or_null("CivSwitcher") == null, "no Switch Scene button or civ label (0.28's tooltip panel sits there)")
 
 	print("2. Submenus")
 	var learn: Array = items(menu, "learn").map(func(b): return b.text)

@@ -88,10 +88,13 @@ public:
 	// the prop's 0 A.D. variants (data/unit_prop_looks.json); the other meshes are
 	// added beside the baked part on first use. glb is the unit GLB's id.
 	static void set_prop_looks(godot::Node *root, const godot::String &glb, uint32_t entity_id);
+	// The entity's helmet, drawn by its id from the 0 A.D. unit actor's helmet
+	// choices (data/unit_helmets.json), after set_prop_looks. Crowds keep the baked one.
+	static void set_unit_helmet(godot::Node *root, const godot::String &glb, uint32_t entity_id);
 	static bool is_player_color_material(const godot::Ref<godot::Material> &mat);
 	// The GLB a building model id draws with (data/building_models.json), or id itself.
 	static godot::String building_glb_id(const godot::String &id);
-	// Hide every tool_* mesh except the one for this clip (or tool_Weapon).
+	// Hide every tool_* mesh except this clip's (or tool_Weapon's) pieces.
 	static void apply_clip_tools(godot::Node *root, const godot::StringName &clip);
 
 private:

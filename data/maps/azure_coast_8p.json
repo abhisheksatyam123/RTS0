@@ -9509,56 +9509,96 @@
       "team": 0,
       "start_x": 103.44,
       "start_z": -47.47,
-      "civ": 0
+      "civ": 0,
+      "color": [
+        80,
+        80,
+        200
+      ]
     },
     {
       "id": 3,
       "team": 0,
       "start_x": -138.62,
       "start_z": 22.0,
-      "civ": 0
+      "civ": 0,
+      "color": [
+        50,
+        165,
+        5
+      ]
     },
     {
       "id": 5,
       "team": 1,
       "start_x": 25.42,
       "start_z": -75.42,
-      "civ": 7
+      "civ": 7,
+      "color": [
+        50,
+        170,
+        170
+      ]
     },
     {
       "id": 6,
       "team": 1,
       "start_x": 19.49,
       "start_z": 30.88,
-      "civ": 7
+      "civ": 7,
+      "color": [
+        160,
+        80,
+        200
+      ]
     },
     {
       "id": 4,
       "team": 0,
       "start_x": -75.14,
       "start_z": -103.88,
-      "civ": 0
+      "civ": 0,
+      "color": [
+        230,
+        230,
+        75
+      ]
     },
     {
       "id": 2,
       "team": 0,
       "start_x": 169.87,
       "start_z": -44.52,
-      "civ": 0
+      "civ": 0,
+      "color": [
+        150,
+        20,
+        20
+      ]
     },
     {
       "id": 8,
       "team": 1,
       "start_x": 78.12,
       "start_z": 125.97,
-      "civ": 7
+      "civ": 7,
+      "color": [
+        64,
+        64,
+        64
+      ]
     },
     {
       "id": 7,
       "team": 1,
       "start_x": -71.32,
       "start_z": 140.08,
-      "civ": 7
+      "civ": 7,
+      "color": [
+        235,
+        120,
+        20
+      ]
     }
   ],
   "resources": [

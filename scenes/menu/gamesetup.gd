@@ -895,7 +895,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		_open_map_browser()
 	elif "civinfo" in fired or "structree" in fired:
 		get_viewport().set_input_as_handled()
-		open_civ_reference(0 if "civinfo" in fired else 1)
+		# CivInfoPage / StructreePage: a page's own hotkey closes it.
+		var want := 0 if "civinfo" in fired else 1
+		var open := get_node_or_null("CivReference")
+		if open and (open.find_child("Pages", true, false) as TabContainer).current_tab == want:
+			open.queue_free()
+		else:
+			open_civ_reference(want)
 	elif "lobby" in fired and LobbySession.signed_in():
 		# LobbyButton.xml hotkey="lobby": the lobby dialog over the setup.
 		get_viewport().set_input_as_handled()
@@ -912,8 +918,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 ## CivInfoButton: the Civilization Overview (0) or Structure Tree (1) over the setup, on
 ## slot 1's civilization; the two hotkeys switch between them (pageLoop) and the
-## button reopens the last one viewed.
+## button reopens the last one viewed, on the civilization last viewed (pageLoop's args).
 var _civ_ref_tab := 0
+var _civ_ref_civ := -1
 func open_civ_reference(tab: int) -> void:
 	_civ_ref_tab = tab
 	var layer := get_node_or_null("CivReference") as CanvasLayer
@@ -948,13 +955,23 @@ func open_civ_reference(tab: int) -> void:
 	tabs.add_child(tree)
 	civinfo.civ_changed.connect(tree.set_civ)
 	tree.civ_changed.connect(civinfo.set_civ)
-	var civ := _slot_civ(maxi(_local_slot, 0))
+	civinfo.civ_changed.connect(func(c): _civ_ref_civ = c)
+	tree.civ_changed.connect(func(c): _civ_ref_civ = c)
+	var civ := _civ_ref_civ if _civ_ref_civ >= 0 else _slot_civ(maxi(_local_slot, 0))
 	if _civ_pos(civ) >= 0: # not Random
 		civinfo.set_civ.call_deferred(civ)
 		tree.set_civ.call_deferred(civ)
 	tabs.current_tab = tab
-	tabs.tab_changed.connect(func(i): _civ_ref_tab = i)
 	var close := Button.new()
+	close.name = "Close"
+	# CloseButton: the close key and the page it closes.
+	var close_tip := func() -> void:
+		close.tooltip_text = _hotkeys.colorize(L10n.t("%(hotkey)s: Close Structure Tree.") if tabs.current_tab == 1
+			else L10n.t("%(hotkey)s: Close Civilization Overview."), "cancel")
+	tabs.tab_changed.connect(func(i):
+		_civ_ref_tab = i
+		close_tip.call())
+	close_tip.call()
 	close.text = tr("Close")
 	close.custom_minimum_size = Vector2(160, 32)
 	close.size_flags_horizontal = Control.SIZE_SHRINK_END

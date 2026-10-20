@@ -279,7 +279,8 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 	if (!cheat) return false;
 	String parameter = text.substr(String(cheat->name).length() + 1).strip_edges();
 	if (parameter.is_empty()) parameter = cheat->def;
-	if (cheat->numeric && !parameter.is_empty() && !parameter.is_valid_int()) {
+	// Cheats.js reads the number with +parameter, so "1.5" and "1e3" count.
+	if (cheat->numeric && !parameter.is_empty() && !parameter.is_valid_float()) {
 		// Cheats.js NoNumericMessage: a chat message from the player, shown only here.
 		chat_window_.append_kind(String("<") + colored_player_name(me) + "> " + tr("This cheat requires a numeric parameter.") + "\n",
 				RtsoChatWindow::message_bits("", true));
@@ -293,7 +294,7 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 		music_.play_custom(tracks);
 		return true;
 	}
-	int64_t number = cheat->numeric && !parameter.is_empty() ? parameter.to_int() : 0;
+	int64_t number = cheat->numeric && !parameter.is_empty() ? (int64_t)parameter.to_float() : 0;
 	uint32_t extra = (uint32_t)std::max(cheat->resource, 0);
 	if (cheat->action == S::CHEAT_CONVERT_UNITS || cheat->action == S::CHEAT_DEFEAT_PLAYER)
 		number = number < 0 ? -1 : (number == 0 ? rtso::GAIA_PLAYER : number - 1);
@@ -302,17 +303,36 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 	if (selected_building_id) ids.push_back(selected_building_id);
 	for (int i = 0; i < selected_ids.size(); ++i) ids.push_back((uint32_t)selected_ids[i]);
 	if (cheat->action == S::CHEAT_RESEARCH) {
-		// "brainiac N" researches the selected structure's Nth technology, else a tech by its 0 A.D. name.
+		// "brainiac N [top|bottom]" researches the selected structure's Nth research icon
+		// (Researcher.js GetTechnologiesList: a chain shows its next step, a pair is one
+		// entry, "top" by default), else a tech by its 0 A.D. name.
 		extra = rtso::TECH_NONE;
-		int btype = -1; // the selected structure's type
+		const rtso::Simulation::Building *rb = nullptr; // the selected structure
 		for (const auto &bb : sim->buildings())
-			if (selected_building_id && bb.id == selected_building_id) btype = bb.type;
-		if (btype >= 0 && parameter.is_valid_int()) {
-			int nth = (int)parameter.to_int();
-			for (int t = 1; t < rtso::TECH_COUNT && nth > 0; ++t) {
-				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
-				if (!rtso::building_researches_tech((uint8_t)btype, (uint8_t)t, sim->player_civ(me)) || !(ti.civ_mask & rtso::civ_bit(sim->player_civ(me)))) continue;
-				if (--nth == 0) extra = (uint32_t)t;
+			if (selected_building_id && bb.id == selected_building_id) rb = &bb;
+		const String first = parameter.get_slice(" ", 0), half = parameter.get_slice(" ", 1);
+		if (rb && first.is_valid_float()) {
+			const uint8_t pciv = sim->player_civ(me);
+			std::vector<std::pair<uint8_t, uint8_t>> entries; // top, bottom (TECH_NONE unless paired)
+			for (int t = 1; t < rtso::TECH_COUNT; ++t) {
+				if (!rtso::building_researches_tech(rb->type, (uint8_t)t, pciv) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+				if (const uint8_t sup = rtso::tech_supersedes((uint8_t)t); sup != rtso::TECH_NONE
+						&& rtso::building_researches_tech(rb->type, sup, pciv) && rtso::tech_available_to_civ(sup, pciv)) {
+					const rtso::Simulation::ResearchCheck sc = sim->research_check(me, sup, 0);
+					if (sc != rtso::Simulation::TECH_ERR_RESEARCHED && sc != rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
+				}
+				const rtso::Simulation::ResearchCheck rc = sim->research_check(me, (uint8_t)t, rb->id);
+				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_IN_PROGRESS || rc == rtso::Simulation::TECH_ERR_CIV
+						|| rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
+				const uint8_t partner = rtso::tech_pair_partner((uint8_t)t);
+				auto paired = std::find_if(entries.begin(), entries.end(), [&](const auto &e) { return partner != rtso::TECH_NONE && e.first == partner; });
+				if (paired != entries.end()) paired->second = (uint8_t)t;
+				else entries.push_back({(uint8_t)t, rtso::TECH_NONE});
+			}
+			const double nth = first.to_float();
+			if (nth >= 1.0 && nth <= (double)entries.size()) {
+				const auto &e = entries[(size_t)nth - 1];
+				extra = half == "bottom" && e.second != rtso::TECH_NONE ? e.second : e.first;
 			}
 		} else {
 			const std::string want = parameter.utf8().get_data();
@@ -3701,7 +3721,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 // same on every peer, with no speed control in the match (set_game_speed
 // refuses and the button is hidden, as session.js does when g_IsNetworked).
 void RtsoMain::start_net_speed(uint16_t speed) {
-	game_speed = std::clamp(speed, (uint16_t)25, (uint16_t)300) / 100.0f;
+	game_speed = std::clamp(speed, (uint16_t)10, (uint16_t)2000) / 100.0f; // game_speeds.json's range
 	if (speed_btn && speed_btn->get_button_icon().is_null()) speed_btn->set_text(speed_text(game_speed));
 }
 

@@ -78,7 +78,8 @@ public:
 	enum State { OFF = 0, MENU, PEACE, BATTLE, VICTORY, DEFEAT, CUSTOM };
 
 	static constexpr const char *kPath = "res://assets/audio/music/";
-	// music.js musicGain 0.3.
+	// sound.musicgain 0.2 beside sound.actiongain 0.7 in 0.28; the buses are relative to
+	// their defaults, so the music sits that ratio lower. (music.js musicGain is never read.)
 	static constexpr float kGainDb = -10.5f;
 
 	~RtsoMusic() {
