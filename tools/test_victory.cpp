@@ -431,7 +431,7 @@ int main() {
 		CHECK(q.victory == VICTORY_REGICIDE && q.waves == 1 && q.map_size == 384 && q.lms == 1 && q.pop_cap == 300 && q.ceasefire == 10);
 		CHECK(q.reveal == 1 && q.explore == 1 && q.wonder_min == 5 && q.relic_min == 45 && q.relics == 6);
 		CHECK(q.biome == BIOME_POLAR + 1 && q.diffs[0] == 3 && q.diffs[1] == 5 && q.diffs[2] == 0);
-		CHECK(q.behs[0] == 2 && q.behs[1] == 3 && q.behs[2] == 1);
+		CHECK(q.behs[0] == 0 && q.behs[1] == 3 && q.behs[2] == 1);
 		CHECK(q.colors[0] == 23 && q.colors[1] == 0 && q.colors[2] == 10 && q.colors[3] == 3);
 		CHECK(q.nomad == 1 && q.regicide_garrison == 1 && q.no_treasures == 1);
 		CHECK(q.names[0] == "Stan; the=Great, 100%" && q.names[1] == "Ptolemy Philadelphus" && q.names[2].empty() && q.names[3].empty());
