@@ -53,6 +53,15 @@ const char *const kSetupKeys[] = {
 constexpr uint32_t kReplayFormat = 2; // 2: may start from a save (start_save)
 constexpr uint32_t kReplayWriteEveryTurns = 300; // a minute of game time: a crash loses at most that
 
+// Engine.GetEngineInfo().mods (scenes/menu/mods.gd engine_mods): the mods this run plays
+// with, which 0.28 writes into a save's and a replay's metadata.
+Array engine_mods() {
+	Ref<Script> mods = ResourceLoader::get_singleton()->load("res://scenes/menu/mods.gd");
+	if (mods.is_null()) return Array();
+	const Variant v = mods->call("engine_mods");
+	return v.get_type() == Variant::ARRAY ? (Array)v : Array();
+}
+
 String timestamp_id() {
 	Dictionary dt = Time::get_singleton()->get_datetime_dict_from_system();
 	return String("{0}-{1}-{2}_{3}{4}{5}").format(Array::make(
@@ -408,6 +417,7 @@ void RtsoMain::begin_match_recording(const rtso::GameSetupParams *mp_setup) {
 	replay_meta_ = Dictionary();
 	replay_meta_["format"] = (int64_t)kReplayFormat;
 	replay_meta_["engine_version"] = "RTS0";
+	replay_meta_["mods"] = engine_mods();
 	replay_meta_["save_version"] = (int64_t)rtso::Simulation::SAVE_VERSION;
 	replay_meta_["timestamp"] = (int64_t)Time::get_singleton()->get_unix_time_from_system();
 	replay_meta_["date"] = Time::get_singleton()->get_datetime_string_from_system(false, true);
@@ -739,6 +749,7 @@ bool RtsoMain::write_save_metadata(const String &path, const String &description
 	if (!sim) return false;
 	Dictionary meta;
 	meta["save_version"] = (int64_t)rtso::Simulation::SAVE_VERSION;
+	meta["mods"] = engine_mods();
 	meta["timestamp"] = (int64_t)Time::get_singleton()->get_unix_time_from_system();
 	meta["date"] = Time::get_singleton()->get_datetime_string_from_system(false, true);
 	meta["description"] = description;

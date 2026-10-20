@@ -93,6 +93,8 @@ func run() -> void:
 	await frames(5)
 	check(FileAccess.file_exists(replay_dir + "commands.rts0rec"), "leaving the match wrote commands.rts0rec")
 	check(FileAccess.file_exists(replay_dir + "metadata.json"), "leaving the match wrote metadata.json")
+	var rmeta = JSON.parse_string(FileAccess.get_file_as_string(replay_dir + "metadata.json"))
+	check(rmeta is Dictionary and rmeta.get("mods") is Array and not rmeta.mods.is_empty(), "the replay records the mods it was played with")
 	var browser = current_scene
 	check(browser._replays.size() >= 1 and browser._replays[0].dir + "/" == replay_dir, "the replay menu lists it first")
 

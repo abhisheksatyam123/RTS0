@@ -4111,28 +4111,48 @@
       "team": 0,
       "start_x": 55.44,
       "start_z": 47.67,
-      "civ": 4
+      "civ": 4,
+      "color": [
+        46,
+        46,
+        200
+      ]
     },
     {
       "id": 2,
       "team": 1,
       "start_x": -54.05,
       "start_z": -55.79,
-      "civ": 6
+      "civ": 6,
+      "color": [
+        150,
+        20,
+        20
+      ]
     },
     {
       "id": 3,
       "team": 2,
       "start_x": -60.24,
       "start_z": 47.67,
-      "civ": 5
+      "civ": 5,
+      "color": [
+        50,
+        165,
+        5
+      ]
     },
     {
       "id": 4,
       "team": 3,
       "start_x": 53.03,
       "start_z": -50.85,
-      "civ": 8
+      "civ": 8,
+      "color": [
+        230,
+        230,
+        75
+      ]
     }
   ],
   "resources": [

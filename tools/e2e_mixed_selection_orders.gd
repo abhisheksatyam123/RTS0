@@ -15,6 +15,11 @@ func check(cond: bool, what: String) -> void:
 		failures += 1
 
 func _initialize() -> void:
+	# One map for every run: the random default's coast or trees can stand where the units walk.
+	var ms = root.get_node("MatchSettings")
+	ms.map_id = "random_continental"
+	ms.seed = 11
+	ms.map_size = 128
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	run.call_deferred()
@@ -22,6 +27,14 @@ func _initialize() -> void:
 func frames(n: int) -> void:
 	for i in n:
 		await process_frame
+
+# Waits on simulation turns, not frames, so a slow frame rate cannot cut the walk short.
+func turns(n: int) -> void:
+	var until: int = int(main.get_replay_status().turn) + n
+	var guard := 0
+	while int(main.get_replay_status().turn) < until and guard < n * 40:
+		await process_frame
+		guard += 1
 
 func move(pos: Vector2) -> void:
 	var mm := InputEventMouseMotion.new()
@@ -84,7 +97,7 @@ func run() -> void:
 	var s: Dictionary = main.debug_selection_state()
 	check(s["building"] == cc and s["selected"].size() == 2, "Shift+click adds the Civic Center and keeps both units")
 	await click(at + Vector2(0, 160), MOUSE_BUTTON_RIGHT)
-	await frames(60)
+	await turns(10)
 	s = main.debug_selection_state()
 	check(not s.has("rally") or had_rally, "no rally point set on the Civic Center")
 	check((unit(s, men[0])["pos"] as Vector2).distance_to(before) > 1.0, "the units walk")
