@@ -286,6 +286,10 @@ int main() {
 		p.player(0).phase = 3;
 		CHECK(std::fabs(p.batch_time_multiplier(0, BLD_STABLE, 5) - std::pow(5.0f, smod - 0.2f)) < 1e-4f);
 		CHECK(!tech_available_to_civ(TECH_STABLE_BATCH_TRAINING, CIV_PERSIANS));
+		// Trainer/BatchTimeModifier is the structure's own: a captured Athenian dock keeps 0.7.
+		CHECK(trainer_batch_time_modifier(CIV_ATHENIANS, BLD_DOCK) != trainer_batch_time_modifier(CIV_PERSIANS, BLD_DOCK));
+		CHECK(std::fabs(p.batch_time_multiplier(0, BLD_DOCK, 5, CIV_ATHENIANS) -
+		                std::pow(5.0f, trainer_batch_time_modifier(CIV_ATHENIANS, BLD_DOCK))) < 1e-4f);
 	}
 
 	// 10. Footprint.PickSpawnPoint: each trained unit spawns on its own free spot around the

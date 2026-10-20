@@ -808,7 +808,8 @@ public:
 	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive, int count = 1,
 			bool push_front = false);
 	// Trainer.js GetBatchTime: count^BatchTimeModifier of the building (civ version and techs).
-	float batch_time_multiplier(uint8_t player, uint8_t bld_type, int count) const;
+	// bld_civ: the structure's civ, whose template sets Trainer/BatchTimeModifier (the owner's when unknown).
+	float batch_time_multiplier(uint8_t player, uint8_t bld_type, int count, uint8_t bld_civ = 0xFF) const;
 	// The same for a training unit (a trireme, Cyrus II): its Trainer/BatchTimeModifier.
 	float unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const;
 	// ProductionQueue.js EnableAutoQueue / DisableAutoQueue.

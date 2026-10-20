@@ -1609,7 +1609,7 @@ private:
 				pop = u.pop_cost;
 				seconds = sim->unit_train_seconds(pid, tmpl);
 			}
-			const float batch_mult = b ? sim->batch_time_multiplier(pid, b->type, batch) : sim->unit_trainer_batch_mult(trainer_tmpl, tmpl, batch);
+			const float batch_mult = b ? sim->batch_time_multiplier(pid, b->type, batch, b->civ) : sim->unit_trainer_batch_mult(trainer_tmpl, tmpl, batch);
 			const rtso::CostTip total{(int64_t)std::floor(cost[rtso::RES_FOOD] * num), (int64_t)std::floor(cost[rtso::RES_WOOD] * num),
 					(int64_t)std::floor(cost[rtso::RES_STONE] * num), (int64_t)std::floor(cost[rtso::RES_GOLD] * num),
 					(int64_t)pop * num, (int64_t)std::ceil(seconds * batch_mult)};
