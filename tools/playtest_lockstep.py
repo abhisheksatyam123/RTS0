@@ -3,7 +3,7 @@
 
 Compiles tools/test_netcode.cpp in --playtest mode with a plain g++ command
 (no SCons, no Godot) and runs the two-peer lockstep harness across several
-seeds. Every turn the harness prints the FNV-1a state hash of all three
+seeds. Every turn the harness prints the lockstep state hash of all three
 simulation instances; the first turn where the hashes disagree is an
 out-of-sync (OOS) and the harness exits 1 with a context dump.
 
