@@ -695,7 +695,7 @@ void RtsoMain::set_game_speed(float speed) {
 	if (net_lockstep() || !(speed > 0.0f)) return;
 	const Array speeds = speed_choices(fast_forward_allowed());
 	game_speed = std::clamp(speed, (float)speeds[0], (float)speeds[speeds.size() - 1]);
-	if (speed_btn) speed_btn->set_text(speed_text(game_speed));
+	if (speed_btn && speed_btn->get_button_icon().is_null()) speed_btn->set_text(speed_text(game_speed));
 }
 
 // The pause hotkey and the replay's Pause button. Networked, the pause holds
@@ -955,9 +955,11 @@ void RtsoMain::update_net_status_overlay() {
 			for (const auto &e : net_host_.playerAssignment())
 				if (e.client == c && !e.name.empty()) name = String::utf8(e.name.c_str()).replace("[", "[lb]");
 			const uint8_t pl = turn_mgr_.player_for_client(c);
-			if (name.is_empty()) name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : String("an observer");
-			if (pl < rtso::MAX_PLAYERS && sim)
-				name = "[color=#" + String::num_int64(rtso::display_colors::rgb(*sim, pl), 16).lpad(6, "0") + "]" + name + "[/color]";
+			// colorizePlayernameByGUID: "Unknown Player" without a name, white for an observer.
+			const bool seated = pl < rtso::MAX_PLAYERS;
+			if (name.is_empty()) name = seated ? player_display_name(pl) : tr("Unknown Player");
+			const uint32_t rgb = seated && sim ? rtso::display_colors::rgb(*sim, pl) : 0xFFFFFFu;
+			name = "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + name + "[/color]";
 			loading += (loading.is_empty() ? "" : tr(", ")) + name;
 		}
 		if (!loading.is_empty()) status = tr("Waiting for players to connect:");
@@ -1437,6 +1439,7 @@ void RtsoMain::update_hud() {
 	}
 	// GameSpeedButton: hidden in networked games (g_IsNetworked), shown in replays with Fast Forward.
 	if (speed_btn) speed_btn->set_visible(!net_lockstep());
+	top_panel_.set_player_buttons_visible(sim && view_player() < rtso::MAX_PLAYERS);
 }
 
 // Selection details (0 A.D. gui/session/selection_details.js): real values
@@ -3593,7 +3596,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 // refuses and the button is hidden, as session.js does when g_IsNetworked).
 void RtsoMain::start_net_speed(uint16_t speed) {
 	game_speed = std::clamp(speed, (uint16_t)25, (uint16_t)300) / 100.0f;
-	if (speed_btn) speed_btn->set_text(speed_text(game_speed));
+	if (speed_btn && speed_btn->get_button_icon().is_null()) speed_btn->set_text(speed_text(game_speed));
 }
 
 // 0.28 switches every peer to page_loading at "start": the loading page goes
