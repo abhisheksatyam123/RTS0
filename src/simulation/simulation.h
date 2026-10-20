@@ -3668,6 +3668,7 @@ private:
 	void petra_available_techs(std::vector<uint8_t> &out) const;
 	int petra_accounted_workers(bool queued = true) const; // false: units alive only (getOwnEntitiesByRole)
 	bool petra_phasing() const;
+	bool petra_has_active_base() const; // basesManager.js hasActiveBase: a finished base anchor of ours
 	bool petra_start_research(uint8_t tech_id);
 	void petra_research_population_bonus();
 	bool petra_minor_tech_waiting() const;
