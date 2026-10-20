@@ -1397,7 +1397,9 @@ void NetHost::authenticate_peer(NetPeer &peer, AuthenticateMsg auth) {
 	res.host_id = static_cast<uint16_t>(peerId);
 	res.is_controller = 0;
 	int &failed = failed_passwords_[auth.name.empty() ? p->address : auth.name];
-	if (banned_names_.count(auth.name) || banned_addresses_.count(p->address) ||
+	// NetServer: behind the lobby a name is banned without its rating ("name (1500)").
+	if (banned_names_.count(lobbyAuth() ? auth.name.substr(0, auth.name.find(" (")) : auth.name) ||
+			banned_addresses_.count(p->address) ||
 			failed >= FAILED_PASSWORD_TRIES_BEFORE_BAN) {
 		res.code = ARC_BANNED;
 		res.message = "You have been banned from this game";
@@ -1510,7 +1512,8 @@ bool NetHost::kickPeer(uint32_t peer_id, bool ban) {
 	k.ban = ban ? 1 : 0;
 	kicks_.push_back(k);
 	if (ban) {
-		if (!p->player_name.empty()) banned_names_.insert(p->player_name);
+		if (!p->player_name.empty())
+			banned_names_.insert(lobbyAuth() ? p->player_name.substr(0, p->player_name.find(" (")) : p->player_name);
 		banned_addresses_.insert(p->address);
 	}
 	// Everyone hears it, the kicked client included (reliable, before the link closes).

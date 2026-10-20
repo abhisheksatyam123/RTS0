@@ -276,7 +276,8 @@ func confirm_setup() -> bool:
 	if failed != "":
 		show_host_error(self, failed)
 		return false
-	start_host(get_parent(), who, game_name, typed.to_int(), host_password.text if host_password else "", load_saved_game)
+	# gamesetup_mp.js startHost: a lobby player hosts as "nick (rating)".
+	start_host(get_parent(), LobbySession.rated_player_name() if LobbySession.signed_in() else who, game_name, typed.to_int(), host_password.text if host_password else "", load_saved_game)
 	_close()
 	return true
 

@@ -723,7 +723,7 @@ func _update_lock_teams_for_pop() -> void:
 		lock.button_pressed = true
 		lock.disabled = true
 	else:
-		lock.disabled = _is_scenario()
+		lock.disabled = _is_scenario() or _rated_locked
 	_render_mode_checks()
 
 ## GameSettingControlSlider: one step per item, read as the dropdowns are.
@@ -2380,6 +2380,7 @@ var _setting_warning: Label
 var _saved_label: Label
 ## The player count and cheats setting Rated Game was last set from (Rating.js maybeUpdate).
 var _rated_key := ""
+var _rated_locked := false # LockedTeams.onRatingChange: the rated game has locked the teams
 ## 0.28 ReadyButton captions and tooltips per ready state (NotReady, Ready,
 ## StayReady); pressing moves to the next state.
 const READY_CAPTIONS := ["I'm ready", "Stay ready", "I'm not ready!"]
@@ -2629,6 +2630,12 @@ func _update_rated() -> void:
 		_rated.set_pressed_no_signal(false)
 	_rated.visible = avail
 	cheats.disabled = avail and _rated.button_pressed
+	# LockedTeams.onRatingChange: a rated game has Locked teams on and fixed; unrating it unlocks them.
+	var rated := avail and _rated.button_pressed
+	if rated != _rated_locked:
+		_rated_locked = rated
+		%LockTeams.button_pressed = rated
+		_update_lock_teams_for_pop()
 
 func _update_net_controls() -> void:
 	if _mp_role == "none":
