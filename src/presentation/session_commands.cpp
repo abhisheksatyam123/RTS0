@@ -104,6 +104,17 @@ void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld, 
 		if (d2 < best) { best = d2; res = rv.id[r]; }
 	}
 	if (res) { command = rtso::RALLY_CMD_AUTO; return; }
+	// A visible animal: gather the same kind near the spot ("gather-near-position", resourceTemplate).
+	auto fv = sim->fauna();
+	float best_f = 2.0f * 2.0f;
+	for (size_t f = 0; f < fv.count; ++f) {
+		if (!fv.alive[f] || fv.food_amount[f] <= 0 || fv.behavior[f] == rtso::FAUNA_CORRALLED) continue;
+		const float dx = fv.pos_x[f] - at.x, dz = fv.pos_z[f] - at.z, d2 = dx * dx + dz * dz;
+		if (d2 >= best_f || !rtso::los_sees_fauna(*sim, view_player(), fv.pos_x[f], fv.pos_z[f], fv.owner[f])) continue;
+		best_f = d2;
+		ent_id = (uint32_t)fv.fauna_type[f] + 1;
+	}
+	if (ent_id) { command = rtso::RALLY_CMD_HUNT; return; }
 	// A treasure: collect it ("collect-treasure").
 	float best_t = 2.0f * 2.0f;
 	for (const auto &t : sim->treasures()) {
@@ -140,6 +151,12 @@ void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld, 
 	if (!t) return;
 	command = rtso::RALLY_CMD_AUTO;
 	const bool friendly = t->team == me || sim->is_ally(me, t->team);
+	// session.repair held over an own or allied structure that needs repair or is a foundation:
+	// repair it even when it holds a garrison ("repair" comes before "garrison").
+	if (friendly && rtso::hotkeys::held("session.repair") && (t->build_progress < 1.0f || t->hp < t->max_hp)) {
+		command = rtso::RALLY_CMD_REPAIR;
+		return;
+	}
 	// Occupy a turret point of an own or allied wall or tower that has no garrison ("occupy-turret").
 	if (friendly && t->build_progress >= 1.0f && sim->get_garrison_capacity(t->id) <= 0 && sim->turret_holder_points(*t)) {
 		command = rtso::RALLY_CMD_TURRET;

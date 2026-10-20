@@ -263,10 +263,26 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		f.is_burning = b.is_burning;
 		f.upgrading = b.upgrade_to != BLD_TYPE_COUNT;
 		f.production = b.queue.empty() ? 0 : Simulation::researching(b) != TECH_NONE ? 1 : 2;
-		add_building(f, sim.shares_los(viewer, b.team), // an unshared ally's structures mirage like anyone's
-				viewer < MAX_PLAYERS && ((b.seen_mask >> viewer) & 1));
+		const bool allied = sim.shares_los(viewer, b.team); // an unshared ally's structures mirage like anyone's
+		Simulation::BuildWork w;
+		if (!allied && (b.build_progress < 1.0f || b.hp < b.max_hp) && los_at(b.x, b.z) == Simulation::FOW_VISIBLE &&
+				sim.structure_build_work(b, w)) {
+			f.work = true;
+			f.work_repair = w.repair;
+			f.work_builders = (uint16_t)w.builders;
+			f.work_remaining = w.remaining;
+			f.work_remaining_new = w.remaining_new;
+		}
+		add_building(f, allied, viewer < MAX_PLAYERS && ((b.seen_mask >> viewer) & 1));
 	}
 	const auto rv = sim.resources();
+	// Each supply's gatherers at work (ResourceSupply numGatherers), remembered with its amount.
+	gatherers_.clear();
+	{
+		const auto uv = sim.units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.alive[i] && uv.action_state[i] == ACTION_GATHER && uv.target_resource_id[i]) ++gatherers_[uv.target_resource_id[i]];
+	}
 	for (size_t i = 0; i < rv.count; ++i) {
 		if (!rv.alive[i] || rv.amount[i] <= 0) continue;
 		FoggedResource r;
@@ -274,9 +290,12 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		r.x = rv.x[i];
 		r.z = rv.z[i];
 		r.amount = rv.amount[i];
+		if (auto g = gatherers_.find(r.id); g != gatherers_.end()) r.gatherers = g->second;
 		r.type = rv.type[i];
 		r.subtype = rv.subtype ? rv.subtype[i] : 0;
 		r.flora = rv.flora ? rv.flora[i] : 0;
+		r.fauna = rv.fauna ? rv.fauna[i] : 0;
+		r.owner = rv.owner ? rv.owner[i] : 0xFF;
 		add_resource(r);
 	}
 	for (const auto &tr : sim.treasures()) {

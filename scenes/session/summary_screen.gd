@@ -177,8 +177,10 @@ func _init_players() -> void:
 
 ## translateAISettings: "Medium Balanced Petra Bot".
 static func ai_description(p: Dictionary) -> String:
-	return "%s %s Petra Bot" % [AI_DIFFICULTIES[clampi(int(p.get("ai_difficulty", 3)), 0, 5)],
-		AI_BEHAVIORS[clampi(int(p.get("ai_behavior", 2)), 0, 3)]]
+	return TranslationServer.translate("%(AIdifficulty)s %(AIbehavior)s %(AIname)s") \
+		.replace("%(AIdifficulty)s", TranslationServer.translate(AI_DIFFICULTIES[clampi(int(p.get("ai_difficulty", 3)), 0, 5)])) \
+		.replace("%(AIbehavior)s", TranslationServer.translate(AI_BEHAVIORS[clampi(int(p.get("ai_behavior", 2)), 0, 3)])) \
+		.replace("%(AIname)s", TranslationServer.translate("Petra Bot"))
 
 ## playerState.team: the Game Setup team, -1 for none. Records from before
 ## setup_team only have RTS0's sim team (its lowest member's id + 1): players
@@ -1236,6 +1238,7 @@ static func leave_campaign(victory: bool, replaying := false) -> void:
 		run.set_current()
 	MatchSettings.campaign_run = ""
 	MatchSettings.campaign_level = ""
+	MatchSettings.campaign_map_name = ""
 	MatchSettings.go("res://scenes/menu/campaigns.tscn")
 
 ## startReplay.

@@ -507,7 +507,8 @@ def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int
     t0 = int(rep.get("join", {}).get("turn", "0"))
     # 0 A.D. NMT_REJOINED: the host and bob both hear "has rejoined the game."
     # for bob, and the host also hears "has joined the game." for mallory, who
-    # only watches (she has left before bob is back).
+    # only watches. Bob does not hear hers, even when she finishes loading
+    # while he loads (0.28 tells only the clients already in the game).
     host_rejoined = peer_lines([outs[3]], "rejoined").get("host", {})
     back_rejoined = peer_lines([outs[2]], "rejoined").get("join", {})
     back_pause = peer_lines([outs[2]], "pause").get("join", {})

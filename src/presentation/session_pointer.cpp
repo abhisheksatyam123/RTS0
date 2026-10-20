@@ -91,6 +91,8 @@ void RtsoMain::update_cursor() {
 					want = "action-attack";
 				} else if (rcmd == rtso::RALLY_CMD_TREASURE) {
 					want = "action-collect-treasure";
+				} else if (rcmd == rtso::RALLY_CMD_HUNT) {
+					want = "action-gather-meat";
 				} else if (rcmd == rtso::RALLY_CMD_TRADE) {
 					// unit_actions.js "set-rallypoint" on another market: the route's gain for
 					// the trader this market trains, or "too close" with the disabled cursor.
@@ -131,9 +133,11 @@ void RtsoMain::update_cursor() {
 					for (const auto &b : sim->buildings()) {
 						if (b.id != bld) continue;
 						if (b.team == me || sim->is_ally(me, b.team)) {
-							if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) {
+							const bool repairable = b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD;
+							const int capacity = b.build_progress >= 1.0f ? sim->get_garrison_capacity(b.id) : 0;
+							if (repairable && (rtso::hotkeys::held("session.repair") || capacity <= 0)) {
 								want = "action-repair";
-							} else if (const int capacity = sim->get_garrison_capacity(b.id); capacity > 0) {
+							} else if (capacity > 0) {
 								want = "action-garrison";
 								const int occupied = sim->get_garrison_occupied(b.id);
 								tip = rtso::sprintf0(rtso::tr0("Current garrison: %(garrisoned)s/%(capacity)s"),

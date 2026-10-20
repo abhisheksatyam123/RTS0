@@ -784,6 +784,12 @@ static void test_attack_plans() {
 		// Murder Holes: soldiers hacking at a fortress from under its arrows (MinRange) would
 		// hold both attack slots for the rest of the match.
 		s->complete_research(0, TECH_TOWER_MURDERHOLES);
+		// A storehouse in its territory but over 80 m from the fortresses and its Town Center, put
+		// back whenever it falls: a siege-less Attack goes only for undefended structures
+		// (attackPlan.js getNearestTarget rushTargetFinder) and fails at start without one, so
+		// otherwise whether an Attack marches hangs on this run's timing (siege trained in time).
+		auto add_store = [&] { s->spawn_building_world(44.0f, 6.0f, BLD_STOREHOUSE, 0, 1.0f); };
+		add_store();
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
@@ -801,9 +807,13 @@ static void test_attack_plans() {
 		for (float t = 0.0f; t < 40.0f * 60.0f && !marched(); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (++step % 200 == 0) {
-				bool any = false;
-				for (const auto &b : s->buildings()) any |= b.team == 0 && b.hp > 0.0f;
+				bool any = false, store = false;
+				for (const auto &b : s->buildings()) {
+					any |= b.team == 0 && b.hp > 0.0f;
+					store |= b.team == 0 && b.hp > 0.0f && !b.wrecked && b.type == BLD_STOREHOUSE;
+				}
 				if (!any) s->spawn_building_world(home_x, home_z, BLD_TOWN_CENTER, 0, 1.0f);
+				if (!store) add_store();
 			}
 			const auto &m = s->petra_attack_manager();
 			const auto st = s->petra_attack_plan().state;
@@ -1464,6 +1474,33 @@ static void test_pop_phase2_save_resources() {
 // researchManager.js checkPhase: Petra plans the next phase only with a finished structure that
 // researches it (hasResearchers); with its civic centre gone it doesn't count as phasing, so
 // its minor research and expansion aren't held for a phase it can't research.
+// getOwnUnits / getOwnEntitiesByRole: workers sheltering in a structure keep their role, so
+// trainMoreWorkers and getAccountedWorkers still count them.
+static void test_garrisoned_workers_count() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->petra_pid_ = 1;
+	int supports = 0;
+	const int before = s->petra_unplanned_workers(supports);
+	const int accounted = s->petra_accounted_workers(false);
+	Simulation::Building *cc = nullptr;
+	for (auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "AI 1 has a civic centre");
+	if (!cc) return;
+	int sheltered = 0;
+	for (size_t i = 0; i < s->units_.count && sheltered < 3; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 && unit_gather_class(s->units_.unit_type[i], s->units_.tmpl[i]) == GATHER_SUPPORT) {
+			s->garrison_now(i, *cc);
+			++sheltered;
+		}
+	const int after = s->petra_unplanned_workers(supports);
+	std::printf("  garrisoned workers: %d sheltered, workers %d -> %d, accounted %d -> %d\n", sheltered, before, after, accounted,
+	            s->petra_accounted_workers(false));
+	CHECK(sheltered == 3 && after == before && s->petra_accounted_workers(false) == accounted, "garrisoned workers still count");
+}
+
 static void test_petra_phasing_needs_researcher() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -2094,6 +2131,19 @@ static void test_market_dock_route() {
 	std::printf("  route %u -> %u (dock %u): traders queued at the market %d, elsewhere %d\n", routes.best.source, routes.best.target, dock,
 	            at_market, at_dock);
 	CHECK(at_market == 1 && at_dock == 0, "the land trader trains at the market");
+
+	// tradeManager.js:133: only idle traders get orders. A trader of the route that flees keeps
+	// fleeing with its goods; a new order_trade would drop them.
+	float mx = 0.0f, mz = 0.0f;
+	for (const auto &b : s->buildings()) if (b.id == market) { mx = b.x; mz = b.z; }
+	const uint32_t trader = s->spawn_unit(mx + 6.0f, mz + 6.0f, 1, UNIT_TRADER);
+	s->order_trade(&trader, 1, market, dock);
+	const int32_t k = s->lookup_unit(trader);
+	s->units_.action_state[k] = ACTION_FLEE;
+	s->units_.carry[k] = 7;
+	s->petra_manage_trading(Simulation::FIXED_STEP);
+	std::printf("  fleeing trader: still fleeing %d, carrying %d\n", s->units_.action_state[k] == ACTION_FLEE, (int)s->units_.carry[k]);
+	CHECK(s->units_.action_state[k] == ACTION_FLEE && s->units_.carry[k] == 7, "a fleeing trader is not sent back to trade");
 }
 
 static void test_civ_structures() {
@@ -7146,6 +7196,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_config_pop_scaling);
 	RUN(test_petra_islands_wood_reserve);
 	RUN(test_petra_phasing_needs_researcher);
+	RUN(test_garrisoned_workers_count);
 	RUN(test_city_phase_counts_foundations);
 	RUN(test_petra_research_order);
 	RUN(test_petra_minor_tech_kept);
