@@ -41,6 +41,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <map>
 #include <unordered_map>
 #include <vector>
 
@@ -1648,13 +1649,27 @@ private:
 		}
 		// Options' Detailed tooltips (showdetailedtooltips, off by default): health, attack,
 		// healer, resistance, garrison, turrets, projectiles, speed and dropsite, from the
-		// Template Viewer's lines (template_viewer.gd detailed_tooltip).
+		// Template Viewer's lines (template_viewer.gd detailed_tooltip), with the player's
+		// technologies and bonuses applied (0.28 GetTemplateData).
 		if (rtso::user_config::get_bool("showdetailedtooltips")) {
-			auto it = detailed_tips_.find(i);
+			const rtso::Simulation::TemplateStatMods m = host_->ui_sim()->template_stat_mods(pid, i);
+			Dictionary mods;
+			mods["health"] = m.health;
+			mods["speed"] = m.speed;
+			mods["range_mul"] = m.range_mul;
+			mods["range_add"] = m.range_add;
+			Array armor, atk_mul, atk_add;
+			for (int k = 0; k < 3; ++k) armor.push_back(m.armor[k]);
+			for (int k = 0; k < 4; ++k) { atk_mul.push_back(m.atk_mul[k]); atk_add.push_back(m.atk_add[k]); }
+			mods["armor"] = armor;
+			mods["atk_mul"] = atk_mul;
+			mods["atk_add"] = atk_add;
+			const String key = String::num_int64(i) + JSON::stringify(mods); // a research changes the lines
+			auto it = detailed_tips_.find(key);
 			if (it == detailed_tips_.end()) {
 				Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
-				String lines = viewer.is_valid() ? (String)viewer->call("detailed_tooltip", (int)i) : String();
-				it = detailed_tips_.emplace(i, lines).first;
+				String lines = viewer.is_valid() ? (String)viewer->call("detailed_tooltip", (int)i, mods) : String();
+				it = detailed_tips_.emplace(key, lines).first;
 			}
 			if (!it->second.is_empty()) tip += "\n" + it->second;
 		}
@@ -2172,7 +2187,7 @@ private:
 	std::vector<godot::String> roster_state_;     // the live state last applied (refresh_roster_state)
 	std::vector<bool> roster_req_disabled_;       // disabled by its requirements at the rebuild
 	int roster_list_batch_ = 0; // the batch size the tooltips' batch line was built for
-	std::unordered_map<uint16_t, godot::String> detailed_tips_; // template -> detailed_tooltip()
+	std::map<godot::String, godot::String> detailed_tips_; // template + mods -> detailed_tooltip()
 	uint32_t roster_list_gen_ = 0; // user_config::generation() it was built at
 	uint32_t trainer_unit_id_ = 0;
 	int barter_sell_ = rtso::RES_FOOD; // BarterButtonManager.selectedResource

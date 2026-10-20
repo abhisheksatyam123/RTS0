@@ -4896,6 +4896,19 @@ Simulation::UnitTechMods Simulation::unit_tech_mods(const TechMods &m, uint8_t u
 		m.vision_add[t], m.spread[t], m.capture[t], m.required_xp[t], m.armor[t], m.gather[t], m.atk_mul[t], m.atk_add[t]};
 }
 
+Simulation::TemplateStatMods Simulation::template_stat_mods(uint8_t player, uint16_t tmpl) const {
+	TemplateStatMods out;
+	if (player >= MAX_PLAYERS || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return out;
+	const UnitTechMods m = unit_tech_mods(player, civ_unit_template(tmpl).unit_type, tmpl);
+	out.health = m.health;
+	out.speed = m.speed;
+	out.range_mul = m.range_mul;
+	out.range_add = m.range;
+	for (int k = 0; k < 3; ++k) out.armor[k] = m.armor[k];
+	for (int k = 0; k < 4; ++k) { out.atk_mul[k] = m.atk_mul[k]; out.atk_add[k] = m.atk_add[k]; }
+	return out;
+}
+
 void Simulation::apply_tech_mods_to_unit(size_t idx) {
 	uint8_t team = units_.team[idx];
 	uint8_t t = units_.unit_type[idx];
