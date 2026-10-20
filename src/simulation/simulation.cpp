@@ -18894,7 +18894,7 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		if (a >= 0 && !unit_can_target(i, (size_t)a)) return;
 	}
 	const float range = attack_reach(i);
-	const float vision = unit_base_vision(i);
+	const float vision = unit_vision_at(i);
 	const Building *sb = nullptr;
 	if (structure) {
 		sb = &buildings_[building_id_to_idx_.at(attacker_id)];
@@ -19941,7 +19941,7 @@ bool Simulation::can_heal(size_t h, int32_t t) const {
 
 uint32_t Simulation::find_heal_target(size_t h) const {
 	// GetQueryRange(IID_Heal): passive healers search their vision too.
-	const float vision = unit_base_vision(h);
+	const float vision = unit_vision_at(h);
 	const float range = healer_range_of(h);
 	float lim = vision;
 	if (units_.stance[h] == STANCE_STAND_GROUND) lim = std::min(range, vision);
@@ -20144,7 +20144,7 @@ void Simulation::order_heal(const uint32_t *unit_ids_in, size_t count_in, uint32
 void Simulation::tick_heal(size_t h) {
 	const int32_t t = lookup_unit(units_.target_unit_id[h]);
 	const bool forced = (units_.order_flags[h] & ORDER_FLAG_FORCE) != 0;
-	const float vision = unit_base_vision(h);
+	const float vision = unit_vision_at(h);
 	bool keep = can_heal(h, t);
 	float d2 = 0.0f;
 	if (keep) {
@@ -21256,10 +21256,25 @@ bool Simulation::petra_train_emergency_units(const std::vector<std::pair<float, 
 
 	const TechClasses arrow_classes = building_ai_info(cc.type).garrison_arrow_classes;
 	uint16_t found = CIV_UNIT_TEMPLATE_NONE;
-	for (uint16_t tmpl : civ_roster_ids(civ)) {
+	// trainableEntities(civ): the anchor's Trainer list in its own order ({civ} our civ), less
+	// the map's disabled templates; the roster order for a structure with no such list.
+	std::vector<uint16_t> trainables;
+	if (const char *names = trainer_civ_list(cc.civ, cc.type)) {
+		char id[96];
+		for (const char *p = names; *p;) {
+			const char *e = std::strchr(p, ' ');
+			const int n = e ? (int)(e - p) : (int)std::strlen(p);
+			std::snprintf(id, sizeof id, "%s/%.*s", civ_info(civ).code, n, p);
+			const uint16_t tmpl = civ_unit_template_by_id(id);
+			if (tmpl != CIV_UNIT_TEMPLATE_NONE) trainables.push_back(tmpl);
+			p += n + (e ? 1 : 0);
+		}
+	} else {
+		for (uint16_t tmpl : civ_roster_ids(civ)) trainables.push_back(tmpl);
+	}
+	for (uint16_t tmpl : trainables) {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
-		// The anchor's own Trainer list, less the map's disabled templates.
-		if (!(t.trainers & bld_bit(cc.type)) || triggers_.template_disabled(tmpl)) continue;
+		if (!building_trains_template(cc.type, cc.civ, civ, tmpl) || triggers_.template_disabled(tmpl)) continue;
 		if (t.phase > petra_ps().phase || !can_train_at(petra_pid_, t.unit_type, cc.type, tmpl)) continue;
 		const TechClasses cls = unit_classes(tmpl, t.unit_type);
 		if (!(cls & TC_INFANTRY) || !(cls & TC_CITIZENSOLDIER)) continue;
@@ -29880,7 +29895,7 @@ Simulation::RangeQuery Simulation::unit_range_query(size_t i) const {
 	else if (stance == STANCE_AGGRESSIVE || stance == STANCE_VIOLENT)
 		q.max = vision;
 	if (unit_is_healer(units_.tmpl[i], units_.unit_type[i])) { // as find_heal_target
-		const float hv = unit_base_vision(i), hr = healer_range_of(i);
+		const float hv = vision, hr = healer_range_of(i);
 		q.heal_max = stance == STANCE_STAND_GROUND ? std::min(hr, hv)
 				: stance == STANCE_DEFENSIVE ? std::min(hr + hv * 0.5f, hv) : hv;
 	}
