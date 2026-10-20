@@ -19660,7 +19660,12 @@ void Simulation::petra_manage_military_production(float dt) {
 
 	// attackPlan.js trainMoreUnits: each plan still mustering trains its own unitStat, the
 	// plan whose queue has the higher priority first (Rush 250, Raid 150, HugeAttack 90, Attack 70).
-	const bool attack_musters = petra_attack_plan_.state == AttackPlan::MUSTER && !petra_attack_plan_.completing; // removeQueues once completing
+	// A completing plan trains no more (removeQueues), nor does a forced one: forceStart sets
+	// every targetSize to 0 (attackPlan.js:355), so mustStart holds and updatePreparation only
+	// waits for the batches in training (:531); trainMoreUnits (:548) is for a plan that need
+	// not start yet.
+	const bool attack_musters = petra_attack_plan_.state == AttackPlan::MUSTER && !petra_attack_plan_.completing &&
+		!petra_attack_plan_.forced;
 	const bool raid_musters = petra_raid_plan_.state == AttackPlan::MUSTER &&
 		petra_raid_target_ok(petra_raid_plan_.target_building_id);
 	if (!attack_musters && !raid_musters) return;
