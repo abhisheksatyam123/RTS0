@@ -30,6 +30,7 @@
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/script.hpp>
 #include "user_config.h"
+#include "hotkey_config.h"
 #include "display_colors.h"
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
@@ -337,9 +338,9 @@ void RtsoMain::_ready() {
 	menu_btn = memnew(Button);
 	menu_btn->set_custom_minimum_size(Vector2(60, 28));
 	menu_btn->set_text("Menu");
-	// Menu.js rebuild: "Press %(hotkey)s to toggle this menu."
-	menu_btn->set_tooltip_text(String(rtso::tr0("Press %(hotkey)s to toggle this menu.")).replace("%(hotkey)s",
-			rtso::hotkeys::table().label("session.gui.menu.toggle").c_str()));
+	// Menu.js rebuild, on every hover so a rebind or a language change shows.
+	_refresh_menu_tooltip();
+	menu_btn->connect("mouse_entered", Callable(this, "_refresh_menu_tooltip"));
 	menu_btn->add_theme_font_size_override("font_size", 12);
 	menu_btn->connect("pressed", Callable(this, "_on_menu_button_pressed"));
 	top_hbox->add_child(menu_btn);
@@ -962,6 +963,7 @@ void RtsoMain::_process(double delta) {
 	update_log_messages();
 	update_pause_overlay();
 	if (hotkey_paused_ && !net_lockstep()) return;
+	if (app_unfocused_ && !net_lockstep() && rtso::user_config::get_bool("pauseonfocusloss")) return;
 	double scaled_delta = delta * game_speed;
 	match_elapsed_time += scaled_delta;
 
@@ -1578,10 +1580,7 @@ void RtsoMain::_on_chat_history_toggled(bool on) {
 // privatechat hotkeys; an unbound one reads "Unassigned hotkey: <name>" (colorizeHotkey).
 String RtsoMain::chat_open_hotkey_tooltip() const {
 	auto line = [](const char *text, const char *hotkey) {
-		std::string key = rtso::hotkeys::table().label(hotkey);
-		String k = key.empty() ? String(rtso::tr0("Unassigned hotkey: %(hotkeyName)s")).replace("%(hotkeyName)s", hotkey)
-							   : String(key.c_str());
-		return String("\n") + String(rtso::tr0(text)).replace("%(hotkey)s", k);
+		return String("\n") + RtsoHotkeyConfig::colorize_hotkey(rtso::tr0(text), hotkey);
 	};
 	return (line("Press %(hotkey)s to open the public chat.", "chat") +
 			line(spectating() ? "Press %(hotkey)s to open the observer chat." : "Press %(hotkey)s to open the ally chat.", "teamchat") +
@@ -1589,9 +1588,16 @@ String RtsoMain::chat_open_hotkey_tooltip() const {
 			.strip_edges();
 }
 
+// Menu.js rebuild: "Press %(hotkey)s to toggle this menu." with colorizeHotkey.
+void RtsoMain::_refresh_menu_tooltip() {
+	if (menu_btn)
+		menu_btn->set_tooltip_text(RtsoHotkeyConfig::colorize_hotkey(rtso::tr0("Press %(hotkey)s to toggle this menu."),
+				"session.gui.menu.toggle"));
+}
+
 void RtsoMain::refresh_chat_tooltips() {
 	chat_window_.set_input_tooltip(String(rtso::tr0("Type the message to send.")) + "\n" +
-			String(rtso::tr0("Press %(hotkey)s to autocomplete player names.")).replace("%(hotkey)s", rtso::tr0("Tab")) + "\n" +
+			rtso::sprintf0(rtso::tr0("Press %(hotkey)s to autocomplete player names."), {{"hotkey", rtso::hotkey_tag(rtso::tr0("Tab"))}}) + "\n" +
 			chat_open_hotkey_tooltip());
 }
 
