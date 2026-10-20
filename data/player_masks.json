@@ -5031,7 +5031,23 @@
 1.0
 ]
 },
+"buildings/s_carthaginians_scout_tower_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_carthaginians_stable_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_carthaginians_temple_big_tex0": {
 "mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
 "tint": [
 1.0,
@@ -5145,6 +5161,30 @@
 },
 "buildings/s_gauls_range_tex0": {
 "mask": "res://assets/textures/player_masks/structural/celt_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_gauls_scout_tower_tex0": {
+"mask": "res://assets/textures/player_masks/structural/celt_struct_1_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_gauls_scout_tower_tex1": {
+"mask": "res://assets/textures/player_masks/structural/celt_broch_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_gauls_scout_tower_tex4": {
+"mask": "res://assets/textures/player_masks/props/celt_props_new_512x256.png",
 "tint": [
 1.0,
 1.0,
@@ -5559,6 +5599,30 @@
 1.0
 ]
 },
+"buildings/s_hellenes_scout_tower_tex0": {
+"mask": "res://assets/textures/player_masks/structural/hele_struct_b_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_hellenes_scout_tower_tex1": {
+"mask": "res://assets/textures/player_masks/structural/hele_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_hellenes_scout_tower_tex2": {
+"mask": "res://assets/textures/player_masks/props/hele_props_a_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_hellenes_shrine_01_tex0": {
 "mask": "res://assets/textures/player_masks/structural/hele_struct_512x256.png",
 "tint": [
@@ -5687,6 +5751,22 @@
 1.0
 ]
 },
+"buildings/s_iberians_scout_tower_tex0": {
+"mask": "res://assets/textures/player_masks/structural/iber_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_iberians_scout_tower_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_iberians_stable_tex0": {
 "mask": "res://assets/textures/player_masks/structural/iber_struct_512x256.png",
 "tint": [
@@ -5753,6 +5833,22 @@
 },
 "buildings/s_iberians_workshop_tex2": {
 "mask": "res://assets/textures/player_masks/props/iber_prop_shields_128x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_kushites_civic_centre_kush_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kush_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_kushites_civic_centre_kush_tex1": {
+"mask": "res://assets/textures/player_masks/props/kush_statue_lion_512x512.png",
 "tint": [
 1.0,
 1.0,
@@ -6047,6 +6143,14 @@
 1.0
 ]
 },
+"buildings/s_persians_gardens_struct_tex0": {
+"mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_persians_hall_palace_tex0": {
 "mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
 "tint": [
@@ -6080,6 +6184,14 @@
 ]
 },
 "buildings/s_persians_range_tex0": {
+"mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_persians_scout_tower_tex0": {
 "mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
 "tint": [
 1.0,
@@ -6192,6 +6304,14 @@
 ]
 },
 "buildings/s_ptolemies_blacksmith_tex0": {
+"mask": "res://assets/textures/player_masks/structural/ptol_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_ptolemies_defense_tower_tex0": {
 "mask": "res://assets/textures/player_masks/structural/ptol_struct_512x256.png",
 "tint": [
 1.0,
@@ -6463,6 +6583,14 @@
 1.0
 ]
 },
+"buildings/s_romans_scout_tower_tex0": {
+"mask": "res://assets/textures/player_masks/structural/rome_struct_2_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_romans_siege_wall_gate_tex2": {
 "mask": "res://assets/textures/player_masks/structural/rome_struct_512x512.png",
 "tint": [
@@ -6615,6 +6743,14 @@
 1.0
 ]
 },
+"buildings/s_seleucids_scout_tower_tex0": {
+"mask": "res://assets/textures/player_masks/structural/Sele_struct_2_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_seleucids_stable_elephant_tex0": {
 "mask": "res://assets/textures/player_masks/structural/Sele_struct_2_512x512.png",
 "tint": [
@@ -6680,6 +6816,14 @@
 ]
 },
 "buildings/s_spartans_blacksmith_tex0": {
+"mask": "res://assets/textures/player_masks/structural/sparta_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_spartans_civic_center_tex0": {
 "mask": "res://assets/textures/player_masks/structural/sparta_struct_512x256.png",
 "tint": [
 1.0,

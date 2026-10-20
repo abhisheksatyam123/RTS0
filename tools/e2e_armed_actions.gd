@@ -1,8 +1,8 @@
 extends SceneTree
 # input.js INPUT_PRESELECTEDACTION: a command button (Guard, Patrol, Garrison, Repair, Occupy
 # Turret, Call to Arms) arms an action that the next LEFT click runs on what is under the
-# cursor, without selecting it. A click on an invalid target does nothing and keeps it armed;
-# a right click drops it and gives the usual order; Shift keeps it armed after a click.
+# cursor, without selecting it. A click on an invalid target does nothing and ends it (0.28's
+# determineAction gives the "none" action); a right click only drops it; Shift keeps it armed.
 # On the minimap (MiniMap.js onWorldClick) a left click runs an armed ground action.
 # An armed action over a target it can't take shows its -disabled cursor, and a carrier over
 # a dropsite the action-return-<resource> cursor.
@@ -81,17 +81,17 @@ func run() -> void:
 	var ground: Vector2 = a_at + (a_at - b_at).normalized() * 120.0
 	print("    a ", a_at, " b ", b_at, " ground ", ground)
 
-	print("1. Guard: an invalid left click keeps it armed")
+	print("1. Guard: an unusable left click ends it (determineAction's \"none\" action)")
 	main._on_entity_command("add-guard")
 	await move(ground)
 	check(main.debug_cursor_tip()["cursor"] == "action-guard-disabled", "the disabled guard cursor over bare ground once armed")
 	await click(MOUSE_BUTTON_LEFT, ground)
 	check(selected() == [a], "a left click on bare ground selects nothing new: " + str(selected()))
 	check(main.debug_guard_target(a) == 0, "and guards nothing")
-	await move(ground)
-	check(main.debug_cursor_tip()["cursor"] == "action-guard-disabled", "still armed")
+	check(not main.debug_armed(), "disarmed")
 
 	print("2. Guard: the left click on a man runs it")
+	main._on_entity_command("add-guard")
 	b_at = main.debug_unit_screen(b)
 	await move(b_at)
 	check(main.debug_cursor_tip()["cursor"] == "action-guard", "the guard cursor over a man it can guard: " + str(main.debug_cursor_tip()["cursor"]) + " at " + str(b_at))

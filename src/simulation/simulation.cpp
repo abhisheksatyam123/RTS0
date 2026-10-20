@@ -6962,14 +6962,48 @@ static uint8_t formation_walk_state(uint8_t order) {
 }
 
 float Simulation::formation_walking_distance(const FormationController &fc) const {
-	// UnitAI.js ComputeWalkingDistance: along the remaining path, then to the goal.
-	float d = 0.0f, px = fc.x, pz = fc.z;
-	for (int k = fc.path.cur; k < fc.path.count; ++k) {
-		d += det::hypot(fc.path.xs[k] - px, fc.path.zs[k] - pz);
-		px = fc.path.xs[k];
-		pz = fc.path.zs[k];
+	// UnitAI.js ComputeWalkingDistance over GetTargetPositions: straight lines from the
+	// controller through the current goal and each queued walk or patrol point; an order
+	// with a target adds its target's position and ends the sum.
+	float d = det::hypot(fc.goal_x - fc.x, fc.goal_z - fc.z), px = fc.goal_x, pz = fc.goal_z;
+	if (fc.order == FORDER_APPROACH) return d;
+	for (const UnitOrder &o : fc.queue) {
+		float x = o.x, z = o.z;
+		bool stop = false;
+		switch (o.kind) {
+			case ORDER_WALK: case ORDER_WALK_AND_FIGHT: case ORDER_PATROL: break;
+			case ORDER_ATTACK: case ORDER_HEAL: case ORDER_GUARD: {
+				const int32_t t = lookup_unit(o.target);
+				if (t < 0 || !units_.alive[t]) return d;
+				x = units_.pos_x[t];
+				z = units_.pos_z[t];
+				stop = true;
+				break;
+			}
+			case ORDER_ATTACK_BUILDING: case ORDER_BUILD: case ORDER_GARRISON: {
+				auto bit = building_id_to_idx_.find(o.target);
+				if (bit == building_id_to_idx_.end()) return d;
+				x = buildings_[bit->second].x;
+				z = buildings_[bit->second].z;
+				stop = true;
+				break;
+			}
+			case ORDER_GATHER: {
+				auto rit = res_id_to_idx_.find(o.target);
+				if (rit == res_id_to_idx_.end()) return d;
+				x = resources_.x[rit->second];
+				z = resources_.z[rit->second];
+				stop = true;
+				break;
+			}
+			default: return d;
+		}
+		d += det::hypot(x - px, z - pz);
+		if (stop) return d;
+		px = x;
+		pz = z;
 	}
-	return d + det::hypot(fc.goal_x - px, fc.goal_z - pz);
+	return d;
 }
 
 void Simulation::formation_disband(size_t ci) {
@@ -7310,12 +7344,48 @@ void Simulation::order_set_formation(const uint32_t *unit_ids, size_t count, uin
 		for (size_t ci = 0; ci < formations_.size(); ++ci)
 			if (formations_[ci].id == fid) {
 				FormationController &fc = formations_[ci];
+				// UnitAI MoveIntoFormation is PushOrderFront: the formation re-forms where it
+				// stands and then carries on with the order it had (FORMING FinishOrder).
+				UnitOrder carry;
+				if (formation_current_order(fc, carry) && fc.queue.size() < 64) fc.queue.insert(fc.queue.begin(), carry);
 				fc.order = FORDER_IDLE;
+				fc.returning = FORDER_IDLE;
+				fc.target_unit = fc.target_building = 0;
 				fc.goal_x = fc.x;
 				fc.goal_z = fc.z;
 				formation_move_members_into(ci, true, true);
 				break;
 			}
+}
+
+// The controller's current order as the command that gave it, for orders a pushed-front
+// order (MoveIntoFormation) leaves behind.
+bool Simulation::formation_current_order(const FormationController &fc, UnitOrder &o) const {
+	o = UnitOrder{};
+	o.x = fc.goal_x;
+	o.z = fc.goal_z;
+	const uint8_t walk = fc.order == FORDER_MEMBER ? fc.returning : fc.order;
+	if (walk == FORDER_WALK) { o.kind = ORDER_WALK; return true; }
+	if (walk == FORDER_ATTACK_WALK) { o.kind = ORDER_WALK_AND_FIGHT; return true; }
+	if (walk == FORDER_PATROL || walk == FORDER_PATROL_WAIT) {
+		o.kind = ORDER_PATROL;
+		o.flags = ORDER_FLAG_FORCE | ORDER_FLAG_UNITS_ONLY;
+		return true;
+	}
+	if (fc.order != FORDER_APPROACH && fc.order != FORDER_MEMBER) return false;
+	o.target = fc.target_unit ? fc.target_unit : fc.target_building;
+	if (!o.target) return false;
+	switch (formation_task(fc)) {
+		case FTASK_ATTACK:
+			o.kind = fc.target_unit ? ORDER_ATTACK : ORDER_ATTACK_BUILDING;
+			if (fc.task_flags & FTASK_CAPTURE) o.flags |= ORDER_FLAG_ALLOW_CAPTURE;
+			return true;
+		case FTASK_GATHER: o.kind = ORDER_GATHER; return true;
+		case FTASK_REPAIR: o.kind = ORDER_BUILD; return true;
+		case FTASK_GARRISON: o.kind = ORDER_GARRISON; return true;
+		case FTASK_HEAL: o.kind = ORDER_HEAL; return true;
+		default: return false;
+	}
 }
 
 void Simulation::formation_delete_twins(FormationController &fc) {
@@ -7675,7 +7745,9 @@ void Simulation::tick_formations(float dt) {
 		if (changed) {
 			formation_refresh_groups();
 			fc.has_offsets = 0;
-			formation_move_members_into(ci, true, false);
+			// Formation.js SetRearrange(false) in IDLE and MEMBER: the members fight on and
+			// re-form when the controller leaves MEMBER or its IDLE timer fires.
+			if (formation_order_walks(fc.order)) formation_move_members_into(ci, true, false);
 		}
 
 		// Formation.js ShapeUpdate (every second): column for long walks, the real shape near the goal.
@@ -7773,6 +7845,30 @@ void Simulation::tick_formations(float dt) {
 			std::swap(fc.goal_z, fc.patrol_z);
 			fc.order = FORDER_PATROL;
 			formation_move_members_into(ci, true, true);
+			continue;
+		}
+		if (fc.order == FORDER_IDLE) {
+			// FORMATIONCONTROLLER.IDLE timer (every 2 s): once every member is idle, the
+			// ones that wandered off (chasing or fleeing) walk back to their slots.
+			fc.member_timer += dt;
+			if (fc.member_timer < FORMATION_IDLE_REFORM_S) continue;
+			fc.member_timer -= FORMATION_IDLE_REFORM_S;
+			bool all_idle = true, drifted = !fc.has_offsets || fc.slots.size() != fc.members.size();
+			for (uint32_t id : fc.members) {
+				const int32_t idx = lookup_unit(id);
+				if (idx < 0 || !units_.alive[idx]) continue;
+				if (units_.action_state[idx] != ACTION_IDLE || units_.has_order[idx]) { all_idle = false; break; }
+			}
+			if (!all_idle) continue;
+			for (const FormationSlot &sl : fc.slots) {
+				if (drifted) break;
+				const int32_t idx = lookup_unit(sl.ent);
+				if (idx < 0) continue;
+				float wx, wz;
+				formation_slot_world(fc.x, fc.z, fc.rot, sl.x, sl.y, wx, wz);
+				drifted = det::hypot(units_.pos_x[idx] - wx, units_.pos_z[idx] - wz) > FORMATION_IDLE_DRIFT;
+			}
+			if (drifted) formation_move_members_into(ci, false, false);
 			continue;
 		}
 		if (!formation_order_walks(fc.order)) continue;
@@ -18849,7 +18945,7 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		if (a >= 0 && !unit_can_target(i, (size_t)a)) return;
 	}
 	const float range = attack_reach(i);
-	const float vision = unit_base_vision(i);
+	const float vision = unit_vision_at(i);
 	const Building *sb = nullptr;
 	if (structure) {
 		sb = &buildings_[building_id_to_idx_.at(attacker_id)];
@@ -19896,7 +19992,7 @@ bool Simulation::can_heal(size_t h, int32_t t) const {
 
 uint32_t Simulation::find_heal_target(size_t h) const {
 	// GetQueryRange(IID_Heal): passive healers search their vision too.
-	const float vision = unit_base_vision(h);
+	const float vision = unit_vision_at(h);
 	const float range = healer_range_of(h);
 	float lim = vision;
 	if (units_.stance[h] == STANCE_STAND_GROUND) lim = std::min(range, vision);
@@ -20099,7 +20195,7 @@ void Simulation::order_heal(const uint32_t *unit_ids_in, size_t count_in, uint32
 void Simulation::tick_heal(size_t h) {
 	const int32_t t = lookup_unit(units_.target_unit_id[h]);
 	const bool forced = (units_.order_flags[h] & ORDER_FLAG_FORCE) != 0;
-	const float vision = unit_base_vision(h);
+	const float vision = unit_vision_at(h);
 	bool keep = can_heal(h, t);
 	float d2 = 0.0f;
 	if (keep) {
@@ -21225,10 +21321,25 @@ bool Simulation::petra_train_emergency_units(const std::vector<std::pair<float, 
 
 	const TechClasses arrow_classes = building_ai_info(cc.type).garrison_arrow_classes;
 	uint16_t found = CIV_UNIT_TEMPLATE_NONE;
-	for (uint16_t tmpl : civ_roster_ids(civ)) {
+	// trainableEntities(civ): the anchor's Trainer list in its own order ({civ} our civ), less
+	// the map's disabled templates; the roster order for a structure with no such list.
+	std::vector<uint16_t> trainables;
+	if (const char *names = trainer_civ_list(cc.civ, cc.type)) {
+		char id[96];
+		for (const char *p = names; *p;) {
+			const char *e = std::strchr(p, ' ');
+			const int n = e ? (int)(e - p) : (int)std::strlen(p);
+			std::snprintf(id, sizeof id, "%s/%.*s", civ_info(civ).code, n, p);
+			const uint16_t tmpl = civ_unit_template_by_id(id);
+			if (tmpl != CIV_UNIT_TEMPLATE_NONE) trainables.push_back(tmpl);
+			p += n + (e ? 1 : 0);
+		}
+	} else {
+		for (uint16_t tmpl : civ_roster_ids(civ)) trainables.push_back(tmpl);
+	}
+	for (uint16_t tmpl : trainables) {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
-		// The anchor's own Trainer list, less the map's disabled templates.
-		if (!(t.trainers & bld_bit(cc.type)) || triggers_.template_disabled(tmpl)) continue;
+		if (!building_trains_template(cc.type, cc.civ, civ, tmpl) || triggers_.template_disabled(tmpl)) continue;
 		if (t.phase > petra_ps().phase || !can_train_at(petra_pid_, t.unit_type, cc.type, tmpl)) continue;
 		const TechClasses cls = unit_classes(tmpl, t.unit_type);
 		if (!(cls & TC_INFANTRY) || !(cls & TC_CITIZENSOLDIER)) continue;
@@ -26897,15 +27008,17 @@ void Simulation::petra_manage_research(float dt) {
 	// headquarters.js:2295: researchManager.update every 5th AI turn, with an active base (a
 	// finished civic centre of ours, hasActiveBase).
 	if (!petra_turn_mod(5, 1) || !petra_has_active_base()) return;
-	// queueManager.js checkPausedQueues: minorTech waits while workers are short.
-	if (petra_queues_.paused[PETRA_Q_MINOR_TECH]) return;
+	// queueManager.js checkPausedQueues: minorTech waits while workers are short. update still
+	// picks (it checks only for a queued plan), so the pick and its priority wait in the
+	// paused queue (researchManager.js:161-180).
+	const bool minor_paused = petra_queues_.paused[PETRA_Q_MINOR_TECH];
 	// A minorTech plan waiting for its resources (a pick below, or researchTradeBonus /
 	// researchPopulationBonus): update returns while it waits (researchManager.js:163).
 	if (uint8_t &st = petra_queues_.special_tech; st) {
 		const ResearchCheck rc = research_check(petra_pid_, st);
 		if (petra_ps().has_tech(st) || (rc != TECH_OK && rc != TECH_ERR_COST)) st = 0;
 		else {
-			if (start_tech(st)) st = 0;
+			if (!minor_paused && start_tech(st)) st = 0;
 			return;
 		}
 	}
@@ -26943,7 +27056,7 @@ void Simulation::petra_manage_research(float dt) {
 	// A pick that can't start yet stays queued in minorTech (researchManager.js update returns
 	// while minorTech holds a plan), and is bought before anything else is picked.
 	auto pick = [&](uint8_t t) {
-		if (!start_tech(t)) petra_queues_.special_tech = t;
+		if (minor_paused || !start_tech(t)) petra_queues_.special_tech = t;
 	};
 	// increasePriority: a cheap pick (template cost under 400 in all) waits at twice
 	// minorTech's priority until it starts (queueToReset).
@@ -29900,7 +30013,7 @@ Simulation::RangeQuery Simulation::unit_range_query(size_t i) const {
 	else if (stance == STANCE_AGGRESSIVE || stance == STANCE_VIOLENT)
 		q.max = vision;
 	if (unit_is_healer(units_.tmpl[i], units_.unit_type[i])) { // as find_heal_target
-		const float hv = unit_base_vision(i), hr = healer_range_of(i);
+		const float hv = vision, hr = healer_range_of(i);
 		q.heal_max = stance == STANCE_STAND_GROUND ? std::min(hr, hv)
 				: stance == STANCE_DEFENSIVE ? std::min(hr + hv * 0.5f, hv) : hv;
 	}

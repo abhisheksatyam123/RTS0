@@ -4209,12 +4209,28 @@
     -0.0017
    ]
   },
+  "s_carthaginians_scout_tower": {
+   "metre": 0.23408,
+   "origin": [
+    -0.0142,
+    1.8355,
+    0.0154
+   ]
+  },
   "s_carthaginians_stable": {
    "metre": 0.18989,
    "origin": [
     0.073,
     1.8199,
     0.0432
+   ]
+  },
+  "s_carthaginians_temple_big": {
+   "metre": 0.17329,
+   "origin": [
+    0.0229,
+    0.0085,
+    -0.0303
    ]
   },
   "s_carthaginians_wall_gate": {
@@ -4311,6 +4327,14 @@
     0.1012,
     0.9014,
     -0.1724
+   ]
+  },
+  "s_gauls_scout_tower": {
+   "metre": 0.32372,
+   "origin": [
+    0.0043,
+    2.8042,
+    -0.074
    ]
   },
   "s_gauls_stable": {
@@ -4529,6 +4553,14 @@
     -0.0007
    ]
   },
+  "s_hellenes_scout_tower": {
+   "metre": 0.29904,
+   "origin": [
+    -0.0059,
+    3.281,
+    0.0707
+   ]
+  },
   "s_hellenes_shrine_01": {
    "metre": 0.21001,
    "origin": [
@@ -4617,6 +4649,14 @@
     0.1071
    ]
   },
+  "s_iberians_scout_tower": {
+   "metre": 0.13375,
+   "origin": [
+    0.0021,
+    1.1368,
+    0.0447
+   ]
+  },
   "s_iberians_stable": {
    "metre": 0.17443,
    "origin": [
@@ -4671,6 +4711,14 @@
     0.0164,
     1.2837,
     -0.434
+   ]
+  },
+  "s_kushites_civic_centre_kush": {
+   "metre": 0.21423,
+   "origin": [
+    -0.0,
+    0.0107,
+    -0.0
    ]
   },
   "s_kushites_outpost": {
@@ -4825,6 +4873,14 @@
     -0.0106
    ]
   },
+  "s_persians_gardens_struct": {
+   "metre": 0.10662,
+   "origin": [
+    -0.0731,
+    0.0053,
+    0.1128
+   ]
+  },
   "s_persians_hall": {
    "metre": 0.18,
    "origin": [
@@ -4871,6 +4927,14 @@
     0.0503,
     1.7567,
     0.038
+   ]
+  },
+  "s_persians_scout_tower": {
+   "metre": 0.26953,
+   "origin": [
+    -0.0207,
+    3.4282,
+    0.0797
    ]
   },
   "s_persians_shrine": {
@@ -4959,6 +5023,14 @@
     -0.0166,
     1.7676,
     -0.0519
+   ]
+  },
+  "s_ptolemies_defense_tower": {
+   "metre": 0.27019,
+   "origin": [
+    -0.0,
+    1.6962,
+    0.0577
    ]
   },
   "s_ptolemies_kiosk": {
@@ -5103,6 +5175,14 @@
     0.0001,
     0.8547,
     -0.0076
+   ]
+  },
+  "s_romans_scout_tower": {
+   "metre": 0.16472,
+   "origin": [
+    0.0676,
+    1.2391,
+    -0.1719
    ]
   },
   "s_romans_siege_wall_gate": {
@@ -5257,6 +5337,14 @@
     0.0172
    ]
   },
+  "s_seleucids_scout_tower": {
+   "metre": 0.24565,
+   "origin": [
+    -0.0014,
+    1.1179,
+    0.0269
+   ]
+  },
   "s_seleucids_stable": {
    "metre": 0.1742,
    "origin": [
@@ -5327,6 +5415,14 @@
     -0.0811,
     1.717,
     0.0301
+   ]
+  },
+  "s_spartans_civic_center": {
+   "metre": 0.19523,
+   "origin": [
+    0.0007,
+    0.0098,
+    -0.0125
    ]
   },
   "s_spartans_gerousia": {
