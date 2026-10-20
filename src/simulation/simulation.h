@@ -810,6 +810,10 @@ public:
 	// A player's Gather and Repair are forced (UnitAI Gather / Repair) until work starts;
 	// UnitAI's own follow-up gathers and repairs (PerformGather force false) are not.
 	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id, bool queued = false, bool force = true);
+	// Gather from a supply that is gone (its mirage clicked): the nearest of the same kind near
+	// (x, z), else a walk there (UnitAI FINDINGNEWTARGET).
+	void order_gather_near(const uint32_t *unit_ids, size_t count, float x, float z, uint8_t res_type, uint8_t res_sub,
+			bool queued = false);
 	void order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// allow_capture: capture the structure (0 A.D.'s default right-click) instead of
 	// damaging it (Ctrl). Units that can't capture, or structures that can't be
