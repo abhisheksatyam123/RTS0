@@ -59,11 +59,11 @@ RtsoMain::~RtsoMain() {
 }
 
 void RtsoMain::_notification(int p_what) {
-	// 0 A.D. "pauseonfocusloss": a single-player game pauses when the window loses focus.
-	if (p_what == NOTIFICATION_APPLICATION_FOCUS_OUT && sim && !net_lockstep() && !is_game_paused() &&
-			rtso::user_config::get_bool("pauseonfocusloss")) {
-		toggle_pause();
-	}
+	// 0 A.D. "pauseonfocusloss" (main.cpp Frame: isUnfocusedSP): while the window has
+	// no focus a single-player game's simulation doesn't advance; it carries on when
+	// focus returns, with no pause overlay.
+	if (p_what == NOTIFICATION_APPLICATION_FOCUS_OUT) app_unfocused_ = true;
+	if (p_what == NOTIFICATION_APPLICATION_FOCUS_IN) app_unfocused_ = false;
 	if (p_what == NOTIFICATION_EXIT_TREE) {
 		// The MenuAudio autoload outlives the match: stop driving the session's tick.
 		if (SceneTree *exiting = get_tree()) {
@@ -764,6 +764,8 @@ void RtsoMain::toggle_pause() {
 	hotkey_paused_ = !hotkey_paused_;
 	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_);
 	update_pause_overlay();
+	// MenuButtons Pause: its caption follows the pause (registerPauseHandler).
+	if (Node *menu = get_node_or_null(NodePath("PauseMenu"))) menu->call("rebuild_pause");
 }
 
 // PauseOverlay.rebuild: shown for your own pause and while another client
@@ -1057,8 +1059,19 @@ void RtsoMain::_on_template_info_pressed() {
 		show_notice("No details for this selection.");
 		return;
 	}
+	open_template_viewer(kind, id, civ);
+}
+
+// selection_panels.js showTemplateDetails: the Template Viewer over the game; a
+// single-player game waits while it is open (implicitPause, then resumeGame).
+void RtsoMain::open_template_viewer(const String &kind, int id, int civ) {
 	Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
-	if (viewer.is_valid()) viewer->call("open", ui_layer, kind, id, civ);
+	if (!viewer.is_valid() || !ui_layer) return;
+	Node *v = Object::cast_to<Node>(viewer->call("open", ui_layer, kind, id, civ));
+	SceneTree *tree = get_tree();
+	if (!v || !tree || net_lockstep() || tree->is_paused()) return;
+	tree->set_pause(true);
+	v->connect("tree_exited", Callable(tree, "set_pause").bind(false), CONNECT_ONE_SHOT);
 }
 
 // A command panel button's right click (selection_panels.js onPressRight showTemplateDetails):
@@ -1066,8 +1079,7 @@ void RtsoMain::_on_template_info_pressed() {
 void RtsoMain::_on_template_details_input(const Ref<InputEvent> &event, const String &kind, int id, int civ) {
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_RIGHT || !ui_layer) return;
-	Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
-	if (viewer.is_valid()) viewer->call("open", ui_layer, kind, id, civ);
+	open_template_viewer(kind, id, civ);
 }
 
 // The selection panel portrait (selection_details.js iconBorder): a left click follows the unit
@@ -3951,8 +3963,10 @@ bool RtsoMain::close_open_dialogs() {
 // last goal's Leave opens the session menu (0 A.D. ends the game there).
 void RtsoMain::_on_tutorial_ready_pressed() {
 	if (!sim || !sim->tutorial_ready_button()) return;
+	// messages.js: on the leave goal the button reads Quit and calls endGame(true).
 	if (tutorial_panel_.on_last_goal(*sim)) {
-		_on_menu_button_pressed();
+		Ref<Script> q = ResourceLoader::get_singleton()->load("res://scenes/session/quit_confirmation.gd");
+		if (q.is_valid()) q->call("end_game", this, true);
 		return;
 	}
 	post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TUTORIAL_READY, nullptr, 0, 0.0f, 0.0f, 0, 0);
