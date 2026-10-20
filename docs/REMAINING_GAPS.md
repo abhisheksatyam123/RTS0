@@ -156,8 +156,8 @@ StatisticsTracker callers and class mapping, the summary page, the replay menu a
 | S6 | Match Settings shows the live reveal-map state, not the match's setting | low | Fixed |
 | S7 | The save/load dialog keeps "(RMS)" in random map names | low | Fixed: trimmed as in the summary and replay menu |
 | S8 | A structure's value (captured, destroyed) uses its owner's civ costs, not its own template's; Gaia trading posts carry no Economic class | low | Fixed: the value comes from the civ the structure was built as, with its owner's modifiers (none for Gaia); trading posts count as Economic |
-| S9 | Follow Player is hidden while viewing Gaia (FollowPlayer.js hides it for Observer only) | low | Open |
-| S10 | The replay menu's right panel sits 20-56 px higher with tighter spacing than replay_menu.xml | low | Open |
+| S9 | Follow Player is hidden while viewing Gaia (FollowPlayer.js hides it for Observer only) | low | Fixed |
+| S10 | The replay menu's right panel sits 20-56 px higher with tighter spacing than replay_menu.xml | low | Fixed: replay_menu.xml's positions |
 | S11 | The FPS/time counter box sits over the top bar at y 4 in a 16 px font with no backing; 0.28 puts it at y 40 in mono 10 on black, moves the network warnings and research column aside, pads "FPS: %(fps)4s", and doesn't save the toggles | low | Open |
 | S12 | Unticking Restrict camera only lifts the map bounds; 0.28 also frees zoom and tilt | low | Fixed: zoom and tilt are free while unrestricted and come back in range when restricted again |
 | S13 | Time warp rewind empties the control groups, clears the selection and starts a new replay; 0.28 rewinds the simulation only | low | Open |
