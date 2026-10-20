@@ -549,6 +549,7 @@ public:
 	bool chat_reaches(uint8_t from, uint8_t to, const std::string &tag, uint32_t to_client = UINT32_MAX) const;
 	bool chat_is_addressee(const String &sender_guid, const String &tag) override;
 	bool chat_local_observer() override;
+	bool chat_setup_verbatim() override;
 	std::vector<std::pair<String, String>> chat_private_targets() override;
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	uint8_t chat_player_of_client(uint32_t client) const;
