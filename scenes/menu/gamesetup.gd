@@ -2180,6 +2180,7 @@ func _on_start_pressed() -> void:
 	ms.campaign_run = "" # a match from Game Setup is not a campaign level
 	ms.campaign_level = ""
 	ms.seed = int(st["seed"])
+	ms.seed_exact = false
 	ms.ai_seed = 0 # only -autostart-aiseed sets one
 	ms.victory = int(st["victory"])
 	ms.waves_enabled = bool(st["waves"])
