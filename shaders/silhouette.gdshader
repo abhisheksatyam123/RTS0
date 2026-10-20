@@ -3,7 +3,10 @@
 // its outline is drawn flat in its owner's colour. Drawn as the unit's material
 // overlay: a fragment the scene's depth puts behind something else by more than
 // `min_gap` (so units in a crowd don't outline each other) takes the colour,
-// every other fragment is discarded.
+// every other fragment is discarded. 0.28 draws only structures and the terrain
+// as occluders; with no stencil here, an occluder no nearer than the front of
+// the model's bounding sphere (`silhouette_radius` about the node's origin) is
+// taken to be the model itself, so a siege engine's cart doesn't outline its crew.
 // GPL-2.0-or-later, derived from 0 A.D. (Copyright (C) Wildfire Games).
 shader_type spatial;
 render_mode unshaded, blend_mix, depth_test_disabled, depth_draw_never, cull_back, shadows_disabled, fog_disabled;
@@ -15,11 +18,16 @@ uniform bool gl_depth = false;
 // Close-up units set this per node; crowd MultiMeshes pass the owner's colour
 // in INSTANCE_CUSTOM (alpha 1), as player_color.gdshader reads it.
 instance uniform vec4 silhouette_color : source_color = vec4(1.0);
+// World units from the node's origin (a crowd instance's: the unit's) to the
+// farthest corner of its model; RtsoWorldView sets it per node.
+instance uniform float silhouette_radius = 0.0;
 
 varying vec3 v_color;
+varying float v_front; // view distance to the front of the model's bounding sphere
 
 void vertex() {
 	v_color = INSTANCE_CUSTOM.a > 0.5 ? INSTANCE_CUSTOM.rgb : silhouette_color.rgb;
+	v_front = -(VIEW_MATRIX * vec4(MODEL_MATRIX[3].xyz, 1.0)).z - silhouette_radius;
 }
 
 void fragment() {
@@ -27,7 +35,7 @@ void fragment() {
 	if (gl_depth) depth = depth * 2.0 - 1.0;
 	vec4 view = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, depth, 1.0);
 	float scene_dist = -view.z / view.w;
-	if (-VERTEX.z - scene_dist < min_gap) discard;
+	if (-VERTEX.z - scene_dist < min_gap || scene_dist >= v_front) discard;
 	ALBEDO = v_color;
 	// effects/model.xml MODE_SILHOUETTEDISPLAY: blended at constant alpha 191 / 255.
 	// 0 A.D.'s stencil keeps each pixel to one silhouette; Godot 4.3 spatial shaders

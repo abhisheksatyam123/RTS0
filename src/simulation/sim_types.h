@@ -2350,6 +2350,11 @@ inline constexpr FlightProfile PLANE_FLIGHT = {
 };
 // UnitMotionFlying.js SHORT_FINAL: the final approach's descent constant (m/s, x kMetre here).
 inline constexpr float FLIGHT_SHORT_FINAL = 2.5f;
+// units/plane.xml GarrisonHolder: Max 1 of Support or Infantry, EjectHealth 0, BuffHeal 1 hp a
+// second, LoadingRange 5 m, and no EjectClassesOnDestroy (whoever is aboard dies with it).
+inline constexpr int PLANE_GARRISON = 1;
+inline constexpr float PLANE_LOADING_RANGE = 5.0f * 0.28f;
+inline constexpr float PLANE_BUFF_HEAL = 1.0f;
 
 struct CivUnitTemplate {
 	const char *id; // 0 A.D. template path under units/, e.g. "athen/infantry_spearman_b"

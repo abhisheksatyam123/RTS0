@@ -991,6 +991,10 @@ GROUND_AT_ORIGIN = {
     "art/actors/structures/spartans/civic_center.xml",
     "art/actors/structures/kushites/civic_centre_kush.xml",
     "art/actors/structures/persians/gardens_struct.xml",
+    # The fields' own mesh is a hidden prop carrier 27 m down.
+    "art/actors/structures/plot_field_medit.xml",
+    "art/actors/structures/plot_field_temp.xml",
+    "art/actors/structures/rice_paddy.xml",
 }
 GROUND_CUT_Y = -0.05
 
@@ -1034,6 +1038,11 @@ ZIP_STRUCTURES = {
     "s_kushites_civic_centre_kush":  ("art/actors/structures/kushites/civic_centre_kush.xml",  "width", 6.2, None),
     "s_persians_gardens_struct":     ("art/actors/structures/persians/gardens_struct.xml",     "width", 6.5, None),
     "s_carthaginians_temple_big":    ("art/actors/structures/carthaginians/temple_big.xml",    "width", 5.0, None),
+    # 0.28's fields (structures/<civ>/field.xml): the Mediterranean and temperate
+    # propped plots and the Han rice paddy, at 0.28's size (1 unit = 4 m).
+    "s_plot_field_medit": ("art/actors/structures/plot_field_medit.xml", "scale", 0.25, None),
+    "s_plot_field_temp":  ("art/actors/structures/plot_field_temp.xml",  "scale", 0.25, None),
+    "s_rice_paddy":       ("art/actors/structures/rice_paddy.xml",       "scale", 0.25, None),
     # The Wagon Encampment, as wide as the Roman army camp it stood in for, and
     # its fortified Upgrade at the same scale (its palisade rings the wagons).
     "s_germans_encampment":           ("art/actors/structures/germans/encampment.xml",           "width", 4.0, None),
@@ -2610,7 +2619,7 @@ def _affine_inverse(m):
 
 def _cut_below_ground(parts):
     """GROUND_AT_ORIGIN: drop triangles wholly under the ground plane and clamp
-    the rest to it, in each part's own mesh space."""
+    the rest to it, in each part's own mesh space; parts left empty are dropped."""
     for part in parts:
         md = part.mesh_data
         if not md or md.get("bones"):
@@ -2625,7 +2634,8 @@ def _cut_below_ground(parts):
         md["verts"] = [(mat_apply(inv, (w[0], GROUND_CUT_Y, w[2])) if w[1] < GROUND_CUT_Y else p, n)
                        for w, (p, n) in zip(world, md["verts"])]
         part.mesh_data = md
-    return parts
+    # A part with nothing left above ground (the fields' prop carrier) goes.
+    return [p for p in parts if not p.mesh_data or p.mesh_data.get("bones") or p.mesh_data["faces"]]
 
 
 def compose_actor(vfs, actor_path, depth=0, tint=None, sources=None, skip_actors=None, look=0):
