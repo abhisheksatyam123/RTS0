@@ -136,6 +136,11 @@ func show_template(p_kind: String, p_id: int, p_civ: int, reset_history: bool = 
 		"tech": d = Common.ref().get_tech(id, civ)
 	if kind != "tech":
 		d = Common.civ_costed(d, kind, civ)
+	else:
+		# ViewerPage.js: the cost times its first researcher's TechCostMultiplier.
+		var rs: Array = d.get("researchers", [])
+		var first: Dictionary = rs[0] if not rs.is_empty() else d.get("researched_at", {})
+		d = Common.civ_costed(d, kind, civ, int(first.get("type", -1)) if first.get("kind", "structure") == "structure" else -1)
 	_back.visible = not _history.is_empty()
 	if d.is_empty():
 		_name.text = "[b]Unknown template[/b]"
@@ -447,6 +452,14 @@ static func _links(items: Array, link_kind: String, key: String) -> String:
 
 ## ViewerPage.InfoFunctions: tooltip, history, description, auras, classes,
 ## built/trained/researched by, then what it builds, trains and researches.
+# getAurasTooltip's line: "Name: description", then " Range: N meters" for a range aura.
+static func aura_line(a: Dictionary, label := "[b]%s:[/b]") -> String:
+	var t: String = (label % a["name"]) + " " + String(a["description"])
+	var radius := float(a.get("radius", 0))
+	if radius > 0.0:
+		t += " Range: %s %s" % [_num(radius), "meter" if is_equal_approx(radius, 1.0) else "meters"]
+	return t
+
 func info_text(d: Dictionary, extra: Dictionary) -> String:
 	var blocks: PackedStringArray = []
 	var tooltip: String = extra.get("tooltip", d.get("description", "") if kind == "tech" else "")
@@ -460,14 +473,11 @@ func info_text(d: Dictionary, extra: Dictionary) -> String:
 		blocks.append("[i]%s[/i]" % extra["description"])
 	if kind == "tech" and extra.get("requirements_tooltip", "") != "":
 		blocks.append("[color=%s]%s[/color]" % [Common.DIM, extra["requirements_tooltip"]])
-	var auras: Array = d.get("auras", [])
+	var auras: Array = d.get("auras", extra.get("auras", [])) # a structure's from templates.json
 	if not auras.is_empty():
 		var t := "[b]Auras:[/b]"
 		for a in auras:
-			t += "\n[color=#c9a0ff]%s:[/color] %s" % [a["name"], a["description"]]
-			var radius := float(a.get("radius", 0))
-			if radius > 0.0:
-				t += " Range: %s %s" % [_num(radius), "meter" if is_equal_approx(radius, 1.0) else "meters"]
+			t += "\n" + aura_line(a, "[color=#c9a0ff]%s:[/color]")
 		blocks.append(t)
 	var classes: Array = extra.get("classes", [])
 	if not classes.is_empty():

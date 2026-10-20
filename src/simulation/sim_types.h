@@ -2762,6 +2762,17 @@ inline const CivHeroAura &civ_hero_aura(int16_t idx) {
 	return a[(idx >= 0 && idx < CIV_HERO_AURA_COUNT) ? idx : 0];
 }
 
+// A roster aura whose 0.28 JSON is "stackable" and that AuraManager::query_modifier counts
+// once per source rather than once: kush_temple_amun (each Temple of Amun x0.95 hero health).
+inline bool civ_aura_stackable(int16_t idx) {
+	static const int16_t amun = [] {
+		for (int16_t i = 0; i < CIV_HERO_AURA_COUNT; ++i)
+			if (std::strcmp(civ_hero_aura(i).id, "kush_temple_amun") == 0) return i;
+		return (int16_t)-1;
+	}();
+	return idx >= 0 && idx == amun;
+}
+
 // Roster of a civ is the template id range [civ_roster_begin, civ_roster_end).
 inline uint16_t civ_roster_begin(uint8_t civ) {
 	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
@@ -3189,7 +3200,9 @@ inline bool building_trains_native(uint8_t type) {
 // military colony and German encampments) list units/{native}/support_civilian, so a
 // captured one trains its builder's civilians (template_structure_civic_civil_centre.xml).
 inline uint8_t building_train_civ(uint8_t type, uint8_t bld_civ, uint8_t owner_civ, const CivUnitTemplate &t) {
-	if (building_trains_native(type)) return bld_civ;
+	// A Gaia mercenary camp (merc_camp_egyptian.xml) trains the holder's units/{civ}/..._merc_b, as
+	// 0.28; a player's own camp keeps its builder's mercenaries (building_trains_native).
+	if (building_trains_native(type) && !(type == BLD_MERCENARY_CAMP && bld_civ == CIV_GAIA)) return bld_civ;
 	const bool civic = type == BLD_TOWN_CENTER || type == BLD_CRANNOG || type == BLD_IMPERIAL_COURT ||
 	                   type == BLD_MILITARY_COLONY || type == BLD_WAGON_ENCAMPMENT ||
 	                   type == BLD_WAGON_ENCAMPMENT_FORTIFIED;

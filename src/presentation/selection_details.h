@@ -529,6 +529,24 @@ inline String unit_auras_tooltip(uint16_t tmpl) {
 	return out;
 }
 
+// getTradingTooltip: the trader's owner's gain plus what their own markets earn, then
+// each other market owner's, "20+5 (Alice), 5 (Bob)". market1 pays the arrival market's
+// owner and market2 the starting market's (CalculateTraderGain).
+template <class NameOf>
+inline String trading_gain(int trader, uint8_t owner, int market1, uint8_t market1_owner, int market2, uint8_t market2_owner, NameOf &&name_of) {
+	const struct { int gain; uint8_t owner; } markets[] = {{market1, market1_owner}, {market2, market2_owner}};
+	String primary = num(trader);
+	for (const auto &m : markets)
+		if (m.gain && m.owner == owner) primary += tr0("+") + num(m.gain);
+	auto gain_of = [&](const String &gain, uint8_t pid) {
+		return sprintf0(tr0("%(gain)s (%(player)s)"), {{"gain", gain}, {"player", name_of(pid)}});
+	};
+	String out = gain_of(primary, owner);
+	for (const auto &m : markets)
+		if (m.gain && m.owner != owner) out += tr0(", ") + gain_of(num(m.gain), m.owner);
+	return out;
+}
+
 } // namespace rtso::seldet
 
 #endif

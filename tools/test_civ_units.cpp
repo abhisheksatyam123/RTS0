@@ -199,6 +199,26 @@ int main() {
 		CHECK(civ_unit_template(roster_id("rome/infantry_swordsman_a")).trainers == bld_bit(BLD_ARMY_CAMP));
 	}
 
+	// A captured Gaia mercenary camp (merc_camp_egyptian.xml: units/{civ}/..._merc_b) recruits the
+	// holder's own mercenaries; a Ptolemaic camp keeps its builder's.
+	{
+		static Simulation k;
+		k.set_sim_seed(13);
+		k.set_team_civ(0, CIV_ATHENIANS);
+		k.reset();
+		k.set_player_resources(0, 5000, 5000, 5000, 5000);
+		k.player(0).phase = 3;
+		k.spawn_building(-20, -20, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t camp = k.spawn_building(-5, -20, BLD_MERCENARY_CAMP, GAIA_PLAYER, 1.0f);
+		for (const Simulation::Building &x : k.buildings())
+			if (x.id == camp) const_cast<Simulation::Building &>(x).team = 0; // captured (the camp keeps civ Gaia)
+		CHECK(k.cmd_train(0, camp, UNIT_SPEARMAN));
+		const Simulation::Building *b = nullptr;
+		for (const Simulation::Building &x : k.buildings()) if (x.id == camp) b = &x;
+		CHECK(b && !b->queue.empty() && civ_unit_template(b->queue.back().tmpl).civ == CIV_ATHENIANS);
+		CHECK(building_train_civ(BLD_MERCENARY_CAMP, CIV_PTOLEMIES, CIV_ATHENIANS, civ_unit_template(b->queue.back().tmpl)) == CIV_PTOLEMIES);
+	}
+
 	// Building health takes 0 A.D.'s civ structure bonus (Hellenic Architecture +10%).
 	uint32_t ath_house = s.spawn_building(10, 10, BLD_HOUSE, 0, 1.0f);
 	s.set_team_civ(5, CIV_PERSIANS);
