@@ -47,6 +47,14 @@ bool RtsoMain::selection_can_garrison(uint32_t building_id) const {
 	if (!sim) return false;
 	for (int s = 0; s < selected_ids.size(); ++s)
 		if (sim->can_garrison_in((uint32_t)(int64_t)selected_ids[s], building_id)) return true;
+	// Own livestock into the player's own or a mutual ally's corral (GarrisonHolder List Animal).
+	for (int s = 0; s < selected_ids.size(); ++s)
+		if (sim->fauna_selectable_by(local_player(), (uint32_t)(int64_t)selected_ids[s])) {
+			for (const auto &b : sim->buildings())
+				if (b.id == building_id)
+					return b.type == rtso::BLD_CORRAL && !b.wrecked && b.build_progress >= 1.0f && sim->is_ally(b.team, local_player());
+			return false;
+		}
 	return false;
 }
 
