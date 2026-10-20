@@ -80,6 +80,20 @@ void RtsoMain::_ready() {
 	rtso::Logger::info("Main", "RTS0 0 A.D. Reborn Ready - Full 0 A.D. UI & Simulation");
 	// 0 A.D. writes oos_dump.txt/.dat to its log dir; ours is user://.
 	turn_mgr_.set_oos_dump_dir(OS::get_singleton()->get_user_data_dir().utf8().get_data());
+	{
+		// 0.28's -ooslog, -serializationtest, -rejointest=N and -unique-logs (main.cpp).
+		Dictionary tests;
+		PackedStringArray args = OS::get_singleton()->get_cmdline_args();
+		args.append_array(OS::get_singleton()->get_cmdline_user_args());
+		for (const String &a : args) {
+			const String arg = a.trim_prefix("-").trim_prefix("-");
+			if (arg == "ooslog") tests["ooslog"] = true;
+			else if (arg == "serializationtest") tests["serializationtest"] = true;
+			else if (arg == "unique-logs") tests["unique_logs"] = true;
+			else if (arg.begins_with("rejointest=")) tests["rejointest"] = arg.get_slice("=", 1).to_int();
+		}
+		set_sim_tests(tests);
+	}
 
 	// Incoming chat: 0 A.D. NetMessages.h NMT_CHAT parity. Fires on the main
 	// thread from net_host_.poll() (_process), so appending to the chat
@@ -257,9 +271,6 @@ void RtsoMain::_ready() {
 		};
 		top_panel_.set_civ_icon_keys(first_key("civinfo"), first_key("structree"));
 		minimap_panel_.set_hotkeys(first_key("selection.idleworker"), first_key("session.diplomacycolors"), first_key("session.flare"));
-		top_panel_.set_dialog_tooltips(first_key("session.gui.diplomacy.toggle"),
-				first_key("session.gui.barter.toggle"),
-				first_key(rtso::hotkeys::table().get("session.gui.matchsettings.toggle") ? "session.gui.matchsettings.toggle" : "session.gui.objectives.toggle"));
 	}
 
 	time_notification_label_ = memnew(RichTextLabel);
@@ -326,17 +337,29 @@ void RtsoMain::_ready() {
 	cursor_tip_->set_visible(false);
 	ui_layer->add_child(cursor_tip_);
 
-	// Speed & Menu
+	// GameSpeedButton: a 28 px time_small icon, "Game Speed", first of the right-hand
+	// buttons (Game Speed, Diplomacy, Barter & Trade, Match Settings, Menu).
 	speed_btn = memnew(Button);
-	speed_btn->set_custom_minimum_size(Vector2(45, 28));
-	speed_btn->set_text(speed_text(1.0f));
-	speed_btn->set_tooltip_text("Choose game speed");
-	speed_btn->add_theme_font_size_override("font_size", 12);
+	speed_btn->set_name("GameSpeedButton");
+	speed_btn->set_custom_minimum_size(Vector2(28, 28));
+	{
+		Ref<Texture2D> tex = rtso::load_ui_texture("res://assets/textures/ui/archive/icons/resources/time_small.png");
+		if (tex.is_valid()) {
+			speed_btn->set_button_icon(tex);
+			speed_btn->set_expand_icon(true);
+		} else {
+			speed_btn->set_text(speed_text(1.0f));
+		}
+	}
 	speed_btn->connect("pressed", Callable(this, "_on_speed_button_pressed"));
 	top_hbox->add_child(speed_btn);
+	if (Button *diplo = top_panel_.dialog_button(0)) top_hbox->move_child(speed_btn, diplo->get_index());
+	for (int i = 0; i < 3; ++i)
+		if (Button *b = top_panel_.dialog_button(i)) b->connect("mouse_entered", Callable(this, "_refresh_menu_tooltip"));
 
+	// MenuButton: 156 x 28.
 	menu_btn = memnew(Button);
-	menu_btn->set_custom_minimum_size(Vector2(60, 28));
+	menu_btn->set_custom_minimum_size(Vector2(156, 28));
 	menu_btn->set_text("Menu");
 	// Menu.js rebuild, on every hover so a rebind or a language change shows.
 	_refresh_menu_tooltip();
@@ -638,6 +661,9 @@ void RtsoMain::_ready() {
 		pause_overlay_->add_child(pause_by_label_);
 	}
 	ui_layer->add_child(pause_overlay_);
+	// session.xml includes PauseOverlay before the top panel, menus and HUD panels:
+	// it dims the world, and the interface above it stays usable.
+	ui_layer->move_child(pause_overlay_, 0);
 
 	// gameStateNotifications: top right, under the data counter.
 	net_warnings_label_ = memnew(RichTextLabel);
@@ -1000,6 +1026,7 @@ void RtsoMain::_process(double delta) {
 			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
 			if (turn_mgr_.tick((float)scaled_delta, *sim)) {
 				ticks = rtso::TurnManager::TICKS_PER_TURN;
+				sim_tests_turn();
 				rejoin_test_turn();
 			}
 			// OutOfSyncNetwork: the box opens once the dump is written, and again
@@ -1085,6 +1112,7 @@ void RtsoMain::_process(double delta) {
 			for (int t = 0; t < max_turns && turn_mgr_.tick(step, *sim); ++t) {
 				ticks += rtso::TurnManager::TICKS_PER_TURN;
 				step = 0.0f;
+				sim_tests_turn();
 				rejoin_test_turn();
 			}
 		}
@@ -1615,10 +1643,20 @@ String RtsoMain::chat_open_hotkey_tooltip() const {
 }
 
 // Menu.js rebuild: "Press %(hotkey)s to toggle this menu." with colorizeHotkey.
+// The IconButtons' and GameSpeedButton's tooltips too: colorizeHotkey("%(hotkey)s ",
+// hotkey) + translate(Tooltip), rebuilt on hover for a rebind (onHotkeyChange).
 void RtsoMain::_refresh_menu_tooltip() {
 	if (menu_btn)
 		menu_btn->set_tooltip_text(RtsoHotkeyConfig::colorize_hotkey(rtso::tr0("Press %(hotkey)s to toggle this menu."),
 				"session.gui.menu.toggle"));
+	if (speed_btn) speed_btn->set_tooltip_text(rtso::tr0("Game Speed"));
+	auto tip = [](const char *hotkey, const char *text) {
+		return RtsoHotkeyConfig::colorize_hotkey("%(hotkey)s ", hotkey) + String(rtso::tr0(text));
+	};
+	top_panel_.set_dialog_tooltips(tip("session.gui.diplomacy.toggle", "Diplomacy"),
+			tip("session.gui.barter.toggle", "Barter & Trade"),
+			tip(rtso::hotkeys::table().get("session.gui.matchsettings.toggle") ? "session.gui.matchsettings.toggle" : "session.gui.objectives.toggle",
+					"Match Settings"));
 }
 
 void RtsoMain::refresh_chat_tooltips() {
