@@ -19173,17 +19173,12 @@ const Simulation::PetraBase *Simulation::get_nearest_petra_base(float x, float z
 }
 
 void Simulation::update_petra_bases(float dt) {
-	// Find all Team 1 Town Centers & forward anchor structures
+	// Our civic centres: only class CivCentre (military colonies included) anchors a base
+	// (basesManager.js); a fortress or storehouse never does.
 	std::vector<uint32_t> tc_ids;
-	std::vector<uint32_t> outpost_ids;
-
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.hp <= 0) continue;
-		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) { // class CivCentre anchors a base
-			tc_ids.push_back(b.id);
-		} else if (b.type == BLD_FORTRESS || is_defense_tower(b.type) || b.type == BLD_STOREHOUSE) {
-			outpost_ids.push_back(b.id);
-		}
+		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) tc_ids.push_back(b.id);
 	}
 
 	// reset() seeds a placeholder base at (36,36) with no anchor. Once we own a
@@ -19238,7 +19233,7 @@ void Simulation::update_petra_bases(float dt) {
 		petra_bases_[0].is_primary = true;
 	}
 
-	// 3. Discover and register new base anchors from newly founded Town Centers & Outposts
+	// 3. Register a base for each new civic centre
 	for (uint32_t tcid : tc_ids) {
 		auto it = building_id_to_idx_.find(tcid);
 		if (it == building_id_to_idx_.end()) continue;
@@ -19272,35 +19267,6 @@ void Simulation::update_petra_bases(float dt) {
 			// The territory grows: there may be room again (resetMissingRoom).
 			petra_room_.marks.clear();
 			petra_bases_.push_back(new_base);
-		}
-	}
-
-	for (uint32_t opid : outpost_ids) {
-		auto it = building_id_to_idx_.find(opid);
-		if (it == building_id_to_idx_.end()) continue;
-		const Building &op = buildings_[it->second];
-		if (op.type != BLD_FORTRESS && op.type != BLD_STOREHOUSE) continue;
-		// A building captured inside someone else's territory is not a base to grow.
-		if (territory_owner_at(op.x, op.z) != petra_pid_) continue;
-
-		bool near_existing = false;
-		for (const auto &base : petra_bases_) {
-			if (std::hypot(base.x - op.x, base.z - op.z) < 30.0f) {
-				near_existing = true;
-				break;
-			}
-		}
-
-		if (!near_existing && petra_bases_.size() < 4) {
-			PetraBase new_outpost;
-			new_outpost.id = (uint32_t)petra_bases_.size() + 1;
-			new_outpost.anchor_building_id = opid;
-			new_outpost.x = op.x;
-			new_outpost.z = op.z;
-			new_outpost.is_primary = false;
-			new_outpost.radius = 24.0f;
-			new_outpost.danger_level = get_threat_at(op.x, op.z);
-			petra_bases_.push_back(new_outpost);
 		}
 	}
 
@@ -19485,9 +19451,6 @@ void Simulation::petra_manage_scouting(float dt) {
 		}
 	}
 }
-
-// What Petra pays for its fortress (wood, gold, stone in ResourceType order).
-static constexpr float PETRA_FORTRESS_COST[RES_COUNT] = {300.0f, 200.0f, 300.0f, 0.0f};
 
 // addSiegeUnits' classes, in its order: Siege+Melee, Siege+Ranged, Elephant+Melee.
 static const TechClasses kPetraSiegeClasses[3] = {TC_SIEGE | TC_MELEE, TC_SIEGE | TC_RANGED, TC_ELEPHANT | TC_MELEE};
@@ -19713,8 +19676,9 @@ void Simulation::petra_manage_military_production(float dt) {
 	};
 
 	// Petra raises what it is waiting on above its soldiers: phasing up (researchManager.js
-	// checkPhase, headquarters.js checkPhaseRequirements at priority 1000) and the first fortress
-	// (defenseBuilding doubled). Here soldiers train only from what that price leaves.
+	// checkPhase, headquarters.js checkPhaseRequirements at priority 1000). Here soldiers train
+	// only from what that price leaves. The first fortress needs no reserve: its plan doubles
+	// defenseBuilding's priority once it is queued (headquarters.js:1608), and the queues share out the rest.
 	float reserve[RES_COUNT] = {};
 	if (phase == 2 && petra_phasing()) { // researchManager.js:27: only past workPhase3
 		const ResearchCheck rc = research_check(petra_pid_, TECH_PHASE_CITY);
@@ -19723,11 +19687,6 @@ void Simulation::petra_manage_military_production(float dt) {
 			reserve[RES_FOOD] = (float)city.food_cost; reserve[RES_WOOD] = (float)city.wood_cost;
 			reserve[RES_GOLD] = (float)city.gold_cost; reserve[RES_STONE] = (float)city.stone_cost;
 		}
-	} else if (phase >= 3 && !petra_attack_mgr_.save_resources) { // saveResources builds no fortress
-		bool fortress = false;
-		for (const auto &b : buildings_)
-			if (b.team == petra_pid_ && b.type == BLD_FORTRESS) { fortress = true; break; }
-		if (!fortress) for (int r = 0; r < RES_COUNT; ++r) reserve[r] = PETRA_FORTRESS_COST[r];
 	}
 
 	const uint8_t d = petra_config_.difficulty;
@@ -30622,10 +30581,13 @@ void Simulation::petra_manage_critical_ent_guards() {
 			    units_.team[i] == petra_pid_ && units_.unit_type[i] != UNIT_HEALER) ++assigned;
 		if (assigned >= want) continue;
 		// tryAssignMilitaryGuard: units in no plan, on its land (overseas guards need transports).
+		// Army units (plan -1, outOfPlan) have a plan too, so in effect guards are workers.
+		const auto &army = petra_army_ids_[petra_pid_];
 		auto free_for_guard = [&](size_t i) {
 			if (!units_.alive[i] || units_.team[i] != petra_pid_ || i == c.hero) return false;
 			if (units_.order_kind[i] == ORDER_GUARD || units_.order_kind[i] == ORDER_GARRISON) return false;
 			if (units_.action_state[i] == ACTION_GARRISONED || petra_unit_reserved(units_.id[i]) || petra_is_critical_ent(i)) return false;
+			if (std::binary_search(army.begin(), army.end(), units_.id[i])) return false;
 			auto [ux, uz] = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
 			return c.land == nav_grid_.global_region_at(ux, uz, PASS_INFANTRY);
 		};
