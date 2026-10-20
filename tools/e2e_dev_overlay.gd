@@ -235,6 +235,17 @@ func run() -> void:
 	check(int(d["range_drawn"]) > 0, "the range overlay rings the attackers (%d)" % int(d["range_drawn"]))
 	check(int(d["bounding_box_drawn"]) > 0, "the bounding box overlay boxes the models (%d)" % int(d["bounding_box_drawn"]))
 	check(main.find_child("DebugOverlays", true, false).visible, "and they are shown")
+	var nsel: int = Array(main.debug_selection_state()["selected"]).size()
+	check(int(d["unit_motion_drawn"]) <= nsel and int(d["bounding_box_drawn"]) % 2 == 0 and int(d["bounding_box_drawn"]) <= 2 * (nsel + 4),
+		"only the selection's paths (%d of %d), and two boxes per selected or hovered model, bounds and selection box (%d)"
+		% [int(d["unit_motion_drawn"]), nsel, int(d["bounding_box_drawn"])])
+	main.clear_selection()
+	await frames(2)
+	d = main.debug_dev_overlay()
+	check(int(d["unit_motion_drawn"]) == 0 and int(d["obstruction_drawn"]) > 0,
+		"with nothing selected no path is drawn, the other overlays stay")
+	main.debug_selection_grid(true)
+	await frames(2)
 	for label in ["Pathfinder overlay", "Hierarchical pathfinder overlay", "Obstruction overlay", "Unit motion overlay", "Range overlay", "Bounding box overlay"]:
 		check(box(label).button_pressed, "%s stays ticked" % label)
 		press(label)

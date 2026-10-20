@@ -416,35 +416,36 @@ struct RuinsTypeInfo {
 	uint8_t res_type;          // ResourceType
 	int amount;                // ResourceSupply/Max
 	uint8_t max_gatherers;
+	float width, depth;       // Obstruction/Static (metres), along the entity's x and z axes
 };
 
 static constexpr uint8_t RUINS_TYPE_COUNT = 23;
 
 inline const RuinsTypeInfo &ruins_type_info(uint8_t t) {
 	static const RuinsTypeInfo kTable[RUINS_TYPE_COUNT] = {
-		{"column_doric", "Doric Column", RES_STONE, 500, 1},
-		{"metal_statue_apollo", "Apollo", RES_GOLD, 800, 1},
-		{"metal_statue_discobolus", "Discobolus", RES_GOLD, 400, 1},
-		{"metal_statue_isis", "Isis Cult Image", RES_GOLD, 800, 1},
-		{"metal_statue_poseidon", "Poseidon", RES_GOLD, 400, 1},
-		{"metal_statue_wolf", "Capitoline Wolf", RES_GOLD, 800, 1},
-		{"pyramid_great", "Great Pyramid", RES_STONE, 10000, 120},
-		{"pyramid_minor", "Minor Pyramid", RES_STONE, 5000, 90},
-		{"roman_rostrum", "Roman Rostrum", RES_STONE, 500, 1},
-		{"standing_stone", "Celtic Standing Stone", RES_STONE, 300, 1},
-		{"stone_column_roman", "Roman Column", RES_STONE, 400, 1},
-		{"stone_statues_egyptian", "Egyptian Statue", RES_STONE, 300, 1},
-		{"stone_statues_kushite", "Kushite Statue", RES_STONE, 300, 1},
-		{"stone_statues_kushite_bird", "Kushite Bird Statue", RES_STONE, 200, 1},
-		{"stone_statues_kushite_lion", "Apademak Lion Statue", RES_STONE, 200, 1},
-		{"stone_statues_kushite_ram", "Ammon-Ra Ram Statue", RES_STONE, 200, 1},
-		{"stone_statues_persian_lamassu", "Lamassu Statue", RES_STONE, 500, 1},
-		{"stone_statues_roman", "Roman Statue", RES_STONE, 300, 1},
-		{"stone_structure_farmstead", "Ruined Farmstead", RES_STONE, 500, 1},
-		{"stone_structure_house", "Ruined House", RES_STONE, 500, 1},
-		{"stone_structure_small", "Ruined Structure", RES_STONE, 300, 1},
-		{"stone_structure_tower", "Ruined Tower", RES_STONE, 500, 1},
-		{"unfinished_greek_temple", "Unfinished Greek Temple", RES_STONE, 1000, 30},
+		{"column_doric", "Doric Column", RES_STONE, 500, 1, 7.0f, 7.0f},
+		{"metal_statue_apollo", "Apollo", RES_GOLD, 800, 1, 7.0f, 7.0f},
+		{"metal_statue_discobolus", "Discobolus", RES_GOLD, 400, 1, 7.0f, 7.0f},
+		{"metal_statue_isis", "Isis Cult Image", RES_GOLD, 800, 1, 7.5f, 7.5f},
+		{"metal_statue_poseidon", "Poseidon", RES_GOLD, 400, 1, 7.0f, 7.0f},
+		{"metal_statue_wolf", "Capitoline Wolf", RES_GOLD, 800, 1, 14.0f, 8.0f},
+		{"pyramid_great", "Great Pyramid", RES_STONE, 10000, 120, 59.0f, 59.0f},
+		{"pyramid_minor", "Minor Pyramid", RES_STONE, 5000, 90, 34.0f, 34.0f},
+		{"roman_rostrum", "Roman Rostrum", RES_STONE, 500, 1, 34.0f, 16.0f},
+		{"standing_stone", "Celtic Standing Stone", RES_STONE, 300, 1, 2.0f, 2.0f},
+		{"stone_column_roman", "Roman Column", RES_STONE, 400, 1, 7.0f, 7.0f},
+		{"stone_statues_egyptian", "Egyptian Statue", RES_STONE, 300, 1, 3.5f, 3.5f},
+		{"stone_statues_kushite", "Kushite Statue", RES_STONE, 300, 1, 3.5f, 3.5f},
+		{"stone_statues_kushite_bird", "Kushite Bird Statue", RES_STONE, 200, 1, 1.5f, 3.5f},
+		{"stone_statues_kushite_lion", "Apademak Lion Statue", RES_STONE, 200, 1, 1.5f, 3.5f},
+		{"stone_statues_kushite_ram", "Ammon-Ra Ram Statue", RES_STONE, 200, 1, 1.5f, 3.5f},
+		{"stone_statues_persian_lamassu", "Lamassu Statue", RES_STONE, 500, 1, 3.5f, 3.5f},
+		{"stone_statues_roman", "Roman Statue", RES_STONE, 300, 1, 3.5f, 3.5f},
+		{"stone_structure_farmstead", "Ruined Farmstead", RES_STONE, 500, 1, 14.0f, 17.0f},
+		{"stone_structure_house", "Ruined House", RES_STONE, 500, 1, 13.0f, 13.0f},
+		{"stone_structure_small", "Ruined Structure", RES_STONE, 300, 1, 7.0f, 7.0f},
+		{"stone_structure_tower", "Ruined Tower", RES_STONE, 500, 1, 9.0f, 6.0f},
+		{"unfinished_greek_temple", "Unfinished Greek Temple", RES_STONE, 1000, 30, 17.5f, 30.0f},
 	};
 	return kTable[t < RUINS_TYPE_COUNT ? t : 0];
 }
