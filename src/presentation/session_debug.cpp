@@ -352,7 +352,8 @@ Dictionary RtsoMain::debug_selection_state() {
 	Array units;
 	auto uview = sim->units();
 	for (size_t i = 0; i < uview.count; ++i) {
-		if (!uview.alive[i] || uview.team[i] != local_player()) continue;
+		// Own units, and any selected one (another player's, under Control all units).
+		if (!uview.alive[i] || (uview.team[i] != local_player() && !selected_ids.has((int32_t)uview.id[i]))) continue;
 		Dictionary u;
 		u["id"] = (int64_t)uview.id[i];
 		u["tmpl"] = (int64_t)uview.tmpl[i];
