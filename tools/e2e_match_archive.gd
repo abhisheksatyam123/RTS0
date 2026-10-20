@@ -77,8 +77,7 @@ func run() -> void:
 	check(m.save_game_as("e2e_test", "end-to-end test"), "save_game_as writes a save")
 	check(FileAccess.file_exists("user://saves/e2e_test.json"), "the save has its metadata")
 	m.quicksave()
-	var qmeta = JSON.parse_string(FileAccess.get_file_as_string("user://saves/quicksave.json"))
-	check(qmeta is Dictionary and qmeta.get("description", "") == "Quicksave", "quicksave writes the quicksave slot")
+	check(not FileAccess.file_exists("user://saves/quicksave.json"), "the quicksave stays out of the saved games")
 	m.set_game_speed(10.0)
 	check(is_equal_approx(m.get_game_speed(), 2.0), "a game outside replays tops out at 2x")
 	m.set_game_speed(1.0)
@@ -193,7 +192,7 @@ func run() -> void:
 	check(int(st.turns) >= turns_continued, "the continued replay holds every recorded turn")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/e2e_test.rts0sav"))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/e2e_test.json"))
-	for f in ["quicksave.rts0sav", "quicksave.json", "quicksave.png", "e2e_test.png"]:
+	for f in ["e2e_test.png"]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/" + f))
 
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
