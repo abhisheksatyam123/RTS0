@@ -1308,7 +1308,7 @@ func _slot_count_node() -> SpinBox:
 
 ## 0.28 PlayersPanel.xml headings over the player rows, one per grid column (the AI
 ## gear's has none); Color hides with the colour pickers on a scenario.
-const SLOT_HEADINGS := ["Player Name", "Player Placement", "Civilization", "Team", "", "Color"]
+const SLOT_HEADINGS := ["Player Name", "Color", "Player Placement", "", "Civilization", "Team"]
 func _build_slot_headings() -> void:
 	var header: Control = $VBox/HBox/Right/SlotsBox/SlotsHeader
 	for h in SLOT_HEADINGS:
@@ -1352,13 +1352,13 @@ func _place_slot_headings() -> void:
 	var cells := grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
 	for c in range(mini(header.get_child_count(), grid.columns)):
 		var l: Label = header.get_child(c)
-		l.visible = c < cells.size() and (c != 5 or not _is_scenario())
+		l.visible = c < cells.size() and (c != 1 or not _is_scenario())
 		if c < cells.size():
 			l.position = Vector2((cells[c] as Control).position.x, 0.0)
 			l.size = Vector2((cells[c] as Control).size.x if c < grid.columns - 1 else maxf((cells[c] as Control).size.x, 48.0), header.size.y)
 	var info := header.get_node_or_null("CivInfoButton") as Control
-	if info and cells.size() > 2:
-		var cc: Control = cells[2]
+	if info and cells.size() > 4:
+		var cc: Control = cells[4]
 		info.position = Vector2(cc.position.x + cc.size.x - 18.0, 2.0)
 	grid.queue_redraw()
 
@@ -1440,16 +1440,19 @@ func _render_speeds() -> void:
 
 func _add_slot_row(grid: GridContainer, i: int) -> void:
 	var row: Dictionary = _slot_rows[i]
+	# PlayersPanel.xml's columns: name, colour, assignment (Player Placement), AI gear, civ, team.
+	var cols := []
+	cols.resize(6)
 	if _mp_role == "host" and int(row["kind"]) == 0 and _net_rows().has(i):
-		grid.add_child(_assignment_cell(i))
+		cols[0] = _assignment_cell(i)
 	else:
 		var name := Label.new()
 		name.text = _slot_label(i, row)
-		grid.add_child(name)
+		cols[0] = name
 	# kind
 	var kind_slot := Control.new()
 	kind_slot.custom_minimum_size = Vector2(92, 28)
-	grid.add_child(kind_slot)
+	cols[2] = kind_slot
 	var kind := _make_option(kind_slot)
 	if _mp_role == "none":
 		# 0.28 PlayerAssignment: you, "AI: Petra Bot", "Unassigned" or "Removed" (not on slot 1,
@@ -1471,7 +1474,7 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	# civ
 	var civ_slot := Control.new()
 	civ_slot.custom_minimum_size = Vector2(130, 28)
-	grid.add_child(civ_slot)
+	cols[4] = civ_slot
 	var civ := _make_option(civ_slot)
 	# 0.28 PlayerCiv.getItems: Random first, then the civs by name.
 	civ.add_item("Random")
@@ -1490,7 +1493,7 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	# team
 	var team_slot := Control.new()
 	team_slot.custom_minimum_size = Vector2(64, 28)
-	grid.add_child(team_slot)
+	cols[5] = team_slot
 	var team := _make_option(team_slot)
 	team.add_item(tr("None"))
 	for t in range(1, 5):
@@ -1502,7 +1505,7 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	# 0.28 PerPlayer/AIConfigButton.js: a gear on AI rows opens the AI Configuration dialog.
 	var ai_slot := Control.new()
 	ai_slot.custom_minimum_size = Vector2(32, 28)
-	grid.add_child(ai_slot)
+	cols[3] = ai_slot
 	var gear := Button.new()
 	gear.name = "AIConfigButton"
 	gear.custom_minimum_size = Vector2(28, 28)
@@ -1516,7 +1519,7 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	# player colour (0 A.D. PlayerColor: picking a colour in use swaps the two players' colours)
 	var col_slot := Control.new()
 	col_slot.custom_minimum_size = Vector2(56, 28)
-	grid.add_child(col_slot)
+	cols[1] = col_slot
 	var col := _make_option(col_slot)
 	for c in range(PLAYER_COLORS.size()):
 		col.add_icon_item(_color_icon(c), "")
@@ -1528,6 +1531,8 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	var hide_col := _is_scenario() or _mp_role == "client"
 	col.disabled = hide_col
 	col_slot.modulate.a = 0.0 if hide_col else 1.0
+	for c in cols:
+		grid.add_child(c)
 
 ## PlayerAssignment.onSelectionChange (single player). Picking yourself moves you here:
 ## a slot that was an AI hands its AI to the slot you left (else that one becomes
