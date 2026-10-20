@@ -185,6 +185,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_gather_nearest"), &RtsoMain::debug_gather_nearest);
 	ClassDB::bind_method(D_METHOD("debug_trade_route_clicks"), &RtsoMain::debug_trade_route_clicks);
 	ClassDB::bind_method(D_METHOD("debug_trade_tip", "market"), &RtsoMain::debug_trade_tip);
+	ClassDB::bind_method(D_METHOD("debug_trade_click", "market", "queued"), &RtsoMain::debug_trade_click);
 	ClassDB::bind_method(D_METHOD("debug_tutorial_panel"), &RtsoMain::debug_tutorial_panel);
 	ClassDB::bind_method(D_METHOD("debug_guard_step", "step"), &RtsoMain::debug_guard_step);
 	ClassDB::bind_method(D_METHOD("debug_train_buttons", "btype"), &RtsoMain::debug_train_buttons);
@@ -268,6 +269,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_lobby_join_pressed"), &RtsoMain::_on_lobby_join_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_start_pressed"), &RtsoMain::_on_lobby_start_pressed);
 	ClassDB::bind_method(D_METHOD("is_net_pregame"), &RtsoMain::is_net_pregame);
+	ClassDB::bind_method(D_METHOD("net_loading_hold"), &RtsoMain::net_loading_hold);
 	ClassDB::bind_method(D_METHOD("get_net_setup_state"), &RtsoMain::get_net_setup_state);
 	ClassDB::bind_method(D_METHOD("push_net_setup"), &RtsoMain::push_net_setup);
 	ClassDB::bind_method(D_METHOD("assign_net_client", "client", "slot"), &RtsoMain::assign_net_client);

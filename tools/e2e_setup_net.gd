@@ -268,6 +268,19 @@ func run() -> void:
 	ms.seed = 1234
 	ms.rated = true
 	ms.cheats = false
+	# LoadingPage: before the host's first setup the client sees only "Loading".
+	client.state["version"] = 0
+	page = await open_page(client)
+	var loading_page: Control = page.get_node_or_null("LoadingPage")
+	check(loading_page and loading_page.visible and not page.get_node("VBox").visible
+		and loading_page.get_node("Text").text == "Loading map data. Please wait…",
+		"a client waits on \"Loading map data. Please wait…\" for the host's setup")
+	client.state["version"] = 2
+	client.net_setup_changed.emit()
+	await frames(2)
+	check(not loading_page.visible and page.get_node("VBox").visible, "the setup page shows once it arrives")
+	page.queue_free()
+	await frames(2)
 	page = await open_page(client)
 	check(page._mp_role == "client", "a client's page")
 	start = page.get_node("VBox/HBox/Right/Buttons/BtnStart")

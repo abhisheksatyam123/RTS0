@@ -161,10 +161,9 @@ public:
 	// starts with is sent that world as a rejoiner is, and takes the seat given
 	// in seats (client id -> player, 0xFF watches); the host plays seats[0].
 	// No turn runs until each of them has loaded or left (0 A.D. waits for
-	// every client's NMT_LOADED_GAME), or SAVED_GAME_WAIT_MS has passed.
+	// every client's NMT_LOADED_GAME), with no time limit.
 	void start_saved_game(const std::map<uint32_t, uint8_t> &seats, const Simulation *sim);
 	bool saved_game() const { return saved_game_; }
-	static constexpr uint64_t SAVED_GAME_WAIT_MS = 120000;
 	// Host: the clients a saved game still waits on.
 	const std::set<uint32_t> &saved_game_waiting() const { return saved_waiting_; }
 	bool rejoin_requested() const { return rejoin_wanted_; }

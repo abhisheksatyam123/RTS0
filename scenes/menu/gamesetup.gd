@@ -2536,6 +2536,7 @@ func _init_net() -> void:
 		net_main.net_setup_refused.connect(_show_error)
 	if _mp_role == "client":
 		_on_net_setup_changed()
+		_render_loading()
 	else:
 		_host_write_setup(true)
 		refresh_slots()
@@ -2882,9 +2883,49 @@ func _host_write_setup(force: bool) -> void:
 			break
 	net_main.push_net_setup()
 
+## LoadingPage: a client sees "Loading map data. Please wait…", not its own
+## last settings, until the host's first setup arrives (GameSettingsController's
+## loading state); the setup page shows only then.
+var _loading_page: Control
+func _net_loading() -> bool:
+	return _mp_role == "client" and int(_net_state.get("version", 0)) <= 0
+
+func _render_loading() -> void:
+	var loading := _net_loading()
+	if loading and _loading_page == null:
+		_loading_page = Panel.new()
+		_loading_page.name = "LoadingPage"
+		_loading_page.theme = MODERN.theme()
+		_loading_page.theme_type_variation = "ModernDialog"
+		_loading_page.set_anchors_preset(Control.PRESET_CENTER)
+		_loading_page.offset_left = -190
+		_loading_page.offset_right = 190
+		_loading_page.offset_top = -80
+		_loading_page.offset_bottom = 80
+		var title := Label.new()
+		title.text = tr("Loading")
+		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		title.position = Vector2(62, -16)
+		title.size = Vector2(256, 32)
+		_loading_page.add_child(title)
+		var text := Label.new()
+		text.name = "Text"
+		text.text = tr("Loading map data. Please wait…")
+		text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		text.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_loading_page.add_child(text)
+		add_child(_loading_page)
+	if _loading_page:
+		_loading_page.visible = loading
+	$VBox.visible = not loading
+
 func _on_net_setup_changed() -> void:
 	_net_state = net_main.get_net_setup_state()
 	var ms := get_node("/root/MatchSettings")
+	_render_loading()
+	if _net_loading():
+		return
 	if _mp_role == "client":
 		var src := {}
 		for k in PERSISTED_KEYS:

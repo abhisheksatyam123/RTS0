@@ -460,6 +460,9 @@ public:
 	void _on_lobby_seat_selected(int index, int client);
 	void apply_net_game_start();
 	void show_net_loading_page(const std::string &map_id);
+	// The loading page stays while a client loads the host's saved game (its
+	// world comes over the network after NMT_SAVED_GAME_START).
+	bool net_loading_hold() const { return net_saved_loading_ && !net_game_started_ && !net_disconnected_; }
 	void apply_match_settings();
 	void sync_victory_selector();
 	void apply_game_setup(const rtso::GameSetupParams &setup);
@@ -660,6 +663,7 @@ public:
 	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip, const char **cursor = nullptr);
 	Dictionary debug_trade_route_clicks();
 	Dictionary debug_trade_tip(int64_t market);
+	Dictionary debug_trade_click(int64_t market, bool queued);
 	Dictionary debug_tutorial_panel() const { return tutorial_panel_.debug_state(); }
 	Dictionary debug_guard_step(int step);
 	PackedStringArray debug_train_buttons(int btype);
@@ -846,7 +850,6 @@ public:
 	Dictionary debug_unset_rally_step(int step);
 	// Tests: `building_id`'s owner sets its rally point at (x, z) (no lockstep).
 	void debug_set_rally(int64_t building_id, float x, float z);
-	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
 	// 0.28 placementTooltip (input.js updateBuildingPlacementPreview): why the structure or
 	// wall can't go where the cursor is, or a wall's cost; wall_fail_tip_ ("Cannot build wall
@@ -895,7 +898,6 @@ public:
 		d["names"] = names;
 		return d;
 	}
-	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 	void _on_diplo_spy_pressed(int player_idx);
@@ -1175,6 +1177,7 @@ private:
 	Label *net_status_label_ = nullptr;
 	RichTextLabel *net_loading_clients_ = nullptr; // loadingClientsText
 	bool net_disconnected_ = false; // session.js g_Disconnected
+	bool net_saved_loading_ = false; // client: loading the host's saved game under the loading page
 	void update_net_status_overlay();
 	void _on_disconnected_exit_pressed();
 	// 0 A.D. gameStateNotifications (overlay.netwarnings): network.js's
