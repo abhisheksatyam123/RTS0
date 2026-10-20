@@ -316,6 +316,24 @@ TechnologyManager.js, Researcher.js, data/technologies (about 30 techs row by ro
 | U1 | A captured structure's research list followed the captor's civ; Researcher.js reads the structure's own template (cart/dock drops warship_health, cart/super_dock lists nine dock techs, han/civil_centre drops the spy techs, han/forge archer_attack_spread) and the owner's civ only filters it | low | Fixed |
 
 Checked and matching: requirements (all/any, class counts without foundations, civ/notciv), pairs and autoResearch, supersedes chains, cost multipliers (library, team bonuses, heroes, catafalques) and cancel refunds, unit researchers, civ bonus autoresearch, tech modifications, own-civ researcher lists, structure auras (temples, wonders, theatre, pillars, monuments, regen and trickle auras).
+### Petra structures and research, thirteenth 0.28 pass (2026-10-20)
+
+researchManager.js, constructionPlan.js findGoodPosition and headquarters.js building decisions against RTS0's Petra, after passes 4-6 and the audits in docs/archive. Owner: E (queue mechanics: C).
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| X1 | A fortress could be laid while City was still researching; canBuild's template.available needs phase_city | medium | Fixed |
+| X2 | A Wonder could be laid in the Town phase near the population cap | low | Fixed (all Petra canBuild checks now test the structure's phase) |
+| X3 | "No room" marks were set while placing, before the plan was paid; 0.28 searches only in start(), after the queue can afford it | medium-low | Open (C, queue start) |
+| X4 | Towers and fortresses with no frontier spot never counted as missing room, so they never led to a new base | low-medium | Fixed |
+| X5 | Forge, temple and Town-phase structures don't wait for their queue's earlier plans; one merged want per queue starts whatever it can cover | low-medium | Open (C, queue order) |
+| X6 | At placement, 0.28 sends the first unit able to build; RTS0 sends idle builders to some structures and none to others | low | Open |
+| X7 | The house priority's free slots counted every foundation's population bonus; 0.28 counts house foundations at the house's bonus | low | Fixed |
+| X8 | Research is skipped while the minorTech queue is paused; 0.28 still picks and queues | low | Open |
+| X9 | Town-phase houses are capped at 3 foundations rather than 3 plans | low | Open |
+
+Checked and matching: research lists and their priorities, findGoodPosition's influences and gaps, houseNeeded thresholds, market, temple, forge, wonder and defense timing, base expansion.
+
 ### Structure runtime, twelfth 0.28 pass (2026-10-20)
 
 BuildingAI, Trainer, ProductionQueue, Foundation, Repairable, Capturable, TerritoryDecay, ResourceTrickle and Pack against RTS0. Owner: E.

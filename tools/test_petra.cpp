@@ -187,9 +187,12 @@ static void test_roster_army() {
 		s->complete_research(0, TECH_TOWER_MURDERHOLES);
 		bool hero = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		bool advanced = false, arsenal = false;
-		// 45 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
+		// 55 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
 		// the city phase around minute 15, as in 0 A.D., and its city army takes a while longer.
-		for (float t = 0.0f; t < 45.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
+		// Macedonian heroes come from the fortress, which Petra can only lay once City is done
+		// (canBuild's template.available), so the first attack after City may find no hero
+		// to train and drop it (attackPlan.js:676-681); a later one carries it.
+		for (float t = 0.0f; t < 55.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (s->ticks_ % 20 != 0) continue; // once a second
 			// A strong economy can raze the idle player before its siege is out: give
@@ -228,7 +231,7 @@ static void test_roster_army() {
 				else if (u.unit_type[i] == UNIT_CATAPULT || u.unit_type[i] == UNIT_SIEGE_RAM || u.unit_type[i] == UNIT_BOLT_SHOOTER) siege = true;
 			}
 		}
-		std::printf("  %s by 45 min: phase %d, hero %s, champions %s, siege %s, siege tower %s, siege moves packed %s, fires unpacked %s, arsenal %s, %s %s\n",
+		std::printf("  %s by 55 min: phase %d, hero %s, champions %s, siege %s, siege tower %s, siege moves packed %s, fires unpacked %s, arsenal %s, %s %s\n",
 		            civ_info((Civilization)civ).name, s->petra_phase(), hero ? "yes" : "no", champion ? "yes" : "no",
 		            siege ? "yes" : "no", tower ? "yes" : "no",
 		            packed_moved ? "yes" : "no", unpacked_fired ? "yes" : "no", arsenal ? "yes" : "no",
@@ -5888,6 +5891,29 @@ static void test_build_defenses() {
 	at(1300.0f);
 	s->petra_build_defenses();
 	CHECK(s->petra_defense_build_.pending == 0, "the second stone tower waits 1.1 x towerLapseTime");
+
+	// A fortress is tried while the City phase is researched, but canBuild's template.available
+	// needs phase_city (Identity/Requirements), so none is laid before City.
+	for (int k = 0; k < 30; ++k) s->spawn_unit(-40.0f + (float)(k % 6), -40.0f + (float)(k / 6), 1, UNIT_SPEARMAN);
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) {
+			ProductionOrder city;
+			city.unit_type = UNIT_TYPE_TECH;
+			city.tech = TECH_PHASE_CITY;
+			city.timer = 0.0f;
+			city.duration = 60.0f;
+			b.queue.push_back(city);
+			break;
+		}
+	CHECK(s->research_check(1, TECH_PHASE_CITY) == Simulation::TECH_ERR_IN_PROGRESS, "City is being researched");
+	at(3000.0f);
+	s->petra_build_defenses();
+	CHECK(s->petra_defense_build_.pending != BLD_FORTRESS + 1, "no fortress plan before the City phase");
+	s->petra_defense_build_.pending = 0;
+	s->players_[1].phase = 3;
+	at(4000.0f);
+	s->petra_build_defenses();
+	CHECK(s->petra_defense_build_.pending == BLD_FORTRESS + 1, "a fortress is queued in the City phase");
 }
 
 // headquarters.js findDefensiveLocation: a tower goes on our frontier at the spot nearest an enemy
