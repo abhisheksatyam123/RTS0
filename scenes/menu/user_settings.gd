@@ -487,6 +487,8 @@ func _gain_db(key: String) -> float:
 
 func _apply_sound() -> void:
 	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Master"), _gain_db("sound.mastergain"))
+	# -nosound and -quickstart (Config.cpp g_DisableAudio): no sound at all.
+	AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), cfg.is_audio_disabled())
 	for bus in BUSES:
 		var i := AudioServer.get_bus_index(bus)
 		if i >= 0:
@@ -559,6 +561,14 @@ func _apply_window() -> void:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 	elif not windowed and not full:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	# xres / yres (-xres=N -yres=N, or -conf=xres:N): the window's size; 0 keeps it.
+	var xres := int(cfg.get_number("xres"))
+	var yres := int(cfg.get_number("yres"))
+	if windowed and (xres > 0 or yres > 0):
+		var size := DisplayServer.window_get_size()
+		var want := Vector2i(xres if xres > 0 else size.x, yres if yres > 0 else size.y)
+		if want != size:
+			DisplayServer.window_set_size(want)
 	var grab := cfg.get_bool("window.mousegrabinwindowmode") if windowed else cfg.get_bool("window.mousegrabinfullscreen")
 	if grab and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
 		Input.mouse_mode = Input.MOUSE_MODE_CONFINED
