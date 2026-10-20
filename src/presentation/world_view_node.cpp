@@ -6,6 +6,7 @@
 #include "session_audio.h"
 #include "user_config.h"
 #include "formation_variants.h"
+#include "../graphics/assets/instance_params.h"
 #include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
 #include <chrono>
@@ -777,7 +778,7 @@ void RtsoWorldView::load_garrison_flags() {
 	if (!f.is_valid()) return;
 	Dictionary root = JSON::parse_string(f->get_as_text());
 	Dictionary models = root.get("models", Dictionary());
-	Ref<Shader> shader = ResourceLoader::get_singleton()->load("res://shaders/garrison_flag.gdshader");
+	Ref<Shader> shader = rtso::load_instanced_shader("res://shaders/garrison_flag.gdshader");
 	Ref<PackedScene> scene = ResourceLoader::get_singleton()->load("res://assets/models/props/garrison_flag.glb");
 	if (!shader.is_valid() || !scene.is_valid()) return;
 	if (Node *inst = scene->instantiate()) {
@@ -980,8 +981,10 @@ void RtsoWorldView::update_garrison_flag(BuildingVis &v, const String &model_id,
 		v.flag->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_ON);
 		v.root->add_child(v.flag);
 	}
-	v.flag->set_material_override(flag_mats_[fp->style]);
-	v.flag->set_instance_shader_parameter("player_color", owner_color);
+	// Under Compatibility the flag draws its own copy of the style's material.
+	if (!rtso::is_material_or_copy(v.flag->get_material_override(), flag_mats_[fp->style]))
+		v.flag->set_material_override(flag_mats_[fp->style]);
+	rtso::set_instance_param(v.flag, "player_color", owner_color);
 	const float fs = b_scale * fp->scale;
 	v.flag->set_transform(Transform3D(Basis().scaled(Vector3(fs, fs, fs)),
 			Vector3(0, y_offset, 0) + fp->pos * b_scale));
@@ -3922,10 +3925,11 @@ void RtsoWorldView::refresh_silhouettes() {
 	if (silhouette_gen_ == rtso::user_config::generation()) return;
 	silhouette_gen_ = rtso::user_config::generation();
 	if (!silhouette_mat_.is_valid()) {
-		Ref<Shader> sh = ResourceLoader::get_singleton()->load("res://shaders/silhouette.gdshader");
+		Ref<Shader> sh = rtso::load_instanced_shader("res://shaders/silhouette.gdshader");
 		if (sh.is_valid()) {
 			silhouette_mat_.instantiate();
 			silhouette_mat_->set_shader(sh);
+			silhouette_mat_->set_shader_parameter("gl_depth", rtso::gl_compatibility());
 		}
 	}
 	const bool on = rtso::user_config::get_bool("silhouettes") && silhouette_mat_.is_valid() && !cinema_playing_;
@@ -3946,8 +3950,9 @@ void RtsoWorldView::refresh_silhouettes() {
 void RtsoWorldView::set_silhouette(Node *n, const Color &c) {
 	if (!n) return;
 	if (MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(n)) {
-		mi->set_material_overlay(silhouettes_ ? Ref<Material>(silhouette_mat_) : Ref<Material>());
-		if (silhouettes_) mi->set_instance_shader_parameter("silhouette_color", c);
+		const Ref<Material> overlay = silhouettes_ ? Ref<Material>(silhouette_mat_) : Ref<Material>();
+		if (!rtso::is_material_or_copy(mi->get_material_overlay(), overlay)) mi->set_material_overlay(overlay);
+		if (silhouettes_) rtso::set_instance_param(mi, "silhouette_color", c);
 	}
 	for (int i = 0; i < n->get_child_count(); ++i) set_silhouette(n->get_child(i), c);
 }

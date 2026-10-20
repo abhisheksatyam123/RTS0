@@ -486,6 +486,19 @@ public:
 	// The next waypoint of the short path unit i walks round something on toward (aim_x, aim_z)
 	// (UnitMotion m_ShortPath, the unit motion overlay): what its ShortPathMemo keeps for that aim.
 	bool unit_short_waypoint(size_t i, float aim_x, float aim_z, float *wx, float *wz) const;
+	// Unit i's range queries (CCmpRangeManager's m_Queries, the range overlay): UnitAI's
+	// LosRangeQuery over GetQueryRange(IID_Attack) by stance, enabled while the unit is idle,
+	// attack-walking, patrolling or guarding, and a healer's LosHealRangeQuery
+	// (GetQueryRange(IID_Heal)). max 0: no query.
+	struct RangeQuery {
+		float min = 0.0f, max = 0.0f; // the attack query
+		float heal_max = 0.0f;        // the heal query (healers)
+		bool enabled = false;
+	};
+	RangeQuery unit_range_query(size_t i) const;
+	// Cells a side of the grid the range queries look units up in (CCmpRangeManager's
+	// m_Subdivision), spread over the whole map.
+	static int unit_grid_res();
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
 	// A relic (catafalque) has no Health, so no attack but Capture reaches it.
 	bool unit_can_target(size_t i, size_t j) const {
@@ -2708,9 +2721,9 @@ private:
 	bool corral_has_room(const Building &b) const; // penned animals and garrisoned units under GarrisonHolder/Max
 	// The search behind pick_spawn_point and siege_spawn_point: the spots round a footprint centred
 	// on (cx, cz) and turned by rot, a square with half extents along_u (the front) and along_v, or a
-	// circle of radius circle_r when that is above 0. dry_ground also rejects spots under the water line.
+	// circle of radius circle_r when that is above 0.
 	bool pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
-			bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid, bool dry_ground,
+			bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid,
 			float &out_x, float &out_z) const;
 	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
 	void tick_garrison_holders();
