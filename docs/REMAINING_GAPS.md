@@ -193,7 +193,7 @@ diplomacyManager.js, chatHelper.js and their callers were checked line by line. 
 | D1 | Unit and entity counts (donor rule, 40% ally test, 50-unit betrayal gate, tribute size) left out garrisoned units and livestock; 0.28's getEntities/getOwnUnits count them | low-medium | Fixed |
 | D2 | A running raid on a player we make peace with isn't called off (cancelAttacksAgainstPlayer covers Raid) | low | Fixed |
 | D3 | A one-way alliance at game start gets a refusal; 0.28's init handles it as an ally request (40% accept or tribute) | low | Fixed |
-| D4 | The cooperative trait ignores allies' attacks on Gaia animals and enemy structures in our land | low | Open |
+| D4 | The cooperative trait ignores allies' attacks on Gaia animals and enemy structures in our land | low | Fixed |
 | D5 | After a Gaia relic pick the current enemy falls back to a started attack's target; 0.28 keeps 0 | low | Fixed (diplomacy side). Open for attacks: 0.28's getEnemyPlayer then keeps returning Gaia for later non-huge attacks, RTS0 picks a player |
 | D6 | Another AI's tribute request was kept and paid later once funds came in; 0.28 answers it once and drops it if it can't pay | low | Fixed |
 | D7 | Gifts to several allies were each worked out from what the previous gift left; 0.28 works every gift out from the same starting total | low | Fixed |

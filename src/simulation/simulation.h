@@ -3624,6 +3624,9 @@ private:
 	// filled by tick_capture and rebuild_territory, read by every Petra this tick and cleared after
 	// it, so never saved.
 	std::vector<uint32_t> petra_decay_events_, petra_decay_scratch_;
+	// This tick's hits on structures and animals (target, attacker): 0.28's Attacked events
+	// for them, kept with the units' attacked_by ones. Cleared every tick, so never saved.
+	std::vector<std::pair<uint32_t, uint32_t>> petra_hit_events_;
 	void rebuild_territory_grids();
 	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, std::vector<int> &incoming) const;
 	std::vector<int> petra_garrison_incoming() const;
