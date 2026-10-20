@@ -45,12 +45,11 @@ def main() -> int:
         return 1
     for b in bad:
         print("FAIL:", b)
-    # The script's own verdict: Godot 4.3's GL driver can crash freeing static
-    # texture caches after the RenderingServer is gone (exit 139), after the run.
-    finished = "FAILURES: 0" in p.stdout
-    if not finished:
-        print("FAIL: the script did not finish cleanly (exit %d)" % p.returncode)
-    ok = finished and not bad
+    # A crash on exit (rc 139) counts too: static Godot objects destroyed after
+    # the engine shut down did that once (#1260).
+    if p.returncode != 0:
+        print("FAIL: Godot exited with", p.returncode)
+    ok = p.returncode == 0 and "FAILURES: 0" in p.stdout and not bad
     print("RESULT:", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 

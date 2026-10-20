@@ -115,8 +115,32 @@ func _setup_data() -> void:
 		if not categories[c]["hotkeys"].is_empty():
 			category_keys.append(c)
 
+## translateWithContext("hotkey metadata", name): the list, the filter and the
+## picker's conflicts all use the translated name.
 func _display_name(h: String) -> String:
-	return meta_hotkeys[h]["name"] if meta_hotkeys.has(h) else h
+	return tr(str(meta_hotkeys[h]["name"])) if meta_hotkeys.has(h) else h
+
+## A title across a dialog's top edge (size 50%-128 -16 50%+128 16), outside the
+## container's layout.
+static func _edge_title(dialog: Control, text: String) -> Label:
+	var anchor := Control.new()
+	anchor.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dialog.add_child(anchor)
+	var title := Label.new()
+	title.name = "Title"
+	title.text = text
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.anchor_left = 0.5
+	title.anchor_right = 0.5
+	title.offset_left = -128
+	title.offset_right = 128
+	title.offset_top = -16
+	title.offset_bottom = 16
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_outline_color", Color.BLACK)
+	title.add_theme_constant_override("outline_size", 4)
+	anchor.add_child(title)
+	return title
 
 ## formatHotkeyCombinations: the names 0.28 shows (KeyName.cpp), shortest first.
 func _format(combos) -> String:
@@ -149,11 +173,7 @@ func _build_ui() -> void:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 8)
 	margin.add_child(vb)
-	var title := Label.new()
-	title.text = tr("Hotkeys")
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 20)
-	vb.add_child(title)
+	_edge_title(dialog, tr("Hotkeys"))
 
 	var top := HBoxContainer.new()
 	vb.add_child(top)
@@ -281,10 +301,7 @@ func _build_picker() -> void:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 6)
 	margin.add_child(vb)
-	picker_title = Label.new()
-	picker_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	picker_title.add_theme_font_size_override("font_size", 20)
-	vb.add_child(picker_title)
+	picker_title = _edge_title(panel, "")
 	picker_desc = Label.new() # hotkeyPickerDescHotkey
 	picker_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	picker_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -293,9 +310,13 @@ func _build_picker() -> void:
 	picker_hint.text = tr("Click on any mapping to modify it.\n You may have up to 4 different hotkeys.")
 	picker_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(picker_hint)
+	# HotkeyPicker.js: the slots at top = 120 + 60 * i, 30 px tall.
+	var slots := VBoxContainer.new()
+	slots.add_theme_constant_override("separation", 30)
+	vb.add_child(slots)
 	for i in SLOTS:
 		var row := HBoxContainer.new()
-		vb.add_child(row)
+		slots.add_child(row)
 		var nb := Label.new()
 		nb.text = "#%d" % i
 		nb.custom_minimum_size = Vector2(22, 0)
@@ -315,8 +336,10 @@ func _build_picker() -> void:
 		del.pressed.connect(func(): picker_combos[i] = ""; _render_picker())
 		row.add_child(del)
 		slot_delete.append(del)
-		var conf := Label.new()
-		conf.add_theme_color_override("font_color", Color8(255, 153, 0))
+		var conf := RichTextLabel.new()
+		conf.bbcode_enabled = true
+		conf.fit_content = true
+		conf.scroll_active = false
 		conf.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		conf.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		conf.custom_minimum_size = Vector2(180, 0)
@@ -375,7 +398,8 @@ func _render_picker() -> void:
 			for n in cfg.get_conflicts(picker_combos[i]):
 				if n != picker_name:
 					conflicts.append(_display_name(n))
-		slot_conflicts[i].text = tr("May conflict with: ") + ", ".join(conflicts) if conflicts.size() > 0 else ""
+		# Only the prefix in orange (255 153 0).
+		slot_conflicts[i].text = "[color=#ff9900]%s[/color]%s" % [tr("May conflict with: "), ", ".join(conflicts)] if conflicts.size() > 0 else ""
 		slot_conflicts[i].visible = conflicts.size() > 0
 	for b in picker_buttons:
 		b.disabled = entering != -1
