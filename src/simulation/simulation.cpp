@@ -5472,6 +5472,7 @@ static uint32_t trade_market_id(float bits) { uint32_t id; std::memcpy(&id, &bit
 
 void Simulation::order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
 		bool queued, const std::vector<std::pair<float, float>> &route) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::TRADE, unit_ids, count, market_a_id);
 	if (count == 0 || market_a_id == 0 || market_b_id == 0 || market_a_id == market_b_id) return;
 	auto itA = building_id_to_idx_.find(market_a_id);
 	auto itB = building_id_to_idx_.find(market_b_id);
@@ -5582,6 +5583,7 @@ void Simulation::order_trade_auto(const uint32_t *unit_ids, size_t count) {
 }
 
 void Simulation::cmd_move(const uint32_t *unit_ids, size_t count, float tx, float tz) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::WALK, unit_ids, count, 0, tx, tz);
 	if (count == 0) return;
 	// 0 A.D. Commands.js "walk": GetFormationUnitAIs splits the units into formation
 	// controllers and individuals. One unit on its own always leaves its formation.
@@ -5720,6 +5722,7 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 }
 
 void Simulation::cmd_stop(const uint32_t *unit_ids, size_t count) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::STOP, unit_ids, count);
 	formation_stop(unit_ids, count); // a stopped formation stops walking (UnitAI Order.Stop)
 	for (size_t i = 0; i < count; ++i) {
 		int32_t idx = lookup_unit(unit_ids[i]);
@@ -5747,6 +5750,7 @@ void Simulation::cmd_stop(const uint32_t *unit_ids, size_t count) {
 }
 
 void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint32_t resource_id, bool queued, bool force) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::GATHER, unit_ids_in, count_in, resource_id);
 	auto rit = res_id_to_idx_.find(resource_id);
 	if (rit == res_id_to_idx_.end()) return;
 	size_t ridx = rit->second;
@@ -5812,6 +5816,7 @@ void Simulation::order_gather_near(const uint32_t *unit_ids_in, size_t count_in,
 }
 
 void Simulation::order_attack(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_unit_id, bool queued) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::ATTACK, unit_ids_in, count_in, target_unit_id);
 	int32_t tidx = lookup_unit(target_unit_id);
 	if (tidx < 0) return;
 	// A relic has no Health: its only attack is Capture.
@@ -5850,6 +5855,7 @@ void Simulation::attack_unit_one_by_one(const uint32_t *unit_ids, size_t count, 
 
 void Simulation::order_attack_building(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_building_id,
 		bool queued, bool allow_capture) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::ATTACK, unit_ids_in, count_in, target_building_id);
 	auto bit = building_id_to_idx_.find(target_building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	const Building &b = buildings_[bit->second];
@@ -5948,6 +5954,7 @@ void Simulation::attack_building_one_by_one(const uint32_t *unit_ids, size_t cou
 }
 
 void Simulation::order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued, bool beach_goal) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::WALK, unit_ids, count, 0, tx, tz);
 	UnitOrder o; o.kind = ORDER_WALK; o.flags = ORDER_FLAG_FORCE; o.x = tx; o.z = tz;
 	const std::vector<uint32_t> now = split_queued(unit_ids, count, o, queued);
 	beach_goal_ = beach_goal;
@@ -5963,6 +5970,7 @@ void Simulation::order_walk(const uint32_t *unit_ids, size_t count, float tx, fl
 // switches it to aggressive (nor patrol to defensive).
 void Simulation::order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
 		bool queued, bool units_only, bool allow_capture, uint8_t avoid) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::ATTACK_WALK, unit_ids, count, 0, tx, tz);
 	const uint8_t flags = ORDER_FLAG_FORCE | (units_only ? ORDER_FLAG_UNITS_ONLY : 0) |
 			(allow_capture ? ORDER_FLAG_ALLOW_CAPTURE : 0) | (avoid & (ORDER_AVOID_MASK | ORDER_AVOID_ECONOMY));
 	UnitOrder o; o.kind = ORDER_WALK_AND_FIGHT; o.flags = flags; o.x = tx; o.z = tz;
@@ -5988,6 +5996,7 @@ void Simulation::order_attack_move(const uint32_t *unit_ids, size_t count, float
 // 0 A.D. UnitAI Patrol: walk-and-fight between where the unit stands and (tx, tz), at units only
 // (unit_actions.js g_PatrolTargets ["Unit"]).
 void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::PATROL, unit_ids, count, 0, tx, tz);
 	UnitOrder o; o.kind = ORDER_PATROL; o.flags = ORDER_FLAG_FORCE | ORDER_FLAG_UNITS_ONLY; o.x = tx; o.z = tz;
 	const std::vector<uint32_t> now = split_queued(unit_ids, count, o, queued);
 	// Formations patrol as a whole (FORMATIONCONTROLLER PATROL); the rest walk on their own.
@@ -6024,6 +6033,7 @@ bool Simulation::unit_can_patrol(size_t i) const {
 }
 
 void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count_in, uint32_t building_id, bool queued, bool force) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::REPAIR, unit_ids_in, count_in, building_id);
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) { order_repair_unit(unit_ids_in, count_in, building_id, queued, force); return; }
 	const Building &b = buildings_[bit->second];
@@ -7705,6 +7715,7 @@ void Simulation::unload_sunk_ship(size_t ship) {
 
 void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, uint32_t building_id, bool queued,
 		bool turret) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::GARRISON, unit_ids_in, count_in, building_id);
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	Building &b = buildings_[bit->second];
@@ -16803,6 +16814,7 @@ bool Simulation::cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool loc
 // Guard.js guards any entity: a unit, or a structure (target_unit_id stays 0 then and
 // order_target names the structure). Unit and structure ids share one id space.
 void Simulation::order_guard(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_unit_id, bool queued) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::GUARD, unit_ids_in, count_in, target_unit_id);
 	int32_t tidx = lookup_unit(target_unit_id);
 	const Building *tb = nullptr;
 	if (tidx < 0)
@@ -18153,6 +18165,7 @@ void Simulation::destroy_building(Building &b) {
 }
 
 void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::DELETE, ids, count);
 	// Commands.js delete-entities: Control all units reaches anyone's entities and skips the
 	// undeletable and capture-point checks.
 	const bool control_all = controls_all(player);
@@ -18670,6 +18683,7 @@ bool Simulation::can_return_resource(uint32_t unit_id, uint32_t dropsite_id) con
 }
 
 void Simulation::order_return_resource(const uint32_t *unit_ids_in, size_t count_in, uint32_t dropsite_id, bool queued, bool force) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::RETURN_RESOURCE, unit_ids_in, count_in, dropsite_id);
 	auto bit = building_id_to_idx_.find(dropsite_id);
 	if (bit == building_id_to_idx_.end()) return order_return_to_unit(unit_ids_in, count_in, dropsite_id, queued, force);
 	const Building &b = buildings_[bit->second];
@@ -18709,6 +18723,7 @@ void Simulation::order_return_resource(const uint32_t *unit_ids_in, size_t count
 }
 
 void Simulation::order_heal(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_unit_id, bool queued) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::HEAL, unit_ids_in, count_in, target_unit_id);
 	const int32_t t = lookup_unit(target_unit_id);
 	if (t < 0 || !units_.alive[t]) return;
 	UnitOrder o; o.kind = ORDER_HEAL; o.flags = ORDER_FLAG_FORCE; o.target = target_unit_id;
@@ -19815,6 +19830,7 @@ bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint1
 	for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = cost[r];
 	order.duration = unit_train_seconds(pid, tmpl) * batch_time_multiplier(pid, b.type, count);
 	b.queue.push_back(order);
+	if (record_ai_commands_ && petra_in_turn_) note_ai_command(AiCommandEvent::TRAIN, &b.id, 1, 0, 0.0f, 0.0f);
 	return true;
 }
 
@@ -25085,6 +25101,7 @@ bool Simulation::petra_start_research(uint8_t tech_id) {
 			cmd_cancel_train(petra_pid_, at->id, q);
 		}
 	at->queue.push_back(order);
+	if (record_ai_commands_ && petra_in_turn_) note_ai_command(AiCommandEvent::RESEARCH, &at->id, 1, 0, 0.0f, 0.0f);
 	return true;
 }
 
@@ -33887,6 +33904,7 @@ bool Simulation::slaughters_target(size_t i) const {
 }
 
 void Simulation::order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::GATHER, unit_ids, count, fauna_id);
 	auto it = fauna_id_to_idx_.find(fauna_id);
 	if (it == fauna_id_to_idx_.end()) {
 		order_attack_scenery(unit_ids, count, fauna_id); // the lockstep hunt command names scenery too
@@ -34965,6 +34983,7 @@ bool Simulation::treasure_in_reach(size_t i, uint32_t id) const {
 
 // UnitAI Order.CollectTreasure: walk to the treasure, for units with a TreasureCollector.
 void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::GATHER, unit_ids, count, treasure_id);
 	const Treasure *t = nullptr;
 	for (const auto &tr : treasures_) if (tr.id == treasure_id) t = &tr;
 	if (!t) return;
@@ -35115,6 +35134,7 @@ bool Simulation::can_capture_relic(size_t i, int32_t r) const {
 
 // UnitAI Attack with allowCapture: walk up to the catafalque and keep capturing it.
 void Simulation::order_capture_relic(const uint32_t *unit_ids, size_t count, uint32_t relic_id, bool queued) {
+	AiCommandScope ai_cmd(*this, AiCommandEvent::ATTACK, unit_ids, count, relic_id);
 	const int32_t r = lookup_unit(relic_id);
 	if (!is_relic_unit(r)) return;
 	std::vector<uint32_t> captors;
