@@ -134,9 +134,12 @@ static void check_volcano() {
 	run_to(s, 1.0f);
 	int towers = 0, full = 0;
 	for (const auto &b : s.buildings()) {
-		if (b.team != GAIA_PLAYER || b.type != BLD_TOWER || b.wrecked) continue;
+		if (b.team != GAIA_PLAYER || b.wrecked) continue;
+		CHECK(b.type != BLD_TOWER, "a Gaia defense tower: 0.28's palisades_fort is a sentry tower");
+		if (b.type != BLD_SENTRY_TOWER) continue;
 		++towers;
 		const int cap = s.get_garrison_capacity(b.id);
+		CHECK(cap == 3, "a Wooden Tower holds %d, 0.28's sentry tower 3", cap);
 		if (cap > 0 && s.get_garrison_count(b.id) == cap) ++full;
 	}
 	CHECK(towers > 0, "Extinct Volcano has no Gaia towers");
@@ -939,6 +942,11 @@ static void check_gallic_fields() {
 	const int alive = romans(nullptr);
 	run_to(s, 60.0f + (float)wait / 1000.0f + 0.1f);
 	CHECK(romans(nullptr) >= 2 * size && romans(nullptr) <= alive + 2 * size, "second wave: %d Romans, want %d more", romans(nullptr), 2 * size);
+	// Player.js SetState("defeated"): the trigger points pass to Gaia with everything else.
+	s.defeat_player(1, 0);
+	int gaia_points = 0;
+	for (const TriggerPoint &p : s.triggers_.points) gaia_points += p.owner == GAIA_PLAYER;
+	CHECK(gaia_points == 3, "%d of the defeated player's 3 trigger points went to Gaia", gaia_points);
 	if (failures == before) std::printf("Gallic Fields: a Roman at each point after a minute, %d each after %d ms more: ok\n", size, wait);
 }
 
@@ -1005,6 +1013,13 @@ static void check_elephantine() {
 		odd += !((c & TC_HEALER) || ((c & TC_CITIZENSOLDIER) && (c & TC_INFANTRY)) || ((c & TC_CIVILIAN) && (c & TC_WORKER)));
 	}
 	CHECK(odd == 0, "%d of %zu garrisoned Kushites neither infantry, civilians nor healers", odd, inside.size());
+	// GetTemplateNamesByClasses keeps the Noba skirmishers and macemen (merc_e).
+	int mercs = 0;
+	for (uint32_t id : inside) {
+		const int32_t u = s.lookup_unit(id);
+		mercs += u >= 0 && s.units_.tmpl[u] < CIV_UNIT_TEMPLATE_COUNT && std::strstr(civ_unit_template(s.units_.tmpl[u]).id, "_merc");
+	}
+	CHECK(mercs > 0, "no Kushite mercenaries among %zu garrisoned", inside.size());
 	int defensive = 0, soldiers = 0;
 	for (size_t i = 0; i < s.units_.count; ++i) {
 		if (!s.units_.alive[i] || s.units_.team[i] != GAIA_PLAYER) continue;
