@@ -179,7 +179,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 99; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 100; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
 	static constexpr uint32_t SAVE_VERSION_TRADE_ROUTE = 99; // each trader's route waypoints and leg progress (SetupTradeRoute route, reversed on the way back)
 	static constexpr uint32_t SAVE_VERSION_PROJECTILE_DAMAGE = 98; // each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact); each unit's and animal's previous-turn position (aim velocity); each player's control-all-units flag
 	static constexpr uint32_t SAVE_VERSION_RALLY_COMMANDS = 97; // each rally position's command and unit or treasure
@@ -1206,6 +1207,10 @@ public:
 	// (map_has_team_placement); setup-time only, like the biome.
 	void set_team_placement(int t) { team_placement_ = (uint8_t)((t >= 0 && t < TEAM_PLACEMENT_COUNT) ? t : TEAM_PLACEMENT_RANDOM); }
 	uint8_t team_placement() const { return team_placement_; }
+	// The pattern the map generator placed players by (Random resolved, as 0.28's
+	// PlayerPlacement.pickRandomItems); TEAM_PLACEMENT_RANDOM on maps without the setting.
+	void set_played_team_placement(uint8_t t) { played_team_placement_ = t; }
+	uint8_t played_team_placement() const { return played_team_placement_; }
 	// 0 A.D. Landscape for the Unknown map (RmsGenerator::UNKNOWN_LANDSCAPE_*); setup-time only.
 	void set_map_landscape(int l) { map_landscape_ = (uint8_t)((l >= 0 && l < 16) ? l : 0); }
 	uint8_t map_landscape() const { return map_landscape_; }
@@ -2722,7 +2727,9 @@ private:
 	// GetAttackBonus against it (base multipliers; RTS0 models no tech modification
 	// of bonus multipliers, dead shooter or not, matching every other attack).
 	float projectile_impact_damage(const Projectile &p, const CombatProfile &victim, uint8_t victim_civ, const float res[3]) const;
-	int32_t projectile_hit_fauna(const Projectile &p) const;
+	int32_t projectile_hit_fauna(const Projectile &p, bool aimed_only = false) const;
+	const CombatProfile *projectile_status_profile(const Projectile &p) const;
+	static float predict_time_to_target(float sx, float sz, float speed, float tx, float tz, float vx, float vz);
 	void projectile_hits_fauna(const Projectile &p, size_t f);
 	float unit_damage_to_fauna(size_t i, size_t f) const;
 	void fire_at_fauna(size_t i, size_t f);
@@ -3041,6 +3048,7 @@ private:
 	bool reveal_map_ = false;
 	int biome_override_ = -1; // setup-time only: applied when a random map is generated
 	uint8_t team_placement_ = TEAM_PLACEMENT_RANDOM; // setup-time only, like biome_override_
+	uint8_t played_team_placement_ = TEAM_PLACEMENT_RANDOM; // setup-time only, like team_placement_
 	uint8_t map_landscape_ = 0;                      // setup-time only, like team_placement_
 	uint8_t trigger_difficulty_ = 3;                 // setup-time; the match's copy is triggers_.difficulty
 	uint8_t circular_map_choice_ = 0; // setup-time Circular map choice (set_circular_map_choice)
@@ -3354,6 +3362,19 @@ private:
 		uint32_t tiles = 0;
 	};
 	PetraRoom petra_room_;
+	// tradeManager.js routeProspection: set when an ally's (or our) market or dock is finished,
+	// destroyed or captured, diplomacy changes (checkEvents) or our territory grows by over 960 m²
+	// (headquarters.js:2044); cleared once prospectForNewMarket has looked. RTS0 sees those
+	// events as changes to `sig` (the finished Trade structures we and our allies hold, and the
+	// diplomacy) and to `foundations` (an ally Trade foundation gone, finished or cancelled).
+	struct PetraProspect {
+		bool active = false;
+		bool seen = false; // sig and foundations taken once, so the map's own markets don't count
+		uint32_t sig = 0;
+		std::vector<uint32_t> foundations; // sorted ids
+	};
+	PetraProspect petra_prospect_;
+	void petra_check_trade_events();
 	void petra_set_no_room(uint8_t type);
 	bool petra_no_room(uint8_t type) const;
 	int petra_missing_room_count() const;
@@ -3461,11 +3482,12 @@ private:
 	// researchManager.js: the techs Petra could research now at a structure it owns
 	// (gamestate.js findAvailableTech, phases left out), and one research start.
 	void petra_available_techs(std::vector<uint8_t> &out) const;
-	int petra_accounted_workers() const;
+	int petra_accounted_workers(bool queued = true) const; // false: units alive only (getOwnEntitiesByRole)
 	bool petra_phasing() const;
 	bool petra_start_research(uint8_t tech_id);
 	void petra_research_population_bonus();
 	bool petra_minor_tech_waiting() const;
+	bool petra_has_temple_class() const;
 	void petra_queue_special_tech(uint8_t t);
 	void petra_research_trade_bonus();
 	void petra_manage_military_production(float dt);
@@ -3730,7 +3752,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};

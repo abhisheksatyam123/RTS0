@@ -16715,20 +16715,21 @@
   "scenery": [],
   "structures": [
     {
-      "type": "",
+      "type": "town_center",
       "player": 1,
       "x": 106.31,
       "z": -94.85,
-      "template": "campaign_city_test"
-    },
+      "template": "mace/civil_centre"
+    }
+  ],
+  "units": [
     {
-      "type": "",
+      "type": "hero",
       "player": 1,
       "x": 101.89,
       "z": -91.09,
-      "template": "army_mace_hero_alexander"
+      "template": "mace/hero_alexander_iii"
     }
   ],
-  "units": [],
   "circular": true
 }

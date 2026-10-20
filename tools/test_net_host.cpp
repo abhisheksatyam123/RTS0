@@ -16,8 +16,8 @@
 // 5. 0 A.D. NetServer OnChat with ChatAddressees.isAddressee
 //    (network/chat_routing.h): the host relays an ally, enemy, observer,
 //    private or flare line only to its addressees, and an untagged one to all.
-// 6. Before Start a joiner reuses the lowest free id 1-7 (the setup seats and
-//    lists only clients 0-7), however many came and went; after Start ids stay
+// 6. Before Start a joiner reuses the lowest free id (the setup seats and
+//    lists clients 0 to NET_SETUP_CLIENTS-1), however many came and went; after Start ids stay
 //    unique, since the turn manager still knows a dropped client's id.
 // 7. 0.28 reportConnectionRequestTimeOut: a connect nobody answers gives up
 //    (reason 0) instead of waiting forever.
@@ -109,8 +109,10 @@ int main() {
 		live.back()->startClient("127.0.0.1", port);
 	}
 	const int base = joined;
+	max_id = 0;
 	pump(host, live, 8000, [&] { return joined - base == (int)NET_MAX_CLIENTS; });
 	CHECK(joined - base == (int)NET_MAX_CLIENTS, "NET_MAX_CLIENTS clients connect at once");
+	CHECK(max_id == NET_MAX_CLIENTS && max_id < NET_SETUP_CLIENTS, "with ids 1 to NET_MAX_CLIENTS, all inside the setup's masks");
 	live.push_back(std::make_unique<NetHost>());
 	NetHost &extra = *live.back();
 	extra.setLocalPlayerName("late");

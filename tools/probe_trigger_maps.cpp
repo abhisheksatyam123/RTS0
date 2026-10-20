@@ -648,7 +648,7 @@ int main(int argc, char **argv) {
 				++tick_new_gaia;
 				tick_templates[sp.tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(sp.tmpl).id : "-"]++;
 				if (s.units_.order_kind[i] != ORDER_NONE) ++tick_new_ordered;
-				if (s.units_.action_state[i] == ACTION_GARRISONED) ++tick_new_garrisoned;
+				if (s.units_.action_state[i] == ACTION_GARRISONED || s.turret_height_.count(s.units_.id[i])) ++tick_new_garrisoned;
 				if (wet) ++tick_new_wet;
 				if (off) ++tick_new_off;
 			}
@@ -793,6 +793,8 @@ int main(int argc, char **argv) {
 	const float tend = clock_ms / 1000.0f;
 	for (const Spawned &sp : spawned) {
 		if (sp.t + 60.0f > tend) continue;
+		// Turreted on a wall or garrisoned (Jebel Barkal walls, Danubius towers): never meant to move.
+		if (const int32_t k = s.lookup_unit(sp.id); k >= 0 && (s.turret_height_.count(sp.id) || s.units_.action_state[k] == ACTION_GARRISONED)) continue;
 		++total;
 		if (!sp.moved && !sp.checked_stuck) {
 			if (stuck < 10) {

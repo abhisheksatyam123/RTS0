@@ -162,6 +162,8 @@ Dictionary RtsoMain::match_settings_snapshot(uint32_t seed) const {
 	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) {
 		for (const char *k : kSetupKeys) d[k] = ms->get(k);
 	}
+	// PlayerPlacement.pickRandomItems: Random is recorded as the pattern the map drew.
+	if (sim && sim->played_team_placement()) d["team_placement"] = (int)sim->played_team_placement();
 	d["seed"] = (int64_t)seed;
 	return d;
 }
@@ -839,7 +841,7 @@ void RtsoMain::host_start_saved_game() {
 	// The host's player assignment first (PlayerAssignmentsController: the
 	// page seats clients only in the save's human seats; Unassigned watches).
 	auto assigned = [&](uint32_t c) -> int {
-		if (c >= 8 || !((net_setup_.clients >> c) & 1)) return -2; // not on the page yet
+		if (c >= rtso::NET_SETUP_CLIENTS || !((net_setup_.clients >> c) & 1)) return -2; // not on the page yet
 		for (int k = 0; k < 8; ++k)
 			if (net_setup_.slot_client[k] == (int8_t)c) return is_seat(k) && !taken.count(k) ? k : -2;
 		return -1;

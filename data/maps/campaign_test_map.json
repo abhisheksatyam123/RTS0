@@ -16845,298 +16845,193 @@
   "scenery": [],
   "structures": [
     {
-      "type": "",
+      "type": "temple",
       "player": 8,
       "x": -114.66,
       "z": -44.73,
-      "template": "campaign_religious_test"
+      "template": "mace/temple"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 7,
       "x": -46.4,
       "z": -112.34,
-      "template": "campaign_city_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 1,
       "x": 95.43,
       "z": 18.32,
-      "template": "campaign_city_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 1,
       "x": -102.09,
       "z": -93.31,
-      "template": "campaign_city_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 2,
       "x": 43.05,
       "z": 70.67,
-      "template": "campaign_city_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 4,
       "x": -141.61,
       "z": -1.95,
-      "template": "campaign_city_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 3,
       "x": -46.85,
       "z": 206.61,
-      "template": "campaign_city_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 4,
       "x": -82.46,
       "z": 95.68,
-      "template": "campaign_city_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 5,
       "x": -2.34,
       "z": -4.2,
-      "template": "campaign_city_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 5,
       "x": -195.38,
       "z": 180.27,
-      "template": "campaign_city_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 6,
       "x": -16.38,
       "z": -36.57,
-      "template": "campaign_city_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 6,
       "x": -91.54,
       "z": 44.71,
-      "template": "campaign_city_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 3,
       "x": -74.73,
       "z": -7.4,
-      "template": "campaign_city_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "temple",
       "player": 8,
       "x": -7.8,
       "z": 63.84,
-      "template": "campaign_religious_test"
+      "template": "mace/temple"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 7,
       "x": 52.01,
       "z": 22.95,
-      "template": "campaign_city_minor_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 4,
       "x": 69.88,
       "z": -19.88,
-      "template": "campaign_city_minor_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 7,
       "x": 166.48,
       "z": 26.74,
-      "template": "campaign_city_minor_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 1,
       "x": 173.79,
       "z": -146.76,
-      "template": "campaign_city_minor_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 1,
       "x": 197.86,
       "z": -114.6,
-      "template": "campaign_city_minor_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 2,
       "x": 212.17,
       "z": -7.38,
-      "template": "campaign_city_minor_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 4,
       "x": -47.82,
       "z": -37.7,
-      "template": "campaign_city_minor_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 4,
       "x": -240.01,
       "z": 35.38,
-      "template": "campaign_city_minor_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 1,
       "x": 2.29,
       "z": 96.42,
-      "template": "campaign_city_minor_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 6,
       "x": 94.83,
       "z": 86.66,
-      "template": "campaign_city_minor_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 5,
       "x": 118.24,
       "z": 81.71,
-      "template": "campaign_city_minor_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 5,
       "x": 46.1,
       "z": 155.19,
-      "template": "campaign_city_test"
+      "template": "mace/civil_centre"
     },
     {
-      "type": "",
-      "player": 1,
-      "x": 86.48,
-      "z": 11.89,
-      "template": "army_mace_hero_alexander"
-    },
-    {
-      "type": "",
-      "player": 2,
-      "x": 69.14,
-      "z": 51.35,
-      "template": "army_mace_hero_alexander"
-    },
-    {
-      "type": "",
-      "player": 6,
-      "x": 88.35,
-      "z": 81.31,
-      "template": "army_mace_hero_alexander"
-    },
-    {
-      "type": "",
-      "player": 5,
-      "x": 118.43,
-      "z": 81.75,
-      "template": "army_mace_hero_alexander"
-    },
-    {
-      "type": "",
-      "player": 1,
-      "x": 84.47,
-      "z": 20.54,
-      "template": "army_mace_standard"
-    },
-    {
-      "type": "",
-      "player": 2,
-      "x": 62.18,
-      "z": 51.0,
-      "template": "army_mace_standard"
-    },
-    {
-      "type": "",
+      "type": "town_center",
       "player": 1,
       "x": -182.43,
       "z": 87.49,
-      "template": "campaign_city_test"
-    },
-    {
-      "type": "",
-      "player": 4,
-      "x": -107.21,
-      "z": 165.02,
-      "template": "territory_pull_30"
-    },
-    {
-      "type": "",
-      "player": 4,
-      "x": -125.48,
-      "z": 145.43,
-      "template": "territory_pull_30"
-    },
-    {
-      "type": "",
-      "player": 4,
-      "x": -128.7,
-      "z": 133.32,
-      "template": "territory_pull_30"
-    },
-    {
-      "type": "",
-      "player": 4,
-      "x": -119.07,
-      "z": 161.4,
-      "template": "territory_pull_30"
-    },
-    {
-      "type": "",
-      "player": 4,
-      "x": -120.19,
-      "z": 164.28,
-      "template": "territory_pull_30"
-    },
-    {
-      "type": "",
-      "player": 4,
-      "x": -120.28,
-      "z": 166.8,
-      "template": "territory_pull_30"
-    },
-    {
-      "type": "",
-      "player": 7,
-      "x": 47.2,
-      "z": 14.6,
-      "template": "army_spart_hero_leonidas"
-    },
-    {
-      "type": "",
-      "player": 7,
-      "x": 58.63,
-      "z": 27.67,
-      "template": "army_spart_hero_leonidas"
-    },
-    {
-      "type": "",
-      "player": 7,
-      "x": -54.66,
-      "z": -101.98,
-      "template": "army_spart_hero_leonidas"
+      "template": "mace/civil_centre"
     }
   ],
   "units": [
@@ -17146,6 +17041,69 @@
       "x": 90.29,
       "z": 26.03,
       "template": "athen/support_trader"
+    },
+    {
+      "type": "hero",
+      "player": 1,
+      "x": 86.48,
+      "z": 11.89,
+      "template": "mace/hero_alexander_iii"
+    },
+    {
+      "type": "hero",
+      "player": 2,
+      "x": 69.14,
+      "z": 51.35,
+      "template": "mace/hero_alexander_iii"
+    },
+    {
+      "type": "hero",
+      "player": 6,
+      "x": 88.35,
+      "z": 81.31,
+      "template": "mace/hero_alexander_iii"
+    },
+    {
+      "type": "hero",
+      "player": 5,
+      "x": 118.43,
+      "z": 81.75,
+      "template": "mace/hero_alexander_iii"
+    },
+    {
+      "type": "swordsman",
+      "player": 1,
+      "x": 84.47,
+      "z": 20.54,
+      "template": "mace/champion_infantry_swordsman"
+    },
+    {
+      "type": "swordsman",
+      "player": 2,
+      "x": 62.18,
+      "z": 51.0,
+      "template": "mace/champion_infantry_swordsman"
+    },
+    {
+      "type": "hero",
+      "player": 7,
+      "x": 47.2,
+      "z": 14.6,
+      "template": "spart/hero_leonidas"
+    },
+    {
+      "type": "hero",
+      "player": 7,
+      "x": 58.63,
+      "z": 27.67,
+      "template": "spart/hero_leonidas"
+    },
+    {
+      "type": "hero",
+      "player": 7,
+      "x": -54.66,
+      "z": -101.98,
+      "template": "spart/hero_leonidas"
     }
   ],
   "circular": false

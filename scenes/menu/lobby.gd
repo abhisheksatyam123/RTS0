@@ -18,6 +18,8 @@ extends Control
 
 const GameSetupMp := preload("res://scenes/menu/gamesetup_mp.gd")
 const REFRESH_S := 3.0
+# /events: how long the server may hold a request (below LobbySession's 5 s timeout).
+const EVENTS_WAIT_S := 4.0
 
 var _server: LineEdit
 var _name: LineEdit
@@ -31,6 +33,10 @@ var _setup: GDScript = load("res://scenes/menu/gamesetup.gd")
 var game_sort_column := "Name"
 var game_sort_order := 1
 var _players: Tree
+## PlayerList.xml playersBox: sortable by status, name or rating, name ascending first.
+var player_sort_column := 1
+var player_sort_order := 1
+var _last_players: Variant = null
 var _players_filter: LineEdit
 var _requests_sent := {} # _get_latest: per kind, the last request made
 var _requests_applied := {} # and the last one whose answer was used
@@ -62,6 +68,7 @@ var _host_pwd: LineEdit
 var _status: Label
 var _timer: Timer
 var _chat_last := 0
+var _events_version := -1 # -1: not watching
 var _chat_backlog := true # the first fetch after signing in is the backlog (lobby.history)
 var _chat_replay := false # the first fetch of a page reopened in the session: its chat so far
 var _reconnect_dlg: ConfirmationDialog
@@ -111,6 +118,7 @@ func _ready() -> void:
 	_timer.timeout.connect(_refresh)
 	add_child(_timer)
 	_timer.start()
+	_watch_events()
 	_server.text = LobbySession.address
 	_name.text = LobbySession.player_name if LobbySession.signed_in() else multiplayer_name()
 	LobbySession.kicked.connect(_on_kicked)
@@ -313,8 +321,8 @@ func _build() -> void:
 	_players.columns = 3
 	_players.hide_root = true
 	_players.column_titles_visible = true
-	for i in 3:
-		_players.set_column_title(i, ["Status", "Name", "Rating"][i])
+	_update_player_titles()
+	_players.column_title_clicked.connect(func(c: int, _b: int) -> void: sort_players_by(c))
 	_players.set_column_expand_ratio(1, 2)
 	_players.custom_minimum_size = Vector2(0, 140)
 	_players.item_selected.connect(func() -> void:
@@ -348,6 +356,7 @@ func _build() -> void:
 	var chat_row := HBoxContainer.new()
 	right.add_child(chat_row)
 	_chat_line = _line("", 0)
+	_chat_line.max_length = LobbySession.MAX_CHAT # lobby ChatPanel.xml chatInput max_length
 	_chat_line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_chat_line.placeholder_text = "Chat"
 	_chat_line.text_submitted.connect(func(_t: String) -> void: _on_send_pressed())
@@ -886,6 +895,42 @@ func _register(who: String) -> void:
 			_say("Registration failed: %s" % (obj.get("error", code) if obj is Dictionary else str(code))))
 
 
+## XmppMessages.js: 0 A.D. reads pushed lobby messages every GUI tick. Here the
+## page waits on /events, which answers as soon as the chat, the player list or
+## the game list changes, and refreshes at once; the REFRESH_S timer stays as a
+## fallback (and for servers without /events).
+func _watch_events() -> void:
+	if _events_version >= 0:
+		return # already waiting
+	_events_version = 0
+	_wait_events()
+
+
+func _wait_events() -> void:
+	if not is_inside_tree():
+		_events_version = -1
+		return
+	if not LobbySession.signed_in():
+		get_tree().create_timer(1.0).timeout.connect(_wait_events)
+		return
+	var since := _events_version
+	LobbySession.get_json("/events?since=%d&wait=%s" % [since, EVENTS_WAIT_S], func(code: int, obj) -> void:
+		if not is_inside_tree():
+			_events_version = -1
+			return
+		if code == 404:
+			_events_version = -1 # an older server: the timer alone
+			return
+		if code == 200 and obj is Dictionary:
+			var v := int(obj.get("version", 0))
+			if v != since:
+				_events_version = v
+				_refresh()
+			_wait_events()
+		else:
+			get_tree().create_timer(1.0).timeout.connect(_wait_events))
+
+
 func _refresh() -> void:
 	if not LobbySession.signed_in():
 		return
@@ -932,6 +977,45 @@ static func rating_passes(filter: String, rating: int) -> bool:
 		return true
 	var n := filter.substr(1).to_int()
 	return rating >= n if filter.begins_with(">") else rating < n
+
+
+func sort_players_by(column: int) -> void:
+	if column == player_sort_column:
+		player_sort_order = -player_sort_order
+	else:
+		player_sort_column = column
+		player_sort_order = 1
+	_update_player_titles()
+	if _last_players != null:
+		_on_players(200, _last_players)
+
+
+func _update_player_titles() -> void:
+	for i in 3:
+		_players.set_column_title(i, ["Status", "Name", "Rating"][i]
+			+ (("  ▲" if player_sort_order > 0 else "  ▼") if i == player_sort_column else ""))
+
+
+## PlayerList.js parsePlayer and sortPlayers: status sorts by presence order
+## (Online, Away, Busy) then name, name by lowercase name, rating by number
+## (unrated as 0).
+func sorted_players(list: Array) -> Array:
+	const STATUS_ORDER := ["available", "away", "playing", "offline", "unknown"]
+	var keyed := []
+	for p in list:
+		var key: Variant
+		match player_sort_column:
+			0:
+				var at := STATUS_ORDER.find(str(p.get("status", "available")))
+				key = str(at if at >= 0 else STATUS_ORDER.size() - 1) + str(p.get("name", "")).to_lower()
+			2:
+				key = float(p["rating"]) if p.get("rating") != null else 0.0
+			_:
+				key = str(p.get("name", "")).to_lower()
+		keyed.append([key, p])
+	keyed.sort_custom(func(a: Array, b: Array) -> bool:
+		return a[0] < b[0] if player_sort_order > 0 else a[0] > b[0])
+	return keyed.map(func(e: Array) -> Variant: return e[1])
 
 
 func sort_games_by(column: String) -> void:
@@ -1148,13 +1232,14 @@ func _on_players(code: int, obj) -> void:
 		if code == 0:
 			_say("Lost the lobby server at %s." % LobbySession.address)
 		return
+	_last_players = obj
 	_players.clear()
 	_ratings = {}
 	_moderators = {}
 	_muted = {}
 	var buddy_list := buddies()
 	var top := _players.create_item()
-	for p in obj.get("players", []):
+	for p in sorted_players(obj.get("players", [])):
 		if p.get("rating") != null:
 			_ratings[str(p.get("name", ""))] = p["rating"]
 		var st := str(p.get("status", "available"))
@@ -1169,7 +1254,9 @@ func _on_players(code: int, obj) -> void:
 		it.set_custom_color(0, col)
 		it.set_text(1, (BUDDY_SYMBOL + " " if buddy_list.has(str(p.get("name", ""))) else "") + _nick(str(p.get("name", ""))))
 		it.set_custom_color(1, player_color(str(p.get("name", ""))))
-		it.set_text(2, str(p.get("rating", "")))
+		# PlayerList.js: an unrated player shows "-", in the status colour like the rating.
+		it.set_text(2, str(p["rating"]) if p.get("rating") != null else "-")
+		it.set_custom_color(2, col)
 		it.set_metadata(0, str(p.get("name", "")))
 		if str(p.get("name", "")) == _selected_player:
 			it.select(0)
@@ -1201,6 +1288,10 @@ func _on_chat(code: int, obj) -> void:
 	var me := LobbySession.player_name
 	var notify := not backlog and not replay and me != "" and RtsoUserConfig.new().get_bool("sound.notify.nick")
 	for m in messages:
+		# Two requests in flight (the /events refresh and the timer's, or a
+		# post's) can both carry a line: show each id once.
+		if int(m.get("id", 0)) <= _chat_last:
+			continue
 		var who := str(m.get("from", ""))
 		if notify and who != "" and who != me and str(m.get("text", "")).findn(me) >= 0:
 			notify = false
@@ -1210,7 +1301,7 @@ func _on_chat(code: int, obj) -> void:
 		_chat_log.append_text(_chat_time(m) + (line if line != "" else _format_chat(who, str(m.get("text", "")), me)) + "\n")
 		if str(event.get("kind", "")) == "announcement" and not backlog and not replay:
 			_show_notice(str(event.get("subject", "")), str(event.get("text", "")))
-	_chat_last = int(obj.get("last", _chat_last))
+	_chat_last = maxi(_chat_last, int(obj.get("last", _chat_last)))
 
 
 ## ChatMessageFormat: a system line in grey; a player's line with their name

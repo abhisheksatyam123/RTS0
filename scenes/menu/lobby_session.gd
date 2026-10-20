@@ -12,6 +12,8 @@ signal kicked(text: String)
 ## 0.28 ConnectionHandler askReconnect.
 signal disconnected
 
+# 0.28 lobby ChatPanel.xml chatInput max_length; lobby_server.py MAX_CHAT.
+const MAX_CHAT := 1024
 const HEARTBEAT_S := 10.0
 const REPORT_CHECK_S := 1.0
 const NAT_TICK_S := 0.25

@@ -121,7 +121,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 		if (fired("teamchat") || fired("privatechat")) {
-			chat_open_page();
+			if (!chat_open_page()) return;
 			if (fired("teamchat")) chat_window_.select_team();
 			else chat_window_.select_last_private();
 			return;

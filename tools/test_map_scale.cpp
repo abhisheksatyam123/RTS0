@@ -314,13 +314,11 @@ int main() {
 		sim.set_reveal_map(true);
 		sim.set_fow_viewer(3);
 		for (int i = 0; i < 10; ++i) sim.tick(Simulation::FIXED_STEP);
-		// Mainland is circular: everything inside the circle (m_LosStateRevealed), nothing off it.
+		// Mainland is circular: everything inside the circle's edge band (m_LosStateRevealed), nothing past it.
 		const int res = sim.fow_res();
-		const float cell = 2.0f * sim.map_half() / (float)res;
 		bool all0 = true, all3 = true;
 		for (int i = 0; i < res * res; ++i) {
-			const float cx = -sim.map_half() + ((float)(i % res) + 0.5f) * cell, cz = -sim.map_half() + ((float)(i / res) + 0.5f) * cell;
-			const uint8_t want = sim.off_world(cx, cz) ? Simulation::FOW_UNEXPLORED : Simulation::FOW_VISIBLE;
+			const uint8_t want = sim.los().off_world(i) ? Simulation::FOW_UNEXPLORED : Simulation::FOW_VISIBLE;
 			all0 &= sim.fow_grid(0)[i] == want;
 			all3 &= sim.fow_grid(3)[i] == want;
 		}
@@ -873,6 +871,23 @@ int main() {
 		bad.tiles = {0, 0, 0};
 		sim.set_terrain_tiles(bad);
 		CHECK(sim.terrain_tiles().empty(), "set_terrain_tiles refuses a short tile array");
+	}
+
+	// Player Placement Random (gamesettings PlayerPlacement.pickRandomItems): the generator
+	// draws one of the map's patterns, and the sim reports it for Match Settings; a chosen
+	// pattern is reported as it is, and a map without the setting reports none.
+	{
+		Simulation sim;
+		sim.set_team_placement(TEAM_PLACEMENT_RANDOM);
+		sim.generate_random_map(MAP_MAINLAND, 7, 4, 128.0f);
+		const uint8_t drawn = sim.played_team_placement();
+		CHECK(drawn != TEAM_PLACEMENT_RANDOM && ((map_team_placements(MAP_MAINLAND) >> drawn) & 1), "Random drew %u", drawn);
+		sim.set_team_placement(TEAM_PLACEMENT_RIVER);
+		sim.generate_random_map(MAP_MAINLAND, 7, 4, 128.0f);
+		CHECK(sim.played_team_placement() == TEAM_PLACEMENT_RIVER, "a chosen placement is %u", sim.played_team_placement());
+		sim.set_team_placement(TEAM_PLACEMENT_RANDOM);
+		sim.generate_random_map(MAP_DANUBIUS, 7, 2, 128.0f);
+		CHECK(map_team_placements(MAP_DANUBIUS) || sim.played_team_placement() == TEAM_PLACEMENT_RANDOM, "Danubius reports a placement");
 	}
 
 	if (g_failures) {

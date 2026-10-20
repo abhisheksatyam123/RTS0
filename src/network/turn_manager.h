@@ -71,7 +71,9 @@ public:
 	// slot left is seated as an observer (0xFF, its commands do nothing).
 	void assign_slot_players(const GameSetupParams &setup);
 	// The slot each lockstep client 0..7 plays under `setup` (0xFF: it watches).
-	static void seat_clients(const GameSetupParams &setup, uint8_t out[8]);
+	// present: the clients to seat (bit k); the rest get 0xFF. NMT_GAME_START
+	// carries no such list, so a host seats every connected client explicitly.
+	static void seat_clients(const GameSetupParams &setup, uint8_t out[NET_SETUP_CLIENTS], uint64_t present = ~0ull);
 	void set_local_client_id(uint32_t id) { local_client_id_ = id; }
 
 	// Post or receive remote commands
