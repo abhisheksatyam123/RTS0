@@ -17387,16 +17387,10 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 	const uint8_t st = units_.action_state[i];
 	// TRADE "Attacked": a trader keeps trading.
 	if (st == ACTION_TRADE) return;
-	// FLEEING "Attacked": ignore the one fled from and anyone farther away; a nearer attacker
-	// is answered (a fresh flight from it, or a fight).
-	if (st == ACTION_FLEE && units_.flee_from[i] != 0) {
-		if (attacker_id == units_.flee_from[i]) return;
-		float sx, sz;
-		if (entity_xz(units_.flee_from[i], sx, sz)) {
-			const float px = units_.pos_x[i], pz = units_.pos_z[i];
-			if ((px - ax) * (px - ax) + (pz - az) * (pz - az) > (px - sx) * (px - sx) + (pz - sz) * (pz - sz)) return;
-		}
-	}
+	// FLEEING "Attacked": ignore the one fled from; any other attacker is answered (a fresh
+	// flight from it, or a fight). 0.28's farther-attacker test measures the unit's distance
+	// to itself (msg.data.target is the attacked entity), so it never holds.
+	if (st == ACTION_FLEE && units_.flee_from[i] != 0 && attacker_id == units_.flee_from[i]) return;
 	const uint8_t stance = units_.stance[i];
 	// Forced orders ignore attackers, unless the stance is violent (targetAttackersAlways);
 	// an automatic fight (ORDER_FLAG_INTERRUPTED) is not forced.
