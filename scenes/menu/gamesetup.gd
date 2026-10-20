@@ -165,6 +165,7 @@ const POP_TYPE_WORLD := 2
 const POP_UNLIMITED := 10000
 # 0.28 Sliders/Ceasefire.js (0-45 min), WonderDuration.js and RelicDuration.js (0-60 min,
 # default 20) and RelicCount.js (1 to the number of civs, default 2), one entry a step.
+const SettingSlider := preload("res://scenes/menu/setting_slider.gd")
 static var CEASEFIRES: Array = range(0, 46)
 static var VICTORY_TIMES: Array = range(0, 61)
 static var RELIC_COUNTS: Array = range(1, CIVS.size() + 1)
@@ -726,6 +727,15 @@ func _update_lock_teams_for_pop() -> void:
 		lock.disabled = _is_scenario()
 	_render_mode_checks()
 
+## GameSettingControlSlider: one step per item, read as the dropdowns are.
+func _make_slider(slot: Control) -> SettingSlider:
+	for c in slot.get_children():
+		c.queue_free()
+	var sl := SettingSlider.new()
+	sl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	slot.add_child(sl)
+	return sl
+
 func _make_option(slot: Control) -> RtsoSafeSelect:
 	for c in slot.get_children():
 		c.queue_free()
@@ -836,8 +846,9 @@ func _select_map_id(map_id: String) -> void:
 	_rebuild_map_filter()
 	_want_map_id = map_id
 
+## MapSelection.js: the Select Map dropdown, each map's description on hover.
 func _build_map_list() -> void:
-	var list: ItemList = %MapList
+	var list: RtsoSafeSelect = %MapList
 	list.clear()
 	list.item_selected.connect(_on_map_list_selected)
 	# 0.28 Single/Buttons/MapBrowser.js "Browse Maps" and Panels/MapPreview.js: both open the Map Browser.
@@ -955,12 +966,14 @@ func open_civ_reference(tab: int) -> void:
 func refresh_map_list() -> void:
 	var keep := _want_map_id if not _want_map_id.is_empty() else str(_selected_map().get("id", ""))
 	_want_map_id = ""
-	var list: ItemList = %MapList
+	var list: RtsoSafeSelect = %MapList
 	list.clear()
 	_filtered = filtered_maps(_maps, _map_type, _map_filter_name)
 	_sel_map = 0
 	for i in range(_filtered.size()):
 		list.add_item(str(_filtered[i]["name"]))
+		var desc := str(_filtered[i].get("desc", ""))
+		list.set_item_tooltip(i, tr(desc) if desc != "" else tr("Select a map to play on."))
 		if str(_filtered[i]["id"]) == keep:
 			_sel_map = i
 	if not _filtered.is_empty():
@@ -1032,7 +1045,7 @@ func _apply_map_locks() -> void:
 	_render_mode_checks()
 	var pop: RtsoSafeSelect = %PopCapSlot.get_child(0)
 	var res: RtsoSafeSelect = %ResSlot.get_child(0)
-	var cf: RtsoSafeSelect = %CeasefireSlot.get_child(0)
+	var cf: SettingSlider = %CeasefireSlot.get_child(0)
 	pop.disabled = scen
 	_pop_type_select().disabled = scen
 	res.disabled = scen
@@ -1707,13 +1720,13 @@ func _build_options() -> void:
 	popt.item_selected.connect(_on_pop_type_selected)
 	_make_option(%PopCapSlot)
 	_select_pop(300, false) # 0 A.D. default: 300 per player
-	var cf := _make_option(%CeasefireSlot)
+	var cf := _make_slider(%CeasefireSlot)
 	for c in CEASEFIRES:
 		cf.add_item(tr("No ceasefire") if c == 0 else _minutes(c))
 	cf.select(0)
 	cf.tooltip_text = tr("Set time where no attacks are possible.")
-	var wt := _make_option(%WonderTimeSlot)
-	var rt := _make_option(%RelicTimeSlot)
+	var wt := _make_slider(%WonderTimeSlot)
+	var rt := _make_slider(%RelicTimeSlot)
 	for t in VICTORY_TIMES:
 		wt.add_item(tr("Immediate Victory.") if t == 0 else _minutes(t))
 		rt.add_item(tr("Immediate Victory.") if t == 0 else _minutes(t))
@@ -1721,7 +1734,7 @@ func _build_options() -> void:
 	rt.select(VICTORY_TIMES.find(20))
 	wt.tooltip_text = tr("Minutes until the player has achieved Wonder Victory")
 	rt.tooltip_text = tr("Minutes until the player has achieved Relic Victory.")
-	var rc := _make_option(%RelicCountSlot)
+	var rc := _make_slider(%RelicCountSlot)
 	for c in RELIC_COUNTS:
 		rc.add_item(tr("%d relic") % c if c == 1 else tr("%d relics") % c)
 	rc.select(RELIC_COUNTS.find(2))
@@ -1732,7 +1745,7 @@ func _build_options() -> void:
 		wl.set_item_tooltip(wl.get_item_count() - 1, tr(w[1]))
 	wl.select(0)
 	wl.tooltip_text = tr("Select the water level of this map.")
-	var sr := _make_option(%SeaRiseSlot)
+	var sr := _make_slider(%SeaRiseSlot)
 	for t in SEA_RISE_TIMES:
 		sr.add_item(_minutes(t))
 	sr.select(SEA_RISE_TIMES.find(25))
@@ -1828,19 +1841,16 @@ func _render_mode_checks() -> void:
 ## 0.28 WonderDuration / RelicCount / RelicDuration: shown only while their condition
 ## is checked, and fixed (disabled) on a scenario.
 func _refresh_victory_times(mask: int) -> void:
-	var row := %VictoryTimesRow
+	# GameSettingsLayout.js: Relic Count, Relic Duration, Hero Garrison, Wonder Duration.
 	var wonder := (mask & 16) != 0
 	var relic := (mask & 32) != 0
-	row.visible = wonder or relic
-	for n in ["WonderLabel", "WonderTimeSlot"]:
-		row.get_node(n).visible = wonder
-	for n in ["RelicCountLabel", "RelicCountSlot", "RelicLabel", "RelicTimeSlot"]:
-		row.get_node(n).visible = relic
+	%VictoryTimesRow.visible = relic
+	%WonderRow.visible = wonder
 	var scen := _is_scenario()
 	for n in ["WonderTimeSlot", "RelicCountSlot", "RelicTimeSlot"]:
-		var slot: Node = row.get_node(n)
+		var slot: Node = get_node("%" + n)
 		if slot.get_child_count() > 0:
-			(slot.get_child(0) as RtsoSafeSelect).disabled = scen
+			slot.get_child(0).disabled = scen
 
 func _on_victory_toggled(on: bool, bit: int) -> void:
 	var mask := _victory_mask()
@@ -1957,14 +1967,14 @@ func _apply_settings(ms: Dictionary) -> void:
 	%DisableSpies.button_pressed = bool(ms.get("disable_spies"))
 	%DisableTreasures.button_pressed = bool(ms.get("disable_treasures"))
 	_select_pop(int(ms.get("pop_cap")), bool(ms.get("team_pop")))
-	var cf: RtsoSafeSelect = %CeasefireSlot.get_child(0)
+	var cf: SettingSlider = %CeasefireSlot.get_child(0)
 	cf.select(maxi(CEASEFIRES.find(int(ms.get("ceasefire_min"))), 0))
 	%RevealMap.button_pressed = bool(ms.get("reveal_map"))
 	%ExploreMap.button_pressed = bool(ms.get("explore_map"))
 	%AlliedView.button_pressed = bool(ms.get("ally_view"))
-	var wt: RtsoSafeSelect = %WonderTimeSlot.get_child(0)
-	var rt: RtsoSafeSelect = %RelicTimeSlot.get_child(0)
-	var rc: RtsoSafeSelect = %RelicCountSlot.get_child(0)
+	var wt: SettingSlider = %WonderTimeSlot.get_child(0)
+	var rt: SettingSlider = %RelicTimeSlot.get_child(0)
+	var rc: SettingSlider = %RelicCountSlot.get_child(0)
 	var wi := VICTORY_TIMES.find(int(ms.get("wonder_min")))
 	var ri := VICTORY_TIMES.find(int(ms.get("relic_min")))
 	var ci := RELIC_COUNTS.find(int(ms.get("relic_count")))
@@ -1973,7 +1983,7 @@ func _apply_settings(ms: Dictionary) -> void:
 	rc.select(ci if ci >= 0 else RELIC_COUNTS.find(2))
 	var wl: RtsoSafeSelect = %WaterLevelSlot.get_child(0)
 	wl.select(clampi(int(ms.get("water_level")), 0, WATER_LEVELS.size() - 1))
-	var sr: RtsoSafeSelect = %SeaRiseSlot.get_child(0)
+	var sr: SettingSlider = %SeaRiseSlot.get_child(0)
 	var si := SEA_RISE_TIMES.find(int(ms.get("sea_level_rise_min")))
 	sr.select(si if si >= 0 else SEA_RISE_TIMES.find(25))
 	_team_placement = clampi(int(ms.get("team_placement")), 0, TEAM_PLACEMENTS.size() - 1)
@@ -2053,12 +2063,12 @@ func _collect_setup() -> Dictionary:
 	var spd: RtsoSafeSelect = %SpeedSlot.get_child(0)
 	var msz: RtsoSafeSelect = %MapSizeSlot.get_child(0)
 	var pop: RtsoSafeSelect = %PopCapSlot.get_child(0)
-	var cf: RtsoSafeSelect = %CeasefireSlot.get_child(0)
-	var wt: RtsoSafeSelect = %WonderTimeSlot.get_child(0)
-	var rt: RtsoSafeSelect = %RelicTimeSlot.get_child(0)
-	var rc: RtsoSafeSelect = %RelicCountSlot.get_child(0)
+	var cf: SettingSlider = %CeasefireSlot.get_child(0)
+	var wt: SettingSlider = %WonderTimeSlot.get_child(0)
+	var rt: SettingSlider = %RelicTimeSlot.get_child(0)
+	var rc: SettingSlider = %RelicCountSlot.get_child(0)
 	var wl: RtsoSafeSelect = %WaterLevelSlot.get_child(0)
-	var sr: RtsoSafeSelect = %SeaRiseSlot.get_child(0)
+	var sr: SettingSlider = %SeaRiseSlot.get_child(0)
 	var lsc: RtsoSafeSelect = %LandscapeSlot.get_child(0)
 	var tdf: RtsoSafeSelect = %TriggerDifficultySlot.get_child(0)
 	var dsel: RtsoSafeSelect = %DaytimeSlot.get_child(0)
@@ -2790,7 +2800,7 @@ func _lock_tree(n: Node, keep: Dictionary) -> void:
 		return
 	if n is BaseButton:
 		n.disabled = true
-	elif n is SpinBox:
+	elif n is SpinBox or n is Slider:
 		n.editable = false
 	elif n is LineEdit:
 		n.editable = false

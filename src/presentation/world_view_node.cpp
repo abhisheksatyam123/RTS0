@@ -4039,8 +4039,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto uview = sim->units();
 	prefetch_unit_models(sim, uview, delta);
 	auto rview_g = sim->resources();
-	auto entity_visible = [sim, this](float x, float z, uint8_t team) {
-		return rtso::los_sees_unit(*sim, local_player_, x, z, team);
+	// Lock cull camera (GameView.cpp m_CullCamera): what lies outside the frozen frustum is
+	// not drawn, so moving the view camera shows what the cull camera culled.
+	const bool cull_locked = !locked_cull_frustum_.empty() && anim_cull_enabled_;
+	auto locked_out = [&](float x, float z, float radius) {
+		return cull_locked && !in_view(Vector3(x, sim->get_terrain_height(x, z), z), radius);
+	};
+	auto entity_visible = [&](float x, float z, uint8_t team) {
+		return rtso::los_sees_unit(*sim, local_player_, x, z, team) && !locked_out(x, z, 4.0f);
 	};
 	// template_unit_fauna.xml RetainInFog: an animal stays drawn where it is in explored fog
 	// (CCmpRangeManager VIS_FOGGED with no Fogging mirage), hidden only in unexplored land.
@@ -4497,7 +4503,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (const auto &b : buildings) {
 		alive_buildings.insert(b.id);
 		BuildingVis &v = acquire_building_slot(b.id);
-		if (v.root) v.root->set_visible(true);
+		if (v.root) v.root->set_visible(!locked_out(b.x, b.z, b.half_size * 1.5f + 4.0f));
 
 		uint8_t bciv = b.civ;
 		const String mid = building_visual_id(bciv, b.type, b.half_size);
