@@ -3768,6 +3768,46 @@ static void test_unit_choice() {
 	CHECK(disabled == 0, "never trains a disabled template");
 }
 
+// headquarters.js:1566 buildNewBase hasOwnCC: a Seleucid Petra builds a military colony only
+// while it holds a civil centre of its own civ; a captured one of another civ calls for a
+// civil centre.
+static void test_new_base_own_civ_cc() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->set_team_civ(1, CIV_SELEUCIDS);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 128.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	Simulation::Building *cc = nullptr;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const uint32_t cc_id = cc->id;
+	// A hero lifts the Seleucid CivilCentre limit (EntityLimits LimitRemovers RequiredClasses Hero).
+	s->spawn_unit(cc->x + 12.0f, cc->z + 12.0f, 1, UNIT_HERO);
+	auto lay = [&](uint8_t civ) {
+		for (auto &b : s->buildings_)
+			if (b.id == cc_id) b.civ = civ;
+		s->petra_pid_ = 1;
+		s->players_[1].phase = 2;
+		s->set_player_resources(1, 5000, 5000, 5000, 5000);
+		s->petra_queues_.accounts[PETRA_Q_CIVIL_CENTRE] = PetraQueueAccount{1000.0f, 1000.0f, 1000.0f, 1000.0f};
+		const size_t before = s->buildings_.size();
+		s->petra_build_new_base();
+		int laid = -1;
+		for (size_t k = before; k < s->buildings_.size(); ++k)
+			if (s->buildings_[k].team == 1 && s->buildings_[k].build_progress < 1.0f) laid = s->buildings_[k].type;
+		for (size_t k = before; k < s->buildings_.size(); ++k) s->buildings_[k].wrecked = true; // out of the way
+		return laid;
+	};
+	const int own = lay(CIV_SELEUCIDS), captured = lay(CIV_ATHENIANS);
+	std::printf("  new base: with a Seleucid civic centre lays %d, with only an Athenian one lays %d\n", own, captured);
+	CHECK(own == BLD_MILITARY_COLONY, "a military colony while our own civ's civic centre stands");
+	CHECK(captured == BLD_TOWN_CENTER, "a civil centre when the only one is captured from another civ");
+}
+
 // victoryManager.js: in wonder victory a finished wonder is a critical entity,
 // guarded by up to 10 + 5 * defensive soldiers, champions first, who turn on
 // whoever attacks it.
@@ -6635,6 +6675,7 @@ int main(int argc, char **argv) {
 	RUN(test_mobile_dropsite_cadence);
 	RUN(test_worker_mix);
 	RUN(test_unit_choice);
+	RUN(test_new_base_own_civ_cc);
 	RUN(test_build_defenses);
 	RUN(test_defensive_location);
 	RUN(test_raid_keeps_hunters);

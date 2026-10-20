@@ -24493,9 +24493,11 @@ bool Simulation::petra_build_new_base(int res) {
 		return civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
 		       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
+	// hasOwnCC: a civil centre of our own civ (it may allow specific units or techs); a captured
+	// one of another civ does not count (headquarters.js:1566).
 	bool own_cc = false;
 	for (const Building &b : buildings_)
-		if (b.team == petra_pid_ && b.type == BLD_TOWN_CENTER && b.hp > 0.0f && !b.wrecked) { own_cc = true; break; }
+		if (b.team == petra_pid_ && b.type == BLD_TOWN_CENTER && b.civ == civ && b.hp > 0.0f && !b.wrecked) { own_cc = true; break; }
 	uint8_t btype;
 	if (own_cc && can_build(BLD_MILITARY_COLONY)) btype = BLD_MILITARY_COLONY;
 	else if (can_build(BLD_TOWN_CENTER)) btype = BLD_TOWN_CENTER;
