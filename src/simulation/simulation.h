@@ -629,6 +629,9 @@ public:
 	void set_resource_flora(uint32_t res_id, uint8_t flora);
 	// Map generation only: moves a resource before the nav grid is built.
 	void set_resource_position(uint32_t res_id, float x, float z);
+	// Map generation only: one tree per terrain tile, at the tile's centre (0.28's rmgen paints
+	// forests tile by tile). Returns how many trees had no free tile beside theirs and went.
+	size_t snap_trees_to_tiles();
 	// Map generation only: moves an animal (and the spot it roams round).
 	void set_fauna_position(uint32_t fauna_id, float x, float z);
 	// Sets a resource's amount, as map generation does for a tree whose 0 A.D. template holds more or
@@ -3242,6 +3245,8 @@ private:
 	// lands with room for one more (at most 3 siege engines per plan), else nullptr.
 	PetraTransportPlan *petra_transport_join(uint8_t owner, uint16_t from_land, uint16_t to_land, bool is_siege);
 	void petra_require_defense_transport(uint32_t uid, uint16_t from_land, uint16_t to_land, float to_x, float to_z);
+	uint32_t petra_defender_dropsite(size_t i) const; // entityExtend.js returnResources: 0 when none
+	void petra_fight_back(size_t i, int32_t attacker, const std::vector<PetraDefenseArmy> &armies, std::vector<uint32_t> &helped);
 	bool petra_ship_in_plan(uint32_t ship_id) const;
 	size_t petra_go_home(const std::vector<uint32_t> &squad, float x, float z, uint8_t owner, bool order_here, bool attack = false);
 	std::vector<PetraChatLine> petra_chat_;
