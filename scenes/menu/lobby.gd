@@ -352,6 +352,7 @@ func _build() -> void:
 	var chat_row := HBoxContainer.new()
 	right.add_child(chat_row)
 	_chat_line = _line("", 0)
+	_chat_line.max_length = LobbySession.MAX_CHAT # lobby ChatPanel.xml chatInput max_length
 	_chat_line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_chat_line.placeholder_text = "Chat"
 	_chat_line.text_submitted.connect(func(_t: String) -> void: _on_send_pressed())

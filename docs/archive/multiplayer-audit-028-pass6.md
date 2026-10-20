@@ -38,4 +38,5 @@ None of these touches simulation state or the save format.
 - 2026-10-15 #1146 pass 6 gap 3 (lobby password page before a listed join, Host row 1024-65535 port check) merged.
 - 2026-10-19 #1160 pass 6 gap 2 (setup lists, seats and counts every client: 64-bit setup masks, lowest free id, host names every seat) merged.
 - 2026-10-19 #1162 pass 6 gap 4 (civ, team and colour host-only, as 0.28; the client's colour pickers hidden) merged.
-- 2026-10-20 #PR8 pass 6 gap 8 (no chat window once the connection is lost, as Chat.openPage) merged.
+- 2026-10-20 #1170 pass 6 gap 8 (no chat window once the connection is lost, as Chat.openPage) merged.
+- 2026-10-20 #PR9 pass 6 gap 9 (setup and lobby chat take 1024 characters, the lobby server keeps them) merged.

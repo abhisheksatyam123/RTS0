@@ -2397,7 +2397,7 @@ func _build_net_chat() -> void:
 	var input := LineEdit.new()
 	input.name = "NetChatInput"
 	input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	input.max_length = 256
+	input.max_length = 1024 # gamesetup ChatPanel.xml chatInput max_length
 	input.text_submitted.connect(func(_t: String) -> void: _send_net_chat())
 	# ChatInputPanel.onTab / Tooltip: Tab completes player names, then civs and settings.
 	input.tooltip_text = "Press Tab to autocomplete player names or settings."
