@@ -113,7 +113,7 @@ Checked against 0.28: status effects, Petra difficulty and behaviour config, All
 
 | # | Difference from 0.28 | Impact | Status |
 |---|---|---|---|
-| S1 | German Petra never picks Grove of Fetters in its random city-phase research. 0.28 (researchManager.js:204-222) skips a tech only when its top-level `affects` is just Healer, Outpost or Wall. RTS0's `petra_tech_affects_only` checks each effect's affects, and grove_of_fetters puts "Healer" only on its effect. It is the only tech where the two checks differ. | low | Open: E (Petra research) |
+| S1 | German Petra never picks Grove of Fetters in its random city-phase research. 0.28 (researchManager.js:204-222) skips a tech only when its top-level `affects` is just Healer, Outpost or Wall. RTS0's `petra_tech_affects_only` checks each effect's affects, and grove_of_fetters puts "Healer" only on its effect. It is the only tech where the two checks differ. | low | Fixed: petra_tech_affects_only keeps Grove of Fetters |
 | S2 | ~~The civ emblem tooltip names the phase "Village/Town/City Phase"~~ Fixed: getEntityNames of phase_<phase>_<civ>, else phase_<phase> (selection_details.js:318-322). Every civ but the Germans gets its village name; only the Athenians and Persians have their own town and city names. | low | Fixed |
 
 Checked and matching:
