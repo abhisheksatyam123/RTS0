@@ -230,13 +230,7 @@ private:
 		const Simulation::UnitDetails d = sim.unit_details(i);
 		godot::String capture_tip;
 		if (r) capture_tip = capture(r->cp[owner < MAX_PLAYERS ? owner : MAX_PLAYERS], (float)RELIC_CAPTURE_POINTS);
-		godot::String auras;
-		if (tmpl != CIV_UNIT_TEMPLATE_NONE)
-			for (int16_t a : civ_unit_template(tmpl).auras) {
-				if (a < 0) continue;
-				const auto &aura = civ_hero_aura(a);
-				auras = join_lines({auras, aura_line(godot::String::utf8(aura.name), godot::String::utf8(aura.description ? aura.description : ""), aura.radius)});
-			}
+		const godot::String auras = unit_auras_tooltip(tmpl);
 		const godot::String entity_tip = entry.get("tooltip", godot::String());
 		const bool armed = !r;
 		return "[font_size=16][b]" + s.name + "[/b][/font_size]\n" +

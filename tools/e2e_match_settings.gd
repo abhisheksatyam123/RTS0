@@ -72,7 +72,8 @@ func run() -> void:
 	check(has_line(text, "Map Name", "Continental"), "Map Name")
 	check(has_line(text, "Map Type", "Random"), "Map Type")
 	check(has_line(text, "Map Size", "Small"), "Map Size")
-	check(has_line(text, "Random Player Placement", "Randomly select a player placement from the list.") == not GameDescription.map_placements("random_continental").is_empty(), "the placement line follows Game Setup's list")
+	# PlayerPlacement.pickRandomItems: a running match names the pattern the map drew, never Random.
+	check(not text.contains("Random Player Placement"), "a Random placement shows the pattern in play")
 	var placed: Dictionary = main.get_match_settings_info()
 	placed["map_id"] = "random_ambush"
 	placed["team_placement"] = 1
