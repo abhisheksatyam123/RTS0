@@ -24907,8 +24907,8 @@ void Simulation::petra_manage_research(float dt) {
 	if (!active_base) return;
 	// queueManager.js checkPausedQueues: minorTech waits while workers are short.
 	if (petra_queues_.paused[PETRA_Q_MINOR_TECH]) return;
-	// A trade or population technology queued by researchTradeBonus/researchPopulationBonus:
-	// update returns while it waits (researchManager.js:163), so it is bought before any other.
+	// A minorTech plan waiting for its resources (a pick below, or researchTradeBonus /
+	// researchPopulationBonus): update returns while it waits (researchManager.js:163).
 	if (uint8_t &st = petra_queues_.special_tech; st) {
 		const ResearchCheck rc = research_check(petra_pid_, st);
 		if (petra_ps().has_tech(st) || (rc != TECH_OK && rc != TECH_ERR_COST)) st = 0;
@@ -24947,9 +24947,11 @@ void Simulation::petra_manage_research(float dt) {
 		for (int r = 0; r < 4; ++r) short_max = std::max(short_max, cost[r] - (stock[r] - held[r]));
 		return 10.0f * (float)workers < short_max;
 	};
-	// The picks are deterministic, so a technology waiting for its resources is
-	// picked again until paid for (queueManager keeps the plan queued).
-	auto pick = [&](uint8_t t) { start_tech(t); };
+	// A pick that can't start yet stays queued in minorTech (researchManager.js update returns
+	// while minorTech holds a plan), and is bought before anything else is picked.
+	auto pick = [&](uint8_t t) {
+		if (!start_tech(t)) petra_queues_.special_tech = t;
+	};
 	// increasePriority: a cheap pick (template cost under 400 in all) waits at twice
 	// minorTech's priority until it starts (queueToReset).
 	auto pick_cheap_first = [&](uint8_t t) {

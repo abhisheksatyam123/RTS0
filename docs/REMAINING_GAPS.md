@@ -94,7 +94,7 @@ Production queues, upgrades, foundations, capture/decay, build restrictions, tec
 |---|---|---|---|
 | Q1 | Petra remembers a failed placement per structure kind (8 bits) until it places one; 0.28 marks the template unbuildable for 90 s (setUnbuildable "room") and expands when over one template is missing room | medium | Open |
 | Q2 | Petra scans wanted/preferred techs in tech-id order; 0.28 walks researchers in creation order and their Researcher lists (Iron Axe Heads before Iron Plow) | low-medium | Fixed |
-| Q3 | Petra re-picks its random minor tech every 5th turn while it waits for resources; 0.28 keeps the queued plan | low-medium | Open |
+| Q3 | Petra re-picks its random minor tech every 5th turn while it waits for resources; 0.28 keeps the queued plan | low-medium | Fixed |
 | Q4 | Petra lays foundations with no living builder; 0.28's canBuild needs one (120 s "nobuilder") | low | Open |
 | Q5 | constructTrainingBuildings counted every phase-1 structure as Village and only BLD_BARRACKS as Barracks (academy, Ptolemaic merc camp) | low | Fixed |
 | Q6 | buildDefenses' base count left out military colonies | low | Fixed |
