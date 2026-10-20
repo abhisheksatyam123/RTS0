@@ -26,6 +26,7 @@ class RtsoMiniMapView : public Control {
 		Vector2 mini_pos;
 		uint64_t start_ms; // real time, as CMiniMap's flares
 		Color color;
+		uint64_t life_ms = 6000; // MiniMap.js flare_lifetime_seconds (gui.session.flarelifetime)
 	};
 
 	const rtso::Simulation *sim = nullptr;
@@ -66,6 +67,8 @@ class RtsoMiniMapView : public Control {
 	Ref<ImageTexture> territory_tex_;
 	enum MinimapIcon { ICON_CIVIL_CENTRE, ICON_WONDER, ICON_OTHER, ICON_STONE, ICON_METAL, ICON_RELIC, ICON_COUNT };
 	Ref<Texture2D> icon_tex_[ICON_COUNT];
+	static constexpr int kFlareFrames = 16; // MiniMap.xml flare_texture_count
+	Ref<Texture2D> flare_tex_[kFlareFrames];
 	std::vector<uint8_t> territory_tex_cache_;
 	uint64_t territory_colors_ = 0; // display_colors::key the texture was drawn with
 	bool ensure_territory_texture();
@@ -96,7 +99,7 @@ public:
 	void ping_entity(uint32_t id);
 	bool entity_ping_lit(uint32_t id, uint64_t now_ms) const;
 	size_t entity_ping_count() const { return entity_pings_.size(); }
-	void add_ping(Vector2 world_pos, Color col = Color(1.0f, 0.85f, 0.2f));
+	void add_ping(Vector2 world_pos, Color col = Color(1.0f, 0.85f, 0.2f), float life_s = 6.0f);
 	void toggle_territory() { show_territory = !show_territory; queue_redraw(); }
 	void set_local_player(uint8_t p) { if (p != local_player) { local_player = p; queue_redraw(); } }
 	void toggle_resources() { show_resources = !show_resources; queue_redraw(); }

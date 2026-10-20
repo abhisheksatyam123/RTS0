@@ -45,6 +45,7 @@ class TipButton extends Button:
 	var tip_civ := 0
 	var tip_extra := ""
 	var tip_researcher := -1 # the structure type whose TechCostMultiplier prices a tech
+	var tip_upgrade := {} # an Upgrade choice: its own cost, time and tooltip (getActualUpgradeData)
 
 	func _make_custom_tooltip(_for_text: String) -> Object:
 		var rt := RichTextLabel.new()
@@ -74,6 +75,11 @@ class TipButton extends Button:
 		if d.is_empty():
 			return ""
 		d = Common.civ_costed(d, tip_kind, tip_civ, tip_researcher)
+		if not tip_upgrade.is_empty():
+			d = d.duplicate()
+			d["cost"] = tip_upgrade.get("upgrade_cost", {})
+			d["time"] = tip_upgrade.get("upgrade_time", 0)
+			d.erase("pop")
 		var parts: PackedStringArray = []
 		var generic: String = extra.get("generic_name", "")
 		if generic == "":
@@ -89,6 +95,8 @@ class TipButton extends Button:
 			if cost != "":
 				body = "[b]Cost:[/b] " + cost
 		var tooltip: String = extra.get("tooltip", "")
+		if String(tip_upgrade.get("tooltip", "")) != "":
+			tooltip = tip_upgrade["tooltip"]
 		if tooltip == "" and tip_kind == "tech":
 			tooltip = d.get("description", "")
 		var auras := ""
@@ -298,8 +306,9 @@ func _fill_rows(rows: Dictionary, own: int, units: Array, techs: Array, upgrades
 		_row_for(rows, own, int(t["phase"])).add_child(tb)
 	for u in upgrades:
 		var id := int(u["type"]) if upgrade_kind == "structure" else int(u["tmpl"])
-		_row_for(rows, own, int(u["phase"])).add_child(
-			_icon_button(Common.icon_for(upgrade_kind, u, civ), ROW_ICON, upgrade_kind, id, "[b]Upgrade:[/b] " + String(u["cost"])))
+		var ub := _icon_button(Common.icon_for(upgrade_kind, u, civ), ROW_ICON, upgrade_kind, id)
+		ub.tip_upgrade = u
+		_row_for(rows, own, int(u["phase"])).add_child(ub)
 
 ## TrainerBox: one production row, not sorted by phase.
 func _trainer_box(u: Dictionary) -> Control:
@@ -318,10 +327,12 @@ func _trainer_box(u: Dictionary) -> Control:
 	var rows := {1: row}
 	_fill_rows(rows, 1, u["units"], u["techs"], [], "unit")
 	for up in u["upgrades"]:
-		row.add_child(_icon_button(Common.icon_for("unit", up, civ), ROW_ICON, "unit", int(up["tmpl"]), "[b]Upgrade:[/b] " + String(up["cost"])))
+		var ub := _icon_button(Common.icon_for("unit", up, civ), ROW_ICON, "unit", int(up["tmpl"]))
+		ub.tip_upgrade = up
+		row.add_child(ub)
 	return panel
 
-func _icon_button(tex: Texture2D, px: int, kind: String, id: int, extra: String = "") -> Button:
+func _icon_button(tex: Texture2D, px: int, kind: String, id: int, extra: String = "") -> TipButton:
 	var b := TipButton.new()
 	b.custom_minimum_size = Vector2(px, px)
 	b.icon = tex

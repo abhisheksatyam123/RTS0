@@ -50,6 +50,29 @@ bool RtsoMain::selection_can_garrison(uint32_t building_id) const {
 	return false;
 }
 
+RtsoMain::StructureClick RtsoMain::structure_click(uint32_t building_id) const {
+	if (!sim || selected_ids.is_empty()) return CLICK_NONE;
+	const uint32_t *ids = (const uint32_t *)selected_ids.ptr();
+	const size_t n = selected_ids.size();
+	const bool attack = sim->any_can_damage_building(ids, n, building_id);
+	const bool capture = sim->any_can_capture_building(ids, n, building_id);
+	if (attack && rtso::hotkeys::held("session.attack")) return CLICK_ATTACK;
+	if (capture && rtso::hotkeys::held("session.capture")) return CLICK_CAPTURE;
+	return attack ? CLICK_ATTACK : capture ? CLICK_CAPTURE : CLICK_NONE;
+}
+
+// Scenery the selection can strike can be captured too when Capturable (order_attack_scenery
+// sends only units with an attack): "capture" only with session.capture.
+RtsoMain::StructureClick RtsoMain::scenery_click(uint32_t scenery_id) const {
+	if (!sim) return CLICK_NONE;
+	const int32_t k = sim->scenery_index(scenery_id);
+	if (k < 0) return CLICK_NONE;
+	if (rtso::hotkeys::held("session.capture") && !rtso::hotkeys::held("session.attack") &&
+			sim->scenery_capturable(sim->scenery()[k]))
+		return CLICK_CAPTURE;
+	return CLICK_ATTACK;
+}
+
 // unit_actions.js "garrison" on an entity: an own or mutually allied ship, ram or siege tower
 // (GarrisonHolder) under the cursor that some selected unit may board; 0 if none.
 uint32_t RtsoMain::transport_under(float x, float z) const {

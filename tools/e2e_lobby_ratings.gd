@@ -46,7 +46,7 @@ func until(cond: Callable, max_frames := 600) -> bool:
 	return cond.call()
 
 func player(id: int, name: String, state: String, ai := false) -> Dictionary:
-	return {"id": id, "name": name, "state": state, "ai": ai, "civ_name": "Athenians", "team": 1,
+	return {"id": id, "name": name, "state": state, "ai": ai, "civ_code": "athen", "civ_name": "Athenians", "team": id + 1, "setup_team": -1,
 		"economyScore": 10, "militaryScore": 20, "totalScore": 30, "percentMapExplored": 12.5,
 		"stats": {"tradeIncome": 5, "resourcesGathered": {"food": 100, "vegetarianFood": 60},
 			"unitsTrained": {"Infantry": 3}, "enemyUnitsKilled": {"Cavalry": 1},
@@ -63,6 +63,8 @@ func run() -> void:
 	check(r.get("matchID") == "42-random_mainland-alice,bob" and r.get("timeElapsed") == 600000,
 		"both players name the match alike (seed, map, players)")
 	check(r.get("tradeIncome") == "5,5,", "the Misc counters ride along")
+	check(r.get("civs") == "athen,athen," and r.get("teams") == "-1,-1,",
+		"Players.js: civ codes, and the Diplomacy team (-1 without a team): " + str([r.get("civs"), r.get("teams")]))
 	# LobbyRatingReport Resources, Units, Buildings, Misc percentMapExplored, Players teamsLocked.
 	check(r.get("foodGathered") == "100,100," and r.get("vegetarianFoodGathered") == "60,60," and r.get("woodUsed") == "0,0,"
 		and r.get("infantryUnitsTrained") == "3,3," and r.get("enemyCavalryUnitsKilled") == "1,1,"

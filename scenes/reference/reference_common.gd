@@ -34,8 +34,17 @@ static func civ_code(civ: int) -> String:
 static func unit_text(unit_id: String) -> Dictionary:
 	return text().get("units", {}).get(unit_id, {})
 
+## A wall, palisade or siege wall is shown as its WallSet (TemplateParser.getEntity): the
+## set's name, tooltip, classes and icon over the long piece's stats and auras, no turrets.
 static func structure_text(type: int, civ: int) -> Dictionary:
-	return text().get("structures", {}).get(civ_code(civ), {}).get(str(type), {})
+	var e: Dictionary = text().get("structures", {}).get(civ_code(civ), {}).get(str(type), {})
+	if not e.has("wallset"):
+		return e
+	var w := e.duplicate(true)
+	w.merge(e["wallset"], true)
+	w.erase("wallset")
+	w.get("viewer", {}).erase("turrets")
+	return w
 
 static func tech_text(template_name: String) -> Dictionary:
 	return text().get("techs", {}).get(template_name, {})

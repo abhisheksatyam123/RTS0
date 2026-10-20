@@ -142,9 +142,27 @@ func run() -> void:
 	check(not GameDescription.describe(rinfo).contains(bt[0] + "[/color]"), "Map default has no biome line")
 	rinfo["biome"] = SetupPage.RANDOM_BIOME
 	check(has_line(GameDescription.describe(rinfo), "Random Biome", "Randomly select a biome from the list."), "Random reads Random Biome until Start")
+	var any_map := rinfo.duplicate()
+	any_map["map_id"] = "random"
+	var any_text: String = GameDescription.describe(any_map)
+	check(has_line(any_text, "Random Map", "Randomly select a map from the list.") and has_line(any_text, "Map Type", "Random")
+		and not any_text.contains("Map Name"), "the Random entry reads Random Map, with the random map lines: " + any_text.left(400))
+	var de_po: Translation = load("res://assets/l10n/de.po")
+	TranslationServer.add_translation(de_po)
+	TranslationServer.set_locale("de")
+	var de_text: String = GameDescription.describe(any_map)
+	var expect := TranslationServer.translate("High") + " (1000)"
+	TranslationServer.set_locale("en")
+	TranslationServer.remove_translation(de_po)
+	check(de_text.contains(expect) and expect != "High (1000)", "Starting Resources translates its title: " + expect)
+	check(load("res://scenes/menu/replay_browser.gd")._player_description({"name": "Ann", "civ_name": "Athenians", "ai": true,
+		"ai_difficulty": 4, "ai_behavior": 3, "state": "won"}, true) == "[color=#ffffff]Ann[/color] (Athenians, Hard Aggressive Petra Bot, won)",
+		"formatPlayerInfo's msgid for an AI that won")
 	rinfo["rated"] = true
+	check(int(rinfo["player_count"]) == 3 and not GameDescription.describe(rinfo).contains("Rated game"),
+		"a rated 1v1's match, replay or save has no Rated game line outside the lobby (the session's PlayerData holds Gaia)")
 	rinfo["player_count"] = 2
-	check(has_line(GameDescription.describe(rinfo), "Rated game", GameDescription.RATING_DESC), "a rated 1v1 says so")
+	check(has_line(GameDescription.describe(rinfo), "Rated game", GameDescription.RATING_DESC), "Game Setup's rated 1v1 says so")
 	rinfo["rated"] = false
 	check(not GameDescription.describe(rinfo).contains("Rated game"), "no rated line outside a lobby game")
 	rinfo["lobby_game"] = true

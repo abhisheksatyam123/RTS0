@@ -92,6 +92,21 @@ func run() -> void:
 					if n is Button and n.get("tip_kind") == "structure" and n.get("tip_id") == 22:
 						wall_tower = true
 	check(wall_tower, "the stone wall box shows the wall tower")
+	# The wall box is the WallSet: its name and tooltip, Health over the pieces and the
+	# segments' and tower's costs (TemplateParser.getEntity, getEntityCostTooltip).
+	var cart := 4
+	var wall_text: Dictionary = Common.structure_text(12, cart)
+	check(wall_text.get("specific_name", "") == "Jdar" and wall_text.get("tooltip", "") == "Wall off an area." \
+			and not wall_text.get("viewer", {}).has("turrets"), "the Carthaginian wall is the Jdar wall set: " + str(wall_text.get("specific_name")))
+	var wall_stats: String = load("res://scenes/common/tooltips.gd").plain(Viewer.stats_text(ref.get_structure(12, 0), Common.structure_text(12, 0).get("viewer", {})))
+	check(wall_stats.contains("Walls:") and wall_stats.contains("Towers:") and wall_stats.contains("Health: 1000 to 3000"),
+			"the wall set lists its walls' and towers' costs and Health 1000 to 3000: " + wall_stats.replace("\n", " | "))
+	# TemplateLister order: mixins/builder.xml's list (house before storehouse before barracks).
+	var order: Array = []
+	for b in ref.get_structure_tree(0):
+		order.append(int(b["type"]))
+	check(order[0] == 0 and order.find(1) < order.find(3) and order.find(3) < order.find(2) and order.find(5) < order.find(2),
+			"the tree follows builder.xml's order: " + str(order.slice(0, 8)))
 	# TemplateParser under the civ's modifiers: Athenian Democracy prices Civic Centre
 	# techs x0.7 (time x0.5); Spartan heroes are free (Peloponnesian League).
 	var cc_tip: Button = null
@@ -132,6 +147,15 @@ func run() -> void:
 	var spart_hero: Dictionary = ref.get_civ_info(spart)["heroes"][0]
 	var hc: Dictionary = Common.civ_costed(ref.get_unit(int(spart_hero["tmpl"])), "unit", spart)["cost"]
 	check(int(hc["food"]) + int(hc["wood"]) + int(hc["metal"]) == 0, "Spartan heroes are free")
+	# ProductionRowManager lists every Upgrade choice: the Persian tachara's four, with their
+	# own Upgrade cost; techs carry the civ's specificName (Spartan agoge "Agōga").
+	var tach_ups: Array = ref.get_structure(30, 2)["upgrades"]
+	check(tach_ups.size() == 4 and tach_ups[0].has("upgrade_cost") and tach_ups[0].has("upgrade_time"),
+			"the Persian tachara lists its four upgrades with their costs: %d" % tach_ups.size())
+	var agoga := false
+	for t in ref.get_civ_info(spart)["techs"]:
+		agoga = agoga or str(t.get("specific_name", "")) == "Agōga"
+	check(agoga, "a Spartan tech carries its specific name (Agōga)")
 	# 0.28 civinfo: civ bonuses from auto-researched civ techs and player auras besides
 	# {civ}.json, team bonuses from the player auras, (i) info hovers, and only the
 	# techs and structures 0.28 counts as civ specific.
