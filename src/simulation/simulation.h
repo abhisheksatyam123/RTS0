@@ -1482,6 +1482,11 @@ public:
 	bool undeletable_unit(uint32_t unit_id) const { return invulnerable(unit_id); }
 	// unit_can_build (Builder) for unit i, less a nonbuilder.
 	bool unit_builds(size_t i) const { return unit_can_build(units_.unit_type[i], units_.tmpl[i]) && !nonbuilder(units_.id[i]); }
+	// unit_builds by unit id (false for a dead or unknown unit).
+	bool unit_id_builds(uint32_t id) const {
+		const int32_t u = lookup_unit(id);
+		return u >= 0 && units_.alive[u] && unit_builds((size_t)u);
+	}
 	bool has_map_triggers() const { return !triggers_.triggers.empty(); }
 	// Commands.js ProcessCommand's OnPlayerCommand (kind: TriggerCommand). target and other
 	// are the command's targets (see TriggerCommand), hunt 1 when target is an animal,
