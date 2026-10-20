@@ -86,6 +86,9 @@ void RtsoMain::update_cursor() {
 			if (over_own_rally_structure(at) &&
 					!(rtso::hotkeys::held("session.autorallypoint") && selected_building_trains_units())) {
 				want = "action-unset-rally";
+			} else if (over_own_rally_structure(at, false) &&
+					!(rtso::hotkeys::held("session.autorallypoint") && selected_building_trains_units())) {
+				// "set-rallypoint" refuses a selected structure as its target: no action, no cursor.
 			} else if (selected_building_shoots() && rtso::hotkeys::held("session.focusfire")) {
 				// unit_actions.js "set-rallypoint" getActionInfo: an attacking structure with
 				// session.focusfire held aims ("action-target") instead of setting the rally point.
@@ -166,6 +169,9 @@ void RtsoMain::update_cursor() {
 			// and session.occupyturret ("occupy-turret", 21) come before session.attackmove (30), all Ctrl.
 			const bool hold_garrison = rtso::hotkeys::held("session.garrison");
 			const bool hold_turret = rtso::hotkeys::held("session.occupyturret");
+			const bool hold_repair = rtso::hotkeys::held("session.repair");
+			bool sel_builder = false;
+			for (int s = 0; s < selected_ids.size() && !sel_builder; ++s) sel_builder = sim->unit_id_builds((uint32_t)(int64_t)selected_ids[s]);
 			bool hotkey_holder = false;
 			if (hold_garrison && transport_under(at.x, at.z) != 0) hotkey_holder = true;
 			for (const auto &b : sim->buildings()) {
@@ -296,6 +302,26 @@ void RtsoMain::update_cursor() {
 				for (const auto &b : sim->buildings()) {
 					if (b.wrecked || !near2(b.x, b.z, b.half_size + 1.2f)) continue;
 					if (!sim->player_can_target_building(me, b.id)) continue; // never seen: no mirage to pick
+					auto garrison_cursor = [&]() {
+						want = "action-garrison";
+						// unit_actions "garrison" getActionInfo: the holder's slots, orange once full.
+						const int occupied = sim->get_garrison_occupied(b.id), capacity = sim->get_garrison_capacity(b.id);
+						tip = rtso::sprintf0(rtso::tr0("Current garrison: %(garrisoned)s/%(capacity)s"),
+								{{"garrisoned", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
+						tip_orange = occupied >= capacity;
+					};
+					// determineAction (input.js:261-277) runs every hotkeyActionCheck before the plain
+					// actionChecks, as the click does: session.garrison and session.repair come first.
+					const bool b_friendly = b.team == me || sim->is_ally(me, b.team);
+					const bool b_damaged = b.build_progress < 1.0f || b.hp < b.max_hp;
+					if (hold_garrison && b_friendly && selection_can_garrison(b.id)) {
+						garrison_cursor();
+						break;
+					}
+					if (hold_repair && b_friendly && b_damaged && sel_builder) {
+						want = "action-repair";
+						break;
+					}
 					if (const char *tc = nullptr; trade_route_click(b, false, false, &tip, &tc)) {
 						want = tc;
 						break;
@@ -330,8 +356,9 @@ void RtsoMain::update_cursor() {
 						want = c == CLICK_CAPTURE ? "action-capture" : c == CLICK_ATTACK ? "action-attack" : "";
 					}
 					else if (b.team != me && !sim->is_ally(me, b.team)) want = ""; // neutral
-					else if (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me)) want = "action-build";
-					else if (b.hp < b.max_hp) want = "action-repair"; // own or allied (unit_actions "repair")
+					// unit_actions "repair" needs a builder; without one "move" wins: no cursor.
+					else if (sel_builder && (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me))) want = "action-build";
+					else if (sel_builder && b.hp < b.max_hp) want = "action-repair"; // own or allied
 					// unit_actions "garrison" (session.garrison): an own or allied holder whose List takes a
 					// selected unit; a wall, gate or outpost has only turret points: "occupy-turret" (21).
 					// Without the hotkeys "move" (12) wins: no cursor.
@@ -343,12 +370,7 @@ void RtsoMain::update_cursor() {
 						tip_orange = occupied >= capacity;
 					}
 					else if (hold_garrison && selection_can_garrison(b.id)) {
-						want = "action-garrison";
-						// unit_actions "garrison" getActionInfo: the holder's slots, orange once full.
-						const int occupied = sim->get_garrison_occupied(b.id), capacity = sim->get_garrison_capacity(b.id);
-						tip = rtso::sprintf0(rtso::tr0("Current garrison: %(garrisoned)s/%(capacity)s"),
-								{{"garrisoned", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
-						tip_orange = occupied >= capacity;
+						garrison_cursor();
 					}
 					// unit_actions "occupy-turret" (session.occupyturret): the rampart tower's points.
 					else if (rtso::hotkeys::held("session.occupyturret") && selection_can_occupy_turret(b.id)) {

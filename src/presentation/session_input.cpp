@@ -625,10 +625,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 									return !exact || uview.rank[i] == same_rank;
 								};
 								Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+								// addList / removeList change only the units they name: selected
+								// structures stay under Shift or Ctrl (selection.js).
 								if (!is_shift && !is_ctrl) {
 									selected_ids.clear();
+									selected_building_id = 0;
 								}
-								selected_building_id = 0;
 								if (cam) {
 									const Vector2 vp_size = get_viewport()->get_visible_rect().size;
 									for (size_t i = 0; i < uview.count; ++i) {
@@ -658,7 +660,6 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								// already selected; Ctrl+click is the removal).
 								for (int32_t uid : formation_mates((int32_t)uview.id[best_uidx]))
 									if (!selected_ids.has(uid)) selected_ids.push_back(uid);
-								selected_building_id = 0;
 							} else {
 								selected_ids.clear();
 								selected_building_id = 0;
@@ -672,8 +673,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							if (is_ctrl) {
 								if (at >= 0) selected_ids.remove_at(at);
 							} else {
-								if (!is_shift) selected_ids.clear();
-								selected_building_id = 0;
+								if (!is_shift) {
+									selected_ids.clear();
+									selected_building_id = 0;
+								}
 								if (at < 0) selected_ids.push_back((int32_t)animal);
 							}
 						} else {
@@ -771,8 +774,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						}
 						if (!is_shift && !is_ctrl) {
 							selected_ids.clear();
+							selected_building_id = 0;
 						}
-						selected_building_id = 0;
 						for (int32_t uid : boxed) {
 							const int64_t at = selected_ids.find(uid);
 							if (is_ctrl) {
@@ -795,9 +798,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			flare_armed_ = false; // INPUT_FLARE: a right click cancels the flare
 			return;
 		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed()) {
-			// INPUT_PRESELECTEDACTION: a right click drops the armed action, then gives the usual order.
-			if (!replaying_right_ && any_armed_mode())
+			// input.js INPUT_PRESELECTEDACTION: a right press only drops the armed action, and
+			// its release gives no order.
+			if (!replaying_right_ && any_armed_mode()) {
 				attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
+				return;
+			}
 			// A right-click while band-boxing cancels the box and gives no order
 			// (input.js INPUT_BANDBOXING: right button resets to INPUT_NORMAL).
 			if (dragging && drag_start.distance_to(mouse_pos) > 4.0f) {
@@ -833,6 +839,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					sim->cmd_unset_rally_point(local_player(), selected_building_id);
 				return;
 			}
+			// unit_actions.js "set-rallypoint" getActionInfo: a selected structure is no target
+			// (unless session.autorallypoint), and with no rally point to drop nothing happens.
+			if (selected_ids.is_empty() && over_own_rally_structure(click_pos, false) && !auto_rally) return;
 			// A selected structure alone: a right-click sets its rally point. With units also
 			// selected (Shift+click), their orders come first (unit_actions.js: the units'
 			// actions are checked before "set-rallypoint").
@@ -1223,7 +1232,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			uint32_t clicked_enemy_id = 0;
 			float best_ed2 = 2.2f * 2.2f;
 			for (size_t i = 0; i < uview.count; ++i) {
-				if (!uview.alive[i] || uview.team[i] == local_player()) continue;
+				// unit_actions "attack" needs an enemy (Attack.js CanAttack IsEnemy): an ally or a
+				// neutral unit gets "move", a walk to the click.
+				if (!uview.alive[i] || !sim->is_hostile(local_player(), uview.team[i])) continue;
 				// PickEntityAtPoint: only units the player sees (none in the fog or the shroud).
 				if (!rtso::los_sees_unit(*sim, local_player(), uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 				float dx = uview.pos_x[i] - click_pos.x;
@@ -1367,7 +1378,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
 					} else if (force_turret && friendly && selection_can_occupy_turret(b.id)) {
 						occupy_turret();
-					} else if (force_repair && friendly && (b.build_progress < 1.0f || b.hp < b.max_hp)) {
+					} else if (force_repair && friendly && (b.build_progress < 1.0f || b.hp < b.max_hp) && able_any(builds)) {
 						// session.repair likewise wins over returning resources (unit_actions.js "repair").
 						pick_one(builds);
 						if (turn_cmds())
@@ -1402,7 +1413,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							else
 								sim->order_return_resource(sel_ptr, sel_n, b.id, queue_shift);
 							play_civ_voice("gather");
-						} else if (b.build_progress < 1.0f || b.hp < b.max_hp) {
+						} else if ((b.build_progress < 1.0f || b.hp < b.max_hp) && able_any(builds)) { // "repair" needs a builder
 							pick_one(builds);
 							if (turn_cmds())
 								post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
@@ -1422,7 +1433,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							else
 								sim->order_return_resource(sel_ptr, sel_n, b.id, queue_shift);
 							play_civ_voice("gather");
-						} else if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) { // finished fields: farm
+						} else if ((b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) && able_any(builds)) {
+							// finished fields: farm; "repair" needs a builder, else the click walks there
 							pick_one(builds);
 							if (turn_cmds())
 								post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
@@ -1579,8 +1591,13 @@ bool RtsoMain::run_armed_click(const Ref<InputEventMouseButton> &press) {
 		attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
 		return false;
 	}
-	if (!armed_target_ok(get_ground_click_pos(press->get_position()))) return true; // the -disabled cursor: nothing happens
 	const bool keep = rtso::hotkeys::held("session.queue") || rtso::hotkeys::held("session.orderone");
+	// The -disabled cursor ("none"): nothing happens, and the armed action still ends unless
+	// Shift or Alt is held (input.js INPUT_PRESELECTEDACTION).
+	if (!armed_target_ok(get_ground_click_pos(press->get_position()))) {
+		if (!keep) attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
+		return true;
+	}
 	const bool modes[7] = { attack_move_mode, patrol_mode, guard_mode, call_to_arms_mode, garrison_mode, turret_mode, repair_mode };
 	Ref<InputEventMouseButton> right = press->duplicate();
 	right->set_button_index(MOUSE_BUTTON_RIGHT);
