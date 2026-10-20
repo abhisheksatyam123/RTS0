@@ -203,17 +203,45 @@ func _ready() -> void:
 		if btn is Button:
 			btn.mouse_entered.connect(_play_hover)
 
+## sprites.xml's ThinBorder: global/border line_horiz/line_vert tiled along the
+## sides, 4 px inside each edge, and the four 4x4 line_corner_* pieces.
+static func thin_border(panel: Control) -> void:
+	const DIR := "res://assets/textures/ui/global/border/"
+	# [texture, anchors (l, t, r, b), offsets (l, t, r, b)]
+	var parts := [
+		["line_horiz.png", [0, 0, 1, 0], [4, 0, -4, 4]],
+		["line_vert.png", [1, 0, 1, 1], [-4, 4, 0, -4]],
+		["line_horiz.png", [0, 1, 1, 1], [4, -4, -4, 0]],
+		["line_vert.png", [0, 0, 0, 1], [0, 4, 4, -4]],
+		["line_corner_top_right.png", [1, 0, 1, 0], [-4, 0, 0, 4]],
+		["line_corner_bottom_right.png", [1, 1, 1, 1], [-4, -4, 0, 0]],
+		["line_corner_bottom_left.png", [0, 1, 0, 1], [0, -4, 4, 0]],
+		["line_corner_top_left.png", [0, 0, 0, 0], [0, 0, 4, 4]]]
+	for p in parts:
+		if not ResourceLoader.exists(DIR + p[0]):
+			continue
+		var t := TextureRect.new()
+		t.name = "Border_" + str(p[0]).get_basename()
+		t.texture = load(DIR + p[0])
+		t.stretch_mode = TextureRect.STRETCH_TILE
+		t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		for k in 4:
+			t.set_anchor(k, p[1][k])
+		for k in 4:
+			t.set_offset(k, p[2][k])
+		panel.add_child(t)
+
 ## ProjectInformation.xml/.js: the translucent panel with the release line, the
 ## development notice and the community buttons; the organization; and the build
 ## string (getBuildString) at the bottom.
 func _build_project_information() -> void:
 	var info := Panel.new()
 	info.name = "ProjectInformation"
-	var sb := StyleBoxFlat.new() # TranslucentPanelThinBorder
-	sb.bg_color = Color(0, 0, 0, 0.5)
-	sb.border_color = Color(0.5, 0.45, 0.35, 0.8)
-	sb.set_border_width_all(1)
+	var sb := StyleBoxFlat.new() # TranslucentPanelThinBorder: 0 0 0 85 behind 4 px line borders
+	sb.bg_color = Color8(0, 0, 0, 85)
 	info.add_theme_stylebox_override("panel", sb)
+	thin_border(info)
 	info.anchor_right = 1.0
 	info.anchor_top = 1.0
 	info.anchor_bottom = 1.0

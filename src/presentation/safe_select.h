@@ -22,10 +22,12 @@ class RtsoSafeSelect : public Button {
 		int id = 0;
 		Ref<Texture2D> icon;
 		String tooltip;
+		Color color = Color(0, 0, 0, 0); // a=0: the theme's font colour
 	};
 	std::vector<Item> items;
 	int selected = -1;
 	bool suppress = false;
+	bool tinted = false; // set_text_color overrides the font colours
 	PanelContainer *menu = nullptr;
 	ItemList *list = nullptr;
 
@@ -41,6 +43,9 @@ public:
 	void select(int index);
 	void set_item_tooltip(int index, const String &tooltip); // shown on hover in the open list
 	godot::String get_item_tooltip(int index) const;
+	// setStringTags(caption, {color}): the item's text colour, in the list and on the button.
+	void set_item_color(int index, const Color &color);
+	Color get_item_color(int index) const;
 	int get_selected() const { return selected; }
 	int get_item_id(int index) const;
 	godot::String get_item_text(int index) const;
@@ -58,6 +63,7 @@ public:
 private:
 	void ensure_menu();
 	void refresh_button();
+	void set_text_color(const Color &color);
 	void open_menu();
 	void close_menu();
 	void rebuild_list();
