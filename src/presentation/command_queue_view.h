@@ -643,8 +643,8 @@ public:
 						}
 				if (found_b->team == local_player() && one_template) {
 					const bool upgrading = found_b->upgrade_to != rtso::BLD_TYPE_COUNT;
-					for (int choice = 0; choice < rtso::building_upgrade_count(found_b->type, sim->structure_upgrade_civ(*found_b)); ++choice) {
-						const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, sim->structure_upgrade_civ(*found_b), choice);
+					for (int choice = 0; choice < sim->structure_upgrade_count(*found_b); ++choice) {
+						const rtso::BuildingUpgradeInfo up = sim->structure_upgrade(*found_b, choice);
 						const rtso::Simulation::UpgradeCheck check = sim->upgrade_check(local_player(), found_b->id, choice);
 						// Not this piece's (only wall_long and palisades_long become gates).
 						if (check == rtso::Simulation::UPGRADE_ERR_NONE && !upgrading) continue;
@@ -1434,8 +1434,7 @@ private:
 		if (pass == 1 && ob->civ == civ) break;
 		for (uint16_t i : rtso::civ_roster_ids(pass == 0 ? ob->civ : civ)) {
 			const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
-			if (!(u.trainers & rtso::bld_bit(ob->type))) continue;
-			if (rtso::building_train_civ(ob->type, ob->civ, civ, u) != u.civ) continue;
+			if (!rtso::building_trains_template(ob->type, ob->civ, civ, i)) continue;
 			// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;
 			// 0 A.D. has no such unit, so players don't see it.
 			if (std::strstr(u.id, "/rts0_")) continue;

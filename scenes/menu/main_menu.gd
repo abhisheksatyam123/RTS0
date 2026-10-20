@@ -116,7 +116,7 @@ const MAIN_TOOLTIPS := {
 	"BtnSingle": "Start, load, or replay a single-player game.",
 	"BtnMulti": "Fight against one or more human players in a multiplayer game.",
 	"BtnSettings": "Change game options.",
-	"BtnEditor": "Inspect 3D unit models, animations, and civic buildings.",
+	"BtnEditor": "Open the Atlas Scenario Editor in a new window. You can run this more reliably by starting the game with the command-line argument \"-editor\".",
 	"BtnCredits": "Show the 0 A.D. credits.",
 	"BtnExit": "Exit the game.",
 }
@@ -124,6 +124,21 @@ const MAIN_TOOLTIPS := {
 const MENU_HOTKEYS := {"structree": "open_tech_tree", "civinfo": "open_encyclopedia", "lobby": "open_lobby"}
 
 var _hotkeys := RtsoHotkeyConfig.new()
+
+## ProjectInformation.js communityButtons: caption, tooltip, URL, and the size inside the
+## info panel as [left, top, right, bottom]: left/right as fractions of the width plus px,
+## top/bottom as px from the panel's bottom.
+const COMMUNITY_BUTTONS := [
+	["Website", "Click to open play0ad.com in your web browser.", "https://play0ad.com/", [0.0, 8, 0.5, -4, -148, -116]],
+	["Chat", "Click to open the 0 A.D. IRC chat in your browser (#0ad on webchat.quakenet.org). It is run by volunteers who do all sorts of tasks, it may take a while to get your question answered. Alternatively, you can use the forum (see Website).", "https://webchat.quakenet.org/?channels=0ad", [0.5, 4, 1.0, -8, -148, -116]],
+	["Report a Bug", "Click to visit the 0 A.D. issue tracker to report a bug, crash, or error.", "https://gitea.wildfiregames.com/0ad/0ad/issues", [0.0, 8, 0.5, -4, -112, -80]],
+	["FAQ", "Click to visit the Frequently Asked Questions page in your browser.", "https://gitea.wildfiregames.com/0ad/0ad/wiki/FAQ", [0.5, 4, 1.0, -8, -112, -80]],
+	["Translate the Game", "Click to open the 0 A.D. translate page in your browser.", "https://gitea.wildfiregames.com/0ad/0ad/wiki/Localization", [0.0, 8, 1.0, -8, -76, -44]],
+	["Donate", "Help with the project expenses by donating.", "https://play0ad.com/community/donate/", [0.0, 8, 1.0, -8, -40, -8]],
+]
+var community_buttons: Array[Button] = []
+## The URL the last community button opened (a test reads it; headless opens nothing).
+var opened_url := ""
 
 func _ready() -> void:
 	# menupanel.xml tooltip_style="pgToolTip": the fixed top-right panel, at once.
@@ -151,14 +166,15 @@ func _ready() -> void:
 	$MainPanel/Buttons/BtnEditor.pressed.connect(_on_editor_pressed)
 	$MainPanel/Buttons/BtnCredits.pressed.connect(_on_credits_pressed)
 	$MainPanel/Buttons/BtnExit.pressed.connect(_on_exit_pressed)
-	# 0.28's top-level Continue Campaign, enabled while a campaign run is current.
+	# 0.28's top-level Continue Campaign, enabled while a campaign run is current
+	# (CampaignRun.hasCurrentRun: a current run is named, even one that cannot load).
 	var cont: Button = $MainPanel/Buttons/BtnContinue
 	cont.pressed.connect(func(): _execute_action("continue_campaign"))
-	cont.disabled = CampaignRun.current_run() == null
+	cont.disabled = CampaignRun.current_filename() == ""
 	for n in MAIN_TOOLTIPS:
 		get_node("MainPanel/Buttons/" + n).tooltip_text = tr(MAIN_TOOLTIPS[n])
 
-	$CivSwitcher.pressed.connect(_cycle_background)
+	_build_project_information()
 
 	if preload("res://scenes/menu/user_settings.gd").version_requested(OS.get_cmdline_args() + OS.get_cmdline_user_args()):
 		return
@@ -181,6 +197,92 @@ func _ready() -> void:
 	for btn in $MainPanel/Buttons.get_children():
 		if btn is Button:
 			btn.mouse_entered.connect(_play_hover)
+
+## ProjectInformation.xml/.js: the translucent panel with the release line, the
+## development notice and the community buttons; the organization; and the build
+## string (getBuildString) at the bottom.
+func _build_project_information() -> void:
+	var info := Panel.new()
+	info.name = "ProjectInformation"
+	var sb := StyleBoxFlat.new() # TranslucentPanelThinBorder
+	sb.bg_color = Color(0, 0, 0, 0.5)
+	sb.border_color = Color(0.5, 0.45, 0.35, 0.8)
+	sb.set_border_width_all(1)
+	info.add_theme_stylebox_override("panel", sb)
+	info.anchor_right = 1.0
+	info.anchor_top = 1.0
+	info.anchor_bottom = 1.0
+	info.offset_left = 8
+	info.offset_right = -8
+	info.offset_top = -368
+	info.offset_bottom = -94
+	main_panel.add_child(info)
+	# menupanel.xml: the menu buttons stay above it (z 60) at low resolutions.
+	main_panel.move_child(info, $MainPanel/Buttons.get_index())
+	var desc := RichTextLabel.new()
+	desc.name = "ProductDescription"
+	desc.bbcode_enabled = true
+	desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	desc.scroll_active = false
+	desc.add_theme_font_size_override("normal_font_size", 14)
+	desc.add_theme_font_size_override("bold_font_size", 16)
+	desc.text = "[b]%s[/b]\n\n%s" % [tr("Release XXVIII: Boiorix"), tr("Notice: This game is under development and many features have not been added yet.")]
+	desc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	desc.offset_left = 8
+	desc.offset_top = 8
+	desc.offset_right = -8
+	desc.offset_bottom = -36
+	info.add_child(desc)
+	for spec in COMMUNITY_BUTTONS:
+		var b := Button.new()
+		b.text = tr(spec[0])
+		b.tooltip_text = tr(spec[1])
+		b.set_meta("tooltip_style", "pg")
+		var r: Array = spec[3]
+		b.anchor_left = r[0]
+		b.offset_left = r[1]
+		b.anchor_right = r[2]
+		b.offset_right = r[3]
+		b.anchor_top = 1.0
+		b.anchor_bottom = 1.0
+		b.offset_top = r[4]
+		b.offset_bottom = r[5]
+		var url: String = spec[2]
+		b.pressed.connect(func(): open_url(url))
+		info.add_child(b)
+		community_buttons.append(b)
+	var build := Label.new()
+	build.name = "ProductBuild"
+	build.text = build_string()
+	build.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	build.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	build.add_theme_font_size_override("font_size", 12)
+	build.anchor_left = 0.5
+	build.anchor_right = 0.5
+	build.anchor_top = 1.0
+	build.anchor_bottom = 1.0
+	build.offset_left = -128
+	build.offset_right = 128
+	build.offset_top = -36
+	build.offset_bottom = 0
+	main_panel.add_child(build)
+
+## getBuildString: "Build: %(buildDate)s (%(version)s)", the date the GDExtension was
+## built and the version.
+static func build_string() -> String:
+	var lib := "res://bin/librtso.%s.template_release.x86_64.so" % OS.get_name().to_lower()
+	var t := FileAccess.get_modified_time(lib) if FileAccess.file_exists(lib) else 0
+	var date := Time.get_date_string_from_unix_time(t) if t > 0 else "unknown"
+	var v := str(ProjectSettings.get_setting("application/config/version", ""))
+	return L10n.sprintf(TranslationServer.translate("Build: %(buildDate)s (%(version)s)"), {"buildDate": date, "version": v if v != "" else "0.1"})
+
+## openURL: open it in the browser, saying so in a message box.
+func open_url(url: String) -> void:
+	opened_url = url
+	if DisplayServer.get_name() != "headless":
+		OS.shell_open(url)
+	preload("res://scenes/common/msgbox.gd").open(self, 600, 200,
+		L10n.sprintf(tr("Opening %(url)s\n in default web browser. Please wait…"), {"url": url}), tr("Opening page"))
 
 func _setup_background(civ_name: String) -> void:
 	# Clean existing layers
@@ -207,10 +309,6 @@ func _setup_background(civ_name: String) -> void:
 		parallax_container.add_child(layer)
 		bg_layers.append(layer)
 	_place_layers()
-
-	var civ_lbl = get_node_or_null("CivSwitcher/CivLabel")
-	if civ_lbl:
-		civ_lbl.text = "CIVILIZATION: " + civ_name.to_upper()
 
 ## BackgroundLayer.update: each layer's offset at the time since the menu opened.
 func _layer_offset(i: int, t: float, width: float) -> float:
@@ -254,10 +352,6 @@ func _place_layers() -> void:
 			pieces[0].position = Vector2(right - height, 0)
 			pieces[0].size = Vector2(2.0 * height, height)
 
-func _cycle_background() -> void:
-	current_bg_index = (current_bg_index + 1) % BG_KEYS.size()
-	_setup_background(BG_KEYS[current_bg_index])
-
 func _process(delta: float) -> void:
 	time_elapsed += delta
 	if get_viewport_rect().size.x > 0:
@@ -291,9 +385,9 @@ func _toggle_submenu(menu_id: String, anchor_button: Button) -> void:
 		c.queue_free()
 
 	for item in data["items"]:
-		if item.get("needs_campaign", false) and CampaignRun.current_run() == null:
-			continue
 		var btn = Button.new()
+		# The Single-player Continue Campaign is greyed out, not left out, without a run.
+		btn.disabled = item.get("needs_campaign", false) and CampaignRun.current_filename() == ""
 		btn.text = item["label"]
 		btn.tooltip_text = _item_tooltip(item)
 		btn.custom_minimum_size = Vector2(220, 34)
@@ -331,8 +425,7 @@ func _item_tooltip(item: Dictionary) -> String:
 	var tip := tr(str(item.get("tooltip", "")))
 	if not item.has("hotkey"):
 		return tip
-	var keys: String = _hotkeys.display(item["hotkey"])
-	return L10n.sprintf(tip, {"hotkey": keys if keys != "" else L10n.t("Unassigned")})
+	return _hotkeys.colorize(tip, item["hotkey"])
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
@@ -416,8 +509,11 @@ func _execute_action(action: String) -> void:
 			load("res://scenes/menu/campaigns.gd").open_mode = {"continue_campaign": "menu", "new_campaign": "setup", "load_campaign": "load"}[action]
 			_go_to_scene("res://scenes/menu/campaigns.tscn")
 
+## MainMenuItems.js Scenario Editor: without Atlas (RTS0 has none), 0.28's error box.
+## RTS0's Asset Viewer stays under Single-player.
 func _on_editor_pressed() -> void:
-	_go_to_scene("res://scenes/tools/asset_viewer.tscn")
+	load("res://scenes/common/msgbox.gd").open(self, 400, 200,
+		tr("The scenario editor is not available or failed to load. See the game logs for additional information."), tr("Error"))
 
 # 0 A.D. pushes page_credits.xml over the main menu.
 func _on_credits_pressed() -> void:

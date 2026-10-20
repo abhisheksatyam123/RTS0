@@ -125,56 +125,52 @@ stretch_mode = 5
 
 [node name="Buttons" type="VBoxContainer" parent="MainPanel"]
 layout_mode = 1
-anchors_preset = 14
-anchor_top = 0.5
+anchors_preset = 10
 anchor_right = 1.0
-anchor_bottom = 0.5
-offset_left = 14.0
-offset_top = -140.0
-offset_right = -14.0
-offset_bottom = 170.0
+offset_left = 8.0
+offset_top = 146.0
+offset_right = -8.0
+offset_bottom = 346.0
 grow_horizontal = 2
-grow_vertical = 2
-theme_override_constants/separation = 7
-alignment = 1
+theme_override_constants/separation = 4
 
 [node name="BtnLearn" type="Button" parent="MainPanel/Buttons"]
-custom_minimum_size = Vector2(0, 34)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "Learn to Play"
 
 [node name="BtnContinue" type="Button" parent="MainPanel/Buttons"]
-custom_minimum_size = Vector2(0, 34)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "Continue Campaign"
 
 [node name="BtnSingle" type="Button" parent="MainPanel/Buttons"]
-custom_minimum_size = Vector2(0, 34)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "Single-player"
 
 [node name="BtnMulti" type="Button" parent="MainPanel/Buttons"]
-custom_minimum_size = Vector2(0, 34)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "Multiplayer"
 
 [node name="BtnSettings" type="Button" parent="MainPanel/Buttons"]
-custom_minimum_size = Vector2(0, 34)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "Settings"
 
 [node name="BtnEditor" type="Button" parent="MainPanel/Buttons"]
-custom_minimum_size = Vector2(0, 34)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "Scenario Editor"
 
 [node name="BtnCredits" type="Button" parent="MainPanel/Buttons"]
-custom_minimum_size = Vector2(0, 34)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "Credits"
 
 [node name="BtnExit" type="Button" parent="MainPanel/Buttons"]
-custom_minimum_size = Vector2(0, 34)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "Exit"
 
@@ -184,17 +180,17 @@ anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 12.0
-offset_top = -100.0
-offset_right = -12.0
-offset_bottom = -16.0
+offset_left = 4.0
+offset_top = -84.0
+offset_right = -4.0
+offset_bottom = -52.0
 grow_horizontal = 2
 grow_vertical = 0
-theme_override_constants/separation = 2
+theme_override_constants/separation = 0
 alignment = 1
 
 [node name="WfgLogo" type="TextureRect" parent="MainPanel/Footer"]
-custom_minimum_size = Vector2(24, 24)
+custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 size_flags_horizontal = 4
 texture = ExtResource("4_wfg")
@@ -206,20 +202,6 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.75, 0.31, 1)
 theme_override_font_sizes/font_size = 12
 text = "WILDFIRE GAMES"
-horizontal_alignment = 1
-
-[node name="TitleLabel" type="Label" parent="MainPanel/Footer"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
-theme_override_font_sizes/font_size = 11
-text = "0 A.D. Empires Ascendant"
-horizontal_alignment = 1
-
-[node name="VersionLabel" type="Label" parent="MainPanel/Footer"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
-theme_override_font_sizes/font_size = 10
-text = "RTS0 C++20 • Godot 4.3"
 horizontal_alignment = 1
 
 [node name="SubmenuPanel" type="PanelContainer" parent="."]
@@ -245,31 +227,3 @@ horizontal_alignment = 1
 [node name="SubmenuButtons" type="VBoxContainer" parent="SubmenuPanel/SubmenuContent"]
 layout_mode = 2
 theme_override_constants/separation = 5
-
-[node name="CivSwitcher" type="Button" parent="."]
-layout_mode = 1
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -210.0
-offset_top = 18.0
-offset_right = -20.0
-offset_bottom = 50.0
-grow_horizontal = 0
-theme_override_font_sizes/font_size = 12
-text = "Switch Scene"
-
-[node name="CivLabel" type="Label" parent="CivSwitcher"]
-layout_mode = 1
-anchors_preset = 12
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_top = 4.0
-offset_bottom = 22.0
-grow_horizontal = 2
-grow_vertical = 0
-theme_override_colors/font_color = Color(0.8, 0.75, 0.65, 0.9)
-theme_override_font_sizes/font_size = 11
-text = "CIVILIZATION: HELLENES"
-horizontal_alignment = 2

@@ -5,7 +5,9 @@ extends SceneTree
 #   3. -replay with a hash flipped in commands.rts0rec exits 1 on that turn, and
 #      -hashtest-full=false plays it through;
 #   4. -replay-visual=.../commands.rts0rec watches it in the match scene;
-#   5. a missing replay says so and -replay exits 1.
+#   5. a missing replay says so and -replay exits 1;
+#   6. -replay with -serializationtest, -rejointest=N, -ooslog and -unique-logs
+#      runs the simulation tests on every turn and exits 0.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_replay_cli.gd
 # Exit code 0 = pass.
@@ -89,6 +91,29 @@ func run() -> void:
 	await wait_exit(4000)
 	check(exit_code == 0, "-hashtest-full=false plays it through (got %d)" % exit_code)
 
+	print("6. The simulation tests")
+	var opts := ReplayCli.parse(PackedStringArray(["-replay=" + dir, "-serializationtest", "-rejointest=5", "-ooslog", "-unique-logs"]))
+	check(opts.get("sim_tests", {}) == {"serializationtest": true, "rejointest": 5, "ooslog": true, "unique_logs": true},
+		"the test flags are read: " + str(opts.get("sim_tests")))
+	cli(["-replay=" + dir, "-serializationtest", "-rejointest=5", "-ooslog", "-unique-logs"])
+	await wait_exit(8000)
+	var tests: Dictionary = current_scene.get_sim_tests() if current_scene and current_scene.has_method("get_sim_tests") else {}
+	var rejoin: Dictionary = current_scene.get_rejoin_test() if current_scene and current_scene.has_method("get_rejoin_test") else {}
+	check(exit_code == 0, "every turn survives a save and load, and the rejoined copy agrees (got %d)" % exit_code)
+	check(int(tests.get("serialization_turns", 0)) >= 90 and int(tests.get("serialization_failure_turn", -1)) == 0,
+		"the serialization test ran %d turns" % int(tests.get("serialization_turns", 0)))
+	check(bool(rejoin.get("active", false)) and int(rejoin.get("rejoined_at", 0)) >= 5 and int(rejoin.get("turns", 0)) >= 90
+		and int(rejoin.get("out_of_sync_turn", -1)) == 0, "the rejoin test started at turn 5: " + str(rejoin))
+	var log_dir := str(tests.get("sim_log", ""))
+	check(FileAccess.file_exists(log_dir + "00000010.txt") and FileAccess.file_exists(log_dir + "00000010.dat")
+		and FileAccess.get_file_as_string(log_dir + "00000010.txt").contains("-- units"),
+		"-ooslog writes each turn's readable and binary state to " + log_dir)
+	check(str(tests.get("oos_dump_name", "")).begins_with("oos_dump_") and str(tests.get("oos_dump_name", "")).ends_with("_%d" % OS.get_process_id()),
+		"-unique-logs names the OOS dump with the time and process id: " + str(tests.get("oos_dump_name", "")))
+	for fn in DirAccess.get_files_at(log_dir):
+		DirAccess.remove_absolute(log_dir + fn)
+	DirAccess.remove_absolute(log_dir)
+
 	print("4. -replay-visual")
 	change_scene_to_file("res://scenes/menu/replay_browser.tscn")
 	await frames(5)
@@ -113,4 +138,8 @@ func run() -> void:
 	change_scene_to_file("res://scenes/menu/replay_browser.tscn")
 	await frames(60)
 	print("FAILURES: ", failures)
+	# A static Callable still holding this script's lambda when the engine clears
+	# GDScript statics at exit frees it twice (Godot 4.3): drop it before quitting.
+	ReplayCli.quit_hook = Callable()
+	ReplayCli.args_override = PackedStringArray()
 	quit(1 if failures else 0)

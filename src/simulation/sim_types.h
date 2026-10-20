@@ -1707,24 +1707,40 @@ inline BuildingUpgradeInfo generic_building_upgrade(uint8_t from, uint8_t civ) {
 	}
 }
 
-// Upgrade choice k (0-based) of a `from` structure owned by a `civ` player: the
-// civ's own structure upgrades (civ_building_upgrade_table(), e.g. the Tachara's
-// four tribute forms) first, then the generic one. `to` is BLD_TYPE_COUNT past the last.
-inline BuildingUpgradeInfo building_upgrade(uint8_t from, uint8_t civ, int k = 0) {
+// Upgrade.js names most targets "structures/{civ}/...", which DetermineUpgrades resolves
+// with the owner's civ and drops when that civ has no such template. The Tachara forms, the
+// Carthaginian apartment, the Roman siege wall gate and the palisade gate name theirs outright.
+inline bool building_upgrade_target_is_owner_civ(uint8_t to) {
+	return to == BLD_TOWER || to == BLD_GATE || to == BLD_IMPERIAL_COURT || to == BLD_TOWER_GREAT ||
+			to == BLD_WAGON_ENCAMPMENT_FORTIFIED;
+}
+
+// Upgrade choice k (0-based) of a `from` structure of a `civ` template: the civ's own
+// structure upgrades (civ_building_upgrade_table(), e.g. the Tachara's four tribute forms)
+// first, then the generic one. `to` is BLD_TYPE_COUNT past the last. `owner_civ` (when
+// given) drops the "{civ}" targets the owner's civ lacks, as a captured Han tower offers
+// no Great Tower to an Athenian.
+inline BuildingUpgradeInfo building_upgrade(uint8_t from, uint8_t civ, int k = 0, uint8_t owner_civ = 0xFF) {
 	const uint16_t bit = civ < 16 ? (uint16_t)(1u << civ) : 0;
+	const bool filter = owner_civ != 0xFF;
+	const uint16_t owner_bit = owner_civ < 16 && owner_civ != CIV_GAIA ? (uint16_t)(1u << owner_civ) : 0;
 	for (const CivBuildingUpgrade *u = civ_building_upgrade_table(); u->from != BLD_TYPE_COUNT; ++u) {
 		if (u->from != from || !(u->civs & bit)) continue;
+		if (filter && building_upgrade_target_is_owner_civ(u->to) && !(u->civs & owner_bit)) continue;
 		if (k-- == 0)
 			return {u->to, u->food_cost, u->wood_cost, u->gold_cost, u->stone_cost, u->time, u->phase, u->tooltip};
 	}
-	if (k == 0) return generic_building_upgrade(from, civ);
+	if (k == 0) {
+		const BuildingUpgradeInfo g = generic_building_upgrade(from, civ);
+		if (!filter || owner_bit || !building_upgrade_target_is_owner_civ(g.to)) return g;
+	}
 	return {BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr};
 }
 
 // How many Upgrade choices building_upgrade() offers.
-inline int building_upgrade_count(uint8_t from, uint8_t civ) {
+inline int building_upgrade_count(uint8_t from, uint8_t civ, uint8_t owner_civ = 0xFF) {
 	int n = 0;
-	while (n < 8 && building_upgrade(from, civ, n).to != BLD_TYPE_COUNT) ++n;
+	while (n < 8 && building_upgrade(from, civ, n, owner_civ).to != BLD_TYPE_COUNT) ++n;
 	return n;
 }
 
@@ -3209,6 +3225,58 @@ inline uint8_t building_train_civ(uint8_t type, uint8_t bld_civ, uint8_t owner_c
 	                   type == BLD_MILITARY_COLONY || type == BLD_WAGON_ENCAMPMENT ||
 	                   type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
 	return civic && (t.flags & ROSTER_CIVILIAN) && (t.trainers & bld_bit(type)) ? bld_civ : owner_civ;
+}
+
+// Whether `tmpl` is a unit of the names `bld_civ`'s own `type` structure lists as
+// units/{civ}/<name> (TRAINER_CIV_LISTS), for any civ; *listed says whether that civ has
+// such a structure with a list at all.
+inline bool trainer_civ_list_has(uint8_t bld_civ, uint8_t type, uint16_t tmpl, bool *listed) {
+	struct Lists {
+		std::vector<std::array<uint64_t, CIV_TEMPLATE_WORDS_MAX>> bits;
+		std::vector<uint8_t> has;
+		Lists() : bits((size_t)TRAINER_CIV_ROWS * TRAINER_BUILDING_ROWS), has(bits.size()) {
+			for (const TrainerCivList &l : TRAINER_CIV_LISTS) {
+				const size_t k = (size_t)l.civ * TRAINER_BUILDING_ROWS + l.type;
+				has[k] = 1;
+				for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i) {
+					const char *id = civ_unit_template(i).id, *slash = std::strchr(id, '/');
+					if (!slash || !is_playable_civ(civ_unit_template(i).civ)) continue;
+					const size_t n = std::strlen(slash + 1);
+					for (const char *p = l.units; *p;) {
+						const char *e = std::strchr(p, ' ');
+						const size_t m = e ? (size_t)(e - p) : std::strlen(p);
+						if (m == n && std::strncmp(p, slash + 1, n) == 0) { bits[k][i >> 6] |= 1ull << (i & 63); break; }
+						p += m + (e ? 1 : 0);
+					}
+				}
+			}
+		}
+	};
+	static const Lists lists;
+	*listed = false;
+	if (bld_civ >= TRAINER_CIV_ROWS || type >= TRAINER_BUILDING_ROWS || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	const size_t k = (size_t)bld_civ * TRAINER_BUILDING_ROWS + type;
+	*listed = lists.has[k] != 0;
+	return (lists.bits[k][tmpl >> 6] >> (tmpl & 63)) & 1u;
+}
+
+// Whether a `type` structure built by `bld_civ` and held by an `owner_civ` player trains
+// `tmpl` (Trainer.js CalculateEntitiesMap). Its own builder's structure uses the roster's
+// trainer bits; one captured from another civ trains the captor's units of the names in its
+// builder's list ({civ} is the holder's civ), so a Briton holding an Athenian civic centre
+// trains brit/infantry_spearman_b, infantry_slinger_b and cavalry_javelineer_b, and none of
+// the Briton civic centre's others.
+inline bool building_trains_template(uint8_t type, uint8_t bld_civ, uint8_t owner_civ, uint16_t tmpl) {
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	const CivUnitTemplate &t = civ_unit_template(tmpl);
+	const uint8_t civ = building_train_civ(type, bld_civ, owner_civ, t);
+	if (t.civ != civ) return false;
+	if (civ != bld_civ) {
+		bool listed = false;
+		const bool in = trainer_civ_list_has(bld_civ, type, tmpl, &listed);
+		if (listed) return in;
+	}
+	return t.trainers.test(type);
 }
 
 // BuildingAI and Attack/Ranged of a civ's structure: the generic row plus 0.28's one civ

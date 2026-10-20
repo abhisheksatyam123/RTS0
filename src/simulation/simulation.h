@@ -180,8 +180,10 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 103; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 105; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_CHASE_TARGET = 105; // the target each unit was last in attack range of (UnitAI CHASING)
 	static constexpr uint32_t SAVE_VERSION_WAGON_SHARING = 103; // the supply wagons their owners locked
+	static constexpr uint32_t SAVE_VERSION_PETRA_TARGETED_RELICS = 104; // each Petra's targetedGaiaRelics; each structure's petra_decay_hold
 	static constexpr uint32_t SAVE_VERSION_AUTOQUEUE_BATCH = 102; // each queued batch's original size once part of it spawned
 	static constexpr uint32_t SAVE_VERSION_CARCASS_OWNER = 101; // each carcass's animal's owner
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
@@ -400,6 +402,9 @@ public:
 		// 0 A.D. ResourceDropsite IsShared: allies with Diaspora may drop resources here. Sharable
 		// dropsites (Civic Centres, storehouses, farmsteads, docks) start shared.
 		bool dropsite_shared = true;
+		// garrisonManager.js addDecayingStructure(justCaptured): a Barracks-class structure
+		// captured while decaying, which its owner's AI garrisons until the decay stops.
+		bool petra_decay_hold = false;
 	};
 	// Whether `b` is rasterized into the nav grid (0 A.D. Obstruction BlockPathfinding).
 	static bool blocks_pathfinding(const Building &b) {
@@ -639,7 +644,7 @@ public:
 		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
 			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER,
-			END_TREASURE, END_STRUCTURES_CRITICAL, END_CIVIC_CENTRES_CRITICAL };
+			END_TREASURE, END_STRUCTURES_CRITICAL, END_CIVIC_CENTRES_CRITICAL, END_CHEAT };
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
@@ -1015,7 +1020,8 @@ public:
 	// instead of its garrison.
 	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false,
 			bool turret = false);
-	void order_ungarrison(uint32_t building_id);
+	// forced_turrets: turret units step down even with no free spot (GetSpawnPosition forced).
+	void order_ungarrison(uint32_t building_id, bool forced_turrets = false);
 	// GarrisonHolder.EjectOrKill. With `keep_allies_of` a player, only units not owned by that
 	// player or a mutual ally of theirs leave (OnGlobalOwnershipChanged, OnDiplomacyChanged).
 	void eject_or_kill(Building &b, uint8_t keep_allies_of = 0xFF);
@@ -1531,8 +1537,22 @@ public:
 	// `choice`: which of building_upgrade()'s choices (the Tachara has four).
 	// The civ whose Upgrade choices a structure offers: its own template's (Upgrade.js reads
 	// the entity's template, so a captured Tachara keeps its four forms), else its owner's.
-	uint8_t structure_upgrade_civ(const Building &b) const {
+	uint8_t structure_upgrade_civ(const Building &b) const { return structure_template_civ(b); }
+	// The civ of the template a structure was placed as (a captured house keeps its builder's
+	// Population/Bonus and BuildTime), else its owner's.
+	uint8_t structure_template_civ(const Building &b) const {
 		return b.civ < CIV_COUNT && b.civ != CIV_GAIA ? b.civ : (uint8_t)civ_of(b.team);
+	}
+	// Upgrade.js DetermineUpgrades: that template's choices, its "{civ}" targets resolved
+	// with the owner's civ (the ones the owner's civ lacks dropped).
+	BuildingUpgradeInfo structure_upgrade(const Building &b, int choice) const {
+		return building_upgrade(b.type, structure_upgrade_civ(b), choice, structure_owner_civ(b));
+	}
+	int structure_upgrade_count(const Building &b) const {
+		return building_upgrade_count(b.type, structure_upgrade_civ(b), structure_owner_civ(b));
+	}
+	uint8_t structure_owner_civ(const Building &b) const {
+		return b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_GAIA;
 	}
 	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id, int choice = 0) const;
 	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice = 0);
@@ -1856,7 +1876,8 @@ public:
 	// Player.IsTrainingBlocked: a batch at the head of one of the player's queues waits
 	// for population room (Trainer.js Item.Start, Player.BlockTraining).
 	bool training_blocked(uint8_t player) const;
-	int structure_pop_bonus(uint8_t type, uint8_t player) const;
+	// `bld_civ`: the structure's template civ (structure_template_civ); 0xFF for the player's own.
+	int structure_pop_bonus(uint8_t type, uint8_t player, uint8_t bld_civ = 0xFF) const;
 	// GarrisonHolder/BuffHeal of a structure type for a player: its template's plus garrison_heal.
 	float structure_garrison_heal_for(uint8_t type, uint8_t player) const {
 		return building_garrison_heal(type) + (player < MAX_PLAYERS && type < BLD_TYPE_COUNT ? tech_mods_[player].bld_garrison_heal[type] : 0.0f);
@@ -2691,6 +2712,7 @@ private:
 	// leave (UnitAI LeaveFoundation); enemies and Gaia keep it from starting. True once
 	// the site is clear and committed, after which the foundation blocks movement.
 	bool try_commit_foundation(Building &b);
+	void foundation_exit_point(const Building &b, float x, float z, float r, float &tx, float &tz) const;
 	void leave_foundation(size_t i, const Building &b);
 	void tick_repair(float dt);
 	static constexpr float REPAIR_TIME_RATIO = 2.0f; // template_structure.xml Repairable/RepairTimeRatio
@@ -2954,7 +2976,7 @@ private:
 	bool structure_accepts_turret(const Building &b, size_t i) const;
 	bool turret_room(const Building &b) const;
 	void step_down_turret(Building &b, uint32_t unit_id);
-	void leave_turret(size_t i, const Building &b);
+	bool leave_turret(size_t i, const Building &b, bool forced);
 	void tick_turrets();
 	void builder_stand_point(size_t i, const Building &b, float x, float z, float &tx, float &tz) const;
 	std::vector<FormationController> formations_; // in creation order
@@ -3423,6 +3445,7 @@ private:
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
+	void petra_update_capture_strength();
 	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);
 	void petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz, uint8_t avoid = 0);
 	uint8_t petra_attack_avoid(const AttackPlan &plan, bool siege) const;
@@ -3492,6 +3515,10 @@ private:
 		std::vector<uint32_t> foundations; // sorted ids
 	};
 	PetraProspect petra_prospect_;
+	// victoryManager.js targetedGaiaRelics: the Gaia relics this AI goes for, reinforced every
+	// 10th turn until their owner changes. `sent` once a plan has gone for it (plans.length).
+	struct PetraTargetedRelic { uint32_t relic = 0; uint32_t sent = 0; };
+	std::vector<PetraTargetedRelic> petra_targeted_relics_;
 	void petra_check_trade_events();
 	void petra_set_no_room(uint8_t type);
 	bool petra_no_room(uint8_t type) const;
@@ -3886,7 +3913,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};

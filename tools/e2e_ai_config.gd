@@ -96,5 +96,14 @@ func run() -> void:
 		d.get_node("Dialog/OK").pressed.emit()
 		await frames(2)
 		check(dialog(page) == null, "OK closes it")
+	# A non-host reads each setting as text (GameSettingControl.updateVisibility).
+	var ro = load("res://scenes/menu/ai_config.gd").open_overlay(page, 1, false)
+	await frames(2)
+	var diff_text: Label = ro.find_child("AIDifficultyText", true, false)
+	var diff_dd: Control = ro.find_child("AIDifficulty", true, false)
+	check(diff_text != null and diff_text.visible and diff_text.text != "" and diff_dd != null and not diff_dd.visible,
+		"a non-host sees the difficulty as text: " + (diff_text.text if diff_text else ""))
+	ro.close_page()
+	await frames(2)
 	print("PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures else 0)

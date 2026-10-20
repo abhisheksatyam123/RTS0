@@ -602,7 +602,8 @@ static void test_diplomacy() {
 		// Hits on a Gaia animal and on an enemy structure count too (Attacked is sent for any entity).
 		const auto ally_hits = [&](const char *what, auto order) {
 			std::vector<uint32_t> bows;
-			for (int i = 0; i < 3; ++i) bows.push_back(s->spawn_unit(tx - 12.0f + 2.0f * (float)i, tz + 20.0f, 2, UNIT_ARCHER));
+			// Where the elephant fight above was: our land, the archers in reach.
+			for (int i = 0; i < 3; ++i) bows.push_back(s->spawn_unit(tx + 12.0f + 2.0f * (float)i, tz + 20.0f, 2, UNIT_ARCHER));
 			s->petra_config_slot(1).cooperative = 0.5f;
 			order(bows);
 			run_for(*s, 10.0f);
@@ -611,10 +612,13 @@ static void test_diplomacy() {
 			CHECK(now > 0.5f, "an ally's hits on it raise cooperativeness");
 			drop(bows);
 		};
-		const uint32_t deer = s->spawn_fauna(tx - 12.0f, tz + 12.0f, FAUNA_DEER);
-		ally_hits("deer", [&](std::vector<uint32_t> &bows) { s->order_attack(bows.data(), bows.size(), deer); });
-		const uint32_t house = s->spawn_building_world(tx - 12.0f, tz + 8.0f, BLD_HOUSE, 0);
-		ally_hits("house", [&](std::vector<uint32_t> &bows) { s->order_attack_building(bows.data(), bows.size(), house); });
+		if (const int32_t e = s->lookup_unit(foe); e >= 0) s->units_.alive[e] = false;
+		// A boar: Petra's hunters leave a live one alone (isHuntable), so only the ally hits it.
+		const uint32_t boar = s->spawn_fauna(tx + 12.0f, tz + 12.0f, FAUNA_BOAR);
+		ally_hits("boar", [&](std::vector<uint32_t> &bows) { s->order_hunt(bows.data(), bows.size(), boar); });
+		// Gaia's: a house of player 0 would claim its own ground (TerritoryInfluence).
+		const uint32_t house = s->spawn_building_world(tx + 12.0f, tz + 12.0f, BLD_HOUSE, GAIA_PLAYER);
+		ally_hits("Gaia house", [&](std::vector<uint32_t> &bows) { s->order_attack_building(bows.data(), bows.size(), house); });
 	}
 
 	// Last Man Standing with unlocked teams: lobby teams only set the starting
@@ -1573,6 +1577,38 @@ static void test_petra_tributes_same_total() {
 	std::printf("  tributes from one total: ally 1 got %.0f food, ally 2 %.0f, %.0f left\n", s->players_[1].res[RES_FOOD],
 	            s->players_[2].res[RES_FOOD], s->players_[0].res[RES_FOOD]);
 	CHECK(s->players_[1].res[RES_FOOD] == 300.0f && s->players_[2].res[RES_FOOD] == 300.0f, "each ally gets 30% of the same total");
+}
+
+// diplomacyManager.js handleDiplomacyRequest: moreEnemiesThanAllies counts getEnemies, where a
+// defeated enemy still is one (its stances outlive it), against getMutualAllies, us included.
+// tributes: an ally by our own stance gets gifts though it is not allied back.
+static void test_petra_defeated_still_enemies() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 4, 128.0f);
+	for (uint8_t p = 0; p < 4; ++p) s->set_player_active(p, true, p == 0);
+	s->petra_pid_ = 0;
+	s->set_team_civ(2, (uint8_t)s->players_[0].civ); // the same civ never declines for good at once
+	s->set_diplomacy(0, 3, Simulation::DIPLO_ALLY);
+	s->set_diplomacy(3, 0, Simulation::DIPLO_ALLY);
+	s->participant_mask_ = 0x0F; // seated at the start
+	s->defeated_mask_ |= 1u << 1; // an enemy already out: Gaia, it and player 2 against us and player 3
+	s->petra_diplo_.seen_init = true;
+	s->petra_handle_diplomacy_request(2, 0);
+	const auto &req = s->petra_diplo_.received[2];
+	std::printf("  alliance request with a defeated enemy left: status %d\n", (int)req.status);
+	CHECK(req.status != PetraReceivedRequest::NONE && req.status != PetraReceivedRequest::DECLINED_FOREVER,
+	      "more enemies than allies: not turned down out of hand");
+
+	for (uint8_t p = 0; p < 4; ++p)
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[p].res[r] = 0.0f;
+	s->players_[0].res[RES_FOOD] = 1000.0f;
+	s->set_diplomacy(3, 0, Simulation::DIPLO_NEUTRAL); // allied one way only
+	s->petra_diplo_.next_tribute = 0.0f;
+	s->petra_manage_diplomacy(1.6f);
+	std::printf("  one-way ally's gift: %.0f food\n", s->players_[3].res[RES_FOOD]);
+	CHECK(s->players_[3].res[RES_FOOD] == 300.0f, "an ally by our stance alone gets a tribute");
 }
 
 // diplomacyManager.js init: a player allied to us at the start while we are its enemy
@@ -3309,9 +3345,12 @@ static void test_relic_capture() {
 	CHECK(!far.claimed, "and leaves a relic it has never seen");
 	// abortCaptureGaiaRelic: a relic someone else takes first ends the expedition.
 	const uint32_t taken = s->spawn_relic(tx - 12.0f, tz + 12.0f);
-	const uint32_t seeker = s->spawn_unit(tx - 4.0f, tz + 4.0f, 1, UNIT_SPEARMAN);
+	const uint32_t seeker = s->spawn_unit(tx - 24.0f, tz + 24.0f, 1, UNIT_SPEARMAN);
 	s->order_capture_relic(&seeker, 1, taken);
 	const int32_t tr = s->lookup_unit(taken), su = s->lookup_unit(seeker);
+	// The expedition is a Raid plan in 0.28: its units are no longer workers.
+	CHECK(s->petra_unit_reserved(seeker), "a relic capturer is not a worker while it goes");
+	const float far0 = std::hypot(s->units_.pos_x[su] - tx, s->units_.pos_z[su] - tz);
 	s->units_.team[tr] = 0;
 	for (auto &rel : s->relics_)
 		if (rel.id == taken) { rel.claimed = true; rel.owner_team = 0; }
@@ -3321,6 +3360,62 @@ static void test_relic_capture() {
 	// Called off, it may go back to work or into the civic centre (garrisoned units are not alive).
 	CHECK((s->units_.alive[su] || s->units_.action_state[su] == ACTION_GARRISONED) &&
 			s->units_.order_kind[su] != ORDER_CAPTURE_RELIC, "Petra calls off a capture of a relic an enemy took");
+	// attackPlan.js Abort: it withdraws to the nearest base anchor rather than stopping where it is.
+	if (s->units_.alive[su]) {
+		const float far1 = std::hypot(s->units_.pos_x[su] - tx, s->units_.pos_z[su] - tz);
+		std::printf("  called-off capturer: %.0f from the civic centre, then %.0f\n", far0, far1);
+		CHECK(far1 < far0 - 4.0f, "and the capturer withdraws toward its civic centre");
+	}
+}
+
+// victoryManager.js targetedGaiaRelics: a relic Petra went for once is reinforced every 10th
+// turn until its owner changes, with no need to see it again, and dropped once someone takes it.
+static void test_relic_targeted_kept() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_RELIC);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->relics_.clear();
+	const float rx = tz * 0.7f, rz = -tx * 0.7f; // to the side, unseen
+	const uint32_t relic = s->spawn_relic(rx, rz);
+	std::printf("  targeted relic at (%.0f, %.0f), TC (%.0f, %.0f), territory %d\n", rx, rz, tx, tz, s->territory_owner_at(rx, rz));
+	for (int k = 0; k < 4; ++k) s->spawn_unit(tx + 6.0f + (float)k, tz + 6.0f, 1, UNIT_SPEARMAN);
+	run_ai_turns(*s, 10);
+	auto going = [&] {
+		int n = 0;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.order_kind[i] == ORDER_CAPTURE_RELIC && s->units_.order_target[i] == relic) ++n;
+		return n;
+	};
+	const int unseen = going();
+	// An expedition sent once, then lost: the relic stays targeted.
+	s->petra_targeted_relics_.push_back({relic, 1});
+	run_ai_turns(*s, 20);
+	const int kept = going();
+	std::printf("  targeted relic: %d units go for an unseen relic, %d once Petra went for it before\n", unseen, kept);
+	CHECK(unseen == 0, "Petra leaves an unseen relic outside its territory");
+	CHECK(kept > 0, "but keeps sending units to a relic it went for once (targetedGaiaRelics)");
+	const int32_t r = s->lookup_unit(relic);
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::WALKING;
+	plan.target_building_id = relic;
+	plan.squad.push_back(s->spawn_unit(tx + 3.0f, tz + 3.0f, 1, UNIT_SPEARMAN));
+	s->petra_started_attacks_.push_back(plan);
+	s->units_.team[r] = 0;
+	run_ai_turns(*s, 20);
+	bool plan_on = false;
+	for (const auto &p : s->petra_started_attacks_)
+		plan_on |= p.target_building_id == relic && p.state != Simulation::AttackPlan::ABORT && p.state != Simulation::AttackPlan::REGROUP;
+	CHECK(!plan_on, "an attack going for the relic is aborted once another player takes it (abortCaptureGaiaRelic)");
+	const bool dropped = std::none_of(s->petra_targeted_relics_.begin(), s->petra_targeted_relics_.end(),
+	                                  [&](const auto &t) { return t.relic == relic; });
+	CHECK(dropped && going() == 0, "and drops it, calling its units off, once another player takes it");
 }
 
 // attackManager.js getRelicEnemyPlayer: in capture the relic, Petra attacks the enemy
@@ -4239,6 +4334,49 @@ static void test_gather_limits() {
 	CHECK(on_tree + on_mine > 8, "the rest go to another supply");
 }
 
+// headquarters.js updateCaptureStrength: units of ours outside any plan capturing a structure
+// pool their strength; too weak together, they switch to damaging it, strong enough they capture.
+static void test_update_capture_strength() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const uint32_t house = s->spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0);
+	auto hi = s->building_id_to_idx_.find(house);
+	CHECK(hi != s->building_id_to_idx_.end(), "player 0's house stands");
+	if (hi == s->building_id_to_idx_.end()) return;
+	std::vector<uint32_t> men;
+	auto add = [&](int n) {
+		for (int k = 0; k < n; ++k) {
+			const uint32_t u = s->spawn_unit(6.0f + (float)men.size(), 6.0f, 1, UNIT_SPEARMAN);
+			s->order_attack_building(&u, 1, house, false, true);
+			men.push_back(u);
+		}
+	};
+	auto capturing = [&] {
+		int n = 0;
+		for (uint32_t u : men) {
+			const int32_t i = s->lookup_unit(u);
+			if (s->units_.order_kind[i] == ORDER_ATTACK_BUILDING && (s->units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE)) ++n;
+		}
+		return n;
+	};
+	// Points the house's regen outdoes for one spearman, not for twenty.
+	add(1);
+	s->petra_update_capture_strength();
+	const int alone = capturing();
+	add(19);
+	for (uint32_t u : men) s->order_attack_building(&u, 1, house, false, true);
+	s->petra_update_capture_strength();
+	const int pooled = capturing();
+	std::printf("  capture strength: 1 spearman %s, 20 together: %d capture\n", alone ? "captures" : "damages", pooled);
+	CHECK(alone == 0, "one spearman too weak for the house damages it instead");
+	CHECK(pooled == 20, "twenty together pool their strength and capture it");
+}
+
 // garrisonManager.js addDecayingStructure: a defence tower of Petra's standing in enemy
 // territory decays, so Petra garrisons the soldiers that stop the decay and keeps them in.
 static void test_decay_garrison() {
@@ -4271,6 +4409,18 @@ static void test_decay_garrison() {
 	std::printf("  decaying tower in enemy land: needs %d, garrisoned %zu, still ours %s\n", need, inside, ours ? "yes" : "no");
 	CHECK(need > 0, "a tower in enemy territory decays");
 	CHECK(ours && (int)inside >= std::min(need, cap), "Petra garrisons a decaying tower (TYPE_DECAY)");
+	// A barracks is held only just after Petra captures it (addDecayingStructure justCaptured).
+	const uint32_t bar = s->spawn_building_world(tx, tz + 16.0f, BLD_BARRACKS, 0);
+	auto bi = s->building_id_to_idx_.find(bar);
+	CHECK(bi != s->building_id_to_idx_.end(), "player 0's barracks stands");
+	if (bi == s->building_id_to_idx_.end()) return;
+	Simulation::Building &bb = s->buildings_[bi->second];
+	bb.team = 1;
+	const int built = s->petra_decay_garrison_min(bb);
+	s->stat_building_captured(bb, 0);
+	const int captured = s->petra_decay_garrison_min(bb);
+	std::printf("  decaying barracks: needs %d as if built, %d just captured\n", built, captured);
+	CHECK(built == 0 && captured > 0, "Petra garrisons a decaying barracks only when it just captured it");
 }
 
 // headquarters.js checkEvents: a structure Petra just captured in enemy land, which no
@@ -6791,6 +6941,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_peace_ends_raid);
 	RUN(test_petra_tributes_same_total);
 	RUN(test_petra_init_one_way_ally);
+	RUN(test_petra_defeated_still_enemies);
 	RUN(test_petra_current_enemy_gaia);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
@@ -6820,6 +6971,7 @@ int main(int argc, char **argv) {
 	RUN(test_attack_request);
 	RUN(test_attack_request_counts_raid);
 	RUN(test_relic_capture);
+	RUN(test_relic_targeted_kept);
 	RUN(test_relic_enemy_player);
 	RUN(test_relic_gaia_target);
 	RUN(test_retreat_walk_forced);
@@ -6831,6 +6983,7 @@ int main(int argc, char **argv) {
 	RUN(test_builder_drops_load_first);
 	RUN(test_idle_return_to_wagon);
 	RUN(test_gather_limits);
+	RUN(test_update_capture_strength);
 	RUN(test_decay_garrison);
 	RUN(test_decay_garrison_from_attack);
 	RUN(test_decay_destroy);

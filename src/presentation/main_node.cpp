@@ -279,7 +279,8 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 	if (!cheat) return false;
 	String parameter = text.substr(String(cheat->name).length() + 1).strip_edges();
 	if (parameter.is_empty()) parameter = cheat->def;
-	if (cheat->numeric && !parameter.is_empty() && !parameter.is_valid_int()) {
+	// Cheats.js reads the number with +parameter, so "1.5" and "1e3" count.
+	if (cheat->numeric && !parameter.is_empty() && !parameter.is_valid_float()) {
 		// Cheats.js NoNumericMessage: a chat message from the player, shown only here.
 		chat_window_.append_kind(String("<") + colored_player_name(me) + "> " + tr("This cheat requires a numeric parameter.") + "\n",
 				RtsoChatWindow::message_bits("", true));
@@ -293,7 +294,7 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 		music_.play_custom(tracks);
 		return true;
 	}
-	int64_t number = cheat->numeric && !parameter.is_empty() ? parameter.to_int() : 0;
+	int64_t number = cheat->numeric && !parameter.is_empty() ? (int64_t)parameter.to_float() : 0;
 	uint32_t extra = (uint32_t)std::max(cheat->resource, 0);
 	if (cheat->action == S::CHEAT_CONVERT_UNITS || cheat->action == S::CHEAT_DEFEAT_PLAYER)
 		number = number < 0 ? -1 : (number == 0 ? rtso::GAIA_PLAYER : number - 1);
@@ -302,17 +303,36 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 	if (selected_building_id) ids.push_back(selected_building_id);
 	for (int i = 0; i < selected_ids.size(); ++i) ids.push_back((uint32_t)selected_ids[i]);
 	if (cheat->action == S::CHEAT_RESEARCH) {
-		// "brainiac N" researches the selected structure's Nth technology, else a tech by its 0 A.D. name.
+		// "brainiac N [top|bottom]" researches the selected structure's Nth research icon
+		// (Researcher.js GetTechnologiesList: a chain shows its next step, a pair is one
+		// entry, "top" by default), else a tech by its 0 A.D. name.
 		extra = rtso::TECH_NONE;
-		int btype = -1; // the selected structure's type
+		const rtso::Simulation::Building *rb = nullptr; // the selected structure
 		for (const auto &bb : sim->buildings())
-			if (selected_building_id && bb.id == selected_building_id) btype = bb.type;
-		if (btype >= 0 && parameter.is_valid_int()) {
-			int nth = (int)parameter.to_int();
-			for (int t = 1; t < rtso::TECH_COUNT && nth > 0; ++t) {
-				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
-				if (!rtso::building_researches_tech((uint8_t)btype, (uint8_t)t, sim->player_civ(me)) || !(ti.civ_mask & rtso::civ_bit(sim->player_civ(me)))) continue;
-				if (--nth == 0) extra = (uint32_t)t;
+			if (selected_building_id && bb.id == selected_building_id) rb = &bb;
+		const String first = parameter.get_slice(" ", 0), half = parameter.get_slice(" ", 1);
+		if (rb && first.is_valid_float()) {
+			const uint8_t pciv = sim->player_civ(me);
+			std::vector<std::pair<uint8_t, uint8_t>> entries; // top, bottom (TECH_NONE unless paired)
+			for (int t = 1; t < rtso::TECH_COUNT; ++t) {
+				if (!rtso::building_researches_tech(rb->type, (uint8_t)t, pciv) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+				if (const uint8_t sup = rtso::tech_supersedes((uint8_t)t); sup != rtso::TECH_NONE
+						&& rtso::building_researches_tech(rb->type, sup, pciv) && rtso::tech_available_to_civ(sup, pciv)) {
+					const rtso::Simulation::ResearchCheck sc = sim->research_check(me, sup, 0);
+					if (sc != rtso::Simulation::TECH_ERR_RESEARCHED && sc != rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
+				}
+				const rtso::Simulation::ResearchCheck rc = sim->research_check(me, (uint8_t)t, rb->id);
+				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_IN_PROGRESS || rc == rtso::Simulation::TECH_ERR_CIV
+						|| rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
+				const uint8_t partner = rtso::tech_pair_partner((uint8_t)t);
+				auto paired = std::find_if(entries.begin(), entries.end(), [&](const auto &e) { return partner != rtso::TECH_NONE && e.first == partner; });
+				if (paired != entries.end()) paired->second = (uint8_t)t;
+				else entries.push_back({(uint8_t)t, rtso::TECH_NONE});
+			}
+			const double nth = first.to_float();
+			if (nth >= 1.0 && nth <= (double)entries.size()) {
+				const auto &e = entries[(size_t)nth - 1];
+				extra = half == "bottom" && e.second != rtso::TECH_NONE ? e.second : e.first;
 			}
 		} else {
 			const std::string want = parameter.utf8().get_data();
@@ -635,9 +655,10 @@ bool RtsoMain::building_trains_units(uint32_t id) const {
 	if (!sim || id == 0) return false;
 	for (const auto &b : sim->buildings()) {
 		if (b.id != id) continue;
-		const uint8_t civ = rtso::building_trains_native(b.type) ? b.civ : sim->player_civ(b.team);
-		for (uint16_t i : rtso::civ_roster_ids(civ))
-			if (rtso::civ_unit_template(i).trainers & rtso::bld_bit(b.type)) return true;
+		const uint8_t owner = sim->player_civ(b.team);
+		for (uint8_t civ : {b.civ, owner})
+			for (uint16_t i : rtso::civ_roster_ids(civ))
+				if (rtso::building_trains_template(b.type, b.civ, owner, i)) return true;
 		return false;
 	}
 	return false;
@@ -713,7 +734,7 @@ void RtsoMain::set_game_speed(float speed) {
 	if (net_lockstep() || !(speed > 0.0f)) return;
 	const Array speeds = speed_choices(fast_forward_allowed());
 	game_speed = std::clamp(speed, (float)speeds[0], (float)speeds[speeds.size() - 1]);
-	if (speed_btn) speed_btn->set_text(speed_text(game_speed));
+	if (speed_btn && speed_btn->get_button_icon().is_null()) speed_btn->set_text(speed_text(game_speed));
 }
 
 // The pause hotkey and the replay's Pause button. Networked, the pause holds
@@ -973,9 +994,11 @@ void RtsoMain::update_net_status_overlay() {
 			for (const auto &e : net_host_.playerAssignment())
 				if (e.client == c && !e.name.empty()) name = String::utf8(e.name.c_str()).replace("[", "[lb]");
 			const uint8_t pl = turn_mgr_.player_for_client(c);
-			if (name.is_empty()) name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : String("an observer");
-			if (pl < rtso::MAX_PLAYERS && sim)
-				name = "[color=#" + String::num_int64(rtso::display_colors::rgb(*sim, pl), 16).lpad(6, "0") + "]" + name + "[/color]";
+			// colorizePlayernameByGUID: "Unknown Player" without a name, white for an observer.
+			const bool seated = pl < rtso::MAX_PLAYERS;
+			if (name.is_empty()) name = seated ? player_display_name(pl) : tr("Unknown Player");
+			const uint32_t rgb = seated && sim ? rtso::display_colors::rgb(*sim, pl) : 0xFFFFFFu;
+			name = "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + name + "[/color]";
 			loading += (loading.is_empty() ? "" : tr(", ")) + name;
 		}
 		if (!loading.is_empty()) status = tr("Waiting for players to connect:");
@@ -1455,6 +1478,7 @@ void RtsoMain::update_hud() {
 	}
 	// GameSpeedButton: hidden in networked games (g_IsNetworked), shown in replays with Fast Forward.
 	if (speed_btn) speed_btn->set_visible(!net_lockstep());
+	top_panel_.set_player_buttons_visible(sim && view_player() < rtso::MAX_PLAYERS);
 }
 
 // Selection details (0 A.D. gui/session/selection_details.js): real values
@@ -1558,7 +1582,7 @@ std::vector<uint32_t> RtsoMain::structure_trainers(uint16_t tmpl, uint32_t holde
 		for (const auto &b : sim->buildings()) {
 			if (b.id != id) continue;
 			if ((b.team == local_player() || control_all) && b.build_progress >= 1.0f && !b.wrecked && b.upgrade_to == rtso::BLD_TYPE_COUNT &&
-					(u.trainers & rtso::bld_bit(b.type)))
+					rtso::building_trains_template(b.type, b.civ, sim->player_civ(b.team), tmpl))
 				out.push_back(id);
 			break;
 		}
@@ -1768,7 +1792,8 @@ void RtsoMain::activate_rejoin_test() {
 // one replays that turn's commands onto the copy, whose turn manager checks the copy's
 // hash against the turn's.
 void RtsoMain::rejoin_test_turn() {
-	if (!rejoin_test_ || !sim || turn_mgr_.is_replaying() || turn_mgr_.turn_history().empty()) return;
+	rtso::TurnFrame frame;
+	if (!rejoin_test_ || !sim || !turn_mgr_.last_turn_frame(frame)) return;
 	if (!rejoin_sim_) {
 		const String path = ProjectSettings::get_singleton()->globalize_path("user://rejoin_test.rts0sav");
 		const std::string p = path.utf8().get_data();
@@ -1784,13 +1809,101 @@ void RtsoMain::rejoin_test_turn() {
 		rejoin_from_turn_ = turn_mgr_.current_turn();
 		return;
 	}
-	rejoin_tm_->push_shadow_frame(turn_mgr_.turn_history().back());
+	rejoin_tm_->push_shadow_frame(frame);
 	if (!rejoin_tm_->tick(rtso::TurnManager::TURN_DURATION, *rejoin_sim_)) return;
 	++rejoin_turns_;
 	if (rejoin_tm_->replay_out_of_sync() && !rejoin_oos_turn_) {
 		rejoin_oos_turn_ = rejoin_tm_->replay_out_of_sync_turn();
-		quit_confirmation("out_of_sync_rejoin_test");
+		// A replay (-rejointest with -replay) reports it on the command line instead.
+		if (turn_mgr_.is_replaying()) UtilityFunctions::printerr(String("Rejoin test failure on turn %d").replace("%d", String::num_int64(rejoin_oos_turn_)));
+		else quit_confirmation("out_of_sync_rejoin_test");
 	}
+}
+
+void RtsoMain::set_sim_tests(const Dictionary &d) {
+	ooslog_ = bool(d.get("ooslog", false));
+	serialization_test_ = bool(d.get("serializationtest", false));
+	rejoin_test_turn_ = int(d.get("rejointest", -1));
+	if (bool(d.get("unique_logs", false)))
+		turn_mgr_.set_oos_dump_name(("oos_dump_" + String::num_int64((int64_t)Time::get_singleton()->get_unix_time_from_system()) +
+				"_" + String::num_int64(OS::get_singleton()->get_process_id())).utf8().get_data());
+	else
+		turn_mgr_.set_oos_dump_name("oos_dump");
+	// CSimulation2: sim_log/<pid> under the log directory.
+	sim_log_dir_ = OS::get_singleton()->get_user_data_dir() + "/sim_log/" + String::num_int64(OS::get_singleton()->get_process_id()) + "/";
+	serial_sim_.reset();
+	serial_tm_.reset();
+	serial_turns_ = serial_fail_turn_ = 0;
+}
+
+Dictionary RtsoMain::get_sim_tests() const {
+	Dictionary d;
+	d["ooslog"] = ooslog_;
+	d["serializationtest"] = serialization_test_;
+	d["rejointest"] = rejoin_test_turn_;
+	d["sim_log"] = sim_log_dir_;
+	d["oos_dump_name"] = String::utf8(turn_mgr_.oos_dump_name().c_str());
+	d["serialization_turns"] = serial_turns_;
+	d["serialization_failure_turn"] = serial_fail_turn_;
+	d["rejoin_failure_turn"] = rejoin_oos_turn_;
+	return d;
+}
+
+// After every turn (CSimulation2::Update): the OOS log, the serialization test, and
+// the rejoin test's start at its turn.
+void RtsoMain::sim_tests_turn() {
+	rtso::TurnFrame frame;
+	if (!sim || !turn_mgr_.last_turn_frame(frame)) return;
+	const String turn = String::num_int64(frame.turn_index).lpad(8, "0");
+	if (ooslog_) {
+		DirAccess::make_dir_recursive_absolute(sim_log_dir_);
+		const std::string base = (sim_log_dir_ + turn).utf8().get_data();
+		std::ofstream file(base + ".txt", std::ios::out | std::ios::trunc);
+		if (file) {
+			file << "turn: " << frame.turn_index << "\nhash: " << frame.sim_state_hash << "\n";
+			rtso::TurnManager::write_state_text(file, *sim);
+		}
+		sim->save_state((base + ".dat").c_str());
+	}
+	if (rejoin_test_turn_ >= 0 && !rejoin_test_ && frame.turn_index >= (uint32_t)rejoin_test_turn_) {
+		rejoin_test_ = true;
+		refresh_dev_overlay();
+	}
+	if (!serialization_test_) return;
+	// The copy loaded last turn has run this turn too: it must agree.
+	if (serial_sim_) {
+		serial_tm_->push_shadow_frame(frame);
+		if (serial_tm_->tick(rtso::TurnManager::TURN_DURATION, *serial_sim_)) {
+			++serial_turns_;
+			if (serial_tm_->replay_out_of_sync()) {
+				serial_fail_turn_ = frame.turn_index;
+				const String dir = sim_log_dir_ + "serializationtest/";
+				DirAccess::make_dir_recursive_absolute(dir);
+				for (int i = 0; i < 2; ++i) {
+					const rtso::Simulation &s = i ? *serial_sim_ : *sim;
+					const std::string base = (dir + turn + (i ? ".deserialized" : ".original")).utf8().get_data();
+					std::ofstream file(base + ".txt", std::ios::out | std::ios::trunc);
+					if (file) rtso::TurnManager::write_state_text(file, s);
+					s.save_state((base + ".dat").c_str());
+				}
+				UtilityFunctions::printerr(String("Serialization test failure on turn %d; logs in ").replace("%d", String::num_int64(frame.turn_index)) + dir);
+				serialization_test_ = false; // 0.28 turns the test off after a failure
+				serial_sim_.reset();
+				serial_tm_.reset();
+				return;
+			}
+		}
+	}
+	const String path = sim_log_dir_ + "serializationtest.rts0sav";
+	DirAccess::make_dir_recursive_absolute(sim_log_dir_);
+	const std::string p = path.utf8().get_data();
+	auto copy = std::make_unique<rtso::Simulation>();
+	const bool ok = sim->save_state(p.c_str()) && copy->load_state(p.c_str());
+	DirAccess::remove_absolute(path);
+	if (!ok) return;
+	serial_sim_ = std::move(copy);
+	if (!serial_tm_) serial_tm_ = std::make_unique<rtso::TurnManager>();
+	serial_tm_->begin_shadow_replay(turn_mgr_);
 }
 
 Dictionary RtsoMain::get_rejoin_test() const {
@@ -2004,25 +2117,25 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 	// holder when nothing else of the group is out.
 	PackedInt32Array recall, kept;
 	uint32_t recall_building = 0;
-	bool have_pos = false;
-	Vector3 first_pos, holder_pos;
-	bool have_holder = false;
+	// The snap goes to the group's lowest id, or its holder (getEntityOrHolder(toSelect[0])).
+	int32_t snap_id = 0;
+	Vector3 snap_pos;
 	auto gview = sim->units();
 	for (int m = 0; m < selected_groups[grp].size(); ++m) {
 		const int32_t gid = selected_groups[grp][m];
 		bool found = false;
+		Vector3 at;
 		for (size_t i = 0; i < gview.count; ++i) {
 			if (gview.id[i] != (uint32_t)gid || gview.team[i] != local_player()) continue;
 			if (gview.alive[i]) {
-				if (!have_pos) first_pos = Vector3(gview.pos_x[i], 0, gview.pos_z[i]);
-				have_pos = true;
+				at = Vector3(gview.pos_x[i], 0, gview.pos_z[i]);
 				recall.push_back(gid);
 				found = true;
 			} else if (gview.hp[i] > 0.0f) {
 				for (const auto &b : sim->buildings())
 					if (std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), (uint32_t)gid) != b.garrisoned_units.end()) {
-						if (!have_holder) holder_pos = Vector3(b.x, 0, b.z);
-						have_holder = found = true;
+						at = Vector3(b.x, 0, b.z);
+						found = true;
 						break;
 					}
 			}
@@ -2032,17 +2145,25 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 			for (const auto &b : sim->buildings())
 				if (b.id == (uint32_t)gid && b.team == local_player() && !b.wrecked && b.hp > 0.0f) {
 					if (!recall_building) recall_building = b.id;
-					if (!have_pos) first_pos = Vector3(b.x, 0, b.z);
-					have_pos = found = true;
+					at = Vector3(b.x, 0, b.z);
+					found = true;
 					break;
 				}
-		if (found) kept.push_back(gid);
+		if (found) {
+			kept.push_back(gid);
+			if (snap_id == 0 || gid < snap_id) snap_id = gid, snap_pos = at;
+		}
 	}
 	selected_groups[grp] = kept;
 	if (kept.is_empty()) return;
 	if (recall.is_empty() && !recall_building) {
-		// Everyone is inside: snap to the holder, the selection stays.
-		if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(holder_pos);
+		// Everyone is inside: performGroup's g_Selection.reset() still drops the old selection
+		// (the members inside can't be picked here), and the snap goes to the holder.
+		if (action != GROUP_ADD) {
+			selected_ids.clear();
+			selected_building_id = 0;
+		}
+		if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(snap_pos);
 		return;
 	}
 	if (action == GROUP_ADD) {
@@ -2053,7 +2174,7 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 		selected_ids = recall;
 		selected_building_id = recall_building;
 	}
-	if (action == GROUP_SNAP && cam_rig && (have_pos || have_holder)) cam_rig->set_target_pos(have_pos ? first_pos : holder_pos);
+	if (action == GROUP_SNAP && cam_rig && snap_id != 0) cam_rig->set_target_pos(snap_pos);
 	play_civ_voice("select");
 }
 
@@ -3103,13 +3224,21 @@ void RtsoMain::host_net_setup_tick(bool force) {
 	if (force || changed) emit_signal("net_setup_changed");
 }
 
-// ClientKicked.js and ChatMessageFormatNetwork kicked/banned, in the setup and the match.
+// gamesetup StatusMessageFormat: "== message" in sans-bold-13.
+static String setup_status_line(const String &message) {
+	return "[b]" + rtso::sprintf0(rtso::tr0("== %(message)s"), {{"message", message}}) + "[/b]\n";
+}
+
+// ClientKicked.js (a status line in the setup) and ChatMessageFormatNetwork kicked/banned
+// (the match).
 void RtsoMain::post_kick_chat() {
 	const auto &kicks = net_host_.kicks();
 	for (; kicks_chatted_ < kicks.size(); ++kicks_chatted_) {
 		const auto &k = kicks[kicks_chatted_];
 		const String name = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str()).replace("[", "[lb]");
-		chat_window_.append_kind(sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}}) + "\n", CHAT_FILTER_NETWORK);
+		const String line = sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}});
+		if (is_net_pregame()) chat_window_.append_line(setup_status_line(line));
+		else chat_window_.append_kind(line + String("\n"), CHAT_FILTER_NETWORK);
 	}
 }
 
@@ -3133,10 +3262,10 @@ void RtsoMain::post_setup_chat(const rtso::NetSetupState &before, const rtso::Ne
 		for (uint32_t c = 1; c < rtso::NET_SETUP_CLIENTS; ++c) {
 			const bool was = (before.clients >> c) & 1, is = (after.clients >> c) & 1;
 			if (!was && is)
-				chat_window_.append_line(sprintf0(tr("%(username)s has joined"),
-						{{"username", String::utf8(after.names[c].c_str()).replace("[", "[lb]")}}) + "\n");
+				chat_window_.append_line(setup_status_line(sprintf0(tr("%(username)s has joined"),
+						{{"username", String::utf8(after.names[c].c_str()).replace("[", "[lb]")}})));
 			else if (was && !is)
-				chat_window_.append_line(sprintf0(tr("%(username)s has left"), {{"username", setup_client_name(before, c)}}) + "\n");
+				chat_window_.append_line(setup_status_line(sprintf0(tr("%(username)s has left"), {{"username", setup_client_name(before, c)}})));
 		}
 		const bool same_settings = before.settings_version == after.settings_version;
 		for (uint32_t c = 1; c < rtso::NET_SETUP_CLIENTS; ++c) {
@@ -3231,7 +3360,7 @@ void RtsoMain::client_net_setup_tick() {
 	// (GameSettingsChanged.js tells us so).
 	if (net_ready_ == 1 && net_ready_version_ != net_setup_.settings_version) {
 		net_ready_ = 0;
-		chat_window_.append_line(tr("Game settings have been changed") + "\n");
+		chat_window_.append_line(setup_status_line(tr("Game settings have been changed")));
 	}
 	store_net_setup_in_match_settings(net_setup_.setup);
 	emit_signal("net_setup_changed");
@@ -3610,8 +3739,8 @@ void RtsoMain::_on_lobby_start_pressed() {
 // same on every peer, with no speed control in the match (set_game_speed
 // refuses and the button is hidden, as session.js does when g_IsNetworked).
 void RtsoMain::start_net_speed(uint16_t speed) {
-	game_speed = std::clamp(speed, (uint16_t)25, (uint16_t)300) / 100.0f;
-	if (speed_btn) speed_btn->set_text(speed_text(game_speed));
+	game_speed = std::clamp(speed, (uint16_t)10, (uint16_t)2000) / 100.0f; // game_speeds.json's range
+	if (speed_btn && speed_btn->get_button_icon().is_null()) speed_btn->set_text(speed_text(game_speed));
 }
 
 // 0.28 switches every peer to page_loading at "start": the loading page goes

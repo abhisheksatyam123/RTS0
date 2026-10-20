@@ -80,6 +80,20 @@ void RtsoMain::_ready() {
 	rtso::Logger::info("Main", "RTS0 0 A.D. Reborn Ready - Full 0 A.D. UI & Simulation");
 	// 0 A.D. writes oos_dump.txt/.dat to its log dir; ours is user://.
 	turn_mgr_.set_oos_dump_dir(OS::get_singleton()->get_user_data_dir().utf8().get_data());
+	{
+		// 0.28's -ooslog, -serializationtest, -rejointest=N and -unique-logs (main.cpp).
+		Dictionary tests;
+		PackedStringArray args = OS::get_singleton()->get_cmdline_args();
+		args.append_array(OS::get_singleton()->get_cmdline_user_args());
+		for (const String &a : args) {
+			const String arg = a.trim_prefix("-").trim_prefix("-");
+			if (arg == "ooslog") tests["ooslog"] = true;
+			else if (arg == "serializationtest") tests["serializationtest"] = true;
+			else if (arg == "unique-logs") tests["unique_logs"] = true;
+			else if (arg.begins_with("rejointest=")) tests["rejointest"] = arg.get_slice("=", 1).to_int();
+		}
+		set_sim_tests(tests);
+	}
 
 	// Incoming chat: 0 A.D. NetMessages.h NMT_CHAT parity. Fires on the main
 	// thread from net_host_.poll() (_process), so appending to the chat
@@ -242,9 +256,6 @@ void RtsoMain::_ready() {
 		};
 		top_panel_.set_civ_icon_keys(first_key("civinfo"), first_key("structree"));
 		minimap_panel_.set_hotkeys(first_key("selection.idleworker"), first_key("session.diplomacycolors"), first_key("session.flare"));
-		top_panel_.set_dialog_tooltips(first_key("session.gui.diplomacy.toggle"),
-				first_key("session.gui.barter.toggle"),
-				first_key(rtso::hotkeys::table().get("session.gui.matchsettings.toggle") ? "session.gui.matchsettings.toggle" : "session.gui.objectives.toggle"));
 	}
 
 	time_notification_label_ = memnew(RichTextLabel);
@@ -311,17 +322,29 @@ void RtsoMain::_ready() {
 	cursor_tip_->set_visible(false);
 	ui_layer->add_child(cursor_tip_);
 
-	// Speed & Menu
+	// GameSpeedButton: a 28 px time_small icon, "Game Speed", first of the right-hand
+	// buttons (Game Speed, Diplomacy, Barter & Trade, Match Settings, Menu).
 	speed_btn = memnew(Button);
-	speed_btn->set_custom_minimum_size(Vector2(45, 28));
-	speed_btn->set_text(speed_text(1.0f));
-	speed_btn->set_tooltip_text("Choose game speed");
-	speed_btn->add_theme_font_size_override("font_size", 12);
+	speed_btn->set_name("GameSpeedButton");
+	speed_btn->set_custom_minimum_size(Vector2(28, 28));
+	{
+		Ref<Texture2D> tex = rtso::load_ui_texture("res://assets/textures/ui/archive/icons/resources/time_small.png");
+		if (tex.is_valid()) {
+			speed_btn->set_button_icon(tex);
+			speed_btn->set_expand_icon(true);
+		} else {
+			speed_btn->set_text(speed_text(1.0f));
+		}
+	}
 	speed_btn->connect("pressed", Callable(this, "_on_speed_button_pressed"));
 	top_hbox->add_child(speed_btn);
+	if (Button *diplo = top_panel_.dialog_button(0)) top_hbox->move_child(speed_btn, diplo->get_index());
+	for (int i = 0; i < 3; ++i)
+		if (Button *b = top_panel_.dialog_button(i)) b->connect("mouse_entered", Callable(this, "_refresh_menu_tooltip"));
 
+	// MenuButton: 156 x 28.
 	menu_btn = memnew(Button);
-	menu_btn->set_custom_minimum_size(Vector2(60, 28));
+	menu_btn->set_custom_minimum_size(Vector2(156, 28));
 	menu_btn->set_text("Menu");
 	// Menu.js rebuild, on every hover so a rebind or a language change shows.
 	_refresh_menu_tooltip();
@@ -623,6 +646,9 @@ void RtsoMain::_ready() {
 		pause_overlay_->add_child(pause_by_label_);
 	}
 	ui_layer->add_child(pause_overlay_);
+	// session.xml includes PauseOverlay before the top panel, menus and HUD panels:
+	// it dims the world, and the interface above it stays usable.
+	ui_layer->move_child(pause_overlay_, 0);
 
 	// gameStateNotifications: top right, under the data counter.
 	net_warnings_label_ = memnew(RichTextLabel);
@@ -985,6 +1011,7 @@ void RtsoMain::_process(double delta) {
 			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
 			if (turn_mgr_.tick((float)scaled_delta, *sim)) {
 				ticks = rtso::TurnManager::TICKS_PER_TURN;
+				sim_tests_turn();
 				rejoin_test_turn();
 			}
 			// OutOfSyncNetwork: the box opens once the dump is written, and again
@@ -992,7 +1019,7 @@ void RtsoMain::_process(double delta) {
 			if (turn_mgr_.has_out_of_sync() && !turn_mgr_.oos_dump_pending() &&
 					net_oos_shown_turn_ != turn_mgr_.oos_turn()) {
 				net_oos_shown_turn_ = turn_mgr_.oos_turn();
-				write_replay(); // "Replay saved to"
+				write_replay(false, true); // "Replay saved to", however early
 				quit_confirmation("out_of_sync_network");
 			}
 			if (turn_mgr_.has_out_of_sync() && lobby_status) {
@@ -1070,6 +1097,7 @@ void RtsoMain::_process(double delta) {
 			for (int t = 0; t < max_turns && turn_mgr_.tick(step, *sim); ++t) {
 				ticks += rtso::TurnManager::TICKS_PER_TURN;
 				step = 0.0f;
+				sim_tests_turn();
 				rejoin_test_turn();
 			}
 		}
@@ -1226,7 +1254,10 @@ void RtsoMain::_process(double delta) {
 	}
 	if (sim && chat_window_.is_ready()) {
 		for (const auto &line : sim->pending_petra_chat()) {
-			if (!sim->petra_chat_reaches(line, local_player())) continue; // addressed to someone else
+			// ChatMessageFormatPlayer isAddressee(sender, Engine.GetPlayerID()): the seat, so an
+			// observer following a player's view sees only what goes to everyone.
+			const uint8_t reader = turn_mgr_.is_replaying() ? local_player() : seat_player();
+			if (!sim->petra_chat_reaches(line, reader)) continue; // addressed to someone else
 			// messages.js: the line translated, its player names in their colours.
 			const std::string text = rtso::petra_chat_text(line, [&](uint8_t pid) {
 				return std::string(colored_player_name(pid).utf8().get_data());
@@ -1238,7 +1269,8 @@ void RtsoMain::_process(double delta) {
 			const bool allies = line.to == rtso::PETRA_CHAT_ALLIES, priv = !allies && line.to < rtso::MAX_PLAYERS;
 			const String ctx = allies ? "(" + tr("Ally") + ") " : priv ? "(" + tr("Private") + ") " : String();
 			chat_window_.append_kind(ctx + String("<") + colored_player_name(line.from) + String("> ") + String::utf8(text.c_str()) + "\n",
-					RtsoChatWindow::message_bits(allies ? "Ally" : priv ? "Private" : "", true));
+					// An AI has no GUID, so its lines aren't "Players chat" (ChatHistory senderID > 0).
+					RtsoChatWindow::message_bits(allies ? "Ally" : priv ? "Private" : "", false));
 		}
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
 	}
@@ -1342,6 +1374,15 @@ void RtsoMain::_process(double delta) {
 			if (sim)
 				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
 						drag_curr_pos.x, drag_curr_pos.z, &start_tower, &end_tower, wall_kind);
+			// Walls.js returns no segment for a wall no longer than a tower, but the preview still
+			// shows its end towers (GuiInterface.js SetWallPlacementPreview); a click then lays nothing.
+			if (sim && pieces.empty()) {
+				const uint8_t civ = sim->player_civ(local_player());
+				if (!start_tower)
+					pieces.push_back({wall_set.tower, wall_drag_start_pos.x, wall_drag_start_pos.z, 0.0f, wall_set.tower_half, civ});
+				if (!end_tower && (drag_curr_pos - wall_drag_start_pos).length() > 0.1f)
+					pieces.push_back({wall_set.tower, drag_curr_pos.x, drag_curr_pos.z, 0.0f, wall_set.tower_half, civ});
+			}
 			while (wall_ghosts.size() < pieces.size()) {
 				MeshInstance3D *g = memnew(MeshInstance3D);
 				g->set_visible(false);
@@ -1354,16 +1395,20 @@ void RtsoMain::_process(double delta) {
 			const uint32_t snapped[2] = {start_tower, end_tower};
 			// GuiInterface.js SetWallPlacementPreview: from the first piece that can't go down (or
 			// can't be paid for, as cmd_build_wall stops there too) on, every piece is invalid.
-			bool chain_ok = true;
+			// The tooltip's cost is that of the pieces up to the first one that can't stand there
+			// (allPiecesValid); being short of resources only tints them.
+			bool chain_ok = true, place_ok = true;
 			float spent[rtso::RES_COUNT] = {};
 			float wall_cost[rtso::RES_COUNT] = {};
 			for (size_t i = 0; i < pieces.size(); ++i) {
 				const auto &p = pieces[i];
 				MeshInstance3D *g = wall_ghosts[i];
-				if (sim) {
+				if (sim && place_ok) {
+					place_ok = sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
 					float c[rtso::RES_COUNT];
-					sim->wall_piece_cost(local_player(), pieces[i], c);
-					for (int r = 0; r < rtso::RES_COUNT; ++r) wall_cost[r] += c[r];
+					sim->wall_piece_cost(local_player(), p, c);
+					if (place_ok)
+						for (int r = 0; r < rtso::RES_COUNT; ++r) wall_cost[r] += c[r];
 				}
 				// 0 A.D. previews each piece with its own actor (wall_long/medium/short, the
 				// tower): the model the world view will draw for it, turned the same way.
@@ -1394,7 +1439,7 @@ void RtsoMain::_process(double delta) {
 						spent[r] += c[r];
 						chain_ok = chain_ok && spent[r] <= ps.res[r] + 1e-3f;
 					}
-					chain_ok = chain_ok && sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
+					chain_ok = chain_ok && place_ok;
 				}
 				const bool ok = sim && chain_ok;
 				g->set_material_override(ok ? ghost_mat_ok : ghost_mat_bad);
@@ -1600,10 +1645,20 @@ String RtsoMain::chat_open_hotkey_tooltip() const {
 }
 
 // Menu.js rebuild: "Press %(hotkey)s to toggle this menu." with colorizeHotkey.
+// The IconButtons' and GameSpeedButton's tooltips too: colorizeHotkey("%(hotkey)s ",
+// hotkey) + translate(Tooltip), rebuilt on hover for a rebind (onHotkeyChange).
 void RtsoMain::_refresh_menu_tooltip() {
 	if (menu_btn)
 		menu_btn->set_tooltip_text(RtsoHotkeyConfig::colorize_hotkey(rtso::tr0("Press %(hotkey)s to toggle this menu."),
 				"session.gui.menu.toggle"));
+	if (speed_btn) speed_btn->set_tooltip_text(rtso::tr0("Game Speed"));
+	auto tip = [](const char *hotkey, const char *text) {
+		return RtsoHotkeyConfig::colorize_hotkey("%(hotkey)s ", hotkey) + String(rtso::tr0(text));
+	};
+	top_panel_.set_dialog_tooltips(tip("session.gui.diplomacy.toggle", "Diplomacy"),
+			tip("session.gui.barter.toggle", "Barter & Trade"),
+			tip(rtso::hotkeys::table().get("session.gui.matchsettings.toggle") ? "session.gui.matchsettings.toggle" : "session.gui.objectives.toggle",
+					"Match Settings"));
 }
 
 void RtsoMain::refresh_chat_tooltips() {

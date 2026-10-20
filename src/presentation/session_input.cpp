@@ -39,6 +39,36 @@ using rtso::sprintf0;
 
 // Drops one unit from the selection after an orderone command
 // (0 A.D. gui/session/input.js popOneFromSelection -> g_Selection.removeList).
+// 0.28 identity.selectionGroupName on units: the support templates that set it group every
+// civ's variant (template_unit_support_female_citizen also covers the house-trained woman).
+static bool unit_selection_group(uint8_t unit_type) {
+	switch (unit_type) {
+		case rtso::UNIT_FEMALE_CITIZEN: case rtso::UNIT_HEALER: case rtso::UNIT_TRADER:
+		case rtso::UNIT_FISHING_BOAT: case rtso::UNIT_MERCHANT_SHIP: case rtso::UNIT_CATAFALQUE:
+			return true;
+		default:
+			return false;
+	}
+}
+
+// The same on structures: a civ's own building whose 0.28 template inherits a generic one's
+// SelectionGroupName joins that group on a double-click (brit/crannog and han/civil_centre_court
+// with the civic centres, kush/temple_amun and the shrines with the temples, and so on).
+static uint8_t structure_selection_group(uint8_t type) {
+	switch (type) {
+		case rtso::BLD_CRANNOG: case rtso::BLD_IMPERIAL_COURT: return rtso::BLD_TOWN_CENTER;
+		case rtso::BLD_TEMPLE_AMUN: case rtso::BLD_TEMPLE_VESTA: case rtso::BLD_TEMPLE_MARS:
+		case rtso::BLD_TEMPLE_ISIS: case rtso::BLD_KUSH_SHRINE: case rtso::BLD_SHRINE: return rtso::BLD_TEMPLE;
+		case rtso::BLD_INN: case rtso::BLD_TENT: case rtso::BLD_WAREHOUSE: case rtso::BLD_TAVERN:
+		case rtso::BLD_APARTMENT: return rtso::BLD_HOUSE;
+		case rtso::BLD_TOWER_GREAT: return rtso::BLD_TOWER;
+		case rtso::BLD_FORTRESS_OLD: return rtso::BLD_FORTRESS;
+		case rtso::BLD_TRADING_POST: return rtso::BLD_MARKET;
+		case rtso::BLD_MILL: return rtso::BLD_FARMSTEAD;
+		default: return type;
+	}
+}
+
 static void pop_from_selection(PackedInt32Array &sel, uint32_t id) {
 	const int64_t at = sel.find((int32_t)id);
 	if (at >= 0) sel.remove_at(at);
@@ -419,6 +449,17 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						// the end; with Shift (session.queue) the end starts the next wall.
 						const Vector3 click = get_ground_click_pos(mouse_pos);
 						if (!wall_drag_mode) {
+							// input.js:1095-1101: the start is taken only where its tower could stand
+							// (or on one of the player's towers to snap onto).
+							if (sim) {
+								const uint8_t kind = rtso::wallset_kind_of((uint8_t)current_build_type);
+								const uint8_t civ = sim->player_civ(local_player());
+								const rtso::WallSetInfo &ws = rtso::wallset_info(kind, civ);
+								const rtso::Simulation::WallPiece tower{ws.tower, click.x, click.z, 0.0f, ws.tower_half, civ};
+								if (!sim->wall_snap_tower(local_player(), click.x, click.z, kind) &&
+										sim->check_wall_piece(local_player(), tower) != rtso::Simulation::PLACE_OK)
+									return;
+							}
 							wall_drag_mode = true;
 							wall_drag_start_pos = click;
 							return;
@@ -555,7 +596,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								const uint16_t same_tmpl = uview.tmpl[best_uidx];
 								const uint8_t same_rank = uview.rank[best_uidx];
 								const bool exact = click_count_ >= 3;
+								// identity.selectionGroupName: template_unit_support_female_citizen, _healer,
+								// _trader, ship_fishing, ship_merchant and the catafalque group every civ's
+								// (and the house-trained woman's) template on a double-click.
+								const bool group = !exact && unit_selection_group(same_type);
 								auto matches = [&](size_t i) {
+									if (group) return uview.unit_type[i] == same_type;
 									if (same_tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? uview.tmpl[i] != same_tmpl : uview.unit_type[i] != same_type)
 										return false;
 									return !exact || uview.rank[i] == same_rank;
@@ -635,11 +681,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								if (dbl_click) {
 									uint8_t type = rtso::BLD_TYPE_COUNT;
 									for (const auto &b : sim->buildings())
-										if (b.id == hit_bld) type = b.type;
+										if (b.id == hit_bld) type = structure_selection_group(b.type);
 									Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
 									const Vector2 vp_size = get_viewport()->get_visible_rect().size;
 									for (const auto &b : sim->buildings()) {
-										if (b.id == hit_bld || b.type != type || b.team != local_player() || b.wrecked ||
+										if (b.id == hit_bld || structure_selection_group(b.type) != type || b.team != local_player() || b.wrecked ||
 												b.build_progress < 1.0f || !cam)
 											continue;
 										const Vector3 wp(b.x, sim->get_terrain_height(b.x, b.z), b.z);
@@ -659,16 +705,22 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 									structs = picked;
 								}
 								set_selected_structures(structs);
-							} else if (!is_ctrl && inspector_.inspect_at(click_pos)) {
+							} else if (!is_ctrl && !(is_shift && (!selected_ids.is_empty() || selected_building_id != 0)) &&
+									inspector_.inspect_at(click_pos)) {
 								// Another player's unit or structure, an animal or a resource:
-								// selected for its details only (0 A.D. EntitySelection).
+								// selected for its details only (0 A.D. EntitySelection; selection.js addList
+								// skips an unowned entity while something is selected, so Shift keeps it).
 								selected_ids.clear();
 								selected_building_id = 0;
 							} else {
-								// Clicked empty ground: deselect if shift not pressed
-								if (!is_shift) {
+								// Clicked empty ground: deselect unless selection.add or .remove is held
+								// (input.js:963-975).
+								if (!is_shift && !is_ctrl) {
 									selected_ids.clear();
 									selected_building_id = 0;
+									// resetIdleUnit: the next idle-unit hotkey starts again at the first.
+									last_idle_unit_ = 0;
+									idle_class_index_ = 0;
 								}
 							}
 						}
@@ -1147,7 +1199,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			size_t best_f = 0;
 			for (size_t f = 0; f < fview.count; ++f) {
 				if (!fview.alive[f]) continue;
-				if (!rtso::los_sees_unit(*sim, local_player(), fview.pos_x[f], fview.pos_z[f], fview.owner[f])) continue;
+				if (!rtso::los_sees_fauna(*sim, local_player(), fview.pos_x[f], fview.pos_z[f], fview.owner[f])) continue;
 				float dx = fview.pos_x[f] - click_pos.x;
 				float dz = fview.pos_z[f] - click_pos.z;
 				float d2 = dx * dx + dz * dz;
@@ -1391,7 +1443,10 @@ bool RtsoMain::try_place_wall(const Vector3 &end, bool queued) {
 	uint32_t snapped[2] = {0, 0};
 	const std::vector<rtso::Simulation::WallPiece> pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x,
 			wall_drag_start_pos.z, end.x, end.z, &snapped[0], &snapped[1], wall_kind);
-	if (pieces.empty() || sim->check_wall_piece(local_player(), pieces[0], snapped, 2) != rtso::Simulation::PLACE_OK)
+	// tryPlaceWall (input.js:384-403): no segment (a wall no longer than a tower) posts nothing
+	// and still ends the placement.
+	if (pieces.empty()) return true;
+	if (sim->check_wall_piece(local_player(), pieces[0], snapped, 2) != rtso::Simulation::PLACE_OK)
 		return false;
 	if (turn_cmds()) {
 		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_BUILD_WALL, builders, builder_n, end.x, end.z,
@@ -1653,17 +1708,18 @@ std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
 		const bool military = (cls & (rtso::TC_MELEE | rtso::TC_RANGED)) != 0;
 		if ((military_only && !military) || (nonmilitary_only && military)) continue;
 		if (idle_only && uview.action_state[i] != rtso::ACTION_IDLE) continue;
-		// gui.session.woundedunithotkeythreshold = 33 %.
-		if (wounded_only && uview.hp[i] >= uview.max_hp[i] * user_opts_.wounded_fraction) continue;
+		// gui.session.woundedunithotkeythreshold = 33 % (input.js isWounded: 100 hp <= max x threshold).
+		if (wounded_only && uview.hp[i] > uview.max_hp[i] * user_opts_.wounded_fraction) continue;
 		if (!in_box(uview.pos_x[i], uview.pos_z[i])) continue;
 		for (int32_t uid : formation_mates((int32_t)uview.id[i]))
 			if (std::find(out.begin(), out.end(), uid) == out.end()) out.push_back(uid);
 	}
-	// The player's own livestock in the box (not with the military,
-	// idle or wounded filters, which pick soldiers and workers).
+	// The player's own livestock in the box (not with the military or idle filters, which pick
+	// soldiers and workers; the wounded one takes any Unit, livestock too).
 	auto fview = sim->fauna();
-	for (size_t f = 0; f < fview.count && !military_only && !idle_only && !wounded_only; ++f) {
+	for (size_t f = 0; f < fview.count && !military_only && !idle_only; ++f) {
 		if (!sim->fauna_selectable_by(local_player(), fview.id[f])) continue;
+		if (wounded_only && fview.hp[f] > fview.max_hp[f] * user_opts_.wounded_fraction) continue;
 		if (in_box(fview.pos_x[f], fview.pos_z[f])) out.push_back((int32_t)fview.id[f]);
 	}
 	return out;
