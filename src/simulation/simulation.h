@@ -2722,7 +2722,9 @@ private:
 	// GetAttackBonus against it (base multipliers; RTS0 models no tech modification
 	// of bonus multipliers, dead shooter or not, matching every other attack).
 	float projectile_impact_damage(const Projectile &p, const CombatProfile &victim, uint8_t victim_civ, const float res[3]) const;
-	int32_t projectile_hit_fauna(const Projectile &p) const;
+	int32_t projectile_hit_fauna(const Projectile &p, bool aimed_only = false) const;
+	const CombatProfile *projectile_status_profile(const Projectile &p) const;
+	static float predict_time_to_target(float sx, float sz, float speed, float tx, float tz, float vx, float vz);
 	void projectile_hits_fauna(const Projectile &p, size_t f);
 	float unit_damage_to_fauna(size_t i, size_t f) const;
 	void fire_at_fauna(size_t i, size_t f);

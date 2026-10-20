@@ -1498,9 +1498,11 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	col.select(clampi(int(row["color"]), 0, PLAYER_COLORS.size() - 1))
 	col.tooltip_text = tr("Pick a color.")
 	col.item_selected.connect(_on_slot_color.bind(i))
-	# PlayerColor.js hides the colours on a scenario (kept in place for the grid's columns).
-	col.disabled = _is_scenario()
-	col_slot.modulate.a = 0.0 if _is_scenario() else 1.0
+	# PlayerColor.js hides the colours on a scenario and from clients (kept in
+	# place for the grid's columns); the row keeps its player's colour.
+	var hide_col := _is_scenario() or _mp_role == "client"
+	col.disabled = hide_col
+	col_slot.modulate.a = 0.0 if hide_col else 1.0
 
 ## PlayerAssignment.onSelectionChange (single player). Picking yourself moves you here:
 ## a slot that was an AI hands its AI to the slot you left (else that one becomes
@@ -2736,12 +2738,8 @@ func _apply_mp_locks() -> void:
 		for c in cells:
 			if c.has_node("AssignSelect"):
 				keep[c] = true
-	else:
-		var k := int(_net_state.get("my_slot", -1))
-		if k >= 0 and not bool(_net_state.get("locked", false)):
-			for col in [2, 3, 5]:
-				if k * SLOT_COLUMNS + col < cells.size():
-					keep[cells[k * SLOT_COLUMNS + col]] = true
+	# GameSettingControl: a client changes nothing, its own slot included (0.28
+	# NetServer relays only the controller's setup).
 	_lock_tree($VBox/HBox, keep)
 
 func _lock_tree(n: Node, keep: Dictionary) -> void:

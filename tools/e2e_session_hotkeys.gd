@@ -85,7 +85,12 @@ func run() -> void:
 	st = main.debug_selection_state()
 	check(int(st["units"][0]["target_resource"]) == 0, "J held: she walks there and gathers nothing")
 	await right_click(tree_pos)
-	st = main.debug_selection_state()
+	# The order lands on a later lockstep turn: wait for turns, not frames.
+	for i in 40:
+		st = main.debug_selection_state()
+		if int(st["units"][0]["target_resource"]) != 0:
+			break
+		await frames(1)
 	check(int(st["units"][0]["target_resource"]) == int(st["nearest_resource"]), "without it: she goes to gather")
 
 	print("2. session.autorallypoint")

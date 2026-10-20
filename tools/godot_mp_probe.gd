@@ -125,6 +125,7 @@ func _run() -> void:
 	var saw_box := false
 	var saw_net_warning := false
 	var asked := false
+	var host_picked := false
 	var refused := false
 	var ready_for := -1
 	var refusals: Array = []
@@ -230,11 +231,9 @@ func _run() -> void:
 			if role == "join" and slot >= 0:
 				if not asked:
 					asked = true
-					main.request_net_player_setting("color", 0) # the host's: refused
+					# 0.28 NetServer: only the controller's setup counts, so this is refused.
 					main.request_net_player_setting("civ", 15)
-					main.request_net_player_setting("team", 2)
-					main.request_net_player_setting("color", 5)
-					_say("asked for civ 15, team 2, colour 5 in slot %d" % slot)
+					_say("asked for civ 15 in slot %d" % slot)
 				var civs: Array = ms.slot_civs
 				var teams: Array = ms.slot_teams
 				var cols: Array = ms.slot_colors
@@ -249,6 +248,21 @@ func _run() -> void:
 					main.send_setup_chat("hello from bob")
 			# Once the joiner is seated: before its slot is given it needs no
 			# ready (0.28 ReadyController), so Start would not be refused yet.
+			# 0.28: only the host sets a player's civ, team and colour, on its page.
+			if role == "host" and not host_picked and not bool(ns.get("saved_game", false)):
+				var bob_slot := Array(ns.get("slots", [])).map(func(e): return str(e.get("name", ""))).find("bob")
+				var page = null
+				for n in main.find_children("*", "Control", true, false):
+					if "net_main" in n and n.net_main == main:
+						page = n
+				if bob_slot >= 0 and page:
+					host_picked = true
+					var row: int = page._net_rows()[bob_slot]
+					var civ_idx: int = page._civ_order().map(func(c): return int(page.CIVS[c]["id"])).find(15) + 1
+					page._on_slot_civ(civ_idx, row)
+					page._on_slot_team(2, row)
+					page._on_slot_color(5, row)
+					_say("picked civ 15, team 2, colour 5 for bob in slot %d" % bob_slot)
 			if role == "host" and not started and int(st.get("players", 0)) >= 2 \
 					and Array(ns.get("slots", [])).any(func(e): return str(e.get("name", "")) == "bob"):
 				if not bool(ns.get("can_start", false)):
