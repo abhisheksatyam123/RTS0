@@ -36,4 +36,6 @@ None of these touches simulation state or the save format.
 - **Connect flow strings.** "Server is not running.", "Failed to get local IP of the server…" and "Connection failed" (`gamesetup_mp.js:217-237`) are not in RTS0. They belong to 0.28's XMPP connection-data path (`serverdata` messages), which RTS0 replaces with `POST /rooms/connect`, whose refusals have their own texts. Not listed.
 
 ## Fix log
-- 2026-10-20 #PR1 pass 7 gaps 1 and 2 (observer and finished-player checks go by the client's own seat: pause, chat, flares, summary, Exit and Resign) merged.
+- 2026-10-20 #1197 pass 7 gaps 1 and 2 (observer and finished-player checks go by the client's own seat: pause, chat, flares, summary, Exit and Resign) merged.
+- 2026-10-20 #1203 pass 7 gap 3 (an observer joining or leaving the setup keeps everyone's Ready, as ReadyController) merged.
+- 2026-10-20 #PR46 pass 7 gaps 4 and 6 (no won/lost box again after rejoining a finished seat; no pause during "Waiting for players to connect:") merged.
