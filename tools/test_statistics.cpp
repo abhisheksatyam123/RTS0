@@ -280,7 +280,9 @@ static void test_counts() {
 	CHECK(a.population_count > 0 && (int)a.population_count == s.pop_current(0));
 	// Livestock: an animal from the corral counts as Domestic only.
 	const uint32_t trained_before = a.units_trained[STAT_UNIT_TOTAL];
-	const uint32_t corral = s.spawn_building_world(ox + 14.0f, oz + 14.0f, BLD_CORRAL, 0, 1.0f);
+	// 20 tiles toward the centre: the base sits 0.35 of the map out (mainland.js), so +14, +14 is off the circle.
+	const float ol = std::max(1.0f, std::hypot(ox, oz));
+	const uint32_t corral = s.spawn_building_world(ox - 20.0f * ox / ol, oz - 20.0f * oz / ol, BLD_CORRAL, 0, 1.0f);
 	CHECK(s.cmd_breed_livestock(0, corral, FAUNA_SHEEP_TRAINABLE, 2));
 	run(s, 90 * 20);
 	a = s.statistics(0);

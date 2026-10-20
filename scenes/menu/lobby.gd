@@ -1796,4 +1796,9 @@ func _on_host_pressed(saved := false) -> void:
 		if str(r.get("name", "")) == game_name and str(r.get("host_name", "")) != who:
 			_say("Game name already in use.")
 			return
+	var failed := GameSetupMp.host_port_error(port)
+	if failed != "":
+		_say(failed)
+		GameSetupMp.show_host_error(self, failed)
+		return
 	GameSetupMp.start_host(self, who, game_name, port, _host_pwd.text, saved)
