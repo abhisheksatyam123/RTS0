@@ -3375,8 +3375,8 @@ void Simulation::refund_foundation(const Building &b) {
 		std::ceil(c[RES_GOLD] * left), std::ceil(c[RES_STONE] * left));
 }
 
-void Simulation::structure_cost(uint8_t player, uint8_t b_type, float cost_override, float out[RES_COUNT]) const {
-	const BuildingTypeInfo binfo = civ_building_type_info(civ_of(player), b_type); // the big house
+void Simulation::structure_cost(uint8_t player, uint8_t b_type, float cost_override, float out[RES_COUNT], uint8_t template_civ) const {
+	const BuildingTypeInfo binfo = civ_building_type_info(template_civ < CIV_COUNT ? template_civ : civ_of(player), b_type); // the big house
 	// 0 A.D. civ structure cost bonuses (e.g. Iberian walls, Han stone discount).
 	const Civilization civ = civ_of(player);
 	// Team bonuses (e.g. Persian Training Regimes, Mauryan temples) from the player and its allies.
@@ -9696,10 +9696,21 @@ uint32_t Simulation::stat_unit_value(size_t idx) const {
 	unit_train_cost(units_.team[idx], units_.tmpl[idx], unit_info_at(idx), c);
 	return stat_cost_value(c);
 }
+// Cost.GetResourceCosts: the structure's own template (the civ it was built as), with its
+// owner's modifiers; Gaia has none.
 uint32_t Simulation::stat_building_value(const Building &b) const {
 	float c[RES_COUNT];
 	const float piece = wallset_piece_value(b.type, b.half_size, 1, b.civ); // a wall piece's own length
-	structure_cost(b.team, b.type, piece > 0.0f ? piece : -1.0f, c);
+	if (b.team >= MAX_PLAYERS) {
+		const BuildingTypeInfo info = civ_building_type_info(b.civ, b.type);
+		const bool by_wood = info.wood_cost > 0 && info.stone_cost == 0;
+		c[RES_FOOD] = (float)info.food_cost;
+		c[RES_WOOD] = piece > 0.0f && by_wood ? std::round(piece) : (float)info.wood_cost;
+		c[RES_STONE] = piece > 0.0f && !by_wood ? std::round(piece) : (float)info.stone_cost;
+		c[RES_GOLD] = (float)info.gold_cost;
+		return stat_cost_value(c);
+	}
+	structure_cost(b.team, b.type, piece > 0.0f ? piece : -1.0f, c, b.civ);
 	return stat_cost_value(c);
 }
 

@@ -85,6 +85,7 @@ static void test_kill_credit() {
 	CHECK(stat_building_classes(BLD_DOCK) == ((1u << STAT_BLD_ECONOMIC) | (1u << STAT_BLD_MILITARY)));
 	CHECK(stat_building_classes(BLD_FORTRESS) == ((1u << STAT_BLD_FORTRESS) | (1u << STAT_BLD_MILITARY)));
 	CHECK(stat_building_classes(BLD_MERCENARY_CAMP) == (1u << STAT_BLD_MILITARY));
+	CHECK(stat_building_classes(BLD_TRADING_POST) == (1u << STAT_BLD_ECONOMIC)); // trading_post|template_structure_economic_market
 }
 
 static void test_tribute_barter() {
