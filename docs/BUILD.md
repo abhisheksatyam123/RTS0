@@ -78,7 +78,9 @@ What each target needs on the host, beyond Godot 4.3-stable, its export template
 - **Touch.** On Android and iOS, `scenes/common/touch_input.gd` turns touches into mouse input:
   tap = left click (double tap = double click), drag = box select, hold still = right click (orders),
   two fingers = pan, pinch = zoom. The session's touch bar (`scenes/session/touch_controls.tscn`)
-  stands in for hotkeys.
+  stands in for hotkeys, and its Shift, Ctrl and Alt buttons latch those modifiers until tapped again
+  (Shift queues orders and adds to the selection). `tools/e2e_touch_input.gd` checks all of it headless;
+  pass `-- --touch-input` to try it on a desktop touch screen.
 
 ## CI (GitHub Actions)
 `.github/workflows/ci.yml`:

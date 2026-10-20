@@ -55,9 +55,47 @@ layout_mode = 2
 text = "🏛️
 Diplo"
 
+[node name="LeftBar" type="VBoxContainer" parent="."]
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 12.0
+offset_top = -76.0
+offset_right = 64.0
+offset_bottom = 76.0
+grow_vertical = 2
+theme_override_constants/separation = 8
+
+[node name="BtnShift" type="Button" parent="LeftBar"]
+custom_minimum_size = Vector2(52, 42)
+layout_mode = 2
+tooltip_text = "Shift: queue orders, add to the selection"
+toggle_mode = true
+text = "⇧
+Shift"
+
+[node name="BtnCtrl" type="Button" parent="LeftBar"]
+custom_minimum_size = Vector2(52, 42)
+layout_mode = 2
+tooltip_text = "Ctrl: attack-move, remove from the selection"
+toggle_mode = true
+text = "⌃
+Ctrl"
+
+[node name="BtnAlt" type="Button" parent="LeftBar"]
+custom_minimum_size = Vector2(52, 42)
+layout_mode = 2
+tooltip_text = "Alt: include offscreen units in the selection"
+toggle_mode = true
+text = "⌥
+Alt"
+
 [connection signal="pressed" from="RightBar/BtnArmy" to="." method="_on_army_pressed"]
 [connection signal="pressed" from="RightBar/BtnIdle" to="." method="_on_idle_pressed"]
 [connection signal="pressed" from="RightBar/BtnStop" to="." method="_on_stop_pressed"]
 [connection signal="pressed" from="RightBar/BtnBuild" to="." method="_on_build_pressed"]
 [connection signal="pressed" from="RightBar/BtnMarket" to="." method="_on_market_pressed"]
 [connection signal="pressed" from="RightBar/BtnDiplo" to="." method="_on_diplo_pressed"]
+[connection signal="toggled" from="LeftBar/BtnShift" to="." method="_on_shift_toggled"]
+[connection signal="toggled" from="LeftBar/BtnCtrl" to="." method="_on_ctrl_toggled"]
+[connection signal="toggled" from="LeftBar/BtnAlt" to="." method="_on_alt_toggled"]
