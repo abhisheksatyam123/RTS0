@@ -8757,6 +8757,76 @@
       "template": "samnite_skirmisher"
     },
     {
+      "type": "",
+      "player": 2,
+      "x": 58.98,
+      "z": 42.6,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 58.69,
+      "z": 42.23,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 58.38,
+      "z": 41.76,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 58.04,
+      "z": 41.4,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 57.61,
+      "z": 40.91,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 57.17,
+      "z": 41.39,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 57.49,
+      "z": 41.85,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 57.72,
+      "z": 42.33,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 58.0,
+      "z": 42.6,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 58.29,
+      "z": 43.09,
+      "template": "merc_thureophoros"
+    },
+    {
       "type": "cavalry",
       "player": 2,
       "x": 65.75,
@@ -8895,6 +8965,76 @@
       "x": 66.9,
       "z": 43.29,
       "template": "cart/cavalry_spearman_ital_b"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 56.71,
+      "z": 40.08,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 56.33,
+      "z": 39.66,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 56.02,
+      "z": 39.25,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 55.72,
+      "z": 38.89,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 55.4,
+      "z": 38.5,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 54.72,
+      "z": 38.94,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 55.04,
+      "z": 39.34,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 55.24,
+      "z": 39.73,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 55.62,
+      "z": 40.07,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 56.05,
+      "z": 40.56,
+      "template": "merc_black_cloak"
     },
     {
       "type": "spearman",

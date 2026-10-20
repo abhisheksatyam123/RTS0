@@ -13017,6 +13017,30 @@ bool Simulation::structure_build_work(const Building &b, BuildWork &out) const {
 	return true;
 }
 
+bool Simulation::unit_repair_work(size_t t, BuildWork &out) const {
+	out = BuildWork();
+	out.repair = true;
+	if (t >= units_.count || !units_.alive[t] || units_.hp[t] <= 0.0f || units_.hp[t] >= units_.max_hp[t]) return false;
+	if (unit_repair_time_ratio(t) <= 0.0f) return false;
+	float total_rate = 0.0f;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.action_state[i] != ACTION_REPAIR || units_.target_unit_id[i] != units_.id[t]) continue;
+		if (!can_repair_unit(i, (int32_t)t) || !repair_unit_in_range(i, t)) continue;
+		++out.builders;
+		total_rate += builder_rate(i);
+	}
+	const uint8_t owner = units_.team[t];
+	const float train = civ_template_unit_info(units_.tmpl[t], units_.unit_type[t]).train_time *
+			(owner < MAX_PLAYERS ? unit_tech_mods(owner, units_.unit_type[t], units_.tmpl[t]).train_time : 1.0f);
+	const float repair_time = unit_repair_time_ratio(t) * train;
+	const float hp_rate = repair_time > 0.0f ? units_.max_hp[t] / repair_time : 1.0f;
+	const float left = (units_.max_hp[t] - units_.hp[t]) / hp_rate;
+	const float rate = total_rate * foundation_build_multiplier(out.builders);
+	out.remaining = rate > 0.0f ? left / rate : 0.0f;
+	out.remaining_new = left / ((total_rate + 1.0f) * foundation_build_multiplier(out.builders + 1));
+	return true;
+}
+
 // Foundation.js / Repairable.js CalculateBuildMultiplier: n builders at work
 // each do n^0.7 / n of their rate (BuildTimeModifier / buildTimePenalty 0.7).
 float Simulation::foundation_build_multiplier(int builders) {
@@ -17882,6 +17906,27 @@ void Simulation::apply_rally_step(uint32_t uid, const Building &b, const Buildin
 				if (queued ? after > before : units_.order_kind[i] == ORDER_TRADE) return;
 			}
 			break;
+		case RALLY_CMD_HUNT: {
+			// gather-near-position with the animal's template (UnitAI GATHER FINDINGNEWTARGET:
+			// meat of the same template only): the nearest such animal or carcass near the spot.
+			const uint8_t fauna = (uint8_t)st.ent_id;
+			const float r2 = NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE;
+			const uint32_t prey = queued ? 0 : find_nearby_prey((size_t)i, st.x, st.z, r2, fauna);
+			const uint32_t carcass = find_nearby_resource(st.x, st.z, RES_FOOD, b.team, -1, nullptr, 0, fauna);
+			auto d2_of = [&](float x, float z) { return (x - st.x) * (x - st.x) + (z - st.z) * (z - st.z); };
+			float prey_d2 = 1e30f, carcass_d2 = 1e30f;
+			if (auto f = fauna_id_to_idx_.find(prey); prey != 0 && f != fauna_id_to_idx_.end())
+				prey_d2 = d2_of(fauna_.pos_x[f->second], fauna_.pos_z[f->second]);
+			auto c = res_id_to_idx_.find(carcass);
+			if (carcass != 0 && c != res_id_to_idx_.end() && can_gather((size_t)i, c->second))
+				carcass_d2 = d2_of(resources_.x[c->second], resources_.z[c->second]);
+			if (carcass_d2 < prey_d2) { order_gather(&uid, 1, carcass, queued); return; }
+			if (prey != 0) {
+				order_hunt(&uid, 1, prey);
+				if (units_.target_unit_id[i] == prey && units_.action_state[i] == ACTION_ATTACK) return;
+			}
+			break;
+		}
 		case RALLY_CMD_TURRET:
 			if (auto it = building_id_to_idx_.find(st.bld_id); it != building_id_to_idx_.end() && !buildings_[it->second].wrecked) {
 				const Building &t = buildings_[it->second];
