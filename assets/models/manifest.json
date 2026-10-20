@@ -82862,6 +82862,26 @@
     "skin:props/helmet/old/hele_a3.dds"
    ],
    "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "plane": {
+   "animated": false,
+   "animations": [],
+   "bones": 1,
+   "file": "models/units/plane.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    2.2,
+    0.529,
+    1.768
+   ],
+   "skeleton": "oxybeles",
+   "sources": [
+    "actor:art/actors/units/global/plane.xml",
+    "mesh:structural/aeroplane.dae",
+    "skin:structural/mustang.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
   }
  },
  "origin": "0 A.D. by Wildfire Games (public mod archive)",
