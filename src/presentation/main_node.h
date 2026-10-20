@@ -101,6 +101,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	AudioStreamPlayer *sfx_player = nullptr;
 	AudioStreamPlayer *click_player_ = nullptr; // ui_button_click.ogg
 	int ui_clicks_ = 0; // tests: clicks played
+	uint64_t ui_click_frame_ = UINT64_MAX; // the frame the last click played
 	void hook_ui_click_sounds(Node *n);
 	AudioStreamPlayer *ambient_player = nullptr;
 	AudioStreamPlayer *ambient_wind_player = nullptr;
