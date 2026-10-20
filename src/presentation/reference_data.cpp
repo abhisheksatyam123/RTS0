@@ -354,15 +354,24 @@ Dictionary RtsoReference::get_unit(int tmpl) const {
 		h["range"] = 12.0f * 4.0f;
 		d["heal"] = h;
 	}
+	// getAurasTooltip's token-merged Auras: template_unit_hero's hero_garrison and the
+	// infantry templates' ram_garrison, then the unit's own (seldet::unit_auras_tooltip).
 	Array auras;
+	auto add_aura = [&auras](const char *name, const char *description, float radius) {
+		Dictionary ad;
+		ad["name"] = String::utf8(name);
+		ad["description"] = String::utf8(description ? description : "");
+		ad["radius"] = radius;
+		auras.push_back(ad);
+	};
+	if (u.tech_classes & rtso::TC_HERO)
+		add_aura("Inspired Defense", "When garrisoned, the Structure has +1 capture points garrison regeneration rate.", 0.0f);
+	if (u.tech_classes & rtso::TC_INFANTRY)
+		add_aura("Battering Team", "Battering Rams +0.15 speed for each garrisoned soldier.", 0.0f);
 	for (int16_t a : u.auras) {
 		if (a < 0) continue;
 		const auto &aura = rtso::civ_hero_aura(a);
-		Dictionary ad;
-		ad["name"] = String::utf8(aura.name);
-		ad["description"] = String::utf8(aura.description ? aura.description : "");
-		ad["radius"] = aura.radius;
-		auras.push_back(ad);
+		add_aura(aura.name, aura.description, aura.radius);
 	}
 	d["auras"] = auras;
 	const rtso::LootInfo loot = rtso::unit_loot(t, u.unit_type);
