@@ -449,6 +449,17 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						// the end; with Shift (session.queue) the end starts the next wall.
 						const Vector3 click = get_ground_click_pos(mouse_pos);
 						if (!wall_drag_mode) {
+							// input.js:1095-1101: the start is taken only where its tower could stand
+							// (or on one of the player's towers to snap onto).
+							if (sim) {
+								const uint8_t kind = rtso::wallset_kind_of((uint8_t)current_build_type);
+								const uint8_t civ = sim->player_civ(local_player());
+								const rtso::WallSetInfo &ws = rtso::wallset_info(kind, civ);
+								const rtso::Simulation::WallPiece tower{ws.tower, click.x, click.z, 0.0f, ws.tower_half, civ};
+								if (!sim->wall_snap_tower(local_player(), click.x, click.z, kind) &&
+										sim->check_wall_piece(local_player(), tower) != rtso::Simulation::PLACE_OK)
+									return;
+							}
 							wall_drag_mode = true;
 							wall_drag_start_pos = click;
 							return;
@@ -1432,7 +1443,10 @@ bool RtsoMain::try_place_wall(const Vector3 &end, bool queued) {
 	uint32_t snapped[2] = {0, 0};
 	const std::vector<rtso::Simulation::WallPiece> pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x,
 			wall_drag_start_pos.z, end.x, end.z, &snapped[0], &snapped[1], wall_kind);
-	if (pieces.empty() || sim->check_wall_piece(local_player(), pieces[0], snapped, 2) != rtso::Simulation::PLACE_OK)
+	// tryPlaceWall (input.js:384-403): no segment (a wall no longer than a tower) posts nothing
+	// and still ends the placement.
+	if (pieces.empty()) return true;
+	if (sim->check_wall_piece(local_player(), pieces[0], snapped, 2) != rtso::Simulation::PLACE_OK)
 		return false;
 	if (turn_cmds()) {
 		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_BUILD_WALL, builders, builder_n, end.x, end.z,
