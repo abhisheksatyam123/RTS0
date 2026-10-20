@@ -397,8 +397,70 @@ func _title_labels() -> void:
 	for tab in SETTING_TABS:
 		for l in get_node("VBox/HBox/LeftScroll/Left/" + tab).find_children("*Label", "Label", true, false):
 			if l.name != "SeedLabel" and not l.text.ends_with(":"):
+				l.mouse_filter = Control.MOUSE_FILTER_PASS # its tooltip shows on hover
 				l.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 				l.text = _title(l.text)
+
+## GameSettingControl.updateVisibility: a setting the player can't change (a
+## client's, a scenario's locked ones, a saved game's) shows its value as text,
+## the label carrying the control's caption: a dropdown its item, a slider its
+## caption, a checkbox Yes or No.
+func _render_value_texts() -> void:
+	var roots: Array = SETTING_TABS.map(func(t): return get_node("VBox/HBox/LeftScroll/Left/" + t))
+	roots.append(_slots_grid())
+	for root in roots:
+		for c in root.find_children("*", "Control", true, false):
+			if c is RtsoSafeSelect:
+				# PlayerColor has no label: its locked swatch stays.
+				_value_text(c, c.disabled and c.text.strip_edges() != "", c.text, c.get_theme_color("font_color"))
+			elif c is CheckBox:
+				_checkbox_value_text(c)
+			elif c.has_method("get_slider"):
+				c.get_slider().visible = c.get_slider().editable
+
+func _value_text(c: Control, locked: bool, text: String, color: Color) -> void:
+	var l: Label = c.get_node_or_null("ValueText")
+	if not locked:
+		if l:
+			c.self_modulate = Color.WHITE
+			l.queue_free()
+			l.name = "ValueTextGone"
+		return
+	if l == null:
+		l = Label.new()
+		l.name = "ValueText"
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.clip_text = true
+		l.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		c.add_child(l)
+		l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		l.offset_left = 4
+		c.self_modulate = Color.TRANSPARENT
+	l.text = text
+	l.add_theme_color_override("font_color", color)
+
+## GameSettingControlCheckbox: "Yes" / "No" in place of the box.
+var _no_icon: Texture2D
+func _checkbox_value_text(c: CheckBox) -> void:
+	if not c.has_meta("title"):
+		if not c.disabled:
+			return
+		c.set_meta("title", c.text)
+	var title := str(c.get_meta("title"))
+	if not c.disabled:
+		c.text = title
+		c.remove_meta("title")
+		for i in ["checked_disabled", "unchecked_disabled"]:
+			c.remove_theme_icon_override(i)
+		c.remove_theme_color_override("font_disabled_color")
+		return
+	c.text = "%s %s" % [_title(title), tr("Yes") if c.button_pressed else tr("No")]
+	if _no_icon == null:
+		_no_icon = ImageTexture.create_from_image(Image.create(1, 1, false, Image.FORMAT_RGBA8))
+	for i in ["checked_disabled", "unchecked_disabled"]:
+		c.add_theme_icon_override(i, _no_icon)
+	c.add_theme_color_override("font_disabled_color", c.get_theme_color("font_color"))
 
 # ---------------------------------------------------------------- tabs ---
 
@@ -581,8 +643,10 @@ func _rebuild_team_placement(placements: Array) -> void:
 	tpl.clear()
 	tpl.add_item(TEAM_PLACEMENTS[0][1], 0)
 	tpl.set_item_color(0, RANDOM_ITEM_COLOR)
+	tpl.set_item_tooltip(0, tr(TEAM_PLACEMENTS[0][2]))
 	for v in placements:
 		tpl.add_item(TEAM_PLACEMENTS[v][1], v)
+		tpl.set_item_tooltip(tpl.get_item_count() - 1, tr(TEAM_PLACEMENTS[v][2]))
 	var i := ([0] + placements).find(_team_placement)
 	tpl.select(maxi(i, 0))
 	_update_team_placement_tooltip()
@@ -604,8 +668,8 @@ func _update_team_placement_tooltip() -> void:
 	if slot == null or slot.get_child_count() == 0:
 		return
 	var tpl: RtsoSafeSelect = slot.get_child(0)
-	var v := tpl.get_item_id(tpl.get_selected()) if tpl.get_selected() >= 0 else 0
-	tpl.tooltip_text = TEAM_PLACEMENTS[clampi(v, 0, TEAM_PLACEMENTS.size() - 1)][2]
+	# PlayerPlacement.onHoverChange: the hovered pattern's description shows in the open list.
+	tpl.tooltip_text = tr(TEAM_PLACEMENT_TOOLTIP)
 	var lbl := get_node_or_null("%TeamPlacementLabel")
 	if lbl:
 		lbl.tooltip_text = TEAM_PLACEMENT_TOOLTIP
@@ -774,7 +838,9 @@ func _update_map_type_tooltip() -> void:
 	for i in range(MAP_TYPES.size()):
 		if MAP_TYPES[i][0] == _map_type:
 			t.select(i)
-			t.tooltip_text = "Select a map type.\n\n%s: %s" % [MAP_TYPES[i][1], MAP_TYPES[i][2]]
+			# MapType.onHoverChange: the hovered type's description shows in the open list.
+			t.tooltip_text = tr("Select a map type.")
+			%MapTypeLabel.tooltip_text = t.tooltip_text
 
 func _on_map_type_selected(idx: int) -> void:
 	_map_type = MAP_TYPES[clampi(idx, 0, MAP_TYPES.size() - 1)][0]
@@ -827,7 +893,8 @@ func _rebuild_map_filter() -> void:
 	if shown:
 		var i := _filter_names.find(_map_filter_name)
 		f.select(i)
-		f.tooltip_text = "Select a map filter.\n\n%s: %s" % [MAP_FILTERS[_filter_index(_map_filter_name)][1], MAP_FILTERS[_filter_index(_map_filter_name)][2]]
+		f.tooltip_text = tr("Select a map filter.")
+		%MapFilterLabel.tooltip_text = f.tooltip_text
 
 func _filter_index(name: String) -> int:
 	for i in range(MAP_FILTERS.size()):
@@ -1334,7 +1401,7 @@ func _render_reset_buttons() -> void:
 	for n in ["ResetCivs", "ResetTeams"]:
 		var b := get_node_or_null("VBox/HBox/Right/SlotsBox/SlotCountRow/" + n) as Button
 		if b:
-			b.visible = not _is_scenario() and _mp_role != "client"
+			b.visible = not _is_scenario() and _mp_role != "client" and not _saved_game() # ResetCivsButton: hidden for a saved game
 
 # ---------------------------------------------------------------- slots ---
 
@@ -1865,6 +1932,9 @@ func _build_options() -> void:
 		res.set_item_tooltip(res.get_item_count() - 1, tr("Initial amount of each resource: %(resources)s.").replace("%(resources)s", str(START_RES_AMOUNTS[res.get_item_count() - 1])))
 	res.select(1)
 	res.tooltip_text = tr("Select the game's starting resources.")
+	# GameSettingControl.setTooltip: the title carries the setting's tooltip too.
+	for pair in [["MapSizeLabel", "MapSizeSlot"], ["PopCapTypeLabel", "PopCapTypeSlot"], ["ResLabel", "ResSlot"], ["CeasefireLabel", "CeasefireSlot"]]:
+		get_node("%" + pair[0]).tooltip_text = get_node("%" + pair[1]).get_child(0).tooltip_text
 	var bio := _make_option(%BiomeSlot)
 	bio.add_item(BIOMES[0], 0)
 	bio.select(0)
@@ -2702,6 +2772,7 @@ func _process(delta: float) -> void:
 	if _desc_tick >= 0.3:
 		_desc_tick = 0.0
 		_update_description()
+		_render_value_texts()
 	if _mp_role == "none":
 		return
 	_update_net_chat()
