@@ -40,4 +40,5 @@ None of these touches simulation state or the save format.
 - 2026-10-20 #1203 pass 7 gap 3 (an observer joining or leaving the setup keeps everyone's Ready, as ReadyController) merged.
 - 2026-10-20 #1206 pass 7 gaps 4 and 6 (no won/lost box again after rejoining a finished seat; no pause during "Waiting for players to connect:") merged.
 - 2026-10-20 #1222 pass 7 gap 5 (a port that cannot be opened: "Cannot host game: Failed to start server." in an Error box, the host page stays; no SO_REUSEADDR on the host socket) merged.
-- 2026-10-20 #PR7 pass 7 gap 7 (setup chat: network commands, otherwise every line goes to everyone as typed, no addressees or /me, as ChatInputPanel and ClientChat) merged. Pass 7 complete.
+- 2026-10-20 #1239 pass 7 gap 7 (setup chat: network commands, otherwise every line goes to everyone as typed, no addressees or /me, as ChatInputPanel and ClientChat) merged. Pass 7 complete.
+- 2026-10-20 #PRC the Godot MP probe no longer holds a lobby game-list TreeItem across an await; the /events push could rebuild the list in between and the joiner crashed on the freed item (playtest_godot_mp's intermittent signal 11 after sign-in).

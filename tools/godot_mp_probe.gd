@@ -107,9 +107,12 @@ func _run() -> void:
 				for it in top.get_children():
 					if str(it.get_metadata(0)) == "room-%d" % port:
 						row = it
+		# The list is rebuilt whenever the lobby pushes a change (/events), which
+		# frees its TreeItems: never hold one across an await.
+		var picked: String = row.get_text(0)
 		row.select(0)
 		await _wait(0.1)
-		_say("picked %s (address %s)" % [row.get_text(0), "hidden" if lobby._join_ip.text == "" else lobby._join_ip.text])
+		_say("picked %s (address %s)" % [picked, "hidden" if lobby._join_ip.text == "" else lobby._join_ip.text])
 		lobby._on_join_pressed()
 		# The lobby hands the address over on request (/rooms/connect).
 		while ms.net_mode != "join":
