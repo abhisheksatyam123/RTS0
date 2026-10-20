@@ -162,6 +162,8 @@ Dictionary RtsoMain::match_settings_snapshot(uint32_t seed) const {
 	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) {
 		for (const char *k : kSetupKeys) d[k] = ms->get(k);
 	}
+	// PlayerPlacement.pickRandomItems: Random is recorded as the pattern the map drew.
+	if (sim && sim->played_team_placement()) d["team_placement"] = (int)sim->played_team_placement();
 	d["seed"] = (int64_t)seed;
 	return d;
 }
