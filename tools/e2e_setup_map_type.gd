@@ -58,12 +58,12 @@ func node(page, path: String):
 	return page.get_node("%" + path.get_file())
 
 func slot_selects(page) -> Array:
-	# Per row: name label, kind, civ, team, AI gear, colour.
+	# Per row (PlayersPanel.xml): name label, colour, assignment, AI gear, civ, team.
 	var out := []
 	var grid: GridContainer = page.get_node("VBox/HBox/Right/SlotsBox/SlotsGrid")
 	var kids := grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
 	for r in range(kids.size() / 6):
-		out.append({"civ": kids[r * 6 + 2].get_child(0), "team": kids[r * 6 + 3].get_child(0), "color": kids[r * 6 + 5]})
+		out.append({"civ": kids[r * 6 + 4].get_child(0), "team": kids[r * 6 + 5].get_child(0), "color": kids[r * 6 + 1]})
 	return out
 
 func run() -> void:
@@ -105,6 +105,15 @@ func run() -> void:
 	check(filter_titles(page).has("Best for MP") and filter_titles(page).has("Naval Maps"), "random filters: " + str(filter_titles(page)))
 	var spin: SpinBox = page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots")
 	check(spin.editable, "the player count can be picked")
+	var pc: RtsoSafeSelect = page.get_node("%PlayerCountSlot").get_child(0)
+	check(not pc.disabled and pc.get_item_count() == 8 and page.get_node("%PlayerCountLabel").text == "Number of Players"
+		and page.get_node("%PlayerCountLabel").get_parent().name == "PlayerTab", "PlayerCount.js: Number of Players, 1-8, in the Player tab")
+	var before := int(spin.value)
+	pc.select(2)
+	pc.item_selected.emit(2)
+	check(int(spin.value) == 3, "picking 3 sets three players")
+	spin.value = before
+	check(pc.get_selected() == before - 1, "and the dropdown follows the count")
 	print("3b. Player Placement")
 	var tp_slot: Control = node(page, "MapOptionsRow/TeamPlacementSlot")
 	set_filter(page, "All Maps")
@@ -293,7 +302,7 @@ func run() -> void:
 	res = node(page, "ResSlot").get_child(0)
 	check(not res.disabled and res.text != "Per Player" and not node(page, "MapVisRow/RevealMap").disabled, "and the match settings")
 	spin = page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots")
-	check(not spin.editable, "a skirmish keeps its player count")
+	check(not spin.editable and (page.get_node("%PlayerCountSlot").get_child(0) as RtsoSafeSelect).disabled, "a skirmish keeps its player count")
 
 	print("6. Start on Random")
 	page._on_map_type_selected(1)
