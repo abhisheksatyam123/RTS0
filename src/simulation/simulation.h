@@ -180,7 +180,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 102; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 103; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_WAGON_SHARING = 103; // the supply wagons their owners locked
 	static constexpr uint32_t SAVE_VERSION_AUTOQUEUE_BATCH = 102; // each queued batch's original size once part of it spawned
 	static constexpr uint32_t SAVE_VERSION_CARCASS_OWNER = 101; // each carcass's animal's owner
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
@@ -1014,7 +1015,8 @@ public:
 	// instead of its garrison.
 	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false,
 			bool turret = false);
-	void order_ungarrison(uint32_t building_id);
+	// forced_turrets: turret units step down even with no free spot (GetSpawnPosition forced).
+	void order_ungarrison(uint32_t building_id, bool forced_turrets = false);
 	// GarrisonHolder.EjectOrKill. With `keep_allies_of` a player, only units not owned by that
 	// player or a mutual ally of theirs leave (OnGlobalOwnershipChanged, OnDiplomacyChanged).
 	void eject_or_kill(Building &b, uint8_t keep_allies_of = 0xFF);
@@ -1070,6 +1072,7 @@ public:
 	bool dropsite_usable_by(uint8_t player, const Building &b) const;
 	// The same test for unit `e` when it is a mobile dropsite (worker elephant, supply wagon).
 	bool mobile_dropsite_usable_by(uint8_t player, size_t e) const;
+	bool unit_dropsite_shared(uint32_t unit_id) const; // ResourceDropsite IsShared on a unit
 	// 0 A.D. "set-dropsite-sharing" (ResourceDropsite.SetSharing) on one of `player`'s dropsites;
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
 	bool cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared);
@@ -2952,7 +2955,7 @@ private:
 	bool structure_accepts_turret(const Building &b, size_t i) const;
 	bool turret_room(const Building &b) const;
 	void step_down_turret(Building &b, uint32_t unit_id);
-	void leave_turret(size_t i, const Building &b);
+	bool leave_turret(size_t i, const Building &b, bool forced);
 	void tick_turrets();
 	void builder_stand_point(size_t i, const Building &b, float x, float z, float &tx, float &tz) const;
 	std::vector<FormationController> formations_; // in creation order
@@ -3789,6 +3792,7 @@ private:
 	int petra_config_max_pop(int unlimited = 300) const; // config.js setConfig's getPopulationMax
 	float petra_config_pop_scaling() const; // Config.popScaling: pop_scaling times sqrt(maxPop/300) under 300
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT, int clearance = -1) const; // btype: also 0 A.D.'s placement rules; clearance -1: petra_clearance
+	bool petra_spot_free_but_distance(int cell_x, int cell_y, int footprint, uint8_t btype, int clearance = -1) const;
 	bool petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance = 1) const;
 	static uint8_t petra_clearance(uint8_t btype); // findGoodPosition's 0, 4 or 8 m gap, as 0, 1, 2
 	bool petra_limit_allows_building(uint8_t btype) const;
@@ -4128,6 +4132,7 @@ private:
 	// keep it and the IDLE Timer goes back to guarding; remove-guard, a guard order for
 	// someone else or a charge that is gone or no longer an ally ends it.
 	std::unordered_map<uint32_t, uint32_t> guard_of_;
+	std::vector<uint32_t> locked_dropsite_units_; // sorted ids of supply wagons whose owner locked them
 	// UnitAI workOrders: the queue from its first Gather, Trade, Repair or ReturnResource order,
 	// kept when an order that isn't work replaces it (UpdateWorkOrders), for Back to Work.
 	std::unordered_map<uint32_t, std::vector<UnitOrder>> work_orders_;

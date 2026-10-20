@@ -1,6 +1,7 @@
 #ifndef RTSO_SIM_TYPES_H
 #define RTSO_SIM_TYPES_H
 
+#include "core/math/det_math.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -3208,6 +3209,58 @@ inline uint8_t building_train_civ(uint8_t type, uint8_t bld_civ, uint8_t owner_c
 	                   type == BLD_MILITARY_COLONY || type == BLD_WAGON_ENCAMPMENT ||
 	                   type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
 	return civic && (t.flags & ROSTER_CIVILIAN) && (t.trainers & bld_bit(type)) ? bld_civ : owner_civ;
+}
+
+// Whether `tmpl` is a unit of the names `bld_civ`'s own `type` structure lists as
+// units/{civ}/<name> (TRAINER_CIV_LISTS), for any civ; *listed says whether that civ has
+// such a structure with a list at all.
+inline bool trainer_civ_list_has(uint8_t bld_civ, uint8_t type, uint16_t tmpl, bool *listed) {
+	struct Lists {
+		std::vector<std::array<uint64_t, CIV_TEMPLATE_WORDS_MAX>> bits;
+		std::vector<uint8_t> has;
+		Lists() : bits((size_t)TRAINER_CIV_ROWS * TRAINER_BUILDING_ROWS), has(bits.size()) {
+			for (const TrainerCivList &l : TRAINER_CIV_LISTS) {
+				const size_t k = (size_t)l.civ * TRAINER_BUILDING_ROWS + l.type;
+				has[k] = 1;
+				for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i) {
+					const char *id = civ_unit_template(i).id, *slash = std::strchr(id, '/');
+					if (!slash || !is_playable_civ(civ_unit_template(i).civ)) continue;
+					const size_t n = std::strlen(slash + 1);
+					for (const char *p = l.units; *p;) {
+						const char *e = std::strchr(p, ' ');
+						const size_t m = e ? (size_t)(e - p) : std::strlen(p);
+						if (m == n && std::strncmp(p, slash + 1, n) == 0) { bits[k][i >> 6] |= 1ull << (i & 63); break; }
+						p += m + (e ? 1 : 0);
+					}
+				}
+			}
+		}
+	};
+	static const Lists lists;
+	*listed = false;
+	if (bld_civ >= TRAINER_CIV_ROWS || type >= TRAINER_BUILDING_ROWS || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	const size_t k = (size_t)bld_civ * TRAINER_BUILDING_ROWS + type;
+	*listed = lists.has[k] != 0;
+	return (lists.bits[k][tmpl >> 6] >> (tmpl & 63)) & 1u;
+}
+
+// Whether a `type` structure built by `bld_civ` and held by an `owner_civ` player trains
+// `tmpl` (Trainer.js CalculateEntitiesMap). Its own builder's structure uses the roster's
+// trainer bits; one captured from another civ trains the captor's units of the names in its
+// builder's list ({civ} is the holder's civ), so a Briton holding an Athenian civic centre
+// trains brit/infantry_spearman_b, infantry_slinger_b and cavalry_javelineer_b, and none of
+// the Briton civic centre's others.
+inline bool building_trains_template(uint8_t type, uint8_t bld_civ, uint8_t owner_civ, uint16_t tmpl) {
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	const CivUnitTemplate &t = civ_unit_template(tmpl);
+	const uint8_t civ = building_train_civ(type, bld_civ, owner_civ, t);
+	if (t.civ != civ) return false;
+	if (civ != bld_civ) {
+		bool listed = false;
+		const bool in = trainer_civ_list_has(bld_civ, type, tmpl, &listed);
+		if (listed) return in;
+	}
+	return t.trainers.test(type);
 }
 
 // BuildingAI and Attack/Ranged of a civ's structure: the generic row plus 0.28's one civ

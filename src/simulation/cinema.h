@@ -12,6 +12,7 @@
 // match is. The camera itself is presentation: cinema_camera() turns a path and the time
 // into it into the eye and the point it looks at, the way CCinemaPath::Play does.
 
+#include "core/math/det_math.h"
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -213,10 +214,10 @@ struct Spline {
 // CCinemaPath's DistStylePtr with CCinemaData's defaults (m_Growth 1, m_GrowthCount 0).
 inline float ease_style(uint8_t style, float t) {
 	switch (style) {
-		case CINEMA_STYLE_GROWTH: return std::pow(t, 1.0f);
-		case CINEMA_STYLE_EXPO: return t == 0.0f ? t : std::pow(1.0f, 10.0f * (t - 1.0f));
+		case CINEMA_STYLE_GROWTH: return det::pow(t, 1.0f);
+		case CINEMA_STYLE_EXPO: return t == 0.0f ? t : det::pow(1.0f, 10.0f * (t - 1.0f));
 		case CINEMA_STYLE_CIRCLE: return -(std::sqrt(1.0f - t * t) - 1.0f);
-		case CINEMA_STYLE_SINE: return 1.0f - std::cos(t * 3.14159265358979f / 2.0f);
+		case CINEMA_STYLE_SINE: return 1.0f - det::cos(t * 3.14159265358979f / 2.0f);
 		default: return t;
 	}
 }

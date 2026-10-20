@@ -1107,6 +1107,7 @@ public:
 					bool any_turret = false; // "leave-turret": a selected unit on a turret point
 					bool any_turretable = false; // "occupy-turret": a Turretable unit not on one
 					int passengers = 0;
+					bool any_wagon = false, wagon_locked = false; // "share-dropsite": an own Sharable unit
 					for (int s = 0; s < selected_ids.size(); ++s) {
 						const uint32_t id = (uint32_t)selected_ids[s];
 						for (size_t u = 0; u < uview.count; ++u) {
@@ -1129,6 +1130,10 @@ public:
 							any_turretable = any_turretable || (sim->turret_holder_of(id) == 0 && (cls & rtso::TC_INFANTRY) != 0 && (cls & rtso::TC_RANGED) != 0);
 							if (sim->is_transport(id)) passengers += sim->get_transport_passenger_count(id);
 							any_deletable = any_deletable || (ut != rtso::UNIT_CATAFALQUE && !sim->undeletable_unit(id)); // isUndeletable
+							if (rtso::unit_dropsite_sharable(ut) && uview.team[u] == local_player()) {
+								any_wagon = true;
+								wagon_locked = wagon_locked || !sim->unit_dropsite_shared(id);
+							}
 							break;
 						}
 					}
@@ -1169,6 +1174,18 @@ public:
 						add_entity_command("patrol", "Patrol", "session.patrol",
 								"Patrol\nOrder to repeatedly go to a point and come back, attacking all enemies along the way.",
 								"patrol.png");
+					if (any_wagon) {
+						bool mutual_ally = false;
+						for (uint8_t p = 0; p < rtso::MAX_PLAYERS && !mutual_ally; ++p)
+							mutual_ally = p != local_player() && sim->player(p).active && sim->is_ally(local_player(), p) &&
+									sim->is_ally(p, local_player());
+						auto tip = [](const char *title, const char *body) { return rtso::tr0(title) + "\n" + rtso::tr0(body); };
+						if (mutual_ally)
+							add_entity_command("share-dropsite", wagon_locked ? "Share Dropsite" : "Lock Dropsite", "",
+									wagon_locked ? tip("Share Dropsite", "Allow allies to use this dropsite, now locked.")
+												 : tip("Lock Dropsite", "Prevent allies from using this dropsite, now shared."),
+									wagon_locked ? "locked_small.png" : "unlocked_small.png");
+					}
 				}
 
 				if (has_worker) {
@@ -1417,8 +1434,7 @@ private:
 		if (pass == 1 && ob->civ == civ) break;
 		for (uint16_t i : rtso::civ_roster_ids(pass == 0 ? ob->civ : civ)) {
 			const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
-			if (!(u.trainers & rtso::bld_bit(ob->type))) continue;
-			if (rtso::building_train_civ(ob->type, ob->civ, civ, u) != u.civ) continue;
+			if (!rtso::building_trains_template(ob->type, ob->civ, civ, i)) continue;
 			// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;
 			// 0 A.D. has no such unit, so players don't see it.
 			if (std::strstr(u.id, "/rts0_")) continue;

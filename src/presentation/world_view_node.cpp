@@ -488,18 +488,9 @@ void RtsoWorldView::_ready() {
 				const auto &t = rtso::flora_template_info(k - rtso::FLORA_TEMPLATE_FIRST);
 				kd = Kind{ t.model_id, 0.3f, !t.fruit };
 			}
-			rtso::ModelLibrary::Entry models[TREE_VARIANTS];
-			flora_variants[k] = tree_family_models(kd.id, models, TREE_VARIANTS);
+			flora_model_[k] = kd.id;
+			flora_sways_[k] = kd.tree;
 			flora_scale[k] = kd.scale;
-			for (int v = 0; v < flora_variants[k]; ++v) {
-				const auto &e = models[v];
-				enable_instance_tint(e.mesh);
-				flora_mm[k][v] = create_multimesh(kd.tree ? wind_mesh(e.mesh) : e.mesh, true);
-				flora_y[k][v] = e.y_offset * kd.scale;
-				flora_mmi[k][v] = memnew(MultiMeshInstance3D);
-				flora_mmi[k][v]->set_multimesh(flora_mm[k][v]);
-				add_child(flora_mmi[k][v]);
-			}
 		}
 	}
 	for (int k = 0; k < MINE_KINDS; ++k) {
@@ -514,15 +505,6 @@ void RtsoWorldView::_ready() {
 	food_mmi = memnew(MultiMeshInstance3D); food_mmi->set_multimesh(food_mm); add_child(food_mmi);
 	ruins_mm = create_multimesh(tinted(rtso::ModelLibrary::get("buildings", "ruins").mesh), true);
 	ruins_mmi = memnew(MultiMeshInstance3D); ruins_mmi->set_multimesh(ruins_mm); add_child(ruins_mmi);
-	for (int k = 0; k < rtso::TREASURE_TYPE_COUNT; ++k) {
-		auto e = rtso::ModelLibrary::get("props", rtso::treasure_type_info((uint8_t)k).model_id);
-		if (!e.mesh.is_valid()) e = rtso::ModelLibrary::get("vegetation", "treasure_chest");
-		treasure_y_offset[k] = e.y_offset;
-		treasure_mm[k] = create_multimesh(tinted(e.mesh), true);
-		treasure_mmi[k] = memnew(MultiMeshInstance3D);
-		treasure_mmi[k]->set_multimesh(treasure_mm[k]);
-		add_child(treasure_mmi[k]);
-	}
 	{
 		Ref<BoxMesh> box;
 		box.instantiate();
@@ -559,14 +541,9 @@ void RtsoWorldView::_ready() {
 				fauna_looks_[f]++;
 			}
 		}
-		Ref<Mesh> fauna_rest[FAUNA_ROWS];
-		for (int f = 0; f < fauna_rows_; ++f) {
-			auto m = rtso::ModelLibrary::get("units", fauna_row_model_[f]);
-			fauna_rest[f] = m.mesh.is_valid() ? m.mesh : deer_mesh;
-		}
 		for (int f = 0; f < fauna_rows_; ++f) {
 			for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
-				fauna_mm[f][c] = create_multimesh(fauna_rest[f], false);
+				fauna_mm[f][c] = create_multimesh(deer_mesh, false);
 				fauna_mm[f][c]->set_use_custom_data(true); // the coat draw (player_color.gdshader variant_u)
 				fauna_mmi[f][c] = memnew(MultiMeshInstance3D);
 				fauna_mmi[f][c]->set_multimesh(fauna_mm[f][c]);
@@ -1711,6 +1688,22 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 	v.root->add_child(mi);
 	enable_mesh_shadows(mi);
 	v.anim = nullptr;
+}
+
+void RtsoWorldView::ensure_flora(int k) {
+	if (k <= 0 || k >= FLORA_KINDS || flora_loaded_[k]) return;
+	flora_loaded_[k] = true;
+	rtso::ModelLibrary::Entry models[TREE_VARIANTS];
+	flora_variants[k] = tree_family_models(flora_model_[k], models, TREE_VARIANTS);
+	for (int v = 0; v < flora_variants[k]; ++v) {
+		const auto &e = models[v];
+		enable_instance_tint(e.mesh);
+		flora_mm[k][v] = create_multimesh(flora_sways_[k] ? wind_mesh(e.mesh) : e.mesh, true);
+		flora_y[k][v] = e.y_offset * flora_scale[k];
+		flora_mmi[k][v] = memnew(MultiMeshInstance3D);
+		flora_mmi[k][v]->set_multimesh(flora_mm[k][v]);
+		add_child(flora_mmi[k][v]);
+	}
 }
 
 Node *RtsoWorldView::instantiate_building_id(const String &id) {
@@ -3091,9 +3084,52 @@ int RtsoWorldView::fauna_row(uint8_t ftype, uint32_t id) const {
 	return pick == 0 ? ftype : fauna_look_first_[ftype] + (int)pick - 1;
 }
 
+// The plants, animals and treasures the map has, seen or not, load as they appear
+// (behind the loading page, or warm_models for a save), so exploring never stalls
+// a frame on a model; a scan runs when a list's length changes.
+void RtsoWorldView::ensure_map_models(const rtso::Simulation *sim) {
+	if (const auto rv = sim->resources(); rv.count != flora_scan_count_) {
+		flora_scan_count_ = rv.count;
+		for (size_t i = 0; i < rv.count; ++i)
+			if (rv.flora[i] != 0 && rv.flora[i] < FLORA_KINDS && !flora_loaded_[rv.flora[i]]) ensure_flora(rv.flora[i]);
+	}
+	if (const auto fview = sim->fauna(); fview.count != fauna_scan_count_) {
+		fauna_scan_count_ = fview.count;
+		for (size_t f = 0; f < fview.count; ++f)
+			if (fview.fauna_type[f] < rtso::FAUNA_COUNT) ensure_fauna_row(fauna_row(fview.fauna_type[f], fview.id[f]));
+	}
+	if (sim->treasures().size() != treasure_scan_count_) {
+		treasure_scan_count_ = sim->treasures().size();
+		for (const auto &t : sim->treasures()) ensure_treasure(t.type);
+	}
+}
+
+void RtsoWorldView::ensure_treasure(int k) {
+	if (k < 0 || k >= rtso::TREASURE_TYPE_COUNT || treasure_loaded_[k]) return;
+	treasure_loaded_[k] = true;
+	auto e = rtso::ModelLibrary::get("props", rtso::treasure_type_info((uint8_t)k).model_id);
+	if (!e.mesh.is_valid()) e = rtso::ModelLibrary::get("vegetation", "treasure_chest");
+	treasure_y_offset[k] = e.y_offset;
+	enable_instance_tint(e.mesh);
+	treasure_mm[k] = create_multimesh(e.mesh, true);
+	treasure_mmi[k] = memnew(MultiMeshInstance3D);
+	treasure_mmi[k]->set_multimesh(treasure_mm[k]);
+	add_child(treasure_mmi[k]);
+}
+
+void RtsoWorldView::ensure_fauna_row(int row) {
+	if (row < 0 || row >= fauna_rows_ || fauna_row_loaded_[row]) return;
+	fauna_row_loaded_[row] = true;
+	const auto &m = rtso::ModelLibrary::get("units", fauna_row_model_[row]);
+	if (!m.mesh.is_valid()) return;
+	for (int c = 0; c < FAUNA_CLIP_COUNT; ++c)
+		if (fauna_mm[row][c].is_valid()) fauna_mm[row][c]->set_mesh(m.mesh);
+}
+
 void RtsoWorldView::ensure_fauna_frames(int row) {
 	if (row < 0 || row >= fauna_rows_) return;
 	if (fauna_puppet_baked[row]) return;
+	ensure_fauna_row(row);
 	fauna_puppet_baked[row] = true;
 
 	String cat_units = "units";
@@ -3238,6 +3274,7 @@ void RtsoWorldView::model_boxes(const std::vector<uint32_t> &ids, std::vector<Mo
 
 void RtsoWorldView::warm_models(const rtso::Simulation *sim, const std::function<void(int, int)> &progress) {
 	if (!sim) return;
+	ensure_map_models(sim);
 	const auto uview = sim->units();
 	std::vector<std::pair<const char *, String>> wanted;
 	std::unordered_set<std::string> seen;
@@ -4902,6 +4939,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 	if (sim->current_map_biome() != tree_biome_) pick_tree_kinds(sim->current_map_biome());
 	// A tree or fruit bush with a FloraKind whose model loaded draws in that kind's batch.
+	ensure_map_models(sim);
 	auto flora_of = [&](const rtso::FoggedResource &r) -> int {
 		if (r.flora == 0 || r.flora >= FLORA_KINDS || flora_variants[r.flora] == 0) return 0;
 		if (r.subtype != rtso::RES_SUB_NONE || (r.type != rtso::RES_WOOD && r.type != rtso::RES_FOOD)) return 0;
@@ -4987,11 +5025,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		int nt[rtso::TREASURE_TYPE_COUNT] = {};
 		for (const auto &t : tv)
 			if (t.type < rtso::TREASURE_TYPE_COUNT && los_brightness(t.x, t.z) > 0.0f) ++nt[t.type];
-		for (int k = 0; k < rtso::TREASURE_TYPE_COUNT; ++k) set_mm_count(treasure_mm[k], nt[k]);
+		for (int k = 0; k < rtso::TREASURE_TYPE_COUNT; ++k)
+			if (treasure_mm[k].is_valid()) set_mm_count(treasure_mm[k], nt[k]);
 		int it[rtso::TREASURE_TYPE_COUNT] = {};
 		for (const auto &t : tv) {
 			const float lit = t.type < rtso::TREASURE_TYPE_COUNT ? los_brightness(t.x, t.z) : 0.0f;
-			if (lit <= 0.0f) continue;
+			if (lit <= 0.0f || !treasure_mm[t.type].is_valid()) continue;
 			// Wrecks and floating cargo sit on the water, the rest on the ground.
 			const float ground = std::max(sim->get_terrain_height(t.x, t.z), sim->water_height());
 			Basis rot(Vector3(0, 1, 0), rtso::Simulation::treasure_angle(t.id));

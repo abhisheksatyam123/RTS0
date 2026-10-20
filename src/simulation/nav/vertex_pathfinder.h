@@ -81,11 +81,13 @@
 #include "simulation/nav/geometry.h"
 
 #include <algorithm>
+#include <atomic>
 #include <bit>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -652,6 +654,23 @@ struct ShortPathScratch {
 // best partial path (vendor: the explored vertex with the lowest heuristic). Waypoints are in
 // walking order, start excluded, goal last. An empty result means no movement is possible.
 //
+// VertexPathfinderDebugOverlay: the last short path search's goal and visibility graph
+// (DebugRenderGoal, DebugRenderGraph), kept only while the pathfinder overlay is on
+// (RtsoDebugOverlays). The simulation never reads it.
+struct ShortPathDebug {
+	std::atomic<bool> on{false};
+	std::mutex m;
+	ShortPathGoal goal;
+	std::vector<vp::Vertex> vertexes;
+	std::vector<vp::Edge> edges;
+	std::vector<vp::Square> squares;
+	uint32_t searches = 0;
+};
+inline ShortPathDebug &short_path_debug() {
+	static ShortPathDebug d;
+	return d;
+}
+
 // This overload works in `scratch`, whose allocations later calls reuse. The overload below,
 // with terrain_passable and no scratch, gives the same results.
 template <class PassRowFn>
@@ -823,6 +842,14 @@ bool compute_short_path(const ShortPathRequest& req,
 	}
 
 	if (vertexes.size() >= MAX_VERTEXES) return false; // DEVIATION 10 (vendor 730)
+	if (ShortPathDebug &dbg = short_path_debug(); dbg.on.load(std::memory_order_relaxed)) {
+		std::lock_guard<std::mutex> lock(dbg.m);
+		dbg.goal = req.goal;
+		dbg.vertexes = vertexes;
+		dbg.edges = edges;
+		dbg.squares = edgeSquares;
+		++dbg.searches;
+	}
 
 	// A* over the visibility graph (vendor 743-888). Visibility is tested lazily when a vertex is popped.
 	const float heuristicWeight = req.heuristic_weight > 0.0f ? req.heuristic_weight
