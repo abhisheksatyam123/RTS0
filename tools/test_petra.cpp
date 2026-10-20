@@ -1169,6 +1169,19 @@ static void test_hunters_028() {
 		const uint32_t pick = s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 21.0f, busy, l);
 		std::printf("  ally's sheep %u, Gaia sheep %u: Petra picks %u\n", sheep, own, pick);
 		CHECK(pick != sheep, "an ally's sheep in its territory is left alone");
+		// Its carcass keeps the ally as owner (Health.js corpse), so it is left alone too.
+		{
+			const size_t si = s->fauna_id_to_idx_.at(sheep);
+			const uint32_t corpse = s->spawn_carcass(si);
+			s->fauna_.alive[si] = 0;
+			if (auto it = s->fauna_id_to_idx_.find(own); it != s->fauna_id_to_idx_.end()) s->fauna_.alive[it->second] = 0;
+			const auto ci = s->res_id_to_idx_.find(corpse);
+			CHECK(ci != s->res_id_to_idx_.end() && s->resources_.owner[ci->second] == 3, "the ally's sheep's carcass is the ally's");
+			const uint32_t got = s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 21.0f, busy, l);
+			std::printf("  ally's sheep carcass %u: Petra picks %u\n", corpse, got);
+			CHECK(got != corpse, "an ally's carcass in its territory is left alone");
+			if (ci != s->res_id_to_idx_.end()) s->resources_.alive[ci->second] = 0;
+		}
 		for (uint32_t id : {boar, deer2, sheep, own})
 			if (auto it = s->fauna_id_to_idx_.find(id); it != s->fauna_id_to_idx_.end()) s->fauna_.alive[it->second] = 0;
 		s->set_diplomacy(1, 3, Simulation::DIPLO_ENEMY);
