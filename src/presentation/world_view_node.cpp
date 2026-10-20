@@ -4346,9 +4346,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float ground = sim->get_terrain_height(x, z);
 		// 0 A.D. ships are Position Floating: they ride the water surface, not the seabed.
 		if (rtso::unit_is_ship(utype) && sim->water_height() > -0.5f) ground = std::max(ground, drawn_water_height(sim));
-		float y = (turret_h > 0.0f ? turret_draw_y(sim, id, turret_h, x, z) : ground) + model_b.y_offset;
+		// UnitMotionFlying: a plane at its height, pitched and banked (Position SetXZRotation; a
+		// positive roll banks it into a left turn).
+		float fly_y = 0.0f, fly_pitch = 0.0f, fly_roll = 0.0f;
+		const bool flying = sim->unit_flight_pose(i, fly_y, fly_pitch, fly_roll);
+		float y = (flying ? fly_y : turret_h > 0.0f ? turret_draw_y(sim, id, turret_h, x, z) : ground) + model_b.y_offset;
 		float sc = model_b.scale > 0.05f ? model_b.scale : 1.0f;
-		Transform3D xf(Basis(Vector3(0, 1, 0), yaw).scaled(Vector3(sc, sc, sc)), Vector3(x, y, z));
+		const Basis fly_tilt = flying ? Basis(Vector3(1, 0, 0), fly_pitch) * Basis(Vector3(0, 0, 1), fly_roll) : Basis();
+		Transform3D xf((Basis(Vector3(0, 1, 0), yaw) * fly_tilt).scaled(Vector3(sc, sc, sc)), Vector3(x, y, z));
 		const bool dying = !uview.alive[i] || uaction == rtso::ACTION_DYING;
 		const float death_t = dying ? uview.death_timer[i] : 0.0f;
 		const bool ship_wave = !dying && rtso::unit_is_ship(utype);
@@ -4501,7 +4506,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 
 		float dsc = model_b.scale > 0.05f ? model_b.scale : 1.0f;
-		Transform3D dxf(Basis(Vector3(0, 1, 0), v.yaw).scaled(Vector3(dsc, dsc, dsc)),
+		Transform3D dxf((Basis(Vector3(0, 1, 0), v.yaw) * fly_tilt).scaled(Vector3(dsc, dsc, dsc)),
 		               Vector3(x, y, z));
 		if (ship_wave) {
 			apply_ship_wave_xform(dxf, id, anim_time, speed2);

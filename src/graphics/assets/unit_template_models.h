@@ -996,6 +996,7 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // germ/infantry_spearman_a (no model of its own: its owner civ's spearman model)
 		-1, // germ/infantry_swordsman_a (no model of its own: its owner civ's swordsman model)
 		-1, // germ/support_healer_e (no model of its own: its owner civ's healer model)
+		-1, // plane (no model of its own: its owner civ's bolt_shooter model)
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -1543,6 +1544,6 @@ inline int unit_template_rank_draw_index(uint16_t tmpl, uint8_t rank) {
 	return kLookup[tmpl][rank >= 3 ? 1 : 0];
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 544, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 545, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso
