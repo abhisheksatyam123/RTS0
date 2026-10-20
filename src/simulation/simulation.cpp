@@ -8016,13 +8016,13 @@ void Simulation::step_down_turret(Building &b, uint32_t unit_id) {
 	}
 	auto it = std::find(b.turret_units.begin(), b.turret_units.end(), unit_id);
 	if (it == b.turret_units.end()) return;
-	b.turret_units.erase(it);
 	if (const int32_t i = lookup_unit(unit_id); i >= 0) {
+		if (!leave_turret((size_t)i, b, false)) return; // no free spot: it stays up there
 		units_.action_state[i] = ACTION_IDLE;
 		units_.has_order[i] = 0;
 		units_.vel_x[i] = units_.vel_z[i] = 0.0f;
-		leave_turret((size_t)i, b);
 	}
+	b.turret_units.erase(it);
 	rally_after_ungarrison(unit_id, b.id);
 }
 
@@ -8097,29 +8097,26 @@ void Simulation::occupy_turret(size_t i, Building &b) {
 	if (b.type == BLD_TOWER_DOUBLE) rampart_turrets_.insert(units_.id[i]);
 }
 
-// Turretable.LeaveTurret: down beside the structure, on the side of the unit's point,
-// with its stance back (ResetTurretStance). Its new order, if any, stands. The rampart
-// tower's turret units step onto its free spawn spots (PositionHelper.GetSpawnPosition), as
-// its sixteen points would otherwise drop pairs of them on one spot.
-void Simulation::leave_turret(size_t i, const Building &b) {
-	float sx, sz;
-	if (!turret_points_of(b) && pick_spawn_point(b, units_.unit_type[i], units_.id[i], sx, sz)) {
-		units_.pos_x[i] = sx;
-		units_.pos_z[i] = sz;
-		face_away_from(i, b.x, b.z);
-	} else {
-		float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
-		const float len = std::sqrt(dx * dx + dz * dz);
-		if (len < 1e-3f) { dx = 0.0f; dz = 1.0f; } else { dx /= len; dz /= len; }
-		const float r = b.half_size + 1.2f;
-		units_.pos_x[i] = std::clamp(b.x + dx * r, -map_half_ + 1.0f, map_half_ - 1.0f);
-		units_.pos_z[i] = std::clamp(b.z + dz * r, -map_half_ + 1.0f, map_half_ - 1.0f);
+// Turretable.LeaveTurret: down onto the holder's free spawn spot (PositionHelper.GetSpawnPosition,
+// Footprint.PickSpawnPoint), facing away from it, with its stance back (ResetTurretStance). Its new
+// order, if any, stands. With no free spot a forced leave (the holder destroyed or its point gone)
+// sets the unit down on the holder's centre; any other leave fails and the unit stays up there.
+bool Simulation::leave_turret(size_t i, const Building &b, bool forced) {
+	float sx = b.x, sz = b.z;
+	if (!pick_spawn_point(b, units_.unit_type[i], units_.id[i], sx, sz)) {
+		if (!forced) return false;
+		sx = b.x;
+		sz = b.z;
 	}
+	units_.pos_x[i] = sx;
+	units_.pos_z[i] = sz;
+	face_away_from(i, b.x, b.z);
 	auto it = turret_prev_stance_.find(units_.id[i]);
 	units_.stance[i] = it != turret_prev_stance_.end() ? it->second : unit_default_stance(units_.unit_type[i], units_.tmpl[i]);
 	if (it != turret_prev_stance_.end()) turret_prev_stance_.erase(it);
 	turret_height_.erase(units_.id[i]);
 	rampart_turrets_.erase(units_.id[i]);
+	return true;
 }
 
 void Simulation::tick_turrets() {
@@ -8133,7 +8130,7 @@ void Simulation::tick_turrets() {
 		auto &list = own_list ? b.turret_units : b.garrisoned_units;
 		if (own_list && (b.wrecked || b.hp <= 0.0f)) { // TurretHolder.OnDestroy: everyone steps down
 			for (uint32_t uid : list)
-				if (const int32_t u = lookup_unit(uid); u >= 0 && units_.alive[u]) leave_turret((size_t)u, b);
+				if (const int32_t u = lookup_unit(uid); u >= 0 && units_.alive[u]) leave_turret((size_t)u, b, true);
 				else turret_prev_stance_.erase(uid);
 			list.clear();
 			continue;
@@ -8147,11 +8144,14 @@ void Simulation::tick_turrets() {
 				continue;
 			}
 			if (!units_.alive[u]) { ++k; continue; } // garrisoned before turrets: left as it was
-			// An owner that is no longer a mutual ally, or a point that is gone, takes the unit down.
-			if (!(units_.team[u] == b.team || is_ally(units_.team[u], b.team)) || (int)k >= pts->count) {
-				leave_turret((size_t)u, b);
-				list.erase(list.begin() + (std::ptrdiff_t)k);
-				continue;
+			// An owner that is no longer a mutual ally (LeaveTurret, which fails with no free spot),
+			// or a point that is gone (forced), takes the unit down.
+			const bool point_gone = (int)k >= pts->count;
+			if (!(units_.team[u] == b.team || is_ally(units_.team[u], b.team)) || point_gone) {
+				if (leave_turret((size_t)u, b, point_gone)) {
+					list.erase(list.begin() + (std::ptrdiff_t)k);
+					continue;
+				}
 			}
 			// SetTurretStance makes the unit immobile: an order to walk, gather, build, garrison and
 			// so on finishes at once (UnitAI Order.* with !AbleToMove), and only an attack stands.
@@ -8856,7 +8856,7 @@ void Simulation::tick_garrison_holders() {
 
 // GarrisonHolder.UnloadEntities: each unit leaves onto its own spawn point
 // (PositionHelper.GetSpawnPosition); one with no free spot stays inside. Turrets step down.
-void Simulation::order_ungarrison(uint32_t building_id) {
+void Simulation::order_ungarrison(uint32_t building_id, bool forced_turrets) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	Building &b = buildings_[bit->second];
@@ -8868,7 +8868,7 @@ void Simulation::order_ungarrison(uint32_t building_id) {
 		if (idx < 0) continue;
 		const bool turret = turret_height_.count(uid) != 0;
 		float ex = b.x, ez = b.z;
-		if (!turret && !pick_spawn_point(b, units_.unit_type[idx], uid, ex, ez)) {
+		if (turret ? !leave_turret((size_t)idx, b, forced_turrets) : !pick_spawn_point(b, units_.unit_type[idx], uid, ex, ez)) {
 			stay.push_back(uid);
 			continue;
 		}
@@ -8882,7 +8882,6 @@ void Simulation::order_ungarrison(uint32_t building_id) {
 		units_.has_order[idx] = 0;
 		units_.vel_x[idx] = 0.0f;
 		units_.vel_z[idx] = 0.0f;
-		if (turret) leave_turret((size_t)idx, b);
 		out.push_back(uid);
 	}
 	b.garrisoned_units = std::move(stay);
@@ -8905,7 +8904,7 @@ void Simulation::eject_or_kill(Building &b, uint8_t keep_allies_of) {
 		if (leave.empty()) return;
 		b.garrisoned_units = std::move(leave);
 	}
-	order_ungarrison(b.id);
+	order_ungarrison(b.id, true); // TurretHolder.EjectOrKill: LeaveTurret(true)
 	for (uint32_t uid : b.garrisoned_units) {
 		const int32_t i = lookup_unit(uid);
 		if (i < 0) continue;
@@ -8942,6 +8941,7 @@ void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id)
 		int32_t idx = lookup_unit(unit_id);
 		if (idx >= 0) {
 			const bool turret = turret_height_.count(unit_id) != 0;
+			if (turret && !leave_turret((size_t)idx, b, false)) return; // no free spot: it stays up there
 			if (!turret) {
 				float ex = b.x, ez = b.z;
 				// GarrisonHolder.Eject: no free spot outside, and the unit stays in.
@@ -8955,7 +8955,6 @@ void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id)
 			units_.has_order[idx] = 0;
 			units_.vel_x[idx] = 0.0f;
 			units_.vel_z[idx] = 0.0f;
-			if (turret) leave_turret((size_t)idx, b);
 		}
 		b.garrisoned_units.erase(it);
 		rally_after_ungarrison(unit_id, building_id);
