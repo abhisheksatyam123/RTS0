@@ -126,7 +126,7 @@ Production queues, upgrades, foundations, capture/decay, build restrictions, tec
 | Q14 | An upgraded structure kept its rally point and autoqueue (Transform.js makes a new entity) | low | Fixed |
 | Q15 | Autoqueue re-adds the remainder of a batch whose spawning was blocked, not the chosen batch size | low | Fixed (save v102): each queued batch keeps its original size |
 | Q16 | A destroyed foundation refunds from today's price, not the price paid (Foundation.js stores costs) | low | Fixed: the costs are kept at placement |
-| Q17 | Construction tooltip's Heal line ignores garrison_heal; detailed training tooltips show base template stats, not the player's | low | Heal line fixed (garrison_heal counted); detailed training stats per player open |
+| Q17 | Construction tooltip's Heal line ignores garrison_heal; detailed training tooltips show base template stats, not the player's | low | Fixed: the Heal line counts garrison_heal; detailed training lines take the player's technologies and bonuses (health, attack, range, resistance, speed) |
 | Q18 | Upgrade tooltip cost isn't multiplied by the number of selected same-template structures | low | Fixed: every selected structure of the type upgrades, so the cost is for all of them |
 
 ### Buildings, techs and map structures, sixth 0.28 pass (2026-10-20)
