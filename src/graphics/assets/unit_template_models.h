@@ -965,6 +965,35 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		424, // spart/hero_leonidas_300
 		-1, // pers/arstibara (no model of its own: its owner civ's spearman model)
 		-1, // han/siege_shoushe (no model of its own: its owner civ's bolt_shooter model)
+		-1, // athen/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // athen/support_healer_e (no model of its own: its owner civ's healer model)
+		-1, // spart/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // spart/support_healer_e (no model of its own: its owner civ's healer model)
+		-1, // pers/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // cart/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // cart/support_healer_e (no model of its own: its owner civ's healer model)
+		-1, // mace/infantry_pikeman_a (no model of its own: its owner civ's spearman model)
+		-1, // brit/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // brit/support_healer_e (no model of its own: its owner civ's healer model)
+		-1, // gaul/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // iber/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // iber/infantry_swordsman_a (no model of its own: its owner civ's swordsman model)
+		-1, // iber/support_healer_e (no model of its own: its owner civ's healer model)
+		-1, // maur/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // maur/infantry_swordsman_a (no model of its own: its owner civ's swordsman model)
+		-1, // maur/support_healer_e (no model of its own: its owner civ's healer model)
+		-1, // kush/infantry_pikeman_a (no model of its own: its owner civ's spearman model)
+		-1, // kush/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // kush/infantry_swordsman_a (no model of its own: its owner civ's swordsman model)
+		-1, // ptol/infantry_pikeman_a (no model of its own: its owner civ's spearman model)
+		-1, // sele/infantry_pikeman_a (no model of its own: its owner civ's spearman model)
+		-1, // sele/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // sele/support_healer_e (no model of its own: its owner civ's healer model)
+		-1, // han/infantry_pikeman_a (no model of its own: its owner civ's spearman model)
+		-1, // han/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // germ/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		-1, // germ/infantry_swordsman_a (no model of its own: its owner civ's swordsman model)
+		-1, // germ/support_healer_e (no model of its own: its owner civ's healer model)
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -1509,6 +1538,6 @@ inline int unit_template_rank_draw_index(uint16_t tmpl, uint8_t rank) {
 	return kLookup[tmpl][rank >= 3 ? 1 : 0];
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 515, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 544, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso
