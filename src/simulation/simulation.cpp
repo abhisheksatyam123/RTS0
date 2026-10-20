@@ -7448,11 +7448,15 @@ Simulation::StructureDetails Simulation::structure_details(const Building &b) co
 			def = def * m.bld_arrow_mul[b.type] + m.bld_arrow_add[b.type];
 			per_unit *= m.bld_garrison_arrows[b.type];
 		}
+		// GetGarrisonArrowMultiplier / GetMaxArrowCount carry a garrisoned Caros's aura too.
+		float aura = 1.0f, max_aura = 1.0f;
+		if (b.team < MAX_PLAYERS) garrison_arrow_auras_of(b.garrisoned_units, b.team, aura, max_aura);
+		per_unit *= aura;
 		d.default_arrows = (int)std::lround(def);
 		d.per_unit = per_unit;
 		if (b.garrison_cap > 0) {
 			int limit = d.default_arrows + (int)std::lround(per_unit * b.garrison_cap);
-			if (ai.max_arrows > 0) limit = std::min(limit, (int)ai.max_arrows);
+			if (ai.max_arrows > 0) limit = std::min(limit, (int)std::lround(ai.max_arrows * max_aura));
 			d.projectile_limit = std::max(limit, 0);
 		}
 	}
@@ -13350,7 +13354,7 @@ bool Simulation::cmd_focus_fire(uint8_t player, const uint32_t *building_ids, si
 					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, unit_clearance_at(i), unit_height(i));
 		} else if (tb != building_id_to_idx_.end()) {
 			const Building &ob = buildings_[tb->second];
-			ok = !ob.wrecked && ob.hp > 0.0f && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
+			ok = !ob.wrecked && ob.hp > 0.0f && structure_has_health(ob.type) && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
 					&& in_range(ob.x - b.x, ob.z - b.z, ob.half_size, get_terrain_height(ob.x, ob.z));
 		} else if (fi >= 0) {
 			const size_t f = (size_t)fi;
@@ -14284,8 +14288,9 @@ void Simulation::tick_combat(float dt) {
 					&& (units_.team[i] != GAIA_PLAYER || units_.attack_damage[i] > 0.0f)
 					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, unit_clearance_at(i), unit_height(i));
 		};
+		// BuildingAI's enemy query wants IID_Resistance + Health: no shrines or trading posts.
 		auto building_target = [&](const Building &ob) {
-			return !ob.wrecked && ob.hp > 0.0f && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
+			return !ob.wrecked && ob.hp > 0.0f && structure_has_health(ob.type) && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
 					&& !beyond(ob.x - b.x, ob.z - b.z, ob.half_size)
 					&& in_range(ob.x - b.x, ob.z - b.z, ob.half_size, get_terrain_height(ob.x, ob.z));
 		};
@@ -18056,26 +18061,30 @@ void Simulation::destroy_building(Building &b) {
 }
 
 void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
+	// Commands.js delete-entities: Control all units reaches anyone's entities and skips the
+	// undeletable and capture-point checks.
+	const bool control_all = controls_all(player);
 	for (size_t k = 0; k < count; ++k) {
 		const uint32_t id = ids[k];
 		const int32_t i = lookup_unit(id);
-		if (is_relic_unit(i) || undeletable_unit(id)) continue; // template_unit_catafalque.xml Identity/Undeletable; Survival's seekers
-		if (i >= 0 && units_.alive[i] && units_.team[i] == player) {
+		if (!control_all && (is_relic_unit(i) || undeletable_unit(id))) continue; // template_unit_catafalque.xml Identity/Undeletable; Survival's seekers
+		if (i >= 0 && units_.alive[i] && (units_.team[i] == player || control_all)) {
+			const uint8_t owner = units_.team[i];
 			units_.hp[i] = 0.0f;
 			units_.alive[i] = 0;
 			units_.action_state[i] = ACTION_DYING;
 			order_queues_.erase(id);
 			work_orders_.erase(id);
-			record_unit_death(i, player);
+			record_unit_death(i, owner);
 			continue;
 		}
 		auto it = building_id_to_idx_.find(id);
 		if (it == building_id_to_idx_.end()) continue;
 		Building &b = buildings_[it->second];
-		if (b.team != player || b.wrecked) continue;
+		if ((b.team != player && !control_all) || b.wrecked) continue;
 		if (!structure_has_health(b.type)) continue; // mixins/shrine.xml, trading_post.xml Identity/Undeletable
 		// Commands.js delete-entities: not while the owner holds under half the capture points.
-		if (b.max_capture_points > 0.0f && b.build_progress >= 1.0f &&
+		if (!control_all && b.max_capture_points > 0.0f && b.build_progress >= 1.0f &&
 				b.capture_points_by_team[player] < b.max_capture_points * 0.5f)
 			continue;
 		destroy_building(b);
@@ -18110,7 +18119,7 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		note_session({SessionNotice::CHEAT, player, 0, 1, {}}); // "(Cheat - promoted units)"
 		for (size_t k = 0; k < count; ++k) {
 			const int32_t i = lookup_unit(selected[k]);
-			if (i < 0 || !units_.alive[i] || units_.team[i] != player) continue;
+			if (i < 0 || !units_.alive[i]) continue; // cmd.entities unfiltered: anyone's units
 			const float need = promotion_required_xp((size_t)i);
 			if (need < 0.0f) continue;
 			units_.xp[i] = (uint16_t)std::min(65535.0f, std::ceil(need));
@@ -30611,10 +30620,19 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	}
 }
 
-int Simulation::petra_player_entities(uint8_t player) const {
+// gameState.getOwnUnits / getEntities(player): every unit the player owns, those garrisoned
+// or aboard included, and its livestock (corralled or not).
+int Simulation::petra_player_units(uint8_t player) const {
 	int n = 0;
 	for (size_t i = 0; i < units_.count; ++i)
-		if (units_.alive[i] && units_.team[i] == player) ++n;
+		if (units_.team[i] == player && (units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED)) ++n;
+	for (size_t f = 0; f < fauna_.count; ++f)
+		if (fauna_.alive[f] && fauna_owner_[f] == player) ++n;
+	return n;
+}
+
+int Simulation::petra_player_entities(uint8_t player) const {
+	int n = petra_player_units(player);
 	for (const auto &b : buildings_)
 		if (b.team == player && b.hp > 0.0f) ++n;
 	return n;
@@ -30721,9 +30739,7 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 	// of its wanted gather rate (or, without this turn's rates, what our queues are
 	// furthest short of).
 	const uint8_t need = petra_most_needed_resource();
-	int own_units = 0;
-	for (size_t i = 0; i < units_.count; ++i)
-		if (units_.alive[i] && units_.team[i] == me) ++own_units;
+	const int own_units = petra_player_units(me);
 	req = PetraReceivedRequest{};
 	req.status = PetraReceivedRequest::WAITING_FOR_TRIBUTE;
 	req.type = type;
@@ -30761,9 +30777,7 @@ void Simulation::petra_last_man_standing_check() {
 	}
 	if (dip.elapsed < dip.betray_lapse) return;
 	// Not yet strong enough.
-	int own_units = 0;
-	for (size_t i = 0; i < units_.count; ++i)
-		if (units_.alive[i] && units_.team[i] == me) ++own_units;
+	const int own_units = petra_player_units(me);
 	if (own_units < 50) {
 		dip.betray_lapse += 60.0f;
 		return;
