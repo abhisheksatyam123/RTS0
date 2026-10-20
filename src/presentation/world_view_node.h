@@ -183,6 +183,13 @@ class RtsoWorldView : public Node3D {
 	float flora_scale[FLORA_KINDS] = {};
 	float flora_y[FLORA_KINDS][TREE_VARIANTS] = {};
 	int flora_variants[FLORA_KINDS] = {};
+	// A kind's models load the first time the world has one (ensure_flora): a match
+	// uses a few of the ~100 kinds, and loading them all was 2.2 s of a cold start.
+	const char *flora_model_[FLORA_KINDS] = {};
+	bool flora_sways_[FLORA_KINDS] = {};
+	bool flora_loaded_[FLORA_KINDS] = {};
+	size_t flora_scan_count_ = ~(size_t)0; // sim resources() count at the last scan for kinds
+	void ensure_flora(int k);
 	// Swaying copies of tree meshes (shaders/tree_wind.gdshader), by source mesh.
 	std::unordered_map<int64_t, Ref<Mesh>> wind_cache_;
 	// 0 A.D. carry shuttles (art/actors/props/units/shuttle_*.xml) and the
@@ -224,7 +231,7 @@ class RtsoWorldView : public Node3D {
 	std::unordered_map<std::string, Ref<Texture2D>> decal_tex_;
 	bool building_decals_loaded_ = false;
 	static constexpr uint32_t DECAL_LAYER = 1u << 19; // the terrain's extra render layer: decals land only on it
-	void update_building_decals(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, float brightness);
+	void update_building_decals(const rtso::Simulation *sim, BuildingVis &v, const String &glb_id, float k, const Vector3 &base, float brightness);
 	// data/ambient_fx.json (tools/extract_ambient_fx.py): the particle props of each
 	// building GLB's actor, and the 0 A.D. particle files they name.
 	struct AmbientFx { std::string particle; Vector3 pos; };
@@ -296,6 +303,11 @@ class RtsoWorldView : public Node3D {
 	MultiMeshInstance3D *treasure_mmi[rtso::TREASURE_TYPE_COUNT] = {};
 	Ref<MultiMesh> treasure_mm[rtso::TREASURE_TYPE_COUNT];
 	float treasure_y_offset[rtso::TREASURE_TYPE_COUNT] = {};
+	// A kind's model loads when the map has one (ensure_treasure), not at startup.
+	bool treasure_loaded_[rtso::TREASURE_TYPE_COUNT] = {};
+	size_t treasure_scan_count_ = ~(size_t)0;
+	void ensure_treasure(int k);
+	void ensure_map_models(const rtso::Simulation *sim);
 	Ref<MultiMesh> ruins_mm;
 	// Gaia scenery (fences, columns, obelisks): 0 A.D.'s actor meshes from
 	// data/scenery_actors.json, one MultiMesh per type and mesh variant; a box of
@@ -361,6 +373,11 @@ class RtsoWorldView : public Node3D {
 	std::vector<MeshInstance3D *> outline_bars_;
 	void draw_structure_outlines(const rtso::Simulation *sim);
 	Decal *get_or_create_ring_decal(size_t index);
+	// Godot 4.3's Compatibility renderer (OpenGL) draws no Decal: there a decal
+	// carries a child mesh laid over the terrain under it instead (gl_decal_mats_
+	// per texture, the modulate in its vertex colours). No-op on Vulkan.
+	void sync_gl_decal(const rtso::Simulation *sim, Decal *d);
+	std::unordered_map<const Texture2D *, Ref<StandardMaterial3D>> gl_decal_mats_;
 
 	Ref<BoxMesh> hp_bg_mesh;
 	Ref<BoxMesh> hp_fg_mesh;
@@ -441,6 +458,11 @@ class RtsoWorldView : public Node3D {
 	Ref<MultiMesh> fauna_mm[FAUNA_ROWS][FAUNA_CLIP_COUNT];
 	CrowdPuppet fauna_puppet[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
 	bool fauna_puppet_baked[FAUNA_ROWS] = {};
+	// A species' model loads when the map has one (ensure_fauna_row), not at startup:
+	// drawn with the deer until then, as a model that fails to load is.
+	bool fauna_row_loaded_[FAUNA_ROWS] = {};
+	size_t fauna_scan_count_ = ~(size_t)0;
+	void ensure_fauna_row(int row);
 	String fauna_row_model_[FAUNA_ROWS];
 	int fauna_rows_ = rtso::FAUNA_COUNT;
 	uint8_t fauna_look_first_[rtso::FAUNA_COUNT] = {}; // the species' first look row

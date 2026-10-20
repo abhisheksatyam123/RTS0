@@ -6,7 +6,9 @@ extends SceneTree
 # Godot uses a dummy renderer that compiles nothing.
 #   1. every shaders/*.gdshader compiles, its `instance uniform`s loaded as plain
 #      uniforms as rtso::load_instanced_shader does under Compatibility;
-#   2. the session draws units, a garrisoned Civic Center's flag and silhouettes.
+#   2. the session draws units, a garrisoned Civic Center's flag and silhouettes;
+#   3. selection rings and structures' ground decals, Decal nodes that OpenGL
+#      doesn't draw, each carry a terrain mesh (RtsoWorldView::sync_gl_decal).
 # An optional `-- --shot PATH` saves the last frame.
 #
 #   python3 tools/check_gl_shaders.py [--shot PATH]
@@ -71,6 +73,21 @@ func run() -> void:
 	check(main.debug_put_inside(men.slice(0, 2), cc) == 2, "two men inside the Civic Center (its flag)")
 	main.debug_select_units(men.slice(2))
 	await frames(60)
+	print("3. Selection rings and ground decals")
+	var view: Node = main.find_children("*", "RtsoWorldView", true, false)[0]
+	var rings := 0
+	var ground := 0
+	for d in main.find_children("*", "Decal", true, false):
+		var drawn: bool = d.is_visible_in_tree() and d.get_child_count() > 0 and d.get_child(0) is MeshInstance3D \
+				and d.get_child(0).mesh != null and d.get_child(0).mesh.get_surface_count() > 0
+		if not drawn:
+			continue
+		if d.get_parent() == view:
+			rings += 1
+		else:
+			ground += 1
+	check(rings >= 2, "the two selected men's rings are drawn (%d)" % rings)
+	check(ground >= 1, "the Civic Center's ground decals are drawn (%d)" % ground)
 	var args := OS.get_cmdline_user_args()
 	var at := args.find("--shot")
 	if at >= 0 and at + 1 < args.size():

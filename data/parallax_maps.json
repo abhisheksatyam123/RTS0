@@ -3511,6 +3511,114 @@
 "height": "res://assets/textures/height_maps/structural/celt_struct_1_norm_512x512.png",
 "scale": 0.0075
 },
+"units/helm_hele_attic_e2_tex2": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_attic_e3_tex2": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_attic_e4_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_chalcidean_a1_tex2": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_chalcidean_a2_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_chalcidean_a3_tex2": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_chalcidean_a4_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_chalcidean_a5_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_corinthian_e2_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_corinthian_e3_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_corinthian_e4_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_illyrian_b1_crested_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_illyrian_b2_crested_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_illyrian_b3_crested_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_phrygian_a1_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_phrygian_b8_tex0": {
+"height": "res://assets/textures/height_maps/props/helmet/hele_phrygian_08_norm_256x256.png",
+"scale": 0.0075
+},
+"units/helm_hele_phrygian_e11_tex2": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_phrygian_e1_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_thracian_b1_crested_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_thracian_b2_crested_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_thracian_b4_crested_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_thracian_b5_crested_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_thracian_b6_crested_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_hele_thracian_s2_tex2": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_iber_chalcidean_a2_tex1": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/helm_rome_apulo_itallic_a1_tex0": {
+"height": "res://assets/textures/height_maps/props/helmet/rome_apulo_itallic_01_norm_256x256.png",
+"scale": 0.0075
+},
+"units/helm_rome_apulo_itallic_b1_tex0": {
+"height": "res://assets/textures/height_maps/props/helmet/rome_apulo_itallic_01_norm_256x256.png",
+"scale": 0.0075
+},
 "units/hero_tex3": {
 "height": "res://assets/textures/height_maps/props/shield/aspis_01_norm_256x256.png",
 "scale": 0.0075

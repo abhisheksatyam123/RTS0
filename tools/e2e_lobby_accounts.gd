@@ -6,7 +6,8 @@ extends SceneTree
 #   2. against tools/lobby_server.py --accounts-only, through the lobby screen:
 #      Register creates the account and signs in, Remember password keeps the
 #      encrypted password in lobby.password so the next sign-in needs no typing,
-#      a wrong password and a name with no account are refused;
+#      a wrong password and a name with no account are refused, and the
+#      messages are 0.28's (XmppClient error texts, feedback.js, login.js);
 #   3. AccountSettingsPage: "Account settings" changes the password (8 or
 #      more characters, typed twice) and keeps the new one in lobby.password
 #      when it is remembered; the old one no longer signs in.
@@ -126,8 +127,8 @@ func run() -> void:
 	check(not lobby._remember.button_pressed and lobby.get_node_or_null("ForgetPasswordDialog") == null, "Yes unticks it")
 	lobby._password.text = "wrong"
 	lobby._on_sign_pressed()
-	await until(func() -> bool: return lobby._status.text.begins_with("Sign in refused"))
-	check(not ls.signed_in() and lobby._status.text == "Sign in refused: Wrong username or password",
+	await until(func() -> bool: return lobby._status.text.begins_with("Authentication failed"))
+	check(not ls.signed_in() and lobby._status.text == "Authentication failed. Incorrect password or account does not exist",
 		"a wrong password is refused (%s)" % lobby._status.text)
 	cfg.reload()
 	check(cfg.get_value("lobby.password") == ALICE_PASSWORD, "a refused sign-in keeps the remembered password")
@@ -135,8 +136,12 @@ func run() -> void:
 	lobby._password.text = "hunter22"
 	lobby._password2.text = "hunter22"
 	lobby._on_register_pressed()
-	await until(func() -> bool: return lobby._status.text.begins_with("Registration failed"))
-	check(lobby._status.text == "Registration failed: Username already taken", "a name registers once")
+	await until(func() -> bool: return lobby._status.text == "Username already exists")
+	check(lobby._status.text == "Username already exists", "a name registers once (XmppClient's \"Username already exists\")")
+	# feedback.js: no answer is ConnectionErrorToString's, an error without text 0.28's fallback.
+	check(lobby.lobby_error(0, null) == "The connection was refused by the server"
+		and lobby.lobby_error(500, {}).begins_with("Unknown error. This usually occurs because"),
+		"no answer and an error without a text read as 0.28's")
 
 	lobby._password.text = "hunter22"
 	lobby._on_sign_pressed()

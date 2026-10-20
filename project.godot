@@ -23,6 +23,10 @@ Tooltips="*res://scenes/common/tooltips.gd"
 MenuAudio="*res://scenes/common/menu_audio.gd"
 TouchInput="*res://scenes/common/touch_input.gd"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/rts0_export/plugin.cfg")
+
 [gui]
 
 ; Godot 4.3 PopupPanel tooltips disconnect the root Window with an empty

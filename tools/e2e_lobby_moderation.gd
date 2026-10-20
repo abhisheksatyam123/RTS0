@@ -50,7 +50,7 @@ func run() -> void:
 	var signed := [0]
 	# Wait for the server to answer, then sign in once: retrying a sign-in that
 	# is slow to answer (a loaded machine) leaves the first one signed in on the
-	# server and the retries refused as "that name is in use".
+	# server and the retries refused as "Player already logged in".
 	ls.address = "127.0.0.1:%d" % PORT
 	var up := [false]
 	for attempt in 100:

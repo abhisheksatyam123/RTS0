@@ -13,7 +13,7 @@ extends SceneTree
 # Exit code 0 = pass.
 
 var failures := 0
-const NAMES := ["zz_e2e_replay_a", "zz_e2e_replay_b", "zz_e2e_replay_c"]
+const NAMES := ["zz_e2e_replay_a", "zz_e2e_replay_b", "zz_e2e_replay_c", "zz_e2e_replay_d"]
 
 func check(cond: bool, what: String) -> void:
 	if cond:
@@ -70,6 +70,11 @@ func run() -> void:
 		"map_name": "E2E Oasis", "map_size": 512, "duration": 600.0, "kind": "sp",
 		"settings": {"pop_cap": 300, "victory": 0}, "players": [player(0, "e2eGamma", 1, false, "active")]})
 
+	# d: 1 s long, as an early out-of-sync's: VisualReplay lists none under 3 s.
+	write_replay(NAMES[3], {"format": 2, "save_version": v, "timestamp": 1896500000, "map_id": "random_oasis",
+		"map_name": "E2E Oasis", "map_size": 512, "duration": 1.0, "kind": "mp",
+		"players": [player(0, "e2eAlpha", 1, false, "active"), player(1, "e2eBeta", 2, false, "active")]})
+
 	change_scene_to_file("res://scenes/menu/replay_browser.tscn")
 	await frames(4)
 	var b = current_scene
@@ -79,7 +84,7 @@ func run() -> void:
 	for c in b.replay_list.columns:
 		titles.append(b.replay_list.get_column_title(c).trim_suffix("  ▼").trim_suffix("  ▲"))
 	check(titles == ["Date / Time", "Players", "Map Name", "Size", "Population", "Duration"], "0 A.D.'s columns: " + str(titles))
-	check(visible_dirs(b) == [NAMES[1], NAMES[0]], "compatible replays only, newest first: " + str(visible_dirs(b)))
+	check(visible_dirs(b) == [NAMES[1], NAMES[0]], "compatible replays of 3 s or more only, newest first: " + str(visible_dirs(b)))
 	var row: TreeItem = b.replay_list.get_root().get_child(b._replays.map(func(r): return r.dir.get_file()).find(NAMES[0]))
 	check(row.get_text(1) == "e2eAlpha, Bot One, Bot Two, Bot Three" and row.get_text(3) == "Small" and row.get_text(4) == "150 (player)" and row.get_text(5) == "20:00",
 		"a row shows players, size, population and duration: %s | %s | %s | %s" % [row.get_text(1), row.get_text(3), row.get_text(4), row.get_text(5)])

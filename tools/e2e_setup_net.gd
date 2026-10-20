@@ -234,7 +234,7 @@ func run() -> void:
 	check(page._mp_role == "client", "a client's page")
 	start = page.get_node("VBox/HBox/Right/Buttons/BtnStart")
 	var ready_btn: Button = page.get_node("VBox/HBox/Right/Buttons/BtnReady")
-	check(not start.visible and page.get_node("VBox/HBox/Right/NetWaitLabel").visible, "no Start: waiting for the host")
+	check(not start.visible and page.get_node_or_null("VBox/HBox/Right/NetWaitLabel") == null, "no Start, and no waiting line 0.28 lacks")
 	check(page.get_node("%SpinSeed").value == 1234 and page._slot_rows[1]["civ"] == 3,
 		"the host's setup shows")
 	check(page.get_node("%RatedGame").visible
@@ -291,7 +291,7 @@ func run() -> void:
 	# ChatInputPanel.onTab / ChatInputAutocomplete: names first, then civs, then settings.
 	var chat_in: LineEdit = page.get_node("%NetChatInput")
 	check(chat_in.max_length == 1024, "the setup chat takes 1024 characters, as 0.28's")
-	check(chat_in.tooltip_text == "Press Tab to autocomplete player names or settings.", "the chat tooltip names Tab")
+	check(chat_in.tooltip_text == "Press [color=#fffb83][lb]Tab[rb][/color] to autocomplete player names or settings.", "the chat tooltip names Tab in gold (colorizeAutocompleteHotkey): " + chat_in.tooltip_text)
 	var entries: Array = page.autocomplete_entries()
 	check(entries.find("bob") >= 0 and entries.find("bob") < entries.find("Britons")
 		and entries.find("Britons") < entries.find("Random"), "names come before civs, civs before settings")
