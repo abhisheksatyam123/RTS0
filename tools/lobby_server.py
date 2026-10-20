@@ -11,7 +11,7 @@ behind a small JSON API:
   POST /register  {name, password}       -> {name}; creates an account (0 A.D. prelobby
                                          Register). 409 if the name is registered, 400 for a
                                          name that is not 1-20 of a-z 0-9 . _ -
-  POST /login     {name, password}       -> {token, name}; 409 if the name is in use, 401 for
+  POST /login     {name, password}       -> {token, name}; 409 if the name is logged in, 401 for
                                          a registered name with the wrong password (or none)
                                          or, with --accounts-only, a name with no account.
                                          Without --accounts-only an unregistered name signs
@@ -148,6 +148,8 @@ def encrypt_password(password, username):
 # or " (1800)" would pass for something else (a buddy list entry, a moderator,
 # a rating).
 ACCOUNT_NAME = re.compile(r"^(?=.*[a-z])[a-z0-9._-]{3,20}$", re.IGNORECASE)
+# XmppClient ConnAuthenticationFailed: a wrong password, or no such account.
+AUTH_FAILED = "Authentication failed. Incorrect password or account does not exist"
 ELO_K_FACTOR_CONSTANT_RATING = 2200.0  # ratings above this move at its rate
 VOLATILITY_CONSTANT = 20.0          # games after which a rating is stable
 ANTI_INFLATION = 0.015
@@ -397,7 +399,7 @@ class Lobby:
         if not password:
             return 400, {"error": "Please enter your password"}
         if name.lower() in self.accounts:
-            return 409, {"error": "Username already taken"}
+            return 409, {"error": "Username already exists"}
         salt = secrets.token_hex(16)
         self.accounts[name.lower()] = {"name": name, "salt": salt, "hash": self._hash(salt, password)}
         self._save_accounts()
@@ -419,6 +421,7 @@ class Lobby:
         self._save_accounts()
         return 200, {"name": acct["name"]}
 
+    # XmppClient::StanzaErrorToString / ConnectionErrorToString (0.28) texts.
     def login(self, name, password=None):
         name = " ".join(str(name or "").split())[:MAX_NAME]
         if not name:
@@ -426,16 +429,16 @@ class Lobby:
         acct = self.accounts.get(name.lower())
         if acct:
             if not password or not secrets.compare_digest(self._hash(acct["salt"], password), acct["hash"]):
-                return 401, {"error": "Wrong username or password"}
+                return 401, {"error": AUTH_FAILED}
             name = acct["name"]
         elif password or self.accounts_only:
-            return 401, {"error": "Wrong username or password" if password else "Register an account first"}
+            return 401, {"error": AUTH_FAILED}
         elif not ACCOUNT_NAME.match(name):
             return 400, {"error": "Invalid username"}
         if name.lower() in self.banned:
             return 403, {"error": "You have been banned from the lobby!"}
         if any(p["name"].lower() == name.lower() for p in self.players.values()):
-            return 409, {"error": "that name is in use"}
+            return 409, {"error": "Player already logged in"}
         token = secrets.token_hex(16)
         self.players[token] = {"name": name, "status": "available", "seen": self.clock()}
         # EcheLOn _muc_online: get_or_create_player for everyone who joins, so a member
