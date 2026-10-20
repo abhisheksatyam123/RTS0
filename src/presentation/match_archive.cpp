@@ -206,6 +206,7 @@ Array RtsoMain::player_list() const {
 		d["id"] = (int)p;
 		d["name"] = player_display_name(p);
 		d["civ"] = (int)ps.civ;
+		d["civ_code"] = String(rtso::civ_info(ps.civ).code); // playerState.civ
 		d["civ_name"] = String(rtso::civ_info(ps.civ).name);
 		d["team"] = (int)ps.team + 1;
 		d["setup_team"] = p < slot_teams.size() && (int)slot_teams[p] > 0 ? (int)slot_teams[p] - 1 : -1;
