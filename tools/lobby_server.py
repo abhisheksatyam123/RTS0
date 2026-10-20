@@ -428,6 +428,11 @@ class Lobby:
             return 409, {"error": "that name is in use"}
         token = secrets.token_hex(16)
         self.players[token] = {"name": name, "status": "available", "seen": self.clock()}
+        # EcheLOn _muc_online: get_or_create_player for everyone who joins, so a member
+        # with no finished game still has a profile ("-" rating, 0 games).
+        if name.lower() not in self.ratings:
+            self._row(name)
+            self._save_ratings()
         self._say(None, f"{name} has joined.")
         return 200, {"token": token, "name": name}
 

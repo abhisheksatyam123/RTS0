@@ -839,7 +839,7 @@ void RtsoMain::host_start_saved_game() {
 	// The host's player assignment first (PlayerAssignmentsController: the
 	// page seats clients only in the save's human seats; Unassigned watches).
 	auto assigned = [&](uint32_t c) -> int {
-		if (c >= 8 || !((net_setup_.clients >> c) & 1)) return -2; // not on the page yet
+		if (c >= rtso::NET_SETUP_CLIENTS || !((net_setup_.clients >> c) & 1)) return -2; // not on the page yet
 		for (int k = 0; k < 8; ++k)
 			if (net_setup_.slot_client[k] == (int8_t)c) return is_seat(k) && !taken.count(k) ? k : -2;
 		return -1;

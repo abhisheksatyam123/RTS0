@@ -5,8 +5,8 @@ and hosts; the other signs in, finds the game in the list and joins it; the
 host presses Start, and both play to a turn whose lockstep hash must match. The client freezes
 for a few seconds as the match starts, so the host must show "Waiting for
 players to connect:" with its name.
-In game setup the client asks for the host's colour (refused, with the
-reason), then for Germans, team 2 and colour 5, and presses Ready; the host's Start must be refused until then, and both must
+In game setup the client asks for a civ (refused: 0.28 lets only the host
+change the setup), the host gives it Germans, team 2 and colour 5, and the client presses Ready; the host's Start must be refused until then, and both must
 play with those picks at the host's game speed (1.5x).
 Meanwhile the lobby must show the game running with two players and both
 players as in a game, as 0 A.D.'s lobby does.
@@ -450,7 +450,7 @@ def play(args, lobby, leave):
     net_warning = said("host", "net_warning")
     ok = ok and net_warning.startswith("bob losing connection (")
     ok = ok and said("host", "start_refused") == "true"
-    ok = ok and said("join", "refused") == "Another player has that color"
+    ok = ok and said("join", "refused") == "Only the controller can change the game setup"
     # 0.28 gamesetup ChatPanel: the host's setup chat shows bob join, get ready and talk.
     setup_chat = said("host", "setup_chat")
     ok = ok and all(t in setup_chat for t in ("bob has joined", "* bob is ready!", "hello from bob"))
@@ -462,8 +462,11 @@ def play(args, lobby, leave):
     ok = ok and not any("> /list" in outs[role] for role in ("host", "join"))
     # 0.28 ChatAddressees: the other player as "■ name"; Tab completes alice and bob.
     addressees = {role: said(role, "addressees").split(" names=") for role in ("host", "join")}
-    ok = ok and addressees == {"host": ["Everyone|Allies|Enemies|Observers|■_bob", "alice,bob"],
-                               "join": ["Everyone|Allies|Enemies|Observers|■_alice", "alice,bob"]}
+    # When the host leaves, it may have ended the game before the client gets
+    # there; then the client opens no chat at all (Chat.openPage, g_Disconnected).
+    join_lost = leave == "host" and addressees["join"] == ["lost", "-"]
+    ok = ok and addressees["host"] == ["Everyone|Allies|Enemies|Observers|■_bob", "alice,bob"]
+    ok = ok and (join_lost or addressees["join"] == ["Everyone|Allies|Enemies|Observers|■_alice", "alice,bob"])
     # 0.28 PauseOverlay: the host's pause reads on the client as its name in its player colour.
     paused_by = said("join", "paused_by")
     ok = ok and re.fullmatch(r"\[center\]Paused by \[color=#[0-9a-f]{6}\]alice\[/color\]\[/center\]", paused_by) is not None
@@ -481,7 +484,8 @@ def play(args, lobby, leave):
     else:
         status = said("join", "net_status")
         ok = (ok and status.startswith("Connection to the server has been lost. | The host has ended the game.")
-              and status.endswith("reason=2") and said("join", "summary_disconnected") == "true")
+              and status.endswith("reason=2") and said("join", "summary_disconnected") == "true"
+              and said("join", "chat_after_lost") == "false open=false")
     for role in ("host", "join"):
         for line in gmp_lines(outs[role]):
             print("   " + line)

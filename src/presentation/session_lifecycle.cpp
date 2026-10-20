@@ -1557,10 +1557,13 @@ void RtsoMain::sound_notification_nick() {
 	nick_notify_ms_ = now; // lastInteractionTime moves on even when the chime is held back
 }
 
-void RtsoMain::chat_open_page() {
+bool RtsoMain::chat_open_page() {
+	// Chat.openPage: nothing to say to a game that is gone (g_Disconnected).
+	if (net_disconnected_) return false;
 	close_open_dialogs();
 	refresh_chat_tooltips();
 	chat_window_.open_page();
+	return true;
 }
 
 void RtsoMain::_on_chat_filter_selected(int index) { chat_window_.set_filter(index); }
