@@ -13169,6 +13169,34 @@
    ]
   }
  ],
+ "rome_champion_infantry_swordsman_04": [
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__helmet__props__hele_crest_hair_j.glb"
+   ],
+   "node": "rome_champion_infantry_swordsman_04_part4",
+   "xf": [
+    1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    0.958557,
+    0.2849,
+    0.0,
+    -0.2849,
+    0.958557,
+    -0.0,
+    0.489288,
+    -0.024729
+   ]
+  }
+ ],
  "rome_champion_infantry_swordsman_first": [
   {
    "freq": [

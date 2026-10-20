@@ -8101,15 +8101,19 @@ void Simulation::step_down_turret(Building &b, uint32_t unit_id) {
 	rally_after_ungarrison(unit_id, b.id);
 }
 
+// Commands.js "leave-turret": notifyUnloadFailure when any unit stays up (no free spot below).
 void Simulation::cmd_leave_turret(uint8_t player, const uint32_t *unit_ids, size_t count) {
+	bool failed = false;
 	for (size_t k = 0; k < count; ++k) {
 		const int32_t i = lookup_unit(unit_ids[k]);
 		if (i < 0 || units_.team[i] != player) continue;
 		const uint32_t holder = turret_holder_of(unit_ids[k]);
 		auto bit = building_id_to_idx_.find(holder);
-		if (holder != 0 && bit != building_id_to_idx_.end())
-			step_down_turret(buildings_[bit->second], unit_ids[k]); // Turretable.LeaveTurret
+		if (holder == 0 || bit == building_id_to_idx_.end()) continue;
+		step_down_turret(buildings_[bit->second], unit_ids[k]); // Turretable.LeaveTurret
+		failed |= turret_holder_of(unit_ids[k]) != 0;
 	}
+	if (failed) note_text(player, SessionNotice::TEXT_UNLOAD_FAILED);
 }
 
 // Commands.js "unload-turrets": the holder's owner takes everyone off its turret points, a mutual
@@ -8120,11 +8124,15 @@ void Simulation::cmd_unload_turrets(uint8_t player, uint32_t building_id) {
 	Building &b = buildings_[bit->second];
 	if (!turret_holder_points(b) || (b.team != player && !is_ally(player, b.team))) return;
 	const std::vector<uint32_t> list = turret_list(b);
+	const uint32_t bid = b.id;
+	bool failed = false;
 	for (uint32_t uid : list) {
 		const int32_t i = lookup_unit(uid);
 		if (i < 0 || !turret_height_.count(uid) || (b.team != player && units_.team[i] != player)) continue;
 		step_down_turret(b, uid);
+		failed |= turret_holder_of(uid) == bid;
 	}
+	if (failed) note_text(player, SessionNotice::TEXT_UNLOAD_FAILED); // notifyUnloadFailure
 }
 
 // The point a turret unit stands on: the free one nearest its position.
@@ -9059,11 +9067,15 @@ void Simulation::cmd_unload(uint8_t player, uint32_t building_id, const uint32_t
 		auto pit = transport_passengers_.find(building_id);
 		if (pit == transport_passengers_.end()) return;
 		std::vector<uint32_t> out = count ? std::vector<uint32_t>(unit_ids, unit_ids + count) : pit->second;
+		bool failed = false;
 		for (uint32_t uid : out) {
 			const int32_t i = lookup_unit(uid);
 			if (i < 0 || (!owner && units_.team[i] != player)) continue;
 			order_disembark_single(building_id, uid);
+			const auto *aboard = get_transport_passengers(building_id);
+			failed |= aboard && std::find(aboard->begin(), aboard->end(), uid) != aboard->end();
 		}
+		if (failed) note_text(player, SessionNotice::TEXT_UNLOAD_FAILED);
 		return;
 	}
 	const Building &b = buildings_[bit->second];
@@ -9551,10 +9563,14 @@ void Simulation::order_disembark(uint32_t transport_id, float target_x, float ta
 	refresh_ship_trade_gain(transport_id);
 }
 
-void Simulation::order_disembark_all(uint32_t transport_id) {
+// Commands.js "unload-all": notifyUnloadFailure to `notify` (the commanding player) when
+// anyone stays aboard; script unloads pass none.
+void Simulation::order_disembark_all(uint32_t transport_id, uint8_t notify) {
 	int32_t tidx = lookup_unit(transport_id);
 	if (tidx < 0) return;
 	order_disembark(transport_id, units_.pos_x[tidx], units_.pos_z[tidx]);
+	const auto *aboard = get_transport_passengers(transport_id);
+	if (notify != 0xFF && aboard && !aboard->empty()) note_text(notify, SessionNotice::TEXT_UNLOAD_FAILED);
 }
 
 void Simulation::order_disembark_single(uint32_t transport_id, uint32_t unit_id) {
