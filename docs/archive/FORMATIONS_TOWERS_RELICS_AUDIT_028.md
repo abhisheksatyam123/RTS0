@@ -1,5 +1,9 @@
 # Petra 0.28 vs RTS0: towers, garrisons, capture, relics, colonies, patrol
 
+Status (Formations, 2026-10-20): fixed H1, H2 (save v103), M1-M5, L7, L9, L10, L12, and REMAINING_GAPS R6 (rootCount).
+Open, in REMAINING_GAPS G43: L1-L6, L8, L11. L4 and L6 were tried and held back: each changes when units leave a holder, which breaks test_defense_switch_to_attack and test_defense_animals.
+
+
 Audited at RTS0 HEAD 1ef009261. JS = /mnt/project-files/ai/0ad-028-petra, sim = src/simulation/simulation.cpp.
 Defense (defenseManager/defenseArmy) and attack-plan internals were left out, as asked. Every claim below comes from reading the code.
 
