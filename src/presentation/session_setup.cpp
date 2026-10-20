@@ -846,7 +846,8 @@ void RtsoMain::apply_match_settings() {
 	// Game Setup speed (0 A.D. gameSpeed); the in-game speed button still cycles from here.
 	{
 		const float sp = (float)(double)ms->get("game_speed");
-		game_speed = (sp >= 0.25f && sp <= 3.0f) ? sp : 1.0f;
+		// game_speeds.json: Turtle 0.1x up to the 20x Fast Forward (offered without humans).
+		game_speed = (sp >= 0.1f && sp <= 20.0f) ? sp : 1.0f;
 	}
 	sim->set_starting_resources_preset(start_res); // 0 A.D. Very Low .. Deathmatch
 	// Per-slot civs (slot 0 = human; extra slots honor team civs the
@@ -916,7 +917,7 @@ void RtsoMain::match_settings_setup(rtso::GameSetupParams &setup) {
 		Array scolors = ms->get("slot_colors");
 		for (int i = 0; i < 8 && i < scolors.size(); ++i)
 			setup.colors[i] = (uint8_t)std::clamp((int)scolors[i], 0, rtso::PLAYER_COLOR_COUNT - 1);
-		setup.speed = (uint16_t)std::clamp((int)std::lround(100.0 * (double)ms->get("game_speed")), 25, 300);
+		setup.speed = (uint16_t)std::clamp((int)std::lround(100.0 * (double)ms->get("game_speed")), 10, 2000);
 		setup.lock_players = (bool)ms->get("map_locks_players") ? 1 : 0;
 		setup.rated = (bool)ms->get("rated") ? 1 : 0;
 		setup.nomad = (bool)ms->get("nomad") ? 1 : 0;
