@@ -727,7 +727,7 @@ void RtsoMain::apply_match_settings() {
 	}
 	String map_id = (String)ms->get("map_id");
 	uint32_t seed = (uint32_t)(int64_t)(int)ms->get("seed");
-	if (seed == 0) seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
+	if (seed == 0 && !(bool)ms->get("seed_exact")) seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
 	match_seed_ = seed; // replays and saves rebuild the map from it
 	if (map_id.is_empty()) map_id = "random_continental";
 	int victory = (int)ms->get("victory");
