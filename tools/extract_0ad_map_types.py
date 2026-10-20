@@ -10,7 +10,7 @@ type ("skirmish" or "scenario"), its Keywords (for the Map Filter), and for a
 scenario the settings Game Setup shows locked. Random maps (RTS0's RMS list
 in scenes/menu/gamesetup.gd) get their keywords and their Player Placement
 patterns (PlayerPlacements, in the map's order) from maps/random/<script>.json,
-and their biomes from its SupportedBiomes (gui/gamesetup's Biome dropdown
+their Description (gui/gamesetup MapCache.getTranslatableMapDescription), and their biomes from its SupportedBiomes (gui/gamesetup's Biome dropdown
 lists only those, and is hidden on maps without any): each entry is a 0.28
 rmbiome id ("generic/aegean"), with a folder ("generic/") expanded to every
 biome in it.
@@ -99,7 +99,7 @@ def build(public):
             print("no 0.28 map for %s" % mid, file=sys.stderr)
             continue
         maps[key] = entry
-    random, placements, biomes = {}, {}, {}
+    random, placements, biomes, descriptions = {}, {}, {}, {}
     for p in sorted(glob.glob(os.path.join(public, "maps/random/*.json"))):
         doc = json.load(open(p, encoding="utf-8"))
         if not isinstance(doc, dict):  # a heightmap image's <name>.png.json, not a map script
@@ -107,12 +107,15 @@ def build(public):
         s = doc.get("settings", {})
         name = os.path.basename(p)[:-5]
         random[name] = s.get("Keywords", [])
+        if s.get("Description"):
+            descriptions[name] = s["Description"]  # translated in the "map description" context
         if s.get("PlayerPlacements"):
             placements[name] = s["PlayerPlacements"]
         supported = s.get("SupportedBiomes", [])
         if supported:
             biomes[name] = expand_biomes(public, supported)
-    return {"maps": maps, "random_keywords": random, "player_placements": placements, "random_biomes": biomes}
+    return {"maps": maps, "random_keywords": random, "player_placements": placements, "random_biomes": biomes,
+            "random_descriptions": descriptions}
 
 
 def expand_biomes(public, supported):
