@@ -83,8 +83,14 @@ What each target needs on the host, beyond Godot 4.3-stable, its export template
   pass `-- --touch-input` to try it on a desktop touch screen.
 - **Duplicate textures.** Godot unpacks each model's embedded images next to it, so about 6,000 images
   are byte-identical copies. The `addons/rts0_export` editor plugin packs each one once and exports the
-  copies as `.import` remaps to it, which cut the Linux build from 3.2 GB to 2.1 GB. The editor and
-  in-project runs are unchanged.
+  copies as `.import` remaps to it, which cut the Linux build from 3.2 GB to 2.1 GB. Byte-identical
+  sounds (voices kept under three folders) are packed once the same way. The editor and in-project runs
+  are unchanged.
+- **Model textures.** `tools/godot_import.py` switches the textures unpacked from models to VRAM
+  compression (S3TC on desktop, ETC2 on Android and iOS), as the editor's "Detect 3D" does the first
+  time it draws them. A headless import never draws, so without this they stay lossless. Compressed,
+  they are about 40% smaller in the pack and a quarter of the GPU memory. Terrain, UI and unit-variant
+  textures stay lossless.
 - **Mobile renderer.** Android and iOS run the Mobile (Vulkan/Metal) renderer. On a GL-only phone Godot falls
   back to Compatibility, which draws player colours, garrison flags and silhouettes too (#1260;
   `tools/check_gl_shaders.py` checks it). Selection rings and decals don't draw there yet (G41).
