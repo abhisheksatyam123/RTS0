@@ -378,6 +378,11 @@ bool RtsoMain::chat_network_command(const String &text) {
 			system(tr("Only the host can kick clients!"));
 		} else if (!networked) {
 			system(specs ? tr("Offline game! No spectators to kick or ban.") : tr("Offline game! Can not kick or ban."));
+		} else if (specs && is_net_pregame()) {
+			// Before Start the setup's observers are the assignment's unassigned clients.
+			for (uint32_t c = 1; c < rtso::NET_SETUP_CLIENTS; ++c)
+				if (((net_setup_.clients >> c) & 1) && net_setup_.slot_of(c) < 0)
+					net_host_.kickPeer(net_host_.peerByName(net_setup_.names[c]), ban);
 		} else if (specs) {
 			for (const auto &e : net_host_.playerAssignment())
 				if (e.player >= rtso::MAX_PLAYERS && e.client != 0 && e.status != rtso::PlayerAssignmentMsg::LEFT)
@@ -390,7 +395,14 @@ bool RtsoMain::chat_network_command(const String &text) {
 	if (command == "/list") {
 		// getUsernameList: sorted by player slot, observers last, in their colours.
 		std::vector<std::pair<uint32_t, String>> users;
-		if (networked) {
+		if (networked && is_net_pregame()) {
+			// g_PlayerAssignments before Start: the setup's clients, seated or watching.
+			for (uint32_t c = 0; c < rtso::NET_SETUP_CLIENTS; ++c)
+				if ((net_setup_.clients >> c) & 1) {
+					const int slot = net_setup_.slot_of(c);
+					users.emplace_back(slot >= 0 ? (uint32_t)slot : 1000u + c, chat_user("peer-" + String::num_int64(c)));
+				}
+		} else if (networked) {
 			for (const auto &e : net_host_.playerAssignment())
 				if (e.status != rtso::PlayerAssignmentMsg::LEFT)
 					users.emplace_back(e.player < rtso::MAX_PLAYERS ? e.player : 1000u + e.client,

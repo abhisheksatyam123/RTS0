@@ -42,4 +42,4 @@ None of these touches simulation state or the save format.
 - 2026-10-20 #1310 pass 8 gap 4 (the lobby counts only the seated players of a game in setup, and lists only who plays and who watches until Start, as LobbyGameRegistration does) merged.
 - 2026-10-20 #1327 pass 8 gap 5 (a join resolves the host's name once, and Connect by IP refuses one that does not resolve with "Cannot join game: Failed to connect to server.") merged.
 - 2026-10-20 #1335 pass 8 gap 6 (an out-of-sync error writes the replay its box names however early it comes, and the replay menu lists none under 3 s, as VisualReplay does) merged.
-- 2026-10-20 #PR8 pass 8 gap 7 (sign-in and registration show 0.28's texts: XmppClient's errors without a prefix, "Connecting…", "Registering…", "Registered" and feedback.js's fallback) merged.
+- 2026-10-20 #1338 pass 8 gap 7 (sign-in and registration show 0.28's texts: XmppClient's errors without a prefix, "Connecting…", "Registering…", "Registered" and feedback.js's fallback) merged.
