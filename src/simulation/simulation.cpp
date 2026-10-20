@@ -38281,8 +38281,8 @@ bool Simulation::register_trigger_script(const std::string &name) {
 }
 
 namespace {
-// The rising-water maps' heights are 0 A.D.'s metres times this (rms_generator.cpp kTriggerMapHeight).
-constexpr float kTriggerHeight = 0.5f;
+// The rising-water maps' heights are 0 A.D.'s metres (rms_generator.cpp kTriggerMapHeight).
+constexpr float kTriggerHeight = HEIGHT_PER_METRE;
 
 // maps/random/flood_triggers.js
 constexpr float kFloodStepSeconds = 2.4f;   // deltaTime
