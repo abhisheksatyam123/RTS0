@@ -469,6 +469,9 @@ def play(args, lobby, leave):
     ok = ok and (join_lost or addressees["join"] == ["Everyone|Allies|Enemies|Observers|■_alice", "alice,bob"])
     # 0.28 PauseOverlay: the host's pause reads on the client as its name in its player colour.
     paused_by = said("join", "paused_by")
+    # 0.28 PauseControl.canPause: "Waiting for players to connect:" allows no pause.
+    wait_pause = [said(r, "wait_can_pause") for r in ("host", "join")]
+    ok = ok and all(w in ("", "false") for w in wait_pause)
     ok = ok and re.fullmatch(r"\[center\]Paused by \[color=#[0-9a-f]{6}\]alice\[/color\]\[/center\]", paused_by) is not None
     ok = ok and "#ffffff]alice" not in paused_by
     # 0.28 page_loading at "start": both peers load the map under the loading page.

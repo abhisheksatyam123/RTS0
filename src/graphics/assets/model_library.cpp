@@ -281,10 +281,13 @@ HashMap<String, ParallaxMap> &parallax_maps() {
 }
 Ref<Texture2D> specular_map_for(const Ref<Texture2D> &albedo) { return table_texture_for(specular_maps(), albedo); }
 // data/unit_variants.json (tools/extract_unit_variants.py): a unit body's 0 A.D.
-// skins (texture-only variant group) and their frequencies, by baked image.
+// skins (texture-only variant group) and their frequencies, by baked image; a
+// head's objectcolor material adds its hair colours (sRGB) and their frequencies.
 struct UnitVariants {
 	PackedStringArray layers;
 	std::vector<float> freq;
+	std::vector<Color> colors;
+	std::vector<float> color_freq;
 };
 HashMap<String, UnitVariants> &unit_variants() {
 	static auto &m = *new HashMap<String, UnitVariants>();
@@ -298,16 +301,39 @@ HashMap<String, UnitVariants> &unit_variants() {
 			for (int i = 0; i < keys.size(); ++i) {
 				Dictionary e = root[keys[i]];
 				Array layers = e.get("layers", Array()), freq = e.get("freq", Array());
+				Array colors = e.get("colors", Array()), color_freq = e.get("color_freq", Array());
 				UnitVariants uv;
 				for (int j = 0; j < layers.size() && j < freq.size() && j < 8; ++j) {
 					uv.layers.push_back(layers[j]);
 					uv.freq.push_back((float)(double)freq[j]);
 				}
-				if (uv.layers.size() > 1) m.insert(keys[i], uv);
+				for (int j = 0; j < colors.size() && j < color_freq.size() && j < 8; ++j) {
+					Array c = colors[j];
+					if (c.size() < 3) continue;
+					uv.colors.push_back(Color((float)(double)c[0] / 255.0f, (float)(double)c[1] / 255.0f, (float)(double)c[2] / 255.0f));
+					uv.color_freq.push_back((float)(double)color_freq[j]);
+				}
+				if (uv.layers.size() > 1 || (!uv.layers.is_empty() && !uv.colors.empty())) m.insert(keys[i], uv);
 			}
 		}
 	}
 	return m;
+}
+// Where each choice after the first starts in [0, 1), by frequency (2.0 past the last),
+// as the shader's variant_cut and object_cut take them.
+Array cumulative_cuts(const std::vector<float> &freq) {
+	float total = 0.0f;
+	for (float f : freq) total += f;
+	float cut[8] = { 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f };
+	float run = 0.0f;
+	for (size_t i = 0; i + 1 < freq.size() && i < 8 && total > 0.0f; ++i) {
+		run += freq[i];
+		cut[i] = run / total;
+	}
+	Array cuts;
+	cuts.push_back(Vector4(cut[0], cut[1], cut[2], cut[3]));
+	cuts.push_back(Vector4(cut[4], cut[5], cut[6], cut[7]));
+	return cuts;
 }
 // The skins as one array texture (RGBA8, the body image's size), shared by
 // every body that names the same skins.
@@ -410,21 +436,22 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 			if (uv) {
 				Ref<Texture2DArray> arr = unit_variant_array(*uv);
 				if (arr.is_valid()) {
-					float total = 0.0f;
-					for (float f : uv->freq) total += f;
-					float cut[8] = { 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f };
-					float run = 0.0f;
-					for (size_t i = 0; i + 1 < uv->freq.size() && total > 0.0f; ++i) {
-						run += uv->freq[i];
-						cut[i] = run / total;
-					}
 					out->set_shader_parameter("use_variants", true);
 					out->set_shader_parameter("variant_tex", arr);
-					Array cuts;
-					cuts.push_back(Vector4(cut[0], cut[1], cut[2], cut[3]));
-					cuts.push_back(Vector4(cut[4], cut[5], cut[6], cut[7]));
-					out->set_shader_parameter("variant_cut", cuts);
+					out->set_shader_parameter("variant_cut", cumulative_cuts(uv->freq));
 					out->set_shader_parameter("variant_salt", (float)(image_key(tex).hash() & 0xFFFFu) / 65536.0f);
+					// model_common.fs USE_OBJECTCOLOR: the hair (the layer's alpha) takes a colour
+					// the head's actor picks by variant, multiplied in sRGB as 0 A.D. draws it.
+					if (!uv->colors.empty()) {
+						Array cols;
+						for (int i = 0; i < 8; ++i) {
+							const Color c = uv->colors[MIN((size_t)i, uv->colors.size() - 1)].srgb_to_linear();
+							cols.push_back(Vector4(c.r, c.g, c.b, 1.0f));
+						}
+						out->set_shader_parameter("use_object_color", true);
+						out->set_shader_parameter("object_colors", cols);
+						out->set_shader_parameter("object_cut", cumulative_cuts(uv->color_freq));
+					}
 				}
 			}
 		}
@@ -516,6 +543,159 @@ float ModelLibrary::variant_draw(uint32_t entity_id) {
 	h *= 2246822519u;
 	h ^= h >> 13;
 	return (float)(h >> 8) / 16777216.0f;
+}
+
+// data/unit_prop_looks.json (tools/extract_unit_prop_looks.py): per unit GLB, the
+// baked prop parts whose 0 A.D. actor swaps meshes by variant, with the others'
+// GLBs (in .pmd space), the transform onto the part and the frequencies.
+struct PropLookSlot {
+	StringName node;
+	int joint = 0;
+	Transform3D xf;
+	PackedStringArray meshes; // [0] "": the baked part
+	std::vector<float> cut;   // where each mesh after the first starts in [0, 1)
+	uint32_t salt = 0;
+	std::vector<Ref<ArrayMesh>> built;
+};
+static HashMap<String, std::vector<PropLookSlot>> &prop_looks() {
+	static auto &m = *new HashMap<String, std::vector<PropLookSlot>>();
+	static bool loaded = false;
+	if (loaded) return m;
+	loaded = true;
+	Ref<FileAccess> f = FileAccess::open("res://data/unit_prop_looks.json", FileAccess::READ);
+	if (f.is_null()) return m;
+	Dictionary root = JSON::parse_string(f->get_as_text());
+	Array keys = root.keys();
+	for (int i = 0; i < keys.size(); ++i) {
+		Array slots = root[keys[i]];
+		std::vector<PropLookSlot> out;
+		for (int j = 0; j < slots.size(); ++j) {
+			Dictionary e = slots[j];
+			Array xf = e.get("xf", Array()), meshes = e.get("meshes", Array()), freq = e.get("freq", Array());
+			if (xf.size() != 12 || meshes.size() < 2 || freq.size() != meshes.size()) continue;
+			PropLookSlot s;
+			s.node = String(e.get("node", ""));
+			s.joint = (int)e.get("joint", 0);
+			auto v = [&](int k) { return Vector3((float)(double)xf[k], (float)(double)xf[k + 1], (float)(double)xf[k + 2]); };
+			s.xf = Transform3D(Basis(v(0), v(3), v(6)), v(9)); // columns
+			float total = 0.0f;
+			for (int k = 0; k < freq.size(); ++k) total += (float)(double)freq[k];
+			float run = 0.0f;
+			for (int k = 0; k < meshes.size(); ++k) {
+				s.meshes.push_back(meshes[k]);
+				if (k > 0) s.cut.push_back(total > 0.0f ? run / total : 2.0f);
+				run += (float)(double)freq[k];
+			}
+			s.salt = (uint32_t)String(s.node).hash();
+			s.built.resize(meshes.size());
+			out.push_back(std::move(s));
+		}
+		if (!out.empty()) m.insert(keys[i], std::move(out));
+	}
+	return m;
+}
+
+// The look's mesh on the part's joint: .pmd space moved onto the part, every
+// vertex weighted fully to the joint the baked part rides.
+static Ref<ArrayMesh> build_prop_look(PropLookSlot &s, int k) {
+	if (s.built[k].is_valid()) return s.built[k];
+	Ref<PackedScene> scene = ResourceLoader::get_singleton()->exists(s.meshes[k])
+			? Ref<PackedScene>(ResourceLoader::get_singleton()->load(s.meshes[k]))
+			: Ref<PackedScene>();
+	Node *inst = scene.is_valid() ? scene->instantiate() : nullptr;
+	MeshInstance3D *src = nullptr;
+	if (inst) {
+		src = Object::cast_to<MeshInstance3D>(inst);
+		if (!src) {
+			TypedArray<Node> found = inst->find_children("*", "MeshInstance3D", true, false);
+			if (!found.is_empty()) src = Object::cast_to<MeshInstance3D>(found[0]);
+		}
+	}
+	Ref<Mesh> mesh = src ? src->get_mesh() : Ref<Mesh>();
+	if (mesh.is_valid() && mesh->get_surface_count() > 0) {
+		Array arrays = mesh->surface_get_arrays(0);
+		PackedVector3Array pos = arrays[Mesh::ARRAY_VERTEX];
+		PackedVector3Array nrm = arrays[Mesh::ARRAY_NORMAL];
+		const Basis nb = s.xf.basis.inverse().transposed();
+		for (int v = 0; v < pos.size(); ++v) pos.set(v, s.xf.xform(pos[v]));
+		for (int v = 0; v < nrm.size(); ++v) nrm.set(v, nb.xform(nrm[v]).normalized());
+		PackedInt32Array bones;
+		PackedFloat32Array weights;
+		bones.resize(pos.size() * 4);
+		weights.resize(pos.size() * 4);
+		for (int v = 0; v < pos.size(); ++v) {
+			bones.set(v * 4, s.joint);
+			weights.set(v * 4, 1.0f);
+			for (int c = 1; c < 4; ++c) {
+				bones.set(v * 4 + c, 0);
+				weights.set(v * 4 + c, 0.0f);
+			}
+		}
+		arrays[Mesh::ARRAY_VERTEX] = pos;
+		arrays[Mesh::ARRAY_NORMAL] = nrm;
+		// The importer's tangents (the part's normal map needs them), turned with the mesh.
+		if (arrays[Mesh::ARRAY_TANGENT].get_type() == Variant::PACKED_FLOAT32_ARRAY) {
+			PackedFloat32Array tan = arrays[Mesh::ARRAY_TANGENT];
+			for (int v = 0; v * 4 + 3 < tan.size(); ++v) {
+				const Vector3 t = s.xf.basis.xform(Vector3(tan[v * 4], tan[v * 4 + 1], tan[v * 4 + 2])).normalized();
+				tan.set(v * 4, t.x);
+				tan.set(v * 4 + 1, t.y);
+				tan.set(v * 4 + 2, t.z);
+			}
+			arrays[Mesh::ARRAY_TANGENT] = tan;
+		}
+		arrays[Mesh::ARRAY_BONES] = bones;
+		arrays[Mesh::ARRAY_WEIGHTS] = weights;
+		Ref<ArrayMesh> am;
+		am.instantiate();
+		am->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
+		s.built[k] = am;
+	}
+	if (inst) memdelete(inst);
+	return s.built[k];
+}
+
+void ModelLibrary::set_prop_looks(Node *root, const String &glb, uint32_t entity_id) {
+	if (!root) return;
+	std::vector<PropLookSlot> *slots = prop_looks().getptr(glb);
+	if (!slots) return;
+	for (PropLookSlot &s : *slots) {
+		MeshInstance3D *part = Object::cast_to<MeshInstance3D>(root->find_child(String(s.node), true, false));
+		if (!part || !part->get_parent()) continue;
+		// Drawn per prop, as 0 A.D. picks each prop actor's groups by themselves.
+		const float u = variant_draw(entity_id ^ s.salt);
+		int pick = 0;
+		for (float c : s.cut) pick += u >= c ? 1 : 0;
+		part->set_visible(pick == 0);
+		Node *parent = part->get_parent();
+		for (int k = 1; k < s.meshes.size(); ++k) {
+			const String name = String(s.node) + "_look" + String::num_int64(k);
+			MeshInstance3D *look = Object::cast_to<MeshInstance3D>(parent->get_node_or_null(NodePath(name)));
+			if (!look && k == pick) {
+				Ref<ArrayMesh> mesh = build_prop_look(s, k);
+				if (mesh.is_null()) {
+					part->set_visible(true);
+					continue;
+				}
+				look = memnew(MeshInstance3D);
+				look->set_name(name);
+				look->set_mesh(mesh);
+				look->set_transform(part->get_transform());
+				look->set_skin(part->get_skin());
+				look->set_skeleton_path(part->get_skeleton_path());
+				look->set_cast_shadows_setting(part->get_cast_shadows_setting());
+				look->set_layer_mask(part->get_layer_mask());
+				look->set_surface_override_material(0, part->get_active_material(0));
+				look->set_material_overlay(part->get_material_overlay());
+				for (const char *param : { "player_color", "variant_u" }) {
+					const Variant val = part->get_instance_shader_parameter(param);
+					if (val.get_type() != Variant::NIL) look->set_instance_shader_parameter(param, val);
+				}
+				parent->add_child(look);
+			}
+			if (look) look->set_visible(k == pick);
+		}
+	}
 }
 
 void ModelLibrary::apply_imported_material_fixups(Node *n) {
