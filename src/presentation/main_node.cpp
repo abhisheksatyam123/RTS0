@@ -1822,14 +1822,36 @@ void RtsoMain::time_warp_tick() {
 }
 
 // CTurnManager::RewindTimeWarp: back to the latest snapshot, which is then dropped, so
-// rewinding again goes further back. The game goes on as a new replay from there.
+// rewinding again goes further back. Only the simulation goes back: the control groups
+// and selection stay, less what the snapshot doesn't have (0.28's GUI drops entities
+// that no longer exist). The game goes on as a new replay from there, where 0.28 keeps
+// writing a replay that can no longer be played.
 bool RtsoMain::time_warp_rewind() {
 	if (!time_warp_ || time_warp_snapshots_.empty()) return false;
 	const String path = time_warp_snapshots_.back();
 	time_warp_snapshots_.pop_back();
+	PackedInt32Array groups[10];
+	for (int g = 0; g < 10; ++g) groups[g] = selected_groups[g];
+	const PackedInt32Array units = selected_ids;
+	const std::vector<uint32_t> structures = selected_structures();
 	const bool ok = load_game(path);
 	DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(path));
 	time_warp_turn_ = turn_mgr_.current_turn(); // no snapshot of the state just restored
+	if (ok) {
+		auto exists = [this](int32_t id) { return sim->entity_owner((uint32_t)id) != 0xFF; };
+		for (int g = 0; g < 10; ++g) {
+			selected_groups[g].clear();
+			for (int32_t id : groups[g])
+				if (exists(id)) selected_groups[g].push_back(id);
+		}
+		selected_ids.clear();
+		for (int32_t id : units)
+			if (exists(id)) selected_ids.push_back(id);
+		std::vector<uint32_t> kept;
+		for (uint32_t id : structures)
+			if (exists((int32_t)id)) kept.push_back(id);
+		set_selected_structures(kept);
+	}
 	return ok;
 }
 
@@ -1864,7 +1886,29 @@ void RtsoMain::refresh_dev_overlay() {
 		dev_overlay_.set_render_debug(render_debug_mode_);
 	}
 	if (!dev_overlay_.state_shown()) return;
-	String text = vformat("simulation: {timeElapsed:%d, players:\"<<<omitted>>>\"}", (int64_t)(match_elapsed_time * 1000.0));
+	// GuiInterface GetSimulationState's keys in its order, players omitted (DeveloperOverlayEntityState.update).
+	// mapSize is in 0.28 metres (4 per tile); times in milliseconds, as cmpTimer.
+	String text = vformat("simulation: {players:\"<<<omitted>>>\", circularMap:%s, mapSize:%d, timeElapsed:%d",
+			sim->circular_map() ? "true" : "false", (int64_t)std::lround(sim->map_half() * 2.0f * 4.0f),
+			(int64_t)(match_elapsed_time * 1000.0));
+	text += vformat(", ceasefireActive:%s, ceasefireTimeRemaining:%d, cinemaPlaying:%s", sim->ceasefire_active() ? "true" : "false",
+			(int64_t)std::lround(sim->ceasefire_remaining() * 1000.0f), sim->cinema_playing() ? "true" : "false");
+	{
+		// EndGameManager GetVictoryConditions: the victory_conditions/*.json names.
+		static constexpr struct { uint8_t bit; const char *name; } kVictory[] = {
+			{rtso::VK_CONQUEST, "conquest"}, {rtso::VK_CONQUEST_UNITS, "conquest_units"},
+			{rtso::VK_CONQUEST_STRUCTURES, "conquest_structures"}, {rtso::VK_CONQUEST_CIVIC_CENTRES, "conquest_civic_centers"},
+			{rtso::VK_WONDER, "wonder"}, {rtso::VK_RELIC, "capture_the_relic"}, {rtso::VK_REGICIDE, "regicide"},
+		};
+		String vc;
+		for (const auto &v : kVictory)
+			if (sim->has_victory(v.bit)) vc += String(vc.is_empty() ? "\"" : ", \"") + v.name + "\"";
+		// PopulationCapManager: "player", "world" or "team" and its value.
+		const char *cap_type = sim->world_pop_cap() ? "world" : sim->team_pop_cap() ? "team" : "player";
+		const int cap = sim->world_pop_cap() ? sim->world_pop_cap() : sim->team_pop_cap() ? sim->team_pop_cap() : sim->pop_cap_setting();
+		text += vformat(", victoryConditions:[%s], alliedVictory:%s, populationCapType:\"%s\", populationCap:%d}", vc,
+				sim->last_man_standing() ? "false" : "true", cap_type, (int64_t)cap);
+	}
 	const uint32_t first = !selected_ids.is_empty() ? (uint32_t)(int64_t)selected_ids[0] : 0;
 	if (first) {
 		auto uv = sim->units();
@@ -1909,8 +1953,22 @@ void RtsoMain::refresh_dev_overlay() {
 			text += "\n\nentity: {\n";
 			text += vformat("  id:%d\n  type:%d\n  player:%d\n  hitpoints:%.1f\n  maxHitpoints:%.1f\n", (int64_t)b.id,
 					(int64_t)b.type, (int64_t)b.team, b.hp, b.max_hp);
-			text += vformat("  position:{x:%.2f, z:%.2f}\n  buildProgress:%.2f\n  queue:%d\n}", b.x, b.z, b.build_progress,
-					(int64_t)b.queue.size());
+			text += vformat("  position:{x:%.2f, z:%.2f}\n  rotation:%.2f\n  buildProgress:%.2f\n  queue:%d\n", b.x, b.z, b.rot,
+					b.build_progress, (int64_t)b.queue.size());
+			text += vformat("  garrisoned:%d\n  capturePoints:%.1f\n  maxCapturePoints:%.1f\n}", (int64_t)sim->get_garrison_count(b.id),
+					b.capture_points, b.max_capture_points);
+			// template: GetTemplateData of the structure's template (its civ's, Gaia's plain one).
+			const rtso::BuildingTypeInfo &info = rtso::building_type_info(b.type);
+			const Dictionary e = rtso::portraits::structure_entry(b.civ, b.type);
+			float cost[rtso::RES_COUNT] = {};
+			sim->structure_cost_for(b.team, b.type, cost);
+			text += vformat("\n\ntemplate: {template:\"%s\", name:{generic:\"%s\", specific:\"%s\"}, civ:%d, ", e.get("template", String()),
+					e.get("generic_name", String(info.name)), e.get("specific_name", String()), (int64_t)b.civ);
+			text += vformat("cost:{food:%d, wood:%d, stone:%d, metal:%d, time:%.1f}, ", (int64_t)std::lround(cost[rtso::RES_FOOD]),
+					(int64_t)std::lround(cost[rtso::RES_WOOD]), (int64_t)std::lround(cost[rtso::RES_STONE]),
+					(int64_t)std::lround(cost[rtso::RES_GOLD]), sim->structure_build_time_for(b.team, b.type));
+			text += vformat("maxHitpoints:%.1f, population:{bonus:%d}, garrisonHolder:{max:%d}, capturable:{max:%.1f}}",
+					sim->structure_max_hp(b.type, b.team), (int64_t)info.pop_bonus, (int64_t)info.garrison_cap, info.capture_max_points);
 			break;
 		}
 	}
@@ -2551,6 +2609,18 @@ void RtsoMain::_on_voice_button_pressed() {
 	use_english_voice_orders_ = !use_english_voice_orders_;
 	if (voice_btn)
 		voice_btn->set_text(use_english_voice_orders_ ? "Voice: EN" : "Voice: Civ");
+}
+
+bool RtsoMain::has_lobby_client() const {
+	Node *ls = get_node_or_null(NodePath("/root/LobbySession"));
+	return ls && (bool)ls->call("signed_in");
+}
+
+void RtsoMain::open_lobby_page() {
+	if (!has_lobby_client()) return;
+	close_open_dialogs();
+	Ref<Script> lobby = ResourceLoader::get_singleton()->load("res://scenes/menu/lobby.gd");
+	if (lobby.is_valid()) lobby->call("open_dialog", get_tree());
 }
 
 void RtsoMain::_on_lobby_button_pressed() {
