@@ -18584,13 +18584,13 @@ bool Simulation::mobile_dropsite_usable_by(uint8_t player, size_t e) const {
 		players_[player].has_tech(TECH_UNLOCK_SHARED_DROPSITES) && is_ally(player, owner);
 }
 
-// set-dropsite-sharing (Commands.js): the owner of a dropsite turns sharing on or off; the
-// toggle exists once the owner has shared dropsites.
+// set-dropsite-sharing (Commands.js): the owner of a sharable dropsite turns sharing on or
+// off, with or without Diaspora (which only lets allies drop at shared ones).
 bool Simulation::cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end() || player >= MAX_PLAYERS) return false;
 	Building &b = buildings_[bit->second];
-	if (b.team != player || b.wrecked || !players_[player].has_tech(TECH_UNLOCK_SHARED_DROPSITES)) return false;
+	if (b.team != player || b.wrecked) return false;
 	if (!is_dropsite_type(b.type)) return false;
 	if (b.dropsite_shared == shared) return false;
 	b.dropsite_shared = shared;
