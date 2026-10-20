@@ -14194,10 +14194,56 @@ void Simulation::foundation_exit_point(const Building &b, float x, float z, floa
 void Simulation::leave_foundation(size_t i, const Building &b) {
 	const float r = unit_collision_radius(units_.unit_type[i]);
 	auto outside = [&](float x, float z) { return !nav::footprint_contains(b, x, z, r); };
-	if (units_.order_kind[i] == ORDER_WALK && units_.has_order[i] && outside(units_.order_x[i], units_.order_z[i]))
+	// LeaveFoundation moves out of range of the foundation (MoveToTargetRangeExplicit): any
+	// point clear of it will do. RTS0 walks to one point, so a point another unit stands idle
+	// on, or is already walking to, is taken: two units leaving by the same side would
+	// otherwise queue for it, the second held on the site for good (idle units obstruct).
+	auto taken = [&](float x, float z) {
+		for (size_t j = 0; j < units_.count; ++j) {
+			if (j == i || !units_.alive[j]) continue;
+			const float rr = r + unit_collision_radius(units_.unit_type[j]);
+			float px = units_.pos_x[j], pz = units_.pos_z[j];
+			if (units_.action_state[j] != ACTION_IDLE) {
+				if (units_.order_kind[j] != ORDER_WALK || !units_.has_order[j]) continue;
+				px = units_.order_x[j];
+				pz = units_.order_z[j];
+			}
+			const float dx = px - x, dz = pz - z;
+			if (dx * dx + dz * dz < rr * rr) return true;
+		}
+		return false;
+	};
+	if (units_.order_kind[i] == ORDER_WALK && units_.has_order[i] && outside(units_.order_x[i], units_.order_z[i]) &&
+	    !taken(units_.order_x[i], units_.order_z[i]))
 		return;
 	float tx, tz;
 	foundation_exit_point(b, units_.pos_x[i], units_.pos_z[i], r, tx, tz);
+	if (taken(tx, tz)) {
+		// The nearest free point just off the footprint, stepping along its edge from the
+		// unit's own side (footprint axes), then a step further out.
+		const nav::Vec2 l = nav::footprint_local(b, units_.pos_x[i], units_.pos_z[i]);
+		const float out_u = b.hu + r + 0.5f, out_v = b.hv + r + 0.5f;
+		float best = 1e30f;
+		bool found = false;
+		const float step = std::max(2.0f * r, 0.25f);
+		for (float extra = 0.0f; extra <= 2.0f * step && !found; extra += step)
+			for (int side = 0; side < 4; ++side) {
+				const float len = side < 2 ? out_u + extra : out_v + extra;
+				for (float t = -len; t <= len + 1e-4f; t += step) {
+					const float lu = side < 2 ? t : side == 2 ? -(out_u + extra) : out_u + extra;
+					const float lv = side < 2 ? (side == 0 ? -(out_v + extra) : out_v + extra) : t;
+					const float d = (lu - l.x) * (lu - l.x) + (lv - l.y) * (lv - l.y);
+					if (d >= best) continue;
+					const nav::Vec2 w = nav::footprint_world(b, lu, lv);
+					if (w.x < -map_half_ + 1.0f || w.x > map_half_ - 1.0f || w.y < -map_half_ + 1.0f || w.y > map_half_ - 1.0f) continue;
+					if (taken(w.x, w.y)) continue;
+					best = d;
+					tx = w.x;
+					tz = w.y;
+					found = true;
+				}
+			}
+	}
 	const uint32_t uid = units_.id[i];
 	const UnitOrder cur = current_order(i);
 	if (cur.kind != ORDER_NONE && cur.kind != ORDER_WALK) {
