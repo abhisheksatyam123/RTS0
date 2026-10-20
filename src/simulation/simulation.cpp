@@ -34116,7 +34116,8 @@ bool Simulation::player_can_target_fauna(uint8_t player, uint32_t fauna_id) cons
 	if (it == fauna_id_to_idx_.end() || player >= MAX_PLAYERS || los_.cells() == 0) return true;
 	const uint8_t owner = fauna_owner_[it->second];
 	if (owner == player || (owner < MAX_PLAYERS && is_ally(player, owner))) return true;
-	return los_visible(player, fauna_.pos_x[it->second], fauna_.pos_z[it->second]);
+	// template_unit_fauna.xml RetainInFog: an animal in explored fog is still a target.
+	return los_explored(player, fauna_.pos_x[it->second], fauna_.pos_z[it->second]);
 }
 
 bool Simulation::los_explored(uint8_t player, float x, float z) const {
