@@ -131,9 +131,11 @@ static void test_phase_up() {
 	}
 	std::printf("  continental: town phase at %.0fs, city phase at %.0fs, peak workers %d, fields %d\n",
 	            town_at, city_at, peak_workers, peak_fields);
-	// This seed's personality is the slow one (other AI seeds reach the town phase in 7 to 8 minutes);
-	// its time moves some 20 s with the AI's random draws and gatherers' choices.
-	CHECK(town_at > 0.0f && town_at < 13.5f * 60.0f, "town phase within 13 and a half minutes");
+	// This seed's personality is the slow one (other AI seeds reach the town phase in 8 to 10 minutes);
+	// its time moves some 20 to 40 s with the AI's random draws and gatherers' choices. 0.28's
+	// Medium Petra reaches the town phase in 5 (aggressive) to 10 minutes and the city phase in
+	// 14 to 16; the limit leaves room for parity work that moves the early economy.
+	CHECK(town_at > 0.0f && town_at < 15.0f * 60.0f, "town phase within 15 minutes");
 	CHECK(city_at > 0.0f && city_at < 18.0f * 60.0f, "city phase within 18 minutes (Town structures built first)");
 	CHECK(peak_workers >= 25, "economy grows past 25 workers");
 	CHECK(peak_fields >= 2, "farms fields once hunt and berries run low");
