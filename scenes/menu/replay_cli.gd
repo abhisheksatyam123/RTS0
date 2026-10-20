@@ -7,6 +7,9 @@ extends Node
 ##   -hashtest-full=X     whether -replay checks the hashes (default true);
 ##   -hashtest-quick=X    0.28's cheaper hash; RTS0 records one hash per turn,
 ##                        so either one turns the check on.
+##   -serializationtest, -rejointest=N, -ooslog, -unique-logs: the simulation
+##                        tests (RtsoMain.set_sim_tests), which a -replay run
+##                        fails on too.
 ## PATH is the replay's commands.rts0rec (0.28: commands.txt) or its folder.
 ## A -replay run exits 0 when every turn matched, 1 on a mismatch or when the
 ## replay can't be read.
@@ -19,13 +22,16 @@ static var args_override := PackedStringArray()
 static var quit_hook := Callable()
 
 var check_hashes := true
+var sim_tests := {}
 var _quiet := false
 
-## {"visual": bool, "path": String, "check_hashes": bool}, or {} without a replay flag.
+## {"visual": bool, "path": String, "check_hashes": bool, "sim_tests": Dictionary},
+## or {} without a replay flag.
 static func parse(args: PackedStringArray) -> Dictionary:
 	var out := {}
 	var full := true
 	var quick := false
+	var tests := {}
 	for a in args:
 		var s := a.trim_prefix("-").trim_prefix("-")
 		var eq := s.find("=")
@@ -39,8 +45,15 @@ static func parse(args: PackedStringArray) -> Dictionary:
 				full = value == "true"
 			"hashtest-quick":
 				quick = value == "true"
+			"ooslog", "serializationtest":
+				tests[key] = true
+			"unique-logs":
+				tests["unique_logs"] = true
+			"rejointest":
+				tests["rejointest"] = value.to_int()
 	if not out.is_empty():
 		out["check_hashes"] = full or quick
+		out["sim_tests"] = tests
 	return out
 
 ## The replay folder PATH names (with a trailing slash), or "" when it has no
@@ -71,6 +84,7 @@ static func run(ms: Node) -> bool:
 		var driver: Node = load("res://scenes/menu/replay_cli.gd").new()
 		driver.name = "ReplayDriver"
 		driver.check_hashes = opts["check_hashes"]
+		driver.sim_tests = opts["sim_tests"]
 		# The replay's Out of Sync and finished boxes pause the tree.
 		driver.process_mode = Node.PROCESS_MODE_ALWAYS
 		ms.add_child(driver)
@@ -101,13 +115,22 @@ func _process(_delta: float) -> void:
 		get_tree().root.disable_3d = true
 		AudioServer.set_bus_mute(0, true)
 		main.set_game_speed(1000.0) # the fastest Fast Forward
+		if not sim_tests.is_empty():
+			main.set_sim_tests(sim_tests)
 	var st: Dictionary = main.get_replay_status()
 	if not check_hashes:
 		# The Out of Sync box would hold the replay until answered.
 		for box in main.get_children().filter(func(c): return c.has_method("button_texts")):
 			box.press(0)
+	var tests: Dictionary = main.get_sim_tests()
 	if check_hashes and bool(st.get("out_of_sync", false)):
 		print("[Replay] Hash mismatch on turn %d" % int(st.get("out_of_sync_turn", 0)))
+		_done(1)
+	elif int(tests.get("serialization_failure_turn", 0)) > 0:
+		print("[Replay] Serialization test failure on turn %d" % int(tests["serialization_failure_turn"]))
+		_done(1)
+	elif int(tests.get("rejoin_failure_turn", 0)) > 0:
+		print("[Replay] Rejoin test failure on turn %d" % int(tests["rejoin_failure_turn"]))
 		_done(1)
 	elif bool(st.get("finished", false)):
 		print("[Replay] finished %d turns%s" % [int(st.get("turns", 0)), ", every hash matched" if check_hashes else ""])

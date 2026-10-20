@@ -292,6 +292,12 @@ public:
 	// host's own state is the expected one.
 	bool oos_matches_host() const;
 	void set_oos_dump_dir(const std::string &dir) { oos_dump_dir_ = dir; }
+	// -unique-logs: oos_dump_<unix time>_<pid> in place of oos_dump.
+	void set_oos_dump_name(const std::string &name) { oos_dump_name_ = name; }
+	const std::string &oos_dump_name() const { return oos_dump_name_; }
+	// The readable state an OOS dump carries (0 A.D. DumpDebugState): players' resources,
+	// units and buildings, every float bit shown so two dumps diff. -ooslog writes it each turn.
+	static void write_state_text(std::ostream &file, const Simulation &sim);
 	const std::string& oos_dump_path() const { return oos_dump_written_; }
 	bool oos_dump_pending() const { return oos_dump_pending_; }
 
@@ -349,6 +355,19 @@ public:
 		turn_timer_ = 0.0f;
 	}
 	void push_shadow_frame(const TurnFrame &f) { turn_history_.push_back(f); }
+	// The turn just run, carrying the hash this simulation computed after it (a replay's
+	// recorded hash may differ), or false before the first turn.
+	bool last_turn_frame(TurnFrame &out) const {
+		if (is_replaying_) {
+			if (replay_frame_idx_ == 0 || replay_frame_idx_ > turn_history_.size()) return false;
+			out = turn_history_[replay_frame_idx_ - 1];
+			out.sim_state_hash = replay_computed_hash_;
+			return true;
+		}
+		if (turn_history_.empty()) return false;
+		out = turn_history_.back();
+		return true;
+	}
 
 	// Consume a fully parsed NMT_GAME_START payload. The game layer owns
 	// simulation setup (map loading and initial spawn), so the network layer
@@ -447,6 +466,7 @@ private:
 	bool oos_from_host_ = false;   // client: turn/hash came from the host's NMT_SYNC_ERROR
 	bool oos_dump_pending_ = false;
 	std::string oos_dump_dir_;
+	std::string oos_dump_name_ = "oos_dump";
 	std::string oos_dump_written_;
 	void note_out_of_sync(uint32_t turn, uint32_t local_hash, uint32_t peer_hash, uint32_t peer_id);
 	void receive_sync_error(const SyncErrorMsg &msg);
