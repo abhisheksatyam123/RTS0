@@ -145,10 +145,11 @@ The command row against unit_actions.js g_EntityCommands (all 19 commands exist,
 | C5 | ~~Back to Work sends the whole selection, so soldiers in a mixed selection post "back to work failed" notices~~ Fixed: only units with work orders (hasWorkOrders) are sent, and nothing at all when none has one | medium-low | Fixed |
 | C6 | ~~The delete hotkey opens the confirmation for a selection with nothing deletable~~ Fixed: undeletable units, the catafalque and structures without health or under half capture points stay out of the confirmation | low | Fixed |
 | C7 | ~~Focus on Rally Point reads only the clicked structure's rally point and isn't offered to observers~~ Fixed: the first selected structure with a rally point, else the first entity's position; pressable on an observer's panel. `tools/e2e_observer_panels.gd` | low | Fixed |
-| C8 | is-dropsite-shared is offered only for structures, not for an ally's wagons (observers now see it, with "Allies are allowed to use this dropsite.") | low | Open |
+| C8 | is-dropsite-shared is offered only for structures, not for an ally's wagons (needs C12) (observers now see it, with "Allies are allowed to use this dropsite.") | low | Open |
 | C9 | ~~Leave Turret ignores ejectable and shows a hotkey in its tooltip~~ Fixed: no hotkey on its tooltip; every RTS0 turret point (walls, gates, outposts, towers) is ejectable in 0.28, so no point needs the flag | low | Fixed |
 | C10 | ~~Leave Turret, Unload Turrets and Unload All post no notice when a unit can't get off~~ Fixed: each posts "Unable to unload unit(s)." (notifyUnloadFailure), ship unloads too. `tools/test_naval.cpp` | low | Fixed |
-| C11 | Unload Turrets isn't offered on a unit that holds turrets | low | Open |
+| C11 | ~~Unload Turrets isn't offered on a unit that holds turrets~~ Closed: no 0.28 unit template has a TurretHolder (only walls, gates, outposts and towers do), so there is nothing to offer | low | Closed |
+| C12 | A click on another player's unit selects nothing: 0.28 selects it (input.js PickEntityAtPoint), shows its details, and its Command panel keeps to the commands allowed for that relationship (allowedPlayers Ally, Enemy); C8 waits on it. A hook-selected enemy unit also gets the full build menu and command row (unit_commands.js shows them only for controlled entities) | medium | Open |
 
 ### Aura icons, fogged selections and structure tooltips: Compare's eleventh 0.28 pass (2026-10-20)
 
