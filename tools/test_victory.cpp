@@ -116,6 +116,37 @@ int main() {
 		CHECK(sim->is_victory());
 		delete sim;
 	}
+	// 5b. Conquest Structures: a placed foundation is a Structure (special/filter/foundation),
+	// so it keeps its owner in.
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST_STRUCTURES);
+		Simulation::Building *keep = nullptr;
+		for (auto &b : sim->buildings_)
+			if (b.team == 1) {
+				if (!keep) keep = &b;
+				else b.hp = 0.0f;
+			}
+		CHECK(keep != nullptr);
+		keep->build_progress = 0.0f;
+		keep->hp = 1.0f;
+		sim->record_.buildings_destroyed++;
+		run(*sim, 1.0f);
+		CHECK(!sim->is_victory() && !sim->is_defeated(1));
+		keep->hp = 0.0f;
+		run(*sim, 1.0f);
+		CHECK(sim->is_victory());
+		delete sim;
+	}
+	// 5c. The last two enemies falling on one tick: players fall one at a time and the first
+	// defeat hands the other the win (EndGameManager after each SetState), not a draw.
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST_UNITS);
+		wipe(*sim, 0, true, false);
+		wipe(*sim, 1, true, false);
+		run(*sim, 1.0f);
+		CHECK(sim->is_game_over() && sim->is_defeated(0) != sim->is_defeated(1));
+		delete sim;
+	}
 	// 6. Losing your Town Center alone doesn't end a conquest match.
 	{
 		Simulation *sim = fresh(VICTORY_CONQUEST);
