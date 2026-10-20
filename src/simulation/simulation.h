@@ -225,10 +225,11 @@ public:
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
 	// resolution grows with the map: 64 cells on the default 128m map, 256 on a
-	// 512m 0 A.D. "Giant" map. grid_res_for_map() gives the resolution.
+	// 512m 0 A.D. "Giant" map, 344 on 0.28's largest map, Corinthian Isthmus (688 tiles).
+	// grid_res_for_map() gives the resolution.
 	static constexpr float SPATIAL_CELL = 2.0f;
 	static constexpr int MIN_GRID_RES = 64;
-	static constexpr int MAX_GRID_RES = 256;
+	static constexpr int MAX_GRID_RES = 344;
 	static int grid_res_for_map(float map_half);
 
 	enum FowState : uint8_t {
@@ -3729,6 +3730,7 @@ private:
 	void petra_end_emergency_rallies();
 	void petra_change_diplomacy(uint8_t player, uint8_t stance);
 	void petra_last_man_standing_check();
+	int petra_player_units(uint8_t player) const;
 	int petra_player_entities(uint8_t player) const;
 	bool petra_path_crosses_water(float x0, float z0, float x1, float z1) const;
 	bool petra_find_beach(float land_x, float land_z, float toward_x, float toward_z, float &out_x, float &out_z) const;

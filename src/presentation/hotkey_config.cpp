@@ -5,6 +5,7 @@
 #include <godot_cpp/classes/input_event_mouse_button.hpp>
 
 #include "hotkeys_godot.h"
+#include "l10n.h"
 
 namespace hk = rtso::hotkeys;
 
@@ -32,6 +33,14 @@ void RtsoHotkeyConfig::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("display", "name"), &RtsoHotkeyConfig::display);
 	ClassDB::bind_method(D_METHOD("display_combo", "combo"), &RtsoHotkeyConfig::display_combo);
 	ClassDB::bind_method(D_METHOD("is_held", "name"), &RtsoHotkeyConfig::is_held);
+	ClassDB::bind_method(D_METHOD("colorize", "text", "name"), &RtsoHotkeyConfig::colorize);
+}
+
+String RtsoHotkeyConfig::colorize_hotkey(const String &text, const String &name) {
+	const std::string label = hk::table().label(to_std(name));
+	const String key = label.empty() ? rtso::sprintf0(rtso::tr0("Unassigned hotkey: %(hotkeyName)s"), {{"hotkeyName", name}})
+	                                 : to_godot(label);
+	return rtso::sprintf0(text, {{"hotkey", rtso::hotkey_tag(key)}});
 }
 
 Dictionary RtsoHotkeyConfig::get_hotkey_map() const {
