@@ -15760,22 +15760,40 @@ void Simulation::check_victory_conditions(float dt) {
 	if (one_side && fought) end_match(standing);
 }
 
+// UnitAI.OnOwnershipChanged on unit u (Player.js turns a defeated player's units Gaia's;
+// the convert cheat): orders, queue and work orders go (Stop), trading stops, it guards no
+// one, and its stance goes back to the template default (a turret keeps its turret stance
+// and gets the default back when it leaves).
+void Simulation::reset_unit_for_new_owner(size_t u) {
+	const uint32_t id = units_.id[u];
+	units_.has_order[u] = 0;
+	units_.target_unit_id[u] = 0;
+	units_.target_building_id[u] = 0;
+	units_.target_resource_id[u] = 0;
+	units_.waypoint_cur[u] = units_.waypoint_count[u] = 0;
+	if (u < unit_paths_.size()) unit_paths_[u].clear();
+	if (units_.action_state[u] != ACTION_GARRISONED) units_.action_state[u] = ACTION_IDLE;
+	set_order(u, ORDER_NONE, 0, 0, units_.pos_x[u], units_.pos_z[u]);
+	order_queues_.erase(id);
+	work_orders_.erase(id);
+	guard_of_.erase(id);
+	trader_routes_.erase(id);
+	trader_leg_.erase(id);
+	trader_goods_.erase(id);
+	trader_route_points_.erase(id);
+	trader_route_idx_.erase(id);
+	const uint8_t def = unit_default_stance(units_.unit_type[u], units_.tmpl[u]);
+	if (auto it = turret_prev_stance_.find(id); it != turret_prev_stance_.end()) it->second = def;
+	else units_.stance[u] = def;
+}
+
 void Simulation::convert_to_gaia(uint8_t players) {
 	if (!players) return;
 	auto out = [players](uint8_t t) { return t < MAX_PLAYERS && ((players >> t) & 1); };
 	for (size_t u = 0; u < units_.count; ++u) {
 		if (!out(units_.team[u])) continue;
 		units_.team[u] = GAIA_PLAYER;
-		units_.has_order[u] = 0;
-		units_.target_unit_id[u] = 0;
-		units_.target_building_id[u] = 0;
-		units_.target_resource_id[u] = 0;
-		if (units_.action_state[u] != ACTION_GARRISONED) units_.action_state[u] = ACTION_IDLE;
-		trader_routes_.erase(units_.id[u]);
-		trader_leg_.erase(units_.id[u]);
-		trader_goods_.erase(units_.id[u]);
-		trader_route_points_.erase(units_.id[u]);
-		trader_route_idx_.erase(units_.id[u]);
+		reset_unit_for_new_owner(u);
 	}
 	bool roots = false;
 	for (auto &b : buildings_) {
@@ -18237,18 +18255,7 @@ void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
 		if (u >= 0) {
 			if (!units_.alive[u] || is_relic_unit(u) || units_.team[u] == to) continue;
 			units_.team[u] = to;
-			units_.has_order[u] = 0;
-			units_.target_unit_id[u] = 0;
-			units_.target_building_id[u] = 0;
-			units_.target_resource_id[u] = 0;
-			if (units_.action_state[u] != ACTION_GARRISONED) units_.action_state[u] = ACTION_IDLE;
-			order_queues_.erase(ids[k]);
-			work_orders_.erase(ids[k]);
-			trader_routes_.erase(ids[k]);
-			trader_leg_.erase(ids[k]);
-			trader_goods_.erase(ids[k]);
-			trader_route_points_.erase(ids[k]);
-			trader_route_idx_.erase(ids[k]);
+			reset_unit_for_new_owner((size_t)u);
 			continue;
 		}
 		auto it = building_id_to_idx_.find(ids[k]);
