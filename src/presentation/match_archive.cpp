@@ -909,9 +909,13 @@ void RtsoMain::host_start_saved_game() {
 	net_saved_game_ = String();
 }
 
+// A save's GUI data (session.js getSavedGameData), beside it in <name>.json.
+Dictionary RtsoMain::saved_gui(const String &path) {
+	return read_json(path.get_basename() + ".json").get("gui", Dictionary());
+}
+
 // session.js restoreSavedGameData: the camera, an empty selection and the control groups.
-void RtsoMain::restore_saved_gui(const String &path) {
-	const Dictionary gui = read_json(path.get_basename() + ".json").get("gui", Dictionary());
+void RtsoMain::restore_saved_gui(const Dictionary &gui) {
 	if (cam_rig && gui.has("camera")) cam_rig->set_camera_data(gui["camera"]);
 	const Array groups = gui.get("groups", Array());
 	for (int g = 0; g < 10; ++g) {

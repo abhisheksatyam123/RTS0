@@ -20,6 +20,7 @@ Host requirements (docs/BUILD.md has the details):
             never committed) unless GODOT_ANDROID_KEYSTORE_RELEASE_PATH/_USER/_PASSWORD are set.
   macos     on macOS: Xcode command-line tools. On Linux: zig (pip install ziglang) + llvm-lipo.
   ios       macOS with Xcode; the export is an Xcode project you sign and run from Xcode.
+            Godot needs your Apple team id for it: --ios-team-id or RTS0_IOS_TEAM_ID.
 
 Env:
   GODOT  path to the Godot 4.3 editor/headless binary
@@ -156,6 +157,21 @@ def build_ios_extension():
     run(["xcodebuild", "-create-xcframework", "-library", combined, "-output", xcf])
 
 
+def export_ios(godot, out, team_id):
+    """Exports the Xcode project with the team id written into the preset for this run only,
+    so it never lands in export_presets.cfg."""
+    cfg = REPO / "export_presets.cfg"
+    text = cfg.read_text()
+    key = 'application/app_store_team_id=""'
+    if key not in text:
+        sys.exit(f"ios: {key} not found in export_presets.cfg")
+    cfg.write_text(text.replace(key, f'application/app_store_team_id="{team_id}"', 1))
+    try:
+        run([godot, "--headless", "--path", REPO, "--export-release", "iOS", out])
+    finally:
+        cfg.write_text(text)
+
+
 def ensure_keystore():
     """A release keystore for sideloading. Kept under build/ (gitignored)."""
     if os.environ.get("GODOT_ANDROID_KEYSTORE_RELEASE_PATH"):
@@ -217,6 +233,8 @@ def main():
     ap.add_argument("--skip-scons", action="store_true", help="reuse the GDExtension libraries already in bin/")
     ap.add_argument("--skip-import", action="store_true", help="the assets are already imported")
     ap.add_argument("--package", action="store_true", help="also put one zip/apk per target in build/dist/")
+    ap.add_argument("--ios-team-id", default=os.environ.get("RTS0_IOS_TEAM_ID", ""),
+                    help="Apple team id for the iOS Xcode project (Xcode: Settings > Accounts)")
     args = ap.parse_args()
 
     targets = list(PRESETS.keys()) if "all" in args.targets else list(dict.fromkeys(args.targets))
@@ -225,6 +243,9 @@ def main():
         targets.remove("ios")
     if not targets:
         return
+    if "ios" in targets and not args.ios_team_id:
+        sys.exit("ios: Godot needs your Apple team id (Xcode > Settings > Accounts): "
+                 "pass --ios-team-id or set RTS0_IOS_TEAM_ID")
 
     if not args.skip_scons:
         for t in targets:
@@ -257,7 +278,10 @@ def main():
             shutil.rmtree(out.parent)
         out.parent.mkdir(parents=True, exist_ok=True)
         print(f"\n== Exporting {preset} -> {out} ==", flush=True)
-        run([godot, "--headless", "--path", REPO, "--export-release", preset, out])
+        if t == "ios":
+            export_ios(godot, out, args.ios_team_id)
+        else:
+            run([godot, "--headless", "--path", REPO, "--export-release", preset, out])
         if not out.exists():
             sys.exit(f"{preset}: Godot exited 0 but wrote no {out}")
         if t == "linux":
