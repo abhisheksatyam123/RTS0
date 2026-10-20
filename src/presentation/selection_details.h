@@ -150,6 +150,24 @@ inline String healer_tooltip(const Simulation::UnitDetails &d) {
 			part("Interval:", String::num(d.heal_interval, 1), d.heal_interval == 1.0f ? "second" : "seconds");
 }
 
+// The civ emblem tooltip's phase (selection_details.js): getEntityNames of
+// phase_<phase>_<civ>, else phase_<phase>. phase_village names every civ but the Germans;
+// only the Athenians and Persians have their own town and city phases.
+inline String civ_phase_name(uint8_t civ, int phase) {
+	static const char *const kGeneric[] = {"Village Phase", "Town Phase", "City Phase"};
+	static const char *const kVillage[] = {"Kōmē", "Kōmā", "Āvahana", "Vicus", "Kapr", "Kōmē", "Ialon", "Ialon", "Treba", "Gāma",
+			"Wḥyt", "Kōmē", "Kōmē", "Xiāng", nullptr, nullptr};
+	static_assert(sizeof(kVillage) / sizeof(kVillage[0]) == CIV_COUNT, "one village name per civ");
+	const int p = std::clamp(phase, 1, 3) - 1;
+	const char *specific = nullptr;
+	if (civ < CIV_COUNT) {
+		if (p == 0) specific = kVillage[civ];
+		else if (civ == CIV_ATHENIANS) specific = p == 1 ? "Kōmopolis" : "Megalopolis";
+		else if (civ == CIV_PERSIANS) specific = p == 1 ? "Vardana" : "Vazaraka Vardana";
+	}
+	return entity_names(kGeneric[p], specific ? String::utf8(specific) : String());
+}
+
 // getGatherTooltip: "Gather Rates: [fish] 0.80  [fruit] 1.00 ...", one icon per resource subtype in
 // data/resources order (food: fish, fruit, grain, meat; then wood, stone, metal). Ruins are left out, as in 0.28.
 inline String gather_tooltip(const Simulation::UnitDetails &d) {
