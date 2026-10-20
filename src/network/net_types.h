@@ -212,6 +212,10 @@ enum class NetCommandType : uint8_t {
 	// 0 A.D. "focus-fire" (BuildingAI.AddFocusTarget): structures in entity_ids aim their arrows
 	// at target_id first. param bit NET_PARAM_QUEUED adds it to the end; NET_PARAM_PUSH_FRONT puts it first.
 	NET_CMD_FOCUS_FIRE = 50,
+	// Gather on a supply the player remembers but which is gone (its mirage clicked): the units in
+	// entity_ids gather the same kind near (target_x, target_z), else walk there. target_id = the
+	// generic type | subtype << 8; param bit NET_PARAM_QUEUED as for gather (4).
+	NET_CMD_GATHER_NEAR = 51,
 	// Session control, not game commands (200+ is reserved for these; game command
 	// ids keep growing from 44). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.

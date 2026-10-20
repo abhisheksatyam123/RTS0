@@ -457,6 +457,28 @@ int main() {
 		CHECK(!to_t4 && s.units_.target_resource_id[i] == t3);
 	}
 
+	// 19. A right click on a stone mine used up in the fog (its mirage): Order.Gather on the mirage
+	// fails where it stood and FINDINGNEWTARGET takes the same type.specific near it (UnitAI.js
+	// :2552-2555, :2591-2660), not the tree beside it. With none near, the women walk there.
+	{
+		static Simulation s;
+		fresh(s);
+		s.set_explore_map(true);
+		s.spawn_resource_world(9.0f, 0.0f, RES_WOOD, 200);
+		const uint32_t mine = s.spawn_resource_world(15.0f, 0.0f, RES_STONE, 500);
+		uint32_t w[3];
+		for (int k = 0; k < 3; ++k) w[k] = s.spawn_unit(0.0f, 2.0f * (float)k, 0, UNIT_FEMALE_CITIZEN);
+		s.order_gather_near(w, 3, 8.0f, 0.0f, RES_STONE, RES_SUB_NONE);
+		int on_mine = 0;
+		for (uint32_t id : w) on_mine += s.units_.target_resource_id[s.lookup_unit(id)] == mine;
+		s.order_gather_near(w, 1, 60.0f, 60.0f, RES_STONE, RES_SUB_NONE);
+		const int32_t i = s.lookup_unit(w[0]);
+		std::printf("  gone mine's mirage: %d of 3 women take the stone mine near it; with none near, order %d to (%.0f, %.0f)\n",
+				on_mine, (int)s.units_.order_kind[i], s.units_.order_x[i], s.units_.order_z[i]);
+		CHECK(on_mine == 3);
+		CHECK(s.units_.order_kind[i] == ORDER_WALK && s.units_.order_x[i] == 60.0f && s.units_.order_z[i] == 60.0f);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

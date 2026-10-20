@@ -70,6 +70,20 @@ Combat, loot, territory, garrison, capture, rally points, trade and camps agains
 
 Checked and matching in this pass: attack bonuses, resistance, attack timers and MinRange, projectile spread and hit order, splash falloff, status effects, loot and XP, capture point scaling, delete rules, death damage numbers, retargeting, slaughter; territory decay and its split, Gaia decay, root structures, capture's effects on rally, queue, upgrades and focus, blocked training spawns, self-garrison rallies, EjectHealth, ungarrison placement, flee, cheer, formation-less patrol, Call to Arms, returning with no dropsite, after-build follow-ups, mercenary camps and military colonies.
 
+### Unit orders, sixth 0.28 pass (2026-10-20)
+
+Orders, stances, garrison, capture, loot and fleeing against UnitAI.js and the 0.28 GUI. Capture points, loot and xp, garrison ejection, turrets, patrol and stance ranges match. Picking hidden targets is A's (Vision). Owner: Unit orders.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| Q1 | ~~Attack-move, attack-walk rallies and rallies on an enemy structure capture structures~~ Fixed: unit_actions.js "attack-move" and RallyPointCommands.js attack-walk send no allowCapture (UnitAI DEFAULT_CAPTURE false), and a rally "attack" captures only a target without hitpoints, so they damage structures; right-click capture, call-to-arms with session.capture and Petra keep their choice. `tools/test_unit_orders.cpp` 88 | high | Fixed |
+| Q2 | ~~Collect-treasure and return-resource aren't forced orders: walkers fight or flee on the way~~ Fixed: a player's or Petra's CollectTreasure and ReturnResource are forced (UnitAI.js:5742-5774), so attacks don't turn them, and neither walk picks targets it sees; UnitAI's own drop-offs stay unforced. `tools/test_unit_orders.cpp` 90 | medium | Fixed |
+| Q3 | ~~Poison and burning ticks don't count as attacks~~ Fixed: each tick is an Attacked message (StatusEffectsReceiver.js:141-153); the poisoned unit's own UnitAI ignores it (OnAttacked returns for fromStatusEffect), but Guard.js sends its guards after the source. `tools/test_unit_orders.cpp` 91 | low | Fixed |
+| Q4 | A defensive unit's held position follows it while it moves and gathers, and a given-up chase resumes the interrupted order instead of walking back (UnitAI.js:325, 341, 2100-2105) | low | Open |
+| Q5 | ~~Only the killer cheers, and never a siege engine or ship~~ Fixed: COMBAT.ATTACKING sets shouldCheer for any unit or dangerous-animal target (UnitAI.js:2214-2217), so every attacker cheers in FINDINGNEWTARGET whoever killed it; a structure target or an abandoned chase doesn't; CheeringTime is in template_unit.xml, so siege engines and ships cheer and join nearby cheers. `tools/test_unit_orders.cpp` 93 | low | Fixed |
+| Q6 | ~~A defeated player's units turned Gaia keep their stance, orders and queue~~ Fixed: UnitAI.OnOwnershipChanged (UnitAI.js:3665-3702) stops them, drops the queue, work orders, trading and guarding, and resets the template's default stance, for Player.js defeat and the convert cheat alike. `tools/test_unit_orders.cpp` 92 | low | Fixed |
+| Q7 | ~~A fleeing unit ignores a second attacker farther off than the one it flees from~~ Fixed: FLEEING.Attacked (UnitAI.js:2040-2049) measures the unit's distance to itself (msg.data.target is the attacked entity), so it answers every attacker but the one fled from. Flights from structures need nothing: distanceToFlee and the range check both use edge distance, so the flight runs FleeDistance further either way. `tools/test_unit_orders.cpp` 43 | low | Fixed |
+
 
 Kept on purpose: the RTS0 villager rows stay as the worker class's default for old saves and pre-roster spawns, but nothing trains one by name (#1014); Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
 
@@ -79,13 +93,13 @@ Production queues, upgrades, foundations, capture/decay, build restrictions, tec
 
 | # | Difference from 0.28 | Impact | Status |
 |---|---|---|---|
-| Q1 | Petra remembers a failed placement per structure kind (8 bits) until it places one; 0.28 marks the template unbuildable for 90 s (setUnbuildable "room") and expands when over one template is missing room | medium | Open |
-| Q2 | Petra scans wanted/preferred techs in tech-id order; 0.28 walks researchers in creation order and their Researcher lists (Iron Axe Heads before Iron Plow) | low-medium | Open |
-| Q3 | Petra re-picks its random minor tech every 5th turn while it waits for resources; 0.28 keeps the queued plan | low-medium | Open |
-| Q4 | Petra lays foundations with no living builder; 0.28's canBuild needs one (120 s "nobuilder") | low | Open |
+| Q1 | Petra remembers a failed placement per structure kind (8 bits) until it places one; 0.28 marks the template unbuildable for 90 s (setUnbuildable "room") and expands when over one template is missing room | medium | Fixed on main (petra_room_: 90 s marks per structure, counted for expansion) |
+| Q2 | Petra scans wanted/preferred techs in tech-id order; 0.28 walks researchers in creation order and their Researcher lists (Iron Axe Heads before Iron Plow) | low-medium | Fixed |
+| Q3 | Petra re-picks its random minor tech every 5th turn while it waits for resources; 0.28 keeps the queued plan | low-medium | Fixed |
+| Q4 | Petra lays foundations with no living builder; 0.28's canBuild needs one (120 s "nobuilder") | low | Fixed: no plan is paid for without a living builder |
 | Q5 | constructTrainingBuildings counted every phase-1 structure as Village and only BLD_BARRACKS as Barracks (academy, Ptolemaic merc camp) | low | Fixed |
 | Q6 | buildDefenses' base count left out military colonies | low | Fixed |
-| Q7 | A fortress with no frontier spot isn't stamped or marked; it rescans every 3rd turn | low | Open (with Q1) |
+| Q7 | A fortress with no frontier spot isn't stamped or marked; it rescans every 3rd turn | low | Fixed on main (no spot: the next try waits 90 s) |
 | Q8 | Allied land counted as ours (defensive frontier) or as frontier (market) whatever the victory mode; 0.28 shares it only under allied victory | low | Fixed |
 | Q9 | Palisades counted as walls in findPosition (class Palisade, not Wall) | low | Fixed |
 | Q10 | The village tech cost gate counted queued trainees as workers | low | Fixed |
@@ -93,10 +107,10 @@ Production queues, upgrades, foundations, capture/decay, build restrictions, tec
 | Q12 | Hellenistic Metropolis also doubled Seleucid military colonies (CivCentre !Colony) | medium | Fixed (a captured crannog, !Naval, still gets it) |
 | Q13 | Corralled animals didn't get garrison_heal's +1 | low | Fixed |
 | Q14 | An upgraded structure kept its rally point and autoqueue (Transform.js makes a new entity) | low | Fixed |
-| Q15 | Autoqueue re-adds the remainder of a batch whose spawning was blocked, not the chosen batch size | low | Open |
-| Q16 | A destroyed foundation refunds from today's price, not the price paid (Foundation.js stores costs) | low | Open |
-| Q17 | Construction tooltip's Heal line ignores garrison_heal; detailed training tooltips show base template stats, not the player's | low | Open |
-| Q18 | Upgrade tooltip cost isn't multiplied by the number of selected same-template structures | low | Open (check behaviour first) |
+| Q15 | Autoqueue re-adds the remainder of a batch whose spawning was blocked, not the chosen batch size | low | Fixed (save v102): each queued batch keeps its original size |
+| Q16 | A destroyed foundation refunds from today's price, not the price paid (Foundation.js stores costs) | low | Fixed: the costs are kept at placement |
+| Q17 | Construction tooltip's Heal line ignores garrison_heal; detailed training tooltips show base template stats, not the player's | low | Heal line fixed (garrison_heal counted); detailed training stats per player open |
+| Q18 | Upgrade tooltip cost isn't multiplied by the number of selected same-template structures | low | Fixed: every selected structure of the type upgrades, so the cost is for all of them |
 
 Checked and matching: queue limits, batch time modifiers, pop blocking, entity limits, research cost multipliers, upgrade cost/time/carry-over, foundation and repair rates, capture regen and ownership flip, territory decay rates, garrison healing, build restriction distances, every tech's cost/time/requirements/supersedes, researcher lists, civ bonuses, and the training/research/construction tooltips.
 

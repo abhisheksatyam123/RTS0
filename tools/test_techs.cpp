@@ -426,6 +426,23 @@ int main() {
 		research(TECH_COLONIZATION, -10.0f);
 		CHECK(s.tech_mods(0).bld_cost[BLD_HOUSE][RES_WOOD] == 0.75f);
 		CHECK(s.tech_mods(0).bld_cost[BLD_BARRACKS][RES_WOOD] == 1.0f); // not Civic
+		// Foundation.js keeps the costs a foundation was placed for: Colonization researched
+		// after placing doesn't cut its refund.
+		{
+			fresh(s);
+			s.set_player_civ(CIV_CARTHAGINIANS);
+			s.player(0).phase = 3;
+			float c[RES_COUNT], c2[RES_COUNT];
+			s.structure_cost(0, BLD_HOUSE, -1.0f, c);
+			uint32_t f = s.spawn_building_world(10.0f, 10.0f, BLD_HOUSE, 0, 0.0f);
+			s.complete_research(0, TECH_COLONIZATION);
+			s.structure_cost(0, BLD_HOUSE, -1.0f, c2);
+			const float wood0 = s.player(0).res[RES_WOOD];
+			s.cmd_delete(0, &f, 1);
+			std::printf("house foundation placed at %.0f wood, %.0f after Colonization: refund %.0f\n", c[RES_WOOD], c2[RES_WOOD],
+			            s.player(0).res[RES_WOOD] - wood0);
+			CHECK(c2[RES_WOOD] < c[RES_WOOD] && s.player(0).res[RES_WOOD] - wood0 == std::ceil(c[RES_WOOD]));
+		}
 
 		// Hellenistic Metropolis: "CivCentre !Colony" (Seleucid military colonies keep theirs).
 		fresh(s);
