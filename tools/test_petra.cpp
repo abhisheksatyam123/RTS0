@@ -6085,6 +6085,32 @@ static void test_order_plan_tags() {
 // headquarters.js:411 trainMoreWorkers counts only units with no plan: one an attack or raid
 // took keeps plan -1 after it leaves (attackPlan.js removeUnit), and so do the emergency units,
 // so Petra trains new workers in their place.
+// baseManager.js assignRolelessUnits: Worker, CitizenSoldier and FishingBoat units and Support
+// Elephants take the Worker role, so trainMoreWorkers and getAccountedWorkers count fishing
+// boats, citizen cavalry and worker elephants (as support units) too.
+static void test_worker_roles() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	int supports = 0;
+	const int before = s->petra_unplanned_workers(supports);
+	const int supports_before = supports;
+	const int accounted = s->petra_accounted_workers(false);
+	float x = 0.0f, z = 0.0f;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1) { x = s->units_.pos_x[i]; z = s->units_.pos_z[i]; break; }
+	s->spawn_unit(x + 2.0f, z, 1, UNIT_CAVALRY);
+	s->spawn_unit(x, z + 2.0f, 1, UNIT_WORKER_ELEPHANT);
+	s->spawn_unit(x - 2.0f, z, 1, UNIT_FISHING_BOAT);
+	CHECK(s->petra_unplanned_workers(supports) == before + 3, "a citizen cavalryman, a worker elephant and a fishing boat are workers");
+	CHECK(supports == supports_before + 1, "the worker elephant as a support unit");
+	CHECK(s->petra_accounted_workers(false) == accounted + 3, "and accounted workers");
+}
+
 static void test_out_of_plan_workers() {
 	auto make = [] {
 		auto s = std::make_unique<Simulation>();
@@ -7446,6 +7472,7 @@ int main(int argc, char **argv) {
 	RUN(test_raid_takes_siege);
 	RUN(test_raid_cc_foundation);
 	RUN(test_order_plan_tags);
+	RUN(test_worker_roles);
 	RUN(test_out_of_plan_workers);
 	RUN(test_dropsites);
 	RUN(test_building_plan_028);

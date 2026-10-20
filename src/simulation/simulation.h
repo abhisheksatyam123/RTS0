@@ -109,7 +109,7 @@ struct ProductionOrder {
 // The metadata Petra trains a batch with (queueplanTraining.js): a worker (role worker, no
 // plan), a soldier for the attack in preparation or for the raid (plan), or none.
 // PETRA_ORDER_EMERGENCY: headquarters.js trainEmergencyUnits queues them with metadata plan -1.
-// PETRA_ORDER_TRADER: tradeManager.js trainMoreTraders (role trader; saved from v111).
+// PETRA_ORDER_TRADER: tradeManager.js trainMoreTraders (role trader; saved from v112).
 enum PetraOrderPlan : uint8_t { PETRA_ORDER_NONE = 0, PETRA_ORDER_WORKER, PETRA_ORDER_ATTACK, PETRA_ORDER_RAID, PETRA_ORDER_EMERGENCY, PETRA_ORDER_TRADER };
 // ProductionQueue.js MaxQueueSize.
 static constexpr size_t PRODUCTION_QUEUE_MAX = 16;
@@ -182,9 +182,10 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 111; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 112; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_PASS5 = 112; // Petra's trade and transport ships, house plans, new bases
+	static constexpr uint32_t SAVE_VERSION_UNIT_AUTOQUEUE = 111; // unit trainers' queue clocks and autoqueue
 	static constexpr uint32_t SAVE_VERSION_QUEUE_CLOCK = 110; // each structure's time into its production queue's second
-	static constexpr uint32_t SAVE_VERSION_PETRA_PASS5 = 111; // Petra's trade ships and their switches, its house plans
 	static constexpr uint32_t SAVE_VERSION_FAUNA_ROAM = 108; // each animal's MoveRandomly roamAngle and startAngle
 	static constexpr uint32_t SAVE_VERSION_PETRA_TILE_BASES = 107; // the base that claimed each of Petra's territory tiles
 	static constexpr uint32_t SAVE_VERSION_CHASE_TARGET = 105; // the target each unit was last in attack range of (UnitAI CHASING)
@@ -864,6 +865,7 @@ public:
 	// The technology a training unit's Trainer list entry requires (unit_trainer_data.h), or TECH_NONE.
 	static uint8_t unit_trainee_tech(uint16_t trainer_tmpl, uint16_t trainee);
 	static bool unit_is_trainer(uint16_t tmpl); // trains or researches (Trainer or Researcher)
+	static bool unit_trains_units(uint16_t tmpl); // has a Trainer list (autoqueue applies)
 	// 0 A.D. Researcher on a unit (Athenian triremes: Iphicratean Reforms): the technologies the
 	// roster unit `tmpl` researches, and queueing one (research_check's rules, without a structure).
 	static std::vector<uint8_t> unit_researchables(uint16_t tmpl);
@@ -873,7 +875,12 @@ public:
 	struct UnitQueue {
 		uint8_t player = 0;
 		std::vector<ProductionOrder> orders; // never empty
+		float clock = 0.0f; // time into the queue's current second (ProgressTimeout)
 	};
+	// ProductionQueue.js autoqueuing on a unit that trains (kept while its queue is empty).
+	bool unit_autoqueue(uint32_t unit_id) const {
+		return std::binary_search(unit_autoqueue_.begin(), unit_autoqueue_.end(), unit_id);
+	}
 	const std::map<uint32_t, UnitQueue> &unit_queues() const { return unit_queues_; }
 	const std::vector<ProductionOrder> *unit_queue(uint32_t unit_id) const {
 		auto it = unit_queues_.find(unit_id);
@@ -2003,7 +2010,7 @@ public:
 	// raid squad held (attackPlan.js removeUnit) and the emergency units (trainEmergencyUnits).
 	// 0.28 never clears it, so trainMoreWorkers doesn't count them as workers again.
 	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_out_of_plan_;
-	// Petra's merchant ships with the trader role, sorted ids (saved v111): trained by
+	// Petra's merchant ships with the trader role, sorted ids (saved v112): trained by
 	// trainMoreTraders, or transport ships it switched; petra_switch_ships_ the ones to switch once
 	// their transport plan ends (ROLE_SWITCH_TO_TRADER). Every other merchant ship is a transport.
 	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_trade_ships_, petra_switch_ships_;
@@ -2785,6 +2792,13 @@ private:
 	std::vector<UnitUpgrade> unit_upgrades_; // in start order (saved v45)
 	// Production queues of units that train, by unit id (saved SAVE_VERSION_UNIT_TRAINERS).
 	std::map<uint32_t, UnitQueue> unit_queues_;
+	std::vector<uint32_t> unit_autoqueue_; // sorted ids of units that autoqueue
+	void set_unit_autoqueue(uint32_t unit_id, bool on) {
+		auto pos = std::lower_bound(unit_autoqueue_.begin(), unit_autoqueue_.end(), unit_id);
+		const bool has = pos != unit_autoqueue_.end() && *pos == unit_id;
+		if (on && !has) unit_autoqueue_.insert(pos, unit_id);
+		else if (!on && has) unit_autoqueue_.erase(pos);
+	}
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
 	void tick_ship_pickups();

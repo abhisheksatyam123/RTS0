@@ -1218,6 +1218,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u8(kv.second.orders.front().count);
 		mix_u8(kv.second.orders.front().tech);
 		mix_float(kv.second.orders.front().timer);
+		mix_float(kv.second.clock);
 	}
 
 	// 2d. Trade routes (Trader.js markets, goods and SetupTradeRoute route): every trader's

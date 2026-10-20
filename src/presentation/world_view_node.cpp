@@ -4131,8 +4131,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	};
 	// template_unit_fauna.xml RetainInFog: an animal stays drawn where it is in explored fog
 	// (CCmpRangeManager VIS_FOGGED with no Fogging mirage), hidden only in unexplored land.
-	auto fauna_visible = [sim, this](float x, float z) {
-		return rtso::los_sees_all(*sim, local_player_) || mirages_.los_at(x, z) != rtso::Simulation::FOW_UNEXPLORED;
+	// Corral livestock (gaia/fauna_*_trainable RetainInFog false) shows only in sight, or to its
+	// owner and those it shares sight with.
+	auto fauna_visible = [sim, this](float x, float z, uint8_t ftype, uint8_t owner) {
+		if (rtso::los_sees_all(*sim, local_player_)) return true;
+		if (rtso::fauna_retained_in_fog(ftype)) return mirages_.los_at(x, z) != rtso::Simulation::FOW_UNEXPLORED;
+		return (owner < rtso::MAX_PLAYERS && sim->shares_los(local_player_, owner)) || mirages_.los_at(x, z) == rtso::Simulation::FOW_VISIBLE;
 	};
 	// Resource id -> subtype, sorted for binary search (reused buffer, no per-frame hashing).
 	res_sub_.clear();
@@ -5150,7 +5154,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	int f_counts[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (fview.behavior[f] == rtso::FAUNA_CORRALLED) continue; // garrisoned: hidden, the corral flies its flag
-		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f])) continue;
+		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f], fview.fauna_type[f], fview.owner[f])) continue;
 		if (fview.fauna_type[f] >= rtso::FAUNA_COUNT) continue;
 		const int ft = fauna_row(fview.fauna_type[f], fview.id[f]);
 		// Baked before the first count, so both passes pick the same clips.
@@ -5171,7 +5175,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	int f_written[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (fview.behavior[f] == rtso::FAUNA_CORRALLED) continue; // garrisoned: hidden, the corral flies its flag
-		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f])) continue;
+		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f], fview.fauna_type[f], fview.owner[f])) continue;
 		uint8_t ft = fview.fauna_type[f];
 		if (ft >= rtso::FAUNA_COUNT) continue;
 		const int row = fauna_row(ft, fview.id[f]);

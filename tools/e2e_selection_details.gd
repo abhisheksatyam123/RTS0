@@ -31,7 +31,7 @@ func run() -> void:
 	print("unit: ", u)
 	check(u["visible"], "a selected unit shows the details panel")
 	check(not String(u["health"]).begins_with("Health: ") and " / " in String(u["health"]), "health reads \"current / max\" (healthStats, rounded up, no label)")
-	var tip := String(u["stats_tooltip"])
+	var tip := String(u["attack_resistance"])
 	check(tip.begins_with("Attack:\n"), "the detailed tooltip opens with the attack")
 	check("Hack" in tip and "Interval: " in tip and "Range: " in tip, "the attack names its damage types, range and interval")
 	check(tip.begins_with("Attack:\n  Capture: ") and "\n  Spear: " in tip, "each attack of the template in its order, under the weapon's name (getAttackTooltip)")
@@ -42,7 +42,7 @@ func run() -> void:
 	check("grain_small.png" in gather and gather.find("fruit_small.png") < gather.find("grain_small.png") and gather.find("grain_small.png") < gather.find("wood_small.png"),
 			"gather rates show 0.28's subtype icons in data/resources order (getGatherTooltip): " + gather)
 	check("Loot: " in tip, "the loot closes the tooltip")
-	check(String(u["stats"]).contains("Damage: "), "the stats lines show the attack and resistance")
+	check(String(u["stats"]) == "" and String(u["attack_resistance"]).contains("Damage: "), "attack and resistance are the stance icon's tooltip, not text (attackAndResistanceStats)")
 	var ptip := String(u["portrait_tooltip"])
 	check(ptip.begins_with(String(u["title"])), "the portrait tooltip names the unit")
 	check("\nClasses: " in ptip, "then its visible classes")
@@ -82,17 +82,17 @@ func run() -> void:
 
 	var b: Dictionary = main.debug_inspector("building")
 	print("building: ", b)
-	check(String(b["stats_tooltip"]).begins_with("Attack:\n  Bow: ") and " arrows / " in String(b["stats_tooltip"]), "a Civic Center's tooltip opens with its arrows, \"Rate: n arrows / 4 seconds\"")
+	check(String(b["attack_resistance"]).begins_with("Attack:\n  Bow: ") and " arrows / " in String(b["attack_resistance"]), "a Civic Center's tooltip opens with its arrows, \"Rate: n arrows / 4 seconds\"")
 	# elevationAdaptedRange: the range its arrows' height and the ground round it give, when that
 	# differs ("Range: 67 (+3) meters"); the map is random, so the number varies.
-	var rng_m := RegEx.create_from_string("Bow: [^\\n]*Range: (\\d+)( \\(([+-]\\d+)\\))? meters").search(String(b["stats_tooltip"]))
+	var rng_m := RegEx.create_from_string("Bow: [^\\n]*Range: (\\d+)( \\(([+-]\\d+)\\))? meters").search(String(b["attack_resistance"]))
 	print("    range ", rng_m.get_string(0) if rng_m else "none")
 	check(rng_m != null and (rng_m.get_string(3) == "" or int(rng_m.get_string(3)) != 0), "its range, with what the ground there adds")
-	check("\nResistance:\n" in String(b["stats_tooltip"]), "then its resistance")
-	check("\n  Status Effects: Blocks Poisoned" in String(b["stats_tooltip"]), "which blocks Poisoned, as every 0.28 structure's does")
-	check("Projectile Limit: " in String(b["stats_tooltip"]) and ", Per Unit: " in String(b["stats_tooltip"]), "its projectile limit, default and per unit")
-	check("Population Bonus: " in String(b["stats_tooltip"]) and "\nLoot: " in String(b["stats_tooltip"]), "its population bonus and loot")
-	check("Garrison Limit: " in String(b["stats_tooltip"]), "and its garrison limit")
+	check("\nResistance:\n" in String(b["attack_resistance"]), "then its resistance")
+	check("\n  Status Effects: Blocks Poisoned" in String(b["attack_resistance"]), "which blocks Poisoned, as every 0.28 structure's does")
+	check("Projectile Limit: " in String(b["attack_resistance"]) and ", Per Unit: " in String(b["attack_resistance"]), "its projectile limit, default and per unit")
+	check("Population Bonus: " in String(b["attack_resistance"]) and "\nLoot: " in String(b["attack_resistance"]), "its population bonus and loot")
+	check("Garrison Limit: " in String(b["attack_resistance"]), "and its garrison limit")
 	check(String(b["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/structures/"), "a Civic Center shows its template's 0.28 icon")
 	check(String(b["portrait_tooltip"]).ends_with("Left-click to focus. Right-click for more information.") and "Territory root." in String(b["portrait_tooltip"]), "its portrait tooltip gives the template tooltip and the focus click")
 	check(String(b["rank_icon"]) == "", "a structure has no rank glyph")
@@ -127,8 +127,8 @@ func run() -> void:
 	var f: Dictionary = main.debug_inspector("fauna")
 	print("fauna: ", f)
 	check(String(f["resource"]).begins_with("Food: ") and " / " in String(f["resource"]), "an animal's resource bar shows its food, amount / max")
-	check(String(f["stats_tooltip"]).contains("Resistance:"), "and its resistance")
-	check(String(f["stats_tooltip"]).contains("\nSpeed: ") and " Walk, " in String(f["stats_tooltip"]), "and its speed (getSpeedTooltip)")
+	check(String(f["attack_resistance"]).contains("Resistance:"), "and its resistance")
+	check(String(f["attack_resistance"]).contains("\nSpeed: ") and " Walk, " in String(f["attack_resistance"]) and " Acceleration" in String(f["attack_resistance"]), "and its speed with acceleration (getSpeedTooltip)")
 	check(String(f["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/gaia/fauna_"), "an animal shows its template's icon")
 	check(String(f["owner"]) == "Gaia" and String(f["owner_tooltip"]) == "" and Color(f["owner_color"]).a == 0.0, "Gaia has no colour, emblem or tooltip")
 
@@ -139,15 +139,15 @@ func run() -> void:
 	for i in 30: # they walk aboard
 		await frames(10)
 		rt = main.debug_inspector(str(ram[0]))
-		if "Garrison Size: 1 + 2" in String(rt["stats_tooltip"]):
+		if "Garrison Size: 1 + 2" in String(rt["attack_resistance"]):
 			break
-	print("ram: ", String(rt["stats_tooltip"]).replace("\n", " | "))
-	check("\nGarrison Limit: " in String(rt["stats_tooltip"]), "a ram's tooltip gives its Garrison Limit (getGarrisonTooltip)")
-	check("\nGarrison Size: 1 + 2" in String(rt["stats_tooltip"]), "and its Garrison Size with what it carries")
+	print("ram: ", String(rt["attack_resistance"]).replace("\n", " | "))
+	check("\nGarrison Limit: " in String(rt["attack_resistance"]), "a ram's tooltip gives its Garrison Limit (getGarrisonTooltip)")
+	check("\nGarrison Size: 1 + 2" in String(rt["attack_resistance"]), "and its Garrison Size with what it carries")
 	var tower: PackedInt32Array = main.debug_spawn_units("mace/siege_tower", 1)
 	await frames(2)
 	var tw: Dictionary = main.debug_inspector(str(tower[0]))
-	check("\nProjectile Limit: 10, Default: 0, Per Unit: 1" in String(tw["stats_tooltip"]), "a siege tower's tooltip gives its projectiles (getProjectilesTooltip)")
+	check("\nProjectile Limit: 10, Default: 0, Per Unit: 1" in String(tw["attack_resistance"]), "a siege tower's tooltip gives its projectiles (getProjectilesTooltip)")
 
 	main.debug_spawn_fauna(2, 2, true) # FAUNA_SHEEP
 	main.debug_spawn_fauna(31, 1, true) # FAUNA_GOAT
