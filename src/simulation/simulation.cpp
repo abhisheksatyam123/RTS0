@@ -21251,10 +21251,25 @@ bool Simulation::petra_train_emergency_units(const std::vector<std::pair<float, 
 
 	const TechClasses arrow_classes = building_ai_info(cc.type).garrison_arrow_classes;
 	uint16_t found = CIV_UNIT_TEMPLATE_NONE;
-	for (uint16_t tmpl : civ_roster_ids(civ)) {
+	// trainableEntities(civ): the anchor's Trainer list in its own order ({civ} our civ), less
+	// the map's disabled templates; the roster order for a structure with no such list.
+	std::vector<uint16_t> trainables;
+	if (const char *names = trainer_civ_list(cc.civ, cc.type)) {
+		char id[96];
+		for (const char *p = names; *p;) {
+			const char *e = std::strchr(p, ' ');
+			const int n = e ? (int)(e - p) : (int)std::strlen(p);
+			std::snprintf(id, sizeof id, "%s/%.*s", civ_info(civ).code, n, p);
+			const uint16_t tmpl = civ_unit_template_by_id(id);
+			if (tmpl != CIV_UNIT_TEMPLATE_NONE) trainables.push_back(tmpl);
+			p += n + (e ? 1 : 0);
+		}
+	} else {
+		for (uint16_t tmpl : civ_roster_ids(civ)) trainables.push_back(tmpl);
+	}
+	for (uint16_t tmpl : trainables) {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
-		// The anchor's own Trainer list, less the map's disabled templates.
-		if (!(t.trainers & bld_bit(cc.type)) || triggers_.template_disabled(tmpl)) continue;
+		if (!building_trains_template(cc.type, cc.civ, civ, tmpl) || triggers_.template_disabled(tmpl)) continue;
 		if (t.phase > petra_ps().phase || !can_train_at(petra_pid_, t.unit_type, cc.type, tmpl)) continue;
 		const TechClasses cls = unit_classes(tmpl, t.unit_type);
 		if (!(cls & TC_INFANTRY) || !(cls & TC_CITIZENSOLDIER)) continue;
