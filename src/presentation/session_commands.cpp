@@ -129,6 +129,17 @@ void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld, 
 		command = rtso::RALLY_CMD_TRADE;
 }
 
+bool RtsoMain::rally_route_gain(uint32_t to, rtso::Simulation::TradeGain &g) const {
+	const rtso::Simulation::Building *from = nullptr, *dest = nullptr;
+	for (const auto &b : sim->buildings()) {
+		if (b.id == selected_building_id) from = &b;
+		if (b.id == to) dest = &b;
+	}
+	if (!from || !dest) return false;
+	g = sim->calculate_trade_gain(*from, *dest, local_player(), from->type == rtso::BLD_DOCK ? rtso::UNIT_MERCHANT_SHIP : rtso::UNIT_TRADER);
+	return true;
+}
+
 bool RtsoMain::selection_can_board(uint32_t holder) const {
 	if (!sim || !sim->is_transport(holder)) return false;
 	for (int s = 0; s < selected_ids.size(); ++s)

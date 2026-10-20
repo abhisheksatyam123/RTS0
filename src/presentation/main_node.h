@@ -869,6 +869,9 @@ private:
 	// (not one of the selected).
 	// cmd and ent: the RallyCommand and unit or treasure the target alone doesn't give.
 	void rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld, uint32_t *ent = nullptr, uint8_t *cmd = nullptr) const;
+	// GetTradingRouteGain for a default route from the selected market to market `to`, for
+	// the trader it trains (a merchant ship at a dock). False when either is gone.
+	bool rally_route_gain(uint32_t to, rtso::Simulation::TradeGain &g) const;
 	bool selection_can_board(uint32_t holder) const;
 	void update_hud();
 	void update_inspector();

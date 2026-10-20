@@ -92,7 +92,24 @@ void RtsoMain::update_cursor() {
 				} else if (rcmd == rtso::RALLY_CMD_TREASURE) {
 					want = "action-collect-treasure";
 				} else if (rcmd == rtso::RALLY_CMD_TRADE) {
+					// unit_actions.js "set-rallypoint" on another market: the route's gain for
+					// the trader this market trains, or "too close" with the disabled cursor.
 					want = "action-setup-trade-route";
+					rtso::Simulation::TradeGain g;
+					if (rally_route_gain(bld, g)) {
+						if (g.trader > 0) {
+							uint8_t to_owner = me;
+							for (const auto &b : sim->buildings())
+								if (b.id == bld) { to_owner = b.team; break; }
+							tip = rtso::tr0("Right-click to establish a default route for new traders.") + "\n" +
+									rtso::sprintf0(rtso::tr0("Gain: %(gain)s"), {{"gain", rtso::seldet::trading_gain(g.trader, me, g.market1, to_owner,
+											g.market2, me, [this](uint8_t pid) { return player_display_name(pid); })}});
+						} else {
+							want = "action-setup-trade-route-disabled";
+							tip = rtso::tr0("This market is too close to the origin market.");
+							tip_orange = true;
+						}
+					}
 				} else if (rcmd == rtso::RALLY_CMD_TURRET) {
 					want = "action-garrison";
 				} else if (res) {
