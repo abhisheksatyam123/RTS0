@@ -5740,6 +5740,31 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 	}
 }
 
+// A gather order on a supply the player remembers but which is gone (the click picked its
+// mirage, G/input.js): Order.Gather on a mirage walks to it, StartGathering fails there and
+// FINDINGNEWTARGET looks for the same type.specific near where it was (UnitAI.js:2459-2463,
+// :2552-2555, :2591-2660). The unit takes that supply, else walks to the spot.
+void Simulation::order_gather_near(const uint32_t *unit_ids_in, size_t count_in, float x, float z, uint8_t res_type,
+		uint8_t res_sub, bool queued) {
+	if (res_type >= RES_COUNT) return;
+	UnitOrder o; o.kind = ORDER_GATHER; o.target = 0; o.x = x; o.z = z;
+	o.flags = (uint8_t)((res_sub << ORDER_FLAG_SUB_SHIFT) & ORDER_FLAG_SUB_MASK);
+	o.res_type = (uint8_t)(res_type + 1);
+	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	for (uint32_t uid : now) {
+		const int32_t i = lookup_unit(uid);
+		if (i < 0 || !units_.alive[i]) continue;
+		const uint32_t r = find_nearby_resource(x, z, res_type, units_.team[i], res_sub);
+		auto rit = r ? res_id_to_idx_.find(r) : res_id_to_idx_.end();
+		if (rit != res_id_to_idx_.end() && can_gather((size_t)i, rit->second)) {
+			order_gather(&uid, 1, r);
+			continue;
+		}
+		if (unit_gather_class(units_.unit_type[i], units_.tmpl[i]) == GATHER_NONE) continue; // CanGather: no Rates
+		order_walk(&uid, 1, x, z);
+	}
+}
+
 void Simulation::order_attack(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_unit_id, bool queued) {
 	int32_t tidx = lookup_unit(target_unit_id);
 	if (tidx < 0) return;
@@ -11954,6 +11979,8 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		if (move_failed && kind == ORDER_RETURN_RESOURCE && st == ACTION_MOVE &&
 				!(units_.order_flags[i] & ORDER_FLAG_INTERRUPTED)) {
 			units_.action_state[i] = ACTION_RETURN_DROPSITE;
+			units_.target_x[i] = units_.pos_x[i]; // no pick yet: tick_gather takes the nearest
+			units_.target_z[i] = units_.pos_z[i];
 			units_.target_resource_id[i] = 0;
 			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
 			units_.waypoint_cur[i] = 0;
@@ -11965,6 +11992,9 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		// DROPPINGRESOURCES is out of range, so RETURNINGRESOURCE again: the nearest dropsite, and
 		// a new move to it from where the unit stands.
 		if (move_failed && st == ACTION_RETURN_DROPSITE) {
+			// The walk's goal is the pick tick_gather keeps; from here it picks the nearest again.
+			units_.target_x[i] = units_.pos_x[i];
+			units_.target_z[i] = units_.pos_z[i];
 			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
 			units_.waypoint_cur[i] = 0;
 			units_.waypoint_count[i] = 0;
@@ -12383,17 +12413,50 @@ void Simulation::tick_gather(float dt) {
 						drop_candidates.push_back((uint32_t)k);
 				}
 			}
-			for (const uint32_t bk : drop_candidates) {
+			// The finished structure takes this worker's load.
+			const auto takes_load = [&](const Building &b) {
+				if (b.build_progress < 1.0f || !dropsite_usable_by(uteam, b)) return false;
+				if (units_.unit_type[i] == UNIT_FISHING_BOAT) return is_naval_dropsite(b.type); // boats can only reach docks
+				if (is_civic_centre(b.type) || civ_building_is_dropsite(b.type)) return true;
+				if (b.type == BLD_STOREHOUSE && units_.res_type_carried[i] != RES_FOOD) return true;
+				if (is_food_dropsite(b.type) && units_.res_type_carried[i] == RES_FOOD) return true;
+				return b.type == BLD_DOCK; // template_structure_military_dock: every resource
+			};
+			// GATHER.RETURNINGRESOURCE picks the dropsite once, on enter (FindNearestDropsite into
+			// order.data.target), and APPROACHING only walks to it: a nearer one finished on the way
+			// waits for the next load. The pick is where the worker walks (target_x, target_z): a
+			// structure standing there, or the mobile dropsite that has moved on from it since
+			// last turn, is still the pick while it takes the load. A failed walk or a lost
+			// dropsite picks again (DROPPINGRESOURCES out of range: RETURNINGRESOURCE).
+			bool kept = false;
+			if (units_.action_state[i] == ACTION_RETURN_DROPSITE) {
+				const float tx0 = units_.target_x[i], tz0 = units_.target_z[i];
+				for (const uint32_t bk : drop_candidates) {
+					const Building &b = buildings_[bk];
+					if (b.x != tx0 || b.z != tz0 || !takes_load(b)) continue;
+					if (units_.unit_type[i] != UNIT_FISHING_BOAT && !petra_same_land(i, b) && stands_in_pocket(i) == 0) continue;
+					drop_x = b.x; drop_z = b.z; drop = &b;
+					kept = found_dropsite = true;
+					break;
+				}
+				if (!kept && units_.unit_type[i] != UNIT_FISHING_BOAT) {
+					float near_d2 = 1e9f;
+					for (uint32_t e : mobile_drops) {
+						if (!mobile_dropsite_usable_by(uteam, e)) continue;
+						const float ex = units_.pos_x[e] - tx0, ez = units_.pos_z[e] - tz0;
+						const float step = 2.0f * unit_walk_speed(e) * dt + 0.01f;
+						const float d2 = ex * ex + ez * ez;
+						if (d2 > step * step || d2 >= near_d2) continue;
+						near_d2 = d2;
+						drop_x = units_.pos_x[e]; drop_z = units_.pos_z[e]; drop = nullptr;
+						drop_half = unit_collision_radius(units_.unit_type[e]);
+						kept = found_dropsite = true;
+					}
+				}
+			}
+			if (!kept) for (const uint32_t bk : drop_candidates) {
 				const Building &b = buildings_[bk];
-				if (b.build_progress < 1.0f || !dropsite_usable_by(uteam, b)) continue;
-				bool valid_drop = false;
-				if (units_.unit_type[i] == UNIT_FISHING_BOAT) valid_drop = is_naval_dropsite(b.type); // boats can only reach docks
-				else if (is_civic_centre(b.type) || civ_building_is_dropsite(b.type)) valid_drop = true;
-				else if (b.type == BLD_STOREHOUSE && (units_.res_type_carried[i] != RES_FOOD)) valid_drop = true;
-				else if (is_food_dropsite(b.type) && (units_.res_type_carried[i] == RES_FOOD)) valid_drop = true;
-				else if (b.type == BLD_DOCK) valid_drop = true; // template_structure_military_dock: every resource
-
-				if (valid_drop) {
+				if (takes_load(b)) {
 					// FindNearestDropsite: the distance to the footprint (DistanceToPoint), where the
 					// load is dropped off, not to the centre.
 					const nav::Vec2 gap = nav::footprint_gap(b, units_.pos_x[i], units_.pos_z[i]);
@@ -12413,7 +12476,7 @@ void Simulation::tick_gather(float dt) {
 					}
 				}
 			}
-			if (units_.unit_type[i] != UNIT_FISHING_BOAT) {
+			if (!kept && units_.unit_type[i] != UNIT_FISHING_BOAT) {
 				for (uint32_t e : mobile_drops) {
 					if (!mobile_dropsite_usable_by(uteam, e)) continue;
 					const float half = unit_collision_radius(units_.unit_type[e]);
@@ -12664,7 +12727,11 @@ void Simulation::tick_gather(float dt) {
 					stat_gathered(uteam, rt, take, rt == RES_FOOD &&
 						(resources_.subtype[ridx] == RES_SUB_NONE || resources_.subtype[ridx] == RES_SUB_GRAIN));
 					if (units_.carry[i] >= carry_cap(i, rt) || resources_.amount[ridx] <= 0) {
-						if (units_.carry[i] >= carry_cap(i, rt)) units_.action_state[i] = ACTION_RETURN_DROPSITE;
+						if (units_.carry[i] >= carry_cap(i, rt)) {
+							units_.action_state[i] = ACTION_RETURN_DROPSITE;
+							units_.target_x[i] = units_.pos_x[i]; // no pick yet: tick_gather takes the nearest
+							units_.target_z[i] = units_.pos_z[i];
+						}
 						units_.attack_timer[i] = 0.0f;
 						break;
 					}
@@ -17000,6 +17067,8 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 			set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
 			units_.target_resource_id[i] = 0;
 			units_.action_state[i] = ACTION_RETURN_DROPSITE;
+			units_.target_x[i] = units_.pos_x[i]; // no pick yet: tick_gather takes the nearest
+			units_.target_z[i] = units_.pos_z[i];
 			return;
 		}
 		// UnitAI.js FINDINGNEWTARGET: nothing near the unit or where it started, but it
@@ -17770,6 +17839,8 @@ void Simulation::tick_unit_ai(float dt) {
 			if (now == ACTION_IDLE ||
 					structure_gap(b, units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i)) < reach) {
 				units_.action_state[i] = ACTION_RETURN_DROPSITE;
+				units_.target_x[i] = b.x; // the ordered dropsite is the pick
+				units_.target_z[i] = b.z;
 				units_.target_resource_id[i] = 0;
 			}
 			continue;
@@ -20379,6 +20450,8 @@ void Simulation::petra_manage_economy(float dt) {
 				// picking the nearest dropsite as for any return.
 				if (petra_mobile_dropsite_on_land(i)) {
 					units_.action_state[i] = ACTION_RETURN_DROPSITE;
+					units_.target_x[i] = units_.pos_x[i]; // no pick yet: tick_gather takes the nearest
+					units_.target_z[i] = units_.pos_z[i];
 					units_.has_order[i] = 1;
 					continue;
 				}
@@ -21079,7 +21152,8 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.subtype[r] != RES_SUB_MEAT) continue;
 		auto git = scan.on_carcass.find(resources_.id[r]);
 		consider(resources_.id[r], resources_.x[r], resources_.z[r], resources_.amount[r], resources_.max_gatherers[r],
-		         git == scan.on_carcass.end() ? 0 : git->second, false, -1, false);
+		         git == scan.on_carcass.end() ? 0 : git->second, false,
+		         resources_.owner[r] < MAX_PLAYERS ? (int)resources_.owner[r] : -1, false);
 	}
 	return best;
 }
@@ -24659,19 +24733,27 @@ bool Simulation::petra_phasing() const {
 
 void Simulation::petra_available_techs(std::vector<uint8_t> &out) const {
 	out.clear();
-	bool has[BLD_TYPE_COUNT] = {};
-	for (const auto &b : buildings_)
-		if (b.team == petra_pid_ && b.type < BLD_TYPE_COUNT && b.build_progress >= 1.0f && b.hp > 0.0f && !b.wrecked)
-			has[b.type] = true;
-	for (uint8_t t = 1; t < TECH_COUNT; ++t) {
-		if (t == TECH_PHASE_TOWN || t == TECH_PHASE_CITY) continue; // phases are treated separately
-		// gameState.findAvailableTech: what any of its finished researchers offers this civ.
-		bool offered = false;
-		for (uint8_t b = 0; b < BLD_TYPE_COUNT && !offered; ++b)
-			offered = has[b] && building_researches_tech(b, t, petra_ps().civ);
-		if (!offered) continue;
-		const ResearchCheck rc = research_check(petra_pid_, t);
-		if (rc == TECH_OK || rc == TECH_ERR_COST) out.push_back(t);
+	// gameState.findAvailableTech: Petra's structures in creation order (buildings_ only
+	// grows), each one's Researcher list in template order, every tech once.
+	const uint8_t civ = petra_ps().civ;
+	bool seen_type[BLD_TYPE_COUNT] = {};
+	TechSet listed;
+	uint8_t offers[TECH_COUNT];
+	for (const auto &b : buildings_) {
+		if (b.team != petra_pid_ || b.type >= BLD_TYPE_COUNT || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked ||
+		    seen_type[b.type])
+			continue;
+		seen_type[b.type] = true;
+		int n = 0;
+		for (uint8_t t = 1; t < TECH_COUNT; ++t)
+			if (t != TECH_PHASE_TOWN && t != TECH_PHASE_CITY && !listed.has(t) && building_researches_tech(b.type, t, civ))
+				offers[n++] = t; // phases are treated separately
+		std::stable_sort(offers, offers + n, [](uint8_t a, uint8_t c) { return kTechResearchRank[a] < kTechResearchRank[c]; });
+		for (int i = 0; i < n; ++i) {
+			listed.set(offers[i]);
+			const ResearchCheck rc = research_check(petra_pid_, offers[i]);
+			if (rc == TECH_OK || rc == TECH_ERR_COST) out.push_back(offers[i]);
+		}
 	}
 }
 
@@ -31316,6 +31398,7 @@ bool Simulation::load_state(const char *filepath) {
 		resources_.max_gatherers[idx] = resource_default_max_gatherers(rtype, RES_SUB_NONE, ramount); // v29+: saved
 		resources_.max_amount[idx] = 0; // tick state: saved, or the fruit default
 		resources_.flora[idx] = FLORA_DEFAULT; // v49+: the tick state has it
+		resources_.owner[idx] = 0xFF; // v101+: the tick state has it
 		resources_.alive[idx] = ralive;
 		resources_.count++;
 		res_id_to_idx_[rid] = idx;
@@ -32568,6 +32651,9 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	// v65: each carcass's animal template (older saves: none, so any species will do).
 	if (ar.version >= S::SAVE_VERSION_HUNT_SPECIES)
 		for (size_t r = 0; r < s.resources_.count; ++r) ar.pod(s.resources_.fauna[r]);
+	// v101: each carcass's animal's owner (older saves: none, as before).
+	if (ar.version >= S::SAVE_VERSION_CARCASS_OWNER)
+		for (size_t r = 0; r < s.resources_.count; ++r) ar.pod(s.resources_.owner[r]);
 
 	// 4. UnitAI orders (save v20): each unit's order, last attacker and work order,
 	// then the order queues by unit id.
@@ -33734,7 +33820,11 @@ uint32_t Simulation::spawn_carcass(size_t f) {
 	const uint32_t rid = spawn_resource_world(fauna_.pos_x[f], fauna_.pos_z[f], RES_FOOD, fauna_.food_amount[f],
 			fish ? RES_SUB_FISH : RES_SUB_MEAT, finfo.max_gatherers);
 	if (fish) resources_.max_amount[res_id_to_idx_[rid]] = -1; // no ResourceSupply/Change: it never regrows
-	else resources_.fauna[res_id_to_idx_[rid]] = (uint8_t)(fauna_.fauna_type[f] + 1); // its template
+	else {
+		const size_t r = res_id_to_idx_[rid];
+		resources_.fauna[r] = (uint8_t)(fauna_.fauna_type[f] + 1); // its template
+		resources_.owner[r] = fauna_owner_[f]; // Health.js: the corpse keeps its owner
+	}
 	return rid;
 }
 
