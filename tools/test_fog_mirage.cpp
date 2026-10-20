@@ -292,8 +292,11 @@ static void test_real_sim() {
 	CHECK(agrees && seen > 0, "drawn fog matches Simulation::los_visible / los_explored");
 	std::vector<uint8_t> obs;
 	rtso::los_view_grid(sim, rtso::OBSERVER_VIEW, obs);
-	CHECK(std::all_of(obs.begin(), obs.end(), [](uint8_t v) { return v == Simulation::FOW_VISIBLE; }),
-			"an observer sees the whole map");
+	// The map's edge band stays off the world (LosIsOffWorld), revealed or not.
+	bool obs_all = obs.size() == sim.los().cells();
+	for (size_t i = 0; obs_all && i < obs.size(); ++i)
+		obs_all = obs[i] == (sim.los().off_world((int)i) ? Simulation::FOW_UNEXPLORED : Simulation::FOW_VISIBLE);
+	CHECK(obs_all, "an observer sees the whole map");
 	FogMirages enemy;
 	enemy.update(sim, 1);
 	CHECK(enemy.view() != m.view(), "each player draws its own LOS");
@@ -384,12 +387,12 @@ static void test_shared_sight_and_winner() {
 	static Simulation w;
 	w.set_sim_seed(7);
 	w.reset();
-	w.spawn_building_world(-60.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
-	w.spawn_building_world(60.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	w.spawn_building_world(-50.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	w.spawn_building_world(50.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
 	for (int i = 0; i < 10; ++i) w.tick(Simulation::FIXED_STEP);
-	const bool hidden = !los_sees_all(w, 0) && !los_sees_unit(w, 0, 60.0f, 6.0f, 1);
+	const bool hidden = !los_sees_all(w, 0) && !los_sees_unit(w, 0, 50.0f, 6.0f, 1);
 	w.end_match(1u << 0);
-	const bool revealed = los_sees_all(w, 0) && w.fow_state_at(60.0f, 0.0f, 0) == Simulation::FOW_VISIBLE;
+	const bool revealed = los_sees_all(w, 0) && w.fow_state_at(50.0f, 0.0f, 0) == Simulation::FOW_VISIBLE;
 	std::printf("winner: enemy base hidden before %d, map revealed after the win %d\n", hidden, revealed);
 	CHECK(hidden && revealed, "winner's map revealed");
 }
@@ -403,8 +406,8 @@ static void test_seen_mask() {
 	s.set_sim_seed(7);
 	s.reset();
 	s.set_explore_map(true);
-	s.spawn_building_world(-60.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
-	const uint32_t enemy = s.spawn_building_world(60.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	s.spawn_building_world(-50.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	const uint32_t enemy = s.spawn_building_world(50.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
 	for (int i = 0; i < 10; ++i) s.tick(Simulation::FIXED_STEP);
 	const Simulation::Building *e = nullptr;
 	for (const auto &b : s.buildings()) if (b.id == enemy) e = &b;
@@ -417,9 +420,9 @@ static void test_seen_mask() {
 	static Simulation t;
 	t.set_sim_seed(7);
 	t.reset();
-	t.spawn_building_world(-60.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
-	const uint32_t far = t.spawn_building_world(60.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
-	const uint32_t scout = t.spawn_unit(55.0f, 0.0f, 0, UNIT_CAVALRY);
+	t.spawn_building_world(-50.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	const uint32_t far = t.spawn_building_world(50.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	const uint32_t scout = t.spawn_unit(45.0f, 0.0f, 0, UNIT_CAVALRY);
 	for (int i = 0; i < 10; ++i) t.tick(Simulation::FIXED_STEP);
 	t.cmd_delete(0, &scout, 1);
 	for (int i = 0; i < 10; ++i) t.tick(Simulation::FIXED_STEP);
