@@ -133,21 +133,29 @@ func run() -> void:
 	# LockedTeams.onLoad: DefaultValue = Engine.HasNetClient(), so a networked setup opens locked.
 	check(page.get_node("%LockTeams").button_pressed and ms.lock_teams, "a networked setup opens with Teams Locked on")
 	check(slot_text(cells(page)[0]) == "alice (You)" and slot_text(cells(page)[6]) == "bob", "slots show their players")
-	var assign = cells(page)[6].get_node_or_null("AssignSelect")
+	# PlayerAssignment: one dropdown per slot, in the Player Placement column.
+	var assign = cells(page)[6 + 2].get_node_or_null("AssignSelect")
 	var items: Array = []
 	for i in (assign.get_item_count() if assign else 0):
 		items.append(assign.get_item_text(i))
-	check(items == ["alice (You)", "bob", "Unassigned"], "the host assigns players from each slot (%s)" % str(items))
+	check(items == ["alice (You)", "bob", "AI: Petra Bot", "Unassigned", "Removed"] and assign.get_item_text(assign.get_selected()) == "bob",
+		"the host assigns players, an AI, Unassigned or Removed from each slot (%s)" % str(items))
+	var first = cells(page)[2].get_node_or_null("AssignSelect")
+	check(first != null and first.get_item_count() == 4, "slot 1 can't be Removed")
+	if assign:
+		assign.select(3)
+		assign.item_selected.emit(3)
+	check(host.assigns == [[1, -1]], "Unassigned makes bob an observer (%s)" % str(host.assigns))
+	await frames(2)
+	assign = cells(page)[6 + 2].get_node_or_null("AssignSelect")
 	if assign:
 		assign.select(2)
 		assign.item_selected.emit(2)
-	check(host.assigns == [[1, -1]], "Unassigned makes bob an observer (%s)" % str(host.assigns))
-	# PlayerAssignment.js: AI or Removed on a client's slot, or a player count
-	# below it, leaves the client unassigned (PlayerAssignmentsController.unassignInvalidPlayers).
-	host.assigns.clear()
-	page._on_slot_kind(1, 1)
-	check(host.assigns == [[1, -1]], "AI on bob's slot makes him an observer (%s)" % str(host.assigns))
+	check(int(page._slot_rows[1]["kind"]) == 1, "AI: Petra Bot makes the slot an AI")
 	page._on_slot_kind(0, 1)
+	await frames(2)
+	# PlayerAssignmentsController.unassignInvalidPlayers: a player count below
+	# a client's slot leaves the client unassigned.
 	host.assigns.clear()
 	page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots").value = 1
 	check(host.assigns == [[1, -1]], "one player: bob is unassigned (%s)" % str(host.assigns))
@@ -333,8 +341,14 @@ func run() -> void:
 	check(not page.get_node("%SpinSeed").editable and page.get_node("%MapList").disabled
 		and page.get_node("%Waves").disabled and picker(page, 0, 2).disabled and picker(page, 2, 3).disabled
 		and picker(page, 1, 1).disabled and picker(page, 2, 5).disabled, "every setting of the save is locked")
-	check(not cells(page)[0].get_node("AssignSelect").disabled and not cells(page)[12].get_node("AssignSelect").disabled
-		and cells(page)[6].get_node_or_null("AssignSelect") == null, "the host may still seat players, not on the AI's slot")
+	var ai_pick = cells(page)[6 + 2].get_node("AssignSelect")
+	check(not cells(page)[2].get_node("AssignSelect").disabled and not cells(page)[12 + 2].get_node("AssignSelect").disabled
+		and ai_pick.disabled and ai_pick.get_item_text(ai_pick.get_selected()) == "AI: Petra Bot", "the host may still seat players, not on the AI's slot")
+	var human_items: Array = []
+	var hp = cells(page)[2].get_node("AssignSelect")
+	for i in hp.get_item_count():
+		human_items.append(hp.get_item_text(i))
+	check(not human_items.has("AI: Petra Bot") and not human_items.has("Removed"), "a saved game offers no AI or Removed on a human slot: " + str(human_items))
 	check(not start.disabled and not page.get_node("VBox/HBox/Right/Buttons/BtnBack").disabled
 		and page.get_node("%NetChatInput").editable, "Start, Back and the chat stay")
 	check(ms.cheats and not ms.rated and not page.get_node("%RatedGame").visible and ms.seed == 4242

@@ -291,7 +291,6 @@ const SPEEDS := [[0.1, "Turtle (0.1×)", false], [0.25, "Slow (0.25×)", false],
 	[1.5, "Very Fast (1.5×)", false], [2.0, "Insane (2×)", false], [5.0, "Fast Forward (5×)", true],
 	[10.0, "Fast Forward (10×)", true], [20.0, "Fast Forward (20×)", true]]
 const DEFAULT_SPEED := 4 # Normal (1×)
-const SLOT_KINDS := ["Human", "AI", "Closed"]
 # rtso::PLAYER_COLORS: 0 A.D. player_defaults.json (each player's default), then PlayerColor.js DefaultColors.
 const PLAYER_COLORS := [Color8(21, 55, 149), Color8(150, 20, 20), Color8(86, 180, 31), Color8(231, 200, 5),
 	Color8(50, 170, 170), Color8(160, 80, 200), Color8(220, 115, 16), Color8(64, 64, 64),
@@ -1456,18 +1455,18 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	# PlayersPanel.xml's columns: name, colour, assignment (Player Placement), AI gear, civ, team.
 	var cols := []
 	cols.resize(6)
-	if _mp_role == "host" and int(row["kind"]) == 0 and _net_rows().has(i):
-		cols[0] = _assignment_cell(i)
-	else:
-		var name := Label.new()
-		name.text = _slot_label(i, row)
-		cols[0] = name
+	var name := Label.new()
+	name.text = _slot_label(i, row)
+	cols[0] = name
 	# kind
 	var kind_slot := Control.new()
 	kind_slot.custom_minimum_size = Vector2(92, 28)
 	cols[2] = kind_slot
-	var kind := _make_option(kind_slot)
-	if _mp_role == "none":
+	if _mp_role != "none":
+		kind_slot.queue_free()
+		cols[2] = _assignment_cell(i)
+	else:
+		var kind := _make_option(kind_slot)
 		# 0.28 PlayerAssignment: you, "AI: Petra Bot", "Unassigned" or "Removed" (not on slot 1,
 		# since a removed slot drops out and the later players move up).
 		kind.add_item(singleplayer_name(), KIND_YOU)
@@ -1479,11 +1478,6 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 		kind.select(maxi(kind.get_item_index(k), 0))
 		kind.tooltip_text = tr("Select player.")
 		kind.item_selected.connect(func(ix: int): _on_slot_assign(kind.get_item_id(ix), i))
-	else:
-		for k in (SLOT_KINDS if i > 0 else SLOT_KINDS.slice(0, 2)):
-			kind.add_item(k)
-		kind.select(int(row["kind"]) if i > 0 else mini(int(row["kind"]), 1))
-		kind.item_selected.connect(_on_slot_kind.bind(i))
 	# civ
 	var civ_slot := Control.new()
 	civ_slot.custom_minimum_size = Vector2(130, 28)
@@ -1577,8 +1571,6 @@ func _on_slot_assign(id: int, slot: int) -> void:
 func _on_slot_kind(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
-	if idx != 0:
-		_unassign_net_slot(_net_rows().find(slot))
 	_slot_rows[slot]["kind"] = idx
 	if slot == _local_slot and idx != 0:
 		_local_slot = -1 # PlayerAssignment: you watch once your slot is given away
@@ -1588,8 +1580,7 @@ func _on_slot_kind(idx: int, slot: int) -> void:
 	_render_ai_button(slot)
 	_update_preview()
 
-## Host: PlayerAssignment.js onSelectionChange, an AI or Removed slot leaves its
-## client unassigned (an observer); `k` is the slot in the sent setup.
+## Host: the client of slot `k` in the sent setup becomes unassigned (an observer).
 func _unassign_net_slot(k: int) -> void:
 	if _mp_role != "host" or k < 0:
 		return
@@ -2747,39 +2738,56 @@ func _slot_label(i: int, row: Dictionary) -> String:
 	var you := int(e["client"]) == int(_net_state.get("my_client", -2))
 	return "%s%s%s" % [str(e.get("name", "")), " (You)" if you else "", " (Ready)" if int(e["client"]) > 0 and int(e.get("ready", 0)) > 0 else ""]
 
-## 0.28 PlayerAssignment dropdown (host only): the slot's name cell lists the
-## connected clients and Unassigned; picking a client seats it here (one
-## holding another slot swaps, as NetServer AssignPlayer does), and
-## Unassigned makes the holder an observer.
+## 0.28 PlayerAssignment in a networked setup: one dropdown per slot listing the
+## connected clients, "AI: Petra Bot", "Unassigned" and "Removed" (not on slot 1).
+## Picking a client seats it here (one holding another slot swaps, as NetServer
+## AssignPlayer does); AI, Unassigned and Removed send the holder to watch. A saved
+## game offers no AI on a human slot and keeps an AI slot as it is. Only the host
+## changes it; a client sees it locked.
+const ASSIGN_CLIENT_ID := 10 # item id of client c: 10 + c
+
 func _assignment_cell(i: int) -> Control:
 	var cell := Control.new()
 	cell.name = "Assign%d" % i
 	cell.custom_minimum_size = Vector2(110, 28)
 	var ob := _make_option(cell)
 	ob.name = "AssignSelect"
-	var k := _net_rows().find(i)
+	var kind := int(_slot_rows[i]["kind"]) if i > 0 else mini(int(_slot_rows[i]["kind"]), 1)
+	var k := _net_rows().find(i) if _mp_role == "host" else i
 	var slots: Array = _net_state.get("slots", [])
 	var holder := int(slots[k].get("client", -1)) if k >= 0 and k < slots.size() else -1
 	var clients: Array = []
 	for e in slots + Array(_net_state.get("observers", [])):
 		if int(e.get("client", -1)) >= 0 and not clients.any(func(x): return int(x["client"]) == int(e["client"])):
 			clients.append(e)
+	var saved := _saved_game()
 	for e in clients:
 		var you := int(e["client"]) == int(_net_state.get("my_client", -2))
 		var ready := int(e["client"]) > 0 and int(e.get("ready", 0)) > 0
-		# The item id is the client + 1; Unassigned is 0.
-		ob.add_item("%s%s%s" % [str(e.get("name", "")), " (You)" if you else "", " (Ready)" if ready else ""], int(e["client"]) + 1)
-	ob.add_item("Unassigned", 0)
-	ob.select(ob.get_item_index(holder + 1 if holder >= 0 else 0))
-	ob.tooltip_text = "Assign a player to this slot."
+		ob.add_item("%s%s%s" % [str(e.get("name", "")), " (You)" if you else "", " (Ready)" if ready else ""], ASSIGN_CLIENT_ID + int(e["client"]))
+	if not saved or kind == 1:
+		ob.add_item(tr("AI: %(ai)s").replace("%(ai)s", tr("Petra Bot")), 1)
+	ob.add_item(tr("Unassigned"), 0)
+	if i > 0 and (not saved or kind == 2):
+		ob.add_item(tr("Removed"), 2)
+	var sel := ASSIGN_CLIENT_ID + holder if kind == 0 and holder >= 0 else kind
+	ob.select(maxi(ob.get_item_index(sel), 0))
+	ob.tooltip_text = tr("Select player.")
+	ob.disabled = _mp_role != "host" or (saved and kind == 1)
 	ob.item_selected.connect(func(idx: int) -> void:
-		if _rebuilding_slots:
+		if _rebuilding_slots or _mp_role != "host":
 			return
-		var c := int(ob.get_item_id(idx)) - 1
-		if c >= 0:
-			net_main.assign_net_client(c, k)
-		elif holder >= 0:
+		var id := int(ob.get_item_id(idx))
+		if holder >= 0 and id < ASSIGN_CLIENT_ID:
 			net_main.assign_net_client(holder, -1)
+		if id >= ASSIGN_CLIENT_ID:
+			if kind != 0:
+				_on_slot_kind(0, i)
+				_host_write_setup(true)
+			net_main.assign_net_client(id - ASSIGN_CLIENT_ID, _net_rows().find(i))
+		elif id != kind:
+			_on_slot_kind(id, i)
+			_host_write_setup(true)
 		_net_state = net_main.get_net_setup_state()
 		refresh_slots.call_deferred())
 	return cell
