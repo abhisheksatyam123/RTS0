@@ -164,8 +164,18 @@ func run() -> void:
 		var ds: RtsoSafeSelect = page.get_node("%DaytimeSlot").get_child(0)
 		check(ds.get_item_tooltip(0) == "Randomly pick a time of the day." and ds.get_item_tooltip(1) == "Bright daylight illuminates the scene."
 			and page.get_node("%DaytimeLabel").tooltip_text == "Select whether the match takes place at daylight or night.", "Daytime's entries carry their descriptions")
+		print("3c3. GameSettingsLayout.js order")
+		var names := func(n: String): return page.get_node("%" + n).get_children().map(func(c): return str(c.name))
+		check(names.call("MapOptionsRow") == ["TeamPlacementLabel", "TeamPlacementSlot", "LandscapeLabel", "LandscapeSlot", "BiomeLabel", "BiomeSlot",
+			"WaterLevelLabel", "WaterLevelSlot", "SeaRiseLabel", "SeaRiseSlot", "DaytimeLabel", "DaytimeSlot", "TriggerDifficultyLabel", "TriggerDifficultySlot"],
+			"Map tab: placement, landscape, biome, water, sea rise, daytime, difficulty")
+		check(names.call("MapVisRow").slice(0, 3) == ["ExploreMap", "RevealMap", "AlliedView"], "Explored, Revealed, Allied View")
+		check(names.call("VictoryTimesRow") == ["RelicCountLabel", "RelicCountSlot", "RelicLabel", "RelicTimeSlot", "WonderLabel", "WonderTimeSlot"]
+			and page.get_node("%RelicCountLabel").text == "Relic Count" and page.get_node("%RelicLabel").text == "Relic Duration"
+			and page.get_node_or_null("%VictoryLabel") == null, "Relic Count and Relic Duration apart, no Victory heading")
 		select_map(page, "random_mainland")
 		await frames(2)
+		check(page.get_node("%MapOptionsRow").visible and page.get_node("%BiomeLabel").visible, "Mainland's Biome shows in the options row")
 		print("3d. 0.28's Last Man Standing, Nomad and Hero Garrison rules")
 		var lock: CheckBox = page.get_node("%LockTeams")
 		var lms: CheckBox = page.get_node("%LastManStanding")

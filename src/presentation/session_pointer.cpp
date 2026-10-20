@@ -135,8 +135,21 @@ void RtsoMain::update_cursor() {
 			const Vector3 at = get_ground_click_pos(mouse);
 			const uint8_t me = local_player();
 			auto near2 = [&](float x, float z, float r) { return (x - at.x) * (x - at.x) + (z - at.z) * (z - at.z) <= r * r; };
-			if (attack_move_mode || call_to_arms_mode || rtso::hotkeys::held("session.attackmove") ||
-					rtso::hotkeys::held("session.attackmoveUnit") || rtso::hotkeys::held("session.calltoarms"))
+			// unit_actions.js hotkeyActionCheck in specificness order: session.garrison ("garrison", 20)
+			// and session.occupyturret ("occupy-turret", 21) come before session.attackmove (30), all Ctrl.
+			const bool hold_garrison = rtso::hotkeys::held("session.garrison");
+			const bool hold_turret = rtso::hotkeys::held("session.occupyturret");
+			bool hotkey_holder = false;
+			if (hold_garrison && transport_under(at.x, at.z) != 0) hotkey_holder = true;
+			for (const auto &b : sim->buildings()) {
+				if (hotkey_holder || !(hold_garrison || hold_turret)) break;
+				if (b.wrecked || !near2(b.x, b.z, b.half_size + 1.2f) || !sim->player_can_target_building(me, b.id)) continue;
+				if (b.team != me && !sim->is_ally(me, b.team)) continue;
+				hotkey_holder = (hold_garrison && selection_can_garrison(b.id)) || (hold_turret && selection_can_occupy_turret(b.id));
+				break;
+			}
+			if (!hotkey_holder && (attack_move_mode || call_to_arms_mode || rtso::hotkeys::held("session.attackmove") ||
+					rtso::hotkeys::held("session.attackmoveUnit") || rtso::hotkeys::held("session.calltoarms")))
 				want = "action-attack-move";
 			else if (patrol_mode || rtso::hotkeys::held("session.patrol")) want = "action-patrol";
 			else if (guard_mode) want = "action-guard";
@@ -188,9 +201,10 @@ void RtsoMain::update_cursor() {
 					// 0 A.D. unit_actions "heal": a healer over a wounded own or allied unit.
 					else if (healer && uv.hp[i] < uv.max_hp[i] && (uv.team[i] == me || sim->is_ally(me, uv.team[i])))
 						want = "action-heal";
-					// unit_actions "garrison": an own or allied ship, ram or siege tower a selected unit may board.
-					else if (const uint32_t holder = uv.id[i]; sim->is_ally(me, uv.team[i]) && !selected_ids.has((int32_t)holder) &&
-							selection_can_board(holder)) {
+					// unit_actions "garrison" (session.garrison): an own or allied ship, ram or siege tower a
+					// selected unit may board. Without the hotkey "move" (12) wins.
+					else if (const uint32_t holder = uv.id[i]; hold_garrison && sim->is_ally(me, uv.team[i]) &&
+							!selected_ids.has((int32_t)holder) && selection_can_board(holder)) {
 						want = "action-garrison";
 						const int occupied = sim->get_transport_occupied(holder), capacity = sim->get_transport_capacity(holder);
 						tip = rtso::sprintf0(rtso::tr0("Current garrison: %(garrisoned)s/%(capacity)s"),
@@ -302,16 +316,17 @@ void RtsoMain::update_cursor() {
 					else if (b.team != me && !sim->is_ally(me, b.team)) want = ""; // neutral
 					else if (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me)) want = "action-build";
 					else if (b.hp < b.max_hp) want = "action-repair"; // own or allied (unit_actions "repair")
-					// unit_actions "garrison": an own or allied holder whose List takes a selected unit.
-					// A wall, gate or outpost has only turret points: "occupy-turret" (specificness 21).
-					else if (sim->turret_only_holder(b) && selection_can_garrison(b.id)) {
+					// unit_actions "garrison" (session.garrison): an own or allied holder whose List takes a
+					// selected unit; a wall, gate or outpost has only turret points: "occupy-turret" (21).
+					// Without the hotkeys "move" (12) wins: no cursor.
+					else if (hold_turret && sim->turret_only_holder(b) && selection_can_garrison(b.id)) {
 						want = "action-occupy-turret";
 						const int occupied = sim->get_garrison_occupied(b.id), capacity = sim->get_garrison_capacity(b.id);
 						tip = rtso::sprintf0(rtso::tr0("Current turrets: %(occupied)s/%(capacity)s"),
 								{{"occupied", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
 						tip_orange = occupied >= capacity;
 					}
-					else if (selection_can_garrison(b.id)) {
+					else if (hold_garrison && selection_can_garrison(b.id)) {
 						want = "action-garrison";
 						// unit_actions "garrison" getActionInfo: the holder's slots, orange once full.
 						const int occupied = sim->get_garrison_occupied(b.id), capacity = sim->get_garrison_capacity(b.id);

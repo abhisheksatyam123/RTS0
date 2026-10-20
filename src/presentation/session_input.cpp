@@ -894,11 +894,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) continue; // own or allied
 					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z, hit_r = b.half_size + 1.2f;
 					if (dx * dx + dz * dz <= hit_r * hit_r) {
-						garrison_click = true;
+						// "garrison" (20) and "occupy-turret" (21) come before "attack-move" (30) when
+						// their hotkeyActionCheck finds something to do; otherwise Ctrl attack-moves.
+						garrison_click = armed_turret || (force_garrison && selection_can_garrison(b.id)) ||
+								(force_turret && selection_can_occupy_turret(b.id));
 						turret_target = b.id;
 						break;
 					}
 				}
+				// A ship, ram or siege tower a selected unit may board ("garrison" takes any GarrisonHolder).
+				if (!garrison_click && force_garrison && transport_under(click_pos.x, click_pos.z) != 0) garrison_click = true;
 			}
 			// The armed Occupy Turret takes this click whatever lies under it: the holder's points,
 			// or nothing (action-occupy-turret-disabled).
@@ -1006,9 +1011,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 
-			// 1. Right click on an own or allied ship, ram or siege tower (board it).
+			// 1. session.garrison + right click on an own or allied ship, ram or siege tower (board it).
 			// unit_actions.js "garrison" takes any GarrisonHolder: warships, rams and siege towers.
-			// Its specificness 20 loses to "repair" (11) unless session.garrison forces it.
+			// Its specificness 20 loses to "repair" (11) and "move" (12): a plain click walks there.
 			const uint32_t clicked_transport_id = transport_under(click_pos.x, click_pos.z);
 			auto board = [&]() {
 				if (turn_cmds())
@@ -1049,10 +1054,6 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					play_civ_voice("build");
 					return;
 				}
-			}
-			if (clicked_transport_id != 0) {
-				board();
-				return;
 			}
 
 			// 1c. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor).
@@ -1281,8 +1282,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					} else if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) {
 						break; // neutral: walk there
 					} else if (b.team != local_player()) {
-						// An ally's structure: return a load to its shared dropsite (returnresource, specificness
-						// 2, with Diaspora), else repair it, else garrison (Garrisonable / IsOwnedByMutualAllyOfEntity).
+						// An ally's structure: return resources to its shared dropsite ("returnresource", 2,
+						// Diaspora), else repair it, else walk there ("move", 12, beats "garrison", 20,
+						// which needs session.garrison).
 						bool carriers = false;
 						for (size_t k = 0; k < sel_n && !carriers; ++k) carriers = sim->can_return_resource(sel_ptr[k], b.id);
 						if (carriers) {
@@ -1297,11 +1299,6 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							else
 								sim->order_build_or_repair(sel_ptr, sel_n, b.id, queue_shift);
 							play_civ_voice("build");
-						} else if (selection_can_garrison(b.id)) {
-							if (turn_cmds())
-								post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
-							else
-								sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
 						} else {
 							break; // nothing to do there: walk
 						}
@@ -1328,13 +1325,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							else
 								sim->cmd_upgrade_building(local_player(), b.id);
 							play_civ_voice("build");
-						} else if (selection_can_garrison(b.id)) {
-							if (turn_cmds())
-								post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
-							else
-								sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
 						} else {
-							break; // no selected unit is on its GarrisonHolder List: walk
+							break; // "move" (12) beats "garrison" (20) without session.garrison: walk
 						}
 					}
 					return;
