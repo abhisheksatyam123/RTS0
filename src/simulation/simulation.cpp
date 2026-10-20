@@ -17417,12 +17417,17 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 			const float ix = units_.order_x[i] - units_.pos_x[i], iz = units_.order_z[i] - units_.pos_z[i];
 			constexpr float GATHER_NEAR_RANGE = 12.0f / 4.0f; // DefaultRelaxedMaxRange, as in motion_feedback
 			if (ix * ix + iz * iz > GATHER_NEAR_RANGE * GATHER_NEAR_RANGE) {
+				// GatherNearPosition keeps the order's type and template (UnitAI.js:5705-5711, its
+				// order data "type" and "template"), so the search on arrival takes the same
+				// type.specific, and a hunter the same animal (UnitAI.js:2622-2629). order_walk
+				// sets the walk's own flags, so the resource kind is read before it.
+				const uint8_t kind_bits = units_.order_flags[i] & ORDER_FLAG_SUB_MASK;
 				uint32_t id = uid;
 				order_walk(&id, 1, units_.order_x[i], units_.order_z[i], false);
 				// Keep the gather intent across the walk back: a gather order with no
 				// target searches again once the walk ends (motion_feedback arrival).
 				units_.order_kind[i] = ORDER_GATHER;
-				units_.order_flags[i] &= ORDER_FLAG_SUB_MASK; // keep the resource kind, drop FORCE
+				units_.order_flags[i] = kind_bits; // keep the resource kind, drop FORCE ("force": false)
 				units_.order_target[i] = 0;
 				units_.target_resource_id[i] = 0;
 				return;
