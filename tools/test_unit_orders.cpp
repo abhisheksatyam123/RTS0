@@ -76,6 +76,8 @@
 //     such builders farm the field or gather near the dropsite they finish.
 // 45. GATHER FINDINGNEWTARGET: an empty-handed gatherer with nothing left nearby walks to the
 //     nearest dropsite to idle.
+//     A hunter walking back to its eaten carcass (GatherNearPosition) keeps to the same animal:
+//     it hunts one there or goes on to the dropsite, never the berry bush beside the spot.
 // 46. ShouldAbandonChase: once a second a chase whose target is hidden in the player's fog ends,
 //     a player's attack too (CheckTargetVisible).
 // 47. Attacked by a unit hidden in the fog: the unit doesn't charge it (APPROACHING enter).
@@ -1886,6 +1888,75 @@ static void test_gather_walk_back() {
 	check(idles, "with nothing there she goes on to the storehouse");
 }
 
+// GatherNearPosition keeps the order's type and template (UnitAI.js:5705-5711), so a hunter
+// walking back to where its carcass was searches there for the same animal (FINDINGNEWTARGET's
+// filter, UnitAI.js:2622-2629), never for food of another kind: a rider can't gather the berry
+// bush beside the spot (CanGather in FindNearbyResource, UnitAI.js:4478). With no deer left there
+// it goes on to the farmstead; with a deer there it hunts it. Deep Forest soak (seed 2): a rider
+// whose walk back had lost the meat kind stood at its old carcass for the rest of the match.
+static void test_hunter_walk_back() {
+	std::printf("45c. a hunter walking back to its eaten carcass keeps to meat (GatherNearPosition type and template)\n");
+	for (int with_deer = 0; with_deer < 2; ++with_deer) {
+		Simulation s;
+		setup(s);
+		s.set_explore_map(true); // FindNearbyResource takes only supplies the player has seen
+		s.spawn_building_world(-20, 0, BLD_FARMSTEAD, 0, 1.0f);
+		const uint32_t deer = s.spawn_fauna(10, 0, FAUNA_DEER);
+		s.fauna_.hp[s.fauna_id_to_idx_.at(deer)] = 1.0f;
+		uint32_t c = s.spawn_unit(6, 0, 0, UNIT_CAVALRY);
+		s.order_set_stance(&c, 1, STANCE_PASSIVE);
+		s.order_hunt(&c, 1, deer);
+		const bool carving = run_until(s, 20.0f, [&] {
+			const int k = idx_of(s, c);
+			const uint32_t r = s.units_.target_resource_id[k];
+			return s.units_.action_state[k] == ACTION_GATHER && r != 0 && s.res_id_to_idx_.count(r) &&
+				s.resources_.subtype[s.res_id_to_idx_.at(r)] == RES_SUB_MEAT;
+		});
+		check(carving, "the rider kills the deer and gathers its carcass");
+		if (!carving) continue;
+		int ci = idx_of(s, c);
+		const uint32_t carcass = s.units_.target_resource_id[ci];
+		const int ri = (int)s.res_id_to_idx_.at(carcass);
+		const float kx = s.resources_.x[ri], kz = s.resources_.z[ri];
+		// A berry bush beside the spot: food, but not meat.
+		const uint32_t berries = s.spawn_resource_world(kx + 1.0f, kz + 1.0f, RES_FOOD, 200);
+		// Driven far off, out of search range of the spot, with the carcass eaten while away.
+		s.units_.pos_x[ci] = 40.0f;
+		s.units_.pos_z[ci] = 0.0f;
+		s.units_.target_x[ci] = 40.0f;
+		s.units_.target_z[ci] = 0.0f;
+		s.units_.waypoint_cur[ci] = 0;
+		s.units_.waypoint_count[ci] = 0;
+		s.units_.carry[ci] = 0;
+		s.resources_.amount[ri] = 0;
+		s.resources_.alive[ri] = 0;
+		const uint32_t deer2 = with_deer ? s.spawn_fauna(kx + 2.0f, kz - 2.0f, FAUNA_DEER) : 0;
+		const bool leg = run_until(s, 10.0f, [&] {
+			const int k = idx_of(s, c);
+			return s.unit_order(c).kind == ORDER_GATHER && s.units_.target_resource_id[k] == 0 &&
+				s.units_.action_state[k] == ACTION_MOVE;
+		});
+		ci = idx_of(s, c);
+		const int sub = (s.units_.order_flags[ci] & ORDER_FLAG_SUB_MASK) >> ORDER_FLAG_SUB_SHIFT;
+		check(leg && sub == RES_SUB_MEAT && s.units_.hunt_fauna[ci] == FAUNA_DEER + 1,
+				"he walks back to the spot still after the deer's meat");
+		bool berry = false;
+		if (with_deer) {
+			const bool hunts = run_until(s, 60.0f, [&] {
+				berry |= s.units_.target_resource_id[idx_of(s, c)] == berries;
+				return target_of(s, c) == deer2;
+			});
+			check(hunts && !berry, "with a deer there he hunts it, not the berries");
+		} else {
+			const bool home = run_until(s, 60.0f, [&] {
+				berry |= s.units_.target_resource_id[idx_of(s, c)] == berries;
+				return dist(s, c, -20, 0) < 6.0f && s.unit_order(c).kind != ORDER_GATHER;
+			});
+			check(home && !berry, "with nothing to hunt there he goes on to the farmstead, not to the berries");
+		}
+	}
+}
+
 
 static void test_chase_into_fog() {
 	std::printf("46. a chase is dropped once the target is hidden in the fog (ShouldAbandonChase)\n");
@@ -3568,6 +3639,7 @@ int main(int argc, char **argv) {
 	test_autoharvest();
 	test_idle_at_dropsite();
 	test_gather_walk_back();
+	test_hunter_walk_back();
 	test_chase_into_fog();
 	test_hidden_attacker();
 	test_patrol_loop();
