@@ -10,7 +10,9 @@ extends SceneTree
 #   3. GameDetails: the host's heartbeat sends its game's map, settings and
 #      players; selecting the game shows them, each human as "name (rating)",
 #      by team (GameDetails.js, formatPlayerInfo); the Rating column and
-#      filter (lobby.columns.gamerating) average the players' ratings.
+#      filter (lobby.columns.gamerating) average the players' ratings; before
+#      Start the game lists only who plays and who watches, by name
+#      (LobbyGameRegistration.formatClientsForStanza).
 #
 #   godot --headless --path . -s tools/e2e_lobby_ratings.gd
 # Exit code 0 = pass. Needs python3 for the lobby server.
@@ -190,6 +192,18 @@ func run() -> void:
 		"the seated players, the AI and the observers (%s)" % str(names))
 	ms.slot_types = [0, 2, 0]
 	check(LobbySessionScript.room_details(ms, net, 0)["player_names"].size() == 3, "a closed seat lists nobody")
+	# LobbyGameRegistration.formatClientsForStanza: before Start only the names of
+	# who plays and who watches, no AIs, teams or civs.
+	var setup_net := net.duplicate(true)
+	setup_net["started"] = false
+	ms.slot_types = [0, 1, 0]
+	var pre: Array = LobbySessionScript.room_details(ms, setup_net, 0)["player_names"]
+	check(pre == [{"name": "alice"}, {"name": "bob"}, {"name": "carol", "team": -1, "observer": true}],
+		"in setup: the players' names and the observers (%s)" % str(pre))
+	var pre_text: String = LobbySessionScript.game_details({"name": "g", "player_names": pre}, {})
+	check(pre_text.contains("\nalice\nbob\n") and pre_text.contains("Observer:\ncarol") and not pre_text.contains("Civilization"),
+		"and the details list them by name: " + pre_text.replace("\n", " | "))
+	ms.slot_types = [0, 2, 0]
 	ms.map_id = "acropolis_bay"
 	var sk: Dictionary = LobbySessionScript.room_details(ms, {}, 0)
 	check(sk.get("map_type") == "skirmish" and sk.get("map_size") == "Default", "a skirmish map's size is Default")
