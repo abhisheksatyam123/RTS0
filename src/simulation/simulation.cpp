@@ -21073,6 +21073,20 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 	const bool ranged = template_has_ranged_attack(units_.tmpl[u], ut, civ_of(petra_pid_));
 	const uint8_t pass = fast ? PASS_CAVALRY : PASS_INFANTRY;
 	auto [ucx, ucz] = nav_grid_.world_to_cell(units_.pos_x[u], units_.pos_z[u]);
+	// getLandAccess (accessibility.js getAccessValue) goes by terrain alone: a unit on a navcell a
+	// structure or a tree blocks (a rider at a wood's edge, the scout stopped beside its Civic Centre)
+	// is on the land of the open cells round it, not cut off from every hunt.
+	if (!nav_grid_.is_passable_for(ucx, ucz, pass)) {
+		bool open = false;
+		for (int r = 1; r <= 2 && !open; ++r)
+			for (int dz = -r; dz <= r && !open; ++dz)
+				for (int dx = -r; dx <= r && !open; ++dx) {
+					if ((std::abs(dx) != r && std::abs(dz) != r) || !nav_grid_.is_passable_for(ucx + dx, ucz + dz, pass)) continue;
+					ucx += dx;
+					ucz += dz;
+					open = true;
+				}
+	}
 	const uint16_t land = nav_grid_.global_region_at(ucx, ucz, PASS_INFANTRY); // supplyAccess == entAccess
 
 	uint32_t best = 0;
@@ -26478,6 +26492,14 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				float tx = 0.0f, tz = 0.0f;
 				uint32_t target_id = petra_plan_next_target(plan, tx, tz);
 				if (target_id == 0) {
+					// updatePreparation returns 0 once chooseTarget finds none, and attackManager
+					// aborts the plan (AttackPlan.Abort): its units leave it ("plan" -1) and keep
+					// working, as a raid's do (PREPARATION_FAILED), instead of staying held by a
+					// plan that no longer musters.
+					squad.clear();
+					if (&plan == &petra_attack_plan_) petra_strike_force_.unit_ids.clear();
+					plan.initial_squad_size = 0;
+					plan.target_building_id = 0;
 					plan.state = AttackPlan::UNEXECUTED;
 					plan.state_timer = 0.0f;
 					return;
