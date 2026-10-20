@@ -76,7 +76,8 @@ func set_civ(index: int) -> void:
 	_emblem.texture = Common.texture(d.get("emblem", ""))
 	_gameplay.text = gameplay_text(d)
 	var hist := Common.civ_history(civ)
-	_history.text = (Common.heading("History of the %s" % d["name"], 18) + "\n" + hist) if hist != "" else ""
+	# CivInfoPage.selectCiv: the civ's name (sans-bold-20) beside its emblem, then its History.
+	_history.text = Common.heading(d["name"], 20) + ("\n" + hist if hist != "" else "")
 
 ## 0.28 CivInfoPage.formatEntry: "• Name (i)" with the info text on hover, and the
 ## description on the next line, indented.
@@ -94,7 +95,7 @@ static func _heading(one: String, many: String, n: int) -> String:
 ## 0.28 GameplaySection: civ and team bonuses (BonusesSubsection), specific
 ## technologies, specific structures and heroes, each as formatEntry lines.
 func gameplay_text(d: Dictionary) -> String:
-	var t := Common.heading("%s Gameplay" % d["name"], 20) + "\n"
+	var t := ""
 	var civ_ref: Dictionary = Common.text().get("civs", {}).get(d["code"], {})
 	# Bonuses: auto-researched civ techs, then player auras, then {civ}.json CivBonuses.
 	var lines := PackedStringArray()

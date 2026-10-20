@@ -995,17 +995,8 @@ public:
 					// the starting market's).
 					const uint8_t goods = uview.res_type_carried[u];
 					extra = rtso::seldet::resource_name(goods) + " " + String::num_int64(g.trader + g.market1 + g.market2);
-					const uint8_t owner = uview.team[u];
-					const struct { int gain; uint8_t owner; } markets[] = {{g.market1, mb->team}, {g.market2, ma->team}};
-					String primary = String::num_int64(g.trader);
-					for (const auto &m : markets)
-						if (m.gain && m.owner == owner) primary += rtso::tr0("+") + String::num_int64(m.gain);
-					auto gain_of = [&](const String &gain, uint8_t pid) {
-						return rtso::sprintf0(rtso::tr0("%(gain)s (%(player)s)"), {{"gain", gain}, {"player", host_->player_display_name(pid)}});
-					};
-					String gains = gain_of(primary, owner);
-					for (const auto &m : markets)
-						if (m.gain && m.owner != owner) gains += rtso::tr0(", ") + gain_of(String::num_int64(m.gain), m.owner);
+					const String gains = rtso::seldet::trading_gain(g.trader, uview.team[u], g.market1, mb->team, g.market2, ma->team,
+							[&](uint8_t pid) { return host_->player_display_name(pid); });
 					extra_->set_tooltip_text(rtso::sprintf0(rtso::tr0("Gain: %(gain)s"), {{"gain", gains}}));
 				}
 			} else if (!rtso::unit_is_trader(uview.unit_type[u]) && uview.carry[u] > 0 && uview.res_type_carried[u] < rtso::RES_COUNT) {
@@ -1034,8 +1025,9 @@ public:
 					for (; i < uview.count; ++i)
 						if (uview.id[i] == (uint32_t)selected_ids[s]) break;
 					if (i == uview.count || !uview.alive[i]) continue;
-					// Garrisonable.size (ships have none) plus a holder's GarrisonHolder.occupiedSlots.
-					garrison_size += (rtso::unit_is_ship(uview.unit_type[i]) ? 0 : 1) + (int64_t)sim->get_transport_passenger_count(uview.id[i]);
+					// Garrisonable.size (1 for every unit, ships included: template_unit.xml) plus a
+					// holder's GarrisonHolder.occupiedSlots.
+					garrison_size += 1 + (int64_t)sim->get_transport_passenger_count(uview.id[i]);
 					const rtso::LootInfo l = sim->unit_details(i).loot;
 					loot.res[rtso::RES_FOOD] += l.food;
 					loot.res[rtso::RES_WOOD] += l.wood;
@@ -1351,11 +1343,11 @@ private:
 		loot.res[rtso::RES_GOLD] = d.loot.metal;
 		loot.xp = d.loot.xp;
 		if (uv.carry[u] > 0 && uv.res_type_carried[u] < rtso::RES_COUNT) loot.res[uv.res_type_carried[u]] += uv.carry[u];
-		// getGarrisonTooltip for a ship, ram or siege tower (its Garrison Limit; a ship is not
-		// Garrisonable) and getPopulationBonusTooltip.
+		// getGarrisonTooltip for a ship, ram or siege tower (its Garrison Limit, then its
+		// Garrisonable size 1 plus the units inside) and getPopulationBonusTooltip.
 		const int passengers = (int)sim.get_transport_passenger_count(uv.id[u]);
 		const String garrison = join_lines({garrison_limit_tooltip(sim.get_transport_capacity(uv.id[u])),
-				rtso::unit_is_ship(uv.unit_type[u]) ? String() : garrison_size_tooltip(1, passengers)});
+				garrison_size_tooltip(1, passengers)});
 		const uint16_t pop_tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
 		const int pop_bonus = pop_tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::unit_pop_bonus(pop_tmpl) : 0;
 		// getProjectilesTooltip for a siege tower's BuildingAI (DefaultArrowCount 0,
@@ -1390,7 +1382,7 @@ private:
 		loot.res[rtso::RES_STONE] = l.stone;
 		loot.res[rtso::RES_GOLD] = l.metal;
 		loot.xp = l.xp;
-		return join_lines({attack, resistance_tooltip(res, true), garrison_limit_tooltip(b.garrison_cap), garrison_heal_tooltip(d.heal),
+		return join_lines({attack, resistance_tooltip(res, true), garrison_limit_tooltip(sim.turret_only_holder(b) ? 0 : b.garrison_cap), garrison_heal_tooltip(d.heal),
 				turrets_tooltip(d.turrets), population_bonus_tooltip(d.pop_bonus),
 				projectiles_tooltip(d.projectile_limit, d.default_arrows, d.per_unit),
 				d.trickles ? trickle_tooltip(d.trickle, rtso::Simulation::TRICKLE_STRUCTURE_INTERVAL) : String(), loot_tooltip(loot)});
