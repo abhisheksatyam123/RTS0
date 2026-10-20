@@ -179,6 +179,8 @@ void RtsoMain::apply_settings_snapshot(const Dictionary &settings) {
 		else if (script.is_valid()) ms->set(k, script->get_property_default_value(k));
 	}
 	if (settings.has("seed")) ms->set("seed", settings["seed"]);
+	// A match played on seed 0 (-autostart) replays on it; a randomized one never is 0.
+	ms->set("seed_exact", settings.has("seed") && (int64_t)settings["seed"] == 0);
 }
 
 Array RtsoMain::player_list() const {

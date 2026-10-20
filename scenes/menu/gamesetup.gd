@@ -1114,7 +1114,7 @@ func _update_map_options() -> void:
 	%DaytimeSlot.visible = dt
 	if dt:
 		_fill_daytimes(id)
-	row.visible = id == "random_flood" or id == "random_extinct_volcano" or tp or ls or td or dt
+	row.visible = id == "random_flood" or id == "random_extinct_volcano" or tp or ls or td or dt or %BiomeLabel.visible
 
 ## The Daytime dropdown for map `id`: Random, then the map's own options.
 func _fill_daytimes(id: String) -> void:
@@ -1807,7 +1807,7 @@ func _refresh_victory_times(mask: int) -> void:
 	row.visible = wonder or relic
 	for n in ["WonderLabel", "WonderTimeSlot"]:
 		row.get_node(n).visible = wonder
-	for n in ["RelicLabel", "RelicCountSlot", "RelicTimeSlot"]:
+	for n in ["RelicCountLabel", "RelicCountSlot", "RelicLabel", "RelicTimeSlot"]:
 		row.get_node(n).visible = relic
 	var scen := _is_scenario()
 	for n in ["WonderTimeSlot", "RelicCountSlot", "RelicTimeSlot"]:
@@ -2180,6 +2180,7 @@ func _on_start_pressed() -> void:
 	ms.campaign_run = "" # a match from Game Setup is not a campaign level
 	ms.campaign_level = ""
 	ms.seed = int(st["seed"])
+	ms.seed_exact = false
 	ms.ai_seed = 0 # only -autostart-aiseed sets one
 	ms.victory = int(st["victory"])
 	ms.waves_enabled = bool(st["waves"])

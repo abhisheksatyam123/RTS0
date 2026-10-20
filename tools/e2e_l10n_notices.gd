@@ -113,21 +113,34 @@ func run() -> void:
 	check(nets.size() == 1 and RegEx.create_from_string("\nInsufficient resources: Wood \\d+$").search(nets[0]) != null, "Insufficient resources: Wood N")
 
 	print("4. Counters")
-	await frames(4)
 	var pop: Control = null
 	var food: Control = null
-	for c in main.find_children("*", "HBoxContainer", true, false):
-		if c.tooltip_text.begins_with("Population: current/limit (max)"):
-			pop = c
-		elif c.tooltip_text.begins_with("Food"):
-			food = c
+	# The counters refresh every 200 ms of wall time, so wait for one back in English.
+	var t1 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t1 < 3000:
+		await frames(1)
+		for c in main.find_children("*", "HBoxContainer", true, false):
+			if c.tooltip_text.begins_with("Population: current/limit (max)"):
+				pop = c
+			elif c.tooltip_text.begins_with("Food"):
+				food = c
+		if pop != null and food != null:
+			break
 	check(pop != null and food != null, "the population and food counters")
 	if pop and food:
 		var cap: String = pop.find_children("*", "Label", true, false).map(func(l): return l.text).filter(func(t): return t.contains("/"))[0]
 		check(RegEx.create_from_string("^\\d+/\\d+ \\(\\d+\\)$").search(cap) != null, "caption \"count/limit (max)\": " + cap)
 		check(pop.tooltip_text == "Population: current/limit (max)" and food.tooltip_text == "Food", "no allies' stats while playing: " + food.tooltip_text)
 		main.resign()
-		await frames(10)
+		# The defeat question pauses a single-player game (messageBox, resumeGame on "No").
+		var t0 := Time.get_ticks_msec()
+		while Time.get_ticks_msec() - t0 < 3000 and not paused:
+			await frames(1)
+		for q in main.get_children().filter(func(c): return c.get_script() == load("res://scenes/session/quit_confirmation.gd") and c.title == "DEFEATED!"):
+			q.press(0)
+		t0 = Time.get_ticks_msec()
+		while Time.get_ticks_msec() - t0 < 3000 and food.tooltip_text == "Food":
+			await frames(1)
 		var tip: String = food.tooltip_text
 		print("  ", tip.replace("\n", " | "))
 		check(tip.begins_with("Food\nUnordered: [Click] to change order.\n") and tip.contains(": "), "a defeated player sees the others' food")

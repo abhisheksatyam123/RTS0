@@ -8,6 +8,7 @@
 #include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/variant/vector3.hpp>
 #include <godot_cpp/variant/color.hpp>
+#include <godot_cpp/variant/transform2d.hpp>
 #include <godot_cpp/classes/image_texture.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
 #include <cstdint>
@@ -23,12 +24,13 @@ class RtsoMiniMapView : public Control {
 
 	struct MapPing {
 		Vector2 mini_pos;
-		float timer;
+		uint64_t start_ms; // real time, as CMiniMap's flares
 		Color color;
 	};
 
 	const rtso::Simulation *sim = nullptr;
 	Vector3 cam_pos;
+	Transform2D view_xf_; // minimap space -> control space: the camera's turn (CMiniMap::GetAngle) and m_MapScale
 	bool dragging = false;
 	bool show_territory = true;
 	bool show_resources = true;
@@ -67,6 +69,16 @@ class RtsoMiniMapView : public Control {
 	std::vector<uint8_t> territory_tex_cache_;
 	uint64_t territory_colors_ = 0; // display_colors::key the texture was drawn with
 	bool ensure_territory_texture();
+	// 0 A.D. CMiniMapTexture::RebuildTerrainTexture: each tile's terrain base colour
+	// shaded by height, water in two fixed colours. Rebuilt when the terrain changes.
+	Ref<ImageTexture> terrain_tex_;
+	uint64_t terrain_key_ = 0;
+	uint64_t terrain_checked_ms_ = 0;
+	bool ensure_terrain_texture(bool round);
+	// The LOS layer, re-uploaded when the player's fog changes.
+	Ref<ImageTexture> shroud_tex_;
+	std::vector<uint8_t> shroud_cache_;
+	bool shroud_round_ = false;
 	Color player_color(uint8_t pid) const;
 
 protected:

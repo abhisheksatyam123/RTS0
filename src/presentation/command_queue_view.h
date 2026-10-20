@@ -69,6 +69,8 @@ public:
 	// (`holder` among them).
 	virtual int ui_trainer_count(uint16_t tmpl, uint32_t holder) const { return 1; }
 	virtual std::vector<uint32_t> ui_selected_structures() const = 0;
+	// The structure's Trainer has entities (autoqueue-on / autoqueue-off).
+	virtual bool ui_trains_units(uint32_t id) const { return false; }
 	// The Garrison panel shows (a selected holder has units inside): it wins over Formation.
 	virtual bool ui_garrison_panel_shown() const { return false; }
 	// g_IsObserver: an observer, a defeated player or a replay viewer.
@@ -735,50 +737,88 @@ public:
 					add_entity_command("unload-all-turrets", "Unload Turrets", "session.unloadturrets",
 							"Unload Turrets\nOrder all units to leave the selected turret points.", "garrison-out.png", true, turrets);
 			}
-			// The structure's command row (unit_actions.js g_EntityCommands).
+			// The structure's command row (unit_actions.js g_EntityCommands), from every own
+			// selected structure as 0.28's getInfo(entStates) reads the whole selection.
 			if (found_b && found_b->team == local_player()) {
+				std::vector<const rtso::Simulation::Building *> own{found_b};
+				for (uint32_t id : host_->ui_selected_structures())
+					if (id != found_b->id)
+						for (const auto &o : sim->buildings())
+							if (o.id == id) {
+								if (o.team == local_player() && !o.wrecked) own.push_back(&o);
+								break;
+							}
+				using rtso::tr0;
+				auto tip = [](const char *title, const char *body) { return tr0(title) + "\n" + tr0(body); };
 				// A corral's penned animals are its garrison too (GarrisonHolder List Animal).
-				const int inside = (int)found_b->garrisoned_units.size() +
-						(found_b->type == rtso::BLD_CORRAL ? sim->corral_count(found_b->id) : 0);
+				int inside = 0, turrets = 0;
+				bool turret_only = true, deletable = false, market = false, sharable = false, any_locked = false;
+				bool rally = false, queue_off = false, queue_on = false;
+				for (const auto *o : own) {
+					const int n = (int)o->garrisoned_units.size() + (o->type == rtso::BLD_CORRAL ? sim->corral_count(o->id) : 0);
+					if (n > 0) {
+						inside += n;
+						turret_only = turret_only && sim->turret_only_holder(*o);
+					}
+					turrets += (int)o->turret_units.size();
+					// isUndeletable: you must hold half the capture points.
+					deletable = deletable || o->max_capture_points <= 0.0f ||
+							o->capture_points_by_team[o->team] >= o->max_capture_points * 0.5f;
+					rally = rally || o->has_rally_point;
+					const bool done = o->build_progress >= 1.0f;
+					market = market || (o->type == rtso::BLD_MARKET && done);
+					if (rtso::Simulation::is_dropsite_type(o->type) && done) {
+						sharable = true;
+						any_locked = any_locked || !o->dropsite_shared;
+					}
+					if (done && ((o == found_b && roster_list_ && roster_list_->get_item_count() > 0) || host_->ui_trains_units(o->id))) {
+						queue_off = queue_off || !o->autoqueue;
+						queue_on = queue_on || o->autoqueue;
+					}
+				}
 				if (inside > 0)
-					add_unload_all(sim->turret_only_holder(*found_b), inside);
+					add_unload_all(turret_only, inside);
 				// "unload-all-turrets": the rampart tower's turret units (a wall's are its garrison above).
-				if (!found_b->turret_units.empty())
+				if (turrets > 0)
 					add_entity_command("unload-all-turrets", "Unload Turrets", "session.unloadturrets",
-							"Unload Turrets\nOrder all units to leave the selected turret points.", "garrison-out.png", true,
-							(int)found_b->turret_units.size());
-				// isUndeletable: you must hold half the capture points.
-				if (found_b->max_capture_points > 0.0f &&
-						found_b->capture_points_by_team[found_b->team] < found_b->max_capture_points * 0.5f)
+							tip("Unload Turrets", "Order all units to leave the selected turret points."), "garrison-out.png", true,
+							turrets);
+				if (!deletable)
 					add_entity_command("delete", "Delete", "",
-							"You cannot destroy this entity as you own less than half the capture points", "kill_small_disabled.png", false);
+							tr0("You cannot destroy this entity as you own less than half the capture points"), "kill_small_disabled.png",
+							false);
 				else
 					add_entity_command("delete", "Delete", "session.kill",
-							String("Self-Destruct\nDestroy the selected entities.\nUse ") +
-									rtso::hotkeys::table().label("session.noconfirmation").c_str() + " to avoid the confirmation dialog.",
+							tr0("Self-Destruct") + "\n" + tr0("Destroy the selected entities.") + "\n" +
+									rtso::sprintf0(tr0("Use %(hotkey)s to avoid the confirmation dialog."),
+											{{"hotkey", rtso::hotkey_tag(rtso::hotkeys::table().label("session.noconfirmation").c_str())}}),
 							"kill_small.png");
-				if (found_b->has_rally_point)
+				if (rally)
 					add_entity_command("focus-rally", "Focus on Rally Point", "camera.rallypointfocus",
-							"Focus on Rally Point\nCenter the view on the selected rally point.", "focus-rally.png");
-				if (found_b->type == rtso::BLD_MARKET && found_b->build_progress >= 1.0f)
+							tip("Focus on Rally Point", "Center the view on the selected rally point."), "focus-rally.png");
+				if (market)
 					add_entity_command("select-trading-goods", "Barter & Trade", "session.gui.barter.toggle",
-							"Barter & Trade\nOpen the dialog for managing resource trading and bartering.", "economics.png");
-				// share-dropsite: shown once the owner has Diaspora (ResourceDropsite sharable).
-				if (rtso::Simulation::is_dropsite_type(found_b->type) && found_b->build_progress >= 1.0f &&
-						sim->player(local_player()).has_tech(rtso::TECH_UNLOCK_SHARED_DROPSITES))
-					add_entity_command("share-dropsite", found_b->dropsite_shared ? "Lock Dropsite" : "Share Dropsite", "",
-							found_b->dropsite_shared ? "Lock Dropsite\nPrevent allies from using this dropsite, now shared."
-													 : "Share Dropsite\nAllow allies to use this dropsite, now locked.",
-							found_b->dropsite_shared ? "unlocked_small.png" : "locked_small.png");
-				// autoqueue-on / autoqueue-off: a structure that trains units.
-				if (found_b->build_progress >= 1.0f && roster_list_ && roster_list_->get_item_count() > 0) {
-					if (!found_b->autoqueue)
-						add_entity_command("autoqueue-on", "Activate Auto-Queue", "session.queueunit.autoqueueon",
-								"Activate Auto-Queue\nActivate the production auto-queue for the selected structures.", "autoqueue-on.png");
-					else
-						add_entity_command("autoqueue-off", "Deactivate Auto-Queue", "session.queueunit.autoqueueoff",
-								"Deactivate Auto-Queue\nDeactivate the production auto-queue for the selected structures.", "autoqueue-off.png");
-				}
+							tip("Barter & Trade", "Open the dialog for managing resource trading and bartering."), "economics.png");
+				// share-dropsite: a sharable dropsite whose owner has a mutual ally (no technology: the
+				// owner may always set it; Diaspora only lets allies drop there).
+				bool mutual_ally = false;
+				for (uint8_t p = 0; p < rtso::MAX_PLAYERS && !mutual_ally; ++p)
+					mutual_ally = p != local_player() && sim->player(p).active && sim->is_ally(local_player(), p) &&
+							sim->is_ally(p, local_player());
+				if (sharable && mutual_ally)
+					add_entity_command("share-dropsite", any_locked ? "Share Dropsite" : "Lock Dropsite", "",
+							any_locked ? tip("Share Dropsite", "Allow allies to use this dropsite, now locked.")
+									   : tip("Lock Dropsite", "Prevent allies from using this dropsite, now shared."),
+							any_locked ? "locked_small.png" : "unlocked_small.png");
+				// autoqueue-on / autoqueue-off: each shows while some trainer is in the other state.
+				if (queue_off)
+					add_entity_command("autoqueue-on", "Activate Auto-Queue", "session.queueunit.autoqueueon",
+							tip("Activate Auto-Queue", "Activate the production auto-queue for the selected structures."),
+							"autoqueue-on.png");
+				if (queue_on)
+					add_entity_command("autoqueue-off", "Deactivate Auto-Queue", "session.queueunit.autoqueueoff",
+							tip("Deactivate Auto-Queue", "Deactivate the production auto-queue for the selected structures."),
+							"autoqueue-off.png");
 			}
 		} else {
 			// Non-building selected: clear visual queue slots, or show a training unit's (one selected).
