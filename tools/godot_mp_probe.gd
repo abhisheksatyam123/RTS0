@@ -312,6 +312,18 @@ func _run() -> void:
 								listed = true
 								break
 							await _wait(0.1)
+						# LobbyHandler: with the lobby open over the setup, alice is Online, not Busy.
+						var presence := ""
+						for i in 40:
+							if dlobby:
+								dlobby._refresh()
+								await _wait(0.1)
+								for it in dlobby._players.get_root().get_children() if dlobby._players.get_root() else []:
+									if str(it.get_metadata(0)) == "alice":
+										presence = it.get_text(0)
+							if presence == "Online":
+								break
+						_say("dialog_presence=" + presence)
 						var join_hidden := true
 						for b in dlobby.find_children("*", "Button", true, false) if dlobby else []:
 							if b.text in ["Join Game", "Host Game"] and b.is_visible_in_tree():
