@@ -1040,7 +1040,10 @@ void RtsoMain::update_net_status_overlay() {
 	if (client && !net_game_started_ && turn_mgr_.rejoin_syncing() && !net_host_.connectionLost()) {
 		status = tr("Synchronizing gameplay with other players…");
 	} else if (net_game_started_ && !turn_mgr_.is_replaying() && turn_mgr_.current_turn() <= rtso::TurnManager::COMMAND_DELAY) {
-		for (uint32_t c : turn_mgr_.waiting_on()) {
+		// NMT_CLIENTS_LOADING: a saved game also waits on the clients still loading it.
+		std::set<uint32_t> waiting(turn_mgr_.saved_game_waiting().begin(), turn_mgr_.saved_game_waiting().end());
+		for (uint32_t c : turn_mgr_.waiting_on()) waiting.insert(c);
+		for (uint32_t c : waiting) {
 			if (c == turn_mgr_.local_client_id()) continue;
 			String name;
 			for (const auto &e : net_host_.playerAssignment())
@@ -3542,7 +3545,7 @@ void RtsoMain::update_net_setup_overlay() {
 void RtsoMain::update_net_connect_overlay() {
 	const bool client = net_host_.getRole() == rtso::NetRole::Client;
 	const bool want = client && !net_game_started_ && !net_disconnected_ && !net_host_.connectionLost() &&
-			(net_host_.authResult() < 0 || turn_mgr_.rejoin_syncing());
+			!net_saved_loading_ && (net_host_.authResult() < 0 || turn_mgr_.rejoin_syncing());
 	if (want && !net_connect_overlay_) {
 		Ref<Script> script = ResourceLoader::get_singleton()->load("res://scenes/menu/net_connecting.gd");
 		if (script.is_null()) return;
@@ -3867,6 +3870,11 @@ void RtsoMain::apply_net_game_start() {
 		++net_setup_.seq;
 		turn_mgr_.request_rejoin(lobby_observe && lobby_observe->is_pressed());
 		if (lobby_status) lobby_status->set_text("Loading the host's saved game");
+		// NetClient OnSavedGameStart: the setup gives way to the loading page,
+		// which stays until the world has come and loaded.
+		net_saved_loading_ = true;
+		show_net_loading_page(setup.map_id);
+		update_net_setup_overlay();
 		return;
 	}
 	turn_mgr_.reset_keep_inbound(); // host batches can arrive in the same poll as GAME_START
