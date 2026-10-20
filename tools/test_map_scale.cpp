@@ -117,6 +117,7 @@ int main() {
 	CHECK(Simulation::grid_res_for_map(64.0f) == 64, "128m map -> %d", Simulation::grid_res_for_map(64.0f));
 	CHECK(Simulation::grid_res_for_map(96.0f) == 96, "192m map -> %d", Simulation::grid_res_for_map(96.0f));
 	CHECK(Simulation::grid_res_for_map(256.0f) == 256, "512m map -> %d", Simulation::grid_res_for_map(256.0f));
+	CHECK(Simulation::grid_res_for_map(344.0f) == 344, "688m map (Corinthian Isthmus) -> %d", Simulation::grid_res_for_map(344.0f));
 	CHECK(Simulation::grid_res_for_map(10.0f) == Simulation::MIN_GRID_RES, "tiny clamps up");
 	CHECK(Simulation::grid_res_for_map(2000.0f) == Simulation::MAX_GRID_RES, "huge clamps down");
 	CHECK(Simulation::grid_res_for_map(100.0f) % CHUNK_SIZE == 0, "res is whole chunks");

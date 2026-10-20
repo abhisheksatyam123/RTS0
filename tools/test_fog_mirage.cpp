@@ -355,7 +355,7 @@ static void test_giant_cost() {
 			"LOS bitmap %.1f us/fog change, LOS ease %.1f us/frame (%dx%d)\n",
 			us(t0, t1) / N, sim.buildings().size(), sim.resource_count(), drawn, us(t1, t2) / N, us(t3, t4) / N,
 			sim.fow_res(), sim.fow_res());
-	CHECK(sim.fow_res() == Simulation::MAX_GRID_RES, "giant map uses the largest LOS grid");
+	CHECK(sim.fow_res() == 256, "giant map uses a 256-cell LOS grid");
 	CHECK(us(t0, t1) / N < 5000.0, "giant map mirage rebuild stays under 5 ms per sim tick");
 }
 

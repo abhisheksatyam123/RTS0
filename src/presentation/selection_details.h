@@ -176,8 +176,9 @@ inline String speed_tooltip(const Simulation::UnitDetails &d) {
 // getGarrisonTooltip for a holder: "Garrison Limit: 20".
 // getAttackTooltip for a structure's BuildingAI: "Bow: 12.0 Pierce, Range: 60 meters, Rate: 3
 // arrows / 2 seconds", or "Garrison to fire arrows" while it has none (attackRateDetails).
+// attack_name is the template's AttackName: Bow, Bolt (bolt tower) or Stone (artillery tower).
 inline String structure_attack_tooltip(const float damage[3], float min_m, float max_m, float repeat_s, int projectiles,
-		float elevated_m = 0.0f) {
+		float elevated_m = 0.0f, const char *attack_name = "Bow") {
 	String effects;
 	for (int k = 0; k < 3; ++k) {
 		if (damage[k] <= 0.0f) continue;
@@ -200,7 +201,7 @@ inline String structure_attack_tooltip(const float damage[3], float min_m, float
 			rate = sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Interval:")}, {"details", secs}});
 	}
 	const String line = sprintf0(tr0("%(attackLabel)s: %(effects)s, %(range)s, %(rate)s%(statusEffects)s%(splash)s"),
-			{{"attackLabel", tr0("Bow")}, {"effects", effects}, {"range", range_details(min_m, max_m, elevated_m)}, {"rate", rate},
+			{{"attackLabel", tr0(attack_name)}, {"effects", effects}, {"range", range_details(min_m, max_m, elevated_m)}, {"rate", rate},
 			 {"statusEffects", ""}, {"splash", ""}});
 	return sprintf0(tr0("%(label)s\n%(details)s"), {{"label", tr0("Attack:")}, {"details", "  " + line}});
 }

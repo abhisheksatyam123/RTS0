@@ -124,11 +124,13 @@ inline uint32_t stat_unit_classes(uint8_t unit_type, uint16_t roster_flags) {
 	switch (unit_type) {
 	case UNIT_VILLAGER: set(STAT_UNIT_WORKER); break;
 	case UNIT_FEMALE_CITIZEN: set(STAT_UNIT_WORKER); set(STAT_UNIT_CIVILIAN); break; // 0.28: Civilian
-	case UNIT_WORKER_ELEPHANT: set(STAT_UNIT_WORKER); break;
+	// template_unit_support_elephant.xml (Support Elephant) and the Mauryan Elephant Archer
+	// (Citizen Soldier Elephant Ranged Archer) carry no counted class: Units Total only.
+	case UNIT_WORKER_ELEPHANT: break;
 	case UNIT_SWORDSMAN: case UNIT_ARCHER: case UNIT_SPEARMAN: case UNIT_ARCHER_MAIDEN: case UNIT_CARNYX:
 		set(STAT_UNIT_INFANTRY); break;
 	case UNIT_CAVALRY: case UNIT_CHARIOT: case UNIT_CAMEL: case UNIT_SCYTHED_CHARIOT: set(STAT_UNIT_CAVALRY); break;
-	case UNIT_ELEPHANT: set(STAT_UNIT_CHAMPION); break;
+	case UNIT_ELEPHANT: break; // champion elephants count through ROSTER_CHAMPION
 	case UNIT_HERO: set(STAT_UNIT_HERO); break;
 	case UNIT_CATAPULT: case UNIT_SIEGE_RAM: case UNIT_BOLT_SHOOTER: set(STAT_UNIT_SIEGE); break;
 	case UNIT_TRIREME: case UNIT_FISHING_BOAT: set(STAT_UNIT_SHIP); break;
