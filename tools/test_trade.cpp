@@ -54,8 +54,16 @@ static void test_tribute() {
 	CHECK(s.player_resource(3, RES_WOOD) == 1100 && s.player_resource(3, RES_STONE) == 1050 && s.player_resource(3, RES_FOOD) == 1025);
 	// All or nothing: one resource short refuses the whole tribute.
 	const int too_much[RES_COUNT] = {10, 5000, 0, 0};
+	s.take_session_notices();
 	CHECK(!s.cmd_tribute(2, 3, too_much));
 	CHECK(s.player_resource(2, RES_WOOD) == 900 && s.player_resource(2, RES_GOLD) == 1000);
+	{
+		// SubtractResourcesOrNotify: the sender hears "Insufficient resources - 4000 metal".
+		const auto notes = s.take_session_notices();
+		CHECK(notes.size() == 1 && notes[0].kind == Simulation::SessionNotice::TEXT &&
+		      notes[0].tech == Simulation::SessionNotice::TEXT_INSUFFICIENT_RESOURCES && notes[0].player == 2 &&
+		      notes[0].amounts[RES_GOLD] == 4000 && notes[0].amounts[RES_WOOD] == 0);
+	}
 	const int negative[RES_COUNT] = {10, -5, 0, 0};
 	CHECK(!s.cmd_tribute(2, 3, negative));
 	const int nothing[RES_COUNT] = {};
