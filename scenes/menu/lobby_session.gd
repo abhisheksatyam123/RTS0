@@ -537,7 +537,10 @@ static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictio
 	var players := []
 	var slots: Array = net.get("slots", [])
 	var count := slots.size() if not net.is_empty() else int(ms.get("player_count"))
-	for i in count:
+	# LobbyGameRegistration.formatClientsForStanza: "Don't send teams, AIs or
+	# anything else until the game was started", only who plays and who watches.
+	var in_setup: bool = net.has("started") and not net["started"]
+	for i in (0 if in_setup else count):
 		var kind := int(at.call("slot_types", i, 0))
 		var name := ""
 		if kind == 1:
@@ -561,6 +564,9 @@ static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictio
 		if kind == 0 and seat.get("offline", false):
 			p["offline"] = true
 		players.append(p)
+	for e in (slots if in_setup else []):
+		if str(e.get("name", "")) != "":
+			players.append({"name": str(e["name"])})
 	for o in net.get("observers", []):
 		players.append({"name": str(o.get("name", "")), "team": -1, "observer": true})
 	# LobbyGameRegistration.js maxnbp: the map's player count.
@@ -636,7 +642,8 @@ static func game_details(room: Dictionary, ratings: Dictionary) -> String:
 		for c in setup.CIVS:
 			if c["code"] == civ:
 				civ_title = c["name"]
-		var parts := [civ_title]
+		# formatPlayerInfo: a player sent without a civ (a game in setup) is just its name.
+		var parts := [civ_title] if p.has("civ") else []
 		var who := name
 		if p.get("ai", 0):
 			parts.append(summary.ai_description(p))
@@ -650,7 +657,7 @@ static func game_details(room: Dictionary, ratings: Dictionary) -> String:
 		var t := int(p.get("team", -1))
 		if not teams.has(t):
 			teams[t] = PackedStringArray()
-		teams[t].append("%s%s (%s)" % [mark, esc.call(who), ", ".join(parts)])
+		teams[t].append("%s%s (%s)" % [mark, esc.call(who), ", ".join(parts)] if not parts.is_empty() else mark + esc.call(who))
 	var keys := teams.keys()
 	keys.sort()
 	if keys.has(-1):

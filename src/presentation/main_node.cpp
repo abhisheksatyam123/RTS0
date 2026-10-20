@@ -2716,7 +2716,12 @@ Dictionary RtsoMain::get_lobby_state() const {
 	Dictionary d;
 	const bool hosting = net_host_.isHost();
 	int players = 0;
-	if (hosting) {
+	if (hosting && !net_game_started_) {
+		// LobbyGameRegistration.formatClientsForStanza: nbp counts the clients
+		// the player assignment seats, not the unassigned ones or a host who watches.
+		for (uint8_t i = 0; i < net_setup_.setup.slot_count && i < 8; ++i)
+			if (net_setup_.slot_client[i] >= 0) ++players;
+	} else if (hosting) {
 		players = 1;
 		for (const auto &p : net_host_.getPeers())
 			if (p.id != 0 && p.connected && p.is_authenticated && !p.is_observer) ++players;
@@ -3256,6 +3261,7 @@ Dictionary RtsoMain::get_net_setup_state() const {
 	d["can_start"] = host && !net_game_started_ && net_setup_.all_ready();
 	d["ready"] = host ? 2 : (int)net_ready_;
 	// SavedGameLabel and GameSettingControl EnabledWhenSavedGame.
+	d["started"] = net_game_started_;
 	d["saved_game"] = net_setup_.setup.saved_game != 0;
 	d["locked"] = net_setup_.setup.lock_players != 0 || net_setup_.setup.saved_game != 0;
 	d["version"] = (int64_t)net_setup_.seq;
