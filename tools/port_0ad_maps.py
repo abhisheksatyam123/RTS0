@@ -676,10 +676,12 @@ def units_demo_entities(z):
     return out
 
 
-def apply_player_data(players, settings, scenario=False):
+def apply_player_data(players, settings, scenario=False, to_world=None):
     """ScriptSettings PlayerData: a scenario's fixed civs, starting resources, locked teams and
-    population limits, onto the map's player entries (by id). Its first entry is player 1, or
-    an empty Gaia placeholder in older maps. Returns the PopulationLimit every player shares, if any."""
+    population limits, onto the map's player entries (by id), and any map's Color and
+    StartingCamera (its Position through to_world, 0.28 metres to RTS0 x, z). Its first entry is
+    player 1, or an empty Gaia placeholder in older maps. Returns the PopulationLimit every player
+    shares, if any."""
     pdata = settings.get("PlayerData", [])
     offset = 0 if pdata and not isinstance(pdata[0], dict) else 1
     limits = []
@@ -697,6 +699,19 @@ def apply_player_data(players, settings, scenario=False):
             p["team"] = pd["Team"]
         if isinstance(pd.get("PopulationLimit"), int):
             p["pop_limit"] = pd["PopulationLimit"]
+        # 0.28 PlayerColor.js: the map's Color is the player's default colour (any map type).
+        p.pop("color", None)
+        c = pd.get("Color")
+        if isinstance(c, dict) and all(isinstance(c.get(k), (int, float)) for k in "rgb"):
+            p["color"] = [int(c["r"]), int(c["g"]), int(c["b"])]
+        # helpers/Player.js SetStartingCamera: the game opens with this player's camera on
+        # Position at Rotation (degrees) instead of on their civic centre.
+        p.pop("camera", None)
+        cam = pd.get("StartingCamera")
+        if to_world and isinstance(cam, dict) and isinstance(cam.get("Position"), dict):
+            pos, rot = cam["Position"], cam.get("Rotation") or {}
+            wx, wz = to_world(float(pos.get("x", 0)), float(pos.get("z", 0)))
+            p["camera"] = {"x": wx, "z": wz, "rot_x": float(rot.get("x", 0)), "rot_y": float(rot.get("y", 0))}
         limits.append(pd.get("PopulationLimit"))
     return limits[0] if limits and isinstance(limits[0], int) and all(l == limits[0] for l in limits) else None
 
@@ -740,7 +755,14 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             # Teams back to the porter's default (a team of one) before PlayerData sets a scenario's.
             for p in old["players"]:
                 p["team"] = p["id"] - 1
-            limit = apply_player_data(old["players"], settings, xml_rel.startswith("maps/scenarios/"))
+            to_world = None
+            try:
+                span = pmp_tiles(z.read(pmp_rel or xml_rel[:-4] + ".pmp")) * 4.0
+                k = old.get("world_size", 256.0) / span
+                to_world = lambda x, zz: (round((x - span / 2) * k, 2), round((zz - span / 2) * k, 2))
+            except (KeyError, FileNotFoundError):
+                pass
+            limit = apply_player_data(old["players"], settings, xml_rel.startswith("maps/scenarios/"), to_world)
             old.pop("pop_limit", None)
             if limit is not None:
                 old["pop_limit"] = limit
@@ -1070,7 +1092,8 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             if not has_tc and not army_only:
                 structures.append({"type": "town_center", "player": p["id"], "x": p["start_x"], "z": p["start_z"]})
 
-        pop_limit = apply_player_data(list(players.values()), settings, xml_rel.startswith("maps/scenarios/"))
+        pop_limit = apply_player_data(list(players.values()), settings, xml_rel.startswith("maps/scenarios/"),
+                                      lambda x, zz: (round((x - center_x) * scale, 2), round((zz - center_z) * scale, 2)))
 
         map_data = {
             "id": map_id,
