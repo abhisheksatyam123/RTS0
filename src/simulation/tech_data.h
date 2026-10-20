@@ -239,6 +239,7 @@ inline constexpr TechClasses TC_COLONY = tc_bit(65);
 inline constexpr TechClasses TC_AUXILIARY = tc_bit(66);
 inline constexpr TechClasses TC_TEMPLEOFAPEDEMAK = tc_bit(67);
 inline constexpr TechClasses TC_PALISADE = tc_bit(68);
+inline constexpr TechClasses TC_NAVAL = tc_bit(69);
 
 // One 0 A.D. "affects" alternative: every `need` class and no `forbid` class.
 struct TechClassExpr { TechClasses need; TechClasses forbid; };
@@ -328,7 +329,7 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_RAM, 0}, // siege_health: Ram or SiegeTower
 		{TC_SIEGETOWER, 0},
 		{TC_COLONY, 0},
-		{TC_CIVCENTRE, TC_COLONY}, // 83 hellenistic_metropolis: CivCentre !Colony (!Naval: crannogs, Briton-only)
+		{TC_CIVCENTRE, TC_COLONY | TC_NAVAL}, // 83 hellenistic_metropolis: CivCentre !Colony !Naval
 	};
 	return kAffects;
 }
