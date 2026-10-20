@@ -29237,7 +29237,8 @@ void Simulation::petra_manage_raid(float dt) {
 		int hunters_kept = 0;
 		const size_t raid_target = std::max<size_t>(1, petra_attack_mgr_.raid_target);
 		const size_t raid_min = std::max<size_t>(1, std::min<size_t>(petra_attack_mgr_.raid_min, raid_target));
-		for (size_t i = 0; i < units_.count && (!naval || plan.squad.size() < raid_target); ++i) {
+		// A completing raid takes no more units (attackPlan.js updatePreparation returns first).
+		for (size_t i = 0; i < units_.count && !plan.completing && (!naval || plan.squad.size() < raid_target); ++i) {
 			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 			uint8_t ut = units_.unit_type[i];
 			if (!petra_is_combat_unit(ut) || unit_is_ship(ut) || ut == UNIT_TRIREME) continue;
@@ -29255,7 +29256,7 @@ void Simulation::petra_manage_raid(float dt) {
 		}
 		// reassignFastUnit: a main plan still preparing hands one of its units a turn to the
 		// raid, the first FastMoving or citizen soldier (hasClasses with a list is an OR).
-		if (petra_attack_plan_.state == AttackPlan::MUSTER && !petra_attack_plan_.completing) {
+		if (!plan.completing && petra_attack_plan_.state == AttackPlan::MUSTER && !petra_attack_plan_.completing) {
 			auto &main = petra_attack_plan_.squad;
 			for (auto it = main.begin(); it != main.end(); ++it) {
 				const int32_t k = lookup_unit(*it);
@@ -29277,7 +29278,7 @@ void Simulation::petra_manage_raid(float dt) {
 		int siege_count = 0;
 		for (uint32_t uid : plan.squad)
 			if (const int32_t k = lookup_unit(uid); k >= 0 && is_raid_siege((size_t)k)) ++siege_count;
-		for (size_t i = 0; i < units_.count && !naval && siege_count < siege_target; ++i) {
+		for (size_t i = 0; i < units_.count && !plan.completing && !naval && siege_count < siege_target; ++i) {
 			if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_IDLE || !is_raid_siege(i)) continue;
 			const uint32_t uid = units_.id[i];
 			if (std::find(plan.squad.begin(), plan.squad.end(), uid) != plan.squad.end() || petra_in_attack_squad(uid) ||
@@ -29294,14 +29295,47 @@ void Simulation::petra_manage_raid(float dt) {
 		                   (riders >= raid_min && tb.build_progress > 0.5f && tb.build_progress < 1.0f);
 		// updatePreparation: a raid still preparing adds siege engines once a building of ours
 		// trains them (SIEGE_NOT_TESTED, then every 5th turn while SIEGE_NO_TRAINER).
-		if (!ready && petra_can_build_units() && (rs == 0 || (rs == 0xFF && petra_turn_mod(5)))) petra_raid_add_siege();
-		if (!ready) return;
+		if (!ready && !plan.completing && petra_can_build_units() && (rs == 0 || (rs == 0xFF && petra_turn_mod(5)))) petra_raid_add_siege();
+		if (!ready && !plan.completing) return;
 		const float tx = plan.target_x, tz = plan.target_z;
 		// A raid overseas waits for a transport ship there (attackPlan.js updatePreparation,
 		// navalManager.js seaTransportShips), then sails on its own ships like an attack.
 		const uint16_t overseas = petra_plan_overseas(base_x, base_z, plan.target_building_id);
 		if (overseas && petra_transport_ships_on(overseas) == 0)
 			return;
+		if (!overseas && !plan.completing) {
+			// attackPlan.js updatePreparation at mustStart: a raid on our land takes its path to
+			// the target (getPathToTarget, setRallyPoint) and gathers at the rally point where the
+			// path leaves our territory ("completing"), loads returned first, for at most 20 s
+			// (maxCompletingTime; none for a forced raid).
+			float rx = base_x, rz = base_z;
+			const uint16_t there = petra_access_at(tx, tz);
+			if (petra_access_at(rx, rz) != there) {
+				float best = 1e30f;
+				for (const PetraBase &pb : petra_bases_) {
+					if (petra_access_at(pb.x, pb.z) != there) continue;
+					const float d = (pb.x - tx) * (pb.x - tx) + (pb.z - tz) * (pb.z - tz);
+					if (d < best) { best = d; rx = pb.x; rz = pb.z; }
+				}
+			}
+			petra_plan_path(plan, rx, rz);
+			std::vector<uint32_t> straight;
+			for (uint32_t uid : plan.squad) {
+				const int32_t k = lookup_unit(uid);
+				const uint32_t drop = k >= 0 ? petra_defender_dropsite((size_t)k) : 0;
+				if (!drop) { straight.push_back(uid); continue; }
+				order_return_resource(&uid, 1, drop, false);
+				order_walk(&uid, 1, plan.staging_x, plan.staging_z, true);
+			}
+			if (!straight.empty()) order_walk(straight.data(), straight.size(), plan.staging_x, plan.staging_z, false);
+			plan.completing = true;
+			plan.completing_time = plan.state_timer + (plan.forced ? 0.0f : 20.0f);
+			return;
+		}
+		// Completing: the raid sets off once no unit walks under a forced order, or at its
+		// maxCompletingTime.
+		if (plan.completing && plan.state_timer < plan.completing_time && petra_plan_has_force_order(plan)) return;
+		plan.completing = false;
 		plan.initial_squad_size = plan.squad.size();
 		plan.state = AttackPlan::WALKING;
 		plan.state_timer = 0.0f;
@@ -29312,6 +29346,17 @@ void Simulation::petra_manage_raid(float dt) {
 		if (overseas) {
 			if (!petra_start_transport(plan.squad, base_x, base_z, tx, tz, overseas, PETRA_TRANSPORT_RAID))
 				order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz, false, false, true, petra_attack_avoid(plan, false));
+		} else if (!plan.path_x.empty()) {
+			// StartAttack: walk to the path's first point (the rally point itself is behind us).
+			if (plan.path_x.size() > 1) {
+				plan.path_x.erase(plan.path_x.begin());
+				plan.path_z.erase(plan.path_z.begin());
+			}
+			if (auto it = building_id_to_idx_.find(plan.target_building_id); it != building_id_to_idx_.end())
+				plan.target_player = buildings_[it->second].team;
+			float c[2];
+			if (petra_squad_centre(plan.squad, c[0], c[1])) { plan.last_x = plan.pos5_x = c[0]; plan.last_z = plan.pos5_z = c[1]; }
+			order_walk(plan.squad.data(), plan.squad.size(), plan.path_x[0], plan.path_z[0], false);
 		} else {
 			order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz, false, false, true, petra_attack_avoid(plan, false));
 		}
@@ -29327,6 +29372,50 @@ void Simulation::petra_manage_raid(float dt) {
 
 	// A save from before raids joined the started attacks: its raid runs on here.
 	if (plan.state != AttackPlan::UNEXECUTED && plan.state != AttackPlan::MUSTER) petra_update_started_raid(plan, base_x, base_z);
+}
+
+// attackPlan.js UpdateWalking for a raid on its path: it arrives once more than one Attacked
+// event hits it (by units, or with siege engines along) in the target player's territory or
+// more than three anywhere; within 100 m of the target; or at the path's end. A raid that has
+// barely moved since the last turn walks on to its waypoint. Distances in world units (4 m).
+bool Simulation::petra_raid_walk(AttackPlan &plan) {
+	float cx = 0.0f, cz = 0.0f;
+	if (!petra_squad_centre(plan.squad, cx, cz)) return true;
+	int attacked_nb = 0, attacked_unit_nb = 0;
+	for (const auto &[target, attacker] : petra_turn_attacks_) {
+		if (std::find(plan.squad.begin(), plan.squad.end(), target) == plan.squad.end()) continue;
+		uint8_t owner = 0xFF;
+		const int32_t a = lookup_unit(attacker);
+		if (a >= 0 && units_.alive[a]) owner = units_.team[a];
+		else if (auto it = building_id_to_idx_.find(attacker); it != building_id_to_idx_.end()) owner = buildings_[it->second].team;
+		if (owner == 0xFF || (owner == GAIA_PLAYER && plan.target_player != GAIA_PLAYER)) continue;
+		++attacked_nb;
+		attacked_unit_nb += a >= 0;
+	}
+	bool siege = false;
+	for (uint32_t uid : plan.squad) {
+		const int32_t k = lookup_unit(uid);
+		siege |= k >= 0 && petra_is_siege_unit((size_t)k);
+	}
+	bool arrived = attacked_nb > 1 && (attacked_unit_nb > 0 || siege) &&
+	               (territory_owner_at(cx, cz) == (int)plan.target_player || attacked_nb > 3);
+	if (!arrived && (cx - plan.last_x) * (cx - plan.last_x) + (cz - plan.last_z) * (cz - plan.last_z) < 1.0f)
+		order_walk(plan.squad.data(), plan.squad.size(), plan.path_x[0], plan.path_z[0], false);
+	if (!arrived) {
+		const float dt2 = (cx - plan.target_x) * (cx - plan.target_x) + (cz - plan.target_z) * (cz - plan.target_z);
+		const float dp2 = (cx - plan.path_x[0]) * (cx - plan.path_x[0]) + (cz - plan.path_z[0]) * (cz - plan.path_z[0]);
+		if (dt2 < 10000.0f / 16.0f) {
+			arrived = true;
+		} else if (dp2 < 1600.0f / 16.0f) {
+			plan.path_x.erase(plan.path_x.begin());
+			plan.path_z.erase(plan.path_z.begin());
+			if (plan.path_x.empty()) arrived = true;
+			else order_walk(plan.squad.data(), plan.squad.size(), plan.path_x[0], plan.path_z[0], false);
+		}
+	}
+	plan.last_x = cx;
+	plan.last_z = cz;
+	return arrived;
 }
 
 // A started raid (attackPlan.js update for a Raid): it fights its target, then the next of the
@@ -29349,6 +29438,14 @@ void Simulation::petra_update_started_raid(AttackPlan &plan, float base_x, float
 			if (!plan.squad.empty())
 				petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
 			return;
+		}
+		// A raid marching along its path fights only once it arrives (attackPlan.js update
+		// "walking" state, then "arrived").
+		if (plan.state == AttackPlan::WALKING && !plan.path_x.empty()) {
+			if (!petra_raid_walk(plan)) return;
+			plan.path_x.clear();
+			plan.path_z.clear();
+			order_attack_move(plan.squad.data(), plan.squad.size(), plan.target_x, plan.target_z, false, false, true, petra_attack_avoid(plan, false));
 		}
 		// UpdateTarget: a raid fights on until its target falls, then takes the next of the
 		// targetList (raidTargetFinder), and goes home with none left.
