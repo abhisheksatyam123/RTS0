@@ -784,6 +784,12 @@ static void test_attack_plans() {
 		// Murder Holes: soldiers hacking at a fortress from under its arrows (MinRange) would
 		// hold both attack slots for the rest of the match.
 		s->complete_research(0, TECH_TOWER_MURDERHOLES);
+		// A storehouse in its territory but over 80 m from the fortresses and its Town Center, put
+		// back whenever it falls: a siege-less Attack goes only for undefended structures
+		// (attackPlan.js getNearestTarget rushTargetFinder) and fails at start without one, so
+		// otherwise whether an Attack marches hangs on this run's timing (siege trained in time).
+		auto add_store = [&] { s->spawn_building_world(44.0f, 6.0f, BLD_STOREHOUSE, 0, 1.0f); };
+		add_store();
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
@@ -801,9 +807,13 @@ static void test_attack_plans() {
 		for (float t = 0.0f; t < 40.0f * 60.0f && !marched(); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (++step % 200 == 0) {
-				bool any = false;
-				for (const auto &b : s->buildings()) any |= b.team == 0 && b.hp > 0.0f;
+				bool any = false, store = false;
+				for (const auto &b : s->buildings()) {
+					any |= b.team == 0 && b.hp > 0.0f;
+					store |= b.team == 0 && b.hp > 0.0f && !b.wrecked && b.type == BLD_STOREHOUSE;
+				}
 				if (!any) s->spawn_building_world(home_x, home_z, BLD_TOWN_CENTER, 0, 1.0f);
+				if (!store) add_store();
 			}
 			const auto &m = s->petra_attack_manager();
 			const auto st = s->petra_attack_plan().state;
