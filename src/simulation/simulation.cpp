@@ -29310,6 +29310,8 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 		order_walk(&tp.ship_id, 1, x, z, false);
 		tp.state = PetraTransportPlan::SAILING;
 		tp.state_timer = 0.0f;
+		tp.boarding.clear();
+		tp.board_check = 0.0f;
 	};
 
 	if (tp.state == PetraTransportPlan::BOARDING) {
@@ -29342,7 +29344,10 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 		} else if (tp.state_timer < 0.0f) {
 			tp.state_timer = 0.0f;
 		}
-		if (tp.state_timer > 28.0f) {
+		// transportPlan.js onBoarding waits for every passenger. RTS0 still sails after 120 s at
+		// the beach with whoever made it aboard, so a passenger that can never reach the ship
+		// without standing still (circling a building) can't hold the plan for good.
+		if (tp.state_timer > 120.0f) {
 			if (aboard == 0) {
 				tp.state = PetraTransportPlan::FAILED;
 				tp.failed = true;
@@ -29351,16 +29356,81 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 			sail(); // with whoever made it aboard
 			return;
 		}
+		// Every 2 s, a passenger standing where it stood beside a waiting ship is blocked
+		// (nTry): it walks 30-35 m off on its second try and leaves the plan after its fifth
+		// (0.28 destroys it; RTS0 leaves it where it stands, as unload does).
+		std::vector<uint32_t> walked_off;
+		tp.board_check += dt;
+		if (tp.board_check >= 2.0f) {
+			tp.board_check = 0.0f;
+			const auto *on = get_transport_passengers(tp.ship_id);
+			std::vector<PetraTransportPlan::BoardTry> next;
+			std::vector<uint32_t> keep;
+			for (uint32_t uid : tp.passenger_ids) {
+				const int32_t u = lookup_unit(uid);
+				keep.push_back(uid);
+				if (u < 0 || !units_.alive[u] || (on && std::find(on->begin(), on->end(), uid) != on->end())) continue;
+				PetraTransportPlan::BoardTry b{uid, units_.pos_x[u], units_.pos_z[u], 0};
+				auto it = std::find_if(tp.boarding.begin(), tp.boarding.end(), [uid](const auto &o) { return o.uid == uid; });
+				// Pushing jostles a stuck unit by a hair, so "where it stood" is within 1 m.
+				if (it != tp.boarding.end() && std::fabs(it->x - b.x) < 0.25f && std::fabs(it->z - b.z) < 0.25f) {
+					b.tries = it->tries;
+					if (ship_ready) {
+						if (++b.tries > 5) {
+							keep.pop_back();
+							if (units_.target_unit_id[u] == tp.ship_id) cmd_stop(&uid, 1);
+							continue;
+						}
+						if (b.tries > 1) {
+							float ax = units_.pos_x[u] - units_.pos_x[sidx], az = units_.pos_z[u] - units_.pos_z[sidx];
+							const float d = std::sqrt(ax * ax + az * az);
+							if (d > 1e-3f) {
+								const float step = 32.5f / 4.0f;
+								order_walk(&uid, 1, b.x + ax / d * step, b.z + az / d * step, false);
+								walked_off.push_back(uid);
+							}
+						}
+					}
+				}
+				next.push_back(b);
+			}
+			// The ship itself (nTry per ship): one lying idle short of its boarding point is sent
+			// there again after 5 s, and after a second failed try goes for another point.
+			if (!ship_ready && units_.action_state[sidx] == ACTION_IDLE) {
+				auto it = std::find_if(tp.boarding.begin(), tp.boarding.end(), [&](const auto &o) { return o.uid == tp.ship_id; });
+				uint32_t tries = it != tp.boarding.end() ? it->tries + 1 : 1;
+				if (tries % 3 == 0) {
+					if (tries >= 6) {
+						const float skip[2] = {tp.pickup_x, tp.pickup_z};
+						float nx, nz;
+						if (petra_boarding_pos(petra_land_at(tp.pickup_x, tp.pickup_z), tp.sea, units_.pos_x[sidx], units_.pos_z[sidx],
+						                       tp.pickup_x, tp.pickup_z, false, nx, nz, skip)) {
+							tp.pickup_x = nx;
+							tp.pickup_z = nz;
+						}
+						tries = 0;
+					}
+					order_walk(&tp.ship_id, 1, tp.pickup_x, tp.pickup_z, false);
+				}
+				next.push_back({tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx], tries});
+			}
+			tp.boarding = std::move(next);
+			tp.passenger_ids = std::move(keep);
+		}
 		// A passenger already heading for the ship keeps its order until it is within
 		// loading reach: a fresh order every turn re-paths it from its own navcell,
 		// which can hold it in place beside a building.
 		std::vector<uint32_t> board, to_beach;
-		bool walking_up = false; // a passenger still walking to the ship
 		for (uint32_t uid : tp.passenger_ids) {
 			const int32_t u = lookup_unit(uid);
 			if (u < 0 || !units_.alive[u]) continue;
 			const bool heading = units_.action_state[u] == ACTION_MOVE && units_.target_unit_id[u] == tp.ship_id;
-			walking_up |= heading;
+			// Walking off a trap (above): it boards again once there.
+			if (units_.action_state[u] == ACTION_MOVE && !heading) {
+				if (std::find(walked_off.begin(), walked_off.end(), uid) != walked_off.end()) continue;
+				auto it = std::find_if(tp.boarding.begin(), tp.boarding.end(), [uid](const auto &o) { return o.uid == uid; });
+				if (it != tp.boarding.end() && it->tries > 1 && ship_ready) continue;
+			}
 			const float ux = units_.pos_x[u] - units_.pos_x[sidx], uz = units_.pos_z[u] - units_.pos_z[sidx];
 			const float reach = ship_loading_reach((size_t)sidx, (size_t)u);
 			const bool in_reach = ux * ux + uz * uz <= reach * reach;
@@ -29375,11 +29445,12 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 		if (!to_beach.empty()) order_walk(to_beach.data(), to_beach.size(), tp.pickup_x, tp.pickup_z, false);
 		if (!board.empty()) order_board_transport(board.data(), board.size(), tp.ship_id);
 		aboard = get_transport_passenger_count(tp.ship_id);
-		// transportPlan.js onBoarding sails once every unit is aboard; RTS0 also leaves after 8 s
-		// with whoever boarded, but not while others are still walking up to the ship.
-		if ((aboard >= 1 && aboard >= tp.passenger_ids.size()) ||
-		    (aboard >= 2 && ship_ready && tp.state_timer >= 8.0f && !walking_up))
-			sail();
+		// transportPlan.js onBoarding sails once every living passenger is aboard (a unit
+		// aboard is out of the world, so any one still found alive is not).
+		bool waiting = false;
+		for (uint32_t uid : tp.passenger_ids)
+			if (const int32_t u = lookup_unit(uid); u >= 0 && units_.alive[u]) { waiting = true; break; }
+		if (aboard >= 1 && !waiting) sail();
 	} else if (tp.state == PetraTransportPlan::SAILING) {
 		float x, z;
 		sail_point(x, z);
@@ -33720,6 +33791,10 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				ar.pod(p.state); ar.pod(p.ship_id); ids(p.passenger_ids);
 				ar.pod(p.pickup_x); ar.pod(p.pickup_z); ar.pod(p.drop_x); ar.pod(p.drop_z);
 				ar.pod(p.state_timer); ar.pod(p.failed);
+				if (ar.version >= Simulation::SAVE_VERSION_PETRA_PASS5) {
+					io_vec(ar, p.boarding, S::UNIT_CAP, [&](PetraTransportPlan::BoardTry &b) { ar.pod(b.uid); ar.pod(b.x); ar.pod(b.z); ar.pod(b.tries); });
+					ar.pod(p.board_check);
+				}
 			};
 			if (ar.version >= SAVE_VERSION_PETRA_TRANSPORTS) {
 				io_vec(ar, v, 64, [&](PetraTransportPlan &p) { ar.pod(p.owner); ar.pod(p.sea); plan(p); });

@@ -232,6 +232,11 @@ struct PetraTransportPlan {
 	bool failed = false;
 	uint8_t owner = 0; // PetraTransportOwner: the plan that asked for it
 	uint16_t sea = 0;  // the sea it crosses (0: any, from an older save)
+	// transportPlan.js onBoarding: each passenger's position at the last 2 s check and how
+	// often it was found blocked beside the ship (posGarrison, nTry).
+	struct BoardTry { uint32_t uid = 0; float x = 0.0f, z = 0.0f; uint32_t tries = 0; };
+	std::vector<BoardTry> boarding;
+	float board_check = 0.0f; // seconds since the last check
 };
 // navalManager.js runs a transportPlan per ship; each asker here has at most one.
 // A crossing asked for again in the same pass (survivors of a sunk ship on another land).

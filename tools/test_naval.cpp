@@ -1342,6 +1342,43 @@ static void test_petra_transport_ship_lost() {
 	CHECK(took == second && landed >= 3); // it sails with whoever made it aboard
 }
 
+// transportPlan.js onBoarding (pass 5 T4): the ship sails only once every passenger is
+// aboard, a straggler walking up from far inland included.
+static void test_petra_transport_waits_for_all() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	s.spawn_unit(-30.0f, 8.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 3; ++k) crew.push_back(s.spawn_unit(-34.0f + 2.0f * k, 26.0f, 1, UNIT_SPEARMAN));
+	const uint32_t late = s.spawn_unit(10.0f, 58.0f, 1, UNIT_SPEARMAN);
+	crew.push_back(late);
+	run(s, 0.5f);
+	CHECK(s.petra_start_transport(crew, -30.0f, 30.0f, -30.0f, -40.0f, 0, PETRA_TRANSPORT_ATTACK));
+	bool early = false, sailed = false;
+	int landed = 0;
+	for (int k = 0; k < 200; ++k) {
+		run(s, 1.0f);
+		const int32_t i = idx(s, late);
+		const bool ashore = i >= 0 && s.units().alive[i] && s.units().pos_z[i] > 0.0f;
+		for (const auto &p : s.petra_transport_plans())
+			if (p.state == PetraTransportPlan::SAILING) { sailed = true; early |= ashore; }
+		landed = 0;
+		for (uint32_t uid : crew) {
+			const int32_t j = idx(s, uid);
+			if (j >= 0 && s.units().alive[j] && s.units().pos_z[j] < -16.0f) ++landed;
+		}
+		if (landed == (int)crew.size()) break;
+	}
+	std::printf("Petra transport waits for all: sailed %s, before the straggler boarded %s, %d of 4 landed\n",
+	            sailed ? "yes" : "no", early ? "yes" : "no", landed);
+	CHECK(sailed && !early && landed == 4);
+}
+
 // navalManager.checkEvents: a transport ship sunk while sailing sets its infantry down on the
 // nearest shore; those not on the destination's land ask for another transport, which takes
 // them across instead of the plan ending.
@@ -2455,6 +2492,7 @@ int main() {
 	test_petra_concurrent_transports();
 	test_petra_defenders_ferried();
 	test_petra_transport_ship_lost();
+	test_petra_transport_waits_for_all();
 	test_petra_transport_sunk_at_sea();
 	test_petra_transport_wrong_land();
 	test_petra_sunk_survivors_two_lands();
