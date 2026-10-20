@@ -3365,8 +3365,18 @@ static void test_relic_targeted_kept() {
 	CHECK(unseen == 0, "Petra leaves an unseen relic outside its territory");
 	CHECK(kept > 0, "but keeps sending units to a relic it went for once (targetedGaiaRelics)");
 	const int32_t r = s->lookup_unit(relic);
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::WALKING;
+	plan.target_building_id = relic;
+	plan.squad.push_back(s->spawn_unit(tx + 3.0f, tz + 3.0f, 1, UNIT_SPEARMAN));
+	s->petra_started_attacks_.push_back(plan);
 	s->units_.team[r] = 0;
 	run_ai_turns(*s, 20);
+	bool plan_on = false;
+	for (const auto &p : s->petra_started_attacks_)
+		plan_on |= p.target_building_id == relic && p.state != Simulation::AttackPlan::ABORT && p.state != Simulation::AttackPlan::REGROUP;
+	CHECK(!plan_on, "an attack going for the relic is aborted once another player takes it (abortCaptureGaiaRelic)");
 	const bool dropped = std::none_of(s->petra_targeted_relics_.begin(), s->petra_targeted_relics_.end(),
 	                                  [&](const auto &t) { return t.relic == relic; });
 	CHECK(dropped && going() == 0, "and drops it, calling its units off, once another player takes it");
