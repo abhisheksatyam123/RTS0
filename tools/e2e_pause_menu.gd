@@ -158,6 +158,9 @@ func run() -> void:
 		and str(row[at + 3].tooltip_text).ends_with(" Match Settings") and str(row[at + 1].tooltip_text).contains("[color="),
 		"Game Speed, then Diplomacy, Barter & Trade, Match Settings with coloured hotkeys: " + str(row[at + 1].tooltip_text if at >= 0 and at + 1 < row.size() else ""))
 	var mb: Button = null
+	# BuildLabel: the release line over the build string; no clock or phase in the bar.
+	var bl: Label = main.find_child("BuildLabel", true, false)
+	check(bl != null and bl.text.begins_with("Release XXVIII: Boiorix\nBuild: "), "the top panel's build label: " + (bl.text.replace("\n", " | ") if bl else ""))
 	for b in main.find_children("*", "Button", true, false):
 		if b.text == "Menu":
 			mb = b
