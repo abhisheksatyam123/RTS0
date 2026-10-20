@@ -411,6 +411,9 @@ struct PetraKept {
 	bool units_checked = false;
 	bool no_units = false;
 	std::vector<uint32_t> allied;
+	// headquarters.js buildMoreHouses: house plans waiting in queues.house (up to 3, 5 above 80
+	// population), started once houseNeeded holds (saved v111).
+	uint8_t house_plans = 0;
 	static uint8_t at(const std::vector<uint8_t> &v, size_t s) { return s < v.size() ? v[s] : 0; }
 	static void raise(std::vector<uint8_t> &v, size_t s, int n) {
 		if (s >= v.size()) v.resize(s + 1, 0);

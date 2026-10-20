@@ -109,7 +109,8 @@ struct ProductionOrder {
 // The metadata Petra trains a batch with (queueplanTraining.js): a worker (role worker, no
 // plan), a soldier for the attack in preparation or for the raid (plan), or none.
 // PETRA_ORDER_EMERGENCY: headquarters.js trainEmergencyUnits queues them with metadata plan -1.
-enum PetraOrderPlan : uint8_t { PETRA_ORDER_NONE = 0, PETRA_ORDER_WORKER, PETRA_ORDER_ATTACK, PETRA_ORDER_RAID, PETRA_ORDER_EMERGENCY };
+// PETRA_ORDER_TRADER: tradeManager.js trainMoreTraders (role trader; saved from v111).
+enum PetraOrderPlan : uint8_t { PETRA_ORDER_NONE = 0, PETRA_ORDER_WORKER, PETRA_ORDER_ATTACK, PETRA_ORDER_RAID, PETRA_ORDER_EMERGENCY, PETRA_ORDER_TRADER };
 // ProductionQueue.js MaxQueueSize.
 static constexpr size_t PRODUCTION_QUEUE_MAX = 16;
 
@@ -181,8 +182,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 110; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 111; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_QUEUE_CLOCK = 110; // each structure's time into its production queue's second
+	static constexpr uint32_t SAVE_VERSION_PETRA_PASS5 = 111; // Petra's trade ships and their switches, its house plans
 	static constexpr uint32_t SAVE_VERSION_FAUNA_ROAM = 108; // each animal's MoveRandomly roamAngle and startAngle
 	static constexpr uint32_t SAVE_VERSION_PETRA_TILE_BASES = 107; // the base that claimed each of Petra's territory tiles
 	static constexpr uint32_t SAVE_VERSION_CHASE_TARGET = 105; // the target each unit was last in attack range of (UnitAI CHASING)
@@ -2001,6 +2003,11 @@ public:
 	// raid squad held (attackPlan.js removeUnit) and the emergency units (trainEmergencyUnits).
 	// 0.28 never clears it, so trainMoreWorkers doesn't count them as workers again.
 	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_out_of_plan_;
+	// Petra's merchant ships with the trader role, sorted ids (saved v111): trained by
+	// trainMoreTraders, or transport ships it switched; petra_switch_ships_ the ones to switch once
+	// their transport plan ends (ROLE_SWITCH_TO_TRADER). Every other merchant ship is a transport.
+	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_trade_ships_, petra_switch_ships_;
+	bool petra_trade_ship(uint32_t id) const;
 	bool petra_is_worker(size_t i) const;
 	int petra_target_workers() const;
 	int petra_work_phase3() const;

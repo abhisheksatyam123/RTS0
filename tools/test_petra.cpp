@@ -4314,12 +4314,15 @@ static void test_victory_critical_ents() {
 		const uint32_t first = s->spawn_building_world(tx * 0.8f, tz * 0.8f, BLD_WONDER, 1, 1.0f);
 		s->cmd_delete(1, &first, 1);
 		bool rebuilt = false;
-		for (float t = 0.0f; t < 40.0f && !rebuilt; t += Simulation::FIXED_STEP) { // buildWonder every 10th AI turn
+		// buildWonder every 10th AI turn; a house started that turn (one structure a turn) holds it
+		// to the next.
+		for (float t = 0.0f; t < 80.0f && !rebuilt; t += Simulation::FIXED_STEP) {
 			s->players_[1].add(5000.0f, 5000.0f, 5000.0f, 5000.0f);
 			fund_queues(*s);
 			s->tick(Simulation::FIXED_STEP);
 			for (const auto &b : s->buildings())
 				if (b.team == 1 && b.type == BLD_WONDER && b.id != first && !b.wrecked) rebuilt = true;
+			if (rebuilt) std::printf("  wonder destroyed: placed again at %.1f s\n", t);
 		}
 		std::printf("  wonder destroyed: a new one placed %s\n", rebuilt ? "yes" : "no");
 		CHECK(rebuilt, "Petra starts a new wonder once its wonder is destroyed");
@@ -4461,6 +4464,8 @@ static void test_idle_return_to_wagon() {
 	const uint32_t wagon = s->spawn_unit(u.pos_x[i] + 6.0f, u.pos_z[i], 1, UNIT_WAGON);
 	u.carry[i] = 5;
 	u.res_type_carried[i] = RES_WOOD;
+	// No wood to spend, so Petra building meanwhile can't hide the load.
+	s->set_player_resources(1, s->player(1).food(), 0, s->player(1).gold(), s->player(1).stone());
 	const float before = s->player(1).wood();
 	bool dropped = false;
 	for (int k = 0; k < 30 * 20 && !dropped; ++k) {

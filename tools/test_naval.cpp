@@ -183,6 +183,36 @@ static void test_petra_sea_trade() {
 	CHECK(ships <= s.petra_target_traders() + 1);
 }
 
+// tradeManager.js trainMoreTraders: a merchant ship Petra has as a transport (not trained for
+// trade) is switched to trading on a 5th turn below the trader target, before any is trained.
+static void test_petra_transport_switches_to_trade() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 2000, 2000, 2000, 2000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	s.spawn_building_world(48.0f, -20.0f, BLD_DOCK, 1);
+	s.spawn_building_world(-40.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	const uint32_t ship = s.spawn_unit(-40.0f, 8.0f, 1, UNIT_MERCHANT_SHIP);
+	s.petra_pid_ = 1;
+	const bool transport = !s.petra_trade_ship(ship);
+	bool traded_early = false;
+	for (int k = 0; k < 40; ++k) {
+		run(s, 0.5f);
+		s.petra_pid_ = 1;
+		if (!s.petra_trade_ship(ship) && s.units().action_state[s.lookup_unit(ship)] == ACTION_TRADE) traded_early = true;
+		if (s.petra_trade_ship(ship)) break;
+	}
+	run(s, 4.0f);
+	s.petra_pid_ = 1;
+	const bool switched = s.petra_trade_ship(ship);
+	const bool trading = s.units().action_state[s.lookup_unit(ship)] == ACTION_TRADE;
+	std::printf("Petra transport to trade: a transport first %d, traded before the switch %d, switched %d, trading %d\n", transport,
+	            traded_early, switched, trading);
+	CHECK(transport && !traded_early && switched && trading);
+}
+
 // tradeManager.js updateTrader: a land trader whose land has no route asks for a ship
 // (navalManager.requireTransport) to the nearer end of the best route on another land. A second
 // trader there joins the same crossing while the ship boards.
@@ -2408,6 +2438,7 @@ int main() {
 	test_dock_trade();
 	test_fishing();
 	test_petra_sea_trade();
+	test_petra_transport_switches_to_trade();
 	test_petra_trader_transport();
 	test_ship_height();
 	test_ship_leaves_shore_house();

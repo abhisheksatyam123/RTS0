@@ -15,7 +15,7 @@ Read-only audit of RTS0's Petra port (area C) against 0 A.D. 0.28 Petra: `baseMa
 | B3 | Bases | Low-Medium | save | handleNewBase's effects (saveResources, saveSpace, maxFields cleared for good) fire when the foundation is laid, and maxFields comes back if the second civic centre falls; 0.28 fires on ConstructionFinished | Open |
 | B4 | Repairs | Low-Medium | no | Idle workers don't repair a damaged civic centre (baseManager.js:708) | **Fixed** |
 | H4 | New bases | Low-Medium | save | A new base with no valid spot neither funds the CC plan, blocks phasing, nor sets the CC no-room mark (buildNewBase queues before searching) | Open |
-| H5 | Houses | Low-Medium | save | 0.28 holds up to 3 (5) house plans and can start one a turn; RTS0 lays at most one house per 4th turn | Open |
+| H5 | Houses | Low-Medium | save | 0.28 holds up to 3 (5) house plans and can start one a turn; RTS0 lays at most one house per 4th turn | **Fixed** |
 | T4 | Transport | Low-Medium | no | Ships sail 8 s after ready with 2 aboard, or at 28 s with whoever is aboard; 0.28 waits for all, retrying blocked units 5 times | Open |
 | T5 | Transport | Low-Medium | no | The pickup point is the last dry cell toward the destination, not getBoardingPos on the ship's sea (transportPlan.js:466) | **Fixed** |
 | B5 | Builders | Low | no | Any idle worker on the map is picked before a gatherer next to the foundation; 0.28 prefers idle builders only within 200 m, then distance with food gatherers x3 | **Fixed** |
@@ -26,7 +26,7 @@ Read-only audit of RTS0's Petra port (area C) against 0 A.D. 0.28 Petra: `baseMa
 | H6 | Cadence | Low | no | trainMoreWorkers, buildMoreHouses, buildFarmstead and manageCorral run with no finished base anchor; 0.28 skips them (headquarters.js:2281) | **Fixed** |
 | H7 | Dropsites | Low | no | The fallback storehouse goes down while a civic centre is wanted but unpaid; 0.28 skips it while civilCentre has a queued plan (baseManager.js:507) | **Fixed** |
 | T6 | Transport | Low | no | The roomiest free ship is picked, not the nearest; the +50 siege bonus applies to the merchantman | **Fixed** |
-| T7 | Trade | Low | no | Any idle merchant ship becomes a trader; 0.28 switches one transport per 5 turns and only below targetNumTraders | Open (save) |
+| T7 | Trade | Low | no | Any idle merchant ship becomes a trader; 0.28 switches one transport per 5 turns and only below targetNumTraders | **Fixed** |
 | T8 | Fishing | Low | no | Every linked sea gets 2 fishing boats on a small start land; 0.28 raises only seas already wanting some (navalManager.js:171) | **Fixed** |
 | T9 | Ships | Low | no | Ships can train on several seas at once; maintainFleet returns while any ship is queued (navalManager.js:509) | **Fixed** |
 | T10 | Docks | Low | no | A dock with no room is searched again every 10 s (0.28: 90 s); the super dock uses pop_current and ignores a busy militaryBuilding queue | **Fixed** (part) |
@@ -56,7 +56,8 @@ Not ported on purpose: B10, a 0.28 bug (basesManager.js:121 calls `reset(type)` 
 - **T10.** A dock search that finds no room sets the 90 s no-room mark (it was retried every 10 s). The super dock checks the accounted population (units in training too). The busy militaryBuilding queue check is not ported: RTS0's retry of the super dock pays from that queue itself, so a waiting want can't tell the two apart. test_naval's Cothon window is now 20 s, because a dock goes down at 7 s first.
 - **B9.** Each base's finished anchor turns its dropsite sharing off. Test: test_anchor_dropsite_unshared.
 - **T11.** Survivors of a sunk ship on lands other than the first, short of the destination, each get a crossing of their own (`PetraReferry`, started after the pass). Test: test_petra_sunk_survivors_two_lands (test_naval).
-- **T7** needs a saved role per merchant ship, telling a transport from a trader trained for trade. It moves to the save batch with B1, B3 and H5.
+- **T7** (save 111). A merchant ship trained for trade (PETRA_ORDER_TRADER) has the trader role; every other merchant ship is a transport. trainMoreTraders, on a sea route below its target, switches the last transport merchant ship on the route's sea before it trains one. A ship in a transport plan switches once the plan ends. The AI's idle-trader auto route skips Petra's transports. Test: test_petra_transport_switches_to_trade (test_naval).
+- **H5** (save 111). buildMoreHouses queues a house plan every 4th turn, up to 3 (5 above 80 population), and houseNeeded starts one on any turn. Phasing houses use the queued plans. Older saves start with 3. Continental 64, 8 seeds: town 645 s to 676 s, city 1022 s to 1028 s. test_idle_return_to_wagon keeps no wood to spend. The wonder rebuild check waits 80 s, because a house can take the one structure a turn on buildWonder's turn.
 
 ## Checked and matching
 
