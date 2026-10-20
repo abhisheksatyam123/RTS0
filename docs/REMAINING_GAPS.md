@@ -116,6 +116,17 @@ Production queues, upgrades, foundations, capture/decay, build restrictions, tec
 | Q17 | Construction tooltip's Heal line ignores garrison_heal; detailed training tooltips show base template stats, not the player's | low | Heal line fixed (garrison_heal counted); detailed training stats per player open |
 | Q18 | Upgrade tooltip cost isn't multiplied by the number of selected same-template structures | low | Fixed: every selected structure of the type upgrades, so the cost is for all of them |
 
+### Buildings, techs and map structures, sixth 0.28 pass (2026-10-20)
+
+BuildingAI, focus fire, structure tooltips, merc camps and civ structure data against 0.28. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| R1 | A captured Ptolemaic mercenary camp trains Ptolemaic mercenaries; 0.28's Trainer list is units/{civ}, the holder's own (f1179caa6 made it native on purpose) | medium | Open: decision with stan (D's merc camp card) |
+| R2 | Towers and focus fire targeted structures without Health (shrines, trading posts, rotary mills); BuildingAI's query wants Resistance and Health | low | Fixed |
+| R3 | The structure attack tooltip always said "Bow"; the bolt tower's AttackName is Bolt, the artillery tower's Stone | low | Fixed |
+| R4 | The Projectile Limit and per-unit arrow tooltip ignored a garrisoned Caros (GetMaxArrowCount, GetGarrisonArrowMultiplier) | low | Fixed |
+
 Checked and matching: queue limits, batch time modifiers, pop blocking, entity limits, research cost multipliers, upgrade cost/time/carry-over, foundation and repair rates, capture regen and ownership flip, territory decay rates, garrison healing, build restriction distances, every tech's cost/time/requirements/supersedes, researcher lists, civ bonuses, and the training/research/construction tooltips.
 
 ### Statistics, replays, summary, Match Settings and developer overlay, fifth 0.28 pass (2026-10-20)
