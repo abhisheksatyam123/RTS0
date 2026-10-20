@@ -3686,8 +3686,9 @@ static void apply_net_host_options(rtso::NetHost &net) {
 	Ref<Script> lib = ResourceLoader::get_singleton()->load("res://scenes/menu/mods.gd");
 	const Variant v = lib.is_valid() ? lib->call("engine_mods") : Variant();
 	if (v.get_type() == Variant::ARRAY) {
-		for (const Variant &e : (Array)v) {
-			const Dictionary m = e;
+		const Array list = v;
+		for (int64_t i = 0; i < list.size(); ++i) {
+			const Dictionary m = list[i];
 			if ((bool)m.get("ignoreInCompatibilityChecks", false)) continue;
 			mods.emplace_back(String(m.get("name", "")).utf8().get_data(), String(m.get("version", "")).utf8().get_data());
 		}
