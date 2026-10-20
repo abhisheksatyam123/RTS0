@@ -960,6 +960,19 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			const auto send_structure_click = [&](StructureClick c, uint32_t bid, uint32_t sid) {
 				if (c == CLICK_NONE) return false;
 				const bool capture = c == CLICK_CAPTURE;
+				// Alt (orderone): the first selected unit able to attack or capture it.
+				if (sid) {
+					pick_one([&](uint32_t id) {
+						auto v = sim->units();
+						for (size_t i = 0; i < v.count; ++i)
+							if (v.id[i] == id) return v.alive[i] && v.attack_damage[i] > 0.0f;
+						return false;
+					});
+				} else {
+					pick_one([&](uint32_t id) {
+						return capture ? sim->any_can_capture_building(&id, 1, bid) : sim->any_can_damage_building(&id, 1, bid);
+					});
+				}
 				if (sid) {
 					if (turn_cmds())
 						post_lockstep(17, sel_ptr, sel_n, 0, 0, sid, capture ? 0 : rtso::NET_HUNT_SCENERY_NO_CAPTURE);
@@ -1253,6 +1266,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 			if (clicked_enemy_id != 0) {
+				pick_one([&](uint32_t id) { return sim->unit_id_can_attack(id, clicked_enemy_id); });
 				if (turn_cmds())
 					post_lockstep(3, sel_ptr, sel_n, 0, 0, clicked_enemy_id, qbit);
 				else

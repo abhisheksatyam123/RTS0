@@ -784,6 +784,62 @@ static void test_diplomacy() {
 		CHECK(when >= 0.0f && when < 5.0f, "one AI's betrayal sets off another waiting AI at once");
 	}
 
+	// checkEvents sees every DiplomacyChanged, even one undone before the AI's next turn: a
+	// human going allied with AI 2 and back to neutral sets off AI 1, still waiting out its lapse.
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(11);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 11, 4, 96.0f);
+		for (uint8_t p = 0; p < 4; ++p) s->set_player_active(p, true, p == 1 || p == 2);
+		s->set_last_man_standing(true);
+		s->set_mutual_ally(1, 2);
+		for (uint8_t p : {1, 2}) {
+			s->set_diplomacy(p, 3, Simulation::DIPLO_NEUTRAL);
+			s->set_diplomacy(3, p, Simulation::DIPLO_NEUTRAL);
+		}
+		run_for(*s, 5.0f);
+		auto &u = s->units_;
+		for (size_t i = 0; i < u.count; ++i) if (u.team[i] == 0) u.alive[i] = false;
+		for (auto &b : s->buildings_) if (b.team == 0) b.hp = 0.0f;
+		for (uint8_t p = 1; p <= 2; ++p) {
+			float tx = 0.0f, tz = 0.0f;
+			for (const auto &b : s->buildings()) if (b.type == BLD_TOWN_CENTER && b.team == p) { tx = b.x; tz = b.z; }
+			for (int i = 0; i < 50; ++i) s->spawn_unit(tx + 8.0f + (float)(i % 10), tz + 8.0f + (float)(i / 10), p, UNIT_SPEARMAN);
+		}
+		const auto dip_of = [&](uint8_t p) -> PetraDiplomacy & {
+			return p == Simulation::PETRA_PLAYER ? s->petra_diplo_ : s->petra_slots_[p].petra_diplo_;
+		};
+		const auto at_war = [&]() {
+			for (uint8_t a = 1; a <= 3; ++a)
+				for (uint8_t b = 1; b <= 3; ++b)
+					if (a != b && s->get_diplomacy(a, b) == Simulation::DIPLO_ENEMY) return true;
+			return false;
+		};
+		bool held[3] = {};
+		float toggled = -1.0f, war = -1.0f;
+		for (float t = 0.0f; t < 150.0f && war < 0.0f; t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			for (uint8_t p = 1; p <= 2; ++p) {
+				PetraDiplomacy &d = dip_of(p);
+				if (d.waiting_to_betray && !held[p]) {
+					held[p] = true;
+					d.betray_lapse = d.elapsed + 1000.0f;
+				}
+			}
+			if (held[1] && held[2] && toggled < 0.0f && !at_war()) {
+				toggled = t;
+				CHECK(s->cmd_set_diplomacy(3, 2, Simulation::DIPLO_ALLY), "the human allies AI 2");
+				CHECK(s->cmd_set_diplomacy(3, 2, Simulation::DIPLO_NEUTRAL), "and goes back to neutral");
+			}
+			if (toggled >= 0.0f && at_war()) war = t;
+		}
+		const float when = toggled >= 0.0f && war >= 0.0f ? war - toggled : -1.0f;
+		std::printf("  stance changed and undone between turns: a waiting AI turns %.1fs later\n", when);
+		CHECK(toggled >= 0.0f, "both AIs wait to betray");
+		CHECK(when >= 0.0f && when < 5.0f, "the undone change still sets off the waiting AI");
+	}
+
 	// Tribute: 0.28 gives an ally 30% of any resource we have over 200 and it
 	// lacks, our own scarcest included.
 	{
