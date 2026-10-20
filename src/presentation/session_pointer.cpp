@@ -54,6 +54,20 @@ void RtsoMain::reset_default_cursor() {
 			Input::CURSOR_ARROW, Vector2(1, 1));
 }
 
+// unit_actions.js "gather": "action-gather-" + the supply's resourceType.specific.
+static const char *gather_cursor(uint8_t type, uint8_t sub) {
+	if (sub == rtso::RES_SUB_RUINS) return "action-gather-ruins";
+	switch (type) {
+		case rtso::RES_WOOD: return "action-gather-tree";
+		case rtso::RES_GOLD: return "action-gather-ore";
+		case rtso::RES_STONE: return "action-gather-rock";
+		default:
+			return sub == rtso::RES_SUB_MEAT ? "action-gather-meat"
+					: sub == rtso::RES_SUB_GRAIN ? "action-gather-grain"
+					: sub == rtso::RES_SUB_FISH ? "action-gather-fish" : "action-gather-fruit";
+	}
+}
+
 void RtsoMain::update_cursor() {
 	Viewport *vp = get_viewport();
 	if (!sim || !vp) return;
@@ -91,6 +105,8 @@ void RtsoMain::update_cursor() {
 					want = "action-attack";
 				} else if (rcmd == rtso::RALLY_CMD_TREASURE) {
 					want = "action-collect-treasure";
+				} else if (rcmd == rtso::RALLY_CMD_HUNT) {
+					want = "action-gather-meat";
 				} else if (rcmd == rtso::RALLY_CMD_TRADE) {
 					// unit_actions.js "set-rallypoint" on another market: the route's gain for
 					// the trader this market trains, or "too close" with the disabled cursor.
@@ -116,24 +132,18 @@ void RtsoMain::update_cursor() {
 					auto rv = sim->resources();
 					for (size_t r = 0; r < rv.count; ++r) {
 						if (rv.id[r] != res) continue;
-						switch (rv.type[r]) {
-							case rtso::RES_WOOD: want = "action-gather-tree"; break;
-							case rtso::RES_GOLD: want = "action-gather-ore"; break;
-							case rtso::RES_STONE: want = "action-gather-rock"; break;
-							default:
-								want = rv.subtype[r] == rtso::RES_SUB_MEAT ? "action-gather-meat"
-										: rv.subtype[r] == rtso::RES_SUB_GRAIN ? "action-gather-grain"
-										: rv.subtype[r] == rtso::RES_SUB_FISH ? "action-gather-fish" : "action-gather-fruit";
-						}
+						want = gather_cursor(rv.type[r], rv.subtype[r]);
 						break;
 					}
 				} else if (bld) {
 					for (const auto &b : sim->buildings()) {
 						if (b.id != bld) continue;
 						if (b.team == me || sim->is_ally(me, b.team)) {
-							if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) {
+							const bool repairable = b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD;
+							const int capacity = b.build_progress >= 1.0f ? sim->get_garrison_capacity(b.id) : 0;
+							if (repairable && (rtso::hotkeys::held("session.repair") || capacity <= 0)) {
 								want = "action-repair";
-							} else if (const int capacity = sim->get_garrison_capacity(b.id); capacity > 0) {
+							} else if (capacity > 0) {
 								want = "action-garrison";
 								const int occupied = sim->get_garrison_occupied(b.id);
 								tip = rtso::sprintf0(rtso::tr0("Current garrison: %(garrisoned)s/%(capacity)s"),
@@ -191,6 +201,9 @@ void RtsoMain::update_cursor() {
 							builder = builder || (rtso::unit_can_build(uv.unit_type[i], tm) && !sim->nonbuilder(uv.id[i]));
 							break;
 						}
+				auto heal_able = [&](uint32_t target) {
+					return sim->first_able_healer((const uint32_t *)selected_ids.ptr(), (size_t)selected_ids.size(), target) != 0;
+				};
 				for (size_t i = 0; i < uv.count && !*want; ++i) {
 					if (!uv.alive[i] || !near2(uv.pos_x[i], uv.pos_z[i], 2.2f)) continue;
 					// PickEntityAtPoint picks only what the player sees: no unit in the fog.
@@ -216,7 +229,7 @@ void RtsoMain::update_cursor() {
 							sim->is_repairable_unit(uv.id[i]))
 						want = "action-repair";
 					// 0 A.D. unit_actions "heal": a healer over a wounded own or allied unit.
-					else if (healer && uv.hp[i] < uv.max_hp[i] && (uv.team[i] == me || sim->is_ally(me, uv.team[i])))
+					else if (healer && heal_able(uv.id[i]))
 						want = "action-heal";
 					// unit_actions "garrison" (session.garrison): an own or allied ship, ram or siege tower a
 					// selected unit may board. Without the hotkey "move" (12) wins.
@@ -258,24 +271,11 @@ void RtsoMain::update_cursor() {
 			}
 			if (!*want) {
 				if (const uint32_t sid = scenery_at(at.x, at.z); sid != 0) {
-					const int32_t k = sim->scenery_index(sid);
-					const bool ctrl = rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove");
-					want = k >= 0 && sim->scenery_capturable(sim->scenery()[k]) && !ctrl ? "action-capture" : "action-attack";
+					want = scenery_click(sid) == CLICK_CAPTURE ? "action-capture" : "action-attack";
 				}
 			}
 			if (!*want) {
 				// Supplies as the player knows them (Fogging mirages; none in unexplored land).
-				const auto gather_cursor = [&](uint8_t type, uint8_t sub) {
-					switch (type) {
-						case rtso::RES_WOOD: return "action-gather-tree";
-						case rtso::RES_GOLD: return "action-gather-ore";
-						case rtso::RES_STONE: return "action-gather-rock";
-						default:
-							return sub == rtso::RES_SUB_MEAT ? "action-gather-meat"
-									: sub == rtso::RES_SUB_GRAIN ? "action-gather-grain"
-									: sub == rtso::RES_SUB_FISH ? "action-gather-fish" : "action-gather-fruit";
-					}
-				};
 				// unit_actions "gather" needs a selected unit that can gather the supply (else "move").
 				std::vector<uint32_t> sel;
 				for (int s2 = 0; s2 < selected_ids.size(); ++s2) sel.push_back((uint32_t)(int64_t)selected_ids[s2]);
@@ -300,8 +300,6 @@ void RtsoMain::update_cursor() {
 						want = tc;
 						break;
 					}
-					// 0 A.D. "capture" is the default on enemy structures; session.attack
-					// (or attack-move's Ctrl) attacks instead.
 					// unit_actions "gather" (specificness 1): any player's finished field.
 					// unit_actions.js "returnresource": a carrier over a dropsite that takes its load.
 					{
@@ -326,10 +324,11 @@ void RtsoMain::update_cursor() {
 					const uint32_t grain = b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
 					if (grain && sim->any_can_gather((const uint32_t *)selected_ids.ptr(), selected_ids.size(), grain))
 						want = "action-gather-grain";
-					else if (b.team != me && sim->is_hostile(me, b.team))
-						want = (rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove") ||
-										  b.max_capture_points <= 0.0f)
-								? "action-attack" : "action-capture";
+					// "attack" (9) before "capture" (10); session.capture (C) captures (structure_click).
+					else if (b.team != me && sim->is_hostile(me, b.team)) {
+						const StructureClick c = structure_click(b.id);
+						want = c == CLICK_CAPTURE ? "action-capture" : c == CLICK_ATTACK ? "action-attack" : "";
+					}
 					else if (b.team != me && !sim->is_ally(me, b.team)) want = ""; // neutral
 					else if (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me)) want = "action-build";
 					else if (b.hp < b.max_hp) want = "action-repair"; // own or allied (unit_actions "repair")

@@ -69,6 +69,8 @@ public:
 	static const Entry &get(const godot::String &category, const godot::String &id);
 	// Read the model's GLB on a worker thread ahead of its first get().
 	static void prefetch(const godot::String &category, const godot::String &id);
+	static HashMap<godot::String, bool> &threaded_paths(); // prefetch requests not yet taken
+	static void request_threaded(const godot::String &path);
 	static void clear();
 	static bool capture_crowd_skin(godot::Node *root, CrowdSkin &out);
 	static godot::Ref<godot::ArrayMesh> bake_crowd_skin(CrowdSkin &skin, const godot::Ref<godot::ArrayMesh> &reuse = godot::Ref<godot::ArrayMesh>());
@@ -100,8 +102,6 @@ public:
 private:
 	static Entry load(const godot::String &category, const godot::String &id);
 	static godot::Vector<godot::String> candidate_paths(const godot::String &category, const godot::String &id);
-	static HashMap<godot::String, bool> &threaded_paths(); // prefetch requests not yet taken
-	static void request_threaded(const godot::String &path);
 	static godot::Ref<godot::PackedScene> borrow_clips(godot::Node *inst, const godot::String &donor);
 	static float target_height(const godot::String &category, const godot::String &id, float natural_h);
 	static HashMap<godot::String, Entry> &cache();

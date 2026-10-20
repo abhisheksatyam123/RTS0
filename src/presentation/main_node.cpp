@@ -321,9 +321,9 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 			const uint8_t pciv = sim->player_civ(me);
 			std::vector<std::pair<uint8_t, uint8_t>> entries; // top, bottom (TECH_NONE unless paired)
 			for (int t = 1; t < rtso::TECH_COUNT; ++t) {
-				if (!rtso::building_researches_tech(rb->type, (uint8_t)t, pciv) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+				if (!rtso::building_researches_tech(rb->type, (uint8_t)t, sim->structure_template_civ(*rb)) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 				if (const uint8_t sup = rtso::tech_supersedes((uint8_t)t); sup != rtso::TECH_NONE
-						&& rtso::building_researches_tech(rb->type, sup, pciv) && rtso::tech_available_to_civ(sup, pciv)) {
+						&& rtso::building_researches_tech(rb->type, sup, sim->structure_template_civ(*rb)) && rtso::tech_available_to_civ(sup, pciv)) {
 					const rtso::Simulation::ResearchCheck sc = sim->research_check(me, sup, 0);
 					if (sc != rtso::Simulation::TECH_ERR_RESEARCHED && sc != rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
 				}
@@ -447,7 +447,9 @@ void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
 
 // The sender's displayed colour (Ownership on flare_target_marker, MiniMap.flare's player colour).
 Color RtsoMain::player_flare_color(uint8_t pid) const {
-	if (!sim || pid >= rtso::MAX_PLAYERS) return Color(1.0f, 0.45f, 0.1f);
+	// An observer's flare is Gaia's (unit_actions.js renderAndPlayFlare owner 0; MiniMap.flare
+	// "Observers flare in white").
+	if (!sim || pid >= rtso::MAX_PLAYERS) return Color(1.0f, 1.0f, 1.0f);
 	const uint32_t rgb = rtso::display_colors::rgb(*sim, pid);
 	return Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 1.0f);
 }
@@ -458,12 +460,28 @@ void RtsoMain::trigger_flare(float x, float z) {
 	const double now = Time::get_singleton()->get_ticks_msec() / 1000.0;
 	if (now < last_flare_time_ + 3.0) return;
 	last_flare_time_ = now;
-	// The flare_target_marker and minimap flare take the sender's colour.
-	const Color c = player_flare_color(own_seat()); // the sender's seat, not a viewed player
-	range_overlays_.add_flare(x, z, c, user_opts_.flare_time);
-	if (minimap_view) minimap_view->add_ping(Vector2(x, z), c);
+	render_flare(x, z, own_seat(), String()); // the sender's seat, not a viewed player
 	_on_flare_requested(Vector2(x, z));
+}
+
+// unit_actions.js renderAndPlayFlare, for the sender and every receiver: the
+// flare_target_marker (Decay DelayTime 6 s) and minimap flare in the sender's colour, the
+// minimap one lasting gui.session.flarelifetime, the flare sound and the chat line.
+void RtsoMain::render_flare(float x, float z, uint8_t seat, const String &guid) {
+	const Color c = player_flare_color(seat);
+	range_overlays_.add_flare(x, z, c, 6.0f);
+	if (minimap_view) minimap_view->add_ping(Vector2(x, z), c, user_opts_.flare_time);
 	play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
+	// ChatMessageFormatSimulation.flare: gui.session.notifications.flare
+	// "never", "observer" (only while observing) or "always".
+	const std::string when = rtso::user_config::get("gui.session.notifications.flare");
+	if (!(when == "always" || (when == "observer" && chat_local_observer()))) return;
+	// colorizePlayernameByGUID: an observer's name in white.
+	const String name = seat < rtso::MAX_PLAYERS ? colored_player_name(seat) : chat_user(guid).replace("[color=#b3b3b3]", "[color=#ffffff]");
+	chat_window_.append_line(sprintf0(tr("%(icon)s%(player)s has sent a flare."),
+			{{"icon", "[img=16x16]res://assets/textures/ui/archive/icons/focus-flare.png[/img]"},
+					{"player", name}}) + "\n",
+			"flare:" + String::num(x) + "," + String::num(z), tr("Click to focus on the flare's location."));
 }
 
 void RtsoMain::_on_idle_worker_clicked() {
@@ -961,8 +979,10 @@ void RtsoMain::update_net_status_overlay() {
 			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = mismatch_detail(); break;
 			default: why = tr("An unknown error occurred."); break;
 		}
-		String text = (net_game_started_ ? tr("Connection to the server has been lost.")
-				: joined ? tr("Lost connection to the server.") : tr("Failed to connect to the server.")) + "\n" + why;
+		// NetworkStatusOverlay (in the match): one line break, no title.
+		// reportDisconnect (before Start): a blank line, titled "Disconnected".
+		String text = net_game_started_ ? tr("Connection to the server has been lost.") + "\n" + why
+				: (joined ? tr("Lost connection to the server.") : tr("Failed to connect to the server.")) + "\n\n" + why;
 		if (!joined && net_host_.disconnectReason() == 0) {
 			// reportConnectionRequestTimeOut, with getRequestTimeOutMessage's
 			// address advice only outside the lobby.
@@ -977,8 +997,8 @@ void RtsoMain::update_net_status_overlay() {
 		// The timeout is a "Connection Error" box with Close and Open FAQ.
 		const bool timed_out = !joined && net_host_.disconnectReason() == 0;
 		if (net_status_title_) {
-			net_status_title_->set_text(timed_out ? tr("Connection Error") : String());
-			net_status_title_->set_visible(timed_out);
+			net_status_title_->set_text(timed_out ? tr("Connection Error") : net_game_started_ ? String() : tr("Disconnected"));
+			net_status_title_->set_visible(!net_game_started_);
 		}
 		if (net_status_exit_) {
 			net_status_exit_->set_text(timed_out ? tr("Close") : tr("Exit"));
@@ -988,7 +1008,7 @@ void RtsoMain::update_net_status_overlay() {
 		if (net_status_faq_) net_status_faq_->set_visible(timed_out);
 		net_loading_clients_->set_visible(false);
 		net_status_overlay_->set_visible(true);
-		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n", " "));
+		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n\n", "\n").replace("\n", " "));
 		update_net_setup_overlay(); // the setup page gives way at once
 		return;
 	}
@@ -1091,7 +1111,9 @@ void RtsoMain::_on_template_info_pressed() {
 			if (b.id != selected_building_id) continue;
 			kind = "structure";
 			id = b.type;
-			civ = b.team == rtso::GAIA_PLAYER ? sim->player_civ(local_player()) : sim->player_civ(b.team);
+			// ViewerPage.js: the civ of the structure's own template (a captured one keeps its builder's).
+			civ = rtso::is_playable_civ(b.civ) ? b.civ
+					: b.team == rtso::GAIA_PLAYER ? sim->player_civ(local_player()) : sim->player_civ(b.team);
 			break;
 		}
 	} else if (!selected_ids.is_empty()) {
@@ -1148,9 +1170,7 @@ void RtsoMain::_on_portrait_gui_input(const Ref<InputEvent> &event) {
 			cam_rig->set_target_pos(Vector3(p.x, 0, p.y));
 		}
 	} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && ui_layer && !inspector_.portrait_viewer_kind().is_empty()) {
-		Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
-		if (viewer.is_valid())
-			viewer->call("open", ui_layer, inspector_.portrait_viewer_kind(), inspector_.portrait_viewer_id(), inspector_.portrait_viewer_civ());
+		open_template_viewer(inspector_.portrait_viewer_kind(), inspector_.portrait_viewer_id(), inspector_.portrait_viewer_civ());
 	}
 }
 
@@ -4152,8 +4172,10 @@ Dictionary RtsoMain::get_match_settings_info() const {
 		for (const char *k : {"map_size", "start_res", "team_placement", "trigger_difficulty", "biome", "rated"}) d[k] = ms->get(k);
 	// gamesettings PlayerPlacement.pickRandomItems: a Random pick shows the pattern in play.
 	if (sim->played_team_placement()) d["team_placement"] = (int)sim->played_team_placement();
-	// gamedescription.js Rated game: rated with two players, else "disabled" in a lobby game.
-	int players = 0;
+	// gamedescription.js Rated game tests PlayerData.length == 2, which only Game Setup's
+	// list meets: the session's PlayerData holds Gaia too (LobbyRatingReporter.js counts a
+	// 1v1 as 3), so in a match, replay or save only a lobby game has the line.
+	int players = 1;
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) players += sim->player(p).active ? 1 : 0;
 	d["player_count"] = players;
 	Node *ls = get_node_or_null(NodePath("/root/LobbySession"));

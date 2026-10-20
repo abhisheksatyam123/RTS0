@@ -273,7 +273,7 @@ func update_resulting_locale() -> void:
 		resulting_locale.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 		# GetDictionariesForLocale: English needs none.
 		var dict := dictionary_locale(loc)
-		dictionary_file.text = "" if dict == "en" else UserSettingsScript.L10N_DIR.path_join(dict + ".po")
+		dictionary_file.text = "" if dict == "en" else dict + ".po"
 		accept_button.disabled = false
 	else:
 		resulting_locale.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_INHERIT

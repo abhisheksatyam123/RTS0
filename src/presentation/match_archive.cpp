@@ -20,6 +20,7 @@
 #include "main_node.h"
 #include <godot_cpp/classes/canvas_layer.hpp>
 #include <godot_cpp/classes/dir_access.hpp>
+#include <godot_cpp/classes/display_server.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/image_texture.hpp>
@@ -40,7 +41,7 @@ const char *const kSetupKeys[] = {
 	"map_id", "victory", "waves_enabled", "last_man_standing", "pop_cap", "team_pop", "ceasefire_min",
 	"reveal_map", "explore_map", "ally_view", "wonder_min", "relic_min", "relic_count", "map_size",
 	"ai_difficulty", "ai_behavior", "start_res", "slot_types", "slot_civs", "slot_teams",
-	"player_civ", "ai_civ", "campaign_run", "campaign_level", "lock_teams",
+	"player_civ", "ai_civ", "campaign_run", "campaign_level", "campaign_map_name", "lock_teams",
 	// Everything else apply_match_settings reads: the options that shape the rebuilt map
 	// before a save's state is loaded onto it, and the rest, so a replay never picks up
 	// a setting changed in the Game Setup since it was recorded.
@@ -206,6 +207,7 @@ Array RtsoMain::player_list() const {
 		d["id"] = (int)p;
 		d["name"] = player_display_name(p);
 		d["civ"] = (int)ps.civ;
+		d["civ_code"] = String(rtso::civ_info(ps.civ).code); // playerState.civ
 		d["civ_name"] = String(rtso::civ_info(ps.civ).name);
 		d["team"] = (int)ps.team + 1;
 		d["setup_team"] = p < slot_teams.size() && (int)slot_teams[p] > 0 ? (int)slot_teams[p] - 1 : -1;
@@ -777,7 +779,7 @@ void RtsoMain::write_save_thumbnail(const String &path) {
 	const String png = path.get_basename() + ".png";
 	if (FileAccess::file_exists(png)) DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(png));
 	Viewport *vp = get_viewport();
-	if (!vp) return;
+	if (!vp || DisplayServer::get_singleton()->get_name() == "headless") return;
 	Ref<ViewportTexture> tex = vp->get_texture();
 	if (tex.is_null()) return;
 	Ref<Image> img = tex->get_image();

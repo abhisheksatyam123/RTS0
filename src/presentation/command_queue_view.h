@@ -399,11 +399,11 @@ public:
 					std::vector<TechItem> mine;
 					size_t pairs = 0;
 					for (int t = 1; t < rtso::TECH_COUNT; ++t) {
-						if (!rtso::building_researches_tech(rb->type, (uint8_t)t, pciv) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+						if (!rtso::building_researches_tech(rb->type, (uint8_t)t, sim->structure_template_civ(*rb)) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 						// Researcher.js GetTechnologiesList: a chain shows one slot, its next step; a technology
 						// whose superseded one is offered here waits until that one is researched or in progress.
 						if (const uint8_t sup = rtso::tech_supersedes((uint8_t)t); sup != rtso::TECH_NONE
-								&& rtso::building_researches_tech(rb->type, sup, pciv) && rtso::tech_available_to_civ(sup, pciv)) {
+								&& rtso::building_researches_tech(rb->type, sup, sim->structure_template_civ(*rb)) && rtso::tech_available_to_civ(sup, pciv)) {
 							const rtso::Simulation::ResearchCheck sc = sim->research_check(local_player(), sup, 0);
 							if (sc != rtso::Simulation::TECH_ERR_RESEARCHED && sc != rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
 						}
@@ -1234,7 +1234,10 @@ public:
 						bb->set_meta("label", label);
 						// 0.28's Construction tooltip: names, Identity/Tooltip, cost and time, garrison,
 						// population bonus (selection_panels.js Construction setupButton).
-						const Dictionary text = structure_template_text(my_civ, bt);
+						// A wall's button is its WallSet proxy: the set's name, tooltip and classes,
+						// no auras or turrets of its own.
+						Dictionary text = structure_template_text(my_civ, bt);
+						if (text.has("wallset")) text = text["wallset"];
 						const String generic = text.get("generic_name", String::utf8(bi.name));
 						const String specific = text.get("specific_name", String());
 						String tip = rtso::entity_names_formatted(generic, specific);

@@ -166,6 +166,15 @@ func run() -> void:
 	var cheats: CheckBox = page.get_node(vis + "Cheats")
 	check(rated.visible and rated.button_pressed and cheats.disabled and not cheats.button_pressed and ms.rated,
 		"a lobby 1v1 is a Rated Game by default, without cheats")
+	var lock: CheckBox = page.get_node("%LockTeams")
+	check(lock.button_pressed and lock.disabled and ms.lock_teams,
+		"LockedTeams.onRatingChange: a rated game locks the teams, and they stay locked")
+	rated.button_pressed = false
+	await create_timer(0.4).timeout
+	check(not lock.button_pressed and not lock.disabled and not ms.lock_teams, "unrated, the teams unlock and may be locked again")
+	rated.button_pressed = true
+	await create_timer(0.4).timeout
+	check(lock.button_pressed and lock.disabled, "rated again: locked")
 	rated.button_pressed = false
 	cheats.button_pressed = true
 	await create_timer(0.4).timeout

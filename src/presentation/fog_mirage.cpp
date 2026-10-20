@@ -263,10 +263,26 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		f.is_burning = b.is_burning;
 		f.upgrading = b.upgrade_to != BLD_TYPE_COUNT;
 		f.production = b.queue.empty() ? 0 : Simulation::researching(b) != TECH_NONE ? 1 : 2;
-		add_building(f, sim.shares_los(viewer, b.team), // an unshared ally's structures mirage like anyone's
-				viewer < MAX_PLAYERS && ((b.seen_mask >> viewer) & 1));
+		const bool allied = sim.shares_los(viewer, b.team); // an unshared ally's structures mirage like anyone's
+		Simulation::BuildWork w;
+		if (!allied && (b.build_progress < 1.0f || b.hp < b.max_hp) && los_at(b.x, b.z) == Simulation::FOW_VISIBLE &&
+				sim.structure_build_work(b, w)) {
+			f.work = true;
+			f.work_repair = w.repair;
+			f.work_builders = (uint16_t)w.builders;
+			f.work_remaining = w.remaining;
+			f.work_remaining_new = w.remaining_new;
+		}
+		add_building(f, allied, viewer < MAX_PLAYERS && ((b.seen_mask >> viewer) & 1));
 	}
 	const auto rv = sim.resources();
+	// Each supply's gatherers at work (ResourceSupply numGatherers), remembered with its amount.
+	gatherers_.clear();
+	{
+		const auto uv = sim.units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.alive[i] && uv.action_state[i] == ACTION_GATHER && uv.target_resource_id[i]) ++gatherers_[uv.target_resource_id[i]];
+	}
 	for (size_t i = 0; i < rv.count; ++i) {
 		if (!rv.alive[i] || rv.amount[i] <= 0) continue;
 		FoggedResource r;
@@ -274,9 +290,12 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		r.x = rv.x[i];
 		r.z = rv.z[i];
 		r.amount = rv.amount[i];
+		if (auto g = gatherers_.find(r.id); g != gatherers_.end()) r.gatherers = g->second;
 		r.type = rv.type[i];
 		r.subtype = rv.subtype ? rv.subtype[i] : 0;
 		r.flora = rv.flora ? rv.flora[i] : 0;
+		r.fauna = rv.fauna ? rv.fauna[i] : 0;
+		r.owner = rv.owner ? rv.owner[i] : 0xFF;
 		add_resource(r);
 	}
 	for (const auto &tr : sim.treasures()) {
@@ -295,40 +314,66 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 // =============================================================================
 
 void LosShading::generate_bitmap(const uint8_t *fow, int res, std::vector<uint8_t> &out) {
-	out.assign((size_t)res * (size_t)res, 0);
+	const int fr = res * UPSAMPLE; // bitmap pixels a side
+	out.assign((size_t)fr * (size_t)fr, 0);
 	if (!fow || res <= 0) return;
-	// Padded copy: BLUR/2 cells of unexplored (0) on every side, as 0 A.D. pads.
-	const int pad = BLUR / 2;
-	const int pitch = res + 2 * pad;
-	thread_local std::vector<uint8_t> a;
-	thread_local std::vector<uint8_t> hz;
-	a.assign((size_t)pitch * (size_t)pitch, 0);
+	// FOW_VISIBLE = 2 -> 255, FOW_EXPLORED = 1 -> 127, FOW_UNEXPLORED = 0 -> 0, one
+	// row of unexplored (0) round the grid, as 0 A.D. pads the map's edge.
+	const int cp = res + 2;
+	thread_local std::vector<uint8_t> c;
+	c.assign((size_t)cp * (size_t)cp, 0);
 	for (int j = 0; j < res; ++j) {
-		uint8_t *row = &a[(size_t)(j + pad) * pitch + pad];
+		uint8_t *row = &c[(size_t)(j + 1) * cp + 1];
 		const uint8_t *src = &fow[(size_t)j * res];
 		for (int i = 0; i < res; ++i) {
 			const uint8_t s = src[i];
-			// FOW_VISIBLE = 2 -> 255, FOW_EXPLORED = 1 -> 127, FOW_UNEXPLORED = 0 -> 0
 			row[i] = (uint8_t)((s == Simulation::FOW_VISIBLE) * 255 + (s == Simulation::FOW_EXPLORED) * 127);
 		}
 	}
+	// Bilinear upsample into a padded copy (BLUR/2 pixels of 0 on every side): pixel
+	// 2k sits a quarter cell before cell k's centre, 2k + 1 a quarter after, so each
+	// takes 3/4 of its cell and 1/4 of the neighbour on that side.
+	const int pad = BLUR / 2;
+	const int pitch = fr + 2 * pad;
+	thread_local std::vector<uint8_t> uh; // cp rows of fr columns (horizontal pass)
+	thread_local std::vector<uint8_t> a;
+	uh.assign((size_t)cp * (size_t)fr, 0);
+	for (int j = 0; j < cp; ++j) {
+		const uint8_t *p = &c[(size_t)j * cp + 1];
+		uint8_t *o = &uh[(size_t)j * fr];
+		for (int k = 0; k < res; ++k) {
+			o[2 * k] = (uint8_t)((3u * p[k] + p[k - 1] + 2u) >> 2);
+			o[2 * k + 1] = (uint8_t)((3u * p[k] + p[k + 1] + 2u) >> 2);
+		}
+	}
+	a.assign((size_t)pitch * (size_t)pitch, 0);
+	for (int k = 0; k < res; ++k) {
+		const uint8_t *p0 = &uh[(size_t)k * fr], *p1 = &uh[(size_t)(k + 1) * fr], *p2 = &uh[(size_t)(k + 2) * fr];
+		uint8_t *o0 = &a[(size_t)(2 * k + pad) * pitch + pad];
+		uint8_t *o1 = o0 + pitch;
+		for (int i = 0; i < fr; ++i) {
+			o0[i] = (uint8_t)((3u * p1[i] + p0[i] + 2u) >> 2);
+			o1[i] = (uint8_t)((3u * p1[i] + p2[i] + 2u) >> 2);
+		}
+	}
 	// 7-tap binomial blur (1 6 15 20 15 6 1)/64, horizontal then vertical.
-	// hz: pitch rows of res columns (horizontal pass; padding rows stay 0).
-	hz.assign((size_t)pitch * (size_t)res, 0);
-	for (int j = pad; j < res + pad; ++j) {
+	// hz: pitch rows of fr columns (horizontal pass; padding rows stay 0).
+	thread_local std::vector<uint8_t> hz;
+	hz.assign((size_t)pitch * (size_t)fr, 0);
+	for (int j = pad; j < fr + pad; ++j) {
 		const uint8_t *p = &a[(size_t)j * pitch];
-		uint8_t *o = &hz[(size_t)j * res];
-		for (int i = 0; i < res; ++i) {
+		uint8_t *o = &hz[(size_t)j * fr];
+		for (int i = 0; i < fr; ++i) {
 			const unsigned v = 1u * p[i] + 6u * p[i + 1] + 15u * p[i + 2] + 20u * p[i + 3] +
 					15u * p[i + 4] + 6u * p[i + 5] + 1u * p[i + 6];
 			o[i] = (uint8_t)(v >> 6);
 		}
 	}
-	const size_t s = (size_t)res;
-	for (int j = 0; j < res; ++j) {
-		uint8_t *o = &out[(size_t)j * res];
-		const uint8_t *p0 = &hz[(size_t)j * res];
-		for (int i = 0; i < res; ++i) {
+	const size_t s = (size_t)fr;
+	for (int j = 0; j < fr; ++j) {
+		uint8_t *o = &out[(size_t)j * fr];
+		const uint8_t *p0 = &hz[(size_t)j * fr];
+		for (int i = 0; i < fr; ++i) {
 			const unsigned v = 1u * p0[i] + 6u * p0[i + s] + 15u * p0[i + 2 * s] + 20u * p0[i + 3 * s] +
 					15u * p0[i + 4 * s] + 6u * p0[i + 5 * s] + 1u * p0[i + 6 * s];
 			o[i] = (uint8_t)(v >> 6);
@@ -347,7 +392,7 @@ void LosShading::set_target(const uint8_t *fow, int res) {
 	generate_bitmap(fow, res, target_);
 	since_recompute_ = 0.0f;
 	settled_ = false;
-	if (resized || shown_.size() != n) shown_ = target_;
+	if (resized || shown_.size() != target_.size()) shown_ = target_;
 }
 
 void LosShading::snap() {
@@ -365,18 +410,19 @@ bool LosShading::interpolate(float dt) {
 	if (settled_) return false;
 	since_recompute_ += dt;
 	// los_interp.fs: mix(previous, current, delta), delta = clamp(t * 2, 0, 1).
-	const int delta = (int)(std::clamp(since_recompute_ * 2.0f, 0.0f, 1.0f) * 256.0f);
+	// In 1/128ths, so d * delta fits 16 bits and the loop vectorises.
+	const int16_t delta = (int16_t)(std::clamp(since_recompute_ * 2.0f, 0.0f, 1.0f) * 128.0f);
 	const size_t n = shown_.size();
 	uint8_t *s = shown_.data();
 	const uint8_t *t = target_.data();
-	unsigned diff_any = 0;
+	uint8_t diff_any = 0;
 	for (size_t i = 0; i < n; ++i) {
-		const int d = (int)t[i] - (int)s[i];
-		int step = (d * delta) >> 8; // floors, so a falling value always moves
-		step += (d > 0) & (step == 0); // and a rising one moves at least 1
-		const int v = s[i] + step;
-		s[i] = (uint8_t)v;
-		diff_any |= (unsigned)(v != t[i]);
+		const int16_t d = (int16_t)((int16_t)t[i] - (int16_t)s[i]);
+		int16_t step = (int16_t)((int16_t)(d * delta) >> 7); // floors, so a falling value always moves
+		step = (int16_t)(step + ((d > 0) & (step == 0))); // and a rising one moves at least 1
+		const uint8_t v = (uint8_t)(s[i] + step);
+		s[i] = v;
+		diff_any |= (uint8_t)(v != t[i]);
 	}
 	settled_ = diff_any == 0;
 	return true;

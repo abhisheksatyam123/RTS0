@@ -248,8 +248,8 @@ def play_direct_join_refused(args, lobby):
     status = next((l.split(" connect_status=", 1)[1] for l in gmp_lines(out) if " connect_status=" in l), "")
     box = next((l.split(" connect_box=", 1)[1] for l in gmp_lines(out) if " connect_box=" in l), "")
     ok = (p.returncode == 0 and
-          status == "Failed to connect to the server. | Secure lobby authentication failed. Join via lobby. reason=10"
-          and box == " buttons=Exit")
+          status == "Failed to connect to the server. |  | Secure lobby authentication failed. Join via lobby. reason=10"
+          and box == "Disconnected buttons=Exit")
     for line in gmp_lines(out):
         print("   " + line)
     if ok:
@@ -310,7 +310,7 @@ def play_setup_leave(args, lobby):
     status = said("setup_status")
     moved = said("moved_to_observers")
     ok = (host.returncode == 0 and join.returncode == 0 and moved == "Observers: bob"
-          and status == "Lost connection to the server. | The host has ended the game. reason=2 saw_page=true page=false"
+          and status == "Lost connection to the server. |  | The host has ended the game. reason=2 saw_page=true page=false"
           and said("setup_exit_scene") == "res://scenes/menu/lobby.tscn"
           and warning.startswith("bob losing connection (") and warning.endswith(" layer=22")
           # MapSelection.js Random: the host picked a map, the client saw only "Random".
@@ -459,6 +459,8 @@ def play(args, lobby, leave):
     ok = ok and said("join", "setup_list") == "Users (2): alice, bob"
     # 0.28 LobbyButton: the host opens the lobby as a dialog over the setup and closes it again.
     ok = ok and said("host", "lobby_dialog") == "true listed=true join_hidden=true closed=true"
+    # LobbyHandler: the host shows as Online while its lobby dialog is open (Busy again after, seen["playing"]).
+    ok = ok and said("host", "dialog_presence") == "Online"
     # 0.28 /list on both: the users by seat, and the command is not a chat line.
     users = {role: said(role, "users").replace(" list=", " ") for role in ("host", "join")}
     ok = ok and users == {"host": "2 alice,_bob", "join": "2 alice,_bob"}

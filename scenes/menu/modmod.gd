@@ -13,7 +13,10 @@ const COLUMNS := [["name", "Name"], ["version", "Version"], ["folder", "(Folder)
 	["dependencies", "Dependencies"], ["url", "Website"]]
 const COLOR_NOT_MET := Color8(255, 100, 100)
 const COLOR_NO_MOD := "#ffff64"
-const HELP := "0 A.D. is designed to be easily modded. RTS0 loads a mod from a folder in the game's user data directory, mods/<folder>/, holding its mod.json and the .pck or .zip packs (Godot resource packs) whose files replace the game's.\n\nEnable a mod here and restart the game to load it; mods load from top to bottom, so a later one wins. You can delete a mod with your file browser."
+const COLOR_DESCRIPTION := Color8(180, 180, 180)
+## help/help.txt, with RTS0's mod folders in place of .pyromod files.
+const HELP := "0 A.D. is designed to be easily modded. RTS0 loads a mod from a folder in the game's user data directory, mods/<folder>/, holding its mod.json and the .pck or .zip packs (Godot resource packs) whose files replace the game's.\n\nEnable a mod here and restart the game to load it; mods load from top to bottom, so a later one wins. You can delete a mod manually using your file browser if needed.\n\nFor more information about modding the game, see the Modding Guide online (click the Modding Guide button below)."
+const MODDING_GUIDE := "https://gitea.wildfiregames.com/0ad/0ad/wiki/Modding_Guide"
 
 var mods: Dictionary = {}
 var enabled: Array = []
@@ -36,20 +39,34 @@ var save_button: Button
 var start_button: Button
 var message: Label
 var _picked := ""  # "enabled" or "disabled"
+## The Available list's selected_column and selected_column_order.
+var sort_column := 0
+var sort_order := 1
+## g_HasIncompatibleMods: the enabled list keeps the incompatible and missing mods.
+var has_incompatible := false
 
 ## 0.28 modmod.js init with HasIncompatibleMods: the Mod Selection, and over
 ## it gui/incompatible_mods (page_incompatible_mods.xml, incompatible_mods.txt).
 static func open_incompatible(parent: Node) -> Control:
-	var page := open(parent)
+	var page := open(parent, true)
 	var msg := L10n.t("You tried to start the game with incompatible or missing mods!") + "\n\n" \
 		+ L10n.t("Solve the compatibility issue by disabling invalid mods or enabling required dependencies. You can then save & start the game.") + "\n\n" \
 		+ L10n.t("Incompatible mods will appear in red in the list of enabled mods (bottom panel). Dependencies can be added by enabling them in the upper panel.")
-	load("res://scenes/common/msgbox.gd").open(page, 700, 400, msg, L10n.t("Incompatible mods"), [L10n.t("Ok")])
+	var box: Control = load("res://scenes/common/msgbox.gd").open(page, 700, 400, msg, L10n.t("Incompatible mods"), [L10n.t("Ok")])
+	# ModernTextPanel: left-aligned from the top, 20 px in.
+	var text: Label = box.find_child("Text", true, false)
+	text.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	text.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	text.offset_left = 20
+	text.offset_top = 20
+	text.offset_right = -20
+	text.offset_bottom = -52
 	return page
 
-static func open(parent: Node) -> Control:
+static func open(parent: Node, incompatible := false) -> Control:
 	var page = load("res://scenes/menu/modmod.gd").new()
 	page.name = "ModSelection"
+	page.has_incompatible = incompatible
 	parent.add_child(page)
 	return page
 
@@ -62,7 +79,7 @@ func _ready() -> void:
 ## modmod.js initMods.
 func init_mods(dir: String = Mods.MODS_DIR) -> void:
 	mods = Mods.available(dir)
-	enabled = Mods.enabled().filter(func(f): return mods.has(f))
+	enabled = Mods.enabled() if has_incompatible else Mods.enabled().filter(func(f): return mods.has(f))
 	disabled = mods.keys().filter(func(f): return not enabled.has(f))
 	recompute_compatibility()
 	negate.button_pressed = false
@@ -106,6 +123,7 @@ func _build() -> void:
 	description.bbcode_enabled = true
 	description.fit_content = true
 	description.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	description.add_theme_color_override("default_color", COLOR_DESCRIPTION)
 	filters.add_child(description)
 	compat_filter = CheckBox.new()
 	compat_filter.text = L10n.t("Filter compatible")
@@ -115,7 +133,7 @@ func _build() -> void:
 	avail_title.text = L10n.t("Available Mods")
 	root.add_child(avail_title)
 	disabled_list = _make_list()
-	disabled_list.column_title_clicked.connect(func(_c, _b): display_lists())
+	disabled_list.column_title_clicked.connect(func(c, _b): sort_by(c))
 	root.add_child(disabled_list)
 	var en_title := Label.new()
 	en_title.text = L10n.t("Enabled Mods")
@@ -136,6 +154,9 @@ func _build() -> void:
 		b.tooltip_text = L10n.t("Change the order in which mods are launched. This should match the mods dependencies.")
 	disabled_list.item_selected.connect(func(): _selected(disabled_list))
 	enabled_list.item_selected.connect(func(): _selected(enabled_list))
+	# MouseLeftDoubleClickItem: enableMod / disableMod.
+	for list in [disabled_list, enabled_list]:
+		list.item_activated.connect(_activated.bind(list))
 	var row1 := HBoxContainer.new()
 	root.add_child(row1)
 	toggle_button = _button(row1, L10n.t("Enable"), toggle_mod)
@@ -175,6 +196,7 @@ func _button(parent: Node, text: String, cb: Callable) -> Button:
 func _value(folder: String, column: String) -> String:
 	if column == "folder":
 		return folder
+	# g_FakeMod for a folder that isn't there.
 	var mod: Dictionary = mods.get(folder, {"name": L10n.t("This mod does not exist")})
 	if column == "dependencies":
 		return " ".join(PackedStringArray(Array(mod.get("dependencies", [])).map(func(d): return str(d))))
@@ -202,7 +224,9 @@ func _display(list: Tree, folders: Array, is_enabled: bool) -> Array:
 		keep = str(sel.get_metadata(0))
 	var shown := folders.filter(filter_mod)
 	if not is_enabled:
-		shown.sort_custom(func(a, b): return _value(a, "name").naturalnocasecmp_to(_value(b, "name")) < 0)
+		var col: String = COLUMNS[sort_column][0]
+		var key := func(f): return _value(f, col) if _value(f, col) != "" else f
+		shown.sort_custom(func(a, b): return sort_order * str(key.call(a)).naturalnocasecmp_to(str(key.call(b))) < 0)
 		if compat_filter.button_pressed:
 			shown = shown.filter(func(f): return compatible.get(f, false))
 	list.clear()
@@ -218,6 +242,19 @@ func _display(list: Tree, folders: Array, is_enabled: bool) -> Array:
 		if f == keep:
 			it.select(0)
 	return shown
+
+## SelectionColumnChange: a new column sorts ascending, the same one flips.
+func sort_by(column: int) -> void:
+	sort_order = -sort_order if column == sort_column else 1
+	sort_column = column
+	display_lists()
+
+## Selects row i of list (clamped), or nothing when it is empty.
+func _select_row(list: Tree, i: int) -> void:
+	var rows := list.get_root().get_children() if list.get_root() else []
+	list.deselect_all()
+	if i >= 0 and not rows.is_empty():
+		rows[mini(i, rows.size() - 1)].select(0)
 
 func _selected_folder(list: Tree) -> String:
 	var it := list.get_selected()
@@ -245,6 +282,10 @@ func _selected(list) -> void:
 		message.add_theme_color_override("font_color", COLOR_NOT_MET)
 	start_button.disabled = enabled.is_empty()
 
+func _activated(list: Tree) -> void:
+	_selected(list)
+	toggle_mod()
+
 func toggle_mod() -> void:
 	if _picked == "enabled":
 		disable_mod(_selected_folder(enabled_list))
@@ -255,25 +296,32 @@ func toggle_mod() -> void:
 func enable_mod(folder: String) -> void:
 	if folder == "" or not compatible.get(folder, false) or enabled.has(folder):
 		return
+	var pos := disabled_shown.find(folder)
 	enabled.append(folder)
 	disabled.erase(folder)
 	recompute_compatibility()
 	save_button.disabled = false
 	message.text = ""
 	display_lists()
+	# The row that took its place stays selected.
+	_select_row(disabled_list, pos)
 	_selected(disabled_list)
 
-## disableMod: the mods that needed it go too.
+## disableMod: the mods that needed it go too, and so do the ones already
+## incompatible (areDependenciesMet with disabledAction).
 func disable_mod(folder: String) -> void:
 	if folder == "" or not enabled.has(folder):
 		return
+	var pos := enabled_shown.find(folder)
 	enabled.erase(folder)
-	disabled.append(folder)
+	if mods.has(folder):
+		disabled.append(folder)
 	enabled = Mods.sort_enabled(enabled, mods)
 	var i := 0
 	while i < enabled.size():
-		if compatible.get(enabled[i], false) and not Mods.dependencies_met(enabled[i], enabled, mods):
-			disabled.append(enabled[i])
+		if not compatible.get(enabled[i], false) or not Mods.dependencies_met(enabled[i], enabled, mods):
+			if mods.has(enabled[i]):
+				disabled.append(enabled[i])
 			enabled.remove_at(i)
 		else:
 			i += 1
@@ -281,6 +329,7 @@ func disable_mod(folder: String) -> void:
 	recompute_compatibility()
 	message.text = ""
 	display_lists()
+	_select_row(enabled_list, pos)
 	_selected(enabled_list)
 
 ## moveCurrItem, only while no filter is applied.
@@ -321,15 +370,62 @@ func visit_website() -> void:
 		url = "http://" + url
 	load("res://scenes/common/msgbox.gd").open_url(self, url)
 
-## page_modhelp.xml.
-func show_help() -> void:
-	var dlg := AcceptDialog.new()
-	dlg.title = L10n.t("Mod Selector")
-	dlg.dialog_text = HELP
-	dlg.dialog_autowrap = true
-	dlg.min_size = Vector2i(520, 260)
-	add_child(dlg)
-	dlg.popup_centered()
+## page_modhelp.xml (help/help.xml): 680x550 over a fade, the text in a
+## panel, Close and Modding Guide.
+func show_help() -> Control:
+	var page := Control.new()
+	page.name = "ModHelp"
+	page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	page.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(page)
+	var fade := ColorRect.new()
+	fade.color = Color(0, 0, 0, 0.6)
+	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	page.add_child(fade)
+	var dlg := Panel.new()
+	dlg.theme_type_variation = "ModernDialog"
+	dlg.set_anchors_preset(Control.PRESET_CENTER)
+	dlg.offset_left = -340
+	dlg.offset_right = 340
+	dlg.offset_top = -275
+	dlg.offset_bottom = 275
+	page.add_child(dlg)
+	load("res://scenes/menu/hotkeys.gd")._edge_title(dlg, L10n.t("Pyrogenesis Mod Selector"))
+	var panel := ColorRect.new()
+	panel.color = Color(0, 0, 0, 0.5)
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.offset_left = 20
+	panel.offset_top = 20
+	panel.offset_right = -20
+	panel.offset_bottom = -58
+	dlg.add_child(panel)
+	var text := Label.new()
+	text.name = "Text"
+	# Engine.TranslateLines: each line on its own.
+	text.text = "\n".join(PackedStringArray(Array(HELP.split("\n")).map(func(l): return L10n.t(l) if l != "" else "")))
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for side in ["left", "top"]:
+		text.set("offset_" + side, 10)
+	for side in ["right", "bottom"]:
+		text.set("offset_" + side, -10)
+	panel.add_child(text)
+	var buttons := [[L10n.t("Close"), func(): page.queue_free()],
+		[L10n.t("Modding Guide"), func(): load("res://scenes/common/msgbox.gd").open_url(self, MODDING_GUIDE)]]
+	for i in buttons.size():
+		var b := Button.new()
+		b.text = buttons[i][0]
+		b.anchor_left = i * 0.5
+		b.anchor_right = (i + 1) * 0.5
+		b.anchor_top = 1.0
+		b.anchor_bottom = 1.0
+		b.offset_left = 24 if i == 0 else 4
+		b.offset_right = -4 if i == 0 else -24
+		b.offset_top = -52
+		b.offset_bottom = -24
+		b.pressed.connect(buttons[i][1])
+		dlg.add_child(b)
+	return page
 
 func close_page() -> void:
 	queue_free()
@@ -337,4 +433,9 @@ func close_page() -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and "cancel" in RtsoHotkeyConfig.new().fired(event):
 		get_viewport().set_input_as_handled()
-		close_page()
+		# The help page takes the cancel hotkey first.
+		var help := get_node_or_null("ModHelp")
+		if help:
+			help.queue_free()
+		else:
+			close_page()
