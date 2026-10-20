@@ -7448,11 +7448,15 @@ Simulation::StructureDetails Simulation::structure_details(const Building &b) co
 			def = def * m.bld_arrow_mul[b.type] + m.bld_arrow_add[b.type];
 			per_unit *= m.bld_garrison_arrows[b.type];
 		}
+		// GetGarrisonArrowMultiplier / GetMaxArrowCount carry a garrisoned Caros's aura too.
+		float aura = 1.0f, max_aura = 1.0f;
+		if (b.team < MAX_PLAYERS) garrison_arrow_auras_of(b.garrisoned_units, b.team, aura, max_aura);
+		per_unit *= aura;
 		d.default_arrows = (int)std::lround(def);
 		d.per_unit = per_unit;
 		if (b.garrison_cap > 0) {
 			int limit = d.default_arrows + (int)std::lround(per_unit * b.garrison_cap);
-			if (ai.max_arrows > 0) limit = std::min(limit, (int)ai.max_arrows);
+			if (ai.max_arrows > 0) limit = std::min(limit, (int)std::lround(ai.max_arrows * max_aura));
 			d.projectile_limit = std::max(limit, 0);
 		}
 	}
@@ -13350,7 +13354,7 @@ bool Simulation::cmd_focus_fire(uint8_t player, const uint32_t *building_ids, si
 					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, unit_clearance_at(i), unit_height(i));
 		} else if (tb != building_id_to_idx_.end()) {
 			const Building &ob = buildings_[tb->second];
-			ok = !ob.wrecked && ob.hp > 0.0f && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
+			ok = !ob.wrecked && ob.hp > 0.0f && structure_has_health(ob.type) && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
 					&& in_range(ob.x - b.x, ob.z - b.z, ob.half_size, get_terrain_height(ob.x, ob.z));
 		} else if (fi >= 0) {
 			const size_t f = (size_t)fi;
@@ -14284,8 +14288,9 @@ void Simulation::tick_combat(float dt) {
 					&& (units_.team[i] != GAIA_PLAYER || units_.attack_damage[i] > 0.0f)
 					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, unit_clearance_at(i), unit_height(i));
 		};
+		// BuildingAI's enemy query wants IID_Resistance + Health: no shrines or trading posts.
 		auto building_target = [&](const Building &ob) {
-			return !ob.wrecked && ob.hp > 0.0f && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
+			return !ob.wrecked && ob.hp > 0.0f && structure_has_health(ob.type) && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
 					&& !beyond(ob.x - b.x, ob.z - b.z, ob.half_size)
 					&& in_range(ob.x - b.x, ob.z - b.z, ob.half_size, get_terrain_height(ob.x, ob.z));
 		};
