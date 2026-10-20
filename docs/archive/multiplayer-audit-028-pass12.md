@@ -36,3 +36,4 @@ None of these touches simulation state or the save format.
 - 2026-10-20 #PR1 pass 12 gap 2 (Host Saved Game while signed in lists the game with its name and password flag before the save picker, the match fills in map and players, and closing the picker takes it off the list, as LobbyGameRegistrationController does for any game) merged.
 - 2026-10-20 #PR1 pass 12 gap 5 (lobby presences in PlayerList.js colours, Offline and Unknown included) merged.
 - 2026-10-20 #PR1 pass 12 gap 6 (the lobby reconnect box is titled "Confirmation", as ConnectionHandler.js does) merged.
+- 2026-10-20 #PR1 (outside the table; Session UI saw it again after #1447) the lobby callback guard takes the callback's owner when the request is sent: once the owner is freed the lambda names no owner, which #1447's check read as "no owner, call it".
