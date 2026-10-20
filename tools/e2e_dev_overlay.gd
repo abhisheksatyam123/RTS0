@@ -8,7 +8,8 @@ extends SceneTree
 # re-seats this client; Enable time warp snapshots the game every 10 turns and rewinds
 # to the last one, keeping the selection and control groups; the pathfinder, hierarchical pathfinder, obstruction, unit motion,
 # range and bounding box overlays draw while ticked; Enable culling, Lock cull camera,
-# Display camera frustum and Display shadows frustum drive the culling and its boxes;
+# Display camera frustum and Display shadows frustum drive the culling and its boxes (a locked
+# cull camera hides the units and structures outside it);
 # Activate Rejoin Test (not on random maps) rejoins a copy of
 # the game and replays every turn onto it, an Out of Sync box naming any turn
 # where the two part.
@@ -332,9 +333,20 @@ func run() -> void:
 	press("Enable culling")
 	await frames(2)
 	check(main.debug_dev_overlay()["culling_enabled"], "ticking it again restores culling")
+	var shown_all: int = int(main.debug_dev_overlay()["structures_shown"])
+	# Lock the cull camera over the far side of the map, then look back at the base.
+	var home_cam: Dictionary = rig.camera_data()
+	var home := Vector3(float(home_cam["x"]), 0, float(home_cam["z"]))
+	rig.set_target_pos(Vector3(-home.x, 0, -home.z))
+	await frames(2)
 	press("Lock cull camera")
 	await frames(2)
 	check(main.debug_dev_overlay()["lock_cull_camera"], "Lock cull camera holds the cull frustum")
+	rig.set_target_pos(home)
+	await frames(2)
+	var shown_locked: int = int(main.debug_dev_overlay()["structures_shown"])
+	check(shown_locked < shown_all,
+		"and what lies outside it is not drawn: %d of %d structures shown" % [shown_locked, shown_all])
 	press("Display camera frustum")
 	press("Display shadows frustum")
 	await frames(2)
@@ -345,6 +357,7 @@ func run() -> void:
 	press("Display shadows frustum")
 	press("Lock cull camera")
 	await frames(2)
+	check(int(main.debug_dev_overlay()["structures_shown"]) == shown_all, "unlocked, every structure is drawn again")
 
 	var rdm = main.find_child("RenderDebugMode", true, false)
 	check(rdm != null and rdm.get_item_count() == 4 and rdm.get_item_text(0) == "Render Debug Mode Disabled"
