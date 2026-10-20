@@ -13505,7 +13505,10 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 			bool ok = true;
 			for (int k = 0; k < n && ok; ++k)
 				for (;;) {
-					const auto o = polar(rng.range_float(0.0f, kTwoPi), rng.range_float(0.0f, f.spread));
+					// One draw per statement: compilers order a call's arguments differently.
+					const float dist = rng.range_float(0.0f, f.spread);
+					const float ang = rng.range_float(0.0f, kTwoPi);
+					const auto o = polar(ang, dist);
 					const float fx = cx + 0.5f + o.first, fz = cz + 0.5f + o.second;
 					bool apart = true;
 					for (const auto &g : group)
