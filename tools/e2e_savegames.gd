@@ -5,7 +5,8 @@ extends SceneTree
 #   2. the details show the map with its preview, players, played time, type,
 #      size, victory and save format;
 #   3. an older save asks before loading, a newer one can't be loaded;
-#   4. Shift+Delete deletes without asking, Delete asks first;
+#   4. Shift+Delete deletes without asking, Delete asks first; a save made with
+#      other mods lists as incompatible, names its mods in orange and asks first;
 #   5. in a match, Save writes a new save with its description, and saving over
 #      the selected one asks first and keeps its description, while Enter in the description always writes a new one;
 #   6. Load from the load dialog loads the save into a new match.
@@ -14,7 +15,7 @@ extends SceneTree
 # Exit code 0 = pass.
 
 var failures := 0
-const NAMES := ["zz_e2e_save_a", "zz_e2e_save_b", "zz_e2e_save_old", "zz_e2e_save_new", "zz_e2e_save_match"]
+const NAMES := ["zz_e2e_save_a", "zz_e2e_save_b", "zz_e2e_save_old", "zz_e2e_save_new", "zz_e2e_save_match", "zz_e2e_save_mods"]
 var Dialog: GDScript
 
 func check(cond: bool, what: String) -> void:
@@ -127,6 +128,27 @@ func run() -> void:
 	await frames(1)
 	check(not FileAccess.file_exists("user://saves/%s.json" % NAMES[1]), "and deletes once confirmed")
 	d.close()
+	# SavegameList / SavegameDetails / SavegameLoader: the mods a save was made with.
+	write_save(NAMES[5], v, 1896600000, "random_oasis", "E2E Oasis", "modded")
+	var modded = JSON.parse_string(FileAccess.get_file_as_string("user://saves/%s.json" % NAMES[5]))
+	modded["mods"] = [{"name": "zz_other_mod", "version": "9", "ignoreInCompatibilityChecks": false}]
+	FileAccess.open("user://saves/%s.json" % NAMES[5], FileAccess.WRITE).store_string(JSON.stringify(modded))
+	d = Dialog.open(current_scene, "load")
+	await frames(2)
+	check(not ids(d).has(NAMES[5]), "a save made with other mods is filtered out")
+	d.compatibility_filter.button_pressed = false
+	var mi: int = d.saves.map(func(s): return s.id).find(NAMES[5])
+	check(mi >= 0 and d.list.get_root().get_child(mi).get_custom_color(0) == d.INCOMPATIBLE, "and greyed out without the filter")
+	d.select_save(mi)
+	check(d.labels.version.text == "Mods: zz_other_mod (9)" and d.labels.version.get_theme_color("font_color") == Color.ORANGE,
+		"its details name its mods in orange: " + d.labels.version.text)
+	d.load_pressed()
+	await frames(1)
+	check(d.confirm != null and d.confirm.message.contains("needs a different sequence of mods") and d.confirm.message.contains("zz_other_mod (9)")
+		and d.confirm.message.contains("Do you still want to proceed?"), "loading it asks first, naming the mods")
+	if d.confirm:
+		d.confirm.find_child("Button1", true, false).pressed.emit() # No
+	d.close()
 
 	print("5. save in a match")
 	var ms = root.get_node("MatchSettings")
@@ -185,6 +207,8 @@ func run() -> void:
 			DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/" + f.get_basename() + ext))
 
 	print("6. load")
+	var written = JSON.parse_string(FileAccess.get_file_as_string("user://saves/%s.json" % NAMES[4]))
+	check(written is Dictionary and written.get("mods") is Array and not written.mods.is_empty(), "a save records the mods it was made with")
 	d = Dialog.open(m, "load", m)
 	await frames(2)
 	d.select_save(d.saves.map(func(s): return s.id).find(NAMES[4]))

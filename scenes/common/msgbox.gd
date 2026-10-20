@@ -27,6 +27,16 @@ var _text: Label
 var _deadline := 0
 var _done := false
 
+## functions_msgbox.js openURL: the page in the browser, and a box saying so.
+static var last_url := "" # for tests
+static func open_url(parent: Node, url: String) -> Control:
+	last_url = url
+	if DisplayServer.get_name() != "headless":
+		OS.shell_open(url)
+	return open(parent, 600, 200,
+		TranslationServer.translate("Opening %(url)s\n in default web browser. Please wait…").replace("%(url)s", url),
+		TranslationServer.translate("Opening page"))
+
 ## messageBox(width, height, message, title, buttonCaptions) over parent.
 static func open(parent: Node, w: float, h: float, msg: String, ttl: String, buttons: Array = []) -> Control:
 	var layer := CanvasLayer.new()

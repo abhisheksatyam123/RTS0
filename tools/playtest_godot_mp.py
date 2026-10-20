@@ -455,6 +455,8 @@ def play(args, lobby, leave):
     setup_chat = said("host", "setup_chat")
     ok = ok and all(t in setup_chat for t in ("bob has joined", "* bob is ready!", "hello from bob",
                                               "<bob> /allies team up"))
+    # 0.28 /list in the setup lists everyone connected, not "Users (0)".
+    ok = ok and said("join", "setup_list") == "Users (2): alice, bob"
     # 0.28 LobbyButton: the host opens the lobby as a dialog over the setup and closes it again.
     ok = ok and said("host", "lobby_dialog") == "true listed=true join_hidden=true closed=true"
     # 0.28 /list on both: the users by seat, and the command is not a chat line.

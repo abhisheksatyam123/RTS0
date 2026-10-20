@@ -3211,6 +3211,7 @@ private:
 	CinemaState cinema_; // saved from SAVE_VERSION_CINEMA
 	void tick_triggers(float dt);
 	void tick_cinema(float dt);
+	void cinema_drop_deleted_path(uint16_t idx); // a deleted path no longer queued
 	void set_cinema_enabled(bool enabled);
 	void register_map_triggers(MapType type);
 	void run_trigger_action(uint16_t action, float arg, const TriggerEventData &data);

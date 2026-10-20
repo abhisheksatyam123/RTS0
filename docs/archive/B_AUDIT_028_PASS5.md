@@ -43,4 +43,4 @@ Area: the victory-condition simulation (ConquestCommon, Regicide, CaptureTheReli
 
 - 4, 5, 7 and 8 are fixed in the pass-5 PR. tools/test_victory.cpp checks the foundation and the same-tick fall; test_trade checks the ceasefire market.
 - 1 is next, as its own save PR.
-- 2 and 3 are REMAINING_GAPS G48, handed to F and D.
+- 2 and 3 are REMAINING_GAPS G49, handed to F and D.

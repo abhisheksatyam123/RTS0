@@ -9497,14 +9497,24 @@
       "team": 0,
       "start_x": 169.87,
       "start_z": -44.52,
-      "civ": 0
+      "civ": 0,
+      "color": [
+        80,
+        80,
+        200
+      ]
     },
     {
       "id": 2,
       "team": 1,
       "start_x": -71.32,
       "start_z": 140.08,
-      "civ": 7
+      "civ": 7,
+      "color": [
+        150,
+        20,
+        20
+      ]
     }
   ],
   "resources": [

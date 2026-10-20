@@ -160,12 +160,32 @@ def find_godot(arg: str | None) -> str:
     return godot
 
 
+def compress_model_textures() -> int:
+    """Switch the textures unpacked from models to VRAM compression (S3TC on desktop, ETC2
+    on mobile), as the editor's "Detect 3D" does when it first draws them; a headless import
+    never draws, so they would stay lossless and about twice the size in an export. Returns
+    how many .import files changed: Godot reimports those on its next run."""
+    changed = 0
+    for imp in (REPO / "assets" / "models").rglob("*.import"):
+        if Path(imp.stem).suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+            continue
+        text = imp.read_text()
+        if "\ncompress/mode=0\n" in text and "\ndetect_3d/compress_to=1\n" in text:
+            imp.write_text(text.replace("\ncompress/mode=0\n", "\ncompress/mode=2\n")
+                           .replace("\ndetect_3d/compress_to=1\n", "\ndetect_3d/compress_to=0\n"))
+            changed += 1
+    if changed:
+        log(f"{changed} model textures set to VRAM compression")
+    return changed
+
+
 def import_assets(godot: str, batch: int = 1000, max_rss_mb: int = 5000) -> int:
     max_rss_kb = max_rss_mb * 1024
     restore()
     times = cached_times()
     pending = [f for f in tracked_importable() if not up_to_date(f, times)]
     if not pending:
+        compress_model_textures()
         log("every asset is in Godot's cache, checking for anything else")
         status, capped = run_godot(godot, max_rss_kb)
         return 1 if capped else status
@@ -176,6 +196,7 @@ def import_assets(godot: str, batch: int = 1000, max_rss_mb: int = 5000) -> int:
     try:
         i = 0
         rounds = 0
+        switched = 0
         while i < len(pending):
             rounds += 1
             first = i
@@ -203,6 +224,14 @@ def import_assets(godot: str, batch: int = 1000, max_rss_mb: int = 5000) -> int:
             elif status != 0:
                 log(f"Godot exited with {status}")
                 return status
+            else:
+                # This round's unpacked textures reimport compressed in the next round.
+                switched = compress_model_textures()
+        if switched:
+            log("reimporting the last round's model textures compressed")
+            status, capped = run_godot(godot, max_rss_kb)
+            if capped or status != 0:
+                return 1 if capped else status
         log(f"done in {rounds} rounds")
         return 0
     finally:
