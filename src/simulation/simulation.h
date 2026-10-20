@@ -1803,6 +1803,8 @@ public:
 		const uint8_t *flora; // FloraKind
 		const uint32_t *id;
 		size_t count;
+		const uint8_t *fauna; // a carcass's animal: fauna type + 1, 0 none
+		const uint8_t *owner; // a carcass's owner (the animal's), else GAIA_PLAYER or 0xFF
 	};
 	ResourceView resources() const;
 
@@ -3229,6 +3231,8 @@ private:
 	CinemaState cinema_; // saved from SAVE_VERSION_CINEMA
 	void tick_triggers(float dt);
 	void tick_cinema(float dt);
+	// Where TriggerHelper.SpawnUnits puts a unit of `type` at trigger point p (false: on the point).
+	bool trigger_point_spawn_spot(const TriggerPoint &p, uint8_t type, float &x, float &z) const;
 	void cinema_drop_deleted_path(uint16_t idx); // a deleted path no longer queued
 	void set_cinema_enabled(bool enabled);
 	void register_map_triggers(MapType type);

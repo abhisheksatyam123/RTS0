@@ -803,6 +803,12 @@ void RtsoMain::apply_match_settings() {
 		if (!load_map_seeded("random_mainland", seed)) sim->spawn_initial();
 		return;
 	}
+	{
+		// A campaign level is named by its Name (CampaignMenu.startScenario mapName).
+		const String level_name = ms->get("campaign_map_name");
+		if (!level_name.is_empty())
+			sim->set_map_info(sim->current_map_id(), level_name.utf8().get_data(), sim->current_map_biome());
+	}
 	if (victory >= 0 && victory < 256 && rtso::valid_victory_code((uint8_t)victory)) sim->set_victory_condition((uint8_t)victory);
 	sim->set_waves_enabled((bool)ms->get("waves_enabled"));
 	sim->set_last_man_standing((bool)ms->get("last_man_standing"));

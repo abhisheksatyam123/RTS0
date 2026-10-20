@@ -321,6 +321,18 @@ inline String aura_line(const String &name, const String &description, float rad
 	return tip;
 }
 
+// getAurasTooltip of a structure's template: its templates.json "auras", one line each.
+inline String structure_auras_tooltip(const godot::Dictionary &entry) {
+	const godot::Array auras = entry.get("auras", godot::Array());
+	String out;
+	for (int k = 0; k < auras.size(); ++k) {
+		const godot::Dictionary a = auras[k];
+		out += (out.is_empty() ? String() : String("\n")) +
+				aura_line(String(a.get("name", "")), String(a.get("description", "")), (float)a.get("radius", 0.0f));
+	}
+	return out;
+}
+
 // displayMultiple's numberOfUnits tooltip: garrison size, then what the selection carries
 // and its loot.
 inline String multiple_tooltip(int64_t garrison_size, const Amounts &carrying, const Amounts &loot) {

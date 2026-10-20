@@ -1952,7 +1952,9 @@ static void test_petra_cothon() {
 		// 0.28 popPhase2 is 100 at a 200 population limit.
 		s.set_pop_cap(200);
 		for (int k = 0; k < 120; ++k) s.spawn_unit(-40.0f + (float)(k % 15) * 2.0f, 50.0f + (float)(k / 15) * 2.0f, 1, UNIT_VILLAGER);
-		run(s, 8.0f);
+		// Phasing to the city phase, the temple and the forge go down first (checkPhaseRequirements
+		// counts Town foundations), so the Cothon follows some 13 s in.
+		run(s, 16.0f);
 		const Simulation::Building *cothon = nullptr;
 		for (const auto &b : s.buildings()) if (b.team == 1 && b.type == BLD_SUPER_DOCK) cothon = &b;
 		const Simulation::Building *db = bld(s, dock);

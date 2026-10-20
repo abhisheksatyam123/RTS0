@@ -683,6 +683,7 @@ public:
 	int debug_status_sprites() const { return view ? view->status_sprite_count() : 0; }
 	PackedStringArray debug_status_rank_icons() const { return view ? view->status_rank_icons() : PackedStringArray(); }
 	int debug_status_xp_bars() const { return view ? view->status_xp_bars() : 0; }
+	PackedStringArray debug_status_aura_sources() const { return view ? view->status_aura_sources() : PackedStringArray(); }
 	PackedInt32Array debug_selected_structures() const {
 		PackedInt32Array out;
 		for (uint32_t id : selected_structures()) out.push_back((int32_t)id);
@@ -700,6 +701,16 @@ public:
 		return d;
 	}
 	// Tests: where a unit stands on screen (viewport pixels), or (-1, -1).
+	// Tests: a unit's ground position (x, z), or where it is walking to with `goal`;
+	// (0, 0) when it is gone.
+	Vector2 debug_unit_ground(int64_t uid, bool goal) const {
+		if (!sim) return Vector2();
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == (uint32_t)uid && uv.alive[i])
+				return goal ? Vector2(uv.target_x[i], uv.target_z[i]) : Vector2(uv.pos_x[i], uv.pos_z[i]);
+		return Vector2();
+	}
 	Vector2 debug_unit_screen(int64_t uid) const {
 		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
 		auto uv = sim->units();
@@ -970,6 +981,7 @@ private:
 		if (!cam_rig) return d;
 		d["target"] = Vector2(cam_rig->get_target_pos().x, cam_rig->get_target_pos().z);
 		d["follow"] = (int64_t)cam_rig->follow_id();
+		d["zoom"] = cam_rig->get_zoom();
 		return d;
 	}
 	void play_voice(const char *path);
