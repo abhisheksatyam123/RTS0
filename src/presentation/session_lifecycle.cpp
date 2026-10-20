@@ -593,6 +593,7 @@ void RtsoMain::_ready() {
 	pause_overlay_->set_anchors_preset(Control::PRESET_FULL_RECT);
 	pause_overlay_->set_flat(true);
 	pause_overlay_->set_focus_mode(Control::FOCUS_NONE);
+	pause_overlay_->set_meta("rtso_no_click", true); // style sessionToolTip: no sound_pressed
 	pause_overlay_->set_visible(false);
 	pause_overlay_->connect("pressed", Callable(this, "_on_pause_overlay_pressed"));
 	{
@@ -1615,7 +1616,10 @@ void RtsoMain::refresh_chat_tooltips() {
 
 // gui/common/styles.xml sound_pressed, and the dropdowns' sound_opened / sound_selected.
 void RtsoMain::hook_ui_click_sounds(Node *n) {
-	if (BaseButton *b = Object::cast_to<BaseButton>(n)) {
+	// A button whose 0.28 style has no sound_pressed is marked rtso_no_click.
+	BaseButton *b = Object::cast_to<BaseButton>(n);
+	if (b && b->has_meta("rtso_no_click")) b = nullptr;
+	if (b) {
 		const Callable click(this, "_on_ui_click");
 		if (!b->is_connected("pressed", click)) b->connect("pressed", click);
 		if (Object::cast_to<OptionButton>(n) || Object::cast_to<RtsoSafeSelect>(n)) {

@@ -1,8 +1,9 @@
 extends SceneTree
 # gui/common/styles.xml sound_pressed: 0.28's session buttons (iconButton, StoneButton,
 # BrownButton, CivIconOverlay) and dropdowns play ui_button_click.ogg when pressed. Every
-# button of the session UI does here, buttons added later included; a disabled one and a
-# button outside the session stay silent.
+# button of the session UI does here, buttons added later included; a disabled one, a
+# button outside the session, the minimap's three unstyled buttons and the pause
+# overlay stay silent.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_ui_click_sound.gd
 # Exit code 0 = pass.
@@ -105,6 +106,17 @@ func run() -> void:
 	before = main.debug_ui_clicks()
 	await click(Vector2(340, 315))
 	check(main.debug_ui_clicks() == before, "is not the session's to sound")
+
+	print("4. MiniMap.xml's buttons have no sounding style")
+	for name in ["idleWorkerButton", "diplomacyColorsButton", "flareButton"]:
+		var mb: BaseButton = main.find_child(name, true, false)
+		before = main.debug_ui_clicks()
+		if mb:
+			mb.pressed.emit()
+			await frames(2)
+		check(mb != null and main.debug_ui_clicks() == before, name + " is silent")
+	if main.has_method("_on_flare_button_pressed"):
+		main._on_flare_button_pressed() # disarm the flare again
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)
