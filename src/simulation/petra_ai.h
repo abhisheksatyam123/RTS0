@@ -417,11 +417,11 @@ struct PetraKept {
 	bool no_units = false;
 	std::vector<uint32_t> allied;
 	// headquarters.js buildMoreHouses: house plans waiting in queues.house (up to 3, 5 above 80
-	// population), started once houseNeeded holds (saved v112).
+	// population), started once houseNeeded holds (saved v113).
 	uint8_t house_plans = 0;
 	// headquarters.js handleNewBase, for each base anchor finished or captured after the first:
 	// saveResources, saveSpace and maxFields end for good; a finished market ends maxFields too.
-	// anchors_seen: the finished anchors met so far, sorted ids (saved v112).
+	// anchors_seen: the finished anchors met so far, sorted ids (saved v113).
 	std::vector<uint32_t> anchors_seen;
 	bool space_freed = false, fields_freed = false;
 	static uint8_t at(const std::vector<uint8_t> &v, size_t s) { return s < v.size() ? v[s] : 0; }

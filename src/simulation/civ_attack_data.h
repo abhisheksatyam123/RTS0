@@ -53,7 +53,7 @@ struct CombatProfile {
 // 0 A.D. metres to RTS0 units for ranged distances (extract_0ad_rosters.py RANGED_RANGE_SCALE).
 inline constexpr float COMBAT_DISTANCE_SCALE = 0.28f;
 
-inline constexpr uint16_t COMBAT_TEMPLATE_COUNT = 544; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t COMBAT_TEMPLATE_COUNT = 545; // = CIV_UNIT_TEMPLATE_COUNT
 inline const CombatProfile *combat_template_table() {
 	static const CombatProfile kTable[COMBAT_TEMPLATE_COUNT] = {
 		{{0x0000000000000932ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 4.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 2.394f, 0, 0.0f, 0.0f, 0.0f, 0, 0.4f, 70.0f, 35.0f, 1.75f, 0.0f, true, {130, 10, 5, 0, 0}, 0}, // athen/cavalry_javelineer_b
@@ -600,6 +600,7 @@ inline const CombatProfile *combat_template_table() {
 		{{0x0000000000000930ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 1, {{{0x0000000000000002ull, 0x0000000000000000ull}, 2.5f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0.0f, 0, 0.5f, 0.0f, 0.0f, 2.5f, 0.0f, true, {100, 5, 5, 0, 0}, 0}, // germ/infantry_spearman_a
 		{{0x0000000000000930ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0.0f, 0, 0.375f, 0.0f, 0.0f, 2.5f, 0.0f, true, {100, 5, 4, 0, 1}, 0}, // germ/infantry_swordsman_a
 		{{0x0000000000000830ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, true, {8, 10, 0, 0, 3}, 0}, // germ/support_healer_e
+		{{0x0000000000000820ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 1.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0.0f, 0, 0.0f, 75.0f, 9.81f, 0.0f, 0.0f, true, {0, 0, 0, 0, 0}, 1}, // plane
 	};
 	return kTable;
 }

@@ -164,13 +164,19 @@ func _send(path: String, method: int, body: String, cb: Callable) -> void:
 			else:
 				lost = true
 				disconnected.emit()
-		if cb.is_valid():
+		if _callable_alive(cb):
 			cb.call(code if ok else 0, obj))
 	var headers := PackedStringArray(["Content-Type: application/json"])
 	if req.request(base_url() + path, headers, method, body) != OK:
 		req.queue_free()
-		if cb.is_valid():
+		if _callable_alive(cb):
 			cb.call(0, null)
+
+
+## A request's callback may outlive the page that made it (a lambda whose owner
+## was freed before the answer came): is_valid() still says true for it.
+static func _callable_alive(cb: Callable) -> bool:
+	return cb.is_valid() and (cb.get_object_id() == 0 or is_instance_id_valid(cb.get_object_id()))
 
 
 # 0 A.D. EncryptPassword (source/lobby/pkcs5_pbkdf2.cpp): the lobby gets

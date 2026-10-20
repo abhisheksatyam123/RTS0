@@ -9899,6 +9899,90 @@
    ]
   }
  ],
+ "merc_thorakites": [
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__helmet__props__hele_thracian_romanized_crest_a2.glb"
+   ],
+   "node": "merc_thorakites_part5",
+   "xf": [
+    1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    -0.0,
+    1.0,
+    -0.0,
+    0.017954,
+    0.011225
+   ]
+  }
+ ],
+ "merc_thureophoros": [
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__helmet__props__hele_crest_hair_b.glb"
+   ],
+   "node": "merc_thureophoros_part14",
+   "xf": [
+    1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    0.939693,
+    0.34202,
+    0.0,
+    -0.34202,
+    0.939693,
+    -0.0,
+    0.501163,
+    0.01513
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_b.glb",
+    "res://assets/models/props/looks/props__weap_javelin_shaft_c.glb"
+   ],
+   "node": "merc_thureophoros_part5",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    -1.0,
+    -0.02101,
+    -0.679966,
+    -0.01451
+   ]
+  }
+ ],
  "pers_cavalry_archer_a": [
   {
    "freq": [
@@ -13169,6 +13253,34 @@
    ]
   }
  ],
+ "rome_champion_infantry_swordsman_04": [
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__helmet__props__hele_crest_hair_j.glb"
+   ],
+   "node": "rome_champion_infantry_swordsman_04_part4",
+   "xf": [
+    1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    0.958557,
+    0.2849,
+    0.0,
+    -0.2849,
+    0.958557,
+    -0.0,
+    0.489288,
+    -0.024729
+   ]
+  }
+ ],
  "rome_champion_infantry_swordsman_first": [
   {
    "freq": [
@@ -16430,6 +16542,96 @@
     -0.0,
     0.501163,
     0.01513
+   ]
+  }
+ ],
+ "theb_sacred_band": [
+  {
+   "freq": [
+    1,
+    1,
+    1
+   ],
+   "joint": 2,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__new__head_beard_large.glb",
+    "res://assets/models/props/looks/props__new__head_beard_wide.glb"
+   ],
+   "node": "theb_sacred_band_part4",
+   "xf": [
+    1.0,
+    0.0,
+    -0.0,
+    0.0,
+    -2e-06,
+    1.0,
+    0.0,
+    -1.0,
+    -2e-06,
+    -0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_xiphos_c.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_d.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_e.glb",
+    "res://assets/models/props/looks/props__weap_xiphos_f.glb"
+   ],
+   "node": "theb_sacred_band_part6",
+   "xf": [
+    -1.0,
+    -1e-06,
+    -0.0,
+    1e-06,
+    -1.0,
+    1e-06,
+    -0.0,
+    1e-06,
+    1.0,
+    -0.0,
+    0.411635,
+    1e-06
+   ]
+  }
+ ],
+ "thesp_melanochitones": [
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__helmet__props__hele_crest_hair_b.glb"
+   ],
+   "node": "thesp_melanochitones_part9",
+   "xf": [
+    1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    0.943642,
+    0.330967,
+    0.0,
+    -0.330967,
+    0.943642,
+    -0.0,
+    0.488922,
+    0.001741
    ]
   }
  ],
