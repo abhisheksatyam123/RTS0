@@ -254,6 +254,17 @@ func _run() -> void:
 					main.send_setup_chat("hello from bob")
 					# ChatInputPanel: no addressees in the setup; sent to everyone as typed.
 					main.send_setup_chat("/allies team up")
+					# 0.28 /list in the setup: g_PlayerAssignments, seated or not.
+					main.send_setup_chat("/list")
+					var listed := ""
+					for i in 30:
+						for l in RegEx.create_from_string("\\[[^\\]]*\\]").sub(str(main.get_setup_chat().get("text", "")), "", true).split("\n"):
+							if l.contains("Users ("):
+								listed = l.strip_edges()
+						if listed != "":
+							break
+						await _wait(0.1)
+					_say("setup_list=" + listed.substr(listed.find("Users (")))
 			# Once the joiner is seated: before its slot is given it needs no
 			# ready (0.28 ReadyController), so Start would not be refused yet.
 			# 0.28: only the host sets a player's civ, team and colour, on its page.
