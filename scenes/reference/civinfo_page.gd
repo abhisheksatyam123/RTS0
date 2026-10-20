@@ -119,7 +119,7 @@ func gameplay_text(d: Dictionary) -> String:
 		if not (tmpl in specific if civ_ref.has("specific_techs") else bool(tch.get("civ_specific", false))):
 			continue
 		var tx: Dictionary = Common.tech_text(tmpl)
-		lines.append(entry(Common.link("tech", int(tch["id"]), tch["name"]), tx.get("description", tch["description"]),
+		lines.append(entry(Common.link("tech", int(tch["id"]), Common.entity_name(tch["name"], tch.get("specific_name", ""))), tx.get("description", tch["description"]),
 			tx.get("tooltip", "")))
 	t += "\n" + _heading("Specific Technology", "Specific Technologies", lines.size()) + "".join(lines)
 	# Specific Structures: "CivSpecific Structure" classes.

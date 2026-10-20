@@ -108,7 +108,8 @@ struct ProductionOrder {
 };
 // The metadata Petra trains a batch with (queueplanTraining.js): a worker (role worker, no
 // plan), a soldier for the attack in preparation or for the raid (plan), or none.
-enum PetraOrderPlan : uint8_t { PETRA_ORDER_NONE = 0, PETRA_ORDER_WORKER, PETRA_ORDER_ATTACK, PETRA_ORDER_RAID };
+// PETRA_ORDER_EMERGENCY: headquarters.js trainEmergencyUnits queues them with metadata plan -1.
+enum PetraOrderPlan : uint8_t { PETRA_ORDER_NONE = 0, PETRA_ORDER_WORKER, PETRA_ORDER_ATTACK, PETRA_ORDER_RAID, PETRA_ORDER_EMERGENCY };
 // ProductionQueue.js MaxQueueSize.
 static constexpr size_t PRODUCTION_QUEUE_MAX = 16;
 
@@ -180,10 +181,11 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 105; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 106; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_CHASE_TARGET = 105; // the target each unit was last in attack range of (UnitAI CHASING)
 	static constexpr uint32_t SAVE_VERSION_WAGON_SHARING = 103; // the supply wagons their owners locked
 	static constexpr uint32_t SAVE_VERSION_PETRA_TARGETED_RELICS = 104; // each Petra's targetedGaiaRelics; each structure's petra_decay_hold
+	static constexpr uint32_t SAVE_VERSION_PETRA_OUT_OF_PLAN = 106; // Petra's units out of a plan (metadata plan -1); emergency batches
 	static constexpr uint32_t SAVE_VERSION_AUTOQUEUE_BATCH = 102; // each queued batch's original size once part of it spawned
 	static constexpr uint32_t SAVE_VERSION_CARCASS_OWNER = 101; // each carcass's animal's owner
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
@@ -1974,6 +1976,10 @@ public:
 	// infantry an AI player trained outside its civic centres, sorted ids (saved v52). Every
 	// other citizen soldier of an AI is a worker (trainMoreWorkers, the starting units).
 	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_army_ids_;
+	// Petra's units with metadata plan -1, sorted ids (saved v106): every unit an attack or
+	// raid squad held (attackPlan.js removeUnit) and the emergency units (trainEmergencyUnits).
+	// 0.28 never clears it, so trainMoreWorkers doesn't count them as workers again.
+	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_out_of_plan_;
 	bool petra_is_worker(size_t i) const;
 	int petra_target_workers() const;
 	int petra_work_phase3() const;
@@ -2298,6 +2304,11 @@ public:
 	// structure is, unless `allow_capture` is false (Ctrl: session.attack).
 	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id, bool allow_capture = true);
 	bool scenery_capturable(const Scenery &sc) const { return scenery_type_info(sc.type).capture_points > 0; }
+	// unit_actions.js "attack" and "capture" on a structure: may one of unit_ids damage it (Attack.js
+	// CanAttack "!Capture": an enemy's, with hitpoints, outside the attack's RestrictedClasses) or take
+	// its capture points (CanAttack "Capture": a Capture attack and Capturable.CanCapture)?
+	bool any_can_damage_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const;
+	bool any_can_capture_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const;
 	void tick_scenery_capture(); // Capturable.js TimerTick: territory decay, then regeneration
 	void scenery_check_owner(Scenery &sc); // RegisterCapturePointsChanged
 	float unit_damage_to_scenery(size_t i) const;
@@ -3807,6 +3818,7 @@ private:
 	uint32_t petra_build_market(float home_x, float home_z, uint8_t queue); // ConstructionPlan for a Market
 	bool petra_find_defensive_location(uint8_t btype, int &out_cx, int &out_cz) const; // headquarters.js findDefensiveLocation
 	void petra_prospect_market(const PetraTradeRoutes &routes); // prospectForNewMarket
+	int petra_unplanned_workers(int &supports);
 	int petra_train_more_workers();
 	bool petra_wood_starved() const;
 	bool petra_wood_kept_for(int queue) const;
