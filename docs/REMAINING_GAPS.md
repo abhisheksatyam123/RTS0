@@ -253,6 +253,20 @@ StatisticsTracker callers and class mapping, the summary page, the replay menu a
 
 Checked and matching: every StatisticsTracker caller (kills, losses and captures through KilledBy only, trained, constructed, gathered by type, loot, treasures, trade income, barter, tribute, bribes, refunds), unit and structure classes other than S2 and S8, map control and exploration, the 30 s sequences, every summary tab, column, chart and team total, the replay filters, sorting, columns, details and delete flow, replay playback views, speeds and end boxes, the Match Settings lines and order, the save/load columns and details, the developer overlay's rows, panel, rejoin test, time warp and cheat messages, and the overlay counters' keys, order and formats.
 
+### Statistics, replays, saves, Match Settings and developer overlay, sixth 0.28 pass (2026-10-20)
+
+This pass covers save and replay metadata, compatibility, quicksave and quickload, Game Setup speeds reaching the match, and the lobby rating report, checked against 0.28 (main 30fc6d061). Owner: Stats, except T1, which is Triggers' (lobby ratings).
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| T1 | The lobby rating report sends each player's civ display name and the simulation's team id, so a 1v1 without teams reports "1,2,". 0.28 sends the civ code and the Diplomacy team, -1 when the player has none (LobbyRatingReport/Players.js) | low | Open (Triggers) |
+| T2 | Saves and replays don't record the mods they were made with. Their compatibility checks compare format numbers only, so a save or replay made under a gameplay mod lists as compatible without it. 0.28 stores the mods, filters and colours on them, and warns before loading (SavegameList.js, SavegameDetails.js, SavegameLoader.js, replay_menu.js) | medium | Open |
+| T3 | Game Setup's Turtle (0.1×) and Fast Forward (5×, 10×, 20×) speeds start the match at Normal, and networked games clamp to 0.25-3× | medium | Fixed: the session and the network setup take game_speeds.json's whole 0.1-20× range |
+| T4 | Quickload restores the quicksave's camera and starts a new replay. 0.28's quicksave keeps only the control groups, so the camera stays where it is | low | Open |
+| T5 | The quicksave is a file the save and load dialogs list, and it survives a restart. 0.28 keeps it in memory, out of Load Game ("Cannot quickload game - no game was quicksaved") | low | Open |
+
+Kept on purpose: a replay can't be saved ("A replay can't be saved."), though 0.28's Save button doesn't check for one. Checked and matching: what a save restores (camera, an empty selection, the control groups), the overwrite flow, the campaign filter, the details lines, the in-game summary's player rules and Continue routing, livestock in the Units Total column, captured unfinished structures, defeat moving everything to Gaia with no statistics, the replay menu's compatibility error, the 3-second minimum replay length, and the time warp's fast-forward reset.
+
 ### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
 
 diplomacyManager.js, chatHelper.js and their callers were checked line by line. Everything else matches: update cadence, tribute rules, request handling and its odds, lastManStandingCheck, changePlayerDiplomacy, personality boosts, every chat string. Jebel Barkal was checked statically against the 0.28 source, since no 0.28 binary runs here (pass 8: wave sizing and target-class skip match). Pass 4's P2 is D8 below, and its P5 is D7.
