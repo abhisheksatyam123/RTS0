@@ -140,6 +140,7 @@ static func configure(ms: Node, opts: Dictionary, maps: Array) -> String:
 	ms.map_id = str(m["id"])
 	ms.campaign_run = ""
 	ms.campaign_level = ""
+	ms.campaign_map_name = ""
 	ms.seed = (randi() & 0x7FFFFFFF) if seed_arg == "-1" else int(seed_arg)
 	ms.seed_exact = seed_arg != "-1" # GameSetup.cpp Autostart: seed 0 unless -1
 	var mask := 0

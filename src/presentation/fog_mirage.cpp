@@ -263,8 +263,17 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		f.is_burning = b.is_burning;
 		f.upgrading = b.upgrade_to != BLD_TYPE_COUNT;
 		f.production = b.queue.empty() ? 0 : Simulation::researching(b) != TECH_NONE ? 1 : 2;
-		add_building(f, sim.shares_los(viewer, b.team), // an unshared ally's structures mirage like anyone's
-				viewer < MAX_PLAYERS && ((b.seen_mask >> viewer) & 1));
+		const bool allied = sim.shares_los(viewer, b.team); // an unshared ally's structures mirage like anyone's
+		Simulation::BuildWork w;
+		if (!allied && (b.build_progress < 1.0f || b.hp < b.max_hp) && los_at(b.x, b.z) == Simulation::FOW_VISIBLE &&
+				sim.structure_build_work(b, w)) {
+			f.work = true;
+			f.work_repair = w.repair;
+			f.work_builders = (uint16_t)w.builders;
+			f.work_remaining = w.remaining;
+			f.work_remaining_new = w.remaining_new;
+		}
+		add_building(f, allied, viewer < MAX_PLAYERS && ((b.seen_mask >> viewer) & 1));
 	}
 	const auto rv = sim.resources();
 	// Each supply's gatherers at work (ResourceSupply numGatherers), remembered with its amount.

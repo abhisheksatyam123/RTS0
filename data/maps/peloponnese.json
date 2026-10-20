@@ -32774,6 +32774,41 @@
       "template": "athen/support_civilian"
     },
     {
+      "type": "",
+      "player": 4,
+      "x": -8.84,
+      "z": 88.53,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 4,
+      "x": -8.42,
+      "z": 89.33,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 4,
+      "x": -8.0,
+      "z": 89.92,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 4,
+      "x": -7.58,
+      "z": 90.4,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 4,
+      "x": -7.22,
+      "z": 91.0,
+      "template": "theb_sacred_band"
+    },
+    {
       "type": "swordsman",
       "player": 5,
       "x": -8.32,
