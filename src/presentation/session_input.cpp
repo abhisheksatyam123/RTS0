@@ -928,9 +928,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				range_overlays_.add_target_marker(click_pos.x, click_pos.z);
 				if (turn_cmds())
 					post_lockstep(10, sel_ptr, sel_n, click_pos.x, click_pos.z, 0,
-							(uint8_t)(qbit | (units_only ? rtso::NET_PARAM_UNITS_ONLY : 0)));
+							(uint8_t)(qbit | rtso::NET_PARAM_NO_CAPTURE | (units_only ? rtso::NET_PARAM_UNITS_ONLY : 0)));
 				else
-					sim->order_attack_move(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift, units_only, true);
+					sim->order_attack_move(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift, units_only, false);
 				play_civ_voice("attack");
 				attack_move_mode = false;
 				return;
@@ -1509,13 +1509,14 @@ void RtsoMain::finish_right_line(const Ref<InputEventMouseButton> &release) {
 			c.entity_ids.assign(1, ents[k]);
 			c.target_x = dist[k].x;
 			c.target_z = dist[k].y;
-			c.param = (uint8_t)(qbit | (attack && units_only ? rtso::NET_PARAM_UNITS_ONLY : 0));
+			// unit_actions.js "attack-move" sends no allowCapture: UnitAI.DEFAULT_CAPTURE (false).
+			c.param = (uint8_t)(qbit | (attack ? rtso::NET_PARAM_NO_CAPTURE : 0) | (attack && units_only ? rtso::NET_PARAM_UNITS_ONLY : 0));
 			turn_mgr_.post_local_command(c);
 		}
 	} else {
 		for (size_t k = 0; k < n; ++k) {
 			if (attack)
-				sim->order_attack_move(&ents[k], 1, dist[k].x, dist[k].y, queued, units_only, true);
+				sim->order_attack_move(&ents[k], 1, dist[k].x, dist[k].y, queued, units_only, false);
 			else {
 				sim->order_walk(&ents[k], 1, dist[k].x, dist[k].y, queued, true);
 				sim->order_fauna_walk(local_player(), &ents[k], 1, dist[k].x, dist[k].y);

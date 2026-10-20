@@ -17401,15 +17401,16 @@ void Simulation::apply_rally_step(uint32_t uid, const Building &b, const Buildin
 	const bool builder = unit_builds((size_t)i);
 	// RallyPointCommands.js: the commands the target alone doesn't give. A target that is gone
 	// turns attack into attack-walk and collect-treasure into collect-treasure-near-position.
+	// Its attack-walk carries no allowCapture: UnitAI.DEFAULT_CAPTURE, so it damages structures.
 	switch (st.cmd) {
 		case RALLY_CMD_ATTACK_WALK:
 		case RALLY_CMD_ATTACK_WALK_UNITS:
-			order_attack_move(&uid, 1, st.x, st.z, queued, st.cmd == RALLY_CMD_ATTACK_WALK_UNITS, true);
+			order_attack_move(&uid, 1, st.x, st.z, queued, st.cmd == RALLY_CMD_ATTACK_WALK_UNITS, false);
 			return;
 		case RALLY_CMD_ATTACK: {
 			const int32_t t = lookup_unit(st.ent_id);
 			if (t >= 0 && units_.alive[t]) order_attack(&uid, 1, st.ent_id, queued);
-			else order_attack_move(&uid, 1, st.x, st.z, queued, false, true);
+			else order_attack_move(&uid, 1, st.x, st.z, queued, false, false);
 			return;
 		}
 		case RALLY_CMD_TREASURE: {
@@ -17472,7 +17473,9 @@ void Simulation::apply_rally_step(uint32_t uid, const Building &b, const Buildin
 					return;
 				}
 			} else if (can_attack(b.team, t.team)) {
-				order_attack_building(&uid, 1, t.id, queued, true);
+				// unit_actions.js setupUnitActions "attack": allowCapture only on a target with
+				// capture points and no hitpoints.
+				order_attack_building(&uid, 1, t.id, queued, !structure_has_health(t.type));
 				return;
 			}
 		}

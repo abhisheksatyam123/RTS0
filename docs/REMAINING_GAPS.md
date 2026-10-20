@@ -68,6 +68,20 @@ Combat, loot, territory, garrison, capture, rally points, trade and camps agains
 
 Checked and matching in this pass: attack bonuses, resistance, attack timers and MinRange, projectile spread and hit order, splash falloff, status effects, loot and XP, capture point scaling, delete rules, death damage numbers, retargeting, slaughter; territory decay and its split, Gaia decay, root structures, capture's effects on rally, queue, upgrades and focus, blocked training spawns, self-garrison rallies, EjectHealth, ungarrison placement, flee, cheer, formation-less patrol, Call to Arms, returning with no dropsite, after-build follow-ups, mercenary camps and military colonies.
 
+### Unit orders, sixth 0.28 pass (2026-10-20)
+
+Orders, stances, garrison, capture, loot and fleeing against UnitAI.js and the 0.28 GUI. Capture points, loot and xp, garrison ejection, turrets, patrol and stance ranges match. Picking hidden targets is A's (Vision). Owner: Unit orders.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| Q1 | ~~Attack-move, attack-walk rallies and rallies on an enemy structure capture structures~~ Fixed: unit_actions.js "attack-move" and RallyPointCommands.js attack-walk send no allowCapture (UnitAI DEFAULT_CAPTURE false), and a rally "attack" captures only a target without hitpoints, so they damage structures; right-click capture, call-to-arms with session.capture and Petra keep their choice. `tools/test_unit_orders.cpp` 88 | high | Fixed |
+| Q2 | Collect-treasure and return-resource aren't forced orders: walkers fight or flee on the way (UnitAI.js:5742-5774) | medium | Open |
+| Q3 | Poison and burning ticks don't count as attacks: the unit and its guards react only to the first hit (StatusEffectsReceiver.js:141-153) | low | Open |
+| Q4 | A defensive unit's held position follows it while it moves and gathers, and a given-up chase resumes the interrupted order instead of walking back (UnitAI.js:325, 341, 2100-2105) | low | Open |
+| Q5 | Only the killer cheers, and never a siege engine or ship; 0.28 cheers every attacker whose target died (UnitAI.js:2214-2217) | low | Open |
+| Q6 | A defeated player's units turned Gaia keep their stance, orders and queue (Player.js:494-512, UnitAI.js:3665-3702) | low | Open |
+| Q7 | A fleeing unit ignores a second attacker and ends flights from structures by centre distance; 0.28's own check re-aims on every attacker (UnitAI.js:2040-2057) | low | Open |
+
 
 Kept on purpose: the RTS0 villager rows stay as the worker class's default for old saves and pre-roster spawns, but nothing trains one by name (#1014); Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
 
