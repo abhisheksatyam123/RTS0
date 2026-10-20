@@ -2079,25 +2079,25 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 	// holder when nothing else of the group is out.
 	PackedInt32Array recall, kept;
 	uint32_t recall_building = 0;
-	bool have_pos = false;
-	Vector3 first_pos, holder_pos;
-	bool have_holder = false;
+	// The snap goes to the group's lowest id, or its holder (getEntityOrHolder(toSelect[0])).
+	int32_t snap_id = 0;
+	Vector3 snap_pos;
 	auto gview = sim->units();
 	for (int m = 0; m < selected_groups[grp].size(); ++m) {
 		const int32_t gid = selected_groups[grp][m];
 		bool found = false;
+		Vector3 at;
 		for (size_t i = 0; i < gview.count; ++i) {
 			if (gview.id[i] != (uint32_t)gid || gview.team[i] != local_player()) continue;
 			if (gview.alive[i]) {
-				if (!have_pos) first_pos = Vector3(gview.pos_x[i], 0, gview.pos_z[i]);
-				have_pos = true;
+				at = Vector3(gview.pos_x[i], 0, gview.pos_z[i]);
 				recall.push_back(gid);
 				found = true;
 			} else if (gview.hp[i] > 0.0f) {
 				for (const auto &b : sim->buildings())
 					if (std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), (uint32_t)gid) != b.garrisoned_units.end()) {
-						if (!have_holder) holder_pos = Vector3(b.x, 0, b.z);
-						have_holder = found = true;
+						at = Vector3(b.x, 0, b.z);
+						found = true;
 						break;
 					}
 			}
@@ -2107,17 +2107,25 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 			for (const auto &b : sim->buildings())
 				if (b.id == (uint32_t)gid && b.team == local_player() && !b.wrecked && b.hp > 0.0f) {
 					if (!recall_building) recall_building = b.id;
-					if (!have_pos) first_pos = Vector3(b.x, 0, b.z);
-					have_pos = found = true;
+					at = Vector3(b.x, 0, b.z);
+					found = true;
 					break;
 				}
-		if (found) kept.push_back(gid);
+		if (found) {
+			kept.push_back(gid);
+			if (snap_id == 0 || gid < snap_id) snap_id = gid, snap_pos = at;
+		}
 	}
 	selected_groups[grp] = kept;
 	if (kept.is_empty()) return;
 	if (recall.is_empty() && !recall_building) {
-		// Everyone is inside: snap to the holder, the selection stays.
-		if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(holder_pos);
+		// Everyone is inside: performGroup's g_Selection.reset() still drops the old selection
+		// (the members inside can't be picked here), and the snap goes to the holder.
+		if (action != GROUP_ADD) {
+			selected_ids.clear();
+			selected_building_id = 0;
+		}
+		if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(snap_pos);
 		return;
 	}
 	if (action == GROUP_ADD) {
@@ -2128,7 +2136,7 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 		selected_ids = recall;
 		selected_building_id = recall_building;
 	}
-	if (action == GROUP_SNAP && cam_rig && (have_pos || have_holder)) cam_rig->set_target_pos(have_pos ? first_pos : holder_pos);
+	if (action == GROUP_SNAP && cam_rig && snap_id != 0) cam_rig->set_target_pos(snap_pos);
 	play_civ_voice("select");
 }
 
