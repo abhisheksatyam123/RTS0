@@ -251,6 +251,7 @@ func run() -> void:
 		and not page.get_node("%NetChatSend").disabled, "a client may still go Back and chat")
 	# ChatInputPanel.onTab / ChatInputAutocomplete: names first, then civs, then settings.
 	var chat_in: LineEdit = page.get_node("%NetChatInput")
+	check(chat_in.max_length == 1024, "the setup chat takes 1024 characters, as 0.28's")
 	check(chat_in.tooltip_text == "Press Tab to autocomplete player names or settings.", "the chat tooltip names Tab")
 	var entries: Array = page.autocomplete_entries()
 	check(entries.find("bob") >= 0 and entries.find("bob") < entries.find("Britons")
