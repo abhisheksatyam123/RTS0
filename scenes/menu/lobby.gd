@@ -1221,7 +1221,7 @@ static func buddies() -> PackedStringArray:
 static func room_buddies(r: Dictionary, list: PackedStringArray) -> int:
 	var found := 0
 	for p in r.get("player_names", []):
-		if list.has(str(p.get("name", ""))) and not p.get("ai", false):
+		if list.has(split_rating(str(p.get("name", "")))) and not p.get("ai", false):
 			found = maxi(found, 1 if p.get("observer", false) else 2)
 	return found
 
@@ -1299,6 +1299,8 @@ func _on_players(code: int, obj) -> void:
 	for p in sorted_players(obj.get("players", [])):
 		if p.get("rating") != null:
 			_ratings[str(p.get("name", ""))] = p["rating"]
+		if str(p.get("name", "")) == LobbySession.player_name:
+			LobbySession.rating = p.get("rating")
 		var st := str(p.get("status", "available"))
 		if p.get("moderator", false):
 			_moderators[str(p.get("name", ""))] = true
@@ -1577,8 +1579,7 @@ static func game_of_player(rooms: Array, name: String) -> int:
 
 ## splitRatingFromNick: "name (1500)" is "name".
 static func split_rating(s: String) -> String:
-	var m := RegEx.create_from_string("^(.+) \\(\\d+\\)$").search(s)
-	return m.get_string(1) if m else s
+	return str(preload("res://scenes/menu/lobby_session.gd").split_nick(s)["nick"])
 
 func _select_game_of(name: String) -> void:
 	var i := game_of_player(_shown_rooms, name)
@@ -1709,6 +1710,11 @@ func _player_name() -> String:
 	return who
 
 
+## The name a lobby player hosts or joins with: "nick (rating)" once rated (gamesetup_mp.js).
+func _net_name(joined_room := {}) -> String:
+	return LobbySession.rated_player_name(joined_room) if LobbySession.signed_in() else _player_name()
+
+
 ## functions_utility.js multiplayerName: Options' "Player name (multiplayer)",
 ## else the system user name.
 static func multiplayer_name() -> String:
@@ -1767,7 +1773,7 @@ func _on_join_pressed(confirmed := false, password = null) -> void:
 			return
 		# JoinButton.js: a running game we are not in is joined only to watch, if we say so.
 		if not confirmed and str(r.get("state", "init")) != "init" and not (r.get("player_names", []) as Array).any(
-				func(p) -> bool: return str(p.get("name", "")) == LobbySession.player_name):
+				func(p) -> bool: return split_rating(str(p.get("name", ""))) == LobbySession.player_name):
 			var ask := ConfirmationDialog.new()
 			ask.name = "ObserveDialog"
 			ask.title = "Confirmation"
@@ -1810,7 +1816,11 @@ func _start_join(ip: String, port: int, room_id: String, ticket := "", password 
 	if ip == "" or port <= 0 or port > 65535:
 		_say("Type the host's address and port, or pick a game.")
 		return
-	GameSetupMp.start_join(_player_name(), ip, port, _join_pwd.text if password == null else str(password),
+	var joined := {}
+	for r in _rooms:
+		if str(r.get("id", "")) == room_id:
+			joined = r
+	GameSetupMp.start_join(_net_name(joined), ip, port, _join_pwd.text if password == null else str(password),
 		_observe.button_pressed, room_id, ticket)
 
 
@@ -1858,4 +1868,4 @@ func _on_host_pressed(saved := false) -> void:
 		_say(failed)
 		GameSetupMp.show_host_error(self, failed)
 		return
-	GameSetupMp.start_host(self, who, game_name, port, _host_pwd.text, saved)
+	GameSetupMp.start_host(self, _net_name(), game_name, port, _host_pwd.text, saved)
