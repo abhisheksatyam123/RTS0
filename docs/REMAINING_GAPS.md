@@ -142,9 +142,9 @@ The command row against unit_actions.js g_EntityCommands (all 19 commands exist,
 | C4 | Own livestock get no Abort or Garrison button (RTS0 selects animals only for the stop hotkey and corral orders) | medium-low | Open |
 | C5 | ~~Back to Work sends the whole selection, so soldiers in a mixed selection post "back to work failed" notices~~ Fixed: only units with work orders (hasWorkOrders) are sent, and nothing at all when none has one | medium-low | Fixed |
 | C6 | ~~The delete hotkey opens the confirmation for a selection with nothing deletable~~ Fixed: undeletable units, the catafalque and structures without health or under half capture points stay out of the confirmation | low | Fixed |
-| C7 | Focus on Rally Point reads only the clicked structure's rally point and isn't offered to observers | low | Open |
-| C8 | is-dropsite-shared is offered only for an ally's structures (not wagons) and not to observers | low | Open |
-| C9 | Leave Turret ignores ejectable and shows a hotkey in its tooltip | low | Open |
+| C7 | ~~Focus on Rally Point reads only the clicked structure's rally point and isn't offered to observers~~ Fixed: the first selected structure with a rally point, else the first entity's position; pressable on an observer's panel. `tools/e2e_observer_panels.gd` | low | Fixed |
+| C8 | is-dropsite-shared is offered only for structures, not for an ally's wagons (observers now see it, with "Allies are allowed to use this dropsite.") | low | Open |
+| C9 | ~~Leave Turret ignores ejectable and shows a hotkey in its tooltip~~ Fixed: no hotkey on its tooltip; every RTS0 turret point (walls, gates, outposts, towers) is ejectable in 0.28, so no point needs the flag | low | Fixed |
 | C10 | ~~Leave Turret, Unload Turrets and Unload All post no notice when a unit can't get off~~ Fixed: each posts "Unable to unload unit(s)." (notifyUnloadFailure), ship unloads too. `tools/test_naval.cpp` | low | Fixed |
 | C11 | Unload Turrets isn't offered on a unit that holds turrets | low | Open |
 

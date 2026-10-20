@@ -325,10 +325,28 @@ void RtsoMain::_on_entity_command(const String &name) {
 	} else if (name == "select-trading-goods") {
 		_toggle_session_dialog("BarterDialog");
 	} else if (name == "focus-rally") {
-		// The first rally point, else the structure itself.
-		for (const auto &b : sim->buildings())
-			if (b.id == selected_building_id && cam_rig) {
-				cam_rig->set_target_pos(b.has_rally_point ? Vector3(b.rally_x, 0, b.rally_z) : Vector3(b.x, 0, b.z));
+		// The first selected entity with a rally point, else the first one's position.
+		if (!cam_rig) return;
+		const std::vector<uint32_t> structs = selected_structures();
+		const auto &bs = sim->buildings();
+		auto find_b = [&](uint32_t id) -> const rtso::Simulation::Building * {
+			for (const auto &b : bs)
+				if (b.id == id) return &b;
+			return nullptr;
+		};
+		for (uint32_t id : structs)
+			if (const auto *b = find_b(id); b && b->has_rally_point) {
+				cam_rig->set_target_pos(Vector3(b->rally_x, 0, b->rally_z));
+				return;
+			}
+		if (!structs.empty()) {
+			if (const auto *b = find_b(structs[0])) cam_rig->set_target_pos(Vector3(b->x, 0, b->z));
+			return;
+		}
+		auto uv = sim->units();
+		for (size_t i = 0; n > 0 && i < uv.count; ++i)
+			if (uv.id[i] == ids[0]) {
+				cam_rig->set_target_pos(Vector3(uv.pos_x[i], 0, uv.pos_z[i]));
 				break;
 			}
 	}

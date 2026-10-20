@@ -903,6 +903,7 @@ void RtsoMain::host_start_saved_game() {
 	net_host_.note_game_start_sent();
 	net_host_.sendGameStart(rtso::format_game_start_full(setup));
 	net_game_started_ = true;
+	chat_window_.clear_history(); // the session's chat starts empty (Chat.js)
 	selected_ids.clear();
 	selected_building_id = 0;
 	UtilityFunctions::print("[RTS0][GameStart] HOST continues saved game ", net_saved_game_, " as player ",
