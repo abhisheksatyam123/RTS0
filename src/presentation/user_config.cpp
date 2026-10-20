@@ -2,6 +2,7 @@
 
 #include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/classes/os.hpp>
 
 #include <cstdlib>
 #include <map>
@@ -151,11 +152,38 @@ struct State {
 	bool loaded = false;
 	std::map<std::string, std::string> values; // user values for known keys
 	uint32_t generation = 1;
+	// CFG_COMMAND: the command line's values (Config.cpp ProcessCommandLineArgs), above the
+	// user's and never saved.
+	bool command_parsed = false;
+	std::map<std::string, std::string> command;
+	bool audio_disabled = false; // g_DisableAudio: -nosound or -quickstart
 };
 
 State &state() {
 	static State s;
 	return s;
+}
+
+void parse_command_args(State &s, const PackedStringArray &args) {
+	for (int i = 0; i < args.size(); ++i) {
+		std::string a = args[i].utf8().get_data();
+		if (a.rfind("--", 0) == 0) a = a.substr(2);
+		else if (a.rfind("-", 0) == 0) a = a.substr(1);
+		else continue;
+		const size_t eq = a.find('=');
+		const std::string name = a.substr(0, eq);
+		const std::string value = eq == std::string::npos ? std::string() : a.substr(eq + 1);
+		if (name == "conf") {
+			const size_t colon = value.find(':');
+			if (colon != std::string::npos) s.command[value.substr(0, colon)] = value.substr(colon + 1);
+		} else if (name == "shadows" || name == "vsync") {
+			s.command[name] = "true";
+		} else if ((name == "xres" || name == "yres") && !value.empty()) {
+			s.command[name] = value;
+		} else if (name == "nosound" || name == "quickstart") {
+			s.audio_disabled = true;
+		}
+	}
 }
 
 std::string trim(const std::string &s) {
@@ -202,8 +230,19 @@ std::string read_file() {
 	return f.is_null() ? std::string() : std::string(f->get_as_text().utf8().get_data());
 }
 
+// -conf=KEY:VALUE (any number), -shadows, -xres=N, -yres=N, -vsync, -nosound, -quickstart;
+// one dash or two, before or after Godot's "--".
+void parse_command(State &s) {
+	if (s.command_parsed) return;
+	s.command_parsed = true;
+	PackedStringArray args = OS::get_singleton()->get_cmdline_args();
+	args.append_array(OS::get_singleton()->get_cmdline_user_args());
+	parse_command_args(s, args);
+}
+
 void ensure_loaded() {
 	State &s = state();
+	parse_command(s);
 	if (s.loaded) return;
 	s.loaded = true;
 	s.values.clear();
@@ -223,6 +262,7 @@ const char *default_value(const std::string &key) {
 
 std::string get(const std::string &key) {
 	ensure_loaded();
+	if (auto c = state().command.find(key); c != state().command.end()) return c->second;
 	auto it = state().values.find(key);
 	return it != state().values.end() ? it->second : std::string(default_value(key));
 }
@@ -252,6 +292,20 @@ void reload() {
 }
 
 uint32_t generation() { return state().generation; }
+
+bool audio_disabled() {
+	ensure_loaded();
+	return state().audio_disabled;
+}
+
+void set_command_args(const PackedStringArray &args) {
+	State &s = state();
+	s.command_parsed = true;
+	s.command.clear();
+	s.audio_disabled = false;
+	parse_command_args(s, args);
+	++s.generation;
+}
 
 std::string settings_cfg() {
 	ensure_loaded();
@@ -298,6 +352,8 @@ void RtsoUserConfig::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("save"), &RtsoUserConfig::save);
 	ClassDB::bind_method(D_METHOD("get_generation"), &RtsoUserConfig::get_generation);
 	ClassDB::bind_method(D_METHOD("get_keys"), &RtsoUserConfig::get_keys);
+	ClassDB::bind_method(D_METHOD("is_audio_disabled"), &RtsoUserConfig::is_audio_disabled);
+	ClassDB::bind_method(D_METHOD("set_command_args", "args"), &RtsoUserConfig::set_command_args);
 }
 
 static std::string to_std(const String &s) { return std::string(s.utf8().get_data()); }
@@ -311,6 +367,8 @@ void RtsoUserConfig::reset_all() { rtso::user_config::reset_all(); }
 void RtsoUserConfig::reload() { rtso::user_config::reload(); }
 bool RtsoUserConfig::save() { return rtso::user_config::save(); }
 int RtsoUserConfig::get_generation() const { return (int)rtso::user_config::generation(); }
+bool RtsoUserConfig::is_audio_disabled() const { return rtso::user_config::audio_disabled(); }
+void RtsoUserConfig::set_command_args(const PackedStringArray &args) { rtso::user_config::set_command_args(args); }
 
 PackedStringArray RtsoUserConfig::get_keys() const {
 	PackedStringArray out;
