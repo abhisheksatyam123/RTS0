@@ -132,6 +132,16 @@ func run() -> void:
 	touch.set_modifier(KEY_CTRL, true)
 	await frames(2)
 	check(Input.is_key_pressed(KEY_CTRL) and Input.is_key_pressed(KEY_SHIFT), "Ctrl latches alongside Shift")
+	# Ctrl + hold on an own building garrisons (session.garrison reads the held key).
+	rec.events.clear()
+	await finger(0, Vector2(350, 250), true)
+	var t2 := Time.get_ticks_msec()
+	while buttons(MOUSE_BUTTON_RIGHT).is_empty() and Time.get_ticks_msec() - t2 < 3000:
+		await process_frame
+	var ctrl_held := Input.is_key_pressed(KEY_CTRL)
+	await finger(0, Vector2(350, 250), false)
+	right = buttons(MOUSE_BUTTON_RIGHT)
+	check(not right.is_empty() and right[0].ctrl_pressed and ctrl_held, "a hold with Ctrl latched is a Ctrl+right-click (garrison)")
 	touch.release_modifiers()
 	await frames(2)
 	check(not Input.is_key_pressed(KEY_SHIFT) and not Input.is_key_pressed(KEY_CTRL), "release_modifiers lets both go")
