@@ -620,6 +620,10 @@ static void test_structure_auras() {
 	s.spawn_building_world(-40.0f, -40.0f, BLD_TEMPLE_AMUN, 0, 1.0f);
 	for (int k = 0; k < 40; ++k) s.tick(DT);
 	check(std::fabs(s.units_.max_hp[idx(s, hero)] - hero_max * 0.95f) < 0.01f, "Temple of Amun: hero max health x0.95");
+	// Stackable (kush_temple_amun.json): a second temple, say a captured one, takes another 5%.
+	s.spawn_building_world(-40.0f, 40.0f, BLD_TEMPLE_AMUN, 0, 1.0f);
+	for (int k = 0; k < 40; ++k) s.tick(DT);
+	check(std::fabs(s.units_.max_hp[idx(s, hero)] - hero_max * 0.95f * 0.95f) < 0.01f, "two Temples of Amun: x0.95 twice");
 
 	// Iberian monument (+20% attack) and Mauryan pillar (traders +20% speed).
 	Simulation m;

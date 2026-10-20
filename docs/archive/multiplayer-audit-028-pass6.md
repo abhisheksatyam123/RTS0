@@ -42,4 +42,4 @@ None of these touches simulation state or the save format.
 - 2026-10-20 #1175 pass 6 gap 9 (setup and lobby chat take 1024 characters, the lobby server keeps them) merged.
 - 2026-10-20 #1178 pass 6 gap 7 (right-click Ready sets not ready; observers see no Ready button) merged.
 - 2026-10-20 gap 6 (player list sorting) was already fixed on main by Triggers (1d2a35096, sort_players_by); 0.28's buddy sort column is the one part not carried.
-- 2026-10-20 #PR5 pass 6 gap 5 (lobby /events long poll: chat, players and games refresh at once) merged. Pass 6 complete.
+- 2026-10-20 #1182 pass 6 gap 5 (lobby /events long poll: chat, players and games refresh at once) merged. Pass 6 complete.

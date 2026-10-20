@@ -4,6 +4,7 @@
 #include "main_node.h"
 #include "fog_mirage.h"
 #include "l10n.h"
+#include "selection_details.h"
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <godot_cpp/classes/time.hpp>
@@ -269,6 +270,14 @@ void RtsoMain::update_cursor() {
 					else if (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me)) want = "action-build";
 					else if (b.hp < b.max_hp) want = "action-repair"; // own or allied (unit_actions "repair")
 					// unit_actions "garrison": an own or allied holder whose List takes a selected unit.
+					// A wall, gate or outpost has only turret points: "occupy-turret" (specificness 21).
+					else if (sim->turret_only_holder(b) && selection_can_garrison(b.id)) {
+						want = "action-occupy-turret";
+						const int occupied = sim->get_garrison_occupied(b.id), capacity = sim->get_garrison_capacity(b.id);
+						tip = rtso::sprintf0(rtso::tr0("Current turrets: %(occupied)s/%(capacity)s"),
+								{{"occupied", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
+						tip_orange = occupied >= capacity;
+					}
 					else if (selection_can_garrison(b.id)) {
 						want = "action-garrison";
 						// unit_actions "garrison" getActionInfo: the holder's slots, orange once full.
@@ -566,9 +575,9 @@ bool RtsoMain::minimap_unit_order(Vector2 world_pos) {
 	} else if (attack_move_mode || rtso::hotkeys::held("session.attackmove") || units_only) {
 		if (turn_cmds())
 			post_lockstep(10, sel_ptr, sel_n, world_pos.x, world_pos.y, 0,
-					(uint8_t)(qbit | (units_only ? rtso::NET_PARAM_UNITS_ONLY : 0)));
+					(uint8_t)(qbit | rtso::NET_PARAM_NO_CAPTURE | (units_only ? rtso::NET_PARAM_UNITS_ONLY : 0)));
 		else
-			sim->order_attack_move(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, units_only, true);
+			sim->order_attack_move(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, units_only, false);
 		play_civ_voice("attack");
 	} else if (patrol_mode || rtso::hotkeys::held("session.patrol")) {
 		if (turn_cmds())
@@ -623,9 +632,8 @@ bool RtsoMain::trade_route_click(const rtso::Simulation::Building &b, bool execu
 	};
 	auto gain_text = [&](const rtso::Simulation::Building &from, const rtso::Simulation::Building &to) {
 		const auto g = sim->calculate_trade_gain(from, to, me, kind);
-		String t = String::num_int64(g.trader);
-		if (g.market1 || g.market2) t += " (+" + String::num_int64(g.market1 + g.market2) + " to the markets' owners)";
-		return t;
+		return rtso::seldet::trading_gain(g.trader, me, g.market1, to.team, g.market2, from.team,
+				[this](uint8_t pid) { return player_display_name(pid); });
 	};
 	if (cursor) *cursor = "action-setup-trade-route";
 	auto set_first = [&]() {

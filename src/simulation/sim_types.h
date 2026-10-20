@@ -1845,6 +1845,8 @@ struct TechInfo {
 };
 
 #include "tech_data.h"
+#include "research_order_data.h"
+static_assert(TECH_RESEARCH_RANK_ROWS == TECH_COUNT, "re-run tools/extract_0ad_research_order.py after adding technologies");
 #include "tech_tooltip_data.h"
 #include "building_ai_data.h"
 #include "trainer_data.h"
@@ -2205,8 +2207,10 @@ enum CivRosterFlag : uint16_t {
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
 
-// Roster tables hold at most 64 * CIV_TEMPLATE_WORDS_MAX unit templates.
-inline constexpr uint16_t CIV_TEMPLATE_WORDS_MAX = 8;
+// Roster tables hold at most 64 * CIV_TEMPLATE_WORDS_MAX unit templates: the generated aura
+// and civ-bonus row bitsets (affects, units) are this many words, the generator fills the
+// first CIV_TEMPLATE_WORDS. Saves store template ids only, so raising it needs no save bump.
+inline constexpr uint16_t CIV_TEMPLATE_WORDS_MAX = 16;
 
 // A unit's short path around buildings (nav/building_steering.h), kept between ticks as 0 A.D.'s
 // CCmpUnitMotion keeps m_ShortPath: the first waypoint (x, z), the aim it leads towards, and the
@@ -2754,6 +2758,17 @@ inline uint8_t resource_default_max_gatherers(uint8_t type, uint8_t subtype, int
 inline const CivHeroAura &civ_hero_aura(int16_t idx) {
 	const CivHeroAura *a = civ_hero_aura_table();
 	return a[(idx >= 0 && idx < CIV_HERO_AURA_COUNT) ? idx : 0];
+}
+
+// A roster aura whose 0.28 JSON is "stackable" and that AuraManager::query_modifier counts
+// once per source rather than once: kush_temple_amun (each Temple of Amun x0.95 hero health).
+inline bool civ_aura_stackable(int16_t idx) {
+	static const int16_t amun = [] {
+		for (int16_t i = 0; i < CIV_HERO_AURA_COUNT; ++i)
+			if (std::strcmp(civ_hero_aura(i).id, "kush_temple_amun") == 0) return i;
+		return (int16_t)-1;
+	}();
+	return idx >= 0 && idx == amun;
 }
 
 // Roster of a civ is the template id range [civ_roster_begin, civ_roster_end).

@@ -295,7 +295,8 @@ int main() {
 		wipe(*sim, 0, true, true);
 		run(*sim, 1.0f);
 		CHECK(!sim->is_game_over() && sim->is_defeated(0) && !sim->is_defeated(2));
-		CHECK(sim->fow_grid(0)[0] == Simulation::FOW_VISIBLE);
+		// The centre cell: a circular map keeps its off-world corners unseen even when revealed.
+		CHECK(sim->fow_grid(0)[(size_t)(sim->fow_res() / 2) * (size_t)sim->fow_res() + (size_t)(sim->fow_res() / 2)] == Simulation::FOW_VISIBLE);
 		wipe(*sim, 1, true, true);
 		run(*sim, 1.0f);
 		CHECK(sim->is_game_over() && !sim->is_victory());
