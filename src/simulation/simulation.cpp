@@ -20014,7 +20014,7 @@ void Simulation::petra_order_builders(const std::vector<uint32_t> &workers, size
 		}
 		crew.push_back(uid);
 	}
-	if (!crew.empty()) order_build_or_repair(crew.data(), crew.size(), bid);
+	for (uint32_t uid : crew) petra_order_build(uid, bid);
 }
 
 // baseManager.js assignToFoundations, damaged structures: the nearest workers
@@ -20198,10 +20198,25 @@ void Simulation::petra_staff_foundations() {
 
 	const std::unordered_set<uint32_t> launched = petra_launched_units();
 	int workers = 0, building = 0;
+	// A builder dropping its load first (petra_order_build) has the build queued behind it:
+	// it is that foundation's builder already (target-foundation).
+	std::vector<uint32_t> dropping;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 		if (!petra_builder_worker(i, launched)) continue;
 		++workers;
+		if (units_.order_kind[i] == ORDER_RETURN_RESOURCE) {
+			auto q = order_queues_.find(units_.id[i]);
+			if (q != order_queues_.end() && !q->second.empty() && q->second.front().kind == ORDER_BUILD)
+				for (auto &n : needs)
+					if (n.id == q->second.front().target) {
+						--n.missing;
+						++building;
+						dropping.push_back(units_.id[i]);
+						break;
+					}
+			continue;
+		}
 		if (units_.action_state[i] != ACTION_BUILD) continue;
 		for (auto &n : needs) {
 			if (n.id != units_.target_building_id[i]) continue;
@@ -20276,7 +20291,7 @@ void Simulation::petra_staff_foundations() {
 		}
 		return best;
 	};
-	const std::vector<uint32_t> none;
+	const std::vector<uint32_t> &none = dropping;
 	for (auto &n : needs) {
 		const int wanted = n.missing;
 		const Building &nb = buildings_[building_id_to_idx_.at(n.id)];
@@ -20290,7 +20305,7 @@ void Simulation::petra_staff_foundations() {
 			const int best = pick_worker(n, n.land, none);
 			if (best < 0) break;
 			uint32_t uid = units_.id[best];
-			order_build_or_repair(&uid, 1, n.id);
+			petra_order_build(uid, n.id);
 			--n.missing;
 			--budget;
 			++building;
@@ -28092,6 +28107,14 @@ void Simulation::petra_fight_back(size_t i, int32_t a, const std::vector<PetraDe
 		}
 	}
 	order_attack(&uid, 1, units_.id[a]);
+}
+
+// worker.js:372 (a builder): returnResources first, the repair queued after it.
+void Simulation::petra_order_build(uint32_t uid, uint32_t bid) {
+	const int32_t i = lookup_unit(uid);
+	const uint32_t drop = i >= 0 ? petra_defender_dropsite((size_t)i) : 0;
+	if (drop) order_return_resource(&uid, 1, drop, false);
+	order_build_or_repair(&uid, 1, bid, drop != 0);
 }
 
 // entityExtend.js returnResources: a unit carrying a load drops it at the nearest dropsite of
