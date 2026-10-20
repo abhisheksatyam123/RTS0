@@ -774,7 +774,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
         target_res = 64
         if world_size_m is None:
             # One RTS0 world unit per 0 A.D. tile, as for random maps.
-            world_size_m = float(min(512, max(128, pmp_tiles(raw_pmp))))
+            world_size_m = float(min(688, max(128, pmp_tiles(raw_pmp))))  # Simulation::MAX_GRID_RES 344 at 2-unit cells
             target_res = max(64, int(world_size_m) // 4 + 1)
         if height_scale is None:
             # Heights shrink with the map: HEIGHT_PER_METRE where a world unit is one
