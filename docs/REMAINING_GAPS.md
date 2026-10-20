@@ -326,7 +326,7 @@ BuildingAI, Trainer, ProductionQueue, Foundation, Repairable, Capturable, Territ
 | W3 | Builders needed a mutual alliance; Builder.CanRepair uses IsOwnedByAllyOfPlayer, so a player who declared another an ally builds and repairs that player's structures | low | Fixed (sim); the repair cursor still asks for mutual allies |
 | W4 | OnTrainingFinished fired only when a whole batch spawned, with its full count; Trainer.js Spawn fires for each part that steps out | low | Fixed |
 | W5 | Structure build time had a 1 s floor (only reachable with the fastactions cheat); Foundation.js has none | low | Fixed |
-| W6 | Units that train (Cyrus II, trainer ships) cannot autoqueue and their queues still advance every tick | low | Open |
+| W6 | Units that train (Cyrus II, trainer ships) could not autoqueue and their queues advanced every tick; now whole seconds, the timer restarts after garrisoning (PauseProduction), and the Auto-Queue buttons and hotkeys work on them (save 111) | low | Fixed |
 | W7 | Capture regen and trickles run off one global second rather than per-entity timers, so the first one can land up to a second early or late; amounts match | negligible | Open (deliberate) |
 
 Checked and matching: BuildingAI arrow counts, rounds and target preference; batch time and its civ/tech modifiers; queue limit, pop reservation, pausing and capture reset; foundation builder multiplier, rate, refunds; repair ratios; capture regen and garrison regen; territory decay; trickles; Pack times.
