@@ -21,6 +21,7 @@ const SetupPage = preload("res://scenes/menu/gamesetup.gd")
 const SummaryPage = preload("res://scenes/session/summary_screen.gd")
 const MSGBOX := preload("res://scenes/common/msgbox.gd")
 const L10n := preload("res://scenes/menu/l10n.gd")
+const Mods := preload("res://scenes/menu/mods.gd")
 const GOLD := Color(0.9, 0.75, 0.31)
 ## compatibilityColor: incompatible replays are greyed out.
 const INCOMPATIBLE := Color8(96, 96, 96)
@@ -104,7 +105,19 @@ func _compatibility(meta: Dictionary) -> Array:
 	var v := int(meta.get("save_version", 0))
 	if v != RtsoMain.get_save_version():
 		return [false, "Recorded with save format v%d; this build is v%d, so it would go out of sync." % [v, RtsoMain.get_save_version()]]
+	# AreModsPlayCompatible with the replay's mods (a replay from before replays kept
+	# them is checked on its formats alone).
+	if meta.get("mods") is Array and not Mods.play_compatible(meta.mods, _active_mods()):
+		return [false, "This replay needs a different sequence of mods:\n" + Mods.compared_mods_string(meta.mods, _active_mods()), true]
 	return [true, ""]
+
+var _mods_cache = null
+
+## g_EngineInfo.mods, read once per page.
+func _active_mods() -> Array:
+	if _mods_cache == null:
+		_mods_cache = Mods.engine_mods()
+	return _mods_cache
 
 ## The game-start attributes of a multiplayer replay ("key=value;...").
 static func _attribs(game_start: String) -> Dictionary:
@@ -165,7 +178,7 @@ func _entry(path: String, meta: Dictionary) -> Dictionary:
 	var date := Time.get_datetime_string_from_unix_time(local, true)
 	var players: Array = meta.get("players", [])
 	var humans := players.filter(func(p): return not p.get("ai", false)).size()
-	return {"dir": path, "meta": meta, "compatible": c[0], "why": c[1], "timestamp": timestamp,
+	return {"dir": path, "meta": meta, "compatible": c[0], "why": c[1], "mods_only": c.size() > 2, "timestamp": timestamp,
 		"date": date.substr(0, 16), "month": date.substr(0, 7), "players": players,
 		"names": players.map(func(p): return str(p.get("name", ""))),
 		"map": str(meta.get("map_name", map_id)).trim_suffix(" (RMS)"), "map_id": map_id, "map_type": info["type"], "desc": info["desc"],
@@ -438,13 +451,16 @@ static func player_info(r: Dictionary, spoiler: bool) -> String:
 static func _player_description(p: Dictionary, spoiler: bool) -> String:
 	var c: Variant = p.get("color", null)
 	var color := Color(float(c["r"]), float(c["g"]), float(c["b"])) if c is Dictionary else Color.WHITE
-	var parts := [str(p.get("civ_name", "Unknown Civilization"))]
-	if p.get("ai", false):
-		parts.append(SummaryPage.ai_description(p))
 	var state := str(p.get("state", "won" if p.get("winner", false) else ("defeated" if p.get("defeated", false) else "active")))
-	if spoiler and state != "active" and state != "":
-		parts.append("defeated" if state == "defeated" else "won")
-	return "[color=#%s]%s[/color] (%s)" % [color.to_html(false), str(p.get("name", "?")).replace("[", "[lb]"), ", ".join(parts)]
+	var shown_state := spoiler and state != "active" and state != ""
+	# formatPlayerInfo: one msgid per combination, so a language can reorder them.
+	var fmt := "%(playerName)s (%(civ)s, %(AIdescription)s" if p.get("ai", false) else "%(playerName)s (%(civ)s"
+	fmt += ", %(state)s)" if shown_state else ")"
+	return L10n.sprintf(L10n.t(fmt), {
+		"playerName": "[color=#%s]%s[/color]" % [color.to_html(false), str(p.get("name", "?")).replace("[", "[lb]")],
+		"civ": L10n.t(str(p.get("civ_name", "Unknown Civilization"))),
+		"AIdescription": SummaryPage.ai_description(p) if p.get("ai", false) else "",
+		"state": L10n.t("defeated" if state == "defeated" else "won")})
 
 ## displayReplayDetails.
 func display_replay_details() -> void:
@@ -494,7 +510,9 @@ func start_replay() -> void:
 
 ## displayReplayCompatibilityError.
 func _compatibility_error(r: Dictionary) -> void:
-	_show_message("This replay is not compatible with your version of the game!\n" + r["why"], "Incompatible replay")
+	# A replay of this version under other mods names them alone.
+	_show_message(r["why"] if r.get("mods_only", false) else "This replay is not compatible with your version of the game!\n" + r["why"],
+		"Incompatible replay")
 
 func _show_message(text: String, title: String) -> void:
 	_message = MSGBOX.open(self, 500, 200, text, tr(title))

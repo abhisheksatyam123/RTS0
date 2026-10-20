@@ -558,16 +558,26 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	if (cam_rig) {
 		cam_rig->set_map_bounds_half(sim->map_half());
 		// 0 A.D. opens on the player's civic centre (session.js initGUIObjects
-		// jumps to it); scenarios without one fall back to Player 1's start.
+		// jumps to it); scenarios without one fall back to Player 1's start. A map's
+		// PlayerData StartingCamera (port_0ad_maps.py "camera") wins: Game.cpp sets the
+		// camera there when the player has one.
 		bool framed = false;
+		Array players_arr = d.get("players", Array());
+		for (int i = 0; i < players_arr.size() && !framed; ++i) {
+			Dictionary p = players_arr[i];
+			if ((int)p.get("id", 0) - 1 != (int)local_player() || !p.has("camera")) continue;
+			Dictionary cam = p["camera"];
+			cam_rig->set_target_pos(Vector3((float)cam.get("x", 0.0), 0, (float)cam.get("z", 0.0)));
+			framed = true;
+		}
 		for (const auto &b : sim->buildings()) {
+			if (framed) break;
 			if (b.team == local_player() && rtso::is_civic_centre(b.type) && !b.wrecked) {
 				cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
 				framed = true;
 				break;
 			}
 		}
-		Array players_arr = d.get("players", Array());
 		if (!framed && !players_arr.is_empty()) {
 			Dictionary p1 = players_arr[0];
 			float start_x = (float)p1.get("start_x", 0.0);

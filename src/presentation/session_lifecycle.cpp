@@ -131,22 +131,7 @@ void RtsoMain::_ready() {
 			if (comma > 0) {
 				float fx = coords.substr(0, comma).to_float();
 				float fz = coords.substr(comma + 1).to_float();
-				const uint8_t sender = chat_player_of(guid);
-				const Color c = player_flare_color(sender);
-				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), c);
-				range_overlays_.add_flare(fx, fz, c, user_opts_.flare_time);
-				play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
-				// ChatMessageFormatSimulation.flare: gui.session.notifications.flare
-				// "never", "observer" (only while observing) or "always".
-				const std::string when = rtso::user_config::get("gui.session.notifications.flare");
-				const uint8_t from = chat_player_of(guid);
-				// colorizePlayernameByGUID: an observer's name in white.
-				const String name = from < rtso::MAX_PLAYERS ? colored_player_name(from) : chat_user(guid).replace("[color=#b3b3b3]", "[color=#ffffff]");
-				if (when == "always" || (when == "observer" && chat_local_observer()))
-					chat_window_.append_line(sprintf0(tr("%(icon)s%(player)s has sent a flare."),
-							{{"icon", "[img=16x16]res://assets/textures/ui/archive/icons/focus-flare.png[/img]"},
-									{"player", name}}) + "\n",
-							"flare:" + String::num(fx) + "," + String::num(fz), tr("Click to focus on the flare's location."));
+				render_flare(fx, fz, chat_player_of(guid), guid);
 			}
 			return;
 		}
@@ -1269,7 +1254,10 @@ void RtsoMain::_process(double delta) {
 	}
 	if (sim && chat_window_.is_ready()) {
 		for (const auto &line : sim->pending_petra_chat()) {
-			if (!sim->petra_chat_reaches(line, local_player())) continue; // addressed to someone else
+			// ChatMessageFormatPlayer isAddressee(sender, Engine.GetPlayerID()): the seat, so an
+			// observer following a player's view sees only what goes to everyone.
+			const uint8_t reader = turn_mgr_.is_replaying() ? local_player() : seat_player();
+			if (!sim->petra_chat_reaches(line, reader)) continue; // addressed to someone else
 			// messages.js: the line translated, its player names in their colours.
 			const std::string text = rtso::petra_chat_text(line, [&](uint8_t pid) {
 				return std::string(colored_player_name(pid).utf8().get_data());
@@ -1281,7 +1269,8 @@ void RtsoMain::_process(double delta) {
 			const bool allies = line.to == rtso::PETRA_CHAT_ALLIES, priv = !allies && line.to < rtso::MAX_PLAYERS;
 			const String ctx = allies ? "(" + tr("Ally") + ") " : priv ? "(" + tr("Private") + ") " : String();
 			chat_window_.append_kind(ctx + String("<") + colored_player_name(line.from) + String("> ") + String::utf8(text.c_str()) + "\n",
-					RtsoChatWindow::message_bits(allies ? "Ally" : priv ? "Private" : "", true));
+					// An AI has no GUID, so its lines aren't "Players chat" (ChatHistory senderID > 0).
+					RtsoChatWindow::message_bits(allies ? "Ally" : priv ? "Private" : "", false));
 		}
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
 	}

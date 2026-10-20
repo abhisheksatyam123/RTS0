@@ -1707,24 +1707,40 @@ inline BuildingUpgradeInfo generic_building_upgrade(uint8_t from, uint8_t civ) {
 	}
 }
 
-// Upgrade choice k (0-based) of a `from` structure owned by a `civ` player: the
-// civ's own structure upgrades (civ_building_upgrade_table(), e.g. the Tachara's
-// four tribute forms) first, then the generic one. `to` is BLD_TYPE_COUNT past the last.
-inline BuildingUpgradeInfo building_upgrade(uint8_t from, uint8_t civ, int k = 0) {
+// Upgrade.js names most targets "structures/{civ}/...", which DetermineUpgrades resolves
+// with the owner's civ and drops when that civ has no such template. The Tachara forms, the
+// Carthaginian apartment, the Roman siege wall gate and the palisade gate name theirs outright.
+inline bool building_upgrade_target_is_owner_civ(uint8_t to) {
+	return to == BLD_TOWER || to == BLD_GATE || to == BLD_IMPERIAL_COURT || to == BLD_TOWER_GREAT ||
+			to == BLD_WAGON_ENCAMPMENT_FORTIFIED;
+}
+
+// Upgrade choice k (0-based) of a `from` structure of a `civ` template: the civ's own
+// structure upgrades (civ_building_upgrade_table(), e.g. the Tachara's four tribute forms)
+// first, then the generic one. `to` is BLD_TYPE_COUNT past the last. `owner_civ` (when
+// given) drops the "{civ}" targets the owner's civ lacks, as a captured Han tower offers
+// no Great Tower to an Athenian.
+inline BuildingUpgradeInfo building_upgrade(uint8_t from, uint8_t civ, int k = 0, uint8_t owner_civ = 0xFF) {
 	const uint16_t bit = civ < 16 ? (uint16_t)(1u << civ) : 0;
+	const bool filter = owner_civ != 0xFF;
+	const uint16_t owner_bit = owner_civ < 16 && owner_civ != CIV_GAIA ? (uint16_t)(1u << owner_civ) : 0;
 	for (const CivBuildingUpgrade *u = civ_building_upgrade_table(); u->from != BLD_TYPE_COUNT; ++u) {
 		if (u->from != from || !(u->civs & bit)) continue;
+		if (filter && building_upgrade_target_is_owner_civ(u->to) && !(u->civs & owner_bit)) continue;
 		if (k-- == 0)
 			return {u->to, u->food_cost, u->wood_cost, u->gold_cost, u->stone_cost, u->time, u->phase, u->tooltip};
 	}
-	if (k == 0) return generic_building_upgrade(from, civ);
+	if (k == 0) {
+		const BuildingUpgradeInfo g = generic_building_upgrade(from, civ);
+		if (!filter || owner_bit || !building_upgrade_target_is_owner_civ(g.to)) return g;
+	}
 	return {BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr};
 }
 
 // How many Upgrade choices building_upgrade() offers.
-inline int building_upgrade_count(uint8_t from, uint8_t civ) {
+inline int building_upgrade_count(uint8_t from, uint8_t civ, uint8_t owner_civ = 0xFF) {
 	int n = 0;
-	while (n < 8 && building_upgrade(from, civ, n).to != BLD_TYPE_COUNT) ++n;
+	while (n < 8 && building_upgrade(from, civ, n, owner_civ).to != BLD_TYPE_COUNT) ++n;
 	return n;
 }
 

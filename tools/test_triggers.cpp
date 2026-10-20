@@ -134,9 +134,12 @@ static void check_volcano() {
 	run_to(s, 1.0f);
 	int towers = 0, full = 0;
 	for (const auto &b : s.buildings()) {
-		if (b.team != GAIA_PLAYER || b.type != BLD_TOWER || b.wrecked) continue;
+		if (b.team != GAIA_PLAYER || b.wrecked) continue;
+		CHECK(b.type != BLD_TOWER, "a Gaia defense tower: 0.28's palisades_fort is a sentry tower");
+		if (b.type != BLD_SENTRY_TOWER) continue;
 		++towers;
 		const int cap = s.get_garrison_capacity(b.id);
+		CHECK(cap == 3, "a Wooden Tower holds %d, 0.28's sentry tower 3", cap);
 		if (cap > 0 && s.get_garrison_count(b.id) == cap) ++full;
 	}
 	CHECK(towers > 0, "Extinct Volcano has no Gaia towers");
@@ -848,6 +851,8 @@ static void check_cinema_demo() {
 	CHECK(s.trigger_state().notifications.size() == 1 && !s.cinema_playing(), "the notice at 1 s");
 	run_to(s, 6.1f);
 	CHECK(s.cinema_playing() && s.reveal_map() && s.cinema().queue.size() == 1, "the path plays at 6 s, map revealed");
+	// The cinema manager updates before Timer.js: the path the 6 s timer played counts from the next turn.
+	CHECK(s.cinema().path_elapsed_ms == 100, "the path counts from the turn after Play (6.05 and 6.1 s): %u ms", s.cinema().path_elapsed_ms);
 	run_to(s, 8.0f);
 	const char *path = "/tmp/rts0_test_triggers_cinema.sav";
 	CHECK(s.save_state(path), "save");
@@ -871,6 +876,31 @@ static void check_cinema_demo() {
 	CHECK(cinema::camera_at(cp, ps, ts, 2.0f, eye, look) && std::fabs(eye[0] - 10) < 1e-3f && std::fabs(eye[2] - 5) < 1e-3f,
 	      "camera at the middle node after its 2 s");
 	CHECK(!cinema::camera_at(cp, ps, ts, 5.1f, eye, look), "nothing past the end");
+	// DeletePath leaves a queued copy playing (0 A.D.'s queue holds copies); a deleted
+	// path that is not queued goes at once, and its name can be added again.
+	{
+		static Simulation q;
+		setup(q);
+		CinemaPath other = q.cinema().paths[0];
+		std::strcpy(other.info.name, "other");
+		q.add_cinema_path(other);
+		q.cinema_queue_path("test");
+		q.cinema_queue_path("other");
+		q.cinema_play();
+		const uint32_t h0 = q.trigger_hash();
+		q.cinema_delete_path("test");
+		CHECK(!q.cinema_has_path("test") && q.cinema().queue.size() == 2 && q.cinema().paths.size() == 2 && q.trigger_hash() != h0,
+		      "a deleted queued path still plays");
+		for (int i = 0; i < 101; ++i) q.tick(Simulation::FIXED_STEP);
+		CHECK(q.cinema().paths.size() == 1 && q.cinema().queue.size() == 1 && q.cinema().queue[0] == 0 &&
+		      !std::strcmp(q.cinema().paths[0].info.name, "other"), "and is dropped once it has played");
+		q.cinema_delete_path("other");
+		q.add_cinema_path(other);
+		CHECK(q.cinema().paths.size() == 2 && q.cinema_has_path("other") && q.cinema().queue[0] == 0, "a deleted name can be added again");
+		for (int i = 0; i < 101; ++i) q.tick(Simulation::FIXED_STEP);
+		CHECK(!q.cinema_playing() && q.cinema().paths.size() == 1 && q.trigger_event_calls(TRIGGER_ON_CINEMA_QUEUE_ENDED) == 1,
+		      "the queue ends with the deleted copy played out");
+	}
 	if (failures == before) std::printf("cinema_demo: notice at 1 s, a 5 s path from 6 s with the map revealed, saved mid-path: ok\n");
 }
 
@@ -912,6 +942,11 @@ static void check_gallic_fields() {
 	const int alive = romans(nullptr);
 	run_to(s, 60.0f + (float)wait / 1000.0f + 0.1f);
 	CHECK(romans(nullptr) >= 2 * size && romans(nullptr) <= alive + 2 * size, "second wave: %d Romans, want %d more", romans(nullptr), 2 * size);
+	// Player.js SetState("defeated"): the trigger points pass to Gaia with everything else.
+	s.defeat_player(1, 0);
+	int gaia_points = 0;
+	for (const TriggerPoint &p : s.triggers_.points) gaia_points += p.owner == GAIA_PLAYER;
+	CHECK(gaia_points == 3, "%d of the defeated player's 3 trigger points went to Gaia", gaia_points);
 	if (failures == before) std::printf("Gallic Fields: a Roman at each point after a minute, %d each after %d ms more: ok\n", size, wait);
 }
 
@@ -978,6 +1013,13 @@ static void check_elephantine() {
 		odd += !((c & TC_HEALER) || ((c & TC_CITIZENSOLDIER) && (c & TC_INFANTRY)) || ((c & TC_CIVILIAN) && (c & TC_WORKER)));
 	}
 	CHECK(odd == 0, "%d of %zu garrisoned Kushites neither infantry, civilians nor healers", odd, inside.size());
+	// GetTemplateNamesByClasses keeps the Noba skirmishers and macemen (merc_e).
+	int mercs = 0;
+	for (uint32_t id : inside) {
+		const int32_t u = s.lookup_unit(id);
+		mercs += u >= 0 && s.units_.tmpl[u] < CIV_UNIT_TEMPLATE_COUNT && std::strstr(civ_unit_template(s.units_.tmpl[u]).id, "_merc");
+	}
+	CHECK(mercs > 0, "no Kushite mercenaries among %zu garrisoned", inside.size());
 	int defensive = 0, soldiers = 0;
 	for (size_t i = 0; i < s.units_.count; ++i) {
 		if (!s.units_.alive[i] || s.units_.team[i] != GAIA_PLAYER) continue;

@@ -4,8 +4,12 @@
 
 #include "../simulation/sim_types.h"
 #include "../simulation/unit_trainer_data.h"
+#include "../simulation/tech_tooltip_data.h"
 
+#include <algorithm>
 #include <cmath>
+
+#include <vector>
 
 namespace {
 
@@ -101,11 +105,38 @@ Dictionary unit_entry(uint16_t t) {
 	return ud;
 }
 
-Dictionary tech_entry(uint8_t id) {
+// civ: the civ whose specificName to give (TemplateLoader.loadTechnologyTemplate), 0xFF none.
+// TemplateLister discovery order: mixins/builder.xml's Builder list, then the civ mixin's
+// own structures (mixins/civ/{civ}.xml merges them after), here in BuildingType order.
+std::vector<uint8_t> builder_order(uint8_t c) {
+	static constexpr uint8_t kBuilderXml[] = {
+		rtso::BLD_TOWN_CENTER, rtso::BLD_CRANNOG, rtso::BLD_MILITARY_COLONY, rtso::BLD_WAGON_ENCAMPMENT,
+		rtso::BLD_HOUSE, rtso::BLD_ICE_HOUSE, rtso::BLD_PYRAMID_SMALL, rtso::BLD_APARTMENT,
+		rtso::BLD_STOREHOUSE, rtso::BLD_FARMSTEAD, rtso::BLD_FIELD, rtso::BLD_CORRAL, rtso::BLD_DOCK,
+		rtso::BLD_KENNEL, rtso::BLD_BARRACKS, rtso::BLD_STABLE, rtso::BLD_GREAT_HALL,
+		rtso::BLD_ELEPHANT_STABLE, rtso::BLD_FORGE, rtso::BLD_TEMPLE, rtso::BLD_MARKET, rtso::BLD_MINISTRY,
+		rtso::BLD_OUTPOST, rtso::BLD_SENTRY_TOWER, rtso::BLD_TOWER, rtso::BLD_ARSENAL, rtso::BLD_ACADEMY,
+		rtso::BLD_FORTRESS, rtso::BLD_PALISADE, rtso::BLD_SIEGE_WALL, rtso::BLD_WALL_SEGMENT,
+		rtso::BLD_THEATER, rtso::BLD_TACHARA, rtso::BLD_WONDER,
+	};
+	std::vector<uint8_t> out;
+	bool listed[rtso::BLD_TYPE_COUNT] = {};
+	for (uint8_t b : kBuilderXml) {
+		listed[b] = true;
+		if (rtso::civ_can_build(c, b)) out.push_back(b);
+	}
+	for (uint8_t b = 0; b < rtso::BLD_TYPE_COUNT; ++b)
+		if (!listed[b] && rtso::civ_can_build(c, b)) out.push_back(b);
+	return out;
+}
+
+Dictionary tech_entry(uint8_t id, uint8_t civ = 0xFF) {
 	const auto &ti = rtso::tech_info(id);
 	Dictionary td;
 	td["id"] = id;
 	td["name"] = String::utf8(ti.name);
+	const char *specific = civ < rtso::CIV_COUNT ? rtso::tech_specific_name(id, civ) : nullptr;
+	td["specific_name"] = specific ? String::utf8(specific) : String();
 	td["description"] = String::utf8(ti.desc ? ti.desc : "");
 	td["phase"] = ti.required_phase;
 	td["cost"] = cost_text(ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost);
@@ -211,7 +242,7 @@ Dictionary RtsoReference::get_civ_info(int civ) const {
 	Array techs;
 	for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id) {
 		if (!rtso::tech_available_to_civ(id, c)) continue;
-		Dictionary td = tech_entry(id);
+		Dictionary td = tech_entry(id, c);
 		td["civ_specific"] = tech_civ_specific(id); // when templates.json lacks the tech
 		techs.push_back(td);
 	}
@@ -223,24 +254,27 @@ Array RtsoReference::get_structure_tree(int civ) const {
 	Array out;
 	if (civ < 0 || civ >= rtso::CIV_COUNT) return out;
 	const uint8_t c = (uint8_t)civ;
-	for (uint8_t b = 0; b < rtso::BLD_TYPE_COUNT; ++b) {
-		if (!rtso::civ_can_build(c, b)) continue; // other civs' own structures
+	for (uint8_t b : builder_order(c)) { // only the civ's own structures
 		const auto &bi = rtso::building_type_info(b);
 		Array units, techs, upgrades;
 		for (uint16_t t : rtso::civ_roster_ids(c)) {
 			if (rtso::civ_unit_template(t).trainers & rtso::bld_bit(b)) units.push_back(unit_entry(t));
 		}
 		for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id) {
-			if (rtso::building_researches_tech(b, id, c) && rtso::tech_available_to_civ(id, c)) techs.push_back(tech_entry(id));
+			if (rtso::building_researches_tech(b, id, c) && rtso::tech_available_to_civ(id, c)) techs.push_back(tech_entry(id, c));
 		}
-		const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(b, c);
-		if (up.to < rtso::BLD_TYPE_COUNT) {
+		// ProductionRowManager: every Upgrade choice (the Persian tachara's four).
+		for (int k = 0, n = rtso::building_upgrade_count(b, c); k < n; ++k) {
+			const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(b, c, k);
 			Dictionary ud;
 			ud["type"] = up.to;
 			ud["name"] = String::utf8(rtso::building_type_info(up.to).name);
 			ud["portrait"] = building_portrait(up.to);
 			ud["phase"] = up.required_phase;
 			ud["cost"] = cost_text(up.food_cost, up.wood_cost, up.stone_cost, up.gold_cost);
+			ud["upgrade_cost"] = cost_dict(up.food_cost, up.wood_cost, up.stone_cost, up.gold_cost);
+			ud["upgrade_time"] = up.time;
+			ud["tooltip"] = String::utf8(up.tooltip ? up.tooltip : "");
 			upgrades.push_back(ud);
 		}
 		Dictionary d;
@@ -278,6 +312,8 @@ Array RtsoReference::get_trainer_units(int civ) const {
 			Dictionary ud = unit_entry(ups[k].to);
 			ud["phase"] = ups[k].phase;
 			ud["cost"] = cost_text(ups[k].food_cost, ups[k].wood_cost, ups[k].stone_cost, ups[k].gold_cost);
+			ud["upgrade_cost"] = cost_dict(ups[k].food_cost, ups[k].wood_cost, ups[k].stone_cost, ups[k].gold_cost);
+			ud["upgrade_time"] = ups[k].time;
 			upgrades.push_back(ud);
 		}
 		if (units.is_empty() && techs.is_empty() && upgrades.is_empty()) continue;
@@ -445,6 +481,31 @@ Dictionary RtsoReference::get_structure(int type, int civ) const {
 	d["cost_text"] = cost_text(bi.food_cost, bi.wood_cost, bi.stone_cost, bi.gold_cost);
 	d["time"] = bi.build_time;
 	d["hp"] = bi.max_hp;
+	// The WallSet a wall, palisade or siege wall box stands for (TemplateParser.getEntity and
+	// getEntityCostTooltip): its pieces' Health range and the short, medium and long segments'
+	// and the tower's costs.
+	if (const rtso::WallSetInfo ws = rtso::wallset_info(rtso::wallset_kind_of(b), c); ws.segment == b) {
+		const bool stone = rtso::wallset_kind_of(b) == rtso::WALLSET_STONE;
+		auto piece = [stone](float cost, float time) {
+			Dictionary p;
+			p["cost"] = stone ? cost_dict(0, 0, (int)cost, 0) : cost_dict(0, (int)cost, 0, 0);
+			p["time"] = time;
+			return p;
+		};
+		Dictionary w;
+		Array walls;
+		for (int k = 2; k >= 0; --k) walls.push_back(piece(ws.cost[k], ws.build_time[k]));
+		w["walls"] = walls;
+		const rtso::BuildingTypeInfo ti = rtso::civ_building_type_info(c, ws.tower);
+		Dictionary tower;
+		tower["cost"] = ws.tower_cost < 0.0f ? cost_dict(ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost)
+				: Dictionary(piece(ws.tower_cost, 0.0f)["cost"]);
+		tower["time"] = ws.tower_build_time < 0.0f ? ti.build_time : ws.tower_build_time;
+		w["tower"] = tower;
+		w["hp_min"] = std::min({ws.health[0], ws.health[1], ws.health[2]});
+		w["hp_max"] = std::max({ws.health[0], ws.health[1], ws.health[2]});
+		d["wallset"] = w;
+	}
 	float armour[3];
 	rtso::structure_armour(b, c, armour); // the Germans' totem
 	d["armour"] = armour_dict(armour[0], armour[1], armour[2]);
@@ -477,15 +538,17 @@ Dictionary RtsoReference::get_structure(int type, int civ) const {
 	for (uint16_t t : rtso::civ_roster_ids(c))
 		if (rtso::civ_unit_template(t).trainers & rtso::bld_bit(b)) trains.push_back(unit_entry(t));
 	for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id)
-		if (rtso::building_researches_tech(b, id, c) && rtso::tech_available_to_civ(id, c)) researches.push_back(tech_entry(id));
-	const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(b, c);
-	if (up.to < rtso::BLD_TYPE_COUNT) {
+		if (rtso::building_researches_tech(b, id, c) && rtso::tech_available_to_civ(id, c)) researches.push_back(tech_entry(id, c));
+	for (int k = 0, n = rtso::building_upgrade_count(b, c); k < n; ++k) {
+		const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(b, c, k);
 		Dictionary ud;
 		ud["type"] = up.to;
 		ud["name"] = String::utf8(rtso::building_type_info(up.to).name);
 		ud["cost_text"] = cost_text(up.food_cost, up.wood_cost, up.stone_cost, up.gold_cost);
 		ud["time"] = up.time;
 		ud["tooltip"] = String::utf8(up.tooltip ? up.tooltip : "");
+		ud["upgrade_cost"] = cost_dict(up.food_cost, up.wood_cost, up.stone_cost, up.gold_cost);
+		ud["upgrade_time"] = up.time;
 		upgrades.push_back(ud);
 	}
 	d["trains"] = trains;
@@ -500,9 +563,8 @@ Dictionary RtsoReference::get_tech(int id, int civ) const {
 	if (id <= 0 || id >= rtso::TECH_COUNT) return d;
 	const uint8_t tid = (uint8_t)id;
 	const auto &ti = rtso::tech_info(tid);
-	d = tech_entry(tid);
+	d = tech_entry(tid, civ >= 0 && civ < rtso::CIV_COUNT ? (uint8_t)civ : 0xFF);
 	d["kind"] = "tech";
-	d["specific_name"] = "";
 	d["cost"] = cost_dict(ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost);
 	d["cost_text"] = cost_text(ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost);
 	d["time"] = ti.research_time;
@@ -544,7 +606,7 @@ Dictionary RtsoReference::get_tech(int id, int civ) const {
 	// Technologies this one unlocks (their prerequisite) and the units it unlocks.
 	Array unlocks;
 	for (uint8_t o = 1; o < rtso::TECH_COUNT; ++o)
-		if (rtso::tech_info(o).prerequisite == tid && (civ < 0 || rtso::tech_available_to_civ(o, (uint8_t)civ))) unlocks.push_back(tech_entry(o));
+		if (rtso::tech_info(o).prerequisite == tid && (civ < 0 || rtso::tech_available_to_civ(o, (uint8_t)civ))) unlocks.push_back(tech_entry(o, civ >= 0 && civ < rtso::CIV_COUNT ? (uint8_t)civ : 0xFF));
 	d["unlocks"] = unlocks;
 	Array units;
 	if (civ >= 0 && civ < rtso::CIV_COUNT)

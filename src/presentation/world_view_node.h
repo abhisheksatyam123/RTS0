@@ -471,6 +471,10 @@ class RtsoWorldView : public Node3D {
 
 	std::unordered_map<uint32_t, float> crowd_yaw;
 	std::unordered_map<uint32_t, Vector2> crowd_pos;
+	// Per-frame scratch reused by sync (no per-frame allocation).
+	std::vector<std::pair<uint32_t, uint8_t>> res_sub_;
+	std::vector<uint32_t> active_unit_ids_;
+	String fauna_fx_id_[64]; // fauna type -> its actor id for run dust / unit fx, built on first use
 
 	// Skeletal animation controllers per unit type
 	rtso::AnimationController anim_controllers[rtso::UNIT_TYPE_COUNT];
