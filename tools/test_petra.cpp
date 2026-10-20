@@ -1702,6 +1702,37 @@ static void test_anchor_dropsite_unshared() {
 	CHECK(shared == 0, "the base anchor's dropsite is not shared");
 }
 
+// headquarters.js handleNewBase runs when a further base anchor is finished (ConstructionFinished),
+// not laid out: only then does saving stop, and saveSpace and maxFields end for good, so they don't
+// come back when that civic centre falls.
+static void test_new_base_ends_saving_when_finished() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	s->update_petra_bases(0.0f);
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	s->petra_attack_mgr_.save_resources = 1;
+	const uint32_t second = s->spawn_building_world(cx * 0.4f, cz * 0.4f, BLD_TOWN_CENTER, 1, 0.0f);
+	s->update_petra_bases(0.0f);
+	const bool saving_while_laid = s->petra_attack_mgr_.save_resources != 0 && !s->petra_kept_.space_freed;
+	auto &f = s->buildings_[s->building_id_to_idx_.at(second)];
+	f.build_progress = 1.0f;
+	f.hp = f.max_hp;
+	s->update_petra_bases(0.0f);
+	const bool ended = s->petra_attack_mgr_.save_resources == 0 && s->petra_kept_.space_freed && s->petra_kept_.fields_freed;
+	s->destroy_building(s->buildings_[s->building_id_to_idx_.at(second)]);
+	s->update_petra_bases(0.0f);
+	const bool for_good = s->petra_kept_.space_freed && s->petra_kept_.fields_freed;
+	std::printf("  second civic centre: saving while laid out %d, ended once finished %d, for good %d\n", saving_while_laid, ended, for_good);
+	CHECK(second != 0 && saving_while_laid && ended && for_good, "handleNewBase fires when the base anchor is finished, for good");
+}
+
 static void test_petra_phasing_needs_researcher() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -4418,12 +4449,15 @@ static void test_victory_critical_ents() {
 		const uint32_t first = s->spawn_building_world(tx * 0.8f, tz * 0.8f, BLD_WONDER, 1, 1.0f);
 		s->cmd_delete(1, &first, 1);
 		bool rebuilt = false;
-		for (float t = 0.0f; t < 40.0f && !rebuilt; t += Simulation::FIXED_STEP) { // buildWonder every 10th AI turn
+		// buildWonder every 10th AI turn; a house started that turn (one structure a turn) holds it
+		// to the next.
+		for (float t = 0.0f; t < 80.0f && !rebuilt; t += Simulation::FIXED_STEP) {
 			s->players_[1].add(5000.0f, 5000.0f, 5000.0f, 5000.0f);
 			fund_queues(*s);
 			s->tick(Simulation::FIXED_STEP);
 			for (const auto &b : s->buildings())
 				if (b.team == 1 && b.type == BLD_WONDER && b.id != first && !b.wrecked) rebuilt = true;
+			if (rebuilt) std::printf("  wonder destroyed: placed again at %.1f s\n", t);
 		}
 		std::printf("  wonder destroyed: a new one placed %s\n", rebuilt ? "yes" : "no");
 		CHECK(rebuilt, "Petra starts a new wonder once its wonder is destroyed");
@@ -4565,6 +4599,8 @@ static void test_idle_return_to_wagon() {
 	const uint32_t wagon = s->spawn_unit(u.pos_x[i] + 6.0f, u.pos_z[i], 1, UNIT_WAGON);
 	u.carry[i] = 5;
 	u.res_type_carried[i] = RES_WOOD;
+	// No wood to spend, so Petra building meanwhile can't hide the load.
+	s->set_player_resources(1, s->player(1).food(), 0, s->player(1).gold(), s->player(1).stone());
 	const float before = s->player(1).wood();
 	bool dropped = false;
 	for (int k = 0; k < 30 * 20 && !dropped; ++k) {
@@ -5340,15 +5376,23 @@ static void test_defense_switch_to_attack() {
 	const float cx = cc->x, cz = cc->z;
 	for (int k = 0; k < 20; ++k) s->spawn_unit(cx - 3.0f + (float)(k % 5), cz + 12.0f + (float)(k / 5), 1, UNIT_SPEARMAN);
 	const uint32_t tower = seen_built(*s, s->spawn_building_world(cx + 12.0f, cz - 10.0f, BLD_SENTRY_TOWER, 0, 0.2f));
-	for (int k = 0; k < 3; ++k) s->spawn_unit(cx + 10.0f, cz - 7.0f + (float)k, 0, UNIT_SWORDSMAN, 20.0f);
+	std::vector<uint32_t> foes;
+	for (int k = 0; k < 3; ++k) foes.push_back(s->spawn_unit(cx + 10.0f, cz - 7.0f + (float)k, 0, UNIT_SWORDSMAN, 20.0f));
 	const auto unique = [&]() -> const Simulation::AttackPlan * {
 		for (const auto &p : s->petra_started_attacks())
 			if (p.kind == PETRA_ATTACK_UNIQUE) return &p;
 		return nullptr;
 	};
+	// The foes fall once an army has formed against them, before its defenders can bring the
+	// tower down by chance (which of the two goes first depends on the fight).
 	const Simulation::AttackPlan *plan = nullptr;
+	bool foes_gone = false;
 	for (int t = 0; t < 60 && !plan; ++t) {
 		run_for(*s, 0.5f);
+		if (!foes_gone && !s->petra_defense_armies().empty()) {
+			s->cmd_delete(0, foes.data(), foes.size());
+			foes_gone = true;
+		}
 		plan = unique();
 	}
 	std::printf("  defense: army switched to attack: %s, target %s, %zu units\n", plan ? "yes" : "no",
@@ -7528,6 +7572,7 @@ int main(int argc, char **argv) {
 	RUN(test_idle_workers_repair_cc);
 	RUN(test_worker_elephant_builds);
 	RUN(test_anchor_dropsite_unshared);
+	RUN(test_new_base_ends_saving_when_finished);
 	RUN(test_city_phase_counts_foundations);
 	RUN(test_petra_research_order);
 	RUN(test_petra_minor_tech_kept);
