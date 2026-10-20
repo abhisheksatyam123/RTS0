@@ -824,7 +824,7 @@ enum UnitOrderFlag : uint8_t {
 	ORDER_FLAG_ALLOW_CAPTURE = 2,// Attack.js allowCapture: capture structures instead of damaging them
 	ORDER_FLAG_UNITS_ONLY = 4,   // attack-move targetClasses "Unit" (session.attackmoveUnit)
 	ORDER_FLAG_INTERRUPTED = 8,  // fighting or fleeing; go back to the order afterwards
-	ORDER_FLAG_CHEER = 16,       // killed its target (UnitAI shouldCheer)
+	ORDER_FLAG_CHEER = 16,       // attacking a unit (UnitAI shouldCheer)
 	// ORDER_BUILD only (bit 5 holds a gather order's subtype): a forced build that reached its
 	// site (REPAIRING enter, order.data.autoharvest), so ConstructionFinished farms the field
 	// or gathers near the new dropsite.

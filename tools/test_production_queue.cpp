@@ -181,6 +181,18 @@ int main() {
 		CHECK(!bld(s, b).autoqueue);
 		CHECK(bld(s, b).queue.empty());
 	}
+	// 6b. A batch that spawned in parts autoqueues at the size it was queued at
+	//     (ProductionQueue.js originalItem.count), not at its remainder.
+	{
+		Simulation s;
+		const uint32_t b = fresh(s);
+		CHECK(s.cmd_set_autoqueue(0, b, true));
+		CHECK(s.cmd_train(0, b, UNIT_SPEARMAN, 1));
+		const_cast<Simulation::Building &>(bld(s, b)).queue.front().batch = 3; // the last 1 of a batch of 3
+		run(s, bld(s, b).queue.front().duration + 0.5f);
+		CHECK(count_units(s, 0, UNIT_SPEARMAN) == 1);
+		CHECK(bld(s, b).queue.size() == 1 && bld(s, b).queue.front().count == 3 && bld(s, b).queue.front().batch == 0);
+	}
 
 	// 7. Save/load keeps batches, technologies, paid costs, started flags and autoqueue.
 	{
@@ -194,6 +206,8 @@ int main() {
 		CHECK(s.cmd_research(0, tc, TECH_PHASE_TOWN));
 		CHECK(s.cmd_set_autoqueue(0, tc, true));
 		run(s, 1.0f);
+		// As if 2 of a batch of 5 had spawned before the spot ran out (originalItem.count).
+		const_cast<Simulation::Building &>(bld(s, tc)).queue.front().batch = 5;
 		const std::string path = "/tmp/rts0_test_production_queue.sav";
 		CHECK(s.save_state(path.c_str()));
 		Simulation l;
@@ -201,7 +215,7 @@ int main() {
 		const auto &a = bld(s, tc).queue, &c = bld(l, tc).queue;
 		CHECK(a.size() == 2 && c.size() == 2);
 		if (a.size() == 2 && c.size() == 2) {
-			CHECK(c[0].count == 3 && c[0].started && c[0].timer == a[0].timer);
+			CHECK(c[0].count == 3 && c[0].batch == 5 && c[0].started && c[0].timer == a[0].timer);
 			CHECK(c[1].tech == TECH_PHASE_TOWN && !c[1].started);
 			for (int r = 0; r < RES_COUNT; ++r) CHECK(c[0].paid[r] == a[0].paid[r] && c[1].paid[r] == a[1].paid[r]);
 		}
