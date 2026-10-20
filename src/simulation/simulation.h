@@ -1802,6 +1802,8 @@ public:
 		const uint8_t *flora; // FloraKind
 		const uint32_t *id;
 		size_t count;
+		const uint8_t *fauna; // a carcass's animal: fauna type + 1, 0 none
+		const uint8_t *owner; // a carcass's owner (the animal's), else GAIA_PLAYER or 0xFF
 	};
 	ResourceView resources() const;
 
