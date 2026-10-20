@@ -104,7 +104,7 @@ Production queues, upgrades, foundations, capture/decay, build restrictions, tec
 | Q9 | Palisades counted as walls in findPosition (class Palisade, not Wall) | low | Fixed |
 | Q10 | The village tech cost gate counted queued trainees as workers | low | Fixed |
 | Q11 | The Town-phase temple test looked for BLD_TEMPLE only, not the Temple class | low | Fixed |
-| Q12 | Hellenistic Metropolis also doubled Seleucid military colonies (CivCentre !Colony) | medium | Fixed (a captured crannog, !Naval, still gets it) |
+| Q12 | Hellenistic Metropolis also doubled Seleucid military colonies (CivCentre !Colony) | medium | Fixed (the crannog and docks carry Naval) |
 | Q13 | Corralled animals didn't get garrison_heal's +1 | low | Fixed |
 | Q14 | An upgraded structure kept its rally point and autoqueue (Transform.js makes a new entity) | low | Fixed |
 | Q15 | Autoqueue re-adds the remainder of a batch whose spawning was blocked, not the chosen batch size | low | Fixed (save v102): each queued batch keeps its original size |
