@@ -9,8 +9,8 @@
 // still units blue, moving units magenta, the world bounds yellow), Unit motion overlay
 // (g_Selection.SetMotionDebugOverlay, CCmpUnitMotion::RenderPath: each selected unit's
 // long path white and short path red, a square at each waypoint), Range overlay
-// (CCmpRangeManager::RenderSubmit: each attacker's range ring green, its MinRange ring
-// red) and Bounding box overlay (Engine.SetBoundingBoxDebugOverlay, CCmpSelectable's debug
+// (CCmpRangeManager::RenderSubmit: each range query's rings, green while enabled and red
+// while off, rays to what it matches, and the queries' grid) and Bounding box overlay (Engine.SetBoundingBoxDebugOverlay, CCmpSelectable's debug
 // overlays: each selected or hovered entity's model bounds red and its selection box
 // green). Drawn whatever the line of sight, as 0 A.D. does, on one ImmediateMesh that
 // follows the terrain.
@@ -67,6 +67,8 @@ public:
 	}
 	// Shapes drawn by each overlay last update (tests).
 	int drawn(Kind k) const { return drawn_[k]; }
+	int range_subdivisions() const { return range_subdivisions_; }
+	int range_rays() const { return range_rays_; }
 
 	// The units whose paths the unit motion overlay draws (the selection), and the
 	// bounding box overlay's boxes (RtsoWorldView::model_boxes of the selected and
@@ -84,6 +86,7 @@ public:
 		if (!inst_ || (!any() && !inst_->is_visible())) return;
 		mesh_->clear_surfaces();
 		for (int &n : drawn_) n = 0;
+		range_subdivisions_ = range_rays_ = 0;
 		inst_->set_visible(sim && any());
 		if (!sim || !any()) return;
 		sim_ = sim;
@@ -222,26 +225,96 @@ private:
 		}
 	}
 
+	// CCmpRangeManager::RenderSubmit: each range query's max range ring (green while the
+	// query is enabled, red while it is off) and its MinRange ring alike, a faint yellow ray
+	// from each enabled query's source to every entity it matches, and the queries' grid
+	// (m_Subdivision) as blue squares. Queries: each unit's attack query and a healer's heal
+	// query (UnitAI), each armed structure's arrow range (BuildingAI) and each range aura
+	// (Auras.js).
 	void range() {
-		const Color enabled(0.0f, 1.0f, 0.0f, 1.0f), min_ring(1.0f, 0.0f, 0.0f, 1.0f);
+		const Color enabled(0.0f, 1.0f, 0.0f, 1.0f), disabled(1.0f, 0.0f, 0.0f, 1.0f), ray(1.0f, 1.0f, 0.0f, 0.2f),
+				subdiv(0.0f, 0.0f, 1.0f, 1.0f);
 		auto uv = sim_->units();
+		// The units by grid cell, for the rays.
+		const int res = Simulation::unit_grid_res();
+		const float m = sim_->map_half(), cell = m * 2.0f / (float)res;
+		auto cell_of = [&](float v) { return std::clamp((int)((v + m) / cell), 0, res - 1); };
+		std::vector<int32_t> head((size_t)res * res, -1), next(uv.count, -1);
 		for (size_t i = 0; i < uv.count; ++i) {
 			if (!uv.alive[i]) continue;
-			const float r = sim_->unit_attack_range_at(i);
-			if (r <= 0.0f) continue;
-			ring(uv.pos_x[i], uv.pos_z[i], r, enabled);
-			const uint16_t t = uv.tmpl ? uv.tmpl[i] : CIV_UNIT_TEMPLATE_NONE;
-			const float mr = r * unit_min_range_ratio(uv.unit_type[i], t);
-			if (mr > 0.0f) ring(uv.pos_x[i], uv.pos_z[i], mr, min_ring);
+			const size_t c = (size_t)cell_of(uv.pos_z[i]) * res + cell_of(uv.pos_x[i]);
+			next[i] = head[c];
+			head[c] = (int32_t)i;
+		}
+		const auto &blds = sim_->buildings();
+		// Rays to the units (and, for the attack query, structures) between lo and hi of
+		// the source at (x, z); hostile: enemies (the attack query), else allies (heal).
+		auto rays = [&](float x, float z, uint8_t team, float lo, float hi, bool hostile, size_t self) {
+			const int x0 = cell_of(x - hi), x1 = cell_of(x + hi), z0 = cell_of(z - hi), z1 = cell_of(z + hi);
+			for (int cz = z0; cz <= z1; ++cz)
+				for (int cx = x0; cx <= x1; ++cx)
+					for (int32_t j = head[(size_t)cz * res + cx]; j >= 0; j = next[j]) {
+						if ((size_t)j == self) continue;
+						const bool ok = hostile ? sim_->is_hostile(team, uv.team[j])
+												: uv.team[j] == team || sim_->is_ally(team, uv.team[j]);
+						if (!ok) continue;
+						const float dx = uv.pos_x[j] - x, dz = uv.pos_z[j] - z, d2 = dx * dx + dz * dz;
+						if (d2 > hi * hi || d2 < lo * lo) continue;
+						line(x, z, uv.pos_x[j], uv.pos_z[j], ray);
+						++range_rays_;
+					}
+			if (!hostile) return;
+			for (const auto &b : blds) {
+				if (b.wrecked || !sim_->is_hostile(team, b.team)) continue;
+				const float dx = b.x - x, dz = b.z - z, d2 = dx * dx + dz * dz;
+				if (d2 > hi * hi || d2 < lo * lo) continue;
+				line(x, z, b.x, b.z, ray);
+				++range_rays_;
+			}
+		};
+		for (size_t i = 0; i < uv.count; ++i) {
+			if (!uv.alive[i]) continue;
+			const Simulation::RangeQuery q = sim_->unit_range_query(i);
+			if (q.max <= 0.0f && q.heal_max <= 0.0f) continue;
+			const Color &c = q.enabled ? enabled : disabled;
+			if (q.max > 0.0f) {
+				ring(uv.pos_x[i], uv.pos_z[i], q.max, c);
+				if (q.min > 0.0f) ring(uv.pos_x[i], uv.pos_z[i], q.min, c);
+				if (q.enabled) rays(uv.pos_x[i], uv.pos_z[i], uv.team[i], q.min, q.max, true, i);
+			}
+			if (q.heal_max > 0.0f) {
+				ring(uv.pos_x[i], uv.pos_z[i], q.heal_max, c);
+				if (q.enabled) rays(uv.pos_x[i], uv.pos_z[i], uv.team[i], 0.0f, q.heal_max, false, i);
+			}
 			++drawn_[RANGE];
 		}
-		for (const auto &b : sim_->buildings()) {
+		for (const auto &b : blds) {
 			if (b.wrecked || b.build_progress < 1.0f) continue;
 			const float r = sim_->building_arrow_range(b);
 			if (r <= 0.0f) continue;
 			ring(b.x, b.z, r + b.half_size, enabled);
+			rays(b.x, b.z, b.team, 0.0f, r + b.half_size, true, (size_t)-1);
 			++drawn_[RANGE];
 		}
+		// Auras.js range auras: one query per aura, whatever it modifies.
+		const auto &srcs = sim_->aura_manager().sources;
+		for (size_t k = 0; k < srcs.size(); ++k) {
+			const AuraSource &s = srcs[k];
+			if (!s.alive || s.range <= 0.0f) continue;
+			bool seen = false;
+			for (size_t e = 0; e < k && !seen; ++e)
+				seen = srcs[e].source_id == s.source_id && srcs[e].aura == s.aura && srcs[e].range == s.range;
+			if (seen) continue;
+			ring(s.x, s.z, s.range, enabled);
+			++drawn_[RANGE];
+		}
+		// Each cell's square, drawn as the grid's lines (neighbours share their edges).
+		for (int k = 0; k <= res; ++k) {
+			const float v = -m + k * cell;
+			line(v, -m, v, m, subdiv);
+			line(-m, v, m, v, subdiv);
+		}
+		range_subdivisions_ = res * res;
 	}
 
 	// CCmpSelectable::RenderSubmit with ms_EnableDebugOverlays: the visual's bounds red
@@ -397,6 +470,7 @@ private:
 	godot::Ref<godot::ImmediateMesh> mesh_;
 	godot::MeshInstance3D *inst_ = nullptr;
 	bool begun_ = false;
+	int range_subdivisions_ = 0, range_rays_ = 0; // the range overlay's grid squares and rays last update (tests)
 };
 
 } // namespace rtso
