@@ -296,6 +296,22 @@ TechnologyManager.js, Researcher.js, data/technologies (about 30 techs row by ro
 | U1 | A captured structure's research list followed the captor's civ; Researcher.js reads the structure's own template (cart/dock drops warship_health, cart/super_dock lists nine dock techs, han/civil_centre drops the spy techs, han/forge archer_attack_spread) and the owner's civ only filters it | low | Fixed |
 
 Checked and matching: requirements (all/any, class counts without foundations, civ/notciv), pairs and autoResearch, supersedes chains, cost multipliers (library, team bonuses, heroes, catafalques) and cancel refunds, unit researchers, civ bonus autoresearch, tech modifications, own-civ researcher lists, structure auras (temples, wonders, theatre, pillars, monuments, regen and trickle auras).
+### Structure runtime, twelfth 0.28 pass (2026-10-20)
+
+BuildingAI, Trainer, ProductionQueue, Foundation, Repairable, Capturable, TerritoryDecay, ResourceTrickle and Pack against RTS0. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| W1 | Structure queues advanced every tick; ProductionQueue.js ProgressTimeout works in whole seconds from when the queue started, passes what is left of a second to the next item, and autoqueue leaves the rest of its second unused (a 5-batch at a barracks takes 37 s, not 36.24 s). Save 110 keeps each structure's place in its second | medium | Fixed |
+| W2 | A batch that could not spawn retried every tick; 0.28 retries each second | low | Fixed (with W1) |
+| W3 | Builders needed a mutual alliance; Builder.CanRepair uses IsOwnedByAllyOfPlayer, so a player who declared another an ally builds and repairs that player's structures | low | Fixed (sim); the repair cursor still asks for mutual allies |
+| W4 | OnTrainingFinished fired only when a whole batch spawned, with its full count; Trainer.js Spawn fires for each part that steps out | low | Fixed |
+| W5 | Structure build time had a 1 s floor (only reachable with the fastactions cheat); Foundation.js has none | low | Fixed |
+| W6 | Units that train (Cyrus II, trainer ships) cannot autoqueue and their queues still advance every tick | low | Open |
+| W7 | Capture regen and trickles run off one global second rather than per-entity timers, so the first one can land up to a second early or late; amounts match | negligible | Open (deliberate) |
+
+Checked and matching: BuildingAI arrow counts, rounds and target preference; batch time and its civ/tech modifiers; queue limit, pop reservation, pausing and capture reset; foundation builder multiplier, rate, refunds; repair ratios; capture regen and garrison regen; territory decay; trickles; Pack times.
+
 ### Tooltip content, eleventh 0.28 pass (2026-10-20)
 
 gui/session selection_panels.js, selection_details.js, tooltips.js and the production queue against RTS0's command panel, inspector, queue and reference tooltips. Owner: E (tooltip content); selection-panel layout stays with Compare.
