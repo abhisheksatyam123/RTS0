@@ -72,6 +72,13 @@ static int count_units(const Simulation &s, uint8_t team, bool workers_only) {
 	return n;
 }
 
+// attackManager.js startedAttacks.Raid: the first raid that set off, if any.
+static Simulation::AttackPlan *launched_raid(Simulation &s) {
+	for (auto &p : s.petra_started_attacks_)
+		if (p.kind == PETRA_ATTACK_RAID) return &p;
+	return nullptr;
+}
+
 static void test_no_early_rush() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(1);
@@ -692,8 +699,11 @@ static void test_attack_plans() {
 			for (const auto &b : s->buildings()) if (b.team == 0 && b.hp > 0.0f) return true;
 			return false;
 		};
+		// An Attack without siege that finds no undefended structure when it must start fails
+		// (getNearestTarget), and the next plan may be a HugeAttack: either counts.
 		auto attacks_done = [&] {
-			const int n = s->petra_attack_manager().launched[PETRA_ATTACK_ATTACK];
+			const auto &l = s->petra_attack_manager().launched;
+			const int n = l[PETRA_ATTACK_ATTACK] + l[PETRA_ATTACK_HUGE];
 			return n >= 2 || (n == 1 && !enemy_left());
 		};
 		// 25 minutes, or up to 30 while the second Attack is still to come (a second
@@ -725,7 +735,7 @@ static void test_attack_plans() {
 		CHECK(m.max_rushes == 3, "an aggressive AI on a wood-rich base plans three rushes");
 		CHECK(rushed && rush_at_store, "rushes the undefended storehouse in the village phase");
 		CHECK(told_allies && named_target, "each attack is announced to allies only, naming the player attacked");
-		CHECK(attacks_done(), "launches two Attack plans, or one that razes the enemy");
+		CHECK(attacks_done(), "launches two attacks, or one that razes the enemy");
 	}
 	{
 		// The kind of each plan as it starts mustering (whether a HugeAttack
@@ -750,12 +760,17 @@ static void test_attack_plans() {
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
 		// At 0 A.D.'s gather rates the HugeAttack starts mustering around minute 14-27 on this
-		// map (later once traders take a market-dock route); 30 min leaves room for map changes.
+		// map (later once traders take a market-dock route); up to 40 min leaves room for map
+		// changes and for an Attack lost under the fortresses. It stops once three plans marched.
 		// An army that razes the idle player finds it rebuilt, so every plan has a target.
 		float home_x = 0.0f, home_z = 0.0f;
 		for (const auto &b : s->buildings()) if (b.team == 0 && b.type == BLD_TOWN_CENTER) { home_x = b.x; home_z = b.z; }
 		int step = 0;
-		for (float t = 0.0f; t < 30.0f * 60.0f; t += Simulation::FIXED_STEP) {
+		auto marched = [&] {
+			const auto &m = s->petra_attack_manager();
+			return kinds.size() >= 3 && m.launched[PETRA_ATTACK_ATTACK] >= 1 && m.launched[PETRA_ATTACK_ATTACK] + m.launched[PETRA_ATTACK_HUGE] >= 3;
+		};
+		for (float t = 0.0f; t < 40.0f * 60.0f && !marched(); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (++step % 200 == 0) {
 				bool any = false;
@@ -780,7 +795,8 @@ static void test_attack_plans() {
 		      "the first two plans are Attack");
 		CHECK(kinds.size() >= 3 && kinds[2] == PETRA_ATTACK_HUGE, "then HugeAttack");
 		// With a HugeAttack under way the next plan is an Attack again (attackManager.js).
-		CHECK(m.launched[PETRA_ATTACK_ATTACK] >= 2, "both Attack plans march");
+		// A siege-less Attack that only finds defended structures fails and is made again.
+		CHECK(m.launched[PETRA_ATTACK_ATTACK] >= 1 && m.launched[PETRA_ATTACK_ATTACK] + m.launched[PETRA_ATTACK_HUGE] >= 3, "the Attack and HugeAttack plans march");
 		CHECK(huge_size > 2 * attack_size, "a HugeAttack musters a much larger army");
 	}
 	{
@@ -801,8 +817,9 @@ static void test_attack_plans() {
 		size_t raiders = 0;
 		for (float t = 0.0f; t < 20.0f && !raided; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
-			const auto &raid = s->petra_raid_plan();
-			if (raid.state != Simulation::AttackPlan::WALKING || raid.target_building_id != outpost) continue;
+			const Simulation::AttackPlan *r = launched_raid(*s);
+			if (!r || r->state != Simulation::AttackPlan::WALKING || r->target_building_id != outpost) continue;
+			const auto &raid = *r;
 			raided = true;
 			raiders = raid.squad.size();
 			const auto u = s->units();
@@ -2731,8 +2748,9 @@ static void test_raid_takes_every_rider() {
 		bool champion_in = false, spear_in = false;
 		for (float t = 0.0f; t < 20.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
-			const auto &raid = s->petra_raid_plan_;
-			if (raid.state != Simulation::AttackPlan::WALKING) continue;
+			const Simulation::AttackPlan *r = launched_raid(*s);
+			if (!r || r->state != Simulation::AttackPlan::WALKING) continue;
+			const auto &raid = *r;
 			raiders = raid.squad.size();
 			champion_in = std::find(raid.squad.begin(), raid.squad.end(), champion) != raid.squad.end();
 			spear_in = std::find(raid.squad.begin(), raid.squad.end(), spear) != raid.squad.end();
@@ -2942,6 +2960,8 @@ static void test_attack_rally_point() {
 	s->petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
 	s->petra_attack_mgr_.target_size = 12;
 	s->petra_attack_mgr_.min_size = 12;
+	// Forced: it sets off with these twelve, whatever classes the plan would still train.
+	plan.forced = true;
 	const std::vector<uint32_t> army = plan.squad;
 	// attackPlan.js updatePreparation's max-population case: under 5 free slots, more than
 	// lengthMin units start the plan whatever classes it still lacks.
@@ -5042,8 +5062,6 @@ static void test_concurrent_attacks() {
 			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
 		s->players_[1].phase = 2;
 		s->spawn_building_world(tx + 14.0f, tz, BLD_BARRACKS, 1, 1.0f);
-		if (big)
-			for (int k = 0; k < 16; ++k) s->spawn_building_world(tx - 16.0f + 4.0f * (float)(k % 4), tz + 12.0f + 4.0f * (float)(k / 4), BLD_HOUSE, 1, 1.0f);
 		auto &mgr = s->petra_attack_mgr_;
 		mgr.rushes_set = 1;
 		mgr.max_rushes = 0;
@@ -5586,12 +5604,14 @@ static void test_raid_takes_siege() {
 	std::vector<uint32_t> rams;
 	for (int k = 0; k < siege_target; ++k) rams.push_back(s->spawn_unit(ox + 8.0f + 3.0f * k, oz - 6.0f, 1, UNIT_SIEGE_RAM));
 	s->petra_manage_raid(Simulation::FIXED_STEP);
+	const Simulation::AttackPlan *off = launched_raid(*s);
 	int rams_in = 0;
-	for (uint32_t r : rams) rams_in += std::find(plan.squad.begin(), plan.squad.end(), r) != plan.squad.end();
+	if (off)
+		for (uint32_t r : rams) rams_in += std::find(off->squad.begin(), off->squad.end(), r) != off->squad.end();
 	std::printf("  with its riders it waits for the rams %s; with %d rams it sets off %s, taking %d\n", waited ? "yes" : "no", siege_target,
-	            plan.state == Simulation::AttackPlan::WALKING ? "yes" : "no", rams_in);
+	            off && off->state == Simulation::AttackPlan::WALKING ? "yes" : "no", rams_in);
 	CHECK(waited, "a raid with its riders waits for its siege engines");
-	CHECK(plan.state == Simulation::AttackPlan::WALKING && rams_in == siege_target, "the raid sets off with its rams");
+	CHECK(off && off->state == Simulation::AttackPlan::WALKING && rams_in == siege_target, "the raid sets off with its rams");
 }
 
 // defenseManager.js targetList / attackPlan.js Raid: an enemy civic centre going up in neutral
@@ -5638,15 +5658,19 @@ static void test_raid_cc_foundation() {
 	s->petra_attack_mgr_.raid_target = 40;
 	s->petra_attack_mgr_.raid_min = 2;
 	s->petra_manage_raid(Simulation::FIXED_STEP);
-	const bool set_off = plan.state == Simulation::AttackPlan::WALKING;
+	Simulation::AttackPlan *off = launched_raid(*s);
+	const bool set_off = off && off->state == Simulation::AttackPlan::WALKING;
 	// Keep the foundation standing a while: the raid must not give up on it.
 	s->buildings_[s->building_id_to_idx_[target]].hp = s->buildings_[s->building_id_to_idx_[target]].max_hp * 50.0f;
-	for (int k = 0; k < 40; ++k) s->petra_manage_raid(1.6f);
-	const bool fighting = plan.state == Simulation::AttackPlan::WALKING || plan.state == Simulation::AttackPlan::ATTACKED;
+	for (int k = 0; k < 40 && off; ++k) {
+		off->state_timer += 1.6f;
+		s->petra_update_started_raid(*off, ox, oz);
+	}
+	const bool fighting = off && (off->state == Simulation::AttackPlan::WALKING || off->state == Simulation::AttackPlan::ATTACKED);
 	std::printf("  raid on a civic centre foundation at 60%%: set off with %zu of %d %s, still on it after 64 s %s\n",
-	            plan.squad.size(), (int)s->petra_attack_mgr_.raid_target, set_off ? "yes" : "no", fighting ? "yes" : "no");
+	            off ? off->squad.size() : 0, (int)s->petra_attack_mgr_.raid_target, set_off ? "yes" : "no", fighting ? "yes" : "no");
 	CHECK(set_off, "a raid on a foundation past half built sets off at its minimum (mustStart)");
-	CHECK(fighting && plan.target_building_id == target, "the raid fights on while its target stands");
+	CHECK(fighting && off->target_building_id == target, "the raid fights on while its target stands");
 }
 
 // The first base's storehouse check (baseManager.js gatherers), added when it has none yet.
@@ -6480,6 +6504,104 @@ static void test_strength_with_techs() {
 	CHECK(after != CIV_UNIT_TEMPLATE_NONE && (civ_unit_template(after).tech_classes & TC_RANGED), "Archery Tradition: the archer");
 }
 
+// attackPlan.js removeUnit sets plan -1: a worker soldier that leaves a plan (here a
+// failed one) is outOfPlan, and the next plan takes it busy or not, with no keep rule.
+static void test_out_of_plan() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 5.0f);
+	s->petra_pid_ = 1;
+	size_t worker = SIZE_MAX;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 && unit_gather_class(s->units_.unit_type[i], s->units_.tmpl[i]) == GATHER_INFANTRY) { worker = i; break; }
+	CHECK(worker != SIZE_MAX, "Petra starts with a citizen soldier");
+	if (worker == SIZE_MAX) return;
+	const uint32_t uid = s->units_.id[worker];
+	const bool was_worker = s->petra_is_worker(worker);
+	s->petra_attack_plan_.squad.push_back(uid);
+	s->petra_attack_remove_unit(uid);
+	std::printf("  out of plan: worker before %s, after leaving the plan %s\n", was_worker ? "yes" : "no", s->petra_is_worker(worker) ? "yes" : "no");
+	CHECK(was_worker && !s->petra_is_worker(worker), "a worker soldier that leaves a plan is outOfPlan, no longer a worker");
+	// A unit that was never in a plan stays a worker.
+	size_t other = SIZE_MAX;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (i != worker && s->units_.alive[i] && s->units_.team[i] == 1 && unit_gather_class(s->units_.unit_type[i], s->units_.tmpl[i]) == GATHER_INFANTRY) { other = i; break; }
+	if (other != SIZE_MAX) {
+		s->petra_attack_remove_unit(s->units_.id[other]);
+		CHECK(s->petra_is_worker(other), "removing a unit that is in no plan changes nothing");
+	}
+}
+
+// attackPlan.js UpdateTarget: a unit target is followed as it moves, and once it garrisons
+// in an enemy structure that structure becomes the target.
+static void test_attack_follows_unit_target() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float ex = 0.0f, ez = 0.0f;
+	for (const auto &b : s->buildings()) if (b.team == 0 && b.type == BLD_TOWN_CENTER) { ex = b.x; ez = b.z; }
+	const uint32_t hero = s->spawn_unit(ex + 12.0f, ez, 0, UNIT_HERO);
+	const uint32_t fort = s->spawn_building_world(ex + 20.0f, ez + 8.0f, BLD_FORTRESS, 0, 1.0f);
+	const uint32_t mine = s->spawn_unit(ex + 30.0f, ez + 30.0f, 1, UNIT_SPEARMAN);
+	Simulation::AttackPlan plan;
+	plan.state = Simulation::AttackPlan::ATTACKED;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.target_player = 0;
+	plan.target_building_id = hero;
+	plan.target_x = ex; plan.target_z = ez; // where it was picked
+	plan.squad.push_back(mine);
+	s->petra_update_attack_plan(plan, 0.0f, 0.0f);
+	const int32_t h = s->lookup_unit(hero);
+	const bool followed = h >= 0 && plan.target_x == s->units_.pos_x[h] && plan.target_z == s->units_.pos_z[h];
+	const bool inside = s->garrison_unit_now(hero, fort);
+	s->petra_update_attack_plan(plan, 0.0f, 0.0f);
+	std::printf("  unit target: position followed %s, garrisoned %s, target the fortress %s\n", followed ? "yes" : "no",
+	            inside ? "yes" : "no", plan.target_building_id == fort ? "yes" : "no");
+	CHECK(followed, "a unit target's position is refreshed");
+	CHECK(inside && plan.target_building_id == fort, "a unit target that garrisons makes its holder the target");
+}
+
+// attackManager.js: a raid that set off joins startedAttacks.Raid, and another raid is planned
+// while it runs (only an unexecuted raid holds the next back).
+static void test_raids_at_once() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float ox = 0, oz = 0;
+	for (const auto &b : s->buildings_)
+		if (is_civic_centre(b.type) && b.hp > 0.0f && b.team == 1) { ox = b.x; oz = b.z; }
+	const uint32_t target = s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f);
+	for (int k = 0; k < 8; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 6.0f, 1, UNIT_CAVALRY);
+	s->petra_scout_unit_id_ = 0;
+	auto &m = s->petra_attack_mgr_;
+	m.raid_target = 3;
+	m.raid_min = 3;
+	m.raid_siege = 0xFE; // no siege class to wait for
+	auto &plan = s->petra_raid_plan_;
+	plan = Simulation::AttackPlan();
+	plan.type = Simulation::AttackPlan::PLAN_RAID;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	plan.target_building_id = target;
+	s->petra_manage_raid(Simulation::FIXED_STEP);
+	const Simulation::AttackPlan *off = launched_raid(*s);
+	s->petra_manage_raid(Simulation::FIXED_STEP); // the target is still in our land
+	std::printf("  raids at once: first set off %s, next raid %s\n", off ? "yes" : "no",
+	            plan.state == Simulation::AttackPlan::MUSTER ? "mustering" : "not planned");
+	CHECK(off && off->state == Simulation::AttackPlan::WALKING, "a raid that sets off is a started attack");
+	CHECK(plan.state == Simulation::AttackPlan::MUSTER && plan.target_building_id == target, "another raid is planned while it runs");
+}
+
 int main(int argc, char **argv) {
 	// Optional test names on the command line run just those.
 	auto want = [&](const char *name) {
@@ -6569,6 +6691,9 @@ int main(int argc, char **argv) {
 	RUN(test_defense_armies);
 	RUN(test_soldier_fights_back);
 	RUN(test_defender_orders);
+	RUN(test_out_of_plan);
+	RUN(test_attack_follows_unit_target);
+	RUN(test_raids_at_once);
 	RUN(test_defense_ignores_ships);
 	RUN(test_defense_animals);
 	RUN(test_defense_clear_destination);

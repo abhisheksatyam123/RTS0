@@ -3279,6 +3279,11 @@ private:
 	PetraTransportPlan *petra_transport_join(uint8_t owner, uint16_t from_land, uint16_t to_land, bool is_siege);
 	void petra_require_defense_transport(uint32_t uid, uint16_t from_land, uint16_t to_land, float to_x, float to_z);
 	uint32_t petra_defender_dropsite(size_t i) const; // entityExtend.js returnResources: 0 when none
+	// entityExtend.js isSiegeUnit: Siege, or Elephant+Melee (war elephants knock down structures).
+	bool petra_is_siege_unit(size_t i) const {
+		const TechClasses c = unit_classes_at(i);
+		return unit_is_siege_engine(units_.unit_type[i]) || ((c & TC_ELEPHANT).any() && (c & TC_MELEE).any());
+	}
 	void petra_order_build(uint32_t uid, uint32_t bid); // worker.js: drop the load, then build
 	void petra_fight_back(size_t i, int32_t attacker, const std::vector<PetraDefenseArmy> &armies, std::vector<uint32_t> &helped);
 	bool petra_ship_in_plan(uint32_t ship_id) const;
@@ -3312,7 +3317,9 @@ private:
 	void petra_start_march(AttackPlan &plan);
 	// Whether some unit of the army still walks under a forced order (hasForceOrder).
 	bool petra_plan_has_force_order(const AttackPlan &plan) const;
-	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0, const AttackPlan *plan = nullptr) const;
+	// must_start: the pick when a plan in preparation sets off (attackPlan.js chooseTarget at
+	// mustStart), where an Attack without siege takes only an undefended structure.
+	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0, const AttackPlan *plan = nullptr, bool must_start = false) const;
 	uint8_t petra_enemy_player(uint8_t kind) const;
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
@@ -3321,7 +3328,8 @@ private:
 	bool petra_defendable(float x, float z) const; // headquarters.js isDefendable
 	void petra_scuttle_undefendable();
 	uint32_t petra_help_attack_target(const AttackPlan &plan, uint16_t land, float &tx, float &tz) const;
-	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
+	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF, const float *from = nullptr, uint16_t land = 0) const;
+	bool petra_squad_centre(const std::vector<uint32_t> &squad, float &cx, float &cz) const;
 	void petra_set_rushes();
 	float petra_starting_wood(float x, float z) const;
 	void petra_plan_sizes(uint8_t kind);
@@ -3540,11 +3548,14 @@ private:
 	void petra_manage_tactical_attacks(float dt);
 	void petra_retake_civic_centres(); // defenseManager.js OwnershipChanged -> switchDefenseToAttack
 	void petra_update_attack_plan(AttackPlan &plan, float base_x, float base_z); // one plan's attackPlan.js step
+	void petra_update_started_raid(AttackPlan &plan, float base_x, float base_z); // a raid once it set off
 	void petra_attack_units(AttackPlan &plan); // attackPlan.js update while attacking: each unit's target
-	uint32_t petra_plan_next_target(AttackPlan &plan, float &tx, float &tz, uint16_t same_land = 0);
+	uint32_t petra_plan_next_target(AttackPlan &plan, float &tx, float &tz, uint16_t same_land = 0, bool must_start = false);
 	bool petra_in_attack_squad(uint32_t uid) const; // in the prepared or a started attack's army
 	bool petra_attack_can_spare(uint32_t uid, bool decay) const; // garrisonUnitsInside's attack plan rule
 	void petra_attack_remove_unit(uint32_t uid); // attackPlan.js removeUnit, from every plan
+	void petra_out_of_plan(uint32_t uid); // attackPlan.js removeUnit: plan -1 (outOfPlan)
+	void petra_release_squad(std::vector<uint32_t> &squad); // every unit leaves the plan
 	uint8_t petra_attack_enemy() const; // the player Petra's attacks are aimed at, 0xFF for none
 	void petra_note_enemy(uint8_t enemy) const; // remember getEnemyPlayer's pick as currentEnemyPlayer
 	// This tick's civic centre captures (OwnershipChanged), appended in tick_capture and
