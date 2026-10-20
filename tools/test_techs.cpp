@@ -893,6 +893,34 @@ int main() {
 				n.units_.attack_range[a], t0, t1);
 	}
 
+	// ptol_structures affects "Economic !CivCentre !Naval": a mill (mill_greek, a farmstead) the
+	// Ptolemies capture has 0.6x capture points; a structure that changes hands takes its new
+	// owner's Health modifiers (a Ptolemaic house 0.6x, an Athenian one Hellenic Architecture).
+	{
+		static Simulation k;
+		k.set_sim_seed(5);
+		k.set_team_civ(0, CIV_PTOLEMIES);
+		k.set_team_civ(1, CIV_ATHENIANS);
+		k.reset();
+		auto bld = [&](uint32_t id) -> const Simulation::Building * {
+			for (const Simulation::Building &x : k.buildings()) if (x.id == id) return &x;
+			return nullptr;
+		};
+		const uint32_t mill = k.spawn_building(-5, -20, BLD_MILL, GAIA_PLAYER, 1.0f);
+		CHECK(bld(mill) && bld(mill)->max_capture_points > 0.0f);
+		const float gaia_cp = bld(mill)->max_capture_points;
+		k.cheat_convert(0, &mill, 1);
+		std::printf("Ptolemaic-held mill: %.1f capture points (Gaia %.1f)\n", bld(mill)->max_capture_points, gaia_cp);
+		CHECK(bld(mill)->team == 0 && std::fabs(bld(mill)->max_capture_points - gaia_cp * 0.6f) < 0.01f);
+		const uint32_t house = k.spawn_building(10, 10, BLD_HOUSE, 0, 1.0f);
+		const float ptol_hp = bld(house)->max_hp;
+		k.cheat_convert(1, &house, 1);
+		const float want = ptol_hp * k.structure_hp_mult(BLD_HOUSE, 1) / k.structure_hp_mult(BLD_HOUSE, 0);
+		std::printf("Ptolemaic house %.1f hp, captured by Athens %.1f (want %.1f)\n", ptol_hp, bld(house)->max_hp, want);
+		CHECK(std::fabs(k.structure_hp_mult(BLD_HOUSE, 0) - 0.6f) < 1e-4f);
+		CHECK(bld(house)->team == 1 && std::fabs(bld(house)->max_hp - want) < 0.01f && bld(house)->hp <= bld(house)->max_hp + 0.01f);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
