@@ -1888,7 +1888,8 @@ inline bool tech_available_to_civ(uint8_t tech_id, uint8_t civ) {
 	return civ < 16 && (tech_info(tech_id).civ_mask >> civ) & 1u;
 }
 
-// Can a building of this type research the tech for a player of this civ? Its research
+// Can a building of this type, placed from a `civ` template, research the tech? (Researcher.js
+// reads the entity's own template list; its owner's civ only filters it: tech_available_to_civ.) Its research
 // base's list, with 0.28's per-structure Researcher changes ("-" drops a token):
 //  - the crannog drops phase_town and hellenistic_metropolis, the Han Imperial Court
 //    phase_town, and the military colony (template_structure_civic_civil_centre_military_colony)

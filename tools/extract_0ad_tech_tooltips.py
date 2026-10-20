@@ -43,6 +43,7 @@ def main():
             if m:
                 civs.setdefault(m.group(2), m.group(1))
     names = {}
+    tooltips = {}
     rows = []
     with open(os.path.join(REPO, "src", "simulation", "tech_data.h"), encoding="utf-8") as f:
         for line in f:
@@ -57,12 +58,18 @@ def main():
                     data = json.load(j)
                 tip = data.get("requirementsTooltip", "")
                 specific = dict(data.get("specificName") or {})
+            civ_tips = {}
             if m.group(3).endswith("_generic"):
+                generic_tip = data.get("tooltip", "") if os.path.exists(path) else ""
                 for code in civs:
                     own = os.path.join(tech_dir, m.group(3)[: -len("generic")] + code + ".json")
                     if os.path.exists(own):
                         with open(own, encoding="utf-8") as j:
-                            specific.update(json.load(j).get("specificName") or {})
+                            own_data = json.load(j)
+                        specific.update(own_data.get("specificName") or {})
+                        if own_data.get("tooltip", generic_tip) != generic_tip:
+                            civ_tips[civs[code]] = own_data["tooltip"]
+            tooltips[m.group(1)] = civ_tips
             names[m.group(1)] = {civs[c]: n for c, n in specific.items() if c in civs}
             rows.append((int(m.group(2)), m.group(1), m.group(3), tip))
     out = []
@@ -93,6 +100,23 @@ def main():
         w("\t\t\tswitch (civ) {")
         for civ, n in sorted(names[name].items()):
             w(f"\t\t\t\tcase CIV_{civ}: return {c_str(n)};")
+        w("\t\t\t\tdefault: return nullptr;")
+        w("\t\t\t}")
+    w("\t\tdefault: return nullptr;")
+    w("\t}")
+    w("}")
+    w("")
+    w("// The tooltip of a civ's own phase_*_<civ>.json where it differs from the generic one")
+    w("// (nullptr: the technology's own).")
+    w("inline const char *tech_civ_tooltip(uint8_t tech, uint8_t civ) {")
+    w("\tswitch (tech) {")
+    for _, name, json_name, _tip in sorted(rows):
+        if not tooltips[name]:
+            continue
+        w(f"\t\tcase TECH_{name}: // {json_name}")
+        w("\t\t\tswitch (civ) {")
+        for civ, t in sorted(tooltips[name].items()):
+            w(f"\t\t\t\tcase CIV_{civ}: return {c_str(t)};")
         w("\t\t\t\tdefault: return nullptr;")
         w("\t\t\t}")
     w("\t\tdefault: return nullptr;")
