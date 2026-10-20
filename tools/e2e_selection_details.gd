@@ -42,6 +42,8 @@ func run() -> void:
 	var ptip := String(u["portrait_tooltip"])
 	check(ptip.begins_with(String(u["title"])), "the portrait tooltip names the unit")
 	check("\nClasses: " in ptip, "then its visible classes")
+	if "Infantry" in ptip:
+		check("\nBattering Team: Battering Rams +0.15 speed" in ptip, "an infantry soldier lists template_unit_infantry's ram_garrison aura")
 	check(ptip.ends_with("Left-click to follow. Right-click for more information."), "and ends with what its clicks do")
 	check(String(u["rank_icon"]).begins_with("res://assets/textures/ui/archive/icons/ranks/") and String(u["rank_tooltip"]).contains(" Rank"), "a ranked unit shows its rank glyph")
 	check(not String(u["title"]).begins_with("Advanced ") and not String(u["title"]).begins_with("Elite "), "the rank moves from the name to the glyph")

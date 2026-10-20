@@ -50,6 +50,7 @@
 #include "l10n.h"
 #include "template_portraits.h"
 #include "production_queue.h"
+#include "selection_details.h"
 #include "user_config.h"
 
 class RtsoCommandPanelHost {
@@ -1626,7 +1627,7 @@ private:
 		auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
 		const Dictionary text = unit_template_text(u.id);
 		add_line(classes_tooltip(text));
-		add_line(auras_tooltip(u));
+		add_line(rtso::seldet::unit_auras_tooltip((uint16_t)i));
 		add_line(identity_tooltip(text));
 		tip += "\n" + String(COST_SLOT); // the Cost line for the count a click trains (refresh_roster_state)
 		// formatLimitString, formatMatchLimitString (heroes: MatchLimit 1).
@@ -1909,18 +1910,6 @@ private:
 					{{"label", rtso::tr0("Range:")}, {"val", String::num_int64(r)}, {"unit", rtso::tr0(r == 1 ? "meter" : "meters")}});
 		}
 		return line;
-	}
-
-	static godot::String auras_tooltip(const rtso::CivUnitTemplate &u) {
-		using namespace godot;
-		String out;
-		for (int16_t a : u.auras) {
-			if (a < 0) continue;
-			const auto &aura = rtso::civ_hero_aura(a);
-			const String line = aura_line(String::utf8(aura.name), String::utf8(aura.description ? aura.description : ""), aura.radius);
-			out += (out.is_empty() ? String() : String("\n")) + line;
-		}
-		return out;
 	}
 
 	// The same for a structure, from its 0.28 template's Auras (templates.json).
