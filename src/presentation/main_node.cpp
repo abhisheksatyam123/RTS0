@@ -3897,7 +3897,9 @@ Dictionary RtsoMain::get_match_settings_info() const {
 	d["disable_treasures"] = sim->disable_treasures();
 	d["explore_map"] = sim->explore_map();
 	d["ally_view"] = sim->ally_view();
-	d["reveal_map"] = sim->reveal_map();
+	// The match's setting (g_InitAttributes), not the live state the reveal-map cheats change.
+	Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
+	d["reveal_map"] = ms ? bool(ms->get("reveal_map")) : sim->reveal_map();
 	d["cheats"] = sim->cheats_enabled();
 	return d;
 }
@@ -3908,8 +3910,11 @@ String RtsoMain::match_settings_description() const {
 }
 
 // MatchSettingsDialog.rebuild: g_PlayerStateMessages for a player who has won or lost.
+// It names the local seat (Engine.GetPlayerID()), whoever is viewed: none in a replay or
+// for an observer.
 String RtsoMain::match_settings_player_state() const {
-	const uint8_t me = local_player();
+	if (turn_mgr_.is_replaying()) return String();
+	const uint8_t me = seat_player();
 	if (!sim || me >= rtso::MAX_PLAYERS) return String();
 	if (sim->is_victory_for(me)) return "You have won!";
 	if (sim->is_defeated(me)) return "You have been defeated!";
