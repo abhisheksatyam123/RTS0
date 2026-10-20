@@ -119,8 +119,8 @@ bool NetHost::startHost(const NetConfig &c) {
 		return false;
 	}
 
-	int opt = 1;
-	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
+	// No SO_REUSEADDR (ENet's server socket has none): a second host on the
+	// same port must fail to bind rather than share it and miss the joiners.
 	set_socket_nonblocking(fd);
 
 	sockaddr_in bind_addr{};
