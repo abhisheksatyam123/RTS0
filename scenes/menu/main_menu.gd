@@ -116,7 +116,7 @@ const MAIN_TOOLTIPS := {
 	"BtnSingle": "Start, load, or replay a single-player game.",
 	"BtnMulti": "Fight against one or more human players in a multiplayer game.",
 	"BtnSettings": "Change game options.",
-	"BtnEditor": "Inspect 3D unit models, animations, and civic buildings.",
+	"BtnEditor": "Open the Atlas Scenario Editor in a new window. You can run this more reliably by starting the game with the command-line argument \"-editor\".",
 	"BtnCredits": "Show the 0 A.D. credits.",
 	"BtnExit": "Exit the game.",
 }
@@ -174,7 +174,6 @@ func _ready() -> void:
 	for n in MAIN_TOOLTIPS:
 		get_node("MainPanel/Buttons/" + n).tooltip_text = tr(MAIN_TOOLTIPS[n])
 
-	$CivSwitcher.pressed.connect(_cycle_background)
 	_build_project_information()
 
 	if preload("res://scenes/menu/user_settings.gd").version_requested(OS.get_cmdline_args() + OS.get_cmdline_user_args()):
@@ -311,10 +310,6 @@ func _setup_background(civ_name: String) -> void:
 		bg_layers.append(layer)
 	_place_layers()
 
-	var civ_lbl = get_node_or_null("CivSwitcher/CivLabel")
-	if civ_lbl:
-		civ_lbl.text = "CIVILIZATION: " + civ_name.to_upper()
-
 ## BackgroundLayer.update: each layer's offset at the time since the menu opened.
 func _layer_offset(i: int, t: float, width: float) -> float:
 	var spec: Array = _bg_specs[i]
@@ -356,10 +351,6 @@ func _place_layers() -> void:
 			var right := vp.x / 2.0 + off
 			pieces[0].position = Vector2(right - height, 0)
 			pieces[0].size = Vector2(2.0 * height, height)
-
-func _cycle_background() -> void:
-	current_bg_index = (current_bg_index + 1) % BG_KEYS.size()
-	_setup_background(BG_KEYS[current_bg_index])
 
 func _process(delta: float) -> void:
 	time_elapsed += delta
@@ -518,8 +509,11 @@ func _execute_action(action: String) -> void:
 			load("res://scenes/menu/campaigns.gd").open_mode = {"continue_campaign": "menu", "new_campaign": "setup", "load_campaign": "load"}[action]
 			_go_to_scene("res://scenes/menu/campaigns.tscn")
 
+## MainMenuItems.js Scenario Editor: without Atlas (RTS0 has none), 0.28's error box.
+## RTS0's Asset Viewer stays under Single-player.
 func _on_editor_pressed() -> void:
-	_go_to_scene("res://scenes/tools/asset_viewer.tscn")
+	load("res://scenes/common/msgbox.gd").open(self, 400, 200,
+		tr("The scenario editor is not available or failed to load. See the game logs for additional information."), tr("Error"))
 
 # 0 A.D. pushes page_credits.xml over the main menu.
 func _on_credits_pressed() -> void:
