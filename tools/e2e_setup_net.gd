@@ -253,6 +253,12 @@ func run() -> void:
 		and page.get_node("%MapList").disabled
 		and page.get_node("%Waves").disabled, "the host's settings are locked")
 	check(page._tab == -1 and not page.get_node("%MapTab").visible, "a client starts with no settings tab open (GameSettingTabs.onLoad)")
+	page._render_value_texts()
+	var ml: Control = page.get_node("%MapList")
+	var vt: Label = ml.get_node_or_null("ValueText")
+	var rated_box: CheckBox = page.get_node("%RatedGame")
+	check(vt != null and vt.text == ml.text and ml.self_modulate.a == 0.0 and rated_box.text.ends_with(": Yes"),
+		"GameSettingControl.updateVisibility: locked settings read as text, a checkbox Yes/No: %s / %s" % [vt.text if vt else "", rated_box.text])
 	check(picker(page, 0, 2).disabled and picker(page, 0, 3).disabled and picker(page, 1, 1).disabled and picker(page, 1, 4).disabled,
 		"other slots, and our slot's type and AI, are locked")
 	# 0.28 GameSettingControl/PlayerColor: only the controller sets civ, team and colour.
@@ -347,6 +353,9 @@ func run() -> void:
 	check(page.get_node("VBox/HBox/Right/SavedGameLabel").visible
 		and page.get_node("VBox/HBox/Right/SavedGameLabel").tooltip_text == "The controller loaded a saved game.",
 		"the host's page says Saved game")
+	page._apply_map_locks()
+	check(not page.get_node("VBox/HBox/Right/SlotsBox/SlotsHeader/ResetCivs").visible
+		and not page.get_node("VBox/HBox/Right/SlotsBox/SlotsHeader/ResetTeams").visible, "ResetCivsButton/ResetTeamsButton: hidden for a saved game")
 	check(not page.get_node("%SpinSeed").editable and page.get_node("%MapList").disabled
 		and page.get_node("%Waves").disabled and picker(page, 0, 2).disabled and picker(page, 2, 3).disabled
 		and picker(page, 1, 1).disabled and picker(page, 2, 5).disabled, "every setting of the save is locked")
