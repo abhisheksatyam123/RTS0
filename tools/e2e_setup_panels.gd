@@ -150,7 +150,7 @@ func run() -> void:
 		for i in spd.get_item_count():
 			out.append(spd.get_item_text(i))
 		return out
-	check(page.get_node("%SpeedLabel").text == "Game Speed" and spd.get_item_text(spd.get_selected()) == "Normal (1×)", "Game Speed, Normal (1×) by default")
+	check(page.get_node("%SpeedLabel").text == "Game Speed:" and spd.get_item_text(spd.get_selected()) == "Normal (1×)", "Game Speed, Normal (1×) by default")
 	check(titles.call() == ["Turtle (0.1×)", "Slow (0.25×)", "Leisurely (0.5×)", "Relaxed (0.75×)", "Normal (1×)",
 		"Fast (1.25×)", "Very Fast (1.5×)", "Insane (2×)"], "the eight speeds while you play: %s" % str(titles.call()))
 	spd.select(7)
