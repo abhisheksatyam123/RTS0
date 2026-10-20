@@ -169,7 +169,7 @@ Checked and matching: every StatisticsTracker caller (kills, losses and captures
 
 ### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
 
-diplomacyManager.js, chatHelper.js and their callers were checked line by line. Everything else matches: update cadence, tribute rules, request handling and its odds, lastManStandingCheck, changePlayerDiplomacy, personality boosts, every chat string. Jebel Barkal was checked statically against the 0.28 source, since no 0.28 binary runs here (pass 8: wave sizing and target-class skip match). Still open from pass 4: P2 (defeated players and Gaia aren't counted as enemies) and P5 (tribute is taken off the stock before the next ally's gift is worked out).
+diplomacyManager.js, chatHelper.js and their callers were checked line by line. Everything else matches: update cadence, tribute rules, request handling and its odds, lastManStandingCheck, changePlayerDiplomacy, personality boosts, every chat string. Jebel Barkal was checked statically against the 0.28 source, since no 0.28 binary runs here (pass 8: wave sizing and target-class skip match). Still open from pass 4: P2 (defeated players and Gaia aren't counted as enemies). P5 is D7 below.
 
 | # | Gap | Severity | State |
 |---|---|---|---|
@@ -178,6 +178,8 @@ diplomacyManager.js, chatHelper.js and their callers were checked line by line. 
 | D3 | A one-way alliance at game start gets a refusal; 0.28's init handles it as an ally request (40% accept or tribute) | low | Open |
 | D4 | The cooperative trait ignores allies' attacks on Gaia animals and enemy structures in our land | low | Open |
 | D5 | After a Gaia relic pick the current enemy falls back to a started attack's target; 0.28 keeps 0 | low | Open |
+| D6 | Another AI's tribute request was kept and paid later once funds came in; 0.28 answers it once and drops it if it can't pay | low | Fixed |
+| D7 | Gifts to several allies were each worked out from what the previous gift left; 0.28 works every gift out from the same starting total | low | Fixed |
 
 ## Read this first: whole-game parity (refreshed 2026-10-08, evening)
 
