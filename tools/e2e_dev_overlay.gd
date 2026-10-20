@@ -80,6 +80,12 @@ func pick(id: int) -> void:
 	dd.item_selected.emit(index)
 	await frames(20)
 
+func _listed(id: int) -> bool:
+	for u in main.debug_selection_state()["units"]:
+		if int(u["id"]) == id:
+			return true
+	return false
+
 func run() -> void:
 	await frames(60)
 	var rig = main.find_children("*", "RtsoCameraRig", true, false)[0]
@@ -245,6 +251,29 @@ func run() -> void:
 	check(d["control_all"], "Control all units sets the flag")
 	check(box("Control all units").button_pressed, "its box stays ticked")
 	check(main.debug_dev_overlay()["chat_log"].contains("> (Cheat - control all units)"), "and \"(Cheat - control all units)\" in the chat")
+	# Commands.js FilterEntityList with controlAllUnits: another player's structure trains for its owner.
+	var their_cc: int = int(main.debug_civic_centre_id(1))
+	main.debug_select_entity(their_cc)
+	await frames(2)
+	var their_roster: Array = main.debug_roster()
+	var first_row: int = -1
+	for row in their_roster.size():
+		if not their_roster[row]["disabled"]:
+			first_row = row
+			break
+	check(first_row >= 0, "another player's Civic Center shows its training roster (%d rows)" % their_roster.size())
+	var queued_before: int = int(main.debug_building_queue(their_cc))
+	if first_row >= 0:
+		main._on_roster_item_clicked(first_row, Vector2(), MOUSE_BUTTON_LEFT)
+	await frames(20)
+	check(int(main.debug_building_queue(their_cc)) > queued_before, "and a click there queues a unit in it")
+	var theirs: PackedInt32Array = main.debug_spawn_units("athen/infantry_spearman_b", 1, 1)
+	main.debug_select_units(theirs)
+	check(_listed(theirs[0]), "another player's unit is listed while selected")
+	main.debug_delete_units(theirs)
+	await frames(2)
+	check(not _listed(theirs[0]), "and it can be deleted")
+	main.debug_select_units(PackedInt32Array())
 	press("Control all units")
 	await frames(3)
 	check(not main.debug_dev_overlay()["control_all"], "clearing it drops the flag")
