@@ -187,6 +187,26 @@ int main() {
 		CHECK(s.units().stance[ei] == STANCE_PASSIVE);
 	}
 
+	// 6d. A passive healer searches its modified vision (UnitAI GetQueryRange takes Vision.GetRange
+	//     with techs): heal_range and heal_range_2 add 5 m each, 30 m -> 40 m, so a wounded
+	//     spearman 35 m away is found with both and not without.
+	for (int techs = 0; techs < 2; ++techs) {
+		fresh(s);
+		if (techs) {
+			s.debug_complete_research(0, TECH_HEAL_RANGE);
+			s.debug_complete_research(0, TECH_HEAL_RANGE_2);
+		}
+		s.spawn_unit(0.0f, 0.0f, 0, UNIT_HEALER, 0.0f, tmpl_of("athen/support_healer_b"));
+		const uint32_t u = s.spawn_unit(9.8f, 0.0f, 0, UNIT_SPEARMAN);
+		const float half = s.units().max_hp[idx_of(s, u)] * 0.5f;
+		const_cast<float *>(s.units().hp)[idx_of(s, u)] = half;
+		const_cast<uint8_t *>(s.units().stance)[idx_of(s, u)] = STANCE_STAND_GROUND; // stays where it is
+		run(s, 7.0f);
+		const float gained = s.units().hp[idx_of(s, u)] - half;
+		std::printf("support healer %s heal range techs, wounded at 35 m: +%.1f hp\n", techs ? "with" : "without", gained);
+		CHECK(techs ? gained > 0.0f : gained == 0.0f);
+	}
+
 	// 6c. Builder (mixins/builder via template_unit_infantry): mercenary infantry build though they
 	//     cannot gather; the Neodamodes, champions and mercenary cavalry do not.
 	CHECK(unit_can_build(UNIT_ARCHER, tmpl_of("athen/infantry_archer_b")));

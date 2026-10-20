@@ -150,7 +150,7 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		else if (base == "temple") return 6.4f;
 		else if (base == "wonder") return 8.5f;
 		else if (base == "barracks" || base == "market" || base == "stable") return 4.4f;
-		else if (base == "wall_tower" || base == "tower") return 4.6f;
+		else if (base == "wall_tower" || base == "tower" || base == "defense_tower") return 4.6f;
 		else if (base == "gate") return 4.5f;
 		else if (base == "wall" || base == "wall_segment") return 3.0f;
 		else if (base == "dock" || base == "shipyard" || base == "blacksmith" || base == "siege_workshop") return 4.0f;

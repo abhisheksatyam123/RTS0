@@ -542,6 +542,7 @@ public:
 	// cavalry, elephants, healers; the ones with Promotion) show the Basic rank icon.
 	bool unit_has_rank(size_t i) const;
 	void debug_add_xp(uint32_t unit_id, float xp) { if (const int32_t i = lookup_unit(unit_id); i >= 0) gain_xp((size_t)i, xp); } // tests
+	void debug_complete_research(uint8_t player_id, uint8_t tech_id) { complete_research(player_id, tech_id); } // tests
 	// 0 A.D. TurretHolder / Turretable: ranged infantry stand on the turret points of
 	// walls, gates and outposts, visible and fighting from the structure's height.
 	bool unit_turretable(size_t i) const;
@@ -2746,7 +2747,8 @@ private:
 				k == ORDER_RETURN_RESOURCE;
 	}
 	void formation_merge_twins();               // Formation.js ShapeUpdate twin merge
-	void formation_delete_twins(FormationController &fc); // Formation.js DeleteTwinFormations
+	void formation_delete_twins(FormationController &fc);
+	bool formation_current_order(const FormationController &fc, UnitOrder &o) const; // Formation.js DeleteTwinFormations
 	void formation_size(const FormationController &fc, float &width, float &depth) const; // GetSize
 	void attack_unit_one_by_one(const uint32_t *ids, size_t count, uint32_t target_unit_id);
 	void walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz, uint32_t follow = 0);
@@ -4250,6 +4252,16 @@ private:
 	uint64_t forest_sig_of_gaia() const { return gaia_obstacles_sig_ ^ ((uint64_t)nav_grid_.res << 48); }
 	bool forest_cell_closed(int cx, int cy, float clr = CLEARANCE_DEFAULT) const;
 	bool update_forest_cells();
+	// rebuild_nav_grid's gate pass, per open WallSet gate it last checked at 1 m: what that check read
+	// (the navcells, shapes and terrain round the gate) and the part navcells it kept open. A rebuild
+	// for a change elsewhere on the map gives the same inputs, so the same answer. Derived, not saved.
+	struct GatePassMemo {
+		uint32_t gate = 0;
+		bool used = false;
+		uint64_t keep = 0;
+		std::vector<uint8_t> key;
+	};
+	std::vector<GatePassMemo> gate_pass_memo_;
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// steer_obstacles_ by cell, rebuilt in move_units when they change, and the line test that
 	// looks only at those under the line (the same answer as nav::line_blocked_by_buildings over
