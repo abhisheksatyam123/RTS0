@@ -6,7 +6,7 @@ extends SceneTree
 # map when cleared; Promote selected units raises the selection a rank ("promote");
 # Change perspective shows the player view dropdown, and picking a player or Observer
 # re-seats this client; Enable time warp snapshots the game every 10 turns and rewinds
-# to the last one, keeping the selection and control groups; the pathfinder, hierarchical pathfinder, obstruction, unit motion,
+# to the last one, keeping the selection and control groups; the pathfinder, hierarchical pathfinder (regions and their links), obstruction, unit motion,
 # range (rings, rays to matches, the queries' grid) and bounding box overlays draw while ticked; Enable culling, Lock cull camera,
 # Display camera frustum and Display shadows frustum drive the culling and its boxes (a locked
 # cull camera hides the units and structures outside it);
@@ -231,6 +231,7 @@ func run() -> void:
 	d = main.debug_dev_overlay()
 	check(int(d["pathfinder_drawn"]) > 0, "the pathfinder overlay fills the navcells land units can't cross (%d)" % int(d["pathfinder_drawn"]))
 	check(int(d["hier_pathfinder_drawn"]) > 0, "the hierarchical pathfinder overlay tints the chunk regions (%d)" % int(d["hier_pathfinder_drawn"]))
+	check(int(d["region_links"]) > 0, "and links the regions an edge joins (%d)" % int(d["region_links"]))
 	check(int(d["obstruction_drawn"]) > 0, "the obstruction overlay outlines the obstructions (%d)" % int(d["obstruction_drawn"]))
 	check(int(d["unit_motion_drawn"]) > 0, "the unit motion overlay draws the walkers' paths (%d)" % int(d["unit_motion_drawn"]))
 	check(int(d["range_drawn"]) > 0, "the range overlay rings the attackers (%d)" % int(d["range_drawn"]))
