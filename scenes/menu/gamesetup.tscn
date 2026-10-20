@@ -130,11 +130,11 @@ tooltip_text = "Select a map to play on."
 mouse_filter = 1
 text = "Select Map"
 
-[node name="MapList" type="ItemList" parent="VBox/HBox/LeftScroll/Left/MapTab"]
+[node name="MapList" type="RtsoSafeSelect" parent="VBox/HBox/LeftScroll/Left/MapTab"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 190)
+custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
-size_flags_vertical = 3
+tooltip_text = "Select a map to play on."
 
 [node name="SeedRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left/MapTab"]
 unique_name_in_owner = true
@@ -415,19 +415,6 @@ custom_minimum_size = Vector2(70, 32)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="WonderLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Minutes until the player has achieved Wonder Victory"
-mouse_filter = 1
-text = "Wonder Duration"
-
-[node name="WonderTimeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/VictoryTimesRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(70, 32)
-layout_mode = 2
-size_flags_horizontal = 3
-
 [node name="GameRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left/GameTypeTab"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -437,6 +424,23 @@ unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Toggle whether heroes can be garrisoned."
 text = "Hero Garrison"
+
+[node name="WonderRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left/GameTypeTab"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="WonderLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/WonderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Minutes until the player has achieved Wonder Victory"
+mouse_filter = 1
+text = "Wonder Duration"
+
+[node name="WonderTimeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/GameTypeTab/WonderRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(70, 32)
+layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="SpeedRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left/GameTypeTab"]
 unique_name_in_owner = true
