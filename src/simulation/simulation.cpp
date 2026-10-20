@@ -24037,13 +24037,14 @@ int Simulation::petra_work_phase3() const {
 	return std::min(work, petra_target_workers());
 }
 
-// headquarters.js getAccountedPopulation: the population plus the units in training queues.
+// headquarters.js getAccountedPopulation: the population plus every batch in the training
+// queues at its Cost/Population. A started batch is counted twice, as in 0.28: popUsed
+// already holds its reserved slots (Player.js TryReservePopulationSlots).
 int Simulation::petra_accounted_population() const {
 	int pop = pop_current(petra_pid_);
 	for (const Building &b : buildings_) {
 		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
-		for (const ProductionOrder &o : b.queue)
-			if (!o.is_tech() && o.unit_type < UNIT_TYPE_COUNT && !o.started) pop += o.count;
+		for (const ProductionOrder &o : b.queue) pop += order_pop(o, petra_pid_);
 	}
 	return pop;
 }
