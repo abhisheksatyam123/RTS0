@@ -54,6 +54,20 @@ void RtsoMain::reset_default_cursor() {
 			Input::CURSOR_ARROW, Vector2(1, 1));
 }
 
+// unit_actions.js "gather": "action-gather-" + the supply's resourceType.specific.
+static const char *gather_cursor(uint8_t type, uint8_t sub) {
+	if (sub == rtso::RES_SUB_RUINS) return "action-gather-ruins";
+	switch (type) {
+		case rtso::RES_WOOD: return "action-gather-tree";
+		case rtso::RES_GOLD: return "action-gather-ore";
+		case rtso::RES_STONE: return "action-gather-rock";
+		default:
+			return sub == rtso::RES_SUB_MEAT ? "action-gather-meat"
+					: sub == rtso::RES_SUB_GRAIN ? "action-gather-grain"
+					: sub == rtso::RES_SUB_FISH ? "action-gather-fish" : "action-gather-fruit";
+	}
+}
+
 void RtsoMain::update_cursor() {
 	Viewport *vp = get_viewport();
 	if (!sim || !vp) return;
@@ -118,15 +132,7 @@ void RtsoMain::update_cursor() {
 					auto rv = sim->resources();
 					for (size_t r = 0; r < rv.count; ++r) {
 						if (rv.id[r] != res) continue;
-						switch (rv.type[r]) {
-							case rtso::RES_WOOD: want = "action-gather-tree"; break;
-							case rtso::RES_GOLD: want = "action-gather-ore"; break;
-							case rtso::RES_STONE: want = "action-gather-rock"; break;
-							default:
-								want = rv.subtype[r] == rtso::RES_SUB_MEAT ? "action-gather-meat"
-										: rv.subtype[r] == rtso::RES_SUB_GRAIN ? "action-gather-grain"
-										: rv.subtype[r] == rtso::RES_SUB_FISH ? "action-gather-fish" : "action-gather-fruit";
-						}
+						want = gather_cursor(rv.type[r], rv.subtype[r]);
 						break;
 					}
 				} else if (bld) {
@@ -270,17 +276,6 @@ void RtsoMain::update_cursor() {
 			}
 			if (!*want) {
 				// Supplies as the player knows them (Fogging mirages; none in unexplored land).
-				const auto gather_cursor = [&](uint8_t type, uint8_t sub) {
-					switch (type) {
-						case rtso::RES_WOOD: return "action-gather-tree";
-						case rtso::RES_GOLD: return "action-gather-ore";
-						case rtso::RES_STONE: return "action-gather-rock";
-						default:
-							return sub == rtso::RES_SUB_MEAT ? "action-gather-meat"
-									: sub == rtso::RES_SUB_GRAIN ? "action-gather-grain"
-									: sub == rtso::RES_SUB_FISH ? "action-gather-fish" : "action-gather-fruit";
-					}
-				};
 				// unit_actions "gather" needs a selected unit that can gather the supply (else "move").
 				std::vector<uint32_t> sel;
 				for (int s2 = 0; s2 < selected_ids.size(); ++s2) sel.push_back((uint32_t)(int64_t)selected_ids[s2]);
