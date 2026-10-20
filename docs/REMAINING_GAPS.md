@@ -410,6 +410,12 @@ Scenario-only units: every unit the 0.28 scenario, demo and sandbox maps place w
 | SU2 | Unpacked siege on a map (oxybeles, lithobolos, polybolos, scorpio, mangonel) starts packed, as its packed row | low | Open: Triggers |
 | SU3 | pers/arstibara has no row of its own and stands in as pers/champion_infantry; Flight Demo's planes and han/siege_shoushe have none and are left out | low | Open: Triggers |
 | SU4 | The campaign test maps' army_* heroes and campaign_*_test structures map to the nearest civ templates (Alexander as the cavalry hero with auras, Leonidas with Last Stand, the test cities as Macedonian civic centres) | low | Open: Triggers |
+| LR1 | A rated game left Teams Locked as it was. 0.28 LockedTeams.onRatingChange turns it on and makes it unchangeable while the game is rated, and off when the game is unrated | medium | Fixed: rating the game locks the teams, unrating it unlocks them |
+| LR2 | Lobby players hosted and joined with their bare nick. 0.28 hosts and joins as "nick (rating)" once rated, so Game Setup, chat, the session and the summary show the rating; a rejoin keeps the rating the player joined with (JoinButton.getRejoinRating) | low | Fixed: the game list reads the rating in the name (Game.js), and the report and buddy marks use the nick |
+| LR3 | A ban in a lobby game kept the rated name, so a changed rating got past it. 0.28 NetServer bans the name without its rating behind the lobby | low | Fixed |
+| LR4 | The lobby server keys reports by player names and compares every field of the report; EcheLOn keys by the reporting JIDs and compares the summary only | negligible | Open: Triggers (same outcome for two honest reports) |
+| LR5 | Reports are matched by RTS0's matchID (seed, map, players) and the last 200 are kept; 0.28 uses its random matchID and EcheLOn drops reports after an hour | negligible | Open: Triggers |
+| LR6 | RTS0 sends the report when the local player is decided; 0.28 registers it on the players-finished handler, the same moment for a 1v1 | negligible | Deliberate |
 
 ## Read this first: whole-game parity (refreshed 2026-10-08, evening)
 
