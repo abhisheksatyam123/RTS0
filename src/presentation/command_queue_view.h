@@ -663,7 +663,15 @@ public:
 						} else {
 							// Names, cost, the target's limit, requirements, needed resources, right-click.
 							tip = rtso::upgrade_to_text(generic, specific, String::utf8(up.tooltip ? up.tooltip : ""));
-							const rtso::CostTip up_cost{up.food_cost, up.wood_cost, up.stone_cost, up.gold_cost, 0, (int64_t)std::ceil(up.time)};
+							// Every selected structure of this type upgrades: the cost is for all of them
+							// (getEntityCostTooltip with unitEntStates.length), the time for one.
+							int64_t n_up = 0;
+							for (uint32_t id : host_->ui_selected_structures())
+								for (const auto &o : sim->buildings())
+									if (o.id == id && o.team == local_player() && o.type == found_b->type) ++n_up;
+							n_up = std::max<int64_t>(1, n_up);
+							const rtso::CostTip up_cost{up.food_cost * n_up, up.wood_cost * n_up, up.stone_cost * n_up, up.gold_cost * n_up, 0,
+									(int64_t)std::ceil(up.time)};
 							const String cost_tip = rtso::cost_tooltip(up_cost, true);
 							if (!cost_tip.is_empty()) tip += "\n" + cost_tip;
 							const String limit_tip = limit_tooltip(local_player(), rtso::BUILDING_LIMIT_CATEGORY[up.to]);
@@ -1185,7 +1193,7 @@ public:
 						if (garrison > 0)
 							tip += "\n" + rtso::sprintf0(rtso::tr0("%(label)s: %(garrisonLimit)s"),
 									{{"label", rtso::header_font(rtso::tr0("Garrison Limit"))}, {"garrisonLimit", String::num_int64(garrison)}});
-						if (const float heal = rtso::building_garrison_heal((uint8_t)bt); garrison > 0 && heal > 0.0f)
+						if (const float heal = sim->structure_garrison_heal_for((uint8_t)bt, local_player()); garrison > 0 && heal > 0.0f)
 							tip += "\n" + rtso::sprintf0(rtso::tr0("%(healRateLabel)s %(value)s %(health)s / %(second)s"),
 									{{"healRateLabel", rtso::header_font(rtso::tr0("Heal:"))}, {"value", String::num_int64(std::lround(heal))},
 											{"health", rtso::tr0("Health")}, {"second", rtso::tr0("second")}});
