@@ -169,6 +169,10 @@ func run() -> void:
 		check(range(3).map(func(i): return wl.get_item_text(i)) == ["Rising", "Shallow", "Deep"] and wl.get_item_tooltip(2) == "The water doesn't rise. You have to use ships to travel to the mainland.",
 			"Flood's water levels by flood.json's names and descriptions")
 		check(page.get_node("%SeaRiseSlot").get_child(0).get_item_count() == 61, "Sea Level Rise Time offers every minute from 0 to 60")
+		# MapSelection.js: a Select Map dropdown, each map's description on its item.
+		var ml = page.get_node("%MapList")
+		check(ml is RtsoSafeSelect and ml.get_item_count() > 1 and ml.get_item_text(0) == "Random" and ml.get_item_tooltip(0) == "Pick any of the given maps at random.",
+			"Select Map is a dropdown: Random first, with its description")
 		# GameSettingControlSlider: Ceasefire, the victory durations, Relic Count and Sea
 		# Level Rise Time are sliders with their caption beside them.
 		var sliders: Array = ["CeasefireSlot", "WonderTimeSlot", "RelicTimeSlot", "RelicCountSlot", "SeaRiseSlot"].map(func(n): return page.get_node("%" + n).get_child(0))
@@ -192,7 +196,10 @@ func run() -> void:
 			"WaterLevelLabel", "WaterLevelSlot", "SeaRiseLabel", "SeaRiseSlot", "DaytimeLabel", "DaytimeSlot", "TriggerDifficultyLabel", "TriggerDifficultySlot"],
 			"Map tab: placement, landscape, biome, water, sea rise, daytime, difficulty")
 		check(names.call("MapVisRow").slice(0, 3) == ["ExploreMap", "RevealMap", "AlliedView"], "Explored, Revealed, Allied View")
-		check(names.call("VictoryTimesRow") == ["RelicCountLabel", "RelicCountSlot", "RelicLabel", "RelicTimeSlot", "WonderLabel", "WonderTimeSlot"]
+		var tab: Array = page.get_node("%GameTypeTab").get_children().map(func(c): return str(c.name))
+		check(tab.find("VictoryTimesRow") < tab.find("GameRow") and tab.find("GameRow") < tab.find("WonderRow") and names.call("GameRow") == ["RegicideGarrison"],
+			"Relic settings, then Hero Garrison, then Wonder Duration: " + str(tab))
+		check(names.call("VictoryTimesRow") == ["RelicCountLabel", "RelicCountSlot", "RelicLabel", "RelicTimeSlot"] and names.call("WonderRow") == ["WonderLabel", "WonderTimeSlot"]
 			and page.get_node("%RelicCountLabel").text == "Relic Count" and page.get_node("%RelicLabel").text == "Relic Duration"
 			and page.get_node_or_null("%VictoryLabel") == null, "Relic Count and Relic Duration apart, no Victory heading")
 		select_map(page, "random_mainland")
@@ -237,12 +244,13 @@ func run() -> void:
 	var msz: RtsoSafeSelect = node(page, "MapSizeSlot").get_child(0)
 	check(node(page, "MapSizeSlot").visible and msz.text == "Normal", "map size Normal: " + msz.text)
 	var vt: Control = node(page, "VictoryTimesRow")
+	var wr: Control = page.get_node("%WonderRow")
 	page._set_victory_mask(1)
-	check(not vt.visible, "no wonder or relic settings under Conquest")
+	check(not vt.visible and not wr.visible, "no wonder or relic settings under Conquest")
 	page._set_victory_mask(1 | 16)
-	check(vt.visible and vt.get_node("WonderTimeSlot").visible and not vt.get_node("RelicCountSlot").visible, "Wonder shows its duration only")
+	check(wr.visible and not vt.visible, "Wonder shows its duration only")
 	page._set_victory_mask(32)
-	check(vt.visible and not vt.get_node("WonderTimeSlot").visible and vt.get_node("RelicCountSlot").visible and vt.get_node("RelicTimeSlot").visible, "Capture the Relic shows its count and duration")
+	check(vt.visible and not wr.visible and vt.get_node("RelicCountSlot").visible and vt.get_node("RelicTimeSlot").visible, "Capture the Relic shows its count and duration")
 	page._set_victory_mask(1)
 	var civs: RtsoSafeSelect = slot_selects(page)[2]["civ"]
 	check(civs.get_selected() == 0 and civs.text == "Random", "a new slot is Random, listed first: " + civs.text)
