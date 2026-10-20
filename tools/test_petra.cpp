@@ -4676,7 +4676,8 @@ static void test_defend_allies() {
 	s->order_set_stance(foes.data(), foes.size(), STANCE_STAND_GROUND);
 	auto is_foe = [&](uint32_t id) { return std::find(foes.begin(), foes.end(), id) != foes.end(); };
 	int sent = 0, home = 0;
-	for (float t = 0.0f; t < 3.0f; t += Simulation::FIXED_STEP) {
+	// checkEnemyUnits looks at one player a turn: player 0's turn comes within 4 (3 players + Gaia).
+	for (float t = 0.0f; t < 7.0f; t += Simulation::FIXED_STEP) {
 		for (uint32_t id : foes) {
 			const int32_t f = s->lookup_unit(id);
 			if (f >= 0 && u.alive[f]) u.hp[f] = u.max_hp[f];
@@ -4753,7 +4754,8 @@ static void test_retake_civic_centre() {
 			if (f >= 0 && u.alive[f]) u.hp[f] = u.max_hp[f];
 		}
 	};
-	for (float t = 0.0f; t < 2.0f; t += Simulation::FIXED_STEP) { hold(); s->tick(Simulation::FIXED_STEP); }
+	// checkEnemyUnits looks at one player a turn: player 0's comes within 3 (2 players + Gaia).
+	for (float t = 0.0f; t < 5.0f; t += Simulation::FIXED_STEP) { hold(); s->tick(Simulation::FIXED_STEP); }
 	const size_t defenders = all_defenders(*s).size();
 	// The enemy takes the Town Center.
 	{
@@ -4763,7 +4765,7 @@ static void test_retake_civic_centre() {
 	}
 	bool lost = false, switched = false;
 	size_t squad = 0;
-	for (float t = 0.0f; t < 1.0f && !switched; t += Simulation::FIXED_STEP) {
+	for (float t = 0.0f; t < 9.0f && !switched; t += Simulation::FIXED_STEP) {
 		hold();
 		s->tick(Simulation::FIXED_STEP);
 		lost |= s->buildings()[s->building_id_to_idx_.at(tc_id)].team == 0;
