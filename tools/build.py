@@ -114,7 +114,11 @@ def build_macos_extension():
     else:
         # No macOS SDK on Linux: zig ships the libSystem headers and stubs, so
         # tools/zig-osxcross stands in for osxcross. One build per arch, then lipo.
+        root = REPO / "tools" / "zig-osxcross"
+        saved = root / ".zig-path"  # the zig found on an earlier run
         zig = os.environ.get("ZIG") or shutil.which("zig")
+        if not zig and saved.exists() and Path(saved.read_text().strip()).exists():
+            zig = saved.read_text().strip()
         if not zig:
             try:
                 import ziglang  # pip install ziglang
@@ -124,8 +128,7 @@ def build_macos_extension():
         lipo = shutil.which("llvm-lipo") or next((shutil.which(f"llvm-lipo-{v}") for v in range(25, 13, -1) if shutil.which(f"llvm-lipo-{v}")), None)
         if not lipo:
             sys.exit("macos: needs llvm-lipo (apt install llvm)")
-        root = REPO / "tools" / "zig-osxcross"
-        (root / ".zig-path").write_text(zig)  # SCons drops ZIG from the tools' environment
+        saved.write_text(zig)  # SCons drops ZIG from the tools' environment
         env = dict(os.environ, OSXCROSS_ROOT=str(root), ZIG=zig)
         parts = []
         for arch in ("arm64", "x86_64"):
@@ -238,8 +241,15 @@ def main():
         if status != 0:
             sys.exit(status)
 
+    imported = sum(f.stat().st_size for f in (REPO / ".godot" / "imported").rglob("*") if f.is_file())
     for t in targets:
         preset, out = PRESETS[t]
+        # Godot 4.3 exits 0 with a truncated pack when the disk fills mid-export,
+        # so refuse to start without room for one (macOS also zips it: twice that).
+        need = imported * (2 if t == "macos" else 1) + (1 << 30)
+        free = shutil.disk_usage(BUILD.parent).free
+        if free < need:
+            sys.exit(f"{preset}: needs ~{need >> 30} GB free to export, only {free >> 30} GB left")
         if t == "android":
             ensure_keystore()
             write_android_editor_settings(godot)

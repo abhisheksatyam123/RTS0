@@ -544,6 +544,13 @@ public:
 		AABB local;
 	};
 	void model_boxes(const std::vector<uint32_t> &ids, std::vector<ModelBoxes> &out) const;
+	// Structures whose models are shown (tests: Lock cull camera hides those outside it).
+	int shown_structures() const {
+		int n = 0;
+		for (const auto &kv : building_slot)
+			if (kv.second < building_pool.size() && building_pool[kv.second].root && building_pool[kv.second].root->is_visible()) ++n;
+		return n;
+	}
 	// StatusBars.js sprites drawn this frame (tests).
 	int status_sprite_count() const { return status_sprites_.sprite_count(); }
 	const PackedStringArray &status_rank_icons() const { return status_rank_icons_; } // drawn last frame (tests)
@@ -579,7 +586,7 @@ private:
 		int icons[8];
 		int n_icons = 0;
 	};
-	void status_aura_icons(float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const;
+	void status_aura_icons(uint32_t id, float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const;
 	PackedStringArray status_rank_icons_;
 	int status_xp_bars_ = 0;
 	void draw_status_stack(const rtso::Simulation *sim, const Vector3 &base, float width, float height, float metre, const StatusStack &st);

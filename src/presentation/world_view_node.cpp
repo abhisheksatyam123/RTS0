@@ -4039,8 +4039,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto uview = sim->units();
 	prefetch_unit_models(sim, uview, delta);
 	auto rview_g = sim->resources();
-	auto entity_visible = [sim, this](float x, float z, uint8_t team) {
-		return rtso::los_sees_unit(*sim, local_player_, x, z, team);
+	// Lock cull camera (GameView.cpp m_CullCamera): what lies outside the frozen frustum is
+	// not drawn, so moving the view camera shows what the cull camera culled.
+	const bool cull_locked = !locked_cull_frustum_.empty() && anim_cull_enabled_;
+	auto locked_out = [&](float x, float z, float radius) {
+		return cull_locked && !in_view(Vector3(x, sim->get_terrain_height(x, z), z), radius);
+	};
+	auto entity_visible = [&](float x, float z, uint8_t team) {
+		return rtso::los_sees_unit(*sim, local_player_, x, z, team) && !locked_out(x, z, 4.0f);
 	};
 	// template_unit_fauna.xml RetainInFog: an animal stays drawn where it is in explored fog
 	// (CCmpRangeManager VIS_FOGGED with no Fogging mirage), hidden only in unexplored land.
@@ -4322,7 +4328,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				}
 			}
 			if (!aura_icon_sources_.empty())
-				status_aura_icons(x, z, uview.team[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, false, st);
+				status_aura_icons(uview.id[i], x, z, uview.team[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, false, st);
 			if (bars || st.n_icons > 0) {
 				// The GLBs are in metres, so the model's scale is world units per metre.
 				const rtso::StatusBarsSize sb = unit_status_bars(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
@@ -4497,7 +4503,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (const auto &b : buildings) {
 		alive_buildings.insert(b.id);
 		BuildingVis &v = acquire_building_slot(b.id);
-		if (v.root) v.root->set_visible(true);
+		if (v.root) v.root->set_visible(!locked_out(b.x, b.z, b.half_size * 1.5f + 4.0f));
 
 		uint8_t bciv = b.civ;
 		const String mid = building_visual_id(bciv, b.type, b.half_size);
@@ -4715,7 +4721,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 					}
 				}
 			}
-			if (!aura_icon_sources_.empty()) status_aura_icons(b.x, b.z, b.team, rtso::CIV_UNIT_TEMPLATE_NONE, true, st);
+			if (!aura_icon_sources_.empty()) status_aura_icons(b.id, b.x, b.z, b.team, rtso::CIV_UNIT_TEMPLATE_NONE, true, st);
 			if (bars || st.n_icons > 0) {
 				// In the model's metres (its actor frame), as the GLBs are not drawn 1 unit = 4 m.
 				float m = 0.25f;
@@ -5166,12 +5172,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 // The icons of the shown auras (aura_icon_sources_) reaching an entity of `team` at
 // (x, z): a unit of roster row tmpl the aura affects, or a structure when the aura
-// names the Structure class. Each icon once.
-void RtsoWorldView::status_aura_icons(float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const {
+// names the Structure class. Each icon once. A range aura's query leaves its own source
+// out (Auras.js CreateActiveQuery), so a hero doesn't wear its own range aura's icon.
+void RtsoWorldView::status_aura_icons(uint32_t id, float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const {
 	const uint16_t bit = rtso::aura_player_bit(team);
 	for (const AuraIconSource &a : aura_icon_sources_) {
 		const rtso::AuraSource &s = *a.src;
 		if (!(s.affected & bit)) continue;
+		if (s.source_id == id && rtso::civ_hero_aura(s.aura).radius > 0.0f) continue;
 		if (structure ? !rtso::civ_hero_aura(s.aura).structures : !rtso::civ_aura_affects(s.aura, tmpl)) continue;
 		const float dx = x - s.x, dz = z - s.z;
 		if (dx * dx + dz * dz > s.range * s.range) continue;
