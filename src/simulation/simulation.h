@@ -2321,6 +2321,10 @@ public:
 	// unit_actions.js "heal" firstAbleEntity: the first of unit_ids that heals and may heal the unit
 	// target_id (Heal.js CanHeal: an injured own or allied Human, not itself), else 0.
 	uint32_t first_able_healer(const uint32_t *unit_ids, size_t count, uint32_t target_id) const;
+	// unit_actions.js "guard": may one of unit_ids guard the unit or structure target_id (UnitAI
+	// CanGuard, not itself, its own player's or an ally's)?
+	bool any_can_guard(const uint32_t *unit_ids, size_t count, uint32_t target_id) const;
+	bool unit_can_guard(size_t i) const;
 	void tick_scenery_capture(); // Capturable.js TimerTick: territory decay, then regeneration
 	void scenery_check_owner(Scenery &sc); // RegisterCapturePointsChanged
 	float unit_damage_to_scenery(size_t i) const;
