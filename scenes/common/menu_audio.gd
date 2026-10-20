@@ -12,8 +12,8 @@ extends Node
 ## no music calls; only the main menu sets MENU), so the match's track keeps
 ## playing onto the summary until the main menu. The session hands its track and
 ## position over through MatchSettings.match_music (quit_confirmation end_game);
-## the summary resumes it here and it loops that track (0.28 would continue the
-## playlist; the rest of it is the session's). Leaving the summary for anywhere
+## the summary resumes it here and carries on through the rest of the session's
+## playlist, looping, as 0.28's global music object would. Leaving the summary for anywhere
 ## but the main menu keeps it playing, as 0.28's global music object does.
 ##
 ## Clicks: every button, slider, dropdown and tab outside a match plays
@@ -57,48 +57,36 @@ func _ready() -> void:
 ## music.js setState(MENU): starts the menu playlist unless it is already playing.
 ## A resumed match track stops first: the main menu always plays MENU (MainMenuPage.js).
 func play_menu_music() -> void:
-	if _track >= 0:
+	if _track >= 0 and _match_track.is_empty():
 		return
 	_music.stop()
 	_match_track = ""
-	if _music.finished.is_connected(_replay_match_track):
-		_music.finished.disconnect(_replay_match_track)
-	if not _music.finished.is_connected(_next_track):
-		_music.finished.connect(_next_track)
 	var rest := MENU_TRACKS.slice(1)
 	rest.shuffle()
 	_playlist = [MENU_TRACKS[0]] + rest
 	_track = -1
 	_next_track()
 
-## The session's track, resumed onto the summary with its position: it loops there
+## The session's track, resumed onto the summary with its position, then the rest
+## of the session's playlist (`playlist`, from the current track on), looping,
 ## until the main menu (or a new match) stops it.
-func play_match_track(track: String, position: float) -> void:
+func play_match_track(track: String, position: float, playlist: Array = []) -> void:
 	if track.is_empty():
 		return
 	if _match_track == track and _music.playing:
 		return
-	_track = -1
-	_playlist = []
+	_playlist = playlist.duplicate() if not playlist.is_empty() and str(playlist[0]) == track else [track]
+	_track = 0
 	_match_track = track
-	if _music.finished.is_connected(_next_track):
-		_music.finished.disconnect(_next_track)
-	if not _music.finished.is_connected(_replay_match_track):
-		_music.finished.connect(_replay_match_track)
 	var stream = load(MUSIC_PATH + track) if ResourceLoader.exists(MUSIC_PATH + track) else null
 	if stream == null:
-		_match_track = ""
+		stop_music()
 		return
 	_music.stream = stream
 	_music.play(position)
 
-func _replay_match_track() -> void:
-	if _match_track.is_empty():
-		return
-	_music.play()
-
 func match_music_track() -> String:
-	return _match_track if _music.playing else ""
+	return _playlist[_track] if not _match_track.is_empty() and _track >= 0 and _music.playing else ""
 
 func stop_music() -> void:
 	_track = -1
@@ -107,7 +95,7 @@ func stop_music() -> void:
 	_music.stop()
 
 func menu_music_track() -> String:
-	return _playlist[_track] if _track >= 0 and _music.playing else ""
+	return _playlist[_track] if _track >= 0 and _match_track.is_empty() and _music.playing else ""
 
 func _next_track() -> void:
 	if _playlist.is_empty():

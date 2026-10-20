@@ -148,6 +148,15 @@ public:
 		locked_ = !tracks.empty();
 	}
 	godot::String current_track() const { return current_name_; }
+	// The playlist from the current track on, wrapping (the summary carries it on).
+	std::vector<std::string> playlist_from_current() const {
+		std::vector<std::string> out;
+		size_t at = index_;
+		for (size_t i = 0; i < playlist_.size(); ++i)
+			if (godot::String::utf8(playlist_[i].c_str()) == current_name_) at = i;
+		for (size_t i = 0; i < playlist_.size(); ++i) out.push_back(playlist_[(at + i) % playlist_.size()]);
+		return out;
+	}
 	// Playback position of the current track in seconds (tests, summary handoff).
 	float current_position() const {
 		godot::AudioStreamPlayer *cur = players_[cur_];
