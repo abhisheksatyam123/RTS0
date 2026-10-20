@@ -30,7 +30,7 @@ bool los_sees_all(const Simulation &sim, uint8_t viewer);
 bool los_sees_unit(const Simulation &sim, uint8_t viewer, float x, float z, uint8_t team);
 // An animal the viewer sees: template_unit_fauna.xml RetainInFog keeps it shown, picked and
 // ordered on in explored fog (VIS_FOGGED), hidden only where the viewer never explored.
-bool los_sees_fauna(const Simulation &sim, uint8_t viewer, float x, float z, uint8_t owner);
+bool los_sees_fauna(const Simulation &sim, uint8_t viewer, float x, float z, uint8_t owner, uint8_t ftype);
 
 // A structure as the viewer knows it: live when in sight, a mirage when fogged.
 struct FoggedBuilding {

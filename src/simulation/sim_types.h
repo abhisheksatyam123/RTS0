@@ -3542,4 +3542,10 @@ enum FaunaBehavior : uint8_t {
 
 #include "gaia_data.h"
 
+namespace rtso {
+// Visibility/RetainInFog: template_unit_fauna keeps a Gaia animal seen and targetable in explored
+// fog; the corral's gaia/fauna_*_trainable livestock sets it false and shows only in sight.
+inline bool fauna_retained_in_fog(uint8_t ftype) { return !(fauna_type_info(ftype).flags & FAUNA_F_TRAINABLE); }
+} // namespace rtso
+
 #endif
