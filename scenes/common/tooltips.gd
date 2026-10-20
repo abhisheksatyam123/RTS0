@@ -45,7 +45,7 @@ var _owner: Control
 var _text := ""
 var _hover_time := 0.0
 var _ref: Dictionary = {} # the hovered page's REFERENCE_STYLES entry, empty for the menu/session styles
-var _BBCODE := RegEx.create_from_string("\\[/?(b|i|u|color|img|font_size)[^\\]]*\\](?:[^\\[]*\\[/img\\])?")
+var _BBCODE := RegEx.create_from_string("\\[/?(b|i|u|color|img|font_size|font)[^\\]]*\\](?:[^\\[]*\\[/img\\])?")
 
 func _ready() -> void:
 	layer = 128
@@ -87,7 +87,7 @@ static func plain(text: String) -> String:
 	var icon := RegEx.create_from_string("\\[img[^\\]]*\\][^\\[]*/(\\w+)_small\\.png\\[/img\\]")
 	for m in icon.search_all(t):
 		t = t.replace(m.get_string(), m.get_string(1).capitalize())
-	t = RegEx.create_from_string("\\[/?(b|i|u|color|font_size)[^\\]]*\\]").sub(t, "", true)
+	t = RegEx.create_from_string("\\[/?(b|i|u|color|font_size|font)[^\\]]*\\]").sub(t, "", true)
 	return t.replace("[lb]", "[").replace("[rb]", "]")
 
 ## The style shown now, for tests: {"bold", "bottom", "rect"}.
