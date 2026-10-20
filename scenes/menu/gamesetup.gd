@@ -2303,6 +2303,7 @@ func _build_net_controls() -> void:
 	_ready_btn.name = "BtnReady"
 	_ready_btn.custom_minimum_size = Vector2(0, 48)
 	_ready_btn.pressed.connect(_on_ready_pressed)
+	_ready_btn.gui_input.connect(_on_ready_gui_input)
 	_ready_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	start.get_parent().add_child(_ready_btn)
 	start.get_parent().move_child(_ready_btn, start.get_index())
@@ -2539,13 +2540,24 @@ func _update_net_controls() -> void:
 	var ready := clampi(int(_net_state.get("ready", 0)), 0, 2)
 	_ready_btn.text = READY_CAPTIONS[ready]
 	_ready_btn.tooltip_text = READY_TOOLTIPS[ready]
-	# An observer has nothing to be ready for.
-	_ready_btn.disabled = int(_net_state.get("my_slot", -1)) < 0
+	# ReadyButton.onPlayerAssignmentsChange: hidden for an unassigned client (an observer).
+	_ready_btn.visible = int(_net_state.get("my_slot", -1)) >= 0
 
 func _on_ready_pressed() -> void:
 	if _mp_role != "client":
 		return
-	net_main.set_net_ready((clampi(int(_net_state.get("ready", 0)), 0, 2) + 1) % 3)
+	_set_ready((clampi(int(_net_state.get("ready", 0)), 0, 2) + 1) % 3)
+
+## ReadyButton.onPressRight: a right-click always means "not ready".
+func _on_ready_gui_input(event: InputEvent) -> void:
+	var mb := event as InputEventMouseButton
+	if mb and mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed and _mp_role == "client" \
+			and _ready_btn.visible and int(_net_state.get("ready", 0)) != 0:
+		_set_ready(0)
+		_ready_btn.accept_event()
+
+func _set_ready(state: int) -> void:
+	net_main.set_net_ready(state)
 	_net_state = net_main.get_net_setup_state()
 	refresh_slots()
 	_update_net_controls()
