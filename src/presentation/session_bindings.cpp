@@ -224,6 +224,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
 	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count", "player", "near"), &RtsoMain::debug_spawn_units, DEFVAL(-1), DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("debug_complete_research", "player", "tech"), &RtsoMain::debug_complete_research);
+	ClassDB::bind_method(D_METHOD("debug_set_capture_points", "building_id", "player", "points"), &RtsoMain::debug_set_capture_points);
+	ClassDB::bind_method(D_METHOD("debug_capture_points", "building_id"), &RtsoMain::debug_capture_points);
 	ClassDB::bind_method(D_METHOD("debug_spawn_offset", "template_id", "count", "player"), &RtsoMain::debug_spawn_offset, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("debug_spawn_fauna", "fauna_type", "count", "owned", "dx", "dz"), &RtsoMain::debug_spawn_fauna, DEFVAL(16.0f), DEFVAL(16.0f));
 	ClassDB::bind_method(D_METHOD("debug_spawn_mine", "x", "z", "max_gatherers"), &RtsoMain::debug_spawn_mine);

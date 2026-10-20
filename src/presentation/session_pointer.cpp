@@ -359,6 +359,8 @@ void RtsoMain::update_cursor() {
 						const StructureClick c = structure_click(b.id);
 						want = c == CLICK_CAPTURE ? "action-capture" : c == CLICK_ATTACK ? "action-attack" : "";
 					}
+					// "capture" (10) recaptures an own, allied or neutral structure an enemy holds points of.
+					else if (!hold_garrison && !hold_turret && structure_click(b.id) == CLICK_CAPTURE) want = "action-capture";
 					else if (b.team != me && !sim->is_ally(me, b.team)) want = ""; // neutral
 					// unit_actions "repair" needs a builder; without one "move" wins: no cursor.
 					else if (sel_builder && (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me))) want = "action-build";
