@@ -180,7 +180,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 104; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 105; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_TARGET_LIST = 105; // each Petra's defenseManager targetList
 	static constexpr uint32_t SAVE_VERSION_WAGON_SHARING = 103; // the supply wagons their owners locked
 	static constexpr uint32_t SAVE_VERSION_PETRA_TARGETED_RELICS = 104; // each Petra's targetedGaiaRelics; each structure's petra_decay_hold
 	static constexpr uint32_t SAVE_VERSION_AUTOQUEUE_BATCH = 102; // each queued batch's original size once part of it spawned
@@ -3502,6 +3503,10 @@ private:
 	// 10th turn until their owner changes. `sent` once a plan has gone for it (plans.length).
 	struct PetraTargetedRelic { uint32_t relic = 0; uint32_t sent = 0; };
 	std::vector<PetraTargetedRelic> petra_targeted_relics_;
+	// defenseManager.js targetList: enemy structures seen being built in our territory, or
+	// enemy civic centres going up near our structures; kept until gone or no longer an enemy's.
+	struct PetraDefenseTargets { std::vector<uint32_t> ids; }; // sorted
+	PetraDefenseTargets petra_defense_targets_;
 	void petra_check_trade_events();
 	void petra_set_no_room(uint8_t type);
 	bool petra_no_room(uint8_t type) const;
@@ -3896,7 +3901,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_defense_targets_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
