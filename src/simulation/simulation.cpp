@@ -26903,6 +26903,9 @@ std::unordered_set<uint32_t> Simulation::petra_launched_units() const {
 bool Simulation::petra_builder_worker(size_t i, const std::unordered_set<uint32_t> &launched) const {
 	const uint8_t g = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
 	if ((g != GATHER_INFANTRY && g != GATHER_SUPPORT) || !unit_builds(i)) return false;
+	// Soldiers trained for an attack carry no "worker" role (attackPlan.js trainMoreUnits
+	// metadata), so they are none of the base's workers.
+	if (!petra_is_worker(i)) return false;
 	const uint32_t uid = units_.id[i];
 	return uid != petra_scout_unit_id_ && !launched.count(uid) && !petra_is_defender(uid);
 }
