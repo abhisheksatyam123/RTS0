@@ -24923,9 +24923,10 @@ bool Simulation::petra_build_new_base(int res) {
 		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && petra_base_anchor_type(b.type) && b.build_progress < 1.0f)
 			return false;
 	const uint8_t civ = petra_ps().civ;
+	// canBuild: not while a search found no room for it in the last 90 s.
 	auto can_build = [&](uint8_t t) {
 		return civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
-		       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
+		       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t) && !petra_no_room(t);
 	};
 	// hasOwnCC: a civil centre of our own civ (it may allow specific units or techs); a captured
 	// one of another civ does not count (headquarters.js:1566).
@@ -24949,6 +24950,9 @@ bool Simulation::petra_build_new_base(int res) {
 		if (can_build(BLD_DOCK) && petra_ps().food() >= f && petra_ps().wood() >= wd &&
 		    petra_ps().gold() >= g && petra_ps().stone() >= st)
 			petra_build_oversea_dock();
+		// queueplanBuilding.js start: the plan with no position sets its template unbuildable
+		// for 90 s ("room").
+		petra_set_no_room(btype);
 		return false;
 	}
 	const BuildingTypeInfo &info = building_type_info(btype);
