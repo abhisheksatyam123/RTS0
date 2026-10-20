@@ -12212,6 +12212,7 @@ void Simulation::abandon_chase(size_t i) {
 	units_.target_unit_id[i] = 0;
 	units_.target_x[i] = units_.pos_x[i];
 	units_.target_z[i] = units_.pos_z[i];
+	units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_CHEER; // ShouldAbandonChase skips FINDINGNEWTARGET
 	if (own) finish_order(i);
 }
 
@@ -13788,6 +13789,8 @@ void Simulation::tick_combat(float dt) {
 		const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i], units_.tmpl[i]);
 		const bool in_range = in_parabolic_range(d2, att_y, def_y, attack_reach(i)) && d2 >= minr * minr; // Attack.js MinRange
 		if (!in_range && range_check_due(i, dt)) stop_attack(i);
+		// COMBAT.ATTACKING enter: attacking a unit sets shouldCheer, whoever lands the kill.
+		if (in_range) units_.order_flags[i] |= ORDER_FLAG_CHEER;
 		if (!attack_ready(i, in_range, unit_combat_at(i).prepare)) continue;
 
 		attack_done(i, in_range, unit_repeat_time(i));
@@ -13945,6 +13948,7 @@ void Simulation::tick_combat(float dt) {
 
 		const bool in_range = capture ? eff_d <= CAPTURE_RANGE
 				: in_parabolic_range(eff_d * eff_d, att_y, bld_y, attack_reach(i));
+		if (in_range) units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_CHEER; // a structure has no UnitAI: no cheer
 		if (!in_range) {
 			// Move toward building if out of range
 			stand_outside(b, units_.id[i],
@@ -17948,7 +17952,7 @@ void Simulation::tick_unit_ai(float dt) {
 			continue;
 		}
 		if (now == ACTION_ATTACK && units_.target_unit_id[i] == 0 && units_.target_building_id[i] == 0) {
-			// COMBAT.FINDINGNEWTARGET: queued orders first, then cheer if the unit killed its target.
+			// COMBAT.FINDINGNEWTARGET: queued orders first, then cheer if the unit was attacking a unit.
 			const bool cheer = (units_.order_flags[i] & ORDER_FLAG_CHEER) != 0;
 			units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_CHEER;
 			if (interrupted) resume_order(i);
@@ -18695,7 +18699,7 @@ void Simulation::tick_repair_unit(size_t i) {
 	units_.vel_x[i] = units_.vel_z[i] = 0.0f;
 }
 
-// UnitAI CHEERING: CheeringTime standing still after a kill; idle units of the same
+// UnitAI CHEERING: CheeringTime standing still after a fight (template_unit.xml, siege and ships too); idle units of the same
 // player within notifyToCheerInRange cheer too (CallPlayerOwnedEntitiesFunctionInRange).
 void Simulation::start_cheer(size_t i) {
 	auto cheer = [&](size_t k) {
@@ -18708,7 +18712,7 @@ void Simulation::start_cheer(size_t i) {
 	const uint8_t team = units_.team[i];
 	for (size_t k = 0; k < units_.count; ++k) {
 		if (k == i || !units_.alive[k] || units_.team[k] != team || units_.action_state[k] != ACTION_IDLE ||
-				units_.order_kind[k] != ORDER_NONE || unit_is_siege_engine(units_.unit_type[k]) || unit_is_ship(units_.unit_type[k]))
+				units_.order_kind[k] != ORDER_NONE)
 			continue;
 		const float dx = units_.pos_x[k] - units_.pos_x[i], dz = units_.pos_z[k] - units_.pos_z[i];
 		if (dx * dx + dz * dz <= CHEER_NOTIFY_RANGE * CHEER_NOTIFY_RANGE) cheer(k);
@@ -18718,7 +18722,6 @@ void Simulation::start_cheer(size_t i) {
 void Simulation::note_kill(uint32_t killer_id, uint32_t victim_id) {
 	const int32_t k = lookup_unit(killer_id);
 	if (k < 0 || !units_.alive[k] || units_.target_unit_id[k] != victim_id) return;
-	if (unit_is_siege_engine(units_.unit_type[k]) || unit_is_ship(units_.unit_type[k])) return; // no CheeringTime
 	units_.order_flags[k] |= ORDER_FLAG_CHEER;
 }
 
@@ -33897,7 +33900,7 @@ void Simulation::award_fauna_xp(size_t i, size_t f, float damage) {
 }
 
 // Animal f killed by unit i: the carcass becomes a meat supply (fish for a whale), and
-// everyone hunting it goes on: gatherers to the carcass, the killer of a dangerous animal
+// everyone hunting it goes on: gatherers to the carcass, fighters of a dangerous animal
 // to a cheer.
 uint32_t Simulation::spawn_carcass(size_t f) {
 	if (fauna_.food_amount[f] <= 0) return 0;
@@ -33914,7 +33917,7 @@ uint32_t Simulation::spawn_carcass(size_t f) {
 	return rid;
 }
 
-void Simulation::fauna_killed(size_t f, size_t i) {
+void Simulation::fauna_killed(size_t f, size_t /*killer*/) {
 	const size_t n = units_.count;
 	const auto &finfo = fauna_type_info(fauna_.fauna_type[f]);
 	const uint32_t tid = fauna_.id[f];
@@ -33930,9 +33933,8 @@ void Simulation::fauna_killed(size_t f, size_t i) {
 		if (rid != 0 && carry_cap(h, RES_FOOD) > 0 &&
 				!(units_.order_flags[h] & ORDER_FLAG_INTERRUPTED)) {
 			order_gather(&units_.id[h], 1, rid, false, false);
-		} else if (h == i && finfo.is_dangerous() && !unit_is_siege_engine(units_.unit_type[h]) &&
-				!unit_is_ship(units_.unit_type[h])) {
-			// shouldCheer: killing a dangerous animal is cheered like a kill in battle;
+		} else if (finfo.is_dangerous()) {
+			// shouldCheer: fighting a dangerous animal is cheered like a fight in battle, whoever killed it;
 			// COMBAT.FINDINGNEWTARGET in tick_unit_ai goes on from here.
 			units_.order_flags[h] |= ORDER_FLAG_CHEER;
 			units_.action_state[h] = ACTION_ATTACK;

@@ -3327,6 +3327,24 @@ static void test_defeated_units_reset() {
 	check(s.units().stance[i] == unit_default_stance(UNIT_SPEARMAN, s.units().tmpl[i]), "its stance is the template default again");
 }
 
+static void test_all_attackers_cheer() {
+	std::printf("93. every unit attacking a unit cheers when it falls, siege engines too (shouldCheer)\n");
+	Simulation s;
+	setup(s);
+	uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+	uint32_t b = s.spawn_unit(0, 3, 0, UNIT_SWORDSMAN);
+	uint32_t bolt = s.spawn_unit(-6, 0, 0, UNIT_BOLT_SHOOTER);
+	s.order_set_stance(&bolt, 1, STANCE_PASSIVE); // stays idle rather than unpacking to shoot
+	uint32_t e = s.spawn_unit(2, 1, 1, UNIT_SPEARMAN, 1.0f);
+	s.order_set_stance(&e, 1, STANCE_PASSIVE);
+	uint32_t both[2] = {a, b};
+	s.order_attack(both, 2, e);
+	check(run_until(s, 10.0f, [&] { return !alive(s, e); }), "the two swordsmen kill the enemy");
+	check(run_until(s, 1.0f, [&] { return act_of(s, a) == ACTION_CHEER && act_of(s, b) == ACTION_CHEER; }),
+			"both cheer, not only the one that landed the kill");
+	check(act_of(s, bolt) == ACTION_CHEER, "an idle bolt shooter nearby cheers too");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3423,6 +3441,7 @@ int main(int argc, char **argv) {
 	test_forced_treasure_and_return();
 	test_status_tick_guards();
 	test_defeated_units_reset();
+	test_all_attackers_cheer();
 	test_range_aura_not_self();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
