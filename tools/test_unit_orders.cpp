@@ -3679,6 +3679,38 @@ static void test_cant_do_walks() {
 			"the loaded one returns, the empty-handed one walks to the storehouse");
 }
 
+static void test_walk_to_target() {
+	std::printf("100. Repair, Heal and Guard walk the units that can't do the task to the target (UnitAI WalkToTarget)\n");
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(0.0f, -30.0f, BLD_TOWN_CENTER, 0, 1.0f); // territory
+	const uint32_t house = s.spawn_building_world(20.0f, 0.0f, BLD_HOUSE, 0, 0.5f); // a foundation
+	uint32_t pair[2] = {s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN), s.spawn_unit(0, 3, 0, UNIT_CAVALRY)};
+	s.order_build_or_repair(pair, 2, house, false, true);
+	check(s.unit_order(pair[0]).kind == ORDER_BUILD, "the woman builds");
+	check(s.unit_order(pair[1]).kind == ORDER_WALK, "the horseman walks there");
+	run(s, 8.0f);
+	const Simulation::Building *hb = bld(s, house);
+	check(dist(s, pair[1], hb->x, hb->z) < hb->half_size + 4.0f, "beside the house");
+	uint32_t pair2[2] = {s.spawn_unit(-10, 0, 0, UNIT_FEMALE_CITIZEN), s.spawn_unit(-10, 3, 0, UNIT_CAVALRY)};
+	s.order_build_or_repair(pair2, 2, house, false, false); // not forced: an automatic follow-up
+	check(s.unit_order(pair2[1]).kind == ORDER_NONE, "an automatic repair walks nobody");
+
+	const uint32_t hurt = s.spawn_unit(-30, 20, 0, UNIT_SPEARMAN);
+	s.units_.hp[idx_of(s, hurt)] *= 0.5f;
+	uint32_t heal_pair[2] = {s.spawn_unit(-30, -10, 0, UNIT_HEALER), s.spawn_unit(-28, -10, 0, UNIT_SPEARMAN)};
+	s.order_heal(heal_pair, 2, hurt, false);
+	check(s.unit_order(heal_pair[0]).kind == ORDER_HEAL, "the healer heals");
+	check(s.unit_order(heal_pair[1]).kind == ORDER_WALK && s.unit_order(heal_pair[1]).target == hurt,
+			"the spearman walks after the wounded man");
+
+	const uint32_t trader = s.spawn_unit(10, 20, 0, UNIT_TRADER); // no CanGuard
+	s.order_guard(&trader, 1, hurt, false);
+	check(s.unit_order(trader).kind == ORDER_WALK && s.unit_order(trader).target == hurt, "a trader told to guard walks to him");
+	run(s, 15.0f);
+	check(dist(s, trader, x_of(s, hurt), z_of(s, hurt)) < 4.0f, "and reaches him");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3786,6 +3818,7 @@ int main(int argc, char **argv) {
 	test_rally_on_animal();
 	test_heal_click_targets();
 	test_guard_click_targets();
+	test_walk_to_target();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
