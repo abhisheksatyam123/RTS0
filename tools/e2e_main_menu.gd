@@ -55,6 +55,21 @@ func run() -> void:
 	check(cont.get_index() == btns.get_node("BtnLearn").get_index() + 1 and cont.disabled == (CampaignRun.current_run() == null),
 		"Continue Campaign after Learn to Play, enabled only with a campaign run")
 
+	print("1b. Project information")
+	var info: Control = menu.get_node_or_null("MainPanel/ProjectInformation")
+	check(info != null and info.get_index() < btns.get_index(), "ProjectInformation's panel, under the menu buttons")
+	check(menu.community_buttons.map(func(b): return b.text) == ["Website", "Chat", "Report a Bug", "FAQ", "Translate the Game", "Donate"],
+		"the six community buttons")
+	check(str(menu.get_node("MainPanel/ProjectInformation/ProductDescription").text).contains("Release XXVIII: Boiorix"), "the release line")
+	check(str(menu.get_node("MainPanel/ProductBuild").text).begins_with("Build: "), "the build string: " + str(menu.get_node("MainPanel/ProductBuild").text))
+	menu.community_buttons[0].pressed.emit()
+	await frames(2)
+	var url_box: Node = menu.find_child("MsgBox", true, false)
+	check(menu.opened_url == "https://play0ad.com/" and url_box != null and url_box.title == "Opening page", "Website opens play0ad.com, saying so")
+	if url_box:
+		url_box._answer(0)
+	await frames(2)
+
 	print("2. Submenus")
 	var learn: Array = items(menu, "learn").map(func(b): return b.text)
 	check(learn.has("Structure Tree") and learn.has("Map Overview"), "Learn to Play: " + str(learn))
