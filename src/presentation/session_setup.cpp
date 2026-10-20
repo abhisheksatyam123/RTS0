@@ -481,6 +481,15 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		if (holder < 0 || holder >= (int)unit_ids.size() || !unit_ids[i] || !unit_ids[holder]) continue;
 		sim->order_board_transport(&unit_ids[i], 1, unit_ids[holder]);
 	}
+	// The map's Gaia catafalques (relics), each its own civ's ("civ"; -1 picks one from the id).
+	Array relics_arr = d.get("relics", Array());
+	for (int i = 0; i < relics_arr.size(); ++i) {
+		Dictionary r = relics_arr[i];
+		const int civ = (int)r.get("civ", -1);
+		// spawn_relic takes the index playable_civ() maps to the civ.
+		const int pick = rtso::is_playable_civ(civ) ? (civ < rtso::CIV_GAIA ? civ : civ - 1) : -1;
+		sim->spawn_relic((float)r.get("x", 0.0), (float)r.get("z", 0.0), pick);
+	}
 	// Gaia-owned units: 0 A.D. template ("gaul/infantry_javelineer_a"), its rank, and the
 	// Gaia ship or structure it starts in.
 	Array gaia_units_arr = d.get("gaia_units", Array());
