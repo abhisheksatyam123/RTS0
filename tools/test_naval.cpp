@@ -421,8 +421,15 @@ static void test_transport() {
 	// Out at sea there is no shore to unload onto: everyone stays aboard.
 	s.cmd_move(&arrow, 1, -20.0f, 0.0f);
 	run(s, 8.0f);
-	s.order_disembark_all(arrow);
+	s.take_session_notices();
+	s.order_disembark_all(arrow, 0);
 	CHECK(s.get_transport_passenger_count(arrow) == 2);
+	{
+		// Commands.js "unload-all": notifyUnloadFailure, "Unable to unload unit(s)."
+		const auto notes = s.take_session_notices();
+		CHECK(notes.size() == 1 && notes[0].kind == Simulation::SessionNotice::TEXT &&
+		      notes[0].tech == Simulation::SessionNotice::TEXT_UNLOAD_FAILED && notes[0].player == 0);
+	}
 
 	// Sunk at sea: everyone drowns.
 	s.units_.hp[idx(s, arrow)] = 0.0f;
@@ -715,10 +722,29 @@ static void test_turret_leave_spot() {
 	const uint32_t w2 = t.spawn_building_world(0.0f, 30.0f, BLD_WALL_SEGMENT, 0, 1.0f);
 	const uint32_t a = t.spawn_unit(0.0f, 30.0f, 0, UNIT_ARCHER);
 	CHECK(t.garrison_unit_now(a, w2) && t.turret_holder_of(a) == w2);
+	// Commands.js notifyUnloadFailure: "leave-turret" and "unload-turrets" each tell the player.
+	auto unload_failed = [&]() {
+		const auto notes = t.take_session_notices();
+		int n = 0;
+		for (const auto &nt : notes)
+			n += nt.kind == Simulation::SessionNotice::TEXT && nt.tech == Simulation::SessionNotice::TEXT_UNLOAD_FAILED &&
+			     nt.player == 0;
+		return n == 1;
+	};
+	t.take_session_notices();
 	t.cmd_leave_turret(0, &a, 1);
+	CHECK(unload_failed());
+	t.cmd_unload_turrets(0, w2);
+	CHECK(unload_failed());
 	t.cmd_unload(0, w2, &a, 1);
 	std::printf("  an archer on a wall with nowhere to step down: %s\n", t.turret_holder_of(a) == w2 ? "stays up" : "came down");
 	CHECK(t.turret_holder_of(a) == w2);
+	// One that does come down posts nothing.
+	s.take_session_notices();
+	CHECK(s.garrison_unit_now(men[0], wall));
+	s.cmd_unload_turrets(0, wall);
+	CHECK(s.turret_holder_of(men[0]) == 0);
+	for (const auto &nt : s.take_session_notices()) CHECK(nt.tech != Simulation::SessionNotice::TEXT_UNLOAD_FAILED);
 }
 
 // A task walk's line is tested on every navcell it passes through, as CheckLineMovement walks
@@ -1407,6 +1433,70 @@ static void test_petra_transport_wrong_land() {
 	CHECK(landed >= (int)aboard && on_islet == 0);
 }
 
+// navalManager.checkEvents: survivors of a ship sunk while sailing, set down on two lands (the
+// north shore and the islet), each ask for a transport (requireTransport) and all reach the
+// destination.
+static void test_petra_sunk_survivors_two_lands() {
+	static Simulation s;
+	fresh(s, islet_height_at);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t first = s.spawn_unit(-20.0f, 12.0f, 1, UNIT_TRIREME);
+	s.spawn_unit(30.0f, 8.0f, 1, UNIT_TRIREME);
+	s.spawn_unit(34.0f, 8.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 4; ++k) crew.push_back(s.spawn_unit(-24.0f + 2.0f * k, 26.0f, 1, UNIT_SPEARMAN));
+	run(s, 0.5f);
+	const uint16_t south = s.petra_land_at(-20.0f, -40.0f), islet = s.petra_land_at(-30.0f, 0.0f), north = s.petra_land_at(-30.0f, 30.0f);
+	CHECK(s.petra_start_transport(crew, -20.0f, 30.0f, -20.0f, -40.0f, 0, PETRA_TRANSPORT_ATTACK));
+	for (int k = 0; k < 120 && !(s.petra_transport_plans().size() == 1 && s.petra_transport_plans()[0].state == PetraTransportPlan::SAILING); ++k)
+		run(s, 0.5f);
+	const size_t aboard = s.get_transport_passenger_count(first);
+	const int32_t fi = idx(s, first);
+	s.units_.pos_x[fi] = -30.0f;
+	s.units_.pos_z[fi] = 13.0f;
+	s.cmd_delete(1, &first, 1);
+	s.tick(Simulation::FIXED_STEP);
+	// Two swam to the islet, the others back to the north shore.
+	int n = 0;
+	for (uint32_t uid : crew) {
+		const int32_t i = idx(s, uid);
+		if (i < 0 || !s.units().alive[i]) continue;
+		const bool to_islet = n++ < 2;
+		s.units_.pos_x[i] = to_islet ? -30.0f + (float)n : -30.0f + (float)n;
+		s.units_.pos_z[i] = to_islet ? 0.0f : 28.0f;
+		s.units_.target_x[i] = s.units_.pos_x[i];
+		s.units_.target_z[i] = s.units_.pos_z[i];
+	}
+	int on_islet = 0, on_north = 0;
+	for (uint32_t uid : crew) {
+		const int32_t i = idx(s, uid);
+		if (i < 0 || !s.units().alive[i]) continue;
+		const uint16_t land = s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]);
+		on_islet += land == islet;
+		on_north += land == north;
+	}
+	// Each counts once it stands on the south land (as workers they may be ferried home again).
+	std::vector<uint32_t> reached;
+	for (int k = 0; k < 240 && reached.size() < crew.size(); ++k) {
+		run(s, 0.5f);
+		for (uint32_t uid : crew) {
+			const int32_t i = idx(s, uid);
+			if (i >= 0 && s.units().alive[i] && s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south &&
+			    std::find(reached.begin(), reached.end(), uid) == reached.end())
+				reached.push_back(uid);
+		}
+	}
+	const int landed = (int)reached.size();
+	std::printf("Petra survivors on two lands: %zu aboard, %d on the islet, %d on the north shore, %d landed south\n", aboard, on_islet,
+	            on_north, landed);
+	CHECK(aboard == 4 && on_islet == 2 && on_north == 2);
+	CHECK(landed == 4);
+}
+
 // transportPlan.js never leaves units aboard: an idle ship of Petra's carrying units outside any
 // transport plan (one boarded after its plan gave up) sets them down on the shore.
 static void test_petra_laden_ship_lands() {
@@ -1937,6 +2027,27 @@ static void test_gather_around_lake() {
 // navalManager.js buildNavalStructures: from the town phase, with a dock and a market
 // and population past popPhase2 + 15, a Carthaginian Petra lays out its Cothon (super
 // dock) on the dock's sea; a civ without one in its Builder lists builds none.
+// transportPlan.js:82: a crossing asked for with no free ship is planned all the same
+// (needTransportShips) and takes the first transport ship that comes.
+static void test_petra_crossing_waits_for_ship() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.petra_pid_ = 1;
+	const uint16_t north = s.petra_land_at(-30.0f, 40.0f), south = s.petra_land_at(-30.0f, -40.0f);
+	const uint16_t sea = s.petra_topo().sea_between(north, south);
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 3; ++k) crew.push_back(s.spawn_unit(-34.0f + 2.0f * k, 44.0f, 1, UNIT_VILLAGER));
+	const bool planned = s.petra_start_transport(crew, -30.0f, 44.0f, -30.0f, -40.0f, sea, PETRA_TRANSPORT_BUILDERS);
+	const uint32_t first = s.petra_transport_plans().empty() ? 1u : s.petra_transport_plans().back().ship_id;
+	const uint32_t ship = s.spawn_unit(-30.0f, 4.0f, 1, UNIT_TRIREME);
+	s.petra_manage_transport(Simulation::FIXED_STEP);
+	const uint32_t later = s.petra_transport_plans().empty() ? 0u : s.petra_transport_plans().back().ship_id;
+	std::printf("crossing with no ship: sea %u, planned %s, ship %u, then %u (trireme %u)\n", sea, planned ? "yes" : "no", first, later, ship);
+	CHECK(sea && planned && first == 0 && later == ship);
+	s.petra_transports_.clear();
+}
+
 static void test_petra_cothon() {
 	for (Civilization civ : {CIV_CARTHAGINIANS, CIV_ATHENIANS}) {
 		static Simulation s;
@@ -1953,8 +2064,9 @@ static void test_petra_cothon() {
 		s.set_pop_cap(200);
 		for (int k = 0; k < 120; ++k) s.spawn_unit(-40.0f + (float)(k % 15) * 2.0f, 50.0f + (float)(k / 15) * 2.0f, 1, UNIT_VILLAGER);
 		// Phasing to the city phase, the temple and the forge go down first (checkPhaseRequirements
-		// counts Town foundations), so the Cothon follows some 13 s in.
-		run(s, 16.0f);
+		// counts Town foundations), and a dock at 7 s (no longer held to a 10 s search), so the Cothon follows some
+		// 16.5 s in.
+		run(s, 20.0f);
 		const Simulation::Building *cothon = nullptr;
 		for (const auto &b : s.buildings()) if (b.team == 1 && b.type == BLD_SUPER_DOCK) cothon = &b;
 		const Simulation::Building *db = bld(s, dock);
@@ -2340,9 +2452,11 @@ int main() {
 	test_petra_transport_ship_lost();
 	test_petra_transport_sunk_at_sea();
 	test_petra_transport_wrong_land();
+	test_petra_sunk_survivors_two_lands();
 	test_petra_laden_ship_lands();
 	test_petra_merchantman_transport();
 	test_petra_cothon();
+	test_petra_crossing_waits_for_ship();
 	test_ship_treasure();
 	test_ship_round_wreck();
 	test_petra_ship_treasure();

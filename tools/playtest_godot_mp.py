@@ -80,6 +80,7 @@ def main():
     ok = play_setup_leave(args, lobby) and ok
     ok = play_connect_timeout(args, lobby) and ok
     ok = play_connect_cancel(args, lobby) and ok
+    ok = play_connect_cancel(args, lobby, signed_in=False) and ok
     ok = play_direct_join_refused(args, lobby) and ok
     server.shutdown()
     stun.close()
@@ -157,15 +158,20 @@ def play_saved(args, lobby):
     return False
 
 
-def play_connect_cancel(args, lobby):
+def play_connect_cancel(args, lobby, signed_in=True):
     """0.28 gamesetup_mp pageConnecting: a join shows "Connecting to server..."
-    with Cancel over the screen, and Cancel goes back to the lobby."""
-    print("[gmp] ---- Cancel while connecting ----")
+    with Cancel over the screen. Cancel goes back to the lobby when signed in
+    to it; a "Connect by IP" join goes back to its form over the main menu,
+    with the address still filled in (cancelSetup)."""
+    print("[gmp] ---- Cancel while connecting%s ----" % ("" if signed_in else ", not signed in"))
     dead = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     dead.bind(("127.0.0.1", 0))  # a port that swallows datagrams
     cmd = [args.godot, "--headless", "--path", ROOT, "-s", "res://tools/godot_mp_probe.gd", "--",
            "role=join", "name=carol", f"lobby={lobby}", f"timeout={args.timeout}",
            f"stun={args.stun_port}", "lan=0", f"join_addr=127.0.0.1:{dead.getsockname()[1]}", "join_cancel=1"]
+    dead_port = dead.getsockname()[1]
+    if not signed_in:
+        cmd.append("nolobby=1")
     try:
         out = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                              timeout=args.timeout + 30).stdout
@@ -176,10 +182,15 @@ def play_connect_cancel(args, lobby):
     scene = next((l.split(" connect_exit_scene=", 1)[1] for l in gmp_lines(out) if " connect_exit_scene=" in l), "")
     for line in gmp_lines(out):
         print("   " + line)
-    if box == "Connecting to server..." and scene == "res://scenes/menu/lobby.tscn":
+    reopened = next((l.split(" reopened=", 1)[1] for l in gmp_lines(out) if " reopened=" in l), "")
+    if signed_in and box == "Connecting to server..." and scene == "res://scenes/menu/lobby.tscn":
         print("[gmp] PASS the join showed \"Connecting to server...\" and Cancel went back to the lobby")
         return True
-    print(f"[gmp] FAIL connect cancel box={box!r} scene={scene!r}")
+    if (not signed_in and box == "Connecting to server..." and scene == "res://scenes/menu/main_menu.tscn"
+            and reopened == f"join 127.0.0.1:{dead_port}"):
+        print("[gmp] PASS a direct join showed \"Connecting to server...\" and Cancel reopened its form over the main menu")
+        return True
+    print(f"[gmp] FAIL connect cancel box={box!r} scene={scene!r} reopened={reopened!r}")
     return False
 
 
@@ -248,8 +259,8 @@ def play_direct_join_refused(args, lobby):
     status = next((l.split(" connect_status=", 1)[1] for l in gmp_lines(out) if " connect_status=" in l), "")
     box = next((l.split(" connect_box=", 1)[1] for l in gmp_lines(out) if " connect_box=" in l), "")
     ok = (p.returncode == 0 and
-          status == "Failed to connect to the server. | Secure lobby authentication failed. Join via lobby. reason=10"
-          and box == " buttons=Exit")
+          status == "Failed to connect to the server. |  | Secure lobby authentication failed. Join via lobby. reason=10"
+          and box == "Disconnected buttons=Exit")
     for line in gmp_lines(out):
         print("   " + line)
     if ok:
@@ -310,7 +321,7 @@ def play_setup_leave(args, lobby):
     status = said("setup_status")
     moved = said("moved_to_observers")
     ok = (host.returncode == 0 and join.returncode == 0 and moved == "Observers: bob"
-          and status == "Lost connection to the server. | The host has ended the game. reason=2 saw_page=true page=false"
+          and status == "Lost connection to the server. |  | The host has ended the game. reason=2 saw_page=true page=false"
           and said("setup_exit_scene") == "res://scenes/menu/lobby.tscn"
           and warning.startswith("bob losing connection (") and warning.endswith(" layer=22")
           # MapSelection.js Random: the host picked a map, the client saw only "Random".
@@ -465,6 +476,8 @@ def play(args, lobby, leave):
     users = {role: said(role, "users").replace(" list=", " ") for role in ("host", "join")}
     ok = ok and users == {"host": "2 alice,_bob", "join": "2 alice,_bob"}
     ok = ok and not any("> /list" in outs[role] for role in ("host", "join"))
+    # Chat.js: neither match chat carries the setup's lines.
+    ok = ok and said("host", "match_chat_carried") == "false" and said("join", "match_chat_carried") == "false"
     # 0.28 ChatAddressees: the other player as "■ name"; Tab completes alice and bob.
     addressees = {role: said(role, "addressees").split(" names=") for role in ("host", "join")}
     # When the host leaves, it may have ended the game before the client gets

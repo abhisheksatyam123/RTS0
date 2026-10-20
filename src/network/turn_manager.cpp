@@ -1191,6 +1191,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u8(b.is_burning ? 1 : 0);
 		mix_u8(b.upgrade_to);
 		mix_float(b.upgrade_timer);
+		mix_float(b.queue_clock);
 		mix_u8((uint8_t)((b.gate_open ? 1 : 0) | (b.gate_locked ? 2 : 0)));
 	}
 
@@ -1217,6 +1218,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u8(kv.second.orders.front().count);
 		mix_u8(kv.second.orders.front().tech);
 		mix_float(kv.second.orders.front().timer);
+		mix_float(kv.second.clock);
 	}
 
 	// 2d. Trade routes (Trader.js markets, goods and SetupTradeRoute route): every trader's
@@ -1730,7 +1732,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			if (bid && n) {
 				// TryConstructBuilding hands the builders a "repair" of the new foundation.
 				if (sim.has_map_triggers()) sim.note_player_command(pl, TRIGGER_CMD_REPAIR, bid, 0, 0, 0);
-				sim.order_build_or_repair(ids, n, bid);
+				const bool build_queued = (c.target_id & NET_BUILD_QUEUED) != 0;
+				sim.set_push_front_order(!build_queued && (c.target_id & NET_BUILD_PUSH_FRONT) != 0);
+				sim.order_build_or_repair(ids, n, bid, build_queued);
 			}
 		} else if (c.cmd_type == 6) { // Train
 			// At a corral target_x names the animal (corral Trainer list); 0 is the civ's default.
@@ -1753,7 +1757,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			if (raw_n > n) sim.order_fauna_walk(pl, raw, raw_n, 0.0f, 0.0f, c.target_id);
 		} else if (c.cmd_type == 13) { // Ungarrison / disembark-all / leave-turret
 			if (c.param == 1) {
-				if (n) sim.order_disembark_all(ids[0]);
+				if (n) sim.order_disembark_all(ids[0], pl);
 			} else if (c.param == 2) { // 0 A.D. "leave-turret": entity_ids are the turret units
 				sim.cmd_leave_turret(pl, c.entity_ids.data(), c.entity_ids.size());
 			} else if (c.param == 3) { // 0 A.D. "unload-turrets": target_id is the holder

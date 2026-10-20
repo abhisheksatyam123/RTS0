@@ -88,6 +88,15 @@ func run() -> void:
 	await frames(40)
 	var menu_audio = root.get_node("MenuAudio")
 	check(str(menu_audio.match_music_track()).contains("Dried_Tears"), "the defeat track plays on the summary: " + menu_audio.match_music_track())
+	menu_audio.play_match_track("Tale_of_Warriors.ogg", 0.0, ["Tale_of_Warriors.ogg", "The_Road_Ahead.ogg"])
+	menu_audio._next_track()
+	await frames(2)
+	var after: String = menu_audio.match_music_track()
+	menu_audio.play_menu_music()
+	await frames(2)
+	check(after == "The_Road_Ahead.ogg" and menu_audio.menu_music_track() == "Honor_Bound.ogg",
+		"the summary carries on through the session's playlist; the main menu then plays MENU: %s, %s" % [after, menu_audio.menu_music_track()])
+	menu_audio.stop_music()
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

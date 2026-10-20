@@ -932,6 +932,7 @@ void RtsoMain::_process(double delta) {
 		}
 		if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
 			net_game_started_ = true;
+			chat_window_.clear_history(); // the session's chat starts empty (Chat.js)
 			// VisualReplay skips a rejoined client's replay ("Don't process files of rejoined
 			// clients"): its commands start mid-match, so it is not recorded at all.
 			replay_recording_ = false;
@@ -1300,8 +1301,8 @@ void RtsoMain::_process(double delta) {
 	detect_attacks(attacks);
 	show_session_notices(sim->take_session_notices());
 	show_trigger_dialogs(sim->take_trigger_dialogs());
+	update_highlight(); // the hover pick the cursor's action reads
 	update_cursor();
-	update_highlight();
 	// input.js INPUT_BATCHTRAINING: releasing session.batchtrain posts the batch.
 	if (batch_training_.active && !rtso::hotkeys::held("session.batchtrain")) flush_training_batch();
 	chat_window_.tick_overlay();

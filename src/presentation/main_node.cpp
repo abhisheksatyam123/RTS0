@@ -147,6 +147,9 @@ Dictionary RtsoMain::get_audio_state() const {
 	d["music_state"] = kStates[music_.state()];
 	d["track"] = music_.current_track();
 	d["music_position"] = music_.current_position();
+	PackedStringArray playlist;
+	for (const std::string &t : music_.playlist_from_current()) playlist.push_back(String::utf8(t.c_str()));
+	d["playlist"] = playlist;
 	d["last_sound"] = session_audio_.last_played();
 	d["in_battle"] = session_audio_.in_battle();
 	d["work_sounds"] = session_audio_.work_sounds_played();
@@ -417,7 +420,8 @@ bool RtsoMain::chat_network_command(const String &text) {
 		return true;
 	}
 	if (command == "/clear") {
-		chat_window_.clear();
+		if (is_net_pregame()) chat_window_.clear_history();
+		else chat_window_.clear();
 		return true;
 	}
 	return false;
@@ -439,6 +443,13 @@ void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
 			if (keep && !selected_ids.is_empty()) attack_move_mode = modes[0], patrol_mode = modes[1], call_to_arms_mode = modes[2];
 			return;
 		}
+	}
+	// Garrison, repair, guard and occupy-turret need an entity, so on the minimap they are
+	// "none": the click ends them (unless Shift or Alt is held) and leaves the camera.
+	if ((garrison_mode || repair_mode || guard_mode || turret_mode) && !selected_ids.is_empty()) {
+		if (!rtso::hotkeys::held("session.queue") && !rtso::hotkeys::held("session.orderone"))
+			garrison_mode = repair_mode = guard_mode = turret_mode = false;
+		return;
 	}
 	if (cam_rig) {
 		cam_rig->set_target_pos(Vector3(world_pos.x, 0.0f, world_pos.y));
@@ -821,6 +832,7 @@ void RtsoMain::update_log_messages(bool changed) {
 // Nor can anyone pause before the match is live (g_IsNetworkedActive: the
 // "Waiting for players to connect:" stage), which NetServer would ignore.
 bool RtsoMain::can_pause() const {
+	if (net_disconnected_) return false; // g_IsNetworkedActive turned false
 	if (hotkey_paused_ || !net_lockstep() || turn_mgr_.is_replaying()) return true;
 	if (!net_game_started_ || turn_mgr_.current_turn() <= rtso::TurnManager::COMMAND_DELAY) return false;
 	return !observing_seat() || net_host_.isHost();
@@ -836,7 +848,7 @@ void RtsoMain::toggle_pause() {
 }
 
 // PauseOverlay.rebuild: shown for your own pause and while another client
-// pauses; the resume line only for your own; "Paused by" in multiplayer, each
+// pauses, until the connection is lost; the resume line only for your own; "Paused by" in multiplayer, each
 // name in its player's colour (colorizePlayernameByGUID: white for an observer).
 void RtsoMain::update_pause_overlay() {
 	if (!pause_overlay_) return;
@@ -860,7 +872,7 @@ void RtsoMain::update_pause_overlay() {
 			who += String(who.is_empty() ? "" : ", ") + "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" +
 					name.replace("[", "[lb]") + "[/color]";
 		}
-	const bool show = hotkey_paused_ || others;
+	const bool show = !net_disconnected_ && (hotkey_paused_ || others); // hidden once g_Disconnected
 	if (pause_overlay_->is_visible() != show) pause_overlay_->set_visible(show);
 	if (!show) return;
 	pause_resume_label_->set_visible(hotkey_paused_);
@@ -979,8 +991,10 @@ void RtsoMain::update_net_status_overlay() {
 			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = mismatch_detail(); break;
 			default: why = tr("An unknown error occurred."); break;
 		}
-		String text = (net_game_started_ ? tr("Connection to the server has been lost.")
-				: joined ? tr("Lost connection to the server.") : tr("Failed to connect to the server.")) + "\n" + why;
+		// NetworkStatusOverlay (in the match): one line break, no title.
+		// reportDisconnect (before Start): a blank line, titled "Disconnected".
+		String text = net_game_started_ ? tr("Connection to the server has been lost.") + "\n" + why
+				: (joined ? tr("Lost connection to the server.") : tr("Failed to connect to the server.")) + "\n\n" + why;
 		if (!joined && net_host_.disconnectReason() == 0) {
 			// reportConnectionRequestTimeOut, with getRequestTimeOutMessage's
 			// address advice only outside the lobby.
@@ -995,8 +1009,8 @@ void RtsoMain::update_net_status_overlay() {
 		// The timeout is a "Connection Error" box with Close and Open FAQ.
 		const bool timed_out = !joined && net_host_.disconnectReason() == 0;
 		if (net_status_title_) {
-			net_status_title_->set_text(timed_out ? tr("Connection Error") : String());
-			net_status_title_->set_visible(timed_out);
+			net_status_title_->set_text(timed_out ? tr("Connection Error") : net_game_started_ ? String() : tr("Disconnected"));
+			net_status_title_->set_visible(!net_game_started_);
 		}
 		if (net_status_exit_) {
 			net_status_exit_->set_text(timed_out ? tr("Close") : tr("Exit"));
@@ -1006,7 +1020,7 @@ void RtsoMain::update_net_status_overlay() {
 		if (net_status_faq_) net_status_faq_->set_visible(timed_out);
 		net_loading_clients_->set_visible(false);
 		net_status_overlay_->set_visible(true);
-		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n", " "));
+		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n\n", "\n").replace("\n", " "));
 		update_net_setup_overlay(); // the setup page gives way at once
 		return;
 	}
@@ -2144,11 +2158,11 @@ void RtsoMain::refresh_dev_overlay() {
 // "snap" also moves the camera to the first.
 void RtsoMain::perform_group(int grp, GroupAction action) {
 	if (!sim || grp < 0 || grp > 9) return;
-	// input.js performGroup: the group's living units, and its structure (one at a time
-	// here); a member inside a structure stays in the group and the camera snaps to its
-	// holder when nothing else of the group is out.
+	// input.js performGroup: the group's living units and structures (addList(toSelect)); a
+	// member inside a structure stays in the group and the camera snaps to its holder when
+	// nothing else of the group is out.
 	PackedInt32Array recall, kept;
-	uint32_t recall_building = 0;
+	std::vector<uint32_t> recall_buildings;
 	// The snap goes to the group's lowest id, or its holder (getEntityOrHolder(toSelect[0])).
 	int32_t snap_id = 0;
 	Vector3 snap_pos;
@@ -2176,7 +2190,7 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 		if (!found)
 			for (const auto &b : sim->buildings())
 				if (b.id == (uint32_t)gid && b.team == local_player() && !b.wrecked && b.hp > 0.0f) {
-					if (!recall_building) recall_building = b.id;
+					recall_buildings.push_back(b.id);
 					at = Vector3(b.x, 0, b.z);
 					found = true;
 					break;
@@ -2188,12 +2202,16 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 	}
 	selected_groups[grp] = kept;
 	if (kept.is_empty()) return;
-	if (recall.is_empty() && !recall_building) {
+	// addList(toSelect) brings each unit's formation along (addFormationMembers).
+	for (int m = 0, n = recall.size(); m < n; ++m)
+		for (int32_t uid : formation_mates(recall[m]))
+			if (!recall.has(uid)) recall.push_back(uid);
+	if (recall.is_empty() && recall_buildings.empty()) {
 		// Everyone is inside: performGroup's g_Selection.reset() still drops the old selection
 		// (the members inside can't be picked here), and the snap goes to the holder.
 		if (action != GROUP_ADD) {
 			selected_ids.clear();
-			selected_building_id = 0;
+			set_selected_structures({});
 		}
 		if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(snap_pos);
 		return;
@@ -2201,10 +2219,14 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 	if (action == GROUP_ADD) {
 		for (int m = 0; m < recall.size(); ++m)
 			if (!selected_ids.has(recall[m])) selected_ids.push_back(recall[m]);
-		if (recall_building) selected_building_id = recall_building;
+		if (!recall_buildings.empty()) {
+			std::vector<uint32_t> structures = selected_structures();
+			structures.insert(structures.end(), recall_buildings.begin(), recall_buildings.end());
+			set_selected_structures(structures);
+		}
 	} else {
 		selected_ids = recall;
-		selected_building_id = recall_building;
+		set_selected_structures(recall_buildings);
 	}
 	if (action == GROUP_SNAP && cam_rig && snap_id != 0) cam_rig->set_target_pos(snap_pos);
 	play_civ_voice("select");
@@ -2893,7 +2915,9 @@ Dictionary RtsoMain::get_lobby_state() const {
 		for (uint8_t i = 0; i < net_setup_.setup.slot_count && i < 8; ++i)
 			if (net_setup_.slot_client[i] >= 0) ++players;
 	} else if (hosting) {
-		players = 1;
+		// LobbyGamelistReporter.countConnectedPlayers: assignments with a player,
+		// so not a host who watches.
+		players = turn_mgr_.player_for_client(0) < rtso::MAX_PLAYERS ? 1 : 0;
 		for (const auto &p : net_host_.getPeers())
 			if (p.id != 0 && p.connected && p.is_authenticated && !p.is_observer) ++players;
 	}
@@ -3195,6 +3219,10 @@ void RtsoMain::host_net_setup_tick(bool force) {
 			if (p.id > 0 && p.id < rtso::NET_SETUP_CLIENTS && p.connected && p.is_authenticated && !p.kick_disconnect_ms) {
 				now |= (1ull << p.id);
 				if (!((net_setup_.clients >> p.id) & 1)) net_host_.sendGameSetup(rtso::format_net_setup(net_setup_), p.id);
+				// LobbyGamelistReporter getObservers: whoever watches now, a late observer too.
+				net_setup_.names[p.id] = p.player_name;
+				if (p.is_observer) net_setup_.observers |= (1ull << p.id);
+				else net_setup_.observers &= ~(1ull << p.id);
 			}
 		net_setup_.clients = now | 1;
 		return;
@@ -3268,9 +3296,19 @@ void RtsoMain::post_kick_chat() {
 	for (; kicks_chatted_ < kicks.size(); ++kicks_chatted_) {
 		const auto &k = kicks[kicks_chatted_];
 		const String name = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str()).replace("[", "[lb]");
-		const String line = sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}});
-		if (is_net_pregame()) chat_window_.append_line(setup_status_line(line));
-		else chat_window_.append_kind(line + String("\n"), CHAT_FILTER_NETWORK);
+		if (is_net_pregame()) {
+			chat_window_.append_line(setup_status_line(sprintf0(k.ban ? tr("%(username)s has been banned")
+					: tr("%(username)s has been kicked"), {{"username", name}})));
+			continue;
+		}
+		// ChatMessageFormatNetwork.kicked: colorizePlayernameHelper, the player's
+		// colour for the player of that name, white for anyone else.
+		uint32_t rgb = 0xFFFFFFu;
+		for (const auto &e : chat_assignments_)
+			if (e.name == k.name && e.player < rtso::MAX_PLAYERS && sim) rgb = rtso::display_colors::rgb(*sim, e.player);
+		const String colored = "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + name + "[/color]";
+		chat_window_.append_kind(sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"),
+				{{"username", colored}}) + String("\n"), CHAT_FILTER_NETWORK);
 	}
 }
 
@@ -3519,10 +3557,24 @@ void RtsoMain::update_net_connect_overlay() {
 	if (String(net_connect_overlay_->get("text")) != text) net_connect_overlay_->set("text", String(text));
 }
 
-// Game Setup's Back in a networked game: leave it for the lobby.
+// Game Setup's Back, the Connecting box's Cancel and the disconnect box's OK
+// before Start (SetupWindow.js closePage, gamesetup_mp.js cancelSetup): back to
+// the lobby while signed in to it, else to the main menu, where a join the
+// host never let in reopens the "Joining an existing game." form.
 void RtsoMain::leave_net_game() {
+	const int auth = net_host_.authResult();
+	const bool not_let_in = net_host_.getRole() == rtso::NetRole::Client &&
+			auth != rtso::ARC_OK && auth != rtso::ARC_OK_SAVED_GAME && auth != rtso::ARC_OK_REJOINING;
 	net_host_.stop();
-	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) ms->call("go", "res://scenes/menu/lobby.tscn");
+	Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
+	if (!ms) return;
+	Node *lobby = get_node_or_null(NodePath("/root/LobbySession"));
+	if (lobby && bool(lobby->call("signed_in"))) {
+		ms->call("go", "res://scenes/menu/lobby.tscn");
+		return;
+	}
+	ms->set("net_reopen", not_let_in ? String("join") : String());
+	ms->call("go", "res://scenes/menu/main_menu.tscn");
 }
 
 void RtsoMain::push_net_setup() {
@@ -3753,6 +3805,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 	net_host_.note_game_start_sent();
 	net_host_.sendGameStart(rtso::format_game_start_full(setup));
 	net_game_started_ = true;
+	chat_window_.clear_history(); // the session's chat starts empty (Chat.js)
 	begin_match_recording(&setup);
 	print_line("[RTS0][GameStart] HOST broadcast setup: map=" + String(setup.map_id.c_str()) +
 	           " seed=" + String::num_int64((int64_t)setup.seed) +
@@ -3817,6 +3870,7 @@ void RtsoMain::apply_net_game_start() {
 	turn_mgr_.note_game_start_applied(sim);
 	start_net_speed(setup.speed);
 	net_game_started_ = true;
+	chat_window_.clear_history(); // the session's chat starts empty (Chat.js)
 	begin_match_recording(&setup);
 	print_line("[RTS0][GameStart] JOINER consumed NMT_GAME_START: map=" + String(setup.map_id.c_str()) +
 	           " seed=" + String::num_int64((int64_t)setup.seed) +

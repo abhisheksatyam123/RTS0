@@ -188,7 +188,6 @@ inline String speed_tooltip(const Simulation::UnitDetails &d) {
 	auto speed = [](float v, const char *kind) {
 		return sprintf0(tr0("%(speed)s %(movementType)s"), {{"speed", fixed(v, 1)}, {"movementType", tr0(kind)}});
 	};
-	// An animal has no acceleration here: walk and run only.
 	return sprintf0(tr0("%(label)s %(speeds)s"), {{"label", tr0("Speed:")}, {"speeds", speed(d.walk, "Walk") + comma() + speed(d.run, "Run") +
 			(d.acceleration > 0.0f ? comma() + speed(d.acceleration, "Acceleration") : String())}});
 }
@@ -339,8 +338,9 @@ inline String multiple_tooltip(int64_t garrison_size, const Amounts &carrying, c
 	String tip;
 	if (garrison_size)
 		tip = sprintf0(tr0("%(label)s: %(details)s\n"), {{"label", tr0("Garrison Size")}, {"details", num(garrison_size)}});
+	// selection_details.js:493 assigns this line (=, not +=): it replaces the garrison size.
 	if (carrying.any())
-		tip += sprintf0(tr0("%(label)s %(details)s\n"), {{"label", tr0("Carrying:")}, {"details", amounts_list(carrying, false)}});
+		tip = sprintf0(tr0("%(label)s %(details)s\n"), {{"label", tr0("Carrying:")}, {"details", amounts_list(carrying, false)}});
 	if (loot.any())
 		tip += sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Loot:")}, {"details", amounts_list(loot, true)}});
 	return tip.strip_edges();

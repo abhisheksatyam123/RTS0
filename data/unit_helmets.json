@@ -2259,6 +2259,70 @@
    0.011225
   ]
  },
+ "rome_champion_infantry_swordsman_03": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_rome_gallic_type_f.glb",
+   "res://assets/models/units/helm_rome_gallic_type_h.glb"
+  ],
+  "joint": 6,
+  "parts": [
+   "rome_champion_infantry_swordsman_03_part9"
+  ],
+  "salt": "art/actors/units/romans/infantry_swordsman_c3.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "rome_champion_infantry_swordsman_05": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_rome_nieder_mormter_type_a.glb",
+   "res://assets/models/units/helm_rome_nieder_mormter_type_b.glb",
+   "res://assets/models/units/helm_rome_nieder_bieber.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "rome_champion_infantry_swordsman_05_part9"
+  ],
+  "salt": "art/actors/units/romans/infantry_swordsman_c5.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
  "rome_champion_infantry_swordsman_centurion": {
   "freq": [
    4,

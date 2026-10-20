@@ -25,6 +25,7 @@ const REQUEST_TIMEOUT_S := 5.0
 var address := "127.0.0.1:8088" # the lobby server, "ip:port"
 var token := ""
 var player_name := ""
+var rating = null # this player's lobby rating (Engine.LobbyGetPlayerRating), null while unrated
 # The game this player hosts, as registered with the lobby; empty when not hosting.
 var room := {}
 
@@ -163,13 +164,19 @@ func _send(path: String, method: int, body: String, cb: Callable) -> void:
 			else:
 				lost = true
 				disconnected.emit()
-		if cb.is_valid():
+		if _callable_alive(cb):
 			cb.call(code if ok else 0, obj))
 	var headers := PackedStringArray(["Content-Type: application/json"])
 	if req.request(base_url() + path, headers, method, body) != OK:
 		req.queue_free()
-		if cb.is_valid():
+		if _callable_alive(cb):
 			cb.call(0, null)
+
+
+## A request's callback may outlive the page that made it (a lambda whose owner
+## was freed before the answer came): is_valid() still says true for it.
+static func _callable_alive(cb: Callable) -> bool:
+	return cb.is_valid() and (cb.get_object_id() == 0 or is_instance_id_valid(cb.get_object_id()))
 
 
 # 0 A.D. EncryptPassword (source/lobby/pkcs5_pbkdf2.cpp): the lobby gets
@@ -609,7 +616,7 @@ static func game_rating(room_players: Array, ratings: Dictionary) -> int:
 	for p in room_players:
 		if p.get("observer", 0):
 			continue
-		var r = ratings.get(str(p.get("name", "")))
+		var r = rating_of(str(p.get("name", "")), ratings)
 		total += int(r) if r != null and str(r) != "" else DEFAULT_LOBBY_RATING
 		count += 1
 	return roundi(float(total) / count) if count > 0 else DEFAULT_LOBBY_RATING
@@ -652,11 +659,12 @@ static func game_details(room: Dictionary, ratings: Dictionary) -> String:
 	var observers := PackedStringArray()
 	var buddy_list := buddies()
 	for p in room.get("player_names", []):
-		var name := str(p.get("name", ""))
+		var sent := str(p.get("name", ""))
+		var name := str(split_nick(sent)["nick"])
 		# gamedescription.js: "• " before a buddy's name.
 		var mark := "• " if buddy_list.has(name) and not p.get("ai", 0) else ""
 		if p.get("observer", 0):
-			observers.append(mark + esc.call(rated_name(name, ratings.get(name))))
+			observers.append(mark + esc.call(rated_name(name, rating_of(sent, ratings))))
 			continue
 		var civ := str(p.get("civ", ""))
 		var civ_title := "Random" if civ == "random" else ("Unknown Civilization" if civ == "" else civ)
@@ -669,7 +677,7 @@ static func game_details(room: Dictionary, ratings: Dictionary) -> String:
 		if p.get("ai", 0):
 			parts.append(summary.ai_description(p))
 		else:
-			who = rated_name(name, ratings.get(name))
+			who = rated_name(name, rating_of(sent, ratings))
 			# formatPlayerInfo: "%(playerName)s (OFFLINE, %(state)s)", no civ.
 			if p.get("offline", false):
 				parts = ["OFFLINE"]
@@ -755,9 +763,10 @@ static func rating_report(stats: Dictionary, summary: Dictionary, seat: int) -> 
 			mine = p
 	if mine.is_empty() or str(mine.get("state", "active")) == "active":
 		return {}
+	# The lobby's account names: a player joins as "name (rating)" (gamesetup_mp.js).
 	var names: PackedStringArray = []
 	for p in players:
-		names.append(str(p.get("name", "")))
+		names.append(str(split_nick(str(p.get("name", "")))["nick"]))
 	var sorted_names := names.duplicate()
 	sorted_names.sort()
 	var join := func(key: String) -> String:
@@ -836,6 +845,32 @@ static func buddies() -> PackedStringArray:
 # PlayerColor.ColorPlayerName: "name (rating)" once the player has a rating.
 static func rated_name(name: String, rating) -> String:
 	return "%s (%s)" % [name, str(rating)] if rating != null and str(rating) != "" else name
+
+
+# gamedescription.js splitRatingFromNick: "name (1500)" is nick "name" and rating 1500
+# (a name with a space, or no rating, is all nick and rating "").
+static func split_nick(s: String) -> Dictionary:
+	var m := RegEx.create_from_string("^(\\S+) \\((\\d+)\\)$").search(s)
+	return {"nick": m.get_string(1), "rating": m.get_string(2).to_int()} if m else {"nick": s, "rating": ""}
+
+
+# The rating a game lists for a player: the one in the name they joined with
+# (Game.js), else the lobby's current one for them.
+static func rating_of(sent: String, ratings: Dictionary):
+	var sp := split_nick(sent)
+	return sp["rating"] if str(sp["rating"]) != "" else ratings.get(sp["nick"])
+
+
+# gamesetup_mp.js startHost / startJoinFromLobby: the lobby nick with " (rating)" once
+# rated; a rejoin keeps the rating it joined `room` with (JoinButton.getRejoinRating).
+func rated_player_name(joined_room := {}) -> String:
+	var r = rating
+	for p in joined_room.get("player_names", []):
+		var sp := split_nick(str(p.get("name", "")))
+		if sp["nick"] == player_name:
+			r = sp["rating"]
+			break
+	return player_name + (" (%s)" % str(r) if r != null and str(r) != "" and str(r) != "0" else "")
 
 
 # ProfilePanel.FormatWinRate.

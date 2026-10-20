@@ -54,6 +54,20 @@ void RtsoMain::reset_default_cursor() {
 			Input::CURSOR_ARROW, Vector2(1, 1));
 }
 
+// unit_actions.js "gather": "action-gather-" + the supply's resourceType.specific.
+static const char *gather_cursor(uint8_t type, uint8_t sub) {
+	if (sub == rtso::RES_SUB_RUINS) return "action-gather-ruins";
+	switch (type) {
+		case rtso::RES_WOOD: return "action-gather-tree";
+		case rtso::RES_GOLD: return "action-gather-ore";
+		case rtso::RES_STONE: return "action-gather-rock";
+		default:
+			return sub == rtso::RES_SUB_MEAT ? "action-gather-meat"
+					: sub == rtso::RES_SUB_GRAIN ? "action-gather-grain"
+					: sub == rtso::RES_SUB_FISH ? "action-gather-fish" : "action-gather-fruit";
+	}
+}
+
 void RtsoMain::update_cursor() {
 	Viewport *vp = get_viewport();
 	if (!sim || !vp) return;
@@ -72,6 +86,9 @@ void RtsoMain::update_cursor() {
 			if (over_own_rally_structure(at) &&
 					!(rtso::hotkeys::held("session.autorallypoint") && selected_building_trains_units())) {
 				want = "action-unset-rally";
+			} else if (over_own_rally_structure(at, false) &&
+					!(rtso::hotkeys::held("session.autorallypoint") && selected_building_trains_units())) {
+				// "set-rallypoint" refuses a selected structure as its target: no action, no cursor.
 			} else if (selected_building_shoots() && rtso::hotkeys::held("session.focusfire")) {
 				// unit_actions.js "set-rallypoint" getActionInfo: an attacking structure with
 				// session.focusfire held aims ("action-target") instead of setting the rally point.
@@ -118,15 +135,7 @@ void RtsoMain::update_cursor() {
 					auto rv = sim->resources();
 					for (size_t r = 0; r < rv.count; ++r) {
 						if (rv.id[r] != res) continue;
-						switch (rv.type[r]) {
-							case rtso::RES_WOOD: want = "action-gather-tree"; break;
-							case rtso::RES_GOLD: want = "action-gather-ore"; break;
-							case rtso::RES_STONE: want = "action-gather-rock"; break;
-							default:
-								want = rv.subtype[r] == rtso::RES_SUB_MEAT ? "action-gather-meat"
-										: rv.subtype[r] == rtso::RES_SUB_GRAIN ? "action-gather-grain"
-										: rv.subtype[r] == rtso::RES_SUB_FISH ? "action-gather-fish" : "action-gather-fruit";
-						}
+						want = gather_cursor(rv.type[r], rv.subtype[r]);
 						break;
 					}
 				} else if (bld) {
@@ -156,10 +165,17 @@ void RtsoMain::update_cursor() {
 			const Vector3 at = get_ground_click_pos(mouse);
 			const uint8_t me = local_player();
 			auto near2 = [&](float x, float z, float r) { return (x - at.x) * (x - at.x) + (z - at.z) * (z - at.z) <= r * r; };
+			// input.js determineAction: the entity the hover picked (PickEntityAtPoint), else what
+			// lies near the ground point.
+			const uint32_t picked = hover_target_;
+			auto near_id = [&](uint32_t id, float x, float z, float r) { return picked ? id == picked : near2(x, z, r); };
 			// unit_actions.js hotkeyActionCheck in specificness order: session.garrison ("garrison", 20)
 			// and session.occupyturret ("occupy-turret", 21) come before session.attackmove (30), all Ctrl.
 			const bool hold_garrison = rtso::hotkeys::held("session.garrison");
 			const bool hold_turret = rtso::hotkeys::held("session.occupyturret");
+			const bool hold_repair = rtso::hotkeys::held("session.repair");
+			bool sel_builder = false;
+			for (int s = 0; s < selected_ids.size() && !sel_builder; ++s) sel_builder = sim->unit_id_builds((uint32_t)(int64_t)selected_ids[s]);
 			bool hotkey_holder = false;
 			if (hold_garrison && transport_under(at.x, at.z) != 0) hotkey_holder = true;
 			for (const auto &b : sim->buildings()) {
@@ -195,8 +211,11 @@ void RtsoMain::update_cursor() {
 							builder = builder || (rtso::unit_can_build(uv.unit_type[i], tm) && !sim->nonbuilder(uv.id[i]));
 							break;
 						}
+				auto heal_able = [&](uint32_t target) {
+					return sim->first_able_healer((const uint32_t *)selected_ids.ptr(), (size_t)selected_ids.size(), target) != 0;
+				};
 				for (size_t i = 0; i < uv.count && !*want; ++i) {
-					if (!uv.alive[i] || !near2(uv.pos_x[i], uv.pos_z[i], 2.2f)) continue;
+					if (!uv.alive[i] || !near_id(uv.id[i], uv.pos_x[i], uv.pos_z[i], 2.2f)) continue;
 					// PickEntityAtPoint picks only what the player sees: no unit in the fog.
 					if (!rtso::los_sees_unit(*sim, me, uv.pos_x[i], uv.pos_z[i], uv.team[i])) continue;
 					// "returnresource" on a supply wagon or worker elephant the carrier may drop at.
@@ -220,7 +239,7 @@ void RtsoMain::update_cursor() {
 							sim->is_repairable_unit(uv.id[i]))
 						want = "action-repair";
 					// 0 A.D. unit_actions "heal": a healer over a wounded own or allied unit.
-					else if (healer && uv.hp[i] < uv.max_hp[i] && (uv.team[i] == me || sim->is_ally(me, uv.team[i])))
+					else if (healer && heal_able(uv.id[i]))
 						want = "action-heal";
 					// unit_actions "garrison" (session.garrison): an own or allied ship, ram or siege tower a
 					// selected unit may board. Without the hotkey "move" (12) wins.
@@ -246,14 +265,14 @@ void RtsoMain::update_cursor() {
 							break;
 						}
 				for (const auto &t : sim->treasures())
-					if (collector && near2(t.x, t.z, 2.0f) && sim->los_explored(me, t.x, t.z)) { want = "action-collect-treasure"; break; }
+					if (collector && near_id(t.id, t.x, t.z, 2.0f) && sim->los_explored(me, t.x, t.z)) { want = "action-collect-treasure"; break; }
 			}
 			if (!*want) {
 				auto fv = sim->fauna();
 				for (size_t f = 0; f < fv.count && !*want; ++f) {
 					// A penned animal is garrisoned in its corral: nothing to do with it.
-					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
-					if (!rtso::los_sees_fauna(*sim, me, fv.pos_x[f], fv.pos_z[f], fv.owner[f])) continue; // RetainInFog
+					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED || !near_id(fv.id[f], fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
+					if (!rtso::los_sees_fauna(*sim, me, fv.pos_x[f], fv.pos_z[f], fv.owner[f], fv.fauna_type[f])) continue; // RetainInFog
 					// Slaughter for livestock as for game (0 A.D.); Alt herds your own to a corral.
 					const bool herd = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() && fv.owner[f] == local_player() &&
 					                  Input::get_singleton()->is_key_pressed(KEY_ALT);
@@ -261,23 +280,12 @@ void RtsoMain::update_cursor() {
 				}
 			}
 			if (!*want) {
-				if (const uint32_t sid = scenery_at(at.x, at.z); sid != 0) {
+				if (const uint32_t sid = scenery_at(at.x, at.z); sid != 0 && (!picked || sid == picked)) {
 					want = scenery_click(sid) == CLICK_CAPTURE ? "action-capture" : "action-attack";
 				}
 			}
 			if (!*want) {
 				// Supplies as the player knows them (Fogging mirages; none in unexplored land).
-				const auto gather_cursor = [&](uint8_t type, uint8_t sub) {
-					switch (type) {
-						case rtso::RES_WOOD: return "action-gather-tree";
-						case rtso::RES_GOLD: return "action-gather-ore";
-						case rtso::RES_STONE: return "action-gather-rock";
-						default:
-							return sub == rtso::RES_SUB_MEAT ? "action-gather-meat"
-									: sub == rtso::RES_SUB_GRAIN ? "action-gather-grain"
-									: sub == rtso::RES_SUB_FISH ? "action-gather-fish" : "action-gather-fruit";
-					}
-				};
 				// unit_actions "gather" needs a selected unit that can gather the supply (else "move").
 				std::vector<uint32_t> sel;
 				for (int s2 = 0; s2 < selected_ids.size(); ++s2) sel.push_back((uint32_t)(int64_t)selected_ids[s2]);
@@ -286,18 +294,38 @@ void RtsoMain::update_cursor() {
 				};
 				if (view) {
 					for (const auto &r : view->resource_mirages())
-						if (r.amount > 0 && near2(r.x, r.z, 2.2f) && gatherable(r.id)) { want = gather_cursor(r.type, r.subtype); break; }
+						if (r.amount > 0 && near_id(r.id, r.x, r.z, 2.2f) && gatherable(r.id)) { want = gather_cursor(r.type, r.subtype); break; }
 				} else {
 					auto rv = sim->resources();
 					for (size_t r = 0; r < rv.count && !*want; ++r)
-						if (rv.alive[r] && rv.amount[r] > 0 && near2(rv.x[r], rv.z[r], 2.2f) && gatherable(rv.id[r]))
+						if (rv.alive[r] && rv.amount[r] > 0 && near_id(rv.id[r], rv.x[r], rv.z[r], 2.2f) && gatherable(rv.id[r]))
 							want = gather_cursor(rv.type[r], rv.subtype[r]);
 				}
 			}
 			if (!*want) {
 				for (const auto &b : sim->buildings()) {
-					if (b.wrecked || !near2(b.x, b.z, b.half_size + 1.2f)) continue;
+					if (b.wrecked || !near_id(b.id, b.x, b.z, b.half_size + 1.2f)) continue;
 					if (!sim->player_can_target_building(me, b.id)) continue; // never seen: no mirage to pick
+					auto garrison_cursor = [&]() {
+						want = "action-garrison";
+						// unit_actions "garrison" getActionInfo: the holder's slots, orange once full.
+						const int occupied = sim->get_garrison_occupied(b.id), capacity = sim->get_garrison_capacity(b.id);
+						tip = rtso::sprintf0(rtso::tr0("Current garrison: %(garrisoned)s/%(capacity)s"),
+								{{"garrisoned", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
+						tip_orange = occupied >= capacity;
+					};
+					// determineAction (input.js:261-277) runs every hotkeyActionCheck before the plain
+					// actionChecks, as the click does: session.garrison and session.repair come first.
+					const bool b_friendly = b.team == me || sim->is_ally(me, b.team);
+					const bool b_damaged = b.build_progress < 1.0f || b.hp < b.max_hp;
+					if (hold_garrison && b_friendly && selection_can_garrison(b.id)) {
+						garrison_cursor();
+						break;
+					}
+					if (hold_repair && b_friendly && b_damaged && sel_builder) {
+						want = "action-repair";
+						break;
+					}
 					if (const char *tc = nullptr; trade_route_click(b, false, false, &tip, &tc)) {
 						want = tc;
 						break;
@@ -332,8 +360,9 @@ void RtsoMain::update_cursor() {
 						want = c == CLICK_CAPTURE ? "action-capture" : c == CLICK_ATTACK ? "action-attack" : "";
 					}
 					else if (b.team != me && !sim->is_ally(me, b.team)) want = ""; // neutral
-					else if (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me)) want = "action-build";
-					else if (b.hp < b.max_hp) want = "action-repair"; // own or allied (unit_actions "repair")
+					// unit_actions "repair" needs a builder; without one "move" wins: no cursor.
+					else if (sel_builder && (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me))) want = "action-build";
+					else if (sel_builder && b.hp < b.max_hp) want = "action-repair"; // own or allied
 					// unit_actions "garrison" (session.garrison): an own or allied holder whose List takes a
 					// selected unit; a wall, gate or outpost has only turret points: "occupy-turret" (21).
 					// Without the hotkeys "move" (12) wins: no cursor.
@@ -345,12 +374,7 @@ void RtsoMain::update_cursor() {
 						tip_orange = occupied >= capacity;
 					}
 					else if (hold_garrison && selection_can_garrison(b.id)) {
-						want = "action-garrison";
-						// unit_actions "garrison" getActionInfo: the holder's slots, orange once full.
-						const int occupied = sim->get_garrison_occupied(b.id), capacity = sim->get_garrison_capacity(b.id);
-						tip = rtso::sprintf0(rtso::tr0("Current garrison: %(garrisoned)s/%(capacity)s"),
-								{{"garrisoned", String::num_int64(occupied)}, {"capacity", String::num_int64(capacity)}});
-						tip_orange = occupied >= capacity;
+						garrison_cursor();
 					}
 					// unit_actions "occupy-turret" (session.occupyturret): the rampart tower's points.
 					else if (rtso::hotkeys::held("session.occupyturret") && selection_can_occupy_turret(b.id)) {
@@ -390,6 +414,55 @@ void RtsoMain::update_cursor() {
 	in->set_custom_mouse_cursor(tex, Input::CURSOR_ARROW, hot);
 }
 
+// Engine.PickEntityAtPoint: the one entity under the mouse that the viewed player sees, as
+// the hover highlights it and a right click acts on it (input.js determineAction): a unit,
+// else a structure the ray enters, an animal, a treasure, Gaia scenery, or a resource as the
+// player last saw it. 0 over bare ground. The hover leaves treasures and scenery out
+// (`with_props` false): RTS0 draws no highlight for them.
+uint32_t RtsoMain::entity_under_mouse(Vector2 mouse, bool with_props) const {
+	if (!sim) return 0;
+	// A unit's own body (about its selection box), not the generous reach a left click
+	// selects with: a woman at a tree doesn't hide the tree.
+	const size_t u = own_unit_under_mouse(mouse, true, 0.6f);
+	if (u != (size_t)-1) return sim->units().id[u];
+	if (const uint32_t bid = building_under_mouse(mouse, nullptr, true); bid != 0) return bid;
+	const Vector3 at = get_ground_click_pos(mouse);
+	auto fv = sim->fauna();
+	float best = 2.5f * 2.5f;
+	uint32_t pick = 0;
+	for (size_t f = 0; f < fv.count; ++f) {
+		if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED) continue;
+		const float dx = fv.pos_x[f] - at.x, dz = fv.pos_z[f] - at.z;
+		if (dx * dx + dz * dz >= best) continue;
+		if (!rtso::los_sees_fauna(*sim, view_player(), fv.pos_x[f], fv.pos_z[f], fv.owner[f], fv.fauna_type[f])) continue;
+		best = dx * dx + dz * dz;
+		pick = fv.id[f];
+	}
+	if (pick) return pick;
+	float best_t = 2.0f * 2.0f;
+	for (const auto &t : sim->treasures()) {
+		if (!with_props) break;
+		if (!sim->los_explored(view_player(), t.x, t.z)) continue;
+		const float dx = t.x - at.x, dz = t.z - at.z;
+		if (dx * dx + dz * dz < best_t) { best_t = dx * dx + dz * dz; pick = t.id; }
+	}
+	if (pick) return pick;
+	if (const uint32_t sid = with_props ? scenery_at(at.x, at.z) : 0; sid != 0) return sid;
+	// A tree, mine, bush or shoal as the player last saw it (Fogging.js mirages are
+	// hoverable): the one a right click would gather from.
+	float best_r = 2.2f * 2.2f;
+	if (view) {
+		for (const auto &r : view->resource_mirages()) {
+			if (r.amount <= 0 || r.subtype == rtso::RES_SUB_GRAIN) continue;
+			const float dx = r.x - at.x, dz = r.z - at.z;
+			if (dx * dx + dz * dz >= best_r) continue;
+			best_r = dx * dx + dz * dz;
+			pick = r.id;
+		}
+	}
+	return pick;
+}
+
 // input.js INPUT_NORMAL mousemotion and INPUT_BANDBOXING: setHighlightList([PickEntityAtPoint])
 // while the mouse is over the world, and the band box's preferred entities while dragging.
 void RtsoMain::update_highlight() {
@@ -412,38 +485,8 @@ void RtsoMain::update_highlight() {
 			hover_mouse_ = mouse;
 			hover_cam_ = cam_xf;
 			hover_at_ms_ = now;
-			const size_t u = own_unit_under_mouse(mouse, true);
-			if (u != (size_t)-1) {
-				ids.push_back((int32_t)sim->units().id[u]);
-			} else if (const uint32_t bid = building_under_mouse(mouse, nullptr, true); bid != 0) {
-				ids.push_back((int32_t)bid);
-			} else {
-				const Vector3 at = get_ground_click_pos(mouse);
-				auto fv = sim->fauna();
-				float best = 2.5f * 2.5f;
-				int32_t pick = 0;
-				for (size_t f = 0; f < fv.count; ++f) {
-					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED) continue;
-					const float dx = fv.pos_x[f] - at.x, dz = fv.pos_z[f] - at.z;
-					if (dx * dx + dz * dz >= best) continue;
-					if (!rtso::los_sees_fauna(*sim, view_player(), fv.pos_x[f], fv.pos_z[f], fv.owner[f])) continue;
-					best = dx * dx + dz * dz;
-					pick = (int32_t)fv.id[f];
-				}
-				// A tree, mine, bush or shoal as the player last saw it (Fogging.js mirages
-				// are hoverable): the one a right click would gather from.
-				if (!pick) {
-					float best_r = 2.2f * 2.2f;
-					for (const auto &r : view->resource_mirages()) {
-						if (r.amount <= 0 || r.subtype == rtso::RES_SUB_GRAIN) continue;
-						const float dx = r.x - at.x, dz = r.z - at.z;
-						if (dx * dx + dz * dz >= best_r) continue;
-						best_r = dx * dx + dz * dz;
-						pick = (int32_t)r.id;
-					}
-				}
-				if (pick) ids.push_back(pick);
-			}
+			hover_target_ = entity_under_mouse(mouse, true);
+			if (const uint32_t pick = entity_under_mouse(mouse, false)) ids.push_back((int32_t)pick);
 			hover_pick_ = ids;
 			}
 		}

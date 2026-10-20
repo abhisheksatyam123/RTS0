@@ -381,6 +381,34 @@
    ]
   }
  ],
+ "athen_hero_xenophon": [
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 0,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__helmet__props__hele_crest_hair_b.glb"
+   ],
+   "node": "athen_hero_xenophon_part3",
+   "xf": [
+    1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    0.939693,
+    0.34202,
+    0.0,
+    -0.34202,
+    0.939693,
+    -0.0,
+    0.512313,
+    0.020121
+   ]
+  }
+ ],
  "athen_infantry_archer_e": [
   {
    "freq": [
@@ -13141,6 +13169,34 @@
    ]
   }
  ],
+ "rome_champion_infantry_swordsman_04": [
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 1,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__helmet__props__hele_crest_hair_j.glb"
+   ],
+   "node": "rome_champion_infantry_swordsman_04_part4",
+   "xf": [
+    1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    0.958557,
+    0.2849,
+    0.0,
+    -0.2849,
+    0.958557,
+    -0.0,
+    0.489288,
+    -0.024729
+   ]
+  }
+ ],
  "rome_champion_infantry_swordsman_first": [
   {
    "freq": [
@@ -15992,6 +16048,66 @@
     0.0,
     0.622652,
     0.031007
+   ]
+  }
+ ],
+ "spart_hero_leonidas_300": [
+  {
+   "freq": [
+    1,
+    1
+   ],
+   "joint": 4,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__helmet__props__hele_crest_hair_d.glb"
+   ],
+   "node": "spart_hero_leonidas_300_part9",
+   "xf": [
+    1.0,
+    -0.0,
+    -0.0,
+    0.0,
+    0.943642,
+    0.330967,
+    0.0,
+    -0.330967,
+    0.943642,
+    -0.0,
+    0.488922,
+    0.001741
+   ]
+  },
+  {
+   "freq": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "joint": 3,
+   "meshes": [
+    "",
+    "res://assets/models/props/looks/props__weap_falcata_b.glb",
+    "res://assets/models/props/looks/props__weap_falcata_c.glb",
+    "res://assets/models/props/looks/props__weap_falcata_d.glb",
+    "res://assets/models/props/looks/props__weap_falcata_e.glb"
+   ],
+   "node": "spart_hero_leonidas_300_part6",
+   "xf": [
+    -1.0,
+    -0.0,
+    0.0,
+    0.0,
+    -1.0,
+    1e-06,
+    0.0,
+    1e-06,
+    1.0,
+    -0.0,
+    0.408577,
+    0.044981
    ]
   }
  ],

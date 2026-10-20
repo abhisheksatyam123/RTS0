@@ -165,6 +165,11 @@ jobs:
           g++ -std=c++20 -O2 -Isrc tools/test_civ_units.cpp src/simulation/simulation.cpp \
             src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_civ_units
           /tmp/test_civ_units
+      - name: Flight tests (units/plane, UnitMotionFlying)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_flight.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_flight
+          /tmp/test_flight
       - name: Wagon Trains tests (the Germans' supply wagon, Wagon Encampment and wagon houses)
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_wagon_trains.cpp src/simulation/simulation.cpp \

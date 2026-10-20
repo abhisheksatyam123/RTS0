@@ -1321,6 +1321,58 @@
    "res://assets/textures/unit_variants/props/sheaths/xiphos_red_128x256_plain.png"
   ]
  },
+ "units/athen_hero_xenophon_tex2": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/helmet/crest_01_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_02_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_03_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_04_bronze_512x128_plain.png"
+  ]
+ },
+ "units/athen_hero_xenophon_tex4": {
+  "color_freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "colors": [
+   [
+    129,
+    152,
+    153
+   ],
+   [
+    153,
+    145,
+    129
+   ],
+   [
+    184,
+    151,
+    98
+   ],
+   [
+    255,
+    205,
+    125
+   ]
+  ],
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/head/hele_c_64x64_obj.png",
+   "res://assets/textures/unit_variants/props/head/hele_d_64x64_obj.png"
+  ]
+ },
  "units/athen_infantry_archer_b_tex1": {
   "color_freq": [
    1,
@@ -30741,6 +30793,178 @@
    "res://assets/textures/unit_variants/props/helmet/gladiator_01_props_iron_clean_256x256_plain.png"
   ]
  },
+ "units/rome_champion_infantry_swordsman_03_tex1": {
+  "color_freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "colors": [
+   [
+    8,
+    8,
+    8
+   ],
+   [
+    184,
+    151,
+    98
+   ],
+   [
+    250,
+    130,
+    78
+   ],
+   [
+    255,
+    205,
+    125
+   ],
+   [
+    255,
+    250,
+    187
+   ]
+  ],
+  "freq": [
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/head/rome_veteran_bloodied_64x64_obj.png"
+  ]
+ },
+ "units/rome_champion_infantry_swordsman_03_tex3": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/sheaths/gladius_black_64x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/gladius_brown_64x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/gladius_red_64x256_plain.png"
+  ]
+ },
+ "units/rome_champion_infantry_swordsman_04_tex1": {
+  "color_freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "colors": [
+   [
+    8,
+    8,
+    8
+   ],
+   [
+    184,
+    151,
+    98
+   ],
+   [
+    250,
+    130,
+    78
+   ],
+   [
+    255,
+    205,
+    125
+   ],
+   [
+    255,
+    250,
+    187
+   ]
+  ],
+  "freq": [
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/head/rome_veteran_bloodied_64x64_obj.png"
+  ]
+ },
+ "units/rome_champion_infantry_swordsman_04_tex2": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/helmet/rome_gallic_type_h_01_256x256_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/rome_gallic_type_h_02_256x256_plain.png"
+  ]
+ },
+ "units/rome_champion_infantry_swordsman_04_tex5": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/sheaths/gladius_black_64x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/gladius_brown_64x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/gladius_red_64x256_plain.png"
+  ]
+ },
+ "units/rome_champion_infantry_swordsman_05_tex1": {
+  "color_freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "colors": [
+   [
+    8,
+    8,
+    8
+   ],
+   [
+    184,
+    151,
+    98
+   ],
+   [
+    250,
+    130,
+    78
+   ],
+   [
+    255,
+    205,
+    125
+   ],
+   [
+    255,
+    250,
+    187
+   ]
+  ],
+  "freq": [
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/head/rome_veteran_bloodied_64x64_obj.png"
+  ]
+ },
+ "units/rome_champion_infantry_swordsman_05_tex2": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/sheaths/gladius_black_64x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/gladius_brown_64x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/gladius_red_64x256_plain.png"
+  ]
+ },
  "units/rome_champion_infantry_swordsman_centurion_tex0": {
   "freq": [
    1,
@@ -37118,6 +37342,34 @@
   ]
  },
  "units/spart_hero_brasidas_tex2": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/helmet/crest_01_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_02_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_03_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_04_bronze_512x128_plain.png"
+  ]
+ },
+ "units/spart_hero_leonidas_300_tex5": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/sheaths/falcata_black_128x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/falcata_blue_128x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/falcata_red_128x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/falcata_white_128x256_plain.png"
+  ]
+ },
+ "units/spart_hero_leonidas_300_tex7": {
   "freq": [
    1,
    1,

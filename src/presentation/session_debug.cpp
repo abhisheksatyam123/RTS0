@@ -701,6 +701,15 @@ Dictionary RtsoMain::debug_dialogs() {
 	return d;
 }
 
+void RtsoMain::debug_set_rally(int64_t building_id, float x, float z) {
+	if (!sim || net_lockstep()) return;
+	for (const auto &b : sim->buildings())
+		if (b.id == (uint32_t)building_id) {
+			sim->cmd_set_rally_point(b.team, b.id, x, z, 0, 0, false);
+			return;
+		}
+}
+
 // Test hook: step 0 places a barracks with a rally point and selects it; step 1
 // does what a right-click on the barracks itself does; every step reports the
 // rally point and whether the barracks centre / a far spot count as "itself".
@@ -861,6 +870,7 @@ Dictionary RtsoMain::debug_placement_tip() const {
 
 // Tests: the action tooltip beside the cursor and the cursor's name.
 Dictionary RtsoMain::debug_cursor_tip() {
+	update_highlight();
 	update_cursor();
 	Dictionary d;
 	d["visible"] = cursor_tip_ && cursor_tip_->is_visible();
