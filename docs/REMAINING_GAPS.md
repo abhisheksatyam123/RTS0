@@ -422,6 +422,23 @@ This pass covers save and replay metadata, compatibility, quicksave and quickloa
 
 Kept on purpose: a replay can't be saved ("A replay can't be saved."), though 0.28's Save button doesn't check for one. Checked and matching: what a save restores (camera, an empty selection, the control groups), the overwrite flow, the campaign filter, the details lines, the in-game summary's player rules and Continue routing, livestock in the Units Total column, captured unfinished structures, defeat moving everything to Gaia with no statistics, the replay menu's compatibility error, the 3-second minimum replay length, and the time warp's fast-forward reset.
 
+### Statistics, replays, saves, top panel and overlay counters, eighth 0.28 pass (2026-10-20)
+
+Overlay counters, the top panel's counters and build label, the summary page, the replay menu and the save dialogs against 0.28 (main acfb31a41). Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| U1 | The match clock (overlay time counter, developer overlay timeElapsed, attack and battle detection, session audio, the save's "elapsed") added up frame time: in a networked game it ran on while paused or waiting for turns, and quickload, time-warp rewind, a rejoin and a client loading the host's save kept the old count. 0.28 shows the simulation's time (OverlayCounterElapsedTime.js g_SimState.timeElapsed) | medium | Fixed: the clock is the simulation's ticks, so it follows every load, rewind and rejoin; attack and battle detection and the work sounds restart their timers when it goes back |
+| U2 | The resource counters' tooltips give the name only; 0.28 adds the resource's description (CounterResource.js, resources/*.json) | low | Fixed |
+| U3 | The build label stays at the player size in replays and for observers, under the view dropdown; 0.28 hides it while a player is viewed with the dropdown shown and moves it to "202 0 85%-279 100%" with no player viewed (BuildLabel.js) | low | Fixed |
+| U4 | The Diplomacy dialog's "Remaining ceasefire time" is English with unpadded minutes; 0.28 translates it with timeToString's "mm:ss" (DiplomacyDialogCeasefireCounter.js) | low | Fixed |
+| U5 | Replay and save player lists don't mark lobby buddies; 0.28 puts "• " before a buddy's name (gamedescription.js g_BuddySymbol) | low | Fixed |
+| U6 | The save overwrite and delete questions name the map by its title; 0.28 shows initAttributes.map, the map path ("maps/random/mainland"), and greys the date of an incompatible save (SavegameList.js) | low | Open: Stats |
+| U7 | Save and replay dates add today's time-zone offset, so a save from the other side of a daylight-saving change lists an hour off; 0.28 formats each date in its own local offset. Godot 4.3 has no per-timestamp local offset | low | Open: Stats (engine) |
+| U8 | The real-time counter is always a 24-hour "15:45:12"; 0.28 uses toLocaleTimeString ("3:45:12 PM" in en-US) | low | Open: Stats |
+
+Kept on purpose: the replay details add "Continued from a saved game at ..." and the incompatibility reason in red, where 0.28 gives the reason in a box only when the replay is started. Checked and matching: the counter manager's order, the ceasefire and speed counters, the FPS padding, the counters hidden with no player viewed, the allies' rows and their sort cycle, the population flash, the summary's players, texts, routing, team rules and 30 s rows, the replay filters, sort keys, selection and delete flow, the save details rows and load warnings, Match Settings, and the developer overlay's labels.
+
 ### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
 
 diplomacyManager.js, chatHelper.js and their callers were checked line by line. Everything else matches: update cadence, tribute rules, request handling and its odds, lastManStandingCheck, changePlayerDiplomacy, personality boosts, every chat string. Jebel Barkal was checked statically against the 0.28 source, since no 0.28 binary runs here (pass 8: wave sizing and target-class skip match). Pass 4's P2 is D8 below, and its P5 is D7.

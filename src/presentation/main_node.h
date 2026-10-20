@@ -297,7 +297,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool net_game_started_ = false;
 	bool net_status_shown_ = false; // a network warning is on lobby_status
 	float game_speed = 1.0f;
-	double match_elapsed_time = 0.0;
+	// The match clock is the simulation's (OverlayCounterElapsedTime: g_SimState.timeElapsed),
+	// so it stops while paused or waiting for turns and follows loads, rewinds and rejoins.
+	double match_elapsed_time() const { return sim ? (double)sim->stats().ticks * rtso::Simulation::FIXED_STEP : 0.0; }
 
 	Vector2 drag_start;
 	PackedInt32Array selected_ids;
