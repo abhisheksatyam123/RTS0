@@ -422,6 +422,38 @@ int main() {
 		CHECK(s.spawn_resource_treasure(0.0f, 0.0f, RES_WOOD) != 0 && s.treasures()[0].type == TREASURE_WOOD);
 	}
 
+	// 9. TreasureCollector range is edge to edge (ObstructionManager IsInTargetRange): a spearman
+	//    3.5 from a shipwreck's centre (20x10 m) reaches it along its length, not across it, and
+	//    not a barrel at the same distance.
+	{
+		fresh(s);
+		const uint32_t wreck = s.spawn_treasure(0.0f, 0.0f, TREASURE_SHIPWRECK);
+		const uint32_t barrel = s.spawn_treasure(30.0f, 0.0f, TREASURE_FOOD_BARREL);
+		const uint32_t sp = s.spawn_unit(10.0f, 10.0f, 0, UNIT_SPEARMAN);
+		const size_t i = (size_t)s.lookup_unit(sp);
+		const float reach = s.treasure_reach(i);
+		const Simulation::Treasure *tw = nullptr, *tb = nullptr;
+		for (const auto &t : s.treasures()) {
+			if (t.id == wreck) tw = &t;
+			if (t.id == barrel) tb = &t;
+		}
+		CHECK(tw && tb);
+		float ux, uz;
+		bool swapped;
+		nav::footprint_axis(Simulation::treasure_angle(wreck), ux, uz, swapped);
+		// The 20 m side lies along u unless the quarter turn swapped it onto v = (-uz, ux).
+		const float lx = swapped ? -uz : ux, lz = swapped ? ux : uz, wx = -lz, wz = lx;
+		auto at = [&](float x, float z) { s.units_.pos_x[i] = x; s.units_.pos_z[i] = z; };
+		at(3.5f * lx, 3.5f * lz);
+		CHECK(s.treasure_within(i, *tw, reach));
+		at(3.5f * wx, 3.5f * wz);
+		CHECK(!s.treasure_within(i, *tw, reach));
+		at(30.0f + 3.5f, 0.0f);
+		CHECK(!s.treasure_within(i, *tb, reach));
+		at(30.0f + 1.5f, 0.0f);
+		CHECK(s.treasure_within(i, *tb, reach));
+	}
+
 	if (failures) {
 		std::printf("test_treasures: %d failure(s)\n", failures);
 		return 1;
