@@ -198,7 +198,7 @@ static void test_start_territory_explored() {
 	for (int z = 0; z < R && !found; ++z)
 		for (int x = 0; x < R && !found; ++x) {
 			const float wx = (x + 0.5f) * cell - 64.0f, wz = (z + 0.5f) * cell - 64.0f;
-			if (s->territory_grid_.at(x, z) == 2 && std::hypot(wx + 30.0f, wz + 30.0f) > vr + 2.0f * cell) {
+			if (s->territory_grid_.at(x, z) == 2 && !s->los_.off_world(z * R + x) && std::hypot(wx + 30.0f, wz + 30.0f) > vr + 2.0f * cell) {
 				fx = wx; fz = wz; found = true;
 			}
 		}
@@ -228,17 +228,19 @@ static void test_circular_map() {
 	      "0.28 random maps are circular except corsica, latium and phoenician_levant; RTS0's own are square");
 	auto s = make_sim(64.0f);
 	s->set_circular_map(true);
-	CHECK(s->circular_map() && s->off_world(-62.0f, -62.0f) && !s->off_world(0.0f, -62.0f), "the corners are off the world");
+	CHECK(s->circular_map() && s->off_world(-62.0f, -62.0f) && !s->off_world(0.0f, -61.0f), "the corners are off the world");
 	s->spawn_unit(-60.0f, -60.0f, 0, UNIT_SPEARMAN); // stood in a corner (passability is not this test's)
 	s->spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+	s->spawn_unit(-40.0f, -40.0f, 0, UNIT_SPEARMAN); // near the edge, inside
 	s->tick(0.25f);
 	CHECK(s->los_visible(0, 0.0f, 0.0f) && !s->los_visible(0, -62.0f, -62.0f) && !s->los_explored(0, -62.0f, -62.0f),
 	      "a unit in the corner lights nothing off the world");
-	CHECK(s->los_visible(0, -46.0f, -46.0f), "but it sees the circle's edge");
-	CHECK(s->fow_state_at(-62.0f, -62.0f, 0) == Simulation::FOW_UNEXPLORED && s->fow_state_at(-46.0f, -46.0f, 0) == Simulation::FOW_VISIBLE,
+	// LosIsOffWorld: sight ends 8 m (2 units) inside the circle.
+	CHECK(s->los_visible(0, -42.0f, -42.0f) && !s->los_visible(0, -44.5f, -44.5f), "but it sees up to 8 m inside the circle's edge");
+	CHECK(s->fow_state_at(-62.0f, -62.0f, 0) == Simulation::FOW_UNEXPLORED && s->fow_state_at(-42.0f, -42.0f, 0) == Simulation::FOW_VISIBLE,
 	      "the fog matches");
 	const size_t world = s->los().in_world_cells(), all = s->los().cells();
-	CHECK(world * 100 > all * 75 && world * 100 < all * 82, "about pi/4 of the cells are in the world");
+	CHECK(world * 100 > all * 70 && world * 100 < all * 78, "about pi/4 x (62/64)^2 of the cells are in the world");
 	const char *path = "/tmp/rts0_test_los_circle.sav";
 	CHECK(s->save_state(path), "saves");
 	auto b = make_sim(64.0f);
@@ -268,7 +270,15 @@ static void test_circular_map() {
 	CHECK(g->circular_map(), "Mainland generates circular");
 	g->set_circular_map_choice(2);
 	g->generate_random_map(MAP_MAINLAND, 3, 2, 64.0f);
-	CHECK(!g->circular_map() && g->los().in_world_cells() == g->los().cells(), "unless the setup asks for a square");
+	CHECK(!g->circular_map(), "unless the setup asks for a square");
+	// A square map's outer 12 m (3 units) are off the world.
+	const size_t sq = g->los().in_world_cells(), sq_all = g->los().cells();
+	CHECK(sq < sq_all && sq * 100 > sq_all * 85 && g->los().off_world(0) &&
+	      g->los().off_world(g->los().cell_of(0.0f, -62.5f)) && !g->los().off_world(g->los().cell_of(0.0f, -58.0f)),
+	      "a square map's outer 12 m frame is off the world");
+	CHECK(g->past_map_edge(0.0f, 61.5f) && !g->past_map_edge(0.0f, 60.5f) && g->past_map_edge(60.0f, 0.0f, 1.5f) &&
+	      g->edge_step_barred(0.0f, 61.2f, 0.0f, 61.6f, 0.0f) && !g->edge_step_barred(0.0f, 61.6f, 0.0f, 61.2f, 0.0f),
+	      "and units can't walk into it (they may walk back out)");
 }
 
 // VisionSharing.js CheckVisionSharings: a player with units garrisoned in an ally's structure

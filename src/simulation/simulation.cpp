@@ -9884,6 +9884,20 @@ void Simulation::aim_velocity_unit(size_t t, float &vx, float &vz) const {
 	vz = (units_.pos_z[t] - units_.prev_z[t]) / (4 * FIXED_STEP);
 }
 
+// PositionHelper.PredictTimeToTarget: the smallest non-negative time t at which a projectile
+// of horizontal `speed` from (sx, sz) meets a target at (tx, tz) moving at (vx, vz), from
+// a t^2 + 2 b t + c = 0; 0 (aim where it stands) when there is none.
+float Simulation::predict_time_to_target(float sx, float sz, float speed, float tx, float tz, float vx, float vz) {
+	const float rx = tx - sx, rz = tz - sz;
+	const float a = vx * vx + vz * vz - speed * speed;
+	const float b = rx * vx + rz * vz;
+	const float c = rx * rx + rz * rz;
+	if (c == 0.0f) return 0.0f;
+	const float disc = b * b - a * c;
+	if (a < 0.0f || (b < 0.0f && disc >= 0.0f)) return c / (std::sqrt(std::max(0.0f, disc)) - b);
+	return 0.0f;
+}
+
 void Simulation::aim_velocity_fauna(size_t f, float &vx, float &vz) const {
 	vx = (fauna_.pos_x[f] - fauna_.prev_x[f]) / (4 * FIXED_STEP);
 	vz = (fauna_.pos_z[f] - fauna_.prev_z[f]) / (4 * FIXED_STEP);
@@ -13669,9 +13683,10 @@ void Simulation::tick_combat(float dt) {
 			// (x0.8 advanced, x0.8 again elite). Whether it hits is decided where it
 			// lands (tick_projectiles, DelayedDamage.js).
 			float dist = sqrtf(d2);
-			const float flight = dist / projectile_speed_of(units_.id[i], proj_vis);
 			float lead_x = 0.0f, lead_z = 0.0f;
 			aim_velocity_unit((size_t)t, lead_x, lead_z);
+			const float flight = predict_time_to_target(units_.pos_x[i], units_.pos_z[i], projectile_speed_of(units_.id[i], proj_vis),
+					units_.pos_x[t], units_.pos_z[t], lead_x, lead_z);
 			const float aim_x = units_.pos_x[t] + lead_x * flight;
 			const float aim_z = units_.pos_z[t] + lead_z * flight;
 			const float tech_spread = units_.team[i] < MAX_PLAYERS ? unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).spread : 1.0f;
@@ -14000,9 +14015,10 @@ void Simulation::tick_combat(float dt) {
 			units_.attacked_by[t] = units_.id[i]; // UnitAI "Attacked"
 			const float dmg = unit_attack_damage(i, t);
 			const float dist = std::hypot(units_.pos_x[t] - sx, units_.pos_z[t] - sz);
-			const float flight = dist / projectile_speed_of(units_.id[i], 0);
 			float lead_x = 0.0f, lead_z = 0.0f;
 			aim_velocity_unit(t, lead_x, lead_z);
+			const float flight = predict_time_to_target(sx, sz, projectile_speed_of(units_.id[i], 0),
+					units_.pos_x[t], units_.pos_z[t], lead_x, lead_z);
 			const float aim_x = units_.pos_x[t] + lead_x * flight;
 			const float aim_z = units_.pos_z[t] + lead_z * flight;
 			const float sigma = spread * dist / 100.0f;
@@ -14209,9 +14225,9 @@ void Simulation::tick_combat(float dt) {
 						crush * powf(0.9f, fi.crush_armor);
 				const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
 				const float dist = std::hypot(fx - b.x, fz - b.z);
-				const float flight = dist / projectile_speed_of(b.id, 0);
 				float lead_x = 0.0f, lead_z = 0.0f;
 				aim_velocity_fauna(f, lead_x, lead_z);
+				const float flight = predict_time_to_target(b.x, b.z, projectile_speed_of(b.id, 0), fx, fz, lead_x, lead_z);
 				const float lx = fx + lead_x * flight, lz = fz + lead_z * flight;
 				const float sigma = spread * dist / 100.0f;
 				float disp_x = 0.0f, disp_z = 0.0f;
@@ -14240,9 +14256,10 @@ void Simulation::tick_combat(float dt) {
 			const float dmg = hack * powf(0.9f, armor[0]) + pierce * powf(0.9f, armor[1]) + crush * powf(0.9f, armor[2]);
 			const float dx = units_.pos_x[u] - b.x, dz = units_.pos_z[u] - b.z;
 			const float dist = sqrtf(dx * dx + dz * dz);
-			const float flight = dist / projectile_speed_of(b.id, 0); // Attack.js PredictTimeToTarget at its own Projectile/Speed
 			float lead_x = 0.0f, lead_z = 0.0f;
 			aim_velocity_unit(u, lead_x, lead_z);
+			const float flight = predict_time_to_target(b.x, b.z, projectile_speed_of(b.id, 0), // at its own Projectile/Speed
+					units_.pos_x[u], units_.pos_z[u], lead_x, lead_z);
 			const float aim_x = units_.pos_x[u] + lead_x * flight;
 			const float aim_z = units_.pos_z[u] + lead_z * flight;
 			const float sigma = spread * dist / 100.0f;
@@ -14832,7 +14849,7 @@ void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
 // DelayedDamage.js Hit on animals: an arrow aimed at an animal (a structure's arrow at a
 // dangerous one) or a stray that lands in an animal's footprint hits it, Gaia being every
 // player's enemy. Returns the fauna index, or -1. Called when no unit was hit.
-int32_t Simulation::projectile_hit_fauna(const Projectile &p) const {
+int32_t Simulation::projectile_hit_fauna(const Projectile &p, bool aimed_only) const {
 	if (p.team == GAIA_PLAYER || !is_hostile(p.team, GAIA_PLAYER)) return -1;
 	auto inside = [&](size_t f) {
 		const float dx = fauna_.pos_x[f] - p.target_x, dz = fauna_.pos_z[f] - p.target_z;
@@ -14842,6 +14859,7 @@ int32_t Simulation::projectile_hit_fauna(const Projectile &p) const {
 	auto hittable = [&](size_t f) { return fauna_.alive[f] && fauna_.hp[f] > 0.0f && fauna_.behavior[f] != FAUNA_CORRALLED; };
 	const auto it = fauna_id_to_idx_.find(p.target_unit_id);
 	if (it != fauna_id_to_idx_.end() && hittable(it->second) && inside(it->second)) return (int32_t)it->second;
+	if (aimed_only) return -1;
 	int32_t best = -1;
 	float best_d2 = 0.0f;
 	for (size_t f = 0; f < fauna_.count; ++f) {
@@ -14881,8 +14899,18 @@ void Simulation::projectile_hits_fauna(const Projectile &p, size_t f) {
 	fauna_.hp[f] -= dmg;
 	fauna_attacked(f, p.source_id); // a unit, or the structure that shot
 	if (fauna_.hp[f] <= 0.0f && src >= 0) fauna_killed(f, (size_t)src);
-	else if (fauna_.hp[f] > 0.0f && p.status_effect != 0 && src >= 0)
-		apply_status_fauna(f, unit_combat_at((size_t)src), p.source_id, p.team);
+	else if (fauna_.hp[f] > 0.0f && p.status_effect != 0)
+		if (const CombatProfile *att = projectile_status_profile(p)) apply_status_fauna(f, *att, p.source_id, p.team);
+}
+
+// The profile whose ApplyStatus projectile p carries (Attack.js attackData.ApplyStatus):
+// its shooter template's, kept from launch, so a shooter that died in flight still
+// poisons or burns; for a projectile from an older save, the shooter's if it still lives.
+const CombatProfile *Simulation::projectile_status_profile(const Projectile &p) const {
+	if (p.src_kind == 1) return &unit_combat(p.src_tmpl, p.src_type);
+	if (p.src_kind != 0) return nullptr;
+	const int32_t src = lookup_unit(p.source_id);
+	return src >= 0 ? &unit_combat_at((size_t)src) : nullptr;
 }
 
 // 0 A.D. DelayedDamage.js Hit: a unit's projectile damages its target only if it lands
@@ -14931,7 +14959,7 @@ bool Simulation::projectile_lands_in(const Projectile &p, const Building &b) con
 int32_t Simulation::projectile_hit_structure(const Projectile &p) const {
 	for (size_t o = 0; o < buildings_.size(); ++o) {
 		const Building &b = buildings_[o];
-		if (!is_hostile(p.team, b.team) || !projectile_lands_in(p, b)) continue;
+		if (!is_hostile(p.team, b.team) || !structure_has_health(b.type) || !projectile_lands_in(p, b)) continue;
 		return (int32_t)o;
 	}
 	return -1;
@@ -14941,15 +14969,14 @@ int32_t Simulation::projectile_hit_structure(const Projectile &p) const {
 // structure's resistance at impact; a structure brought to nothing is razed.
 void Simulation::projectile_hits_structure(const Projectile &p, Building &b) {
 	if (!structure_has_health(b.type)) return; // Health disabled: arrows bounce off
+	if (b.wrecked || b.hp <= 0.0f) return; // the projectile's own splash razed it: Health.Reduce does nothing
 	const float dmg = projectile_damage_to_structure(p, b);
 	note_attacked(p.source_id, p.team, b.id, b.team, true, dmg);
 	award_structure_damage_xp(p.source_id, b, dmg);
 	if (!structure_takes_damage(b, dmg, p.source_id, p.team)) return;
-	if (p.status_effect != 0) {
-		// The shooter's ApplyStatus (Burning from Iberian javelins); nothing if it died in flight.
-		const int32_t src = lookup_unit(p.source_id);
-		if (src >= 0) apply_status_structure(b, unit_combat_at((size_t)src), p.source_id, p.team);
-	}
+	// The shooter's ApplyStatus (Burning from Iberian javelins), carried by the projectile.
+	if (p.status_effect != 0)
+		if (const CombatProfile *att = projectile_status_profile(p)) apply_status_structure(b, *att, p.source_id, p.team);
 }
 
 bool Simulation::structure_takes_damage(Building &b, float dmg, uint32_t src_id, uint8_t src_team) {
@@ -14986,19 +15013,28 @@ void Simulation::tick_projectiles(float dt) {
 			p.progress = 1.0f;
 			p.alive = false;
 
+			// DelayedDamage.js Hit: the aimed target takes it if the projectile lands inside
+			// its footprint (PositionHelper.TestCollision) and can be hurt; otherwise the
+			// nearest enemy unit, then enemy structure, whose footprint holds the landing
+			// point, then an animal there; failing all that it misses. The attack's Splash
+			// there comes first; the direct hit then does nothing to what the splash killed
+			// (Health.Reduce on 0 hitpoints still takes the projectile).
+			int32_t hb = -1, tidx = -1, hf = -1;
 			if (p.target_unit_id != 0 || p.target_building_id != 0) {
-				// DelayedDamage.js Hit: the aimed target takes it if the projectile lands
-				// inside its footprint (PositionHelper.TestCollision); otherwise the nearest
-				// enemy unit, then enemy structure, whose footprint holds the landing point,
-				// then an animal there; failing all that it misses.
-				int32_t hb = -1;
 				if (p.target_building_id != 0) {
 					const auto it = building_id_to_idx_.find(p.target_building_id);
-					if (it != building_id_to_idx_.end() && projectile_lands_in(p, buildings_[it->second])) hb = (int32_t)it->second;
-				}
-				const int32_t tidx = hb < 0 ? projectile_hit_unit(p) : -1;
-				if (hb < 0 && tidx < 0) hb = projectile_hit_structure(p);
-				if (tidx >= 0 && units_.alive[tidx] && !invulnerable(units_.id[tidx])) {
+					if (it != building_id_to_idx_.end() && structure_has_health(buildings_[it->second].type) &&
+							projectile_lands_in(p, buildings_[it->second]))
+						hb = (int32_t)it->second;
+				} else if (is_fauna_id(p.target_unit_id)) hf = projectile_hit_fauna(p, true);
+				if (hb < 0 && hf < 0) tidx = projectile_hit_unit(p);
+				if (hb < 0 && hf < 0 && tidx < 0) hb = projectile_hit_structure(p);
+				if (hb < 0 && hf < 0 && tidx < 0) hf = projectile_hit_fauna(p);
+			}
+			if (p.splash != 0)
+				cause_damage_over_area(p.splash, p.source_id, p.team, p.target_x, p.target_z, dx, dz);
+			{
+				if (tidx >= 0 && units_.alive[tidx]) {
 					const float dmg = projectile_damage_to_unit(p, (size_t)tidx);
 					award_damage_xp(p.source_id, (size_t)tidx, dmg);
 					note_attacked(p.source_id, p.team, units_.id[tidx], units_.team[tidx], false, dmg);
@@ -15008,11 +15044,9 @@ void Simulation::tick_projectiles(float dt) {
 					if (units_.team[tidx] == 0) {
 						raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[tidx], units_.pos_z[tidx], units_.id[tidx], units_.team[tidx]);
 					}
-					if (p.status_effect != 0) {
-						// The shooter's ApplyStatus (its profile; nothing if it died in flight).
-						const int32_t src = lookup_unit(p.source_id);
-						if (src >= 0) apply_status((size_t)tidx, unit_combat_at((size_t)src), p.source_id, p.team);
-					}
+					// The shooter's ApplyStatus, carried by the projectile.
+					if (p.status_effect != 0)
+						if (const CombatProfile *att = projectile_status_profile(p)) apply_status((size_t)tidx, *att, p.source_id, p.team);
 					if (units_.hp[tidx] <= 0) {
 						units_.alive[tidx] = 0;
 						units_.action_state[tidx] = ACTION_DYING;
@@ -15028,15 +15062,8 @@ void Simulation::tick_projectiles(float dt) {
 					}
 				}
 				if (hb >= 0) projectile_hits_structure(p, buildings_[(size_t)hb]);
-				if (tidx < 0 && hb < 0) {
-					const int32_t f = projectile_hit_fauna(p);
-					if (f >= 0) projectile_hits_fauna(p, (size_t)f);
-				}
+				if (hf >= 0 && fauna_.alive[hf] && fauna_.hp[hf] > 0.0f) projectile_hits_fauna(p, (size_t)hf);
 			}
-
-			// DelayedDamage.js Hit: the attack's Splash where the projectile lands.
-			if (p.splash != 0)
-				cause_damage_over_area(p.splash, p.source_id, p.team, p.target_x, p.target_z, dx, dz);
 		}
 
 		// 0 A.D. CCmpProjectileManager.cpp flight arc equation: y = y0 + (y1 - y0)*t + 4*h*t*(1 - t)
@@ -33439,9 +33466,9 @@ void Simulation::fire_at_fauna(size_t i, size_t f) {
 	const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
 	const float dist = std::hypot(fx - units_.pos_x[i], fz - units_.pos_z[i]);
 	const uint8_t vis = ut == UNIT_CATAPULT ? 2 : ((ut == UNIT_TRIREME || ut == UNIT_BOLT_SHOOTER) ? 1 : 0);
-	const float flight = dist / projectile_speed_of(units_.id[i], vis);
 	float lead_x = 0.0f, lead_z = 0.0f;
 	aim_velocity_fauna(f, lead_x, lead_z);
+	const float flight = predict_time_to_target(units_.pos_x[i], units_.pos_z[i], projectile_speed_of(units_.id[i], vis), fx, fz, lead_x, lead_z);
 	const float aim_x = fx + lead_x * flight, aim_z = fz + lead_z * flight;
 	const float tech_spread = units_.team[i] < MAX_PLAYERS ? unit_tech_mods(units_.team[i], ut, units_.tmpl[i]).spread : 1.0f;
 	const float sigma = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * tech_spread * dist / 100.0f;
