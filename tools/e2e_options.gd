@@ -135,7 +135,49 @@ func run() -> void:
 	var ally_edit: LineEdit = page._controls["gui.session.diplomacycolors.ally"][1].get_child(0)
 	ally_edit.text_changed.emit("300 0 0")
 	check(page._controls["gui.session.diplomacycolors.ally"][1].get_child(1).color == Color(1, 0, 1), "an invalid colour turns the swatch magenta")
-	ally_edit.text_changed.emit(cfg.get_value("gui.session.diplomacycolors.ally"))
+	# saveChanges: an invalid value shows its tab and asks before saving.
+	page._tabs.current_tab = 0
+	page._on_save()
+	check(page._confirm != null and page._confirm.message.contains("Some setting values are invalid"), "Save asks about an invalid colour")
+	check(page._tabs.get_current_tab_control().name == "Display", "on the Display tab")
+	page._confirm.find_child("Button1", true, false).pressed.emit() # No
+	await frames(2)
+	check(not cfg_text().contains("300 0 0"), "No leaves the invalid colour unsaved")
+	# page_colormixer: the button opens the mixer, Cancel sanitizes, Save writes the mix.
+	var mix: Button = page._controls["gui.session.diplomacycolors.ally"][1].get_child(2)
+	ally_edit.text = "abc 5.7"
+	mix.pressed.emit()
+	await frames(2)
+	var mixer = page._confirm
+	check(mixer != null and mixer.name == "ColorMixer" and mixer.find_child("Title", true, false).text == "Color", "the colour button opens the mixer")
+	mixer.find_child("Button1", true, false).pressed.emit() # Cancel
+	await frames(2)
+	check(page._confirm == null and ally_edit.text == "0 5 0" and cfg.get_value("gui.session.diplomacycolors.ally") == "0 5 0",
+		"Cancel writes back the sanitized colour: " + ally_edit.text)
+	mix.pressed.emit()
+	await frames(2)
+	mixer = page._confirm
+	mixer.sliders[0].value = 200
+	check(mixer.find_child("ColorValue0", true, false).text == "200" and mixer.find_child("ColorDisplay", true, false).color == Color8(200, 5, 0),
+		"a slider updates its value and the swatch")
+	mixer.find_child("Button2", true, false).pressed.emit() # Save
+	await frames(2)
+	check(cfg.get_value("gui.session.diplomacycolors.ally") == "200 5 0"
+		and page._controls["gui.session.diplomacycolors.ally"][1].get_child(1).color == Color8(200, 5, 0), "Save writes the mixed colour")
+	ally_edit.text = cfg.get_default("gui.session.diplomacycolors.ally")
+	ally_edit.text_changed.emit(ally_edit.text)
+	# options.json: the Display tab's order, open-ended chat backlog, list item tooltips.
+	var display: GridContainer = page._tabs.get_node("Display").get_child(0)
+	check(display.get_child(1).name == "showdetailedtooltips" and display.get_child(3).name == "gui_session_howtoshownames",
+		"Display starts with detailed tooltips, then entity names, as 0.28")
+	var backlog: SpinBox = page._controls["lobby.history"][1]
+	backlog.value = 5000
+	check(cfg.get_value("lobby.history") == "5000", "the chat backlog has no maximum")
+	backlog.value = 0
+	page._controls["lobby.history"][1].mouse_entered.emit()
+	check(page._description.text.ends_with("\nMin: 0"), "and its description gives only the minimum")
+	var aa = page._controls["antialiasing"][1]
+	check(aa.get_item_tooltip(1).begins_with("Fast, but simple"), "list items carry their own tooltips")
 	page._controls["watereffects"][1].button_pressed = true
 	page._controls["waterrefraction"][1].button_pressed = false
 	await frames(2)
