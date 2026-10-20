@@ -1284,6 +1284,8 @@ public:
 	void set_waves_enabled(bool on) { waves_enabled_ = on; }
 	// 0 A.D. "Last Man Standing": allies don't share a win; the match goes on until one player is left.
 	bool last_man_standing() const { return last_man_standing_; }
+	// EndGameManager alliedVictory: Setup.js sets it to LockTeams || !LastManStanding.
+	bool allied_victory() const { return teams_locked() || !last_man_standing_; }
 	void set_last_man_standing(bool on) { last_man_standing_ = on; reroll_petra_personalities(); }
 	// 0 A.D. population limit per player (game setup); 0 means unlimited. A negative
 	// setting is 0 A.D.'s World Population: -setting shared evenly by the players
@@ -2739,7 +2741,8 @@ private:
 				k == ORDER_RETURN_RESOURCE;
 	}
 	void formation_merge_twins();               // Formation.js ShapeUpdate twin merge
-	void formation_delete_twins(FormationController &fc); // Formation.js DeleteTwinFormations
+	void formation_delete_twins(FormationController &fc);
+	bool formation_current_order(const FormationController &fc, UnitOrder &o) const; // Formation.js DeleteTwinFormations
 	void formation_size(const FormationController &fc, float &width, float &depth) const; // GetSize
 	void attack_unit_one_by_one(const uint32_t *ids, size_t count, uint32_t target_unit_id);
 	void walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz, uint32_t follow = 0);
@@ -3917,6 +3920,8 @@ private:
 	bool petra_find_defensive_location(uint8_t btype, int &out_cx, int &out_cz) const; // headquarters.js findDefensiveLocation
 	void petra_prospect_market(const PetraTradeRoutes &routes); // prospectForNewMarket
 	int petra_unplanned_workers(int &supports);
+	// basesManager.js getTotalResourceLevel (nearby and medium): each base's dropsite supplies.
+	void petra_total_resource_level(float out[RES_COUNT]) const;
 	int petra_train_more_workers();
 	bool petra_wood_starved() const;
 	bool petra_wood_kept_for(int queue) const;
@@ -4241,6 +4246,16 @@ private:
 	uint64_t forest_sig_of_gaia() const { return gaia_obstacles_sig_ ^ ((uint64_t)nav_grid_.res << 48); }
 	bool forest_cell_closed(int cx, int cy, float clr = CLEARANCE_DEFAULT) const;
 	bool update_forest_cells();
+	// rebuild_nav_grid's gate pass, per open WallSet gate it last checked at 1 m: what that check read
+	// (the navcells, shapes and terrain round the gate) and the part navcells it kept open. A rebuild
+	// for a change elsewhere on the map gives the same inputs, so the same answer. Derived, not saved.
+	struct GatePassMemo {
+		uint32_t gate = 0;
+		bool used = false;
+		uint64_t keep = 0;
+		std::vector<uint8_t> key;
+	};
+	std::vector<GatePassMemo> gate_pass_memo_;
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// steer_obstacles_ by cell, rebuilt in move_units when they change, and the line test that
 	// looks only at those under the line (the same answer as nav::line_blocked_by_buildings over

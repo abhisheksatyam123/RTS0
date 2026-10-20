@@ -416,9 +416,9 @@ int main() {
 		CHECK(building_loot(BLD_ARMY_CAMP).wood == 80 && building_loot(BLD_ARMY_CAMP).stone == 30);
 		CHECK(building_loot(BLD_PYRAMID_LARGE).stone == 90 && building_loot(BLD_PYRAMID_LARGE).metal == 30);
 		// A Military Colony is a territory root and a dropsite; the Lighthouse sees far.
-		CHECK(civ_building_territory_radius(BLD_MILITARY_COLONY) > 10.0f && civ_building_is_dropsite(BLD_MILITARY_COLONY));
-		CHECK(civ_building_territory_radius(BLD_LIBRARY) == 0.0f && !civ_building_is_dropsite(BLD_LIBRARY));
-		CHECK(civ_building_vision(BLD_LIGHTHOUSE) > 40.0f);
+		CHECK(structure_territory_influence(BLD_MILITARY_COLONY, CIV_SELEUCIDS).root && civ_building_is_dropsite(BLD_MILITARY_COLONY));
+		CHECK(!structure_territory_influence(BLD_LIBRARY, CIV_PTOLEMIES).root && !civ_building_is_dropsite(BLD_LIBRARY));
+		CHECK(structure_vision_range(BLD_LIGHTHOUSE) > 40.0f);
 		auto claimed = [&]() {
 			int n = 0;
 			for (uint8_t v : c.territory_grid().data) n += v != 0;
@@ -576,7 +576,7 @@ int main() {
 	// a shore, a territory root that trains warships but no fishing boats.
 	{
 		CHECK(civ_can_build(CIV_CARTHAGINIANS, BLD_SUPER_DOCK) && !civ_can_build(CIV_ATHENIANS, BLD_SUPER_DOCK));
-		CHECK(civ_building_territory_radius(BLD_SUPER_DOCK) > civ_building_territory_radius(BLD_MILITARY_COLONY));
+		CHECK(structure_territory_influence(BLD_SUPER_DOCK, CIV_CARTHAGINIANS).radius > structure_territory_influence(BLD_MILITARY_COLONY, CIV_SELEUCIDS).radius);
 		CHECK(building_type_info(BLD_SUPER_DOCK).territory_decay_rate == 0.0f);
 		const uint16_t arrow = roster_id("cart/ship_arrow"), fishing = roster_id("cart/ship_fishing");
 		CHECK(civ_unit_template(arrow).trainers & bld_bit(BLD_SUPER_DOCK));

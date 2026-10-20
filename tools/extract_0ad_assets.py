@@ -1006,6 +1006,16 @@ ZIP_STRUCTURES = {
     "s_carthaginians_embassy_iberian": ("art/actors/structures/carthaginians/embassy_iberian.xml", "width", 3.5, None),
     "s_carthaginians_embassy_italic":  ("art/actors/structures/carthaginians/embassy_italic.xml",  "width", 3.4, None),
     "s_carthaginians_apartment":       ("art/actors/structures/carthaginians/apartment.xml",       "width", 2.7, None),
+    # The Defense Tower's 0.28 actors (structures/<civ>/defense_tower.xml), which
+    # are not the civs' wall towers; sized like the wall tower they stood in for.
+    "s_hellenes_scout_tower": ("art/actors/structures/hellenes/scout_tower.xml", "width", 2.2, None),
+    "s_carthaginians_scout_tower": ("art/actors/structures/carthaginians/scout_tower.xml", "width", 2.2, None),
+    "s_gauls_scout_tower": ("art/actors/structures/gauls/scout_tower.xml", "width", 2.2, None),
+    "s_iberians_scout_tower": ("art/actors/structures/iberians/scout_tower.xml", "width", 2.2, None),
+    "s_persians_scout_tower": ("art/actors/structures/persians/scout_tower.xml", "width", 2.2, None),
+    "s_romans_scout_tower": ("art/actors/structures/romans/scout_tower.xml", "width", 2.2, None),
+    "s_seleucids_scout_tower": ("art/actors/structures/seleucids/scout_tower.xml", "width", 2.2, None),
+    "s_ptolemies_defense_tower": ("art/actors/structures/ptolemies/defense_tower.xml", "width", 2.2, None),
     # The Wagon Encampment, as wide as the Roman army camp it stood in for, and
     # its fortified Upgrade at the same scale (its palisade rings the wagons).
     "s_germans_encampment":           ("art/actors/structures/germans/encampment.xml",           "width", 4.0, None),

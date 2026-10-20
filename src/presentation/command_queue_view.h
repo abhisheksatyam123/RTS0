@@ -742,13 +742,17 @@ public:
 					}
 				}
 			}
-			// is-dropsite-shared: an ally's sharable dropsite, once we have Diaspora (always disabled).
-			if (found_b && found_b->team != local_player() && local_player() < rtso::MAX_PLAYERS &&
-					sim->is_ally(local_player(), found_b->team) && rtso::Simulation::is_dropsite_type(found_b->type) &&
-					sim->player(local_player()).has_tech(rtso::TECH_UNLOCK_SHARED_DROPSITES))
+			// is-dropsite-shared (always disabled): an ally's sharable dropsite once we have Diaspora,
+			// and any sharable dropsite for an observer (allowedPlayers Ally and Observer).
+			const bool observing = host_->ui_observing();
+			if (found_b && rtso::Simulation::is_dropsite_type(found_b->type) && found_b->build_progress >= 1.0f &&
+					(observing || (found_b->team != local_player() && local_player() < rtso::MAX_PLAYERS &&
+					sim->is_ally(local_player(), found_b->team) &&
+					sim->player(local_player()).has_tech(rtso::TECH_UNLOCK_SHARED_DROPSITES))))
 				add_entity_command("is-dropsite-shared", found_b->dropsite_shared ? "Shared Dropsite" : "Locked Dropsite", "",
-						found_b->dropsite_shared ? "Shared Dropsite\nYou are allowed to use this dropsite."
-												 : "Locked Dropsite\nThe use of this dropsite is prohibited.",
+						!found_b->dropsite_shared ? "Locked Dropsite\nThe use of this dropsite is prohibited."
+						: observing ? "Shared Dropsite\nAllies are allowed to use this dropsite."
+									: "Shared Dropsite\nYou are allowed to use this dropsite.",
 						found_b->dropsite_shared ? "unlocked_small.png" : "locked_small.png", false);
 			// unload-all / unload-all-turrets on an ally's structure (allowedPlayers Player and Ally):
 			// counts and unloads only our own units in it (unload-all-by-owner).
@@ -826,9 +830,11 @@ public:
 							"kill_small_disabled.png", false);
 				else
 					add_entity_command("delete", "Delete", "session.kill", self_destruct_tooltip(), "kill_small.png");
-				if (rally)
+				if (rally) {
 					add_entity_command("focus-rally", "Focus on Rally Point", "camera.rallypointfocus",
 							tip("Focus on Rally Point", "Center the view on the selected rally point."), "focus-rally.png");
+					observer_may_press_last("Focus on Rally Point"); // allowedPlayers Player and Observer
+				}
 				if (market)
 					add_entity_command("select-trading-goods", "Barter & Trade", "session.gui.barter.toggle",
 							tip("Barter & Trade", "Open the dialog for managing resource trading and bartering."), "economics.png");
@@ -1178,6 +1184,21 @@ public:
 							break;
 						}
 					}
+					// Own livestock are units in 0.28 (UnitAI, Garrisonable into a corral): Abort while
+					// walking or herded, Garrison.
+					{
+						auto fv = sim->fauna();
+						for (int s = 0; s < selected_ids.size(); ++s) {
+							const uint32_t id = (uint32_t)selected_ids[s];
+							if (!sim->fauna_selectable_by(local_player(), id)) continue;
+							any_garrison = true;
+							for (size_t f = 0; f < fv.count; ++f)
+								if (fv.id[f] == id) {
+									any_busy = any_busy || fv.behavior[f] == rtso::FAUNA_MOVING || fv.behavior[f] == rtso::FAUNA_HERDED;
+									break;
+								}
+						}
+					}
 					if (passengers > 0)
 						add_entity_command("unload-all", "Unload All", "session.unload",
 								"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, passengers);
@@ -1203,7 +1224,7 @@ public:
 						add_entity_command("occupy-turret", "Occupy Turret", "session.occupyturret",
 								"Occupy Turret\nOrder the selected units to occupy a turret point.", "occupy-turret.png");
 					if (any_turret)
-						add_entity_command("leave-turret", "Unload", "session.leaveturret",
+						add_entity_command("leave-turret", "Unload", "", // no hotkey on its tooltip in 0.28
 								"Unload\nOrder the selected units to leave their turret points.", "leave-turret.png");
 					if (has_worker)
 						add_entity_command("repair", "Repair", "session.repair",
@@ -1997,9 +2018,17 @@ private:
 	// bar holds the previous frame's buttons (the first `old_count`) followed by
 	// this frame's. Keep the old ones when the two sets match, so a press and its
 	// release reach the same Button; otherwise swap in the new ones.
+	// The command row's last button, when it is `label` (not dropped past the six), stays
+	// pressable on an observer's read-only panel.
+	void observer_may_press_last(const char *label) {
+		if (const int c = commands_row_->get_child_count(); c > commands_base_) {
+			godot::Node *btn = commands_row_->get_child(c - 1);
+			if (godot::String(btn->get_meta("label", "")) == label) btn->set_meta("observer_ok", true);
+		}
+	}
 	static void disable_buttons(godot::Node *n) {
 		if (!n) return;
-		if (godot::BaseButton *b = godot::Object::cast_to<godot::BaseButton>(n)) b->set_disabled(true);
+		if (godot::BaseButton *b = godot::Object::cast_to<godot::BaseButton>(n); b && !b->has_meta("observer_ok")) b->set_disabled(true);
 		for (int i = 0; i < n->get_child_count(); ++i) disable_buttons(n->get_child(i));
 	}
 	static void keep_buttons(godot::Control *bar, int old_count) {
