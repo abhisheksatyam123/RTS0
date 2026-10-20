@@ -1015,6 +1015,9 @@ func _apply_map_locks() -> void:
 	var scen := _is_scenario()
 	var s: Dictionary = m.get("settings", {}) if scen else {}
 	_slot_count_node().editable = m.is_empty() or str(m.get("type", "")) == "random"
+	# PlayerCount.render: setEnabled(map type random).
+	if _player_count_select():
+		_player_count_select().disabled = not _slot_count_node().editable or _mp_role == "client"
 	# 0.28 MapSize.available: random maps only.
 	%MapSizeLabel.visible = _slot_count_node().editable
 	%MapSizeSlot.visible = _slot_count_node().editable
@@ -1290,6 +1293,15 @@ func _render_reset_buttons() -> void:
 			b.visible = not _is_scenario() and _mp_role != "client"
 
 # ---------------------------------------------------------------- slots ---
+
+func _player_count_select() -> RtsoSafeSelect:
+	var slot := get_node_or_null("%PlayerCountSlot")
+	return slot.get_child(0) as RtsoSafeSelect if slot and slot.get_child_count() > 0 else null
+
+func _render_player_count(n: int) -> void:
+	var pc := _player_count_select()
+	if pc and pc.get_selected() != n - 1:
+		pc.select(clampi(n - 1, 0, 7))
 
 func _slot_count_node() -> SpinBox:
 	return $VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots as SpinBox
@@ -1754,7 +1766,17 @@ func _build_options() -> void:
 	_mute_spin(%SpinSeed)
 	_mute_spin($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots)
 	$VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value_changed.connect(
-		func(_v: float) -> void: refresh_slots())
+		func(v: float) -> void:
+			_render_player_count(int(v))
+			refresh_slots())
+	# 0.28 Dropdowns/PlayerCount.js: "Number of Players", 1 to g_MaxPlayers, in the Player tab
+	# (the hidden SpinSlots keeps the count).
+	var pc := _make_option(%PlayerCountSlot)
+	for i in range(1, 9):
+		pc.add_item(str(i), i)
+	pc.tooltip_text = tr("Select number of players.")
+	_render_player_count(int(_slot_count_node().value))
+	pc.item_selected.connect(func(i: int) -> void: _slot_count_node().value = pc.get_item_id(i))
 	%BtnReroll.pressed.connect(_on_reroll_seed)
 	%SpinSeed.value_changed.connect(
 		func(_v: float) -> void: _update_preview())
