@@ -1804,6 +1804,14 @@ public:
 	float structure_garrison_heal_for(uint8_t type, uint8_t player) const {
 		return building_garrison_heal(type) + (player < MAX_PLAYERS && type < BLD_TYPE_COUNT ? tech_mods_[player].bld_garrison_heal[type] : 0.0f);
 	}
+	// What `player`'s technologies and bonuses do to a roster template's stats, as 0.28's
+	// GetTemplateData gives the detailed training tooltip: Health and Speed multipliers,
+	// MaxRange x range_mul + range_add metres, resistance levels added, each damage type's mul/add.
+	struct TemplateStatMods {
+		float health = 1.0f, speed = 1.0f, range_mul = 1.0f, range_add = 0.0f;
+		float armor[3] = {}, atk_mul[4] = {1.0f, 1.0f, 1.0f, 1.0f}, atk_add[4] = {};
+	};
+	TemplateStatMods template_stat_mods(uint8_t player, uint16_t tmpl) const;
 	// A structure of `type` as `player`'s build button shows it (0.28 GetTemplateData): its
 	// cost after civ, team and technology modifiers, and its BuildTime for one builder.
 	void structure_cost_for(uint8_t player, uint8_t type, float out[RES_COUNT]) const { structure_cost(player, type, -1.0f, out); }
@@ -2000,6 +2008,9 @@ public:
 	bool is_position_safe(float x, float z, float threshold = 6.0f) const;
 	int ai_pop_current() const;
 	int ai_pop_max() const;
+	// Petra's gameState.getPopulationMax(): the population cap after its modifiers (300 by
+	// default; 10000 when unlimited), not the housing-limited pop_max.
+	int petra_population_max() const;
 
 
 	// Petra Multi-Base HQ & BasesManager (0 A.D. ai/petra/headquarters.js / baseManager.js)

@@ -382,8 +382,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 		// OverlayCounterElapsedTime / RemainingCeasefire Hotkey: the top-right counters.
-		if (fired("timeelapsedcounter.toggle")) { toggle_overlay("gui.session.timeelapsedcounter"); return; }
-		if (fired("ceasefirecounter.toggle")) { toggle_overlay("gui.session.ceasefirecounter"); return; }
+		// OverlayCounter.js toggle: ConfigDB_CreateValue, for this run only (not saved).
+		auto toggle_counter = [this](const char *key) {
+			rtso::user_config::set(key, rtso::user_config::get_bool(key) ? "false" : "true");
+			refresh_user_options();
+		};
+		if (fired("timeelapsedcounter.toggle")) { toggle_counter("gui.session.timeelapsedcounter"); return; }
+		if (fired("ceasefirecounter.toggle")) { toggle_counter("gui.session.ceasefirecounter"); return; }
 
 		// fps.toggle, realtime.toggle, screenshot and bigscreenshot are global
 		// (scenes/menu/user_settings.gd), as in 0.28.
