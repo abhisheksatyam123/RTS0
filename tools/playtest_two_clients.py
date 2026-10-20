@@ -31,7 +31,7 @@ WHY GUI-CLICK AUTOMATION
 
     So this harness drives the actual UI with xdotool on a private Xvfb
     display. It performs a REAL session: real UDP sockets, real TurnManager
-    lockstep, real FNV-1a sim hashing.
+    lockstep, real sim hashing.
 
 MEASURED UI COORDINATES (window 3840x1080, canvas stretch 1:1)
     Lobby panel toggle (top bar) : (3024, 46)

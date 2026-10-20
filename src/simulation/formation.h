@@ -64,6 +64,7 @@ struct FormationUnitInfo {
 	uint16_t classes;    // FormationClass bits
 };
 
+#include "core/math/det_math.h"
 #include "formation_data.h"
 
 inline const FormationTemplate &formation_template(uint8_t f) {
@@ -117,7 +118,7 @@ struct FormationRng {
 
 // Formation.js GetRealOffsetPositions for one offset.
 inline void formation_slot_world(float cx, float cz, float rot, float ox, float oy, float &wx, float &wz) {
-	const float s = std::sin(rot), c = std::cos(rot);
+	const float s = det::sin(rot), c = det::cos(rot);
 	wx = cx + oy * s + ox * c;
 	wz = cz + oy * c - ox * s;
 }
