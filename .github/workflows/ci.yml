@@ -606,6 +606,15 @@ jobs:
             assets/models/**/*_tex*.png
           key: ${{ steps.import-cache.outputs.cache-primary-key }}
 
+      # Godot's Compatibility renderer (OpenGL: phones without Vulkan, the web) on a
+      # virtual display with Mesa's llvmpipe; fails on any shader compile error.
+      - name: OpenGL (Compatibility) shader check
+        if: matrix.name == 'Linux'
+        timeout-minutes: 30
+        run: |
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri
+          python3 tools/check_gl_shaders.py --godot godot
+
       - name: Export preset
         timeout-minutes: 30
         run: |
