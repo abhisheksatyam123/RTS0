@@ -573,6 +573,7 @@ void Simulation::reset() {
 	played_team_placement_ = TEAM_PLACEMENT_RANDOM; // a scenario or skirmish map has none
 	petra_decay_events_.clear();
 	petra_decay_barracks_.clear();
+	petra_hit_events_.clear();
 	petra_attack_requests_.clear();
 	petra_ev_attacked_.clear();
 	petra_ev_captures_.clear();
@@ -4293,13 +4294,24 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 }
 
 float Simulation::structure_max_hp(uint8_t type, uint8_t team) const {
-	float hp = civ_building_type_info(civ_of(team), type).max_hp;
-	if (team < MAX_PLAYERS) {
-		// 0 A.D. civ structure bonuses (Hellenic Architecture, Wooden Construction, walls, ...)
-		hp *= civ_bonus_mult(civ_of(team), CIV_BONUS_BUILDING_HP, type);
-		hp *= tech_mods(team).bld_health[type];
-	}
-	return hp;
+	return civ_building_type_info(civ_of(team), type).max_hp * structure_hp_mult(type, team);
+}
+
+// 0 A.D. civ structure bonuses (Hellenic Architecture, Wooden Construction, walls, ...) and
+// technologies on Health/Max: the owner's, so a capture swaps them (ModificationsManager).
+float Simulation::structure_hp_mult(uint8_t type, uint8_t team) const {
+	if (team >= MAX_PLAYERS || type >= BLD_TYPE_COUNT) return 1.0f;
+	return civ_bonus_mult(civ_of(team), CIV_BONUS_BUILDING_HP, type) * tech_mods(team).bld_health[type];
+}
+
+// Health.OnValueModification after an ownership change: max and current health scale by
+// the new owner's modifiers over the old one's.
+void Simulation::rescale_structure_hp(Building &b, uint8_t from) {
+	const float was = structure_hp_mult(b.type, from), now = structure_hp_mult(b.type, b.team);
+	if (was <= 0.0f || now == was) return;
+	const float r = now / was;
+	b.max_hp *= r;
+	b.hp *= r;
 }
 
 Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t building_id, int choice) const {
@@ -5296,7 +5308,7 @@ bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip
 	const float along_v = std::fabs(fvx * bu.x + fvz * bu.y) * b.hu + std::fabs(fvx * bv.x + fvz * bv.y) * b.hv;
 	const bool circle = b.team < MAX_PLAYERS && building_footprint_round(players_[b.team].civ, b.type);
 	return pick_spawn_point_box(b.x, b.z, b.rot, along_u, along_v, circle ? std::max(b.hu, b.hv) : 0.0f,
-			b.has_rally_point, b.rally_x, b.rally_z, type, skip_uid, false, out_x, out_z);
+			b.has_rally_point, b.rally_x, b.rally_z, type, skip_uid, out_x, out_z);
 }
 
 // The search of CCmpFootprint::PickSpawnPoint round a footprint centred on (cx, cz) and turned by
@@ -5307,9 +5319,9 @@ bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip
 // nearest the rally point (the front without one), alternating either way round; the first point
 // whose navcell the unit's passability allows, a land unit's class clearance off deep water as on its
 // steps (the expanded grid CheckUnitPlacement tests), and where no other unit stands wins
-// (CheckUnitPlacement). dry_ground also rejects points under the water line (the siege landing rule).
+// (CheckUnitPlacement): shallow water the passenger can wade is a spot too.
 bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
-		bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid, bool dry_ground,
+		bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid,
 		float &out_x, float &out_z) const {
 	float rad = unit_collision_radius(type);
 	if (rad <= 0.0f) rad = 0.25f;
@@ -5375,7 +5387,6 @@ bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along
 	auto free_at = [&](float px, float pz) {
 		if (std::fabs(px) >= map_half_ - rad || std::fabs(pz) >= map_half_ - rad) return false;
 		if (past_map_edge(px, pz, clearance)) return false; // nor past the map's edge
-		if (dry_ground && get_terrain_height(px, pz) < terrain_water_height_ + 0.15f) return false;
 		if (!nav_grid_.cells.blank()) {
 			const auto [gx, gy] = nav_grid_.world_to_cell(px, pz);
 			if (!nav_grid_.is_passable_for(gx, gy, pass)) return false;
@@ -7356,8 +7367,9 @@ bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z, size
 // world unit is 4 m, so the half extents are 1.5 (half the depth, and half the tower's width) and 1.0
 // (half the ram's width). RTS0 units store no facing, so the footprint's front (its depth axis, u)
 // points from the engine toward (toward_x, toward_z), and the search starts on that side. An engine
-// with no separate target (toward within 1e-3 of its centre) faces +z, with no rally point. The
-// landing is on dry ground only, as before (the ship landing rule). No alive unit may stand within
+// with no separate target (toward within 1e-3 of its centre) faces +z, with no rally point. A spot
+// in shallow water the passenger can wade counts (CheckUnitPlacement with its passability class), so
+// an engine on a shore still empties on its land side and in the shallows. No alive unit may stand within
 // the two collision radii of the spot, except skip_uid (the passenger itself), so each passenger set
 // down earlier blocks the next.
 bool Simulation::siege_spawn_point(size_t holder, uint8_t type, uint32_t skip_uid, float toward_x, float toward_z,
@@ -7369,9 +7381,9 @@ bool Simulation::siege_spawn_point(size_t holder, uint8_t type, uint32_t skip_ui
 	const float len = std::hypot(dx, dz);
 	if (!(len >= 1e-3f))
 		return pick_spawn_point_box(cx, cz, 0.0f, half_d, half_w, 0.0f, false, 0.0f, 0.0f,
-			type, skip_uid, true, out_x, out_z);
+			type, skip_uid, out_x, out_z);
 	return pick_spawn_point_box(cx, cz, std::atan2(dx, dz), half_d, half_w, 0.0f, true, toward_x, toward_z,
-			type, skip_uid, true, out_x, out_z);
+			type, skip_uid, out_x, out_z);
 }
 
 bool Simulation::is_transport(uint32_t unit_id) const {
@@ -9509,6 +9521,7 @@ void Simulation::gain_xp(size_t idx, float amount) {
 void Simulation::note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
 		bool target_is_building, float damage, bool melee, bool capture) {
 	if (!(damage > 0.0f) && !capture) return;
+	if (target_is_building && attacker_id != 0) petra_hit_events_.emplace_back(target_id, attacker_id);
 	// The Attacked message for the session's AttackDetection (presentation only), and the
 	// player's AttackDetection.AttackAlert for map triggers listening on OnAttackDetected
 	// (attacks by other players only).
@@ -10225,6 +10238,7 @@ void Simulation::tick(float dt) {
 	}
 	tick_petra_ai(dt);
 	cc_captures_.clear();
+	petra_hit_events_.clear(); // a hit later in the tick (an animal's) is dropped: no pending state between ticks
 	tick_fauna(dt);
 	tick_scenery_attackers();
 	tick_scenery_capture();  // Capturable.js TimerTick on scenery
@@ -15130,6 +15144,7 @@ void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
 		b.focus_targets.clear(); // BuildingAI.OnOwnershipChanged
 		const uint8_t from = b.team;
 		b.team = best == GAIA ? GAIA_PLAYER : (uint8_t)best;
+		rescale_structure_hp(b, from);
 		// OnOwnershipChanged -> UpdateCachedValuesAndNotify: the new owner's modifiers.
 		if (b.max_capture_points > 0.0f) {
 			const float want = structure_max_capture(b);
@@ -18480,6 +18495,7 @@ void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
 					std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f));
 		}
 		b.team = to;
+		rescale_structure_hp(b, from);
 		refresh_capture_max(b);
 		b.capture_points = to < MAX_PLAYERS ? b.capture_points_by_team[to] : 0.0f;
 		roots |= has_territory_influence(b.type);
@@ -28202,6 +28218,33 @@ bool Simulation::unit_short_waypoint(size_t i, float aim_x, float aim_z, float *
 	return true;
 }
 
+Simulation::RangeQuery Simulation::unit_range_query(size_t i) const {
+	RangeQuery q;
+	if (i >= units_.count || !units_.alive[i]) return q;
+	const float vision = unit_vision_at(i);
+	const float range = attack_reach(i);
+	const uint8_t stance = units_.stance[i];
+	// GetQueryRange: stand ground keeps to the attack range (and its MinRange), defensive
+	// reaches half its vision past it, aggressive and violent look over their vision.
+	if (range > 0.0f && stance == STANCE_STAND_GROUND) {
+		q.max = std::min(range, vision);
+		q.min = range * unit_min_range_ratio(units_.unit_type[i], units_.tmpl[i]);
+	} else if (range > 0.0f && stance == STANCE_DEFENSIVE)
+		q.max = std::min(range + vision * 0.5f, vision);
+	else if (stance == STANCE_AGGRESSIVE || stance == STANCE_VIOLENT)
+		q.max = vision;
+	if (unit_is_healer(units_.tmpl[i], units_.unit_type[i])) { // as find_heal_target
+		const float hv = unit_base_vision(i), hr = healer_range_of(i);
+		q.heal_max = stance == STANCE_STAND_GROUND ? std::min(hr, hv)
+				: stance == STANCE_DEFENSIVE ? std::min(hr + hv * 0.5f, hv) : hv;
+	}
+	const uint8_t st = units_.action_state[i];
+	q.enabled = st == ACTION_IDLE || st == ACTION_ATTACK_MOVE || st == ACTION_PATROL || st == ACTION_GUARD;
+	return q;
+}
+
+int Simulation::unit_grid_res() { return kUnitGridRes; }
+
 uint8_t Simulation::petra_owner_of(uint32_t id) const {
 	if (auto it = building_id_to_idx_.find(id); it != building_id_to_idx_.end()) return buildings_[it->second].team;
 	const int32_t u = lookup_unit(id);
@@ -30681,11 +30724,23 @@ void Simulation::petra_capture_gaia_relics() {
 }
 
 void Simulation::petra_manage_diplomacy(float dt) {
-	// checkEvents Attacked (every turn): an ally hitting an enemy inside our territory
-	// raises our cooperative trait, once per hit since the last turn.
+	// checkEvents Attacked (every turn): an ally hitting an enemy's unit, structure or animal
+	// (Gaia's included) inside our territory raises our cooperative trait, once per hit since the last turn.
 	for (const auto &[target, attacker] : petra_turn_attacks_) {
-		const int32_t t = lookup_unit(target);
-		if (t < 0 || !units_.alive[t] || !is_hostile(petra_pid_, units_.team[t])) continue;
+		float tx, tz;
+		uint8_t owner;
+		if (const int32_t t = lookup_unit(target); t >= 0) {
+			if (!units_.alive[t]) continue;
+			tx = units_.pos_x[t]; tz = units_.pos_z[t]; owner = units_.team[t];
+		} else if (auto bit = building_id_to_idx_.find(target); bit != building_id_to_idx_.end()) {
+			const Building &b = buildings_[bit->second];
+			if (b.hp <= 0.0f) continue;
+			tx = b.x; tz = b.z; owner = b.team;
+		} else if (auto fit = fauna_id_to_idx_.find(target); fit != fauna_id_to_idx_.end()) {
+			if (!fauna_.alive[fit->second]) continue;
+			tx = fauna_.pos_x[fit->second]; tz = fauna_.pos_z[fit->second]; owner = fauna_owner_[fit->second];
+		} else continue;
+		if (!is_hostile(petra_pid_, owner)) continue;
 		const int32_t a = lookup_unit(attacker);
 		uint8_t by = a >= 0 ? units_.team[a] : GAIA_PLAYER;
 		if (a < 0) {
@@ -30693,7 +30748,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			if (bit != building_id_to_idx_.end()) by = buildings_[bit->second].team;
 		}
 		if (by >= MAX_PLAYERS || by == petra_pid_ || !is_ally(petra_pid_, by)) continue;
-		if (territory_owner_at(units_.pos_x[t], units_.pos_z[t]) != (int)petra_pid_) continue;
+		if (territory_owner_at(tx, tz) != (int)petra_pid_) continue;
 		petra_config_.cooperative = std::min(1.0f, petra_config_.cooperative + 0.003f);
 	}
 
@@ -31275,6 +31330,7 @@ void Simulation::petra_record_events() {
 	std::erase_if(petra_attack_requests_, [&](const PetraAttackRequest &e) { return stale(e.tick); });
 	for (size_t i = 0; i < units_.count; ++i)
 		if (units_.attacked_by[i] != 0 && units_.alive[i]) petra_ev_attacked_.push_back({now, units_.id[i], units_.attacked_by[i]});
+	for (const auto &[target, attacker] : petra_hit_events_) petra_ev_attacked_.push_back({now, target, attacker});
 	for (const CivicCentreCapture &c : cc_captures_) petra_ev_captures_.push_back({now, c});
 	for (uint32_t id : petra_decay_events_) petra_ev_decay_.push_back({now, id});
 	petra_decay_events_.clear();
@@ -34142,6 +34198,7 @@ bool Simulation::fauna_threat_pos(uint32_t id, float &x, float &z) const {
 // attacker takes over the fight (it may be blocking the way to the target).
 void Simulation::fauna_attacked(size_t f, uint32_t attacker_id, bool melee) {
 	if (!fauna_.alive[f]) return;
+	if (attacker_id != 0) petra_hit_events_.emplace_back(fauna_.id[f], attacker_id);
 	const uint8_t b = fauna_.behavior[f];
 	// Penned livestock is garrisoned in its corral (GarrisonHolder), so it stays put; herded
 	// livestock is a passive Domestic animal and flees like any other (the herding ends).
