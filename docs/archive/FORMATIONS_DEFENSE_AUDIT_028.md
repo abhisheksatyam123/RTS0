@@ -1,6 +1,6 @@
 # Formations pass: Petra 0.28 defense vs RTS0
 
-Audit of 2026-10-15 against main 00f2209b2, tracked as G35 in `docs/REMAINING_GAPS.md`. Fixed so far: D1, D2, D3.
+Audit of 2026-10-15 against main 00f2209b2, tracked as G35 in `docs/REMAINING_GAPS.md`. Fixed so far: D1-D10. D11 stays open: an exact list needs a save change, and the no-save fallback (any enemy civic centre near ours) would make a starting civic centre on a small map a raid target, which 0.28 never lists. D4 also counts nbPlayers as 0.28 does (the seated slots, or the players owning anything when none is seated), where RTS0 counted all 8 slots in tests.
 
 Sources: 0.28 `defenseManager.js` (DM), `defenseArmy.js` (DA), `garrisonManager.js` (GM), `headquarters.js` (HQ), `attackManager.js`, `baseManager.js`, `emergencyManager.js`, `entityExtend.js` (EE). RTS0: `src/simulation/simulation.cpp` at main 00f2209b2 (line numbers are from that tree). I left out everything in audit-028 H1-H4, M1-M9 and L1-L11 (L7, the defender pick order, is still open there and is not repeated here), the re-check 3 table, and scale conversions.
 
@@ -28,14 +28,14 @@ Militia: neither tree has anything by that name. The closest things are the emer
 - Impact: low-medium. Save: no.
 - Fix: in the assignUnit block, if `carry>0` and a dropsite exists on the same land, order the return and queue the attack.
 
-**D4. Enemy units are scanned every turn instead of one player per turn.**
+**D4. (Fixed.) Enemy units are scanned every turn instead of one player per turn.**
 - 0.28 (DM:208-239): `checkEnemyUnits` looks only at player `playedTurn % nbPlayers`, Gaia included. In a 1v1 that is each enemy (and Gaia's animals) once every 3 turns, about 4.8 s.
 - RTS0: the enemy-unit scan (simulation.cpp:28578-28603), the animal scan (28467-28490) and the targetList scan (28608-28621) run every turn for every enemy. Only the own/Gaia capture checks use the rotation (`whose`, 28627).
 - Effect: walk-ins with no attack become armies up to about 3 s sooner. The Attacked path runs every turn in both, so hits are answered at the same speed.
 - Impact: low. Save: no.
 - Fix: run those scans only for `whose == team + 1` (Gaia's animals on `whose == 0`).
 
-**D5. Armies form on intent, not only on hits.**
+**D5. (Fixed.) Armies form on intent, not only on hits.**
 - 0.28: an army comes from an Attacked event (DM:636-642) or from isDangerous.
 - RTS0 adds two triggers 0.28 doesn't have:
   - Any foe in ACTION_ATTACK whose target is our unit joins an army from neutral or allied land at any distance, before it has hit anything (simulation.cpp:28459-28465; also 28585-28588 in our land).
@@ -44,33 +44,33 @@ Militia: neither tree has anything by that name. The closest things are the emer
 - Impact: low. Save: no.
 - Fix: drop the targeting loop and the base-radius rule. In the event loop, skip targets that are ships.
 
-**D6. Warships are never defenders.**
+**D6. (Fixed.) Warships are never defenders.**
 - 0.28 (DM:430-455): candidates exclude only Support, StoneThrower, FishingBoat and units in transport. Warships qualify, and `assignUnit` lets a Ship attack across access (DA:363).
 - RTS0 (simulation.cpp:28708): excludes TC_SHIP.
 - Impact: low (none on land maps). Save: no.
 - Fix: allow non-fishing, non-transporting warships and skip the land/ferry test for them, as the code already does at 28829.
 
-**D7. The backup rule doesn't count units with no reachable army.**
+**D7. (Fixed.) The backup rule doesn't count units with no reachable army.** The backup count also restarts in each pass, as 0.28 declares it inside the pass loop.
 - 0.28 (DM:493-498): while `backup < 12`, a candidate with no army at all also goes to backup and is dropped from both passes. That is a unit on another land in pass 0, or one that can't attack any army's foes.
 - RTS0 (simulation.cpp:28750): `if (best < 0) continue;` without counting it, so the unit is still offered in pass 1.
 - Effect: on island maps or against capture armies, RTS0 commits up to 12 more units than 0.28.
 - Impact: low. Save: no.
 - Fix: before `continue`, if `backup < 12`, increment `backup` and mark the candidate used.
 
-**D8. Breakaway timing.**
+**D8. (Fixed.) Breakaway timing.**
 - 0.28 (DA:612; DM:421 and DM:328): the breakaway check runs when `elapsed - positionLastUpdate > 5`. `assignDefenders` calls `recalculatePosition` every turn for each army that still needs defenders, and the every-5th-turn danger check does the same for all armies. So an under-defended army never sheds breakaways, and a satisfied one does every 5-8 s.
 - RTS0 (simulation.cpp:28205, 28514-28528): every army is checked on a global 5 s tick.
 - Effect: RTS0 splits large, spread-out invasions into more armies.
 - Impact: low. Save: no.
 - Fix: skip the breakaway check for armies whose `need > 0` (computed the turn before, or this turn before the check).
 
-**D9. Tower fire doesn't abort a capturing army.**
+**D9. (Fixed.) Tower fire doesn't abort a capturing army.**
 - 0.28 (DM:644-669): a capturing army is aborted when any non-ally attacker hits one of its units, structures included. In 0.28 a shooting Gaia tower being captured knocks its capturers off every turn, and the army re-forms on Gaia's turn.
 - RTS0 (simulation.cpp:28498-28503): only an enemy unit hit counts (`lookup_unit`).
 - Impact: low. Save: no.
 - Fix: also accept a structure attacker from `petra_attacker_of`.
 
-**D10. Sheltering support units and stone throwers keys on targeting, not hits.**
+**D10. (Fixed.) Sheltering support units and stone throwers keys on targeting, not hits.**
 - 0.28 (DM:673-687): runs on Attacked events, so tower arrows count too. It also skips units in started plans only.
 - RTS0 (`petra_manage_garrisons`, simulation.cpp:28050-28069): runs for foe units whose `target_unit_id` is ours. So a woman merely chased below 55% health shelters early, and one shot by a tower never does. It also skips all reserved units, mustering ones included.
 - Impact: low. Save: no.
