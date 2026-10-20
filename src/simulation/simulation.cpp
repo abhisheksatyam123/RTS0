@@ -1300,6 +1300,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	// A Gaia structure's points are Gaia's pool (what no player holds), not player 0's;
 	// giving them to player 0 handed it every Gaia tower on the first tick.
 	if (b.team < MAX_PLAYERS) b.capture_points_by_team[b.team] = b.max_capture_points;
+	record_foundation_cost(b);
 
 	buildings_.push_back(b);
 	building_id_to_idx_[bid] = buildings_.size() - 1;
@@ -3281,6 +3282,7 @@ uint32_t Simulation::spawn_wall_piece(const WallPiece &p, uint8_t team, float pr
 	b.rot = fp.rot;
 	b.set_extents(fp.half_size, building_half_depth(b.type, fp.half_size, b.civ)); // as a load sets it
 	b.garrison_cap = structure_garrison_cap(b); // its length's turret points
+	record_foundation_cost(b); // the piece's own price, by its length
 	if (const float health = wallset_piece_value(b.type, b.half_size, 0, b.civ); health > 0.0f) {
 		// wall_long/medium/short (palisades_*) Health by length, after the same civ and technology bonuses.
 		b.max_hp *= health / building_type_info(b.type).max_hp;
@@ -3297,14 +3299,29 @@ bool Simulation::pay_for_structure(uint8_t player, uint8_t b_type, float cost_ov
 	return players_[player].pay(c[RES_FOOD], c[RES_WOOD], c[RES_GOLD], c[RES_STONE]);
 }
 
-// Foundation.js OnOwnershipChanged: a foundation that is destroyed or deleted gives its
-// owner back ceil(cost x (1 - maxProgress)) of each resource. RTS0 keeps no cost per
-// foundation, so the cost is today's (techs researched since placing count).
-void Simulation::refund_foundation(const Building &b) {
-	if (b.wrecked || b.build_progress >= 1.0f || b.team >= MAX_PLAYERS) return;
+// Foundation.js InitialiseConstruction keeps the costs paid for a foundation; a foundation
+// can't upgrade, so they wait in upgrade_paid until it is finished or refunded.
+void Simulation::record_foundation_cost(Building &b) const {
+	b.upgrade_paid.fill(0.0f);
+	if (b.build_progress >= 1.0f || b.team >= MAX_PLAYERS) return;
 	const float piece = wallset_piece_value(b.type, b.half_size, 1, b.civ);
 	float c[RES_COUNT];
 	structure_cost(b.team, b.type, piece > 0.0f ? piece : -1.0f, c);
+	for (int r = 0; r < RES_COUNT; ++r) b.upgrade_paid[r] = c[r];
+}
+
+// Foundation.js OnOwnershipChanged: a foundation that is destroyed or deleted gives its
+// owner back ceil(costs x (1 - maxProgress)) of each resource, from the costs it was placed
+// for (a save from before they were kept refunds today's).
+void Simulation::refund_foundation(const Building &b) {
+	if (b.wrecked || b.build_progress >= 1.0f || b.team >= MAX_PLAYERS) return;
+	float c[RES_COUNT];
+	bool kept = false;
+	for (int r = 0; r < RES_COUNT; ++r) kept |= (c[r] = b.upgrade_paid[r]) > 0.0f;
+	if (!kept) {
+		const float piece = wallset_piece_value(b.type, b.half_size, 1, b.civ);
+		structure_cost(b.team, b.type, piece > 0.0f ? piece : -1.0f, c);
+	}
 	const float left = 1.0f - std::max(0.0f, b.build_progress);
 	players_[b.team].refund(std::ceil(c[RES_FOOD] * left), std::ceil(c[RES_WOOD] * left),
 		std::ceil(c[RES_GOLD] * left), std::ceil(c[RES_STONE] * left));
@@ -21191,7 +21208,7 @@ void Simulation::petra_build_first_base() {
 
 	// The civilCentre queue outranks every other (queueManager.js priority 950): pay
 	// from the stockpile at once, ahead of this tick's other spending.
-	if (petra_building_built()) return;
+	if (petra_building_built() || !petra_has_builder()) return;
 	if (!points[best].land) {
 		// Aboard a ship: a dock (findDockPosition with proximity, on the ship's sea), and the
 		// ship takes its passengers there (createTransportIfNeeded). findEconomicCCLocation's
@@ -23121,7 +23138,7 @@ void Simulation::petra_manage_naval(float dt) {
 				}
 				int cx = 0, cz = 0;
 				if (!petra_find_dock_position(land, sea, cx, cz)) break;
-				if (!petra_try_pay(PETRA_Q_DOCK, cost[0], cost[1], cost[2], cost[3])) break;
+				if (!petra_has_builder() || !petra_try_pay(PETRA_Q_DOCK, cost[0], cost[1], cost[2], cost[3])) break;
 				const uint32_t bid = petra_spawn_foundation(cx, cz, BLD_DOCK);
 				auto idle = petra_idle_builders();
 				if (bid && !idle.empty()) petra_order_builders(idle, 3, bid);
@@ -24100,7 +24117,7 @@ bool Simulation::petra_build_oversea_dock() {
 	search.lands = &lands;
 	if (!petra_find_dock_position(0, 0, cx, cz, &search)) return false;
 	const int foot = building_type_info(BLD_DOCK).footprint;
-	if (!petra_can_place(cx, cz, foot, BLD_DOCK)) return false;
+	if (!petra_can_place(cx, cz, foot, BLD_DOCK) || !petra_has_builder()) return false;
 	float f, w, g, st;
 	petra_structure_cost(BLD_DOCK, f, w, g, st);
 	const uint32_t bid = petra_spawn_foundation(cx, cz, BLD_DOCK);
@@ -24460,7 +24477,7 @@ void Simulation::petra_build_defenses() {
 		int cx = 0, cz = 0;
 		uint32_t bid = 0;
 		if (petra_find_defensive_location(btype, cx, cz)) {
-			if (petra_try_pay(PETRA_Q_DEFENSE_BUILDING, cf, cw, cg, cs))
+			if (petra_has_builder() && petra_try_pay(PETRA_Q_DEFENSE_BUILDING, cf, cw, cg, cs))
 				bid = petra_spawn_foundation(cx, cz, btype);
 		} else if (btype == BLD_FORTRESS) {
 			// queueplanBuilding.js findGoodPosition: a first fortress with no frontier spot
@@ -27526,6 +27543,7 @@ void Simulation::petra_structure_cost(uint8_t btype, float &food, float &wood, f
 }
 
 bool Simulation::petra_try_pay_structure(uint8_t queue, uint8_t btype) {
+	if (!petra_has_builder()) return false; // canBuild/canStart: no plan without a builder
 	float f, w, g, st;
 	petra_structure_cost(btype, f, w, g, st);
 	return petra_try_pay(queue, f, w, g, st);
@@ -28368,6 +28386,14 @@ int Simulation::petra_missing_room_count() const {
 
 void Simulation::petra_clear_no_room(uint8_t type) {
 	std::erase_if(petra_room_.marks, [type](const PetraRoom::Mark &m) { return m.type == type; });
+}
+
+// buildManager.js hasBuilder: canBuild refuses a structure no living unit of ours can build
+// ("nobuilder"), so no foundation is paid for once the citizens are gone.
+bool Simulation::petra_has_builder() const {
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.team[i] == petra_pid_ && unit_can_build(units_.unit_type[i], units_.tmpl[i])) return true;
+	return false;
 }
 
 // Every Petra foundation goes down here: queueplanBuilding.js start sets

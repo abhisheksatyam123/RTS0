@@ -77,13 +77,13 @@ Production queues, upgrades, foundations, capture/decay, build restrictions, tec
 
 | # | Difference from 0.28 | Impact | Status |
 |---|---|---|---|
-| Q1 | Petra remembers a failed placement per structure kind (8 bits) until it places one; 0.28 marks the template unbuildable for 90 s (setUnbuildable "room") and expands when over one template is missing room | medium | Open |
-| Q2 | Petra scans wanted/preferred techs in tech-id order; 0.28 walks researchers in creation order and their Researcher lists (Iron Axe Heads before Iron Plow) | low-medium | Open |
-| Q3 | Petra re-picks its random minor tech every 5th turn while it waits for resources; 0.28 keeps the queued plan | low-medium | Open |
-| Q4 | Petra lays foundations with no living builder; 0.28's canBuild needs one (120 s "nobuilder") | low | Open |
+| Q1 | Petra remembers a failed placement per structure kind (8 bits) until it places one; 0.28 marks the template unbuildable for 90 s (setUnbuildable "room") and expands when over one template is missing room | medium | Fixed on main (petra_room_: 90 s marks per structure, counted for expansion) |
+| Q2 | Petra scans wanted/preferred techs in tech-id order; 0.28 walks researchers in creation order and their Researcher lists (Iron Axe Heads before Iron Plow) | low-medium | Open (Triggers) |
+| Q3 | Petra re-picks its random minor tech every 5th turn while it waits for resources; 0.28 keeps the queued plan | low-medium | Open (Triggers): holding the pick slowed test_petra's Town phase 765 -> 813 s, so calibrate the reservation first |
+| Q4 | Petra lays foundations with no living builder; 0.28's canBuild needs one (120 s "nobuilder") | low | Fixed: no plan is paid for without a living builder |
 | Q5 | constructTrainingBuildings counted every phase-1 structure as Village and only BLD_BARRACKS as Barracks (academy, Ptolemaic merc camp) | low | Fixed |
 | Q6 | buildDefenses' base count left out military colonies | low | Fixed |
-| Q7 | A fortress with no frontier spot isn't stamped or marked; it rescans every 3rd turn | low | Open (with Q1) |
+| Q7 | A fortress with no frontier spot isn't stamped or marked; it rescans every 3rd turn | low | Fixed on main (no spot: the next try waits 90 s) |
 | Q8 | Allied land counted as ours (defensive frontier) or as frontier (market) whatever the victory mode; 0.28 shares it only under allied victory | low | Fixed |
 | Q9 | Palisades counted as walls in findPosition (class Palisade, not Wall) | low | Fixed |
 | Q10 | The village tech cost gate counted queued trainees as workers | low | Fixed |
@@ -92,9 +92,9 @@ Production queues, upgrades, foundations, capture/decay, build restrictions, tec
 | Q13 | Corralled animals didn't get garrison_heal's +1 | low | Fixed |
 | Q14 | An upgraded structure kept its rally point and autoqueue (Transform.js makes a new entity) | low | Fixed |
 | Q15 | Autoqueue re-adds the remainder of a batch whose spawning was blocked, not the chosen batch size | low | Open |
-| Q16 | A destroyed foundation refunds from today's price, not the price paid (Foundation.js stores costs) | low | Open |
-| Q17 | Construction tooltip's Heal line ignores garrison_heal; detailed training tooltips show base template stats, not the player's | low | Open |
-| Q18 | Upgrade tooltip cost isn't multiplied by the number of selected same-template structures | low | Open (check behaviour first) |
+| Q16 | A destroyed foundation refunds from today's price, not the price paid (Foundation.js stores costs) | low | Fixed: the costs are kept at placement |
+| Q17 | Construction tooltip's Heal line ignores garrison_heal; detailed training tooltips show base template stats, not the player's | low | Heal line fixed (garrison_heal counted); detailed training stats per player open |
+| Q18 | Upgrade tooltip cost isn't multiplied by the number of selected same-template structures | low | Fixed: every selected structure of the type upgrades, so the cost is for all of them |
 
 Checked and matching: queue limits, batch time modifiers, pop blocking, entity limits, research cost multipliers, upgrade cost/time/carry-over, foundation and repair rates, capture regen and ownership flip, territory decay rates, garrison healing, build restriction distances, every tech's cost/time/requirements/supersedes, researcher lists, civ bonuses, and the training/research/construction tooltips.
 
