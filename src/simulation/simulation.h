@@ -1219,6 +1219,7 @@ public:
 	// Player.js controlAllUnits (the developer overlay's Control all units): the
 	// player orders every live unit. Saved (SAVE_VERSION_PROJECTILE_DAMAGE).
 	bool controls_all(uint8_t player) const { return player < MAX_PLAYERS && players_[player].controls_all; }
+	uint8_t entity_owner(uint32_t id) const { return petra_owner_of(id); } // a structure's or unit's owner, 0xFF if gone
 	// Game Setup biome for random maps: BIOME_* or -1 for the map's own.
 	void set_biome_override(int b) { biome_override_ = (b >= 0 && b < BIOME_COUNT) ? b : -1; }
 	int biome_override() const { return biome_override_; }

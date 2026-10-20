@@ -609,7 +609,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						} else {
 							// Check building hit: any visible part (0 A.D. picks the
 							// rendered entity), then the old ground test round its base.
-							uint32_t hit_bld = building_under_mouse(mouse_pos, nullptr);
+							// Control all units: anyone's structure (selection.js addList force).
+							uint32_t hit_bld = building_under_mouse(mouse_pos, nullptr, sim->controls_all(local_player()));
 							for (const auto &b : sim->buildings()) {
 								if (hit_bld != 0) break;
 								if (b.team != local_player()) continue;
@@ -1606,12 +1607,10 @@ std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
 		return sp.x >= min_p.x && sp.x <= max_p.x && sp.y >= min_p.y && sp.y <= max_p.y;
 	};
 	auto uview = sim->units();
-	const bool control_all = sim->controls_all(local_player());
 	for (size_t i = 0; i < uview.count; ++i) {
-		if (!uview.alive[i]) continue;
-		if (uview.team[i] != local_player() &&
-				(!control_all || !rtso::los_sees_unit(*sim, view_player(), uview.pos_x[i], uview.pos_z[i], uview.team[i])))
-			continue;
+		// PickPlayerEntitiesInRect(..., g_ViewedPlayer): own units only, Control all units or not
+		// (only a click or Shift-click takes another player's, selection.js addList force).
+		if (!uview.alive[i] || uview.team[i] != local_player()) continue;
 		const rtso::TechClasses cls = rtso::unit_tech_classes(uview.unit_type[i]);
 		const bool military = (cls & (rtso::TC_MELEE | rtso::TC_RANGED)) != 0;
 		if ((military_only && !military) || (nonmilitary_only && military)) continue;
