@@ -55,9 +55,15 @@ public:
 	void build(godot::Object *owner, godot::HBoxContainer *top_hbox, uint8_t initial_civ) {
 		using namespace godot;
 
-		// 1. Civ Emblem Badge
+		// 1. CivIcon.xml: a 96 px emblem centred on the bar, hanging below it
+		// (size "50%-48 -26 50%+48 70"), outside the counters' row.
 		civ_emblem_ = memnew(TextureRect);
-		civ_emblem_->set_custom_minimum_size(Vector2(38, 38));
+		civ_emblem_->set_anchor(SIDE_LEFT, 0.5f);
+		civ_emblem_->set_anchor(SIDE_RIGHT, 0.5f);
+		civ_emblem_->set_offset(SIDE_LEFT, -48.0f);
+		civ_emblem_->set_offset(SIDE_RIGHT, 48.0f);
+		civ_emblem_->set_offset(SIDE_TOP, -26.0f);
+		civ_emblem_->set_offset(SIDE_BOTTOM, 70.0f);
 		civ_emblem_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 		civ_emblem_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
 		civ_emblem_->set_texture(rtso::load_ui_texture(rtso::civ_info(initial_civ).emblem_path));
@@ -65,15 +71,8 @@ public:
 		civ_emblem_->set_name("CivIcon");
 		civ_emblem_->set_mouse_filter(Control::MOUSE_FILTER_STOP);
 		civ_emblem_->connect("gui_input", Callable(owner, "_on_civ_icon_gui_input"));
-		top_hbox->add_child(civ_emblem_);
-
-		// 2. Phase Emblem Badge (Village, Town, City)
-		phase_emblem_ = memnew(TextureRect);
-		phase_emblem_->set_custom_minimum_size(Vector2(38, 38));
-		phase_emblem_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
-		phase_emblem_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
-		phase_emblem_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/phases/village.png"));
-		top_hbox->add_child(phase_emblem_);
+		top_hbox->get_parent()->add_child(civ_emblem_);
+		// (0.28's top panel has no phase emblem.)
 
 		// 3. Resource counters (CounterResource.js), 0 A.D. order: food, wood, stone, metal.
 		for (int i = 0; i < 4; ++i) {
@@ -160,23 +159,36 @@ public:
 			top_hbox->add_child(b);
 		}
 
-		// 7. Clock & Wave
+		// 7. BuildLabel: "Release XXVIII: Boiorix" over getBuildString, in the space between
+		// the counters and the right-hand buttons (0.28 has no clock or phase here: the
+		// elapsed time and ceasefire are the optional overlay counters). RTS0's wave mode
+		// shows its wave timer in the same place.
 		clock_label_ = memnew(Label);
-		clock_label_->set_custom_minimum_size(Vector2(65, 26));
-		clock_label_->add_theme_font_size_override("font_size", 13);
-		clock_label_->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.4f));
-		clock_label_->set_text("00:00");
+		clock_label_->set_visible(false);
 		top_hbox->add_child(clock_label_);
-
+		Control *spacer = memnew(Control);
+		spacer->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+		spacer->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		top_hbox->add_child(spacer);
+		// BuildLabel.SizePlayer "50%+44 0 100%-283 100%": right of the civ icon, left of
+		// the buttons.
 		wave_label_ = memnew(Label);
-		// Takes what the bar has left and clips the rest ("Ceasefire 4:59 |
-		// Village Phase"), so the buttons after it stay on screen at 1280 wide.
-		wave_label_->set_custom_minimum_size(Vector2(100, 26));
+		wave_label_->set_name("BuildLabel");
+		wave_label_->set_anchor(SIDE_LEFT, 0.5f);
+		wave_label_->set_anchor(SIDE_RIGHT, 1.0f);
+		wave_label_->set_anchor(SIDE_BOTTOM, 1.0f);
+		wave_label_->set_offset(SIDE_LEFT, 44.0f);
+		wave_label_->set_offset(SIDE_RIGHT, -283.0f);
+		wave_label_->set_offset(SIDE_TOP, 2.0f);
 		wave_label_->set_clip_text(true);
-		wave_label_->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+		wave_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+		wave_label_->set_vertical_alignment(VERTICAL_ALIGNMENT_TOP);
+		wave_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		wave_label_->add_theme_font_size_override("font_size", 12);
-		wave_label_->add_theme_color_override("font_color", Color(0.95f, 0.6f, 0.5f));
-		top_hbox->add_child(wave_label_);
+		wave_label_->add_theme_constant_override("line_spacing", -2);
+		wave_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+		wave_label_->add_theme_constant_override("outline_size", 3);
+		top_hbox->get_parent()->add_child(wave_label_);
 	}
 
 	bool is_ready() const { return res_labels_[0] != nullptr; }
@@ -302,17 +314,17 @@ public:
 		String sec_str = (secs < 10 ? "0" : "") + String::num_int64(secs);
 		clock_label_->set_text(min_str + ":" + sec_str);
 
-		String phase_name = (sim->player_phase(me) == 1) ? "Village Phase" : ((sim->player_phase(me) == 2) ? "Town Phase" : "City Phase");
-		if (sim->ceasefire_active()) {
-			int cs = (int)sim->ceasefire_remaining();
-			wave_label_->set_text("Ceasefire " + String::num_int64(cs / 60) + ":" + (cs % 60 < 10 ? "0" : "") +
-				String::num_int64(cs % 60) + " | " + phase_name);
-		} else if (sim->waves_enabled()) {
-			wave_label_->set_text("Wave " + String::num_int64(sim->wave_number()) +
-				" (" + String::num((double)sim->wave_time_remaining(), 0) + "s) | " + phase_name);
+		(void)me;
+		String text;
+		if (sim->waves_enabled()) {
+			text = "Wave " + String::num_int64(sim->wave_number()) + " (" + String::num((double)sim->wave_time_remaining(), 0) + "s)";
 		} else {
-			wave_label_->set_text(phase_name);
+			// getBuildString: "Build: %(buildDate)s (%(version)s)", Engine.GetBuildDate being
+			// the compile date.
+			text = String(rtso::tr0("Release XXVIII: Boiorix")) + "\n" +
+					rtso::sprintf0(rtso::tr0("Build: %(buildDate)s (%(version)s)"), {{"buildDate", String(__DATE__)}, {"version", String("0.1")}});
 		}
+		if (wave_label_->get_text() != text) wave_label_->set_text(text);
 	}
 
 	// The player name before each ally stat (colorizePlayernameHelper "■" and the
