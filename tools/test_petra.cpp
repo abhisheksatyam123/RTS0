@@ -173,6 +173,10 @@ static void test_roster_army() {
 				men.push_back(s->spawn_unit(at[0] - 6.0f + (float)(k % 5), at[1] - 6.0f - (float)(k / 5), 0, UNIT_SPEARMAN));
 			s->order_garrison(men.data(), men.size(), fort);
 		}
+		// Murder Holes: soldiers left from an attack hacking at a fortress from under its arrows
+		// (MinRange) would hold both attack slots for the rest of the match (attackManager.js),
+		// so its hero and champions never march.
+		s->complete_research(0, TECH_TOWER_MURDERHOLES);
 		bool hero = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		bool advanced = false, arsenal = false;
 		// 45 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
