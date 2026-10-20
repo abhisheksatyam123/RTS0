@@ -29,3 +29,8 @@ Checkout: `a3a765bbd` "Chat: 0.28's centred chat dialog ... closes G23" (2026-10
 - Fixed in the pass-3 PR: 1 (diplomacy colours follow the ceasefire), 2 (an unaffordable tribute is sent and answers "Insufficient resources - ..."), 3 (Reset erases only the page's options), 4 (scroll batch slider in tenths), 12 ("Requires Espionage"), 13 (ceasefire counter truncates).
 - Left open as REMAINING_GAPS G36 (low): 5, 6, 7, 9, 10, 11.
 - 8 kept: VSync applies live in RTS0, so it needs no restart.
+
+## Status (2026-10-20)
+
+- Fixed in the G36 PR: 5 (the colour button opens a port of page_colormixer, scenes/common/colormixer.gd), 9 (colours store what was typed; Save shows the tab and asks), 10 (each list item carries its own tooltip), 11 (Display follows options.json; lobby.history has no maximum).
+- Still open in G36: 6 and 7, which need renderer modes Godot 4.3 lacks.
