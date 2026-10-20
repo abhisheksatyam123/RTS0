@@ -637,7 +637,7 @@ static void test_spawn_clearance() {
 	// of it lie at the edge of the deep water.
 	float x = 0.0f, z = 0.0f;
 	const bool found = s.pick_spawn_point_box(0.0f, 17.5f, 0.0f, 0.5f, 0.5f, 0.0f, true, 0.0f, 0.0f,
-			UNIT_ELEPHANT, 0, false, x, z);
+			UNIT_ELEPHANT, 0, x, z);
 	std::printf("  an elephant trained on the bank spawns at (%.2f, %.2f)\n", x, z);
 	CHECK(found && !s.near_deep_water(x, z, CLEARANCE_LARGE));
 	const uint32_t ship = s.spawn_unit(0.0f, 13.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
@@ -649,6 +649,28 @@ static void test_spawn_clearance() {
 	std::printf("  set ashore at (%.2f, %.2f), an elephant at (%.2f, %.2f)\n", fx, fz, ex, ez);
 	CHECK(any && !s.near_deep_water(fx, fz, CLEARANCE_DEFAULT));
 	CHECK(ashore && !s.near_deep_water(ex, ez, CLEARANCE_LARGE));
+}
+
+// Shallow water everywhere (0.3 under the nav water line, under 0 A.D.'s MaxWaterDepth 2 m) but the
+// north-east corner.
+static float shallows_at(float x, float z) { return (x > 40.0f && z > 40.0f) ? 1.0f : 0.0f; }
+
+// A siege tower standing in the shallows sets its passengers down round it: PickSpawnPoint asks only
+// the passenger's passability (CheckUnitPlacement), which wades shallow water, so a tower by a shore
+// empties on every Unload, not only on its dry side.
+static void test_siege_unloads_into_shallows() {
+	static Simulation s;
+	fresh(s, shallows_at);
+	const uint32_t tower = s.spawn_unit(0.0f, 0.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, tmpl_of("mace/siege_tower"));
+	std::vector<uint32_t> ids;
+	for (int a = 0; a < 3; ++a) ids.push_back(s.spawn_unit(1.0f, 0.5f, 0, UNIT_ARCHER));
+	s.order_board_transport(ids.data(), ids.size(), tower);
+	CHECK(s.get_transport_passenger_count(tower) == 3);
+	s.order_disembark_all(tower);
+	std::printf("  a siege tower in the shallows unloads: %d left aboard\n", (int)s.get_transport_passenger_count(tower));
+	CHECK(s.get_transport_passenger_count(tower) == 0);
+	for (uint32_t id : ids)
+		CHECK(idx(s, id) >= 0 && s.units().alive[(size_t)idx(s, id)]);
 }
 
 // A task walk's line is tested on every navcell it passes through, as CheckLineMovement walks
@@ -2243,6 +2265,7 @@ int main() {
 	test_dock_takes_all();
 	test_no_wading();
 	test_spawn_clearance();
+	test_siege_unloads_into_shallows();
 	test_line_clips_water();
 	test_gather_around_lake();
 	test_dock_trade();

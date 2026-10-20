@@ -6,6 +6,7 @@
 #include "session_audio.h"
 #include "user_config.h"
 #include "formation_variants.h"
+#include "../graphics/assets/instance_params.h"
 #include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
 #include <chrono>
@@ -777,7 +778,7 @@ void RtsoWorldView::load_garrison_flags() {
 	if (!f.is_valid()) return;
 	Dictionary root = JSON::parse_string(f->get_as_text());
 	Dictionary models = root.get("models", Dictionary());
-	Ref<Shader> shader = ResourceLoader::get_singleton()->load("res://shaders/garrison_flag.gdshader");
+	Ref<Shader> shader = rtso::load_instanced_shader("res://shaders/garrison_flag.gdshader");
 	Ref<PackedScene> scene = ResourceLoader::get_singleton()->load("res://assets/models/props/garrison_flag.glb");
 	if (!shader.is_valid() || !scene.is_valid()) return;
 	if (Node *inst = scene->instantiate()) {
@@ -980,8 +981,10 @@ void RtsoWorldView::update_garrison_flag(BuildingVis &v, const String &model_id,
 		v.flag->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_ON);
 		v.root->add_child(v.flag);
 	}
-	v.flag->set_material_override(flag_mats_[fp->style]);
-	v.flag->set_instance_shader_parameter("player_color", owner_color);
+	// Under Compatibility the flag draws its own copy of the style's material.
+	if (!rtso::is_material_or_copy(v.flag->get_material_override(), flag_mats_[fp->style]))
+		v.flag->set_material_override(flag_mats_[fp->style]);
+	rtso::set_instance_param(v.flag, "player_color", owner_color);
 	const float fs = b_scale * fp->scale;
 	v.flag->set_transform(Transform3D(Basis().scaled(Vector3(fs, fs, fs)),
 			Vector3(0, y_offset, 0) + fp->pos * b_scale));
@@ -3922,10 +3925,11 @@ void RtsoWorldView::refresh_silhouettes() {
 	if (silhouette_gen_ == rtso::user_config::generation()) return;
 	silhouette_gen_ = rtso::user_config::generation();
 	if (!silhouette_mat_.is_valid()) {
-		Ref<Shader> sh = ResourceLoader::get_singleton()->load("res://shaders/silhouette.gdshader");
+		Ref<Shader> sh = rtso::load_instanced_shader("res://shaders/silhouette.gdshader");
 		if (sh.is_valid()) {
 			silhouette_mat_.instantiate();
 			silhouette_mat_->set_shader(sh);
+			silhouette_mat_->set_shader_parameter("gl_depth", rtso::gl_compatibility());
 		}
 	}
 	const bool on = rtso::user_config::get_bool("silhouettes") && silhouette_mat_.is_valid() && !cinema_playing_;
@@ -3946,8 +3950,9 @@ void RtsoWorldView::refresh_silhouettes() {
 void RtsoWorldView::set_silhouette(Node *n, const Color &c) {
 	if (!n) return;
 	if (MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(n)) {
-		mi->set_material_overlay(silhouettes_ ? Ref<Material>(silhouette_mat_) : Ref<Material>());
-		if (silhouettes_) mi->set_instance_shader_parameter("silhouette_color", c);
+		const Ref<Material> overlay = silhouettes_ ? Ref<Material>(silhouette_mat_) : Ref<Material>();
+		if (!rtso::is_material_or_copy(mi->get_material_overlay(), overlay)) mi->set_material_overlay(overlay);
+		if (silhouettes_) rtso::set_instance_param(mi, "silhouette_color", c);
 	}
 	for (int i = 0; i < n->get_child_count(); ++i) set_silhouette(n->get_child(i), c);
 }
@@ -4039,8 +4044,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto uview = sim->units();
 	prefetch_unit_models(sim, uview, delta);
 	auto rview_g = sim->resources();
-	auto entity_visible = [sim, this](float x, float z, uint8_t team) {
-		return rtso::los_sees_unit(*sim, local_player_, x, z, team);
+	// Lock cull camera (GameView.cpp m_CullCamera): what lies outside the frozen frustum is
+	// not drawn, so moving the view camera shows what the cull camera culled.
+	const bool cull_locked = !locked_cull_frustum_.empty() && anim_cull_enabled_;
+	auto locked_out = [&](float x, float z, float radius) {
+		return cull_locked && !in_view(Vector3(x, sim->get_terrain_height(x, z), z), radius);
+	};
+	auto entity_visible = [&](float x, float z, uint8_t team) {
+		return rtso::los_sees_unit(*sim, local_player_, x, z, team) && !locked_out(x, z, 4.0f);
 	};
 	// template_unit_fauna.xml RetainInFog: an animal stays drawn where it is in explored fog
 	// (CCmpRangeManager VIS_FOGGED with no Fogging mirage), hidden only in unexplored land.
@@ -4322,7 +4333,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				}
 			}
 			if (!aura_icon_sources_.empty())
-				status_aura_icons(x, z, uview.team[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, false, st);
+				status_aura_icons(uview.id[i], x, z, uview.team[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, false, st);
 			if (bars || st.n_icons > 0) {
 				// The GLBs are in metres, so the model's scale is world units per metre.
 				const rtso::StatusBarsSize sb = unit_status_bars(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
@@ -4497,7 +4508,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (const auto &b : buildings) {
 		alive_buildings.insert(b.id);
 		BuildingVis &v = acquire_building_slot(b.id);
-		if (v.root) v.root->set_visible(true);
+		if (v.root) v.root->set_visible(!locked_out(b.x, b.z, b.half_size * 1.5f + 4.0f));
 
 		uint8_t bciv = b.civ;
 		const String mid = building_visual_id(bciv, b.type, b.half_size);
@@ -4715,7 +4726,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 					}
 				}
 			}
-			if (!aura_icon_sources_.empty()) status_aura_icons(b.x, b.z, b.team, rtso::CIV_UNIT_TEMPLATE_NONE, true, st);
+			if (!aura_icon_sources_.empty()) status_aura_icons(b.id, b.x, b.z, b.team, rtso::CIV_UNIT_TEMPLATE_NONE, true, st);
 			if (bars || st.n_icons > 0) {
 				// In the model's metres (its actor frame), as the GLBs are not drawn 1 unit = 4 m.
 				float m = 0.25f;
@@ -5166,12 +5177,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 // The icons of the shown auras (aura_icon_sources_) reaching an entity of `team` at
 // (x, z): a unit of roster row tmpl the aura affects, or a structure when the aura
-// names the Structure class. Each icon once.
-void RtsoWorldView::status_aura_icons(float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const {
+// names the Structure class. Each icon once. A range aura's query leaves its own source
+// out (Auras.js CreateActiveQuery), so a hero doesn't wear its own range aura's icon.
+void RtsoWorldView::status_aura_icons(uint32_t id, float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const {
 	const uint16_t bit = rtso::aura_player_bit(team);
 	for (const AuraIconSource &a : aura_icon_sources_) {
 		const rtso::AuraSource &s = *a.src;
 		if (!(s.affected & bit)) continue;
+		if (s.source_id == id && rtso::civ_hero_aura(s.aura).radius > 0.0f) continue;
 		if (structure ? !rtso::civ_hero_aura(s.aura).structures : !rtso::civ_aura_affects(s.aura, tmpl)) continue;
 		const float dx = x - s.x, dz = z - s.z;
 		if (dx * dx + dz * dz > s.range * s.range) continue;

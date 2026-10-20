@@ -12,6 +12,7 @@ extends Control
 ## [category, [[type, key, label, tooltip, extra], ...]]; extra is
 ## [min, max] for slider and number, [[label, value], ...] for dropdowns.
 const MSGBOX := preload("res://scenes/common/msgbox.gd")
+const COLORMIXER := preload("res://scenes/common/colormixer.gd")
 const TABS := preload("res://scenes/common/tab_buttons.gd")
 const MODERN := preload("res://scenes/common/modern_theme.gd")
 # options.json tooltip of each SCHEMA category, in order.
@@ -95,7 +96,7 @@ const SCHEMA := [
 			[["Everyone", "everyone"], ["Buddies", "buddies"], ["Disabled", "disabled"]]],
 	]],
 	["Networking / Lobby", [
-		["number", "lobby.history", "Chat backlog", "Number of backlogged messages to load when joining the lobby.", [0, 1000]],
+		["number", "lobby.history", "Chat backlog", "Number of backlogged messages to load when joining the lobby.", [0, null]],
 		["boolean", "lobby.columns.gamerating", "Game rating column", "Show the average rating of the participating players in a column of the gamelist."],
 		["boolean", "overlay.netwarnings", "Network warnings", "Show which player has a bad connection in multiplayer games."],
 		["dropdown", "network.lateobservers", "Late observer joins", "Allow everybody or buddies only to join the game as observer after it started.",
@@ -115,19 +116,19 @@ const SCHEMA := [
 			[["Disable", "none"], ["Completed", "completed"], ["All displayed", "all"]]],
 	]],
 	["Display", [
+		["boolean", "showdetailedtooltips", "Detailed tooltips", "Show detailed tooltips for trainable units in structures."],
 		["dropdown", "gui.session.howtoshownames", "Naming of entities", "How to show entity names.",
 			[["Specific names first", "0"], ["Generic names first", "1"], ["Only specific names", "2"], ["Only generic names", "3"]]],
-		["boolean", "gui.session.rankabovestatusbar", "Rank icon above status bar", "Show rank icons above status bars."],
-		["boolean", "gui.session.experiencestatusbar", "Experience status bar", "Show an experience status bar above each selected unit."],
 		["dropdown", "gui.session.respoptooltipsort", "Sort resources and population tooltip", "Dynamically sort players in the resources and population tooltip by value.",
 			[["Unordered", "0"], ["Ascending", "-1"], ["Descending", "1"]]],
 		["boolean", "overlay.fps", "FPS overlay", "Show frames per second in top right corner."],
 		["boolean", "overlay.realtime", "Real time overlay", "Show current system time in top right corner."],
 		["boolean", "gui.session.timeelapsedcounter", "Game time overlay", "Show current simulation time in top right corner."],
 		["boolean", "gui.session.ceasefirecounter", "Ceasefire time overlay", "Always show the remaining ceasefire time."],
-		["boolean", "showdetailedtooltips", "Detailed tooltips", "Show detailed tooltips for trainable units in structures."],
-		["boolean", "gui.session.minimap.icons.enabled", "Minimap icons", "Show special icons for some entities on the minimap."],
 		["slider", "gui.session.flarelifetime", "Flare display duration", "How long the flare markers on the minimap are displayed in seconds.", [0, 60]],
+		["boolean", "gui.session.minimap.icons.enabled", "Minimap icons", "Show special icons for some entities on the minimap."],
+		["boolean", "gui.session.rankabovestatusbar", "Rank icon above status bar", "Show rank icons above status bars."],
+		["boolean", "gui.session.experiencestatusbar", "Experience status bar", "Show an experience status bar above each selected unit."],
 		["boolean", "gui.session.attackrange", "Attack range visualization", "Display the attack range of selected defensive structures. (It can also be toggled with the hotkey during a game)."],
 		["boolean", "gui.session.aurasrange", "Aura range visualization", "Display the range of auras of selected units and structures. (It can also be toggled with the hotkey during a game)."],
 		["boolean", "gui.session.healrange", "Heal range visualization", "Display the healing range of selected units. (It can also be toggled with the hotkey during a game)."],
@@ -418,7 +419,8 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 		"number":
 			var sb := SpinBox.new()
 			sb.min_value = extra[0]
-			sb.max_value = extra[1]
+			# A null bound is open, as options.json's lobby.history (min 0 only).
+			sb.max_value = extra[1] if extra[1] != null else 1e9
 			sb.step = 1
 			MatchSettings.prepare_line_edit(sb.get_line_edit())
 			MatchSettings.strip_engine_popups(sb)
@@ -432,6 +434,10 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 			ob.clip_text = true
 			for item in extra:
 				ob.add_item(item[0])
+				# options.json item tooltips, shown on hover in the open list.
+				var tip: String = ITEM_TIPS.get(key, {}).get(item[1], "")
+				if tip != "":
+					ob.set_item_tooltip(ob.get_item_count() - 1, tr(tip))
 			ob.item_selected.connect(func(i):
 				var old := cfg.get_value(key)
 				_changed(key, extra[i][1])
@@ -445,16 +451,23 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 			le.text_changed.connect(func(t): _changed(key, t.replace("\"", "").strip_edges())) # user.cfg quotes values
 			c = le
 		"color":
-			# options.js "color": the "R G B" value with a swatch of it.
+			# options.js "color": the "R G B" value, a swatch of it, and a button that
+			# opens the colour mixer on it.
 			var row := HBoxContainer.new()
 			var le := LineEdit.new()
-			le.custom_minimum_size = Vector2(150, 30)
+			le.custom_minimum_size = Vector2(120, 30)
 			MatchSettings.prepare_line_edit(le)
 			var sw := ColorRect.new()
 			sw.custom_minimum_size = Vector2(30, 30)
+			var mix := Button.new()
+			mix.name = "Mixer"
+			mix.text = "..."
+			mix.custom_minimum_size = Vector2(30, 30)
 			row.add_child(le)
 			row.add_child(sw)
+			row.add_child(mix)
 			le.text_changed.connect(func(t): _color_edited(key, t, sw))
+			mix.pressed.connect(func(): _open_mixer(le, key, sw))
 			c = row
 	c.name = key.replace(".", "_")
 	label.mouse_entered.connect(func(): _description.text = _describe(opt))
@@ -474,7 +487,11 @@ func _describe(opt: Array) -> String:
 			text += "
 " + tr("Value: %(val)s (min: %(min)s, max: %(max)s)").replace("%(val)s", "%.2f" % float(cfg.get_value(key))) 				.replace("%(min)s", "%.2f" % float(extra[0])).replace("%(max)s", "%.2f" % float(extra[1]))
 		"number":
-			text += "
+			if extra[1] == null:
+				text += "
+" + tr("Min: %(min)s").replace("%(min)s", str(extra[0]))
+			else:
+				text += "
 " + tr("Min: %(min)s, Max: %(max)s").replace("%(min)s", str(extra[0])).replace("%(max)s", str(extra[1]))
 		"color":
 			text += "
@@ -494,14 +511,29 @@ static func _locale_items() -> Array:
 		items.append([UserSettings.LANGUAGE_NAMES.get(l, l), l])
 	return items
 
-## A colour option edited: a valid "R G B" updates the swatch and the setting.
+## A colour option edited: the setting takes the text as typed (options.js writes it and
+## warns on Save); an invalid one turns the swatch magenta (g_InsaneColor).
 func _color_edited(key: String, t: String, sw: ColorRect) -> void:
 	var col = _parse_color(t)
-	if col == null:
-		sw.color = Color(1, 0, 1) # g_InsaneColor: the swatch turns magenta, the value stays
-		return
-	sw.color = col
-	_changed(key, t.strip_edges())
+	sw.color = col if col != null else Color(1, 0, 1)
+	_changed(key, t.replace("\"", "")) # user.cfg quotes values
+
+## initGUI's colour button: page_colormixer on the current text; a changed colour is
+## written back as if typed.
+func _open_mixer(le: LineEdit, key: String, sw: ColorRect) -> void:
+	_confirm = COLORMIXER.open(self, le.text)
+	_confirm.closed.connect(func(rgb: String):
+		_confirm = null
+		if rgb != le.text:
+			le.text = rgb
+			_color_edited(key, rgb, sw))
+
+## sanitizeValue differs from the value: a colour that isn't exactly "R G B" in 0..255.
+func _invalid(key: String) -> bool:
+	if _controls[key][0] != "color":
+		return false
+	var v := cfg.get_value(key)
+	return _parse_color(v) == null or " ".join(Array(v.split(" ", false)).map(func(p): return str(int(p)))) != v
 
 ## guiToRgbColor: "R G B" with each 0..255, else null.
 static func _parse_color(t: String):
@@ -536,7 +568,7 @@ func _load_controls() -> void:
 			"color":
 				c.get_child(0).text = v
 				var col = _parse_color(v)
-				c.get_child(1).color = col if col != null else Color.WHITE
+				c.get_child(1).color = col if col != null else Color(1, 0, 1)
 			"dropdown":
 				var idx := 0
 				for i in extra.size():
@@ -595,7 +627,17 @@ func _update_buttons() -> void:
 		if btn:
 			btn.disabled = not changes
 
+## saveChanges: an invalid value shows its tab and asks first.
 func _on_save() -> void:
+	for i in SCHEMA.size():
+		for opt in SCHEMA[i][1]:
+			if _invalid(opt[1]):
+				_tabs.current_tab = i
+				_ask(tr("Some setting values are invalid! Are you sure you want to save them?"), _save)
+				return
+	_save()
+
+func _save() -> void:
 	if not cfg.save():
 		_description.text = "Could not write user://config/user.cfg."
 		return
