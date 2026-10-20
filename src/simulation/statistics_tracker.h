@@ -157,7 +157,9 @@ inline uint32_t stat_building_classes(uint8_t type) {
 	auto bit = [](StatBuildingClass c) { return 1u << c; };
 	switch (building_research_base(type)) {
 	case BLD_HOUSE: return bit(STAT_BLD_HOUSE);
-	case BLD_STOREHOUSE: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_CORRAL: return bit(STAT_BLD_ECONOMIC);
+	case BLD_STOREHOUSE: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_CORRAL:
+	case BLD_TRADING_POST: // trading_post|template_structure_economic_market
+		return bit(STAT_BLD_ECONOMIC);
 	case BLD_DOCK: return bit(STAT_BLD_ECONOMIC) | bit(STAT_BLD_MILITARY); // template_structure_military_dock
 	case BLD_OUTPOST: return bit(STAT_BLD_OUTPOST);
 	case BLD_BARRACKS: case BLD_STABLE: case BLD_RANGE: case BLD_ARSENAL: case BLD_ELEPHANT_STABLE:

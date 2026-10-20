@@ -3,7 +3,7 @@
 // Derived from 0 A.D., GPL-2.0-or-later (Copyright (C) Wildfire Games):
 //   CTerritoryBoundaryCalculator::ComputeBoundaries (source/graphics/TerritoryBoundary.cpp),
 //   SimRender::SmoothPointsAverage / InterpolatePointsRNS (source/simulation2/helpers/Render.cpp),
-//   CCmpTerritoryManager::UpdateBoundaryLines (BorderThickness 3.5, BorderSeparation 0.5).
+//   CCmpTerritoryManager::UpdateBoundaryLines (territorymanager.xml BorderThickness 0.75, BorderSeparation 0.85).
 //
 // Pure C++ (no Godot) so tools/test_territory_boundary.cpp can drive it.
 #ifndef RTSO_TERRITORY_BOUNDARY_H

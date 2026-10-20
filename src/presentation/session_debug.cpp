@@ -388,8 +388,17 @@ Dictionary RtsoMain::debug_selection_state() {
 		auto rv = sim->resources();
 		float best = 1e30f;
 		for (size_t r = 0; r < rv.count; ++r) {
-			if (!rv.alive[r]) continue;
+			// A field's grain is hovered as the field (the supply pick skips it), and a
+			// unit other than the selected ones standing over a supply is picked before it.
+			if (!rv.alive[r] || rv.subtype[r] == rtso::RES_SUB_GRAIN) continue;
 			const float dd = (rv.x[r] - ux) * (rv.x[r] - ux) + (rv.z[r] - uz) * (rv.z[r] - uz);
+			if (dd >= best) continue;
+			bool covered = false;
+			for (size_t i = 0; i < uview.count && !covered; ++i) {
+				const float ex = uview.pos_x[i] - rv.x[r], ez = uview.pos_z[i] - rv.z[r];
+				covered = uview.alive[i] && ex * ex + ez * ez < 3.0f * 3.0f && !selected_ids.has((int32_t)uview.id[i]);
+			}
+			if (covered) continue;
 			if (dd < best) {
 				best = dd;
 				d["nearest_resource"] = (int64_t)rv.id[r];
