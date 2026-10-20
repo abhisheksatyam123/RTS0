@@ -535,6 +535,15 @@ public:
 	// Lock cull camera (GameView.cpp LockCullCamera, m_CullCamera): the frustum the
 	// animation culling tests, frozen until cleared (empty planes: follow the camera).
 	void set_locked_cull_frustum(const std::vector<Plane> &planes) { locked_cull_frustum_ = planes; }
+	// The developer overlay's Bounding box overlay (CCmpSelectable's debug overlays): for each
+	// of `ids` with a model shown, its model's world box (ICmpVisual GetBounds) and its box in
+	// the entity's own frame (GetSelectionBox), turned and placed by `xf`.
+	struct ModelBoxes {
+		AABB world;
+		Transform3D xf;
+		AABB local;
+	};
+	void model_boxes(const std::vector<uint32_t> &ids, std::vector<ModelBoxes> &out) const;
 	// StatusBars.js sprites drawn this frame (tests).
 	int status_sprite_count() const { return status_sprites_.sprite_count(); }
 	const PackedStringArray &status_rank_icons() const { return status_rank_icons_; } // drawn last frame (tests)

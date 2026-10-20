@@ -71,6 +71,14 @@ func run() -> void:
 	var men: PackedInt32Array = main.debug_spawn_units("athen/infantry_spearman_b", 1)
 	main.debug_select_units(men)
 	await frames(4)
+	# Centre the camera on it: at the screen edge the band box would scroll the view.
+	for u in main.debug_selection_state()["units"]:
+		if int(u["id"]) == men[0]:
+			var c: Dictionary = main.debug_camera()
+			c["x"] = u["pos"].x
+			c["z"] = u["pos"].y
+			main.debug_set_camera_data(c)
+	await frames(10)
 	var units: Array = main.debug_selection_state()["units"]
 	var at := Vector2.ZERO
 	for u in units:
@@ -83,6 +91,7 @@ func run() -> void:
 	print("    hover ", hl, " unit ", men[0])
 	check(hl.size() == 1 and hl[0] == men[0], "hovering the unit highlights it")
 	await move(Vector2(40, 300))
+	print("    off ", main.debug_highlight())
 	check(main.debug_highlight().size() == 0, "moving off clears the highlight")
 	# Band box over the unit: highlighted while dragging, selected on release.
 	var from := at - Vector2(30, 30)

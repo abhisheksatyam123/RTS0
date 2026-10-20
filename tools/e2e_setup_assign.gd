@@ -26,7 +26,7 @@ func _initialize() -> void:
 
 func kind_select(page, row: int) -> RtsoSafeSelect:
 	var cells: Array = page._slots_grid().get_children().filter(func(c): return not c.is_queued_for_deletion())
-	return cells[row * page._slots_grid().columns + 1].get_child(0)
+	return cells[row * page._slots_grid().columns + 2].get_child(0)
 
 func items(sel: RtsoSafeSelect) -> Array:
 	return range(sel.get_item_count()).map(func(i): return sel.get_item_text(i))
