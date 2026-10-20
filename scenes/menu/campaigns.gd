@@ -304,6 +304,7 @@ func start_level(level_id: String) -> void:
 		return
 	ms.campaign_run = run.filename
 	ms.campaign_level = level_id
+	ms.campaign_map_name = level_name(level) # settings.mapName
 	run.save()
 	ms.go("res://scenes/main.tscn")
 
