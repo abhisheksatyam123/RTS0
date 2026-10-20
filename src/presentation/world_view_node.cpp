@@ -4235,12 +4235,16 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		v.vis_stamp = unit_vis_stamp;
 		v.yaw = yaw;
 		attach_unit_model(v, utype_str);
-		push_player_color(v.model, v.player_rgba, player_display_color(sim, uview.team[i]));
 		if (v.variant_model != v.model || v.variant_id != id) {
+			// Props first: a look added for this entity takes the colour and skin draw below.
+			rtso::ModelLibrary::set_prop_looks(v.model, v.model_id, id);
 			rtso::ModelLibrary::set_variant(v.model, rtso::ModelLibrary::variant_draw(id));
 			v.variant_model = v.model;
 			v.variant_id = id;
+			v.player_rgba = -1;
+			v.silhouette_rgba = -1;
 		}
+		push_player_color(v.model, v.player_rgba, player_display_color(sim, uview.team[i]));
 		{
 			const Color sc = player_display_color(sim, uview.team[i]);
 			const int64_t key = silhouettes_ ? (int64_t)sc.to_rgba32() : -2;

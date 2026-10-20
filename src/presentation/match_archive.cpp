@@ -295,7 +295,7 @@ Dictionary RtsoMain::summary_gui(bool in_game) const {
 	Dictionary g;
 	if (!sim) return g;
 	const bool replay = turn_mgr_.is_replaying();
-	const uint8_t me = local_player();
+	const uint8_t me = own_seat();
 	g["isInGame"] = in_game;
 	// MenuButtons keeps summarySelection for the match; the summary after it starts afresh.
 	if (in_game) g["selectionOwner"] = "match " + String::num_uint64(get_instance_id());
@@ -335,7 +335,7 @@ void RtsoMain::quit_confirmation(const String &kind, bool won, bool ask_exit) {
 // been defeated, ask whether to quit. The host isn't invited to leave while
 // other humans still play.
 void RtsoMain::tick_quit_confirmation() {
-	const uint8_t me = local_player();
+	const uint8_t me = own_seat();
 	if (finished_asked_ || !sim || turn_mgr_.is_replaying() || me >= rtso::MAX_PLAYERS) return;
 	const bool won = sim->is_victory_for(me);
 	if (!won && !sim->is_defeated(me)) return;
@@ -353,7 +353,7 @@ void RtsoMain::tick_quit_confirmation() {
 
 // ResignConfirmation / ReturnQuestion "Yes" / "I resign": Engine.PostNetworkCommand({"type": "resign"}).
 void RtsoMain::resign() {
-	const uint8_t me = local_player();
+	const uint8_t me = own_seat();
 	if (!sim || turn_mgr_.is_replaying() || me >= rtso::MAX_PLAYERS || sim->is_defeated(me)) return;
 	post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_RESIGN, nullptr, 0, 0.0f, 0.0f, 0, 0);
 }
@@ -368,7 +368,7 @@ void RtsoMain::toggle_summary() {
 		return;
 	}
 	summary->call("configure", summary_gui(true));
-	summary->call("show_summary", sim->is_victory_for(local_player()), statistics_summary(),
+	summary->call("show_summary", sim->is_victory_for(own_seat()), statistics_summary(),
 	              (float)((double)sim->stats().ticks * rtso::Simulation::FIXED_STEP));
 }
 
