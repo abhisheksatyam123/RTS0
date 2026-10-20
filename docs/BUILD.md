@@ -71,10 +71,13 @@ What each target needs on the host, beyond Godot 4.3-stable, its export template
   zig ships the libSystem headers and stubs (so macOS 11+), the extension is built once per arch and joined with
   `llvm-lipo`. Godot's built-in signer ad-hoc signs the app. It is not notarized, so the first launch
   needs right-click → Open (or `xattr -dr com.apple.quarantine RTS0.app`).
-- **iOS.** `build.py ios` builds the extension as `bin/librtso.ios.template_release.xcframework`
-  (extension + godot-cpp in one static library) and exports the Xcode project. Open it in Xcode, pick
-  your team under Signing & Capabilities, and run on a connected device. A free Apple ID works for
-  7-day device installs.
+- **iOS.** On a Mac, `python3 tools/build.py ios --ios-team-id <TEAM>` (or `RTS0_IOS_TEAM_ID`) builds
+  the extension as `bin/librtso.ios.template_release.xcframework` (extension + godot-cpp in one static
+  library) and exports `build/ios/RTS0.xcodeproj`. The team id is in Xcode > Settings > Accounts; it is
+  written into the preset for that export only. The preset targets iPhone and iPad (iOS 12+), signs
+  for Development, and uses the project icon. Open the project in Xcode, check the team under Signing &
+  Capabilities, and run on a connected device. A free Apple ID works for 7-day device installs. The
+  Xcode-project export itself also runs on Linux; only the extension needs the Mac.
 - **Touch.** On Android and iOS, `scenes/common/touch_input.gd` turns touches into mouse input:
   tap = left click (double tap = double click), drag = box select, hold still = right click (orders),
   two fingers = pan, pinch = zoom. The session's touch bar (`scenes/session/touch_controls.tscn`)
