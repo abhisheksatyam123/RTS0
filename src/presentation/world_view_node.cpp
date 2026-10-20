@@ -3182,6 +3182,46 @@ void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso
 // so the first frame after a load (a save, a rewind) finds them cached. The rest (units in
 // the fog, next ranks, foundations, rubble) are prefetch_unit_models' to read ahead once
 // the match runs: requested all at once here, those worker loads slowed these ones ~3x.
+void RtsoWorldView::model_boxes(const std::vector<uint32_t> &ids, std::vector<ModelBoxes> &out) const {
+	out.clear();
+	for (uint32_t id : ids) {
+		Node3D *root = nullptr;
+		Node *models[3] = {};
+		if (auto it = unit_slot.find(id); it != unit_slot.end() && it->second < unit_pool.size()) {
+			root = unit_pool[it->second].root;
+			models[0] = unit_pool[it->second].model;
+		} else if (auto bt = building_slot.find(id); bt != building_slot.end() && bt->second < building_pool.size()) {
+			const BuildingVis &v = building_pool[bt->second];
+			root = v.root;
+			models[0] = v.model;
+			models[1] = v.foundation;
+			models[2] = v.scaffold;
+		}
+		if (!root || !root->is_visible_in_tree()) continue;
+		const Transform3D xf = root->get_global_transform();
+		const Transform3D to_local = xf.affine_inverse();
+		ModelBoxes b{ AABB(), xf, AABB() };
+		bool any = false;
+		for (Node *m : models) {
+			if (!m) continue;
+			TypedArray<Node> meshes = m->find_children("*", "MeshInstance3D", true, false);
+			if (MeshInstance3D *self = Object::cast_to<MeshInstance3D>(m)) meshes.push_back(self);
+			for (int k = 0; k < meshes.size(); ++k) {
+				MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(meshes[k]);
+				if (!mi || !mi->is_visible_in_tree()) continue;
+				const AABB a = mi->get_aabb();
+				if (a.size == Vector3()) continue;
+				const Transform3D g = mi->get_global_transform();
+				const AABB w = g.xform(a), l = (to_local * g).xform(a);
+				b.world = any ? b.world.merge(w) : w;
+				b.local = any ? b.local.merge(l) : l;
+				any = true;
+			}
+		}
+		if (any) out.push_back(b);
+	}
+}
+
 void RtsoWorldView::warm_models(const rtso::Simulation *sim, const std::function<void(int, int)> &progress) {
 	if (!sim) return;
 	const auto uview = sim->units();
