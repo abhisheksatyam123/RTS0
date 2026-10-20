@@ -1845,6 +1845,8 @@ struct TechInfo {
 };
 
 #include "tech_data.h"
+#include "research_order_data.h"
+static_assert(TECH_RESEARCH_RANK_ROWS == TECH_COUNT, "re-run tools/extract_0ad_research_order.py after adding technologies");
 #include "tech_tooltip_data.h"
 #include "building_ai_data.h"
 #include "trainer_data.h"

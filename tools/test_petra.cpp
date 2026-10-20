@@ -1372,6 +1372,39 @@ static void test_petra_phasing_needs_researcher() {
 	CHECK(!s->petra_phasing(), "no phasing without a structure researching the town phase");
 }
 
+// gameState.findAvailableTech (common-api gamestate.js:768): Petra's structures in creation
+// order, each one's Researcher list in template order. A storehouse built before the
+// farmstead offers Iron Axe Heads before Iron Plow, and Servants before Wedge and Mallet.
+static void test_petra_research_order() {
+	for (int storehouse_first = 0; storehouse_first < 2; ++storehouse_first) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, true);
+		s->petra_swap_slot(0);
+		s->petra_pid_ = 0;
+		float x = 0.0f, z = 0.0f;
+		for (const auto &b : s->buildings_)
+			if (b.team == 0 && b.type == BLD_TOWN_CENTER) { x = b.x; z = b.z; }
+		const uint8_t first = storehouse_first ? BLD_STOREHOUSE : BLD_FARMSTEAD;
+		const uint8_t second = storehouse_first ? BLD_FARMSTEAD : BLD_STOREHOUSE;
+		s->spawn_building_world(x + 20.0f, z, first, 0, 1.0f);
+		s->spawn_building_world(x - 20.0f, z, second, 0, 1.0f);
+		std::vector<uint8_t> techs;
+		s->petra_available_techs(techs);
+		auto at = [&](uint8_t t) { return std::find(techs.begin(), techs.end(), t) - techs.begin(); };
+		const auto axes = at(TECH_WOODCUTTING_1), plows = at(TECH_FARMING_1);
+		CHECK(axes < (long)techs.size() && plows < (long)techs.size(), "both gather techs on offer");
+		CHECK(storehouse_first ? axes < plows : plows < axes, "the earlier researcher's techs come first");
+		CHECK(at(TECH_GATHER_MINING_SERVANTS) < at(TECH_MINING_1), "Servants before Wedge and Mallet");
+		bool dup = false;
+		for (size_t i = 0; i < techs.size(); ++i)
+			for (size_t j = i + 1; j < techs.size(); ++j) dup |= techs[i] == techs[j];
+		CHECK(!dup, "each technology listed once");
+	}
+}
+
 // config.js setConfig: Config.popScaling takes sqrt(maxPop/300) under 300, and every helper
 // built on it (transport ships, checkPausedQueues' workersMin) uses it. maxPop is
 // getPopulationMax at the first turn, with the civ's population bonus.
@@ -6149,6 +6182,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_config_pop_scaling);
 	RUN(test_petra_islands_wood_reserve);
 	RUN(test_petra_phasing_needs_researcher);
+	RUN(test_petra_research_order);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
 	RUN(test_market_prospection_events);

@@ -24594,19 +24594,27 @@ bool Simulation::petra_phasing() const {
 
 void Simulation::petra_available_techs(std::vector<uint8_t> &out) const {
 	out.clear();
-	bool has[BLD_TYPE_COUNT] = {};
-	for (const auto &b : buildings_)
-		if (b.team == petra_pid_ && b.type < BLD_TYPE_COUNT && b.build_progress >= 1.0f && b.hp > 0.0f && !b.wrecked)
-			has[b.type] = true;
-	for (uint8_t t = 1; t < TECH_COUNT; ++t) {
-		if (t == TECH_PHASE_TOWN || t == TECH_PHASE_CITY) continue; // phases are treated separately
-		// gameState.findAvailableTech: what any of its finished researchers offers this civ.
-		bool offered = false;
-		for (uint8_t b = 0; b < BLD_TYPE_COUNT && !offered; ++b)
-			offered = has[b] && building_researches_tech(b, t, petra_ps().civ);
-		if (!offered) continue;
-		const ResearchCheck rc = research_check(petra_pid_, t);
-		if (rc == TECH_OK || rc == TECH_ERR_COST) out.push_back(t);
+	// gameState.findAvailableTech: Petra's structures in creation order (buildings_ only
+	// grows), each one's Researcher list in template order, every tech once.
+	const uint8_t civ = petra_ps().civ;
+	bool seen_type[BLD_TYPE_COUNT] = {};
+	TechSet listed;
+	uint8_t offers[TECH_COUNT];
+	for (const auto &b : buildings_) {
+		if (b.team != petra_pid_ || b.type >= BLD_TYPE_COUNT || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked ||
+		    seen_type[b.type])
+			continue;
+		seen_type[b.type] = true;
+		int n = 0;
+		for (uint8_t t = 1; t < TECH_COUNT; ++t)
+			if (t != TECH_PHASE_TOWN && t != TECH_PHASE_CITY && !listed.has(t) && building_researches_tech(b.type, t, civ))
+				offers[n++] = t; // phases are treated separately
+		std::stable_sort(offers, offers + n, [](uint8_t a, uint8_t c) { return kTechResearchRank[a] < kTechResearchRank[c]; });
+		for (int i = 0; i < n; ++i) {
+			listed.set(offers[i]);
+			const ResearchCheck rc = research_check(petra_pid_, offers[i]);
+			if (rc == TECH_OK || rc == TECH_ERR_COST) out.push_back(offers[i]);
+		}
 	}
 }
 
