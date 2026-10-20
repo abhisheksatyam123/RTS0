@@ -55,9 +55,15 @@ public:
 	void build(godot::Object *owner, godot::HBoxContainer *top_hbox, uint8_t initial_civ) {
 		using namespace godot;
 
-		// 1. Civ Emblem Badge
+		// 1. CivIcon.xml: a 96 px emblem centred on the bar, hanging below it
+		// (size "50%-48 -26 50%+48 70"), outside the counters' row.
 		civ_emblem_ = memnew(TextureRect);
-		civ_emblem_->set_custom_minimum_size(Vector2(38, 38));
+		civ_emblem_->set_anchor(SIDE_LEFT, 0.5f);
+		civ_emblem_->set_anchor(SIDE_RIGHT, 0.5f);
+		civ_emblem_->set_offset(SIDE_LEFT, -48.0f);
+		civ_emblem_->set_offset(SIDE_RIGHT, 48.0f);
+		civ_emblem_->set_offset(SIDE_TOP, -26.0f);
+		civ_emblem_->set_offset(SIDE_BOTTOM, 70.0f);
 		civ_emblem_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 		civ_emblem_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
 		civ_emblem_->set_texture(rtso::load_ui_texture(rtso::civ_info(initial_civ).emblem_path));
@@ -65,15 +71,8 @@ public:
 		civ_emblem_->set_name("CivIcon");
 		civ_emblem_->set_mouse_filter(Control::MOUSE_FILTER_STOP);
 		civ_emblem_->connect("gui_input", Callable(owner, "_on_civ_icon_gui_input"));
-		top_hbox->add_child(civ_emblem_);
-
-		// 2. Phase Emblem Badge (Village, Town, City)
-		phase_emblem_ = memnew(TextureRect);
-		phase_emblem_->set_custom_minimum_size(Vector2(38, 38));
-		phase_emblem_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
-		phase_emblem_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
-		phase_emblem_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/phases/village.png"));
-		top_hbox->add_child(phase_emblem_);
+		top_hbox->get_parent()->add_child(civ_emblem_);
+		// (0.28's top panel has no phase emblem.)
 
 		// 3. Resource counters (CounterResource.js), 0 A.D. order: food, wood, stone, metal.
 		for (int i = 0; i < 4; ++i) {
@@ -167,11 +166,21 @@ public:
 		clock_label_ = memnew(Label);
 		clock_label_->set_visible(false);
 		top_hbox->add_child(clock_label_);
+		Control *spacer = memnew(Control);
+		spacer->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+		spacer->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		top_hbox->add_child(spacer);
+		// BuildLabel.SizePlayer "50%+44 0 100%-283 100%": right of the civ icon, left of
+		// the buttons.
 		wave_label_ = memnew(Label);
 		wave_label_->set_name("BuildLabel");
-		wave_label_->set_custom_minimum_size(Vector2(100, 26));
+		wave_label_->set_anchor(SIDE_LEFT, 0.5f);
+		wave_label_->set_anchor(SIDE_RIGHT, 1.0f);
+		wave_label_->set_anchor(SIDE_BOTTOM, 1.0f);
+		wave_label_->set_offset(SIDE_LEFT, 44.0f);
+		wave_label_->set_offset(SIDE_RIGHT, -283.0f);
+		wave_label_->set_offset(SIDE_TOP, 2.0f);
 		wave_label_->set_clip_text(true);
-		wave_label_->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 		wave_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 		wave_label_->set_vertical_alignment(VERTICAL_ALIGNMENT_TOP);
 		wave_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
@@ -179,7 +188,7 @@ public:
 		wave_label_->add_theme_constant_override("line_spacing", -2);
 		wave_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
 		wave_label_->add_theme_constant_override("outline_size", 3);
-		top_hbox->add_child(wave_label_);
+		top_hbox->get_parent()->add_child(wave_label_);
 	}
 
 	bool is_ready() const { return res_labels_[0] != nullptr; }

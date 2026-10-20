@@ -6,6 +6,7 @@
 // pay for. Palisades are a WallSet of their own (wallset_palisade), and a long one upgrades to a
 // palisade gate; so are the Roman siege walls (rome/wallset_siege), which go in enemy land too,
 // and their long segments become siege wall gates. An Iberian base starts walled on large maps.
+// A destroyed piece leaves rubble that blocks nothing, so a breach opens the long paths.
 //   g++ -std=c++20 -O2 -Isrc tools/test_walls.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_walls && /tmp/test_walls
@@ -765,6 +766,61 @@ int main() {
 					i >= 0 ? s.units_.pos_x[i] : NAN, i >= 0 ? s.units_.pos_z[i] : NAN, gap);
 			CHECK(got == 10.0f && gap < 2.5f); // tick_unit_ai drops within 1.5 of the footprint, plus her body
 		}
+	}
+
+	// 22. A destroyed structure leaves rubble that blocks nothing (0.28's template_rubble.xml has no
+	// Obstruction), in the nav grid too: a breach in a wall opens the long paths through it, and
+	// a save keeps it open.
+	setup(s, 0.0f);
+	{
+		auto obstructed = [](const Simulation &sim) {
+			size_t n = 0;
+			for (uint8_t v : sim.nav_grid().cells.data) n += v == NAV_OBSTRUCTED;
+			return n;
+		};
+		const size_t bare = obstructed(s);
+		const uint32_t house = s.spawn_building_world(-25.0f, -25.0f, BLD_HOUSE, 0, 1.0f);
+		const size_t with_house = obstructed(s);
+		for (auto &b : s.buildings_)
+			if (b.id == house) { s.destroy_building(b); break; }
+		std::printf("  obstructed navcells: %zu bare, %zu with a house, %zu once it is destroyed\n", bare, with_house, obstructed(s));
+		CHECK(with_house > bare && obstructed(s) == bare);
+
+		// A 60-unit (240 m) wall across x = 25 with a middle segment destroyed: a spearman 10 units
+		// from it walks through the breach, not round the wall's end. (Test 21 left a 128 map and
+		// Iberian walls; the wall and the walk fit either.)
+		s.begin_bulk_spawn();
+		const auto pcs = s.wall_placement(0, 25.0f, -30.0f, 25.0f, 30.0f);
+		std::vector<uint32_t> ids;
+		for (const auto &p : pcs) ids.push_back(s.spawn_wall_piece(p, 0, 1.0f));
+		s.end_bulk_spawn();
+		CHECK(pcs.size() >= 3);
+		size_t mid = 0; // pcs[0] is the tower at z = -30
+		for (size_t k = 0; k < pcs.size(); ++k)
+			if (pcs[k].type == BLD_WALL_SEGMENT && std::fabs(pcs[k].z) < std::fabs(pcs[mid].z)) mid = k;
+		CHECK(mid < pcs.size() && pcs[mid].type == BLD_WALL_SEGMENT);
+		const float gz = mid < pcs.size() ? pcs[mid].z : 0.0f;
+		for (auto &b : s.buildings_)
+			if (mid < ids.size() && b.id == ids[mid]) { s.destroy_building(b); break; }
+		const uint32_t spear = s.spawn_unit(15.0f, gz, 0, UNIT_SPEARMAN);
+		s.cmd_move(&spear, 1, 35.0f, gz);
+		float crossed = -1.0f;
+		for (int k = 0; k < (int)(20.0f / Simulation::FIXED_STEP) && crossed < 0.0f; ++k) {
+			s.tick(Simulation::FIXED_STEP);
+			const auto uv = s.units();
+			for (size_t i = 0; i < uv.count; ++i)
+				if (uv.id[i] == spear && std::hypot(uv.pos_x[i] - 35.0f, uv.pos_z[i] - gz) < 1.0f) crossed = (float)(k + 1) * Simulation::FIXED_STEP;
+		}
+		std::printf("  spearman across a 240 m wall through a destroyed segment: %.1f s (-1: not there in 20 s)\n", crossed);
+		CHECK(crossed > 0.0f && crossed < 8.0f); // straight through is about 6 s; round the wall's end about 18 s
+
+		const char *path = "/tmp/rtso_test_walls_wreck.sav";
+		CHECK(s.save_state(path));
+		static Simulation l;
+		CHECK(l.load_state(path));
+		std::remove(path);
+		const auto *lw = mid < ids.size() ? find_bld(l, ids[mid]) : nullptr;
+		CHECK(lw && lw->wrecked && obstructed(l) == obstructed(s));
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

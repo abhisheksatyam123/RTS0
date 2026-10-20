@@ -81,9 +81,13 @@ What each target needs on the host, beyond Godot 4.3-stable, its export template
   stands in for hotkeys, and its Shift, Ctrl and Alt buttons latch those modifiers until tapped again
   (Shift queues orders and adds to the selection). `tools/e2e_touch_input.gd` checks all of it headless;
   pass `-- --touch-input` to try it on a desktop touch screen.
+- **Duplicate textures.** Godot unpacks each model's embedded images next to it, so about 6,000 images
+  are byte-identical copies. The `addons/rts0_export` editor plugin packs each one once and exports the
+  copies as `.import` remaps to it, which cut the Linux build from 3.2 GB to 2.1 GB. The editor and
+  in-project runs are unchanged.
 - **Mobile renderer.** Android and iOS run the Mobile (Vulkan/Metal) renderer. On a GL-only phone Godot falls
-  back to Compatibility, where the player colour, garrison flag and silhouette shaders don't compile yet
-  (instance uniforms).
+  back to Compatibility, which draws player colours, garrison flags and silhouettes too (#1260;
+  `tools/check_gl_shaders.py` checks it). Selection rings and decals don't draw there yet (G41).
 
 ## CI (GitHub Actions)
 `.github/workflows/ci.yml`:

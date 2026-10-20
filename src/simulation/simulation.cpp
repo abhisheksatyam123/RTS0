@@ -1556,8 +1556,10 @@ void Simulation::rebuild_nav_grid() {
 			});
 			continue;
 		}
-		// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction).
-		if ((b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
+		// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction). A
+		// wreck keeps `committed` but blocks nothing: 0.28 destroys the entity (Health.js HandleDeath)
+		// and its rubble (template_rubble.xml) has no Obstruction.
+		if (b.wrecked || (b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
 		int covered = 0;
 		rtso::nav::rasterize_rect_with_clearance(
 			rtso::nav::Vec2(b.x, b.z), rtso::nav::footprint_u(b), rtso::nav::footprint_v(b),
@@ -1778,8 +1780,8 @@ void Simulation::sync_tile_obstructions(bool structures) {
 				for_each_gate_side(b, [&](float x, float z, float hu, float hv) { put(K_GATE_SIDE, b.id, side++, x, z, u.x, u.y, hu, hv); });
 				continue;
 			}
-			// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction).
-			if ((b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
+			// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction); a wreck doesn't.
+			if (b.wrecked || (b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
 			put(K_BUILDING, b.id, 0, b.x, b.z, u.x, u.y, b.hu, b.hv);
 		}
 		for (const Scenery &sc : scenery_)
@@ -3795,7 +3797,8 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 	// units/{native}/... lists (shrines, Kushite camps, Carthaginian embassies, civic centres'
 	// civilians) train the structure's own civ's units, whoever holds it.
 	if (t.civ != building_train_civ(b.type, b.civ, ps.civ, t)) return false;
-	if (exclusive && !(t.trainers & bld_bit(b.type))) return false; // 0 A.D. Trainer list
+	// 0 A.D. Trainer list: a captured structure's is its builder's ({civ} = ours).
+	if (exclusive && !building_trains_template(b.type, b.civ, ps.civ, tmpl)) return false;
 	if (t.phase > ps.phase) return false; // 0 A.D. Identity/Requirements: phase_town / phase_city
 
 	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
@@ -19881,10 +19884,9 @@ uint32_t Simulation::petra_best_trainer(uint16_t tmpl, uint8_t unit_type, size_t
 		if (b.team != petra_pid_ || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked ||
 		    b.upgrade_to != BLD_TYPE_COUNT || b.queue.size() >= max_queue) continue;
 		if (petra_emergency_rally(b)) continue; // its queue is for the emergency units
-		if (tmpl < CIV_UNIT_TEMPLATE_COUNT && !(civ_unit_template(tmpl).trainers & bld_bit(b.type))) continue; // its Trainer list
-		// A captured civic centre trains its builder's civilians, not ours.
-		if (tmpl < CIV_UNIT_TEMPLATE_COUNT &&
-		    building_train_civ(b.type, b.civ, players_[petra_pid_].civ, civ_unit_template(tmpl)) != civ_unit_template(tmpl).civ) continue;
+		// Its Trainer list (a captured one's is its builder's, and a captured civic centre
+		// trains its builder's civilians, not ours).
+		if (tmpl < CIV_UNIT_TEMPLATE_COUNT && !building_trains_template(b.type, b.civ, players_[petra_pid_].civ, tmpl)) continue;
 		// The civ's support worker is the civic centre's support_civilian (a house's own
 		// support_civilian_house waits on a technology).
 		if (tmpl == CIV_UNIT_TEMPLATE_NONE && unit_type == UNIT_VILLAGER && !is_civic_centre(b.type)) continue;
@@ -19905,7 +19907,7 @@ bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint1
 	const uint8_t pid = petra_pid_;
 	if (b.team != pid || b.build_progress < 1.0f || b.queue.size() >= 8 || b.upgrade_to != BLD_TYPE_COUNT) return false;
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
-	if (t.civ != building_train_civ(b.type, b.civ, players_[pid].civ, t) || t.phase > players_[pid].phase || triggers_.template_disabled(tmpl)) return false;
+	if (!building_trains_template(b.type, b.civ, players_[pid].civ, tmpl) || t.phase > players_[pid].phase || triggers_.template_disabled(tmpl)) return false;
 	if ((!wait_for_pop && petra_pop_room() < count) || !can_train_at(pid, t.unit_type, b.type, tmpl)) return false;
 	if (count > 1 && !entity_limit_allows_unit(pid, t.unit_type, tmpl, count)) return false;
 	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
@@ -24117,10 +24119,12 @@ static bool petra_tech_modifies(uint8_t tech_id, std::initializer_list<uint8_t> 
 	return false;
 }
 
-// Does any of the technology's effects list `cls` alone among its affects?
+// researchManager.js:209 tests the template's top-level affects: one class, `cls`. Every effect
+// of such a tech lists `cls` alone. Grove of Fetters names Healer on its modification only (no
+// top-level affects), so 0.28 Petra keeps it; it is the one tech where the two tests differ.
 static bool petra_tech_affects_only(uint8_t tech_id, TechClasses cls) {
 	const TechInfo &ti = tech_info(tech_id);
-	if (ti.effect_count == 0) return false;
+	if (ti.effect_count == 0 || tech_id == TECH_GROVE_OF_FETTERS) return false;
 	const TechEffect *fx = tech_effects_table() + ti.effect_begin;
 	for (uint16_t i = 0; i < ti.effect_count; ++i) {
 		if (fx[i].affects_count != 1) return false;
@@ -31062,7 +31066,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		PetraSentDiplomacy &sd = petra_sent_diplo_;
 		int enemies = 0, mutual_allies = 0;
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
-			if (p == me || !((participant_mask_ >> p) & 1) || is_defeated(p)) continue; // seated players only
+			if (p == me || !((participant_mask_ >> p) & 1)) continue; // seated players, defeated ones too
 			if (get_diplomacy(me, p) == DIPLO_ENEMY) ++enemies;
 			else if (is_ally(me, p) && is_ally(p, me)) ++mutual_allies;
 		}
@@ -31104,7 +31108,8 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	const int own_entities = petra_player_entities(me);
 	const int own_pop = pop_current(me);
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
-		if (p == me || !is_ally(me, p) || !player_in_match(p)) continue;
+		// isPlayerAlly: our own stance, whatever theirs is toward us.
+		if (p == me || !(same_team(p, me) || get_diplomacy(me, p) == DIPLO_ALLY) || !player_in_match(p)) continue;
 		const bool donor = !last_man_standing() || petra_player_entities(p) < own_entities;
 		int amounts[RES_COUNT] = {};
 		bool any = false;
@@ -31228,10 +31233,12 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 	if (teams_locked()) return; // no answer: diplomacy can't change
 	const uint8_t me = petra_pid_;
 	PetraReceivedRequest &req = petra_diplo_.received[player];
-	int enemies = 1, allies = 0; // 0 A.D. counts Gaia as an enemy and us as an ally
+	// getEnemies / getMutualAllies: Gaia is an enemy, we are a mutual ally, and a defeated
+	// player keeps its stances (Player.js SetState leaves Diplomacy alone), so it still counts.
+	int enemies = 1, allies = 0;
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
-		if (p != me && (!((participant_mask_ >> p) & 1) || is_defeated(p))) continue;
-		if (is_ally(me, p)) ++allies;
+		if (p != me && !((participant_mask_ >> p) & 1)) continue;
+		if (is_ally(me, p)) ++allies; // both ways, as isMutualAlly
 		else if (is_hostile(me, p)) ++enemies;
 	}
 	const bool more_enemies_than_allies = enemies > allies;
