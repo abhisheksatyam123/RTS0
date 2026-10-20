@@ -1,3 +1,4 @@
+#include "core/math/det_math.h"
 #include "simulation.h"
 #include "petra_chat.h"
 #include "entity_limits_data.h"
@@ -288,7 +289,7 @@ static bool outside_and_in_build_range(float bx, float bz, float hx, float hz, f
 	float cz = std::clamp(z, minz, maxz);
 	// Edge to edge, as structure_gap: Builder range plus the obstruction size (`radius`, the
 	// builder's class clearance).
-	return std::hypot(x - cx, z - cz) - radius <= kBuildRange + radius;
+	return det::hypot(x - cx, z - cz) - radius <= kBuildRange + radius;
 }
 
 // The two above in a building's own frame, so a turned footprint (nav/footprint.h) gets the same
@@ -903,8 +904,8 @@ void Simulation::spawn_initial() {
 	// 3. Initial Units (5 Villagers, 2 Female Citizens, 2 Swordsmen, 2 Archers)
 	for (int i = 0; i < 5; ++i) {
 		float a = 6.28318530718f * i / 5.0f;
-		float x = cosf(a) * 5.0f;
-		float z = sinf(a) * 5.0f + 5.0f;
+		float x = det::cos(a) * 5.0f;
+		float z = det::sin(a) * 5.0f + 5.0f;
 		spawn_unit(x, z, 0, UNIT_VILLAGER, 100.0f);
 	}
 	spawn_unit(3.0f, 4.0f, 0, UNIT_FEMALE_CITIZEN, 65.0f);
@@ -973,8 +974,8 @@ void Simulation::spawn_initial() {
 
 	for (int i = 0; i < 6; ++i) {
 		float a = 6.28318530718f * i / 6.0f;
-		float x = 49.0f + cosf(a) * 4.0f;
-		float z = 49.0f + sinf(a) * 4.0f;
+		float x = 49.0f + det::cos(a) * 4.0f;
+		float z = 49.0f + det::sin(a) * 4.0f;
 		spawn_unit(x, z, 1, UNIT_VILLAGER, 100.0f);
 	}
 	spawn_unit(44.0f, 44.0f, 1, UNIT_SWORDSMAN, 160.0f);
@@ -1491,8 +1492,8 @@ void Simulation::spawn_nomad_treasures() {
 			for (int k = 0; k < count; ++k, ++placed) {
 				const float a = 2.39996323f * (float)placed; // golden-angle spiral, 3-5 m out (SimpleObject 3..5)
 				const float d = 3.0f + (float)(placed % 3);
-				const float x = std::clamp(sx + std::cos(a) * d, -map_half_ + 2.0f, map_half_ - 2.0f);
-				const float z = std::clamp(sz + std::sin(a) * d, -map_half_ + 2.0f, map_half_ - 2.0f);
+				const float x = std::clamp(sx + det::cos(a) * d, -map_half_ + 2.0f, map_half_ - 2.0f);
+				const float z = std::clamp(sz + det::sin(a) * d, -map_half_ + 2.0f, map_half_ - 2.0f);
 				spawn_resource_treasure(x, z, r);
 			}
 		}
@@ -1599,7 +1600,7 @@ void Simulation::rebuild_nav_grid() {
 	// Gaia scenery: oriented rectangles (CCmpObstruction::GetObstructionSquare: u = (cos a, -sin a),
 	// v = (sin a, cos a)), rasterized the same way.
 	for (const Scenery &sc : scenery_) {
-		const float c = std::cos(sc.angle), sn = std::sin(sc.angle);
+		const float c = det::cos(sc.angle), sn = det::sin(sc.angle);
 		int covered = 0;
 		rtso::nav::rasterize_rect_with_clearance(
 			rtso::nav::Vec2(sc.x, sc.z), rtso::nav::Vec2(c, -sn), rtso::nav::Vec2(sn, c),
@@ -1782,7 +1783,7 @@ void Simulation::sync_tile_obstructions(bool structures) {
 			put(K_BUILDING, b.id, 0, b.x, b.z, u.x, u.y, b.hu, b.hv);
 		}
 		for (const Scenery &sc : scenery_)
-			put(K_SCENERY, sc.id, 0, sc.x, sc.z, std::cos(sc.angle), -std::sin(sc.angle), sc.half_w, sc.half_d);
+			put(K_SCENERY, sc.id, 0, sc.x, sc.z, det::cos(sc.angle), -det::sin(sc.angle), sc.half_w, sc.half_d);
 		for (size_t r = 0; r < resources_.count; ++r) {
 			nav::Footprint m;
 			if (!resources_.alive[r] || resources_.amount[r] <= 0 || !mine_footprint(r, m)) continue;
@@ -2966,7 +2967,7 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 
 	// Gaia scenery (fences, columns) blocks foundations too: its rotated rectangle's bounds.
 	for (const Scenery &sc : scenery_) {
-		const float c = std::fabs(std::cos(sc.angle)), sn = std::fabs(std::sin(sc.angle));
+		const float c = std::fabs(det::cos(sc.angle)), sn = std::fabs(det::sin(sc.angle));
 		const float ex = c * sc.half_w + sn * sc.half_d, ez = sn * sc.half_w + c * sc.half_d;
 		if (!(sc.x + ex > x0 && sc.x - ex < x1 && sc.z + ez > z0 && sc.z - ez < z1)) continue;
 		if (exact) {
@@ -2987,7 +2988,7 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		const auto &ti = treasure_type_info(t.type);
 		const float angle = treasure_angle(t.id);
 		const float hw = ti.width * 0.125f, hd = ti.depth * 0.125f; // metres to half-extents in world units
-		const float c = std::fabs(std::cos(angle)), sn = std::fabs(std::sin(angle));
+		const float c = std::fabs(det::cos(angle)), sn = std::fabs(det::sin(angle));
 		const float ex = c * hw + sn * hd, ez = sn * hw + c * hd;
 		if (!(t.x + ex > x0 && t.x - ex < x1 && t.z + ez > z0 && t.z - ez < z1)) continue;
 		if (exact) {
@@ -3112,7 +3113,7 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		const float half = rect ? rect->half_size : 0.5f * (x1 - x0);
 		for (const Building &b : buildings_) {
 			if (b.team != player || b.hp <= 0.0f || distance_class_of(b.type) != rule.distance_class) continue;
-			const float d = std::hypot(b.x - cxw, b.z - czw) - half - b.half_size;
+			const float d = det::hypot(b.x - cxw, b.z - czw) - half - b.half_size;
 			if (d < rule.min_distance) return PLACE_DISTANCE;
 		}
 	}
@@ -3153,7 +3154,7 @@ float Simulation::dock_angle(float x, float z, float half_size) const {
 		const float d = half_size * (float)(dist + 1);
 		for (int i = 0; i < NUM_POINTS; ++i) {
 			const float a = (float)i / NUM_POINTS * TWO_PI;
-			if (get_terrain_height(x - d * std::sin(a), z + d * std::cos(a)) < terrain_water_height_) water[n++] = i;
+			if (get_terrain_height(x - d * det::sin(a), z + d * det::cos(a)) < terrain_water_height_) water[n++] = i;
 		}
 		if (!n) continue;
 		int start = 0, count = 0;
@@ -3267,7 +3268,7 @@ std::vector<Simulation::WallPiece> Simulation::wall_placement(uint8_t player, fl
 	if (!wall_segments_rec(ws, len, 0.0f, segments, r)) return out;
 	const float spacing = r / (2.0f * (float)segments.size());
 	const float nx = dx / len, nz = dz / len;
-	const float angle = -std::atan2(dz, dx); // Walls.js: the wall runs along u
+	const float angle = -det::atan2(dz, dx); // Walls.js: the wall runs along u
 	const float tower_half = ws.tower_half;
 	if (!st) out.push_back({ws.tower, sx, sz, angle, tower_half, civ});
 	float progress = 0.0f;
@@ -3747,7 +3748,7 @@ float Simulation::batch_time_multiplier(uint8_t player_id, uint8_t bld_type, int
 		if (bld_type == BLD_STABLE && civ_of(player_id) == CIV_PERSIANS)
 			mod -= 0.1f * (float)std::max(0, (int)players_[player_id].phase - 1);
 	}
-	return std::pow((float)count, std::max(0.0f, mod));
+	return det::pow((float)count, std::max(0.0f, mod));
 }
 
 bool Simulation::cmd_set_autoqueue(uint8_t player_id, uint32_t building_id, bool on) {
@@ -3883,7 +3884,7 @@ uint8_t Simulation::unit_trainee_tech(uint16_t trainer_tmpl, uint16_t trainee) {
 float Simulation::unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const {
 	if (count <= 1) return 1.0f;
 	for (const UnitTrainee &t : unit_trainees(trainer_tmpl))
-		if (t.tmpl == trainee) return std::pow((float)count, std::max(0.0f, t.batch_time_modifier));
+		if (t.tmpl == trainee) return det::pow((float)count, std::max(0.0f, t.batch_time_modifier));
 	return (float)count;
 }
 
@@ -5299,7 +5300,7 @@ bool Simulation::nearest_pass_cell(const Building &b, uint8_t pass, float &out_x
 // circle of a round footprint (building_footprint_round).
 bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip_uid, float &out_x, float &out_z) const {
 	// u is the front (Position rotation: 0 faces +z), v its perpendicular (CFixedVector2D::Perpendicular).
-	const float fux = std::sin(b.rot), fuz = std::cos(b.rot), fvx = fuz, fvz = -fux;
+	const float fux = det::sin(b.rot), fuz = det::cos(b.rot), fvx = fuz, fvz = -fux;
 	const nav::Vec2 bu = nav::footprint_u(b), bv = nav::footprint_v(b);
 	const float along_u = std::fabs(fux * bu.x + fuz * bu.y) * b.hu + std::fabs(fux * bv.x + fuz * bv.y) * b.hv;
 	const float along_v = std::fabs(fvx * bu.x + fvz * bu.y) * b.hu + std::fabs(fvx * bv.x + fvz * bv.y) * b.hv;
@@ -5326,7 +5327,7 @@ bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along
 	static constexpr float MAX_SPAWN_DISTANCE = 7.0f * 0.28f; // Footprint MaxSpawnDistance default
 	const int rows = std::max(1, (int)std::ceil(MAX_SPAWN_DISTANCE / gap));
 	// u is the front (Position rotation: 0 faces +z), v its perpendicular (CFixedVector2D::Perpendicular).
-	const float fux = std::sin(rot), fuz = std::cos(rot), fvx = fuz, fvz = -fux;
+	const float fux = det::sin(rot), fuz = det::cos(rot), fvx = fuz, fvz = -fux;
 	const bool circle = circle_r > 0.0f;
 	// A circle's half size is its radius plus half a gap on both axes (CIRCLE: m_Size0 + gap / 2).
 	const float hx = circle ? circle_r + gap * 0.5f : along_u + gap * 0.5f;
@@ -5359,7 +5360,7 @@ bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along
 	if (has_rally && circle) {
 		// 6 * (dist_x + r) points in row r: the rally point's angle from the front as a share of them.
 		constexpr float PI = 3.14159265359f;
-		const float angle = std::atan2(rally_x - cx, rally_z - cz) - rot;
+		const float angle = det::atan2(rally_x - cx, rally_z - cz) - rot;
 		for (int r = 0; r < nrows; ++r) offset[r] = (int)std::floor(angle * 3.0f * (float)(dist_x + r) / PI + 0.5f); // ToInt_RoundToNearest
 	} else if (has_rally) {
 		// Geometry::NearestPointOnSquare, in the (u, v) frame.
@@ -5402,7 +5403,7 @@ bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along
 				// The front turned by 2 pi / 6 (dist_x + r) per point (u.Rotate).
 				const float a = rot + 3.14159265359f * (float)(offset[r] + k) / (float)(3 * (dist_x + r));
 				const float dist = hx + gap * (float)r;
-				const float wx = cx + std::sin(a) * dist, wz = cz + std::cos(a) * dist;
+				const float wx = cx + det::sin(a) * dist, wz = cz + det::cos(a) * dist;
 				if (free_at(wx, wz)) { out_x = wx; out_z = wz; return true; }
 				continue;
 			}
@@ -5640,7 +5641,7 @@ std::vector<std::pair<float, float>> Simulation::distribute_around(const uint32_
 	constexpr float kPi = 3.14159265f;
 	float angle = 0.0f, radius = 1.0f, step = 9.0f / (kPi * radius);
 	for (size_t i = 0; i < count; ++i) {
-		points.emplace_back(x + radius * std::cos(angle) * PUSH_SCALE, z - radius * std::sin(angle) * PUSH_SCALE);
+		points.emplace_back(x + radius * det::cos(angle) * PUSH_SCALE, z - radius * det::sin(angle) * PUSH_SCALE);
 		angle += step;
 		if (angle >= 2.0f * kPi) {
 			angle = 0.0f;
@@ -6222,11 +6223,11 @@ float Simulation::formation_walking_distance(const FormationController &fc) cons
 	// UnitAI.js ComputeWalkingDistance: along the remaining path, then to the goal.
 	float d = 0.0f, px = fc.x, pz = fc.z;
 	for (int k = fc.path.cur; k < fc.path.count; ++k) {
-		d += std::hypot(fc.path.xs[k] - px, fc.path.zs[k] - pz);
+		d += det::hypot(fc.path.xs[k] - px, fc.path.zs[k] - pz);
 		px = fc.path.xs[k];
 		pz = fc.path.zs[k];
 	}
-	return d + std::hypot(fc.goal_x - px, fc.goal_z - pz);
+	return d + det::hypot(fc.goal_x - px, fc.goal_z - pz);
 }
 
 void Simulation::formation_disband(size_t ci) {
@@ -6309,7 +6310,7 @@ void Simulation::formation_move_members_into(size_t ci, bool move_center, bool f
 		const bool walking = formation_order_walks(fc.order);
 		const float gdx = fc.goal_x - ax, gdz = fc.goal_z - az;
 		const float new_rot = walking && gdx * gdx + gdz * gdz > FORMATION_ROTATE_DISTANCE * FORMATION_ROTATE_DISTANCE
-				? std::atan2(gdx, gdz) : fc.rot; // Vector2D.angleTo
+				? det::atan2(gdx, gdz) : fc.rot; // Vector2D.angleTo
 		if (!formation_turn_allowed(t, new_rot, fc.offsets_rot)) fc.has_offsets = 0;
 		fc.x = ax;
 		fc.z = az;
@@ -6320,8 +6321,8 @@ void Simulation::formation_move_members_into(size_t ci, bool move_center, bool f
 			// formation round for a step; the controller walks straight there instead.
 			WaypointPath &p = fc.path;
 			int first = p.cur, last = p.count;
-			while (last > first && std::hypot(p.xs[last - 1] - fc.goal_x, p.zs[last - 1] - fc.goal_z) < 3.0f) --last;
-			while (first < last && std::hypot(p.xs[first] - fc.x, p.zs[first] - fc.z) < 2.0f) ++first;
+			while (last > first && det::hypot(p.xs[last - 1] - fc.goal_x, p.zs[last - 1] - fc.goal_z) < 3.0f) --last;
+			while (first < last && det::hypot(p.xs[first] - fc.x, p.zs[first] - fc.z) < 2.0f) ++first;
 			p.cur = first;
 			p.count = last;
 		} else {
@@ -6533,7 +6534,7 @@ std::vector<size_t> Simulation::formation_controllers_for(const uint32_t *unit_i
 		}
 		fc.x /= cluster.size();
 		fc.z /= cluster.size();
-		fc.rot = (vx * vx + vz * vz > 1e-6f) ? std::atan2(vx, vz) : 0.0f;
+		fc.rot = (vx * vx + vz * vz > 1e-6f) ? det::atan2(vx, vz) : 0.0f;
 		fc.offsets_rot = fc.rot;
 		fc.goal_x = fc.x;
 		fc.goal_z = fc.z;
@@ -6615,7 +6616,7 @@ void Simulation::formation_merge_twins() {
 				formation_size(fc, w, d);
 				formation_size(other, ow, od);
 				const float min_dist = std::max(w, d) * 0.5f + std::max(ow, od) * 0.5f + FORMATION_CLUSTER_DISTANCE;
-				if (std::hypot(fc.x - other.x, fc.z - other.z) > min_dist) continue;
+				if (det::hypot(fc.x - other.x, fc.z - other.z) > min_dist) continue;
 				// RemoveMembers from the twin (which disbands, empty), AddMembers here.
 				const uint32_t keep_id = fc.id;
 				const std::vector<uint32_t> moved = other.members;
@@ -6687,9 +6688,9 @@ bool Simulation::formation_target_in_range(const FormationController &fc) const 
 			const Building &b = buildings_[building_id_to_idx_.at(fc.target_building)];
 			const float dx = std::max(0.0f, std::fabs(fc.x - b.x) - b.half_size);
 			const float dz = std::max(0.0f, std::fabs(fc.z - b.z) - b.half_size);
-			dist = std::hypot(dx, dz);
+			dist = det::hypot(dx, dz);
 		} else {
-			dist = std::hypot(tx - fc.x, tz - fc.z);
+			dist = det::hypot(tx - fc.x, tz - fc.z);
 		}
 		const float range = task == FTASK_GARRISON && fc.target_building
 				? structure_loading_range(buildings_[building_id_to_idx_.at(fc.target_building)].type,
@@ -6712,12 +6713,12 @@ bool Simulation::formation_target_in_range(const FormationController &fc) const 
 	float dist;
 	if (fc.target_unit) {
 		const int32_t t = lookup_unit(fc.target_unit);
-		dist = std::hypot(tx - fc.x, tz - fc.z) - unit_collision_radius(units_.unit_type[t]);
+		dist = det::hypot(tx - fc.x, tz - fc.z) - unit_collision_radius(units_.unit_type[t]);
 	} else {
 		const Building &b = buildings_[building_id_to_idx_.at(fc.target_building)];
 		const float dx = std::max(0.0f, std::fabs(fc.x - b.x) - b.half_size);
 		const float dz = std::max(0.0f, std::fabs(fc.z - b.z) - b.half_size);
-		dist = std::hypot(dx, dz);
+		dist = det::hypot(dx, dz);
 	}
 	return dist <= range;
 }
@@ -6941,7 +6942,7 @@ void Simulation::tick_formations(float dt) {
 			fc.shape_timer -= FORMATION_SHAPE_UPDATE_S;
 			float tx, tz;
 			if (fc.order == FORDER_APPROACH && formation_target_pos(fc, tx, tz) &&
-					std::hypot(tx - fc.goal_x, tz - fc.goal_z) > 2.0f) {
+					det::hypot(tx - fc.goal_x, tz - fc.goal_z) > 2.0f) {
 				// MoveToTargetRange follows a moving target.
 				fc.goal_x = std::clamp(tx, -map_half_ + 1.0f, map_half_ - 1.0f);
 				fc.goal_z = std::clamp(tz, -map_half_ + 1.0f, map_half_ - 1.0f);
@@ -7090,7 +7091,7 @@ void Simulation::tick_formations(float dt) {
 			const float az = on_path ? fc.path.zs[fc.path.cur] : fc.goal_z;
 			const float dx = ax - fc.x, dz = az - fc.z;
 			const float d = std::sqrt(dx * dx + dz * dz);
-			if (d > 0.5f) fc.rot = std::atan2(dx, dz); // the controller faces its walk
+			if (d > 0.5f) fc.rot = det::atan2(dx, dz); // the controller faces its walk
 			if (d > step) {
 				fc.x += dx / d * step;
 				fc.z += dz / d * step;
@@ -7330,7 +7331,7 @@ bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z, size
 	for (float r = 0.5f; r <= reach; r += 0.5f) {
 		for (int a = 0; a < 16; ++a) {
 			const float ang = (float)a * 0.39269908f;
-			const float cx = sx + std::cos(ang) * r, cz = sz + std::sin(ang) * r;
+			const float cx = sx + det::cos(ang) * r, cz = sz + det::sin(ang) * r;
 			if (std::fabs(cx) >= map_half_ - 1.0f || std::fabs(cz) >= map_half_ - 1.0f) continue;
 			if (get_terrain_height(cx, cz) < terrain_water_height_ + 0.15f) continue;
 			auto [nx, ny] = nav_grid_.world_to_cell(cx, cz);
@@ -7375,11 +7376,11 @@ bool Simulation::siege_spawn_point(size_t holder, uint8_t type, uint32_t skip_ui
 	const float width_m = is_siege_tower_at(holder) ? 12.0f : 8.0f;
 	const float half_w = width_m * 0.5f * 0.25f, half_d = 12.0f * 0.5f * 0.25f; // metres to world units
 	const float dx = toward_x - cx, dz = toward_z - cz;
-	const float len = std::hypot(dx, dz);
+	const float len = det::hypot(dx, dz);
 	if (!(len >= 1e-3f))
 		return pick_spawn_point_box(cx, cz, 0.0f, half_d, half_w, 0.0f, false, 0.0f, 0.0f,
 			type, skip_uid, out_x, out_z);
-	return pick_spawn_point_box(cx, cz, std::atan2(dx, dz), half_d, half_w, 0.0f, true, toward_x, toward_z,
+	return pick_spawn_point_box(cx, cz, det::atan2(dx, dz), half_d, half_w, 0.0f, true, toward_x, toward_z,
 			type, skip_uid, out_x, out_z);
 }
 
@@ -7544,7 +7545,7 @@ float Simulation::average_elevation_range(float x, float z, float range, float y
 	float sum = 0.0f;
 	for (int k = 0; k < kSteps; ++k) {
 		const float a = 6.2831853f * (float)k / (float)kSteps;
-		sum += elevation_range_toward(x, z, std::sin(a), std::cos(a), range, y_origin);
+		sum += elevation_range_toward(x, z, det::sin(a), det::cos(a), range, y_origin);
 	}
 	return sum / (float)kSteps;
 }
@@ -7920,7 +7921,7 @@ static void turret_point_world(const Simulation::Building &b, const TurretPoint 
 		z = b.z + p.z;
 		return;
 	}
-	const float c = std::cos(b.rot), s = std::sin(b.rot);
+	const float c = det::cos(b.rot), s = det::sin(b.rot);
 	x = b.x + p.x * c + p.z * s;
 	z = b.z - p.x * s + p.z * c;
 }
@@ -8262,7 +8263,7 @@ void Simulation::clear_resources_near(float x, float z, float r) {
 	bool mine = false;
 	for (size_t i = 0; i < resources_.count; ++i) {
 		if (!resources_.alive[i] || resources_.subtype[i] == RES_SUB_FISH) continue;
-		if (std::hypot(resources_.x[i] - x, resources_.z[i] - z) > r) continue;
+		if (det::hypot(resources_.x[i] - x, resources_.z[i] - z) > r) continue;
 		nav::Footprint m;
 		mine = mine_footprint(i, m) || mine;
 		resources_.alive[i] = 0;
@@ -8287,7 +8288,7 @@ size_t Simulation::place_starting_walls(uint8_t player, float x, float z, int ma
 	const float step = 2.0f * 3.14159265f / 7.0f;
 	for (int i = 0; i < 7; ++i) {
 		const float a = orientation - 0.5f * step + (float)i * step;
-		const float px = x + 15.0f * std::cos(a), pz = z + 15.0f * std::sin(a);
+		const float px = x + 15.0f * det::cos(a), pz = z + 15.0f * det::sin(a);
 		if (std::fabs(px) > map_half_ - 1.0f || std::fabs(pz) > map_half_ - 1.0f) continue;
 		if (get_terrain_height(px, pz) < terrain_water_height_ + 0.15f) continue;
 		spawn_wall_piece({BLD_WALL_TOWER, px, pz, -a, wallset_info(WALLSET_STONE).tower_half}, player, 1.0f);
@@ -8302,13 +8303,13 @@ bool Simulation::place_map_wall_piece(const WallPiece &p, uint8_t player) {
 	if (std::fabs(p.x) > map_half_ - 1.0f || std::fabs(p.z) > map_half_ - 1.0f) return false;
 	if (get_terrain_height(p.x, p.z) < terrain_water_height_ + 0.15f) return false;
 	// template_gaia_flora's DeleteUponConstruction: trees and bushes under the piece go.
-	const float c = std::cos(p.rot), sn = -std::sin(p.rot);
+	const float c = det::cos(p.rot), sn = -det::sin(p.rot);
 	for (float u = -p.half_w; u <= p.half_w + 1e-3f; u += 0.5f)
 		for (size_t i = 0; i < resources_.count; ++i) {
 			if (!resources_.alive[i]) continue;
 			if (resources_.type[i] != RES_WOOD && !(resources_.type[i] == RES_FOOD && resources_.subtype[i] == RES_SUB_NONE))
 				continue;
-			if (std::hypot(resources_.x[i] - (p.x + u * c), resources_.z[i] - (p.z + u * sn)) > 0.75f) continue;
+			if (det::hypot(resources_.x[i] - (p.x + u * c), resources_.z[i] - (p.z + u * sn)) > 0.75f) continue;
 			resources_.alive[i] = 0;
 			resources_.amount[i] = 0;
 		}
@@ -8338,20 +8339,20 @@ size_t Simulation::place_custom_fortress(uint8_t player, float x, float z, float
 	}
 	// getWallAlignment (wall_builder.h), the wall running along perpendicular(rotate((1, 0), -o)).
 	struct V { float x, z; };
-	auto rot = [](V v, float a) { return V{v.x * std::cos(a) + v.z * std::sin(a), -v.x * std::sin(a) + v.z * std::cos(a)}; };
+	auto rot = [](V v, float a) { return V{v.x * det::cos(a) + v.z * det::sin(a), -v.x * det::sin(a) + v.z * det::cos(a)}; };
 	struct Align { V pos; float run; };
 	std::vector<Align> al(n);
 	const std::vector<WallAlignT<float>> lined = wall_alignment<float>(0.0f, 0.0f, els, overlap, 0.0f);
 	for (size_t i = 0; i < n; ++i) {
 		const V run = rot({1.0f, 0.0f}, -lined[i].orientation);
-		al[i] = {{lined[i].x, lined[i].y}, std::atan2(run.x, -run.z)};
+		al[i] = {{lined[i].x, lined[i].y}, det::atan2(run.x, -run.z)};
 	}
 	// getCenterToFirstElement: the outline's centre is the mean of its elements; then turn it so
 	// the first element lies towards `facing`.
 	V mean{0.0f, 0.0f};
 	for (const Align &a : al) mean = {mean.x + a.pos.x / (float)n, mean.z + a.pos.z / (float)n};
-	const float turn = facing - std::atan2(al[0].pos.z - mean.z, al[0].pos.x - mean.x);
-	const float ct = std::cos(turn), st = std::sin(turn);
+	const float turn = facing - det::atan2(al[0].pos.z - mean.z, al[0].pos.x - mean.x);
+	const float ct = det::cos(turn), st = det::sin(turn);
 	const bool bulk = bulk_spawn_;
 	bulk_spawn_ = true;
 	size_t placed = 0;
@@ -8394,8 +8395,8 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 		return (float)((double)(v >> 11) * (1.0 / 9007199254740992.0));
 	};
 	struct V { float x, z; };
-	auto polar = [](float r, float a) { return V{r * std::cos(a), r * std::sin(a)}; };
-	auto dist = [](V a, V b) { return std::hypot(a.x - b.x, a.z - b.z); };
+	auto polar = [](float r, float a) { return V{r * det::cos(a), r * det::sin(a)}; };
+	auto dist = [](V a, V b) { return det::hypot(a.x - b.x, a.z - b.z); };
 	// getWallLength(style, ["long", "tower"]): each element's length less the tower overlap.
 	const float overlap = styled ? (float)wall_overlap<double>(style) : ws.min_overlap * ws.tower_length;
 	const float pd = styled ? (float)wall_length<double>(style, {WallElementName{WALL_EL_LONG}, WallElementName{}})
@@ -8413,10 +8414,10 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 		for (;;) {
 			const float indent = (rnd() * 2.0f - 1.0f) * irregularity * pd;
 			const V tmp = polar(radius + indent, angle + pd / radius);
-			const float tmp_angle = std::atan2(tmp.z - off.z, tmp.x - off.x);
+			const float tmp_angle = det::atan2(tmp.z - off.z, tmp.x - off.x);
 			const V d = polar(pd, tmp_angle);
 			off = {off.x + d.x, off.z + d.z};
-			angle = std::atan2(off.z, off.x);
+			angle = det::atan2(off.z, off.x);
 			pts.push_back(off);
 			if (pts.size() > 3 && dist(pts[0], off) < pd) {
 				const float o = pd - dist(pts.back(), pts[0]);
@@ -8444,24 +8445,24 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 			// gate_every-th a gate; then the tower at this point, along the wall from the previous point.
 			const double ax = x + best[i].x, az = z + best[i].z;
 			const double bx = x + best[(i + 1) % n].x, bz = z + best[(i + 1) % n].z;
-			const double wa = std::atan2(bz - az, bx - ax), half_len = 0.5 * std::hypot(bx - ax, bz - az);
+			const double wa = det::atan2(bz - az, bx - ax), half_len = 0.5 * det::hypot(bx - ax, bz - az);
 			const WallElement &e = gate_every > 0 && (int)((i + 1) % (size_t)gate_every) == 0 ? gate : long_wall;
-			placed += place_wall_element(e, ax + half_len * std::cos(wa), az + half_len * std::sin(wa),
+			placed += place_wall_element(e, ax + half_len * det::cos(wa), az + half_len * det::sin(wa),
 					wa - kWallPi<double> / 2.0 + e.angle, player);
 			const double px = x + best[(i + n - 1) % n].x, pz = z + best[(i + n - 1) % n].z;
-			placed += place_wall_element(tower, ax, az, std::atan2(bz - pz, bx - px) - kWallPi<double> / 2.0 + tower.angle, player);
+			placed += place_wall_element(tower, ax, az, det::atan2(bz - pz, bx - px) - kWallPi<double> / 2.0 + tower.angle, player);
 		}
 	}
 	for (size_t i = 0; !styled && i < n; ++i) {
 		// The wall from this corner to the next: every gate_every-th a gate, else a long wall.
 		const V a{x + best[i].x, z + best[i].z}, b{x + best[(i + 1) % n].x, z + best[(i + 1) % n].z};
-		const float wa = std::atan2(b.z - a.z, b.x - a.x);
-		const V mid{a.x + 0.5f * dist(a, b) * std::cos(wa), a.z + 0.5f * dist(a, b) * std::sin(wa)};
+		const float wa = det::atan2(b.z - a.z, b.x - a.x);
+		const V mid{a.x + 0.5f * dist(a, b) * det::cos(wa), a.z + 0.5f * dist(a, b) * det::sin(wa)};
 		const bool gate = gate_every > 0 && (int)((i + 1) % (size_t)gate_every) == 0;
 		place({gate ? (uint8_t)BLD_GATE : ws.segment, mid.x, mid.z, -wa, 0.5f * ws.lengths[0]});
 		// The tower at this corner, turned along the wall from the previous corner to the next.
 		const V prev{x + best[(i + n - 1) % n].x, z + best[(i + n - 1) % n].z};
-		place({ws.tower, a.x, a.z, -std::atan2(b.z - prev.z, b.x - prev.x), ws.tower_half});
+		place({ws.tower, a.x, a.z, -det::atan2(b.z - prev.z, b.x - prev.x), ws.tower_half});
 	}
 	bulk_spawn_ = bulk;
 	if (!bulk && placed) rebuild_nav_grid();
@@ -8473,7 +8474,7 @@ bool Simulation::wall_builder_passable(double x, double z) const {
 	const double size = 2.0 * (double)map_half_, px = x + (double)map_half_, pz = z + (double)map_half_;
 	if (!(px >= 0.0 && pz >= 0.0 && px < size && pz < size)) return false; // inMapBounds
 	constexpr double kBorder = 3.0;                                          // MAP_BORDER_WIDTH
-	if (circular_map()) return std::round(std::hypot(x, z)) < 0.5 * size - kBorder - 1.0;
+	if (circular_map()) return std::round(det::hypot(x, z)) < 0.5 * size - kBorder - 1.0;
 	return px >= kBorder && pz >= kBorder && px < size - kBorder && pz < size - kBorder;
 }
 
@@ -8500,7 +8501,7 @@ namespace {
 struct WallVec { double x, y; };
 // 0.28's Vector2D.rotate (clockwise by a) and perpendicular (a quarter counter-clockwise).
 WallVec wall_rotate(WallVec v, double a) {
-	const double s = std::sin(a), c = std::cos(a);
+	const double s = det::sin(a), c = det::cos(a);
 	return {v.x * c + v.y * s, -v.x * s + v.y * c};
 }
 WallVec wall_perpendicular(WallVec v) { return {-v.y, v.x}; }
@@ -8512,7 +8513,7 @@ uint8_t valid_wall_style(uint8_t style, uint8_t player, uint8_t civ) {
 WallVec operator+(WallVec a, WallVec b) { return {a.x + b.x, a.y + b.y}; }
 WallVec operator-(WallVec a, WallVec b) { return {a.x - b.x, a.y - b.y}; }
 // getAngle(x1, y1, x2, y2).
-double wall_angle(WallVec a, WallVec b) { return std::atan2(b.y - a.y, b.x - a.x); }
+double wall_angle(WallVec a, WallVec b) { return det::atan2(b.y - a.y, b.x - a.x); }
 } // namespace
 
 size_t Simulation::place_wall(double x, double z, const std::vector<WallElementName> &wall, uint8_t style, uint8_t player,
@@ -8553,7 +8554,7 @@ size_t Simulation::place_fortress(double x, double z, const char *type, uint8_t 
 size_t Simulation::place_linear_wall(double sx, double sz, double ex, double ez, const std::vector<WallElementName> &part,
 		uint8_t style, uint8_t player, bool end_with_first) {
 	style = valid_wall_style(style, player, player < MAX_PLAYERS ? (uint8_t)civ_of(player) : (uint8_t)CIV_GAIA);
-	const double total = std::hypot((double)ex - sx, (double)ez - sz);
+	const double total = det::hypot((double)ex - sx, (double)ez - sz);
 	const double part_length = wall_length<double>(style, part);
 	if (part.empty()) return 0; // 0.28 would loop for ever on an empty part
 	const WallElement first = wall_element<double>(style, part[0]);
@@ -8712,7 +8713,7 @@ size_t Simulation::place_irregular_polygonal_wall(double cx, double cz, double r
 		const P *best = nullptr;
 		double best_length = std::numeric_limits<double>::infinity();
 		const WallVec &a = corners[(size_t)i], &b = corners[(size_t)((i + 1) % num_corners)];
-		const double side = std::hypot(b.x - a.x, b.y - a.y), copies = std::ceil(side / max_length);
+		const double side = det::hypot(b.x - a.x, b.y - a.y), copies = std::ceil(side / max_length);
 		for (size_t k = 0; k < assortment.size(); ++k) {
 			const double l = copies * lengths[k];
 			if (l < best_length && l > side) {
@@ -9071,7 +9072,7 @@ bool Simulation::cmd_raise_alert(uint8_t player, uint32_t building_id) {
 				continue;
 			const float d = edge_distance(b, ux, uz);
 			if (d > best_d || (d == best_d && best >= 0)) continue;
-			if (info.end_range > 0.0f && std::hypot(b.x - raiser.x, b.z - raiser.z) > info.end_range) continue;
+			if (info.end_range > 0.0f && det::hypot(b.x - raiser.x, b.z - raiser.z) > info.end_range) continue;
 			auto r = reserved.find(b.id);
 			const int room = r != reserved.end() ? r->second : b.garrison_cap - (int)b.garrisoned_units.size();
 			if (room < 1) continue;
@@ -9113,7 +9114,7 @@ bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
 	std::vector<std::pair<uint32_t, uint32_t>> out;
 	for (const Building &b : buildings_) {
 		if (!is_ally(player, b.team) || b.garrisoned_units.empty()) continue; // AlertRaiser mutualAllies
-		const float gap = std::hypot(b.x - raiser.x, b.z - raiser.z) - b.half_size - raiser.half_size;
+		const float gap = det::hypot(b.x - raiser.x, b.z - raiser.z) - b.half_size - raiser.half_size;
 		if (b.id != raiser.id && info.end_range >= 0.0f && gap > info.end_range) continue;
 		for (uint32_t uid : b.garrisoned_units) {
 			const int32_t i = lookup_unit(uid);
@@ -9417,7 +9418,7 @@ void Simulation::order_disembark(uint32_t transport_id, float target_x, float ta
 
 	float tx = units_.pos_x[tidx];
 	float tz = units_.pos_z[tidx];
-	float dist_to_target = std::hypot(tx - target_x, tz - target_z);
+	float dist_to_target = det::hypot(tx - target_x, tz - target_z);
 
 	if (dist_to_target > 6.0f) {
 		units_.target_x[tidx] = target_x;
@@ -10087,9 +10088,9 @@ void Simulation::aim_velocity_fauna(size_t f, float &vx, float &vz) const {
 void Simulation::random_normal_2d(float &x, float &z) {
 	const float u1 = std::max(1.0e-7f, sim_rng_.range_float(0.0f, 1.0f));
 	const float u2 = sim_rng_.range_float(0.0f, 1.0f);
-	const float r = std::sqrt(-2.0f * std::log(u1));
-	x = r * std::cos(6.28318530718f * u2);
-	z = r * std::sin(6.28318530718f * u2);
+	const float r = std::sqrt(-2.0f * det::log(u1));
+	x = r * det::cos(6.28318530718f * u2);
+	z = r * det::sin(6.28318530718f * u2);
 }
 
 void Simulation::fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect, uint8_t dmg_type, bool hits_building, uint8_t visual, uint32_t source_id, uint8_t splash) {
@@ -10376,13 +10377,13 @@ float Simulation::accelerated_step(size_t i, float vx, float vz, float ux, float
 	if (c < m.cos_instant_turn) {
 		float t = dt;
 		if (m.turn_rate > 0.0f) {
-			const float over = std::max(0.0f, std::acos(std::max(c, -1.0f)) - m.instant_turn_angle);
+			const float over = std::max(0.0f, det::acos(std::max(c, -1.0f)) - m.instant_turn_angle);
 			const float turn = m.turn_rate * dt;
 			if (over > turn) {
 				// It turns as far as it can this tick, the nearer way round (to its left when its way
 				// on is right behind it).
 				const float side = ux * hz - uz * hx >= 0.0f ? 1.0f : -1.0f;
-				const float ct = std::cos(turn), st = std::sin(turn) * side;
+				const float ct = det::cos(turn), st = det::sin(turn) * side;
 				const float nx = hx * ct + hz * st, nz = hz * ct - hx * st;
 				const float inv = 1.0f / std::sqrt(nx * nx + nz * nz);
 				hx = nx * inv;
@@ -11373,7 +11374,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			return (size_t)j != i && idle[j] && units_.id[j] != ignore && !(group && crew[j] == group);
 		};
 		auto step_blocked = [&](float ex, float ez) {
-			const float reach = std::hypot(ex - x0, ez - z0) + ci + c_max;
+			const float reach = det::hypot(ex - x0, ez - z0) + ci + c_max;
 			bool hit = false;
 			grid.visit_radius_within(x0, z0, reach, reach, [&](int32_t j) {
 				if (hit || !obstructs(j)) return;
@@ -11389,7 +11390,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const float full_step = unit_move_speed(i) * dt;
 		auto full_step_blocked = [&](float ex, float ez, float to_x, float to_z) {
 			const float dx = ex - x0, dz = ez - z0, l = std::sqrt(dx * dx + dz * dz);
-			const float probe = std::min(full_step, std::hypot(to_x - x0, to_z - z0));
+			const float probe = std::min(full_step, det::hypot(to_x - x0, to_z - z0));
 			if (l <= 0.0f || l >= probe) return step_blocked(ex, ez);
 			return step_blocked(x0 + dx / l * probe, z0 + dz / l * probe);
 		};
@@ -12992,7 +12993,7 @@ bool Simulation::structure_build_work(const Building &b, BuildWork &out) const {
 // Foundation.js / Repairable.js CalculateBuildMultiplier: n builders at work
 // each do n^0.7 / n of their rate (BuildTimeModifier / buildTimePenalty 0.7).
 float Simulation::foundation_build_multiplier(int builders) {
-	return builders < 2 ? 1.0f : std::pow((float)builders, 0.7f) / (float)builders;
+	return builders < 2 ? 1.0f : det::pow((float)builders, 0.7f) / (float)builders;
 }
 
 // Builder.js GetRate: Builder/Rate 1.0 for every builder RTS0 trains (only 0 A.D.'s
@@ -14325,7 +14326,7 @@ void Simulation::tick_combat(float dt) {
 		} else if (tb >= 0) {
 			const Building &b = buildings_[(size_t)tb];
 			const float bld_dmg = unit_damage_to_structure(i, b);
-			const float sigma = spread * std::hypot(b.x - sx, b.z - sz) / 100.0f;
+			const float sigma = spread * det::hypot(b.x - sx, b.z - sz) / 100.0f;
 			for (int v = 0; v < volley; ++v) {
 				float disp_x = 0.0f, disp_z = 0.0f;
 				random_normal_2d(disp_x, disp_z);
@@ -14337,7 +14338,7 @@ void Simulation::tick_combat(float dt) {
 			const size_t t = (size_t)tu;
 			units_.attacked_by[t] = units_.id[i]; // UnitAI "Attacked"
 			const float dmg = unit_attack_damage(i, t);
-			const float dist = std::hypot(units_.pos_x[t] - sx, units_.pos_z[t] - sz);
+			const float dist = det::hypot(units_.pos_x[t] - sx, units_.pos_z[t] - sz);
 			float lead_x = 0.0f, lead_z = 0.0f;
 			aim_velocity_unit(t, lead_x, lead_z);
 			const float flight = predict_time_to_target(sx, sz, projectile_speed_of(units_.id[i], 0),
@@ -14423,7 +14424,7 @@ void Simulation::tick_combat(float dt) {
 		// float rounding on the side of testing.
 		const float lowest_ground = lowest_terrain_height();
 		const double reach2 = (double)max_r * max_r - 2.0 * (double)max_r * ((double)lowest_ground - (double)b_y);
-		const float corner = std::hypot(b.hu, b.hv); // the footprint's farthest reach from its centre
+		const float corner = det::hypot(b.hu, b.hv); // the footprint's farthest reach from its centre
 		const float ground_reach = max_r > 0.0f && reach2 > 0.0 ? (float)std::sqrt(reach2) + corner + 1.0f : -1.0f;
 		auto beyond = [&](float dx, float dz, float other_half) {
 			return ground_reach >= 0.0f && (std::fabs(dx) > ground_reach + other_half || std::fabs(dz) > ground_reach + other_half);
@@ -14545,10 +14546,10 @@ void Simulation::tick_combat(float dt) {
 			if (t.kind == ARROW_FAUNA) {
 				const size_t f = (size_t)t.idx;
 				const FaunaTypeInfo &fi = fauna_type_info(fauna_.fauna_type[f]);
-				const float dmg = hack * powf(0.9f, fi.hack_armor) + pierce * powf(0.9f, fi.pierce_armor) +
-						crush * powf(0.9f, fi.crush_armor);
+				const float dmg = hack * det::pow(0.9f, fi.hack_armor) + pierce * det::pow(0.9f, fi.pierce_armor) +
+						crush * det::pow(0.9f, fi.crush_armor);
 				const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
-				const float dist = std::hypot(fx - b.x, fz - b.z);
+				const float dist = det::hypot(fx - b.x, fz - b.z);
 				float lead_x = 0.0f, lead_z = 0.0f;
 				aim_velocity_fauna(f, lead_x, lead_z);
 				const float flight = predict_time_to_target(b.x, b.z, projectile_speed_of(b.id, 0), fx, fz, lead_x, lead_z);
@@ -14565,8 +14566,8 @@ void Simulation::tick_combat(float dt) {
 				float oa[3];
 				structure_resistance(ob, oa);
 				// Attack.js has no minimum damage: arrows barely scratch stone.
-				const float dmg = hack * powf(0.9f, oa[0]) + pierce * powf(0.9f, oa[1]) + crush * powf(0.9f, oa[2]);
-				const float sigma = spread * std::hypot(ob.x - b.x, ob.z - b.z) / 100.0f;
+				const float dmg = hack * det::pow(0.9f, oa[0]) + pierce * det::pow(0.9f, oa[1]) + crush * det::pow(0.9f, oa[2]);
+				const float sigma = spread * det::hypot(ob.x - b.x, ob.z - b.z) / 100.0f;
 				float disp_x = 0.0f, disp_z = 0.0f;
 				random_normal_2d(disp_x, disp_z);
 				const float lx = ob.x + disp_x * sigma, lz = ob.z + disp_z * sigma;
@@ -14577,7 +14578,7 @@ void Simulation::tick_combat(float dt) {
 			const size_t u = (size_t)t.idx;
 			float armor[3];
 			unit_resistance(u, armor);
-			const float dmg = hack * powf(0.9f, armor[0]) + pierce * powf(0.9f, armor[1]) + crush * powf(0.9f, armor[2]);
+			const float dmg = hack * det::pow(0.9f, armor[0]) + pierce * det::pow(0.9f, armor[1]) + crush * det::pow(0.9f, armor[2]);
 			const float dx = units_.pos_x[u] - b.x, dz = units_.pos_z[u] - b.z;
 			const float dist = sqrtf(dx * dx + dz * dz);
 			float lead_x = 0.0f, lead_z = 0.0f;
@@ -15207,7 +15208,7 @@ float Simulation::unit_damage_to_fauna(size_t i, size_t f) const {
 	if (uinfo.hack_damage + uinfo.pierce_damage + uinfo.crush_damage <= 0.0f) return units_.attack_damage[i];
 	float d[4];
 	unit_attack_effects(i, d);
-	return d[0] * powf(0.9f, finfo.hack_armor) + d[1] * powf(0.9f, finfo.pierce_armor) + d[2] * powf(0.9f, finfo.crush_armor) + d[3];
+	return d[0] * det::pow(0.9f, finfo.hack_armor) + d[1] * det::pow(0.9f, finfo.pierce_armor) + d[2] * det::pow(0.9f, finfo.crush_armor) + d[3];
 }
 
 // Projectile p lands on animal f: the shooter's fire-time strengths against the
@@ -15218,8 +15219,8 @@ void Simulation::projectile_hits_fauna(const Projectile &p, size_t f) {
 	const int32_t src = lookup_unit(p.source_id);
 	const FaunaTypeInfo &fi = fauna_type_info(fauna_.fauna_type[f]);
 	const float res[3] = {fi.hack_armor, fi.pierce_armor, fi.crush_armor};
-	const float dmg = p.dmg_parts[0] * powf(0.9f, res[0]) + p.dmg_parts[1] * powf(0.9f, res[1]) +
-			p.dmg_parts[2] * powf(0.9f, res[2]) + p.dmg_parts[3];
+	const float dmg = p.dmg_parts[0] * det::pow(0.9f, res[0]) + p.dmg_parts[1] * det::pow(0.9f, res[1]) +
+			p.dmg_parts[2] * det::pow(0.9f, res[2]) + p.dmg_parts[3];
 	if (src >= 0) award_fauna_xp((size_t)src, f, dmg);
 	fauna_.hp[f] -= dmg;
 	fauna_attacked(f, p.source_id); // a unit, or the structure that shot
@@ -15450,7 +15451,7 @@ float Simulation::unit_attack_damage(size_t i, size_t t) {
 	unit_resistance(t, target_armor);
 	unit_attack_effects(i, d);
 	const float mul = combat_bonus(unit_combat_at(i), unit_combat_at(t), civ_of(units_.team[t]));
-	return mul * (d[0] * powf(0.9f, target_armor[0]) + d[1] * powf(0.9f, target_armor[1]) + d[2] * powf(0.9f, target_armor[2]) + d[3]);
+	return mul * (d[0] * det::pow(0.9f, target_armor[0]) + d[1] * det::pow(0.9f, target_armor[1]) + d[2] * det::pow(0.9f, target_armor[2]) + d[3]);
 }
 
 // Unit i's attack Damage (hack, pierce, crush) as GetAttackEffectsData gives it: each of
@@ -15498,7 +15499,7 @@ float Simulation::unit_damage_to_structure(size_t i, const Building &b) const {
 	unit_attack_effects(i, d);
 	structure_resistance(b, res);
 	const float bonus = combat_bonus(unit_combat_at(i), building_combat(b.type), civ_of(b.team));
-	return bonus * (d[0] * powf(0.9f, res[0]) + d[1] * powf(0.9f, res[1]) + d[2] * powf(0.9f, res[2]) + d[3]);
+	return bonus * (d[0] * det::pow(0.9f, res[0]) + d[1] * det::pow(0.9f, res[1]) + d[2] * det::pow(0.9f, res[2]) + d[3]);
 }
 
 // A structure's arrow (BuildingAI) against resistance `res`: its Attack/Ranged Damage,
@@ -15509,7 +15510,7 @@ float Simulation::structure_arrow_damage(const Building &shooter, const float re
 	const float pierce = ai.pierce * (shooter.team < MAX_PLAYERS ? tech_mods(shooter.team).bld_attack[shooter.type] : 1.0f);
 	const float aura = aura_mgr_.query_modifier(shooter.x, shooter.z, shooter.team, AURA_ATTACK,
 		CIV_UNIT_TEMPLATE_NONE, nullptr, true, shooter.id);
-	const float dmg = ai.hack * powf(0.9f, res[0]) + pierce * powf(0.9f, res[1]) + ai.crush * powf(0.9f, res[2]);
+	const float dmg = ai.hack * det::pow(0.9f, res[0]) + pierce * det::pow(0.9f, res[1]) + ai.crush * det::pow(0.9f, res[2]);
 	return aura > 0.0f ? dmg * aura : dmg; // 0 = none in range
 }
 
@@ -15523,8 +15524,8 @@ float Simulation::structure_arrow_damage(const Building &shooter, const float re
 // base value, so a dead shooter's arrow keeps them unmodified).
 float Simulation::projectile_impact_damage(const Projectile &p, const CombatProfile &victim, uint8_t victim_civ, const float res[3]) const {
 	const float bonus = p.src_kind == 1 ? combat_bonus(unit_combat(p.src_tmpl, p.src_type), victim, victim_civ) : 1.0f;
-	return bonus * (p.dmg_parts[0] * powf(0.9f, res[0]) + p.dmg_parts[1] * powf(0.9f, res[1]) +
-			p.dmg_parts[2] * powf(0.9f, res[2]) + p.dmg_parts[3]);
+	return bonus * (p.dmg_parts[0] * det::pow(0.9f, res[0]) + p.dmg_parts[1] * det::pow(0.9f, res[1]) +
+			p.dmg_parts[2] * det::pow(0.9f, res[2]) + p.dmg_parts[3]);
 }
 
 float Simulation::projectile_damage_to_unit(const Projectile &p, size_t u) {
@@ -16088,7 +16089,7 @@ void Simulation::apply_relic_count() {
 				for (float r = 1.0f; r <= 8.0f && !found; r += 0.5f)
 					for (int t = 0; t < 12 && !found; ++t) {
 						const float a = a0 + 6.28318530718f * (float)t / 12.0f;
-						const float sx = p.first + cosf(a) * r, sz = p.second + sinf(a) * r;
+						const float sx = p.first + det::cos(a) * r, sz = p.second + det::sin(a) * r;
 						if (std::fabs(sx) > map_half_ - 2.0f || std::fabs(sz) > map_half_ - 2.0f) continue;
 						auto [cx, cy] = nav_grid_.world_to_cell(sx, sz);
 						if (!nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY) || occupied(sx, sz)) continue;
@@ -16100,8 +16101,8 @@ void Simulation::apply_relic_count() {
 		} else {
 			// A map with no Gaia entity at all: a ring about the centre.
 			const float a = 6.28318530718f * (float)k / (float)want;
-			x = cosf(a) * map_half_ * 0.45f;
-			z = sinf(a) * map_half_ * 0.45f;
+			x = det::cos(a) * map_half_ * 0.45f;
+			z = det::sin(a) * map_half_ * 0.45f;
 		}
 		spawn_relic(x, z, civs[k % PLAYABLE_CIV_COUNT]);
 	}
@@ -16214,7 +16215,7 @@ void Simulation::free_spot_near(float px, float pz, uint8_t utype, float &x, flo
 	for (float r = 1.0f; r <= 8.0f; r += 0.5f)
 		for (int t = 0; t < 12; ++t) {
 			const float a = 6.28318530718f * (float)t / 12.0f;
-			const float sx = px + cosf(a) * r, sz = pz + sinf(a) * r;
+			const float sx = px + det::cos(a) * r, sz = pz + det::sin(a) * r;
 			if (std::fabs(sx) > map_half_ - 2.0f || std::fabs(sz) > map_half_ - 2.0f) continue;
 			auto [cx, cy] = nav_grid_.world_to_cell(sx, sz);
 			if (!nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY) || occupied(sx, sz)) continue;
@@ -16244,8 +16245,8 @@ void Simulation::tick_waves(float dt) {
 	for (int i = 0; i < total; ++i) {
 		float angle = 6.28318530718f * (float)i / (float)total;
 		float edge = map_half_ - 2.0f;
-		float x = cosf(angle) * edge;
-		float z = sinf(angle) * edge;
+		float x = det::cos(angle) * edge;
+		float z = det::sin(angle) * edge;
 
 		uint8_t utype = UNIT_SWORDSMAN;
 		if (i < base_archers) utype = UNIT_ARCHER;
@@ -16562,7 +16563,7 @@ void Simulation::tick_death_damage(float dt) {
 			if (d >= r || invulnerable(units_.id[i])) continue;
 			float res[3];
 			unit_resistance(i, res);
-			const float dmg = dd.damage * (dd.fire ? 1.0f : powf(0.9f, res[2])) *
+			const float dmg = dd.damage * (dd.fire ? 1.0f : det::pow(0.9f, res[2])) *
 					(unit_is_ship(units_.unit_type[i]) ? dd.ship_building_mult : 1.0f) * (1.0f - d * d / r2);
 			note_attacked(0, owner, units_.id[i], units_.team[i], false, dmg);
 			units_.hp[i] -= dmg;
@@ -16588,7 +16589,7 @@ void Simulation::tick_death_damage(float dt) {
 			const FaunaTypeInfo &fi = fauna_type_info(fauna_.fauna_type[f]);
 			const float d = std::max(0.0f, std::sqrt(dx * dx + dz * dz) - fi.footprint * COMBAT_DISTANCE_SCALE);
 			if (d >= r) continue;
-			fauna_.hp[f] -= dd.damage * (dd.fire ? 1.0f : powf(0.9f, fi.crush_armor)) * (1.0f - d * d / r2);
+			fauna_.hp[f] -= dd.damage * (dd.fire ? 1.0f : det::pow(0.9f, fi.crush_armor)) * (1.0f - d * d / r2);
 		}
 		bool nav_changed = false, territory_changed = false;
 		for (Building &b : buildings_) {
@@ -16599,7 +16600,7 @@ void Simulation::tick_death_damage(float dt) {
 			if (d2 >= r2) continue;
 			float res[3];
 			structure_resistance(b, res);
-			const float dmg = dd.damage * (dd.fire ? 1.0f : powf(0.9f, res[2])) * dd.ship_building_mult * (1.0f - d2 / r2);
+			const float dmg = dd.damage * (dd.fire ? 1.0f : det::pow(0.9f, res[2])) * dd.ship_building_mult * (1.0f - d2 / r2);
 			note_attacked(0, owner, b.id, b.team, true, dmg);
 			b.hp -= dmg;
 			if (b.hp > 0.0f) continue;
@@ -16730,8 +16731,8 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		if (m <= 0.0f) continue;
 		float res[3];
 		unit_resistance(u, res);
-		const float dmg = m * (sp.hack * powf(0.9f, res[0]) + sp.pierce * powf(0.9f, res[1]) +
-				sp.crush * powf(0.9f, res[2]));
+		const float dmg = m * (sp.hack * det::pow(0.9f, res[0]) + sp.pierce * det::pow(0.9f, res[1]) +
+				sp.crush * det::pow(0.9f, res[2]));
 		if (dmg <= 0.0f || invulnerable(units_.id[u])) continue;
 		award_damage_xp(attacker_id, u, dmg);
 		note_attacked(attacker_id, attacker_team, units_.id[u], units_.team[u], false, dmg);
@@ -16767,8 +16768,8 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		if (d >= r) continue;
 		const float m = falloff(d, px, pz);
 		if (m <= 0.0f) continue;
-		const float dmg = m * (sp.hack * powf(0.9f, fi.hack_armor) + sp.pierce * powf(0.9f, fi.pierce_armor) +
-				sp.crush * powf(0.9f, fi.crush_armor));
+		const float dmg = m * (sp.hack * det::pow(0.9f, fi.hack_armor) + sp.pierce * det::pow(0.9f, fi.pierce_armor) +
+				sp.crush * det::pow(0.9f, fi.crush_armor));
 		if (dmg <= 0.0f) continue;
 		if (killer >= 0) award_fauna_xp((size_t)killer, f, dmg);
 		fauna_.hp[f] -= dmg;
@@ -16785,7 +16786,7 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		if (m <= 0.0f) continue;
 		float ba[3];
 		structure_resistance(b, ba);
-		const float dmg = m * (sp.hack * powf(0.9f, ba[0]) + sp.pierce * powf(0.9f, ba[1]) + sp.crush * powf(0.9f, ba[2]));
+		const float dmg = m * (sp.hack * det::pow(0.9f, ba[0]) + sp.pierce * det::pow(0.9f, ba[1]) + sp.crush * det::pow(0.9f, ba[2]));
 		if (dmg <= 0.0f) continue;
 		note_attacked(attacker_id, attacker_team, b.id, b.team, true, dmg);
 		award_structure_damage_xp(attacker_id, b, dmg);
@@ -18905,7 +18906,7 @@ bool Simulation::can_repair_unit(size_t i, int32_t t) const {
 // Builder.js GetRange: 2 m beyond the builder's obstruction, to the target's obstruction.
 bool Simulation::repair_unit_in_range(size_t i, size_t t) const {
 	const float dx = units_.pos_x[t] - units_.pos_x[i], dz = units_.pos_z[t] - units_.pos_z[i];
-	return std::hypot(dx, dz) - unit_collision_radius(units_.unit_type[i]) - unit_collision_radius(units_.unit_type[t]) <= kBuildReach;
+	return det::hypot(dx, dz) - unit_collision_radius(units_.unit_type[i]) - unit_collision_radius(units_.unit_type[t]) <= kBuildReach;
 }
 
 void Simulation::order_repair_unit(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_unit_id, bool queued, bool force) {
@@ -19290,7 +19291,7 @@ void Simulation::update_petra_bases(float dt) {
 
 		bool tracked = false;
 		for (const auto &base : petra_bases_) {
-			if (base.anchor_building_id == tcid || std::hypot(base.x - tc.x, base.z - tc.z) < 24.0f) {
+			if (base.anchor_building_id == tcid || det::hypot(base.x - tc.x, base.z - tc.z) < 24.0f) {
 				tracked = true;
 				break;
 			}
@@ -19329,7 +19330,7 @@ void Simulation::update_petra_bases(float dt) {
 
 		bool near_existing = false;
 		for (const auto &base : petra_bases_) {
-			if (std::hypot(base.x - op.x, base.z - op.z) < 30.0f) {
+			if (det::hypot(base.x - op.x, base.z - op.z) < 30.0f) {
 				near_existing = true;
 				break;
 			}
@@ -19487,8 +19488,8 @@ void Simulation::petra_manage_scouting(float dt) {
 				}
 			}
 
-			float candidate_x = origin_x + std::cos(petra_scout_angle_) * petra_scout_radius_;
-			float candidate_z = origin_z + std::sin(petra_scout_angle_) * petra_scout_radius_;
+			float candidate_x = origin_x + det::cos(petra_scout_angle_) * petra_scout_radius_;
+			float candidate_z = origin_z + det::sin(petra_scout_angle_) * petra_scout_radius_;
 			candidate_x = std::clamp(candidate_x, -map_half_ + 4.0f, map_half_ - 4.0f);
 			candidate_z = std::clamp(candidate_z, -map_half_ + 4.0f, map_half_ - 4.0f);
 
@@ -19693,7 +19694,12 @@ void Simulation::petra_manage_military_production(float dt) {
 
 	// attackPlan.js trainMoreUnits: each plan still mustering trains its own unitStat, the
 	// plan whose queue has the higher priority first (Rush 250, Raid 150, HugeAttack 90, Attack 70).
-	const bool attack_musters = petra_attack_plan_.state == AttackPlan::MUSTER && !petra_attack_plan_.completing; // removeQueues once completing
+	// A completing plan trains no more (removeQueues), nor does a forced one: forceStart sets
+	// every targetSize to 0 (attackPlan.js:355), so mustStart holds and updatePreparation only
+	// waits for the batches in training (:531); trainMoreUnits (:548) is for a plan that need
+	// not start yet.
+	const bool attack_musters = petra_attack_plan_.state == AttackPlan::MUSTER && !petra_attack_plan_.completing &&
+		!petra_attack_plan_.forced;
 	const bool raid_musters = petra_raid_plan_.state == AttackPlan::MUSTER &&
 		petra_raid_target_ok(petra_raid_plan_.target_building_id);
 	if (!attack_musters && !raid_musters) return;
@@ -20162,7 +20168,7 @@ int Simulation::petra_train_more_workers() {
 	if (ceasefire_active())
 		alpha += (1.0f - alpha) * std::min(std::max(ceasefire_remaining() - 120.0f, 0.0f), 180.0f) / 180.0f;
 	const float support_max = support_ratio * (float)target;
-	const float support_num = support_max * (1.0f - std::exp(-alpha * (float)total / support_max));
+	const float support_num = support_max * (1.0f - det::exp(-alpha * (float)total / support_max));
 
 	// findBestTrainableUnit(["Support+Worker"], costsResource food): the civ's 0.28 civilian
 	// (support_civilian at the civic centre), the cheapest that a civic centre of ours trains.
@@ -20742,7 +20748,7 @@ void Simulation::petra_manage_economy(float dt) {
 	float cur_rate[RES_COUNT] = {};
 	auto add_rate = [&](size_t i, uint8_t kind, uint8_t res) {
 		const float r = petra_gather_rate(i, kind);
-		if (r > 0.0f) cur_rate[res] += std::log(1.0f + r) / 1.1f;
+		if (r > 0.0f) cur_rate[res] += det::log(1.0f + r) / 1.1f;
 	};
 	std::vector<size_t> reassignable_workers;
 	uint16_t naval_home = 0;
@@ -20829,7 +20835,7 @@ void Simulation::petra_manage_economy(float dt) {
 				const size_t r = rit->second;
 				if (resources_.subtype[r] == RES_SUB_RUINS) {
 					const float rr = gather_class_ruins_rate(gcls, resources_.type[r]) * ai_gather_mult(petra_pid_);
-					if (rr > 0.0f) cur_rate[resources_.type[r]] += std::log(1.0f + rr) / 1.1f;
+					if (rr > 0.0f) cur_rate[resources_.type[r]] += det::log(1.0f + rr) / 1.1f;
 				} else {
 					add_rate(i, petra_gather_kind(r), resources_.type[r]);
 				}
@@ -21198,7 +21204,7 @@ void Simulation::petra_manage_economy(float dt) {
 			float best_d = 0.0f, best_rate = 1.0f;
 			for (Candidate &c : candidates) {
 				if (c.base != base || c.slots <= 0 || c.land != land || carry_cap(widx, c.type) <= 0) continue;
-				const float rate = c.users > 0 ? std::pow(FIELD_DIMINISHING_RETURNS, (float)c.users) : 1.0f;
+				const float rate = c.users > 0 ? det::pow(FIELD_DIMINISHING_RETURNS, (float)c.users) : 1.0f;
 				const float d = (c.x - wx) * (c.x - wx) + (c.z - wz) * (c.z - wz) + (1.0f - rate) * (160000.0f / 16.0f);
 				if (!best || d < best_d) { best = &c; best_d = d; best_rate = rate; }
 			}
@@ -21587,9 +21593,9 @@ void Simulation::petra_dispatch_units() {
 			if (petra_access_at(cc.x, cc.z) != access) continue;
 			allied.push_back(units_.id[i]);
 			// moveToRange(cc, 1.5 footprintRadius, + 5 m): stop on the line from the unit to it.
-			const float range = 1.5f * std::hypot(cc.half_size, cc.half_d) + 0.5f * 5.0f / 4.0f;
+			const float range = 1.5f * det::hypot(cc.half_size, cc.half_d) + 0.5f * 5.0f / 4.0f;
 			const float dx = units_.pos_x[i] - cc.x, dz = units_.pos_z[i] - cc.z;
-			const float d = std::max(0.01f, std::hypot(dx, dz));
+			const float d = std::max(0.01f, det::hypot(dx, dz));
 			const uint32_t uid = units_.id[i];
 			if (d > range) order_walk(&uid, 1, cc.x + dx / d * range, cc.z + dz / d * range);
 			return true;
@@ -23902,7 +23908,7 @@ void Simulation::petra_manage_naval(float dt) {
 			if (d2 > (70.0f / 4.0f) * (70.0f / 4.0f) || dock_sea(b) != sea) continue;
 			const float d = std::sqrt(d2);
 			if (d > 0.01f) { dx /= d; dz /= d; }
-			else { const float ang = (float)(units_.id[i] % 8) * 0.78539816f; dx = std::cos(ang); dz = std::sin(ang); }
+			else { const float ang = (float)(units_.id[i] % 8) * 0.78539816f; dx = det::cos(ang); dz = det::sin(ang); }
 			const float to = 72.5f / 4.0f;
 			float wx = b.x + dx * to, wz = b.z + dz * to;
 			const size_t ship = i;
@@ -26418,7 +26424,7 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 				const Building &b = buildings_[it->second];
 				tx = b.x; tz = b.z; pad = std::max(b.half_size, b.half_d);
 			}
-			const bool approaching = std::hypot(tx - units_.pos_x[i], tz - units_.pos_z[i]) > units_.attack_range[i] + pad + 1.0f;
+			const bool approaching = det::hypot(tx - units_.pos_x[i], tz - units_.pos_z[i]) > units_.attack_range[i] + pad + 1.0f;
 			const uint32_t every = approaching ? 6u : 3u;
 			if ((petra_played_turn() + units_.id[i]) % every != 0) continue;
 		}
@@ -26590,10 +26596,10 @@ void Simulation::petra_assign_bombers() {
 		for (const Building &b : buildings_) {
 			if (b.wrecked || b.hp <= 0.0f || !petra_foe(b.team) || b.type == BLD_FIELD) continue;
 			if (!can_attack(petra_pid_, b.team) || !unit_can_target_building(i, b.type)) continue;
-			const float dist = std::hypot(b.x - ux, b.z - uz);
+			const float dist = det::hypot(b.x - ux, b.z - uz);
 			float px = ux, pz = uz;
 			if (dist > range) {
-				const float safety = std::hypot(b.half_size, b.half_d) + 30.0f * 0.28f;
+				const float safety = det::hypot(b.half_size, b.half_d) + 30.0f * 0.28f;
 				const int owner = territory_owner_at(b.x + (ux - b.x) * safety / dist, b.z + (uz - b.z) * safety / dist);
 				if (petra_foe(owner)) continue;
 				px = b.x + (ux - b.x) * range / dist;
@@ -28429,7 +28435,7 @@ bool Simulation::petra_path_crosses_water(float x0, float z0, float x1, float z1
 bool Simulation::petra_find_beach(float land_x, float land_z, float toward_x, float toward_z, float &out_x, float &out_z) const {
 	float dx = toward_x - land_x;
 	float dz = toward_z - land_z;
-	float dist = std::hypot(dx, dz);
+	float dist = det::hypot(dx, dz);
 	if (dist < 0.01f) { out_x = land_x; out_z = land_z; return false; }
 	dx /= dist; dz /= dist;
 	float best_x = land_x, best_z = land_z;
@@ -28480,7 +28486,7 @@ bool Simulation::petra_boarding_pos(uint16_t land, uint16_t sea, float ship_x, f
 			const float px = ((float)x + 0.5f) * cell - nav_grid_.map_half, pz = ((float)y + 0.5f) * cell - nav_grid_.map_half;
 			// A landing point the ship could not unload at: try another.
 			if (skip_near && (px - skip_near[0]) * (px - skip_near[0]) + (pz - skip_near[1]) * (pz - skip_near[1]) < 64.0f) continue;
-			double dist = 4.0 * (std::hypot(px - ship_x, pz - ship_z) + std::hypot(dest_x - px, dest_z - pz)); // metres
+			double dist = 4.0 * (det::hypot(px - ship_x, pz - ship_z) + det::hypot(dest_x - px, dest_z - pz)); // metres
 			if (avoid_enemy) {
 				const int owner = territory_owner_at(px, pz);
 				if (owner >= 0 && owner < MAX_PLAYERS && !is_ally(petra_pid_, (uint8_t)owner)) dist += 1.0e8;
@@ -34377,7 +34383,7 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id, bool melee) {
 	// ranged hunter is fled from too. A new attacker takes over only if it is nearer.
 	auto dist_to = [&](uint32_t id) {
 		float x, z;
-		return fauna_threat_pos(id, x, z) ? std::hypot(x - fauna_.pos_x[f], z - fauna_.pos_z[f]) : 1e9f;
+		return fauna_threat_pos(id, x, z) ? det::hypot(x - fauna_.pos_x[f], z - fauna_.pos_z[f]) : 1e9f;
 	};
 	if (b == FAUNA_FLEE) {
 		if (attacker_id == fauna_.target_unit_id[f]) return;
@@ -34406,8 +34412,8 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 	float res[3]; // the unit's whole Resistance: template, techs, rank, armour auras, wall turret
 	unit_resistance(u, res);
-	const float dmg = info.hack_damage * powf(0.9f, res[0]) + info.pierce_damage * powf(0.9f, res[1]) +
-	                  info.crush_damage * powf(0.9f, res[2]);
+	const float dmg = info.hack_damage * det::pow(0.9f, res[0]) + info.pierce_damage * det::pow(0.9f, res[1]) +
+	                  info.crush_damage * det::pow(0.9f, res[2]);
 	if (invulnerable(units_.id[u])) return;
 	units_.hp[u] -= dmg;
 	note_attacked(fauna_.id[f], GAIA_PLAYER, units_.id[u], units_.team[u], false, dmg, true);
@@ -34434,8 +34440,8 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 void Simulation::fauna_hit_fauna(size_t f, size_t v) {
 	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 	const auto &vinfo = fauna_type_info(fauna_.fauna_type[v]);
-	const float dmg = info.hack_damage * powf(0.9f, vinfo.hack_armor) + info.pierce_damage * powf(0.9f, vinfo.pierce_armor) +
-	                  info.crush_damage * powf(0.9f, vinfo.crush_armor);
+	const float dmg = info.hack_damage * det::pow(0.9f, vinfo.hack_armor) + info.pierce_damage * det::pow(0.9f, vinfo.pierce_armor) +
+	                  info.crush_damage * det::pow(0.9f, vinfo.crush_armor);
 	note_attacked(fauna_.id[f], GAIA_PLAYER, fauna_.id[v], fauna_owner_[v], false, dmg, true);
 	fauna_.hp[v] -= dmg;
 	if (fauna_.hp[v] > 0.0f) {
@@ -34484,7 +34490,7 @@ void Simulation::tick_hunters() {
 		float dmg;
 		if (slaughter) {
 			attack_done(i, in_reach, 1.0f);
-			dmg = 1000.0f * powf(0.9f, finfo.hack_armor);
+			dmg = 1000.0f * det::pow(0.9f, finfo.hack_armor);
 		} else {
 			attack_done(i, in_reach, unit_repeat_time(i));
 			if (template_has_ranged_attack(units_.tmpl[i], ut, civ_of(units_.team[i]))) {
@@ -34512,7 +34518,7 @@ void Simulation::tick_hunters() {
 void Simulation::fire_at_fauna(size_t i, size_t f) {
 	const uint8_t ut = units_.unit_type[i];
 	const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
-	const float dist = std::hypot(fx - units_.pos_x[i], fz - units_.pos_z[i]);
+	const float dist = det::hypot(fx - units_.pos_x[i], fz - units_.pos_z[i]);
 	const uint8_t vis = ut == UNIT_CATAPULT ? 2 : ((ut == UNIT_TRIREME || ut == UNIT_BOLT_SHOOTER) ? 1 : 0);
 	float lead_x = 0.0f, lead_z = 0.0f;
 	aim_velocity_fauna(f, lead_x, lead_z);
@@ -34658,8 +34664,8 @@ void Simulation::tick_fauna(float dt) {
 		const float half = roam_angle * (0.25f + 0.5f * (float)sim_rng_.range_int(0, 1000) / 1000.0f);
 		const float ang = fauna_.rot_y[i] + 2.0f * half;
 		fauna_.rot_y[i] = ang;
-		fauna_.vel_x[i] = std::sin(ang) * ri.speed;
-		fauna_.vel_z[i] = std::cos(ang) * ri.speed;
+		fauna_.vel_x[i] = det::sin(ang) * ri.speed;
+		fauna_.vel_z[i] = det::cos(ang) * ri.speed;
 		fauna_.flee_distance[i] = ri.roam_distance * (0.5f + (float)sim_rng_.range_int(0, 1000) / 1000.0f);
 	};
 
@@ -34703,13 +34709,13 @@ void Simulation::tick_fauna(float dt) {
 					float clen = std::sqrt(cd2);
 					fauna_.vel_x[i] = -(cdx / clen) * (info.speed * 0.4f);
 					fauna_.vel_z[i] = -(cdz / clen) * (info.speed * 0.4f);
-					fauna_.rot_y[i] = std::atan2(-cdx, -cdz);
+					fauna_.rot_y[i] = det::atan2(-cdx, -cdz);
 				} else if (fauna_.state_timer[i] <= 0.0f) {
 					fauna_.state_timer[i] = 3.0f + (float)sim_rng_.range_int(0, 3);
 					if (sim_rng_.range_int(0, 1) == 0) {
 						float angle = (float)sim_rng_.range_int(0, 359) * 0.0174533f;
-						fauna_.vel_x[i] = std::sin(angle) * (info.speed * 0.2f);
-						fauna_.vel_z[i] = std::cos(angle) * (info.speed * 0.2f);
+						fauna_.vel_x[i] = det::sin(angle) * (info.speed * 0.2f);
+						fauna_.vel_z[i] = det::cos(angle) * (info.speed * 0.2f);
 						fauna_.rot_y[i] = angle;
 					} else {
 						fauna_.vel_x[i] = 0.0f;
@@ -34760,7 +34766,7 @@ void Simulation::tick_fauna(float dt) {
 			if (nearest_cid != 0) {
 				float dx = target_cx - fx;
 				float dz = target_cz - fz;
-				float len = std::hypot(dx, dz);
+				float len = det::hypot(dx, dz);
 				if (len <= 3.8f) {
 					fauna_.vel_x[i] = 0.0f;
 					fauna_.vel_z[i] = 0.0f;
@@ -34778,16 +34784,16 @@ void Simulation::tick_fauna(float dt) {
 				} else {
 					fauna_.vel_x[i] = (dx / len) * (info.speed * 1.15f);
 					fauna_.vel_z[i] = (dz / len) * (info.speed * 1.15f);
-					fauna_.rot_y[i] = std::atan2(dx, dz);
+					fauna_.rot_y[i] = det::atan2(dx, dz);
 				}
 			} else {
 				float dx = units_.pos_x[herder_idx] - fx;
 				float dz = units_.pos_z[herder_idx] - fz;
-				float len = std::hypot(dx, dz);
+				float len = det::hypot(dx, dz);
 				if (len > 2.5f) {
 					fauna_.vel_x[i] = (dx / len) * (info.speed * 1.1f);
 					fauna_.vel_z[i] = (dz / len) * (info.speed * 1.1f);
-					fauna_.rot_y[i] = std::atan2(dx, dz);
+					fauna_.rot_y[i] = det::atan2(dx, dz);
 				} else {
 					fauna_.vel_x[i] = 0.0f;
 					fauna_.vel_z[i] = 0.0f;
@@ -34812,7 +34818,7 @@ void Simulation::tick_fauna(float dt) {
 				}
 			}
 			const float dx = tx - fx, dz = tz - fz;
-			const float len = std::hypot(dx, dz);
+			const float len = det::hypot(dx, dz);
 			if (corral && len <= 3.8f) {
 				if (corral_has_room(*corral) && structure_has_enough_health(*corral)) {
 					fauna_.behavior[i] = FAUNA_CORRALLED;
@@ -34827,16 +34833,16 @@ void Simulation::tick_fauna(float dt) {
 				static const float kTurn[5] = {0.0f, 0.7853982f, -0.7853982f, 1.5707963f, -1.5707963f};
 				float ax, az;
 				fauna_path_aim(i, tx, tz, ax, az, corral ? corral->id : 0);
-				const float adx = ax - fx, adz = az - fz, alen = std::max(std::hypot(adx, adz), 1e-4f);
+				const float adx = ax - fx, adz = az - fz, alen = std::max(det::hypot(adx, adz), 1e-4f);
 				const float sp = std::min(info.speed, len / std::max(dt, 1e-3f));
 				stop = true;
 				for (float a : kTurn) {
-					const float c = std::cos(a), sn = std::sin(a);
+					const float c = det::cos(a), sn = det::sin(a);
 					const float vx = (adx * c - adz * sn) / alen * sp, vz = (adx * sn + adz * c) / alen * sp;
 					if (!fauna_can_step(i, fx + vx * dt, fz + vz * dt)) continue;
 					fauna_.vel_x[i] = vx;
 					fauna_.vel_z[i] = vz;
-					fauna_.rot_y[i] = std::atan2(vx, vz);
+					fauna_.rot_y[i] = det::atan2(vx, vz);
 					step(i, vx, vz);
 					stop = false;
 					break;
@@ -34910,15 +34916,15 @@ void Simulation::tick_fauna(float dt) {
 				static const float kTurn[5] = {0.0f, 0.7853982f, -0.7853982f, 1.5707963f, -1.5707963f};
 				float ax, az;
 				fauna_path_aim(i, fx + dx, fz + dz, ax, az);
-				const float adx = ax - fx, adz = az - fz, alen = std::max(std::hypot(adx, adz), 1e-4f);
+				const float adx = ax - fx, adz = az - fz, alen = std::max(det::hypot(adx, adz), 1e-4f);
 				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
 				for (float a : kTurn) {
-					const float c = std::cos(a), sn = std::sin(a);
+					const float c = det::cos(a), sn = det::sin(a);
 					const float vx = (adx * c - adz * sn) / alen * sp, vz = (adx * sn + adz * c) / alen * sp;
 					if (!fauna_can_step(i, fx + vx * dt, fz + vz * dt)) continue;
 					fauna_.vel_x[i] = vx;
 					fauna_.vel_z[i] = vz;
-					fauna_.rot_y[i] = std::atan2(vx, vz);
+					fauna_.rot_y[i] = det::atan2(vx, vz);
 					step(i, vx, vz);
 					break;
 				}
@@ -34949,11 +34955,11 @@ void Simulation::tick_fauna(float dt) {
 				fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
 				continue;
 			}
-			if (dist < 0.01f) { away_x = std::sin(fauna_.rot_y[i]); away_z = std::cos(fauna_.rot_y[i]); dist = 1.0f; }
+			if (dist < 0.01f) { away_x = det::sin(fauna_.rot_y[i]); away_z = det::cos(fauna_.rot_y[i]); dist = 1.0f; }
 			const float sp = info.speed * info.run_mult;
 			fauna_.vel_x[i] = away_x / dist * sp;
 			fauna_.vel_z[i] = away_z / dist * sp;
-			fauna_.rot_y[i] = std::atan2(away_x, away_z);
+			fauna_.rot_y[i] = det::atan2(away_x, away_z);
 			const float before_x = fauna_.pos_x[i], before_z = fauna_.pos_z[i];
 			step(i, fauna_.vel_x[i], fauna_.vel_z[i]);
 			if (fauna_.pos_x[i] == before_x && fauna_.pos_z[i] == before_z) {
@@ -34961,7 +34967,7 @@ void Simulation::tick_fauna(float dt) {
 				// from the attacker, the pathfinder taking the nearest reachable one.
 				float ax, az;
 				fauna_path_aim(i, tx + away_x / dist * fauna_.flee_distance[i], tz + away_z / dist * fauna_.flee_distance[i], ax, az);
-				const float adx = ax - fx, adz = az - fz, alen = std::hypot(adx, adz);
+				const float adx = ax - fx, adz = az - fz, alen = det::hypot(adx, adz);
 				if (alen > 1e-3f) step(i, adx / alen * sp, adz / alen * sp);
 			}
 			if (fauna_.pos_x[i] == before_x && fauna_.pos_z[i] == before_z) {
@@ -35111,7 +35117,7 @@ float Simulation::unit_damage_to_scenery(size_t i) const {
 	unit_attack_effects(i, d);
 	const CombatProfile &sc = building_combat(BLD_TYPE_COUNT);
 	const float bonus = combat_bonus(unit_combat_at(i), sc, CIV_COUNT);
-	return bonus * (d[0] * powf(0.9f, sc.hack_armor) + d[1] * powf(0.9f, sc.pierce_armor) + d[2] * powf(0.9f, sc.crush_armor) + d[3]);
+	return bonus * (d[0] * det::pow(0.9f, sc.hack_armor) + d[1] * det::pow(0.9f, sc.pierce_armor) + d[2] * det::pow(0.9f, sc.crush_armor) + d[3]);
 }
 
 // Units attacking scenery: walk to its nearest edge, strike it at weapon reach on their
@@ -35127,7 +35133,7 @@ void Simulation::tick_scenery_attackers() {
 		if (k < 0) continue;
 		const Scenery &sc = scenery_[k];
 		// The nearest point of its rotated rectangle (u = (cos a, -sin a), v = (sin a, cos a)).
-		const float c = std::cos(sc.angle), s = std::sin(sc.angle);
+		const float c = det::cos(sc.angle), s = det::sin(sc.angle);
 		const float rx = units_.pos_x[i] - sc.x, rz = units_.pos_z[i] - sc.z;
 		const float lu = std::clamp(rx * c - rz * s, -sc.half_w, sc.half_w);
 		const float lv = std::clamp(rx * s + rz * c, -sc.half_d, sc.half_d);
@@ -36386,7 +36392,7 @@ void Simulation::trigger_polar_sea_wave() {
 		for (int k = 0; k < wave; ++k) {
 			const float a = 6.2831853f * (float)k / (float)wave;
 			const float r = wave > 1 ? 0.6f : 0.0f;
-			if (const uint32_t id = spawn_fauna(p.x + std::cos(a) * r, p.z + std::sin(a) * r, kPolarSeaWolves)) pack.push_back(id);
+			if (const uint32_t id = spawn_fauna(p.x + det::cos(a) * r, p.z + det::sin(a) * r, kPolarSeaWolves)) pack.push_back(id);
 		}
 		if (pack.empty()) continue;
 		const size_t f0 = fauna_id_to_idx_[pack[0]];
@@ -36666,7 +36672,7 @@ void Simulation::trigger_gallic_fields(bool attack) {
 		for (int k = 0; k < v[0]; ++k) {
 			// TriggerHelper.SpawnUnits puts them all on the point; spread them a little.
 			const float a = 2.3999632f * (float)k, r = 0.8f * std::sqrt((float)k);
-			if (const uint32_t id = spawn_unit(p.x + std::cos(a) * r, p.z + std::sin(a) * r, GAIA_PLAYER,
+			if (const uint32_t id = spawn_unit(p.x + det::cos(a) * r, p.z + det::sin(a) * r, GAIA_PLAYER,
 					(UnitType)civ_unit_template(tmpl).unit_type, 0.0f, tmpl))
 				ids.push_back(id);
 		}
@@ -37341,7 +37347,7 @@ void Simulation::trigger_survival_wave() {
 	const int pick = sim_rng_.range_int(0, PLAYABLE_CIV_COUNT);
 	const uint8_t civ = pick == PLAYABLE_CIV_COUNT ? CIV_GAIA : playable_civ((uint32_t)pick);
 	const int total = (int)std::ceil(std::min(kSurvivalAttackerLimit,
-			kSurvivalInitialAttackers * std::pow(kSurvivalPercentPerMinute, minutes) * next_wave / kSurvivalMaxWaveTime));
+			kSurvivalInitialAttackers * det::pow(kSurvivalPercentPerMinute, minutes) * next_wave / kSurvivalMaxWaveTime));
 	const float siege_ratio = sim_rng_.range_float(kSurvivalSiegeMin, kSurvivalSiegeMax);
 	// GetTemplateNamesByClasses: "Hero", "Champion+!Elephant", "Siege Champion+Elephant".
 	std::vector<uint16_t> heroes, champions, siege;
@@ -37383,7 +37389,7 @@ void Simulation::trigger_survival_wave() {
 			for (int k = 0; k < n; ++k) {
 				// TriggerHelper.SpawnUnits puts them all on the point; spread them a little.
 				const float a = 2.3999632f * (float)k, r = 0.8f * std::sqrt((float)k);
-				if (const uint32_t id = spawn_unit(p.x + std::cos(a) * r, p.z + std::sin(a) * r, GAIA_PLAYER, (UnitType)t.unit_type, 0.0f, tmpl))
+				if (const uint32_t id = spawn_unit(p.x + det::cos(a) * r, p.z + det::sin(a) * r, GAIA_PLAYER, (UnitType)t.unit_type, 0.0f, tmpl))
 					ids.push_back(id);
 			}
 			if (ids.empty()) continue;
@@ -38079,7 +38085,7 @@ std::vector<uint32_t> Simulation::danubius_spawn_counts(const std::vector<std::p
 		for (int k = 0; k < n; ++k) {
 			const float at = (float)(first + ids.size());
 			const float a = 2.3999632f * at, r = r0 + 0.8f * std::sqrt(at);
-			if (const uint32_t id = danubius_spawn(key, x + std::cos(a) * r, z + std::sin(a) * r)) ids.push_back(id);
+			if (const uint32_t id = danubius_spawn(key, x + det::cos(a) * r, z + det::sin(a) * r)) ids.push_back(id);
 		}
 	return ids;
 }
@@ -38113,7 +38119,7 @@ void Simulation::danubius_attack_and_patrol(const std::vector<uint32_t> &ids, ui
 		for (const Building &b : buildings_) {
 			if (b.team >= MAX_PLAYERS || b.hp <= 0.0f || b.wrecked || !(building_tech_classes(b.type) & TC_DEFENSIVE)) continue;
 			if (danubius_is_left(b.x, b.z) != left) continue;
-			const float d = std::hypot(b.x - lx, b.z - lz);
+			const float d = det::hypot(b.x - lx, b.z - lz);
 			if (d < best_d) { best_d = d; best = b.id; }
 		}
 		if (attack && best) order_attack_building(attackers.data(), attackers.size(), best, true, false);
@@ -38123,7 +38129,7 @@ void Simulation::danubius_attack_and_patrol(const std::vector<uint32_t> &ids, ui
 			const bool ship = unit_is_ship(units_.unit_type[i]);
 			if (target == DANUBIUS_TARGET_SHIP ? !(unit_classes_at(i) & TC_WARSHIP) : ship) continue; // "Warship", "Unit+!Ship"
 			if (danubius_is_left(units_.pos_x[i], units_.pos_z[i]) != left) continue;
-			const float d = std::hypot(units_.pos_x[i] - lx, units_.pos_z[i] - lz);
+			const float d = det::hypot(units_.pos_x[i] - lx, units_.pos_z[i] - lz);
 			if (d < best_d) { best_d = d; best = units_.id[i]; }
 		}
 		if (attack && best) order_attack(attackers.data(), attackers.size(), best, true);
@@ -38190,7 +38196,7 @@ void Simulation::trigger_danubius_init() {
 		for (int k = 0; k < 10; ++k) {
 			const float at = (float)(defenders.size() + (size_t)k);
 			const float a = 2.3999632f * at, r = r0 + 0.8f * std::sqrt(at);
-			spawn_fauna(bx + std::cos(a) * r, bz + std::sin(a) * r, FAUNA_SHEEP);
+			spawn_fauna(bx + det::cos(a) * r, bz + det::sin(a) * r, FAUNA_SHEEP);
 		}
 		if (!defenders.empty()) order_set_stance(defenders.data(), defenders.size(), STANCE_DEFENSIVE);
 	}
@@ -38327,7 +38333,7 @@ void Simulation::trigger_danubius_ship_range() {
 		const TriggerPoint *point = nullptr;
 		for (size_t i = 0, n = 0; i < triggers_.points.size() && !point; ++i)
 			if (triggers_.points[i].ref == ref && n++ == w.player) point = &triggers_.points[i];
-		if (!point || std::hypot(units_.pos_x[s] - point->x, units_.pos_z[s] - point->z) > kDanubiusUnloadDistance) continue;
+		if (!point || det::hypot(units_.pos_x[s] - point->x, units_.pos_z[s] - point->z) > kDanubiusUnloadDistance) continue;
 		const auto *aboard = get_transport_passengers(w.id);
 		const std::vector<uint32_t> passengers = aboard ? *aboard : std::vector<uint32_t>{};
 		if (!passengers.empty()) {
