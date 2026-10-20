@@ -3499,6 +3499,28 @@ static void test_approach_walks() {
 	check(ran && walked, "once he has been in range of her and she flees again, he runs after her");
 }
 
+static void test_rally_repair_or_garrison() {
+	std::printf("96. a rally point on an own damaged garrison holder garrisons, or repairs with session.repair held (set-rallypoint)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t cc = s.spawn_building_world(-20.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	const uint32_t tower = s.spawn_building_world(10.0f, 10.0f, BLD_TOWER, 0, 1.0f);
+	for (auto &b : s.buildings_) if (b.id == tower) b.hp = b.max_hp * 0.6f;
+	const uint32_t site = s.spawn_building_world(10.0f, -10.0f, BLD_BARRACKS, 0, 0.5f);
+	uint32_t sp = s.spawn_unit(-12.0f, 0.0f, 0, UNIT_SPEARMAN), cav = s.spawn_unit(-12.0f, 3.0f, 0, UNIT_CAVALRY);
+	s.cmd_set_rally_point(0, cc, 10.0f, 10.0f, 0, tower);
+	s.apply_rally_point(sp, *bld(s, cc));
+	check(s.unit_order(sp).kind == ORDER_GARRISON && s.unit_order(sp).target == tower, "a builder garrisons in the damaged tower");
+	s.cmd_set_rally_point(0, cc, 10.0f, 10.0f, 0, tower, false, RALLY_CMD_REPAIR);
+	s.apply_rally_point(sp, *bld(s, cc));
+	s.apply_rally_point(cav, *bld(s, cc));
+	check(s.unit_order(sp).kind == ORDER_BUILD && s.unit_order(sp).target == tower, "with session.repair held it repairs it");
+	check(s.unit_order(cav).kind == ORDER_WALK, "a unit that can't repair walks there");
+	s.cmd_set_rally_point(0, cc, 10.0f, -10.0f, 0, site);
+	s.apply_rally_point(sp, *bld(s, cc));
+	check(s.unit_order(sp).kind == ORDER_BUILD && s.unit_order(sp).target == site, "a foundation is built");
+}
+
 static void test_cant_do_walks() {
 	std::printf("units that can't gather or return walk to the target\n");
 	Simulation s;
@@ -3624,6 +3646,7 @@ int main(int argc, char **argv) {
 	test_hidden_targets();
 	test_cant_do_walks();
 	test_approach_walks();
+	test_rally_repair_or_garrison();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

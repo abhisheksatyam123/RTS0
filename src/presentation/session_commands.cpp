@@ -140,6 +140,12 @@ void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld, 
 	if (!t) return;
 	command = rtso::RALLY_CMD_AUTO;
 	const bool friendly = t->team == me || sim->is_ally(me, t->team);
+	// session.repair held over an own or allied structure that needs repair or is a foundation:
+	// repair it even when it holds a garrison ("repair" comes before "garrison").
+	if (friendly && rtso::hotkeys::held("session.repair") && (t->build_progress < 1.0f || t->hp < t->max_hp)) {
+		command = rtso::RALLY_CMD_REPAIR;
+		return;
+	}
 	// Occupy a turret point of an own or allied wall or tower that has no garrison ("occupy-turret").
 	if (friendly && t->build_progress >= 1.0f && sim->get_garrison_capacity(t->id) <= 0 && sim->turret_holder_points(*t)) {
 		command = rtso::RALLY_CMD_TURRET;

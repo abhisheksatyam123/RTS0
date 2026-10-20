@@ -17802,8 +17802,10 @@ bool Simulation::can_gather(size_t i, size_t r) const {
 bool Simulation::self_garrison_rally(const Building &b, uint8_t unit_type, uint16_t tmpl) const {
 	if (!b.has_rally_point || b.rally_target_bld_id != b.id || turret_points_of(b)) return false;
 	if (b.build_progress < 1.0f || !structure_has_enough_health(b)) return false;
-	const bool builder = unit_can_build(unit_type, tmpl);
-	return !(builder && (b.hp < b.max_hp || b.type == BLD_FIELD));
+	(void)unit_type;
+	(void)tmpl;
+	// Trainer.js Spawn: only a "garrison" first command (not "repair", set with session.repair).
+	return b.rally_cmd != RALLY_CMD_REPAIR;
 }
 
 void Simulation::apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison) {
@@ -17811,7 +17813,7 @@ void Simulation::apply_rally_point(uint32_t uid, const Building &b, bool ignore_
 			b.rally_cmd, b.rally_target_ent_id};
 	// RallyPoint.OrderToRallyPoint: when the first command is "garrison back in here" and that
 	// is ignored (units just unloaded), none of the commands run.
-	if (ignore_self_garrison && first.bld_id == b.id) return;
+	if (ignore_self_garrison && first.bld_id == b.id && first.cmd != RALLY_CMD_REPAIR) return;
 	// RallyPointCommands.js trade route with waypoints: walks before a final trade are not
 	// orders but the route (ret.splice(0, waypoints), ret[0].route = route). A plain walk is a
 	// step with no target of any kind (anything else falls through to gather/repair below).
@@ -17907,16 +17909,23 @@ void Simulation::apply_rally_step(uint32_t uid, const Building &b, const Buildin
 		auto it = building_id_to_idx_.find(st.bld_id);
 		if (it != building_id_to_idx_.end() && !buildings_[it->second].wrecked) {
 			const Building &t = buildings_[it->second];
-			// "repair" an own or allied structure, "garrison" in an own or mutually allied one.
+			// unit_actions.js set-rallypoint on an own or allied structure: "repair" with
+			// session.repair held, else "garrison" in a garrison holder, else "repair". A unit that
+			// can't do the one its command names walks there (UnitAI Garrison/Repair WalkToTarget).
 			if (t.team == b.team || is_ally(b.team, t.team)) {
-				if (builder && (t.build_progress < 1.0f || t.hp < t.max_hp || t.type == BLD_FIELD)) {
-					order_build_or_repair(&uid, 1, t.id, queued);
-					return;
-				}
-				if (ignore_self_garrison && t.id == b.id) return;
-				if (garrison_room(t, (size_t)i) && structure_accepts_garrison(t, (size_t)i)) {
-					order_garrison(&uid, 1, t.id, queued);
-					return;
+				const bool repairable = t.build_progress < 1.0f || t.hp < t.max_hp || t.type == BLD_FIELD;
+				const bool holder = t.build_progress >= 1.0f && t.garrison_cap > 0;
+				if (st.cmd == RALLY_CMD_REPAIR || (repairable && !holder)) {
+					if (builder && repairable) {
+						order_build_or_repair(&uid, 1, t.id, queued);
+						return;
+					}
+				} else {
+					if (ignore_self_garrison && t.id == b.id) return;
+					if (garrison_room(t, (size_t)i) && structure_accepts_garrison(t, (size_t)i)) {
+						order_garrison(&uid, 1, t.id, queued);
+						return;
+					}
 				}
 			} else if (can_attack(b.team, t.team)) {
 				// unit_actions.js setupUnitActions "attack": allowCapture only on a target with
