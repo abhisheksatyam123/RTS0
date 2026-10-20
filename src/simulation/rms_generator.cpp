@@ -13361,15 +13361,15 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 	auto sbms = [&](float lo, float hi) { return lo + (hi - lo) * std::clamp((size - 128.0f) / (512.0f - 128.0f), 0.0f, 1.0f); };
 	// One createObjectGroups / createFood pass: its group count, fish per group,
 	// stayClasses(clWater, water) margin, avoidClasses(clFood, spacing) and,
-	// for Corsica's shore fish, land within shore tiles. `deprecated` passes
-	// (createObjectGroupsDeprecated) make exactly `groups` tries in the map's
-	// circle and keep the ones that fit.
+	// for Corsica's shore fish, land within shore tiles. `retry` is createObjectGroups'
+	// retryFactor; 0 is createObjectGroupsDeprecated (createFood), which makes exactly
+	// `groups` tries and keeps the ones that fit.
 	struct FishPass {
 		int groups, min_n, max_n;
 		int water;
 		float spacing, spread;
 		int shore;
-		bool deprecated = false;
+		int retry = 40;
 	};
 	std::vector<FishPass> passes;
 	const int players = std::max(1, config.num_players);
@@ -13378,111 +13378,152 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 			// 0.28 gulf_of_bothnia.js (unfrozen): createFood of 2-3 fish,
 			// 4*scaleByMapSize(fish.min, fish.max) with the winter biome's 5-30,
 			// stayClasses(clWater, 2), avoidClasses(clFood, 12).
-			passes.push_back({(int)std::lround(4.0f * sbms(5.0f, 30.0f)), 2, 3, 2, 12.0f, 2.0f, 0});
+			passes.push_back({(int)std::lround(4.0f * sbms(5.0f, 30.0f)), 2, 3, 2, 12.0f, 2.0f, 0, 0});
 			break;
 		case MAP_LAND_GRAB:
 			// 0.28 land_grab.js: 60 * numPlayers groups of 2-3 fish 2 off the land, 14 apart.
-			passes.push_back({60 * players, 2, 3, 2, 14.0f, 2.0f, 0});
+			passes.push_back({60 * players, 2, 3, 2, 14.0f, 2.0f, 0, 0});
 			break;
 		case MAP_THE_NILE:
 			// 0.28 the_nile.js: scaleByMapSize(60, 80) groups of 1-2 tilapia 4 into the river,
 			// 12 apart, then 30 more 3 into the ponds, 4 apart.
-			passes.push_back({(int)std::lround(sbms(60.0f, 80.0f)), 1, 2, 4, 12.0f, 1.0f, 0});
-			passes.push_back({30, 1, 2, 3, 4.0f, 1.0f, 0});
+			passes.push_back({(int)std::lround(sbms(60.0f, 80.0f)), 1, 2, 4, 12.0f, 1.0f, 0, 100});
+			passes.push_back({30, 1, 2, 3, 4.0f, 1.0f, 0, 50});
 			break;
 		case MAP_LATIUM:
 			// 0.28 latium.js: scaleByMapSize(45, 65) single fish, stayClasses(clWater, 4),
 			// avoidClasses(clFood, 10).
-			passes.push_back({(int)std::lround(sbms(45.0f, 65.0f)), 1, 1, 4, 10.0f, 1.0f, 0});
+			passes.push_back({(int)std::lround(sbms(45.0f, 65.0f)), 1, 1, 4, 10.0f, 1.0f, 0, 10});
 			break;
 		case MAP_RIVER_ARCHIPELAGO:
 			// 0.28 river_archipelago.js: scaleByMapSize(20, 100) groups of 2-3 fish (0-2 apart)
 			// in water 4 tiles from land, avoidClasses(clFood, 15).
-			passes.push_back({(int)std::lround(sbms(20.0f, 100.0f)), 2, 3, 4, 15.0f, 2.0f, 0});
+			passes.push_back({(int)std::lround(sbms(20.0f, 100.0f)), 2, 3, 4, 15.0f, 2.0f, 0, 20});
 			break;
 		case MAP_CORSICA:
 			// 0.28 corsica.js: 50 * numPlayers groups of 2-3 fish in water 3 tiles
 			// from land, 8 apart, then 70 * numPlayers shore fish 6 apart. The
 			// script's clShore is its landing beaches' passages; RTS0 takes water
 			// within 6 tiles of land for it.
-			passes.push_back({50 * players, 2, 3, 3, 8.0f, 2.0f, 0});
-			passes.push_back({70 * players, 2, 3, 3, 6.0f, 2.0f, 6});
+			passes.push_back({50 * players, 2, 3, 3, 8.0f, 2.0f, 0, 0});
+			passes.push_back({70 * players, 2, 3, 3, 6.0f, 2.0f, 6, 0});
 			break;
 		case MAP_MIGRATION:
 			// 0.28 migration.js: createObjectGroupsDeprecated of 2-3 fish,
 			// scaleByMapSize(500, 700) tries, avoidClasses(clLand, 2, clPlayer, 2, clFood, 10).
-			passes.push_back({(int)std::ceil(sbms(500.0f, 700.0f)), 2, 3, 2, 10.0f, 2.0f, 0, true});
+			passes.push_back({(int)std::ceil(sbms(500.0f, 700.0f)), 2, 3, 2, 10.0f, 2.0f, 0, 0});
 			break;
 		// 0.28's water maps each run one createFood of 2-3 fish (0-2 apart): N groups,
 		// stayClasses(clWater, w) or avoidClasses(clLand, w), avoidClasses(clFood, d).
 		case MAP_CONTINENT: // continent.js: 50 * numPlayers, clLand 2, clFood 10
-			passes.push_back({50 * players, 2, 3, 2, 10.0f, 2.0f, 0});
+			passes.push_back({50 * players, 2, 3, 2, 10.0f, 2.0f, 0, 0});
 			break;
 		case MAP_LAKE: // lake.js: 65 * numPlayers, clWater 4, clFood 12
-			passes.push_back({65 * players, 2, 3, 4, 12.0f, 2.0f, 0});
+			passes.push_back({65 * players, 2, 3, 4, 12.0f, 2.0f, 0, 0});
 			break;
 		case MAP_RIVERS: // rivers.js: 35 * numPlayers, clWater 6, clFood 8
-			passes.push_back({35 * players, 2, 3, 6, 8.0f, 2.0f, 0});
+			passes.push_back({35 * players, 2, 3, 6, 8.0f, 2.0f, 0, 0});
 			break;
 		case MAP_ARCHIPELAGO_0AD: // archipelago.js: 35 * numPlayers, clLand 3, clFood 15
-			passes.push_back({35 * players, 2, 3, 3, 15.0f, 2.0f, 0});
+			passes.push_back({35 * players, 2, 3, 3, 15.0f, 2.0f, 0, 0});
 			break;
 		case MAP_COAST_RANGE: // coast_range.js: 70 * numPlayers, clLand 2, clFood 7
-			passes.push_back({70 * players, 2, 3, 2, 7.0f, 2.0f, 0});
+			passes.push_back({70 * players, 2, 3, 2, 7.0f, 2.0f, 0, 0});
 			break;
 		case MAP_ENGLISH_CHANNEL: // english_channel.js: scaleByMapSize(30, 45) * numPlayers, clWater 4, clFood 6
-			passes.push_back({(int)std::lround(sbms(30.0f, 45.0f) * (float)players), 2, 3, 4, 6.0f, 2.0f, 0});
+			passes.push_back({(int)std::lround(sbms(30.0f, 45.0f) * (float)players), 2, 3, 4, 6.0f, 2.0f, 0, 0});
 			break;
 		case MAP_AEGEAN_SEA: // aegean_sea.js: 25 * scaleByMapSize(15, 20), clWater 5, clFood 10
-			passes.push_back({(int)std::lround(25.0f * sbms(15.0f, 20.0f)), 2, 3, 5, 10.0f, 2.0f, 0});
+			passes.push_back({(int)std::lround(25.0f * sbms(15.0f, 20.0f)), 2, 3, 5, 10.0f, 2.0f, 0, 0});
 			break;
 		case MAP_ISLANDS: // islands.js: 40 * numPlayers, clLand 4, clFood 14
-			passes.push_back({40 * players, 2, 3, 4, 14.0f, 2.0f, 0});
+			passes.push_back({40 * players, 2, 3, 4, 14.0f, 2.0f, 0, 0});
 			break;
 		case MAP_ALPINE_LAKES: // alpine_lakes.js: 20 * numPlayers, clWater 2, clFood 8
-			passes.push_back({20 * players, 2, 3, 2, 8.0f, 2.0f, 0});
+			passes.push_back({20 * players, 2, 3, 2, 8.0f, 2.0f, 0, 0});
 			break;
 		default:
 			passes.push_back({(int)std::lround(sbms(15.0f, 50.0f)), 2, 3, 2, 20.0f, 2.0f, 0});
 			break;
 	}
 	RmsRng rng(config.seed ^ 0x46495348u); // 'FISH'
-	auto open_water = [&](float x, float z, int margin) {
-		if (x < -half + 2.0f || x > half - 2.0f || z < -half + 2.0f || z > half - 2.0f) return false;
-		// Past the edge ships can't sail, and keep_resources_passable would pull a fish there onto the shore.
-		if (sim.past_map_edge(x, z)) return false;
-		for (int dz = -margin; dz <= margin; ++dz)
-			for (int dx = -margin; dx <= margin; ++dx)
-				if (hm.sample_world(x + (float)dx, z + (float)dz) >= water_h - 0.3f) return false;
-		return true;
-	};
-	auto near_land = [&](float x, float z, int r) {
+	// rmgen works on tiles: a constraint is tested at a position's tile (floor), over the
+	// tiles whose index lies within its radius (TileClass.countInRadius). clWater is the
+	// tiles under the water plane.
+	const int tiles = (int)std::lround(size);
+	auto in_map = [&](int tx, int tz) { return tx >= 0 && tz >= 0 && tx < tiles && tz < tiles; };
+	auto wet = [&](int tx, int tz) { return hm.sample_world((float)tx + 0.5f - half, (float)tz + 0.5f - half) < water_h; };
+	auto stay_water = [&](int tx, int tz, int r) { // stayClasses(clWater, r) / avoidClasses(clLand, r)
 		for (int dz = -r; dz <= r; ++dz)
 			for (int dx = -r; dx <= r; ++dx)
-				if (dx * dx + dz * dz <= r * r && hm.sample_world(x + (float)dx, z + (float)dz) >= water_h) return true;
+				if (dx * dx + dz * dz <= r * r && in_map(tx + dx, tz + dz) && !wet(tx + dx, tz + dz)) return false;
+		return true;
+	};
+	auto near_land = [&](int tx, int tz, int r) {
+		for (int dz = -r; dz <= r; ++dz)
+			for (int dx = -r; dx <= r; ++dx)
+				if (dx * dx + dz * dz <= r * r && in_map(tx + dx, tz + dz) && !wet(tx + dx, tz + dz)) return true;
 		return false;
 	};
-	std::vector<std::pair<float, float>> placed;
+	std::vector<std::pair<int, int>> food; // clFood: each fish's tile
+	const bool circle = sim.circular_map();
+	constexpr float BORDER = 3.0f; // MAP_BORDER_WIDTH: randomCoordinate(true) and validTilePassable
 	for (const FishPass &f : passes) {
-		const size_t first = placed.size();
-		for (int attempt = 0; attempt < (f.deprecated ? f.groups : f.groups * 40) && (int)(placed.size() - first) < f.groups; ++attempt) {
-			float x = rng.range_float(-half, half), z = rng.range_float(-half, half);
-			if (f.deprecated) {
-				const auto c = random_in_circle(rng, half);
-				x = c.first;
-				z = c.second;
+		auto allows = [&](float x, float z) {
+			const int tx = (int)std::floor(x + half), tz = (int)std::floor(z + half);
+			if (!in_map(tx, tz) || std::fabs(x) > half - BORDER || std::fabs(z) > half - BORDER) return false;
+			// Past the edge ships can't sail, and keep_resources_passable would pull a fish there onto the shore.
+			if (sim.past_map_edge(x, z)) return false;
+			if (!stay_water(tx, tz, f.water)) return false;
+			if (f.shore > 0 && !near_land(tx, tz, f.water + f.shore)) return false;
+			const int d = (int)f.spacing;
+			for (const auto &p : food)
+				if ((p.first - tx) * (p.first - tx) + (p.second - tz) * (p.second - tz) <= d * d) return false;
+			return true;
+		};
+		const int max_fail = f.groups * std::max(1, f.retry);
+		int placed = 0, tries = 0, bad = 0;
+		while (f.retry == 0 ? tries < f.groups : placed < f.groups && bad <= max_fail) {
+			++tries;
+			// g_Map.randomCoordinate(true), floored to a tile.
+			float cx, cz;
+			if (circle) {
+				const auto c = random_in_circle(rng, half - BORDER);
+				cx = c.first;
+				cz = c.second;
+			} else {
+				cx = rng.range_float(-half + BORDER, half - BORDER);
+				cz = rng.range_float(-half + BORDER, half - BORDER);
 			}
-			if (!open_water(x, z, f.water)) continue;
-			if (f.shore > 0 && !near_land(x, z, f.water + f.shore)) continue;
-			bool crowded = false;
-			for (const auto &p : placed)
-				if ((p.first - x) * (p.first - x) + (p.second - z) * (p.second - z) < f.spacing * f.spacing) { crowded = true; break; }
-			if (crowded) continue;
-			placed.push_back({x, z});
+			cx = std::floor(cx + half) - half;
+			cz = std::floor(cz + half) - half;
+			// SimpleGroup.place (avoidSelf): each fish 0-spread from the tile's centre, 1 apart,
+			// on a tile the constraint allows; 30 failed spots and the whole group is dropped.
+			std::vector<std::pair<float, float>> group;
 			const int n = f.min_n == f.max_n ? f.min_n : rng.range_int(f.min_n, f.max_n);
-			for (int k = 0; k < n; ++k) {
-				const float fx = x + rng.range_float(-f.spread, f.spread), fz = z + rng.range_float(-f.spread, f.spread);
-				if (open_water(fx, fz, 2)) sim.spawn_resource_world(fx, fz, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+			int retries = 0;
+			bool ok = true;
+			for (int k = 0; k < n && ok; ++k)
+				for (;;) {
+					const auto o = polar(rng.range_float(0.0f, kTwoPi), rng.range_float(0.0f, f.spread));
+					const float fx = cx + 0.5f + o.first, fz = cz + 0.5f + o.second;
+					bool apart = true;
+					for (const auto &g : group)
+						if ((g.first - fx) * (g.first - fx) + (g.second - fz) * (g.second - fz) < 1.0f) { apart = false; break; }
+					if (apart && allows(fx, fz)) {
+						group.push_back({fx, fz});
+						break;
+					}
+					if (retries++ > 30) { ok = false; break; }
+				}
+			if (!ok) {
+				++bad;
+				continue;
+			}
+			++placed;
+			for (const auto &g : group) {
+				sim.spawn_resource_world(g.first, g.second, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+				food.push_back({(int)std::floor(g.first + half), (int)std::floor(g.second + half)});
 			}
 		}
 	}
