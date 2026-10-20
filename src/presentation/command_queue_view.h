@@ -1139,6 +1139,7 @@ public:
 					bool any_turretable = false; // "occupy-turret": a Turretable unit not on one
 					int passengers = 0;
 					bool any_wagon = false, wagon_locked = false; // "share-dropsite": an own Sharable unit
+					bool queue_off = false, queue_on = false;     // autoqueue-on / -off: an own unit that trains
 					for (int s = 0; s < selected_ids.size(); ++s) {
 						const uint32_t id = (uint32_t)selected_ids[s];
 						for (size_t u = 0; u < uview.count; ++u) {
@@ -1168,6 +1169,11 @@ public:
 							if (rtso::unit_dropsite_sharable(ut) && uview.team[u] == local_player()) {
 								any_wagon = true;
 								wagon_locked = wagon_locked || !sim->unit_dropsite_shared(id);
+							}
+							if (uview.team[u] == local_player() && rtso::Simulation::unit_trains_units(tm)) {
+								const bool q = sim->unit_autoqueue(id);
+								queue_off = queue_off || !q;
+								queue_on = queue_on || q;
 							}
 							break;
 						}
@@ -1227,6 +1233,15 @@ public:
 												 : tip("Lock Dropsite", "Prevent allies from using this dropsite, now shared."),
 									wagon_locked ? "locked_small.png" : "unlocked_small.png");
 					}
+					auto aq_tip = [](const char *title, const char *body) { return rtso::tr0(title) + "\n" + rtso::tr0(body); };
+					if (queue_off)
+						add_entity_command("autoqueue-on", "Activate Auto-Queue", "session.queueunit.autoqueueon",
+								aq_tip("Activate Auto-Queue", "Activate the production auto-queue for the selected structures."),
+								"autoqueue-on.png");
+					if (queue_on)
+						add_entity_command("autoqueue-off", "Deactivate Auto-Queue", "session.queueunit.autoqueueoff",
+								aq_tip("Deactivate Auto-Queue", "Deactivate the production auto-queue for the selected structures."),
+								"autoqueue-off.png");
 				}
 
 				if (has_worker) {

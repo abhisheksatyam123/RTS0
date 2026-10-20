@@ -719,6 +719,13 @@ public:
 				return cam_rig->get_camera()->unproject_position(Vector3(uv.pos_x[i], sim->get_terrain_height(uv.pos_x[i], uv.pos_z[i]), uv.pos_z[i]));
 		return Vector2(-1, -1);
 	}
+	Vector2 debug_unit_pos(int64_t uid) const { // tests: any player's unit, world x/z
+		if (!sim) return Vector2();
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == (uint32_t)uid) return Vector2(uv.pos_x[i], uv.pos_z[i]);
+		return Vector2();
+	}
 	Vector2 debug_resource_screen(int64_t rid) const {
 		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
 		auto rv = sim->resources();
@@ -782,6 +789,7 @@ public:
 	PackedInt32Array last_line_entities_;
 	void finish_right_line(const Ref<InputEventMouseButton> &release);
 	// input.js INPUT_PRESELECTEDACTION: a command button armed an action for the next left click.
+	bool debug_armed() const { return any_armed_mode(); } // tests: an armed action (input.js preSelectedAction)
 	bool any_armed_mode() const {
 		return attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || turret_mode || repair_mode;
 	}
