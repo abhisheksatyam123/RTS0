@@ -52,8 +52,9 @@ struct CinemaPathInfo {
 	uint8_t mode = CINEMA_EASE_INOUT;
 	uint8_t style = CINEMA_STYLE_DEFAULT;
 	uint8_t look_at_target = 0;      // orientation="target"
-	uint8_t reserved = 0;
+	uint8_t reserved = 0;            // CINEMA_PATH_DELETED: DeletePath ran while it was queued
 };
+constexpr uint8_t CINEMA_PATH_DELETED = 1;
 static_assert(sizeof(CinemaPathInfo) == 40, "CinemaPathInfo is saved raw: keep it free of padding");
 
 struct CinemaPath {
@@ -84,7 +85,7 @@ struct CinemaState {
 	void clear() { *this = CinemaState(); }
 	int find(const char *name) const {
 		for (size_t i = 0; i < paths.size(); ++i)
-			if (!std::strncmp(paths[i].info.name, name, sizeof(paths[i].info.name))) return (int)i;
+			if (paths[i].info.reserved != CINEMA_PATH_DELETED && !std::strncmp(paths[i].info.name, name, sizeof(paths[i].info.name))) return (int)i;
 		return -1;
 	}
 };

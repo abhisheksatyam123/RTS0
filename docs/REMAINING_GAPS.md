@@ -278,8 +278,8 @@ This pass covers save and replay metadata, compatibility, quicksave and quickloa
 | T1 | The lobby rating report sends each player's civ display name and the simulation's team id, so a 1v1 without teams reports "1,2,". 0.28 sends the civ code and the Diplomacy team, -1 when the player has none (LobbyRatingReport/Players.js) | low | Open (Triggers) |
 | T2 | Saves and replays don't record the mods they were made with. Their compatibility checks compare format numbers only, so a save or replay made under a gameplay mod lists as compatible without it. 0.28 stores the mods, filters and colours on them, and warns before loading (SavegameList.js, SavegameDetails.js, SavegameLoader.js, replay_menu.js) | medium | Fixed: saves and replays record engine_mods(); the save and replay lists filter, colour and warn on them as 0.28 does |
 | T3 | Game Setup's Turtle (0.1×) and Fast Forward (5×, 10×, 20×) speeds start the match at Normal, and networked games clamp to 0.25-3× | medium | Fixed: the session and the network setup take game_speeds.json's whole 0.1-20× range |
-| T4 | Quickload restores the quicksave's camera and starts a new replay. 0.28's quicksave keeps only the control groups, so the camera stays where it is | low | Open |
-| T5 | The quicksave is a file the save and load dialogs list, and it survives a restart. 0.28 keeps it in memory, out of Load Game ("Cannot quickload game - no game was quicksaved") | low | Open |
+| T4 | Quickload restores the quicksave's camera and starts a new replay. 0.28's quicksave keeps only the control groups, so the camera stays where it is | low | Fixed: the quicksave keeps only the control groups, so quickload leaves the camera where it is. Deliberate: the game still goes on as a new replay from the quicksave, because 0.28's replay keeps recording past a quickload and no longer plays back |
+| T5 | The quicksave is a file the save and load dialogs list, and it survives a restart. 0.28 keeps it in memory, out of Load Game ("Cannot quickload game - no game was quicksaved") | low | Fixed: the quicksave lives for the match only, outside user://saves, and quickloading without one says "Cannot quickload game - no game was quicksaved" |
 
 Kept on purpose: a replay can't be saved ("A replay can't be saved."), though 0.28's Save button doesn't check for one. Checked and matching: what a save restores (camera, an empty selection, the control groups), the overwrite flow, the campaign filter, the details lines, the in-game summary's player rules and Continue routing, livestock in the Units Total column, captured unfinished structures, defeat moving everything to Gaia with no statistics, the replay menu's compatibility error, the 3-second minimum replay length, and the time warp's fast-forward reset.
 
@@ -318,6 +318,25 @@ gui/campaigns, gui/common/campaigns, session/campaigns and pregame/MainMenuItems
 | CA12 | A campaign without an Image showed no picture; 0.28 shows nopreview.png | cosmetic | Fixed |
 | CA13 | 0.28 starts a level with mapName and mapPreview set to the level's Name and Preview, shown in saves and in game; RTS0 shows the map's own. The two tutorial levels are named as their maps, so nothing differs today | low | Open |
 | CA14 | The current run is kept in user://saves/campaigns/current, not user.cfg's "currentcampaign", so a 0.28 user.cfg's run isn't picked up | low | Deliberate |
+
+CCmpCinemaManager, CinemaManager, CCinemaPath and session.js's cinema handling were checked against cinema.h, tick_cinema and cinema_view.h:
+
+| # | Gap | Severity | State |
+|---|---|---|---|
+| CI1 | A path played from a timer counted from that turn; 0 A.D.'s native cinema manager updates before Timer.js, so it counts from the next turn | medium | Fixed (tick_cinema runs before tick_triggers) |
+| CI2 | Path ends are checked every 50 ms tick, 0 A.D.'s on 200 ms turns (Cinema Demo's end events at 61.45 s, 0.28 61.6 s) | low | Deliberate: RTS0's triggers and timers all run per tick |
+| CI3 | OnCinemaPathEnded carried the path's index; 0 A.D. sends its name | low | Fixed |
+| CI4 | The path time is reset before OnCinemaPathEnded, 0 A.D. after it | low | Matches in effect: no handler reads the time |
+| CI5 | ClearQueue while playing: 0 A.D. reads an empty queue (undefined), RTS0 stops quietly | low | Deliberate |
+| CI6 | At the end 0 A.D. always turns reveal-all off; RTS0 restores the state from before, so a Revealed Map game stays revealed | low | Deliberate |
+| CI7 | The camera runs on real time x timescale with no link to sim time in 0 A.D.; RTS0 keeps it within 0.15 s of sim time | low | Deliberate |
+| CI8 | 0 A.D.'s Deserialize recomputes the total from the remaining paths and doesn't re-hide the GUI; RTS0 saves the total and re-hides | low | Deliberate (0 A.D. bugs not copied) |
+| CI9 | The state hash left out map_revealed and the paths | low | Fixed |
+| CI10 | Status bars still showed with show-all or a highlight while a path played; 0 A.D. hides overlays (SetOverrideVisibility) | low | Fixed |
+| CI11 | Input while a path plays | low | Matches: only session input stops; fullscreen, screenshot, exit and the other global hotkeys work (UserSettings) |
+| CI12 | DeletePath on a queued path dropped it from the queue and could leave the camera flying the deleted path; 0 A.D.'s queue holds copies, which still play | low | Fixed |
+| CI13 | Path names are cut to 31 bytes (0 A.D. 128); a target path without targets becomes a plain path (0 A.D. ENSURE); a path without nodes is refused | low | Deliberate |
+| CI14 | 0 A.D. turns the silhouettes setting off and reloads the config afterwards, and keeps the GUI when disconnected; RTS0 hides silhouettes only on screen | cosmetic | Deliberate |
 
 ## Read this first: whole-game parity (refreshed 2026-10-08, evening)
 
