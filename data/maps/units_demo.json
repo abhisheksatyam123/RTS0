@@ -16375,46 +16375,25 @@
   ],
   "structures": [
     {
-      "type": "",
-      "player": 1,
-      "x": -230.39999999999998,
-      "z": -230.39999999999998,
-      "template": "army_mace_hero_alexander"
-    },
-    {
-      "type": "",
-      "player": 1,
-      "x": -225.5,
-      "z": -230.39999999999998,
-      "template": "army_mace_standard"
-    },
-    {
-      "type": "",
-      "player": 1,
-      "x": -218.0,
-      "z": -230.39999999999998,
-      "template": "army_spart_hero_leonidas"
-    },
-    {
-      "type": "",
+      "type": "town_center",
       "player": 1,
       "x": -206.0,
       "z": -230.39999999999998,
-      "template": "campaign_city_minor_test"
+      "template": "structures/mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "town_center",
       "player": 1,
       "x": -189.5,
       "z": -230.39999999999998,
-      "template": "campaign_city_test"
+      "template": "structures/mace/civil_centre"
     },
     {
-      "type": "",
+      "type": "temple",
       "player": 1,
       "x": -177.12,
       "z": -230.39999999999998,
-      "template": "campaign_religious_test"
+      "template": "structures/mace/temple"
     },
     {
       "type": "",

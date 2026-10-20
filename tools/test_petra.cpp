@@ -187,9 +187,12 @@ static void test_roster_army() {
 		s->complete_research(0, TECH_TOWER_MURDERHOLES);
 		bool hero = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		bool advanced = false, arsenal = false;
-		// 45 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
+		// 55 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
 		// the city phase around minute 15, as in 0 A.D., and its city army takes a while longer.
-		for (float t = 0.0f; t < 45.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
+		// Macedonian heroes come from the fortress, which Petra can only lay once City is done
+		// (canBuild's template.available), so the first attack after City may find no hero
+		// to train and drop it (attackPlan.js:676-681); a later one carries it.
+		for (float t = 0.0f; t < 55.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (s->ticks_ % 20 != 0) continue; // once a second
 			// A strong economy can raze the idle player before its siege is out: give
@@ -228,7 +231,7 @@ static void test_roster_army() {
 				else if (u.unit_type[i] == UNIT_CATAPULT || u.unit_type[i] == UNIT_SIEGE_RAM || u.unit_type[i] == UNIT_BOLT_SHOOTER) siege = true;
 			}
 		}
-		std::printf("  %s by 45 min: phase %d, hero %s, champions %s, siege %s, siege tower %s, siege moves packed %s, fires unpacked %s, arsenal %s, %s %s\n",
+		std::printf("  %s by 55 min: phase %d, hero %s, champions %s, siege %s, siege tower %s, siege moves packed %s, fires unpacked %s, arsenal %s, %s %s\n",
 		            civ_info((Civilization)civ).name, s->petra_phase(), hero ? "yes" : "no", champion ? "yes" : "no",
 		            siege ? "yes" : "no", tower ? "yes" : "no",
 		            packed_moved ? "yes" : "no", unpacked_fired ? "yes" : "no", arsenal ? "yes" : "no",
@@ -684,6 +687,83 @@ static void test_diplomacy() {
 		}
 		std::printf("  last man standing, wonder game: AI 1 turns first on player %d (player 3 has the wonder)\n", first);
 		CHECK(first == 3, "the ally with a finished wonder is betrayed first");
+	}
+
+	// Last Man Standing with teams locked: Setup.js makes that an allied victory, so allies
+	// share the win and never fall out (lastManStandingCheck returns at once; DM:293-295).
+	{
+		auto s = three_player_match(7);
+		s->set_last_man_standing(true);
+		s->set_mutual_ally(1, 2);
+		s->set_lock_teams(true);
+		CHECK(s->allied_victory(), "locked teams make Last Man Standing an allied victory");
+		run_for(*s, 5.0f);
+		auto &u = s->units_;
+		for (size_t i = 0; i < u.count; ++i) if (u.team[i] == 0) u.alive[i] = false;
+		for (auto &b : s->buildings_) if (b.team == 0) b.hp = 0.0f;
+		run_for(*s, 4.0f * 60.0f);
+		std::printf("  last man standing, teams locked: allies still allied %d, AI 1 waiting %d\n",
+		            (int)s->is_ally(1, 2), (int)s->petra_diplo_.waiting_to_betray);
+		CHECK(s->is_ally(1, 2) && !s->petra_diplo_.waiting_to_betray, "allies don't betray each other");
+	}
+
+	// Last Man Standing, three allied AIs: lastManStandingCheck also runs on every diplomacy
+	// change (checkEvents), so one AI's betrayal sets off another still waiting out its lapse.
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(11);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 11, 4, 96.0f);
+		for (uint8_t p = 0; p < 4; ++p) s->set_player_active(p, true, p != 0);
+		s->set_last_man_standing(true);
+		s->set_mutual_ally(1, 2);
+		s->set_mutual_ally(1, 3);
+		s->set_mutual_ally(2, 3);
+		run_for(*s, 5.0f);
+		auto &u = s->units_;
+		for (size_t i = 0; i < u.count; ++i) if (u.team[i] == 0) u.alive[i] = false;
+		for (auto &b : s->buildings_) if (b.team == 0) b.hp = 0.0f;
+		for (uint8_t p = 1; p <= 3; ++p) {
+			float tx = 0.0f, tz = 0.0f;
+			for (const auto &b : s->buildings()) if (b.type == BLD_TOWN_CENTER && b.team == p) { tx = b.x; tz = b.z; }
+			for (int i = 0; i < 50; ++i) s->spawn_unit(tx + 8.0f + (float)(i % 10), tz + 8.0f + (float)(i / 10), p, UNIT_SPEARMAN);
+		}
+		const auto wars = [&]() {
+			int n = 0;
+			for (uint8_t a = 1; a <= 3; ++a)
+				for (uint8_t b = a + 1; b <= 3; ++b)
+					if (s->get_diplomacy(a, b) == Simulation::DIPLO_ENEMY || s->get_diplomacy(b, a) == Simulation::DIPLO_ENEMY) ++n;
+			return n;
+		};
+		// PETRA_PLAYER's state is the live one, the others' parked in their slots between turns.
+		const auto dip_of = [&](uint8_t p) -> PetraDiplomacy & {
+			return p == Simulation::PETRA_PLAYER ? s->petra_diplo_ : s->petra_slots_[p].petra_diplo_;
+		};
+		// As each AI starts waiting, AIs 2 and 3 get 1000 s more on their own timers; AI 1 turns
+		// once all three wait.
+		bool held[4] = {}, all_waiting = false;
+		float first = -1.0f, second = -1.0f;
+		for (float t = 0.0f; t < 150.0f && second < 0.0f; t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			all_waiting = true;
+			for (uint8_t p = 1; p <= 3; ++p) {
+				PetraDiplomacy &d = dip_of(p);
+				if (d.waiting_to_betray && !held[p]) {
+					held[p] = true;
+					d.betray_lapse = d.elapsed + 1000.0f;
+				}
+				all_waiting = all_waiting && held[p];
+			}
+			if (all_waiting && first < 0.0f && dip_of(1).betray_lapse > 0.0f && wars() == 0)
+				dip_of(1).betray_lapse = dip_of(1).elapsed;
+			const int w = wars();
+			if (w >= 1 && first < 0.0f) first = t;
+			if (w >= 2) second = t; // a second pair at war: another AI turned too
+		}
+		CHECK(all_waiting, "every AI waits to betray once the human is out");
+		const float when = first >= 0.0f && second >= 0.0f ? second - first : -1.0f;
+		std::printf("  last man standing, three AIs: first betrayal at %.1fs, a second AI turns %.1fs later\n", first, when);
+		CHECK(when >= 0.0f && when < 5.0f, "one AI's betrayal sets off another waiting AI at once");
 	}
 
 	// Tribute: 0.28 gives an ally 30% of any resource we have over 200 and it
@@ -5888,6 +5968,29 @@ static void test_build_defenses() {
 	at(1300.0f);
 	s->petra_build_defenses();
 	CHECK(s->petra_defense_build_.pending == 0, "the second stone tower waits 1.1 x towerLapseTime");
+
+	// A fortress is tried while the City phase is researched, but canBuild's template.available
+	// needs phase_city (Identity/Requirements), so none is laid before City.
+	for (int k = 0; k < 30; ++k) s->spawn_unit(-40.0f + (float)(k % 6), -40.0f + (float)(k / 6), 1, UNIT_SPEARMAN);
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) {
+			ProductionOrder city;
+			city.unit_type = UNIT_TYPE_TECH;
+			city.tech = TECH_PHASE_CITY;
+			city.timer = 0.0f;
+			city.duration = 60.0f;
+			b.queue.push_back(city);
+			break;
+		}
+	CHECK(s->research_check(1, TECH_PHASE_CITY) == Simulation::TECH_ERR_IN_PROGRESS, "City is being researched");
+	at(3000.0f);
+	s->petra_build_defenses();
+	CHECK(s->petra_defense_build_.pending != BLD_FORTRESS + 1, "no fortress plan before the City phase");
+	s->petra_defense_build_.pending = 0;
+	s->players_[1].phase = 3;
+	at(4000.0f);
+	s->petra_build_defenses();
+	CHECK(s->petra_defense_build_.pending == BLD_FORTRESS + 1, "a fortress is queued in the City phase");
 }
 
 // headquarters.js findDefensiveLocation: a tower goes on our frontier at the spot nearest an enemy
@@ -6073,6 +6176,36 @@ static void test_worker_roles() {
 	CHECK(s->petra_unplanned_workers(supports) == before + 3, "a citizen cavalryman, a worker elephant and a fishing boat are workers");
 	CHECK(supports == supports_before + 1, "the worker elephant as a support unit");
 	CHECK(s->petra_accounted_workers(false) == accounted + 3, "and accounted workers");
+}
+
+// basesManager.js getTotalResourceLevel (findBestTrainableUnit's scarce-resource penalty): the
+// supplies within 180 m of one of a base's dropsites, not every supply in Petra's territory.
+static void test_total_resource_level() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float cc[2] = {}, enemy[2] = {};
+	for (const auto &b : s->buildings())
+		if (is_civic_centre(b.type)) {
+			float *at = b.team == 1 ? cc : enemy;
+			at[0] = b.x;
+			at[1] = b.z;
+		}
+	float before[RES_COUNT];
+	s->petra_total_resource_level(before);
+	s->spawn_resource_world(cc[0] + 8.0f, cc[1] + 8.0f, RES_STONE, 5000);
+	float near[RES_COUNT];
+	s->petra_total_resource_level(near);
+	CHECK(near[RES_STONE] == before[RES_STONE] + 5000.0f, "stone beside the civic centre counts");
+	// Beside the other player's civic centre: far from every dropsite of ours.
+	s->spawn_resource_world(enemy[0] + 8.0f, enemy[1] + 8.0f, RES_STONE, 5000);
+	float far[RES_COUNT];
+	s->petra_total_resource_level(far);
+	CHECK(far[RES_STONE] == near[RES_STONE], "stone 180 m and more from our dropsites does not");
 }
 
 static void test_out_of_plan_workers() {
@@ -7436,6 +7569,7 @@ int main(int argc, char **argv) {
 	RUN(test_raid_cc_foundation);
 	RUN(test_order_plan_tags);
 	RUN(test_worker_roles);
+	RUN(test_total_resource_level);
 	RUN(test_out_of_plan_workers);
 	RUN(test_dropsites);
 	RUN(test_building_plan_028);

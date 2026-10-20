@@ -16172,7 +16172,7 @@ void Simulation::tick_barter(float dt) {
 
 uint8_t Simulation::side_of(uint8_t pid) const {
 	if (pid >= MAX_PLAYERS) return 0;
-	if (last_man_standing_) return (uint8_t)(1u << pid);
+	if (!allied_victory()) return (uint8_t)(1u << pid);
 	uint8_t side = 0;
 	for (uint8_t t = 0; t < MAX_PLAYERS; ++t) {
 		if (t == pid || (((participant_mask_ >> t) & 1) && is_ally(pid, t) && is_ally(t, pid))) side |= (uint8_t)(1u << t);
@@ -16372,7 +16372,7 @@ void Simulation::check_victory_conditions(float dt) {
 			if (!((standing >> a) & 1)) continue;
 			for (int b = a + 1; b < MAX_TEAMS; ++b) {
 				if (!((standing >> b) & 1)) continue;
-				if (last_man_standing_ || !is_ally((uint8_t)a, (uint8_t)b) || !is_ally((uint8_t)b, (uint8_t)a)) { one_side = false; break; }
+				if (!allied_victory() || !is_ally((uint8_t)a, (uint8_t)b) || !is_ally((uint8_t)b, (uint8_t)a)) { one_side = false; break; }
 			}
 		}
 		// Don't hand out a win on a map that never had an enemy on it.
@@ -20227,15 +20227,12 @@ void Simulation::petra_manage_military_production(float dt) {
 	// trains now (no hero unless asked for, never a siege tower), the best value per cost, the
 	// value 0.1 plus strength (getMaxStrength, against Structure for siegeStrength) times its
 	// weight, multiplied by each costsResource weight for a template costing that resource. A
-	// resource with under 800 in stock and under 800 left in our territory adds a penalty of
+	// resource with under 800 in stock and under 800 left round our dropsites adds a penalty of
 	// 0.6 (over 400 left) or 0.2.
 	auto best_trainable = [&](const UnitStat &st) -> uint16_t {
 		if (!levels_counted) {
 			levels_counted = true;
-			for (size_t r = 0; r < resources_.count; ++r)
-				if (resources_.alive[r] && resources_.type[r] < RES_COUNT && resources_.amount[r] > 0 &&
-				    territory_owner_at(resources_.x[r], resources_.z[r]) == (int)petra_pid_)
-					remaining[resources_.type[r]] += (float)resources_.amount[r];
+			petra_total_resource_level(remaining);
 		}
 		float penalty[RES_COUNT] = {1.0f, 1.0f, 1.0f, 1.0f};
 		penalty[RES_STONE] = st.stone;
@@ -20657,6 +20654,44 @@ int Simulation::petra_unplanned_workers(int &supports) {
 // strength and more at the start: supportMax * (1 - exp(-alpha * workers / supportMax)).
 // Past that, citizen infantry train as workers: fast and without stone or metal under 45
 // workers, the strongest for its cost after. Returns how many workers are still wanted.
+// baseManager.js assignResourceToDropsite and getResourceLevel(["nearby", "medium"]): each base
+// lists the supplies (not animals or fields) on a dropsite's land within half of
+// maxDistResourceSquare (180 m) of one of its dropsites for that resource; a supply counts once
+// per base, and once for each base that lists it. Dropsites out of every base's territory are
+// the baseless base's.
+void Simulation::petra_total_resource_level(float out[RES_COUNT]) const {
+	for (int r = 0; r < RES_COUNT; ++r) out[r] = 0.0f;
+	PetraBasesMap bmap;
+	petra_bases_map(bmap);
+	struct Drop { float x, z; int base; uint8_t takes; uint16_t land; };
+	std::vector<Drop> drops;
+	for (const auto &b : buildings_) {
+		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
+		uint8_t takes = 0;
+		if (is_civic_centre(b.type) || civ_building_is_dropsite(b.type) || b.type == BLD_DOCK) takes = 0xF;
+		else if (b.type == BLD_STOREHOUSE) takes = (1 << RES_WOOD) | (1 << RES_STONE) | (1 << RES_GOLD);
+		else if (is_food_dropsite(b.type)) takes = 1 << RES_FOOD;
+		if (takes) drops.push_back({b.x, b.z, bmap.at(b.x, b.z, map_half_), takes, petra_access_at(b.x, b.z)});
+	}
+	if (drops.empty()) return;
+	std::vector<uint8_t> listed(bmap.anchors.size() + 1);
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.type[r] >= RES_COUNT) continue;
+		const uint8_t sub = resources_.subtype[r];
+		if (sub == RES_SUB_MEAT || sub == RES_SUB_FISH || field_bld_by_res_.count(resources_.id[r])) continue;
+		const uint8_t type = resources_.type[r];
+		const uint16_t land = petra_access_at(resources_.x[r], resources_.z[r]);
+		std::fill(listed.begin(), listed.end(), 0);
+		for (const Drop &d : drops) {
+			if (!(d.takes & (1 << type)) || d.land != land || listed[(size_t)d.base]) continue;
+			const float dx = d.x - resources_.x[r], dz = d.z - resources_.z[r];
+			if (dx * dx + dz * dz >= 45.0f * 45.0f) continue;
+			listed[(size_t)d.base] = 1;
+			out[type] += (float)resources_.amount[r];
+		}
+	}
+}
+
 int Simulation::petra_train_more_workers() {
 	int supports = 0;
 	const int workers = petra_unplanned_workers(supports);
@@ -20725,16 +20760,13 @@ int Simulation::petra_train_more_workers() {
 		// any (pickRandom), so at least a third of each.
 		// The template's own classes (mercenaries are CitizenSoldier too in 0.28), no hero or
 		// siege tower, and the scarce-resource penalty findBestTrainableUnit adds: under 800 in
-		// stock and under 800 left in our territory, x0.6 (over 400 left) or x0.2.
+		// stock and under 800 left round our dropsites (getTotalResourceLevel), x0.6 (over 400 left) or x0.2.
 		const int pick = (int)petra_rng_.range_int(0, 2);
 		float penalty[RES_COUNT] = {1.0f, 1.0f, 1.0f, 1.0f};
 		if (total < 45) penalty[RES_STONE] = penalty[RES_GOLD] = 0.5f;
 		{
-			float remaining[RES_COUNT] = {};
-			for (size_t r = 0; r < resources_.count; ++r)
-				if (resources_.alive[r] && resources_.type[r] < RES_COUNT && resources_.amount[r] > 0 &&
-				    territory_owner_at(resources_.x[r], resources_.z[r]) == (int)petra_pid_)
-					remaining[resources_.type[r]] += (float)resources_.amount[r];
+			float remaining[RES_COUNT];
+			petra_total_resource_level(remaining);
 			for (int r = 0; r < RES_COUNT; ++r)
 				if (petra_available_resource((uint8_t)r) <= 800.0f && remaining[r] <= 800.0f) // getAvailableResources
 					penalty[r] = std::min(penalty[r], remaining[r] > 400.0f ? 0.6f : 0.2f);
@@ -22636,7 +22668,9 @@ void Simulation::petra_manage_fields() {
 
 	const uint8_t civ = petra_ps().civ;
 	auto can_build = [&](uint8_t t) {
-		return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
+		// template.available: the structure's Identity/Requirements (its phase) are met.
+		return civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
+		       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
 	// manageCorral's anchor, as a position: the fields and corrals placed below grow buildings_.
 	const Building *anchor_b = farmstead ? farmstead : tc;
@@ -22952,7 +22986,7 @@ int Simulation::petra_find_market_location(float &out_x, float &out_z, int &out_
 				if (std::abs(px) > map_half_ || std::abs(pz) > map_half_) continue; // outside the map
 				if (past_map_edge(px, pz)) continue; // off the map's world (mapMask.outside)
 				const int owner = territory_owner_at(px, pz);
-				if (owner != petra_pid_ && !(!last_man_standing() && owner >= 0 && is_ally(petra_pid_, (uint8_t)owner))) { frontier = true; break; }
+				if (owner != petra_pid_ && !(allied_victory() && owner >= 0 && is_ally(petra_pid_, (uint8_t)owner))) { frontier = true; break; }
 			}
 			if (frontier) continue;
 			const int cx = (int)std::floor((wx - half) / GRID), cz = (int)std::floor((wz - half) / GRID);
@@ -23847,7 +23881,7 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 	const int foot = info.footprint;
 	const float half = 0.5f * (float)foot * GRID; // halfDepth and halfWidth: a square footprint
 
-	const bool allied_victory = !last_man_standing();
+	const bool allied_victory = this->allied_victory();
 	auto ours = [&](float x, float z) {
 		const int owner = territory_owner_at(x, z);
 		return owner == (int)petra_pid_ || (allied_victory && owner >= 0 && owner < MAX_PLAYERS && is_ally(petra_pid_, (uint8_t)owner));
@@ -24559,7 +24593,12 @@ void Simulation::petra_manage_buildings(float dt) {
 			// queued trainees included), houses go at twice their priority.
 			// Under 5 such slots with the house set unbuildable for want of room, a population
 			// technology instead (headquarters.js:1500-1508).
-			const int accounted_free = free_slots - (petra_accounted_population() - pop);
+			// freeSlots (headquarters.js:1499-1501): the limit, plus the house foundations at the
+			// house's own bonus, less the accounted population (other foundations don't count).
+			int house_fnd = 0;
+			for (const auto &b : buildings_)
+				if (b.team == petra_pid_ && b.build_progress < 1.0f && b.hp > 0.0f && (building_tech_classes(b.type) & TC_HOUSE)) ++house_fnd;
+			const int accounted_free = pop_max(petra_pid_) + house_fnd * structure_pop_bonus(house, petra_pid_) - petra_accounted_population();
 			const bool house_no_room = petra_no_room(house);
 			petra_queues_.priority[PETRA_Q_HOUSE] =
 					accounted_free < 5 && !house_no_room ? (int16_t)(2 * petra_queue_base_priority(PETRA_Q_HOUSE)) : 0;
@@ -25535,7 +25574,7 @@ bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &
 	static const float kAround[8][2] = {{-0.7f, 0.7f}, {0, 1}, {0.7f, 0.7f}, {1, 0}, {0.7f, -0.7f}, {0, -1}, {-0.7f, -0.7f}, {-1, 0}};
 	const uint8_t mine = (uint8_t)(petra_pid_ + 1);
 	const bool cost_ok = territory_cost_.w == territory_grid_.w && territory_cost_.h == territory_grid_.h;
-	const bool allied_victory = !last_man_standing(); // an ally's land is ours only then (headquarters.js:2014)
+	const bool allied_victory = this->allied_victory(); // an ally's land is ours only then (headquarters.js:2014)
 	auto other = [&](int x, int z) { // territory that is neither ours nor an ally's, on the map
 		if (cost_ok && territory_cost_.at(x, z) == TERRITORY_OFF_WORLD_COST) return false; // mapMask.outside
 		const uint8_t v = territory_grid_.at(x, z);
@@ -25648,6 +25687,9 @@ void Simulation::petra_build_defenses() {
 				if (b.team == petra_pid_ && b.type == BLD_FORTRESS && b.hp > 0.0f && !b.wrecked) { has_fortress = true; break; }
 			const PetraBase *home = get_primary_petra_base();
 			if (!has_fortress && home) bid = petra_place_generic(BLD_FORTRESS, PETRA_Q_DEFENSE_BUILDING);
+			else petra_set_no_room(btype);
+		} else {
+			petra_set_no_room(btype); // setUnbuildable(template, 90, "room")
 		}
 		if (bid) {
 			auto idle = petra_idle_builders();
@@ -25660,7 +25702,9 @@ void Simulation::petra_build_defenses() {
 	if (saving && !can_barter(petra_pid_)) return;
 	const uint8_t civ = petra_ps().civ;
 	auto can_build = [&](uint8_t t) {
-		return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
+		// template.available: the structure's Identity/Requirements (its phase) are met.
+		return civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
+		       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
 	int n_fortresses = 0, n_fortress_fnd = 0, n_towers = 0, n_stone = 0, n_tower_fnd = 0, n_bases = 0;
 	for (const Building &b : buildings_) {
@@ -25691,7 +25735,14 @@ void Simulation::petra_build_defenses() {
 	const uint8_t phase = petra_ps().phase;
 	// A structure with no frontier spot is not queued, so its plan doesn't hold resources it
 	// can't spend; the next try waits 90 s (buildManager.js setUnbuildable "room").
-	auto has_spot = [&](uint8_t t) { int sx = 0, sz = 0; return petra_find_defensive_location(t, sx, sz); };
+	// The plan's start fails with no spot, and the structure is marked short of room (which
+	// counts towards a new base, buildManager.js numberMissingRoom).
+	auto has_spot = [&](uint8_t t) {
+		int sx = 0, sz = 0;
+		if (petra_find_defensive_location(t, sx, sz)) return true;
+		petra_set_no_room(t);
+		return false;
+	};
 	constexpr float kNoRoomWait = 90.0f;
 
 	// From City, or while City is being researched (gameState.isResearching(phase 3)); not
@@ -25992,7 +26043,9 @@ void Simulation::petra_manage_research(float dt) {
 		const bool saving = petra_attack_mgr_.save_resources != 0;
 		const uint8_t civ = petra_ps().civ;
 		auto can_build = [&](uint8_t t) {
-			return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
+			// template.available: the structure's Identity/Requirements (its phase) are met.
+			return civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
+			       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 		};
 		if (!have_building(BLD_MARKET)) {
 			// buildMarket: at three times economicBuilding's priority until started; once
@@ -28599,12 +28652,12 @@ void Simulation::apply_petra_config() {
 // Each AI draws its own personality within its behaviour's range (config.js setConfig),
 // from the match seed so every lockstep peer draws the same one.
 void Simulation::reroll_petra_personalities() {
-	petra_config_.recompute(petra_personality_seed(petra_pid_), teams_locked(), !last_man_standing());
+	petra_config_.recompute(petra_personality_seed(petra_pid_), teams_locked(), allied_victory());
 	for (size_t i = 0; i < petra_slots_.size(); ++i) {
 		// While another AI runs, PETRA_PLAYER's config sits in that AI's slot.
 		const uint8_t owner = (i == petra_pid_ && petra_pid_ != PETRA_PLAYER) ? PETRA_PLAYER : (uint8_t)i;
 		if (i == petra_pid_ && petra_pid_ == PETRA_PLAYER) continue; // lives in petra_config_
-		petra_slots_[i].petra_config_.recompute(petra_personality_seed(owner), teams_locked(), !last_man_standing());
+		petra_slots_[i].petra_config_.recompute(petra_personality_seed(owner), teams_locked(), allied_victory());
 	}
 }
 
@@ -28642,14 +28695,14 @@ void Simulation::set_petra_difficulty(uint8_t pid, uint8_t d) {
 	if (pid >= MAX_PLAYERS) return;
 	PetraConfig &c = petra_config_slot(pid);
 	c.difficulty = petra_clamp_difficulty(d);
-	c.recompute(petra_personality_seed(pid), teams_locked(), !last_man_standing());
+	c.recompute(petra_personality_seed(pid), teams_locked(), allied_victory());
 }
 
 void Simulation::set_petra_behavior(uint8_t pid, uint8_t b) {
 	if (pid >= MAX_PLAYERS) return;
 	PetraConfig &c = petra_config_slot(pid);
 	c.behavior = petra_clamp_behavior(b);
-	c.recompute(petra_personality_seed(pid), teams_locked(), !last_man_standing());
+	c.recompute(petra_personality_seed(pid), teams_locked(), allied_victory());
 }
 
 // config.js Config.priorities after setConfig; the plan queues take attackPlan.js's
@@ -31750,7 +31803,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			auto bit = building_id_to_idx_.find(attacker);
 			if (bit != building_id_to_idx_.end()) by = buildings_[bit->second].team;
 		}
-		if (by >= MAX_PLAYERS || by == petra_pid_ || !is_ally(petra_pid_, by)) continue;
+		if (by >= MAX_PLAYERS || by == petra_pid_ || get_diplomacy(petra_pid_, by) != DIPLO_ALLY) continue; // isPlayerAlly
 		if (territory_owner_at(tx, tz) != (int)petra_pid_) continue;
 		petra_config_.cooperative = std::min(1.0f, petra_config_.cooperative + 0.003f);
 	}
@@ -31772,7 +31825,8 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	// from a player we are waiting on seals the requested stance.
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		PetraReceivedRequest &req = dip.received[p];
-		if (req.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE) {
+		// (not from a player we already ally with, isPlayerAlly: our own stance)
+		if (req.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE && get_diplomacy(me, p) != DIPLO_ALLY) {
 			const float got = petra_tribute_inbox_[me][p][req.resource];
 			req.paid += got;
 			if (req.paid >= (float)req.wanted) {
@@ -31786,7 +31840,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			}
 		}
 		// Tribute from an ally slowly raises our cooperative trait (food counts once, the rest twice).
-		if (p != me && is_ally(me, p)) {
+		if (p != me && get_diplomacy(me, p) == DIPLO_ALLY) { // isPlayerAlly: our own stance
 			float tributes = 0.0f;
 			for (uint8_t r = 0; r < RES_COUNT; ++r) tributes += petra_tribute_inbox_[me][p][r] * (r == RES_FOOD ? 1.0f : 2.0f);
 			petra_config_.cooperative = std::min(1.0f, petra_config_.cooperative + 0.0001f * tributes);
@@ -31895,8 +31949,21 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		}
 	}
 
-	// lastManStandingCheck, re-run on its timer.
-	petra_last_man_standing_check();
+	// lastManStandingCheck: on any stance change, defeat or the ceasefire's end since our last
+	// turn (checkEvents; the first turn stands for init), and then on its own timer (update).
+	{
+		uint32_t h = 2166136261u;
+		auto mix = [&h](uint32_t w) { h = (h ^ w) * 16777619u; };
+		for (uint8_t a = 0; a < MAX_PLAYERS; ++a)
+			for (uint8_t b = 0; b < MAX_PLAYERS; ++b) mix(get_diplomacy(a, b));
+		mix((uint32_t)defeated_mask_);
+		mix(ceasefire_active() ? 1u : 0u);
+		const uint16_t ev = (uint16_t)((h ^ (h >> 16)) | 1u); // never 0, the value before the first turn
+		const bool changed = ev != dip.events_hash;
+		dip.events_hash = ev;
+		if (changed) petra_last_man_standing_check();
+	}
+	if (dip.waiting_to_betray && dip.elapsed > dip.betray_lapse) petra_last_man_standing_check();
 
 	// update(): now and then ask a player for an alliance or a neutrality pact
 	// (never during a ceasefire or with teams locked), and let an unanswered request lapse.
@@ -31948,7 +32015,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		// isPlayerAlly: our own stance, whatever theirs is toward us.
 		if (p == me || !(same_team(p, me) || get_diplomacy(me, p) == DIPLO_ALLY) || !player_in_match(p)) continue;
-		const bool donor = !last_man_standing() || petra_player_entities(p) < own_entities;
+		const bool donor = allied_victory() || petra_player_entities(p) < own_entities;
 		int amounts[RES_COUNT] = {};
 		bool any = false;
 		for (uint8_t r = 0; r < RES_COUNT; ++r) {
@@ -32137,11 +32204,11 @@ void Simulation::petra_last_man_standing_check() {
 	bool has_enemies = false, has_others = false, has_allies = false;
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		if (p == me || !((participant_mask_ >> p) & 1) || is_defeated(p)) continue;
-		if (is_ally(me, p)) has_allies = true;
+		if (get_diplomacy(me, p) == DIPLO_ALLY) has_allies = true; // gamestate.js hasAllies: our own stance
 		if (is_hostile(me, p)) has_enemies = true;
 		else has_others = true; // hasAllies() || hasNeutrals()
 	}
-	if (!last_man_standing() && has_allies) return; // allied victory: our allies win with us
+	if (allied_victory() && has_allies) return; // allied victory: our allies win with us
 	if (has_enemies || !has_others) {
 		dip.waiting_to_betray = false;
 		return;
@@ -32152,8 +32219,8 @@ void Simulation::petra_last_man_standing_check() {
 		dip.waiting_to_betray = true;
 		return;
 	}
-	if (dip.elapsed < dip.betray_lapse) return;
-	// Not yet strong enough.
+	// Not yet strong enough. Run on an event before the lapse is up too, as 0.28 does: another
+	// AI's betrayal sets the waiting ones off at once.
 	const int own_units = petra_player_units(me);
 	if (own_units < 50) {
 		dip.betray_lapse += 60.0f;
@@ -33990,7 +34057,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					o.wanted = r.wanted; o.paid = r.paid; o.warn_time = r.warn_time;
 				}
 				arr(d.seen_stance, x.seen_stance); d.seen_init = x.seen_init; d.waiting_to_betray = x.waiting_to_betray;
-				d.betray_lapse = x.betray_lapse; d.elapsed = x.elapsed; d.next_tribute = x.next_tribute;
+				d.events_hash = x.events_hash; d.betray_lapse = x.betray_lapse; d.elapsed = x.elapsed; d.next_tribute = x.next_tribute;
 			});
 		} else if constexpr (std::is_same_v<T, std::vector<S::PetraFoundationWatch>>) {
 			io_vec(ar, v, 1u << 16, [&](S::PetraFoundationWatch &w) { ar.pod(w.id); ar.pod(w.progress); ar.pod(w.stall); ids(w.banned); });

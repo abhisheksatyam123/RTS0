@@ -1283,6 +1283,8 @@ public:
 	void set_waves_enabled(bool on) { waves_enabled_ = on; }
 	// 0 A.D. "Last Man Standing": allies don't share a win; the match goes on until one player is left.
 	bool last_man_standing() const { return last_man_standing_; }
+	// EndGameManager alliedVictory: Setup.js sets it to LockTeams || !LastManStanding.
+	bool allied_victory() const { return teams_locked() || !last_man_standing_; }
 	void set_last_man_standing(bool on) { last_man_standing_ = on; reroll_petra_personalities(); }
 	// 0 A.D. population limit per player (game setup); 0 means unlimited. A negative
 	// setting is 0 A.D.'s World Population: -setting shared evenly by the players
@@ -3916,6 +3918,8 @@ private:
 	bool petra_find_defensive_location(uint8_t btype, int &out_cx, int &out_cz) const; // headquarters.js findDefensiveLocation
 	void petra_prospect_market(const PetraTradeRoutes &routes); // prospectForNewMarket
 	int petra_unplanned_workers(int &supports);
+	// basesManager.js getTotalResourceLevel (nearby and medium): each base's dropsite supplies.
+	void petra_total_resource_level(float out[RES_COUNT]) const;
 	int petra_train_more_workers();
 	bool petra_wood_starved() const;
 	bool petra_wood_kept_for(int queue) const;
