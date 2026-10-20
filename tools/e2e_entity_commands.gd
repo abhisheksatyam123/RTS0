@@ -83,6 +83,14 @@ func run() -> void:
 	check(not t.has("Patrol"), "the row stops at six: no room for Patrol")
 	check(not t.has("Abort"), "no Abort while everyone is idle")
 	check(not t.has("Abort Guard"), "no Abort Guard while nobody guards")
+	# The tooltips are translate(title) + "\n" + translate(body).
+	var de: Translation = load("res://assets/l10n/de.po")
+	TranslationServer.add_translation(de)
+	TranslationServer.set_locale("de")
+	var guard_tip: String = button("Guard").get("tip", "")
+	TranslationServer.set_locale("en")
+	TranslationServer.remove_translation(de)
+	check(guard_tip.ends_with("Bewachen\nAusgewählten Einheiten befehlen, ein Gebäude oder eine Einheit zu bewachen."), "Guard's tooltip is translated: " + guard_tip.replace("\n", " | "))
 	# The first group icon is the villagers (e2e_command_panel narrows to them).
 	var g: Dictionary = main.debug_selection_grid(false)
 	instance_from_id(g["icons"][0]["id"]).emit_signal("pressed")
