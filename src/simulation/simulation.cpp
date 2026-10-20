@@ -6236,14 +6236,48 @@ static uint8_t formation_walk_state(uint8_t order) {
 }
 
 float Simulation::formation_walking_distance(const FormationController &fc) const {
-	// UnitAI.js ComputeWalkingDistance: along the remaining path, then to the goal.
-	float d = 0.0f, px = fc.x, pz = fc.z;
-	for (int k = fc.path.cur; k < fc.path.count; ++k) {
-		d += det::hypot(fc.path.xs[k] - px, fc.path.zs[k] - pz);
-		px = fc.path.xs[k];
-		pz = fc.path.zs[k];
+	// UnitAI.js ComputeWalkingDistance over GetTargetPositions: straight lines from the
+	// controller through the current goal and each queued walk or patrol point; an order
+	// with a target adds its target's position and ends the sum.
+	float d = det::hypot(fc.goal_x - fc.x, fc.goal_z - fc.z), px = fc.goal_x, pz = fc.goal_z;
+	if (fc.order == FORDER_APPROACH) return d;
+	for (const UnitOrder &o : fc.queue) {
+		float x = o.x, z = o.z;
+		bool stop = false;
+		switch (o.kind) {
+			case ORDER_WALK: case ORDER_WALK_AND_FIGHT: case ORDER_PATROL: break;
+			case ORDER_ATTACK: case ORDER_HEAL: case ORDER_GUARD: {
+				const int32_t t = lookup_unit(o.target);
+				if (t < 0 || !units_.alive[t]) return d;
+				x = units_.pos_x[t];
+				z = units_.pos_z[t];
+				stop = true;
+				break;
+			}
+			case ORDER_ATTACK_BUILDING: case ORDER_BUILD: case ORDER_GARRISON: {
+				auto bit = building_id_to_idx_.find(o.target);
+				if (bit == building_id_to_idx_.end()) return d;
+				x = buildings_[bit->second].x;
+				z = buildings_[bit->second].z;
+				stop = true;
+				break;
+			}
+			case ORDER_GATHER: {
+				auto rit = res_id_to_idx_.find(o.target);
+				if (rit == res_id_to_idx_.end()) return d;
+				x = resources_.x[rit->second];
+				z = resources_.z[rit->second];
+				stop = true;
+				break;
+			}
+			default: return d;
+		}
+		d += det::hypot(x - px, z - pz);
+		if (stop) return d;
+		px = x;
+		pz = z;
 	}
-	return d + det::hypot(fc.goal_x - px, fc.goal_z - pz);
+	return d;
 }
 
 void Simulation::formation_disband(size_t ci) {
@@ -6584,12 +6618,48 @@ void Simulation::order_set_formation(const uint32_t *unit_ids, size_t count, uin
 		for (size_t ci = 0; ci < formations_.size(); ++ci)
 			if (formations_[ci].id == fid) {
 				FormationController &fc = formations_[ci];
+				// UnitAI MoveIntoFormation is PushOrderFront: the formation re-forms where it
+				// stands and then carries on with the order it had (FORMING FinishOrder).
+				UnitOrder carry;
+				if (formation_current_order(fc, carry) && fc.queue.size() < 64) fc.queue.insert(fc.queue.begin(), carry);
 				fc.order = FORDER_IDLE;
+				fc.returning = FORDER_IDLE;
+				fc.target_unit = fc.target_building = 0;
 				fc.goal_x = fc.x;
 				fc.goal_z = fc.z;
 				formation_move_members_into(ci, true, true);
 				break;
 			}
+}
+
+// The controller's current order as the command that gave it, for orders a pushed-front
+// order (MoveIntoFormation) leaves behind.
+bool Simulation::formation_current_order(const FormationController &fc, UnitOrder &o) const {
+	o = UnitOrder{};
+	o.x = fc.goal_x;
+	o.z = fc.goal_z;
+	const uint8_t walk = fc.order == FORDER_MEMBER ? fc.returning : fc.order;
+	if (walk == FORDER_WALK) { o.kind = ORDER_WALK; return true; }
+	if (walk == FORDER_ATTACK_WALK) { o.kind = ORDER_WALK_AND_FIGHT; return true; }
+	if (walk == FORDER_PATROL || walk == FORDER_PATROL_WAIT) {
+		o.kind = ORDER_PATROL;
+		o.flags = ORDER_FLAG_FORCE | ORDER_FLAG_UNITS_ONLY;
+		return true;
+	}
+	if (fc.order != FORDER_APPROACH && fc.order != FORDER_MEMBER) return false;
+	o.target = fc.target_unit ? fc.target_unit : fc.target_building;
+	if (!o.target) return false;
+	switch (formation_task(fc)) {
+		case FTASK_ATTACK:
+			o.kind = fc.target_unit ? ORDER_ATTACK : ORDER_ATTACK_BUILDING;
+			if (fc.task_flags & FTASK_CAPTURE) o.flags |= ORDER_FLAG_ALLOW_CAPTURE;
+			return true;
+		case FTASK_GATHER: o.kind = ORDER_GATHER; return true;
+		case FTASK_REPAIR: o.kind = ORDER_BUILD; return true;
+		case FTASK_GARRISON: o.kind = ORDER_GARRISON; return true;
+		case FTASK_HEAL: o.kind = ORDER_HEAL; return true;
+		default: return false;
+	}
 }
 
 void Simulation::formation_delete_twins(FormationController &fc) {
@@ -6949,7 +7019,9 @@ void Simulation::tick_formations(float dt) {
 		if (changed) {
 			formation_refresh_groups();
 			fc.has_offsets = 0;
-			formation_move_members_into(ci, true, false);
+			// Formation.js SetRearrange(false) in IDLE and MEMBER: the members fight on and
+			// re-form when the controller leaves MEMBER or its IDLE timer fires.
+			if (formation_order_walks(fc.order)) formation_move_members_into(ci, true, false);
 		}
 
 		// Formation.js ShapeUpdate (every second): column for long walks, the real shape near the goal.
@@ -7047,6 +7119,30 @@ void Simulation::tick_formations(float dt) {
 			std::swap(fc.goal_z, fc.patrol_z);
 			fc.order = FORDER_PATROL;
 			formation_move_members_into(ci, true, true);
+			continue;
+		}
+		if (fc.order == FORDER_IDLE) {
+			// FORMATIONCONTROLLER.IDLE timer (every 2 s): once every member is idle, the
+			// ones that wandered off (chasing or fleeing) walk back to their slots.
+			fc.member_timer += dt;
+			if (fc.member_timer < FORMATION_IDLE_REFORM_S) continue;
+			fc.member_timer -= FORMATION_IDLE_REFORM_S;
+			bool all_idle = true, drifted = !fc.has_offsets || fc.slots.size() != fc.members.size();
+			for (uint32_t id : fc.members) {
+				const int32_t idx = lookup_unit(id);
+				if (idx < 0 || !units_.alive[idx]) continue;
+				if (units_.action_state[idx] != ACTION_IDLE || units_.has_order[idx]) { all_idle = false; break; }
+			}
+			if (!all_idle) continue;
+			for (const FormationSlot &sl : fc.slots) {
+				if (drifted) break;
+				const int32_t idx = lookup_unit(sl.ent);
+				if (idx < 0) continue;
+				float wx, wz;
+				formation_slot_world(fc.x, fc.z, fc.rot, sl.x, sl.y, wx, wz);
+				drifted = det::hypot(units_.pos_x[idx] - wx, units_.pos_z[idx] - wz) > FORMATION_IDLE_DRIFT;
+			}
+			if (drifted) formation_move_members_into(ci, false, false);
 			continue;
 		}
 		if (!formation_order_walks(fc.order)) continue;
