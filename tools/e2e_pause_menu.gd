@@ -155,6 +155,17 @@ func run() -> void:
 	var prect: Rect2 = menu.get_node("CenterContainer/Panel").get_global_rect()
 	check(absf(prect.end.x - (mrect.end.x + 8.0)) < 1.0 and prect.position.y >= mrect.end.y and prect.size.x == 164.0 and mrect.size.x == 156.0,
 		"the 164 px panel hangs under the 156 px Menu button, 8 px past its right edge: %s under %s" % [prect, mrect])
+	# Menu.xml: StonePanelThinBorder with StoneButtonFancy buttons, 28 px at a 32 px pitch.
+	var panel: PanelContainer = menu.get_node("CenterContainer/Panel")
+	var pstyle = panel.get_theme_stylebox("panel")
+	var b0: Button = btn(menu, "BtnManual")
+	var b1: Button = btn(menu, "BtnChat")
+	var over = b0.get_theme_stylebox("hover")
+	check("parts" in pstyle and pstyle.parts.size() == 9 and pstyle.get_margin(SIDE_LEFT) == 4.0
+		and "images" in over and over.images.size() == 3 and b0.get_theme_stylebox("normal").images.size() == 1
+		and b0.get_theme_color("font_color") == Color.WHITE and b0.get_theme_font_size("font_size") == 14
+		and b0.size.y == 28.0 and b1.position.y - b0.position.y == 32.0,
+		"the menu is a StonePanelThinBorder of StoneButtonFancy buttons")
 	# Esc (cancel) closes the menu and every open dialog (closeOpenDialogs).
 	main.toggle_chat()
 	await frames(2)
