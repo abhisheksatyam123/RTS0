@@ -40,7 +40,7 @@ enum TriggerEvent : uint8_t {
 	TRIGGER_ON_TREASURE_COLLECTED,
 	TRIGGER_ON_PLAYER_COMMAND,
 	TRIGGER_ON_DESERIALIZED,        // a saved game was loaded
-	TRIGGER_ON_CINEMA_PATH_ENDED,   // CinemaManager: the path at the front of the queue ended (value = its index)
+	TRIGGER_ON_CINEMA_PATH_ENDED,   // CinemaManager: the path at the front of the queue ended (name = its name)
 	TRIGGER_ON_CINEMA_QUEUE_ENDED,  // CinemaManager: the last queued path ended
 	TRIGGER_ON_ATTACK_DETECTED,     // AttackDetection.js AttackAlert: a player's entity was attacked, past suppression
 	TRIGGER_EVENT_COUNT
@@ -118,6 +118,7 @@ struct TriggerEventData {
 	uint16_t value = 0;    // template, tech or command type
 	uint16_t count = 0;    // batch size
 	uint8_t event = 0xFF;  // the TriggerEvent being run (set by Simulation::trigger_event)
+	const char *name = nullptr; // OnCinemaPathEnded: the path's name
 	// OnRange (TriggerPoint.js OnRangeUpdate): other is the TriggerRangeQuery index; the
 	// entities that entered and left this turn, and the query's currentCollection after.
 	const std::vector<uint32_t> *added = nullptr;

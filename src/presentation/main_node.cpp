@@ -49,6 +49,11 @@ static bool building_trains_class(uint8_t civ, uint8_t utype, uint8_t btype) {
 	return false;
 }
 
+// 0.28 CTurnManager::QuickSave keeps the quicksave in memory for this match only; the
+// simulation writes its state to a file, so it goes outside user://saves (out of the save
+// and load dialogs) and is deleted when the match ends.
+static const char *const kQuicksavePath = "user://quicksave.rts0sav";
+
 RtsoMain::RtsoMain() {
 	sim = new rtso::Simulation();
 }
@@ -71,6 +76,7 @@ void RtsoMain::_notification(int p_what) {
 				ma->set("session_music_tick", Callable());
 		}
 		write_replay(true); // leaving the match keeps its replay, with its summary (endGame)
+		if (quicksaved_) DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(kQuicksavePath));
 		// Menus get the normal arrow back (update_cursor sets action cursors).
 		if (!cursor_name_.empty()) reset_default_cursor();
 		// The Render Debug Mode is the session's; the menus draw normally.
@@ -372,6 +378,11 @@ bool RtsoMain::chat_network_command(const String &text) {
 			system(tr("Only the host can kick clients!"));
 		} else if (!networked) {
 			system(specs ? tr("Offline game! No spectators to kick or ban.") : tr("Offline game! Can not kick or ban."));
+		} else if (specs && is_net_pregame()) {
+			// Before Start the setup's observers are the assignment's unassigned clients.
+			for (uint32_t c = 1; c < rtso::NET_SETUP_CLIENTS; ++c)
+				if (((net_setup_.clients >> c) & 1) && net_setup_.slot_of(c) < 0)
+					net_host_.kickPeer(net_host_.peerByName(net_setup_.names[c]), ban);
 		} else if (specs) {
 			for (const auto &e : net_host_.playerAssignment())
 				if (e.player >= rtso::MAX_PLAYERS && e.client != 0 && e.status != rtso::PlayerAssignmentMsg::LEFT)
@@ -384,7 +395,14 @@ bool RtsoMain::chat_network_command(const String &text) {
 	if (command == "/list") {
 		// getUsernameList: sorted by player slot, observers last, in their colours.
 		std::vector<std::pair<uint32_t, String>> users;
-		if (networked) {
+		if (networked && is_net_pregame()) {
+			// g_PlayerAssignments before Start: the setup's clients, seated or watching.
+			for (uint32_t c = 0; c < rtso::NET_SETUP_CLIENTS; ++c)
+				if ((net_setup_.clients >> c) & 1) {
+					const int slot = net_setup_.slot_of(c);
+					users.emplace_back(slot >= 0 ? (uint32_t)slot : 1000u + c, chat_user("peer-" + String::num_int64(c)));
+				}
+		} else if (networked) {
 			for (const auto &e : net_host_.playerAssignment())
 				if (e.status != rtso::PlayerAssignmentMsg::LEFT)
 					users.emplace_back(e.player < rtso::MAX_PLAYERS ? e.player : 1000u + e.client,
@@ -664,7 +682,6 @@ bool RtsoMain::building_trains_units(uint32_t id) const {
 	return false;
 }
 
-static const char *const kQuicksavePath = "user://saves/quicksave.rts0sav";
 
 // 0 A.D. 0.28 simulation/data/settings/game_speeds.json: the session's speed
 // dropdown. The Fast Forward speeds are offered only while this client has no
@@ -749,18 +766,27 @@ void RtsoMain::show_notice(const String &text) {
 }
 
 void RtsoMain::quicksave() {
-	if (net_lockstep() || turn_mgr_.is_replaying()) return;
-	const bool ok = save_game(kQuicksavePath, "Quicksave");
+	if (net_lockstep() || turn_mgr_.is_replaying() || !sim) return;
+	const bool ok = sim->save_state(ProjectSettings::get_singleton()->globalize_path(kQuicksavePath).utf8().get_data());
+	if (ok) {
+		// session.js getSavedGameData: QuickSave keeps only the control groups, so a
+		// quickload leaves the camera where it is.
+		Array groups;
+		for (int g = 0; g < 10; ++g) groups.push_back(selected_groups[g]);
+		quicksave_gui_ = Dictionary();
+		quicksave_gui_["groups"] = groups;
+		quicksaved_ = true;
+	}
 	log_render(ok ? "Quicksaved game" : "Quicksave failed", !ok);
 }
 
 void RtsoMain::quickload() {
 	if (net_lockstep() || turn_mgr_.is_replaying()) return;
-	if (!FileAccess::file_exists(kQuicksavePath)) {
-		log_render("No quicksave to load", true);
+	if (!quicksaved_) {
+		log_render("Cannot quickload game - no game was quicksaved", true);
 		return;
 	}
-	const bool ok = load_game(kQuicksavePath);
+	const bool ok = load_world(kQuicksavePath, quicksave_gui_);
 	log_render(ok ? "Quickloaded game" : "Quickload failed", !ok);
 }
 
@@ -1252,6 +1278,12 @@ bool RtsoMain::save_game(String path, String description) {
 }
 
 bool RtsoMain::load_game(String path) {
+	return load_world(path, saved_gui(path));
+}
+
+// session.js restoreSavedGameData gets the save's GUI data: a saved game's camera and
+// control groups, or a quicksave's groups alone.
+bool RtsoMain::load_world(const String &path, const Dictionary &gui) {
 	if (!sim) return false;
 	String global_path = ProjectSettings::get_singleton()->globalize_path(path);
 	load_progress(50, "Loading saved game");
@@ -1262,7 +1294,7 @@ bool RtsoMain::load_game(String path) {
 	if (success) {
 		selected_ids.clear();
 		selected_building_id = 0;
-		restore_saved_gui(path);
+		restore_saved_gui(gui);
 		// The models the saved world draws load here, behind the loading page (0.28's
 		// LDR_ProgressiveLoad), not on the first frame of play.
 		if (view) {
