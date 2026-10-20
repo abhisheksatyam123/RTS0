@@ -3251,6 +3251,14 @@ inline uint8_t building_train_civ(uint8_t type, uint8_t bld_civ, uint8_t owner_c
 	return civic && (t.flags & ROSTER_CIVILIAN) && (t.trainers & bld_bit(type)) ? bld_civ : owner_civ;
 }
 
+// The names `bld_civ`'s own `type` structure lists as units/{civ}/<name>, space-separated in
+// its Trainer order (TRAINER_CIV_LISTS), or nullptr.
+inline const char *trainer_civ_list(uint8_t bld_civ, uint8_t type) {
+	for (const TrainerCivList &l : TRAINER_CIV_LISTS)
+		if (l.civ == bld_civ && l.type == type) return l.units;
+	return nullptr;
+}
+
 // Whether `tmpl` is a unit of the names `bld_civ`'s own `type` structure lists as
 // units/{civ}/<name> (TRAINER_CIV_LISTS), for any civ; *listed says whether that civ has
 // such a structure with a list at all.

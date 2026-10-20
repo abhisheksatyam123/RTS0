@@ -6790,6 +6790,40 @@ static void test_personality_draw() {
 // headquarters.js trainEmergencyUnits: citizen infantry from the civic centre nearest the
 // threat, garrisoned inside (the centre rallies to itself while they train), and the
 // centre's unstarted items stopped; the rally goes once they are out.
+// trainEmergencyUnits: the anchor's trainableEntities(civ), so a captured civic centre offers
+// our units of the names in its builder's list. A Persian holding an Athenian civic centre
+// (spearman, slinger, cavalry javelineer) trains pers/infantry_spearman_b there, never the
+// Persian civic centre's archer.
+static void test_emergency_units_captured_cc() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_team_civ(1, CIV_PERSIANS);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	uint32_t cc_id = 0;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) { cc_id = b.id; b.civ = CIV_ATHENIANS; }
+	CHECK(cc_id != 0, "Petra has a civic centre");
+	if (!cc_id) return;
+	const uint16_t spearman = civ_unit_template_by_id("pers/infantry_spearman_b");
+	int spearmen = 0, others = 0;
+	for (int k = 0; k < 12; ++k) {
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 2000.0f;
+		Simulation::Building &cc = s->buildings_[s->building_id_to_idx_.at(cc_id)];
+		for (size_t q = cc.queue.size(); q-- > 0;) s->cmd_cancel_train(1, cc_id, q);
+		if (!s->petra_train_emergency_units({{cc.x + 10.0f, cc.z}})) continue;
+		for (const auto &o : s->buildings_[s->building_id_to_idx_.at(cc_id)].queue)
+			(o.tmpl == spearman ? spearmen : others)++;
+	}
+	std::printf("  captured Athenian civic centre: %d Persian spearmen, %d others\n", spearmen, others);
+	// The Persian archer, which the Athenian centre does not list, is never picked (and then
+	// refused there, leaving no emergency unit).
+	CHECK(spearmen == 12 && others == 0, "a captured civic centre's emergency units are our units of its builder's names");
+}
+
 static void test_emergency_units() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -7476,6 +7510,7 @@ int main(int argc, char **argv) {
 	RUN(test_missing_room_expansion);
 	RUN(test_petra_far_gatherer_recheck);
 	RUN(test_emergency_units);
+	RUN(test_emergency_units_captured_cc);
 	RUN(test_new_cc_defenders);
 	RUN(test_temple_wonder_save);
 	RUN(test_personality_draw);
