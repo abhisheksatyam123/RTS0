@@ -1822,14 +1822,36 @@ void RtsoMain::time_warp_tick() {
 }
 
 // CTurnManager::RewindTimeWarp: back to the latest snapshot, which is then dropped, so
-// rewinding again goes further back. The game goes on as a new replay from there.
+// rewinding again goes further back. Only the simulation goes back: the control groups
+// and selection stay, less what the snapshot doesn't have (0.28's GUI drops entities
+// that no longer exist). The game goes on as a new replay from there, where 0.28 keeps
+// writing a replay that can no longer be played.
 bool RtsoMain::time_warp_rewind() {
 	if (!time_warp_ || time_warp_snapshots_.empty()) return false;
 	const String path = time_warp_snapshots_.back();
 	time_warp_snapshots_.pop_back();
+	PackedInt32Array groups[10];
+	for (int g = 0; g < 10; ++g) groups[g] = selected_groups[g];
+	const PackedInt32Array units = selected_ids;
+	const std::vector<uint32_t> structures = selected_structures();
 	const bool ok = load_game(path);
 	DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(path));
 	time_warp_turn_ = turn_mgr_.current_turn(); // no snapshot of the state just restored
+	if (ok) {
+		auto exists = [this](int32_t id) { return sim->entity_owner((uint32_t)id) != 0xFF; };
+		for (int g = 0; g < 10; ++g) {
+			selected_groups[g].clear();
+			for (int32_t id : groups[g])
+				if (exists(id)) selected_groups[g].push_back(id);
+		}
+		selected_ids.clear();
+		for (int32_t id : units)
+			if (exists(id)) selected_ids.push_back(id);
+		std::vector<uint32_t> kept;
+		for (uint32_t id : structures)
+			if (exists((int32_t)id)) kept.push_back(id);
+		set_selected_structures(kept);
+	}
 	return ok;
 }
 
