@@ -128,7 +128,20 @@ func run() -> void:
 	check(hk.picker_hint.text == "Click on any mapping to modify it.\n You may have up to 4 different hotkeys."
 		and hk.slot_labels[0].tooltip_text == "Click to set the hotkey" and hk.slot_delete[0].tooltip_text == "Click to delete the hotkey"
 		and hk.slot_labels[2].text == "(unused)", "the picker's instructions and slot tooltips")
+	check(hk.picker_title.offset_top == -16 and hk.picker_title.text == hk.meta_hotkeys["pause"]["name"], "the picker's title across its top edge")
+	hk.picker_combos[1] = "Ctrl+Tab" # summary's
+	hk._render_picker()
+	var conflict: String = hk.slot_conflicts[1].text
+	check(conflict.begins_with("[color=#ff9900]May conflict with: [/color]") and not conflict.ends_with("[/color]"), "only \"May conflict with: \" in orange: " + conflict)
 	hk._close_picker(false)
+	# HotkeysPage filter: the translated names (translateWithContext).
+	TranslationServer.add_translation(load("res://assets/l10n/fr.po"))
+	TranslationServer.set_locale("fr")
+	var fr_name: String = hk._display_name("pause")
+	hk.text_filter.text = fr_name.to_lower()
+	check(fr_name != hk.meta_hotkeys["pause"]["name"] and hk._visible_hotkeys().has("pause"), "the filter finds \"%s\"" % fr_name)
+	hk.text_filter.text = ""
+	TranslationServer.set_locale("en")
 	# HotkeyPicker Reset removes the user value and saves at once; other pending edits stay unsaved.
 	var cfg_path := "user://config/user.cfg"
 	var saved := FileAccess.get_file_as_string(cfg_path) if FileAccess.file_exists(cfg_path) else ""
