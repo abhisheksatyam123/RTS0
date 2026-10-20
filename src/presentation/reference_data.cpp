@@ -4,6 +4,7 @@
 
 #include "../simulation/sim_types.h"
 #include "../simulation/unit_trainer_data.h"
+#include "../simulation/tech_tooltip_data.h"
 
 #include <cmath>
 
@@ -101,11 +102,14 @@ Dictionary unit_entry(uint16_t t) {
 	return ud;
 }
 
-Dictionary tech_entry(uint8_t id) {
+// civ: the civ whose specificName to give (TemplateLoader.loadTechnologyTemplate), 0xFF none.
+Dictionary tech_entry(uint8_t id, uint8_t civ = 0xFF) {
 	const auto &ti = rtso::tech_info(id);
 	Dictionary td;
 	td["id"] = id;
 	td["name"] = String::utf8(ti.name);
+	const char *specific = civ < rtso::CIV_COUNT ? rtso::tech_specific_name(id, civ) : nullptr;
+	td["specific_name"] = specific ? String::utf8(specific) : String();
 	td["description"] = String::utf8(ti.desc ? ti.desc : "");
 	td["phase"] = ti.required_phase;
 	td["cost"] = cost_text(ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost);
@@ -211,7 +215,7 @@ Dictionary RtsoReference::get_civ_info(int civ) const {
 	Array techs;
 	for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id) {
 		if (!rtso::tech_available_to_civ(id, c)) continue;
-		Dictionary td = tech_entry(id);
+		Dictionary td = tech_entry(id, c);
 		td["civ_specific"] = tech_civ_specific(id); // when templates.json lacks the tech
 		techs.push_back(td);
 	}
@@ -231,16 +235,20 @@ Array RtsoReference::get_structure_tree(int civ) const {
 			if (rtso::civ_unit_template(t).trainers & rtso::bld_bit(b)) units.push_back(unit_entry(t));
 		}
 		for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id) {
-			if (rtso::building_researches_tech(b, id, c) && rtso::tech_available_to_civ(id, c)) techs.push_back(tech_entry(id));
+			if (rtso::building_researches_tech(b, id, c) && rtso::tech_available_to_civ(id, c)) techs.push_back(tech_entry(id, c));
 		}
-		const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(b, c);
-		if (up.to < rtso::BLD_TYPE_COUNT) {
+		// ProductionRowManager: every Upgrade choice (the Persian tachara's four).
+		for (int k = 0, n = rtso::building_upgrade_count(b, c); k < n; ++k) {
+			const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(b, c, k);
 			Dictionary ud;
 			ud["type"] = up.to;
 			ud["name"] = String::utf8(rtso::building_type_info(up.to).name);
 			ud["portrait"] = building_portrait(up.to);
 			ud["phase"] = up.required_phase;
 			ud["cost"] = cost_text(up.food_cost, up.wood_cost, up.stone_cost, up.gold_cost);
+			ud["upgrade_cost"] = cost_dict(up.food_cost, up.wood_cost, up.stone_cost, up.gold_cost);
+			ud["upgrade_time"] = up.time;
+			ud["tooltip"] = String::utf8(up.tooltip ? up.tooltip : "");
 			upgrades.push_back(ud);
 		}
 		Dictionary d;
@@ -278,6 +286,8 @@ Array RtsoReference::get_trainer_units(int civ) const {
 			Dictionary ud = unit_entry(ups[k].to);
 			ud["phase"] = ups[k].phase;
 			ud["cost"] = cost_text(ups[k].food_cost, ups[k].wood_cost, ups[k].stone_cost, ups[k].gold_cost);
+			ud["upgrade_cost"] = cost_dict(ups[k].food_cost, ups[k].wood_cost, ups[k].stone_cost, ups[k].gold_cost);
+			ud["upgrade_time"] = ups[k].time;
 			upgrades.push_back(ud);
 		}
 		if (units.is_empty() && techs.is_empty() && upgrades.is_empty()) continue;
@@ -477,15 +487,17 @@ Dictionary RtsoReference::get_structure(int type, int civ) const {
 	for (uint16_t t : rtso::civ_roster_ids(c))
 		if (rtso::civ_unit_template(t).trainers & rtso::bld_bit(b)) trains.push_back(unit_entry(t));
 	for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id)
-		if (rtso::building_researches_tech(b, id, c) && rtso::tech_available_to_civ(id, c)) researches.push_back(tech_entry(id));
-	const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(b, c);
-	if (up.to < rtso::BLD_TYPE_COUNT) {
+		if (rtso::building_researches_tech(b, id, c) && rtso::tech_available_to_civ(id, c)) researches.push_back(tech_entry(id, c));
+	for (int k = 0, n = rtso::building_upgrade_count(b, c); k < n; ++k) {
+		const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(b, c, k);
 		Dictionary ud;
 		ud["type"] = up.to;
 		ud["name"] = String::utf8(rtso::building_type_info(up.to).name);
 		ud["cost_text"] = cost_text(up.food_cost, up.wood_cost, up.stone_cost, up.gold_cost);
 		ud["time"] = up.time;
 		ud["tooltip"] = String::utf8(up.tooltip ? up.tooltip : "");
+		ud["upgrade_cost"] = cost_dict(up.food_cost, up.wood_cost, up.stone_cost, up.gold_cost);
+		ud["upgrade_time"] = up.time;
 		upgrades.push_back(ud);
 	}
 	d["trains"] = trains;
@@ -500,9 +512,8 @@ Dictionary RtsoReference::get_tech(int id, int civ) const {
 	if (id <= 0 || id >= rtso::TECH_COUNT) return d;
 	const uint8_t tid = (uint8_t)id;
 	const auto &ti = rtso::tech_info(tid);
-	d = tech_entry(tid);
+	d = tech_entry(tid, civ >= 0 && civ < rtso::CIV_COUNT ? (uint8_t)civ : 0xFF);
 	d["kind"] = "tech";
-	d["specific_name"] = "";
 	d["cost"] = cost_dict(ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost);
 	d["cost_text"] = cost_text(ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost);
 	d["time"] = ti.research_time;
@@ -544,7 +555,7 @@ Dictionary RtsoReference::get_tech(int id, int civ) const {
 	// Technologies this one unlocks (their prerequisite) and the units it unlocks.
 	Array unlocks;
 	for (uint8_t o = 1; o < rtso::TECH_COUNT; ++o)
-		if (rtso::tech_info(o).prerequisite == tid && (civ < 0 || rtso::tech_available_to_civ(o, (uint8_t)civ))) unlocks.push_back(tech_entry(o));
+		if (rtso::tech_info(o).prerequisite == tid && (civ < 0 || rtso::tech_available_to_civ(o, (uint8_t)civ))) unlocks.push_back(tech_entry(o, civ >= 0 && civ < rtso::CIV_COUNT ? (uint8_t)civ : 0xFF));
 	d["unlocks"] = unlocks;
 	Array units;
 	if (civ >= 0 && civ < rtso::CIV_COUNT)
