@@ -898,7 +898,8 @@ BUILDING_CLASS = {
     "Storehouse": ["BLD_STOREHOUSE"],
     "House": ["BLD_HOUSE"],
     "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE",
-                 "BLD_TRADING_POST"],  # trading_post_* inherit template_structure_economic_market
+                 "BLD_TRADING_POST",  # trading_post_* inherit template_structure_economic_market
+                 "BLD_MILL"],  # mill_greek: rotary_mill|template_structure_economic_farmstead
     "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG", "BLD_MILITARY_COLONY"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
     # military_colony inherits template_structure_civic_civil_centre; the temples of Vesta, Mars,
     # Amun and Isis (ptol/temple_2) template_structure_civic_temple; han/academy and the
