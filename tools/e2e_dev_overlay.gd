@@ -6,7 +6,7 @@ extends SceneTree
 # map when cleared; Promote selected units raises the selection a rank ("promote");
 # Change perspective shows the player view dropdown, and picking a player or Observer
 # re-seats this client; Enable time warp snapshots the game every 10 turns and rewinds
-# to the last one, keeping the selection and control groups; the pathfinder, hierarchical pathfinder (regions and their links), obstruction, unit motion,
+# to the last one, keeping the selection and control groups; the pathfinder (with its last searches), hierarchical pathfinder (regions and their links), obstruction, unit motion,
 # range (rings, rays to matches, the queries' grid) and bounding box overlays draw while ticked; Enable culling, Lock cull camera,
 # Display camera frustum and Display shadows frustum drive the culling and its boxes (a locked
 # cull camera hides the units and structures outside it);
@@ -227,8 +227,11 @@ func run() -> void:
 	await frames(4)
 	for label in ["Pathfinder overlay", "Hierarchical pathfinder overlay", "Obstruction overlay", "Unit motion overlay", "Range overlay", "Bounding box overlay"]:
 		press(label)
-	await frames(2)
+	main._on_minimap_order(Vector2(0.5, 0.5)) # a fresh order for the pathfinders to search
+	await frames(6)
 	d = main.debug_dev_overlay()
+	check(int(d["path_search_tiles"]) > 0, "the pathfinder overlay shows the last long path search's tiles (%d)" % int(d["path_search_tiles"]))
+	check(int(d["short_path_vertexes"]) >= 2, "and the last short path search's graph (%d vertices)" % int(d["short_path_vertexes"]))
 	check(int(d["pathfinder_drawn"]) > 0, "the pathfinder overlay fills the navcells land units can't cross (%d)" % int(d["pathfinder_drawn"]))
 	check(int(d["hier_pathfinder_drawn"]) > 0, "the hierarchical pathfinder overlay tints the chunk regions (%d)" % int(d["hier_pathfinder_drawn"]))
 	check(int(d["region_links"]) > 0, "and links the regions an edge joins (%d)" % int(d["region_links"]))

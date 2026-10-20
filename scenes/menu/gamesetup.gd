@@ -1072,6 +1072,7 @@ func _apply_map_locks() -> void:
 			for r in _slot_rows:
 				r["team"] = 0
 		_was_scenario = false
+		apply_map_colors(m.get("map_players", []))
 		refresh_slots()
 		return
 	_was_scenario = true
@@ -1099,6 +1100,7 @@ func _apply_map_locks() -> void:
 			_slot_rows[i]["civ"] = c
 		if not p.is_empty():
 			_slot_rows[i]["team"] = clampi(int(p.get("team", -1)) + 1, 0, 4)
+	apply_map_colors(map_players)
 	refresh_slots()
 
 # 0 A.D. shows WaterLevel and SeaLevelRiseTime only for the maps whose triggers
@@ -1391,6 +1393,45 @@ func _ensure_slot_rows(n: int) -> void:
 		})
 	if _slot_rows.size() > n:
 		_slot_rows.resize(n)
+
+## PlayerColor.onMapChange: a map's PlayerData Color is that player's colour.
+## RTS0's players carry a palette index (the simulation, saves and the network
+## share rtso::PLAYER_COLORS), so each takes the nearest palette colour no earlier
+## map player took; a player the map gives no colour keeps its own unless a map
+## colour took it, then it takes an unused one.
+func apply_map_colors(map_players: Array) -> void:
+	var taken := {}
+	for i in range(mini(map_players.size(), _slot_rows.size())):
+		var rgb: Variant = map_players[i].get("color") if typeof(map_players[i]) == TYPE_DICTIONARY else null
+		if typeof(rgb) != TYPE_ARRAY or rgb.size() < 3:
+			continue
+		var idx := nearest_color(Color8(int(rgb[0]), int(rgb[1]), int(rgb[2])), taken)
+		taken[idx] = true
+		_slot_rows[i]["color"] = idx
+	if taken.is_empty():
+		return
+	for i in range(_slot_rows.size()):
+		var rgb: Variant = map_players[i].get("color") if i < map_players.size() and typeof(map_players[i]) == TYPE_DICTIONARY else null
+		if typeof(rgb) == TYPE_ARRAY:
+			continue
+		if taken.has(int(_slot_rows[i]["color"])):
+			_slot_rows[i]["color"] = -1
+			_slot_rows[i]["color"] = _unused_color()
+		taken[int(_slot_rows[i]["color"])] = true
+
+## The palette entry closest to col (squared RGB distance), skipping those in taken.
+static func nearest_color(col: Color, taken: Dictionary = {}) -> int:
+	var best := -1
+	var best_d := INF
+	for c in range(PLAYER_COLORS.size()):
+		if taken.has(c):
+			continue
+		var p: Color = PLAYER_COLORS[c]
+		var d := (p.r - col.r) ** 2 + (p.g - col.g) ** 2 + (p.b - col.b) ** 2
+		if d < best_d:
+			best_d = d
+			best = c
+	return maxi(best, 0)
 
 func _unused_color() -> int:
 	for c in range(PLAYER_COLORS.size()):
