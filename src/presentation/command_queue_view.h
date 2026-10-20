@@ -291,7 +291,10 @@ public:
 		// (playerStates[entStates[0].player]), its buttons disabled (controlsPlayer).
 		panel_player_ = 0xFF;
 		read_only_ = false;
-		if (sim && host_->ui_observing()) {
+		// unit_commands.js playerState.controlsAll (Control all units): every panel of the
+		// selection's owner, and pressable.
+		const bool control_all = sim && !host_->ui_observing() && sim->controls_all(host_->local_player());
+		if (sim && (host_->ui_observing() || control_all)) {
 			uint8_t owner = 0xFF;
 			if (selected_building_id != 0) {
 				for (const auto &b : sim->buildings())
@@ -303,7 +306,7 @@ public:
 			}
 			if (owner < rtso::MAX_PLAYERS) {
 				panel_player_ = owner;
-				read_only_ = true;
+				read_only_ = !control_all;
 			}
 		}
 		update_barter_panel();
