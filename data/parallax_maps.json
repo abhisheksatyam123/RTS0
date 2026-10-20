@@ -3095,6 +3095,18 @@
 "height": "res://assets/textures/height_maps/props/shield/aspis_adv_back_norm_256x256.png",
 "scale": 0.0075
 },
+"units/athen_hero_xenophon_tex2": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
+"scale": 0.0075
+},
+"units/athen_hero_xenophon_tex5": {
+"height": "res://assets/textures/height_maps/props/shield/aspis_01_norm_256x256.png",
+"scale": 0.0075
+},
+"units/athen_hero_xenophon_tex6": {
+"height": "res://assets/textures/height_maps/props/shield/aspis_adv_back_norm_256x256.png",
+"scale": 0.0075
+},
 "units/athen_infantry_archer_b_tex5": {
 "height": "res://assets/textures/height_maps/props/quiver_greek_b_norm_256x512.png",
 "scale": 0.0075
@@ -4105,6 +4117,18 @@
 },
 "units/spart_hero_brasidas_tex7": {
 "height": "res://assets/textures/height_maps/props/shield/aspis_adv_back_norm_256x256.png",
+"scale": 0.0075
+},
+"units/spart_hero_leonidas_300_tex3": {
+"height": "res://assets/textures/height_maps/props/shield/aspis_01_norm_256x256.png",
+"scale": 0.0075
+},
+"units/spart_hero_leonidas_300_tex4": {
+"height": "res://assets/textures/height_maps/props/shield/aspis_back_norm_256x256.png",
+"scale": 0.0075
+},
+"units/spart_hero_leonidas_300_tex7": {
+"height": "res://assets/textures/height_maps/props/helmet/crest_01_norm_512x128.png",
 "scale": 0.0075
 },
 "units/spart_hero_tex3": {

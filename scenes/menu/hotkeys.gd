@@ -125,6 +125,8 @@ func _display_name(h: String) -> String:
 static func _edge_title(dialog: Control, text: String) -> Label:
 	var anchor := Control.new()
 	anchor.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Fill a plain dialog; a container sizes it itself.
+	anchor.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dialog.add_child(anchor)
 	var title := Label.new()
 	title.name = "Title"

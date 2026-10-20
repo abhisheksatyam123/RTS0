@@ -116,7 +116,8 @@ func _ready() -> void:
 func _row(dialog: Control, i: int, caption: String) -> OptionButton:
 	var top := 30.0 + i * (ROW_HEIGHT + ROW_MARGIN)
 	var lbl := Label.new()
-	lbl.text = caption
+	lbl.text = TranslationServer.translate("%(setting)s:").replace("%(setting)s", TranslationServer.translate(caption)) # TitleCaptionFormat
+	lbl.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl.anchor_left = 0.5

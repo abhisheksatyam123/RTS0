@@ -71,6 +71,8 @@ func run() -> void:
 	check(sells.all(func(b): return str(b.get_node("amount").text) == "-100"), "-100 on each sell icon")
 	var row: Dictionary = d._trade_rows[0]
 	check(row["button"].size == Vector2(32, 32) and row["up"].size == Vector2(16, 16), "32 px trade buttons, 16 px arrows: %s %s" % [row["button"].size, row["up"].size])
+	check(row["up"] is TextureButton and row["up"].texture_normal != null and row["up"].texture_hover != null and row["dn"].texture_hover != null,
+		"the arrows are bare arrowbox sprites with their _over sprite on hover (StoneArrowUp/Dn)")
 
 	print("5. Trader texts")
 	var tt: String = (body.find_child("traderCountText", true, false) as RichTextLabel).get_parsed_text()
