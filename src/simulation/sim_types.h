@@ -2459,7 +2459,9 @@ inline float civ_unit_speed_mult(uint8_t civ, TechClasses c) {
 	return m;
 }
 inline float civ_unit_speed_add(uint8_t civ, TechClasses c) {
-	if (civ == CIV_GERMANS && (c & TC_CIVILIAN) != 0) return 0.5f;
+	// germ_women.json: +0.5 m/s walk speed for Civilian (the workers; healers carry RTS0's
+	// Support -> Civilian alias but aren't Civilians in 0.28), x 0.356 (extract_0ad_rosters.py SPEED_SCALE).
+	if (civ == CIV_GERMANS && (c & TC_CIVILIAN) != 0 && (c & TC_WORKER) != 0) return 0.5f * 0.356f;
 	return 0.0f;
 }
 inline float civ_unit_damage_mult(uint8_t civ, TechClasses c) {

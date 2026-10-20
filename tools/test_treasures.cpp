@@ -401,12 +401,22 @@ int main() {
 		static Simulation l;
 		CHECK(l.load_state(path));
 		CHECK(l.treasures().size() == 2 && l.resource_max_gatherers(ruin) == 90);
+		// Each ruin blocks its own Obstruction/Static: the minor pyramid 34x34 m, not template_gaia_ruins' 7x7.
+		{
+			nav::Footprint fp;
+			CHECK(l.mine_footprint(l.res_id_to_idx_.at(ruin), fp) && std::fabs(fp.hu - 34.0f * 0.125f) < 1e-4f && std::fabs(fp.hv - fp.hu) < 1e-4f);
+		}
 		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(l));
 		run(s, 8.0f);
 		run(l, 8.0f);
 		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(l));
 		CHECK(s.treasures().size() == 1 && l.treasures().size() == 1);
 		std::remove(path);
+		{
+			nav::Footprint fp;
+			const uint32_t wolf = s.spawn_ruins(-20.0f, -20.0f, ruins_type_by_name("metal_statue_wolf"));
+			CHECK(s.mine_footprint(s.res_id_to_idx_.at(wolf), fp) && std::fabs(fp.hu * fp.hv - 14.0f * 8.0f * 0.125f * 0.125f) < 1e-4f);
+		}
 		s.clear_treasures();
 		CHECK(s.treasures().empty());
 		CHECK(s.spawn_resource_treasure(0.0f, 0.0f, RES_WOOD) != 0 && s.treasures()[0].type == TREASURE_WOOD);

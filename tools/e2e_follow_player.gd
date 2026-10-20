@@ -4,7 +4,7 @@ extends SceneTree
 #   1. records a short match in which player 1 orders a unit;
 #   2. watches its replay: no "Follow Player" box as Observer; viewing player 1
 #      shows it; ticked, the replayed order moves the camera to the ordered unit
-#      and selects it.
+#      and selects it; viewing player 2 (Petra), its own orders are followed too.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_follow_player.gd
 # Exit code 0 = pass.
@@ -46,7 +46,7 @@ func run() -> void:
 	var unit: int = m.get_replay_status().follow_player.selected[0]
 	await frames(60)
 	m._on_stance_selected(1) # a command with the unit in it
-	await frames(120)
+	await frames(400)
 	var replay_dir: String = m.get_replay_status().replay_dir
 	change_scene_to_file("res://scenes/menu/replay_browser.tscn")
 	await frames(5)
@@ -71,6 +71,20 @@ func run() -> void:
 	f = m.get_replay_status().follow_player
 	check(f.selected.has(unit), "the replayed order selects the ordered unit")
 	check(int(f.camera_follows) == unit, "the camera follows it: %s vs %d" % [str(f.camera_follows), unit])
+	# Petra's own orders (0.28's Petra posts commands like a player): following player 2
+	# selects what it ordered, or the structure it trained or researched at.
+	m.set_replay_view(1)
+	await frames(1)
+	m.clear_selection()
+	guard = 0
+	while guard < 1200:
+		f = m.get_replay_status().follow_player
+		if not f.selected.is_empty() or int(f.selected_building) != 0:
+			break
+		await process_frame
+		guard += 1
+	check(not f.selected.is_empty() or int(f.selected_building) != 0,
+		"following Petra's player follows its orders: units %s, structure %d" % [str(f.selected), int(f.selected_building)])
 	m.set_replay_view(254) # Gaia
 	await frames(2)
 	check(m.get_replay_status().follow_player.visible, "viewing Gaia keeps it (FollowPlayer.js hides it for Observer only)")
