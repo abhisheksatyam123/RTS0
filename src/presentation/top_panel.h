@@ -327,12 +327,18 @@ public:
 		rtso::user_config::save();
 	}
 
-	// Hotkey text for the IconButtons' tooltips, e.g. "Ctrl+B" (set by the owner).
+	// The IconButtons' tooltips, built by the owner (colorizeHotkey + translate(Tooltip)).
 	void set_dialog_tooltips(const godot::String &diplomacy, const godot::String &trade, const godot::String &objectives) {
-		const godot::String keys[3] = {diplomacy, trade, objectives};
-		const char *names[3] = {"Diplomacy", "Barter & Trade", "Match Settings"};
+		const godot::String tips[3] = {diplomacy, trade, objectives};
 		for (int i = 0; i < 3; ++i)
-			if (dialog_btns_[i]) dialog_btns_[i]->set_tooltip_text(keys[i].is_empty() ? godot::String(names[i]) : "[" + keys[i] + "] " + names[i]);
+			if (dialog_btns_[i]) dialog_btns_[i]->set_tooltip_text(tips[i]);
+	}
+	godot::Button *dialog_button(int i) const { return i >= 0 && i < 3 ? dialog_btns_[i] : nullptr; }
+	// DiplomacyDialogButton / TradeDialogButton onViewedPlayerChange: hidden while
+	// viewing no player (g_ViewedPlayer < 1).
+	void set_player_buttons_visible(bool on) {
+		for (int i = 0; i < 2; ++i)
+			if (dialog_btns_[i] && dialog_btns_[i]->is_visible() != on) dialog_btns_[i]->set_visible(on);
 	}
 
 	// CivIcon.rebuild's tooltip keys (colorizeHotkey "civinfo" and "structree").
