@@ -641,7 +641,7 @@ inline const CombatProfile *combat_class_table() {
 inline constexpr uint8_t COMBAT_CLASS_ROWS = 27; // = UNIT_TYPE_COUNT
 
 // Structures by BuildingType; types past the table use the generic structure row.
-inline constexpr uint8_t COMBAT_BUILDING_ROWS = 87;
+inline constexpr uint8_t COMBAT_BUILDING_ROWS = 88;
 inline const CombatProfile *combat_building_table() {
 	static const CombatProfile kTable[COMBAT_BUILDING_ROWS + 1] = {
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 2.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 29.0f, 35.0f, 3.0f, 18.054f, 0, 0.0f, 0.0f, 0.0f, 1, 0.4f, 100.0f, 50.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
@@ -731,6 +731,7 @@ inline const CombatProfile *combat_building_table() {
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 20.0f, 30.0f, 3.0f, 7.818f, 0, 0.0f, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_LAOZI_GATE: structures/han/laozigate
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 24.0f, 30.0f, 3.0f, 17.752f, 0, 0.0f, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_TEMPLE_ISIS: structures/ptol/temple_2
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 11.0f, 0, 0.0f, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_MILL: structures/mill_greek
+		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 24.0f, 30.0f, 3.0f, 14.093f, 0, 0.0f, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_TOPHET: structures/cart/tophet
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 1.0f, 10.0f, 1.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // default: template_structure
 	};
 	return kTable;

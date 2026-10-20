@@ -184,7 +184,7 @@ TRAINER_BUILDING = {
     "kennel": "BLD_BARRACKS", "amphitheater_pompeii": "BLD_BARRACKS",
     "camp_blemmye": "BLD_BARRACKS", "camp_noba": "BLD_BARRACKS",
     "practice_range": "BLD_RANGE",
-    "temple_mars": "BLD_TEMPLE", "temple_vesta": "BLD_TEMPLE", "tophet": "BLD_TEMPLE",
+    "temple_mars": "BLD_TEMPLE", "temple_vesta": "BLD_TEMPLE",
 }
 # Civ-specific 0 A.D. structures RTS0 models as their own BuildingType
 # (appended after BLD_EMBASSY): enum, 0 A.D. file stems, model id, portrait id.
@@ -280,6 +280,9 @@ UNIQUE_BUILDINGS = [
     # mixins/rotary_mill.xml): captured, never destroyed; their farmstead_60 aura speeds the
     # grain of the owner's workers nearby. Drawn with the farmstead of the template's civ.
     ("BLD_MILL", ["mill_greek"], "farmstead", "farmstead"),
+    # The Carthaginian Tophet maps place (cart/tophet): a temple that trains only the healer
+    # (cart/temple adds the champions). Drawn with the civ's temple until its actor is ported.
+    ("BLD_TOPHET", ["tophet"], "temple", "temple"),
 ]
 # Numbered stems that are a building of their own rather than an upgrade's _N form.
 KEEP_NUMBERED_STEMS = {"temple_2"}
@@ -304,7 +307,7 @@ GAIA_UNIQUE = {"BLD_SHRINE", "BLD_TRADING_POST", "BLD_HELLENIC_STOA", "BLD_MILL"
 # Civ structures in UNIQUE_BUILDINGS that only maps place: no civ builds them.
 MAP_ONLY = {"BLD_TOWER_BOLT", "BLD_TOWER_ARTILLERY", "BLD_STOA", "BLD_INN", "BLD_TENT", "BLD_TRIUMPHAL_ARCH",
             "BLD_HALL", "BLD_WAREHOUSE", "BLD_TAVERN", "BLD_TOWER_DOUBLE", "BLD_KUSH_SHRINE", "BLD_FORTRESS_OLD",
-            "BLD_LAOZI_GATE"}
+            "BLD_LAOZI_GATE", "BLD_TOPHET"}
 # Generic structures a civ structure's Upgrade can start from (structures/cart/house,
 # structures/han/civil_centre, structures/han/defense_tower).
 UPGRADE_FROM_GENERIC = {"house": "BLD_HOUSE", "civil_centre": "BLD_TOWN_CENTER", "defense_tower": "BLD_TOWER"}
