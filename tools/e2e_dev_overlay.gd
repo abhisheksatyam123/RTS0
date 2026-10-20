@@ -1,7 +1,7 @@
 extends SceneTree
 # 0.28's developer overlay (gui/session/developer_overlay): Alt+D opens the panel
 # and says so in the chat; Control all units orders every live unit ("control-all");
-# Display selection state shows the first selected entity's state; Reveal map reveals
+# Display selection state shows the simulation state and the first selected entity's (a unit, then a structure, with its template); Reveal map reveals
 # and hides the map again ("reveal-map"); Restrict camera lets the camera leave the
 # map when cleared; Promote selected units raises the selection a rank ("promote");
 # Change perspective shows the player view dropdown, and picking a player or Observer
@@ -105,6 +105,18 @@ func run() -> void:
 	check(d["state_shown"] and str(d["state"]).contains("entity: {") and str(d["state"]).contains("hitpoints:")
 		and str(d["state"]).contains("velocity:") and str(d["state"]).contains("template: {name:"),
 		"Display selection state shows the selected entity")
+	var st := str(d["state"])
+	check(st.begins_with("simulation: {players:\"<<<omitted>>>\", circularMap:") and st.contains(", mapSize:")
+		and st.contains("ceasefireActive:false") and st.contains("victoryConditions:[\"conquest\"]")
+		and st.contains("alliedVictory:true") and st.contains("populationCapType:\"player\", populationCap:"),
+		"it lists GetSimulationState's fields (map size, ceasefire, victory, population cap): " + st.get_slice("\n", 0))
+	main.debug_select_entity(main.debug_civic_centre_id(0))
+	await frames(2)
+	st = str(main.debug_dev_overlay()["state"])
+	check(st.contains("buildProgress:") and st.contains("capturePoints:") and st.contains("template: {template:\"structures/")
+		and st.contains("cost:{food:") and st.contains("garrisonHolder:{max:"), "and a structure's state with its template block")
+	main.select_first_own(false)
+	await frames(2)
 
 	press("Reveal map")
 	await frames(3)
