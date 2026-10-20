@@ -12961,8 +12961,8 @@ bool Simulation::unit_flight_pose(size_t i, float &y, float &pitch, float &roll)
 // it as MoveToPointRange / MoveToTargetRange (a move order's point, or the unit or structure an
 // attack is on) and StopMoving (no order left): a plane with nowhere to go lands where it is. A
 // walk's range is 0 to 0, which a plane never reaches, so it circles its point until stopped. An
-// attacking plane keeps flying at its target where 0.28's APPROACHING leave calls StopMoving and
-// starts a landing that the next CHASING cancels. Planes stay over the map: 0.28 lets one overshoot
+// attacking plane starts a landing while its target is in range (APPROACHING's leave calls
+// StopMoving) and flies on once it is out of range (CHASING). Planes stay over the map: 0.28 lets one overshoot
 // past the edge and brings it back only once it has landed.
 void Simulation::tick_flight(float dt) {
 	constexpr float kPi = 3.14159265f;
@@ -12978,7 +12978,7 @@ void Simulation::tick_flight(float dt) {
 		FlightState &f = it->second;
 		++it;
 		// Where UnitAI sends it this tick.
-		bool wants = false;
+		bool wants = false, in_reach = false;
 		float gx = 0.0f, gz = 0.0f;
 		if (units_.action_state[i] == ACTION_ATTACK && units_.target_unit_id[i] != 0) {
 			const int32_t t = lookup_unit(units_.target_unit_id[i]);
@@ -12986,6 +12986,9 @@ void Simulation::tick_flight(float dt) {
 				wants = true;
 				gx = units_.pos_x[t];
 				gz = units_.pos_z[t];
+				const float dx = gx - units_.pos_x[i], dz = gz - units_.pos_z[i], d2 = dx * dx + dz * dz;
+				const float reach = attack_reach(i), minr = reach * unit_min_range_ratio(units_.unit_type[i], units_.tmpl[i]);
+				in_reach = d2 <= reach * reach && d2 >= minr * minr;
 			}
 		} else if (units_.action_state[i] == ACTION_ATTACK && units_.target_building_id[i] != 0) {
 			const auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
@@ -13000,7 +13003,13 @@ void Simulation::tick_flight(float dt) {
 			gx = units_.target_x[i];
 			gz = units_.target_z[i];
 		}
-		if (wants) { // MoveToPointRange / MoveToTargetRange
+		if (wants && in_reach) {
+			// APPROACHING's leave calls StopMoving once the target is in range: the plane starts a
+			// landing (or, landed, stays down) until CHASING's MoveToTargetRange sends it off again.
+			f.target_x = gx;
+			f.target_z = gz;
+			if (f.has_target && !f.water_death) f.landing = 1;
+		} else if (wants) { // MoveToPointRange / MoveToTargetRange
 			f.has_target = 1;
 			f.landing = 0;
 			f.target_x = gx;
