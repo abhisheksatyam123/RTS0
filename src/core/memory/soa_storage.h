@@ -331,6 +331,7 @@ struct ResourceSoA {
 	int32_t *max_amount = nullptr; // ResourceSupply/Max a regrowing supply returns to (fruit), 0 = none
 	uint8_t *flora = nullptr; // FloraKind: the plant a tree or fruit supply shows
 	uint8_t *fauna = nullptr; // a carcass's FaunaType + 1 (its template), 0 for any other supply
+	uint8_t *owner = nullptr; // a carcass's animal's owner (Health.js corpse keeps it), 0xFF for none
 	// ResourceSupply Change timer (fruit Regrowth, fish Spawn): seconds to its next tick, < 0 stopped.
 	float *regrow_left = nullptr;
 	uint8_t *alive = nullptr;
@@ -348,10 +349,11 @@ struct ResourceSoA {
 		if (max_amount) aligned_free(max_amount);
 		if (flora) aligned_free(flora);
 		if (fauna) aligned_free(fauna);
+		if (owner) aligned_free(owner);
 		if (regrow_left) aligned_free(regrow_left);
 		if (alive) aligned_free(alive);
 		if (id) aligned_free(id);
-		x = z = nullptr; regrow_left = nullptr; amount = max_amount = nullptr; type = subtype = max_gatherers = flora = fauna = alive = nullptr; id = nullptr; cap = count = 0;
+		x = z = nullptr; regrow_left = nullptr; amount = max_amount = nullptr; type = subtype = max_gatherers = flora = fauna = owner = alive = nullptr; id = nullptr; cap = count = 0;
 	}
 	~ResourceSoA() { free_all(); }
 
@@ -370,7 +372,7 @@ struct ResourceSoA {
 		ra(x, c * sizeof(float)); ra(z, c * sizeof(float));
 		ra(amount, c * sizeof(int32_t)); ra(type, c * sizeof(uint8_t));
 		ra(subtype, c * sizeof(uint8_t)); ra(max_gatherers, c * sizeof(uint8_t));
-		ra(max_amount, c * sizeof(int32_t)); ra(flora, c * sizeof(uint8_t)); ra(fauna, c * sizeof(uint8_t)); ra(regrow_left, c * sizeof(float));
+		ra(max_amount, c * sizeof(int32_t)); ra(flora, c * sizeof(uint8_t)); ra(fauna, c * sizeof(uint8_t)); ra(owner, c * sizeof(uint8_t)); ra(regrow_left, c * sizeof(float));
 		ra(alive, c * sizeof(uint8_t)); ra(id, c * sizeof(uint32_t));
 		cap = c;
 	}
@@ -379,7 +381,7 @@ struct ResourceSoA {
 		if (count >= cap) reserve(cap ? cap * 2 : 256);
 		size_t i = count++;
 		x[i] = rx; z[i] = rz; amount[i] = amt;
-		type[i] = rtype; subtype[i] = rsub; max_gatherers[i] = rmax; max_amount[i] = 0; flora[i] = 0; fauna[i] = 0; regrow_left[i] = -1.0f; alive[i] = 1; id[i] = rid;
+		type[i] = rtype; subtype[i] = rsub; max_gatherers[i] = rmax; max_amount[i] = 0; flora[i] = 0; fauna[i] = 0; owner[i] = 0xFF; regrow_left[i] = -1.0f; alive[i] = 1; id[i] = rid;
 		return i;
 	}
 
@@ -390,7 +392,7 @@ struct ResourceSoA {
 			x[idx] = x[last]; z[idx] = z[last];
 			amount[idx] = amount[last]; type[idx] = type[last];
 			subtype[idx] = subtype[last]; max_gatherers[idx] = max_gatherers[last];
-			max_amount[idx] = max_amount[last]; flora[idx] = flora[last]; fauna[idx] = fauna[last]; regrow_left[idx] = regrow_left[last];
+			max_amount[idx] = max_amount[last]; flora[idx] = flora[last]; fauna[idx] = fauna[last]; owner[idx] = owner[last]; regrow_left[idx] = regrow_left[last];
 			alive[idx] = alive[last]; id[idx] = id[last];
 		}
 		count--;

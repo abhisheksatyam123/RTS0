@@ -13456,7 +13456,9 @@ void Simulation::tick_combat(float dt) {
 		if (st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE ||
 				st == ACTION_FLEE || st == ACTION_GARRISONED || st == ACTION_REPAIR)
 			return;
+		// UnitAI ReturnResource and CollectTreasure are forced walks too (no LosRangeUpdate).
 		if (st == ACTION_MOVE && (units_.order_kind[i] == ORDER_WALK || units_.order_kind[i] == ORDER_GARRISON ||
+				units_.order_kind[i] == ORDER_RETURN_RESOURCE || units_.order_kind[i] == ORDER_COLLECT_TREASURE ||
 				(units_.order_kind[i] == ORDER_GATHER && units_.target_resource_id[i] == 0)))
 			return;
 		const bool guarding = st == ACTION_GUARD; // target_unit_id is the guarded unit
@@ -16827,7 +16829,7 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
 		case ORDER_HEAL: order_heal(&uid, 1, o.target); break;
 		case ORDER_TRADE: order_trade(&uid, 1, o.target, trade_market_id(o.x2)); break;
-		case ORDER_RETURN_RESOURCE: order_return_resource(&uid, 1, o.target); break;
+		case ORDER_RETURN_RESOURCE: order_return_resource(&uid, 1, o.target, false, (o.flags & ORDER_FLAG_FORCE) != 0); break;
 		case ORDER_COLLECT_TREASURE: order_collect_treasure(&uid, 1, o.target); break;
 		case ORDER_CAPTURE_RELIC: order_capture_relic(&uid, 1, o.target); break;
 		default: break;
@@ -17554,7 +17556,7 @@ void Simulation::on_construction_finished(const Building &b, size_t builder) {
 				q.insert(q.begin(), current_order((size_t)k));
 			}
 			applying_queued_ = true; // keep the queue
-			order_return_resource(&uid, 1, b.id);
+			order_return_resource(&uid, 1, b.id, false, false);
 			applying_queued_ = false;
 		}
 	}
@@ -18399,7 +18401,7 @@ bool Simulation::can_return_resource(uint32_t unit_id, uint32_t dropsite_id) con
 			dropsite_accepts((size_t)i, buildings_[bit->second]);
 }
 
-void Simulation::order_return_resource(const uint32_t *unit_ids_in, size_t count_in, uint32_t dropsite_id, bool queued) {
+void Simulation::order_return_resource(const uint32_t *unit_ids_in, size_t count_in, uint32_t dropsite_id, bool queued, bool force) {
 	auto bit = building_id_to_idx_.find(dropsite_id);
 	if (bit == building_id_to_idx_.end()) return;
 	const Building &b = buildings_[bit->second];
@@ -18410,7 +18412,7 @@ void Simulation::order_return_resource(const uint32_t *unit_ids_in, size_t count
 		if (i >= 0 && units_.alive[i] && (queued || (units_.carry[i] > 0 && dropsite_accepts((size_t)i, b))))
 			carriers.push_back(unit_ids_in[k]);
 	}
-	UnitOrder o; o.kind = ORDER_RETURN_RESOURCE; o.target = dropsite_id; o.x = b.x; o.z = b.z;
+	UnitOrder o; o.kind = ORDER_RETURN_RESOURCE; o.flags = force ? ORDER_FLAG_FORCE : 0; o.target = dropsite_id; o.x = b.x; o.z = b.z;
 	const std::vector<uint32_t> now = split_queued(carriers.data(), carriers.size(), o, queued);
 	for (uint32_t uid : now) {
 		const int32_t i = lookup_unit(uid);
@@ -18424,7 +18426,7 @@ void Simulation::order_return_resource(const uint32_t *unit_ids_in, size_t count
 		stand_outside(b, uid, units_.pos_x[i], units_.pos_z[i], &sx, &sz, unit_clearance_at((size_t)i) + kStandMargin);
 		uint32_t id = uid;
 		cmd_move(&id, 1, sx, sz);
-		set_order((size_t)i, ORDER_RETURN_RESOURCE, 0, dropsite_id, b.x, b.z);
+		set_order((size_t)i, ORDER_RETURN_RESOURCE, force ? ORDER_FLAG_FORCE : 0, dropsite_id, b.x, b.z); // UnitAI ReturnResource
 		units_.target_resource_id[i] = 0;
 	}
 }
@@ -21067,7 +21069,8 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.subtype[r] != RES_SUB_MEAT) continue;
 		auto git = scan.on_carcass.find(resources_.id[r]);
 		consider(resources_.id[r], resources_.x[r], resources_.z[r], resources_.amount[r], resources_.max_gatherers[r],
-		         git == scan.on_carcass.end() ? 0 : git->second, false, -1, false);
+		         git == scan.on_carcass.end() ? 0 : git->second, false,
+		         resources_.owner[r] < MAX_PLAYERS ? (int)resources_.owner[r] : -1, false);
 	}
 	return best;
 }
@@ -24647,19 +24650,27 @@ bool Simulation::petra_phasing() const {
 
 void Simulation::petra_available_techs(std::vector<uint8_t> &out) const {
 	out.clear();
-	bool has[BLD_TYPE_COUNT] = {};
-	for (const auto &b : buildings_)
-		if (b.team == petra_pid_ && b.type < BLD_TYPE_COUNT && b.build_progress >= 1.0f && b.hp > 0.0f && !b.wrecked)
-			has[b.type] = true;
-	for (uint8_t t = 1; t < TECH_COUNT; ++t) {
-		if (t == TECH_PHASE_TOWN || t == TECH_PHASE_CITY) continue; // phases are treated separately
-		// gameState.findAvailableTech: what any of its finished researchers offers this civ.
-		bool offered = false;
-		for (uint8_t b = 0; b < BLD_TYPE_COUNT && !offered; ++b)
-			offered = has[b] && building_researches_tech(b, t, petra_ps().civ);
-		if (!offered) continue;
-		const ResearchCheck rc = research_check(petra_pid_, t);
-		if (rc == TECH_OK || rc == TECH_ERR_COST) out.push_back(t);
+	// gameState.findAvailableTech: Petra's structures in creation order (buildings_ only
+	// grows), each one's Researcher list in template order, every tech once.
+	const uint8_t civ = petra_ps().civ;
+	bool seen_type[BLD_TYPE_COUNT] = {};
+	TechSet listed;
+	uint8_t offers[TECH_COUNT];
+	for (const auto &b : buildings_) {
+		if (b.team != petra_pid_ || b.type >= BLD_TYPE_COUNT || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked ||
+		    seen_type[b.type])
+			continue;
+		seen_type[b.type] = true;
+		int n = 0;
+		for (uint8_t t = 1; t < TECH_COUNT; ++t)
+			if (t != TECH_PHASE_TOWN && t != TECH_PHASE_CITY && !listed.has(t) && building_researches_tech(b.type, t, civ))
+				offers[n++] = t; // phases are treated separately
+		std::stable_sort(offers, offers + n, [](uint8_t a, uint8_t c) { return kTechResearchRank[a] < kTechResearchRank[c]; });
+		for (int i = 0; i < n; ++i) {
+			listed.set(offers[i]);
+			const ResearchCheck rc = research_check(petra_pid_, offers[i]);
+			if (rc == TECH_OK || rc == TECH_ERR_COST) out.push_back(offers[i]);
+		}
 	}
 }
 
@@ -31304,6 +31315,7 @@ bool Simulation::load_state(const char *filepath) {
 		resources_.max_gatherers[idx] = resource_default_max_gatherers(rtype, RES_SUB_NONE, ramount); // v29+: saved
 		resources_.max_amount[idx] = 0; // tick state: saved, or the fruit default
 		resources_.flora[idx] = FLORA_DEFAULT; // v49+: the tick state has it
+		resources_.owner[idx] = 0xFF; // v101+: the tick state has it
 		resources_.alive[idx] = ralive;
 		resources_.count++;
 		res_id_to_idx_[rid] = idx;
@@ -32556,6 +32568,9 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	// v65: each carcass's animal template (older saves: none, so any species will do).
 	if (ar.version >= S::SAVE_VERSION_HUNT_SPECIES)
 		for (size_t r = 0; r < s.resources_.count; ++r) ar.pod(s.resources_.fauna[r]);
+	// v101: each carcass's animal's owner (older saves: none, as before).
+	if (ar.version >= S::SAVE_VERSION_CARCASS_OWNER)
+		for (size_t r = 0; r < s.resources_.count; ++r) ar.pod(s.resources_.owner[r]);
 
 	// 4. UnitAI orders (save v20): each unit's order, last attacker and work order,
 	// then the order queues by unit id.
@@ -33722,7 +33737,11 @@ uint32_t Simulation::spawn_carcass(size_t f) {
 	const uint32_t rid = spawn_resource_world(fauna_.pos_x[f], fauna_.pos_z[f], RES_FOOD, fauna_.food_amount[f],
 			fish ? RES_SUB_FISH : RES_SUB_MEAT, finfo.max_gatherers);
 	if (fish) resources_.max_amount[res_id_to_idx_[rid]] = -1; // no ResourceSupply/Change: it never regrows
-	else resources_.fauna[res_id_to_idx_[rid]] = (uint8_t)(fauna_.fauna_type[f] + 1); // its template
+	else {
+		const size_t r = res_id_to_idx_[rid];
+		resources_.fauna[r] = (uint8_t)(fauna_.fauna_type[f] + 1); // its template
+		resources_.owner[r] = fauna_owner_[f]; // Health.js: the corpse keeps its owner
+	}
 	return rid;
 }
 
@@ -34464,11 +34483,11 @@ void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, 
 		if (treasure_reach((size_t)u) < 0.0f || units_.action_state[u] == ACTION_GARRISONED) continue;
 		collectors.push_back(unit_ids[k]);
 	}
-	UnitOrder o; o.kind = ORDER_COLLECT_TREASURE; o.target = treasure_id; o.x = t->x; o.z = t->z;
+	UnitOrder o; o.kind = ORDER_COLLECT_TREASURE; o.flags = ORDER_FLAG_FORCE; o.target = treasure_id; o.x = t->x; o.z = t->z;
 	for (uint32_t uid : split_queued(collectors.data(), collectors.size(), o, queued)) {
 		const int32_t u = lookup_unit(uid);
 		if (u < 0) continue;
-		set_order((size_t)u, ORDER_COLLECT_TREASURE, 0, treasure_id, t->x, t->z);
+		set_order((size_t)u, ORDER_COLLECT_TREASURE, ORDER_FLAG_FORCE, treasure_id, t->x, t->z); // UnitAI CollectTreasure: "force": true
 		units_.action_state[u] = ACTION_MOVE;
 		units_.has_order[u] = 1;
 		units_.target_unit_id[u] = treasure_id;
