@@ -102,6 +102,7 @@ struct ProductionOrder {
 	uint8_t tech = TECH_NONE;   // the technology this item researches
 	bool started = false;       // Trainer.js Item.Start: the batch's population is reserved
 	uint8_t petra_plan = 0;     // PetraOrderPlan: what Petra queued the batch for (saved SAVE_VERSION_PETRA_ORDER_PLAN)
+	uint8_t batch = 0;          // the batch size queued (ProductionQueue.js originalItem.count) once part of it spawned; 0 = count
 	std::array<float, RES_COUNT> paid{}; // refunded when the item is removed (RemoveItem)
 	bool is_tech() const { return tech != TECH_NONE; }
 };
@@ -179,7 +180,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 101; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 102; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_AUTOQUEUE_BATCH = 102; // each queued batch's original size once part of it spawned
 	static constexpr uint32_t SAVE_VERSION_CARCASS_OWNER = 101; // each carcass's animal's owner
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
 	static constexpr uint32_t SAVE_VERSION_TRADE_ROUTE = 99; // each trader's route waypoints and leg progress (SetupTradeRoute route, reversed on the way back)
@@ -740,6 +742,7 @@ public:
 	// Commands
 	void cmd_move(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void cmd_stop(const uint32_t *unit_ids, size_t count);
+	void reset_unit_for_new_owner(size_t u);
 	// Player commands (0 A.D. Commands.js): `player` is the issuing player id. Each one
 	// rejects buildings the player doesn't own and charges/refunds that player's stock.
 	// `angle` is the placement rotation (0 A.D. placementSupport.angle); docks ignore it and face the sea.

@@ -79,8 +79,8 @@ Orders, stances, garrison, capture, loot and fleeing against UnitAI.js and the 0
 | Q2 | ~~Collect-treasure and return-resource aren't forced orders: walkers fight or flee on the way~~ Fixed: a player's or Petra's CollectTreasure and ReturnResource are forced (UnitAI.js:5742-5774), so attacks don't turn them, and neither walk picks targets it sees; UnitAI's own drop-offs stay unforced. `tools/test_unit_orders.cpp` 90 | medium | Fixed |
 | Q3 | ~~Poison and burning ticks don't count as attacks~~ Fixed: each tick is an Attacked message (StatusEffectsReceiver.js:141-153); the poisoned unit's own UnitAI ignores it (OnAttacked returns for fromStatusEffect), but Guard.js sends its guards after the source. `tools/test_unit_orders.cpp` 91 | low | Fixed |
 | Q4 | A defensive unit's held position follows it while it moves and gathers, and a given-up chase resumes the interrupted order instead of walking back (UnitAI.js:325, 341, 2100-2105) | low | Open |
-| Q5 | Only the killer cheers, and never a siege engine or ship; 0.28 cheers every attacker whose target died (UnitAI.js:2214-2217) | low | Open |
-| Q6 | A defeated player's units turned Gaia keep their stance, orders and queue (Player.js:494-512, UnitAI.js:3665-3702) | low | Open |
+| Q5 | ~~Only the killer cheers, and never a siege engine or ship~~ Fixed: COMBAT.ATTACKING sets shouldCheer for any unit or dangerous-animal target (UnitAI.js:2214-2217), so every attacker cheers in FINDINGNEWTARGET whoever killed it; a structure target or an abandoned chase doesn't; CheeringTime is in template_unit.xml, so siege engines and ships cheer and join nearby cheers. `tools/test_unit_orders.cpp` 93 | low | Fixed |
+| Q6 | ~~A defeated player's units turned Gaia keep their stance, orders and queue~~ Fixed: UnitAI.OnOwnershipChanged (UnitAI.js:3665-3702) stops them, drops the queue, work orders, trading and guarding, and resets the template's default stance, for Player.js defeat and the convert cheat alike. `tools/test_unit_orders.cpp` 92 | low | Fixed |
 | Q7 | A fleeing unit ignores a second attacker and ends flights from structures by centre distance; 0.28's own check re-aims on every attacker (UnitAI.js:2040-2057) | low | Open |
 
 
@@ -106,7 +106,7 @@ Production queues, upgrades, foundations, capture/decay, build restrictions, tec
 | Q12 | Hellenistic Metropolis also doubled Seleucid military colonies (CivCentre !Colony) | medium | Fixed (a captured crannog, !Naval, still gets it) |
 | Q13 | Corralled animals didn't get garrison_heal's +1 | low | Fixed |
 | Q14 | An upgraded structure kept its rally point and autoqueue (Transform.js makes a new entity) | low | Fixed |
-| Q15 | Autoqueue re-adds the remainder of a batch whose spawning was blocked, not the chosen batch size | low | Open |
+| Q15 | Autoqueue re-adds the remainder of a batch whose spawning was blocked, not the chosen batch size | low | Fixed (save v102): each queued batch keeps its original size |
 | Q16 | A destroyed foundation refunds from today's price, not the price paid (Foundation.js stores costs) | low | Fixed: the costs are kept at placement |
 | Q17 | Construction tooltip's Heal line ignores garrison_heal; detailed training tooltips show base template stats, not the player's | low | Heal line fixed (garrison_heal counted); detailed training stats per player open |
 | Q18 | Upgrade tooltip cost isn't multiplied by the number of selected same-template structures | low | Fixed: every selected structure of the type upgrades, so the cost is for all of them |

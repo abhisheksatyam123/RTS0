@@ -3,8 +3,8 @@
 it converts are CC BY-SA 3.0 (see docs/0AD_ATTRIBUTION.md).
 
 0 A.D. picks each unit's prop variants at random by frequency, and many head,
-helmet, shield and cape actors have a group that swaps the mesh (beards and hair
-cuts, helmet crests, shield shapes). The unit GLBs bake the most frequent one.
+helmet, shield, cape and weapon actors have a group that swaps the mesh (beards
+and hair cuts, helmet crests, shield shapes, sword blades, javelin shafts). The unit GLBs bake the most frequent one.
 This tool finds, for each unit GLB, the baked part of every such prop (the part
 whose vertices are its default .pmd's under one rigid transform and scale) and
 writes:
@@ -17,8 +17,8 @@ writes:
 
 ModelLibrary::set_prop_looks draws one per unit by its id, on the part's joint
 with the part's material. Only variants that keep the baked part's skin and add
-no props of their own are taken; the others count towards the baked mesh. Weapons
-are left: the extractor merges their parts.
+no props of their own are taken; the others count towards the baked mesh. A
+weapon the unit GLB does not bake as a part of its own is left.
 
 Usage: python3 -I tools/extract_unit_prop_looks.py --zip <0.28 public.zip> [--check]
 """
@@ -41,7 +41,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANIFEST = os.path.join(REPO, "assets", "models", "manifest.json")
 OUT_JSON = os.path.join(REPO, "data", "unit_prop_looks.json")
 LOOK_DIR = os.path.join(REPO, "assets", "models", "props", "looks")
-KINDS = ("heads", "helmets", "shields", "capes")
+KINDS = ("heads", "helmets", "shields", "capes", "weapons")
 MAX_LOOKS = 8
 FIT_TOL = 2e-4  # of the part's size
 
