@@ -21942,6 +21942,29 @@ void Simulation::petra_build_first_base() {
 		return;
 	}
 	const BuildingTypeInfo &info = building_type_info(goal);
+	auto lay = [&](int cx, int cz) {
+		float cf, cw, cg, cs;
+		petra_structure_cost(goal, cf, cw, cg, cs);
+		if (queued) {
+			if (!petra_try_pay(PETRA_Q_CIVIL_CENTRE, cf, cw, cg, cs)) return; // the want is registered
+		} else {
+			petra_ps().food() -= cf; petra_ps().wood() -= cw; petra_ps().gold() -= cg; petra_ps().stone() -= cs;
+		}
+		const uint32_t bid = petra_spawn_foundation(cx, cz, goal);
+		if (bid != 0 && !workers.empty()) petra_order_builders(workers, workers.size(), bid);
+	};
+	if (goal != BLD_DOCK) {
+		// The civic centre plan's position: findEconomicCCLocation for wood with proximity to
+		// the units (startingStrategy.js:341, queueplanBuilding.js:146).
+		const float near[2] = {points[best].x, points[best].z};
+		float x = 0.0f, z = 0.0f;
+		if (petra_find_economic_cc_location(goal, RES_WOOD, false, x, z, near)) {
+			lay((int)std::floor(x / GRID - 0.5f * (float)info.footprint), (int)std::floor(z / GRID - 0.5f * (float)info.footprint));
+			return;
+		}
+		// RTS0, not 0.28: with no tile reaching the cut (0.28 waits, or tries an oversea dock),
+		// the nearest free spot to the units.
+	}
 	const int sx = (int)(points[best].x / GRID), sz = (int)(points[best].z / GRID);
 	const int max_r = goal == BLD_DOCK ? 24 : 12;
 	for (int r = 0; r <= max_r; ++r) {
@@ -21949,15 +21972,7 @@ void Simulation::petra_build_first_base() {
 			for (int dz = -r; dz <= r; ++dz) {
 				if (std::abs(dx) != r && std::abs(dz) != r) continue;
 				if (!petra_can_place(sx + dx, sz + dz, info.footprint, goal)) continue;
-				float cf, cw, cg, cs;
-				petra_structure_cost(goal, cf, cw, cg, cs);
-				if (queued) {
-					if (!petra_try_pay(PETRA_Q_CIVIL_CENTRE, cf, cw, cg, cs)) return; // the want is registered
-				} else {
-					petra_ps().food() -= cf; petra_ps().wood() -= cw; petra_ps().gold() -= cg; petra_ps().stone() -= cs;
-				}
-				const uint32_t bid = petra_spawn_foundation(sx + dx, sz + dz, goal);
-				if (bid != 0 && !workers.empty()) petra_order_builders(workers, workers.size(), bid);
+				lay(sx + dx, sz + dz);
 				return;
 			}
 		}
@@ -23233,7 +23248,7 @@ size_t Simulation::petra_go_home(const std::vector<uint32_t> &squad, float x, fl
 			bool joined = false;
 			if (PetraTransportPlan *tp = petra_transport_join(owner, g.first, dest, siege)) {
 				const int32_t s = tp->ship_id ? lookup_unit(tp->ship_id) : -1;
-				if (k >= 0 && s >= 0 && can_board((size_t)s, (size_t)k)) {
+				if (k >= 0 && (!tp->ship_id || (s >= 0 && can_board((size_t)s, (size_t)k)))) {
 					tp->passenger_ids.push_back(uid);
 					order_walk(&units_.id[k], 1, tp->pickup_x, tp->pickup_z, false);
 					joined = true;
@@ -23270,7 +23285,7 @@ bool Simulation::petra_require_worker_transport(size_t i, uint16_t from_land, ui
 	if (PetraTransportPlan *tp = petra_transport_join(owner, from_land, to_land,
 			unit_is_siege_engine(units_.unit_type[i]))) {
 		const int32_t sidx = tp->ship_id ? lookup_unit(tp->ship_id) : -1;
-		if (sidx >= 0 && can_board((size_t)sidx, i)) {
+		if (!tp->ship_id || (sidx >= 0 && can_board((size_t)sidx, i))) {
 			tp->passenger_ids.push_back(uid);
 			order_walk(&units_.id[i], 1, tp->pickup_x, tp->pickup_z, false);
 			return true;
@@ -23289,9 +23304,10 @@ bool Simulation::petra_require_worker_transport(size_t i, uint16_t from_land, ui
 PetraTransportPlan *Simulation::petra_transport_join(uint8_t owner, uint16_t from_land, uint16_t to_land, bool is_siege) {
 	PetraTransportPlan *best = nullptr;
 	for (auto &tp : petra_transports_) {
-		if (tp.owner != owner || tp.state != PetraTransportPlan::BOARDING || !tp.ship_id) continue;
+		if (tp.owner != owner || tp.state != PetraTransportPlan::BOARDING) continue;
 		if (petra_land_at(tp.pickup_x, tp.pickup_z) != from_land || petra_land_at(tp.drop_x, tp.drop_z) != to_land) continue;
-		if (tp.passenger_ids.size() >= (size_t)get_transport_capacity(tp.ship_id)) continue;
+		// A plan still waiting for its ship takes anyone (needTransportShips).
+		if (tp.ship_id && tp.passenger_ids.size() >= (size_t)get_transport_capacity(tp.ship_id)) continue;
 		if (is_siege) {
 			int siege = 0;
 			for (uint32_t uid : tp.passenger_ids) {
@@ -24948,7 +24964,12 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 // for a colony and 30 m * defensive), within 80 m of a dropsite and on the map border; at
 // least 60 (30 from findStrategicCCLocation). A tile across the sea by one of our docks just
 // clears the cut.
-bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z) {
+// With `proximity` (our first civic centre, startingStrategy.js:341): no civic centre or dropsite
+// cuts, the value scaled by 0.5 / (1 + d^2 / 250^2 m^2) from the units (400 m from a ship or a
+// small island), 8 m more room around the footprint, the cut at 30, and only the units' land
+// unless a ship could carry them.
+bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z,
+                                                 const float *proximity) {
 	const int w = std::max(1, (int)std::floor(2.0f * map_half_ / kCcTile));
 	const size_t n = (size_t)w * (size_t)w;
 	// ccResourceMaps for wood, stone and metal.
@@ -25003,15 +25024,45 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 	const float near_rej = 120.0f * 120.0f / 16.0f, ally_rej = 200.0f * 200.0f / 16.0f, ally_dis = 250.0f * 250.0f / 16.0f;
 	const float max_acc_rej = 410.0f * 410.0f / 16.0f, max_acc_dis = (360.0f - reduce) * (360.0f - reduce) / 16.0f;
 	const float max_noacc_dis = 500.0f * 500.0f / 16.0f;
-	const float cut = from_strategic ? 30.0f : 60.0f;
+	const float cut = from_strategic || proximity ? 30.0f : 60.0f;
 	const float border = 80.0f / 4.0f;
 	bool found = false;
 	float best = 0.0f;
+	uint16_t proxy_land = 0;
+	float scale = 250.0f * 250.0f / 16.0f;
+	bool ships = false;
+	if (proximity) {
+		proxy_land = petra_land_at(proximity[0], proximity[1]);
+		if (!proxy_land || proxy_land >= topo.land_size.size() || topo.cell_m2 * (float)topo.land_size[proxy_land] < 24000.0f)
+			scale = 400.0f * 400.0f / 16.0f;
+		for (size_t i = 0; i < units_.count && !ships; ++i) // navalManager.transportShips
+			ships = units_.alive[i] && units_.team[i] == petra_pid_ && petra_is_transport_ship(i);
+	}
+	const int foot = building_type_info(btype).footprint;
 	for (int iz = 0; iz < w; ++iz) {
 		for (int ix = 0; ix < w; ++ix) {
 			const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)iz + 0.5f) * kCcTile - map_half_;
 			const int owner = territory_owner_at(x, z);
 			if (owner >= 0 && owner < MAX_PLAYERS) continue; // neutral or Gaia's only
+			if (proximity) {
+				const size_t j = (size_t)iz * w + ix;
+				const float dx = x - proximity[0], dz = z - proximity[1];
+				float norm = 0.5f / (1.0f + (dx * dx + dz * dz) / scale);
+				if (near_map_border(x, z, border)) norm *= 0.5f;
+				const float val = norm * (2.0f * (float)maps[res_k][j] + (float)maps[0][j] + (float)maps[1][j] + (float)maps[2][j]);
+				if (val < cut || (found && val < best)) continue;
+				// landRegions: any land (the topology isn't classified before our first base).
+				const uint16_t l = petra_land_at(x, z);
+				if (!l || (proxy_land && !ships && l != proxy_land)) continue;
+				// getNonObstructedTile(radius + 8 m): one more cell of room on every side.
+				const int cx = (int)std::floor(x / GRID - 0.5f * (float)foot), cz = (int)std::floor(z / GRID - 0.5f * (float)foot);
+				if (!petra_can_place(cx - 1, cz - 1, foot + 2, btype) || !petra_cc_tile_ok(btype, x, z)) continue;
+				found = true;
+				best = val;
+				out_x = x;
+				out_z = z;
+				continue;
+			}
 			// The tests below that don't need the tile's land go first, as its search costs the
 			// most: a civic centre too near, and a value that can't reach the cut or the best so
 			// far whatever the land (norm only shrinks from these halvings; across the sea by a
@@ -28741,26 +28792,34 @@ bool Simulation::petra_boarding_pos(uint16_t land, uint16_t sea, float ship_x, f
 	return found;
 }
 
-// transportPlan.js assignShip: a free transport ship of that sea (any sea for 0),
-// the roomiest (+50 for siege, as getBestShip), then the nearest to (x, z).
+// transportPlan.js assignShip: the free transport ship of that sea (any sea for 0) nearest
+// to (x, z), a unit of the plan not yet aboard.
 uint32_t Simulation::petra_free_transport_ship(uint16_t sea, float x, float z) const {
 	uint32_t ship = 0;
-	int best_room = -1;
 	float best_d2 = 0.0f;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !petra_is_transport_ship(i)) continue;
 		if (sea && petra_ship_sea(i) != sea) continue;
 		if (petra_ship_in_plan(units_.id[i])) continue; // busy with another plan
-		const int cap = ship_garrison_capacity(i);
-		const int room = cap + (cap != 10 ? 50 : 0);
 		const float dx = units_.pos_x[i] - x, dz = units_.pos_z[i] - z;
 		const float d2 = dx * dx + dz * dz;
-		if (room < best_room || (room == best_room && d2 >= best_d2)) continue;
-		best_room = room;
+		if (ship && d2 >= best_d2) continue;
 		best_d2 = d2;
 		ship = units_.id[i];
 	}
 	return ship;
+}
+
+// transportPlan.js onBoarding getBoardingPos(ship, startIndex, sea, unit position): the
+// shore cell of the start land on the ship's sea making the shortest trip from the ship to
+// the unit; RTS0's straight-line beach toward the destination where that land has no shore there.
+void Simulation::petra_pickup_point(uint32_t ship, uint16_t sea, float from_x, float from_z, float to_x, float to_z,
+                                    float &out_x, float &out_z) const {
+	const int32_t si = ship ? lookup_unit(ship) : -1;
+	if (si >= 0 && petra_boarding_pos(petra_land_at(from_x, from_z), sea, units_.pos_x[si], units_.pos_z[si], from_x, from_z,
+	                                  false, out_x, out_z))
+		return;
+	petra_find_beach(from_x, from_z, to_x, to_z, out_x, out_z);
 }
 
 bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z,
@@ -28770,13 +28829,15 @@ bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, fl
 	// new one once the ship is full).
 	float pickup_x = from_x, pickup_z = from_z;
 	float drop_x = to_x, drop_z = to_z;
-	petra_find_beach(from_x, from_z, to_x, to_z, pickup_x, pickup_z);
-	const uint32_t ship = petra_free_transport_ship(sea, pickup_x, pickup_z);
-	if (ship == 0) return false;
+	// transportPlan.js:82: with no free ship the plan is made all the same (needTransportShips)
+	// and waits for one; checkLevels has one trained.
+	const uint32_t ship = petra_free_transport_ship(sea, from_x, from_z);
+	if (ship == 0 && !sea) return false;
+	const uint16_t ship_sea = sea ? sea : petra_ship_sea((size_t)lookup_unit(ship));
+	petra_pickup_point(ship, ship_sea, from_x, from_z, to_x, to_z, pickup_x, pickup_z);
 	// The ship lands where getBoardingPos with avoidEnnemy finds the shortest way from the
 	// beach it boards at to the destination outside enemy land; RTS0's straight-line beach
 	// is the fallback where that land has no shore on that sea.
-	const uint16_t ship_sea = sea ? sea : petra_ship_sea((size_t)lookup_unit(ship));
 	if (!petra_boarding_pos(petra_land_at(to_x, to_z), ship_sea, pickup_x, pickup_z, to_x, to_z, true, drop_x, drop_z))
 		petra_find_beach(to_x, to_z, from_x, from_z, drop_x, drop_z);
 
@@ -28790,19 +28851,19 @@ bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, fl
 	tp.drop_x = drop_x;
 	tp.drop_z = drop_z;
 	for (uint32_t uid : unit_ids) {
-		if (tp.passenger_ids.size() >= (size_t)get_transport_capacity(ship)) break;
+		if (ship && tp.passenger_ids.size() >= (size_t)get_transport_capacity(ship)) break;
 		int32_t idx = lookup_unit(uid);
 		if (idx < 0 || !units_.alive[idx] || is_transport(uid)) continue;
 		const bool booked = std::any_of(petra_transports_.begin(), petra_transports_.end(), [uid](const PetraTransportPlan &o) {
 			return std::find(o.passenger_ids.begin(), o.passenger_ids.end(), uid) != o.passenger_ids.end();
 		});
 		if (booked) continue; // a passenger of another plan
-		const int32_t sidx = lookup_unit(ship);
-		if (sidx < 0 || !can_board((size_t)sidx, (size_t)idx)) continue;
+		const int32_t sidx = ship ? lookup_unit(ship) : -1;
+		if (ship && (sidx < 0 || !can_board((size_t)sidx, (size_t)idx))) continue;
 		tp.passenger_ids.push_back(uid);
 	}
 	if (tp.passenger_ids.empty()) return false;
-	order_walk(&ship, 1, pickup_x, pickup_z, false);
+	if (ship) order_walk(&ship, 1, pickup_x, pickup_z, false);
 	order_walk(tp.passenger_ids.data(), tp.passenger_ids.size(), pickup_x, pickup_z, false);
 	petra_transports_.push_back(std::move(tp));
 	return true;
@@ -28898,14 +28959,14 @@ void Simulation::petra_require_defense_transport(uint32_t uid, uint16_t from_lan
 	const bool siege = unit_is_siege_engine(units_.unit_type[i]);
 	if (PetraTransportPlan *tp = petra_transport_join(PETRA_TRANSPORT_DEFENSE, from_land, to_land, siege)) {
 		const int32_t si = tp->ship_id ? lookup_unit(tp->ship_id) : -1;
-		if (si >= 0 && can_board((size_t)si, (size_t)i)) {
+		if (!tp->ship_id || (si >= 0 && can_board((size_t)si, (size_t)i))) {
 			tp->passenger_ids.push_back(uid);
 			order_walk(&uid, 1, tp->pickup_x, tp->pickup_z, false);
 			return;
 		}
 	}
 	const uint16_t sea = petra_topo().sea_between(from_land, to_land);
-	if (!sea || petra_transport_ships_on(sea) == 0) return;
+	if (!sea) return;
 	const std::vector<uint32_t> one{uid};
 	petra_start_transport(one, units_.pos_x[i], units_.pos_z[i], to_x, to_z, sea, PETRA_TRANSPORT_DEFENSE);
 }
@@ -28986,15 +29047,31 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 			tp.state = PetraTransportPlan::BOARDING;
 		}
 		if (tp.ship_id) { tp.ship_id = 0; tp.state_timer = 0.0f; }
-		const uint32_t ship = petra_free_transport_ship(tp.sea, tp.pickup_x, tp.pickup_z);
+		// assignShip: the free ship nearest a unit of the plan; with none the plan waits
+		// (needTransportShips, no time limit) while a dock of ours can train one there.
+		float ux = tp.pickup_x, uz = tp.pickup_z;
+		for (uint32_t uid : tp.passenger_ids)
+			if (const int32_t i = lookup_unit(uid); i >= 0 && units_.alive[i]) { ux = units_.pos_x[i]; uz = units_.pos_z[i]; break; }
+		const uint32_t ship = petra_free_transport_ship(tp.sea, ux, uz);
 		if (!ship) {
-			if (tp.state_timer > 60.0f) { tp.state = PetraTransportPlan::FAILED; tp.failed = true; }
+			bool dock = false;
+			for (const Building &b : buildings_)
+				if (b.team == petra_pid_ && b.type == BLD_DOCK && b.hp > 0.0f && !b.wrecked && b.build_progress >= 1.0f && dock_sea(b) == tp.sea) {
+					dock = true;
+					break;
+				}
+			if (!dock && tp.state_timer > 60.0f) { tp.state = PetraTransportPlan::FAILED; tp.failed = true; }
 			return;
 		}
 		tp.ship_id = ship;
 		tp.state_timer = 0.0f;
-		order_walk(&tp.ship_id, 1, tp.pickup_x, tp.pickup_z, false);
 		sidx = lookup_unit(ship);
+		// Within the ship's room (splitTransport leaves the rest to ask again).
+		const size_t cap = (size_t)get_transport_capacity(ship);
+		if (tp.passenger_ids.size() > cap) tp.passenger_ids.resize(cap);
+		petra_pickup_point(ship, tp.sea, ux, uz, tp.drop_x, tp.drop_z, tp.pickup_x, tp.pickup_z);
+		order_walk(&tp.ship_id, 1, tp.pickup_x, tp.pickup_z, false);
+		order_walk(tp.passenger_ids.data(), tp.passenger_ids.size(), tp.pickup_x, tp.pickup_z, false);
 	}
 	// transportPlan.js sails to the water beside the landing point: a ship
 	// ordered onto the beach itself finds no path and stays where it is.
