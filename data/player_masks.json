@@ -5047,6 +5047,14 @@
 1.0
 ]
 },
+"buildings/s_carthaginians_temple_big_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_carthaginians_wall_gate_tex0": {
 "mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
 "tint": [
@@ -5831,6 +5839,22 @@
 1.0
 ]
 },
+"buildings/s_kushites_civic_centre_kush_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kush_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_kushites_civic_centre_kush_tex1": {
+"mask": "res://assets/textures/player_masks/props/kush_statue_lion_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_kushites_outpost_stone_tex0": {
 "mask": "res://assets/textures/player_masks/structural/kush_struct_512x512.png",
 "tint": [
@@ -6113,6 +6137,14 @@
 },
 "buildings/s_persians_blacksmith_tex3": {
 "mask": "res://assets/textures/player_masks/props/helmet/sele_hero_seleucus_nikator_diffuse_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_persians_gardens_struct_tex0": {
+"mask": "res://assets/textures/player_masks/structural/pers_struct_512x512.png",
 "tint": [
 1.0,
 1.0,
@@ -6784,6 +6816,14 @@
 ]
 },
 "buildings/s_spartans_blacksmith_tex0": {
+"mask": "res://assets/textures/player_masks/structural/sparta_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_spartans_civic_center_tex0": {
 "mask": "res://assets/textures/player_masks/structural/sparta_struct_512x256.png",
 "tint": [
 1.0,

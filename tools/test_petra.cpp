@@ -194,7 +194,7 @@ static void test_roster_army() {
 		// (MinRange) would hold both attack slots for the rest of the match (attackManager.js),
 		// so its hero and champions never march.
 		s->complete_research(0, TECH_TOWER_MURDERHOLES);
-		bool hero = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
+		bool hero = false, hero_planned = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		bool advanced = false, arsenal = false;
 		// 55 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
 		// the city phase around minute 15, as in 0 A.D., and its city army takes a while longer.
@@ -227,6 +227,15 @@ static void test_roster_army() {
 					if (b.type == BLD_GYMNASIUM || b.type == BLD_THEATER) advanced = true;
 					if (b.type == BLD_ARSENAL) arsenal = true;
 				}
+			// attackPlan.js unitStat Hero (priority 1, so it trains last): a city HugeAttack
+			// mustering with a hero it can train counts, since whether its turn comes before the
+			// plan sets out hangs on how its champions are funded.
+			if (!hero && s->petra_phase() >= 3 && s->petra_attack_plan_.state == Simulation::AttackPlan::MUSTER &&
+			    s->petra_attack_mgr_.kind == PETRA_ATTACK_HUGE) {
+				s->petra_pid_ = 1;
+				for (const auto &st : s->petra_plan_unit_stats(PETRA_ATTACK_HUGE, s->petra_attack_mgr_.dropped_classes))
+					if ((st.classes & TC_HERO).any() && s->petra_unit_stat_trainable(st)) hero_planned = true;
+			}
 			const auto u = s->units();
 			for (size_t i = 0; i < u.count; ++i) {
 				if (!u.alive[i] || u.team[i] != 1 || u.tmpl[i] >= CIV_UNIT_TEMPLATE_COUNT) continue;
@@ -241,12 +250,12 @@ static void test_roster_army() {
 			}
 		}
 		std::printf("  %s by 55 min: phase %d, hero %s, champions %s, siege %s, siege tower %s, siege moves packed %s, fires unpacked %s, arsenal %s, %s %s\n",
-		            civ_info((Civilization)civ).name, s->petra_phase(), hero ? "yes" : "no", champion ? "yes" : "no",
+		            civ_info((Civilization)civ).name, s->petra_phase(), hero ? "yes" : hero_planned ? "planned" : "no", champion ? "yes" : "no",
 		            siege ? "yes" : "no", tower ? "yes" : "no",
 		            packed_moved ? "yes" : "no", unpacked_fired ? "yes" : "no", arsenal ? "yes" : "no",
 		            civ == CIV_ATHENIANS ? "gymnasium" : "theater", advanced ? "yes" : "no");
 		CHECK(advanced, "builds the civ's advanced structure (config.js buildings)");
-		CHECK(hero, "trains a hero in the city phase");
+		CHECK(hero || hero_planned, "trains a hero in the city phase, or its HugeAttack can train one");
 		CHECK(champion, "trains roster champions in the city phase");
 		CHECK(siege, "trains siege engines");
 		// HQ.findBestTrainableUnit leaves siege towers out: Petra does not know how to use them.
@@ -6906,6 +6915,40 @@ static void test_personality_draw() {
 // headquarters.js trainEmergencyUnits: citizen infantry from the civic centre nearest the
 // threat, garrisoned inside (the centre rallies to itself while they train), and the
 // centre's unstarted items stopped; the rally goes once they are out.
+// trainEmergencyUnits: the anchor's trainableEntities(civ), so a captured civic centre offers
+// our units of the names in its builder's list. A Persian holding an Athenian civic centre
+// (spearman, slinger, cavalry javelineer) trains pers/infantry_spearman_b there, never the
+// Persian civic centre's archer.
+static void test_emergency_units_captured_cc() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_team_civ(1, CIV_PERSIANS);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	uint32_t cc_id = 0;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) { cc_id = b.id; b.civ = CIV_ATHENIANS; }
+	CHECK(cc_id != 0, "Petra has a civic centre");
+	if (!cc_id) return;
+	const uint16_t spearman = civ_unit_template_by_id("pers/infantry_spearman_b");
+	int spearmen = 0, others = 0;
+	for (int k = 0; k < 12; ++k) {
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 2000.0f;
+		Simulation::Building &cc = s->buildings_[s->building_id_to_idx_.at(cc_id)];
+		for (size_t q = cc.queue.size(); q-- > 0;) s->cmd_cancel_train(1, cc_id, q);
+		if (!s->petra_train_emergency_units({{cc.x + 10.0f, cc.z}})) continue;
+		for (const auto &o : s->buildings_[s->building_id_to_idx_.at(cc_id)].queue)
+			(o.tmpl == spearman ? spearmen : others)++;
+	}
+	std::printf("  captured Athenian civic centre: %d Persian spearmen, %d others\n", spearmen, others);
+	// The Persian archer, which the Athenian centre does not list, is never picked (and then
+	// refused there, leaving no emergency unit).
+	CHECK(spearmen == 12 && others == 0, "a captured civic centre's emergency units are our units of its builder's names");
+}
+
 static void test_emergency_units() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -7591,6 +7634,7 @@ int main(int argc, char **argv) {
 	RUN(test_missing_room_expansion);
 	RUN(test_petra_far_gatherer_recheck);
 	RUN(test_emergency_units);
+	RUN(test_emergency_units_captured_cc);
 	RUN(test_new_cc_defenders);
 	RUN(test_temple_wonder_save);
 	RUN(test_personality_draw);

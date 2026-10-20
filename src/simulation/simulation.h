@@ -542,6 +542,7 @@ public:
 	// cavalry, elephants, healers; the ones with Promotion) show the Basic rank icon.
 	bool unit_has_rank(size_t i) const;
 	void debug_add_xp(uint32_t unit_id, float xp) { if (const int32_t i = lookup_unit(unit_id); i >= 0) gain_xp((size_t)i, xp); } // tests
+	void debug_complete_research(uint8_t player_id, uint8_t tech_id) { complete_research(player_id, tech_id); } // tests
 	// 0 A.D. TurretHolder / Turretable: ranged infantry stand on the turret points of
 	// walls, gates and outposts, visible and fighting from the structure's height.
 	bool unit_turretable(size_t i) const;
