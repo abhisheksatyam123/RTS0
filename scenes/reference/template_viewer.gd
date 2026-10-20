@@ -45,7 +45,7 @@ func _init() -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(760, 560)
+	preload("res://scenes/common/fit_screen.gd").cap(panel, Vector2(760, 560))
 	center.add_child(panel)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 8)
