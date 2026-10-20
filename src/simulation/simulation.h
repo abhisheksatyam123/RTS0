@@ -181,10 +181,11 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 108; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 109; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_ROAM = 108; // each animal's MoveRandomly roamAngle and startAngle
 	static constexpr uint32_t SAVE_VERSION_PETRA_TILE_BASES = 107; // the base that claimed each of Petra's territory tiles
 	static constexpr uint32_t SAVE_VERSION_CHASE_TARGET = 105; // the target each unit was last in attack range of (UnitAI CHASING)
+	static constexpr uint32_t SAVE_VERSION_PETRA_TARGET_LIST = 109; // each Petra's defenseManager targetList
 	static constexpr uint32_t SAVE_VERSION_WAGON_SHARING = 103; // the supply wagons their owners locked
 	static constexpr uint32_t SAVE_VERSION_PETRA_TARGETED_RELICS = 104; // each Petra's targetedGaiaRelics; each structure's petra_decay_hold
 	static constexpr uint32_t SAVE_VERSION_PETRA_OUT_OF_PLAN = 106; // Petra's units out of a plan (metadata plan -1); emergency batches
@@ -3548,6 +3549,10 @@ private:
 	// 10th turn until their owner changes. `sent` once a plan has gone for it (plans.length).
 	struct PetraTargetedRelic { uint32_t relic = 0; uint32_t sent = 0; };
 	std::vector<PetraTargetedRelic> petra_targeted_relics_;
+	// defenseManager.js targetList: enemy structures seen being built in our territory, or
+	// enemy civic centres going up near our structures; kept until gone or no longer an enemy's.
+	struct PetraDefenseTargets { std::vector<uint32_t> ids; }; // sorted
+	PetraDefenseTargets petra_defense_targets_;
 	// basesManager.js basesMap kept between turns: the anchor (civic centre or colony id) that
 	// claimed each of petra_bases_map's tiles (w x w), 0 none. A tile stays with the base that
 	// first claimed it (addTerritoryIndexToBase) until the territory or that anchor is lost.
@@ -3953,7 +3958,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
