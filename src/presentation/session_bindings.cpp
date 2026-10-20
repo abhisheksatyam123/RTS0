@@ -217,11 +217,13 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_ground_at", "screen"), &RtsoMain::debug_ground_at);
 	ClassDB::bind_method(D_METHOD("debug_building_screen", "building_id"), &RtsoMain::debug_building_screen);
 	ClassDB::bind_method(D_METHOD("debug_inspector", "what"), &RtsoMain::debug_inspector);
+	ClassDB::bind_method(D_METHOD("debug_inspect_entity", "id"), &RtsoMain::debug_inspect_entity);
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_roof"), &RtsoMain::debug_civic_centre_roof);
 	ClassDB::bind_method(D_METHOD("debug_garrison_icons"), &RtsoMain::debug_garrison_icons);
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
-	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count", "player"), &RtsoMain::debug_spawn_units, DEFVAL(-1));
+	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count", "player", "near"), &RtsoMain::debug_spawn_units, DEFVAL(-1), DEFVAL(-1));
+	ClassDB::bind_method(D_METHOD("debug_complete_research", "player", "tech"), &RtsoMain::debug_complete_research);
 	ClassDB::bind_method(D_METHOD("debug_spawn_offset", "template_id", "count", "player"), &RtsoMain::debug_spawn_offset, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("debug_spawn_fauna", "fauna_type", "count", "owned", "dx", "dz"), &RtsoMain::debug_spawn_fauna, DEFVAL(16.0f), DEFVAL(16.0f));
 	ClassDB::bind_method(D_METHOD("debug_spawn_mine", "x", "z", "max_gatherers"), &RtsoMain::debug_spawn_mine);
