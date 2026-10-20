@@ -234,8 +234,8 @@ func run() -> void:
 	print("1b. Page hotkeys (StructreePage.js / CivInfoPage.js)")
 	tabs.current_tab = 1
 	await frames(1)
-	check(page.get_node("Center/Panel/VBox/Header/BtnBack").tooltip_text == "Escape: Close Structure Tree."
-		and tabs.get_tab_bar().get_tab_tooltip(0) == "Alt+Shift+H: Switch to Civilization Overview.",
+	check(page.get_node("Center/Panel/VBox/Header/BtnBack").tooltip_text == "[color=#fffb83][lb]Escape[rb][/color]: Close Structure Tree."
+		and tabs.get_tab_bar().get_tab_tooltip(0) == "[color=#fffb83][lb]Alt+Shift+H[rb][/color]: Switch to Civilization Overview.",
 		"the close and switch tooltips: " + page.get_node("Center/Panel/VBox/Header/BtnBack").tooltip_text)
 	await key(KEY_H, true)
 	check(tabs.current_tab == 0, "Alt+Shift+H switches to the Civilization Overview")
