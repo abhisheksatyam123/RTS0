@@ -33,3 +33,6 @@ None of these touches simulation state or the save format.
 - **Lobby report of a running game.** Per-player civ, won or defeated and offline, and teams only with Teams Locked (`ls:561-589`, as `LobbyGamelistReporter.js:31-62`), apart from gap 4.
 
 ## Fix log
+
+- 2026-10-20 #1416 pass 10 gap 1 (the lobby dialog takes the keyboard, the lobby hotkey closes it, and only one opens, as a 0.28 child page with QuitButton.js) merged.
+- 2026-10-20 #PR2 pass 10 gap 2 (the summary's Lobby button and hotkey open the lobby as a dialog over the summary, as summary.xml does) merged.
