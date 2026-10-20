@@ -166,10 +166,11 @@ func _ready() -> void:
 	$MainPanel/Buttons/BtnEditor.pressed.connect(_on_editor_pressed)
 	$MainPanel/Buttons/BtnCredits.pressed.connect(_on_credits_pressed)
 	$MainPanel/Buttons/BtnExit.pressed.connect(_on_exit_pressed)
-	# 0.28's top-level Continue Campaign, enabled while a campaign run is current.
+	# 0.28's top-level Continue Campaign, enabled while a campaign run is current
+	# (CampaignRun.hasCurrentRun: a current run is named, even one that cannot load).
 	var cont: Button = $MainPanel/Buttons/BtnContinue
 	cont.pressed.connect(func(): _execute_action("continue_campaign"))
-	cont.disabled = CampaignRun.current_run() == null
+	cont.disabled = CampaignRun.current_filename() == ""
 	for n in MAIN_TOOLTIPS:
 		get_node("MainPanel/Buttons/" + n).tooltip_text = tr(MAIN_TOOLTIPS[n])
 
@@ -393,9 +394,9 @@ func _toggle_submenu(menu_id: String, anchor_button: Button) -> void:
 		c.queue_free()
 
 	for item in data["items"]:
-		if item.get("needs_campaign", false) and CampaignRun.current_run() == null:
-			continue
 		var btn = Button.new()
+		# The Single-player Continue Campaign is greyed out, not left out, without a run.
+		btn.disabled = item.get("needs_campaign", false) and CampaignRun.current_filename() == ""
 		btn.text = item["label"]
 		btn.tooltip_text = _item_tooltip(item)
 		btn.custom_minimum_size = Vector2(220, 34)

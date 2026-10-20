@@ -52,7 +52,7 @@ func run() -> void:
 	check(btns.get_node("BtnSingle").tooltip_text == "Start, load, or replay a single-player game.", "Single-player tooltip")
 	check(btns.get_node("BtnExit").tooltip_text == "Exit the game.", "Exit tooltip")
 	var cont: Button = btns.get_node("BtnContinue")
-	check(cont.get_index() == btns.get_node("BtnLearn").get_index() + 1 and cont.disabled == (CampaignRun.current_run() == null),
+	check(cont.get_index() == btns.get_node("BtnLearn").get_index() + 1 and cont.disabled == (CampaignRun.current_filename() == ""),
 		"Continue Campaign after Learn to Play, enabled only with a campaign run")
 
 	print("1b. Project information")

@@ -1,14 +1,16 @@
 extends SceneTree
 # End-to-end check of the campaign pages (0 A.D. gui/campaigns):
 #   1. Single-player lists New Campaign and Load Campaign, and Continue Campaign
-#      only while there is a current run;
-#   2. New Campaign lists 0 A.D.'s Tutorial campaign and starting it writes the
+#      greyed out until there is a current run;
+#   2. New Campaign lists 0.28's two campaigns and starting the Tutorial writes the
 #      run and opens its menu: the Introductory Tutorial is available, the
 #      Economy Walkthrough greyed out until the tutorial is done;
 #   3. Start on a level sets the match up for its scenario and the run;
 #   4. winning the level and closing the summary marks it completed and comes
 #      back to the run's menu, where the walkthrough is now available;
-#   5. Load Campaign lists the run and Delete removes it.
+#   5. Load Campaign lists the run (a broken one as BrokenRun), Delete removes it
+#      and Escape goes back; a replay of a won level completes nothing;
+#   7. Requires and Order are read as 0.28's MatchesClassList and indexOf sort do.
 #
 #   godot --headless --path . --fixed-fps 60 -s tools/e2e_campaigns.gd
 # Exit code 0 = pass.
@@ -33,6 +35,14 @@ func single_labels(menu) -> Array:
 	menu._toggle_submenu("single", menu.get_node("MainPanel/Buttons/BtnSingle"))
 	return menu.submenu_buttons_box.get_children().filter(func(b): return not b.is_queued_for_deletion()).map(func(b): return b.text)
 
+## The Single-player Continue Campaign button, or null.
+func continue_button(menu) -> Button:
+	menu._toggle_submenu("single", menu.get_node("MainPanel/Buttons/BtnSingle"))
+	for b in menu.submenu_buttons_box.get_children():
+		if not b.is_queued_for_deletion() and b.text == "Continue Campaign":
+			return b
+	return null
+
 func level_texts(page) -> Array:
 	var out: Array = []
 	out.append_array(page.row_texts())
@@ -49,14 +59,19 @@ func run() -> void:
 	await frames(4)
 	var labels := single_labels(current_scene)
 	check(labels.has("New Campaign") and labels.has("Load Campaign"), "New and Load Campaign listed: " + str(labels))
-	check(not labels.has("Continue Campaign"), "no Continue Campaign without a current run")
+	var cont := continue_button(current_scene)
+	check(cont != null and cont.disabled, "Continue Campaign is greyed out without a current run (hasCurrentRun)")
 
 	print("2. New Campaign")
 	current_scene._execute_action("new_campaign")
 	await frames(6)
 	var page = current_scene
 	check(page.mode == "setup", "the page opens on the campaign list")
-	check(level_texts(page).has("Tutorial"), "0 A.D.'s Tutorial campaign is listed: " + str(level_texts(page)))
+	check(level_texts(page) == ["Demo campaign - new maps", "Tutorial"], "0.28's two campaigns are listed: " + str(level_texts(page)))
+	check(page.list.column_titles_visible and page.list.get_column_title(0) == "Name" and page.back_button.text == "Main Menu",
+		"the campaign list's heading is Name, the back button Main Menu")
+	page.select(0)
+	check(page.info_preview.texture is AtlasTexture, "a campaign without an Image shows the no-preview picture")
 	page.select(level_texts(page).find("Tutorial"))
 	check(page.info_desc.text.replace(char(0xa0), " ") == "Learn how to play 0 A.D.", "its description shows: %s (%d)" % [page.info_desc.text, page.info_desc.text.length()])
 	var made: CampaignRun = page.create_run("My run")
@@ -76,9 +91,11 @@ func run() -> void:
 	# a locked level's name grey.
 	var rows: Array = page.list.get_root().get_children()
 	check(page.list.columns == 2 and page.list.column_titles_visible and rows[0].get_text(1) == "Available"
-		and rows[0].get_custom_color(1) == page.GREEN and rows[0].get_custom_color(0) != page.GREEN
-		and rows[1].get_custom_color(0) == page.GRAY,
-		"the status is its own column, green when available; the locked name is grey")
+		and page.list.get_column_title(0) == "Scenario Name"
+		and rows[0].get_custom_color(1) == page.GREEN and rows[0].get_custom_color(0) == page.NAME_COLOR
+		and rows[1].get_custom_color(0) == page.LOCKED,
+		"the status is its own column, green when available; names in 172 172 212, the locked name gray")
+	check(not page.empty_text.visible, "no empty-list text on the level list")
 	# translateWithContext: the names and statuses follow the language (German here).
 	var locale_before := TranslationServer.get_locale()
 	var de: Translation = load("res://assets/l10n/de.po")
@@ -135,6 +152,21 @@ func run() -> void:
 	check(ms.campaign_run == "", "the match settings no longer point at the run")
 	summary.queue_free()
 
+	print("4a. A replay of a won level completes nothing")
+	var fresh := CampaignRun.new("zz_e2e_replay")
+	fresh.set_template(CampaignRun.template_by_id("tutorial")).save()
+	ms.campaign_run = fresh.filename
+	ms.campaign_level = "introduction"
+	load("res://scenes/session/summary_screen.gd").leave_campaign(true, true)
+	await frames(6)
+	check(fresh.load_run() and not fresh.is_completed("introduction") and current_scene.mode == "menu",
+		"quitting the replay opens the run's menu without completing the level")
+	fresh.destroy()
+	CampaignRun.new(made.filename).set_current()
+	change_scene_to_file("res://scenes/menu/campaigns.tscn")
+	await frames(4)
+	page = current_scene
+
 	print("4b. Saved Games (CampaignMenu.loadSavegame)")
 	DirAccess.make_dir_recursive_absolute("user://saves")
 	var v: int = RtsoMain.get_save_version()
@@ -159,11 +191,20 @@ func run() -> void:
 	print("5. Load Campaign")
 	page.back_to_main_menu()
 	await frames(4)
-	check(single_labels(current_scene).has("Continue Campaign"), "Continue Campaign is listed while a run is current")
+	cont = continue_button(current_scene)
+	check(cont != null and not cont.disabled, "Continue Campaign is enabled while a run is current")
 	current_scene._execute_action("load_campaign")
 	await frames(6)
 	page = current_scene
-	check(page.mode == "load" and level_texts(page) == ["My run - Tutorial"], "the run is listed: " + str(level_texts(page)))
+	FileAccess.open("user://saves/campaigns/zz_e2e_broken.0adcampaign", FileAccess.WRITE).store_string("{")
+	page.runs = CampaignRun.saved_runs()
+	page.render()
+	check(page.mode == "load" and level_texts(page) == ["My run - Tutorial", "zz_e2e_broken.0adcampaign (file cannot be loaded)"],
+		"the runs are listed, a broken one as BrokenRun: " + str(level_texts(page)))
+	page.select(1)
+	check(page.start_button.disabled and page.info_name.text == "Name of selected run:" and page.info_desc.text == "zz_e2e_broken.0adcampaign",
+		"a broken run cannot load and is named by its file: " + page.info_desc.text)
+	page.delete_selected()
 	page.select(0)
 	page.delete_pressed()
 	check(page.confirm != null and page.confirm.message.contains("Are you sure you want to delete run My run"), "Delete asks first (LoadModal messageBox)")
@@ -171,6 +212,13 @@ func run() -> void:
 	await frames(2)
 	check(not FileAccess.file_exists(made.path()) and CampaignRun.current_filename() == "", "Delete removes it and the current run")
 	check(page.empty_text.visible and page.empty_text.text == "No ongoing campaigns.", "No ongoing campaigns.")
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.physical_keycode = KEY_ESCAPE
+	esc.pressed = true
+	page._unhandled_input(esc)
+	await frames(4)
+	check(current_scene.get_script().resource_path == "res://scenes/menu/main_menu.gd", "Escape on Load Campaign goes back to the main menu")
 
 	print("6. Runs named like their campaign, and runs saved before template_identifier")
 	var plain := CampaignRun.new("zz_e2e_plain")
@@ -183,6 +231,19 @@ func run() -> void:
 	var old := CampaignRun.new("zz_e2e_old")
 	check(old.load_run() and old.is_completed("introduction") and old.template.get("Name", "") == "Tutorial", "an older RTS0 run still loads")
 	old.destroy()
+
+	print("7. Requires and Order as 0.28 reads them")
+	var t := CampaignRun.new("zz_e2e_rules")
+	t.set_template({"identifier": "x", "Name": "X", "Order": ["b", "a"],
+		"Levels": {"a": {"Requires": ["one", "two+three"]}, "b": {"Requires": "!one"}, "c": {}, "d": {"Requires": "one+"}}})
+	t.data = {"completedLevels": ["two", "three"]}
+	check(t.ordered_levels().map(func(e): return e["id"]) == ["c", "d", "b", "a"], "levels missing from Order come first, in template order: "
+		+ str(t.ordered_levels().map(func(e): return e["id"])))
+	check(t.meets_requirements(t.template["Levels"]["a"]) and t.meets_requirements(t.template["Levels"]["b"]),
+		"Requires as an array of alternatives, and !class")
+	t.data = {"completedLevels": ["one"]}
+	check(not t.meets_requirements(t.template["Levels"]["d"]) and not t.meets_requirements(t.template["Levels"]["b"]),
+		"\"one+\" needs an empty class too, as JavaScript's split keeps it")
 
 	print("RESULT: %s (%d failed)" % ["PASS" if failures == 0 else "FAIL", failures])
 	quit(1 if failures else 0)
