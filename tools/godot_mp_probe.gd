@@ -65,61 +65,68 @@ func _run() -> void:
 	if role == "make_save":
 		await _make_save(ms, args.get("saves", "mp_saved"))
 		return
-	var lobby = load("res://scenes/menu/lobby.tscn").instantiate()
-	root.add_child(lobby)
-	current_scene = lobby
-	await _wait(0.3)
-	lobby._server.text = args.get("lobby", "127.0.0.1:8088")
-	lobby._name.text = args.get("name", role)
-	lobby._on_sign_pressed()
+	var direct: bool = args.get("nolobby", "") == "1" and args.has("join_addr")
 	var session = root.get_node("LobbySession")
-	session.publish_lan = args.get("lan", "1") != "0"
-	while not session.signed_in():
-		if Time.get_ticks_msec() > deadline:
-			return _fail("could not sign in: " + lobby._status.text)
-		await _wait(0.2)
-	_say("signed in as " + session.player_name)
+	if direct:
+		# "Connect by IP" from the main menu, not signed in to the lobby.
+		var at: PackedStringArray = str(args["join_addr"]).split(":")
+		_say("joining %s without the lobby" % args["join_addr"])
+		load("res://scenes/menu/gamesetup_mp.gd").start_join(args.get("name", role), at[0], int(at[1]))
+	if not direct:
+		var lobby = load("res://scenes/menu/lobby.tscn").instantiate()
+		root.add_child(lobby)
+		current_scene = lobby
+		await _wait(0.3)
+		lobby._server.text = args.get("lobby", "127.0.0.1:8088")
+		lobby._name.text = args.get("name", role)
+		lobby._on_sign_pressed()
+		session.publish_lan = args.get("lan", "1") != "0"
+		while not session.signed_in():
+			if Time.get_ticks_msec() > deadline:
+				return _fail("could not sign in: " + lobby._status.text)
+			await _wait(0.2)
+		_say("signed in as " + session.player_name)
 
-	if role == "host":
-		lobby._host_name.text = "Godot session"
-		lobby._host_port.text = str(port)
-		if args.has("saved"):
-			# Host Saved Game, with the save the load page would hand over.
-			ms.load_save_path = "user://saves/%s.rts0sav" % args["saved"]
-			ms.net_saved_game = true
-		lobby._on_host_pressed()
-	elif args.has("join_addr"):
-		# A typed address nobody answers at.
-		var addr: PackedStringArray = str(args["join_addr"]).split(":")
-		lobby._join_ip.text = addr[0]
-		lobby._join_port.text = addr[1]
-		_say("joining %s" % args["join_addr"])
-		lobby._on_join_pressed()
-	else:
-		var row = null
-		while row == null:
-			if Time.get_ticks_msec() > deadline:
-				return _fail("the host's game never showed in the list")
-			lobby._refresh()
-			await _wait(0.5)
-			var top = lobby._games.get_root()
-			if top:
-				for it in top.get_children():
-					if str(it.get_metadata(0)) == "room-%d" % port:
-						row = it
-		# The list is rebuilt whenever the lobby pushes a change (/events), which
-		# frees its TreeItems: never hold one across an await.
-		var picked: String = row.get_text(1)
-		row.select(0)
-		await _wait(0.1)
-		_say("picked %s (address %s)" % [picked, "hidden" if lobby._join_ip.text == "" else lobby._join_ip.text])
-		lobby._on_join_pressed()
-		# The lobby hands the address over on request (/rooms/connect).
-		while ms.net_mode != "join":
-			if Time.get_ticks_msec() > deadline:
-				return _fail("the lobby never gave the game's address: " + lobby._status.text)
+		if role == "host":
+			lobby._host_name.text = "Godot session"
+			lobby._host_port.text = str(port)
+			if args.has("saved"):
+				# Host Saved Game, with the save the load page would hand over.
+				ms.load_save_path = "user://saves/%s.rts0sav" % args["saved"]
+				ms.net_saved_game = true
+			lobby._on_host_pressed()
+		elif args.has("join_addr"):
+			# A typed address nobody answers at.
+			var addr: PackedStringArray = str(args["join_addr"]).split(":")
+			lobby._join_ip.text = addr[0]
+			lobby._join_port.text = addr[1]
+			_say("joining %s" % args["join_addr"])
+			lobby._on_join_pressed()
+		else:
+			var row = null
+			while row == null:
+				if Time.get_ticks_msec() > deadline:
+					return _fail("the host's game never showed in the list")
+				lobby._refresh()
+				await _wait(0.5)
+				var top = lobby._games.get_root()
+				if top:
+					for it in top.get_children():
+						if str(it.get_metadata(0)) == "room-%d" % port:
+							row = it
+			# The list is rebuilt whenever the lobby pushes a change (/events), which
+			# frees its TreeItems: never hold one across an await.
+			var picked: String = row.get_text(1)
+			row.select(0)
 			await _wait(0.1)
-		_say("joining %s:%d" % [ms.net_ip, ms.net_port])
+			_say("picked %s (address %s)" % [picked, "hidden" if lobby._join_ip.text == "" else lobby._join_ip.text])
+			lobby._on_join_pressed()
+			# The lobby hands the address over on request (/rooms/connect).
+			while ms.net_mode != "join":
+				if Time.get_ticks_msec() > deadline:
+					return _fail("the lobby never gave the game's address: " + lobby._status.text)
+				await _wait(0.1)
+			_say("joining %s:%d" % [ms.net_ip, ms.net_port])
 
 	# The match: main.tscn behind the loading page.
 	var main = null
@@ -159,6 +166,8 @@ func _run() -> void:
 					box.find_child("Cancel", true, false).pressed.emit()
 					await _wait(1.0)
 					_say("connect_exit_scene=" + (current_scene.scene_file_path if current_scene else ""))
+					var form = current_scene.find_child("GameSetupMp", true, false) if current_scene else null
+					_say("reopened=" + ("%s %s:%s" % [form.mode, form.join_server.text, form.join_port.text] if form else "none"))
 					break
 			# 0.28 reportConnectionRequestTimeOut.
 			if st.get("disconnected", false):
@@ -356,6 +365,8 @@ func _run() -> void:
 				main.toggle_chat()
 				_say("addressees=%s names=%s" % [str(dd.get("chat_addressees", "")).replace(" ", "_"), ",".join(dd.get("chat_names", []))])
 			_say("users=%s list=%s" % [users.get_string(1) if users else "-", users.get_string(2).replace(" ", "_") if users else "-"])
+			# Chat.js: the match's chat history starts empty, without the setup's lines.
+			_say("match_chat_carried=%s" % str(str(main.get_setup_chat().get("text", "")).contains("hello from bob")).to_lower())
 			st = main.get_lobby_state()
 			# 0.28 page_loading at "start": the networked Start loads under the loading page.
 			_say("start_loading=" + ",".join(load("res://scenes/menu/loading.gd").last_stages.map(func(x): return str(x[1]).replace(" ", "_"))))

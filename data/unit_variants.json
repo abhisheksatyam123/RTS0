@@ -1321,6 +1321,58 @@
    "res://assets/textures/unit_variants/props/sheaths/xiphos_red_128x256_plain.png"
   ]
  },
+ "units/athen_hero_xenophon_tex2": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/helmet/crest_01_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_02_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_03_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_04_bronze_512x128_plain.png"
+  ]
+ },
+ "units/athen_hero_xenophon_tex4": {
+  "color_freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "colors": [
+   [
+    129,
+    152,
+    153
+   ],
+   [
+    153,
+    145,
+    129
+   ],
+   [
+    184,
+    151,
+    98
+   ],
+   [
+    255,
+    205,
+    125
+   ]
+  ],
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/head/hele_c_64x64_obj.png",
+   "res://assets/textures/unit_variants/props/head/hele_d_64x64_obj.png"
+  ]
+ },
  "units/athen_infantry_archer_b_tex1": {
   "color_freq": [
    1,
@@ -16653,6 +16705,16 @@
    "res://assets/textures/unit_variants/props/helmet/iber_montefortino_02_iron_256x256_plain.png"
   ]
  },
+ "units/helm_rome_gallic_type_h_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/helmet/rome_gallic_type_h_01_256x256_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/rome_gallic_type_h_02_256x256_plain.png"
+  ]
+ },
  "units/hero_tex6": {
   "freq": [
    1,
@@ -23537,6 +23599,196 @@
    "res://assets/textures/unit_variants/props/head/maur_face_b_64x64_plain.png",
    "res://assets/textures/unit_variants/props/head/maur_face_c_64x64_plain.png",
    "res://assets/textures/unit_variants/props/head/maur_face_d_64x64_plain.png"
+  ]
+ },
+ "units/merc_thorakites_tex0": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_01_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/rome/chainmail_01_01_256x256_plain.png"
+  ]
+ },
+ "units/merc_thorakites_tex1": {
+  "color_freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "colors": [
+   [
+    8,
+    8,
+    8
+   ],
+   [
+    129,
+    152,
+    153
+   ],
+   [
+    153,
+    145,
+    129
+   ],
+   [
+    184,
+    151,
+    98
+   ],
+   [
+    250,
+    130,
+    78
+   ],
+   [
+    255,
+    205,
+    125
+   ]
+  ],
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/head/generic_a_64x64_obj.png",
+   "res://assets/textures/unit_variants/props/head/hele_a_64x64_obj.png",
+   "res://assets/textures/unit_variants/props/head/hele_b_64x64_obj.png",
+   "res://assets/textures/unit_variants/props/head/hele_h_64x64_obj.png",
+   "res://assets/textures/unit_variants/props/head/hele_i_64x64_obj.png"
+  ]
+ },
+ "units/merc_thorakites_tex2": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/shield/thra_thureos_elite_01_01_256x256_plain.png",
+   "res://assets/textures/unit_variants/props/shield/thra_thureos_elite_01_02_256x256_plain.png",
+   "res://assets/textures/unit_variants/props/shield/thra_thureos_elite_01_03_256x256_plain.png",
+   "res://assets/textures/unit_variants/props/shield/thra_thureos_elite_01_04_256x256_plain.png",
+   "res://assets/textures/unit_variants/props/shield/thra_thureos_elite_01_05_256x256_plain.png",
+   "res://assets/textures/unit_variants/props/shield/thra_thureos_elite_02_01_256x256_plain.png",
+   "res://assets/textures/unit_variants/props/shield/thra_thureos_elite_02_02_256x256_plain.png"
+  ]
+ },
+ "units/merc_thureophoros_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_02_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_06_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/athen/epilektos_08_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/hele/tunic_03_psiloi_03_256x256_plain.png"
+  ]
+ },
+ "units/merc_thureophoros_tex1": {
+  "color_freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "colors": [
+   [
+    8,
+    8,
+    8
+   ],
+   [
+    129,
+    152,
+    153
+   ],
+   [
+    153,
+    145,
+    129
+   ],
+   [
+    184,
+    151,
+    98
+   ],
+   [
+    250,
+    130,
+    78
+   ],
+   [
+    255,
+    205,
+    125
+   ]
+  ],
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/head/generic_a_64x64_obj.png",
+   "res://assets/textures/unit_variants/props/head/hele_a_64x64_obj.png",
+   "res://assets/textures/unit_variants/props/head/hele_b_64x64_obj.png",
+   "res://assets/textures/unit_variants/props/head/hele_h_64x64_obj.png",
+   "res://assets/textures/unit_variants/props/head/hele_i_64x64_obj.png"
+  ]
+ },
+ "units/merc_thureophoros_tex2": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/shield/thra_thureos_elite_01_01_256x256_plain.png",
+   "res://assets/textures/unit_variants/props/shield/thra_thureos_elite_01_02_256x256_plain.png",
+   "res://assets/textures/unit_variants/props/shield/thra_thureos_elite_01_03_256x256_plain.png",
+   "res://assets/textures/unit_variants/props/shield/thra_thureos_elite_01_04_256x256_plain.png",
+   "res://assets/textures/unit_variants/props/shield/thra_thureos_elite_01_05_256x256_plain.png",
+   "res://assets/textures/unit_variants/props/shield/thra_thureos_elite_02_01_256x256_plain.png",
+   "res://assets/textures/unit_variants/props/shield/thra_thureos_elite_02_02_256x256_plain.png"
+  ]
+ },
+ "units/merc_thureophoros_tex6": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/helmet/crest_01_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_02_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_03_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_04_bronze_512x128_plain.png"
   ]
  },
  "units/pers_archer_maiden_tex0": {
@@ -30741,6 +30993,178 @@
    "res://assets/textures/unit_variants/props/helmet/gladiator_01_props_iron_clean_256x256_plain.png"
   ]
  },
+ "units/rome_champion_infantry_swordsman_03_tex1": {
+  "color_freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "colors": [
+   [
+    8,
+    8,
+    8
+   ],
+   [
+    184,
+    151,
+    98
+   ],
+   [
+    250,
+    130,
+    78
+   ],
+   [
+    255,
+    205,
+    125
+   ],
+   [
+    255,
+    250,
+    187
+   ]
+  ],
+  "freq": [
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/head/rome_veteran_bloodied_64x64_obj.png"
+  ]
+ },
+ "units/rome_champion_infantry_swordsman_03_tex3": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/sheaths/gladius_black_64x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/gladius_brown_64x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/gladius_red_64x256_plain.png"
+  ]
+ },
+ "units/rome_champion_infantry_swordsman_04_tex1": {
+  "color_freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "colors": [
+   [
+    8,
+    8,
+    8
+   ],
+   [
+    184,
+    151,
+    98
+   ],
+   [
+    250,
+    130,
+    78
+   ],
+   [
+    255,
+    205,
+    125
+   ],
+   [
+    255,
+    250,
+    187
+   ]
+  ],
+  "freq": [
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/head/rome_veteran_bloodied_64x64_obj.png"
+  ]
+ },
+ "units/rome_champion_infantry_swordsman_04_tex2": {
+  "freq": [
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/helmet/rome_gallic_type_h_01_256x256_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/rome_gallic_type_h_02_256x256_plain.png"
+  ]
+ },
+ "units/rome_champion_infantry_swordsman_04_tex5": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/sheaths/gladius_black_64x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/gladius_brown_64x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/gladius_red_64x256_plain.png"
+  ]
+ },
+ "units/rome_champion_infantry_swordsman_05_tex1": {
+  "color_freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "colors": [
+   [
+    8,
+    8,
+    8
+   ],
+   [
+    184,
+    151,
+    98
+   ],
+   [
+    250,
+    130,
+    78
+   ],
+   [
+    255,
+    205,
+    125
+   ],
+   [
+    255,
+    250,
+    187
+   ]
+  ],
+  "freq": [
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/head/rome_veteran_bloodied_64x64_obj.png"
+  ]
+ },
+ "units/rome_champion_infantry_swordsman_05_tex2": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/sheaths/gladius_black_64x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/gladius_brown_64x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/gladius_red_64x256_plain.png"
+  ]
+ },
  "units/rome_champion_infantry_swordsman_centurion_tex0": {
   "freq": [
    1,
@@ -37131,6 +37555,34 @@
    "res://assets/textures/unit_variants/props/helmet/crest_04_bronze_512x128_plain.png"
   ]
  },
+ "units/spart_hero_leonidas_300_tex5": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/sheaths/falcata_black_128x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/falcata_blue_128x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/falcata_red_128x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/falcata_white_128x256_plain.png"
+  ]
+ },
+ "units/spart_hero_leonidas_300_tex7": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/helmet/crest_01_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_02_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_03_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_04_bronze_512x128_plain.png"
+  ]
+ },
  "units/spart_hero_tex6": {
   "freq": [
    1,
@@ -38113,6 +38565,80 @@
    "res://assets/textures/unit_variants/props/helmet/crest_04_bronze_512x128_plain.png"
   ]
  },
+ "units/theb_sacred_band_tex0": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/cuirass_02_02_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/hele/scale_06_01_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_01_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/mace/linothorax_01_03_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/theb/linothorax_01_01_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/theb/linothorax_01_02_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/theb/linothorax_02_01_256x256_plain.png"
+  ]
+ },
+ "units/theb_sacred_band_tex4": {
+  "color_freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "colors": [
+   [
+    129,
+    152,
+    153
+   ],
+   [
+    153,
+    145,
+    129
+   ],
+   [
+    184,
+    151,
+    98
+   ],
+   [
+    255,
+    205,
+    125
+   ]
+  ],
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/head/hele_e_64x64_obj.png",
+   "res://assets/textures/unit_variants/props/head/hele_f_64x64_obj.png",
+   "res://assets/textures/unit_variants/props/head/hele_g_64x64_obj.png"
+  ]
+ },
+ "units/theb_sacred_band_tex5": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/sheaths/xiphos_black_128x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/xiphos_blue_128x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/xiphos_brown_128x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/xiphos_red_128x256_plain.png"
+  ]
+ },
  "units/theb_siege_fireraiser_tex2": {
   "color_freq": [
    1,
@@ -38167,6 +38693,102 @@
    "res://assets/textures/unit_variants/props/head/hele_b_64x64_obj.png",
    "res://assets/textures/unit_variants/props/head/hele_h_64x64_obj.png",
    "res://assets/textures/unit_variants/props/head/hele_i_64x64_obj.png"
+  ]
+ },
+ "units/thesp_melanochitones_tex0": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/skeletal/hele/linothorax_03_black_01_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/hele/linothorax_03_black_02_256x256_plain.png",
+   "res://assets/textures/unit_variants/skeletal/hele/linothorax_03_black_03_256x256_plain.png"
+  ]
+ },
+ "units/thesp_melanochitones_tex1": {
+  "color_freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "colors": [
+   [
+    8,
+    8,
+    8
+   ],
+   [
+    129,
+    152,
+    153
+   ],
+   [
+    153,
+    145,
+    129
+   ],
+   [
+    184,
+    151,
+    98
+   ],
+   [
+    250,
+    130,
+    78
+   ],
+   [
+    255,
+    205,
+    125
+   ]
+  ],
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/head/generic_a_64x64_obj.png",
+   "res://assets/textures/unit_variants/props/head/hele_a_64x64_obj.png",
+   "res://assets/textures/unit_variants/props/head/hele_b_64x64_obj.png",
+   "res://assets/textures/unit_variants/props/head/hele_h_64x64_obj.png",
+   "res://assets/textures/unit_variants/props/head/hele_i_64x64_obj.png"
+  ]
+ },
+ "units/thesp_melanochitones_tex5": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/sheaths/xiphos_black_128x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/xiphos_blue_128x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/xiphos_brown_128x256_plain.png",
+   "res://assets/textures/unit_variants/props/sheaths/xiphos_red_128x256_plain.png"
+  ]
+ },
+ "units/thesp_melanochitones_tex8": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "layers": [
+   "res://assets/textures/unit_variants/props/helmet/crest_01_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_02_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_03_bronze_512x128_plain.png",
+   "res://assets/textures/unit_variants/props/helmet/crest_04_bronze_512x128_plain.png"
   ]
  },
  "units/trader_tex1": {

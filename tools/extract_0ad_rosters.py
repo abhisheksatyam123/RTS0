@@ -35,6 +35,12 @@ PATH/TO/0ad is a checkout of https://github.com/0ad/0ad (only
 binaries/data/mods/public/simulation is read). Writes
 src/simulation/civ_roster_data.h and data/civs/rosters.json.
 --check regenerates into memory and fails if the checked-in files differ.
+The 0.28 regen runs --keep-trainers --previous-0ad with --append taking the row list in
+/mnt/project-files/d-civ-rosters/roster-append-028.txt followed by
+",rome/champion_infantry_swordsman_02,rome/champion_infantry_swordsman_03,
+rome/champion_infantry_swordsman_04,rome/champion_infantry_swordsman_05,athen/hero_xenophon,
+spart/hero_leonidas_300,pers/arstibara,han/siege_shoushe,plane" (rows 507-514 and 544, added
+after that file was last written) and --retire the patterns in roster-retire-028.txt.
 """
 
 import argparse
@@ -545,7 +551,8 @@ def raw_stats(t):
         carry = max([_safe(c.text) for c in caps.children.values()] or [0.0])
     return {
         "hp": t.num("Health/Max"),
-        "speed": t.num("UnitMotion/WalkSpeed"),
+        # UnitMotionFlying.GetWalkSpeed is its MaxSpeed (units/plane).
+        "speed": t.num("UnitMotion/WalkSpeed") or t.num("UnitMotionFlying/MaxSpeed"),
         "vision": t.num("Vision/Range"),
         "range": rng,
         "damage": hack + pierce + crush + fire,
@@ -619,6 +626,10 @@ def rts0_class(name, t, civ):
     """RTS0 UnitType for a 0 A.D. unit template, or None to leave it out."""
     c = classes_of(t)
     stem = name.rsplit("/", 1)[-1]
+    if t.value("UnitMotionFlying/MaxSpeed", ""):
+        # units/plane (Flight Demo's P-51): no classes of its own; a ranged engine that neither
+        # packs, gathers nor promotes, so the bolt shooter's class, flagged ROSTER_FLYING.
+        return "UNIT_BOLT_SHOOTER"
     if "Minister" in c:
         return "UNIT_MINISTER"  # units/han/support_minister
     if "Relic" in c:
@@ -1136,11 +1147,12 @@ MAP_ROWS = (
     "units/gaul/hero_vercingetorix_infantry",
     "units/han/cavalry_crossbowman_b", "units/han/champion_infantry_archer_academy",
     "units/han/hero_han_xin", "units/han/hero_liu_bang", "units/han/hero_wei_qing", "units/han/hero_wei_qing_horse",
+    "units/han/siege_shoushe",
     "units/iber/hero_indibil_infantry",
     "units/kush/hero_amanirenas_infantry", "units/kush/hero_harsiotef",
     "units/mace/hero_craterus", "units/mace/hero_philip_ii_pike", "units/mace/hero_pyrrhus_i",
     "units/maur/hero_ashoka_infantry", "units/maur/hero_bindusara_infantry", "units/maur/hero_chandragupta_infantry",
-    "units/pers/hero_xerxes_i_chariot", "units/pers/kardakes_hoplite", "units/pers/kardakes_skirmisher",
+    "units/pers/arstibara", "units/pers/hero_xerxes_i_chariot", "units/pers/kardakes_hoplite", "units/pers/kardakes_skirmisher",
     "units/ptol/champion_juggernaut",
     "units/rome/hero_marcellus_infantry", "units/rome/hero_maximus_infantry", "units/rome/hero_scipio_infantry",
     "units/rome/infantry_swordsman_slave",
@@ -1149,7 +1161,7 @@ MAP_ROWS = (
     "units/rome/champion_infantry_swordsman_02", "units/rome/champion_infantry_swordsman_03",
     "units/rome/champion_infantry_swordsman_04", "units/rome/champion_infantry_swordsman_05",
     "units/spart/champion_infantry_pike", "units/spart/hero_leonidas_300",
-    "units/merc_black_cloak", "units/noldor_warship",
+    "units/merc_black_cloak", "units/noldor_warship", "units/plane",
     "units/pirates/ship_arrow", "units/pirates/ship_merchant", "units/pirates/ship_scout",
     "units/samnite_skirmisher", "units/samnite_spearman", "units/samnite_swordsman",
     "units/viking_longship",
@@ -1313,12 +1325,20 @@ def collect(sim_root):
                     bld = TRAINER_BUILDING.get(structure_kind(fn[:-4]))
                     if bld is None or bld in own:
                         continue
-                    for e in loader.load("structures/%s/%s" % (other, fn[:-4])).tokens("Trainer/Entities"):
+                    ostruct = loader.load("structures/%s/%s" % (other, fn[:-4]))
+                    for e in ostruct.tokens("Trainer/Entities"):
                         if "{civ}" not in e:
                             continue
                         e = e.replace("{civ}", civ)
                         if e in trainers and trainers[e]["buildings"]:
                             trainers[e]["buildings"].add(bld)
+                            CAPTURED_TRAINERS.add((civ, bld, e))
+                        elif e not in trainers and loader.exists(e):
+                            # A template only the captured structure trains for this civ (the Army
+                            # Camp's advanced infantry, the Temple of Amun's elite healer): a row of
+                            # its own with that type's bit, at the structure's phase.
+                            trainers[e] = {"buildings": {bld}, "kinds": {structure_kind(fn[:-4])},
+                                           "phase": phase_of(ostruct)}
                             CAPTURED_TRAINERS.add((civ, bld, e))
         map_only = {ent for ent in MAP_ROWS if map_row_civ(ent) == civ and ent not in trainers and loader.exists(ent)}
         for ent in sorted(map_only):
@@ -1392,6 +1412,8 @@ def collect(sim_root):
                 flags.append("ROSTER_PACKABLE")  # 0 A.D. Pack: unpack before firing, pack to move
             if "SiegeTower" in c:
                 flags.append("ROSTER_SIEGE_TOWER")
+            if t.value("UnitMotionFlying/MaxSpeed", ""):
+                flags.append("ROSTER_FLYING")  # UnitMotionFlying: takes off, flies over everything, lands
             if name in map_only:
                 flags.append("ROSTER_MAP_ONLY")  # MAP_ROWS: only maps place it
             if "Relic" in c:

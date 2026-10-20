@@ -932,6 +932,7 @@ void RtsoMain::_process(double delta) {
 		}
 		if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
 			net_game_started_ = true;
+			chat_window_.clear_history(); // the session's chat starts empty (Chat.js)
 			// VisualReplay skips a rejoined client's replay ("Don't process files of rejoined
 			// clients"): its commands start mid-match, so it is not recorded at all.
 			replay_recording_ = false;
@@ -1679,9 +1680,14 @@ void RtsoMain::hook_ui_click_sounds(Node *n) {
 	if (BaseButton *b = Object::cast_to<BaseButton>(n)) {
 		const Callable click(this, "_on_ui_click");
 		if (!b->is_connected("pressed", click)) b->connect("pressed", click);
-		if (OptionButton *o = Object::cast_to<OptionButton>(n)) {
+		if (Object::cast_to<OptionButton>(n) || Object::cast_to<RtsoSafeSelect>(n)) {
 			const Callable picked = Callable(this, "_on_ui_click_item");
-			if (!o->is_connected("item_selected", picked)) o->connect("item_selected", picked);
+			if (!b->is_connected("item_selected", picked)) b->connect("item_selected", picked);
+		}
+		// RtsoSafeSelect's list closing, picked or not: sound_closed.
+		if (Object::cast_to<RtsoSafeSelect>(n)) {
+			const Callable closed(this, "_on_ui_click");
+			if (!b->is_connected("menu_closed", closed)) b->connect("menu_closed", closed);
 		}
 	}
 	for (int i = 0; i < n->get_child_count(); ++i) hook_ui_click_sounds(n->get_child(i));
@@ -1692,6 +1698,10 @@ void RtsoMain::_on_tree_node_added(Node *n) {
 }
 
 void RtsoMain::_on_ui_click() {
+	// A pick also closes the list: sounds that fall in one frame play once.
+	const uint64_t frame = Engine::get_singleton()->get_process_frames();
+	if (frame == ui_click_frame_) return;
+	ui_click_frame_ = frame;
 	++ui_clicks_;
 	if (click_player_ && click_player_->get_stream().is_valid()) click_player_->play();
 }

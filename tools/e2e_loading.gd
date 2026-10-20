@@ -50,10 +50,10 @@ func run() -> void:
 		return
 	check(page.title.begins_with("Generating “Continental"), "random map title: " + page.title)
 	var tip_title: Label = page.find_child("TipTitle", true, false)
-	var tip_text: Label = page.find_child("TipText", true, false)
+	var tip_text: RichTextLabel = page.find_child("TipText", true, false)
 	var tip_image: TextureRect = page.find_child("TipImage", true, false)
 	check(tip_title != null and tip_title.text != "" and tip_title.text == tip_title.text.to_upper(), "a tip title: " + (tip_title.text if tip_title else ""))
-	check(tip_text != null and tip_text.text.begins_with("• "), "the tip's lines are bullets")
+	check(tip_text != null and tip_text.text.begins_with("[img=8x8]res://assets/textures/ui/tipdisplay/bullet-point.png[/img] "), "the tip's lines start with 0.28's BulletPoint")
 	var pic: String = "res://assets/textures/ui/loading/tips/" + page.find_child("TipDisplay", true, false).current_image()
 	check(tip_image != null and (tip_image.texture != null or not ResourceLoader.exists(pic)), "the tip has its picture (when imported)")
 	var quote: Label = page.find_child("Quote", true, false)

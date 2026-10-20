@@ -120,7 +120,7 @@ func _ready() -> void:
 			ms.match_music = {}
 			var menu_audio = get_node_or_null("/root/MenuAudio")
 			if menu_audio != null:
-				menu_audio.play_match_track(str(mm.get("track", "")), float(mm.get("position", 0.0)))
+				menu_audio.play_match_track(str(mm.get("track", "")), float(mm.get("position", 0.0)), mm.get("playlist", []))
 
 func is_open() -> bool:
 	return visible

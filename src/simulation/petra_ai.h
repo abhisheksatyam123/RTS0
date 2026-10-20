@@ -234,6 +234,13 @@ struct PetraTransportPlan {
 	uint16_t sea = 0;  // the sea it crosses (0: any, from an older save)
 };
 // navalManager.js runs a transportPlan per ship; each asker here has at most one.
+// A crossing asked for again in the same pass (survivors of a sunk ship on another land).
+struct PetraReferry {
+	std::vector<uint32_t> unit_ids;
+	float from_x = 0.0f, from_z = 0.0f, to_x = 0.0f, to_z = 0.0f;
+	uint16_t sea = 0;
+	uint8_t owner = 0;
+};
 enum PetraTransportOwner : uint8_t { PETRA_TRANSPORT_ATTACK = 0, PETRA_TRANSPORT_RAID = 1, PETRA_TRANSPORT_BUILDERS = 2, PETRA_TRANSPORT_TRADER = 3,
                                       PETRA_TRANSPORT_WORKERS = 4,
                                       PETRA_TRANSPORT_DEFENSE = 5 }; // defenders for a foe on another land
@@ -295,6 +302,10 @@ struct PetraDiplomacy {
 	uint8_t seen_stance[8] = {};   // each player's stance toward us at the last check
 	bool seen_init = false;
 	bool waiting_to_betray = false;
+	// A hash of every player's stances, the defeated players and the ceasefire at our last turn:
+	// a change is 0.28's DiplomacyChanged, PlayerDefeated or CeasefireEnded event, on which
+	// checkEvents runs lastManStandingCheck. In the padding before betray_lapse (no save bump).
+	uint16_t events_hash = 0;
 	float betray_lapse = -1.0f;
 	float elapsed = 0.0f;
 	float next_tribute = 90.0f;  // nextTributeUpdate
