@@ -213,9 +213,15 @@ void RtsoMain::_on_entity_command(const String &name) {
 		request_delete();
 	} else if (name == "autoqueue-on" || name == "autoqueue-off") { // turnAutoQueueOn / Off
 		_on_autoqueue_pressed(name == "autoqueue-on" ? 1 : 0);
-	} else if (name == "share-dropsite") { // set-dropsite-sharing, toggled from the first structure's state
-		for (const auto &b : sim->buildings())
-			if (b.id == selected_building_id) { _on_dropsite_sharing_pressed(b.dropsite_shared ? 0 : 1); break; }
+	} else if (name == "share-dropsite") { // set-dropsite-sharing: shared when any selected one is locked
+		bool any_locked = false;
+		for (uint32_t id : selected_structures())
+			for (const auto &b : sim->buildings())
+				if (b.id == id) {
+					any_locked = any_locked || (rtso::Simulation::is_dropsite_type(b.type) && !b.dropsite_shared);
+					break;
+				}
+		_on_dropsite_sharing_pressed(any_locked ? 1 : 0);
 	} else if (name == "stop") { // stopUnits
 		if (n == 0) return;
 		if (turn_cmds())
