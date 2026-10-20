@@ -114,6 +114,18 @@ Production queues, upgrades, foundations, capture/decay, build restrictions, tec
 
 Checked and matching: queue limits, batch time modifiers, pop blocking, entity limits, research cost multipliers, upgrade cost/time/carry-over, foundation and repair rates, capture regen and ownership flip, territory decay rates, garrison healing, build restriction distances, every tech's cost/time/requirements/supersedes, researcher lists, civ bonuses, and the training/research/construction tooltips.
 
+### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
+
+diplomacyManager.js, chatHelper.js and their callers were checked line by line. Everything else matches: update cadence, tribute rules, request handling and its odds, lastManStandingCheck, changePlayerDiplomacy, personality boosts, every chat string. Jebel Barkal was checked statically against the 0.28 source, since no 0.28 binary runs here (pass 8: wave sizing and target-class skip match). Still open from pass 4: P2 (defeated players and Gaia aren't counted as enemies) and P5 (tribute is taken off the stock before the next ally's gift is worked out).
+
+| # | Gap | Severity | State |
+|---|---|---|---|
+| D1 | Unit and entity counts (donor rule, 40% ally test, 50-unit betrayal gate, tribute size) left out garrisoned units and livestock; 0.28's getEntities/getOwnUnits count them | low-medium | Fixed |
+| D2 | A running raid on a player we make peace with isn't called off (cancelAttacksAgainstPlayer covers Raid) | low | Open |
+| D3 | A one-way alliance at game start gets a refusal; 0.28's init handles it as an ally request (40% accept or tribute) | low | Open |
+| D4 | The cooperative trait ignores allies' attacks on Gaia animals and enemy structures in our land | low | Open |
+| D5 | After a Gaia relic pick the current enemy falls back to a started attack's target; 0.28 keeps 0 | low | Open |
+
 ## Read this first: whole-game parity (refreshed 2026-10-08, evening)
 
 The G1–G10 table below grades individual systems against 0 A.D.'s semantics, and `python3 tools/check_parity.py` reports 92% for them. Those scores are self-graded and only cover the systems listed. Judged by what a match actually plays like, RTS0 was **a little over half way** to 0 A.D. at that time (the open gaps now are in "Open gaps, re-check 3" below). That was an estimate from a code-only re-audit of main at `bff4f1c` (rechecked against `d8dd7af`, which adds a Gaia owner for defeated players' leftovers and sea fish) against 0 A.D.'s simulation components, UnitAI, session GUI, `config/default.cfg` hotkeys, game setup, gaia templates and renderer.

@@ -1472,6 +1472,27 @@ static void test_petra_research_order() {
 	}
 }
 
+// diplomacyManager.js counts with gameState.getEntities / getOwnUnits: garrisoned units and
+// owned livestock are the player's too (the 40% ally test, the donor rule, the 50-unit gate).
+static void test_petra_diplomacy_counts() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	uint32_t cc = 0;
+	float x = 0.0f, z = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { cc = b.id; x = b.x; z = b.z; }
+	const int units = s->petra_player_units(0), entities = s->petra_player_entities(0);
+	const uint32_t u = s->spawn_unit(x + 8.0f, z, 0, UNIT_SPEARMAN);
+	CHECK(s->garrison_unit_now(u, cc), "the spearman garrisons");
+	s->spawn_fauna(x - 8.0f, z, FAUNA_SHEEP_TRAINABLE, 0);
+	std::printf("  diplomacy counts: units %d -> %d, entities %d -> %d\n", units, s->petra_player_units(0), entities,
+	            s->petra_player_entities(0));
+	CHECK(s->petra_player_units(0) == units + 2, "a garrisoned unit and a sheep count as units");
+	CHECK(s->petra_player_entities(0) == entities + 2, "and as entities");
+}
+
 // researchManager.js update returns while minorTech holds a plan: a pick waiting for its
 // resources stays queued until it is researched or can no longer be, never swapped for another.
 static void test_petra_minor_tech_kept() {
@@ -6446,6 +6467,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_petra_research_order);
 	RUN(test_petra_minor_tech_kept);
+	RUN(test_petra_diplomacy_counts);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
 	RUN(test_market_prospection_events);
