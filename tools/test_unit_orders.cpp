@@ -1930,7 +1930,18 @@ static void test_hunter_walk_back() {
 		s.units_.carry[ci] = 0;
 		s.resources_.amount[ri] = 0;
 		s.resources_.alive[ri] = 0;
-		const uint32_t deer2 = with_deer ? s.spawn_fauna(kx + 2.0f, kz - 2.0f, FAUNA_DEER) : 0;
+		bool berry = false;
+		if (with_deer) {
+			// FINDINGNEWTARGET looks round the unit and then round initPos, live animals included
+			// (FindNearbyResource, UnitAI.js:2636-2645), so he goes straight for the deer there.
+			const uint32_t deer2 = s.spawn_fauna(kx + 2.0f, kz - 2.0f, FAUNA_DEER);
+			const bool hunts = run_until(s, 60.0f, [&] {
+				berry |= s.units_.target_resource_id[idx_of(s, c)] == berries;
+				return target_of(s, c) == deer2;
+			});
+			check(hunts && !berry, "with a deer there he hunts it, not the berries");
+			continue;
+		}
 		const bool leg = run_until(s, 10.0f, [&] {
 			const int k = idx_of(s, c);
 			return s.unit_order(c).kind == ORDER_GATHER && s.units_.target_resource_id[k] == 0 &&
@@ -1940,20 +1951,11 @@ static void test_hunter_walk_back() {
 		const int sub = (s.units_.order_flags[ci] & ORDER_FLAG_SUB_MASK) >> ORDER_FLAG_SUB_SHIFT;
 		check(leg && sub == RES_SUB_MEAT && s.units_.hunt_fauna[ci] == FAUNA_DEER + 1,
 				"he walks back to the spot still after the deer's meat");
-		bool berry = false;
-		if (with_deer) {
-			const bool hunts = run_until(s, 60.0f, [&] {
-				berry |= s.units_.target_resource_id[idx_of(s, c)] == berries;
-				return target_of(s, c) == deer2;
-			});
-			check(hunts && !berry, "with a deer there he hunts it, not the berries");
-		} else {
-			const bool home = run_until(s, 60.0f, [&] {
-				berry |= s.units_.target_resource_id[idx_of(s, c)] == berries;
-				return dist(s, c, -20, 0) < 6.0f && s.unit_order(c).kind != ORDER_GATHER;
-			});
-			check(home && !berry, "with nothing to hunt there he goes on to the farmstead, not to the berries");
-		}
+		const bool home = run_until(s, 60.0f, [&] {
+			berry |= s.units_.target_resource_id[idx_of(s, c)] == berries;
+			return dist(s, c, -20, 0) < 6.0f && s.unit_order(c).kind != ORDER_GATHER;
+		});
+		check(home && !berry, "with nothing to hunt there he goes on to the farmstead, not to the berries");
 	}
 }
 
