@@ -165,7 +165,7 @@ static func end_game(m: Node, show_summary: bool) -> void:
 		ms.match_music = {"track": str(audio.get("track", "")), "position": float(audio.get("music_position", 0.0))}
 		ms.go("res://scenes/session/summary_screen.tscn")
 	elif ms.campaign_run != "":
-		load("res://scenes/session/summary_screen.gd").leave_campaign(m.get_summary_gui(false).get("victory", false))
+		load("res://scenes/session/summary_screen.gd").leave_campaign(m.get_summary_gui(false).get("victory", false), status.get("replaying", false))
 	elif tree.root.has_node("LobbySession") and tree.root.get_node("LobbySession").signed_in():
 		ms.go("res://scenes/menu/lobby.tscn") # Engine.HasXmppClient: back to the lobby
 	elif status.get("replaying", false):

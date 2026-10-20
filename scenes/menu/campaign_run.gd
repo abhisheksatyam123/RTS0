@@ -43,6 +43,12 @@ static func available_templates() -> Array:
 			continue
 		var t: Dictionary = parsed
 		t["identifier"] = f.get_basename()
+		# CampaignTemplate.isValid: a template needs a Name (0.28 throws for one
+		# without, which leaves the setup page empty; RTS0 skips just that one).
+		# Interface names the menu page; RTS0 has only default_menu, 0.28's default.
+		if not t.get("Name"):
+			push_warning("Campaign template %s.json is not a valid campaign template." % t["identifier"])
+			continue
 		out.append(t)
 	return out
 
@@ -161,10 +167,12 @@ static func new_filename(template_id: String) -> String:
 func is_completed(level_id: String) -> bool:
 	return data.get("completedLevels", []).has(level_id)
 
-## meetsRequirements: Requires is a class list ("a b" either, "a+b" both, "!a" not).
+## meetsRequirements: Requires is a class list ("a b" either, "a+b" both, "!a" not),
+## as a string or an array of alternatives.
 func meets_requirements(level: Dictionary) -> bool:
-	var req := str(level.get("Requires", ""))
-	return req == "" or matches_class_list(data.get("completedLevels", []), req)
+	var req: Variant = level.get("Requires")
+	# JavaScript truthiness: an empty array still has to match.
+	return req == null or (req is String and req == "") or matches_class_list(data.get("completedLevels", []), req)
 
 func mark_level_complete(level_id: String) -> void:
 	if is_completed(level_id):
@@ -174,28 +182,43 @@ func mark_level_complete(level_id: String) -> void:
 	data["completedLevels"] = done
 	save()
 
-## MatchesClassList: true if one of the space-separated alternatives matches; an
-## alternative "a+b" needs every class, "!a" needs a class to be absent.
-static func matches_class_list(classes: Array, list: String) -> bool:
-	for alt in list.split(" ", false):
+## MatchesClassList (globalscripts/Templates.js): true if one of the alternatives
+## matches. A string is split on whitespace into alternatives; an alternative given
+## as a string is split on "+" and whitespace into classes, all of which are needed;
+## "!a" needs a class to be absent.
+static func matches_class_list(classes: Array, list: Variant) -> bool:
+	var alts: Array = list if list is Array else _split(str(list), "\\s+")
+	for alt in alts:
+		var parts: Array = alt if alt is Array else _split(str(alt), "[+\\s]+")
 		var ok := true
-		for c in alt.split("+", false):
+		for c in parts:
+			c = str(c)
 			ok = ok and (not classes.has(c.substr(1)) if c.begins_with("!") else classes.has(c))
 		if ok:
 			return true
 	return false
 
-## The levels in the template's Order, each {id, level}; levels missing from
-## Order go last.
+## String.split(regex) as JavaScript does it: empty pieces kept.
+static func _split(text: String, pattern: String) -> Array:
+	var re := RegEx.create_from_string(pattern)
+	var out: Array = []
+	var from := 0
+	for m in re.search_all(text):
+		out.append(text.substr(from, m.get_start() - from))
+		from = m.get_end()
+	out.append(text.substr(from))
+	return out
+
+## displayLevelsList: the levels in template order, sorted (stably) by their place in
+## Order, each {id, level}; a level missing from Order has place -1 and comes first.
 func ordered_levels() -> Array:
 	var levels: Dictionary = template.get("Levels", {})
-	var order: Array = template.get("Order", [])
-	var ids: Array = levels.keys()
-	ids.sort_custom(func(a, b):
-		var ia := order.find(a)
-		var ib := order.find(b)
-		return (ia if ia >= 0 else 1 << 20) < (ib if ib >= 0 else 1 << 20))
-	return ids.map(func(id): return {"id": id, "level": levels[id]})
+	var order: Array = template.get("Order", []) if template.get("Order") is Array else []
+	var keyed: Array = []
+	for id in levels.keys():
+		keyed.append([order.find(id), keyed.size(), id])
+	keyed.sort_custom(func(a, b): return a[0] < b[0] or (a[0] == b[0] and a[1] < b[1]))
+	return keyed.map(func(k): return {"id": k[2], "level": levels[k[2]]})
 
 ## A level's map as an RTS0 map id: "tutorials/introductory_tutorial.xml" -> "introductory_tutorial".
 static func level_map_id(level: Dictionary) -> String:

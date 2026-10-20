@@ -77,6 +77,7 @@ const Default kDefaults[] = {
 	{"sound.uigain", "0.7"},
 	{"sound.notify.nick", "true"},
 	{"sound.notify.gamesetup.join", "false"},
+	{"lobby.tls", "false"}, // 0.28 true; RTS0's lobby server (tools/lobby_server.py) speaks plain HTTP
 	{"lobby.history", "0"},
 	{"gui.gamesetup.aidifficulty", "3"},
 	{"gui.gamesetup.aibehavior", "random"},

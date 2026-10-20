@@ -2215,7 +2215,7 @@ void RtsoWorldView::update_site_dust(BuildingVis &v, uint8_t kind, int builders,
 // only; `k` and `base` place the GLB's units under the root (the model's scale,
 // or the foundation's seat). The terrain shader darkens out-of-sight ground
 // before decals blend in, so they take the LOS brightness as their modulate.
-void RtsoWorldView::update_building_decals(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, float brightness) {
+void RtsoWorldView::update_building_decals(const rtso::Simulation *sim, BuildingVis &v, const String &glb_id, float k, const Vector3 &base, float brightness) {
 	if (!v.root) return;
 	if (!v.decal_key.same(glb_id, k, base.x, base.z)) {
 		for (Decal *d : v.decals) {
@@ -2265,8 +2265,10 @@ void RtsoWorldView::update_building_decals(BuildingVis &v, const String &glb_id,
 		}
 	}
 	const Color mod(brightness, brightness, brightness, 1.0f);
-	for (Decal *d : v.decals)
+	for (Decal *d : v.decals) {
 		if (d->get_modulate() != mod) d->set_modulate(mod);
+		sync_gl_decal(sim, d);
+	}
 }
 
 // 0 A.D. structure actors prop particle emitters in the variants they always show
@@ -4410,6 +4412,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (v.variant_model != v.model || v.variant_id != id) {
 			// Props first: a look added for this entity takes the colour and skin draw below.
 			rtso::ModelLibrary::set_prop_looks(v.model, v.model_id, id);
+			rtso::ModelLibrary::set_unit_helmet(v.model, v.model_id, id);
 			rtso::ModelLibrary::set_variant(v.model, rtso::ModelLibrary::variant_draw(id));
 			v.variant_model = v.model;
 			v.variant_id = id;
@@ -4693,7 +4696,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 					dbase = fn->get_position();
 				}
 			}
-			update_building_decals(v, decal_glb, dk, dbase, Math::round(los_brightness(b.x, b.z) * (FOG_OVERLAY_LEVELS - 1)) / (FOG_OVERLAY_LEVELS - 1));
+			update_building_decals(sim, v, decal_glb, dk, dbase, Math::round(los_brightness(b.x, b.z) * (FOG_OVERLAY_LEVELS - 1)) / (FOG_OVERLAY_LEVELS - 1));
 			// The particles the structure's actor, or its rubble's, always props.
 			if (v.phase == 0)
 				update_ambient_fx(v, visual_id, b_scale, Vector3(0.0f, entry.y_offset, 0.0f));
@@ -5218,6 +5221,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			draw_status_stack(sim, Vector3(r.x, ry + 0.25f * offset, r.z), 0.25f * bar_w, 0.25f * bar_h, 0.25f, st);
 		}
 	}
+	for (size_t k = 0; k < unit_rings_used; ++k) sync_gl_decal(sim, unit_ring_decals_[k]);
 	for (size_t k = unit_rings_used; k < unit_ring_decals_.size(); ++k) unit_ring_decals_[k]->set_visible(false);
 	status_sprites_.end_frame();
 	draw_structure_outlines(sim);
@@ -5293,6 +5297,79 @@ void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3
 
 // Selectable.js overlay for structures: an outline round the footprint of each selected
 // structure, and a fainter one round a highlighted (hovered or band-boxed) one.
+void RtsoWorldView::sync_gl_decal(const rtso::Simulation *sim, Decal *d) {
+	if (!rtso::gl_compatibility() || !sim || !d || !d->is_inside_tree()) return;
+	Ref<Texture2D> tex = d->get_texture(Decal::TEXTURE_ALBEDO);
+	if (tex.is_null()) return;
+	MeshInstance3D *mi = d->get_child_count() > 0 ? Object::cast_to<MeshInstance3D>(d->get_child(0)) : nullptr;
+	if (!mi) {
+		mi = memnew(MeshInstance3D);
+		mi->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+		d->add_child(mi);
+	}
+	// Rebuilt only when the decal moves, turns, resizes or changes colour.
+	const Transform3D xf = d->get_global_transform();
+	const Vector3 size = d->get_size();
+	const Color mod = d->get_modulate();
+	const Array key = Array::make(xf, size, mod);
+	if (mi->get_meta("gl_key", Variant()) == Variant(key)) return;
+	mi->set_meta("gl_key", key);
+	Ref<StandardMaterial3D> &mat = gl_decal_mats_[tex.ptr()];
+	if (mat.is_null()) {
+		mat.instantiate();
+		mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+		mat->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+		mat->set_cull_mode(BaseMaterial3D::CULL_DISABLED);
+		mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+		mat->set_flag(BaseMaterial3D::FLAG_SRGB_VERTEX_COLOR, true);
+		mat->set_flag(BaseMaterial3D::FLAG_DISABLE_FOG, true);
+		mat->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, tex);
+	}
+	// A grid about a world unit (4 m) apart, each vertex on the terrain under it,
+	// UVs as the Decal maps its albedo (u along x, v along z).
+	const int n = Math::clamp((int)Math::ceil(std::max(size.x, size.z)), 2, 16);
+	const Transform3D inv = xf.affine_inverse();
+	PackedVector3Array verts;
+	PackedVector2Array uvs;
+	PackedColorArray cols;
+	PackedInt32Array idx;
+	verts.resize((n + 1) * (n + 1));
+	uvs.resize(verts.size());
+	cols.resize(verts.size());
+	for (int j = 0; j <= n; ++j) {
+		for (int i = 0; i <= n; ++i) {
+			const float u = (float)i / n, v = (float)j / n;
+			Vector3 w = xf.xform(Vector3((u - 0.5f) * size.x, 0.0f, (v - 0.5f) * size.z));
+			w.y = sim->get_terrain_height(w.x, w.z) + 0.03f;
+			const int k = j * (n + 1) + i;
+			verts.set(k, inv.xform(w));
+			uvs.set(k, Vector2(u, v));
+			cols.set(k, mod);
+		}
+	}
+	for (int j = 0; j < n; ++j) {
+		for (int i = 0; i < n; ++i) {
+			const int a = j * (n + 1) + i, b = a + 1, c = a + n + 1, e = c + 1;
+			idx.append(a), idx.append(b), idx.append(c);
+			idx.append(b), idx.append(e), idx.append(c);
+		}
+	}
+	Array arrays;
+	arrays.resize(Mesh::ARRAY_MAX);
+	arrays[Mesh::ARRAY_VERTEX] = verts;
+	arrays[Mesh::ARRAY_TEX_UV] = uvs;
+	arrays[Mesh::ARRAY_COLOR] = cols;
+	arrays[Mesh::ARRAY_INDEX] = idx;
+	Ref<ArrayMesh> mesh = mi->get_mesh();
+	if (mesh.is_null()) {
+		mesh.instantiate();
+		mi->set_mesh(mesh);
+	}
+	mesh->clear_surfaces();
+	mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
+	mesh->surface_set_material(0, mat);
+}
+
 Decal *RtsoWorldView::get_or_create_ring_decal(size_t index) {
 	while (unit_ring_decals_.size() <= index) {
 		Decal *d = memnew(Decal);

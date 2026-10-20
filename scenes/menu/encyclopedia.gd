@@ -32,9 +32,9 @@ func _ready() -> void:
 	tabs.tab_changed.connect(func(_t): _render_tooltips())
 	_render_tooltips()
 
+## colorizeHotkey's "[key]" in the hotkey colour, or "Unassigned hotkey: name".
 func _hotkey_text(name: String) -> String:
-	var keys: String = _hotkeys.display(name)
-	return keys if keys != "" else L10n.t("Unassigned")
+	return _hotkeys.colorize("%(hotkey)s", name)
 
 ## CloseButton / CivInfoButton / StructreeButton tooltips (StructreePage.js:62,
 ## CivInfoPage.js:131, Buttons/*Button.js:32): the close key, and the key that
