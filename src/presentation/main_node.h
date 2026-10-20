@@ -460,6 +460,9 @@ public:
 	void _on_lobby_seat_selected(int index, int client);
 	void apply_net_game_start();
 	void show_net_loading_page(const std::string &map_id);
+	// The loading page stays while a client loads the host's saved game (its
+	// world comes over the network after NMT_SAVED_GAME_START).
+	bool net_loading_hold() const { return net_saved_loading_ && !net_game_started_ && !net_disconnected_; }
 	void apply_match_settings();
 	void sync_victory_selector();
 	void apply_game_setup(const rtso::GameSetupParams &setup);
@@ -1175,6 +1178,7 @@ private:
 	Label *net_status_label_ = nullptr;
 	RichTextLabel *net_loading_clients_ = nullptr; // loadingClientsText
 	bool net_disconnected_ = false; // session.js g_Disconnected
+	bool net_saved_loading_ = false; // client: loading the host's saved game under the loading page
 	void update_net_status_overlay();
 	void _on_disconnected_exit_pressed();
 	// 0 A.D. gameStateNotifications (overlay.netwarnings): network.js's

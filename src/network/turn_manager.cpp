@@ -738,10 +738,7 @@ bool TurnManager::saved_game_hold() {
 		if (!p || !p->connected || lockstep_since_.count(*it) || watching_served) it = saved_waiting_.erase(it);
 		else ++it;
 	}
-	if (!saved_waiting_.empty() && rejoin_now_ms() - saved_since_ms_ > SAVED_GAME_WAIT_MS) {
-		std::cerr << "[TurnManager] saved game: starting without " << saved_waiting_.size() << " client(s)\n";
-		saved_waiting_.clear();
-	}
+	// NetServer CheckGameLoadStatus: no time limit; the host can kick a client that never loads.
 	return !saved_waiting_.empty();
 }
 

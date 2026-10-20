@@ -268,6 +268,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_lobby_join_pressed"), &RtsoMain::_on_lobby_join_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_start_pressed"), &RtsoMain::_on_lobby_start_pressed);
 	ClassDB::bind_method(D_METHOD("is_net_pregame"), &RtsoMain::is_net_pregame);
+	ClassDB::bind_method(D_METHOD("net_loading_hold"), &RtsoMain::net_loading_hold);
 	ClassDB::bind_method(D_METHOD("get_net_setup_state"), &RtsoMain::get_net_setup_state);
 	ClassDB::bind_method(D_METHOD("push_net_setup"), &RtsoMain::push_net_setup);
 	ClassDB::bind_method(D_METHOD("assign_net_client", "client", "slot"), &RtsoMain::assign_net_client);
