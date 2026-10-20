@@ -1374,7 +1374,8 @@ private:
 		const float elevated = d.shoots ? sim.average_elevation_range(b.x, b.z, d.max_range,
 				rtso::civ_building_ai_info(b.civ, b.type).origin_y) * kM : 0.0f;
 		const String attack = d.shoots ? structure_attack_tooltip(d.damage, d.min_range * kM, d.max_range * kM, d.repeat_time,
-				d.arrows ? d.arrows : d.default_arrows, elevated) : String();
+				d.arrows ? d.arrows : d.default_arrows, elevated,
+				b.type == rtso::BLD_TOWER_BOLT ? "Bolt" : b.type == rtso::BLD_TOWER_ARTILLERY ? "Stone" : "Bow") : String();
 		const rtso::LootInfo l = rtso::structure_loot(b.type, b.civ, b.half_size);
 		Amounts loot;
 		loot.res[rtso::RES_FOOD] = l.food;
