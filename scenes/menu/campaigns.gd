@@ -16,7 +16,12 @@ const ScenarioStart = preload("res://scenes/menu/scenario_start.gd")
 const MSGBOX := preload("res://scenes/common/msgbox.gd")
 const GOLD := Color(0.9, 0.75, 0.31)
 const GRAY := Color8(128, 128, 128)
+## gui/common/setup.xml's named colours "green" and "gray", and the list columns'
+## textcolor (CampaignMenu.xml, CampaignSetupPage.xml).
 const GREEN := Color8(0, 200, 0)
+const LOCKED := Color8(143, 142, 140)
+const NAME_COLOR := Color8(172, 172, 212)
+const STATUS_COLOR := Color8(192, 192, 192)
 
 ## Which page to show; set before changing to this scene.
 static var open_mode := "menu"
@@ -69,6 +74,9 @@ func _add_row(text: String, status := "") -> TreeItem:
 	var item := list.create_item(list.get_root())
 	item.set_text(0, text)
 	item.set_text(1, status)
+	if mode != "load":
+		item.set_custom_color(0, NAME_COLOR)
+		item.set_custom_color(1, STATUS_COLOR)
 	return item
 
 ## The rows' texts, name and status joined by four spaces when there is a status.
@@ -83,7 +91,10 @@ func render() -> void:
 	list.create_item()
 	entries.clear()
 	var levels := mode != "setup" and mode != "load"
-	list.column_titles_visible = levels
+	# The olists' headings: "Name" on the campaign list, "Scenario Name" and "Status"
+	# on the level list; the run list (LoadModal) is a plain list.
+	list.column_titles_visible = mode != "load"
+	list.set_column_title(0, tr("Name") if mode == "setup" else tr("Scenario Name"))
 	list.set_column_expand(1, levels)
 	list.set_column_custom_minimum_width(1, 0)
 	match mode:
@@ -97,7 +108,8 @@ func render() -> void:
 			title.text = tr("Load Campaign")
 			for r in runs:
 				var cr: CampaignRun = r["run"]
-				var item := _add_row(cr.filename + CampaignRun.EXTENSION + " " + tr("(file cannot be loaded)") if r["broken"] else cr.label(true))
+				# BrokenRun.getLabel(true): "<file>.0adcampaign (file cannot be loaded)", in red.
+				var item := _add_row("%s (%s)" % [cr.filename + CampaignRun.EXTENSION, tr("file cannot be loaded")] if r["broken"] else cr.label(true))
 				if r["broken"]:
 					item.set_custom_color(0, Color.RED)
 				entries.append(r)
@@ -115,15 +127,16 @@ func render() -> void:
 					else (tr("Available") if open else "")
 				var item := _add_row(level_name(level), status)
 				if not open:
-					item.set_custom_color(0, GRAY)
+					item.set_custom_color(0, LOCKED)
 				elif not run.is_completed(e["id"]):
 					item.set_custom_color(1, GREEN)
 				entries.append(e["id"])
 			start_button.text = tr("Start Scenario")
-	# CampaignMenu.xml "Back to Main Menu", LoadModal.xml "Cancel".
-	back_button.text = tr("Cancel") if mode == "load" else tr("Back to Main Menu")
-	empty_text.visible = entries.is_empty()
-	empty_text.text = tr("No ongoing campaigns.") if mode == "load" else tr("No campaigns.") if mode == "setup" else tr("No levels.")
+	# CampaignMenu.xml "Back to Main Menu", LoadModal.xml "Cancel", CampaignSetupPage.xml "Main Menu".
+	back_button.text = tr("Cancel") if mode == "load" else tr("Main Menu") if mode == "setup" else tr("Back to Main Menu")
+	# Only the run list has an empty text (LoadModal.xml noCampaignsText).
+	empty_text.visible = mode == "load" and entries.is_empty()
+	empty_text.text = tr("No ongoing campaigns.")
 	if selected >= entries.size():
 		selected = -1
 	if selected >= 0:
@@ -152,15 +165,17 @@ func render_details() -> void:
 				var t: Dictionary = entries[selected]
 				info_name.text = template_text(t, "Name")
 				info_desc.text = template_text(t, "Description")
-				# CampaignSetupPage: the template's Image (RTS0 shows nothing for 0 A.D.'s
-				# "no preview" picture, like Game Setup's map without one).
+				# CampaignSetupPage: the template's Image, else 0 A.D.'s "no preview" picture.
 				info_preview.texture = _texture(str(t.get("Image", "")))
+			if info_preview.texture == null:
+				info_preview.texture = no_preview()
 		"load":
-			if selected < 0:
-				return
-			var r: Dictionary = entries[selected]
-			start_button.disabled = r["broken"]
-			info_name.text = (r["run"] as CampaignRun).label()
+			# LoadModal.xml: "Name of selected run:" over the run's getLabel().
+			info_name.text = tr("Name of selected run:")
+			if selected >= 0:
+				var r: Dictionary = entries[selected]
+				start_button.disabled = r["broken"]
+				info_desc.text = run_label(r)
 		_:
 			if selected < 0:
 				info_name.text = tr("No scenario selected")
@@ -185,6 +200,21 @@ static func _level_preview(level: Dictionary) -> Texture2D:
 			if t:
 				return t
 	return SetupPage.map_preview(CampaignRun.level_map_id(level))
+
+## "cropped:0.78,0.59:session/icons/mappreview/nopreview.png": its top-left 400x300 of 512.
+static func no_preview() -> Texture2D:
+	var t := _texture("res://assets/textures/ui/archive/icons/mappreview/nopreview.png")
+	if t == null:
+		return null
+	var a := AtlasTexture.new()
+	a.atlas = t
+	a.region = Rect2(0, 0, t.get_width() * 400.0 / 512.0, t.get_height() * 300.0 / 512.0)
+	return a
+
+## A saved run's getLabel(): a run that cannot be loaded is "<file>.0adcampaign" (BrokenRun).
+static func run_label(r: Dictionary) -> String:
+	var cr: CampaignRun = r["run"]
+	return cr.filename + CampaignRun.EXTENSION if r["broken"] else cr.label()
 
 static func _texture(p: String) -> Texture2D:
 	if p == "" or not ResourceLoader.exists(p):
@@ -245,7 +275,7 @@ func delete_pressed() -> void:
 	if mode != "load" or selected < 0:
 		return
 	# LoadModal.js messageBox(400, 200, …, "Confirmation", No, Yes).
-	confirm = MSGBOX.open(self, 400, 200, tr("Are you sure you want to delete run %s? This cannot be undone.") % (entries[selected]["run"] as CampaignRun).label(),
+	confirm = MSGBOX.open(self, 400, 200, tr("Are you sure you want to delete run %s? This cannot be undone.") % run_label(entries[selected]),
 		tr("Confirmation"), [tr("No"), tr("Yes")])
 	confirm.answered.connect(func(i: int):
 		confirm = null
@@ -298,6 +328,13 @@ func back_to_main_menu() -> void:
 	else:
 		get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
 
+## LoadModal.xml's Cancel has hotkey="cancel": Escape goes back to the main menu.
+func _unhandled_input(event: InputEvent) -> void:
+	if mode == "load" and confirm == null and event is InputEventKey and event.pressed \
+			and "cancel" in RtsoHotkeyConfig.new().fired(event):
+		get_viewport().set_input_as_handled()
+		back_to_main_menu()
+
 # --- Page -------------------------------------------------------------------------------
 
 func _label(text: String, size := 14, color := Color.WHITE) -> Label:
@@ -337,7 +374,6 @@ func _build() -> void:
 	list.columns = 2
 	list.hide_root = true
 	list.select_mode = Tree.SELECT_ROW
-	list.set_column_title(0, tr("Name"))
 	list.set_column_title(1, tr("Status"))
 	list.set_column_title_alignment(0, HORIZONTAL_ALIGNMENT_LEFT)
 	list.set_column_title_alignment(1, HORIZONTAL_ALIGNMENT_LEFT)
@@ -385,16 +421,19 @@ func _build() -> void:
 	# NewCampaignModal: the run's name, the campaign's name to start with.
 	name_dialog = ConfirmationDialog.new()
 	name_dialog.name = "NewCampaignModal"
-	name_dialog.title = "Start a campaign"
+	name_dialog.title = tr("Start a campaign")
+	name_dialog.ok_button_text = tr("Start Campaign")
+	name_dialog.cancel_button_text = tr("Cancel")
 	var name_box := VBoxContainer.new()
-	name_box.add_child(_label("Please enter the name of your new campaign run:"))
+	name_box.add_child(_label(tr("Please enter the name of your new campaign run:")))
 	name_edit = LineEdit.new()
 	if has_node("/root/MatchSettings"):
 		get_node("/root/MatchSettings").prepare_line_edit(name_edit)
 	name_box.add_child(name_edit)
 	name_dialog.add_child(name_box)
-	name_edit.text_changed.connect(func(t): name_dialog.get_ok_button().disabled = t.strip_edges() == "")
-	name_edit.text_submitted.connect(func(t): if t.strip_edges() != "": name_dialog.hide(); create_run(t.strip_edges()))
-	name_dialog.confirmed.connect(func(): create_run(name_edit.text.strip_edges()))
+	# onTextEdit: Start needs a name that is not empty; the name is kept as typed.
+	name_edit.text_changed.connect(func(t): name_dialog.get_ok_button().disabled = t == "")
+	name_edit.text_submitted.connect(func(t): if t != "": name_dialog.hide(); create_run(t))
+	name_dialog.confirmed.connect(func(): create_run(name_edit.text))
 	add_child(name_dialog)
 

@@ -707,6 +707,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								if (!is_shift && !is_ctrl) {
 									selected_ids.clear();
 									selected_building_id = 0;
+									// resetIdleUnit: the next idle-unit hotkey starts again at the first.
+									last_idle_unit_ = 0;
+									idle_class_index_ = 0;
 								}
 							}
 						}
