@@ -105,6 +105,15 @@ func run() -> void:
 	check(filter_titles(page).has("Best for MP") and filter_titles(page).has("Naval Maps"), "random filters: " + str(filter_titles(page)))
 	var spin: SpinBox = page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots")
 	check(spin.editable, "the player count can be picked")
+	var pc: RtsoSafeSelect = page.get_node("%PlayerCountSlot").get_child(0)
+	check(not pc.disabled and pc.get_item_count() == 8 and page.get_node("%PlayerCountLabel").text == "Number of Players"
+		and page.get_node("%PlayerCountLabel").get_parent().name == "PlayerTab", "PlayerCount.js: Number of Players, 1-8, in the Player tab")
+	var before := int(spin.value)
+	pc.select(2)
+	pc.item_selected.emit(2)
+	check(int(spin.value) == 3, "picking 3 sets three players")
+	spin.value = before
+	check(pc.get_selected() == before - 1, "and the dropdown follows the count")
 	print("3b. Player Placement")
 	var tp_slot: Control = node(page, "MapOptionsRow/TeamPlacementSlot")
 	set_filter(page, "All Maps")
@@ -293,7 +302,7 @@ func run() -> void:
 	res = node(page, "ResSlot").get_child(0)
 	check(not res.disabled and res.text != "Per Player" and not node(page, "MapVisRow/RevealMap").disabled, "and the match settings")
 	spin = page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots")
-	check(not spin.editable, "a skirmish keeps its player count")
+	check(not spin.editable and (page.get_node("%PlayerCountSlot").get_child(0) as RtsoSafeSelect).disabled, "a skirmish keeps its player count")
 
 	print("6. Start on Random")
 	page._on_map_type_selected(1)
