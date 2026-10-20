@@ -19939,15 +19939,12 @@ void Simulation::petra_manage_military_production(float dt) {
 	// trains now (no hero unless asked for, never a siege tower), the best value per cost, the
 	// value 0.1 plus strength (getMaxStrength, against Structure for siegeStrength) times its
 	// weight, multiplied by each costsResource weight for a template costing that resource. A
-	// resource with under 800 in stock and under 800 left in our territory adds a penalty of
+	// resource with under 800 in stock and under 800 left round our dropsites adds a penalty of
 	// 0.6 (over 400 left) or 0.2.
 	auto best_trainable = [&](const UnitStat &st) -> uint16_t {
 		if (!levels_counted) {
 			levels_counted = true;
-			for (size_t r = 0; r < resources_.count; ++r)
-				if (resources_.alive[r] && resources_.type[r] < RES_COUNT && resources_.amount[r] > 0 &&
-				    territory_owner_at(resources_.x[r], resources_.z[r]) == (int)petra_pid_)
-					remaining[resources_.type[r]] += (float)resources_.amount[r];
+			petra_total_resource_level(remaining);
 		}
 		float penalty[RES_COUNT] = {1.0f, 1.0f, 1.0f, 1.0f};
 		penalty[RES_STONE] = st.stone;
@@ -20369,6 +20366,44 @@ int Simulation::petra_unplanned_workers(int &supports) {
 // strength and more at the start: supportMax * (1 - exp(-alpha * workers / supportMax)).
 // Past that, citizen infantry train as workers: fast and without stone or metal under 45
 // workers, the strongest for its cost after. Returns how many workers are still wanted.
+// baseManager.js assignResourceToDropsite and getResourceLevel(["nearby", "medium"]): each base
+// lists the supplies (not animals or fields) on a dropsite's land within half of
+// maxDistResourceSquare (180 m) of one of its dropsites for that resource; a supply counts once
+// per base, and once for each base that lists it. Dropsites out of every base's territory are
+// the baseless base's.
+void Simulation::petra_total_resource_level(float out[RES_COUNT]) const {
+	for (int r = 0; r < RES_COUNT; ++r) out[r] = 0.0f;
+	PetraBasesMap bmap;
+	petra_bases_map(bmap);
+	struct Drop { float x, z; int base; uint8_t takes; uint16_t land; };
+	std::vector<Drop> drops;
+	for (const auto &b : buildings_) {
+		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
+		uint8_t takes = 0;
+		if (is_civic_centre(b.type) || civ_building_is_dropsite(b.type) || b.type == BLD_DOCK) takes = 0xF;
+		else if (b.type == BLD_STOREHOUSE) takes = (1 << RES_WOOD) | (1 << RES_STONE) | (1 << RES_GOLD);
+		else if (is_food_dropsite(b.type)) takes = 1 << RES_FOOD;
+		if (takes) drops.push_back({b.x, b.z, bmap.at(b.x, b.z, map_half_), takes, petra_access_at(b.x, b.z)});
+	}
+	if (drops.empty()) return;
+	std::vector<uint8_t> listed(bmap.anchors.size() + 1);
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.type[r] >= RES_COUNT) continue;
+		const uint8_t sub = resources_.subtype[r];
+		if (sub == RES_SUB_MEAT || sub == RES_SUB_FISH || field_bld_by_res_.count(resources_.id[r])) continue;
+		const uint8_t type = resources_.type[r];
+		const uint16_t land = petra_access_at(resources_.x[r], resources_.z[r]);
+		std::fill(listed.begin(), listed.end(), 0);
+		for (const Drop &d : drops) {
+			if (!(d.takes & (1 << type)) || d.land != land || listed[(size_t)d.base]) continue;
+			const float dx = d.x - resources_.x[r], dz = d.z - resources_.z[r];
+			if (dx * dx + dz * dz >= 45.0f * 45.0f) continue;
+			listed[(size_t)d.base] = 1;
+			out[type] += (float)resources_.amount[r];
+		}
+	}
+}
+
 int Simulation::petra_train_more_workers() {
 	int supports = 0;
 	const int workers = petra_unplanned_workers(supports);
@@ -20437,16 +20472,13 @@ int Simulation::petra_train_more_workers() {
 		// any (pickRandom), so at least a third of each.
 		// The template's own classes (mercenaries are CitizenSoldier too in 0.28), no hero or
 		// siege tower, and the scarce-resource penalty findBestTrainableUnit adds: under 800 in
-		// stock and under 800 left in our territory, x0.6 (over 400 left) or x0.2.
+		// stock and under 800 left round our dropsites (getTotalResourceLevel), x0.6 (over 400 left) or x0.2.
 		const int pick = (int)petra_rng_.range_int(0, 2);
 		float penalty[RES_COUNT] = {1.0f, 1.0f, 1.0f, 1.0f};
 		if (total < 45) penalty[RES_STONE] = penalty[RES_GOLD] = 0.5f;
 		{
-			float remaining[RES_COUNT] = {};
-			for (size_t r = 0; r < resources_.count; ++r)
-				if (resources_.alive[r] && resources_.type[r] < RES_COUNT && resources_.amount[r] > 0 &&
-				    territory_owner_at(resources_.x[r], resources_.z[r]) == (int)petra_pid_)
-					remaining[resources_.type[r]] += (float)resources_.amount[r];
+			float remaining[RES_COUNT];
+			petra_total_resource_level(remaining);
 			for (int r = 0; r < RES_COUNT; ++r)
 				if (petra_available_resource((uint8_t)r) <= 800.0f && remaining[r] <= 800.0f) // getAvailableResources
 					penalty[r] = std::min(penalty[r], remaining[r] > 400.0f ? 0.6f : 0.2f);

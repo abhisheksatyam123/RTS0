@@ -3877,6 +3877,8 @@ private:
 	bool petra_find_defensive_location(uint8_t btype, int &out_cx, int &out_cz) const; // headquarters.js findDefensiveLocation
 	void petra_prospect_market(const PetraTradeRoutes &routes); // prospectForNewMarket
 	int petra_unplanned_workers(int &supports);
+	// basesManager.js getTotalResourceLevel (nearby and medium): each base's dropsite supplies.
+	void petra_total_resource_level(float out[RES_COUNT]) const;
 	int petra_train_more_workers();
 	bool petra_wood_starved() const;
 	bool petra_wood_kept_for(int queue) const;
