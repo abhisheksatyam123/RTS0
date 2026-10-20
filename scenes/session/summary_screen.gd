@@ -1225,11 +1225,13 @@ static func mark_campaign_won() -> void:
 		run.mark_level_complete(MatchSettings.campaign_level)
 
 ## Back to the run's menu after the match (a level won is completed again here,
-## for a match won before mark_campaign_won existed).
-static func leave_campaign(victory: bool) -> void:
+## for a match won before mark_campaign_won existed). A replay of a campaign level
+## also ends on the run's menu (session.js leaveGame) but completes nothing:
+## CampaignSession.onFinish returns when the viewer is not one of the players.
+static func leave_campaign(victory: bool, replaying := false) -> void:
 	var run := CampaignRun.new(MatchSettings.campaign_run)
 	if run.load_run():
-		if victory:
+		if victory and not replaying:
 			run.mark_level_complete(MatchSettings.campaign_level)
 		run.set_current()
 	MatchSettings.campaign_run = ""

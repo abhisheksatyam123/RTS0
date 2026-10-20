@@ -55,8 +55,13 @@ func run() -> void:
 	var opt = first(current_scene, "RtsoSafeSelect")
 	opt.pressed.emit()
 	check(audio.clicks == before + 1, "a Game Setup dropdown opening clicks")
+	await frames(1)
 	opt.item_selected.emit(0)
-	check(audio.clicks == before + 2, "and so does its pick, once")
+	opt.menu_closed.emit()
+	check(audio.clicks == before + 2, "and so does its pick, once with the list closing")
+	await frames(1)
+	opt.menu_closed.emit()
+	check(audio.clicks == before + 3, "closing the list without a pick clicks too (sound_closed)")
 	change_scene_to_file("res://scenes/menu/options.tscn")
 	await frames(5)
 	check(audio.menu_music_track() == playing, "still playing in Options")
@@ -65,6 +70,16 @@ func run() -> void:
 	if tabs:
 		tabs.tab_clicked.emit(0)
 		check(audio.clicks == before + 1, "an Options tab clicks")
+	await frames(1)
+	before = audio.clicks
+	var slider: HSlider = first(current_scene, "HSlider")
+	if slider:
+		var mb := InputEventMouseButton.new()
+		mb.button_index = MOUSE_BUTTON_LEFT
+		mb.pressed = true
+		slider.gui_input.emit(mb)
+		check(audio.clicks == before + 1, "pressing an Options slider clicks (ModernSlider sound_pressed)")
+	await frames(1)
 	before = audio.clicks
 	var btn: Button = first(current_scene, "Button")
 	btn.pressed.emit()

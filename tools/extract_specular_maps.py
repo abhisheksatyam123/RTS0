@@ -17,11 +17,12 @@ Writes:
   assets/textures/specular_maps/<specTex>_<w>x<h>_p<specPow>.png
   data/specular_maps.json   {"buildings/barracks_tex0": <res path>}
 
-Usage: python3 tools/extract_specular_maps.py [--ref master] [--only id,id] [--max 256]
+Usage: python3 tools/extract_specular_maps.py [--ref master | --zip public.zip] [--only id,id] [--max 256]
 """
 import argparse
 import concurrent.futures as cf
 import json
+import zipfile
 import os
 import sys
 import xml.etree.ElementTree as ET
@@ -69,8 +70,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ref", default="master")
     ap.add_argument("--only", default="")
+    ap.add_argument("--zip", help="read a 0 A.D. release public.zip instead of GitHub")
     ap.add_argument("--max", type=int, default=256, help="largest side of a written map")
     args = ap.parse_args()
+    if args.zip:
+        M.ZIP = zipfile.ZipFile(args.zip)
     os.chdir(ROOT)
 
     models = json.load(open("assets/models/manifest.json"))["models"]

@@ -1,0 +1,3350 @@
+{
+ "athen_bolt_shooter": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_boeotian.glb",
+   "res://assets/models/units/helm_hele_illyrian_b1_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b2.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b4.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b5.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "athen_bolt_shooter_part4"
+  ],
+  "salt": "art/actors/units/hellenes/oxybeles_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   0.989745,
+   -0.142845,
+   0.0,
+   0.142845,
+   0.989745,
+   1.439349,
+   3.703056,
+   1.964511
+  ]
+ },
+ "athen_champion_infantry": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_phrygian_b2.glb",
+   "res://assets/models/units/helm_hele_phrygian_b8.glb",
+   "res://assets/models/units/helm_hele_pilos.glb",
+   "res://assets/models/units/helm_hele_thracian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_thracian_b5_crested.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "athen_champion_infantry_part5",
+   "athen_champion_infantry_part6",
+   "athen_champion_infantry_part7",
+   "athen_champion_infantry_part8",
+   "athen_champion_infantry_part9"
+  ],
+  "salt": "art/actors/units/athenians/infantry_spearman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "athen_infantry_archer_e": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_boeotian.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b2.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b4.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b5.glb",
+   "res://assets/models/units/helm_hele_illyrian_b1_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b3_crested.glb"
+  ],
+  "joint": 5,
+  "parts": [
+   "athen_infantry_archer_e_part8"
+  ],
+  "salt": "art/actors/units/athenians/infantry_archer_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "athen_infantry_spearman_e": {
+  "freq": [
+   3,
+   3,
+   3,
+   3,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_corinthian_e2.glb",
+   "res://assets/models/units/helm_hele_corinthian_e3.glb",
+   "res://assets/models/units/helm_hele_corinthian_e4.glb",
+   "res://assets/models/units/helm_hele_thracian_b5_crested.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a2.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a4.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a5.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "athen_infantry_spearman_e_part8",
+   "athen_infantry_spearman_e_part9",
+   "athen_infantry_spearman_e_part10"
+  ],
+  "salt": "art/actors/units/athenians/infantry_spearman_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "athen_swordsman": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b5_crested.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a2.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a4.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a5.glb",
+   "res://assets/models/units/helm_hele_illyrian_b1_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b3_crested.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "athen_swordsman_part7",
+   "athen_swordsman_part8",
+   "athen_swordsman_part9"
+  ],
+  "salt": "art/actors/units/athenians/infantry_swordsman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "bolt_shooter": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_boeotian.glb",
+   "res://assets/models/units/helm_hele_illyrian_b1_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b2.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b4.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b5.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "bolt_shooter_part4"
+  ],
+  "salt": "art/actors/units/hellenes/oxybeles_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   0.989745,
+   -0.142845,
+   0.0,
+   0.142845,
+   0.989745,
+   1.439349,
+   3.703056,
+   1.964511
+  ]
+ },
+ "brit_chariot": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_montefortino_01.glb",
+   "res://assets/models/units/helm_celt_helmet_montefortino_02.glb",
+   "res://assets/models/units/helm_celt_helmet_montefortino_03.glb",
+   "res://assets/models/units/helm_celt_helmet_coolus_01.glb",
+   "res://assets/models/units/helm_celt_helmet_coolus_02.glb",
+   "res://assets/models/units/helm_celt_helmet_meyrick.glb"
+  ],
+  "joint": 12,
+  "parts": [
+   "brit_chariot_part11"
+  ],
+  "salt": "art/actors/units/britons/chariot_javelinist_c_d.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   0.0,
+   0.0,
+   0.989745,
+   -0.142846,
+   0.0,
+   0.142846,
+   0.989745,
+   -1e-06,
+   4.924236,
+   1.481131
+  ]
+ },
+ "brit_hero_boudicca": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_montefortino_01.glb",
+   "res://assets/models/units/helm_celt_helmet_montefortino_02.glb",
+   "res://assets/models/units/helm_celt_helmet_montefortino_03.glb",
+   "res://assets/models/units/helm_celt_helmet_coolus_01.glb",
+   "res://assets/models/units/helm_celt_helmet_coolus_02.glb",
+   "res://assets/models/units/helm_celt_helmet_meyrick.glb"
+  ],
+  "joint": 1,
+  "parts": [
+   "brit_hero_boudicca_part11"
+  ],
+  "salt": "art/actors/units/britons/chariot_javelinist_c_d.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   0.0,
+   0.0,
+   0.989745,
+   -0.142846,
+   0.0,
+   0.142846,
+   0.989745,
+   -0.0,
+   3.769687,
+   -0.068682
+  ]
+ },
+ "brit_infantry_javelineer_e": {
+  "freq": [
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_coolus_01.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "brit_infantry_javelineer_e_part14"
+  ],
+  "salt": "art/actors/units/britons/infantry_javelinist_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "brit_infantry_spearman_e": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_coolus_01.glb",
+   "res://assets/models/units/helm_celt_helmet_coolus_02.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "brit_infantry_spearman_e_part9"
+  ],
+  "salt": "art/actors/units/britons/infantry_spearman_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "brit_scythed_chariot": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_montefortino_01.glb",
+   "res://assets/models/units/helm_celt_helmet_montefortino_02.glb",
+   "res://assets/models/units/helm_celt_helmet_montefortino_03.glb",
+   "res://assets/models/units/helm_celt_helmet_coolus_01.glb",
+   "res://assets/models/units/helm_celt_helmet_coolus_02.glb",
+   "res://assets/models/units/helm_celt_helmet_meyrick.glb"
+  ],
+  "joint": 12,
+  "parts": [
+   "brit_scythed_chariot_part11"
+  ],
+  "salt": "art/actors/units/britons/chariot_javelinist_c_d.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   0.0,
+   0.0,
+   0.989745,
+   -0.142846,
+   0.0,
+   0.142846,
+   0.989745,
+   -1e-06,
+   4.924236,
+   1.481131
+  ]
+ },
+ "brit_swordsman": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_berru_01.glb",
+   "res://assets/models/units/helm_celt_helmet_berru_02.glb",
+   "res://assets/models/units/helm_celt_helmet_berru_03.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "brit_swordsman_part10"
+  ],
+  "salt": "art/actors/units/britons/infantry_swordsman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "carnyx": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_alesia_02.glb",
+   "res://assets/models/units/helm_celt_helmet_alesia_03.glb"
+  ],
+  "joint": 1,
+  "parts": [
+   "carnyx_part2"
+  ],
+  "salt": "art/actors/units/gauls/infantry_carnyx_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "cart_bolt_shooter": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_cart_helmet_b.glb",
+   "res://assets/models/units/helm_hele_thracian_br.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "cart_bolt_shooter_part4"
+  ],
+  "salt": "art/actors/units/carthaginians/oxybeles_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   0.989745,
+   -0.142845,
+   0.0,
+   0.142845,
+   0.989745,
+   1.439349,
+   3.703056,
+   1.964511
+  ]
+ },
+ "cart_catapult": {
+  "freq": [
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_cart_helmet_b.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "cart_catapult_part4"
+  ],
+  "salt": "art/actors/units/carthaginians/lithobolos_med_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   0.0,
+   0.0,
+   0.989745,
+   -0.142845,
+   0.0,
+   0.142845,
+   0.989745,
+   2.446331,
+   3.693056,
+   2.933221
+  ]
+ },
+ "cart_champion_pikeman": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_cart_helmet_b.glb",
+   "res://assets/models/units/helm_hele_thracian_br_crested.glb",
+   "res://assets/models/units/helm_hele_thracian_b6_crested.glb",
+   "res://assets/models/units/helm_hele_phrygian_b10.glb",
+   "res://assets/models/units/helm_pers_conical_a1.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "cart_champion_pikeman_part5"
+  ],
+  "salt": "art/actors/units/carthaginians/infantry_pikeman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "cart_infantry_javelineer_iber_e": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_iber_helmet_cigarralejo_01.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b6.glb",
+   "res://assets/models/units/helm_iber_helmet_montefortino_02.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "cart_infantry_javelineer_iber_e_part11"
+  ],
+  "salt": "art/actors/units/iberians/infantry_javelinist_e_fire.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "cart_infantry_spearman_a": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_cart_helmet_b.glb",
+   "res://assets/models/units/helm_hele_thracian_br.glb",
+   "res://assets/models/units/helm_hele_thracian_b4.glb",
+   "res://assets/models/units/helm_hele_thracian_b6.glb",
+   "res://assets/models/units/helm_hele_phrygian_b10.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "cart_infantry_spearman_a_part5"
+  ],
+  "salt": "art/actors/units/carthaginians/infantry_spearman_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "cart_infantry_spearman_b": {
+  "freq": [
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b5.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "cart_infantry_spearman_b_part5",
+   "cart_infantry_spearman_b_part6"
+  ],
+  "salt": "art/actors/units/carthaginians/infantry_spearman_b.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "cart_infantry_spearman_e": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_cart_helmet_b.glb",
+   "res://assets/models/units/helm_hele_thracian_br.glb",
+   "res://assets/models/units/helm_hele_thracian_b6.glb",
+   "res://assets/models/units/helm_hele_thracian_b9.glb",
+   "res://assets/models/units/helm_hele_phrygian_b10.glb",
+   "res://assets/models/units/helm_pers_conical_a1.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "cart_infantry_spearman_e_part6"
+  ],
+  "salt": "art/actors/units/carthaginians/infantry_spearman_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "cart_infantry_spearman_ital_a": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_attic_a2.glb",
+   "res://assets/models/units/helm_hele_attic_a3.glb",
+   "res://assets/models/units/helm_hele_attic_a4.glb",
+   "res://assets/models/units/helm_hele_phrygian_a11.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "cart_infantry_spearman_ital_a_part5",
+   "cart_infantry_spearman_ital_a_part6",
+   "cart_infantry_spearman_ital_a_part7",
+   "cart_infantry_spearman_ital_a_part8",
+   "cart_infantry_spearman_ital_a_part9",
+   "cart_infantry_spearman_ital_a_part10"
+  ],
+  "salt": "art/actors/units/carthaginians/infantry_spearman_a_m.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "cart_infantry_spearman_ital_b": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_attic_b2.glb",
+   "res://assets/models/units/helm_hele_attic_b3.glb",
+   "res://assets/models/units/helm_hele_attic_b4.glb",
+   "res://assets/models/units/helm_rome_helmet_montefortino.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "cart_infantry_spearman_ital_b_part5",
+   "cart_infantry_spearman_ital_b_part6"
+  ],
+  "salt": "art/actors/units/carthaginians/infantry_spearman_b_m.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "cart_infantry_spearman_ital_e": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_attic_e2.glb",
+   "res://assets/models/units/helm_hele_attic_e3.glb",
+   "res://assets/models/units/helm_hele_attic_e4.glb",
+   "res://assets/models/units/helm_hele_phrygian_e11.glb",
+   "res://assets/models/units/helm_samnite_helmet_montefortino.glb"
+  ],
+  "joint": 2,
+  "parts": [
+   "cart_infantry_spearman_ital_e_part5",
+   "cart_infantry_spearman_ital_e_part6",
+   "cart_infantry_spearman_ital_e_part7",
+   "cart_infantry_spearman_ital_e_part8",
+   "cart_infantry_spearman_ital_e_part9",
+   "cart_infantry_spearman_ital_e_part10",
+   "cart_infantry_spearman_ital_e_part11",
+   "cart_infantry_spearman_ital_e_part12"
+  ],
+  "salt": "art/actors/units/carthaginians/infantry_spearman_e_m.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "cart_infantry_swordsman_gaul_a": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_montefortino_02.glb",
+   "res://assets/models/units/helm_celt_helmet_montefortino_03.glb",
+   "res://assets/models/units/helm_celt_helmet_berru_01.glb",
+   "res://assets/models/units/helm_celt_helmet_berru_02.glb",
+   "res://assets/models/units/helm_celt_helmet_berru_03.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "cart_infantry_swordsman_gaul_a_part5"
+  ],
+  "salt": "art/actors/units/gauls/infantry_swordsman_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "cart_infantry_swordsman_gaul_e": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_montefortino_02.glb",
+   "res://assets/models/units/helm_celt_helmet_montefortino_03.glb",
+   "res://assets/models/units/helm_celt_helmet_ciumesti_01.glb",
+   "res://assets/models/units/helm_celt_helmet_ciumesti_02.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "cart_infantry_swordsman_gaul_e_part11"
+  ],
+  "salt": "art/actors/units/gauls/infantry_swordsman_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "cart_infantry_swordsman_ital_a": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_attic_a2.glb",
+   "res://assets/models/units/helm_hele_attic_a3.glb",
+   "res://assets/models/units/helm_hele_attic_a4.glb",
+   "res://assets/models/units/helm_hele_phrygian_a11.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "cart_infantry_swordsman_ital_a_part5",
+   "cart_infantry_swordsman_ital_a_part6",
+   "cart_infantry_swordsman_ital_a_part7",
+   "cart_infantry_swordsman_ital_a_part8",
+   "cart_infantry_swordsman_ital_a_part9",
+   "cart_infantry_swordsman_ital_a_part10"
+  ],
+  "salt": "art/actors/units/carthaginians/infantry_swordsman_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "cart_infantry_swordsman_ital_e": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_attic_e2.glb",
+   "res://assets/models/units/helm_hele_attic_e3.glb",
+   "res://assets/models/units/helm_hele_attic_e4.glb",
+   "res://assets/models/units/helm_hele_phrygian_e11.glb",
+   "res://assets/models/units/helm_samnite_helmet_montefortino.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "cart_infantry_swordsman_ital_e_part5",
+   "cart_infantry_swordsman_ital_e_part6",
+   "cart_infantry_swordsman_ital_e_part7",
+   "cart_infantry_swordsman_ital_e_part8",
+   "cart_infantry_swordsman_ital_e_part9",
+   "cart_infantry_swordsman_ital_e_part10",
+   "cart_infantry_swordsman_ital_e_part11",
+   "cart_infantry_swordsman_ital_e_part12"
+  ],
+  "salt": "art/actors/units/carthaginians/infantry_swordsman_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "cart_spearman": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b6_crested.glb",
+   "res://assets/models/units/helm_hele_phrygian_b10.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "cart_spearman_part8",
+   "cart_spearman_part9",
+   "cart_spearman_part10"
+  ],
+  "salt": "art/actors/units/carthaginians/infantry_spearman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "cart_swordsman": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_attic_b2.glb",
+   "res://assets/models/units/helm_hele_attic_b3.glb",
+   "res://assets/models/units/helm_hele_attic_b4.glb",
+   "res://assets/models/units/helm_rome_helmet_montefortino.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "cart_swordsman_part5",
+   "cart_swordsman_part6"
+  ],
+  "salt": "art/actors/units/carthaginians/infantry_swordsman_b.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "catapult": {
+  "freq": [
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_cart_helmet_b.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "catapult_part4"
+  ],
+  "salt": "art/actors/units/carthaginians/lithobolos_med_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   0.0,
+   0.0,
+   0.989745,
+   -0.142845,
+   0.0,
+   0.142845,
+   0.989745,
+   2.446331,
+   3.693056,
+   2.933221
+  ]
+ },
+ "chariot": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_montefortino_01.glb",
+   "res://assets/models/units/helm_celt_helmet_montefortino_02.glb",
+   "res://assets/models/units/helm_celt_helmet_montefortino_03.glb",
+   "res://assets/models/units/helm_celt_helmet_coolus_01.glb",
+   "res://assets/models/units/helm_celt_helmet_coolus_02.glb",
+   "res://assets/models/units/helm_celt_helmet_meyrick.glb"
+  ],
+  "joint": 12,
+  "parts": [
+   "chariot_part27"
+  ],
+  "salt": "art/actors/units/britons/chariot_javelinist_c_d.xml#helmet",
+  "xf": [
+   0.999904,
+   -0.006778,
+   0.012052,
+   0.007893,
+   0.995446,
+   -0.095004,
+   -0.011353,
+   0.09509,
+   0.995404,
+   0.077556,
+   3.603332,
+   0.641265
+  ]
+ },
+ "gaul_carnyx": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_alesia_02.glb",
+   "res://assets/models/units/helm_celt_helmet_alesia_03.glb"
+  ],
+  "joint": 1,
+  "parts": [
+   "gaul_carnyx_part2"
+  ],
+  "salt": "art/actors/units/gauls/infantry_carnyx_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "gaul_infantry_javelineer_e": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_montefortino_02.glb",
+   "res://assets/models/units/helm_celt_helmet_montefortino_03.glb",
+   "res://assets/models/units/helm_celt_helmet_berru_01.glb",
+   "res://assets/models/units/helm_celt_helmet_berru_02.glb",
+   "res://assets/models/units/helm_celt_helmet_berru_03.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "gaul_infantry_javelineer_e_part16"
+  ],
+  "salt": "art/actors/units/gauls/infantry_javelinist_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "gaul_infantry_spearman_e": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_alesia_02.glb",
+   "res://assets/models/units/helm_celt_helmet_alesia_03.glb",
+   "res://assets/models/units/helm_celt_helmet_coolus_01.glb",
+   "res://assets/models/units/helm_celt_helmet_coolus_02.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "gaul_infantry_spearman_e_part11"
+  ],
+  "salt": "art/actors/units/gauls/infantry_spearman_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "gaul_spearman": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_mihovo.glb",
+   "res://assets/models/units/helm_celt_helmet_foret.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "gaul_spearman_part13"
+  ],
+  "salt": "art/actors/units/gauls/infantry_spearman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "gaul_swordsman": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_alesia_02.glb",
+   "res://assets/models/units/helm_celt_helmet_alesia_03.glb",
+   "res://assets/models/units/helm_celt_helmet_mihovo.glb",
+   "res://assets/models/units/helm_celt_monte_bibele.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "gaul_swordsman_part10"
+  ],
+  "salt": "art/actors/units/gauls/infantry_swordsman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "germ_infantry_javelineer_e": {
+  "freq": [
+   2,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_coolus_02.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "germ_infantry_javelineer_e_part15"
+  ],
+  "salt": "art/actors/units/germans/infantry_javelinist_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "iber_infantry_javelineer_e": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_iber_helmet_cigarralejo_01.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b6.glb",
+   "res://assets/models/units/helm_iber_helmet_montefortino_02.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "iber_infantry_javelineer_e_part11"
+  ],
+  "salt": "art/actors/units/iberians/infantry_javelinist_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "iber_infantry_spearman_e": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_chalcidean_b6.glb",
+   "res://assets/models/units/helm_iber_helmet_c.glb",
+   "res://assets/models/units/helm_iber_helmet_montefortino_01.glb",
+   "res://assets/models/units/helm_iber_helmet_montefortino_02.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "iber_infantry_spearman_e_part11"
+  ],
+  "salt": "art/actors/units/iberians/infantry_spearman_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "iber_infantry_swordsman_e": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_iber_helmet_cigarralejo_01.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b6.glb",
+   "res://assets/models/units/helm_iber_helmet_montefortino_02.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "iber_infantry_swordsman_e_part5"
+  ],
+  "salt": "art/actors/units/iberians/infantry_swordsman_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "iber_swordsman": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_iber_chalcidean_a2.glb",
+   "res://assets/models/units/helm_iber_helmet_c.glb",
+   "res://assets/models/units/helm_iber_helmet_montefortino_01.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "iber_swordsman_part5",
+   "iber_swordsman_part6",
+   "iber_swordsman_part7"
+  ],
+  "salt": "art/actors/units/iberians/infantry_swordsman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "mace_bolt_shooter": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_boeotian.glb",
+   "res://assets/models/units/helm_hele_illyrian_b1_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b2.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b4.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b5.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "mace_bolt_shooter_part4"
+  ],
+  "salt": "art/actors/units/hellenes/oxybeles_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   0.989745,
+   -0.142845,
+   0.0,
+   0.142845,
+   0.989745,
+   1.439349,
+   3.703056,
+   1.964511
+  ]
+ },
+ "mace_catapult": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_chalcidean_b1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b2.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "mace_catapult_part4",
+   "mace_catapult_part5",
+   "mace_catapult_part6"
+  ],
+  "salt": "art/actors/units/hellenes/lithobolos_med_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   0.0,
+   0.0,
+   0.989745,
+   -0.142845,
+   0.0,
+   0.142845,
+   0.989745,
+   2.446331,
+   3.693056,
+   2.933221
+  ]
+ },
+ "mace_champion_infantry_spearman": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_phrygian_e1.glb",
+   "res://assets/models/units/helm_hele_phrygian_b8.glb",
+   "res://assets/models/units/helm_hele_phrygian_b9.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "mace_champion_infantry_spearman_part5",
+   "mace_champion_infantry_spearman_part6",
+   "mace_champion_infantry_spearman_part7"
+  ],
+  "salt": "art/actors/units/macedonians/infantry_spearman_c_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "mace_infantry_archer_a": {
+  "freq": [
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_straw_02.glb"
+  ],
+  "joint": 5,
+  "parts": [
+   "mace_infantry_archer_a_part8"
+  ],
+  "salt": "art/actors/units/macedonians/infantry_archer_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "mace_infantry_archer_e": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_boeotian.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b2.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b4.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b5.glb",
+   "res://assets/models/units/helm_hele_illyrian_b1_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b3_crested.glb"
+  ],
+  "joint": 5,
+  "parts": [
+   "mace_infantry_archer_e_part8"
+  ],
+  "salt": "art/actors/units/macedonians/infantry_archer_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "mace_infantry_javelineer_e": {
+  "freq": [
+   5,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   5
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_pilos.glb",
+   "res://assets/models/units/helm_hele_phrygian_a1.glb",
+   "res://assets/models/units/helm_hele_phrygian_b2.glb",
+   "res://assets/models/units/helm_hele_phrygian_b8.glb",
+   "res://assets/models/units/helm_hele_phrygian_b9.glb",
+   "res://assets/models/units/helm_hele_thracian_b5_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b1_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_phrygian_p5.glb"
+  ],
+  "joint": 5,
+  "parts": [
+   "mace_infantry_javelineer_e_part14",
+   "mace_infantry_javelineer_e_part15"
+  ],
+  "salt": "art/actors/units/macedonians/infantry_javelinist_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "mace_infantry_pikeman_a": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_phrygian_b2.glb",
+   "res://assets/models/units/helm_hele_phrygian_b4.glb",
+   "res://assets/models/units/helm_hele_phrygian_b8.glb",
+   "res://assets/models/units/helm_hele_phrygian_b9.glb",
+   "res://assets/models/units/helm_hele_thracian_b2.glb",
+   "res://assets/models/units/helm_hele_thracian_b5.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "mace_infantry_pikeman_a_part5",
+   "mace_infantry_pikeman_a_part6"
+  ],
+  "salt": "art/actors/units/macedonians/infantry_pikeman_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "mace_infantry_pikeman_e": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_phrygian_b9.glb",
+   "res://assets/models/units/helm_hele_thracian_b5_crested.glb",
+   "res://assets/models/units/helm_hele_thracian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_thracian_b4_crested.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "mace_infantry_pikeman_e_part5",
+   "mace_infantry_pikeman_e_part6",
+   "mace_infantry_pikeman_e_part7",
+   "mace_infantry_pikeman_e_part8"
+  ],
+  "salt": "art/actors/units/macedonians/infantry_pikeman_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "mace_swordsman": {
+  "freq": [
+   5,
+   1,
+   1,
+   3,
+   1,
+   1,
+   1,
+   5
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b2.glb",
+   "res://assets/models/units/helm_hele_thracian_b5.glb",
+   "res://assets/models/units/helm_hele_phrygian_a1.glb",
+   "res://assets/models/units/helm_hele_phrygian_b2.glb",
+   "res://assets/models/units/helm_hele_phrygian_b3.glb",
+   "res://assets/models/units/helm_hele_phrygian_b5.glb",
+   "res://assets/models/units/helm_hele_phrygian_p5.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "mace_swordsman_part11",
+   "mace_swordsman_part12"
+  ],
+  "salt": "art/actors/units/macedonians/infantry_swordsman_c_thracian.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "maur_citizen_female": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_maur_earrings_2.glb",
+   "res://assets/models/units/helm_maur_inf_big_turban.glb"
+  ],
+  "joint": 1,
+  "parts": [
+   "maur_citizen_female_part2"
+  ],
+  "salt": "art/actors/units/mauryas/citizen_female.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "maur_female_citizen": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_maur_earrings_2.glb",
+   "none"
+  ],
+  "joint": 1,
+  "parts": [
+   "maur_female_citizen_part2"
+  ],
+  "salt": "art/actors/units/mauryas/female_citizen.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "maur_support_elephant": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_maur_earrings_2.glb",
+   "none"
+  ],
+  "joint": 1,
+  "parts": [
+   "maur_support_elephant_part2"
+  ],
+  "salt": "art/actors/units/mauryas/support_elephant_d.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "maur_villager": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_maur_earrings_2.glb",
+   "res://assets/models/units/helm_maur_maiden_big_turban.glb"
+  ],
+  "joint": 1,
+  "parts": [
+   "maur_villager_part3"
+  ],
+  "salt": "art/actors/units/mauryas/citizen_male.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "ptol_bolt_shooter": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b5_crested.glb",
+   "res://assets/models/units/helm_hele_thracian_b4_crested.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "ptol_bolt_shooter_part3",
+   "ptol_bolt_shooter_part4",
+   "ptol_bolt_shooter_part5"
+  ],
+  "salt": "art/actors/units/ptolemies/polybolos_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   0.0,
+   0.0,
+   0.989745,
+   -0.142845,
+   0.0,
+   0.142845,
+   0.989745,
+   1.4,
+   3.693057,
+   1.036324
+  ]
+ },
+ "ptol_catapult": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b5_crested.glb",
+   "res://assets/models/units/helm_hele_thracian_b4_crested.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "ptol_catapult_part4",
+   "ptol_catapult_part5",
+   "ptol_catapult_part6"
+  ],
+  "salt": "art/actors/units/ptolemies/lithobolos_med_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   0.0,
+   0.0,
+   0.989745,
+   -0.142845,
+   0.0,
+   0.142845,
+   0.989745,
+   2.446331,
+   3.693056,
+   2.933221
+  ]
+ },
+ "ptol_infantry_archer_e": {
+  "freq": [
+   3,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_chalcidean_b1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b2.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b4.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b5.glb"
+  ],
+  "joint": 5,
+  "parts": [
+   "ptol_infantry_archer_e_part8",
+   "ptol_infantry_archer_e_part9"
+  ],
+  "salt": "art/actors/units/ptolemies/infantry_archer_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "ptol_infantry_pikeman_a": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b4.glb",
+   "res://assets/models/units/helm_hele_thracian_b5.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "ptol_infantry_pikeman_a_part7",
+   "ptol_infantry_pikeman_a_part8"
+  ],
+  "salt": "art/actors/units/ptolemies/infantry_pikeman_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "ptol_infantry_pikeman_e": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b5_crested.glb",
+   "res://assets/models/units/helm_hele_thracian_b4_crested.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "ptol_infantry_pikeman_e_part7",
+   "ptol_infantry_pikeman_e_part8",
+   "ptol_infantry_pikeman_e_part9"
+  ],
+  "salt": "art/actors/units/ptolemies/infantry_pikeman_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "ptol_infantry_slinger_e": {
+  "freq": [
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b9.glb"
+  ],
+  "joint": 2,
+  "parts": [
+   "ptol_infantry_slinger_e_part3",
+   "ptol_infantry_slinger_e_part4"
+  ],
+  "salt": "art/actors/units/ptolemies/infantry_slinger_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "ptol_infantry_swordsman_merc_e": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_celt_helmet_montefortino_02.glb",
+   "res://assets/models/units/helm_celt_helmet_montefortino_03.glb",
+   "res://assets/models/units/helm_celt_helmet_ciumesti_01.glb",
+   "res://assets/models/units/helm_celt_helmet_ciumesti_02.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "ptol_infantry_swordsman_merc_e_part6"
+  ],
+  "salt": "art/actors/units/ptolemies/infantry_swordsman_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "ptol_spearman": {
+  "freq": [
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b5_crested.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "ptol_spearman_part8",
+   "ptol_spearman_part9",
+   "ptol_spearman_part10"
+  ],
+  "salt": "art/actors/units/ptolemies/infantry_pikeman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "rome_champion_infantry_sword_gladiator": {
+  "freq": [
+   5,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_gladiator_secutor.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "rome_champion_infantry_sword_gladiator_part4",
+   "rome_champion_infantry_sword_gladiator_part5"
+  ],
+  "salt": "art/actors/units/romans/infantry_gladiator_swordsman.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "rome_champion_infantry_swordsman_centurion": {
+  "freq": [
+   4,
+   2,
+   2,
+   2
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_rome_helmet_gallic_centurion.glb",
+   "res://assets/models/units/helm_rome_apulo_corinthian_e1.glb",
+   "res://assets/models/units/helm_rome_apulo_corinthian_e2.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "rome_champion_infantry_swordsman_centurion_part8",
+   "rome_champion_infantry_swordsman_centurion_part9",
+   "rome_champion_infantry_swordsman_centurion_part10"
+  ],
+  "salt": "art/actors/units/romans/infantry_swordsman_f.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "rome_infantry_antesignanus": {
+  "freq": [
+   10,
+   2,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_rome_helmet_gallic.glb",
+   "res://assets/models/units/helm_hele_thracian_b8.glb",
+   "res://assets/models/units/helm_hele_thracian_a8.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "rome_infantry_antesignanus_part16",
+   "rome_infantry_antesignanus_part17",
+   "rome_infantry_antesignanus_part18",
+   "rome_infantry_antesignanus_part19",
+   "rome_infantry_antesignanus_part20"
+  ],
+  "salt": "art/actors/units/romans/infantry_javelinist_reform.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "rome_infantry_legionary": {
+  "freq": [
+   5,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_rome_helmet_gallic.glb"
+  ],
+  "joint": 2,
+  "parts": [
+   "rome_infantry_legionary_part3",
+   "rome_infantry_legionary_part4",
+   "rome_infantry_legionary_part5",
+   "rome_infantry_legionary_part6",
+   "rome_infantry_legionary_part7"
+  ],
+  "salt": "art/actors/units/romans/infantry_swordsman_c2.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "rome_infantry_spearman_a": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_rome_apulo_corinthian_a2.glb",
+   "res://assets/models/units/helm_rome_apulo_itallic_a1.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "rome_infantry_spearman_a_part9",
+   "rome_infantry_spearman_a_part10",
+   "rome_infantry_spearman_a_part11",
+   "rome_infantry_spearman_a_part12"
+  ],
+  "salt": "art/actors/units/romans/infantry_spearman_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "rome_infantry_spearman_e": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_rome_apulo_corinthian_e2.glb",
+   "res://assets/models/units/helm_rome_apulo_corinthian_a1.glb",
+   "res://assets/models/units/helm_rome_apulo_corinthian_a2.glb",
+   "res://assets/models/units/helm_rome_apulo_itallic_a1.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "rome_infantry_spearman_e_part9",
+   "rome_infantry_spearman_e_part10",
+   "rome_infantry_spearman_e_part11",
+   "rome_infantry_spearman_e_part12",
+   "rome_infantry_spearman_e_part13"
+  ],
+  "salt": "art/actors/units/romans/infantry_spearman_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "rome_infantry_swordsman_e": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_attic_r2.glb",
+   "res://assets/models/units/helm_hele_attic_r3.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "rome_infantry_swordsman_e_part7",
+   "rome_infantry_swordsman_e_part8",
+   "rome_infantry_swordsman_e_part9",
+   "rome_infantry_swordsman_e_part10",
+   "rome_infantry_swordsman_e_part11",
+   "rome_infantry_swordsman_e_part12"
+  ],
+  "salt": "art/actors/units/romans/infantry_swordsman_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "rome_spearman": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_rome_apulo_corinthian_b2.glb",
+   "res://assets/models/units/helm_rome_apulo_itallic_b1.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "rome_spearman_part9"
+  ],
+  "salt": "art/actors/units/romans/infantry_spearman_b.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "samnite_skirmisher": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_attic_a2.glb",
+   "res://assets/models/units/helm_hele_attic_a3.glb",
+   "res://assets/models/units/helm_hele_attic_a4.glb",
+   "res://assets/models/units/helm_rome_helmet_montefortino_c.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "samnite_skirmisher_part12",
+   "samnite_skirmisher_part13",
+   "samnite_skirmisher_part14",
+   "samnite_skirmisher_part15",
+   "samnite_skirmisher_part16",
+   "samnite_skirmisher_part17"
+  ],
+  "salt": "art/actors/units/carthaginians/infantry_javelinist_c_samnite.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "samnite_spearman": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_attic_a2.glb",
+   "res://assets/models/units/helm_hele_attic_a3.glb",
+   "res://assets/models/units/helm_hele_attic_a4.glb",
+   "res://assets/models/units/helm_rome_helmet_montefortino_c.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "samnite_spearman_part6",
+   "samnite_spearman_part7",
+   "samnite_spearman_part8",
+   "samnite_spearman_part9",
+   "samnite_spearman_part10",
+   "samnite_spearman_part11"
+  ],
+  "salt": "art/actors/units/carthaginians/infantry_spearman_c_samnite.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "sele_bolt_shooter": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_boeotian.glb",
+   "res://assets/models/units/helm_hele_illyrian_b1_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b2.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b4.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b5.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "sele_bolt_shooter_part4"
+  ],
+  "salt": "art/actors/units/hellenes/oxybeles_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   0.989745,
+   -0.142845,
+   0.0,
+   0.142845,
+   0.989745,
+   1.439349,
+   3.703056,
+   1.964511
+  ]
+ },
+ "sele_catapult": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_chalcidean_b1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b2.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "sele_catapult_part4",
+   "sele_catapult_part5",
+   "sele_catapult_part6"
+  ],
+  "salt": "art/actors/units/hellenes/lithobolos_med_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   0.0,
+   0.0,
+   0.989745,
+   -0.142845,
+   0.0,
+   0.142845,
+   0.989745,
+   2.446331,
+   3.693056,
+   2.933221
+  ]
+ },
+ "sele_chariot": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b4_crested.glb",
+   "res://assets/models/units/helm_hele_pilos_a2.glb"
+  ],
+  "joint": 1,
+  "parts": [
+   "sele_chariot_part23",
+   "sele_chariot_part24",
+   "sele_chariot_part25"
+  ],
+  "salt": "art/actors/units/seleucids/chariot_archer_c_d.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   0.0,
+   0.0,
+   0.989745,
+   -0.142846,
+   0.0,
+   0.142846,
+   0.989745,
+   0.795729,
+   5.883536,
+   2.690933
+  ]
+ },
+ "sele_infantry_archer_merc_e": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b8.glb",
+   "res://assets/models/units/helm_hele_thracian_b9.glb"
+  ],
+  "joint": 5,
+  "parts": [
+   "sele_infantry_archer_merc_e_part8",
+   "sele_infantry_archer_merc_e_part9"
+  ],
+  "salt": "art/actors/units/seleucids/infantry_archer_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "sele_infantry_spearman_e": {
+  "freq": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b2.glb",
+   "res://assets/models/units/helm_hele_thracian_a8.glb",
+   "res://assets/models/units/helm_hele_thracian_b8.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "sele_infantry_spearman_e_part11",
+   "sele_infantry_spearman_e_part12",
+   "sele_infantry_spearman_e_part13"
+  ],
+  "salt": "art/actors/units/seleucids/infantry_spearman_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "sele_scythed_chariot": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b4_crested.glb",
+   "res://assets/models/units/helm_hele_pilos_a2.glb"
+  ],
+  "joint": 1,
+  "parts": [
+   "sele_scythed_chariot_part23",
+   "sele_scythed_chariot_part24",
+   "sele_scythed_chariot_part25"
+  ],
+  "salt": "art/actors/units/seleucids/chariot_archer_c_d.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   0.0,
+   0.0,
+   0.989745,
+   -0.142846,
+   0.0,
+   0.142846,
+   0.989745,
+   0.795729,
+   5.883536,
+   2.690933
+  ]
+ },
+ "sele_spearman": {
+  "freq": [
+   2,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_s2.glb",
+   "res://assets/models/units/helm_hele_thracian_s3.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "sele_spearman_part8",
+   "sele_spearman_part9"
+  ],
+  "salt": "art/actors/units/seleucids/infantry_pikeman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "sele_swordsman": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_thracian_b3_crested.glb",
+   "res://assets/models/units/helm_hele_thracian_p3_crested.glb",
+   "res://assets/models/units/helm_hele_thracian_b4_crested.glb",
+   "res://assets/models/units/helm_hele_thracian_romanized_b2_crested.glb",
+   "res://assets/models/units/helm_hele_thracian_romanized_s2_crested.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "sele_swordsman_part5",
+   "sele_swordsman_part6"
+  ],
+  "salt": "art/actors/units/seleucids/infantry_swordsman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "siege_lithobolos": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_boeotian.glb",
+   "res://assets/models/units/helm_hele_illyrian_b1_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b2.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b4.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b5.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "siege_lithobolos_part3"
+  ],
+  "salt": "art/actors/units/hellenes/lithobolos_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   0.0,
+   0.0,
+   0.0,
+   -0.989745,
+   0.142843,
+   0.0,
+   -0.142843,
+   -0.989745,
+   4.706561,
+   -3.704782,
+   -10.103347
+  ]
+ },
+ "siege_lithobolos_light": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_boeotian.glb",
+   "res://assets/models/units/helm_hele_illyrian_b1_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b2.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b4.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b5.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "siege_lithobolos_light_part4"
+  ],
+  "salt": "art/actors/units/hellenes/lithobolos_light_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   0.0,
+   -0.0,
+   0.0,
+   -0.989745,
+   0.142843,
+   -0.0,
+   -0.142843,
+   -0.989745,
+   1.999999,
+   -3.69861,
+   -4.073227
+  ]
+ },
+ "siege_oxybeles": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_boeotian.glb",
+   "res://assets/models/units/helm_hele_illyrian_b1_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b2.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b4.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b5.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "siege_oxybeles_part4"
+  ],
+  "salt": "art/actors/units/hellenes/oxybeles_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   -1e-06,
+   -0.0,
+   -1e-06,
+   -0.989745,
+   0.142843,
+   -0.0,
+   -0.142843,
+   -0.989745,
+   1.439345,
+   -3.6975,
+   -3.984122
+  ]
+ },
+ "siege_polybolos": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b5_crested.glb",
+   "res://assets/models/units/helm_hele_thracian_b4_crested.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "siege_polybolos_part3",
+   "siege_polybolos_part4",
+   "siege_polybolos_part5"
+  ],
+  "salt": "art/actors/units/ptolemies/polybolos_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   -1e-06,
+   -0.0,
+   -1e-06,
+   -0.989745,
+   0.142843,
+   -0.0,
+   -0.142843,
+   -0.989745,
+   1.399996,
+   -3.698616,
+   -1.538061
+  ]
+ },
+ "spart_bolt_shooter": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_boeotian.glb",
+   "res://assets/models/units/helm_hele_illyrian_b1_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b2.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b4.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b5.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "spart_bolt_shooter_part4"
+  ],
+  "salt": "art/actors/units/hellenes/oxybeles_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   0.989745,
+   -0.142845,
+   0.0,
+   0.142845,
+   0.989745,
+   1.439349,
+   3.703056,
+   1.964511
+  ]
+ },
+ "spart_catapult": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_chalcidean_b1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b2.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "spart_catapult_part4",
+   "spart_catapult_part5",
+   "spart_catapult_part6"
+  ],
+  "salt": "art/actors/units/hellenes/lithobolos_med_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   0.0,
+   0.0,
+   0.989745,
+   -0.142845,
+   0.0,
+   0.142845,
+   0.989745,
+   2.446331,
+   3.693056,
+   2.933221
+  ]
+ },
+ "spart_champion_infantry_pike": {
+  "freq": [
+   2,
+   1,
+   1,
+   2,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_pilos_a2.glb",
+   "res://assets/models/units/helm_hele_pilos_b2.glb",
+   "res://assets/models/units/helm_hele_thracian_b1.glb",
+   "res://assets/models/units/helm_hele_thracian_b1_crested.glb",
+   "res://assets/models/units/helm_hele_thracian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_thracian_b5_crested.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "spart_champion_infantry_pike_part8"
+  ],
+  "salt": "art/actors/units/spartans/infantry_pikeman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "spart_infantry_spearman_e": {
+  "freq": [
+   3,
+   3,
+   3,
+   3,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_corinthian_e2.glb",
+   "res://assets/models/units/helm_hele_corinthian_e3.glb",
+   "res://assets/models/units/helm_hele_corinthian_e4.glb",
+   "res://assets/models/units/helm_hele_thracian_b5_crested.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a2.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a4.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a5.glb"
+  ],
+  "joint": 3,
+  "parts": [
+   "spart_infantry_spearman_e_part6",
+   "spart_infantry_spearman_e_part7",
+   "spart_infantry_spearman_e_part8"
+  ],
+  "salt": "art/actors/units/spartans/infantry_spearman_e.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "spart_spearman": {
+  "freq": [
+   3,
+   3,
+   3,
+   3
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_corinthian_e2.glb",
+   "res://assets/models/units/helm_hele_corinthian_e3.glb",
+   "res://assets/models/units/helm_hele_corinthian_e4.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "spart_spearman_part8",
+   "spart_spearman_part9",
+   "spart_spearman_part10"
+  ],
+  "salt": "art/actors/units/spartans/infantry_spearman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "spart_swordsman": {
+  "freq": [
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_illyrian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b3_crested.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "spart_swordsman_part6",
+   "spart_swordsman_part7",
+   "spart_swordsman_part8"
+  ],
+  "salt": "art/actors/units/spartans/infantry_swordsman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "swordsman": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_thracian_b5_crested.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a2.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a4.glb",
+   "res://assets/models/units/helm_hele_chalcidean_a5.glb",
+   "res://assets/models/units/helm_hele_illyrian_b1_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b3_crested.glb"
+  ],
+  "joint": 4,
+  "parts": [
+   "swordsman_part7",
+   "swordsman_part8",
+   "swordsman_part9"
+  ],
+  "salt": "art/actors/units/athenians/infantry_swordsman_c.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   -0.0,
+   0.0,
+   1.0,
+   0.0,
+   0.0,
+   -0.0,
+   1.0,
+   -0.0,
+   0.017954,
+   0.011225
+  ]
+ },
+ "theb_siege_fireraiser": {
+  "freq": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1
+  ],
+  "helmets": [
+   "",
+   "res://assets/models/units/helm_hele_boeotian.glb",
+   "res://assets/models/units/helm_hele_illyrian_b1_crested.glb",
+   "res://assets/models/units/helm_hele_illyrian_b2_crested.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b1.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b2.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b3.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b4.glb",
+   "res://assets/models/units/helm_hele_chalcidean_b5.glb"
+  ],
+  "joint": 0,
+  "parts": [
+   "theb_siege_fireraiser_part3"
+  ],
+  "salt": "art/actors/units/athenians/ballista_infantry_a.xml#helmet",
+  "xf": [
+   1.0,
+   -0.0,
+   0.0,
+   0.0,
+   0.989858,
+   -0.142058,
+   0.0,
+   0.142058,
+   0.989858,
+   -2.265254,
+   3.685606,
+   9.360626
+  ]
+ }
+}

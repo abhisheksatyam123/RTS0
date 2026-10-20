@@ -722,6 +722,167 @@ void ModelLibrary::set_prop_looks(Node *root, const String &glb, uint32_t entity
 	}
 }
 
+// data/unit_helmets.json (tools/extract_unit_helmets.py): per unit GLB whose
+// 0 A.D. actor picks the helmet actor by variant, the baked helmet's parts (the
+// helmet and its crest and mask props), the transform from helmet space onto them
+// and the other helmets' GLBs ("none": no helmet) with their frequencies.
+struct UnitHelmet {
+	std::vector<StringName> parts;
+	int joint = 0;
+	Transform3D xf;
+	PackedStringArray helmets; // [0] "": the baked parts
+	std::vector<float> cut;
+	uint32_t salt = 0;
+	std::vector<Ref<ArrayMesh>> built;
+};
+static HashMap<String, UnitHelmet> &unit_helmets() {
+	static auto &m = *new HashMap<String, UnitHelmet>();
+	static bool loaded = false;
+	if (loaded) return m;
+	loaded = true;
+	Ref<FileAccess> f = FileAccess::open("res://data/unit_helmets.json", FileAccess::READ);
+	if (f.is_null()) return m;
+	Dictionary root = JSON::parse_string(f->get_as_text());
+	Array keys = root.keys();
+	for (int i = 0; i < keys.size(); ++i) {
+		Dictionary e = root[keys[i]];
+		Array parts = e.get("parts", Array()), xf = e.get("xf", Array());
+		Array helmets = e.get("helmets", Array()), freq = e.get("freq", Array());
+		if (parts.is_empty() || xf.size() != 12 || helmets.size() < 2 || freq.size() != helmets.size()) continue;
+		UnitHelmet h;
+		for (int k = 0; k < parts.size(); ++k) h.parts.push_back(StringName(String(parts[k])));
+		h.joint = (int)e.get("joint", 0);
+		auto v = [&](int k) { return Vector3((float)(double)xf[k], (float)(double)xf[k + 1], (float)(double)xf[k + 2]); };
+		h.xf = Transform3D(Basis(v(0), v(3), v(6)), v(9)); // columns
+		float total = 0.0f;
+		for (int k = 0; k < freq.size(); ++k) total += (float)(double)freq[k];
+		float run = 0.0f;
+		for (int k = 0; k < helmets.size(); ++k) {
+			h.helmets.push_back(helmets[k]);
+			if (k > 0) h.cut.push_back(total > 0.0f ? run / total : 2.0f);
+			run += (float)(double)freq[k];
+		}
+		h.salt = (uint32_t)String(e.get("salt", keys[i])).hash();
+		h.built.resize(helmets.size());
+		m.insert(keys[i], std::move(h));
+	}
+	return m;
+}
+
+static void collect_mesh_xforms(Node *n, const Transform3D &acc, Vector<MeshXform> &out);
+
+// The helmet GLB's surfaces with their own materials, moved onto the baked
+// helmet and weighted fully to its joint.
+static Ref<ArrayMesh> build_unit_helmet(UnitHelmet &h, int k) {
+	if (h.built[k].is_valid() || h.helmets[k] == "none") return h.built[k];
+	Ref<PackedScene> scene = ResourceLoader::get_singleton()->exists(h.helmets[k])
+			? Ref<PackedScene>(ResourceLoader::get_singleton()->load(h.helmets[k]))
+			: Ref<PackedScene>();
+	Node *inst = scene.is_valid() ? scene->instantiate() : nullptr;
+	if (!inst) return h.built[k];
+	ModelLibrary::apply_imported_material_fixups(inst);
+	Vector<MeshXform> meshes;
+	collect_mesh_xforms(inst, Transform3D(), meshes);
+	Ref<ArrayMesh> am;
+	am.instantiate();
+	for (const MeshXform &mx : meshes) {
+		Ref<Mesh> mesh = mx.mi->get_mesh();
+		const Transform3D xf = h.xf * mx.xf;
+		const Basis nb = xf.basis.inverse().transposed();
+		for (int s = 0; s < mesh->get_surface_count(); ++s) {
+			Array arrays = mesh->surface_get_arrays(s);
+			PackedVector3Array pos = arrays[Mesh::ARRAY_VERTEX];
+			PackedVector3Array nrm = arrays[Mesh::ARRAY_NORMAL];
+			for (int v = 0; v < pos.size(); ++v) pos.set(v, xf.xform(pos[v]));
+			for (int v = 0; v < nrm.size(); ++v) nrm.set(v, nb.xform(nrm[v]).normalized());
+			if (arrays[Mesh::ARRAY_TANGENT].get_type() == Variant::PACKED_FLOAT32_ARRAY) {
+				PackedFloat32Array tan = arrays[Mesh::ARRAY_TANGENT];
+				for (int v = 0; v * 4 + 3 < tan.size(); ++v) {
+					const Vector3 t = xf.basis.xform(Vector3(tan[v * 4], tan[v * 4 + 1], tan[v * 4 + 2])).normalized();
+					tan.set(v * 4, t.x);
+					tan.set(v * 4 + 1, t.y);
+					tan.set(v * 4 + 2, t.z);
+				}
+				arrays[Mesh::ARRAY_TANGENT] = tan;
+			}
+			PackedInt32Array bones;
+			PackedFloat32Array weights;
+			bones.resize(pos.size() * 4);
+			weights.resize(pos.size() * 4);
+			for (int v = 0; v < pos.size(); ++v) {
+				bones.set(v * 4, h.joint);
+				weights.set(v * 4, 1.0f);
+				for (int c = 1; c < 4; ++c) {
+					bones.set(v * 4 + c, 0);
+					weights.set(v * 4 + c, 0.0f);
+				}
+			}
+			arrays[Mesh::ARRAY_VERTEX] = pos;
+			arrays[Mesh::ARRAY_NORMAL] = nrm;
+			arrays[Mesh::ARRAY_BONES] = bones;
+			arrays[Mesh::ARRAY_WEIGHTS] = weights;
+			am->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
+			am->surface_set_material(am->get_surface_count() - 1, mx.mi->get_active_material(s));
+		}
+	}
+	memdelete(inst);
+	if (am->get_surface_count() > 0) h.built[k] = am;
+	return h.built[k];
+}
+
+void ModelLibrary::set_unit_helmet(Node *root, const String &glb, uint32_t entity_id) {
+	if (!root) return;
+	UnitHelmet *h = unit_helmets().getptr(glb);
+	if (!h) return;
+	std::vector<MeshInstance3D *> parts;
+	for (const StringName &nm : h->parts) {
+		MeshInstance3D *part = Object::cast_to<MeshInstance3D>(root->find_child(String(nm), true, false));
+		if (!part || !part->get_parent()) return;
+		parts.push_back(part);
+	}
+	const float u = variant_draw(entity_id ^ h->salt);
+	int pick = 0;
+	for (float c : h->cut) pick += u >= c ? 1 : 0;
+	Ref<ArrayMesh> mesh = pick > 0 ? build_unit_helmet(*h, pick) : Ref<ArrayMesh>();
+	if (pick > 0 && mesh.is_null() && h->helmets[pick] != "none") pick = 0; // missing GLB: keep the baked one
+	MeshInstance3D *head = parts[0];
+	Node *parent = head->get_parent();
+	// set_prop_looks may have drawn a look for the crest or the helmet itself
+	// (a "<part>_lookN" sibling); it stays unless another helmet is drawn.
+	for (MeshInstance3D *part : parts) {
+		const String look = String(part->get_name()) + "_look";
+		bool looked = false;
+		for (int i = 0; i < parent->get_child_count(); ++i) {
+			Node3D *c = Object::cast_to<Node3D>(parent->get_child(i));
+			if (!c || !String(c->get_name()).begins_with(look)) continue;
+			if (pick > 0) c->set_visible(false);
+			looked = looked || c->is_visible();
+		}
+		part->set_visible(pick == 0 && !looked);
+	}
+	for (int k = 1; k < h->helmets.size(); ++k) {
+		const String name = String(head->get_name()) + "_helmet" + String::num_int64(k);
+		MeshInstance3D *node = Object::cast_to<MeshInstance3D>(parent->get_node_or_null(NodePath(name)));
+		if (!node && k == pick && mesh.is_valid()) {
+			node = memnew(MeshInstance3D);
+			node->set_name(name);
+			node->set_mesh(mesh);
+			node->set_transform(head->get_transform());
+			node->set_skin(head->get_skin());
+			node->set_skeleton_path(head->get_skeleton_path());
+			node->set_cast_shadows_setting(head->get_cast_shadows_setting());
+			node->set_layer_mask(head->get_layer_mask());
+			node->set_material_overlay(head->get_material_overlay());
+			for (const char *param : { "player_color", "variant_u" }) {
+				const Variant val = get_instance_param(head, param);
+				if (val.get_type() != Variant::NIL) set_instance_param(node, param, val);
+			}
+			parent->add_child(node);
+		}
+		if (node) node->set_visible(k == pick);
+	}
+}
+
 void ModelLibrary::apply_imported_material_fixups(Node *n) {
 	if (!n) return;
 	MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(n);
