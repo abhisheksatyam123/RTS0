@@ -509,6 +509,26 @@ inline String join_lines(std::initializer_list<String> parts) {
 	return out;
 }
 
+// getAurasTooltip over a unit template's resolved Auras. The token merge lists the class
+// auras of its parent templates first: template_unit_hero's units/heroes/hero_garrison,
+// then the infantry templates' units/ram_garrison. Their effects are simulated in
+// structure_capture_garrison_regen and unit_base_walk_speed.
+inline String unit_auras_tooltip(uint16_t tmpl) {
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return String();
+	const CivUnitTemplate &u = civ_unit_template(tmpl);
+	String out;
+	if (u.tech_classes & TC_HERO)
+		out = aura_line(tr0("Inspired Defense"), "When garrisoned, the Structure has +1 capture points garrison regeneration rate.", 0.0f);
+	if (u.tech_classes & TC_INFANTRY)
+		out = join_lines({out, aura_line(tr0("Battering Team"), "Battering Rams +0.15 speed for each garrisoned soldier.", 0.0f)});
+	for (int16_t a : u.auras) {
+		if (a < 0) continue;
+		const auto &aura = civ_hero_aura(a);
+		out = join_lines({out, aura_line(tr0(String::utf8(aura.name)), String::utf8(aura.description ? aura.description : ""), aura.radius)});
+	}
+	return out;
+}
+
 } // namespace rtso::seldet
 
 #endif

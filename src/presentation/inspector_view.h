@@ -1364,14 +1364,7 @@ private:
 				? projectiles_tooltip(std::min(rtso::SIEGE_TOWER_MAX_ARROWS, sim.get_transport_capacity(uv.id[u])), 0, 1.0f) : String();
 		stats_->set_tooltip_text(join_lines({attack, healer_tooltip(d), resistance, gather_tooltip(d), speed_tooltip(d),
 				garrison, population_bonus_tooltip(pop_bonus), projectiles, loot_tooltip(loot)}));
-		String auras;
-		const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
-		if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE)
-			for (int16_t a : rtso::civ_unit_template(tmpl).auras) {
-				if (a < 0) continue;
-				const auto &aura = rtso::civ_hero_aura(a);
-				auras = join_lines({auras, aura_line(String::utf8(aura.name), String::utf8(aura.description ? aura.description : ""), aura.radius)});
-			}
+		const String auras = rtso::seldet::unit_auras_tooltip(uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE);
 		portrait_->set_tooltip_text(join_lines({name, auras}));
 		aura_label_->set_tooltip_text(auras);
 	}

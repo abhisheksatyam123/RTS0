@@ -157,5 +157,4 @@ Save format: no.
   - fire ships, the catafalque and the German class models resolve.
 
 ## Status
-- F1, F3, F4: fixed in the PR that adds this file.
-- F2: open (Compare thread, next).
+- F1-F4: fixed in the PR that adds this file. F2 note: ram_garrison is +0.15 speed per soldier, not +15%.
