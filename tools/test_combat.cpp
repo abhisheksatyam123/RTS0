@@ -1528,6 +1528,61 @@ static void test_p14_aim_velocity() {
 	check(std::fabs(vx) < 1e-3f && std::fabs(vz) < 1e-3f, "past the boundary, aim knows it stopped");
 }
 
+// What main's P14 left: PredictTimeToTarget's lead, ApplyStatus carried by the arrow, and
+// the aimed animal before a unit under the same landing point (DelayedDamage.js Hit).
+static void test_p14_leftovers() {
+	std::printf("31. arrow lead, status and aimed animals as DelayedDamage.js Hit (P14)\n");
+	const float away = Simulation::predict_time_to_target(0.0f, 0.0f, 20.0f, 30.0f, 0.0f, 5.0f, 0.0f);
+	const float toward = Simulation::predict_time_to_target(0.0f, 0.0f, 20.0f, 30.0f, 0.0f, -5.0f, 0.0f);
+	const float outrun = Simulation::predict_time_to_target(0.0f, 0.0f, 4.0f, 30.0f, 0.0f, 5.0f, 0.0f);
+	std::printf("      meet a target 30 away: %.3f s fleeing, %.3f s closing, %.3f outrun\n", away, toward, outrun);
+	check(std::fabs(away - 2.0f) < 1e-4f && std::fabs(toward - 1.2f) < 1e-4f, "lead time solves where arrow and target meet");
+	check(outrun == 0.0f, "a target that outruns the arrow is aimed at where it stands");
+	{
+		// A maiden archer's poison arrow still poisons after she dies in flight.
+		Simulation s;
+		setup(s);
+		s.set_player_active(1, true, false);
+		const uint16_t maiden = template_named("maur/champion_maiden_archer");
+		uint32_t ar = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER_MAIDEN, 0.0f, maiden);
+		uint32_t sp = dummy(s, 20.0f, 0.0f, UNIT_SPEARMAN, 500.0f);
+		const int ai = idx(s, ar), ti = idx(s, sp);
+		s.units_.attack_damage[ti] = 0.0f;
+		s.fire_arrow(s.units_.pos_x[ai], 2.0f, s.units_.pos_z[ai], 20.0f, 0.8f, 0.0f, 999.0f, 0, sp,
+				status_effect_bit(s.unit_combat_at((size_t)ai).status), 1, false, 0, ar);
+		s.units_.hp[ai] = 0.0f;
+		s.units_.alive[ai] = 0;
+		const float hp0 = s.units_.hp[ti];
+		for (int k = 0; k < 400 && s.units_.hp[ti] == hp0; ++k) s.tick(DT);
+		check(s.units_.hp[ti] < hp0 && s.units_.status_effects[ti] != 0, "a dead archer's arrow still poisons");
+	}
+	{
+		// Aimed at a boar with an enemy spearman under the same point: the boar takes it.
+		Simulation s;
+		setup(s);
+		s.set_player_active(1, true, false);
+		uint32_t ar = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
+		const uint32_t boar = s.spawn_fauna(20.0f, 0.0f, FAUNA_BOAR);
+		uint32_t sp = dummy(s, 20.1f, 0.0f, UNIT_SPEARMAN, 500.0f);
+		s.units_.attack_damage[idx(s, sp)] = 0.0f;
+		const int ai = idx(s, ar);
+		s.fire_arrow(s.units_.pos_x[ai], 2.0f, s.units_.pos_z[ai], 20.0f, 0.8f, 0.0f, 999.0f, 0, boar, 0, 1, false, 0, ar);
+		const size_t f = s.fauna_id_to_idx_.at(boar);
+		const float f0 = s.fauna_.hp[f], hp0 = s.units_.hp[idx(s, sp)];
+		const uint32_t pid = s.projectiles_.back().id;
+		for (int k = 0; k < 400; ++k) {
+			bool flying = false;
+			for (const Projectile &p : s.projectiles_) flying |= p.id == pid;
+			if (!flying) break;
+			s.tick(DT);
+		}
+		const auto it = s.fauna_id_to_idx_.find(boar);
+		const bool boar_hit = it == s.fauna_id_to_idx_.end() || s.fauna_.hp[it->second] < f0;
+		std::printf("      boar hit %d, spearman -%.3f\n", boar_hit, hp0 - s.units_.hp[idx(s, sp)]);
+		check(boar_hit && s.units_.hp[idx(s, sp)] == hp0, "the aimed animal takes the arrow before a unit beside it");
+	}
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -1559,6 +1614,7 @@ int main() {
 	test_p14_stray_armour();
 	test_p14_invulnerable_fallthrough();
 	test_p14_aim_velocity();
+	test_p14_leftovers();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;

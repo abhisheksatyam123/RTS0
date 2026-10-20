@@ -1492,7 +1492,7 @@ void RmsGenerator::synth_kerala(HeightmapGrid &hm, RmsRng &rng, float &water_h, 
 	for (int i = 0; i < hills; ++i) {
 		const float hx = rng.range_float(0.42f, 0.98f) * half;
 		const float hz = rng.range_float(-0.95f, 0.95f) * half;
-		hm.raise_plateau(hx, hz, half * rng.range_float(0.05f, 0.10f), 0.0f, 0.0f, rng.range_float(6.0f, 11.0f), 6.0f);
+		{ const float b_ = rng.range_float(6.0f, 11.0f); const float a_ = half * rng.range_float(0.05f, 0.10f); hm.raise_plateau(hx, hz, a_, 0.0f, 0.0f, b_, 6.0f); }
 	}
 	place_line_spawns(hm, spawns, num_players, false, half * 0.10f, 0.0f, half * 0.68f, -half * 0.24f, -1.0f, 0.0f, water_h + 1.5f);
 	hm.blur(1, 0.4f);
@@ -1545,7 +1545,7 @@ void RmsGenerator::synth_african_plains(HeightmapGrid &hm, RmsRng &rng, float &w
 		for (const auto &sp : spawns)
 			if (std::hypot(hx - sp.x, hz - sp.z) < 30.0f) { ok = false; break; }
 		if (!ok) continue;
-		hm.raise_plateau(hx, hz, half * rng.range_float(0.04f, 0.07f), 0.0f, 0.0f, rng.range_float(4.0f, 7.0f), 5.0f);
+		{ const float b_ = rng.range_float(4.0f, 7.0f); const float a_ = half * rng.range_float(0.04f, 0.07f); hm.raise_plateau(hx, hz, a_, 0.0f, 0.0f, b_, 5.0f); }
 		++i;
 	}
 	scatter_ponds(hm, rng, spawns, scale_by_map_size(4, 10, half), half * 0.05f + 2.5f, 22.0f, 8.0f, half * 0.90f, 3.0f, water_h);
@@ -1961,7 +1961,7 @@ void RmsGenerator::synth_india(HeightmapGrid &hm, RmsRng &rng, float &water_h, s
 	const float lake_r = (float)scale_by_map_size(15, 40, half);
 	const int blobs = std::max(2, scale_by_map_size(2, 16, half) / 2);
 	for (int i = 0; i < blobs; ++i) {
-		const auto c = polar(rng.range_float(0.0f, 6.2831853f), lake_r * std::sqrt(rng.next_float()) * 0.7f);
+		const float b_ = lake_r * std::sqrt(rng.next_float()) * 0.7f; const float a_ = rng.range_float(0.0f, 6.2831853f); const auto c = polar(a_, b_);
 		hm.carve_crater_lake(c.first, c.second, lake_r * rng.range_float(0.35f, 0.6f) + 2.0f, 4.0f, 3.0f, water_h);
 	}
 	place_team_spawns(hm, rng, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), water_h + 1.5f);
@@ -2060,7 +2060,7 @@ void RmsGenerator::synth_fields_of_meroe(HeightmapGrid &hm, RmsRng &rng, float &
 	int tries = 0;
 	for (int i = 0; i < num_players && tries < 4000; ++tries) {
 		if (tries > 0 && tries % 200 == 0) min_gap *= 0.85f;
-		const auto p = polar(rng.range_float(0.0f, 6.2831853f), std::sqrt(rng.next_float()) * half * 0.80f);
+		const float b_ = std::sqrt(rng.next_float()) * half * 0.80f; const float a_ = rng.range_float(0.0f, 6.2831853f); const auto p = polar(a_, b_);
 		if (river_dist(p.first, p.second) < river_w + 18.0f + 14.0f) continue;
 		bool ok = true;
 		for (const auto &sp : spawns)
@@ -2247,23 +2247,29 @@ void RmsGenerator::synth_stronghold(HeightmapGrid &hm, RmsRng &rng, float &water
 	if (rng.range_int(0, 1)) {
 		const int plateaus = scale_by_map_size(1, 4, half);
 		for (int i = 0; i < plateaus; ++i) {
-			const auto p = polar(rng.range_float(0.0f, 6.2831853f), rng.range_float(0.0f, 0.9f) * half);
+			const float b_ = rng.range_float(0.0f, 0.9f) * half; const float a_ = rng.range_float(0.0f, 6.2831853f); const auto p = polar(a_, b_);
 			bool ok = true;
 			for (const auto &sp : spawns)
 				if (std::hypot(p.first - sp.x, p.second - sp.z) < 35.0f) { ok = false; break; }
-			if (ok) hm.raise_plateau(p.first, p.second, half * rng.range_float(0.05f, 0.09f), rng.range_float(0.0f, 6.2831853f), 0.4f,
-					rng.range_float(20.0f, 30.0f) * m, 3.0f);
+			if (ok) {
+				const float c_ = rng.range_float(20.0f, 30.0f) * m; const float b_ = rng.range_float(0.0f, 6.2831853f);
+				const float a_ = half * rng.range_float(0.05f, 0.09f);
+				hm.raise_plateau(p.first, p.second, a_, b_, 0.4f, c_, 3.0f);
+			}
 		}
 	}
 	if (rng.range_int(0, 1)) {
 		// Valleys: dry hollows 2 to 30 m below the land (addValleys' -2 to -baseHeight).
 		const int valleys = scale_by_map_size(1, 5, half);
 		for (int i = 0; i < valleys; ++i) {
-			const auto p = polar(rng.range_float(0.0f, 6.2831853f), rng.range_float(0.0f, 0.9f) * half);
+			const float b_ = rng.range_float(0.0f, 0.9f) * half; const float a_ = rng.range_float(0.0f, 6.2831853f); const auto p = polar(a_, b_);
 			bool ok = true;
 			for (const auto &sp : spawns)
 				if (std::hypot(p.first - sp.x, p.second - sp.z) < 30.0f) { ok = false; break; }
-			if (ok) hm.level_area(p.first, p.second, half * rng.range_float(0.04f, 0.08f), 5.0f, land - rng.range_float(2.0f, 30.0f) * m);
+			if (ok) {
+				const float h_ = land - rng.range_float(2.0f, 30.0f) * m; const float r_ = half * rng.range_float(0.04f, 0.08f);
+				hm.level_area(p.first, p.second, r_, 5.0f, h_);
+			}
 		}
 	}
 	for (auto &sp : spawns) {
@@ -2294,7 +2300,7 @@ void RmsGenerator::synth_rhine_marshlands(HeightmapGrid &hm, RmsRng &rng, float 
 	const int per_round = scale_by_map_size(4, 20, half);
 	for (int round = 0; round < 7; ++round) {
 		for (int i = 0, tries = 0; i < per_round && tries < per_round * 20; ++tries) {
-			const auto c = polar(rng.range_float(0.0f, 6.2831853f), std::sqrt(rng.next_float()) * half * 0.95f);
+			const float b_ = std::sqrt(rng.next_float()) * half * 0.95f; const float a_ = rng.range_float(0.0f, 6.2831853f); const auto c = polar(a_, b_);
 			const float r = (float)scale_by_map_size(4, 9, half) * rng.range_float(0.8f, 1.35f);
 			bool ok = true;
 			for (const auto &sp : spawns)
@@ -3025,7 +3031,7 @@ void RmsGenerator::synth_dodecanese(HeightmapGrid &hm, RmsRng &rng, float &water
 	const float max_r = std::floor((float)scale_by_map_size(8, 10, half));
 	for (int i = 0, tries = 0; i < islands && tries < islands * 4; ++tries) {
 		auto dist = distance_to_mask(island, hm.res, sp);
-		const auto m = chain_placer(hm, rng, rng.range_float(-half, half), rng.range_float(-half, half), 6.0f, max_r, circles);
+		const float b_ = rng.range_float(-half, half); const float a_ = rng.range_float(-half, half); const auto m = chain_placer(hm, rng, a_, b_, 6.0f, max_r, circles);
 		int in = 0, bad = 0;
 		for (size_t k = 0; k < m.size(); ++k)
 			if (m[k]) { ++in; bad += dist[k] < 6.0f; }
@@ -3042,7 +3048,7 @@ void RmsGenerator::synth_dodecanese(HeightmapGrid &hm, RmsRng &rng, float &water
 		const auto dist = distance_to_mask(island, hm.res, sp);
 		const int bumps = scale_by_map_size(10, 50, half);
 		for (int i = 0; i < bumps; ++i) {
-			const auto m = chain_placer(hm, rng, rng.range_float(-half, half), rng.range_float(-half, half), 1.0f,
+			const float b_ = rng.range_float(-half, half); const float a_ = rng.range_float(-half, half); const auto m = chain_placer(hm, rng, a_, b_, 1.0f,
 			                            std::floor((float)scale_by_map_size(4, 6, half)), (int)std::floor((float)scale_by_map_size(16, 40, half)));
 			std::vector<uint8_t> paint(m.size(), 0);
 			for (size_t k = 0; k < m.size(); ++k) paint[k] = m[k] && dist[k] > 2.0f;
@@ -3586,7 +3592,7 @@ void RmsGenerator::place_survival_entities(Simulation &sim, const HeightmapGrid 
 		if (near_women(cx, cz)) continue;
 		const int trees = rng.range_int(4, 8);
 		for (int j = 0; j < trees; ++j)
-			sim.spawn_resource_world(cx + rng.range_float(-3.0f, 3.0f), cz + rng.range_float(-3.0f, 3.0f), RES_WOOD, 800);
+			{ const float b_ = cz + rng.range_float(-3.0f, 3.0f); const float a_ = cx + rng.range_float(-3.0f, 3.0f); sim.spawn_resource_world(a_, b_, RES_WOOD, 800); }
 	}
 	(void)config;
 }
@@ -4214,7 +4220,6 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 	else if (config.map_type == MAP_NEARESTERN_BADLANDS) num_groves = num_groves * 2 / 5;
 	else if (config.map_type == MAP_BELGIAN_UPLANDS) num_groves = num_groves * 3 / 2;
 	else if (config.map_type == MAP_HYRCANIAN_SHORES) num_groves = num_groves * 3 / 2;
-	else if (config.map_type == MAP_CANYON) num_groves = num_groves / 2;
 	else if (config.map_type == MAP_NORTHERN_LIGHTS) num_groves = num_groves / 3;
 	else if (config.map_type == MAP_POLAR_SEA) num_groves = num_groves / 5;
 	else if (config.map_type == MAP_SAHEL) num_groves = num_groves / 2;
@@ -4237,6 +4242,34 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 	// stragglers, mines and hunt are place_ngorongoro_entities'.
 	else if (config.map_type == MAP_NGORONGORO) num_groves = 0;
 	else if (config.map_type == MAP_RIVER_ARCHIPELAGO) num_groves = 0; // its own forests, place_river_archipelago_entities
+	// 0.28 scripts that size their woods by the biome (getTreeCounts(...rBiomeTreeCount(m)),
+	// randombiome.js): forest trees are scaleByMapSize(trees.min, trees.max) * forestProbability
+	// from rmbiome/generic/<biome>.json. The counts above are temperate's (1000-3000 at 0.7),
+	// so a drier biome gets its share of them: about a quarter on nubia, sahara and savanna.
+	switch (config.map_type) {
+		case MAP_ARCHIPELAGO_0AD: case MAP_CANTABRIAN_HIGHLANDS: case MAP_CANYON: case MAP_COAST_RANGE:
+		case MAP_CONTINENT: case MAP_FLOOD: case MAP_FOOTHILLS: case MAP_GEAR: case MAP_ISLAND_STRONGHOLD:
+		case MAP_ISLANDS: case MAP_LAKE: case MAP_LAND_GRAB: case MAP_MAINLAND: case MAP_MIGRATION:
+		case MAP_RIVERS: case MAP_SNOWFLAKE_SEAROCKS: case MAP_SURVIVAL_OF_THE_FITTEST: case MAP_UNKNOWN: {
+			struct TreeCounts { float min, max, forest; };
+			auto counts = [](BiomeType b) -> TreeCounts {
+				switch (b) {
+					case BIOME_AEGEAN: case BIOME_POLAR: return {500, 2000, 0.6f}; // aegean, arctic
+					case BIOME_ALPINE: return {1000, 2000, 0.85f};
+					case BIOME_INDIA: return {900, 1500, 0.8f};
+					case BIOME_OASIS: case BIOME_NUBIA: return {500, 1000, 0.4f}; // sahara, nubia
+					case BIOME_SAVANNA: return {500, 1500, 0.3f};
+					case BIOME_STEPPE: return {800, 1400, 0.7f};
+					default: return {1000, 3000, 0.7f}; // temperate, autumn
+				}
+			};
+			const float t = std::clamp((2.0f * half - 128.0f) / 384.0f, 0.0f, 1.0f);
+			auto forest = [&](const TreeCounts &c) { return (c.min + (c.max - c.min) * t) * c.forest; };
+			num_groves = (int)std::lround((float)num_groves * forest(counts(config.biome)) / forest(counts(BIOME_TEMPERATE)));
+			break;
+		}
+		default: break;
+	}
 
 	// Map-specific landmark resource clusters
 	if (config.map_type == MAP_SAHARAN_OASES) {
@@ -5077,7 +5110,7 @@ void RmsGenerator::synth_canyon(HeightmapGrid &hm, RmsRng &rng, float &water_h, 
 			      j == 1 ? &cl_land : &cl_player);
 	paint(seas_clump(hm, rng, disk(0.16f * size), 0.7f, 0.1f, 1e9f, 0.0f, 0.0f, anywhere), land, 3.0f, &cl_land);
 	seas_add(cl_hill, seas_clump(hm, rng, 150.0f, 0.6f, 0.3f, 1e9f, 0.0f, 0.0f, anywhere));
-	auto rand_pos = [&]() { return std::make_pair(-half + (float)rng.range_int(1, (int)size - 1), -half + (float)rng.range_int(1, (int)size - 1)); };
+	auto rand_pos = [&]() { const float b_ = -half + (float)rng.range_int(1, (int)size - 1); const float a_ = -half + (float)rng.range_int(1, (int)size - 1); return std::make_pair(a_, b_); };
 	{
 		const auto d_player = distance_to_mask(cl_player, hm.res, sp), d_hill = distance_to_mask(cl_hill, hm.res, sp);
 		for (int i = 0, n = scale_by_map_size(9, 16, half); i < n; ++i) {
@@ -5302,7 +5335,7 @@ void RmsGenerator::synth_danubius_0ad(HeightmapGrid &hm, RmsRng &rng, float &wat
 			out.village[i][1] = cc.second;
 			if (out.ritual) {
 				// The meeting place, off the centre of the bank, and the path from the gate to it.
-				const float off = size * rng.range_float(0.1f, 0.4f) * (rng.range_int(0, 1) ? 1.0f : -1.0f);
+				const float a_ = rng.range_float(0.1f, 0.4f); const float off = size * a_ * (rng.range_int(0, 1) ? 1.0f : -1.0f);
 				const auto meet = at(side * (half - 0.3f * size), off);
 				out.ritual_pos[i][0] = meet.first;
 				out.ritual_pos[i][1] = meet.second;
@@ -5688,7 +5721,7 @@ void RmsGenerator::synth_foothills(HeightmapGrid &hm, RmsRng &rng, float &water_
 	auto in_map = [&](int i) { return seas_in_circle(hm, i); };
 	std::vector<uint8_t> hills(hm.data.size(), 0);
 	const int first = std::max(1, (int)std::floor(0.01f * size));
-	auto spot = [&]() { return std::make_pair(rng.range_float(-half, half), rng.range_float(-half, half)); };
+	auto spot = [&]() { const float b_ = rng.range_float(-half, half); const float a_ = rng.range_float(-half, half); return std::make_pair(a_, b_); };
 	{
 		std::vector<float> to_hill(hm.data.size(), 1e9f);
 		for (int m = 0; m < rng.range_int(40, 90); ++m) {
@@ -5755,7 +5788,7 @@ void RmsGenerator::synth_coast_range(HeightmapGrid &hm, RmsRng &rng, float &wate
 	const auto to_player = seas_dist_to_players(hm, locs, 5.0f); // clPlayer: the civic centre's disk
 	const auto in_land = seas_dist_outside(hm, land_mask);
 	const int first = std::max(1, (int)std::floor(0.01f * size));
-	auto spot = [&]() { return std::make_pair(rng.range_float(-half, half), rng.range_float(-half, half)); };
+	auto spot = [&]() { const float b_ = rng.range_float(-half, half); const float a_ = rng.range_float(-half, half); return std::make_pair(a_, b_); };
 	for (int m = 0; m < rng.range_int(20, 34); ++m) {
 		const int elev = rng.range_int(4, 12);
 		const auto c = spot();
@@ -6416,7 +6449,7 @@ std::vector<uint8_t> coast_chain_areas(HeightmapGrid &hm, RmsRng &rng, int count
 	std::vector<uint8_t> placed(hm.data.size(), 0);
 	std::vector<float> to_placed(hm.data.size(), 1e9f);
 	for (int i = 0; i < count; ++i) {
-		auto m = chain_placer(hm, rng, rng.range_float(-half, half), rng.range_float(-half, half), std::max(1.0f, min_r), std::max(1.0f, max_r),
+		const float b_ = rng.range_float(-half, half); const float a_ = rng.range_float(-half, half); auto m = chain_placer(hm, rng, a_, b_, std::max(1.0f, min_r), std::max(1.0f, max_r),
 		                      std::max(1, circles));
 		int in = 0, bad = 0;
 		for (size_t k = 0; k < m.size(); ++k) {
@@ -7666,12 +7699,15 @@ void RmsGenerator::synth_frontier(HeightmapGrid &hm, RmsRng &rng, float &water_h
 	if (rng.range_int(0, 1)) {
 		const int plateaus = scale_by_map_size(1, 4, half);
 		for (int i = 0; i < plateaus; ++i) {
-			const auto p = polar(rng.range_float(0.0f, 6.2831853f), rng.range_float(0.0f, 0.9f) * half);
+			const float b_ = rng.range_float(0.0f, 0.9f) * half; const float a_ = rng.range_float(0.0f, 6.2831853f); const auto p = polar(a_, b_);
 			bool ok = true;
 			for (const auto &sp : spawns)
 				if (std::hypot(p.first - sp.x, p.second - sp.z) < 35.0f) { ok = false; break; }
-			if (ok) hm.raise_plateau(p.first, p.second, half * rng.range_float(0.05f, 0.09f), rng.range_float(0.0f, 6.2831853f), 0.4f,
-					rng.range_float(20.0f, 30.0f) * m, 3.0f);
+			if (ok) {
+				const float c_ = rng.range_float(20.0f, 30.0f) * m; const float b_ = rng.range_float(0.0f, 6.2831853f);
+				const float a_ = half * rng.range_float(0.05f, 0.09f);
+				hm.raise_plateau(p.first, p.second, a_, b_, 0.4f, c_, 3.0f);
+			}
 		}
 	}
 	if (rng.range_int(0, 1))
@@ -8078,7 +8114,7 @@ void RmsGenerator::distribute_land_extras(Simulation &sim, const HeightmapGrid &
 				const int trees = rng.range_int(8, 14);
 				const float gr = rng.range_float(3.0f, 5.0f);
 				for (int k = 0; k < trees; ++k) {
-					const auto p = polar(rng.range_float(0.0f, kTwoPi), std::sqrt(rng.next_float()) * gr);
+					const float b_ = std::sqrt(rng.next_float()) * gr; const float a_ = rng.range_float(0.0f, kTwoPi); const auto p = polar(a_, b_);
 					if (hm.sample_world(x + p.first, z + p.second) > top - 1.0f)
 						spawn_trees(sim, hm, x + p.first, z + p.second, top - 1.0f);
 				}
@@ -8165,7 +8201,7 @@ void RmsGenerator::distribute_land_extras(Simulation &sim, const HeightmapGrid &
 		// Objects of a SimpleGroup: n of them 0..r from (x, z).
 		auto scatter = [&](float x, float z, int n, float r0, float r1, auto spawn) {
 			for (int k = 0; k < n; ++k) {
-				const auto p = polar(rng.range_float(0.0f, kTwoPi), rng.range_float(r0, r1));
+				const float b_ = rng.range_float(r0, r1); const float a_ = rng.range_float(0.0f, kTwoPi); const auto p = polar(a_, b_);
 				if (hm.sample_world(x + p.first, z + p.second) > water_h + 0.3f) spawn(x + p.first, z + p.second);
 			}
 		};
@@ -9867,7 +9903,7 @@ void RmsGenerator::synth_island_stronghold(HeightmapGrid &hm, RmsRng &rng, float
 		}
 	}
 	const auto to_player = dist_to_points(hm, locs);
-	auto random_centre = [&]() { return polar(rng.range_float(0.0f, kTau), std::sqrt(rng.next_float()) * half); };
+	auto random_centre = [&]() { const float b_ = std::sqrt(rng.next_float()) * half; const float a_ = rng.range_float(0.0f, kTau); return polar(a_, b_); };
 	auto islands = [&](float min_r, float max_r, int circles, float max_dist, int count) {
 		auto to_land = distance_to_mask(cl_land, hm.res, grid_spacing(hm));
 		create_areas(hm, count, count, 0.07f, random_centre,
@@ -10012,7 +10048,7 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 	std::vector<std::pair<float, float>> slots; // start spots, slot k for player ids[k]
 	bool grouped = false;                        // slots already indexed by player
 	float territory = 0.0f;                      // markPlayerArea("large") radius
-	auto random_centre = [&]() { return polar(rng.range_float(0.0f, kTau), std::sqrt(rng.next_float()) * half); };
+	auto random_centre = [&]() { const float b_ = std::sqrt(rng.next_float()) * half; const float a_ = rng.range_float(0.0f, kTau); return polar(a_, b_); };
 	auto paint_land = [&](const std::vector<uint8_t> &m, float blend) {
 		paint_mask_elevation(hm, m, land, blend);
 		for (size_t i = 0; i < N; ++i) cl_land[i] |= m[i];
@@ -10117,7 +10153,7 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 		refresh_players();
 		if (isthmus) {
 			const auto ie = river_ends(start + 1.5707963f);
-			const float w = scale_f((float)rng.range_int(16, 24), (float)rng.range_int(100, 140), half);
+			const float b_ = (float)rng.range_int(100, 140); const float a_ = (float)rng.range_int(16, 24); const float w = scale_f(a_, b_, half);
 			const auto m = path_mask(hm, rng, ie.first.first, ie.first.second, ie.second.first, ie.second.second, w, 0.5f,
 			                         3.0f * scale_f(1.0f, 4.0f, half), 0.1f, 0.01f);
 			paint_land(m, 4.0f);
@@ -10442,7 +10478,7 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 		std::vector<uint8_t> hills(N, 0);
 		auto to_hill = distance_to_mask(hills, hm.res, sp);
 		const float gap = (float)rng.range_int(6, 18);
-		const int count = rng.range_int(0, scale_by_map_size(4, 8, half)) * rng.range_int(1, scale_by_map_size(4, 9, half));
+		const int a_ = rng.range_int(0, scale_by_map_size(4, 8, half)); const int count = a_ * rng.range_int(1, scale_by_map_size(4, 9, half));
 		create_areas(hm, count, count * 10, 1e9f, random_centre,
 			[&](float cx, float cz) { return clump_mask(hm, rng, cx, cz, scale_f(20.0f, 150.0f, half), 0.2f, 0.1f); },
 			[&](size_t i) { return avoid_cc(i, 15.0f) && to_hill[i] > gap && flat[i]; },
@@ -10768,7 +10804,7 @@ void RmsGenerator::place_ngorongoro_entities(Simulation &sim, const HeightmapGri
 				int retries = 0;
 				for (int i = 0; i < count && ok; ++i)
 					while (true) {
-						const auto p = polar(rng.range_float(0.0f, kTwoPi), rng.range_float(o.min_d, o.max_d));
+						const float b_ = rng.range_float(o.min_d, o.max_d); const float a_ = rng.range_float(0.0f, kTwoPi); const auto p = polar(a_, b_);
 						const float x = cx + p.first, zz = cz + p.second;
 						bool fits = x * x + zz * zz < pass_r * pass_r;
 						for (const Spec &s : specs) fits = fits && (s.x - x) * (s.x - x) + (s.z - zz) * (s.z - zz) >= 1.0f;
@@ -10985,7 +11021,7 @@ void RmsGenerator::synth_river_archipelago(HeightmapGrid &hm, RmsRng &rng, float
 					// The script's loop rolls randIntInclusive(min, max) again before each unit.
 					for (int u = 0; ok && u < rng.range_int(o.lo, o.hi); ++u)
 						for (;;) {
-							const auto d = polar(rng.range_float(0.0f, kTau), rng.range_float(o.dmin, o.dmax));
+							const float b_ = rng.range_float(o.dmin, o.dmax); const float a_ = rng.range_float(0.0f, kTau); const auto d = polar(a_, b_);
 							const float x = c.first + d.first, z = c.second + d.second;
 							bool free = allowed(x, z);
 							for (size_t q = 0; free && q < group.size(); ++q) free = std::hypot(group[q].x - x, group[q].z - z) >= 1.0f;
@@ -11172,7 +11208,7 @@ void RmsGenerator::place_river_archipelago_entities(Simulation &sim, const Heigh
 			for (int t = 0; t < each; ++t) {
 				const Pt c = random_tile();
 				for (int fails = 0; fails <= 31; ++fails) {
-					const auto d = polar(rng.range_float(0.0f, kTau), rng.range_float(0.0f, 3.0f));
+					const float b_ = rng.range_float(0.0f, 3.0f); const float a_ = rng.range_float(0.0f, kTau); const auto d = polar(a_, b_);
 					const Pt p{c.x + d.first, c.z + d.second};
 					const float tx = std::floor(p.x) + 0.5f, tz = std::floor(p.z) + 0.5f;
 					const size_t k = vertex(tx, tz);
@@ -11202,7 +11238,7 @@ void RmsGenerator::place_river_archipelago_entities(Simulation &sim, const Heigh
 				// SimpleObject.place rolls randIntInclusive(min, max) again before each entity.
 				for (int u = 0; fit && u < rng.range_int(o.lo, o.hi); ++u)
 					for (;;) {
-						const auto d = polar(rng.range_float(0.0f, kTau), rng.range_float(o.dmin, o.dmax));
+						const float b_ = rng.range_float(o.dmin, o.dmax); const float a_ = rng.range_float(0.0f, kTau); const auto d = polar(a_, b_);
 						const Pt p{c.x + d.first, c.z + d.second};
 						const float tx = std::floor(p.x) + 0.5f, tz = std::floor(p.z) + 0.5f;
 						const size_t k = vertex(tx, tz);
@@ -13237,7 +13273,7 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 	// (rmbiome/generic/temperate.json). On any other generic biome tree3 is a plain tree, so
 	// its fruit here is the biome's fruitBush alone, left unnamed for plant_flora, without
 	// the apple share.
-	const bool generic = own_terrains(sim, config.map_type) == nullptr && sim.current_map_biome() != "temperate";
+	const bool generic = own_terrains(sim, config.map_type) == nullptr && config.biome != BIOME_TEMPERATE;
 	int fruit_want = target(rc->fruit);
 	const ResourceKindShare *bush = &rc->fruit_kinds[0];
 	if (generic) {
@@ -13251,7 +13287,12 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 		if (generic) k = bush;
 		else if (rc->fruit_kinds[1].name && rng.range_int(1, 100) > rc->fruit_kinds[0].percent) k = &rc->fruit_kinds[1];
 		if (generic && !std::strcmp(k->name, "apple")) break;
-		const uint8_t flora = generic ? (uint8_t)FLORA_BERRY : flora_kind_by_name(k->name);
+		uint8_t flora = generic ? (uint8_t)FLORA_BERRY : flora_kind_by_name(k->name);
+		// Game setup chose temperate: its apples are the biome's tree3 (fruit/apple).
+		if (!generic && !own_terrains(sim, config.map_type) && !std::strcmp(k->name, "apple"))
+			if (const BiomeFlora *bf = biome_flora("temperate"))
+				for (uint8_t t : bf->tree3)
+					if (flora_is_fruit(t)) { flora = t; break; }
 		float x, z;
 		if (flora == FLORA_COUNT || !pick(kBaseGap, food, 10.0f, x, z)) break;
 		food.push_back({x, z});
