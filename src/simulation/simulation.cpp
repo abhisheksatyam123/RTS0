@@ -2692,8 +2692,16 @@ bool Simulation::mine_footprint(size_t r, nav::Footprint &f) const {
 	// temperate_large_02 (RmsGenerator::set_mine_gatherers).
 	const uint8_t g = resources_.max_gatherers[r];
 	const bool ruins = sub == RES_SUB_RUINS;
-	const float w = ruins ? 7.0f : g >= 48 ? 22.0f : g >= 24 ? 13.0f : 7.0f;
-	const float d = !ruins && g >= 48 ? 14.0f : w;
+	float w = g >= 48 ? 22.0f : g >= 24 ? 13.0f : 7.0f, d = g >= 48 ? 14.0f : w;
+	if (ruins) {
+		// Each ruin's own Obstruction/Static (template_gaia_ruins 7x7 m; the Great Pyramid 59x59).
+		const uint8_t k = resources_.flora[r];
+		w = d = 7.0f;
+		if (k >= 1 && k <= RUINS_TYPE_COUNT) {
+			w = ruins_type_info((uint8_t)(k - 1)).width;
+			d = ruins_type_info((uint8_t)(k - 1)).depth;
+		}
+	}
 	// mine_angle takes 12 values: their footprint_axis once each.
 	struct Axis { float ux, uz; bool swapped; };
 	static const std::array<Axis, 12> axes = [] {
@@ -34727,7 +34735,9 @@ void Simulation::destroy_scenery(size_t k, int32_t killer) {
 
 uint32_t Simulation::spawn_ruins(float x, float z, uint8_t ruins_type) {
 	const RuinsTypeInfo &r = ruins_type_info(ruins_type);
-	return spawn_resource_world(x, z, r.res_type, r.amount, RES_SUB_RUINS, (uint8_t)std::clamp<int>(r.max_gatherers, 1, 255));
+	// A ruin keeps its kind + 1 in the flora byte (0 = unknown) for its Obstruction size (mine_footprint).
+	return spawn_resource_world(x, z, r.res_type, r.amount, RES_SUB_RUINS, (uint8_t)std::clamp<int>(r.max_gatherers, 1, 255),
+			(uint8_t)(ruins_type < RUINS_TYPE_COUNT ? ruins_type + 1 : 0));
 }
 
 // 0.28 TreasureCollector MaxDistance: template_unit.xml 2 m; template_unit_ship.xml 12 m for
