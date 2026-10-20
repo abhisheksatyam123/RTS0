@@ -316,6 +316,17 @@ TechnologyManager.js, Researcher.js, data/technologies (about 30 techs row by ro
 | U1 | A captured structure's research list followed the captor's civ; Researcher.js reads the structure's own template (cart/dock drops warship_health, cart/super_dock lists nine dock techs, han/civil_centre drops the spy techs, han/forge archer_attack_spread) and the owner's civ only filters it | low | Fixed |
 
 Checked and matching: requirements (all/any, class counts without foundations, civ/notciv), pairs and autoResearch, supersedes chains, cost multipliers (library, team bonuses, heroes, catafalques) and cancel refunds, unit researchers, civ bonus autoresearch, tech modifications, own-civ researcher lists, structure auras (temples, wonders, theatre, pillars, monuments, regen and trickle auras).
+### Structure data, fourteenth 0.28 pass (2026-10-20)
+
+Every structures/<civ>/*.xml of the 15 civ folders, inheritance resolved, against the values the simulation reads (440 templates, 1,425 civ x type x wall-piece rows): Health, Resistance, Cost, BuildTime (x0.25), Population bonus, garrison size, capture points, territory decay and influence (x0.25), vision (x0.28), Loot and EntityLimits all match. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| Y1 | Footprints are one per type at about half 0.28's size (1 or 2 cells); farmsteads (16-20 m in 0.28), storehouses of four civs and the Han and German houses (16 m) would be 2 cells by RTS0's own ">15 m" rule; the Mauryan and Kushite corrals (15 and 14 m) and the Celtic embassy (15 m) would be 1 | low | Kept (one footprint per type) |
+| Y2 | civ_building_territory_radius / civ_building_vision were generated but disagreed with the live tables (Tachara 11 vs 12, super dock 45.7 vs 50, lighthouse 97.5 vs 91); only a test read them | none | Fixed (removed; the test reads structure_territory_influence and structure_vision_range) |
+| Y3 | The arch, monument, totem, Ashoka pillar and Laozi gate carry a capture regen rate with 0 capture points; 0.28 has no Capturable. Every capture path skips 0 points | none | Kept |
+| Y4 | The map-only Egyptian mercenary camp takes the Ptolemaic camp's row (100 stone); 0.28 overrides stone to 0. No civ builds it | low | Open |
+
 ### Petra structures and research, thirteenth 0.28 pass (2026-10-20)
 
 researchManager.js, constructionPlan.js findGoodPosition and headquarters.js building decisions against RTS0's Petra, after passes 4-6 and the audits in docs/archive. Owner: E (queue mechanics: C).
