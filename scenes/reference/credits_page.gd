@@ -93,11 +93,12 @@ func _ready() -> void:
 	title.offset_right = 128
 	title.offset_top = -18
 	title.offset_bottom = 14
-	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_font_size_override("font_size", 14) # ModernLabelText: sans-bold-stroke-14
 	title.add_theme_color_override("font_outline_color", Color.BLACK)
 	title.add_theme_constant_override("outline_size", 4)
 	panel.add_child(title)
 	tabs = VBoxContainer.new()
+	# tab_buttons.js: 34 px tabs, 39 px apart.
 	tabs.position = Vector2(20, 30)
 	tabs.size = Vector2(190, 400)
 	tabs.add_theme_constant_override("separation", 5)
@@ -116,7 +117,7 @@ func _ready() -> void:
 		b.toggle_mode = true
 		b.button_group = group
 		b.theme_type_variation = "ModernTabButtonVertical"
-		b.custom_minimum_size = Vector2(190, 35)
+		b.custom_minimum_size = Vector2(190, 34)
 		b.pressed.connect(select_panel.bind(i))
 		tabs.add_child(b)
 	# creditsText sits on a ModernFade image of the same size.

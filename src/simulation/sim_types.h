@@ -794,6 +794,7 @@ enum RallyCommand : uint8_t {
 	RALLY_CMD_TRADE = 4,             // a trader trades between the structure and bld_id
 	RALLY_CMD_TREASURE = 5,          // collect treasure ent_id, else the nearest near the spot
 	RALLY_CMD_TURRET = 6,            // occupy a turret point of bld_id
+	RALLY_CMD_REPAIR = 7,            // session.repair held: repair bld_id rather than garrison in it
 	RALLY_CMD_COUNT
 };
 
