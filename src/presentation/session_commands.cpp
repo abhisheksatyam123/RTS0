@@ -232,6 +232,7 @@ void RtsoMain::_on_entity_command(const String &name) {
 					any_locked = any_locked || (rtso::Simulation::is_dropsite_type(b.type) && !b.dropsite_shared);
 					break;
 				}
+		for (size_t k = 0; k < n; ++k) any_locked = any_locked || !sim->unit_dropsite_shared(ids[k]);
 		_on_dropsite_sharing_pressed(any_locked ? 1 : 0);
 	} else if (name == "stop") { // stopUnits
 		if (n == 0) return;
@@ -502,10 +503,20 @@ void RtsoMain::_on_autoqueue_pressed(int on) {
 	}
 }
 
-// 0 A.D. set-dropsite-sharing through lockstep command 45, on every selected structure.
+// 0 A.D. set-dropsite-sharing through lockstep command 45, on every selected structure or
+// supply wagon (the sim refuses anything else).
 void RtsoMain::_on_dropsite_sharing_pressed(int shared) {
-	if (selected_building_id == 0) return;
-	for (uint32_t id : selected_structures()) {
+	std::vector<uint32_t> targets = selected_building_id != 0 ? selected_structures() : std::vector<uint32_t>{};
+	if (targets.empty()) {
+		auto uview = sim->units();
+		for (int s = 0; s < selected_ids.size(); ++s)
+			for (size_t u = 0; u < uview.count; ++u)
+				if (uview.id[u] == (uint32_t)selected_ids[s]) {
+					if (rtso::unit_dropsite_sharable(uview.unit_type[u]) && uview.team[u] == local_player()) targets.push_back(uview.id[u]);
+					break;
+				}
+	}
+	for (uint32_t id : targets) {
 		if (turn_cmds())
 			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_SET_DROPSITE_SHARING, nullptr, 0, 0, 0, id, shared ? 1 : 0);
 		else
