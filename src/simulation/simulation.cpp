@@ -1178,7 +1178,9 @@ uint32_t Simulation::spawn_resource_world(float wx, float wz, uint8_t type, int3
 	if (max_gatherers == 0) max_gatherers = resource_default_max_gatherers(type, subtype, amount);
 	size_t idx = resources_.push(wx, wz, amount, type, rid, subtype, max_gatherers);
 	// template_gaia_fruit: a berry/fruit bush regrows towards its ResourceSupply/Max.
-	if (type == RES_FOOD && subtype == RES_SUB_NONE) resources_.max_amount[idx] = amount;
+	// A tree's or mine's Max is what Petra's resource maps weigh (shared.js resourceSupplyMax).
+	if ((type == RES_FOOD && subtype == RES_SUB_NONE) || type == RES_WOOD || type == RES_STONE || type == RES_GOLD)
+		resources_.max_amount[idx] = amount;
 	// ResourceSupply Init starts its Change timer: fruit Regrowth every 6 s, fish Spawn every 2 s.
 	resources_.regrow_left[idx] = regrow_interval(type, subtype);
 	resources_.flora[idx] = flora < FLORA_COUNT ? flora : FLORA_DEFAULT;
@@ -18973,6 +18975,15 @@ bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t 
 	                                   petra_limit_allows_building(btype)); // EntityLimits
 }
 
+// petra_can_place without BuildRestrictions Distance, the last test check_placement makes.
+bool Simulation::petra_spot_free_but_distance(int cell_x, int cell_y, int footprint, uint8_t btype, int clearance) const {
+	if (btype >= BLD_TYPE_COUNT || !petra_ring_clear(cell_x, cell_y, footprint, clearance >= 0 ? (uint8_t)clearance : petra_clearance(btype)))
+		return false;
+	if (triggers_.building_disabled(petra_pid_, btype) || !petra_limit_allows_building(btype)) return false;
+	const PlacementResult r = check_placement(petra_pid_, cell_x, cell_y, btype);
+	return r == PLACE_OK || r == PLACE_DISTANCE;
+}
+
 // queueplanBuilding.js findGoodPosition's gap round a structure (obstructionRadius + 0, 4 or 8 m):
 // 0 for houses, dropsites, fields and markets, which ought to stand close to each other or a
 // resource; 2 (8 m) for fortresses, arsenals and elephant stables; 1 (4 m) for the rest.
@@ -23169,7 +23180,8 @@ void Simulation::petra_resource_maps(std::vector<uint8_t> (&maps)[3], float x0, 
 			if (resources_.type[r] == kRes[j]) k = j;
 		if (k < 0) continue;
 		const bool sparse = k != 0;
-		const float strength = (float)resources_.amount[r] / (sparse ? 90.0f : 50.0f);
+		// shared.js addInfluence: resourceSupplyMax, kept until the supply is gone (older saves: what is left).
+		const float strength = (float)(resources_.max_amount[r] > 0 ? resources_.max_amount[r] : resources_.amount[r]) / (sparse ? 90.0f : 50.0f);
 		const float md = (sparse ? 48.0f : 36.0f) / 4.0f / kCcTile, md2 = md * md;
 		const float cx = std::floor((resources_.x[r] + map_half_) / kCcTile), cy = std::floor((resources_.z[r] + map_half_) / kCcTile);
 		const int ix0 = (int)std::floor(std::max(0.0f, cx - md)), iy0 = (int)std::floor(std::max(0.0f, cy - md));
@@ -24694,7 +24706,8 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 			if (resources_.type[r] == kRes[j]) k = j;
 		if (k < 0) continue;
 		const bool sparse = kRes[k] != RES_WOOD;
-		const float strength = (float)resources_.amount[r] / (sparse ? 90.0f : 50.0f);
+		// shared.js addInfluence: resourceSupplyMax, kept until the supply is gone (older saves: what is left).
+		const float strength = (float)(resources_.max_amount[r] > 0 ? resources_.max_amount[r] : resources_.amount[r]) / (sparse ? 90.0f : 50.0f);
 		const float md = (sparse ? 120.0f : 60.0f) / 4.0f / kCcTile, md2 = md * md;
 		const float cx = std::floor((resources_.x[r] + map_half_) / kCcTile), cy = std::floor((resources_.z[r] + map_half_) / kCcTile);
 		const int x0 = (int)std::floor(std::max(0.0f, cx - md)), y0 = (int)std::floor(std::max(0.0f, cy - md));
@@ -24913,7 +24926,9 @@ bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &
 					for (int dx = -r; dx <= r && !placed; ++dx) {
 						if (std::abs(dx) != r && std::abs(dz) != r) continue;
 						// findDefensiveLocation: a tower needs only its own obstruction (no +4 m gap).
-						if (petra_can_place(c0x + dx, c0z + dz, foot, btype, tower ? 0 : -1)) { out_cx = c0x + dx; out_cz = c0z + dz; placed = true; }
+						// The obstruction map knows nothing of BuildRestrictions Distance (tower 60 m,
+						// fortress 80 m), so a spot too close to another one is picked all the same.
+						if (petra_spot_free_but_distance(c0x + dx, c0z + dz, foot, btype, tower ? 0 : -1)) { out_cx = c0x + dx; out_cz = c0z + dz; placed = true; }
 					}
 			if (!placed) continue;
 			best = min_dist;
@@ -24947,7 +24962,11 @@ void Simulation::petra_build_defenses() {
 		int cx = 0, cz = 0;
 		uint32_t bid = 0;
 		if (petra_find_defensive_location(btype, cx, cz)) {
-			if (petra_has_builder() && petra_try_pay(PETRA_Q_DEFENSE_BUILDING, cf, cw, cg, cs))
+			// queueplanBuilding.js onStart: the construct command fails at a spot BuildRestrictions
+			// refuses (Distance), and the plan is gone all the same.
+			if (petra_has_builder() && petra_can_place(cx, cz, building_type_info(btype).footprint, btype,
+			        (building_tech_classes(btype) & TC_TOWER) ? 0 : -1) &&
+			    petra_try_pay(PETRA_Q_DEFENSE_BUILDING, cf, cw, cg, cs))
 				bid = petra_spawn_foundation(cx, cz, btype);
 		} else if (btype == BLD_FORTRESS) {
 			// queueplanBuilding.js findGoodPosition: a first fortress with no frontier spot
@@ -25364,15 +25383,16 @@ void Simulation::petra_manage_research(float dt) {
 	}
 	std::vector<uint8_t> techs;
 	petra_available_techs(techs);
-	// Only a researcher with room in its queue can take the technology.
-	auto free_researcher = [&](uint8_t t) {
+	// findAvailableTech: a finished researcher of ours lists it; a full queue doesn't matter
+	// (the pick waits in minorTech for room, researchManager.js:158-163).
+	auto researcher = [&](uint8_t t) {
 		for (const auto &b : buildings_)
 			if (b.team == petra_pid_ && building_researches_tech(b.type, t, petra_ps().civ) && b.build_progress >= 1.0f && b.hp > 0.0f && !b.wrecked &&
-			    b.upgrade_to == BLD_TYPE_COUNT && b.queue.size() < PRODUCTION_QUEUE_MAX)
+			    b.upgrade_to == BLD_TYPE_COUNT)
 				return true;
 		return false;
 	};
-	techs.erase(std::remove_if(techs.begin(), techs.end(), [&](uint8_t t) { return !free_researcher(t); }), techs.end());
+	techs.erase(std::remove_if(techs.begin(), techs.end(), [&](uint8_t t) { return !researcher(t); }), techs.end());
 	if (techs.empty()) return;
 
 	// In the phase where a list starts, skip a technology the economy is far from
