@@ -8790,7 +8790,8 @@ uint16_t Simulation::resolve_map_template(const char *template_id, int *rank) {
 
 // A map's unit by its 0 A.D. template: resolve_map_template, promoted through the unit's own
 // chain to the template's rank (or the given one), else u_type.
-uint32_t Simulation::spawn_map_unit(float x, float z, uint8_t team, UnitType u_type, const char *template_id, int rank) {
+uint32_t Simulation::spawn_map_unit(float x, float z, uint8_t team, UnitType u_type, const char *template_id, int rank,
+		bool unpacked) {
 	const uint16_t tmpl = resolve_map_template(template_id, &rank);
 	if (tmpl != CIV_UNIT_TEMPLATE_NONE) u_type = (UnitType)civ_unit_template(tmpl).unit_type;
 	const uint32_t id = spawn_unit(x, z, team, u_type, 0.0f, tmpl);
@@ -8802,7 +8803,17 @@ uint32_t Simulation::spawn_map_unit(float x, float z, uint8_t team, UnitType u_t
 			if (!l || l->target != CIV_UNIT_TEMPLATE_NONE) break;
 			promote_unit((size_t)i, CIV_UNIT_TEMPLATE_NONE, l->target_rank);
 		}
+	// A map's athen/siege_lithobolos_unpacked: the engine stands ready to fire (its packed row, unpacked).
+	if (unpacked || (template_id && std::string_view(template_id).ends_with("_unpacked"))) set_unit_unpacked(id);
 	return id;
+}
+
+void Simulation::set_unit_unpacked(uint32_t unit_id) {
+	const int32_t i = lookup_unit(unit_id);
+	if (i >= 0 && units_.pack_state[i] == PACK_PACKED) {
+		units_.pack_state[i] = PACK_UNPACKED;
+		units_.pack_elapsed[i] = 0.0f;
+	}
 }
 
 bool Simulation::structure_has_enough_health(const Building &b) const {

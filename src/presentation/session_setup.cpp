@@ -468,7 +468,8 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			// port_0ad_maps.py gives a unit no type when its name says nothing (units/plane): with
 			// no template of its own or a parent's to stand in, it is left out.
 			if (!resolved && utype_str.is_empty()) continue;
-			unit_ids[i] = sim->spawn_map_unit(ux, uz, team, utype, pick.get_data(), rank);
+			unit_ids[i] = sim->spawn_map_unit(ux, uz, team, utype, pick.get_data(), rank,
+					String::utf8(t.get_data()).ends_with("_unpacked"));
 			continue;
 		}
 		unit_ids[i] = sim->spawn_map_unit(ux, uz, team, utype, nullptr);
