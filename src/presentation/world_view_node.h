@@ -231,7 +231,7 @@ class RtsoWorldView : public Node3D {
 	std::unordered_map<std::string, Ref<Texture2D>> decal_tex_;
 	bool building_decals_loaded_ = false;
 	static constexpr uint32_t DECAL_LAYER = 1u << 19; // the terrain's extra render layer: decals land only on it
-	void update_building_decals(BuildingVis &v, const String &glb_id, float k, const Vector3 &base, float brightness);
+	void update_building_decals(const rtso::Simulation *sim, BuildingVis &v, const String &glb_id, float k, const Vector3 &base, float brightness);
 	// data/ambient_fx.json (tools/extract_ambient_fx.py): the particle props of each
 	// building GLB's actor, and the 0 A.D. particle files they name.
 	struct AmbientFx { std::string particle; Vector3 pos; };
@@ -373,6 +373,11 @@ class RtsoWorldView : public Node3D {
 	std::vector<MeshInstance3D *> outline_bars_;
 	void draw_structure_outlines(const rtso::Simulation *sim);
 	Decal *get_or_create_ring_decal(size_t index);
+	// Godot 4.3's Compatibility renderer (OpenGL) draws no Decal: there a decal
+	// carries a child mesh laid over the terrain under it instead (gl_decal_mats_
+	// per texture, the modulate in its vertex colours). No-op on Vulkan.
+	void sync_gl_decal(const rtso::Simulation *sim, Decal *d);
+	std::unordered_map<const Texture2D *, Ref<StandardMaterial3D>> gl_decal_mats_;
 
 	Ref<BoxMesh> hp_bg_mesh;
 	Ref<BoxMesh> hp_fg_mesh;
