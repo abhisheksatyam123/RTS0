@@ -236,4 +236,5 @@ Each item was checked against both sources.
 ## Status
 - 1 fixed: `petra_population_max()` at the four getPopulationMax sites. The plan still keeps mustering at the true cap instead of failing (rare at 300).
 - 2 fixed: autostart, the net defaults and match settings default to random. Game Setup already used gui.gamesetup.aibehavior "random".
-- 3 and 4: handed to the economy owner (C).
+- 3: closed. C measured end-of-turn funding plus a same-turn retry (8 seeds): phase times did not move, so it was dropped (Q7 in docs/archive/petra-audit-028-pass4.md).
+- 4: handed to the economy owner (C).
