@@ -551,7 +551,9 @@ func _apply_viewport() -> void:
 	var vp := get_tree().root
 	vp.scaling_3d_scale = clampf(cfg.get_number("renderer.scale"), 0.25, 2.0)
 	var tech := cfg.get_value("renderer.upscale.technique")
-	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if tech == "fsr" and vp.scaling_3d_scale < 1.0 else Viewport.SCALING_3D_MODE_BILINEAR
+	# FSR 1.0 needs Forward+; under GL Compatibility (no rendering device) it is bilinear.
+	var fsr_ok := RenderingServer.get_rendering_device() != null
+	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if tech == "fsr" and fsr_ok and vp.scaling_3d_scale < 1.0 else Viewport.SCALING_3D_MODE_BILINEAR
 	var aa := cfg.get_value("antialiasing")
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if aa == "fxaa" else Viewport.SCREEN_SPACE_AA_DISABLED
 	match aa:

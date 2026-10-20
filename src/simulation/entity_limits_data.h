@@ -692,6 +692,7 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // germ/infantry_spearman_a
 	{LIMIT_NONE, 0}, // germ/infantry_swordsman_a
 	{LIMIT_NONE, 0}, // germ/support_healer_e
+	{LIMIT_NONE, 0}, // plane
 };
 static_assert(sizeof(UNIT_LIMITS) / sizeof(UNIT_LIMITS[0]) == CIV_UNIT_TEMPLATE_COUNT,
 		"one UnitLimit per roster row: rerun tools/extract_0ad_entity_limits.py");
