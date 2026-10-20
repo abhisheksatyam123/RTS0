@@ -960,6 +960,7 @@ private:
 	bool local_turns_ = true;
 	bool summary_shown_ = false; // per match (was a function static: only the first match got one)
 	bool finished_asked_ = false; // QuitConfirmationDefeat shown for the local player
+	bool seat_was_playing_ = false; // the local seat was seen still playing this session
 	uint32_t match_seed_ = 0;
 	bool replay_recording_ = false;
 	bool replay_finished_ = false;

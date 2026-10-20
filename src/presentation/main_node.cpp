@@ -751,8 +751,12 @@ void RtsoMain::update_log_messages(bool changed) {
 // PauseControl.js canPause(explicit): an observer, or a player whose game is
 // over, who is not the host cannot pause a multiplayer match (resuming their
 // own pause stays allowed). The player an observer views does not count.
+// Nor can anyone pause before the match is live (g_IsNetworkedActive: the
+// "Waiting for players to connect:" stage), which NetServer would ignore.
 bool RtsoMain::can_pause() const {
-	return hotkey_paused_ || !net_lockstep() || turn_mgr_.is_replaying() || !observing_seat() || net_host_.isHost();
+	if (hotkey_paused_ || !net_lockstep() || turn_mgr_.is_replaying()) return true;
+	if (!net_game_started_ || turn_mgr_.current_turn() <= rtso::TurnManager::COMMAND_DELAY) return false;
+	return !observing_seat() || net_host_.isHost();
 }
 
 void RtsoMain::toggle_pause() {
@@ -2928,8 +2932,10 @@ void RtsoMain::host_net_setup_tick(bool force) {
 		else n.observers |= (1ull << c);
 	}
 	std::string key = rtso::format_game_start_full(n.setup) + ";";
+	// ReadyController.js onClientJoin / onClientLeave / onPlayerAssignmentsChange:
+	// readiness resets when the settings or a seat's client change, not when an
+	// observer comes or goes.
 	for (int i = 0; i < 8; ++i) key += (char)('0' + n.slot_client[i] + 1);
-	key += ";" + std::to_string((unsigned long long)n.observers);
 	n.settings_version = net_setup_.settings_version;
 	if (key != net_setup_key_) {
 		net_setup_key_ = key;
