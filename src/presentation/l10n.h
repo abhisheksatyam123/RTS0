@@ -179,8 +179,11 @@ inline godot::String batch_training_string(int buildings, int batch, int remaind
 	if (buildings > 1 || (buildings == 1 && remainder > 0))
 		format = remainder > 0 ? "%(action)s to train %(number)s (%(fullBatch)s + %(remainderBatch)s)."
 				: "%(action)s to train %(number)s (%(fullBatch)s).";
-	return sprintf0(tr0(format), {{"action", header_font(tr0("Shift-click"))}, {"number", godot::String::num_int64(total)},
-			{"fullBatch", full}, {"remainderBatch", godot::String::num_int64(remainder)}});
+	// setStringTags(..., g_HotkeyTags): the whole line in the hotkey colour.
+	return "[color=#fffb83]" +
+			sprintf0(tr0(format), {{"action", header_font(tr0("Shift-click"))}, {"number", godot::String::num_int64(total)},
+					{"fullBatch", full}, {"remainderBatch", godot::String::num_int64(remainder)}}) +
+			"[/color]";
 }
 
 } // namespace rtso
