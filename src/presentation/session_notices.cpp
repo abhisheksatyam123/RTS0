@@ -264,7 +264,7 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 	switch (kind) {
 		case IDLE_WORKER: classes = {rtso::TC_CIVILIAN, rtso::TC_TRADER, rtso::TC_FISHINGBOAT, rtso::TC_CITIZEN}; break;
 		case IDLE_WARRIOR: classes = {rtso::TC_MELEE, rtso::TC_RANGED}; break;
-		case IDLE_BUILDER: classes = {rtso::TC_WORKER | rtso::TC_CITIZEN}; break;
+		case IDLE_BUILDER: classes = {rtso::TechClasses(~0ull, ~0ull)}; break; // "Builder": unit_can_build below
 		case IDLE_ANY: classes = {rtso::TechClasses(~0ull, ~0ull)}; break;
 	}
 	const size_t n = classes.size();
@@ -289,6 +289,9 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 		const uint16_t tmpl = uview.tmpl[i];
 		const rtso::TechClasses tc = tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tmpl).tech_classes
 				: rtso::unit_tech_classes(uview.unit_type[i]);
+		// hotkeys/misc.xml findIdleUnit(["Builder"]): the Builder mixin (infantry, women,
+		// civilians, slaves), not citizen cavalry.
+		if (kind == IDLE_BUILDER && !rtso::unit_can_build(uview.unit_type[i], tmpl)) continue;
 		size_t bucket = n;
 		for (size_t k = 0; k < n; ++k) {
 			if (tc & classes[(idle_class_index_ + k) % n]) { bucket = k; break; }

@@ -1385,6 +1385,15 @@ void RtsoMain::_process(double delta) {
 			if (sim)
 				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
 						drag_curr_pos.x, drag_curr_pos.z, &start_tower, &end_tower, wall_kind);
+			// Walls.js returns no segment for a wall no longer than a tower, but the preview still
+			// shows its end towers (GuiInterface.js SetWallPlacementPreview); a click then lays nothing.
+			if (sim && pieces.empty()) {
+				const uint8_t civ = sim->player_civ(local_player());
+				if (!start_tower)
+					pieces.push_back({wall_set.tower, wall_drag_start_pos.x, wall_drag_start_pos.z, 0.0f, wall_set.tower_half, civ});
+				if (!end_tower && (drag_curr_pos - wall_drag_start_pos).length() > 0.1f)
+					pieces.push_back({wall_set.tower, drag_curr_pos.x, drag_curr_pos.z, 0.0f, wall_set.tower_half, civ});
+			}
 			while (wall_ghosts.size() < pieces.size()) {
 				MeshInstance3D *g = memnew(MeshInstance3D);
 				g->set_visible(false);
@@ -1397,16 +1406,20 @@ void RtsoMain::_process(double delta) {
 			const uint32_t snapped[2] = {start_tower, end_tower};
 			// GuiInterface.js SetWallPlacementPreview: from the first piece that can't go down (or
 			// can't be paid for, as cmd_build_wall stops there too) on, every piece is invalid.
-			bool chain_ok = true;
+			// The tooltip's cost is that of the pieces up to the first one that can't stand there
+			// (allPiecesValid); being short of resources only tints them.
+			bool chain_ok = true, place_ok = true;
 			float spent[rtso::RES_COUNT] = {};
 			float wall_cost[rtso::RES_COUNT] = {};
 			for (size_t i = 0; i < pieces.size(); ++i) {
 				const auto &p = pieces[i];
 				MeshInstance3D *g = wall_ghosts[i];
-				if (sim) {
+				if (sim && place_ok) {
+					place_ok = sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
 					float c[rtso::RES_COUNT];
-					sim->wall_piece_cost(local_player(), pieces[i], c);
-					for (int r = 0; r < rtso::RES_COUNT; ++r) wall_cost[r] += c[r];
+					sim->wall_piece_cost(local_player(), p, c);
+					if (place_ok)
+						for (int r = 0; r < rtso::RES_COUNT; ++r) wall_cost[r] += c[r];
 				}
 				// 0 A.D. previews each piece with its own actor (wall_long/medium/short, the
 				// tower): the model the world view will draw for it, turned the same way.
@@ -1437,7 +1450,7 @@ void RtsoMain::_process(double delta) {
 						spent[r] += c[r];
 						chain_ok = chain_ok && spent[r] <= ps.res[r] + 1e-3f;
 					}
-					chain_ok = chain_ok && sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
+					chain_ok = chain_ok && place_ok;
 				}
 				const bool ok = sim && chain_ok;
 				g->set_material_override(ok ? ghost_mat_ok : ghost_mat_bad);

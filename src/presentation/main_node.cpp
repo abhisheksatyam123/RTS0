@@ -2079,25 +2079,25 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 	// holder when nothing else of the group is out.
 	PackedInt32Array recall, kept;
 	uint32_t recall_building = 0;
-	bool have_pos = false;
-	Vector3 first_pos, holder_pos;
-	bool have_holder = false;
+	// The snap goes to the group's lowest id, or its holder (getEntityOrHolder(toSelect[0])).
+	int32_t snap_id = 0;
+	Vector3 snap_pos;
 	auto gview = sim->units();
 	for (int m = 0; m < selected_groups[grp].size(); ++m) {
 		const int32_t gid = selected_groups[grp][m];
 		bool found = false;
+		Vector3 at;
 		for (size_t i = 0; i < gview.count; ++i) {
 			if (gview.id[i] != (uint32_t)gid || gview.team[i] != local_player()) continue;
 			if (gview.alive[i]) {
-				if (!have_pos) first_pos = Vector3(gview.pos_x[i], 0, gview.pos_z[i]);
-				have_pos = true;
+				at = Vector3(gview.pos_x[i], 0, gview.pos_z[i]);
 				recall.push_back(gid);
 				found = true;
 			} else if (gview.hp[i] > 0.0f) {
 				for (const auto &b : sim->buildings())
 					if (std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), (uint32_t)gid) != b.garrisoned_units.end()) {
-						if (!have_holder) holder_pos = Vector3(b.x, 0, b.z);
-						have_holder = found = true;
+						at = Vector3(b.x, 0, b.z);
+						found = true;
 						break;
 					}
 			}
@@ -2107,17 +2107,25 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 			for (const auto &b : sim->buildings())
 				if (b.id == (uint32_t)gid && b.team == local_player() && !b.wrecked && b.hp > 0.0f) {
 					if (!recall_building) recall_building = b.id;
-					if (!have_pos) first_pos = Vector3(b.x, 0, b.z);
-					have_pos = found = true;
+					at = Vector3(b.x, 0, b.z);
+					found = true;
 					break;
 				}
-		if (found) kept.push_back(gid);
+		if (found) {
+			kept.push_back(gid);
+			if (snap_id == 0 || gid < snap_id) snap_id = gid, snap_pos = at;
+		}
 	}
 	selected_groups[grp] = kept;
 	if (kept.is_empty()) return;
 	if (recall.is_empty() && !recall_building) {
-		// Everyone is inside: snap to the holder, the selection stays.
-		if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(holder_pos);
+		// Everyone is inside: performGroup's g_Selection.reset() still drops the old selection
+		// (the members inside can't be picked here), and the snap goes to the holder.
+		if (action != GROUP_ADD) {
+			selected_ids.clear();
+			selected_building_id = 0;
+		}
+		if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(snap_pos);
 		return;
 	}
 	if (action == GROUP_ADD) {
@@ -2128,7 +2136,7 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 		selected_ids = recall;
 		selected_building_id = recall_building;
 	}
-	if (action == GROUP_SNAP && cam_rig && (have_pos || have_holder)) cam_rig->set_target_pos(have_pos ? first_pos : holder_pos);
+	if (action == GROUP_SNAP && cam_rig && snap_id != 0) cam_rig->set_target_pos(snap_pos);
 	play_civ_voice("select");
 }
 
@@ -3178,13 +3186,21 @@ void RtsoMain::host_net_setup_tick(bool force) {
 	if (force || changed) emit_signal("net_setup_changed");
 }
 
-// ClientKicked.js and ChatMessageFormatNetwork kicked/banned, in the setup and the match.
+// gamesetup StatusMessageFormat: "== message" in sans-bold-13.
+static String setup_status_line(const String &message) {
+	return "[b]" + rtso::sprintf0(rtso::tr0("== %(message)s"), {{"message", message}}) + "[/b]\n";
+}
+
+// ClientKicked.js (a status line in the setup) and ChatMessageFormatNetwork kicked/banned
+// (the match).
 void RtsoMain::post_kick_chat() {
 	const auto &kicks = net_host_.kicks();
 	for (; kicks_chatted_ < kicks.size(); ++kicks_chatted_) {
 		const auto &k = kicks[kicks_chatted_];
 		const String name = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str()).replace("[", "[lb]");
-		chat_window_.append_kind(sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}}) + "\n", CHAT_FILTER_NETWORK);
+		const String line = sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}});
+		if (is_net_pregame()) chat_window_.append_line(setup_status_line(line));
+		else chat_window_.append_kind(line + String("\n"), CHAT_FILTER_NETWORK);
 	}
 }
 
@@ -3208,10 +3224,10 @@ void RtsoMain::post_setup_chat(const rtso::NetSetupState &before, const rtso::Ne
 		for (uint32_t c = 1; c < rtso::NET_SETUP_CLIENTS; ++c) {
 			const bool was = (before.clients >> c) & 1, is = (after.clients >> c) & 1;
 			if (!was && is)
-				chat_window_.append_line(sprintf0(tr("%(username)s has joined"),
-						{{"username", String::utf8(after.names[c].c_str()).replace("[", "[lb]")}}) + "\n");
+				chat_window_.append_line(setup_status_line(sprintf0(tr("%(username)s has joined"),
+						{{"username", String::utf8(after.names[c].c_str()).replace("[", "[lb]")}})));
 			else if (was && !is)
-				chat_window_.append_line(sprintf0(tr("%(username)s has left"), {{"username", setup_client_name(before, c)}}) + "\n");
+				chat_window_.append_line(setup_status_line(sprintf0(tr("%(username)s has left"), {{"username", setup_client_name(before, c)}})));
 		}
 		const bool same_settings = before.settings_version == after.settings_version;
 		for (uint32_t c = 1; c < rtso::NET_SETUP_CLIENTS; ++c) {
@@ -3306,7 +3322,7 @@ void RtsoMain::client_net_setup_tick() {
 	// (GameSettingsChanged.js tells us so).
 	if (net_ready_ == 1 && net_ready_version_ != net_setup_.settings_version) {
 		net_ready_ = 0;
-		chat_window_.append_line(tr("Game settings have been changed") + "\n");
+		chat_window_.append_line(setup_status_line(tr("Game settings have been changed")));
 	}
 	store_net_setup_in_match_settings(net_setup_.setup);
 	emit_signal("net_setup_changed");
@@ -3685,7 +3701,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 // same on every peer, with no speed control in the match (set_game_speed
 // refuses and the button is hidden, as session.js does when g_IsNetworked).
 void RtsoMain::start_net_speed(uint16_t speed) {
-	game_speed = std::clamp(speed, (uint16_t)25, (uint16_t)300) / 100.0f;
+	game_speed = std::clamp(speed, (uint16_t)10, (uint16_t)2000) / 100.0f; // game_speeds.json's range
 	if (speed_btn && speed_btn->get_button_icon().is_null()) speed_btn->set_text(speed_text(game_speed));
 }
 
