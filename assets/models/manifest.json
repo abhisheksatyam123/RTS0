@@ -79913,6 +79913,2064 @@
     "skin:skeletal/animal_rabbit_04.png"
    ],
    "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "helm_cart_helmet_b": {
+   "file": "models/units/helm_cart_helmet_b.glb",
+   "parts": 2,
+   "size_meters": [
+    0.629,
+    0.905,
+    0.692
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/cart_helmet_b.xml",
+    "actor:art/actors/props/units/helmets/props/hele_cart_crest_b2.xml",
+    "mesh:props/helmet/cart_helmet_b.dae",
+    "mesh:props/helmet/props/hele_cart_crest_a.dae",
+    "skin:props/helmet/cart_helmet_02_bronze.png",
+    "skin:props/helmet/hele_thracian_02_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_celt_helmet_alesia_02": {
+   "file": "models/units/helm_celt_helmet_alesia_02.glb",
+   "parts": 1,
+   "size_meters": [
+    0.573,
+    0.728,
+    0.685
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/celt_helmet_alesia_02.xml",
+    "mesh:props/helmet/celt_alesia_02.dae",
+    "skin:props/helmet/celt_alesia_01_iron.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_celt_helmet_alesia_03": {
+   "file": "models/units/helm_celt_helmet_alesia_03.glb",
+   "parts": 1,
+   "size_meters": [
+    0.595,
+    0.643,
+    0.693
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/celt_helmet_alesia_03.xml",
+    "mesh:props/helmet/celt_alesia_03.dae",
+    "skin:props/helmet/celt_alesia_02_iron.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_celt_helmet_berru_01": {
+   "file": "models/units/helm_celt_helmet_berru_01.glb",
+   "parts": 1,
+   "size_meters": [
+    0.428,
+    0.821,
+    0.586
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/celt_helmet_berru_01.xml",
+    "mesh:props/helmet/celt_berru_01.dae",
+    "skin:props/helmet/celt_berru_01_iron.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_celt_helmet_berru_02": {
+   "file": "models/units/helm_celt_helmet_berru_02.glb",
+   "parts": 1,
+   "size_meters": [
+    0.45,
+    0.673,
+    0.554
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/celt_helmet_berru_02.xml",
+    "mesh:props/helmet/celt_berru_02.dae",
+    "skin:props/helmet/celt_berru_02_iron.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_celt_helmet_berru_03": {
+   "file": "models/units/helm_celt_helmet_berru_03.glb",
+   "parts": 1,
+   "size_meters": [
+    0.441,
+    0.962,
+    0.583
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/celt_helmet_berru_03.xml",
+    "mesh:props/helmet/celt_berru_03.dae",
+    "skin:props/helmet/celt_berru_03_iron.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_celt_helmet_ciumesti_01": {
+   "file": "models/units/helm_celt_helmet_ciumesti_01.glb",
+   "parts": 1,
+   "size_meters": [
+    0.442,
+    0.622,
+    0.618
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/celt_helmet_ciumesti_01.xml",
+    "mesh:props/helmet/celt_ciumesti_01.dae",
+    "skin:props/helmet/celt_ciumesti_01_iron.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_celt_helmet_ciumesti_02": {
+   "file": "models/units/helm_celt_helmet_ciumesti_02.glb",
+   "parts": 1,
+   "size_meters": [
+    0.446,
+    0.744,
+    0.573
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/celt_helmet_ciumesti_02.xml",
+    "mesh:props/helmet/celt_ciumesti_02.dae",
+    "skin:props/helmet/celt_ciumesti_02_iron.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_celt_helmet_coolus_01": {
+   "file": "models/units/helm_celt_helmet_coolus_01.glb",
+   "parts": 1,
+   "size_meters": [
+    0.444,
+    0.391,
+    0.614
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/celt_helmet_coolus_01.xml",
+    "mesh:props/helmet/celt_coolus_01.dae",
+    "skin:props/helmet/celt_coolus_01_iron.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_celt_helmet_coolus_02": {
+   "file": "models/units/helm_celt_helmet_coolus_02.glb",
+   "parts": 1,
+   "size_meters": [
+    0.439,
+    0.589,
+    0.553
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/celt_helmet_coolus_02.xml",
+    "mesh:props/helmet/celt_coolus_02.dae",
+    "skin:props/helmet/celt_coolus_02_iron.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_celt_helmet_foret": {
+   "file": "models/units/helm_celt_helmet_foret.glb",
+   "parts": 1,
+   "size_meters": [
+    0.669,
+    0.799,
+    0.737
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/celt_helmet_foret.xml",
+    "mesh:props/helmet/celt_foret.dae",
+    "skin:props/helmet/celt_foret_iron.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_celt_helmet_meyrick": {
+   "file": "models/units/helm_celt_helmet_meyrick.glb",
+   "parts": 1,
+   "size_meters": [
+    0.456,
+    0.604,
+    0.793
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/celt_helmet_meyrick.xml",
+    "mesh:props/helmet/celt_meyrick.dae",
+    "skin:props/helmet/celt_meyrick_iron.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_celt_helmet_mihovo": {
+   "file": "models/units/helm_celt_helmet_mihovo.glb",
+   "parts": 1,
+   "size_meters": [
+    0.526,
+    0.661,
+    0.723
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/celt_helmet_mihovo.xml",
+    "mesh:props/helmet/celt_mihovo.dae",
+    "skin:props/helmet/celt_mihovo_iron.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_celt_helmet_montefortino_01": {
+   "file": "models/units/helm_celt_helmet_montefortino_01.glb",
+   "parts": 1,
+   "size_meters": [
+    0.448,
+    0.856,
+    0.624
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/celt_helmet_montefortino_01.xml",
+    "mesh:props/helmet/celt_montefortino_01.dae",
+    "skin:props/helmet/celt_montefortino_01_iron.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_celt_helmet_montefortino_02": {
+   "file": "models/units/helm_celt_helmet_montefortino_02.glb",
+   "parts": 1,
+   "size_meters": [
+    0.484,
+    0.649,
+    0.576
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/celt_helmet_montefortino_02.xml",
+    "mesh:props/helmet/celt_montefortino_02.dae",
+    "skin:props/helmet/celt_montefortino_02_iron.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_celt_helmet_montefortino_03": {
+   "file": "models/units/helm_celt_helmet_montefortino_03.glb",
+   "parts": 1,
+   "size_meters": [
+    0.464,
+    0.883,
+    0.59
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/celt_helmet_montefortino_03.xml",
+    "mesh:props/helmet/celt_montefortino_03.dae",
+    "skin:props/helmet/celt_montefortino_03_iron.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_celt_monte_bibele": {
+   "file": "models/units/helm_celt_monte_bibele.glb",
+   "parts": 1,
+   "size_meters": [
+    0.465,
+    0.808,
+    0.572
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/celt_monte_bibele.xml",
+    "mesh:props/helmet/celt_monte_bibele.dae",
+    "skin:props/helmet/celt_monte_bibele_01_iron.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_gladiator_secutor": {
+   "file": "models/units/helm_gladiator_secutor.glb",
+   "parts": 1,
+   "size_meters": [
+    0.689,
+    0.902,
+    0.773
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/gladiator_secutor.xml",
+    "mesh:props/helmet/gladiator_c.dae",
+    "skin:props/helmet/gladiator_03_iron.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_attic_a2": {
+   "file": "models/units/helm_hele_attic_a2.glb",
+   "parts": 6,
+   "size_meters": [
+    0.903,
+    1.15,
+    0.61
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_attic_a2.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "mesh:props/helmet/hele_attic_b.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_attic_02_bronze.png",
+    "skin:props/helmet/old/rome-a.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_attic_a3": {
+   "file": "models/units/helm_hele_attic_a3.glb",
+   "parts": 6,
+   "size_meters": [
+    0.903,
+    1.15,
+    0.61
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_attic_a3.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "mesh:props/helmet/hele_attic_b.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_attic_04_bronze.png",
+    "skin:props/helmet/old/rome-a.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_attic_a4": {
+   "file": "models/units/helm_hele_attic_a4.glb",
+   "parts": 4,
+   "size_meters": [
+    0.553,
+    0.967,
+    0.61
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_attic_a4.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "mesh:props/helmet/hele_attic_c.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_attic_05_bronze.png",
+    "skin:props/helmet/old/rome-a.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_attic_b2": {
+   "file": "models/units/helm_hele_attic_b2.glb",
+   "parts": 2,
+   "size_meters": [
+    0.434,
+    0.671,
+    0.61
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_attic_b2.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "mesh:props/helmet/hele_attic_b.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_attic_02_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_attic_b3": {
+   "file": "models/units/helm_hele_attic_b3.glb",
+   "parts": 2,
+   "size_meters": [
+    0.434,
+    0.671,
+    0.61
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_attic_b3.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "mesh:props/helmet/hele_attic_b.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_attic_04_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_attic_b4": {
+   "file": "models/units/helm_hele_attic_b4.glb",
+   "parts": 2,
+   "size_meters": [
+    0.434,
+    0.829,
+    0.61
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_attic_b4.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "mesh:props/helmet/hele_attic_c.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_attic_05_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_attic_e2": {
+   "file": "models/units/helm_hele_attic_e2.glb",
+   "parts": 8,
+   "size_meters": [
+    0.903,
+    1.194,
+    1.213
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_attic_e2.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_illyrian_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_illyrian_01.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "mesh:props/helmet/hele_attic_b.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/hele_crest_hair_illyrian_a.dae",
+    "mesh:props/helmet/props/hele_crest_illyrian.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_attic_02_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds",
+    "skin:props/helmet/old/rome-a.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_attic_e3": {
+   "file": "models/units/helm_hele_attic_e3.glb",
+   "parts": 8,
+   "size_meters": [
+    0.903,
+    1.194,
+    1.213
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_attic_e3.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_illyrian_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_illyrian_01.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "mesh:props/helmet/hele_attic_b.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/hele_crest_hair_illyrian_a.dae",
+    "mesh:props/helmet/props/hele_crest_illyrian.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_attic_04_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds",
+    "skin:props/helmet/old/rome-a.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_attic_e4": {
+   "file": "models/units/helm_hele_attic_e4.glb",
+   "parts": 6,
+   "size_meters": [
+    0.553,
+    1.537,
+    0.962
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_attic_e4.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_phrygian_bronze_03.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_phrygian_hair_03.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "mesh:props/helmet/hele_attic_c.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/hele_crest_phrygian_c.dae",
+    "mesh:props/helmet/props/hele_crest_phrygian_hair_e.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_attic_05_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds",
+    "skin:props/helmet/old/rome-a.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_attic_r2": {
+   "file": "models/units/helm_hele_attic_r2.glb",
+   "parts": 6,
+   "size_meters": [
+    0.903,
+    1.15,
+    0.61
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_attic_r2.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "mesh:props/helmet/hele_attic_b.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_attic_02_bronze.png",
+    "skin:props/helmet/old/rome-a.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_attic_r3": {
+   "file": "models/units/helm_hele_attic_r3.glb",
+   "parts": 7,
+   "size_meters": [
+    0.903,
+    1.15,
+    0.61
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_attic_r3.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_visor_b.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "mesh:props/helmet/hele_attic_b.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/hele_attic_visor.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_attic_04_bronze.png",
+    "skin:props/helmet/old/rome-a.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_boeotian": {
+   "file": "models/units/helm_hele_boeotian.glb",
+   "parts": 1,
+   "size_meters": [
+    0.542,
+    0.511,
+    0.744
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_boeotian.xml",
+    "mesh:props/helmet/hele_boeotian_a.dae",
+    "skin:props/helmet/hele_boeotian_01_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_chalcidean_a1": {
+   "file": "models/units/helm_hele_chalcidean_a1.glb",
+   "parts": 4,
+   "size_meters": [
+    0.434,
+    1.123,
+    1.213
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_chalcidean_a1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_illyrian_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_illyrian_01.xml",
+    "mesh:props/helmet/hele_chalcidean_a.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/hele_crest_hair_illyrian_a.dae",
+    "mesh:props/helmet/props/hele_crest_illyrian.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_chalcidean_01_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_chalcidean_a2": {
+   "file": "models/units/helm_hele_chalcidean_a2.glb",
+   "parts": 3,
+   "size_meters": [
+    0.434,
+    1.123,
+    1.213
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_chalcidean_a2.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_illyrian_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_illyrian_01.xml",
+    "mesh:props/helmet/hele_chalcidean_b.dae",
+    "mesh:props/helmet/props/hele_crest_hair_illyrian_a.dae",
+    "mesh:props/helmet/props/hele_crest_illyrian.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_chalcidean_02_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_chalcidean_a3": {
+   "file": "models/units/helm_hele_chalcidean_a3.glb",
+   "parts": 4,
+   "size_meters": [
+    0.434,
+    1.123,
+    1.213
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_chalcidean_a3.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_illyrian_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_illyrian_01.xml",
+    "mesh:props/helmet/hele_chalcidean_c.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/hele_crest_hair_illyrian_a.dae",
+    "mesh:props/helmet/props/hele_crest_illyrian.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_chalcidean_03_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_chalcidean_a4": {
+   "file": "models/units/helm_hele_chalcidean_a4.glb",
+   "parts": 3,
+   "size_meters": [
+    0.477,
+    1.105,
+    1.222
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_chalcidean_a4.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_illyrian_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_illyrian_01.xml",
+    "mesh:props/helmet/hele_chalcidean_d.dae",
+    "mesh:props/helmet/props/hele_crest_hair_illyrian_a.dae",
+    "mesh:props/helmet/props/hele_crest_illyrian.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_chalcidean_04_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_chalcidean_a5": {
+   "file": "models/units/helm_hele_chalcidean_a5.glb",
+   "parts": 3,
+   "size_meters": [
+    0.483,
+    1.141,
+    1.222
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_chalcidean_a5.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_illyrian_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_illyrian_01.xml",
+    "mesh:props/helmet/hele_chalcidean_e.dae",
+    "mesh:props/helmet/props/hele_crest_hair_illyrian_a.dae",
+    "mesh:props/helmet/props/hele_crest_illyrian.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_chalcidean_05_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_chalcidean_b1": {
+   "file": "models/units/helm_hele_chalcidean_b1.glb",
+   "parts": 2,
+   "size_meters": [
+    0.434,
+    0.674,
+    0.631
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_chalcidean_b1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "mesh:props/helmet/hele_chalcidean_a.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_chalcidean_01_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_chalcidean_b2": {
+   "file": "models/units/helm_hele_chalcidean_b2.glb",
+   "parts": 1,
+   "size_meters": [
+    0.434,
+    0.641,
+    0.625
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_chalcidean_b2.xml",
+    "mesh:props/helmet/hele_chalcidean_b.dae",
+    "skin:props/helmet/hele_chalcidean_02_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_chalcidean_b3": {
+   "file": "models/units/helm_hele_chalcidean_b3.glb",
+   "parts": 2,
+   "size_meters": [
+    0.434,
+    0.674,
+    0.631
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_chalcidean_b3.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "mesh:props/helmet/hele_chalcidean_c.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_chalcidean_03_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_chalcidean_b4": {
+   "file": "models/units/helm_hele_chalcidean_b4.glb",
+   "parts": 1,
+   "size_meters": [
+    0.477,
+    0.676,
+    0.665
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_chalcidean_b4.xml",
+    "mesh:props/helmet/hele_chalcidean_d.dae",
+    "skin:props/helmet/hele_chalcidean_04_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_chalcidean_b5": {
+   "file": "models/units/helm_hele_chalcidean_b5.glb",
+   "parts": 1,
+   "size_meters": [
+    0.483,
+    0.748,
+    0.647
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_chalcidean_b5.xml",
+    "mesh:props/helmet/hele_chalcidean_e.dae",
+    "skin:props/helmet/hele_chalcidean_05_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_chalcidean_b6": {
+   "file": "models/units/helm_hele_chalcidean_b6.glb",
+   "parts": 3,
+   "size_meters": [
+    0.459,
+    1.037,
+    0.781
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_chalcidean_b6.xml",
+    "actor:art/actors/props/units/helmets/props/hele_boeotian_hair.xml",
+    "actor:art/actors/props/units/helmets/props/hele_hispano_chalcidean_mask_b1.xml",
+    "mesh:props/helmet/hele_chalcidean_f1.dae",
+    "mesh:props/helmet/props/hele_boeotian_hair.dae",
+    "mesh:props/helmet/props/hele_hispano_chalcidean_mask_a.dae",
+    "skin:props/helmet/hele_chalcidean_06_bronze.png",
+    "skin:props/helmet/sele_hero_seleucus_nikator_diffuse.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_corinthian_e2": {
+   "file": "models/units/helm_hele_corinthian_e2.glb",
+   "parts": 3,
+   "size_meters": [
+    0.526,
+    1.251,
+    1.167
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_corinthian_e2.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_01.xml",
+    "mesh:props/helmet/hele_corinthian_b.dae",
+    "mesh:props/helmet/props/hele_crest_a.dae",
+    "mesh:props/helmet/props/hele_crest_hair_a.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_corinthian_02_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_corinthian_e3": {
+   "file": "models/units/helm_hele_corinthian_e3.glb",
+   "parts": 3,
+   "size_meters": [
+    0.507,
+    1.219,
+    1.172
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_corinthian_e3.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_01.xml",
+    "mesh:props/helmet/hele_corinthian_c.dae",
+    "mesh:props/helmet/props/hele_crest_a.dae",
+    "mesh:props/helmet/props/hele_crest_hair_a.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_corinthian_03_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_corinthian_e4": {
+   "file": "models/units/helm_hele_corinthian_e4.glb",
+   "parts": 3,
+   "size_meters": [
+    0.473,
+    1.215,
+    1.173
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_corinthian_e4.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_01.xml",
+    "mesh:props/helmet/hele_corinthian_d.dae",
+    "mesh:props/helmet/props/hele_crest_a.dae",
+    "mesh:props/helmet/props/hele_crest_hair_a.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_corinthian_04_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_illyrian_b1_crested": {
+   "file": "models/units/helm_hele_illyrian_b1_crested.glb",
+   "parts": 3,
+   "size_meters": [
+    0.452,
+    1.118,
+    1.216
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_illyrian_b1_crested.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_illyrian_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_illyrian_01.xml",
+    "mesh:props/helmet/hele_illyrian_a.dae",
+    "mesh:props/helmet/props/hele_crest_hair_illyrian_a.dae",
+    "mesh:props/helmet/props/hele_crest_illyrian.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_illyrian_01_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_illyrian_b2_crested": {
+   "file": "models/units/helm_hele_illyrian_b2_crested.glb",
+   "parts": 3,
+   "size_meters": [
+    0.452,
+    1.118,
+    1.216
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_illyrian_b2_crested.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_illyrian_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_illyrian_01.xml",
+    "mesh:props/helmet/hele_illyrian_b.dae",
+    "mesh:props/helmet/props/hele_crest_hair_illyrian_a.dae",
+    "mesh:props/helmet/props/hele_crest_illyrian.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_illyrian_02_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_illyrian_b3_crested": {
+   "file": "models/units/helm_hele_illyrian_b3_crested.glb",
+   "parts": 3,
+   "size_meters": [
+    0.452,
+    1.118,
+    1.216
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_illyrian_b3_crested.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_illyrian_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_illyrian_01.xml",
+    "mesh:props/helmet/hele_illyrian_a.dae",
+    "mesh:props/helmet/props/hele_crest_hair_illyrian_a.dae",
+    "mesh:props/helmet/props/hele_crest_illyrian.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_illyrian_03_bronze_type_a.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_phrygian_a1": {
+   "file": "models/units/helm_hele_phrygian_a1.glb",
+   "parts": 4,
+   "size_meters": [
+    0.473,
+    1.374,
+    1.166
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_phrygian_a1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_phrygian_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_phrygian_hair_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_phrygian_mask_bronze.xml",
+    "mesh:props/helmet/hele_phrygian_a.dae",
+    "mesh:props/helmet/props/hele_crest_phrygian_a.dae",
+    "mesh:props/helmet/props/hele_crest_phrygian_hair_a.dae",
+    "mesh:props/helmet/props/hele_thracian_romanized_mask_b.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_phrygian_01_type_a_bronze.png",
+    "skin:props/helmet/hele_thracian_romanized_02_bronze_01.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_hele_phrygian_a11": {
+   "file": "models/units/helm_hele_phrygian_a11.glb",
+   "parts": 6,
+   "size_meters": [
+    0.55,
+    0.95,
+    0.662
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_phrygian_a11.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_wings.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "mesh:props/helmet/hele_phrygian_k1.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/hele_attic_wing.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_attic_05_bronze.png",
+    "skin:props/helmet/hele_phrygian_11_bronze.png",
+    "skin:props/helmet/old/rome-a.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_phrygian_b10": {
+   "file": "models/units/helm_hele_phrygian_b10.glb",
+   "parts": 1,
+   "size_meters": [
+    0.441,
+    0.822,
+    0.552
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_phrygian_b10.xml",
+    "mesh:props/helmet/hele_phrygian_j.dae",
+    "skin:props/helmet/hele_phrygian_10_bronze.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_hele_phrygian_b2": {
+   "file": "models/units/helm_hele_phrygian_b2.glb",
+   "parts": 1,
+   "size_meters": [
+    0.469,
+    0.963,
+    0.623
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_phrygian_b2.xml",
+    "mesh:props/helmet/hele_phrygian_b.dae",
+    "skin:props/helmet/hele_phrygian_02_bronze.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_hele_phrygian_b3": {
+   "file": "models/units/helm_hele_phrygian_b3.glb",
+   "parts": 1,
+   "size_meters": [
+    0.423,
+    0.865,
+    0.63
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_phrygian_b3.xml",
+    "mesh:props/helmet/hele_phrygian_c.dae",
+    "skin:props/helmet/hele_phrygian_03_bronze.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_hele_phrygian_b4": {
+   "file": "models/units/helm_hele_phrygian_b4.glb",
+   "parts": 1,
+   "size_meters": [
+    0.424,
+    0.812,
+    0.625
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_phrygian_b4.xml",
+    "mesh:props/helmet/hele_phrygian_d.dae",
+    "skin:props/helmet/hele_phrygian_04_bronze.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_hele_phrygian_b5": {
+   "file": "models/units/helm_hele_phrygian_b5.glb",
+   "parts": 2,
+   "size_meters": [
+    0.418,
+    1.069,
+    0.626
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_phrygian_b5.xml",
+    "actor:art/actors/props/units/helmets/props/hele_phrygian_mask_bronze.xml",
+    "mesh:props/helmet/hele_phrygian_e.dae",
+    "mesh:props/helmet/props/hele_thracian_romanized_mask_b.dae",
+    "skin:props/helmet/hele_phrygian_05_bronze.png",
+    "skin:props/helmet/hele_thracian_romanized_02_bronze_01.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_hele_phrygian_b8": {
+   "file": "models/units/helm_hele_phrygian_b8.glb",
+   "parts": 1,
+   "size_meters": [
+    0.472,
+    0.804,
+    0.713
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_phrygian_b8.xml",
+    "mesh:props/helmet/hele_phrygian_h.dae",
+    "skin:props/helmet/hele_phrygian_08_bronze.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_hele_phrygian_b9": {
+   "file": "models/units/helm_hele_phrygian_b9.glb",
+   "parts": 1,
+   "size_meters": [
+    0.586,
+    0.827,
+    0.729
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_phrygian_b9.xml",
+    "mesh:props/helmet/hele_phrygian_i.dae",
+    "skin:props/helmet/hele_phrygian_09_bronze.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_hele_phrygian_e1": {
+   "file": "models/units/helm_hele_phrygian_e1.glb",
+   "parts": 5,
+   "size_meters": [
+    0.536,
+    1.374,
+    1.166
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_phrygian_e1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_phrygian_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_phrygian_hair_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_phrygian_feathers.xml",
+    "actor:art/actors/props/units/helmets/props/hele_phrygian_mask_bronze.xml",
+    "mesh:props/helmet/hele_phrygian_a.dae",
+    "mesh:props/helmet/props/hele_crest_phrygian_a.dae",
+    "mesh:props/helmet/props/hele_crest_phrygian_hair_a.dae",
+    "mesh:props/helmet/props/hele_phrygian_feathers.dae",
+    "mesh:props/helmet/props/hele_thracian_romanized_mask_b.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_phrygian_01_type_a_bronze.png",
+    "skin:props/helmet/hele_thracian_romanized_02_bronze_01.png",
+    "skin:props/helmet/old/hele_a3.dds",
+    "skin:props/helmet/sele_hero_seleucus_nikator_diffuse.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_hele_phrygian_e11": {
+   "file": "models/units/helm_hele_phrygian_e11.glb",
+   "parts": 6,
+   "size_meters": [
+    0.511,
+    1.511,
+    0.956
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_phrygian_e11.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_wings.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_phrygian_bronze_04.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_phrygian_hair_03.xml",
+    "mesh:props/helmet/hele_phrygian_k2.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/hele_attic_wing.dae",
+    "mesh:props/helmet/props/hele_crest_phrygian_d.dae",
+    "mesh:props/helmet/props/hele_crest_phrygian_hair_e.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_attic_05_bronze.png",
+    "skin:props/helmet/hele_phrygian_11_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_phrygian_p5": {
+   "file": "models/units/helm_hele_phrygian_p5.glb",
+   "parts": 2,
+   "size_meters": [
+    0.418,
+    1.069,
+    0.626
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_phrygian_p5.xml",
+    "actor:art/actors/props/units/helmets/props/hele_phrygian_mask_bronze.xml",
+    "mesh:props/helmet/hele_phrygian_e.dae",
+    "mesh:props/helmet/props/hele_thracian_romanized_mask_b.dae",
+    "skin:props/helmet/hele_phrygian_05_player_color_01.png",
+    "skin:props/helmet/hele_thracian_romanized_02_bronze_01.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "helm_hele_pilos": {
+   "file": "models/units/helm_hele_pilos.glb",
+   "parts": 1,
+   "size_meters": [
+    0.491,
+    0.562,
+    0.547
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_pilos.xml",
+    "mesh:props/helmet/hele_pilos_a1.dae",
+    "skin:props/helmet/hele_pilos_01_bronze.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_hele_pilos_a2": {
+   "file": "models/units/helm_hele_pilos_a2.glb",
+   "parts": 4,
+   "size_meters": [
+    0.829,
+    1.173,
+    0.667
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_pilos_a2.xml",
+    "actor:art/actors/props/units/helmets/props/hele_pilos_ornament_b2.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "mesh:props/helmet/hele_pilos_b.dae",
+    "mesh:props/helmet/props/hele_pilos_ornament_a.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "skin:props/helmet/hele_pilos_02_bronze.png",
+    "skin:props/helmet/hele_pilos_ornament_01_bronze.png",
+    "skin:props/helmet/old/rome-a.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_pilos_b2": {
+   "file": "models/units/helm_hele_pilos_b2.glb",
+   "parts": 2,
+   "size_meters": [
+    0.829,
+    1.173,
+    0.667
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_pilos_b2.xml",
+    "actor:art/actors/props/units/helmets/props/hele_pilos_ornament_b2.xml",
+    "mesh:props/helmet/hele_pilos_b.dae",
+    "mesh:props/helmet/props/hele_pilos_ornament_a.dae",
+    "skin:props/helmet/hele_pilos_02_bronze.png",
+    "skin:props/helmet/hele_pilos_ornament_01_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_straw_02": {
+   "file": "models/units/helm_hele_straw_02.glb",
+   "parts": 1,
+   "size_meters": [
+    0.85,
+    0.446,
+    1.025
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_straw_02.xml",
+    "mesh:props/helmet/old/hele_straw_hat.dae",
+    "skin:props/helmet/old/straw_hat_a.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "helm_hele_thracian_a8": {
+   "file": "models/units/helm_hele_thracian_a8.glb",
+   "parts": 2,
+   "size_meters": [
+    0.495,
+    1.145,
+    1.073
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_a8.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_04.xml",
+    "mesh:props/helmet/hele_thracian_f.dae",
+    "mesh:props/helmet/props/hele_crest_hair_e.dae",
+    "skin:props/helmet/hele_thracian_08_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_b1": {
+   "file": "models/units/helm_hele_thracian_b1.glb",
+   "parts": 3,
+   "size_meters": [
+    0.5,
+    0.763,
+    0.704
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_b1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_thracian_bronze_02_small.xml",
+    "actor:art/actors/props/units/helmets/props/hele_thracian_mask_b1.xml",
+    "mesh:props/helmet/hele_thracian_a.dae",
+    "mesh:props/helmet/props/hele_phrygian_mask_b.dae",
+    "mesh:props/helmet/props/hele_thracian_crest_a_small.dae",
+    "skin:props/helmet/hele_phrygian_mask_02_bronze.png",
+    "skin:props/helmet/hele_thracian_01_bronze.png",
+    "skin:props/helmet/hele_thracian_02_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_b1_crested": {
+   "file": "models/units/helm_hele_thracian_b1_crested.glb",
+   "parts": 3,
+   "size_meters": [
+    0.5,
+    1.115,
+    1.161
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_b1_crested.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_01.xml",
+    "mesh:props/helmet/hele_thracian_a.dae",
+    "mesh:props/helmet/props/hele_crest_a.dae",
+    "mesh:props/helmet/props/hele_crest_hair_a.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_thracian_01_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_b2": {
+   "file": "models/units/helm_hele_thracian_b2.glb",
+   "parts": 2,
+   "size_meters": [
+    0.494,
+    0.599,
+    0.699
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_b2.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_thracian_bronze_02_small.xml",
+    "mesh:props/helmet/hele_thracian_b.dae",
+    "mesh:props/helmet/props/hele_thracian_crest_a_small.dae",
+    "skin:props/helmet/hele_thracian_02_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_b2_crested": {
+   "file": "models/units/helm_hele_thracian_b2_crested.glb",
+   "parts": 3,
+   "size_meters": [
+    0.494,
+    1.114,
+    1.162
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_b2_crested.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_01.xml",
+    "mesh:props/helmet/hele_thracian_b.dae",
+    "mesh:props/helmet/props/hele_crest_a.dae",
+    "mesh:props/helmet/props/hele_crest_hair_a.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_thracian_02_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_b3_crested": {
+   "file": "models/units/helm_hele_thracian_b3_crested.glb",
+   "parts": 3,
+   "size_meters": [
+    0.507,
+    1.269,
+    1.003
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_b3_crested.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_thracian_bronze_hair_03.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_thracian_hair_01.xml",
+    "mesh:props/helmet/hele_thracian_c.dae",
+    "mesh:props/helmet/props/hele_crest_thracian_hair_a.dae",
+    "mesh:props/helmet/props/hele_thracian_crest_b.dae",
+    "skin:props/helmet/hele_thracian_03_bronze.png",
+    "skin:props/helmet/hele_thracian_mask_03_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_b4": {
+   "file": "models/units/helm_hele_thracian_b4.glb",
+   "parts": 2,
+   "size_meters": [
+    0.496,
+    0.61,
+    0.646
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_b4.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_thracian_bronze_02_small.xml",
+    "mesh:props/helmet/hele_thracian_d.dae",
+    "mesh:props/helmet/props/hele_thracian_crest_a_small.dae",
+    "skin:props/helmet/hele_thracian_02_bronze.png",
+    "skin:props/helmet/hele_thracian_04_bronze.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_b4_crested": {
+   "file": "models/units/helm_hele_thracian_b4_crested.glb",
+   "parts": 3,
+   "size_meters": [
+    0.496,
+    1.114,
+    1.162
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_b4_crested.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_01.xml",
+    "mesh:props/helmet/hele_thracian_d.dae",
+    "mesh:props/helmet/props/hele_crest_a.dae",
+    "mesh:props/helmet/props/hele_crest_hair_a.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_thracian_04_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_b5": {
+   "file": "models/units/helm_hele_thracian_b5.glb",
+   "parts": 2,
+   "size_meters": [
+    0.496,
+    0.61,
+    0.646
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_b5.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_thracian_bronze_02_small.xml",
+    "mesh:props/helmet/hele_thracian_d.dae",
+    "mesh:props/helmet/props/hele_thracian_crest_a_small.dae",
+    "skin:props/helmet/hele_thracian_02_bronze.png",
+    "skin:props/helmet/hele_thracian_05_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_b5_crested": {
+   "file": "models/units/helm_hele_thracian_b5_crested.glb",
+   "parts": 3,
+   "size_meters": [
+    0.496,
+    1.114,
+    1.162
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_b5_crested.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_01.xml",
+    "mesh:props/helmet/hele_thracian_d.dae",
+    "mesh:props/helmet/props/hele_crest_a.dae",
+    "mesh:props/helmet/props/hele_crest_hair_a.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_thracian_05_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_b6": {
+   "file": "models/units/helm_hele_thracian_b6.glb",
+   "parts": 2,
+   "size_meters": [
+    0.496,
+    0.61,
+    0.646
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_b6.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_thracian_bronze_02_small.xml",
+    "mesh:props/helmet/hele_thracian_d.dae",
+    "mesh:props/helmet/props/hele_thracian_crest_a_small.dae",
+    "skin:props/helmet/hele_thracian_02_bronze.png",
+    "skin:props/helmet/hele_thracian_06_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_b6_crested": {
+   "file": "models/units/helm_hele_thracian_b6_crested.glb",
+   "parts": 3,
+   "size_meters": [
+    0.496,
+    1.114,
+    1.162
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_b6_crested.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_01.xml",
+    "mesh:props/helmet/hele_thracian_d.dae",
+    "mesh:props/helmet/props/hele_crest_a.dae",
+    "mesh:props/helmet/props/hele_crest_hair_a.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_thracian_06_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_b8": {
+   "file": "models/units/helm_hele_thracian_b8.glb",
+   "parts": 1,
+   "size_meters": [
+    0.495,
+    0.717,
+    0.712
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_b8.xml",
+    "mesh:props/helmet/hele_thracian_f.dae",
+    "skin:props/helmet/hele_thracian_08_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_b9": {
+   "file": "models/units/helm_hele_thracian_b9.glb",
+   "parts": 2,
+   "size_meters": [
+    0.494,
+    0.663,
+    0.743
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_b9.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_thracian_bronze_02_small.xml",
+    "mesh:props/helmet/hele_thracian_g.dae",
+    "mesh:props/helmet/props/hele_thracian_crest_a_small.dae",
+    "skin:props/helmet/hele_thracian_02_bronze.png",
+    "skin:props/helmet/hele_thracian_09_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_br": {
+   "file": "models/units/helm_hele_thracian_br.glb",
+   "parts": 2,
+   "size_meters": [
+    0.494,
+    0.599,
+    0.699
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_br.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_thracian_bronze_02_small.xml",
+    "mesh:props/helmet/hele_thracian_b.dae",
+    "mesh:props/helmet/props/hele_thracian_crest_a_small.dae",
+    "skin:props/helmet/hele_thracian_02_bronze.png",
+    "skin:props/helmet/hele_thracian_02_bronze_br.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_br_crested": {
+   "file": "models/units/helm_hele_thracian_br_crested.glb",
+   "parts": 3,
+   "size_meters": [
+    0.494,
+    1.269,
+    1.002
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_br_crested.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_thracian_bronze_hair_02_small.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_thracian_hair_01.xml",
+    "mesh:props/helmet/hele_thracian_b.dae",
+    "mesh:props/helmet/props/hele_crest_thracian_hair_a.dae",
+    "mesh:props/helmet/props/hele_thracian_crest_a_small.dae",
+    "skin:props/helmet/hele_thracian_02_bronze.png",
+    "skin:props/helmet/hele_thracian_02_bronze_br.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_p3_crested": {
+   "file": "models/units/helm_hele_thracian_p3_crested.glb",
+   "parts": 3,
+   "size_meters": [
+    0.507,
+    1.269,
+    1.003
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_p3_crested.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_thracian_hair_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_thracian_player_hair_03.xml",
+    "mesh:props/helmet/hele_thracian_c.dae",
+    "mesh:props/helmet/props/hele_crest_thracian_hair_a.dae",
+    "mesh:props/helmet/props/hele_thracian_crest_b.dae",
+    "skin:props/helmet/hele_thracian_03_player_color.png",
+    "skin:props/helmet/hele_thracian_mask_03_player_color.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_romanized_b2_crested": {
+   "file": "models/units/helm_hele_thracian_romanized_b2_crested.glb",
+   "parts": 4,
+   "size_meters": [
+    0.464,
+    1.033,
+    0.846
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_romanized_b2_crested.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_06.xml",
+    "actor:art/actors/props/units/helmets/props/hele_thracian_mask_f.xml",
+    "actor:art/actors/props/units/helmets/props/hele_thracian_romanized_crest_hair_b2.xml",
+    "mesh:props/helmet/hele_thracian_romanized_b.dae",
+    "mesh:props/helmet/props/hele_crest_hair_k.dae",
+    "mesh:props/helmet/props/hele_thracian_mask_f.dae",
+    "mesh:props/helmet/props/hele_thracian_romanized_crest_b.dae",
+    "skin:props/helmet/hele_thracian_mask_bronze.png",
+    "skin:props/helmet/hele_thracian_romanized_02_bronze_01.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_romanized_s2_crested": {
+   "file": "models/units/helm_hele_thracian_romanized_s2_crested.glb",
+   "parts": 4,
+   "size_meters": [
+    0.464,
+    1.033,
+    0.846
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_romanized_s2_crested.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_06.xml",
+    "actor:art/actors/props/units/helmets/props/hele_thracian_mask_f.xml",
+    "actor:art/actors/props/units/helmets/props/hele_thracian_romanized_crest_hair_s2.xml",
+    "mesh:props/helmet/hele_thracian_romanized_b.dae",
+    "mesh:props/helmet/props/hele_crest_hair_k.dae",
+    "mesh:props/helmet/props/hele_thracian_mask_f.dae",
+    "mesh:props/helmet/props/hele_thracian_romanized_crest_b.dae",
+    "skin:props/helmet/hele_thracian_mask_bronze.png",
+    "skin:props/helmet/hele_thracian_romanized_02_silver_01.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_s2": {
+   "file": "models/units/helm_hele_thracian_s2.glb",
+   "parts": 4,
+   "size_meters": [
+    0.494,
+    1.129,
+    1.162
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_s2.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_phrygian_mask_silver.xml",
+    "mesh:props/helmet/hele_thracian_b.dae",
+    "mesh:props/helmet/props/hele_crest_a.dae",
+    "mesh:props/helmet/props/hele_crest_hair_a.dae",
+    "mesh:props/helmet/props/hele_thracian_romanized_mask_b.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_thracian_02_silver.png",
+    "skin:props/helmet/hele_thracian_romanized_02_silver_01.png",
+    "skin:props/helmet/old/hele_a3.dds"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_hele_thracian_s3": {
+   "file": "models/units/helm_hele_thracian_s3.glb",
+   "parts": 2,
+   "size_meters": [
+    0.507,
+    0.671,
+    0.713
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/hele_thracian_s3.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_thracian_silver_03.xml",
+    "mesh:props/helmet/hele_thracian_c.dae",
+    "mesh:props/helmet/props/hele_thracian_crest_b.dae",
+    "skin:props/helmet/hele_thracian_03_silver.png",
+    "skin:props/helmet/hele_thracian_mask_03_silver.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_iber_chalcidean_a2": {
+   "file": "models/units/helm_iber_chalcidean_a2.glb",
+   "parts": 5,
+   "size_meters": [
+    0.536,
+    1.299,
+    1.213
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/iber_chalcidean_a2.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_bronze_illyrian_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_illyrian_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_hispano_chalcidean_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_phrygian_feathers.xml",
+    "mesh:props/helmet/hele_chalcidean_f1.dae",
+    "mesh:props/helmet/props/hele_crest_hair_illyrian_a.dae",
+    "mesh:props/helmet/props/hele_crest_illyrian.dae",
+    "mesh:props/helmet/props/hele_hispano_chalcidean_mask_a.dae",
+    "mesh:props/helmet/props/hele_phrygian_feathers.dae",
+    "skin:props/helmet/crest_01_bronze.png",
+    "skin:props/helmet/hele_chalcidean_06_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds",
+    "skin:props/helmet/sele_hero_seleucus_nikator_diffuse.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_iber_helmet_c": {
+   "file": "models/units/helm_iber_helmet_c.glb",
+   "parts": 2,
+   "size_meters": [
+    0.458,
+    1.016,
+    0.869
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/iber_helmet_c.xml",
+    "actor:art/actors/props/units/helmets/props/iber_crest_c.xml",
+    "mesh:props/helmet/iber_helmet_a.dae",
+    "mesh:props/helmet/props/iber_crest_c.dae",
+    "skin:props/helmet/iber_crest_c.png",
+    "skin:props/helmet/iber_helmet_c_01.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_iber_helmet_cigarralejo_01": {
+   "file": "models/units/helm_iber_helmet_cigarralejo_01.glb",
+   "parts": 1,
+   "size_meters": [
+    0.439,
+    0.453,
+    0.553
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/iber_helmet_cigarralejo_01.xml",
+    "mesh:props/helmet/iber_cigarralejo_01.dae",
+    "skin:props/helmet/iber_cigarralejo_01_iron.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_iber_helmet_montefortino_01": {
+   "file": "models/units/helm_iber_helmet_montefortino_01.glb",
+   "parts": 2,
+   "size_meters": [
+    0.448,
+    1.34,
+    1.061
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/iber_helmet_montefortino_01.xml",
+    "actor:art/actors/props/units/helmets/props/hele_thracian_romanized_long_hair.xml",
+    "mesh:props/helmet/celt_montefortino_01.dae",
+    "mesh:props/helmet/props/hele_thracian_romanized_long_hair.dae",
+    "skin:props/helmet/iber_montefortino_01_brass.png",
+    "skin:props/helmet/sele_hero_seleucus_nikator_diffuse.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_iber_helmet_montefortino_02": {
+   "file": "models/units/helm_iber_helmet_montefortino_02.glb",
+   "parts": 1,
+   "size_meters": [
+    0.487,
+    0.541,
+    0.592
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/iber_helmet_montefortino_02.xml",
+    "mesh:props/helmet/iber_montefortino_02.dae",
+    "skin:props/helmet/iber_montefortino_02_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_maur_earrings_2": {
+   "file": "models/units/helm_maur_earrings_2.glb",
+   "parts": 1,
+   "size_meters": [
+    0.581,
+    0.158,
+    0.158
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/heads/maur_earrings_2.xml",
+    "mesh:props/helmet/maur_earrings_round_1.dae",
+    "skin:props/helmet/old/pers_f1.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "helm_maur_inf_big_turban": {
+   "file": "models/units/helm_maur_inf_big_turban.glb",
+   "parts": 1,
+   "size_meters": [
+    0.473,
+    0.5,
+    0.554
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/heads/maur_inf_big_turban.xml",
+    "mesh:props/helmet/maur_inf_big_turban_a.dae",
+    "skin:props/helmet/maur_inf_turban_a.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "helm_maur_maiden_big_turban": {
+   "file": "models/units/helm_maur_maiden_big_turban.glb",
+   "parts": 1,
+   "size_meters": [
+    0.538,
+    0.61,
+    0.618
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/heads/maur_maiden_big_turban.xml",
+    "mesh:props/helmet/maur_inf_big_turban_maiden.dae",
+    "skin:props/helmet/maur_inf_turban_a.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "helm_pers_conical_a1": {
+   "file": "models/units/helm_pers_conical_a1.glb",
+   "parts": 2,
+   "size_meters": [
+    0.464,
+    0.776,
+    0.744
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/pers_conical_a1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_boeotian_hair.xml",
+    "mesh:props/helmet/pers_conical_a.dae",
+    "mesh:props/helmet/props/hele_boeotian_hair.dae",
+    "skin:props/helmet/pers_conical_01_bronze.png",
+    "skin:props/helmet/sele_hero_seleucus_nikator_diffuse.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_rome_apulo_corinthian_a1": {
+   "file": "models/units/helm_rome_apulo_corinthian_a1.glb",
+   "parts": 4,
+   "size_meters": [
+    0.548,
+    1.072,
+    0.807
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "actor:art/actors/props/units/helmets/rome_apulo_corinthian_a1.xml",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "mesh:props/helmet/rome_apulo_b.dae",
+    "skin:props/helmet/old/rome-a.dds",
+    "skin:props/helmet/rome_apulo_corinthian_01_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_rome_apulo_corinthian_a2": {
+   "file": "models/units/helm_rome_apulo_corinthian_a2.glb",
+   "parts": 4,
+   "size_meters": [
+    0.548,
+    1.072,
+    0.807
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "actor:art/actors/props/units/helmets/rome_apulo_corinthian_a2.xml",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "mesh:props/helmet/rome_apulo_b.dae",
+    "skin:props/helmet/old/rome-a.dds",
+    "skin:props/helmet/rome_apulo_corinthian_02_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_rome_apulo_corinthian_b2": {
+   "file": "models/units/helm_rome_apulo_corinthian_b2.glb",
+   "parts": 1,
+   "size_meters": [
+    0.51,
+    0.744,
+    0.704
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/rome_apulo_corinthian_b2.xml",
+    "mesh:props/helmet/rome_apulo_b.dae",
+    "skin:props/helmet/rome_apulo_corinthian_02_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_rome_apulo_corinthian_e1": {
+   "file": "models/units/helm_rome_apulo_corinthian_e1.glb",
+   "parts": 5,
+   "size_meters": [
+    0.548,
+    1.381,
+    1.158
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_03.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "actor:art/actors/props/units/helmets/props/rome_crest_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/rome_apulo_corinthian_e1.xml",
+    "mesh:props/helmet/props/hele_crest_d.dae",
+    "mesh:props/helmet/props/hele_crest_hair_g.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "mesh:props/helmet/rome_apulo_b.dae",
+    "skin:props/helmet/crest_05_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds",
+    "skin:props/helmet/old/rome-a.dds",
+    "skin:props/helmet/rome_apulo_corinthian_01_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_rome_apulo_corinthian_e2": {
+   "file": "models/units/helm_rome_apulo_corinthian_e2.glb",
+   "parts": 5,
+   "size_meters": [
+    0.548,
+    1.381,
+    1.158
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_03.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "actor:art/actors/props/units/helmets/props/rome_crest_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/rome_apulo_corinthian_e2.xml",
+    "mesh:props/helmet/props/hele_crest_d.dae",
+    "mesh:props/helmet/props/hele_crest_hair_g.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "mesh:props/helmet/rome_apulo_b.dae",
+    "skin:props/helmet/crest_05_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds",
+    "skin:props/helmet/old/rome-a.dds",
+    "skin:props/helmet/rome_apulo_corinthian_02_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_rome_apulo_itallic_a1": {
+   "file": "models/units/helm_rome_apulo_itallic_a1.glb",
+   "parts": 4,
+   "size_meters": [
+    0.526,
+    1.105,
+    0.771
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "actor:art/actors/props/units/helmets/rome_apulo_itallic_a1.xml",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "mesh:props/helmet/rome_apulo_a.dae",
+    "skin:props/helmet/old/rome-a.dds",
+    "skin:props/helmet/rome_apulo_itallic_01_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_rome_apulo_itallic_b1": {
+   "file": "models/units/helm_rome_apulo_itallic_b1.glb",
+   "parts": 1,
+   "size_meters": [
+    0.496,
+    0.684,
+    0.653
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/rome_apulo_itallic_b1.xml",
+    "mesh:props/helmet/rome_apulo_a.dae",
+    "skin:props/helmet/rome_apulo_itallic_01_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_rome_helmet_gallic": {
+   "file": "models/units/helm_rome_helmet_gallic.glb",
+   "parts": 1,
+   "size_meters": [
+    0.669,
+    0.799,
+    0.737
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/rome_helmet_gallic.xml",
+    "mesh:props/helmet/celt_foret.dae",
+    "skin:props/helmet/celt_foret_iron.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_rome_helmet_gallic_centurion": {
+   "file": "models/units/helm_rome_helmet_gallic_centurion.glb",
+   "parts": 2,
+   "size_meters": [
+    0.967,
+    0.986,
+    0.685
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/props/celt_helmet_hair_transverse.xml",
+    "actor:art/actors/props/units/helmets/rome_helmet_gallic_centurion.xml",
+    "mesh:props/helmet/celt_alesia_02.dae",
+    "mesh:props/helmet/props/rome_celt_hair.dae",
+    "skin:props/helmet/celt_alesia_01_iron.png",
+    "skin:props/helmet/ptol_romanized_brass.png"
+   ],
+   "upstream_material": "no_trans_parallax_spec.xml"
+  },
+  "helm_rome_helmet_montefortino": {
+   "file": "models/units/helm_rome_helmet_montefortino.glb",
+   "parts": 1,
+   "size_meters": [
+    0.464,
+    0.784,
+    0.589
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/rome_helmet_montefortino.xml",
+    "mesh:props/helmet/rome_montefortino_a.dae",
+    "skin:props/helmet/rome_montefortino_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_rome_helmet_montefortino_c": {
+   "file": "models/units/helm_rome_helmet_montefortino_c.glb",
+   "parts": 5,
+   "size_meters": [
+    0.957,
+    1.24,
+    0.589
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "actor:art/actors/props/units/helmets/rome_helmet_montefortino_c.xml",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "mesh:props/helmet/rome_montefortino_b_2.dae",
+    "skin:props/helmet/old/rome-a.dds",
+    "skin:props/helmet/rome_montefortino_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
+  },
+  "helm_samnite_helmet_montefortino": {
+   "file": "models/units/helm_samnite_helmet_montefortino.glb",
+   "parts": 5,
+   "size_meters": [
+    0.957,
+    1.24,
+    0.589
+   ],
+   "origin": "actor",
+   "sources": [
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "actor:art/actors/props/units/helmets/samnite_helmet_montefortino.xml",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "mesh:props/helmet/rome_montefortino_b_2.dae",
+    "skin:props/helmet/old/rome-a.dds",
+    "skin:props/helmet/rome_montefortino_bronze.png"
+   ],
+   "upstream_material": "basic_trans_parallax_spec.xml"
   }
  },
  "origin": "0 A.D. by Wildfire Games (public mod archive)",
