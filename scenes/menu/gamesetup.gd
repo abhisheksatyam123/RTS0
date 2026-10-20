@@ -497,7 +497,7 @@ static func load_all_maps() -> Array:
 		maps.append({"id": r[0], "name": str(r[1]).trim_suffix(" (RMS)"), "kind": r[2], "type": "random",
 			"keywords": random_kw.get(rms_script(r[0]), []), "placements": [] if r[0] in OWN_RMS_MAPS or not (PLACEMENT_EVERY_MAP or r[0] in PLACEMENT_MAPS_BEFORE) else placement_values(placements.get(rms_script(r[0]), [])),
 			"players": r[3],
-			"size": r[4], "biome": r[5], "desc": r[6],
+			"size": r[4], "biome": r[5], "desc": rms_description(r),
 			"biomes": [] if r[0] in OWN_RMS_MAPS else biome_values(biomes.get(rms_script(r[0]), []))})
 	return maps
 
@@ -512,6 +512,13 @@ static func biome_values(ids: Array) -> Array:
 	return out
 
 ## The 0.28 maps/random script an RTS0 random map ports ("random_archipelago_0ad" -> "archipelago").
+## MapCache.getTranslatedMapDescription: a random map's Description is its 0.28
+## JSON's (maps/random/<script>.json settings.Description); RTS0's own maps keep theirs.
+static func rms_description(row: Array) -> String:
+	if row[0] in OWN_RMS_MAPS:
+		return str(row[6])
+	return str(_map_types_data().get("random_descriptions", {}).get(rms_script(row[0]), row[6]))
+
 static func rms_script(map_id: String) -> String:
 	var s := map_id.trim_prefix("random_").trim_suffix("_0ad")
 	return "neareastern_badlands" if s == "nearestern_badlands" else s
@@ -2303,6 +2310,7 @@ func _build_net_controls() -> void:
 	_ready_btn.name = "BtnReady"
 	_ready_btn.custom_minimum_size = Vector2(0, 48)
 	_ready_btn.pressed.connect(_on_ready_pressed)
+	_ready_btn.gui_input.connect(_on_ready_gui_input)
 	_ready_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	start.get_parent().add_child(_ready_btn)
 	start.get_parent().move_child(_ready_btn, start.get_index())
@@ -2397,7 +2405,7 @@ func _build_net_chat() -> void:
 	var input := LineEdit.new()
 	input.name = "NetChatInput"
 	input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	input.max_length = 256
+	input.max_length = 1024 # gamesetup ChatPanel.xml chatInput max_length
 	input.text_submitted.connect(func(_t: String) -> void: _send_net_chat())
 	# ChatInputPanel.onTab / Tooltip: Tab completes player names, then civs and settings.
 	input.tooltip_text = "Press Tab to autocomplete player names or settings."
@@ -2539,13 +2547,24 @@ func _update_net_controls() -> void:
 	var ready := clampi(int(_net_state.get("ready", 0)), 0, 2)
 	_ready_btn.text = READY_CAPTIONS[ready]
 	_ready_btn.tooltip_text = READY_TOOLTIPS[ready]
-	# An observer has nothing to be ready for.
-	_ready_btn.disabled = int(_net_state.get("my_slot", -1)) < 0
+	# ReadyButton.onPlayerAssignmentsChange: hidden for an unassigned client (an observer).
+	_ready_btn.visible = int(_net_state.get("my_slot", -1)) >= 0
 
 func _on_ready_pressed() -> void:
 	if _mp_role != "client":
 		return
-	net_main.set_net_ready((clampi(int(_net_state.get("ready", 0)), 0, 2) + 1) % 3)
+	_set_ready((clampi(int(_net_state.get("ready", 0)), 0, 2) + 1) % 3)
+
+## ReadyButton.onPressRight: a right-click always means "not ready".
+func _on_ready_gui_input(event: InputEvent) -> void:
+	var mb := event as InputEventMouseButton
+	if mb and mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed and _mp_role == "client" \
+			and _ready_btn.visible and int(_net_state.get("ready", 0)) != 0:
+		_set_ready(0)
+		_ready_btn.accept_event()
+
+func _set_ready(state: int) -> void:
+	net_main.set_net_ready(state)
 	_net_state = net_main.get_net_setup_state()
 	refresh_slots()
 	_update_net_controls()

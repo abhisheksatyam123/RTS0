@@ -49,6 +49,10 @@ def test_object():
           "chat keeps join notices and lines in order")
     _, c2 = lb.chat_since(c["last"])
     check(c2["messages"] == [] and c2["last"] == c["last"], "since=last returns nothing new")
+    # 0.28 lobby ChatPanel.xml: a chat line is up to 1024 characters.
+    check(lb.post_chat(alice["token"], "y" * 1024)[0] == 200, "a 1024-character line is sent")
+    _, c3 = lb.chat_since(c["last"])
+    check([len(m["text"]) for m in c3["messages"]] == [1024], "and kept whole")
 
     code, room = lb.register({"id": "g1", "host_port": 20600, "name": "Skirmish", "host_name": "alice",
                               "map_name": "Mainland", "players": 1, "max_players": 4, "password": True})

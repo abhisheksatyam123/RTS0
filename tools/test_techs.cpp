@@ -427,6 +427,15 @@ int main() {
 		CHECK(s.tech_mods(0).bld_cost[BLD_HOUSE][RES_WOOD] == 0.75f);
 		CHECK(s.tech_mods(0).bld_cost[BLD_BARRACKS][RES_WOOD] == 1.0f); // not Civic
 
+		// Hellenistic Metropolis: "CivCentre !Colony" (Seleucid military colonies keep theirs).
+		fresh(s);
+		s.set_player_civ(CIV_SELEUCIDS);
+		s.complete_research(0, TECH_HELLENISTIC_METROPOLIS);
+		CHECK(s.tech_mods(0).bld_health[BLD_TOWN_CENTER] == 2.0f);
+		CHECK(s.tech_mods(0).bld_capture[BLD_TOWN_CENTER] == 2.0f);
+		CHECK(s.tech_mods(0).bld_health[BLD_MILITARY_COLONY] == 1.0f);
+		CHECK(s.tech_mods(0).bld_capture[BLD_MILITARY_COLONY] == 1.0f);
+
 		// Hippocratic Oath (cost_healer): healers cost no metal.
 		fresh(s);
 		s.set_player_civ(CIV_ATHENIANS);
