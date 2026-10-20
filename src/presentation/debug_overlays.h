@@ -5,7 +5,8 @@
 // gui/session/developer_overlay/DeveloperOverlayControlCheckboxes.js, GPL-2.0-or-later):
 // Pathfinder overlay (CCmpPathfinder's passability grid: the navcells land units can't
 // cross), Hierarchical pathfinder overlay (HierarchicalPathfinder's debug overlay: each
-// chunk region of navcells in a colour of its own), Obstruction overlay (CCmpObstructionManager::RenderSubmit: static shapes and
+// chunk region of navcells in a colour of its own, and white links between the regions an
+// edge joins), Obstruction overlay (CCmpObstructionManager::RenderSubmit: static shapes and
 // still units blue, moving units magenta, the world bounds yellow), Unit motion overlay
 // (g_Selection.SetMotionDebugOverlay, CCmpUnitMotion::RenderPath: each selected unit's
 // long path white and short path red, a square at each waypoint), Range overlay
@@ -30,6 +31,7 @@
 #include <godot_cpp/core/memory.hpp>
 
 #include <algorithm>
+#include <unordered_map>
 #include <cstdint>
 
 #include "../simulation/simulation.h"
@@ -69,6 +71,7 @@ public:
 	int drawn(Kind k) const { return drawn_[k]; }
 	int range_subdivisions() const { return range_subdivisions_; }
 	int range_rays() const { return range_rays_; }
+	int region_link_count() const { return region_links_; }
 
 	// The units whose paths the unit motion overlay draws (the selection), and the
 	// bounding box overlay's boxes (RtsoWorldView::model_boxes of the selected and
@@ -86,13 +89,14 @@ public:
 		if (!inst_ || (!any() && !inst_->is_visible())) return;
 		mesh_->clear_surfaces();
 		for (int &n : drawn_) n = 0;
-		range_subdivisions_ = range_rays_ = 0;
+		range_subdivisions_ = range_rays_ = region_links_ = 0;
 		inst_->set_visible(sim && any());
 		if (!sim || !any()) return;
 		sim_ = sim;
 		if (on_[PATHFINDER]) pathfinder();
 		if (on_[HIER_PATHFINDER]) hier_pathfinder();
 		begun_ = false;
+		if (on_[HIER_PATHFINDER]) region_links();
 		if (on_[OBSTRUCTION]) obstruction();
 		if (on_[UNIT_MOTION]) unit_motion();
 		if (on_[RANGE]) range();
@@ -161,6 +165,76 @@ private:
 			}
 		}
 		if (open) mesh_->surface_end();
+	}
+
+	// HierarchicalPathfinder::AddDebugEdges: a white line between the centres of every two
+	// regions an edge joins (navcells side by side across a chunk border, FindEdges), each end
+	// pushed 1 m inwards. A region's centre is its navcell nearest the mean of its navcells
+	// (Chunk::RegionCenter).
+	void region_links() {
+		const NavGrid &g = sim_->nav_grid();
+		if (!g.regions_ready_) return;
+		const int res = g.res, cpa = (res + CHUNK_SIZE - 1) / CHUNK_SIZE;
+		const float cell = g.map_half * 2.0f / (float)res;
+		auto key = [&](int i, int j, uint8_t r) {
+			return ((uint32_t)(j / CHUNK_SIZE) * (uint32_t)cpa + (uint32_t)(i / CHUNK_SIZE)) << 8 | r;
+		};
+		struct Centre {
+			int64_t si = 0, sj = 0, n = 0;
+			uint64_t best = UINT64_MAX;
+			int bi = 0, bj = 0;
+		};
+		std::unordered_map<uint32_t, Centre> centres;
+		for (int j = 0; j < res; ++j)
+			for (int i = 0; i < res; ++i)
+				if (const uint8_t r = g.chunk_regions_.at(i, j)) {
+					Centre &c = centres[key(i, j, r)];
+					c.si += i % CHUNK_SIZE;
+					c.sj += j % CHUNK_SIZE;
+					++c.n;
+				}
+		for (int j = 0; j < res; ++j)
+			for (int i = 0; i < res; ++i)
+				if (const uint8_t r = g.chunk_regions_.at(i, j)) {
+					Centre &c = centres[key(i, j, r)];
+					const int64_t di = (int64_t)(i % CHUNK_SIZE) * c.n - c.si, dj = (int64_t)(j % CHUNK_SIZE) * c.n - c.sj;
+					const uint64_t d = (uint64_t)(di * di + dj * dj);
+					if (d < c.best) {
+						c.best = d;
+						c.bi = i;
+						c.bj = j;
+					}
+				}
+		std::vector<uint64_t> pairs;
+		auto edge = [&](int i0, int j0, int i1, int j1) {
+			const uint8_t r0 = g.chunk_regions_.at(i0, j0), r1 = g.chunk_regions_.at(i1, j1);
+			if (!r0 || !r1) return;
+			const uint64_t a = key(i0, j0, r0), b = key(i1, j1, r1);
+			pairs.push_back(std::min(a, b) << 32 | std::max(a, b));
+		};
+		for (int j = 0; j < res; ++j)
+			for (int i = 0; i < res; ++i) {
+				if ((i + 1) % CHUNK_SIZE == 0 && i + 1 < res) edge(i, j, i + 1, j);
+				if ((j + 1) % CHUNK_SIZE == 0 && j + 1 < res) edge(i, j, i, j + 1);
+			}
+		std::sort(pairs.begin(), pairs.end());
+		pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
+		const Color white(1.0f, 1.0f, 1.0f, 1.0f);
+		for (const uint64_t p : pairs) {
+			const Centre &c0 = centres[(uint32_t)(p >> 32)], &c1 = centres[(uint32_t)p];
+			float ax = -g.map_half + (c0.bi + 0.5f) * cell, az = -g.map_half + (c0.bj + 0.5f) * cell;
+			float bx = -g.map_half + (c1.bi + 0.5f) * cell, bz = -g.map_half + (c1.bj + 0.5f) * cell;
+			const float dx = bx - ax, dz = bz - az, len = godot::Math::sqrt(dx * dx + dz * dz);
+			if (len > 0.0f) {
+				const float px = dx / len * 0.25f, pz = dz / len * 0.25f; // 1 m, at 4 m a unit
+				ax += px;
+				az += pz;
+				bx -= px;
+				bz -= pz;
+			}
+			line(ax, az, bx, bz, white);
+		}
+		region_links_ = (int)pairs.size();
 	}
 
 	void obstruction() {
@@ -470,6 +544,7 @@ private:
 	godot::Ref<godot::ImmediateMesh> mesh_;
 	godot::MeshInstance3D *inst_ = nullptr;
 	bool begun_ = false;
+	int region_links_ = 0; // the hierarchical overlay's region links last update (tests)
 	int range_subdivisions_ = 0, range_rays_ = 0; // the range overlay's grid squares and rays last update (tests)
 };
 
