@@ -729,7 +729,7 @@ static void test_attack_plans() {
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
 		const uint32_t store = s->spawn_building_world(-3.0f, 25.0f, BLD_STOREHOUSE, 0, 1.0f);
 		bool rushed = false, rush_at_store = false, told_allies = true, named_target = false;
-		int attack_size = 0, huge_size = 0;
+		int attack_size = 0, huge_size = 0, rush_phase = 0;
 		// A first Attack that razes the idle player leaves nothing for a second one.
 		auto enemy_left = [&] {
 			for (const auto &b : s->buildings()) if (b.team == 0 && b.hp > 0.0f) return true;
@@ -756,7 +756,8 @@ static void test_attack_plans() {
 			for (const auto &plan : s->petra_started_attacks()) {
 				// A rush that musters within reach of its target attacks on the tick it sets out.
 				if (plan.state != Simulation::AttackPlan::WALKING && plan.state != Simulation::AttackPlan::ATTACKED) continue;
-				if (plan.kind == PETRA_ATTACK_RUSH && s->petra_phase() == 1) {
+				if (plan.kind == PETRA_ATTACK_RUSH) {
+					if (!rushed) rush_phase = s->petra_phase();
 					rushed = true;
 					rush_at_store |= plan.target_building_id == store;
 				}
@@ -765,11 +766,13 @@ static void test_attack_plans() {
 			}
 		}
 		const auto &m = s->petra_attack_manager();
-		std::printf("  aggressive: rushes allowed %d, village rush %s (at the storehouse %s), launched rush %d attack %d huge %d, sizes %d / %d\n",
-		            m.max_rushes, rushed ? "yes" : "no", rush_at_store ? "yes" : "no", m.launched[PETRA_ATTACK_RUSH],
+		std::printf("  aggressive: rushes allowed %d, rush %s in phase %d (at the storehouse %s), launched rush %d attack %d huge %d, sizes %d / %d\n",
+		            m.max_rushes, rushed ? "yes" : "no", rush_phase, rush_at_store ? "yes" : "no", m.launched[PETRA_ATTACK_RUSH],
 		            m.launched[PETRA_ATTACK_ATTACK], m.launched[PETRA_ATTACK_HUGE], attack_size, huge_size);
 		CHECK(m.max_rushes == 3, "an aggressive AI on a wood-rich base plans three rushes");
-		CHECK(rushed && rush_at_store, "rushes the undefended storehouse in the village phase");
+		// Rushes start in any phase (attackManager.js update; test_rush_any_phase): with the
+		// starting cavalry counted as a worker Petra may reach the town phase first.
+		CHECK(rushed && rush_at_store, "rushes the undefended storehouse");
 		CHECK(told_allies && named_target, "each attack is announced to allies only, naming the player attacked");
 		CHECK(attacks_done(), "launches two attacks, or one that razes the enemy");
 	}
