@@ -1961,13 +1961,6 @@ public:
 		return diplomacy_[a][b] == DIPLO_ALLY && diplomacy_[b][a] == DIPLO_ALLY;
 	}
 	bool is_mutual_ally(uint8_t player_id) const { return player_id != 0 && is_ally(0, player_id); }
-	// Some other active player is a mutual ally of `player` (unit_actions "share-dropsite").
-	bool has_mutual_ally(uint8_t player) const {
-		if (player >= MAX_PLAYERS) return false;
-		for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
-			if (p != player && players_[p].active && is_ally(player, p) && is_ally(p, player)) return true;
-		return false;
-	}
 	// Hostile: whom a may shoot at. a's own stance decides, so a one-sided
 	// alliance leaves a holding fire while b keeps attacking (0 A.D. parity).
 	// Teammates are never hostile whatever the stances say.

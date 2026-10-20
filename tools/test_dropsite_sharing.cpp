@@ -71,8 +71,7 @@ int main() {
 			s.player_resource(0, RES_WOOD) - wood0, s.player_resource(1, RES_WOOD) - wood1);
 	CHECK(s.player_resource(0, RES_WOOD) == wood0 + 10 && s.player_resource(1, RES_WOOD) == wood1);
 
-	// 3. The owner (with Diaspora) stops sharing: the ally's gatherers can't drop there.
-	s.player(1).techs.set(TECH_UNLOCK_SHARED_DROPSITES);
+	// 3. The owner stops sharing: the ally's gatherers can't drop there.
 	CHECK(s.cmd_set_dropsite_sharing(1, ally_store, false));
 	s.units_.res_type_carried[w] = RES_WOOD;
 	s.units_.carry[w] = 10;
