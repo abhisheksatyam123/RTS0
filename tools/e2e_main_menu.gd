@@ -143,6 +143,19 @@ func run() -> void:
 			"a port below 1024 is refused")
 		mp.host_port.text = ""
 		check(not mp.confirm_setup() and current_scene == menu, "and so is none")
+		# gamesetup_mp.js startHost: a port that cannot be opened is reported, and the page stays.
+		var busy := PacketPeerUDP.new()
+		busy.bind(21007)
+		mp.host_port.text = "21007"
+		var hosted: bool = mp.confirm_setup()
+		var err_box: AcceptDialog = mp.find_child("HostErrorDialog", false, false)
+		check(not hosted and err_box != null and err_box.title == "Error"
+			and err_box.dialog_text == "Cannot host game: Failed to start server." and current_scene == menu
+			and menu.find_child("GameSetupMp", false, false) == mp and ms.net_mode != "host",
+			"a port already in use: \"Cannot host game: Failed to start server.\" and the page stays open")
+		busy.close()
+		if err_box:
+			err_box.queue_free()
 		await key(KEY_ESCAPE)
 		await frames(2)
 		check(menu.find_child("GameSetupMp", false, false) == null, "Escape cancels")

@@ -1222,7 +1222,8 @@ size_t Simulation::snap_trees_to_tiles() {
 				const float d2 = (cx - x) * (cx - x) + (cz - z) * (cz - z);
 				if (d2 >= best_d2) continue;
 				if ((di || dj) && get_terrain_height(cx, cz) < terrain_water_height_ + 0.15f) continue;
-				if (past_map_edge(cx, cz)) continue; // keep_resources_passable kept it inside the edge ring
+				// keep_resources_passable keeps resources 1.5 inside the edge ring, a lane to walk round a wood.
+				if (past_map_edge(cx, cz, 1.5f)) continue;
 				best = j * tr + i;
 				best_d2 = d2;
 				bx = cx;
@@ -5751,9 +5752,7 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 
 		units_.target_x[uidx] = rx;
 		units_.target_z[uidx] = rz;
-		units_.anchor_x[uidx] = rx;
-		units_.anchor_z[uidx] = rz;
-		units_.has_order[uidx] = 1;
+		units_.has_order[uidx] = 1; // Order.Gather keeps the held position where it was
 		units_.action_state[uidx] = ACTION_GATHER;
 		units_.target_resource_id[uidx] = resource_id;
 		// A load of another type stays until gathering starts (ResourceGatherer PerformGather drops it then).
@@ -13497,6 +13496,7 @@ void Simulation::tick_combat(float dt) {
 	// 1. Target Acquisition & Stance Evaluation (0 A.D. UnitAI.js)
 	// again: the unit just hit a target it looks past (look_again below); an attack-move or
 	// patrol then looks for more at once (FINDINGNEWTARGET: FindWalkAndFightTargets).
+	const uint64_t chase_period = (uint64_t)std::max(1L, std::lround(1.0f / dt)); // ticks in a second
 	auto acquire = [&](size_t i, bool again) {
 		target_idx[i] = -1;
 		if (!units_.alive[i]) return;
@@ -13563,10 +13563,14 @@ void Simulation::tick_combat(float dt) {
 
 		const float pxi = units_.pos_x[i];
 		const float pzi = units_.pos_z[i];
-		// The held position (UnitAI heldPosition): where the unit stands while it walks.
-		const bool on_the_move = st == ACTION_MOVE || walk_and_fight || guarding;
-		const float anc_x = on_the_move ? pxi : units_.anchor_x[i];
-		const float anc_z = on_the_move ? pzi : units_.anchor_z[i];
+		// The held position (UnitAI heldPosition): the last walk or attack-walk destination, or
+		// where the unit stood when its stance changed (Order.Walk, Order.WalkAndFight,
+		// SwitchToStance); a guard holds where it stands (GUARDING SetHeldPositionOnEntity).
+		const float anc_x = guarding ? pxi : units_.anchor_x[i];
+		const float anc_z = guarding ? pzi : units_.anchor_z[i];
+		// COMBAT.APPROACHING / CHASING Timer, every second: ShouldAbandonChase.
+		const bool chase_check_due = (i + ticks_) % chase_period == 0;
+		bool leash_drop = false; // a defensive unit gave up its chase: it walks back (below)
 		const float range = attack_reach(i);
 		// Attack.js MinRange (catapults, bolt shooters): the range query skips anything closer.
 		const float minr = range * unit_min_range_ratio(units_.unit_type[i], units_.tmpl[i]);
@@ -13599,9 +13603,15 @@ void Simulation::tick_combat(float dt) {
 			// Capturing a relic (tick_relics drives it).
 			if (is_relic_unit(tidx) && units_.order_kind[i] == ORDER_CAPTURE_RELIC) return;
 			guard_keep = tidx >= 0 && guard_keeps_target(i, (size_t)tidx);
-			if (tidx >= 0 && units_.alive[tidx] && can_attack(units_.team[i], units_.team[tidx]) &&
-					unit_can_target(i, (size_t)tidx) &&
-					(explicit_target || guard_keep || within_stance(tidx) || attack_under_way(i))) { // Attack.js hits before its range check
+			const bool valid = tidx >= 0 && units_.alive[tidx] && can_attack(units_.team[i], units_.team[tidx]) &&
+					unit_can_target(i, (size_t)tidx);
+			// A defensive unit leaves a target too far from its held position only when the
+			// one-second chase timer runs, and then walks back to it (WalkToHeldPosition).
+			const bool held_leash = valid && stance == STANCE_DEFENSIVE && !explicit_target && !guard_keep &&
+					!attack_under_way(i) && !within_stance(tidx) && (formations_.empty() || formation_group_[i] == 0);
+			if (held_leash && chase_check_due) leash_drop = true;
+			if (valid && (explicit_target || guard_keep || within_stance(tidx) || attack_under_way(i) ||
+					(held_leash && !chase_check_due))) { // Attack.js hits before its range check
 				const float tx = units_.pos_x[tidx] - pxi, tz = units_.pos_z[tidx] - pzi;
 				// A target it picked itself that came too close is dropped; a player's
 				// target stays and move_units backs away from it.
@@ -13617,7 +13627,7 @@ void Simulation::tick_combat(float dt) {
 				(((units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) && units_.order_kind[i] != ORDER_NONE) ||
 				 (explicit_target && order_queues_.count(units_.id[i])));
 		int32_t found_bld = -1, found_wild = -1;
-		if (found < 0 && !order_next && units_.target_building_id[i] == 0 && stance != STANCE_PASSIVE &&
+		if (found < 0 && !order_next && !leash_drop && units_.target_building_id[i] == 0 && stance != STANCE_PASSIVE &&
 				((i + ticks_) % 4 == 0 || st == ACTION_ATTACK || walk_and_fight)) {
 			const float scan_range = stance == STANCE_STAND_GROUND ? range
 					: stance == STANCE_DEFENSIVE ? std::min(range + vision * 0.5f, vision) : vision;
@@ -13633,7 +13643,9 @@ void Simulation::tick_combat(float dt) {
 				float dz = pzi - units_.pos_z[j];
 				float d2 = dx * dx + dz * dz;
 				if (d2 > scan_range * scan_range || d2 < minr * minr) return;
-				if (!within_stance(j)) return;
+				// FindWalkAndFightTargets attacks what its query finds; only idle defensive units
+				// keep to the held position (AttackEntityInZone).
+				if (!(walk_and_fight && stance == STANCE_DEFENSIVE) && !within_stance(j)) return;
 
 				// UnitAI AttackEntitiesByPreference: the best PreferredClasses match
 				// (Attack.js GetPreference), then the closest; no match comes last.
@@ -13664,7 +13676,7 @@ void Simulation::tick_combat(float dt) {
 					const float cx = b.x - pxi, cz = b.z - pzi;
 					const float d2 = cx * cx + cz * cz;
 					if (d2 > scan_range * scan_range || d2 < minr * minr) return;
-					if (stance == STANCE_DEFENSIVE) { // CheckTargetDistanceFromHeldPosition: to its centre
+					if (stance == STANCE_DEFENSIVE && !walk_and_fight) { // CheckTargetDistanceFromHeldPosition: to its centre
 						const float hx = b.x - anc_x, hz = b.z - anc_z;
 						if (hx * hx + hz * hz >= held_lim * held_lim) return;
 					}
@@ -13685,7 +13697,7 @@ void Simulation::tick_combat(float dt) {
 				const float dx = fauna_.pos_x[f] - pxi, dz = fauna_.pos_z[f] - pzi;
 				const float d2 = dx * dx + dz * dz;
 				if (d2 > scan_range * scan_range || d2 < minr * minr) continue;
-				if (stance == STANCE_DEFENSIVE) {
+				if (stance == STANCE_DEFENSIVE && !walk_and_fight) {
 					const float hx = fauna_.pos_x[f] - anc_x, hz = fauna_.pos_z[f] - anc_z;
 					if (hx * hx + hz * hz >= held_lim * held_lim) continue;
 				}
@@ -13704,7 +13716,7 @@ void Simulation::tick_combat(float dt) {
 				const float dx = fauna_.pos_x[f] - pxi, dz = fauna_.pos_z[f] - pzi;
 				const float d2 = dx * dx + dz * dz;
 				if (d2 > scan_range * scan_range || d2 < minr * minr) continue;
-				if (stance == STANCE_DEFENSIVE) {
+				if (stance == STANCE_DEFENSIVE && !walk_and_fight) {
 					const float hx = fauna_.pos_x[f] - anc_x, hz = fauna_.pos_z[f] - anc_z;
 					if (hx * hx + hz * hz >= held_lim * held_lim) continue;
 				}
@@ -13727,10 +13739,7 @@ void Simulation::tick_combat(float dt) {
 			units_.target_x[i] = fauna_.pos_x[found_wild];
 			units_.target_z[i] = fauna_.pos_z[found_wild];
 			if (st == ACTION_CHEER) units_.attack_timer[i] = 0.0f;
-			if (st != ACTION_ATTACK) {
-				units_.waypoint_count[i] = 0;
-				if (on_the_move) { units_.anchor_x[i] = pxi; units_.anchor_z[i] = pzi; }
-			}
+			if (st != ACTION_ATTACK) units_.waypoint_count[i] = 0;
 			units_.action_state[i] = ACTION_ATTACK;
 		} else if (found >= 0) {
 			// A new pick is an automatic fight, also once a player's target is gone: AttackVisibleEntity
@@ -13746,14 +13755,10 @@ void Simulation::tick_combat(float dt) {
 				units_.target_z[i] = units_.pos_z[found];
 			}
 			if (st == ACTION_CHEER) units_.attack_timer[i] = 0.0f; // RespondToSightedEntities ends the cheer
-			if (st != ACTION_ATTACK) {
-				units_.waypoint_count[i] = 0; // chase directly, not along the walk path
-				if (on_the_move) { units_.anchor_x[i] = pxi; units_.anchor_z[i] = pzi; }
-			}
+			if (st != ACTION_ATTACK) units_.waypoint_count[i] = 0; // chase directly, not along the walk path
 			units_.action_state[i] = ACTION_ATTACK;
 		} else if (found_bld >= 0) {
 			units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
-			if (on_the_move) { units_.anchor_x[i] = pxi; units_.anchor_z[i] = pzi; } // AttackEntityInZone keeps it
 			units_.target_building_id[i] = buildings_[found_bld].id;
 			units_.target_unit_id[i] = 0;
 			units_.waypoint_count[i] = 0;
@@ -13765,7 +13770,7 @@ void Simulation::tick_combat(float dt) {
 		// A new target is a new attack (Attack.js StopAttacking, then StartAttacking).
 		if (attack_under_way(i) && (units_.target_unit_id[i] != prev_unit || units_.target_building_id[i] != prev_bld))
 			stop_attack(i);
-		target_idx[i] = found;
+		target_idx[i] = leash_drop ? -2 : found;
 	};
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		// tick_gather uses attack_timer as the harvest clock; counting it down
@@ -13773,6 +13778,22 @@ void Simulation::tick_combat(float dt) {
 		tick_attack_timer(i, dt);
 		acquire(i, false);
 	});
+	// ShouldAbandonChase for a defensive unit: FinishOrder, then WalkToHeldPosition, an
+	// unforced Walk that replaces the whole queue (ReplaceOrder): an attack-walk or the work the
+	// fight broke off is dropped.
+	for (size_t i = 0; i < n; ++i) {
+		if (target_idx[i] != -2) continue;
+		target_idx[i] = -1;
+		if (attack_under_way(i)) stop_attack(i);
+		units_.target_unit_id[i] = 0;
+		units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_CHEER;
+		drop_orders(i);
+		units_.action_state[i] = ACTION_IDLE;
+		units_.has_order[i] = 0;
+		units_.waypoint_cur[i] = units_.waypoint_count[i] = 0;
+		if (i < unit_paths_.size()) unit_paths_[i].clear();
+		walk_to_held_position(i);
+	}
 	// Attack.js Attack (0.28): after a hit in reach on a target matching none of its
 	// PreferredClasses that no player ordered, the attacker stops (TargetInvalidated) and
 	// FINDINGNEWTARGET runs at once: back to an interrupted order, or FindNewTargets, which
@@ -20013,7 +20034,7 @@ void Simulation::petra_order_builders(const std::vector<uint32_t> &workers, size
 		}
 		crew.push_back(uid);
 	}
-	if (!crew.empty()) order_build_or_repair(crew.data(), crew.size(), bid);
+	for (uint32_t uid : crew) petra_order_build(uid, bid);
 }
 
 // baseManager.js assignToFoundations, damaged structures: the nearest workers
@@ -20197,10 +20218,25 @@ void Simulation::petra_staff_foundations() {
 
 	const std::unordered_set<uint32_t> launched = petra_launched_units();
 	int workers = 0, building = 0;
+	// A builder dropping its load first (petra_order_build) has the build queued behind it:
+	// it is that foundation's builder already (target-foundation).
+	std::vector<uint32_t> dropping;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 		if (!petra_builder_worker(i, launched)) continue;
 		++workers;
+		if (units_.order_kind[i] == ORDER_RETURN_RESOURCE) {
+			auto q = order_queues_.find(units_.id[i]);
+			if (q != order_queues_.end() && !q->second.empty() && q->second.front().kind == ORDER_BUILD)
+				for (auto &n : needs)
+					if (n.id == q->second.front().target) {
+						--n.missing;
+						++building;
+						dropping.push_back(units_.id[i]);
+						break;
+					}
+			continue;
+		}
 		if (units_.action_state[i] != ACTION_BUILD) continue;
 		for (auto &n : needs) {
 			if (n.id != units_.target_building_id[i]) continue;
@@ -20275,7 +20311,7 @@ void Simulation::petra_staff_foundations() {
 		}
 		return best;
 	};
-	const std::vector<uint32_t> none;
+	const std::vector<uint32_t> &none = dropping;
 	for (auto &n : needs) {
 		const int wanted = n.missing;
 		const Building &nb = buildings_[building_id_to_idx_.at(n.id)];
@@ -20289,7 +20325,7 @@ void Simulation::petra_staff_foundations() {
 			const int best = pick_worker(n, n.land, none);
 			if (best < 0) break;
 			uint32_t uid = units_.id[best];
-			order_build_or_repair(&uid, 1, n.id);
+			petra_order_build(uid, n.id);
 			--n.missing;
 			--budget;
 			++building;
@@ -28098,6 +28134,14 @@ void Simulation::petra_fight_back(size_t i, int32_t a, const std::vector<PetraDe
 	order_attack(&uid, 1, units_.id[a]);
 }
 
+// worker.js:372 (a builder): returnResources first, the repair queued after it.
+void Simulation::petra_order_build(uint32_t uid, uint32_t bid) {
+	const int32_t i = lookup_unit(uid);
+	const uint32_t drop = i >= 0 ? petra_defender_dropsite((size_t)i) : 0;
+	if (drop) order_return_resource(&uid, 1, drop, false);
+	order_build_or_repair(&uid, 1, bid, drop != 0);
+}
+
 // entityExtend.js returnResources: a unit carrying a load drops it at the nearest dropsite of
 // its own (or a mutual ally's shared one) on its land that takes the load's type.
 uint32_t Simulation::petra_defender_dropsite(size_t i) const {
@@ -33492,6 +33536,36 @@ bool Simulation::los_visible(uint8_t player, float x, float z) const {
 	if (reveal_map_) return true;
 	if (los_.cells() == 0) return false;
 	return (los_.visible_bits(los_.cell_of(x, z)) & los_shared_mask(player)) != 0;
+}
+
+bool Simulation::player_can_target_unit(uint8_t player, uint32_t unit_id) const {
+	const int32_t t = lookup_unit(unit_id);
+	if (t < 0 || player >= MAX_PLAYERS || los_.cells() == 0) return true;
+	const uint8_t owner = units_.team[t];
+	if (owner == player || (owner < MAX_PLAYERS && is_ally(player, owner))) return true;
+	return los_visible(player, units_.pos_x[t], units_.pos_z[t]);
+}
+
+bool Simulation::player_can_target_building(uint8_t player, uint32_t building_id) const {
+	const auto it = building_id_to_idx_.find(building_id);
+	if (it == building_id_to_idx_.end() || player >= MAX_PLAYERS || los_.cells() == 0) return true;
+	const Building &b = buildings_[it->second];
+	if (b.team == player || (b.team < MAX_PLAYERS && is_ally(player, b.team))) return true;
+	return ((b.seen_mask >> player) & 1) || los_visible(player, b.x, b.z);
+}
+
+bool Simulation::player_can_target_resource(uint8_t player, uint32_t resource_id) const {
+	const auto it = res_id_to_idx_.find(resource_id);
+	if (it == res_id_to_idx_.end() || player >= MAX_PLAYERS || los_.cells() == 0) return true;
+	return los_explored(player, resources_.x[it->second], resources_.z[it->second]);
+}
+
+bool Simulation::player_can_target_fauna(uint8_t player, uint32_t fauna_id) const {
+	const auto it = fauna_id_to_idx_.find(fauna_id);
+	if (it == fauna_id_to_idx_.end() || player >= MAX_PLAYERS || los_.cells() == 0) return true;
+	const uint8_t owner = fauna_owner_[it->second];
+	if (owner == player || (owner < MAX_PLAYERS && is_ally(player, owner))) return true;
+	return los_visible(player, fauna_.pos_x[it->second], fauna_.pos_z[it->second]);
 }
 
 bool Simulation::los_explored(uint8_t player, float x, float z) const {
