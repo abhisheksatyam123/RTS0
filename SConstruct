@@ -24,9 +24,18 @@ if env["platform"] == "windows":
 # Never add -ffast-math, -Ofast or /fp:fast (tools/test_cross_compiler.py checks).
 if env.get("is_msvc", False):
 	env.Append(CCFLAGS=["/fp:precise"])
+	# cl and clang-cl ignore the -std=c++20 above; the last /std wins over godot-cpp's /std:c++17.
+	env.Append(CXXFLAGS=["/std:c++20"])
+	if env.get("use_llvm", False):
+		# clang-cl reads /fp:precise as -ffp-contract=on, which still fuses.
+		env.Append(CCFLAGS=["/clang:-ffp-contract=off"])
 else:
 	env.Append(CCFLAGS=["-ffp-contract=off"])
 	env.Append(LINKFLAGS=["-ffp-contract=off"])
+	if env["arch"] == "x86_32" and env["platform"] != "android":
+		# 32-bit x86 would compute on the x87 FPU in 80-bit registers (FLT_EVAL_METHOD 2).
+		env.Append(CCFLAGS=["-msse2", "-mfpmath=sse"])
+		env.Append(LINKFLAGS=["-msse2", "-mfpmath=sse"])
 
 if env["target"] == "template_release":
     env.Append(CCFLAGS=["-O3", "-DNDEBUG"])
