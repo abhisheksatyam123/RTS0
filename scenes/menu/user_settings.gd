@@ -102,6 +102,20 @@ func _ready() -> void:
 	# VideoMode.cpp DEFAULT_CURSOR_NAME: 0 A.D.'s own arrow (default-arrow.txt: hotspot 1 1).
 	if ResourceLoader.exists(DEFAULT_CURSOR):
 		Input.set_custom_mouse_cursor(load(DEFAULT_CURSOR), Input.CURSOR_ARROW, Vector2(1, 1))
+	# main.cpp: -version prints the engine's version and starts nothing (the main menu
+	# checks it too).
+	if version_requested(OS.get_cmdline_args() + OS.get_cmdline_user_args()):
+		print(version_string())
+		get_tree().quit.call_deferred()
+
+## "-version" (Godot keeps "--version" for its own, except after "--").
+static func version_requested(args: PackedStringArray) -> bool:
+	return args.has("-version") or args.has("--version")
+
+## main.cpp's debug_printf("Pyrogenesis %s\n", engine_version).
+static func version_string() -> String:
+	var v := str(ProjectSettings.get_setting("application/config/version", ""))
+	return "RTS0 %s" % (v if v != "" else "0.1")
 
 ## main.cpp's global hotkeys: togglefullscreen (Alt+Return, CVideoMode::ToggleFullscreen,
 ## not saved) and mousegrabtoggle (F3, the window grab on or off until the next change).

@@ -3542,6 +3542,16 @@ void RtsoMain::_on_lobby_start_pressed() {
 	{
 		prepare_lobby_seats(setup, true);
 	}
+	// PlayerName onFinalizeAttributes: a seated client's name becomes its slot's
+	// PlayerData Name, so the replay and the summary name the real players.
+	for (uint32_t c = 0; c < rtso::NET_SETUP_CLIENTS; ++c) {
+		const uint8_t slot = setup.seats[c];
+		if (slot >= setup.slot_count || slot >= 8 || setup.slot_types[slot] != 'h') continue;
+		std::string name = c == 0 ? net_host_.localPlayerName() : std::string();
+		for (const auto &p : net_host_.getPeers())
+			if (c != 0 && p.id == c && p.connected) name = p.player_name;
+		if (!name.empty()) setup.names[slot] = name;
+	}
 	turn_mgr_.reset();
 	turn_mgr_.set_net_host(&net_host_, 0);
 	turn_mgr_.assign_slot_players(setup);
