@@ -6,6 +6,7 @@ extends Control
 
 const DIR := "res://data/reference/credits/"
 const TABS := preload("res://scenes/common/tab_buttons.gd")
+const L10n := preload("res://scenes/menu/l10n.gd")
 ## credits.js g_OrderTabNames.
 const ORDER := ["special", "programming", "art", "audio", "maps", "history",
 	"balancing", "community", "translators", "donators"]
@@ -33,16 +34,18 @@ static func parse(list: Array) -> String:
 	for o in list:
 		if typeof(o) != TYPE_DICTIONARY:
 			continue
+		# translateObjectKeys(json, ["Title", "Subtitle", "LangName"]); Title and
+		# LangName in sans-bold-stroke-14, Subtitle in sans-bold-14, names in sans-14.
 		for key in ["LangName", "Title"]:
 			if o.has(key):
-				out += "[font_size=15][b]%s[/b][/font_size]\n" % _esc(str(o[key]))
+				out += "[font_size=14][outline_size=4][outline_color=black][b]%s[/b][/outline_color][/outline_size][/font_size]\n" % _esc(L10n.t(str(o[key])))
 		if o.has("Subtitle"):
-			out += "[b]%s[/b]\n" % _esc(str(o["Subtitle"]))
+			out += "[font_size=14][b]%s[/b][/font_size]\n" % _esc(L10n.t(str(o["Subtitle"])))
 		if o.has("List"):
 			for e in o["List"]:
 				var nick := str(e.get("nick", ""))
 				var name := str(e.get("name", ""))
-				var credit := "%s — %s" % [nick, name] if nick != "" and name != "" else (nick if nick != "" else name)
+				var credit := L10n.sprintf(L10n.t("%(nick)s — %(name)s"), {"nick": nick, "name": name}) if nick != "" and name != "" else (nick if nick != "" else name)
 				if credit != "":
 					out += _esc(credit) + "\n"
 			out += "\n"
@@ -63,7 +66,7 @@ func _ready() -> void:
 		if typeof(parsed) != TYPE_DICTIONARY or not parsed.has("Content"):
 			push_error("Could not load credits for %s!" % cat)
 			continue
-		panels.append({"label": str(parsed.get("Title", cat)), "content": parse(parsed["Content"])})
+		panels.append({"label": L10n.t(str(parsed.get("Title", cat))), "content": parse(parsed["Content"])})
 	var fade := ColorRect.new() # "ModernFade"
 	fade.color = Color(0, 0, 0, 0.6)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -80,15 +83,19 @@ func _ready() -> void:
 	panel.offset_bottom = -24
 	add_child(panel)
 	var title := Label.new()
+	title.name = "Title"
 	title.text = "0 A.D. Credits"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# ModernLabelText at 50%-128 -18 50%+128 14: across the dialog's top edge.
 	title.anchor_left = 0.5
 	title.anchor_right = 0.5
 	title.offset_left = -128
 	title.offset_right = 128
-	title.offset_top = 2
-	title.offset_bottom = 28
+	title.offset_top = -18
+	title.offset_bottom = 14
 	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_outline_color", Color.BLACK)
+	title.add_theme_constant_override("outline_size", 4)
 	panel.add_child(title)
 	tabs = VBoxContainer.new()
 	tabs.position = Vector2(20, 30)
@@ -112,6 +119,18 @@ func _ready() -> void:
 		b.custom_minimum_size = Vector2(190, 35)
 		b.pressed.connect(select_panel.bind(i))
 		tabs.add_child(b)
+	# creditsText sits on a ModernFade image of the same size.
+	var back := ColorRect.new()
+	back.name = "CreditsFade"
+	back.color = Color(0, 0, 0, 0.6)
+	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	back.anchor_right = 1.0
+	back.anchor_bottom = 1.0
+	back.offset_left = 220
+	back.offset_top = 30
+	back.offset_right = -20
+	back.offset_bottom = -54
+	panel.add_child(back)
 	text = RichTextLabel.new()
 	text.name = "CreditsText"
 	text.bbcode_enabled = true

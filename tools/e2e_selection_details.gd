@@ -55,7 +55,10 @@ func run() -> void:
 	check(String(u["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/units/"), "the portrait is the unit template's 0.28 icon")
 	check(String(u["rank_icon"]).ends_with("/ranks/Basic.png") and String(u["rank_tooltip"]) == "Basic Rank", "a Basic soldier's rank icon reads \"Basic Rank\"")
 	check(Color(u["owner_color"]).a > 0.4 and Color(u["owner_color"]).a < 0.6, "the owner row sits on the player colour at half alpha")
-	check(" — " in String(u["owner_tooltip"]) and String(u["owner_tooltip"]).ends_with("Phase"), "its tooltip names the civ and, for the viewer, the phase")
+	check(" — " in String(u["owner_tooltip"]) and "Village Phase" in String(u["owner_tooltip"]), "its tooltip names the civ and, for the viewer, the phase")
+	# getEntityNames of phase_village: every civ but the Germans has a specific name.
+	check(String(u["owner_tooltip"]).ends_with("(Village Phase)") or String(u["owner_tooltip"]).begins_with("Germans"),
+			"the phase is the civ's own name: " + String(u["owner_tooltip"]))
 	check(String(u["owner_phase"]).begins_with("res://assets/textures/ui/archive/panel_phase_emblems_") and not String(u["owner_phase"]).ends_with("hidden.png"), "the viewer's own phase emblems show")
 	check(not " (" in String(u["owner"]), "the row names the player, the civ moves to the tooltip")
 	check(not "Kills" in String(u["owner"]) and String(u["extra"]) == "", "no RTS0-only kill count or extra line (displaySingle has no free text)")

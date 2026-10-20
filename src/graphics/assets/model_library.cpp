@@ -857,6 +857,7 @@ struct SurfBucket {
 	PackedVector3Array verts;
 	PackedVector3Array norms;
 	PackedVector2Array uvs;
+	PackedVector2Array uv2s; // crowd part layers (CrowdParts), else empty
 	PackedColorArray colors;
 	PackedInt32Array indices;
 	// 4 floats per vertex, only for normal-mapped materials (tangents_wanted).
@@ -948,6 +949,7 @@ static void append_bucket_surface(const Ref<ArrayMesh> &mesh, const SurfBucket &
 	out_arr[Mesh::ARRAY_VERTEX] = b.verts;
 	out_arr[Mesh::ARRAY_NORMAL] = b.norms;
 	out_arr[Mesh::ARRAY_TEX_UV] = b.uvs;
+	if (b.uv2s.size() == b.verts.size()) out_arr[Mesh::ARRAY_TEX_UV2] = b.uv2s;
 	out_arr[Mesh::ARRAY_COLOR] = b.colors;
 	out_arr[Mesh::ARRAY_INDEX] = b.indices;
 	if (b.tangents.size() == b.verts.size() * 4) out_arr[Mesh::ARRAY_TANGENT] = b.tangents;
@@ -1002,10 +1004,194 @@ static void collect_buckets(const Vector<MeshXform> &instances, bool skip_tiny,
 	}
 }
 
+// A crowd draws each unit type as one surface (one instanced draw per batch), so
+// its parts' skins go into one array texture: per part its layers (the skin, or
+// the skins it varies by), the player-colour or hair mask in alpha, and UV2 =
+// (first layer, part) on its vertices. player_color.gdshader picks the layer as a
+// close-up part's material does, by the same frequencies and salt.
+struct CrowdParts {
+	Ref<ShaderMaterial> mat;
+	std::unordered_map<uint64_t, int> part_of; // material_merge_key -> part
+	std::vector<int> first_layer;
+};
+static constexpr int CROWD_MAX_PARTS = 8;
+static constexpr int CROWD_MAX_LAYERS = 24;
+
+static const uint8_t *srgb_to_linear_lut() {
+	static uint8_t lut[256];
+	static bool made = false;
+	if (!made) {
+		for (int i = 0; i < 256; ++i) lut[i] = (uint8_t)Math::round(Color(i / 255.0f, 0, 0).srgb_to_linear().r * 255.0f);
+		made = true;
+	}
+	return lut;
+}
+
+// The image as RGBA8 at size x size.
+static Ref<Image> crowd_layer_image(Ref<Image> img, int size) {
+	if (img.is_null()) return img;
+	img = img->duplicate();
+	if (img->is_compressed()) img->decompress();
+	if (img->has_mipmaps()) img->clear_mipmaps();
+	img->convert(Image::FORMAT_RGBA8);
+	if (img->get_width() != size || img->get_height() != size) img->resize(size, size, Image::INTERPOLATE_BILINEAR);
+	return img;
+}
+
+// A skin with its player mask: RGB with the baked tint divided back out (as the
+// shader's `baked`), the mask in alpha.
+static Ref<Image> crowd_masked_layer(const Ref<Texture2D> &albedo, const Ref<Texture2D> &mask, const Vector3 &tint, int size) {
+	Ref<Image> out = crowd_layer_image(albedo.is_valid() ? albedo->get_image() : Ref<Image>(), size);
+	if (out.is_null()) return out;
+	Ref<Image> m = crowd_layer_image(mask.is_valid() ? mask->get_image() : Ref<Image>(), size);
+	PackedByteArray px = out->get_data();
+	PackedByteArray mp = m.is_valid() ? m->get_data() : PackedByteArray();
+	uint8_t *d = px.ptrw();
+	const uint8_t *md = mp.ptr();
+	const float t[3] = { tint.x, tint.y, tint.z };
+	const uint8_t *lin = srgb_to_linear_lut();
+	for (int64_t i = 0; i + 3 < px.size(); i += 4) {
+		const float a = md && i < mp.size() ? md[i] / 255.0f : 0.0f;
+		if (a > 0.0f) {
+			for (int c = 0; c < 3; ++c) {
+				const float baked = 1.0f + (t[c] - 1.0f) * a;
+				const float v = lin[d[i + c]] / 255.0f / MAX(baked, 0.05f);
+				d[i + c] = (uint8_t)CLAMP(Math::round(Color(v, 0, 0).linear_to_srgb().r * 255.0f), 0.0f, 255.0f);
+			}
+		}
+		d[i + 3] = (uint8_t)Math::round(a * 255.0f);
+	}
+	out->set_data(size, size, false, Image::FORMAT_RGBA8, px);
+	return out;
+}
+
+static const CrowdParts *crowd_parts(const std::vector<SurfBucket> &buckets) {
+	static auto &cache = *new HashMap<String, CrowdParts *>();
+	if (buckets.size() < 2 || buckets.size() > (size_t)CROWD_MAX_PARTS) return nullptr;
+	std::vector<uint64_t> keys;
+	for (const SurfBucket &b : buckets) keys.push_back(material_merge_key(b.mat));
+	std::vector<uint64_t> sorted = keys;
+	std::sort(sorted.begin(), sorted.end());
+	String ck;
+	for (uint64_t k : sorted) ck += String::num_uint64(k) + ",";
+	if (CrowdParts **hit = cache.getptr(ck)) return *hit;
+
+	struct Part {
+		Ref<Texture2D> albedo, mask;
+		Vector3 tint = Vector3(1, 1, 1);
+		Ref<Texture2DArray> variants;
+		Array cut;
+		float salt = 0.0f;
+		bool obj = false;
+		int layers = 1;
+	};
+	std::vector<Part> parts(buckets.size());
+	int total = 0;
+	bool owner = false;
+	int obj_part = -1;
+	Ref<Material> primary;
+	for (size_t i = 0; i < buckets.size(); ++i) {
+		Part &p = parts[i];
+		Ref<ShaderMaterial> sm = buckets[i].mat;
+		Ref<BaseMaterial3D> bm = buckets[i].mat;
+		if (ModelLibrary::is_player_color_material(sm)) {
+			p.albedo = sm->get_shader_parameter("albedo_tex");
+			p.mask = sm->get_shader_parameter("mask_tex");
+			p.tint = sm->get_shader_parameter("bake_tint");
+			if ((bool)sm->get_shader_parameter("use_variants")) {
+				p.variants = sm->get_shader_parameter("variant_tex");
+				p.cut = sm->get_shader_parameter("variant_cut");
+				p.salt = sm->get_shader_parameter("variant_salt");
+				p.layers = p.variants.is_valid() ? (int)p.variants->get_layers() : 0;
+				if ((bool)sm->get_shader_parameter("use_object_color")) {
+					if (obj_part >= 0) return nullptr; // one hair tint per crowd material
+					p.obj = true;
+					obj_part = (int)i;
+				}
+			}
+			if (p.mask.is_valid()) owner = true;
+			if (p.variants.is_valid() && !p.obj) owner = true; // variant layers carry the mask
+			if (primary.is_null()) primary = sm;
+		} else if (bm.is_valid() && bm->get_transparency() == BaseMaterial3D::TRANSPARENCY_DISABLED) {
+			p.albedo = bm->get_texture(BaseMaterial3D::TEXTURE_ALBEDO);
+		} else {
+			return nullptr;
+		}
+		if (p.layers <= 0 || (p.variants.is_null() && p.albedo.is_null())) return nullptr;
+		total += p.layers;
+	}
+	if (total > CROWD_MAX_LAYERS) return nullptr;
+	// 0.5 M texels at most: 256 for up to eight layers, else 128.
+	const int size = total <= 8 ? 256 : 128;
+	TypedArray<Image> images;
+	auto *cp = new CrowdParts();
+	Array cuts;
+	PackedFloat32Array salts;
+	salts.resize(CROWD_MAX_PARTS);
+	for (int i = 0; i < CROWD_MAX_PARTS; ++i) salts.set(i, 0.0f);
+	for (int i = 0; i < CROWD_MAX_PARTS * 2; ++i) cuts.push_back(Vector4(2, 2, 2, 2));
+	for (size_t i = 0; i < parts.size(); ++i) {
+		const Part &p = parts[i];
+		cp->part_of[keys[i]] = (int)i;
+		cp->first_layer.push_back(images.size());
+		if (p.variants.is_valid()) {
+			for (int l = 0; l < p.layers; ++l) images.push_back(crowd_layer_image(p.variants->get_layer_data(l), size));
+			if (p.cut.size() >= 2) {
+				cuts[i * 2] = p.cut[0];
+				cuts[i * 2 + 1] = p.cut[1];
+			}
+			salts.set(i, p.salt);
+		} else {
+			images.push_back(crowd_masked_layer(p.albedo, p.mask, p.tint, size));
+		}
+	}
+	for (int i = 0; i < images.size(); ++i) {
+		Ref<Image> img = images[i];
+		if (img.is_null()) {
+			delete cp;
+			cache.insert(ck, nullptr);
+			return nullptr;
+		}
+		img->generate_mipmaps();
+	}
+	Ref<Texture2DArray> arr;
+	arr.instantiate();
+	if (arr->create_from_images(images) != OK) {
+		delete cp;
+		cache.insert(ck, nullptr);
+		return nullptr;
+	}
+	Ref<ShaderMaterial> m;
+	m.instantiate();
+	m->set_shader(player_color_shader());
+	m->set_shader_parameter("use_parts", true);
+	m->set_shader_parameter("part_tex", arr);
+	m->set_shader_parameter("part_cut", cuts);
+	m->set_shader_parameter("part_salt", salts);
+	if (obj_part >= 0) {
+		Ref<ShaderMaterial> om = buckets[obj_part].mat;
+		m->set_shader_parameter("use_object_color", true);
+		m->set_shader_parameter("obj_part", obj_part);
+		m->set_shader_parameter("object_colors", om->get_shader_parameter("object_colors"));
+		m->set_shader_parameter("object_cut", om->get_shader_parameter("object_cut"));
+	}
+	Ref<ShaderMaterial> pm = primary;
+	for (const char *param : { "roughness", "metallic", "specular", "srgb_vertex_color", "use_vertex_color" }) {
+		if (pm.is_valid()) m->set_shader_parameter(param, pm->get_shader_parameter(param));
+	}
+	// world_view_node.cpp crowd_batch: no friend/foe tint over owner-coloured parts.
+	m->set_meta("crowd_owner_coloured", owner);
+	cp->mat = m;
+	cache.insert(ck, cp);
+	return cp;
+}
+
 static Ref<ArrayMesh> flatten_to_one_surface(std::vector<SurfBucket> &buckets) {
 	if (buckets.empty()) return Ref<ArrayMesh>();
+	const CrowdParts *parts = crowd_parts(buckets);
 	SurfBucket all;
-	// Pick the primary body material (preferring player_color shader / largest surface)
+	// Without CrowdParts: the primary body material (player_color shader, else the
+	// largest surface) for every part.
 	int best_bi = 0;
 	for (size_t bi = 0; bi < buckets.size(); ++bi) {
 		if (ModelLibrary::is_player_color_material(buckets[bi].mat)) {
@@ -1016,8 +1202,7 @@ static Ref<ArrayMesh> flatten_to_one_surface(std::vector<SurfBucket> &buckets) {
 			best_bi = (int)bi;
 		}
 	}
-	all.mat = buckets[best_bi].mat;
-	const bool tan = tangents_wanted(all.mat);
+	all.mat = parts ? Ref<Material>(parts->mat) : buckets[best_bi].mat;
 	int64_t nv = 0, ni = 0;
 	for (const SurfBucket &b : buckets) {
 		nv += b.verts.size();
@@ -1028,13 +1213,16 @@ static Ref<ArrayMesh> flatten_to_one_surface(std::vector<SurfBucket> &buckets) {
 	all.uvs.resize(nv);
 	all.colors.resize(nv);
 	all.indices.resize(ni);
+	if (parts) all.uv2s.resize(nv);
+	const bool tan = !parts && tangents_wanted(all.mat);
 	if (tan) all.tangents.resize(nv * 4);
+	float *ot = tan ? all.tangents.ptrw() : nullptr;
 	Vector3 *ov = all.verts.ptrw();
 	Vector3 *on = all.norms.ptrw();
 	Vector2 *ouv = all.uvs.ptrw();
+	Vector2 *ou2 = parts ? all.uv2s.ptrw() : nullptr;
 	Color *oc = all.colors.ptrw();
 	int32_t *oi = all.indices.ptrw();
-	float *ot = tan ? all.tangents.ptrw() : nullptr;
 	int64_t base = 0, k_out = 0;
 	for (const SurfBucket &b : buckets) {
 		const int64_t n = b.verts.size(), nn = b.norms.size(), nu = b.uvs.size(), nc = b.colors.size();
@@ -1042,11 +1230,18 @@ static Ref<ArrayMesh> flatten_to_one_surface(std::vector<SurfBucket> &buckets) {
 		const Vector3 *bn = b.norms.ptr();
 		const Vector2 *bu = b.uvs.ptr();
 		const Color *bc = b.colors.ptr();
+		Vector2 part;
+		if (parts) {
+			auto it = parts->part_of.find(material_merge_key(b.mat));
+			const int pi = it != parts->part_of.end() ? it->second : 0;
+			part = Vector2((float)parts->first_layer[pi], (float)pi);
+		}
 		for (int64_t i = 0; i < n; ++i) {
 			ov[base + i] = bv[i];
 			on[base + i] = i < nn ? bn[i] : Vector3(0, 1, 0);
 			ouv[base + i] = i < nu ? bu[i] : Vector2();
 			oc[base + i] = i < nc ? bc[i] : Color(1, 1, 1, 1);
+			if (ou2) ou2[base + i] = part;
 			if (tan) put_tangent(ot + (base + i) * 4, Basis(), b.tangents.ptr(), b.tangents.size(), (int)i);
 		}
 		const int32_t *bi = b.indices.ptr();
@@ -1058,6 +1253,23 @@ static Ref<ArrayMesh> flatten_to_one_surface(std::vector<SurfBucket> &buckets) {
 	return mesh_from_buckets(one, 1);
 }
 
+// A crowd unit: its own parts as one surface (flatten_to_one_surface), then the
+// alpha-tested ones (manes, tails) and carried props, which keep their materials.
+static Ref<ArrayMesh> crowd_mesh_from(std::vector<SurfBucket> &buckets) {
+	std::vector<SurfBucket> body, apart;
+	for (SurfBucket &b : buckets) {
+		Ref<BaseMaterial3D> bm = b.mat;
+		const bool cutout = bm.is_valid() && bm->get_transparency() != BaseMaterial3D::TRANSPARENCY_DISABLED;
+		(b.own_surface || cutout ? apart : body).push_back(std::move(b));
+	}
+	if (body.empty()) return mesh_from_buckets(apart, 0);
+	Ref<ArrayMesh> out = flatten_to_one_surface(body);
+	if (out.is_valid()) {
+		for (const SurfBucket &b : apart) append_bucket_surface(out, b);
+	}
+	return out;
+}
+
 static Ref<ArrayMesh> merge_mesh_instances(const Vector<MeshXform> &instances) {
 	std::vector<SurfBucket> buckets;
 	collect_buckets(instances, false, buckets);
@@ -1067,8 +1279,7 @@ static Ref<ArrayMesh> merge_mesh_instances(const Vector<MeshXform> &instances) {
 static Ref<ArrayMesh> merge_crowd_mesh(const Vector<MeshXform> &instances) {
 	std::vector<SurfBucket> buckets;
 	collect_buckets(instances, false, buckets);
-	// Godot MultiMesh draws one surface reliably; flatten so heads/riders stay.
-	return flatten_to_one_surface(buckets);
+	return crowd_mesh_from(buckets);
 }
 
 static Skeleton3D *find_skeleton(Node *n) {
@@ -1371,15 +1582,7 @@ Ref<ArrayMesh> ModelLibrary::bake_crowd_skin(CrowdSkin &skin, const Ref<ArrayMes
 	Ref<ArrayMesh> mesh = reuse;
 	if (mesh.is_valid()) mesh->clear_surfaces();
 	(void)mesh;
-	// The unit's own parts share one atlas and flatten to one surface; a
-	// carried prop has its own skin, so it stays a second surface.
-	std::vector<SurfBucket> body, props;
-	for (SurfBucket &b : buckets) (b.own_surface ? props : body).push_back(std::move(b));
-	Ref<ArrayMesh> out = flatten_to_one_surface(body);
-	if (out.is_valid()) {
-		for (const SurfBucket &b : props) append_bucket_surface(out, b);
-	}
-	return out;
+	return crowd_mesh_from(buckets);
 }
 
 Ref<ArrayMesh> ModelLibrary::bake_posed_crowd_mesh(Node *root) {

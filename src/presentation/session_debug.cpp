@@ -807,6 +807,9 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 	d["obstruction_drawn"] = debug_overlays_.drawn(O::OBSTRUCTION);
 	d["unit_motion_drawn"] = debug_overlays_.drawn(O::UNIT_MOTION);
 	d["range_drawn"] = debug_overlays_.drawn(O::RANGE);
+	d["range_subdivisions"] = debug_overlays_.range_subdivisions();
+	d["range_rays"] = debug_overlays_.range_rays();
+	d["region_links"] = debug_overlays_.region_link_count();
 	d["bounding_box_drawn"] = debug_overlays_.drawn(O::BOUNDING_BOX);
 	d["cull_camera_frustum_drawn"] = debug_overlays_.drawn(O::CULL_CAMERA_FRUSTUM);
 	d["shadows_frustum_drawn"] = debug_overlays_.drawn(O::SHADOWS_FRUSTUM);
