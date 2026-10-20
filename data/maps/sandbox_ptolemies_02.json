@@ -15118,6 +15118,53 @@
       "template": "ptol/champion_elephant"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": -108.45,
+      "z": -26.64,
+      "template": "ptol/siege_lithobolos_unpacked",
+      "parents": [
+        "ptol/siege_lithobolos_packed"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -106.98,
+      "z": -25.35,
+      "template": "ptol/siege_lithobolos_unpacked",
+      "parents": [
+        "ptol/siege_lithobolos_packed"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -109.6,
+      "z": -28.16,
+      "template": "ptol/siege_polybolos_unpacked",
+      "parents": [
+        "ptol/siege_polybolos_packed"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -110.53,
+      "z": -29.07,
+      "template": "ptol/siege_polybolos_unpacked",
+      "parents": [
+        "ptol/siege_polybolos_packed"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -114.07,
+      "z": -31.38,
+      "template": "ptol/siege_tower"
+    },
+    {
       "type": "healer",
       "player": 1,
       "x": -83.04,

@@ -650,8 +650,14 @@ public:
 					pts[seen->team < rtso::MAX_PLAYERS ? seen->team : rtso::MAX_PLAYERS] = seen->capture_points;
 					set_capture_parts(*sim, seen->team, pts, seen->max_capture_points);
 				}
-				stats_->set_text(seen->build_progress < 1.0f
-						? "Construction: " + String::num((double)(seen->build_progress * 100.0f), 0) + "%" : String());
+				// The builders or repairers and the time left as last seen, and a fogged field's
+				// supply and gatherers (FoundationMirage, RepairableMirage, ResourceSupplyMirage).
+				if (seen->work) show_build_work(seen->work_repair, seen->work_builders, seen->work_remaining, seen->work_remaining_new);
+				const rtso::FoggedResource *field = nullptr;
+				if (const uint32_t fid = seen->type == rtso::BLD_FIELD ? sim->field_resource_id(seen->id) : 0)
+					for (const auto &m : mirages_.resources())
+						if (m.id == fid) { field = &m; break; }
+				stats_->set_text(field ? supply_lines(*sim, field->id, field) : String());
 				stats_->set_tooltip_text(String());
 				// The mirage's portrait: its template's tooltip, a left click to its spot, a right
 				// click to the template viewer (selection_details.js displaySingle).
@@ -678,16 +684,9 @@ public:
 				set_structure_capture_parts(*sim, *found);
 			}
 			rtso::Simulation::BuildWork work;
-			String build_tip;
-			if (sim->structure_build_work(*found, work)) {
-				stats_->set_text(join_spaced(found->build_progress < 1.0f
-						? "Construction: " + String::num((double)(found->build_progress * 100.0f), 0) + "%" : rtso::tr0("Repair"),
-						rtso::seldet::build_work_caption(work.builders, work.remaining)));
-				build_tip = build_work_tooltip(work);
-			} else {
-				stats_->set_text(supply_lines(*sim, sim->field_resource_id(found->id)));
-			}
-			stats_->set_tooltip_text(rtso::seldet::join_lines({build_tip, structure_tooltip(*sim, *found)}));
+			if (sim->structure_build_work(*found, work)) show_build_work(work.repair, work.builders, work.remaining, work.remaining_new);
+			stats_->set_text(supply_lines(*sim, sim->field_resource_id(found->id)));
+			stats_->set_tooltip_text(structure_tooltip(*sim, *found));
 			return true;
 		}
 		if (kind_ == INSPECT_TREASURE) {
@@ -895,21 +894,14 @@ public:
 				} else
 					show_bar(capture_bar_, capture_label_, false);
 
+				// selection_details.js: a foundation or a damaged structure shows only its builders or
+				// repairers and the time left beside the repair icon, with getBuildTimeTooltip or
+				// getRepairTimeTooltip; the health bar is its only bar.
+				show_bar(xp_bar_, xp_label_, false);
+				extra_->set_text("");
+				extra_->set_tooltip_text("");
 				rtso::Simulation::BuildWork work;
-				const bool building_work = sim->structure_build_work(*found_b, work);
-				if (found_b->build_progress < 1.0f) {
-					set_bar(xp_bar_, xp_label_, found_b->build_progress, 1.0f,
-							join_spaced("Construction: " + String::num((double)(found_b->build_progress * 100.0f), 0) + "%",
-									rtso::seldet::build_work_caption(work.builders, work.remaining)));
-					if (building_work) xp_bar_->set_tooltip_text(build_work_tooltip(work));
-				} else if (building_work && work.repair) {
-					// selection_details.js: a damaged structure shows its repairers and the time left.
-					set_bar(xp_bar_, xp_label_, found_b->hp, found_b->max_hp,
-							join_spaced(rtso::tr0("Repair"), rtso::seldet::build_work_caption(work.builders, work.remaining)));
-					xp_bar_->set_tooltip_text(build_work_tooltip(work));
-				} else {
-					show_bar(xp_bar_, xp_label_, false);
-				}
+				if (sim->structure_build_work(*found_b, work)) show_build_work(work.repair, work.builders, work.remaining, work.remaining_new);
 				show_bar(aura_bar_, aura_label_, false);
 
 				// A field's resourceSection: "Food: ∞" and its gatherers. 0.28 has no free text here: the
@@ -924,7 +916,6 @@ public:
 					stats_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
 				}
 				stats_->set_tooltip_text(structure_tooltip(*sim, *found_b));
-				extra_->set_text("");
 
 				// Garrison panel; Unload All is the command row's icon (g_EntityCommands).
 				show_garrison_grid = fill_garrison_grid(*sim, found_b->id);
@@ -1016,6 +1007,11 @@ public:
 				// resourceCarrying: the resource and "amount / max".
 				extra = rtso::seldet::resource_name(uview.res_type_carried[u]) + " " +
 						rtso::seldet::amount_of(uview.carry[u], sim->unit_details(u).carry_max);
+			} else if (rtso::Simulation::BuildWork w; sim->unit_repair_work(u, w)) {
+				// A damaged Repairable siege engine or ship: its repairers and the time left
+				// (selection_details.js repairable.needsRepair).
+				extra = rtso::seldet::build_work_caption(w.builders, w.remaining);
+				extra_->set_tooltip_text(build_work_tooltip(w));
 			}
 			if (sim->is_transport((uint32_t)selected_ids[0])) {
 				// Passengers are on the garrison panel and the Unload All icon's count.
@@ -1235,6 +1231,11 @@ private:
 	}
 
 	static String join_spaced(const String &a, const String &b) { return b.is_empty() ? a : a + String("  ") + b; }
+	// resourceCarryingIcon/Text for a foundation or a structure (or unit) being repaired.
+	void show_build_work(bool repair, int builders, float remaining, float remaining_new) {
+		extra_->set_text(rtso::seldet::build_work_caption(builders, remaining));
+		extra_->set_tooltip_text(rtso::seldet::build_work_tooltip(repair, builders, remaining, remaining_new));
+	}
 	static String build_work_tooltip(const rtso::Simulation::BuildWork &w) {
 		return rtso::seldet::build_work_tooltip(w.repair, w.builders, w.remaining, w.remaining_new);
 	}

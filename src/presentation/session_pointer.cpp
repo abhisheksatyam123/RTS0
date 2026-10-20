@@ -91,6 +91,8 @@ void RtsoMain::update_cursor() {
 					want = "action-attack";
 				} else if (rcmd == rtso::RALLY_CMD_TREASURE) {
 					want = "action-collect-treasure";
+				} else if (rcmd == rtso::RALLY_CMD_HUNT) {
+					want = "action-gather-meat";
 				} else if (rcmd == rtso::RALLY_CMD_TRADE) {
 					// unit_actions.js "set-rallypoint" on another market: the route's gain for
 					// the trader this market trains, or "too close" with the disabled cursor.

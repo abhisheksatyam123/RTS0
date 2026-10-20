@@ -20860,6 +20860,27 @@
   ],
   "units": [
     {
+      "type": "hero",
+      "player": 1,
+      "x": -230.4,
+      "z": -230.4,
+      "template": "mace/hero_alexander_iii"
+    },
+    {
+      "type": "swordsman",
+      "player": 1,
+      "x": -225.5,
+      "z": -230.4,
+      "template": "mace/champion_infantry_swordsman"
+    },
+    {
+      "type": "hero",
+      "player": 1,
+      "x": -218.0,
+      "z": -230.4,
+      "template": "spart/hero_leonidas"
+    },
+    {
       "type": "cavalry",
       "player": 1,
       "x": -144.12,
@@ -20937,11 +20958,38 @@
       "template": "athen/ship_scout"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": 215.25,
+      "z": 15.38,
+      "template": "athen/siege_lithobolos_unpacked",
+      "parents": [
+        "athen/siege_lithobolos_packed"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 220.12,
+      "z": 15.38,
+      "template": "athen/siege_oxybeles_unpacked",
+      "parents": [
+        "athen/siege_oxybeles_packed"
+      ]
+    },
+    {
       "type": "trader",
       "player": 1,
       "x": 224.88,
       "z": 15.38,
       "template": "athen/support_trader"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -230.4,
+      "z": 34.88,
+      "template": "brit/catafalque"
     },
     {
       "type": "cavalry",
@@ -21140,6 +21188,13 @@
       "template": "brit/war_dog"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": -112.5,
+      "z": 34.88,
+      "template": "cart/catafalque"
+    },
+    {
       "type": "cavalry",
       "player": 1,
       "x": -108.0,
@@ -21255,6 +21310,23 @@
       ]
     },
     {
+      "type": "",
+      "player": 1,
+      "x": -31.88,
+      "z": 34.88,
+      "template": "cart/siege_oxybeles_packed"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -27.12,
+      "z": 34.88,
+      "template": "cart/siege_oxybeles_unpacked",
+      "parents": [
+        "cart/siege_oxybeles_packed"
+      ]
+    },
+    {
       "type": "siege_ram",
       "player": 1,
       "x": -22.0,
@@ -21295,6 +21367,13 @@
       "x": -4.38,
       "z": 34.88,
       "template": "cart/support_trader"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 0.12,
+      "z": 34.88,
+      "template": "gaul/catafalque"
     },
     {
       "type": "cavalry",
@@ -21472,6 +21551,13 @@
       "template": "gaul/support_trader"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": 108.62,
+      "z": 34.88,
+      "template": "germ/catafalque"
+    },
+    {
       "type": "cavalry",
       "player": 1,
       "x": 113.12,
@@ -21638,6 +21724,27 @@
       "x": 206.25,
       "z": 34.88,
       "template": "germ/support_trader"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 211.0,
+      "z": 34.88,
+      "template": "germ/support_wagon"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 216.25,
+      "z": 34.88,
+      "template": "germ/support_wagon_house"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 221.25,
+      "z": 34.88,
+      "template": "han/catafalque"
     },
     {
       "type": "cavalry",
@@ -21843,11 +21950,42 @@
       "template": "han/ship_siege"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": -118.0,
+      "z": 50.38,
+      "template": "han/siege_mangonel_packed"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -112.75,
+      "z": 50.38,
+      "template": "han/siege_mangonel_unpacked",
+      "parents": [
+        "han/siege_mangonel_packed"
+      ]
+    },
+    {
       "type": "siege_ram",
       "player": 1,
       "x": -107.25,
       "z": 50.38,
       "template": "han/siege_ram"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -102.12,
+      "z": 50.38,
+      "template": "han/siege_shoushe"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -96.88,
+      "z": 50.38,
+      "template": "han/siege_tower"
     },
     {
       "type": "healer",
@@ -21878,11 +22016,25 @@
       ]
     },
     {
+      "type": "",
+      "player": 1,
+      "x": -79.12,
+      "z": 50.38,
+      "template": "han/support_minister"
+    },
+    {
       "type": "trader",
       "player": 1,
       "x": -74.75,
       "z": 50.38,
       "template": "han/support_trader"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -70.12,
+      "z": 50.38,
+      "template": "iber/catafalque"
     },
     {
       "type": "cavalry",
@@ -22060,6 +22212,13 @@
       "template": "iber/support_trader"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": 38.12,
+      "z": 50.38,
+      "template": "kush/catafalque"
+    },
+    {
       "type": "cavalry",
       "player": 1,
       "x": 42.62,
@@ -22200,6 +22359,13 @@
       "template": "kush/siege_ram"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": 126.88,
+      "z": 50.38,
+      "template": "kush/siege_tower"
+    },
+    {
       "type": "healer",
       "player": 1,
       "x": 132.25,
@@ -22233,6 +22399,13 @@
       "x": 145.0,
       "z": 50.38,
       "template": "kush/support_trader"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 149.5,
+      "z": 50.38,
+      "template": "mace/catafalque"
     },
     {
       "type": "cavalry",
@@ -22354,11 +22527,52 @@
       "template": "mace/ship_scout"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": -230.4,
+      "z": 65.38,
+      "template": "mace/siege_lithobolos_packed"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -229.25,
+      "z": 65.38,
+      "template": "mace/siege_lithobolos_unpacked",
+      "parents": [
+        "mace/siege_lithobolos_packed"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -224.38,
+      "z": 65.38,
+      "template": "mace/siege_oxybeles_packed"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -219.62,
+      "z": 65.38,
+      "template": "mace/siege_oxybeles_unpacked",
+      "parents": [
+        "mace/siege_oxybeles_packed"
+      ]
+    },
+    {
       "type": "siege_ram",
       "player": 1,
       "x": -214.5,
       "z": 65.38,
       "template": "mace/siege_ram"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -208.5,
+      "z": 65.38,
+      "template": "mace/siege_tower"
     },
     {
       "type": "healer",
@@ -22394,6 +22608,13 @@
       "x": -190.12,
       "z": 65.38,
       "template": "mace/support_trader"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -185.38,
+      "z": 65.38,
+      "template": "maur/catafalque"
     },
     {
       "type": "cavalry",
@@ -22618,6 +22839,23 @@
       "x": -49.38,
       "z": 65.38,
       "template": "noldor_warship"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -44.25,
+      "z": 65.38,
+      "template": "pers/arstibara",
+      "parents": [
+        "pers/champion_infantry"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -39.75,
+      "z": 65.38,
+      "template": "pers/catafalque"
     },
     {
       "type": "cavalry",
@@ -22952,6 +23190,20 @@
       "template": "pirates/ship_scout"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": 148.5,
+      "z": 65.38,
+      "template": "plane"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 153.0,
+      "z": 65.38,
+      "template": "ptol/catafalque"
+    },
+    {
       "type": "cavalry",
       "player": 1,
       "x": 157.5,
@@ -23064,11 +23316,52 @@
       "template": "ptol/ship_siege"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": -227.25,
+      "z": 80.88,
+      "template": "ptol/siege_lithobolos_packed"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -222.25,
+      "z": 80.88,
+      "template": "ptol/siege_lithobolos_unpacked",
+      "parents": [
+        "ptol/siege_lithobolos_packed"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -217.38,
+      "z": 80.88,
+      "template": "ptol/siege_polybolos_packed"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -212.5,
+      "z": 80.88,
+      "template": "ptol/siege_polybolos_unpacked",
+      "parents": [
+        "ptol/siege_polybolos_packed"
+      ]
+    },
+    {
       "type": "siege_ram",
       "player": 1,
       "x": -207.25,
       "z": 80.88,
       "template": "ptol/siege_ram"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -201.25,
+      "z": 80.88,
+      "template": "ptol/siege_tower"
     },
     {
       "type": "healer",
@@ -23104,6 +23397,13 @@
       "x": -183.12,
       "z": 80.88,
       "template": "ptol/support_trader"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -178.62,
+      "z": 80.88,
+      "template": "rome/catafalque"
     },
     {
       "type": "cavalry",
@@ -23417,6 +23717,23 @@
       "template": "rome/siege_ram"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": -1.12,
+      "z": 80.88,
+      "template": "rome/siege_scorpio_packed"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 3.62,
+      "z": 80.88,
+      "template": "rome/siege_scorpio_unpacked",
+      "parents": [
+        "rome/siege_scorpio_packed"
+      ]
+    },
+    {
       "type": "healer",
       "player": 1,
       "x": 8.12,
@@ -23450,6 +23767,13 @@
       "x": 21.12,
       "z": 80.88,
       "template": "rome/support_trader"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 25.88,
+      "z": 80.88,
+      "template": "sele/catafalque"
     },
     {
       "type": "cavalry",
@@ -23592,11 +23916,35 @@
       "template": "sele/ship_siege"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": 119.12,
+      "z": 80.88,
+      "template": "sele/siege_lithobolos_packed"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 124.12,
+      "z": 80.88,
+      "template": "sele/siege_lithobolos_unpacked",
+      "parents": [
+        "sele/siege_lithobolos_packed"
+      ]
+    },
+    {
       "type": "siege_ram",
       "player": 1,
       "x": 129.38,
       "z": 80.88,
       "template": "sele/siege_ram"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 135.38,
+      "z": 80.88,
+      "template": "sele/siege_tower"
     },
     {
       "type": "healer",
@@ -23632,6 +23980,13 @@
       "x": 153.75,
       "z": 80.88,
       "template": "sele/support_trader"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 158.5,
+      "z": 80.88,
+      "template": "spart/catafalque"
     },
     {
       "type": "cavalry",
@@ -23739,6 +24094,23 @@
       "template": "spart/ship_scout"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": 225.25,
+      "z": 80.88,
+      "template": "spart/siege_oxybeles_packed"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -230.4,
+      "z": 95.62,
+      "template": "spart/siege_oxybeles_unpacked",
+      "parents": [
+        "spart/siege_oxybeles_packed"
+      ]
+    },
+    {
       "type": "siege_ram",
       "player": 1,
       "x": -229.25,
@@ -23779,6 +24151,20 @@
       "x": -211.38,
       "z": 95.62,
       "template": "spart/support_trader"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -206.5,
+      "z": 95.62,
+      "template": "theb_siege_fireraiser"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -201.88,
+      "z": 95.62,
+      "template": "thesp_melanochitones"
     },
     {
       "type": "trireme",
