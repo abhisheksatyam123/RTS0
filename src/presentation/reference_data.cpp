@@ -6,7 +6,10 @@
 #include "../simulation/unit_trainer_data.h"
 #include "../simulation/tech_tooltip_data.h"
 
+#include <algorithm>
 #include <cmath>
+
+#include <vector>
 
 namespace {
 
@@ -103,6 +106,30 @@ Dictionary unit_entry(uint16_t t) {
 }
 
 // civ: the civ whose specificName to give (TemplateLoader.loadTechnologyTemplate), 0xFF none.
+// TemplateLister discovery order: mixins/builder.xml's Builder list, then the civ mixin's
+// own structures (mixins/civ/{civ}.xml merges them after), here in BuildingType order.
+std::vector<uint8_t> builder_order(uint8_t c) {
+	static constexpr uint8_t kBuilderXml[] = {
+		rtso::BLD_TOWN_CENTER, rtso::BLD_CRANNOG, rtso::BLD_MILITARY_COLONY, rtso::BLD_WAGON_ENCAMPMENT,
+		rtso::BLD_HOUSE, rtso::BLD_ICE_HOUSE, rtso::BLD_PYRAMID_SMALL, rtso::BLD_APARTMENT,
+		rtso::BLD_STOREHOUSE, rtso::BLD_FARMSTEAD, rtso::BLD_FIELD, rtso::BLD_CORRAL, rtso::BLD_DOCK,
+		rtso::BLD_KENNEL, rtso::BLD_BARRACKS, rtso::BLD_STABLE, rtso::BLD_GREAT_HALL,
+		rtso::BLD_ELEPHANT_STABLE, rtso::BLD_FORGE, rtso::BLD_TEMPLE, rtso::BLD_MARKET, rtso::BLD_MINISTRY,
+		rtso::BLD_OUTPOST, rtso::BLD_SENTRY_TOWER, rtso::BLD_TOWER, rtso::BLD_ARSENAL, rtso::BLD_ACADEMY,
+		rtso::BLD_FORTRESS, rtso::BLD_PALISADE, rtso::BLD_SIEGE_WALL, rtso::BLD_WALL_SEGMENT,
+		rtso::BLD_THEATER, rtso::BLD_TACHARA, rtso::BLD_WONDER,
+	};
+	std::vector<uint8_t> out;
+	bool listed[rtso::BLD_TYPE_COUNT] = {};
+	for (uint8_t b : kBuilderXml) {
+		listed[b] = true;
+		if (rtso::civ_can_build(c, b)) out.push_back(b);
+	}
+	for (uint8_t b = 0; b < rtso::BLD_TYPE_COUNT; ++b)
+		if (!listed[b] && rtso::civ_can_build(c, b)) out.push_back(b);
+	return out;
+}
+
 Dictionary tech_entry(uint8_t id, uint8_t civ = 0xFF) {
 	const auto &ti = rtso::tech_info(id);
 	Dictionary td;
@@ -227,8 +254,7 @@ Array RtsoReference::get_structure_tree(int civ) const {
 	Array out;
 	if (civ < 0 || civ >= rtso::CIV_COUNT) return out;
 	const uint8_t c = (uint8_t)civ;
-	for (uint8_t b = 0; b < rtso::BLD_TYPE_COUNT; ++b) {
-		if (!rtso::civ_can_build(c, b)) continue; // other civs' own structures
+	for (uint8_t b : builder_order(c)) { // only the civ's own structures
 		const auto &bi = rtso::building_type_info(b);
 		Array units, techs, upgrades;
 		for (uint16_t t : rtso::civ_roster_ids(c)) {
@@ -455,6 +481,31 @@ Dictionary RtsoReference::get_structure(int type, int civ) const {
 	d["cost_text"] = cost_text(bi.food_cost, bi.wood_cost, bi.stone_cost, bi.gold_cost);
 	d["time"] = bi.build_time;
 	d["hp"] = bi.max_hp;
+	// The WallSet a wall, palisade or siege wall box stands for (TemplateParser.getEntity and
+	// getEntityCostTooltip): its pieces' Health range and the short, medium and long segments'
+	// and the tower's costs.
+	if (const rtso::WallSetInfo ws = rtso::wallset_info(rtso::wallset_kind_of(b), c); ws.segment == b) {
+		const bool stone = rtso::wallset_kind_of(b) == rtso::WALLSET_STONE;
+		auto piece = [stone](float cost, float time) {
+			Dictionary p;
+			p["cost"] = stone ? cost_dict(0, 0, (int)cost, 0) : cost_dict(0, (int)cost, 0, 0);
+			p["time"] = time;
+			return p;
+		};
+		Dictionary w;
+		Array walls;
+		for (int k = 2; k >= 0; --k) walls.push_back(piece(ws.cost[k], ws.build_time[k]));
+		w["walls"] = walls;
+		const rtso::BuildingTypeInfo ti = rtso::civ_building_type_info(c, ws.tower);
+		Dictionary tower;
+		tower["cost"] = ws.tower_cost < 0.0f ? cost_dict(ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost)
+				: Dictionary(piece(ws.tower_cost, 0.0f)["cost"]);
+		tower["time"] = ws.tower_build_time < 0.0f ? ti.build_time : ws.tower_build_time;
+		w["tower"] = tower;
+		w["hp_min"] = std::min({ws.health[0], ws.health[1], ws.health[2]});
+		w["hp_max"] = std::max({ws.health[0], ws.health[1], ws.health[2]});
+		d["wallset"] = w;
+	}
 	float armour[3];
 	rtso::structure_armour(b, c, armour); // the Germans' totem
 	d["armour"] = armour_dict(armour[0], armour[1], armour[2]);
