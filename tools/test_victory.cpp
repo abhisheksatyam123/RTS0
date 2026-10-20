@@ -116,6 +116,37 @@ int main() {
 		CHECK(sim->is_victory());
 		delete sim;
 	}
+	// 5b. Conquest Structures: a placed foundation is a Structure (special/filter/foundation),
+	// so it keeps its owner in.
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST_STRUCTURES);
+		Simulation::Building *keep = nullptr;
+		for (auto &b : sim->buildings_)
+			if (b.team == 1) {
+				if (!keep) keep = &b;
+				else b.hp = 0.0f;
+			}
+		CHECK(keep != nullptr);
+		keep->build_progress = 0.0f;
+		keep->hp = 1.0f;
+		sim->record_.buildings_destroyed++;
+		run(*sim, 1.0f);
+		CHECK(!sim->is_victory() && !sim->is_defeated(1));
+		keep->hp = 0.0f;
+		run(*sim, 1.0f);
+		CHECK(sim->is_victory());
+		delete sim;
+	}
+	// 5c. The last two enemies falling on one tick: players fall one at a time and the first
+	// defeat hands the other the win (EndGameManager after each SetState), not a draw.
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST_UNITS);
+		wipe(*sim, 0, true, false);
+		wipe(*sim, 1, true, false);
+		run(*sim, 1.0f);
+		CHECK(sim->is_game_over() && sim->is_defeated(0) != sim->is_defeated(1));
+		delete sim;
+	}
 	// 6. Losing your Town Center alone doesn't end a conquest match.
 	{
 		Simulation *sim = fresh(VICTORY_CONQUEST);
@@ -369,6 +400,7 @@ int main() {
 	{
 		Simulation *sim = fresh(VICTORY_WONDER);
 		sim->set_player_team(2, sim->player(0).team);
+		run(*sim, 0.05f); // built after the start, so its countdown runs
 		sim->spawn_building(-20, 20, BLD_WONDER, 2, 1.0f);
 		run(*sim, 2.0f);
 		CHECK(sim->is_wonder_active());
@@ -443,10 +475,35 @@ int main() {
 		GameSetupParams d;
 		CHECK(d.wonder_min == 20 && d.relic_min == 20 && d.relics == 2); // 0 A.D.'s defaults
 	}
+	// 10b. WonderVictory.js counts from OwnershipChanged, which the map's own wonders never
+	// send (the scripts load after them): a starting wonder has no countdown, a diplomacy
+	// change doesn't start one, and it counts once it changes hands.
+	{
+		Simulation *sim = fresh(VICTORY_WONDER);
+		sim->set_wonder_duration(30.0f);
+		const uint32_t tc = sim->spawn_building(-20, 34, BLD_TOWN_CENTER, 0, 1.0f); // territory: no decay to Gaia
+		const uint32_t w = sim->spawn_building(-20, 20, BLD_WONDER, 0, 1.0f);
+		run(*sim, 40.0f);
+		CHECK(!sim->is_game_over() && !sim->is_wonder_active() && sim->wonder_hold(0) == 0.0f);
+		for (uint8_t p = 0; p < 3; ++p) sim->set_player_active(p, true, false);
+		sim->set_mutual_ally(0, 2);
+		run(*sim, 1.0f);
+		CHECK(sim->wonder_hold(0) == 0.0f);
+		for (auto &b : sim->buildings_) // captured, with the civic centre beside it
+			if (b.id == w || b.id == tc) {
+				b.team = 1;
+				for (auto &c : b.capture_points_by_team) c = 0.0f;
+				b.capture_points_by_team[1] = b.max_capture_points;
+			}
+		run(*sim, 5.0f);
+		CHECK(sim->wonder_hold(1) > 4.0f);
+		delete sim;
+	}
 	// 11. Wonder hold time and relic count from game setup.
 	{
 		Simulation *sim = fresh(VICTORY_WONDER);
 		sim->set_wonder_duration(120.0f);
+		run(*sim, 0.05f);
 		sim->spawn_building(-20, 20, BLD_WONDER, 0, 1.0f);
 		sim->spawn_building(-20, 34, BLD_TOWN_CENTER, 0, 1.0f); // the wonder's territory: no decay to Gaia
 		run(*sim, 119.0f);
@@ -1293,6 +1350,7 @@ int main() {
 		sim->set_wonder_duration(120.0f);
 		sim->spawn_unit(-30.0f, 30.0f, 2, UNIT_VILLAGER);
 		sim->spawn_building(-20, 34, BLD_TOWN_CENTER, 0, 1.0f); // territory: no decay to Gaia
+		run(*sim, 0.05f);
 		const uint32_t w1 = sim->spawn_building(-20, 20, BLD_WONDER, 0, 1.0f);
 		run(*sim, 60.0f);
 		const uint32_t w2 = sim->spawn_building(-40, 34, BLD_WONDER, 0, 1.0f);

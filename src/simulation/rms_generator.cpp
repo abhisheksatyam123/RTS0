@@ -9973,9 +9973,9 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 		unit(x, z, kArchers[rng.range_int(0, 1)]);
 		soldiers.push_back({x, z});
 	});
-	// ptol/siege_lithobolos_unpacked and polybolos_unpacked: RTS0 spawns them packed.
+	// ptol/siege_lithobolos_unpacked and polybolos_unpacked: their packed rows, standing unpacked.
 	groups_on(hilltop, count(sc(1.0f, 6.0f) * diff), 250, 1.0f, [&](float x, float z) {
-		unit(x, z, rng.range_int(0, 1) ? "ptol/siege_polybolos_packed" : "ptol/siege_lithobolos_packed");
+		sim.set_unit_unpacked(unit(x, z, rng.range_int(0, 1) ? "ptol/siege_polybolos_packed" : "ptol/siege_lithobolos_packed"));
 		soldiers.push_back({x, z});
 	});
 

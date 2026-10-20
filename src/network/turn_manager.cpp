@@ -1730,7 +1730,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			if (bid && n) {
 				// TryConstructBuilding hands the builders a "repair" of the new foundation.
 				if (sim.has_map_triggers()) sim.note_player_command(pl, TRIGGER_CMD_REPAIR, bid, 0, 0, 0);
-				sim.order_build_or_repair(ids, n, bid);
+				const bool build_queued = (c.target_id & NET_BUILD_QUEUED) != 0;
+				sim.set_push_front_order(!build_queued && (c.target_id & NET_BUILD_PUSH_FRONT) != 0);
+				sim.order_build_or_repair(ids, n, bid, build_queued);
 			}
 		} else if (c.cmd_type == 6) { // Train
 			// At a corral target_x names the animal (corral Trainer list); 0 is the civ's default.

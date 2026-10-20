@@ -336,6 +336,7 @@ public:
 		bool is_burning = false; // Structure fire under 33% HP
 		// WonderVictory.js wonderVictoryMessages[ent]: this wonder's own countdown, the player it
 		// runs for (255: none) and that player's mutual allies when it started (allied victory).
+		// A wonder the map placed holds -1 until it changes hands (no countdown).
 		float wonder_hold = 0.0f;
 		uint8_t wonder_owner = 255;
 		uint8_t wonder_allies = 0;
@@ -964,6 +965,8 @@ public:
 	// 0 A.D. Pack/Unpack command (UnitAI Order.Pack / Order.Unpack): drops the units' current
 	// orders and packs (pack=true) or unpacks them. Units without Pack are ignored.
 	void order_pack(const uint32_t *unit_ids, size_t count, bool pack);
+	// A map's "_unpacked" siege engine: a packed one stands unpacked at once, ready to fire.
+	void set_unit_unpacked(uint32_t unit_id);
 	// Seconds a pack or unpack takes for this unit (0 A.D. Pack/Time).
 	float pack_time_s(size_t unit_idx) const;
 	// 0 A.D. "formation" command (Commands.js): the units form up in `formation` where they
@@ -1153,7 +1156,8 @@ public:
 		int pop_bonus = 0;          // Population/Bonus
 		int turrets = 0;            // TurretHolder points
 		bool trickles = false;
-		float trickle[RES_COUNT] = {}; // ResourceTrickle Rates per TRICKLE_STRUCTURE_INTERVAL
+		float trickle[RES_COUNT] = {}; // ResourceTrickle Rates per trickle_interval
+		float trickle_interval = TRICKLE_STRUCTURE_INTERVAL; // a corral's 5 s (CORRAL_TRICKLE_INTERVAL)
 	};
 	StructureDetails structure_details(const Building &b) const;
 	// Foundation.js / Repairable.js GetBuildTime for the details panel: the builders at work on a
@@ -1480,6 +1484,11 @@ public:
 	bool undeletable_unit(uint32_t unit_id) const { return invulnerable(unit_id); }
 	// unit_can_build (Builder) for unit i, less a nonbuilder.
 	bool unit_builds(size_t i) const { return unit_can_build(units_.unit_type[i], units_.tmpl[i]) && !nonbuilder(units_.id[i]); }
+	// unit_builds by unit id (false for a dead or unknown unit).
+	bool unit_id_builds(uint32_t id) const {
+		const int32_t u = lookup_unit(id);
+		return u >= 0 && units_.alive[u] && unit_builds((size_t)u);
+	}
 	bool has_map_triggers() const { return !triggers_.triggers.empty(); }
 	// Commands.js ProcessCommand's OnPlayerCommand (kind: TriggerCommand). target and other
 	// are the command's targets (see TriggerCommand), hunt 1 when target is an animal,
@@ -2351,7 +2360,9 @@ public:
 	// ("gaul/infantry_javelineer_a"; a rank suffix falls back to the _b template), else the
 	// u_type class. rank 2/3 = Advanced/Elite, reached through Promotion xp on the next tick.
 	uint32_t spawn_gaia_unit(float x, float z, UnitType u_type, const char *template_id, int rank = 1);
-	uint32_t spawn_map_unit(float x, float z, uint8_t team, UnitType u_type, const char *template_id, int rank = 0);
+	// unpacked: the map placed the "_unpacked" template, so a siege engine starts unpacked.
+	uint32_t spawn_map_unit(float x, float z, uint8_t team, UnitType u_type, const char *template_id, int rank = 0,
+	                        bool unpacked = false);
 	static uint16_t resolve_map_template(const char *template_id, int *rank);
 	// Puts a unit inside a structure of its owner at once, as a map's <Garrison> does.
 	bool garrison_unit_now(uint32_t unit_id, uint32_t building_id);
