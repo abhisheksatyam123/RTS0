@@ -402,7 +402,10 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 			var s := HSlider.new()
 			s.min_value = extra[0]
 			s.max_value = extra[1]
-			s.step = 0.01 if float(extra[1]) <= 2.0 else 1.0
+			# 0.28's sliders are continuous: a fractional minimum (scroll batch 0.1-30) keeps
+			# tenths, so 1 and 30 stay reachable.
+			var lo := float(extra[0])
+			s.step = 0.01 if float(extra[1]) <= 2.0 else (0.1 if lo != floorf(lo) else 1.0)
 			s.custom_minimum_size = Vector2(130, 24)
 			var v := Label.new()
 			v.custom_minimum_size = Vector2(50, 0)
@@ -605,10 +608,12 @@ func _on_revert() -> void:
 		cfg.set_value(key, _saved[key])
 	_load_controls()
 
-## options.js setDefaults: asks, then erases the saved settings (0 A.D.'s defaults) and saves.
+## options.js setDefaults: asks, then erases this page's settings (0 A.D.'s defaults) and saves.
+## Only the options listed here: the lobby login, enabled mods and ports stay.
 func _on_reset() -> void:
 	_ask(tr("Resetting the options will erase your saved settings. Do you want to continue?"), func():
-		cfg.reset_all()
+		for key in _controls:
+			cfg.set_value(key, cfg.get_default(key))
 		if cfg.save():
 			_snapshot()
 		_load_controls())

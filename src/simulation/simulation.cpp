@@ -1222,7 +1222,8 @@ size_t Simulation::snap_trees_to_tiles() {
 				const float d2 = (cx - x) * (cx - x) + (cz - z) * (cz - z);
 				if (d2 >= best_d2) continue;
 				if ((di || dj) && get_terrain_height(cx, cz) < terrain_water_height_ + 0.15f) continue;
-				if (past_map_edge(cx, cz)) continue; // keep_resources_passable kept it inside the edge ring
+				// keep_resources_passable keeps resources 1.5 inside the edge ring, a lane to walk round a wood.
+				if (past_map_edge(cx, cz, 1.5f)) continue;
 				best = j * tr + i;
 				best_d2 = d2;
 				bx = cx;
@@ -4070,12 +4071,19 @@ bool Simulation::cmd_tribute(uint8_t from, uint8_t to, const int amounts[RES_COU
 	if (!amounts || from >= MAX_PLAYERS || to >= MAX_PLAYERS || from == to) return false;
 	if (!player_in_match(from) || !player_in_match(to)) return false;
 	int total = 0;
+	SessionNotice need{SessionNotice::TEXT, from, 0, SessionNotice::TEXT_INSUFFICIENT_RESOURCES, {}};
+	bool short_of = false;
 	for (int r = 0; r < RES_COUNT; ++r) {
 		if (amounts[r] < 0) return false;
-		if ((float)amounts[r] > players_[from].res[r]) return false;
+		if ((float)amounts[r] > players_[from].res[r]) {
+			// GetNeededResources: Math.ceil(amount - the player's stock).
+			need.amounts[r] = (int32_t)std::ceil((float)amounts[r] - players_[from].res[r]);
+			short_of = true;
+		}
 		total += amounts[r];
 	}
 	if (total == 0) return false;
+	if (short_of) return note_session(need), false;
 	for (int r = 0; r < RES_COUNT; ++r) {
 		players_[from].res[r] -= (float)amounts[r];
 		players_[to].res[r] += (float)amounts[r];
@@ -25062,8 +25070,8 @@ void Simulation::petra_manage_research(float dt) {
 	if (!active_base) return;
 	// queueManager.js checkPausedQueues: minorTech waits while workers are short.
 	if (petra_queues_.paused[PETRA_Q_MINOR_TECH]) return;
-	// A trade or population technology queued by researchTradeBonus/researchPopulationBonus:
-	// update returns while it waits (researchManager.js:163), so it is bought before any other.
+	// A minorTech plan waiting for its resources (a pick below, or researchTradeBonus /
+	// researchPopulationBonus): update returns while it waits (researchManager.js:163).
 	if (uint8_t &st = petra_queues_.special_tech; st) {
 		const ResearchCheck rc = research_check(petra_pid_, st);
 		if (petra_ps().has_tech(st) || (rc != TECH_OK && rc != TECH_ERR_COST)) st = 0;
@@ -25102,9 +25110,11 @@ void Simulation::petra_manage_research(float dt) {
 		for (int r = 0; r < 4; ++r) short_max = std::max(short_max, cost[r] - (stock[r] - held[r]));
 		return 10.0f * (float)workers < short_max;
 	};
-	// The picks are deterministic, so a technology waiting for its resources is
-	// picked again until paid for (queueManager keeps the plan queued).
-	auto pick = [&](uint8_t t) { start_tech(t); };
+	// A pick that can't start yet stays queued in minorTech (researchManager.js update returns
+	// while minorTech holds a plan), and is bought before anything else is picked.
+	auto pick = [&](uint8_t t) {
+		if (!start_tech(t)) petra_queues_.special_tech = t;
+	};
 	// increasePriority: a cheap pick (template cost under 400 in all) waits at twice
 	// minorTech's priority until it starts (queueToReset).
 	auto pick_cheap_first = [&](uint8_t t) {

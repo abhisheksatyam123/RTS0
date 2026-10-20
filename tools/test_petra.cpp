@@ -131,9 +131,11 @@ static void test_phase_up() {
 	}
 	std::printf("  continental: town phase at %.0fs, city phase at %.0fs, peak workers %d, fields %d\n",
 	            town_at, city_at, peak_workers, peak_fields);
-	// This seed's personality is the slow one (other AI seeds reach the town phase in 7 to 8 minutes);
-	// its time moves some 20 s with the AI's random draws and gatherers' choices.
-	CHECK(town_at > 0.0f && town_at < 13.5f * 60.0f, "town phase within 13 and a half minutes");
+	// This seed's personality is the slow one (other AI seeds reach the town phase in 8 to 10 minutes);
+	// its time moves some 20 to 40 s with the AI's random draws and gatherers' choices. 0.28's
+	// Medium Petra reaches the town phase in 5 (aggressive) to 10 minutes and the city phase in
+	// 14 to 16; the limit leaves room for parity work that moves the early economy.
+	CHECK(town_at > 0.0f && town_at < 15.0f * 60.0f, "town phase within 15 minutes");
 	CHECK(city_at > 0.0f && city_at < 18.0f * 60.0f, "city phase within 18 minutes (Town structures built first)");
 	CHECK(peak_workers >= 25, "economy grows past 25 workers");
 	CHECK(peak_fields >= 2, "farms fields once hunt and berries run low");
@@ -1468,6 +1470,35 @@ static void test_petra_research_order() {
 			for (size_t j = i + 1; j < techs.size(); ++j) dup |= techs[i] == techs[j];
 		CHECK(!dup, "each technology listed once");
 	}
+}
+
+// researchManager.js update returns while minorTech holds a plan: a pick waiting for its
+// resources stays queued until it is researched or can no longer be, never swapped for another.
+static void test_petra_minor_tech_kept() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(3);
+	s->set_petra_behavior(0);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	uint8_t held = 0;
+	int holds = 0, swaps = 0;
+	for (float t = 0.0f; t < 14.0f * 60.0f; t += Simulation::FIXED_STEP) {
+		s->tick(Simulation::FIXED_STEP);
+		const uint8_t now = s->petra_queues_.special_tech;
+		if (now && now != held) {
+			++holds;
+			if (held && !s->players_[1].has_tech(held)) {
+				const auto rc = s->research_check(1, held);
+				swaps += rc == Simulation::TECH_OK || rc == Simulation::TECH_ERR_COST;
+			}
+		}
+		held = now;
+	}
+	std::printf("  minor tech kept: %d waiting picks, %d swapped while still researchable\n", holds, swaps);
+	CHECK(holds > 0, "some pick waited for its resources");
+	CHECK(swaps == 0, "a waiting pick is never swapped for another");
 }
 
 // config.js setConfig: Config.popScaling takes sqrt(maxPop/300) under 300, and every helper
@@ -6373,6 +6404,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_islands_wood_reserve);
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_petra_research_order);
+	RUN(test_petra_minor_tech_kept);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
 	RUN(test_market_prospection_events);
