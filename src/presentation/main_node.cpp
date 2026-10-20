@@ -3701,7 +3701,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 // same on every peer, with no speed control in the match (set_game_speed
 // refuses and the button is hidden, as session.js does when g_IsNetworked).
 void RtsoMain::start_net_speed(uint16_t speed) {
-	game_speed = std::clamp(speed, (uint16_t)25, (uint16_t)300) / 100.0f;
+	game_speed = std::clamp(speed, (uint16_t)10, (uint16_t)2000) / 100.0f; // game_speeds.json's range
 	if (speed_btn && speed_btn->get_button_icon().is_null()) speed_btn->set_text(speed_text(game_speed));
 }
 
