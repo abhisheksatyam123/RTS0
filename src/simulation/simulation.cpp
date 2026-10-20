@@ -9184,8 +9184,9 @@ void Simulation::order_fauna_stop(uint8_t player, const uint32_t *ids, size_t co
 		fauna_.target_unit_id[f] = 0;
 		fauna_.corral_id[f] = 0;
 		fauna_.vel_x[f] = fauna_.vel_z[f] = 0.0f;
+		// IDLE, then LINGERING for a random FeedTime (UnitAI.js ROAMING.LINGERING).
 		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
-		fauna_.state_timer[f] = info.feed_time_min;
+		fauna_.state_timer[f] = info.feed_time_min + (float)sim_rng_.range_int(0, (int)std::max(0.0f, info.feed_time_max - info.feed_time_min));
 	}
 }
 
@@ -12820,12 +12821,14 @@ void Simulation::tick_gather(float dt) {
 				const uint32_t rid = units_.target_resource_id[i];
 				FieldGatherers &sg = supply_gatherers_[rid];
 				uint32_t alt = 0;
+				// A hunter only goes on to the same animal (FINDINGNEWTARGET's template filter).
+				const uint8_t species = resources_.subtype[ridx] == RES_SUB_MEAT ? units_.hunt_fauna[i] : 0;
 				if (!(units_.order_flags[i] & ORDER_FLAG_FORCE))
 					alt = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], rt, uteam,
-							resources_.subtype[ridx], &supply_gatherers_, rid);
+							resources_.subtype[ridx], &supply_gatherers_, rid, species);
 				if (alt == 0)
 					alt = find_nearby_resource(resources_.x[ridx], resources_.z[ridx], rt, uteam,
-							resources_.subtype[ridx], &supply_gatherers_, rid);
+							resources_.subtype[ridx], &supply_gatherers_, rid, species);
 				sg.total--;
 				if (alt != 0) {
 					// The new supply has a free slot (find_nearby_resource skips full ones).
@@ -17339,28 +17342,34 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 		const uint8_t species = sub == RES_SUB_MEAT ? units_.hunt_fauna[i] : 0;
 		const uint32_t previous = units_.target_resource_id[i];
 		uint32_t r = 0;
-		// A field takes MaxGatherers farmers (IsAvailableTo): skip the full ones.
-		const auto *busy = sub == RES_SUB_GRAIN ? &field_gatherers_ : nullptr;
-		if (!(units_.order_flags[i] & ORDER_FLAG_FORCE))
-			r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub, busy, previous, species);
-		if (r == 0)
-			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub, busy, previous, species);
+		// IsAvailableTo: a field or a carcass that has its MaxGatherers is skipped.
+		const auto *busy = sub == RES_SUB_GRAIN ? &field_gatherers_ : sub == RES_SUB_MEAT ? &supply_gatherers_ : nullptr;
+		// FindNearbyResource takes live animals too (PerformGather then kills one first): a
+		// hunter goes on to the nearer of a carcass and a live animal of the kind.
+		uint32_t prey = 0;
+		auto search = [&](float x, float z) {
+			r = find_nearby_resource(x, z, units_.res_type_carried[i], units_.team[i], sub, busy, previous, species);
+			prey = sub == RES_SUB_MEAT ? find_nearby_prey(i, x, z, NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE, species) : 0;
+			if (r != 0 && prey != 0) {
+				const size_t ri = res_id_to_idx_.at(r), fi = fauna_id_to_idx_.at(prey);
+				const float rd = det::hypot(resources_.x[ri] - x, resources_.z[ri] - z);
+				const float fd = det::hypot(fauna_.pos_x[fi] - x, fauna_.pos_z[fi] - z);
+				if (fd < rd) r = 0;
+				else prey = 0;
+			}
+			return r != 0 || prey != 0;
+		};
+		if (!(units_.order_flags[i] & ORDER_FLAG_FORCE)) search(units_.pos_x[i], units_.pos_z[i]);
+		if (r == 0 && prey == 0) search(units_.order_x[i], units_.order_z[i]);
 		if (r != 0) {
 			UnitOrder o = current_order(i);
 			o.target = r;
 			apply_order(uid, o);
 			return;
 		}
-		// A hunter whose carcass is eaten goes for the next animal of the kind nearby
-		// (FindNearbyResource takes live animals too; PerformGather then kills it first).
-		if (sub == RES_SUB_MEAT) {
-			const bool forced = (units_.order_flags[i] & ORDER_FLAG_FORCE) != 0;
-			const uint32_t prey = find_nearby_prey(i, forced ? units_.order_x[i] : units_.pos_x[i],
-					forced ? units_.order_z[i] : units_.pos_z[i], NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE, species);
-			if (prey != 0) {
-				order_hunt(&uid, 1, prey);
-				return;
-			}
+		if (prey != 0) {
+			order_hunt(&uid, 1, prey);
+			return;
 		}
 		// UnitAI.js FINDINGNEWTARGET: nothing near the unit or where it started, but it
 		// stands far from where it started (initPos, the order's target position when it
@@ -34349,8 +34358,9 @@ uint32_t Simulation::find_nearby_prey(size_t i, float x, float z, float max_d2, 
 		const float dx = fauna_.pos_x[f] - x, dz = fauna_.pos_z[f] - z;
 		const float d2 = dx * dx + dz * dz;
 		if (d2 >= best_d2) continue;
-		// CheckTargetVisible: animals don't stay in the fog, so the hunter must see it now.
-		if (fog && !los_visible(units_.team[i], fauna_.pos_x[f], fauna_.pos_z[f])) continue;
+		// CheckTargetVisible: template_unit_fauna RetainInFog, so an animal in explored fog counts
+		// (GetLosVisibility "fogged", not "hidden").
+		if (fog && !los_explored(units_.team[i], fauna_.pos_x[f], fauna_.pos_z[f])) continue;
 		best_d2 = d2;
 		best = fauna_.id[f];
 	}
@@ -34539,14 +34549,14 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id, bool melee) {
 		return;
 	}
 	// INDIVIDUAL.FLEEING: run until FleeDistance further away than the attacker was, so a
-	// ranged hunter is fled from too. A new attacker takes over only if it is nearer.
+	// ranged hunter is fled from too. Any other attacker takes over: FLEEING.Attacked compares
+	// DistanceToTarget(self, msg.data.target), and the attack's target is the animal itself.
 	auto dist_to = [&](uint32_t id) {
 		float x, z;
 		return fauna_threat_pos(id, x, z) ? det::hypot(x - fauna_.pos_x[f], z - fauna_.pos_z[f]) : 1e9f;
 	};
 	if (b == FAUNA_FLEE) {
 		if (attacker_id == fauna_.target_unit_id[f]) return;
-		if (dist_to(attacker_id) > dist_to(fauna_.target_unit_id[f])) return;
 	}
 	const float d = dist_to(attacker_id);
 	fauna_.behavior[f] = FAUNA_FLEE;
@@ -35067,9 +35077,10 @@ void Simulation::tick_fauna(float dt) {
 			if (len > info.attack_range + 0.6f) {
 				// Out of reach: the next bite comes PrepareTime after it gets there (Attack.js).
 				fauna_.attack_timer[i] = std::max(fauna_.attack_timer[i], info.attack_prepare);
-				// COMBAT APPROACHING and CHASING walk, and run only after a target that flees
-				// (UnitAI.js: "if (cmpUnitAI.IsFleeing()) this.SetSpeedMultiplier(this.GetRunMultiplier())").
-				const bool fleeing = t >= 0 ? units_.action_state[t] == ACTION_FLEE : fauna_.behavior[tf] == FAUNA_FLEE;
+				// COMBAT APPROACHING walks; CHASING (after a first ATTACKING, flee_distance > 0) runs
+				// after a target that flees (UnitAI.js CHASING enter: "IsFleeing()) this.Run()").
+				const bool fleeing = fauna_.flee_distance[i] > 0.0f &&
+				                     (t >= 0 ? units_.action_state[t] == ACTION_FLEE : fauna_.behavior[tf] == FAUNA_FLEE);
 				const float sp = info.speed * (fleeing ? info.run_mult : 1.0f);
 				// Along the long path round ponds, cliffs and walls (UnitMotion; polar_sea_triggers.js
 				// sends its wolves across the whole map); a building corner 45 or 90 degrees to either side.
@@ -35561,12 +35572,13 @@ void Simulation::tick_treasures(float dt) {
 		if (units_.target_unit_id[i] == units_.order_target[i]) units_.target_unit_id[i] = 0;
 		if (units_.action_state[i] == ACTION_MOVE) units_.action_state[i] = ACTION_IDLE;
 		units_.has_order[i] = 0;
-		const float ox = units_.order_x[i], oz = units_.order_z[i];
+		// TargetPosOrEntPos(oldTarget): the treasure is gone, so the search is round the collector.
+		const float ox = units_.pos_x[i], oz = units_.pos_z[i];
 		finish_order(i);
 		if (units_.order_kind[i] == ORDER_NONE) next_hunt.push_back({units_.id[i], ox, oz});
 	}
 	// COLLECTTREASURE.FINDINGNEWTARGET: with no next order, the nearest treasure within
-	// 64 m of the one that is gone (FindNearbyTreasure).
+	// 64 m (FindNearbyTreasure).
 	for (const NextTreasure &nt : next_hunt) {
 		const int32_t i = lookup_unit(nt.uid);
 		if (i < 0 || !units_.alive[i] || units_.order_kind[i] != ORDER_NONE) continue;
