@@ -68,6 +68,20 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 				{{"previousAmounts", String(tr(", ")).join(parts)}, {"lastAmount", last}});
 	};
 	for (const N &n : notices) {
+		if (n.kind == N::TEXT && n.tech == N::TEXT_INSUFFICIENT_RESOURCES) {
+			// Player.js SubtractResourcesOrNotify: "Insufficient resources - %(resourceAmount1)s
+			// %(resourceType1)s, ..." in resource order (food, wood, stone, metal), 10 s centre top.
+			if (n.player != me) continue;
+			static const uint8_t kOrder[] = {rtso::RES_FOOD, rtso::RES_WOOD, rtso::RES_STONE, rtso::RES_GOLD};
+			static const char *kLower[rtso::RES_COUNT] = {"wood", "metal", "stone", "food"}; // RES_* order
+			PackedStringArray parts;
+			for (uint8_t r : kOrder)
+				if (n.amounts[r] > 0) parts.push_back(String::num_int64(n.amounts[r]) + " " + tr(kLower[r]));
+			if (parts.is_empty()) continue;
+			const uint32_t now = (uint32_t)std::lround(sim->game_time() * 1000.0f);
+			text_notices_.push_back({tr("Insufficient resources - ") + String(", ").join(parts), now + 10000});
+			continue;
+		}
 		if (n.kind == N::TEXT) {
 			// GuiInterface AddTimeNotification: 10 s in the centre, for the player it names.
 			static const char *kText[] = {"The production queue is full.", "Entity is being upgraded. Cannot start production.",

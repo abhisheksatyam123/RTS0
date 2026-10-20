@@ -70,8 +70,8 @@
 //     takes live animals), not a dangerous one.
 // 42. Rally points: Shift adds positions, unset-rallypoint (cmd 14 param 1), gather near a
 //     gone target, and a save round trip.
-// 43. UnitAI FLEEING: the flight re-aims from where the attacker is now, ignores attackers
-//     farther than the one fled from, and the source survives a save.
+// 43. UnitAI FLEEING: the flight re-aims from where the attacker is now, answers every attacker
+//     but the one fled from, and the source survives a save.
 // 44. UnitAI REPAIRING autoharvest: a forced build turns into autoharvest at work, and only
 //     such builders farm the field or gather near the dropsite they finish.
 // 45. GATHER FINDINGNEWTARGET: an empty-handed gatherer with nothing left nearby walks to the
@@ -1760,7 +1760,7 @@ static void test_rally_positions() {
 
 
 static void test_flee_source() {
-	std::printf("43. a flight re-aims from a chasing attacker and ignores farther ones (UnitAI FLEEING)\n");
+	std::printf("43. a flight re-aims from a chasing attacker and from any other one (UnitAI FLEEING)\n");
 	Simulation s;
 	setup(s);
 	uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
@@ -1776,10 +1776,14 @@ static void test_flee_source() {
 	s.units_.pos_x[si] = 2.0f;
 	s.units_.pos_z[si] = 0.0f;
 	check(!s.flee_done((size_t)wi) && s.units_.target_x[wi] < 0.0f, "the flight turns away from where he is now");
-	// A farther attacker is ignored; a nearer one takes over.
+	// The one fled from is ignored; any other attacker takes over, a farther one too (0.28's
+	// distance check compares the unit's distance to itself).
+	s.units_.attacked_by[wi] = sp;
+	s.respond_to_attack((size_t)wi);
+	check(s.units_.flee_from[wi] == sp && s.units_.target_x[wi] < 0.0f, "another hit from the spearman changes nothing");
 	s.units_.attacked_by[wi] = far;
 	s.respond_to_attack((size_t)wi);
-	check(s.units_.flee_from[wi] == sp, "an archer farther off than the spearman is ignored");
+	check(s.units_.flee_from[wi] == far && s.units_.target_x[wi] < 0.0f, "an archer farther off is fled from instead");
 	uint32_t near = s.spawn_unit(0, 1, 1, UNIT_SPEARMAN);
 	s.units_.attacked_by[idx_of(s, w)] = near;
 	s.respond_to_attack((size_t)idx_of(s, w));
@@ -3327,6 +3331,24 @@ static void test_defeated_units_reset() {
 	check(s.units().stance[i] == unit_default_stance(UNIT_SPEARMAN, s.units().tmpl[i]), "its stance is the template default again");
 }
 
+static void test_all_attackers_cheer() {
+	std::printf("93. every unit attacking a unit cheers when it falls, siege engines too (shouldCheer)\n");
+	Simulation s;
+	setup(s);
+	uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+	uint32_t b = s.spawn_unit(0, 3, 0, UNIT_SWORDSMAN);
+	uint32_t bolt = s.spawn_unit(-6, 0, 0, UNIT_BOLT_SHOOTER);
+	s.order_set_stance(&bolt, 1, STANCE_PASSIVE); // stays idle rather than unpacking to shoot
+	uint32_t e = s.spawn_unit(2, 1, 1, UNIT_SPEARMAN, 1.0f);
+	s.order_set_stance(&e, 1, STANCE_PASSIVE);
+	uint32_t both[2] = {a, b};
+	s.order_attack(both, 2, e);
+	check(run_until(s, 10.0f, [&] { return !alive(s, e); }), "the two swordsmen kill the enemy");
+	check(run_until(s, 1.0f, [&] { return act_of(s, a) == ACTION_CHEER && act_of(s, b) == ACTION_CHEER; }),
+			"both cheer, not only the one that landed the kill");
+	check(act_of(s, bolt) == ACTION_CHEER, "an idle bolt shooter nearby cheers too");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3423,6 +3445,7 @@ int main(int argc, char **argv) {
 	test_forced_treasure_and_return();
 	test_status_tick_guards();
 	test_defeated_units_reset();
+	test_all_attackers_cheer();
 	test_range_aura_not_self();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
