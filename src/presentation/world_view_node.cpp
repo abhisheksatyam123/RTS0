@@ -2688,11 +2688,12 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key)
 		slot->height = entry.aabb.size.y;
 		slot->rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
 		slot->no_scene = !entry.scene.is_valid();
-		// Owner-coloured: a player_color.gdshader surface with a mask (the shader also
-		// draws unmasked skins that vary by unit or carry specular or height maps).
+		// Owner-coloured: a player_color.gdshader surface with a mask, or a crowd's parts
+		// with one (the shader also draws unmasked skins that vary by unit or carry
+		// specular or height maps).
 		for (int s = 0; slot->rest.is_valid() && s < slot->rest->get_surface_count(); ++s) {
 			Ref<ShaderMaterial> sm = slot->rest->surface_get_material(s);
-			if (rtso::ModelLibrary::is_player_color_material(sm) && sm->get_shader_parameter("mask_tex").get_type() != Variant::NIL)
+			if (rtso::ModelLibrary::is_player_color_material(sm) && (sm->get_shader_parameter("mask_tex").get_type() != Variant::NIL || (bool)sm->get_meta("crowd_owner_coloured", false)))
 				slot->player_color = true;
 		}
 	}
