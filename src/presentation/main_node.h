@@ -552,6 +552,9 @@ public:
 	std::vector<std::pair<String, String>> chat_private_targets() override;
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	uint8_t chat_player_of_client(uint32_t client) const;
+	bool player_finished(uint8_t pid) const;
+	bool observing_seat() const;
+	uint8_t own_seat() const;
 	void notify_setup_joins(uint64_t before, uint64_t after);
 	// 0.28 gamesetup ChatMessages: joined, left, ready and not ready lines.
 	void post_setup_chat(const rtso::NetSetupState &before, const rtso::NetSetupState &after);

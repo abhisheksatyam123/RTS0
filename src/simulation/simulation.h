@@ -1785,6 +1785,10 @@ public:
 	// for population room (Trainer.js Item.Start, Player.BlockTraining).
 	bool training_blocked(uint8_t player) const;
 	int structure_pop_bonus(uint8_t type, uint8_t player) const;
+	// GarrisonHolder/BuffHeal of a structure type for a player: its template's plus garrison_heal.
+	float structure_garrison_heal_for(uint8_t type, uint8_t player) const {
+		return building_garrison_heal(type) + (player < MAX_PLAYERS && type < BLD_TYPE_COUNT ? tech_mods_[player].bld_garrison_heal[type] : 0.0f);
+	}
 	// A structure of `type` as `player`'s build button shows it (0.28 GetTemplateData): its
 	// cost after civ, team and technology modifiers, and its BuildTime for one builder.
 	void structure_cost_for(uint8_t player, uint8_t type, float out[RES_COUNT]) const { structure_cost(player, type, -1.0f, out); }
@@ -2982,6 +2986,7 @@ private:
 	uint32_t stat_unit_value(size_t unit_idx) const;      // StatisticsTracker's entity value (Cost)
 	uint32_t stat_building_value(const Building &b) const;
 	void refund_foundation(const Building &b);
+	void record_foundation_cost(Building &b) const;
 	// petra_place_building searches that found no spot, with the signature of what
 	// they read (petra_placement_signature). Exact, so derived state: never saved.
 	struct PetraPlaceMiss {
@@ -3502,6 +3507,7 @@ private:
 	void petra_research_population_bonus();
 	bool petra_minor_tech_waiting() const;
 	bool petra_has_temple_class() const;
+	bool petra_has_builder() const;
 	void petra_queue_special_tech(uint8_t t);
 	void petra_research_trade_bonus();
 	void petra_manage_military_production(float dt);
