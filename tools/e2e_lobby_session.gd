@@ -241,10 +241,10 @@ func run() -> void:
 	lobby._refresh()
 	await until(func() -> bool: return find_room.call("room-29997") != null and find_room.call("room-29996") != null)
 	var old: TreeItem = find_room.call("room-29997")
-	check(old != null and old.get_index() == 0 and old.get_custom_color(0) == Color8(128, 128, 128),
+	check(old != null and old.get_index() == 0 and old.get_custom_color(1) == Color8(128, 128, 128),
 		"a game needing other mods is listed first, in grey")
 	var same: TreeItem = find_room.call("room-29996")
-	check(same != null and same.get_custom_color(0) == Color8(0, 219, 0), "a game with our mods is green")
+	check(same != null and same.get_custom_color(1) == Color8(0, 219, 0), "a game with our mods is green")
 	pick_room.call("room-29996")
 	await process_frame
 	check(lobby._details.get_parsed_text().contains("Mods:\n0ad (0.28.0)\nfx"), "its details list the mods, fx last")
