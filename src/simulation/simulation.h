@@ -1551,6 +1551,8 @@ public:
 	bool cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool lock);
 	// Maximum hit points of a `type` structure owned by `team`: template x civ bonus x techs.
 	float structure_max_hp(uint8_t type, uint8_t team) const;
+	float structure_hp_mult(uint8_t type, uint8_t team) const; // owner civ bonus x technologies on Health/Max
+	void rescale_structure_hp(Building &b, uint8_t from);
 	// 0 A.D. Barter.js: sell 100 or 500 (DEAL_AMOUNT x 1 or BATCH_SIZE) of one
 	// resource for another. Needs a finished Market owned by `player`.
 	bool cmd_barter(uint8_t player, ResourceType sell, ResourceType buy, int amount = 100);
@@ -2706,9 +2708,9 @@ private:
 	bool corral_has_room(const Building &b) const; // penned animals and garrisoned units under GarrisonHolder/Max
 	// The search behind pick_spawn_point and siege_spawn_point: the spots round a footprint centred
 	// on (cx, cz) and turned by rot, a square with half extents along_u (the front) and along_v, or a
-	// circle of radius circle_r when that is above 0. dry_ground also rejects spots under the water line.
+	// circle of radius circle_r when that is above 0.
 	bool pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
-			bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid, bool dry_ground,
+			bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid,
 			float &out_x, float &out_z) const;
 	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
 	void tick_garrison_holders();
@@ -2785,6 +2787,7 @@ private:
 public:
 	// Read-only, for the status bars' aura icons.
 	const AuraManager &aura_manager() const { return aura_mgr_; }
+	float attack_reach(size_t i) const; // Attack MaxRange with MaxRange auras (Boiorix's High Ground)
 private:
 	void apply_health_auras(); // Health/Max auras: rescale max_hp and hp as units enter or leave them
 	float structure_max_capture(const Building &b) const; // Capturable/CapturePoints with its owner's modifiers and auras
@@ -2794,7 +2797,6 @@ private:
 	float unit_base_vision(size_t i) const; // the template's Vision/Range x0.28 (class default if none)
 	float unit_vision_at(size_t i) const; // Vision/Range with Vision auras (0 A.D. Vision.js)
 	float structure_decay_rate(const Building &b) const; // TerritoryDecay/DecayRate with the owner's techs
-	float attack_reach(size_t i) const; // Attack MaxRange with MaxRange auras (Boiorix's High Ground)
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0, uint8_t splash = 0);
 	static float projectile_speed(uint8_t visual);

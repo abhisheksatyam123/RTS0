@@ -178,6 +178,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_toggle_session_dialog", "name"), &RtsoMain::_toggle_session_dialog);
 	ClassDB::bind_method(D_METHOD("get_target_marker_count"), &RtsoMain::get_target_marker_count);
 	ClassDB::bind_method(D_METHOD("get_target_marker_actor_count"), &RtsoMain::get_target_marker_actor_count);
+	ClassDB::bind_method(D_METHOD("debug_range_rings"), &RtsoMain::debug_range_rings);
 	ClassDB::bind_method(D_METHOD("get_work_sound_count"), &RtsoMain::get_work_sound_count);
 	ClassDB::bind_method(D_METHOD("debug_gather_nearest"), &RtsoMain::debug_gather_nearest);
 	ClassDB::bind_method(D_METHOD("debug_trade_route_clicks"), &RtsoMain::debug_trade_route_clicks);
