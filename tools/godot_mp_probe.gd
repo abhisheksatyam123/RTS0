@@ -365,6 +365,8 @@ func _run() -> void:
 				main.toggle_chat()
 				_say("addressees=%s names=%s" % [str(dd.get("chat_addressees", "")).replace(" ", "_"), ",".join(dd.get("chat_names", []))])
 			_say("users=%s list=%s" % [users.get_string(1) if users else "-", users.get_string(2).replace(" ", "_") if users else "-"])
+			# Chat.js: the match's chat history starts empty, without the setup's lines.
+			_say("match_chat_carried=%s" % str(str(main.get_setup_chat().get("text", "")).contains("hello from bob")).to_lower())
 			st = main.get_lobby_state()
 			# 0.28 page_loading at "start": the networked Start loads under the loading page.
 			_say("start_loading=" + ",".join(load("res://scenes/menu/loading.gd").last_stages.map(func(x): return str(x[1]).replace(" ", "_"))))

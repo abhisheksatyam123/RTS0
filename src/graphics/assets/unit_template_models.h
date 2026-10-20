@@ -10,7 +10,7 @@
 namespace rtso {
 
 // The models roster templates draw with besides the civ class models.
-inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 428;
+inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 433;
 
 inline const char *unit_template_draw_model(int k) {
 	static const char *const kDraw[UNIT_TEMPLATE_DRAW_MODEL_COUNT] = {
@@ -442,6 +442,11 @@ inline const char *unit_template_draw_model(int k) {
 		"rome_champion_infantry_swordsman_03",
 		"rome_champion_infantry_swordsman_04",
 		"rome_champion_infantry_swordsman_05",
+		"merc_thorakites",
+		"merc_thureophoros",
+		"theb_sacred_band",
+		"thesp_melanochitones",
+		"plane",
 	};
 	return k >= 0 && k < UNIT_TEMPLATE_DRAW_MODEL_COUNT ? kDraw[k] : nullptr;
 }
@@ -952,10 +957,10 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		395, // samnite_spearman
 		381, // samnite_swordsman
 		396, // viking_longship
-		-1, // merc_thorakites (no model of its own: its owner civ's swordsman model)
-		-1, // merc_thureophoros (no model of its own: its owner civ's archer model)
-		-1, // theb_sacred_band (no model of its own: its owner civ's spearman model)
-		-1, // thesp_melanochitones (no model of its own: its owner civ's swordsman model)
+		428, // merc_thorakites
+		429, // merc_thureophoros
+		430, // theb_sacred_band
+		431, // thesp_melanochitones
 		411, // theb_siege_fireraiser
 		// The Marian legionary rows draw their c2-c5 actors (c2 is the Legionary's model; hand-added).
 		145, // rome/champion_infantry_swordsman_02
@@ -967,36 +972,36 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		424, // spart/hero_leonidas_300
 		-1, // pers/arstibara (no model of its own: its owner civ's spearman model)
 		-1, // han/siege_shoushe (no model of its own: its owner civ's bolt_shooter model)
-		-1, // athen/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		212, // athen/infantry_spearman_a
 		-1, // athen/support_healer_e (no model of its own: its owner civ's healer model)
-		-1, // spart/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		315, // spart/infantry_spearman_a
 		-1, // spart/support_healer_e (no model of its own: its owner civ's healer model)
-		-1, // pers/infantry_spearman_a (no model of its own: its owner civ's spearman model)
-		-1, // cart/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		279, // pers/infantry_spearman_a
+		341, // cart/infantry_spearman_a
 		-1, // cart/support_healer_e (no model of its own: its owner civ's healer model)
-		-1, // mace/infantry_pikeman_a (no model of its own: its owner civ's spearman model)
-		-1, // brit/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		252, // mace/infantry_pikeman_a
+		325, // brit/infantry_spearman_a
 		-1, // brit/support_healer_e (no model of its own: its owner civ's healer model)
-		-1, // gaul/infantry_spearman_a (no model of its own: its owner civ's spearman model)
-		-1, // iber/infantry_spearman_a (no model of its own: its owner civ's spearman model)
-		-1, // iber/infantry_swordsman_a (no model of its own: its owner civ's swordsman model)
+		355, // gaul/infantry_spearman_a
+		377, // iber/infantry_spearman_a
+		379, // iber/infantry_swordsman_a
 		-1, // iber/support_healer_e (no model of its own: its owner civ's healer model)
-		-1, // maur/infantry_spearman_a (no model of its own: its owner civ's spearman model)
-		-1, // maur/infantry_swordsman_a (no model of its own: its owner civ's swordsman model)
+		263, // maur/infantry_spearman_a
+		265, // maur/infantry_swordsman_a
 		-1, // maur/support_healer_e (no model of its own: its owner civ's healer model)
-		-1, // kush/infantry_pikeman_a (no model of its own: its owner civ's spearman model)
-		-1, // kush/infantry_spearman_a (no model of its own: its owner civ's spearman model)
-		-1, // kush/infantry_swordsman_a (no model of its own: its owner civ's swordsman model)
-		-1, // ptol/infantry_pikeman_a (no model of its own: its owner civ's spearman model)
-		-1, // sele/infantry_pikeman_a (no model of its own: its owner civ's spearman model)
-		-1, // sele/infantry_spearman_a (no model of its own: its owner civ's spearman model)
+		238, // kush/infantry_pikeman_a
+		240, // kush/infantry_spearman_a
+		242, // kush/infantry_swordsman_a
+		290, // ptol/infantry_pikeman_a
+		303, // sele/infantry_pikeman_a
+		305, // sele/infantry_spearman_a
 		-1, // sele/support_healer_e (no model of its own: its owner civ's healer model)
-		-1, // han/infantry_pikeman_a (no model of its own: its owner civ's spearman model)
-		-1, // han/infantry_spearman_a (no model of its own: its owner civ's spearman model)
-		-1, // germ/infantry_spearman_a (no model of its own: its owner civ's spearman model)
-		-1, // germ/infantry_swordsman_a (no model of its own: its owner civ's swordsman model)
-		-1, // germ/support_healer_e (no model of its own: its owner civ's healer model)
-		-1, // plane (no model of its own: its owner civ's bolt_shooter model)
+		224, // han/infantry_pikeman_a
+		226, // han/infantry_spearman_a
+		365, // germ/infantry_spearman_a
+		367, // germ/infantry_swordsman_a
+		370, // germ/support_healer_e
+		432, // plane (Flight Demo's P-51, units/global/plane.xml; hand-added)
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -1007,7 +1012,7 @@ struct UnitTemplateModel {
 	const char *clip_donor; // a mesh-only model plays this model's clips (same bones), or nullptr
 };
 
-inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 371;
+inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 375;
 
 inline const UnitTemplateModel *unit_template_models() {
 	static const UnitTemplateModel kTable[UNIT_TEMPLATE_MODEL_COUNT] = {
@@ -1233,6 +1238,8 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"maur_infantry_spearman_e", "maur_spearman", "maur_spearman"},
 		{"maur_infantry_swordsman_a", "maur_swordsman", nullptr},
 		{"maur_infantry_swordsman_e", "maur_swordsman", nullptr},
+		{"merc_thorakites", "swordsman", nullptr},
+		{"merc_thureophoros", "archer", nullptr},
 		{"noldor_warship", "trireme", nullptr},
 		{"pers_cavalry_archer_a", "pers_cavalry", nullptr},
 		{"pers_cavalry_archer_b", "pers_cavalry", "pers_cavalry"},
@@ -1380,7 +1387,9 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"spart_infantry_spearman_neodamodes", "spart_spearman", nullptr},
 		{"spart_ship_ram", "spart_trireme", nullptr},
 		{"spart_ship_scout", "spart_trireme", "spart_trireme"},
+		{"theb_sacred_band", "spearman", nullptr},
 		{"theb_siege_fireraiser", "bolt_shooter", nullptr},
+		{"thesp_melanochitones", "swordsman", nullptr},
 		{"viking_longship", "trireme", nullptr},
 	};
 	return kTable;
