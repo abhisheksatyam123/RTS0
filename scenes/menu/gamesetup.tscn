@@ -310,6 +310,18 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 6
 
+[node name="PlayerCountLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/PlayerTab"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Select number of players."
+mouse_filter = 1
+text = "Number of Players"
+
+[node name="PlayerCountSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/PlayerTab"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+
 [node name="PopCapTypeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/PlayerTab"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -516,10 +528,12 @@ layout_mode = 2
 
 [node name="SlotsLabel" type="Label" parent="VBox/HBox/Right/SlotsBox/SlotCountRow"]
 custom_minimum_size = Vector2(140, 0)
+visible = false
 layout_mode = 2
 text = "Players (1-8)"
 
 [node name="SpinSlots" type="SpinBox" parent="VBox/HBox/Right/SlotsBox/SlotCountRow"]
+visible = false
 layout_mode = 2
 size_flags_horizontal = 3
 min_value = 1.0
