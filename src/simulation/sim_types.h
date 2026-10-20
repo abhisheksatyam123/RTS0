@@ -3192,8 +3192,7 @@ inline bool civ_can_build(uint8_t civ, uint8_t type) {
 // Noba and Blemmye camps and the Carthaginian embassies.
 inline bool building_trains_native(uint8_t type) {
 	return type == BLD_SHRINE || type == BLD_CAMP_NOBA || type == BLD_CAMP_BLEMMYE ||
-	       type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC ||
-	       type == BLD_MERCENARY_CAMP;
+	       type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC;
 }
 
 // The civ whose roster `t` must come from to train at a `type` structure built by `bld_civ`
@@ -3201,9 +3200,10 @@ inline bool building_trains_native(uint8_t type) {
 // military colony and German encampments) list units/{native}/support_civilian, so a
 // captured one trains its builder's civilians (template_structure_civic_civil_centre.xml).
 inline uint8_t building_train_civ(uint8_t type, uint8_t bld_civ, uint8_t owner_civ, const CivUnitTemplate &t) {
-	// A Gaia mercenary camp (merc_camp_egyptian.xml) trains the holder's units/{civ}/..._merc_b, as
-	// 0.28; a player's own camp keeps its builder's mercenaries (building_trains_native).
-	if (building_trains_native(type) && !(type == BLD_MERCENARY_CAMP && bld_civ == CIV_GAIA)) return bld_civ;
+	// A mercenary camp lists units/{civ}/..._merc_b (ptol/mercenary_camp.xml, merc_camp_egyptian.xml):
+	// the holder's own mercenaries, so a Ptolemaic player's camp trains Ptolemaic ones and a
+	// captured camp, Gaia's or another player's, trains its captor's (0.28).
+	if (building_trains_native(type)) return bld_civ;
 	const bool civic = type == BLD_TOWN_CENTER || type == BLD_CRANNOG || type == BLD_IMPERIAL_COURT ||
 	                   type == BLD_MILITARY_COLONY || type == BLD_WAGON_ENCAMPMENT ||
 	                   type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
