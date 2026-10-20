@@ -30778,6 +30778,21 @@ void Simulation::petra_cancel_attacks_against(uint8_t player) {
 			plan.state = AttackPlan::ABORT;
 			plan.state_timer = 0.0f;
 		}
+	// cancelAttacksAgainstPlayer goes through every attack type, Raid included: a raid on the
+	// player is aborted, its riders sent home (attackPlan.js Abort) and then released.
+	AttackPlan &raid = petra_raid_plan_;
+	if (raid.state != AttackPlan::UNEXECUTED && raid.state != AttackPlan::ABORT && raid.state != AttackPlan::REGROUP) {
+		const auto it = building_id_to_idx_.find(raid.target_building_id);
+		if (it != building_id_to_idx_.end() && buildings_[it->second].team == player) {
+			raid.retreat_x = 36.0f;
+			raid.retreat_z = 36.0f;
+			if (const auto *home = get_primary_petra_base()) { raid.retreat_x = home->x; raid.retreat_z = home->z; }
+			raid.state = AttackPlan::REGROUP;
+			raid.state_timer = 0.0f;
+			raid.target_building_id = 0;
+			if (!raid.squad.empty()) petra_go_home(raid.squad, raid.retreat_x, raid.retreat_z, PETRA_TRANSPORT_RAID, true);
+		}
+	}
 }
 
 // diplomacyManager.js sendDiplomacyRequest: ask the player we share the most

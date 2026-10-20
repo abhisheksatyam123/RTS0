@@ -1493,6 +1493,27 @@ static void test_petra_diplomacy_counts() {
 	CHECK(s->petra_player_entities(0) == entities + 2, "and as entities");
 }
 
+// attackManager.js cancelAttacksAgainstPlayer covers raids: peace with the raided player
+// sends the riders home.
+static void test_petra_peace_ends_raid() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, p == 1);
+	s->petra_pid_ = 1;
+	uint32_t target = 0;
+	float x = 0.0f, z = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { target = b.id; x = b.x; z = b.z; }
+	Simulation::AttackPlan &raid = s->petra_raid_plan_;
+	raid.state = Simulation::AttackPlan::ATTACKED;
+	raid.target_building_id = target;
+	raid.squad.push_back(s->spawn_unit(x + 12.0f, z, 1, UNIT_CAVALRY));
+	s->petra_change_diplomacy(0, Simulation::DIPLO_NEUTRAL);
+	CHECK(raid.state == Simulation::AttackPlan::REGROUP && raid.target_building_id == 0, "a raid on the new neutral goes home");
+}
+
 // researchManager.js update returns while minorTech holds a plan: a pick waiting for its
 // resources stays queued until it is researched or can no longer be, never swapped for another.
 static void test_petra_minor_tech_kept() {
@@ -6494,6 +6515,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_research_order);
 	RUN(test_petra_minor_tech_kept);
 	RUN(test_petra_diplomacy_counts);
+	RUN(test_petra_peace_ends_raid);
 	RUN(test_petra_no_units);
 	RUN(test_market_prospection);
 	RUN(test_market_prospection_events);
