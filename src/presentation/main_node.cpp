@@ -2375,18 +2375,36 @@ void RtsoMain::set_follow_player(bool on) {
 }
 
 // messages.js "playercommand": with Follow Player on, each command the watched player
-// gives moves the camera to it and selects the units it ordered. Commands come from the
-// TurnManager, so these are the commands players gave; Petra's own orders are not
-// commands in RTS0 and only its attacks are followed.
+// gives moves the camera to it and selects the units it ordered. Players' commands come
+// from the TurnManager; Petra gives its orders in the simulation, which notes them
+// (AiCommandEvent), as 0.28's Petra posts commands like a player.
 void RtsoMain::follow_player_tick() {
 	const int view = followed_view();
 	for (CheckBox *box : {observer_follow_box_, replay_follow_box_})
 		if (box) box->set_visible(view >= 0);
 	const bool on = follow_player_ && view >= 0 && sim;
 	turn_mgr_.set_record_applied(on);
+	if (sim) sim->set_record_ai_commands(on);
 	if (!on) return;
 	for (const auto &a : turn_mgr_.take_applied_commands())
 		if ((int)a.player == view) follow_command(a.cmd);
+	using E = rtso::Simulation::AiCommandEvent;
+	using T = rtso::NetCommandType;
+	for (const auto &e : sim->take_ai_command_events()) {
+		if ((int)e.player != view) continue;
+		static constexpr T kType[] = {T::NET_CMD_MOVE, T::NET_CMD_ATTACK_MOVE, T::NET_CMD_PATROL, T::NET_CMD_GATHER,
+			T::NET_CMD_ATTACK, T::NET_CMD_BUILD_REPAIR, T::NET_CMD_GARRISON, T::NET_CMD_GUARD, T::NET_CMD_HEAL,
+			T::NET_CMD_RETURN_RESOURCE, T::NET_CMD_SETUP_TRADE_ROUTE, T::NET_CMD_STOP, T::NET_CMD_DELETE, T::NET_CMD_TRAIN,
+			T::NET_CMD_RESEARCH, T::NET_CMD_NONE};
+		static_assert(sizeof(kType) / sizeof(kType[0]) == E::OTHER + 1);
+		rtso::NetCommand c;
+		c.cmd_type = (uint8_t)kType[std::min<uint8_t>(e.kind, E::OTHER)];
+		c.entity_ids = e.ids;
+		c.target_id = e.target;
+		c.target_x = e.x;
+		c.target_z = e.z;
+		follow_command(c);
+	}
 }
 
 void RtsoMain::follow_command(const rtso::NetCommand &c) {
@@ -2407,6 +2425,9 @@ void RtsoMain::follow_command(const rtso::NetCommand &c) {
 		// Focus the commanded entities, but keep the focus when training.
 		follow_focus(c.entity_ids[0], false);
 	}
+	// DrawTargetMarker for "walk", "attack-walk" and "patrol".
+	if (type == NetCommandType::NET_CMD_MOVE || type == NetCommandType::NET_CMD_ATTACK_MOVE || type == NetCommandType::NET_CMD_PATROL)
+		range_overlays_.add_target_marker(c.target_x, c.target_z);
 	// Select the units the command affected, and its target.
 	if (type == NetCommandType::NET_CMD_RALLY) return;
 	clear_selection();
