@@ -143,6 +143,11 @@ func _run() -> void:
 	var saw_random := false
 	var saw_setup := false
 	var saw_observer := false
+	# A saved game's Start: the joiner loads under the loading page, never the
+	# rejoin box, and the host lists who is still loading.
+	var saw_rejoin_box := false
+	var saw_saved_loading := false
+	var saw_saved_wait := ""
 	while true:
 		if Time.get_ticks_msec() > deadline:
 			return _fail("timed out at turn %s" % (main.get_lobby_state().get("turn", -1) if main else -1))
@@ -155,6 +160,13 @@ func _run() -> void:
 		if main == null:
 			continue
 		var st: Dictionary = main.get_lobby_state()
+		var rbox = root.find_child("NetConnecting", true, false)
+		if rbox and str(rbox.text).contains("rejoining"):
+			saw_rejoin_box = true
+		if main.net_loading_hold() and root.get_node_or_null("Loading") != null:
+			saw_saved_loading = true
+		if saw_saved_wait == "" and str(st.get("net_status", "")).begins_with("Waiting for players to connect:"):
+			saw_saved_wait = str(st.get("net_status", "")).replace("\n", " ").replace(" ", "_")
 		if args.has("join_addr"):
 			# gamesetup_mp.js pageConnecting: the box over the screen while connecting.
 			var box = root.find_child("NetConnecting", true, false)
@@ -370,10 +382,11 @@ func _run() -> void:
 			st = main.get_lobby_state()
 			# 0.28 page_loading at "start": the networked Start loads under the loading page.
 			_say("start_loading=" + ",".join(load("res://scenes/menu/loading.gd").last_stages.map(func(x): return str(x[1]).replace(" ", "_"))))
-			_say("done turn=%d seat=%d hash=%08X speed=%s civ1=%d team1=%d color1=%d rejoined_lines=%d" % [turns, int(st.get("seat", -1)),
+			_say("done turn=%d seat=%d hash=%08X speed=%s civ1=%d team1=%d color1=%d rejoined_lines=%d rejoin_box=%s saved_loading=%s waiting=%s" % [turns, int(st.get("seat", -1)),
 					int(main.get_turn_hash(turns)), str(main.get_game_speed()), int(ms.slot_civs[1]),
 					int(ms.slot_teams[1]) if ms.slot_teams.size() > 1 else -1, int(ms.slot_colors[1]),
-					str(st.get("chat", "")).count("has rejoined the game.")])
+					str(st.get("chat", "")).count("has rejoined the game."), str(saw_rejoin_box).to_lower(),
+					str(saw_saved_loading).to_lower(), saw_saved_wait if saw_saved_wait != "" else "-"])
 			# PlayerName onFinalizeAttributes: the seated clients' names are the players' names.
 			_say("slot_names=" + "|".join(Array(ms.slot_names).slice(0, 2)))
 			# 0.28 PauseOverlay: the client sees "Paused by" the host's name in its colour.

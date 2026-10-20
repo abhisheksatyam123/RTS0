@@ -32,8 +32,9 @@ None of these touches simulation state or the save format.
 
 ## Fix log
 
-- 2026-10-20 #PR1 pass 12 gap 1 (a networked match from the menu shows no Lobby button in the top bar and no developer lobby panel for the host; the session menu's Lobby entry opens the lobby dialog, as 0.28's top panel and MenuButtons do) merged.
-- 2026-10-20 #PR1 pass 12 gap 2 (Host Saved Game while signed in lists the game with its name and password flag before the save picker, the match fills in map and players, and closing the picker takes it off the list, as LobbyGameRegistrationController does for any game) merged.
-- 2026-10-20 #PR1 pass 12 gap 5 (lobby presences in PlayerList.js colours, Offline and Unknown included) merged.
-- 2026-10-20 #PR1 pass 12 gap 6 (the lobby reconnect box is titled "Confirmation", as ConnectionHandler.js does) merged.
-- 2026-10-20 #PR1 (outside the table; Session UI saw it again after #1447) the lobby callback guard takes the callback's owner when the request is sent: once the owner is freed the lambda names no owner, which #1447's check read as "no owner, call it".
+- 2026-10-20 #1492 pass 12 gap 1 (a networked match from the menu shows no Lobby button in the top bar and no developer lobby panel for the host; the session menu's Lobby entry opens the lobby dialog, as 0.28's top panel and MenuButtons do) merged.
+- 2026-10-20 #1492 pass 12 gap 2 (Host Saved Game while signed in lists the game with its name and password flag before the save picker, the match fills in map and players, and closing the picker takes it off the list, as LobbyGameRegistrationController does for any game) merged.
+- 2026-10-20 #1492 pass 12 gap 5 (lobby presences in PlayerList.js colours, Offline and Unknown included) merged.
+- 2026-10-20 #1492 pass 12 gap 6 (the lobby reconnect box is titled "Confirmation", as ConnectionHandler.js does) merged.
+- 2026-10-20 #1492 (outside the table; Session UI saw it again after #1447) the lobby callback guard takes the callback's owner when the request is sent: once the owner is freed the lambda names no owner, which #1447's check read as "no owner, call it".
+- 2026-10-20 #PR2 pass 12 gap 4 (a client sees the "Loading" box, "Loading map data. Please wait…", in place of the setup page until the host's first setup arrives, as the setup's LoadingPage does), and gap 3 (a saved game's clients load under the loading page, never the rejoin box; the host lists the clients still loading as "Waiting for players to connect:"; the old 2-minute cutoff is gone, as 0.28 waits for everyone) merged.

@@ -74,7 +74,7 @@ void RtsoMain::debug_gather_nearest() {
 }
 
 // Test hook (single player): two markets and two traders by the local Town
-// Center, the traders selected, then the two right-clicks of setup-trade-route.
+// Center, the traders selected (debug_trade_click right-clicks a market).
 Dictionary RtsoMain::debug_trade_route_clicks() {
 	Dictionary d;
 	if (!sim || net_lockstep()) return d;
@@ -93,20 +93,18 @@ Dictionary RtsoMain::debug_trade_route_clicks() {
 		if (b.id == m2) b2 = &b;
 	}
 	if (!b1 || !b2) return d;
-	String tip;
-	const char *cur = nullptr;
-	trade_route_click(*b1, false, false, &tip);
-	d["hover_first"] = tip;
-	d["first"] = trade_route_click(*b1, true, false, nullptr);
-	trade_route_click(*b1, false, false, &tip, &cur);
-	d["hover_origin"] = tip;
-	d["origin_cursor"] = String(cur);
-	trade_route_click(*b2, false, false, &tip);
-	d["hover_second"] = tip;
-	d["second"] = trade_route_click(*b2, true, false, nullptr);
-	d["origin_after"] = (int)trade_origin_market_;
 	d["m1"] = (int64_t)m1;
 	d["m2"] = (int64_t)m2;
+	return d;
+}
+
+// Test hook: a right-click on market `market` with the selection (Shift when `queued`), through
+// lockstep as a player's click goes.
+Dictionary RtsoMain::debug_trade_click(int64_t market, bool queued) {
+	Dictionary d;
+	if (!sim) return d;
+	for (const auto &b : sim->buildings())
+		if (b.id == (uint32_t)market) d["ok"] = trade_route_click(b, true, queued, nullptr);
 	return d;
 }
 
@@ -121,6 +119,11 @@ Dictionary RtsoMain::debug_trade_tip(int64_t market) {
 			d["ok"] = trade_route_click(b, false, false, &tip, &cur);
 			d["tip"] = tip;
 			d["cursor"] = String(cur ? cur : "");
+			uint32_t ma = 0, mb = 0;
+			int leg = 0;
+			if (!selected_ids.is_empty()) sim->trader_route((uint32_t)(int64_t)selected_ids[0], ma, mb, leg);
+			d["market_a"] = (int64_t)ma;
+			d["market_b"] = (int64_t)mb;
 		}
 	return d;
 }
