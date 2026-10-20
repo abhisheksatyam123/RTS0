@@ -3349,6 +3349,56 @@ static void test_all_attackers_cheer() {
 	check(act_of(s, bolt) == ACTION_CHEER, "an idle bolt shooter nearby cheers too");
 }
 
+static void test_defensive_held_position() {
+	std::printf("94. a defensive unit holds its walk or attack-walk destination, not its work, and walks back there after a given-up chase (heldPosition)\n");
+	{
+		// Attack-walk: a target near the route but far from the destination is given up at the
+		// chase timer, and WalkToHeldPosition turns the attack-walk into a plain walk.
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+		s.order_set_stance(&a, 1, STANCE_DEFENSIVE);
+		uint32_t w = s.spawn_unit(6, 7, 1, UNIT_FEMALE_CITIZEN);
+		s.order_set_stance(&w, 1, STANCE_STAND_GROUND);
+		s.order_walk(&w, 1, -20, 60); // she walks off, so catching her takes a while
+		s.order_attack_move(&a, 1, 60, 0);
+		check(run_until(s, 5.0f, [&] { return act_of(s, a) == ACTION_ATTACK; }), "the attack-walker goes for the woman");
+		check(run_until(s, 4.0f, [&] { return s.unit_order(a).kind == ORDER_WALK; }),
+				"gives her up, so far from its destination, and walks on");
+		check(!(s.unit_order(a).flags & ORDER_FLAG_FORCE) && !s.unit_order_queue(a), "an unforced walk that replaced the attack-walk");
+		run(s, 20.0f);
+		check(dist(s, a, 60, 0) < 3.0f && alive(s, w), "it ends at the destination, the woman untouched");
+	}
+	{
+		// Gathering keeps the held position where the last walk ended. An unforced gather (a
+		// rally point's or Back to Work's) answers attacks; a player's own is forced.
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+		s.order_set_stance(&a, 1, STANCE_DEFENSIVE);
+		const uint32_t tree = s.spawn_resource_world(30, 0, RES_WOOD, 5000);
+		s.order_gather(&a, 1, tree, false, false);
+		check(run_until(s, 15.0f, [&] { return act_of(s, a) == ACTION_GATHER && s.units().carry[idx_of(s, a)] > 0; }),
+				"the spearman cuts the tree");
+		uint32_t c = s.spawn_unit(32, 2, 1, UNIT_CAVALRY, 5000.0f);
+		s.order_set_stance(&c, 1, STANCE_PASSIVE);
+		const int ai = idx_of(s, a);
+		s.units_.attacked_by[ai] = c;
+		s.respond_to_attack((size_t)ai);
+		check(act_of(s, a) == ACTION_GATHER, "an attacker at the tree, far from where its last walk ended, is ignored");
+		s.order_walk(&a, 1, 27, 0);
+		s.order_gather(&a, 1, tree, true, false);
+		check(run_until(s, 10.0f, [&] { return act_of(s, a) == ACTION_GATHER; }), "walked to the tree's side, it cuts again");
+		s.units_.attacked_by[idx_of(s, a)] = c;
+		s.respond_to_attack((size_t)idx_of(s, a));
+		check(act_of(s, a) == ACTION_ATTACK, "now it answers");
+		s.order_walk(&c, 1, 80, 0); // the rider makes off
+		check(run_until(s, 10.0f, [&] { return s.unit_order(a).kind == ORDER_WALK; }), "it gives up the chase");
+		run(s, 15.0f);
+		check(dist(s, a, 27, 0) < 3.0f && s.unit_order(a).kind != ORDER_GATHER, "and walks back, its gathering dropped");
+	}
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3446,6 +3496,7 @@ int main(int argc, char **argv) {
 	test_status_tick_guards();
 	test_defeated_units_reset();
 	test_all_attackers_cheer();
+	test_defensive_held_position();
 	test_range_aura_not_self();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
