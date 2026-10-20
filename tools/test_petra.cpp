@@ -7047,6 +7047,52 @@ static void test_unit_stat_trainable_busy() {
 	cc->queue.clear();
 }
 
+static void test_workers_while_cc_on_emergency() {
+	// The civic centre training emergency units still decides the civilian; the workers'
+	// plan waits for it rather than turning into soldiers at the barracks.
+	int soldiers[2] = {0, 0}, civilians[2] = {0, 0};
+	for (int busy = 0; busy < 2; ++busy) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 1.0f);
+		s->petra_pid_ = 1;
+		Simulation::Building *cc = nullptr;
+		for (auto &b : s->buildings_)
+			if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
+		CHECK(cc != nullptr, "Petra has a civic centre");
+		if (!cc) return;
+		const float cx = cc->x, cz = cc->z;
+		const uint32_t cc_id = cc->id;
+		const uint32_t bar = s->spawn_building_world(cx + (cx > 0 ? -10.0f : 10.0f), cz, BLD_BARRACKS, 1, 1.0f);
+		for (int k = 0; k < 8; ++k) {
+			for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 5000.0f;
+			for (uint8_t q : {PETRA_Q_VILLAGER, PETRA_Q_CITIZEN_SOLDIER}) {
+				auto &a = s->petra_queues_.accounts[q];
+				a.food = a.wood = a.gold = a.stone = 5000.0f;
+			}
+			Simulation::Building &c = s->buildings_[s->building_id_to_idx_.at(cc_id)];
+			c.queue.clear();
+			s->buildings_[s->building_id_to_idx_.at(bar)].queue.clear();
+			c.has_rally_point = busy != 0;
+			c.rally_target_bld_id = busy ? cc_id : 0;
+			while (!s->petra_turn_mod(4, 0)) s->ticks_ += 4;
+			s->petra_train_more_workers();
+			for (const auto &b : s->buildings_)
+				for (const auto &o : b.queue)
+					if (o.petra_plan == PETRA_ORDER_WORKER)
+						(unit_gather_class(o.unit_type, o.tmpl) == GATHER_SUPPORT ? civilians : soldiers)[busy] += o.count;
+			s->ticks_ += 4;
+		}
+	}
+	std::printf("  worker orders, civic centre free: %d civilians %d soldiers; on emergency units: %d civilians %d soldiers\n",
+	            civilians[0], soldiers[0], civilians[1], soldiers[1]);
+	CHECK(civilians[0] > 0 && soldiers[0] == 0, "a free civic centre trains civilians as workers");
+	CHECK(soldiers[1] == 0, "a civic centre busy with emergency units doesn't make the workers soldiers");
+}
+
 static void test_emergency_units_captured_cc() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -7803,6 +7849,7 @@ int main(int argc, char **argv) {
 	RUN(test_emergency_units);
 	RUN(test_emergency_units_captured_cc);
 	RUN(test_unit_stat_trainable_busy);
+	RUN(test_workers_while_cc_on_emergency);
 	RUN(test_new_cc_defenders);
 	RUN(test_temple_wonder_save);
 	RUN(test_personality_draw);

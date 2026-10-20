@@ -3577,6 +3577,8 @@ private:
 	// Whether a finished building of ours trains some roster template of the class, busy or
 	// not (findTrainableUnits; trainMoreUnits drops a class without one from the plan).
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
+	// Whether a finished building of ours lists roster template `tmpl`, busy or not.
+	bool petra_has_trainer(uint16_t tmpl) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
 	void petra_update_capture_strength();

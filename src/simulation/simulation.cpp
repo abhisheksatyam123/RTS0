@@ -21189,13 +21189,19 @@ bool Simulation::petra_unit_stat_trainable(const PetraUnitStat &st) const {
 		if (!hero_wanted && (t.flags & ROSTER_HERO)) continue;
 		if ((t.flags & ROSTER_SIEGE_TOWER) || (c & TC_SIEGETOWER).any() || triggers_.template_disabled(tmpl)) continue;
 		if (!match_limit_allows(petra_pid_, tmpl, 1)) continue;
-		// gameState.findTrainableUnits: any finished building of ours whose Trainer list has
-		// it, however busy (a full queue, an emergency rally or an upgrade only delays it).
-		for (const auto &b : buildings_) {
-			if (b.team != petra_pid_ || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
-			if (building_trains_template(b.type, b.civ, players_[petra_pid_].civ, tmpl) && can_train_at(petra_pid_, t.unit_type, b.type, tmpl))
-				return true;
-		}
+		if (petra_has_trainer(tmpl)) return true;
+	}
+	return false;
+}
+
+bool Simulation::petra_has_trainer(uint16_t tmpl) const {
+	// gameState.findTrainableUnits: any finished building of ours whose Trainer list has
+	// it, however busy (a full queue, an emergency rally or an upgrade only delays it).
+	const uint8_t type = civ_unit_template(tmpl).unit_type;
+	for (const auto &b : buildings_) {
+		if (b.team != petra_pid_ || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
+		if (building_trains_template(b.type, b.civ, players_[petra_pid_].civ, tmpl) && can_train_at(petra_pid_, type, b.type, tmpl))
+			return true;
 	}
 	return false;
 }
@@ -21785,7 +21791,7 @@ int Simulation::petra_train_more_workers() {
 	for (uint16_t tmpl : civ_roster_ids(petra_ps().civ)) {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
 		if (!(t.flags & ROSTER_CIVILIAN) || t.phase > petra_ps().phase || triggers_.template_disabled(tmpl)) continue;
-		if (!petra_best_trainer(tmpl, t.unit_type, SIZE_MAX)) continue; // trainable here, queues full or not
+		if (!petra_has_trainer(tmpl)) continue; // trainable here, however busy the civic centre
 		float cost[RES_COUNT];
 		unit_train_cost(petra_pid_, tmpl, civ_template_unit_info(tmpl, t.unit_type), cost);
 		const float sum = cost[RES_FOOD] + cost[RES_WOOD] + cost[RES_GOLD] + cost[RES_STONE];
@@ -21840,6 +21846,8 @@ int Simulation::petra_train_more_workers() {
 			return shortfall;
 	}
 
+	// A civic centre busy with emergency units or an upgrade holds the civilians back (the
+	// plan waits in 0.28's queue for findTrainers); it doesn't turn them into soldiers.
 	if (civilian == CIV_UNIT_TEMPLATE_NONE) return shortfall;
 	petra_train_template(PETRA_Q_VILLAGER, petra_best_trainer(civilian, civ_unit_template(civilian).unit_type, PRODUCTION_QUEUE_MAX),
 	                     civilian, size, false, PETRA_ORDER_WORKER);
