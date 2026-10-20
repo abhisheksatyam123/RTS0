@@ -601,22 +601,27 @@ void RtsoMiniMapView::_draw() {
 
 	// 6. Draw Tactical Map Pings
 	// gui/session/minimap/MiniMap.xml flare_*: 6 s, fading in over 0.25 s and out over
-	// 0.5 s (smoothstep), 16 frames at 10.67 a second of an expanding ring 32 px in
-	// radius, a second ring from half way (flare_interleave). 0 A.D. draws the frames
-	// from art/textures/animated/minimap-flare, which RTS0 does not have: a drawn ring
-	// grows the same way.
+	// 0.5 s (smoothstep), the 16 frames of art/textures/animated/minimap-flare at 10.67
+	// a second, 32 px each side of the flare, tinted by the sender's colour, a second
+	// one from half way (flare_interleave); CMiniMap::DrawFlare.
 	const uint64_t now_ms = Time::get_singleton()->get_ticks_msec();
 	auto smooth = [](float x) { x = Math::clamp(x, 0.0f, 1.0f); return x * x * (3.0f - 2.0f * x); };
+	if (!pings.empty() && flare_tex_[0].is_null())
+		for (int f = 0; f < kFlareFrames; ++f)
+			flare_tex_[f] = ResourceLoader::get_singleton()->load(
+					vformat("res://assets/textures/animated/minimap-flare/frame%02d.png", f));
 	for (const auto &p : pings) {
 		const float t = (float)(now_ms - p.start_ms) / 1000.0f;
 		const float alpha = std::min(smooth(t / 0.25f), smooth((kFlareLifetimeMs / 1000.0f - t) / 0.5f));
 		const int step = (int)std::floor(t * 10.67f);
-		auto ring = [&](int frame) {
-			const float k = (float)(frame % 16 + 1) / 16.0f;
-			draw_arc(p.mini_pos, 32.0f * k, 0.0f, 6.2831853f, 24, Color(p.color.r, p.color.g, p.color.b, alpha * (1.0f - 0.6f * k)), 2.0f);
+		auto frame = [&](int f) {
+			const Ref<Texture2D> &tex = flare_tex_[f % kFlareFrames];
+			if (tex.is_valid())
+				draw_texture_rect(tex, Rect2(p.mini_pos - Vector2(32.0f, 32.0f), Vector2(64.0f, 64.0f)), false,
+						Color(p.color.r, p.color.g, p.color.b, p.color.a * alpha));
 		};
-		ring(step);
-		if (step >= 8) ring(step - 8);
+		frame(step);
+		if (step >= kFlareFrames / 2) frame(step - kFlareFrames / 2);
 	}
 
 	// 7. Draw Camera Viewport Frustum Box
