@@ -160,6 +160,8 @@ func _ready() -> void:
 
 	$CivSwitcher.pressed.connect(_cycle_background)
 
+	if preload("res://scenes/menu/user_settings.gd").version_requested(OS.get_cmdline_args() + OS.get_cmdline_user_args()):
+		return
 	# 0 A.D.'s -autostart command line starts the match without the menus.
 	if preload("res://scenes/menu/autostart.gd").run(get_node_or_null("/root/MatchSettings")):
 		return
