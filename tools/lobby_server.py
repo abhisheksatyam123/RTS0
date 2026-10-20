@@ -109,6 +109,8 @@ TIMEOUT = 30.0          # seconds without a request before a player or game is d
 CHAT_KEEP = 200         # chat lines kept for late arrivals
 MAX_NAME = 32
 MAX_TEXT = 500
+# 0.28 lobby ChatPanel.xml: the chat input takes at most 1024 characters.
+MAX_CHAT = 1024
 STATUSES = ("available", "away", "playing")
 ROOM_STATES = ("init", "running")
 PUNCH_KEEP = 16         # joiner endpoints kept per game
@@ -725,7 +727,7 @@ class Lobby:
             return self.not_signed_in(token)
         if p["name"].lower() in self.muted:
             return 403, {"error": "You have been muted."}
-        text = str(text or "").strip()[:MAX_TEXT]
+        text = str(text or "").strip()[:MAX_CHAT]
         if not text:
             return 400, {"error": "empty message"}
         self._say(p["name"], text)
