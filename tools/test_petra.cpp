@@ -4215,6 +4215,39 @@ static void test_builders_per_foundation() {
 	CHECK(on(house) == 3, "a house foundation takes 3 builders");
 }
 
+// basesManager.js bulkPickWorkers: with a base standing, a new civic centre's foundation
+// takes 10 workers, and the standing base keeps 3 (baseManager.js pickBuilders).
+static void test_new_base_builders() {
+	for (int extra : {30, 8}) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 20.0f);
+		s->set_player_resources(1, 5000, 5000, 5000, 5000);
+		const Simulation::Building *cc = nullptr;
+		for (const auto &b : s->buildings_)
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+		CHECK(cc != nullptr, "Petra has a civic centre");
+		if (!cc) return;
+		const float cx = cc->x, cz = cc->z;
+		if (extra == 8)
+			for (size_t i = 0; i < s->units_.count; ++i)
+				if (s->units_.alive[i] && s->units_.team[i] == 1) s->units_.alive[i] = 0;
+		for (int k = 0; k < extra; ++k) s->spawn_unit(cx - 8.0f + (float)(k % 6), cz + 8.0f + (float)(k / 6), 1, UNIT_FEMALE_CITIZEN);
+		const float ang = std::atan2(-cz, -cx);
+		const uint32_t anchor = s->spawn_building_world(cx + std::cos(ang) * 36.0f, cz + std::sin(ang) * 36.0f, BLD_TOWN_CENTER, 1, 0.0f);
+		run_for(*s, 3.0f);
+		int n = 0;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.target_building_id[i] == anchor) ++n;
+		std::printf("  new base with %d more women: %d builders on the civic centre\n", extra, n);
+		if (extra == 30) CHECK(n == 10, "a new civic centre takes 10 workers");
+		else CHECK(n == 5, "the standing base keeps 3 workers");
+	}
+}
+
 // baseManager.js assignToFoundations: while a new base's civic centre is a foundation, only it
 // is built (its storehouse waits); isNotWorthBuilding: a house on land we don't hold gets no
 // builders; update: a civic centre foundation within 8000 m² of a foe's is destroyed.
@@ -6538,6 +6571,7 @@ int main(int argc, char **argv) {
 	RUN(test_assign_bombers);
 	RUN(test_cancel_attacks_on_peace);
 	RUN(test_builders_per_foundation);
+	RUN(test_new_base_builders);
 	RUN(test_petra_constructing_base);
 	RUN(test_petra_wood_poor_corral);
 	RUN(test_petra_sandbox_first_storehouse);
