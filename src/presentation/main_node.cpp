@@ -269,8 +269,10 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 		{"TARDIS", S::CHEAT_CHANGE_MAX_POPULATION, 0, "", false},
 		{"i am too busy", S::CHEAT_FAST_ACTIONS, 0, "", false},
 	};
-	const uint8_t me = local_player();
-	if (!sim || !sim->cheats_enabled() || me >= rtso::MAX_PLAYERS || sim->is_defeated(me)) return false;
+	// Cheats.executeCheat: controlsPlayer(Engine.GetPlayerID()), the own seat, not a viewed player.
+	const uint8_t me = seat_player();
+	if (!sim || turn_mgr_.is_replaying() || !sim->cheats_enabled() || me >= rtso::MAX_PLAYERS || sim->is_defeated(me))
+		return false;
 	const CheatCode *cheat = nullptr;
 	for (const CheatCode &c : kCheats)
 		if (text.begins_with(c.name)) { cheat = &c; break; }
@@ -534,7 +536,7 @@ void RtsoMain::show_trigger_dialogs(const std::vector<rtso::Simulation::TriggerD
 	// messages.js "dialog": a message box with the two buttons, for the players it names.
 	// Its "dialog-answer" command only reaches a script's OnPlayerCommand, which no
 	// ported script reads, so the answer just closes it.
-	const uint8_t me = local_player();
+	const uint8_t me = seat_player(); // messages.js: player == Engine.GetPlayerID(), not the viewed one
 	if (!sim || turn_mgr_.is_replaying() || me >= rtso::MAX_PLAYERS) return;
 	for (const auto &d : dialogs) {
 		if (!((d.players >> me) & 1u)) continue;
