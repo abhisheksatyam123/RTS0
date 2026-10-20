@@ -90,6 +90,7 @@ static func open_dialog(tree: SceneTree) -> Node:
 	var layer := CanvasLayer.new()
 	layer.name = "LobbyDialog"
 	layer.layer = 40
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS # over a paused match or its summary too
 	var lobby: Control = load("res://scenes/menu/lobby.tscn").instantiate()
 	lobby.dialog = true
 	lobby.closed.connect(layer.queue_free)
