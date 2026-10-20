@@ -338,7 +338,16 @@ void RtsoMain::tick_quit_confirmation() {
 	const uint8_t me = own_seat();
 	if (finished_asked_ || !sim || turn_mgr_.is_replaying() || me >= rtso::MAX_PLAYERS) return;
 	const bool won = sim->is_victory_for(me);
-	if (!won && !sim->is_defeated(me)) return;
+	if (!won && !sim->is_defeated(me)) {
+		seat_was_playing_ = true;
+		return;
+	}
+	// The box answers the won/defeat notification (messages.js playersFinished),
+	// so a player who rejoins after their game ended is not asked again.
+	if (!seat_was_playing_) {
+		finished_asked_ = true;
+		return;
+	}
 	finished_asked_ = true;
 	write_replay(); // the player's game is over: keep its replay as it stands
 	bool ask_exit = net_host_.getRole() != rtso::NetRole::Host;
