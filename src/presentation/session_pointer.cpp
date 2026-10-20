@@ -399,7 +399,9 @@ void RtsoMain::update_cursor() {
 // (`with_props` false): RTS0 draws no highlight for them.
 uint32_t RtsoMain::entity_under_mouse(Vector2 mouse, bool with_props) const {
 	if (!sim) return 0;
-	const size_t u = own_unit_under_mouse(mouse, true);
+	// A unit's own body (about its selection box), not the generous reach a left click
+	// selects with: a woman at a tree doesn't hide the tree.
+	const size_t u = own_unit_under_mouse(mouse, true, 0.6f);
 	if (u != (size_t)-1) return sim->units().id[u];
 	if (const uint32_t bid = building_under_mouse(mouse, nullptr, true); bid != 0) return bid;
 	const Vector3 at = get_ground_click_pos(mouse);

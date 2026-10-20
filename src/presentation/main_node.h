@@ -767,7 +767,7 @@ public:
 	void debug_set_observer_view(int player) { set_observer_view(player); } // tests: an observer follows a player (-1: none)
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr, bool any_player = false) const;
-	size_t own_unit_under_mouse(Vector2 mouse_pos, bool any_player = false) const;
+	size_t own_unit_under_mouse(Vector2 mouse_pos, bool any_player = false, float radius = 2.0f) const;
 	uint32_t entity_under_mouse(Vector2 mouse, bool with_props = true) const; // Engine.PickEntityAtPoint
 	std::vector<int32_t> band_box_ids(Vector2 a, Vector2 b) const;
 	// input.js INPUT_UNIT_POSITION: a right press with units selected, and the ground line

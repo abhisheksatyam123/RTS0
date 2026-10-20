@@ -1785,7 +1785,7 @@ std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
 // The local player's unit nearest the ground point under the mouse (within 2 units), or
 // SIZE_MAX; a structure the ray reaches first hides the units behind it. With
 // `any_player`, any unit the viewed player sees (Engine.PickEntityAtPoint).
-size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player) const {
+size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player, float radius) const {
 	if (!sim) return (size_t)-1;
 	const Vector3 click_pos = get_ground_click_pos(mouse_pos);
 	auto uview = sim->units();
@@ -1795,7 +1795,7 @@ size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player) const 
 	const Vector3 ray_o = pick_cam ? pick_cam->project_ray_origin(mouse_pos) : Vector3();
 	const Vector3 ray_d = pick_cam ? pick_cam->project_ray_normal(mouse_pos) : Vector3();
 	size_t best_uidx = (size_t)-1;
-	float best_ud2 = 2.0f * 2.0f;
+	float best_ud2 = radius * radius;
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!uview.alive[i]) continue;
 		// Distance first: it rules out nearly every unit before the costlier checks.
