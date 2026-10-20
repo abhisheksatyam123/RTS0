@@ -11923,6 +11923,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	// does (gamesettings pickRandomItems), drawn apart from the map's own stream.
 	uint8_t team_placement = config.team_placement;
 	t_team_placement = {};
+	sim.set_played_team_placement(TEAM_PLACEMENT_RANDOM);
 	if (const uint8_t offered = map_team_placements(config.map_type)) {
 		if (team_placement >= TEAM_PLACEMENT_COUNT || !((offered >> team_placement) & 1)) {
 			RmsRng pick((config.seed ? config.seed : 1337) ^ 0x7EA3B1A5u);
@@ -11930,6 +11931,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			for (uint8_t t = 0; t < TEAM_PLACEMENT_COUNT; ++t)
 				if (((offered >> t) & 1) && k-- == 0) { team_placement = t; break; }
 		}
+		sim.set_played_team_placement(team_placement); // the pattern in play, for Match Settings and the summary
 		t_team_placement.pattern = team_placement == TEAM_PLACEMENT_RADIAL ? -1 : placement_pattern(team_placement, 0);
 		std::copy(std::begin(config.teams), std::end(config.teams), t_team_placement.teams);
 	}

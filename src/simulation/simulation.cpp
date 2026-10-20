@@ -570,6 +570,7 @@ int Simulation::terrain_tile_at(float x, float z) const {
 
 void Simulation::reset() {
 	territory_regions_dirty_ = true;
+	played_team_placement_ = TEAM_PLACEMENT_RANDOM; // a scenario or skirmish map has none
 	petra_decay_events_.clear();
 	petra_attack_requests_.clear();
 	petra_ev_attacked_.clear();
@@ -4314,6 +4315,11 @@ void Simulation::finish_upgrade(Building &b) {
 	const BuildingTypeInfo &ninfo = building_type_info(to);
 	const float health_level = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
 	b.type = to;
+	// ChangeEntityTemplate makes a new entity: no rally point, and a fresh queue with
+	// autoqueue off (Transform.js copies position, health, capture points and garrison only).
+	b.has_rally_point = false;
+	b.rally_more.clear();
+	b.autoqueue = false;
 	b.max_hp = structure_max_hp(to, b.team);
 	b.aura_hp_mult = 1.0f; // the next aura pass applies the new structure's own
 	b.hp = b.max_hp * health_level;
@@ -21845,7 +21851,8 @@ int Simulation::petra_find_market_location(float &out_x, float &out_z, int &out_
 				const float px = wx + a[0] * inside, pz = wz + a[1] * inside;
 				if (std::abs(px) > map_half_ || std::abs(pz) > map_half_) continue; // outside the map
 				if (past_map_edge(px, pz)) continue; // off the map's world (mapMask.outside)
-				if (territory_owner_at(px, pz) != petra_pid_) { frontier = true; break; }
+				const int owner = territory_owner_at(px, pz);
+				if (owner != petra_pid_ && !(!last_man_standing() && owner >= 0 && is_ally(petra_pid_, (uint8_t)owner))) { frontier = true; break; }
 			}
 			if (frontier) continue;
 			const int cx = (int)std::floor((wx - half) / GRID), cz = (int)std::floor((wz - half) / GRID);
@@ -23459,10 +23466,12 @@ void Simulation::petra_manage_buildings(float dt) {
 		int n_barracks = 0, n_ranges = 0, n_stables = 0, n_village = 0;
 		for (const auto &b : buildings_) {
 			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
-			n_barracks += b.type == BLD_BARRACKS;
+			// The Barracks class takes in han/academy and ptol/mercenary_camp (both children of
+			// template_structure_military_barracks); "Village" is the visible class.
+			n_barracks += b.type == BLD_BARRACKS || b.type == BLD_ACADEMY || (b.type == BLD_MERCENARY_CAMP && b.civ == CIV_PTOLEMIES);
 			n_ranges += b.type == BLD_RANGE;
 			n_stables += b.type == BLD_STABLE;
-			if (building_required_phase(b.type) <= 1) ++n_village;
+			if (building_phase_class(b.type, b.civ) == 1) ++n_village;
 		}
 		const int pop = petra_accounted_population();
 		const bool phasing_town = petra_ps().phase == 1 && petra_phasing();
@@ -23624,7 +23633,7 @@ bool Simulation::petra_is_worker(size_t i) const {
 	return !std::binary_search(army.begin(), army.end(), units_.id[i]);
 }
 
-int Simulation::petra_accounted_workers() const {
+int Simulation::petra_accounted_workers(bool queued) const {
 	// headquarters.js getAccountedWorkers: every unit with the Worker role, the citizen soldiers an
 	// attack plan trains included until it sets off (they take the Attack role then), plus the
 	// worker-role units in training queues.
@@ -23646,6 +23655,7 @@ int Simulation::petra_accounted_workers() const {
 			++workers;
 	}
 	for (const Building &b : buildings_) {
+		if (!queued) break;
 		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
 		for (const ProductionOrder &o : b.queue) {
 			if (o.is_tech() || o.unit_type >= UNIT_TYPE_COUNT) continue;
@@ -23955,6 +23965,17 @@ void Simulation::petra_build_farmstead() {
 
 // A base anchor for Petra (baseManager.js anchors: class CivCentre, which in 0 A.D. includes
 // the Ptolemaic and Seleucid military colony).
+// The Temple class: template_structure_civic_temple's children (shrines, the Temples of
+// Amun, Isis, Mars and Vesta), foundations included.
+bool Simulation::petra_has_temple_class() const {
+	for (const auto &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked &&
+		    ((building_tech_classes(b.type) & TC_TEMPLE) || b.type == BLD_TEMPLE_AMUN ||
+		     b.type == BLD_TEMPLE_VESTA || b.type == BLD_TEMPLE_MARS))
+			return true;
+	return false;
+}
+
 static inline bool petra_base_anchor_type(uint8_t type) {
 	return is_civic_centre(type) || type == BLD_MILITARY_COLONY;
 }
@@ -24348,10 +24369,11 @@ bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &
 	static const float kAround[8][2] = {{-0.7f, 0.7f}, {0, 1}, {0.7f, 0.7f}, {1, 0}, {0.7f, -0.7f}, {0, -1}, {-0.7f, -0.7f}, {-1, 0}};
 	const uint8_t mine = (uint8_t)(petra_pid_ + 1);
 	const bool cost_ok = territory_cost_.w == territory_grid_.w && territory_cost_.h == territory_grid_.h;
+	const bool allied_victory = !last_man_standing(); // an ally's land is ours only then (headquarters.js:2014)
 	auto other = [&](int x, int z) { // territory that is neither ours nor an ally's, on the map
 		if (cost_ok && territory_cost_.at(x, z) == TERRITORY_OFF_WORLD_COST) return false; // mapMask.outside
 		const uint8_t v = territory_grid_.at(x, z);
-		return v != mine && !(v != 0 && is_ally(petra_pid_, (uint8_t)(v - 1)));
+		return v != mine && !(allied_victory && v != 0 && is_ally(petra_pid_, (uint8_t)(v - 1)));
 	};
 	const float enemy_cut = 80.0f / 4.0f, own_cut = 30.0f / 4.0f, army_cut = std::sqrt(12000.0f) / 4.0f;
 	float best = std::numeric_limits<float>::max();
@@ -24475,7 +24497,7 @@ void Simulation::petra_build_defenses() {
 		if (is_defense_tower(b.type) || b.type == BLD_SENTRY_TOWER) { ++n_towers; n_tower_fnd += fnd; }
 		if (b.type == BLD_WALL_TOWER) ++n_towers;
 		if (is_defense_tower(b.type)) ++n_stone;
-		if (is_civic_centre(b.type) && !fnd) ++n_bases; // numActiveBases: bases with a civic centre
+		if (petra_base_anchor_type(b.type) && !fnd) ++n_bases; // numActiveBases: built base anchors, colonies included
 	}
 	const float now = game_time();
 	const int diff = cfg.difficulty;
@@ -24739,7 +24761,7 @@ void Simulation::petra_manage_research(float dt) {
 			// "Town"); nothing when none is missing.
 			uint8_t t = BLD_TYPE_COUNT;
 			for (uint8_t k : kTown)
-				if (!have_building(k) && civ_can_build(petra_ps().civ, k)) { t = k; break; }
+				if (!(k == BLD_TEMPLE ? petra_has_temple_class() : have_building(k)) && civ_can_build(petra_ps().civ, k)) { t = k; break; }
 			if (t == BLD_TYPE_COUNT) return;
 			const uint8_t q = phase_up(t == BLD_FORGE ? PETRA_Q_MILITARY_BUILDING : PETRA_Q_ECONOMIC_BUILDING);
 			if (t == BLD_MARKET) petra_build_market(home->x, home->z, q);
@@ -24748,7 +24770,7 @@ void Simulation::petra_manage_research(float dt) {
 	};
 
 	const int pop = pop_current(petra_pid_);
-	const int workers = petra_accounted_workers();
+	const int workers = petra_accounted_workers(false); // getOwnEntitiesByRole(WORKER): trained units only (researchManager.js:85)
 
 	// headquarters.js update, from the town phase: buildMarket at once, then buildForge once
 	// the accounted population reaches Military.popForForge (65, scaled as config.js does:
@@ -24783,14 +24805,7 @@ void Simulation::petra_manage_research(float dt) {
 		}
 		// buildTemple (not while saving resources): one temple, after a market, from the city
 		// phase (the town phase in regicide, for healer guards); Rome's is the Temple of Vesta.
-		// The Temple class: template_structure_civic_temple's children (shrines, the Temples of
-		// Amun, Isis, Mars and Vesta), foundations included.
-		bool have_temple = false;
-		for (const auto &b : buildings_)
-			have_temple |= b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked &&
-			               ((building_tech_classes(b.type) & TC_TEMPLE) || b.type == BLD_TEMPLE_AMUN ||
-			                b.type == BLD_TEMPLE_VESTA || b.type == BLD_TEMPLE_MARS);
-		if (!saving && have_building(BLD_MARKET) && !have_temple &&
+		if (!saving && have_building(BLD_MARKET) && !petra_has_temple_class() &&
 		    (petra_ps().phase >= 3 || has_victory(VK_REGICIDE))) {
 			if (can_build(BLD_TEMPLE_VESTA)) petra_place_generic(BLD_TEMPLE_VESTA, PETRA_Q_ECONOMIC_BUILDING);
 			else if (can_build(BLD_TEMPLE)) petra_place_generic(BLD_TEMPLE, PETRA_Q_ECONOMIC_BUILDING);
@@ -28320,7 +28335,8 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 	for (const Building &b : buildings_) {
 		if (house && petra_require_houses_) break; // requireHouses: houses anywhere they fit
 		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
-		const bool wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER || b.type == BLD_PALISADE || b.type == BLD_SIEGE_WALL;
+		// The Wall class: palisades are class Palisade, so ["Gate", "!Wall"] takes them in.
+		const bool wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER || b.type == BLD_SIEGE_WALL;
 		if (petra_food_dropsite(b.type)) influence(b.x, b.z, 80.0f, field ? 50.0f : -20.0f);
 		else if (house) {
 			// Close to other houses, further away from other stuff (["Gate", "!Wall"]: gates count).
@@ -33798,8 +33814,8 @@ void Simulation::tick_fauna(float dt) {
 				eject_corral_animals(buildings_[bit->second]); // GarrisonHolder EjectHealth 0.5
 			} else {
 				const auto &corral = buildings_[bit->second];
-				// GarrisonHolder/BuffHeal: 1 hp a second.
-				fauna_.hp[i] = std::min(fauna_.max_hp[i], fauna_.hp[i] + building_garrison_heal(corral.type) * dt);
+				// GarrisonHolder/BuffHeal: 1 hp a second, plus garrison_heal (Structure !CivilCentre !Outpost !Wall).
+				fauna_.hp[i] = std::min(fauna_.max_hp[i], fauna_.hp[i] + structure_garrison_heal(corral) * dt);
 
 				float cdx = fx - corral.x;
 				float cdz = fz - corral.z;
