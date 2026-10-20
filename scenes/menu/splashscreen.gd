@@ -114,7 +114,7 @@ func _ready() -> void:
 	forum.text = L10n.t("Official Forum (web)")
 	forum.position = Vector2(305, 405)
 	forum.size = Vector2(277, 28)
-	forum.pressed.connect(func(): OS.shell_open(FORUM_URL))
+	forum.pressed.connect(func(): load("res://scenes/common/msgbox.gd").open_url(self, FORUM_URL))
 	panel.add_child(forum)
 
 ## splashscreen.js closePage.

@@ -2,7 +2,9 @@ extends SceneTree
 # 0.28's placement tooltip (input.js updateBuildingPlacementPreview, placementTooltip;
 # BuildRestrictions.js CheckPlacement messages) beside the cursor while placing:
 #   1. a House over the Civic Center: "cannot be built on another building or resource";
-#   2. a House out of its territory: "cannot be built in neutral territory. Valid territories: own";
+#   2. a House on unexplored land: "cannot be built in unexplored area" (CheckPlacement tests it
+#      first, and at the start the Civic Center's vision ends inside its territory); with the map
+#      revealed, out of its territory: "cannot be built in neutral territory. Valid territories: own";
 #   3. a Civic Center by your own: "too close to a CivilCentre, must be at least 200 meters away";
 #   4. a free spot shows nothing;
 #   5. a palisade: no start on the Civic Center, its cost while dragging, and a click with no
@@ -31,6 +33,8 @@ func _initialize() -> void:
 	ms.map_id = "random_continental"
 	ms.seed = 11
 	ms.map_size = 128
+	# The "jame jam" cheat (reveal map) needs cheats (GetCheatsEnabled), as single player has them.
+	ms.cheats = true
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	run.call_deferred()
@@ -102,7 +106,12 @@ func run() -> void:
 	check(t["visible"] and t["error"] and str(t["text"]).ends_with("cannot be built on another building or resource"), "over the Civic Center: " + str(t["text"]))
 	main.enter_build_mode(false)
 	var houses := await sample(BLD_HOUSE, cc)
-	var terr := any_text(houses, "House cannot be built in neutral territory. Valid territories: own")
+	var unexplored := any_text(houses, "House cannot be built in unexplored area")
+	check(not unexplored.is_empty(), "on unexplored land: " + str(unexplored.get("tip", {}).get("text", "")))
+	check(main.chat_try_cheat("jame jam"), "the reveal map cheat runs")
+	await frames(10)
+	var revealed := await sample(BLD_HOUSE, cc)
+	var terr := any_text(revealed, "House cannot be built in neutral territory. Valid territories: own")
 	check(not terr.is_empty(), "out of its territory: " + str(terr.get("tip", {}).get("text", "")))
 	var free := houses.filter(func(s): return not s["tip"]["visible"])
 	check(not free.is_empty(), "a free spot shows nothing (%d of %d)" % [free.size(), houses.size()])
