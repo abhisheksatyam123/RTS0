@@ -279,6 +279,16 @@ Upgrade.js, Builder.js, Foundation.js, Repairable.js and Population against RTS0
 | T4 | Animals standing on a foundation were left inside it; 0.28's animals have UnitAI and walk off (WillMoveFromFoundation) before work starts | low | Fixed |
 | T5 | Liu Bang's wall regeneration skips wall foundations | low | Open (Han only) |
 
+
+### Technologies and researchers, tenth 0.28 pass (2026-10-20)
+
+TechnologyManager.js, Researcher.js, data/technologies (about 30 techs row by row), researcher lists for ten civs and the structure auras against RTS0. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| U1 | A captured structure's research list followed the captor's civ; Researcher.js reads the structure's own template (cart/dock drops warship_health, cart/super_dock lists nine dock techs, han/civil_centre drops the spy techs, han/forge archer_attack_spread) and the owner's civ only filters it | low | Fixed |
+
+Checked and matching: requirements (all/any, class counts without foundations, civ/notciv), pairs and autoResearch, supersedes chains, cost multipliers (library, team bonuses, heroes, catafalques) and cancel refunds, unit researchers, civ bonus autoresearch, tech modifications, own-civ researcher lists, structure auras (temples, wonders, theatre, pillars, monuments, regen and trickle auras).
 ### Statistics, replays, summary, Match Settings and developer overlay, fifth 0.28 pass (2026-10-20)
 
 StatisticsTracker callers and class mapping, the summary page, the replay menu and playback, Match Settings, the save/load dialog, the developer overlay and the overlay counters against 0.28 (main 50f2e95b1). Owner: Stats. Pass 4's open items are done: Match Settings names the random placement actually picked, and random maps carry 0.28's descriptions.
