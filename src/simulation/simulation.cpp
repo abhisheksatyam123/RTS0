@@ -20949,6 +20949,15 @@ void Simulation::petra_manage_economy(float dt) {
 	// until the worker target (config.js Economy.targetNumWorkers) is met.
 	petra_staff_foundations();
 	petra_assign_repairs();
+	// baseManager.js:248 assignResourceToDropsite: a base's anchor keeps its dropsite to itself
+	// ("to keep a minimum of resources for this base"); other dropsites stay shared.
+	for (const PetraBase &base : petra_bases_) {
+		auto ait = building_id_to_idx_.find(base.anchor_building_id);
+		if (ait == building_id_to_idx_.end()) continue;
+		const Building &a = buildings_[ait->second];
+		if (a.team == petra_pid_ && a.build_progress >= 1.0f && a.dropsite_shared)
+			cmd_set_dropsite_sharing(petra_pid_, a.id, false);
+	}
 	PetraHuntScan hunt_scan = petra_hunt_scan();
 	petra_check_inaccessible_supplies(hunt_scan);
 

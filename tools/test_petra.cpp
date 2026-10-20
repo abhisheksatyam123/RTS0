@@ -1577,6 +1577,23 @@ static void test_worker_elephant_builds() {
 	CHECK(builds, "the worker elephant builds a foundation next to it");
 }
 
+// baseManager.js:248: Petra unshares its base anchor's dropsite with its allies.
+static void test_anchor_dropsite_unshared() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	s->petra_manage_economy(0.0f);
+	int shared = -1;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) shared = b.dropsite_shared;
+	std::printf("  anchor dropsite shared %d\n", shared);
+	CHECK(shared == 0, "the base anchor's dropsite is not shared");
+}
+
 static void test_petra_phasing_needs_researcher() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -7292,6 +7309,7 @@ int main(int argc, char **argv) {
 	RUN(test_garrisoned_workers_count);
 	RUN(test_idle_workers_repair_cc);
 	RUN(test_worker_elephant_builds);
+	RUN(test_anchor_dropsite_unshared);
 	RUN(test_city_phase_counts_foundations);
 	RUN(test_petra_research_order);
 	RUN(test_petra_minor_tech_kept);
