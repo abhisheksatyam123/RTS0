@@ -1533,10 +1533,11 @@ std::vector<uint32_t> RtsoMain::structure_trainers(uint16_t tmpl, uint32_t holde
 	std::vector<uint32_t> structs = selected_structures();
 	if (std::find(structs.begin(), structs.end(), holder) == structs.end()) structs.assign(1, holder);
 	const rtso::CivUnitTemplate &u = rtso::civ_unit_template(tmpl);
+	const bool control_all = sim->controls_all(local_player()); // anyone's structures (Control all units)
 	for (uint32_t id : structs)
 		for (const auto &b : sim->buildings()) {
 			if (b.id != id) continue;
-			if (b.team == local_player() && b.build_progress >= 1.0f && !b.wrecked && b.upgrade_to == rtso::BLD_TYPE_COUNT &&
+			if ((b.team == local_player() || control_all) && b.build_progress >= 1.0f && !b.wrecked && b.upgrade_to == rtso::BLD_TYPE_COUNT &&
 					(u.trainers & rtso::bld_bit(b.type)))
 				out.push_back(id);
 			break;
@@ -1692,7 +1693,7 @@ void RtsoMain::_on_dev_command(int command) {
 		case D::DEV_PROMOTE: { // PromoteSelectedUnits: "promote" the selection; checked() is always false
 			std::vector<uint32_t> ids;
 			for (int k = 0; k < selected_ids.size(); ++k) ids.push_back((uint32_t)(int64_t)selected_ids[k]);
-			if (!ids.empty()) cheat(rtso::Simulation::CHEAT_DEV_PROMOTE, 0, ids);
+			cheat(rtso::Simulation::CHEAT_DEV_PROMOTE, 0, ids); // "(Cheat - promoted units)" even with nothing selected
 			break;
 		}
 		case D::DEV_ENABLE_CULLING: // EnableCulling: GameView_SetCullingEnabled
