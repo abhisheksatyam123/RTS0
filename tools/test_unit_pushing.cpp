@@ -321,6 +321,7 @@ int main() {
 		int wrong = 0;
 		for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t) {
 			const CivUnitTemplate &row = civ_unit_template(t);
+			if (row.flags & ROSTER_FLYING) continue; // a plane has no obstruction: pushing never weighs it
 			const TechClasses c = row.tech_classes;
 			const int want = row.unit_type == UNIT_CATAFALQUE ? 100
 					: (c & (TC_SIEGE | TC_ELEPHANT)) != 0 || row.unit_type == UNIT_WAGON ? 50 : (c & TC_CHARIOT) != 0 ? 30 : 10;
