@@ -2903,7 +2903,9 @@ Dictionary RtsoMain::get_lobby_state() const {
 		for (uint8_t i = 0; i < net_setup_.setup.slot_count && i < 8; ++i)
 			if (net_setup_.slot_client[i] >= 0) ++players;
 	} else if (hosting) {
-		players = 1;
+		// LobbyGamelistReporter.countConnectedPlayers: assignments with a player,
+		// so not a host who watches.
+		players = turn_mgr_.player_for_client(0) < rtso::MAX_PLAYERS ? 1 : 0;
 		for (const auto &p : net_host_.getPeers())
 			if (p.id != 0 && p.connected && p.is_authenticated && !p.is_observer) ++players;
 	}
@@ -3205,6 +3207,10 @@ void RtsoMain::host_net_setup_tick(bool force) {
 			if (p.id > 0 && p.id < rtso::NET_SETUP_CLIENTS && p.connected && p.is_authenticated && !p.kick_disconnect_ms) {
 				now |= (1ull << p.id);
 				if (!((net_setup_.clients >> p.id) & 1)) net_host_.sendGameSetup(rtso::format_net_setup(net_setup_), p.id);
+				// LobbyGamelistReporter getObservers: whoever watches now, a late observer too.
+				net_setup_.names[p.id] = p.player_name;
+				if (p.is_observer) net_setup_.observers |= (1ull << p.id);
+				else net_setup_.observers &= ~(1ull << p.id);
 			}
 		net_setup_.clients = now | 1;
 		return;
@@ -3278,9 +3284,19 @@ void RtsoMain::post_kick_chat() {
 	for (; kicks_chatted_ < kicks.size(); ++kicks_chatted_) {
 		const auto &k = kicks[kicks_chatted_];
 		const String name = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str()).replace("[", "[lb]");
-		const String line = sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}});
-		if (is_net_pregame()) chat_window_.append_line(setup_status_line(line));
-		else chat_window_.append_kind(line + String("\n"), CHAT_FILTER_NETWORK);
+		if (is_net_pregame()) {
+			chat_window_.append_line(setup_status_line(sprintf0(k.ban ? tr("%(username)s has been banned")
+					: tr("%(username)s has been kicked"), {{"username", name}})));
+			continue;
+		}
+		// ChatMessageFormatNetwork.kicked: colorizePlayernameHelper, the player's
+		// colour for the player of that name, white for anyone else.
+		uint32_t rgb = 0xFFFFFFu;
+		for (const auto &e : chat_assignments_)
+			if (e.name == k.name && e.player < rtso::MAX_PLAYERS && sim) rgb = rtso::display_colors::rgb(*sim, e.player);
+		const String colored = "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + name + "[/color]";
+		chat_window_.append_kind(sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"),
+				{{"username", colored}}) + String("\n"), CHAT_FILTER_NETWORK);
 	}
 }
 
