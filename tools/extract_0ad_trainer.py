@@ -11,6 +11,10 @@ structures/<civ>/<stem>.xml when the civ has one, else the generic template; a
 civ-specific type reads its own template (tools/extract_0ad_attack.py). A
 structure with no Trainer gets 1.
 
+It also writes each civ's own trainer lists: the "units/{civ}/<name>" entries of
+its structure of each type. Trainer.js fills {civ} with the owner's civ, so a
+structure captured by another civ trains the captor's units of those names.
+
 Usage:
   python3 -I tools/extract_0ad_trainer.py --0ad PATH/TO/0ad [--check]
 
@@ -47,7 +51,14 @@ def modifier(t):
     return t.num("Trainer/BatchTimeModifier", 1.0)
 
 
-def emit(types, table):
+def civ_list(t):
+    """The <name>s of a structure's "units/{civ}/<name>" Trainer entries, in order."""
+    if t.get("Trainer") is None:
+        return []
+    return [e[len("units/{civ}/"):] for e in t.tokens("Trainer/Entities") if e.startswith("units/{civ}/")]
+
+
+def emit(types, table, lists):
     f = atk.f
     out = []
     w = out.append
@@ -68,6 +79,19 @@ def emit(types, table):
     w("\tif (civ >= TRAINER_CIV_ROWS || type >= TRAINER_BUILDING_ROWS) return 1.0f;")
     w("\treturn kTable[civ][type];")
     w("}")
+    w("")
+    w("// Trainer/Entities \"units/{civ}/<name>\" of each civ's own structure of a type (its")
+    w("// structures/<civ>/ template): Trainer.js fills {civ} with the holder's civ, so a structure")
+    w("// captured by another civ trains the captor's units of these names. Space-separated.")
+    w("struct TrainerCivList {")
+    w("\tuint8_t civ;")
+    w("\tuint8_t type;")
+    w("\tconst char *units;")
+    w("};")
+    w("inline constexpr TrainerCivList TRAINER_CIV_LISTS[] = {")
+    for ci, civ, _ti, bld, names in lists:
+        w("\t{%d, %s, \"%s\"}, // %s" % (ci, bld, " ".join(names), civ))
+    w("};")
     w("")
     return "\n".join(out)
 
@@ -91,7 +115,20 @@ def main():
             own = "structures/%s/%s" % (civ, stem) if stem else None
             row.append(modifier(loader.load(own if own and loader.exists(own) else name)))
         table.append((civ, row))
-    text = emit(types, table)
+    # A civ's own version of a generic structure, or a civ-specific one in structures/<civ>/.
+    lists = []
+    for ci, civ in enumerate(ex.CIV_SLOTS):
+        if civ is None:
+            continue
+        for ti, (bld, name) in enumerate(types):
+            stem = CIV_STEM.get(bld)
+            own = "structures/%s/%s" % (civ, stem) if stem else name
+            if not own.startswith("structures/%s/" % civ) or not loader.exists(own):
+                continue
+            names = civ_list(loader.load(own))
+            if names:
+                lists.append((ci, civ, ti, bld, names))
+    text = emit(types, table, lists)
     if args.check:
         old = open(OUT_HEADER).read() if os.path.exists(OUT_HEADER) else ""
         if old != text:

@@ -4,6 +4,8 @@
 //
 // 1. Clients that left do not count: after more than NET_MAX_CLIENTS
 //    connections have come and gone, a new client still gets in.
+//    A host name is resolved once at the join (CNetClientSession::Connect),
+//    and one that does not resolve fails it at once.
 // 2. With NET_MAX_CLIENTS connected, one more is told the server is full
 //    (disconnect reason NDR_SERVER_FULL) instead of timing out.
 // 3. 0 A.D. NetServer's handshake checks: a client on another engine version
@@ -99,6 +101,20 @@ int main() {
 		pump(host, none, 200, [&] { return false; });
 	}
 	CHECK(joined == rounds, "every client gets in although more than NET_MAX_CLIENTS came and went");
+	{
+		// CNetClientSession::Connect: a host name is resolved once, and one that
+		// does not resolve fails the join at once.
+		std::vector<std::unique_ptr<NetHost>> named;
+		named.push_back(std::make_unique<NetHost>());
+		CHECK(!named[0]->startClient("no-such-host.invalid", port), "a host name that does not resolve fails at once");
+		named[0]->setLocalPlayerName("byname");
+		CHECK(named[0]->startClient("localhost", port), "a host name that resolves starts the join");
+		const int before = joined;
+		pump(host, named, 3000, [&] { return joined > before && named[0]->authResult() == ARC_OK; });
+		CHECK(joined > before, "and connects to the resolved address");
+		named[0]->stop();
+		pump(host, none, 200, [&] { return false; });
+	}
 	CHECK(max_id == 1, "before Start each of them reuses peer id 1, so the setup can seat it");
 
 	// 2. Fill the session, then one more.

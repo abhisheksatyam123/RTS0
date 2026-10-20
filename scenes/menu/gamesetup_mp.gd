@@ -77,7 +77,15 @@ static func host_port_error(port: int) -> String:
 	probe.close()
 	return "" if err == OK else "Cannot host game: Failed to start server."
 
-## startHost's messageBox titled "Error".
+## Engine.StartNetworkJoin throws "Failed to connect to server" when the host's
+## name does not resolve (CNetClientSession::Connect), and startJoin shows it
+## as "Cannot join game: %(message)s." and stays open.
+static func join_host_error(server: String) -> String:
+	if server == "" or server.is_valid_ip_address():
+		return ""
+	return "" if IP.resolve_hostname(server, IP.TYPE_IPV4) != "" else "Cannot join game: Failed to connect to server."
+
+## startHost's and startJoin's messageBox titled "Error".
 static func show_host_error(parent: Node, text: String) -> AcceptDialog:
 	var box := AcceptDialog.new()
 	box.name = "HostErrorDialog"
@@ -240,6 +248,10 @@ func confirm_setup() -> bool:
 		var who := join_player_name.text.strip_edges()
 		if who == "":
 			who = "Player"
+		var unknown := join_host_error(join_server.text.strip_edges())
+		if unknown != "":
+			show_host_error(self, unknown)
+			return false
 		_keep_name(who)
 		start_join(who, join_server.text.strip_edges(), valid_port(join_port.text))
 		_close()
