@@ -17882,6 +17882,27 @@ void Simulation::apply_rally_step(uint32_t uid, const Building &b, const Buildin
 				if (queued ? after > before : units_.order_kind[i] == ORDER_TRADE) return;
 			}
 			break;
+		case RALLY_CMD_HUNT: {
+			// gather-near-position with the animal's template (UnitAI GATHER FINDINGNEWTARGET:
+			// meat of the same template only): the nearest such animal or carcass near the spot.
+			const uint8_t fauna = (uint8_t)st.ent_id;
+			const float r2 = NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE;
+			const uint32_t prey = queued ? 0 : find_nearby_prey((size_t)i, st.x, st.z, r2, fauna);
+			const uint32_t carcass = find_nearby_resource(st.x, st.z, RES_FOOD, b.team, -1, nullptr, 0, fauna);
+			auto d2_of = [&](float x, float z) { return (x - st.x) * (x - st.x) + (z - st.z) * (z - st.z); };
+			float prey_d2 = 1e30f, carcass_d2 = 1e30f;
+			if (auto f = fauna_id_to_idx_.find(prey); prey != 0 && f != fauna_id_to_idx_.end())
+				prey_d2 = d2_of(fauna_.pos_x[f->second], fauna_.pos_z[f->second]);
+			auto c = res_id_to_idx_.find(carcass);
+			if (carcass != 0 && c != res_id_to_idx_.end() && can_gather((size_t)i, c->second))
+				carcass_d2 = d2_of(resources_.x[c->second], resources_.z[c->second]);
+			if (carcass_d2 < prey_d2) { order_gather(&uid, 1, carcass, queued); return; }
+			if (prey != 0) {
+				order_hunt(&uid, 1, prey);
+				if (units_.target_unit_id[i] == prey && units_.action_state[i] == ACTION_ATTACK) return;
+			}
+			break;
+		}
 		case RALLY_CMD_TURRET:
 			if (auto it = building_id_to_idx_.find(st.bld_id); it != building_id_to_idx_.end() && !buildings_[it->second].wrecked) {
 				const Building &t = buildings_[it->second];
