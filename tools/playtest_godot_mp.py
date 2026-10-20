@@ -476,6 +476,8 @@ def play(args, lobby, leave):
     users = {role: said(role, "users").replace(" list=", " ") for role in ("host", "join")}
     ok = ok and users == {"host": "2 alice,_bob", "join": "2 alice,_bob"}
     ok = ok and not any("> /list" in outs[role] for role in ("host", "join"))
+    # Chat.js: neither match chat carries the setup's lines.
+    ok = ok and said("host", "match_chat_carried") == "false" and said("join", "match_chat_carried") == "false"
     # 0.28 ChatAddressees: the other player as "■ name"; Tab completes alice and bob.
     addressees = {role: said(role, "addressees").split(" names=") for role in ("host", "join")}
     # When the host leaves, it may have ended the game before the client gets

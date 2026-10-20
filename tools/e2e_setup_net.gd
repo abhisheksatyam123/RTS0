@@ -152,6 +152,35 @@ func run() -> void:
 		assign.select(2)
 		assign.item_selected.emit(2)
 	check(int(page._slot_rows[1]["kind"]) == 1, "AI: Petra Bot makes the slot an AI")
+	# PlayerAssignment Client.onSelectionChange: alice moves to the AI's slot with
+	# her civ and colour, and the AI moves to hers with its difficulty and behaviour.
+	var r0: Dictionary = page._slot_rows[0].duplicate()
+	var r1: Dictionary = page._slot_rows[1].duplicate()
+	page._slot_rows[1]["civ"] = 4
+	page._slot_rows[1]["color"] = 5
+	page._slot_rows[1]["diff"] = 1
+	page._slot_rows[1]["beh"] = 0
+	page.refresh_slots()
+	await frames(2)
+	host.assigns.clear()
+	assign = cells(page)[6 + 2].get_node_or_null("AssignSelect")
+	var alice_at := -1
+	for idx in (assign.get_item_count() if assign else 0):
+		if assign.get_item_id(idx) == page.ASSIGN_CLIENT_ID:
+			alice_at = idx
+	if alice_at >= 0:
+		assign.select(alice_at)
+		assign.item_selected.emit(alice_at)
+	var a0: Dictionary = page._slot_rows[0]
+	var a1: Dictionary = page._slot_rows[1]
+	check(host.assigns == [[0, 1]] and int(a1["kind"]) == 0 and int(a1["civ"]) == int(r0["civ"]) and int(a1["color"]) == int(r0["color"])
+		and int(a0["kind"]) == 1 and int(a0["civ"]) == 4 and int(a0["color"]) == 5 and int(a0["diff"]) == 1 and int(a0["beh"]) == 0,
+		"a player moved onto an AI's slot takes civ and colour along, and the AI moves to the slot left (%s %s %s)" % [str(host.assigns), str(a0), str(a1)])
+	for key in r0:
+		page._slot_rows[0][key] = r0[key]
+	for key in r1:
+		page._slot_rows[1][key] = r1[key]
+	page._on_slot_kind(0, 0)
 	page._on_slot_kind(0, 1)
 	await frames(2)
 	# PlayerAssignmentsController.unassignInvalidPlayers: a player count below
