@@ -1434,8 +1434,7 @@ private:
 		if (pass == 1 && ob->civ == civ) break;
 		for (uint16_t i : rtso::civ_roster_ids(pass == 0 ? ob->civ : civ)) {
 			const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
-			if (!(u.trainers & rtso::bld_bit(ob->type))) continue;
-			if (rtso::building_train_civ(ob->type, ob->civ, civ, u) != u.civ) continue;
+			if (!rtso::building_trains_template(ob->type, ob->civ, civ, i)) continue;
 			// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;
 			// 0 A.D. has no such unit, so players don't see it.
 			if (std::strstr(u.id, "/rts0_")) continue;
