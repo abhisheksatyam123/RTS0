@@ -382,6 +382,8 @@ func _ready() -> void:
 	_restore_settings()
 	refresh_map_list()
 	refresh_slots()
+	# The panel has its width once the first layout is done.
+	get_tree().process_frame.connect(_size_slot_columns, CONNECT_ONE_SHOT)
 	_update_preview()
 	_init_net()
 	_render_reset_buttons()
@@ -1450,6 +1452,12 @@ func _build_slot_headings() -> void:
 	header.add_child(info)
 	var grid := _slots_grid()
 	grid.sort_children.connect(_place_slot_headings)
+	# The columns follow the panel's width: on a new window size they let go first, so
+	# the panel can shrink, and are set again from its new width.
+	get_viewport().size_changed.connect(func():
+		for c in grid.get_children():
+			(c as Control).custom_minimum_size.x = 0.0
+		_size_slot_columns.call_deferred())
 	# PlayerColor.render: each row on its player's colour (alpha 100 of 255).
 	grid.draw.connect(func():
 		var cells := grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
@@ -1574,9 +1582,26 @@ func refresh_slots() -> void:
 	for i in range(n):
 		_add_slot_row(grid, i)
 	_rebuilding_slots = false
+	_size_slot_columns()
 	_apply_mp_locks()
 	_render_speeds()
 	_render_pop_tips()
+
+## PlayersPanel.xml's columns over the panel's width W, 5 px apart: name 0-22%, colour
+## 28 px, assignment to 50%+35, the 28 px AI gear, civ to 85%, team to 100%-5.
+func _size_slot_columns() -> void:
+	var grid := _slots_grid()
+	var w: float = (get_node("VBox/HBox/Right/SlotsBox") as Control).size.x
+	if w <= 0.0:
+		return
+	grid.add_theme_constant_override("h_separation", 5)
+	var widths := [w * 0.22, 28.0, w * 0.28 - 3.0, 28.0, w * 0.35 - 73.0, w * 0.15 - 10.0]
+	var cells := grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
+	for k in cells.size():
+		var c: Control = cells[k]
+		if c is Label:
+			(c as Label).clip_text = true
+		c.custom_minimum_size.x = maxf(floorf(widths[k % grid.columns]), 0.0)
 
 ## GameSpeed.render: the Fast Forward speeds only while nobody holds a player
 ## slot (every slot AI or unassigned); a speed no longer listed goes back to Normal.
@@ -1730,7 +1755,7 @@ func _on_slot_kind(idx: int, slot: int) -> void:
 		_local_slot = -1 # PlayerAssignment: you watch once your slot is given away
 	_render_speeds()
 	if slot == 0:
-		refresh_slots.call_deferred() # the "(You)" label follows slot 1's kind
+		refresh_slots.call_deferred() # slot 1's row follows its kind
 	_render_ai_button(slot)
 	_update_preview()
 
@@ -2889,14 +2914,17 @@ func _net_request(key: String, value: int) -> void:
 	if _mp_role == "client" and not _rebuilding_slots:
 		net_main.request_net_player_setting(key, value)
 
-## The slot's name: in a networked game, the client in it and whether it is ready.
-func _slot_label(i: int, row: Dictionary) -> String:
+## The slot's name (PlayerName.js): player_defaults.json's "Player N", translated in
+## a single-player setup, where the players' own names are only filled in at launch;
+## in a networked game, the client in it.
+func _slot_label(i: int, _row: Dictionary) -> String:
+	var default_name := "Player %d" % (i + 1)
 	if _mp_role == "none":
-		return "P%d%s" % [i + 1, " (You)" if i == _local_slot and int(row["kind"]) == 0 else ""]
+		return tr(default_name)
 	var k := _net_rows().find(i) if _mp_role == "host" else i
 	var slots: Array = _net_state.get("slots", [])
 	if k < 0 or k >= slots.size() or int(slots[k].get("client", -1)) < 0:
-		return "P%d" % (i + 1)
+		return default_name
 	return str(slots[k].get("name", ""))
 
 ## PlayerName.js ReadyTags: a client not ready white, ready green; a slot with no client 150 150 250.
