@@ -441,6 +441,13 @@ void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
 			return;
 		}
 	}
+	// Garrison, repair, guard and occupy-turret need an entity, so on the minimap they are
+	// "none": the click ends them (unless Shift or Alt is held) and leaves the camera.
+	if ((garrison_mode || repair_mode || guard_mode || turret_mode) && !selected_ids.is_empty()) {
+		if (!rtso::hotkeys::held("session.queue") && !rtso::hotkeys::held("session.orderone"))
+			garrison_mode = repair_mode = guard_mode = turret_mode = false;
+		return;
+	}
 	if (cam_rig) {
 		cam_rig->set_target_pos(Vector3(world_pos.x, 0.0f, world_pos.y));
 	}

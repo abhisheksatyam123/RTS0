@@ -188,7 +188,6 @@ inline String speed_tooltip(const Simulation::UnitDetails &d) {
 	auto speed = [](float v, const char *kind) {
 		return sprintf0(tr0("%(speed)s %(movementType)s"), {{"speed", fixed(v, 1)}, {"movementType", tr0(kind)}});
 	};
-	// An animal has no acceleration here: walk and run only.
 	return sprintf0(tr0("%(label)s %(speeds)s"), {{"label", tr0("Speed:")}, {"speeds", speed(d.walk, "Walk") + comma() + speed(d.run, "Run") +
 			(d.acceleration > 0.0f ? comma() + speed(d.acceleration, "Acceleration") : String())}});
 }

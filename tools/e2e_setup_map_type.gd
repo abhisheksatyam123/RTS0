@@ -127,7 +127,9 @@ func run() -> void:
 		check(node(page, "MapOptionsRow/TeamPlacementLabel").text == "Player Placement:", "titled Player Placement")
 		tpl.select(2)
 		page._on_team_placement_selected(2)
-		check(tpl.text == "River" and tpl.tooltip_text == "Allied players are placed on two parallel lines.", "River, with 0.28's description: " + tpl.tooltip_text)
+		check(tpl.text == "River" and tpl.get_item_tooltip(2) == "Allied players are placed on two parallel lines."
+			and tpl.tooltip_text == "Select one of the starting position patterns of this map.",
+			"River, its description on its list item, the setting's tooltip on the dropdown: " + tpl.tooltip_text)
 		select_map(page, "random_lake")
 		await frames(2)
 		check(items.call() == [0, 1, 5] and tpl.text == "River", "Lake offers Circle and River, River stays: " + tpl.text)
