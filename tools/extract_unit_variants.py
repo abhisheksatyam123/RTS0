@@ -18,7 +18,10 @@ does), and writes:
 The props' actors (heads, helmets, shields, capes) have such groups too; each
 GLB image is matched against all of them and takes the group of its skin. A
 skin without player colour (no key in data/player_masks.json) is written with
-alpha 0 as <skin>_<w>x<h>_plain.png. shaders/player_color.gdshader picks a layer
+alpha 0 as <skin>_<w>x<h>_plain.png. A head's objectcolor material tints its
+hair by a colour its actor picks by variant too: those skins keep 255 - alpha as
+<skin>_<w>x<h>_obj.png (one skin is enough), and the entry adds "colors" (0-255
+RGB) and "color_freq". shaders/player_color.gdshader picks a layer and a colour
 per entity from the frequencies. At most MAX_LAYERS skins per group, the most
 frequent.
 
@@ -48,13 +51,29 @@ MAX_LAYERS = 8
 
 
 def body_group(vfs, actor_path, cache):
-    """{skin: frequency} of the actor's first group whose variants only set baseTex."""
+    """({skin: frequency}, {(r, g, b): frequency} or None) of the actor's first group
+    whose variants only set baseTex, and for an objectcolor material (heads: 0.28's
+    hair colours) its group of <color> variants; then a single skin is enough."""
     try:
         root = ET.fromstring(vfs.read(actor_path))
     except (KeyError, ET.ParseError):
-        return None
+        return None, None
     if root.tag == "qualitylevels" and root.find("inline") is not None:
         root = root.find("inline")
+    colors = None
+    if "objectcolor" in (root.findtext("material") or ""):
+        for g in root.findall("group"):
+            found = {}
+            for var in g.findall("variant"):
+                r = resolve_variant_chain(vfs, var, cache)
+                c = (r.findtext("color") or "").split() if r is not None else []
+                if len(c) == 3 and r.find("mesh") is None and r.find("textures") is None:
+                    rgb = tuple(int(float(x)) for x in c)
+                    found[rgb] = found.get(rgb, 0) + int(float(var.get("frequency") or r.get("frequency") or 1))
+            if found:
+                colors = found
+                break
+    first = None
     for g in root.findall("group"):
         skins, only_tex = {}, True
         for var in g.findall("variant"):
@@ -69,8 +88,10 @@ def body_group(vfs, actor_path, cache):
                     f = t.get("file").strip()
                     skins[f] = skins.get(f, 0) + int(float(var.get("frequency") or r.get("frequency") or 1))
         if only_tex and len(skins) > 1:
-            return skins
-    return None
+            return skins, colors
+        if skins and first is None:
+            first = skins
+    return (first, colors) if colors and first else (None, None)
 
 
 def load_skin(zf, names, skin, cache):
@@ -110,33 +131,39 @@ def main():
             actors.sort(key=lambda a: not a.startswith("art/actors/units/"))
             groups = []
             for a in actors:
-                group = body_group(vfs, a, cache)
+                group, colors = body_group(vfs, a, cache)
                 if not group:
                     continue
                 group = dict(sorted(group.items(), key=lambda kv: (-kv[1], kv[0]))[:MAX_LAYERS])
                 imgs = {s: load_skin(zf, names, s, skins) for s in group}
                 imgs = {s: i for s, i in imgs.items() if i is not None}
-                if len(imgs) >= 2 and all(set(imgs) != set(g[1]) for g in groups):
-                    groups.append((group, imgs))
+                if len(imgs) >= (1 if colors else 2) and all(set(imgs) != set(g[1]) for g in groups):
+                    if colors:
+                        colors = dict(sorted(colors.items(), key=lambda kv: (-kv[1], kv[0]))[:MAX_LAYERS])
+                    groups.append((group, imgs, colors))
             if not groups:
                 continue
             base = os.path.basename(m["file"])[:-4]
             for name, baked in glb_images(os.path.join(REPO, "assets", m["file"])):
                 key = f"units/{base}_{name}"
                 best = min((match_score(baked, i if i.size == baked.size else i.resize(baked.size, Image.LANCZOS)), gi, s)
-                           for gi, (_g, imgs) in enumerate(groups) for s, i in imgs.items())
+                           for gi, (_g, imgs, _c) in enumerate(groups) for s, i in imgs.items())
                 if best[0] > MATCH_LIMIT:
                     continue
-                group, imgs = groups[best[1]]
+                group, imgs, colors = groups[best[1]]
                 w, h = baked.size
-                plain = key not in masked  # no player colour: alpha 0
+                # alpha: the player-colour mask, the object-colour (hair) mask, or 0
+                kind = "obj" if colors else ("mask" if key in masked else "plain")
                 layers = []
                 for s in imgs:
-                    rel = f"{os.path.splitext(s)[0]}_{w}x{h}{'_plain' if plain else ''}.png"
-                    files[rel] = (s, (w, h), plain)
+                    rel = f"{os.path.splitext(s)[0]}_{w}x{h}{'' if kind == 'mask' else '_' + kind}.png"
+                    files[rel] = (s, (w, h), kind)
                     layers.append("res://assets/textures/unit_variants/" + rel)
                 table[key] = {"layers": layers, "freq": [group[s] for s in imgs]}
-        for rel, (s, size, plain) in sorted(files.items()):
+                if colors:
+                    table[key]["colors"] = [list(c) for c in colors]
+                    table[key]["color_freq"] = list(colors.values())
+        for rel, (s, size, kind) in sorted(files.items()):
             path = os.path.join(TEX_DIR, rel)
             if args.check:
                 if not os.path.isfile(path):
@@ -146,7 +173,12 @@ def main():
                 continue
             img = skins[s] if skins[s].size == size else skins[s].resize(size, Image.LANCZOS)
             r, g, b, a = img.split()
-            a = a.point(lambda v: 0) if plain else a.point(lambda v: 255 - v if v < 250 else 0)
+            if kind == "plain":
+                a = a.point(lambda v: 0)
+            elif kind == "obj":  # model_common.fs: color *= mix(objectColor, 1, tex.a)
+                a = a.point(lambda v: 255 - v)
+            else:
+                a = a.point(lambda v: 255 - v if v < 250 else 0)
             out = Image.merge("RGBA", (r, g, b, a))
             os.makedirs(os.path.dirname(path), exist_ok=True)
             out.save(path, optimize=True)
