@@ -35,4 +35,5 @@ None of these touches simulation state or the save format.
 ## Fix log
 
 - 2026-10-20 #1416 pass 10 gap 1 (the lobby dialog takes the keyboard, the lobby hotkey closes it, and only one opens, as a 0.28 child page with QuitButton.js) merged.
-- 2026-10-20 #PR2 pass 10 gap 2 (the summary's Lobby button and hotkey open the lobby as a dialog over the summary, as summary.xml does) merged.
+- 2026-10-20 #1418 pass 10 gap 2 (the summary's Lobby button and hotkey open the lobby as a dialog over the summary, as summary.xml does) merged.
+- 2026-10-20 #PR4 pass 10 gap 4 (a running game's lobby entry counts the host only when it plays, and lists observers who joined after Start, as LobbyGamelistReporter does) merged.

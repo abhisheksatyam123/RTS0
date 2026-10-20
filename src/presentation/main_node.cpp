@@ -2903,7 +2903,9 @@ Dictionary RtsoMain::get_lobby_state() const {
 		for (uint8_t i = 0; i < net_setup_.setup.slot_count && i < 8; ++i)
 			if (net_setup_.slot_client[i] >= 0) ++players;
 	} else if (hosting) {
-		players = 1;
+		// LobbyGamelistReporter.countConnectedPlayers: assignments with a player,
+		// so not a host who watches.
+		players = turn_mgr_.player_for_client(0) < rtso::MAX_PLAYERS ? 1 : 0;
 		for (const auto &p : net_host_.getPeers())
 			if (p.id != 0 && p.connected && p.is_authenticated && !p.is_observer) ++players;
 	}
@@ -3205,6 +3207,10 @@ void RtsoMain::host_net_setup_tick(bool force) {
 			if (p.id > 0 && p.id < rtso::NET_SETUP_CLIENTS && p.connected && p.is_authenticated && !p.kick_disconnect_ms) {
 				now |= (1ull << p.id);
 				if (!((net_setup_.clients >> p.id) & 1)) net_host_.sendGameSetup(rtso::format_net_setup(net_setup_), p.id);
+				// LobbyGamelistReporter getObservers: whoever watches now, a late observer too.
+				net_setup_.names[p.id] = p.player_name;
+				if (p.is_observer) net_setup_.observers |= (1ull << p.id);
+				else net_setup_.observers &= ~(1ull << p.id);
 			}
 		net_setup_.clients = now | 1;
 		return;
