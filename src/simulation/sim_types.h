@@ -824,7 +824,7 @@ enum UnitOrderFlag : uint8_t {
 	ORDER_FLAG_ALLOW_CAPTURE = 2,// Attack.js allowCapture: capture structures instead of damaging them
 	ORDER_FLAG_UNITS_ONLY = 4,   // attack-move targetClasses "Unit" (session.attackmoveUnit)
 	ORDER_FLAG_INTERRUPTED = 8,  // fighting or fleeing; go back to the order afterwards
-	ORDER_FLAG_CHEER = 16,       // killed its target (UnitAI shouldCheer)
+	ORDER_FLAG_CHEER = 16,       // attacking a unit (UnitAI shouldCheer)
 	// ORDER_BUILD only (bit 5 holds a gather order's subtype): a forced build that reached its
 	// site (REPAIRING enter, order.data.autoharvest), so ConstructionFinished farms the field
 	// or gathers near the new dropsite.
@@ -3198,7 +3198,9 @@ inline bool building_trains_native(uint8_t type) {
 // military colony and German encampments) list units/{native}/support_civilian, so a
 // captured one trains its builder's civilians (template_structure_civic_civil_centre.xml).
 inline uint8_t building_train_civ(uint8_t type, uint8_t bld_civ, uint8_t owner_civ, const CivUnitTemplate &t) {
-	if (building_trains_native(type)) return bld_civ;
+	// A Gaia mercenary camp (merc_camp_egyptian.xml) trains the holder's units/{civ}/..._merc_b, as
+	// 0.28; a player's own camp keeps its builder's mercenaries (building_trains_native).
+	if (building_trains_native(type) && !(type == BLD_MERCENARY_CAMP && bld_civ == CIV_GAIA)) return bld_civ;
 	const bool civic = type == BLD_TOWN_CENTER || type == BLD_CRANNOG || type == BLD_IMPERIAL_COURT ||
 	                   type == BLD_MILITARY_COLONY || type == BLD_WAGON_ENCAMPMENT ||
 	                   type == BLD_WAGON_ENCAMPMENT_FORTIFIED;

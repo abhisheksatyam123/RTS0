@@ -751,8 +751,12 @@ void RtsoMain::update_log_messages(bool changed) {
 // PauseControl.js canPause(explicit): an observer, or a player whose game is
 // over, who is not the host cannot pause a multiplayer match (resuming their
 // own pause stays allowed). The player an observer views does not count.
+// Nor can anyone pause before the match is live (g_IsNetworkedActive: the
+// "Waiting for players to connect:" stage), which NetServer would ignore.
 bool RtsoMain::can_pause() const {
-	return hotkey_paused_ || !net_lockstep() || turn_mgr_.is_replaying() || !observing_seat() || net_host_.isHost();
+	if (hotkey_paused_ || !net_lockstep() || turn_mgr_.is_replaying()) return true;
+	if (!net_game_started_ || turn_mgr_.current_turn() <= rtso::TurnManager::COMMAND_DELAY) return false;
+	return !observing_seat() || net_host_.isHost();
 }
 
 void RtsoMain::toggle_pause() {
