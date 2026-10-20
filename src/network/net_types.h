@@ -418,7 +418,7 @@ struct GameSetupParams {
 	uint8_t relics = 2;      // Capture the Relic: relic count, 1..16
 	uint8_t biome = 0;       // random-map biome: 0 = the map's own, else BIOME_* + 1
 	uint8_t diffs[8] = {3, 3, 3, 3, 3, 3, 3, 3}; // per-slot Petra difficulty 0..5
-	uint8_t behs[8] = {2, 2, 2, 2, 2, 2, 2, 2};  // per-slot Petra behaviour 0..3
+	uint8_t behs[8] = {};  // per-slot Petra behaviour 0..3 (0 random, player_defaults.json)
 	uint8_t colors[8] = {0, 1, 2, 3, 4, 5, 6, 7}; // per-slot PLAYER_COLORS index 0..23 (one base-36 digit)
 	uint8_t nomad = 0;             // 1 = Nomad start (random maps)
 	uint8_t regicide_garrison = 0; // 1 = the Regicide hero may garrison
@@ -435,7 +435,7 @@ struct GameSetupParams {
 	uint8_t sea_rise_min = 25; // Extinct Volcano: minutes until the water rises, 0..60 (0 A.D. SeaLevelRiseTime)
 	uint16_t map_size = 128; // random-map width in meters, 128..512
 	uint8_t difficulty = 3; // Petra 0..5 sandbox..very hard
-	uint8_t behavior = 2;   // Petra 0..3 random/def/bal/agg
+	uint8_t behavior = 0;   // Petra 0..3 random/def/bal/agg (player_defaults.json: random)
 	uint8_t start_res = 1;  // 0 A.D. starting resources: 0 Very Low (100) .. 5 Deathmatch (50000), 1 Low (300)
 	uint8_t civs[8] = {0, 1, 0, 0, 0, 0, 0, 0};
 	char slot_types[8] = {'h', 'a', 'x', 'x', 'x', 'x', 'x', 'x'};
