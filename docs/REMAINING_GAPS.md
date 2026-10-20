@@ -139,12 +139,12 @@ The command row against unit_actions.js g_EntityCommands (all 19 commands exist,
 | C2 | ~~Barter & Trade shows only on a market~~ Fixed: any finished structure with a Market component, docks too | medium | Fixed |
 | C3 | ~~Delete is hidden for undeletable units, and a shrine or trading post (Identity/Undeletable) offers an enabled Delete~~ Fixed: Delete always shows; disabled, it lists each isUndeletable reason (killed before gathered, under half the capture points, undeletable) | medium-low | Fixed |
 | C4 | Own livestock get no Abort or Garrison button (RTS0 selects animals only for the stop hotkey and corral orders) | medium-low | Open |
-| C5 | Back to Work sends the whole selection, so soldiers in a mixed selection post "back to work failed" notices; 0.28 sends only units with work orders | medium-low | Open |
-| C6 | The delete hotkey opens the confirmation for a selection with nothing deletable | low | Open |
+| C5 | ~~Back to Work sends the whole selection, so soldiers in a mixed selection post "back to work failed" notices~~ Fixed: only units with work orders (hasWorkOrders) are sent, and nothing at all when none has one | medium-low | Fixed |
+| C6 | ~~The delete hotkey opens the confirmation for a selection with nothing deletable~~ Fixed: undeletable units, the catafalque and structures without health or under half capture points stay out of the confirmation | low | Fixed |
 | C7 | Focus on Rally Point reads only the clicked structure's rally point and isn't offered to observers | low | Open |
 | C8 | is-dropsite-shared is offered only for an ally's structures (not wagons) and not to observers | low | Open |
 | C9 | Leave Turret ignores ejectable and shows a hotkey in its tooltip | low | Open |
-| C10 | Leave Turret, Unload Turrets and Unload All post no notice when a unit can't get off | low | Open |
+| C10 | ~~Leave Turret, Unload Turrets and Unload All post no notice when a unit can't get off~~ Fixed: each posts "Unable to unload unit(s)." (notifyUnloadFailure), ship unloads too. `tools/test_naval.cpp` | low | Fixed |
 | C11 | Unload Turrets isn't offered on a unit that holds turrets | low | Open |
 
 ### Aura icons, fogged selections and structure tooltips: Compare's eleventh 0.28 pass (2026-10-20)

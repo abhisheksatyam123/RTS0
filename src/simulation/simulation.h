@@ -1116,7 +1116,7 @@ public:
 	static constexpr float SHIP_LOADING_RANGE = 10.0f * 0.28f; // GarrisonHolder LoadingRange 10 m in RTS0 scale
 	void order_board_transport(const uint32_t *unit_ids, size_t count, uint32_t transport_id);
 	void order_disembark(uint32_t transport_id, float target_x, float target_z);
-	void order_disembark_all(uint32_t transport_id);
+	void order_disembark_all(uint32_t transport_id, uint8_t notify = 0xFF);
 	void order_disembark_single(uint32_t transport_id, uint32_t unit_id);
 	const std::vector<uint32_t> *get_transport_passengers(uint32_t transport_id) const;
 	const std::unordered_map<uint32_t, std::vector<uint32_t>> &transport_passengers() const { return transport_passengers_; }

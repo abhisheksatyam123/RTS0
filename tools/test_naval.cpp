@@ -421,8 +421,15 @@ static void test_transport() {
 	// Out at sea there is no shore to unload onto: everyone stays aboard.
 	s.cmd_move(&arrow, 1, -20.0f, 0.0f);
 	run(s, 8.0f);
-	s.order_disembark_all(arrow);
+	s.take_session_notices();
+	s.order_disembark_all(arrow, 0);
 	CHECK(s.get_transport_passenger_count(arrow) == 2);
+	{
+		// Commands.js "unload-all": notifyUnloadFailure, "Unable to unload unit(s)."
+		const auto notes = s.take_session_notices();
+		CHECK(notes.size() == 1 && notes[0].kind == Simulation::SessionNotice::TEXT &&
+		      notes[0].tech == Simulation::SessionNotice::TEXT_UNLOAD_FAILED && notes[0].player == 0);
+	}
 
 	// Sunk at sea: everyone drowns.
 	s.units_.hp[idx(s, arrow)] = 0.0f;
@@ -715,10 +722,29 @@ static void test_turret_leave_spot() {
 	const uint32_t w2 = t.spawn_building_world(0.0f, 30.0f, BLD_WALL_SEGMENT, 0, 1.0f);
 	const uint32_t a = t.spawn_unit(0.0f, 30.0f, 0, UNIT_ARCHER);
 	CHECK(t.garrison_unit_now(a, w2) && t.turret_holder_of(a) == w2);
+	// Commands.js notifyUnloadFailure: "leave-turret" and "unload-turrets" each tell the player.
+	auto unload_failed = [&]() {
+		const auto notes = t.take_session_notices();
+		int n = 0;
+		for (const auto &nt : notes)
+			n += nt.kind == Simulation::SessionNotice::TEXT && nt.tech == Simulation::SessionNotice::TEXT_UNLOAD_FAILED &&
+			     nt.player == 0;
+		return n == 1;
+	};
+	t.take_session_notices();
 	t.cmd_leave_turret(0, &a, 1);
+	CHECK(unload_failed());
+	t.cmd_unload_turrets(0, w2);
+	CHECK(unload_failed());
 	t.cmd_unload(0, w2, &a, 1);
 	std::printf("  an archer on a wall with nowhere to step down: %s\n", t.turret_holder_of(a) == w2 ? "stays up" : "came down");
 	CHECK(t.turret_holder_of(a) == w2);
+	// One that does come down posts nothing.
+	s.take_session_notices();
+	CHECK(s.garrison_unit_now(men[0], wall));
+	s.cmd_unload_turrets(0, wall);
+	CHECK(s.turret_holder_of(men[0]) == 0);
+	for (const auto &nt : s.take_session_notices()) CHECK(nt.tech != Simulation::SessionNotice::TEXT_UNLOAD_FAILED);
 }
 
 // A task walk's line is tested on every navcell it passes through, as CheckLineMovement walks
