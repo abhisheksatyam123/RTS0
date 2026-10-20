@@ -38,6 +38,7 @@
 #include "../graphics/assets/unit_template_models.h"
 #include "fog_mirage.h"
 #include "status_sprites.h"
+#include "status_bars_data.h"
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/image_texture.hpp>
 #include <godot_cpp/classes/shader_material.hpp>
@@ -562,7 +563,6 @@ private:
 	// StatusBars.js RegenerateSprites: one entity's sprites, bottom up.
 	struct StatusStack {
 		float xp = -1.0f, pack = -1.0f, upgrade = -1.0f, supply = -1.0f, health = -1.0f;
-		Color health_color;
 		const float *capture = nullptr; // capture points per player slot
 		float capture_max = 0.0f;
 		uint8_t owner = 0xFF;
@@ -573,7 +573,7 @@ private:
 	void status_aura_icons(float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const;
 	PackedStringArray status_rank_icons_;
 	int status_xp_bars_ = 0;
-	void draw_status_stack(const rtso::Simulation *sim, const Vector3 &base, float width, float height, const StatusStack &st);
+	void draw_status_stack(const rtso::Simulation *sim, const Vector3 &base, float width, float height, float metre, const StatusStack &st);
 
 	// Fog of war (0 A.D. Fogging.js/Mirage.js + CLOSTexture): what the local
 	// player remembers, and the smoothed LOS bitmap that shades the world.

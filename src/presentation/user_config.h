@@ -35,6 +35,10 @@ void reload();
 bool save();
 // Bumped by every set/reset/reload so readers can cache values.
 uint32_t generation();
+// -nosound or -quickstart on the command line (Config.cpp g_DisableAudio).
+bool audio_disabled();
+// Replaces the command line's values (tests); the real ones are read on first use.
+void set_command_args(const godot::PackedStringArray &args);
 // The settings part of user.cfg, as save() writes it (hotkey saves keep it).
 std::string settings_cfg();
 // Every key the options page knows, in default.cfg order.
@@ -60,6 +64,8 @@ public:
 	bool save();
 	int get_generation() const;
 	godot::PackedStringArray get_keys() const;
+	bool is_audio_disabled() const;
+	void set_command_args(const godot::PackedStringArray &args);
 };
 
 #endif

@@ -25,6 +25,7 @@ static func configure(ms: Node, map_id: String) -> bool:
 		civs.append(int(players[i].get("civ", 0)) if i < players.size() and typeof(players[i]) == TYPE_DICTIONARY else 0)
 	ms.map_id = map_id
 	ms.seed = 0
+	ms.seed_exact = false
 	ms.ai_seed = 0
 	ms.victory = 0
 	ms.waves_enabled = false

@@ -18,6 +18,7 @@ const BUSES := {
 const SHADOW_ATLAS := [1024, 2048, 4096, 8192] # shadowquality -1 Low .. 2 Very High
 # shadowscovermap: a cutoff past the largest map's diagonal (Giant, 512 m).
 const SHADOW_COVER_MAP_DISTANCE := 2000.0
+const METRES_PER_UNIT := 4.0 # RTS0's world unit is 4 m
 # FidelityFX CAS (CASFilter in 0.28's postproc), on the 3D picture under the GUI.
 const CAS_SHADER := """
 shader_type canvas_item;
@@ -487,6 +488,8 @@ func _gain_db(key: String) -> float:
 
 func _apply_sound() -> void:
 	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Master"), _gain_db("sound.mastergain"))
+	# -nosound and -quickstart (Config.cpp g_DisableAudio): no sound at all.
+	AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), cfg.is_audio_disabled())
 	for bus in BUSES:
 		var i := AudioServer.get_bus_index(bus)
 		if i >= 0:
@@ -559,6 +562,14 @@ func _apply_window() -> void:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 	elif not windowed and not full:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	# xres / yres (-xres=N -yres=N, or -conf=xres:N): the window's size; 0 keeps it.
+	var xres := int(cfg.get_number("xres"))
+	var yres := int(cfg.get_number("yres"))
+	if windowed and (xres > 0 or yres > 0):
+		var size := DisplayServer.window_get_size()
+		var want := Vector2i(xres if xres > 0 else size.x, yres if yres > 0 else size.y)
+		if want != size:
+			DisplayServer.window_set_size(want)
 	var grab := cfg.get_bool("window.mousegrabinwindowmode") if windowed else cfg.get_bool("window.mousegrabinfullscreen")
 	if grab and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
 		Input.mouse_mode = Input.MOUSE_MODE_CONFINED
@@ -594,10 +605,13 @@ func _apply_node(n) -> void:
 	if n is DirectionalLight3D:
 		if not n.has_meta("rtso_shadow"):
 			n.set_meta("rtso_shadow", n.shadow_enabled)
-			n.set_meta("rtso_shadow_dist", n.directional_shadow_max_distance)
 		n.shadow_enabled = n.get_meta("rtso_shadow") and cfg.get_bool("shadows")
-		# 0 A.D.'s default cutoff is 300 m; scale the scene's own distance by the setting.
-		n.directional_shadow_max_distance = float(n.get_meta("rtso_shadow_dist")) * clampf(cfg.get_number("shadowscutoffdistance"), 100.0, 1500.0) / 300.0
+		# CShadowMap: shadowscutoffdistance metres from the camera (4 m a world unit),
+		# over shadowscascadecount cascades (0.28 default: one map, 300 m).
+		n.directional_shadow_max_distance = clampf(cfg.get_number("shadowscutoffdistance"), 100.0, 1500.0) / METRES_PER_UNIT
+		var cascades := clampi(int(cfg.get_number("shadowscascadecount")), 1, 4)
+		n.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL if cascades == 1 \
+				else (DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS if cascades == 2 else DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS)
 		if cfg.get_bool("shadowscovermap"):
 			n.directional_shadow_max_distance = SHADOW_COVER_MAP_DISTANCE
 	elif n is WorldEnvironment and n.environment:
