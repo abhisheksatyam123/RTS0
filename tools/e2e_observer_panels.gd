@@ -35,6 +35,23 @@ func run() -> void:
 	print("    ", row.map(func(e): return "%s%s" % [e["text"], " (off)" if e["disabled"] else ""]))
 	check(row.size() >= 3, "its panels show: %d buttons" % row.size())
 	check(row.all(func(e): return e["disabled"]), "every one disabled")
+	# is-dropsite-shared shows for observers (allowedPlayers Ally and Observer), disabled.
+	var drop: Array = row.filter(func(e): return e["text"].ends_with("Dropsite"))
+	check(drop.size() == 1, "the Civic Center's dropsite badge shows")
+	check(drop.size() == 1 and (drop[0]["text"] == "Locked Dropsite" or drop[0]["tip"].contains("Allies are allowed")),
+			"in the observer's words: %s" % (drop[0]["tip"] if drop.size() else ""))
+	# focus-rally (allowedPlayers Player and Observer): the observer may press it.
+	var start: Vector2 = main.debug_camera()["target"]
+	main.debug_set_rally(cc, start.x + 20.0, start.y + 20.0)
+	await frames(2)
+	var rp = main.debug_selection_state().get("rally", null)
+	check(rp != null, "the Civic Center has a rally point: %s" % rp)
+	var rally_row: Array = main.debug_command_row().filter(func(e): return e["text"] == "Focus on Rally Point")
+	check(rally_row.size() == 1 and not rally_row[0]["disabled"], "Focus on Rally Point shows, pressable")
+	# Read at once: headless, the mouse rests on the screen corner and edge-scrolls the view.
+	main._on_entity_command("focus-rally")
+	var cam: Vector2 = main.debug_camera()["target"]
+	check(rp != null and cam.distance_to(rp) < 0.5 and cam.distance_to(start) > 20.0, "it centres the view on the rally point: %s" % cam)
 	var roster: Array = main.debug_roster()
 	check(roster.size() > 0, "the roster lists what it trains: %d" % roster.size())
 	check(roster.all(func(e): return e["disabled"]), "and none of it can be trained")
