@@ -581,6 +581,11 @@ public:
 	int status_sprite_count() const { return status_sprites_.sprite_count(); }
 	const PackedStringArray &status_rank_icons() const { return status_rank_icons_; } // drawn last frame (tests)
 	int status_xp_bars() const { return status_xp_bars_; }
+	PackedStringArray status_aura_sources() const { // "source id:aura id" of last frame's shown auras (tests)
+		PackedStringArray out;
+		for (const AuraIconSource &a : aura_icon_sources_) out.push_back(String::num_int64(a.src->source_id) + ":" + a.aura_id);
+		return out;
+	}
 
 	void play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 	void play_spatial_sound_path(const String &path, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
@@ -600,6 +605,10 @@ private:
 	struct AuraIconSource {
 		const rtso::AuraSource *src;
 		int icon;
+		int16_t hero = -1;          // the civ_hero_aura row whose affects it reaches, -1 none
+		bool structures = false;    // reaches structures (with no hero row: only them)
+		bool units = false;         // with no hero row: reaches every unit
+		const char *aura_id = "";   // the 0.28 aura (tests)
 	};
 	std::vector<AuraIconSource> aura_icon_sources_;
 	// StatusBars.js RegenerateSprites: one entity's sprites, bottom up.
@@ -612,7 +621,7 @@ private:
 		int icons[8];
 		int n_icons = 0;
 	};
-	void status_aura_icons(uint32_t id, float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const;
+	void status_aura_icons(uint32_t id, float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st, bool civic_centre = false) const;
 	PackedStringArray status_rank_icons_;
 	int status_xp_bars_ = 0;
 	void draw_status_stack(const rtso::Simulation *sim, const Vector3 &base, float width, float height, float metre, const StatusStack &st);

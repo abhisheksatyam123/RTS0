@@ -204,12 +204,18 @@ void TurnManager::apply_peer_left(uint32_t client_id, uint32_t last_turn) {
 void TurnManager::apply_peer_control(const NetCommand &c) {
 	ensure_lockstep_peers();
 	const uint32_t id = c.target_id;
-	if (id != 0 && id == local_client_id_ && c.cmd_type == CMD_PEER_JOINED && c.target_z > 0.5f)
-		rejoined_clients_.push_back(id); // the rejoiner hears it too
+	if (id != 0 && id == local_client_id_ && c.cmd_type == CMD_PEER_JOINED) {
+		rejoin_announced_ = true;
+		if (c.target_z > 0.5f) rejoined_clients_.push_back(id); // the rejoiner hears it too
+	}
 	if (id == 0 || id == local_client_id_) return;
+	// 0 A.D. NetServer multicasts NMT_REJOINED to the clients in the game only:
+	// a rejoiner, from the world the host sent it until the host announces it,
+	// does not hear that someone else has joined.
+	const bool hears = !rejoin_have_header_ || rejoin_announced_;
 	// A late observer loaded: everyone hears "has joined the game.", and it stays out of the lockstep.
 	if (c.cmd_type == CMD_PEER_JOINED && c.param >= MAX_PLAYERS) {
-		if (c.target_z > 0.5f) rejoined_clients_.push_back(id);
+		if (c.target_z > 0.5f && hears) rejoined_clients_.push_back(id);
 		return;
 	}
 	if (c.cmd_type == CMD_PEER_LEFT) {
@@ -222,7 +228,7 @@ void TurnManager::apply_peer_control(const NetCommand &c) {
 		lockstep_until_.erase(id);
 		left_clients_.erase(id);
 		client_player_[id] = c.param;
-		if (c.target_z > 0.5f) rejoined_clients_.push_back(id);
+		if (c.target_z > 0.5f && hears) rejoined_clients_.push_back(id);
 		std::cerr << "[TurnManager] client " << id << " takes player " << (unsigned)c.param
 		          << " from turn " << (uint32_t)c.target_x << "\n";
 	}
@@ -327,6 +333,7 @@ void TurnManager::request_rejoin(bool observe) {
 	rejoin_wanted_ = true;
 	rejoin_observe_ = observe;
 	rejoin_have_header_ = false;
+	rejoin_announced_ = false;
 	rejoin_reject_ = 0;
 	rejoin_world_.clear();
 	rejoin_chunks_.clear();

@@ -1163,6 +1163,9 @@ public:
 		float remaining = 0.0f, remaining_new = 0.0f;
 	};
 	bool structure_build_work(const Building &b, BuildWork &out) const;
+	// The same for a damaged Repairable unit (siege engines and ships): its repairers at work and
+	// the time left at tick_repair_unit's rate; false when unit t needs no repair.
+	bool unit_repair_work(size_t t, BuildWork &out) const;
 	// The statuses on an entity, as selection_details.js lists entState.statusEffects: each
 	// stacked copy with its Damage, Interval and the Duration still to run (seconds). Returns
 	// how many there are; at most `max` are written to `out`.
@@ -1807,6 +1810,8 @@ public:
 		const uint8_t *flora; // FloraKind
 		const uint32_t *id;
 		size_t count;
+		const uint8_t *fauna; // a carcass's animal: fauna type + 1, 0 none
+		const uint8_t *owner; // a carcass's owner (the animal's), else GAIA_PLAYER or 0xFF
 	};
 	ResourceView resources() const;
 
@@ -3228,6 +3233,8 @@ private:
 	CinemaState cinema_; // saved from SAVE_VERSION_CINEMA
 	void tick_triggers(float dt);
 	void tick_cinema(float dt);
+	// Where TriggerHelper.SpawnUnits puts a unit of `type` at trigger point p (false: on the point).
+	bool trigger_point_spawn_spot(const TriggerPoint &p, uint8_t type, float &x, float &z) const;
 	void cinema_drop_deleted_path(uint16_t idx); // a deleted path no longer queued
 	void set_cinema_enabled(bool enabled);
 	void register_map_triggers(MapType type);
@@ -3661,6 +3668,7 @@ private:
 	void petra_available_techs(std::vector<uint8_t> &out) const;
 	int petra_accounted_workers(bool queued = true) const; // false: units alive only (getOwnEntitiesByRole)
 	bool petra_phasing() const;
+	bool petra_has_active_base() const; // basesManager.js hasActiveBase: a finished base anchor of ours
 	bool petra_start_research(uint8_t tech_id);
 	void petra_research_population_bonus();
 	bool petra_minor_tech_waiting() const;

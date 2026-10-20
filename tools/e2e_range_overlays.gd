@@ -51,6 +51,22 @@ func run() -> void:
 	var r := await rings_of_structure(temple)
 	check(has_ring(r, 40.0 * SCALE), "a temple shows its 40 m healing aura ring: " + str(r))
 
+	# StatusBars.js AddAuraIcons draws each aura's own overlayIcon: the Rotary Mill's
+	# farmstead_60 (farm_bonus), not another table's row.
+	var mill: int = main.debug_spawn_building(86, -30.0, -30.0)
+	await frames(30)
+	main.debug_select_structures(PackedInt32Array([mill]))
+	await frames(4)
+	var shown: PackedStringArray = main.debug_status_aura_sources()
+	check(shown.has("%d:farmstead_60" % mill), "a selected Rotary Mill shows its farmstead_60 aura icon: " + str(shown))
+	var vesta: int = main.debug_spawn_building(49, -50.0, 30.0)
+	await frames(30)
+	main.debug_select_structures(PackedInt32Array([vesta]))
+	await frames(4)
+	shown = main.debug_status_aura_sources()
+	check(shown.has("%d:eternal_fire" % vesta) and not shown.has("%d:athen_catafalque_1" % vesta),
+			"the Temple of Vesta shows eternal_fire, not another aura's icon: " + str(shown))
+
 	var tower: int = main.debug_spawn_building(BLD_TOWER, 30.0, -10.0)
 	await frames(30)
 	r = await rings_of_structure(tower)

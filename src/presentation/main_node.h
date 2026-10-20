@@ -683,6 +683,7 @@ public:
 	int debug_status_sprites() const { return view ? view->status_sprite_count() : 0; }
 	PackedStringArray debug_status_rank_icons() const { return view ? view->status_rank_icons() : PackedStringArray(); }
 	int debug_status_xp_bars() const { return view ? view->status_xp_bars() : 0; }
+	PackedStringArray debug_status_aura_sources() const { return view ? view->status_aura_sources() : PackedStringArray(); }
 	PackedInt32Array debug_selected_structures() const {
 		PackedInt32Array out;
 		for (uint32_t id : selected_structures()) out.push_back((int32_t)id);

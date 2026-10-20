@@ -3029,7 +3029,9 @@ static void test_liu_bang_wall_regen() {
 	const uint32_t pal = s.spawn_building_world(-20.0f, 36.0f, BLD_PALISADE, 0, 1.0f);
 	const uint32_t theirs = s.spawn_building_world(20.0f, -20.0f, BLD_WALL_SEGMENT, 1, 1.0f);
 	auto wound = [&](uint32_t id) { bld_mut(s, id)->hp = bld_mut(s, id)->max_hp * 0.25f; return bld_mut(s, id)->hp; };
+	const uint32_t fnd = s.spawn_building_world(20.0f, 20.0f, BLD_WALL_SEGMENT, 0, 0.2f);
 	const float w0 = wound(wall), p0 = wound(pal), t0 = wound(theirs);
+	const float f0 = bld_mut(s, fnd)->hp, fp0 = bld_mut(s, fnd)->build_progress;
 	run(s, 5.0f);
 	check(bld_mut(s, wall)->hp == w0, "no Liu Bang: the wall stays damaged");
 	const uint32_t hero = s.spawn_unit(-40.0f, -40.0f, 0, UNIT_HERO, 0.0f, roster_named("han/hero_liu_bang"));
@@ -3038,6 +3040,8 @@ static void test_liu_bang_wall_regen() {
 	std::printf("  wall %.1f -> %.1f in 10 s\n", w0, w1);
 	check(std::fabs(w1 - (w0 + 100.0f)) < 1.0f, "with Liu Bang: +10 hp/s");
 	check(bld_mut(s, pal)->hp == p0 && bld_mut(s, theirs)->hp == t0, "not palisades, not the enemy's walls");
+	check(std::fabs(bld_mut(s, fnd)->hp - std::min(bld_mut(s, fnd)->max_hp, f0 + 100.0f)) < 1.0f && bld_mut(s, fnd)->build_progress == fp0,
+		"a wall foundation's health regenerates too, its build progress waits for a builder");
 	s.cmd_delete(0, &hero, 1);
 	run(s, 3.0f);
 	const float w2 = bld_mut(s, wall)->hp;
@@ -3495,6 +3499,48 @@ static void test_approach_walks() {
 	check(ran && walked, "once he has been in range of her and she flees again, he runs after her");
 }
 
+static void test_rally_repair_or_garrison() {
+	std::printf("96. a rally point on an own damaged garrison holder garrisons, or repairs with session.repair held (set-rallypoint)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t cc = s.spawn_building_world(-20.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	const uint32_t tower = s.spawn_building_world(10.0f, 10.0f, BLD_TOWER, 0, 1.0f);
+	for (auto &b : s.buildings_) if (b.id == tower) b.hp = b.max_hp * 0.6f;
+	const uint32_t site = s.spawn_building_world(10.0f, -10.0f, BLD_BARRACKS, 0, 0.5f);
+	uint32_t sp = s.spawn_unit(-12.0f, 0.0f, 0, UNIT_SPEARMAN), cav = s.spawn_unit(-12.0f, 3.0f, 0, UNIT_CAVALRY);
+	s.cmd_set_rally_point(0, cc, 10.0f, 10.0f, 0, tower);
+	s.apply_rally_point(sp, *bld(s, cc));
+	check(s.unit_order(sp).kind == ORDER_GARRISON && s.unit_order(sp).target == tower, "a builder garrisons in the damaged tower");
+	s.cmd_set_rally_point(0, cc, 10.0f, 10.0f, 0, tower, false, RALLY_CMD_REPAIR);
+	s.apply_rally_point(sp, *bld(s, cc));
+	s.apply_rally_point(cav, *bld(s, cc));
+	check(s.unit_order(sp).kind == ORDER_BUILD && s.unit_order(sp).target == tower, "with session.repair held it repairs it");
+	check(s.unit_order(cav).kind == ORDER_WALK, "a unit that can't repair walks there");
+	s.cmd_set_rally_point(0, cc, 10.0f, -10.0f, 0, site);
+	s.apply_rally_point(sp, *bld(s, cc));
+	check(s.unit_order(sp).kind == ORDER_BUILD && s.unit_order(sp).target == site, "a foundation is built");
+}
+
+static void test_rally_on_animal() {
+	std::printf("97. a rally point on an animal sends hunters after that kind near the spot (gather-near-position, resourceTemplate)\n");
+	Simulation s;
+	setup(s);
+	s.set_explore_map(true);
+	const uint32_t cc = s.spawn_building_world(-20.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s.spawn_fauna(19.0f, 0.0f, FAUNA_CHICKEN); // nearer the spot, but another kind
+	const uint32_t deer = s.spawn_fauna(22.0f, 0.0f, FAUNA_DEER);
+	s.cmd_set_rally_point(0, cc, 20.0f, 0.0f, 0, 0, false, RALLY_CMD_HUNT, (uint32_t)FAUNA_DEER + 1);
+	uint32_t cav = s.spawn_unit(-12.0f, 0.0f, 0, UNIT_CAVALRY), sp = s.spawn_unit(-12.0f, 3.0f, 0, UNIT_SPEARMAN);
+	s.apply_rally_point(cav, *bld(s, cc));
+	const int ci = idx_of(s, cav);
+	check(ci >= 0 && s.units_.action_state[ci] == ACTION_ATTACK && s.units_.target_unit_id[ci] == deer,
+			"the cavalryman hunts the deer, not the nearer chicken");
+	for (size_t f = 0; f < s.fauna_.count; ++f)
+		if (s.fauna_.id[f] == deer) s.fauna_.alive[f] = 0;
+	s.apply_rally_point(sp, *bld(s, cc));
+	check(s.unit_order(sp).kind == ORDER_WALK, "with no deer left the spearman walks to the spot");
+}
+
 static void test_cant_do_walks() {
 	std::printf("units that can't gather or return walk to the target\n");
 	Simulation s;
@@ -3620,6 +3666,8 @@ int main(int argc, char **argv) {
 	test_hidden_targets();
 	test_cant_do_walks();
 	test_approach_walks();
+	test_rally_repair_or_garrison();
+	test_rally_on_animal();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

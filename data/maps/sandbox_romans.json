@@ -4432,6 +4432,13 @@
   ],
   "units": [
     {
+      "type": "",
+      "player": 1,
+      "x": 0.99,
+      "z": -20.31,
+      "template": "rome/catafalque"
+    },
+    {
       "type": "trireme",
       "player": 1,
       "x": 65.62,
@@ -4480,6 +4487,26 @@
       "template": "rome/siege_onager_unpacked",
       "parents": [
         "rome/siege_onager_packed"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 49.02,
+      "z": -37.04,
+      "template": "rome/siege_scorpio_unpacked",
+      "parents": [
+        "rome/siege_scorpio_packed"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 50.35,
+      "z": -36.36,
+      "template": "rome/siege_scorpio_unpacked",
+      "parents": [
+        "rome/siege_scorpio_packed"
       ]
     },
     {

@@ -221,7 +221,14 @@ func run() -> void:
 	check(v._info.text.contains("[url=structure:"), "a unit links to the structures that train it")
 	check(v._info.text.contains("Builds:") or v._info.text.contains("Trained by"), "a citizen lists what it builds")
 	v._on_meta("structure:0")
-	check(v.kind == "structure" and v._name.text.contains(tc_name) or v._name.text.contains("Civic"), "the link opens the civic centre")
+	check(v.kind == "structure" and (v._name.get_parsed_text().to_upper().contains(tc_name.to_upper()) or v._name.get_parsed_text().to_upper().contains("CIVIC")),
+		"the link opens the civic centre")
+	# viewer.xml: a 500x640 dialog titled "Information", the name on one line, a 128 px icon, a 192x32 Close.
+	var dlg_v: Control = v.get_node("Dialog")
+	var close_v: Button = dlg_v.get_node("Close")
+	check(dlg_v.size == Vector2(500, 640) and dlg_v.get_node("Title").text == "Information" and not v._name.text.contains("\n")
+		and v._icon.size == Vector2(128, 128) and close_v.size.x == 192.0 and close_v.size.y <= 40.0 and close_v.tooltip_text.ends_with(": Close Template Viewer"),
+		"the viewer follows viewer.xml's layout: %s %s %s %s %s" % [dlg_v.size, dlg_v.get_node("Title").text, v._icon.size, close_v.size, close_v.tooltip_text])
 	check(v._info.text.contains("Trains:") and v._info.text.contains("Built by:"), "a civic centre lists what it trains and who builds it")
 	v._go_back()
 	check(v.kind == "unit", "Back returns to the unit")
