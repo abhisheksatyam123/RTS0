@@ -2706,9 +2706,9 @@ private:
 	bool corral_has_room(const Building &b) const; // penned animals and garrisoned units under GarrisonHolder/Max
 	// The search behind pick_spawn_point and siege_spawn_point: the spots round a footprint centred
 	// on (cx, cz) and turned by rot, a square with half extents along_u (the front) and along_v, or a
-	// circle of radius circle_r when that is above 0. dry_ground also rejects spots under the water line.
+	// circle of radius circle_r when that is above 0.
 	bool pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
-			bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid, bool dry_ground,
+			bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid,
 			float &out_x, float &out_z) const;
 	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
 	void tick_garrison_holders();
