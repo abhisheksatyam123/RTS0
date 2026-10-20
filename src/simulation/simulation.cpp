@@ -3790,7 +3790,8 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 	// units/{native}/... lists (shrines, Kushite camps, Carthaginian embassies, civic centres'
 	// civilians) train the structure's own civ's units, whoever holds it.
 	if (t.civ != building_train_civ(b.type, b.civ, ps.civ, t)) return false;
-	if (exclusive && !(t.trainers & bld_bit(b.type))) return false; // 0 A.D. Trainer list
+	// 0 A.D. Trainer list: a captured structure's is its builder's ({civ} = ours).
+	if (exclusive && !building_trains_template(b.type, b.civ, ps.civ, tmpl)) return false;
 	if (t.phase > ps.phase) return false; // 0 A.D. Identity/Requirements: phase_town / phase_city
 
 	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
@@ -19832,10 +19833,9 @@ uint32_t Simulation::petra_best_trainer(uint16_t tmpl, uint8_t unit_type, size_t
 		if (b.team != petra_pid_ || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked ||
 		    b.upgrade_to != BLD_TYPE_COUNT || b.queue.size() >= max_queue) continue;
 		if (petra_emergency_rally(b)) continue; // its queue is for the emergency units
-		if (tmpl < CIV_UNIT_TEMPLATE_COUNT && !(civ_unit_template(tmpl).trainers & bld_bit(b.type))) continue; // its Trainer list
-		// A captured civic centre trains its builder's civilians, not ours.
-		if (tmpl < CIV_UNIT_TEMPLATE_COUNT &&
-		    building_train_civ(b.type, b.civ, players_[petra_pid_].civ, civ_unit_template(tmpl)) != civ_unit_template(tmpl).civ) continue;
+		// Its Trainer list (a captured one's is its builder's, and a captured civic centre
+		// trains its builder's civilians, not ours).
+		if (tmpl < CIV_UNIT_TEMPLATE_COUNT && !building_trains_template(b.type, b.civ, players_[petra_pid_].civ, tmpl)) continue;
 		// The civ's support worker is the civic centre's support_civilian (a house's own
 		// support_civilian_house waits on a technology).
 		if (tmpl == CIV_UNIT_TEMPLATE_NONE && unit_type == UNIT_VILLAGER && !is_civic_centre(b.type)) continue;
@@ -19856,7 +19856,7 @@ bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint1
 	const uint8_t pid = petra_pid_;
 	if (b.team != pid || b.build_progress < 1.0f || b.queue.size() >= 8 || b.upgrade_to != BLD_TYPE_COUNT) return false;
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
-	if (t.civ != building_train_civ(b.type, b.civ, players_[pid].civ, t) || t.phase > players_[pid].phase || triggers_.template_disabled(tmpl)) return false;
+	if (!building_trains_template(b.type, b.civ, players_[pid].civ, tmpl) || t.phase > players_[pid].phase || triggers_.template_disabled(tmpl)) return false;
 	if ((!wait_for_pop && petra_pop_room() < count) || !can_train_at(pid, t.unit_type, b.type, tmpl)) return false;
 	if (count > 1 && !entity_limit_allows_unit(pid, t.unit_type, tmpl, count)) return false;
 	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);

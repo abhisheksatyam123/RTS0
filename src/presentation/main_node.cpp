@@ -617,9 +617,10 @@ bool RtsoMain::building_trains_units(uint32_t id) const {
 	if (!sim || id == 0) return false;
 	for (const auto &b : sim->buildings()) {
 		if (b.id != id) continue;
-		const uint8_t civ = rtso::building_trains_native(b.type) ? b.civ : sim->player_civ(b.team);
-		for (uint16_t i : rtso::civ_roster_ids(civ))
-			if (rtso::civ_unit_template(i).trainers & rtso::bld_bit(b.type)) return true;
+		const uint8_t owner = sim->player_civ(b.team);
+		for (uint8_t civ : {b.civ, owner})
+			for (uint16_t i : rtso::civ_roster_ids(civ))
+				if (rtso::building_trains_template(b.type, b.civ, owner, i)) return true;
 		return false;
 	}
 	return false;
@@ -1540,7 +1541,7 @@ std::vector<uint32_t> RtsoMain::structure_trainers(uint16_t tmpl, uint32_t holde
 		for (const auto &b : sim->buildings()) {
 			if (b.id != id) continue;
 			if ((b.team == local_player() || control_all) && b.build_progress >= 1.0f && !b.wrecked && b.upgrade_to == rtso::BLD_TYPE_COUNT &&
-					(u.trainers & rtso::bld_bit(b.type)))
+					rtso::building_trains_template(b.type, b.civ, sim->player_civ(b.team), tmpl))
 				out.push_back(id);
 			break;
 		}
