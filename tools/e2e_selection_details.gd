@@ -128,7 +128,7 @@ func run() -> void:
 	print("fauna: ", f)
 	check(String(f["resource"]).begins_with("Food: ") and " / " in String(f["resource"]), "an animal's resource bar shows its food, amount / max")
 	check(String(f["attack_resistance"]).contains("Resistance:"), "and its resistance")
-	check(String(f["attack_resistance"]).contains("\nSpeed: ") and " Walk, " in String(f["attack_resistance"]), "and its speed (getSpeedTooltip)")
+	check(String(f["attack_resistance"]).contains("\nSpeed: ") and " Walk, " in String(f["attack_resistance"]) and " Acceleration" in String(f["attack_resistance"]), "and its speed with acceleration (getSpeedTooltip)")
 	check(String(f["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/gaia/fauna_"), "an animal shows its template's icon")
 	check(String(f["owner"]) == "Gaia" and String(f["owner_tooltip"]) == "" and Color(f["owner_color"]).a == 0.0, "Gaia has no colour, emblem or tooltip")
 

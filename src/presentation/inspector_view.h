@@ -631,6 +631,7 @@ public:
 			// getSpeedTooltip: walk and run, in 0 A.D. metres a second (RTS0 walks at x0.356).
 			d.walk = fi.speed / 0.356f;
 			d.run = d.walk * (fi.run_mult > 0.0f ? fi.run_mult : 1.0f);
+			d.acceleration = fi.acceleration / 0.356f; // UnitMotion/Acceleration, as for units
 			const String attack = rtso::seldet::attack_tooltip(d,
 					godot::Dictionary(rtso::portraits::fauna_entry(fv.fauna_type[f]).get("viewer", godot::Dictionary())).get("attacks", godot::Array())),
 					resistance = rtso::seldet::resistance_tooltip(d.resistance);

@@ -345,7 +345,7 @@ gui/session selection_panels.js, selection_details.js, tooltips.js and the produ
 | V6 | Multiple selection: the Carrying line was appended after the garrison size; selection_details.js:493 assigns it | low | Fixed |
 | V7 | Upgrade button: busy state came from the first structure only; 0.28 uses any upgradable one in the selection, shows the plural "all entities" text, the best progress, and needed resources for the upgradable count | medium | Fixed |
 | V8 | Detailed training tooltip listed the dropsite before health; 0.28 lists it after speed | low | Fixed |
-| V9 | Animal speed tooltips show no acceleration; 0.28 shows it when the template has one. RTS0 fauna have no acceleration value yet | low | Open (Fauna data) |
+| V9 | Animal speed tooltips showed no acceleration; 0.28 shows it when the template has one (Fauna #1433 added the values) | low | Fixed |
 
 ### Statistics, replays, summary, Match Settings and developer overlay, fifth 0.28 pass (2026-10-20)
 
