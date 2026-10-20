@@ -4480,6 +4480,13 @@
   ],
   "units": [
     {
+      "type": "",
+      "player": 1,
+      "x": 23.21,
+      "z": -34.71,
+      "template": "kush/catafalque"
+    },
+    {
       "type": "trireme",
       "player": 1,
       "x": 45.38,
@@ -4699,6 +4706,13 @@
       "x": -31.73,
       "z": -39.91,
       "template": "kush/siege_ram"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -26.42,
+      "z": -38.47,
+      "template": "kush/siege_tower"
     },
     {
       "type": "villager",
@@ -5499,6 +5513,101 @@
       "x": -20.46,
       "z": -30.6,
       "template": "kush/hero_nastasen"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 19.89,
+      "z": -56.01,
+      "template": "kush/infantry_maceman_merc_b"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 20.36,
+      "z": -56.4,
+      "template": "kush/infantry_maceman_merc_b"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 20.87,
+      "z": -57.04,
+      "template": "kush/infantry_maceman_merc_b"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 19.39,
+      "z": -56.59,
+      "template": "kush/infantry_maceman_merc_a",
+      "parents": [
+        "kush/infantry_maceman_merc_b"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 20.03,
+      "z": -57.12,
+      "template": "kush/infantry_maceman_merc_a",
+      "parents": [
+        "kush/infantry_maceman_merc_b"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 20.61,
+      "z": -57.6,
+      "template": "kush/infantry_maceman_merc_a",
+      "parents": [
+        "kush/infantry_maceman_merc_b"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 18.95,
+      "z": -57.06,
+      "template": "kush/infantry_maceman_merc_e",
+      "parents": [
+        "kush/infantry_maceman_merc_a",
+        "kush/infantry_maceman_merc_b"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 19.68,
+      "z": -57.55,
+      "template": "kush/infantry_maceman_merc_e",
+      "parents": [
+        "kush/infantry_maceman_merc_a",
+        "kush/infantry_maceman_merc_b"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 20.13,
+      "z": -57.87,
+      "template": "kush/infantry_maceman_merc_e",
+      "parents": [
+        "kush/infantry_maceman_merc_a",
+        "kush/infantry_maceman_merc_b"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 20.48,
+      "z": -58.31,
+      "template": "kush/infantry_maceman_merc_e",
+      "parents": [
+        "kush/infantry_maceman_merc_a",
+        "kush/infantry_maceman_merc_b"
+      ]
     },
     {
       "type": "archer",
