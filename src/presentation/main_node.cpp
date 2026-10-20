@@ -125,7 +125,7 @@ void RtsoMain::play_voice(const char *path) {
 // The top-right counters (user_settings.gd): match time, sim speed, ceasefire left.
 Dictionary RtsoMain::get_overlay_times() const {
 	Dictionary d;
-	d["elapsed"] = match_elapsed_time;
+	d["elapsed"] = match_elapsed_time();
 	d["speed"] = game_speed;
 	d["ceasefire"] = sim ? sim->ceasefire_remaining() : 0.0f;
 	return d;
@@ -138,7 +138,7 @@ void RtsoMain::_on_top_counter_gui_input(const Ref<InputEvent> &event) {
 	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
 	RtsoTopPanel::cycle_order();
 	top_panel_.invalidate();
-	if (sim) top_panel_.update(sim, local_player(), match_elapsed_time, spectating() || turn_mgr_.is_replaying());
+	if (sim) top_panel_.update(sim, local_player(), match_elapsed_time(), spectating() || turn_mgr_.is_replaying());
 }
 
 Dictionary RtsoMain::get_audio_state() const {
@@ -538,7 +538,7 @@ void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent>
 			for (size_t f = 0; f < fv.count; ++f)
 				if (fv.id[f] == a.target_id) { livestock = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic(); break; }
 		}
-		if (attack_detection_.report(a.x, a.z, match_elapsed_time, livestock)) {
+		if (attack_detection_.report(a.x, a.z, match_elapsed_time(), livestock)) {
 			notify_attack(Vector3(a.x, 0, a.z), a.attacker_owner, a.target_is_building != 0, a.target_id);
 			// messages.js "attack": a followed player's attacked entity takes the camera and the selection.
 			if (follow_player_ && followed_view() == (int)me) follow_focus(a.target_id, true);
@@ -1040,7 +1040,10 @@ void RtsoMain::update_net_status_overlay() {
 	if (client && !net_game_started_ && turn_mgr_.rejoin_syncing() && !net_host_.connectionLost()) {
 		status = tr("Synchronizing gameplay with other players…");
 	} else if (net_game_started_ && !turn_mgr_.is_replaying() && turn_mgr_.current_turn() <= rtso::TurnManager::COMMAND_DELAY) {
-		for (uint32_t c : turn_mgr_.waiting_on()) {
+		// NMT_CLIENTS_LOADING: a saved game also waits on the clients still loading it.
+		std::set<uint32_t> waiting(turn_mgr_.saved_game_waiting().begin(), turn_mgr_.saved_game_waiting().end());
+		for (uint32_t c : turn_mgr_.waiting_on()) waiting.insert(c);
+		for (uint32_t c : waiting) {
 			if (c == turn_mgr_.local_client_id()) continue;
 			String name;
 			for (const auto &e : net_host_.playerAssignment())
@@ -1525,8 +1528,11 @@ std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
 }
 
 void RtsoMain::update_hud() {
-	top_panel_.update(sim, local_player(), match_elapsed_time, spectating() || turn_mgr_.is_replaying());
+	top_panel_.update(sim, local_player(), match_elapsed_time(), spectating() || turn_mgr_.is_replaying());
 	if (sim) {
+		const bool picker_shown = (replay_view_picker_ && replay_view_picker_->is_visible_in_tree()) ||
+				(observer_view_picker_ && observer_view_picker_->is_visible_in_tree());
+		top_panel_.set_build_label_view(view_player() < rtso::MAX_PLAYERS, picker_shown);
 		const uint8_t me = local_player();
 		const int idle = me < rtso::MAX_PLAYERS ? (int)sim->get_idle_workers(me).size() : 0;
 		minimap_panel_.update(idle, rtso::display_colors::state().enabled, me >= rtso::MAX_PLAYERS || spectating(),
@@ -2081,7 +2087,7 @@ void RtsoMain::refresh_dev_overlay() {
 	// mapSize is in 0.28 metres (4 per tile); times in milliseconds, as cmpTimer.
 	String text = vformat("simulation: {players:\"<<<omitted>>>\", circularMap:%s, mapSize:%d, timeElapsed:%d",
 			sim->circular_map() ? "true" : "false", (int64_t)std::lround(sim->map_half() * 2.0f * 4.0f),
-			(int64_t)(match_elapsed_time * 1000.0));
+			(int64_t)(match_elapsed_time() * 1000.0));
 	text += vformat(", ceasefireActive:%s, ceasefireTimeRemaining:%d, cinemaPlaying:%s", sim->ceasefire_active() ? "true" : "false",
 			(int64_t)std::lround(sim->ceasefire_remaining() * 1000.0f), sim->cinema_playing() ? "true" : "false");
 	{
@@ -2905,10 +2911,11 @@ void RtsoMain::_start_menu_net() {
 	if (lobby_port) lobby_port->set_text(String::num_int64((int64_t)ms->get("net_port")));
 	if (lobby_password) lobby_password->set_text(ms->get("net_password"));
 	if (lobby_observe) lobby_observe->set_pressed_no_signal((bool)ms->get("net_observe"));
-	// A joiner sees the Connecting box, then the setup page; the developer
-	// lobby panel stays behind its button.
-	if (lobby_panel) lobby_panel->set_visible(mode == "host");
-	if (lobby_btn) lobby_btn->set_visible(true);
+	// A joiner sees the Connecting box, then the setup page, and the host the
+	// setup page: 0.28's top panel has no Lobby button, and the session menu's
+	// Lobby entry opens the lobby dialog. The developer lobby panel stays hidden.
+	if (lobby_panel) lobby_panel->set_visible(false);
+	if (lobby_btn) lobby_btn->set_visible(false);
 	if (mode == "host") _on_lobby_host_pressed();
 	else _on_lobby_join_pressed();
 	// tools/playtest_godot_mp.py --firewall: each peer drops datagrams from
@@ -3538,7 +3545,7 @@ void RtsoMain::update_net_setup_overlay() {
 void RtsoMain::update_net_connect_overlay() {
 	const bool client = net_host_.getRole() == rtso::NetRole::Client;
 	const bool want = client && !net_game_started_ && !net_disconnected_ && !net_host_.connectionLost() &&
-			(net_host_.authResult() < 0 || turn_mgr_.rejoin_syncing());
+			!net_saved_loading_ && (net_host_.authResult() < 0 || turn_mgr_.rejoin_syncing());
 	if (want && !net_connect_overlay_) {
 		Ref<Script> script = ResourceLoader::get_singleton()->load("res://scenes/menu/net_connecting.gd");
 		if (script.is_null()) return;
@@ -3863,6 +3870,11 @@ void RtsoMain::apply_net_game_start() {
 		++net_setup_.seq;
 		turn_mgr_.request_rejoin(lobby_observe && lobby_observe->is_pressed());
 		if (lobby_status) lobby_status->set_text("Loading the host's saved game");
+		// NetClient OnSavedGameStart: the setup gives way to the loading page,
+		// which stays until the world has come and loaded.
+		net_saved_loading_ = true;
+		show_net_loading_page(setup.map_id);
+		update_net_setup_overlay();
 		return;
 	}
 	turn_mgr_.reset_keep_inbound(); // host batches can arrive in the same poll as GAME_START

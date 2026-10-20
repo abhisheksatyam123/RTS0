@@ -193,6 +193,18 @@ public:
 
 	bool is_ready() const { return res_labels_[0] != nullptr; }
 
+	// BuildLabel.onViewedPlayerChanged: hidden while a player is viewed with the
+	// viewPlayer dropdown shown (it sits over the label), and at SizeObserver
+	// "202 0 85%-279 100%" while no player is viewed.
+	void set_build_label_view(bool viewing_player, bool picker_shown) {
+		if (!wave_label_) return;
+		wave_label_->set_visible(!(viewing_player && picker_shown));
+		wave_label_->set_anchor(godot::SIDE_LEFT, viewing_player ? 0.5f : 0.0f);
+		wave_label_->set_anchor(godot::SIDE_RIGHT, viewing_player ? 1.0f : 0.85f);
+		wave_label_->set_offset(godot::SIDE_LEFT, viewing_player ? 44.0f : 202.0f);
+		wave_label_->set_offset(godot::SIDE_RIGHT, viewing_player ? -283.0f : -279.0f);
+	}
+
 	void set_civ(uint8_t civ_id) {
 		if (civ_emblem_) {
 			const auto &info = rtso::civ_info(civ_id);
@@ -287,8 +299,8 @@ public:
 				res_labels_[i]->set_text(abbreviate((int64_t)std::floor(ps.res[r])));
 				set_gatherers(res_stats_[i], gatherers[r]);
 				total += gatherers[r];
-				// CounterResource.rebuild: the name, then the allies' stocks.
-				res_panels_[i]->set_tooltip_text(rtso::tr0(kResTitle[i]) + ally_stats(sim, me, [sim, r](uint8_t p) {
+				// CounterResource.rebuild: the name, its resources/*.json description, then the allies' stocks.
+				res_panels_[i]->set_tooltip_text(rtso::tr0(kResTitle[i]) + "\n" + rtso::tr0(kResDesc[i]) + ally_stats(sim, me, [sim, r](uint8_t p) {
 					const int64_t v = (int64_t)std::llround(sim->player(p).res[r]);
 					return std::make_pair(godot::String::num_int64(v), v);
 				}));
@@ -426,6 +438,8 @@ private:
 	static constexpr int kResType[4] = {rtso::RES_FOOD, rtso::RES_WOOD, rtso::RES_STONE, rtso::RES_GOLD};
 	static constexpr const char *kResIcon[4] = {"food", "wood", "stone", "metal"};
 	static constexpr const char *kResTitle[4] = {"Food", "Wood", "Stone", "Metal"};
+	static constexpr const char *kResDesc[4] = {"Harvest from animals, berry bushes, fish, or fields.", "Cut down from trees or groves.",
+			"Mine from rocks, stone quarries or ruins.", "Mine from metal mines or quarries."};
 
 	// DefaultResourceGatherersColor gold, "200 200 200" at zero.
 	static void set_gatherers(godot::Label *l, int n) {

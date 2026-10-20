@@ -50,10 +50,11 @@ private:
 		double t;
 		bool domestic;
 	};
-	// HandleTimeout: drop events older than SuppressionTime.
+	// HandleTimeout: drop events older than SuppressionTime (and any from after a
+	// load or rewind took the clock back).
 	void expire(double t) {
 		for (size_t i = 0; i < suppressed_.size();) {
-			if (t - suppressed_[i].t >= kSuppressionTime) suppressed_.erase(suppressed_.begin() + (long)i);
+			if (t - suppressed_[i].t >= kSuppressionTime || suppressed_[i].t > t) suppressed_.erase(suppressed_.begin() + (long)i);
 			else ++i;
 		}
 	}
@@ -87,6 +88,7 @@ public:
 
 	// Runs the 200 ms timer up to game time t.
 	void update(double t) {
+		if (next_tick_ > t + kInterval) next_tick_ = t; // a load or rewind took the clock back
 		while (timer_running_ && t >= next_tick_) {
 			next_tick_ += kInterval;
 			tick();

@@ -124,6 +124,8 @@ func run() -> void:
 	key(KEY_DELETE)
 	await frames(2)
 	check(d.confirm != null and d.confirm.message.contains("permanently deleted"), "Delete asks first")
+	check(d.confirm != null and RegEx.create_from_string("^\"\\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d maps/(random|skirmishes|scenarios)/\\S+").search(d.confirm.message) != null,
+		"naming the save by its date and map path (generateSavegameLabel): " + (d.confirm.message.get_slice("\n", 0) if d.confirm else ""))
 	d.confirm.find_child("Button2", true, false).pressed.emit() # Yes
 	await frames(1)
 	check(not FileAccess.file_exists("user://saves/%s.json" % NAMES[1]), "and deletes once confirmed")

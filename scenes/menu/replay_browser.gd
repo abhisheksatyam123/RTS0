@@ -22,6 +22,7 @@ const SummaryPage = preload("res://scenes/session/summary_screen.gd")
 const MSGBOX := preload("res://scenes/common/msgbox.gd")
 const L10n := preload("res://scenes/menu/l10n.gd")
 const Mods := preload("res://scenes/menu/mods.gd")
+const LobbySession := preload("res://scenes/menu/lobby_session.gd")
 const GOLD := Color(0.9, 0.75, 0.31)
 ## compatibilityColor: incompatible replays are greyed out.
 const INCOMPATIBLE := Color8(96, 96, 96)
@@ -456,8 +457,11 @@ static func _player_description(p: Dictionary, spoiler: bool) -> String:
 	# formatPlayerInfo: one msgid per combination, so a language can reorder them.
 	var fmt := "%(playerName)s (%(civ)s, %(AIdescription)s" if p.get("ai", false) else "%(playerName)s (%(civ)s"
 	fmt += ", %(state)s)" if shown_state else ")"
+	# g_BuddySymbol: "• " before a lobby buddy's name (its rating split off).
+	var name := str(p.get("name", "?"))
+	var buddy := "• " if LobbySession.buddies().has(str(LobbySession.split_nick(name)["nick"])) else ""
 	return L10n.sprintf(L10n.t(fmt), {
-		"playerName": "[color=#%s]%s[/color]" % [color.to_html(false), str(p.get("name", "?")).replace("[", "[lb]")],
+		"playerName": "[color=#%s]%s%s[/color]" % [color.to_html(false), buddy, name.replace("[", "[lb]")],
 		"civ": L10n.t(str(p.get("civ_name", "Unknown Civilization"))),
 		"AIdescription": SummaryPage.ai_description(p) if p.get("ai", false) else "",
 		"state": L10n.t("defeated" if state == "defeated" else "won")})

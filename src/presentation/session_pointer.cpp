@@ -359,6 +359,8 @@ void RtsoMain::update_cursor() {
 						const StructureClick c = structure_click(b.id);
 						want = c == CLICK_CAPTURE ? "action-capture" : c == CLICK_ATTACK ? "action-attack" : "";
 					}
+					// "capture" (10) recaptures an own, allied or neutral structure an enemy holds points of.
+					else if (!hold_garrison && !hold_turret && structure_click(b.id) == CLICK_CAPTURE) want = "action-capture";
 					else if (b.team != me && !sim->is_ally(me, b.team)) want = ""; // neutral
 					// unit_actions "repair" needs a builder; without one "move" wins: no cursor.
 					else if (sel_builder && (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me))) want = "action-build";
@@ -739,68 +741,74 @@ bool RtsoMain::trade_route_click(const rtso::Simulation::Building &b, bool execu
 			if (o.id == id && !o.wrecked && sim->can_trade_at(me, o, kind)) return &o;
 		return nullptr;
 	};
-	auto gain_text = [&](const rtso::Simulation::Building &from, const rtso::Simulation::Building &to) {
+	// Trader.CalculateGain: a merchant ship's gain grows with the traders aboard.
+	const uint32_t lead = traders.front();
+	int32_t lead_idx = -1;
+	for (size_t i = 0; i < uv.count; ++i)
+		if (uv.id[i] == lead) lead_idx = (int32_t)i;
+	auto route_gain = [&](const rtso::Simulation::Building &from, const rtso::Simulation::Building &to) {
 		const auto g = sim->calculate_trade_gain(from, to, me, kind);
+		return lead_idx >= 0 ? sim->garrisoned_trade_gain((size_t)lead_idx, g) : g;
+	};
+	auto gain_text = [&](const rtso::Simulation::TradeGain &g, const rtso::Simulation::Building &from,
+			const rtso::Simulation::Building &to) {
 		return rtso::seldet::trading_gain(g.trader, me, g.market1, to.team, g.market2, from.team,
 				[this](uint8_t pid) { return player_display_name(pid); });
+	};
+	// unit_actions.js setup-trade-route posts "setup-trade-route" with no source: each trader
+	// picks the market as its first or second (Simulation::order_setup_trade).
+	auto post_setup = [&](bool cancel) {
+		if (turn_cmds())
+			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_SETUP_TRADE_ROUTE, traders.data(), traders.size(), 0.0f, 0,
+					b.id, (uint8_t)((queued ? rtso::NET_PARAM_QUEUED : 0) | (cancel ? rtso::NET_PARAM_CANCEL_TRADE : 0)));
+		else if (cancel)
+			sim->order_cancel_trade_setup(traders.data(), traders.size(), b.id);
+		else
+			sim->order_setup_trade(traders.data(), traders.size(), b.id, queued);
+		if (!cancel) play_civ_voice("trade");
 	};
 	if (cursor) *cursor = "action-setup-trade-route";
 	auto set_first = [&]() {
 		if (tooltip) *tooltip = tr("Right-click to set as origin trade market");
-		if (execute) {
-			trade_origin_market_ = b.id;
-			trade_origin_traders_ = traders;
-			play_civ_voice("trade");
-		}
+		if (execute) post_setup(false);
 		return true;
 	};
 
-	// GetTradingDetails reads the first trader's own route: over its markets, "is first" /
-	// "is second" with the route's gain. A click there starts a new route from that market
-	// (Trader.SetTargetMarket with both markets set).
+	// GuiInterface.GetTradingDetails reads the first trader's own markets (Trader.markets).
 	uint32_t ma = 0, mb = 0;
 	int leg = 0;
-	if (sim->trader_route(traders.front(), ma, mb, leg) && ma && mb) {
-		const rtso::Simulation::Building *a = building(ma), *d = building(mb);
-		if (a && d && (b.id == ma || b.id == mb)) {
-			if (tooltip)
-				*tooltip = tr(b.id == ma ? "Origin trade market." : "Destination trade market.") + "\n" +
-						sprintf0(tr("Gain: %(gain)s"), {{"gain", gain_text(*a, *d)}});
-			if (execute) set_first();
-			return true;
-		}
-	}
-	const rtso::Simulation::Building *origin = nullptr;
-	if (trade_origin_market_ && trade_origin_traders_ == traders) origin = building(trade_origin_market_);
-	if (!origin) return set_first();
-	if (origin->id == b.id) {
-		// "cancel-setup-trade-route": the picked origin, before a destination.
+	sim->trader_route(lead, ma, mb, leg);
+	const rtso::Simulation::Building *first = ma ? building(ma) : nullptr;
+	const rtso::Simulation::Building *second = mb ? building(mb) : nullptr;
+	if (first && b.id == ma && !mb) {
+		// "is first" without a second market: "cancel-setup-trade-route".
 		if (cursor) *cursor = "action-cancel-setup-trade-route";
 		if (tooltip) *tooltip = tr("This is the origin trade market.\nRight-click to cancel trade route.");
-		if (execute) {
-			trade_origin_market_ = 0;
-			trade_origin_traders_.clear();
-		}
+		if (execute) post_setup(true);
 		return true;
 	}
-	const auto g = sim->calculate_trade_gain(*origin, b, me, kind);
+	if (first && second && (b.id == ma || b.id == mb)) {
+		// "is first" / "is second": the gain of the goods it carries (goods.amount), else the
+		// route's. A click starts a new route from this market.
+		rtso::Simulation::TradeGain g;
+		if (!sim->trader_goods(lead, g)) g = route_gain(*first, *second);
+		if (tooltip)
+			*tooltip = tr(b.id == ma ? "Origin trade market." : "Destination trade market.") + "\n" +
+					sprintf0(tr("Gain: %(gain)s"), {{"gain", gain_text(g, *first, *second)}});
+		if (execute) post_setup(false);
+		return true;
+	}
+	if (!first || second) return set_first();
+	// "set second": the gain from the first market to this one.
+	const auto g = route_gain(*first, b);
 	if (g.trader == 0) {
 		if (cursor) *cursor = "action-setup-trade-route-disabled";
 		if (tooltip) *tooltip = tr("This market is too close to the origin market.");
 		return true;
 	}
 	if (tooltip)
-		*tooltip = tr("Right-click to set as destination trade market.") + "\n" + sprintf0(tr("Gain: %(gain)s"), {{"gain", gain_text(*origin, b)}});
-	if (execute) {
-		if (turn_cmds())
-			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_SETUP_TRADE_ROUTE, traders.data(), traders.size(),
-					(float)b.id, 0, origin->id, queued ? rtso::NET_PARAM_QUEUED : 0);
-		else
-			sim->order_trade(traders.data(), traders.size(), origin->id, b.id, queued);
-		play_civ_voice("trade");
-		trade_origin_market_ = 0;
-		trade_origin_traders_.clear();
-	}
+		*tooltip = tr("Right-click to set as destination trade market.") + "\n" + sprintf0(tr("Gain: %(gain)s"), {{"gain", gain_text(g, *first, b)}});
+	if (execute) post_setup(false);
 	return true;
 }
 

@@ -185,6 +185,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_gather_nearest"), &RtsoMain::debug_gather_nearest);
 	ClassDB::bind_method(D_METHOD("debug_trade_route_clicks"), &RtsoMain::debug_trade_route_clicks);
 	ClassDB::bind_method(D_METHOD("debug_trade_tip", "market"), &RtsoMain::debug_trade_tip);
+	ClassDB::bind_method(D_METHOD("debug_trade_click", "market", "queued"), &RtsoMain::debug_trade_click);
 	ClassDB::bind_method(D_METHOD("debug_tutorial_panel"), &RtsoMain::debug_tutorial_panel);
 	ClassDB::bind_method(D_METHOD("debug_guard_step", "step"), &RtsoMain::debug_guard_step);
 	ClassDB::bind_method(D_METHOD("debug_train_buttons", "btype"), &RtsoMain::debug_train_buttons);
@@ -217,11 +218,15 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_ground_at", "screen"), &RtsoMain::debug_ground_at);
 	ClassDB::bind_method(D_METHOD("debug_building_screen", "building_id"), &RtsoMain::debug_building_screen);
 	ClassDB::bind_method(D_METHOD("debug_inspector", "what"), &RtsoMain::debug_inspector);
+	ClassDB::bind_method(D_METHOD("debug_inspect_entity", "id"), &RtsoMain::debug_inspect_entity);
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_roof"), &RtsoMain::debug_civic_centre_roof);
 	ClassDB::bind_method(D_METHOD("debug_garrison_icons"), &RtsoMain::debug_garrison_icons);
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
-	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count", "player"), &RtsoMain::debug_spawn_units, DEFVAL(-1));
+	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count", "player", "near"), &RtsoMain::debug_spawn_units, DEFVAL(-1), DEFVAL(-1));
+	ClassDB::bind_method(D_METHOD("debug_complete_research", "player", "tech"), &RtsoMain::debug_complete_research);
+	ClassDB::bind_method(D_METHOD("debug_set_capture_points", "building_id", "player", "points"), &RtsoMain::debug_set_capture_points);
+	ClassDB::bind_method(D_METHOD("debug_capture_points", "building_id"), &RtsoMain::debug_capture_points);
 	ClassDB::bind_method(D_METHOD("debug_spawn_offset", "template_id", "count", "player"), &RtsoMain::debug_spawn_offset, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("debug_spawn_fauna", "fauna_type", "count", "owned", "dx", "dz"), &RtsoMain::debug_spawn_fauna, DEFVAL(16.0f), DEFVAL(16.0f));
 	ClassDB::bind_method(D_METHOD("debug_spawn_mine", "x", "z", "max_gatherers"), &RtsoMain::debug_spawn_mine);
@@ -237,6 +242,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_id", "player"), &RtsoMain::debug_civic_centre_id);
 	ClassDB::bind_method(D_METHOD("debug_spawn_building", "type", "dx", "dz", "player"), &RtsoMain::debug_spawn_building, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("debug_research_any"), &RtsoMain::debug_research_any);
+	ClassDB::bind_method(D_METHOD("debug_building_looks"), &RtsoMain::debug_building_looks);
 	ClassDB::bind_method(D_METHOD("debug_structure_types", "with_civ"), &RtsoMain::debug_structure_types, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("_on_top_counter_gui_input", "event"), &RtsoMain::_on_top_counter_gui_input);
 	ClassDB::bind_method(D_METHOD("debug_delete_units", "ids"), &RtsoMain::debug_delete_units);
@@ -263,6 +269,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_lobby_join_pressed"), &RtsoMain::_on_lobby_join_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_start_pressed"), &RtsoMain::_on_lobby_start_pressed);
 	ClassDB::bind_method(D_METHOD("is_net_pregame"), &RtsoMain::is_net_pregame);
+	ClassDB::bind_method(D_METHOD("net_loading_hold"), &RtsoMain::net_loading_hold);
 	ClassDB::bind_method(D_METHOD("get_net_setup_state"), &RtsoMain::get_net_setup_state);
 	ClassDB::bind_method(D_METHOD("push_net_setup"), &RtsoMain::push_net_setup);
 	ClassDB::bind_method(D_METHOD("assign_net_client", "client", "slot"), &RtsoMain::assign_net_client);

@@ -921,7 +921,7 @@ float RtsoWorldView::turret_draw_y(const rtso::Simulation *sim, uint32_t unit_id
 			if (b.id == holder) { hb = &b; break; }
 	if (!hb) return sim->get_terrain_height(x, z) + offset;
 	if (!flags_loaded_) load_garrison_flags();
-	const String mid = building_visual_id(sim->team_civ(hb->team), hb->type, hb->half_size);
+	const String mid = building_model_of(hb->id, sim->team_civ(hb->team), hb->type, hb->half_size);
 	const auto &entry = rtso::ModelLibrary::get("buildings", mid);
 	const float b_scale = entry.scale > 0.05f ? entry.scale : 1.0f;
 	const float base = sim->get_terrain_height(hb->x, hb->z) + entry.y_offset;
@@ -3205,7 +3205,7 @@ void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso
 		const uint8_t civ = sim->team_civ(b.team);
 		const uint32_t kind = (uint32_t)civ << 16 | b.type << 1;
 		const bool damaged = b.hp < b.max_hp;
-		want_building(building_visual_id(civ, b.type, b.half_size));
+		want_building(building_model_of(b.id, civ, b.type, b.half_size));
 		if (!building_kinds_prefetched_.insert(kind | (uint32_t)damaged).second) continue;
 		const std::string civ_type = std::string(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "/" + std::to_string(b.type);
 		if (!damaged) {
@@ -3299,7 +3299,7 @@ void RtsoWorldView::warm_models(const rtso::Simulation *sim, const std::function
 	}
 	mirages_.update(*sim, local_player_);
 	for (const auto &fb : mirages_.buildings())
-		add("buildings", building_visual_id(fb.civ, fb.type, fb.half_size));
+		add("buildings", building_model_of(fb.id, fb.civ, fb.type, fb.half_size));
 	for (size_t i = 0; i < wanted.size(); ++i) {
 		rtso::ModelLibrary::get(String(wanted[i].first), wanted[i].second);
 		if (progress && (i % 8 == 7 || i + 1 == wanted.size())) progress((int)i + 1, (int)wanted.size());
@@ -4617,7 +4617,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (v.root) v.root->set_visible(!locked_out(b.x, b.z, b.half_size * 1.5f + 4.0f));
 
 		uint8_t bciv = b.civ;
-		const String mid = building_visual_id(bciv, b.type, b.half_size);
+		const String mid = building_model_of(b.id, bciv, b.type, b.half_size);
 		const char *rubble_id = rtso::civ_building_rubble(bciv, b.type);
 		float b_progress = b.build_progress;
 		bool destroyed = (b.hp <= 0.0f || b.wrecked);

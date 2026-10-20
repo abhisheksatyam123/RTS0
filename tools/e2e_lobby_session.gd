@@ -116,8 +116,8 @@ func run() -> void:
 	ls._beat()
 	await until(func() -> bool: return lobby.find_child("ReconnectDialog", true, false) != null)
 	var dlg: ConfirmationDialog = lobby.find_child("ReconnectDialog", true, false)
-	check(dlg != null and dlg.dialog_text == "You have been disconnected from the lobby. Do you want to reconnect?",
-		"the page asks to reconnect")
+	check(dlg != null and dlg.dialog_text == "You have been disconnected from the lobby. Do you want to reconnect?"
+		and dlg.title == "Confirmation", "the page asks to reconnect, titled Confirmation")
 	check(not ls.signed_in() and lobby._chat_log.get_parsed_text().contains("Disconnected."), "and says Disconnected.")
 	if dlg:
 		dlg.confirmed.emit()

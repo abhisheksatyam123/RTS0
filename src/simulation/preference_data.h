@@ -607,7 +607,7 @@ inline const PrefUnitRow *pref_class_table() {
 	return kTable;
 }
 
-inline constexpr uint8_t PREF_BUILDING_ROWS = 87; // BuildingTypes; one more row for any other structure
+inline constexpr uint8_t PREF_BUILDING_ROWS = 88; // BuildingTypes; one more row for any other structure
 // Each BuildingType's preference classes as a target.
 inline const uint8_t *pref_building_classes() {
 	static const uint8_t kTable[PREF_BUILDING_ROWS + 1] = {
@@ -698,6 +698,7 @@ inline const uint8_t *pref_building_classes() {
 		0x04, // BLD_LAOZI_GATE: structures/han/laozigate
 		0x04, // BLD_TEMPLE_ISIS: structures/ptol/temple_2
 		0x04, // BLD_MILL: structures/mill_greek
+		0x04, // BLD_TOPHET: structures/cart/tophet
 		0x04, // default: template_structure
 	};
 	return kTable;

@@ -37,4 +37,4 @@ The diplomacy simulation matches 0.28 throughout:
 ## Status (2026-10-20)
 
 - 1, 2, 3 and 5 are fixed in the pass-6 PR. test_formations 4b checks the march carrying on and the idle re-gather; both fail without the fix.
-- 4 and 7 are REMAINING_GAPS G55.
+- 4 and 7 are fixed in the G55 PR: members are spaced by their template's Footprint (extract_0ad_motion.py), never narrower than the unit itself, and a garrison order goes to each member at once. test_formations 4c and 14 check both; they fail without the fix.

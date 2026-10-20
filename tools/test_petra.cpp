@@ -784,6 +784,62 @@ static void test_diplomacy() {
 		CHECK(when >= 0.0f && when < 5.0f, "one AI's betrayal sets off another waiting AI at once");
 	}
 
+	// checkEvents sees every DiplomacyChanged, even one undone before the AI's next turn: a
+	// human going allied with AI 2 and back to neutral sets off AI 1, still waiting out its lapse.
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(11);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 11, 4, 96.0f);
+		for (uint8_t p = 0; p < 4; ++p) s->set_player_active(p, true, p == 1 || p == 2);
+		s->set_last_man_standing(true);
+		s->set_mutual_ally(1, 2);
+		for (uint8_t p : {1, 2}) {
+			s->set_diplomacy(p, 3, Simulation::DIPLO_NEUTRAL);
+			s->set_diplomacy(3, p, Simulation::DIPLO_NEUTRAL);
+		}
+		run_for(*s, 5.0f);
+		auto &u = s->units_;
+		for (size_t i = 0; i < u.count; ++i) if (u.team[i] == 0) u.alive[i] = false;
+		for (auto &b : s->buildings_) if (b.team == 0) b.hp = 0.0f;
+		for (uint8_t p = 1; p <= 2; ++p) {
+			float tx = 0.0f, tz = 0.0f;
+			for (const auto &b : s->buildings()) if (b.type == BLD_TOWN_CENTER && b.team == p) { tx = b.x; tz = b.z; }
+			for (int i = 0; i < 50; ++i) s->spawn_unit(tx + 8.0f + (float)(i % 10), tz + 8.0f + (float)(i / 10), p, UNIT_SPEARMAN);
+		}
+		const auto dip_of = [&](uint8_t p) -> PetraDiplomacy & {
+			return p == Simulation::PETRA_PLAYER ? s->petra_diplo_ : s->petra_slots_[p].petra_diplo_;
+		};
+		const auto at_war = [&]() {
+			for (uint8_t a = 1; a <= 3; ++a)
+				for (uint8_t b = 1; b <= 3; ++b)
+					if (a != b && s->get_diplomacy(a, b) == Simulation::DIPLO_ENEMY) return true;
+			return false;
+		};
+		bool held[3] = {};
+		float toggled = -1.0f, war = -1.0f;
+		for (float t = 0.0f; t < 150.0f && war < 0.0f; t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			for (uint8_t p = 1; p <= 2; ++p) {
+				PetraDiplomacy &d = dip_of(p);
+				if (d.waiting_to_betray && !held[p]) {
+					held[p] = true;
+					d.betray_lapse = d.elapsed + 1000.0f;
+				}
+			}
+			if (held[1] && held[2] && toggled < 0.0f && !at_war()) {
+				toggled = t;
+				CHECK(s->cmd_set_diplomacy(3, 2, Simulation::DIPLO_ALLY), "the human allies AI 2");
+				CHECK(s->cmd_set_diplomacy(3, 2, Simulation::DIPLO_NEUTRAL), "and goes back to neutral");
+			}
+			if (toggled >= 0.0f && at_war()) war = t;
+		}
+		const float when = toggled >= 0.0f && war >= 0.0f ? war - toggled : -1.0f;
+		std::printf("  stance changed and undone between turns: a waiting AI turns %.1fs later\n", when);
+		CHECK(toggled >= 0.0f, "both AIs wait to betray");
+		CHECK(when >= 0.0f && when < 5.0f, "the undone change still sets off the waiting AI");
+	}
+
 	// Tribute: 0.28 gives an ally 30% of any resource we have over 200 and it
 	// lacks, our own scarcest included.
 	{
@@ -6963,6 +7019,80 @@ static void test_personality_draw() {
 // our units of the names in its builder's list. A Persian holding an Athenian civic centre
 // (spearman, slinger, cavalry javelineer) trains pers/infantry_spearman_b there, never the
 // Persian civic centre's archer.
+static void test_unit_stat_trainable_busy() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	Simulation::Building *cc = nullptr;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.build_progress >= 1.0f) {
+			CHECK(is_civic_centre(b.type), "Petra starts with only its civic centre");
+			cc = &b;
+		}
+	if (!cc) return;
+	Simulation::PetraUnitStat st{TC_INFANTRY, 1.0f, 0, 10, 2, 1.0f, 1.0f, 1.0f, 1.0f};
+	CHECK(s->petra_unit_stat_trainable(st), "infantry is trainable at the civic centre");
+	// A full queue only delays the class (gameState.findTrainableUnits looks at no queue).
+	ProductionOrder o;
+	o.unit_type = UNIT_VILLAGER;
+	o.duration = 10.0f;
+	while (cc->queue.size() < PRODUCTION_QUEUE_MAX) cc->queue.push_back(o);
+	const bool busy = s->petra_unit_stat_trainable(st);
+	std::printf("  infantry with the civic centre's queue full: %s\n", busy ? "trainable" : "dropped");
+	CHECK(busy, "a class whose only trainer's queue is full stays in the plan");
+	cc->queue.clear();
+}
+
+static void test_workers_while_cc_on_emergency() {
+	// The civic centre training emergency units still decides the civilian; the workers'
+	// plan waits for it rather than turning into soldiers at the barracks.
+	int soldiers[2] = {0, 0}, civilians[2] = {0, 0};
+	for (int busy = 0; busy < 2; ++busy) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 1.0f);
+		s->petra_pid_ = 1;
+		Simulation::Building *cc = nullptr;
+		for (auto &b : s->buildings_)
+			if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
+		CHECK(cc != nullptr, "Petra has a civic centre");
+		if (!cc) return;
+		const float cx = cc->x, cz = cc->z;
+		const uint32_t cc_id = cc->id;
+		const uint32_t bar = s->spawn_building_world(cx + (cx > 0 ? -10.0f : 10.0f), cz, BLD_BARRACKS, 1, 1.0f);
+		for (int k = 0; k < 8; ++k) {
+			for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 5000.0f;
+			for (uint8_t q : {PETRA_Q_VILLAGER, PETRA_Q_CITIZEN_SOLDIER}) {
+				auto &a = s->petra_queues_.accounts[q];
+				a.food = a.wood = a.gold = a.stone = 5000.0f;
+			}
+			Simulation::Building &c = s->buildings_[s->building_id_to_idx_.at(cc_id)];
+			c.queue.clear();
+			s->buildings_[s->building_id_to_idx_.at(bar)].queue.clear();
+			c.has_rally_point = busy != 0;
+			c.rally_target_bld_id = busy ? cc_id : 0;
+			while (!s->petra_turn_mod(4, 0)) s->ticks_ += 4;
+			s->petra_train_more_workers();
+			for (const auto &b : s->buildings_)
+				for (const auto &o : b.queue)
+					if (o.petra_plan == PETRA_ORDER_WORKER)
+						(unit_gather_class(o.unit_type, o.tmpl) == GATHER_SUPPORT ? civilians : soldiers)[busy] += o.count;
+			s->ticks_ += 4;
+		}
+	}
+	std::printf("  worker orders, civic centre free: %d civilians %d soldiers; on emergency units: %d civilians %d soldiers\n",
+	            civilians[0], soldiers[0], civilians[1], soldiers[1]);
+	CHECK(civilians[0] > 0 && soldiers[0] == 0, "a free civic centre trains civilians as workers");
+	CHECK(soldiers[1] == 0, "a civic centre busy with emergency units doesn't make the workers soldiers");
+}
+
 static void test_emergency_units_captured_cc() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -7377,6 +7507,43 @@ static void test_trade_tech_waits_for_funds() {
 	CHECK(started && s->petra_queues_.special_tech == 0, "once affordable it is researched first and the queue clears");
 }
 
+// researchManager.js update doesn't look at checkPausedQueues: with minorTech paused it still
+// picks, and the pick waits unpaid in the paused queue until the queue is funded again.
+static void test_minor_tech_paused_still_picks() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(1);
+	s->spawn_initial();
+	s->petra_pid_ = 1;
+	float mx = 0.0f, mz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && is_civic_centre(b.type)) { mx = b.x + 14.0f; mz = b.z; }
+	s->spawn_building_world(mx, mz, BLD_STOREHOUSE, 1, 1.0f);
+	s->spawn_building_world(mx, mz + 14.0f, BLD_FARMSTEAD, 1, 1.0f);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	auto researching = [&] {
+		for (const auto &b : s->buildings())
+			for (const auto &o : b.queue)
+				if (b.team == 1 && o.unit_type == UNIT_TYPE_TECH) return true;
+		return false;
+	};
+	for (int k = 0; k < 40 && !s->petra_queues_.special_tech; ++k) {
+		s->petra_queues_.paused[PETRA_Q_MINOR_TECH] = true;
+		s->petra_manage_research(1.6f);
+		s->ticks_ += 32; // the next played turn
+	}
+	const uint8_t t = s->petra_queues_.special_tech;
+	std::printf("  minorTech paused: picked %d (%s)\n", t, t ? tech_info(t).name : "-");
+	CHECK(t != 0, "a technology is picked while minorTech is paused");
+	CHECK(!researching(), "and not bought while it stays paused");
+	s->petra_queues_.paused[PETRA_Q_MINOR_TECH] = false;
+	fund_queues(*s);
+	for (int k = 0; k < 40 && !researching(); ++k) {
+		s->petra_manage_research(1.6f);
+		s->ticks_ += 32;
+	}
+	CHECK(researching() && s->petra_queues_.special_tech == 0, "once funded again it is researched");
+}
+
 // buildManager.js hasBuilder: with no unit left that can build, canBuild refuses every
 // structure, so nothing is paid for a foundation nobody would raise.
 static void test_no_builder_no_foundation() {
@@ -7544,6 +7711,7 @@ int main(int argc, char **argv) {
 	RUN(test_no_free_income);
 	RUN(test_mercenary_workers);
 	RUN(test_trade_tech_waits_for_funds);
+	RUN(test_minor_tech_paused_still_picks);
 	RUN(test_no_builder_no_foundation);
 	RUN(test_roster_army);
 	RUN(test_diplomacy);
@@ -7680,6 +7848,8 @@ int main(int argc, char **argv) {
 	RUN(test_petra_far_gatherer_recheck);
 	RUN(test_emergency_units);
 	RUN(test_emergency_units_captured_cc);
+	RUN(test_unit_stat_trainable_busy);
+	RUN(test_workers_while_cc_on_emergency);
 	RUN(test_new_cc_defenders);
 	RUN(test_temple_wonder_save);
 	RUN(test_personality_draw);

@@ -2175,6 +2175,14 @@
    ],
    "flag": "kart"
   },
+  "s_celts_hut": {
+   "scale": 0.33734,
+   "ground": 0.0239
+  },
+  "s_celts_longhouse": {
+   "scale": 0.37012,
+   "ground": 2.2213
+  },
   "s_celts_outpost": {
    "scale": 0.29458,
    "ground": 2.2973,
@@ -2770,6 +2778,22 @@
     0.0967
    ],
    "flag": "ptol"
+  },
+  "s_ptolemies_stall_big": {
+   "scale": 0.25,
+   "ground": 0.0125
+  },
+  "s_ptolemies_stall_med": {
+   "scale": 0.28104,
+   "ground": 0.0141
+  },
+  "s_ptolemies_stall_small_a": {
+   "scale": 0.25789,
+   "ground": 0.0129
+  },
+  "s_ptolemies_stall_small_b": {
+   "scale": 0.25,
+   "ground": 0.0125
   },
   "s_ptolemies_wall_long": {
    "scale": 0.24745,

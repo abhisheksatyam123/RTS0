@@ -11,7 +11,7 @@ diplomacyManager.js, gamestate.js (hasAllies, hasEnemies, hasNeutrals, isPlayerA
 | D9 | `checkEvents` runs `lastManStandingCheck` on any DiplomacyChanged, PlayerDefeated or CeasefireEnded event (DM:187-188); `update` runs it again once the lapse is up (DM:546-547). The check itself never compares the time, so an event while waiting turns the AI at once if it has 50 units (DM:315-318) | The check ran every turn and returned until its own lapse was up | A 16-bit hash of every stance, the defeated players and the ceasefire, kept in `PetraDiplomacy`'s padding, stands for the events; the check runs on a change and on the timer |
 | D10 | `Setup.js:63`: allied victory is `LockTeams \|\| !LastManStanding` | Allied victory was `!last_man_standing()` alone, in Petra and in the victory check | `allied_victory()` |
 | D11 | `hasAllies`, and the tribute and attack boosts to the cooperative trait (DM:134, 161, 182), use `isPlayerAlly`: our own stance | A mutual alliance (`is_ally`) | Our own stance; a tribute from a player we already ally with no longer counts against its request |
-| D12 | DiplomacyChanged is handled per event | Stances toward us are compared once per AI turn | Open (low): a change and its undoing inside one 1.6 s turn go unseen |
+| D12 | DiplomacyChanged is handled per event | Stances toward us are compared once per AI turn | Fixed later: each DiplomacyChanged also sets `PETRA_EVENT_PENDING`, the hash's top bit, for every Petra |
 
 ## Left as they are
 
