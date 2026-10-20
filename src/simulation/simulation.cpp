@@ -832,6 +832,10 @@ void Simulation::set_pop_cap_setting(int setting) {
 
 int Simulation::ai_pop_current() const { return pop_current(PETRA_PLAYER); }
 int Simulation::ai_pop_max() const { return pop_max(PETRA_PLAYER); }
+int Simulation::petra_population_max() const {
+	const int limit = pop_limit(petra_pid_);
+	return limit > 0 ? limit : 10000;
+}
 
 bool Simulation::owns_unit(uint8_t player, uint32_t unit_id) const {
 	int32_t idx = lookup_unit(unit_id);
@@ -24946,7 +24950,7 @@ void Simulation::petra_manage_research(float dt) {
 		// buildWonder, every 30th AI turn near the population cap: once the stock holds over 70%
 		// of the wonder's cost in one resource and under 30% in at most one.
 		const bool wonder_turn = petra_turn_mod(30); // headquarters.js:2314
-		if (wonder_turn && (float)pop > 0.9f * (float)pop_max(petra_pid_) &&
+		if (wonder_turn && (float)pop > 0.9f * (float)petra_population_max() &&
 		    !have_building(BLD_WONDER) && can_build(BLD_WONDER)) {
 			const BuildingTypeInfo &w = building_type_info(BLD_WONDER);
 			const float cost[4] = {(float)w.food_cost, (float)w.wood_cost, (float)w.gold_cost, (float)w.stone_cost};
@@ -26319,7 +26323,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 					++started;
 					huge_started |= p.kind == PETRA_ATTACK_HUGE;
 				}
-				const int pop_cap = pop_max(petra_pid_);
+				const int pop_cap = petra_population_max(); // attackManager.js getPopulationMax
 				if (started >= std::min(2, 1 + (int)std::lround((float)pop_cap / 100.0f)) ||
 				    (started > 0 && pop_cap - pop_current(petra_pid_) <= 12)) return;
 				kind = mgr.attack_number < 2 || huge_started ? PETRA_ATTACK_ATTACK : PETRA_ATTACK_HUGE;
@@ -26451,8 +26455,8 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			// in the first class it matches (a class no building of ours trains drops out, as
 			// trainMoreUnits deletes it). At the population cap (under 5 free slots) the plan
 			// starts with every class at its minSize or more than lengthMin units. 0.28 fails it
-			// otherwise; RTS0's Petra sits at its cap far more often while its houses go up, so
-			// the plan keeps mustering instead.
+			// otherwise; RTS0's plan keeps mustering (the cap is the population cap, 300 by default,
+			// not the houses' limit, so this is rare).
 			std::vector<PetraUnitStat> stats = petra_plan_unit_stats(mgr.kind, mgr.dropped_classes);
 			for (uint32_t uid : squad) {
 				const int32_t k = lookup_unit(uid);
@@ -26467,7 +26471,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				max_everywhere = false;
 				if (st.count < st.min) min_everywhere = false;
 			}
-			const int pop_cap = pop_max(petra_pid_);
+			const int pop_cap = petra_population_max(); // attackPlan.js getPopulationMax
 			const bool capped = pop_cap - pop_current(petra_pid_) < 5;
 			bool ready = !squad.empty() && (plan.forced || max_everywhere);
 			if (capped && !plan.forced) {
@@ -30119,7 +30123,7 @@ void Simulation::petra_manage_critical_ent_healers() {
 	}
 	const auto fewest = std::min_element(heroes.begin(), heroes.end(), [](const auto &a, const auto &b) { return a.second < b.second; });
 	if (fewest->second >= want || petra_attack_mgr_.save_resources) return;
-	if ((float)guards > std::min((float)pop_max(petra_pid_) / 10.0f, (float)pop_current(petra_pid_) / 4.0f)) return;
+	if ((float)guards > std::min((float)petra_population_max() / 10.0f, (float)pop_current(petra_pid_) / 4.0f)) return;
 	const uint16_t tmpl = civ_default_template(players_[petra_pid_].civ, UNIT_HEALER);
 	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return;
 	uint32_t temple = 0;

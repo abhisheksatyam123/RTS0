@@ -100,7 +100,7 @@ static func configure(ms: Node, opts: Dictionary, maps: Array) -> String:
 		civs.append(mc)
 		teams.append(0)
 		diffs.append(3)
-		behs.append(2)
+		behs.append(0) # player_defaults.json AIBehavior "random"
 	var ai := _per_player(opts, "autostart-ai")
 	for p in ai:
 		if p >= 0 and p < n:
