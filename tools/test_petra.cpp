@@ -4155,6 +4155,49 @@ static void test_gather_limits() {
 	CHECK(on_tree + on_mine > 8, "the rest go to another supply");
 }
 
+// headquarters.js updateCaptureStrength: units of ours outside any plan capturing a structure
+// pool their strength; too weak together, they switch to damaging it, strong enough they capture.
+static void test_update_capture_strength() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const uint32_t house = s->spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0);
+	auto hi = s->building_id_to_idx_.find(house);
+	CHECK(hi != s->building_id_to_idx_.end(), "player 0's house stands");
+	if (hi == s->building_id_to_idx_.end()) return;
+	std::vector<uint32_t> men;
+	auto add = [&](int n) {
+		for (int k = 0; k < n; ++k) {
+			const uint32_t u = s->spawn_unit(6.0f + (float)men.size(), 6.0f, 1, UNIT_SPEARMAN);
+			s->order_attack_building(&u, 1, house, false, true);
+			men.push_back(u);
+		}
+	};
+	auto capturing = [&] {
+		int n = 0;
+		for (uint32_t u : men) {
+			const int32_t i = s->lookup_unit(u);
+			if (s->units_.order_kind[i] == ORDER_ATTACK_BUILDING && (s->units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE)) ++n;
+		}
+		return n;
+	};
+	// Points the house's regen outdoes for one spearman, not for twenty.
+	add(1);
+	s->petra_update_capture_strength();
+	const int alone = capturing();
+	add(19);
+	for (uint32_t u : men) s->order_attack_building(&u, 1, house, false, true);
+	s->petra_update_capture_strength();
+	const int pooled = capturing();
+	std::printf("  capture strength: 1 spearman %s, 20 together: %d capture\n", alone ? "captures" : "damages", pooled);
+	CHECK(alone == 0, "one spearman too weak for the house damages it instead");
+	CHECK(pooled == 20, "twenty together pool their strength and capture it");
+}
+
 // garrisonManager.js addDecayingStructure: a defence tower of Petra's standing in enemy
 // territory decays, so Petra garrisons the soldiers that stop the decay and keeps them in.
 static void test_decay_garrison() {
@@ -6746,6 +6789,7 @@ int main(int argc, char **argv) {
 	RUN(test_builder_drops_load_first);
 	RUN(test_idle_return_to_wagon);
 	RUN(test_gather_limits);
+	RUN(test_update_capture_strength);
 	RUN(test_decay_garrison);
 	RUN(test_decay_garrison_from_attack);
 	RUN(test_decay_destroy);
