@@ -16183,19 +16183,9 @@ std::vector<std::pair<float, float>> Simulation::relic_spawn_points() const {
 void Simulation::apply_relic_count() {
 	// CaptureTheRelic.js "relicCount": each relic is a different catafalque (a shuffled
 	// template list) spawned beside a random Gaia entity on land (GetLandSpawnPoints,
-	// SpawnUnits). A map's own relics are cut down to the setting first.
+	// SpawnUnits). They come on top of the map's own Gaia catafalques (CaptureTheRelic.js:15-21).
 	// Setup.js: relicCount defaults to 1.
-	const size_t want = (size_t)std::max(relic_count_, 1);
-	while (relics_.size() > want) {
-		const int32_t i = lookup_unit(relics_.back().id);
-		if (i >= 0) {
-			units_.alive[i] = 0;
-			units_.hp[i] = 0.0f;
-			units_.action_state[i] = ACTION_DYING;
-		}
-		relics_.pop_back();
-	}
-	if (relics_.size() >= want) return;
+	const size_t want = relics_.size() + (size_t)std::max(relic_count_, 1);
 	uint8_t civs[PLAYABLE_CIV_COUNT];
 	for (uint8_t c = 0; c < PLAYABLE_CIV_COUNT; ++c) civs[c] = playable_civ(c);
 	for (int c = PLAYABLE_CIV_COUNT - 1; c > 0; --c) std::swap(civs[c], civs[sim_rng_.range_int(0, c)]);
