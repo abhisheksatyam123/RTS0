@@ -99,13 +99,15 @@ void JobSystem::worker_main() {
 void JobSystem::run_chunks(uint32_t epoch) {
 	const uint64_t tag = (uint64_t)epoch << 32;
 	for (;;) {
-		uint64_t cur = next_.load(std::memory_order_acquire);
+		uint64_t cur = next_.load(std::memory_order_seq_cst);
 		uint32_t c;
 		do {
 			if ((cur & ~0xFFFFFFFFull) != tag) return; // another job by now
 			c = (uint32_t)cur;
-			if (c >= job_.chunks.load(std::memory_order_relaxed)) return;
-		} while (!next_.compare_exchange_weak(cur, cur + 1, std::memory_order_acq_rel, std::memory_order_acquire));
+			// Read after `cur`: a count of the next job comes with `next_` already closed to this one
+			// (parallel_for), and the compare-and-swap below then fails.
+			if (c >= job_.chunks.load(std::memory_order_seq_cst)) return;
+		} while (!next_.compare_exchange_weak(cur, cur + 1, std::memory_order_seq_cst, std::memory_order_seq_cst));
 		// The job's fields stay put until its last chunk is done, and this one isn't yet.
 		const size_t a = (size_t)c * job_.grain;
 		const size_t b = std::min(a + job_.grain, job_.count);
@@ -130,12 +132,21 @@ void JobSystem::parallel_for(size_t count, const std::function<void(size_t, size
 	size_t grain = std::max(min_grain, (count + width * 4 - 1) / (width * 4));
 	size_t chunks = (count + grain - 1) / grain;
 
+	// Close the last job's claim word before its fields change. A worker that ran that job's last
+	// chunk may still be in run_chunks, with `next_` read under the last job's tag and its chunk
+	// index at that job's count. Were it to read this job's (larger) chunk count before `next_`
+	// moved on, its compare-and-swap would still succeed: it would run a chunk past the last job's
+	// end, with this job's fields, and count it off `remaining_`, so this job would finish early, or
+	// never. With the new tag and no chunk left in `next_` first, that compare-and-swap fails. The
+	// job's fields are written after it, and its chunk count is read and written in sequentially
+	// consistent order with `next_`, so a worker that reads the new count also reads the closed word.
+	const uint32_t epoch = epoch_.load(std::memory_order_relaxed) + 1;
+	next_.store(((uint64_t)epoch << 32) | 0xFFFFFFFFull, std::memory_order_seq_cst);
 	job_.fn = &fn;
 	job_.count = count;
 	job_.grain = grain;
-	job_.chunks.store((uint32_t)chunks, std::memory_order_relaxed);
+	job_.chunks.store((uint32_t)chunks, std::memory_order_seq_cst);
 	remaining_.store((uint32_t)chunks, std::memory_order_relaxed);
-	const uint32_t epoch = epoch_.load(std::memory_order_relaxed) + 1;
 	next_.store((uint64_t)epoch << 32, std::memory_order_release);
 	epoch_.store(epoch, std::memory_order_seq_cst);
 	if (sleepers_.load(std::memory_order_seq_cst) > 0) {
