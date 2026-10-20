@@ -30615,10 +30615,19 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	}
 }
 
-int Simulation::petra_player_entities(uint8_t player) const {
+// gameState.getOwnUnits / getEntities(player): every unit the player owns, those garrisoned
+// or aboard included, and its livestock (corralled or not).
+int Simulation::petra_player_units(uint8_t player) const {
 	int n = 0;
 	for (size_t i = 0; i < units_.count; ++i)
-		if (units_.alive[i] && units_.team[i] == player) ++n;
+		if (units_.team[i] == player && (units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED)) ++n;
+	for (size_t f = 0; f < fauna_.count; ++f)
+		if (fauna_.alive[f] && fauna_owner_[f] == player) ++n;
+	return n;
+}
+
+int Simulation::petra_player_entities(uint8_t player) const {
+	int n = petra_player_units(player);
 	for (const auto &b : buildings_)
 		if (b.team == player && b.hp > 0.0f) ++n;
 	return n;
@@ -30725,9 +30734,7 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 	// of its wanted gather rate (or, without this turn's rates, what our queues are
 	// furthest short of).
 	const uint8_t need = petra_most_needed_resource();
-	int own_units = 0;
-	for (size_t i = 0; i < units_.count; ++i)
-		if (units_.alive[i] && units_.team[i] == me) ++own_units;
+	const int own_units = petra_player_units(me);
 	req = PetraReceivedRequest{};
 	req.status = PetraReceivedRequest::WAITING_FOR_TRIBUTE;
 	req.type = type;
@@ -30765,9 +30772,7 @@ void Simulation::petra_last_man_standing_check() {
 	}
 	if (dip.elapsed < dip.betray_lapse) return;
 	// Not yet strong enough.
-	int own_units = 0;
-	for (size_t i = 0; i < units_.count; ++i)
-		if (units_.alive[i] && units_.team[i] == me) ++own_units;
+	const int own_units = petra_player_units(me);
 	if (own_units < 50) {
 		dip.betray_lapse += 60.0f;
 		return;
