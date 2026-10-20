@@ -89,7 +89,7 @@ func run() -> void:
 	var prev: Button = d.find_child("PreviousTipButton", true, false)
 	var next: Button = d.find_child("NextTipButton", true, false)
 	check(d.tips.size() == 78 and d.tip_index == 0 and prev.visible and prev.disabled and not next.disabled, "all 78 tips, on the first, Previous disabled")
-	check(page.get_node("Dialog/CloseButton").tooltip_text.ends_with(": Close Tips and Tricks."), "Close names its hotkey")
+	check(page.get_node("Dialog/CloseButton").tooltip_text.ends_with(": Close Tips and Tricks.") and page.get_node("Dialog/CloseButton").tooltip_text.begins_with("[color=#fffb83]"), "Close names its hotkey in gold")
 	var first: String = d.current_name()
 	next.pressed.emit()
 	await frames(1)
