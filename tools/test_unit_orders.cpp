@@ -70,8 +70,8 @@
 //     takes live animals), not a dangerous one.
 // 42. Rally points: Shift adds positions, unset-rallypoint (cmd 14 param 1), gather near a
 //     gone target, and a save round trip.
-// 43. UnitAI FLEEING: the flight re-aims from where the attacker is now, ignores attackers
-//     farther than the one fled from, and the source survives a save.
+// 43. UnitAI FLEEING: the flight re-aims from where the attacker is now, answers every attacker
+//     but the one fled from, and the source survives a save.
 // 44. UnitAI REPAIRING autoharvest: a forced build turns into autoharvest at work, and only
 //     such builders farm the field or gather near the dropsite they finish.
 // 45. GATHER FINDINGNEWTARGET: an empty-handed gatherer with nothing left nearby walks to the
@@ -1760,7 +1760,7 @@ static void test_rally_positions() {
 
 
 static void test_flee_source() {
-	std::printf("43. a flight re-aims from a chasing attacker and ignores farther ones (UnitAI FLEEING)\n");
+	std::printf("43. a flight re-aims from a chasing attacker and from any other one (UnitAI FLEEING)\n");
 	Simulation s;
 	setup(s);
 	uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
@@ -1776,10 +1776,14 @@ static void test_flee_source() {
 	s.units_.pos_x[si] = 2.0f;
 	s.units_.pos_z[si] = 0.0f;
 	check(!s.flee_done((size_t)wi) && s.units_.target_x[wi] < 0.0f, "the flight turns away from where he is now");
-	// A farther attacker is ignored; a nearer one takes over.
+	// The one fled from is ignored; any other attacker takes over, a farther one too (0.28's
+	// distance check compares the unit's distance to itself).
+	s.units_.attacked_by[wi] = sp;
+	s.respond_to_attack((size_t)wi);
+	check(s.units_.flee_from[wi] == sp && s.units_.target_x[wi] < 0.0f, "another hit from the spearman changes nothing");
 	s.units_.attacked_by[wi] = far;
 	s.respond_to_attack((size_t)wi);
-	check(s.units_.flee_from[wi] == sp, "an archer farther off than the spearman is ignored");
+	check(s.units_.flee_from[wi] == far && s.units_.target_x[wi] < 0.0f, "an archer farther off is fled from instead");
 	uint32_t near = s.spawn_unit(0, 1, 1, UNIT_SPEARMAN);
 	s.units_.attacked_by[idx_of(s, w)] = near;
 	s.respond_to_attack((size_t)idx_of(s, w));
