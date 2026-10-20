@@ -3186,13 +3186,21 @@ void RtsoMain::host_net_setup_tick(bool force) {
 	if (force || changed) emit_signal("net_setup_changed");
 }
 
-// ClientKicked.js and ChatMessageFormatNetwork kicked/banned, in the setup and the match.
+// gamesetup StatusMessageFormat: "== message" in sans-bold-13.
+static String setup_status_line(const String &message) {
+	return "[b]" + rtso::sprintf0(rtso::tr0("== %(message)s"), {{"message", message}}) + "[/b]\n";
+}
+
+// ClientKicked.js (a status line in the setup) and ChatMessageFormatNetwork kicked/banned
+// (the match).
 void RtsoMain::post_kick_chat() {
 	const auto &kicks = net_host_.kicks();
 	for (; kicks_chatted_ < kicks.size(); ++kicks_chatted_) {
 		const auto &k = kicks[kicks_chatted_];
 		const String name = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str()).replace("[", "[lb]");
-		chat_window_.append_kind(sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}}) + "\n", CHAT_FILTER_NETWORK);
+		const String line = sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}});
+		if (is_net_pregame()) chat_window_.append_line(setup_status_line(line));
+		else chat_window_.append_kind(line + String("\n"), CHAT_FILTER_NETWORK);
 	}
 }
 
@@ -3216,10 +3224,10 @@ void RtsoMain::post_setup_chat(const rtso::NetSetupState &before, const rtso::Ne
 		for (uint32_t c = 1; c < rtso::NET_SETUP_CLIENTS; ++c) {
 			const bool was = (before.clients >> c) & 1, is = (after.clients >> c) & 1;
 			if (!was && is)
-				chat_window_.append_line(sprintf0(tr("%(username)s has joined"),
-						{{"username", String::utf8(after.names[c].c_str()).replace("[", "[lb]")}}) + "\n");
+				chat_window_.append_line(setup_status_line(sprintf0(tr("%(username)s has joined"),
+						{{"username", String::utf8(after.names[c].c_str()).replace("[", "[lb]")}})));
 			else if (was && !is)
-				chat_window_.append_line(sprintf0(tr("%(username)s has left"), {{"username", setup_client_name(before, c)}}) + "\n");
+				chat_window_.append_line(setup_status_line(sprintf0(tr("%(username)s has left"), {{"username", setup_client_name(before, c)}})));
 		}
 		const bool same_settings = before.settings_version == after.settings_version;
 		for (uint32_t c = 1; c < rtso::NET_SETUP_CLIENTS; ++c) {
@@ -3314,7 +3322,7 @@ void RtsoMain::client_net_setup_tick() {
 	// (GameSettingsChanged.js tells us so).
 	if (net_ready_ == 1 && net_ready_version_ != net_setup_.settings_version) {
 		net_ready_ = 0;
-		chat_window_.append_line(tr("Game settings have been changed") + "\n");
+		chat_window_.append_line(setup_status_line(tr("Game settings have been changed")));
 	}
 	store_net_setup_in_match_settings(net_setup_.setup);
 	emit_signal("net_setup_changed");
