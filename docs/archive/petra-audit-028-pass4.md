@@ -21,7 +21,7 @@ emergencyManager.js and chatHelper.js match 0.28 apart from the cadence items al
 | W1 | Gatherers | Medium | save | An idle gatherer is given pickMostNeededResources' pick; 0.28 keeps its gather-type and searches that resource again | Open |
 | W2 | Builders | Medium | no | Builders carry on after a finish (gather at a new dropsite, or the next foundation); 0.28 sends autocontinue only for houses, so others go idle and are reassigned | Open |
 | W3 | Gatherers | Low | no | Supplies at danger >= 6 are skipped and idle soldiers at threat >= 7 are not reassigned; 0.28 has no danger map | **Fixed** |
-| W4 | New bases | Low | no | A new civic centre's foundation gets up to 15 of the nearest builders; 0.28 moves 10 workers (bulkPickWorkers, 3 left per base) | Open |
+| W4 | New bases | Low | no | A new civic centre's foundation gets up to 15 of the nearest builders; 0.28 moves 10 workers (bulkPickWorkers, 3 left per base) | **Fixed** |
 | W5 | Builders | Low | no | Builders walk to a foundation still carrying their load; 0.28 queues a drop-off first | **Fixed** |
 
 ## Fixes (this pass)
@@ -42,6 +42,6 @@ emergencyManager.js and chatHelper.js match 0.28 apart from the cadence items al
 - **W1.** worker.js:222-238, 443-460; RTS0 seeds idle workers with `gather_type = RES_COUNT`. Fix needs a saved per-unit gather type.
 - **W2.** worker.js:375 `repair(target, target.hasClass("House"))`; RTS0 `next_after_construction` harvests for every Petra builder.
 - **W3.** Fixed: the gatherers' supply list and the idle-soldier reassignment no longer read RTS0's threat map; findSupply (worker.js:500) rejects enemy territory only. Continental, 8 seeds against an idle player: identical phase times (town 650 s, city 979 s), as nothing threatens the workers there.
-- **W4.** basesManager.js:202 bulkPickWorkers(newbase, 10); baseManager.js:780 keeps 3.
+- **W4.** Fixed: while a civic centre or military colony stands, a new base anchor's foundation wants 10 builders (basesManager.js:202 bulkPickWorkers(newbase, 10)), taken only from bases (workers by nearest standing anchor) with more than 3 left (baseManager.js:782); the first civic centre still takes every worker (test_petra test_new_base_builders). Continental, 8 seeds against an idle player: town unchanged (650 s), city 979 -> 982 s.
 - **W5.** Fixed: `petra_order_build` drops the load at the nearest dropsite on the builder's land, the build queued behind it, and `petra_staff_foundations` counts such a builder for its foundation (test_petra test_builder_drops_load_first). Continental, 8 seeds: town 636 -> 629 s, city 959 -> 953 s.
 - **Q7.** Tried 2026-10-20: funding at the turn's end with a same-turn worker retry. On Continental (8 seeds, Medium) the civic centre's idle share in the first 5 minutes fell from 36% to 34%, town (636 s) and city (959 -> 964 s) did not move, and 7-minute workers rose (17 -> 24 support). Five scenario checks that rely on early-game timing went red (test_petra defense armies, switch to attack, mobile dropsite cadence; test_naval concurrent transports). Compare's pass 6 found the same with its own retry. Not landed: the phase times say the early economy is limited elsewhere.

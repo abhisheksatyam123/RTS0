@@ -20257,6 +20257,22 @@ void Simulation::petra_staff_foundations() {
 	uint16_t home_land = 0;
 	const PetraNavalTopo &topo = petra_classified_topo(home_land);
 	const bool naval_map = topo.naval_map;
+	// basesManager.js bulkPickWorkers: while a base stands, a new base's anchor takes 10
+	// workers from the standing bases, each keeping 3 (baseManager.js pickBuilders).
+	std::vector<std::pair<float, float>> standing;
+	for (const Building &o : buildings_)
+		if (o.team == petra_pid_ && (is_civic_centre(o.type) || o.type == BLD_MILITARY_COLONY) &&
+		    o.build_progress >= 1.0f && o.hp > 0.0f && !o.wrecked)
+			standing.push_back({o.x, o.z});
+	auto base_of = [&](size_t i) {
+		int best = 0;
+		float best_d2 = 1e18f;
+		for (size_t k = 0; k < standing.size(); ++k) {
+			const float dx = units_.pos_x[i] - standing[k].first, dz = units_.pos_z[i] - standing[k].second;
+			if (dx * dx + dz * dz < best_d2) { best_d2 = dx * dx + dz * dz; best = (int)k; }
+		}
+		return best;
+	};
 	for (auto &w : petra_fnd_watch_) {
 		const Building &b = buildings_[building_id_to_idx_.at(w.id)];
 		// assignToFoundations targetNB: 15 on a base anchor (or the wonder in wonder victory),
@@ -20265,6 +20281,7 @@ void Simulation::petra_staff_foundations() {
 		int want = 2;
 		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY ||
 		    (b.type == BLD_WONDER && has_victory(VK_WONDER))) want = 15;
+		if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && !standing.empty()) want = 10;
 		else if (b.type == BLD_FORTRESS || b.type == BLD_WONDER) want = 7;
 		else if (b.type == BLD_BARRACKS || b.type == BLD_RANGE || b.type == BLD_STABLE || is_defense_tower(b.type) ||
 		         b.type == BLD_SENTRY_TOWER || b.type == BLD_MARKET) want = 4;
@@ -20355,7 +20372,7 @@ void Simulation::petra_staff_foundations() {
 	};
 
 	// Idle workers first, then the nearest gatherer, on `land` when given.
-	auto pick_worker = [&](const Need &n, uint16_t land, const std::vector<uint32_t> &taken) {
+	auto pick_worker = [&](const Need &n, uint16_t land, const std::vector<uint32_t> &taken, const std::vector<int> *left = nullptr) {
 		int best = -1;
 		float best_d2 = 1e18f;
 		for (size_t i = 0; i < units_.count; ++i) {
@@ -20367,6 +20384,7 @@ void Simulation::petra_staff_foundations() {
 			if (std::find(ban.begin(), ban.end(), units_.id[i]) != ban.end()) continue;
 			if (std::find(taken.begin(), taken.end(), units_.id[i]) != taken.end()) continue;
 			if (land && petra_land_at(units_.pos_x[i], units_.pos_z[i]) != land) continue;
+			if (left && (*left)[base_of(i)] <= 3) continue;
 			float dx = units_.pos_x[i] - n.x, dz = units_.pos_z[i] - n.z;
 			float d2 = dx * dx + dz * dz;
 			// Food gatherers count three times as far (assignToFoundations sort).
@@ -20386,9 +20404,19 @@ void Simulation::petra_staff_foundations() {
 		if (territory_owner_at(nb.x, nb.z) != petra_pid_ && build_restriction(nb.type, civ_of(petra_pid_)).territory == TERR_OWN)
 			continue;
 		int budget = budget_for(nb);
+		std::vector<int> left;
+		if ((is_civic_centre(nb.type) || nb.type == BLD_MILITARY_COLONY) && !standing.empty()) {
+			left.assign(standing.size(), 0);
+			for (size_t i = 0; i < units_.count; ++i)
+				if (units_.alive[i] && units_.team[i] == petra_pid_ && petra_builder_worker(i, launched) &&
+				    !(units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] == n.id) &&
+				    std::find(dropping.begin(), dropping.end(), units_.id[i]) == dropping.end())
+					++left[base_of(i)]; // the anchor's builders already left their base
+		}
 		while (n.missing > 0 && budget > 0) {
-			const int best = pick_worker(n, n.land, none);
+			const int best = pick_worker(n, n.land, none, left.empty() ? nullptr : &left);
 			if (best < 0) break;
+			if (!left.empty()) --left[base_of((size_t)best)];
 			uint32_t uid = units_.id[best];
 			petra_order_build(uid, n.id);
 			--n.missing;
