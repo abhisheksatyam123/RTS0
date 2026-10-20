@@ -6,7 +6,7 @@ extends Control
 ## to data/reference/manual.json by tools/extract_0ad_loading.py.
 
 const DATA := "res://data/reference/manual.json"
-const ONLINE := "https://trac.wildfiregames.com/wiki/0adManual"
+const ONLINE := "https://gitea.wildfiregames.com/0ad/0ad/wiki/0adManual" # manual.xml
 
 signal closed
 
@@ -35,13 +35,8 @@ func _ready() -> void:
 	panel.offset_top = -316
 	panel.offset_bottom = 316
 	add_child(panel)
-	var title := Label.new()
-	title.text = "Manual"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(466 - 128, 4)
-	title.size = Vector2(256, 28)
-	title.add_theme_font_size_override("font_size", 18)
-	panel.add_child(title)
+	# manual.xml: the ModernLabelText title on the dialog's top edge.
+	load("res://scenes/menu/hotkeys.gd")._edge_title(panel, tr("Manual"))
 	text = RichTextLabel.new()
 	text.name = "MainText"
 	text.bbcode_enabled = true
@@ -51,16 +46,16 @@ func _ready() -> void:
 	text.text = manual_bbcode()
 	panel.add_child(text)
 	var close := Button.new()
-	close.text = "Close"
+	close.text = tr("Close")
 	close.position = Vector2(932 - 408, 632 - 52)
 	close.size = Vector2(190, 28)
 	close.pressed.connect(close_page)
 	panel.add_child(close)
 	var online := Button.new()
-	online.text = "View Online"
+	online.text = tr("View Online")
 	online.position = Vector2(932 - 214, 632 - 52)
 	online.size = Vector2(190, 28)
-	online.pressed.connect(func(): OS.shell_open(ONLINE))
+	online.pressed.connect(func(): load("res://scenes/common/msgbox.gd").open_url(self, ONLINE))
 	panel.add_child(online)
 
 func close_page() -> void:
@@ -88,6 +83,12 @@ func _input(event: InputEvent) -> void:
 static func manual_bbcode() -> String:
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(DATA)) if FileAccess.file_exists(DATA) else null
 	var intro := str(parsed.get("intro", "")) if typeof(parsed) == TYPE_DICTIONARY else ""
+	# manual.js Engine.TranslateLines: each line is its own msgid.
+	var lines := intro.split("\n")
+	for i in lines.size():
+		if lines[i].strip_edges() != "":
+			lines[i] = str(TranslationServer.translate(lines[i]))
+	intro = "\n".join(lines)
 	var cfg := RtsoHotkeyConfig.new()
 	var re := RegEx.create_from_string("hotkey\\.([a-z0-9_\\.]+[a-z0-9_])")
 	var out := ""
@@ -95,7 +96,7 @@ static func manual_bbcode() -> String:
 	for m in re.search_all(intro):
 		out += intro.substr(pos, m.get_start() - pos)
 		var combos: String = cfg.display(m.get_string(1))
-		out += combos if combos != "" else "unassigned"
+		out += combos # formatHotkeyCombinations: "" when unbound
 		pos = m.get_end()
 	out += intro.substr(pos)
 	return font_tags_to_bbcode(out.replace("[", "[lb]").replace("[lb]font=", "[font="))

@@ -1,7 +1,8 @@
 extends SceneTree
-# session.js getSavedGameData / restoreSavedGameData: a save keeps the control groups and the
-# camera, and loading it restores both and empties the selection, so a group key after a load
-# picks what the group held when the game was saved.
+# session.js getSavedGameData / restoreSavedGameData with 0.28's CTurnManager::QuickSave: the
+# quicksave is kept for this match only, out of the save and load dialogs, and keeps the control
+# groups but not the camera. Quickloading restores the groups, leaves the camera where it is and
+# empties the selection, so a group key after it picks what the group held at the quicksave.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_quickload_gui.gd
 # Exit code 0 = pass.
@@ -54,11 +55,12 @@ func run() -> void:
 	check(group(1) == [a], "group 1 holds the first man: " + str(group(1)))
 	main.debug_set_camera_data({"x": 12.0, "z": -7.0, "yaw": 0.5, "zoom": 30.0})
 	await frames(3)
-	main.quicksave()
-	var meta = JSON.parse_string(FileAccess.get_file_as_string("user://saves/quicksave.json"))
-	check(meta is Dictionary and meta.has("gui"), "the save's metadata has the GUI data")
 	var log_label: RichTextLabel = main.find_child("LogMessages", true, false)
-	check(log_label != null and log_label.visible and log_label.get_parsed_text() == "Quicksaved game", "\"Quicksaved game\" in the top-left log (LOGMESSAGERENDER)")
+	main.quickload()
+	check(log_label != null and log_label.visible and log_label.get_parsed_text() == "Cannot quickload game - no game was quicksaved", "quickloading before any quicksave says there is none")
+	main.quicksave()
+	check(not FileAccess.file_exists("user://saves/quicksave.rts0sav") and not FileAccess.file_exists("user://saves/quicksave.json"), "the quicksave is not a save the save and load dialogs list")
+	check(log_label.get_parsed_text().ends_with("\nQuicksaved game"), "\"Quicksaved game\" in the top-left log (LOGMESSAGERENDER)")
 
 	print("2. Change both, then quickload")
 	main.debug_select_units(PackedInt32Array([b]))
@@ -69,15 +71,16 @@ func run() -> void:
 	main.quickload()
 	await frames(3)
 	check(group(1) == [a], "the load brings group 1 back: " + str(group(1)))
-	check(log_label != null and log_label.get_parsed_text() == "Quicksaved game\nQuickloaded game", "then \"Quickloaded game\" under it")
+	check(log_label.get_parsed_text().ends_with("Quicksaved game\nQuickloaded game"), "then \"Quickloaded game\" under it")
 	var cam: Dictionary = main.debug_saved_gui()["camera"]
-	check(absf(cam["x"] - 12.0) < 0.5 and absf(cam["z"] + 7.0) < 0.5, "and the camera's spot: " + str(cam))
-	check(absf(cam["yaw"] - 0.5) < 0.01 and absf(cam["zoom"] - 30.0) < 0.01, "its rotation and zoom")
+	check(absf(cam["x"] + 20.0) < 0.5 and absf(cam["z"] - 15.0) < 0.5, "the camera stays where it was: " + str(cam))
+	check(absf(cam["yaw"] - 1.5) < 0.01 and absf(cam["zoom"] - 18.0) < 0.01, "with its rotation and zoom")
 	check(Array(main.debug_selection_state()["selected"]).is_empty(), "the selection is empty")
 	await key(KEY_1, false)
 	check(Array(main.debug_selection_state()["selected"]) == [a], "key 1 selects the saved group")
 
-	for f in ["quicksave.rts0sav", "quicksave.json", "quicksave.png"]:
-		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/" + f))
+	root.remove_child(main)
+	main.free()
+	check(not FileAccess.file_exists("user://quicksave.rts0sav"), "leaving the match drops the quicksave")
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)
