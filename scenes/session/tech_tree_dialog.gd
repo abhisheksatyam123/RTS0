@@ -20,6 +20,7 @@ var _tree
 var _civinfo
 
 func _ready() -> void:
+	preload("res://scenes/common/fit_screen.gd").cap($Center/Panel, Vector2(1000, 620))
 	visible = false
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	var vbox: VBoxContainer = $Center/Panel/VBox

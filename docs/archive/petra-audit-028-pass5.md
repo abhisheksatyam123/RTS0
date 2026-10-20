@@ -7,17 +7,17 @@ Read-only audit of RTS0's Petra port (area C) against 0 A.D. 0.28 Petra: `baseMa
 | B1 | Bases | Medium | save | 0.28 updates one anchored base per turn (basesManager.js:767); RTS0 runs every base every turn, so idle re-tasking, foundation staffing and dropsite used/lost counts run N times as often | Open |
 | T1 | Trade | Medium-High | no | A trader that flees (or is otherwise busy) with a route was ordered back to trade every AI turn, dropping its goods; 0.28 orders only idle traders (tradeManager.js:133) | **Fixed** |
 | T2 | Trade | Medium | no | A prospected market that could not be placed that turn was dropped; 0.28 queues the plan until it starts (tradeManager.js:664) | **Fixed** |
-| H1 | First base | Medium (High on Nomad) | no | The first civic centre goes at the first free spot within 96 m of the units; 0.28 runs findEconomicCCLocation with proximity over the whole land (startingStrategy.js:341) | Open |
+| H1 | First base | Medium (High on Nomad) | no | The first civic centre goes at the first free spot within 96 m of the units; 0.28 runs findEconomicCCLocation with proximity over the whole land (startingStrategy.js:341) | **Fixed** |
 | H2 | Workers | Medium | no | Garrisoned and shipped workers drop out of trainMoreWorkers, getAccountedWorkers and checkBaseExpansion counts; 0.28 keeps counting them | **Fixed** |
 | B2 | Builders | Medium (Mauryans) | no | The Mauryan worker elephant never builds; 0.28 gives it the worker role and prefers it for nearby foundations (baseManager.js:592, 934) | Open |
 | H3 | Houses | Medium-Low | no | While phasing, the relaxed house placement (requireHouses) never ran: the retry hit the 90 s no-room mark; 0.28 calls setBuildable first (headquarters.js:1464) | **Fixed** |
-| T3 | Transport | Medium-Low | no | No crossing plan is made without a free ship, so none asks for one to be trained; 0.28 makes the plan with needTransportShips and checkLevels trains a ship (transportPlan.js:82, navalManager.js:486) | Open |
+| T3 | Transport | Medium-Low | no | No crossing plan is made without a free ship, so none asks for one to be trained; 0.28 makes the plan with needTransportShips and checkLevels trains a ship (transportPlan.js:82, navalManager.js:486) | **Fixed** |
 | B3 | Bases | Low-Medium | save | handleNewBase's effects (saveResources, saveSpace, maxFields cleared for good) fire when the foundation is laid, and maxFields comes back if the second civic centre falls; 0.28 fires on ConstructionFinished | Open |
 | B4 | Repairs | Low-Medium | no | Idle workers don't repair a damaged civic centre (baseManager.js:708) | Open |
 | H4 | New bases | Low-Medium | save | A new base with no valid spot neither funds the CC plan, blocks phasing, nor sets the CC no-room mark (buildNewBase queues before searching) | Open |
 | H5 | Houses | Low-Medium | save | 0.28 holds up to 3 (5) house plans and can start one a turn; RTS0 lays at most one house per 4th turn | Open |
 | T4 | Transport | Low-Medium | no | Ships sail 8 s after ready with 2 aboard, or at 28 s with whoever is aboard; 0.28 waits for all, retrying blocked units 5 times | Open |
-| T5 | Transport | Low-Medium | no | The pickup point is the last dry cell toward the destination, not getBoardingPos on the ship's sea (transportPlan.js:466) | Open |
+| T5 | Transport | Low-Medium | no | The pickup point is the last dry cell toward the destination, not getBoardingPos on the ship's sea (transportPlan.js:466) | **Fixed** |
 | B5 | Builders | Low | no | Any idle worker on the map is picked before a gatherer next to the foundation; 0.28 prefers idle builders only within 200 m, then distance with food gatherers x3 | **Fixed** |
 | B6 | Builders | Low | no | With no active base 0.28 lets every worker build each foundation; RTS0 raises only the cap | Open |
 | B7 | Gatherers | Low | no | Military colonies are not dropsites for the exhausted-resource check, so stone or metal near only a colony is never gathered | **Fixed** |
@@ -25,7 +25,7 @@ Read-only audit of RTS0's Petra port (area C) against 0 A.D. 0.28 Petra: `baseMa
 | B9 | Dropsites | Low | no | The civic centre's dropsite stays shared with allies; 0.28 unshares it (baseManager.js:248) | Open |
 | H6 | Cadence | Low | no | trainMoreWorkers, buildMoreHouses, buildFarmstead and manageCorral run with no finished base anchor; 0.28 skips them (headquarters.js:2281) | **Fixed** |
 | H7 | Dropsites | Low | no | The fallback storehouse goes down while a civic centre is wanted but unpaid; 0.28 skips it while civilCentre has a queued plan (baseManager.js:507) | **Fixed** |
-| T6 | Transport | Low | no | The roomiest free ship is picked, not the nearest; the +50 siege bonus applies to the merchantman | Open |
+| T6 | Transport | Low | no | The roomiest free ship is picked, not the nearest; the +50 siege bonus applies to the merchantman | **Fixed** |
 | T7 | Trade | Low | no | Any idle merchant ship becomes a trader; 0.28 switches one transport per 5 turns and only below targetNumTraders | Open |
 | T8 | Fishing | Low | no | Every linked sea gets 2 fishing boats on a small start land; 0.28 raises only seas already wanting some (navalManager.js:171) | **Fixed** |
 | T9 | Ships | Low | no | Ships can train on several seas at once; maintainFleet returns while any ship is queued (navalManager.js:509) | Open |
@@ -46,6 +46,10 @@ Not ported on purpose: B10, a 0.28 bug (basesManager.js:121 calls `reset(type)` 
 - **B7.** Every dropsite structure (military colony, imperial court, crannog, wagon encampment) counts for isResourceExhausted.
 - **B8.** targetNB and the house +2 test classes Barracks and House (the academy, mercenary camp and apartment too).
 - **T8.** A small start land raises only seas already wanting fishing boats.
+- **H1.** `petra_build_first_base` asks `petra_find_economic_cc_location` for wood with proximity to the units' starting point (norm 0.5/(1+d²/250²), 400 m from a ship or a land under 24000 m², 8 m more room, cut 30, the units' land unless we have a transport ship). RTS0 keeps its old nearest-free-spot search as a fallback when no tile reaches the cut, where 0.28 would wait or try an oversea dock. Test: test_nomad_first_base's wood distance.
+- **T3.** `petra_start_transport` makes the plan with no ship when none is free (a known sea), and others join it; it takes the nearest free ship once one comes (checkLevels already trains one for a plan of 2+ waiting). It waits with no limit while a dock of ours on that sea can train one, else 60 s; a defender's crossing no longer needs a ship on the sea first. Test: test_petra_crossing_waits_for_ship (test_naval).
+- **T5.** The pickup point is `petra_boarding_pos` on the ship's sea, shortest from the ship to the unit (getBoardingPos); the straight-line beach remains the fallback.
+- **T6.** `petra_free_transport_ship` takes the nearest free ship to a unit of the plan.
 
 ## Checked and matching
 

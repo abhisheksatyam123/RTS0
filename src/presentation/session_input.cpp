@@ -1094,6 +1094,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 
 			auto uview = sim->units();
+			// input.js determineAction: the actions below test the one entity under the cursor
+			// (PickEntityAtPoint, as the hover highlights it); over bare ground, what lies near the
+			// click point.
+			const uint32_t picked = entity_under_mouse(mouse_pos);
+			const auto near_pick = [&](uint32_t id, float d2, float best_d2) {
+				return picked != 0 ? id == picked : d2 < best_d2;
+			};
 
 			// A loaded ship right-clicked on land just moves (unit_actions.js has no unload-on-click
 			// action): passengers leave through Unload All, the garrison icons or session.unload.
@@ -1106,7 +1113,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				for (size_t i = 0; i < uview.count; ++i) {
 					if (!uview.alive[i] || !rtso::unit_is_mobile_dropsite(uview.unit_type[i])) continue;
 					const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
-					if (dx * dx + dz * dz >= best) continue;
+					if (!near_pick(uview.id[i], dx * dx + dz * dz, best)) continue;
 					const uint32_t wagon = uview.id[i];
 					if (!able_any([&](uint32_t id) { return sim->can_return_resource(id, wagon); })) continue;
 					best = dx * dx + dz * dz;
@@ -1156,7 +1163,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					if (uview.team[i] != local_player() && !sim->is_ally(local_player(), uview.team[i])) continue;
 					const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
 					const float d2 = dx * dx + dz * dz;
-					if (d2 < best_rd2) { best_rd2 = d2; repair_id = uview.id[i]; }
+					if (near_pick(uview.id[i], d2, best_rd2)) { best_rd2 = d2; repair_id = uview.id[i]; }
 				}
 				if (repair_id != 0) {
 					pick_one(builds);
@@ -1182,7 +1189,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					if (uview.team[i] != local_player() && !sim->is_ally(local_player(), uview.team[i])) continue;
 					const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
 					const float d2 = dx * dx + dz * dz;
-					if (d2 >= best_hd2) continue;
+					if (!near_pick(uview.id[i], d2, best_hd2)) continue;
 					const uint32_t h = sim->first_able_healer((const uint32_t *)selected_ids.ptr(), (size_t)selected_ids.size(), uview.id[i]);
 					if (h == 0) continue;
 					best_hd2 = d2;
@@ -1207,7 +1214,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				for (const auto &t : sim->treasures()) {
 					if (!sim->los_explored(local_player(), t.x, t.z)) continue; // none in the shroud
 					const float dx = t.x - click_pos.x, dz = t.z - click_pos.z;
-					if (dx * dx + dz * dz < best_td2) { best_td2 = dx * dx + dz * dz; treasure_id = t.id; }
+					if (near_pick(t.id, dx * dx + dz * dz, best_td2)) { best_td2 = dx * dx + dz * dz; treasure_id = t.id; }
 				}
 				if (treasure_id != 0) {
 					if (turn_cmds())
@@ -1229,7 +1236,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				float dx = uview.pos_x[i] - click_pos.x;
 				float dz = uview.pos_z[i] - click_pos.z;
 				float d2 = dx * dx + dz * dz;
-				if (d2 < best_ed2) {
+				if (near_pick(uview.id[i], d2, best_ed2)) {
 					best_ed2 = d2;
 					clicked_enemy_id = uview.id[i];
 				}
@@ -1255,7 +1262,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				float dx = fview.pos_x[f] - click_pos.x;
 				float dz = fview.pos_z[f] - click_pos.z;
 				float d2 = dx * dx + dz * dz;
-				if (d2 < best_fd2) {
+				if (near_pick(fview.id[f], d2, best_fd2)) {
 					best_fd2 = d2;
 					clicked_fauna_id = fview.id[f];
 					clicked_fauna_type = fview.fauna_type[f];
@@ -1280,7 +1287,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 			// Right click on Gaia scenery (a fence, column, obelisk): "attack" (9) before "capture" (10);
 			// Capturable scenery (benches and fences) is captured with session.capture.
-			if (const uint32_t sid = scenery_at(click_pos.x, click_pos.z); sid != 0) {
+			if (const uint32_t sid = scenery_at(click_pos.x, click_pos.z); sid != 0 && near_pick(sid, 0.0f, 1.0f)) {
 				send_structure_click(scenery_click(sid), 0, sid);
 				return;
 			}
@@ -1301,7 +1308,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				for (const auto &r : view->resource_mirages()) {
 					if (r.amount <= 0 || r.subtype == rtso::RES_SUB_GRAIN) continue; // fields: the structure's click
 					const float dx = r.x - click_pos.x, dz = r.z - click_pos.z;
-					if (dx * dx + dz * dz >= best_rd2) continue;
+					if (!near_pick(r.id, dx * dx + dz * dz, best_rd2)) continue;
 					best_rd2 = dx * dx + dz * dz;
 					clicked_res_id = r.id;
 					gone = &r;
@@ -1313,7 +1320,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					float dx = rview.x[r] - click_pos.x;
 					float dz = rview.z[r] - click_pos.z;
 					float d2 = dx * dx + dz * dz;
-					if (d2 < best_rd2) {
+					if (near_pick(rview.id[r], d2, best_rd2)) {
 						best_rd2 = d2;
 						clicked_res_id = rview.id[r];
 					}
@@ -1347,7 +1354,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				float dx = b.x - click_pos.x;
 				float dz = b.z - click_pos.z;
 				float hit_r = b.half_size + 1.2f;
-				if (dx * dx + dz * dz <= hit_r * hit_r) {
+				if (picked != 0 ? b.id == picked : dx * dx + dz * dz <= hit_r * hit_r) {
 					// A finished field's grain, whoever owns it (0 A.D. "gather" has no owner check
 					// and its specificness 1 beats capture, attack and repair).
 					const uint32_t field_grain = b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
@@ -1778,7 +1785,7 @@ std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
 // The local player's unit nearest the ground point under the mouse (within 2 units), or
 // SIZE_MAX; a structure the ray reaches first hides the units behind it. With
 // `any_player`, any unit the viewed player sees (Engine.PickEntityAtPoint).
-size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player) const {
+size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player, float radius) const {
 	if (!sim) return (size_t)-1;
 	const Vector3 click_pos = get_ground_click_pos(mouse_pos);
 	auto uview = sim->units();
@@ -1788,7 +1795,7 @@ size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player) const 
 	const Vector3 ray_o = pick_cam ? pick_cam->project_ray_origin(mouse_pos) : Vector3();
 	const Vector3 ray_d = pick_cam ? pick_cam->project_ray_normal(mouse_pos) : Vector3();
 	size_t best_uidx = (size_t)-1;
-	float best_ud2 = 2.0f * 2.0f;
+	float best_ud2 = radius * radius;
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!uview.alive[i]) continue;
 		// Distance first: it rules out nearly every unit before the costlier checks.

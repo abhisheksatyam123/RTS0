@@ -568,6 +568,12 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0879fu, 0x02au}, // theb_sacred_band
 		{0x0878fu, 0x02au}, // thesp_melanochitones
 		{0x0078fu, 0x000u}, // theb_siege_fireraiser
+		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_02
+		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_03
+		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_04
+		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_05
+		{0x007cfu, 0x031u}, // athen/hero_xenophon
+		{0x0879fu, 0x029u}, // spart/hero_leonidas_300
 	};
 	return kRows;
 }
