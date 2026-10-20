@@ -506,6 +506,9 @@ public:
 	const std::vector<uint32_t> &turret_list(const Building &b) const {
 		return turret_points_of(b) ? b.garrisoned_units : b.turret_units;
 	}
+	// A wall, gate or outpost: a TurretHolder with no GarrisonHolder in 0.28, whose turret
+	// units RTS0 keeps as its garrison.
+	bool turret_only_holder(const Building &b) const { return turret_points_of(b) != nullptr; }
 	// unit_actions.js "occupy-turret": the unit may stand on a turret point of this own or
 	// mutually allied holder (Turretable, TurretHolder.CanOccupy). Room is not checked.
 	bool can_occupy_turret_in(uint32_t unit_id, uint32_t building_id) const;
@@ -1782,6 +1785,10 @@ public:
 	// for population room (Trainer.js Item.Start, Player.BlockTraining).
 	bool training_blocked(uint8_t player) const;
 	int structure_pop_bonus(uint8_t type, uint8_t player) const;
+	// GarrisonHolder/BuffHeal of a structure type for a player: its template's plus garrison_heal.
+	float structure_garrison_heal_for(uint8_t type, uint8_t player) const {
+		return building_garrison_heal(type) + (player < MAX_PLAYERS && type < BLD_TYPE_COUNT ? tech_mods_[player].bld_garrison_heal[type] : 0.0f);
+	}
 	// A structure of `type` as `player`'s build button shows it (0.28 GetTemplateData): its
 	// cost after civ, team and technology modifiers, and its BuildTime for one builder.
 	void structure_cost_for(uint8_t player, uint8_t type, float out[RES_COUNT]) const { structure_cost(player, type, -1.0f, out); }
@@ -2979,6 +2986,7 @@ private:
 	uint32_t stat_unit_value(size_t unit_idx) const;      // StatisticsTracker's entity value (Cost)
 	uint32_t stat_building_value(const Building &b) const;
 	void refund_foundation(const Building &b);
+	void record_foundation_cost(Building &b) const;
 	// petra_place_building searches that found no spot, with the signature of what
 	// they read (petra_placement_signature). Exact, so derived state: never saved.
 	struct PetraPlaceMiss {
@@ -3499,6 +3507,7 @@ private:
 	void petra_research_population_bonus();
 	bool petra_minor_tech_waiting() const;
 	bool petra_has_temple_class() const;
+	bool petra_has_builder() const;
 	void petra_queue_special_tech(uint8_t t);
 	void petra_research_trade_bonus();
 	void petra_manage_military_production(float dt);
@@ -3564,6 +3573,7 @@ private:
 	bool petra_near_invading_army(float x, float z, float dist2) const;
 	void petra_remove_defender(uint32_t uid);
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
+	float petra_available_resource(uint8_t r) const; // queueManager.getAvailableResources: stock less every queue's account
 	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
 	void petra_assign_bombers(); // attackManager.js assignBombers
 	void petra_move_dropsites_to_gatherers(); // worker.js moveToGatherer for mobile dropsites

@@ -92,8 +92,8 @@ class TipButton extends Button:
 		if tooltip == "" and tip_kind == "tech":
 			tooltip = d.get("description", "")
 		var auras := ""
-		for a in d.get("auras", []):
-			auras += "\n[b]%s:[/b] %s" % [a["name"], a["description"]]
+		for a in d.get("auras", extra.get("auras", [])):
+			auras += "\n" + Viewer.aura_line(a)
 		if body.begins_with("[b]Cost:[/b]"):
 			var nl := body.find("\n")
 			parts.append(body if nl < 0 else body.substr(0, nl))
@@ -106,7 +106,7 @@ class TipButton extends Button:
 			parts.append(body)
 		if tip_extra != "":
 			parts.append(tip_extra)
-		parts.append("[color=#aaaaaa]Click to view more information.[/color]")
+		parts.append("[color=#aaaaaa]Click for more information.[/color]")
 		return "\n".join(parts)
 
 func _init() -> void:
