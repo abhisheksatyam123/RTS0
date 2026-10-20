@@ -40,4 +40,5 @@ static func configure(ms: Node, map_id: String) -> bool:
 	ms.ai_civ = civs[1] if n > 1 else civs[0]
 	ms.campaign_run = ""
 	ms.campaign_level = ""
+	ms.campaign_map_name = ""
 	return true

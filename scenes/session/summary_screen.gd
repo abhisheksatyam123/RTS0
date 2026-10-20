@@ -1238,6 +1238,7 @@ static func leave_campaign(victory: bool, replaying := false) -> void:
 		run.set_current()
 	MatchSettings.campaign_run = ""
 	MatchSettings.campaign_level = ""
+	MatchSettings.campaign_map_name = ""
 	MatchSettings.go("res://scenes/menu/campaigns.tscn")
 
 ## startReplay.
