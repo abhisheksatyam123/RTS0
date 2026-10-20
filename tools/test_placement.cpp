@@ -188,6 +188,19 @@ static void test_foundation_clearing() {
 	CHECK(!on_site(enemy, bld(h2)));
 	CHECK(bld(h2).committed);
 	CHECK(s.nav_grid().cells.at(cx, cy) == NAV_OBSTRUCTED); // committed: units path around it
+
+	// LeaveFoundation goes anywhere clear of the site: a unit whose nearest way off is where
+	// another stands idle takes the next free point, so work still starts.
+	fresh(s);
+	const uint32_t h3 = s.spawn_building_world(-30.0f, 50.0f, BLD_HOUSE, 0, 0.0f);
+	const float edge = bld(h3).hv;
+	const uint32_t sitter = s.spawn_unit(-30.0f, 50.0f + edge + 0.6f, 0, UNIT_SPEARMAN); // just off the north side
+	const uint32_t stuck = s.spawn_unit(-30.0f, 50.0f + edge - 0.4f, 0, UNIT_SPEARMAN);  // on the site, nearest that side
+	const uint32_t w3 = s.spawn_unit(-33.0f, 50.0f - edge - 1.5f, 0, UNIT_FEMALE_CITIZEN);
+	s.order_build_or_repair(&w3, 1, h3);
+	for (int t = 0; t < 20 * 15 && !bld(h3).committed; ++t) s.tick(Simulation::FIXED_STEP);
+	std::printf("  house with its nearest exit taken by an idle unit: committed %s\n", bld(h3).committed ? "yes" : "no");
+	CHECK(bld(h3).committed && !on_site(stuck, bld(h3)) && !on_site(sitter, bld(h3)));
 }
 
 // CheckFoundation tests a foundation's turned square against the turned squares of the standing
