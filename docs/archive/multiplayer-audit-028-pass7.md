@@ -38,4 +38,5 @@ None of these touches simulation state or the save format.
 ## Fix log
 - 2026-10-20 #1197 pass 7 gaps 1 and 2 (observer and finished-player checks go by the client's own seat: pause, chat, flares, summary, Exit and Resign) merged.
 - 2026-10-20 #1203 pass 7 gap 3 (an observer joining or leaving the setup keeps everyone's Ready, as ReadyController) merged.
-- 2026-10-20 #PR46 pass 7 gaps 4 and 6 (no won/lost box again after rejoining a finished seat; no pause during "Waiting for players to connect:") merged.
+- 2026-10-20 #1206 pass 7 gaps 4 and 6 (no won/lost box again after rejoining a finished seat; no pause during "Waiting for players to connect:") merged.
+- 2026-10-20 #PR5 pass 7 gap 5 (a port that cannot be opened: "Cannot host game: Failed to start server." in an Error box, the host page stays; no SO_REUSEADDR on the host socket) merged.

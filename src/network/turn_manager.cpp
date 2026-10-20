@@ -1682,9 +1682,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.cmd_stop(ids, n);
 			if (raw_n > n) sim.order_fauna_stop(pl, raw, raw_n);
 		} else if (c.cmd_type == 3) { // Attack
-			sim.order_attack(ids, n, c.target_id, queued);
+			// UnitAI CheckTargetVisible: a target the player can't see is refused (here for
+			// every peer and replay, whatever the sender's interface let through).
+			if (sim.player_can_target_unit(pl, c.target_id)) sim.order_attack(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 4) { // Gather
-			sim.order_gather(ids, n, c.target_id, queued);
+			if (sim.player_can_target_resource(pl, c.target_id)) sim.order_gather(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == (uint8_t)NetCommandType::NET_CMD_GATHER_NEAR) { // Gather near a gone supply's mirage — target_id = type | subtype << 8.
 			sim.order_gather_near(ids, n, c.target_x, c.target_z, (uint8_t)(c.target_id & 0xFF), (uint8_t)((c.target_id >> 8) & 0xFF), queued);
 		} else if (c.cmd_type == 5) { // Build
@@ -1733,7 +1735,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			else sim.cmd_set_rally_point(pl, c.target_id, c.target_x, c.target_z, res, bld, queued,
 					rcmd < RALLY_CMD_COUNT ? (uint8_t)rcmd : (uint8_t)RALLY_CMD_AUTO, ent);
 		} else if (c.cmd_type == 15) { // Attack building
-			sim.order_attack_building(ids, n, c.target_id, queued, capture); // right-click captures, Ctrl attacks
+			if (sim.player_can_target_building(pl, c.target_id))
+				sim.order_attack_building(ids, n, c.target_id, queued, capture); // right-click captures, Ctrl attacks
 		} else if (c.cmd_type == 16) { // Build / repair
 			sim.order_build_or_repair(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 17) { // Hunt / herd
@@ -1743,7 +1746,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 				sim.order_collect_treasure(ids, n, c.target_id, queued);
 			else if ((c.param & (uint8_t)~NET_PARAM_QUEUED) == NET_HUNT_SCENERY_NO_CAPTURE)
 				sim.order_attack_scenery(ids, n, c.target_id, false);
-			else
+			else if (sim.player_can_target_fauna(pl, c.target_id))
 				sim.order_hunt(ids, n, c.target_id);
 		} else if (c.cmd_type == 18) { // Board
 			sim.order_board_transport(ids, n, c.target_id);

@@ -310,6 +310,16 @@ func run() -> void:
 	lobby._on_host_pressed()
 	check(MatchSettings_mode() == "" and lobby._status.text.contains("Server port number must be between 1024 and 65535."),
 		"the Host row refuses a port below 1024: " + lobby._status.text)
+	var busy := PacketPeerUDP.new()
+	busy.bind(29994)
+	lobby._host_port.text = "29994"
+	lobby._on_host_pressed()
+	var err_box: AcceptDialog = lobby.find_child("HostErrorDialog", false, false)
+	check(MatchSettings_mode() == "" and err_box != null and err_box.dialog_text == "Cannot host game: Failed to start server.",
+		"the Host row reports a port already in use: " + lobby._status.text)
+	busy.close()
+	if err_box:
+		err_box.queue_free()
 
 	print("7. back to the main menu signs out")
 	lobby._on_back_pressed()
