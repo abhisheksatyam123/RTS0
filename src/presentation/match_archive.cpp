@@ -47,6 +47,7 @@ const char *const kSetupKeys[] = {
 	"biome", "landscape", "team_placement", "water_level", "sea_level_rise_min", "trigger_difficulty", "map_daytime",
 	"nomad", "regicide_garrison", "cheats", "disable_spies", "disable_treasures",
 	"slot_diffs", "slot_behs", "slot_colors", "slot_names", "ai_seed", "local_slot",
+	"rated", // Match Settings' Rated game (RatingEnabled)
 };
 
 constexpr uint32_t kReplayFormat = 2; // 2: may start from a save (start_save)
@@ -178,6 +179,8 @@ void RtsoMain::apply_settings_snapshot(const Dictionary &settings) {
 		else if (script.is_valid()) ms->set(k, script->get_property_default_value(k));
 	}
 	if (settings.has("seed")) ms->set("seed", settings["seed"]);
+	// A match played on seed 0 (-autostart) replays on it; a randomized one never is 0.
+	ms->set("seed_exact", settings.has("seed") && (int64_t)settings["seed"] == 0);
 }
 
 Array RtsoMain::player_list() const {

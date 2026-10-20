@@ -29,6 +29,15 @@ func frames(n: int) -> void:
 	for i in n:
 		await process_frame
 
+func key(code: int, down: bool) -> void:
+	var k := InputEventKey.new()
+	k.keycode = code
+	k.physical_keycode = code
+	k.ctrl_pressed = down and code == KEY_CTRL
+	k.pressed = down
+	Input.parse_input_event(k)
+	await frames(1)
+
 func move(pos: Vector2) -> void:
 	var mm := InputEventMouseMotion.new()
 	mm.position = root.get_final_transform() * pos
@@ -68,8 +77,12 @@ func run() -> void:
 	var at: Vector2 = main.debug_selected_building()["screen"]
 	main.debug_select_units(archers)
 	await frames(4)
+	# session.garrison (Ctrl): "garrison" (20) over the tower; without it "move" (12) wins.
+	await key(KEY_CTRL, true)
 	await move(at)
-	check(tower != 0 and main.debug_cursor_tip()["cursor"] == "action-garrison", "a rampart tower beside the archers: " + str(main.debug_cursor_tip()["cursor"]))
+	check(tower != 0 and main.debug_cursor_tip()["cursor"] == "action-garrison", "Ctrl over a rampart tower beside the archers: " + str(main.debug_cursor_tip()["cursor"]))
+	await key(KEY_CTRL, false)
+	await move(at)
 
 	print("1. Occupy Turret")
 	var occupy := named("Occupy Turret")

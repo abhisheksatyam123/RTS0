@@ -2299,10 +2299,14 @@ CheckBox *RtsoMain::new_follow_player_box() {
 	return box;
 }
 
-// The player an observer or replay viewer is watching, or -1 (Observer, Gaia, or playing).
+// The player an observer or replay viewer is watching (GAIA_PLAYER for Gaia), or -1
+// (Observer, or playing). FollowPlayer.js hides the box for Observer only: "Following
+// gaia can be interesting on scripted maps".
 int RtsoMain::followed_view() const {
-	if (turn_mgr_.is_replaying()) return replay_view_ < rtso::MAX_PLAYERS ? (int)replay_view_ : -1;
-	if (spectating()) return observer_view_ < rtso::MAX_PLAYERS ? (int)observer_view_ : -1;
+	if (turn_mgr_.is_replaying())
+		return replay_view_gaia_ ? (int)rtso::GAIA_PLAYER : replay_view_ < rtso::MAX_PLAYERS ? (int)replay_view_ : -1;
+	if (spectating())
+		return observer_view_gaia_ ? (int)rtso::GAIA_PLAYER : observer_view_ < rtso::MAX_PLAYERS ? (int)observer_view_ : -1;
 	return -1;
 }
 
@@ -3042,11 +3046,10 @@ Dictionary RtsoMain::get_setup_chat() const {
 // The setup page's chat input: the chat window's send, so /kick, /ban, /list
 // and /clear (executeNetworkCommand) run before anything is sent.
 void RtsoMain::send_setup_chat(const String &text) {
-	LineEdit *in = chat_window_.input();
-	if (!in || text.strip_edges().is_empty()) return;
-	in->set_text(text);
-	chat_window_.send_pressed();
+	chat_window_.send_setup(text);
 }
+
+bool RtsoMain::chat_setup_verbatim() { return is_net_pregame(); }
 
 // 0.28 sound.notify.gamesetup.join (off by default): a chime when a client joins
 // the game setup; `before` 0 is our first look at it, not a join.
@@ -3433,8 +3436,9 @@ void RtsoMain::_on_lobby_start_pressed() {
 	}
 	rtso::GameSetupParams setup;
 	match_settings_setup(setup);
-	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) ms->set("net_map_random", false);
-	if (setup.seed == 0) setup.seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
+	Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
+	if (ms) ms->set("net_map_random", false);
+	if (setup.seed == 0 && !(ms && (bool)ms->get("seed_exact"))) setup.seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
 	// A Random civ is picked here, so every peer is told the same one.
 	for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i)
 		if (!rtso::is_playable_civ(setup.civs[i])) setup.civs[i] = rtso::playable_civ(setup.seed / 7u + i * 2654435761u);
@@ -3897,7 +3901,9 @@ Dictionary RtsoMain::get_match_settings_info() const {
 	d["disable_treasures"] = sim->disable_treasures();
 	d["explore_map"] = sim->explore_map();
 	d["ally_view"] = sim->ally_view();
-	d["reveal_map"] = sim->reveal_map();
+	// The match's setting (g_InitAttributes), not the live state the reveal-map cheats change.
+	Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
+	d["reveal_map"] = ms ? bool(ms->get("reveal_map")) : sim->reveal_map();
 	d["cheats"] = sim->cheats_enabled();
 	return d;
 }
@@ -3908,8 +3914,11 @@ String RtsoMain::match_settings_description() const {
 }
 
 // MatchSettingsDialog.rebuild: g_PlayerStateMessages for a player who has won or lost.
+// It names the local seat (Engine.GetPlayerID()), whoever is viewed: none in a replay or
+// for an observer.
 String RtsoMain::match_settings_player_state() const {
-	const uint8_t me = local_player();
+	if (turn_mgr_.is_replaying()) return String();
+	const uint8_t me = seat_player();
 	if (!sim || me >= rtso::MAX_PLAYERS) return String();
 	if (sim->is_victory_for(me)) return "You have won!";
 	if (sim->is_defeated(me)) return "You have been defeated!";

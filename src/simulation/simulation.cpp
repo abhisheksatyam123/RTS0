@@ -3379,8 +3379,8 @@ void Simulation::refund_foundation(const Building &b) {
 		std::ceil(c[RES_GOLD] * left), std::ceil(c[RES_STONE] * left));
 }
 
-void Simulation::structure_cost(uint8_t player, uint8_t b_type, float cost_override, float out[RES_COUNT]) const {
-	const BuildingTypeInfo binfo = civ_building_type_info(civ_of(player), b_type); // the big house
+void Simulation::structure_cost(uint8_t player, uint8_t b_type, float cost_override, float out[RES_COUNT], uint8_t template_civ) const {
+	const BuildingTypeInfo binfo = civ_building_type_info(template_civ < CIV_COUNT ? template_civ : civ_of(player), b_type); // the big house
 	// 0 A.D. civ structure cost bonuses (e.g. Iberian walls, Han stone discount).
 	const Civilization civ = civ_of(player);
 	// Team bonuses (e.g. Persian Training Regimes, Mauryan temples) from the player and its allies.
@@ -9700,10 +9700,21 @@ uint32_t Simulation::stat_unit_value(size_t idx) const {
 	unit_train_cost(units_.team[idx], units_.tmpl[idx], unit_info_at(idx), c);
 	return stat_cost_value(c);
 }
+// Cost.GetResourceCosts: the structure's own template (the civ it was built as), with its
+// owner's modifiers; Gaia has none.
 uint32_t Simulation::stat_building_value(const Building &b) const {
 	float c[RES_COUNT];
 	const float piece = wallset_piece_value(b.type, b.half_size, 1, b.civ); // a wall piece's own length
-	structure_cost(b.team, b.type, piece > 0.0f ? piece : -1.0f, c);
+	if (b.team >= MAX_PLAYERS) {
+		const BuildingTypeInfo info = civ_building_type_info(b.civ, b.type);
+		const bool by_wood = info.wood_cost > 0 && info.stone_cost == 0;
+		c[RES_FOOD] = (float)info.food_cost;
+		c[RES_WOOD] = piece > 0.0f && by_wood ? std::round(piece) : (float)info.wood_cost;
+		c[RES_STONE] = piece > 0.0f && !by_wood ? std::round(piece) : (float)info.stone_cost;
+		c[RES_GOLD] = (float)info.gold_cost;
+		return stat_cost_value(c);
+	}
+	structure_cost(b.team, b.type, piece > 0.0f ? piece : -1.0f, c, b.civ);
 	return stat_cost_value(c);
 }
 
@@ -18584,13 +18595,13 @@ bool Simulation::mobile_dropsite_usable_by(uint8_t player, size_t e) const {
 		players_[player].has_tech(TECH_UNLOCK_SHARED_DROPSITES) && is_ally(player, owner);
 }
 
-// set-dropsite-sharing (Commands.js): the owner of a dropsite turns sharing on or off; the
-// toggle exists once the owner has shared dropsites.
+// set-dropsite-sharing (Commands.js): the owner of a sharable dropsite turns sharing on or
+// off, with or without Diaspora (which only lets allies drop at shared ones).
 bool Simulation::cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end() || player >= MAX_PLAYERS) return false;
 	Building &b = buildings_[bit->second];
-	if (b.team != player || b.wrecked || !players_[player].has_tech(TECH_UNLOCK_SHARED_DROPSITES)) return false;
+	if (b.team != player || b.wrecked) return false;
 	if (!is_dropsite_type(b.type)) return false;
 	if (b.dropsite_shared == shared) return false;
 	b.dropsite_shared = shared;
@@ -20261,6 +20272,22 @@ void Simulation::petra_staff_foundations() {
 	uint16_t home_land = 0;
 	const PetraNavalTopo &topo = petra_classified_topo(home_land);
 	const bool naval_map = topo.naval_map;
+	// basesManager.js bulkPickWorkers: while a base stands, a new base's anchor takes 10
+	// workers from the standing bases, each keeping 3 (baseManager.js pickBuilders).
+	std::vector<std::pair<float, float>> standing;
+	for (const Building &o : buildings_)
+		if (o.team == petra_pid_ && (is_civic_centre(o.type) || o.type == BLD_MILITARY_COLONY) &&
+		    o.build_progress >= 1.0f && o.hp > 0.0f && !o.wrecked)
+			standing.push_back({o.x, o.z});
+	auto base_of = [&](size_t i) {
+		int best = 0;
+		float best_d2 = 1e18f;
+		for (size_t k = 0; k < standing.size(); ++k) {
+			const float dx = units_.pos_x[i] - standing[k].first, dz = units_.pos_z[i] - standing[k].second;
+			if (dx * dx + dz * dz < best_d2) { best_d2 = dx * dx + dz * dz; best = (int)k; }
+		}
+		return best;
+	};
 	for (auto &w : petra_fnd_watch_) {
 		const Building &b = buildings_[building_id_to_idx_.at(w.id)];
 		// assignToFoundations targetNB: 15 on a base anchor (or the wonder in wonder victory),
@@ -20269,6 +20296,7 @@ void Simulation::petra_staff_foundations() {
 		int want = 2;
 		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY ||
 		    (b.type == BLD_WONDER && has_victory(VK_WONDER))) want = 15;
+		if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && !standing.empty()) want = 10;
 		else if (b.type == BLD_FORTRESS || b.type == BLD_WONDER) want = 7;
 		else if (b.type == BLD_BARRACKS || b.type == BLD_RANGE || b.type == BLD_STABLE || is_defense_tower(b.type) ||
 		         b.type == BLD_SENTRY_TOWER || b.type == BLD_MARKET) want = 4;
@@ -20359,7 +20387,7 @@ void Simulation::petra_staff_foundations() {
 	};
 
 	// Idle workers first, then the nearest gatherer, on `land` when given.
-	auto pick_worker = [&](const Need &n, uint16_t land, const std::vector<uint32_t> &taken) {
+	auto pick_worker = [&](const Need &n, uint16_t land, const std::vector<uint32_t> &taken, const std::vector<int> *left = nullptr) {
 		int best = -1;
 		float best_d2 = 1e18f;
 		for (size_t i = 0; i < units_.count; ++i) {
@@ -20371,6 +20399,7 @@ void Simulation::petra_staff_foundations() {
 			if (std::find(ban.begin(), ban.end(), units_.id[i]) != ban.end()) continue;
 			if (std::find(taken.begin(), taken.end(), units_.id[i]) != taken.end()) continue;
 			if (land && petra_land_at(units_.pos_x[i], units_.pos_z[i]) != land) continue;
+			if (left && (*left)[base_of(i)] <= 3) continue;
 			float dx = units_.pos_x[i] - n.x, dz = units_.pos_z[i] - n.z;
 			float d2 = dx * dx + dz * dz;
 			// Food gatherers count three times as far (assignToFoundations sort).
@@ -20390,9 +20419,19 @@ void Simulation::petra_staff_foundations() {
 		if (territory_owner_at(nb.x, nb.z) != petra_pid_ && build_restriction(nb.type, civ_of(petra_pid_)).territory == TERR_OWN)
 			continue;
 		int budget = budget_for(nb);
+		std::vector<int> left;
+		if ((is_civic_centre(nb.type) || nb.type == BLD_MILITARY_COLONY) && !standing.empty()) {
+			left.assign(standing.size(), 0);
+			for (size_t i = 0; i < units_.count; ++i)
+				if (units_.alive[i] && units_.team[i] == petra_pid_ && petra_builder_worker(i, launched) &&
+				    !(units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] == n.id) &&
+				    std::find(dropping.begin(), dropping.end(), units_.id[i]) == dropping.end())
+					++left[base_of(i)]; // the anchor's builders already left their base
+		}
 		while (n.missing > 0 && budget > 0) {
-			const int best = pick_worker(n, n.land, none);
+			const int best = pick_worker(n, n.land, none, left.empty() ? nullptr : &left);
 			if (best < 0) break;
+			if (!left.empty()) --left[base_of((size_t)best)];
 			uint32_t uid = units_.id[best];
 			petra_order_build(uid, n.id);
 			--n.missing;
@@ -20574,8 +20613,7 @@ void Simulation::petra_manage_economy(float dt) {
 			// standing at a relic is capturing it.
 			if (units_.order_kind[i] == ORDER_COLLECT_TREASURE || units_.order_kind[i] == ORDER_CAPTURE_RELIC) continue;
 			const bool soldier = gcls == GATHER_INFANTRY;
-			if (soldier && (in_plan.count(units_.id[i]) || units_.id[i] == petra_scout_unit_id_ ||
-					get_threat_at(units_.pos_x[i], units_.pos_z[i]) >= 7.0f)) continue;
+			if (soldier && (in_plan.count(units_.id[i]) || units_.id[i] == petra_scout_unit_id_)) continue;
 			// worker.js returnResources: an idle worker still carrying something takes it to the
 			// nearest dropsite on its own land first (an explicit ReturnResource order; UnitAI does
 			// not drop off by itself), and is reassigned once empty.
@@ -20822,7 +20860,6 @@ void Simulation::petra_manage_economy(float dt) {
 			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
 			const uint8_t sub = resources_.subtype[r];
 			if (sub == RES_SUB_FISH) continue; // fishing boats' food, not villagers'
-			if (!is_position_safe(resources_.x[r], resources_.z[r], 6.0f)) continue;
 			if (petra_supply_inaccessible(resources_.id[r])) continue; // inaccessibleTime
 			// findSupply: not in enemy territory.
 			const int terr = territory_owner_at(resources_.x[r], resources_.z[r]);
@@ -24015,13 +24052,14 @@ int Simulation::petra_work_phase3() const {
 	return std::min(work, petra_target_workers());
 }
 
-// headquarters.js getAccountedPopulation: the population plus the units in training queues.
+// headquarters.js getAccountedPopulation: the population plus every batch in the training
+// queues at its Cost/Population. A started batch is counted twice, as in 0.28: popUsed
+// already holds its reserved slots (Player.js TryReservePopulationSlots).
 int Simulation::petra_accounted_population() const {
 	int pop = pop_current(petra_pid_);
 	for (const Building &b : buildings_) {
 		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
-		for (const ProductionOrder &o : b.queue)
-			if (!o.is_tech() && o.unit_type < UNIT_TYPE_COUNT && !o.started) pop += o.count;
+		for (const ProductionOrder &o : b.queue) pop += order_pop(o, petra_pid_);
 	}
 	return pop;
 }
@@ -30763,6 +30801,21 @@ void Simulation::petra_cancel_attacks_against(uint8_t player) {
 			plan.state = AttackPlan::ABORT;
 			plan.state_timer = 0.0f;
 		}
+	// cancelAttacksAgainstPlayer goes through every attack type, Raid included: a raid on the
+	// player is aborted, its riders sent home (attackPlan.js Abort) and then released.
+	AttackPlan &raid = petra_raid_plan_;
+	if (raid.state != AttackPlan::UNEXECUTED && raid.state != AttackPlan::ABORT && raid.state != AttackPlan::REGROUP) {
+		const auto it = building_id_to_idx_.find(raid.target_building_id);
+		if (it != building_id_to_idx_.end() && buildings_[it->second].team == player) {
+			raid.retreat_x = 36.0f;
+			raid.retreat_z = 36.0f;
+			if (const auto *home = get_primary_petra_base()) { raid.retreat_x = home->x; raid.retreat_z = home->z; }
+			raid.state = AttackPlan::REGROUP;
+			raid.state_timer = 0.0f;
+			raid.target_building_id = 0;
+			if (!raid.squad.empty()) petra_go_home(raid.squad, raid.retreat_x, raid.retreat_z, PETRA_TRANSPORT_RAID, true);
+		}
+	}
 }
 
 // diplomacyManager.js sendDiplomacyRequest: ask the player we share the most

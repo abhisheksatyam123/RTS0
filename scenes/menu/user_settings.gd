@@ -18,6 +18,7 @@ const BUSES := {
 const SHADOW_ATLAS := [1024, 2048, 4096, 8192] # shadowquality -1 Low .. 2 Very High
 # shadowscovermap: a cutoff past the largest map's diagonal (Giant, 512 m).
 const SHADOW_COVER_MAP_DISTANCE := 2000.0
+const METRES_PER_UNIT := 4.0 # RTS0's world unit is 4 m
 # FidelityFX CAS (CASFilter in 0.28's postproc), on the 3D picture under the GUI.
 const CAS_SHADER := """
 shader_type canvas_item;
@@ -594,10 +595,13 @@ func _apply_node(n) -> void:
 	if n is DirectionalLight3D:
 		if not n.has_meta("rtso_shadow"):
 			n.set_meta("rtso_shadow", n.shadow_enabled)
-			n.set_meta("rtso_shadow_dist", n.directional_shadow_max_distance)
 		n.shadow_enabled = n.get_meta("rtso_shadow") and cfg.get_bool("shadows")
-		# 0 A.D.'s default cutoff is 300 m; scale the scene's own distance by the setting.
-		n.directional_shadow_max_distance = float(n.get_meta("rtso_shadow_dist")) * clampf(cfg.get_number("shadowscutoffdistance"), 100.0, 1500.0) / 300.0
+		# CShadowMap: shadowscutoffdistance metres from the camera (4 m a world unit),
+		# over shadowscascadecount cascades (0.28 default: one map, 300 m).
+		n.directional_shadow_max_distance = clampf(cfg.get_number("shadowscutoffdistance"), 100.0, 1500.0) / METRES_PER_UNIT
+		var cascades := clampi(int(cfg.get_number("shadowscascadecount")), 1, 4)
+		n.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL if cascades == 1 \
+				else (DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS if cascades == 2 else DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS)
 		if cfg.get_bool("shadowscovermap"):
 			n.directional_shadow_max_distance = SHADOW_COVER_MAP_DISTANCE
 	elif n is WorldEnvironment and n.environment:
