@@ -227,6 +227,11 @@ static void test_trader_route() {
 	root_markets(s);
 	// At war, player 1's market is no trade partner and player 0 has no route.
 	CHECK(!s.has_trade_route(0));
+	// CeasefireManager makes enemies neutral: their markets trade until it ends.
+	s.set_ceasefire_seconds(s.game_time() + 60.0f);
+	CHECK(s.can_trade_at(0, *find_bld(s, m1)));
+	s.set_ceasefire_seconds(0.0f);
+	CHECK(!s.can_trade_at(0, *find_bld(s, m1)));
 	s.set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
 	CHECK(s.has_trade_route(0) && s.can_trade_at(0, *find_bld(s, m1)));
 	CHECK(!s.has_trade_route(2)); // player 2 is still at war with player 1
