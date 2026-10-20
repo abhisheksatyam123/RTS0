@@ -519,6 +519,7 @@ private:
 	std::unordered_map<uint32_t, std::string> client_names_;
 	void send_player_assignment();
 	bool rejoin_wanted_ = false, rejoin_have_header_ = false, rejoined_ = false;
+	bool rejoin_announced_ = false; // the host's CMD_PEER_JOINED for us has arrived
 	uint32_t rejoin_turn_ = 0;
 	uint8_t rejoin_reject_ = 0;
 	RejoinMsg rejoin_header_;
