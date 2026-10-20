@@ -2207,8 +2207,10 @@ enum CivRosterFlag : uint16_t {
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
 
-// Roster tables hold at most 64 * CIV_TEMPLATE_WORDS_MAX unit templates.
-inline constexpr uint16_t CIV_TEMPLATE_WORDS_MAX = 8;
+// Roster tables hold at most 64 * CIV_TEMPLATE_WORDS_MAX unit templates: the generated aura
+// and civ-bonus row bitsets (affects, units) are this many words, the generator fills the
+// first CIV_TEMPLATE_WORDS. Saves store template ids only, so raising it needs no save bump.
+inline constexpr uint16_t CIV_TEMPLATE_WORDS_MAX = 16;
 
 // A unit's short path around buildings (nav/building_steering.h), kept between ticks as 0 A.D.'s
 // CCmpUnitMotion keeps m_ShortPath: the first waypoint (x, z), the aim it leads towards, and the
