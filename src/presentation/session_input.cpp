@@ -1132,27 +1132,25 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 
-			// 1c. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor).
+			// 1c. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor):
+			// only a unit a selected healer may heal (Heal.js CanHeal: a Human, not the healer itself).
 			{
-				// With orderone the first healer of the selection is the one ordered
+				// With orderone the first able healer of the selection is the one ordered
 				// (input.js firstAbleEntity).
 				uint32_t first_healer = 0;
-				for (int k = 0; k < selected_ids.size() && !first_healer; ++k) {
-					for (size_t i = 0; i < uview.count; ++i)
-						if (uview.id[i] == (uint32_t)selected_ids[k]) {
-							if (rtso::unit_is_healer(uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, uview.unit_type[i])) first_healer = uview.id[i];
-							break;
-						}
-				}
-				const bool any_healer = first_healer != 0;
 				uint32_t heal_id = 0;
 				float best_hd2 = 2.2f * 2.2f;
-				for (size_t i = 0; any_healer && i < uview.count; ++i) {
+				for (size_t i = 0; i < uview.count; ++i) {
 					if (!uview.alive[i] || uview.hp[i] >= uview.max_hp[i]) continue;
 					if (uview.team[i] != local_player() && !sim->is_ally(local_player(), uview.team[i])) continue;
 					const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
 					const float d2 = dx * dx + dz * dz;
-					if (d2 < best_hd2) { best_hd2 = d2; heal_id = uview.id[i]; }
+					if (d2 >= best_hd2) continue;
+					const uint32_t h = sim->first_able_healer((const uint32_t *)selected_ids.ptr(), (size_t)selected_ids.size(), uview.id[i]);
+					if (h == 0) continue;
+					best_hd2 = d2;
+					heal_id = uview.id[i];
+					first_healer = h;
 				}
 				if (heal_id != 0) {
 					if (one_id != 0) one_id = first_healer;
