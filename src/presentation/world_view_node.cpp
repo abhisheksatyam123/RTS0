@@ -5359,7 +5359,7 @@ void RtsoWorldView::sync_gl_decal(const rtso::Simulation *sim, Decal *d) {
 	const Vector3 size = d->get_size();
 	const Color mod = d->get_modulate();
 	const Array key = Array::make(xf, size, mod);
-	if (mi->get_meta("gl_key", Variant()) == Variant(key)) return;
+	if (mi->has_meta("gl_key") && mi->get_meta("gl_key") == Variant(key)) return;
 	mi->set_meta("gl_key", key);
 	Ref<StandardMaterial3D> &mat = gl_decal_mats_[tex.ptr()];
 	if (mat.is_null()) {

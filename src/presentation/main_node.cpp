@@ -147,6 +147,9 @@ Dictionary RtsoMain::get_audio_state() const {
 	d["music_state"] = kStates[music_.state()];
 	d["track"] = music_.current_track();
 	d["music_position"] = music_.current_position();
+	PackedStringArray playlist;
+	for (const std::string &t : music_.playlist_from_current()) playlist.push_back(String::utf8(t.c_str()));
+	d["playlist"] = playlist;
 	d["last_sound"] = session_audio_.last_played();
 	d["in_battle"] = session_audio_.in_battle();
 	d["work_sounds"] = session_audio_.work_sounds_played();
