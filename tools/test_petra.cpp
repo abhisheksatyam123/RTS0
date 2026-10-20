@@ -3320,6 +3320,7 @@ static void test_structure_cost_by_civ() {
 	const BuildingTypeInfo &generic = building_type_info(BLD_BARRACKS);
 	std::printf("  Briton barracks %.0fw %.0fs (generic %dw %ds)\n", c[RES_WOOD], c[RES_STONE], generic.wood_cost, generic.stone_cost);
 	CHECK(c[RES_WOOD] == 300.0f && c[RES_STONE] == 0.0f, "a Briton barracks costs 300 wood and no stone");
+	s->spawn_unit(0.0f, 0.0f, 1, UNIT_FEMALE_CITIZEN); // a builder (hasBuilder)
 	CHECK(s->petra_try_pay_structure(PETRA_Q_MILITARY_BUILDING, BLD_BARRACKS), "Petra pays for it");
 	CHECK(s->players_[1].wood() == 700.0f && s->players_[1].stone() == 1000.0f, "with 300 wood and no stone");
 }
@@ -6275,6 +6276,26 @@ static void test_trade_tech_waits_for_funds() {
 	CHECK(started && s->petra_queues_.special_tech == 0, "once affordable it is researched first and the queue clears");
 }
 
+// buildManager.js hasBuilder: with no unit left that can build, canBuild refuses every
+// structure, so nothing is paid for a foundation nobody would raise.
+static void test_no_builder_no_foundation() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(1);
+	s->spawn_initial();
+	s->petra_pid_ = 1;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	fund_queues(*s);
+	CHECK(s->petra_has_builder(), "the starting citizens can build");
+	s->petra_turn_built_ = false;
+	CHECK(s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE) != 0, "a house goes down with builders alive");
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.team[i] == 1 && unit_can_build(s->units_.unit_type[i], s->units_.tmpl[i])) s->units_.alive[i] = false;
+	s->petra_turn_built_ = false;
+	const float wood = s->player(1).wood();
+	CHECK(!s->petra_has_builder() && s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE) == 0 && s->player(1).wood() == wood,
+	      "with no builder left no foundation is laid or paid for");
+}
+
 // common-api entity.js: Petra scores its templates with the player's technologies applied.
 // After Archery Tradition (+10 m range) a Kushite's best citizen infantry per cost, by
 // strength, is the archer, as in 0.28; on base stats it was the spearman.
@@ -6325,6 +6346,7 @@ int main(int argc, char **argv) {
 	RUN(test_no_free_income);
 	RUN(test_mercenary_workers);
 	RUN(test_trade_tech_waits_for_funds);
+	RUN(test_no_builder_no_foundation);
 	RUN(test_roster_army);
 	RUN(test_diplomacy);
 	RUN(test_ai_slots);
