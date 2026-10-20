@@ -27582,6 +27582,10 @@ bool Simulation::petra_unit_reserved(uint32_t uid) const {
 	if (petra_in_attack_squad(uid)) return true;
 	const auto &raid = petra_raid_plan_.squad;
 	if (std::find(raid.begin(), raid.end(), uid) != raid.end()) return true;
+	// victoryManager.js captureGaiaRelic: the relic expedition is a Raid plan, so
+	// its units are no longer workers until it ends.
+	const int32_t i = lookup_unit(uid);
+	if (i >= 0 && units_.order_kind[i] == ORDER_CAPTURE_RELIC && is_relic_unit(lookup_unit(units_.order_target[i]))) return true;
 	return petra_is_defender(uid);
 }
 
@@ -30710,12 +30714,24 @@ void Simulation::petra_capture_gaia_relics() {
 		if (units_.team[r] != GAIA_PLAYER) {
 			// victoryManager.js OnOwnershipChanged / abortCaptureGaiaRelic: someone else took it
 			// first, so the expedition (a Raid plan in 0.28) is called off. Attack plans keep theirs.
-			for (size_t i = 0; i < units_.count; ++i)
-				if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.order_kind[i] == ORDER_CAPTURE_RELIC &&
-				    units_.order_target[i] == rel.id && !petra_unit_reserved(units_.id[i])) {
-					const uint32_t uid = units_.id[i];
-					cmd_stop(&uid, 1);
+			// attackPlan.js Abort: a started plan withdraws to the nearest base anchor on its land.
+			for (size_t i = 0; i < units_.count; ++i) {
+				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] != ORDER_CAPTURE_RELIC ||
+				    units_.order_target[i] != rel.id || petra_in_attack_squad(units_.id[i]))
+					continue;
+				const uint32_t uid = units_.id[i];
+				const uint16_t uland = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
+				const Building *anchor = nullptr;
+				float best = 1e30f;
+				for (const auto &b : buildings_) {
+					if (b.team != petra_pid_ || !is_civic_centre(b.type) || b.build_progress < 1.0f || b.wrecked) continue;
+					if (uland != 0 && petra_building_land(b, nullptr, uland) != uland) continue;
+					const float d2 = (b.x - units_.pos_x[i]) * (b.x - units_.pos_x[i]) + (b.z - units_.pos_z[i]) * (b.z - units_.pos_z[i]);
+					if (d2 < best) { best = d2; anchor = &b; }
 				}
+				if (anchor) order_walk(&uid, 1, anchor->x + anchor->half_size + 3.0f, anchor->z, false);
+				else cmd_stop(&uid, 1);
+			}
 			continue;
 		}
 		// captureGaiaRelic: the capture already under way, less the relic's regen.

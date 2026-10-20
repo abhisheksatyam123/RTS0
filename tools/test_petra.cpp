@@ -3220,9 +3220,12 @@ static void test_relic_capture() {
 	CHECK(!far.claimed, "and leaves a relic it has never seen");
 	// abortCaptureGaiaRelic: a relic someone else takes first ends the expedition.
 	const uint32_t taken = s->spawn_relic(tx - 12.0f, tz + 12.0f);
-	const uint32_t seeker = s->spawn_unit(tx - 4.0f, tz + 4.0f, 1, UNIT_SPEARMAN);
+	const uint32_t seeker = s->spawn_unit(tx - 24.0f, tz + 24.0f, 1, UNIT_SPEARMAN);
 	s->order_capture_relic(&seeker, 1, taken);
 	const int32_t tr = s->lookup_unit(taken), su = s->lookup_unit(seeker);
+	// The expedition is a Raid plan in 0.28: its units are no longer workers.
+	CHECK(s->petra_unit_reserved(seeker), "a relic capturer is not a worker while it goes");
+	const float far0 = std::hypot(s->units_.pos_x[su] - tx, s->units_.pos_z[su] - tz);
 	s->units_.team[tr] = 0;
 	for (auto &rel : s->relics_)
 		if (rel.id == taken) { rel.claimed = true; rel.owner_team = 0; }
@@ -3232,6 +3235,12 @@ static void test_relic_capture() {
 	// Called off, it may go back to work or into the civic centre (garrisoned units are not alive).
 	CHECK((s->units_.alive[su] || s->units_.action_state[su] == ACTION_GARRISONED) &&
 			s->units_.order_kind[su] != ORDER_CAPTURE_RELIC, "Petra calls off a capture of a relic an enemy took");
+	// attackPlan.js Abort: it withdraws to the nearest base anchor rather than stopping where it is.
+	if (s->units_.alive[su]) {
+		const float far1 = std::hypot(s->units_.pos_x[su] - tx, s->units_.pos_z[su] - tz);
+		std::printf("  called-off capturer: %.0f from the civic centre, then %.0f\n", far0, far1);
+		CHECK(far1 < far0 - 4.0f, "and the capturer withdraws toward its civic centre");
+	}
 }
 
 // attackManager.js getRelicEnemyPlayer: in capture the relic, Petra attacks the enemy
