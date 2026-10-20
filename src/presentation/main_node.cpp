@@ -2893,10 +2893,11 @@ void RtsoMain::_start_menu_net() {
 	if (lobby_port) lobby_port->set_text(String::num_int64((int64_t)ms->get("net_port")));
 	if (lobby_password) lobby_password->set_text(ms->get("net_password"));
 	if (lobby_observe) lobby_observe->set_pressed_no_signal((bool)ms->get("net_observe"));
-	// A joiner sees the Connecting box, then the setup page; the developer
-	// lobby panel stays behind its button.
-	if (lobby_panel) lobby_panel->set_visible(mode == "host");
-	if (lobby_btn) lobby_btn->set_visible(true);
+	// A joiner sees the Connecting box, then the setup page, and the host the
+	// setup page: 0.28's top panel has no Lobby button, and the session menu's
+	// Lobby entry opens the lobby dialog. The developer lobby panel stays hidden.
+	if (lobby_panel) lobby_panel->set_visible(false);
+	if (lobby_btn) lobby_btn->set_visible(false);
 	if (mode == "host") _on_lobby_host_pressed();
 	else _on_lobby_join_pressed();
 	// tools/playtest_godot_mp.py --firewall: each peer drops datagrams from

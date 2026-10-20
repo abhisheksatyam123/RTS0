@@ -328,6 +328,15 @@ func host_game(game: Dictionary) -> void:
 	post_json("/rooms", _signed(room))
 
 
+## The hosted game is given up before its match began (Host Saved Game's
+## save picker closed): it leaves the game list.
+func unhost_game() -> void:
+	if not room.is_empty() and token != "":
+		post_json("/rooms/unregister", {"token": token, "id": room.get("id", "")})
+	room = {}
+	_room_posted = {}
+
+
 ## 0 A.D. lobby authentication (XmppClient LobbyAuth, NetServer
 ## OnLobbyAuth): the host asks the lobby whose ticket a joiner sent, and the
 ## match checks that name against the one the joiner gave. An unknown ticket,
