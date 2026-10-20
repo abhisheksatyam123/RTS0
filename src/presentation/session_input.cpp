@@ -1606,7 +1606,8 @@ std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
 	const bool idle_only = rtso::hotkeys::held("selection.idleonly");
 	const bool wounded_only = rtso::hotkeys::held("selection.woundedonly");
 	auto in_box = [&](float x, float z) {
-		const Vector3 world_pos(x, 0, z);
+		// The entity as drawn, on the ground (PickPlayerEntitiesInRect projects its position).
+		const Vector3 world_pos(x, sim->get_terrain_height(x, z), z);
 		if (cam->is_position_behind(world_pos)) return false;
 		const Vector2 sp = cam->unproject_position(world_pos);
 		return sp.x >= min_p.x && sp.x <= max_p.x && sp.y >= min_p.y && sp.y <= max_p.y;
