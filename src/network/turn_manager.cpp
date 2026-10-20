@@ -1814,7 +1814,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			// target_x = which upgrade choice (the Tachara's four tribute forms).
 			if (c.param == 1) sim.cmd_cancel_upgrade(pl, c.target_id);
 			else if (c.target_x >= 0.0f && c.target_x < 8.0f) sim.cmd_upgrade_building(pl, c.target_id, (int)c.target_x);
-		} else if (c.cmd_type == 45) { // Dropsite sharing — target_id=building, param 1 share / 0 stop.
+		} else if (c.cmd_type == 45) { // Dropsite sharing — target_id=building or supply wagon, param 1 share / 0 stop.
 			sim.cmd_set_dropsite_sharing(pl, c.target_id, c.param == 1);
 		} else if (c.cmd_type == 28) { // Gate lock — target_id=building, param 1 lock / 0 unlock.
 			sim.cmd_lock_gate(pl, c.target_id, c.param == 1);
