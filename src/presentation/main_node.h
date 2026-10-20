@@ -965,6 +965,7 @@ private:
 	bool music_primed_ = false;
 	PackedInt32Array delete_pending_;
 	void play_alarm(const char *path);
+	void render_flare(float x, float z, uint8_t seat, const String &guid);
 	void play_sfx(const char *path);
 	void play_spatial_sfx(const char *path, Vector3 pos);
 

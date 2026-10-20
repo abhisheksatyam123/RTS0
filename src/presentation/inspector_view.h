@@ -791,14 +791,15 @@ public:
 		}
 		if (groups.size() > RtsoSelectionGrid::kMaxSelectionGroups) groups.resize(RtsoSelectionGrid::kMaxSelectionGroups);
 		title_->set_text(String::num_int64(selected_ids.size()) + " units selected");
-		title_->set_tooltip_text("");
+		// displayMultiple: each animal's Garrisonable size (corrals), no carried resources or Loot.
+		title_->set_tooltip_text(rtso::seldet::multiple_tooltip((int64_t)selected_ids.size(), {}, {}));
 		portrait_->set_tooltip_text("");
 		clear_owner();
 		class_->set_text(String::num_int64(groups.size()) + (groups.size() == 1 ? " type" : " types"));
 		hp_bar_->set_max(max_hp > 0.0f ? max_hp : 1.0f);
 		hp_bar_->set_value(hp);
 		hp_label_->set_text(rtso::seldet::health(hp, max_hp));
-		show_multi((int64_t)selected_ids.size(), "", hp, max_hp);
+		show_multi((int64_t)selected_ids.size(), title_->get_tooltip_text(), hp, max_hp);
 		for (int i = 0; i < kStatusIcons; ++i) status_icons_[i]->set_visible(false);
 		hide_resource_bar();
 		stats_->set_text("");
@@ -1299,7 +1300,9 @@ private:
 	// A single structure's statuses, portrait tooltip and clicks.
 	void set_structure_extras(const rtso::Simulation &sim, const rtso::Simulation::Building &b) {
 		set_statuses(sim, rtso::Simulation::STATUS_ON_STRUCTURE, b.id);
-		const uint8_t civ = b.team < rtso::MAX_PLAYERS ? sim.player_civ(b.team) : sim.player_civ(host_->local_player());
+		// ViewerPage.js: the civ of the structure's own template, so a captured barracks lists its builder's units.
+		const uint8_t civ = rtso::is_playable_civ(b.civ) ? b.civ
+				: b.team < rtso::MAX_PLAYERS ? sim.player_civ(b.team) : sim.player_civ(host_->local_player());
 		set_portrait_target(false, b.id, b.x, b.z, "structure", b.type, civ);
 		portrait_->set_tooltip_text(portrait_tooltip(title_->get_text(), rtso::portraits::structure_entry(b.civ, b.type), String(), String(), false));
 	}
@@ -1560,7 +1563,40 @@ private:
 		portrait_->set_texture(groups.empty() ? godot::Ref<godot::Texture2D>()
 				: groups.front().icon.is_valid() ? groups.front().icon : rtso::portraits::unit(groups.front().tmpl, groups.front().unit_type));
 		title_->set_text(godot::String::num_int64(total) + " selected");
-		show_multi(total, "", hp, max_hp);
+		// displayMultiple's numberOfUnits tooltip: the units' Garrisonable size, every holder's
+		// occupied slots, carried resources and the summed Loot of units and structures.
+		{
+			rtso::seldet::Amounts carrying, loot;
+			int64_t garrison_size = 0;
+			auto add_loot = [&loot](const rtso::LootInfo &l) {
+				loot.res[rtso::RES_FOOD] += l.food;
+				loot.res[rtso::RES_WOOD] += l.wood;
+				loot.res[rtso::RES_STONE] += l.stone;
+				loot.res[rtso::RES_GOLD] += l.metal;
+				loot.xp += l.xp;
+			};
+			for (int s = 0; s < selected_ids.size(); ++s) {
+				size_t i = 0;
+				for (; i < uview.count; ++i)
+					if (uview.id[i] == (uint32_t)selected_ids[s]) break;
+				if (i == uview.count || !uview.alive[i]) continue;
+				garrison_size += 1 + (int64_t)sim.get_transport_passenger_count(uview.id[i]);
+				add_loot(sim.unit_details(i).loot);
+				if (uview.carry[i] > 0 && uview.res_type_carried[i] < rtso::RES_COUNT) {
+					carrying.res[uview.res_type_carried[i]] += uview.carry[i];
+					loot.res[uview.res_type_carried[i]] += uview.carry[i];
+				}
+			}
+			for (uint32_t id : structs)
+				for (const auto &b : sim.buildings()) {
+					if (b.id != id) continue;
+					garrison_size += sim.get_garrison_count(b.id);
+					add_loot(rtso::structure_loot(b.type, b.civ, b.half_size));
+					break;
+				}
+			title_->set_tooltip_text(rtso::seldet::multiple_tooltip(garrison_size, carrying, loot));
+		}
+		show_multi(total, title_->get_tooltip_text(), hp, max_hp);
 		if (max_cp > 0.0f) set_multi_capture(sim, owner, pts, max_cp);
 		clear_owner();
 		class_->set_text(godot::String::num_int64(groups.size()) + (groups.size() == 1 ? " type" : " types"));

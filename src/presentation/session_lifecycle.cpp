@@ -117,22 +117,7 @@ void RtsoMain::_ready() {
 			if (comma > 0) {
 				float fx = coords.substr(0, comma).to_float();
 				float fz = coords.substr(comma + 1).to_float();
-				const uint8_t sender = chat_player_of(guid);
-				const Color c = player_flare_color(sender);
-				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), c);
-				range_overlays_.add_flare(fx, fz, c, user_opts_.flare_time);
-				play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
-				// ChatMessageFormatSimulation.flare: gui.session.notifications.flare
-				// "never", "observer" (only while observing) or "always".
-				const std::string when = rtso::user_config::get("gui.session.notifications.flare");
-				const uint8_t from = chat_player_of(guid);
-				// colorizePlayernameByGUID: an observer's name in white.
-				const String name = from < rtso::MAX_PLAYERS ? colored_player_name(from) : chat_user(guid).replace("[color=#b3b3b3]", "[color=#ffffff]");
-				if (when == "always" || (when == "observer" && chat_local_observer()))
-					chat_window_.append_line(sprintf0(tr("%(icon)s%(player)s has sent a flare."),
-							{{"icon", "[img=16x16]res://assets/textures/ui/archive/icons/focus-flare.png[/img]"},
-									{"player", name}}) + "\n",
-							"flare:" + String::num(fx) + "," + String::num(fz), tr("Click to focus on the flare's location."));
+				render_flare(fx, fz, chat_player_of(guid), guid);
 			}
 			return;
 		}
