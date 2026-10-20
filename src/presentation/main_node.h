@@ -326,6 +326,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	CameraBookmark camera_jump_last_;
 	// Single-player pause from the pause hotkey (Pause, Shift+Space).
 	bool hotkey_paused_ = false;
+	bool app_unfocused_ = false; // the window lost focus (pauseonfocusloss)
 	// Where the local player was last attacked (camera.lastattackfocus = Space).
 	bool has_last_attack_ = false;
 	Vector3 last_attack_pos_;
@@ -819,6 +820,9 @@ public:
 	bool flare_held() const;
 	bool selected_building_shoots() const; // own, with BuildingAI arrows (try_focus_fire)
 	void refresh_chat_tooltips();
+	void _refresh_menu_tooltip();
+	void open_template_viewer(const String &kind, int id, int civ);
+	bool is_chat_open() const { return chat_window_.is_open(); }
 	Dictionary debug_chat_tooltips() {
 		Dictionary d; d["input"] = chat_window_.input_tooltip(); d["open"] = chat_open_hotkey_tooltip();
 		PackedStringArray names;

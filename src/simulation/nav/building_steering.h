@@ -77,6 +77,25 @@ inline bool segment_near_steep(const NavGrid& nav, Vec2 a, Vec2 b, float radius)
 	return nav.segment_near_steep_tile(a.x, a.y, b.x, b.y, radius);
 }
 
+// Whether the segment from `a` to `b` comes within `radius` of a deep-water navcell, where
+// Simulation::land_step_barred refuses a land unit's steps, tested every tenth of a unit along it.
+// A start that close already doesn't count: the unit may walk on from there.
+inline bool segment_near_deep_water(const NavGrid& nav, Vec2 a, Vec2 b, float radius)
+{
+	auto water = [&](float x0, float z0, float x1, float z1) { return nav.water_cell_in(x0, z0, x1, z1, true); };
+	if (!water(std::min(a.x, b.x) - radius, std::min(a.y, b.y) - radius, std::max(a.x, b.x) + radius,
+	           std::max(a.y, b.y) + radius) ||
+	    water(a.x - radius, a.y - radius, a.x + radius, a.y + radius))
+		return false;
+	const Vec2 d = b - a;
+	const int n = std::max(1, static_cast<int>(std::ceil(d.length() / 0.1f)));
+	for (int k = 1; k <= n; ++k) {
+		const Vec2 p = a + d * (static_cast<float>(k) / static_cast<float>(n));
+		if (water(p.x - radius, p.y - radius, p.x + radius, p.y + radius)) return true;
+	}
+	return false;
+}
+
 // How steep ground meets the line from `pos` towards `aim` within BUILDING_STEER_RANGE, a hair
 // inside the clearance, so a unit stopped at a cliff's margin by land_step_barred, or a short-path
 // waypoint at an expanded corner, doesn't count as on it: not at all, only in the margin round an
@@ -506,7 +525,8 @@ bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 	if (memo.key == key && same_aim) {
 		const Vec2 w(memo.x, memo.z);
 		if (!segment_blocked_by_buildings(pos, w, aim, radius, both, ignore_building_id) &&
-		    !detail::segment_near_steep(nav, pos, w, radius - TERRAIN_EDGE_SLACK)) {
+		    !detail::segment_near_steep(nav, pos, w, radius - TERRAIN_EDGE_SLACK) &&
+		    !detail::segment_near_deep_water(nav, pos, w, radius - TERRAIN_EDGE_SLACK)) {
 			out = w;
 			return true;
 		}
@@ -549,8 +569,10 @@ bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 				const float cost = (w - pos).length() + (aim - w).length();
 				if (found && cost >= best) continue;
 				if (segment_blocked_by_buildings(pos, w, aim, radius, both, ignore_building_id)) continue;
-				// Nor into or across a cliff's clearance, where the unit's steps are refused.
-				if (detail::segment_near_steep(nav, pos, w, radius - TERRAIN_EDGE_SLACK)) continue;
+				// Nor into or across a cliff's or deep water's clearance, where the unit's steps are refused
+				// (a corner by a shore, off a tree in a gap narrower than the unit, would hold it there).
+				if (detail::segment_near_steep(nav, pos, w, radius - TERRAIN_EDGE_SLACK) ||
+				    detail::segment_near_deep_water(nav, pos, w, radius - TERRAIN_EDGE_SLACK)) continue;
 				// The corner may lie inside a neighbour's clearance (trees close together).
 				bool inside = false;
 				for (const T& o : small)

@@ -367,6 +367,14 @@ int main() {
 		std::printf("sentry tower with 2 archers and Caros: %d arrows (want %d)\n", s.building_arrow_count(*find_bld(s, st)), want);
 		CHECK(s.building_arrow_count(*find_bld(s, st)) == want);
 		CHECK(want > 6); // past the sentry tower's own MaxArrowCount
+		// The Projectile Limit tooltip (GetGarrisonArrowMultiplier, GetMaxArrowCount) carries the aura too.
+		{
+			const auto &sb = *find_bld(s, st);
+			const Simulation::StructureDetails d = s.structure_details(sb);
+			const int lim = std::min(2 + (int)std::lround(1.75f * sb.garrison_cap), 11);
+			std::printf("sentry tower with Caros: per unit %.2f, projectile limit %d (want %d)\n", d.per_unit, d.projectile_limit, lim);
+			CHECK(near(d.per_unit, 1.75f) && d.projectile_limit == lim);
+		}
 		// A siege tower carrying four spearmen and Caros: round(n x 1.75) arrows a volley.
 		uint32_t tower = s.spawn_unit(20.0f, 20.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, template_named("mace/siege_tower"));
 		const int32_t ti = idx_of(s, tower);
@@ -596,6 +604,26 @@ int main() {
 		std::printf("tower arrow %.2f, near an enemy Alexander %.2f\n", base, with);
 		CHECK(near(with, base * 0.9f));
 		CHECK(near(s.structure_arrow_damage(*find_bld(s, far_t), res), base));
+	}
+
+	// 14. BuildingAI's enemy query wants Resistance + Health: an enemy shrine or trading post
+	// beside a fortress draws no arrows and can't be a focus target; a house there can.
+	{
+		fresh(s);
+		uint32_t fort = s.spawn_building_world(-30.0f, -30.0f, BLD_FORTRESS, 0, 1.0f);
+		const float half = find_bld(s, fort)->half_size;
+		uint32_t shrine = s.spawn_building_world(-30.0f + half + 8.0f, -30.0f, BLD_SHRINE, 1, 1.0f);
+		uint32_t post = s.spawn_building_world(-30.0f, -30.0f + half + 8.0f, BLD_TRADING_POST, 1, 1.0f);
+		CHECK(!s.cmd_focus_fire(0, &fort, 1, shrine, false) && !s.cmd_focus_fire(0, &fort, 1, post, false));
+		ArrowCounter a;
+		int fired = 0;
+		for (int t = 0; t < (int)std::lround(10.0f / Simulation::FIXED_STEP); ++t) { s.tick(Simulation::FIXED_STEP); fired += a.step(s, fort); }
+		std::printf("fortress beside an enemy shrine and trading post: %d arrows\n", fired);
+		CHECK(fired == 0);
+		uint32_t house = s.spawn_building_world(-30.0f - half - 8.0f, -30.0f, BLD_HOUSE, 1, 1.0f);
+		CHECK(s.cmd_focus_fire(0, &fort, 1, house, false));
+		for (int t = 0; t < (int)std::lround(10.0f / Simulation::FIXED_STEP); ++t) { s.tick(Simulation::FIXED_STEP); fired += a.step(s, fort); }
+		CHECK(fired > 0);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

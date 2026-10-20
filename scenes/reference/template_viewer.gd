@@ -32,6 +32,7 @@ static func open(parent: Node, p_kind: String, p_id: int, p_civ: int) -> Control
 	return v
 
 func _init() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS # it can pause the game it opens over
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	if ResourceLoader.exists("res://assets/themes/zeroad_theme.tres"):
