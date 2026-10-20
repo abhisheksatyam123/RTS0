@@ -209,6 +209,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 		if (fired("pause")) {
+			// Menu.js initButton: the Pause entry's own hotkey closes the menu first.
+			if (Node *menu = get_node_or_null(NodePath("PauseMenu"))) menu->call("_close");
 			toggle_pause();
 			return;
 		}
