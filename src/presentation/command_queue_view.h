@@ -452,7 +452,7 @@ public:
 					// right-click, requirements, needed resources.
 					const char *tech_specific = rtso::tech_specific_name((uint8_t)t, pciv);
 					String tip = rtso::entity_names_formatted(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
-					if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
+					if (ti.desc && *ti.desc) tip += "\n" + rtso::body_font(rtso::tr0(String::utf8(ti.desc)));
 					const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
 							(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
 					const String tech_cost_tip = rtso::cost_tooltip(tech_cost, true);
@@ -1257,7 +1257,7 @@ public:
 						if (const float heal = sim->structure_garrison_heal_for((uint8_t)bt, local_player()); garrison > 0 && heal > 0.0f)
 							tip += "\n" + rtso::sprintf0(rtso::tr0("%(healRateLabel)s %(value)s %(health)s / %(second)s"),
 									{{"healRateLabel", rtso::header_font(rtso::tr0("Heal:"))}, {"value", String::num_int64(std::lround(heal))},
-											{"health", rtso::tr0("Health")}, {"second", rtso::tr0("second")}});
+											{"health", rtso::unit_font(rtso::tr0("Health"))}, {"second", rtso::unit_font(rtso::tr0("second"))}});
 						add_line(turrets_tooltip(text));
 						const int pop_bonus = sim->structure_pop_bonus((uint8_t)bt, local_player());
 						if (pop_bonus > 0)
@@ -1527,7 +1527,7 @@ private:
 			// The Research tooltip: names, tooltip, cost, right-click, requirements, needed resources.
 			const char *tech_specific = rtso::tech_specific_name(t, sim->player_civ(pid));
 			String tip = rtso::entity_names_formatted(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
-			if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
+			if (ti.desc && *ti.desc) tip += "\n" + rtso::body_font(rtso::tr0(String::utf8(ti.desc)));
 			const String cost_line = rtso::cost_tooltip(tech_cost, true);
 			if (!cost_line.is_empty()) tip += "\n" + cost_line;
 			tip += "\n" + right_click_tooltip();
@@ -2002,12 +2002,12 @@ private:
 			if (k) list += rtso::tr0(", ");
 			list += rtso::tr0(String(classes[k]));
 		}
-		return rtso::tr0("Classes:") + " " + list;
+		return rtso::header_font(rtso::tr0("Classes:")) + " " + rtso::body_font(list);
 	}
 
 	// getEntityTooltip: the template's Identity/Tooltip.
 	static godot::String identity_tooltip(const godot::Dictionary &text) {
-		return text.get("tooltip", godot::String());
+		return rtso::body_font(text.get("tooltip", godot::String()));
 	}
 
 	// getAurasTooltip: "Name: description Range: 30 meters" per aura of a roster unit.
@@ -2015,12 +2015,12 @@ private:
 	static godot::String aura_line(const godot::String &name, const godot::String &description, float radius) {
 		using namespace godot;
 		String line = rtso::sprintf0(rtso::tr0("%(auralabel)s %(aurainfo)s"),
-				{{"auralabel", rtso::sprintf0(rtso::tr0("%(auraname)s:"), {{"auraname", rtso::tr0(name)}})},
-				 {"aurainfo", rtso::tr0(description)}});
+				{{"auralabel", rtso::header_font(rtso::sprintf0(rtso::tr0("%(auraname)s:"), {{"auraname", rtso::tr0(name)}}))},
+				 {"aurainfo", rtso::body_font(rtso::tr0(description))}});
 		if (radius > 0.0f) {
 			const int64_t r = (int64_t)std::lround(radius);
 			line += " " + rtso::sprintf0(rtso::tr0("%(label)s %(val)s %(unit)s"),
-					{{"label", rtso::tr0("Range:")}, {"val", String::num_int64(r)}, {"unit", rtso::tr0(r == 1 ? "meter" : "meters")}});
+					{{"label", rtso::tr0("Range:")}, {"val", String::num_int64(r)}, {"unit", rtso::unit_font(rtso::tr0(r == 1 ? "meter" : "meters"))}});
 		}
 		return line;
 	}
