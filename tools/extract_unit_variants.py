@@ -25,6 +25,13 @@ RGB) and "color_freq". shaders/player_color.gdshader picks a layer and a colour
 per entity from the frequencies. At most MAX_LAYERS skins per group, the most
 frequent.
 
+A horse's coat group sets the skin and the mane and tail props together
+(art/variants/quadraped/horse/*.xml): the coats go to the body image and, coat by
+coat, the hair actor's skin to the hair image (its first most frequent: 0 A.D.
+picks the hair's colour apart, from two), alpha kept for the alpha test, as
+<skin>_<w>x<h>_cut.png. Both entries carry the same "salt", so one draw picks a
+coat and its hair. At most MAX_COATS coats.
+
 Usage:
   python3 -I tools/extract_unit_variants.py --zip <0.28 public.zip> [--check]
 """
@@ -48,6 +55,8 @@ MASKS = os.path.join(REPO, "data", "player_masks.json")
 OUT_JSON = os.path.join(REPO, "data", "unit_variants.json")
 TEX_DIR = os.path.join(REPO, "assets", "textures", "unit_variants")
 MAX_LAYERS = 8
+MAX_COATS = 12
+HAIR_PROPS = "props/horse/horse_hair_"
 
 
 def body_group(vfs, actor_path, cache):
@@ -94,6 +103,57 @@ def body_group(vfs, actor_path, cache):
     return (first, colors) if colors and first else (None, None)
 
 
+def base_tex(r):
+    return next((t.get("file").strip() for t in r.iter("texture")
+                 if (t.get("name") or "baseTex") == "baseTex" and t.get("file")), None)
+
+
+def hair_skin(vfs, actor, cache):
+    """The hair actor's first most frequent skin."""
+    try:
+        root = ET.fromstring(vfs.read("art/actors/" + actor))
+    except (KeyError, ET.ParseError):
+        return None
+    for g in root.findall("group"):
+        best = None
+        for var in g.findall("variant"):
+            r = resolve_variant_chain(vfs, var, cache)
+            tex = base_tex(r) if r is not None else None
+            f = int(float(var.get("frequency") or (r.get("frequency") if r is not None else None) or 1))
+            if tex and (best is None or f > best[1]):
+                best = (tex, f)
+        if best:
+            return best[0]
+    return None
+
+
+def coat_group(vfs, actor_path, cache):
+    """[(coat skin, frequency, hair skin)] of the actor's group whose variants set the
+    skin with only horse hair props, or None."""
+    try:
+        root = ET.fromstring(vfs.read(actor_path))
+    except (KeyError, ET.ParseError):
+        return None
+    for g in root.findall("group"):
+        coats = []
+        for var in g.findall("variant"):
+            r = resolve_variant_chain(vfs, var, cache)
+            if r is None or r.find("mesh") is not None:
+                break
+            props = [p.get("actor") or "" for p in r.iter("prop")]
+            tex = base_tex(r)
+            if not tex or not props or not all(a.startswith(HAIR_PROPS) for a in props):
+                break
+            hair = hair_skin(vfs, props[0], cache)
+            if not hair:
+                break
+            coats.append((tex, int(float(var.get("frequency") or r.get("frequency") or 1)), hair))
+        else:
+            if len({c[0] for c in coats}) > 1:
+                return sorted(coats, key=lambda c: (-c[1], c[0]))[:MAX_COATS]
+    return None
+
+
 def load_skin(zf, names, skin, cache):
     if skin not in cache:
         img = None
@@ -129,37 +189,53 @@ def main():
                       if s.startswith(("actor:art/actors/units/", "actor:art/actors/props/units/",
                                        "actor:art/actors/fauna/"))]
             actors.sort(key=lambda a: not a.startswith("art/actors/units/"))
+            # Each group: the skins its images match against, and per matched skin the
+            # layers ([(skin, frequency)]), colours, salt and alpha kind.
             groups = []
             for a in actors:
+                coats = coat_group(vfs, a, cache)
+                if coats:
+                    body = {c[0]: load_skin(zf, names, c[0], skins) for c in coats}
+                    hair = {c[2]: load_skin(zf, names, c[2], skins) for c in coats}
+                    if all(i is not None for i in list(body.values()) + list(hair.values())):
+                        salt = a + "#coat"
+                        groups.append({"imgs": body, "layers": [(c[0], c[1]) for c in coats], "salt": salt})
+                        groups.append({"imgs": hair, "layers": [(c[2], c[1]) for c in coats], "salt": salt,
+                                       "kind": "cut"})
+                        continue
                 group, colors = body_group(vfs, a, cache)
                 if not group:
                     continue
                 group = dict(sorted(group.items(), key=lambda kv: (-kv[1], kv[0]))[:MAX_LAYERS])
                 imgs = {s: load_skin(zf, names, s, skins) for s in group}
                 imgs = {s: i for s, i in imgs.items() if i is not None}
-                if len(imgs) >= (1 if colors else 2) and all(set(imgs) != set(g[1]) for g in groups):
+                if len(imgs) >= (1 if colors else 2) and all(set(imgs) != set(g["imgs"]) for g in groups):
                     if colors:
                         colors = dict(sorted(colors.items(), key=lambda kv: (-kv[1], kv[0]))[:MAX_LAYERS])
-                    groups.append((group, imgs, colors))
+                    groups.append({"imgs": imgs, "layers": [(s, group[s]) for s in imgs], "colors": colors})
             if not groups:
                 continue
             base = os.path.basename(m["file"])[:-4]
             for name, baked in glb_images(os.path.join(REPO, "assets", m["file"])):
                 key = f"units/{base}_{name}"
                 best = min((match_score(baked, i if i.size == baked.size else i.resize(baked.size, Image.LANCZOS)), gi, s)
-                           for gi, (_g, imgs, _c) in enumerate(groups) for s, i in imgs.items())
+                           for gi, g in enumerate(groups) for s, i in g["imgs"].items())
                 if best[0] > MATCH_LIMIT:
                     continue
-                group, imgs, colors = groups[best[1]]
+                g = groups[best[1]]
+                colors = g.get("colors")
                 w, h = baked.size
-                # alpha: the player-colour mask, the object-colour (hair) mask, or 0
-                kind = "obj" if colors else ("mask" if key in masked else "plain")
+                # alpha: the player-colour mask, the object-colour (hair) mask, the
+                # alpha-tested coverage, or 0
+                kind = g.get("kind") or ("obj" if colors else ("mask" if key in masked else "plain"))
                 layers = []
-                for s in imgs:
+                for s, _f in g["layers"]:
                     rel = f"{os.path.splitext(s)[0]}_{w}x{h}{'' if kind == 'mask' else '_' + kind}.png"
                     files[rel] = (s, (w, h), kind)
                     layers.append("res://assets/textures/unit_variants/" + rel)
-                table[key] = {"layers": layers, "freq": [group[s] for s in imgs]}
+                table[key] = {"layers": layers, "freq": [f for _s, f in g["layers"]]}
+                if g.get("salt"):
+                    table[key]["salt"] = g["salt"]
                 if colors:
                     table[key]["colors"] = [list(c) for c in colors]
                     table[key]["color_freq"] = list(colors.values())
@@ -173,7 +249,9 @@ def main():
                 continue
             img = skins[s] if skins[s].size == size else skins[s].resize(size, Image.LANCZOS)
             r, g, b, a = img.split()
-            if kind == "plain":
+            if kind == "cut":
+                pass  # the skin's own alpha, for the alpha test
+            elif kind == "plain":
                 a = a.point(lambda v: 0)
             elif kind == "obj":  # model_common.fs: color *= mix(objectColor, 1, tex.a)
                 a = a.point(lambda v: 255 - v)

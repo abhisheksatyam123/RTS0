@@ -330,7 +330,7 @@ def check_formation_rotation():
     dtxt = dh.read_text(errors="ignore") if dh.is_file() else ""
     checks = {
         "ComputeFormationOffsets port (square/triangle, shift rows, centre gap)": "compute_formation_offsets" in ftxt and "FSHAPE_TRIANGLE" in ftxt and "center_gap" in ftxt,
-        "GetRealOffsetPositions rotation (sin/cos of atan2(dx, dz))": "formation_slot_world" in ftxt and "fc.rot = std::atan2(dx, dz)" in txt,
+        "GetRealOffsetPositions rotation (sin/cos of atan2(dx, dz))": "formation_slot_world" in ftxt and "fc.rot = det::atan2(dx, dz)" in txt,
         "Sorting classes + fillFromTheSides/fillToTheCenter": "FSORT_FROM_THE_SIDES" in ftxt and "FSORT_TO_THE_CENTER" in ftxt,
         "Templates generated from special/formations/*.xml": "formation_template_table" in dtxt and "special/formations/testudo" in dtxt,
         "Player.js GetFormations per civ": "civ_formation_mask" in dtxt and "player_formation_mask" in txt,
