@@ -1147,7 +1147,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			size_t best_f = 0;
 			for (size_t f = 0; f < fview.count; ++f) {
 				if (!fview.alive[f]) continue;
-				if (!rtso::los_sees_unit(*sim, local_player(), fview.pos_x[f], fview.pos_z[f], fview.owner[f])) continue;
+				if (!rtso::los_sees_fauna(*sim, local_player(), fview.pos_x[f], fview.pos_z[f], fview.owner[f])) continue;
 				float dx = fview.pos_x[f] - click_pos.x;
 				float dz = fview.pos_z[f] - click_pos.z;
 				float d2 = dx * dx + dz * dz;
