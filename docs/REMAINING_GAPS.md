@@ -294,6 +294,22 @@ TechnologyManager.js, Researcher.js, data/technologies (about 30 techs row by ro
 | U1 | A captured structure's research list followed the captor's civ; Researcher.js reads the structure's own template (cart/dock drops warship_health, cart/super_dock lists nine dock techs, han/civil_centre drops the spy techs, han/forge archer_attack_spread) and the owner's civ only filters it | low | Fixed |
 
 Checked and matching: requirements (all/any, class counts without foundations, civ/notciv), pairs and autoResearch, supersedes chains, cost multipliers (library, team bonuses, heroes, catafalques) and cancel refunds, unit researchers, civ bonus autoresearch, tech modifications, own-civ researcher lists, structure auras (temples, wonders, theatre, pillars, monuments, regen and trickle auras).
+### Tooltip content, eleventh 0.28 pass (2026-10-20)
+
+gui/session selection_panels.js, selection_details.js, tooltips.js and the production queue against RTS0's command panel, inspector, queue and reference tooltips. Owner: E (tooltip content); selection-panel layout stays with Compare.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| V1 | Phase techs showed the generic tooltip for civs whose 0.28 phase template has its own (athen, pers phase_town/phase_city); the generator now emits tech_civ_tooltip | low | Fixed |
+| V2 | A unit locked behind a technology (Champion/hero/Elephant gates) said nothing; 0.28 adds "Requires <tech>" with the generic and specific names | medium | Fixed |
+| V3 | A tech whose prerequisite is a tech named only its generic name; getRequirementsTooltip uses both names | low | Fixed |
+| V4 | An owned corral's trickle (fed animals, every 5 s) was missing from the structure's details and tooltip | low | Fixed |
+| V5 | Production queue: "Right-click for more information." came after "This item is paused."; 0.28 puts it first | low | Fixed |
+| V6 | Multiple selection: the Carrying line was appended after the garrison size; selection_details.js:493 assigns it | low | Fixed |
+| V7 | Upgrade button: busy state came from the first structure only; 0.28 uses any upgradable one in the selection, shows the plural "all entities" text, the best progress, and needed resources for the upgradable count | medium | Fixed |
+| V8 | Detailed training tooltip listed the dropsite before health; 0.28 lists it after speed | low | Fixed |
+| V9 | Animal speed tooltips show no acceleration; 0.28 shows it when the template has one. RTS0 fauna have no acceleration value yet | low | Open (Fauna data) |
+
 ### Statistics, replays, summary, Match Settings and developer overlay, fifth 0.28 pass (2026-10-20)
 
 StatisticsTracker callers and class mapping, the summary page, the replay menu and playback, Match Settings, the save/load dialog, the developer overlay and the overlay counters against 0.28 (main 50f2e95b1). Owner: Stats. Pass 4's open items are done: Match Settings names the random placement actually picked, and random maps carry 0.28's descriptions.
