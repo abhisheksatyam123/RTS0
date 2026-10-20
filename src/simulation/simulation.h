@@ -2997,7 +2997,9 @@ private:
 	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
 	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);
-	void structure_cost(uint8_t player, uint8_t b_type, float cost_override, float out[RES_COUNT]) const;
+	// `template_civ`: the civ whose template the structure is (a captured one keeps its builder's);
+	// CIV_COUNT for the player's own.
+	void structure_cost(uint8_t player, uint8_t b_type, float cost_override, float out[RES_COUNT], uint8_t template_civ = CIV_COUNT) const;
 	uint32_t stat_unit_value(size_t unit_idx) const;      // StatisticsTracker's entity value (Cost)
 	uint32_t stat_building_value(const Building &b) const;
 	void refund_foundation(const Building &b);
