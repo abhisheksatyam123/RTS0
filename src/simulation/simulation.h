@@ -336,6 +336,7 @@ public:
 		bool is_burning = false; // Structure fire under 33% HP
 		// WonderVictory.js wonderVictoryMessages[ent]: this wonder's own countdown, the player it
 		// runs for (255: none) and that player's mutual allies when it started (allied victory).
+		// A wonder the map placed holds -1 until it changes hands (no countdown).
 		float wonder_hold = 0.0f;
 		uint8_t wonder_owner = 255;
 		uint8_t wonder_allies = 0;
