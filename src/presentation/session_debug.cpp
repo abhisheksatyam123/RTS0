@@ -263,6 +263,8 @@ Dictionary RtsoMain::debug_inspector(const String &what) {
 				selected_ids.push_back((int32_t)uview.id[i]);
 				if (what == "unit") break;
 			}
+	} else if (what.begins_with("building:")) { // a structure by id
+		selected_building_id = (uint32_t)what.substr(9).to_int();
 	} else if (what == "building") {
 		for (const auto &b : sim->buildings())
 			if (b.team == local_player() && rtso::is_civic_centre(b.type)) { selected_building_id = b.id; break; }

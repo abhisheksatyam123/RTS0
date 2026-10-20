@@ -784,6 +784,12 @@ static void test_attack_plans() {
 		// Murder Holes: soldiers hacking at a fortress from under its arrows (MinRange) would
 		// hold both attack slots for the rest of the match.
 		s->complete_research(0, TECH_TOWER_MURDERHOLES);
+		// A storehouse in its territory but over 80 m from the fortresses and its Town Center, put
+		// back whenever it falls: a siege-less Attack goes only for undefended structures
+		// (attackPlan.js getNearestTarget rushTargetFinder) and fails at start without one, so
+		// otherwise whether an Attack marches hangs on this run's timing (siege trained in time).
+		auto add_store = [&] { s->spawn_building_world(44.0f, 6.0f, BLD_STOREHOUSE, 0, 1.0f); };
+		add_store();
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
@@ -801,9 +807,13 @@ static void test_attack_plans() {
 		for (float t = 0.0f; t < 40.0f * 60.0f && !marched(); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (++step % 200 == 0) {
-				bool any = false;
-				for (const auto &b : s->buildings()) any |= b.team == 0 && b.hp > 0.0f;
+				bool any = false, store = false;
+				for (const auto &b : s->buildings()) {
+					any |= b.team == 0 && b.hp > 0.0f;
+					store |= b.team == 0 && b.hp > 0.0f && !b.wrecked && b.type == BLD_STOREHOUSE;
+				}
 				if (!any) s->spawn_building_world(home_x, home_z, BLD_TOWN_CENTER, 0, 1.0f);
+				if (!store) add_store();
 			}
 			const auto &m = s->petra_attack_manager();
 			const auto st = s->petra_attack_plan().state;
@@ -1482,6 +1492,41 @@ static void test_petra_phasing_needs_researcher() {
 	for (auto &b : s->buildings_)
 		if (b.team == 0 && b.type == BLD_TOWN_CENTER) s->destroy_building(b);
 	CHECK(!s->petra_phasing(), "no phasing without a structure researching the town phase");
+}
+
+// headquarters.js checkPhaseRequirements: the 3 Town structures the city phase needs count
+// their foundations (getOwnEntitiesByClass(class, true)), so the temple goes down while the
+// market is still a foundation.
+static void test_city_phase_counts_foundations() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->set_team_civ(1, (uint8_t)CIV_ATHENIANS);
+	s->players_[1].phase = 2;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->spawn_building((int)((tx + 12.0f) / Simulation::GRID), (int)(tz / Simulation::GRID), BLD_MARKET, 1, 0.0f);
+	s->petra_pid_ = 1;
+	PetraQueueAccount rich{};
+	rich.food = rich.wood = rich.gold = rich.stone = 5000.0f;
+	s->petra_queues_.accounts[PETRA_Q_ECONOMIC_BUILDING] = rich;
+	s->petra_queues_.accounts[PETRA_Q_MILITARY_BUILDING] = rich;
+	s->petra_queues_.wants[PETRA_Q_MAJOR_TECH].food = 1.0f; // the city phase waits in its queue
+	CHECK(s->petra_phasing(), "phasing to the city phase");
+	s->petra_manage_research(0.5f);
+	int temples = 0, markets = 0;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.build_progress < 1.0f) {
+			if (b.type == BLD_TEMPLE) ++temples;
+			if (b.type == BLD_MARKET) ++markets;
+		}
+	std::printf("  city phase: market foundations %d, temple foundations %d\n", markets, temples);
+	CHECK(markets == 1 && temples == 1, "the temple goes down while the market is a foundation");
 }
 
 // gameState.findAvailableTech (common-api gamestate.js:768): Petra's structures in creation
@@ -4427,6 +4472,37 @@ static void test_decay_garrison() {
 	CHECK(built == 0 && captured > 0, "Petra garrisons a decaying barracks only when it just captured it");
 }
 
+// garrisonManager.js addDecayingStructure: a barracks is garrisoned against decay only when
+// Petra captured it while it decayed (justCaptured); one Petra built there is not.
+static void test_decay_barracks_captured() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	float fx = 0.0f, fz = 0.0f;
+	bool found = false;
+	for (const auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) { fx = b.x; fz = b.z; found = true; }
+	CHECK(found, "player 0 has a civic centre");
+	if (!found) return;
+	const uint32_t built = s->spawn_building_world(fx + 14.0f, fz, BLD_BARRACKS, 1);
+	const uint32_t taken = s->spawn_building_world(fx - 14.0f, fz, BLD_BARRACKS, 0);
+	{
+		Simulation::Building &b = s->buildings_[s->building_id_to_idx_[taken]];
+		b.team = 1; // captured from player 0 in its territory
+		s->stat_building_captured(b, 0);
+	}
+	s->rebuild_territory();
+	s->petra_pid_ = 1;
+	const int built_min = s->petra_decay_garrison_min(s->buildings_[s->building_id_to_idx_[built]]);
+	const int taken_min = s->petra_decay_garrison_min(s->buildings_[s->building_id_to_idx_[taken]]);
+	std::printf("  decaying barracks: built there wants %d inside, captured there %d\n", built_min, taken_min);
+	CHECK(built_min == 0, "a barracks Petra built in enemy land is not garrisoned against decay");
+	CHECK(taken_min > 0, "a barracks Petra captured while it decays is (justCaptured)");
+}
+
 // headquarters.js checkEvents: a structure Petra just captured in enemy land, which no
 // garrison will hold, is destroyed while an enemy holds part of it and Petra keeps under
 // 70-80% of its capture points; with 95% it is kept.
@@ -6049,6 +6125,79 @@ static PetraDropsiteCheck &base_dropsite_check(Simulation &s) {
 	return s.petra_base_dropsite_checks_.back().check;
 }
 
+// basesManager.js basesMap: a tile stays with the base that first claimed it. A second civic
+// centre takes only the tiles it adds (addTerritoryIndexToBase), not the first base's tiles
+// that are nearer to it; once the first anchor is gone its tiles go to the nearest base left
+// (reassignTerritories). Saved with the game.
+static void test_tile_bases_028() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->petra_pid_ = 1;
+	uint32_t a_id = 0;
+	float ax = 0, az = 0;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type)) { a_id = b.id; ax = b.x; az = b.z; }
+	CHECK(a_id != 0, "player 1 has a civic centre");
+	s->petra_update_tile_bases();
+	// The first base's tiles, and a spot for a second civic centre at its territory's edge.
+	Simulation::PetraBasesMap m0;
+	s->petra_bases_map(m0);
+	float bx = ax, bz = az, far = 0.0f;
+	const int bw0 = m0.x1 - m0.x0 + 1;
+	auto centre = [&](int i) { return ((float)i + 0.5f) * Simulation::GRID - s->map_half(); };
+	for (int iz = m0.z0; iz <= m0.z1; ++iz)
+		for (int ix = m0.x0; ix <= m0.x1; ++ix) {
+			if (!m0.base[(size_t)(iz - m0.z0) * bw0 + (ix - m0.x0)]) continue;
+			const float x = centre(ix), z = centre(iz), d = (x - ax) * (x - ax) + (z - az) * (z - az);
+			if (d > far && s->petra_access_at(x, z) == s->petra_access_at(ax, az)) {
+				far = d; bx = x; bz = z;
+			}
+		}
+	const uint32_t b_id = s->spawn_building_world(bx, bz, BLD_TOWN_CENTER, 1, 1.0f);
+	s->rebuild_territory();
+	s->petra_update_tile_bases();
+	Simulation::PetraBasesMap m;
+	s->petra_bases_map(m);
+	int kept = 0, stolen = 0, to_b = 0;
+	const int bw = m.x1 - m.x0 + 1;
+	for (int iz = m.z0; iz <= m.z1; ++iz)
+		for (int ix = m.x0; ix <= m.x1; ++ix) {
+			const int k = m.base[(size_t)(iz - m.z0) * bw + (ix - m.x0)];
+			if (!k) continue;
+			const uint32_t id = m.anchors[k - 1].id;
+			const bool was_a = ix >= m0.x0 && ix <= m0.x1 && iz >= m0.z0 && iz <= m0.z1 &&
+					m0.base[(size_t)(iz - m0.z0) * bw0 + (ix - m0.x0)] != 0;
+			const float x = centre(ix), z = centre(iz);
+			const bool nearer_b = (x - bx) * (x - bx) + (z - bz) * (z - bz) < (x - ax) * (x - ax) + (z - az) * (z - az);
+			if (was_a && nearer_b) (id == a_id ? kept : stolen)++;
+			if (id == b_id) ++to_b;
+		}
+	std::printf("  tile bases: %d of the first base's tiles nearer the second civic centre kept, %d moved; %d tiles to the second\n",
+	            kept, stolen, to_b);
+	CHECK(kept > 0 && stolen == 0, "the first base keeps the tiles it claimed");
+	CHECK(to_b > 0, "the second civic centre's new tiles go to it");
+	// Saved and loaded.
+	const char *path = "/tmp/rtso_petra_tile_bases.sav";
+	CHECK(s->save_state(path), "saves");
+	auto l = std::make_unique<Simulation>();
+	CHECK(l->load_state(path), "loads");
+	l->petra_pid_ = 1;
+	Simulation::PetraBasesMap ml;
+	l->petra_bases_map(ml);
+	CHECK(ml.base == m.base, "the claims survive a save");
+	// The first anchor gone: its tiles go to the nearest base left.
+	s->buildings_[s->building_id_to_idx_[a_id]].hp = 0.0f;
+	s->tick(Simulation::FIXED_STEP);
+	s->petra_update_tile_bases();
+	Simulation::PetraBasesMap m2;
+	s->petra_bases_map(m2);
+	bool all_b = !m2.base.empty();
+	for (uint8_t k : m2.base) all_b = all_b && (k == 0 || m2.anchors[k - 1].id == b_id);
+	CHECK(all_b, "a lost anchor's tiles go to the base left");
+}
+
 // startingStrategy.js buildFirstBase lays the first wood dropsite and no houses: houses wait for
 // buildMoreHouses' houseNeeded. queueplanBuilding.js findPosition keeps a house 60 m clear of
 // other structures (-40), and requireHouses drops every influence so a house fits anywhere.
@@ -7007,6 +7156,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_config_pop_scaling);
 	RUN(test_petra_islands_wood_reserve);
 	RUN(test_petra_phasing_needs_researcher);
+	RUN(test_city_phase_counts_foundations);
 	RUN(test_petra_research_order);
 	RUN(test_petra_minor_tech_kept);
 	RUN(test_petra_diplomacy_counts);
@@ -7059,6 +7209,7 @@ int main(int argc, char **argv) {
 	RUN(test_decay_garrison);
 	RUN(test_decay_garrison_from_attack);
 	RUN(test_decay_destroy);
+	RUN(test_decay_barracks_captured);
 	RUN(test_defense_by_strength);
 	RUN(test_defense_armies);
 	RUN(test_soldier_fights_back);
@@ -7103,6 +7254,7 @@ int main(int argc, char **argv) {
 	RUN(test_out_of_plan_workers);
 	RUN(test_dropsites);
 	RUN(test_building_plan_028);
+	RUN(test_tile_bases_028);
 	RUN(test_food_fields);
 	RUN(test_corral_by_owner);
 	RUN(test_missing_room_expansion);

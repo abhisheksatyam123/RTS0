@@ -4434,6 +4434,13 @@
   ],
   "units": [
     {
+      "type": "",
+      "player": 1,
+      "x": 13.74,
+      "z": -8.21,
+      "template": "spart/catafalque"
+    },
+    {
       "type": "spearman",
       "player": 1,
       "x": -26.73,
@@ -5247,6 +5254,33 @@
       "x": 38.82,
       "z": -41.08,
       "template": "spart/ship_fishing"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -11.45,
+      "z": -29.08,
+      "template": "spart/siege_oxybeles_unpacked",
+      "parents": [
+        "spart/siege_oxybeles_packed"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -10.46,
+      "z": -28.64,
+      "template": "spart/siege_oxybeles_unpacked",
+      "parents": [
+        "spart/siege_oxybeles_packed"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -9.28,
+      "z": -27.33,
+      "template": "spart/siege_oxybeles_packed"
     },
     {
       "type": "siege_ram",

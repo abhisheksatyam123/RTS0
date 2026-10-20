@@ -5122,6 +5122,36 @@
       ]
     },
     {
+      "type": "",
+      "player": 1,
+      "x": -0.54,
+      "z": -41.35,
+      "template": "pers/arstibara",
+      "parents": [
+        "pers/champion_infantry"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 0.1,
+      "z": -41.66,
+      "template": "pers/arstibara",
+      "parents": [
+        "pers/champion_infantry"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -1.11,
+      "z": -41.99,
+      "template": "pers/arstibara",
+      "parents": [
+        "pers/champion_infantry"
+      ]
+    },
+    {
       "type": "swordsman",
       "player": 1,
       "x": -0.75,
@@ -5379,6 +5409,13 @@
       "x": 12.47,
       "z": -31.51,
       "template": "pers/hero_xerxes_i_chariot"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -15.73,
+      "z": 6.47,
+      "template": "pers/catafalque"
     },
     {
       "type": "siege_ram",

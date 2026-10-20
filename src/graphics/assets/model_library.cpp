@@ -734,6 +734,7 @@ struct UnitHelmet {
 	std::vector<float> cut;
 	uint32_t salt = 0;
 	std::vector<Ref<ArrayMesh>> built;
+	bool requested = false; // prefetch_unit_helmets asked for its GLBs
 };
 static HashMap<String, UnitHelmet> &unit_helmets() {
 	static auto &m = *new HashMap<String, UnitHelmet>();
@@ -770,14 +771,22 @@ static HashMap<String, UnitHelmet> &unit_helmets() {
 }
 
 static void collect_mesh_xforms(Node *n, const Transform3D &acc, Vector<MeshXform> &out);
+static void take_companions(const String &path, std::vector<Ref<Resource>> &keep, HashMap<String, bool> &pending);
 
 // The helmet GLB's surfaces with their own materials, moved onto the baked
 // helmet and weighted fully to its joint.
 static Ref<ArrayMesh> build_unit_helmet(UnitHelmet &h, int k) {
 	if (h.built[k].is_valid() || h.helmets[k] == "none") return h.built[k];
-	Ref<PackedScene> scene = ResourceLoader::get_singleton()->exists(h.helmets[k])
-			? Ref<PackedScene>(ResourceLoader::get_singleton()->load(h.helmets[k]))
-			: Ref<PackedScene>();
+	// prefetch() asks for a unit's helmet GLBs with the unit's own: take them from the worker.
+	std::vector<Ref<Resource>> companions; // held through the fixups below
+	take_companions(h.helmets[k], companions, ModelLibrary::threaded_paths());
+	Ref<PackedScene> scene;
+	if (ModelLibrary::threaded_paths().has(h.helmets[k])) {
+		ModelLibrary::threaded_paths().erase(h.helmets[k]);
+		scene = ResourceLoader::get_singleton()->load_threaded_get(h.helmets[k]);
+	}
+	if (scene.is_null() && ResourceLoader::get_singleton()->exists(h.helmets[k]))
+		scene = ResourceLoader::get_singleton()->load(h.helmets[k]);
 	Node *inst = scene.is_valid() ? scene->instantiate() : nullptr;
 	if (!inst) return h.built[k];
 	ModelLibrary::apply_imported_material_fixups(inst);
@@ -1905,7 +1914,22 @@ static void take_companions(const String &path, std::vector<Ref<Resource>> &keep
 // ResourceLoader's threaded load reads the GLB and the textures it names on a
 // worker; load() then takes it with load_threaded_get instead of reading it on
 // the frame that first draws the model.
+// The helmets set_unit_helmet may draw on a unit GLB (data/unit_helmets.json) are read the
+// first time a unit wearing each comes close: ask for them along with the unit's model.
+static void prefetch_unit_helmets(const String &id) {
+	UnitHelmet *h = unit_helmets().getptr(id);
+	if (!h || h->requested) return;
+	h->requested = true;
+	for (int k = 1; k < h->helmets.size(); ++k) {
+		if (h->helmets[k] == "none" || h->built[k].is_valid()) continue;
+		ModelLibrary::request_threaded(h->helmets[k]);
+		if (const PackedStringArray *tex = companion_textures().getptr(h->helmets[k].trim_prefix("res://assets/models/").get_basename()))
+			for (const String &t : *tex) ModelLibrary::request_threaded(t);
+	}
+}
+
 void ModelLibrary::prefetch(const String &category, const String &id) {
+	if (category == "units") prefetch_unit_helmets(id);
 	if (cache().has(category + String("/") + id)) return;
 	const Vector<String> candidates = candidate_paths(category, id);
 	for (int i = 0; i < candidates.size(); ++i) {
@@ -2029,6 +2053,7 @@ const ModelLibrary::Entry &ModelLibrary::get(const String &category, const Strin
 	Entry *found = cache().getptr(key);
 	if (found) return *found;
 	load(category, id);
+	if (category == "units") prefetch_unit_helmets(id);
 	found = cache().getptr(key);
 	static Entry empty;
 	return found ? *found : empty;
