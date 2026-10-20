@@ -1312,12 +1312,20 @@ def collect(sim_root):
                     bld = TRAINER_BUILDING.get(structure_kind(fn[:-4]))
                     if bld is None or bld in own:
                         continue
-                    for e in loader.load("structures/%s/%s" % (other, fn[:-4])).tokens("Trainer/Entities"):
+                    ostruct = loader.load("structures/%s/%s" % (other, fn[:-4]))
+                    for e in ostruct.tokens("Trainer/Entities"):
                         if "{civ}" not in e:
                             continue
                         e = e.replace("{civ}", civ)
                         if e in trainers and trainers[e]["buildings"]:
                             trainers[e]["buildings"].add(bld)
+                            CAPTURED_TRAINERS.add((civ, bld, e))
+                        elif e not in trainers and loader.exists(e):
+                            # A template only the captured structure trains for this civ (the Army
+                            # Camp's advanced infantry, the Temple of Amun's elite healer): a row of
+                            # its own with that type's bit, at the structure's phase.
+                            trainers[e] = {"buildings": {bld}, "kinds": {structure_kind(fn[:-4])},
+                                           "phase": phase_of(ostruct)}
                             CAPTURED_TRAINERS.add((civ, bld, e))
         map_only = {ent for ent in MAP_ROWS if map_row_civ(ent) == civ and ent not in trainers and loader.exists(ent)}
         for ent in sorted(map_only):

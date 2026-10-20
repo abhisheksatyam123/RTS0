@@ -659,6 +659,35 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_03
 	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_04
 	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_05
+	{LIMIT_NONE, 0}, // athen/infantry_spearman_a
+	{LIMIT_NONE, 0}, // athen/support_healer_e
+	{LIMIT_NONE, 0}, // spart/infantry_spearman_a
+	{LIMIT_NONE, 0}, // spart/support_healer_e
+	{LIMIT_NONE, 0}, // pers/infantry_spearman_a
+	{LIMIT_NONE, 0}, // cart/infantry_spearman_a
+	{LIMIT_NONE, 0}, // cart/support_healer_e
+	{LIMIT_NONE, 0}, // mace/infantry_pikeman_a
+	{LIMIT_NONE, 0}, // brit/infantry_spearman_a
+	{LIMIT_NONE, 0}, // brit/support_healer_e
+	{LIMIT_NONE, 0}, // gaul/infantry_spearman_a
+	{LIMIT_NONE, 0}, // iber/infantry_spearman_a
+	{LIMIT_NONE, 0}, // iber/infantry_swordsman_a
+	{LIMIT_NONE, 0}, // iber/support_healer_e
+	{LIMIT_NONE, 0}, // maur/infantry_spearman_a
+	{LIMIT_NONE, 0}, // maur/infantry_swordsman_a
+	{LIMIT_NONE, 0}, // maur/support_healer_e
+	{LIMIT_NONE, 0}, // kush/infantry_pikeman_a
+	{LIMIT_NONE, 0}, // kush/infantry_spearman_a
+	{LIMIT_NONE, 0}, // kush/infantry_swordsman_a
+	{LIMIT_NONE, 0}, // ptol/infantry_pikeman_a
+	{LIMIT_NONE, 0}, // sele/infantry_pikeman_a
+	{LIMIT_NONE, 0}, // sele/infantry_spearman_a
+	{LIMIT_NONE, 0}, // sele/support_healer_e
+	{LIMIT_NONE, 0}, // han/infantry_pikeman_a
+	{LIMIT_NONE, 0}, // han/infantry_spearman_a
+	{LIMIT_NONE, 0}, // germ/infantry_spearman_a
+	{LIMIT_NONE, 0}, // germ/infantry_swordsman_a
+	{LIMIT_NONE, 0}, // germ/support_healer_e
 };
 static_assert(sizeof(UNIT_LIMITS) / sizeof(UNIT_LIMITS[0]) == CIV_UNIT_TEMPLATE_COUNT,
 		"one UnitLimit per roster row: rerun tools/extract_0ad_entity_limits.py");
