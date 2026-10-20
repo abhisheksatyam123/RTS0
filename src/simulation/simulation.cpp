@@ -18313,6 +18313,7 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		participant_mask_ |= bit;
 		convert_to_gaia(bit);
 		mark_players_defeated(bit);
+		note_session({SessionNotice::DEFEATED, (uint8_t)parameter, 0, SessionNotice::END_CHEAT, {}}); // Cheat.js Defeat("... (cheat).")
 		return true;
 	}
 	case CHEAT_CREATE_UNITS: { // "salad bowl": a spearman of each civ in turn from the selected trainer;
