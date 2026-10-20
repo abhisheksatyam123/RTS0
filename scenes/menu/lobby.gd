@@ -111,10 +111,10 @@ var _buddy_btn: Button
 const BUDDY_SYMBOL := "•"
 const MAX_PLAYERS := 8
 
-# GameList.xml gamesBox: the columns, and the key each one sorts on.
-const GAME_COLUMNS := ["Name", "Map Name", "Size", "Type", "Players"]
-const RATING_COL := 5 # where the Rating column goes when shown
-const GAME_SORT_KEYS := {"Name": "gameName", "Map Name": "mapName", "Size": "mapSize", "Type": "mapType",
+# GameList.xml gamesBox: the columns, and the key each one sorts on. The
+# first, headed by nothing, holds the lock of a game with a password.
+const GAME_COLUMNS := ["Password", "Name", "Map Name", "Size", "Type", "Players"]
+const GAME_SORT_KEYS := {"Password": "hasPassword", "Name": "gameName", "Map Name": "mapName", "Size": "mapSize", "Type": "mapType",
 	"Players": "maxnbp", "Rating": "gameRating"}
 # Game.js GameStatusOrder and StateTags: setups first, in green; running red.
 const GAME_STATES := ["init", "waiting", "running"]
@@ -246,6 +246,7 @@ func _build() -> void:
 	games_head.add_child(_size_filter)
 	_type_filter = _filter_dropdown(["Any"] + setup.MAP_TYPES.map(func(t) -> String: return str(t[1])),
 		"Filter the games by map type.")
+	_type_filter.visible = not _rating_column # GameListFilters/Rating.js makes room for the rating filter
 	games_head.add_child(_type_filter)
 	var counts := ["Any"]
 	for i in MAX_PLAYERS:
@@ -266,8 +267,10 @@ func _build() -> void:
 	_games.column_titles_visible = true
 	for i in titles.size():
 		_games.set_column_title(i, titles[i])
-	_games.set_column_expand_ratio(0, 3)
-	_games.set_column_expand_ratio(2, 2)
+	_games.set_column_expand(0, false)
+	_games.set_column_custom_minimum_width(0, 20)
+	_games.set_column_expand_ratio(1, 3)
+	_games.set_column_expand_ratio(3, 2)
 	_games.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_games.item_selected.connect(_on_game_selected)
 	# gamesBox sortable: a click on a heading sorts on it, again reverses.
@@ -989,12 +992,13 @@ func _on_rooms(code: int, obj) -> void:
 	_show_rooms()
 
 
-## The game list's columns; Rating (GameList.js gameRating) when
-## lobby.columns.gamerating is on.
+## The game list's columns; with lobby.columns.gamerating, Rating
+## (GameList.js gameRating) in place of Type (hidden_mapType).
 static func game_columns(rating: bool) -> Array:
 	var cols: Array = GAME_COLUMNS.duplicate()
 	if rating:
-		cols.insert(RATING_COL, "Rating")
+		cols.erase("Type")
+		cols.append("Rating")
 	return cols
 
 
@@ -1059,7 +1063,8 @@ func sort_games_by(column: String) -> void:
 func _update_game_titles() -> void:
 	var titles := game_columns(_rating_column)
 	for i in titles.size():
-		_games.set_column_title(i, titles[i] + (("  ▲" if game_sort_order > 0 else "  ▼") if titles[i] == game_sort_column else ""))
+		_games.set_column_title(i, ("" if titles[i] == "Password" else titles[i])
+			+ (("  ▲" if game_sort_order > 0 else "  ▼") if titles[i] == game_sort_column else ""))
 
 
 ## Game.js sortValues: Name sorts setups, then running games, by name; the
@@ -1076,8 +1081,27 @@ func _game_sort_value(r: Dictionary, column: String) -> Variant:
 			return int(r.get("max_players", MAX_PLAYERS))
 		"gameRating":
 			return _room_rating(r)
+		"hasPassword":
+			return 1 if int(r.get("password", 0)) else 0
 	# compatibility + state + name, as Game.js sortValues.gameName.
 	return "%s%d%s" % [str(LobbySession.game_compatible(r)), GAME_STATES.find(str(r.get("state", "init"))), game_title(r).to_lower()]
+
+
+static var _lock: Texture2D
+
+## icon_private: the lock from the UI icons (read from the file where it is not imported).
+static func _lock_icon() -> Texture2D:
+	const PATH := "res://assets/textures/ui/archive/icons/locked_small.png"
+	if _lock == null:
+		var img: Image = null
+		if ResourceLoader.exists(PATH):
+			img = (load(PATH) as Texture2D).get_image()
+		elif FileAccess.file_exists(PATH):
+			img = Image.load_from_file(ProjectSettings.globalize_path(PATH))
+		if img:
+			img.resize(16, 16)
+			_lock = ImageTexture.create_from_image(img)
+	return _lock
 
 
 static func game_title(r: Dictionary) -> String:
@@ -1123,10 +1147,14 @@ func _show_rooms() -> void:
 	var reselected := false
 	for r in _shown_rooms:
 		var it := _games.create_item(top)
-		it.set_text(0, (BUDDY_SYMBOL + " " if room_buddies(r, buddy_list) else "") + game_title(r)
-			+ (" (password)" if int(r.get("password", 0)) else ""))
+		# Game.js: the private column's [icon="icon_private"].
+		if int(r.get("password", 0)):
+			it.set_icon(0, _lock_icon())
+			it.set_tooltip_text(0, "Password protected")
+		var name_col: int = col.call("Name")
+		it.set_text(name_col, (BUDDY_SYMBOL + " " if room_buddies(r, buddy_list) else "") + game_title(r))
 		# Game.js IncompatibleTags: a game needing other mods is grey.
-		it.set_custom_color(0, STATE_COLORS.get(str(r.get("state", "init")), STATE_COLORS["init"])
+		it.set_custom_color(name_col, STATE_COLORS.get(str(r.get("state", "init")), STATE_COLORS["init"])
 			if LobbySession.game_compatible(r) else Color8(128, 128, 128))
 		it.set_text(col.call("Map Name"), game_map_title(r))
 		it.set_text(col.call("Size"), str(r.get("map_size", "")))
@@ -1134,7 +1162,8 @@ func _show_rooms() -> void:
 		for t in _setup.MAP_TYPES:
 			if t[0] == str(r.get("map_type", "")):
 				type_title = t[1]
-		it.set_text(col.call("Type"), type_title)
+		if col.call("Type") >= 0:
+			it.set_text(col.call("Type"), type_title)
 		if _rating_column:
 			it.set_text(col.call("Rating"), str(_room_rating(r)))
 		it.set_text(col.call("Players"), game_player_count(r))
@@ -1163,7 +1192,7 @@ func _filter_dropdown(items: Array, tip: String) -> OptionButton:
 func _filters() -> Dictionary:
 	var setup: GDScript = load("res://scenes/menu/gamesetup.gd")
 	var size_i := _size_filter.selected - 1
-	var type_i := _type_filter.selected - 1
+	var type_i := _type_filter.selected - 1 if _type_filter.visible else -1
 	return {"open": _open_filter.button_pressed,
 		"map_size": str(setup.MAP_SIZES[size_i][1]).get_slice(" (", 0) if size_i >= 0 else "",
 		"map_type": str(setup.MAP_TYPES[type_i][0]) if type_i >= 0 else "",
