@@ -141,7 +141,7 @@ StatisticsTracker callers and class mapping, the summary page, the replay menu a
 | S4 | The Match Settings player-state line follows the viewed player; 0.28 uses the local seat (none in a replay or for an observer) | medium | Open |
 | S5 | "Rated game" in Match Settings reads a leftover setting: a later single-player game shows it, a rated replay may not (RatingEnabled) | low-medium | Open |
 | S6 | Match Settings shows the live reveal-map state, not the match's setting | low | Open |
-| S7 | The save/load dialog keeps "(RMS)" in random map names | low | Open |
+| S7 | The save/load dialog keeps "(RMS)" in random map names | low | Fixed: trimmed as in the summary and replay menu |
 | S8 | A structure's value (captured, destroyed) uses its owner's civ costs, not its own template's; Gaia trading posts carry no Economic class | low | Open |
 | S9 | Follow Player is hidden while viewing Gaia (FollowPlayer.js hides it for Observer only) | low | Open |
 | S10 | The replay menu's right panel sits 20-56 px higher with tighter spacing than replay_menu.xml | low | Open |
