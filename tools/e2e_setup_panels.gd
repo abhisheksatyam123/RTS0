@@ -48,9 +48,10 @@ func run() -> void:
 	page._slot_rows[1]["team"] = 2
 	page.refresh_slots()
 	await frames(2)
-	var civs: Button = page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/ResetCivs")
-	var teams: Button = page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/ResetTeams")
+	var civs: TextureButton = page.get_node("VBox/HBox/Right/SlotsBox/SlotsHeader/ResetCivs")
+	var teams: TextureButton = page.get_node("VBox/HBox/Right/SlotsBox/SlotsHeader/ResetTeams")
 	check(civs.visible and teams.visible and civs.tooltip_text == "Reset any civilizations that have been selected to the default (random).", "both buttons on a random map")
+	check(civs.texture_normal != null and civs.texture_hover != null and civs.size == Vector2(16, 16), "iconResetGold IconButtons, white on hover")
 	civs.pressed.emit()
 	await frames(2)
 	check(page._slot_rows.slice(0, 2).all(func(r): return int(r["civ"]) == page.RANDOM_CIV), "Reset Civs: every civ Random")

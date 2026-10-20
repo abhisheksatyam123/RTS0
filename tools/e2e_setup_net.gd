@@ -354,8 +354,8 @@ func run() -> void:
 		and page.get_node("VBox/HBox/Right/SavedGameLabel").tooltip_text == "The controller loaded a saved game.",
 		"the host's page says Saved game")
 	page._apply_map_locks()
-	check(not page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/ResetCivs").visible
-		and not page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/ResetTeams").visible, "ResetCivsButton/ResetTeamsButton: hidden for a saved game")
+	check(not page.get_node("VBox/HBox/Right/SlotsBox/SlotsHeader/ResetCivs").visible
+		and not page.get_node("VBox/HBox/Right/SlotsBox/SlotsHeader/ResetTeams").visible, "ResetCivsButton/ResetTeamsButton: hidden for a saved game")
 	check(not page.get_node("%SpinSeed").editable and page.get_node("%MapList").disabled
 		and page.get_node("%Waves").disabled and picker(page, 0, 2).disabled and picker(page, 2, 3).disabled
 		and picker(page, 1, 1).disabled and picker(page, 2, 5).disabled, "every setting of the save is locked")

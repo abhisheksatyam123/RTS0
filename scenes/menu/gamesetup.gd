@@ -1373,15 +1373,21 @@ func _build_description() -> void:
 	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_theme_font_size_override("normal_font_size", 13)
 	info.add_child(box)
-	var row := $VBox/HBox/Right/SlotsBox/SlotCountRow
-	for b in [["ResetCivs", "Reset Civs", "Reset any civilizations that have been selected to the default (random).", _on_reset_civs],
-			["ResetTeams", "Reset Teams", "Reset all teams to the default.", _on_reset_teams]]:
-		var btn := Button.new()
+	# PlayersPanel.xml civResetButton / teamResetButton: 16 px IconButtons at the
+	# Civilization and Team headings, iconResetGold, iconResetWhite on hover.
+	var header: Control = $VBox/HBox/Right/SlotsBox/SlotsHeader
+	for b in [["ResetCivs", "Reset any civilizations that have been selected to the default (random).", _on_reset_civs],
+			["ResetTeams", "Reset all teams to the default.", _on_reset_teams]]:
+		var btn := TextureButton.new()
 		btn.name = b[0]
-		btn.text = tr(b[1])
-		btn.tooltip_text = tr(b[2])
-		btn.pressed.connect(b[3])
-		row.add_child(btn)
+		btn.texture_normal = load("res://assets/textures/ui/global/icon/reset_gold.png")
+		btn.texture_hover = load("res://assets/textures/ui/global/icon/reset_white.png")
+		btn.ignore_texture_size = true
+		btn.stretch_mode = TextureButton.STRETCH_SCALE
+		btn.size = Vector2(16, 16)
+		btn.tooltip_text = tr(b[1])
+		btn.pressed.connect(b[2])
+		header.add_child(btn)
 
 ## 0.28 Buttons/ResetCivsButton.js: every player's civ back to Random.
 func _on_reset_civs() -> void:
@@ -1399,7 +1405,7 @@ func _on_reset_teams() -> void:
 ## The reset buttons are the controller's, and a scenario sets the civs and teams.
 func _render_reset_buttons() -> void:
 	for n in ["ResetCivs", "ResetTeams"]:
-		var b := get_node_or_null("VBox/HBox/Right/SlotsBox/SlotCountRow/" + n) as Button
+		var b := get_node_or_null("VBox/HBox/Right/SlotsBox/SlotsHeader/" + n) as Control
 		if b:
 			b.visible = not _is_scenario() and _mp_role != "client" and not _saved_game() # ResetCivsButton: hidden for a saved game
 
@@ -1460,8 +1466,9 @@ func _place_slot_headings() -> void:
 	var header: Control = $VBox/HBox/Right/SlotsBox/SlotsHeader
 	var grid := _slots_grid()
 	var cells := grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
-	for c in range(mini(header.get_child_count(), grid.columns)):
-		var l: Label = header.get_child(c)
+	var headings := header.get_children().filter(func(n): return n is Label)
+	for c in range(mini(headings.size(), grid.columns)):
+		var l: Label = headings[c]
 		# PlayerColor.js: the Color heading only for the controller, never on a scenario.
 		l.visible = c < cells.size() and (c != 1 or (not _is_scenario() and _mp_role != "client"))
 		if c < cells.size():
@@ -1470,7 +1477,14 @@ func _place_slot_headings() -> void:
 	var info := header.get_node_or_null("CivInfoButton") as Control
 	if info and cells.size() > 4:
 		var cc: Control = cells[4]
-		info.position = Vector2(cc.position.x + cc.size.x - 18.0, 2.0)
+		info.position = Vector2(cc.position.x + cc.size.x - 37.0, 2.0) # 85%-37 .. 85%-21
+		var rc := header.get_node_or_null("ResetCivs") as Control
+		if rc:
+			rc.position = Vector2(cc.position.x + cc.size.x - 16.0, 2.0) # 85%-16 .. 85%
+	var rt := header.get_node_or_null("ResetTeams") as Control
+	if rt and cells.size() > 5:
+		var tc: Control = cells[5]
+		rt.position = Vector2(tc.position.x + maxf(tc.size.x, 48.0) - 21.0, 2.0) # 100%-21 .. 100%-5
 	grid.queue_redraw()
 
 func _slots_grid() -> GridContainer:
