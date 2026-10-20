@@ -92,6 +92,18 @@ func run() -> void:
 	check(want_diplo != "You are now neutral with " and text.contains(want_diplo), "diplomacy in German: " + want_diplo)
 	var wood: String = TranslationServer.translate("Wood")
 	check(wood != "Wood" and text.contains("100 " + wood), "tribute in German with the German resource name: 100 " + wood)
+	# The session's message boxes translate each line (OutOfSyncNetwork's captions).
+	var QC = load("res://scenes/session/quit_confirmation.gd")
+	var oos = QC.out_of_sync_network(main)
+	await frames(2)
+	var oos_title: String = oos.find_child("Title", true, false).text
+	var oos_text: String = oos.find_child("Text", true, false).text
+	var want_oos: String = TranslationServer.translate("Out-Of-Sync error on turn %(turn)s.").replace("%(turn)s", "0")
+	print("  ", oos_title, " | ", oos_text.replace("\n", " | "))
+	check(oos_title == TranslationServer.translate("Out of Sync") and oos_title != "Out of Sync" and oos_text.begins_with(want_oos + "\n")
+		and oos_text.contains(TranslationServer.translate("Ensure all players use the same mods.")) and not oos_text.contains("Ensure all players"), "the Out of Sync box in German")
+	oos.press(0)
+	await frames(2)
 	print("3. Requirements")
 	main.debug_train_buttons(11)  # a dock: its Town Phase techs
 	await frames(2)

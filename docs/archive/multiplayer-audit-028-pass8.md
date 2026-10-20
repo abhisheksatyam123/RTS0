@@ -36,4 +36,6 @@ None of these touches simulation state or the save format.
 - **Connect-flow strings not in RTS0.** "Connected to the server.", "Connection to the server has been authenticated." and the STUN and identifier errors belong to 0.28 paths that RTS0 replaces, as pass 5 and pass 7 noted.
 
 ## Fix log
-- 2026-10-20 #PR1 pass 8 gap 1 (simulation chat notices, trigger dialogs and cheats go by the own seat; a replay viewer reads observer lines) merged.
+- 2026-10-20 #1263 pass 8 gap 1 (simulation chat notices, trigger dialogs and cheats go by the own seat; a replay viewer reads observer lines) merged.
+- 2026-10-20 #1271 pass 8 gap 3 (at Start the host names each seated slot after its client, so the match, its replay and summary show the real players) merged.
+- 2026-10-20 #PR4 pass 8 gap 2 (a lower player count leaves the clients of the dropped slots observers, as unassignInvalidPlayers does; AI and Removed already do since #1280) merged.

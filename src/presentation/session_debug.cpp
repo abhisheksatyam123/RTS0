@@ -598,7 +598,8 @@ void RtsoMain::debug_select_entity(int64_t id) {
 	selected_ids.clear();
 	selected_building_id = 0;
 	for (const auto &b : sim->buildings())
-		if (b.id == (uint32_t)id) { selected_building_id = b.id; return; }
+		if (b.id == (uint32_t)id) { set_selected_structures({b.id}); return; }
+	set_selected_structures({});
 	selected_ids.push_back((int32_t)id);
 }
 
@@ -806,11 +807,15 @@ Dictionary RtsoMain::debug_dev_overlay() const {
 	d["obstruction_drawn"] = debug_overlays_.drawn(O::OBSTRUCTION);
 	d["unit_motion_drawn"] = debug_overlays_.drawn(O::UNIT_MOTION);
 	d["range_drawn"] = debug_overlays_.drawn(O::RANGE);
+	d["range_subdivisions"] = debug_overlays_.range_subdivisions();
+	d["range_rays"] = debug_overlays_.range_rays();
+	d["region_links"] = debug_overlays_.region_link_count();
 	d["bounding_box_drawn"] = debug_overlays_.drawn(O::BOUNDING_BOX);
 	d["cull_camera_frustum_drawn"] = debug_overlays_.drawn(O::CULL_CAMERA_FRUSTUM);
 	d["shadows_frustum_drawn"] = debug_overlays_.drawn(O::SHADOWS_FRUSTUM);
 	d["culling_enabled"] = culling_enabled_;
 	d["lock_cull_camera"] = lock_cull_camera_;
+	d["structures_shown"] = view ? view->shown_structures() : 0;
 	d["control_all"] = sim ? sim->controls_all(local_player()) : false;
 	d["render_debug"] = render_debug_mode_;
 	d["viewport_debug_draw"] = get_viewport() ? (int)get_viewport()->get_debug_draw() : -1;

@@ -12,6 +12,8 @@ extends CanvasLayer
 
 signal pressed(index: int)
 
+const L10n := preload("res://scenes/menu/l10n.gd")
+
 const TITLE := "Confirmation"
 const CAPTION := "The game has finished, what do you want to do?"
 const BUTTONS := ["Stay", "Quit and View Summary", "Quit"]
@@ -19,17 +21,17 @@ const CAPTION_HOST := "Are you sure you want to quit? Leaving will disconnect al
 const CAPTION_CLIENT := "Are you sure you want to quit?"
 const CAPTION_REPLAY := "The replay has finished. What do you want to do?"
 const TITLE_OOS := "Out of Sync"
-const CAPTIONS_OOS := ["Out-Of-Sync error on turn %d.", "The current game state is different from the original game state."]
+const CAPTIONS_OOS := ["Out-Of-Sync error on turn %(turn)s.", "The current game state is different from the original game state."]
 const CAPTIONS_OOS_NET := {
-	"turn": "Out-Of-Sync error on turn %s.",
-	"players": "Players: %s",
+	"turn": "Out-Of-Sync error on turn %(turn)s.",
+	"players": "Players: %(players)s",
 	"identical": "Your game state is identical to the hosts game state.",
 	"differs": "Your game state differs from the hosts game state.",
 	"ai": "Rejoining Multiplayer games with AIs is not supported yet!",
 	"mods": "Ensure all players use the same mods.",
 	"bug": "Click on \"Report a Bug\" in the main menu to help fix this.",
-	"replay": "Replay saved to %s",
-	"dump": "Dumping current state to %s",
+	"replay": "Replay saved to %(filepath)s",
+	"dump": "Dumping current state to %(filepath)s",
 }
 const TITLE_VICTORY := "VICTORIOUS!"
 const TITLE_DEFEATED := "DEFEATED!"
@@ -38,6 +40,9 @@ const QUESTION := "Do you want to quit?"
 const CAPTION_RESIGN := "Are you sure you want to resign?"
 const CAPTION_RETURN := "Do you want to resign or will you return soon?"
 const BUTTONS_RETURN := ["I will return", "I resign"]
+const SIZE_QUIT := Vector2(600, 200) # QuitConfirmation and its subclasses
+const SIZE_OOS_REPLAY := Vector2(500, 140)
+const SIZE_OOS_NET := Vector2(600, 280)
 
 var title := ""
 var caption := ""
@@ -55,7 +60,7 @@ static func menu(m: Node) -> Node:
 	var controller: bool = g.get("isController", true)
 	var observer: bool = g.get("isObserver", false)
 	if networked and not controller and not observer:
-		var q := _open(m, TITLE, CAPTION_CLIENT, ["No", "Yes"])
+		var q := _open(m, TITLE, CAPTION_CLIENT, ["No", "Yes"], SIZE_QUIT)
 		q.pressed.connect(func(i): if i == 1: return_question(m))
 		return q
 	return _quit(m, TITLE, CAPTION_HOST if networked and controller else CAPTION)
@@ -87,10 +92,10 @@ static func resign(m: Node) -> Node:
 ## QuitConfirmationDefeat.confirmExit: the player has won or been defeated. The
 ## host isn't invited to leave while other humans still play (no buttons then).
 static func defeat(m: Node, won: bool, ask_exit: bool) -> Node:
-	var text: String = STATE_MESSAGES["won" if won else "defeated"] + ("\n" + QUESTION if ask_exit else "")
+	var text: String = L10n.t(STATE_MESSAGES["won" if won else "defeated"]) + ("\n" + L10n.t(QUESTION) if ask_exit else "")
 	var t := TITLE_VICTORY if won else TITLE_DEFEATED
 	if not ask_exit:
-		return _open(m, t, text, [])
+		return _open(m, t, text, [], SIZE_QUIT)
 	return _quit(m, t, text)
 
 ## QuitConfirmationReplay: the replay reached its last turn.
@@ -101,7 +106,8 @@ static func replay_finished(m: Node) -> Node:
 ## pauses the replay until it is answered.
 static func out_of_sync_replay(m: Node) -> Node:
 	var turn := int(m.get_replay_status().get("out_of_sync_turn", 0))
-	return _open(m, TITLE_OOS, "\n".join(CAPTIONS_OOS) % turn, [])
+	# OutOfSyncReplay: each line its own msgid, then sprintf.
+	return _open(m, TITLE_OOS, L10n.sprintf("\n".join(CAPTIONS_OOS.map(func(x): return L10n.t(x))), {"turn": turn}), [], SIZE_OOS_REPLAY)
 
 ## TimeWarpMessageBox (developer overlay, Enable time warp): 500x250, OK.
 static func time_warp(m: Node) -> Node:
@@ -122,16 +128,18 @@ static func out_of_sync_rejoin_test(m: Node) -> Node:
 ## The match runs on behind the box; OK closes it.
 static func out_of_sync_network(m: Node) -> Node:
 	var s: Dictionary = m.get_lobby_state()
-	var c := CAPTIONS_OOS_NET
-	var txt := [c["turn"] % str(int(s.get("oos_turn", 0))),
-		c["players"] % ", ".join(s.get("oos_players", [])),
+	var c := {}
+	for k in CAPTIONS_OOS_NET:
+		c[k] = L10n.t(CAPTIONS_OOS_NET[k])
+	var txt := [L10n.sprintf(c["turn"], {"turn": int(s.get("oos_turn", 0))}),
+		L10n.sprintf(c["players"], {"players": L10n.t(", ").join(s.get("oos_players", []))}),
 		c["identical"] if s.get("oos_identical", false) else c["differs"], ""]
 	if int(s.get("oos_turn", 0)) > 1 and s.get("oos_ai", false):
 		txt.append(c["ai"])
 	else:
-		txt.append_array([c["mods"], c["bug"], c["replay"] % str(s.get("oos_replay", "")),
-			c["dump"] % str(s.get("oos_dump", ""))])
-	var q := _open(m, TITLE_OOS, "\n".join(txt), [], Vector2(600, 280))
+		txt.append_array([c["mods"], c["bug"], L10n.sprintf(c["replay"], {"filepath": str(s.get("oos_replay", ""))}),
+			L10n.sprintf(c["dump"], {"filepath": str(s.get("oos_dump", ""))})])
+	var q := _open(m, TITLE_OOS, "\n".join(txt), [], SIZE_OOS_NET)
 	return q
 
 ## session.js endGame: leave the match, for the summary page or the menu the
@@ -166,7 +174,7 @@ static func end_game(m: Node, show_summary: bool) -> void:
 		ms.go("res://scenes/menu/main_menu.tscn")
 
 static func _quit(m: Node, t: String, text: String) -> Node:
-	var q := _open(m, t, text, BUTTONS)
+	var q := _open(m, t, text, BUTTONS, SIZE_QUIT)
 	q.pressed.connect(func(i):
 		if i == 1 or i == 2:
 			end_game(m, i == 1))
@@ -213,51 +221,21 @@ func press(index: int) -> void:
 func button_texts() -> Array:
 	return buttons if not buttons.is_empty() else ["OK"]
 
+## The box itself is the msgbox page (gui/msgbox), as SessionMessageBox opens it
+## through Engine.PushGuiPage("page_msgbox.xml"); its cancel hotkey presses the
+## first button.
 func _build() -> void:
-	var fade := ColorRect.new()
-	fade.color = Color(0, 0, 0, 0.4)
-	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(fade)
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
-	var panel := PanelContainer.new()
-	panel.name = "MessageBox"
-	# SessionMessageBox 400 x 200; QuitConfirmation 600 x 200.
-	panel.custom_minimum_size = box_size if box_size != Vector2.ZERO else Vector2(600 if buttons == BUTTONS else 400, 200)
-	center.add_child(panel)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 12)
-	panel.add_child(box)
-	var head := Label.new()
-	head.name = "Title"
-	head.text = title
-	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	head.add_theme_font_size_override("font_size", 20)
-	head.add_theme_color_override("font_color", Color(1.0, 0.85, 0.45))
-	box.add_child(head)
-	var body := Label.new()
-	body.name = "Caption"
-	body.text = caption
-	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box.add_child(body)
-	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 12)
-	box.add_child(row)
-	var texts := button_texts()
-	for i in texts.size():
-		var b := Button.new()
-		b.name = "Button%d" % i
-		b.text = texts[i]
-		b.custom_minimum_size = Vector2(160, 32)
-		b.pressed.connect(press.bind(i))
-		row.add_child(b)
-
-func _unhandled_input(event: InputEvent) -> void:
-	# The message box's cancel hotkey answers with the first button.
-	if event is InputEventKey and event.pressed and not event.echo and "cancel" in RtsoHotkeyConfig.new().fired(event):
-		get_viewport().set_input_as_handled()
-		press(0)
+	var box = load("res://scenes/common/msgbox.gd").new()
+	box.name = "MessageBox"
+	# SessionMessageBox 400 x 200, unless the box names its own.
+	var size := box_size if box_size != Vector2.ZERO else Vector2(400, 200)
+	box.width = size.x
+	box.height = size.y
+	# translate(Title), translate(Caption) and the buttons; a caption built from parts
+	# arrives translated line by line.
+	box.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	box.title = L10n.t(title)
+	box.message = L10n.t(caption)
+	box.captions = button_texts().map(func(b): return L10n.t(b))
+	box.answered.connect(press)
+	add_child(box)

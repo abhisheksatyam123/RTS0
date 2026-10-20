@@ -226,6 +226,18 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	sim->reset();
 	map_pop_limit_ = (int)d.get("pop_limit", -1);
 	{
+		// 0.28 StartingResources.onMapChange takes a map's PlayerData Resources for
+		// scenarios only; a skirmish map (White Cliffs of Dover) keeps the lobby's
+		// resources. Civs stay locked on every map type (PlayerCiv._set).
+		bool scenario = true;
+		{
+			Variant mt = JSON::parse_string(FileAccess::get_file_as_string("res://data/map_types.json"));
+			if (mt.get_type() == Variant::DICTIONARY) {
+				Dictionary maps = Dictionary(mt).get("maps", Dictionary());
+				Dictionary e = maps.get(map_id.get_file().get_basename(), Dictionary());
+				if (e.has("type")) scenario = String(e["type"]) == "scenario";
+			}
+		}
 		Array pl = d.get("players", Array());
 		for (int i = 0; i < pl.size(); ++i) {
 			Dictionary p = pl[i];
@@ -234,7 +246,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			if (team >= rtso::MAX_PLAYERS) continue;
 			const int c = (int)p.get("civ", -1);
 			if (rtso::is_playable_civ(c)) map_civ_[team] = (int8_t)c;
-			if (p.has("resources")) {
+			if (scenario && p.has("resources")) {
 				Dictionary r = p["resources"];
 				const char *keys[4] = {"food", "wood", "stone", "metal"};
 				for (int k = 0; k < 4; ++k) map_res_[team][k] = (int)r.get(keys[k], 300); // Player.js: 300 of each unless set
