@@ -21063,7 +21063,13 @@ bool Simulation::petra_unit_stat_trainable(const PetraUnitStat &st) const {
 		if (!hero_wanted && (t.flags & ROSTER_HERO)) continue;
 		if ((t.flags & ROSTER_SIEGE_TOWER) || (c & TC_SIEGETOWER).any() || triggers_.template_disabled(tmpl)) continue;
 		if (!match_limit_allows(petra_pid_, tmpl, 1)) continue;
-		if (petra_best_trainer(tmpl, t.unit_type, PRODUCTION_QUEUE_MAX)) return true;
+		// gameState.findTrainableUnits: any finished building of ours whose Trainer list has
+		// it, however busy (a full queue, an emergency rally or an upgrade only delays it).
+		for (const auto &b : buildings_) {
+			if (b.team != petra_pid_ || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
+			if (building_trains_template(b.type, b.civ, players_[petra_pid_].civ, tmpl) && can_train_at(petra_pid_, t.unit_type, b.type, tmpl))
+				return true;
+		}
 	}
 	return false;
 }

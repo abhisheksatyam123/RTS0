@@ -297,7 +297,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool net_game_started_ = false;
 	bool net_status_shown_ = false; // a network warning is on lobby_status
 	float game_speed = 1.0f;
-	double match_elapsed_time = 0.0;
+	// The match clock is the simulation's (OverlayCounterElapsedTime: g_SimState.timeElapsed),
+	// so it stops while paused or waiting for turns and follows loads, rewinds and rejoins.
+	double match_elapsed_time() const { return sim ? (double)sim->stats().ticks * rtso::Simulation::FIXED_STEP : 0.0; }
 
 	Vector2 drag_start;
 	PackedInt32Array selected_ids;
@@ -577,6 +579,7 @@ public:
 	std::vector<uint32_t> ui_selected_garrison_holders() const override { return selected_garrison_holders(); }
 	bool ui_garrison_panel_shown() const override;
 	bool ui_observing() const override { return turn_mgr_.is_replaying() || spectating(); }
+	uint32_t ui_inspected_foreign(bool *building) const override;
 	bool ui_trains_units(uint32_t id) const override { return building_trains_units(id); }
 	// Tests: the training roster's rows (name, disabled).
 	Array debug_roster() {
@@ -745,12 +748,15 @@ public:
 		const Vector3 g = get_ground_click_pos(screen);
 		return Vector2(g.x, g.z);
 	}
-	Dictionary debug_inspector(const String &what); // tests: the selection details of a unit, units, a structure, a resource or an animal
+	Dictionary debug_inspector(const String &what);
+	// Tests: another player's unit or structure `id` shown as a click on it would (the inspector).
+	void debug_inspect_entity(int64_t id); // tests: the selection details of a unit, units, a structure, a resource or an animal
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();
 	Array debug_command_row();
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
-	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
+	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1, int near = -1);
+	void debug_complete_research(int player, int tech); // tests: the technology finishes for the player
 	Vector2 debug_spawn_offset(const String &template_id, int count, int player = -1) const;
 	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned, float dx = 16.0f, float dz = 16.0f);
 	int64_t debug_spawn_mine(float x, float z, int max_gatherers);

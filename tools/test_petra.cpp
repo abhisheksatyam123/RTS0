@@ -6963,6 +6963,34 @@ static void test_personality_draw() {
 // our units of the names in its builder's list. A Persian holding an Athenian civic centre
 // (spearman, slinger, cavalry javelineer) trains pers/infantry_spearman_b there, never the
 // Persian civic centre's archer.
+static void test_unit_stat_trainable_busy() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	Simulation::Building *cc = nullptr;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.build_progress >= 1.0f) {
+			CHECK(is_civic_centre(b.type), "Petra starts with only its civic centre");
+			cc = &b;
+		}
+	if (!cc) return;
+	Simulation::PetraUnitStat st{TC_INFANTRY, 1.0f, 0, 10, 2, 1.0f, 1.0f, 1.0f, 1.0f};
+	CHECK(s->petra_unit_stat_trainable(st), "infantry is trainable at the civic centre");
+	// A full queue only delays the class (gameState.findTrainableUnits looks at no queue).
+	ProductionOrder o;
+	o.unit_type = UNIT_VILLAGER;
+	o.duration = 10.0f;
+	while (cc->queue.size() < PRODUCTION_QUEUE_MAX) cc->queue.push_back(o);
+	const bool busy = s->petra_unit_stat_trainable(st);
+	std::printf("  infantry with the civic centre's queue full: %s\n", busy ? "trainable" : "dropped");
+	CHECK(busy, "a class whose only trainer's queue is full stays in the plan");
+	cc->queue.clear();
+}
+
 static void test_emergency_units_captured_cc() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -7718,6 +7746,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_far_gatherer_recheck);
 	RUN(test_emergency_units);
 	RUN(test_emergency_units_captured_cc);
+	RUN(test_unit_stat_trainable_busy);
 	RUN(test_new_cc_defenders);
 	RUN(test_temple_wonder_save);
 	RUN(test_personality_draw);

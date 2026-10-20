@@ -934,6 +934,15 @@ public:
 		if (selected_ids.is_empty()) {
 			ungarrison_btn_->set_visible(false);
 			if (kind_ != INSPECT_NONE && !fill_inspected_details()) kind_ = INSPECT_NONE;
+			// unit_commands.js updateUnitCommands: a mutual ally's structure, ship or siege engine
+			// shows its Garrison panel (our units in it may be unloaded from there).
+			if ((kind_ == INSPECT_BUILDING || kind_ == INSPECT_UNIT) && host_->local_player() < rtso::MAX_PLAYERS) {
+				uint8_t owner = 0xFF;
+				sim->holder_contents(id_, &owner);
+				if (owner < rtso::MAX_PLAYERS && owner != host_->local_player() && sim->is_ally(host_->local_player(), owner) &&
+						sim->is_ally(owner, host_->local_player()))
+					show_garrison_grid = fill_garrison_grid(*sim, id_);
+			}
 			panel_->set_visible(kind_ != INSPECT_NONE);
 			return;
 		}

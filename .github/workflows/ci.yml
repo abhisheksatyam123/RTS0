@@ -330,6 +330,13 @@ jobs:
             src/network/net_host.cpp -lpthread -o /tmp/test_unit_pushing
           /tmp/test_unit_pushing
 
+      - name: Job system with worker threads (every chunk once; same match hash as serial)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_job_system.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_job_system
+          /tmp/test_job_system
+
       - name: Siege packing scenarios
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_pack.cpp src/simulation/simulation.cpp \
