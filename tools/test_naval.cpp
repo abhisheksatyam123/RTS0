@@ -1169,7 +1169,11 @@ static void test_petra_concurrent_transports() {
 	// whoever is idle first, the women it trained meanwhile as well as the starting villagers.
 	int villagers_south = 0;
 	for (int k = 0; k < 120; ++k) {
-		if (s.petra_attack_plan_.state == Simulation::AttackPlan::MUSTER) drop_attack_batches();
+		// Petra may replace the plan with its own (it picks the same target): that one is forced too.
+		if (s.petra_attack_plan_.state == Simulation::AttackPlan::MUSTER) {
+			drop_attack_batches();
+			s.petra_attack_plan_.forced = true;
+		}
 		run(s, 1.0f);
 		const PetraTransportPlan *a = plan_of(PETRA_TRANSPORT_ATTACK), *b = plan_of(PETRA_TRANSPORT_BUILDERS);
 		if (a && b) {

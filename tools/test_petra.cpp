@@ -2818,6 +2818,9 @@ static void test_attack_rally_point() {
 	s->petra_attack_mgr_.target_size = 12;
 	s->petra_attack_mgr_.min_size = 12;
 	const std::vector<uint32_t> army = plan.squad;
+	// attackPlan.js updatePreparation's max-population case: under 5 free slots, more than
+	// lengthMin units start the plan whatever classes it still lacks.
+	s->set_pop_cap(s->pop_current(1) + 2);
 	auto centre = [&](float &cx, float &cz) {
 		cx = cz = 0.0f;
 		int n = 0;
@@ -4834,6 +4837,8 @@ static void test_concurrent_attacks() {
 		s->reset();
 		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 		s->set_victory_condition(VICTORY_ENDLESS);
+		// attackManager.js reads getPopulationMax, the population cap (not the houses' limit).
+		s->set_pop_cap(big ? 300 : 40);
 		run_for(*s, 1.0f);
 		float tx = 0.0f, tz = 0.0f;
 		for (const auto &b : s->buildings())
@@ -4858,7 +4863,7 @@ static void test_concurrent_attacks() {
 			if (b.team == 0 && b.type == BLD_TOWN_CENTER) { marching.target_building_id = b.id; marching.target_x = b.x; marching.target_z = b.z; }
 		s->petra_started_attacks_.push_back(marching);
 		run_ai_turns(*s, 2);
-		const int cap = s->pop_max(1);
+		const int cap = s->petra_population_max();
 		const bool second = s->petra_attack_plan().state == Simulation::AttackPlan::MUSTER;
 		std::printf("  concurrent attacks: population cap %d, one marching, a second musters %s\n", cap, second ? "yes" : "no");
 		if (big) CHECK(cap >= 100 && second, "a second Attack musters while one marches (popMax >= 100)");
