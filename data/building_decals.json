@@ -4594,6 +4594,34 @@
     "tex": "spart_5x5_decal"
    }
   ],
+  "s_plot_field_medit": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0323,
+     -0.0112
+    ],
+    "size": [
+     8.7497,
+     8.7497
+    ],
+    "tex": "farm_decal_medit"
+   }
+  ],
+  "s_plot_field_temp": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0323,
+     -0.0112
+    ],
+    "size": [
+     8.7497,
+     8.7497
+    ],
+    "tex": "farm_decal_temp"
+   }
+  ],
   "s_ptolemies_blacksmith": [
    {
     "angle": 0.0,
@@ -4746,6 +4774,32 @@
      5.8293
     ],
     "tex": "spart_5x5_decal"
+   }
+  ],
+  "s_rice_paddy": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0251,
+     -0.0017
+    ],
+    "size": [
+     6.2505,
+     6.2505
+    ],
+    "tex": "rice_paddy"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0251,
+     -0.0017
+    ],
+    "size": [
+     6.2505,
+     6.2505
+    ],
+    "tex": "rice_paddy"
    }
   ],
   "s_romans_amphitheater_pompeii": [
