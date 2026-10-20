@@ -97,6 +97,7 @@ func run() -> void:
 	check(cfg.get_value("fog") == "false", "unchecking fog changes the setting")
 	page._on_revert()
 	check(cfg.get_value("fog") == "true" and page._controls["fog"][1].button_pressed, "Revert goes back to the saved value")
+	cfg.set_value("lobby.login", "alice")
 	page._on_reset()
 	check(page._confirm != null and page._confirm.message.contains("erase your saved settings"), "Reset asks first")
 	page._confirm.find_child("Button2", true, false).pressed.emit() # Yes
@@ -105,6 +106,12 @@ func run() -> void:
 		"Reset goes back to 0 A.D.'s defaults")
 	check(is_equal_approx(page._controls["sound.musicgain"][1].get_child(0).value, 0.2), "Reset updates the sliders")
 	check(not cfg_text().contains("sound.musicgain") and not page.has_unsaved_changes(), "and erases the saved settings")
+	check(cfg.get_value("lobby.login") == "alice", "Reset keeps settings the page doesn't list (setDefaults: options.json keys only)")
+	cfg.set_value("lobby.login", cfg.get_default("lobby.login"))
+	var batch: HSlider = page._controls["gui.session.scrollbatchratio"][1].get_child(0)
+	batch.value = 1.0
+	check(is_equal_approx(batch.value, 1.0) and is_equal_approx(batch.max_value, 30.0) and batch.step <= 0.1,
+		"the scroll batch slider reaches its default of 1 (step %s)" % batch.step)
 	page._controls["sound.musicgain"][1].get_child(0).value = 0.4
 	page._on_save()
 	# options.json dependencies: the water sub-options follow Water effects, the cutoff
