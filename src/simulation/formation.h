@@ -84,6 +84,10 @@ inline constexpr float FORMATION_CLUSTER_DISTANCE = 60.0f * FORMATION_METRE;
 inline constexpr uint8_t FORMATION_PATROL_WAIT_S = 2;
 // Formation.js Init: ShapeUpdate runs every 1000 ms.
 inline constexpr float FORMATION_SHAPE_UPDATE_S = 1.0f;
+// UnitAI FORMATIONCONTROLLER.IDLE: its timer re-forms idle members every 2000 ms.
+inline constexpr float FORMATION_IDLE_REFORM_S = 2.0f;
+// A member this far from its slot counts as wandered off (smaller ones finish at once in 0.28).
+inline constexpr float FORMATION_IDLE_DRIFT = 2.0f * FORMATION_METRE;
 
 // One member's place in the formation: offset (x across, y along the facing; rows behind
 // the front are negative y), and its 1-based row and column (GetFormationAnimationVariant).

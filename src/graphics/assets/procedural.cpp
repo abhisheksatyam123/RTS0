@@ -69,7 +69,7 @@ Ref<Mesh> Procedural::get_building_mesh(const String &id) {
 	if (id == "town_center") size = Vector3(4.0f, 3.5f, 4.0f);
 	else if (id == "barracks") size = Vector3(3.0f, 2.5f, 3.0f);
 	else if (id == "fortress") size = Vector3(4.5f, 4.0f, 4.5f);
-	else if (id == "tower" || id == "wall_tower") size = Vector3(1.6f, 3.5f, 1.6f);
+	else if (id == "tower" || id == "wall_tower" || id == "defense_tower") size = Vector3(1.6f, 3.5f, 1.6f);
 	else if (id == "wall") size = Vector3(2.0f, 1.8f, 0.6f);
 	else if (id == "gate") size = Vector3(3.0f, 2.4f, 1.0f);
 	else if (id == "market") size = Vector3(3.2f, 2.2f, 2.5f);

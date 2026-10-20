@@ -1184,6 +1184,21 @@ public:
 							break;
 						}
 					}
+					// Own livestock are units in 0.28 (UnitAI, Garrisonable into a corral): Abort while
+					// walking or herded, Garrison.
+					{
+						auto fv = sim->fauna();
+						for (int s = 0; s < selected_ids.size(); ++s) {
+							const uint32_t id = (uint32_t)selected_ids[s];
+							if (!sim->fauna_selectable_by(local_player(), id)) continue;
+							any_garrison = true;
+							for (size_t f = 0; f < fv.count; ++f)
+								if (fv.id[f] == id) {
+									any_busy = any_busy || fv.behavior[f] == rtso::FAUNA_MOVING || fv.behavior[f] == rtso::FAUNA_HERDED;
+									break;
+								}
+						}
+					}
 					if (passengers > 0)
 						add_entity_command("unload-all", "Unload All", "session.unload",
 								"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, passengers);
