@@ -81,6 +81,25 @@ func run() -> void:
 	await frames(2)
 	var page = root.get_node_or_null("LobbyDialog")
 	check(page != null and page.get_child(0).dialog and not menu.visible, "it opens the lobby page as a dialog and closes the menu")
+	# A child page takes the keyboard: the menu hotkey does nothing behind it,
+	# a second open keeps the one page, and the lobby hotkey closes it (QuitButton.js).
+	await key(KEY_F10)
+	await frames(10)
+	check(not menu.visible, "the lobby dialog takes the keyboard: F10 opens no menu behind it")
+	load("res://scenes/menu/lobby.gd").open_dialog(self)
+	await frames(2)
+	check(root.get_children().filter(func(n) -> bool: return n.name.begins_with("LobbyDialog")).size() == 1,
+		"opening the lobby again keeps the one dialog")
+	for down in [true, false]:
+		var k := InputEventKey.new()
+		k.keycode = KEY_L
+		k.physical_keycode = KEY_L
+		k.alt_pressed = true
+		k.pressed = down
+		Input.parse_input_event(k)
+		await frames(2)
+	check(root.get_node_or_null("LobbyDialog") == null, "and the lobby hotkey (%s) closes it" % str(RtsoHotkeyConfig.new().get_default("lobby")))
+	page = root.get_node_or_null("LobbyDialog")
 	if page:
 		page.queue_free()
 	ls.token = ""
