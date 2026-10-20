@@ -163,9 +163,9 @@ Right-click actions, Back to Work and Shift-queueing against unit_actions.js, in
 |---|---|---|---|
 | N1 | ~~A right-click on one's own or an ally's structure that an enemy holds capture points of walks or repairs~~ Fixed: "capture" (specificness 10, Capturable.CanCapture) shows the capture cursor and recaptures it, before repair and move (C too); tested by `tools/e2e_recapture.gd` | high | Fixed |
 | N2 | ~~Back to Work follows the last Gather or Build order, never cleared: the button shows for working units and stays after use, and a sheltered trader never gets it~~ Fixed: HasWorkOrders is the kept work queue (UpdateWorkOrders), used up by Back to Work and cleared by a new work order; end of alert follows it too; test_unit_orders 87 | medium | Fixed |
-| N3 | Repair, Heal and Guard skip selected units that can't do the task (and drop their queued orders); 0.28 sends them walking to the target (UnitAI.js Repair 5896, Heal 5719, Guard 5355) | medium | Open |
+| N3 | ~~Repair, Heal and Guard skip selected units that can't do the task (and drop their queued orders)~~ Fixed: a player's order walks them to the target (UnitAI.js Repair 5896, Heal 5719, Guard 5355 WalkToTarget): beside a structure, after a unit; test_unit_orders 100 | medium | Fixed |
 | N4 | Shift is ignored when hunting or slaughtering an animal, attacking scenery and boarding a ship, ram or siege tower: the order replaces the queue (unit_actions.js gather, attack and garrison pass queued) | medium | Open |
-| N5 | Alt (orderone) on an enemy unit, structure or scenery orders the first selected unit, not the first able one (getActionInfo firstAbleEntity, input.js popOneFromSelection) | low | Open |
+| N5 | ~~Alt (orderone) on an enemy unit, structure or scenery orders the first selected unit, not the first able one~~ Fixed: the first selected unit able to attack or capture it (getActionInfo firstAbleEntity, input.js popOneFromSelection); tested by `tools/e2e_order_one.gd` | low | Fixed |
 
 ### Aura icons, fogged selections and structure tooltips: Compare's eleventh 0.28 pass (2026-10-20)
 

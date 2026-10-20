@@ -6639,6 +6639,19 @@ void Simulation::order_attack_building(const uint32_t *unit_ids_in, size_t count
 // to (wx, wz)); a healer only into heal range of it, `reach` from (tx, tz), so it isn't easily
 // killed (0.28 WalkToTargetRange; one already in range stops there). A `follow` unit is
 // followed (follow_walk_target). A player's order: the walk is forced.
+// UnitAI WalkToTarget: Repair, Heal and Guard send a unit that can't do the task walking to
+// the target instead (forced): beside a structure, after a unit.
+void Simulation::walk_to_target(size_t i, uint32_t target) {
+	if (auto bit = building_id_to_idx_.find(target); bit != building_id_to_idx_.end()) {
+		const Building &b = buildings_[bit->second];
+		float wx = b.x, wz = b.z;
+		stand_outside(b, units_.id[i], units_.pos_x[i], units_.pos_z[i], &wx, &wz, unit_clearance_at(i) + kStandMargin);
+		walk_to_attack_target(i, b.x, b.z, 0.0f, wx, wz);
+	} else if (const int32_t t = lookup_unit(target); t >= 0 && units_.alive[t] && units_.id[i] != target) {
+		walk_to_attack_target(i, units_.pos_x[t], units_.pos_z[t], 0.0f, units_.pos_x[t], units_.pos_z[t], target);
+	}
+}
+
 void Simulation::walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz,
 		uint32_t follow) {
 	if (unit_is_healer(units_.tmpl[i], units_.unit_type[i])) {
@@ -6814,9 +6827,12 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
-		if (!unit_builds((size_t)uidx)) continue;
-		// Builder.js CanRepair: only the builder's own or allied foundations and structures.
-		if (!regards_as_ally(units_.team[uidx], b.team)) continue; // IsOwnedByAllyOfPlayer: one-sided
+		// Builder.js CanRepair: a builder, and only its own or allied foundations and structures
+		// (IsOwnedByAllyOfPlayer: one-sided); UnitAI.Repair walks anyone else there.
+		if (!unit_builds((size_t)uidx) || !regards_as_ally(units_.team[uidx], b.team)) {
+			if (force && units_.action_state[uidx] != ACTION_GARRISONED) walk_to_target((size_t)uidx, building_id);
+			continue;
+		}
 
 		// 0 A.D. UnitAI: workers sent to their own finished, undamaged field farm it.
 		if (b.type == BLD_FIELD && b.team == units_.team[uidx] && b.build_progress >= 1.0f && b.hp >= b.max_hp) {
@@ -18244,7 +18260,10 @@ void Simulation::order_guard(const uint32_t *unit_ids_in, size_t count_in, uint3
 	for (uint32_t uid : now) {
 		int32_t idx = lookup_unit(uid);
 		if (idx < 0 || !units_.alive[idx] || uid == target_unit_id) continue;
-		if (!unit_can_guard((size_t)idx)) continue;
+		if (!unit_can_guard((size_t)idx)) { // UnitAI.Guard: WalkToTarget
+			if (units_.action_state[idx] != ACTION_GARRISONED) walk_to_target((size_t)idx, target_unit_id);
+			continue;
+		}
 		// Guard.js: one's own or an ally's.
 		const uint8_t gteam = tb ? tb->team : units_.team[tidx];
 		if (gteam != units_.team[idx] && !is_ally(units_.team[idx], gteam)) continue;
@@ -20236,8 +20255,11 @@ void Simulation::order_heal(const uint32_t *unit_ids_in, size_t count_in, uint32
 	if (!queued && !formations_.empty()) now = formation_take_task(now, FTASK_HEAL, target_unit_id);
 	for (uint32_t uid : now) {
 		const int32_t h = lookup_unit(uid);
-		if (h < 0 || !units_.alive[h] || !unit_heals((size_t)h)) continue;
-		if (!can_heal((size_t)h, t)) continue;
+		if (h < 0 || !units_.alive[h]) continue;
+		if (!unit_heals((size_t)h) || !can_heal((size_t)h, t)) { // UnitAI.Heal: WalkToTarget
+			if (units_.action_state[h] != ACTION_GARRISONED) walk_to_target((size_t)h, target_unit_id);
+			continue;
+		}
 		start_heal((size_t)h, target_unit_id, ORDER_FLAG_FORCE);
 	}
 }
@@ -20341,7 +20363,11 @@ void Simulation::order_repair_unit(const uint32_t *unit_ids_in, size_t count_in,
 	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
 	for (uint32_t uid : now) {
 		const int32_t i = lookup_unit(uid);
-		if (i < 0 || !units_.alive[i] || !can_repair_unit((size_t)i, t)) continue;
+		if (i < 0 || !units_.alive[i]) continue;
+		if (!can_repair_unit((size_t)i, t)) { // UnitAI.Repair: WalkToTarget
+			if (force && units_.action_state[i] != ACTION_GARRISONED) walk_to_target((size_t)i, target_unit_id);
+			continue;
+		}
 		start_repair_unit((size_t)i, target_unit_id, o.flags);
 	}
 }
