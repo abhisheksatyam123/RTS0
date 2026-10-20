@@ -101,6 +101,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	AudioStreamPlayer *sfx_player = nullptr;
 	AudioStreamPlayer *click_player_ = nullptr; // ui_button_click.ogg
 	int ui_clicks_ = 0; // tests: clicks played
+	uint64_t ui_click_frame_ = UINT64_MAX; // the frame the last click played
 	void hook_ui_click_sounds(Node *n);
 	AudioStreamPlayer *ambient_player = nullptr;
 	AudioStreamPlayer *ambient_wind_player = nullptr;
@@ -836,6 +837,8 @@ public:
 	bool can_afford_template(uint16_t tmpl, int count) const;
 	uint32_t press_pick_unit_ = 0; // the own unit under the left press (input.js clickedEntity)
 	Dictionary debug_unset_rally_step(int step);
+	// Tests: `building_id`'s owner sets its rally point at (x, z) (no lockstep).
+	void debug_set_rally(int64_t building_id, float x, float z);
 	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
 	// 0.28 placementTooltip (input.js updateBuildingPlacementPreview): why the structure or
