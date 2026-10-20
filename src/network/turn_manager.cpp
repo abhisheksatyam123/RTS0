@@ -2000,7 +2000,7 @@ void TurnManager::receive_sync_error(const SyncErrorMsg &msg) {
 void TurnManager::write_oos_dump(const Simulation &sim) {
 	oos_dump_pending_ = false;
 	if (oos_dump_dir_.empty()) return;
-	const std::string base = oos_dump_dir_ + "/oos_dump";
+	const std::string base = oos_dump_dir_ + "/" + oos_dump_name_;
 	std::ofstream file(base + ".txt", std::ios::out | std::ios::trunc);
 	if (!file) return;
 	char buf[16];
@@ -2016,7 +2016,12 @@ void TurnManager::write_oos_dump(const Simulation &sim) {
 	if (current_turn_ != oos_turn_)
 		file << "WARNING: dump is from turn " << current_turn_ << "; OOS was detected on turn " << oos_turn_
 		     << " -- state may have advanced past the diverge point.\n";
-	// A readable state (0 A.D. DumpDebugState), so two peers' dumps diff.
+	write_state_text(file, sim);
+	file.close();
+	if (sim.save_state((base + ".dat").c_str())) oos_dump_written_ = base + ".txt";
+}
+
+void TurnManager::write_state_text(std::ostream &file, const Simulation &sim) {
 	file.precision(9); // every float bit that differs shows
 	file << "\n-- players (food wood stone metal)\n";
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
@@ -2036,8 +2041,6 @@ void TurnManager::write_oos_dump(const Simulation &sim) {
 	for (const auto &b : sim.buildings())
 		file << b.id << " " << (unsigned)b.type << " " << (unsigned)b.team << " " << b.x << " " << b.z << " "
 		     << b.hp << " " << b.build_progress << " " << b.queue.size() << " " << b.garrisoned_units.size() << "\n";
-	file.close();
-	if (sim.save_state((base + ".dat").c_str())) oos_dump_written_ = base + ".txt";
 }
 
 void TurnManager::set_local_paused(bool paused) {
