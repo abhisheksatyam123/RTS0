@@ -16390,7 +16390,9 @@ Simulation::ResourceView Simulation::resources() const {
 		resources_.type, resources_.subtype, resources_.alive,
 		resources_.flora,
 		resources_.id,
-		resources_.count
+		resources_.count,
+		resources_.fauna,
+		resources_.owner
 	};
 }
 
@@ -25375,15 +25377,16 @@ void Simulation::petra_manage_research(float dt) {
 	// phase asks for (5 Village / 3 Town class) before researching it.
 	auto build_phase_structures = [&](uint8_t cls, int need) {
 		if (!home) return;
-		const int have = phase_structures(petra_pid_, cls);
-		if (have >= need) return;
+		int have = phase_structures(petra_pid_, cls);
 		int laying = 0;
 		for (const auto &b : buildings_)
-			if (b.team == petra_pid_ && b.build_progress < 1.0f && b.hp > 0.0f && building_phase_class(b.type, b.civ) == cls)
+			if (b.team == petra_pid_ && b.build_progress < 1.0f && b.hp > 0.0f && !b.wrecked && building_phase_class(b.type, b.civ) == cls)
 				++laying;
-		// Village: houses for all that is missing, at most 3 at once; Town: one at a time.
-		// A foundation counts once finished.
-		if (cls == 1 ? (laying >= std::min(need - have, 3)) : laying > 0) return;
+		// Village: houses for all that is missing, at most 3 at once. Town: foundations count
+		// (getOwnEntitiesByClass(class, true)), so market, temple and forge can go down together.
+		if (cls != 1) have += laying;
+		if (have >= need) return;
+		if (cls == 1 && laying >= std::min(need - have, 3)) return;
 		static constexpr uint8_t kVillage[] = {BLD_HOUSE};
 		static constexpr uint8_t kTown[] = {BLD_MARKET, BLD_TEMPLE, BLD_FORGE}; // checkPhaseRequirements order
 		// A Town structure the phase asks for goes at priority 1000 in its queue until started.
