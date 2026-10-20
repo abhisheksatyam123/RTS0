@@ -897,28 +897,45 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				return;
 			}
 
-			// Ctrl over an enemy structure attacks it instead of capturing it (0 A.D.
-			// session.attack); Ctrl over anything else is attack-move (session.attackmove).
-			if ((rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove")) && !attack_move_mode) {
-				if (const uint32_t sid = scenery_at(click_pos.x, click_pos.z); sid != 0) {
+			// unit_actions.js "attack" (allowCapture false) or "capture" on structure bid or scenery sid.
+			const auto send_structure_click = [&](StructureClick c, uint32_t bid, uint32_t sid) {
+				if (c == CLICK_NONE) return false;
+				const bool capture = c == CLICK_CAPTURE;
+				if (sid) {
 					if (turn_cmds())
-						post_lockstep(17, sel_ptr, sel_n, 0, 0, sid, rtso::NET_HUNT_SCENERY_NO_CAPTURE);
+						post_lockstep(17, sel_ptr, sel_n, 0, 0, sid, capture ? 0 : rtso::NET_HUNT_SCENERY_NO_CAPTURE);
 					else
-						sim->order_attack_scenery(sel_ptr, sel_n, sid, false);
-					play_civ_voice("attack");
-					return;
+						sim->order_attack_scenery(sel_ptr, sel_n, sid, capture);
+				} else {
+					if (turn_cmds())
+						post_lockstep(15, sel_ptr, sel_n, 0, 0, bid, (uint8_t)(qbit | (capture ? 0 : rtso::NET_PARAM_NO_CAPTURE)));
+					else
+						sim->order_attack_building(sel_ptr, sel_n, bid, queue_shift, capture);
+				}
+				play_civ_voice("attack");
+				return true;
+			};
+			// unit_actions.js hotkeyActionCheck in specificness order: session.attack (F, "attack" 9)
+			// and session.capture (C, "capture" 10) on an enemy structure or Gaia scenery come before
+			// garrison (20) and attack-move (30, Ctrl); without them the actionCheck pass below
+			// attacks too (structure_click).
+			if ((rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.capture")) &&
+					!attack_move_mode && !rtso::hotkeys::held("session.calltoarms")) {
+				if (const uint32_t sid = scenery_at(click_pos.x, click_pos.z); sid != 0) {
+					if (send_structure_click(scenery_click(sid), 0, sid)) return;
 				}
 				for (const auto &b : sim->buildings()) {
 					if (b.wrecked || b.team == local_player()) continue;
 					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z;
 					const float hit_r = b.half_size + 1.2f;
 					if (dx * dx + dz * dz > hit_r * hit_r) continue;
-					if (turn_cmds())
-						post_lockstep(15, sel_ptr, sel_n, 0, 0, b.id, (uint8_t)(qbit | rtso::NET_PARAM_NO_CAPTURE));
-					else
-						sim->order_attack_building(sel_ptr, sel_n, b.id, queue_shift, false);
-					play_civ_voice("attack");
-					return;
+					const StructureClick c = structure_click(b.id);
+					if ((c == CLICK_ATTACK && rtso::hotkeys::held("session.attack")) ||
+							(c == CLICK_CAPTURE && rtso::hotkeys::held("session.capture"))) {
+						send_structure_click(c, b.id, 0);
+						return;
+					}
+					break;
 				}
 			}
 
@@ -1212,14 +1229,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				return;
 			}
 
-			// Right click on Gaia scenery (a fence, column, obelisk): capture it if it is Capturable
-			// (benches and fences), else attack it (template_structure Health).
+			// Right click on Gaia scenery (a fence, column, obelisk): "attack" (9) before "capture" (10);
+			// Capturable scenery (benches and fences) is captured with session.capture.
 			if (const uint32_t sid = scenery_at(click_pos.x, click_pos.z); sid != 0) {
-				if (turn_cmds())
-					post_lockstep(17, sel_ptr, sel_n, 0, 0, sid, 0);
-				else
-					sim->order_attack_scenery(sel_ptr, sel_n, sid);
-				play_civ_voice("attack");
+				send_structure_click(scenery_click(sid), 0, sid);
 				return;
 			}
 
@@ -1318,12 +1331,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						else
 							sim->order_gather(sel_ptr, sel_n, field_grain, queue_shift);
 						play_civ_voice("gather");
-					} else if (b.team != local_player() && sim->is_hostile(local_player(), b.team)) {
-						if (turn_cmds())
-							post_lockstep(15, sel_ptr, sel_n, 0, 0, b.id, qbit); // capture (0 A.D. default)
-						else
-							sim->order_attack_building(sel_ptr, sel_n, b.id, queue_shift, true);
-						play_civ_voice("attack");
+					} else if (b.team != local_player() && sim->is_hostile(local_player(), b.team) &&
+							structure_click(b.id) != CLICK_NONE) {
+						// "attack" (9, allowCapture false) before "capture" (10); C captures.
+						send_structure_click(structure_click(b.id), b.id, 0);
 					} else if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) {
 						break; // neutral: walk there
 					} else if (b.team != local_player()) {

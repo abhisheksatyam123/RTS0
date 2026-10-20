@@ -2283,6 +2283,11 @@ public:
 	// structure is, unless `allow_capture` is false (Ctrl: session.attack).
 	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id, bool allow_capture = true);
 	bool scenery_capturable(const Scenery &sc) const { return scenery_type_info(sc.type).capture_points > 0; }
+	// unit_actions.js "attack" and "capture" on a structure: may one of unit_ids damage it (Attack.js
+	// CanAttack "!Capture": an enemy's, with hitpoints, outside the attack's RestrictedClasses) or take
+	// its capture points (CanAttack "Capture": a Capture attack and Capturable.CanCapture)?
+	bool any_can_damage_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const;
+	bool any_can_capture_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const;
 	void tick_scenery_capture(); // Capturable.js TimerTick: territory decay, then regeneration
 	void scenery_check_owner(Scenery &sc); // RegisterCapturePointsChanged
 	float unit_damage_to_scenery(size_t i) const;
