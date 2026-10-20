@@ -29602,6 +29602,9 @@ void Simulation::petra_scuttle_undefendable() {
 
 void Simulation::petra_manage_garrisons() {
 	std::vector<int> incoming = petra_garrison_incoming();
+	// garrisonManager.js:134: a holder's garrison is looked at more than 3 s after the last
+	// time (holderTimeUpdate), so every second 1.6 s turn.
+	const bool holder_check = petra_turn_mod(2);
 	// garrisonManager.js update: unload whoever no longer needs the shelter, then
 	// defenseManager.js checkEvents: arrows from a structure with an enemy in range;
 	// last, a decaying structure gets the garrison that stops its decay (TYPE_DECAY).
@@ -29617,6 +29620,7 @@ void Simulation::petra_manage_garrisons() {
 		const PetraAround around = petra_around(b);
 		std::vector<uint32_t> leave;
 		for (uint32_t uid : b.garrisoned_units) {
+			if (!holder_check) break;
 			const int32_t idx = lookup_unit(uid);
 			if (idx < 0 || units_.team[idx] != petra_pid_) continue;
 			if (decay_min > 0 && unit_capture_attack(units_.tmpl[idx], units_.unit_type[idx]) > 0.0f) continue; // keepGarrisoned TYPE_DECAY
@@ -29626,7 +29630,7 @@ void Simulation::petra_manage_garrisons() {
 		// garrisonManager.js:181: ours still walking to it are recalled (leaveGarrison,
 		// stopMoving) once they no longer need it.
 		std::vector<uint32_t> recall;
-		if (own && incoming[bi] > 0) {
+		if (own && incoming[bi] > 0 && holder_check) {
 			for (size_t i = 0; i < units_.count; ++i) {
 				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] != ORDER_GARRISON ||
 				    units_.order_target[i] != b.id || units_.action_state[i] == ACTION_GARRISONED)
