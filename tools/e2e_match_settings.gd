@@ -168,6 +168,12 @@ func run() -> void:
 	await frames(2)
 	d = main.debug_dialogs()
 	check(str(d["match_settings_state"]) == "You have been defeated!", "a defeated player sees the state line: " + str(d["match_settings_state"]))
+	main.debug_set_observer_view(1) # MatchSettingsDialog: g_Players[Engine.GetPlayerID()], not the viewed player
+	await frames(2)
+	main.close_open_dialogs()
+	main.toggle_objectives()
+	await frames(2)
+	check(str(main.debug_dialogs()["match_settings_state"]) == "You have been defeated!", "and keeps it while viewing another player")
 
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures else 0)
