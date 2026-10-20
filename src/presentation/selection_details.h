@@ -42,9 +42,10 @@ inline String health(float hp, float max) {
 	return sprintf0(tr0("%(healthLabel)s %(current)s / %(max)s"),
 			{{"healthLabel", tr0("Health:")}, {"current", num((int64_t)std::lround(hp))}, {"max", num((int64_t)std::lround(max))}});
 }
-inline String capture(float points, float max) {
+// label: displayMultiple passes "Capture Points:"; getCurrentCaptureTooltip's own is "Capture points:".
+inline String capture(float points, float max, const char *label = "Capture points:") {
 	return sprintf0(tr0("%(captureLabel)s %(current)s / %(max)s"),
-			{{"captureLabel", tr0("Capture points:")}, {"current", num((int64_t)std::lround(points))}, {"max", num((int64_t)std::lround(max))}});
+			{{"captureLabel", tr0(label)}, {"current", num((int64_t)std::lround(points))}, {"max", num((int64_t)std::lround(max))}});
 }
 
 // The single-selection bar captions (healthStats, captureStats): "%(hitpoints)s / %(maxHitpoints)s"

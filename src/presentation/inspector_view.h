@@ -1134,7 +1134,7 @@ private:
 			if (slot != owner_slot) part(slot);
 		for (int i = used; i < kCaptureParts; ++i) cap_vbar_parts_[i]->set_visible(false);
 		set_vbar(cap_vbar_, 0.0f, 1.0f);
-		cap_vbar_->set_tooltip_text(rtso::seldet::capture(pts[owner_slot], max));
+		cap_vbar_->set_tooltip_text(rtso::seldet::capture(pts[owner_slot], max, "Capture Points:"));
 		cap_vbar_->set_visible(true);
 	}
 	void set_capture_parts(const rtso::Simulation &sim, uint8_t owner, const float *pts, float max) {
@@ -1570,7 +1570,7 @@ private:
 		if (max_cp > 0.0f) {
 			const float own = pts[owner < rtso::MAX_PLAYERS ? owner : rtso::MAX_PLAYERS];
 			capture_bar_->set_max(max_cp);
-			capture_label_->set_text(rtso::seldet::capture(own, max_cp));
+			capture_label_->set_text(rtso::seldet::capture(own, max_cp, "Capture Points:"));
 		}
 		portrait_->set_texture(groups.empty() ? godot::Ref<godot::Texture2D>()
 				: groups.front().icon.is_valid() ? groups.front().icon : rtso::portraits::unit(groups.front().tmpl, groups.front().unit_type));
