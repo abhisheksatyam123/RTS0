@@ -4230,7 +4230,7 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 		if (b.team != player_id || b.build_progress < 1.0f || b.hp <= 0.0f || b.queue.size() >= PRODUCTION_QUEUE_MAX
 		    || b.upgrade_to != BLD_TYPE_COUNT)
 			return TECH_ERR_BUILDING;
-		if (!building_researches_tech(b.type, tech_id, player_civ(player_id))) return TECH_ERR_BUILDING;
+		if (!building_researches_tech(b.type, tech_id, structure_template_civ(b))) return TECH_ERR_BUILDING;
 	}
 	uint8_t at = tinfo.researcher;
 	if (building_id != 0) at = buildings_[building_id_to_idx_.find(building_id)->second].type;
@@ -25341,7 +25341,7 @@ bool Simulation::petra_phasing() const {
 	bool researcher = false;
 	for (const Building &b : buildings_)
 		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && b.build_progress >= 1.0f &&
-		    building_researches_tech(b.type, next, petra_ps().civ)) { researcher = true; break; }
+		    building_researches_tech(b.type, next, structure_template_civ(b))) { researcher = true; break; }
 	if (!researcher) return false;
 	// RTS0, not 0.28: short of wood for houses (petra_wood_starved), the town phase at the
 	// population our houses hold.
@@ -25353,7 +25353,6 @@ void Simulation::petra_available_techs(std::vector<uint8_t> &out) const {
 	out.clear();
 	// gameState.findAvailableTech: Petra's structures in creation order (buildings_ only
 	// grows), each one's Researcher list in template order, every tech once.
-	const uint8_t civ = petra_ps().civ;
 	bool seen_type[BLD_TYPE_COUNT] = {};
 	TechSet listed;
 	uint8_t offers[TECH_COUNT];
@@ -25364,7 +25363,7 @@ void Simulation::petra_available_techs(std::vector<uint8_t> &out) const {
 		seen_type[b.type] = true;
 		int n = 0;
 		for (uint8_t t = 1; t < TECH_COUNT; ++t)
-			if (t != TECH_PHASE_TOWN && t != TECH_PHASE_CITY && !listed.has(t) && building_researches_tech(b.type, t, civ))
+			if (t != TECH_PHASE_TOWN && t != TECH_PHASE_CITY && !listed.has(t) && building_researches_tech(b.type, t, structure_template_civ(b)))
 				offers[n++] = t; // phases are treated separately
 		std::stable_sort(offers, offers + n, [](uint8_t a, uint8_t c) { return kTechResearchRank[a] < kTechResearchRank[c]; });
 		for (int i = 0; i < n; ++i) {
@@ -25400,7 +25399,7 @@ bool Simulation::petra_start_research(uint8_t tech_id) {
 	bool have = false;
 	float best_time = 0.0f;
 	for (auto &b : buildings_) {
-		if (b.team != petra_pid_ || !building_researches_tech(b.type, tech_id, petra_ps().civ) || b.hp <= 0.0f || b.wrecked) continue;
+		if (b.team != petra_pid_ || !building_researches_tech(b.type, tech_id, structure_template_civ(b)) || b.hp <= 0.0f || b.wrecked) continue;
 		have = true;
 		if (b.build_progress < 1.0f || b.upgrade_to != BLD_TYPE_COUNT || b.queue.size() >= PRODUCTION_QUEUE_MAX) continue;
 		float t = 0.0f;
@@ -25637,7 +25636,7 @@ void Simulation::petra_manage_research(float dt) {
 	// (the pick waits in minorTech for room, researchManager.js:158-163).
 	auto researcher = [&](uint8_t t) {
 		for (const auto &b : buildings_)
-			if (b.team == petra_pid_ && building_researches_tech(b.type, t, petra_ps().civ) && b.build_progress >= 1.0f && b.hp > 0.0f && !b.wrecked &&
+			if (b.team == petra_pid_ && building_researches_tech(b.type, t, structure_template_civ(b)) && b.build_progress >= 1.0f && b.hp > 0.0f && !b.wrecked &&
 			    b.upgrade_to == BLD_TYPE_COUNT)
 				return true;
 		return false;
@@ -33251,6 +33250,15 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	} else if constexpr (Ar::loading) {
 		std::fill(std::begin(s.fauna_owner_), std::end(s.fauna_owner_), GAIA_PLAYER); // older saves: all Gaia's
 	}
+	if (ar.version >= S::SAVE_VERSION_FAUNA_ROAM) {
+		for (size_t f = 0; f < s.fauna_.count && f < S::FaunaStorage::MAX_FAUNA; ++f) {
+			ar.pod(s.fauna_roam_angle_[f]);
+			ar.pod(s.fauna_start_angle_[f]);
+		}
+	} else if constexpr (Ar::loading) {
+		std::fill(std::begin(s.fauna_roam_angle_), std::end(s.fauna_roam_angle_), 0.0f); // older saves: unset, as on spawn
+		std::fill(std::begin(s.fauna_start_angle_), std::end(s.fauna_start_angle_), 0.0f);
+	}
 	if constexpr (Ar::loading) {
 		if (s.fauna_.count > S::FaunaStorage::MAX_FAUNA) { ar.ok = false; return; }
 		s.fauna_id_to_idx_.clear();
@@ -34564,6 +34572,7 @@ uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype, uint8_t owner)
 	fauna_.home_x[idx] = fauna_.pos_x[idx];
 	fauna_.home_z[idx] = fauna_.pos_z[idx];
 	fauna_owner_[idx] = owner < MAX_PLAYERS ? owner : GAIA_PLAYER;
+	fauna_roam_angle_[idx] = fauna_start_angle_[idx] = 0.0f;
 	fauna_id_to_idx_[fid] = idx;
 	return fid;
 }
@@ -35060,14 +35069,24 @@ void Simulation::tick_fauna(float dt) {
 	};
 
 	// UnitAI MoveRandomly: animals roam in polygons that approximate circles, to keep from
-	// drifting across the map. Each side turns 1/4 to 3/4 of roamAngle twice (+-30 degrees, its
-	// sign fixed per animal here) and is 0.5-1.5 x RoamDistance long; the leg left is kept in
-	// flee_distance while roaming.
+	// drifting across the map. roamAngle is +-30 degrees, its sign drawn on the first roam
+	// (which starts half a turn back, at startAngle) and redrawn each time the heading comes
+	// back round near startAngle. Each side turns 1/4 to 3/4 of roamAngle twice and is
+	// 0.5-1.5 x RoamDistance long; the leg left is kept in flee_distance while roaming.
 	auto roam_leg = [&](size_t i) {
 		const auto &ri = fauna_type_info(fauna_.fauna_type[i]);
-		const float roam_angle = (fauna_.id[i] & 1u) ? 0.5235988f : -0.5235988f;
+		constexpr float kPi = 3.14159265f;
+		float &roam_angle = fauna_roam_angle_[i];
+		float ang = fauna_.rot_y[i];
+		if (roam_angle == 0.0f) {
+			roam_angle = sim_rng_.range_int(0, 1) ? kPi / 6.0f : -kPi / 6.0f;
+			ang -= roam_angle / 2.0f;
+			fauna_start_angle_[i] = ang;
+		} else if (std::fabs(std::fmod(ang - fauna_start_angle_[i] + kPi, 2.0f * kPi) - kPi) < std::fabs(roam_angle / 2.0f)) {
+			if (!sim_rng_.range_int(0, 1)) roam_angle = -roam_angle;
+		}
 		const float half = roam_angle * (0.25f + 0.5f * (float)sim_rng_.range_int(0, 1000) / 1000.0f);
-		const float ang = fauna_.rot_y[i] + 2.0f * half;
+		ang += 2.0f * half;
 		fauna_.rot_y[i] = ang;
 		fauna_.vel_x[i] = det::sin(ang) * ri.speed;
 		fauna_.vel_z[i] = det::cos(ang) * ri.speed;
@@ -35454,6 +35473,8 @@ void Simulation::tick_fauna(float dt) {
 				fauna_.flee_distance[w] = fauna_.flee_distance[r]; fauna_.home_x[w] = fauna_.home_x[r]; fauna_.home_z[w] = fauna_.home_z[r];
 				fauna_.prev_x[w] = fauna_.prev_x[r]; fauna_.prev_z[w] = fauna_.prev_z[r];
 				fauna_owner_[w] = fauna_owner_[r];
+				fauna_roam_angle_[w] = fauna_roam_angle_[r];
+				fauna_start_angle_[w] = fauna_start_angle_[r];
 			}
 			++w;
 		}
@@ -35682,17 +35703,28 @@ float Simulation::treasure_reach(size_t i) const {
 			else if (std::strcmp(name, "ship_siege") == 0 || std::strcmp(name, "champion_juggernaut") == 0) m = 24.0f; // juggernaut: template_unit_ship_warship_siege
 		}
 	}
-	return m * 0.6f + 1.0f;
+	return m * 0.6f;
+}
+
+// TreasureCollector.IsTargetInRange: ObstructionManager IsInTargetRange measures from the
+// collector's obstruction to the treasure's Obstruction/Static rectangle, edge to edge.
+bool Simulation::treasure_within(size_t i, const Treasure &t, float reach) const {
+	const auto &ti = treasure_type_info(t.type);
+	float ux, uz;
+	bool swapped;
+	nav::footprint_axis(treasure_angle(t.id), ux, uz, swapped);
+	const float hu = (swapped ? ti.depth : ti.width) * 0.125f, hv = (swapped ? ti.width : ti.depth) * 0.125f;
+	const float dx = units_.pos_x[i] - t.x, dz = units_.pos_z[i] - t.z;
+	const float pu = std::max(0.0f, std::fabs(dx * ux + dz * uz) - hu), pv = std::max(0.0f, std::fabs(dz * ux - dx * uz) - hv);
+	const float r = reach + unit_collision_radius(units_.unit_type[i]);
+	return pu * pu + pv * pv <= r * r;
 }
 
 bool Simulation::treasure_in_reach(size_t i, uint32_t id) const {
 	const float reach = treasure_reach(i);
 	if (reach < 0.0f || units_.target_unit_id[i] != id || units_.pack_state[i] != PACK_NONE) return false;
 	for (const Treasure &t : treasures_)
-		if (t.id == id) {
-			const float dx = units_.pos_x[i] - t.x, dz = units_.pos_z[i] - t.z;
-			return dx * dx + dz * dz <= reach * reach;
-		}
+		if (t.id == id) return treasure_within(i, t, reach);
 	return false;
 }
 
@@ -35748,9 +35780,8 @@ void Simulation::tick_treasures(float dt) {
 		for (size_t k = 0; k < treasures_.size(); ++k) {
 			Treasure &t = treasures_[k];
 			if (t.id != tid) continue;
-			const float dx = units_.pos_x[i] - t.x, dz = units_.pos_z[i] - t.z;
 			const float reach = treasure_reach(i);
-			if (reach < 0.0f || units_.pack_state[i] != PACK_NONE || dx * dx + dz * dz > reach * reach) break;
+			if (reach < 0.0f || units_.pack_state[i] != PACK_NONE || !treasure_within(i, t, reach)) break;
 			// TreasureCollector.js: each collector in range runs its own CollectTime timer and the
 			// first to finish takes it. Collectors never pack, so pack_elapsed holds the timer.
 			collecting[i] = 1;
