@@ -49,6 +49,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_game_speed"), &RtsoMain::get_game_speed);
 	ClassDB::bind_method(D_METHOD("get_overlay_times"), &RtsoMain::get_overlay_times);
 	ClassDB::bind_method(D_METHOD("toggle_pause"), &RtsoMain::toggle_pause);
+	ClassDB::bind_method(D_METHOD("_refresh_menu_tooltip"), &RtsoMain::_refresh_menu_tooltip);
 	ClassDB::bind_method(D_METHOD("can_pause"), &RtsoMain::can_pause);
 	ClassDB::bind_method(D_METHOD("quicksave"), &RtsoMain::quicksave);
 	ClassDB::bind_method(D_METHOD("quickload"), &RtsoMain::quickload);
@@ -231,6 +232,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_add_xp", "ids", "xp"), &RtsoMain::debug_add_xp);
 	ClassDB::bind_method(D_METHOD("debug_diplomacy"), &RtsoMain::debug_diplomacy);
 	ClassDB::bind_method(D_METHOD("chat_open_page"), &RtsoMain::chat_open_page);
+	ClassDB::bind_method(D_METHOD("is_chat_open"), &RtsoMain::is_chat_open);
+	ClassDB::bind_method(D_METHOD("open_template_viewer", "kind", "id", "civ"), &RtsoMain::open_template_viewer);
 	ClassDB::bind_method(D_METHOD("debug_set_observer_view", "player"), &RtsoMain::debug_set_observer_view);
 	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);
 	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
