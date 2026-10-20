@@ -222,6 +222,9 @@ func _run() -> void:
 		if not saw_wait and str(st.get("net_status", "")) != "":
 			saw_wait = true
 			_say("waiting=%s %s" % [st.get("net_status", ""), st.get("net_loading", "")])
+			# PauseControl.canPause: no pause before the match is live (g_IsNetworkedActive).
+			if "Waiting for players" in str(st.get("net_status", "")):
+				_say("wait_can_pause=" + str(main.can_pause()))
 		if not saw_net_warning and str(st.get("net_warnings", "")) != "":
 			saw_net_warning = true
 			_say("net_warning=%s" % str(st.get("net_warnings", "")).replace("\n", " | "))
