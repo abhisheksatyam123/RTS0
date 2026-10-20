@@ -102,6 +102,7 @@ struct ProductionOrder {
 	uint8_t tech = TECH_NONE;   // the technology this item researches
 	bool started = false;       // Trainer.js Item.Start: the batch's population is reserved
 	uint8_t petra_plan = 0;     // PetraOrderPlan: what Petra queued the batch for (saved SAVE_VERSION_PETRA_ORDER_PLAN)
+	uint8_t batch = 0;          // the batch size queued (ProductionQueue.js originalItem.count) once part of it spawned; 0 = count
 	std::array<float, RES_COUNT> paid{}; // refunded when the item is removed (RemoveItem)
 	bool is_tech() const { return tech != TECH_NONE; }
 };
@@ -179,7 +180,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 101; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 102; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_AUTOQUEUE_BATCH = 102; // each queued batch's original size once part of it spawned
 	static constexpr uint32_t SAVE_VERSION_CARCASS_OWNER = 101; // each carcass's animal's owner
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
 	static constexpr uint32_t SAVE_VERSION_TRADE_ROUTE = 99; // each trader's route waypoints and leg progress (SetupTradeRoute route, reversed on the way back)
@@ -570,6 +572,7 @@ public:
 			TEXT_UNLOAD_FAILED,        // Commands.js notifyUnloadFailure: "Unable to unload unit(s)."
 			TEXT_BACK_TO_WORK_FAILED,  // notifyBackToWorkFailure: "Some unit(s) can't go back to work"
 			TEXT_NO_BRIBABLE,          // Commands.js spy-request: "There are no bribable units"
+			TEXT_INSUFFICIENT_RESOURCES, // Player.js SubtractResourcesOrNotify: amounts[] per resource missing
 		};
 		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
