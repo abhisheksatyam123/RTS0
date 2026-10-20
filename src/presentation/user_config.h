@@ -18,6 +18,8 @@
 namespace rtso {
 namespace user_config {
 
+// Android and iOS, or -mobiledefaults: the phone defaults replace a few of 0 A.D.'s.
+bool mobile_defaults();
 // 0 A.D. default.cfg value of a known key ("" for an unknown one).
 const char *default_value(const std::string &key);
 // The user's value, else the default.

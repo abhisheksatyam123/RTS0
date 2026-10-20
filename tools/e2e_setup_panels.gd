@@ -48,9 +48,10 @@ func run() -> void:
 	page._slot_rows[1]["team"] = 2
 	page.refresh_slots()
 	await frames(2)
-	var civs: Button = page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/ResetCivs")
-	var teams: Button = page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/ResetTeams")
+	var civs: TextureButton = page.get_node("VBox/HBox/Right/SlotsBox/SlotsHeader/ResetCivs")
+	var teams: TextureButton = page.get_node("VBox/HBox/Right/SlotsBox/SlotsHeader/ResetTeams")
 	check(civs.visible and teams.visible and civs.tooltip_text == "Reset any civilizations that have been selected to the default (random).", "both buttons on a random map")
+	check(civs.texture_normal != null and civs.texture_hover != null and civs.size == Vector2(16, 16), "iconResetGold IconButtons, white on hover")
 	civs.pressed.emit()
 	await frames(2)
 	check(page._slot_rows.slice(0, 2).all(func(r): return int(r["civ"]) == page.RANDOM_CIV), "Reset Civs: every civ Random")
@@ -172,6 +173,11 @@ func run() -> void:
 	check(opt.call("PopCapTypeSlot").get_item_tooltip(2) == "Distributes the total population cap evenly over all living players.", "population cap types")
 	check(opt.call("MapTypeSlot").get_item_tooltip(2) == "A map with a predefined landscape and matchsettings.", "map types")
 	check(opt.call("MapFilterSlot").get_item_tooltip(0) == "All maps except naval and demo maps.", "map filters")
+	check(opt.call("MapTypeSlot").tooltip_text == "Select a map type." and opt.call("MapFilterSlot").tooltip_text == "Select a map filter."
+		and page.get_node("%MapSizeLabel").tooltip_text == "Select map size. (Larger sizes may reduce performance.)"
+		and page.get_node("%CeasefireLabel").tooltip_text == "Set time where no attacks are possible."
+		and page.get_node("%ResLabel").tooltip_text == "Select the game's starting resources.",
+		"setTooltip: the setting's own tooltip on the control and its title, the hovered item's in the list")
 	var civ_opts: Array = page._slots_grid().find_children("*", "RtsoSafeSelect", true, false).filter(func(o): return o.get_item_count() > 10 and o.get_item_text(0) == "Random")
 	check(not civ_opts.is_empty() and civ_opts[0].get_item_tooltip(0) == "Picks one civilization at random when the game starts."
 		and civ_opts[0].get_item_tooltip(1).length() > 40, "civs: Random, then each civ's History (%s…)" % (civ_opts[0].get_item_tooltip(1).substr(0, 40) if civ_opts else ""))

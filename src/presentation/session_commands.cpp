@@ -47,6 +47,14 @@ bool RtsoMain::selection_can_garrison(uint32_t building_id) const {
 	if (!sim) return false;
 	for (int s = 0; s < selected_ids.size(); ++s)
 		if (sim->can_garrison_in((uint32_t)(int64_t)selected_ids[s], building_id)) return true;
+	// Own livestock into the player's own or a mutual ally's corral (GarrisonHolder List Animal).
+	for (int s = 0; s < selected_ids.size(); ++s)
+		if (sim->fauna_selectable_by(local_player(), (uint32_t)(int64_t)selected_ids[s])) {
+			for (const auto &b : sim->buildings())
+				if (b.id == building_id)
+					return b.type == rtso::BLD_CORRAL && !b.wrecked && b.build_progress >= 1.0f && sim->is_ally(b.team, local_player());
+			return false;
+		}
 	return false;
 }
 
@@ -110,7 +118,7 @@ void RtsoMain::rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld, 
 	for (size_t f = 0; f < fv.count; ++f) {
 		if (!fv.alive[f] || fv.food_amount[f] <= 0 || fv.behavior[f] == rtso::FAUNA_CORRALLED) continue;
 		const float dx = fv.pos_x[f] - at.x, dz = fv.pos_z[f] - at.z, d2 = dx * dx + dz * dz;
-		if (d2 >= best_f || !rtso::los_sees_fauna(*sim, view_player(), fv.pos_x[f], fv.pos_z[f], fv.owner[f])) continue;
+		if (d2 >= best_f || !rtso::los_sees_fauna(*sim, view_player(), fv.pos_x[f], fv.pos_z[f], fv.owner[f], fv.fauna_type[f])) continue;
 		best_f = d2;
 		ent_id = (uint32_t)fv.fauna_type[f] + 1;
 	}
@@ -222,7 +230,7 @@ void RtsoMain::_on_ungarrison_pressed() {
 				if (turn_cmds())
 					post_lockstep(13, &tid, 1, 0, 0, 0, 1);
 				else
-					sim->order_disembark_all(tid);
+					sim->order_disembark_all(tid, local_player());
 			}
 		}
 	}
@@ -282,13 +290,15 @@ void RtsoMain::_on_entity_command(const String &name) {
 			sim->cmd_stop(ids, n);
 			sim->order_fauna_stop(local_player(), ids, n);
 		}
-	} else if (name == "back-to-work") { // backToWork
-		if (n == 0) return;
+	} else if (name == "back-to-work") { // backToWork: only the units with work orders (hasWorkOrders)
+		std::vector<uint32_t> workers;
+		for (size_t k = 0; k < n; ++k)
+			if (sim->unit_has_work_order(ids[k])) workers.push_back(ids[k]);
+		if (workers.empty()) return;
 		if (turn_cmds())
-			post_lockstep(31, ids, n);
+			post_lockstep(31, workers.data(), workers.size());
 		else
-			sim->order_back_to_work(ids, n);
-		play_civ_voice("gather");
+			sim->order_back_to_work(workers.data(), workers.size());
 	} else if (name == "call-to-arms") {
 		_on_call_to_arms_pressed();
 	} else if (name == "garrison") {
@@ -323,10 +333,28 @@ void RtsoMain::_on_entity_command(const String &name) {
 	} else if (name == "select-trading-goods") {
 		_toggle_session_dialog("BarterDialog");
 	} else if (name == "focus-rally") {
-		// The first rally point, else the structure itself.
-		for (const auto &b : sim->buildings())
-			if (b.id == selected_building_id && cam_rig) {
-				cam_rig->set_target_pos(b.has_rally_point ? Vector3(b.rally_x, 0, b.rally_z) : Vector3(b.x, 0, b.z));
+		// The first selected entity with a rally point, else the first one's position.
+		if (!cam_rig) return;
+		const std::vector<uint32_t> structs = selected_structures();
+		const auto &bs = sim->buildings();
+		auto find_b = [&](uint32_t id) -> const rtso::Simulation::Building * {
+			for (const auto &b : bs)
+				if (b.id == id) return &b;
+			return nullptr;
+		};
+		for (uint32_t id : structs)
+			if (const auto *b = find_b(id); b && b->has_rally_point) {
+				cam_rig->set_target_pos(Vector3(b->rally_x, 0, b->rally_z));
+				return;
+			}
+		if (!structs.empty()) {
+			if (const auto *b = find_b(structs[0])) cam_rig->set_target_pos(Vector3(b->x, 0, b->z));
+			return;
+		}
+		auto uv = sim->units();
+		for (size_t i = 0; n > 0 && i < uv.count; ++i)
+			if (uv.id[i] == ids[0]) {
+				cam_rig->set_target_pos(Vector3(uv.pos_x[i], 0, uv.pos_z[i]));
 				break;
 			}
 	}
@@ -337,12 +365,26 @@ void RtsoMain::_on_entity_command(const String &name) {
 // DeleteSelectionConfirmation unless session.noconfirmation is held.
 void RtsoMain::request_delete() {
 	delete_pending_.clear();
-	for (int s = 0; s < selected_ids.size(); ++s) delete_pending_.push_back(selected_ids[s]);
-	const std::vector<uint32_t> structs = selected_structures();
 	const bool control_all = sim->controls_all(local_player()); // unit_actions.js "delete": no checks with controlsAll
+	// isUndeletable: the catafalque and other Identity/Undeletable units, and livestock
+	// (KillBeforeGather) stay out, so nothing deletable asks for no confirmation.
+	auto uv = sim->units();
+	for (int s = 0; s < selected_ids.size(); ++s) {
+		const uint32_t id = (uint32_t)selected_ids[s];
+		bool keep = control_all;
+		if (!keep)
+			for (size_t i = 0; i < uv.count; ++i)
+				if (uv.id[i] == id) {
+					keep = uv.unit_type[i] != rtso::UNIT_CATAFALQUE && !sim->undeletable_unit(id);
+					break;
+				}
+		if (keep) delete_pending_.push_back((int32_t)id);
+	}
+	const std::vector<uint32_t> structs = selected_structures();
 	for (const auto &b : sim->buildings())
 		if (std::find(structs.begin(), structs.end(), b.id) != structs.end() &&
-				(control_all || (b.team == local_player() && !(b.max_capture_points > 0.0f &&
+				(control_all || (b.team == local_player() && rtso::structure_has_health(b.type) &&
+				!(b.max_capture_points > 0.0f && b.build_progress >= 1.0f &&
 				b.capture_points_by_team[b.team] < b.max_capture_points * 0.5f))))
 			delete_pending_.push_back((int32_t)b.id);
 	if (delete_pending_.is_empty()) return;
@@ -533,9 +575,21 @@ void RtsoMain::_on_gate_lock_pressed(int lock) {
 // 0 A.D. ProductionQueue.js EnableAutoQueue / DisableAutoQueue through lockstep command 44,
 // on every selected structure that trains.
 void RtsoMain::_on_autoqueue_pressed(int on) {
-	if (selected_building_id == 0) return;
-	for (uint32_t id : selected_structures()) {
-		if (!building_trains_units(id)) continue;
+	std::vector<uint32_t> targets;
+	if (selected_building_id != 0) {
+		for (uint32_t id : selected_structures())
+			if (building_trains_units(id)) targets.push_back(id);
+	} else {
+		// Units that train (Cyrus II, the trainer ships) have the same ProductionQueue.
+		auto uview = sim->units();
+		for (int s = 0; s < selected_ids.size(); ++s)
+			for (size_t u = 0; u < uview.count; ++u)
+				if (uview.id[u] == (uint32_t)selected_ids[s]) {
+					if (uview.team[u] == local_player() && rtso::Simulation::unit_trains_units(uview.tmpl[u])) targets.push_back(uview.id[u]);
+					break;
+				}
+	}
+	for (uint32_t id : targets) {
 		if (turn_cmds())
 			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_AUTOQUEUE, nullptr, 0, 0, 0, id, on ? 1 : 0);
 		else

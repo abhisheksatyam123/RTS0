@@ -8006,7 +8006,7 @@ void RmsGenerator::synth_arctic_summer(HeightmapGrid &hm, RmsRng &rng, float &wa
 	// 8), scaleByMapSize(40, 180))), bumps, and lots of game (wolves, deer,
 	// hares, muskox: see distribute_wildlife). RTS0 keeps lakes 24 from the
 	// bases (its base layout is larger) and drops a lake that would cut a
-	// base off; whales and the starting wood treasures are left out.
+	// base off. Its whales and fish are placed by distribute_fish.
 	water_h = 1.0f;
 	const float half = hm.map_half;
 	const float land = metres(water_h, 2.0f);
@@ -13516,13 +13516,15 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 	// stayClasses(clWater, water) margin, avoidClasses(clFood, spacing) and,
 	// for Corsica's shore fish, land within shore tiles. `retry` is createObjectGroups'
 	// retryFactor; 0 is createObjectGroupsDeprecated (createFood), which makes exactly
-	// `groups` tries and keeps the ones that fit.
+	// `groups` tries and keeps the ones that fit. `fauna` places that sea creature (a
+	// whale) instead of a fish; whales mark clFood like fish, so passes keep their order.
 	struct FishPass {
 		int groups, min_n, max_n;
 		int water;
 		float spacing, spread;
 		int shore;
 		int retry = 40;
+		uint8_t fauna = 0xFF;
 	};
 	std::vector<FishPass> passes;
 	const int players = std::max(1, config.num_players);
@@ -13594,6 +13596,36 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 			break;
 		case MAP_ALPINE_LAKES: // alpine_lakes.js: 20 * numPlayers, clWater 2, clFood 8
 			passes.push_back({20 * players, 2, 3, 2, 8.0f, 2.0f, 0, 0});
+			break;
+		case MAP_ARCTIC_SUMMER:
+			// arctic_summer.js: createFood of 3 * numPlayers single fin whales, then as many
+			// humpbacks (0-3 off the tile), stayClasses(clWater, 6), avoidClasses(clFood, 20);
+			// then 25 * numPlayers groups of 2-3 fish, clWater 6, clFood 10.
+			passes.push_back({3 * players, 1, 1, 6, 20.0f, 3.0f, 0, 0, FAUNA_WHALE_FIN});
+			passes.push_back({3 * players, 1, 1, 6, 20.0f, 3.0f, 0, 0, FAUNA_WHALE_HUMPBACK});
+			passes.push_back({25 * players, 2, 3, 6, 10.0f, 2.0f, 0, 0});
+			break;
+		case MAP_POLAR_SEA:
+			// polar_sea.js: createFood of scaleByMapSize(1, 6) * 3 groups of 1-2 fin whales,
+			// then as many humpbacks (0-2 apart), clWater 6, clFood 20; then 100 groups of
+			// 2-3 fish, clWater 6, clFood 12. (Its clHill 5 lies on land, past clWater 6.)
+			passes.push_back({(int)std::ceil(sbms(1.0f, 6.0f) * 3.0f), 1, 2, 6, 20.0f, 2.0f, 0, 0, FAUNA_WHALE_FIN});
+			passes.push_back({(int)std::ceil(sbms(1.0f, 6.0f) * 3.0f), 1, 2, 6, 20.0f, 2.0f, 0, 0, FAUNA_WHALE_HUMPBACK});
+			passes.push_back({100, 2, 3, 6, 12.0f, 2.0f, 0, 0});
+			break;
+		case MAP_CYCLADIC_ARCHIPELAGO:
+			// cycladic_archipelago.js: scaleByMapSize(100, 250) single fish 0-3 off the tile,
+			// stayClasses(clWater, 1), clFood 8; then scaleByMapSize(10, 40) humpbacks the same,
+			// also avoiding the islands (clIsland, clPlayer) by 4.
+			passes.push_back({(int)std::ceil(sbms(100.0f, 250.0f)), 1, 1, 1, 8.0f, 3.0f, 0, 0});
+			passes.push_back({(int)std::ceil(sbms(10.0f, 40.0f)), 1, 1, 4, 8.0f, 3.0f, 0, 0, FAUNA_WHALE_HUMPBACK});
+			break;
+		case MAP_ISLAND_STRONGHOLD:
+			// island_stronghold.js: 25 * numPlayers groups of 2-3 fish, avoidClasses(clLand, 4,
+			// clFood, 20), retryFactor 60; then scaleByMapSize(5, 20) single humpbacks 0-3 off
+			// the tile, clLand 4, clFood 8.
+			passes.push_back({25 * players, 2, 3, 4, 20.0f, 2.0f, 0, 0});
+			passes.push_back({(int)std::ceil(sbms(5.0f, 20.0f)), 1, 1, 4, 8.0f, 3.0f, 0, 0, FAUNA_WHALE_HUMPBACK});
 			break;
 		default:
 			passes.push_back({(int)std::lround(sbms(15.0f, 50.0f)), 2, 3, 2, 20.0f, 2.0f, 0});
@@ -13678,7 +13710,8 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 			}
 			++placed;
 			for (const auto &g : group) {
-				sim.spawn_resource_world(g.first, g.second, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+				if (f.fauna != 0xFF) sim.spawn_fauna(g.first, g.second, f.fauna);
+				else sim.spawn_resource_world(g.first, g.second, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
 				food.push_back({(int)std::floor(g.first + half), (int)std::floor(g.second + half)});
 			}
 		}
@@ -13733,7 +13766,7 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 	for (size_t i = 0; i < fv.count; ++i) {
 		if (!fv.alive[i] || fauna_type_info(fv.fauna_type[i]).food_amount <= 0) continue;
 		food.push_back({fv.pos_x[i], fv.pos_z[i]});
-		if (i >= base_fauna) ++have_hunt;
+		if (i >= base_fauna && !fauna_type_info(fv.fauna_type[i]).is_naval()) ++have_hunt; // whales are not land hunt
 	}
 
 	RmsRng rng(config.seed ^ 0x52535243u); // 'RSRC'
@@ -13797,8 +13830,9 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 		}
 	}
 
-	// Fruit: berry bushes in clusters of 5 (the scripts' SimpleObject(oFruitBush, 5, 5, 0, 3)),
-	// fruit trees in clusters of 2-4, each kind by its share of the script's fruit.
+	// Fruit: berry bushes in clusters of 5-7 within 4 tiles (createFood's SimpleObject(oFruitBush,
+	// 5, 7, 0, 4) in most 0.28 scripts), fruit trees in clusters of 2-4, each kind by its share of
+	// the script's fruit.
 	// A script on a generic biome was measured on temperate, whose tree3 is the apple
 	// (rmbiome/generic/temperate.json). On any other generic biome tree3 is a plain tree, so
 	// its fruit here is the biome's fruitBush alone, left unnamed for plant_flora, without
@@ -13826,42 +13860,48 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 		float x, z;
 		if (flora == FLORA_COUNT || !pick(kBaseGap, food, 10.0f, x, z)) break;
 		food.push_back({x, z});
-		const int n = std::min(fruit_left, flora == FLORA_BERRY ? 5 : rng.range_int(2, 4));
+		const bool berries = flora == FLORA_BERRY;
+		const int n = std::min(fruit_left, berries ? rng.range_int(5, 7) : rng.range_int(2, 4));
 		int placed = 0;
 		for (int i = 0; i < n; ++i) {
-			const float a = rng.range_float(0.0f, 6.2831853f), r = i ? rng.range_float(1.0f, 3.0f) : 0.0f;
+			const float a = rng.range_float(0.0f, 6.2831853f);
+			const float r = i ? rng.range_float(1.0f, berries ? 4.0f : 3.0f) : 0.0f;
 			placed += place(x + det::cos(a) * r, z + det::sin(a) * r, RES_FOOD, generic ? 200 : k->amount, generic ? FLORA_DEFAULT : flora);
 		}
 		fruit_left -= std::max(placed, 1);
 	}
 
-	// Hunt: herds of 3-6 (predators and other dangerous animals alone or in pairs), each
-	// herd one of the script's species by share; a generic-biome script's animals are
-	// the biome's (main hunt twice as often as the secondary), as when the game setup
-	// picks another biome.
+	// Hunt: each herd one of the script's species by share; a generic-biome script's animals
+	// are the biome's (main hunt twice as often as the secondary), as when the game setup picks
+	// another biome. 0.28's createFood herds: the main hunt 5-7 within 4 tiles, the secondary
+	// 2-3 within 2 (mainland.js and the like); dangerous animals alone or in pairs.
 	const bool own_kinds = rc->hunt_kinds[0].name && sim.map_biome_pick(config.map_type) < 0;
 	int hunt_left = target(rc->hunt) - have_hunt;
 	for (int herd = 0; hunt_left > 0; ++herd) {
 		uint8_t ftype = FAUNA_COUNT;
+		bool main_hunt = true; // the script's largest share, or the biome's main hunt
 		if (own_kinds) {
 			int roll = rng.range_int(1, 100);
+			int kind = 0;
 			for (const auto &k : rc->hunt_kinds) {
 				if (!k.name) break;
 				ftype = fauna_type_by_name(k.name);
+				main_hunt = kind++ == 0;
 				if ((roll -= k.percent) <= 0) break;
 			}
 		}
 		if (ftype >= FAUNA_COUNT) {
 			const BiomeFauna bf = biome_fauna(config.biome, herd);
-			ftype = herd % 3 == 2 ? bf.secondary_hunt : bf.main_hunt;
+			main_hunt = herd % 3 != 2;
+			ftype = main_hunt ? bf.main_hunt : bf.secondary_hunt;
 		}
 		const FaunaTypeInfo &fi = fauna_type_info(ftype);
 		float x, z;
 		if (!pick(kBaseGap, food, 10.0f, x, z)) break;
 		food.push_back({x, z});
-		const int n = std::min(hunt_left, fi.is_dangerous() ? rng.range_int(1, 2) : rng.range_int(3, 6));
+		const int n = std::min(hunt_left, fi.is_dangerous() ? rng.range_int(1, 2) : main_hunt ? rng.range_int(5, 7) : rng.range_int(2, 3));
 		for (int i = 0; i < n; ++i) {
-			const float a = 6.2831853f * (float)i / (float)n, r = rng.range_float(1.0f, 3.0f);
+			const float a = 6.2831853f * (float)i / (float)n, r = rng.range_float(1.0f, main_hunt ? 4.0f : 2.0f);
 			sim.spawn_fauna(x + det::cos(a) * r, z + det::sin(a) * r, ftype);
 		}
 		hunt_left -= n;

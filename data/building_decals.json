@@ -3906,6 +3906,20 @@
     "tex": "decal_struct_sand_large"
    }
   ],
+  "s_carthaginians_scout_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0142,
+     0.0154
+    ],
+    "size": [
+     2.3408,
+     2.3408
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
   "s_carthaginians_stable": [
    {
     "angle": 0.0,
@@ -4170,6 +4184,20 @@
     "tex": "decal_struct_sand_small"
    }
   ],
+  "s_hellenes_scout_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0059,
+     0.0707
+    ],
+    "size": [
+     1.7942,
+     1.7942
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
   "s_hellenes_wooden_tower": [
    {
     "angle": 0.0,
@@ -4238,6 +4266,20 @@
      1.9799
     ],
     "tex": "decal_struct_sand_small"
+   }
+  ],
+  "s_iberians_scout_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0021,
+     0.0447
+    ],
+    "size": [
+     1.8726,
+     1.8726
+    ],
+    "tex": "decal_struct_sand_medium"
    }
   ],
   "s_iberians_stable": [
@@ -4552,6 +4594,20 @@
     "tex": "decal_struct_sand_medium"
    }
   ],
+  "s_ptolemies_defense_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0,
+     0.0577
+    ],
+    "size": [
+     3.6476,
+     3.6476
+    ],
+    "tex": "spart_1x1_decal"
+   }
+  ],
   "s_ptolemies_kiosk": [
    {
     "angle": 0.0,
@@ -4734,6 +4790,32 @@
     "tex": "decal_struct_sand_large"
    }
   ],
+  "s_romans_scout_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0676,
+     -0.1719
+    ],
+    "size": [
+     1.6472,
+     1.6472
+    ],
+    "tex": "decal_struct_sand_small"
+   },
+   {
+    "angle": 0.0,
+    "pos": [
+     0.0676,
+     -0.1719
+    ],
+    "size": [
+     1.6472,
+     1.6472
+    ],
+    "tex": "decal_struct_sand_small"
+   }
+  ],
   "s_romans_stable": [
    {
     "angle": 0.0,
@@ -4830,6 +4912,20 @@
      4.9569
     ],
     "tex": "decal_struct_sand_large"
+   }
+  ],
+  "s_seleucids_scout_tower": [
+   {
+    "angle": 0.0,
+    "pos": [
+     -0.0014,
+     0.0269
+    ],
+    "size": [
+     3.4391,
+     3.4391
+    ],
+    "tex": "decal_struct_sand_medium"
    }
   ],
   "s_seleucids_stable": [

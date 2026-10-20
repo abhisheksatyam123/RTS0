@@ -149,6 +149,23 @@ const Default kDefaults[] = {
 };
 constexpr int kDefaultCount = (int)(sizeof(kDefaults) / sizeof(kDefaults[0]));
 
+// Android and iOS (or -mobiledefaults): phones start on the cheapest look and a 30 fps
+// cap to save battery. Under GL Compatibility the 3D resolution and shadows cost most
+// (a match on llvmpipe at 1280x720: scale 0.75 -20%, shadows -10% and a third of the
+// draws, post-processing -6%); FSR is Forward+ only. Desktop keeps 0 A.D.'s defaults.
+const Default kMobileDefaults[] = {
+	{"shadows", "false"},
+	{"postproc", "false"},
+	{"particles", "false"},
+	{"renderer.scale", "0.75"},
+	{"renderer.upscale.technique", "bilinear"},
+	{"waterreflection", "false"},
+	{"waterrefraction", "false"},
+	{"textures.maxanisotropy", "1"},
+	{"adaptivefps.menu", "30"},
+	{"adaptivefps.session", "30"},
+};
+
 struct State {
 	bool loaded = false;
 	std::map<std::string, std::string> values; // user values for known keys
@@ -158,6 +175,7 @@ struct State {
 	bool command_parsed = false;
 	std::map<std::string, std::string> command;
 	bool audio_disabled = false; // g_DisableAudio: -nosound or -quickstart
+	bool mobile_defaults = false; // -mobiledefaults: the phone defaults on any platform
 };
 
 State &state() {
@@ -182,6 +200,8 @@ void parse_command_args(State &s, const PackedStringArray &args) {
 			s.command[name] = "true";
 		} else if ((name == "xres" || name == "yres") && !value.empty()) {
 			s.command[name] = value;
+		} else if (name == "mobiledefaults") {
+			s.mobile_defaults = true;
 		} else if (name == "nosound" || name == "quickstart") {
 			s.audio_disabled = true;
 		} else if (name == "mod" && !value.empty()) {
@@ -260,7 +280,15 @@ void ensure_loaded() {
 
 } // namespace
 
+bool mobile_defaults() {
+	parse_command(state());
+	return state().mobile_defaults || OS::get_singleton()->has_feature("mobile");
+}
+
 const char *default_value(const std::string &key) {
+	if (mobile_defaults())
+		for (const Default &d : kMobileDefaults)
+			if (key == d.key) return d.value;
 	for (int i = 0; i < kDefaultCount; ++i)
 		if (key == kDefaults[i].key) return kDefaults[i].value;
 	return "";
@@ -309,6 +337,7 @@ void set_command_args(const PackedStringArray &args) {
 	s.command_parsed = true;
 	s.command.clear();
 	s.audio_disabled = false;
+	s.mobile_defaults = false;
 	parse_command_args(s, args);
 	++s.generation;
 }

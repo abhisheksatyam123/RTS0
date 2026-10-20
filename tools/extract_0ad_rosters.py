@@ -39,8 +39,8 @@ The 0.28 regen runs --keep-trainers --previous-0ad with --append taking the row 
 /mnt/project-files/d-civ-rosters/roster-append-028.txt followed by
 ",rome/champion_infantry_swordsman_02,rome/champion_infantry_swordsman_03,
 rome/champion_infantry_swordsman_04,rome/champion_infantry_swordsman_05,athen/hero_xenophon,
-spart/hero_leonidas_300,pers/arstibara,han/siege_shoushe" (rows 507-514, added after that
-file was last written) and --retire the patterns in roster-retire-028.txt.
+spart/hero_leonidas_300,pers/arstibara,han/siege_shoushe,plane" (rows 507-514 and 544, added
+after that file was last written) and --retire the patterns in roster-retire-028.txt.
 """
 
 import argparse
@@ -551,7 +551,8 @@ def raw_stats(t):
         carry = max([_safe(c.text) for c in caps.children.values()] or [0.0])
     return {
         "hp": t.num("Health/Max"),
-        "speed": t.num("UnitMotion/WalkSpeed"),
+        # UnitMotionFlying.GetWalkSpeed is its MaxSpeed (units/plane).
+        "speed": t.num("UnitMotion/WalkSpeed") or t.num("UnitMotionFlying/MaxSpeed"),
         "vision": t.num("Vision/Range"),
         "range": rng,
         "damage": hack + pierce + crush + fire,
@@ -625,6 +626,10 @@ def rts0_class(name, t, civ):
     """RTS0 UnitType for a 0 A.D. unit template, or None to leave it out."""
     c = classes_of(t)
     stem = name.rsplit("/", 1)[-1]
+    if t.value("UnitMotionFlying/MaxSpeed", ""):
+        # units/plane (Flight Demo's P-51): no classes of its own; a ranged engine that neither
+        # packs, gathers nor promotes, so the bolt shooter's class, flagged ROSTER_FLYING.
+        return "UNIT_BOLT_SHOOTER"
     if "Minister" in c:
         return "UNIT_MINISTER"  # units/han/support_minister
     if "Relic" in c:
@@ -1156,7 +1161,7 @@ MAP_ROWS = (
     "units/rome/champion_infantry_swordsman_02", "units/rome/champion_infantry_swordsman_03",
     "units/rome/champion_infantry_swordsman_04", "units/rome/champion_infantry_swordsman_05",
     "units/spart/champion_infantry_pike", "units/spart/hero_leonidas_300",
-    "units/merc_black_cloak", "units/noldor_warship",
+    "units/merc_black_cloak", "units/noldor_warship", "units/plane",
     "units/pirates/ship_arrow", "units/pirates/ship_merchant", "units/pirates/ship_scout",
     "units/samnite_skirmisher", "units/samnite_spearman", "units/samnite_swordsman",
     "units/viking_longship",
@@ -1407,6 +1412,8 @@ def collect(sim_root):
                 flags.append("ROSTER_PACKABLE")  # 0 A.D. Pack: unpack before firing, pack to move
             if "SiegeTower" in c:
                 flags.append("ROSTER_SIEGE_TOWER")
+            if t.value("UnitMotionFlying/MaxSpeed", ""):
+                flags.append("ROSTER_FLYING")  # UnitMotionFlying: takes off, flies over everything, lands
             if name in map_only:
                 flags.append("ROSTER_MAP_ONLY")  # MAP_ROWS: only maps place it
             if "Relic" in c:
@@ -1962,26 +1969,6 @@ def emit_buildings(rows, generic_masks, upgrades=()):
     for r in rows:
         w("\t\tcase %s: return %d;" % (r["enum"], r["phase"]))
     w("\t\tdefault: return 0;")
-    w("\t}")
-    w("}")
-    w("")
-    w("// TerritoryInfluence radius of a civ-specific territory root (0 = not a root).")
-    w("inline float civ_building_territory_radius(uint8_t type) {")
-    w("\tswitch (type) {")
-    for r in rows:
-        if r["territory"] > 0:
-            w("\t\tcase %s: return %s;" % (r["enum"], f(round(r["territory"], 1))))
-    w("\t\tdefault: return 0.0f;")
-    w("\t}")
-    w("}")
-    w("")
-    w("// Vision range of a civ-specific structure (0 = the default structure vision).")
-    w("inline float civ_building_vision(uint8_t type) {")
-    w("\tswitch (type) {")
-    for r in rows:
-        if r["vision"] > 18.0:
-            w("\t\tcase %s: return %s;" % (r["enum"], f(round(r["vision"], 1))))
-    w("\t\tdefault: return 0.0f;")
     w("\t}")
     w("}")
     w("")

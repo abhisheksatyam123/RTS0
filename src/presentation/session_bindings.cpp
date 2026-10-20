@@ -209,6 +209,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_camera"), &RtsoMain::debug_camera);
 	ClassDB::bind_method(D_METHOD("notify_attack", "pos", "attacker", "structure", "target"), &RtsoMain::notify_attack, DEFVAL(0));
 	ClassDB::bind_method(D_METHOD("debug_unit_screen", "unit_id"), &RtsoMain::debug_unit_screen);
+	ClassDB::bind_method(D_METHOD("debug_armed"), &RtsoMain::debug_armed);
+	ClassDB::bind_method(D_METHOD("debug_unit_pos", "unit_id"), &RtsoMain::debug_unit_pos);
 	ClassDB::bind_method(D_METHOD("debug_resource_screen", "resource_id"), &RtsoMain::debug_resource_screen);
 	ClassDB::bind_method(D_METHOD("debug_unit_ground", "unit_id", "goal"), &RtsoMain::debug_unit_ground, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("debug_right_line"), &RtsoMain::debug_right_line);
@@ -221,7 +223,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
 	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count", "player"), &RtsoMain::debug_spawn_units, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("debug_spawn_offset", "template_id", "count", "player"), &RtsoMain::debug_spawn_offset, DEFVAL(-1));
-	ClassDB::bind_method(D_METHOD("debug_spawn_fauna", "fauna_type", "count", "owned"), &RtsoMain::debug_spawn_fauna);
+	ClassDB::bind_method(D_METHOD("debug_spawn_fauna", "fauna_type", "count", "owned", "dx", "dz"), &RtsoMain::debug_spawn_fauna, DEFVAL(16.0f), DEFVAL(16.0f));
 	ClassDB::bind_method(D_METHOD("debug_spawn_mine", "x", "z", "max_gatherers"), &RtsoMain::debug_spawn_mine);
 	ClassDB::bind_method(D_METHOD("debug_unit_model_path", "civ", "unit_type"), &RtsoMain::debug_unit_model_path);
 	ClassDB::bind_method(D_METHOD("debug_template_model_path", "template_id"), &RtsoMain::debug_template_model_path);
@@ -246,6 +248,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_set_observer_view", "player"), &RtsoMain::debug_set_observer_view);
 	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);
 	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
+	ClassDB::bind_method(D_METHOD("debug_set_rally", "building_id", "x", "z"), &RtsoMain::debug_set_rally);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_spy_pressed", "player_idx"), &RtsoMain::_on_diplo_spy_pressed);
