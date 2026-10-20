@@ -2299,10 +2299,14 @@ CheckBox *RtsoMain::new_follow_player_box() {
 	return box;
 }
 
-// The player an observer or replay viewer is watching, or -1 (Observer, Gaia, or playing).
+// The player an observer or replay viewer is watching (GAIA_PLAYER for Gaia), or -1
+// (Observer, or playing). FollowPlayer.js hides the box for Observer only: "Following
+// gaia can be interesting on scripted maps".
 int RtsoMain::followed_view() const {
-	if (turn_mgr_.is_replaying()) return replay_view_ < rtso::MAX_PLAYERS ? (int)replay_view_ : -1;
-	if (spectating()) return observer_view_ < rtso::MAX_PLAYERS ? (int)observer_view_ : -1;
+	if (turn_mgr_.is_replaying())
+		return replay_view_gaia_ ? (int)rtso::GAIA_PLAYER : replay_view_ < rtso::MAX_PLAYERS ? (int)replay_view_ : -1;
+	if (spectating())
+		return observer_view_gaia_ ? (int)rtso::GAIA_PLAYER : observer_view_ < rtso::MAX_PLAYERS ? (int)observer_view_ : -1;
 	return -1;
 }
 

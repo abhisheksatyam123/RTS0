@@ -71,6 +71,9 @@ func run() -> void:
 	f = m.get_replay_status().follow_player
 	check(f.selected.has(unit), "the replayed order selects the ordered unit")
 	check(int(f.camera_follows) == unit, "the camera follows it: %s vs %d" % [str(f.camera_follows), unit])
+	m.set_replay_view(254) # Gaia
+	await frames(2)
+	check(m.get_replay_status().follow_player.visible, "viewing Gaia keeps it (FollowPlayer.js hides it for Observer only)")
 	m.set_replay_view(-1)
 	await frames(2)
 	check(not m.get_replay_status().follow_player.visible, "back to Observer hides it")
