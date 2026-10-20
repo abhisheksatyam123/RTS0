@@ -4315,10 +4315,16 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		v.rank_icon->set_visible(false);
 	}
 
+	// Release the slots of units not drawn close up this frame. A slot already released keeps its
+	// old stamp and sim id, so only the slot the id still maps to is released: a second release
+	// would list it twice in unit_free (two units then share one model and rebuild it every
+	// frame), and would drop the id's mapping to the slot it has taken since.
 	for (size_t s = 0; s < unit_pool.size(); ++s) {
 		if (unit_pool[s].root && unit_pool[s].vis_stamp != unit_vis_stamp) {
+			auto it = unit_slot.find(unit_pool[s].sim_id);
+			if (it == unit_slot.end() || it->second != s) continue;
 			hide_unit_vis(unit_pool[s]);
-			unit_slot.erase(unit_pool[s].sim_id);
+			unit_slot.erase(it);
 			unit_free.push_back(s);
 		}
 	}
