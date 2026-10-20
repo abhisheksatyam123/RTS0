@@ -89,6 +89,14 @@ What each target needs on the host, beyond Godot 4.3-stable, its export template
   `tools/e2e_touch_input.gd` checks the gestures and `tools/e2e_touch_match.gd` plays a match by touch
   (select, orders, camera, minimap, placing a House), both headless; pass `-- --touch-input` to try it on
   a desktop touch screen.
+- **Phone screens.** On a phone (a mobile screen under 7.5 inches across, or `-- --phone-ui` on a
+  desktop) `scenes/menu/user_settings.gd` enlarges the whole UI so the layout is at least 1200x540 UI
+  pixels: 1.33x on 2400x1080 and 1600x720 phones, on top of the GUI scale option. Tablets and desktops
+  keep 1.0, so 1080p is unchanged. On short screens the main menu keeps only the community links that
+  fit below its buttons, and the big fixed-size dialogs (encyclopedia, tech tree, save/load) shrink to
+  the screen (`scenes/common/fit_screen.gd`). `tools/shot_layouts.gd` screenshots every menu and session
+  dialog at a given window size, for checking layouts: `xvfb-run -a -s "-screen 0 2560x1600x24" godot
+  --rendering-driver opengl3 --path . -s tools/shot_layouts.gd -- --size 2400x1080 --out DIR --phone-ui`.
 - **Duplicate textures.** Godot unpacks each model's embedded images next to it, so about 6,000 images
   are byte-identical copies. The `addons/rts0_export` editor plugin packs each one once and exports the
   copies as `.import` remaps to it, which cut the Linux build from 3.2 GB to 2.1 GB. Byte-identical

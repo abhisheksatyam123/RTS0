@@ -161,6 +161,19 @@ func run() -> void:
 	check(lobby._profile_role.text == "Player", "the profile names bob's role: Player")
 	# ProfilePage: any player, by name.
 	lobby._on_lookup_pressed()
+	# ProfilePage.js autocomplete: Tab completes from the online players and the board.
+	var zed: TreeItem = lobby._board.create_item(lobby._board.get_root())
+	zed.set_metadata(0, "zed")
+	var tab := InputEventKey.new()
+	tab.keycode = KEY_TAB
+	tab.pressed = true
+	for typed in [["b", "bob, "], ["z", "zed, "]]:
+		lobby._lookup_input.text = typed[0]
+		lobby._lookup_input.caret_column = typed[0].length()
+		lobby._lookup_input.gui_input.emit(tab)
+		check(lobby._lookup_input.text == typed[1], "Tab completes \"%s\" to \"%s\" (%s)" % [typed[0], typed[1], lobby._lookup_input.text])
+	check(lobby._lookup_input.tooltip_text == lobby.AUTOCOMPLETE_TIP, "and the field says so")
+	zed.free()
 	lobby._lookup_input.text = "ALICE"
 	lobby._on_lookup_view()
 	await until(func() -> bool: return lobby._lookup_grid.visible)

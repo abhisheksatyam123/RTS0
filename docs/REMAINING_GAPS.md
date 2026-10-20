@@ -34,7 +34,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G49 | Area D pass 6, Petra unit choice against 0.28 headquarters.js and attackPlan.js: ~~attack and raid survivors and emergency units count as workers again~~ (fixed, save v106: they keep plan -1, `petra_out_of_plan_`); left: when it can't pay for a soldier worker RTS0 trains a civilian at once where 0.28 waits for the soldier; the scarce-resource penalty sums every supply in its territory, not the nearby and medium ones round its dropsites; fishing boats, citizen cavalry and worker elephants aren't counted as workers; batches shrink to the free population instead of waiting for room; a civic centre busy with emergency units makes it train soldiers as workers; an attack order with no template trains the next class the same turn; plan units go to the champion or siege queue by their template, not the order's classes; getMaxStrength doesn't take off PrepareTime; emergency candidates are tried in roster order, not the Trainer list's; a queued ship on one sea doesn't hold back the others (Formations: attack-order items; C: ships) | medium | D |
 | G50 | Game descriptions and the language page (Session UI pass 13, static against 0.28 gamedescription.js, locale_advanced.js): ~~the Random entry of the map list reads Map Name Random, Map Description disabled and Map Type Skirmish; Starting Resources and the replay/save player lines ("Ann (Athenians, Medium Balanced Petra Bot, won)") stay English; Advanced language shows res://assets/l10n/de.po~~ (fixed: Random Map line and random-map settings, "%(startingResourcesTitle)s (%(amount)s)", formatPlayerInfo's msgids with translated civ, AI and state, the bare file name; `tools/e2e_match_settings.gd`) | low | Session UI |
 | G51 | Tips, Credits and the pause overlay (Session UI pass 14, static against 0.28 tips.xml, credits.xml, PauseOverlay.xml): ~~the Tips Close tooltip isn't hotkey-coloured; the Tips and Credits titles are 18 px (TitleText/ModernLabelText: sans-bold-stroke-14); credit tabs are 40 px apart (0.28: 34 px tabs, 39 apart); the pause captions span 30%-70%, top-anchored with a stroke (0.28: 256 px boxes centred on 40%, no stroke)~~ (fixed, `tools/e2e_tips.gd`). Pass 15 ran every Session UI e2e on main 853a9ed23: no script errors; saving under --headless no longer asks the dummy renderer for a thumbnail. The Template Viewer and Catafalque page differences found in the same pass went to their owner (Compare). | low | Session UI |
-| G52 | Victory modes (B pass 5, `docs/archive/B_AUDIT_028_PASS5.md`): ~~wonders the map places count from the start~~ (fixed: a starting wonder holds no countdown until it changes hands, as WonderVictory.js listens to OwnershipChanged); the maps' Gaia catafalques aren't ported, and Capture the Relic trims the map's relics to its count instead of adding to them (map port: F); the regicide pool lacks Xenophon and the 300 Leonidas (roster: D) | medium | B |
+| G52 | Victory modes (B pass 5, `docs/archive/B_AUDIT_028_PASS5.md`): ~~wonders the map places count from the start~~ (fixed: a starting wonder holds no countdown until it changes hands, as WonderVictory.js listens to OwnershipChanged); ~~the maps' Gaia catafalques aren't ported, and Capture the Relic trims the map's relics to its count~~ (fixed: F's #1414 ports them, and the relic count is spawned on top of them); 0.28's Gaia relic counter (only spawned relics count as Gaia's, every capture subtracts) is not copied: RTS0 counts the relics actually held; the regicide pool lacks Xenophon and the 300 Leonidas (roster: D) | medium | B |
 
 Closed since re-check 3 (2026-10-15): G1 (large units' long paths keep out of woods too tight for them, #1086) and the rows below.
 
@@ -128,6 +128,24 @@ Right-click priorities on own and allied entities against unit_actions.js (speci
 
 
 Kept on purpose: the RTS0 villager rows stay as the worker class's default for old saves and pre-roster spawns, but nothing trains one by name (#1014); Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
+
+### Unit orders, eighth 0.28 pass (2026-10-20)
+
+The command row against unit_actions.js g_EntityCommands (all 19 commands exist, in 0.28's order). Owner: Unit orders.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| C1 | ~~Guard and Patrol show for Soldier, Warship or Siege selections: siege gets Guard, civilians, healers, wagons and elephants get none, healers no Patrol~~ Fixed: UnitAI CanGuard / CanPatrol (template_unit true; siege, traders and ships off for guard; civilians, women, wagons, elephants, traders and ships off for patrol). `tools/e2e_entity_commands.gd` | high | Fixed |
+| C2 | ~~Barter & Trade shows only on a market~~ Fixed: any finished structure with a Market component, docks too | medium | Fixed |
+| C3 | ~~Delete is hidden for undeletable units, and a shrine or trading post (Identity/Undeletable) offers an enabled Delete~~ Fixed: Delete always shows; disabled, it lists each isUndeletable reason (killed before gathered, under half the capture points, undeletable) | medium-low | Fixed |
+| C4 | Own livestock get no Abort or Garrison button (RTS0 selects animals only for the stop hotkey and corral orders) | medium-low | Open |
+| C5 | Back to Work sends the whole selection, so soldiers in a mixed selection post "back to work failed" notices; 0.28 sends only units with work orders | medium-low | Open |
+| C6 | The delete hotkey opens the confirmation for a selection with nothing deletable | low | Open |
+| C7 | Focus on Rally Point reads only the clicked structure's rally point and isn't offered to observers | low | Open |
+| C8 | is-dropsite-shared is offered only for an ally's structures (not wagons) and not to observers | low | Open |
+| C9 | Leave Turret ignores ejectable and shows a hotkey in its tooltip | low | Open |
+| C10 | Leave Turret, Unload Turrets and Unload All post no notice when a unit can't get off | low | Open |
+| C11 | Unload Turrets isn't offered on a unit that holds turrets | low | Open |
 
 ### Aura icons, fogged selections and structure tooltips: Compare's eleventh 0.28 pass (2026-10-20)
 
@@ -296,6 +314,22 @@ TechnologyManager.js, Researcher.js, data/technologies (about 30 techs row by ro
 | U1 | A captured structure's research list followed the captor's civ; Researcher.js reads the structure's own template (cart/dock drops warship_health, cart/super_dock lists nine dock techs, han/civil_centre drops the spy techs, han/forge archer_attack_spread) and the owner's civ only filters it | low | Fixed |
 
 Checked and matching: requirements (all/any, class counts without foundations, civ/notciv), pairs and autoResearch, supersedes chains, cost multipliers (library, team bonuses, heroes, catafalques) and cancel refunds, unit researchers, civ bonus autoresearch, tech modifications, own-civ researcher lists, structure auras (temples, wonders, theatre, pillars, monuments, regen and trickle auras).
+### Structure runtime, twelfth 0.28 pass (2026-10-20)
+
+BuildingAI, Trainer, ProductionQueue, Foundation, Repairable, Capturable, TerritoryDecay, ResourceTrickle and Pack against RTS0. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| W1 | Structure queues advanced every tick; ProductionQueue.js ProgressTimeout works in whole seconds from when the queue started, passes what is left of a second to the next item, and autoqueue leaves the rest of its second unused (a 5-batch at a barracks takes 37 s, not 36.24 s). Save 110 keeps each structure's place in its second | medium | Fixed |
+| W2 | A batch that could not spawn retried every tick; 0.28 retries each second | low | Fixed (with W1) |
+| W3 | Builders needed a mutual alliance; Builder.CanRepair uses IsOwnedByAllyOfPlayer, so a player who declared another an ally builds and repairs that player's structures | low | Fixed (sim); the repair cursor still asks for mutual allies |
+| W4 | OnTrainingFinished fired only when a whole batch spawned, with its full count; Trainer.js Spawn fires for each part that steps out | low | Fixed |
+| W5 | Structure build time had a 1 s floor (only reachable with the fastactions cheat); Foundation.js has none | low | Fixed |
+| W6 | Units that train (Cyrus II, trainer ships) cannot autoqueue and their queues still advance every tick | low | Open |
+| W7 | Capture regen and trickles run off one global second rather than per-entity timers, so the first one can land up to a second early or late; amounts match | negligible | Open (deliberate) |
+
+Checked and matching: BuildingAI arrow counts, rounds and target preference; batch time and its civ/tech modifiers; queue limit, pop reservation, pausing and capture reset; foundation builder multiplier, rate, refunds; repair ratios; capture regen and garrison regen; territory decay; trickles; Pack times.
+
 ### Tooltip content, eleventh 0.28 pass (2026-10-20)
 
 gui/session selection_panels.js, selection_details.js, tooltips.js and the production queue against RTS0's command panel, inspector, queue and reference tooltips. Owner: E (tooltip content); selection-panel layout stays with Compare.
@@ -427,7 +461,7 @@ Scenario-only units: every unit the 0.28 scenario, demo and sandbox maps place w
 |---|---|---|---|
 | SU1 | The map porter dropped units whose template name has none of its keywords: We Are Legion's whole player-1 army (thureophoroi, thorakitai, Sacred Band), the mercenaries in Third Macedonian War, Death Canyon - Invasion Force, Peloponnese, Delphi and the demos, the Germans' wagons, Kushite macemen, Han crossbowmen, catafalques and siege towers in the sandboxes (about 400 units on 22 maps) | critical | Fixed: they are ported with their template and spawn as its roster row or a parent's |
 | SU2 | Unpacked siege on a map (oxybeles, lithobolos, polybolos, scorpio, mangonel) starts packed, as its packed row; Jebel Barkal's hilltop Ptolemaic siege too | low | Fixed: an "_unpacked" template spawns as its packed row standing unpacked, ready to fire |
-| SU3 | pers/arstibara has no row of its own and stands in as pers/champion_infantry; Flight Demo's planes and han/siege_shoushe have none and are left out | low | Open: Triggers |
+| SU3 | pers/arstibara has no row of its own and stands in as pers/champion_infantry; Flight Demo's planes and han/siege_shoushe have none and are left out | low | Partly fixed: the Arstibara and the Shoushe are map-only rows (models to come from Animal models); the planes wait for flying motion (UnitMotionFlying), Open: Triggers |
 | SU4 | The campaign test maps' army_* heroes and campaign_*_test structures map to the nearest civ templates (Alexander as the cavalry hero with auras, Leonidas with Last Stand, the test cities as Macedonian civic centres) | low | Open: Triggers |
 | LR1 | A rated game left Teams Locked as it was. 0.28 LockedTeams.onRatingChange turns it on and makes it unchangeable while the game is rated, and off when the game is unrated | medium | Fixed: rating the game locks the teams, unrating it unlocks them |
 | LR2 | Lobby players hosted and joined with their bare nick. 0.28 hosts and joins as "nick (rating)" once rated, so Game Setup, chat, the session and the summary show the rating; a rejoin keeps the rating the player joined with (JoinButton.getRejoinRating) | low | Fixed: the game list reads the rating in the name (Game.js), and the report and buddy marks use the nick |

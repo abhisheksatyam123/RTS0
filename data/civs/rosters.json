@@ -181,6 +181,7 @@
     "pers/hero_xerxes_i_chariot",
     "pers/kardakes_hoplite",
     "pers/kardakes_skirmisher",
+    "pers/arstibara",
     "pers/infantry_spearman_a"
    ],
    "auto_bonuses": [
@@ -828,6 +829,7 @@
     "han/hero_liu_bang",
     "han/hero_wei_qing",
     "han/hero_wei_qing_horse",
+    "han/siege_shoushe",
     "han/infantry_pikeman_a",
     "han/infantry_spearman_a"
    ],
@@ -27813,6 +27815,101 @@
     "vision": 28.000000000000004,
     "damage": 27.0,
     "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "pers/arstibara",
+   "civ": "pers",
+   "class": "UNIT_SPEARMAN",
+   "name": "Persian Apple Bearer",
+   "specific_name": "Arštibara",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CHAMPION",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_INFANTRY",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Immortal",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 120.0,
+    "cooldown": 1.0,
+    "hack_dmg": 8.5,
+    "pierce_dmg": 7.225,
+    "crush_dmg": 0.0,
+    "hack_armor": 4.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 20.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 80,
+    "stone": 0,
+    "train_time": 5.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 15.725,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "han/siege_shoushe",
+   "civ": "han",
+   "class": "UNIT_BOLT_SHOOTER",
+   "name": "Bolt Shooter",
+   "specific_name": "Nǔ Chē",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "BoltShooter",
+    "ConquestCritical",
+    "Ranged",
+    "Siege",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 200.0,
+    "cooldown": 6.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 240.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 25.0,
+    "crush_armor": 5.0,
+    "food": 0,
+    "wood": 250,
+    "gold": 250,
+    "stone": 0,
+    "train_time": 20.0,
+    "pop": 2,
+    "speed": 2.1627,
+    "vision": 28.000000000000004,
+    "damage": 240.0,
+    "range": 22.400000000000002,
     "carry": 0
    }
   },
