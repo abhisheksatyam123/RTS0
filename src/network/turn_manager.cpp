@@ -78,7 +78,7 @@ static void note_player_command(Simulation &sim, uint8_t pl, const NetCommand &c
 	uint16_t count = 0;
 	const uint8_t param = (uint8_t)(c.param & ~NET_PARAM_QUEUED);
 	switch (c.cmd_type) {
-		case 4: kind = TRIGGER_CMD_GATHER; break;
+		case 4: case 51: kind = TRIGGER_CMD_GATHER; break;
 		case 17:
 			if (param == 0) { kind = TRIGGER_CMD_GATHER; hunt = 1; }
 			break;
@@ -1685,6 +1685,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.order_attack(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 4) { // Gather
 			sim.order_gather(ids, n, c.target_id, queued);
+		} else if (c.cmd_type == (uint8_t)NetCommandType::NET_CMD_GATHER_NEAR) { // Gather near a gone supply's mirage — target_id = type | subtype << 8.
+			sim.order_gather_near(ids, n, c.target_x, c.target_z, (uint8_t)(c.target_id & 0xFF), (uint8_t)((c.target_id >> 8) & 0xFF), queued);
 		} else if (c.cmd_type == 5) { // Build
 			uint32_t bid = sim.cmd_build(pl, (int)c.target_x, (int)c.target_z, c.param, Simulation::unpack_angle(c.target_id));
 			if (bid && n) {

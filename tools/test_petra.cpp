@@ -891,6 +891,58 @@ static void test_allow_capture() {
 	CHECK(u.order_flags[j] & ORDER_FLAG_ALLOW_CAPTURE, "a winnable capture goes on");
 }
 
+// garrisonManager.js:181: soldiers still walking to man a Town Center turn back
+// (leaveGarrison, stopMoving) once the enemy that called them has gone.
+static void test_garrison_recall() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	const Simulation::Building *tc = nullptr;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) tc = &b;
+	CHECK(tc != nullptr, "Petra has a Town Center");
+	if (!tc) return;
+	const float tx = tc->x, tz = tc->z;
+	const uint32_t tc_id = tc->id;
+	auto &u = s->units_;
+	std::vector<uint32_t> archers;
+	for (int i = 0; i < 2; ++i) archers.push_back(s->spawn_unit(tx + 24.0f + 2.0f * (float)i, tz + 18.0f, 1, UNIT_ARCHER));
+	std::vector<uint32_t> foes;
+	for (int i = 0; i < 3; ++i) foes.push_back(s->spawn_unit(tx - 10.0f, tz - 8.0f + 2.0f * (float)i, 0, UNIT_SPEARMAN));
+	auto walking = [&]() {
+		int n = 0;
+		for (uint32_t id : archers) {
+			const int32_t i = s->lookup_unit(id);
+			if (i >= 0 && u.alive[i] && u.order_kind[i] == ORDER_GARRISON && u.order_target[i] == tc_id) ++n;
+		}
+		return n;
+	};
+	int called = 0;
+	for (float t = 0.0f; t < 6.0f && called == 0; t += Simulation::FIXED_STEP) {
+		for (uint32_t id : foes) {
+			const int32_t f = s->lookup_unit(id);
+			if (f >= 0 && u.alive[f]) u.hp[f] = u.max_hp[f];
+		}
+		s->tick(Simulation::FIXED_STEP);
+		called = walking();
+	}
+	for (uint32_t id : foes) {
+		const int32_t i = s->lookup_unit(id);
+		if (i >= 0 && u.alive[i]) { u.pos_x[i] = -tx; u.pos_z[i] = -tz; u.has_order[i] = 0; u.hp[i] = 0.0f; }
+	}
+	run_for(*s, 3.5f);
+	const auto &b = s->buildings()[s->building_id_to_idx_.at(tc_id)];
+	int inside = 0;
+	for (uint32_t id : archers) inside += std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), id) != b.garrisoned_units.end() ? 1 : 0;
+	const int still = walking();
+	std::printf("  garrison recall: %d archers called to the Town Center, %d still walking and %d inside after the enemy left\n", called, still, inside);
+	CHECK(called > 0, "an enemy in range calls far soldiers to man the Town Center");
+	CHECK(still == 0 && inside == 0, "and they turn back once it is gone");
+}
+
 // garrisonManager.js / defenseManager.js: Petra's infantry man a Town Center
 // an enemy is in range of and leave once the enemy is gone; an attacked
 // woman below 55% health shelters in a healing structure.
@@ -1169,6 +1221,19 @@ static void test_hunters_028() {
 		const uint32_t pick = s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 21.0f, busy, l);
 		std::printf("  ally's sheep %u, Gaia sheep %u: Petra picks %u\n", sheep, own, pick);
 		CHECK(pick != sheep, "an ally's sheep in its territory is left alone");
+		// Its carcass keeps the ally as owner (Health.js corpse), so it is left alone too.
+		{
+			const size_t si = s->fauna_id_to_idx_.at(sheep);
+			const uint32_t corpse = s->spawn_carcass(si);
+			s->fauna_.alive[si] = 0;
+			if (auto it = s->fauna_id_to_idx_.find(own); it != s->fauna_id_to_idx_.end()) s->fauna_.alive[it->second] = 0;
+			const auto ci = s->res_id_to_idx_.find(corpse);
+			CHECK(ci != s->res_id_to_idx_.end() && s->resources_.owner[ci->second] == 3, "the ally's sheep's carcass is the ally's");
+			const uint32_t got = s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 21.0f, busy, l);
+			std::printf("  ally's sheep carcass %u: Petra picks %u\n", corpse, got);
+			CHECK(got != corpse, "an ally's carcass in its territory is left alone");
+			if (ci != s->res_id_to_idx_.end()) s->resources_.alive[ci->second] = 0;
+		}
 		for (uint32_t id : {boar, deer2, sheep, own})
 			if (auto it = s->fauna_id_to_idx_.find(id); it != s->fauna_id_to_idx_.end()) s->fauna_.alive[it->second] = 0;
 		s->set_diplomacy(1, 3, Simulation::DIPLO_ENEMY);
@@ -6299,6 +6364,7 @@ int main(int argc, char **argv) {
 	RUN(test_slot_config);
 	RUN(test_allow_capture);
 	RUN(test_garrisons);
+	RUN(test_garrison_recall);
 	RUN(test_diplomacy_requests);
 	RUN(test_tribute_request_paid_later);
 	RUN(test_hunting);

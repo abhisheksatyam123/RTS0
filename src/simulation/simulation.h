@@ -179,7 +179,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 100; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 101; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_CARCASS_OWNER = 101; // each carcass's animal's owner
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
 	static constexpr uint32_t SAVE_VERSION_TRADE_ROUTE = 99; // each trader's route waypoints and leg progress (SetupTradeRoute route, reversed on the way back)
 	static constexpr uint32_t SAVE_VERSION_PROJECTILE_DAMAGE = 98; // each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact); each unit's and animal's previous-turn position (aim velocity); each player's control-all-units flag
@@ -505,6 +506,9 @@ public:
 	const std::vector<uint32_t> &turret_list(const Building &b) const {
 		return turret_points_of(b) ? b.garrisoned_units : b.turret_units;
 	}
+	// A wall, gate or outpost: a TurretHolder with no GarrisonHolder in 0.28, whose turret
+	// units RTS0 keeps as its garrison.
+	bool turret_only_holder(const Building &b) const { return turret_points_of(b) != nullptr; }
 	// unit_actions.js "occupy-turret": the unit may stand on a turret point of this own or
 	// mutually allied holder (Turretable, TurretHolder.CanOccupy). Room is not checked.
 	bool can_occupy_turret_in(uint32_t unit_id, uint32_t building_id) const;
@@ -810,6 +814,10 @@ public:
 	// A player's Gather and Repair are forced (UnitAI Gather / Repair) until work starts;
 	// UnitAI's own follow-up gathers and repairs (PerformGather force false) are not.
 	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id, bool queued = false, bool force = true);
+	// Gather from a supply that is gone (its mirage clicked): the nearest of the same kind near
+	// (x, z), else a walk there (UnitAI FINDINGNEWTARGET).
+	void order_gather_near(const uint32_t *unit_ids, size_t count, float x, float z, uint8_t res_type, uint8_t res_sub,
+			bool queued = false);
 	void order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// allow_capture: capture the structure (0 A.D.'s default right-click) instead of
 	// damaging it (Ctrl). Units that can't capture, or structures that can't be
@@ -3559,6 +3567,7 @@ private:
 	bool petra_near_invading_army(float x, float z, float dist2) const;
 	void petra_remove_defender(uint32_t uid);
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
+	float petra_available_resource(uint8_t r) const; // queueManager.getAvailableResources: stock less every queue's account
 	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
 	void petra_assign_bombers(); // attackManager.js assignBombers
 	void petra_move_dropsites_to_gatherers(); // worker.js moveToGatherer for mobile dropsites

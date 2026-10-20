@@ -45,6 +45,11 @@ uniform vec4 variant_cut[2];
 uniform float variant_salt = 0.0;
 // The entity's draw in [0, 1): crowds pass it in INSTANCE_CUSTOM.a - 1.
 instance uniform float variant_u = 0.0;
+// A head's objectcolor material (model_common.fs USE_OBJECTCOLOR): its hair, the
+// layer's alpha, takes one of the actor's colours (linear), drawn by object_cut.
+uniform bool use_object_color = false;
+uniform vec4 object_colors[8];
+uniform vec4 object_cut[2];
 
 varying vec3 v_player;
 varying float v_variant;
@@ -100,7 +105,16 @@ void fragment() {
 		m = vt.a;
 		baked = vec3(1.0);
 	}
-	vec3 owner = mix(vec3(1.0), v_player, m);
+	vec3 tint = v_player;
+	if (use_object_color) {
+		// Drawn apart from the skin: 0 A.D. picks each group of the actor by itself.
+		float u = fract(v_variant * 7.0 + variant_salt + 0.5);
+		int pick = 0;
+		for (int i = 0; i < 8; ++i)
+			pick += int(step(object_cut[i / 4][i % 4], u));
+		tint = object_colors[pick].rgb;
+	}
+	vec3 owner = mix(vec3(1.0), tint, m);
 	ALBEDO = tex.rgb * owner / max(baked, vec3(0.05)) * (use_vertex_color ? COLOR.rgb : vec3(1.0));
 	ROUGHNESS = roughness;
 	METALLIC = metallic;
