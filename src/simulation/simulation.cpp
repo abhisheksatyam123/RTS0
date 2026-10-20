@@ -8098,7 +8098,7 @@ float Simulation::ship_loading_reach(size_t ship, size_t unit) const {
 // The same for any transport: a ship's 10 m, or a ram's or siege tower's 2 m.
 float Simulation::transport_loading_reach(size_t holder, size_t unit) const {
 	if (unit_is_ship(units_.unit_type[holder])) return ship_loading_reach(holder, unit);
-	return SIEGE_LOADING_RANGE + unit_collision_radius(units_.unit_type[holder]) + unit_collision_radius(units_.unit_type[unit]);
+	return (is_plane_at(holder) ? PLANE_LOADING_RANGE : SIEGE_LOADING_RANGE) + unit_collision_radius(units_.unit_type[holder]) + unit_collision_radius(units_.unit_type[unit]);
 }
 
 // The water cell of the ship's own sea nearest to (x, z), searched out to 16
@@ -8254,10 +8254,23 @@ bool Simulation::is_siege_tower_at(size_t i) const {
 		&& (civ_unit_template(tmpl).flags & ROSTER_SIEGE_TOWER) != 0;
 }
 
+bool Simulation::is_plane_at(size_t i) const {
+	const uint16_t tmpl = units_.tmpl[i];
+	return tmpl != CIV_UNIT_TEMPLATE_NONE && tmpl < CIV_UNIT_TEMPLATE_COUNT
+		&& (civ_unit_template(tmpl).flags & ROSTER_FLYING) != 0;
+}
+
+bool Simulation::garrisoning_allowed(size_t holder) const {
+	if (flight_.empty()) return true;
+	const auto it = flight_.find(units_.id[holder]);
+	return it == flight_.end() || !it->second.has_target;
+}
+
 // GarrisonHolder/Max of the unit's own 0.28 template: Kushite and Persian rams hold 12, the
-// Germanic log ram nobody; a template with none falls back to the class.
+// Germanic log ram nobody, a plane one; a template with none falls back to the class.
 int Simulation::siege_garrison_capacity(size_t i) const {
 	const uint16_t tmpl = units_.tmpl[i];
+	if (is_plane_at(i)) return PLANE_GARRISON;
 	const bool siege = is_siege_tower_at(i) || units_.unit_type[i] == UNIT_SIEGE_RAM;
 	if (siege && tmpl < CIV_UNIT_TEMPLATE_COUNT && combat_template_table()[tmpl].has_loot)
 		return combat_template_table()[tmpl].garrison_max;
@@ -8431,9 +8444,10 @@ bool Simulation::can_board(size_t transport_idx, size_t unit_idx) const {
 		return !unit_is_ship(units_.unit_type[unit_idx]) && ship_garrison_allowed(transport_idx, unit_idx);
 	if (is_transport(units_.id[unit_idx])) return false;
 	if (siege_garrison_capacity(transport_idx) > 0 && !(unit_classes_at(unit_idx) & (TC_INFANTRY | TC_CIVILIAN))) return false;
-	// GarrisonHolder.Garrison: a siege engine below its EjectHealth takes nobody in.
-	if (units_.hp[transport_idx] <= std::floor(units_.max_hp[transport_idx] * SIEGE_EJECT_HEALTH)) return false;
-	return true;
+	// GarrisonHolder.Garrison: a siege engine below its EjectHealth takes nobody in, and a plane
+	// nobody while it is off the ground.
+	if (units_.hp[transport_idx] <= std::floor(units_.max_hp[transport_idx] * siege_eject_health(transport_idx))) return false;
+	return garrisoning_allowed(transport_idx);
 }
 
 // GarrisonHolder.EjectOrKill on a holder killed out of the world (a loaded ram aboard a sinking
@@ -8517,6 +8531,11 @@ void Simulation::tick_siege_garrisons() {
 		if (siege_garrison_capacity(i) == 0) continue;
 		if (units_.action_state[i] == ACTION_GARRISONED) continue;
 		const bool dead = !units_.alive[i];
+		// A plane's EjectClassesOnDestroy is empty: EjectOrKill kills everyone aboard.
+		if (is_plane_at(i)) {
+			if (dead) kill_passengers_of(i);
+			continue;
+		}
 		// GarrisonHolder.HasEnoughHealth: holds while hp > floor(EjectHealth x max).
 		if (!dead && units_.hp[i] > std::floor(units_.max_hp[i] * SIEGE_EJECT_HEALTH)) continue;
 		auto pit = transport_passengers_.find(units_.id[i]);
@@ -8724,7 +8743,10 @@ const TurretPointSet *Simulation::turret_points_of(const Building &b) const {
 	}
 	const int kind = b.type == BLD_WALL_SEGMENT ? 0 : b.type == BLD_GATE ? 1 : b.type == BLD_OUTPOST ? 2 : -1;
 	if (kind < 0) return nullptr;
-	const uint8_t civ = b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_ATHENIANS;
+	// TurretHolder points come from the structure's own template, so a captured wall, gate or
+	// outpost keeps its civ's layout (b.civ survives capture).
+	const uint8_t civ = b.civ < CIV_COUNT && b.civ != CIV_GAIA ? b.civ
+			: b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_ATHENIANS;
 	const int c = civ < CIV_COUNT ? civ : 0;
 	if (is_wallset_piece(b.type, b.half_size)) {
 		// A WallSet piece holds its own template's points: wall_long's or wall_medium's by length,
@@ -10300,6 +10322,7 @@ void Simulation::order_disembark(uint32_t transport_id, float target_x, float ta
 		units_.action_state[tidx] = ACTION_MOVE;
 		return;
 	}
+	if (!garrisoning_allowed((size_t)tidx)) return; // GarrisonHolder.Eject, not forced: a plane in the air
 
 	// Each passenger in turn steps down onto its own free spot, as GarrisonHolder.Unload asks
 	// Footprint.PickSpawnPoint for each: beside a ship's hull (ship_unload_point, with the passengers
@@ -10349,7 +10372,7 @@ void Simulation::order_disembark_single(uint32_t transport_id, uint32_t unit_id)
 	int32_t tidx = lookup_unit(transport_id);
 	if (tidx < 0) return;
 	auto pit = transport_passengers_.find(transport_id);
-	if (pit == transport_passengers_.end()) return;
+	if (pit == transport_passengers_.end() || !garrisoning_allowed((size_t)tidx)) return;
 	auto it = std::find(pit->second.begin(), pit->second.end(), unit_id);
 	if (it != pit->second.end()) {
 		int32_t idx = lookup_unit(unit_id);
@@ -12059,6 +12082,17 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (!units_.alive[i] || is_transport(units_.id[i])) continue;
 		if (units_.action_state[i] == ACTION_MOVE && units_.target_unit_id[i] != 0) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
+			// GARRISONING enter: a plane that has taken off refuses it (IsGarrisoningAllowed), FinishOrder.
+			if (tidx >= 0 && units_.alive[tidx] && !garrisoning_allowed((size_t)tidx)) {
+				const float rx = px[i] - px[tidx], rz = pz[i] - pz[tidx], rr = transport_loading_reach((size_t)tidx, i);
+				if (rx * rx + rz * rz <= rr * rr) {
+					units_.action_state[i] = ACTION_IDLE;
+					units_.has_order[i] = 0;
+					units_.target_unit_id[i] = 0;
+					units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+				}
+				continue;
+			}
 			if (tidx >= 0 && units_.alive[tidx] && is_transport(units_.id[tidx]) && can_board((size_t)tidx, i)) {
 				float dx = px[i] - px[tidx];
 				float dz = pz[i] - pz[tidx];
@@ -12973,6 +13007,7 @@ void Simulation::tick_flight(float dt) {
 		}
 		if (!f.has_target) {
 			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+			carry_plane_passengers(i, dt);
 			continue;
 		}
 
@@ -13096,6 +13131,21 @@ void Simulation::tick_flight(float dt) {
 		units_.vel_z[i] = f.speed * ca;
 		units_.heading_x[i] = det::sin(newangle);
 		units_.heading_z[i] = det::cos(newangle);
+		carry_plane_passengers(i, dt);
+	}
+}
+
+// The one aboard rides where the plane is and regains BuffHeal hitpoints a second.
+void Simulation::carry_plane_passengers(size_t plane, float dt) {
+	if (transport_passengers_.empty()) return;
+	const auto pit = transport_passengers_.find(units_.id[plane]);
+	if (pit == transport_passengers_.end()) return;
+	for (uint32_t puid : pit->second) {
+		const int32_t p = lookup_unit(puid);
+		if (p < 0) continue;
+		units_.pos_x[p] = units_.pos_x[plane];
+		units_.pos_z[p] = units_.pos_z[plane];
+		units_.hp[p] = std::min(units_.max_hp[p], units_.hp[p] + PLANE_BUFF_HEAL * dt);
 	}
 }
 
@@ -21013,7 +21063,13 @@ bool Simulation::petra_unit_stat_trainable(const PetraUnitStat &st) const {
 		if (!hero_wanted && (t.flags & ROSTER_HERO)) continue;
 		if ((t.flags & ROSTER_SIEGE_TOWER) || (c & TC_SIEGETOWER).any() || triggers_.template_disabled(tmpl)) continue;
 		if (!match_limit_allows(petra_pid_, tmpl, 1)) continue;
-		if (petra_best_trainer(tmpl, t.unit_type, PRODUCTION_QUEUE_MAX)) return true;
+		// gameState.findTrainableUnits: any finished building of ours whose Trainer list has
+		// it, however busy (a full queue, an emergency rally or an upgrade only delays it).
+		for (const auto &b : buildings_) {
+			if (b.team != petra_pid_ || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
+			if (building_trains_template(b.type, b.civ, players_[petra_pid_].civ, tmpl) && can_train_at(petra_pid_, t.unit_type, b.type, tmpl))
+				return true;
+		}
 	}
 	return false;
 }
@@ -23197,8 +23253,7 @@ void Simulation::petra_build_first_base() {
 		} else {
 			petra_ps().food() -= cf; petra_ps().wood() -= cw; petra_ps().gold() -= cg; petra_ps().stone() -= cs;
 		}
-		const uint32_t bid = petra_spawn_foundation(cx, cz, goal);
-		if (bid != 0 && !workers.empty()) petra_order_builders(workers, workers.size(), bid);
+		petra_spawn_foundation(cx, cz, goal);
 	};
 	if (goal != BLD_DOCK) {
 		// The civic centre plan's position: findEconomicCCLocation for wood with proximity to
@@ -25173,9 +25228,7 @@ void Simulation::petra_manage_naval(float dt) {
 					break;
 				}
 				if (!petra_has_builder() || !petra_try_pay(PETRA_Q_DOCK, cost[0], cost[1], cost[2], cost[3])) break;
-				const uint32_t bid = petra_spawn_foundation(cx, cz, BLD_DOCK);
-				auto idle = petra_idle_builders();
-				if (bid && !idle.empty()) petra_order_builders(idle, 3, bid);
+				petra_spawn_foundation(cx, cz, BLD_DOCK);
 			}
 		}
 	}
@@ -25215,9 +25268,7 @@ void Simulation::petra_manage_naval(float dt) {
 							if (dock_sea(probe) != first_sea || petra_building_land(probe, &topo, land) != land) continue;
 							placed = true;
 							if (!petra_try_pay_structure(PETRA_Q_MILITARY_BUILDING, BLD_SUPER_DOCK)) break;
-							const uint32_t bid = petra_spawn_foundation(cx, cz, BLD_SUPER_DOCK);
-							auto idle = petra_idle_builders();
-							if (bid && !idle.empty()) petra_order_builders(idle, 4, bid);
+							petra_spawn_foundation(cx, cz, BLD_SUPER_DOCK);
 						}
 			}
 		}
@@ -25557,10 +25608,7 @@ void Simulation::petra_manage_buildings(float dt) {
 			// The first barracks or range goes at twice militaryBuilding's priority until started.
 			if (n_barracks + n_ranges == 0 && want != BLD_STABLE)
 				petra_change_priority(PETRA_Q_MILITARY_BUILDING, 2 * petra_queue_base_priority(PETRA_Q_MILITARY_BUILDING), PETRA_Q_MILITARY_BUILDING);
-			if (const uint32_t bid = petra_place_generic(want, PETRA_Q_MILITARY_BUILDING, nullptr, nullptr, true)) { // militaryBase
-				auto idle = petra_idle_builders();
-				if (!idle.empty()) petra_order_builders(idle, 3, bid);
-			}
+			petra_place_generic(want, PETRA_Q_MILITARY_BUILDING, nullptr, nullptr, true); // militaryBase
 		}
 	}
 
@@ -25607,10 +25655,7 @@ void Simulation::petra_build_advanced() {
 		return n;
 	};
 	auto build = [&](uint8_t t, bool military_base = true) {
-		const uint32_t bid = petra_place_generic(t, PETRA_Q_MILITARY_BUILDING, nullptr, nullptr, military_base);
-		if (!bid) return;
-		auto idle = petra_idle_builders();
-		if (!idle.empty()) petra_order_builders(idle, 3, bid);
+		petra_place_generic(t, PETRA_Q_MILITARY_BUILDING, nullptr, nullptr, military_base);
 	};
 	// canBuild (the civ's 0 A.D. Builder lists); the elephant stable and arsenal
 	// count only when the civ's roster trains something there.
@@ -26004,10 +26049,6 @@ uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *
 	if (!petra_try_pay_structure(PETRA_Q_DROPSITES, BLD_STOREHOUSE)) return 0;
 	petra_clear_no_room(BLD_STOREHOUSE);
 	const uint32_t bid = petra_spawn_foundation(best_cx, best_cz, BLD_STOREHOUSE);
-	if (bid) {
-		auto idle = petra_idle_builders();
-		if (!idle.empty()) petra_order_builders(idle, 3, bid);
-	}
 	return bid;
 }
 
@@ -26023,11 +26064,7 @@ void Simulation::petra_build_farmstead() {
 	}
 	if (!storehouse || !house || !civ_can_build(petra_ps().civ, BLD_FARMSTEAD) ||
 	    triggers_.building_disabled(petra_pid_, BLD_FARMSTEAD)) return;
-	const uint32_t bid = petra_place_generic(BLD_FARMSTEAD, PETRA_Q_ECONOMIC_BUILDING);
-	if (bid) {
-		auto idle = petra_idle_builders();
-		if (!idle.empty()) petra_order_builders(idle, 3, bid);
-	}
+	petra_place_generic(BLD_FARMSTEAD, PETRA_Q_ECONOMIC_BUILDING);
 }
 
 // A base anchor for Petra (baseManager.js anchors: class CivCentre, which in 0 A.D. includes
@@ -26125,14 +26162,7 @@ bool Simulation::petra_build_new_base(int res) {
 	const int foot = info.footprint;
 	const int cx = (int)std::floor(x / GRID - 0.5f * (float)foot), cz = (int)std::floor(z / GRID - 0.5f * (float)foot);
 	if (!petra_try_pay_structure(PETRA_Q_CIVIL_CENTRE, btype)) return false;
-	const uint32_t bid = petra_spawn_foundation(cx, cz, btype);
-	// Overseas, petra_staff_foundations ships the builders across.
-	uint16_t home_land = 0;
-	const PetraNavalTopo &topo = petra_classified_topo(home_land);
-	const bool overseas = topo.naval_map && petra_land_at(x, z) != home_land;
-	auto idle = petra_idle_builders();
-	if (!idle.empty() && !overseas) petra_order_builders(idle, 4, bid);
-	return bid != 0;
+	return petra_spawn_foundation(cx, cz, btype) != 0;
 }
 
 // queueplanBuilding.js buildOverseaDock: once we have a dock, one more on a land of 3600 m² or
@@ -26575,14 +26605,13 @@ void Simulation::petra_build_defenses() {
 		if (petra_building_built()) return; // the plan waits for a later turn
 		d.pending = 0;
 		int cx = 0, cz = 0;
-		uint32_t bid = 0;
 		if (petra_find_defensive_location(btype, cx, cz)) {
 			// queueplanBuilding.js onStart: the construct command fails at a spot BuildRestrictions
 			// refuses (Distance), and the plan is gone all the same.
 			if (petra_has_builder() && petra_can_place(cx, cz, building_type_info(btype).footprint, btype,
 			        (building_tech_classes(btype) & TC_TOWER) ? 0 : -1) &&
 			    petra_try_pay(PETRA_Q_DEFENSE_BUILDING, cf, cw, cg, cs))
-				bid = petra_spawn_foundation(cx, cz, btype);
+				petra_spawn_foundation(cx, cz, btype);
 		} else if (btype == BLD_FORTRESS) {
 			// queueplanBuilding.js findGoodPosition: a first fortress with no frontier spot
 			// takes the standard placement map (away from houses, off the border, +8 m).
@@ -26590,14 +26619,10 @@ void Simulation::petra_build_defenses() {
 			for (const Building &b : buildings_)
 				if (b.team == petra_pid_ && b.type == BLD_FORTRESS && b.hp > 0.0f && !b.wrecked) { has_fortress = true; break; }
 			const PetraBase *home = get_primary_petra_base();
-			if (!has_fortress && home) bid = petra_place_generic(BLD_FORTRESS, PETRA_Q_DEFENSE_BUILDING);
+			if (!has_fortress && home) petra_place_generic(BLD_FORTRESS, PETRA_Q_DEFENSE_BUILDING);
 			else petra_set_no_room(btype);
 		} else {
 			petra_set_no_room(btype); // setUnbuildable(template, 90, "room")
-		}
-		if (bid) {
-			auto idle = petra_idle_builders();
-			if (!idle.empty()) petra_order_builders(idle, btype == BLD_FORTRESS ? 4 : 2, bid);
 		}
 		return;
 	}
@@ -26897,11 +26922,11 @@ void Simulation::petra_manage_research(float dt) {
 		for (const auto &b : buildings_)
 			if (b.team == petra_pid_ && b.build_progress < 1.0f && b.hp > 0.0f && !b.wrecked && building_phase_class(b.type, b.civ) == cls)
 				++laying;
-		// Village: houses for all that is missing, at most 3 at once. Town: foundations count
-		// (getOwnEntitiesByClass(class, true)), so market, temple and forge can go down together.
-		if (cls != 1) have += laying;
+		// Foundations count (Village: buildMoreHouses' getOwnStructures; Town:
+		// getOwnEntitiesByClass(class, true)), so market, temple and forge can go down together,
+		// and as many houses as there are house plans queued (3, or 5 above 80 population).
+		have += laying;
 		if (have >= need) return;
-		if (cls == 1 && laying >= std::min(need - have, 3)) return;
 		static constexpr uint8_t kVillage[] = {BLD_HOUSE};
 		static constexpr uint8_t kTown[] = {BLD_MARKET, BLD_TEMPLE, BLD_FORGE}; // checkPhaseRequirements order
 		// A Town structure the phase asks for goes at priority 1000 in its queue until started.

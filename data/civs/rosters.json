@@ -2268,7 +2268,8 @@
     "BLD_TEMPLE",
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
-    "BLD_TEMPLE_ISIS"
+    "BLD_TEMPLE_ISIS",
+    "BLD_TOPHET"
    ],
    "trained_at_0ad": [
     "temple"
@@ -3412,7 +3413,8 @@
     "BLD_TEMPLE",
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
-    "BLD_TEMPLE_ISIS"
+    "BLD_TEMPLE_ISIS",
+    "BLD_TOPHET"
    ],
    "trained_at_0ad": [
     "temple"
@@ -4818,7 +4820,8 @@
     "BLD_TEMPLE",
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
-    "BLD_TEMPLE_ISIS"
+    "BLD_TEMPLE_ISIS",
+    "BLD_TOPHET"
    ],
    "trained_at_0ad": [
     "temple"
@@ -6454,7 +6457,8 @@
     "BLD_TEMPLE",
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
-    "BLD_TEMPLE_ISIS"
+    "BLD_TEMPLE_ISIS",
+    "BLD_TOPHET"
    ],
    "trained_at_0ad": [
     "temple",
@@ -8045,7 +8049,8 @@
     "BLD_TEMPLE",
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
-    "BLD_TEMPLE_ISIS"
+    "BLD_TEMPLE_ISIS",
+    "BLD_TOPHET"
    ],
    "trained_at_0ad": [
     "temple",
@@ -9474,7 +9479,8 @@
     "BLD_TEMPLE",
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
-    "BLD_TEMPLE_ISIS"
+    "BLD_TEMPLE_ISIS",
+    "BLD_TOPHET"
    ],
    "trained_at_0ad": [
     "temple"
@@ -10599,7 +10605,8 @@
     "BLD_TEMPLE",
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
-    "BLD_TEMPLE_ISIS"
+    "BLD_TEMPLE_ISIS",
+    "BLD_TOPHET"
    ],
    "trained_at_0ad": [
     "temple"
@@ -11863,7 +11870,8 @@
     "BLD_TEMPLE",
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
-    "BLD_TEMPLE_ISIS"
+    "BLD_TEMPLE_ISIS",
+    "BLD_TOPHET"
    ],
    "trained_at_0ad": [
     "temple"
@@ -13027,7 +13035,8 @@
     "BLD_TEMPLE",
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
-    "BLD_TEMPLE_ISIS"
+    "BLD_TEMPLE_ISIS",
+    "BLD_TOPHET"
    ],
    "trained_at_0ad": [
     "temple"
@@ -14346,7 +14355,8 @@
     "BLD_TEMPLE",
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
-    "BLD_TEMPLE_ISIS"
+    "BLD_TEMPLE_ISIS",
+    "BLD_TOPHET"
    ],
    "trained_at_0ad": [
     "temple"
@@ -15844,7 +15854,8 @@
     "BLD_TEMPLE",
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
-    "BLD_TEMPLE_ISIS"
+    "BLD_TEMPLE_ISIS",
+    "BLD_TOPHET"
    ],
    "trained_at_0ad": [
     "temple"
@@ -17497,7 +17508,8 @@
     "BLD_TEMPLE",
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
-    "BLD_TEMPLE_ISIS"
+    "BLD_TEMPLE_ISIS",
+    "BLD_TOPHET"
    ],
    "trained_at_0ad": [
     "temple",
@@ -19086,7 +19098,8 @@
     "BLD_TEMPLE",
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
-    "BLD_TEMPLE_ISIS"
+    "BLD_TEMPLE_ISIS",
+    "BLD_TOPHET"
    ],
    "trained_at_0ad": [
     "temple"
@@ -20519,7 +20532,8 @@
     "BLD_TEMPLE",
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
-    "BLD_TEMPLE_ISIS"
+    "BLD_TEMPLE_ISIS",
+    "BLD_TOPHET"
    ],
    "trained_at_0ad": [
     "temple"
@@ -24419,7 +24433,8 @@
     "BLD_TEMPLE",
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
-    "BLD_TEMPLE_ISIS"
+    "BLD_TEMPLE_ISIS",
+    "BLD_TOPHET"
    ],
    "trained_at_0ad": [
     "temple"
@@ -32880,7 +32895,8 @@
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS",
     "BLD_KUSH_SHRINE",
-    "BLD_TEMPLE_ISIS"
+    "BLD_TEMPLE_ISIS",
+    "BLD_TOPHET"
    ]
   },
   {

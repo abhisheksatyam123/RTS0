@@ -1149,6 +1149,12 @@ public:
 	// Returns its capacity, 0 for anything else. `i` is a SoA index.
 	int siege_garrison_capacity(size_t i) const;
 	bool is_siege_tower_at(size_t i) const;
+	bool is_plane_at(size_t i) const;
+	// GarrisonHolder.IsGarrisoningAllowed: UnitMotionFlying shuts a plane from its take-off roll
+	// until it has landed and stopped.
+	bool garrisoning_allowed(size_t holder) const;
+	float siege_eject_health(size_t i) const { return is_plane_at(i) ? 0.0f : SIEGE_EJECT_HEALTH; }
+	void carry_plane_passengers(size_t plane, float dt);
 	// Garrisoned Infantry in a siege tower = arrows per volley (capped).
 	int siege_tower_arrows(size_t i) const;
 	// Auras.js "garrison" auras on BuildingAI (Caros' Valiant Defender) from the units `ids`
@@ -3546,8 +3552,8 @@ private:
 	};
 	// The plan's unitStat classes, less those whose bit is set in `dropped`.
 	std::vector<PetraUnitStat> petra_plan_unit_stats(uint8_t kind, uint16_t dropped = 0);
-	// Whether a building of ours trains some roster template of the class now (trainMoreUnits
-	// drops a class without one from the plan).
+	// Whether a finished building of ours trains some roster template of the class, busy or
+	// not (findTrainableUnits; trainMoreUnits drops a class without one from the plan).
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;

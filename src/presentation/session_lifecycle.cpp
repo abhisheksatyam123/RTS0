@@ -957,7 +957,6 @@ void RtsoMain::_process(double delta) {
 	if (hotkey_paused_ && !net_lockstep()) return;
 	if (app_unfocused_ && !net_lockstep() && rtso::user_config::get_bool("pauseonfocusloss")) return;
 	double scaled_delta = delta * game_speed;
-	match_elapsed_time += scaled_delta;
 
 	rtso::PerfTracker::begin_frame();
 	uint64_t start_us = Time::get_singleton()->get_ticks_usec();
@@ -1299,8 +1298,8 @@ void RtsoMain::_process(double delta) {
 		const Vector3 focus = cam_rig->get_target_pos();
 		session_audio_.set_listener(focus.x, focus.z);
 	}
-	session_audio_.tick(sim, local_player(), match_elapsed_time, true);
-	session_audio_.tick_combat(sim, local_player(), attacks, sim->take_fauna_strikes(), match_elapsed_time);
+	session_audio_.tick(sim, local_player(), match_elapsed_time(), true);
+	session_audio_.tick_combat(sim, local_player(), attacks, sim->take_fauna_strikes(), match_elapsed_time());
 	update_music_state();
 
 	// The dayscape loop never stops (PlayAmbientSound's looping track).

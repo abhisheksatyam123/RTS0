@@ -125,7 +125,7 @@ void RtsoMain::play_voice(const char *path) {
 // The top-right counters (user_settings.gd): match time, sim speed, ceasefire left.
 Dictionary RtsoMain::get_overlay_times() const {
 	Dictionary d;
-	d["elapsed"] = match_elapsed_time;
+	d["elapsed"] = match_elapsed_time();
 	d["speed"] = game_speed;
 	d["ceasefire"] = sim ? sim->ceasefire_remaining() : 0.0f;
 	return d;
@@ -138,7 +138,7 @@ void RtsoMain::_on_top_counter_gui_input(const Ref<InputEvent> &event) {
 	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
 	RtsoTopPanel::cycle_order();
 	top_panel_.invalidate();
-	if (sim) top_panel_.update(sim, local_player(), match_elapsed_time, spectating() || turn_mgr_.is_replaying());
+	if (sim) top_panel_.update(sim, local_player(), match_elapsed_time(), spectating() || turn_mgr_.is_replaying());
 }
 
 Dictionary RtsoMain::get_audio_state() const {
@@ -538,7 +538,7 @@ void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent>
 			for (size_t f = 0; f < fv.count; ++f)
 				if (fv.id[f] == a.target_id) { livestock = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic(); break; }
 		}
-		if (attack_detection_.report(a.x, a.z, match_elapsed_time, livestock)) {
+		if (attack_detection_.report(a.x, a.z, match_elapsed_time(), livestock)) {
 			notify_attack(Vector3(a.x, 0, a.z), a.attacker_owner, a.target_is_building != 0, a.target_id);
 			// messages.js "attack": a followed player's attacked entity takes the camera and the selection.
 			if (follow_player_ && followed_view() == (int)me) follow_focus(a.target_id, true);
@@ -1525,8 +1525,11 @@ std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
 }
 
 void RtsoMain::update_hud() {
-	top_panel_.update(sim, local_player(), match_elapsed_time, spectating() || turn_mgr_.is_replaying());
+	top_panel_.update(sim, local_player(), match_elapsed_time(), spectating() || turn_mgr_.is_replaying());
 	if (sim) {
+		const bool picker_shown = (replay_view_picker_ && replay_view_picker_->is_visible_in_tree()) ||
+				(observer_view_picker_ && observer_view_picker_->is_visible_in_tree());
+		top_panel_.set_build_label_view(view_player() < rtso::MAX_PLAYERS, picker_shown);
 		const uint8_t me = local_player();
 		const int idle = me < rtso::MAX_PLAYERS ? (int)sim->get_idle_workers(me).size() : 0;
 		minimap_panel_.update(idle, rtso::display_colors::state().enabled, me >= rtso::MAX_PLAYERS || spectating(),
@@ -2081,7 +2084,7 @@ void RtsoMain::refresh_dev_overlay() {
 	// mapSize is in 0.28 metres (4 per tile); times in milliseconds, as cmpTimer.
 	String text = vformat("simulation: {players:\"<<<omitted>>>\", circularMap:%s, mapSize:%d, timeElapsed:%d",
 			sim->circular_map() ? "true" : "false", (int64_t)std::lround(sim->map_half() * 2.0f * 4.0f),
-			(int64_t)(match_elapsed_time * 1000.0));
+			(int64_t)(match_elapsed_time() * 1000.0));
 	text += vformat(", ceasefireActive:%s, ceasefireTimeRemaining:%d, cinemaPlaying:%s", sim->ceasefire_active() ? "true" : "false",
 			(int64_t)std::lround(sim->ceasefire_remaining() * 1000.0f), sim->cinema_playing() ? "true" : "false");
 	{

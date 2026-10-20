@@ -142,7 +142,7 @@ func run() -> void:
 	if pop and food:
 		var cap: String = pop.find_children("*", "Label", true, false).map(func(l): return l.text).filter(func(t): return t.contains("/"))[0]
 		check(RegEx.create_from_string("^\\d+/\\d+ \\(\\d+\\)$").search(cap) != null, "caption \"count/limit (max)\": " + cap)
-		check(pop.tooltip_text == "Population: current/limit (max)" and food.tooltip_text == "Food", "no allies' stats while playing: " + food.tooltip_text)
+		check(pop.tooltip_text == "Population: current/limit (max)" and food.tooltip_text == "Food\nHarvest from animals, berry bushes, fish, or fields.", "no allies' stats while playing (the name and CounterResource's description): " + food.tooltip_text)
 		main.resign()
 		# The defeat question pauses a single-player game (messageBox, resumeGame on "No").
 		var t0 := Time.get_ticks_msec()
@@ -151,11 +151,11 @@ func run() -> void:
 		for q in main.get_children().filter(func(c): return c.get_script() == load("res://scenes/session/quit_confirmation.gd") and c.title == "DEFEATED!"):
 			q.press(0)
 		t0 = Time.get_ticks_msec()
-		while Time.get_ticks_msec() - t0 < 3000 and food.tooltip_text == "Food":
+		while Time.get_ticks_msec() - t0 < 3000 and food.tooltip_text == "Food\nHarvest from animals, berry bushes, fish, or fields.":
 			await frames(1)
 		var tip: String = food.tooltip_text
 		print("  ", tip.replace("\n", " | "))
-		check(tip.begins_with("Food\nUnordered: [Click] to change order.\n") and tip.contains(": "), "a defeated player sees the others' food")
+		check(tip.begins_with("Food\nHarvest from animals, berry bushes, fish, or fields.\nUnordered: [Click] to change order.\n") and tip.contains(": "), "a defeated player sees the others' food")
 		var ev := InputEventMouseButton.new()
 		ev.button_index = MOUSE_BUTTON_LEFT
 		ev.pressed = true
