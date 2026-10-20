@@ -5017,6 +5017,22 @@
     -0.0452
    ]
   },
+  "s_plot_field_medit": {
+   "metre": 0.24999,
+   "origin": [
+    0.0323,
+    0.0125,
+    -0.0112
+   ]
+  },
+  "s_plot_field_temp": {
+   "metre": 0.24999,
+   "origin": [
+    0.0323,
+    0.0125,
+    -0.0112
+   ]
+  },
   "s_ptolemies_blacksmith": {
    "metre": 0.19798,
    "origin": [
@@ -5135,6 +5151,14 @@
     0.1501,
     1.147,
     0.1136
+   ]
+  },
+  "s_rice_paddy": {
+   "metre": 0.25002,
+   "origin": [
+    0.0251,
+    0.0125,
+    -0.0017
    ]
   },
   "s_romans_amphitheater_pompeii": {

@@ -72,6 +72,8 @@ public:
 			b->set_ignore_texture_size(true);
 			b->set_stretch_mode(TextureButton::STRETCH_SCALE);
 			b->set_focus_mode(Control::FOCUS_NONE);
+			// MiniMap.xml gives these three no style with a sound_pressed: they don't click.
+			b->set_meta("rtso_no_click", true);
 			Ref<Texture2D> normal = load(String(kDir) + defs[i].normal);
 			b->set_texture_normal(normal);
 			b->set_texture_hover(load(String(kDir) + defs[i].over));

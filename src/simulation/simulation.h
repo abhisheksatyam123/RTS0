@@ -1149,6 +1149,12 @@ public:
 	// Returns its capacity, 0 for anything else. `i` is a SoA index.
 	int siege_garrison_capacity(size_t i) const;
 	bool is_siege_tower_at(size_t i) const;
+	bool is_plane_at(size_t i) const;
+	// GarrisonHolder.IsGarrisoningAllowed: UnitMotionFlying shuts a plane from its take-off roll
+	// until it has landed and stopped.
+	bool garrisoning_allowed(size_t holder) const;
+	float siege_eject_health(size_t i) const { return is_plane_at(i) ? 0.0f : SIEGE_EJECT_HEALTH; }
+	void carry_plane_passengers(size_t plane, float dt);
 	// Garrisoned Infantry in a siege tower = arrows per volley (capped).
 	int siege_tower_arrows(size_t i) const;
 	// Auras.js "garrison" auras on BuildingAI (Caros' Valiant Defender) from the units `ids`

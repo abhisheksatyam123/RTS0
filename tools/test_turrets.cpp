@@ -344,6 +344,21 @@ int main() {
 				ni >= 0 ? s.units_.hp[ni] : 0.0f, hp0);
 	}
 
+	// 10. TurretHolder points come from the structure's template: a Roman gate (6 points) taken
+	//     by an Athenian player (whose gate has 2) keeps the Roman layout.
+	{
+		fresh(s);
+		s.set_team_civ(0, CIV_ATHENIANS);
+		s.set_team_civ(1, CIV_ROMANS);
+		const uint32_t g = s.spawn_building_world(0.0f, 0.0f, BLD_GATE, 1, 1.0f);
+		const TurretPointSet *own = s.turret_points_of(bld(s, g));
+		CHECK(own && own->count == 6);
+		s.buildings_[s.building_id_to_idx_.at(g)].team = 0; // captured
+		const TurretPointSet *taken = s.turret_points_of(bld(s, g));
+		CHECK(taken && taken->count == 6);
+		std::printf("captured Roman gate: %d turret points (Athenian gate has 2)\n", taken ? taken->count : -1);
+	}
+
 	if (failures) {
 		std::printf("test_turrets: %d failure(s)\n", failures);
 		return 1;
