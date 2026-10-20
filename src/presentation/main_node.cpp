@@ -321,9 +321,9 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 			const uint8_t pciv = sim->player_civ(me);
 			std::vector<std::pair<uint8_t, uint8_t>> entries; // top, bottom (TECH_NONE unless paired)
 			for (int t = 1; t < rtso::TECH_COUNT; ++t) {
-				if (!rtso::building_researches_tech(rb->type, (uint8_t)t, pciv) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+				if (!rtso::building_researches_tech(rb->type, (uint8_t)t, sim->structure_template_civ(*rb)) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 				if (const uint8_t sup = rtso::tech_supersedes((uint8_t)t); sup != rtso::TECH_NONE
-						&& rtso::building_researches_tech(rb->type, sup, pciv) && rtso::tech_available_to_civ(sup, pciv)) {
+						&& rtso::building_researches_tech(rb->type, sup, sim->structure_template_civ(*rb)) && rtso::tech_available_to_civ(sup, pciv)) {
 					const rtso::Simulation::ResearchCheck sc = sim->research_check(me, sup, 0);
 					if (sc != rtso::Simulation::TECH_ERR_RESEARCHED && sc != rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
 				}
@@ -979,8 +979,10 @@ void RtsoMain::update_net_status_overlay() {
 			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = mismatch_detail(); break;
 			default: why = tr("An unknown error occurred."); break;
 		}
-		String text = (net_game_started_ ? tr("Connection to the server has been lost.")
-				: joined ? tr("Lost connection to the server.") : tr("Failed to connect to the server.")) + "\n" + why;
+		// NetworkStatusOverlay (in the match): one line break, no title.
+		// reportDisconnect (before Start): a blank line, titled "Disconnected".
+		String text = net_game_started_ ? tr("Connection to the server has been lost.") + "\n" + why
+				: (joined ? tr("Lost connection to the server.") : tr("Failed to connect to the server.")) + "\n\n" + why;
 		if (!joined && net_host_.disconnectReason() == 0) {
 			// reportConnectionRequestTimeOut, with getRequestTimeOutMessage's
 			// address advice only outside the lobby.
@@ -995,8 +997,8 @@ void RtsoMain::update_net_status_overlay() {
 		// The timeout is a "Connection Error" box with Close and Open FAQ.
 		const bool timed_out = !joined && net_host_.disconnectReason() == 0;
 		if (net_status_title_) {
-			net_status_title_->set_text(timed_out ? tr("Connection Error") : String());
-			net_status_title_->set_visible(timed_out);
+			net_status_title_->set_text(timed_out ? tr("Connection Error") : net_game_started_ ? String() : tr("Disconnected"));
+			net_status_title_->set_visible(!net_game_started_);
 		}
 		if (net_status_exit_) {
 			net_status_exit_->set_text(timed_out ? tr("Close") : tr("Exit"));
@@ -1006,7 +1008,7 @@ void RtsoMain::update_net_status_overlay() {
 		if (net_status_faq_) net_status_faq_->set_visible(timed_out);
 		net_loading_clients_->set_visible(false);
 		net_status_overlay_->set_visible(true);
-		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n", " "));
+		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n\n", "\n").replace("\n", " "));
 		update_net_setup_overlay(); // the setup page gives way at once
 		return;
 	}
@@ -2144,11 +2146,11 @@ void RtsoMain::refresh_dev_overlay() {
 // "snap" also moves the camera to the first.
 void RtsoMain::perform_group(int grp, GroupAction action) {
 	if (!sim || grp < 0 || grp > 9) return;
-	// input.js performGroup: the group's living units, and its structure (one at a time
-	// here); a member inside a structure stays in the group and the camera snaps to its
-	// holder when nothing else of the group is out.
+	// input.js performGroup: the group's living units and structures (addList(toSelect)); a
+	// member inside a structure stays in the group and the camera snaps to its holder when
+	// nothing else of the group is out.
 	PackedInt32Array recall, kept;
-	uint32_t recall_building = 0;
+	std::vector<uint32_t> recall_buildings;
 	// The snap goes to the group's lowest id, or its holder (getEntityOrHolder(toSelect[0])).
 	int32_t snap_id = 0;
 	Vector3 snap_pos;
@@ -2176,7 +2178,7 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 		if (!found)
 			for (const auto &b : sim->buildings())
 				if (b.id == (uint32_t)gid && b.team == local_player() && !b.wrecked && b.hp > 0.0f) {
-					if (!recall_building) recall_building = b.id;
+					recall_buildings.push_back(b.id);
 					at = Vector3(b.x, 0, b.z);
 					found = true;
 					break;
@@ -2188,12 +2190,16 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 	}
 	selected_groups[grp] = kept;
 	if (kept.is_empty()) return;
-	if (recall.is_empty() && !recall_building) {
+	// addList(toSelect) brings each unit's formation along (addFormationMembers).
+	for (int m = 0, n = recall.size(); m < n; ++m)
+		for (int32_t uid : formation_mates(recall[m]))
+			if (!recall.has(uid)) recall.push_back(uid);
+	if (recall.is_empty() && recall_buildings.empty()) {
 		// Everyone is inside: performGroup's g_Selection.reset() still drops the old selection
 		// (the members inside can't be picked here), and the snap goes to the holder.
 		if (action != GROUP_ADD) {
 			selected_ids.clear();
-			selected_building_id = 0;
+			set_selected_structures({});
 		}
 		if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(snap_pos);
 		return;
@@ -2201,10 +2207,14 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 	if (action == GROUP_ADD) {
 		for (int m = 0; m < recall.size(); ++m)
 			if (!selected_ids.has(recall[m])) selected_ids.push_back(recall[m]);
-		if (recall_building) selected_building_id = recall_building;
+		if (!recall_buildings.empty()) {
+			std::vector<uint32_t> structures = selected_structures();
+			structures.insert(structures.end(), recall_buildings.begin(), recall_buildings.end());
+			set_selected_structures(structures);
+		}
 	} else {
 		selected_ids = recall;
-		selected_building_id = recall_building;
+		set_selected_structures(recall_buildings);
 	}
 	if (action == GROUP_SNAP && cam_rig && snap_id != 0) cam_rig->set_target_pos(snap_pos);
 	play_civ_voice("select");

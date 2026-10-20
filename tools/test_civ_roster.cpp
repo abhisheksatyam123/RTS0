@@ -554,6 +554,13 @@ int main()
 		sim.reset();
 		sim.set_team_civ(0, CIV_MACEDONIANS);
 		sim.set_team_civ(1, CIV_ROMANS);
+		// A map's _unpacked siege stands in as its packed row, unpacked (REMAINING_GAPS SU2).
+		{
+			const int32_t up = sim.lookup_unit(sim.spawn_map_unit(-20.0f, 0.0f, 0, UNIT_SWORDSMAN, "athen/siege_lithobolos_packed", 0, true));
+			const int32_t pk = sim.lookup_unit(sim.spawn_map_unit(-30.0f, 0.0f, 0, UNIT_SWORDSMAN, "athen/siege_lithobolos_packed"));
+			check(up >= 0 && pk >= 0 && sim.units_.pack_state[up] == PACK_UNPACKED && sim.units_.pack_state[pk] == PACK_PACKED,
+				"a map's unpacked stone thrower starts unpacked, a packed one packed");
+		}
 		int32_t i = sim.lookup_unit(sim.spawn_map_unit(0.0f, 0.0f, 0, UNIT_HERO, "mace/hero_craterus"));
 		check(i >= 0 && sim.units_.tmpl[i] == civ_unit_template_by_id("mace/hero_craterus") && sim.units_.max_hp[i] == 1000.0f,
 			"a map's Craterus spawns as Craterus, not the Macedonian default hero");

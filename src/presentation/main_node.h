@@ -719,6 +719,14 @@ public:
 				return cam_rig->get_camera()->unproject_position(Vector3(uv.pos_x[i], sim->get_terrain_height(uv.pos_x[i], uv.pos_z[i]), uv.pos_z[i]));
 		return Vector2(-1, -1);
 	}
+	Vector2 debug_resource_screen(int64_t rid) const {
+		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
+		auto rv = sim->resources();
+		for (size_t r = 0; r < rv.count; ++r)
+			if (rv.id[r] == (uint32_t)rid && rv.alive[r])
+				return cam_rig->get_camera()->unproject_position(Vector3(rv.x[r], sim->get_terrain_height(rv.x[r], rv.z[r]), rv.z[r]));
+		return Vector2(-1, -1);
+	}
 	// Tests: where a structure's centre is on screen, or (-1, -1).
 	Vector2 debug_building_screen(int64_t bid) const {
 		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
@@ -940,6 +948,7 @@ private:
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);
 	// Commands.js "construct-wall" from wall_drag_start_pos to `end` (input.js tryPlaceWall): false when no piece can go down.
 	bool try_place_wall(const Vector3 &end, bool queued);
+	uint32_t first_selected_builder() const;
 	void update_ghost_mesh();
 	// The placement rotation for a building at (x, z): docks face the sea (GetDockAngle).
 	float placement_angle_at(uint8_t btype, float x, float z) const;

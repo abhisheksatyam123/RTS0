@@ -1408,7 +1408,7 @@ private:
 		return join_lines({attack, resistance_tooltip(res, true), garrison_limit_tooltip(sim.turret_only_holder(b) ? 0 : b.garrison_cap), garrison_heal_tooltip(d.heal),
 				turrets_tooltip(d.turrets), population_bonus_tooltip(d.pop_bonus),
 				projectiles_tooltip(d.projectile_limit, d.default_arrows, d.per_unit),
-				d.trickles ? trickle_tooltip(d.trickle, rtso::Simulation::TRICKLE_STRUCTURE_INTERVAL) : String(), loot_tooltip(loot)});
+				d.trickles ? trickle_tooltip(d.trickle, d.trickle_interval) : String(), loot_tooltip(loot)});
 	}
 	static String flora_title(uint8_t flora) {
 		static const char *const kNames[] = {"Tree", "Tree", "Pine", "Date Palm", "Oak", "Baobab", "Acacia", "Bamboo", "Bush",

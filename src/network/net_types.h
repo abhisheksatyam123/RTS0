@@ -240,6 +240,10 @@ inline constexpr uint8_t NET_PARAM_PUSH_FRONT = 0x04; // focus-fire: put the tar
 // (UnitAI PushOrderFront, ProductionQueue.AddItem pushFront). NET_CMD_RESEARCH says so
 // with target_x 1.
 inline constexpr uint8_t NET_PARAM_PUSH_FRONT_ORDER = 0x40;
+// Build (5): param holds the building type, so the order flags ride above the packed angle
+// (low 16 bits) of target_id (0 A.D. "construct" queued / pushFront).
+inline constexpr uint32_t NET_BUILD_QUEUED = 1u << 16;
+inline constexpr uint32_t NET_BUILD_PUSH_FRONT = 1u << 17;
 inline bool net_cmd_takes_push_front(uint8_t cmd) {
 	return cmd == 1 || cmd == 3 || cmd == 4 || cmd == 10 || cmd == 11 || cmd == 12 || cmd == 15 || cmd == 16 || cmd == 21;
 }

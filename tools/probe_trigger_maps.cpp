@@ -363,10 +363,14 @@ static bool load_json_map(Simulation &sim, const std::string &map_id, uint32_t s
 			if (replaced) { unit_ids[i] = sim.spawn_map_unit(ux, uz, team, ut, civ_unit_template(tmpl).id); continue; }
 			int rank = 0;
 			std::string pick = t;
-			if (Simulation::resolve_map_template(t.c_str(), &rank) == CIV_UNIT_TEMPLATE_NONE)
-				for (const Json &pt : u.array("parents"))
-					if (Simulation::resolve_map_template(pt.str.c_str(), &rank) != CIV_UNIT_TEMPLATE_NONE) { pick = pt.str; break; }
-			unit_ids[i] = sim.spawn_map_unit(ux, uz, team, ut, pick.c_str(), rank);
+			bool resolved = Simulation::resolve_map_template(t.c_str(), &rank) != CIV_UNIT_TEMPLATE_NONE;
+			for (const Json &pt : u.array("parents")) {
+				if (resolved) break;
+				if (Simulation::resolve_map_template(pt.str.c_str(), &rank) != CIV_UNIT_TEMPLATE_NONE) { pick = pt.str; resolved = true; }
+			}
+			// load_map_seeded leaves out a unit with no type and no template to stand in (units/plane).
+			if (!resolved && u.string("type").empty()) continue;
+			unit_ids[i] = sim.spawn_map_unit(ux, uz, team, ut, pick.c_str(), rank, t.ends_with("_unpacked"));
 			continue;
 		}
 		unit_ids[i] = sim.spawn_map_unit(ux, uz, team, ut, nullptr);
