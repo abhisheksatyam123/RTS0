@@ -44,6 +44,8 @@ Goal: high frame rates with hundreds to thousands of units on desktop, acceptabl
 ## Mobile renderer note
 Handhelds use the Mobile renderer: no Forward+-only effects (SDFGI/volumetric fog). Test Android builds weekly so perf regressions surface early.
 
+Low-end check (2026-10-20): the 32-minute Giant save on `--rendering-method mobile` at 1280x720 with every graphics option at its lowest. Godot 4.3's RD canvas renderer issues a draw call per `draw_rect`, so the minimap's unit, structure and resource dots were most of the frame: 2,241 of 2,448 draw calls were 2D against 207 for the 3D scene. The minimap now gathers its dots into one triangle array (`QuadBatch`, minimap_view.cpp), and a static structure draws as its GLB merged into one surface per material instead of one node per part (a barracks was 232 parts, now 14 draws; `instantiate_building_id`). On the same save and view: 1,484 to 627 draw calls (2D 1,063 to 256), and in a base 2,229 to 369. Read draws with `Viewport.get_render_info` per type (visible, shadow, canvas); lavapipe frame times are software raster and say nothing about a phone.
+
 ## Rendering gaps (G6): status 2026-10-08
 
 Re-checked against code. Items that are done are removed; the rest are open.

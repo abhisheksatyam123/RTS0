@@ -221,56 +221,21 @@ func press(index: int) -> void:
 func button_texts() -> Array:
 	return buttons if not buttons.is_empty() else ["OK"]
 
+## The box itself is the msgbox page (gui/msgbox), as SessionMessageBox opens it
+## through Engine.PushGuiPage("page_msgbox.xml"); its cancel hotkey presses the
+## first button.
 func _build() -> void:
-	var fade := ColorRect.new()
-	fade.color = Color(0, 0, 0, 0.4)
-	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(fade)
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
-	var panel := PanelContainer.new()
-	panel.name = "MessageBox"
+	var box = load("res://scenes/common/msgbox.gd").new()
+	box.name = "MessageBox"
 	# SessionMessageBox 400 x 200, unless the box names its own.
-	panel.custom_minimum_size = box_size if box_size != Vector2.ZERO else Vector2(400, 200)
-	center.add_child(panel)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 12)
-	panel.add_child(box)
-	var head := Label.new()
-	head.name = "Title"
+	var size := box_size if box_size != Vector2.ZERO else Vector2(400, 200)
+	box.width = size.x
+	box.height = size.y
 	# translate(Title), translate(Caption) and the buttons; a caption built from parts
 	# arrives translated line by line.
-	head.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-	head.text = L10n.t(title)
-	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	head.add_theme_font_size_override("font_size", 20)
-	head.add_theme_color_override("font_color", Color(1.0, 0.85, 0.45))
-	box.add_child(head)
-	var body := Label.new()
-	body.name = "Caption"
-	body.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-	body.text = L10n.t(caption)
-	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box.add_child(body)
-	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 12)
-	box.add_child(row)
-	var texts := button_texts()
-	for i in texts.size():
-		var b := Button.new()
-		b.name = "Button%d" % i
-		b.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-		b.text = L10n.t(texts[i])
-		b.custom_minimum_size = Vector2(160, 32)
-		b.pressed.connect(press.bind(i))
-		row.add_child(b)
-
-func _unhandled_input(event: InputEvent) -> void:
-	# The message box's cancel hotkey answers with the first button.
-	if event is InputEventKey and event.pressed and not event.echo and "cancel" in RtsoHotkeyConfig.new().fired(event):
-		get_viewport().set_input_as_handled()
-		press(0)
+	box.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	box.title = L10n.t(title)
+	box.message = L10n.t(caption)
+	box.captions = button_texts().map(func(b): return L10n.t(b))
+	box.answered.connect(press)
+	add_child(box)

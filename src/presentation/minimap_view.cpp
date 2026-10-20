@@ -14,6 +14,8 @@
 #include <algorithm>
 #include <cmath>
 #include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/rendering_server.hpp>
+#include <vector>
 #include "user_config.h"
 
 using namespace godot;
@@ -336,6 +338,47 @@ bool RtsoMiniMapView::ensure_territory_texture() {
 	return territory_tex_.is_valid();
 }
 
+namespace {
+// Filled rectangles gathered into one triangle array: Godot 4.3's RD canvas
+// renderer issues a draw call per draw_rect, and a late-game minimap's dots were
+// ~2200 of a frame's ~2450 draw calls on the Mobile renderer.
+// Triangles draw in the order added, so the layers stack as before.
+struct QuadBatch {
+	std::vector<Vector2> pts;
+	std::vector<Color> cols;
+	void add(const Rect2 &r, const Color &c) {
+		const Vector2 a = r.position, b = r.position + r.size;
+		pts.insert(pts.end(), { a, Vector2(b.x, a.y), b, Vector2(a.x, b.y) });
+		cols.insert(cols.end(), { c, c, c, c });
+	}
+	void flush(RID item) {
+		const int n = (int)pts.size();
+		if (n == 0) return;
+		PackedVector2Array p;
+		PackedColorArray c;
+		PackedInt32Array idx;
+		p.resize(n);
+		c.resize(n);
+		idx.resize(n / 4 * 6);
+		std::memcpy(p.ptrw(), pts.data(), sizeof(Vector2) * n);
+		std::memcpy(c.ptrw(), cols.data(), sizeof(Color) * n);
+		int32_t *ix = idx.ptrw();
+		for (int q = 0; q < n / 4; ++q) {
+			const int32_t v = q * 4;
+			ix[q * 6 + 0] = v;
+			ix[q * 6 + 1] = v + 1;
+			ix[q * 6 + 2] = v + 2;
+			ix[q * 6 + 3] = v;
+			ix[q * 6 + 4] = v + 2;
+			ix[q * 6 + 5] = v + 3;
+		}
+		RenderingServer::get_singleton()->canvas_item_add_triangle_array(item, idx, p, c);
+		pts.clear();
+		cols.clear();
+	}
+};
+} // namespace
+
 void RtsoMiniMapView::_draw() {
 	Vector2 sz = get_size();
 	// 0 A.D. draws a circular map's minimap as a disc (MiniMapTexture m_MapIsCircular): the
@@ -449,6 +492,8 @@ void RtsoMiniMapView::_draw() {
 
 	if (shroud_mode != SHROUD_OFF) draw_shroud();
 
+	const RID canvas = get_canvas_item();
+	QuadBatch quads;
 	// 2. Draw Resource Nodes: what the player has seen, live or miraged
 	if (show_resources) {
 		for (const auto &r : mirages_.resources()) {
@@ -460,12 +505,12 @@ void RtsoMiniMapView::_draw() {
 			else if (r.type == rtso::RES_FOOD) col = r.subtype == rtso::RES_SUB_FISH ? Color(227 / 255.0f, 130 / 255.0f, 141 / 255.0f)
 					: Color(155 / 255.0f, 204 / 255.0f, 102 / 255.0f);
 
-			draw_rect(Rect2(pos - Vector2(1.5f, 1.5f), Vector2(3.0f, 3.0f)), col, true);
+			quads.add(Rect2(pos - Vector2(1.5f, 1.5f), Vector2(3.0f, 3.0f)), col);
 		}
 		// template_gaia_treasure Minimap: a white (250, 250, 250) dot.
 		for (const auto &t : mirages_.treasures()) {
 			Color col(0.98f, 0.98f, 0.98f, 0.95f);
-			draw_rect(Rect2(map_to_mini(t.x, t.z) - Vector2(1.5f, 1.5f), Vector2(3.0f, 3.0f)), col, true);
+			quads.add(Rect2(map_to_mini(t.x, t.z) - Vector2(1.5f, 1.5f), Vector2(3.0f, 3.0f)), col);
 		}
 	}
 
@@ -487,7 +532,7 @@ void RtsoMiniMapView::_draw() {
 
 		if (!entity_pings_.empty() && entity_ping_lit(b.id, Time::get_singleton()->get_ticks_msec()))
 			col = Color(1, 1, 1); // MiniMapTexture: a pinging entity's vertex is white
-		draw_rect(Rect2(pos - Vector2(box_sz * 0.5f, box_sz * 0.5f), Vector2(box_sz, box_sz)), col, true);
+		quads.add(Rect2(pos - Vector2(box_sz * 0.5f, box_sz * 0.5f), Vector2(box_sz, box_sz)), col);
 	}
 
 	// 3b. Animals: template_unit_fauna.xml Minimap type "food", colour (227, 130, 141), and
@@ -499,7 +544,7 @@ void RtsoMiniMapView::_draw() {
 		for (size_t f = 0; f < fv.count; ++f) {
 			if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED) continue;
 			if (!sees_all && mirages_.los_at(fv.pos_x[f], fv.pos_z[f]) == rtso::Simulation::FOW_UNEXPLORED) continue;
-			draw_rect(Rect2(map_to_mini(fv.pos_x[f], fv.pos_z[f]) - Vector2(1.0f, 1.0f), Vector2(2.0f, 2.0f)), fauna_col, true);
+			quads.add(Rect2(map_to_mini(fv.pos_x[f], fv.pos_z[f]) - Vector2(1.0f, 1.0f), Vector2(2.0f, 2.0f)), fauna_col);
 		}
 	}
 
@@ -515,8 +560,9 @@ void RtsoMiniMapView::_draw() {
 		Color col = player_color(units.team[i]);
 		if (!entity_pings_.empty() && entity_ping_lit(units.id[i], Time::get_singleton()->get_ticks_msec())) col = Color(1, 1, 1);
 		float rad = (units.unit_type[i] == rtso::UNIT_CAVALRY || units.unit_type[i] == rtso::UNIT_TRADER) ? 3.0f : 2.0f;
-		draw_rect(Rect2(pos.x - rad * 0.5f, pos.y - rad * 0.5f, rad, rad), col, true);
+		quads.add(Rect2(pos.x - rad * 0.5f, pos.y - rad * 0.5f, rad, rad), col);
 	}
+	quads.flush(canvas);
 
 
 	// 5b. Minimap icons (gui.session.minimap.icons.enabled; <Minimap><Icon size="16">):

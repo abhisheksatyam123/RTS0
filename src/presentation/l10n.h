@@ -95,6 +95,19 @@ inline godot::String label_details(const godot::String &label, const godot::Stri
 // inline, hotkeys in 255 251 131 (color.js g_HotkeyTags).
 inline godot::String objection_font(const godot::String &text) { return "[color=red][b]" + text + "[/b][/color]"; }
 inline godot::String header_font(const godot::String &text) { return "[b]" + text + "[/b]"; }
+// body sans-13, unit sans-10 orange, comma sans-12: the theme's regular face, which
+// the bold session tooltips need named.
+inline constexpr const char *kRegularFont = "res://assets/fonts/LinBiolinum_Rah.ttf";
+inline godot::String regular_font(const godot::String &text, int size, const char *color = nullptr) {
+	godot::String s = godot::String("[font=") + kRegularFont + "][font_size=" + godot::String::num_int64(size) + "]";
+	if (color) s += godot::String("[color=") + color + "]";
+	s += text;
+	if (color) s += "[/color]";
+	return s + "[/font_size][/font]";
+}
+inline godot::String body_font(const godot::String &text) { return text.is_empty() ? text : regular_font(text, 13); }
+inline godot::String unit_font(const godot::String &text) { return regular_font(text, 10, "orange"); }
+inline godot::String comma_font(const godot::String &text) { return regular_font(text, 12); }
 // namePrimaryBig / namePrimarySmall / nameSecondary: sans-bold-16, sans-bold-12, sans-bold-16.
 inline godot::String name_big(const godot::String &text) { return "[font_size=16][b]" + text + "[/b][/font_size]"; }
 // The primary name in small caps: its first letter big, the rest upper case and small.

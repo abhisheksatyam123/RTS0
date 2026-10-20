@@ -3959,7 +3959,9 @@ void RtsoMain::_on_chat_text_submitted(const String &text) {
 
 void RtsoMain::_on_chat_input_gui(const Ref<InputEvent> &event) {
 	Ref<InputEventKey> k = event;
-	if (k.is_valid() && k->is_pressed() && k->get_keycode() == KEY_TAB) chat_window_.tab_complete();
+	// ChatInput's onTab is plain Tab: Ctrl+Tab stays the summary hotkey.
+	if (k.is_valid() && k->is_pressed() && k->get_keycode() == KEY_TAB && !k->is_ctrl_pressed() && !k->is_alt_pressed() && !k->is_meta_pressed())
+		chat_window_.tab_complete();
 }
 
 std::vector<String> RtsoMain::chat_autocomplete_names() {
