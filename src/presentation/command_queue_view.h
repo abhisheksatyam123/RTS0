@@ -633,8 +633,15 @@ public:
 
 				// 0.28's Upgrade panel for a structure (g_SelectionPanels.Upgrade): an icon button per
 				// choice (the target's portrait), or "Cancel Upgrading" over the progress overlay
-				// while it upgrades.
-				if (found_b->team == local_player()) {
+				// while it upgrades. Upgrade.getItems shows nothing when the selection mixes templates.
+				bool one_template = true;
+				for (uint32_t id : host_->ui_selected_structures())
+					for (const auto &o : sim->buildings())
+						if (o.id == id) {
+							one_template = one_template && o.type == found_b->type && o.civ == found_b->civ;
+							break;
+						}
+				if (found_b->team == local_player() && one_template) {
 					const bool upgrading = found_b->upgrade_to != rtso::BLD_TYPE_COUNT;
 					for (int choice = 0; choice < rtso::building_upgrade_count(found_b->type, sim->structure_upgrade_civ(*found_b)); ++choice) {
 						const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, sim->structure_upgrade_civ(*found_b), choice);

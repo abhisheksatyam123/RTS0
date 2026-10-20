@@ -598,7 +598,8 @@ void RtsoMain::debug_select_entity(int64_t id) {
 	selected_ids.clear();
 	selected_building_id = 0;
 	for (const auto &b : sim->buildings())
-		if (b.id == (uint32_t)id) { selected_building_id = b.id; return; }
+		if (b.id == (uint32_t)id) { set_selected_structures({b.id}); return; }
+	set_selected_structures({});
 	selected_ids.push_back((int32_t)id);
 }
 
