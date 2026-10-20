@@ -570,6 +570,7 @@ int Simulation::terrain_tile_at(float x, float z) const {
 
 void Simulation::reset() {
 	territory_regions_dirty_ = true;
+	played_team_placement_ = TEAM_PLACEMENT_RANDOM; // a scenario or skirmish map has none
 	petra_decay_events_.clear();
 	petra_attack_requests_.clear();
 	petra_ev_attacked_.clear();

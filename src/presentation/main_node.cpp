@@ -3828,6 +3828,8 @@ Dictionary RtsoMain::get_match_settings_info() const {
 	if (!sim) return d;
 	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings")))
 		for (const char *k : {"map_size", "start_res", "team_placement", "trigger_difficulty", "biome", "rated"}) d[k] = ms->get(k);
+	// gamesettings PlayerPlacement.pickRandomItems: a Random pick shows the pattern in play.
+	if (sim->played_team_placement()) d["team_placement"] = (int)sim->played_team_placement();
 	// gamedescription.js Rated game: rated with two players, else "disabled" in a lobby game.
 	int players = 0;
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) players += sim->player(p).active ? 1 : 0;
