@@ -412,6 +412,7 @@ class RtsoWorldView : public Node3D {
 		// The model's id and the ModelLibrary entry values a frame's unit loop reads.
 		String model_id;
 		float y_offset = 0.0f, scale = 1.0f, height = 0.0f;
+		float metre = 1.0f; // world units per 0.28 metre (ModelLibrary::Entry::metre)
 		float sil_radius = 0.0f; // world units from the unit's origin to its model's farthest corner
 		bool player_color = false; // has 0 A.D. player_trans surfaces (owner colour in custom data)
 	};

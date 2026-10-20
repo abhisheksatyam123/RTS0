@@ -2688,7 +2688,8 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key)
 		auto entry = rtso::ModelLibrary::get("units", slot->model_id);
 		slot->y_offset = entry.y_offset;
 		slot->scale = entry.scale;
-		slot->height = entry.aabb.size.y;
+		slot->metre = entry.metre;
+		slot->height = entry.height > 0.0f ? entry.height : entry.aabb.size.y;
 		// silhouette.gdshader: the model's bounding sphere about the unit's origin.
 		for (int k = 0; k < 8; ++k)
 			slot->sil_radius = std::max(slot->sil_radius, entry.aabb.get_endpoint(k).length() * entry.scale);
@@ -4435,9 +4436,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (!aura_icon_sources_.empty())
 				status_aura_icons(uview.id[i], x, z, uview.team[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, false, st);
 			if (bars || st.n_icons > 0) {
-				// The GLBs are in metres, so the model's scale is world units per metre.
+				// HeightOffset and the bar sizes are 0.28 metres, drawn at the model's own size.
 				const rtso::StatusBarsSize sb = unit_status_bars(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
-				draw_status_stack(sim, Vector3(x, y - model_b.y_offset + sb.height_offset * sc, z), sb.bar_width * sc, sb.bar_height * sc, sc, st);
+				const float m = model_b.metre;
+				draw_status_stack(sim, Vector3(x, y - model_b.y_offset + sb.height_offset * m, z), sb.bar_width * m, sb.bar_height * m, m, st);
 			}
 		}
 
@@ -5239,9 +5241,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (fview.alive[f] && fview.max_hp[f] > 0.0f) {
 				st.health = fview.hp[f] / fview.max_hp[f];
 			}
-			// The animal GLBs are in metres (fsc is world units per metre).
+			// 0.28 metres at the animal's drawn size.
 			const rtso::StatusBarsSize sb = rtso::fauna_status_bars(rtso::fauna_type_info(ft).template_name);
-			draw_status_stack(sim, Vector3(fx, fy + sb.height_offset * fsc, fz), sb.bar_width * fsc, sb.bar_height * fsc, fsc, st);
+			const float fm = fent.metre;
+			draw_status_stack(sim, Vector3(fx, fy + sb.height_offset * fm, fz), sb.bar_width * fm, sb.bar_height * fm, fm, st);
 		}
 	}
 	// A hovered tree, mine, bush or shoal (as last seen): its selection ring and
