@@ -79,6 +79,14 @@ static Simulation::AttackPlan *launched_raid(Simulation &s) {
 	return nullptr;
 }
 
+// defenseManager.js targetList: tests that place an enemy structure as if Petra had seen it
+// being built (isDangerous) put it in AI 1's list.
+static uint32_t seen_built(Simulation &s, uint32_t id) {
+	auto &ids = s.petra_defense_targets_.ids;
+	if (!std::binary_search(ids.begin(), ids.end(), id)) ids.insert(std::lower_bound(ids.begin(), ids.end(), id), id);
+	return id;
+}
+
 static void test_no_early_rush() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(1);
@@ -848,7 +856,7 @@ static void test_attack_plans() {
 		// outpost claims no territory; a house's TerritoryInfluence would own its own ground.)
 		// Six riders: two stay home to hunt (attackPlan.js addUnits).
 		auto s = match(PETRA_BEHAVIOR_BALANCED);
-		const uint32_t outpost = s->spawn_building_world(-10.0f, -40.0f, BLD_OUTPOST, 0, 1.0f);
+		const uint32_t outpost = seen_built(*s, s->spawn_building_world(-10.0f, -40.0f, BLD_OUTPOST, 0, 1.0f));
 		for (int i = 0; i < 6; ++i) s->spawn_unit(-30.0f + 2.0f * (float)i, -12.0f, 1, UNIT_CAVALRY);
 		for (int i = 0; i < 4; ++i) s->spawn_unit(-30.0f + 2.0f * (float)i, -10.0f, 1, UNIT_SPEARMAN);
 		bool raided = false, cavalry_only = true;
@@ -2841,7 +2849,7 @@ static void test_raid_sizes_vary() {
 		float tx = 0.0f, tz = 0.0f;
 		for (const auto &b : s->buildings())
 			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
-		s->spawn_building_world(tx + 10.0f, tz, BLD_OUTPOST, 0, 1.0f); // an enemy structure in Petra's land
+		seen_built(*s, s->spawn_building_world(tx + 10.0f, tz, BLD_OUTPOST, 0, 1.0f)); // an enemy structure in Petra's land, seen built
 		const uint8_t made = s->petra_attack_mgr_.plans_made;
 		for (int k = 0; k < 20 && s->petra_raid_plan_.state != Simulation::AttackPlan::MUSTER; ++k) run_for(*s, 1.0f);
 		const auto &m = s->petra_attack_mgr_;
@@ -2967,7 +2975,7 @@ static void test_raid_takes_every_rider() {
 		}
 		for (int i = 0; i < 8; ++i) s->spawn_unit(tx + 2.0f * (float)i - 8.0f, tz + 6.0f, 1, UNIT_CAVALRY);
 		if (!main_musters) champion = s->spawn_unit(tx, tz + 9.0f, 1, UNIT_CAVALRY, 0.0f, champion_tmpl);
-		s->spawn_building_world(tx + 10.0f, tz, BLD_OUTPOST, 0, 1.0f); // an enemy structure in Petra's land
+		seen_built(*s, s->spawn_building_world(tx + 10.0f, tz, BLD_OUTPOST, 0, 1.0f)); // an enemy structure in Petra's land, seen built
 		size_t raiders = 0;
 		bool champion_in = false, spear_in = false;
 		for (float t = 0.0f; t < 20.0f; t += Simulation::FIXED_STEP) {
@@ -3399,6 +3407,7 @@ static void test_attack_request_counts_raid() {
 	raid.state = Simulation::AttackPlan::MUSTER;
 	raid.state_timer = 0.0f;
 	raid.target_building_id = s->spawn_building_world(bx - 10.0f, bz, BLD_OUTPOST, 0, 1.0f);
+	slot.petra_defense_targets_.ids.push_back(raid.target_building_id); // seen built by AI 2
 	raid.target_x = bx - 10.0f; raid.target_z = bz;
 	raid.squad.clear();
 	for (int k = 0; k < 4; ++k) raid.squad.push_back(s->spawn_unit(bx - 6.0f, bz + 6.0f + (float)k, 2, UNIT_CAVALRY));
@@ -5137,7 +5146,7 @@ static void test_defense_switch_to_attack() {
 	if (!cc) return;
 	const float cx = cc->x, cz = cc->z;
 	for (int k = 0; k < 20; ++k) s->spawn_unit(cx - 3.0f + (float)(k % 5), cz + 12.0f + (float)(k / 5), 1, UNIT_SPEARMAN);
-	const uint32_t tower = s->spawn_building_world(cx + 12.0f, cz - 10.0f, BLD_SENTRY_TOWER, 0, 0.2f);
+	const uint32_t tower = seen_built(*s, s->spawn_building_world(cx + 12.0f, cz - 10.0f, BLD_SENTRY_TOWER, 0, 0.2f));
 	for (int k = 0; k < 3; ++k) s->spawn_unit(cx + 10.0f, cz - 7.0f + (float)k, 0, UNIT_SWORDSMAN, 20.0f);
 	const auto unique = [&]() -> const Simulation::AttackPlan * {
 		for (const auto &p : s->petra_started_attacks())
@@ -6032,7 +6041,7 @@ static void test_raid_keeps_hunters() {
 		if (b.team == 1) { ox = b.x; oz = b.z; }
 	}
 	// An enemy outpost inside our territory is the raid's target (raidTargetEntity).
-	target = s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f);
+	target = seen_built(*s, s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f));
 	for (int k = 0; k < 3; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 6.0f, 1, UNIT_CAVALRY);
 	s->petra_scout_unit_id_ = 0;
 	int riders = 0;
@@ -6068,7 +6077,7 @@ static void test_raid_takes_siege() {
 		if (is_civic_centre(b.type) && b.hp > 0.0f && b.team == 1) { ox = b.x; oz = b.z; }
 	s->players_[1].phase = 3;
 	s->spawn_building_world(ox + 14.0f, oz - 4.0f, BLD_ARSENAL, 1, 1.0f);
-	const uint32_t target = s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f);
+	const uint32_t target = seen_built(*s, s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f));
 	for (int k = 0; k < 3; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 6.0f, 1, UNIT_CAVALRY);
 	s->petra_scout_unit_id_ = 0;
 	auto &m = s->petra_attack_mgr_;
@@ -6138,6 +6147,12 @@ static void test_raid_cc_foundation() {
 	auto it = s->building_id_to_idx_.find(target);
 	CHECK(it != s->building_id_to_idx_.end(), "the foundation stands");
 	if (it == s->building_id_to_idx_.end()) return;
+	CHECK(!s->petra_raid_target_ok(target), "no one seen building it, it is no target yet");
+	// isDangerous: an enemy seen building it near our structures puts it in the targetList.
+	const uint32_t mason = s->spawn_unit(fx + 6.0f, fz, 0, UNIT_FEMALE_CITIZEN, 1.0e4f);
+	s->order_build_or_repair(&mason, 1, target);
+	for (int k = 0; k < 12 && !s->petra_raid_target_ok(target); ++k) run_ai_turns(*s, 1);
+	if (const int32_t m = s->lookup_unit(mason); m >= 0) { s->units_.alive[m] = false; s->units_.action_state[m] = ACTION_DYING; }
 	CHECK(s->petra_raid_target_ok(target), "an enemy civic centre foundation near our structures is a raid target");
 	auto &plan = s->petra_raid_plan_;
 	// More riders wanted than there are: only the minimum can be met.
@@ -7146,7 +7161,7 @@ static void test_raids_at_once() {
 	float ox = 0, oz = 0;
 	for (const auto &b : s->buildings_)
 		if (is_civic_centre(b.type) && b.hp > 0.0f && b.team == 1) { ox = b.x; oz = b.z; }
-	const uint32_t target = s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f);
+	const uint32_t target = seen_built(*s, s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f));
 	for (int k = 0; k < 8; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 6.0f, 1, UNIT_CAVALRY);
 	s->petra_scout_unit_id_ = 0;
 	auto &m = s->petra_attack_mgr_;
