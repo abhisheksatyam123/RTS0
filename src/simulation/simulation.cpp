@@ -31063,7 +31063,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		PetraSentDiplomacy &sd = petra_sent_diplo_;
 		int enemies = 0, mutual_allies = 0;
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
-			if (p == me || !((participant_mask_ >> p) & 1) || is_defeated(p)) continue; // seated players only
+			if (p == me || !((participant_mask_ >> p) & 1)) continue; // seated players, defeated ones too
 			if (get_diplomacy(me, p) == DIPLO_ENEMY) ++enemies;
 			else if (is_ally(me, p) && is_ally(p, me)) ++mutual_allies;
 		}
@@ -31105,7 +31105,8 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	const int own_entities = petra_player_entities(me);
 	const int own_pop = pop_current(me);
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
-		if (p == me || !is_ally(me, p) || !player_in_match(p)) continue;
+		// isPlayerAlly: our own stance, whatever theirs is toward us.
+		if (p == me || !(same_team(p, me) || get_diplomacy(me, p) == DIPLO_ALLY) || !player_in_match(p)) continue;
 		const bool donor = !last_man_standing() || petra_player_entities(p) < own_entities;
 		int amounts[RES_COUNT] = {};
 		bool any = false;
@@ -31229,10 +31230,12 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 	if (teams_locked()) return; // no answer: diplomacy can't change
 	const uint8_t me = petra_pid_;
 	PetraReceivedRequest &req = petra_diplo_.received[player];
-	int enemies = 1, allies = 0; // 0 A.D. counts Gaia as an enemy and us as an ally
+	// getEnemies / getMutualAllies: Gaia is an enemy, we are a mutual ally, and a defeated
+	// player keeps its stances (Player.js SetState leaves Diplomacy alone), so it still counts.
+	int enemies = 1, allies = 0;
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
-		if (p != me && (!((participant_mask_ >> p) & 1) || is_defeated(p))) continue;
-		if (is_ally(me, p)) ++allies;
+		if (p != me && !((participant_mask_ >> p) & 1)) continue;
+		if (is_ally(me, p)) ++allies; // both ways, as isMutualAlly
 		else if (is_hostile(me, p)) ++enemies;
 	}
 	const bool more_enemies_than_allies = enemies > allies;
