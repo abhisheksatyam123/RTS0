@@ -181,7 +181,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 107; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 108; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_FAUNA_ROAM = 108; // each animal's MoveRandomly roamAngle and startAngle
 	static constexpr uint32_t SAVE_VERSION_PETRA_TILE_BASES = 107; // the base that claimed each of Petra's territory tiles
 	static constexpr uint32_t SAVE_VERSION_CHASE_TARGET = 105; // the target each unit was last in attack range of (UnitAI CHASING)
 	static constexpr uint32_t SAVE_VERSION_WAGON_SHARING = 103; // the supply wagons their owners locked
@@ -2267,9 +2268,10 @@ public:
 	// Obstruction/Static rectangle blocks foundations along it.
 	static float treasure_angle(uint32_t id) { return (float)(id % 12) * 0.52f; }
 	void order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued = false);
-	// TreasureCollector MaxDistance of unit i in world units (+ the treasure's footprint), or a
+	// TreasureCollector MaxDistance of unit i in world units (edge to edge), or a
 	// negative value when its template has no TreasureCollector (dogs, siege, catafalques).
 	float treasure_reach(size_t i) const;
+	bool treasure_within(size_t i, const Treasure &t, float reach) const; // edge to edge
 	// Whether unit i stands within treasure_reach of treasure `id` it collects, where tick_treasures runs its timer.
 	bool treasure_in_reach(size_t i, uint32_t id) const;
 	const std::vector<Treasure> &treasures() const { return treasures_; }
@@ -2980,6 +2982,10 @@ private:
 	// (0 A.D. Trainer spawns gaia/fauna_*_trainable owned by that player). Beside fauna_, not
 	// in it, so the saved FaunaStorage layout stays; save v58 adds it.
 	uint8_t fauna_owner_[FaunaStorage::MAX_FAUNA] = {};
+	// UnitAI MoveRandomly's roamAngle (+-pi/6, 0 until the first roam) and startAngle, beside
+	// fauna_ like fauna_owner_; save v108 adds them.
+	float fauna_roam_angle_[FaunaStorage::MAX_FAUNA] = {};
+	float fauna_start_angle_[FaunaStorage::MAX_FAUNA] = {};
 	IdIndex fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
 	// Turret units (unit id -> point height), rebuilt from the holders' garrison lists each
@@ -3666,6 +3672,7 @@ private:
 	void petra_available_techs(std::vector<uint8_t> &out) const;
 	int petra_accounted_workers(bool queued = true) const; // false: units alive only (getOwnEntitiesByRole)
 	bool petra_phasing() const;
+	bool petra_has_active_base() const; // basesManager.js hasActiveBase: a finished base anchor of ours
 	bool petra_start_research(uint8_t tech_id);
 	void petra_research_population_bonus();
 	bool petra_minor_tech_waiting() const;
