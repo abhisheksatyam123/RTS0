@@ -5,11 +5,13 @@ extends EditorExportPlugin
 ## 6,000 copies and 1 GB of the exported pack. The first copy of an image is
 ## exported as usual; every later one with the same import settings is exported
 ## as just its .import remap, pointed at the first copy's imported files, so its
-## path, uid and loading stay the same.
+## path, uid and loading stay the same. Byte-identical sounds (voices kept under
+## three folders) are packed once the same way.
 
-const TEXTURE_EXTS := ["png", "jpg", "jpeg", "webp"]
+# Importers whose output depends only on the source bytes and the import settings.
+const IMPORTERS := ["texture", "oggvorbisstr", "wav", "mp3"]
 
-var _first := {}  # source md5 + import params -> the first copy's [remap] ConfigFile
+var _first := {}  # importer + source md5 + import params -> the first copy's [remap] ConfigFile
 var _shared := 0
 var _bytes := 0
 
@@ -29,8 +31,6 @@ func _export_end() -> void:
 
 
 func _export_file(path: String, _type: String, _features: PackedStringArray) -> void:
-	if not path.get_extension().to_lower() in TEXTURE_EXTS:
-		return
 	var imp_path := path + ".import"
 	if not FileAccess.file_exists(imp_path):
 		return
@@ -38,10 +38,10 @@ func _export_file(path: String, _type: String, _features: PackedStringArray) -> 
 	var at := text.find("[params]")
 	if at < 0:
 		return
-	var key := FileAccess.get_md5(path) + text.substr(at)
 	var imp := ConfigFile.new()
-	if imp.parse(text) != OK or imp.get_value("remap", "importer", "") != "texture":
+	if imp.parse(text) != OK or not imp.get_value("remap", "importer", "") in IMPORTERS:
 		return
+	var key: String = imp.get_value("remap", "importer") + FileAccess.get_md5(path) + text.substr(at)
 	if not _first.has(key):
 		_first[key] = imp
 		return
@@ -49,12 +49,15 @@ func _export_file(path: String, _type: String, _features: PackedStringArray) -> 
 	var remap := ConfigFile.new()
 	for k in imp.get_section_keys("remap"):
 		remap.set_value("remap", k, imp.get_value("remap", k))
+	var counted := false
 	for k in first.get_section_keys("remap"):
 		if k.begins_with("path"):
 			remap.set_value("remap", k, first.get_value("remap", k))
+			# One file per format (path.s3tc, path.etc2); a platform packs one of them.
 			var f := FileAccess.open(imp.get_value("remap", k), FileAccess.READ)
-			if f:
+			if f and not counted:
 				_bytes += f.get_length()
+				counted = true
 	skip()
 	add_file(imp_path, remap.encode_to_text().to_utf8_buffer(), false)
 	_shared += 1
