@@ -40,7 +40,7 @@ const char *const kSetupKeys[] = {
 	"map_id", "victory", "waves_enabled", "last_man_standing", "pop_cap", "team_pop", "ceasefire_min",
 	"reveal_map", "explore_map", "ally_view", "wonder_min", "relic_min", "relic_count", "map_size",
 	"ai_difficulty", "ai_behavior", "start_res", "slot_types", "slot_civs", "slot_teams",
-	"player_civ", "ai_civ", "campaign_run", "campaign_level", "lock_teams",
+	"player_civ", "ai_civ", "campaign_run", "campaign_level", "campaign_map_name", "lock_teams",
 	// Everything else apply_match_settings reads: the options that shape the rebuilt map
 	// before a save's state is loaded onto it, and the rest, so a replay never picks up
 	// a setting changed in the Game Setup since it was recorded.

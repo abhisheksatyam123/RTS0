@@ -120,6 +120,7 @@ func run() -> void:
 	page.start_level("introduction")
 	check(ms.map_id == "introductory_tutorial" and ms.campaign_run == made.filename and ms.campaign_level == "introduction",
 		"the match is set up for the tutorial and the run: %s %s %s" % [ms.map_id, ms.campaign_run, ms.campaign_level])
+	check(ms.campaign_map_name == "Introductory Tutorial", "the map is named by the level (startScenario mapName): " + ms.campaign_map_name)
 	check(ms.slot_types == [0, 1] and ms.cheats, "the local player in seat 1, the scenario's other player, cheats on: " + str(ms.slot_types))
 	await frames(2)
 	# The loading page's threaded load of the match scene must finish first: a

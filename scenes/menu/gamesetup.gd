@@ -2290,6 +2290,7 @@ func _on_start_pressed() -> void:
 	ms.map_id = str(m["id"])
 	ms.campaign_run = "" # a match from Game Setup is not a campaign level
 	ms.campaign_level = ""
+	ms.campaign_map_name = ""
 	ms.seed = int(st["seed"])
 	ms.seed_exact = false
 	ms.ai_seed = 0 # only -autostart-aiseed sets one
@@ -2737,6 +2738,7 @@ func _host_write_setup(force: bool) -> void:
 	ms.player_count = ps["slot_types"].size()
 	ms.campaign_run = ""
 	ms.campaign_level = ""
+	ms.campaign_map_name = ""
 	ms.ai_difficulty = 3
 	ms.ai_behavior = 0
 	for i in range(ps["slot_types"].size()):
