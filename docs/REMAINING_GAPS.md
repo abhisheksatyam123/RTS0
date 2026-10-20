@@ -134,11 +134,11 @@ Checked against 0.28: aura data and status-bar icons, the selection details pane
 |---|---|---|---|
 | U1 | ~~A fogged resource's details show its live amount and live gatherers, and a supply used up in the fog can't be selected~~ Fixed: resources and treasures are picked and shown from the viewer's mirages, with the amount and gatherers last seen (ResourceSupplyMirage). | medium | Fixed |
 | U2 | ~~Capture-aura sources and the Rotary Mill draw another aura's status-bar icon (Temple of Vesta a gather bonus on workers, Pericles a health icon, Alexander a heal icon on enemy healers)~~ Fixed: each source's icon comes from its own 0.28 aura (eternal_fire laurel, Pericles standground, Alexander laurel on Civil Centres, farmstead_60 farm_bonus). `tools/e2e_range_overlays.gd` | medium | Fixed |
-| U3 | A fogged structure's panel leaves out its last-seen builders or repairers with time left, its resistance and a fogged field's supply (FoundationMirage, RepairableMirage). Its portrait tooltip, auras and clicks are fixed. | low | Open: Compare |
+| U3 | A fogged structure's panel leaves out its last-seen resistance (0.28's Resistance mirage tooltip). Its last-seen builders or repairers with time left (FoundationMirage, RepairableMirage), a fogged field's supply, portrait tooltip, auras and clicks are fixed (`FoggedBuilding` work fields). | low | Open: Compare |
 | U4 | ~~A selected structure's portrait tooltip has no aura lines~~ Fixed: getAurasTooltip from the template ("Medical Treatment", "Rigorous Training", "Wall Protection"). `tools/e2e_selection_details.gd` | low | Fixed |
-| U5 | A damaged siege engine or ship shows no repairers or repair time (template_unit_siege and template_unit_ship have Repairable). | low | Open: Compare |
+| U5 | A damaged siege engine or ship shows no repairers or repair time (template_unit_siege and template_unit_ship have Repairable). | low | Fixed: the unit panel shows "(repairers) m:ss" with the repair tooltip (`Simulation::unit_repair_work`) |
 | U6 | ~~Carcasses are titled "Carcass" with no portrait and a Gaia owner~~ Fixed: a carcass keeps its animal's name, icon and owner (special/filter/resource.xml). Fish stay "Fish": RTS0 has no gaia/fish template text. | low | Fixed |
-| U7 | A structure being built or repaired shows "Construction: N%" or "Repair" and a second bar; 0.28 shows only the repair icon with "(builders) m:ss" and its tooltip. | low | Open: Compare |
+| U7 | A structure being built or repaired shows "Construction: N%" or "Repair" and a second bar; 0.28 shows only the repair icon with "(builders) m:ss" and its tooltip. | low | Fixed: own, foreign and fogged structures show only "(builders) m:ss" with its tooltip (`InspectorView::show_build_work`) |
 | U8 | 0.28's multiple-selection tooltip replaces "Garrison Size" with "Carrying:" (`numberOfUnits.tooltip =`, selection_details.js:486), a 0.28 bug. RTS0 keeps both lines. | low | Kept |
 
 ### Reference pages, selection details and flares: Compare's tenth 0.28 pass (2026-10-20)
@@ -391,6 +391,15 @@ Trigger.js, TriggerPoint.js, Timer.js and every TriggerHelper.js helper were che
 | TH8 | Danubius' ritual made only infantry, women and healers defensive; 0.28 does every Gaia Human (cavalry too) | low | Fixed |
 | TH9 | GetLandSpawnPoints left out treasures and catafalques | low | Fixed |
 | TH10 | Gallic Fields rounds the wave delay to whole ms; float vs double in RandomTemplateComposition; RegisterTrigger has no duplicate guard | negligible | Open: Triggers |
+
+Scenario-only units: every unit the 0.28 scenario, demo and sandbox maps place was checked against the ported map JSON and the roster:
+
+| # | Gap | Severity | State |
+|---|---|---|---|
+| SU1 | The map porter dropped units whose template name has none of its keywords: We Are Legion's whole player-1 army (thureophoroi, thorakitai, Sacred Band), the mercenaries in Third Macedonian War, Death Canyon - Invasion Force, Peloponnese, Delphi and the demos, the Germans' wagons, Kushite macemen, Han crossbowmen, catafalques and siege towers in the sandboxes (about 400 units on 22 maps) | critical | Fixed: they are ported with their template and spawn as its roster row or a parent's |
+| SU2 | Unpacked siege on a map (oxybeles, lithobolos, polybolos, scorpio, mangonel) starts packed, as its packed row | low | Open: Triggers |
+| SU3 | pers/arstibara has no row of its own and stands in as pers/champion_infantry; Flight Demo's planes and han/siege_shoushe have none and are left out | low | Open: Triggers |
+| SU4 | The campaign test maps' army_* heroes and campaign_*_test structures map to the nearest civ templates (Alexander as the cavalry hero with auras, Leonidas with Last Stand, the test cities as Macedonian civic centres) | low | Open: Triggers |
 
 ## Read this first: whole-game parity (refreshed 2026-10-08, evening)
 

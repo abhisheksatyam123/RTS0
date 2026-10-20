@@ -13017,6 +13017,30 @@ bool Simulation::structure_build_work(const Building &b, BuildWork &out) const {
 	return true;
 }
 
+bool Simulation::unit_repair_work(size_t t, BuildWork &out) const {
+	out = BuildWork();
+	out.repair = true;
+	if (t >= units_.count || !units_.alive[t] || units_.hp[t] <= 0.0f || units_.hp[t] >= units_.max_hp[t]) return false;
+	if (unit_repair_time_ratio(t) <= 0.0f) return false;
+	float total_rate = 0.0f;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.action_state[i] != ACTION_REPAIR || units_.target_unit_id[i] != units_.id[t]) continue;
+		if (!can_repair_unit(i, (int32_t)t) || !repair_unit_in_range(i, t)) continue;
+		++out.builders;
+		total_rate += builder_rate(i);
+	}
+	const uint8_t owner = units_.team[t];
+	const float train = civ_template_unit_info(units_.tmpl[t], units_.unit_type[t]).train_time *
+			(owner < MAX_PLAYERS ? unit_tech_mods(owner, units_.unit_type[t], units_.tmpl[t]).train_time : 1.0f);
+	const float repair_time = unit_repair_time_ratio(t) * train;
+	const float hp_rate = repair_time > 0.0f ? units_.max_hp[t] / repair_time : 1.0f;
+	const float left = (units_.max_hp[t] - units_.hp[t]) / hp_rate;
+	const float rate = total_rate * foundation_build_multiplier(out.builders);
+	out.remaining = rate > 0.0f ? left / rate : 0.0f;
+	out.remaining_new = left / ((total_rate + 1.0f) * foundation_build_multiplier(out.builders + 1));
+	return true;
+}
+
 // Foundation.js / Repairable.js CalculateBuildMultiplier: n builders at work
 // each do n^0.7 / n of their rate (BuildTimeModifier / buildTimePenalty 0.7).
 float Simulation::foundation_build_multiplier(int builders) {

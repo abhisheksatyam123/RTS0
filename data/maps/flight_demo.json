@@ -4830,6 +4830,77 @@
       "template": "athen/civil_centre"
     }
   ],
-  "units": [],
+  "units": [
+    {
+      "type": "",
+      "player": 1,
+      "x": -56.73,
+      "z": -26.51,
+      "template": "plane"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -63.57,
+      "z": -33.7,
+      "template": "plane"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -59.45,
+      "z": -38.39,
+      "template": "plane"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -52.1,
+      "z": -31.03,
+      "template": "plane"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 64.43,
+      "z": 16.09,
+      "template": "plane"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 60.78,
+      "z": 13.34,
+      "template": "plane"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 71.62,
+      "z": 2.27,
+      "template": "plane"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 67.81,
+      "z": -0.9,
+      "template": "plane"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -88.28,
+      "z": -66.37,
+      "template": "plane"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -84.65,
+      "z": -70.49,
+      "template": "plane"
+    }
+  ],
   "circular": true
 }
