@@ -984,7 +984,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					if (send_structure_click(scenery_click(sid), 0, sid)) return;
 				}
 				for (const auto &b : sim->buildings()) {
-					if (b.wrecked || b.team == local_player()) continue;
+					if (b.wrecked) continue; // own structures too: C recaptures (Capturable.CanCapture)
 					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z;
 					const float hit_r = b.half_size + 1.2f;
 					if (dx * dx + dz * dz > hit_r * hit_r) continue;
@@ -1406,6 +1406,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							structure_click(b.id) != CLICK_NONE) {
 						// "attack" (9, allowCapture false) before "capture" (10); C captures.
 						send_structure_click(structure_click(b.id), b.id, 0);
+					} else if (structure_click(b.id) == CLICK_CAPTURE && !able_any([&](uint32_t id) {
+								   return sim->can_return_resource(id, b.id);
+							   })) {
+						// "capture" (10) on an own, allied or neutral structure an enemy holds points of
+						// (Capturable.CanCapture): recapture, before "repair" (11) and "move" (12).
+						send_structure_click(CLICK_CAPTURE, b.id, 0);
 					} else if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) {
 						break; // neutral: walk there
 					} else if (b.team != local_player()) {

@@ -2062,7 +2062,11 @@ public:
 	bool unit_is_guarding(uint32_t uid) const { return unit_guard_target(uid) != 0; }
 	// UnitAI.isGuardOf: the entity the unit guards (a unit or structure id), or 0.
 	uint32_t unit_guard_target(uint32_t uid) const;
-	bool unit_has_work_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.work_kind[idx] != ORDER_NONE; } // UnitAI hasWorkOrders
+	// UnitAI HasWorkOrders: a work queue kept when a forced order replaced it (UpdateWorkOrders).
+	bool unit_has_work_order(uint32_t uid) const {
+		const auto w = work_orders_.find(uid);
+		return w != work_orders_.end() && !w->second.empty();
+	}
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
 	const Grid<uint8_t>& territory_grid() const { return territory_grid_; }
 	// ICmpTerritoryManager::IsTerritoryBlinking for territory_grid() cell (tx, tz): owned land in a
