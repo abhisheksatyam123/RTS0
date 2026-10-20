@@ -795,7 +795,7 @@ int main() {
 		CHECK(std::fabs(s.fauna_.pos_x[fidx(s, ewe)] - stop_x) < 0.5f);
 		// Garrison: into its owner's corral; penned, it is no longer selectable.
 		s.order_fauna_walk(1, herd, 2, 0.0f, 0.0f, pen);
-		run(s, 20.0f);
+		run(s, 25.0f);
 		CHECK(s.fauna_.behavior[fidx(s, ewe)] == FAUNA_CORRALLED && s.corral_count(pen) == 2);
 		CHECK(!s.fauna_selectable_by(1, ewe));
 		std::printf("livestock orders: ewe walked to (%.1f, %.1f), both penned\n", ex, ez);
@@ -812,13 +812,18 @@ int main() {
 		s.fauna_start_attack((size_t)fidx(s, wolf), u);
 		s.tick(Simulation::FIXED_STEP);
 		int32_t w = fidx(s, wolf);
+		// UnitMotion Acceleration: from rest it gains Acceleration x the tick, up to its walk speed.
+		const float first = std::hypot(s.fauna_.vel_x[w], s.fauna_.vel_z[w]);
+		CHECK(std::fabs(first - std::min(wi.speed, wi.acceleration * Simulation::FIXED_STEP)) < 0.01f);
+		run(s, 0.5f);
+		w = fidx(s, wolf);
 		const float walk = std::hypot(s.fauna_.vel_x[w], s.fauna_.vel_z[w]);
 		CHECK(std::fabs(walk - wi.speed) < 0.01f);
 		uint32_t sheep = s.spawn_fauna(-6.0f, 0.0f, FAUNA_SHEEP_TRAINABLE, 1);
 		s.fauna_attacked((size_t)fidx(s, sheep), wolf, true);
 		CHECK(s.fauna_.behavior[fidx(s, sheep)] == FAUNA_FLEE);
 		s.fauna_start_attack((size_t)fidx(s, wolf), sheep);
-		s.tick(Simulation::FIXED_STEP);
+		run(s, 0.5f);
 		w = fidx(s, wolf);
 		CHECK(std::fabs(std::hypot(s.fauna_.vel_x[w], s.fauna_.vel_z[w]) - wi.speed) < 0.01f);
 		// The wolf is defensive (no respondChase): after its first ATTACKING it gives up instead.
@@ -827,7 +832,7 @@ int main() {
 		const uint32_t dog = s.spawn_fauna(0.0f, 4.0f, FAUNA_DOG_MASTIFF);
 		s.fauna_start_attack((size_t)fidx(s, dog), sheep);
 		s.fauna_.flee_distance[fidx(s, dog)] = 1.0f; // COMBAT ATTACKING once: the sheep got away
-		s.tick(Simulation::FIXED_STEP);
+		run(s, 0.5f);
 		const int32_t m = fidx(s, dog);
 		const float run_sp = std::hypot(s.fauna_.vel_x[m], s.fauna_.vel_z[m]);
 		CHECK(std::fabs(run_sp - mi.speed * mi.run_mult) < 0.01f);
