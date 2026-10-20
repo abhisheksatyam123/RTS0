@@ -4055,12 +4055,38 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	status_rank_icons_.clear();
 	status_xp_bars_ = 0;
 	aura_icon_sources_.clear();
+	// A capture source's aura is its capture_range_auras() row and the Rotary Mill's gather-rate
+	// source keeps its gather_rate_range_auras() row in value: their icons come from those
+	// rows' 0.28 aura ids, reaching what the same-named hero aura affects, else structures
+	// (eternal_fire, loyalty_regen) or units (farmstead_60).
+	auto hero_row = [](const char *id) -> int16_t {
+		for (uint16_t a = 0; a < rtso::CIV_HERO_AURA_COUNT; ++a)
+			if (std::strcmp(rtso::civ_hero_aura(a).id, id) == 0) return (int16_t)a;
+		return -1;
+	};
 	for (const rtso::AuraSource &as : sim->aura_manager().sources) {
-		if (!as.alive || as.aura < 0) continue;
+		if (!as.alive) continue;
 		const int32_t sid = (int32_t)as.source_id;
 		if (cinema_playing_ || (!show_all_status_bars_ && !sel_set.count(sid) && !sel_buildings_.count(sid) && !highlight_set_.count(sid))) continue;
-		const int icon = status_sprites_.aura_icon(rtso::civ_hero_aura(as.aura).id);
-		if (icon >= 0) aura_icon_sources_.push_back({ &as, icon });
+		AuraIconSource src{ &as, -1 };
+		const char *id = nullptr;
+		if (as.type == rtso::AURA_CAPTURE_POINTS || as.type == rtso::AURA_GARRISON_REGEN) {
+			if (as.aura < 0 || as.aura >= rtso::CAPTURE_RANGE_AURA_COUNT) continue;
+			id = rtso::capture_range_auras()[as.aura].id;
+			src.hero = hero_row(id);
+			src.structures = src.hero < 0 || rtso::civ_hero_aura(src.hero).structures;
+		} else if (as.aura < 0) {
+			if (as.type != rtso::AURA_GATHER_RATE || as.value < 0.0f || as.value >= rtso::GATHER_RATE_RANGE_AURA_COUNT) continue;
+			id = rtso::gather_rate_range_auras()[(int)as.value].id;
+			src.units = true;
+		} else {
+			id = rtso::civ_hero_aura(as.aura).id;
+			src.hero = as.aura;
+			src.structures = rtso::civ_hero_aura(as.aura).structures;
+		}
+		src.icon = status_sprites_.aura_icon(id);
+		src.aura_id = id;
+		if (src.icon >= 0) aura_icon_sources_.push_back(src);
 	}
 
 	Vector3 cam_pos;
@@ -4776,7 +4802,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 					}
 				}
 			}
-			if (!aura_icon_sources_.empty()) status_aura_icons(b.id, b.x, b.z, b.team, rtso::CIV_UNIT_TEMPLATE_NONE, true, st);
+			if (!aura_icon_sources_.empty()) status_aura_icons(b.id, b.x, b.z, b.team, rtso::CIV_UNIT_TEMPLATE_NONE, true, st,
+					(rtso::building_tech_classes(b.type) & rtso::TC_CIVCENTRE) != 0);
 			if (bars || st.n_icons > 0) {
 				// In the model's metres (its actor frame), as the GLBs are not drawn 1 unit = 4 m.
 				float m = 0.25f;
@@ -5232,13 +5259,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 // (x, z): a unit of roster row tmpl the aura affects, or a structure when the aura
 // names the Structure class. Each icon once. A range aura's query leaves its own source
 // out (Auras.js CreateActiveQuery), so a hero doesn't wear its own range aura's icon.
-void RtsoWorldView::status_aura_icons(uint32_t id, float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const {
+void RtsoWorldView::status_aura_icons(uint32_t id, float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st, bool civic_centre) const {
 	const uint16_t bit = rtso::aura_player_bit(team);
 	for (const AuraIconSource &a : aura_icon_sources_) {
 		const rtso::AuraSource &s = *a.src;
 		if (!(s.affected & bit)) continue;
-		if (s.source_id == id && rtso::civ_hero_aura(s.aura).radius > 0.0f) continue;
-		if (structure ? !rtso::civ_hero_aura(s.aura).structures : !rtso::civ_aura_affects(s.aura, tmpl)) continue;
+		if (s.source_id == id && (a.hero < 0 || rtso::civ_hero_aura(a.hero).radius > 0.0f)) continue;
+		if (structure ? !a.structures : a.hero >= 0 ? !rtso::civ_aura_affects(a.hero, tmpl) : !a.units) continue;
+		// Alexander's aura reaches Civil Centres only (query_capture's need_class 1).
+		if (structure && s.need_class == 1 && !civic_centre && (s.type == rtso::AURA_CAPTURE_POINTS || s.type == rtso::AURA_GARRISON_REGEN)) continue;
 		const float dx = x - s.x, dz = z - s.z;
 		if (dx * dx + dz * dz > s.range * s.range) continue;
 		bool dup = false;

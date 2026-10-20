@@ -102,6 +102,12 @@ func run() -> void:
 	var parts: Array = b["capture_parts"]
 	check(parts.size() == 1 and float(parts[0]["width"]) > 90.0 and absf(Color(parts[0]["color"]).a - 0.5) < 0.01, "a fully held Civic Center's capture bar is one part in the owner's colour at half alpha")
 
+	# getAurasTooltip on a structure's portrait (selection_details.js iconBorder).
+	var temple: int = main.debug_spawn_building(9, 20.0, -20.0)
+	await frames(10)
+	var tp: Dictionary = main.debug_inspector("building:%d" % temple)
+	check(String(tp["portrait_tooltip"]).contains("Medical Treatment:"), "a temple's portrait tooltip lists its Medical Treatment aura: " + String(tp["portrait_tooltip"]).replace("\n", " | "))
+
 	main.debug_inspector("field")
 	await frames(40) # a few turns: the field's supply comes with the next tick_gather
 	var fd: Dictionary = main.debug_inspector("field")
