@@ -83,6 +83,14 @@ func run() -> void:
 	check(not t.has("Patrol"), "the row stops at six: no room for Patrol")
 	check(not t.has("Abort"), "no Abort while everyone is idle")
 	check(not t.has("Abort Guard"), "no Abort Guard while nobody guards")
+	# The tooltips are translate(title) + "\n" + translate(body).
+	var de: Translation = load("res://assets/l10n/de.po")
+	TranslationServer.add_translation(de)
+	TranslationServer.set_locale("de")
+	var guard_tip: String = button("Guard").get("tip", "")
+	TranslationServer.set_locale("en")
+	TranslationServer.remove_translation(de)
+	check(guard_tip.ends_with("Bewachen\nAusgewählten Einheiten befehlen, ein Gebäude oder eine Einheit zu bewachen."), "Guard's tooltip is translated: " + guard_tip.replace("\n", " | "))
 	# The first group icon is the villagers (e2e_command_panel narrows to them).
 	var g: Dictionary = main.debug_selection_grid(false)
 	instance_from_id(g["icons"][0]["id"]).emit_signal("pressed")
@@ -119,17 +127,18 @@ func run() -> void:
 	var victim := int(sel[0])
 	check(press("Delete"), "pressing Delete")
 	await frames(2)
-	var dialogs := root.find_children("*", "ConfirmationDialog", true, false)
-	var dlg: ConfirmationDialog = dialogs[0] if dialogs.size() > 0 else null
-	check(dlg != null and dlg.visible, "a confirmation asks first")
+	var QC = load("res://scenes/session/quit_confirmation.gd")
+	var boxes: Array = main.get_children().filter(func(c): return c.get_script() == QC)
+	var dlg = boxes[0] if boxes.size() == 1 else null
+	check(dlg != null and paused, "a message box asks first, pausing the game")
 	if dlg:
-		check(dlg.dialog_text == "Destroy everything currently selected?" and dlg.title == "Delete", "with 0.28's title and question")
-		check(dlg.get_ok_button().text == "Yes" and dlg.get_cancel_button().text == "No", "and Yes / No")
+		check(dlg.caption == "Destroy everything currently selected?" and dlg.title == "Delete", "with 0.28's title and question")
+		check(dlg.button_texts() == ["No", "Yes"], "and No / Yes")
 	await frames(10)
 	check(alive(victim), "nothing is destroyed before the answer")
 	if dlg:
-		dlg.emit_signal("confirmed")
-		dlg.hide()
+		dlg.press(1)
+	check(not paused, "answering resumes it")
 	await until(func(): return not alive(victim))
 	check(not alive(victim), "Yes destroys the selection")
 	main.debug_selection_grid(true)

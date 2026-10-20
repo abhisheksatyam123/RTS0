@@ -309,16 +309,10 @@ void RtsoMain::request_delete() {
 		_on_delete_confirmed();
 		return;
 	}
-	if (!delete_dialog_) {
-		delete_dialog_ = memnew(ConfirmationDialog);
-		delete_dialog_->set_title(tr("Delete"));
-		delete_dialog_->set_text(tr("Destroy everything currently selected?"));
-		delete_dialog_->get_ok_button()->set_text(tr("Yes"));
-		delete_dialog_->get_cancel_button()->set_text(tr("No"));
-		delete_dialog_->connect("confirmed", Callable(this, "_on_delete_confirmed"));
-		ui_layer->add_child(delete_dialog_);
-	}
-	delete_dialog_->popup_centered();
+	// DeleteSelectionConfirmation, a SessionMessageBox: closes the other dialogs and
+	// pauses a single-player game until answered.
+	Ref<Script> q = ResourceLoader::get_singleton()->load("res://scenes/session/quit_confirmation.gd");
+	if (q.is_valid()) q->call("delete_selection", this);
 }
 
 void RtsoMain::_on_delete_confirmed() {

@@ -566,11 +566,13 @@ func _built_by() -> Array:
 ## The Training panel's lines with Options' Detailed tooltips (showdetailedtooltips;
 ## selection_panels.js: health, attack, healer, resistance, garrison, turrets,
 ## projectiles, speed and dropsite tooltips), as plain text for a list tooltip.
-static func detailed_tooltip(tmpl: int) -> String:
+static func detailed_tooltip(tmpl: int, mods: Dictionary = {}) -> String:
 	var d: Dictionary = Common.ref().get_unit(tmpl)
 	if d.is_empty():
 		return ""
 	d = Common.civ_costed(d, "unit", int(d.get("civ", 0)))
+	if not mods.is_empty():
+		d = _with_mods(d, mods)
 	var vw: Dictionary = Common.unit_text(d.get("id", "")).get("viewer", {})
 	var keep := ["Health:", "Attack:", "Heal:", "Resistance:", "Garrison Limit", "Turret Positions", "Projectile Limit", "Speed:", "Dropsite for:"]
 	var out: PackedStringArray = []
@@ -582,6 +584,27 @@ static func detailed_tooltip(tmpl: int) -> String:
 		if on:
 			out.append(line)
 	return "\n".join(out)
+
+## A template's stats after a player's technologies and bonuses (Simulation::template_stat_mods):
+## Health and walk speed scaled, each damage type x mul + add, MaxRange x mul + add, resistance + levels.
+static func _with_mods(base: Dictionary, mods: Dictionary) -> Dictionary:
+	var d := base.duplicate(true)
+	if d.has("hp"):
+		d["hp"] = float(d["hp"]) * float(mods["health"])
+	if d.has("walk_speed"):
+		d["walk_speed"] = float(d["walk_speed"]) * float(mods["speed"])
+	if d.has("attack"):
+		var a: Dictionary = d["attack"]
+		var keys := ["hack", "pierce", "crush"]
+		for k in 3:
+			a[keys[k]] = float(a[keys[k]]) * float(mods["atk_mul"][k]) + float(mods["atk_add"][k])
+		a["range"] = float(a["range"]) * float(mods["range_mul"]) + float(mods["range_add"])
+	if d.has("armour"):
+		var r: Dictionary = d["armour"]
+		var types := ["hack", "pierce", "crush"]
+		for k in 3:
+			r[types[k]] = float(r[types[k]]) + float(mods["armor"][k])
+	return d
 
 ## BBCode to plain text: a resource icon becomes its name.
 static func _plain(t: String) -> String:

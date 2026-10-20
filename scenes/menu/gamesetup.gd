@@ -2375,17 +2375,7 @@ func _build_net_controls() -> void:
 ## Engine.OpenChildPage("page_lobby.xml", {"dialog": true}): the lobby over
 ## the setup on its own layer; it frees itself on Back.
 func open_lobby_dialog() -> Node:
-	if not LobbySession.signed_in():
-		return null
-	var layer := CanvasLayer.new()
-	layer.name = "LobbyDialog"
-	layer.layer = 40
-	var lobby: Control = load("res://scenes/menu/lobby.tscn").instantiate()
-	lobby.dialog = true
-	lobby.closed.connect(layer.queue_free)
-	layer.add_child(lobby)
-	get_tree().root.add_child(layer)
-	return lobby
+	return load("res://scenes/menu/lobby.gd").open_dialog(get_tree())
 
 ## 0.28 Panels/Chat/ChatPanel: the chat under the player slots, where single
 ## player shows its tips. The input goes through RtsoMain's chat send, so

@@ -70,6 +70,21 @@ func run() -> void:
 	check(main.get_node_or_null("PauseMenuClosing") != null, "and its panel slides back up (Menu.js close)")
 	await frames(10)
 	check(main.get_node_or_null("PauseMenuClosing") == null, "then the sliding copy is gone")
+	# MenuButtons Lobby: enabled while signed in (Engine.HasXmppClient), and it opens
+	# the lobby page as a dialog (page_lobby.xml {"dialog": true}), not the host/join panel.
+	var ls = root.get_node("LobbySession")
+	ls.token = "e2e"
+	main._on_menu_button_pressed()
+	await frames(10)
+	check(not btn(menu, "BtnLobby").disabled, "Lobby is enabled once signed in")
+	menu._on_lobby_pressed()
+	await frames(2)
+	var page = root.get_node_or_null("LobbyDialog")
+	check(page != null and page.get_child(0).dialog and not menu.visible, "it opens the lobby page as a dialog and closes the menu")
+	if page:
+		page.queue_free()
+	ls.token = ""
+	await frames(2)
 
 	main._on_menu_button_pressed()
 	await frames(10) # the slide down
