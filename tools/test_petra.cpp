@@ -686,6 +686,83 @@ static void test_diplomacy() {
 		CHECK(first == 3, "the ally with a finished wonder is betrayed first");
 	}
 
+	// Last Man Standing with teams locked: Setup.js makes that an allied victory, so allies
+	// share the win and never fall out (lastManStandingCheck returns at once; DM:293-295).
+	{
+		auto s = three_player_match(7);
+		s->set_last_man_standing(true);
+		s->set_mutual_ally(1, 2);
+		s->set_lock_teams(true);
+		CHECK(s->allied_victory(), "locked teams make Last Man Standing an allied victory");
+		run_for(*s, 5.0f);
+		auto &u = s->units_;
+		for (size_t i = 0; i < u.count; ++i) if (u.team[i] == 0) u.alive[i] = false;
+		for (auto &b : s->buildings_) if (b.team == 0) b.hp = 0.0f;
+		run_for(*s, 4.0f * 60.0f);
+		std::printf("  last man standing, teams locked: allies still allied %d, AI 1 waiting %d\n",
+		            (int)s->is_ally(1, 2), (int)s->petra_diplo_.waiting_to_betray);
+		CHECK(s->is_ally(1, 2) && !s->petra_diplo_.waiting_to_betray, "allies don't betray each other");
+	}
+
+	// Last Man Standing, three allied AIs: lastManStandingCheck also runs on every diplomacy
+	// change (checkEvents), so one AI's betrayal sets off another still waiting out its lapse.
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(11);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 11, 4, 96.0f);
+		for (uint8_t p = 0; p < 4; ++p) s->set_player_active(p, true, p != 0);
+		s->set_last_man_standing(true);
+		s->set_mutual_ally(1, 2);
+		s->set_mutual_ally(1, 3);
+		s->set_mutual_ally(2, 3);
+		run_for(*s, 5.0f);
+		auto &u = s->units_;
+		for (size_t i = 0; i < u.count; ++i) if (u.team[i] == 0) u.alive[i] = false;
+		for (auto &b : s->buildings_) if (b.team == 0) b.hp = 0.0f;
+		for (uint8_t p = 1; p <= 3; ++p) {
+			float tx = 0.0f, tz = 0.0f;
+			for (const auto &b : s->buildings()) if (b.type == BLD_TOWN_CENTER && b.team == p) { tx = b.x; tz = b.z; }
+			for (int i = 0; i < 50; ++i) s->spawn_unit(tx + 8.0f + (float)(i % 10), tz + 8.0f + (float)(i / 10), p, UNIT_SPEARMAN);
+		}
+		const auto wars = [&]() {
+			int n = 0;
+			for (uint8_t a = 1; a <= 3; ++a)
+				for (uint8_t b = a + 1; b <= 3; ++b)
+					if (s->get_diplomacy(a, b) == Simulation::DIPLO_ENEMY || s->get_diplomacy(b, a) == Simulation::DIPLO_ENEMY) ++n;
+			return n;
+		};
+		// PETRA_PLAYER's state is the live one, the others' parked in their slots between turns.
+		const auto dip_of = [&](uint8_t p) -> PetraDiplomacy & {
+			return p == Simulation::PETRA_PLAYER ? s->petra_diplo_ : s->petra_slots_[p].petra_diplo_;
+		};
+		// As each AI starts waiting, AIs 2 and 3 get 1000 s more on their own timers; AI 1 turns
+		// once all three wait.
+		bool held[4] = {}, all_waiting = false;
+		float first = -1.0f, second = -1.0f;
+		for (float t = 0.0f; t < 150.0f && second < 0.0f; t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			all_waiting = true;
+			for (uint8_t p = 1; p <= 3; ++p) {
+				PetraDiplomacy &d = dip_of(p);
+				if (d.waiting_to_betray && !held[p]) {
+					held[p] = true;
+					d.betray_lapse = d.elapsed + 1000.0f;
+				}
+				all_waiting = all_waiting && held[p];
+			}
+			if (all_waiting && first < 0.0f && dip_of(1).betray_lapse > 0.0f && wars() == 0)
+				dip_of(1).betray_lapse = dip_of(1).elapsed;
+			const int w = wars();
+			if (w >= 1 && first < 0.0f) first = t;
+			if (w >= 2) second = t; // a second pair at war: another AI turned too
+		}
+		CHECK(all_waiting, "every AI waits to betray once the human is out");
+		const float when = first >= 0.0f && second >= 0.0f ? second - first : -1.0f;
+		std::printf("  last man standing, three AIs: first betrayal at %.1fs, a second AI turns %.1fs later\n", first, when);
+		CHECK(when >= 0.0f && when < 5.0f, "one AI's betrayal sets off another waiting AI at once");
+	}
+
 	// Tribute: 0.28 gives an ally 30% of any resource we have over 200 and it
 	// lacks, our own scarcest included.
 	{
