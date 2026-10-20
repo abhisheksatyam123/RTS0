@@ -183,6 +183,13 @@ class RtsoWorldView : public Node3D {
 	float flora_scale[FLORA_KINDS] = {};
 	float flora_y[FLORA_KINDS][TREE_VARIANTS] = {};
 	int flora_variants[FLORA_KINDS] = {};
+	// A kind's models load the first time the world has one (ensure_flora): a match
+	// uses a few of the ~100 kinds, and loading them all was 2.2 s of a cold start.
+	const char *flora_model_[FLORA_KINDS] = {};
+	bool flora_sways_[FLORA_KINDS] = {};
+	bool flora_loaded_[FLORA_KINDS] = {};
+	size_t flora_scan_count_ = ~(size_t)0; // sim resources() count at the last scan for kinds
+	void ensure_flora(int k);
 	// Swaying copies of tree meshes (shaders/tree_wind.gdshader), by source mesh.
 	std::unordered_map<int64_t, Ref<Mesh>> wind_cache_;
 	// 0 A.D. carry shuttles (art/actors/props/units/shuttle_*.xml) and the
@@ -296,6 +303,11 @@ class RtsoWorldView : public Node3D {
 	MultiMeshInstance3D *treasure_mmi[rtso::TREASURE_TYPE_COUNT] = {};
 	Ref<MultiMesh> treasure_mm[rtso::TREASURE_TYPE_COUNT];
 	float treasure_y_offset[rtso::TREASURE_TYPE_COUNT] = {};
+	// A kind's model loads when the map has one (ensure_treasure), not at startup.
+	bool treasure_loaded_[rtso::TREASURE_TYPE_COUNT] = {};
+	size_t treasure_scan_count_ = ~(size_t)0;
+	void ensure_treasure(int k);
+	void ensure_map_models(const rtso::Simulation *sim);
 	Ref<MultiMesh> ruins_mm;
 	// Gaia scenery (fences, columns, obelisks): 0 A.D.'s actor meshes from
 	// data/scenery_actors.json, one MultiMesh per type and mesh variant; a box of
@@ -441,6 +453,11 @@ class RtsoWorldView : public Node3D {
 	Ref<MultiMesh> fauna_mm[FAUNA_ROWS][FAUNA_CLIP_COUNT];
 	CrowdPuppet fauna_puppet[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
 	bool fauna_puppet_baked[FAUNA_ROWS] = {};
+	// A species' model loads when the map has one (ensure_fauna_row), not at startup:
+	// drawn with the deer until then, as a model that fails to load is.
+	bool fauna_row_loaded_[FAUNA_ROWS] = {};
+	size_t fauna_scan_count_ = ~(size_t)0;
+	void ensure_fauna_row(int row);
 	String fauna_row_model_[FAUNA_ROWS];
 	int fauna_rows_ = rtso::FAUNA_COUNT;
 	uint8_t fauna_look_first_[rtso::FAUNA_COUNT] = {}; // the species' first look row

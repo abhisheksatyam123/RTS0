@@ -1,3 +1,4 @@
+#include "core/math/det_math.h"
 #include "rms_generator.h"
 #include "script_terrains.h"
 #include "resource_counts_data.h"
@@ -224,7 +225,7 @@ void HeightmapGrid::diamond_square(RmsRng &rng, float initial_range, float rough
 			}
 		}
 
-		scale *= std::pow(0.5f, roughness);
+		scale *= det::pow(0.5f, roughness);
 		step = half_step;
 	}
 }
@@ -534,7 +535,7 @@ void HeightmapGrid::raise_plateau(float center_wx, float center_wz, float radius
 
 			if (dist > total_r) continue;
 
-			float angle = std::atan2(dz, dx);
+			float angle = det::atan2(dz, dx);
 			float angle_diff = std::abs(angle - ramp_angle);
 			while (angle_diff > 3.14159265f) angle_diff = std::abs(angle_diff - 6.2831853f);
 
@@ -556,8 +557,8 @@ void HeightmapGrid::raise_plateau(float center_wx, float center_wz, float radius
 void HeightmapGrid::apply_sinusoidal_dunes(float angle_rad, float wavelength, float amplitude, float secondary_amp) {
 	if (wavelength <= 0.01f) return;
 	float step = (map_half * 2.0f) / (float)(res - 1);
-	float cos_a = std::cos(angle_rad);
-	float sin_a = std::sin(angle_rad);
+	float cos_a = det::cos(angle_rad);
+	float sin_a = det::sin(angle_rad);
 	float k = 6.2831853f / wavelength;
 
 	for (int z = 0; z < res; ++z) {
@@ -570,12 +571,12 @@ void HeightmapGrid::apply_sinusoidal_dunes(float angle_rad, float wavelength, fl
 			float v = -wx * sin_a + wz * cos_a;
 
 			// Primary sinusoidal dune wave with windward gentle slope and leeward steep slip-face
-			float phase = u * k + 0.35f * std::sin(v * k * 0.4f);
-			float wave = std::sin(phase);
-			float shaped_wave = (wave > 0.0f) ? std::pow(wave, 0.85f) : -std::pow(-wave, 1.2f);
+			float phase = u * k + 0.35f * det::sin(v * k * 0.4f);
+			float wave = det::sin(phase);
+			float shaped_wave = (wave > 0.0f) ? det::pow(wave, 0.85f) : -det::pow(-wave, 1.2f);
 
 			// Secondary cross-ripple
-			float secondary = std::sin(v * k * 1.8f + u * k * 0.5f) * secondary_amp;
+			float secondary = det::sin(v * k * 1.8f + u * k * 0.5f) * secondary_amp;
 
 			add(x, z, shaped_wave * amplitude + secondary);
 		}
@@ -639,7 +640,7 @@ static void spawn_trees(Simulation &sim, const HeightmapGrid &hm, float x, float
 	const float lim = hm.map_half - 1.0f;
 	for (int k = 1; k < n; ++k) {
 		const float a = a0 + 6.2831853f * (float)(k - 1) / (float)std::max(1, n - 1);
-		const float tx = x + std::cos(a) * spread, tz = z + std::sin(a) * spread;
+		const float tx = x + det::cos(a) * spread, tz = z + det::sin(a) * spread;
 		if (std::fabs(tx) < lim && std::fabs(tz) < lim && hm.sample_world(tx, tz) > min_h)
 			sim.spawn_resource_world(tx, tz, RES_WOOD, TREE_WOOD_SUPPLY);
 	}
@@ -700,12 +701,12 @@ void RmsGenerator::synth_continental(HeightmapGrid &hm, RmsRng &rng, float &wate
 
 	for (int i = 0; i < num_players; ++i) {
 		float angle = start_angle + (6.2831853f * i) / (float)num_players;
-		float sx = std::cos(angle) * spawn_r;
-		float sz = std::sin(angle) * spawn_r;
+		float sx = det::cos(angle) * spawn_r;
+		float sz = det::sin(angle) * spawn_r;
 
 		// Face center
-		float fx = -std::cos(angle);
-		float fz = -std::sin(angle);
+		float fx = -det::cos(angle);
+		float fz = -det::sin(angle);
 
 		float bh = std::max(water_h + 1.2f, hm.sample_world(sx, sz));
 		spawns.push_back({(uint8_t)i, sx, sz, bh, fx, fz});
@@ -726,10 +727,10 @@ void RmsGenerator::synth_archipelago(HeightmapGrid &hm, RmsRng &rng, float &wate
 	float spawn_r = half * 0.56f;
 	for (int i = 0; i < num_players; ++i) {
 		float angle = (6.2831853f * i) / (float)num_players + 0.35f;
-		float sx = std::cos(angle) * spawn_r;
-		float sz = std::sin(angle) * spawn_r;
-		float fx = -std::cos(angle);
-		float fz = -std::sin(angle);
+		float sx = det::cos(angle) * spawn_r;
+		float sz = det::sin(angle) * spawn_r;
+		float fx = -det::cos(angle);
+		float fz = -det::sin(angle);
 
 		// Raise player island
 		hm.level_area(sx, sz, island_r, 12.0f, 4.5f);
@@ -741,8 +742,8 @@ void RmsGenerator::synth_archipelago(HeightmapGrid &hm, RmsRng &rng, float &wate
 
 	for (int i = 0; i < num_players; ++i) {
 		float angle = (6.2831853f * (i + 0.5f)) / (float)num_players + 0.35f;
-		float nx = std::cos(angle) * (half * 0.65f);
-		float nz = std::sin(angle) * (half * 0.65f);
+		float nx = det::cos(angle) * (half * 0.65f);
+		float nz = det::sin(angle) * (half * 0.65f);
 		hm.level_area(nx, nz, 10.0f, 8.0f, 3.5f);
 	}
 
@@ -778,10 +779,10 @@ void RmsGenerator::synth_oasis(HeightmapGrid &hm, RmsRng &rng, float &water_h, s
 	float spawn_r = half * 0.55f;
 	for (int i = 0; i < num_players; ++i) {
 		float angle = (6.2831853f * i) / (float)num_players + 0.2f;
-		float sx = std::cos(angle) * spawn_r;
-		float sz = std::sin(angle) * spawn_r;
-		float fx = -std::cos(angle);
-		float fz = -std::sin(angle);
+		float sx = det::cos(angle) * spawn_r;
+		float sz = det::sin(angle) * spawn_r;
+		float fx = -det::cos(angle);
+		float fz = -det::sin(angle);
 		float bh = hm.sample_world(sx, sz);
 
 		spawns.push_back({(uint8_t)i, sx, sz, bh, fx, fz});
@@ -809,10 +810,10 @@ void RmsGenerator::synth_highlands(HeightmapGrid &hm, RmsRng &rng, float &water_
 	float spawn_r = half * 0.56f;
 	for (int i = 0; i < num_players; ++i) {
 		float angle = (6.2831853f * i) / (float)num_players + 0.785f;
-		float sx = std::cos(angle) * spawn_r;
-		float sz = std::sin(angle) * spawn_r;
-		float fx = -std::cos(angle);
-		float fz = -std::sin(angle);
+		float sx = det::cos(angle) * spawn_r;
+		float sz = det::sin(angle) * spawn_r;
+		float fx = -det::cos(angle);
+		float fz = -det::sin(angle);
 
 		float bh = 4.5f;
 		hm.level_area(sx, sz, 16.0f, 8.0f, bh);
@@ -905,10 +906,10 @@ void RmsGenerator::synth_mediterranean(HeightmapGrid &hm, RmsRng &rng, float &wa
 	float spawn_r = half * 0.62f;
 	for (int i = 0; i < num_players; ++i) {
 		float angle = (6.2831853f * i) / (float)num_players + 0.39f;
-		float sx = std::cos(angle) * spawn_r;
-		float sz = std::sin(angle) * spawn_r;
-		float fx = -std::cos(angle);
-		float fz = -std::sin(angle);
+		float sx = det::cos(angle) * spawn_r;
+		float sz = det::sin(angle) * spawn_r;
+		float fx = -det::cos(angle);
+		float fz = -det::sin(angle);
 		float bh = std::max(water_h + 1.2f, hm.sample_world(sx, sz));
 
 		hm.level_area(sx, sz, 14.0f, 6.0f, bh);
@@ -931,11 +932,11 @@ void RmsGenerator::synth_acropolis(HeightmapGrid &hm, RmsRng &rng, float &water_
 
 	for (int i = 0; i < num_players; ++i) {
 		float angle = (6.2831853f * i) / (float)num_players + 0.35f;
-		float sx = std::cos(angle) * spawn_r;
-		float sz = std::sin(angle) * spawn_r;
-		float fx = -std::cos(angle);
-		float fz = -std::sin(angle);
-		float ramp_angle = std::atan2(fz, fx); // Ramp slopes down towards center
+		float sx = det::cos(angle) * spawn_r;
+		float sz = det::sin(angle) * spawn_r;
+		float fx = -det::cos(angle);
+		float fz = -det::sin(angle);
+		float ramp_angle = det::atan2(fz, fx); // Ramp slopes down towards center
 
 		// 5.4 high: the plateau of the 0.35-a-metre height scale (7.5) at
 		// HEIGHT_PER_METRE, so its ramp stays under the land slope limit.
@@ -967,10 +968,10 @@ void RmsGenerator::synth_sahara(HeightmapGrid &hm, RmsRng &rng, float &water_h, 
 
 	for (int i = 0; i < num_players; ++i) {
 		float angle = (6.2831853f * i) / (float)num_players + 0.4f;
-		float sx = std::cos(angle) * spawn_r;
-		float sz = std::sin(angle) * spawn_r;
-		float fx = -std::cos(angle);
-		float fz = -std::sin(angle);
+		float sx = det::cos(angle) * spawn_r;
+		float sz = det::sin(angle) * spawn_r;
+		float fx = -det::cos(angle);
+		float fz = -det::sin(angle);
 		float bh = hm.sample_world(sx, sz);
 
 		hm.level_area(sx, sz, 14.0f, 6.0f, bh);
@@ -1018,10 +1019,10 @@ void RmsGenerator::synth_saharan_oases(HeightmapGrid &hm, RmsRng &rng, float &wa
 	float spawn_r = half * 0.56f;
 	for (int i = 0; i < num_players; ++i) {
 		float angle = (6.2831853f * i) / (float)num_players + 0.392f;
-		float sx = std::cos(angle) * spawn_r;
-		float sz = std::sin(angle) * spawn_r;
-		float fx = -std::cos(angle);
-		float fz = -std::sin(angle);
+		float sx = det::cos(angle) * spawn_r;
+		float sz = det::sin(angle) * spawn_r;
+		float fx = -det::cos(angle);
+		float fz = -det::sin(angle);
 		float bh = std::max(land, hm.sample_world(sx, sz));
 
 		spawns.push_back({(uint8_t)i, sx, sz, bh, fx, fz});
@@ -1054,11 +1055,11 @@ void RmsGenerator::synth_anatolian_plateau(HeightmapGrid &hm, RmsRng &rng, float
 		                    rng.range_float(0.0f, 6.2831853f));
 	for (int i = 0; i < num_players; ++i) {
 		float angle = (6.2831853f * i) / (float)num_players + 0.52f;
-		float sx = std::cos(angle) * spawn_r;
-		float sz = std::sin(angle) * spawn_r;
-		if (!locs.empty()) { sx = locs[(size_t)i].first; sz = locs[(size_t)i].second; angle = std::atan2(sz, sx); }
-		float fx = -std::cos(angle);
-		float fz = -std::sin(angle);
+		float sx = det::cos(angle) * spawn_r;
+		float sz = det::sin(angle) * spawn_r;
+		if (!locs.empty()) { sx = locs[(size_t)i].first; sz = locs[(size_t)i].second; angle = det::atan2(sz, sx); }
+		float fx = -det::cos(angle);
+		float fz = -det::sin(angle);
 		float bh = std::max(land, hm.sample_world(sx, sz));
 
 		hm.level_area(sx, sz, 15.0f, 6.0f, bh);
@@ -1086,10 +1087,10 @@ void place_ring_spawns(HeightmapGrid &hm, std::vector<RmsGenerator::PlayerSpawn>
 		float t = full ? (float)i / (float)num_players
 		               : (num_players > 1 ? (float)i / (float)(num_players - 1) : 0.5f);
 		float angle = start_angle + arc * t;
-		float sx = std::cos(angle) * radius;
-		float sz = std::sin(angle) * radius;
+		float sx = det::cos(angle) * radius;
+		float sz = det::sin(angle) * radius;
 		float bh = std::max(min_h, hm.sample_world(sx, sz));
-		spawns.push_back({(uint8_t)i, sx, sz, bh, -std::cos(angle), -std::sin(angle)});
+		spawns.push_back({(uint8_t)i, sx, sz, bh, -det::cos(angle), -det::sin(angle)});
 		hm.level_area(sx, sz, 14.0f, 6.0f, bh);
 	}
 }
@@ -1110,7 +1111,7 @@ void place_team_spawns(HeightmapGrid &hm, RmsRng &rng, std::vector<RmsGenerator:
 	                               0.2f * hm.map_half, start_angle);
 	spawns.clear();
 	for (int i = 0; i < num_players; ++i) {
-		const float sx = locs[(size_t)i].first, sz = locs[(size_t)i].second, r = std::hypot(sx, sz);
+		const float sx = locs[(size_t)i].first, sz = locs[(size_t)i].second, r = det::hypot(sx, sz);
 		const float bh = std::max(min_h, hm.sample_world(sx, sz));
 		spawns.push_back({(uint8_t)i, sx, sz, bh, r > 1e-3f ? -sx / r : 1.0f, r > 1e-3f ? -sz / r : 0.0f});
 		hm.level_area(sx, sz, 14.0f, 6.0f, bh);
@@ -1156,7 +1157,7 @@ void RmsGenerator::synth_nearestern_badlands(HeightmapGrid &hm, RmsRng &rng, flo
 	for (int i = 0; i < oases; ++i) {
 		float a = rng.range_float(0.0f, 6.2831853f);
 		float r = rng.range_float(0.0f, half * 0.30f);
-		hm.carve_crater_lake(std::cos(a) * r, std::sin(a) * r, half * 0.05f + 2.0f, 8.0f, water_h - coast_metres(water_h, -1.0f), water_h);
+		hm.carve_crater_lake(det::cos(a) * r, det::sin(a) * r, half * 0.05f + 2.0f, 8.0f, water_h - coast_metres(water_h, -1.0f), water_h);
 	}
 	hm.blur(1, 0.35f);
 	place_team_spawns(hm, rng, spawns, num_players, half * 0.60f, rng.range_float(0.0f, 6.2831853f), land);
@@ -1230,7 +1231,7 @@ void RmsGenerator::synth_corinthian_isthmus(HeightmapGrid &hm, RmsRng &rng, floa
 		const float wz = -half + z * step;
 		for (int x = 0; x < hm.res; ++x) {
 			const float wx = -half + x * step;
-			const float w = gulf * (1.0f + 0.25f * std::sin(wx / half * 4.0f + phase));
+			const float w = gulf * (1.0f + 0.25f * det::sin(wx / half * 4.0f + phase));
 			// 1 inside the gulfs, 0 on land, smooth at the shore and at the isthmus.
 			const float t = (1.0f - smoothstep(w * 0.7f, w * 1.3f, std::fabs(wz))) *
 			                smoothstep(isthmus, isthmus + half * 0.10f, std::fabs(wx));
@@ -1286,7 +1287,7 @@ void RmsGenerator::synth_hyrcanian_shores(HeightmapGrid &hm, RmsRng &rng, float 
 		const float wz = -half + z * step;
 		for (int x = 0; x < hm.res; ++x) {
 			const float wx = -half + x * step;
-			const float coast = -half * (0.62f + 0.06f * std::sin(wx / half * 3.0f + phase));
+			const float coast = -half * (0.62f + 0.06f * det::sin(wx / half * 3.0f + phase));
 			const float cur = hm.get(x, z);
 			if (wz < coast + half * 0.10f) {
 				const float t = smoothstep(coast + half * 0.10f, coast - half * 0.06f, wz);
@@ -1303,8 +1304,8 @@ void RmsGenerator::synth_hyrcanian_shores(HeightmapGrid &hm, RmsRng &rng, float 
 	const float start = rng.range_float(0.0f, 6.2831853f);
 	for (int i = 0; i < num_players; ++i) {
 		const float a = start + 6.2831853f * (float)i / (float)std::max(1, num_players);
-		const float sx = std::cos(a) * half * 0.64f;
-		const float sz = -half * 0.05f + std::sin(a) * half * 0.30f;
+		const float sx = det::cos(a) * half * 0.64f;
+		const float sz = -half * 0.05f + det::sin(a) * half * 0.30f;
 		const float bh = std::max(land, hm.sample_world(sx, sz));
 		const float len = std::max(1e-3f, std::sqrt(sx * sx + sz * sz));
 		spawns.push_back({(uint8_t)i, sx, sz, bh, -sx / len, -sz / len});
@@ -1349,7 +1350,7 @@ void flood_edge(HeightmapGrid &hm, RmsRng &rng, int axis, float edge, float wobb
 		for (int x = 0; x < hm.res; ++x) {
 			const float wx = -half + x * step;
 			const float along = axis == 0 ? wz : wx;
-			const float line = edge + wobble * (0.6f * std::sin(along / half * 3.1f + p1) + 0.4f * std::sin(along / half * 7.3f + p2));
+			const float line = edge + wobble * (0.6f * det::sin(along / half * 3.1f + p1) + 0.4f * det::sin(along / half * 7.3f + p2));
 			// d > 0 inside the flooded band.
 			const float d = axis == 0 ? line - wx : wz - line;
 			if (d <= -blend) continue;
@@ -1368,12 +1369,12 @@ void scatter_ponds(HeightmapGrid &hm, RmsRng &rng, const std::vector<RmsGenerato
 	for (int i = 0, tries = 0; i < count && tries < count * 40; ++tries) {
 		const float a = rng.range_float(0.0f, 6.2831853f);
 		const float d = std::sqrt(rng.next_float()) * inner;
-		const float px = std::cos(a) * d, pz = std::sin(a) * d;
+		const float px = det::cos(a) * d, pz = det::sin(a) * d;
 		bool ok = true;
 		for (const auto &sp : spawns)
-			if (std::hypot(px - sp.x, pz - sp.z) < clear + r) { ok = false; break; }
+			if (det::hypot(px - sp.x, pz - sp.z) < clear + r) { ok = false; break; }
 		for (const auto &p : placed)
-			if (std::hypot(px - p.first, pz - p.second) < gap + 2.0f * r) { ok = false; break; }
+			if (det::hypot(px - p.first, pz - p.second) < gap + 2.0f * r) { ok = false; break; }
 		if (!ok) continue;
 		hm.carve_crater_lake(px, pz, r, r * 0.5f, depth, water_h);
 		placed.push_back({px, pz});
@@ -1405,7 +1406,7 @@ void raise_ridge(HeightmapGrid &hm, const std::vector<std::pair<float, float>> &
 				const float bx = pts[i + 1].first - ax, bz = pts[i + 1].second - az;
 				const float len2 = bx * bx + bz * bz, len = std::sqrt(len2);
 				const float t = len2 > 0.0f ? std::clamp(((wx - ax) * bx + (wz - az) * bz) / len2, 0.0f, 1.0f) : 0.0f;
-				const float d = std::hypot(wx - (ax + bx * t), wz - (az + bz * t));
+				const float d = det::hypot(wx - (ax + bx * t), wz - (az + bz * t));
 				if (d < best) { best = d; along_best = along + len * t; }
 				along += len;
 			}
@@ -1514,10 +1515,10 @@ void RmsGenerator::synth_african_plains(HeightmapGrid &hm, RmsRng &rng, float &w
 	for (int i = 0, tries = 0; i < hills && tries < hills * 40; ++tries) {
 		const float a = rng.range_float(0.0f, 6.2831853f);
 		const float d = std::sqrt(rng.next_float()) * half * 0.9f;
-		const float hx = std::cos(a) * d, hz = std::sin(a) * d;
+		const float hx = det::cos(a) * d, hz = det::sin(a) * d;
 		bool ok = true;
 		for (const auto &sp : spawns)
-			if (std::hypot(hx - sp.x, hz - sp.z) < 30.0f) { ok = false; break; }
+			if (det::hypot(hx - sp.x, hz - sp.z) < 30.0f) { ok = false; break; }
 		if (!ok) continue;
 		hm.raise_plateau(hx, hz, half * rng.range_float(0.04f, 0.07f), 0.0f, 0.0f, (18.0f - 2.0f) * kMetre, 2.0f);
 		++i;
@@ -1545,9 +1546,9 @@ void RmsGenerator::synth_alpine_valley(HeightmapGrid &hm, RmsRng &rng, float &wa
 		const float a = start + 6.2831853f * ((float)i + 0.5f) / (float)n;
 		const float jig = 3.14159265f / (float)n * 0.4f * (rng.next_float() < 0.5f ? -1.0f : 1.0f);
 		std::vector<std::pair<float, float>> ridge = {
-			{std::cos(a) * half * 0.98f, std::sin(a) * half * 0.98f},
-			{std::cos(a + jig) * half * 0.68f, std::sin(a + jig) * half * 0.68f},
-			{std::cos(a) * half * 0.36f, std::sin(a) * half * 0.36f}};
+			{det::cos(a) * half * 0.98f, det::sin(a) * half * 0.98f},
+			{det::cos(a + jig) * half * 0.68f, det::sin(a + jig) * half * 0.68f},
+			{det::cos(a) * half * 0.36f, det::sin(a) * half * 0.36f}};
 		const float len = half * 0.62f;
 		raise_ridge(hm, ridge, w, coast_metres(water_h, 30.0f), len * rng.range_float(0.35f, 0.65f), pass, 2.0f);
 	}
@@ -1572,11 +1573,11 @@ void scatter_hills(HeightmapGrid &hm, RmsRng &rng, const std::vector<RmsGenerato
 	for (int i = 0, tries = 0; i < count && tries < count * 40; ++tries) {
 		const float a = rng.range_float(0.0f, 6.2831853f);
 		const float d = std::sqrt(rng.next_float()) * half * 0.95f;
-		const float hx = std::cos(a) * d, hz = std::sin(a) * d;
+		const float hx = det::cos(a) * d, hz = det::sin(a) * d;
 		const float r = rng.range_float(r0, r1);
 		bool ok = true;
 		for (const auto &sp : spawns)
-			if (std::hypot(hx - sp.x, hz - sp.z) < clear + r) { ok = false; break; }
+			if (det::hypot(hx - sp.x, hz - sp.z) < clear + r) { ok = false; break; }
 		if (!ok) continue;
 		hm.raise_plateau(hx, hz, r, 0.0f, 0.0f, rng.range_float(h0, h1), r * 0.6f);
 		++i;
@@ -1631,15 +1632,15 @@ void RmsGenerator::synth_cantabrian_highlands(HeightmapGrid &hm, RmsRng &rng, fl
 				if (group[k] == group[i]) { cx += spawns[k].x; cz += spawns[k].z; n += 1.0f; }
 			cx /= n; cz /= n;
 			for (int k = 0; k < num_players; ++k)
-				if (group[k] == group[i]) r = std::max(r, std::hypot(spawns[k].x - cx, spawns[k].z - cz));
-			hills.push_back({cx, cz, 19.0f + r, std::atan2(cz, cx)});
+				if (group[k] == group[i]) r = std::max(r, det::hypot(spawns[k].x - cx, spawns[k].z - cz));
+			hills.push_back({cx, cz, 19.0f + r, det::atan2(cz, cx)});
 		}
 	} else {
 		for (int i = 0; i < num_players; ++i) {
 			// Each hill under its base: on the ring, or where Team Placement put it.
 			const bool ring = t_team_placement.pattern < 0;
-			const float a = ring ? start + 6.2831853f * (float)i / (float)std::max(1, num_players) : std::atan2(spawns[i].z, spawns[i].x);
-			hills.push_back({ring ? std::cos(a) * ring_r : spawns[i].x, ring ? std::sin(a) * ring_r : spawns[i].z, 19.0f, a});
+			const float a = ring ? start + 6.2831853f * (float)i / (float)std::max(1, num_players) : det::atan2(spawns[i].z, spawns[i].x);
+			hills.push_back({ring ? det::cos(a) * ring_r : spawns[i].x, ring ? det::sin(a) * ring_r : spawns[i].z, 19.0f, a});
 		}
 	}
 	for (const Hill &h : hills) {
@@ -1694,7 +1695,7 @@ void RmsGenerator::synth_sahel_watering_holes(HeightmapGrid &hm, RmsRng &rng, fl
 	std::vector<std::pair<float, float>> fords;
 	for (int i = 0; i < n; ++i) {
 		const float a = start + 6.2831853f * ((float)i + 0.5f) / (float)n;
-		const float c = std::cos(a), s = std::sin(a);
+		const float c = det::cos(a), s = det::sin(a);
 		hm.carve_spline_path({{c * half * 0.30f, s * half * 0.30f}, {c * half * 0.98f, s * half * 0.98f}},
 		                     2.5f + half * 0.02f, bed, water_h);
 		hm.carve_crater_lake(c * half * 0.30f, s * half * 0.30f, (float)scale_by_map_size(5, 30, half) * 0.5f + 2.0f, 4.0f, bed, water_h);
@@ -1782,7 +1783,7 @@ void set_along_segment(HeightmapGrid &hm, float ax, float az, float bx, float bz
 		for (int x = x0; x <= x1; ++x) {
 			const float wx = -half + x * step;
 			const float t = len2 > 0.0f ? std::clamp(((wx - ax) * dx + (wz - az) * dz) / len2, 0.0f, 1.0f) : 0.0f;
-			const float d = std::hypot(wx - (ax + dx * t), wz - (az + dz * t));
+			const float d = det::hypot(wx - (ax + dx * t), wz - (az + dz * t));
 			if (d >= reach) continue;
 			const float k = d <= w ? 1.0f : 1.0f - smoothstep(w, reach, d);
 			const float cur = hm.get(x, z);
@@ -1792,7 +1793,7 @@ void set_along_segment(HeightmapGrid &hm, float ax, float az, float bx, float bz
 }
 
 // Point at angle a, distance r from the centre.
-inline std::pair<float, float> polar(float a, float r) { return {std::cos(a) * r, std::sin(a) * r}; }
+inline std::pair<float, float> polar(float a, float r) { return {det::cos(a) * r, det::sin(a) * r}; }
 } // namespace
 
 void RmsGenerator::synth_lions_den(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
@@ -1864,7 +1865,7 @@ void RmsGenerator::synth_hells_pass(HeightmapGrid &hm, RmsRng &rng, float &water
 		// PathPlacer waviness: bend the spine through a jittered midpoint.
 		const auto m = polar(a + rng.range_float(-0.06f, 0.06f), half * 0.5f);
 		const std::pair<float, float> pts[3] = {s, m, e};
-		const float l0 = std::hypot(m.first - s.first, m.second - s.second), l1 = std::hypot(e.first - m.first, e.second - m.second);
+		const float l0 = det::hypot(m.first - s.first, m.second - s.second), l1 = det::hypot(e.first - m.first, e.second - m.second);
 		for (int z = 0; z < hm.res; ++z) {
 			const float wz = -half + z * step;
 			for (int x = 0; x < hm.res; ++x) {
@@ -1878,7 +1879,7 @@ void RmsGenerator::synth_hells_pass(HeightmapGrid &hm, RmsRng &rng, float &water
 					float t = ((wx - ax) * bx + (wz - az) * bz) / (len * len);
 					if ((k == 0 && t < 0.0f) || (k == 1 && t > 1.0f)) continue;
 					t = std::clamp(t, 0.0f, 1.0f);
-					const float d = std::hypot(wx - (ax + bx * t), wz - (az + bz * t));
+					const float d = det::hypot(wx - (ax + bx * t), wz - (az + bz * t));
 					if (d < best) {
 						best = d;
 						along = (k == 0 ? 0.0f : l0) + len * t;
@@ -1930,15 +1931,15 @@ void RmsGenerator::synth_deep_forest(HeightmapGrid &hm, RmsRng &rng, float &wate
 		const float wz = -half + z * step;
 		for (int x = 0; x < hm.res; ++x) {
 			const float wx = -half + x * step;
-			const float r = std::hypot(wx, wz);
-			const float middle = (half / 32.0f) * (1.0f + std::cos(1.5f * 3.14159265f * std::min(r, half) / half));
-			const float hills = 5.0f * (1.0f + std::sin(wx / 10.0f) * std::sin(wz / 10.0f));
+			const float r = det::hypot(wx, wz);
+			const float middle = (half / 32.0f) * (1.0f + det::cos(1.5f * 3.14159265f * std::min(r, half) / half));
+			const float hills = 5.0f * (1.0f + det::sin(wx / 10.0f) * det::sin(wz / 10.0f));
 			hm.add(x, z, (middle + hills + 1.0f) * m);
 		}
 	}
 	spawns.clear();
 	for (int i = 0; i < n && i < num_players; ++i) {
-		const float sx = pos[i].first, sz = pos[i].second, r = std::max(1e-3f, std::hypot(sx, sz));
+		const float sx = pos[i].first, sz = pos[i].second, r = std::max(1e-3f, det::hypot(sx, sz));
 		const float bh = hm.sample_world(sx, sz);
 		spawns.push_back({(uint8_t)i, sx, sz, bh, -sx / r, -sz / r});
 		hm.level_area(sx, sz, 14.0f, 6.0f, bh);
@@ -1982,7 +1983,7 @@ void RmsGenerator::synth_guadalquivir_river(HeightmapGrid &hm, RmsRng &rng, floa
 	init_land(hm, rng, water_h, 3.0f, 1.0f, 3, 0.025f);
 	const float half = hm.map_half, land = coast_metres(water_h, 3.0f), sea = coast_metres(water_h, -3.0f);
 	const float rot = rng.range_float(0.0f, 6.2831853f);
-	const float ux = std::cos(rot), uz = std::sin(rot); // towards the continent's centre and along the river
+	const float ux = det::cos(rot), uz = det::sin(rot); // towards the continent's centre and along the river
 	const float ccx = ux * half * 0.40f, ccz = uz * half * 0.40f;
 	const float land_r = half * 0.98f;
 	const float step = (half * 2.0f) / (float)(hm.res - 1);
@@ -1991,9 +1992,9 @@ void RmsGenerator::synth_guadalquivir_river(HeightmapGrid &hm, RmsRng &rng, floa
 		const float wz = -half + z * step;
 		for (int x = 0; x < hm.res; ++x) {
 			const float wx = -half + x * step;
-			const float a = std::atan2(wz - ccz, wx - ccx);
-			const float r = land_r * (1.0f + 0.05f * std::sin(a * 5.0f + p1) + 0.03f * std::sin(a * 11.0f + p2));
-			const float d = std::hypot(wx - ccx, wz - ccz) - r;
+			const float a = det::atan2(wz - ccz, wx - ccx);
+			const float r = land_r * (1.0f + 0.05f * det::sin(a * 5.0f + p1) + 0.03f * det::sin(a * 11.0f + p2));
+			const float d = det::hypot(wx - ccx, wz - ccz) - r;
 			if (d <= -6.0f) continue;
 			const float t = smoothstep(-6.0f, 6.0f, d);
 			const float cur = hm.get(x, z);
@@ -2025,9 +2026,9 @@ void RmsGenerator::synth_guadalquivir_river(HeightmapGrid &hm, RmsRng &rng, floa
 		const int side = i & 1, k = i / 2, cnt = sides[side];
 		const float off = cnt > 1 ? 0.18f + (0.62f - 0.18f) * (float)k / (float)(cnt - 1) : 0.38f;
 		const float a = base_a + (side ? 1.0f : -1.0f) * off * 3.14159265f;
-		const float sx = ccx + std::cos(a) * rp, sz = ccz + std::sin(a) * rp;
+		const float sx = ccx + det::cos(a) * rp, sz = ccz + det::sin(a) * rp;
 		const float bh = std::max(land, hm.sample_world(sx, sz));
-		const float r = std::max(1e-3f, std::hypot(sx, sz));
+		const float r = std::max(1e-3f, det::hypot(sx, sz));
 		spawns.push_back({(uint8_t)i, sx, sz, bh, -sx / r, -sz / r});
 		hm.level_area(sx, sz, 14.0f, 6.0f, bh);
 	}
@@ -2049,8 +2050,8 @@ void RmsGenerator::synth_fields_of_meroe(HeightmapGrid &hm, RmsRng &rng, float &
 	const float half = hm.map_half;
 	add_bumps(hm, rng, 1.4f * kMetre);
 	const float ra = 3.14159265f / 5.0f;
-	const float dx = -std::sin(ra), dz = std::cos(ra); // along the river
-	const float ox = std::cos(ra) * -0.5f * half, oz = std::sin(ra) * -0.5f * half; // a point on it
+	const float dx = -det::sin(ra), dz = det::cos(ra); // along the river
+	const float ox = det::cos(ra) * -0.5f * half, oz = det::sin(ra) * -0.5f * half; // a point on it
 	const float river_w = (float)scale_by_map_size(12, 36, half) * 0.5f;
 	// Dunes, raised before the river so it cuts through them.
 	scatter_hills(hm, rng, {}, scale_by_map_size(2, 8, half), half * 0.04f + 2.0f, half * 0.07f + 3.0f,
@@ -2073,10 +2074,10 @@ void RmsGenerator::synth_fields_of_meroe(HeightmapGrid &hm, RmsRng &rng, float &
 		if (river_dist(p.first, p.second) < river_w + 18.0f + 14.0f) continue;
 		bool ok = true;
 		for (const auto &sp : spawns)
-			if (std::hypot(p.first - sp.x, p.second - sp.z) < std::max(30.0f, min_gap)) { ok = false; break; }
+			if (det::hypot(p.first - sp.x, p.second - sp.z) < std::max(30.0f, min_gap)) { ok = false; break; }
 		if (!ok) continue;
 		const float bh = std::max(land, hm.sample_world(p.first, p.second));
-		const float r = std::max(1e-3f, std::hypot(p.first, p.second));
+		const float r = std::max(1e-3f, det::hypot(p.first, p.second));
 		spawns.push_back({(uint8_t)i, p.first, p.second, bh, -p.first / r, -p.second / r});
 		hm.level_area(p.first, p.second, 14.0f, 6.0f, bh);
 		++i;
@@ -2215,16 +2216,16 @@ void RmsGenerator::synth_stronghold(HeightmapGrid &hm, RmsRng &rng, float &water
 	const int ng = std::max(1, (int)groups.size());
 	for (int g = 0; g < (int)groups.size(); ++g) {
 		const float ta = start + (float)g * 6.2831853f / (float)ng;
-		const float cx = std::cos(ta) * dist, cz = std::sin(ta) * dist;
+		const float cx = det::cos(ta) * dist, cz = det::sin(ta) * dist;
 		const int k = (int)groups[g].size();
 		// Keep teammates' bases from overlapping (18 apart at least).
-		const float r = k == 1 ? 0.0f : std::max(grouped, 9.0f / std::sin(3.14159265f / (float)k));
+		const float r = k == 1 ? 0.0f : std::max(grouped, 9.0f / det::sin(3.14159265f / (float)k));
 		for (int m = 0; m < k; ++m) {
 			const float ma = ta + (float)m * 6.2831853f / (float)k;
-			float sx = cx + std::cos(ma) * r, sz = cz + std::sin(ma) * r;
+			float sx = cx + det::cos(ma) * r, sz = cz + det::sin(ma) * r;
 			sx = std::clamp(sx, -half + 16.0f, half - 16.0f);
 			sz = std::clamp(sz, -half + 16.0f, half - 16.0f);
-			const float l = std::max(1e-3f, std::hypot(sx, sz));
+			const float l = std::max(1e-3f, det::hypot(sx, sz));
 			const int pid = groups[g][m];
 			spawns[pid] = {(uint8_t)pid, sx, sz, hm.sample_world(sx, sz), -sx / l, -sz / l};
 		}
@@ -2238,7 +2239,7 @@ void RmsGenerator::synth_stronghold(HeightmapGrid &hm, RmsRng &rng, float &water
 			const float b_ = rng.range_float(0.0f, 0.9f) * half; const float a_ = rng.range_float(0.0f, 6.2831853f); const auto p = polar(a_, b_);
 			bool ok = true;
 			for (const auto &sp : spawns)
-				if (std::hypot(p.first - sp.x, p.second - sp.z) < 35.0f) { ok = false; break; }
+				if (det::hypot(p.first - sp.x, p.second - sp.z) < 35.0f) { ok = false; break; }
 			if (ok) {
 				const float c_ = rng.range_float(20.0f, 30.0f) * m; const float b_ = rng.range_float(0.0f, 6.2831853f);
 				const float a_ = half * rng.range_float(0.05f, 0.09f);
@@ -2253,7 +2254,7 @@ void RmsGenerator::synth_stronghold(HeightmapGrid &hm, RmsRng &rng, float &water
 			const float b_ = rng.range_float(0.0f, 0.9f) * half; const float a_ = rng.range_float(0.0f, 6.2831853f); const auto p = polar(a_, b_);
 			bool ok = true;
 			for (const auto &sp : spawns)
-				if (std::hypot(p.first - sp.x, p.second - sp.z) < 30.0f) { ok = false; break; }
+				if (det::hypot(p.first - sp.x, p.second - sp.z) < 30.0f) { ok = false; break; }
 			if (ok) {
 				const float h_ = land - rng.range_float(2.0f, 30.0f) * m; const float r_ = half * rng.range_float(0.04f, 0.08f);
 				hm.level_area(p.first, p.second, r_, 5.0f, h_);
@@ -2292,9 +2293,9 @@ void RmsGenerator::synth_rhine_marshlands(HeightmapGrid &hm, RmsRng &rng, float 
 			const float r = (float)scale_by_map_size(4, 9, half) * rng.range_float(0.8f, 1.35f);
 			bool ok = true;
 			for (const auto &sp : spawns)
-				if (std::hypot(c.first - sp.x, c.second - sp.z) < 20.0f + 14.0f + r) { ok = false; break; }
+				if (det::hypot(c.first - sp.x, c.second - sp.z) < 20.0f + 14.0f + r) { ok = false; break; }
 			for (const auto &m : marshes)
-				if (std::hypot(c.first - m.first, c.second - m.second) < gap + 2.0f * r) { ok = false; break; }
+				if (det::hypot(c.first - m.first, c.second - m.second) < gap + 2.0f * r) { ok = false; break; }
 			if (!ok) continue;
 			// A chain of clumps: the marsh's centre plus a few offset blobs.
 			const int clumps = std::max(1, scale_by_map_size(6, 12, half) / 3);
@@ -2570,7 +2571,7 @@ void group_players_by_area(std::vector<std::pair<float, float>> &locs, int num_p
 			++team_size;
 			if (t1 != 0 && t1 == t2) {
 				const auto &a = locs[perm[i - 1]], &b = locs[perm[i]];
-				team_dist += std::hypot(a.first - b.first, a.second - b.second);
+				team_dist += det::hypot(a.first - b.first, a.second - b.second);
 			} else {
 				dist += team_dist / (float)team_size;
 				team_dist = 0.0f;
@@ -2626,7 +2627,7 @@ void make_heightmap_spawns(HeightmapGrid &hm, std::vector<RmsGenerator::PlayerSp
 		const std::vector<std::pair<float, float>> &locs, float radius, float blend, float water_h) {
 	spawns.clear();
 	for (int i = 0; i < (int)locs.size(); ++i) {
-		const float sx = locs[i].first, sz = locs[i].second, l = std::max(1e-3f, std::hypot(sx, sz));
+		const float sx = locs[i].first, sz = locs[i].second, l = std::max(1e-3f, det::hypot(sx, sz));
 		const float bh = std::max(water_h + 1.0f, hm.sample_world(sx, sz));
 		spawns.push_back({(uint8_t)i, sx, sz, bh, -sx / l, -sz / l});
 		hm.level_area(sx, sz, radius, blend, bh);
@@ -2680,7 +2681,7 @@ void RmsGenerator::synth_belgian_uplands(HeightmapGrid &hm, RmsRng &rng, float &
 				float wx, wz;
 				hm.grid_to_world(x, z, wx, wz);
 				const size_t i = (size_t)z * (size_t)hm.res + (size_t)x;
-				outside[i] = std::hypot(wx, wz) > half - 3.0f || hm.data[i] < sea || hm.data[i] > band_hi;
+				outside[i] = det::hypot(wx, wz) > half - 3.0f || hm.data[i] < sea || hm.data[i] > band_hi;
 			}
 		const auto to_out = distance_to_mask(outside, hm.res, sp);
 		std::vector<uint8_t> allowed(N, 0);
@@ -2922,7 +2923,7 @@ void scatter_dry_hills(HeightmapGrid &hm, RmsRng &rng, const std::vector<RmsGene
 		const float r = rng.range_float(4.0f, 7.0f);
 		bool ok = true;
 		for (const auto &sp : spawns)
-			if (std::hypot(hx - sp.x, hz - sp.z) < clear + r) { ok = false; break; }
+			if (det::hypot(hx - sp.x, hz - sp.z) < clear + r) { ok = false; break; }
 		for (int k = 0; ok && k < 12; ++k) {
 			const auto p = polar((float)k * 0.5235988f, r + water_gap);
 			ok = hm.sample_world(hx + p.first, hz + p.second) > water_h + 0.5f;
@@ -2945,13 +2946,13 @@ void dry_bumps(HeightmapGrid &hm, RmsRng &rng, const std::vector<RmsGenerator::P
 		if (hm.sample_world(bx, bz) <= above) continue;
 		bool ok = true;
 		for (const auto &sp : spawns)
-			if (std::hypot(bx - sp.x, bz - sp.z) < clear) { ok = false; break; }
+			if (det::hypot(bx - sp.x, bz - sp.z) < clear) { ok = false; break; }
 		if (!ok) continue;
 		const float r = rng.range_float(2.0f, 4.0f), h = rng.range_float(1.0f, 2.0f) * kMetre;
 		const float sp = grid_spacing(hm);
 		for (float dz = -r; dz <= r; dz += sp)
 			for (float dx = -r; dx <= r; dx += sp) {
-				const float d = std::hypot(dx, dz);
+				const float d = det::hypot(dx, dz);
 				if (d > r) continue;
 				float gx, gz;
 				hm.world_to_grid(bx + dx, bz + dz, gx, gz);
@@ -2978,7 +2979,7 @@ void RmsGenerator::synth_english_channel(HeightmapGrid &hm, RmsRng &rng, float &
 	const float land = metres(water_h, 3.0f), bed = metres(water_h, -4.0f);
 	hm.init(hm.res, hm.map_half, land + 0.1f * kMetre);
 	const float angle = rng.range_float(0.0f, 6.2831853f);
-	const float ux = std::cos(angle), uz = std::sin(angle); // along the channel
+	const float ux = det::cos(angle), uz = det::sin(angle); // along the channel
 	const float nx = -uz, nz = ux;                           // across it
 	// Players: playerPlacementRiver(angle + pi/2, 0.6 * size).
 	std::vector<std::pair<float, float>> locs(num_players);
@@ -3001,7 +3002,7 @@ void RmsGenerator::synth_english_channel(HeightmapGrid &hm, RmsRng &rng, float &
 			float wx, wz;
 			hm.grid_to_world(x, z, wx, wz);
 			const float t = wx * ux + wz * uz;
-			const float d = std::fabs(wx * nx + wz * nz + 2.0f * std::sin(t * 0.08f + wobble));
+			const float d = std::fabs(wx * nx + wz * nz + 2.0f * det::sin(t * 0.08f + wobble));
 			if (d < width) {
 				const float k = smoothstep(width, width - fade, d);
 				hm.set(x, z, land + (bed - land) * k);
@@ -3015,10 +3016,10 @@ void RmsGenerator::synth_english_channel(HeightmapGrid &hm, RmsRng &rng, float &
 		const float t0 = (rng.range_float(0.05f, 0.95f) - 0.5f) * size;
 		const float sign = rng.range_int(0, 1) ? 1.0f : -1.0f;
 		const float a = angle - sign * rng.range_float(0.6283185f, 6.2831853f - 0.6283185f);
-		const float sx = ux * t0, sz = uz * t0, ex = std::cos(a) * size, ez = std::sin(a) * size;
+		const float sx = ux * t0, sz = uz * t0, ex = det::cos(a) * size, ez = det::sin(a) * size;
 		// PathPlacer waviness 0.4: a few jittered points on the way.
 		std::vector<std::pair<float, float>> pts{{sx, sz}};
-		const float len = std::hypot(ex - sx, ez - sz), px = -(ez - sz) / len, pz = (ex - sx) / len;
+		const float len = det::hypot(ex - sx, ez - sz), px = -(ez - sz) / len, pz = (ex - sx) / len;
 		for (int k = 1; k < 6; ++k) {
 			const float f = (float)k / 6.0f, j = rng.range_float(-0.1f, 0.1f) * len * 0.4f;
 			pts.push_back({sx + (ex - sx) * f + px * j, sz + (ez - sz) * f + pz * j});
@@ -3027,7 +3028,7 @@ void RmsGenerator::synth_english_channel(HeightmapGrid &hm, RmsRng &rng, float &
 		std::vector<uint8_t> mask(hm.data.size(), 0);
 		for (size_t k = 0; k + 1 < pts.size(); ++k) {
 			const float ax = pts[k].first, az = pts[k].second, bx = pts[k + 1].first, bz = pts[k + 1].second;
-			const float sl = std::hypot(bx - ax, bz - az);
+			const float sl = det::hypot(bx - ax, bz - az);
 			for (float s = 0.0f; s <= sl; s += 1.0f) {
 				const float cx = ax + (bx - ax) * s / sl, cz = az + (bz - az) * s / sl;
 				if (std::fabs(cx) > half + river_w || std::fabs(cz) > half + river_w) break;
@@ -3039,7 +3040,7 @@ void RmsGenerator::synth_english_channel(HeightmapGrid &hm, RmsRng &rng, float &
 				float wx, wz;
 				hm.grid_to_world(x, z, wx, wz);
 				for (const auto &l : locs)
-					if (std::hypot(wx - l.first, wz - l.second) < keep) { mask[(size_t)z * (size_t)hm.res + (size_t)x] = 0; break; }
+					if (det::hypot(wx - l.first, wz - l.second) < keep) { mask[(size_t)z * (size_t)hm.res + (size_t)x] = 0; break; }
 			}
 		std::vector<float> before = hm.data;
 		paint_mask_elevation(hm, mask, bed, 4.0f);
@@ -3157,7 +3158,7 @@ void RmsGenerator::synth_dodecanese(HeightmapGrid &hm, RmsRng &rng, float &water
 			const float r = rng.range_float(3.0f, 6.0f);
 			bool ok = hm.sample_world(hx, hz) > land - 0.3f;
 			for (const auto &l : locs)
-				if (std::hypot(hx - l.first, hz - l.second) < 20.0f + 12.0f + r) { ok = false; break; }
+				if (det::hypot(hx - l.first, hz - l.second) < 20.0f + 12.0f + r) { ok = false; break; }
 			for (int k = 0; ok && k < 12; ++k) {
 				const auto p = polar((float)k * 0.5235988f, r + 1.0f);
 				ok = hm.sample_world(hx + p.first, hz + p.second) > water_h + 0.5f;
@@ -3192,7 +3193,7 @@ void RmsGenerator::synth_dodecanese(HeightmapGrid &hm, RmsRng &rng, float &water
 		for (const auto &s : shore) {
 			if ((int)bridges.size() >= max_bridges) break;
 			bool near = false;
-			for (const auto &b : bridges) near |= std::hypot(b.first - s.first, b.second - s.second) < blen * 8.0f;
+			for (const auto &b : bridges) near |= det::hypot(b.first - s.first, b.second - s.second) < blen * 8.0f;
 			if (near) continue;
 			for (int dir = 0; dir < 4; ++dir) {
 				const auto d = polar((float)dir * 1.5707963f, 1.0f);
@@ -3236,9 +3237,9 @@ void RmsGenerator::synth_fortress(HeightmapGrid &hm, RmsRng &rng, float &water_h
 		bool ok = true;
 		// Paving reaches 21 tiles from the base (half its diagonal), +7.
 		for (const auto &sp : spawns)
-			if (std::hypot(lx - sp.x, lz - sp.z) < 21.0f + 7.0f + lake_r + 3.0f) { ok = false; break; }
+			if (det::hypot(lx - sp.x, lz - sp.z) < 21.0f + 7.0f + lake_r + 3.0f) { ok = false; break; }
 		for (const auto &p : placed)
-			if (std::hypot(lx - p.first, lz - p.second) < 20.0f + 2.0f * lake_r) { ok = false; break; }
+			if (det::hypot(lx - p.first, lz - p.second) < 20.0f + 2.0f * lake_r) { ok = false; break; }
 		if (!ok) continue;
 		std::vector<uint8_t> m(hm.data.size(), 0);
 		mask_disk(hm, m, lx, lz, lake_r + 3.0f);
@@ -3275,13 +3276,13 @@ void place_fortress_walls(Simulation &sim, const std::vector<RmsGenerator::Playe
 	auto nearer_other = [](float x, float z, const void *p) {
 		const Ctx &c = *static_cast<const Ctx *>(p);
 		const auto &all = *c.spawns;
-		const float own = std::hypot(x - all[c.self].x, z - all[c.self].z);
+		const float own = det::hypot(x - all[c.self].x, z - all[c.self].z);
 		for (size_t j = 0; j < all.size(); ++j)
-			if (j != c.self && std::hypot(x - all[j].x, z - all[j].z) < own) return true;
+			if (j != c.self && det::hypot(x - all[j].x, z - all[j].z) < own) return true;
 		return false;
 	};
 	const auto &sp = spawns[self];
-	sim.place_custom_fortress(sp.team, sp.x, sp.z, std::atan2(sp.forward_dir_z, sp.forward_dir_x), kSpahbod,
+	sim.place_custom_fortress(sp.team, sp.x, sp.z, det::atan2(sp.forward_dir_z, sp.forward_dir_x), kSpahbod,
 			sizeof(kSpahbod) / sizeof(kSpahbod[0]), nearer_other, &ctx);
 }
 
@@ -3322,14 +3323,14 @@ void RmsGenerator::synth_flood(HeightmapGrid &hm, RmsRng &rng, float &water_h, s
 	const float step = (half * 2.0f) / (float)(hm.res - 1);
 	auto island_dist = [&](float wx, float wz) {
 		float d = 1e9f;
-		for (const auto &sp : spawns) d = std::min(d, std::hypot(wx - sp.x, wz - sp.z));
+		for (const auto &sp : spawns) d = std::min(d, det::hypot(wx - sp.x, wz - sp.z));
 		return d;
 	};
 	for (int z = 0; z < hm.res; ++z) {
 		const float wz = -half + z * step;
 		for (int x = 0; x < hm.res; ++x) {
 			const float wx = -half + x * step;
-			const float r = std::hypot(wx, wz);
+			const float r = det::hypot(wx, wz);
 			const float t = smoothstep(clear, clear + shore, island_dist(wx, wz)) * (1.0f - smoothstep(half - 22.0f, half - 16.0f, r));
 			if (t <= 0.0f) continue;
 			const float cur = hm.get(x, z);
@@ -3339,7 +3340,7 @@ void RmsGenerator::synth_flood(HeightmapGrid &hm, RmsRng &rng, float &water_h, s
 	// Hills (ELEVATION_SET 6-20) and mountains (ELEVATION_MODIFY 15-29) on the
 	// mainland: 6 tiles inside its shore and 40 clear of the home islands.
 	auto on_mainland = [&](float wx, float wz, float r) {
-		return island_dist(wx, wz) > clear + shore + r && std::hypot(wx, wz) < half - 22.0f - r &&
+		return island_dist(wx, wz) > clear + shore + r && det::hypot(wx, wz) < half - 22.0f - r &&
 		       hm.sample_world(wx, wz) > 6.0f * k - 0.5f;
 	};
 	const int hills = rng.range_int(20, 34);
@@ -3393,8 +3394,8 @@ void RmsGenerator::synth_extinct_volcano(HeightmapGrid &hm, RmsRng &rng, float &
 	const float volcano_r = rings[0][0];
 	auto clear_of = [&](float x, float z, float r, float gap) {
 		for (const auto &sp : spawns)
-			if (std::hypot(x - sp.x, z - sp.z) < player_r + 14.0f + r + gap) return false;
-		return std::hypot(x, z) > volcano_r + r + gap && std::hypot(x, z) < half - 4.0f - r;
+			if (det::hypot(x - sp.x, z - sp.z) < player_r + 14.0f + r + gap) return false;
+		return det::hypot(x, z) > volcano_r + r + gap && det::hypot(x, z) < half - 4.0f - r;
 	};
 	// Lakes: avoidClasses(clPlayer, 0, clHill, 2, clWater, 12).
 	std::vector<std::pair<float, float>> lakes;
@@ -3405,7 +3406,7 @@ void RmsGenerator::synth_extinct_volcano(HeightmapGrid &hm, RmsRng &rng, float &
 		if (!clear_of(lx, lz, r, 2.0f)) continue;
 		bool ok = true;
 		for (const auto &l : lakes)
-			if (std::hypot(lx - l.first, lz - l.second) < 2.0f * r + 12.0f) { ok = false; break; }
+			if (det::hypot(lx - l.first, lz - l.second) < 2.0f * r + 12.0f) { ok = false; break; }
 		if (!ok) continue;
 		hm.level_area(lx, lz, r, 3.0f, -4.0f * k);
 		lakes.push_back({lx, lz});
@@ -3429,7 +3430,7 @@ void RmsGenerator::synth_extinct_volcano(HeightmapGrid &hm, RmsRng &rng, float &
 		if (!clear_of(hx, hz, r, 2.0f) || hm.sample_world(hx, hz) < 0.0f) continue;
 		bool ok = true;
 		for (const auto &p : placed)
-			if (std::hypot(hx - p.first, hz - p.second) < 2.0f * r + 15.0f) { ok = false; break; }
+			if (det::hypot(hx - p.first, hz - p.second) < 2.0f * r + 15.0f) { ok = false; break; }
 		if (!ok) continue;
 		hm.level_area(hx, hz, r, 2.0f, 18.0f * k);
 		placed.push_back({hx, hz});
@@ -3458,8 +3459,8 @@ void RmsGenerator::synth_survival_of_the_fittest(HeightmapGrid &hm, RmsRng &rng,
 	const float width = (float)scale_by_map_size(14, 24, half);
 	for (int i = 0; i < n; ++i) {
 		const float a = start + 3.14159265f / (float)n + 6.2831853f * (float)i / (float)n;
-		const float ex = std::cos(a) * 0.5f * size, ez = std::sin(a) * 0.5f * size;
-		const float len = std::hypot(ex, ez);
+		const float ex = det::cos(a) * 0.5f * size, ez = det::sin(a) * 0.5f * size;
+		const float len = det::hypot(ex, ez);
 		for (float t = 0.0f; t <= len; t += 2.0f)
 			hm.level_area(ex * t / len, ez * t / len, width * 0.5f, 4.0f, 3.0f * k);
 	}
@@ -3469,7 +3470,7 @@ void RmsGenerator::synth_survival_of_the_fittest(HeightmapGrid &hm, RmsRng &rng,
 		for (int i = 0; i < n; ++i) {
 			const float a = start + 6.2831853f * (float)i / (float)n;
 			for (float f : {0.3f, 0.375f, 0.45f})
-				if (std::hypot(x - std::cos(a) * f * size, z - std::sin(a) * f * size) < 20.0f + r) return false;
+				if (det::hypot(x - det::cos(a) * f * size, z - det::sin(a) * f * size) < 20.0f + r) return false;
 		}
 		return true;
 	};
@@ -3477,10 +3478,10 @@ void RmsGenerator::synth_survival_of_the_fittest(HeightmapGrid &hm, RmsRng &rng,
 	for (int i = 0, tries = 0; i < hills && tries < hills * 40; ++tries) {
 		const float x = rng.range_float(-half, half), z = rng.range_float(-half, half);
 		const float r = rng.range_float(4.0f, 8.0f);
-		if (std::hypot(x, z) > half - r - 2.0f || !clear(x, z, r) || hm.sample_world(x, z) < 30.0f * k - 0.5f) continue;
+		if (det::hypot(x, z) > half - r - 2.0f || !clear(x, z, r) || hm.sample_world(x, z) < 30.0f * k - 0.5f) continue;
 		bool flat = true;
 		for (int d = 0; d < 8 && flat; ++d)
-			flat = hm.sample_world(x + std::cos(0.785398f * d) * (r + 5.0f), z + std::sin(0.785398f * d) * (r + 5.0f)) >= 30.0f * k - 0.5f;
+			flat = hm.sample_world(x + det::cos(0.785398f * d) * (r + 5.0f), z + det::sin(0.785398f * d) * (r + 5.0f)) >= 30.0f * k - 0.5f;
 		if (!flat) continue;
 		hm.raise_plateau(x, z, r, 0.0f, 0.0f, 25.0f * k, 3.0f);
 		++i;
@@ -3522,7 +3523,7 @@ static void place_start_entities(Simulation &sim, const HeightmapGrid &hm, uint8
 			if (std::strcmp(civ_unit_template(t).id, se.tmpl) == 0) { tmpl = t; break; }
 		if (tmpl == CIV_UNIT_TEMPLATE_NONE) continue; // a template RTS0 has no roster row for yet
 		const float angle = kOrientation - 3.14159265f * (1.0f - (float)j / 2.0f);
-		const float ca = std::cos(angle), sa = std::sin(angle);
+		const float ca = det::cos(angle), sa = det::sin(angle);
 		for (int num = 0; num < se.count; ++num) {
 			// location + Vector2D(dist, 0).rotate(-angle) + Vector2D(offset, 0).rotate(angle)
 			const float off = kSpace * (-(float)num + (float)(se.count - 1) / 2.0f);
@@ -3601,7 +3602,7 @@ static void place_nomad_units(Simulation &sim, const HeightmapGrid &hm, const st
 				float x = gx, z = gz; // SimpleObject(template, n, n, 1, 3)
 				for (int t = 0; t < 20; ++t) {
 					const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(1.0f, 3.0f);
-					const float ux = gx + std::cos(a) * r, uz = gz + std::sin(a) * r;
+					const float ux = gx + det::cos(a) * r, uz = gz + det::sin(a) * r;
 					if (ok(ux, uz)) { x = ux; z = uz; break; }
 				}
 				sim.spawn_unit(x, z, team, (UnitType)civ_unit_template(tmpl).unit_type, 0.0f, tmpl);
@@ -3618,25 +3619,25 @@ void RmsGenerator::place_survival_entities(Simulation &sim, const HeightmapGrid 
 	for (int i = 0; i < n; ++i) {
 		const auto &sp = spawns[(size_t)i];
 		const uint8_t team = sp.team;
-		const float a = std::atan2(sp.z, sp.x);
+		const float a = det::atan2(sp.z, sp.x);
 		// getStartingEntities filtered to the civic centre and the infantry.
 		sim.spawn_building_world(sp.x, sp.z, BLD_TOWN_CENTER, team, 1.0f);
 		place_start_entities(sim, hm, team, sp.x, sp.z, true);
 		// The treasure seeker: findLocationInDirectionBasedOnHeight(player, centre, -3, 3.5, 3),
 		// the first spot towards the centre down at the low land, then 3 tiles on.
 		float wx = sp.x, wz = sp.z;
-		const float d = std::hypot(sp.x, sp.z);
+		const float d = det::hypot(sp.x, sp.z);
 		for (float t = 0.0f; t < d; t += 0.5f) {
-			const float x = sp.x - std::cos(a) * t, z = sp.z - std::sin(a) * t;
+			const float x = sp.x - det::cos(a) * t, z = sp.z - det::sin(a) * t;
 			if (hm.sample_world(x, z) <= 3.5f * k) {
-				wx = x - std::cos(a) * 3.0f;
-				wz = z - std::sin(a) * 3.0f;
+				wx = x - det::cos(a) * 3.0f;
+				wz = z - det::sin(a) * 3.0f;
 				break;
 			}
 		}
 		sim.spawn_unit(wx, wz, team, UNIT_FEMALE_CITIZEN);
 		// The attacker spawn point, owned by the player.
-		sim.add_trigger_point('A', std::cos(a) * 0.45f * size, std::sin(a) * 0.45f * size, team);
+		sim.add_trigger_point('A', det::cos(a) * 0.45f * size, det::sin(a) * 0.45f * size, team);
 	}
 	// Treasure points B, C and D: scaleByMapSize(40, 140) each in the central area,
 	// 5 tiles inside its edge.
@@ -3644,7 +3645,7 @@ void RmsGenerator::place_survival_entities(Simulation &sim, const HeightmapGrid 
 	for (uint8_t ref : {(uint8_t)'B', (uint8_t)'C', (uint8_t)'D'})
 		for (int i = 0, tries = 0; i < count && tries < count * 100; ++tries) {
 			const float r = (land_r - 5.0f) * std::sqrt(rng.next_float()), t = rng.range_float(0.0f, 6.2831853f);
-			const float x = std::cos(t) * r, z = std::sin(t) * r;
+			const float x = det::cos(t) * r, z = det::sin(t) * r;
 			if (hm.sample_world(x, z) > 3.0f * k + 0.5f) continue;
 			sim.add_trigger_point(ref, x, z);
 			++i;
@@ -3653,15 +3654,15 @@ void RmsGenerator::place_survival_entities(Simulation &sim, const HeightmapGrid 
 	// the treasure seekers.
 	auto near_women = [&](float x, float z) {
 		for (const auto &sp : spawns) {
-			const float a = std::atan2(sp.z, sp.x);
-			if (std::hypot(x - std::cos(a) * land_r, z - std::sin(a) * land_r) < 8.0f) return true;
+			const float a = det::atan2(sp.z, sp.x);
+			if (det::hypot(x - det::cos(a) * land_r, z - det::sin(a) * land_r) < 8.0f) return true;
 		}
 		return false;
 	};
 	const int forests = scale_by_map_size(3, 10, half);
 	for (int f = 0; f < forests; ++f) {
 		const float r = (land_r - 8.0f) * std::sqrt(rng.next_float()), t = rng.range_float(0.0f, 6.2831853f);
-		const float cx = std::cos(t) * r, cz = std::sin(t) * r;
+		const float cx = det::cos(t) * r, cz = det::sin(t) * r;
 		if (near_women(cx, cz)) continue;
 		const int trees = rng.range_int(4, 8);
 		for (int j = 0; j < trees; ++j)
@@ -3680,7 +3681,7 @@ void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGr
 			for (int i = 0, tries = 0; i < n && tries < 200; ++tries) {
 				const float a = rng.range_float(0.0f, 6.2831853f);
 				const float d = rng.range_float(0.0f, 0.25f * 2.0f * half);
-				const float x = std::cos(a) * d, z = std::sin(a) * d;
+				const float x = det::cos(a) * d, z = det::sin(a) * d;
 				if (hm.sample_world(x, z) < 6.0f * kTriggerMapHeight - 0.5f || hm.compute_slope_world(x, z) > 0.7f) continue;
 				sim.spawn_resource_world(x, z, res, LARGE_MINE_SUPPLY);
 				++i;
@@ -3693,15 +3694,15 @@ void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGr
 		std::vector<std::pair<float, float>> towers;
 		for (int tries = 0; tries < 500; ++tries) {
 			const float x = rng.range_float(-half * 0.92f, half * 0.92f), z = rng.range_float(-half * 0.92f, half * 0.92f);
-			if (std::hypot(x, z) > half * 0.92f) continue;
+			if (det::hypot(x, z) > half * 0.92f) continue;
 			const float h = hm.sample_world(x, z);
 			if (h < water_h + 1.0f * kTriggerMapHeight + 0.5f || h > 18.0f * kTriggerMapHeight - 1.0f) continue;
 			if (hm.compute_slope_world(x, z) > 0.6f) continue;
 			bool ok = true;
 			for (const auto &sp : spawns)
-				if (std::hypot(x - sp.x, z - sp.z) < (float)scale_by_map_size(15, 25, half) + 24.0f) { ok = false; break; }
+				if (det::hypot(x - sp.x, z - sp.z) < (float)scale_by_map_size(15, 25, half) + 24.0f) { ok = false; break; }
 			for (const auto &t : towers)
-				if (std::hypot(x - t.first, z - t.second) < 60.0f) { ok = false; break; }
+				if (det::hypot(x - t.first, z - t.second) < 60.0f) { ok = false; break; }
 			if (!ok) continue;
 			sim.spawn_building_world(x, z, BLD_TOWER, GAIA_PLAYER, 1.0f);
 			towers.push_back({x, z});
@@ -3719,14 +3720,14 @@ void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGr
 		for (int tries = 0; tries < 20000; ++tries) {
 			const float x = rng.range_float(-half * 0.95f, half * 0.95f), z = rng.range_float(-half * 0.95f, half * 0.95f);
 			// A circular map (g_Map.randomCoordinate): the corners outside the circle are off the map.
-			bool ok = std::hypot(x, z) <= half * 0.95f && hm.compute_slope_world(x, z) <= 0.6f;
+			bool ok = det::hypot(x, z) <= half * 0.95f && hm.compute_slope_world(x, z) <= 0.6f;
 			for (int k = 0; ok && k < 9; ++k) {
 				const float a = 0.7853982f * (float)k, r = k == 8 ? 0.0f : 2.0f;
-				ok = hm.sample_world(x + std::cos(a) * r, z + std::sin(a) * r) > water_h;
+				ok = hm.sample_world(x + det::cos(a) * r, z + det::sin(a) * r) > water_h;
 			}
-			for (size_t k = 0; ok && k < spawns.size(); ++k) ok = std::hypot(x - spawns[k].x, z - spawns[k].z) >= base;
-			for (size_t k = 0; ok && k < mines.size(); ++k) ok = std::hypot(x - mines[k].first, z - mines[k].second) >= 4.0f;
-			for (size_t k = 0; ok && k < points.size(); ++k) ok = std::hypot(x - points[k].first, z - points[k].second) >= 20.0f;
+			for (size_t k = 0; ok && k < spawns.size(); ++k) ok = det::hypot(x - spawns[k].x, z - spawns[k].z) >= base;
+			for (size_t k = 0; ok && k < mines.size(); ++k) ok = det::hypot(x - mines[k].first, z - mines[k].second) >= 4.0f;
+			for (size_t k = 0; ok && k < points.size(); ++k) ok = det::hypot(x - points[k].first, z - points[k].second) >= 20.0f;
 			if (!ok) continue;
 			sim.add_trigger_point('A', x, z);
 			points.push_back({x, z});
@@ -3772,7 +3773,7 @@ void RmsGenerator::place_elephantine_fish(Simulation &sim, const HeightmapGrid &
 		const int n = rng.range_int(1, 2);
 		for (int k = 0; k < n; ++k) {
 			const float a = rng.range_float(0.0f, 6.2831853f), d = k ? rng.range_float(0.0f, 1.0f) : 0.0f;
-			sim.spawn_resource_world(x + std::cos(a) * d, z + std::sin(a) * d, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+			sim.spawn_resource_world(x + det::cos(a) * d, z + det::sin(a) * d, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
 		}
 		food.push_back({x, z});
 	}
@@ -3786,7 +3787,7 @@ void RmsGenerator::place_elephantine_entities(Simulation &sim, const HeightmapGr
 	// and temples. Left out: the statues and city-patch paths (actors and terrain only).
 	const float half = hm.map_half, size = 2.0f * half;
 	auto scale_f = [&](float lo, float hi) { return lo + (hi - lo) * std::max(0.0f, size - 128.0f) / 384.0f; };
-	const float angle = 0.22f * 3.14159265f, c = std::cos(angle), sn = std::sin(angle);
+	const float angle = 0.22f * 3.14159265f, c = det::cos(angle), sn = det::sin(angle);
 	// synth_elephantine's frame: x across the river, z along it (rmgen's z mirrored).
 	auto across = [&](float x, float z) { return x * c + z * sn; };
 	auto along = [&](float x, float z) { return x * sn - z * c; };
@@ -3801,13 +3802,13 @@ void RmsGenerator::place_elephantine_entities(Simulation &sim, const HeightmapGr
 		for (int k = 0; k < 8; ++k) {
 			const float a = 0.7853982f * (float)k;
 			for (float r : {d * 0.5f, d})
-				if (!land(x + std::cos(a) * r, z + std::sin(a) * r)) return false;
+				if (!land(x + det::cos(a) * r, z + det::sin(a) * r)) return false;
 		}
 		return true;
 	};
 	auto far_from_players = [&](float x, float z, float d) {
 		for (const auto &sp : spawns)
-			if (std::hypot(x - sp.x, z - sp.z) < d) return false;
+			if (det::hypot(x - sp.x, z - sp.z) < d) return false;
 		return true;
 	};
 	auto random_island_spot = [&](float &x, float &z) {
@@ -3819,13 +3820,13 @@ void RmsGenerator::place_elephantine_entities(Simulation &sim, const HeightmapGr
 	std::vector<Placed> temples, towers, units;
 	auto clear_of = [](const std::vector<Placed> &v, float x, float z, float d) {
 		for (const Placed &p : v)
-			if (std::hypot(x - p.x, z - p.z) < d + p.r) return false;
+			if (det::hypot(x - p.x, z - p.z) < d + p.r) return false;
 		return true;
 	};
 	// Distance from the nearest temple-class footprint (NearTileClassConstraint(clTemple, d)).
 	auto near_temple = [&](float x, float z, float d) {
 		for (const Placed &p : temples)
-			if (std::hypot(x - p.x, z - p.z) <= d + p.r) return true;
+			if (det::hypot(x - p.x, z - p.z) <= d + p.r) return true;
 		return false;
 	};
 	auto spawn = [&](float x, float z, uint8_t type, std::vector<Placed> &into) {
@@ -3876,7 +3877,7 @@ void RmsGenerator::place_elephantine_entities(Simulation &sim, const HeightmapGr
 		const Placed &patch = temples[(size_t)rng.range_int(0, (int)temples.size() - 1)];
 		const float radius = &patch == &temples[0] ? 10.0f : 6.0f;
 		const float r = (patch.r + radius) * std::sqrt(rng.next_float()), a = rng.range_float(0.0f, 6.2831853f);
-		const float x = patch.x + std::cos(a) * r, z = patch.z + std::sin(a) * r;
+		const float x = patch.x + det::cos(a) * r, z = patch.z + det::sin(a) * r;
 		if (!land(x, z) || !clear_of(temples, x, z, 1.0f) || !clear_of(towers, x, z, 1.0f)) continue;
 		const int n = rng.range_int(1, 2);
 		for (int i = 0; i < n; ++i)
@@ -3945,7 +3946,7 @@ void RmsGenerator::place_lower_nubia_gaia(Simulation &sim, const HeightmapGrid &
 	const float patch = (float)scale_by_map_size(15, 25, half) / 3.0f;
 	auto to_bases = [&](float x, float z) {
 		float d = 1e30f;
-		for (const auto &s : spawns) d = std::min(d, std::hypot(x - s.x, z - s.z));
+		for (const auto &s : spawns) d = std::min(d, det::hypot(x - s.x, z - s.z));
 		return d - patch;
 	};
 	// Tile classes on a one-tile grid.
@@ -4004,7 +4005,7 @@ void RmsGenerator::place_lower_nubia_gaia(Simulation &sim, const HeightmapGrid &
 				}
 				for (int k = 0; k < small; ++k) {
 					const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(lo, hi);
-					const float rx = x + std::cos(a) * r, rz = z + std::sin(a) * r;
+					const float rx = x + det::cos(a) * r, rz = z + det::sin(a) * r;
 					if (nile[vertex(rx, rz)]) continue;
 					sim.spawn_resource_world(rx, rz, type, MINE_SUPPLY);
 					mark(rx, rz, 0.0f, own);
@@ -4052,7 +4053,7 @@ void RmsGenerator::place_lower_nubia_gaia(Simulation &sim, const HeightmapGrid &
 		const int n = rng.range_int(1, 2);
 		for (int k = 0; k < n; ++k) {
 			const float a = rng.range_float(0.0f, 6.2831853f);
-			const float tx = x + (k ? std::cos(a) : 0.0f), tz = z + (k ? std::sin(a) : 0.0f);
+			const float tx = x + (k ? det::cos(a) : 0.0f), tz = z + (k ? det::sin(a) : 0.0f);
 			const size_t tv = vertex(tx, tz);
 			if (nile[tv] || cliff[tv]) continue;
 			sim.spawn_resource_world(tx, tz, RES_WOOD, TREE_WOOD_SUPPLY);
@@ -4076,7 +4077,7 @@ void RmsGenerator::place_lower_nubia_gaia(Simulation &sim, const HeightmapGrid &
 			mark(x, z, 0.0f, kForest);
 			if (rng.range_int(0, 1)) {
 				const float a = rng.range_float(0.0f, 6.2831853f);
-				const float bx = x + std::cos(a) * 2.0f, bz = z + std::sin(a) * 2.0f;
+				const float bx = x + det::cos(a) * 2.0f, bz = z + det::sin(a) * 2.0f;
 				if (!cliff[vertex(bx, bz)] && bx * bx + bz * bz < half * half) {
 					sim.spawn_resource_world(bx, bz, RES_WOOD, TREE_WOOD_SUPPLY);
 					mark(bx, bz, 0.0f, kForest);
@@ -4123,29 +4124,29 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 				if (steep(x, z)) return true;
 				for (int k = 0; k < 8; ++k) {
 					const float a = 0.7853982f * (float)k;
-					if (steep(x + std::cos(a) * spread, z + std::sin(a) * spread)) return true;
+					if (steep(x + det::cos(a) * spread, z + det::sin(a) * spread)) return true;
 				}
 			}
 			for (int k = 0; k < 8; ++k) {
 				const float a = 0.7853982f * (float)k;
-				if (hm.sample_world(x + std::cos(a) * spread, z + std::sin(a) * spread) < dry_h) return true;
+				if (hm.sample_world(x + det::cos(a) * spread, z + det::sin(a) * spread) < dry_h) return true;
 			}
 			// Dry land across a strait (another island) does not count.
-			const float l = std::hypot(x - px, z - pz);
+			const float l = det::hypot(x - px, z - pz);
 			for (float t = 0.0f; t < l; t += 0.5f)
 				if (hm.sample_world(px + (x - px) * t / l, pz + (z - pz) * t / l) < dry_h) return true;
 			return false;
 		};
 		if (!wet(cx, cz)) return;
-		const float d = std::hypot(cx - px, cz - pz);
+		const float d = det::hypot(cx - px, cz - pz);
 		if (d < 1e-3f) return;
-		const float a0 = std::atan2(cz - pz, cx - px);
+		const float a0 = det::atan2(cz - pz, cx - px);
 		const float ox = cx, oz = cz;
 		for (float r = d; r >= 7.0f; r -= 0.5f)
 			for (int k = 0; k <= 12; ++k) {
 				// 0, +15, -15, +30, ... degrees, up to 90 either side.
 				const float a = a0 + 0.2617994f * (float)((k + 1) / 2) * ((k & 1) ? 1.0f : -1.0f);
-				const float tx = px + std::cos(a) * r, tz = pz + std::sin(a) * r;
+				const float tx = px + det::cos(a) * r, tz = pz + det::sin(a) * r;
 				if (!wet(tx, tz)) {
 					cx = tx;
 					cz = tz;
@@ -4182,7 +4183,7 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		// islands.js and land_grab.js: a dock on the shore towards the map centre
 		// (findLocationInDirectionBasedOnHeight from the base to the centre).
 		if (mt == MAP_ISLANDS || mt == MAP_LAND_GRAB) {
-			const float d = std::hypot(px, pz);
+			const float d = det::hypot(px, pz);
 			for (float t = 8.0f; t < d; t += 0.5f) {
 				const float dx = px - px / d * t, dz = pz - pz / d * t;
 				if (hm.sample_world(dx, dz) >= sim.water_height() + NAV_WATER_MARGIN) continue;
@@ -4201,8 +4202,8 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 				: base->berry_min == base->berry_max ? base->berry_min : rng.range_int(base->berry_min, base->berry_max);
 		for (int b = 0; b < berries; ++b) {
 			float ba = (6.2831853f * b) / (float)berries;
-			float bx = berry_cx + std::cos(ba) * 1.5f;
-			float bz = berry_cz + std::sin(ba) * 1.5f;
+			float bx = berry_cx + det::cos(ba) * 1.5f;
+			float bz = berry_cz + det::sin(ba) * 1.5f;
 			sim.spawn_resource_world(bx, bz, RES_FOOD, 200);
 		}
 
@@ -4215,8 +4216,8 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		if (!base) {
 			for (int t = 0; t < 10; ++t) {
 				float ta = -1.2f + (2.4f * t) / 9.0f;
-				float tx = forest_cx + std::cos(ta) * 4.0f + rng.range_float(-0.4f, 0.4f);
-				float tz = forest_cz + std::sin(ta) * 4.0f + rng.range_float(-0.4f, 0.4f);
+				float tx = forest_cx + det::cos(ta) * 4.0f + rng.range_float(-0.4f, 0.4f);
+				float tz = forest_cz + det::sin(ta) * 4.0f + rng.range_float(-0.4f, 0.4f);
 				spawn_trees(sim, hm, tx, tz, dry_h, 2);
 			}
 		} else if (base->trees) {
@@ -4226,7 +4227,7 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 			const float a0 = rng.range_float(0.0f, 6.2831853f);
 			for (int t = 0; t < trees; ++t) {
 				const float r = 1.1f * std::sqrt((float)t), a = a0 + 2.3999632f * (float)t;
-				const float tx = forest_cx + std::cos(a) * r, tz = forest_cz + std::sin(a) * r;
+				const float tx = forest_cx + det::cos(a) * r, tz = forest_cz + det::sin(a) * r;
 				if (hm.sample_world(tx, tz) > dry_h) spawn_trees(sim, hm, tx, tz, dry_h, 1);
 			}
 		}
@@ -4257,7 +4258,7 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		if (!base) {
 			for (int d = 0; d < 4; ++d) {
 				float da = (6.2831853f * d) / 4.0f;
-				sim.spawn_fauna(deer_cx + std::cos(da) * 2.5f, deer_cz + std::sin(da) * 2.5f, bf.starting);
+				sim.spawn_fauna(deer_cx + det::cos(da) * 2.5f, deer_cz + det::sin(da) * 2.5f, bf.starting);
 			}
 			// 11. Starter hunt: 2 of the biome's main huntable animal (RTS0's own; 0.28's
 			// placePlayerBase has none).
@@ -4280,7 +4281,7 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 			for (int g = 0; g < std::min<int>(base->animal_groups, 2); ++g)
 				for (int k = 0; k < each; ++k) {
 					const float a = rng.range_float(0.0f, 6.2831853f), r = k ? rng.range_float(0.5f, 1.5f) : 0.0f;
-					sim.spawn_fauna(herd_cx[g] + std::cos(a) * r, herd_cz[g] + std::sin(a) * r, kind);
+					sim.spawn_fauna(herd_cx[g] + det::cos(a) * r, herd_cz[g] + det::sin(a) * r, kind);
 				}
 		}
 	}
@@ -4362,15 +4363,15 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 			int num_palms = (oi == 0) ? 14 : 8;
 			for (int p = 0; p < num_palms; ++p) {
 				float a = (6.2831853f * p) / (float)num_palms + rng.range_float(-0.2f, 0.2f);
-				float tx = ox + std::cos(a) * o_rad;
-				float tz = oz + std::sin(a) * o_rad;
+				float tx = ox + det::cos(a) * o_rad;
+				float tz = oz + det::sin(a) * o_rad;
 				if (hm.sample_world(tx, tz) > water_h + 0.15f) spawn_trees(sim, hm, tx, tz, water_h + 0.15f);
 			}
 			// Oasis date bushes (gaia/fruit/date, Max 400)
 			for (int b = 0; b < 3; ++b) {
 				float ba = (6.2831853f * b) / 3.0f + 0.5f;
-				float bx = ox + std::cos(ba) * (o_rad + 2.0f);
-				float bz = oz + std::sin(ba) * (o_rad + 2.0f);
+				float bx = ox + det::cos(ba) * (o_rad + 2.0f);
+				float bz = oz + det::sin(ba) * (o_rad + 2.0f);
 				if (hm.sample_world(bx, bz) > water_h + 0.15f) {
 					sim.spawn_resource_world(bx, bz, RES_FOOD, 400);
 				}
@@ -4427,7 +4428,7 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 		for (int g = 0, tries = 0; g < groups && !spots.empty() && tries < groups * 40; ++tries) {
 			const auto p = spots[(size_t)rng.range_int(0, (int)spots.size() - 1)];
 			bool crowded = false;
-			for (const auto &q : placed) crowded |= std::hypot(p.first - q.first, p.second - q.second) < 8.0f;
+			for (const auto &q : placed) crowded |= det::hypot(p.first - q.first, p.second - q.second) < 8.0f;
 			if (crowded) continue;
 			placed.push_back(p);
 			const uint8_t type = levant ? (g % 3 == 1 ? RES_GOLD : RES_STONE) : (rng.range_int(0, 1) ? RES_GOLD : RES_STONE);
@@ -4435,7 +4436,7 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 				// The small stone group: three template_gaia_rock rocks.
 				for (int r = 0; r < 3; ++r) {
 					const float a = 6.2831853f * (float)r / 3.0f;
-					sim.spawn_resource_world(p.first + std::cos(a) * 1.6f, p.second + std::sin(a) * 1.6f, type, MINE_SUPPLY);
+					sim.spawn_resource_world(p.first + det::cos(a) * 1.6f, p.second + det::sin(a) * 1.6f, type, MINE_SUPPLY);
 				}
 			} else {
 				sim.spawn_resource_world(p.first, p.second, type, LARGE_MINE_SUPPLY);
@@ -4478,8 +4479,8 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 		for (int t = 0; t < trees_in_grove; ++t) {
 			float a = rng.range_float(0.0f, 6.2831853f);
 			float r = std::sqrt(rng.next_float()) * grove_r;
-			float tx = gx + std::cos(a) * r;
-			float tz = gz + std::sin(a) * r;
+			float tx = gx + det::cos(a) * r;
+			float tz = gz + det::sin(a) * r;
 			if (hm.sample_world(tx, tz) <= water_h + 0.2f) continue;
 			// islands.js: forests avoidClasses(clPlayer, 0), so none on a player's island
 			// (the straight line from its civic centre stays on land).
@@ -4525,7 +4526,7 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 		}
 		for (int r = 0; r < rocks; ++r) {
 			float a = (6.2831853f * r) / (float)rocks;
-			sim.spawn_resource_world(mx + std::cos(a) * 1.6f, mz + std::sin(a) * 1.6f, res_type, MINE_SUPPLY);
+			sim.spawn_resource_world(mx + det::cos(a) * 1.6f, mz + det::sin(a) * 1.6f, res_type, MINE_SUPPLY);
 		}
 	}
 
@@ -4554,21 +4555,21 @@ void RmsGenerator::distribute_wildlife(Simulation &sim, const HeightmapGrid &hm,
 				bool ok = true;
 				for (int k = 0; ok && k < 9; ++k) { // off the Nile by a tile
 					const float a = 0.7853982f * (float)k, r = k == 8 ? 0.0f : 1.0f;
-					ok = hm.sample_world(x + std::cos(a) * r, z + std::sin(a) * r) > sea;
+					ok = hm.sample_world(x + det::cos(a) * r, z + det::sin(a) * r) > sea;
 				}
 				float gx, gz;
 				hm.world_to_grid(x, z, gx, gz);
 				const size_t v = (size_t)std::clamp((int)std::lround(gz), 0, hm.res - 1) * (size_t)hm.res +
 				                 (size_t)std::clamp((int)std::lround(gx), 0, hm.res - 1);
 				ok = ok && slope[v] < 2.0f;
-				for (size_t k = 0; ok && k < spawns.size(); ++k) ok = std::hypot(x - spawns[k].x, z - spawns[k].z) > patch + 12.0f;
-				for (size_t k = 0; ok && k < food.size(); ++k) ok = std::hypot(x - food[k].first, z - food[k].second) > 6.0f;
+				for (size_t k = 0; ok && k < spawns.size(); ++k) ok = det::hypot(x - spawns[k].x, z - spawns[k].z) > patch + 12.0f;
+				for (size_t k = 0; ok && k < food.size(); ++k) ok = det::hypot(x - food[k].first, z - food[k].second) > 6.0f;
 				if (!ok) continue;
 				food.push_back({x, z});
 				const int na = rng.range_int(h.a_lo, h.a_hi), nb = h.b_hi ? rng.range_int(h.b_lo, h.b_hi) : 0;
 				for (int i = 0; i < na + nb; ++i) {
 					const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(2.0f, 4.0f);
-					sim.spawn_fauna(x + std::cos(a) * r, z + std::sin(a) * r, i < na ? h.a : h.b);
+					sim.spawn_fauna(x + det::cos(a) * r, z + det::sin(a) * r, i < na ? h.a : h.b);
 				}
 				++g;
 			}
@@ -4607,7 +4608,7 @@ void RmsGenerator::distribute_wildlife(Simulation &sim, const HeightmapGrid &hm,
 		for (int i = 0; i < pack_size; ++i) {
 			float a = (6.2831853f * i) / (float)pack_size;
 			float r = rng.range_float(1.5f, 3.5f);
-			sim.spawn_fauna(px + std::cos(a) * r, pz + std::sin(a) * r, ftype);
+			sim.spawn_fauna(px + det::cos(a) * r, pz + det::sin(a) * r, ftype);
 		}
 	}
 }
@@ -4626,14 +4627,14 @@ void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, f
 	};
 	auto far_from_bases = [&](float x, float z, float d) {
 		for (const auto &sp : spawns)
-			if (std::hypot(x - sp.x, z - sp.z) < d) return false;
+			if (det::hypot(x - sp.x, z - sp.z) < d) return false;
 		return true;
 	};
 	// SimpleObject(template, n, n, 0, spread): n treasures within `spread` of (x, z).
 	auto cluster = [&](float x, float z, uint8_t type, int n, float spread) {
 		for (int k = 0; k < n; ++k) {
 			const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(0.0f, spread);
-			const float tx = x + std::cos(a) * r, tz = z + std::sin(a) * r;
+			const float tx = x + det::cos(a) * r, tz = z + det::sin(a) * r;
 			if (dry(tx, tz)) sim.spawn_treasure(tx, tz, type);
 		}
 	};
@@ -4652,7 +4653,7 @@ void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, f
 		for (const auto &sp : spawns)
 			for (int k = 0; k < n; ++k) {
 				const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(10.0f, 13.0f);
-				const float tx = sp.x + std::cos(a) * r, tz = sp.z + std::sin(a) * r;
+				const float tx = sp.x + det::cos(a) * r, tz = sp.z + det::sin(a) * r;
 				if (dry(tx, tz)) sim.spawn_treasure(tx, tz, type);
 			}
 	};
@@ -4667,14 +4668,14 @@ void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, f
 	auto all_within = [&](float x, float z, float r, auto pred) {
 		for (int k = 0; k < 8; ++k) {
 			const float a = 0.7853982f * (float)k;
-			if (!pred(x + std::cos(a) * r, z + std::sin(a) * r)) return false;
+			if (!pred(x + det::cos(a) * r, z + det::sin(a) * r)) return false;
 		}
 		return pred(x, z);
 	};
 	auto any_within = [&](float x, float z, float r, auto pred) {
 		for (int k = 0; k < 8; ++k) {
 			const float a = 0.7853982f * (float)k;
-			if (pred(x + std::cos(a) * r, z + std::sin(a) * r)) return true;
+			if (pred(x + det::cos(a) * r, z + det::sin(a) * r)) return true;
 		}
 		return false;
 	};
@@ -4686,11 +4687,11 @@ void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, f
 			const float x = rng.range_float(-half * 0.95f, half * 0.95f), z = rng.range_float(-half * 0.95f, half * 0.95f);
 			if (!ok(x, z)) continue;
 			bool clear = true;
-			for (const auto &w : wrecks) clear = clear && std::hypot(w.first - x, w.second - z) >= 8.0f;
+			for (const auto &w : wrecks) clear = clear && det::hypot(w.first - x, w.second - z) >= 8.0f;
 			if (!clear) continue;
 			for (int k = 0, n = rng.range_int(lo, hi); k < n; ++k) {
 				const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(0.0f, spread);
-				const float tx = x + std::cos(a) * r, tz = z + std::sin(a) * r;
+				const float tx = x + det::cos(a) * r, tz = z + det::sin(a) * r;
 				if (wet(tx, tz)) sim.spawn_treasure(tx, tz, type);
 			}
 			wrecks.push_back({x, z});
@@ -4909,7 +4910,7 @@ std::vector<uint8_t> seas_clump(const HeightmapGrid &hm, RmsRng &rng, float size
 	const float sx = (float)(start % res), sz = (float)(start / res);
 	for (int step = 0; step < int_perim; ++step) {
 		const float a = 2.0f * kSeasPi * (float)step / perim;
-		const float dx = std::sin(a), dz = std::cos(a);
+		const float dx = det::sin(a), dz = det::cos(a);
 		const int steps = (int)std::ceil(radius * (1.0f + (1.0f - coherence) * noise[(size_t)step]));
 		count += steps;
 		float px = sx, pz = sz;
@@ -4935,7 +4936,7 @@ std::vector<uint8_t> seas_path(const HeightmapGrid &hm, RmsRng &rng, float ax, f
 		float waviness, float smoothness, float offset, float tapering, float fail_fraction, const Allow &allow) {
 	const int res = hm.res;
 	const float sp = grid_spacing(hm), half = hm.map_half;
-	const float len = std::max(1e-3f, std::hypot(bx - ax, bz - az));
+	const float len = std::max(1e-3f, det::hypot(bx - ax, bz - az));
 	const int nw = 1 + (int)std::floor(len / 4.0f * waviness);
 	const int nl = 1 + (int)std::floor(len / 4.0f * smoothness);
 	const float off = 1.0f + std::floor(len / 4.0f * offset);
@@ -5005,7 +5006,7 @@ std::vector<float> seas_dist_to_players(const HeightmapGrid &hm, const std::vect
 	for (size_t i = 0; i < d.size(); ++i) {
 		float wx, wz;
 		seas_world(hm, (int)i, wx, wz);
-		for (const auto &p : pts) d[i] = std::min(d[i], std::hypot(wx - p.first, wz - p.second) - r);
+		for (const auto &p : pts) d[i] = std::min(d[i], det::hypot(wx - p.first, wz - p.second) - r);
 	}
 	return d;
 }
@@ -5072,7 +5073,7 @@ void seas_paint_river(HeightmapGrid &hm, RmsRng &rng, float sx, float sz, float 
 	auto curve = [&](double frac, double a, double seed) {
 		return ms * seas_rnd_river(a + size * frac / 128.0, seed) + ml * seas_rnd_river(a + size * frac / 256.0, seed);
 	};
-	const float len = std::hypot(sx - ex, sz - ez);
+	const float len = det::hypot(sx - ex, sz - ez);
 	const float ux = (sx - ex) / len, uz = (sz - ez) / len;
 	for (int z = 0; z < hm.res; ++z)
 		for (int x = 0; x < hm.res; ++x) {
@@ -5215,9 +5216,9 @@ std::vector<uint8_t> mountain_028(HeightmapGrid &hm, RmsRng &rng, float ref_h, f
 		for (int ix = sx; ix <= lx; ++ix)
 			for (int iz = sz; iz <= lz; ++iz) {
 				const int i = iz * res + ix;
-				const float d = std::hypot((float)(ix - c.x), (float)(iz - c.z)) * sp;
+				const float d = det::hypot((float)(ix - c.x), (float)(iz - c.z)) * sp;
 				const float nh = (float)rng.range_int(0, 2) +
-				                 std::round(2.0f / 3.0f * clump * (std::sin(kSeasPi * 2.0f / 3.0f * (0.75f - d / (float)c.r)) + 0.5f));
+				                 std::round(2.0f / 3.0f * clump * (det::sin(kSeasPi * 2.0f / 3.0f * (0.75f - d / (float)c.r)) + 0.5f));
 				if (d > (float)c.r || !in_map(i)) continue;
 				const float cur = (hm.data[(size_t)i] - ref_h) / kMetre, origin = (hm.data[(size_t)start] - ref_h) / kMetre;
 				if (cur < nh) hm.data[(size_t)i] = metres(ref_h, nh);
@@ -5301,7 +5302,7 @@ void RmsGenerator::synth_rivers(HeightmapGrid &hm, RmsRng &rng, float &water_h, 
 		rng.range_float(2.0f, 3.0f); // seed2: unused with parallel banks
 		const double angle = rng.range_float(0.0f, 1.0f);
 		rng.range_float(0.0f, 1.0f); // startingAngle2
-		const float len = std::max(1e-3f, std::hypot(s.first, s.second));
+		const float len = std::max(1e-3f, det::hypot(s.first, s.second));
 		const float ux = s.first / len, uz = s.second / len; // from the centre (the end) towards the start
 		for (int z = 0; z < hm.res; ++z)
 			for (int x = 0; x < hm.res; ++x) {
@@ -5431,7 +5432,7 @@ void RmsGenerator::synth_canyon(HeightmapGrid &hm, RmsRng &rng, float &water_h, 
 		int p1 = -1, p2 = -1;
 		float d1 = 1e9f, d2 = 1e9f;
 		for (int i = 0; i < (int)locs.size(); ++i) {
-			const float d = std::hypot(c.first - locs[(size_t)i].first, c.second - locs[(size_t)i].second);
+			const float d = det::hypot(c.first - locs[(size_t)i].first, c.second - locs[(size_t)i].second);
 			if (d1 >= d) { d2 = d1; p2 = p1; d1 = d; p1 = i; }
 			else if (d2 >= d) { d2 = d; p2 = i; }
 		}
@@ -5544,7 +5545,7 @@ void RmsGenerator::synth_aegean_sea(HeightmapGrid &hm, RmsRng &rng, float &water
 	const float land = metres(water_h, 2.0f);
 	hm.init(hm.res, hm.map_half, land);
 	const float angle = rng.range_float(0.0f, 2.0f * kSeasPi);
-	const float nx = std::cos(angle), nz = std::sin(angle); // across the sea
+	const float nx = det::cos(angle), nz = det::sin(angle); // across the sea
 	const float ux = -nz, uz = nx;                          // along it
 	// playerPlacementRiver(angle, 0.6 * size).
 	std::vector<std::pair<float, float>> locs((size_t)num_players);
@@ -5613,7 +5614,7 @@ void RmsGenerator::synth_danubius_0ad(HeightmapGrid &hm, RmsRng &rng, float &wat
 	const float land = metres(water_h, 3.0f);
 	hm.init(hm.res, hm.map_half, land);
 	const float angle = rng.range_float(0.0f, 2.0f * kSeasPi);
-	const float nx = std::cos(angle), nz = std::sin(angle); // across the river: the left bank is negative
+	const float nx = det::cos(angle), nz = det::sin(angle); // across the river: the left bank is negative
 	const float ux = -nz, uz = nx;                          // along it
 	out = DanubiusLayout();
 	out.nx = nx;
@@ -5726,13 +5727,13 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 	// the gates (the village wall leaves their gaps open).
 	const float half = hm.map_half, size = 2.0f * half;
 	const float nx = lay.nx, nz = lay.nz, ux = -nz, uz = nx;
-	const float start_angle = std::atan2(nz, nx);
+	const float start_angle = det::atan2(nz, nx);
 	auto across = [&](float x, float z) { return x * nx + z * nz; };
 	auto dry = [&](float x, float z, float m) { return hm.sample_world(x, z) > metres(water_h, m); };
 	struct Spot { float x, z; };
 	auto clear_of = [](const std::vector<Spot> &v, float x, float z, float d) {
 		for (const Spot &s : v)
-			if (std::hypot(x - s.x, z - s.z) < d) return false;
+			if (det::hypot(x - s.x, z - s.z) < d) return false;
 		return true;
 	};
 	auto building = [&](float x, float z, uint8_t type, bool capturable) {
@@ -5766,7 +5767,7 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 				for (const Ring &r : {Ring{0.6f, 9, 0}, Ring{0.8f, 15, 1}, Ring{1.1f, 7, 2}})
 					for (int k = 0; k < r.count; ++k) {
 						const float a = start_angle + 2.0f * kSeasPi * (float)k / (float)r.count;
-						const float x = mx + std::cos(a) * r.radius * lay.ritual_r, z = mz + std::sin(a) * r.radius * lay.ritual_r;
+						const float x = mx + det::cos(a) * r.radius * lay.ritual_r, z = mz + det::sin(a) * r.radius * lay.ritual_r;
 						if (r.kind == 2) {
 							sim.spawn_fauna(x, z, FAUNA_GOAT);
 							continue;
@@ -5784,7 +5785,7 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 				const uint8_t kind = kRing[k % 26];
 				if (kind == V_NONE || kind == V_GATE) continue;
 				const float a = base + 2.0f * ring * (float)k;
-				const float x = cx + std::cos(a) * (city_r - 4.0f), z = cz + std::sin(a) * (city_r - 4.0f);
+				const float x = cx + det::cos(a) * (city_r - 4.0f), z = cz + det::sin(a) * (city_r - 4.0f);
 				if (kind == V_HOUSE) building(x, z, BLD_HOUSE, false);
 				else if (kind == V_TEMPLE) building(x, z, BLD_TEMPLE, false);
 				else if (size >= 320.0f && sim.nomad()) building(x, z, BLD_SENTRY_TOWER, false); // sentry_tower
@@ -5798,13 +5799,13 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 				const int chords = std::max(1, (int)std::ceil((a1 - a0) * city_r / 6.0f));
 				for (int c = 0; c < chords; ++c) {
 					const float b0 = a0 + (a1 - a0) * (float)c / (float)chords, b1 = a0 + (a1 - a0) * (float)(c + 1) / (float)chords;
-					sim.spawn_gaia_wall(cx + std::cos(b0) * city_r, cz + std::sin(b0) * city_r, cx + std::cos(b1) * city_r,
-					                    cz + std::sin(b1) * city_r, WALLSET_PALISADE);
+					sim.spawn_gaia_wall(cx + det::cos(b0) * city_r, cz + det::sin(b0) * city_r, cx + det::cos(b1) * city_r,
+					                    cz + det::sin(b1) * city_r, WALLSET_PALISADE);
 				}
 			}
 			for (int k = 0; k < treasures; ++k) {
 				const float r = rng.range_float(-0.8f, 0.8f) * city_r, a = rng.range_float(0.0f, 2.0f * kSeasPi);
-				sim.spawn_treasure(cx + std::cos(a) * r, cz + std::sin(a) * r, kTreasures[rng.range_int(0, 4)]);
+				sim.spawn_treasure(cx + det::cos(a) * r, cz + det::sin(a) * r, kTreasures[rng.range_int(0, 4)]);
 			}
 		}
 	}
@@ -5846,13 +5847,13 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 	const auto res = sim.resources();
 	auto near_resource = [&](float x, float z, float d, bool wood) {
 		for (size_t r = 0; r < res.count; ++r)
-			if (res.alive[r] && (wood || res.type[r] != RES_WOOD) && std::fabs(res.x[r] - x) < d && std::fabs(res.z[r] - z) < d && std::hypot(res.x[r] - x, res.z[r] - z) < d) return true;
+			if (res.alive[r] && (wood || res.type[r] != RES_WOOD) && std::fabs(res.x[r] - x) < d && std::fabs(res.z[r] - z) < d && det::hypot(res.x[r] - x, res.z[r] - z) < d) return true;
 		return false;
 	};
 	const float base_r = seas_scale(15, 25, half);
 	auto far_from_players = [&](float x, float z, float d) {
 		for (const auto &sp : spawns)
-			if (std::hypot(x - sp.x, z - sp.z) < base_r + d) return false;
+			if (det::hypot(x - sp.x, z - sp.z) < base_r + d) return false;
 		return true;
 	};
 	auto points = [&](uint8_t ref, int amount, int retry, float spacing, const auto &ok) {
@@ -6071,13 +6072,13 @@ void RmsGenerator::synth_coast_range(HeightmapGrid &hm, RmsRng &rng, float &wate
 	const int pattern = t_team_placement.pattern;
 	const float start = pattern < 0 ? 2.6f : 1.6f;
 	// Vector2D(0, d).rotate(a) in the rmgen frame is (d sin a, d cos a).
-	const float ox = 0.1f * size * std::sin(start), oz = 0.1f * size * std::cos(start);
+	const float ox = 0.1f * size * det::sin(start), oz = 0.1f * size * det::cos(start);
 	std::vector<uint8_t> land_mask(hm.data.size(), 0), not_mountain(hm.data.size(), 0);
 	mask_disk(hm, land_mask, ox, oz, 0.5f * size);
 	paint_mask_elevation(hm, land_mask, land, 4.0f);
 	std::vector<std::pair<float, float>> locs;
 	if (pattern < 0) {
-		const float angle = 2.435721f + 3.461476f / std::pow(2.0f, (float)num_players / 1.376771f);
+		const float angle = 2.435721f + 3.461476f / det::pow(2.0f, (float)num_players / 1.376771f);
 		for (int i = 0; i < num_players; ++i)
 			locs.push_back(polar(angle + 2.0f * kSeasPi * (float)i / (float)std::max(1, num_players), 0.3f * size));
 	} else {
@@ -6284,7 +6285,7 @@ void RmsGenerator::synth_the_nile(HeightmapGrid &hm, RmsRng &rng, float &water_h
 	const float land = metres(water_h, 2.0f);
 	hm.init(hm.res, hm.map_half, land);
 	const float angle = rng.range_float(0.0f, 2.0f * kSeasPi);
-	const float nx = std::cos(angle), nz = std::sin(angle); // across the river
+	const float nx = det::cos(angle), nz = det::sin(angle); // across the river
 	const float ux = -nz, uz = nx;                          // along it
 	// playerPlacementRiver(angle, 0.4 * size).
 	std::vector<std::pair<float, float>> locs((size_t)num_players);
@@ -6607,7 +6608,7 @@ inline float coast_sbms(float lo, float hi, float half) {
 // Vector2D.rotate(a) (clockwise by a); rotateAround(a, centre) on centred
 // coordinates. Vector2D(r, 0).rotate(-a) is polar(a, r).
 inline std::pair<float, float> coast_rot(float x, float z, float a) {
-	const float c = std::cos(a), s = std::sin(a);
+	const float c = det::cos(a), s = det::sin(a);
 	return {x * c + z * s, -x * s + z * c};
 }
 
@@ -6650,7 +6651,7 @@ void coast_paint_river(HeightmapGrid &hm, RmsRng &rng, float sx, float sz, float
 	auto curve = [&](float frac, double a, double seed) {
 		return (float)(ms * coast_rnd_river(a + size * frac / 128.0f, seed) + ml * coast_rnd_river(a + size * frac / 256.0f, seed));
 	};
-	const float len = std::hypot(ex - sx, ez - sz);
+	const float len = det::hypot(ex - sx, ez - sz);
 	const float ux = (sx - ex) / len, uz = (sz - ez) / len;
 	const float eps = 0.01f;
 	const float minx = std::min(sx, ex) - eps, maxx = std::max(sx, ex) + eps;
@@ -6663,7 +6664,7 @@ void coast_paint_river(HeightmapGrid &hm, RmsRng &rng, float sx, float sz, float
 			const float d = ux * (wz - ez) - uz * (wx - ex);
 			const float fx = wx + uz * d, fz = wz - ux * d;
 			if (fx < minx || fx > maxx || fz < minz || fz > maxz) continue;
-			const float frac = std::hypot(fx - sx, fz - sz) / len;
+			const float frac = det::hypot(fx - sx, fz - sz) / len;
 			const float c1 = curve(frac, a1, seed1);
 			const float c2 = parallel ? c1 : curve(frac, a2, seed2);
 			const float dev = deviation != 0.0f ? deviation * rng.range_float(-1.0f, 1.0f) : 0.0f;
@@ -6684,7 +6685,7 @@ void coast_passage(HeightmapGrid &hm, float sx, float sz, float ex, float ez, fl
 	const float half = hm.map_half;
 	const float sh = std::isnan(start_h) ? hm.sample_world(std::clamp(sx, -half, half), std::clamp(sz, -half, half)) : start_h;
 	const float eh = std::isnan(end_h) ? hm.sample_world(std::clamp(ex, -half, half), std::clamp(ez, -half, half)) : end_h;
-	const float len = std::hypot(ex - sx, ez - sz);
+	const float len = det::hypot(ex - sx, ez - sz);
 	if (len < 1e-3f) return;
 	const float dx = (ex - sx) / len, dz = (ez - sz) / len;
 	for (int z = 0; z < hm.res; ++z)
@@ -6729,7 +6730,7 @@ void coast_bumps(HeightmapGrid &hm, RmsRng &rng, float water_h, int count, float
 		for (int z = z0; z <= z1; ++z)
 			for (int x = x0; x <= x1; ++x) {
 				const float wx = -half + (float)x * sp, wz = -half + (float)z * sp;
-				const float d = std::hypot(wx - bx, wz - bz);
+				const float d = det::hypot(wx - bx, wz - bz);
 				if (d > r) continue;
 				float &h = hm.data[(size_t)z * (size_t)hm.res + (size_t)x];
 				h = coast_metres(water_h, coast_unmetres(water_h, h) + dh_m * std::clamp((r - d) / std::max(blend, 1e-3f), 0.0f, 1.0f));
@@ -6773,7 +6774,7 @@ std::vector<uint8_t> coast_near_spots(const HeightmapGrid &hm, const std::vector
 
 inline bool coast_near(const std::vector<std::pair<float, float>> &locs, float x, float z, float r) {
 	for (const auto &l : locs)
-		if (std::hypot(x - l.first, z - l.second) < r) return true;
+		if (det::hypot(x - l.first, z - l.second) < r) return true;
 	return false;
 }
 
@@ -6791,7 +6792,7 @@ void coast_face_inland(const HeightmapGrid &hm, std::vector<RmsGenerator::Player
 		int best = -1;
 		float best_dot = -2.0f, bfx = sp.forward_dir_x, bfz = sp.forward_dir_z;
 		for (int k = 0; k < 16; ++k) {
-			const float a = (float)k * 0.39269908f, fx = std::cos(a), fz = std::sin(a), rx = -fz, rz = fx;
+			const float a = (float)k * 0.39269908f, fx = det::cos(a), fz = det::sin(a), rx = -fz, rz = fx;
 			int dry = 0;
 			for (const auto &p : layout) {
 				const float x = sp.x + fx * p[0] + rx * p[1], z = sp.z + fz * p[0] + rz * p[1];
@@ -6893,7 +6894,7 @@ void coast_heightmap_players(HeightmapGrid &hm, RmsRng &rng, float water_h, std:
 			std::pair<float, float> pick = cand[0];
 			for (const auto &c : cand) {
 				float d = 1e9f;
-				for (const auto &q : locs) d = std::min(d, std::hypot(c.first - q.first, c.second - q.second));
+				for (const auto &q : locs) d = std::min(d, det::hypot(c.first - q.first, c.second - q.second));
 				if (d > best) { best = d; pick = c; }
 			}
 			locs.push_back(pick);
@@ -7007,14 +7008,14 @@ void RmsGenerator::synth_corsica(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 	// points, from the first arc spot).
 	for (int k = 0; k < 2; ++k) {
 		const int per = k == 0 ? (num_players + 1) / 2 : num_players / 2;
-		if (per < 2 || 2.0f * r_player * std::sin(pi / (4.0f * (float)per)) >= 24.0f) continue;
+		if (per < 2 || 2.0f * r_player * det::sin(pi / (4.0f * (float)per)) >= 24.0f) continue;
 		std::vector<std::pair<float, float>> cand;
 		for (int z = 0; z < hm.res; ++z)
 			for (int x = 0; x < hm.res; ++x) {
 				float wx, wz;
 				hm.grid_to_world(x, z, wx, wz);
 				if (std::fabs(wx) > half - 10.0f || std::fabs(wz) > half - 10.0f) continue;
-				if (std::hypot(wx - centres[k].first, wz - centres[k].second) > r_island - 12.0f) continue;
+				if (det::hypot(wx - centres[k].first, wz - centres[k].second) > r_island - 12.0f) continue;
 				cand.push_back({wx, wz});
 			}
 		std::vector<int> mine;
@@ -7026,7 +7027,7 @@ void RmsGenerator::synth_corsica(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 			std::pair<float, float> pick = cand[0];
 			for (const auto &c : cand) {
 				float d = 1e9f;
-				for (const auto &q : chosen) d = std::min(d, std::hypot(c.first - q.first, c.second - q.second));
+				for (const auto &q : chosen) d = std::min(d, det::hypot(c.first - q.first, c.second - q.second));
 				if (d > best) { best = d; pick = c; }
 			}
 			chosen.push_back(pick);
@@ -7060,7 +7061,7 @@ void RmsGenerator::synth_corsica(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 	for (size_t i = 0; i < spawns.size(); ++i) {
 		// Face the island's centre, then turn to keep the layout on land.
 		auto &sp = spawns[i];
-		const float dx = centres[home[i]].first - sp.x, dz = centres[home[i]].second - sp.z, l = std::max(1e-3f, std::hypot(dx, dz));
+		const float dx = centres[home[i]].first - sp.x, dz = centres[home[i]].second - sp.z, l = std::max(1e-3f, det::hypot(dx, dz));
 		sp.forward_dir_x = dx / l;
 		sp.forward_dir_z = dz / l;
 	}
@@ -7323,12 +7324,12 @@ void RmsGenerator::synth_scythian_rivulet(HeightmapGrid &hm, RmsRng &rng, float 
 			// rivulet's centre line must be at its bed, then 4 tiles on.
 			const auto s0 = coast_rot(along, sign * 0.05f, trib_angle), s1 = coast_rot(along, -sign * 0.05f, trib_angle);
 			if (hm.sample_world(s0.first, s0.second) > bed + 1e-3f) continue;
-			const float dl = std::max(1e-6f, std::hypot(s1.first - s0.first, s1.second - s0.second));
+			const float dl = std::max(1e-6f, det::hypot(s1.first - s0.first, s1.second - s0.second));
 			const float sx = s0.first + (s1.first - s0.first) / dl * 4.0f, sz = s0.second + (s1.second - s0.second) / dl * 4.0f;
 			const auto e = coast_rot(size, 0.0f, trib_angle - sign * rng.range_float(pi / 5.0f, 2.0f * pi - pi / 5.0f));
 			// PathPlacer, waviness 0.4: jittered points on the way.
 			std::vector<std::pair<float, float>> pts{{sx, sz}};
-			const float len = std::max(1.0f, std::hypot(e.first - sx, e.second - sz));
+			const float len = std::max(1.0f, det::hypot(e.first - sx, e.second - sz));
 			const float px = -(e.second - sz) / len, pz = (e.first - sx) / len;
 			for (int k = 1; k < 6; ++k) {
 				const float f = (float)k / 6.0f, j = rng.range_float(-0.1f, 0.1f) * len * 0.4f;
@@ -7338,7 +7339,7 @@ void RmsGenerator::synth_scythian_rivulet(HeightmapGrid &hm, RmsRng &rng, float 
 			std::vector<uint8_t> m(cells, 0);
 			for (size_t k = 0; k + 1 < pts.size(); ++k) {
 				const float ax = pts[k].first, az = pts[k].second, bx = pts[k + 1].first, bz = pts[k + 1].second;
-				const float sl = std::max(1e-3f, std::hypot(bx - ax, bz - az));
+				const float sl = std::max(1e-3f, det::hypot(bx - ax, bz - az));
 				for (float t = 0.0f; t <= sl; t += 1.0f) {
 					const float cx = ax + (bx - ax) * t / sl, cz = az + (bz - az) * t / sl;
 					if (std::fabs(cx) > half + 10.0f || std::fabs(cz) > half + 10.0f) break;
@@ -7491,7 +7492,7 @@ void paint_mask_modify(HeightmapGrid &hm, const std::vector<uint8_t> &mask, floa
 // sides; vertices at or above `below` are left alone (its HeightConstraint).
 void create_passage(HeightmapGrid &hm, float ax, float az, float bx, float bz, float w0, float w1, float smooth,
 		float ha, float hb, float below = 1e9f) {
-	const float dx = bx - ax, dz = bz - az, len = std::max(1e-3f, std::hypot(dx, dz));
+	const float dx = bx - ax, dz = bz - az, len = std::max(1e-3f, det::hypot(dx, dz));
 	const float ux = dx / len, uz = dz / len;
 	const std::vector<float> src = hm.data;
 	for (int z = 0; z < hm.res; ++z)
@@ -7513,7 +7514,7 @@ void create_passage(HeightmapGrid &hm, float ax, float az, float bx, float bz, f
 
 // Vector2D.rotate (0 A.D.'s sense; RTS0 world x, z = 0 A.D. tile x, y).
 std::pair<float, float> rotate_0ad(float x, float y, float a) {
-	const float s = std::sin(a), c = std::cos(a);
+	const float s = det::sin(a), c = det::cos(a);
 	return {x * c + y * s, -x * s + y * c};
 }
 
@@ -7547,7 +7548,7 @@ std::vector<std::pair<float, float>> stronghold_locs(const std::vector<std::vect
 		const int k = (int)ta[i].size();
 		if (k > 1) {
 			const float gd = k > 4 ? std::max(0.08f * size, grouped) : grouped;
-			radius[(size_t)i] = std::max(gd / 2.0f, 10.0f) / std::sin(3.14159265f / (float)k);
+			radius[(size_t)i] = std::max(gd / 2.0f, 10.0f) / det::sin(3.14159265f / (float)k);
 		}
 		sum += radius[(size_t)i];
 	}
@@ -7590,16 +7591,16 @@ void spread_locs(std::vector<std::pair<float, float>> &locs, float min_d, float 
 		for (size_t i = 0; i < locs.size(); ++i)
 			for (size_t j = i + 1; j < locs.size(); ++j) {
 				float dx = locs[j].first - locs[i].first, dz = locs[j].second - locs[i].second;
-				float d = std::hypot(dx, dz);
+				float d = det::hypot(dx, dz);
 				if (d >= min_d) continue;
-				if (d < 1e-3f) { dx = std::cos((float)(i * 7 + j)); dz = std::sin((float)(i * 7 + j)); d = 1.0f; }
+				if (d < 1e-3f) { dx = det::cos((float)(i * 7 + j)); dz = det::sin((float)(i * 7 + j)); d = 1.0f; }
 				const float push = (min_d - d) * 0.5f + 0.01f;
 				locs[i].first -= dx / d * push; locs[i].second -= dz / d * push;
 				locs[j].first += dx / d * push; locs[j].second += dz / d * push;
 				moved = true;
 			}
 		for (auto &l : locs) {
-			const float r = std::hypot(l.first, l.second);
+			const float r = det::hypot(l.first, l.second);
 			if (r > lim) { l.first *= lim / r; l.second *= lim / r; }
 		}
 		if (!moved) break;
@@ -7611,7 +7612,7 @@ void spread_locs(std::vector<std::pair<float, float>> &locs, float min_d, float 
 std::vector<std::pair<float, float>> river_locs(int n, float width, float angle, float size) {
 	std::vector<std::pair<float, float>> locs;
 	const bool even = n % 2 == 0;
-	const float s = std::sin(angle), c = std::cos(angle);
+	const float s = det::sin(angle), c = det::cos(angle);
 	for (int i = 0; i < n; ++i) {
 		const bool cur_even = i % 2 == 0;
 		const int dividend = (even || cur_even) ? (i + 1) % 2 : 0;
@@ -7767,11 +7768,11 @@ void ensure_land_links(HeightmapGrid &hm, float water_h, const std::vector<std::
 				if (comp[(size_t)z * (size_t)hm.res + (size_t)x] != main) continue;
 				float wx, wz;
 				hm.grid_to_world(x, z, wx, wz);
-				const float d = std::hypot(wx - pts[k].first, wz - pts[k].second);
+				const float d = det::hypot(wx - pts[k].first, wz - pts[k].second);
 				if (d < best) { best = d; tx = wx; tz = wz; }
 			}
 		std::vector<uint8_t> m(hm.data.size(), 0);
-		const float len = std::max(1e-3f, std::hypot(tx - pts[k].first, tz - pts[k].second));
+		const float len = std::max(1e-3f, det::hypot(tx - pts[k].first, tz - pts[k].second));
 		for (float s = 0.0f; s <= len + 3.0f; s += 0.5f) {
 			const float f = std::min(s, len) / len;
 			mask_disk(hm, m, pts[k].first + (tx - pts[k].first) * f, pts[k].second + (tz - pts[k].second) * f, 3.0f);
@@ -7832,7 +7833,7 @@ void spawns_at(HeightmapGrid &hm, std::vector<RmsGenerator::PlayerSpawn> &spawns
 		int num_players, float min_h, float radius, float blend) {
 	spawns.clear();
 	for (size_t k = 0; k < locs.size(); ++k) {
-		const float sx = locs[k].first, sz = locs[k].second, l = std::max(1e-3f, std::hypot(sx, sz));
+		const float sx = locs[k].first, sz = locs[k].second, l = std::max(1e-3f, det::hypot(sx, sz));
 		const float bh = std::max(min_h, hm.sample_world(sx, sz));
 		spawns.push_back({(uint8_t)(k % (size_t)std::max(1, num_players)), sx, sz, bh, -sx / l, -sz / l});
 		hm.level_area(sx, sz, radius, blend, bh);
@@ -7955,12 +7956,12 @@ void RmsGenerator::synth_ambush(HeightmapGrid &hm, RmsRng &rng, float &water_h, 
 	const auto bluff12 = deep_inside(hm, bluff, 12.0f);
 	for (const auto &l : locs) {
 		for (int t = 0; t < 80; ++t) {
-			const float a = std::atan2(-l.second, -l.first) + 1.5707963f + rng.range_float(-1.0f, 1.0f) * 1.5707963f;
+			const float a = det::atan2(-l.second, -l.first) + 1.5707963f + rng.range_float(-1.0f, 1.0f) * 1.5707963f;
 			const auto s = polar(a, base_r * 0.7f), e = polar(a, base_r * rng.range_float(1.7f, 2.0f));
 			const float sx = l.first + s.first, sz = l.second + s.second, ex = l.first + e.first, ez = l.second + e.second;
 			if (std::fabs(ex) >= half || std::fabs(ez) >= half || !bluff12[vertex_at(hm, ex, ez)]) continue;
 			const float hs = hm.sample_world(sx, sz), he = hm.sample_world(ex, ez);
-			if ((he - hs) / kMetre / std::max(1.0f, std::hypot(ex - sx, ez - sz)) > 1.5f) continue;
+			if ((he - hs) / kMetre / std::max(1.0f, det::hypot(ex - sx, ez - sz)) > 1.5f) continue;
 			create_passage(hm, sx, sz, ex, ez, (float)scale_by_map_size(10, 20, half), (float)scale_by_map_size(10, 14, half), 3.0f, hs, he);
 			break;
 		}
@@ -8001,7 +8002,7 @@ void RmsGenerator::synth_frontier(HeightmapGrid &hm, RmsRng &rng, float &water_h
 			const float b_ = rng.range_float(0.0f, 0.9f) * half; const float a_ = rng.range_float(0.0f, 6.2831853f); const auto p = polar(a_, b_);
 			bool ok = true;
 			for (const auto &sp : spawns)
-				if (std::hypot(p.first - sp.x, p.second - sp.z) < 35.0f) { ok = false; break; }
+				if (det::hypot(p.first - sp.x, p.second - sp.z) < 35.0f) { ok = false; break; }
 			if (ok) {
 				const float c_ = rng.range_float(20.0f, 30.0f) * m; const float b_ = rng.range_float(0.0f, 6.2831853f);
 				const float a_ = half * rng.range_float(0.05f, 0.09f);
@@ -8241,10 +8242,10 @@ void RmsGenerator::synth_oasis_0ad(HeightmapGrid &hm, RmsRng &rng, float &water_
 			const auto o = polar(fa + rng.range_float(1.0f, 5.0f) / 3.0f * 3.14159265f, 6.0f);
 			float wx = fx + o.first, wz = fz + o.second;
 			// Pushed out to 31 from the base when closer (past its mines).
-			const float d = std::max(1e-3f, std::hypot(wx - l.first, wz - l.second));
+			const float d = std::max(1e-3f, det::hypot(wx - l.first, wz - l.second));
 			if (d < 31.0f) { wx = l.first + (wx - l.first) * 31.0f / d; wz = l.second + (wz - l.second) * 31.0f / d; }
 			bool ok = true;
-			for (const auto &q : locs) ok &= std::hypot(wx - q.first, wz - q.second) >= 30.9f;
+			for (const auto &q : locs) ok &= det::hypot(wx - q.first, wz - q.second) >= 30.9f;
 			if (ok) {
 				std::vector<uint8_t> pond(N, 0);
 				mask_disk(hm, pond, wx, wz, 4.5f);
@@ -8263,8 +8264,8 @@ void RmsGenerator::synth_oasis_0ad(HeightmapGrid &hm, RmsRng &rng, float &water_
 			for (int x = 0; x < hm.res; ++x) {
 				float wx, wz;
 				hm.grid_to_world(x, z, wx, wz);
-				const float a = std::atan2(wz, wx);
-				const float r = rt * (1.0f + 0.06f * std::sin(3.0f * a + wob) + 0.04f * std::sin(5.0f * a - wob));
+				const float a = det::atan2(wz, wx);
+				const float r = rt * (1.0f + 0.06f * det::sin(3.0f * a + wob) + 0.04f * det::sin(5.0f * a - wob));
 				m[(size_t)z * (size_t)hm.res + (size_t)x] = wx * wx + wz * wz <= r * r;
 			}
 		paint_mask_elevation(hm, m, sea, R.forest + R.shore);
@@ -8304,7 +8305,7 @@ void RmsGenerator::distribute_land_extras(Simulation &sim, const HeightmapGrid &
 	const float half = hm.map_half, size = 2.0f * half;
 	auto dist_to_bases = [&](float x, float z) {
 		float d = 1e30f;
-		for (const auto &s : spawns) d = std::min(d, std::hypot(x - s.x, z - s.z));
+		for (const auto &s : spawns) d = std::min(d, det::hypot(x - s.x, z - s.z));
 		return d;
 	};
 	if (config.map_type == MAP_AMBUSH) {
@@ -8315,7 +8316,7 @@ void RmsGenerator::distribute_land_extras(Simulation &sim, const HeightmapGrid &
 		std::vector<std::pair<float, float>> metal, stone, groves;
 		auto clear_of = [](const std::vector<std::pair<float, float>> &v, float x, float z, float d) {
 			for (const auto &p : v)
-				if (std::hypot(p.first - x, p.second - z) < d) return false;
+				if (det::hypot(p.first - x, p.second - z) < d) return false;
 			return true;
 		};
 		for (int t = 0; t < 6000; ++t) {
@@ -8366,13 +8367,13 @@ void RmsGenerator::distribute_land_extras(Simulation &sim, const HeightmapGrid &
 					const float ax = nodes[i].first, az = nodes[i].second, dx = nodes[j].first - ax, dz = nodes[j].second - az;
 					const float l2 = std::max(1e-3f, dx * dx + dz * dz);
 					const float t = std::clamp(((x - ax) * dx + (z - az) * dz) / l2, 0.0f, 1.0f);
-					best = std::min(best, std::hypot(x - ax - dx * t, z - az - dz * t));
+					best = std::min(best, det::hypot(x - ax - dx * t, z - az - dz * t));
 				}
 			return best;
 		};
 		for (float z = -half + 1.0f; z < half; z += 2.0f)
 			for (float x = -half + 1.0f; x < half; x += 2.0f) {
-				const float r = std::hypot(x, z);
+				const float r = det::hypot(x, z);
 				if (r > half - 1.0f) continue;
 				const float sl = std::clamp((dist_to_bases(x, z) - 15.0f) / 15.0f, 0.0f, 1.0f);
 				const float dens = max_d * sl * std::fabs((res_r - r) / res_r) * 0.75f;
@@ -8403,7 +8404,7 @@ void RmsGenerator::distribute_land_extras(Simulation &sim, const HeightmapGrid &
 		std::vector<std::pair<float, float>> rock, metal, food;
 		auto clear_of = [](const std::vector<std::pair<float, float>> &v, float x, float z, float d) {
 			for (const auto &p : v)
-				if (std::hypot(p.first - x, p.second - z) < d) return false;
+				if (det::hypot(p.first - x, p.second - z) < d) return false;
 			return true;
 		};
 		// createObjectGroupsDeprecated counts every try as placed (retryPlacing with
@@ -8490,7 +8491,7 @@ void RmsGenerator::distribute_land_extras(Simulation &sim, const HeightmapGrid &
 		const float rt = R.water + R.shore + R.forest, r0 = rt - R.forest;
 		for (float z = -rt; z <= rt; z += 1.0f)
 			for (float x = -rt; x <= rt; x += 1.0f) {
-				const float r = std::hypot(x, z);
+				const float r = det::hypot(x, z);
 				if (r < r0 || r > rt) continue;
 				if (rng.next_float() >= 2.0f / 9.0f) continue;
 				const float tx = x + rng.range_float(-0.3f, 0.3f), tz = z + rng.range_float(-0.3f, 0.3f);
@@ -8512,7 +8513,7 @@ constexpr float kTau = 6.2831853f;
 
 // rmgen Vector2D.rotate(angle), in the map's centred x/z frame.
 inline std::pair<float, float> rot(float x, float z, float a) {
-	const float c = std::cos(a), s = std::sin(a);
+	const float c = det::cos(a), s = det::sin(a);
 	return {x * c + z * s, -x * s + z * c};
 }
 
@@ -8573,8 +8574,8 @@ struct Noise2D {
 	Noise2D(RmsRng &rng, float f) : freq(std::max(1, (int)std::floor(f))) {
 		for (int i = 0; i < freq * freq; ++i) {
 			const float a = rng.range_float(0.0f, kTau);
-			gx.push_back(std::cos(a));
-			gz.push_back(std::sin(a));
+			gx.push_back(det::cos(a));
+			gz.push_back(det::sin(a));
 		}
 	}
 	float get(float x, float y) const {
@@ -8628,8 +8629,8 @@ std::vector<uint8_t> clump_mask(const HeightmapGrid &hm, RmsRng &rng, float cx, 
 	for (int z = z0; z <= z1; ++z)
 		for (int x = x0; x <= x1; ++x) {
 			const float dx = -half + (float)x * sp - cx, dz = -half + (float)z * sp - cz;
-			const float d = std::hypot(dx, dz);
-			float t = (std::atan2(dz, dx) / kTau + 0.5f) * (float)ctrl;
+			const float d = det::hypot(dx, dz);
+			float t = (det::atan2(dz, dx) / kTau + 0.5f) * (float)ctrl;
 			const int i = std::min(ctrl - 1, (int)std::floor(t));
 			t -= (float)i;
 			auto at = [&](int k) { return v[(size_t)(((k % ctrl) + ctrl) % ctrl)]; };
@@ -8647,7 +8648,7 @@ std::vector<uint8_t> clump_mask(const HeightmapGrid &hm, RmsRng &rng, float cx, 
 std::vector<uint8_t> path_mask(const HeightmapGrid &hm, RmsRng &rng, float ax, float az, float bx, float bz, float width,
 		float waviness, float smoothness, float offset, float tapering) {
 	std::vector<uint8_t> mask(hm.data.size(), 0);
-	const float len = std::max(1e-3f, std::hypot(bx - ax, bz - az));
+	const float len = std::max(1e-3f, det::hypot(bx - ax, bz - az));
 	const float px = -(bz - az) / len, pz = (bx - ax) / len;
 	const int steps = 1 + (int)std::floor(len / 4.0f * waviness), isteps = 1 + (int)std::floor(len / 4.0f * smoothness);
 	const float amp = 1.0f + std::floor(len / 4.0f * offset);
@@ -8696,7 +8697,7 @@ void paint_river(HeightmapGrid &hm, RmsRng &rng, float ax, float az, float bx, f
 	const float meander = size * meander_short / scale_f(35.0f, 160.0f, half);
 	const float seed1 = rng.range_float(2.0f, 3.0f), seed2 = rng.range_float(2.0f, 3.0f);
 	const float sa1 = rng.range_float(0.0f, 1.0f), sa2 = rng.range_float(0.0f, 1.0f);
-	const float len = std::max(1e-3f, std::hypot(bx - ax, bz - az));
+	const float len = std::max(1e-3f, det::hypot(bx - ax, bz - az));
 	const float ux = (bx - ax) / len, uz = (bz - az) / len;
 	for (int z = 0; z < hm.res; ++z)
 		for (int x = 0; x < hm.res; ++x) {
@@ -8727,7 +8728,7 @@ void paint_river(HeightmapGrid &hm, RmsRng &rng, float ax, float az, float bx, f
 // below h. The changed vertices are marked in `mark` (its tileClass).
 void passage(HeightmapGrid &hm, float ax, float az, float bx, float bz, float width, float smooth_w, float h,
 		std::vector<uint8_t> *mark = nullptr) {
-	const float len = std::max(1e-3f, std::hypot(bx - ax, bz - az));
+	const float len = std::max(1e-3f, det::hypot(bx - ax, bz - az));
 	const float ux = (bx - ax) / len, uz = (bz - az) / len, hw = width / 2.0f;
 	for (int z = 0; z < hm.res; ++z)
 		for (int x = 0; x < hm.res; ++x) {
@@ -8753,7 +8754,7 @@ std::vector<float> dist_to_points(const HeightmapGrid &hm, const std::vector<std
 			float wx, wz;
 			hm.grid_to_world(x, z, wx, wz);
 			float &v = d[(size_t)z * (size_t)hm.res + (size_t)x];
-			for (const auto &p : pts) v = std::min(v, std::hypot(wx - p.first, wz - p.second));
+			for (const auto &p : pts) v = std::min(v, det::hypot(wx - p.first, wz - p.second));
 		}
 	return d;
 }
@@ -8807,12 +8808,12 @@ void face_most_land(const HeightmapGrid &hm, std::vector<RmsGenerator::PlayerSpa
 	                               {3.5f, -11.5f}, {-8.5f, -9.5f}, {22.0f, 6.0f}, {18.0f, -16.0f}, {-14.0f, -5.0f}, {19.0f, -5.0f}};
 	const float dry_h = water_h + NAV_WATER_MARGIN + 0.05f, lim = hm.map_half - 1.0f;
 	for (auto &sp : spawns) {
-		const float base = std::atan2(sp.forward_dir_z, sp.forward_dir_x);
+		const float base = det::atan2(sp.forward_dir_z, sp.forward_dir_x);
 		int best = -1;
 		float best_a = base;
 		for (int k = 0; k < 16; ++k) {
 			const float a = base + (k % 2 ? 1.0f : -1.0f) * (float)((k + 1) / 2) * kTau / 16.0f;
-			const float fx = std::cos(a), fz = std::sin(a), rx = -fz, rz = fx;
+			const float fx = det::cos(a), fz = det::sin(a), rx = -fz, rz = fx;
 			int dry = 0;
 			for (const auto &p : pts) {
 				const float x = sp.x + fx * p[0] + rx * p[1], z = sp.z + fz * p[0] + rz * p[1];
@@ -8820,8 +8821,8 @@ void face_most_land(const HeightmapGrid &hm, std::vector<RmsGenerator::PlayerSpa
 			}
 			if (dry > best) { best = dry; best_a = a; }
 		}
-		sp.forward_dir_x = std::cos(best_a);
-		sp.forward_dir_z = std::sin(best_a);
+		sp.forward_dir_x = det::cos(best_a);
+		sp.forward_dir_z = det::sin(best_a);
 	}
 }
 
@@ -8834,7 +8835,7 @@ void finish_spawns(HeightmapGrid &hm, std::vector<RmsGenerator::PlayerSpawn> &sp
 	const float lim = hm.map_half - 16.0f;
 	for (int i = 0; i < (int)locs.size(); ++i) {
 		const float sx = std::clamp(locs[i].first, -lim, lim), sz = std::clamp(locs[i].second, -lim, lim);
-		const float l = std::max(1e-3f, std::hypot(sx, sz));
+		const float l = std::max(1e-3f, det::hypot(sx, sz));
 		const float bh = std::max(min_h, hm.sample_world(sx, sz));
 		spawns.push_back({(uint8_t)i, sx, sz, bh, -sx / l, -sz / l});
 	}
@@ -8987,7 +8988,7 @@ void RmsGenerator::synth_ardennes_forest(HeightmapGrid &hm, RmsRng &rng, float &
 		frac((int)i, fx, fz);
 		seas_world(hm, (int)i, wx, wz);
 		float d = 1e9f;
-		for (const auto &l : locs) d = std::min(d, std::hypot(wx - l.first, wz - l.second));
+		for (const auto &l : locs) d = std::min(d, det::hypot(wx - l.first, wz - l.second));
 		const float pn = d < 13.0f ? 0.0f : (d < 19.0f ? (d - 13.0f) / 6.0f : 1.0f);
 		hm.data[i] += (noise0.get(fx, fz) - 0.5f) * 10.0f * k * pn;
 	}
@@ -9179,10 +9180,10 @@ struct P {
 	float x, y;
 };
 inline P rot_ccw(P p, float a) { // Vector2D.rotate(-a)
-	const float c = std::cos(a), s = std::sin(a);
+	const float c = det::cos(a), s = det::sin(a);
 	return {p.x * c - p.y * s, p.x * s + p.y * c};
 }
-inline P polar_p(P c, float r, float a) { return {c.x + r * std::cos(a), c.y + r * std::sin(a)}; } // c + Vector2D(r, 0).rotate(-a)
+inline P polar_p(P c, float r, float a) { return {c.x + r * det::cos(a), c.y + r * det::sin(a)}; } // c + Vector2D(r, 0).rotate(-a)
 inline P round_p(P p, float half) { return {std::round(p.x + half) - half, std::round(p.y + half) - half}; }
 inline P from_world(float x, float z) { return {x, -z}; }
 inline float world_x(P p) { return p.x; }
@@ -9281,7 +9282,7 @@ void RmsGenerator::synth_jebel_barkal_0ad(HeightmapGrid &hm, RmsRng &rng, float 
 		rng.range_float(2.0f, 3.0f); // the other bank's seed and angle, unused when parallel
 		const double ang = rng.range_float(0.0f, 1.0f);
 		rng.range_float(0.0f, 1.0f);
-		const float len = std::hypot(r_start.x - r_end.x, r_start.y - r_end.y);
+		const float len = det::hypot(r_start.x - r_end.x, r_start.y - r_end.y);
 		const float ux = (r_start.x - r_end.x) / len, uy = (r_start.y - r_end.y) / len;
 		for (size_t i = 0; i < N; ++i) {
 			const P p = vertex_p(i);
@@ -9481,7 +9482,7 @@ void RmsGenerator::synth_jebel_barkal_0ad(HeightmapGrid &hm, RmsRng &rng, float 
 	std::vector<P> temple_pos;
 	for (int i = 0; i < gx; ++i) {
 		const float a = out.grid_angle[(size_t)i];
-		const P t = {G(0, i).x - temples[(size_t)i].path_offset * std::cos(a), G(0, i).y - temples[(size_t)i].path_offset * std::sin(a)};
+		const P t = {G(0, i).x - temples[(size_t)i].path_offset * det::cos(a), G(0, i).y - temples[(size_t)i].path_offset * det::sin(a)};
 		temple_pos.push_back(t);
 		out.temples.push_back(temples[(size_t)i].type);
 		out.temple_pos.push_back(world_x(t));
@@ -9554,7 +9555,7 @@ void RmsGenerator::synth_jebel_barkal_0ad(HeightmapGrid &hm, RmsRng &rng, float 
 		};
 		auto add_gate = [&](P p, float dir_x, float dir_y) {
 			if (blocked(p)) return;
-			out.gates.insert(out.gates.end(), {world_x(p), world_z(p), -std::atan2(-dir_y, dir_x)});
+			out.gates.insert(out.gates.end(), {world_x(p), world_z(p), -det::atan2(-dir_y, dir_x)});
 			mask_disk(hm, gate_mask, world_x(p), world_z(p), L.gate / 2.0f);
 		};
 		// The circular front wall, its arc in tiles from w_start.
@@ -9572,7 +9573,7 @@ void RmsGenerator::synth_jebel_barkal_0ad(HeightmapGrid &hm, RmsRng &rng, float 
 				const float g0 = ((float)p * pattern + 2.0f * L.tower + L.segment) * k, g1 = g0 + L.gate * k;
 				arc_span(s0, g0);
 				const float a = w_start + (g0 + g1) / 2.0f / rf;
-				add_gate(at((g0 + g1) / 2.0f), -std::sin(a), std::cos(a));
+				add_gate(at((g0 + g1) / 2.0f), -det::sin(a), det::cos(a));
 				s0 = g1;
 			}
 			arc_span(s0, total);
@@ -9585,7 +9586,7 @@ void RmsGenerator::synth_jebel_barkal_0ad(HeightmapGrid &hm, RmsRng &rng, float 
 		const float pattern = 4.0f * L.tower + 2.0f * L.segment + L.gate;
 		for (size_t i = 1; i < line.size(); ++i) {
 			const P a = line[i - 1], b = line[i];
-			const float len = std::hypot(b.x - a.x, b.y - a.y);
+			const float len = det::hypot(b.x - a.x, b.y - a.y);
 			if (len < 1e-3f) continue;
 			const float dx = (b.x - a.x) / len, dy = (b.y - a.y) / len;
 			const int parts = std::max(1, (int)std::ceil(len / pattern));
@@ -9648,10 +9649,10 @@ void RmsGenerator::synth_jebel_barkal_0ad(HeightmapGrid &hm, RmsRng &rng, float 
 				if (!out.path[v]) continue;
 				float x, z;
 				seas_world(hm, (int)v, x, z);
-				const float d = std::hypot(x - st.first, z - st.second);
+				const float d = det::hypot(x - st.first, z - st.second);
 				if (d < best) { best = d; cx = x; cz = z; }
 			}
-			const float dl = std::max(1e-3f, std::hypot(st.first - cx, st.second - cz));
+			const float dl = std::max(1e-3f, det::hypot(st.first - cx, st.second - cz));
 			const float fx = cx + (st.first - cx) / dl * 0.75f * size, fz = cz + (st.second - cz) / dl * 0.75f * size;
 			const auto to_road = seas_dist_inside(hm, road);
 			for (int tries = 0; tries < 30; ++tries) {
@@ -9750,7 +9751,7 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 	};
 	auto clear_of = [](const std::vector<Spot> &v, float x, float z, float d) {
 		for (const Spot &s : v)
-			if (std::hypot(x - s.x, z - s.z) < d) return false;
+			if (det::hypot(x - s.x, z - s.z) < d) return false;
 		return true;
 	};
 	auto building = [&](float x, float z, uint8_t type, bool capturable) {
@@ -9783,16 +9784,16 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 	std::vector<Spot> pyramids;
 	{
 		const float ga = rng.range_float(0.0f, 2.0f * kPi), gr = std::sqrt(rng.range_float(0.0f, 1.0f)) * lay.pyramids_r;
-		const float gx = lay.pyramids[0] + std::cos(ga) * gr, gz = lay.pyramids[1] + std::sin(ga) * gr;
+		const float gx = lay.pyramids[0] + det::cos(ga) * gr, gz = lay.pyramids[1] + det::sin(ga) * gr;
 		const int n = rng.range_int((int)sc(1.0f, 6.0f), (int)sc(2.0f, 8.0f));
 		std::vector<float> halves;
 		for (int k = 0, tries = 0; k < n && tries < n * 20; ++tries) {
 			const uint8_t type = rng.range_int(0, 1) ? BLD_PYRAMID_SMALL : BLD_PYRAMID_LARGE;
 			const float d = rng.range_float(sc(6.0f, 8.0f), sc(6.0f, 14.0f)), a = rng.range_float(0.0f, 2.0f * kPi);
-			const float x = gx + std::cos(a) * d, z = gz + std::sin(a) * d, h = footprint_half(type);
+			const float x = gx + det::cos(a) * d, z = gz + det::sin(a) * d, h = footprint_half(type);
 			bool ok = x * x + z * z < (half - h - 2.0f) * (half - h - 2.0f) && !lay.water[at(x, z)];
 			for (size_t j = 0; j < pyramids.size() && ok; ++j)
-				ok = std::hypot(x - pyramids[j].x, z - pyramids[j].z) >= std::max(sc(6.0f, 8.0f), h + halves[j] + 1.0f);
+				ok = det::hypot(x - pyramids[j].x, z - pyramids[j].z) >= std::max(sc(6.0f, 8.0f), h + halves[j] + 1.0f);
 			if (!ok) continue;
 			if (!building(x, z, type, true)) continue;
 			pyramids.push_back({x, z});
@@ -9807,7 +9808,7 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 		auto half_circle = [&](int n, float r, const auto &put) {
 			for (int k = 0; k < n; ++k) {
 				const float a = lay.ritual_angle + kPi * (float)k / (float)std::max(1, n - 1);
-				put(rx + r * std::cos(a), rz - r * std::sin(a));
+				put(rx + r * det::cos(a), rz - r * det::sin(a));
 			}
 		};
 		half_circle((int)std::lround(sc(2.0f, 10.0f)), sc(2.0f, 3.0f), [&](float x, float z) { unit(x, z, "kush/support_healer_b"); });
@@ -9833,14 +9834,14 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 	{
 		static const char *const kChampions[] = {"kush/champion_infantry_archer", "kush/champion_infantry_amun", "kush/champion_infantry_apedemak"};
 		const P start = grid(0, gxc), end = grid(gy - 1, gxc);
-		const float len = std::hypot(end.x - start.x, end.y - start.y), a = lay.grid_angle[(size_t)gxc];
+		const float len = det::hypot(end.x - start.x, end.y - start.y), a = lay.grid_angle[(size_t)gxc];
 		const float n = sc(2.0f, 40.0f);
 		for (int side = 0; side < 2; ++side)
 			for (int k = 0; (float)k < n; ++k) {
 				// Vector2D(0, pathWidthCenter / 2 * (i - 0.5)).rotate(-angle) beside the path.
 				const float off = kPathWidthCenter / 2.0f * ((float)side - 0.5f);
-				const P p = {start.x - off * std::sin(a) + len * (float)k / n * std::cos(a) + 0.5f,
-				             start.y + off * std::cos(a) + len * (float)k / n * std::sin(a) + 0.5f};
+				const P p = {start.x - off * det::sin(a) + len * (float)k / n * det::cos(a) + 0.5f,
+				             start.y + off * det::cos(a) + len * (float)k / n * det::sin(a) + 0.5f};
 				const float x = world_x(p), z = world_z(p);
 				if (!clear_of(crossings, x, z, kPathWidth + 2.0f)) continue;
 				unit(x, z, kChampions[rng.range_int(0, 2)]);
@@ -9857,7 +9858,7 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 			if ((int)placed.size() >= amount) break;
 			for (int tries = 0; tries < 30; ++tries) {
 				const float a = rng.range_float(0.0f, 2.0f * kPi), r = rng.range_float(0.0f, kPathWidth - 2.0f);
-				const float x = c.x + std::cos(a) * r, z = c.z + std::sin(a) * r;
+				const float x = c.x + det::cos(a) * r, z = c.z + det::sin(a) * r;
 				if (!clear_of(placed, x, z, 8.0f)) continue;
 				sim.add_trigger_point('A', x, z);
 				placed.push_back({x, z});
@@ -9978,7 +9979,7 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 		const int n = rng.range_int((int)sc(4.0f, 10.0f), (int)sc(6.0f, 20.0f));
 		for (int k = 0; k < n; ++k) {
 			const float a = rng.range_float(0.0f, 2.0f * kPi), r = rng.range_float(1.0f, 4.0f);
-			const float ux = x + std::cos(a) * r, uz = z + std::sin(a) * r;
+			const float ux = x + det::cos(a) * r, uz = z + det::sin(a) * r;
 			if (!lay.hill[at(ux, uz)] || lay.cliff[at(ux, uz)]) continue;
 			unit(ux, uz, kArchers[rng.range_int(0, 1)]);
 			soldiers.push_back({ux, uz});
@@ -10057,7 +10058,7 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 			for (size_t r = 0; r < res.count; ++r) {
 				if (!res.alive[r] || res.subtype[r] == RES_SUB_FISH) continue;
 				const float d = res.type[r] == RES_WOOD ? 1.0f : 4.0f;
-				if (std::fabs(res.x[r] - x) < d && std::fabs(res.z[r] - z) < d && std::hypot(res.x[r] - x, res.z[r] - z) < d) return true;
+				if (std::fabs(res.x[r] - x) < d && std::fabs(res.z[r] - z) < d && det::hypot(res.x[r] - x, res.z[r] - z) < d) return true;
 			}
 			return false;
 		};
@@ -10113,7 +10114,7 @@ void RmsGenerator::synth_island_stronghold(HeightmapGrid &hm, RmsRng &rng, float
 	for (int g = 0; g < (int)groups.size(); ++g) {
 		const auto tp = polar(start + kTau * (float)g / (float)num_teams, 0.3f * size);
 		const int k = (int)groups[(size_t)g].size();
-		const float r = k == 1 ? 0.05f * size : std::max(0.05f * size, 9.0f / std::sin(3.14159265f / (float)k));
+		const float r = k == 1 ? 0.05f * size : std::max(0.05f * size, 9.0f / det::sin(3.14159265f / (float)k));
 		for (int m = 0; m < k; ++m) {
 			const auto p = polar(start + kTau / (float)k + kTau * (float)m / (float)k, r);
 			const float lim = half - 16.0f;
@@ -10136,7 +10137,7 @@ void RmsGenerator::synth_island_stronghold(HeightmapGrid &hm, RmsRng &rng, float
 					for (int x = 0; x < hm.res; ++x) {
 						float wx, wz;
 						hm.grid_to_world(x, z, wx, wz);
-						if (std::hypot(wx - cx, wz - cz) > max_dist) m[(size_t)z * (size_t)hm.res + (size_t)x] = 0;
+						if (det::hypot(wx - cx, wz - cz) > max_dist) m[(size_t)z * (size_t)hm.res + (size_t)x] = 0;
 					}
 				return m;
 			},
@@ -10201,7 +10202,7 @@ void RmsGenerator::synth_latium(HeightmapGrid &hm, RmsRng &rng, float &water_h, 
 		locs[(size_t)ids[(size_t)i]] = rot(((float)(i + 1) / (float)(num_players + 1) - 0.5f) * size, width * ((float)(i % 2) - 0.5f), start + 1.5707963f);
 	auto nearness = [&](float wx, float wz) {
 		float d = 1e9f;
-		for (const auto &l : locs) d = std::min(d, std::hypot(wx - l.first, wz - l.second));
+		for (const auto &l : locs) d = std::min(d, det::hypot(wx - l.first, wz - l.second));
 		return d < 13.0f ? 0.0f : (d < 19.0f ? (d - 13.0f) / 6.0f : 1.0f);
 	};
 	const Noise2D n0(rng, scale_f(4, 16, half)), n1(rng, scale_f(8, 32, half)), n2(rng, scale_f(15, 60, half));
@@ -10400,7 +10401,7 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 		}
 		// Water spots at both ends keep the banks apart at the map edge.
 		for (const auto &e : {ends.first, ends.second}) {
-			auto m = clump_mask(hm, rng, e.first, e.second, 3.14159265f * std::pow(scale_f(5.0f, 10.0f, half), 2.0f), 0.95f, 0.6f);
+			auto m = clump_mask(hm, rng, e.first, e.second, 3.14159265f * det::pow(scale_f(5.0f, 10.0f, half), 2.0f), 0.95f, 0.6f);
 			for (size_t i = 0; i < N; ++i) if (m[i] && !avoid_territory(i, 8.0f)) m[i] = 0;
 			paint_mask_elevation(hm, m, bed, 2.0f);
 		}
@@ -10465,7 +10466,7 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 			circle(0.35f * size, rng.range_float(0.0f, kTau));
 			mark_large();
 			refresh_players();
-			const float island = 3.14159265f * std::pow(scale_f(17.0f, 29.0f, half), 2.0f);
+			const float island = 3.14159265f * det::pow(scale_f(17.0f, 29.0f, half), 2.0f);
 			for (const auto &s : slots) paint_mask_elevation(hm, clump_mask(hm, rng, s.first, s.second, island, 0.8f, 0.1f), land, 4.0f);
 			const int kind = rng.range_int(1, 3);
 			if (kind == 1) {
@@ -10517,13 +10518,13 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 			for (const auto &s : slots)
 				paint_land(chain_placer(hm, rng, s.first, s.second, 2.0f, std::floor(scale_f(5.0f, 9.0f, half)),
 				                        (int)std::floor(scale_f(5.0f, 20.0f, half)), std::floor(scale_f(23.0f, 50.0f, half))), 4.0f);
-			paint_land(clump_mask(hm, rng, 0.0f, 0.0f, 3.14159265f * std::pow(0.38f * size, 2.0f), 0.9f, 0.09f), 4.0f);
+			paint_land(clump_mask(hm, rng, 0.0f, 0.0f, 3.14159265f * det::pow(0.38f * size, 2.0f), 0.9f, 0.09f), 4.0f);
 			if (rng.range_int(0, 2) == 0) {
 				// A peninsula: half the map not ringed by water.
 				const float a = rng.range_float(0.0f, kTau);
 				const auto p1 = polar(a, 0.25f * size), p2 = polar(a, 0.35f * size);
-				paint_land(clump_mask(hm, rng, p1.first, p1.second, 3.14159265f * std::pow(0.38f * size, 2.0f), 0.9f, 0.09f), 4.0f);
-				const auto pen = clump_mask(hm, rng, p2.first, p2.second, 3.14159265f * std::pow(0.33f * size, 2.0f), 0.9f, 0.01f);
+				paint_land(clump_mask(hm, rng, p1.first, p1.second, 3.14159265f * det::pow(0.38f * size, 2.0f), 0.9f, 0.09f), 4.0f);
+				const auto pen = clump_mask(hm, rng, p2.first, p2.second, 3.14159265f * det::pow(0.33f * size, 2.0f), 0.9f, 0.01f);
 				for (size_t i = 0; i < N; ++i) cl_peninsula[i] |= pen[i];
 			}
 			shore_jaggedness(-5.0f, cl_land, 7.0f, true);
@@ -10544,7 +10545,7 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 			refresh_players();
 			const float wl = metres(water_h, -4.0f);
 			if (rng.range_int(0, 3) < 3) {
-				const auto m = clump_mask(hm, rng, 0.0f, 0.0f, 3.14159265f * std::pow(0.17f * size, 2.0f), 0.7f, 0.1f);
+				const auto m = clump_mask(hm, rng, 0.0f, 0.0f, 3.14159265f * det::pow(0.17f * size, 2.0f), 0.7f, 0.1f);
 				paint_mask_elevation(hm, m, wl, 4.0f);
 				for (size_t i = 0; i < N; ++i) cl_water[i] |= m[i];
 				shore_jaggedness(-4.0f, cl_water, 3.0f, true);
@@ -10555,11 +10556,11 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 				bool ok = true;
 				for (size_t k = 0; k < N && ok; ++k) if (m[k]) ok = avoid_cc(k, 5.0f);
 				if (ok) paint_mask_elevation(hm, m, wl, 4.0f);
-				auto e = clump_mask(hm, rng, r.first, r.second, 3.14159265f * std::pow(scale_f(4.0f, 22.0f, half), 2.0f), 0.95f, 0.6f);
+				auto e = clump_mask(hm, rng, r.first, r.second, 3.14159265f * det::pow(scale_f(4.0f, 22.0f, half), 2.0f), 0.95f, 0.6f);
 				for (size_t k = 0; k < N; ++k) if (e[k] && !avoid_cc(k, 5.0f)) e[k] = 0;
 				paint_mask_elevation(hm, e, wl, 0.0f);
 			}
-			paint_mask_elevation(hm, clump_mask(hm, rng, 0.0f, 0.0f, 3.14159265f * std::pow(0.04f * size, 2.0f), 0.7f, 0.1f), wl, 4.0f);
+			paint_mask_elevation(hm, clump_mask(hm, rng, 0.0f, 0.0f, 3.14159265f * det::pow(0.04f * size, 2.0f), 0.7f, 0.1f), wl, 4.0f);
 			break;
 		}
 		case 7: { // EdgeSeas
@@ -10594,7 +10595,7 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 			const float parts[3][2] = {{0.16f, 0.0f}, {0.2f, 0.2f}, {0.22f, 0.49f}};
 			for (const auto &g : parts) {
 				const auto c = polar(start, -g[1] * size);
-				auto m = clump_mask(hm, rng, std::round(c.first), std::round(c.second), 3.14159265f * std::pow(g[0] * size, 2.0f), 0.7f, 0.05f);
+				auto m = clump_mask(hm, rng, std::round(c.first), std::round(c.second), 3.14159265f * det::pow(g[0] * size, 2.0f), 0.7f, 0.05f);
 				for (size_t i = 0; i < N; ++i) if (m[i] && !avoid_territory(i, base_r)) m[i] = 0;
 				paint_mask_elevation(hm, m, metres(water_h, -3.0f), 4.0f);
 			}
@@ -10631,7 +10632,7 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 				bool ok = true;
 				for (size_t k = 0; k < N && ok; ++k) if (m[k]) ok = avoid_cc(k, 5.0f);
 				if (ok) paint_mask_elevation(hm, m, mountain, 1.0f);
-				auto e = clump_mask(hm, rng, r.first, r.second, 3.14159265f * std::pow(scale_f(4.0f, 22.0f, half), 2.0f), 0.95f, 0.6f);
+				auto e = clump_mask(hm, rng, r.first, r.second, 3.14159265f * det::pow(scale_f(4.0f, 22.0f, half), 2.0f), 0.95f, 0.6f);
 				for (size_t k = 0; k < N; ++k) if (e[k] && !avoid_cc(k, 5.0f)) e[k] = 0;
 				paint_mask_elevation(hm, e, mountain, 0.0f);
 			}
@@ -10648,9 +10649,9 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 				}
 			}
 			if (rng.range_int(0, 4) < 2)
-				paint_mask_elevation(hm, clump_mask(hm, rng, 0.0f, 0.0f, 3.14159265f * std::pow(0.1f * size, 2.0f), 0.7f, 0.1f), metres(water_h, -4.0f), 3.0f);
+				paint_mask_elevation(hm, clump_mask(hm, rng, 0.0f, 0.0f, 3.14159265f * det::pow(0.1f * size, 2.0f), 0.7f, 0.1f), metres(water_h, -4.0f), 3.0f);
 			else
-				paint_mask_elevation(hm, clump_mask(hm, rng, 0.0f, 0.0f, 3.14159265f * std::pow(0.05f * size, 2.0f), 0.7f, 0.1f), mountain, 4.0f);
+				paint_mask_elevation(hm, clump_mask(hm, rng, 0.0f, 0.0f, 3.14159265f * det::pow(0.05f * size, 2.0f), 0.7f, 0.1f), mountain, 4.0f);
 			break;
 		}
 		case 11: { // Lowlands
@@ -10663,11 +10664,11 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 			if ((s >= 128 && n <= 2) || (s >= 192 && n <= 3) || (s >= 320 && n <= 4) || (s >= 384 && n <= 5) || (s >= 448 && n <= 6)) valleys *= 2;
 			for (int i = 0; i < valleys; ++i) {
 				const auto v = polar(start + kTau * (float)i / (float)valleys, 0.35f * size);
-				paint_land(clump_mask(hm, rng, v.first, v.second, 3.14159265f * std::pow(scale_f(18.0f, 32.0f, half), 2.0f), 0.65f, 0.1f), 2.0f);
+				paint_land(clump_mask(hm, rng, v.first, v.second, 3.14159265f * det::pow(scale_f(18.0f, 32.0f, half), 2.0f), 0.65f, 0.1f), 2.0f);
 				paint_mask_elevation(hm, path_mask(hm, rng, 0.0f, 0.0f, v.first, v.second, scale_f(14.0f, 24.0f, half), 0.4f,
 				                                   3.0f * scale_f(1.0f, 3.0f, half), 0.2f, 0.05f), land, 4.0f);
 			}
-			paint_mask_elevation(hm, clump_mask(hm, rng, 0.0f, 0.0f, 3.14159265f * std::pow(0.18f * size, 2.0f), 0.7f, 0.1f), land, 4.0f);
+			paint_mask_elevation(hm, clump_mask(hm, rng, 0.0f, 0.0f, 3.14159265f * det::pow(0.18f * size, 2.0f), 0.7f, 0.1f), land, 4.0f);
 			break;
 		}
 		default: // Mainland
@@ -10748,7 +10749,7 @@ void RmsGenerator::synth_migration(HeightmapGrid &hm, RmsRng &rng, float &water_
 	if (pattern == 1) {
 		// playerPlacementRiver(startAngle, 0.65 * size): two rows across the map.
 		const float width = kTeamDist[1] * size;
-		const float nx = std::cos(start), nz = std::sin(start), ux = -nz, uz = nx;
+		const float nx = det::cos(start), nz = det::sin(start), ux = -nz, uz = nx;
 		locs.assign((size_t)num_players, {0.0f, 0.0f});
 		const bool even = num_players % 2 == 0;
 		for (int i = 0; i < num_players; ++i) {
@@ -10779,7 +10780,7 @@ void RmsGenerator::synth_migration(HeightmapGrid &hm, RmsRng &rng, float &water_
 		float sum = 0.0f;
 		for (int i = 0; i < T; ++i) {
 			const int k = (int)ta[(size_t)i].size();
-			sr[(size_t)i] = k == 1 ? 0.0f : grouped / 2.0f / std::sin(kSeasPi / (float)k);
+			sr[(size_t)i] = k == 1 ? 0.0f : grouped / 2.0f / det::sin(kSeasPi / (float)k);
 			sum += sr[(size_t)i];
 		}
 		const float between = (dist * kTwoPi - 2.0f * sum) / (float)T;
@@ -10948,7 +10949,7 @@ void RmsGenerator::synth_ngorongoro(HeightmapGrid &hm, RmsRng &rng, float &water
 			float wx, wz;
 			hm.grid_to_world(vx, vz, wx, wz);
 			const size_t i = (size_t)vz * (size_t)hm.res + (size_t)vx;
-			allowed[i] = !near_m[i] && !near_h[i] && !near_e[i] && std::hypot(wx, wz) <= half - base_r;
+			allowed[i] = !near_m[i] && !near_h[i] && !near_e[i] && det::hypot(wx, wz) <= half - base_r;
 		}
 	std::vector<std::pair<float, float>> locs;
 	if (player_placement_random(hm, rng, allowed, num_players, locs)) {
@@ -10995,7 +10996,7 @@ void RmsGenerator::place_ngorongoro_entities(Simulation &sim, const HeightmapGri
 		if (r.stay == 1 && in_high[v] <= 2.0f) return false;
 		if (r.stay == 2 && in_eden[v] <= 2.0f) return false;
 		for (const auto &s : spawns)
-			if (std::hypot(x - s.x, z - s.z) <= r.player + city_r) return false;
+			if (det::hypot(x - s.x, z - s.z) <= r.player + city_r) return false;
 		const float d[CL_COUNT] = {r.metal, r.rock, r.forest, r.animals};
 		for (int c = 0; c < CL_COUNT; ++c) {
 			if (d[c] < 0.0f) continue;
@@ -11225,7 +11226,7 @@ void RmsGenerator::synth_river_archipelago(HeightmapGrid &hm, RmsRng &rng, float
 			const size_t k = vertex_at(hm, tx, tz);
 			if (!inside[k] || to_water[k] <= 2.0f || territory[k]) return false;
 			for (const auto &g : out.gaia)
-				if (std::hypot(g.x - tx, g.z - tz) <= 15.0f) return false;
+				if (det::hypot(g.x - tx, g.z - tz) <= 15.0f) return false;
 			return true;
 		};
 		const int passes = (int)std::ceil(scale_f(1.0f, 8.0f, half));
@@ -11247,7 +11248,7 @@ void RmsGenerator::synth_river_archipelago(HeightmapGrid &hm, RmsRng &rng, float
 							const float b_ = rng.range_float(o.dmin, o.dmax); const float a_ = rng.range_float(0.0f, kTau); const auto d = polar(a_, b_);
 							const float x = c.first + d.first, z = c.second + d.second;
 							bool free = allowed(x, z);
-							for (size_t q = 0; free && q < group.size(); ++q) free = std::hypot(group[q].x - x, group[q].z - z) >= 1.0f;
+							for (size_t q = 0; free && q < group.size(); ++q) free = det::hypot(group[q].x - x, group[q].z - z) >= 1.0f;
 							if (free) {
 								group.push_back({x, z, o.kind});
 								break;
@@ -11324,7 +11325,7 @@ void RmsGenerator::place_river_archipelago_entities(Simulation &sim, const Heigh
 	struct Pt { float x, z; };
 	auto clear_of = [](const std::vector<Pt> &v, float x, float z, float d) {
 		for (const Pt &p : v)
-			if (std::hypot(p.x - x, p.z - z) <= d) return false;
+			if (det::hypot(p.x - x, p.z - z) <= d) return false;
 		return true;
 	};
 	std::vector<uint8_t> water(N);
@@ -11339,7 +11340,7 @@ void RmsGenerator::place_river_archipelago_entities(Simulation &sim, const Heigh
 	};
 	auto cc_clear = [&](float x, float z, float d) { // avoidClasses(clPlayer, d): the civic centre's radius 5 disk
 		for (const auto &s : spawns)
-			if (std::hypot(s.x - x, s.z - z) <= 5.0f + d) return false;
+			if (det::hypot(s.x - x, s.z - z) <= 5.0f + d) return false;
 		return true;
 	};
 	// The bases' starting resources (clBaseResource): all there is before this pass.
@@ -11467,7 +11468,7 @@ void RmsGenerator::place_river_archipelago_entities(Simulation &sim, const Heigh
 						const size_t k = vertex(tx, tz);
 						bool free = k != kOff && ok(k, tx, tz);
 						for (size_t q = 0; free && q < placed.size(); ++q)
-							free = std::hypot(placed[q].first.x - p.x, placed[q].first.z - p.z) >= 1.0f;
+							free = det::hypot(placed[q].first.x - p.x, placed[q].first.z - p.z) >= 1.0f;
 						if (free) {
 							placed.push_back({p, oi});
 							break;
@@ -11583,7 +11584,7 @@ void ease_route(HeightmapGrid &hm, const NavGrid &g, const std::vector<float> &s
 				int near = -1;
 				float nd = edge;
 				for (int k = a; k <= c; ++k) {
-					const float d = std::hypot(wx - cx[k], wz - cz[k]);
+					const float d = det::hypot(wx - cx[k], wz - cz[k]);
 					if (d < nd) { nd = d; near = k; }
 				}
 				if (near < 0) continue;
@@ -11691,7 +11692,7 @@ static void place_wall_demo(Simulation &sim, float map_half, RmsRng &rng) {
 			"outpost", "medium", "cornerOut", "medium", "cornerIn", "medium", "house", "end", "entryTower", "start", "short",
 			"barracks", "gate", "tower", "medium", "fort", "medium", "end"});
 	for (int s = 0; s < n; ++s)
-		sim.place_wall(wx(column(s)), wx(py), custom, (uint8_t)s, gaia, pi / 16.0 * std::sin(s * pi / 4.0));
+		sim.place_wall(wx(column(s)), wx(py), custom, (uint8_t)s, gaia, pi / 16.0 * det::sin(s * pi / 4.0));
 	py += 80.0 + other;
 
 	// Default fortress placement (placeFortress "tiny"), centred on an obelisk.
@@ -11807,7 +11808,7 @@ void diamond_square_028(HeightmapGrid &hm, RmsRng &rng, float lo, float hi, std:
 				next[x][y] = rough(v);
 			}
 		cur.swap(next);
-		offset /= std::pow(2.0f, smoothness);
+		offset /= det::pow(2.0f, smoothness);
 	}
 	const int shift = ((int)cur.size() - hm.res) / 2;
 	for (int z = 0; z < hm.res; ++z)
@@ -11882,7 +11883,7 @@ std::vector<std::pair<int, int>> start_locations_028(const HeightmapGrid &hm, Rm
 	for (int x = border; x < tiles - border; ++x)
 		for (int y = border; y < tiles - border; ++y) {
 			const float h = hm.sample_world((float)x - half, (float)y - half);
-			if (t_circular_map && !(std::hypot((float)x - half, (float)y - half) < half - (float)border)) continue;
+			if (t_circular_map && !(det::hypot((float)x - half, (float)y - half) < half - (float)border)) continue;
 			if (h >= lo && h <= hi) valid.push_back({x, y});
 		}
 	std::vector<std::pair<int, int>> best;
@@ -11893,12 +11894,12 @@ std::vector<std::pair<int, int>> start_locations_028(const HeightmapGrid &hm, Rm
 		float d = std::numeric_limits<float>::infinity();
 		for (int a = 0; a + 1 < num_players; ++a)
 			for (int b = a + 1; b < num_players; ++b)
-				d = std::min(d, std::hypot((float)(draw[a].first - draw[b].first), (float)(draw[a].second - draw[b].second)));
+				d = std::min(d, det::hypot((float)(draw[a].first - draw[b].first), (float)(draw[a].second - draw[b].second)));
 		if (d > best_d) { best_d = d; best = draw; }
 	}
 	if ((int)best.size() < num_players) return {};
 	std::sort(best.begin(), best.end(), [&](const auto &a, const auto &b) {
-		return std::atan2((float)a.second - half, (float)a.first - half) < std::atan2((float)b.second - half, (float)b.first - half);
+		return det::atan2((float)a.second - half, (float)a.first - half) < det::atan2((float)b.second - half, (float)b.first - half);
 	});
 	return best;
 }
@@ -11910,7 +11911,7 @@ void smoothed_start_spawns_028(HeightmapGrid &hm, std::vector<RmsGenerator::Play
 	const float half = hm.map_half;
 	spawns.clear();
 	for (size_t i = 0; i < starts.size(); ++i) {
-		const float sx = (float)starts[i].first - half, sz = (float)starts[i].second - half, l = std::max(1e-3f, std::hypot(sx, sz));
+		const float sx = (float)starts[i].first - half, sz = (float)starts[i].second - half, l = std::max(1e-3f, det::hypot(sx, sz));
 		const float bh = hm.sample_world(sx, sz);
 		spawns.push_back({(uint8_t)i, sx, sz, bh, -sx / l, -sz / l});
 		std::vector<uint8_t> disk(hm.data.size(), 0);
@@ -11918,7 +11919,7 @@ void smoothed_start_spawns_028(HeightmapGrid &hm, std::vector<RmsGenerator::Play
 			for (int x = 0; x < hm.res; ++x) {
 				float wx, wz;
 				hm.grid_to_world(x, z, wx, wz);
-				disk[(size_t)z * (size_t)hm.res + (size_t)x] = std::hypot(wx - sx, wz - sz) <= radius;
+				disk[(size_t)z * (size_t)hm.res + (size_t)x] = det::hypot(wx - sx, wz - sz) <= radius;
 			}
 		paint_mask_elevation(hm, disk, bh, blend);
 	}
@@ -12044,13 +12045,13 @@ void RmsGenerator::synth_caledonian_meadows(HeightmapGrid &hm, RmsRng &rng, floa
 	for (int i = 0; i < num_players && num_players > 1; ++i) {
 		const float ax = (float)best[i].first, ay = (float)best[i].second;
 		const float bx = (float)best[(i + 1) % num_players].first, by = (float)best[(i + 1) % num_players].second;
-		const float len = std::max(1e-3f, std::hypot(bx - ax, by - ay));
+		const float len = std::max(1e-3f, det::hypot(bx - ax, by - ay));
 		float px = std::round(ax + (bx - ax) / len * 2.0f), py = std::round(ay + (by - ay) / len * 2.0f);
-		const float dir = std::atan2(by - py, bx - px);
+		const float dir = det::atan2(by - py, bx - px);
 		for (int steps = 0; (px - bx) * (px - bx) + (py - by) * (py - by) >= 4.0f && steps++ < 2 * tiles;) {
 			const float a = dir + 1.5707963f * rng.range_float(-1.0f, 1.0f);
-			px = std::round(px + std::cos(a));
-			py = std::round(py + std::sin(a));
+			px = std::round(px + det::cos(a));
+			py = std::round(py + det::sin(a));
 			for (int dy = -4; dy <= 4; ++dy)
 				for (int dx = -4; dx <= 4; ++dx) {
 					const int tx = (int)px + dx, ty = (int)py + dy;
@@ -12126,7 +12127,7 @@ static void place_caledonian_spots(Simulation &sim, const HeightmapGrid &hm, flo
 		for (int z = min_d; z < verts - min_d; ++z) {
 			if (on_path(x - 1, z) || on_path(x, z - 1) || on_path(x + 1, z) || on_path(x, z + 1)) continue; // avoidClasses(clPath)
 			const float wx = (float)x - half, wz = (float)z - half, h = hm.sample_world(wx, wz);
-			if (h > lo && h < hi && (!sim.circular_map() || half - std::hypot(wx, wz) >= (float)min_d)) valid.push_back({wx, wz});
+			if (h > lo && h < hi && (!sim.circular_map() || half - det::hypot(wx, wz) >= (float)min_d)) valid.push_back({wx, wz});
 		}
 	struct Taken { float x, z, d; };
 	std::vector<Taken> taken;
@@ -12136,7 +12137,7 @@ static void place_caledonian_spots(Simulation &sim, const HeightmapGrid &hm, flo
 		const auto p = valid[rng.next_u32() % (uint32_t)valid.size()];
 		bool ok = true;
 		for (const Taken &q : taken)
-			if (!(std::hypot(q.x - p.first, q.z - p.second) > std::max((float)min_d, q.d))) { ok = false; break; }
+			if (!(det::hypot(q.x - p.first, q.z - p.second) > std::max((float)min_d, q.d))) { ok = false; break; }
 		if (!ok) continue;
 		spots.push_back(p);
 		taken.push_back({p.first, p.second, (float)min_d});
@@ -12176,7 +12177,7 @@ static void place_caledonian_spots(Simulation &sim, const HeightmapGrid &hm, flo
 		double cx = 0.0, cz = 0.0;
 		const auto origin = wall_alignment<double>(0.0, 0.0, elements, 0.0, 0.0);
 		for (const auto &a : origin) { cx -= a.x / (double)origin.size(); cz -= a.y / (double)origin.size(); }
-		const double sx = x + cx * std::cos(o) - cz * std::sin(o), sz = z + cx * std::sin(o) + cz * std::cos(o);
+		const double sx = x + cx * det::cos(o) - cz * det::sin(o), sz = z + cx * det::sin(o) + cz * det::cos(o);
 		const auto al = wall_alignment<double>(sx, sz, elements, 0.0, o);
 		for (size_t i = 0; i < al.size(); ++i) {
 			const float px = (float)al[i].x, pz = (float)al[i].y;
@@ -12203,7 +12204,7 @@ static void place_caledonian_spots(Simulation &sim, const HeightmapGrid &hm, flo
 		const int n = rng.range_int(20, 30);
 		for (int i = 0; i < n; ++i) {
 			const float a = 6.2831853f / (float)n * rng.range_float((float)i, (float)(i + 1)), d = rng.range_float(2.0f, 5.0f);
-			const float px = x + std::cos(a) * d, pz = z + std::sin(a) * d;
+			const float px = x + det::cos(a) * d, pz = z + det::sin(a) * d;
 			if (i % 3 != 0 && sim.wall_builder_passable(px, pz)) sim.spawn_resource_world(px, pz, RES_WOOD, TREE_WOOD_SUPPLY);
 		}
 	};
@@ -12215,7 +12216,7 @@ static void place_caledonian_spots(Simulation &sim, const HeightmapGrid &hm, flo
 		const int n = rng.range_int(5, 11);
 		for (int i = 0; i < n; ++i) {
 			const float a = 6.2831853f / (float)n * rng.range_float((float)i, (float)(i + 1)), d = rng.range_float(1.0f, 3.0f);
-			const float px = x + std::cos(a) * d, pz = z + std::sin(a) * d;
+			const float px = x + det::cos(a) * d, pz = z + det::sin(a) * d;
 			const int k = rng.range_int(0, 15);
 			if (k >= 7 || !sim.wall_builder_passable(px, pz)) continue;
 			if (k < 2) {
@@ -12570,8 +12571,8 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			const float half = hm.map_half, r = 0.78f * half, start = rng.range_float(0.0f, 6.2831853f);
 			for (int i = 0; i < config.num_players; ++i) {
 				const float a = start + 6.2831853f * (float)i / (float)config.num_players;
-				const float sx = std::round(half + r * std::cos(a)) - half, sz = std::round(half + r * std::sin(a)) - half;
-				const float d = std::max(1e-3f, std::hypot(sx, sz));
+				const float sx = std::round(half + r * det::cos(a)) - half, sz = std::round(half + r * det::sin(a)) - half;
+				const float d = std::max(1e-3f, det::hypot(sx, sz));
 				spawns.push_back({(uint8_t)i, sx, sz, hm.sample_world(sx, sz), -sx / d, -sz / d});
 			}
 			break;
@@ -12816,7 +12817,7 @@ void RmsGenerator::keep_resources_passable(Simulation &sim, uint8_t type) {
 	};
 	auto pull_in = [&](float &x, float &z) {
 		if (sim.circular_map()) {
-			const float d = std::max(1e-3f, std::hypot(x, z)), k = (inner - 0.5f) / d;
+			const float d = std::max(1e-3f, det::hypot(x, z)), k = (inner - 0.5f) / d;
 			x *= k;
 			z *= k;
 		} else {
@@ -12850,9 +12851,9 @@ void RmsGenerator::keep_resources_passable(Simulation &sim, uint8_t type) {
 			for (float dx : {-tile, 0.0f, tile})
 				if (steep_at(x + dx, z + dz)) return false;
 		for (const auto &b : sim.buildings())
-			if (std::hypot(x - b.x, z - b.z) < 7.0f) return false;
+			if (det::hypot(x - b.x, z - b.z) < 7.0f) return false;
 		for (size_t k = 0; k < taken.size(); ++k)
-			if (k != self && std::hypot(x - taken[k].first, z - taken[k].second) < gap) return false;
+			if (k != self && det::hypot(x - taken[k].first, z - taken[k].second) < gap) return false;
 		return true;
 	};
 	size_t live = 0;
@@ -12873,7 +12874,7 @@ void RmsGenerator::keep_resources_passable(Simulation &sim, uint8_t type) {
 			const int n = std::max(8, (int)(6.2831853f * rad / (0.5f * tile)));
 			for (int k = 0; k < n; ++k) {
 				const float a = 6.2831853f * (float)k / (float)n;
-				const float nx = x + std::cos(a) * rad, nz = z + std::sin(a) * rad;
+				const float nx = x + det::cos(a) * rad, nz = z + det::sin(a) * rad;
 				if (!spot_ok(nx, nz, gap, self)) continue;
 				sim.set_resource_position(rv.id[r], nx, nz);
 				taken[self] = {nx, nz};
@@ -12929,8 +12930,8 @@ void RmsGenerator::keep_resources_passable(Simulation &sim, uint8_t type) {
 			const int n = std::max(8, (int)(6.2831853f * rad / (0.5f * tile)));
 			for (int k = 0; k < n; ++k) {
 				const float a = 6.2831853f * (float)k / (float)n;
-				ox = x + std::cos(a) * rad;
-				oz = z + std::sin(a) * rad;
+				ox = x + det::cos(a) * rad;
+				oz = z + det::sin(a) * rad;
 				if (ok(ox, oz)) return true;
 			}
 		}
@@ -13638,7 +13639,7 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 			int placed = 0;
 			for (int k = 0; k < n; ++k) {
 				const float a = 6.2831853f * (float)k / (float)n + rng.range_float(0.0f, 1.0f);
-				placed += place(k ? x + std::cos(a) * 1.8f : x, k ? z + std::sin(a) * 1.8f : z, mp.type, mp.amount);
+				placed += place(k ? x + det::cos(a) * 1.8f : x, k ? z + det::sin(a) * 1.8f : z, mp.type, mp.amount);
 			}
 			left -= std::max(placed, 1);
 		}
@@ -13677,7 +13678,7 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 		int placed = 0;
 		for (int i = 0; i < n; ++i) {
 			const float a = rng.range_float(0.0f, 6.2831853f), r = i ? rng.range_float(1.0f, 3.0f) : 0.0f;
-			placed += place(x + std::cos(a) * r, z + std::sin(a) * r, RES_FOOD, generic ? 200 : k->amount, generic ? FLORA_DEFAULT : flora);
+			placed += place(x + det::cos(a) * r, z + det::sin(a) * r, RES_FOOD, generic ? 200 : k->amount, generic ? FLORA_DEFAULT : flora);
 		}
 		fruit_left -= std::max(placed, 1);
 	}
@@ -13709,7 +13710,7 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 		const int n = std::min(hunt_left, fi.is_dangerous() ? rng.range_int(1, 2) : rng.range_int(3, 6));
 		for (int i = 0; i < n; ++i) {
 			const float a = 6.2831853f * (float)i / (float)n, r = rng.range_float(1.0f, 3.0f);
-			sim.spawn_fauna(x + std::cos(a) * r, z + std::sin(a) * r, ftype);
+			sim.spawn_fauna(x + det::cos(a) * r, z + det::sin(a) * r, ftype);
 		}
 		hunt_left -= n;
 	}
