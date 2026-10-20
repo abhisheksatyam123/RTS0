@@ -1401,6 +1401,7 @@ int run_legacy_tests() {
         assert(s.food() == 400);
 
         s.set_victory_condition(VICTORY_WONDER);
+        s.tick(0.05f); // a wonder there at the start runs no countdown (WonderVictory.js)
         s.spawn_building_world(0.0f, 8.0f, BLD_WONDER, 0, 1.0f);
         s.tick(1.0f);
         assert(!s.is_victory());
