@@ -249,6 +249,8 @@ func _run() -> void:
 					_say("ready for settings version %d" % ready_for)
 					# 0.28 gamesetup ChatPanel: a line typed in the setup.
 					main.send_setup_chat("hello from bob")
+					# ChatInputPanel: no addressees in the setup; sent to everyone as typed.
+					main.send_setup_chat("/allies team up")
 			# Once the joiner is seated: before its slot is given it needs no
 			# ready (0.28 ReadyController), so Start would not be refused yet.
 			# 0.28: only the host sets a player's civ, team and colour, on its page.
@@ -279,7 +281,7 @@ func _run() -> void:
 					var plain := ""
 					for i in 50:
 						plain = RegEx.create_from_string("\\[[^\\]]*\\]").sub(str(main.get_setup_chat().get("text", "")), "", true)
-						if plain.contains("hello from bob"):
+						if plain.contains("hello from bob") and plain.contains("team up"):
 							break
 						await _wait(0.1)
 					_say("setup_chat=" + " | ".join(Array(plain.strip_edges().split("\n")).map(func(l): return l.strip_edges())))
