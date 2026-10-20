@@ -165,6 +165,7 @@ const POP_TYPE_WORLD := 2
 const POP_UNLIMITED := 10000
 # 0.28 Sliders/Ceasefire.js (0-45 min), WonderDuration.js and RelicDuration.js (0-60 min,
 # default 20) and RelicCount.js (1 to the number of civs, default 2), one entry a step.
+const SettingSlider := preload("res://scenes/menu/setting_slider.gd")
 static var CEASEFIRES: Array = range(0, 46)
 static var VICTORY_TIMES: Array = range(0, 61)
 static var RELIC_COUNTS: Array = range(1, CIVS.size() + 1)
@@ -290,7 +291,6 @@ const SPEEDS := [[0.1, "Turtle (0.1×)", false], [0.25, "Slow (0.25×)", false],
 	[1.5, "Very Fast (1.5×)", false], [2.0, "Insane (2×)", false], [5.0, "Fast Forward (5×)", true],
 	[10.0, "Fast Forward (10×)", true], [20.0, "Fast Forward (20×)", true]]
 const DEFAULT_SPEED := 4 # Normal (1×)
-const SLOT_KINDS := ["Human", "AI", "Closed"]
 # rtso::PLAYER_COLORS: 0 A.D. player_defaults.json (each player's default), then PlayerColor.js DefaultColors.
 const PLAYER_COLORS := [Color8(21, 55, 149), Color8(150, 20, 20), Color8(86, 180, 31), Color8(231, 200, 5),
 	Color8(50, 170, 170), Color8(160, 80, 200), Color8(220, 115, 16), Color8(64, 64, 64),
@@ -726,6 +726,15 @@ func _update_lock_teams_for_pop() -> void:
 		lock.disabled = _is_scenario()
 	_render_mode_checks()
 
+## GameSettingControlSlider: one step per item, read as the dropdowns are.
+func _make_slider(slot: Control) -> SettingSlider:
+	for c in slot.get_children():
+		c.queue_free()
+	var sl := SettingSlider.new()
+	sl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	slot.add_child(sl)
+	return sl
+
 func _make_option(slot: Control) -> RtsoSafeSelect:
 	for c in slot.get_children():
 		c.queue_free()
@@ -836,8 +845,9 @@ func _select_map_id(map_id: String) -> void:
 	_rebuild_map_filter()
 	_want_map_id = map_id
 
+## MapSelection.js: the Select Map dropdown, each map's description on hover.
 func _build_map_list() -> void:
-	var list: ItemList = %MapList
+	var list: RtsoSafeSelect = %MapList
 	list.clear()
 	list.item_selected.connect(_on_map_list_selected)
 	# 0.28 Single/Buttons/MapBrowser.js "Browse Maps" and Panels/MapPreview.js: both open the Map Browser.
@@ -955,12 +965,14 @@ func open_civ_reference(tab: int) -> void:
 func refresh_map_list() -> void:
 	var keep := _want_map_id if not _want_map_id.is_empty() else str(_selected_map().get("id", ""))
 	_want_map_id = ""
-	var list: ItemList = %MapList
+	var list: RtsoSafeSelect = %MapList
 	list.clear()
 	_filtered = filtered_maps(_maps, _map_type, _map_filter_name)
 	_sel_map = 0
 	for i in range(_filtered.size()):
 		list.add_item(str(_filtered[i]["name"]))
+		var desc := str(_filtered[i].get("desc", ""))
+		list.set_item_tooltip(i, tr(desc) if desc != "" else tr("Select a map to play on."))
 		if str(_filtered[i]["id"]) == keep:
 			_sel_map = i
 	if not _filtered.is_empty():
@@ -1032,7 +1044,7 @@ func _apply_map_locks() -> void:
 	_render_mode_checks()
 	var pop: RtsoSafeSelect = %PopCapSlot.get_child(0)
 	var res: RtsoSafeSelect = %ResSlot.get_child(0)
-	var cf: RtsoSafeSelect = %CeasefireSlot.get_child(0)
+	var cf: SettingSlider = %CeasefireSlot.get_child(0)
 	pop.disabled = scen
 	_pop_type_select().disabled = scen
 	res.disabled = scen
@@ -1443,18 +1455,18 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	# PlayersPanel.xml's columns: name, colour, assignment (Player Placement), AI gear, civ, team.
 	var cols := []
 	cols.resize(6)
-	if _mp_role == "host" and int(row["kind"]) == 0 and _net_rows().has(i):
-		cols[0] = _assignment_cell(i)
-	else:
-		var name := Label.new()
-		name.text = _slot_label(i, row)
-		cols[0] = name
+	var name := Label.new()
+	name.text = _slot_label(i, row)
+	cols[0] = name
 	# kind
 	var kind_slot := Control.new()
 	kind_slot.custom_minimum_size = Vector2(92, 28)
 	cols[2] = kind_slot
-	var kind := _make_option(kind_slot)
-	if _mp_role == "none":
+	if _mp_role != "none":
+		kind_slot.queue_free()
+		cols[2] = _assignment_cell(i)
+	else:
+		var kind := _make_option(kind_slot)
 		# 0.28 PlayerAssignment: you, "AI: Petra Bot", "Unassigned" or "Removed" (not on slot 1,
 		# since a removed slot drops out and the later players move up).
 		kind.add_item(singleplayer_name(), KIND_YOU)
@@ -1466,11 +1478,6 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 		kind.select(maxi(kind.get_item_index(k), 0))
 		kind.tooltip_text = tr("Select player.")
 		kind.item_selected.connect(func(ix: int): _on_slot_assign(kind.get_item_id(ix), i))
-	else:
-		for k in (SLOT_KINDS if i > 0 else SLOT_KINDS.slice(0, 2)):
-			kind.add_item(k)
-		kind.select(int(row["kind"]) if i > 0 else mini(int(row["kind"]), 1))
-		kind.item_selected.connect(_on_slot_kind.bind(i))
 	# civ
 	var civ_slot := Control.new()
 	civ_slot.custom_minimum_size = Vector2(130, 28)
@@ -1707,13 +1714,13 @@ func _build_options() -> void:
 	popt.item_selected.connect(_on_pop_type_selected)
 	_make_option(%PopCapSlot)
 	_select_pop(300, false) # 0 A.D. default: 300 per player
-	var cf := _make_option(%CeasefireSlot)
+	var cf := _make_slider(%CeasefireSlot)
 	for c in CEASEFIRES:
 		cf.add_item(tr("No ceasefire") if c == 0 else _minutes(c))
 	cf.select(0)
 	cf.tooltip_text = tr("Set time where no attacks are possible.")
-	var wt := _make_option(%WonderTimeSlot)
-	var rt := _make_option(%RelicTimeSlot)
+	var wt := _make_slider(%WonderTimeSlot)
+	var rt := _make_slider(%RelicTimeSlot)
 	for t in VICTORY_TIMES:
 		wt.add_item(tr("Immediate Victory.") if t == 0 else _minutes(t))
 		rt.add_item(tr("Immediate Victory.") if t == 0 else _minutes(t))
@@ -1721,7 +1728,7 @@ func _build_options() -> void:
 	rt.select(VICTORY_TIMES.find(20))
 	wt.tooltip_text = tr("Minutes until the player has achieved Wonder Victory")
 	rt.tooltip_text = tr("Minutes until the player has achieved Relic Victory.")
-	var rc := _make_option(%RelicCountSlot)
+	var rc := _make_slider(%RelicCountSlot)
 	for c in RELIC_COUNTS:
 		rc.add_item(tr("%d relic") % c if c == 1 else tr("%d relics") % c)
 	rc.select(RELIC_COUNTS.find(2))
@@ -1732,7 +1739,7 @@ func _build_options() -> void:
 		wl.set_item_tooltip(wl.get_item_count() - 1, tr(w[1]))
 	wl.select(0)
 	wl.tooltip_text = tr("Select the water level of this map.")
-	var sr := _make_option(%SeaRiseSlot)
+	var sr := _make_slider(%SeaRiseSlot)
 	for t in SEA_RISE_TIMES:
 		sr.add_item(_minutes(t))
 	sr.select(SEA_RISE_TIMES.find(25))
@@ -1828,19 +1835,16 @@ func _render_mode_checks() -> void:
 ## 0.28 WonderDuration / RelicCount / RelicDuration: shown only while their condition
 ## is checked, and fixed (disabled) on a scenario.
 func _refresh_victory_times(mask: int) -> void:
-	var row := %VictoryTimesRow
+	# GameSettingsLayout.js: Relic Count, Relic Duration, Hero Garrison, Wonder Duration.
 	var wonder := (mask & 16) != 0
 	var relic := (mask & 32) != 0
-	row.visible = wonder or relic
-	for n in ["WonderLabel", "WonderTimeSlot"]:
-		row.get_node(n).visible = wonder
-	for n in ["RelicCountLabel", "RelicCountSlot", "RelicLabel", "RelicTimeSlot"]:
-		row.get_node(n).visible = relic
+	%VictoryTimesRow.visible = relic
+	%WonderRow.visible = wonder
 	var scen := _is_scenario()
 	for n in ["WonderTimeSlot", "RelicCountSlot", "RelicTimeSlot"]:
-		var slot: Node = row.get_node(n)
+		var slot: Node = get_node("%" + n)
 		if slot.get_child_count() > 0:
-			(slot.get_child(0) as RtsoSafeSelect).disabled = scen
+			slot.get_child(0).disabled = scen
 
 func _on_victory_toggled(on: bool, bit: int) -> void:
 	var mask := _victory_mask()
@@ -1957,14 +1961,14 @@ func _apply_settings(ms: Dictionary) -> void:
 	%DisableSpies.button_pressed = bool(ms.get("disable_spies"))
 	%DisableTreasures.button_pressed = bool(ms.get("disable_treasures"))
 	_select_pop(int(ms.get("pop_cap")), bool(ms.get("team_pop")))
-	var cf: RtsoSafeSelect = %CeasefireSlot.get_child(0)
+	var cf: SettingSlider = %CeasefireSlot.get_child(0)
 	cf.select(maxi(CEASEFIRES.find(int(ms.get("ceasefire_min"))), 0))
 	%RevealMap.button_pressed = bool(ms.get("reveal_map"))
 	%ExploreMap.button_pressed = bool(ms.get("explore_map"))
 	%AlliedView.button_pressed = bool(ms.get("ally_view"))
-	var wt: RtsoSafeSelect = %WonderTimeSlot.get_child(0)
-	var rt: RtsoSafeSelect = %RelicTimeSlot.get_child(0)
-	var rc: RtsoSafeSelect = %RelicCountSlot.get_child(0)
+	var wt: SettingSlider = %WonderTimeSlot.get_child(0)
+	var rt: SettingSlider = %RelicTimeSlot.get_child(0)
+	var rc: SettingSlider = %RelicCountSlot.get_child(0)
 	var wi := VICTORY_TIMES.find(int(ms.get("wonder_min")))
 	var ri := VICTORY_TIMES.find(int(ms.get("relic_min")))
 	var ci := RELIC_COUNTS.find(int(ms.get("relic_count")))
@@ -1973,7 +1977,7 @@ func _apply_settings(ms: Dictionary) -> void:
 	rc.select(ci if ci >= 0 else RELIC_COUNTS.find(2))
 	var wl: RtsoSafeSelect = %WaterLevelSlot.get_child(0)
 	wl.select(clampi(int(ms.get("water_level")), 0, WATER_LEVELS.size() - 1))
-	var sr: RtsoSafeSelect = %SeaRiseSlot.get_child(0)
+	var sr: SettingSlider = %SeaRiseSlot.get_child(0)
 	var si := SEA_RISE_TIMES.find(int(ms.get("sea_level_rise_min")))
 	sr.select(si if si >= 0 else SEA_RISE_TIMES.find(25))
 	_team_placement = clampi(int(ms.get("team_placement")), 0, TEAM_PLACEMENTS.size() - 1)
@@ -2053,12 +2057,12 @@ func _collect_setup() -> Dictionary:
 	var spd: RtsoSafeSelect = %SpeedSlot.get_child(0)
 	var msz: RtsoSafeSelect = %MapSizeSlot.get_child(0)
 	var pop: RtsoSafeSelect = %PopCapSlot.get_child(0)
-	var cf: RtsoSafeSelect = %CeasefireSlot.get_child(0)
-	var wt: RtsoSafeSelect = %WonderTimeSlot.get_child(0)
-	var rt: RtsoSafeSelect = %RelicTimeSlot.get_child(0)
-	var rc: RtsoSafeSelect = %RelicCountSlot.get_child(0)
+	var cf: SettingSlider = %CeasefireSlot.get_child(0)
+	var wt: SettingSlider = %WonderTimeSlot.get_child(0)
+	var rt: SettingSlider = %RelicTimeSlot.get_child(0)
+	var rc: SettingSlider = %RelicCountSlot.get_child(0)
 	var wl: RtsoSafeSelect = %WaterLevelSlot.get_child(0)
-	var sr: RtsoSafeSelect = %SeaRiseSlot.get_child(0)
+	var sr: SettingSlider = %SeaRiseSlot.get_child(0)
 	var lsc: RtsoSafeSelect = %LandscapeSlot.get_child(0)
 	var tdf: RtsoSafeSelect = %TriggerDifficultySlot.get_child(0)
 	var dsel: RtsoSafeSelect = %DaytimeSlot.get_child(0)
@@ -2713,39 +2717,56 @@ func _slot_label(i: int, row: Dictionary) -> String:
 	var you := int(e["client"]) == int(_net_state.get("my_client", -2))
 	return "%s%s%s" % [str(e.get("name", "")), " (You)" if you else "", " (Ready)" if int(e["client"]) > 0 and int(e.get("ready", 0)) > 0 else ""]
 
-## 0.28 PlayerAssignment dropdown (host only): the slot's name cell lists the
-## connected clients and Unassigned; picking a client seats it here (one
-## holding another slot swaps, as NetServer AssignPlayer does), and
-## Unassigned makes the holder an observer.
+## 0.28 PlayerAssignment in a networked setup: one dropdown per slot listing the
+## connected clients, "AI: Petra Bot", "Unassigned" and "Removed" (not on slot 1).
+## Picking a client seats it here (one holding another slot swaps, as NetServer
+## AssignPlayer does); AI, Unassigned and Removed send the holder to watch. A saved
+## game offers no AI on a human slot and keeps an AI slot as it is. Only the host
+## changes it; a client sees it locked.
+const ASSIGN_CLIENT_ID := 10 # item id of client c: 10 + c
+
 func _assignment_cell(i: int) -> Control:
 	var cell := Control.new()
 	cell.name = "Assign%d" % i
 	cell.custom_minimum_size = Vector2(110, 28)
 	var ob := _make_option(cell)
 	ob.name = "AssignSelect"
-	var k := _net_rows().find(i)
+	var kind := int(_slot_rows[i]["kind"]) if i > 0 else mini(int(_slot_rows[i]["kind"]), 1)
+	var k := _net_rows().find(i) if _mp_role == "host" else i
 	var slots: Array = _net_state.get("slots", [])
 	var holder := int(slots[k].get("client", -1)) if k >= 0 and k < slots.size() else -1
 	var clients: Array = []
 	for e in slots + Array(_net_state.get("observers", [])):
 		if int(e.get("client", -1)) >= 0 and not clients.any(func(x): return int(x["client"]) == int(e["client"])):
 			clients.append(e)
+	var saved := _saved_game()
 	for e in clients:
 		var you := int(e["client"]) == int(_net_state.get("my_client", -2))
 		var ready := int(e["client"]) > 0 and int(e.get("ready", 0)) > 0
-		# The item id is the client + 1; Unassigned is 0.
-		ob.add_item("%s%s%s" % [str(e.get("name", "")), " (You)" if you else "", " (Ready)" if ready else ""], int(e["client"]) + 1)
-	ob.add_item("Unassigned", 0)
-	ob.select(ob.get_item_index(holder + 1 if holder >= 0 else 0))
-	ob.tooltip_text = "Assign a player to this slot."
+		ob.add_item("%s%s%s" % [str(e.get("name", "")), " (You)" if you else "", " (Ready)" if ready else ""], ASSIGN_CLIENT_ID + int(e["client"]))
+	if not saved or kind == 1:
+		ob.add_item(tr("AI: %(ai)s").replace("%(ai)s", tr("Petra Bot")), 1)
+	ob.add_item(tr("Unassigned"), 0)
+	if i > 0 and (not saved or kind == 2):
+		ob.add_item(tr("Removed"), 2)
+	var sel := ASSIGN_CLIENT_ID + holder if kind == 0 and holder >= 0 else kind
+	ob.select(maxi(ob.get_item_index(sel), 0))
+	ob.tooltip_text = tr("Select player.")
+	ob.disabled = _mp_role != "host" or (saved and kind == 1)
 	ob.item_selected.connect(func(idx: int) -> void:
-		if _rebuilding_slots:
+		if _rebuilding_slots or _mp_role != "host":
 			return
-		var c := int(ob.get_item_id(idx)) - 1
-		if c >= 0:
-			net_main.assign_net_client(c, k)
-		elif holder >= 0:
+		var id := int(ob.get_item_id(idx))
+		if holder >= 0 and id < ASSIGN_CLIENT_ID:
 			net_main.assign_net_client(holder, -1)
+		if id >= ASSIGN_CLIENT_ID:
+			if kind != 0:
+				_on_slot_kind(0, i)
+				_host_write_setup(true)
+			net_main.assign_net_client(id - ASSIGN_CLIENT_ID, _net_rows().find(i))
+		elif id != kind:
+			_on_slot_kind(id, i)
+			_host_write_setup(true)
 		_net_state = net_main.get_net_setup_state()
 		refresh_slots.call_deferred())
 	return cell
@@ -2790,7 +2811,7 @@ func _lock_tree(n: Node, keep: Dictionary) -> void:
 		return
 	if n is BaseButton:
 		n.disabled = true
-	elif n is SpinBox:
+	elif n is SpinBox or n is Slider:
 		n.editable = false
 	elif n is LineEdit:
 		n.editable = false

@@ -644,6 +644,11 @@ public:
 	std::vector<uint64_t> flare_received_ms_;
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
 	int get_target_marker_actor_count() const { return range_overlays_.marker_actor_count(); } // tests
+	PackedFloat32Array debug_range_rings() const { // tests: radii of the selection's range rings
+		PackedFloat32Array out;
+		for (float r : range_overlays_.ring_radii()) out.push_back(r);
+		return out;
+	}
 	bool select_first_own(bool building); // tests
 	int get_work_sound_count() const { return session_audio_.work_sounds_played(); } // tests
 	void debug_gather_nearest();
@@ -876,6 +881,9 @@ private:
 	// (not one of the selected).
 	// cmd and ent: the RallyCommand and unit or treasure the target alone doesn't give.
 	void rally_target_at(const Vector3 &at, uint32_t &res, uint32_t &bld, uint32_t *ent = nullptr, uint8_t *cmd = nullptr) const;
+	// GetTradingRouteGain for a default route from the selected market to market `to`, for
+	// the trader it trains (a merchant ship at a dock). False when either is gone.
+	bool rally_route_gain(uint32_t to, rtso::Simulation::TradeGain &g) const;
 	bool selection_can_board(uint32_t holder) const;
 	void update_hud();
 	void update_inspector();
