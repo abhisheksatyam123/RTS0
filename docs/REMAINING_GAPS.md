@@ -88,6 +88,14 @@ Orders, stances, garrison, capture, loot and fleeing against UnitAI.js and the 0
 | Q6 | ~~A defeated player's units turned Gaia keep their stance, orders and queue~~ Fixed: UnitAI.OnOwnershipChanged (UnitAI.js:3665-3702) stops them, drops the queue, work orders, trading and guarding, and resets the template's default stance, for Player.js defeat and the convert cheat alike. `tools/test_unit_orders.cpp` 92 | low | Fixed |
 | Q7 | ~~A fleeing unit ignores a second attacker farther off than the one it flees from~~ Fixed: FLEEING.Attacked (UnitAI.js:2040-2049) measures the unit's distance to itself (msg.data.target is the attacked entity), so it answers every attacker but the one fled from. Flights from structures need nothing: distanceToFlee and the range check both use edge distance, so the flight runs FleeDistance further either way. `tools/test_unit_orders.cpp` 43 | low | Fixed |
 
+### Unit orders, seventh 0.28 pass (2026-10-20)
+
+Right-click priorities on own and allied entities against unit_actions.js (specificness order, input.js determineAction).
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| R1 | ~~A plain right-click on an own or allied structure, ship, ram or siege tower garrisons the selection, and Ctrl over a ship attack-moves~~ Fixed: "move" (specificness 12) beats "garrison" (20) and "occupy-turret" (21), so a plain click walks there and garrisoning needs session.garrison (Ctrl) or the Garrison button; with Ctrl over a holder the selection can enter, garrison comes before attack-move (30), cursor included. An ally's shared dropsite (Diaspora) takes carried resources first ("returnresource", 2). `tools/e2e_garrison_cursor_tip.gd`, `tools/e2e_garrison_siege.gd`, `tools/e2e_rampart_turrets.gd` | medium | Fixed |
+
 
 Kept on purpose: the RTS0 villager rows stay as the worker class's default for old saves and pre-roster spawns, but nothing trains one by name (#1014); Petra never builds the Wagon Encampment, Temple of Isis or crannog (as 0.28's Petra); Chandragupta's infantry form isn't trained (0.28's trainer lists); OnOwnershipChanged fires only for watched entities; Alt+right-click herding stays as an RTS0 extra.
 
