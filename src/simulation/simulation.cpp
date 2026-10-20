@@ -14701,8 +14701,10 @@ void Simulation::tick_combat(float dt) {
 		if (rate > 0.0f) units_.hp[u] = std::min(units_.max_hp[u], units_.hp[u] + dt * rate);
 	}
 	// Liu Bang's Confucian Reforms (han_hero_liu_bang_1: global, own Walls Health/RegenRate +10):
-	// while either Liu Bang template lives, garrisoned included, the owner's finished stone walls,
-	// gates and wall towers regenerate 10 hp/s (Health.js regenerates structures too).
+	// while either Liu Bang template lives, garrisoned included, the owner's stone walls, gates and
+	// wall towers regenerate 10 hp/s (Health.js regenerates structures too). Their foundations as
+	// well: a foundation keeps the structure's classes, and its health rises without its build
+	// progress, which the next builder's work takes up (Foundation.js maxProgress).
 	static const int16_t liu_bang_walls = [] {
 		for (uint16_t a = 0; a < CIV_HERO_AURA_COUNT; ++a)
 			if (std::strcmp(civ_hero_aura(a).id, "han_hero_liu_bang_1") == 0) return (int16_t)a;
@@ -14722,7 +14724,7 @@ void Simulation::tick_combat(float dt) {
 		if (regen_players)
 			for (Building &b : buildings_)
 				if (b.team < MAX_PLAYERS && (regen_players >> b.team & 1u) && !b.wrecked && b.hp > 0.0f &&
-						b.build_progress >= 1.0f && b.hp < b.max_hp && (building_tech_classes(b.type) & TC_WALL))
+						b.hp < b.max_hp && (building_tech_classes(b.type) & TC_WALL))
 					b.hp = std::min(b.max_hp, b.hp + dt * rate);
 	}
 	// A negative template RegenRate (fire ships) wears the unit down, even at full health.
@@ -17800,8 +17802,10 @@ bool Simulation::can_gather(size_t i, size_t r) const {
 bool Simulation::self_garrison_rally(const Building &b, uint8_t unit_type, uint16_t tmpl) const {
 	if (!b.has_rally_point || b.rally_target_bld_id != b.id || turret_points_of(b)) return false;
 	if (b.build_progress < 1.0f || !structure_has_enough_health(b)) return false;
-	const bool builder = unit_can_build(unit_type, tmpl);
-	return !(builder && (b.hp < b.max_hp || b.type == BLD_FIELD));
+	(void)unit_type;
+	(void)tmpl;
+	// Trainer.js Spawn: only a "garrison" first command (not "repair", set with session.repair).
+	return b.rally_cmd != RALLY_CMD_REPAIR;
 }
 
 void Simulation::apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison) {
@@ -17809,7 +17813,7 @@ void Simulation::apply_rally_point(uint32_t uid, const Building &b, bool ignore_
 			b.rally_cmd, b.rally_target_ent_id};
 	// RallyPoint.OrderToRallyPoint: when the first command is "garrison back in here" and that
 	// is ignored (units just unloaded), none of the commands run.
-	if (ignore_self_garrison && first.bld_id == b.id) return;
+	if (ignore_self_garrison && first.bld_id == b.id && first.cmd != RALLY_CMD_REPAIR) return;
 	// RallyPointCommands.js trade route with waypoints: walks before a final trade are not
 	// orders but the route (ret.splice(0, waypoints), ret[0].route = route). A plain walk is a
 	// step with no target of any kind (anything else falls through to gather/repair below).
@@ -17905,16 +17909,23 @@ void Simulation::apply_rally_step(uint32_t uid, const Building &b, const Buildin
 		auto it = building_id_to_idx_.find(st.bld_id);
 		if (it != building_id_to_idx_.end() && !buildings_[it->second].wrecked) {
 			const Building &t = buildings_[it->second];
-			// "repair" an own or allied structure, "garrison" in an own or mutually allied one.
+			// unit_actions.js set-rallypoint on an own or allied structure: "repair" with
+			// session.repair held, else "garrison" in a garrison holder, else "repair". A unit that
+			// can't do the one its command names walks there (UnitAI Garrison/Repair WalkToTarget).
 			if (t.team == b.team || is_ally(b.team, t.team)) {
-				if (builder && (t.build_progress < 1.0f || t.hp < t.max_hp || t.type == BLD_FIELD)) {
-					order_build_or_repair(&uid, 1, t.id, queued);
-					return;
-				}
-				if (ignore_self_garrison && t.id == b.id) return;
-				if (garrison_room(t, (size_t)i) && structure_accepts_garrison(t, (size_t)i)) {
-					order_garrison(&uid, 1, t.id, queued);
-					return;
+				const bool repairable = t.build_progress < 1.0f || t.hp < t.max_hp || t.type == BLD_FIELD;
+				const bool holder = t.build_progress >= 1.0f && t.garrison_cap > 0;
+				if (st.cmd == RALLY_CMD_REPAIR || (repairable && !holder)) {
+					if (builder && repairable) {
+						order_build_or_repair(&uid, 1, t.id, queued);
+						return;
+					}
+				} else {
+					if (ignore_self_garrison && t.id == b.id) return;
+					if (garrison_room(t, (size_t)i) && structure_accepts_garrison(t, (size_t)i)) {
+						order_garrison(&uid, 1, t.id, queued);
+						return;
+					}
 				}
 			} else if (can_attack(b.team, t.team)) {
 				// unit_actions.js setupUnitActions "attack": allowCapture only on a target with
@@ -36819,6 +36830,15 @@ bool Simulation::cmd_resign(uint8_t pid) {
 	return true;
 }
 
+bool Simulation::trigger_point_spawn_spot(const TriggerPoint &p, uint8_t type, float &x, float &z) const {
+	// TriggerHelper.SpawnUnits: Footprint.PickSpawnPoint round the point's <Circle radius="2.0"/>
+	// (metres x0.28, as pick_spawn_point_box's MaxSpawnDistance), else the point itself.
+	if (pick_spawn_point_box(p.x, p.z, 0.0f, 0.0f, 0.0f, 2.0f * 0.28f, false, 0.0f, 0.0f, type, 0, x, z)) return true;
+	x = p.x;
+	z = p.z;
+	return false;
+}
+
 void Simulation::tick_trigger_watches() {
 	// OnOwnershipChanged for the entities the scripts follow (see TriggerWatch).
 	if (triggers_.watched.empty()) return;
@@ -36974,10 +36994,9 @@ void Simulation::trigger_gallic_fields(bool attack) {
 		if (p.ref != ref || tmpl == CIV_UNIT_TEMPLATE_NONE) continue;
 		std::vector<uint32_t> ids;
 		for (int k = 0; k < v[0]; ++k) {
-			// TriggerHelper.SpawnUnits puts them all on the point; spread them a little.
-			const float a = 2.3999632f * (float)k, r = 0.8f * std::sqrt((float)k);
-			if (const uint32_t id = spawn_unit(p.x + det::cos(a) * r, p.z + det::sin(a) * r, GAIA_PLAYER,
-					(UnitType)civ_unit_template(tmpl).unit_type, 0.0f, tmpl))
+			float x, z;
+			trigger_point_spawn_spot(p, civ_unit_template(tmpl).unit_type, x, z);
+			if (const uint32_t id = spawn_unit(x, z, GAIA_PLAYER, (UnitType)civ_unit_template(tmpl).unit_type, 0.0f, tmpl))
 				ids.push_back(id);
 		}
 		for (const TriggerPoint &t : triggers_.points)
@@ -37691,9 +37710,9 @@ void Simulation::trigger_survival_wave() {
 			std::vector<uint32_t> ids;
 			const CivUnitTemplate &t = civ_unit_template(tmpl);
 			for (int k = 0; k < n; ++k) {
-				// TriggerHelper.SpawnUnits puts them all on the point; spread them a little.
-				const float a = 2.3999632f * (float)k, r = 0.8f * std::sqrt((float)k);
-				if (const uint32_t id = spawn_unit(p.x + det::cos(a) * r, p.z + det::sin(a) * r, GAIA_PLAYER, (UnitType)t.unit_type, 0.0f, tmpl))
+				float x, z;
+				trigger_point_spawn_spot(p, t.unit_type, x, z);
+				if (const uint32_t id = spawn_unit(x, z, GAIA_PLAYER, (UnitType)t.unit_type, 0.0f, tmpl))
 					ids.push_back(id);
 			}
 			if (ids.empty()) continue;

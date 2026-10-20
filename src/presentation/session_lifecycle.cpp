@@ -605,28 +605,30 @@ void RtsoMain::_ready() {
 		bold.instantiate();
 		bold->set_base_font(ThemeDB::get_singleton()->get_fallback_font());
 		bold->set_variation_embolden(0.7f);
-		auto caption = [&](const String &text, float top, int size) {
+		// PauseOverlay.xml: 50%-128 40%+top 50%+128 40%+bottom, centred both ways, no stroke.
+		auto caption = [&](const String &text, float top, float bottom, int size) {
 			Label *l = memnew(Label);
 			l->set_text(text);
-			l->set_anchor(SIDE_LEFT, 0.3f);
-			l->set_anchor(SIDE_RIGHT, 0.7f);
+			l->set_anchor(SIDE_LEFT, 0.5f);
+			l->set_anchor(SIDE_RIGHT, 0.5f);
 			l->set_anchor(SIDE_TOP, 0.4f);
 			l->set_anchor(SIDE_BOTTOM, 0.4f);
+			l->set_offset(SIDE_LEFT, -128.0f);
+			l->set_offset(SIDE_RIGHT, 128.0f);
 			l->set_offset(SIDE_TOP, top);
-			l->set_offset(SIDE_BOTTOM, top + size + 8);
+			l->set_offset(SIDE_BOTTOM, bottom);
 			l->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+			l->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
 			l->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
 			l->add_theme_font_size_override("font_size", size);
 			l->add_theme_font_override("font", bold); // styles.xml: sans-bold-*
-			l->add_theme_color_override("font_outline_color", Color(0, 0, 0));
-			l->add_theme_constant_override("outline_size", 4);
 			l->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 			pause_overlay_->add_child(l);
 			return l;
 		};
 		// PauseOverlay.xml: "Game Paused" sans-bold-24, "Click to Resume Game" sans-bold-12.
-		caption(tr("Game Paused"), -20.0f, 24);
-		pause_resume_label_ = caption(tr("Click to Resume Game"), 20.0f, 12);
+		caption(tr("Game Paused"), -20.0f, 20.0f, 24);
+		pause_resume_label_ = caption(tr("Click to Resume Game"), 20.0f, 40.0f, 12);
 		// "Paused by" names each client in its player's colour, so it is bbcode.
 		pause_by_label_ = memnew(RichTextLabel);
 		pause_by_label_->set_use_bbcode(true);
