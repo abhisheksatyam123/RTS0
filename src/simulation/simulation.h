@@ -2062,7 +2062,11 @@ public:
 	bool unit_is_guarding(uint32_t uid) const { return unit_guard_target(uid) != 0; }
 	// UnitAI.isGuardOf: the entity the unit guards (a unit or structure id), or 0.
 	uint32_t unit_guard_target(uint32_t uid) const;
-	bool unit_has_work_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.work_kind[idx] != ORDER_NONE; } // UnitAI hasWorkOrders
+	// UnitAI HasWorkOrders: a work queue kept when a forced order replaced it (UpdateWorkOrders).
+	bool unit_has_work_order(uint32_t uid) const {
+		const auto w = work_orders_.find(uid);
+		return w != work_orders_.end() && !w->second.empty();
+	}
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
 	const Grid<uint8_t>& territory_grid() const { return territory_grid_; }
 	// ICmpTerritoryManager::IsTerritoryBlinking for territory_grid() cell (tx, tz): owned land in a
@@ -2374,6 +2378,12 @@ public:
 	// its capture points (CanAttack "Capture": a Capture attack and Capturable.CanCapture)?
 	bool any_can_damage_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const;
 	bool any_can_capture_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const;
+	// unit_actions.js "attack" firstAbleEntity: may unit uid attack the enemy unit target_id?
+	bool unit_id_can_attack(uint32_t uid, uint32_t target_id) const {
+		const int32_t i = lookup_unit(uid), j = lookup_unit(target_id);
+		return i >= 0 && j >= 0 && units_.alive[i] && units_.alive[j] && units_.attack_damage[i] > 0.0f &&
+				units_.team[i] < MAX_PLAYERS && is_hostile(units_.team[i], units_.team[j]) && unit_can_target((size_t)i, (size_t)j);
+	}
 	// unit_actions.js "heal" firstAbleEntity: the first of unit_ids that heals and may heal the unit
 	// target_id (Heal.js CanHeal: an injured own or allied Human, not itself), else 0.
 	uint32_t first_able_healer(const uint32_t *unit_ids, size_t count, uint32_t target_id) const;
@@ -2759,6 +2769,7 @@ private:
 	void formation_size(const FormationController &fc, float &width, float &depth) const; // GetSize
 	void attack_unit_one_by_one(const uint32_t *ids, size_t count, uint32_t target_unit_id);
 	void walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz, uint32_t follow = 0);
+	void walk_to_target(size_t i, uint32_t target); // UnitAI WalkToTarget (forced)
 	bool follow_walk_target(size_t i);
 	void attack_building_one_by_one(const uint32_t *ids, size_t count, uint32_t target_building_id, bool allow_capture);
 	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz, bool spread = true);

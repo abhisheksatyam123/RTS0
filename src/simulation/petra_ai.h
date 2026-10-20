@@ -310,11 +310,15 @@ struct PetraDiplomacy {
 	// A hash of every player's stances, the defeated players and the ceasefire at our last turn:
 	// a change is 0.28's DiplomacyChanged, PlayerDefeated or CeasefireEnded event, on which
 	// checkEvents runs lastManStandingCheck. In the padding before betray_lapse (no save bump).
+	// Its top bit is PETRA_EVENT_PENDING: a DiplomacyChanged since our last turn, which the hash
+	// alone misses when the stance went back before the turn.
 	uint16_t events_hash = 0;
 	float betray_lapse = -1.0f;
 	float elapsed = 0.0f;
 	float next_tribute = 90.0f;  // nextTributeUpdate
 };
+
+constexpr uint16_t PETRA_EVENT_PENDING = 0x8000;
 
 // PetraSentDiplomacy::current_enemy when currentEnemyPlayer is Gaia (player 0 in 0.28).
 constexpr uint8_t PETRA_CURRENT_ENEMY_GAIA = 0xFF;
