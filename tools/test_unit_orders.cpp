@@ -3238,6 +3238,46 @@ static void test_rally_commands() {
 			"attack-walk there, then the treasure");
 }
 
+// UnitAI CollectTreasure and ReturnResource are forced orders (Q2): the walker ignores
+// enemies it sees and attacks on the way; UnitAI's own drop-off isn't forced.
+static void test_forced_treasure_and_return() {
+	std::printf("90. collecting a treasure and a player's return walk are forced (UnitAI.js)\n");
+	{
+		Simulation s;
+		setup(s);
+		uint32_t cav = s.spawn_unit(0.0f, 0.0f, 0, UNIT_CAVALRY);
+		const uint32_t treasure = s.spawn_treasure(40.0f, 0.0f, 0);
+		uint32_t foe = s.spawn_unit(20.0f, 3.0f, 1, UNIT_SPEARMAN, 1.0e6f);
+		s.order_set_stance(&foe, 1, STANCE_PASSIVE);
+		s.order_collect_treasure(&cav, 1, treasure);
+		check((s.unit_order(cav).flags & ORDER_FLAG_FORCE) != 0, "the treasure order is forced");
+		bool fought = false;
+		for (int k = 0; k < 300 && s.unit_order(cav).kind == ORDER_COLLECT_TREASURE; ++k) {
+			s.tick(Simulation::FIXED_STEP);
+			fought |= act_of(s, cav) == ACTION_ATTACK;
+		}
+		check(!fought, "the treasure hunter rides past the enemy beside its path");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t house = s.spawn_building_world(-30.0f, 0.0f, BLD_STOREHOUSE, 0, 1.0f);
+		uint32_t w = s.spawn_unit(10.0f, 0.0f, 0, UNIT_SPEARMAN);
+		const int wi = idx_of(s, w);
+		s.units_.carry[wi] = 10;
+		s.units_.res_type_carried[wi] = 1; // wood
+		s.order_return_resource(&w, 1, house);
+		check((s.unit_order(w).flags & ORDER_FLAG_FORCE) != 0, "a player's return order is forced");
+		uint32_t foe = s.spawn_unit(12.0f, 0.0f, 1, UNIT_SPEARMAN, 1.0e6f);
+		s.units_.attacked_by[wi] = foe;
+		s.tick(Simulation::FIXED_STEP);
+		check(s.unit_order(w).kind == ORDER_RETURN_RESOURCE && act_of(s, w) != ACTION_ATTACK,
+				"attacked on the way, it keeps walking to the dropsite");
+		s.order_return_resource(&w, 1, house, false, false);
+		check(!(s.unit_order(w).flags & ORDER_FLAG_FORCE), "UnitAI's own drop-off isn't forced");
+	}
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3331,6 +3371,7 @@ int main(int argc, char **argv) {
 	test_allied_builders_continue();
 	test_work_order_queue();
 	test_rally_commands();
+	test_forced_treasure_and_return();
 	test_range_aura_not_self();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);

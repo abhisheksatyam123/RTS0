@@ -182,6 +182,73 @@ int main() {
 		CHECK(q.units_.action_state[vi] != ACTION_RETURN_DROPSITE && q.units_.pos_x[vi] < -5.0f);
 	}
 
+	// 9. GATHER.RETURNINGRESOURCE picks the dropsite once (FindNearestDropsite on enter) and
+	// APPROACHING walks to it: a nearer storehouse finished on the way waits for the next load,
+	// and a supply wagon that drives off is followed past a civic centre that is now nearer.
+	{
+		static Simulation r;
+		r.set_sim_seed(5);
+		r.reset();
+		r.set_player_active(0, true, false);
+		r.spawn_building_world(-60.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t far_store = r.spawn_building_world(30.0f, 0.0f, BLD_STOREHOUSE, 0, 1.0f);
+		const int32_t k = r.lookup_unit(r.spawn_unit(0.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN));
+		r.units_.res_type_carried[k] = RES_WOOD;
+		r.units_.carry[k] = 10;
+		r.units_.action_state[k] = ACTION_RETURN_DROPSITE;
+		r.tick(Simulation::FIXED_STEP);
+		CHECK(std::fabs(r.units_.target_x[k] - 30.0f) < 0.01f);
+		run(r, 2.0f);
+		const float x_on_way = r.units_.pos_x[k];
+		r.spawn_building_world(-6.0f, 0.0f, BLD_STOREHOUSE, 0, 1.0f); // nearer now, behind her
+		const int wood0 = r.player_resource(0, RES_WOOD);
+		float kept_x = 0.0f;
+		for (int t = 0; t < 400 && r.units_.carry[k] > 0; ++t) {
+			r.tick(Simulation::FIXED_STEP);
+			if (r.units_.carry[k] > 0) kept_x = r.units_.target_x[k];
+		}
+		std::printf("  sticky dropsite: from x %.1f she keeps to the storehouse at x %.1f and drops %d wood at x %.1f\n",
+				x_on_way, kept_x, r.player_resource(0, RES_WOOD) - wood0, r.units_.pos_x[k]);
+		CHECK(kept_x == 30.0f && r.player_resource(0, RES_WOOD) == wood0 + 10 && r.units_.pos_x[k] > 15.0f);
+		(void)far_store;
+		// The next load: the nearest again, the new storehouse.
+		r.units_.res_type_carried[k] = RES_WOOD;
+		r.units_.carry[k] = 10;
+		r.units_.action_state[k] = ACTION_RETURN_DROPSITE;
+		r.units_.target_x[k] = r.units_.pos_x[k];
+		r.units_.target_z[k] = r.units_.pos_z[k];
+		r.units_.pos_x[k] = 4.0f; // nearer the new one
+		r.tick(Simulation::FIXED_STEP);
+		CHECK(std::fabs(r.units_.target_x[k] + 6.0f) < 0.01f);
+
+		r.units_.carry[k] = 0;
+		r.units_.action_state[k] = ACTION_IDLE;
+
+		// She heads for a wagon driving off north; a storehouse finished behind her on the way,
+		// nearer than the wagon now, waits for the next load: she follows the wagon.
+		const uint32_t wagon = r.spawn_unit(-6.0f, 50.0f, 0, UNIT_WAGON);
+		const int32_t q = r.lookup_unit(r.spawn_unit(-6.0f, 26.0f, 0, UNIT_FEMALE_CITIZEN));
+		r.units_.res_type_carried[q] = RES_WOOD;
+		r.units_.carry[q] = 10;
+		r.units_.action_state[q] = ACTION_RETURN_DROPSITE;
+		r.tick(Simulation::FIXED_STEP);
+		const int32_t wj = r.lookup_unit(wagon);
+		CHECK(std::fabs(r.units_.target_x[q] - r.units_.pos_x[wj]) < 0.01f);
+		r.order_walk(&wagon, 1, -6.0f, 110.0f);
+		run(r, 1.0f);
+		r.spawn_building_world(-6.0f, 22.0f, BLD_STOREHOUSE, 0, 1.0f);
+		bool followed = true;
+		const int wood1 = r.player_resource(0, RES_WOOD);
+		for (int t = 0; t < 600 && r.units_.carry[q] > 0; ++t) {
+			r.tick(Simulation::FIXED_STEP);
+			const int32_t wj2 = r.lookup_unit(wagon);
+			if (r.units_.carry[q] > 0 && std::fabs(r.units_.target_x[q] - r.units_.pos_x[wj2]) > 0.01f) followed = false;
+		}
+		std::printf("  sticky mobile dropsite: she follows the wagon to z %.1f and drops %d wood there\n",
+				r.units_.pos_z[q], r.player_resource(0, RES_WOOD) - wood1);
+		CHECK(followed && r.player_resource(0, RES_WOOD) == wood1 + 10 && r.units_.pos_z[q] > 45.0f);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
