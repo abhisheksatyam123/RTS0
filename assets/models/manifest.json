@@ -73015,6 +73015,48 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "s_plot_field_medit": {
+   "file": "models/buildings/s_plot_field_medit.glb",
+   "origin": "ground-center",
+   "parts": 64,
+   "size_meters": [
+    8.319,
+    1.077,
+    8.558
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/farming_barley_harvest_a.xml",
+    "actor:art/actors/props/flora/farming_barley_harvest_b.xml",
+    "actor:art/actors/structures/plot_field_medit.xml",
+    "mesh:gaia/cross_large_short.dae",
+    "mesh:gaia/grass_la_tall_a.dae",
+    "mesh:structural/field_propped_a_8x8.dae",
+    "skin:gaia/farming_barley_harvest_a.png",
+    "skin:null_white.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "s_plot_field_temp": {
+   "file": "models/buildings/s_plot_field_temp.glb",
+   "origin": "ground-center",
+   "parts": 64,
+   "size_meters": [
+    8.319,
+    1.077,
+    8.558
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/farming_barley_harvest_a.xml",
+    "actor:art/actors/props/flora/farming_barley_harvest_b.xml",
+    "actor:art/actors/structures/plot_field_temp.xml",
+    "mesh:gaia/cross_large_short.dae",
+    "mesh:gaia/grass_la_tall_a.dae",
+    "mesh:structural/field_propped_a_8x8.dae",
+    "skin:gaia/farming_barley_harvest_a.png",
+    "skin:null_white.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
   "s_props_mauryas_ashoka_pillar": {
    "file": "models/buildings/s_props_mauryas_ashoka_pillar.glb",
    "generator": "tools/extract_0ad_structures.py",
@@ -73409,6 +73451,25 @@
     "skin:structural/ptol_struct.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_rice_paddy": {
+   "file": "models/buildings/s_rice_paddy.glb",
+   "origin": "ground-center",
+   "parts": 75,
+   "size_meters": [
+    5.004,
+    0.514,
+    4.733
+   ],
+   "sources": [
+    "actor:art/actors/flora/rice_sprout.xml",
+    "actor:art/actors/structures/rice_paddy.xml",
+    "mesh:gaia/rice_sprout.dae",
+    "mesh:structural/rice_paddy.dae",
+    "skin:gaia/rice_sprout.png",
+    "skin:null_white.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
   },
   "s_romans_amphitheater_pompeii": {
    "file": "models/buildings/s_romans_amphitheater_pompeii.glb",
