@@ -601,8 +601,9 @@ int main() {
 	const uint32_t bc = s.spawn_unit(20.0f, 20.0f, 6, UNIT_FEMALE_CITIZEN, 0.0f, brit_civ);
 	CHECK(s.unit_template(bc) == brit_civ);
 	const float brit_speed = civ_unit_template(brit_civ).speed;
-	// German civilians get germ_women +0.5 speed over the Briton base.
-	CHECK(std::fabs(s.units().speed[index_of(s, bc)] - (brit_speed + 0.5f)) < 1e-3f);
+	// German civilians get germ_women +0.5 m/s (x 0.356) over the Briton base: 9.5 m/s.
+	CHECK(std::fabs(s.units().speed[index_of(s, bc)] - (brit_speed + 0.5f * 0.356f)) < 1e-3f);
+	CHECK(std::fabs(s.units().speed[index_of(s, bc)] - civ_unit_template(roster_id("germ/support_civilian")).speed) < 1e-3f);
 	// Same-civ training is untouched: a Briton civilian for a Briton keeps its baked speed.
 	const uint32_t bc2 = s.spawn_unit(20.0f, 24.0f, 3, UNIT_FEMALE_CITIZEN, 0.0f, brit_civ);
 	CHECK(s.units().speed[index_of(s, bc2)] == brit_speed);

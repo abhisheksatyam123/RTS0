@@ -3703,9 +3703,9 @@ static void add_to_queue(std::vector<ProductionOrder> &queue, const ProductionOr
 	else queue.push_back(order);
 }
 
-float Simulation::batch_time_multiplier(uint8_t player_id, uint8_t bld_type, int count) const {
+float Simulation::batch_time_multiplier(uint8_t player_id, uint8_t bld_type, int count, uint8_t bld_civ) const {
 	if (count <= 1) return 1.0f;
-	float mod = trainer_batch_time_modifier(civ_of(player_id), bld_type);
+	float mod = trainer_batch_time_modifier(bld_civ < CIV_COUNT ? bld_civ : (uint8_t)civ_of(player_id), bld_type);
 	if (bld_type < BLD_TYPE_COUNT && player_id < MAX_PLAYERS) {
 		mod += tech_mods(player_id).bld_batch_time_add[bld_type]; // Conscription (barracks/stable_batch_training)
 		// phase_town_pers and phase_city_pers: Trainer/BatchTimeModifier -0.1 each for Stables.
@@ -3782,7 +3782,7 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 	order.count = (uint8_t)count;
 	order.timer = 0.0f;
 	for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = cost[r];
-	order.duration = unit_train_seconds(player_id, tmpl) * batch_time_multiplier(player_id, b.type, count);
+	order.duration = unit_train_seconds(player_id, tmpl) * batch_time_multiplier(player_id, b.type, count, b.civ);
 	add_to_queue(b.queue, order, push_front);
 	if (!triggers_.triggers.empty()) { // ProductionQueue.js AddItem: OnTrainingQueued
 		TriggerEventData ev;
@@ -9178,7 +9178,7 @@ bool Simulation::cmd_breed_livestock(uint8_t player_id, uint32_t building_id, ui
 	const float n = (float)count;
 	if (!player(b.team).pay(n * c.res[0], n * c.res[1], n * c.res[3], n * c.res[2])) return false;
 	ProductionOrder o{(uint8_t)UNIT_TYPE_NONE, 0.0f,
-		livestock_train_time(player_id, animal) * batch_time_multiplier(player_id, b.type, count)};
+		livestock_train_time(player_id, animal) * batch_time_multiplier(player_id, b.type, count, b.civ)};
 	o.tmpl = animal;
 	o.count = (uint8_t)count;
 	o.paid[RES_FOOD] = n * c.res[0];
@@ -19603,7 +19603,7 @@ bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint1
 	order.timer = 0.0f;
 	order.petra_plan = plan;
 	for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = cost[r];
-	order.duration = unit_train_seconds(pid, tmpl) * batch_time_multiplier(pid, b.type, count);
+	order.duration = unit_train_seconds(pid, tmpl) * batch_time_multiplier(pid, b.type, count, b.civ);
 	b.queue.push_back(order);
 	return true;
 }
