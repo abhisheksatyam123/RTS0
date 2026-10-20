@@ -281,45 +281,6 @@ inline uint8_t civ_building_phase(uint8_t type) {
 	}
 }
 
-// TerritoryInfluence radius of a civ-specific territory root (0 = not a root).
-inline float civ_building_territory_radius(uint8_t type) {
-	switch (type) {
-		case BLD_TACHARA: return 11.0f;
-		case BLD_PALACE: return 8.7f;
-		case BLD_MILITARY_COLONY: return 17.1f;
-		case BLD_MINISTRY: return 13.7f;
-		case BLD_SUPER_DOCK: return 45.7f;
-		case BLD_TACHARA_FOOD: return 11.0f;
-		case BLD_TACHARA_WOOD: return 11.0f;
-		case BLD_TACHARA_STONE: return 11.0f;
-		case BLD_TACHARA_METAL: return 11.0f;
-		case BLD_IMPERIAL_COURT: return 32.0f;
-		case BLD_CRANNOG: return 32.0f;
-		default: return 0.0f;
-	}
-}
-
-// Vision range of a civ-specific structure (0 = the default structure vision).
-inline float civ_building_vision(uint8_t type) {
-	switch (type) {
-		case BLD_ARMY_CAMP: return 27.0f;
-		case BLD_LIGHTHOUSE: return 97.5f;
-		case BLD_MILITARY_COLONY: return 27.0f;
-		case BLD_MINISTRY: return 24.0f;
-		case BLD_SUPER_DOCK: return 30.0f;
-		case BLD_IMPERIAL_COURT: return 27.0f;
-		case BLD_TOWER_GREAT: return 27.0f;
-		case BLD_CRANNOG: return 27.0f;
-		case BLD_WAGON_ENCAMPMENT: return 27.0f;
-		case BLD_WAGON_ENCAMPMENT_FORTIFIED: return 27.0f;
-		case BLD_TOWER_BOLT: return 24.0f;
-		case BLD_TOWER_ARTILLERY: return 24.0f;
-		case BLD_TOWER_DOUBLE: return 24.0f;
-		case BLD_FORTRESS_OLD: return 27.0f;
-		default: return 0.0f;
-	}
-}
-
 // True for a structure only an Upgrade reaches (the Tachara's tribute forms, the apartment):
 // no civ lays its foundation.
 inline bool civ_building_upgrade_only(uint8_t type) {

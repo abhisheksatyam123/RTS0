@@ -307,6 +307,10 @@ struct PetraDiplomacy {
 	uint8_t seen_stance[8] = {};   // each player's stance toward us at the last check
 	bool seen_init = false;
 	bool waiting_to_betray = false;
+	// A hash of every player's stances, the defeated players and the ceasefire at our last turn:
+	// a change is 0.28's DiplomacyChanged, PlayerDefeated or CeasefireEnded event, on which
+	// checkEvents runs lastManStandingCheck. In the padding before betray_lapse (no save bump).
+	uint16_t events_hash = 0;
 	float betray_lapse = -1.0f;
 	float elapsed = 0.0f;
 	float next_tribute = 90.0f;  // nextTributeUpdate

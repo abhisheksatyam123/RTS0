@@ -8006,7 +8006,7 @@ void RmsGenerator::synth_arctic_summer(HeightmapGrid &hm, RmsRng &rng, float &wa
 	// 8), scaleByMapSize(40, 180))), bumps, and lots of game (wolves, deer,
 	// hares, muskox: see distribute_wildlife). RTS0 keeps lakes 24 from the
 	// bases (its base layout is larger) and drops a lake that would cut a
-	// base off; whales and the starting wood treasures are left out.
+	// base off. Its whales and fish are placed by distribute_fish.
 	water_h = 1.0f;
 	const float half = hm.map_half;
 	const float land = metres(water_h, 2.0f);
@@ -13516,13 +13516,15 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 	// stayClasses(clWater, water) margin, avoidClasses(clFood, spacing) and,
 	// for Corsica's shore fish, land within shore tiles. `retry` is createObjectGroups'
 	// retryFactor; 0 is createObjectGroupsDeprecated (createFood), which makes exactly
-	// `groups` tries and keeps the ones that fit.
+	// `groups` tries and keeps the ones that fit. `fauna` places that sea creature (a
+	// whale) instead of a fish; whales mark clFood like fish, so passes keep their order.
 	struct FishPass {
 		int groups, min_n, max_n;
 		int water;
 		float spacing, spread;
 		int shore;
 		int retry = 40;
+		uint8_t fauna = 0xFF;
 	};
 	std::vector<FishPass> passes;
 	const int players = std::max(1, config.num_players);
@@ -13594,6 +13596,36 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 			break;
 		case MAP_ALPINE_LAKES: // alpine_lakes.js: 20 * numPlayers, clWater 2, clFood 8
 			passes.push_back({20 * players, 2, 3, 2, 8.0f, 2.0f, 0, 0});
+			break;
+		case MAP_ARCTIC_SUMMER:
+			// arctic_summer.js: createFood of 3 * numPlayers single fin whales, then as many
+			// humpbacks (0-3 off the tile), stayClasses(clWater, 6), avoidClasses(clFood, 20);
+			// then 25 * numPlayers groups of 2-3 fish, clWater 6, clFood 10.
+			passes.push_back({3 * players, 1, 1, 6, 20.0f, 3.0f, 0, 0, FAUNA_WHALE_FIN});
+			passes.push_back({3 * players, 1, 1, 6, 20.0f, 3.0f, 0, 0, FAUNA_WHALE_HUMPBACK});
+			passes.push_back({25 * players, 2, 3, 6, 10.0f, 2.0f, 0, 0});
+			break;
+		case MAP_POLAR_SEA:
+			// polar_sea.js: createFood of scaleByMapSize(1, 6) * 3 groups of 1-2 fin whales,
+			// then as many humpbacks (0-2 apart), clWater 6, clFood 20; then 100 groups of
+			// 2-3 fish, clWater 6, clFood 12. (Its clHill 5 lies on land, past clWater 6.)
+			passes.push_back({(int)std::ceil(sbms(1.0f, 6.0f) * 3.0f), 1, 2, 6, 20.0f, 2.0f, 0, 0, FAUNA_WHALE_FIN});
+			passes.push_back({(int)std::ceil(sbms(1.0f, 6.0f) * 3.0f), 1, 2, 6, 20.0f, 2.0f, 0, 0, FAUNA_WHALE_HUMPBACK});
+			passes.push_back({100, 2, 3, 6, 12.0f, 2.0f, 0, 0});
+			break;
+		case MAP_CYCLADIC_ARCHIPELAGO:
+			// cycladic_archipelago.js: scaleByMapSize(100, 250) single fish 0-3 off the tile,
+			// stayClasses(clWater, 1), clFood 8; then scaleByMapSize(10, 40) humpbacks the same,
+			// also avoiding the islands (clIsland, clPlayer) by 4.
+			passes.push_back({(int)std::ceil(sbms(100.0f, 250.0f)), 1, 1, 1, 8.0f, 3.0f, 0, 0});
+			passes.push_back({(int)std::ceil(sbms(10.0f, 40.0f)), 1, 1, 4, 8.0f, 3.0f, 0, 0, FAUNA_WHALE_HUMPBACK});
+			break;
+		case MAP_ISLAND_STRONGHOLD:
+			// island_stronghold.js: 25 * numPlayers groups of 2-3 fish, avoidClasses(clLand, 4,
+			// clFood, 20), retryFactor 60; then scaleByMapSize(5, 20) single humpbacks 0-3 off
+			// the tile, clLand 4, clFood 8.
+			passes.push_back({25 * players, 2, 3, 4, 20.0f, 2.0f, 0, 0});
+			passes.push_back({(int)std::ceil(sbms(5.0f, 20.0f)), 1, 1, 4, 8.0f, 3.0f, 0, 0, FAUNA_WHALE_HUMPBACK});
 			break;
 		default:
 			passes.push_back({(int)std::lround(sbms(15.0f, 50.0f)), 2, 3, 2, 20.0f, 2.0f, 0});
@@ -13678,7 +13710,8 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 			}
 			++placed;
 			for (const auto &g : group) {
-				sim.spawn_resource_world(g.first, g.second, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+				if (f.fauna != 0xFF) sim.spawn_fauna(g.first, g.second, f.fauna);
+				else sim.spawn_resource_world(g.first, g.second, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
 				food.push_back({(int)std::floor(g.first + half), (int)std::floor(g.second + half)});
 			}
 		}
@@ -13733,7 +13766,7 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 	for (size_t i = 0; i < fv.count; ++i) {
 		if (!fv.alive[i] || fauna_type_info(fv.fauna_type[i]).food_amount <= 0) continue;
 		food.push_back({fv.pos_x[i], fv.pos_z[i]});
-		if (i >= base_fauna) ++have_hunt;
+		if (i >= base_fauna && !fauna_type_info(fv.fauna_type[i]).is_naval()) ++have_hunt; // whales are not land hunt
 	}
 
 	RmsRng rng(config.seed ^ 0x52535243u); // 'RSRC'
