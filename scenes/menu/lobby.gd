@@ -1288,6 +1288,10 @@ func _on_chat(code: int, obj) -> void:
 	var me := LobbySession.player_name
 	var notify := not backlog and not replay and me != "" and RtsoUserConfig.new().get_bool("sound.notify.nick")
 	for m in messages:
+		# Two requests in flight (the /events refresh and the timer's, or a
+		# post's) can both carry a line: show each id once.
+		if int(m.get("id", 0)) <= _chat_last:
+			continue
 		var who := str(m.get("from", ""))
 		if notify and who != "" and who != me and str(m.get("text", "")).findn(me) >= 0:
 			notify = false
@@ -1297,7 +1301,7 @@ func _on_chat(code: int, obj) -> void:
 		_chat_log.append_text(_chat_time(m) + (line if line != "" else _format_chat(who, str(m.get("text", "")), me)) + "\n")
 		if str(event.get("kind", "")) == "announcement" and not backlog and not replay:
 			_show_notice(str(event.get("subject", "")), str(event.get("text", "")))
-	_chat_last = int(obj.get("last", _chat_last))
+	_chat_last = maxi(_chat_last, int(obj.get("last", _chat_last)))
 
 
 ## ChatMessageFormat: a system line in grey; a player's line with their name
