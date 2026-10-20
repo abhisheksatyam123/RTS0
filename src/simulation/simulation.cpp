@@ -31262,7 +31262,7 @@ void Simulation::petra_last_man_standing_check() {
 
 // emergencyManager.js: an emergency starts when both the population and the
 // structure count fall below a share of their best so far, or the territory
-// roots (civil centres, military colonies) fall to a share of theirs. Petra
+// roots (TerritoryInfluence Root: civic centres, colonies, wonders, ...) fall to a share of theirs. Petra
 // only tells its allies; it ends once both counts grow 20% past what they were
 // when it started, or a root is added.
 void Simulation::petra_manage_emergency(float dt) {
@@ -31273,7 +31273,7 @@ void Simulation::petra_manage_emergency(float dt) {
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
 		structs++; // getOwnStructures counts foundations too
-		if (b.build_progress >= 1.0f && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY)) roots++;
+		if (b.build_progress >= 1.0f && is_territory_root(b.type)) roots++; // TerritoryInfluence Root
 	}
 	auto &e = petra_emergency_;
 	// init(): nothing to measure before the match has put anything down.
