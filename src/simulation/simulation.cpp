@@ -1196,6 +1196,51 @@ void Simulation::set_resource_position(uint32_t res_id, float x, float z) {
 	resources_.z[it->second] = z;
 }
 
+size_t Simulation::snap_trees_to_tiles() {
+	// rmgen's SimpleTerrain.place (Terrain.js) puts a painted tree at its tile's centre and
+	// replaces whatever tree the tile had, so 0.28's woods have one tree per 4 m tile and
+	// infantry can thread them. RTS0's groves and stragglers are scattered: each tree takes its
+	// own tile, or the nearest free one of the eight round it (on dry ground), or goes.
+	const int hr = terrain_res_, tr = hr - 1;
+	if (tr <= 0) return 0;
+	const float tile = 2.0f * map_half_ / (float)tr;
+	std::vector<uint8_t> taken((size_t)tr * (size_t)tr, 0);
+	size_t removed = 0;
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.type[r] != RES_WOOD || resources_.subtype[r] != RES_SUB_NONE) continue;
+		const float x = resources_.x[r], z = resources_.z[r];
+		const int ti = std::clamp((int)std::floor((x + map_half_) / tile), 0, tr - 1);
+		const int tj = std::clamp((int)std::floor((z + map_half_) / tile), 0, tr - 1);
+		int best = -1;
+		float best_d2 = 1e30f, bx = x, bz = z;
+		for (int dj = -1; dj <= 1; ++dj)
+			for (int di = -1; di <= 1; ++di) {
+				const int i = ti + di, j = tj + dj;
+				if (i < 0 || j < 0 || i >= tr || j >= tr || taken[(size_t)j * tr + i]) continue;
+				const float cx = -map_half_ + ((float)i + 0.5f) * tile, cz = -map_half_ + ((float)j + 0.5f) * tile;
+				const float d2 = (cx - x) * (cx - x) + (cz - z) * (cz - z);
+				if (d2 >= best_d2) continue;
+				if ((di || dj) && get_terrain_height(cx, cz) < terrain_water_height_ + 0.15f) continue;
+				if (past_map_edge(cx, cz)) continue; // keep_resources_passable kept it inside the edge ring
+				best = j * tr + i;
+				best_d2 = d2;
+				bx = cx;
+				bz = cz;
+			}
+		if (best < 0) {
+			resources_.alive[r] = 0;
+			resources_.amount[r] = 0;
+			++removed;
+			continue;
+		}
+		taken[(size_t)best] = 1;
+		resources_.x[r] = bx;
+		resources_.z[r] = bz;
+	}
+	gaia_obstacles_sig_ = 0;
+	return removed;
+}
+
 void Simulation::set_fauna_position(uint32_t fauna_id, float x, float z) {
 	auto it = fauna_id_to_idx_.find(fauna_id);
 	if (it == fauna_id_to_idx_.end()) return;
@@ -1385,6 +1430,7 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	RmsGenerator::paint_terrain(*this, seed, (uint8_t)type);
 	RmsGenerator::plant_flora(*this, seed, (uint8_t)type);
 	RmsGenerator::keep_resources_passable(*this, (uint8_t)type);
+	snap_trees_to_tiles();
 	RmsGenerator::set_mine_gatherers(*this, (uint8_t)type);
 	if (nomad_) remove_player_structures();
 	register_map_triggers(type);
