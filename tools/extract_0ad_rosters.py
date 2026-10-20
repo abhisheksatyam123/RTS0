@@ -1142,6 +1142,10 @@ MAP_ROWS = (
     "units/ptol/champion_juggernaut",
     "units/rome/hero_marcellus_infantry", "units/rome/hero_maximus_infantry", "units/rome/hero_scipio_infantry",
     "units/rome/infantry_swordsman_slave",
+    # The Marian legionaries (Egypt 3v3, Gallic Fields, Extinct Volcano): _02 promotes to _03
+    # at 150 xp and _03 to the Centurion (_04) at 300; the Praetorian Guard (_05) never promotes.
+    "units/rome/champion_infantry_swordsman_02", "units/rome/champion_infantry_swordsman_03",
+    "units/rome/champion_infantry_swordsman_04", "units/rome/champion_infantry_swordsman_05",
     "units/spart/champion_infantry_pike",
     "units/merc_black_cloak", "units/noldor_warship",
     "units/pirates/ship_arrow", "units/pirates/ship_merchant", "units/pirates/ship_scout",

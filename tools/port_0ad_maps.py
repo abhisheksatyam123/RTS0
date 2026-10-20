@@ -268,6 +268,19 @@ def _wall_length(root):
         return None
 
 
+# simulation/templates/campaigns/: army_* are hero or champion swordsmen (their parents,
+# here the army's own hero), campaign_city_* civic centres and campaign_religious_test a
+# temple, all Macedonian or Spartan as their names say.
+CAMPAIGN_STAND_INS = {
+    "campaigns/army_mace_hero_alexander": "units/mace/hero_alexander_iii",
+    "campaigns/army_spart_hero_leonidas": "units/spart/hero_leonidas",
+    "campaigns/army_mace_standard": "units/mace/champion_infantry_swordsman",
+    "campaigns/campaign_city_test": "structures/mace/civil_centre",
+    "campaigns/campaign_city_minor_test": "structures/mace/civil_centre",
+    "campaigns/campaign_religious_test": "structures/mace/temple",
+}
+
+
 def _obstruction(root):
     """The Obstruction Static (width, depth) of a template, or None."""
     try:
@@ -887,6 +900,13 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             ltpl = tpl.lower()
             if not ltpl or ltpl.startswith("actor|") or "decal" in ltpl or "particle" in ltpl:
                 continue
+            if ltpl.startswith("territory_pulls/"):
+                continue  # campaign_test_map's territory_pull_30 markers: RTS0 has no such entity
+            if ltpl in CAMPAIGN_STAND_INS:
+                # The campaign test maps' armies and cities (simulation/templates/campaigns/)
+                # stand in as the unit or structure their template inherits from.
+                tpl = CAMPAIGN_STAND_INS[ltpl]
+                ltpl = tpl.lower()
 
             if ply == 0:
                 # Gaia: resources, fauna, treasures, ruins, and Gaia-owned units and structures

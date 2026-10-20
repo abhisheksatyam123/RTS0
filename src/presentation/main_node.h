@@ -529,7 +529,7 @@ public:
 	String ai_settings_text(uint8_t pid) const override;
 	// soundNotification("nick"): the chime, at most once per 3 s of mentions.
 	void sound_notification_nick();
-	void chat_open_page(); // Chat.openPage(""): the chat hotkey
+	bool chat_open_page(); // Chat.openPage(""): the chat hotkey; false once disconnected
 	uint64_t nick_notify_ms_ = 0;
 	bool mass_tribute_held() const override { return rtso::hotkeys::held("session.masstribute"); }
 	String player_names_[rtso::MAX_PLAYERS];

@@ -278,6 +278,8 @@ inline constexpr PromotionStep PROMOTION_STEPS[] = {
 	{"athen/infantry_marine_archer_b", 2, 100, nullptr, 3},
 	{"han/cavalry_crossbowman_b", 1, 150, nullptr, 2},
 	{"han/cavalry_crossbowman_b", 2, 150, nullptr, 3},
+	{"rome/champion_infantry_swordsman_02", 1, 150, "rome/champion_infantry_swordsman_03", 1},
+	{"rome/champion_infantry_swordsman_03", 1, 300, "rome/champion_infantry_swordsman_04", 1},
 	{"rome/cavalry_auxiliary_b", 1, 150, nullptr, 2},
 	{"rome/cavalry_auxiliary_b", 2, 150, nullptr, 3},
 };

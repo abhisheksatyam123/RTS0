@@ -124,6 +124,12 @@ func run() -> void:
 	for it in lobby._players.get_root().get_children():
 		ratings[it.get_text(1)] = it.get_text(2)
 	check(ratings == {"alice": "1265", "bob": "1135"}, "the player list's Rating column (%s)" % str(ratings))
+	# PlayerList.xml: the Rating column sorts, low to high first, then high to low.
+	lobby.sort_players_by(2)
+	check(lobby._players.get_root().get_child(0).get_text(1) == "bob", "Rating sorts low to high")
+	lobby.sort_players_by(2)
+	check(lobby._players.get_root().get_child(0).get_text(1) == "alice", "a second click sorts high to low")
+	lobby.sort_players_by(1)
 	var bob_item: TreeItem = lobby._players.get_root().get_child(1)
 	bob_item.select(0)
 	await until(func() -> bool: return lobby._profile_values["totalGamesPlayed"].text == "1")
