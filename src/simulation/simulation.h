@@ -1045,6 +1045,7 @@ public:
 	// dropsite, drop it, then take the next queued order or idle.
 	// force: a player's or Petra's ReturnResource; UnitAI's own drop-offs (PushOrderFront) are unforced.
 	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false, bool force = true);
+	void order_return_to_unit(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued, bool force);
 	bool dropsite_accepts(size_t unit_idx, const Building &b) const; // carried type, owner, finished
 	bool can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const;
 	// ResourceGatherer CanReturnResource's owner test: `player`'s own dropsite, or a shared one of a
@@ -2265,6 +2266,7 @@ public:
 		auto it = field_res_by_bld_.find(building_id);
 		return it != field_res_by_bld_.end() && res_id_to_idx_.count(it->second) ? it->second : 0;
 	}
+	bool is_resource_id(uint32_t id) const { return res_id_to_idx_.count(id) != 0; }
 	// Whether any of these units can gather this supply (unit_actions "gather" getActionInfo).
 	bool any_can_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id) const {
 		auto rit = res_id_to_idx_.find(resource_id);
