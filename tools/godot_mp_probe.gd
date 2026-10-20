@@ -340,6 +340,8 @@ func _run() -> void:
 					int(main.get_turn_hash(turns)), str(main.get_game_speed()), int(ms.slot_civs[1]),
 					int(ms.slot_teams[1]) if ms.slot_teams.size() > 1 else -1, int(ms.slot_colors[1]),
 					str(st.get("chat", "")).count("has rejoined the game.")])
+			# PlayerName onFinalizeAttributes: the seated clients' names are the players' names.
+			_say("slot_names=" + "|".join(Array(ms.slot_names).slice(0, 2)))
 			# 0.28 PauseOverlay: the client sees "Paused by" the host's name in its colour.
 			if role == "host":
 				main.toggle_pause()

@@ -633,8 +633,15 @@ public:
 
 				// 0.28's Upgrade panel for a structure (g_SelectionPanels.Upgrade): an icon button per
 				// choice (the target's portrait), or "Cancel Upgrading" over the progress overlay
-				// while it upgrades.
-				if (found_b->team == local_player()) {
+				// while it upgrades. Upgrade.getItems shows nothing when the selection mixes templates.
+				bool one_template = true;
+				for (uint32_t id : host_->ui_selected_structures())
+					for (const auto &o : sim->buildings())
+						if (o.id == id) {
+							one_template = one_template && o.type == found_b->type && o.civ == found_b->civ;
+							break;
+						}
+				if (found_b->team == local_player() && one_template) {
 					const bool upgrading = found_b->upgrade_to != rtso::BLD_TYPE_COUNT;
 					for (int choice = 0; choice < rtso::building_upgrade_count(found_b->type, sim->structure_upgrade_civ(*found_b)); ++choice) {
 						const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, sim->structure_upgrade_civ(*found_b), choice);
@@ -788,11 +795,7 @@ public:
 							tr0("You cannot destroy this entity as you own less than half the capture points"), "kill_small_disabled.png",
 							false);
 				else
-					add_entity_command("delete", "Delete", "session.kill",
-							tr0("Self-Destruct") + "\n" + tr0("Destroy the selected entities.") + "\n" +
-									rtso::sprintf0(tr0("Use %(hotkey)s to avoid the confirmation dialog."),
-											{{"hotkey", rtso::hotkey_tag(rtso::hotkeys::table().label("session.noconfirmation").c_str())}}),
-							"kill_small.png");
+					add_entity_command("delete", "Delete", "session.kill", self_destruct_tooltip(), "kill_small.png");
 				if (rally)
 					add_entity_command("focus-rally", "Focus on Rally Point", "camera.rallypointfocus",
 							tip("Focus on Rally Point", "Center the view on the selected rally point."), "focus-rally.png");
@@ -1133,10 +1136,7 @@ public:
 						add_entity_command("unload-all", "Unload All", "session.unload",
 								"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, passengers);
 					if (any_deletable)
-						add_entity_command("delete", "Delete", "session.kill",
-								String("Self-Destruct\nDestroy the selected entities.\nUse ") +
-										rtso::hotkeys::table().label("session.noconfirmation").c_str() + " to avoid the confirmation dialog.",
-								"kill_small.png");
+						add_entity_command("delete", "Delete", "session.kill", self_destruct_tooltip(), "kill_small.png");
 					if (any_busy)
 						add_entity_command("stop", "Abort", "session.stop",
 								"Abort\nCancel the current orders for the selected units.", "stop.png");
@@ -1577,7 +1577,13 @@ private:
 		const auto &ps = sim->player(pid);
 		const int size = std::max(1, host_->ui_batch_size());
 		const bool shift = rtso::hotkeys::held("session.batchtrain");
-		const bool upgrading = b && b->upgrade_to != rtso::BLD_TYPE_COUNT;
+		// selection_panels.js Training: "Cannot train while upgrading." once every selected
+		// structure is upgrading.
+		bool upgrading = b && b->upgrade_to != rtso::BLD_TYPE_COUNT;
+		if (upgrading)
+			for (uint32_t id : host_->ui_selected_structures())
+				for (const auto &o : sim->buildings())
+					if (o.id == id) { upgrading = upgrading && o.upgrade_to != rtso::BLD_TYPE_COUNT; break; }
 		const uint16_t trainer_tmpl = b ? 0 : sim->unit_template(trainer_unit_id_);
 		for (int idx = 0; idx < roster_list_->get_item_count() && idx < (int)roster_state_.size(); ++idx) {
 			const int meta = (int)roster_list_->get_item_metadata(idx);
@@ -1616,7 +1622,7 @@ private:
 				pop = u.pop_cost;
 				seconds = sim->unit_train_seconds(pid, tmpl);
 			}
-			const float batch_mult = b ? sim->batch_time_multiplier(pid, b->type, batch) : sim->unit_trainer_batch_mult(trainer_tmpl, tmpl, batch);
+			const float batch_mult = b ? sim->batch_time_multiplier(pid, b->type, batch, b->civ) : sim->unit_trainer_batch_mult(trainer_tmpl, tmpl, batch);
 			const rtso::CostTip total{(int64_t)std::floor(cost[rtso::RES_FOOD] * num), (int64_t)std::floor(cost[rtso::RES_WOOD] * num),
 					(int64_t)std::floor(cost[rtso::RES_STONE] * num), (int64_t)std::floor(cost[rtso::RES_GOLD] * num),
 					(int64_t)pop * num, (int64_t)std::ceil(seconds * batch_mult)};
@@ -1786,6 +1792,14 @@ private:
 					"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, count);
 	}
 
+	// unit_actions.js "delete": Self-Destruct, its body and the colorized noconfirmation line.
+	static godot::String self_destruct_tooltip() {
+		using rtso::tr0;
+		return tr0("Self-Destruct") + "\n" + tr0("Destroy the selected entities.") + "\n" +
+				rtso::sprintf0(tr0("Use %(hotkey)s to avoid the confirmation dialog."),
+						{{"hotkey", rtso::hotkey_tag(rtso::hotkeys::table().label("session.noconfirmation").c_str())}});
+	}
+
 	// One g_EntityCommands button (unit_actions.js): the hotkey and title on the
 	// tooltip's first line, the body below, the icon, and a count where it has one.
 	void add_entity_command(const char *name, const char *label, const char *hotkey, const godot::String &tip,
@@ -1797,7 +1811,14 @@ private:
 		const String text = count > 0 ? String(label) + " (" + String::num_int64(count) + ")" : String(label);
 		btn->set_meta("label", text);
 		const std::string key = (hotkey && *hotkey) ? rtso::hotkeys::table().label(hotkey) : std::string();
-		btn->set_tooltip_text(key.empty() ? tip : rtso::hotkey_tag(String(key.c_str())) + " " + tip);
+		// A "Title\nBody" literal is two msgids (translate(title) + "\n" + translate(body)).
+		String text_tip = tip;
+		const int nl = tip.find("\n");
+		if (nl < 0)
+			text_tip = rtso::tr0(tip);
+		else if (tip.find("\n", nl + 1) < 0)
+			text_tip = rtso::tr0(tip.substr(0, nl)) + "\n" + rtso::tr0(tip.substr(nl + 1));
+		btn->set_tooltip_text(key.empty() ? text_tip : rtso::hotkey_tag(String(key.c_str())) + " " + text_tip);
 		Ref<Texture2D> ico = rtso::load_ui_texture(String("res://assets/textures/ui/archive/icons/") + icon);
 		if (ico.is_valid()) {
 			// 0.28's command row is icons, with the count (Unload All) on the icon.

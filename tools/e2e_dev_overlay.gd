@@ -8,7 +8,8 @@ extends SceneTree
 # re-seats this client; Enable time warp snapshots the game every 10 turns and rewinds
 # to the last one, keeping the selection and control groups; the pathfinder, hierarchical pathfinder, obstruction, unit motion,
 # range and bounding box overlays draw while ticked; Enable culling, Lock cull camera,
-# Display camera frustum and Display shadows frustum drive the culling and its boxes;
+# Display camera frustum and Display shadows frustum drive the culling and its boxes (a locked
+# cull camera hides the units and structures outside it);
 # Activate Rejoin Test (not on random maps) rejoins a copy of
 # the game and replays every turn onto it, an Out of Sync box naming any turn
 # where the two part.
@@ -235,6 +236,17 @@ func run() -> void:
 	check(int(d["range_drawn"]) > 0, "the range overlay rings the attackers (%d)" % int(d["range_drawn"]))
 	check(int(d["bounding_box_drawn"]) > 0, "the bounding box overlay boxes the models (%d)" % int(d["bounding_box_drawn"]))
 	check(main.find_child("DebugOverlays", true, false).visible, "and they are shown")
+	var nsel: int = Array(main.debug_selection_state()["selected"]).size()
+	check(int(d["unit_motion_drawn"]) <= nsel and int(d["bounding_box_drawn"]) % 2 == 0 and int(d["bounding_box_drawn"]) <= 2 * (nsel + 4),
+		"only the selection's paths (%d of %d), and two boxes per selected or hovered model, bounds and selection box (%d)"
+		% [int(d["unit_motion_drawn"]), nsel, int(d["bounding_box_drawn"])])
+	main.clear_selection()
+	await frames(2)
+	d = main.debug_dev_overlay()
+	check(int(d["unit_motion_drawn"]) == 0 and int(d["obstruction_drawn"]) > 0,
+		"with nothing selected no path is drawn, the other overlays stay")
+	main.debug_selection_grid(true)
+	await frames(2)
 	for label in ["Pathfinder overlay", "Hierarchical pathfinder overlay", "Obstruction overlay", "Unit motion overlay", "Range overlay", "Bounding box overlay"]:
 		check(box(label).button_pressed, "%s stays ticked" % label)
 		press(label)
@@ -321,9 +333,20 @@ func run() -> void:
 	press("Enable culling")
 	await frames(2)
 	check(main.debug_dev_overlay()["culling_enabled"], "ticking it again restores culling")
+	var shown_all: int = int(main.debug_dev_overlay()["structures_shown"])
+	# Lock the cull camera over the far side of the map, then look back at the base.
+	var home_cam: Dictionary = rig.camera_data()
+	var home := Vector3(float(home_cam["x"]), 0, float(home_cam["z"]))
+	rig.set_target_pos(Vector3(-home.x, 0, -home.z))
+	await frames(2)
 	press("Lock cull camera")
 	await frames(2)
 	check(main.debug_dev_overlay()["lock_cull_camera"], "Lock cull camera holds the cull frustum")
+	rig.set_target_pos(home)
+	await frames(2)
+	var shown_locked: int = int(main.debug_dev_overlay()["structures_shown"])
+	check(shown_locked < shown_all,
+		"and what lies outside it is not drawn: %d of %d structures shown" % [shown_locked, shown_all])
 	press("Display camera frustum")
 	press("Display shadows frustum")
 	await frames(2)
@@ -334,6 +357,7 @@ func run() -> void:
 	press("Display shadows frustum")
 	press("Lock cull camera")
 	await frames(2)
+	check(int(main.debug_dev_overlay()["structures_shown"]) == shown_all, "unlocked, every structure is drawn again")
 
 	var rdm = main.find_child("RenderDebugMode", true, false)
 	check(rdm != null and rdm.get_item_count() == 4 and rdm.get_item_text(0) == "Render Debug Mode Disabled"

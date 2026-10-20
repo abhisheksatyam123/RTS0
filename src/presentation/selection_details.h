@@ -150,14 +150,16 @@ inline String healer_tooltip(const Simulation::UnitDetails &d) {
 			part("Interval:", String::num(d.heal_interval, 1), d.heal_interval == 1.0f ? "second" : "seconds");
 }
 
-// getGatherTooltip: "Gather Rates: Food (grain) 0.25  Wood 0.75 ...". Ruins are left out, as in 0.28.
+// getGatherTooltip: "Gather Rates: [fish] 0.80  [fruit] 1.00 ...", one icon per resource subtype in
+// data/resources order (food: fish, fruit, grain, meat; then wood, stone, metal). Ruins are left out, as in 0.28.
 inline String gather_tooltip(const Simulation::UnitDetails &d) {
-	static const char *const kKinds[] = {"Grain", "Fruit", "Meat", "Fish", "Wood", "Stone", "Metal"};
+	static const struct { int k; const char *icon; } kKinds[] = {
+		{3, "fish"}, {1, "fruit"}, {0, "grain"}, {2, "meat"}, {4, "wood"}, {5, "stone"}, {6, "metal"}};
 	String rates;
-	for (int k = 0; k < 7; ++k) {
-		if (d.gather[k] <= 0.0f) continue;
+	for (const auto &kind : kKinds) {
+		if (d.gather[kind.k] <= 0.0f) continue;
 		if (!rates.is_empty()) rates += "  ";
-		rates += sprintf0(tr0("%(resourceIcon)s %(rate)s"), {{"resourceIcon", tr0(kKinds[k])}, {"rate", fixed(d.gather[k], 2)}});
+		rates += sprintf0(tr0("%(resourceIcon)s %(rate)s"), {{"resourceIcon", resource_icon(kind.icon)}, {"rate", fixed(d.gather[kind.k], 2)}});
 	}
 	return rates.is_empty() ? rates : sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Gather Rates:")}, {"details", rates}});
 }

@@ -770,6 +770,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				uint8_t rally_cmd = rtso::RALLY_CMD_AUTO;
 				rally_target_at(click_pos, target_res, target_bld, &target_ent, &rally_cmd);
 				if (auto_rally) target_bld = selected_building_id, rally_cmd = rtso::RALLY_CMD_AUTO;
+				// A market too close to this one: the "trade" rally action is disabled (no gain).
+				if (rally_cmd == rtso::RALLY_CMD_TRADE) {
+					rtso::Simulation::TradeGain g;
+					if (rally_route_gain(target_bld, g) && g.trader <= 0) return;
+				}
 				// session.queue (Shift) adds a position after the ones set (RallyPoint.AddPosition).
 				const bool rally_queued = rtso::hotkeys::held("session.queue");
 				// unit_actions.js "set-rallypoint": every selected structure with a RallyPoint.
@@ -988,6 +993,31 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// A loaded ship right-clicked on land just moves (unit_actions.js has no unload-on-click
 			// action): passengers leave through Unload All, the garrison icons or session.unload.
 
+			// 0. returnresource (specificness 2) on a supply wagon or worker elephant the carriers
+			// may drop at (ResourceDropsite on template_unit_support_wagon / _elephant).
+			{
+				uint32_t drop_id = 0;
+				float best = 2.2f * 2.2f;
+				for (size_t i = 0; i < uview.count; ++i) {
+					if (!uview.alive[i] || !rtso::unit_is_mobile_dropsite(uview.unit_type[i])) continue;
+					const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
+					if (dx * dx + dz * dz >= best) continue;
+					bool carriers = false;
+					for (size_t k = 0; k < sel_n && !carriers; ++k) carriers = sim->can_return_resource(sel_ptr[k], uview.id[i]);
+					if (!carriers) continue;
+					best = dx * dx + dz * dz;
+					drop_id = uview.id[i];
+				}
+				if (drop_id != 0) {
+					if (turn_cmds())
+						post_lockstep(34, sel_ptr, sel_n, 0, 0, drop_id, qbit);
+					else
+						sim->order_return_resource(sel_ptr, sel_n, drop_id, queue_shift);
+					play_civ_voice("gather");
+					return;
+				}
+			}
+
 			// 1. session.garrison + right click on an own or allied ship, ram or siege tower (board it).
 			// unit_actions.js "garrison" takes any GarrisonHolder: warships, rams and siege towers.
 			// Its specificness 20 loses to "repair" (11) and "move" (12): a plain click walks there.
@@ -1198,6 +1228,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				play_civ_voice("gather");
 				return;
 			}
+			// unit_actions "gather" needs a unit that can gather it; else the click falls through (move).
+			if (clicked_res_id != 0 && !sim->any_can_gather(sel_ptr, sel_n, clicked_res_id)) clicked_res_id = 0;
 			if (clicked_res_id != 0) {
 				if (turn_cmds())
 					post_lockstep(4, sel_ptr, sel_n, 0, 0, clicked_res_id, qbit);
@@ -1606,7 +1638,8 @@ std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
 	const bool idle_only = rtso::hotkeys::held("selection.idleonly");
 	const bool wounded_only = rtso::hotkeys::held("selection.woundedonly");
 	auto in_box = [&](float x, float z) {
-		const Vector3 world_pos(x, 0, z);
+		// The entity as drawn, on the ground (PickPlayerEntitiesInRect projects its position).
+		const Vector3 world_pos(x, sim->get_terrain_height(x, z), z);
 		if (cam->is_position_behind(world_pos)) return false;
 		const Vector2 sp = cam->unproject_position(world_pos);
 		return sp.x >= min_p.x && sp.x <= max_p.x && sp.y >= min_p.y && sp.y <= max_p.y;
