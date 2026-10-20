@@ -602,7 +602,8 @@ static void test_diplomacy() {
 		// Hits on a Gaia animal and on an enemy structure count too (Attacked is sent for any entity).
 		const auto ally_hits = [&](const char *what, auto order) {
 			std::vector<uint32_t> bows;
-			for (int i = 0; i < 3; ++i) bows.push_back(s->spawn_unit(tx - 12.0f + 2.0f * (float)i, tz + 20.0f, 2, UNIT_ARCHER));
+			// Where the elephant fight above was: our land, the archers in reach.
+			for (int i = 0; i < 3; ++i) bows.push_back(s->spawn_unit(tx + 12.0f + 2.0f * (float)i, tz + 20.0f, 2, UNIT_ARCHER));
 			s->petra_config_slot(1).cooperative = 0.5f;
 			order(bows);
 			run_for(*s, 10.0f);
@@ -611,10 +612,13 @@ static void test_diplomacy() {
 			CHECK(now > 0.5f, "an ally's hits on it raise cooperativeness");
 			drop(bows);
 		};
-		const uint32_t deer = s->spawn_fauna(tx - 12.0f, tz + 12.0f, FAUNA_DEER);
-		ally_hits("deer", [&](std::vector<uint32_t> &bows) { s->order_attack(bows.data(), bows.size(), deer); });
-		const uint32_t house = s->spawn_building_world(tx - 12.0f, tz + 8.0f, BLD_HOUSE, 0);
-		ally_hits("house", [&](std::vector<uint32_t> &bows) { s->order_attack_building(bows.data(), bows.size(), house); });
+		if (const int32_t e = s->lookup_unit(foe); e >= 0) s->units_.alive[e] = false;
+		// A boar: Petra's hunters leave a live one alone (isHuntable), so only the ally hits it.
+		const uint32_t boar = s->spawn_fauna(tx + 12.0f, tz + 12.0f, FAUNA_BOAR);
+		ally_hits("boar", [&](std::vector<uint32_t> &bows) { s->order_hunt(bows.data(), bows.size(), boar); });
+		// Gaia's: a house of player 0 would claim its own ground (TerritoryInfluence).
+		const uint32_t house = s->spawn_building_world(tx + 12.0f, tz + 12.0f, BLD_HOUSE, GAIA_PLAYER);
+		ally_hits("Gaia house", [&](std::vector<uint32_t> &bows) { s->order_attack_building(bows.data(), bows.size(), house); });
 	}
 
 	// Last Man Standing with unlocked teams: lobby teams only set the starting
