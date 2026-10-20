@@ -357,6 +357,21 @@ CCmpCinemaManager, CinemaManager, CCinemaPath and session.js's cinema handling w
 | CI13 | Path names are cut to 31 bytes (0 A.D. 128); a target path without targets becomes a plain path (0 A.D. ENSURE); a path without nodes is refused | low | Deliberate |
 | CI14 | 0 A.D. turns the silhouettes setting off and reloads the config afterwards, and keeps the GUI when disconnected; RTS0 hides silhouettes only on screen | cosmetic | Deliberate |
 
+Trigger.js, TriggerPoint.js, Timer.js and every TriggerHelper.js helper were checked against triggers.h and the map script ports; flood, extinct_volcano, polar_sea, survivalofthefittest, elephantine, danubius, jebel_barkal, treasure_islands, gallic_fields_3p and death_canyon line by line:
+
+| # | Gap | Severity | State |
+|---|---|---|---|
+| TH1 | Extinct Volcano's Gaia forts were 5-slot defense towers holding 5 Roman champions; 0.28's palisades_fort is a sentry tower filled to its 3 | medium | Fixed |
+| TH2 | Elephantine's tower and temple garrisons left out the Noba skirmishers and macemen (merc_e); GetTemplateNamesByClasses keeps them | low-medium | Fixed |
+| TH3 | OnOwnershipChanged is polled after the turn's timers, so a timer could act on an entity that changed hands the turn before (a Survival wave at a fallen CC); 0 A.D. sends it at once | low | Fixed in effect: the watches also run before the timers. Still polled within a turn |
+| TH4 | A defeated player's trigger points kept their owner; 0.28 hands them to Gaia, so Gallic Fields' waves from them walk to a Gaia A point | low | Fixed |
+| TH5 | SpawnUnits places units round the trigger point's 2 m footprint (PickSpawnPoint); RTS0 spreads them on a spiral or ring | cosmetic | Open |
+| TH6 | Jebel Barkal's elephants drew their target classes once per wave; 0.28 draws once per player | low | Fixed |
+| TH7 | Danubius ships that couldn't unload kept their landing point and retried every 5 s; 0.28 unloads once and moves on either way, and draws the formation even when nobody is aboard | low | Fixed |
+| TH8 | Danubius' ritual made only infantry, women and healers defensive; 0.28 does every Gaia Human (cavalry too) | low | Fixed |
+| TH9 | GetLandSpawnPoints left out treasures and catafalques | low | Fixed |
+| TH10 | Gallic Fields rounds the wave delay to whole ms; float vs double in RandomTemplateComposition; RegisterTrigger has no duplicate guard | negligible | Open |
+
 ## Read this first: whole-game parity (refreshed 2026-10-08, evening)
 
 The G1–G10 table below grades individual systems against 0 A.D.'s semantics, and `python3 tools/check_parity.py` reports 92% for them. Those scores are self-graded and only cover the systems listed. Judged by what a match actually plays like, RTS0 was **a little over half way** to 0 A.D. at that time (the open gaps now are in "Open gaps, re-check 3" below). That was an estimate from a code-only re-audit of main at `bff4f1c` (rechecked against `d8dd7af`, which adds a Gaia owner for defeated players' leftovers and sea fish) against 0 A.D.'s simulation components, UnitAI, session GUI, `config/default.cfg` hotkeys, game setup, gaia templates and renderer.
