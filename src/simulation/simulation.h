@@ -2628,6 +2628,7 @@ private:
 	uint32_t idle_stuck_key() const { const uint32_t k = short_path_key_ ^ 0x6C8E9CF5u; return k ? k : 3u; }
 	void separation(float dt, Arena &arena, const MoveSteps &steps);
 	void motion_feedback(float dt, const MoveSteps &steps);
+	void finish_ended_walks(); // UnitAI WALKING FinishOrder for walks move_units / motion_feedback ended
 	void patrol_arrive(size_t i);
 	void patrol_next_leg(size_t i);
 	// A chase (UnitAI COMBAT.APPROACHING / CHASING): the target (the unit, or the centre of the
