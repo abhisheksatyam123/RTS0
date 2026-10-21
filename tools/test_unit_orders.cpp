@@ -3711,6 +3711,36 @@ static void test_walk_to_target() {
 	check(dist(s, trader, x_of(s, hurt), z_of(s, hurt)) < 4.0f, "and reaches him");
 }
 
+static void test_queued_hunt_board() {
+	std::printf("101. Shift queues a hunt and a boarding behind the current order (unit_actions.js gather/garrison \"queued\")\n");
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(0.0f, -30.0f, BLD_TOWN_CENTER, 0, 1.0f); // territory
+	const uint32_t chicken = s.spawn_fauna(20.0f, 10.0f, FAUNA_CHICKEN);
+	uint32_t cav = s.spawn_unit(0, 0, 0, UNIT_CAVALRY);
+	s.order_walk(&cav, 1, 10, 0);
+	s.order_hunt(&cav, 1, chicken, true);
+	const std::vector<UnitOrder> *q = s.unit_order_queue(cav);
+	check(s.unit_order(cav).kind == ORDER_WALK && q && q->size() == 1 && (*q)[0].kind == ORDER_HUNT,
+			"the hunt waits behind the walk");
+	s.order_walk(&cav, 1, -10, 0, true); // and a walk after the hunt
+	const bool hunting = run_until(s, 10.0f, [&] { return target_of(s, cav) == chicken; });
+	check(hunting, "after the walk it hunts the chicken");
+	q = s.unit_order_queue(cav);
+	check(q && q->size() == 1 && (*q)[0].kind == ORDER_WALK, "with the walk still queued");
+	run_until(s, 20.0f, [&] { return s.unit_order(cav).kind == ORDER_GATHER; });
+	q = s.unit_order_queue(cav);
+	check(s.unit_order(cav).kind == ORDER_GATHER && q && q->size() == 1, "the kill goes on to the carcass, the walk still queued");
+
+	const uint32_t tower = s.spawn_unit(-20.0f, 10.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, civ_unit_template_by_id("mace/siege_tower"));
+	uint32_t archer = s.spawn_unit(-10.0f, 0.0f, 0, UNIT_ARCHER);
+	s.order_walk(&archer, 1, -10, 10);
+	s.order_board_transport(&archer, 1, tower, true);
+	check(s.unit_order(archer).kind == ORDER_WALK, "the archer walks first");
+	const bool aboard = run_until(s, 15.0f, [&] { return act_of(s, archer) == ACTION_GARRISONED; });
+	check(aboard, "then boards the siege tower");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3819,6 +3849,7 @@ int main(int argc, char **argv) {
 	test_heal_click_targets();
 	test_guard_click_targets();
 	test_walk_to_target();
+	test_queued_hunt_board();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

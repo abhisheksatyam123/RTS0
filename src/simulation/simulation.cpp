@@ -10286,9 +10286,16 @@ size_t Simulation::get_transport_passenger_count(uint32_t transport_id) const {
 	return 0;
 }
 
-void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, uint32_t transport_id) {
+void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, uint32_t transport_id, bool queued) {
 	int32_t tidx = lookup_unit(transport_id);
 	if (tidx < 0 || !units_.alive[tidx] || !is_transport(transport_id)) return;
+	std::vector<uint32_t> now; // Shift (unit_actions.js garrison "queued")
+	if (queued) {
+		UnitOrder o; o.kind = ORDER_BOARD; o.target = transport_id; o.x = units_.pos_x[tidx]; o.z = units_.pos_z[tidx];
+		now = split_queued(unit_ids, count, o, true);
+		unit_ids = now.data();
+		count = now.size();
+	}
 	float tx = units_.pos_x[tidx];
 	float tz = units_.pos_z[tidx];
 	uint8_t team = units_.team[tidx];
@@ -10323,7 +10330,7 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 		} else {
 			units_.action_state[uidx] = ACTION_MOVE;
 			units_.has_order[uidx] = 1;
-			drop_orders(uidx);
+			replace_orders(uidx);
 			units_.target_unit_id[uidx] = transport_id;
 			units_.target_x[uidx] = tx;
 			units_.target_z[uidx] = tz;
@@ -18406,6 +18413,11 @@ void Simulation::drop_orders(size_t i) {
 	order_queues_.erase(units_.id[i]);
 }
 
+void Simulation::replace_orders(size_t i) {
+	set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
+	if (!applying_queued_) order_queues_.erase(units_.id[i]);
+}
+
 // GuardedAttacked for a structure: an enemy of `team` fighting it (its attack target is
 // the structure) within 64 m of it, the nearest first; -1 if none.
 int32_t Simulation::structure_attacker(uint32_t building_id, uint8_t team) const {
@@ -18613,6 +18625,9 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 		case ORDER_TRADE: order_trade(&uid, 1, o.target, trade_market_id(o.x2)); break;
 		case ORDER_RETURN_RESOURCE: order_return_resource(&uid, 1, o.target, false, (o.flags & ORDER_FLAG_FORCE) != 0); break;
 		case ORDER_COLLECT_TREASURE: order_collect_treasure(&uid, 1, o.target); break;
+		case ORDER_HUNT: order_hunt(&uid, 1, o.target); break;
+		case ORDER_ATTACK_SCENERY: order_attack_scenery(&uid, 1, o.target, capture); break;
+		case ORDER_BOARD: order_board_transport(&uid, 1, o.target); break;
 		case ORDER_CAPTURE_RELIC: order_capture_relic(&uid, 1, o.target); break;
 		default: break;
 	}
@@ -18675,6 +18690,15 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 		}
 		case ORDER_COLLECT_TREASURE: return is_treasure_id(o.target);
 		case ORDER_CAPTURE_RELIC: return can_capture_relic(i, lookup_unit(o.target));
+		case ORDER_HUNT: {
+			const auto f = fauna_id_to_idx_.find(o.target);
+			return f != fauna_id_to_idx_.end() && fauna_.alive[f->second] && fauna_.behavior[f->second] != FAUNA_CORRALLED;
+		}
+		case ORDER_ATTACK_SCENERY: return scenery_index(o.target) >= 0;
+		case ORDER_BOARD: {
+			const int32_t t = lookup_unit(o.target);
+			return t >= 0 && units_.alive[t] && is_transport(o.target) && can_board((size_t)t, i);
+		}
 		default: return false;
 	}
 }
@@ -36501,16 +36525,25 @@ bool Simulation::slaughters_target(size_t i) const {
 	return fauna_type_info(fauna_.fauna_type[it->second]).is_domestic();
 }
 
-void Simulation::order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id) {
+void Simulation::order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id, bool queued) {
 	AiCommandScope ai_cmd(*this, AiCommandEvent::GATHER, unit_ids, count, fauna_id);
 	auto it = fauna_id_to_idx_.find(fauna_id);
 	if (it == fauna_id_to_idx_.end()) {
-		order_attack_scenery(unit_ids, count, fauna_id); // the lockstep hunt command names scenery too
+		order_attack_scenery(unit_ids, count, fauna_id, true, queued); // the lockstep hunt command names scenery too
 		return;
 	}
 	size_t fidx = it->second;
 	// A corralled animal is garrisoned (GarrisonHolder): nobody can target it until it is ejected.
 	if (!fauna_.alive[fidx] || fauna_.behavior[fidx] == FAUNA_CORRALLED) return;
+	// Shift (unit_actions.js gather "queued"): busy units hunt it after their orders.
+	std::vector<uint32_t> now;
+	if (queued) {
+		UnitOrder o; o.kind = ORDER_HUNT; o.flags = ORDER_FLAG_FORCE; o.target = fauna_id;
+		o.x = fauna_.pos_x[fidx]; o.z = fauna_.pos_z[fidx];
+		now = split_queued(unit_ids, count, o, true);
+		unit_ids = now.data();
+		count = now.size();
+	}
 
 	const bool domestic = fauna_type_info(fauna_.fauna_type[fidx]).is_domestic();
 	for (size_t k = 0; k < count; ++k) {
@@ -36524,7 +36557,7 @@ void Simulation::order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fau
 			continue;
 		units_.action_state[uidx] = ACTION_ATTACK;
 		units_.has_order[uidx] = 1;
-		drop_orders(uidx);
+		replace_orders(uidx);
 		units_.target_unit_id[uidx] = fauna_id;
 		units_.target_building_id[uidx] = 0;
 		units_.target_resource_id[uidx] = 0;
@@ -36873,7 +36906,11 @@ void Simulation::fauna_killed(size_t f, size_t /*killer*/) {
 		// A fishing boat that harpooned a whale gathers its carcass, which is fish.
 		if (rid != 0 && carry_cap(h, RES_FOOD) > 0 &&
 				!(units_.order_flags[h] & ORDER_FLAG_INTERRUPTED)) {
+			// The hunt's Gather order goes on to the carcass: orders queued behind it wait.
+			const bool was = applying_queued_;
+			applying_queued_ = true;
 			order_gather(&units_.id[h], 1, rid, false, false);
+			applying_queued_ = was;
 		} else if (finfo.is_dangerous()) {
 			// shouldCheer: fighting a dangerous animal is cheered like a fight in battle, whoever killed it;
 			// COMBAT.FINDINGNEWTARGET in tick_unit_ai goes on from here.
@@ -37418,10 +37455,19 @@ uint32_t Simulation::spawn_scenery(float x, float z, uint8_t scenery_type, float
 	return sc.id;
 }
 
-void Simulation::order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id, bool allow_capture) {
+void Simulation::order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id, bool allow_capture,
+		bool queued) {
 	const int32_t k = scenery_index(scenery_id);
 	if (k < 0) return;
 	const uint8_t owner = scenery_[k].owner;
+	std::vector<uint32_t> now; // Shift (unit_actions.js attack/capture "queued")
+	if (queued) {
+		UnitOrder o; o.kind = ORDER_ATTACK_SCENERY; o.flags = allow_capture ? ORDER_FLAG_ALLOW_CAPTURE : 0;
+		o.target = scenery_id; o.x = scenery_[k].x; o.z = scenery_[k].z;
+		now = split_queued(unit_ids, count, o, true);
+		unit_ids = now.data();
+		count = now.size();
+	}
 	for (size_t n = 0; n < count; ++n) {
 		const int32_t u = lookup_unit(unit_ids[n]);
 		if (u < 0 || !units_.alive[u] || units_.attack_damage[u] <= 0.0f) continue;
@@ -37430,7 +37476,7 @@ void Simulation::order_attack_scenery(const uint32_t *unit_ids, size_t count, ui
 		if (unit_combat_at(u).restricted.any_of(building_combat(BLD_TYPE_COUNT).classes)) continue; // RestrictedClasses
 		units_.action_state[u] = ACTION_ATTACK;
 		units_.has_order[u] = 1;
-		drop_orders(u);
+		replace_orders(u);
 		units_.target_unit_id[u] = scenery_id;
 		units_.target_building_id[u] = 0;
 		units_.target_resource_id[u] = 0;

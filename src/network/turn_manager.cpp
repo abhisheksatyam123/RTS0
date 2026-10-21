@@ -1782,11 +1782,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			else if ((c.param & (uint8_t)~NET_PARAM_QUEUED) == 2) // TreasureCollector: collect a Gaia treasure
 				sim.order_collect_treasure(ids, n, c.target_id, queued);
 			else if ((c.param & (uint8_t)~NET_PARAM_QUEUED) == NET_HUNT_SCENERY_NO_CAPTURE)
-				sim.order_attack_scenery(ids, n, c.target_id, false);
+				sim.order_attack_scenery(ids, n, c.target_id, false, queued);
 			else if (sim.player_can_target_fauna(pl, c.target_id))
-				sim.order_hunt(ids, n, c.target_id);
-		} else if (c.cmd_type == 18) { // Board
-			sim.order_board_transport(ids, n, c.target_id);
+				sim.order_hunt(ids, n, c.target_id, queued);
+		} else if (c.cmd_type == 18) { // Board; NET_PARAM_QUEUED queues it
+			sim.order_board_transport(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 19) { // Disembark
 			if (n) sim.order_disembark(ids[0], c.target_x, c.target_z);
 		} else if (c.cmd_type == 20) { // Cancel train
