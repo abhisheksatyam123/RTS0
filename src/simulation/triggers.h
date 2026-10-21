@@ -217,7 +217,7 @@ static_assert(sizeof(TriggerAttackOrder) == 20, "TriggerAttackOrder is saved raw
 struct TriggerWatch {
 	uint32_t id = 0;
 	uint8_t owner = 0xFF;
-	uint8_t building = 0; // 1: a structure id, 0: a unit id
+	uint8_t building = 0; // 1: a structure id, 2: an animal id, 0: a unit id
 	uint8_t role = 0;
 	uint8_t player = 0;
 };

@@ -38,8 +38,8 @@ None of these touches simulation state or the save format: gap 2 lets through on
 
 ## Fix log
 
-- 2026-10-21 #PRn pass 16 gap 1 (a join while the started game loads is refused with reason 4, "Game is loading, please try again later.", as NetServer OnAuthenticate and StartGame) merged.
-- 2026-10-21 #PRn pass 16 gap 2 (a winner who stays orders their own units while viewing their own side, as controlsPlayer(g_ViewedPlayer); the diplomacy rows stay closed) merged.
-- 2026-10-21 #PRn pass 16 gap 3 (a line to everyone that starts with "[" travels behind "[All] ", so typed tags and "[Flare]" stay text; the setup chat makes no flare) merged.
-- 2026-10-21 #PRn pass 16 gap 4 (the player view's squares follow Diplomacy Colors) merged.
-- 2026-10-21 #PRn pass 16 gap 5 ("Unknown Player" for a nameless client's join and leave lines; the flare limit names the player) merged.
+- 2026-10-21 #1530 pass 16 gap 1 (a join while the started game loads is refused with reason 4, "Game is loading, please try again later.", as NetServer OnAuthenticate and StartGame) merged.
+- 2026-10-21 #1530 pass 16 gap 2 (a winner who stays orders their own units while viewing their own side, as controlsPlayer(g_ViewedPlayer); the diplomacy rows stay closed) merged.
+- 2026-10-21 #1530 pass 16 gap 3 (a line to everyone that starts with "[" travels behind "[All] ", so typed tags and "[Flare]" stay text; the setup chat makes no flare) merged.
+- 2026-10-21 #1530 pass 16 gap 4 (the player view's squares follow Diplomacy Colors) merged.
+- 2026-10-21 #1530 pass 16 gap 5 ("Unknown Player" for a nameless client's join and leave lines; the flare limit names the player) merged.

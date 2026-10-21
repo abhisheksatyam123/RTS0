@@ -182,7 +182,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 114; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 115; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_BASE_TURN = 115; // the base Petra updates next (basesManager.js currentBase)
 	static constexpr uint32_t SAVE_VERSION_PETRA_WORKER_PLANS = 114; // trainMoreWorkers' queued TrainingPlans
 	static constexpr uint32_t SAVE_VERSION_PETRA_PASS5 = 113; // Petra's trade and transport ships, house plans, new bases
 	static constexpr uint32_t SAVE_VERSION_FLIGHT = 112; // each flying unit's UnitMotionFlying state
@@ -4002,10 +4003,13 @@ private:
 	bool petra_limit_allows_building(uint8_t btype) const;
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
 	mutable std::array<uint8_t, BLD_TYPE_COUNT> petra_limit_cache_{};
-	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
+	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone, bool pay = true); // pay false: only check
 	// What a structure costs this AI (structure_cost: its civ's template and cost bonuses), and paying it.
 	void petra_structure_cost(uint8_t btype, float &food, float &wood, float &gold, float &stone) const;
 	bool petra_try_pay_structure(uint8_t queue, uint8_t btype);
+	// queueManager.js startNextItems: whether `queue` can start the structure now (a builder, its
+	// account and our stock cover it); if not, its want is kept as petra_try_pay keeps it.
+	bool petra_can_start_structure(uint8_t queue, uint8_t btype);
 	// chatHelper.js: queue a line of `kind` (PetraChatKind) to `to` (a player, PETRA_CHAT_ALLIES or
 	// PETRA_CHAT_EVERYONE) about `player`; sub is the request type or PetraChatStance.
 	void petra_say(uint8_t kind, uint8_t to, uint8_t player = 0xFF, uint8_t sub = 0, int amount = 0, uint8_t res = 0,
@@ -4049,6 +4053,13 @@ private:
 		int at(float x, float z, float half) const;
 	};
 	void petra_bases_map(PetraBasesMap &m) const;
+	// basesManager.js update: one base a turn, in anchor order (petra_kept_.current_base). The
+	// anchor whose base runs this turn, 0 while there is at most one base (every base runs).
+	uint32_t petra_turn_anchor_ = 0;
+	void petra_pick_turn_base();
+	uint32_t petra_base_anchor_of(const Building &f) const;
+	// noBase (anchor 0) runs every turn.
+	bool petra_base_turn(uint32_t anchor_id) const { return !petra_turn_anchor_ || !anchor_id || anchor_id == petra_turn_anchor_; }
 	void petra_update_tile_bases();
 	mutable std::vector<int> petra_bases_tile_scratch_; // petra_bases_map's territory tile per column, then per row
 	// `bmap` and `base` (from 1) limit the search to that base's territory.
