@@ -58,8 +58,8 @@ static int failures = 0;
 static constexpr uint32_t SEED = 7;
 static constexpr int PLAYERS = 2;
 static constexpr float MAP_HALF = 128.0f;
-// rms_generator.cpp kTriggerMapHeight: the rising-water maps' heights are 0 A.D. metres x 0.5.
-static constexpr float M = 0.5f;
+// rms_generator.cpp kTriggerMapHeight: the rising-water maps' heights are 0 A.D. metres (HEIGHT_PER_METRE).
+static constexpr float M = 0.25f;
 
 static void build(Simulation &s, MapType map, int water_mode = Simulation::WATER_LEVEL_RISING, int rise_min = 25) {
 	s.reset();

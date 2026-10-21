@@ -595,9 +595,28 @@ void RtsoWorldView::_ready() {
 	init_animation_controllers();
 }
 
+// The terrain and water write their own FOG (fogged, then darkened by the LOS, as
+// 0.28's shaders do), so they take the scene's exponential fog: light colour times
+// energy, and density (0 = off).
+Color RtsoWorldView::scene_fog() const {
+	Color fog(0.0f, 0.0f, 0.0f, 0.0f);
+	if (Node *scene = get_parent()) {
+		for (int i = 0; i < scene->get_child_count(); ++i) {
+			WorldEnvironment *we = Object::cast_to<WorldEnvironment>(scene->get_child(i));
+			Ref<Environment> env = we ? we->get_environment() : Ref<Environment>();
+			if (env.is_null() || !env->is_fog_enabled()) continue;
+			const Color c = env->get_fog_light_color() * env->get_fog_light_energy();
+			fog = Color(c.r, c.g, c.b, env->get_fog_density());
+		}
+	}
+	return fog;
+}
+
 void RtsoWorldView::bind_los(const Ref<Material> &mat) {
 	Ref<ShaderMaterial> sm = mat;
-	if (sm.is_null() || los_tex_.is_null()) return;
+	if (sm.is_null()) return;
+	sm->set_shader_parameter("scene_fog", scene_fog());
+	if (los_tex_.is_null()) return;
 	sm->set_shader_parameter("los_tex", los_tex_);
 	sm->set_shader_parameter("los_map_half", los_half_);
 }
@@ -1115,6 +1134,12 @@ void RtsoWorldView::update_fog(const rtso::Simulation *sim, float delta) {
 	if (los_upload_timer_ < 1.0f / 30.0f) return;
 	const float step = los_upload_timer_;
 	los_upload_timer_ = 0.0f;
+	// The map's environment and the Fog option set the scene's fog.
+	if (const Color fog = scene_fog(); fog != bound_fog_) {
+		bound_fog_ = fog;
+		if (terrain) bind_los(terrain->get_material_override());
+		if (water_mesh_node) bind_los(water_mesh_node->get_material_override());
+	}
 	if (!los_.interpolate(step) && !new_map) return;
 	const auto &shown = los_.shown();
 	if (los_bytes_.size() != (int64_t)shown.size()) los_bytes_.resize((int64_t)shown.size());

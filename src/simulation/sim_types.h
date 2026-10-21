@@ -601,6 +601,15 @@ inline MapStructureTemplate map_structure_template(const char *tpl) {
 		{"mill_middle_eastern", BLD_MILL, CIV_PERSIANS}, {"mill_saharan", BLD_MILL, CIV_KUSHITES},
 		{"mill_temperate_europe", BLD_MILL, CIV_GAULS}, {"gaul/rotarymill", BLD_MILL, CIV_GAULS},
 		{"brit/rotarymill", BLD_MILL, CIV_BRITONS}, {"cart/tophet", BLD_TOPHET, CIV_CARTHAGINIANS},
+		// The Gaia wonders and army tents (template_structure_wonder, template_structure_special
+		// with Population/Bonus 5) and the market stalls (template_structure_civic_house).
+		{"stonehenge", BLD_WONDER, CIV_COUNT}, {"uffington_horse", BLD_WONDER, CIV_BRITONS},
+		{"tent_desert", BLD_TENT, CIV_PTOLEMIES}, {"tent_arab", BLD_TENT, CIV_PTOLEMIES},
+		{"tent_bedouin", BLD_TENT, CIV_PERSIANS}, {"tent_mace", BLD_TENT, CIV_MACEDONIANS},
+		{"tent_rome", BLD_TENT, CIV_ROMANS},
+		{"stall_big", BLD_HOUSE, CIV_COUNT}, {"stall_med", BLD_HOUSE, CIV_COUNT},
+		{"stall_small_a", BLD_HOUSE, CIV_COUNT}, {"stall_small_b", BLD_HOUSE, CIV_COUNT},
+		{"generic_field", BLD_FIELD, CIV_COUNT}, {"mill_field_wheat", BLD_FIELD, CIV_COUNT},
 	};
 	const char *stem = std::strncmp(tpl, "structures/", 11) == 0 ? tpl + 11 : tpl;
 	for (const auto &r : kRows)
@@ -1922,7 +1931,8 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	if (tech_id == TECH_IPHICRATEAN_REFORMS && type == BLD_GYMNASIUM) return true;
 	if ((type == BLD_TEMPLE_VESTA || type == BLD_TEMPLE_AMUN || type == BLD_TEMPLE_MARS) && r == BLD_TEMPLE) return true;
 	// ptol/mercenary_camp keeps template_structure_military_barracks' Researcher list.
-	if (type == BLD_MERCENARY_CAMP && r == BLD_BARRACKS) return true;
+	// (han/barracks alone adds crossbow_training.)
+	if (type == BLD_MERCENARY_CAMP && r == BLD_BARRACKS) return tech_id != TECH_CROSSBOW_TRAINING;
 	const bool spies = tech_id == TECH_UNLOCK_SPIES || tech_id == TECH_SPY_COUNTER;
 	if (civ == CIV_HAN) {
 		if (spies) return type == BLD_MINISTRY;
@@ -2241,13 +2251,20 @@ inline constexpr uint16_t CIV_TEMPLATE_WORDS_MAX = 16;
 
 // A unit's short path around buildings (nav/building_steering.h), kept between ticks as 0 A.D.'s
 // CCmpUnitMotion keeps m_ShortPath: the first waypoint (x, z), the aim it leads towards, and the
-// obstacle key it was searched among. key 0 = no short path. Saved raw (no padding).
+// obstacle key it was searched among. key 0 = no short path. A short path of several waypoints is
+// kept as the point it was searched from (x, z) and its aim instead, its key naming the search and
+// the waypoint the unit heads for (nav::kept_path_key), and each waypoint is found again from those
+// (ShortPathSearchMemo answers it). Saved raw (no padding).
 struct ShortPathMemo {
 	float x = 0.0f, z = 0.0f;
 	float aim_x = 0.0f, aim_z = 0.0f;
 	uint32_t key = 0;
 };
 static_assert(sizeof(ShortPathMemo) == 20, "ShortPathMemo is saved raw");
+
+// The waypoints of a short path a unit keeps and follows (ShortPathMemo); a longer path is followed
+// as far as its SHORT_PATH_KEPT_MAX-th waypoint, where the unit decides again.
+inline constexpr int SHORT_PATH_KEPT_MAX = 16;
 
 // A unit's last short path search and what it found, kept beside the saved state, not in it: a
 // search is a function of these inputs alone, so while they are the same bit for bit (a unit held
@@ -2261,6 +2278,9 @@ struct ShortPathSearchMemo {
 	uint64_t small = 0;   // the small obstacles' contents (small_obstacles_hash), 0 for none
 	float out_x = 0.0f, out_z = 0.0f;
 	bool found = false, valid = false;
+	// The path's waypoints from the first (out_x, out_z), at most SHORT_PATH_KEPT_MAX.
+	uint8_t path_n = 0;
+	float path_x[SHORT_PATH_KEPT_MAX] = {}, path_z[SHORT_PATH_KEPT_MAX] = {};
 };
 
 // CCmpUnitMotion's m_FailedMovements and the move of the 0 A.D. turn under way (200 ms, four RTS0

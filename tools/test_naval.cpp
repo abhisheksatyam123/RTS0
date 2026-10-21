@@ -542,6 +542,26 @@ static void test_transport() {
 		CHECK(s.can_board(ia, idx(s, relic)) && s.can_board(im, idx(s, relic)) && !s.can_board(ifb, idx(s, relic)));
 	}
 
+	// An ally's passengers when the alliance ends (GarrisonHolder OnDiplomacyChanged -> EjectOrKill):
+	// only EjectClassesOnDestroy get off; a horseman on a warship (Civilian Infantry Dog) dies.
+	{
+		s.set_mutual_ally(0, 1);
+		const uint32_t ship5 = s.spawn_unit(-40.0f, 13.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+		const uint32_t foot = s.spawn_unit(-40.0f, 17.5f, 1, UNIT_SPEARMAN);
+		const uint32_t horse = s.spawn_unit(-41.0f, 17.5f, 1, UNIT_CAVALRY);
+		const uint32_t party5[] = {foot, horse};
+		s.order_board_transport(party5, 2, ship5);
+		run(s, 3.0f);
+		CHECK(s.get_transport_passenger_count(ship5) == 2);
+		s.set_diplomacy(0, 1, Simulation::DIPLO_ENEMY);
+		s.set_diplomacy(1, 0, Simulation::DIPLO_ENEMY);
+		run(s, 0.1f);
+		std::printf("  alliance ends: spearman %s, horseman %s\n", s.units().alive[idx(s, foot)] ? "ashore" : "dead",
+				s.units().alive[idx(s, horse)] ? "ashore" : "dead");
+		CHECK(s.units().alive[idx(s, foot)] && s.units().action_state[idx(s, horse)] == ACTION_DYING);
+		CHECK(s.get_transport_passengers(ship5) == nullptr);
+	}
+
 	// Pickup: an idle ship sails toward units ordered aboard from inland.
 	const uint32_t ship3 = s.spawn_unit(40.0f, -2.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
 	const uint32_t archer = s.spawn_unit(40.0f, 24.0f, 0, UNIT_ARCHER);

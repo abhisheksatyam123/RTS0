@@ -517,6 +517,11 @@ public:
 	// This client only watches: an observer, or a player who was defeated
 	// (0 A.D. g_IsObserver). Not in a replay, which has its own picker.
 	bool spectating() const;
+	// An observer or replay viewer on the whole-map view (g_ViewedPlayer -1): every player's
+	// units are selectable (selection.js treats only Gaia's as unowned).
+	bool observer_all_view() const {
+		return (spectating() || turn_mgr_.is_replaying()) && view_player() == rtso::OBSERVER_VIEW;
+	}
 	// Whose sight the world, minimap and fog show: the local player, or the
 	// perspective a replay viewer or an observer picked (a player, or
 	// rtso::OBSERVER_VIEW, the whole map).
@@ -1018,7 +1023,12 @@ private:
 	void play_voice(const char *path);
 	// Tells the loading page how far setup got (signal load_progress).
 	void load_progress(int percent, const char *description) { emit_signal("load_progress", percent, String(description)); }
-	void play_civ_voice(const char *action);
+	void play_civ_voice(const char *action, uint32_t unit_id = 0);
+	// selection.js addList: the select sound of the first entity this change added (none, none).
+	void play_select_added(const PackedInt32Array &before_units, const std::vector<uint32_t> &before_structs);
+	// The unit a left click selects (input.js PickEntityAtPoint): the visible unit nearest the
+	// cursor within 2 units, if it is selectable; SIZE_MAX otherwise.
+	size_t click_pick_unit(Vector2 mouse_pos, bool any_player) const;
 	void update_music_state();
 	// The session music's tick, driven by the MenuAudio autoload (methods bound for
 	// GDScript live in session_bindings.cpp) so tracks fade and advance while paused.
@@ -1050,7 +1060,8 @@ private:
 	String watched_replay_dir_;    // the replay being watched (0 A.D. Engine.GetCurrentReplayDirectory)
 	Dictionary replay_meta_;       // its metadata.json, minus what is filled at write time
 	uint32_t replay_written_turn_ = 0;
-	Label *replay_label_ = nullptr;
+	CanvasLayer *replay_layer_ = nullptr; // holds the replay's player view row
+	uint32_t replay_defeated_mask_ = 0; // players seen defeated, for onPlayersFinished
 	OptionButton *replay_view_picker_ = nullptr;
 	Label *replay_observer_label_ = nullptr; // PlayerViewControl's "Observer Mode"
 	bool replay_view_gaia_ = false;          // Gaia picked (its view is the observer's)

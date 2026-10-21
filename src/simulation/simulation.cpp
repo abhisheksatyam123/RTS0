@@ -6973,21 +6973,20 @@ void Simulation::order_set_stance(const uint32_t *unit_ids, size_t count, uint8_
 	}
 }
 
-void Simulation::order_pack(const uint32_t *unit_ids, size_t count, bool pack) {
+void Simulation::order_pack(const uint32_t *unit_ids, size_t count, bool pack, bool cancel) {
 	for (size_t i = 0; i < count; ++i) {
 		int32_t idx = lookup_unit(unit_ids[i]);
 		if (idx < 0 || !units_.alive[idx]) continue;
 		const uint8_t ps = units_.pack_state[idx];
-		if (ps == PACK_NONE) continue;
-		// Order.Pack / Order.Unpack replace the unit's orders (UnitAI ReplaceOrder).
+		// UnitAI Pack / Unpack add the order only when CanPack / CanUnpack (neither packing nor
+		// unpacking, and unpacked / packed); CancelPack / CancelUnpack only while in progress.
+		// The rest of a mixed selection keeps what it is doing.
+		const uint8_t from = cancel ? (pack ? PACK_UNPACKING : PACK_PACKING) : (pack ? PACK_UNPACKED : PACK_PACKED);
+		if (ps != from) continue;
+		// Order.Pack / Unpack / CancelPack replace the unit's orders (UnitAI ReplaceOrder).
 		cmd_stop(&unit_ids[i], 1);
-		if (pack) {
-			if (ps == PACK_UNPACKED) { units_.pack_state[idx] = PACK_PACKING; units_.pack_elapsed[idx] = 0.0f; }
-			else if (ps == PACK_UNPACKING) { units_.pack_state[idx] = PACK_PACKED; units_.pack_elapsed[idx] = 0.0f; }
-		} else {
-			if (ps == PACK_PACKED) { units_.pack_state[idx] = PACK_UNPACKING; units_.pack_elapsed[idx] = 0.0f; }
-			else if (ps == PACK_PACKING) { units_.pack_state[idx] = PACK_UNPACKED; units_.pack_elapsed[idx] = 0.0f; }
-		}
+		units_.pack_state[idx] = cancel ? (pack ? PACK_PACKED : PACK_UNPACKED) : (pack ? PACK_PACKING : PACK_UNPACKING);
+		units_.pack_elapsed[idx] = 0.0f;
 	}
 }
 
@@ -8631,7 +8630,9 @@ void Simulation::eject_foreign_passengers(size_t transport) {
 	if (foreign.empty()) return;
 	const uint32_t tid = units_.id[transport];
 	for (uint32_t puid : foreign) {
-		order_disembark_single(tid, puid);
+		// EjectOrKill: only EjectClassesOnDestroy may get off; the rest are killed aboard.
+		if (const int32_t p = lookup_unit(puid); p >= 0 && holder_ejects(transport, (size_t)p))
+			order_disembark_single(tid, puid);
 		auto it = transport_passengers_.find(tid);
 		if (it == transport_passengers_.end()) break;
 		auto at = std::find(it->second.begin(), it->second.end(), puid);
@@ -8701,24 +8702,31 @@ void Simulation::tick_siege_garrisons() {
 // (Civilian Infantry Healer Dog; warships' Civilian Infantry Dog) swim to a free spot on dry ground within its
 // loading reach; everyone else, everyone out at sea and anyone with no free spot (EjectOrKill
 // kills what the unforced PerformEject leaves aboard) goes down with it.
+// GarrisonHolder EjectClassesOnDestroy (every EjectOrKill): template_unit_ship "Civilian Infantry
+// Healer Dog", template_unit_ship_warship_{arrow,ram} "Civilian Infantry Dog", siege engines
+// "Unit", a plane none. The rest are killed.
+bool Simulation::holder_ejects(size_t holder, size_t p) const {
+	if (is_plane_at(holder)) return false;
+	if (!unit_is_ship(units_.unit_type[holder])) return true;
+	bool warship = units_.unit_type[holder] == UNIT_TRIREME;
+	if (warship && units_.tmpl[holder] < CIV_UNIT_TEMPLATE_COUNT) {
+		const std::string_view id = civ_unit_template(units_.tmpl[holder]).id;
+		warship = id.ends_with("/ship_arrow") || id.ends_with("/ship_ram");
+	}
+	const TechClasses ejected = warship ? TC_INFANTRY | TC_DOG : TC_INFANTRY | TC_HEALER | TC_DOG; // and Civilian
+	return (unit_classes_at(p) & ejected) || is_civilian_class(units_.tmpl[p], units_.unit_type[p]);
+}
+
 void Simulation::unload_sunk_ship(size_t ship) {
 	auto pit = transport_passengers_.find(units_.id[ship]);
 	if (pit == transport_passengers_.end()) return;
 	float lx = 0.0f, lz = 0.0f;
 	const bool shore = ship_unload_point(ship, lx, lz);
-	// template_unit_ship_warship_{arrow,ram} leave Healer out (Civilian Infantry Dog).
-	bool warship = units_.unit_type[ship] == UNIT_TRIREME;
-	if (warship && units_.tmpl[ship] < CIV_UNIT_TEMPLATE_COUNT) {
-		const std::string_view id = civ_unit_template(units_.tmpl[ship]).id;
-		warship = id.ends_with("/ship_arrow") || id.ends_with("/ship_ram");
-	}
-	const TechClasses ejected = warship ? TC_INFANTRY | TC_DOG : TC_INFANTRY | TC_HEALER | TC_DOG; // and Civilian
 	std::vector<SpawnSpot> taken;
 	for (uint32_t puid : pit->second) {
 		const int32_t p = lookup_unit(puid);
 		if (p < 0) continue;
-		if (shore && ((unit_classes_at((size_t)p) & ejected) || is_civilian_class(units_.tmpl[p], units_.unit_type[p])) &&
-				ship_unload_point(ship, lx, lz, (size_t)p, &taken)) {
+		if (shore && holder_ejects(ship, (size_t)p) && ship_unload_point(ship, lx, lz, (size_t)p, &taken)) {
 			units_.pos_x[p] = lx;
 			units_.pos_z[p] = lz;
 			units_.alive[p] = 1;
@@ -8946,6 +8954,15 @@ void Simulation::set_building_civ(uint32_t building_id, uint8_t civ) {
 	auto it = building_id_to_idx_.find(building_id);
 	if (it == building_id_to_idx_.end() || civ >= CIV_COUNT) return;
 	Building &b = buildings_[it->second];
+	// Health/Max is the template's (a Gaia Gallic house 800, not the Athenian 1200); the
+	// owner's modifiers stay as they are.
+	const uint8_t base = is_playable_civ(b.civ) ? b.civ : (uint8_t)civ_of(b.team); // what spawning used
+	const float was = civ_building_type_info(base, b.type).max_hp;
+	const float now = civ_building_type_info(civ, b.type).max_hp;
+	if (is_playable_civ(civ) && was > 0.0f && now > 0.0f && now != was) {
+		b.max_hp *= now / was;
+		b.hp *= now / was;
+	}
 	b.civ = civ;
 	b.garrison_cap = structure_garrison_cap(b);
 }
@@ -11223,6 +11240,7 @@ void Simulation::tick(float dt) {
 	move_units(dt, arena, steps);
 	separation(dt, arena, steps);
 	motion_feedback(dt, steps); // 0 A.D. UnitMotion: obstructed walks end near their point or fail
+	finish_ended_walks();       // 0 A.D. UnitAI WALKING: a walk that ended is finished at once
 	if (!flight_.empty()) tick_flight(dt); // 0 A.D. UnitMotionFlying.js: planes take off, fly and land
 	tick_formations(dt);     // 0 A.D. Formation.js: controllers walk, members follow their slots
 	tick_turrets();          // 0 A.D. TurretHolder.js / Turretable.js: units on walls and outposts
@@ -11862,6 +11880,28 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					return false;
 				};
 				constexpr float WAYPOINT_NEAR = 4.0f;
+				// Nor can a unit stand on a waypoint inside a tree, a bush or a treasure, grown by its
+				// clearance. RTS0's long paths don't go round them (gaia_obstacles_: its navcells are wider
+				// than a tree), where 0.28's never lead into one: CCmpPathfinder rasterizes each one's
+				// obstruction square, grown by the clearance, onto its 1 m navcells (CCmpPathfinder.cpp:583,
+				// CCmpObstructionManager.cpp:1166-1185). The unit moves on from such a waypoint once within
+				// WAYPOINT_NEAR too, as 0.28's HandleObstructedMove drops a long waypoint the unit has come
+				// close to, which may be unreachable (CCmpUnitMotion.h:1416-1426). Heading on for it, the
+				// unit would press into the tree, or walk between the corners of one in its way for good,
+				// every turn a free move. As with a crowded waypoint above, it doesn't wait to be
+				// obstructed first, where 0.28 drops the waypoint only in HandleObstructedMove.
+				auto in_small_obstacle = [&](float wx, float wz) {
+					if (unit_is_ship(units_.unit_type[i])) return false;
+					const float c = unit_clearance_at(i);
+					thread_local std::vector<SteerObstacle> at_wp;
+					at_wp.clear();
+					gaia_obstacles_near(wx, wz, c, at_wp);
+					for (const SteerObstacle &o : at_wp)
+						if (nav::PointIsInSquare(nav::Vec2(wx - o.x, wz - o.z), nav::footprint_u(o), nav::footprint_v(o),
+								nav::Vec2(o.hu + c, o.hv + c)))
+							return true;
+					return false;
+				};
 				// Skip every waypoint already within ARRIVE_DIST (inclusive). Advancing one per tick
 				// with a strict < let the arrival check below stop the unit on a waypoint exactly
 				// ARRIVE_DIST away, or on a second one just as close, short of its target.
@@ -11871,7 +11911,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					const float pdz = wp.zs[cur] - pz[i];
 					const float pd2 = pdx * pdx + pdz * pdz;
 					if (pd2 > ARRIVE_DIST * ARRIVE_DIST &&
-					    (cur + 1 >= cnt || pd2 > WAYPOINT_NEAR * WAYPOINT_NEAR || !crowded(wp.xs[cur], wp.zs[cur])))
+					    (cur + 1 >= cnt || pd2 > WAYPOINT_NEAR * WAYPOINT_NEAR ||
+					     !(crowded(wp.xs[cur], wp.zs[cur]) || in_small_obstacle(wp.xs[cur], wp.zs[cur]))))
 						break;
 					cur++;
 					advanced = true;
@@ -12081,6 +12122,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// (nav/building_steering.h), or round idle units (avoid_idle_units), until the unit reaches
 		// it. The arrival check above still uses the real aim point.
 		bool steered = false, round_units = false;
+		// The waypoint after the one steered for, on a short path the unit keeps (nav::SteerNext).
+		rtso::nav::SteerNext after;
 		if (!unit_is_ship(units_.unit_type[i]) && !backing_off) {
 			walk[i] |= WALK_STEER;
 			rtso::nav::Vec2 steer;
@@ -12096,15 +12139,25 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			thread_local std::vector<SteerObstacle> near_gaia;
 			near_gaia.clear();
 			const float clear = unit_clearance_at(i);
-			if (round_units || rtso::nav::steer_around_obstacles(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
-					clear, steer_obstacles_,
-					steer_line_blocked(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z), nav::BUILDING_STEER_RANGE, clear,
-							units_.target_building_id[i]),
-					near_gaia,
-					gaia_in_the_way(px[i], pz[i], aim_x, aim_z, GAIA_STEER_REACH, clear, units_.target_building_id[i]),
-					[&](std::vector<SteerObstacle> &out) { gaia_obstacles_near(px[i], pz[i], GAIA_STEER_REACH, out); },
-					GAIA_STEER_REACH, units_.target_building_id[i], nav_grid_, short_path_key_, memo, steer,
-					&short_path_search_[i])) {
+			// A unit follows its short path round trees or steep ground to its end (nav::steer_around_obstacles;
+			// CCmpUnitMotion::PerformMove, CCmpUnitMotion.h:1238-1250, 1299-1326), but a formation's member,
+			// whose TryGoingStraightToTarget walks straight at its slot whenever it can (CCmpUnitMotion.h:
+			// 1503-1507).
+			const bool follow = !((size_t)i < formation_group_.size() && formation_group_[i] != 0);
+			// A unit standing on a waypoint of the short path it keeps heads for the next one at once, as
+			// PerformMove pops a waypoint it reaches and goes on (CCmpUnitMotion.h:1299-1326). Each pass
+			// moves the memo on by one waypoint of at most SHORT_PATH_KEPT_MAX, or ends.
+			for (int pass = 0; pass <= SHORT_PATH_KEPT_MAX; ++pass) {
+				if (!round_units && !rtso::nav::steer_around_obstacles(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
+						clear, steer_obstacles_,
+						steer_line_blocked(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z), nav::BUILDING_STEER_RANGE,
+								clear, units_.target_building_id[i]),
+						near_gaia,
+						gaia_in_the_way(px[i], pz[i], aim_x, aim_z, GAIA_STEER_REACH, clear, units_.target_building_id[i]),
+						[&](rtso::nav::Vec2 c, std::vector<SteerObstacle> &out) { gaia_obstacles_near(c.x, c.y, GAIA_STEER_REACH, out); },
+						GAIA_STEER_REACH, units_.target_building_id[i], nav_grid_, short_path_key_, memo, steer,
+						&short_path_search_[i], follow, &after, final_aim))
+					break;
 				const float sdx = steer.x - px[i];
 				const float sdz = steer.y - pz[i];
 				if (sdx * sdx + sdz * sdz > 1e-6f) {
@@ -12112,9 +12165,17 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					dz = sdz;
 					d2 = sdx * sdx + sdz * sdz;
 					steered = true;
-				} else {
-					units_.short_path[i].key = round_units ? idle_corner_key() : 0; // standing on the waypoint
+					break;
 				}
+				// Standing on the waypoint: next tick decides from the corner, or the unit heads for the
+				// next waypoint of the path it keeps.
+				if (round_units || !after.more) {
+					units_.short_path[i].key = round_units ? idle_corner_key() : 0;
+					break;
+				}
+				++units_.short_path[i].key;
+				after = rtso::nav::SteerNext{};
+				near_gaia.clear();
 			}
 			// avoid_idle_units' note that its last search from here found no way stays while the unit
 			// does, whatever way round buildings it is heading for.
@@ -12139,9 +12200,24 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// Formation members walk to the slot tick_formations gives them (Formation.js FormationWalk).
 		float move_dx = ux * step;
 		float move_dz = uz * step;
-		// A short-path waypoint reached this tick is done: next tick searches from the corner.
+		// A short-path waypoint reached this tick is done: next tick searches from the corner. On a
+		// short path the unit keeps, PerformMove moves it onto the waypoint, pops it and spends the
+		// rest of the step heading for the next one, which the memo moves on to (CCmpUnitMotion.h:
+		// 1299-1326).
 		const bool corner_reached = steered && step > 0.0f && d2 <= step * step;
-		if (corner_reached) units_.short_path[i].key = round_units ? idle_corner_key() : 0;
+		const bool kept_on = corner_reached && !round_units && after.more;
+		float rest_x = aim_x, rest_z = aim_z; // where the rest of a step that reaches the waypoint heads
+		if (kept_on) {
+			++units_.short_path[i].key;
+			rest_x = after.next.x;
+			rest_z = after.next.y;
+			const float rx = rest_x - (px[i] + dx), rz = rest_z - (pz[i] + dz), rl = std::sqrt(rx * rx + rz * rz);
+			const float rest = std::min(step - std::sqrt(d2), rl);
+			move_dx = dx + (rl > 1e-6f ? rx * (rest / rl) : 0.0f);
+			move_dz = dz + (rl > 1e-6f ? rz * (rest / rl) : 0.0f);
+		} else if (corner_reached) {
+			units_.short_path[i].key = round_units ? idle_corner_key() : 0;
+		}
 		want_x[i] = move_dx;
 		want_z[i] = move_dz;
 		npx[i] = std::clamp(px[i] + move_dx, -map_half_, map_half_);
@@ -12167,18 +12243,19 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			};
 			if (barred(npx[i], npz[i])) {
 				// A refused step that reaches a short-path waypoint ends on it and spends the rest heading on
-				// for the aim, as PerformMove moves a unit within its step of a waypoint onto it and then
-				// towards the next: the waypoint is kept off steep ground, the step past it may not be. The
-				// rest slides along an axis when the way to the aim is barred too, and the unit stays on the
-				// waypoint when both are; next tick searches from where it stands. The rest that is barred
-				// counts as obstructed (motion_feedback), as 0.28's move that stops at the waypoint does.
+				// for the aim (or a kept short path's next waypoint), as PerformMove moves a unit within its
+				// step of a waypoint onto it and then towards the next: the waypoint is kept off steep ground,
+				// the step past it may not be. The rest slides along an axis when the way to the aim is barred
+				// too, and the unit stays on the waypoint when both are; next tick searches from where it
+				// stands. The rest that is barred counts as obstructed (motion_feedback), as 0.28's move that
+				// stops at the waypoint does.
 				const float wx = std::clamp(px[i] + dx, -map_half_, map_half_), wz = std::clamp(pz[i] + dz, -map_half_, map_half_);
 				if (corner_reached && !barred(wx, wz)) {
 					npx[i] = wx;
 					npz[i] = wz;
 					want_x[i] = dx;
 					want_z[i] = dz;
-					const float rx = aim_x - wx, rz = aim_z - wz, rl = std::sqrt(rx * rx + rz * rz);
+					const float rx = rest_x - wx, rz = rest_z - wz, rl = std::sqrt(rx * rx + rz * rz);
 					const float rest = std::min(step - std::sqrt(d2), rl);
 					if (rest > 1e-4f) {
 						const float ex = std::clamp(wx + rx * (rest / rl), -map_half_, map_half_);
@@ -12481,7 +12558,10 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		if (obstructed) {
 			// Obstructed: the unit stays put this tick. One within reach of its task is where 0 A.D.'s
 			// move to the target's range would have ended: it works from there without a short path.
-			if (memo.key == key) memo.key = 0; // the way to its waypoint is blocked now
+			// The way to its waypoint is blocked now. So is the way along a short path it keeps round trees
+			// or steep ground (nav::kept_path_key): 0.28's HandleObstructedMove replaces the short path the
+			// unit follows with a new one (CCmpUnitMotion.h:1436-1441).
+			if (memo.key == key || nav::is_kept_path_key(memo.key, short_path_key_)) memo.key = 0;
 			npx[i] = x0;
 			npz[i] = z0;
 			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
@@ -13409,6 +13489,8 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 			if (formations_.empty() || formation_group_[i] == 0) obstructed_long_path(i, m.failed);
 			if (m.failed < OBSTRUCTED_AT) continue;
 		}
+		// FLEEING MovementUpdate with likelyFailure: the flight ends (flee_done).
+		if (move_failed && units_.action_state[i] == ACTION_FLEE) units_.attack_timer[i] = 0.0f;
 		// MoveObstructed / MoveFailed reach UnitAI. Members of a formation follow its controller.
 		if (!formations_.empty() && formation_group_[i] != 0) continue;
 		// GATHER APPROACHING MovementUpdate with likelyFailure: FINDINGNEWTARGET, which goes on to
@@ -13497,6 +13579,24 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		units_.waypoint_cur[i] = 0;
 		units_.waypoint_count[i] = 0;
 		if (i < unit_paths_.size()) unit_paths_[i].clear();
+	}
+}
+
+// 0.28's WALKING and WALKINGANDFIGHTING MovementUpdate: a walk or attack-walk that move_units or
+// motion_feedback ended this tick is finished at once (FinishOrder, UnitAI.js:1793-1799, 1825-1831,
+// 3911-3940), so the next queued order starts or the unit is idle with no order before anything
+// looks for a fight or answers an attack. Left for tick_unit_ai's next tick, the finished walk
+// stayed the unit's order: tick_combat's scan or respond_to_attack started a fight under it, which
+// kept its force and went back to it afterwards (a Petra raid waited on such a rider for good). A
+// formation member's walk is its controller's (tick_formations).
+void Simulation::finish_ended_walks() {
+	for (size_t i = 0; i < units_.count; ++i) {
+		const uint8_t kind = units_.order_kind[i];
+		if ((kind != ORDER_WALK && kind != ORDER_WALK_AND_FIGHT) || units_.has_order[i] || !units_.alive[i] ||
+		    units_.action_state[i] != ACTION_IDLE || (units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) ||
+		    (!formations_.empty() && formation_group_[i] != 0))
+			continue;
+		finish_order(i);
 	}
 }
 
@@ -15174,9 +15274,9 @@ void Simulation::tick_combat(float dt) {
 			const float d2 = dx * dx + dz * dz;
 			if (stance == STANCE_STAND_GROUND)
 				return in_parabolic_range(d2, att_y, unit_height(j), range);
-			if (stance == STANCE_DEFENSIVE) {
+			if (stance == STANCE_DEFENSIVE) { // respondHoldGround, and not respondChaseBeyondVision
 				const float hx = units_.pos_x[j] - anc_x, hz = units_.pos_z[j] - anc_z;
-				return hx * hx + hz * hz < held_lim * held_lim;
+				return hx * hx + hz * hz < held_lim * held_lim && d2 <= vision * vision;
 			}
 			// Violent: respondChaseBeyondVision.
 			return stance == STANCE_VIOLENT || d2 <= vision * vision;
@@ -16407,73 +16507,6 @@ void Simulation::tick_promotion(float dt) {
 void Simulation::tick_capture(float dt) {
 	// 0 A.D. Capturable.js:93-132 (Reduce), 168-181 (RegisterCapturePointsChanged),
 	// 183-201 (GetRegenRate & GarrisonRegenRate), 203-247 (TimerTick)
-	// Multi-Team Structure Capture Mechanics:
-	// CapturePoints is an array whose sum equals max_capture_points.
-	// Attacking units within reach reduce enemy capture pools and transfer points to capturer.
-	// Owner regenerates capture points back when unattacked; structure flips ownership when
-	// a team crosses the majority threshold (>50% max) or owner points hit 0.
-	// Count and strength of the capturers (alive, teams 0-3) within 11 of each building, per team.
-	// Units go in the outer loop, so each building's strength sums in unit order. A grid of building
-	// reach (11, plus 1 to spare) limits each unit to the buildings near its cell.
-	auto tally_capturers = [this] {
-		const float half = map_half_;
-		constexpr float CELL = 8.0f, REACH = 12.0f;
-		const int W = std::max(1, (int)std::ceil(2.0f * half / CELL) + 1);
-		auto cell_of = [half, W](float v) { // monotonic in v, so nearby units can't fall outside a building's cells
-			const float f = (v + half) / CELL;
-			return f >= 0.0f ? (f < (float)W ? (int)f : W - 1) : 0;
-		};
-		// The grid depends only on the map and where the buildings stand, which rarely change.
-		bool same = capture_cell_key_.size() == 1 + 2 * buildings_.size() && !capture_cell_key_.empty()
-				&& capture_cell_key_[0] == half && capture_cell_start_.size() == (size_t)W * W + 1;
-		for (size_t i = 0; same && i < buildings_.size(); ++i)
-			same = capture_cell_key_[1 + 2 * i] == buildings_[i].x && capture_cell_key_[2 + 2 * i] == buildings_[i].z;
-		if (!same) {
-			capture_cell_key_.resize(1 + 2 * buildings_.size());
-			capture_cell_key_[0] = half;
-			for (size_t i = 0; i < buildings_.size(); ++i) {
-				capture_cell_key_[1 + 2 * i] = buildings_[i].x;
-				capture_cell_key_[2 + 2 * i] = buildings_[i].z;
-			}
-		}
-		if (!same) capture_cell_start_.assign((size_t)W * W + 1, 0);
-		for (int pass = 0; !same && pass < 2; ++pass) {
-			for (uint32_t i = 0; i < (uint32_t)buildings_.size(); ++i) {
-				const Building &b = buildings_[i];
-				const int x0 = cell_of(b.x - REACH), x1 = cell_of(b.x + REACH);
-				const int z0 = cell_of(b.z - REACH), z1 = cell_of(b.z + REACH);
-				for (int cz = z0; cz <= z1; ++cz)
-					for (int cx = x0; cx <= x1; ++cx) {
-						if (pass == 0) capture_cell_start_[(size_t)cz * W + cx + 1]++;
-						else capture_cell_buildings_[capture_cell_start_[(size_t)cz * W + cx]++] = CaptureReach{i, b.x, b.z};
-					}
-			}
-			if (pass == 0) {
-				for (size_t c = 1; c < capture_cell_start_.size(); ++c) capture_cell_start_[c] += capture_cell_start_[c - 1];
-				capture_cell_buildings_.resize(capture_cell_start_.back());
-			} else {
-				// Filling advanced each cell's start to the next cell's; shift back.
-				for (size_t c = capture_cell_start_.size() - 1; c > 0; --c) capture_cell_start_[c] = capture_cell_start_[c - 1];
-				capture_cell_start_[0] = 0;
-			}
-		}
-		capture_tally_.assign(buildings_.size(), CaptureTally{});
-		for (size_t u = 0; u < units_.count; ++u) {
-			if (!units_.alive[u] || units_.team[u] >= MAX_PLAYERS) continue;
-			const size_t c = (size_t)cell_of(units_.pos_z[u]) * W + cell_of(units_.pos_x[u]);
-			for (uint32_t k = capture_cell_start_[c]; k < capture_cell_start_[c + 1]; ++k) {
-				const CaptureReach &b = capture_cell_buildings_[k];
-				const float dx = units_.pos_x[u] - b.x;
-				const float dz = units_.pos_z[u] - b.z;
-				if (dx * dx + dz * dz <= 11.0f * 11.0f) {
-					CaptureTally &t = capture_tally_[b.building];
-					t.count[units_.team[u]]++;
-					t.strength[units_.team[u]] += unit_capture_attack(units_.tmpl[u], units_.unit_type[u]);
-				}
-			}
-		}
-	};
-	tally_capturers();
 	// Capturable.js TimerTick: decay and regeneration land once a second of match time.
 	const bool timer_tick = (ticks_ + 1) % (uint64_t)std::lround(1.0f / FIXED_STEP) == 0;
 	(void)dt;
@@ -19092,19 +19125,29 @@ bool Simulation::entity_xz(uint32_t id, float &x, float &z) const {
 // one fled from is now; done once that far from it, when the run ends short (likelyFailure),
 // or when the flight is stuck. Re-aims target_x/z while it goes on.
 bool Simulation::flee_done(size_t i) {
-	if (units_.attack_timer[i] <= 0.0f) return true;
+	if (units_.attack_timer[i] <= 0.0f) return true; // the run failed (MoveFailed: likelyFailure)
 	const float px = units_.pos_x[i], pz = units_.pos_z[i];
 	const float tx = units_.target_x[i] - px, tz = units_.target_z[i] - pz;
 	if (tx * tx + tz * tz <= 1.0f) return true;
 	float sx, sz;
-	if (units_.flee_from[i] == 0 || !entity_xz(units_.flee_from[i], sx, sz)) return false;
-	const float dx = px - sx, dz = pz - sz, d2 = dx * dx + dz * dz;
+	const uint32_t from = units_.flee_from[i];
+	if (from == 0 || !entity_xz(from, sx, sz)) return false;
+	const float dx = px - sx, dz = pz - sz;
+	const float d = sqrtf(dx * dx + dz * dz);
+	// MoveToTargetRange(target, distanceToFlee, -1): the range is measured between the two
+	// obstructions (CheckTargetRangeExplicit), so the run goes their sizes further than the
+	// centre-to-centre distanceToFlee.
+	float gap = d - unit_clearance_at(i);
+	if (auto bit = building_id_to_idx_.find(from); bit != building_id_to_idx_.end())
+		gap = structure_gap(buildings_[bit->second], px, pz, unit_clearance_at(i));
+	else if (const int32_t j = lookup_unit(from); j >= 0)
+		gap -= unit_clearance_at((size_t)j);
 	const float want = units_.flee_dist[i];
-	if (d2 >= want * want) return true;
-	const float d = sqrtf(d2);
+	if (gap >= want) return true;
+	const float goal = want + (d - gap);
 	const float nx = d > 1e-3f ? dx / d : 1.0f, nz = d > 1e-3f ? dz / d : 0.0f;
-	units_.target_x[i] = std::clamp(sx + nx * want, -map_half_ + 1.0f, map_half_ - 1.0f);
-	units_.target_z[i] = std::clamp(sz + nz * want, -map_half_ + 1.0f, map_half_ - 1.0f);
+	units_.target_x[i] = std::clamp(sx + nx * goal, -map_half_ + 1.0f, map_half_ - 1.0f);
+	units_.target_z[i] = std::clamp(sz + nz * goal, -map_half_ + 1.0f, map_half_ - 1.0f);
 	return false;
 }
 
@@ -19153,7 +19196,8 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		units_.target_building_id[i] = 0;
 		units_.waypoint_cur[i] = units_.waypoint_count[i] = 0;
 		if (i < unit_paths_.size()) unit_paths_[i].clear();
-		units_.attack_timer[i] = 4.0f; // give up a flight that is stuck
+		// FLEEING has no time limit: it ends at the distance, or when the run fails (MoveFailed).
+		units_.attack_timer[i] = FLEE_RUNNING;
 		units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
 		return;
 	}
@@ -19182,6 +19226,8 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		const float hx = ax - units_.anchor_x[i], hz = az - units_.anchor_z[i];
 		const float lim = vision * 0.5f + range; // to the attacker's centre, a structure's too
 		if (hx * hx + hz * hz >= lim * lim) return;
+		// AttackEntityInZone: no respondChaseBeyondVision, so only an attacker within its vision.
+		if (d2 > vision * vision) return;
 	}
 	units_.target_unit_id[i] = sb ? 0 : attacker_id;
 	units_.target_building_id[i] = sb ? attacker_id : 0;
@@ -19742,8 +19788,11 @@ void Simulation::tick_unit_ai(float dt) {
 					const uint32_t t = find_heal_target(i);
 					if (t != 0) start_heal(i, t, 0);
 				}
-				// IDLE Timer: tick_combat has had its look for targets (FindNewTargets) by now.
-				walk_back_if_drifted(i);
+				// IDLE Timer: FindNewTargets, then WalkToHeldPosition (UnitAI.js:1686-1712). The walk back
+				// waits for the tick after the unit's target scan (tick_combat, (i + ticks_) % 4 == 0), so
+				// it has looked since it went idle: one walking back to a held position it can't reach
+				// would otherwise go again each tick its scan didn't fall on, and never look.
+				if ((i + ticks_) % 4 == 1) walk_back_if_drifted(i);
 			}
 		}
 	}
@@ -30338,6 +30387,19 @@ bool Simulation::unit_short_waypoint(size_t i, float aim_x, float aim_z, float *
 	if (m.key == 0 || m.key == idle_stuck_key()) return false;
 	const float dx = m.aim_x - aim_x, dz = m.aim_z - aim_z;
 	if (dx * dx + dz * dz > nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK) return false;
+	// A kept short path of several waypoints holds where the unit searched from: the waypoint it heads
+	// for comes from the same search again (nav::kept_path_key), answered from a copy of its memo.
+	if (nav::is_kept_path_key(m.key, short_path_key_)) {
+		ShortPathSearchMemo cached = i < short_path_search_.size() ? short_path_search_[i] : ShortPathSearchMemo{};
+		auto fetch = [&](nav::Vec2 c, std::vector<SteerObstacle> &out) { gaia_obstacles_near(c.x, c.y, GAIA_STEER_REACH, out); };
+		nav::Vec2 w;
+		if (!nav::detail::kept_waypoint<std::vector<SteerObstacle>, SteerObstacle>(m, short_path_key_, unit_clearance_at(i),
+				GAIA_STEER_REACH, units_.target_building_id[i], steer_obstacles_, fetch, nav_grid_, &cached, w, nullptr))
+			return false;
+		*wx = w.x;
+		*wz = w.y;
+		return true;
+	}
 	*wx = m.x;
 	*wz = m.z;
 	return true;
@@ -38539,8 +38601,8 @@ bool Simulation::register_trigger_script(const std::string &name) {
 }
 
 namespace {
-// The rising-water maps' heights are 0 A.D.'s metres times this (rms_generator.cpp kTriggerMapHeight).
-constexpr float kTriggerHeight = 0.5f;
+// The rising-water maps' heights are 0 A.D.'s metres (rms_generator.cpp kTriggerMapHeight).
+constexpr float kTriggerHeight = HEIGHT_PER_METRE;
 
 // maps/random/flood_triggers.js
 constexpr float kFloodStepSeconds = 2.4f;   // deltaTime
