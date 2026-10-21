@@ -362,11 +362,8 @@ class RtsoWorldView : public Node3D {
 
 	Ref<Texture2D> ring_decal_tex_;
 	std::vector<Decal *> unit_ring_decals_;
-	static inline const Color RING_SEL_COL = Color(0.2f, 1.0f, 0.4f, 1.0f);
-	static inline const Color RING_ENEMY_COL = Color(0.92f, 0.25f, 0.2f, 1.0f);
-	static inline const Color RING_HL_COL = Color(0.2f, 1.0f, 0.4f, 0.75f);
-	static inline const Color RING_ENEMY_HL_COL = Color(0.92f, 0.25f, 0.2f, 0.75f);
-	Ref<StandardMaterial3D> ring_sel_mat, ring_enemy_mat, ring_hl_mat, ring_enemy_hl_mat;
+	std::unordered_map<uint32_t, Ref<StandardMaterial3D>> outline_mats_; // by RGBA32 (outline_material)
+	const Ref<StandardMaterial3D> &outline_material(const Color &c);
 	std::unordered_set<int32_t> highlight_set_;
 	std::unordered_set<int32_t> sel_buildings_; // the selected structures (outlined)
 	Ref<BoxMesh> outline_mesh_;
