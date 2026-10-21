@@ -7065,7 +7065,7 @@ static void test_unit_stat_trainable_busy() {
 static void test_workers_while_cc_on_emergency() {
 	// The civic centre training emergency units still decides the civilian; the workers'
 	// plan waits for it rather than turning into soldiers at the barracks.
-	int soldiers[2] = {0, 0}, civilians[2] = {0, 0};
+	int soldiers[2] = {0, 0}, civilians[2] = {0, 0}, first_soldiers = -1, waiting = 0;
 	for (int busy = 0; busy < 2; ++busy) {
 		auto s = std::make_unique<Simulation>();
 		s->set_sim_seed(42);
@@ -7099,13 +7099,70 @@ static void test_workers_while_cc_on_emergency() {
 				for (const auto &o : b.queue)
 					if (o.petra_plan == PETRA_ORDER_WORKER)
 						(unit_gather_class(o.unit_type, o.tmpl) == GATHER_SUPPORT ? civilians : soldiers)[busy] += o.count;
+			if (busy && first_soldiers < 0) first_soldiers = soldiers[1];
 			s->ticks_ += 4;
 		}
+		if (busy)
+			for (const auto &p : s->petra_worker_plans_[1]) waiting += p.queue == 0 ? p.count : 0;
 	}
-	std::printf("  worker orders, civic centre free: %d civilians %d soldiers; on emergency units: %d civilians %d soldiers\n",
-	            civilians[0], soldiers[0], civilians[1], soldiers[1]);
+	std::printf("  worker orders, civic centre free: %d civilians %d soldiers; on emergency units: %d civilians %d soldiers"
+	            " (first turn %d), %d civilians waiting\n", civilians[0], soldiers[0], civilians[1], soldiers[1], first_soldiers, waiting);
 	CHECK(civilians[0] > 0 && soldiers[0] == 0, "a free civic centre trains civilians as workers");
-	CHECK(soldiers[1] == 0, "a civic centre busy with emergency units doesn't make the workers soldiers");
+	// The waiting civilians count as queued supports, so soldiers may follow once they pass
+	// supportNum, as in 0.28; the first plan is a civilian.
+	CHECK(first_soldiers == 0 && civilians[1] == 0 && waiting > 0, "a civic centre busy with emergency units keeps the civilians waiting");
+}
+
+static void test_worker_plans_wait() {
+	// trainMoreWorkers' plans wait in their queue: for the queue's resources (no civilian in
+	// a soldier's place) and for room for the whole batch (no smaller batch).
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_team_civ(1, CIV_ATHENIANS);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	Simulation::Building *cc = nullptr;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const uint32_t cc_id = cc->id;
+	const uint32_t bar = s->spawn_building_world(cc->x + (cc->x > 0 ? -10.0f : 10.0f), cc->z, BLD_BARRACKS, 1, 1.0f);
+	auto queue_of = [&](uint32_t id) -> std::vector<ProductionOrder> & { return s->buildings_[s->building_id_to_idx_.at(id)].queue; };
+	queue_of(cc_id).clear();
+	const uint16_t spear = civ_unit_template_by_id("athen/infantry_spearman_b");
+	auto &plans = s->petra_worker_plans_[1];
+	plans.clear();
+	plans.push_back({spear, 3, 1});
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 5000.0f;
+	auto &acc = s->petra_queues_.accounts[PETRA_Q_CITIZEN_SOLDIER];
+	acc = {};
+	s->petra_start_worker_plans();
+	const bool waits_for_money = plans.size() == 1 && queue_of(bar).empty() && queue_of(cc_id).empty();
+	// Room for two: a batch of three waits.
+	const int room = s->petra_pop_room();
+	ProductionOrder filler;
+	filler.unit_type = UNIT_VILLAGER;
+	filler.count = (uint8_t)std::max(0, room - 2);
+	filler.duration = 10.0f;
+	filler.tmpl = CIV_UNIT_TEMPLATE_NONE;
+	if (filler.count) queue_of(cc_id).push_back(filler);
+	acc.food = acc.wood = acc.gold = acc.stone = 5000.0f;
+	s->petra_start_worker_plans();
+	const bool waits_for_room = plans.size() == 1 && queue_of(bar).empty() && s->petra_pop_room() == 2;
+	queue_of(cc_id).clear();
+	s->petra_start_worker_plans();
+	int trained = 0;
+	for (const auto &o : queue_of(bar)) trained += o.tmpl == spear ? o.count : 0;
+	for (const auto &o : queue_of(cc_id)) trained += o.tmpl == spear ? o.count : 0;
+	std::printf("  worker plan of 3 spearmen: waits unpaid %s, waits with room 2 %s, then trains %d (%zu plans left)\n",
+	            waits_for_money ? "yes" : "no", waits_for_room ? "yes" : "no", trained, plans.size());
+	CHECK(waits_for_money, "an unpaid soldier plan waits in its queue");
+	CHECK(waits_for_room, "a batch waits for room for all of it");
+	CHECK(trained == 3 && plans.empty(), "the plan then trains its whole batch");
 }
 
 static void test_strength_prepare_time() {
@@ -7900,6 +7957,7 @@ int main(int argc, char **argv) {
 	RUN(test_unit_stat_trainable_busy);
 	RUN(test_workers_while_cc_on_emergency);
 	RUN(test_strength_prepare_time);
+	RUN(test_worker_plans_wait);
 	RUN(test_new_cc_defenders);
 	RUN(test_temple_wonder_save);
 	RUN(test_personality_draw);
