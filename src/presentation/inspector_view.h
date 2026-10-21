@@ -9,15 +9,19 @@
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/control.hpp>
+#include <godot_cpp/classes/font_variation.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/text_server.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/panel.hpp>
 #include <godot_cpp/classes/progress_bar.hpp>
+#include <godot_cpp/classes/shader.hpp>
+#include <godot_cpp/classes/shader_material.hpp>
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <godot_cpp/classes/texture_rect.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/classes/theme.hpp>
+#include <godot_cpp/classes/theme_db.hpp>
 #include <godot_cpp/core/memory.hpp>
 #include <godot_cpp/variant/callable.hpp>
 #include <godot_cpp/variant/color.hpp>
@@ -67,6 +71,12 @@ class RtsoInspectorView {
 	static constexpr float kW = 228.0f, kH = 204.0f;
 	static constexpr float kTextW = kW - 8.0f, kBarX = 118.0f, kBarW = kW - 6.0f - kBarX;
 	static constexpr float kRows[5] = {10.0f, 26.0f, 42.0f, 58.0f, 74.0f};
+	// single_details_area.xml in panel coordinates (detailsAreaSingle at 4 4): the names, the
+	// player band, and the bar sections (x 96 to 100%, sectionPosTop/Middle/Bottom at 2, 12, 35),
+	// each a 14 px caption row over a 7 px bar (1 14 100% 21).
+	static constexpr float kNamesY = 4 + 96 + 3, kNamesH = 34, kBandY = 4 + 96 + 38, kBandH = 24;
+	static constexpr float kSectionX = 4 + 96, kSectionW = kW - 4 - kSectionX;
+	static constexpr float kSectionTop = 4 + 2, kSectionMiddle = 4 + 12, kSectionBottom = 4 + 35;
 	static inline const godot::Vector2 kStatsAt{104.0f, 86.0f}, kStatsSize{kW - 108.0f, 14.0f};
 
 public:
@@ -124,44 +134,80 @@ public:
 			portrait_->add_child(status_icons_[i]);
 		}
 
+		bold_.instantiate();
+		bold_->set_base_font(ThemeDB::get_singleton()->get_fallback_font());
+		bold_->set_variation_embolden(0.7f);
+		// statsArea (0 96 100% 100%): the names (0 3 100% 37), then the player band (0 38 100% 62).
+		// primary (PrimaryNameCentered, sans-bold-stroke-13, gold) on the top half, or the whole
+		// height without a secondary; secondary (SecondaryNameCentered, sans-stroke-12, white) at 50%-1.
 		title_ = memnew(Label);
-		// statsArea (0 96 100% 100%): the names centred, then the player band (0 38 100% 62).
-		title_->set_position(Vector2(4, 102));
-		title_->set_size(Vector2(kTextW, 18));
+		title_->set_position(Vector2(4, kNamesY));
+		title_->set_size(Vector2(kTextW, kNamesH));
 		title_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+		title_->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
 		title_->set_clip_text(true);
+		title_->add_theme_font_override("font", bold_);
 		title_->add_theme_font_size_override("font_size", 13);
-		title_->add_theme_color_override("font_color", Color(1.0f, 0.88f, 0.4f));
+		title_->add_theme_color_override("font_color", Color(1.0f, 0.84f, 0.0f));
+		title_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+		title_->add_theme_constant_override("outline_size", 2);
 		panel_->add_child(title_);
+		secondary_ = memnew(Label);
+		secondary_->set_name("secondary");
+		secondary_->set_position(Vector2(4, kNamesY + kNamesH / 2.0f - 1.0f));
+		secondary_->set_size(Vector2(kTextW, kNamesH / 2.0f + 1.0f));
+		secondary_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+		secondary_->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
+		secondary_->set_clip_text(true);
+		secondary_->add_theme_font_size_override("font_size", 12);
+		secondary_->add_theme_color_override("font_color", Color(1.0f, 1.0f, 1.0f));
+		secondary_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+		secondary_->add_theme_constant_override("outline_size", 2);
+		secondary_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		secondary_->set_visible(false);
+		panel_->add_child(secondary_); // not title_'s child: clip_text clips children too
 
-		// selection_details.js's player row: the name on the player colour (alpha 128), the
-		// civ emblem in grey behind it and the phase emblems, "Civ — Town Phase" as its tooltip.
-		owner_bg_ = memnew(ColorRect);
-		owner_bg_->set_position(Vector2(4, 136));
-		owner_bg_->set_size(Vector2(kTextW, 20));
-		owner_bg_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
-		owner_bg_->set_visible(false);
-		panel_->add_child(owner_bg_);
+		// selection_details.js's player band (0 38 100% 62 in statsArea): playerCivIcon
+		// (50%-64 50%-10 50%+64 50%+10, "cropped:1.0, 0.15625 center:grayscale:" emblem), the
+		// player colour at alpha 128 over it, phaseEmblems across the band, then the name, with
+		// "Civ — Town Phase" as its tooltip.
 		owner_civ_ = memnew(TextureRect);
-		owner_civ_->set_position(Vector2(4 + kTextW / 2.0f - 64.0f, 136));
+		owner_civ_->set_name("playerCivIcon");
+		owner_civ_->set_position(Vector2(4 + kTextW / 2.0f - 64.0f, kBandY + kBandH / 2.0f - 10.0f));
 		owner_civ_->set_size(Vector2(128, 20));
 		owner_civ_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
-		owner_civ_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
-		owner_civ_->set_modulate(Color(0.6f, 0.6f, 0.6f, 0.8f));
+		owner_civ_->set_stretch_mode(TextureRect::STRETCH_SCALE);
+		{
+			Ref<Shader> sh;
+			sh.instantiate();
+			sh->set_code("shader_type canvas_item;\nvoid fragment() {\n"
+					"\tvec4 c = texture(TEXTURE, vec2(UV.x, 0.5 + (UV.y - 0.5) * 0.15625));\n"
+					"\tfloat g = dot(c.rgb, vec3(0.3, 0.59, 0.11));\n\tCOLOR = vec4(vec3(g), c.a) * COLOR;\n}\n");
+			civ_strip_.instantiate();
+			civ_strip_->set_shader(sh);
+		}
+		owner_civ_->set_material(civ_strip_);
 		owner_civ_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		owner_civ_->set_visible(false);
 		panel_->add_child(owner_civ_);
+		owner_bg_ = memnew(ColorRect);
+		owner_bg_->set_position(Vector2(4, kBandY));
+		owner_bg_->set_size(Vector2(kTextW, kBandH));
+		owner_bg_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		owner_bg_->set_visible(false);
+		panel_->add_child(owner_bg_);
 		owner_phase_ = memnew(TextureRect);
-		owner_phase_->set_position(Vector2(kW - 50.0f, 138));
-		owner_phase_->set_size(Vector2(44, 16));
+		owner_phase_->set_name("phaseEmblems");
+		owner_phase_->set_position(Vector2(4, kBandY));
+		owner_phase_->set_size(Vector2(kTextW, kBandH));
 		owner_phase_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
-		owner_phase_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
+		owner_phase_->set_stretch_mode(TextureRect::STRETCH_SCALE);
 		owner_phase_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		owner_phase_->set_visible(false);
 		panel_->add_child(owner_phase_);
 
 		class_ = memnew(Label);
-		class_->set_position(Vector2(4, 136));
+		class_->set_position(Vector2(4, kBandY + kBandH / 2.0f - 10.0f));
 		class_->set_size(Vector2(kTextW, 20));
 		class_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 		class_->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
@@ -230,6 +276,19 @@ public:
 		make_insp_bar(hp_bar_, hp_label_, kRows[0], Color(0.25f, 0.75f, 0.35f), "HP", "res://assets/textures/ui/icons/insp_health_fg.png");
 		// 2. Capture Points Bar (Cyan / Blue)
 		make_insp_bar(capture_bar_, capture_label_, kRows[1], Color(0.35f, 0.55f, 0.95f), "CP", "res://assets/textures/ui/icons/insp_capture_bar.png");
+		// healthSection and captureSection: healthStats and captureStats (StatsTextRight,
+		// sans-stroke-12) in the caption row over a 7 px bar, no icon; layout_sections places them.
+		auto section = [&](ProgressBar *bar, Label *caption) {
+			for (int i = bar->get_child_count() - 1; i >= 0; --i) {
+				Node *child = bar->get_child(i);
+				bar->remove_child(child);
+				memdelete(child);
+			}
+			bar->set_size(Vector2(kSectionW - 1.0f, 7));
+			stats_caption(caption, HORIZONTAL_ALIGNMENT_RIGHT);
+		};
+		section(hp_bar_, hp_label_);
+		section(capture_bar_, capture_label_);
 		// healthSection's and captureTooltip's hover text.
 		hp_bar_->set_tooltip_text(rtso::tr0("Health"));
 		capture_bar_->set_tooltip_text(rtso::tr0("Capture Points"));
@@ -251,15 +310,11 @@ public:
 		// resourceSection: "Wood:" beside a bar of the supply left, "amount / max" (or "∞") on it.
 		// It takes the first bar row under the health bar that nothing else uses.
 		resource_name_ = memnew(Label);
-		resource_name_->set_size(Vector2(kBarW / 2.0f, 13));
-		resource_name_->set_clip_text(true);
-		resource_name_->add_theme_font_size_override("font_size", 9);
-		resource_name_->add_theme_color_override("font_color", Color(0.95f, 0.8f, 0.35f));
+		stats_caption(resource_name_, HORIZONTAL_ALIGNMENT_LEFT);
 		resource_name_->set_visible(false);
 		panel_->add_child(resource_name_);
 		resource_bar_ = memnew(ProgressBar);
 		resource_bar_->set_name("resourceBar");
-		resource_bar_->set_size(Vector2(kBarW, 11));
 		resource_bar_->set_show_percentage(false);
 		{
 			Ref<StyleBoxFlat> bg_sb, fg_sb;
@@ -272,13 +327,11 @@ public:
 			resource_bar_->add_theme_stylebox_override("background", bg_sb);
 			resource_bar_->add_theme_stylebox_override("fill", fg_sb);
 		}
+		resource_bar_->set_size(Vector2(kSectionW - 1.0f, 7));
 		resource_bar_->set_visible(false);
 		panel_->add_child(resource_bar_);
 		resource_stats_ = memnew(Label);
-		resource_stats_->set_size(Vector2(kBarW, 13));
-		resource_stats_->add_theme_font_size_override("font_size", 9);
-		resource_stats_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_RIGHT);
-		resource_stats_->add_theme_color_override("font_color", Color(0.95f, 0.95f, 0.98f));
+		stats_caption(resource_stats_, HORIZONTAL_ALIGNMENT_RIGHT);
 		resource_stats_->set_visible(false);
 		panel_->add_child(resource_stats_);
 
@@ -452,7 +505,7 @@ public:
 		d["owner_color"] = owner_bg_->is_visible() ? owner_bg_->get_color() : godot::Color(0, 0, 0, 0);
 		d["owner_phase"] = owner_phase_->is_visible() && owner_phase_->get_texture().is_valid() ? owner_phase_->get_texture()->get_path() : godot::String();
 		d["visible"] = panel_ && panel_->is_visible();
-		d["title"] = title_->get_text();
+		d["title"] = title_full_;
 		d["title_tooltip"] = title_->get_tooltip_text();
 		d["portrait_tooltip"] = portrait_->get_tooltip_text();
 		d["portrait"] = portrait_->get_texture().is_valid() ? portrait_->get_texture()->get_path() : godot::String();
@@ -612,10 +665,10 @@ public:
 			const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
 			const auto &uinfo = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(tmpl, utype) : rtso::unit_type_info(utype);
 			portrait_->set_texture(rtso::portraits::unit(tmpl, utype));
-			title_->set_text(unit_name(uv, u, uinfo.name));
+			set_title(unit_name(uv, u, uinfo.name));
 			set_owner(*sim, uv.team[u]);
 			health(uv.hp[u], uv.max_hp[u]);
-			fill_unit_details(*sim, u, title_->get_text());
+			fill_unit_details(*sim, u, title_full_);
 			set_unit_extras(*sim, u);
 			return true;
 		}
@@ -630,12 +683,12 @@ public:
 				return false;
 			const auto &fi = rtso::fauna_type_info(fv.fauna_type[f]);
 			portrait_->set_texture(rtso::portraits::fauna(fv.fauna_type[f]));
-			title_->set_text(String::utf8(fi.name));
+			set_title(String::utf8(fi.name));
 			set_owner(*sim, owner);
 			health(fv.hp[f], fv.max_hp[f]);
 			set_statuses(*sim, rtso::Simulation::STATUS_ON_FAUNA, fv.id[f]);
 			set_portrait_target(false, 0, fv.pos_x[f], fv.pos_z[f], String(), -1, 0);
-			portrait_->set_tooltip_text(portrait_tooltip(title_->get_text(), rtso::portraits::fauna_entry(fv.fauna_type[f]), String(), String(), false));
+			portrait_->set_tooltip_text(portrait_tooltip(title_full_, rtso::portraits::fauna_entry(fv.fauna_type[f]), String(), String(), false));
 			// An animal's Attack/Melee and Resistance as tooltips.js shows a unit's.
 			rtso::Simulation::UnitDetails d;
 			d.damage[0] = fi.hack_damage;
@@ -673,7 +726,7 @@ public:
 			if (seen->miraged) {
 				const auto &binfo = rtso::building_type_info(seen->type);
 				portrait_->set_texture(rtso::portraits::structure(seen->civ, seen->type));
-				title_->set_text(structure_name(seen->civ, seen->type, binfo.name));
+				set_title(structure_name(seen->civ, seen->type, binfo.name));
 				set_owner(*sim, seen->team);
 				health(seen->hp, seen->max_hp);
 				if (seen->max_capture_points > 0.0f)
@@ -702,7 +755,7 @@ public:
 						: seen->team < rtso::MAX_PLAYERS ? sim->player_civ(seen->team) : sim->player_civ(host_->local_player());
 				set_portrait_target(false, seen->id, seen->x, seen->z, "structure", seen->type, civ);
 				const godot::Dictionary entry = rtso::portraits::structure_entry(seen->civ, seen->type);
-				portrait_->set_tooltip_text(portrait_tooltip(title_->get_text(), entry, rtso::seldet::structure_auras_tooltip(entry), String(), false));
+				portrait_->set_tooltip_text(portrait_tooltip(title_full_, entry, rtso::seldet::structure_auras_tooltip(entry), String(), false));
 				return true;
 			}
 			const rtso::Simulation::Building *found = nullptr;
@@ -711,7 +764,7 @@ public:
 			if (!found || found->wrecked || found->hp <= 0.0f) return false;
 			const auto &binfo = rtso::building_type_info(found->type);
 			portrait_->set_texture(rtso::portraits::structure(found->civ, found->type));
-			title_->set_text(structure_name(found->civ, found->type, binfo.name));
+			set_title(structure_name(found->civ, found->type, binfo.name));
 			set_owner(*sim, found->team);
 			health(found->hp, found->max_hp);
 			set_structure_extras(*sim, *found);
@@ -736,9 +789,9 @@ public:
 			if (!found) return false;
 			const auto &ti = rtso::treasure_type_info(found->type);
 			portrait_->set_texture(rtso::portraits::treasure(found->type));
-			title_->set_text(String::utf8(ti.name));
+			set_title(String::utf8(ti.name));
 			set_portrait_target(false, 0, found->x, found->z, String(), -1, 0);
-			portrait_->set_tooltip_text(portrait_tooltip(title_->get_text(), rtso::portraits::treasure_entry(found->type), String(),
+			portrait_->set_tooltip_text(portrait_tooltip(title_full_, rtso::portraits::treasure_entry(found->type), String(),
 					rtso::seldet::reward_tooltip(ti.amount), false));
 			set_owner(*sim, rtso::GAIA_PLAYER);
 			bar(hp_bar_, hp_label_, false);
@@ -773,7 +826,7 @@ public:
 		const bool carcass = res->subtype == rtso::RES_SUB_MEAT && res->fauna != 0;
 		if (carcass) title = String::utf8(rtso::fauna_type_info((uint8_t)(res->fauna - 1)).name);
 		portrait_->set_texture(carcass ? rtso::portraits::fauna((uint8_t)(res->fauna - 1)) : rtso::portraits::resource(res->type, res->subtype, res->flora));
-		title_->set_text(title);
+		set_title(title);
 		set_owner(*sim, carcass && res->owner < rtso::MAX_PLAYERS ? res->owner : rtso::GAIA_PLAYER);
 		bar(hp_bar_, hp_label_, false);
 		set_portrait_target(false, 0, res->x, res->z, String(), -1, 0);
@@ -834,7 +887,7 @@ public:
 					rtso::tr0("Click to select only these, Ctrl+click or right-click to deselect them.");
 		}
 		if (groups.size() > RtsoSelectionGrid::kMaxSelectionGroups) groups.resize(RtsoSelectionGrid::kMaxSelectionGroups);
-		title_->set_text(String::num_int64(selected_ids.size()) + " units selected");
+		set_title(String::num_int64(selected_ids.size()) + " units selected");
 		// displayMultiple: each animal's Garrisonable size (corrals), no carried resources or Loot.
 		title_->set_tooltip_text(rtso::seldet::multiple_tooltip((int64_t)selected_ids.size(), {}, {}));
 		portrait_->set_tooltip_text("");
@@ -855,6 +908,10 @@ public:
 	}
 
 	void update() {
+		update_contents();
+		if (panel_) layout_sections();
+	}
+	void update_contents() {
 		rtso::Simulation *sim = host_->ui_sim();
 		const PackedInt32Array &selected_ids = host_->ui_selected_ids();
 		const uint32_t selected_building_id = host_->ui_selected_building_id();
@@ -909,7 +966,7 @@ public:
 			if (found_b) {
 				const auto &binfo = rtso::building_type_info(found_b->type);
 				portrait_->set_texture(rtso::portraits::structure(found_b->civ, found_b->type));
-				title_->set_text(structure_name(found_b->civ, found_b->type, binfo.name));
+				set_title(structure_name(found_b->civ, found_b->type, binfo.name));
 				const uint8_t owner = found_b->team;
 				// The garrison count is on the garrison panel and the Unload All icon, not here.
 				set_owner(*sim, owner, String());
@@ -1002,7 +1059,7 @@ public:
 
 			// 0 A.D. ranks: Basic, Advanced, Elite (Promotion.js).
 			const String name = unit_name(uview, u, uinfo.name);
-			title_->set_text(name);
+			set_title(name);
 			const uint8_t owner = uview.team[u];
 			set_owner(*sim, owner, String()); // kills are on the summary screen, not here
 
@@ -1022,7 +1079,7 @@ public:
 		} else {
 			portrait_->set_texture(groups.empty() ? Ref<Texture2D>()
 					: rtso::portraits::unit(groups.front().tmpl, groups.front().unit_type));
-			title_->set_text(String::num_int64(selected_ids.size()) + " units selected");
+			set_title(String::num_int64(selected_ids.size()) + " units selected");
 			// displayMultiple's numberOfUnits tooltip: garrison size, carried resources, loot.
 			{
 				rtso::seldet::Amounts carrying, loot;
@@ -1121,6 +1178,56 @@ private:
 		attack_icon_->set_visible(!text.is_empty());
 	}
 
+	// StatsTextLeft / StatsTextRight: sans-stroke-12, white, centred vertically in the 14 px row.
+	static void stats_caption(godot::Label *l, godot::HorizontalAlignment align) {
+		using namespace godot;
+		l->set_size(Vector2(kSectionW, 14));
+		l->set_horizontal_alignment(align);
+		l->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
+		l->set_clip_text(true);
+		l->add_theme_font_size_override("font_size", 12);
+		l->add_theme_color_override("font_color", Color(1, 1, 1));
+		l->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+		l->add_theme_constant_override("outline_size", 2);
+		l->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+	}
+
+	// displaySingle's names: "Primary (Secondary)" splits at its last " (" into the gold primary
+	// and the white "(secondary)" under it; title_full_ keeps the whole text.
+	void set_title(const godot::String &text) {
+		title_full_ = text;
+		const int64_t cut = text.ends_with(")") ? text.rfind(" (") : -1;
+		const bool two = cut > 0;
+		title_->set_text(two ? text.substr(0, cut) : text);
+		title_->set_size(godot::Vector2(kTextW, two ? kNamesH / 2.0f : kNamesH));
+		secondary_->set_text(two ? text.substr(cut + 1) : godot::String());
+		secondary_->set_visible(two);
+	}
+
+	// displaySingle's section placement: health on top; capture in the middle under health
+	// when a resource bar takes the bottom, else at the bottom; the resource bar at the bottom
+	// (top without health); capture alone on top. With all three the capture caption is empty
+	// and its points go to the tooltip (showSmallCapture).
+	void layout_sections() {
+		using namespace godot;
+		const bool health = hp_bar_->is_visible(), capture = capture_bar_->is_visible(), resource = resource_bar_->is_visible();
+		auto place = [](ProgressBar *bar, std::initializer_list<Label *> captions, float y) {
+			for (Label *l : captions) l->set_position(Vector2(kSectionX, y));
+			bar->set_position(Vector2(kSectionX + 1.0f, y + 14.0f));
+		};
+		if (health) place(hp_bar_, {hp_label_}, kSectionTop);
+		if (capture) place(capture_bar_, {capture_label_}, !health ? (resource ? kSectionBottom : kSectionTop) : resource ? kSectionMiddle : kSectionBottom);
+		if (resource) place(resource_bar_, {resource_name_, resource_stats_}, health ? kSectionBottom : kSectionTop);
+		capture_bar_->set_tooltip_text(rtso::tr0("Capture Points"));
+		if (health && capture && resource) {
+			const PackedStringArray pts = capture_label_->get_text().split(" / ");
+			if (pts.size() == 2)
+				capture_bar_->set_tooltip_text(rtso::sprintf0(rtso::tr0("%(captureLabel)s %(current)s / %(max)s"),
+						{{"captureLabel", rtso::tr0("Capture points:")}, {"current", pts[0]}, {"max", pts[1]}}));
+			capture_label_->set_text(String());
+		}
+	}
+
 	void clear_tooltips() {
 		for (godot::Control *c : std::initializer_list<godot::Control *>{portrait_, title_, stats_, extra_, aura_label_, xp_bar_}) c->set_tooltip_text("");
 		rank_icon_->set_visible(false);
@@ -1155,6 +1262,7 @@ private:
 		portrait_->set_visible(false);
 		// multiple_details_area.xml has no names or player band.
 		title_->set_visible(false);
+		secondary_->set_visible(false);
 		class_->set_visible(false);
 		count_label_->set_text(godot::String::num_int64(count));
 		count_label_->set_tooltip_text(tip);
@@ -1236,16 +1344,10 @@ private:
 	// first bar row below the health bar left free (capture and the build/repair row come first).
 	void show_resource_bar(uint8_t res, int64_t amount, int64_t max, bool infinite) {
 		using namespace godot;
-		float y = kRows[1];
-		if (capture_bar_->is_visible()) y = kRows[2];
-		if (y == kRows[2] && xp_bar_->is_visible()) y = kRows[3];
-		// resourceLabel (StatsTextLeft) and resourceStats (StatsTextRight) share the bar's row.
-		resource_name_->set_position(Vector2(kBarX + 2.0f, y - 1));
+		// resourceLabel (StatsTextLeft) and resourceStats (StatsTextRight) share the caption row.
 		resource_name_->set_text(rtso::seldet::resource_label(res));
-		resource_bar_->set_position(Vector2(kBarX, y));
 		resource_bar_->set_max(1.0);
 		resource_bar_->set_value(infinite ? 1.0 : max > 0 ? std::clamp((double)amount / (double)max, 0.0, 1.0) : 0.0);
-		resource_stats_->set_position(Vector2(kBarX, y - 1));
 		resource_stats_->set_text(rtso::seldet::resource_amount(amount, max, infinite));
 		for (Control *c : std::initializer_list<Control *>{resource_name_, resource_bar_, resource_stats_}) c->set_visible(true);
 	}
@@ -1385,7 +1487,7 @@ private:
 				set_capture_parts(sim, owner, r.cp.data(), max);
 				break;
 			}
-		portrait_->set_tooltip_text(portrait_tooltip(title_->get_text(), entry, aura_label_->get_tooltip_text(), String(), true));
+		portrait_->set_tooltip_text(portrait_tooltip(title_full_, entry, aura_label_->get_tooltip_text(), String(), true));
 	}
 
 	// A single structure's statuses, portrait tooltip and clicks.
@@ -1396,7 +1498,7 @@ private:
 				: b.team < rtso::MAX_PLAYERS ? sim.player_civ(b.team) : sim.player_civ(host_->local_player());
 		set_portrait_target(false, b.id, b.x, b.z, "structure", b.type, civ);
 		const godot::Dictionary entry = rtso::portraits::structure_entry(b.civ, b.type);
-		portrait_->set_tooltip_text(portrait_tooltip(title_->get_text(), entry, rtso::seldet::structure_auras_tooltip(entry), String(), false));
+		portrait_->set_tooltip_text(portrait_tooltip(title_full_, entry, rtso::seldet::structure_auras_tooltip(entry), String(), false));
 	}
 	// displaySingle for a unit: the stance icon's detailed tooltip
 	// (getAttackTooltip, getHealerTooltip, getResistanceTooltip, getGatherTooltip,
@@ -1494,7 +1596,10 @@ private:
 	float portrait_x_ = 0.0f, portrait_z_ = 0.0f;
 	String portrait_viewer_kind_;
 	int portrait_viewer_id_ = -1, portrait_viewer_civ_ = 0;
-	godot::Label *title_ = nullptr;
+	godot::Label *title_ = nullptr, *secondary_ = nullptr;
+	godot::String title_full_;
+	godot::Ref<godot::FontVariation> bold_;
+	godot::Ref<godot::ShaderMaterial> civ_strip_; // playerCivIcon's crop and grayscale
 	godot::Label *class_ = nullptr;
 	godot::ColorRect *owner_bg_ = nullptr;
 	godot::TextureRect *owner_civ_ = nullptr, *owner_phase_ = nullptr;
@@ -1505,9 +1610,14 @@ private:
 	void set_owner(const rtso::Simulation &sim, uint8_t owner, const godot::String &suffix = godot::String()) {
 		using namespace godot;
 		class_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+		// player: largeCenteredOutlinedText (sans-bold-stroke-14, white).
+		class_->add_theme_font_override("font", bold_);
+		class_->add_theme_font_size_override("font_size", 14);
 		if (owner >= rtso::MAX_PLAYERS) {
 			// Gaia keeps its colour band; only the emblem, phase and civ tooltip are blank.
 			clear_owner();
+			class_->add_theme_font_override("font", bold_);
+			class_->add_theme_font_size_override("font_size", 14);
 			const uint32_t gaia = sim.player_color(rtso::GAIA_PLAYER);
 			owner_bg_->set_color(Color(((gaia >> 16) & 0xFF) / 255.0f, ((gaia >> 8) & 0xFF) / 255.0f, (gaia & 0xFF) / 255.0f, 128.0f / 255.0f));
 			owner_bg_->set_visible(true);
@@ -1553,6 +1663,8 @@ private:
 		owner_phase_->set_visible(false);
 		class_->set_tooltip_text(godot::String());
 		class_->set_horizontal_alignment(godot::HORIZONTAL_ALIGNMENT_LEFT);
+		class_->remove_theme_font_override("font");
+		class_->add_theme_font_size_override("font_size", 11);
 		class_->add_theme_color_override("font_color", godot::Color(0.7f, 0.75f, 0.85f));
 		class_->add_theme_constant_override("outline_size", 0);
 	}
@@ -1651,7 +1763,7 @@ private:
 		}
 		portrait_->set_texture(groups.empty() ? godot::Ref<godot::Texture2D>()
 				: groups.front().icon.is_valid() ? groups.front().icon : rtso::portraits::unit(groups.front().tmpl, groups.front().unit_type));
-		title_->set_text(godot::String::num_int64(total) + " selected");
+		set_title(godot::String::num_int64(total) + " selected");
 		// displayMultiple's numberOfUnits tooltip: the units' Garrisonable size, every holder's
 		// occupied slots, carried resources and the summed Loot of units and structures.
 		{
