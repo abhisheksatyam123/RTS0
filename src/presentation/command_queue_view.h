@@ -75,6 +75,8 @@ public:
 	virtual bool ui_garrison_panel_shown() const { return false; }
 	// g_IsObserver: an observer, a defeated player or a replay viewer.
 	virtual bool ui_observing() const { return false; }
+	// controlsPlayer(pid) while observing: a winner who stayed still commands their own units.
+	virtual bool ui_commands_player(uint8_t) const { return false; }
 	// Another player's live unit or structure a click selected alone for its details (0.28
 	// selects it; RTS0's inspector), with nothing else selected; 0 when none. `building`: which.
 	virtual uint32_t ui_inspected_foreign(bool *building) const { return 0; }
@@ -325,7 +327,7 @@ public:
 			}
 			if (owner < rtso::MAX_PLAYERS) {
 				panel_player_ = owner;
-				read_only_ = !control_all;
+				read_only_ = !control_all && !host_->ui_commands_player(owner);
 			}
 		}
 		update_barter_panel();

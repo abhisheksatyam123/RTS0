@@ -584,6 +584,11 @@ gui/campaigns, gui/common/campaigns, session/campaigns and pregame/MainMenuItems
 | CA12 | A campaign without an Image showed no picture; 0.28 shows nopreview.png | cosmetic | Fixed |
 | CA13 | 0.28 starts a level with mapName and mapPreview set to the level's Name and Preview, shown in saves and in game; RTS0 showed the map's own | low | Fixed (the name; a level Preview is the same picture as its map's in both shipped templates) |
 | CA14 | The current run is kept in user://saves/campaigns/current, not user.cfg's "currentcampaign", so a 0.28 user.cfg's run isn't picked up | low | Deliberate |
+| CA15 | A campaign level (and Learn to Play's tutorial) kept the last Game Setup's settings: your seat (an enemy seat or watching, so the level could never be won), speed, population, resources, ceasefire, visibility, Last Man Standing; 0.28 starts from a fresh GameSettings | medium | Fixed (MatchSettings.reset_match; e2e_campaigns) |
+| CA16 | Your player in a level was "Player 1"; 0.28 names it playername.singleplayer, else the system user name | low | Fixed |
+| CA17 | A level with no preview of its own or of its map (Economy Walkthrough) hid the picture; 0.28 shows nopreview.png | cosmetic | Fixed |
+| CA18 | Enter in the new run's name field started the run; 0.28's input has no action | cosmetic | Fixed |
+| CA19 | A level's MapType and useGameSetup (Game Setup with the map locked) are not read; RTS0 starts every level as a scenario with its own players | low | Kept: neither shipped campaign uses them |
 
 CCmpCinemaManager, CinemaManager, CCinemaPath and session.js's cinema handling were checked against cinema.h, tick_cinema and cinema_view.h:
 
@@ -593,16 +598,18 @@ CCmpCinemaManager, CinemaManager, CCinemaPath and session.js's cinema handling w
 | CI2 | Path ends are checked every 50 ms tick, 0 A.D.'s on 200 ms turns (Cinema Demo's end events at 61.45 s, 0.28 61.6 s) | low | Deliberate: RTS0's triggers and timers all run per tick |
 | CI3 | OnCinemaPathEnded carried the path's index; 0 A.D. sends its name | low | Fixed |
 | CI4 | The path time is reset before OnCinemaPathEnded, 0 A.D. after it | low | Matches in effect: no handler reads the time |
-| CI5 | ClearQueue while playing: 0 A.D. reads an empty queue (undefined), RTS0 stops quietly | low | Deliberate |
+| CI5 | ClearQueue while playing: 0 A.D. reads an empty queue (undefined), RTS0 stops quietly (ClearQueue is C++ only in 0.28, used by Atlas; no script reaches it, but DeletePath of the last queued path does, CI15) | low | Deliberate |
 | CI6 | At the end 0 A.D. always turns reveal-all off; RTS0 restores the state from before, so a Revealed Map game stays revealed | low | Deliberate |
 | CI7 | The camera runs on real time x timescale with no link to sim time in 0 A.D.; RTS0 keeps it within 0.15 s of sim time | low | Deliberate |
 | CI8 | 0 A.D.'s Deserialize recomputes the total from the remaining paths and doesn't re-hide the GUI; RTS0 saves the total and re-hides | low | Deliberate (0 A.D. bugs not copied) |
 | CI9 | The state hash left out map_revealed and the paths | low | Fixed |
 | CI10 | Status bars still showed with show-all or a highlight while a path played; 0 A.D. hides overlays (SetOverrideVisibility) | low | Fixed |
 | CI11 | Input while a path plays | low | Matches: only session input stops; fullscreen, screenshot, exit and the other global hotkeys work (UserSettings) |
-| CI12 | DeletePath on a queued path dropped it from the queue and could leave the camera flying the deleted path; 0 A.D.'s queue holds copies, which still play | low | Fixed |
+| CI12 | DeletePath on a queued path dropped it from the queue and could leave the camera flying the deleted path; 0 A.D.'s queue holds copies, which still play | low | Superseded by CI15: 0.28 drops queued copies too (CCmpCinemaManager.cpp:214) |
 | CI13 | Path names are cut to 31 bytes (0 A.D. 128); a target path without targets becomes a plain path (0 A.D. ENSURE); a path without nodes is refused | low | Deliberate |
 | CI14 | 0 A.D. turns the silhouettes setting off and reloads the config afterwards, and keeps the GUI when disconnected; RTS0 hides silhouettes only on screen | cosmetic | Deliberate |
+| CI15 | DeletePath left queued copies playing (CI12); 0.28 removes every queued copy, the playing one too (m_PathQueue.remove_if), and keeps the elapsed and total times, so the next path takes over mid-way | low | Fixed (an emptied queue stops quietly, as CI5) |
+| CI16 | Row CI5 described ClearQueue as script-visible; 0.28's script interface is AddPath, AddCinemaPathToQueue, DeletePath, IsPlaying, Play and Stop | cosmetic | Fixed (docs) |
 
 Trigger.js, TriggerPoint.js, Timer.js and every TriggerHelper.js helper were checked against triggers.h and the map script ports; flood, extinct_volcano, polar_sea, survivalofthefittest, elephantine, danubius, jebel_barkal, treasure_islands, gallic_fields_3p and death_canyon line by line:
 
