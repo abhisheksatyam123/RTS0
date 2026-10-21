@@ -251,8 +251,37 @@ func run() -> void:
 		check(placed, "a tap on open ground places a House foundation: %d -> %d" % [houses_before, house_count()])
 		check(not main.debug_placing(), "and ends placement")
 
+	print("7. Android's Back button")
+	current_scene = main
+	main.debug_select_units(men)
+	await frames(2)
+	await back()
+	check(selected().is_empty(), "Back drops the selection")
+	var menu: Node = main.get_node("PauseMenu")
+	check(not menu.visible, "and opens no menu while it had something to cancel")
+	await back()
+	check(menu.visible, "Back with nothing to cancel opens the session menu")
+	await back()
+	check(not menu.visible, "and Back again closes it")
+	main.toggle_diplomacy()
+	await frames(5)
+	await back()
+	check(not menu.visible and main.nothing_to_cancel(), "Back closes an open dialog without opening the menu")
+
+	print("8. Going to the background saves the match")
+	var bg := "user://saves/background.rts0sav"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(bg))
+	main.notification(Node.NOTIFICATION_APPLICATION_PAUSED)
+	check(FileAccess.file_exists(bg) and FileAccess.file_exists(bg.get_basename() + ".json"), "a single-player match is saved when the app is paused")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(bg))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(bg.get_basename() + ".json"))
+
 	print("FAILURES: %d" % failures)
 	quit(1 if failures else 0)
+
+func back() -> void:
+	touch.notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	await frames(30)
 
 func house_count() -> int:
 	var n := 0
