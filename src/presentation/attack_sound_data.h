@@ -101,7 +101,7 @@ struct EntityAttackSounds {
 
 inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 548;
 inline constexpr uint8_t ATTACK_SOUND_GENERIC_ROWS = 27;
-inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 91;
+inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 98;
 inline constexpr uint8_t ATTACK_SOUND_FAUNA_ROWS = 61;
 
 // Melee, ranged and impact groups of a civ roster row (civ_unit_template_table order).
@@ -788,6 +788,13 @@ inline const EntityAttackSounds &building_attack_sounds(uint8_t type) {
 		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_CAMPAIGN_CITY: campaigns/campaign_city_test
 		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_CAMPAIGN_CITY_MINOR: campaigns/campaign_city_minor_test
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_CAMPAIGN_SANCTUARY: campaigns/campaign_religious_test
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_STALL: structures/stall_big
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_HUT: structures/celt_hut
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_LONGHOUSE: structures/celt_longhouse
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_PERS_HOUSE_A: structures/pers/house_a
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_PERS_HOUSE_B: structures/pers/house_b
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_APARTMENT_BLOCK: structures/pers/apartment_block
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_EPIC_TEMPLE: structures/hellenic_epic_temple
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // default: template_structure
 	};
 	return kRows[type < ATTACK_SOUND_BUILDING_ROWS ? type : ATTACK_SOUND_BUILDING_ROWS];

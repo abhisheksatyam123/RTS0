@@ -37,7 +37,7 @@ None of these touches simulation state or the save format.
 
 ## Fix log
 
-- 2026-10-21 #PR1 pass 15 gap 1 (the tabs, Browse Maps, the civ info button and the AI gear stay clickable for a client and a saved game's host; the map browser and AI Configuration open read only, as GameSettingsTabs, CivInfoButton, MapBrowser.js and AIConfigButton) merged.
-- 2026-10-21 #PR1 pass 15 gap 2 (a saved game hides Browse Maps and opens no map browser from the preview or the hotkey, as MapPreview.js and MapBrowser.js EnabledWhenSavedGame) merged.
-- 2026-10-21 #PR1 pass 15 gap 3 (the host's Map Filter travels with the setup as `mapfilter` and is persisted with the match settings; clients show it, as GuiData.js) merged.
-- 2026-10-21 #PR1 pass 15 gap 4 (lobby presence stays "playing" from the game until the lobby page itself opens, the summary and a closed lobby dialog included, as gamesetup_mp.js and LobbyHandler) merged.
+- 2026-10-21 #1522 pass 15 gap 1 (the tabs, Browse Maps, the civ info button and the AI gear stay clickable for a client and a saved game's host; the map browser and AI Configuration open read only, as GameSettingsTabs, CivInfoButton, MapBrowser.js and AIConfigButton) merged.
+- 2026-10-21 #1522 pass 15 gap 2 (a saved game hides Browse Maps and opens no map browser from the preview or the hotkey, as MapPreview.js and MapBrowser.js EnabledWhenSavedGame) merged.
+- 2026-10-21 #1522 pass 15 gap 3 (the host's Map Filter travels with the setup as `mapfilter` and is persisted with the match settings; clients show it, as GuiData.js) merged.
+- 2026-10-21 #1522 pass 15 gap 4 (lobby presence stays "playing" from the game until the lobby page itself opens, the summary and a closed lobby dialog included, as gamesetup_mp.js and LobbyHandler) merged.

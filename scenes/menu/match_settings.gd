@@ -130,6 +130,21 @@ var campaign_level: String = ""
 # saves and replays; empty outside a campaign (the map's own name).
 var campaign_map_name: String = ""
 
+# Not match settings: the -autostart-disable-replay flag, the summary's music and the
+# multiplayer name, which outlive a match.
+const _KEPT_ON_RESET := ["record_replay", "match_music", "net_player_name"]
+
+## A fresh GameSettings (CampaignMenu.startScenario's new GameSettings().init(), the
+## autostart page's): every match field back to its default, none left from the last setup.
+func reset_match() -> void:
+	var fresh: Node = (get_script() as Script).new()
+	for p in (get_script() as Script).get_script_property_list():
+		if not (int(p["usage"]) & PROPERTY_USAGE_SCRIPT_VARIABLE) or _KEPT_ON_RESET.has(p["name"]):
+			continue
+		var v: Variant = fresh.get(p["name"])
+		set(p["name"], v.duplicate() if v is Array or v is Dictionary else v)
+	fresh.free()
+
 func strip_engine_popups(n: Node) -> void:
 	if n == null:
 		return

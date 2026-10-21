@@ -71,7 +71,10 @@ static void test_building_mirages() {
 
 	// Frame 1: enemy house in sight; enemy barracks in explored fog, never seen.
 	m.begin(g.c, 4, 8.0f);
-	m.add_building(bld(1, 0, 0, 1, 900.0f), false);
+	FoggedBuilding seen_house = bld(1, 0, 0, 1, 900.0f);
+	seen_house.has_resistance = true; // as update() fills it for a structure in sight
+	seen_house.resistance[0] = 5.0f;
+	m.add_building(seen_house, false);
 	m.add_building(bld(2, 2, 2, 1, 1000.0f), false);
 	m.add_building(bld(3, 3, 3, 0, 1000.0f), true); // own, in fog
 	m.end();
@@ -89,6 +92,7 @@ static void test_building_mirages() {
 	const FoggedBuilding *h = find_b(m, 1);
 	CHECK(h && h->miraged, "fogged enemy structure becomes a mirage");
 	CHECK(h && h->hp == 900.0f, "mirage keeps the last seen hit points, not live ones");
+	CHECK(h && h->has_resistance && h->resistance[0] == 5.0f, "mirage keeps the last seen resistance (ResistanceMirage)");
 
 	// Frame 3: the house is destroyed out of sight; its mirage stays.
 	m.begin(g.c, 4, 8.0f);

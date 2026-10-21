@@ -186,6 +186,8 @@ func render_details() -> void:
 			info_desc.text = TranslationServer.translate(str(level["Description"])) if level.has("Description") \
 				else tr(str(_map_json(CampaignRun.level_map_id(level)).get("desc", "")))
 			info_preview.texture = _level_preview(level)
+			if info_preview.texture == null:
+				info_preview.texture = no_preview() # MapCache.getMapPreview's nopreview.png
 			start_button.disabled = not run.meets_requirements(level)
 	info_preview.visible = info_preview.texture != null
 
@@ -434,7 +436,6 @@ func _build() -> void:
 	name_dialog.add_child(name_box)
 	# onTextEdit: Start needs a name that is not empty; the name is kept as typed.
 	name_edit.text_changed.connect(func(t): name_dialog.get_ok_button().disabled = t == "")
-	name_edit.text_submitted.connect(func(t): if t != "": name_dialog.hide(); create_run(t))
 	name_dialog.confirmed.connect(func(): create_run(name_edit.text))
 	add_child(name_dialog)
 

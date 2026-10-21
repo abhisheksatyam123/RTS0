@@ -1585,24 +1585,6 @@ void scatter_hills(HeightmapGrid &hm, RmsRng &rng, const std::vector<RmsGenerato
 }
 } // namespace
 
-void RmsGenerator::synth_syria(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
-	// syria.js: dry plains with slightly rolling highlands, players on a
-	// circle at f = 0.35, scaleByMapSize(1, 3) * 3 hills per player. No
-	// water; heights in metres over 0.28's water line: land at heightLand 1,
-	// 2 m bumps (heightOffsetBump), hills set to heightHill 22.
-	water_h = -10.0f;
-	const float land = 1.0f * kMetre;
-	hm.init(hm.res, hm.map_half, land);
-	const float half = hm.map_half;
-	add_bumps(hm, rng, 2.0f * kMetre);
-	place_team_spawns(hm, rng, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), land);
-	scatter_hills(hm, rng, spawns, scale_by_map_size(1, 3, half) * 3 * std::max(1, num_players),
-	              half * 0.03f + 2.0f, half * 0.06f + 3.0f, (22.0f - 1.0f) * kMetre, (22.0f - 1.0f) * kMetre, 20.0f);
-	for (float &h : hm.data) h = std::min(h, 22.0f * kMetre); // ELEVATION_SET: overlaps stay at 22
-	hm.blur(1, 0.35f);
-	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
-}
-
 void RmsGenerator::synth_cantabrian_highlands(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
 	// cantabrian_highlands.js: each player starts on a hill (heightHill 20)
 	// ringed by cliffs, with one ramp facing the map centre; players on a
@@ -5324,6 +5306,36 @@ void RmsGenerator::synth_atlas_mountains(HeightmapGrid &hm, RmsRng &rng, float &
 	const auto to_player = seas_dist_to_players(hm, spawn_points(spawns), seas_scale(15, 25, half) / 3.0f);
 	seas_bumps(hm, rng, seas_scale(100, 200, half), [&](int i) { return to_player[(size_t)i] > 9.0f; });
 	default_mountains_028(hm, rng, 0.0f, seas_scale(20, 120, half), 8.0f, [&](int i) { return to_player[(size_t)i] > 20.0f; });
+}
+
+void RmsGenerator::synth_syria(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// syria.js (0.28), in 0 A.D. metres: land at heightLand 1 m and no water; players by
+	// playerPlacementByPattern at fractionToTiles(0.35), teammates fractionToTiles(0.1) apart, each
+	// in clPlayer's disk of defaultPlayerBaseRadius and a ChainPlacer of grass round it (AREA_GRASS:
+	// desert_grass_a_sand 3 tiles in, desert_grass_a inside); scaleByMapSize(300, 800) 2 m bumps 13
+	// from the players, then scaleByMapSize(1, 3) * numPlayers * 3 hills set to heightHill 22, 3 from
+	// the players, 1 from the grass and 10 from each other.
+	water_h = -10.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	hm.init(hm.res, half, metres(0.0f, 1.0f));
+	place_team_spawns(hm, rng, spawns, num_players, 0.35f * size, rng.range_float(0.0f, 2.0f * kSeasPi), 0.0f);
+	const auto to_player = seas_dist_to_players(hm, spawn_points(spawns), seas_scale(15, 25, half));
+	std::vector<uint8_t> grass(hm.data.size(), 0);
+	for (const auto &sp : spawns) {
+		const auto m = seas_chain(hm, rng, sp.x, sp.z, 2, (int)std::floor(seas_scale(5, 12, half)), (int)std::floor(seas_scale(25, 60, half)),
+		                          1e9f, 0.0f, {(int)std::floor(seas_scale(16, 30, half))}, [](int) { return true; });
+		record_area(hm, m, AREA_GRASS);
+		seas_add(grass, m);
+	}
+	const auto to_grass = seas_dist_inside(hm, grass);
+	seas_create_areas(hm, rng, seas_scale(300, 800, half), 10, [&](float x, float z) {
+		const auto m = seas_clump(hm, rng, seas_scale(20, 50, half), 0.3f, 0.06f, 1e9f, x, z, [&](int i) { return to_player[(size_t)i] > 13.0f; });
+		if (!seas_any(m)) return false;
+		seas_paint_modify(hm, m, 2.0f * kMetre, 2.0f);
+		return true;
+	});
+	seas_hills(hm, rng, 0.0f, seas_scale(1, 3, half) * (float)std::max(1, num_players) * 3.0f, false, 10.0f, 22.0f,
+	           [&](int i) { return to_player[(size_t)i] > 3.0f && to_grass[(size_t)i] > 1.0f; });
 }
 
 void RmsGenerator::synth_alpine_lakes(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
@@ -13318,6 +13330,9 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 			const auto to_forest = distance_to([&](size_t j) { return forest[j] != 0; });
 			const auto to_player = distance_to([&](size_t j) { return player[j] != 0; });
 			std::vector<uint8_t> patched(t.tiles.size(), 0), got(t.tiles.size(), 0), near(t.tiles.size(), 0);
+			for (const MapArea &a : t_map_areas)
+				if (a.kind == AREA_GRASS) // syria.js clGrass: its patches keep off the grass round the bases
+					for (uint32_t j : a.tiles) patched[j] = 1;
 			std::vector<uint32_t> points, touched;
 			std::vector<std::pair<int, int>> edges;
 			for (const PatchSet &ps : own->patches) {

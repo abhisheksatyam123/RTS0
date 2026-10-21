@@ -212,6 +212,9 @@ public:
 	// Host: 0.28 network.duplicateplayernames. Off, a name already in the game
 	// is refused (NDR_PLAYERNAME_IN_USE); on, the joiner becomes "Name (2)".
 	void setDuplicatePlayerNames(bool on) { duplicate_names_ = on; }
+	// Host: 0 A.D. SERVER_STATE_LOADING. While the started game loads, a joiner
+	// is refused before anything else (NDR_SERVER_LOADING).
+	void setServerLoading(bool on) { server_loading_ = on; }
 	// Host: 0 A.D. NetServer::KickPlayer. Tells every client, drops the peer (the
 	// lockstep goes on without it) and, with ban, refuses its name and address
 	// from then on. False if there is no such admitted client.
@@ -328,6 +331,7 @@ private:
 	std::vector<std::pair<std::string, std::string>> enabled_mods_;
 	std::string host_software_version_;
 	bool duplicate_names_ = false;
+	bool server_loading_ = false;
 	// Host: close a link with this reason, sent in the disconnect's channel byte.
 	void refuse_with(NetPeer &p, uint8_t reason);
 	bool name_taken(const std::string &name, const NetPeer *self) const;
