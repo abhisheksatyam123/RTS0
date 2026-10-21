@@ -43,7 +43,7 @@ func run() -> void:
 	await frames(4)
 	var input: LineEdit = null
 	for le in main.find_children("*", "LineEdit", true, false):
-		if (le as LineEdit).placeholder_text == "Type message...":
+		if (le as LineEdit).name == "ChatInput":
 			input = le
 	check(input != null and input.has_focus(), "the chat input is open and focused")
 	if input != null and names.size() == 1:

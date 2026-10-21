@@ -1616,6 +1616,7 @@ void RtsoMain::_on_chat_filter_selected(int index) { chat_window_.set_filter(ind
 void RtsoMain::_on_chat_history_toggled(bool on) {
 	chat_window_.set_extended(on);
 	rtso::user_config::set("chat.session.extended", on ? "true" : "false");
+	chat_window_.focus_input();
 	rtso::user_config::save();
 }
 
