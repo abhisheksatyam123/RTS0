@@ -69,7 +69,7 @@ func run() -> void:
 	check(server_pid > 0, "the lobby server starts")
 	var cfg := RtsoUserConfig.new()
 	var saved := {}
-	for key in ["lobby.login", "lobby.password", "lobby.rememberpassword", "playername.multiplayer",
+	for key in ["lobby.login", "lobby.server", "lobby.password", "lobby.rememberpassword", "playername.multiplayer",
 			"lobby.terms_of_service", "lobby.terms_of_use", "lobby.privacy_policy"]:
 		saved[key] = cfg.get_value(key)
 	var ls: Node = root.get_node("/root/LobbySession")
@@ -98,6 +98,7 @@ func run() -> void:
 	cfg.reload()
 	check(cfg.get_value("lobby.login") == "Alice" and cfg.get_value("lobby.password") == ALICE_PASSWORD,
 		"lobby.login and the encrypted lobby.password are kept")
+	check(cfg.get_value("lobby.server") == "127.0.0.1:%d" % PORT, "the lobby signed in to is kept as lobby.server: " + str(cfg.get_value("lobby.server")))
 	check(lobby._password.text == "" and not FileAccess.get_file_as_string(accounts).contains("hunter22")
 		and not FileAccess.get_file_as_string(accounts).contains(ALICE_PASSWORD),
 		"the typed password is cleared, and the server keeps neither it nor its encryption")

@@ -694,7 +694,7 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 			// only the connected ones, as 0 A.D. counts m_Sessions.
 			const size_t live = (size_t)std::count_if(peers_.begin(), peers_.end(),
 					[](const NetPeer &p) { return p.connected; });
-			if (live >= NET_MAX_CLIENTS) {
+			if (live >= NET_MAX_REMOTE_CLIENTS) {
 				// NDR_SERVER_FULL, in the disconnect's channel byte; sent each
 				// time it asks, since the client resends its connect.
 				send_wire_packet(from_ip, from_port, 0, NET_FLAG_DISCONNECT, NDR_SERVER_FULL, nullptr, 0, false);
@@ -1032,7 +1032,11 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 		AuthenticateMsg auth;
 		if (NetPacketSerializer::parse_authenticate(msg.payload.data(), msg.payload.size(), auth)) {
 			NetPeer *p = getPeer(peerId);
-			if (isHost() && p && !p->is_authenticated && !p->kick_disconnect_ms) {
+			// 0 A.D. OnAuthenticate: "Prohibit joins while the game is loading".
+			if (isHost() && p && !p->is_authenticated && !p->kick_disconnect_ms && server_loading_) {
+				std::cout << "[NetHost] Refused peer " << p->id << " while the game is loading\n";
+				refuse_with(*p, NDR_SERVER_LOADING);
+			} else if (isHost() && p && !p->is_authenticated && !p->kick_disconnect_ms) {
 				const std::string sent = auth.name;
 				auth.name = sanitise_player_name(auth.name);
 				auth.sent_name = sent; // the password's salt
@@ -1379,6 +1383,13 @@ void NetHost::retargetHost(const std::string &ip, uint16_t port) {
 void NetHost::authenticate_peer(NetPeer &peer, AuthenticateMsg auth) {
 	NetPeer *p = &peer;
 	const uint32_t peerId = p->id;
+	// A lobby check that ends after Start (0.28 StartGame drops a client not
+	// yet past authentication with NDR_SERVER_LOADING).
+	if (server_loading_) {
+		std::cout << "[NetHost] Refused peer " << peerId << " while the game is loading\n";
+		refuse_with(*p, NDR_SERVER_LOADING);
+		return;
+	}
 	const std::string sent_name = auth.sent_name.empty() ? auth.name : auth.sent_name; // the password's salt, as sent
 	// 0 A.D. NetServer::OnAuthenticate: a name already in the game is
 	// refused, or with network.duplicateplayernames made unique

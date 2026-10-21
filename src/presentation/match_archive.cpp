@@ -18,6 +18,7 @@
 // is rebuilt from the setup first, as Simulation::load_state expects).
 
 #include "main_node.h"
+#include "display_colors.h"
 #include <godot_cpp/classes/canvas_layer.hpp>
 #include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/display_server.hpp>
@@ -637,19 +638,32 @@ OptionButton *RtsoMain::new_player_view_picker() const {
 	OptionButton *picker = memnew(OptionButton);
 	picker->set_tooltip_text("Choose player to view");
 	picker->add_item("Observer", 0);
-	auto add_player = [&](uint8_t pid, const String &name, int id) {
-		const uint32_t rgb = sim->player_color(pid);
-		Ref<Image> img = Image::create(12, 12, false, Image::FORMAT_RGB8);
-		img->fill(Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f));
-		picker->add_icon_item(ImageTexture::create_from_image(img), name, id);
-	};
-	add_player(rtso::GAIA_PLAYER, "Gaia", kReplayViewGaiaId);
+	picker->add_item("Gaia", kReplayViewGaiaId);
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
 		if (!sim->player_in_match(p) && !((sim->participant_mask() >> p) & 1)) continue;
-		add_player(p, player_display_name(p), p + 1);
+		picker->add_item(player_display_name(p), p + 1);
 	}
+	refresh_player_view_colors(picker);
 	picker->set_focus_mode(Control::FOCUS_NONE);
 	return picker;
+}
+
+// PlayerViewControl.rebuild on a view or Diplomacy Colors change: each square
+// in the colour colorizePlayernameHelper gives the player now.
+void RtsoMain::refresh_player_view_colors(OptionButton *picker) const {
+	if (!picker || !sim) return;
+	for (int i = 0; i < picker->get_item_count(); ++i) {
+		const int id = picker->get_item_id(i);
+		if (id == 0) continue;
+		const uint8_t pid = id == kReplayViewGaiaId ? rtso::GAIA_PLAYER : (uint8_t)(id - 1);
+		const int64_t rgb = (int64_t)(rtso::display_colors::rgb(*sim, pid) & 0xFFFFFF);
+		const Variant had = picker->get_item_metadata(i);
+		if (had.get_type() == Variant::INT && (int64_t)had == rgb) continue;
+		Ref<Image> img = Image::create(12, 12, false, Image::FORMAT_RGB8);
+		img->fill(Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f));
+		picker->set_item_icon(i, ImageTexture::create_from_image(img));
+		picker->set_item_metadata(i, rgb);
+	}
 }
 
 Control *RtsoMain::new_player_view_row(OptionButton *picker, Label *observer_label, CheckBox *follow) const {

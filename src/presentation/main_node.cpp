@@ -54,6 +54,7 @@ static bool building_trains_class(uint8_t civ, uint8_t utype, uint8_t btype) {
 // simulation writes its state to a file, so it goes outside user://saves (out of the save
 // and load dialogs) and is deleted when the match ends.
 static const char *const kQuicksavePath = "user://quicksave.rts0sav";
+static const char *const kBackgroundSavePath = "user://saves/background.rts0sav";
 
 RtsoMain::RtsoMain() {
 	sim = new rtso::Simulation();
@@ -70,6 +71,14 @@ void RtsoMain::_notification(int p_what) {
 	// focus returns, with no pause overlay.
 	if (p_what == NOTIFICATION_APPLICATION_FOCUS_OUT) app_unfocused_ = true;
 	if (p_what == NOTIFICATION_APPLICATION_FOCUS_IN) app_unfocused_ = false;
+	// A phone may close a game left in the background to free memory: a single-player
+	// match is saved first, to Load Game's "background" save (one, overwritten each time).
+	// No thumbnail: the screen may already be gone.
+	if (p_what == NOTIFICATION_APPLICATION_PAUSED && sim && !net_lockstep()) {
+		DirAccess::make_dir_recursive_absolute(ProjectSettings::get_singleton()->globalize_path("user://saves"));
+		if (sim->save_state(ProjectSettings::get_singleton()->globalize_path(kBackgroundSavePath).utf8().get_data()))
+			write_save_metadata(kBackgroundSavePath, "Saved when the game went to the background");
+	}
 	if (p_what == NOTIFICATION_EXIT_TREE) {
 		// The MenuAudio autoload outlives the match: stop driving the session's tick.
 		if (SceneTree *exiting = get_tree()) {
@@ -608,6 +617,9 @@ void RtsoMain::toggle_diplomacy_colors() {
 	rtso::display_colors::toggle();
 	if (minimap_view) minimap_view->queue_redraw();
 	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
+	// registerDiplomacyColorsChangeHandler(PlayerViewControl.rebuild).
+	refresh_player_view_colors(replay_view_picker_);
+	refresh_player_view_colors(observer_view_picker_);
 }
 
 // 0 A.D. ChatMessageFormatSimulation: who sees which tribute, barter, phase and
@@ -994,6 +1006,7 @@ void RtsoMain::update_net_status_overlay() {
 		switch (net_host_.disconnectReason()) {
 			case 2: why = tr("The host has ended the game."); break;
 			case rtso::NDR_INCORRECT_PROTOCOL_VERSION: why = tr("Incorrect network protocol version."); break;
+			case rtso::NDR_SERVER_LOADING: why = tr("Game is loading, please try again later."); break;
 			case 6: why = tr("You have been kicked."); break;
 			case 7: why = tr("You have been banned."); break;
 			case rtso::NDR_PLAYERNAME_IN_USE: why = tr("Player name in use. If you were disconnected, retry in few seconds."); break;
@@ -1086,7 +1099,8 @@ void RtsoMain::_on_disconnected_exit_pressed() {
 // the kicked message, as ChatMessageFormatNetwork words them.
 void RtsoMain::post_network_chat() {
 	auto who = [&](const rtso::PlayerAssignmentMsg::Entry &e) {
-		String name = String::utf8(e.name.empty() ? rtso::peer_guid(e.client).c_str() : e.name.c_str()).replace("[", "[lb]");
+		// colorizePlayernameByGUID: "Unknown Player" for a client without a name.
+		String name = (e.name.empty() ? tr("Unknown Player") : String::utf8(e.name.c_str())).replace("[", "[lb]");
 		if (e.player >= rtso::MAX_PLAYERS || !sim) return name;
 		const uint32_t rgb = rtso::display_colors::rgb(*sim, e.player);
 		return "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + name + "[/color]";
@@ -1446,6 +1460,13 @@ bool RtsoMain::spectating() const {
 	return seat >= rtso::MAX_PLAYERS || sim->is_defeated(seat) || sim->is_victory_for(seat);
 }
 
+bool RtsoMain::orders_allowed() const {
+	if (turn_mgr_.is_replaying() || !sim) return false;
+	if (!spectating()) return true;
+	const uint8_t seat = seat_player();
+	return seat < rtso::MAX_PLAYERS && !sim->is_defeated(seat) && view_player() == seat;
+}
+
 // 0 A.D. session "viewPlayer" dropdown (gui/session/top_panel/PlayerViewControl):
 // an observer, or a player once defeated or victorious (isPlayerObserver), watches
 // the whole map or follows one player's sight and panels. A loss switches the view
@@ -1534,6 +1555,8 @@ void RtsoMain::set_observer_view(int player) {
 
 void RtsoMain::sync_observer_view_picker() {
 	if (observer_view_picker_) {
+		rtso::display_colors::state().viewer = view_player(); // onViewedPlayerChange: rebuild in its colours
+		refresh_player_view_colors(observer_view_picker_);
 		int want = observer_view_gaia_ ? kReplayViewGaiaId : observer_view_ == rtso::OBSERVER_VIEW ? 0 : observer_view_ + 1;
 		if (!spectating() && seat_player() < rtso::MAX_PLAYERS) // Change perspective: the seat, or the pick on its way
 			want = perspective_pick_ >= 0 ? perspective_pick_ : seat_player() + 1;
@@ -1556,6 +1579,10 @@ void RtsoMain::update_hud() {
 		const bool picker_shown = (replay_view_picker_ && replay_view_picker_->is_visible_in_tree()) ||
 				(observer_view_picker_ && observer_view_picker_->is_visible_in_tree());
 		top_panel_.set_build_label_view(view_player() < rtso::MAX_PLAYERS, picker_shown);
+		if (picker_shown) {
+			refresh_player_view_colors(replay_view_picker_);
+			refresh_player_view_colors(observer_view_picker_);
+		}
 		const uint8_t me = local_player();
 		const int idle = me < rtso::MAX_PLAYERS ? (int)sim->get_idle_workers(me).size() : 0;
 		minimap_panel_.update(idle, rtso::display_colors::state().enabled, me >= rtso::MAX_PLAYERS || spectating(),
@@ -3737,7 +3764,7 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	if (rtso::net_cmd_takes_push_front(cmd_type) && !(param & rtso::NET_PARAM_QUEUED) &&
 			rtso::hotkeys::held("session.pushorderfront"))
 		c.param |= rtso::NET_PARAM_PUSH_FRONT_ORDER;
-	if (spectating()) return; // observers and defeated players order nothing
+	if (!orders_allowed()) return; // observers and defeated players order nothing
 	if (ids && (cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_MOVE || cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_PATROL))
 		apply_default_formation(ids, n);
 	if (ids && n && order_disbands_formation(cmd_type)) {
@@ -4450,6 +4477,16 @@ bool RtsoMain::close_open_dialogs() {
 			any = true;
 		}
 	return any;
+}
+
+bool RtsoMain::nothing_to_cancel() {
+	if (build_mode || any_armed_mode() || !selected_ids.is_empty() || selected_building_id != 0) return false;
+	if (chat_window_.is_open() || diplo_dialog_.is_open() || objectives_dialog_.is_open()) return false;
+	if (Node *menu = get_node_or_null(NodePath("PauseMenu")))
+		if (bool(menu->get("visible"))) return false;
+	if (Node *barter = get_node_or_null(NodePath("BarterDialog")))
+		if (bool(barter->call("is_open"))) return false;
+	return true;
 }
 
 // 0 A.D. messages.js onTutorialReady: "dialog-answer" to the trigger script; the

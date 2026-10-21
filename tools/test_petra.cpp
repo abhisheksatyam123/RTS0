@@ -1723,6 +1723,89 @@ static void test_idle_workers_repair_cc() {
 	CHECK(on_cc >= 1 && on_cc <= 2, "idle workers repair their damaged civic centre, at most 2");
 }
 
+// basesManager.js update: one base a turn, in turn (currentBase). The idle workers of a base
+// whose turn it is not wait: here they repair their damaged civic centre only on its turn.
+static void test_one_base_a_turn() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	Simulation::Building *cc = nullptr;
+	for (auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "AI 1 has a civic centre");
+	if (!cc) return;
+	const uint32_t cc_id = cc->id;
+	const float cx = cc->x, cz = cc->z;
+	// A second base well away from the first, toward the map's middle.
+	const float len = std::sqrt(cx * cx + cz * cz);
+	const uint32_t colony = s->spawn_building_world(cx - cx / len * 40.0f, cz - cz / len * 40.0f, BLD_MILITARY_COLONY, 1, 1.0f);
+	s->rebuild_territory();
+	cc = &s->buildings_[s->building_id_to_idx_.at(cc_id)];
+	cc->hp = cc->max_hp * 0.7f;
+	auto stop_all = [&]() {
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1) {
+				const uint32_t uid = s->units_.id[i];
+				s->cmd_stop(&uid, 1);
+			}
+	};
+	auto on_cc = [&]() {
+		int n = 0;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.action_state[i] == ACTION_BUILD &&
+			    s->units_.target_building_id[i] == cc_id) ++n;
+		return n;
+	};
+	stop_all();
+	s->petra_kept_.current_base = 1; // the colony's turn
+	s->petra_pick_turn_base();
+	const uint32_t first = s->petra_turn_anchor_;
+	s->petra_manage_economy(0.0f);
+	const int waiting = on_cc();
+	stop_all();
+	s->petra_pick_turn_base();
+	const uint32_t second = s->petra_turn_anchor_;
+	s->petra_manage_economy(0.0f);
+	const int repairing = on_cc();
+	std::printf("  one base a turn: turns %s then %s, repairers %d then %d, next base %u\n", first == colony ? "colony" : "?",
+	            second == cc_id ? "civic centre" : "?", waiting, repairing, (unsigned)s->petra_kept_.current_base);
+	CHECK(first == colony && second == cc_id && s->petra_kept_.current_base == 1, "the bases take turns in anchor order");
+	CHECK(waiting == 0 && repairing >= 1, "a base's idle workers wait for its turn");
+}
+
+// queueplanBuilding.js start: a structure looks for a spot only when its queue can pay for it,
+// so it is marked short of room (90 s) only then; until then the plan waits, funded.
+static void test_no_room_only_once_funded() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	std::fill(s->territory_grid_.data.begin(), s->territory_grid_.data.end(), (uint8_t)0); // no spot anywhere
+	s->petra_room_.marks.clear();
+	s->set_player_resources(1, 0, 0, 0, 0);
+	s->petra_queues_.accounts[PETRA_Q_HOUSE] = PetraQueueAccount{};
+	s->petra_turn_built_ = false;
+	const uint32_t poor = s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
+	const bool poor_marked = s->petra_no_room(BLD_HOUSE);
+	const PetraQueueAccount &want = s->petra_queues_.wants[PETRA_Q_HOUSE];
+	const bool waits = want.wood > 0.0f;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	PetraQueueAccount &acc = s->petra_queues_.accounts[PETRA_Q_HOUSE];
+	acc.food = acc.wood = acc.gold = acc.stone = 1000.0f;
+	const uint32_t funded = s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
+	const bool funded_marked = s->petra_no_room(BLD_HOUSE);
+	std::printf("  no room once funded: unfunded placed %u marked %d want %d, funded placed %u marked %d\n", poor, (int)poor_marked,
+	            (int)waits, funded, (int)funded_marked);
+	CHECK(!poor && !poor_marked && waits, "an unfunded house waits in its queue, not marked short of room");
+	CHECK(!funded && funded_marked, "a funded house with no spot is marked short of room");
+}
+
 // baseManager.js assignRolelessUnits gives the Mauryan worker elephant the worker role, and
 // assignToFoundations sends it to a foundation next to it.
 static void test_worker_elephant_builds() {
@@ -4983,13 +5066,14 @@ static void test_new_base_builders() {
 		for (int k = 0; k < extra; ++k) s->spawn_unit(cx - 8.0f + (float)(k % 6), cz + 8.0f + (float)(k / 6), 1, UNIT_FEMALE_CITIZEN);
 		const float ang = std::atan2(-cz, -cx);
 		const uint32_t anchor = s->spawn_building_world(cx + std::cos(ang) * 36.0f, cz + std::sin(ang) * 36.0f, BLD_TOWN_CENTER, 1, 0.0f);
-		run_for(*s, 3.0f);
+		run_for(*s, 5.0f); // the new base's turn comes after the standing one's (one base a turn)
 		int n = 0;
 		for (size_t i = 0; i < s->units_.count; ++i)
 			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.target_building_id[i] == anchor) ++n;
 		std::printf("  new base with %d more women: %d builders on the civic centre\n", extra, n);
 		if (extra == 30) CHECK(n == 10, "a new civic centre takes 10 workers");
-		else CHECK(n == 5, "the standing base keeps 3 workers");
+		// The standing base's turn comes first and may send some of its 8 to its own foundation.
+		else CHECK(n >= 4 && n <= 5, "the standing base keeps 3 workers");
 	}
 }
 
@@ -6699,10 +6783,10 @@ static void test_building_plan_028() {
 	std::printf("  building plan: house %.1f m from the barracks\n", d);
 	CHECK(d > 12.0f, "a house keeps away from a barracks");
 	// requireHouses: with every influence dropped the house takes the first free tile of the base.
-	s->petra_require_houses_ = true;
+	s->petra_kept_.require_houses = true;
 	int cx3 = 0, cz3 = 0;
 	CHECK(s->petra_find_position(BLD_HOUSE, nullptr, nullptr, false, cx3, cz3), "requireHouses still finds room");
-	s->petra_require_houses_ = false;
+	s->petra_kept_.require_houses = false;
 	const float d3 = std::hypot(((float)cx3 + 1.0f) * Simulation::GRID - hx, ((float)cz3 + 1.0f) * Simulation::GRID - hz);
 	std::printf("  building plan: requireHouses house %.1f m from the barracks\n", d3);
 	CHECK(d3 < d, "requireHouses lets the house come closer");
@@ -7180,6 +7264,18 @@ static void test_worker_plans_wait() {
 	CHECK(waits_for_money, "an unpaid soldier plan waits in its queue");
 	CHECK(waits_for_room, "a batch waits for room for all of it");
 	CHECK(trained == 3 && plans.empty(), "the plan then trains its whole batch");
+	// The first plans shrink to the batch size only when trainMoreWorkers runs (every 4th turn).
+	plans.push_back({spear, 5, 1});
+	acc = {};
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 0.0f;
+	while (s->petra_turn_mod(4, 0)) s->ticks_ += 4;
+	s->petra_train_more_workers();
+	const int off_turn = plans.empty() ? -1 : plans[0].count;
+	while (!s->petra_turn_mod(4, 0)) s->ticks_ += 4;
+	s->petra_train_more_workers();
+	const int on_turn = plans.empty() ? -1 : plans[0].count;
+	std::printf("  a queued batch of 5 between trainMoreWorkers turns: %d, on its turn: %d\n", off_turn, on_turn);
+	CHECK(off_turn == 5 && on_turn >= 1 && on_turn < 5, "queued batches shrink on trainMoreWorkers' turn only");
 }
 
 static void test_strength_prepare_time() {
@@ -7860,6 +7956,8 @@ int main(int argc, char **argv) {
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_garrisoned_workers_count);
 	RUN(test_gather_rate_civ_bonus);
+	RUN(test_one_base_a_turn);
+	RUN(test_no_room_only_once_funded);
 	RUN(test_idle_workers_repair_cc);
 	RUN(test_worker_elephant_builds);
 	RUN(test_anchor_dropsite_unshared);

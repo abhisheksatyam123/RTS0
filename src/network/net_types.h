@@ -302,6 +302,10 @@ struct NetPeer {
 // 0 A.D. NetServer.cpp MAX_CLIENTS: connected sessions a host takes (players
 // and observers); one more is refused with NDR_SERVER_FULL.
 constexpr size_t NET_MAX_CLIENTS = 41;
+// The remote clients that fills: 0 A.D.'s m_Sessions holds the host's own
+// client and the joiner too (a session is added on connect, before
+// OnAuthenticate checks it against MAX_CLIENTS), so 39 others get in.
+constexpr size_t NET_MAX_REMOTE_CLIENTS = NET_MAX_CLIENTS - 2;
 // Lockstep client ids the game setup lists, seats and counts for Ready (bit k
 // of the 64-bit setup masks; the host is 0). Before Start a joiner takes the
 // lowest free id, and at most NET_MAX_CLIENTS are connected, so every one fits.
@@ -312,6 +316,7 @@ constexpr uint8_t NDR_INCORRECT_PROTOCOL_VERSION = 3;
 // 0 A.D. NetMessages.h: the handshake response flag of a host that checks a
 // joiner's name with the lobby.
 constexpr uint32_t PS_NETWORK_FLAG_REQUIRE_LOBBYAUTH = 0x1;
+constexpr uint8_t NDR_SERVER_LOADING = 4; // a join while the host's game loads
 constexpr uint8_t NDR_SERVER_ALREADY_IN_GAME = 5; // a late observer the host does not take
 constexpr uint8_t NDR_PLAYERNAME_IN_USE = 8;
 constexpr uint8_t NDR_SERVER_FULL = 9;
