@@ -7248,6 +7248,43 @@ static void test_worker_plans_wait() {
 	CHECK(off_turn == 5 && on_turn >= 1 && on_turn < 5, "queued batches shrink on trainMoreWorkers' turn only");
 }
 
+static void test_siege_class_kept() {
+	// addSiegeUnits fixes the siege class once (SIEGE_ADDED): losing its trainer drops the
+	// order, it doesn't switch to a class some other building trains.
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_team_civ(1, CIV_ATHENIANS);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	s->players_[1].phase = 3;
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	s->spawn_building_world(cc->x + (cc->x > 0 ? -14.0f : 14.0f), cc->z, BLD_ARSENAL, 1, 1.0f);
+	auto siege_of = [&]() {
+		for (const auto &st : s->petra_plan_unit_stats(PETRA_ATTACK_HUGE))
+			if ((st.classes & (TC_SIEGE | TC_ELEPHANT)).any()) return st.classes;
+		return TechClasses{};
+	};
+	s->petra_attack_mgr_.attack_siege = 0;
+	s->petra_attack_mgr_.attack_name = 2; // would start from Elephant+Melee
+	const TechClasses first = siege_of();
+	const uint8_t picked = s->petra_attack_mgr_.attack_siege;
+	// Elephants fixed (an Athenian arsenal trains none): the class stays elephants.
+	s->petra_attack_mgr_.attack_siege = 3;
+	const TechClasses fixed = siege_of();
+	std::printf("  siege class: unfixed picks %u (%s), fixed elephants stay %s\n", picked,
+	            first == (TC_SIEGE | TC_MELEE) ? "rams" : "other", fixed == (TC_ELEPHANT | TC_MELEE) ? "yes" : "no");
+	CHECK(picked == 1 && first == (TC_SIEGE | TC_MELEE), "an unfixed class moves on to one a building of ours trains");
+	CHECK(fixed == (TC_ELEPHANT | TC_MELEE) && s->petra_attack_mgr_.attack_siege == 3, "a fixed siege class stays");
+	CHECK(!s->petra_unit_stat_trainable({fixed, 1.0f, 0, 2, 2, 0.0f, 3.0f, 1.0f, 1.0f}), "and trainMoreUnits drops it without a trainer");
+}
+
 static void test_strength_prepare_time() {
 	// getMaxStrength takes attackTimes' prepare off (and adds repeat): a unit and its template
 	// agree, and a slower-preparing unit scores less than its 0 ms counterpart would.
@@ -8041,6 +8078,7 @@ int main(int argc, char **argv) {
 	RUN(test_unit_stat_trainable_busy);
 	RUN(test_workers_while_cc_on_emergency);
 	RUN(test_strength_prepare_time);
+	RUN(test_siege_class_kept);
 	RUN(test_worker_plans_wait);
 	RUN(test_new_cc_defenders);
 	RUN(test_temple_wonder_save);
