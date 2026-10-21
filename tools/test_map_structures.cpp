@@ -245,6 +245,8 @@ int main() {
 		run(c, 8.0f);
 		std::printf("campaign city: foe %.1f -> %.1f\n", foe0, unit_hp(c, foe));
 		CHECK(unit_hp(c, foe) < foe0);
+	}
+
 	// Map-only Gaia pieces (seventeenth/eighteenth passes): the wonders, the army tents and the
 	// market stalls load as structures of their own kind instead of being dropped.
 	CHECK(map_structure_template("structures/stonehenge").type == BLD_WONDER);
