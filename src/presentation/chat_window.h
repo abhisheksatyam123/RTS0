@@ -401,7 +401,9 @@ public:
 			if (is_private(tag) && !is_online(tag)) return refuse("Unknown chat addressee: " + names_[tag]);
 			const String context = tag == "[Allies]" ? "Ally" : tag == "[Enemies]" ? "Enemy" : tag == "[Observers]" ? "Observer"
 					: tag.is_empty() ? "" : "Private";
-			if (context == "Private") last_private_ = tag;
+			// ChatWindow.onSelectionChange: only a /msg picked in the To: list is reopened
+			// by session.privatechat, not one typed with To: Everyone.
+			if (context == "Private" && !selected_tag().is_empty()) last_private_ = tag;
 			// A line to everyone that starts with "[" travels behind "[All] ", so a
 			// typed "[Player-3] hi" or "[Flare] 1,2" stays text (0.28 sends the
 			// text as typed; only the slash commands pick addressees).

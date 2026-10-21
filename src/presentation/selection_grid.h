@@ -57,17 +57,19 @@ public:
 	static int structure_key(uint8_t civ, uint8_t type) { return 0x100000 | ((int)civ << 8) | (int)type; }
 	static bool is_structure_key(int key) { return (key & 0x100000) != 0; }
 
-	// Template row when the unit has one, else 0x10000 | unit type.
-	static int group_key(uint8_t unit_type, uint16_t tmpl) {
-		return tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? (int)tmpl : (0x10000 | unit_type);
+	// Template row when the unit has one, else 0x10000 | unit type; and the rank, as each
+	// 0.28 rank is its own template (infantry_spearman_b, _a, _e).
+	static int group_key(uint8_t unit_type, uint16_t tmpl, uint8_t rank = 0) {
+		return (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? (int)tmpl : (0x10000 | unit_type)) | ((int)(rank & 3) << 26);
 	}
+	static uint8_t key_rank(int key) { return (uint8_t)((key >> 26) & 3); }
 
 	// A group of the player's own livestock (fauna, not units): its FaunaType.
 	static int fauna_key(uint8_t fauna_type) { return 0x20000 | fauna_type; }
 
 	// The garrison panel's groups (EntityGroups): template and owner.
-	static int owner_key(uint8_t unit_type, uint16_t tmpl, uint8_t player) {
-		return group_key(unit_type, tmpl) | ((int)player << 17);
+	static int owner_key(uint8_t unit_type, uint16_t tmpl, uint8_t player, uint8_t rank = 0) {
+		return group_key(unit_type, tmpl, rank) | ((int)player << 17);
 	}
 
 	// Groups `ids` (live units of the unit view) by template, or template and owner, in
@@ -80,7 +82,8 @@ public:
 				// Garrisoned units and passengers are out of the world (alive 0) but living.
 				if (by_owner ? uv.hp[i] <= 0.0f : !uv.alive[i]) break;
 				const uint16_t tmpl = uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-				const int key = by_owner ? owner_key(uv.unit_type[i], tmpl, uv.team[i]) : group_key(uv.unit_type[i], tmpl);
+				const uint8_t rank = uv.rank ? uv.rank[i] : 0;
+				const int key = by_owner ? owner_key(uv.unit_type[i], tmpl, uv.team[i], rank) : group_key(uv.unit_type[i], tmpl, rank);
 				Group *g = nullptr;
 				for (auto &e : groups)
 					if (e.key == key) g = &e;
