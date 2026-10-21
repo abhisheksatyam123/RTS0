@@ -1288,7 +1288,7 @@ struct BuildingTypeInfo {
 	const char *model_id;
 	const char *portrait_id;
 	float max_hp;
-	int footprint; // 1 or 2
+	int footprint; // cells: 1 or 2 (3 for the campaign test cities)
 	int food_cost;
 	int wood_cost;
 	int gold_cost;

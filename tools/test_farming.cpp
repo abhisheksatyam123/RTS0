@@ -58,7 +58,9 @@ int main() {
 	for (uint8_t t = 0; t < BLD_TYPE_COUNT; ++t) {
 		const BuildingTypeInfo &bi = building_type_info(t);
 		CHECK(bi.name && bi.name[0] && bi.max_hp > 0.0f && bi.build_time > 0.0f);
-		CHECK(bi.footprint == 1 || bi.footprint == 2);
+		// Three cells only for the campaign test cities' 48 m obstruction.
+		CHECK(bi.footprint == 1 || bi.footprint == 2 ||
+			(bi.footprint == 3 && (t == BLD_CAMPAIGN_CITY || t == BLD_CAMPAIGN_CITY_MINOR)));
 		CHECK(building_required_phase(t) >= 1 && building_required_phase(t) <= 3);
 	}
 	CHECK(!building_blocks_movement(BLD_FIELD) && building_blocks_movement(BLD_HOUSE));
