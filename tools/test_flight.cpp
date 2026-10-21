@@ -132,7 +132,8 @@ int main() {
 	// An attack on a target in sight: it fires once the target is 80 to 120 m off (Machine Guns,
 	// 327 damage), starting a landing each time it comes in range, and then lands with nothing
 	// left to do. Its own vision (100 m) is short of that range, so a passive spearman of ours
-	// keeps the (passive) target seen: alone, CheckTargetVisible would drop it in the fog.
+	// keeps the target seen: alone, CheckTargetVisible would drop it in the fog. The target stands
+	// its ground: a passive one flees until FleeDistance, out of sight.
 	{
 		static Simulation c;
 		c.set_sim_seed(6);
@@ -144,7 +145,7 @@ int main() {
 		const uint32_t foe = c.spawn_unit(10.0f, 0.0f, 1, UNIT_SPEARMAN);
 		const uint32_t spot = c.spawn_unit(14.0f, 0.0f, 0, UNIT_SPEARMAN);
 		c.order_set_stance(&spot, 1, STANCE_PASSIVE);
-		c.order_set_stance(&foe, 1, STANCE_PASSIVE);
+		c.order_set_stance(&foe, 1, STANCE_STAND_GROUND);
 		c.order_attack(&cp, 1, foe);
 		run(c, 60.0f);
 		const int32_t fi = index_of(c, foe);

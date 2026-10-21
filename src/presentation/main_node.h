@@ -635,7 +635,11 @@ public:
 	void _on_chat_send_pressed();
 	void _on_chat_filter_selected(int index); // ChatHistory.onSelectionChange
 	void _on_chat_history_toggled(bool on); // ChatWindow.onToggleExtended: saved to chat.session.extended
-	bool chat_sender_is_player(const String &sender_guid) override { return chat_player_of(sender_guid) < rtso::MAX_PLAYERS; }
+	// ChatMessageFilters "Players chat": isPlayerObserver is false, so not a seat whose game is over.
+	bool chat_sender_is_player(const String &sender_guid) override {
+		const uint8_t p = chat_player_of(sender_guid);
+		return p < rtso::MAX_PLAYERS && !player_finished(p);
+	}
 	void _on_chat_text_submitted(const String &text);
 	void _on_chat_input_gui(const Ref<InputEvent> &event);
 	std::vector<String> chat_autocomplete_names() override;
@@ -1072,6 +1076,10 @@ private:
 	// An observer's perspective (0 A.D. session "viewPlayer" dropdown): the whole
 	// map, or one player's sight and panels. Presentation only.
 	uint8_t observer_view_ = rtso::OBSERVER_VIEW;
+	// PlayerViewControl.onPlayersFinished: the players already defeated or victorious last
+	// frame (-1 before the first), so a loss of the viewed player switches to Observer once.
+	int finished_seen_ = -1;
+	void follow_viewed_player_finish();
 	// The developer overlay's Change perspective: the player view dropdown shows for a
 	// player too, and picking in it takes that player over (PlayerViewControl.setChangePerspective).
 	bool change_perspective_ = false;
@@ -1175,6 +1183,7 @@ private:
 	Dictionary debug_minimap_panel() const;
 	// An Attacked message on `target` (a unit) from `attacker_owner`, through the session's AttackDetection.
 	void debug_attacked(int64_t target, int64_t attacker_owner);
+	void debug_defeat_player(int64_t pid); // tests: a player loses (single player only)
 	void _on_pause_overlay_pressed();
 	// 0 A.D. NetworkStatusOverlay: "Waiting for players to connect:" with the
 	// players still loading, "Synchronizing gameplay with other players…" while
