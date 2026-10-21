@@ -5230,15 +5230,30 @@ static void test_defense_armies() {
 		const int j = k % 15;
 		s->spawn_unit(cx + (k < 15 ? -1.0f : 1.0f) * (5.0f + (float)(j % 3)), cz + 8.0f + (float)(j / 3), 1, UNIT_SPEARMAN);
 	}
+	// Petra's other units stand back beyond the blocks, so each group goes for its own block
+	// whichever way the starting workers happened to go.
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.unit_type[i] != UNIT_SPEARMAN) {
+			s->units_.pos_x[i] = cx + 0.5f * (float)(i % 5);
+			s->units_.pos_z[i] = cz + 22.0f + 0.5f * (float)(i / 5 % 5);
+		}
 	std::vector<uint32_t> east, west;
 	for (int k = 0; k < 3; ++k) east.push_back(s->spawn_unit(cx + 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
 	for (int k = 0; k < 3; ++k) west.push_back(s->spawn_unit(cx - 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
-	// checkEnemyUnits looks in our land one turn in (players + 1): the armies form within three
-	// turns, and are counted the turn they do, before the fight moves either group.
-	for (int t = 0; t < 3 && s->petra_defense_armies().empty(); ++t) run_ai_turns(*s, 1);
+	// The groups hold their ground: chasing whichever of Petra's workers is nearest could carry
+	// one group to the other before both are seen.
+	for (uint32_t id : east) s->units_.stance[s->lookup_unit(id)] = STANCE_STAND_GROUND;
+	for (uint32_t id : west) s->units_.stance[s->lookup_unit(id)] = STANCE_STAND_GROUND;
+	// checkEnemyUnits looks in our land one turn in (players + 1), and assignDefenders serves
+	// the armies in turn: within a few turns there is an army per group, each defended.
 	const auto &armies = s->petra_defense_armies();
 	size_t with_defenders = 0;
-	for (const auto &a : armies) with_defenders += !a.defender_ids.empty();
+	for (int t = 0; t < 6; ++t) {
+		run_ai_turns(*s, 1);
+		with_defenders = 0;
+		for (const auto &a : armies) with_defenders += !a.defender_ids.empty();
+		if (armies.size() >= 2 && with_defenders == armies.size()) break;
+	}
 	std::printf("  defense: two groups 18 units apart make %zu armies, %zu with defenders\n", armies.size(), with_defenders);
 	CHECK(armies.size() == 2 && with_defenders == 2, "one army per group of foes, each defended (makeIntoArmy, assignDefenders)");
 	// The western group joins the eastern one where its fight has taken it (a mine beside the
