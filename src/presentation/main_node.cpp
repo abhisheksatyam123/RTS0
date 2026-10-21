@@ -1248,6 +1248,9 @@ void RtsoMain::set_default_formation(uint8_t formation) {
 
 void RtsoMain::toggle_default_formation() {
 	const uint8_t cur = RtsoCommandPanelView::default_formation();
+	// AutoFormation.js starts lastDefault from the saved default, so turning it off and on
+	// again gives back that formation, not Box.
+	if (cur != rtso::FORMATION_NONE) last_default_formation_ = cur;
 	set_default_formation(cur == rtso::FORMATION_NONE ? last_default_formation_ : rtso::FORMATION_NONE);
 }
 
