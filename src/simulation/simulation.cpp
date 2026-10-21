@@ -15701,7 +15701,7 @@ void Simulation::tick_combat(float dt) {
 			return !check_los || los_visible(team, units_.pos_x[t], units_.pos_z[t]);
 		};
 		auto building_ok = [&](const Building &ob) {
-			if (ob.wrecked || ob.hp <= 0.0f || ob.team == GAIA_PLAYER || !can_attack(team, ob.team)) return false;
+			if (ob.wrecked || ob.hp <= 0.0f || !structure_has_health(ob.type) || ob.team == GAIA_PLAYER || !can_attack(team, ob.team)) return false;
 			const float gap = structure_gap(ob, sx, sz, unit_clearance_at(i));
 			if (!in_parabolic_range(gap * gap, sy, get_terrain_height(ob.x, ob.z), range)) return false;
 			return !check_los || los_explored(team, ob.x, ob.z);
@@ -15870,6 +15870,10 @@ void Simulation::tick_combat(float dt) {
 		const double reach2 = (double)max_r * max_r - 2.0 * (double)max_r * ((double)lowest_ground - (double)b_y);
 		const float corner = det::hypot(b.hu, b.hv); // the footprint's farthest reach from its centre
 		const float ground_reach = max_r > 0.0f && reach2 > 0.0 ? (float)std::sqrt(reach2) + corner + 1.0f : -1.0f;
+		// Units too: CreateActiveParabolicQuery has no flat cap, so a tower on a hill reaches
+		// units past its flat range (ground_reach already holds the corner and a metre).
+		const float unit_scan_r = ground_reach >= 0.0f ? std::max(ground_reach, max_r + corner) + UNIT_RANGE_MARGIN
+				: max_r + corner + UNIT_RANGE_MARGIN;
 		auto beyond = [&](float dx, float dz, float other_half) {
 			return ground_reach >= 0.0f && (std::fabs(dx) > ground_reach + other_half || std::fabs(dz) > ground_reach + other_half);
 		};
@@ -15914,7 +15918,7 @@ void Simulation::tick_combat(float dt) {
 		if (!b.arrow_timer_on) {
 			// OnRangeUpdate -> StartTimer: the first round comes PrepareTime after an enemy enters.
 			bool any = false;
-			if (n) grid.visit_radius(b.x, b.z, max_r + corner + UNIT_RANGE_MARGIN, [&](int32_t i) { any = any || unit_target(i); });
+			if (n) grid.visit_radius(b.x, b.z, unit_scan_r, [&](int32_t i) { any = any || unit_target(i); });
 			if (!any) each_fauna([&](int32_t f) { any = any || fauna_target(f); });
 			if (!any) each_building([&](size_t o) { any = any || building_target(buildings_[o]); });
 			if (!any) continue;
@@ -15930,7 +15934,7 @@ void Simulation::tick_combat(float dt) {
 		bool in_reach = false; // targetUnits: everything in range, seen or not, keeps the timer going
 		arrow_targets.clear();
 		if (n) {
-			grid.visit_radius(b.x, b.z, max_r + corner + UNIT_RANGE_MARGIN, [&](int32_t i) {
+			grid.visit_radius(b.x, b.z, unit_scan_r, [&](int32_t i) {
 				if (!unit_target(i)) return;
 				in_reach = true;
 				if (!seen(units_.pos_x[i], units_.pos_z[i])) return;
