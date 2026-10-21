@@ -601,6 +601,15 @@ inline MapStructureTemplate map_structure_template(const char *tpl) {
 		{"mill_middle_eastern", BLD_MILL, CIV_PERSIANS}, {"mill_saharan", BLD_MILL, CIV_KUSHITES},
 		{"mill_temperate_europe", BLD_MILL, CIV_GAULS}, {"gaul/rotarymill", BLD_MILL, CIV_GAULS},
 		{"brit/rotarymill", BLD_MILL, CIV_BRITONS}, {"cart/tophet", BLD_TOPHET, CIV_CARTHAGINIANS},
+		// The Gaia wonders and army tents (template_structure_wonder, template_structure_special
+		// with Population/Bonus 5) and the market stalls (template_structure_civic_house).
+		{"stonehenge", BLD_WONDER, CIV_COUNT}, {"uffington_horse", BLD_WONDER, CIV_BRITONS},
+		{"tent_desert", BLD_TENT, CIV_PTOLEMIES}, {"tent_arab", BLD_TENT, CIV_PTOLEMIES},
+		{"tent_bedouin", BLD_TENT, CIV_PERSIANS}, {"tent_mace", BLD_TENT, CIV_MACEDONIANS},
+		{"tent_rome", BLD_TENT, CIV_ROMANS},
+		{"stall_big", BLD_HOUSE, CIV_COUNT}, {"stall_med", BLD_HOUSE, CIV_COUNT},
+		{"stall_small_a", BLD_HOUSE, CIV_COUNT}, {"stall_small_b", BLD_HOUSE, CIV_COUNT},
+		{"generic_field", BLD_FIELD, CIV_COUNT}, {"mill_field_wheat", BLD_FIELD, CIV_COUNT},
 	};
 	const char *stem = std::strncmp(tpl, "structures/", 11) == 0 ? tpl + 11 : tpl;
 	for (const auto &r : kRows)
@@ -1922,7 +1931,8 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	if (tech_id == TECH_IPHICRATEAN_REFORMS && type == BLD_GYMNASIUM) return true;
 	if ((type == BLD_TEMPLE_VESTA || type == BLD_TEMPLE_AMUN || type == BLD_TEMPLE_MARS) && r == BLD_TEMPLE) return true;
 	// ptol/mercenary_camp keeps template_structure_military_barracks' Researcher list.
-	if (type == BLD_MERCENARY_CAMP && r == BLD_BARRACKS) return true;
+	// (han/barracks alone adds crossbow_training.)
+	if (type == BLD_MERCENARY_CAMP && r == BLD_BARRACKS) return tech_id != TECH_CROSSBOW_TRAINING;
 	const bool spies = tech_id == TECH_UNLOCK_SPIES || tech_id == TECH_SPY_COUNTER;
 	if (civ == CIV_HAN) {
 		if (spies) return type == BLD_MINISTRY;
