@@ -157,6 +157,16 @@ func run() -> void:
 	lobby._leaderboard.custom_action.emit(&"update")
 	await until(func() -> bool: return lobby._board.get_root() != null and lobby._board.get_root().get_child_count() == 2)
 	check(lobby._board.get_root() != null and lobby._board.get_root().get_child_count() == 2, "Update asks the lobby again")
+	# LeaderboardList.rebuild: Update keeps the selected row; reopening shows the last list at once.
+	if lobby._board.get_root():
+		lobby._board.get_root().get_child(1).select(0)
+	lobby._leaderboard.custom_action.emit(&"update")
+	await create_timer(1.0).timeout
+	var sel: TreeItem = lobby._board.get_selected()
+	check(sel != null and sel.get_text(1) == "bob", "Update keeps bob selected")
+	lobby._leaderboard.hide()
+	lobby._on_leaderboard_pressed()
+	check(lobby._board.get_root() != null and lobby._board.get_root().get_child_count() == 2, "reopening shows the last list at once")
 	lobby._leaderboard.hide()
 	check(lobby._profile_role.text == "Player", "the profile names bob's role: Player")
 	# ProfilePage: any player, by name.
