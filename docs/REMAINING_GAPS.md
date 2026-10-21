@@ -347,6 +347,21 @@ TechnologyManager.js, Researcher.js, data/technologies (about 30 techs row by ro
 | U1 | A captured structure's research list followed the captor's civ; Researcher.js reads the structure's own template (cart/dock drops warship_health, cart/super_dock lists nine dock techs, han/civil_centre drops the spy techs, han/forge archer_attack_spread) and the owner's civ only filters it | low | Fixed |
 
 Checked and matching: requirements (all/any, class counts without foundations, civ/notciv), pairs and autoResearch, supersedes chains, cost multipliers (library, team bonuses, heroes, catafalques) and cancel refunds, unit researchers, civ bonus autoresearch, tech modifications, own-civ researcher lists, structure auras (temples, wonders, theatre, pillars, monuments, regen and trickle auras).
+### Mercenary camps and map structures, eighteenth 0.28 pass (2026-10-21)
+
+Every structure template the maps place (614 across data/maps) traced to the RTS0 type it loads as, and the mercenary camps, shrines, trading posts, mills and stoas checked live (capture points and regen, Health, territory and decay, garrison, vision, loot, auras, trainer lists for all 15 captor civs, costs, research, Petra's use): those match. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| Z10 | Gaia structures took the Athenian health row: Gaia Gallic, Briton, Mauryan, Ptolemaic and Iberian houses had 1200 HP (0.28: 800), the Gaia Iberian tower 1000 | low | Fixed (set_building_civ rebases Health/Max; test_map_structures) |
+| Z11 | Player map structures whose stem is no model id were dropped or mistyped: Egypt's Macedonian theatres and its players' market stalls; Units Demo's theatres, embassies, Han court, great tower, practice range and ministry, Tachara forms, German forge and totem, Pompeii amphitheatre; grain fields loaded as farmsteads | medium | Fixed (map_building_template names) |
+| Z12 | The Gaia wonders (Stonehenge, the Uffington Horse) and army tents (desert, Arab, Bedouin, Macedonian, Roman) were left off their maps | low | Fixed (map_structure_template rows) |
+| Z13 | A captured mercenary camp offered the Han barracks' Crossbow Training | nit | Fixed |
+| Z14 | Gaia huts, longhouses, stalls and Persian house_a/b/apartment_block are RTS0 houses: the captor's house health and population (0.28: 500-2000 HP, 2-15 population of their own) | low | Open |
+| Z15 | hellenic_epic_temple loads as a temple (2000 HP, trains healers); 0.28's has 5000 HP, 60 m territory, 30 garrison and trains and researches nothing | low | Open |
+| Z16 | mill_field_wheat loads as a field with Health and 5 gatherers; 0.28's has no Health, Capturable or decay and takes 2 | low | Open |
+| Z17 | merc_camp_egyptian counts as Village (0.28: VisibleClasses -Village Town); pirates/dock trains the captor's dock roster, not the pirate ships | nit | Open |
+
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 
 BuildingAI.js, Attack.js and DelayedDamage.js against the arrow code, measured in the simulation and against a Python port of FireArrows: arrow counts with garrisons, auras and technologies (civic centre 6-26, tower 4-9, fortress 10-30), the 20 rounds per RepeatTime and their rounding, the first volley PrepareTime after a target enters, the paused round when targets leave, target order (preference, then distance, every arrow of a round on the first), what is shot (enemies, structures with Health, livestock, Gaia that can fight back), visibility, MinRange from the footprint, foundations, ownership changes, spread and stray hits all match. Owner: E.
@@ -511,6 +526,22 @@ The summary page against 0.28's summary.js, layout.js, counters.js, summary.xml,
 | SP5 | Chart axis labels used Godot's fallback font, not sans-stroke-14; the tab and lobby button tooltips' hotkeys weren't in colorizeHotkey's gold | low | Fixed |
 
 Kept on purpose: with Group by team on in a game where some players have no team, 0.28 draws their series without a colour and leaves them out of the legend (summary.js:238, 243 filter team -1 away while 354 charts it); RTS0 colours it by its first player and lists them.
+
+### Replay menu and playback, ninth 0.28 pass (2026-10-21)
+
+The replay menu (gui/replaymenu), the session in replay mode (PlayerViewControl, QuitConfirmationReplay, session.js endGame) and Game.cpp against 0.28 (main 9beb34752). Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| RP1 | The bottom buttons shared one stretching row, so Start Replay and the rest moved whenever the Summary button hid; 0.28 gives each a fixed fifth ("0 0 19% 100%" .. "80% 0 99% 100%") | low | Fixed |
+| RP2 | A map without a preview showed no picture and the rows under it moved up; MapCache.getMapPreview falls back to the "no preview" picture | low | Fixed |
+| RP3 | The empty details panel lacked replayInfoEmpty's white-framed subjectBox under the logo, and the logo filled the panel instead of 220x100 at the top | low | Fixed |
+| RP4 | A plain Quit from a replay (the end box or the menu's Exit) came back with the filters, sort and selection kept; endGame opens the replay menu fresh and only the summary hands the selection back | low | Fixed |
+| RP5 | Playback drew an RTS0-only gold "REPLAY mm:ss / mm:ss" label with "finished" and "(out of sync at turn N)"; 0.28 has no replay HUD beyond the top panel and its boxes | low | Fixed: removed (the Out of Sync and end boxes stay) |
+| RP6 | Watching a player who was defeated kept their view; PlayerViewControl.onPlayersFinished moves the view to Observer on a loss and keeps it on a win | medium | Fixed |
+| RP7 | A single-player replay started at Game Setup's last speed and a multiplayer one at its recorded speed; a visual replay runs in a new CGame whose sim rate starts at 1 | medium | Fixed |
+
+Kept on purpose: a replay still can't be saved ("A replay can't be saved."), though 0.28's Save button doesn't check for one (sixth pass). Not worth changing: replays aren't kept in a per-engine-version folder (other versions are listed greyed out, hidden by the default compatibility filter), and the replay list is re-read rather than cached in replayCache.json (same list, slower on huge folders). Checked and matching: the columns, widths, colours and default sort, every filter and its options, the details rows and team-grouped player list, the Start/Delete states, double-click, Rebuild Cache, the 3 s minimum, the summary round trip, the Observer start and view dropdown, the Fast Forward speeds, pause, and the end and Out of Sync boxes.
 
 Stuck units (taken from Migrate's queue, 2026-10-20): in 4-Petra soaks the units that held an order on an impassable navcell and moved under 1 unit in 60 s, past the gatherers working beside their tree, were builders walled in by their own Petra's houses against a shore (Lake seeds 6 and 8). RTS0's Petra laid houses edge to edge on its 8 m grid (petra_clearance 0); 0.28's findGoodPosition keeps every obstruction cell within ceil(obstructionRadius.max / cellSize) of a house's centre clear (queueplanBuilding.js:336), so its houses stand about 5 m apart. Houses now keep a one-cell ring, the nearest grid step (an 8 m alley, as RTS0's houses are half 0.28's size, Y1): 8 soaks (African Plains and Lake, seeds 5-8, 15 min) go from 2 walled-in units to 0, and Continental phase timing (4 seeds, 20 min) is unchanged within noise. The one-navcell slit trap Migrate saw on Deep Forest seed 11 near (-101.6, 40.9) does not reproduce on current main (seeds 10-12, 15 min): the only long stalls left are a rider dancing among trees for about 60 s before it walks free, which waits on Migrate's corner dance work.
 

@@ -245,6 +245,30 @@ int main() {
 		run(c, 8.0f);
 		std::printf("campaign city: foe %.1f -> %.1f\n", foe0, unit_hp(c, foe));
 		CHECK(unit_hp(c, foe) < foe0);
+	// Map-only Gaia pieces (seventeenth/eighteenth passes): the wonders, the army tents and the
+	// market stalls load as structures of their own kind instead of being dropped.
+	CHECK(map_structure_template("structures/stonehenge").type == BLD_WONDER);
+	CHECK(map_structure_template("structures/uffington_horse").civ == CIV_BRITONS);
+	CHECK(map_structure_template("structures/tent_desert").type == BLD_TENT &&
+		map_structure_template("structures/tent_desert").civ == CIV_PTOLEMIES);
+	CHECK(map_structure_template("structures/stall_big").type == BLD_HOUSE);
+	CHECK(map_structure_template("structures/mill_field_wheat").type == BLD_FIELD);
+	// A captured Ptolemaic mercenary camp keeps the generic barracks list: no crossbow_training.
+	CHECK(building_researches_tech(BLD_MERCENARY_CAMP, TECH_BARRACKS_BATCH_TRAINING, CIV_HAN));
+	CHECK(!building_researches_tech(BLD_MERCENARY_CAMP, TECH_CROSSBOW_TRAINING, CIV_HAN));
+	{
+		// A Gaia Gallic house has the Gallic template's health (800), not the Athenian 1200,
+		// and a Gaul who captures it keeps that base under its own modifiers.
+		static Simulation g;
+		g.set_sim_seed(3);
+		g.reset();
+		const uint32_t h = g.spawn_building_world(10.0f, 10.0f, BLD_HOUSE, GAIA_PLAYER, 1.0f);
+		const float athen = g.buildings_[g.building_id_to_idx_.at(h)].max_hp;
+		g.set_building_civ(h, CIV_GAULS);
+		const auto &hb = g.buildings_[g.building_id_to_idx_.at(h)];
+		std::printf("gaia Gallic house: %.0f hp (spawned %.0f), Gallic row %.0f\n", hb.max_hp, athen,
+				civ_building_type_info(CIV_GAULS, BLD_HOUSE).max_hp);
+		CHECK(hb.max_hp == civ_building_type_info(CIV_GAULS, BLD_HOUSE).max_hp && hb.hp == hb.max_hp && hb.max_hp < athen);
 	}
 
 	// The Gaia mills (structures/mill_*, {brit,gaul}/rotarymill, mixins/rotary_mill.xml): a
