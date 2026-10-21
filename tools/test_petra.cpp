@@ -6692,11 +6692,13 @@ static void test_building_plan_028() {
 	std::printf("  building plan: requireHouses house %.1f m from the barracks\n", d3);
 	CHECK(d3 < d, "requireHouses lets the house come closer");
 
-	// findGoodPosition's gap: none for houses, dropsites, fields and markets, 4 m for most
+	// findGoodPosition's gap: none for dropsites, fields and markets, one cell for houses (their
+	// ceil(obstructionRadius.max / cellSize) radius, queueplanBuilding.js:336), 4 m for most
 	// structures, 8 m for fortresses, arsenals and elephant stables.
-	CHECK(Simulation::petra_clearance(BLD_HOUSE) == 0 && Simulation::petra_clearance(BLD_STOREHOUSE) == 0 &&
-	      Simulation::petra_clearance(BLD_FIELD) == 0 && Simulation::petra_clearance(BLD_MARKET) == 0 &&
-	      Simulation::petra_clearance(BLD_DOCK) == 0, "houses, dropsites, fields and markets keep no gap");
+	CHECK(Simulation::petra_clearance(BLD_STOREHOUSE) == 0 && Simulation::petra_clearance(BLD_FIELD) == 0 &&
+	      Simulation::petra_clearance(BLD_MARKET) == 0 && Simulation::petra_clearance(BLD_DOCK) == 0,
+	      "dropsites, fields and markets keep no gap");
+	CHECK(Simulation::petra_clearance(BLD_HOUSE) == 1, "houses keep a cell between them");
 	CHECK(Simulation::petra_clearance(BLD_BARRACKS) == 1 && Simulation::petra_clearance(BLD_TEMPLE) == 1,
 	      "most structures keep 4 m");
 	CHECK(Simulation::petra_clearance(BLD_FORTRESS) == 2 && Simulation::petra_clearance(BLD_ARSENAL) == 2 &&
