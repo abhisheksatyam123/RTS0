@@ -909,7 +909,20 @@ void RtsoMain::_process(double delta) {
 					: nullptr;
 			if (text && lobby_status->get_text() != text) lobby_status->set_text(text);
 		}
-		if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
+		// NetClient OnJoinSyncEnd's fake game start: once the world has come,
+		// the "rejoining" box gives way to the loading page for the game's map,
+		// drawn for a frame before the world loads under it.
+		if (!net_host_.isHost() && !net_game_started_ && !net_saved_loading_ && turn_mgr_.rejoin_world_complete()) {
+			Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
+			const std::string map_id = net_setup_.seq ? net_setup_.setup.map_id
+					: ms ? std::string(String(ms->get("map_id")).utf8().get_data()) : std::string();
+			net_saved_loading_ = true;
+			net_rejoin_load_frames_ = 3;
+			show_net_loading_page(map_id);
+			update_net_connect_overlay();
+		}
+		if (net_rejoin_load_frames_ > 0) --net_rejoin_load_frames_;
+		else if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
 			net_game_started_ = true;
 			net_saved_loading_ = false;
 			chat_window_.clear_history(); // the session's chat starts empty (Chat.js)

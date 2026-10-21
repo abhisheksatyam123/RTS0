@@ -175,6 +175,13 @@ public:
 	uint8_t rejoin_reject_reason() const { return rejoin_reject_; }
 	// Client: the host is sending its world for our rejoin (0 A.D. join_syncing).
 	bool rejoin_syncing() const { return rejoin_have_header_ && !rejoined_; }
+	// Client: the whole world has come and waits to be loaded (NetClient's fake
+	// game start: the download box gives way to the loading page).
+	bool rejoin_world_complete() const {
+		return rejoin_wanted_ && rejoin_have_header_ && !rejoined_ && rejoin_received_ == rejoin_world_.size();
+	}
+	// Client: loaded, still running the turns queued while it loaded (join_syncing).
+	bool rejoin_catching_up() const { return rejoined_ && rejoin_fast_forward_; }
 	// 0 A.D. "Waiting for players": the lockstep clients whose batch the next turn
 	// still needs, and how long this peer has been held (0 while turns run).
 	std::vector<uint32_t> waiting_on();

@@ -992,7 +992,8 @@ public:
 	void order_set_stance(const uint32_t *unit_ids, size_t count, uint8_t stance);
 	// 0 A.D. Pack/Unpack command (UnitAI Order.Pack / Order.Unpack): drops the units' current
 	// orders and packs (pack=true) or unpacks them. Units without Pack are ignored.
-	void order_pack(const uint32_t *unit_ids, size_t count, bool pack);
+	// Pack / Unpack (cancel: CancelPack / CancelUnpack of an engine packing or unpacking).
+	void order_pack(const uint32_t *unit_ids, size_t count, bool pack, bool cancel = false);
 	// A map's "_unpacked" siege engine: a packed one stands unpacked at once, ready to fire.
 	void set_unit_unpacked(uint32_t unit_id);
 	// Seconds a pack or unpack takes for this unit (0 A.D. Pack/Time).
@@ -1265,6 +1266,7 @@ public:
 			float &out_x, float &out_z) const;
 	bool nearest_water_for_ship(size_t ship, float x, float z, float &out_x, float &out_z) const;
 	void unload_sunk_ship(size_t ship);
+	bool holder_ejects(size_t holder, size_t passenger) const; // EjectClassesOnDestroy
 
 	// Garrison & Turret System (GarrisonHolder.js, TurretHolder.js)
 	int get_garrison_count(uint32_t building_id) const;
@@ -2809,6 +2811,7 @@ private:
 	// fire below a third of its health and is razed at none. False once it is razed.
 	bool structure_takes_damage(Building &b, float dmg, uint32_t src_id, uint8_t src_team);
 	static constexpr float ATTACK_DUE = 1.0e-6f; // attack_timer: the hit lands this tick
+	static constexpr float FLEE_RUNNING = 1.0e9f; // attack_timer while fleeing: no time limit (0 = the run failed)
 	void tick_attack_timer(size_t i, float dt);
 	bool attack_under_way(size_t i) const;
 	void stop_attack(size_t i);
@@ -4309,14 +4312,6 @@ private:
 	bool steer_line_blocked(nav::Vec2 pos, nav::Vec2 aim, float max_len, float radius, uint32_t ignore) const;
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
 	// building reach it finds them with. Rebuilt every tick.
-	struct CaptureTally { int count[MAX_PLAYERS]; float strength[MAX_PLAYERS]; };
-	struct CaptureReach { uint32_t building; float x, z; };
-	std::vector<CaptureTally> capture_tally_;
-	std::vector<uint32_t> capture_cell_start_;
-	std::vector<CaptureReach> capture_cell_buildings_;
-	// What capture_cell_* were built from (map half-size, then each building's x, z): the grid
-	// is rebuilt only when these change.
-	std::vector<float> capture_cell_key_;
 	// Capture points each player's capture attacks took from each building this tick
 	// (tick_combat fills it, tick_capture spends it). Indexed like buildings_.
 	std::vector<std::array<float, MAX_PLAYERS>> capture_attack_;
