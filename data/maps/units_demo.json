@@ -16379,21 +16379,21 @@
       "player": 1,
       "x": -206.0,
       "z": -230.39999999999998,
-      "template": "structures/mace/civil_centre"
+      "template": "campaigns/campaign_city_minor_test"
     },
     {
       "type": "town_center",
       "player": 1,
       "x": -189.5,
       "z": -230.39999999999998,
-      "template": "structures/mace/civil_centre"
+      "template": "campaigns/campaign_city_test"
     },
     {
       "type": "temple",
       "player": 1,
       "x": -177.12,
       "z": -230.39999999999998,
-      "template": "structures/mace/temple"
+      "template": "campaigns/campaign_religious_test"
     },
     {
       "type": "",
@@ -20843,21 +20843,21 @@
       "player": 1,
       "x": -230.4,
       "z": -230.4,
-      "template": "mace/hero_alexander_iii"
+      "template": "campaigns/army_mace_hero_alexander"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -225.5,
       "z": -230.4,
-      "template": "mace/champion_infantry_swordsman"
+      "template": "campaigns/army_mace_standard"
     },
     {
       "type": "hero",
       "player": 1,
       "x": -218.0,
       "z": -230.4,
-      "template": "spart/hero_leonidas"
+      "template": "campaigns/army_spart_hero_leonidas"
     },
     {
       "type": "cavalry",

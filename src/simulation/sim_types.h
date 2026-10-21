@@ -526,7 +526,10 @@ enum BuildingType : uint8_t {
 	BLD_TEMPLE_ISIS = 85,     // ptol/temple_2 (Temple of Isis: City, one per player, trains the heroes)
 	BLD_MILL = 86,            // structures/mill_*, {brit,gaul}/rotarymill (Gaia; capture only, farmstead_60)
 	BLD_TOPHET = 87,          // cart/tophet (a temple that trains only the healer)
-	BLD_TYPE_COUNT = 88
+	BLD_CAMPAIGN_CITY = 88,   // campaigns/campaign_city_test (a civic centre: 5 arrows, 300 m territory)
+	BLD_CAMPAIGN_CITY_MINOR = 89, // campaigns/campaign_city_minor_test (3 arrows, 150 m territory)
+	BLD_CAMPAIGN_SANCTUARY = 90,  // campaigns/campaign_religious_test (a temple that trains and researches nothing)
+	BLD_TYPE_COUNT = 91
 };
 
 #include "civ_building_data.h"
@@ -545,13 +548,15 @@ static_assert(STRUCTURE_VISION_ROWS == BLD_TYPE_COUNT,
 inline constexpr uint8_t building_research_base(uint8_t type) {
 	return (type >= BLD_TACHARA_FOOD && type <= BLD_TACHARA_METAL) ? (uint8_t)BLD_TACHARA
 	       : type == BLD_APARTMENT ? (uint8_t)BLD_HOUSE
-	       : (type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG) ? (uint8_t)BLD_TOWN_CENTER
+	       : (type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG || type == BLD_CAMPAIGN_CITY ||
+	          type == BLD_CAMPAIGN_CITY_MINOR) ? (uint8_t)BLD_TOWN_CENTER
 	       : (type == BLD_TOWER_GREAT || type == BLD_TOWER_BOLT || type == BLD_TOWER_ARTILLERY ||
 	          type == BLD_TOWER_DOUBLE) ? (uint8_t)BLD_TOWER
 	       : (type == BLD_INN || type == BLD_TENT || type == BLD_WAREHOUSE || type == BLD_TAVERN) ? (uint8_t)BLD_HOUSE
 	       : type == BLD_FORTRESS_OLD ? (uint8_t)BLD_FORTRESS
 	       : type == BLD_MILL ? (uint8_t)BLD_FARMSTEAD
-	       : (type == BLD_KUSH_SHRINE || type == BLD_TEMPLE_ISIS || type == BLD_TOPHET) ? (uint8_t)BLD_TEMPLE
+	       : (type == BLD_KUSH_SHRINE || type == BLD_TEMPLE_ISIS || type == BLD_TOPHET ||
+	          type == BLD_CAMPAIGN_SANCTUARY) ? (uint8_t)BLD_TEMPLE
 	       : type == BLD_WAGON_ENCAMPMENT_FORTIFIED ? (uint8_t)BLD_WAGON_ENCAMPMENT
 	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
@@ -601,6 +606,10 @@ inline MapStructureTemplate map_structure_template(const char *tpl) {
 		{"mill_middle_eastern", BLD_MILL, CIV_PERSIANS}, {"mill_saharan", BLD_MILL, CIV_KUSHITES},
 		{"mill_temperate_europe", BLD_MILL, CIV_GAULS}, {"gaul/rotarymill", BLD_MILL, CIV_GAULS},
 		{"brit/rotarymill", BLD_MILL, CIV_BRITONS}, {"cart/tophet", BLD_TOPHET, CIV_CARTHAGINIANS},
+		// The campaign test maps' Greek cities and sanctuary (simulation/templates/campaigns/).
+		{"campaigns/campaign_city_test", BLD_CAMPAIGN_CITY, CIV_ATHENIANS},
+		{"campaigns/campaign_city_minor_test", BLD_CAMPAIGN_CITY_MINOR, CIV_ATHENIANS},
+		{"campaigns/campaign_religious_test", BLD_CAMPAIGN_SANCTUARY, CIV_ATHENIANS},
 		// The Gaia wonders and army tents (template_structure_wonder, template_structure_special
 		// with Population/Bonus 5) and the market stalls (template_structure_civic_house).
 		{"stonehenge", BLD_WONDER, CIV_COUNT}, {"uffington_horse", BLD_WONDER, CIV_BRITONS},
@@ -626,9 +635,11 @@ inline constexpr bool is_land_market(uint8_t type) {
 }
 
 // 0 A.D. class CivCentre: the Civic Center and its Han Imperial Court form (a
-// territory root, a dropsite for every resource, a conquest-critical base).
+// territory root, a dropsite for every resource, a conquest-critical base), and the campaign
+// test cities (template_structure_civic_civil_centre children).
 inline constexpr bool is_civic_centre(uint8_t type) {
-	return type == BLD_TOWN_CENTER || type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG;
+	return type == BLD_TOWN_CENTER || type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG ||
+	       type == BLD_CAMPAIGN_CITY || type == BLD_CAMPAIGN_CITY_MINOR;
 }
 // 0 A.D. class ConquestCritical (template_structure_civic, _military and _wonder, less the
 // stoa and the forge): the structures that keep a player in a Conquest match. Towers, walls,
@@ -1286,7 +1297,7 @@ struct BuildingTypeInfo {
 	const char *model_id;
 	const char *portrait_id;
 	float max_hp;
-	int footprint; // 1 or 2
+	int footprint; // cells: 1 or 2 (3 for the campaign test cities)
 	int food_cost;
 	int wood_cost;
 	int gold_cost;
@@ -1924,6 +1935,7 @@ inline bool tech_available_to_civ(uint8_t tech_id, uint8_t civ) {
 inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ) {
 	const uint8_t r = tech_info(tech_id).researcher;
 	if (tech_id == TECH_AGOGE) return false;
+	if (type == BLD_CAMPAIGN_SANCTUARY) return false; // campaign_religious_test: Researcher disable=""
 	if (tech_id == TECH_CELTIC_AUXILIARIES) return type == BLD_EMBASSY;
 	if (tech_id == TECH_UNLOCK_SHARED_LOS && building_research_base(type) == BLD_MARKET) return true;
 	if (tech_id == TECH_TOWER_MURDERHOLES && (type == BLD_FORTRESS || type == BLD_FORTRESS_OLD)) return true;
@@ -2047,7 +2059,7 @@ inline float building_garrison_heal(uint8_t type) {
 		case BLD_WAGON_ENCAMPMENT: return 1.0f;
 		// kush/temple_amun, rome/temple_mars, rome/temple_vesta and the shrines keep template_structure_civic_temple's 3
 		case BLD_TEMPLE: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_MARS: case BLD_TEMPLE_VESTA: case BLD_SHRINE:
-		case BLD_TEMPLE_ISIS: case BLD_TOPHET: return 3.0f;
+		case BLD_TEMPLE_ISIS: case BLD_TOPHET: case BLD_CAMPAIGN_SANCTUARY: return 3.0f;
 		case BLD_WONDER: return 5.0f;
 		default: return 0.0f;
 	}
@@ -2081,6 +2093,8 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		// The Crannog and the military colony are template_structure_civic_civil_centre too,
 		// whose VisibleClasses are Defensive CivilCentre (Danubius and Jebel Barkal aim at them).
 		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: return c | TC_CIVCENTRE | TC_CIVIC | TC_DEFENSIVE;
+		// campaigns/campaign_city_*_test.xml add VisibleClasses Market.
+		case BLD_CAMPAIGN_CITY: case BLD_CAMPAIGN_CITY_MINOR: return c | TC_CIVCENTRE | TC_CIVIC | TC_DEFENSIVE | TC_MARKET;
 		case BLD_CRANNOG: return c | TC_CIVCENTRE | TC_CIVIC | TC_DEFENSIVE | TC_NAVAL; // brit/crannog.xml VisibleClasses Naval
 		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
 		// han/academy and ptol/mercenary_camp are template_structure_military_barracks.
@@ -2106,7 +2120,7 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_TEMPLE: return c | TC_TEMPLE | TC_CIVIC | TC_TEMPLEOFAPEDEMAK;
 		// template_structure_civic_temple's other children: the shrines, the temples of Isis,
 		// Amun, Vesta and Mars.
-		case BLD_SHRINE: case BLD_KUSH_SHRINE: case BLD_TEMPLE_ISIS: case BLD_TOPHET:
+		case BLD_SHRINE: case BLD_KUSH_SHRINE: case BLD_TEMPLE_ISIS: case BLD_TOPHET: case BLD_CAMPAIGN_SANCTUARY:
 		case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA: case BLD_TEMPLE_MARS: return c | TC_TEMPLE | TC_CIVIC;
 		// Other template_structure_civic children.
 		case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL: case BLD_MINISTRY: return c | TC_CIVIC;
