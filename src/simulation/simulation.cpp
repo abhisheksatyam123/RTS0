@@ -22335,11 +22335,11 @@ float Simulation::civ_gather_bonus(size_t i, uint8_t kind) const {
 }
 
 // ResourceGatherer/Rates of unit i for a supply kind (entity.js currentGatherRate), with its
-// technologies and the AI difficulty's gather rate.
+// technologies, the civ bonuses 0.28 carries as technologies, and the AI difficulty's gather rate.
 float Simulation::petra_gather_rate(size_t i, uint8_t kind) const {
 	const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
 	return gather_class_rate(gcls, kind) * unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).gather[kind] *
-		ai_gather_mult(units_.team[i]);
+		civ_gather_bonus(i, kind) * ai_gather_mult(units_.team[i]);
 }
 
 uint8_t Simulation::petra_gather_kind(size_t r) const {

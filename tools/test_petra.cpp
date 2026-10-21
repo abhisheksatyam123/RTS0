@@ -1648,6 +1648,21 @@ static void test_pop_phase2_save_resources() {
 // its minor research and expansion aren't held for a phase it can't research.
 // getOwnUnits / getOwnEntitiesByRole: workers sheltering in a structure keep their role, so
 // trainMoreWorkers and getAccountedWorkers still count them.
+// entity.js currentGatherRate: Petra's estimate carries the civ bonuses 0.28 keeps as
+// technologies, here Carthage's stone (cart_stone_01, auto-researched at Village: x1.25).
+static void test_gather_rate_civ_bonus() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_team_civ(1, (uint8_t)CIV_CARTHAGINIANS);
+	s->set_team_civ(2, (uint8_t)CIV_ATHENIANS);
+	const int32_t c = s->lookup_unit(s->spawn_unit(0.0f, 0.0f, 1, UNIT_FEMALE_CITIZEN));
+	const int32_t a = s->lookup_unit(s->spawn_unit(4.0f, 0.0f, 2, UNIT_FEMALE_CITIZEN));
+	const float rc = s->petra_gather_rate((size_t)c, Simulation::GK_STONE), ra = s->petra_gather_rate((size_t)a, Simulation::GK_STONE);
+	std::printf("  gather rate civ bonus: Carthaginian stone %.3f, Athenian %.3f\n", rc, ra);
+	CHECK(ra > 0.0f && std::fabs(rc / ra - 1.25f) < 1e-3f, "Petra's stone rate carries Carthage's civ bonus");
+}
+
 static void test_garrisoned_workers_count() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -7737,6 +7752,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_islands_wood_reserve);
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_garrisoned_workers_count);
+	RUN(test_gather_rate_civ_bonus);
 	RUN(test_idle_workers_repair_cc);
 	RUN(test_worker_elephant_builds);
 	RUN(test_anchor_dropsite_unshared);
