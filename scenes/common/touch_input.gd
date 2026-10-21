@@ -13,6 +13,10 @@ extends Node
 # The session's touch bar latches Shift, Ctrl and Alt through set_modifier(): while one
 # is on, Input reports the key held and every touch-made mouse event carries it, so
 # Shift queues orders and adds to the selection, Ctrl and Alt work as with a keyboard.
+# Android's Back button (project.godot keeps quit_on_go_back off, so it never quits the
+# game) works as Escape: it closes the open dialog or page, ends placement, drops the
+# selection; in a match with nothing to cancel it opens the session menu, and on the main
+# menu it asks to quit.
 # Desktop builds leave it off.
 
 const HOLD_SEC := 0.45
@@ -56,6 +60,34 @@ func activate() -> void:
 	# Until the first touch the pointer sits at (0, 0), a screen corner: park it so the
 	# camera doesn't edge-scroll from the start of a match.
 	_park.call_deferred()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST and _active:
+		back()
+
+func back() -> void:
+	var scene := get_tree().current_scene
+	var idle_match: bool = scene != null and scene.has_method("nothing_to_cancel") and scene.nothing_to_cancel()
+	if _escape():
+		return
+	if idle_match:
+		scene._on_menu_button_pressed()
+	elif scene != null and scene.has_method("_on_exit_pressed") and not scene.submenu_panel.visible:
+		scene._on_exit_pressed()
+
+# Press and release Escape ("cancel"); true when a page or dialog took it.
+func _escape() -> bool:
+	var vp := get_viewport()
+	var handled := false
+	for pressed in [true, false]:
+		var k := InputEventKey.new()
+		k.keycode = KEY_ESCAPE
+		k.physical_keycode = KEY_ESCAPE
+		k.pressed = pressed
+		vp.push_input(k)
+		if pressed:
+			handled = vp.is_input_handled()
+	return handled
 
 # Latch (on) or release a modifier key for touch play.
 func set_modifier(key: Key, on: bool) -> void:

@@ -722,10 +722,14 @@ Dictionary RtsoMain::get_trade_dialog_state() const {
 	Dictionary d;
 	if (!sim) return d;
 	const uint8_t me = local_player();
+	// TradeDialog.open / onViewedPlayerChange: nothing to show while viewing no player.
+	d["viewed"] = me < rtso::MAX_PLAYERS && view_player() < rtso::MAX_PLAYERS;
+	if (!(bool)d["viewed"]) return d;
 	const auto &ps = sim->player(me);
 	d["player"] = (int)me;
 	d["can_barter"] = sim->can_barter(me);
-	d["controls"] = !sim->is_defeated(me);
+	// controlsPlayer(g_ViewedPlayer): an observer or defeated player viewing a side only reads it.
+	d["controls"] = controls_player(me) && !sim->is_defeated(me);
 	// Barter.js: 100 per click, 5x with session.massbarter (the only amounts cmd_barter takes).
 	const int multiplier = 5;
 	const int amount = 100 * (rtso::hotkeys::held("session.massbarter") ? multiplier : 1);
