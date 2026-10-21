@@ -164,7 +164,7 @@ Right-click actions, Back to Work and Shift-queueing against unit_actions.js, in
 | N1 | ~~A right-click on one's own or an ally's structure that an enemy holds capture points of walks or repairs~~ Fixed: "capture" (specificness 10, Capturable.CanCapture) shows the capture cursor and recaptures it, before repair and move (C too); tested by `tools/e2e_recapture.gd` | high | Fixed |
 | N2 | ~~Back to Work follows the last Gather or Build order, never cleared: the button shows for working units and stays after use, and a sheltered trader never gets it~~ Fixed: HasWorkOrders is the kept work queue (UpdateWorkOrders), used up by Back to Work and cleared by a new work order; end of alert follows it too; test_unit_orders 87 | medium | Fixed |
 | N3 | ~~Repair, Heal and Guard skip selected units that can't do the task (and drop their queued orders)~~ Fixed: a player's order walks them to the target (UnitAI.js Repair 5896, Heal 5719, Guard 5355 WalkToTarget): beside a structure, after a unit; test_unit_orders 100 | medium | Fixed |
-| N4 | Shift is ignored when hunting or slaughtering an animal, attacking scenery and boarding a ship, ram or siege tower: the order replaces the queue (unit_actions.js gather, attack and garrison pass queued) | medium | Open |
+| N4 | ~~Shift is ignored when hunting or slaughtering an animal, attacking scenery and boarding a ship, ram or siege tower: the order replaces the queue~~ Fixed: Shift queues them (ORDER_HUNT, ORDER_ATTACK_SCENERY, ORDER_BOARD), lockstep cmds 17 and 18 carry NET_PARAM_QUEUED, and a kill going on to the carcass keeps the orders queued behind the hunt (one Gather order in 0.28); test_unit_orders 101 | medium | Fixed |
 | N5 | ~~Alt (orderone) on an enemy unit, structure or scenery orders the first selected unit, not the first able one~~ Fixed: the first selected unit able to attack or capture it (getActionInfo firstAbleEntity, input.js popOneFromSelection); tested by `tools/e2e_order_one.gd` | low | Fixed |
 
 ### Aura icons, fogged selections and structure tooltips: Compare's eleventh 0.28 pass (2026-10-20)
@@ -334,6 +334,18 @@ TechnologyManager.js, Researcher.js, data/technologies (about 30 techs row by ro
 | U1 | A captured structure's research list followed the captor's civ; Researcher.js reads the structure's own template (cart/dock drops warship_health, cart/super_dock lists nine dock techs, han/civil_centre drops the spy techs, han/forge archer_attack_spread) and the owner's civ only filters it | low | Fixed |
 
 Checked and matching: requirements (all/any, class counts without foundations, civ/notciv), pairs and autoResearch, supersedes chains, cost multipliers (library, team bonuses, heroes, catafalques) and cancel refunds, unit researchers, civ bonus autoresearch, tech modifications, own-civ researcher lists, structure auras (temples, wonders, theatre, pillars, monuments, regen and trickle auras).
+### Technology effects, sixteenth 0.28 pass (2026-10-20)
+
+Every technology (ids 1-137) researched alone and in 13 stacked sets, for all 15 civs, on every roster template and structure type, spawned both before and after the research (48,153 changed values), against 0.28's templates with each modification applied (multiplies, then adds, replace first) and RTS0's scalings; a mutation run planted 13 wrong values and all 13 were reported. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| Z1 | Sacrificial Ritual (Healer !Champion !Hero) also took the metal loot of hero and champion healers (Hippocrates, Chanakya, the German champion healer): a hand-written rule doubled the table's Loot/metal row without its filter | low | Fixed (rule removed; test_loot) |
+| Z2 | Undergirding Cables and Bronze Ram (ArrowShip, NavalRam) reached the Briton, Gallic and Iberian fire ships: RTS0 spelled NavalRam "Warship Melee" | low | Fixed (TC_FIRESHIP, TechClasses bit 70; NavalRam is Warship Melee !Fireship; test_techs) |
+| Z3 | germ_women's +0.5 m/s walk speed was multiplied by later speed technologies; 0.28 adds it after them | nit | Fixed (test_gather_parity 3c) |
+| Z4 | The selection details' gather rates left out Silver Owls (Athenian metal x1.1 per phase) and cart_stone_01..03 (Carthaginian stone x1.25 per phase) that gathering applies | low | Fixed (civ_gather_bonus; test_gather_parity 3b) |
+| Z5 | Petra's gather-rate estimate (petra_gather_rate, entity.js currentGatherRate) leaves out the same civ bonuses, which 0.28 carries as technologies | low | Open (C) |
+
 ### Structure attacks and upgrades, fifteenth 0.28 pass (2026-10-20)
 
 The same 454 templates against what the simulation reads for structure arrows (Attack/Ranged damage, ranges x0.28, Origin, Prepare/Repeat, Projectile speed, spread and gravity, preferred classes), BuildingAI arrow counts and garrison classes, Upgrade targets, costs, times and phases, Trainer BatchTimeModifier, Repairable RepairTimeRatio, Market InternationalBonus, dropsite types and sharing, GarrisonHolder BuffHeal, foundation resistance and starting health, and every structure aura: no data differences (a mutation run planted 24 wrong values and all 24 were reported).
