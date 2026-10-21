@@ -673,6 +673,7 @@ void RtsoMain::_ready() {
 	// NetworkStatusOverlay.xml: the status text on sessionOverlayBackground,
 	// over the whole screen, with the disconnectedExitButton below it.
 	net_status_overlay_ = memnew(Control);
+	net_status_overlay_->set_name("NetStatusOverlay");
 	net_status_overlay_->set_anchors_preset(Control::PRESET_FULL_RECT);
 	net_status_overlay_->set_mouse_filter(Control::MOUSE_FILTER_STOP);
 	net_status_overlay_->set_visible(false);

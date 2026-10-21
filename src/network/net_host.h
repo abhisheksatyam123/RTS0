@@ -204,6 +204,9 @@ public:
 	// (NDR_INCORRECT_SOFTWARE_VERSION).
 	void setSoftwareVersion(const std::string &v) { software_version_ = v; }
 	const std::string &softwareVersion() const { return software_version_; }
+	// 0 A.D. CreateHandshake: the enabled mods (name, version) both sides
+	// compare, less the ones marked ignoreInCompatibilityChecks.
+	void setEnabledMods(std::vector<std::pair<std::string, std::string>> m) { enabled_mods_ = std::move(m); }
 	// Client: the engine version the host's NMT_SERVER_HANDSHAKE named ("" before it came).
 	const std::string &hostSoftwareVersion() const { return host_software_version_; }
 	// Host: 0.28 network.duplicateplayernames. Off, a name already in the game
@@ -322,6 +325,7 @@ public:
 	static std::string sanitise_player_name(const std::string &original);
 private:
 	std::string software_version_ = NET_SOFTWARE_VERSION;
+	std::vector<std::pair<std::string, std::string>> enabled_mods_;
 	std::string host_software_version_;
 	bool duplicate_names_ = false;
 	// Host: close a link with this reason, sent in the disconnect's channel byte.

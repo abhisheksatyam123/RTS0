@@ -98,6 +98,11 @@ def test_object():
     check(lb.register({"id": "g1", "players": 3})[1]["player_names"][0]["name"] == "alice",
           "player names left out keep their value")
     check(lb.register({"id": "g1", "player_names": "bad"})[1]["player_names"] == [], "a bad player list is empty")
+    vc = "Conquest,Capture the Relic,Wonder,Regicide"
+    crowd = [{"name": "p%d" % i} for i in range(8)] + [{"name": "o%d" % i, "observer": 1} for i in range(30)]
+    full = lb.register({"id": "g1", "victory": vc, "name": "n" * 200, "player_names": crowd})[1]
+    check(full["victory"] == vc and len(full["name"]) == 200 and len(full["player_names"]) == 38,
+          "the victory list, a long game name and many observers are kept in full")
     check("mods" not in room, "a host that sends no mods lists none")
     mods = [{"name": "0ad", "version": "0.28.0"}, {"name": "fx", "version": "1", "ignoreInCompatibilityChecks": 1},
             {"version": "2"}, "junk"]
