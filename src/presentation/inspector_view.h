@@ -673,6 +673,8 @@ public:
 						if (m.id == fid) { field = &m; break; }
 				stats_->set_text(field ? supply_lines(*sim, field->id, field) : String());
 				stats_->set_tooltip_text(String());
+				// A mirage keeps only its Resistance of the detailed tooltip's components.
+				set_detailed_tooltip(seen->has_resistance ? rtso::seldet::resistance_tooltip(seen->resistance, true) : String());
 				// The mirage's portrait: its template's tooltip, a left click to its spot, a right
 				// click to the template viewer (selection_details.js displaySingle).
 				const uint8_t civ = rtso::is_playable_civ(seen->civ) ? seen->civ
