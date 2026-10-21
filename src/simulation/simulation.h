@@ -1099,6 +1099,10 @@ public:
 	bool cmd_end_alert(uint8_t player, uint32_t building_id);
 	// target_unit_id: a unit or a structure, one's own or an ally's (Guard.js).
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	// How close guard i keeps to what it guards, edge to edge (Guard.GetRange of the guard), and that
+	// distance between the centres of guard i and the unit g it guards.
+	float guard_range(size_t i) const;
+	float guard_reach(size_t i, size_t g) const;
 	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
 	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// Repairable on a unit (siege engines and ships but fire ships): a builder can repair it.
@@ -4359,7 +4363,7 @@ private:
 	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
 	void apply_order(uint32_t uid, const UnitOrder &o);
 	bool order_still_valid(size_t i, const UnitOrder &o) const;
-	int32_t structure_attacker(uint32_t building_id, uint8_t team) const;
+	int32_t structure_attacker(uint32_t building_id, uint8_t team, bool seen_anywhere = false) const;
 	uint32_t nearest_dropsite(size_t i) const;
 	bool attack_target_hidden(size_t i, size_t t) const;
 	void deposit_carry(size_t i);
