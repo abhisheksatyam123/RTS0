@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 #include "network/chat_routing.h"
 #include "main_node.h"
 #include "l10n.h"
@@ -3336,12 +3337,45 @@ void RtsoMain::post_kick_chat() {
 
 // colorizePlayernameByGUID in the setup: the client's name in its slot's colour,
 // white while it has no slot.
+// gamesetup ClientChat.js colorizePlayername: the slot colour lightened to at
+// least 60% lightness (HSL), so dark colours read on the dark panel; white
+// for an unassigned client, and "Unknown Player" for one with no name.
+static uint32_t setup_name_rgb(uint32_t rgb) {
+	const double r = ((rgb >> 16) & 0xFF) / 255.0, g = ((rgb >> 8) & 0xFF) / 255.0, b = (rgb & 0xFF) / 255.0;
+	const double mx = std::max({r, g, b}), mn = std::min({r, g, b});
+	double h = 0, sat = 0, l = (mx + mn) / 2;
+	if (mx != mn) {
+		const double d = mx - mn;
+		sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+		h = mx == r ? (g - b) / d + (g < b ? 6 : 0) : mx == g ? (b - r) / d + 2 : (r - g) / d + 4;
+		h /= 6;
+	}
+	l = std::max(0.6, l);
+	auto hue = [](double p, double q, double t) {
+		if (t < 0) t += 1;
+		if (t > 1) t -= 1;
+		if (t < 1.0 / 6) return p + (q - p) * 6 * t;
+		if (t < 0.5) return q;
+		if (t < 2.0 / 3) return p + (q - p) * (2.0 / 3 - t) * 6;
+		return p;
+	};
+	double ro = l, go = l, bo = l;
+	if (sat != 0) {
+		const double q = l < 0.5 ? l * (1 + sat) : l + sat - l * sat, p = 2 * l - q;
+		ro = hue(p, q, h + 1.0 / 3);
+		go = hue(p, q, h);
+		bo = hue(p, q, h - 1.0 / 3);
+	}
+	auto byte = [](double v) { return (uint32_t)std::lround(std::clamp(v, 0.0, 1.0) * 255); };
+	return byte(ro) << 16 | byte(go) << 8 | byte(bo);
+}
+
 String RtsoMain::setup_client_name(const rtso::NetSetupState &n, uint32_t client) const {
 	String name = client < rtso::NET_SETUP_CLIENTS ? String::utf8(n.names[client].c_str()) : String();
-	if (name.is_empty()) name = String::utf8(rtso::peer_guid(client).c_str());
+	if (name.is_empty()) name = tr("Unknown Player");
 	const int slot = n.slot_of(client);
 	const uint32_t rgb = slot >= 0 && n.setup.colors[slot] < rtso::PLAYER_COLOR_COUNT
-			? rtso::PLAYER_COLORS[n.setup.colors[slot]] & 0xFFFFFFu : 0xFFFFFFu;
+			? setup_name_rgb(rtso::PLAYER_COLORS[n.setup.colors[slot]] & 0xFFFFFFu) : 0xFFFFFFu;
 	return "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + name.replace("[", "[lb]") + "[/color]";
 }
 
@@ -4145,9 +4179,11 @@ String RtsoMain::chat_user(const String &sender_guid) {
 	} else {
 		pl = local_player();
 	}
-	if (name.is_empty()) name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : sender_guid;
-	char hex[8] = "b3b3b3";
-	if (sim && pl < rtso::MAX_PLAYERS) std::snprintf(hex, sizeof(hex), "%06x", (unsigned)(sim->player_color(pl) & 0xFFFFFF));
+	// messages.js colorizePlayernameByGUID: the player's colour as Diplomacy Colors
+	// show it, white for an observer, "Unknown Player" without a name.
+	if (name.is_empty()) name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : tr("Unknown Player");
+	char hex[8] = "ffffff";
+	if (sim && pl < rtso::MAX_PLAYERS) std::snprintf(hex, sizeof(hex), "%06x", (unsigned)(rtso::display_colors::rgb(*sim, pl) & 0xFFFFFF));
 	return "[color=#" + String(hex) + "]" + name.replace("[", "[lb]") + "[/color]";
 }
 
