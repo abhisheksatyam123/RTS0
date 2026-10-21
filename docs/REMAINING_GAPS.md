@@ -334,6 +334,17 @@ TechnologyManager.js, Researcher.js, data/technologies (about 30 techs row by ro
 | U1 | A captured structure's research list followed the captor's civ; Researcher.js reads the structure's own template (cart/dock drops warship_health, cart/super_dock lists nine dock techs, han/civil_centre drops the spy techs, han/forge archer_attack_spread) and the owner's civ only filters it | low | Fixed |
 
 Checked and matching: requirements (all/any, class counts without foundations, civ/notciv), pairs and autoResearch, supersedes chains, cost multipliers (library, team bonuses, heroes, catafalques) and cancel refunds, unit researchers, civ bonus autoresearch, tech modifications, own-civ researcher lists, structure auras (temples, wonders, theatre, pillars, monuments, regen and trickle auras).
+### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
+
+BuildingAI.js, Attack.js and DelayedDamage.js against the arrow code, measured in the simulation and against a Python port of FireArrows: arrow counts with garrisons, auras and technologies (civic centre 6-26, tower 4-9, fortress 10-30), the 20 rounds per RepeatTime and their rounding, the first volley PrepareTime after a target enters, the paused round when targets leave, target order (preference, then distance, every arrow of a round on the first), what is shot (enemies, structures with Health, livestock, Gaia that can fight back), visibility, MinRange from the footprint, foundations, ownership changes, spread and stray hits all match. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| Z6 | Structures looked for units only within their flat range, so a tower on a 40 m hill lost about a tenth of its elevated reach against units (structures and animals already used it) | low | Fixed (test_combat 26b) |
+| Z7 | A siege tower's arrows could pick a structure without Health (a mill) | nit | Fixed |
+| Z8 | Terrain heights are 0.25 units per metre while ranges and Origin are x0.28, so a hill changes reach about 11% less than 0.28 relative to range | nit | Kept (heights kMetre 0.25) |
+| Z9 | A siege tower looses its whole volley at once on its attack timer; 0.28's BuildingAI spreads it as count/5 per round | nit | Kept (same arrows per cycle) |
+
 ### Technology effects, sixteenth 0.28 pass (2026-10-20)
 
 Every technology (ids 1-137) researched alone and in 13 stacked sets, for all 15 civs, on every roster template and structure type, spawned both before and after the research (48,153 changed values), against 0.28's templates with each modification applied (multiplies, then adds, replace first) and RTS0's scalings; a mutation run planted 13 wrong values and all 13 were reported. Owner: E.
