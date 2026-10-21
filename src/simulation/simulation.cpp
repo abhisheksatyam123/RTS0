@@ -16365,7 +16365,9 @@ float Simulation::promotion_required_xp(size_t i) const {
 	const uint8_t team = units_.team[i];
 	float xp = promotion_required_xp_template(team, units_.tmpl[i], units_.unit_type[i], units_.rank[i]);
 	if (xp < 0.0f || team >= MAX_PLAYERS) return xp;
-	// Promotion.js GetRequiredXp: ApplyValueModificationsToEntity, range auras included.
+	// Promotion.js GetRequiredXp: ApplyValueModificationsToEntity, range auras included. A
+	// garrisoned unit is out of the world, where no range aura reaches it.
+	if (units_.action_state[i] == ACTION_GARRISONED) return xp;
 	const float near = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], team, AURA_REQUIRED_XP,
 		units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]); // range ones
 	if (near > 0.0f) xp *= near;
@@ -19140,8 +19142,8 @@ bool Simulation::flee_done(size_t i) {
 	float gap = d - unit_clearance_at(i);
 	if (auto bit = building_id_to_idx_.find(from); bit != building_id_to_idx_.end())
 		gap = structure_gap(buildings_[bit->second], px, pz, unit_clearance_at(i));
-	else if (const int32_t j = lookup_unit(from); j >= 0)
-		gap -= unit_clearance_at((size_t)j);
+	else if (const int32_t j = lookup_unit(from); j >= 0 && !unit_flies((size_t)j))
+		gap -= unit_clearance_at((size_t)j); // a plane has no obstruction: to its centre
 	const float want = units_.flee_dist[i];
 	if (gap >= want) return true;
 	const float goal = want + (d - gap);
