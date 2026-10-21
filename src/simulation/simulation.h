@@ -2625,6 +2625,7 @@ private:
 	uint32_t idle_stuck_key() const { const uint32_t k = short_path_key_ ^ 0x6C8E9CF5u; return k ? k : 3u; }
 	void separation(float dt, Arena &arena, const MoveSteps &steps);
 	void motion_feedback(float dt, const MoveSteps &steps);
+	void finish_ended_walks(); // UnitAI WALKING FinishOrder for walks move_units / motion_feedback ended
 	void patrol_arrive(size_t i);
 	void patrol_next_leg(size_t i);
 	// A chase (UnitAI COMBAT.APPROACHING / CHASING): the target (the unit, or the centre of the
@@ -4368,6 +4369,7 @@ private:
 	bool flee_done(size_t i);
 	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee, bool structure = false);
 	std::vector<uint16_t> combat_wild_scratch_; // tick_combat: dangerous animals this tick
+	std::vector<uint8_t> walk_ended_look_; // finish_ended_walks -> tick_combat: idle units whose walk ended this tick (not saved: set and read within a tick)
 	std::vector<uint16_t> combat_herd_scratch_; // tick_combat: players' animals out of their corrals (structure targets)
 	std::vector<uint32_t> combat_look_again_scratch_; // tick_combat: units that hit a non-preferred target
 	std::vector<uint8_t> status_bits_scratch_; // tick_status_effects: each unit's Poisoned/Burning bits

@@ -11206,6 +11206,7 @@ void Simulation::tick(float dt) {
 	move_units(dt, arena, steps);
 	separation(dt, arena, steps);
 	motion_feedback(dt, steps); // 0 A.D. UnitMotion: obstructed walks end near their point or fail
+	finish_ended_walks();       // 0 A.D. UnitAI WALKING: a walk that ended is finished at once
 	if (!flight_.empty()) tick_flight(dt); // 0 A.D. UnitMotionFlying.js: planes take off, fly and land
 	tick_formations(dt);     // 0 A.D. Formation.js: controllers walk, members follow their slots
 	tick_turrets();          // 0 A.D. TurretHolder.js / Turretable.js: units on walls and outposts
@@ -13545,6 +13546,31 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 	}
 }
 
+// 0.28's WALKING and WALKINGANDFIGHTING MovementUpdate: a walk or attack-walk that move_units or
+// motion_feedback ended this tick is finished at once (FinishOrder, UnitAI.js:1793-1799, 1825-1831,
+// 3911-3940), so the next queued order starts or the unit is idle with no order before anything
+// looks for a fight or answers an attack. Left for tick_unit_ai's next tick, the finished walk
+// stayed the unit's order: tick_combat's scan or respond_to_attack started a fight under it, which
+// kept its force and went back to it afterwards (a Petra raid waited on such a rider for good). An
+// idle one looks for targets this tick (walk_ended_look_, read by tick_combat), as 0.28's IDLE Timer
+// runs FindNewTargets before WalkToHeldPosition (:1686-1712). A formation member's walk is its
+// controller's (tick_formations).
+void Simulation::finish_ended_walks() {
+	walk_ended_look_.clear();
+	for (size_t i = 0; i < units_.count; ++i) {
+		const uint8_t kind = units_.order_kind[i];
+		if ((kind != ORDER_WALK && kind != ORDER_WALK_AND_FIGHT) || units_.has_order[i] || !units_.alive[i] ||
+		    units_.action_state[i] != ACTION_IDLE || (units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) ||
+		    (!formations_.empty() && formation_group_[i] != 0))
+			continue;
+		finish_order(i);
+		if (units_.action_state[i] == ACTION_IDLE && units_.order_kind[i] == ORDER_NONE) {
+			if (walk_ended_look_.empty()) walk_ended_look_.assign(units_.count, 0);
+			walk_ended_look_[i] = 1;
+		}
+	}
+}
+
 bool Simulation::chase_goal(size_t i, float &key_x, float &key_z, float &to_x, float &to_z) const {
 	if (units_.action_state[i] != ACTION_ATTACK || units_.order_kind[i] == ORDER_CAPTURE_RELIC) return false;
 	if (units_.target_unit_id[i] != 0) {
@@ -15192,14 +15218,6 @@ void Simulation::tick_combat(float dt) {
 				units_.order_kind[i] == ORDER_RETURN_RESOURCE || units_.order_kind[i] == ORDER_COLLECT_TREASURE ||
 				(units_.order_kind[i] == ORDER_GATHER && units_.target_resource_id[i] == 0)))
 			return;
-		// Nor does a walk that ended this tick (move_units' arrival, motion_feedback) look yet: 0.28's
-		// WALKING MovementUpdate drops the order first (FinishOrder, UnitAI.js:1793-1799, 3911-3935)
-		// and IDLE looks for targets from the next turn (enter's StartTimer(100), :1637), where
-		// tick_unit_ai finishes it. A fight picked now would keep the walk's force and go back to it.
-		// A formation member's walk is its controller's (tick_formations).
-		if (st == ACTION_IDLE && !units_.has_order[i] && units_.order_kind[i] == ORDER_WALK &&
-				!(units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) && (formations_.empty() || formation_group_[i] == 0))
-			return;
 		const bool guarding = st == ACTION_GUARD; // target_unit_id is the guarded unit
 		const uint32_t prev_unit = units_.target_unit_id[i], prev_bld = units_.target_building_id[i];
 		const bool walk_and_fight = st == ACTION_ATTACK_MOVE || st == ACTION_PATROL ||
@@ -15271,8 +15289,11 @@ void Simulation::tick_combat(float dt) {
 				(((units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) && units_.order_kind[i] != ORDER_NONE) ||
 				 (explicit_target && order_queues_.count(units_.id[i])));
 		int32_t found_bld = -1, found_wild = -1;
+		// A unit whose walk ended this tick looks at once (finish_ended_walks): 0.28's IDLE Timer looks
+		// for targets before it walks back to its held position.
+		const bool walk_ended = i < walk_ended_look_.size() && walk_ended_look_[i];
 		if (found < 0 && !order_next && !leash_drop && units_.target_building_id[i] == 0 && stance != STANCE_PASSIVE &&
-				((i + ticks_) % 4 == 0 || st == ACTION_ATTACK || walk_and_fight)) {
+				((i + ticks_) % 4 == 0 || st == ACTION_ATTACK || walk_and_fight || walk_ended)) {
 			const float scan_range = stance == STANCE_STAND_GROUND ? range
 					: stance == STANCE_DEFENSIVE ? std::min(range + vision * 0.5f, vision) : vision;
 			const uint8_t my_team = units_.team[i];
