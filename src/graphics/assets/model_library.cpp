@@ -85,7 +85,7 @@ static constexpr float PERSON_RS_HEIGHT = 4.98f;
 static bool is_person_model(const String &id) {
 	static const char *kNot[] = { "cavalry", "camel", "elephant", "eleph_", "chariot", "ram", "siege", "catapult",
 		"bolt", "lithobolos", "oxybeles", "ballista", "onager", "mangonel", "ship", "boat", "trireme",
-		"projectile", "plane", "wagon", "dog", "packed", "horse", "catafalque", "tower", "_cav" };
+		"projectile", "plane", "wagon", "dog", "packed", "horse", "catafalque", "tower", "_cav", "trader", "merchant" };
 	for (const char *k : kNot)
 		if (id.contains(k)) return false;
 	return !is_fauna_model(id);
@@ -2015,7 +2015,9 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 							e.scale = 1.0f;
 							float natural_h = e.aabb.size.y;
 							const float rs = category == "units" ? glb_root_scale(inst) : 0.0f;
-							if (rs >= 0.3f && rs <= 0.5f && is_person_model(id)) natural_h = PERSON_RS_HEIGHT * rs;
+							// A mounted hero (template model sized by a cavalry class model) is no person on foot.
+							const bool on_foot = is_person_model(id) && !(tm && tm->class_model && !is_person_model(String(tm->class_model)));
+							if (rs >= 0.3f && rs <= 0.5f && on_foot) natural_h = PERSON_RS_HEIGHT * rs;
 							float want_h = target_height(category, id, natural_h);
 							if (natural_h > 0.05f && want_h > 0.05f)
 								e.scale = want_h / natural_h;
