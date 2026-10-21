@@ -253,7 +253,35 @@ int main() {
 	CHECK(map_structure_template("structures/uffington_horse").civ == CIV_BRITONS);
 	CHECK(map_structure_template("structures/tent_desert").type == BLD_TENT &&
 		map_structure_template("structures/tent_desert").civ == CIV_PTOLEMIES);
-	CHECK(map_structure_template("structures/stall_big").type == BLD_HOUSE);
+	CHECK(map_structure_template("structures/stall_big").type == BLD_STALL);
+	CHECK(map_structure_template("structures/stall_small_b").type == BLD_STALL);
+	// Gaia huts, longhouses, stalls and the Persian map houses (nineteenth pass): each its own
+	// template_structure_civic_house child with its own health and population; the stalls and
+	// Persian houses keep the house Trainer, the Celtic huts and longhouses disable it.
+	CHECK(map_structure_template("structures/celt_hut").type == BLD_HUT);
+	CHECK(map_structure_template("structures/celt_longhouse").type == BLD_LONGHOUSE);
+	CHECK(map_structure_template("structures/pers/house_a").type == BLD_PERS_HOUSE_A &&
+		map_structure_template("structures/pers/house_a").civ == CIV_PERSIANS);
+	CHECK(map_structure_template("structures/pers/apartment_block").type == BLD_APARTMENT_BLOCK);
+	struct HouseRow { uint8_t type; float hp; int pop; bool trains; };
+	for (const HouseRow &r : {HouseRow{BLD_STALL, 500.0f, 5, true}, HouseRow{BLD_HUT, 500.0f, 2, false},
+			HouseRow{BLD_LONGHOUSE, 1000.0f, 10, false}, HouseRow{BLD_PERS_HOUSE_A, 1000.0f, 5, true},
+			HouseRow{BLD_PERS_HOUSE_B, 1200.0f, 10, true}, HouseRow{BLD_APARTMENT_BLOCK, 2000.0f, 15, true}}) {
+		CHECK(is_map_house(r.type) && building_research_base(r.type) == BLD_HOUSE);
+		CHECK(building_type_info(r.type).max_hp == r.hp && building_type_info(r.type).pop_bonus == r.pop);
+		CHECK((building_tech_classes(r.type) & TC_HOUSE) && house_trains_citizens(r.type) == r.trains);
+		for (uint8_t c = 0; c < CIV_COUNT; ++c) CHECK(!civ_can_build(c, r.type));
+		int citizens = 0;
+		for (uint16_t id : civ_roster_ids(CIV_GAULS))
+			if (building_trains_template(r.type, CIV_GAULS, CIV_GAULS, id)) ++citizens;
+		CHECK((citizens > 0) == r.trains);
+	}
+	// The Hellenic epic temple: 5000 health, heals its garrison like a temple, trains and
+	// researches nothing (ProductionQueue, Researcher and Trainer disabled).
+	CHECK(map_structure_template("structures/hellenic_epic_temple").type == BLD_EPIC_TEMPLE);
+	CHECK(building_type_info(BLD_EPIC_TEMPLE).max_hp == 5000.0f && building_garrison_heal(BLD_EPIC_TEMPLE) == 3.0f);
+	CHECK(!building_researches_tech(BLD_EPIC_TEMPLE, TECH_HEAL_RATE, CIV_ATHENIANS));
+	for (uint16_t id : civ_roster_ids(CIV_ATHENIANS)) CHECK(!building_trains_template(BLD_EPIC_TEMPLE, CIV_ATHENIANS, CIV_ATHENIANS, id));
 	CHECK(map_structure_template("structures/mill_field_wheat").type == BLD_FIELD);
 	// A captured Ptolemaic mercenary camp keeps the generic barracks list: no crossbow_training.
 	CHECK(building_researches_tech(BLD_MERCENARY_CAMP, TECH_BARRACKS_BATCH_TRAINING, CIV_HAN));

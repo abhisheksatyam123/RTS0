@@ -4254,7 +4254,7 @@ uint8_t Simulation::train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint
 		// A civ without the unlock trains the unit outright, as in 0 A.D.
 		return tech_available_to_civ(tech, civ) ? tech : (uint8_t)TECH_NONE;
 	};
-	if (bld_type == BLD_HOUSE || bld_type == BLD_APARTMENT) {
+	if (house_trains_citizens(bld_type)) {
 		uint8_t tech = tech_available_to_civ(TECH_UNLOCK_CIVILIANS_HOUSE_KUSH, civ)
 				? (uint8_t)TECH_UNLOCK_CIVILIANS_HOUSE_KUSH : (uint8_t)TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC;
 		return gate(tech);
@@ -4400,7 +4400,7 @@ bool Simulation::can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_
 	if (player_id >= MAX_PLAYERS) return false;
 	if (!entity_limit_allows_unit(player_id, unit_type, tmpl)) return false; // EntityLimits (Hero 1, WarDog, ...)
 	// Houses only ever train citizens, and only once their civ's festival is in.
-	if ((bld_type == BLD_HOUSE || bld_type == BLD_APARTMENT) && !(unit_tech_classes(unit_type) & TC_CIVILIAN)) return false;
+	if (house_trains_citizens(bld_type) && !(unit_tech_classes(unit_type) & TC_CIVILIAN)) return false;
 	uint8_t tech = train_unlock_tech(player_id, unit_type, bld_type, tmpl);
 	return tech == TECH_NONE || players_[player_id].has_tech(tech);
 }
@@ -4433,7 +4433,7 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 			if (best == CIV_UNIT_TEMPLATE_NONE || u.phase < civ_unit_template(best).phase) best = i;
 		}
 		if (best != CIV_UNIT_TEMPLATE_NONE) tmpl = best;
-		else if ((b.type == BLD_HOUSE || b.type == BLD_APARTMENT) && (unit_tech_classes((uint8_t)u_type) & TC_CIVILIAN))
+		else if (house_trains_citizens(b.type) && (unit_tech_classes((uint8_t)u_type) & TC_CIVILIAN))
 			return cmd_train_template_at(player_id, building_id, tmpl, false, count);
 		else return false;
 	}
@@ -19509,7 +19509,7 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 		// for a house, which is neither gathered nor a dropsite, so its builders look for a
 		// foundation nearby; any other structure leaves them idle for Petra to reassign.
 		if (petra_runs_for(units_.team[k])) {
-			const uint32_t f = b.type == BLD_HOUSE ? find_nearby_foundation(b.x, b.z, units_.team[k]) : 0;
+			const uint32_t f = b.type == BLD_HOUSE || is_map_house(b.type) ? find_nearby_foundation(b.x, b.z, units_.team[k]) : 0;
 			if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); return; }
 			set_order(k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
 			units_.has_order[k] = 0;
