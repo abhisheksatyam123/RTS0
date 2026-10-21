@@ -4142,7 +4142,15 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 			structure_cost(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ), cost);
 			bool afford = true;
 			for (int r = 0; r < RES_COUNT; ++r) afford &= (left[r] -= cost[r]) >= 0.0f;
-			if (!afford) break;
+			if (!afford) {
+				// TryConstructBuilding's TrySubtractResources (Player.js SubtractResourcesOrNotify):
+				// "Insufficient resources" with what this piece still needs.
+				SessionNotice need{SessionNotice::TEXT, player, 0, SessionNotice::TEXT_INSUFFICIENT_RESOURCES, {}};
+				for (int r = 0; r < RES_COUNT; ++r)
+					if (left[r] < 0.0f) need.amounts[r] = (int32_t)std::ceil(-left[r]);
+				note_session(need);
+				break;
+			}
 			any_segment = !(p.type == ws.tower && p.half_w == ws.tower_half);
 		}
 		if (!any_segment) return 0;
@@ -4157,7 +4165,15 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 		if (check_wall_piece(player, p, ignore.data(), ignore.size()) != PLACE_OK) break;
 		if (!entity_limit_allows_building(player, p.type)) break;
 		const bool segment = !(p.type == ws.tower && p.half_w == ws.tower_half);
-		if (!pay_for_structure(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ))) break;
+		if (!pay_for_structure(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ))) {
+			float cost[RES_COUNT];
+			structure_cost(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ), cost);
+			SessionNotice need{SessionNotice::TEXT, player, 0, SessionNotice::TEXT_INSUFFICIENT_RESOURCES, {}};
+			for (int r = 0; r < RES_COUNT; ++r)
+				if (cost[r] > players_[player].res[r]) need.amounts[r] = (int32_t)std::ceil(cost[r] - players_[player].res[r]);
+			note_session(need);
+			break;
+		}
 		const uint32_t bid = spawn_wall_piece(p, player, 0.0f);
 		if (!triggers_.triggers.empty()) { // each piece is a foundation entity (TryConstructWall), as in cmd_build
 			TriggerEventData ev;
@@ -15685,7 +15701,7 @@ void Simulation::tick_combat(float dt) {
 			return !check_los || los_visible(team, units_.pos_x[t], units_.pos_z[t]);
 		};
 		auto building_ok = [&](const Building &ob) {
-			if (ob.wrecked || ob.hp <= 0.0f || ob.team == GAIA_PLAYER || !can_attack(team, ob.team)) return false;
+			if (ob.wrecked || ob.hp <= 0.0f || !structure_has_health(ob.type) || ob.team == GAIA_PLAYER || !can_attack(team, ob.team)) return false;
 			const float gap = structure_gap(ob, sx, sz, unit_clearance_at(i));
 			if (!in_parabolic_range(gap * gap, sy, get_terrain_height(ob.x, ob.z), range)) return false;
 			return !check_los || los_explored(team, ob.x, ob.z);
@@ -15854,6 +15870,10 @@ void Simulation::tick_combat(float dt) {
 		const double reach2 = (double)max_r * max_r - 2.0 * (double)max_r * ((double)lowest_ground - (double)b_y);
 		const float corner = det::hypot(b.hu, b.hv); // the footprint's farthest reach from its centre
 		const float ground_reach = max_r > 0.0f && reach2 > 0.0 ? (float)std::sqrt(reach2) + corner + 1.0f : -1.0f;
+		// Units too: CreateActiveParabolicQuery has no flat cap, so a tower on a hill reaches
+		// units past its flat range (ground_reach already holds the corner and a metre).
+		const float unit_scan_r = ground_reach >= 0.0f ? std::max(ground_reach, max_r + corner) + UNIT_RANGE_MARGIN
+				: max_r + corner + UNIT_RANGE_MARGIN;
 		auto beyond = [&](float dx, float dz, float other_half) {
 			return ground_reach >= 0.0f && (std::fabs(dx) > ground_reach + other_half || std::fabs(dz) > ground_reach + other_half);
 		};
@@ -15898,7 +15918,7 @@ void Simulation::tick_combat(float dt) {
 		if (!b.arrow_timer_on) {
 			// OnRangeUpdate -> StartTimer: the first round comes PrepareTime after an enemy enters.
 			bool any = false;
-			if (n) grid.visit_radius(b.x, b.z, max_r + corner + UNIT_RANGE_MARGIN, [&](int32_t i) { any = any || unit_target(i); });
+			if (n) grid.visit_radius(b.x, b.z, unit_scan_r, [&](int32_t i) { any = any || unit_target(i); });
 			if (!any) each_fauna([&](int32_t f) { any = any || fauna_target(f); });
 			if (!any) each_building([&](size_t o) { any = any || building_target(buildings_[o]); });
 			if (!any) continue;
@@ -15914,7 +15934,7 @@ void Simulation::tick_combat(float dt) {
 		bool in_reach = false; // targetUnits: everything in range, seen or not, keeps the timer going
 		arrow_targets.clear();
 		if (n) {
-			grid.visit_radius(b.x, b.z, max_r + corner + UNIT_RANGE_MARGIN, [&](int32_t i) {
+			grid.visit_radius(b.x, b.z, unit_scan_r, [&](int32_t i) {
 				if (!unit_target(i)) return;
 				in_reach = true;
 				if (!seen(units_.pos_x[i], units_.pos_z[i])) return;
@@ -18311,8 +18331,8 @@ bool Simulation::cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool loc
 	if (b.gate_locked == lock) return false;
 	const bool blocked_paths = blocks_pathfinding(b);
 	b.gate_locked = lock;
-	// LockGate: an open gate closes on the next check once nobody stands in it.
-	// Only locking and unlocking change what long-range paths may cross.
+	// LockGate: an open gate closes on the next check once nobody stands in it, and blocks
+	// long-range paths from then on (the gate tick rebuilds the grid); unlocking frees them now.
 	if (blocks_pathfinding(b) != blocked_paths) rebuild_nav_grid();
 	return true;
 }
@@ -21902,6 +21922,7 @@ float Simulation::petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl,
 		const float range = ui.attack_range * m.range_mul + m.range * COMBAT_DISTANCE_SCALE;
 		s += range / (ranged ? COMBAT_DISTANCE_SCALE : 0.6f) * 0.0125f;
 		s += ui.attack_cooldown * 1000.0f / 100000.0f;
+		s -= unit_combat(tmpl, type).prepare * 1000.0f / 100000.0f; // attackTimes prepare
 	}
 	// attackTypes() lists Capture too: no attackStrengths, but its MaxRange 4 and RepeatTime 1000.
 	if (unit_capture_attack(tmpl, type) > 0.0f) s += PETRA_CAPTURE_STRENGTH;
@@ -22335,11 +22356,11 @@ float Simulation::civ_gather_bonus(size_t i, uint8_t kind) const {
 }
 
 // ResourceGatherer/Rates of unit i for a supply kind (entity.js currentGatherRate), with its
-// technologies and the AI difficulty's gather rate.
+// technologies, the civ bonuses 0.28 carries as technologies, and the AI difficulty's gather rate.
 float Simulation::petra_gather_rate(size_t i, uint8_t kind) const {
 	const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
 	return gather_class_rate(gcls, kind) * unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).gather[kind] *
-		ai_gather_mult(units_.team[i]);
+		civ_gather_bonus(i, kind) * ai_gather_mult(units_.team[i]);
 }
 
 uint8_t Simulation::petra_gather_kind(size_t r) const {
@@ -31772,6 +31793,7 @@ float Simulation::petra_unit_strength(size_t i) const {
 		const bool ranged = (unit_tech_classes(units_.unit_type[i]) & TC_RANGED) != 0;
 		s += units_.attack_range[i] / (ranged ? 0.28f : 0.6f) * 0.0125f; // back to 0 A.D. metres
 		s += units_.attack_cooldown[i] * 1000.0f / 100000.0f;
+		s -= unit_combat_at(i).prepare * 1000.0f / 100000.0f; // attackTimes prepare
 	}
 	if (unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f) s += PETRA_CAPTURE_STRENGTH;
 	float res[3];
@@ -31787,6 +31809,7 @@ float Simulation::petra_fauna_strength(size_t f) const {
 		s += (0.075f * info.hack_damage + 0.085f * info.pierce_damage + 0.045f * info.crush_damage) / 4.0f;
 		s += info.attack_range / 0.6f * 0.0125f; // back to 0 A.D. metres, as for a unit's melee
 		s += info.attack_cooldown * 1000.0f / 100000.0f;
+		s -= info.attack_prepare * 1000.0f / 100000.0f; // attackTimes prepare
 	}
 	s += (0.075f * info.hack_armor + 0.085f * info.pierce_armor + 0.045f * info.crush_armor) / 4.0f;
 	s *= fauna_.max_hp[f] / 100.0f;

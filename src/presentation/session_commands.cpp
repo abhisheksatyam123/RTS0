@@ -45,6 +45,10 @@ using rtso::sprintf0;
 // structure (its GarrisonHolder List, IsOwnedByMutualAllyOfEntity). Room is not checked.
 bool RtsoMain::selection_can_garrison(uint32_t building_id) const {
 	if (!sim) return false;
+	// A wall, gate or outpost has no GarrisonHolder in 0.28: units occupy its turrets with
+	// session.occupyturret only, so session.garrison over it is a walk.
+	for (const auto &b : sim->buildings())
+		if (b.id == building_id && sim->turret_only_holder(b)) return false;
 	for (int s = 0; s < selected_ids.size(); ++s)
 		if (sim->can_garrison_in((uint32_t)(int64_t)selected_ids[s], building_id)) return true;
 	// Own livestock into the player's own or a mutual ally's corral (GarrisonHolder List Animal).
