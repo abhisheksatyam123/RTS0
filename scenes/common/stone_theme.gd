@@ -12,8 +12,10 @@ const BUTTON_REGION := Rect2(0, 0, 256, 28)
 const TRIM_REGION := Rect2(0, 0, 32, 28)
 
 static var _theme: Theme
+static var _session: Theme
 
-## Tiled textures drawn into rects of the box: [texture, anchors (l, t, r, b), offsets (l, t, r, b)].
+## Textures drawn into rects of the box: [texture, anchors (l, t, r, b), offsets (l, t, r, b)],
+## tiled unless a fourth entry is false (stretched).
 class TiledBox extends StyleBox:
 	var parts: Array = []
 
@@ -26,7 +28,7 @@ class TiledBox extends StyleBox:
 			r.position = rect.position + Vector2(rect.size.x * a[0] + o[0], rect.size.y * a[1] + o[1])
 			r.end = rect.position + Vector2(rect.size.x * a[2] + o[2], rect.size.y * a[3] + o[3])
 			if r.size.x > 0.0 and r.size.y > 0.0:
-				RenderingServer.canvas_item_add_texture_rect(to_canvas_item, r, t.get_rid(), true)
+				RenderingServer.canvas_item_add_texture_rect(to_canvas_item, r, t.get_rid(), p.size() < 4 or p[3])
 
 ## A sprite of stretched images: [texture, source region, anchors, offsets].
 class SpriteBox extends StyleBox:
@@ -67,10 +69,64 @@ static func _added(t: Texture2D, add: Color) -> Texture2D:
 			img.set_pixel(x, y, Color(minf(c.r + add.r, 1.0), minf(c.g + add.g, 1.0), minf(c.b + add.b, 1.0), c.a))
 	return ImageTexture.create_from_image(img)
 
+## The session's dialog skin (the C++ dialogs set it with `theme`): 0.28's modern
+## widgets (ModernDropDown, ModernInput, ModernTickBox, ModernScrollBar, ModernDialog)
+## with StoneButton buttons (the selected stone on hover, add_color 60 42 42 pressed,
+## 42 42 42 disabled; no trims), plus the GenericPanel (session/sprites.xml
+## genericPanel: modern/background.png stretched inside global/border's lines),
+## ModernDarkBoxGold and ChatPanel (sans-13 white, buffer_zone 5) variations.
+static func session_theme() -> Theme:
+	if _session == null:
+		_session = _build_session()
+	return _session
+
+static func _build_session() -> Theme:
+	var modern: GDScript = load("res://scenes/common/modern_theme.gd")
+	var t := Theme.new()
+	t.merge_with(modern.theme())
+	var unselected := _tex("button_stone_unselected.png")
+	var selected := _tex("button_stone_selected.png")
+	var glow := _button(_added(selected, Color8(60, 42, 42, 0)), [])
+	t.set_stylebox("normal", "Button", _button(unselected, []))
+	t.set_stylebox("hover", "Button", _button(selected, []))
+	t.set_stylebox("pressed", "Button", glow)
+	t.set_stylebox("hover_pressed", "Button", glow)
+	t.set_stylebox("disabled", "Button", _button(_added(unselected, Color8(42, 42, 42, 0)), []))
+	t.set_stylebox("focus", "Button", StyleBoxEmpty.new())
+	for c in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
+		t.set_color(c, "Button", Color.WHITE)
+	t.set_color("font_disabled_color", "Button", Color8(210, 210, 210, 160))
+	t.set_font_size("font_size", "Button", 14)
+	t.set_type_variation("GenericPanel", "Panel")
+	t.set_stylebox("panel", "GenericPanel", _bordered("res://assets/textures/ui/global/modern/background.png", false))
+	t.set_type_variation("ModernDarkBoxGold", "Panel")
+	t.set_stylebox("panel", "ModernDarkBoxGold", modern._dark_box(modern.GOLD))
+	t.set_type_variation("ChatPanel", "RichTextLabel")
+	var chat: StyleBoxFlat = modern._dark_box(modern.GOLD, modern.DARK_BOX, 5)
+	chat.content_margin_top = 5
+	chat.content_margin_bottom = 5
+	t.set_stylebox("normal", "ChatPanel", chat)
+	t.set_font_size("normal_font_size", "ChatPanel", 13)
+	t.set_font_size("bold_font_size", "ChatPanel", 13)
+	t.set_color("default_color", "ChatPanel", Color.WHITE)
+	t.set_font_size("font_size", "Label", 14)
+	t.set_font_size("font_size", "OptionButton", 14)
+	t.set_font_size("font_size", "LineEdit", 13)
+	return t
+
 static func panel_thin_border() -> StyleBox:
+	var sb := _bordered(DIR + "stone_background.png", true)
+	# Menu.xml: the buttons sit at 4 4 100%-4 32.
+	sb.set_content_margin_all(4)
+	return sb
+
+## A background inside global/border's 4 px lines and corners, tiled or stretched.
+static func _bordered(background: String, tiled: bool) -> StyleBox:
 	var sb := TiledBox.new()
+	var bg: Texture2D = load(background) if ResourceLoader.exists(background) else null
+	if bg != null:
+		sb.parts.append([bg, [0, 0, 1, 1], [4, 4, -4, -4] if tiled else [0, 0, 0, 0], tiled])
 	var parts := [
-		["stone_background.png", [0, 0, 1, 1], [4, 4, -4, -4]],
 		["border/line_horiz.png", [0, 0, 1, 0], [4, 0, -4, 4]],
 		["border/line_vert.png", [1, 0, 1, 1], [-4, 4, 0, -4]],
 		["border/line_horiz.png", [0, 1, 1, 1], [4, -4, -4, 0]],
@@ -83,8 +139,6 @@ static func panel_thin_border() -> StyleBox:
 		var t := _tex(p[0])
 		if t != null:
 			sb.parts.append([t, p[1], p[2]])
-	# Menu.xml: the buttons sit at 4 4 100%-4 32.
-	sb.set_content_margin_all(4)
 	return sb
 
 static func _button(stone: Texture2D, trims: Array) -> StyleBox:
