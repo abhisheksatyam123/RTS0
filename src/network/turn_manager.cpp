@@ -1837,8 +1837,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.cmd_set_dropsite_sharing(pl, c.target_id, c.param == 1);
 		} else if (c.cmd_type == 28) { // Gate lock — target_id=building, param 1 lock / 0 unlock.
 			sim.cmd_lock_gate(pl, c.target_id, c.param == 1);
-		} else if (c.cmd_type == 29) { // Pack / unpack siege — param 1 pack / 0 unpack.
-			sim.order_pack(ids, n, c.param == 1);
+		} else if (c.cmd_type == 29) { // Pack / unpack siege — param bit 0: pack / unpack; bit 1: cancel the one in progress.
+			sim.order_pack(ids, n, (c.param & 1) != 0, (c.param & 2) != 0);
 		} else if (c.cmd_type == 25) { // Train roster template — target_id=building, target_x=template.
 			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT)
 				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x, batch_count(c.target_z),

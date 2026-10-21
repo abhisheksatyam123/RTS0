@@ -1177,7 +1177,8 @@ private:
 	Label *net_status_label_ = nullptr;
 	RichTextLabel *net_loading_clients_ = nullptr; // loadingClientsText
 	bool net_disconnected_ = false; // session.js g_Disconnected
-	bool net_saved_loading_ = false; // client: loading the host's saved game under the loading page
+	bool net_saved_loading_ = false; // client: loading the host's saved game, or a rejoin's world, under the loading page
+	int net_rejoin_load_frames_ = 0; // frames the rejoin loading page draws before the world loads
 	void update_net_status_overlay();
 	void _on_disconnected_exit_pressed();
 	// 0 A.D. gameStateNotifications (overlay.netwarnings): network.js's
