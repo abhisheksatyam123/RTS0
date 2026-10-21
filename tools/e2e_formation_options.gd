@@ -141,6 +141,13 @@ func run() -> void:
 	await frames(10)
 	await right_click_beside(ids)
 	check(formed(ids).is_empty(), "then a walk keeps them loose (%d formed)" % formed(ids).size())
+	# AutoFormation.js: lastDefault starts as the saved default, so the toggle hotkey
+	# (session.toggledefaultformation) turns a saved Close Order off and back on, not Box.
+	cfg.set_value("gui.session.defaultformation", "special/formations/line_closed")
+	main.toggle_default_formation()
+	check(cfg.get_value("gui.session.defaultformation") == "special/formations/null", "the toggle turns the default off")
+	main.toggle_default_formation()
+	check(cfg.get_value("gui.session.defaultformation") == "special/formations/line_closed", "and back on to the saved Close Order")
 
 	cfg.set_value("gui.session.defaultformation", keep_default)
 	cfg.set_value("gui.session.formationwalkonly", keep_walk)
