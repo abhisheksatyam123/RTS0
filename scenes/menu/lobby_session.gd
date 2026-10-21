@@ -638,8 +638,9 @@ static func game_rating(room_players: Array, ratings: Dictionary) -> int:
 	for p in room_players:
 		if p.get("observer", 0):
 			continue
-		var r = rating_of(str(p.get("name", "")), ratings)
-		total += int(r) if r != null and str(r) != "" else DEFAULT_LOBBY_RATING
+		# Game.js: only the rating in the name they joined with (splitRatingFromNick).
+		var r = split_nick(str(p.get("name", "")))["rating"]
+		total += int(r) if str(r) != "" and int(r) != 0 else DEFAULT_LOBBY_RATING
 		count += 1
 	return roundi(float(total) / count) if count > 0 else DEFAULT_LOBBY_RATING
 
