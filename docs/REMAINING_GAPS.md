@@ -167,6 +167,19 @@ Right-click actions, Back to Work and Shift-queueing against unit_actions.js, in
 | N4 | ~~Shift is ignored when hunting or slaughtering an animal, attacking scenery and boarding a ship, ram or siege tower: the order replaces the queue~~ Fixed: Shift queues them (ORDER_HUNT, ORDER_ATTACK_SCENERY, ORDER_BOARD), lockstep cmds 17 and 18 carry NET_PARAM_QUEUED, and a kill going on to the carcass keeps the orders queued behind the hunt (one Gather order in 0.28); test_unit_orders 101 | medium | Fixed |
 | N5 | ~~Alt (orderone) on an enemy unit, structure or scenery orders the first selected unit, not the first able one~~ Fixed: the first selected unit able to attack or capture it (getActionInfo firstAbleEntity, input.js popOneFromSelection); tested by `tools/e2e_order_one.gd` | low | Fixed |
 
+### Unit orders, eleventh 0.28 pass (2026-10-21)
+
+Patrol, attack-move, guards and healers against UnitAI.js, Guard.js and Heal.js. Capture, loot and promotion were checked and match. Owner: Unit orders.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| K1 | ~~Attack-movers and patrollers look for targets every turn~~ Fixed: once a second (WALKINGANDFIGHTING and PATROLLING Timer, 1000 ms; they don't answer LosAttackRangeUpdate), and at once after a kill; healers on those orders too. RTS0 keeps one phase per unit rather than restarting the timer with each order. Formation members still look every turn, standing in for the controller's own 1 s look (Formations); test_unit_orders 104 | medium | Fixed |
+| K2 | ~~A structure's guards answer only attackers within 64 m and drop them as soon as they leave vision~~ Fixed: any attacker they see (GuardedAttacked: CheckTargetVisible), chased while the structure is in its range (ShouldChaseTargetedEntity isGuardOf); test_unit_orders 104 | medium | Fixed |
+| K3 | ~~Guard range is 3 units centre to centre for every guard~~ Fixed: Guard.GetRange(guard), 8 m plus 3/2 of its footprint radius (2/3 of a square's diagonal), edge to edge: 10.25 m for infantry, 12.5 m for cavalry; test_unit_orders 104 | low | Fixed |
+| K4 | ~~Healers heal only mutual allies~~ Fixed: any player the healer's owner calls an ally (Heal.CanHeal IsOwnedByAllyOfPlayer), right-click too; test_unit_orders 104 | low | Fixed |
+| K5 | 0.28's Order.Patrol keeps the held position from before the patrol, so a defensive patroller gives up chases far from it and walks back there after Stop; RTS0 holds each patrol leg's end, as Order.WalkAndFight does (a 0.28 bug) | low | Kept |
+| K6 | 0.28's patrol forgets its start after each fight or queued order and turns back where the fight ended (PATROL.leave deletes patrolStartPosOrder); RTS0 keeps the endpoints the player gave (a 0.28 bug) | low | Kept |
+
 ### Unit orders, tenth 0.28 pass (2026-10-21)
 
 Pack, flee, stances, turrets and ship ejection against UnitAI.js, Pack.js, GarrisonHolder.js and TurretHolder.js. Owner: Unit orders.
