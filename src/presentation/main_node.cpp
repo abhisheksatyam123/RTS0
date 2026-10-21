@@ -608,6 +608,9 @@ void RtsoMain::toggle_diplomacy_colors() {
 	rtso::display_colors::toggle();
 	if (minimap_view) minimap_view->queue_redraw();
 	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
+	// registerDiplomacyColorsChangeHandler(PlayerViewControl.rebuild).
+	refresh_player_view_colors(replay_view_picker_);
+	refresh_player_view_colors(observer_view_picker_);
 }
 
 // 0 A.D. ChatMessageFormatSimulation: who sees which tribute, barter, phase and
@@ -1543,6 +1546,8 @@ void RtsoMain::set_observer_view(int player) {
 
 void RtsoMain::sync_observer_view_picker() {
 	if (observer_view_picker_) {
+		rtso::display_colors::state().viewer = view_player(); // onViewedPlayerChange: rebuild in its colours
+		refresh_player_view_colors(observer_view_picker_);
 		int want = observer_view_gaia_ ? kReplayViewGaiaId : observer_view_ == rtso::OBSERVER_VIEW ? 0 : observer_view_ + 1;
 		if (!spectating() && seat_player() < rtso::MAX_PLAYERS) // Change perspective: the seat, or the pick on its way
 			want = perspective_pick_ >= 0 ? perspective_pick_ : seat_player() + 1;
