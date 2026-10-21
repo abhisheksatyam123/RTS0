@@ -1236,7 +1236,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				float best_hd2 = 2.2f * 2.2f;
 				for (size_t i = 0; i < uview.count; ++i) {
 					if (!uview.alive[i] || uview.hp[i] >= uview.max_hp[i]) continue;
-					if (uview.team[i] != local_player() && !sim->is_ally(local_player(), uview.team[i])) continue;
+					if (uview.team[i] != local_player() && !sim->regards_as_ally(local_player(), uview.team[i])) continue;
 					const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
 					const float d2 = dx * dx + dz * dz;
 					if (!near_pick(uview.id[i], d2, best_hd2)) continue;
