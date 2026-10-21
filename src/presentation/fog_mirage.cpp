@@ -266,9 +266,13 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		f.upgrading = b.upgrade_to != BLD_TYPE_COUNT;
 		f.production = b.queue.empty() ? 0 : Simulation::researching(b) != TECH_NONE ? 1 : 2;
 		const bool allied = sim.shares_los(viewer, b.team); // an unshared ally's structures mirage like anyone's
+		const bool in_sight = !allied && los_at(b.x, b.z) == Simulation::FOW_VISIBLE;
+		if (in_sight) {
+			f.has_resistance = true;
+			sim.structure_resistance(b, f.resistance);
+		}
 		Simulation::BuildWork w;
-		if (!allied && (b.build_progress < 1.0f || b.hp < b.max_hp) && los_at(b.x, b.z) == Simulation::FOW_VISIBLE &&
-				sim.structure_build_work(b, w)) {
+		if (in_sight && (b.build_progress < 1.0f || b.hp < b.max_hp) && sim.structure_build_work(b, w)) {
 			f.work = true;
 			f.work_repair = w.repair;
 			f.work_builders = (uint16_t)w.builders;

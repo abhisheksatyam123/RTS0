@@ -265,13 +265,15 @@ inline const GatherRateRangeAura *gather_rate_range_auras() {
 	return kAuras;
 }
 
-// Range auras adding to the MaxRange of the units they reach (AURA_RANGE_ADD sources,
-// value = row): 0 A.D. metres added to a ranged and to a melee attack; radius in 0 A.D. metres.
-struct RangeAddRangeAura { const char *id; float ranged; float melee; float radius; uint8_t players; };
-constexpr uint16_t RANGE_ADD_RANGE_AURA_COUNT = 1;
+// Range auras on the MaxRange of the units they reach (AURA_RANGE_ADD sources, value = row):
+// 0 A.D. metres added to a ranged and to a melee attack, the factors they multiply it by
+// (ModifiersManager: multiplied, then added); radius in 0 A.D. metres.
+struct RangeAddRangeAura { const char *id; float ranged; float melee; float ranged_mul; float melee_mul; float radius; uint8_t players; };
+constexpr uint16_t RANGE_ADD_RANGE_AURA_COUNT = 2;
 inline const RangeAddRangeAura *range_add_range_auras() {
-	static const RangeAddRangeAura kAuras[1] = {
-		{"germ_hero_boiorix_1", 5.0f, 2.0f, 60.0f, 1},
+	static const RangeAddRangeAura kAuras[2] = {
+		{"germ_hero_boiorix_1", 5.0f, 2.0f, 1.0f, 1.0f, 60.0f, 1},
+		{"mace_hero_demetrius_i", 0.0f, 0.0f, 1.1f, 1.0f, 60.0f, 1},
 	};
 	return kAuras;
 }
