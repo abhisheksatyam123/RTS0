@@ -114,6 +114,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_flare_button_pressed"), &RtsoMain::_on_flare_button_pressed);
 	ClassDB::bind_method(D_METHOD("debug_minimap_panel"), &RtsoMain::debug_minimap_panel);
 	ClassDB::bind_method(D_METHOD("debug_attacked", "target", "attacker_owner"), &RtsoMain::debug_attacked);
+	ClassDB::bind_method(D_METHOD("debug_defeat_player", "pid"), &RtsoMain::debug_defeat_player);
 	ClassDB::bind_method(D_METHOD("debug_selected_building"), &RtsoMain::debug_selected_building);
 	ClassDB::bind_method(D_METHOD("debug_queue_slot", "i"), &RtsoMain::debug_queue_slot);
 	ClassDB::bind_method(D_METHOD("debug_placement_tip"), &RtsoMain::debug_placement_tip);

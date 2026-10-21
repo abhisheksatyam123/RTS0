@@ -401,7 +401,9 @@ public:
 			if (is_private(tag) && !is_online(tag)) return refuse("Unknown chat addressee: " + names_[tag]);
 			const String context = tag == "[Allies]" ? "Ally" : tag == "[Enemies]" ? "Enemy" : tag == "[Observers]" ? "Observer"
 					: tag.is_empty() ? "" : "Private";
-			if (context == "Private") last_private_ = tag;
+			// ChatWindow.onSelectionChange: only a /msg picked in the To: list is reopened
+			// by session.privatechat, not one typed with To: Everyone.
+			if (context == "Private" && !selected_tag().is_empty()) last_private_ = tag;
 			const String wire_tag = tag.is_empty() ? String() : tag + " ";
 			const String line = format_line(context, host_->chat_user(""), text);
 			add_log(line + String("\n"), message_bits(context, !observer));

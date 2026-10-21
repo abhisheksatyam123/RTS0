@@ -182,7 +182,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 113; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 114; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_WORKER_PLANS = 114; // trainMoreWorkers' queued TrainingPlans
 	static constexpr uint32_t SAVE_VERSION_PETRA_PASS5 = 113; // Petra's trade and transport ships, house plans, new bases
 	static constexpr uint32_t SAVE_VERSION_FLIGHT = 112; // each flying unit's UnitMotionFlying state
 	static constexpr uint32_t SAVE_VERSION_UNIT_AUTOQUEUE = 111; // unit trainers' queue clocks and autoqueue
@@ -2050,6 +2051,17 @@ public:
 	// trainMoreTraders, or transport ships it switched; petra_switch_ships_ the ones to switch once
 	// their transport plan ends (ROLE_SWITCH_TO_TRADER). Every other merchant ship is a transport.
 	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_trade_ships_, petra_switch_ships_;
+	// trainMoreWorkers' TrainingPlans waiting in queues.villager (queue 0) and
+	// queues.citizenSoldier (1), in order, for a trainer, their resources and population room
+	// (saved v114).
+	struct PetraWorkerPlan {
+		uint16_t tmpl;
+		uint8_t count;
+		uint8_t queue;
+	};
+	static constexpr uint32_t MAX_PETRA_WORKER_PLANS = 64;
+	std::array<std::vector<PetraWorkerPlan>, MAX_PLAYERS> petra_worker_plans_;
+	void petra_start_worker_plans();
 	bool petra_trade_ship(uint32_t id) const;
 	bool petra_is_worker(size_t i) const;
 	int petra_target_workers() const;
