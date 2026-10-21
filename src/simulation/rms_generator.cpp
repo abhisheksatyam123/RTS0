@@ -3254,12 +3254,12 @@ void place_fortress_walls(Simulation &sim, const std::vector<RmsGenerator::Playe
 // 0 A.D. trigger maps: maps/random/flood.js and extinct_volcano.js. Their
 // rising water is a map trigger (triggers.h; the ported flood_triggers.js and
 // extinct_volcano_triggers.js are in simulation.cpp). Heights are 0 A.D.'s
-// metres above the water times kTriggerMapHeight, the same factor the
-// triggers use for the water's rise, so the hills drown in 0 A.D.'s order.
+// metres above the water (kTriggerMapHeight, the same factor the triggers
+// use for the water's rise), so the hills drown in 0 A.D.'s order.
 // =========================================================================
 
 namespace {
-constexpr float kTriggerMapHeight = 0.5f;
+constexpr float kTriggerMapHeight = HEIGHT_PER_METRE;
 }
 
 void RmsGenerator::synth_flood(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
