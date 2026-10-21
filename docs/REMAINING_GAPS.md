@@ -167,6 +167,19 @@ Right-click actions, Back to Work and Shift-queueing against unit_actions.js, in
 | N4 | ~~Shift is ignored when hunting or slaughtering an animal, attacking scenery and boarding a ship, ram or siege tower: the order replaces the queue~~ Fixed: Shift queues them (ORDER_HUNT, ORDER_ATTACK_SCENERY, ORDER_BOARD), lockstep cmds 17 and 18 carry NET_PARAM_QUEUED, and a kill going on to the carcass keeps the orders queued behind the hunt (one Gather order in 0.28); test_unit_orders 101 | medium | Fixed |
 | N5 | ~~Alt (orderone) on an enemy unit, structure or scenery orders the first selected unit, not the first able one~~ Fixed: the first selected unit able to attack or capture it (getActionInfo firstAbleEntity, input.js popOneFromSelection); tested by `tools/e2e_order_one.gd` | low | Fixed |
 
+### Unit orders, tenth 0.28 pass (2026-10-21)
+
+Pack, flee, stances, turrets and ship ejection against UnitAI.js, Pack.js, GarrisonHolder.js and TurretHolder.js. Owner: Unit orders.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| O1 | ~~Pack and Unpack on a mixed selection stop and repack engines already in the other state, and Cancel Pack only reverses engines it was asked about~~ Fixed: Pack takes only unpacked engines, Unpack only packed ones, Cancel only those packing or unpacking (Pack.js Pack/Unpack/CancelPack checks); test_pack | medium | Fixed |
+| O2 | ~~A unit fleeing an attacker stops after 4 s~~ Fixed: it runs until it is FleeDistance away or its walk fails (UnitAI FLEEING has no timer); test_unit_orders 102 | medium | Fixed |
+| O3 | ~~Flee distance is measured centre to centre~~ Fixed: edge to edge from the attacker (structure gap for buildings, both clearances for units; CheckTargetRangeExplicit); test_unit_orders 102 | low | Fixed |
+| O4 | ~~A defensive unit attacked beyond its vision answers, and chases attackers it can't see~~ Fixed: defensive responds and pursues only within vision range (UnitAI stance "defensive" respondChaseBeyondVision false); test_unit_orders 102 | medium | Fixed |
+| O5 | Turret occupants of a structure whose owner ends an alliance step down at once; 0.28's TurretHolder only reacts to an ownership change, so foreign turret units stay on a former ally's wall (a 0.28 bug) | low | Kept |
+| O6 | ~~A sunk or destroyed ship ejects every passenger, and a non-mutual-ally holder disembarks all of them~~ Fixed: only EjectClassesOnDestroy get off (ships: Civilian Infantry Healer Dog; warships: Civilian Infantry Dog; planes none), the rest die aboard; test_naval "alliance ends" | medium | Fixed |
+
 ### Aura icons, fogged selections and structure tooltips: Compare's eleventh 0.28 pass (2026-10-20)
 
 Checked against 0.28: aura data and status-bar icons, the selection details panel, poison and burning, Petra's difficulty branches, and Allied View and diplomacy colours. Owner: Compare.

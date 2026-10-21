@@ -3741,6 +3741,46 @@ static void test_queued_hunt_board() {
 	check(aboard, "then boards the siege tower");
 }
 
+static void test_flee_and_defensive_vision() {
+	std::printf("102. a flight has no time limit and ends edge to edge; a defensive unit answers only attackers it sees\n");
+	Simulation s;
+	setup(s);
+	const uint32_t tower = s.spawn_building_world(20, 0, BLD_TOWER, 1, 1.0f);
+	uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_set_stance(&w, 1, STANCE_PASSIVE);
+	s.units_.attacked_by[idx_of(s, w)] = tower;
+	s.tick(DT);
+	check(act_of(s, w) == ACTION_FLEE, "a woman shot by a tower flees from it");
+	s.units_.flee_dist[idx_of(s, w)] = 50.0f; // a long run, as from a faraway attacker
+	const float want = s.units_.flee_dist[idx_of(s, w)];
+	run(s, 5.0f);
+	const bool still = act_of(s, w) == ACTION_FLEE;
+	const bool ended = run_until(s, 40.0f, [&] { return act_of(s, w) != ACTION_FLEE; });
+	const Simulation::Building *tb = bld(s, tower);
+	const float gap = dist(s, w, tb->x, tb->z) - tb->half_size;
+	std::printf("  flee distance %.1f, ended %.1f from the tower's edge\n", want, gap);
+	check(still, "still running after 5 s (FLEEING has no timer)");
+	check(ended && gap >= want - 1.5f, "the flight ends that far from the tower's edge (CheckTargetRangeExplicit)");
+
+	Simulation d;
+	setup(d);
+	uint32_t archer = d.spawn_unit(0, 0, 0, UNIT_ARCHER);
+	d.order_set_stance(&archer, 1, STANCE_DEFENSIVE);
+	const int ai = idx_of(d, archer);
+	const float vision = d.unit_vision_at(ai), lim = vision * 0.5f + d.attack_reach(ai);
+	std::printf("  archer vision %.1f, held-position limit %.1f\n", vision, lim);
+	if (lim > vision + 1.0f) {
+		const uint32_t far = d.spawn_unit(0.5f * (vision + lim), 0, 1, UNIT_SPEARMAN);
+		d.units_.attacked_by[ai] = far;
+		d.tick(DT);
+		check(target_of(d, archer) != far, "a defensive archer ignores an attacker beyond its vision (AttackEntityInZone)");
+	}
+	const uint32_t near = d.spawn_unit(0.5f * vision, 0, 1, UNIT_SPEARMAN);
+	d.units_.attacked_by[ai] = near;
+	d.tick(DT);
+	check(target_of(d, archer) == near, "and answers one within it");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3850,6 +3890,7 @@ int main(int argc, char **argv) {
 	test_guard_click_targets();
 	test_walk_to_target();
 	test_queued_hunt_board();
+	test_flee_and_defensive_vision();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
