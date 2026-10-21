@@ -708,7 +708,14 @@ int main() {
 		CHECK(laid == 0 && count_type(s, BLD_WALL_TOWER) == 0 && s.player(0).res[RES_STONE] == 1000.0f);
 		// Only enough stone for the start tower: nothing either.
 		setup(s, 60.0f);
+		s.take_session_notices();
 		CHECK(s.cmd_build_wall(0, -10.0f, 10.0f, 10.0f, 10.0f) == 0 && s.player(0).res[RES_STONE] == 60.0f);
+		// Player.js SubtractResourcesOrNotify: "Insufficient resources" with the stone still needed.
+		bool told = false;
+		for (const Simulation::SessionNotice &n : s.take_session_notices())
+			told |= n.kind == Simulation::SessionNotice::TEXT && n.tech == Simulation::SessionNotice::TEXT_INSUFFICIENT_RESOURCES &&
+					n.player == 0 && n.amounts[RES_STONE] > 0;
+		CHECK(told);
 	}
 
 	// 20. 0.28 Builder lists hold only the WallSets: a wall tower or gate is never a lone foundation.

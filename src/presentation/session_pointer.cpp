@@ -368,7 +368,7 @@ void RtsoMain::update_cursor() {
 					// unit_actions "garrison" (session.garrison): an own or allied holder whose List takes a
 					// selected unit; a wall, gate or outpost has only turret points: "occupy-turret" (21).
 					// Without the hotkeys "move" (12) wins: no cursor.
-					else if (hold_turret && sim->turret_only_holder(b) && selection_can_garrison(b.id)) {
+					else if (hold_turret && sim->turret_only_holder(b) && selection_can_occupy_turret(b.id)) {
 						want = "action-occupy-turret";
 						const int occupied = sim->get_garrison_occupied(b.id), capacity = sim->get_garrison_capacity(b.id);
 						tip = rtso::sprintf0(rtso::tr0("Current turrets: %(occupied)s/%(capacity)s"),
@@ -488,7 +488,9 @@ void RtsoMain::update_highlight() {
 			hover_cam_ = cam_xf;
 			hover_at_ms_ = now;
 			hover_target_ = entity_under_mouse(mouse, true);
-			if (const uint32_t pick = entity_under_mouse(mouse, false)) ids.push_back((int32_t)pick);
+			// setHighlightList: the whole formation a click would select (addFormationMembers).
+			if (const uint32_t pick = entity_under_mouse(mouse, false))
+				for (int32_t uid : formation_mates((int32_t)pick)) ids.push_back(uid);
 			hover_pick_ = ids;
 			}
 		}

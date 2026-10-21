@@ -609,15 +609,18 @@ public:
 				// 0.28's Alert panel (g_SelectionPanels.Alert, AlertRaiser.js): Raise (bell_level1)
 				// sends nearby civilians or traders into the nearest structures with room, End
 				// (bell_level0) sends them back out; shown when any selected entity raises alerts.
-				bool any_gate = false, any_locked = false, any_unlocked = false;
+				// Another player's gate shows the panel too, its buttons disabled (enabled: controlsPlayer).
+				bool any_gate = false, own_gate = false, any_locked = false, any_unlocked = false;
 				int alert_raisers = 0, civilian_raisers = 0, trader_raisers = 0;
 				for (uint32_t id : structs.size() > 1 ? structs : std::vector<uint32_t>{found_b->id})
 					for (const auto &b : bldgs) {
-						if (b.id != id || b.team != local_player()) continue;
+						if (b.id != id) continue;
 						if (rtso::is_gate_type(b.type)) {
 							any_gate = true;
+							own_gate = own_gate || b.team == local_player();
 							(b.gate_locked ? any_locked : any_unlocked) = true;
 						}
+						if (b.team != local_player()) break;
 						rtso::AlertRaiserInfo ai;
 						if (b.build_progress >= 1.0f && rtso::building_alert_raiser(b.type, ai)) {
 							++alert_raisers;
@@ -631,6 +634,7 @@ public:
 								rtso::load_ui_texture(String("res://assets/textures/ui/archive/icons/") + (lock ? "lock_locked.png" : "lock_unlocked.png")));
 						btn->set_tooltip_text(rtso::tr0(lock ? "Lock Gate" : "Unlock Gate"));
 						if (lock ? any_locked : any_unlocked) add_corners(btn);
+						btn->set_disabled(!own_gate);
 						btn->connect("pressed", Callable(owner_, "_on_gate_lock_pressed").bind(lock));
 						production_bar_->add_child(btn);
 					}
@@ -658,7 +662,9 @@ public:
 				for (uint32_t id : host_->ui_selected_structures())
 					for (const auto &o : sim->buildings())
 						if (o.id == id) {
-							one_template = one_template && o.type == found_b->type && o.civ == found_b->civ;
+							// A WallSet's long, medium and short pieces share a type but are three templates.
+							one_template = one_template && o.type == found_b->type && o.civ == found_b->civ &&
+									std::fabs(o.half_size - found_b->half_size) < 1e-3f;
 							break;
 						}
 				if (found_b->team == local_player() && one_template) {
@@ -666,7 +672,8 @@ public:
 					std::vector<const rtso::Simulation::Building *> mates;
 					for (uint32_t id : host_->ui_selected_structures())
 						for (const auto &o : sim->buildings())
-							if (o.id == id && o.team == local_player() && o.type == found_b->type) {
+							if (o.id == id && o.team == local_player() && o.type == found_b->type &&
+									std::fabs(o.half_size - found_b->half_size) < 1e-3f) {
 								mates.push_back(&o);
 								break;
 							}

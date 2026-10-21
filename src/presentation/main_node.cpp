@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 #include "network/chat_routing.h"
 #include "main_node.h"
 #include "l10n.h"
@@ -1037,7 +1038,10 @@ void RtsoMain::update_net_status_overlay() {
 		return;
 	}
 	String status, loading;
-	if (client && !net_game_started_ && turn_mgr_.rejoin_syncing() && !net_host_.connectionLost()) {
+	// NetworkStatusOverlay join_syncing: once loaded, until the rejoiner has
+	// run the turns that went by while it loaded.
+	if (client && net_game_started_ && turn_mgr_.rejoin_catching_up() && !net_host_.connectionLost() &&
+			!(net_setup_.seq && net_setup_.setup.saved_game)) {
 		status = tr("Synchronizing gameplay with other players…");
 	} else if (net_game_started_ && !turn_mgr_.is_replaying() && turn_mgr_.current_turn() <= rtso::TurnManager::COMMAND_DELAY) {
 		// NMT_CLIENTS_LOADING: a saved game also waits on the clients still loading it.
@@ -1278,9 +1282,9 @@ void RtsoMain::_on_pack_cancel_pressed(int pack) {
 			}
 	if (ids.empty()) return;
 	if (turn_cmds())
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_PACK, ids.data(), ids.size(), 0, 0, 0, pack ? 0 : 1);
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_PACK, ids.data(), ids.size(), 0, 0, 0, (uint8_t)(2 | (pack ? 0 : 1)));
 	else
-		sim->order_pack(ids.data(), ids.size(), pack == 0);
+		sim->order_pack(ids.data(), ids.size(), pack == 0, true);
 }
 
 // BarterButton sell press: BarterButtonManager.setSelectedResource.
@@ -1598,8 +1602,13 @@ void RtsoMain::prune_selection() {
 	auto uview = sim->units();
 	std::unordered_set<int32_t> wanted(selected_ids.ptr(), selected_ids.ptr() + selected_ids.size());
 	std::unordered_set<int32_t> living;
+	// selection.js update: with more than one entity selected, one that changed owner (a relic
+	// picked up, a unit converted) leaves the selection; a lone one stays.
+	const bool owners_only = selected_ids.size() > 1 && !spectating() && !turn_mgr_.is_replaying() &&
+			!sim->controls_all(local_player());
 	for (size_t i = 0; i < uview.count; ++i)
-		if (uview.alive[i] && wanted.count((int32_t)uview.id[i])) living.insert((int32_t)uview.id[i]);
+		if (uview.alive[i] && wanted.count((int32_t)uview.id[i]) && (!owners_only || uview.team[i] == local_player()))
+			living.insert((int32_t)uview.id[i]);
 	// The player's own livestock stays selected until it dies or is penned.
 	for (int32_t id : wanted)
 		if (!living.count(id) && sim->fauna_selectable_by(local_player(), (uint32_t)id)) living.insert(id);
@@ -1694,12 +1703,37 @@ void RtsoMain::_on_panel_entity_gui_input(const Ref<InputEvent> &event, int slot
 	size_t i = 0;
 	while (i < uview.count && uview.id[i] != id) ++i;
 	if (i == uview.count) return;
-	if (mb->is_double_click() || !rtso::hotkeys::held("selection.add")) {
+	if (mb->is_double_click()) {
+		// onDoublePress: selectAndMoveTo(getEntityOrHolder(ent)): a garrisoned hero's holder is
+		// selected and looked at, a hero in the field is selected and followed.
+		uint32_t holder = sim->turret_holder_of(id);
+		if (!holder && !uview.alive[i])
+			for (const auto &b : sim->buildings()) {
+				const std::vector<uint32_t> *g = sim->get_garrisoned_units(b.id);
+				if (g && std::find(g->begin(), g->end(), id) != g->end()) { holder = b.id; break; }
+			}
+		selected_ids.clear();
+		selected_building_id = 0;
+		for (const auto &b : sim->buildings())
+			if (holder && b.id == holder) {
+				set_selected_structures({holder});
+				if (cam_rig) {
+					cam_rig->set_follow_id(0);
+					cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
+				}
+				play_civ_voice("select");
+				return;
+			}
+		selected_ids.push_back((int32_t)id);
+		if (cam_rig) cam_rig->set_follow_id(id);
+		play_civ_voice("select");
+		return;
+	}
+	if (!rtso::hotkeys::held("selection.add")) {
 		selected_ids.clear();
 		selected_building_id = 0;
 	}
 	if (!selected_ids.has((int32_t)id)) selected_ids.push_back((int32_t)id);
-	if (mb->is_double_click() && cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[i], 0, uview.pos_z[i]));
 	play_civ_voice("select");
 }
 
@@ -3352,12 +3386,45 @@ void RtsoMain::post_kick_chat() {
 
 // colorizePlayernameByGUID in the setup: the client's name in its slot's colour,
 // white while it has no slot.
+// gamesetup ClientChat.js colorizePlayername: the slot colour lightened to at
+// least 60% lightness (HSL), so dark colours read on the dark panel; white
+// for an unassigned client, and "Unknown Player" for one with no name.
+static uint32_t setup_name_rgb(uint32_t rgb) {
+	const double r = ((rgb >> 16) & 0xFF) / 255.0, g = ((rgb >> 8) & 0xFF) / 255.0, b = (rgb & 0xFF) / 255.0;
+	const double mx = std::max({r, g, b}), mn = std::min({r, g, b});
+	double h = 0, sat = 0, l = (mx + mn) / 2;
+	if (mx != mn) {
+		const double d = mx - mn;
+		sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+		h = mx == r ? (g - b) / d + (g < b ? 6 : 0) : mx == g ? (b - r) / d + 2 : (r - g) / d + 4;
+		h /= 6;
+	}
+	l = std::max(0.6, l);
+	auto hue = [](double p, double q, double t) {
+		if (t < 0) t += 1;
+		if (t > 1) t -= 1;
+		if (t < 1.0 / 6) return p + (q - p) * 6 * t;
+		if (t < 0.5) return q;
+		if (t < 2.0 / 3) return p + (q - p) * (2.0 / 3 - t) * 6;
+		return p;
+	};
+	double ro = l, go = l, bo = l;
+	if (sat != 0) {
+		const double q = l < 0.5 ? l * (1 + sat) : l + sat - l * sat, p = 2 * l - q;
+		ro = hue(p, q, h + 1.0 / 3);
+		go = hue(p, q, h);
+		bo = hue(p, q, h - 1.0 / 3);
+	}
+	auto byte = [](double v) { return (uint32_t)std::lround(std::clamp(v, 0.0, 1.0) * 255); };
+	return byte(ro) << 16 | byte(go) << 8 | byte(bo);
+}
+
 String RtsoMain::setup_client_name(const rtso::NetSetupState &n, uint32_t client) const {
 	String name = client < rtso::NET_SETUP_CLIENTS ? String::utf8(n.names[client].c_str()) : String();
-	if (name.is_empty()) name = String::utf8(rtso::peer_guid(client).c_str());
+	if (name.is_empty()) name = tr("Unknown Player");
 	const int slot = n.slot_of(client);
 	const uint32_t rgb = slot >= 0 && n.setup.colors[slot] < rtso::PLAYER_COLOR_COUNT
-			? rtso::PLAYER_COLORS[n.setup.colors[slot]] & 0xFFFFFFu : 0xFFFFFFu;
+			? setup_name_rgb(rtso::PLAYER_COLORS[n.setup.colors[slot]] & 0xFFFFFFu) : 0xFFFFFFu;
 	return "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + name.replace("[", "[lb]") + "[/color]";
 }
 
@@ -3529,6 +3596,16 @@ Dictionary RtsoMain::get_net_setup_state() const {
 // Shown once the host is up or has let us in; gone at Start, on a rejoin and
 // when the connection drops.
 void RtsoMain::update_net_setup_overlay() {
+	// A disconnect in the setup (kicked, banned, the host gone): 0.28 keeps the
+	// page and its chat behind the "Disconnected" box, with no chat input and
+	// no Ready (ChatInputPanel, ReadyButton); Back leaves.
+	if (net_disconnected_ && net_setup_overlay_ && !net_game_started_) {
+		if (net_status_overlay_ && net_status_overlay_->get_parent() != net_setup_layer_) {
+			net_status_overlay_->reparent(net_setup_layer_, false);
+			if (net_setup_overlay_->has_method("net_disconnected")) net_setup_overlay_->call("net_disconnected");
+		}
+		return;
+	}
 	const bool want = is_net_pregame() && !net_disconnected_ && !turn_mgr_.rejoin_syncing() &&
 			(net_host_.isHost() || net_host_.authResult() == rtso::ARC_OK);
 	if (want && !net_setup_overlay_ && !net_setup_overlay_unsupported_) {
@@ -3689,6 +3766,20 @@ static void apply_net_host_options(rtso::NetHost &net) {
 	// handshake names the save format too, so the host refuses them up front.
 	net.setSoftwareVersion(std::string(rtso::NET_SOFTWARE_VERSION) + " save " +
 			std::to_string(rtso::Simulation::SAVE_VERSION));
+	// Mods override the game's data, so the host refuses a client with
+	// other mods too (NetProtocol CheckHandshake, in load order).
+	std::vector<std::pair<std::string, std::string>> mods;
+	Ref<Script> lib = ResourceLoader::get_singleton()->load("res://scenes/menu/mods.gd");
+	const Variant v = lib.is_valid() ? lib->call("engine_mods") : Variant();
+	if (v.get_type() == Variant::ARRAY) {
+		const Array list = v;
+		for (int64_t i = 0; i < list.size(); ++i) {
+			const Dictionary m = list[i];
+			if ((bool)m.get("ignoreInCompatibilityChecks", false)) continue;
+			mods.emplace_back(String(m.get("name", "")).utf8().get_data(), String(m.get("version", "")).utf8().get_data());
+		}
+	}
+	net.setEnabledMods(std::move(mods));
 }
 
 // 0 A.D. 0.28 [network]: the host's late-observer policy, observer limit and
@@ -4137,9 +4228,11 @@ String RtsoMain::chat_user(const String &sender_guid) {
 	} else {
 		pl = local_player();
 	}
-	if (name.is_empty()) name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : sender_guid;
-	char hex[8] = "b3b3b3";
-	if (sim && pl < rtso::MAX_PLAYERS) std::snprintf(hex, sizeof(hex), "%06x", (unsigned)(sim->player_color(pl) & 0xFFFFFF));
+	// messages.js colorizePlayernameByGUID: the player's colour as Diplomacy Colors
+	// show it, white for an observer, "Unknown Player" without a name.
+	if (name.is_empty()) name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : tr("Unknown Player");
+	char hex[8] = "ffffff";
+	if (sim && pl < rtso::MAX_PLAYERS) std::snprintf(hex, sizeof(hex), "%06x", (unsigned)(rtso::display_colors::rgb(*sim, pl) & 0xFFFFFF));
 	return "[color=#" + String(hex) + "]" + name.replace("[", "[lb]") + "[/color]";
 }
 

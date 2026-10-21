@@ -157,6 +157,16 @@ func run() -> void:
 	lobby._leaderboard.custom_action.emit(&"update")
 	await until(func() -> bool: return lobby._board.get_root() != null and lobby._board.get_root().get_child_count() == 2)
 	check(lobby._board.get_root() != null and lobby._board.get_root().get_child_count() == 2, "Update asks the lobby again")
+	# LeaderboardList.rebuild: Update keeps the selected row; reopening shows the last list at once.
+	if lobby._board.get_root():
+		lobby._board.get_root().get_child(1).select(0)
+	lobby._leaderboard.custom_action.emit(&"update")
+	await create_timer(1.0).timeout
+	var sel: TreeItem = lobby._board.get_selected()
+	check(sel != null and sel.get_text(1) == "bob", "Update keeps bob selected")
+	lobby._leaderboard.hide()
+	lobby._on_leaderboard_pressed()
+	check(lobby._board.get_root() != null and lobby._board.get_root().get_child_count() == 2, "reopening shows the last list at once")
 	lobby._leaderboard.hide()
 	check(lobby._profile_role.text == "Player", "the profile names bob's role: Player")
 	# ProfilePage: any player, by name.
@@ -234,6 +244,8 @@ func run() -> void:
 	ms.map_id = "acropolis_bay"
 	var sk: Dictionary = LobbySessionScript.room_details(ms, {}, 0)
 	check(sk.get("map_type") == "skirmish" and sk.get("map_size") == "Default", "a skirmish map's size is Default")
+	# LobbyGameRegistration.js niceMapName: the map's own name, not its file's.
+	check(sk.get("map_name") == "Acropolis Bay (2)", "a skirmish map is listed by its name: " + str(sk.get("map_name")))
 	ms.slot_types = [0, 1, 0]
 	ms.map_id = "random_continental"
 	check(LobbySessionScript.game_rating(names, {"alice": 1265, "bob": 1135}) == 1200

@@ -1367,6 +1367,41 @@ static void test_arrow_square_range() {
 	check(side > 1.0f && fortress_aims_at(diag, diag), "a fortress aims at a unit just inside its reach past a corner");
 }
 
+static void test_hill_tower_reach() {
+	std::printf("26b. a tower on a hill reaches units past its flat range\n");
+	// BuildingAI.js CreateActiveParabolicQuery has no flat cap: a defence tower 10 units up
+	// reaches sqrt(R^2 + 2R(Origin + 10)) past its edge, beyond its flat R + Origin reach.
+	auto shoots_at = [](float H, float gap) {
+		Simulation s;
+		setup(s);
+		s.set_reveal_map(true);
+		const int res = 257;
+		const float mh = s.map_half(), cell = 2.0f * mh / (res - 1);
+		std::vector<float> hm(res * res, 0.0f);
+		for (int j = 0; j < res; ++j)
+			for (int i = 0; i < res; ++i)
+				if (std::fabs(-mh + i * cell + 40.0f) <= 4.0f && std::fabs(-mh + j * cell + 40.0f) <= 4.0f) hm[j * res + i] = H;
+		s.set_terrain_data(hm, res, -10.0f);
+		const uint32_t t = s.spawn_building_world(-40.0f, -40.0f, BLD_TOWER, 0, 1.0f);
+		const float half = building(s, t)->half_size;
+		uint32_t f = s.spawn_unit(-40.0f + half + gap, -40.0f, 1, UNIT_SPEARMAN, 0.0f);
+		s.order_set_stance(&f, 1, STANCE_STAND_GROUND);
+		const float x = -40.0f + half + gap + s.unit_clearance_at((size_t)idx(s, f));
+		for (int k = 0; k < 40; ++k) {
+			const int32_t i = idx(s, f);
+			s.units_.hp[i] = s.units_.max_hp[i];
+			s.units_.pos_x[i] = x;
+			s.units_.pos_z[i] = -40.0f;
+			s.tick(DT);
+			for (const auto &p : s.projectiles()) if (p.source_id == t) return true;
+		}
+		return false;
+	};
+	const bool flat = shoots_at(0.0f, 26.0f), hill = shoots_at(10.0f, 26.0f);
+	std::printf("      foe 26 units off: flat tower %s, hill tower %s\n", flat ? "shoots" : "holds", hill ? "shoots" : "holds");
+	check(!flat && hill, "a tower 10 units up shoots a unit 26 units off its edge; on flat ground it can't");
+}
+
 static void test_aura_vs_animals() {
 	std::printf("26. attack auras count against animals too\n");
 	Simulation s;
@@ -1614,6 +1649,7 @@ int main() {
 	test_status_inside();
 	test_arrow_square_range();
 	test_aura_vs_animals();
+	test_hill_tower_reach();
 	test_p14_frozen_damage();
 	test_p14_stray_armour();
 	test_p14_invulnerable_fallthrough();

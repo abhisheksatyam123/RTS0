@@ -66,6 +66,7 @@ func _run() -> void:
 		await _make_save(ms, args.get("saves", "mp_saved"))
 		return
 	var direct: bool = args.get("nolobby", "") == "1" and args.has("join_addr")
+	var late: bool = args.get("late", "") == "1"
 	var session = root.get_node("LobbySession")
 	if direct:
 		# "Connect by IP" from the main menu, not signed in to the lobby.
@@ -110,7 +111,12 @@ func _run() -> void:
 				lobby._refresh()
 				await _wait(0.5)
 				var top = lobby._games.get_root()
-				if top:
+				# late=1: a watcher who joins once the game runs.
+				var running := false
+				for r in lobby._rooms:
+					if str(r.get("id", "")) == "room-%d" % port and str(r.get("state", "init")) != "init":
+						running = true
+				if top and (running or not late):
 					for it in top.get_children():
 						if str(it.get_metadata(0)) == "room-%d" % port:
 							row = it
@@ -120,7 +126,12 @@ func _run() -> void:
 			row.select(0)
 			await _wait(0.1)
 			_say("picked %s (address %s)" % [picked, "hidden" if lobby._join_ip.text == "" else lobby._join_ip.text])
-			lobby._on_join_pressed()
+			if late:
+				# JoinButton.js: Yes to "join as observer?" for a running game.
+				lobby._observe.button_pressed = true
+				lobby._on_join_pressed(true)
+			else:
+				lobby._on_join_pressed()
 			# The lobby hands the address over on request (/rooms/connect).
 			while ms.net_mode != "join":
 				if Time.get_ticks_msec() > deadline:
@@ -148,6 +159,11 @@ func _run() -> void:
 	var saw_rejoin_box := false
 	var saw_saved_loading := false
 	var saw_saved_wait := ""
+	# A late watcher (NetClient's fake game start): the rejoining box only while
+	# the world downloads, then the loading page, then "Synchronizing…" in the match.
+	var saw_rejoin_loading := false
+	var rejoin_box_after_loading := false
+	var saw_sync := false
 	while true:
 		if Time.get_ticks_msec() > deadline:
 			return _fail("timed out at turn %s" % (main.get_lobby_state().get("turn", -1) if main else -1))
@@ -163,6 +179,12 @@ func _run() -> void:
 		var rbox = root.find_child("NetConnecting", true, false)
 		if rbox and str(rbox.text).contains("rejoining"):
 			saw_rejoin_box = true
+			rejoin_box_after_loading = rejoin_box_after_loading or saw_rejoin_loading
+		var lt: String = load("res://scenes/menu/loading.gd").last_title
+		if late and saw_rejoin_box and root.get_node_or_null("Loading") != null and lt.contains("“"):
+			saw_rejoin_loading = true
+		if late and str(st.get("net_status", "")).begins_with("Synchronizing") and int(st.get("turn", 0)) > 0:
+			saw_sync = true
 		if main.net_loading_hold() and root.get_node_or_null("Loading") != null:
 			saw_saved_loading = true
 		if saw_saved_wait == "" and str(st.get("net_status", "")).begins_with("Waiting for players to connect:"):
@@ -236,8 +258,16 @@ func _run() -> void:
 				await _wait(1.5)
 				break
 			if role == "join" and st.get("disconnected", false):
-				_say("setup_status=%s reason=%d saw_page=%s page=%s" % [str(st.get("net_status", "")).replace("\n", " | "),
-						int(st.get("disconnect_reason", -1)), str(saw_setup), str(st.get("setup_page", true))])
+				# ChatInputPanel / ReadyButton: the page and its chat stay behind the box,
+				# with no chat input and no Ready.
+				var chat_in = root.find_child("NetChatInput", true, false)
+				var ready_b = root.find_child("BtnReady", true, false)
+				var box = root.find_child("NetStatusOverlay", true, false)
+				var box_layer: int = box.get_parent().layer if box and box.get_parent() is CanvasLayer else -1
+				_say("setup_status=%s reason=%d saw_page=%s page=%s chat_input=%s ready_off=%s box_layer=%d" % [
+						str(st.get("net_status", "")).replace("\n", " | "), int(st.get("disconnect_reason", -1)),
+						str(saw_setup), str(st.get("setup_page", false)),
+						str(chat_in.is_visible_in_tree()) if chat_in else "-", str(ready_b.disabled) if ready_b else "-", box_layer])
 				main._on_disconnected_exit_pressed()
 				await _wait(1.0)
 				_say("setup_exit_scene=" + (current_scene.scene_file_path if current_scene else ""))
@@ -359,6 +389,12 @@ func _run() -> void:
 					main._on_lobby_start_pressed()
 		if st.get("oos", false):
 			return _fail("out of sync at turn %d" % int(st.get("oos_turn", 0)))
+		if late and int(st.get("turn", 0)) >= turns:
+			_say("late done turn=%d seat=%d rejoin_box=%s box_after_loading=%s synchronizing=%s title=%s" % [
+					int(st.get("turn", 0)), int(st.get("seat", -1)), str(saw_rejoin_box).to_lower(),
+					str(rejoin_box_after_loading).to_lower(), str(saw_sync).to_lower(),
+					str(load("res://scenes/menu/loading.gd").last_title).replace(" ", "_")])
+			break
 		if int(st.get("turn", 0)) >= turns + 5:
 			# 0.28 /list: "Users (N): ..." in the chat, and the command is no chat line.
 			for le in main.find_children("*", "LineEdit", true, false):

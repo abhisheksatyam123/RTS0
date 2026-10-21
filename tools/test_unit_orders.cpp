@@ -3741,6 +3741,168 @@ static void test_queued_hunt_board() {
 	check(aboard, "then boards the siege tower");
 }
 
+static void test_flee_and_defensive_vision() {
+	std::printf("102. a flight has no time limit and ends edge to edge; a defensive unit answers only attackers it sees\n");
+	Simulation s;
+	setup(s);
+	const uint32_t tower = s.spawn_building_world(20, 0, BLD_TOWER, 1, 1.0f);
+	uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_set_stance(&w, 1, STANCE_PASSIVE);
+	s.units_.attacked_by[idx_of(s, w)] = tower;
+	s.tick(DT);
+	check(act_of(s, w) == ACTION_FLEE, "a woman shot by a tower flees from it");
+	s.units_.flee_dist[idx_of(s, w)] = 50.0f; // a long run, as from a faraway attacker
+	const float want = s.units_.flee_dist[idx_of(s, w)];
+	run(s, 5.0f);
+	const bool still = act_of(s, w) == ACTION_FLEE;
+	const bool ended = run_until(s, 40.0f, [&] { return act_of(s, w) != ACTION_FLEE; });
+	const Simulation::Building *tb = bld(s, tower);
+	const float gap = dist(s, w, tb->x, tb->z) - tb->half_size;
+	std::printf("  flee distance %.1f, ended %.1f from the tower's edge\n", want, gap);
+	check(still, "still running after 5 s (FLEEING has no timer)");
+	check(ended && gap >= want - 1.5f, "the flight ends that far from the tower's edge (CheckTargetRangeExplicit)");
+
+	Simulation d;
+	setup(d);
+	uint32_t archer = d.spawn_unit(0, 0, 0, UNIT_ARCHER);
+	d.order_set_stance(&archer, 1, STANCE_DEFENSIVE);
+	const int ai = idx_of(d, archer);
+	const float vision = d.unit_vision_at(ai), lim = vision * 0.5f + d.attack_reach(ai);
+	std::printf("  archer vision %.1f, held-position limit %.1f\n", vision, lim);
+	if (lim > vision + 1.0f) {
+		const uint32_t far = d.spawn_unit(0.5f * (vision + lim), 0, 1, UNIT_SPEARMAN);
+		d.units_.attacked_by[ai] = far;
+		d.tick(DT);
+		check(target_of(d, archer) != far, "a defensive archer ignores an attacker beyond its vision (AttackEntityInZone)");
+	}
+	const uint32_t near = d.spawn_unit(0.5f * vision, 0, 1, UNIT_SPEARMAN);
+	d.units_.attacked_by[ai] = near;
+	d.tick(DT);
+	check(target_of(d, archer) == near, "and answers one within it");
+}
+
+static void test_walk_end_then_fight() {
+	std::printf("103. A walk that ends is done before the unit fights (UnitAI.js WALKING FinishOrder, IDLE Timer)\n");
+	// Riders' forced walks end in sight of an enemy outpost, once per phase of the target scan's four
+	// ticks: none fights with its finished walk still its order (forced, to go back to afterwards).
+	bool all_fight = true, under_walk = false;
+	int on_scan_tick = 0;
+	for (int phase = 0; phase < 4; ++phase) {
+		Simulation s;
+		setup(s);
+		run(s, (float)phase * DT);
+		const uint32_t outpost = s.spawn_building_world(10.0f, 0.0f, BLD_OUTPOST, 1, 1.0f);
+		std::vector<uint32_t> riders;
+		for (int k = 0; k < 8; ++k) {
+			uint32_t r = s.spawn_unit(-12.0f, -10.5f + 3.0f * (float)k, 0, UNIT_CAVALRY);
+			s.order_walk(&r, 1, 2.0f + 0.37f * (float)k, -10.5f + 3.0f * (float)k);
+			riders.push_back(r);
+		}
+		std::vector<uint8_t> walking(riders.size(), 1);
+		all_fight = run_until(s, 30.0f, [&] {
+			bool all = true;
+			for (size_t k = 0; k < riders.size(); ++k) {
+				const int i = idx_of(s, riders[k]);
+				if (i < 0) continue;
+				if (walking[k] && s.units_.action_state[i] != ACTION_MOVE) {
+					walking[k] = 0;
+					if (((size_t)i + s.ticks_ - 1) % 4 == 0) ++on_scan_tick;
+				}
+				const bool fights = s.units_.action_state[i] == ACTION_ATTACK && s.units_.target_building_id[i] == outpost;
+				if (fights && s.units_.order_kind[i] != ORDER_NONE) under_walk = true;
+				all = all && fights;
+			}
+			return all;
+		}) && all_fight;
+	}
+	check(on_scan_tick > 0, "some walks end on a tick the rider looks for targets");
+	check(all_fight, "every rider's walk ends and it goes for the enemy outpost");
+	check(!under_walk, "none fights with its finished walk still its order");
+
+	// The same for an attack-walk that leaves structures alone (WALKINGANDFIGHTING FinishOrder).
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t outpost = s.spawn_building_world(10.0f, 0.0f, BLD_OUTPOST, 1, 1.0f);
+		std::vector<uint32_t> riders;
+		for (int k = 0; k < 8; ++k) {
+			uint32_t r = s.spawn_unit(-12.0f, -10.5f + 3.0f * (float)k, 0, UNIT_CAVALRY);
+			s.order_attack_move(&r, 1, 2.0f + 0.37f * (float)k, -10.5f + 3.0f * (float)k, false, true);
+			riders.push_back(r);
+		}
+		bool under_attack_walk = false;
+		const bool fight = run_until(s, 30.0f, [&] {
+			bool all = true;
+			for (uint32_t r : riders) {
+				const int i = idx_of(s, r);
+				if (i < 0) continue;
+				const bool fights = s.units_.action_state[i] == ACTION_ATTACK && s.units_.target_building_id[i] == outpost;
+				if (fights && s.units_.order_kind[i] == ORDER_WALK_AND_FIGHT) under_attack_walk = true;
+				all = all && fights;
+			}
+			return all;
+		});
+		check(fight && !under_attack_walk, "an attack-walk on units only ends first, then the riders go for the outpost");
+	}
+
+	// Riders shot at as their walk ends go on with the forced walk queued after it, as 0.28's
+	// FinishOrder starts it in the same turn and a forced walk ignores attacks.
+	{
+		Simulation s;
+		setup(s);
+		for (int k = 0; k < 4; ++k) post(s, 12.0f, -6.0f + 4.0f * (float)k, UNIT_ARCHER, 5000.0f);
+		std::vector<uint32_t> riders;
+		for (int k = 0; k < 12; ++k) {
+			uint32_t r = s.spawn_unit(-14.0f, -11.0f + 2.0f * (float)k, 0, UNIT_CAVALRY, 5000.0f);
+			s.order_walk(&r, 1, 4.0f + 0.31f * (float)k, -11.0f + 2.0f * (float)k);
+			s.order_walk(&r, 1, -20.0f, -11.0f + 2.0f * (float)k, true);
+			riders.push_back(r);
+		}
+		bool fought_first = false;
+		std::vector<uint8_t> done(riders.size(), 0);
+		const bool back = run_until(s, 40.0f, [&] {
+			bool all = true;
+			for (size_t k = 0; k < riders.size(); ++k) {
+				const int i = idx_of(s, riders[k]);
+				if (i < 0) continue;
+				const std::vector<UnitOrder> *q = s.unit_order_queue(riders[k]);
+				// Done once both walks have ended, back out of the archers' reach.
+				if (!done[k] && s.units_.order_kind[i] == ORDER_NONE && (!q || q->empty()) && s.units_.pos_x[i] < -12.0f) done[k] = 1;
+				if (!done[k] && s.units_.action_state[i] == ACTION_ATTACK) fought_first = true;
+				all = all && done[k];
+			}
+			return all;
+		});
+		check(back && !fought_first, "riders shot at as they arrive ride on to their queued walk without a fight");
+	}
+
+	// A defensive elephant sent into its own fortress stops outside, too far from the held position
+	// inside, and walk_back_if_drifted sends it again and again: whatever its index, it looks for
+	// targets each time its walk ends (IDLE Timer: FindNewTargets before WalkToHeldPosition).
+	int engaged = 0;
+	for (int pad = 0; pad < 4; ++pad) {
+		Simulation s;
+		setup(s);
+		const float bx = -20.0f, bz = -20.0f;
+		s.spawn_building_world(bx, bz, BLD_FORTRESS, 0, 1.0f);
+		for (int k = 0; k < pad; ++k) s.spawn_unit(-120.0f + 2.0f * (float)k, 100.0f, 0, UNIT_SPEARMAN);
+		uint32_t u = s.spawn_unit(bx + 10.0f, bz, 0, UNIT_ELEPHANT, 5000.0f);
+		s.order_set_stance(&u, 1, STANCE_DEFENSIVE);
+		s.order_walk(&u, 1, bx, bz, false, true);
+		for (int t = 0; t < 200; ++t) s.tick(Simulation::FIXED_STEP);
+		uint32_t e = s.spawn_unit(bx + 6.0f, bz, 1, UNIT_SPEARMAN, 50000.0f);
+		s.order_set_stance(&e, 1, STANCE_PASSIVE);
+		bool fought = false;
+		for (int t = 0; t < 200 && !fought; ++t) {
+			s.tick(Simulation::FIXED_STEP);
+			fought = act_of(s, u) == ACTION_ATTACK;
+		}
+		if (fought) ++engaged;
+	}
+	std::printf("  defensive elephants walking back into their fortress that engage an enemy beside them: %d of 4\n", engaged);
+	check(engaged == 4, "a unit walking back to its held position again and again still picks a fight");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3850,6 +4012,8 @@ int main(int argc, char **argv) {
 	test_guard_click_targets();
 	test_walk_to_target();
 	test_queued_hunt_board();
+	test_flee_and_defensive_vision();
+	test_walk_end_then_fight();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

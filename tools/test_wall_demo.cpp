@@ -270,7 +270,13 @@ int main() {
 			for (float x : {-250.0f, 0.0f, 250.0f})
 				for (float z : {-250.0f, 0.0f, 250.0f}) all &= s.los_visible(p, x, z) && s.los_explored(p, x, z);
 		const int res = s.fow_res();
-		for (int c = 0; c < res * res; ++c) all &= s.fow_grid(0)[c] == Simulation::FOW_VISIBLE && s.fow_grid(1)[c] == Simulation::FOW_VISIBLE;
+		// CCmpRangeManager's m_LosStateRevealed leaves the off-world edge hidden (LosIsOffWorld).
+		const float cell = 2.0f * kGiantHalf / (float)res;
+		for (int c = 0; c < res * res; ++c) {
+			const float x = ((float)(c % res) + 0.5f) * cell - kGiantHalf, z = ((float)(c / res) + 0.5f) * cell - kGiantHalf;
+			if (s.off_world(x, z)) continue;
+			all &= s.fow_grid(0)[c] == Simulation::FOW_VISIBLE && s.fow_grid(1)[c] == Simulation::FOW_VISIBLE;
+		}
 		CHECK(all, "a cell is hidden from a player");
 	}
 
