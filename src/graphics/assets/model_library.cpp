@@ -1911,11 +1911,29 @@ HashMap<String, bool> &ModelLibrary::threaded_paths() {
 	return m;
 }
 
+// The requests not yet seen finished (a short list: finished ones drop out on each count).
+static std::vector<String> &requests_in_flight() {
+	static auto &v = *new std::vector<String>();
+	return v;
+}
+
+int ModelLibrary::loads_in_flight() {
+	std::vector<String> &v = requests_in_flight();
+	v.erase(std::remove_if(v.begin(), v.end(), [](const String &p) {
+		return !threaded_paths().has(p) ||
+				ResourceLoader::get_singleton()->load_threaded_get_status(p) != ResourceLoader::THREAD_LOAD_IN_PROGRESS;
+	}), v.end());
+	return (int)v.size();
+}
+
 void ModelLibrary::request_threaded(const String &path) {
 	if (threaded_paths().has(path) || ResourceLoader::get_singleton()->has_cached(path) ||
 			!ResourceLoader::get_singleton()->exists(path))
 		return;
-	if (ResourceLoader::get_singleton()->load_threaded_request(path) == OK) threaded_paths().insert(path, true);
+	if (ResourceLoader::get_singleton()->load_threaded_request(path) == OK) {
+		threaded_paths().insert(path, true);
+		requests_in_flight().push_back(path);
+	}
 }
 
 // Takes the prefetched companion textures of a GLB (they stay cached while `keep` holds them).
@@ -2086,6 +2104,7 @@ const ModelLibrary::Entry &ModelLibrary::get(const String &category, const Strin
 void ModelLibrary::clear() {
 	for (const KeyValue<String, bool> &kv : threaded_paths()) ResourceLoader::get_singleton()->load_threaded_get(kv.key);
 	threaded_paths().clear();
+	requests_in_flight().clear();
 	cache().clear();
 	player_color_mats().clear();
 }

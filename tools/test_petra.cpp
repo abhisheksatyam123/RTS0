@@ -6823,10 +6823,10 @@ static void test_building_plan_028() {
 	std::printf("  building plan: house %.1f m from the barracks\n", d);
 	CHECK(d > 12.0f, "a house keeps away from a barracks");
 	// requireHouses: with every influence dropped the house takes the first free tile of the base.
-	s->petra_require_houses_ = true;
+	s->petra_kept_.require_houses = true;
 	int cx3 = 0, cz3 = 0;
 	CHECK(s->petra_find_position(BLD_HOUSE, nullptr, nullptr, false, cx3, cz3), "requireHouses still finds room");
-	s->petra_require_houses_ = false;
+	s->petra_kept_.require_houses = false;
 	const float d3 = std::hypot(((float)cx3 + 1.0f) * Simulation::GRID - hx, ((float)cz3 + 1.0f) * Simulation::GRID - hz);
 	std::printf("  building plan: requireHouses house %.1f m from the barracks\n", d3);
 	CHECK(d3 < d, "requireHouses lets the house come closer");
