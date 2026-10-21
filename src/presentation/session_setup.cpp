@@ -100,6 +100,16 @@ static uint8_t map_building_template(const String &tmpl) {
 		{"dock", rtso::BLD_DOCK}, {"fortress", rtso::BLD_FORTRESS}, {"wonder", rtso::BLD_WONDER},
 		{"corral", rtso::BLD_CORRAL}, {"elephant_stable", rtso::BLD_ELEPHANT_STABLE},
 		{"pillar_ashoka", rtso::BLD_PILLAR}, {"apartment", rtso::BLD_APARTMENT},
+		// Generic types and civ forms whose stem is no model id (the loop below starts after the
+		// generic types): the theatres, embassies, Han court, great tower, practice range and
+		// grain field, the Tachara's tribute forms, the German forge and totem.
+		{"theater", rtso::BLD_THEATER}, {"embassy", rtso::BLD_EMBASSY}, {"embassy_celtic", rtso::BLD_EMBASSY},
+		{"civil_centre_court", rtso::BLD_IMPERIAL_COURT}, {"defense_tower_great", rtso::BLD_TOWER_GREAT},
+		{"practice_range", rtso::BLD_RANGE}, {"field_grain", rtso::BLD_FIELD}, {"blacksmith", rtso::BLD_FORGE},
+		{"ministry", rtso::BLD_MINISTRY}, {"totem", rtso::BLD_MONUMENT},
+		{"amphitheater_pompeii", rtso::BLD_AMPHITHEATER},
+		{"tachara_food", rtso::BLD_TACHARA_FOOD}, {"tachara_wood", rtso::BLD_TACHARA_WOOD},
+		{"tachara_stone", rtso::BLD_TACHARA_STONE}, {"tachara_metal", rtso::BLD_TACHARA_METAL},
 	};
 	for (const auto &k : kNames)
 		if (n == k.name) return k.type;
@@ -977,6 +987,7 @@ void RtsoMain::match_settings_setup(rtso::GameSetupParams &setup) {
 		setup.water_level = (uint8_t)std::clamp((int)ms->get("water_level"), 0, 2);
 		setup.team_placement = (uint8_t)std::clamp((int)ms->get("team_placement"), 0, (int)rtso::TEAM_PLACEMENT_COUNT - 1);
 		setup.landscape = (uint8_t)std::clamp((int)ms->get("landscape"), 0, 15);
+		setup.map_filter = String(ms->get("map_filter")).utf8().get_data();
 		setup.trigger_difficulty = (uint8_t)std::clamp((int)ms->get("trigger_difficulty"), 1, 5);
 		setup.daytime = (uint8_t)std::clamp((int)ms->get("map_daytime"), 0, 2);
 		setup.sea_rise_min = (uint8_t)std::clamp((int)ms->get("sea_level_rise_min"), 0, 60);
@@ -1046,6 +1057,7 @@ void RtsoMain::store_net_setup_in_match_settings(const rtso::GameSetupParams &se
 	ms->set("trigger_difficulty", (int)setup.trigger_difficulty);
 	ms->set("map_daytime", (int)setup.daytime);
 	ms->set("sea_level_rise_min", (int)setup.sea_rise_min);
+	ms->set("map_filter", String::utf8(setup.map_filter.c_str()));
 	ms->set("map_size", (int)setup.map_size);
 	ms->set("ai_difficulty", (int)setup.difficulty);
 	ms->set("ai_behavior", (int)setup.behavior);

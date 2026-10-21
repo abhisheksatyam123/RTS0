@@ -147,7 +147,10 @@ func _ready() -> void:
 	_timer.start()
 	_watch_events()
 	_server.text = LobbySession.address
-	_name.text = LobbySession.player_name if LobbySession.signed_in() else multiplayer_name()
+	# login.js: the account last signed in with (lobby.login), else the multiplayer name.
+	var login_cfg := RtsoUserConfig.new()
+	_name.text = LobbySession.player_name if LobbySession.signed_in() \
+			else login_cfg.get_value("lobby.login") if login_cfg.get_value("lobby.login") != "" else multiplayer_name()
 	LobbySession.kicked.connect(_on_kicked)
 	LobbySession.disconnected.connect(_on_disconnected)
 	if LobbySession.signed_in() and LobbySession.chat_from >= 0:
@@ -162,16 +165,30 @@ func _ready() -> void:
 
 
 func _build() -> void:
+	# LobbyPage.setDialogStyle: as a dialog, a framed window 40 px in from each
+	# edge (WindowMargin) over a translucent fade (ModernFade); else the full page.
+	var margin := 40 if dialog else 0
+	if dialog:
+		var fade := ColorRect.new()
+		fade.name = "LobbyFade"
+		fade.color = Color(0, 0, 0, 0.5)
+		fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+		add_child(fade)
 	var bg := ColorRect.new()
+	bg.name = "LobbyWindow"
 	bg.color = Color(0.09, 0.09, 0.15, 1)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.offset_left = margin
+	bg.offset_top = margin
+	bg.offset_right = -margin
+	bg.offset_bottom = -margin
 	add_child(bg)
 	var root := VBoxContainer.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.offset_left = 24
-	root.offset_top = 24
-	root.offset_right = -24
-	root.offset_bottom = -24
+	root.offset_left = margin + 24
+	root.offset_top = margin + 24
+	root.offset_right = -margin - 24
+	root.offset_bottom = -margin - 24
 	add_child(root)
 
 	var header := HBoxContainer.new()
@@ -202,6 +219,11 @@ func _build() -> void:
 	login.add_child(_label("Password"))
 	_password = _line("", 140)
 	_password.secret = true
+	# login.js: a remembered password shows as its first 10 characters (masked);
+	# credentials.js getEncryptedPassword sends the stored one while they stay.
+	if cfg.get_bool("lobby.rememberpassword") and cfg.get_value("lobby.password") != "":
+		_password_stub = cfg.get_value("lobby.password").substr(0, 10)
+		_password.text = _password_stub
 	login.add_child(_password)
 	_password2 = _line("", 120)
 	_password2.secret = true
@@ -617,7 +639,7 @@ func _on_leaderboard_pressed() -> void:
 	if not LobbySession.signed_in():
 		_say("Sign in to see the leaderboard.")
 		return
-	_board.clear()
+	# LeaderboardPage.openPage: the last list shows at once while it asks again.
 	_leaderboard.popup_centered()
 	LobbySession.get_json("/leaderboard", _on_leaderboard)
 
@@ -625,16 +647,22 @@ func _on_leaderboard_pressed() -> void:
 func _on_leaderboard(code: int, obj) -> void:
 	if code != 200 or not (obj is Dictionary):
 		return
+	# LeaderboardList.rebuild: the selected row stays selected, within the new list.
+	var picked := _board.get_selected()
+	var at := picked.get_index() if picked else -1
 	_board.clear()
 	var top := _board.create_item()
 	var rank := 0
-	for p in obj.get("players", []):
+	var players: Array = obj.get("players", [])
+	for p in players:
 		rank += 1
 		var it := _board.create_item(top)
 		it.set_text(0, str(rank))
 		it.set_text(1, str(p.get("name", "")))
 		it.set_text(2, str(p.get("rating", "")))
 		it.set_metadata(0, str(p.get("name", "")))
+	if at >= 0 and not players.is_empty():
+		top.get_child(mini(at, players.size() - 1)).select(0)
 
 
 func _label(text: String) -> Label:
@@ -713,10 +741,14 @@ func _on_disconnected() -> void:
 ## credentials.js toggleRememberPassword: unticking a remembered password asks first;
 ## No ticks it again.
 var _forget_dlg: ConfirmationDialog
+var _password_stub := "" # the remembered password's first 10 characters, while the field shows them
 
 func _on_remember_toggled(on: bool) -> void:
 	var cfg := RtsoUserConfig.new()
 	if on or not cfg.get_bool("lobby.rememberpassword") or cfg.get_value("lobby.password") == "" or _forget_dlg != null:
+		# credentials.js toggleRememberPassword: the box is saved when clicked.
+		cfg.set_value("lobby.rememberpassword", "true" if on else "false")
+		cfg.save()
 		return
 	_forget_dlg = ConfirmationDialog.new()
 	_forget_dlg.name = "ForgetPasswordDialog"
@@ -728,6 +760,9 @@ func _on_remember_toggled(on: bool) -> void:
 	var done := func(keep: bool) -> void:
 		_forget_dlg.queue_free()
 		_forget_dlg = null
+		var c := RtsoUserConfig.new()
+		c.set_value("lobby.rememberpassword", "true" if keep else "false")
+		c.save()
 		if keep:
 			_remember.set_pressed_no_signal(true)
 	_forget_dlg.confirmed.connect(func() -> void: done.call(false))
@@ -888,11 +923,13 @@ func _on_sign_pressed() -> void:
 
 # The password typed now, else the one lobby.password remembers for this name.
 func _encrypted_password(who: String) -> String:
-	if _password.text != "":
-		return LobbySession.encrypt_password(_password.text, who)
 	var cfg := RtsoUserConfig.new()
-	if _remember.button_pressed and cfg.get_value("lobby.login").to_lower() == who.to_lower():
-		return cfg.get_value("lobby.password")
+	var stored := cfg.get_value("lobby.password")
+	if (_password.text == "" or (_password_stub != "" and _password.text == _password_stub)) and stored != "" \
+			and cfg.get_value("lobby.login").to_lower() == who.to_lower():
+		return stored
+	if _password.text != "" and _password.text != _password_stub:
+		return LobbySession.encrypt_password(_password.text, who)
 	return ""
 
 
@@ -918,7 +955,10 @@ func _sign_in(who: String) -> void:
 			cfg.set_value("lobby.login", LobbySession.player_name)
 			cfg.set_value("lobby.rememberpassword", "true" if _remember.button_pressed else "false")
 			cfg.set_value("lobby.password", encrypted if _remember.button_pressed else "")
+			# credentials.js saveCredentials: the account is the multiplayer name too.
+			cfg.set_value("playername.multiplayer", LobbySession.player_name)
 			cfg.save()
+			_password_stub = ""
 			_password.text = ""
 			_password2.text = ""
 			MatchSettings.net_player_name = LobbySession.player_name
@@ -1397,14 +1437,25 @@ func _on_chat(code: int, obj) -> void:
 func _format_chat(who: String, raw: String, me: String) -> String:
 	var text := raw.replace("[", "[lb]")
 	if who == "":
-		return "[color=#aaaaaa]%s[/color]" % text
+		return status_line(text) # the lobby's own join, leave and subject lines
 	if who != me:
 		text = highlight_name(text, me)
 	if raw.begins_with("/me "):
 		return "* [b]%s[/b] %s" % [colored_name(who, _nick(who)), text.substr(4)]
 	if raw.begins_with("/say "):
 		text = text.substr(5)
-	return "%s: %s" % [colored_name(who, _nick(who)), text]
+	# ChatMessageFormatSay: "<sender> message", the sender tag in bold.
+	return "[b]<%s>[/b] %s" % [colored_name(who, _nick(who)), text]
+
+
+## StatusMessageFormat: "== message" in bold (joins, leaves, roles, the subject).
+static func status_line(text: String) -> String:
+	return "[b]== %s[/b]" % text
+
+
+## SystemMessageFormat: "=== System: message" in bold, "System:" in red.
+static func system_line(text: String) -> String:
+	return "[b]=== [color=#960000]System:[/color] %s[/b]" % text
 
 
 ## StatusMessageEvents.js Role (worded for the reader) and
@@ -1424,7 +1475,7 @@ func _format_event(event: Dictionary, me: String) -> String:
 				if r["newrole"] == str(event.get("newrole", "")) and (not r.has("oldrole") or r["oldrole"] == str(event.get("oldrole", ""))):
 					var nick := str(event.get("nick", ""))
 					var txt: String = r["you"] if nick == me else r["nick"] % nick
-					return "[color=#aaaaaa]%s[/color]" % txt.replace("[", "[lb]")
+					return status_line(txt.replace("[", "[lb]"))
 		"announcement":
 			return "[b]== Notice:\n%s[/b]" % format_announcement(str(event.get("subject", "")), str(event.get("text", ""))).replace("[", "[lb]")
 	return ""
@@ -1653,7 +1704,7 @@ const CHAT_COMMANDS := [
 ]
 
 func _system_line(text: String) -> void:
-	_chat_log.append_text("[color=#aaaaaa]%s[/color]\n" % text)
+	_chat_log.append_text(system_line(text) + "\n")
 
 ## handleChatCommand: true when the input was a command, run here and not sent.
 func _chat_command(text: String) -> bool:

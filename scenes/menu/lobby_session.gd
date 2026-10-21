@@ -296,6 +296,7 @@ func reconnect(cb: Callable) -> void:
 
 
 func sign_out() -> void:
+	in_game = false
 	if token != "":
 		_logout_pending = true
 		post_json("/logout", {"token": token}, func(_code: int, _obj) -> void:
@@ -479,11 +480,16 @@ var dialog_open := false
 ## The lobby lists us as a moderator (0 A.D. LobbyGetPlayerRole "moderator").
 var moderator := false
 
+## gamesetup_mp.js / LobbyHandler: "playing" from the game's join until the
+## lobby page itself opens, so the summary after a lobby game keeps it.
+var in_game := false
+
 func _beat() -> void:
 	if token == "":
 		return
-	var main := _match_node()
-	post_json("/presence", {"token": token, "status": "playing" if main != null and not dialog_open else ("away" if away else "available")})
+	if _match_node() != null:
+		in_game = true
+	post_json("/presence", {"token": token, "status": "playing" if in_game and not dialog_open else ("away" if away else "available")})
 	_room_tick(true)
 
 
@@ -492,6 +498,8 @@ func _beat() -> void:
 func lobby_opened(as_dialog: bool) -> void:
 	away = false
 	dialog_open = as_dialog
+	if not as_dialog:
+		in_game = false
 	_beat()
 
 
