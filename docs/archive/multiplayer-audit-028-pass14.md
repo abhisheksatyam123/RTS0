@@ -39,9 +39,9 @@ None of these touches simulation state or the save format.
 
 ## Fix log
 
-- 2026-10-21 #PR1 pass 14 gap 1 (the lobby opens with the account last signed in and the remembered password, masked, which Sign In sends while it stays; a sign-in saves the account as the multiplayer name; Remember password is saved when clicked, as login.js and credentials.js) merged.
-- 2026-10-21 #PR1 pass 14 gap 2 (lobby chat reads "<nick> text" with the sender in bold, "== …" in bold for the lobby's join, leave, role and subject lines, and "=== System: …" in bold with a red "System:" for Connected, Disconnected, your own kick, /help and command errors, as ChatMessageFormatSay, StatusMessageFormat and SystemMessageFormat; the disconnect reason and translatable join and leave lines stay open, as the lobby server words those) merged.
-- 2026-10-21 #PR1 pass 14 gap 3 (setup chat names lightened to at least 60% lightness, the sender tag in bold, "Unknown Player" for a nameless client, as ClientChat.js) merged.
-- 2026-10-21 #PR1 pass 14 gap 4 (match chat, /list and connection warnings name an observer in white and a player in the Diplomacy Colors colour, "Unknown Player" without a name, as colorizePlayernameByGUID) merged.
-- 2026-10-21 #PR1 pass 14 gap 5 (the lobby as a dialog is a window 40 px in from each edge over a translucent fade, as LobbyPage.setDialogStyle) merged.
-- 2026-10-21 #PR1 pass 14 gap 6 (the Leaderboard shows the last list at once and Update keeps the selected row, as LeaderboardPage and LeaderboardList.rebuild) merged.
+- 2026-10-21 #1517 pass 14 gap 1 (the lobby opens with the account last signed in and the remembered password, masked, which Sign In sends while it stays; a sign-in saves the account as the multiplayer name; Remember password is saved when clicked, as login.js and credentials.js) merged.
+- 2026-10-21 #1517 pass 14 gap 2 (lobby chat reads "<nick> text" with the sender in bold, "== …" in bold for the lobby's join, leave, role and subject lines, and "=== System: …" in bold with a red "System:" for Connected, Disconnected, your own kick, /help and command errors, as ChatMessageFormatSay, StatusMessageFormat and SystemMessageFormat; the disconnect reason and translatable join and leave lines stay open, as the lobby server words those) merged.
+- 2026-10-21 #1517 pass 14 gap 3 (setup chat names lightened to at least 60% lightness, the sender tag in bold, "Unknown Player" for a nameless client, as ClientChat.js) merged.
+- 2026-10-21 #1517 pass 14 gap 4 (match chat, /list and connection warnings name an observer in white and a player in the Diplomacy Colors colour, "Unknown Player" without a name, as colorizePlayernameByGUID) merged.
+- 2026-10-21 #1517 pass 14 gap 5 (the lobby as a dialog is a window 40 px in from each edge over a translucent fade, as LobbyPage.setDialogStyle) merged.
+- 2026-10-21 #1517 pass 14 gap 6 (the Leaderboard shows the last list at once and Update keeps the selected row, as LeaderboardPage and LeaderboardList.rebuild) merged.
