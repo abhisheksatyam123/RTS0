@@ -20607,14 +20607,17 @@ bool Simulation::petra_spot_free_but_distance(int cell_x, int cell_y, int footpr
 }
 
 // queueplanBuilding.js findGoodPosition's gap round a structure (obstructionRadius + 0, 4 or 8 m):
-// 0 for houses, dropsites, fields and markets, which ought to stand close to each other or a
-// resource; 2 (8 m) for fortresses, arsenals and elephant stables; 1 (4 m) for the rest.
+// 0 for dropsites, fields and markets, which ought to stand close to a resource or each other;
+// 2 (8 m) for fortresses, arsenals and elephant stables; 1 (4 m) for the rest. Houses take 1 too:
+// their radius, ceil(obstructionRadius.max / cellSize) (queueplanBuilding.js:336), keeps every
+// obstruction cell within 2 cells (8 m) of an 11-13 m house's centre clear, so 0.28's houses
+// stand about 5 m apart, and on RTS0's 8 m grid a ring is the nearest step: touching rows of
+// houses walled their builders in against shores.
 uint8_t Simulation::petra_clearance(uint8_t btype) {
 	if (btype >= BLD_TYPE_COUNT) return 1;
 	const uint8_t r = building_research_base(btype);
 	if (r == BLD_FORTRESS || r == BLD_ARSENAL || r == BLD_ELEPHANT_STABLE) return 2;
-	if (is_dropsite_type(btype) || (building_tech_classes(btype) & TC_HOUSE) || btype == BLD_FIELD || is_land_market(btype))
-		return 0;
+	if (is_dropsite_type(btype) || btype == BLD_FIELD || is_land_market(btype)) return 0;
 	return 1;
 }
 
@@ -20623,7 +20626,7 @@ uint8_t Simulation::petra_clearance(uint8_t btype) {
 // a ring cell (PART) refuses the spot when it comes within half a cell, 4 m, of the footprint:
 // the gap queueplanBuilding.js findGoodPosition adds round most structures (obstructionRadius + 4).
 // On-grid buildings mark only FULL cells, so they keep the whole-cell ring.
-// Clearance 0 (houses, dropsites, fields, markets) needs only the footprint free; 2 (fortress,
+// Clearance 0 (dropsites, fields, markets) needs only the footprint free; 2 (fortress,
 // arsenal, elephant stable) also keeps any building 8 m off.
 bool Simulation::petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance) const {
 	ensure_occupied_cells();
@@ -21922,6 +21925,7 @@ float Simulation::petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl,
 		const float range = ui.attack_range * m.range_mul + m.range * COMBAT_DISTANCE_SCALE;
 		s += range / (ranged ? COMBAT_DISTANCE_SCALE : 0.6f) * 0.0125f;
 		s += ui.attack_cooldown * 1000.0f / 100000.0f;
+		s -= unit_combat(tmpl, type).prepare * 1000.0f / 100000.0f; // attackTimes prepare
 	}
 	// attackTypes() lists Capture too: no attackStrengths, but its MaxRange 4 and RepeatTime 1000.
 	if (unit_capture_attack(tmpl, type) > 0.0f) s += PETRA_CAPTURE_STRENGTH;
@@ -31792,6 +31796,7 @@ float Simulation::petra_unit_strength(size_t i) const {
 		const bool ranged = (unit_tech_classes(units_.unit_type[i]) & TC_RANGED) != 0;
 		s += units_.attack_range[i] / (ranged ? 0.28f : 0.6f) * 0.0125f; // back to 0 A.D. metres
 		s += units_.attack_cooldown[i] * 1000.0f / 100000.0f;
+		s -= unit_combat_at(i).prepare * 1000.0f / 100000.0f; // attackTimes prepare
 	}
 	if (unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f) s += PETRA_CAPTURE_STRENGTH;
 	float res[3];
@@ -31807,6 +31812,7 @@ float Simulation::petra_fauna_strength(size_t f) const {
 		s += (0.075f * info.hack_damage + 0.085f * info.pierce_damage + 0.045f * info.crush_damage) / 4.0f;
 		s += info.attack_range / 0.6f * 0.0125f; // back to 0 A.D. metres, as for a unit's melee
 		s += info.attack_cooldown * 1000.0f / 100000.0f;
+		s -= info.attack_prepare * 1000.0f / 100000.0f; // attackTimes prepare
 	}
 	s += (0.075f * info.hack_armor + 0.085f * info.pierce_armor + 0.045f * info.crush_armor) / 4.0f;
 	s *= fauna_.max_hp[f] / 100.0f;
