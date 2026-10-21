@@ -673,6 +673,7 @@ void RtsoMain::_ready() {
 	// NetworkStatusOverlay.xml: the status text on sessionOverlayBackground,
 	// over the whole screen, with the disconnectedExitButton below it.
 	net_status_overlay_ = memnew(Control);
+	net_status_overlay_->set_name("NetStatusOverlay");
 	net_status_overlay_->set_anchors_preset(Control::PRESET_FULL_RECT);
 	net_status_overlay_->set_mouse_filter(Control::MOUSE_FILTER_STOP);
 	net_status_overlay_->set_visible(false);
@@ -910,6 +911,7 @@ void RtsoMain::_process(double delta) {
 		}
 		if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
 			net_game_started_ = true;
+			net_saved_loading_ = false;
 			chat_window_.clear_history(); // the session's chat starts empty (Chat.js)
 			// VisualReplay skips a rejoined client's replay ("Don't process files of rejoined
 			// clients"): its commands start mid-match, so it is not recorded at all.

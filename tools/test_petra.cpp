@@ -784,6 +784,62 @@ static void test_diplomacy() {
 		CHECK(when >= 0.0f && when < 5.0f, "one AI's betrayal sets off another waiting AI at once");
 	}
 
+	// checkEvents sees every DiplomacyChanged, even one undone before the AI's next turn: a
+	// human going allied with AI 2 and back to neutral sets off AI 1, still waiting out its lapse.
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(11);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 11, 4, 96.0f);
+		for (uint8_t p = 0; p < 4; ++p) s->set_player_active(p, true, p == 1 || p == 2);
+		s->set_last_man_standing(true);
+		s->set_mutual_ally(1, 2);
+		for (uint8_t p : {1, 2}) {
+			s->set_diplomacy(p, 3, Simulation::DIPLO_NEUTRAL);
+			s->set_diplomacy(3, p, Simulation::DIPLO_NEUTRAL);
+		}
+		run_for(*s, 5.0f);
+		auto &u = s->units_;
+		for (size_t i = 0; i < u.count; ++i) if (u.team[i] == 0) u.alive[i] = false;
+		for (auto &b : s->buildings_) if (b.team == 0) b.hp = 0.0f;
+		for (uint8_t p = 1; p <= 2; ++p) {
+			float tx = 0.0f, tz = 0.0f;
+			for (const auto &b : s->buildings()) if (b.type == BLD_TOWN_CENTER && b.team == p) { tx = b.x; tz = b.z; }
+			for (int i = 0; i < 50; ++i) s->spawn_unit(tx + 8.0f + (float)(i % 10), tz + 8.0f + (float)(i / 10), p, UNIT_SPEARMAN);
+		}
+		const auto dip_of = [&](uint8_t p) -> PetraDiplomacy & {
+			return p == Simulation::PETRA_PLAYER ? s->petra_diplo_ : s->petra_slots_[p].petra_diplo_;
+		};
+		const auto at_war = [&]() {
+			for (uint8_t a = 1; a <= 3; ++a)
+				for (uint8_t b = 1; b <= 3; ++b)
+					if (a != b && s->get_diplomacy(a, b) == Simulation::DIPLO_ENEMY) return true;
+			return false;
+		};
+		bool held[3] = {};
+		float toggled = -1.0f, war = -1.0f;
+		for (float t = 0.0f; t < 150.0f && war < 0.0f; t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			for (uint8_t p = 1; p <= 2; ++p) {
+				PetraDiplomacy &d = dip_of(p);
+				if (d.waiting_to_betray && !held[p]) {
+					held[p] = true;
+					d.betray_lapse = d.elapsed + 1000.0f;
+				}
+			}
+			if (held[1] && held[2] && toggled < 0.0f && !at_war()) {
+				toggled = t;
+				CHECK(s->cmd_set_diplomacy(3, 2, Simulation::DIPLO_ALLY), "the human allies AI 2");
+				CHECK(s->cmd_set_diplomacy(3, 2, Simulation::DIPLO_NEUTRAL), "and goes back to neutral");
+			}
+			if (toggled >= 0.0f && at_war()) war = t;
+		}
+		const float when = toggled >= 0.0f && war >= 0.0f ? war - toggled : -1.0f;
+		std::printf("  stance changed and undone between turns: a waiting AI turns %.1fs later\n", when);
+		CHECK(toggled >= 0.0f, "both AIs wait to betray");
+		CHECK(when >= 0.0f && when < 5.0f, "the undone change still sets off the waiting AI");
+	}
+
 	// Tribute: 0.28 gives an ally 30% of any resource we have over 200 and it
 	// lacks, our own scarcest included.
 	{
@@ -1592,6 +1648,21 @@ static void test_pop_phase2_save_resources() {
 // its minor research and expansion aren't held for a phase it can't research.
 // getOwnUnits / getOwnEntitiesByRole: workers sheltering in a structure keep their role, so
 // trainMoreWorkers and getAccountedWorkers still count them.
+// entity.js currentGatherRate: Petra's estimate carries the civ bonuses 0.28 keeps as
+// technologies, here Carthage's stone (cart_stone_01, auto-researched at Village: x1.25).
+static void test_gather_rate_civ_bonus() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_team_civ(1, (uint8_t)CIV_CARTHAGINIANS);
+	s->set_team_civ(2, (uint8_t)CIV_ATHENIANS);
+	const int32_t c = s->lookup_unit(s->spawn_unit(0.0f, 0.0f, 1, UNIT_FEMALE_CITIZEN));
+	const int32_t a = s->lookup_unit(s->spawn_unit(4.0f, 0.0f, 2, UNIT_FEMALE_CITIZEN));
+	const float rc = s->petra_gather_rate((size_t)c, Simulation::GK_STONE), ra = s->petra_gather_rate((size_t)a, Simulation::GK_STONE);
+	std::printf("  gather rate civ bonus: Carthaginian stone %.3f, Athenian %.3f\n", rc, ra);
+	CHECK(ra > 0.0f && std::fabs(rc / ra - 1.25f) < 1e-3f, "Petra's stone rate carries Carthage's civ bonus");
+}
+
 static void test_garrisoned_workers_count() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -6993,6 +7064,52 @@ static void test_unit_stat_trainable_busy() {
 	cc->queue.clear();
 }
 
+static void test_workers_while_cc_on_emergency() {
+	// The civic centre training emergency units still decides the civilian; the workers'
+	// plan waits for it rather than turning into soldiers at the barracks.
+	int soldiers[2] = {0, 0}, civilians[2] = {0, 0};
+	for (int busy = 0; busy < 2; ++busy) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 1.0f);
+		s->petra_pid_ = 1;
+		Simulation::Building *cc = nullptr;
+		for (auto &b : s->buildings_)
+			if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
+		CHECK(cc != nullptr, "Petra has a civic centre");
+		if (!cc) return;
+		const float cx = cc->x, cz = cc->z;
+		const uint32_t cc_id = cc->id;
+		const uint32_t bar = s->spawn_building_world(cx + (cx > 0 ? -10.0f : 10.0f), cz, BLD_BARRACKS, 1, 1.0f);
+		for (int k = 0; k < 8; ++k) {
+			for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 5000.0f;
+			for (uint8_t q : {PETRA_Q_VILLAGER, PETRA_Q_CITIZEN_SOLDIER}) {
+				auto &a = s->petra_queues_.accounts[q];
+				a.food = a.wood = a.gold = a.stone = 5000.0f;
+			}
+			Simulation::Building &c = s->buildings_[s->building_id_to_idx_.at(cc_id)];
+			c.queue.clear();
+			s->buildings_[s->building_id_to_idx_.at(bar)].queue.clear();
+			c.has_rally_point = busy != 0;
+			c.rally_target_bld_id = busy ? cc_id : 0;
+			while (!s->petra_turn_mod(4, 0)) s->ticks_ += 4;
+			s->petra_train_more_workers();
+			for (const auto &b : s->buildings_)
+				for (const auto &o : b.queue)
+					if (o.petra_plan == PETRA_ORDER_WORKER)
+						(unit_gather_class(o.unit_type, o.tmpl) == GATHER_SUPPORT ? civilians : soldiers)[busy] += o.count;
+			s->ticks_ += 4;
+		}
+	}
+	std::printf("  worker orders, civic centre free: %d civilians %d soldiers; on emergency units: %d civilians %d soldiers\n",
+	            civilians[0], soldiers[0], civilians[1], soldiers[1]);
+	CHECK(civilians[0] > 0 && soldiers[0] == 0, "a free civic centre trains civilians as workers");
+	CHECK(soldiers[1] == 0, "a civic centre busy with emergency units doesn't make the workers soldiers");
+}
+
 static void test_emergency_units_captured_cc() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -7637,6 +7754,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_islands_wood_reserve);
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_garrisoned_workers_count);
+	RUN(test_gather_rate_civ_bonus);
 	RUN(test_idle_workers_repair_cc);
 	RUN(test_worker_elephant_builds);
 	RUN(test_anchor_dropsite_unshared);
@@ -7749,6 +7867,7 @@ int main(int argc, char **argv) {
 	RUN(test_emergency_units);
 	RUN(test_emergency_units_captured_cc);
 	RUN(test_unit_stat_trainable_busy);
+	RUN(test_workers_while_cc_on_emergency);
 	RUN(test_new_cc_defenders);
 	RUN(test_temple_wonder_save);
 	RUN(test_personality_draw);

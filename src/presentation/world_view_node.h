@@ -412,6 +412,7 @@ class RtsoWorldView : public Node3D {
 		// The model's id and the ModelLibrary entry values a frame's unit loop reads.
 		String model_id;
 		float y_offset = 0.0f, scale = 1.0f, height = 0.0f;
+		float metre = 1.0f; // world units per 0.28 metre (ModelLibrary::Entry::metre)
 		float sil_radius = 0.0f; // world units from the unit's origin to its model's farthest corner
 		bool player_color = false; // has 0 A.D. player_trans surfaces (owner colour in custom data)
 	};
@@ -596,8 +597,36 @@ public:
 	// The building model a structure of this civ, type and (WallSet) half length draws; the
 	// wall placement ghost previews its pieces with it.
 	static String building_visual_id(uint8_t civ, uint8_t type, float half_size);
+	// A map-placed structure whose own 0.28 template the sim folds into a shared type (stalls and
+	// Celtic huts are houses) draws its template's actor while its id keeps that type.
+	void set_building_look(uint32_t id, uint8_t type, const String &model) { building_looks_[id] = {type, model}; }
+	void clear_building_looks() { building_looks_.clear(); }
+	// A saved game keeps them in its GUI data ([id, type, model] rows), the sim having no field for them.
+	Array building_looks_data() const {
+		Array out;
+		for (const auto &kv : building_looks_) {
+			Array row;
+			row.push_back((int64_t)kv.first);
+			row.push_back((int)kv.second.first);
+			row.push_back(kv.second.second);
+			out.push_back(row);
+		}
+		return out;
+	}
+	void set_building_looks_data(const Array &rows) {
+		building_looks_.clear();
+		for (int i = 0; i < rows.size(); ++i) {
+			const Array row = rows[i];
+			if (row.size() == 3) set_building_look((uint32_t)(int64_t)row[0], (uint8_t)(int)row[1], row[2]);
+		}
+	}
+	String building_model_of(uint32_t id, uint8_t civ, uint8_t type, float half_size) const {
+		const auto it = building_looks_.find(id);
+		return it != building_looks_.end() && it->second.first == type ? it->second.second : building_visual_id(civ, type, half_size);
+	}
 
 private:
+	std::unordered_map<uint32_t, std::pair<uint8_t, String>> building_looks_;
 	uint8_t local_player_ = 0;
 	bool show_all_status_bars_ = false;
 	bool anim_cull_enabled_ = true; // GameView.cpp Culling

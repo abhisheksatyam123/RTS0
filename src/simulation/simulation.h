@@ -1137,7 +1137,7 @@ public:
 	// Naval Transport Logistics (GarrisonHolder.js / UnitAI.js)
 	static constexpr int TRANSPORT_CAPACITY = 30; // 0 A.D. template_unit_ship_warship_arrow GarrisonHolder Max
 	static constexpr float SHIP_LOADING_RANGE = 10.0f * 0.28f; // GarrisonHolder LoadingRange 10 m in RTS0 scale
-	void order_board_transport(const uint32_t *unit_ids, size_t count, uint32_t transport_id);
+	void order_board_transport(const uint32_t *unit_ids, size_t count, uint32_t transport_id, bool queued = false);
 	void order_disembark(uint32_t transport_id, float target_x, float target_z);
 	void order_disembark_all(uint32_t transport_id, uint8_t notify = 0xFF);
 	void order_disembark_single(uint32_t transport_id, uint32_t unit_id);
@@ -1698,6 +1698,17 @@ public:
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
 			bool queued = false, const std::vector<std::pair<float, float>> &route = {});
 	void order_trade_auto(const uint32_t *unit_ids, size_t count); // farthest pair of tradable markets
+	// 0 A.D. UnitAI.SetupTradeRoute with no source (Trader.SetTargetMarket): a trader with no
+	// market or both takes `market_id` as its first (trader_route's market_b 0) and walks there,
+	// its Shift-queued walks gathering the route's waypoints (UnitAI expectedRoute); one with only
+	// a first market trades between it and `market_id`.
+	void order_setup_trade(const uint32_t *unit_ids, size_t count, uint32_t market_id, bool queued = false);
+	// UnitAI.CancelSetupTradeRoute: traders whose only market is `market_id` drop it.
+	void order_cancel_trade_setup(const uint32_t *unit_ids, size_t count, uint32_t market_id);
+	// Trader.markets with one market: that market's id, else 0.
+	uint32_t trader_first_market(uint32_t unit_id) const;
+	// trader_leg_ while a trader with only its first market gathers its expected route.
+	static constexpr int TRADER_LEG_EXPECTING_ROUTE = 2;
 	// Read-only: the trader's route (Trader.js markets) and which market it heads to
 	// next (0 = market_b, 1 = market_a). False when it has no route.
 	bool trader_route(uint32_t unit_id, uint32_t &market_a, uint32_t &market_b, int &leg) const {
@@ -2062,7 +2073,11 @@ public:
 	bool unit_is_guarding(uint32_t uid) const { return unit_guard_target(uid) != 0; }
 	// UnitAI.isGuardOf: the entity the unit guards (a unit or structure id), or 0.
 	uint32_t unit_guard_target(uint32_t uid) const;
-	bool unit_has_work_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.work_kind[idx] != ORDER_NONE; } // UnitAI hasWorkOrders
+	// UnitAI HasWorkOrders: a work queue kept when a forced order replaced it (UpdateWorkOrders).
+	bool unit_has_work_order(uint32_t uid) const {
+		const auto w = work_orders_.find(uid);
+		return w != work_orders_.end() && !w->second.empty();
+	}
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
 	const Grid<uint8_t>& territory_grid() const { return territory_grid_; }
 	// ICmpTerritoryManager::IsTerritoryBlinking for territory_grid() cell (tx, tz): owned land in a
@@ -2294,7 +2309,7 @@ public:
 		auto it = fauna_id_to_idx_.find(fauna_id);
 		return it == fauna_id_to_idx_.end() ? GAIA_PLAYER : fauna_owner_[it->second];
 	}
-	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
+	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id, bool queued = false);
 	uint32_t find_nearby_prey(size_t i, float x, float z, float max_d2, uint8_t fauna = 0, uint32_t exclude = 0) const;
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
 
@@ -2367,13 +2382,20 @@ public:
 	// the units walk up to it and strike it until it falls (tick_scenery_attackers).
 	// Capturable scenery (benches, tables, obelisks, wooden fences) is captured instead, as a
 	// structure is, unless `allow_capture` is false (Ctrl: session.attack).
-	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id, bool allow_capture = true);
+	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id, bool allow_capture = true,
+			bool queued = false);
 	bool scenery_capturable(const Scenery &sc) const { return scenery_type_info(sc.type).capture_points > 0; }
 	// unit_actions.js "attack" and "capture" on a structure: may one of unit_ids damage it (Attack.js
 	// CanAttack "!Capture": an enemy's, with hitpoints, outside the attack's RestrictedClasses) or take
 	// its capture points (CanAttack "Capture": a Capture attack and Capturable.CanCapture)?
 	bool any_can_damage_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const;
 	bool any_can_capture_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const;
+	// unit_actions.js "attack" firstAbleEntity: may unit uid attack the enemy unit target_id?
+	bool unit_id_can_attack(uint32_t uid, uint32_t target_id) const {
+		const int32_t i = lookup_unit(uid), j = lookup_unit(target_id);
+		return i >= 0 && j >= 0 && units_.alive[i] && units_.alive[j] && units_.attack_damage[i] > 0.0f &&
+				units_.team[i] < MAX_PLAYERS && is_hostile(units_.team[i], units_.team[j]) && unit_can_target((size_t)i, (size_t)j);
+	}
 	// unit_actions.js "heal" firstAbleEntity: the first of unit_ids that heals and may heal the unit
 	// target_id (Heal.js CanHeal: an injured own or allied Human, not itself), else 0.
 	uint32_t first_able_healer(const uint32_t *unit_ids, size_t count, uint32_t target_id) const;
@@ -2701,6 +2723,8 @@ private:
 	// Recompute a player's modifiers and rescale its existing units and structures
 	// (0 A.D. ModificationsManager: a modifier changes every entity it affects).
 	void refresh_tech_mods(uint8_t player_id);
+	float unit_civ_speed_add(size_t idx) const;
+	float civ_gather_bonus(size_t i, uint8_t kind) const;
 	// Bit g set: relic_global_auras()[g] reaches `player` (a relic it or a partner owns).
 	uint64_t relic_aura_mask(uint8_t player) const;
 	void global_aura_masks(uint64_t masks[MAX_PLAYERS]) const;
@@ -2759,6 +2783,7 @@ private:
 	void formation_size(const FormationController &fc, float &width, float &depth) const; // GetSize
 	void attack_unit_one_by_one(const uint32_t *ids, size_t count, uint32_t target_unit_id);
 	void walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz, uint32_t follow = 0);
+	void walk_to_target(size_t i, uint32_t target); // UnitAI WalkToTarget (forced)
 	bool follow_walk_target(size_t i);
 	void attack_building_one_by_one(const uint32_t *ids, size_t count, uint32_t target_building_id, bool allow_capture);
 	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz, bool spread = true);
@@ -3555,6 +3580,8 @@ private:
 	// Whether a finished building of ours trains some roster template of the class, busy or
 	// not (findTrainableUnits; trainMoreUnits drops a class without one from the plan).
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
+	// Whether a finished building of ours lists roster template `tmpl`, busy or not.
+	bool petra_has_trainer(uint16_t tmpl) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
 	void petra_update_capture_strength();
@@ -4313,7 +4340,8 @@ private:
 	UnitOrder current_order(size_t i) const;
 	void set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t target, float x, float z);
 	void begin_walk_order(size_t i); // cmd_move's walk: not forced, replaces the queue
-	void drop_orders(size_t i);      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
+	void drop_orders(size_t i);
+	void replace_orders(size_t i); // drop_orders, but a queued order applied keeps the rest of the queue      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
 	// Without Shift every unit's queue is dropped and all of them run it now.
 	float unit_height(size_t i) const; // terrain, or the water surface under a ship

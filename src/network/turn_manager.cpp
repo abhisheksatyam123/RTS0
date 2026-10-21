@@ -738,10 +738,7 @@ bool TurnManager::saved_game_hold() {
 		if (!p || !p->connected || lockstep_since_.count(*it) || watching_served) it = saved_waiting_.erase(it);
 		else ++it;
 	}
-	if (!saved_waiting_.empty() && rejoin_now_ms() - saved_since_ms_ > SAVED_GAME_WAIT_MS) {
-		std::cerr << "[TurnManager] saved game: starting without " << saved_waiting_.size() << " client(s)\n";
-		saved_waiting_.clear();
-	}
+	// NetServer CheckGameLoadStatus: no time limit; the host can kick a client that never loads.
 	return !saved_waiting_.empty();
 }
 
@@ -1785,11 +1782,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			else if ((c.param & (uint8_t)~NET_PARAM_QUEUED) == 2) // TreasureCollector: collect a Gaia treasure
 				sim.order_collect_treasure(ids, n, c.target_id, queued);
 			else if ((c.param & (uint8_t)~NET_PARAM_QUEUED) == NET_HUNT_SCENERY_NO_CAPTURE)
-				sim.order_attack_scenery(ids, n, c.target_id, false);
+				sim.order_attack_scenery(ids, n, c.target_id, false, queued);
 			else if (sim.player_can_target_fauna(pl, c.target_id))
-				sim.order_hunt(ids, n, c.target_id);
-		} else if (c.cmd_type == 18) { // Board
-			sim.order_board_transport(ids, n, c.target_id);
+				sim.order_hunt(ids, n, c.target_id, queued);
+		} else if (c.cmd_type == 18) { // Board; NET_PARAM_QUEUED queues it
+			sim.order_board_transport(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 19) { // Disembark
 			if (n) sim.order_disembark(ids[0], c.target_x, c.target_z);
 		} else if (c.cmd_type == 20) { // Cancel train
@@ -1811,7 +1808,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			// non-finite point straightens that leg's walk (order_trade drops it too).
 			std::vector<std::pair<float, float>> route;
 			for (size_t k = 0; k + 1 < c.route.size(); k += 2) route.emplace_back(c.route[k], c.route[k + 1]);
-			if (c.target_x >= 1.0f && c.target_x < 16777216.0f && c.target_x == (float)(uint32_t)c.target_x)
+			if (c.target_x == 0.0f && (c.param & NET_PARAM_CANCEL_TRADE))
+				sim.order_cancel_trade_setup(ids, n, c.target_id);
+			else if (c.target_x == 0.0f)
+				sim.order_setup_trade(ids, n, c.target_id, queued);
+			else if (c.target_x >= 1.0f && c.target_x < 16777216.0f && c.target_x == (float)(uint32_t)c.target_x)
 				sim.order_trade(ids, n, c.target_id, (uint32_t)c.target_x, queued, route);
 		} else if (c.cmd_type == 37) { // Remove guard
 			sim.order_remove_guard(ids, n);

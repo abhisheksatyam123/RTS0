@@ -740,7 +740,7 @@ func _ask_reconnect() -> void:
 		return
 	_reconnect_dlg = ConfirmationDialog.new()
 	_reconnect_dlg.name = "ReconnectDialog"
-	_reconnect_dlg.title = "Connection Lost"
+	_reconnect_dlg.title = "Confirmation" # ConnectionHandler.js
 	_reconnect_dlg.dialog_text = "You have been disconnected from the lobby. Do you want to reconnect?"
 	_reconnect_dlg.ok_button_text = "Yes"
 	_reconnect_dlg.cancel_button_text = "No"
@@ -1334,9 +1334,11 @@ func _on_players(code: int, obj) -> void:
 		if p.get("muted", false):
 			_muted[str(p.get("name", ""))] = true
 		var it := _players.create_item(top)
-		var col: Color = {"available": Color(0.6, 0.9, 0.6), "away": Color(0.9, 0.8, 0.4), "playing": Color(0.9, 0.5, 0.5)}.get(st, Color.WHITE)
-		# PlayerList.js presences: Online, Away, Busy (in a game).
-		it.set_text(0, {"available": "Online", "away": "Away", "playing": "Busy"}.get(st, st))
+		# PlayerList.js PlayerStatuses: Online, Away, Busy (in a game), Offline,
+		# and Unknown for any other presence, each in its colour.
+		var col: Color = {"available": Color8(0, 219, 0), "away": Color8(255, 127, 0), "playing": Color8(200, 0, 0),
+			"offline": Color8(0, 0, 0)}.get(st, Color8(178, 178, 178))
+		it.set_text(0, {"available": "Online", "away": "Away", "playing": "Busy", "offline": "Offline"}.get(st, "Unknown"))
 		it.set_custom_color(0, col)
 		it.set_text(1, (BUDDY_SYMBOL + " " if buddy_list.has(str(p.get("name", ""))) else "") + _nick(str(p.get("name", ""))))
 		it.set_custom_color(1, player_color(str(p.get("name", ""))))
@@ -1740,7 +1742,7 @@ func _on_game_selected() -> void:
 func _player_name() -> String:
 	var who := LobbySession.player_name if LobbySession.signed_in() else _name.text.strip_edges()
 	if who == "":
-		return "Player"
+		return "Anonymous" # SanitisePlayerName's name for a blank player
 	# gamesetup_mp.js: the name you join or host with is kept as playername.multiplayer.
 	if not LobbySession.signed_in() and who != multiplayer_name():
 		var cfg := RtsoUserConfig.new()

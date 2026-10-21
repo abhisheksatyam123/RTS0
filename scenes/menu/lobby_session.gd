@@ -149,6 +149,8 @@ func _send(path: String, method: int, body: String, cb: Callable) -> void:
 	add_child(req)
 	# Only an answer to a request made with our own token can say we were kicked.
 	var sent_token := token if token != "" and (body.contains(token) or path.contains(token)) else ""
+	# The callback's owner, taken now: once it is freed the lambda reports no owner at all.
+	var owner_id := cb.get_object_id() if cb.is_valid() else 0
 	req.request_completed.connect(func(result: int, code: int, _headers: PackedStringArray, data: PackedByteArray) -> void:
 		req.queue_free()
 		var ok := result == HTTPRequest.RESULT_SUCCESS
@@ -164,19 +166,20 @@ func _send(path: String, method: int, body: String, cb: Callable) -> void:
 			else:
 				lost = true
 				disconnected.emit()
-		if _callable_alive(cb):
+		if _callable_alive(cb, owner_id):
 			cb.call(code if ok else 0, obj))
 	var headers := PackedStringArray(["Content-Type: application/json"])
 	if req.request(base_url() + path, headers, method, body) != OK:
 		req.queue_free()
-		if _callable_alive(cb):
+		if _callable_alive(cb, owner_id):
 			cb.call(0, null)
 
 
 ## A request's callback may outlive the page that made it (a lambda whose owner
-## was freed before the answer came): is_valid() still says true for it.
-static func _callable_alive(cb: Callable) -> bool:
-	return cb.is_valid() and (cb.get_object_id() == 0 or is_instance_id_valid(cb.get_object_id()))
+## was freed before the answer came): is_valid() still says true for it, and the
+## lambda then names no owner, so the owner taken at the request is checked.
+static func _callable_alive(cb: Callable, owner_id: int) -> bool:
+	return cb.is_valid() and (owner_id == 0 or is_instance_id_valid(owner_id))
 
 
 # 0 A.D. EncryptPassword (source/lobby/pkcs5_pbkdf2.cpp): the lobby gets
@@ -326,6 +329,15 @@ func host_game(game: Dictionary) -> void:
 	_room_started_at = 0
 	_reset_nat()
 	post_json("/rooms", _signed(room))
+
+
+## The hosted game is given up before its match began (Host Saved Game's
+## save picker closed): it leaves the game list.
+func unhost_game() -> void:
+	if not room.is_empty() and token != "":
+		post_json("/rooms/unregister", {"token": token, "id": room.get("id", "")})
+	room = {}
+	_room_posted = {}
 
 
 ## 0 A.D. lobby authentication (XmppClient LobbyAuth, NetServer
@@ -540,6 +552,8 @@ static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictio
 			map_name = str(r[1]).trim_suffix(" (RMS)")
 			map_type = "random"
 	if map_type == "":
+		# LobbyGameRegistration's niceMapName: the map's own name, not its file's.
+		map_name = load("res://scenes/menu/loading.gd").map_display_name(map_id)
 		if not _map_types.has(map_id):
 			var known: Dictionary = setup._map_types_data().get("maps", {})
 			_map_types[map_id] = str((known.get(map_id, {}) as Dictionary).get("type", "skirmish"))

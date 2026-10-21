@@ -1040,7 +1040,10 @@ void RtsoMain::update_net_status_overlay() {
 	if (client && !net_game_started_ && turn_mgr_.rejoin_syncing() && !net_host_.connectionLost()) {
 		status = tr("Synchronizing gameplay with other players…");
 	} else if (net_game_started_ && !turn_mgr_.is_replaying() && turn_mgr_.current_turn() <= rtso::TurnManager::COMMAND_DELAY) {
-		for (uint32_t c : turn_mgr_.waiting_on()) {
+		// NMT_CLIENTS_LOADING: a saved game also waits on the clients still loading it.
+		std::set<uint32_t> waiting(turn_mgr_.saved_game_waiting().begin(), turn_mgr_.saved_game_waiting().end());
+		for (uint32_t c : turn_mgr_.waiting_on()) waiting.insert(c);
+		for (uint32_t c : waiting) {
 			if (c == turn_mgr_.local_client_id()) continue;
 			String name;
 			for (const auto &e : net_host_.playerAssignment())
@@ -2908,10 +2911,11 @@ void RtsoMain::_start_menu_net() {
 	if (lobby_port) lobby_port->set_text(String::num_int64((int64_t)ms->get("net_port")));
 	if (lobby_password) lobby_password->set_text(ms->get("net_password"));
 	if (lobby_observe) lobby_observe->set_pressed_no_signal((bool)ms->get("net_observe"));
-	// A joiner sees the Connecting box, then the setup page; the developer
-	// lobby panel stays behind its button.
-	if (lobby_panel) lobby_panel->set_visible(mode == "host");
-	if (lobby_btn) lobby_btn->set_visible(true);
+	// A joiner sees the Connecting box, then the setup page, and the host the
+	// setup page: 0.28's top panel has no Lobby button, and the session menu's
+	// Lobby entry opens the lobby dialog. The developer lobby panel stays hidden.
+	if (lobby_panel) lobby_panel->set_visible(false);
+	if (lobby_btn) lobby_btn->set_visible(false);
 	if (mode == "host") _on_lobby_host_pressed();
 	else _on_lobby_join_pressed();
 	// tools/playtest_godot_mp.py --firewall: each peer drops datagrams from
@@ -3506,6 +3510,16 @@ Dictionary RtsoMain::get_net_setup_state() const {
 // Shown once the host is up or has let us in; gone at Start, on a rejoin and
 // when the connection drops.
 void RtsoMain::update_net_setup_overlay() {
+	// A disconnect in the setup (kicked, banned, the host gone): 0.28 keeps the
+	// page and its chat behind the "Disconnected" box, with no chat input and
+	// no Ready (ChatInputPanel, ReadyButton); Back leaves.
+	if (net_disconnected_ && net_setup_overlay_ && !net_game_started_) {
+		if (net_status_overlay_ && net_status_overlay_->get_parent() != net_setup_layer_) {
+			net_status_overlay_->reparent(net_setup_layer_, false);
+			if (net_setup_overlay_->has_method("net_disconnected")) net_setup_overlay_->call("net_disconnected");
+		}
+		return;
+	}
 	const bool want = is_net_pregame() && !net_disconnected_ && !turn_mgr_.rejoin_syncing() &&
 			(net_host_.isHost() || net_host_.authResult() == rtso::ARC_OK);
 	if (want && !net_setup_overlay_ && !net_setup_overlay_unsupported_) {
@@ -3541,7 +3555,7 @@ void RtsoMain::update_net_setup_overlay() {
 void RtsoMain::update_net_connect_overlay() {
 	const bool client = net_host_.getRole() == rtso::NetRole::Client;
 	const bool want = client && !net_game_started_ && !net_disconnected_ && !net_host_.connectionLost() &&
-			(net_host_.authResult() < 0 || turn_mgr_.rejoin_syncing());
+			!net_saved_loading_ && (net_host_.authResult() < 0 || turn_mgr_.rejoin_syncing());
 	if (want && !net_connect_overlay_) {
 		Ref<Script> script = ResourceLoader::get_singleton()->load("res://scenes/menu/net_connecting.gd");
 		if (script.is_null()) return;
@@ -3666,6 +3680,20 @@ static void apply_net_host_options(rtso::NetHost &net) {
 	// handshake names the save format too, so the host refuses them up front.
 	net.setSoftwareVersion(std::string(rtso::NET_SOFTWARE_VERSION) + " save " +
 			std::to_string(rtso::Simulation::SAVE_VERSION));
+	// Mods override the game's data, so the host refuses a client with
+	// other mods too (NetProtocol CheckHandshake, in load order).
+	std::vector<std::pair<std::string, std::string>> mods;
+	Ref<Script> lib = ResourceLoader::get_singleton()->load("res://scenes/menu/mods.gd");
+	const Variant v = lib.is_valid() ? lib->call("engine_mods") : Variant();
+	if (v.get_type() == Variant::ARRAY) {
+		const Array list = v;
+		for (int64_t i = 0; i < list.size(); ++i) {
+			const Dictionary m = list[i];
+			if ((bool)m.get("ignoreInCompatibilityChecks", false)) continue;
+			mods.emplace_back(String(m.get("name", "")).utf8().get_data(), String(m.get("version", "")).utf8().get_data());
+		}
+	}
+	net.setEnabledMods(std::move(mods));
 }
 
 // 0 A.D. 0.28 [network]: the host's late-observer policy, observer limit and
@@ -3866,6 +3894,11 @@ void RtsoMain::apply_net_game_start() {
 		++net_setup_.seq;
 		turn_mgr_.request_rejoin(lobby_observe && lobby_observe->is_pressed());
 		if (lobby_status) lobby_status->set_text("Loading the host's saved game");
+		// NetClient OnSavedGameStart: the setup gives way to the loading page,
+		// which stays until the world has come and loaded.
+		net_saved_loading_ = true;
+		show_net_loading_page(setup.map_id);
+		update_net_setup_overlay();
 		return;
 	}
 	turn_mgr_.reset_keep_inbound(); // host batches can arrive in the same poll as GAME_START

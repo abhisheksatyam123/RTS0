@@ -113,13 +113,8 @@ static func start_host(parent: Node, player: String, game_name: String, port: in
 	cfg.set_value("multiplayerhosting.port", str(port))
 	cfg.save()
 	LobbySession.map_upnp(port)
-	if saved:
-		ms.net_saved_game = true
-		var d: Node = load("res://scenes/session/savegame_dialog.gd").open(parent, "load")
-		d.closed.connect(func() -> void:
-			ms.net_saved_game = false
-			ms.net_mode = "")
-		return
+	# SetupWindow's LobbyGameRegistrationController: a saved game is listed as
+	# any other; the match fills in its map and players once the save loads.
 	if LobbySession.signed_in():
 		# The same id main_node registers, so both update one entry (the lobby
 		# matches main_node's untokened post to it by address).
@@ -127,14 +122,22 @@ static func start_host(parent: Node, player: String, game_name: String, port: in
 			"id": "room-%d" % port,
 			"host_port": port,
 			"name": game_name,
-			"host_name": player,
+			"host_name": LobbySession.player_name, # hostUsername: the plain lobby nick
 			"map_id": ms.map_id,
-			"map_name": ms.map_id.replace("_", " ").capitalize(),
+			"map_name": load("res://scenes/menu/loading.gd").map_display_name(ms.map_id),
 			"max_players": ms.player_count,
 			"players": 1,
 			"password": password != "",
 			"state": "init",
 		})
+	if saved:
+		ms.net_saved_game = true
+		var d: Node = load("res://scenes/session/savegame_dialog.gd").open(parent, "load")
+		d.closed.connect(func() -> void:
+			ms.net_saved_game = false
+			ms.net_mode = ""
+			LobbySession.unhost_game())
+		return
 	ms.go("res://scenes/main.tscn")
 
 static func multiplayer_name() -> String:
@@ -246,14 +249,13 @@ func confirm_setup() -> bool:
 	host_feedback.text = ""
 	if mode == "join":
 		var who := join_player_name.text.strip_edges()
-		if who == "":
-			who = "Player"
 		var unknown := join_host_error(join_server.text.strip_edges())
 		if unknown != "":
 			show_host_error(self, unknown)
 			return false
 		_keep_name(who)
-		start_join(who, join_server.text.strip_edges(), valid_port(join_port.text))
+		# CNetServerWorker::SanitisePlayerName: the host names a blank player "Anonymous".
+		start_join(who if who != "" else "Anonymous", join_server.text.strip_edges(), valid_port(join_port.text))
 		_close()
 		return true
 	var game_name := ""
@@ -267,9 +269,9 @@ func confirm_setup() -> bool:
 		host_feedback.text = "Server port number must be between %d and %d." % [PORT_MIN, PORT_MAX]
 		return false
 	var who := LobbySession.player_name if LobbySession.signed_in() else host_player_name.text.strip_edges()
-	if who == "":
-		who = "Player"
 	_keep_name(who)
+	if who == "":
+		who = "Anonymous"
 	if game_name == "":
 		game_name = "%s's game" % who
 	var failed := host_port_error(typed.to_int())
@@ -283,7 +285,7 @@ func confirm_setup() -> bool:
 
 ## startHost / startJoin keep the name as playername.multiplayer.
 func _keep_name(who: String) -> void:
-	if LobbySession.signed_in() or who == multiplayer_name():
+	if LobbySession.signed_in() or who == "" or who == multiplayer_name():
 		return
 	var cfg := RtsoUserConfig.new()
 	cfg.set_value("playername.multiplayer", who)

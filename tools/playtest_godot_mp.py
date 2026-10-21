@@ -141,7 +141,11 @@ def play_saved(args, lobby):
           # GameSettingControl EnabledWhenSavedGame: the joiner's own picks are refused.
           and "refused=The controller loaded a saved game" in outs["join"]
           # A saved game's clients load it at Start: nobody "has rejoined".
-          and h.get("rejoined_lines") == "0" and j.get("rejoined_lines") == "0")
+          and h.get("rejoined_lines") == "0" and j.get("rejoined_lines") == "0"
+          # NetClient OnSavedGameStart: the joiner loads under the loading page,
+          # not the rejoin box; NMT_CLIENTS_LOADING: the host names who loads.
+          and j.get("rejoin_box") == "false" and j.get("saved_loading") == "true"
+          and h.get("waiting", "-").startswith("Waiting_for_players_to_connect:"))
     for role in ("host", "join"):
         for line in gmp_lines(outs[role]):
             print("   " + line)
@@ -276,8 +280,8 @@ def play_setup_leave(args, lobby):
     """0.28 SetupWindow netwarn: bob freezes in the setup, and the host's setup
     page shows "bob losing connection" over itself. Then 0.28 reportDisconnect
     in the game setup: the host leaves before Start;
-    the client's setup page closes for "Lost connection to the server." with
-    the reason, and its OK goes back to the lobby."""
+    the client's setup page stays behind "Lost connection to the server." with
+    the reason, without its chat input or Ready, and its OK goes back to the lobby."""
     print("[gmp] ---- the host leaves the game setup before Start ----")
     port = args.port + 3
     def client(role, name):
@@ -321,7 +325,8 @@ def play_setup_leave(args, lobby):
     status = said("setup_status")
     moved = said("moved_to_observers")
     ok = (host.returncode == 0 and join.returncode == 0 and moved == "Observers: bob"
-          and status == "Lost connection to the server. |  | The host has ended the game. reason=2 saw_page=true page=false"
+          and status == ("Lost connection to the server. |  | The host has ended the game. reason=2 saw_page=true page=true"
+                     " chat_input=false ready_off=true box_layer=20")
           and said("setup_exit_scene") == "res://scenes/menu/lobby.tscn"
           and warning.startswith("bob losing connection (") and warning.endswith(" layer=22")
           # MapSelection.js Random: the host picked a map, the client saw only "Random".
@@ -334,7 +339,7 @@ def play_setup_leave(args, lobby):
         print("[gmp] PASS the host's player assignment made bob an observer; his page listed: Observers: bob")
         print(f"[gmp] PASS the host chose Random and picked {said('random_pick', 'host').split()[0]}; the client's setup showed Random")
         print(f"[gmp] PASS bob froze in the setup; the host's setup page showed over it: {warning}")
-        print(f"[gmp] PASS the host left the setup; the client's page closed for: {status.split(' reason=')[0]}; "
+        print(f"[gmp] PASS the host left the setup; the client's page stayed behind: {status.split(' reason=')[0]}; "
               f"OK went back to the lobby")
         return True
     for role in ("host", "join"):

@@ -234,6 +234,8 @@ func run() -> void:
 	ms.map_id = "acropolis_bay"
 	var sk: Dictionary = LobbySessionScript.room_details(ms, {}, 0)
 	check(sk.get("map_type") == "skirmish" and sk.get("map_size") == "Default", "a skirmish map's size is Default")
+	# LobbyGameRegistration.js niceMapName: the map's own name, not its file's.
+	check(sk.get("map_name") == "Acropolis Bay (2)", "a skirmish map is listed by its name: " + str(sk.get("map_name")))
 	ms.slot_types = [0, 1, 0]
 	ms.map_id = "random_continental"
 	check(LobbySessionScript.game_rating(names, {"alice": 1265, "bob": 1135}) == 1200

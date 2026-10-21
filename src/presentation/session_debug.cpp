@@ -74,7 +74,7 @@ void RtsoMain::debug_gather_nearest() {
 }
 
 // Test hook (single player): two markets and two traders by the local Town
-// Center, the traders selected, then the two right-clicks of setup-trade-route.
+// Center, the traders selected (debug_trade_click right-clicks a market).
 Dictionary RtsoMain::debug_trade_route_clicks() {
 	Dictionary d;
 	if (!sim || net_lockstep()) return d;
@@ -93,20 +93,18 @@ Dictionary RtsoMain::debug_trade_route_clicks() {
 		if (b.id == m2) b2 = &b;
 	}
 	if (!b1 || !b2) return d;
-	String tip;
-	const char *cur = nullptr;
-	trade_route_click(*b1, false, false, &tip);
-	d["hover_first"] = tip;
-	d["first"] = trade_route_click(*b1, true, false, nullptr);
-	trade_route_click(*b1, false, false, &tip, &cur);
-	d["hover_origin"] = tip;
-	d["origin_cursor"] = String(cur);
-	trade_route_click(*b2, false, false, &tip);
-	d["hover_second"] = tip;
-	d["second"] = trade_route_click(*b2, true, false, nullptr);
-	d["origin_after"] = (int)trade_origin_market_;
 	d["m1"] = (int64_t)m1;
 	d["m2"] = (int64_t)m2;
+	return d;
+}
+
+// Test hook: a right-click on market `market` with the selection (Shift when `queued`), through
+// lockstep as a player's click goes.
+Dictionary RtsoMain::debug_trade_click(int64_t market, bool queued) {
+	Dictionary d;
+	if (!sim) return d;
+	for (const auto &b : sim->buildings())
+		if (b.id == (uint32_t)market) d["ok"] = trade_route_click(b, true, queued, nullptr);
 	return d;
 }
 
@@ -121,6 +119,11 @@ Dictionary RtsoMain::debug_trade_tip(int64_t market) {
 			d["ok"] = trade_route_click(b, false, false, &tip, &cur);
 			d["tip"] = tip;
 			d["cursor"] = String(cur ? cur : "");
+			uint32_t ma = 0, mb = 0;
+			int leg = 0;
+			if (!selected_ids.is_empty()) sim->trader_route((uint32_t)(int64_t)selected_ids[0], ma, mb, leg);
+			d["market_a"] = (int64_t)ma;
+			d["market_b"] = (int64_t)mb;
 		}
 	return d;
 }
@@ -529,6 +532,30 @@ void RtsoMain::debug_complete_research(int player, int tech) {
 	if (sim) sim->debug_complete_research((uint8_t)player, (uint8_t)tech);
 }
 
+// Test hooks: `player` holds `points` of a structure's capture points, taken from its owner;
+// and each player's points.
+void RtsoMain::debug_set_capture_points(int64_t building_id, int player, float points) {
+	if (!sim || player < 0 || player >= rtso::MAX_PLAYERS) return;
+	for (const auto &cb : sim->buildings()) {
+		if (cb.id != (uint32_t)building_id) continue;
+		auto &b = const_cast<rtso::Simulation::Building &>(cb);
+		const float moved = points - b.capture_points_by_team[player];
+		b.capture_points_by_team[player] = points;
+		if (b.team < rtso::MAX_PLAYERS && b.team != player)
+			b.capture_points_by_team[b.team] = std::max(0.0f, b.capture_points_by_team[b.team] - moved);
+		return;
+	}
+}
+
+PackedFloat32Array RtsoMain::debug_capture_points(int64_t building_id) const {
+	PackedFloat32Array out;
+	if (!sim) return out;
+	for (const auto &b : sim->buildings())
+		if (b.id == (uint32_t)building_id)
+			for (int p = 0; p < rtso::MAX_PLAYERS; ++p) out.push_back(b.capture_points_by_team[p]);
+	return out;
+}
+
 // Test hook: `count` animals of a FaunaType by the player's Civic Centre, owned by the
 // player (trained livestock) or Gaia.
 PackedInt32Array RtsoMain::debug_spawn_fauna(int fauna_type, int count, bool owned, float dx, float dz) {
@@ -646,6 +673,23 @@ int64_t RtsoMain::debug_civic_centre_id(int player) const {
 }
 
 // Test hook: each player's structures by type name, {player: {name: count}}.
+Array RtsoMain::debug_building_looks() const {
+	Array out;
+	if (!sim || !view) return out;
+	const Array rows = view->building_looks_data();
+	for (int i = 0; i < rows.size(); ++i) {
+		Array row = rows[i];
+		for (const auto &b : sim->buildings())
+			if (b.id == (uint32_t)(int64_t)row[0]) {
+				row.push_back(b.x);
+				row.push_back(b.z);
+				out.push_back(row);
+				break;
+			}
+	}
+	return out;
+}
+
 Dictionary RtsoMain::debug_structure_types(bool with_civ) {
 	Dictionary d;
 	if (!sim) return d;

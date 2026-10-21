@@ -960,11 +960,24 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			const auto send_structure_click = [&](StructureClick c, uint32_t bid, uint32_t sid) {
 				if (c == CLICK_NONE) return false;
 				const bool capture = c == CLICK_CAPTURE;
+				// Alt (orderone): the first selected unit able to attack or capture it.
+				if (sid) {
+					pick_one([&](uint32_t id) {
+						auto v = sim->units();
+						for (size_t i = 0; i < v.count; ++i)
+							if (v.id[i] == id) return v.alive[i] && v.attack_damage[i] > 0.0f;
+						return false;
+					});
+				} else {
+					pick_one([&](uint32_t id) {
+						return capture ? sim->any_can_capture_building(&id, 1, bid) : sim->any_can_damage_building(&id, 1, bid);
+					});
+				}
 				if (sid) {
 					if (turn_cmds())
-						post_lockstep(17, sel_ptr, sel_n, 0, 0, sid, capture ? 0 : rtso::NET_HUNT_SCENERY_NO_CAPTURE);
+						post_lockstep(17, sel_ptr, sel_n, 0, 0, sid, (uint8_t)(qbit | (capture ? 0 : rtso::NET_HUNT_SCENERY_NO_CAPTURE)));
 					else
-						sim->order_attack_scenery(sel_ptr, sel_n, sid, capture);
+						sim->order_attack_scenery(sel_ptr, sel_n, sid, capture, queue_shift);
 				} else {
 					if (turn_cmds())
 						post_lockstep(15, sel_ptr, sel_n, 0, 0, bid, (uint8_t)(qbit | (capture ? 0 : rtso::NET_PARAM_NO_CAPTURE)));
@@ -984,7 +997,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					if (send_structure_click(scenery_click(sid), 0, sid)) return;
 				}
 				for (const auto &b : sim->buildings()) {
-					if (b.wrecked || b.team == local_player()) continue;
+					if (b.wrecked) continue; // own structures too: C recaptures (Capturable.CanCapture)
 					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z;
 					const float hit_r = b.half_size + 1.2f;
 					if (dx * dx + dz * dz > hit_r * hit_r) continue;
@@ -1145,9 +1158,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			const uint32_t clicked_transport_id = transport_under(click_pos.x, click_pos.z);
 			auto board = [&]() {
 				if (turn_cmds())
-					post_lockstep(18, sel_ptr, sel_n, 0, 0, clicked_transport_id);
+					post_lockstep(18, sel_ptr, sel_n, 0, 0, clicked_transport_id, qbit);
 				else
-					sim->order_board_transport(sel_ptr, sel_n, clicked_transport_id);
+					sim->order_board_transport(sel_ptr, sel_n, clicked_transport_id, queue_shift);
 				play_civ_voice("move");
 			};
 			if (clicked_transport_id != 0 && force_garrison) {
@@ -1253,6 +1266,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 			if (clicked_enemy_id != 0) {
+				pick_one([&](uint32_t id) { return sim->unit_id_can_attack(id, clicked_enemy_id); });
 				if (turn_cmds())
 					post_lockstep(3, sel_ptr, sel_n, 0, 0, clicked_enemy_id, qbit);
 				else
@@ -1287,11 +1301,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				uint8_t herd = finfo.is_domestic() && fview.behavior[best_f] != rtso::FAUNA_CORRALLED &&
 				               fview.owner[best_f] == local_player() && Input::get_singleton()->is_key_pressed(KEY_ALT) ? 1 : 0;
 				if (turn_cmds())
-					post_lockstep(17, sel_ptr, sel_n, 0, 0, clicked_fauna_id, herd);
+					post_lockstep(17, sel_ptr, sel_n, 0, 0, clicked_fauna_id, herd ? herd : qbit); // Shift queues a hunt
 				else if (herd)
 					sim->order_herd(sel_ptr, sel_n, clicked_fauna_id);
 				else
-					sim->order_hunt(sel_ptr, sel_n, clicked_fauna_id);
+					sim->order_hunt(sel_ptr, sel_n, clicked_fauna_id, queue_shift);
 				play_civ_voice(herd ? "gather" : "attack");
 				return;
 			}
@@ -1406,6 +1420,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							structure_click(b.id) != CLICK_NONE) {
 						// "attack" (9, allowCapture false) before "capture" (10); C captures.
 						send_structure_click(structure_click(b.id), b.id, 0);
+					} else if (structure_click(b.id) == CLICK_CAPTURE && !able_any([&](uint32_t id) {
+								   return sim->can_return_resource(id, b.id);
+							   })) {
+						// "capture" (10) on an own, allied or neutral structure an enemy holds points of
+						// (Capturable.CanCapture): recapture, before "repair" (11) and "move" (12).
+						send_structure_click(CLICK_CAPTURE, b.id, 0);
 					} else if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) {
 						break; // neutral: walk there
 					} else if (b.team != local_player()) {
