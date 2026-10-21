@@ -252,6 +252,29 @@ int main() {
 		CHECK(near(rate(tw), 1.1f));
 	}
 
+	// A Han corral seats a minister (structures/han/corral.xml), but its EjectClassesOnDestroy
+	// is Animal only: below half health he dies inside (GarrisonHolder.EjectOrKill). A Han
+	// farmstead (EjectClassesOnDestroy Unit) puts its minister outside.
+	{
+		fresh(s);
+		const uint32_t corral = s.spawn_building_world(-30.0f, 0.0f, BLD_CORRAL, 0, 1.0f);
+		const uint32_t farmstead = s.spawn_building_world(-30.0f, -20.0f, BLD_FARMSTEAD, 0, 1.0f);
+		uint32_t m1 = spawn_minister(s, -30.0f, 5.0f), m2 = spawn_minister(s, -30.0f, -15.0f);
+		s.order_garrison(&m1, 1, corral);
+		s.order_garrison(&m2, 1, farmstead);
+		run(s, 6.0f);
+		auto &bc = s.buildings_[s.building_id_to_idx_.at(corral)];
+		auto &bf = s.buildings_[s.building_id_to_idx_.at(farmstead)];
+		CHECK(bc.garrisoned_units.size() == 1 && bf.garrisoned_units.size() == 1);
+		bc.hp = bc.max_hp * 0.4f;
+		bf.hp = bf.max_hp * 0.05f;
+		run(s, 1.0f);
+		const int32_t i1 = s.lookup_unit(m1), i2 = s.lookup_unit(m2);
+		std::printf("corral minister alive %d, farmstead minister alive %d\n", i1 >= 0 && s.units_.alive[i1], i2 >= 0 && s.units_.alive[i2]);
+		CHECK(i1 < 0 || !s.units_.alive[i1]);
+		CHECK(i2 >= 0 && s.units_.alive[i2] && s.buildings_[s.building_id_to_idx_.at(farmstead)].garrisoned_units.empty());
+	}
+
 	if (failures) {
 		std::printf("test_minister: %d failure(s)\n", failures);
 		return 1;

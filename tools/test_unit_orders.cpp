@@ -3971,6 +3971,21 @@ static void test_walk_fight_guard_heal() {
 	}
 }
 
+static void test_capture_tie_to_gaia() {
+	std::printf("105. a structure left with no points goes to Gaia when Gaia ties the top player (Capturable.js reduce from Gaia)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t house = s.spawn_building_world(48.0f, 40.0f, BLD_HOUSE, 1, 1.0f);
+	Simulation::Building *b = const_cast<Simulation::Building *>(bld(s, house));
+	const float m = b->max_capture_points;
+	for (int t = 0; t < MAX_PLAYERS; ++t) b->capture_points_by_team[t] = 0.0f;
+	b->capture_points_by_team[0] = m * 0.5f; // the other half is Gaia's
+	s.tick(DT);
+	b = const_cast<Simulation::Building *>(bld(s, house));
+	std::printf("  owner after the tie: %d\n", b ? (int)b->team : -1);
+	check(b && b->team == GAIA_PLAYER, "Gaia takes it, not player 1");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -4083,6 +4098,7 @@ int main(int argc, char **argv) {
 	test_flee_and_defensive_vision();
 	test_walk_end_then_fight();
 	test_walk_fight_guard_heal();
+	test_capture_tie_to_gaia();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
