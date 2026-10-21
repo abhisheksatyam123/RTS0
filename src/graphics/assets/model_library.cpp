@@ -76,6 +76,21 @@ static float glb_root_scale(Node *n, int depth = 0) {
 	return 0.0f;
 }
 
+// A person on foot. The extractors fitted each 0.28 actor to a height of its own and
+// kept the factor as the GLB root's scale; a bare body (a slinger, a citizen) comes out
+// PERSON_RS_HEIGHT root-scaled units tall. A held spear, bow or staff reaches past the
+// body in the bind pose, so a spearman's bounds run ~60% taller: sizing a person by its
+// root scale draws a hoplite as tall as the citizen beside it, as 0.28 does.
+static constexpr float PERSON_RS_HEIGHT = 4.98f;
+static bool is_person_model(const String &id) {
+	static const char *kNot[] = { "cavalry", "camel", "elephant", "eleph_", "chariot", "ram", "siege", "catapult",
+		"bolt", "lithobolos", "oxybeles", "ballista", "onager", "mangonel", "ship", "boat", "trireme",
+		"projectile", "plane", "wagon", "dog", "packed", "horse", "catafalque", "tower", "_cav", "trader", "merchant" };
+	for (const char *k : kNot)
+		if (id.contains(k)) return false;
+	return !is_fauna_model(id);
+}
+
 float ModelLibrary::target_height(const String &category, const String &id, float natural_h) {
 	if (category == "units") {
 		// Animals keep their height here; load() redraws them at one shared scale.
@@ -1999,19 +2014,23 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 							e.aabb = e.mesh->get_aabb();
 							e.scale = 1.0f;
 							float natural_h = e.aabb.size.y;
+							const float rs = category == "units" ? glb_root_scale(inst) : 0.0f;
+							// A mounted hero (template model sized by a cavalry class model) is no person on foot.
+							const bool on_foot = is_person_model(id) && !(tm && tm->class_model && !is_person_model(String(tm->class_model)));
+							if (rs >= 0.3f && rs <= 0.5f && on_foot) natural_h = PERSON_RS_HEIGHT * rs;
 							float want_h = target_height(category, id, natural_h);
 							if (natural_h > 0.05f && want_h > 0.05f)
 								e.scale = want_h / natural_h;
-							if (category == "units" && is_fauna_model(id)) {
-								const float rs = glb_root_scale(inst);
-								if (rs > 0.01f) e.scale = FAUNA_SCALE / rs;
-							}
+							if (category == "units" && is_fauna_model(id) && rs > 0.01f) e.scale = FAUNA_SCALE / rs;
 							// A template model is drawn at its class model's scale, so a
 							// hero's crest or a champion's spear doesn't shrink the body.
 							if (tm && tm->class_model) {
 								const Entry &cls = get(category, String(tm->class_model));
 								if (cls.valid && cls.scale > 0.0f) e.scale = cls.scale;
 							}
+							e.height = natural_h;
+							// World units per 0.28 metre: the GLB's units are 0.28's times its root scale.
+							e.metre = rs > 0.01f ? e.scale * rs : e.scale;
 							// Props keep their 0 A.D. actor origin (a wreck sits partly under water).
 							e.y_offset = e.animated || category == "props" ? 0.0f : -e.aabb.position.y * e.scale;
 							e.valid = true;
@@ -2041,6 +2060,8 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 		if (e.mesh.is_valid()) {
 			e.aabb = e.mesh->get_aabb();
 			e.scale = 1.0f;
+			e.metre = 1.0f;
+			e.height = e.aabb.size.y;
 			e.y_offset = -e.aabb.position.y;
 			e.valid = true;
 			e.crowd_mesh = e.mesh;

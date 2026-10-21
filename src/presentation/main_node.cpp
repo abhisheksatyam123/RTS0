@@ -3510,6 +3510,16 @@ Dictionary RtsoMain::get_net_setup_state() const {
 // Shown once the host is up or has let us in; gone at Start, on a rejoin and
 // when the connection drops.
 void RtsoMain::update_net_setup_overlay() {
+	// A disconnect in the setup (kicked, banned, the host gone): 0.28 keeps the
+	// page and its chat behind the "Disconnected" box, with no chat input and
+	// no Ready (ChatInputPanel, ReadyButton); Back leaves.
+	if (net_disconnected_ && net_setup_overlay_ && !net_game_started_) {
+		if (net_status_overlay_ && net_status_overlay_->get_parent() != net_setup_layer_) {
+			net_status_overlay_->reparent(net_setup_layer_, false);
+			if (net_setup_overlay_->has_method("net_disconnected")) net_setup_overlay_->call("net_disconnected");
+		}
+		return;
+	}
 	const bool want = is_net_pregame() && !net_disconnected_ && !turn_mgr_.rejoin_syncing() &&
 			(net_host_.isHost() || net_host_.authResult() == rtso::ARC_OK);
 	if (want && !net_setup_overlay_ && !net_setup_overlay_unsupported_) {
@@ -3670,6 +3680,20 @@ static void apply_net_host_options(rtso::NetHost &net) {
 	// handshake names the save format too, so the host refuses them up front.
 	net.setSoftwareVersion(std::string(rtso::NET_SOFTWARE_VERSION) + " save " +
 			std::to_string(rtso::Simulation::SAVE_VERSION));
+	// Mods override the game's data, so the host refuses a client with
+	// other mods too (NetProtocol CheckHandshake, in load order).
+	std::vector<std::pair<std::string, std::string>> mods;
+	Ref<Script> lib = ResourceLoader::get_singleton()->load("res://scenes/menu/mods.gd");
+	const Variant v = lib.is_valid() ? lib->call("engine_mods") : Variant();
+	if (v.get_type() == Variant::ARRAY) {
+		const Array list = v;
+		for (int64_t i = 0; i < list.size(); ++i) {
+			const Dictionary m = list[i];
+			if ((bool)m.get("ignoreInCompatibilityChecks", false)) continue;
+			mods.emplace_back(String(m.get("name", "")).utf8().get_data(), String(m.get("version", "")).utf8().get_data());
+		}
+	}
+	net.setEnabledMods(std::move(mods));
 }
 
 // 0 A.D. 0.28 [network]: the host's late-observer policy, observer limit and
