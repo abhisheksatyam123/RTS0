@@ -16364,7 +16364,9 @@ float Simulation::promotion_required_xp(size_t i) const {
 	const uint8_t team = units_.team[i];
 	float xp = promotion_required_xp_template(team, units_.tmpl[i], units_.unit_type[i], units_.rank[i]);
 	if (xp < 0.0f || team >= MAX_PLAYERS) return xp;
-	// Promotion.js GetRequiredXp: ApplyValueModificationsToEntity, range auras included.
+	// Promotion.js GetRequiredXp: ApplyValueModificationsToEntity, range auras included. A
+	// garrisoned unit is out of the world, where no range aura reaches it.
+	if (units_.action_state[i] == ACTION_GARRISONED) return xp;
 	const float near = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], team, AURA_REQUIRED_XP,
 		units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]); // range ones
 	if (near > 0.0f) xp *= near;
