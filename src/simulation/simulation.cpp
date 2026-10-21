@@ -14223,35 +14223,12 @@ void Simulation::tick_gather(float dt) {
 			}
 			if (!fish && field_it == field_bld_by_res_.end() && !supply_slot[i]) {
 				// MaxGatherers: a full supply turns the unit away as soon as it is over the cap
-				// (APPROACHING enter, AddGatherer fails), not once it has walked there. It looks
-				// for another supply of the same kind near itself (not on a forced order), then
-				// near the full one (UnitAI FINDINGNEWTARGET), or gives up.
-				const uint32_t rid = units_.target_resource_id[i];
-				FieldGatherers &sg = supply_gatherers_[rid];
-				uint32_t alt = 0;
-				// A hunter only goes on to the same animal (FINDINGNEWTARGET's template filter).
-				const uint8_t species = resources_.subtype[ridx] == RES_SUB_MEAT ? units_.hunt_fauna[i] : 0;
-				if (!(units_.order_flags[i] & ORDER_FLAG_FORCE))
-					alt = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], rt, uteam,
-							resources_.subtype[ridx], &supply_gatherers_, rid, species);
-				if (alt == 0)
-					alt = find_nearby_resource(resources_.x[ridx], resources_.z[ridx], rt, uteam,
-							resources_.subtype[ridx], &supply_gatherers_, rid, species);
-				sg.total--;
-				if (alt != 0) {
-					// The new supply has a free slot (find_nearby_resource skips full ones).
-					FieldGatherers &ag = supply_gatherers_[alt];
-					ag.total++;
-					ag.slots_taken++;
-					supply_slot[i] = 1;
-					UnitOrder o = current_order(i);
-					o.target = alt;
-					apply_order(units_.id[i], o);
-				} else {
-					units_.target_resource_id[i] = 0;
-					units_.action_state[i] = ACTION_IDLE;
-					finish_order(i);
-				}
+				// (APPROACHING enter, AddGatherer fails), not once it has walked there, and UnitAI
+				// goes to FINDINGNEWTARGET: queued orders first, then another free supply of the
+				// kind near itself (not on a forced order) or near where it was sent, else a walk
+				// back there or to a dropsite (finish_order).
+				supply_gatherers_[units_.target_resource_id[i]].total--;
+				finish_order(i, true);
 				continue;
 			}
 			if (gather_in_reach(i, ridx, units_.pos_x[i], units_.pos_z[i])) {
@@ -18862,13 +18839,17 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 		const uint8_t species = sub == RES_SUB_MEAT ? units_.hunt_fauna[i] : 0;
 		const uint32_t previous = units_.target_resource_id[i];
 		uint32_t r = 0;
-		// IsAvailableTo: a field or a carcass that has its MaxGatherers is skipped.
-		const auto *busy = sub == RES_SUB_GRAIN ? &field_gatherers_ : sub == RES_SUB_MEAT ? &supply_gatherers_ : nullptr;
+		// IsAvailableTo: a supply that has its MaxGatherers is skipped (fish have their own count).
+		const auto *busy = sub == RES_SUB_GRAIN ? &field_gatherers_ : sub == RES_SUB_FISH ? nullptr : &supply_gatherers_;
+		// FindNearbyResource filters on the order's generic type (order.data.type), not on what
+		// the unit happens to carry: the supply it was sent to, while it is still known.
+		uint8_t want = units_.res_type_carried[i];
+		if (auto pr = res_id_to_idx_.find(previous); pr != res_id_to_idx_.end()) want = resources_.type[pr->second];
 		// FindNearbyResource takes live animals too (PerformGather then kills one first): a
 		// hunter goes on to the nearer of a carcass and a live animal of the kind.
 		uint32_t prey = 0;
 		auto search = [&](float x, float z) {
-			r = find_nearby_resource(x, z, units_.res_type_carried[i], units_.team[i], sub, busy, previous, species);
+			r = find_nearby_resource(x, z, want, units_.team[i], sub, busy, previous, species);
 			prey = sub == RES_SUB_MEAT ? find_nearby_prey(i, x, z, NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE, species) : 0;
 			if (r != 0 && prey != 0) {
 				const size_t ri = res_id_to_idx_.at(r), fi = fauna_id_to_idx_.at(prey);
@@ -18884,6 +18865,7 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 		if (r != 0) {
 			UnitOrder o = current_order(i);
 			o.target = r;
+			o.flags &= (uint8_t)~ORDER_FLAG_FORCE; // PerformGather(nearbyResource, false, false): not forced
 			apply_order(uid, o);
 			return;
 		}

@@ -250,9 +250,18 @@ func run() -> void:
 	await turns(2)
 	main.clear_selection()
 	await frames(1)
-	for u in state()["units"]:
-		if int(u["id"]) == int(a["id"]):
-			walker = u
+	# Press only once the walker is clear of the screen edges: a press held near one
+	# edge-scrolls the camera away from the units and supplies the later steps use
+	# (the default box formation leaves it at the edge after step 5).
+	var vp6: Vector2 = state()["viewport"]
+	for _i in 40:
+		for u in state()["units"]:
+			if int(u["id"]) == int(a["id"]):
+				walker = u
+		var wp: Vector2 = window_pos(walker)
+		if wp.x > 120 and wp.y > 120 and wp.x < vp6.x - 120 and wp.y < vp6.y - 120:
+			break
+		await turns(1)
 	var press_at: Vector2 = window_pos(walker)
 	move(press_at)
 	await frames(2)
