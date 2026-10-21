@@ -3618,6 +3618,8 @@ private:
 	// Whether a finished building of ours trains some roster template of the class, busy or
 	// not (findTrainableUnits; trainMoreUnits drops a class without one from the plan).
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
+	// The plan queue an attack plan's order trains in (trainMoreUnits: by the order's classes).
+	static uint8_t petra_plan_order_queue(const PetraUnitStat &st);
 	// Whether a finished building of ours lists roster template `tmpl`, busy or not.
 	bool petra_has_trainer(uint16_t tmpl) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;

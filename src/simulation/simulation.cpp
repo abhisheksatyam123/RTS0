@@ -21604,6 +21604,14 @@ std::vector<Simulation::PetraUnitStat> Simulation::petra_plan_unit_stats(uint8_t
 	return stats;
 }
 
+// attackPlan.js trainMoreUnits: the queue an order trains in, by the order and not the template
+// picked: the "Siege" order (siegeStrength; its war elephants too) and a Hero order in the
+// plan's siege queue, a Champion order in its champion queue, the rest in its own.
+uint8_t Simulation::petra_plan_order_queue(const PetraUnitStat &st) {
+	if (st.siege_strength > 0.0f || (st.classes & TC_HERO).any()) return PETRA_Q_PLAN_SIEGE;
+	return (st.classes & TC_CHAMPION).any() ? PETRA_Q_PLAN_CHAMP : PETRA_Q_PLAN;
+}
+
 bool Simulation::petra_unit_stat_trainable(const PetraUnitStat &st) const {
 	const bool hero_wanted = (st.classes & TC_HERO).any();
 	for (uint16_t tmpl : civ_roster_ids(petra_ps().civ)) {
@@ -21770,9 +21778,10 @@ void Simulation::petra_manage_military_production(float dt) {
 			if (tmpl == CIV_UNIT_TEMPLATE_NONE) {
 				// No template: the class drops out of the plan for good (delete this.unitStat), and
 				// mustStart no longer waits for it. (Not when its trainers' queues are only full.)
+				// The next class waits for the plan's next turn (buildOrders.splice, nothing queued).
 				if (main_plan && st.index < 16 && !petra_unit_stat_trainable(st))
 					petra_attack_mgr_.dropped_classes |= (uint16_t)(1u << st.index);
-				continue;
+				return;
 			}
 			const CivUnitTemplate &t = civ_unit_template(tmpl);
 			// checkPausedQueues: short of workers, the plan trains one at a time.
@@ -21780,11 +21789,7 @@ void Simulation::petra_manage_military_production(float dt) {
 			const UnitTypeInfo &ui = civ_template_unit_info(tmpl, t.unit_type);
 			float cost[RES_COUNT];
 			unit_train_cost(petra_pid_, tmpl, ui, cost);
-			// trainMoreUnits: siege engines and heroes in the plan's siege queue, champions in its
-			// champion queue, the rest in its own.
-			const TechClasses tc = classes_of(tmpl, t.unit_type);
-			const uint8_t queue = (tc & (TC_SIEGE | TC_HERO)).any() ? PETRA_Q_PLAN_SIEGE
-			                    : (tc & TC_CHAMPION).any() ? PETRA_Q_PLAN_CHAMP : PETRA_Q_PLAN;
+			const uint8_t queue = petra_plan_order_queue(st);
 			// attackPlan.js:688 TrainingPlan(template, max, max): the whole batch trains at once.
 			bool leaves = true;
 			for (int r = 0; r < RES_COUNT; ++r)

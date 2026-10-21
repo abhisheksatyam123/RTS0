@@ -3447,7 +3447,8 @@ static void test_huge_attack_drops_classes() {
 	uint16_t elite = 0;
 	for (const auto &st : full)
 		if ((st.classes & (TC_CHAMPION | TC_HERO)).any()) elite |= (uint16_t)(1u << st.index);
-	for (int k = 0; k < 4; ++k) {
+	// One order leaves a turn (buildOrders.splice, then nothing more that turn): five here.
+	for (int k = 0; k < 8; ++k) {
 		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 20000.0f;
 		run_ai_turns(*s, 1);
 	}
@@ -3461,6 +3462,77 @@ static void test_huge_attack_drops_classes() {
 	CHECK(elite && (dropped & elite) == elite, "the champion and hero classes leave the plan when nothing trains them");
 	CHECK(elite_left == 0, "they stay out once the city phase arrives");
 	CHECK((dropped & ~elite) == 0, "the citizen-soldier classes stay");
+}
+
+// attackPlan.js trainMoreUnits: when the order furthest behind has no template, the order is
+// deleted and nothing is queued that turn; the next order trains on the plan's next turn.
+// Each order trains in the queue its classes name, not the template's: the "Siege" order's war
+// elephants (Champion units) in the siege queue.
+static void test_attack_order_no_template() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->spawn_building_world(tx + (tx > 0.0f ? -12.0f : 12.0f), tz, BLD_BARRACKS, 1, 1.0f);
+	s->players_[1].phase = 2;
+	s->cheat_mods_[1].pop_bonus = 300;
+	// Nothing of ours trains ranged infantry, the Attack's first order.
+	for (uint16_t tmpl : civ_roster_ids(s->players_[1].civ)) {
+		const TechClasses c = civ_unit_template(tmpl).tech_classes;
+		if ((c & (TC_INFANTRY | TC_RANGED)) == (TC_INFANTRY | TC_RANGED)) s->triggers_.disabled_templates.push_back(tmpl);
+	}
+	auto &m = s->petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 0;
+	m.kind = PETRA_ATTACK_ATTACK;
+	s->petra_plan_sizes(PETRA_ATTACK_ATTACK);
+	m.dropped_classes = 0;
+	auto &plan = s->petra_attack_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	auto queued = [&] {
+		int n = 0;
+		for (const auto &b : s->buildings())
+			for (const auto &o : b.queue) n += o.petra_plan == PETRA_ORDER_ATTACK ? o.count : 0;
+		return n;
+	};
+	auto fund = [&] {
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 20000.0f;
+		for (uint8_t q : {PETRA_Q_PLAN, PETRA_Q_PLAN_CHAMP, PETRA_Q_PLAN_SIEGE}) {
+			auto &a = s->petra_queues_.accounts[q];
+			a.food = a.wood = a.gold = a.stone = 20000.0f;
+		}
+	};
+	fund();
+	s->petra_manage_military_production(0.0f);
+	const int first = queued();
+	const bool ranged_dropped = (m.dropped_classes & 1u) != 0;
+	fund();
+	s->petra_manage_military_production(0.0f);
+	const int second = queued();
+	std::printf("  Attack with no ranged infantry template: %d queued on its turn (ranged order %s), %d on the next\n",
+	            first, ranged_dropped ? "dropped" : "kept", second);
+	CHECK(ranged_dropped, "the order with no template leaves the plan");
+	CHECK(first == 0, "nothing else is queued on that turn");
+	CHECK(second > 0, "the next order trains on the plan's next turn");
+
+	using St = Simulation::PetraUnitStat;
+	const St elephants{TC_ELEPHANT | TC_MELEE, 1.0f, 0, 2, 2, 0.0f, 3.0f, 1.0f, 1.0f};
+	const St hero{TC_HERO, 1.0f, 0, 1, 1, 2.0f, 0.0f, 1.0f, 1.0f};
+	const St champions{TC_INFANTRY | TC_MELEE | TC_CHAMPION, 1.0f, 3, 18, 3, 3.0f, 0.0f, 1.0f, 1.0f};
+	const St infantry{TC_INFANTRY | TC_MELEE, 1.0f, 6, 16, 3, 1.6f, 0.0f, 0.3f, 0.3f};
+	CHECK(Simulation::petra_plan_order_queue(elephants) == PETRA_Q_PLAN_SIEGE, "the Siege order's elephants train in the siege queue");
+	CHECK(Simulation::petra_plan_order_queue(hero) == PETRA_Q_PLAN_SIEGE, "a Hero order trains in the siege queue");
+	CHECK(Simulation::petra_plan_order_queue(champions) == PETRA_Q_PLAN_CHAMP, "a Champion order trains in the champion queue");
+	CHECK(Simulation::petra_plan_order_queue(infantry) == PETRA_Q_PLAN, "a citizen order trains in the plan's queue");
 }
 
 // defenseManager.js assignDefenders: soldiers of a plan still mustering defend the base
@@ -8074,6 +8146,7 @@ int main(int argc, char **argv) {
 	RUN(test_attack_plan_keeps_hunters);
 	RUN(test_raid_takes_every_rider);
 	RUN(test_huge_attack_drops_classes);
+	RUN(test_attack_order_no_template);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
 	RUN(test_attack_request_counts_raid);
