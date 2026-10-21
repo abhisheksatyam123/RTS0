@@ -4330,6 +4330,15 @@ private:
 	enum : uint8_t { FOREST_OPEN = 0, FOREST_CLOSED = 1, FOREST_CLOSED_LARGE = 2 };
 	std::vector<uint8_t> forest_cells_;
 	uint64_t forest_sig_ = 0;
+	// The Gaia obstacles were listed afresh (ensure_gaia_obstacles) since forest_cells_ were worked
+	// out. Their signature names the supplies, not where they stand or how big they are, and a tree
+	// moved (snap_trees_to_tiles) or given its flora's size (set_resource_flora) is listed again under
+	// the same one: the woods are worked out again from the new list all the same, as 0.28 rasterizes
+	// a static shape that moved again (CCmpObstructionManager.cpp:381-396 MoveShape dirties its old and
+	// new squares). Else a game would keep the woods of the trees as they first stood, and the same
+	// game loaded from a save (which lists them afresh, as CCmpPathfinder.cpp:222-223 rebuilds its grid
+	// from the obstructions on MT_Deserialized) other ones: their long paths would part.
+	bool forest_stale_ = true;
 	bool forest_removals_only_ = false; // tick_gather felled trees from up-to-date forest_cells_
 	uint64_t forest_sig_of_gaia() const { return gaia_obstacles_sig_ ^ ((uint64_t)nav_grid_.res << 48); }
 	bool forest_cell_closed(int cx, int cy, float clr = CLEARANCE_DEFAULT) const;
