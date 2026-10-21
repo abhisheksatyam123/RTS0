@@ -6399,6 +6399,25 @@ static void test_defensive_location() {
 		std::printf("  wonder victory: sentry tower spot %.1f from our wonder (at least %.1f)\n", d, dmin);
 		CHECK(got && d >= dmin - 1.5f && d < dmin + 6.0f, "the tower rings our wonder just beyond 50 m");
 	}
+
+	// No enemy or neutral structures: an ally's count unless in allied victory (headquarters.js:1149).
+	for (const bool last_man : {true, false}) {
+		auto a = std::make_unique<Simulation>();
+		a->set_sim_seed(42);
+		a->reset();
+		a->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		a->set_victory_condition(VICTORY_ENDLESS);
+		a->set_last_man_standing(last_man);
+		a->set_diplomacy(0, 1, Simulation::DIPLO_ALLY);
+		a->set_diplomacy(1, 0, Simulation::DIPLO_ALLY);
+		run_for(*a, 20.0f);
+		a->petra_pid_ = 1;
+		int ax = 0, az = 0;
+		const bool got = a->petra_find_defensive_location(BLD_SENTRY_TOWER, ax, az);
+		std::printf("  only an ally, %s: %s\n", last_man ? "last man standing" : "allied victory", got ? "a spot facing it" : "no spot");
+		if (last_man) CHECK(got && !a->allied_victory(), "with only an ally, towers face its structures");
+		else CHECK(!got, "in allied victory, allies' structures don't count");
+	}
 }
 
 // queueplanTraining.js: each batch Petra queues carries what it is for (a worker, the attack

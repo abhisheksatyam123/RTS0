@@ -27090,7 +27090,7 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 // civic centre, at least 30 m from our towers and fortresses, never within 80 m of an enemy
 // civic centre, fortress or tower, near an invading army or under enemy fire. Towers keep to the
 // narrow frontier (45 m from the border), fortresses take the large one (80 m) too. Without enemy
-// structures, neutral players' count (allied victory: allies never do). In wonder victory with
+// structures, neutral players' count, then allies' unless in allied victory. In wonder victory with
 // a wonder of ours up (a foundation too) the frontier rule is dropped: anywhere in our territory
 // at least 50 m beyond the wonder's footprint, weighted 200 x its squared distance to the wonder
 // so the defences ring it. Distances here are 0 A.D.'s metres at 4 m per world unit.
@@ -27099,17 +27099,20 @@ bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &
 	if (territory_grid_.blank() || R <= 0) return false;
 	struct Site { float x, z; bool cc; };
 	std::vector<Site> foes;
-	auto collect = [&](bool hostile) {
+	enum { HOSTILE, NEUTRAL, ALLIED };
+	auto collect = [&](int kind) {
 		for (const Building &b : buildings_) {
 			if (b.team >= MAX_PLAYERS || b.team == petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
-			const bool foe = is_hostile(petra_pid_, b.team);
-			if (hostile ? !foe : (foe || is_ally(petra_pid_, b.team))) continue;
+			const bool foe = is_hostile(petra_pid_, b.team), ally = is_ally(petra_pid_, b.team);
+			if (kind == HOSTILE ? !foe : kind == NEUTRAL ? (foe || ally) : !ally) continue;
 			const TechClasses c = building_tech_classes(b.type);
 			if (c & (TC_CIVCENTRE | TC_FORTRESS | TC_TOWER)) foes.push_back({b.x, b.z, (c & TC_CIVCENTRE) != 0});
 		}
 	};
-	collect(true);
-	if (foes.empty()) collect(false);
+	collect(HOSTILE);
+	if (foes.empty()) collect(NEUTRAL);
+	// headquarters.js:1149: with neither, allies' (none under allied victory).
+	if (foes.empty() && !allied_victory()) collect(ALLIED);
 	if (foes.empty()) return false;
 	std::vector<std::pair<float, float>> own;
 	for (const Building &b : buildings_)
