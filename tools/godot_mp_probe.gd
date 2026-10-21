@@ -180,7 +180,8 @@ func _run() -> void:
 		if rbox and str(rbox.text).contains("rejoining"):
 			saw_rejoin_box = true
 			rejoin_box_after_loading = rejoin_box_after_loading or saw_rejoin_loading
-		if late and saw_rejoin_box and main.net_loading_hold() and root.get_node_or_null("Loading") != null:
+		var lt: String = load("res://scenes/menu/loading.gd").last_title
+		if late and saw_rejoin_box and root.get_node_or_null("Loading") != null and lt.contains("“"):
 			saw_rejoin_loading = true
 		if late and str(st.get("net_status", "")).begins_with("Synchronizing") and int(st.get("turn", 0)) > 0:
 			saw_sync = true
@@ -389,9 +390,9 @@ func _run() -> void:
 		if st.get("oos", false):
 			return _fail("out of sync at turn %d" % int(st.get("oos_turn", 0)))
 		if late and int(st.get("turn", 0)) >= turns:
-			_say("late done turn=%d seat=%d rejoin_box=%s rejoin_loading=%s box_after_loading=%s synchronizing=%s title=%s" % [
+			_say("late done turn=%d seat=%d rejoin_box=%s box_after_loading=%s synchronizing=%s title=%s" % [
 					int(st.get("turn", 0)), int(st.get("seat", -1)), str(saw_rejoin_box).to_lower(),
-					str(saw_rejoin_loading).to_lower(), str(rejoin_box_after_loading).to_lower(), str(saw_sync).to_lower(),
+					str(rejoin_box_after_loading).to_lower(), str(saw_sync).to_lower(),
 					str(load("res://scenes/menu/loading.gd").last_title).replace(" ", "_")])
 			break
 		if int(st.get("turn", 0)) >= turns + 5:

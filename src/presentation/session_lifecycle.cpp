@@ -917,7 +917,7 @@ void RtsoMain::_process(double delta) {
 			const std::string map_id = net_setup_.seq ? net_setup_.setup.map_id
 					: ms ? std::string(String(ms->get("map_id")).utf8().get_data()) : std::string();
 			net_saved_loading_ = true;
-			net_rejoin_load_frames_ = 2;
+			net_rejoin_load_frames_ = 3;
 			show_net_loading_page(map_id);
 			update_net_connect_overlay();
 		}

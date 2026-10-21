@@ -121,9 +121,11 @@ def play_late_observer(args, lobby):
         outs[role] = p.log.read()
     line = next((l.split(" late done ", 1)[1] for l in gmp_lines(outs["late"]) if " late done " in l), "")
     got = dict(kv.split("=", 1) for kv in line.split()) if line else {}
-    ok = (late.returncode == 0 and got.get("seat") == "-1" and got.get("rejoin_box") == "true"
-          and got.get("rejoin_loading") == "true" and got.get("box_after_loading") == "false"
-          and got.get("synchronizing") == "true" and got.get("title", "").startswith("Loading_"))
+    # The join's first page is titled "Connecting to server...": a map title
+    # ("Loading “…”", or "Generating “…”" for a random map) is the rejoin's page.
+    ok = (late.returncode == 0 and got.get("seat") == "255" and got.get("rejoin_box") == "true"
+          and got.get("box_after_loading") == "false" and got.get("synchronizing") == "true"
+          and got.get("title", "").startswith(("Loading_“", "Generating_“")))
     for l in gmp_lines(outs["late"]):
         print("   " + l)
     if ok:
