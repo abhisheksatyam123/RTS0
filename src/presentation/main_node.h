@@ -1181,6 +1181,9 @@ private:
 	RichTextLabel *pause_by_label_ = nullptr;
 	void update_pause_overlay();
 	bool close_open_dialogs(); // session.js closeOpenDialogs; true when one was open
+	// Nothing for Escape to close or cancel: no session dialog or menu, no placement, no
+	// armed action and an empty selection. A phone's Back button then opens the menu.
+	bool nothing_to_cancel();
 	void _on_civ_icon_gui_input(const Ref<InputEvent> &event); // CivIcon.onPress
 	void _on_flare_button_pressed(); // MiniMapFlareButton.onPress
 	bool selected_building_trains_units() const; // its Trainer has entities (session.autorallypoint)
