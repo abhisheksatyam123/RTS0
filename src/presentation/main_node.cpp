@@ -1583,8 +1583,13 @@ void RtsoMain::prune_selection() {
 	auto uview = sim->units();
 	std::unordered_set<int32_t> wanted(selected_ids.ptr(), selected_ids.ptr() + selected_ids.size());
 	std::unordered_set<int32_t> living;
+	// selection.js update: with more than one entity selected, one that changed owner (a relic
+	// picked up, a unit converted) leaves the selection; a lone one stays.
+	const bool owners_only = selected_ids.size() > 1 && !spectating() && !turn_mgr_.is_replaying() &&
+			!sim->controls_all(local_player());
 	for (size_t i = 0; i < uview.count; ++i)
-		if (uview.alive[i] && wanted.count((int32_t)uview.id[i])) living.insert((int32_t)uview.id[i]);
+		if (uview.alive[i] && wanted.count((int32_t)uview.id[i]) && (!owners_only || uview.team[i] == local_player()))
+			living.insert((int32_t)uview.id[i]);
 	// The player's own livestock stays selected until it dies or is penned.
 	for (int32_t id : wanted)
 		if (!living.count(id) && sim->fauna_selectable_by(local_player(), (uint32_t)id)) living.insert(id);
@@ -1679,12 +1684,37 @@ void RtsoMain::_on_panel_entity_gui_input(const Ref<InputEvent> &event, int slot
 	size_t i = 0;
 	while (i < uview.count && uview.id[i] != id) ++i;
 	if (i == uview.count) return;
-	if (mb->is_double_click() || !rtso::hotkeys::held("selection.add")) {
+	if (mb->is_double_click()) {
+		// onDoublePress: selectAndMoveTo(getEntityOrHolder(ent)): a garrisoned hero's holder is
+		// selected and looked at, a hero in the field is selected and followed.
+		uint32_t holder = sim->turret_holder_of(id);
+		if (!holder && !uview.alive[i])
+			for (const auto &b : sim->buildings()) {
+				const std::vector<uint32_t> *g = sim->get_garrisoned_units(b.id);
+				if (g && std::find(g->begin(), g->end(), id) != g->end()) { holder = b.id; break; }
+			}
+		selected_ids.clear();
+		selected_building_id = 0;
+		for (const auto &b : sim->buildings())
+			if (holder && b.id == holder) {
+				set_selected_structures({holder});
+				if (cam_rig) {
+					cam_rig->set_follow_id(0);
+					cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
+				}
+				play_civ_voice("select");
+				return;
+			}
+		selected_ids.push_back((int32_t)id);
+		if (cam_rig) cam_rig->set_follow_id(id);
+		play_civ_voice("select");
+		return;
+	}
+	if (!rtso::hotkeys::held("selection.add")) {
 		selected_ids.clear();
 		selected_building_id = 0;
 	}
 	if (!selected_ids.has((int32_t)id)) selected_ids.push_back((int32_t)id);
-	if (mb->is_double_click() && cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[i], 0, uview.pos_z[i]));
 	play_civ_voice("select");
 }
 

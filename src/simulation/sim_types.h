@@ -2265,13 +2265,20 @@ inline constexpr uint16_t CIV_TEMPLATE_WORDS_MAX = 16;
 
 // A unit's short path around buildings (nav/building_steering.h), kept between ticks as 0 A.D.'s
 // CCmpUnitMotion keeps m_ShortPath: the first waypoint (x, z), the aim it leads towards, and the
-// obstacle key it was searched among. key 0 = no short path. Saved raw (no padding).
+// obstacle key it was searched among. key 0 = no short path. A short path of several waypoints is
+// kept as the point it was searched from (x, z) and its aim instead, its key naming the search and
+// the waypoint the unit heads for (nav::kept_path_key), and each waypoint is found again from those
+// (ShortPathSearchMemo answers it). Saved raw (no padding).
 struct ShortPathMemo {
 	float x = 0.0f, z = 0.0f;
 	float aim_x = 0.0f, aim_z = 0.0f;
 	uint32_t key = 0;
 };
 static_assert(sizeof(ShortPathMemo) == 20, "ShortPathMemo is saved raw");
+
+// The waypoints of a short path a unit keeps and follows (ShortPathMemo); a longer path is followed
+// as far as its SHORT_PATH_KEPT_MAX-th waypoint, where the unit decides again.
+inline constexpr int SHORT_PATH_KEPT_MAX = 16;
 
 // A unit's last short path search and what it found, kept beside the saved state, not in it: a
 // search is a function of these inputs alone, so while they are the same bit for bit (a unit held
@@ -2285,6 +2292,9 @@ struct ShortPathSearchMemo {
 	uint64_t small = 0;   // the small obstacles' contents (small_obstacles_hash), 0 for none
 	float out_x = 0.0f, out_z = 0.0f;
 	bool found = false, valid = false;
+	// The path's waypoints from the first (out_x, out_z), at most SHORT_PATH_KEPT_MAX.
+	uint8_t path_n = 0;
+	float path_x[SHORT_PATH_KEPT_MAX] = {}, path_z[SHORT_PATH_KEPT_MAX] = {};
 };
 
 // CCmpUnitMotion's m_FailedMovements and the move of the 0 A.D. turn under way (200 ms, four RTS0
