@@ -1498,14 +1498,10 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 	}
 	if (net_host_ && net_host_->isHost() && net_game_started()) send_player_assignment();
 	if (rejoin_outbox_next_ < rejoin_outbox_.size() && net_host_) {
-		// Paced as NetFileTransfer: a slow or lossy link gets more as its acks
-		// come back, instead of a growing pile of resends.
-		for (size_t sent = 0; rejoin_outbox_next_ < rejoin_outbox_.size() && sent < REJOIN_CHUNKS_PER_TICK;) {
+		const size_t end = std::min(rejoin_outbox_.size(), rejoin_outbox_next_ + REJOIN_CHUNKS_PER_TICK);
+		for (; rejoin_outbox_next_ < end; ++rejoin_outbox_next_) {
 			const auto &e = rejoin_outbox_[rejoin_outbox_next_];
-			const NetPeer *p = net_host_->getPeer(e.first);
-			if (p && p->connected && net_host_->pendingReliableTo(e.first) >= REJOIN_WINDOW) break;
-			if (p && p->connected) { net_host_->sendCommand(e.first, e.second); ++sent; }
-			++rejoin_outbox_next_;
+			net_host_->sendCommand(e.first, e.second);
 		}
 		if (rejoin_outbox_next_ == rejoin_outbox_.size()) { rejoin_outbox_.clear(); rejoin_outbox_next_ = 0; }
 	}

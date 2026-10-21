@@ -38,6 +38,6 @@ None of these touches simulation state or the save format.
 
 ## Fix log
 
-- 2026-10-21 #PRn pass 17 gap 1 (the world goes to a rejoiner with at most 32 unacknowledged packets in flight, as NetFileTransfer's window; compression left out: no zlib in RTS0's network layer) merged.
+- 2026-10-21 pass 17 gap 1 kept: a window of 32 unacknowledged packets per rejoiner (NetFileTransfer's) was tried and failed `playtest_lockstep.py`'s heavy-loss observer case (45% of datagrams lost: the world did not arrive within 30 s), because RTS0 resends each packet on its own backoff and the turn batches to the rejoiner share the window, unlike ENet. RTS0 keeps 16 chunks a frame; compression is left out too (no zlib in RTS0's network layer).
 - 2026-10-21 #PRn pass 17 gap 2 (a rejoiner drops chat while the world downloads, as gamesetup_mp.js) merged.
 - 2026-10-21 #PRn pass 17 gap 3 (the host takes 39 remote clients, as 0.28's MAX_CLIENTS sessions) merged.
