@@ -185,6 +185,68 @@ int main() {
 		std::printf("tophet: %d healer, %d others (the temple trains %d champions)\n", healers, champions, temple_champions);
 	}
 
+	// The campaign test maps' cities and sanctuary (simulation/templates/campaigns/, Units Demo):
+	// civic centres with a 48 m obstruction (three cells), 5 and 3 arrows of 25 pierce out to
+	// 50 m and a 300 and 150 m territory root, and a temple that trains and researches nothing.
+	CHECK(map_structure_template("campaigns/campaign_city_test").type == BLD_CAMPAIGN_CITY);
+	CHECK(map_structure_template("campaigns/campaign_city_minor_test").type == BLD_CAMPAIGN_CITY_MINOR);
+	CHECK(map_structure_template("campaigns/campaign_religious_test").type == BLD_CAMPAIGN_SANCTUARY);
+	for (uint8_t t = BLD_CAMPAIGN_CITY; t <= BLD_CAMPAIGN_SANCTUARY; ++t)
+		for (uint8_t c = 0; c < CIV_COUNT; ++c) CHECK(!civ_can_build(c, t));
+	CHECK(building_type_info(BLD_CAMPAIGN_CITY).footprint == 3 && building_type_info(BLD_CAMPAIGN_CITY_MINOR).footprint == 3);
+	CHECK(building_ai_info(BLD_CAMPAIGN_CITY).default_arrows == 5 && building_ai_info(BLD_CAMPAIGN_CITY_MINOR).default_arrows == 3);
+	CHECK(building_ai_info(BLD_CAMPAIGN_CITY).pierce == 25.0f &&
+		std::fabs(building_ai_info(BLD_CAMPAIGN_CITY).max_range - 50.0f * 0.28f) < 0.01f);
+	CHECK(territory_influence_info(BLD_CAMPAIGN_CITY).radius == 300.0f * 0.25f &&
+		territory_influence_info(BLD_CAMPAIGN_CITY_MINOR).radius == 150.0f * 0.25f &&
+		territory_influence_info(BLD_CAMPAIGN_SANCTUARY).radius == 100.0f * 0.25f);
+	CHECK(is_civic_centre(BLD_CAMPAIGN_CITY) && civ_building_is_dropsite(BLD_CAMPAIGN_CITY_MINOR));
+	CHECK(building_type_info(BLD_CAMPAIGN_SANCTUARY).max_hp == 2200.0f && building_garrison_heal(BLD_CAMPAIGN_SANCTUARY) == 3.0f);
+	CHECK(!building_researches_tech(BLD_CAMPAIGN_SANCTUARY, TECH_HEAL_RATE, CIV_ATHENIANS));
+	CHECK(building_researches_tech(BLD_CAMPAIGN_CITY, TECH_PHASE_TOWN, CIV_ATHENIANS));
+	{
+		int trained = 0;
+		for (uint16_t id = 0; id < CIV_UNIT_TEMPLATE_COUNT; ++id)
+			for (uint8_t t = BLD_CAMPAIGN_CITY; t <= BLD_CAMPAIGN_SANCTUARY; ++t)
+				trained += building_trains_template(t, CIV_ATHENIANS, CIV_ATHENIANS, id);
+		CHECK(trained == 0);
+	}
+	// Their armies (campaigns/army_*): hero and champion swordsmen with a 7 m reach, 60 and 50 m
+	// vision and an 8 m footprint; the heroes add 20 crush resistance.
+	{
+		const uint16_t alex = civ_unit_template_by_id("campaigns/army_mace_hero_alexander");
+		const uint16_t army = civ_unit_template_by_id("campaigns/army_mace_standard");
+		const uint16_t leo = civ_unit_template_by_id("campaigns/army_spart_hero_leonidas");
+		CHECK(alex < CIV_UNIT_TEMPLATE_COUNT && army < CIV_UNIT_TEMPLATE_COUNT && leo < CIV_UNIT_TEMPLATE_COUNT);
+		if (alex < CIV_UNIT_TEMPLATE_COUNT && army < CIV_UNIT_TEMPLATE_COUNT && leo < CIV_UNIT_TEMPLATE_COUNT) {
+			const CivUnitTemplate &a = civ_unit_template(alex), &m = civ_unit_template(army);
+			CHECK(a.unit_type == UNIT_HERO && m.unit_type == UNIT_SWORDSMAN && civ_unit_template(leo).unit_type == UNIT_HERO);
+			CHECK(std::fabs(a.attack_range - 7.0f * 0.6f) < 0.01f && std::fabs(m.attack_range - 7.0f * 0.6f) < 0.01f);
+			CHECK(std::fabs(a.vision - 60.0f * 0.28f) < 0.01f && std::fabs(m.vision - 50.0f * 0.28f) < 0.01f);
+			CHECK(a.crush_armor == 20.0f && a.gold_cost == 300);
+			CHECK(combat_template_table()[alex].footprint == 8.0f && combat_template_table()[army].footprint == 8.0f);
+		}
+	}
+	{
+		static Simulation c;
+		c.set_sim_seed(7);
+		c.set_team_civ(0, CIV_ATHENIANS);
+		c.set_team_civ(1, CIV_GAULS);
+		c.reset();
+		const uint32_t city = c.spawn_building_world(-60.0f, 0.0f, BLD_CAMPAIGN_CITY, 0, 1.0f);
+		c.spawn_building_world(100.0f, 100.0f, BLD_TOWN_CENTER, 1, 1.0f);
+		CHECK(find_bld(c, city) && find_bld(c, city)->half_size == 3.0f);
+		CHECK(c.territory_owner_at(-60.0f + 60.0f, 0.0f) == 0); // past a civic centre's 32, inside 75
+		const uint32_t hero = c.spawn_map_unit(-60.0f, 20.0f, 0, UNIT_HERO, "campaigns/army_mace_hero_alexander");
+		CHECK(hero != 0);
+		const uint32_t foe = c.spawn_unit(-60.0f, -14.0f, 1, UNIT_SWORDSMAN, 0.0f); // 11 from the city's edge
+		c.order_set_stance(&foe, 1, STANCE_STAND_GROUND);
+		const float foe0 = unit_hp(c, foe);
+		run(c, 8.0f);
+		std::printf("campaign city: foe %.1f -> %.1f\n", foe0, unit_hp(c, foe));
+		CHECK(unit_hp(c, foe) < foe0);
+	}
+
 	// Map-only Gaia pieces (seventeenth/eighteenth passes): the wonders, the army tents and the
 	// market stalls load as structures of their own kind instead of being dropped.
 	CHECK(map_structure_template("structures/stonehenge").type == BLD_WONDER);

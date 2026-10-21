@@ -99,9 +99,9 @@ struct EntityAttackSounds {
 	uint8_t a, b, c, d;
 };
 
-inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 545;
+inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 548;
 inline constexpr uint8_t ATTACK_SOUND_GENERIC_ROWS = 27;
-inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 88;
+inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 91;
 inline constexpr uint8_t ATTACK_SOUND_FAUNA_ROWS = 61;
 
 // Melee, ranged and impact groups of a civ roster row (civ_unit_template_table order).
@@ -652,6 +652,9 @@ inline const EntityAttackSounds *roster_attack_sounds() {
 		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // germ/infantry_swordsman_a
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/support_healer_e
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // plane
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // campaigns/army_mace_hero_alexander
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // campaigns/army_mace_standard
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // campaigns/army_spart_hero_leonidas
 	};
 	return kRows;
 }
@@ -782,6 +785,9 @@ inline const EntityAttackSounds &building_attack_sounds(uint8_t type) {
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TEMPLE_ISIS: structures/ptol/temple_2
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_MILL: structures/mill_greek
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TOPHET: structures/cart/tophet
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_CAMPAIGN_CITY: campaigns/campaign_city_test
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_CAMPAIGN_CITY_MINOR: campaigns/campaign_city_minor_test
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_CAMPAIGN_SANCTUARY: campaigns/campaign_religious_test
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // default: template_structure
 	};
 	return kRows[type < ATTACK_SOUND_BUILDING_ROWS ? type : ATTACK_SOUND_BUILDING_ROWS];
@@ -1404,6 +1410,9 @@ inline uint8_t roster_death_sound(uint16_t row) {
 		ATTACK_SOUND_PHENOTYPE, // germ/infantry_swordsman_a
 		ATTACK_SOUND_PHENOTYPE, // germ/support_healer_e
 		ATTACK_SOUND_NONE, // plane
+		ATTACK_SOUND_PHENOTYPE, // campaigns/army_mace_hero_alexander
+		ATTACK_SOUND_PHENOTYPE, // campaigns/army_mace_standard
+		ATTACK_SOUND_PHENOTYPE, // campaigns/army_spart_hero_leonidas
 	};
 	return row < ATTACK_SOUND_ROSTER_ROWS ? kRows[row] : ATTACK_SOUND_NONE;
 }

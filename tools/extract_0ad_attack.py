@@ -83,7 +83,7 @@ def civ_buildings():
     names = [n for n, i in sorted(((n, int(i)) for n, i in enum), key=lambda x: x[1]) if i >= len(BUILDINGS)]
     data = open(os.path.join(here, "civ_building_data.h")).read()
     rows = data[data.index("RTSO_CIV_BUILDING_INFO_ROWS"):]
-    templates = re.findall(r"/\* (structures/[a-z0-9_/]+) \*/", rows)[:len(names)]
+    templates = re.findall(r"/\* ((?:structures|campaigns)/[a-z0-9_/]+) \*/", rows)[:len(names)]
     if len(templates) != len(names):
         sys.exit("civ_building_data.h has %d rows for %d civ building types" % (len(templates), len(names)))
     return list(zip(names, templates))

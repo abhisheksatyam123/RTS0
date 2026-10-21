@@ -20,7 +20,7 @@ struct PrefProfile { uint8_t count; PrefTerm term[4]; }; // terms by index, over
 // A unit's PreferredClasses and its own preference classes as a target.
 struct PrefUnitRow { PrefProfile prefs; uint8_t classes; };
 
-inline constexpr uint16_t PREF_TEMPLATE_COUNT = 545; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t PREF_TEMPLATE_COUNT = 548; // = CIV_UNIT_TEMPLATE_COUNT
 inline const PrefUnitRow *pref_template_table() {
 	static const PrefUnitRow kTable[PREF_TEMPLATE_COUNT] = {
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/cavalry_javelineer_b
@@ -568,6 +568,9 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/infantry_swordsman_a
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/support_healer_e
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // plane
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // campaigns/army_mace_hero_alexander
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // campaigns/army_mace_standard
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // campaigns/army_spart_hero_leonidas
 	};
 	return kTable;
 }
@@ -607,7 +610,7 @@ inline const PrefUnitRow *pref_class_table() {
 	return kTable;
 }
 
-inline constexpr uint8_t PREF_BUILDING_ROWS = 88; // BuildingTypes; one more row for any other structure
+inline constexpr uint8_t PREF_BUILDING_ROWS = 91; // BuildingTypes; one more row for any other structure
 // Each BuildingType's preference classes as a target.
 inline const uint8_t *pref_building_classes() {
 	static const uint8_t kTable[PREF_BUILDING_ROWS + 1] = {
@@ -699,6 +702,9 @@ inline const uint8_t *pref_building_classes() {
 		0x04, // BLD_TEMPLE_ISIS: structures/ptol/temple_2
 		0x04, // BLD_MILL: structures/mill_greek
 		0x04, // BLD_TOPHET: structures/cart/tophet
+		0x04, // BLD_CAMPAIGN_CITY: campaigns/campaign_city_test
+		0x04, // BLD_CAMPAIGN_CITY_MINOR: campaigns/campaign_city_minor_test
+		0x04, // BLD_CAMPAIGN_SANCTUARY: campaigns/campaign_religious_test
 		0x04, // default: template_structure
 	};
 	return kTable;

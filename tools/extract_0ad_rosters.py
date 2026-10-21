@@ -283,6 +283,13 @@ UNIQUE_BUILDINGS = [
     # The Carthaginian Tophet maps place (cart/tophet): a temple that trains only the healer
     # (cart/temple adds the champions). Drawn with the civ's temple until its actor is ported.
     ("BLD_TOPHET", ["tophet"], "temple", "temple"),
+    # The campaign test maps' Greek cities and sanctuary (simulation/templates/campaigns/, read
+    # through CAMPAIGN_UNIQUE): civic centres with their own arrows, 48 m obstruction and
+    # territory, and a temple that trains and researches nothing. Drawn with the civic centre and
+    # the temple until the campaign actors are ported.
+    ("BLD_CAMPAIGN_CITY", ["campaign_city_test"], "town_center", "town_center"),
+    ("BLD_CAMPAIGN_CITY_MINOR", ["campaign_city_minor_test"], "town_center", "town_center"),
+    ("BLD_CAMPAIGN_SANCTUARY", ["campaign_religious_test"], "temple", "temple"),
 ]
 # Numbered stems that are a building of their own rather than an upgrade's _N form.
 KEEP_NUMBERED_STEMS = {"temple_2"}
@@ -308,6 +315,9 @@ GAIA_UNIQUE = {"BLD_SHRINE", "BLD_TRADING_POST", "BLD_HELLENIC_STOA", "BLD_MILL"
 MAP_ONLY = {"BLD_TOWER_BOLT", "BLD_TOWER_ARTILLERY", "BLD_STOA", "BLD_INN", "BLD_TENT", "BLD_TRIUMPHAL_ARCH",
             "BLD_HALL", "BLD_WAREHOUSE", "BLD_TAVERN", "BLD_TOWER_DOUBLE", "BLD_KUSH_SHRINE", "BLD_FORTRESS_OLD",
             "BLD_LAOZI_GATE", "BLD_TOPHET"}
+# Structures in UNIQUE_BUILDINGS read from simulation/templates/campaigns/<stem>.xml: only the
+# campaign test maps place them, and no civ builds them.
+CAMPAIGN_UNIQUE = {"BLD_CAMPAIGN_CITY", "BLD_CAMPAIGN_CITY_MINOR", "BLD_CAMPAIGN_SANCTUARY"}
 # Generic structures a civ structure's Upgrade can start from (structures/cart/house,
 # structures/han/civil_centre, structures/han/defense_tower).
 UPGRADE_FROM_GENERIC = {"house": "BLD_HOUSE", "civil_centre": "BLD_TOWN_CENTER", "defense_tower": "BLD_TOWER"}
@@ -473,8 +483,16 @@ class TemplateLoader:
         # (--keep-trainers keeps rows whose template the release dropped).
         self.fallback = TemplateLoader(PREVIOUS_SIM_ROOT) if PREVIOUS_SIM_ROOT and PREVIOUS_SIM_ROOT != sim_root else None
 
+    def file(self, name):
+        """The template file of `name`: the campaign armies' rows (units/campaigns/army_*, MAP_ROWS)
+        are simulation/templates/campaigns/army_*.xml."""
+        name = name.split("|")[-1]
+        if name.startswith("units/campaigns/"):
+            name = name[len("units/"):]
+        return os.path.join(self.root, name + ".xml")
+
     def own_exists(self, name):
-        return os.path.isfile(os.path.join(self.root, name.split("|")[-1] + ".xml"))
+        return os.path.isfile(self.file(name))
 
     def exists(self, name):
         return self.own_exists(name) or (self.fallback is not None and self.fallback.exists(name))
@@ -491,7 +509,7 @@ class TemplateLoader:
             node = self.load(rest).copy()
             self.apply_mixin(node, mixin)
         else:
-            elem = ET.parse(os.path.join(self.root, name + ".xml")).getroot()
+            elem = ET.parse(self.file(name)).getroot()
             parent = elem.attrib.get("parent")
             node = self.load(parent).copy() if parent else Node()
             merge_into(node, elem)
@@ -500,7 +518,7 @@ class TemplateLoader:
 
     def own_tokens(self, name, path):
         """Tokens a template file lists itself under path, not its parents' (empty for mixins)."""
-        f = os.path.join(self.root, name + ".xml")
+        f = self.file(name)
         if "|" in name or not os.path.isfile(f):
             return []
         e = ET.parse(f).getroot().find(path)
@@ -1171,6 +1189,9 @@ MAP_ROWS = (
     # Survival of the Fittest's Gaia champions (Survival's champion pool), placed by its trigger.
     "units/merc_thorakites", "units/merc_thureophoros", "units/theb_sacred_band", "units/theb_siege_fireraiser",
     "units/thesp_melanochitones",
+    # The campaign test maps' armies (simulation/templates/campaigns/army_*.xml, TemplateLoader.file).
+    "units/campaigns/army_mace_hero_alexander", "units/campaigns/army_mace_standard",
+    "units/campaigns/army_spart_hero_leonidas",
 )
 
 
@@ -1843,6 +1864,9 @@ def unique_building_rows(sim_root, generic_masks=None):
         if enum in GAIA_UNIQUE:
             civs, src = [], "structures/%s" % stems[0]
             t = loader.load(src)
+        if enum in CAMPAIGN_UNIQUE:
+            civs, src = [], "campaigns/%s" % stems[0]
+            t = loader.load(src)
         if t is None:
             raise SystemExit("no 0 A.D. template for %s" % enum)
         fp = t.get("Footprint/Square")
@@ -1858,7 +1882,8 @@ def unique_building_rows(sim_root, generic_masks=None):
             "generic": t.value("Identity/GenericName", ""),
             "model": model, "portrait": portrait,
             "hp": t.num("Health/Max", 1000.0),
-            "foot": 2 if width > 15.0 and enum not in ONE_CELL else 1,
+            # The campaign cities: three cells for their 52 m circle (0.28's 30 m civic centre is two).
+            "foot": 3 if width > 45.0 and enum in CAMPAIGN_UNIQUE else 2 if width > 15.0 and enum not in ONE_CELL else 1,
             "food": int(t.num("Cost/Resources/food")), "wood": int(t.num("Cost/Resources/wood")),
             "gold": int(t.num("Cost/Resources/metal")), "stone": int(t.num("Cost/Resources/stone")),
             "pop": int(t.num("Population/Bonus")), "garrison": int(t.num("GarrisonHolder/Max")),
