@@ -5494,8 +5494,8 @@ Ref<Texture2D> RtsoWorldView::selection_texture(const char *texture, const Color
 			return img;
 		};
 		const String base = String("res://assets/textures/selection/") + texture;
-		imgs.first = load(base + ".png");
-		imgs.second = load(base + "_mask.png");
+		imgs.first = load(base + String(".png"));
+		imgs.second = load(base + String("_mask.png"));
 		if (imgs.first.is_null()) { // a plain ring
 			imgs.first = Image::create_empty(64, 64, false, Image::FORMAT_RGBA8);
 			for (int y = 0; y < 64; ++y)
