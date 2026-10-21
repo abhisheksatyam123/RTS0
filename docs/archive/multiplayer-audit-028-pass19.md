@@ -30,7 +30,7 @@ None of these touches simulation state or the save format.
 
 ## Fix log
 
-- 2026-10-21 #PRn pass 19 gap 1 (an empty join address is refused with "Cannot join game: Failed to connect to server." and nothing is saved) merged.
+- 2026-10-21 #1555 pass 19 gap 1 (an empty join address is refused with "Cannot join game: Failed to connect to server." and nothing is saved) merged.
 - 2026-10-21 pass 19 gap 2 kept: cosmetic, and a Tree cell takes a single colour.
-- 2026-10-21 #PRn pass 19 gap 3 (the incompatible-mods heading lists the differences on hover, and the grey mods say "This mod does not affect MP compatibility", as GameDetails.js) merged.
-- 2026-10-21 #PRn pass 19 gap 4 (the password is checked before the name, and a duplicate is renamed only without lobby authentication, as NetServer OnAuthenticate) merged.
+- 2026-10-21 #1555 pass 19 gap 3 (the incompatible-mods heading lists the differences on hover, and the grey mods say "This mod does not affect MP compatibility", as GameDetails.js) merged.
+- 2026-10-21 #1555 pass 19 gap 4 (the password is checked before the name, and a duplicate is renamed only without lobby authentication, as NetServer OnAuthenticate) merged.
