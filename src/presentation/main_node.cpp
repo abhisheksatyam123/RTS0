@@ -54,6 +54,7 @@ static bool building_trains_class(uint8_t civ, uint8_t utype, uint8_t btype) {
 // simulation writes its state to a file, so it goes outside user://saves (out of the save
 // and load dialogs) and is deleted when the match ends.
 static const char *const kQuicksavePath = "user://quicksave.rts0sav";
+static const char *const kBackgroundSavePath = "user://saves/background.rts0sav";
 
 RtsoMain::RtsoMain() {
 	sim = new rtso::Simulation();
@@ -70,6 +71,14 @@ void RtsoMain::_notification(int p_what) {
 	// focus returns, with no pause overlay.
 	if (p_what == NOTIFICATION_APPLICATION_FOCUS_OUT) app_unfocused_ = true;
 	if (p_what == NOTIFICATION_APPLICATION_FOCUS_IN) app_unfocused_ = false;
+	// A phone may close a game left in the background to free memory: a single-player
+	// match is saved first, to Load Game's "background" save (one, overwritten each time).
+	// No thumbnail: the screen may already be gone.
+	if (p_what == NOTIFICATION_APPLICATION_PAUSED && sim && !net_lockstep()) {
+		DirAccess::make_dir_recursive_absolute(ProjectSettings::get_singleton()->globalize_path("user://saves"));
+		if (sim->save_state(ProjectSettings::get_singleton()->globalize_path(kBackgroundSavePath).utf8().get_data()))
+			write_save_metadata(kBackgroundSavePath, "Saved when the game went to the background");
+	}
 	if (p_what == NOTIFICATION_EXIT_TREE) {
 		// The MenuAudio autoload outlives the match: stop driving the session's tick.
 		if (SceneTree *exiting = get_tree()) {
@@ -4468,6 +4477,16 @@ bool RtsoMain::close_open_dialogs() {
 			any = true;
 		}
 	return any;
+}
+
+bool RtsoMain::nothing_to_cancel() {
+	if (build_mode || any_armed_mode() || !selected_ids.is_empty() || selected_building_id != 0) return false;
+	if (chat_window_.is_open() || diplo_dialog_.is_open() || objectives_dialog_.is_open()) return false;
+	if (Node *menu = get_node_or_null(NodePath("PauseMenu")))
+		if (bool(menu->get("visible"))) return false;
+	if (Node *barter = get_node_or_null(NodePath("BarterDialog")))
+		if (bool(barter->call("is_open"))) return false;
+	return true;
 }
 
 // 0 A.D. messages.js onTutorialReady: "dialog-answer" to the trigger script; the

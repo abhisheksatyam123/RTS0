@@ -16,10 +16,11 @@ signal trading_goods_requested(shares: PackedInt32Array)
 const RES_ORDER := [3, 0, 2, 1]
 const RES_NAMES := {0: "wood", 1: "metal", 2: "stone", 3: "food"}
 const AMOUNT_STEP := 5
-const SELL_TOOLTIP := "Sell %s"
-const BUY_TOOLTIP := "Buy %s"
-const BARTER_HELP := "Start by selecting the resource you wish to sell from the upper row. For each time the lower buttons are pressed, %d of the upper resource will be sold for the displayed quantity of the lower. Press and hold %s to temporarily multiply the traded amount by %d."
-const TRADE_HELP := "Select one type of goods you want to modify by clicking on it, and then use the arrows of the other types to modify their shares. You can also press %s while selecting one type of goods to bring its share to 100%%."
+const L10n = preload("res://scenes/menu/l10n.gd")
+const SELL_TOOLTIP := "Sell %(resource)s"
+const BUY_TOOLTIP := "Buy %(resource)s"
+const BARTER_HELP := "Start by selecting the resource you wish to sell from the upper row. For each time the lower buttons are pressed, %(quantity)s of the upper resource will be sold for the displayed quantity of the lower. Press and hold %(hotkey)s to temporarily multiply the traded amount by %(multiplier)s."
+const TRADE_HELP := "Select one type of goods you want to modify by clicking on it, and then use the arrows of the other types to modify their shares. You can also press %(hotkey)s while selecting one type of goods to bring its share to 100%%."
 const IDLE_COLOR := "orange"
 
 # TradeDialog.xml: 200 px plus 58 px per resource (BarterPanel/TradePanel.getWidthOffset), 388 tall.
@@ -146,7 +147,7 @@ func _icon_button(r: int, size: Vector2) -> Button:
 func _build() -> void:
 	body.custom_minimum_size = DIALOG_SIZE
 	var w := DIALOG_SIZE.x
-	var title := _label("Barter & Trade", 18, GOLD)
+	var title := _label(tr("Barter & Trade"), 18, GOLD)
 	title.name = "tradeDialogTitle"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_place(title, body, Vector2(w * 0.5 - 96, -16), Vector2(192, 32))
@@ -154,12 +155,12 @@ func _build() -> void:
 	# BarterPanel.xml at 24 24 100%-24 146.
 	var barter := Control.new()
 	_place(barter, body, Vector2(24, 24), Vector2(w - 48, 122))
-	_section(barter, "Barter")
+	_section(barter, tr("Barter"))
 	var row := Control.new()
 	_place(row, barter, Vector2(0, 38), Vector2(barter.size.x, 84))
-	_place(_label("Sell:", 14, GOLD), row, Vector2.ZERO, Vector2(100, 41))
-	_place(_label("Buy:", 14, GOLD), row, Vector2(0, 84 - 41), Vector2(100, 41))
-	_no_market = _label("No Markets Available", 13)
+	_place(_label(tr("Sell:"), 14, GOLD), row, Vector2.ZERO, Vector2(100, 41))
+	_place(_label(tr("Buy:"), 14, GOLD), row, Vector2(0, 84 - 41), Vector2(100, 41))
+	_no_market = _label(tr("No Markets Available"), 13)
 	_no_market.name = "barterNoMarketsMessage"
 	_place(_no_market, row, Vector2(112, 0), Vector2(row.size.x - 120, 84))
 	_barter_box = Control.new()
@@ -168,12 +169,12 @@ func _build() -> void:
 	for i in RES_ORDER.size():
 		var r: int = RES_ORDER[i]
 		var sell := _icon_button(r, Vector2(38, 38))
-		sell.tooltip_text = SELL_TOOLTIP % RES_NAMES[r]
+		sell.tooltip_text = L10n.sprintf(tr(SELL_TOOLTIP), {"resource": _in_sentence(r)})
 		sell.pressed.connect(_on_sell_selected.bind(r))
 		_place(sell, _barter_box, Vector2(i * COLUMN, 0), Vector2(38, 38))
 		_sell_buttons[r] = sell
 		var buy := _icon_button(r, Vector2(38, 38))
-		buy.tooltip_text = BUY_TOOLTIP % RES_NAMES[r]
+		buy.tooltip_text = L10n.sprintf(tr(BUY_TOOLTIP), {"resource": _in_sentence(r)})
 		buy.pressed.connect(_on_buy_pressed.bind(r))
 		_place(buy, _barter_box, Vector2(i * COLUMN, 42), Vector2(38, 38))
 		_buy_buttons[r] = buy
@@ -184,10 +185,10 @@ func _build() -> void:
 	# TradePanel.xml at 24 168 100%-24 100%-64.
 	var trade := Control.new()
 	_place(trade, body, Vector2(24, 168), Vector2(w - 48, DIALOG_SIZE.y - 64 - 168))
-	_section(trade, "Trade")
+	_section(trade, tr("Trade"))
 	var goods := Control.new()
 	_place(goods, trade, Vector2(0, 38), Vector2(trade.size.x, 32))
-	_place(_label("Resources:", 14, GOLD), goods, Vector2.ZERO, Vector2(100, 32))
+	_place(_label(tr("Resources:"), 14, GOLD), goods, Vector2.ZERO, Vector2(100, 32))
 	for i in RES_ORDER.size():
 		var r: int = RES_ORDER[i]
 		var col := Control.new()
@@ -219,12 +220,15 @@ func _build() -> void:
 
 	var close := Button.new()
 	close.name = "closeTrade"
-	close.text = "Close"
+	close.text = tr("Close")
 	close.add_theme_font_size_override("font_size", 14)
 	close.pressed.connect(_on_close_pressed)
 	_place(close, body, Vector2(w * 0.5 - 64, DIALOG_SIZE.y - 50), Vector2(128, 28))
 
 func toggle() -> void:
+	# TradeDialog.open: not while viewing no player.
+	if not visible and not bool(_state().get("viewed", true)):
+		return
 	visible = not visible
 	if visible:
 		_goods_from_sim = true
@@ -256,6 +260,10 @@ func update_panels() -> void:
 	var st := _state()
 	if st.is_empty():
 		return
+	# onViewedPlayerChange: switching to the whole-map view closes the dialog.
+	if not bool(st.get("viewed", true)):
+		visible = false
+		return
 	_update_barter(st)
 	_update_trade(st)
 
@@ -268,13 +276,14 @@ func _update_barter(st: Dictionary) -> void:
 	_no_market.visible = not can_barter
 	_barter_box.visible = can_barter
 	_barter_help.visible = can_barter
-	_barter_help.tooltip_text = BARTER_HELP % [100, _hotkey_text("session.massbarter"), int(st.get("multiplier", 5))]
+	_barter_help.tooltip_text = L10n.sprintf(tr(BARTER_HELP), {"quantity": 100,
+		"hotkey": _hotkey_text("session.massbarter"), "multiplier": int(st.get("multiplier", 5))})
 	for r in RES_ORDER:
 		var selected: bool = r == selected_sell
 		var sell: Button = _sell_buttons[r]
 		if sell.has_node("selection"):
 			sell.get_node("selection").visible = selected
-		(sell.get_node("amount") as Label).text = "-%d" % amount
+		(sell.get_node("amount") as Label).text = L10n.sprintf(tr("-%(amount)s"), {"amount": amount})
 		# BarterButton DisabledModifier: red when the stock can't cover the deal.
 		(sell.get_node("icon") as CanvasItem).modulate = Color(1, 0.45, 0.45) if stock[r] < amount else (Color(0.6, 0.6, 0.6) if selected else Color.WHITE)
 		var buy: Button = _buy_buttons[r]
@@ -283,7 +292,7 @@ func _update_barter(st: Dictionary) -> void:
 		var q := 0
 		if quotes.size() == 16:
 			q = quotes[selected_sell * 4 + r]
-		(buy.get_node("amount") as Label).text = "+%d" % q
+		(buy.get_node("amount") as Label).text = L10n.sprintf(tr("+%(amount)s"), {"amount": q})
 		(buy.get_node("icon") as CanvasItem).modulate = Color(1, 0.45, 0.45) if stock[selected_sell] < amount else Color.WHITE
 
 func _update_trade(st: Dictionary) -> void:
@@ -293,14 +302,14 @@ func _update_trade(st: Dictionary) -> void:
 	if _goods_from_sim or not controls:
 		trading_goods = st.get("trading_goods", trading_goods)
 		_goods_from_sim = false
-	_trade_help.tooltip_text = TRADE_HELP % _hotkey_text("session.fulltradeswap")
+	_trade_help.tooltip_text = L10n.sprintf(tr(TRADE_HELP), {"hotkey": _hotkey_text("session.fulltradeswap")}).replace("%%", "%")
 	var selected_amount := trading_goods[selected_good]
 	for r in RES_ORDER:
 		var row: Dictionary = _trade_rows[r]
 		var is_sel: bool = r == selected_good
 		var current := trading_goods[r]
 		var b: Button = row["button"]
-		(b.get_node("amount") as Label).text = "%d%%" % current
+		(b.get_node("amount") as Label).text = L10n.sprintf(tr("%(amount)s%%"), {"amount": current}).replace("%%", "%")
 		b.disabled = not controls
 		if b.has_node("selection"):
 			b.get_node("selection").visible = controls and is_sel
@@ -309,12 +318,17 @@ func _update_trade(st: Dictionary) -> void:
 	# TraderStatusText: the land and ship texts a blank line apart.
 	_trader_text.text = _land_text(st.get("land", {})) + "\n\n" + _ship_text(st.get("ship", {}))
 
+## colorizeHotkey("%(hotkey)s", name): the gold "[Shift]".
 func _hotkey_text(name: String) -> String:
 	if _hotkeys:
-		var keys: PackedStringArray = _hotkeys.call("get_hotkey_map").get(name, PackedStringArray())
-		if keys.size() > 0:
-			return "[%s]" % keys[0]
+		return _hotkeys.call("colorize", "%(hotkey)s", name)
 	return "[Shift]"
+
+## resourceNameWithinSentence: the translated name, lower case where it isn't translated.
+func _in_sentence(r: int) -> String:
+	var name: String = RES_NAMES[r].capitalize()
+	var t := tr(name)
+	return name.to_lower() if t == name else t
 
 func _held(name: String) -> bool:
 	if _hotkeys:
@@ -356,48 +370,60 @@ func _send_goods() -> void:
 func _idle(text: String) -> String:
 	return "[color=%s]%s[/color]" % [IDLE_COLOR, text]
 
+## translatePlural: the .po files keep each form as its own msgid.
 func _plural(n: int, one: String, many: String) -> String:
-	return (one if n == 1 else many) % n
+	return tr(one if n == 1 else many)
+
+func _fill(format: String, args: Dictionary) -> String:
+	return L10n.sprintf(format, args)
 
 # TraderStatusTextLand.js
 func _land_text(t: Dictionary) -> String:
 	var active: int = t.get("trading", 0)
 	var garrisoned: int = t.get("garrisoned", 0)
 	var inactive: int = int(t.get("total", 0)) - active - garrisoned
-	var trading_s := _plural(active, "There is %d land trader trading", "There are %d land traders trading")
+	var trading_s := _fill(_plural(active, "There is %(numberTrading)s land trader trading", "There are %(numberTrading)s land traders trading"), {"numberTrading": active})
 	var inactive_s: String
 	if active or garrisoned:
-		inactive_s = _idle("%d inactive" % inactive)
+		inactive_s = _fill(_plural(inactive, "%(numberOfLandTraders)s inactive", "%(numberOfLandTraders)s inactive"), {"numberOfLandTraders": inactive})
 	else:
-		inactive_s = _idle(_plural(inactive, "%d land trader inactive", "%d land traders inactive"))
+		inactive_s = _fill(_plural(inactive, "%(numberOfLandTraders)s land trader inactive", "%(numberOfLandTraders)s land traders inactive"), {"numberOfLandTraders": inactive})
 	var garrisoned_s: String
 	if active or inactive:
-		garrisoned_s = "%d garrisoned on a trading merchant ship" % garrisoned
+		garrisoned_s = _fill(_plural(garrisoned, "%(numberGarrisoned)s garrisoned on a trading merchant ship", "%(numberGarrisoned)s garrisoned on a trading merchant ship"), {"numberGarrisoned": garrisoned})
 	else:
-		garrisoned_s = _plural(garrisoned, "There is %d land trader garrisoned on a trading merchant ship",
-				"There are %d land traders garrisoned on a trading merchant ship")
+		garrisoned_s = _fill(_plural(garrisoned, "There is %(numberGarrisoned)s land trader garrisoned on a trading merchant ship",
+				"There are %(numberGarrisoned)s land traders garrisoned on a trading merchant ship"), {"numberGarrisoned": garrisoned})
+	var message: String
 	if active:
 		if garrisoned:
-			return ("%s, %s, and %s." % [trading_s, garrisoned_s, inactive_s]) if inactive else ("%s, and %s." % [trading_s, garrisoned_s])
-		return ("%s, and %s." % [trading_s, inactive_s]) if inactive else ("%s." % trading_s)
-	if garrisoned:
-		return ("%s, and %s." % [garrisoned_s, inactive_s]) if inactive else ("%s." % garrisoned_s)
-	if inactive:
-		return ("There is %s." if inactive == 1 else "There are %s.") % inactive_s
-	return "There are no land traders."
+			message = tr("%(openingTradingString)s, %(garrisonedString)s, and %(inactiveString)s.") if inactive else tr("%(openingTradingString)s, and %(garrisonedString)s.")
+		else:
+			message = tr("%(openingTradingString)s, and %(inactiveString)s.") if inactive else tr("%(openingTradingString)s.")
+	elif garrisoned:
+		message = tr("%(openingGarrisonedString)s, and %(inactiveString)s.") if inactive else tr("%(openingGarrisonedString)s.")
+	elif inactive:
+		message = _plural(inactive, "There is %(inactiveString)s.", "There are %(inactiveString)s.")
+	else:
+		message = tr("There are no land traders.")
+	return _fill(message, {"openingTradingString": trading_s, "openingGarrisonedString": garrisoned_s,
+		"garrisonedString": garrisoned_s, "inactiveString": _idle(inactive_s)})
 
 # TraderStatusTextShip.js
 func _ship_text(t: Dictionary) -> String:
 	var active: int = t.get("trading", 0)
 	var inactive: int = int(t.get("total", 0)) - active
-	var trading_s := _plural(active, "There is %d merchant ship trading", "There are %d merchant ships trading")
+	var trading_s := _fill(_plural(active, "There is %(numberTrading)s merchant ship trading", "There are %(numberTrading)s merchant ships trading"), {"numberTrading": active})
 	var inactive_s: String
 	if active:
-		inactive_s = _idle("%d inactive" % inactive)
+		inactive_s = _fill(_plural(inactive, "%(numberOfShipTraders)s inactive", "%(numberOfShipTraders)s inactive"), {"numberOfShipTraders": inactive})
 	else:
-		inactive_s = _idle(_plural(inactive, "%d merchant ship inactive", "%d merchant ships inactive"))
+		inactive_s = _fill(_plural(inactive, "%(numberOfShipTraders)s merchant ship inactive", "%(numberOfShipTraders)s merchant ships inactive"), {"numberOfShipTraders": inactive})
+	var message: String
 	if active:
-		return ("%s, and %s." % [trading_s, inactive_s]) if inactive else ("%s." % trading_s)
-	if inactive:
-		return ("There is %s." if inactive == 1 else "There are %s.") % inactive_s
-	return "There are no merchant ships."
+		message = tr("%(openingTradingString)s, and %(inactiveString)s.") if inactive else tr("%(openingTradingString)s.")
+	elif inactive:
+		message = _plural(inactive, "There is %(inactiveString)s.", "There are %(inactiveString)s.")
+	else:
+		message = tr("There are no merchant ships.")
+	return _fill(message, {"openingTradingString": trading_s, "inactiveString": _idle(inactive_s)})
