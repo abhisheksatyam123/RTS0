@@ -370,8 +370,8 @@ Every structure template the maps place (614 across data/maps) traced to the RTS
 | Z11 | Player map structures whose stem is no model id were dropped or mistyped: Egypt's Macedonian theatres and its players' market stalls; Units Demo's theatres, embassies, Han court, great tower, practice range and ministry, Tachara forms, German forge and totem, Pompeii amphitheatre; grain fields loaded as farmsteads | medium | Fixed (map_building_template names) |
 | Z12 | The Gaia wonders (Stonehenge, the Uffington Horse) and army tents (desert, Arab, Bedouin, Macedonian, Roman) were left off their maps | low | Fixed (map_structure_template rows) |
 | Z13 | A captured mercenary camp offered the Han barracks' Crossbow Training | nit | Fixed |
-| Z14 | Gaia huts, longhouses, stalls and Persian house_a/b/apartment_block are RTS0 houses: the captor's house health and population (0.28: 500-2000 HP, 2-15 population of their own) | low | Open |
-| Z15 | hellenic_epic_temple loads as a temple (2000 HP, trains healers); 0.28's has 5000 HP, 60 m territory, 30 garrison and trains and researches nothing | low | Open |
+| Z14 | Gaia huts, longhouses, stalls and Persian house_a/b/apartment_block are RTS0 houses: the captor's house health and population (0.28: 500-2000 HP, 2-15 population of their own) | low | Fixed: BLD_STALL, BLD_HUT, BLD_LONGHOUSE and BLD_PERS_HOUSE_A/B/BLD_APARTMENT_BLOCK carry their own 0.28 health, cost and population; stalls and Persian houses train the captor's citizens, huts and longhouses train nothing (test_map_structures) |
+| Z15 | hellenic_epic_temple loads as a temple (2000 HP, trains healers); 0.28's has 5000 HP, 60 m territory, 30 garrison and trains and researches nothing | low | Fixed: BLD_EPIC_TEMPLE with its own row; heals its garrison, trains and researches nothing (test_map_structures) |
 | Z16 | mill_field_wheat loads as a field with Health and 5 gatherers; 0.28's has no Health, Capturable or decay and takes 2 | low | Open |
 | Z17 | merc_camp_egyptian counts as Village (0.28: VisibleClasses -Village Town); pirates/dock trains the captor's dock roster, not the pirate ships | nit | Open |
 

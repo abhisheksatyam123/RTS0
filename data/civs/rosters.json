@@ -21783,10 +21783,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -21889,10 +21894,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -21995,7 +22005,11 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
     "apartment_block",
@@ -22003,6 +22017,7 @@
     "house_a",
     "house_b",
     "inn",
+    "stall_big",
     "warehouse"
    ],
    "flags": [
@@ -22106,10 +22121,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -22212,11 +22232,16 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
     "apartment",
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -22319,10 +22344,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -22427,10 +22457,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -22533,10 +22568,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
     "house",
+    "stall_big",
     "tavern"
    ],
    "flags": [
@@ -22640,10 +22680,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -22746,10 +22791,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -22852,10 +22902,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -22958,10 +23013,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -23066,10 +23126,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -23174,10 +23239,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -24377,10 +24447,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"

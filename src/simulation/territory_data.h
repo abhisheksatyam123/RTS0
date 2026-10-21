@@ -10,7 +10,7 @@ struct TerritoryInfluenceInfo {
 	bool root; // Root: connects the territory around it
 };
 
-inline constexpr uint8_t TERRITORY_INFLUENCE_ROWS = 91;
+inline constexpr uint8_t TERRITORY_INFLUENCE_ROWS = 98;
 inline const TerritoryInfluenceInfo &territory_influence_info(uint8_t type) {
 	static const TerritoryInfluenceInfo kTable[TERRITORY_INFLUENCE_ROWS + 1] = {
 		{35.0f, 10000, true}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre (140 m)
@@ -104,6 +104,13 @@ inline const TerritoryInfluenceInfo &territory_influence_info(uint8_t type) {
 		{75.0f, 35000, true}, // BLD_CAMPAIGN_CITY: campaigns/campaign_city_test (300 m)
 		{37.5f, 35000, true}, // BLD_CAMPAIGN_CITY_MINOR: campaigns/campaign_city_minor_test (150 m)
 		{25.0f, 65535, true}, // BLD_CAMPAIGN_SANCTUARY: campaigns/campaign_religious_test (100 m)
+		{4.0f, 65535, false}, // BLD_STALL: structures/stall_big (16 m)
+		{4.0f, 65535, false}, // BLD_HUT: structures/celt_hut (16 m)
+		{4.0f, 65535, false}, // BLD_LONGHOUSE: structures/celt_longhouse (16 m)
+		{4.0f, 65535, false}, // BLD_PERS_HOUSE_A: structures/pers/house_a (16 m)
+		{4.0f, 65535, false}, // BLD_PERS_HOUSE_B: structures/pers/house_b (16 m)
+		{6.25f, 65535, false}, // BLD_APARTMENT_BLOCK: structures/pers/apartment_block (25 m)
+		{15.0f, 65535, false}, // BLD_EPIC_TEMPLE: structures/hellenic_epic_temple (60 m)
 		{0.0f, 0, false}, // out of range
 	};
 	return kTable[type < TERRITORY_INFLUENCE_ROWS ? type : TERRITORY_INFLUENCE_ROWS];
