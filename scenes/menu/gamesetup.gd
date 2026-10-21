@@ -953,7 +953,8 @@ func _build_map_list() -> void:
 ## MapBrowserPage.openPage: on the current type, filter and map; only the
 ## controller picks (a client looks).
 func _open_map_browser() -> void:
-	if _map_browser != null and is_instance_valid(_map_browser):
+	# MapPreview.js / MapBrowser.js: a saved game's map is fixed, so neither opens.
+	if (_map_browser != null and is_instance_valid(_map_browser)) or _saved_game():
 		return
 	_map_browser = MapBrowser.open_overlay(self, _maps, _map_type, _map_filter_name, str(_selected_map().get("id", "")), _mp_role != "client")
 	_map_browser.map_chosen.connect(_on_map_browsed)
@@ -1818,7 +1819,7 @@ static func _draw_gear(b: Button) -> void:
 func _open_ai_config(slot: int) -> void:
 	if get_node_or_null("AIConfigLayer") != null:
 		return
-	var dlg = AIConfig.open_overlay(self, slot, _mp_role != "client")
+	var dlg = AIConfig.open_overlay(self, slot, _mp_role != "client" and not _saved_game())
 	dlg.get_parent().name = "AIConfigLayer"
 
 func _on_slot_civ(idx: int, slot: int) -> void:
@@ -2063,7 +2064,7 @@ const PERSISTED_KEYS := ["map_id", "seed", "victory", "waves_enabled", "last_man
 	"regicide_garrison", "lock_teams", "disable_spies", "disable_treasures", "pop_cap", "team_pop",
 	"ceasefire_min", "reveal_map", "explore_map", "ally_view", "wonder_min", "relic_min", "relic_count", "water_level",
 	"sea_level_rise_min", "team_placement", "landscape", "trigger_difficulty", "map_daytime", "map_size", "start_res", "biome", "game_speed",
-	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors", "local_slot"]
+	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors", "local_slot", "map_filter"]
 ## 0 A.D. PersistentMatchSettings.PersistedSettingsFileSingleplayer.
 const PERSIST_FILE := "user://config/matchsettings.json"
 ## PersistentMatchSettings(isNetworked): a networked game's controller keeps its own file.
@@ -2119,7 +2120,9 @@ func page_state() -> Dictionary:
 		"slot_types": rows.map(func(r): return int(r["kind"])), "slot_civs": rows.map(func(r): return int(r["civ"])),
 		"slot_teams": rows.map(func(r): return int(r["team"])), "slot_diffs": rows.map(func(r): return int(r["diff"])),
 		"slot_behs": rows.map(func(r): return int(r["beh"])), "slot_colors": rows.map(func(r): return int(r["color"])),
-		"local_slot": _local_slot}
+		"local_slot": _local_slot,
+		# GuiData.js: the Map Filter travels with the settings and is persisted with them.
+		"map_filter": _map_filter_name}
 
 ## The settings to show: the persisted file when there is one, else what this
 ## run last started with (MatchSettings).
@@ -2214,6 +2217,9 @@ func _apply_settings(ms: Dictionary) -> void:
 			spd.select(spd.get_item_index(i))
 	%SpinSeed.value = int(ms.get("seed"))
 	# Restore map selection by id, with its map type.
+	var filter := str(ms.get("map_filter")) if ms.get("map_filter") != null else ""
+	if filter != "" and MAP_FILTERS.any(func(f): return f[0] == filter):
+		_map_filter_name = filter
 	_select_map_id(str(ms.get("map_id")))
 	# Restore slots.
 	var types: Array = ms.get("slot_types", [])
@@ -3114,6 +3120,16 @@ func _apply_mp_locks() -> void:
 		for c in cells:
 			if c.has_node("AssignSelect"):
 				keep[c] = true
+	# GameSettingsTabs, CivInfoButton, AIConfigButton and MapBrowser.js: the tabs
+	# and the viewers are no settings, so everyone opens them (a client and a
+	# saved game's host read only); Browse Maps is hidden for a saved game.
+	for name in TAB_BUTTONS + ["CivInfoButton", "AIConfigButton", "BrowseMaps"]:
+		for b in $VBox/HBox.find_children(name, "BaseButton", true, false):
+			keep[b] = true
+			(b as BaseButton).disabled = false
+	var browse := find_child("BrowseMaps", true, false) as Control
+	if browse:
+		browse.visible = not _saved_game()
 	# GameSettingControl: a client changes nothing, its own slot included (0.28
 	# NetServer relays only the controller's setup).
 	_lock_tree($VBox/HBox, keep)
