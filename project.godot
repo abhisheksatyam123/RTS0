@@ -12,6 +12,8 @@ config_version=5
 
 config/name="RTS0"
 run/main_scene="res://scenes/menu/main_menu.tscn"
+; Android Back closes dialogs and opens menus (scenes/common/touch_input.gd), never quits.
+config/quit_on_go_back=false
 config/features=PackedStringArray("4.3", "Forward Plus")
 config/icon="res://icon.png"
 
