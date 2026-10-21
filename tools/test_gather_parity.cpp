@@ -121,6 +121,39 @@ int main() {
 				c1, c2, c3, a1, cm, sm);
 		CHECK(std::fabs(a1 / c1 - 1.25f) < 0.04f && std::fabs(a1 / c2 - 1.5625f) < 0.06f && std::fabs(a1 / c3 - 1.953f) < 0.08f);
 		CHECK(std::fabs(cm - sm) < 0.06f);
+		// The selection details show the same rates: a City Carthaginian woman's stone is the
+		// Athenian's x1.25^3, an Athenian City woman's metal x1.21.
+		static Simulation s;
+		fresh(s);
+		s.set_team_civ(0, CIV_CARTHAGINIANS);
+		s.set_team_civ(1, CIV_ATHENIANS);
+		s.player(0).phase = 3;
+		s.player(1).phase = 3;
+		const uint32_t cw = s.spawn_unit(0.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN), aw = s.spawn_unit(4.0f, 0.0f, 1, UNIT_FEMALE_CITIZEN);
+		const auto cd = s.unit_details((size_t)s.lookup_unit(cw)), ad = s.unit_details((size_t)s.lookup_unit(aw));
+		std::printf("  panel: Carthaginian stone %.3f, Athenian stone %.3f, metal %.3f / %.3f\n", cd.gather[Simulation::GK_STONE],
+				ad.gather[Simulation::GK_STONE], cd.gather[Simulation::GK_METAL], ad.gather[Simulation::GK_METAL]);
+		CHECK(std::fabs(cd.gather[Simulation::GK_STONE] / ad.gather[Simulation::GK_STONE] - 1.953125f) < 1e-3f);
+		CHECK(std::fabs(ad.gather[Simulation::GK_METAL] / cd.gather[Simulation::GK_METAL] - 1.21f) < 1e-3f);
+	}
+
+	// 3c. germ_women's +0.5 m/s is added after the technologies' multiplies (GetTechModifiedProperty):
+	// Roman Roads x1.05 on a German civilian scales her base speed, not the bonus.
+	{
+		static Simulation s;
+		fresh(s);
+		s.set_team_civ(0, CIV_GERMANS);
+		const uint32_t before = s.spawn_unit(0.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		const float add = s.unit_civ_speed_add((size_t)s.lookup_unit(before));
+		const float v0 = s.units_.speed[s.lookup_unit(before)];
+		s.players_[0].techs.set(TECH_ROMAN_ROADS);
+		s.refresh_tech_mods(0);
+		const uint32_t after = s.spawn_unit(4.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		const float want = (v0 - add) * 1.05f + add;
+		std::printf("  germ_women: add %.3f, speed %.4f -> %.4f / %.4f (want %.4f)\n", add, v0,
+				s.units_.speed[s.lookup_unit(before)], s.units_.speed[s.lookup_unit(after)], want);
+		CHECK(add > 0.0f && std::fabs(s.units_.speed[s.lookup_unit(before)] - want) < 1e-4f &&
+				std::fabs(s.units_.speed[s.lookup_unit(after)] - want) < 1e-4f);
 	}
 
 	// 4. Loot is floored after the rank multiplier.
