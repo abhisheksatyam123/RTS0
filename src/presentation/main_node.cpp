@@ -1502,6 +1502,25 @@ void RtsoMain::_on_observer_view_selected(int index) {
 }
 
 // Gaia sees everything, so its view is the observer's (as in a replay).
+// PlayerViewControl.onPlayersFinished: when the viewed player loses, an observer's or a
+// replay's view goes to Observer; a winner stays viewed.
+void RtsoMain::follow_viewed_player_finish() {
+	if (!sim) return;
+	int finished = 0, lost = 0;
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+		if (sim->is_defeated(p)) lost |= 1 << p;
+		if (sim->is_defeated(p) || sim->is_victory_for(p)) finished |= 1 << p;
+	}
+	const int fresh = finished_seen_ < 0 ? 0 : lost & ~finished_seen_;
+	finished_seen_ = finished;
+	if (!fresh) return;
+	if (turn_mgr_.is_replaying()) {
+		if (replay_view_ < rtso::MAX_PLAYERS && (fresh & (1 << replay_view_))) set_replay_view(-1);
+	} else if (spectating() && observer_view_ < rtso::MAX_PLAYERS && (fresh & (1 << observer_view_))) {
+		set_observer_view(-1);
+	}
+}
+
 void RtsoMain::set_observer_view(int player) {
 	observer_view_gaia_ = player == rtso::GAIA_PLAYER;
 	observer_view_ = player >= 0 && player < rtso::MAX_PLAYERS ? (uint8_t)player : rtso::OBSERVER_VIEW;
@@ -2294,7 +2313,7 @@ void RtsoMain::select_group(int key, bool drop) {
 		for (size_t i = 0; i < uview.count; ++i) {
 			if (uview.id[i] != (uint32_t)selected_ids[s]) continue;
 			const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-			const bool in_group = RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl) == key;
+			const bool in_group = RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl, uview.rank[i]) == key;
 			if (in_group != drop) kept.push_back(selected_ids[s]);
 			found = true;
 			break;
@@ -2340,7 +2359,7 @@ void RtsoMain::_on_garrison_group_clicked(int key) {
 			for (size_t i = 0; i < uview.count; ++i) {
 				if (uview.id[i] != gid) continue;
 				const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-				if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i]) == key) out.push_back(gid);
+				if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i], uview.rank[i]) == key) out.push_back(gid);
 				break;
 			}
 			if (!all && !out.empty()) break;
@@ -4192,8 +4211,9 @@ std::vector<std::pair<String, String>> RtsoMain::chat_private_targets() {
 		const bool obs = e.player >= rtso::MAX_PLAYERS || player_finished(e.player);
 		if (me_obs && !obs) continue; // no private message from an observer to a player
 		// 0.28 /msg names the addressee's GUID: an observer by its client, so a
-		// line to one observer reaches no other.
-		const String tag = obs ? "[Observer-" + String::num_int64(e.client) + "]"
+		// line to one observer reaches no other. A seat whose game is over keeps
+		// its player tag, which chat_tag_reaches lets observers and players reach.
+		const String tag = e.player >= rtso::MAX_PLAYERS ? "[Observer-" + String::num_int64(e.client) + "]"
 		                       : "[Player-" + String::num_int64((int)e.player + 1) + "]";
 		out.push_back({tag, chat_user("peer-" + String::num_int64(e.client))});
 	}

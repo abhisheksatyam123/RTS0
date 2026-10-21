@@ -137,7 +137,10 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 			}
 		} else if (n.kind == N::PHASE_STARTED || n.kind == N::PHASE_ABORTED || n.kind == N::PHASE_COMPLETED) {
 			if (user_opts_.phase_notice == 0 || (n.player != seat && !observer && !mutual_ally(n.player, seat))) continue;
-			const String phase = tr(String::utf8(rtso::tech_info(n.tech).name));
+			// getEntityNames(GetTechnologyData(phaseName, civ)): "Kōmopolis (Town Phase)".
+			const char *specific = rtso::tech_specific_name(n.tech, sim->player_civ(n.player));
+			const String phase = rtso::entity_names(String::utf8(rtso::tech_info(n.tech).name),
+					specific ? String::utf8(specific) : String());
 			const String player = colored_player_name(n.player);
 			if (n.kind == N::PHASE_COMPLETED)
 				line = sprintf0(tr("%(player)s has reached the %(phaseName)s."), {{"player", player}, {"phaseName", phase}});
