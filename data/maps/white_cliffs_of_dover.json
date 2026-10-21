@@ -9498,7 +9498,8 @@
         "metal": 500,
         "stone": 500,
         "wood": 500
-      }
+      },
+      "name": "Invader 1"
     },
     {
       "id": 3,
@@ -9510,7 +9511,8 @@
         "metal": 500,
         "stone": 500,
         "wood": 500
-      }
+      },
+      "name": "Invader 2"
     },
     {
       "id": 4,
@@ -9522,7 +9524,8 @@
         "metal": 500,
         "stone": 500,
         "wood": 500
-      }
+      },
+      "name": "Invader 3"
     },
     {
       "id": 5,
@@ -9534,7 +9537,8 @@
         "metal": 500,
         "stone": 500,
         "wood": 500
-      }
+      },
+      "name": "Invader 4"
     },
     {
       "id": 1,

@@ -692,6 +692,15 @@ The scenario test scripts (triggers_demo, pickup_test_map, unit_chasing_test, un
 | SC4 | Unit Dancing's "not killed" report came from a 500 ms poll; 0.28 reports on IDLE's 100 ms FindNewTargets timer | cosmetic | Fixed: polled every 100 ms from 3.1 s |
 | SC5 | Pickup Test's UnitsIntoShipThenAnotherCloseBy sent the second walker up to 200 ms after the first boarded; 0.28's PerformGarrison hook sends it on boarding | cosmetic | Fixed: checked every tick |
 
+Skirmish maps' ScriptSettings (fifteenth pass, 2026-10-21; docs/archive/triggers-audit-028-pass15.md): all 77 0.28 skirmish maps against their JSON and Game Setup's handling, by 0.28's gamesettings onMapChange handlers:
+
+| # | Gap | Severity | State |
+|---|---|---|---|
+| SK1 | A skirmish's PlayerData civs (Egypt's six) were only forced at match start; Game Setup showed Random or your pick, unlocked, and named the AIs from the wrong civ. PlayerCiv.onMapChange takes a map's civs on any map type, locked, and resets the other seats to Random | medium | Fixed |
+| SK2 | Lock Teams kept the last choice on a new skirmish; LockedTeams.onMapChange sets it to the map's LockTeams (Egypt on, every other off), still editable | low | Fixed: map_types.json "lock_teams", applied when the map changes |
+| SK3 | PlayerData Name (Egypt's cities, Azure Coast's Greeks and Celts, White Cliffs' invaders and 20 scenarios) was dropped; PlayerName._set makes it the seat's default, which an AI keeps | cosmetic | Fixed: the porter keeps "name", Game Setup gives it to AI and unassigned seats |
+| SK4 | A map's PlayerData Color snaps to the nearest of RTS0's palette colours; 0.28 adds the map's colours to the colour list | cosmetic | Kept: seats carry a palette index |
+
 Scenario-only units: every unit the 0.28 scenario, demo and sandbox maps place was checked against the ported map JSON and the roster:
 
 | # | Gap | Severity | State |
