@@ -3185,20 +3185,36 @@ void RtsoWorldView::ensure_fauna_frames(int row) {
 
 // A unit model's first draw reads its GLB, tens of milliseconds on the frame. Twice a
 // second, the models of units that exist but aren't drawn yet (in the fog, in a
-// structure) and of units in the production queues start loading on a worker.
+// structure) and of units in the production queues start loading on a worker, while
+// few are in flight: a model the frame needs waits for every request queued ahead of it,
+// so a flood (the first poll after a save loads asks for hundreds) stalls that frame for seconds.
 void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso::Simulation::UnitView &uview, float delta) {
 	prefetch_poll_ -= delta;
 	if (prefetch_poll_ > 0.0f) return;
 	prefetch_poll_ = 0.5f;
 	if (prefetched_.size() != (size_t)rtso::CIV_COUNT * CROWD_KEY_COUNT) prefetched_.assign((size_t)rtso::CIV_COUNT * CROWD_KEY_COUNT, false);
+	// Requests (GLBs and their textures) still loading; new ones wait for a later poll past this.
+	constexpr int kMaxInFlight = 24;
+	const int in_flight = rtso::ModelLibrary::loads_in_flight();
+	if (in_flight >= kMaxInFlight) return;
+	int budget = std::max(1, (kMaxInFlight - in_flight) / 4); // unit models asked for this poll
 	auto want = [&](uint8_t civ, uint16_t key) {
 		if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
-		if (key >= CROWD_KEY_COUNT || crowd_[civ][key]) return;
+		if (budget <= 0 || key >= CROWD_KEY_COUNT || crowd_[civ][key]) return;
 		std::vector<bool>::reference done = prefetched_[(size_t)civ * CROWD_KEY_COUNT + key];
 		if (done) return;
 		done = true;
+		--budget;
 		rtso::ModelLibrary::prefetch("units", crowd_key_model(civ, key));
 	};
+	// The units the production queues are about to train first, then those that exist.
+	for (const auto &b : sim->buildings()) {
+		for (const rtso::ProductionOrder &o : b.queue) {
+			if (o.is_tech() || o.unit_type >= rtso::UNIT_TYPE_COUNT) continue;
+			const uint8_t civ = sim->team_civ(b.team);
+			want(civ, crowd_key_of(civ, o.unit_type, 0, o.tmpl, 0, 1));
+		}
+	}
 	for (size_t i = 0; i < uview.count; ++i) {
 		uint8_t t = uview.unit_type[i];
 		if (t >= rtso::UNIT_TYPE_COUNT) t = rtso::UNIT_VILLAGER;
@@ -3212,11 +3228,14 @@ void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso
 	// foundation and scaffold (its owner builds more of that kind), and a damaged one's rubble.
 	if (!rubble_loaded_) load_rubble();
 	if (!foundations_loaded_) load_foundations();
+	budget = std::max(5, (kMaxInFlight - in_flight) / 4); // and structure models
 	auto want_building = [&](const String &id) {
 		if (id.is_empty() || !building_prefetched_.insert(id.utf8().get_data()).second) return;
+		--budget;
 		rtso::ModelLibrary::prefetch("buildings", id);
 	};
 	for (const auto &b : sim->buildings()) {
+		if (budget < 5) break; // its model and up to four site or rubble models
 		if (b.wrecked) continue;
 		const uint8_t civ = sim->team_civ(b.team);
 		const uint32_t kind = (uint32_t)civ << 16 | b.type << 1;
@@ -3237,13 +3256,6 @@ void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso
 			const auto ro = rubble_of_.find(civ_type);
 			if (ro != rubble_of_.end()) want_building(String(ro->second.c_str()));
 			if (const char *r = rtso::civ_building_rubble(civ, b.type)) want_building(String(r));
-		}
-	}
-	for (const auto &b : sim->buildings()) {
-		for (const rtso::ProductionOrder &o : b.queue) {
-			if (o.is_tech() || o.unit_type >= rtso::UNIT_TYPE_COUNT) continue;
-			const uint8_t civ = sim->team_civ(b.team);
-			want(civ, crowd_key_of(civ, o.unit_type, 0, o.tmpl, 0, 1));
 		}
 	}
 }
