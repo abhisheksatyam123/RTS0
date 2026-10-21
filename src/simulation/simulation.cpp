@@ -30561,6 +30561,9 @@ uint32_t Simulation::petra_free_transport_ship(uint16_t sea, float x, float z) c
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !petra_is_transport_ship(i)) continue;
 		if (sea && petra_ship_sea(i) != sea) continue;
 		if (petra_ship_in_plan(units_.id[i])) continue; // busy with another plan
+		// A warship in a defense army fights where the army is; it would never come to the
+		// boarding point (the plan waits for a free ship, needTransportShips).
+		if (petra_is_defender(units_.id[i])) continue;
 		const float dx = units_.pos_x[i] - x, dz = units_.pos_z[i] - z;
 		const float d2 = dx * dx + dz * dz;
 		if (ship && d2 >= best_d2) continue;
