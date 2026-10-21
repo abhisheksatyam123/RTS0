@@ -13536,9 +13536,24 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 		int shore;
 		int retry = 40;
 		uint8_t fauna = 0xFF;
+		// rmgen2 addFish's SimpleObjects: a fractional count range drawn by randIntInclusive
+		// (count_hi > 0 replaces min_n/max_n), and members spread_min-spread off the tile.
+		float count_lo = 0.0f, count_hi = 0.0f, spread_min = 0.0f;
 	};
 	std::vector<FishPass> passes;
 	const int players = std::max(1, config.num_players);
+	RmsRng rng(config.seed ^ 0x46495348u); // 'FISH'
+	// rmgen2 addFish(constraint, size, deviation, fill): groupOffset = size +- deviation
+	// (getRandomDeviation), then floor(40 * fill) tries each of groupOffset-2x fish 0-2x
+	// off the tile and 2x-4x fish 10x-20x off it (createObjectGroupsDeprecated).
+	auto add_fish = [&](float size, float deviation, float fill, int water, float spacing, uint8_t fauna) {
+		const float off = size + rng.range_float(-1.0f, 1.0f) * std::min(size, deviation);
+		const int tries = (int)std::floor(40.0f * fill);
+		FishPass near{tries, 0, 0, water, spacing, 2.0f * off, 0, 0, fauna, off, 2.0f * off, 0.0f};
+		FishPass far{tries, 0, 0, water, spacing, 20.0f * off, 0, 0, fauna, 2.0f * off, 4.0f * off, 10.0f * off};
+		passes.push_back(near);
+		passes.push_back(far);
+	};
 	switch (config.map_type) {
 		case MAP_GULF_OF_BOTHNIA:
 			// 0.28 gulf_of_bothnia.js (unfrozen): createFood of 2-3 fish,
@@ -13638,11 +13653,18 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 			passes.push_back({25 * players, 2, 3, 4, 20.0f, 2.0f, 0, 0});
 			passes.push_back({(int)std::ceil(sbms(5.0f, 20.0f)), 1, 1, 4, 8.0f, 3.0f, 0, 0, FAUNA_WHALE_HUMPBACK});
 			break;
+		case MAP_MEDITERRANEAN:
+			// mediterranean.js: addFish "normal" size, "similar" mix, "many" amount, stay
+			// clWater 4, avoid fish 10; then fin whales the same way, "small", "same",
+			// "scarce", stay clWater 7, avoid fish 2 (its desert and steppe classes are
+			// never painted, so their avoidance holds everywhere).
+			add_fish(1.0f, 0.1f, 1.75f, 4, 10.0f, 0xFF);
+			add_fish(0.75f, 0.0f, 0.2f, 7, 2.0f, FAUNA_WHALE_FIN);
+			break;
 		default:
 			passes.push_back({(int)std::lround(sbms(15.0f, 50.0f)), 2, 3, 2, 20.0f, 2.0f, 0});
 			break;
 	}
-	RmsRng rng(config.seed ^ 0x46495348u); // 'FISH'
 	// rmgen works on tiles: a constraint is tested at a position's tile (floor), over the
 	// tiles whose index lies within its radius (TileClass.countInRadius). clWater is the
 	// tiles under the water plane.
@@ -13696,13 +13718,17 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 			// SimpleGroup.place (avoidSelf): each fish 0-spread from the tile's centre, 1 apart,
 			// on a tile the constraint allows; 30 failed spots and the whole group is dropped.
 			std::vector<std::pair<float, float>> group;
-			const int n = f.min_n == f.max_n ? f.min_n : rng.range_int(f.min_n, f.max_n);
+			int n = f.min_n == f.max_n ? f.min_n : rng.range_int(f.min_n, f.max_n);
+			if (f.count_hi > 0.0f) {
+				const float u = rng.range_float(0.0f, 1.0f);
+				n = (int)std::floor(f.count_lo + u * (f.count_hi + 1.0f - f.count_lo)); // randIntInclusive
+			}
 			int retries = 0;
 			bool ok = true;
 			for (int k = 0; k < n && ok; ++k)
 				for (;;) {
 					// One draw per statement: compilers order a call's arguments differently.
-					const float dist = rng.range_float(0.0f, f.spread);
+					const float dist = rng.range_float(f.spread_min, f.spread);
 					const float ang = rng.range_float(0.0f, kTwoPi);
 					const auto o = polar(ang, dist);
 					const float fx = cx + 0.5f + o.first, fz = cz + 0.5f + o.second;

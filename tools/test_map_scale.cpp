@@ -848,9 +848,9 @@ int main() {
 		CHECK(corsica >= 60 && corsica <= 3 * 240, "corsica: %d fish, 0.28 tries 50 and 70 groups of 2-3 per player", corsica);
 	}
 	{
-		// 0.28's whales: arctic_summer, polar_sea, cycladic_archipelago and island_stronghold
+		// 0.28's whales: arctic_summer, polar_sea, cycladic_archipelago, island_stronghold and mediterranean
 		// place fin and humpback whales at sea, among their fish (clFood).
-		for (MapType mt : {MAP_ARCTIC_SUMMER, MAP_POLAR_SEA, MAP_CYCLADIC_ARCHIPELAGO, MAP_ISLAND_STRONGHOLD}) {
+		for (MapType mt : {MAP_ARCTIC_SUMMER, MAP_POLAR_SEA, MAP_CYCLADIC_ARCHIPELAGO, MAP_ISLAND_STRONGHOLD, MAP_MEDITERRANEAN}) {
 			static Simulation s;
 			s.reset();
 			s.generate_random_map(mt, 7, 2, 128.0f);

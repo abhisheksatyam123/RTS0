@@ -182,8 +182,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 116; // save_state's format; see the history beside it
-	static constexpr uint32_t SAVE_VERSION_FAUNA_PRESSURE = 116; // each animal's pushing pressure and failed movements (fauna_pressure_, fauna_failed_)
+	static constexpr uint32_t SAVE_VERSION = 117; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_FAUNA_PRESSURE = 117; // each animal's pushing pressure and failed movements (fauna_pressure_, fauna_failed_)
+	static constexpr uint32_t SAVE_VERSION_PETRA_REQUIRE_HOUSES = 116; // headquarters.js requireHouses, kept until the phase has its houses
 	static constexpr uint32_t SAVE_VERSION_PETRA_BASE_TURN = 115; // the base Petra updates next (basesManager.js currentBase)
 	static constexpr uint32_t SAVE_VERSION_PETRA_WORKER_PLANS = 114; // trainMoreWorkers' queued TrainingPlans
 	static constexpr uint32_t SAVE_VERSION_PETRA_PASS5 = 113; // Petra's trade and transport ships, house plans, new bases
@@ -3281,9 +3282,6 @@ private:
 		uint8_t pid, btype;
 	};
 	std::vector<PetraPlaceMiss> petra_place_misses_;
-	// headquarters.js requireHouses: a house the phase needs and no room for one, so
-	// petra_find_position leaves out every structure's influence for houses (set for one call).
-	bool petra_require_houses_ = false;
 	bool petra_place_no_room_ = false; // last petra_place_building found no spot (read at once, not saved)
 	// queueplanBuilding.js canStart: one foundation per AI turn (HQ.turnCache.buildingBuilt).
 	// Both are set only inside one AI's turn (tick_petra_ai), so a save between ticks never
