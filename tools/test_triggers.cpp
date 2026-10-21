@@ -704,7 +704,8 @@ static void check_pickup_test() {
 
 static void check_unit_chasing() {
 	// scenarios/unit_chasing_test_triggers.js: at 3 s 30 chase experiments (the two muskox ones
-	// hunt a Gaia animal), nobody promotes, and a pair that loses a unit is removed whole.
+	// hunt player 1's muskox walking north), nobody promotes, and a pair that loses a unit is
+	// removed whole.
 	const int before = failures;
 	static Simulation s;
 	s.reset();
@@ -716,14 +717,30 @@ static void check_unit_chasing() {
 	run_to(s, 2.9f);
 	CHECK(s.triggers_.watched.empty(), "nothing before 3 s");
 	run_to(s, 3.1f);
-	CHECK(s.triggers_.watched.size() == 58, "%zu units followed, want 28 pairs and 2 hunters", s.triggers_.watched.size());
+	CHECK(s.triggers_.watched.size() == 60, "%zu entities followed, want 30 pairs", s.triggers_.watched.size());
 	const int32_t u = s.lookup_unit(s.triggers_.watched[0].id);
 	CHECK(u >= 0 && s.promotion_required_xp((size_t)u) > 10000.0f, "promotions are off: %.0f xp", u >= 0 ? s.promotion_required_xp((size_t)u) : 0.0f);
+	run_to(s, 4.0f);
+	{
+		// fast_on_muskox: the cavalryman goes for the walking muskox.
+		int hunters = 0, muskoxen = 0;
+		const auto f = s.fauna();
+		for (const TriggerWatch &w : s.triggers_.watched) {
+			if (w.role != 12 && w.role != 13) continue;
+			if (w.building == 2) {
+				for (size_t i = 0; i < f.count; ++i)
+					muskoxen += f.id[i] == w.id && f.owner[i] == 0 && f.behavior[i] == FAUNA_MOVING;
+			} else if (const int32_t h = s.lookup_unit(w.id); h >= 0) {
+				hunters += s.units().action_state[h] == ACTION_ATTACK;
+			}
+		}
+		CHECK(hunters == 2 && muskoxen == 2, "fast_on_muskox: %d hunters attacking, %d of player 1's muskoxen walking", hunters, muskoxen);
+	}
 	run_to(s, 90.0f);
 	std::map<uint8_t, int> left;
 	for (const TriggerWatch &w : s.triggers_.watched) ++left[w.role];
-	bool whole = s.triggers_.watched.size() < 58;
-	for (const auto &[role, n] : left) whole &= n == 2 || role == 12 || role == 13;
+	bool whole = s.triggers_.watched.size() < 60;
+	for (const auto &[role, n] : left) whole &= n == 2;
 	CHECK(whole, "pairs go whole: %zu units followed after 90 s", s.triggers_.watched.size());
 	if (failures == before) std::printf("unit_chasing_test: 30 experiments at 3 s, no promotions, pairs removed whole (%zu left): ok\n",
 	                                    s.triggers_.watched.size());
