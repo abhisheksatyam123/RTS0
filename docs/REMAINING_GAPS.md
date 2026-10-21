@@ -193,7 +193,7 @@ Pack, flee, stances, turrets and ship ejection against UnitAI.js, Pack.js, Garri
 | O5 | Turret occupants of a structure whose owner ends an alliance step down at once; 0.28's TurretHolder only reacts to an ownership change, so foreign turret units stay on a former ally's wall (a 0.28 bug) | low | Kept |
 | O6 | ~~A sunk or destroyed ship ejects every passenger, and a non-mutual-ally holder disembarks all of them~~ Fixed: only EjectClassesOnDestroy get off (ships: Civilian Infantry Healer Dog; warships: Civilian Infantry Dog; planes none), the rest die aboard; test_naval "alliance ends" | medium | Fixed |
 
-### Selection details layout: Compare's twelfth 0.28 pass (2026-10-21)
+### Selection details layout and auras: Compare's twelfth 0.28 pass (2026-10-21)
 
 | # | Gap | Severity | Status |
 |---|-----|----------|--------|
@@ -204,6 +204,9 @@ Pack, flee, stances, turrets and ship ejection against UnitAI.js, Pack.js, Garri
 | SD5 | Names share one clipped line "Primary (Secondary)"; 0.28 puts the secondary name on its own line under the primary (PrimaryNameCentered, SecondaryNameCentered). | low | Open: Compare |
 | SD6 | The bars sit in RTS0's own rows (x 118, 11 px, value centred, an HP/CP glyph left of each); 0.28 lays them from sectionPosTop/Middle/Bottom (x 96, a 14 px caption row over a 7 px bar). | low | Open: Compare |
 | SD7 | The player band is 20 px with the whole emblem tinted grey and the phase emblem squeezed to 44x16; 0.28's is 24 px with the emblem's centre strip in greyscale and the phase emblems across the band. | low | Open: Compare |
+| SD8 | Demetrius' Besieger left out its Attack/Ranged/MaxRange multiply 1.1: his siege engines reached no further. | medium | Fixed: MaxRange factors in `range_add_range_auras` (`extract_0ad_aura_modifiers.py`), applied before the added metres in `attack_reach` (`tools/test_combat.cpp` 18) |
+| SD9 | A captured Hellenic epic temple (Greek Acropolis) or the campaign sanctuary healed nobody; both inherit template_structure_civic_temple's temple_heal. | low | Fixed (`rebuild_auras`, `tools/test_combat.cpp`) |
+| SD10 | Auras are rebuilt every 0.4 s of sim time; 0.28's range queries follow units each 200 ms turn, so a moving hero's auras reach and leave units up to a turn later. | low | Open: Compare (changes the sim hash) |
 
 ### Aura icons, fogged selections and structure tooltips: Compare's eleventh 0.28 pass (2026-10-20)
 
