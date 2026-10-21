@@ -4003,10 +4003,13 @@ private:
 	bool petra_limit_allows_building(uint8_t btype) const;
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
 	mutable std::array<uint8_t, BLD_TYPE_COUNT> petra_limit_cache_{};
-	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
+	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone, bool pay = true); // pay false: only check
 	// What a structure costs this AI (structure_cost: its civ's template and cost bonuses), and paying it.
 	void petra_structure_cost(uint8_t btype, float &food, float &wood, float &gold, float &stone) const;
 	bool petra_try_pay_structure(uint8_t queue, uint8_t btype);
+	// queueManager.js startNextItems: whether `queue` can start the structure now (a builder, its
+	// account and our stock cover it); if not, its want is kept as petra_try_pay keeps it.
+	bool petra_can_start_structure(uint8_t queue, uint8_t btype);
 	// chatHelper.js: queue a line of `kind` (PetraChatKind) to `to` (a player, PETRA_CHAT_ALLIES or
 	// PETRA_CHAT_EVERYONE) about `player`; sub is the request type or PetraChatStance.
 	void petra_say(uint8_t kind, uint8_t to, uint8_t player = 0xFF, uint8_t sub = 0, int amount = 0, uint8_t res = 0,

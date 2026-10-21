@@ -445,7 +445,7 @@ researchManager.js, constructionPlan.js findGoodPosition and headquarters.js bui
 |---|---|---|---|
 | X1 | A fortress could be laid while City was still researching; canBuild's template.available needs phase_city | medium | Fixed |
 | X2 | A Wonder could be laid in the Town phase near the population cap | low | Fixed (all Petra canBuild checks now test the structure's phase) |
-| X3 | "No room" marks were set while placing, before the plan was paid; 0.28 searches only in start(), after the queue can afford it | medium-low | Open (C, queue start) |
+| X3 | "No room" marks were set while placing, before the plan was paid; 0.28 searches only in start(), after the queue can afford it | medium-low | Fixed: `petra_place_generic` and `petra_place_building` keep the want and search only once the queue can start the structure (`petra_can_start_structure`). Kept as before: defensive structures still check for a frontier spot before they queue, so a plan with nowhere to go holds no resources; the civic centre search is pass 5 H4 |
 | X4 | Towers and fortresses with no frontier spot never counted as missing room, so they never led to a new base | low-medium | Fixed |
 | X5 | Forge, temple and Town-phase structures don't wait for their queue's earlier plans; one merged want per queue starts whatever it can cover | low-medium | Open (C, queue order) |
 | X6 | At placement, 0.28 sends the first unit able to build; RTS0 sends idle builders to some structures and none to others | low | Fixed: the construct command in queueplanBuilding.js start goes out with autorepair false, so nobody is sent at placement; `petra_staff_foundations` (assignToFoundations) staffs every foundation on the next turn. The wonder victory's own builder feed stays |

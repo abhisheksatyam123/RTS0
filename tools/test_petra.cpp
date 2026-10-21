@@ -1776,6 +1776,36 @@ static void test_one_base_a_turn() {
 	CHECK(waiting == 0 && repairing >= 1, "a base's idle workers wait for its turn");
 }
 
+// queueplanBuilding.js start: a structure looks for a spot only when its queue can pay for it,
+// so it is marked short of room (90 s) only then; until then the plan waits, funded.
+static void test_no_room_only_once_funded() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	std::fill(s->territory_grid_.data.begin(), s->territory_grid_.data.end(), (uint8_t)0); // no spot anywhere
+	s->petra_room_.marks.clear();
+	s->set_player_resources(1, 0, 0, 0, 0);
+	s->petra_queues_.accounts[PETRA_Q_HOUSE] = PetraQueueAccount{};
+	s->petra_turn_built_ = false;
+	const uint32_t poor = s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
+	const bool poor_marked = s->petra_no_room(BLD_HOUSE);
+	const PetraQueueAccount &want = s->petra_queues_.wants[PETRA_Q_HOUSE];
+	const bool waits = want.wood > 0.0f;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	PetraQueueAccount &acc = s->petra_queues_.accounts[PETRA_Q_HOUSE];
+	acc.food = acc.wood = acc.gold = acc.stone = 1000.0f;
+	const uint32_t funded = s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
+	const bool funded_marked = s->petra_no_room(BLD_HOUSE);
+	std::printf("  no room once funded: unfunded placed %u marked %d want %d, funded placed %u marked %d\n", poor, (int)poor_marked,
+	            (int)waits, funded, (int)funded_marked);
+	CHECK(!poor && !poor_marked && waits, "an unfunded house waits in its queue, not marked short of room");
+	CHECK(!funded && funded_marked, "a funded house with no spot is marked short of room");
+}
+
 // baseManager.js assignRolelessUnits gives the Mauryan worker elephant the worker role, and
 // assignToFoundations sends it to a foundation next to it.
 static void test_worker_elephant_builds() {
@@ -7927,6 +7957,7 @@ int main(int argc, char **argv) {
 	RUN(test_garrisoned_workers_count);
 	RUN(test_gather_rate_civ_bonus);
 	RUN(test_one_base_a_turn);
+	RUN(test_no_room_only_once_funded);
 	RUN(test_idle_workers_repair_cc);
 	RUN(test_worker_elephant_builds);
 	RUN(test_anchor_dropsite_unshared);

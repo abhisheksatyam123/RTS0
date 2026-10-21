@@ -30304,7 +30304,14 @@ bool Simulation::petra_try_pay_structure(uint8_t queue, uint8_t btype) {
 	return petra_try_pay(queue, f, w, g, st);
 }
 
-bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone) {
+bool Simulation::petra_can_start_structure(uint8_t queue, uint8_t btype) {
+	if (!petra_has_builder()) return false;
+	float f, w, g, st;
+	petra_structure_cost(btype, f, w, g, st);
+	return petra_try_pay(queue, f, w, g, st, false);
+}
+
+bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone, bool pay) {
 	if (queue >= PETRA_Q_COUNT) return false;
 	if (food < 0.0f || wood < 0.0f || gold < 0.0f || stone < 0.0f) return false;
 	PetraQueueManager &qm = petra_queues_;
@@ -30321,6 +30328,7 @@ bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold
 		qm.want_age[queue] = 0.0f;
 		return false;
 	}
+	if (!pay) return true;
 	// startNextItems.
 	a.food -= food; a.wood -= wood; a.gold -= gold; a.stone -= stone;
 	petra_ps().pay(food, wood, gold, stone); // affordable: checked above
@@ -31468,6 +31476,8 @@ uint32_t Simulation::petra_place_generic(uint8_t btype, uint8_t queue, const flo
 		petra_place_no_room_ = true;
 		return 0;
 	}
+	// The plan waits in its queue until it can start; only then does start() look for a spot.
+	if (!petra_can_start_structure(queue, btype)) return 0;
 	int cx = 0, cz = 0;
 	if (!petra_find_position(btype, base_at, favor_at, military_base, cx, cz)) {
 		petra_place_no_room_ = true;
@@ -31505,6 +31515,7 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 		petra_place_no_room_ = true;
 		return 0;
 	}
+	if (!petra_can_start_structure(queue, btype)) return 0; // searched once the plan can start
 	if (miss != petra_place_misses_.end() && miss->sig == sig) { // the same search again finds the same nothing
 		petra_place_no_room_ = true;
 		petra_set_no_room(btype);
