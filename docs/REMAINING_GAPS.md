@@ -403,6 +403,21 @@ Every structure template the maps place (614 across data/maps) traced to the RTS
 | Z16 | mill_field_wheat loads as a field with Health and 5 gatherers; 0.28's has no Health, Capturable or decay and takes 2 | low | Open |
 | Z17 | merc_camp_egyptian counts as Village (0.28: VisibleClasses -Village Town); pirates/dock trains the captor's dock roster, not the pirate ships | nit | Open |
 
+### Petra research and placement, nineteenth 0.28 pass (2026-10-21)
+
+researchManager.js (update, checkPhase, the wanted/preferred/random picks) and the placement in queueplanBuilding.js and headquarters.js (houses, docks) against RTS0. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| PR1 | A minor tech waiting for resources stopped while a phase waited in majorTech, and its reserve lapsed; 0.28's queue manager keeps funding and starting it | medium | Fixed: the waiting pick is retried before the phase check |
+| PR2 | requireHouses relaxed one house placement every 4th turn; 0.28 keeps it set (every house ignores the influence map) until the phase's Village count is met | low | Fixed: kept per Petra player, saved (v115) |
+| PR3 | The proximity dock search failed outright when its best spot was on a land under 4000 cells; 0.28 passes those spots over and keeps searching | low | Fixed |
+| PR4 | The City-phase random tech and the Seleucid army reform were a hash of the researched techs (the same pick every game for a slot); 0.28 draws on the AI's random stream | low | Fixed: petra_rng_ |
+| PR5 | With under 5 free slots and no room for a house, the house priority was reset; 0.28 leaves it as it was | nit | Fixed |
+| PR6 | findAvailableTech read one structure per type, so a captured one of another civ added none of its techs; 0.28 reads every structure | nit | Fixed: one per type and template civ |
+
+Checked and matching: the wanted and preferred tech filters and their order, the cheap-pick priority boost and the paused minorTech queue. Not yet traced: the dock water test (getDockAngle, checkDockPlacement) and defensive placement falling back to ally structures.
+
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 
 BuildingAI.js, Attack.js and DelayedDamage.js against the arrow code, measured in the simulation and against a Python port of FireArrows: arrow counts with garrisons, auras and technologies (civic centre 6-26, tower 4-9, fortress 10-30), the 20 rounds per RepeatTime and their rounding, the first volley PrepareTime after a target enters, the paused round when targets leave, target order (preference, then distance, every arrow of a round on the first), what is shot (enemies, structures with Health, livestock, Gaia that can fight back), visibility, MinRange from the footprint, foundations, ownership changes, spread and stray hits all match. Owner: E.
