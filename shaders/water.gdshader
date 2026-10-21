@@ -15,6 +15,10 @@ uniform float metallic : hint_range(0.0, 1.0) = 0.2;
 // Line of sight, as in terrain.gdshader (0 A.D. water shaders multiply by losTex too).
 uniform sampler2D los_tex : hint_default_white, filter_linear, repeat_disable;
 uniform float los_map_half = 0.0;
+// 0.28 water fogs the colour and then multiplies it by the LOS, so unexplored
+// water stays black under the haze. RtsoWorldView passes the environment's
+// exponential fog (light colour times energy, density; 0 = off).
+uniform vec4 scene_fog = vec4(0.0);
 
 // Seabed heights, for the water depth 0 A.D.'s water_high.fs reads from its
 // depth buffer: colour murks with depth, the shoreline turns clear and
@@ -104,6 +108,7 @@ void fragment() {
 	}
 
 	ALBEDO = final_color * los;
+	FOG = vec4(scene_fog.rgb * los, 1.0 - exp(min(0.0, -length(VERTEX) * scene_fog.a)));
 	SPECULAR = 0.85 * los;
 	// No sky reflection off water the viewer has not explored.
 	METALLIC = metallic * los * reflect_on;

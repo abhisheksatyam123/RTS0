@@ -670,6 +670,8 @@ private:
 	static constexpr int FOG_OVERLAY_LEVELS = 17;
 	Ref<ShaderMaterial> fog_overlay_mats_[FOG_OVERLAY_LEVELS]; // multiply a fogged structure by its LOS brightness
 	void update_fog(const rtso::Simulation *sim, float delta);
+	Color scene_fog() const;
+	Color bound_fog_ = Color(-1, -1, -1, -1); // the scene_fog the terrain and water last took
 	void bind_los(const Ref<Material> &mat);
 	float los_brightness(float x, float z) const;
 	void set_fog_overlay(Node *n, float brightness);
