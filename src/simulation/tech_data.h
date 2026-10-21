@@ -240,6 +240,7 @@ inline constexpr TechClasses TC_AUXILIARY = tc_bit(66);
 inline constexpr TechClasses TC_TEMPLEOFAPEDEMAK = tc_bit(67);
 inline constexpr TechClasses TC_PALISADE = tc_bit(68);
 inline constexpr TechClasses TC_NAVAL = tc_bit(69);
+inline constexpr TechClasses TC_FIRESHIP = tc_bit(70);
 
 // One 0 A.D. "affects" alternative: every `need` class and no `forbid` class.
 struct TechClassExpr { TechClasses need; TechClasses forbid; };
@@ -305,7 +306,7 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_HERO, 0},
 		{TC_MARKET, 0},
 		{TC_DOCK, 0},
-		{TC_WARSHIP | TC_MELEE, 0},
+		{TC_WARSHIP | TC_MELEE, TC_FIRESHIP}, // NavalRam: the ram warships, not the melee fire ships
 		{TC_WARSHIP, 0},
 		{TC_BARRACKS, 0},
 		{TC_STABLE, 0},

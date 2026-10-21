@@ -21,8 +21,9 @@
 // 11. Patrol: walk-and-fight to the point, wait 2 s, walk back.
 // 12. Guard: the members guard and the formation disbands.
 // 13. Save/load mid-approach keeps the attack order.
-// 14. Gather, repair, garrison and heal: the formation walks up in formation, then the
-//     members do the work (UnitAI FORMATIONCONTROLLER Order.Gather/Repair/Heal, GARRISON).
+// 14. Gather, repair and heal: the formation walks up in formation, then the members do the
+//     work (UnitAI FORMATIONCONTROLLER Order.Gather/Repair/Heal); garrison goes to the members
+//     at once (GARRISON.GARRISONING).
 // 15. Shift-queued orders wait in the controller's queue and run in formation, one after
 //     another; a new order clears the queue; the queue survives save/load.
 //  Exit: 0 = PASS, 1 = FAIL.
@@ -328,6 +329,35 @@ static void test_change_and_regather() {
 	run(s, 8.0f);
 	fc = ctrl(s, fid);
 	check(fc && max_slot_error(s, *fc) < 1.5f, "an idle formation gathers a wandered member back");
+}
+
+// B pass 6 (G55): Formation.js GetAvgFootprint spaces members by their template's Footprint.
+// Cavalry are 3x6 m, so their rows stand deeper apart than infantry's 3x3 m; a slot never
+// gets narrower than the unit's own collision width.
+static void test_footprint_spacing() {
+	std::printf("4c. footprint spacing\n");
+	auto gaps = [](const Simulation::FormationController &fc, float &across, float &along) {
+		across = along = 1e9f;
+		for (const FormationSlot &a : fc.slots)
+			for (const FormationSlot &b : fc.slots) {
+				if (a.row == b.row && a.column != b.column) across = std::min(across, std::fabs(a.x - b.x));
+				if (a.column == b.column && a.row != b.row) along = std::min(along, std::fabs(a.y - b.y));
+			}
+	};
+	Simulation s;
+	setup(s, CIV_ATHENIANS);
+	auto inf = spawn_block(s, 9, -30, -30, 0, UNIT_SPEARMAN, roster("athen/infantry_spearman_b"));
+	auto cav = spawn_block(s, 9, 20, 20, 0, UNIT_CAVALRY, roster("athen/cavalry_javelineer_b"));
+	s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+	s.order_set_formation(cav.data(), cav.size(), FORMATION_BOX);
+	check(s.formations().size() == 2, "a box of hoplites and a box of horsemen");
+	float ia, il, ca, cl;
+	gaps(s.formations()[0], ia, il);
+	gaps(s.formations()[1], ca, cl);
+	const float cav_w = 2.0f * unit_collision_radius(UNIT_CAVALRY);
+	check(std::fabs(ia - il) < 1e-3f, "infantry rows and files are equally spaced (3x3 m)");
+	check(std::fabs(ca - cav_w) < 1e-3f && std::fabs(cl - 6.0f * FORMATION_METRE) < 1e-3f,
+	      "cavalry stand a 6 m footprint apart front to back, their own width side by side");
 }
 
 static void test_attack_walk() {
@@ -668,8 +698,12 @@ static void test_tasks() {
 		uint32_t tc = 0;
 		for (const auto &b : s.buildings()) if (b.team == 0 && b.type == BLD_TOWN_CENTER) tc = b.id;
 		s.order_garrison(inf.data(), inf.size(), tc);
-		check(s.formations().size() == 1 && s.formations()[0].order == Simulation::FORDER_APPROACH,
-				"garrison: the formation walks to the structure (GARRISON.APPROACHING)");
+		// The controller has no Garrisonable range (GetRange undefined), so GARRISON.GARRISONING
+		// gives each member its own Garrison order at once: they walk in one by one.
+		int ordered = 0;
+		for (uint32_t id : inf) ordered += s.units_.order_kind[idx_of(s, id)] == ORDER_GARRISON;
+		check(ordered == 8 && (s.formations().empty() || s.formations()[0].order == Simulation::FORDER_MEMBER),
+				"garrison: every member walks in on its own order, not in shape");
 		run(s, 30.0f);
 		int in = 0;
 		for (uint32_t id : inf) in += s.units_.action_state[idx_of(s, id)] == ACTION_GARRISONED;
@@ -761,6 +795,7 @@ int main(int argc, char **argv) {
 	test_form_up();
 	test_walk();
 	test_change_and_regather();
+	test_footprint_spacing();
 	test_attack_walk();
 	test_leave();
 	test_save_load(save.c_str());

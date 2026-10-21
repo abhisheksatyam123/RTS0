@@ -8,556 +8,557 @@ struct UnitMotionProfile {
 	float instant_turn_angle; // UnitMotion/InstantTurnAngle, radians
 	float turn_rate; // Position/TurnRate, radians per second
 	float cos_instant_turn; // cos(instant_turn_angle); -2 (no turn stops it) from pi up
+	float footprint_width, footprint_depth; // Footprint (circle: its diameter), metres
 };
 
 inline constexpr uint16_t MOTION_TEMPLATE_COUNT = 545; // = CIV_UNIT_TEMPLATE_COUNT
 inline const UnitMotionProfile *motion_template_table() {
 	static const UnitMotionProfile kTable[MOTION_TEMPLATE_COUNT] = {
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // athen/cavalry_javelineer_b
-		{12.46f, 1.5f, 10.0f, 0.0707f}, // athen/cavalry_swordsman_b
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // athen/champion_infantry
-		{14.952f, 1.5f, 8.0f, 0.0707f}, // athen/champion_marine
-		{14.952f, 1.5f, 8.0f, 0.0707f}, // athen/champion_marine_dock
-		{13.3144f, 1.5f, 8.0f, 0.0707f}, // athen/champion_ranged
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/hero_hippocrates
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/hero_iphicrates
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/hero_pericles
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/hero_themistocles
-		{13.3144f, 1.5f, 14.0f, 0.0707f}, // athen/infantry_archer_b
-		{13.3144f, 1.5f, 14.0f, 0.0707f}, // athen/infantry_archer_b_dock
-		{14.1688f, 1.5f, 14.0f, 0.0707f}, // athen/infantry_javelineer_b
-		{14.952f, 1.5f, 14.0f, 0.0707f}, // athen/infantry_slinger_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/infantry_spearman_b
-		{11.214f, 10.0f, 1.3f, -2.0f}, // athen/ship_arrow
-		{1.3706f, 10.0f, 1.2f, -2.0f}, // athen/ship_fishing
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // athen/ship_merchant
-		{2.8035f, 10.0f, 1.5f, -2.0f}, // athen/ship_ram
-		{11.214f, 10.0f, 1.5f, -2.0f}, // athen/ship_scout
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // athen/siege_lithobolos_packed
-		{1.4017f, 0.75f, 4.0f, 0.7317f}, // athen/siege_oxybeles_packed
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // athen/siege_ram
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/support_female_citizen
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/support_female_citizen_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/support_healer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/support_trader
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/rts0_villager
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // spart/cavalry_javelineer_b
-		{14.329f, 1.5f, 10.0f, 0.0707f}, // spart/cavalry_spearman_b
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // spart/champion_infantry_spear
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/champion_infantry_swordsman
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/hero_agis
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/hero_brasidas
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/hero_leonidas
-		{14.1688f, 1.5f, 14.0f, 0.0707f}, // spart/infantry_javelineer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/infantry_spearman_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/infantry_spearman_neodamodes
-		{11.214f, 10.0f, 1.3f, -2.0f}, // spart/ship_arrow
-		{1.3706f, 10.0f, 1.2f, -2.0f}, // spart/ship_fishing
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // spart/ship_merchant
-		{2.8035f, 10.0f, 1.5f, -2.0f}, // spart/ship_ram
-		{11.214f, 10.0f, 1.5f, -2.0f}, // spart/ship_scout
-		{1.4017f, 0.75f, 4.0f, 0.7317f}, // spart/siege_oxybeles_packed
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // spart/siege_ram
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/support_female_citizen
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/support_female_citizen_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/support_healer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/support_trader
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/rts0_villager
-		{10.591f, 1.5f, 10.0f, 0.0707f}, // pers/cavalry_archer_b
-		{12.46f, 1.5f, 10.0f, 0.0707f}, // pers/cavalry_axeman_b
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // pers/cavalry_javelineer_b
-		{14.329f, 1.5f, 10.0f, 0.0707f}, // pers/cavalry_spearman_b
-		{11.4632f, 1.5f, 4.0f, 0.0707f}, // pers/champion_cavalry
-		{10.591f, 1.5f, 5.0f, 0.0707f}, // pers/champion_cavalry_archer
-		{5.2955f, 1.5f, 5.0f, 0.0707f}, // pers/champion_chariot
-		{3.738f, 1.5f, 4.0f, 0.0707f}, // pers/champion_elephant
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // pers/champion_infantry
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // pers/hero_cyrus_ii
-		{5.2955f, 1.5f, 5.0f, 0.0707f}, // pers/hero_darius_i
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // pers/hero_xerxes_i
-		{13.3144f, 1.5f, 14.0f, 0.0707f}, // pers/infantry_archer_b
-		{14.1688f, 1.5f, 14.0f, 0.0707f}, // pers/infantry_javelineer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // pers/infantry_spearman_b
-		{11.214f, 10.0f, 1.3f, -2.0f}, // pers/ship_arrow
-		{1.3706f, 10.0f, 1.2f, -2.0f}, // pers/ship_fishing
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // pers/ship_merchant
-		{2.8035f, 10.0f, 1.5f, -2.0f}, // pers/ship_ram
-		{11.214f, 10.0f, 1.5f, -2.0f}, // pers/ship_scout
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // pers/siege_ram
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // pers/support_female_citizen
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // pers/support_female_citizen_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // pers/support_healer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // pers/support_trader
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // pers/rts0_villager
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // rome/cavalry_javelineer_b
-		{14.329f, 1.5f, 10.0f, 0.0707f}, // rome/cavalry_spearman_b
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // rome/champion_cavalry
-		{18.69f, 1.5f, 14.0f, 0.0707f}, // rome/champion_infantry_spear_gladiator
-		{17.444f, 1.5f, 14.0f, 0.0707f}, // rome/champion_infantry_sword_gladiator
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // rome/champion_infantry_swordsman
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // rome/champion_infantry_swordsman_centurion
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // rome/hero_marcellus
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // rome/hero_maximus
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // rome/hero_scipio
-		{14.1688f, 1.5f, 14.0f, 0.0707f}, // rome/infantry_javelineer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/infantry_legionary
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/infantry_spearman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/infantry_spearman_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/infantry_swordsman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/infantry_swordsman_b
-		{11.214f, 10.0f, 1.3f, -2.0f}, // rome/ship_arrow
-		{1.3706f, 10.0f, 1.2f, -2.0f}, // rome/ship_fishing
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // rome/ship_merchant
-		{2.8035f, 10.0f, 1.5f, -2.0f}, // rome/ship_ram
-		{11.214f, 10.0f, 1.5f, -2.0f}, // rome/ship_scout
-		{4.037f, 10.0f, 0.75f, -2.0f}, // rome/ship_siege
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // rome/siege_ballista_packed
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // rome/siege_onager_packed
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // rome/siege_ram
-		{1.4017f, 0.75f, 4.0f, 0.7317f}, // rome/siege_scorpio_packed
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/support_female_citizen
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/support_female_citizen_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/support_healer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/support_trader
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/rts0_villager
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // cart/cavalry_javelineer_b
-		{14.329f, 1.5f, 10.0f, 0.0707f}, // cart/cavalry_spearman_ital_b
-		{12.46f, 1.5f, 10.0f, 0.0707f}, // cart/cavalry_swordsman_gaul_b
-		{12.46f, 1.5f, 10.0f, 0.0707f}, // cart/cavalry_swordsman_iber_b
-		{14.329f, 1.5f, 5.0f, 0.0707f}, // cart/champion_cavalry
-		{3.738f, 1.5f, 4.0f, 0.0707f}, // cart/champion_elephant
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // cart/champion_infantry
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // cart/hero_hamilcar
-		{6.23f, 1.5f, 4.0f, 0.0707f}, // cart/hero_hannibal
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // cart/hero_maharbal
-		{13.3144f, 1.5f, 14.0f, 0.0707f}, // cart/infantry_archer_b
-		{14.1688f, 1.5f, 14.0f, 0.0707f}, // cart/infantry_javelineer_iber_b
-		{14.952f, 1.5f, 14.0f, 0.0707f}, // cart/infantry_slinger_iber_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // cart/infantry_spearman_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // cart/infantry_swordsman_gaul_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // cart/infantry_swordsman_ital_b
-		{11.214f, 10.0f, 1.3f, -2.0f}, // cart/ship_arrow
-		{1.3706f, 10.0f, 1.2f, -2.0f}, // cart/ship_fishing
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // cart/ship_merchant
-		{2.8035f, 10.0f, 1.5f, -2.0f}, // cart/ship_ram
-		{11.214f, 10.0f, 1.5f, -2.0f}, // cart/ship_scout
-		{4.037f, 10.0f, 0.75f, -2.0f}, // cart/ship_siege
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // cart/siege_ballista_packed
-		{1.4017f, 0.75f, 4.0f, 0.7317f}, // cart/siege_oxybeles_packed
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // cart/siege_ram
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // cart/support_female_citizen
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // cart/support_female_citizen_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // cart/support_healer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // cart/support_trader
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // cart/rts0_villager
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // mace/cavalry_javelineer_b
-		{14.329f, 1.5f, 10.0f, 0.0707f}, // mace/cavalry_spearman_b
-		{14.329f, 1.5f, 5.0f, 0.0707f}, // mace/champion_cavalry
-		{12.8872f, 1.5f, 8.0f, 0.0707f}, // mace/champion_infantry_crossbowman
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // mace/champion_infantry_spearman
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // mace/champion_infantry_swordsman
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // mace/hero_alexander_iii
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // mace/hero_demetrius_i
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // mace/hero_philip_ii
-		{13.3144f, 1.5f, 14.0f, 0.0707f}, // mace/infantry_archer_b
-		{14.1688f, 1.5f, 14.0f, 0.0707f}, // mace/infantry_javelineer_b
-		{11.214f, 1.5f, 14.0f, 0.0707f}, // mace/infantry_pikeman_b
-		{14.952f, 1.5f, 14.0f, 0.0707f}, // mace/infantry_slinger_b
-		{11.214f, 10.0f, 1.3f, -2.0f}, // mace/ship_arrow
-		{1.3706f, 10.0f, 1.2f, -2.0f}, // mace/ship_fishing
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // mace/ship_merchant
-		{2.8035f, 10.0f, 1.5f, -2.0f}, // mace/ship_ram
-		{11.214f, 10.0f, 1.5f, -2.0f}, // mace/ship_scout
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // mace/siege_lithobolos_packed
-		{1.4017f, 0.75f, 4.0f, 0.7317f}, // mace/siege_oxybeles_packed
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // mace/siege_ram
-		{1.3083f, 0.75f, 4.0f, 0.7317f}, // mace/siege_tower
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // mace/support_female_citizen
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // mace/support_female_citizen_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // mace/support_healer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // mace/support_trader
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // mace/rts0_villager
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // brit/cavalry_javelineer_b
-		{12.46f, 1.5f, 10.0f, 0.0707f}, // brit/cavalry_swordsman_b
-		{5.607f, 1.5f, 5.0f, 0.0707f}, // brit/champion_chariot
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // brit/champion_infantry_swordsman
-		{5.607f, 1.5f, 5.0f, 0.0707f}, // brit/hero_boudicca
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/hero_caratacos
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // brit/hero_cunobelin
-		{14.1688f, 1.5f, 14.0f, 0.0707f}, // brit/infantry_javelineer_b
-		{14.952f, 1.5f, 14.0f, 0.0707f}, // brit/infantry_slinger_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/infantry_spearman_b
-		{10.0926f, 10.0f, 1.3f, -2.0f}, // brit/ship_arrow
-		{1.246f, 10.0f, 1.2f, -2.0f}, // brit/ship_fire
-		{1.3706f, 10.0f, 1.2f, -2.0f}, // brit/ship_fishing
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // brit/ship_merchant
-		{11.214f, 10.0f, 1.5f, -2.0f}, // brit/ship_scout
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // brit/siege_ram
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/support_female_citizen
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/support_female_citizen_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/support_healer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/support_trader
-		{18.69f, 1.5f, 14.0f, 0.0707f}, // brit/war_dog
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/rts0_villager
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // gaul/cavalry_javelineer_b
-		{12.46f, 1.5f, 10.0f, 0.0707f}, // gaul/cavalry_swordsman_b
-		{14.329f, 1.5f, 5.0f, 0.0707f}, // gaul/champion_cavalry
-		{17.444f, 1.5f, 8.0f, 0.0707f}, // gaul/champion_fanatic
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // gaul/champion_infantry_swordsman
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // gaul/champion_infantry_trumpeter
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/hero_brennus
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // gaul/hero_vercingetorix
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/hero_viridomarus
-		{14.1688f, 1.5f, 14.0f, 0.0707f}, // gaul/infantry_javelineer_b
-		{14.952f, 1.5f, 14.0f, 0.0707f}, // gaul/infantry_slinger_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/infantry_spearman_b
-		{10.0926f, 10.0f, 1.3f, -2.0f}, // gaul/ship_arrow
-		{1.246f, 10.0f, 1.2f, -2.0f}, // gaul/ship_fire
-		{1.3706f, 10.0f, 1.2f, -2.0f}, // gaul/ship_fishing
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // gaul/ship_merchant
-		{11.214f, 10.0f, 1.5f, -2.0f}, // gaul/ship_scout
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // gaul/siege_ram
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/support_female_citizen
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/support_female_citizen_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/support_healer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/support_trader
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/rts0_villager
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // iber/cavalry_javelineer_b
-		{14.329f, 1.5f, 10.0f, 0.0707f}, // iber/cavalry_spearman_b
-		{11.214f, 1.5f, 5.0f, 0.0707f}, // iber/champion_cavalry
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // iber/champion_infantry_swordsman
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/hero_caros
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // iber/hero_indibil
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/hero_viriato
-		{14.1688f, 1.5f, 14.0f, 0.0707f}, // iber/infantry_javelineer_b
-		{14.952f, 1.5f, 14.0f, 0.0707f}, // iber/infantry_slinger_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/infantry_spearman_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/infantry_swordsman_b
-		{10.0926f, 10.0f, 1.3f, -2.0f}, // iber/ship_arrow
-		{1.246f, 10.0f, 1.2f, -2.0f}, // iber/ship_fire
-		{1.3706f, 10.0f, 1.2f, -2.0f}, // iber/ship_fishing
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // iber/ship_merchant
-		{11.214f, 10.0f, 1.5f, -2.0f}, // iber/ship_scout
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // iber/siege_ram
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/support_female_citizen
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/support_female_citizen_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/support_healer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/support_trader
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/rts0_villager
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // maur/cavalry_javelineer_b
-		{12.46f, 1.5f, 10.0f, 0.0707f}, // maur/cavalry_swordsman_b
-		{5.2955f, 1.5f, 5.0f, 0.0707f}, // maur/champion_chariot
-		{3.738f, 1.5f, 4.0f, 0.0707f}, // maur/champion_elephant
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // maur/champion_infantry_maceman
-		{17.8f, 1.5f, 8.0f, 0.0707f}, // maur/champion_maiden
-		{18.6544f, 1.5f, 8.0f, 0.0707f}, // maur/champion_maiden_archer
-		{6.23f, 1.5f, 4.0f, 0.0707f}, // maur/elephant_archer_b
-		{5.2955f, 1.5f, 5.0f, 0.0707f}, // maur/hero_ashoka
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/hero_chanakya
-		{6.23f, 1.5f, 4.0f, 0.0707f}, // maur/hero_chandragupta
-		{13.3144f, 1.5f, 14.0f, 0.0707f}, // maur/infantry_archer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/infantry_spearman_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/infantry_swordsman_b
-		{10.0926f, 10.0f, 1.3f, -2.0f}, // maur/ship_arrow
-		{1.3706f, 10.0f, 1.2f, -2.0f}, // maur/ship_fishing
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // maur/ship_merchant
-		{11.214f, 10.0f, 1.5f, -2.0f}, // maur/ship_scout
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // maur/siege_ram
-		{3.738f, 1.5f, 4.0f, 0.0707f}, // maur/support_elephant
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/support_female_citizen
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/support_female_citizen_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/support_healer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/support_trader
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/rts0_villager
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // kush/cavalry_javelineer_b
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // kush/cavalry_javelineer_merc_b
-		{14.329f, 1.5f, 10.0f, 0.0707f}, // kush/cavalry_spearman_b
-		{14.329f, 1.5f, 5.0f, 0.0707f}, // kush/champion_cavalry
-		{3.738f, 1.5f, 4.0f, 0.0707f}, // kush/champion_elephant
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // kush/champion_infantry_amun
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // kush/champion_infantry_apedemak
-		{13.3144f, 1.5f, 8.0f, 0.0707f}, // kush/champion_infantry_archer
-		{5.2955f, 1.5f, 5.0f, 0.0707f}, // kush/hero_amanirenas
-		{6.23f, 1.5f, 4.0f, 0.0707f}, // kush/hero_arakamani
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // kush/hero_nastasen
-		{13.3144f, 1.5f, 14.0f, 0.0707f}, // kush/infantry_archer_b
-		{14.1688f, 1.5f, 14.0f, 0.0707f}, // kush/infantry_javelineer_merc_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/infantry_maceman_merc_b
-		{11.214f, 1.5f, 14.0f, 0.0707f}, // kush/infantry_pikeman_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/infantry_spearman_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/infantry_swordsman_b
-		{11.214f, 10.0f, 1.3f, -2.0f}, // kush/ship_arrow
-		{1.3706f, 10.0f, 1.2f, -2.0f}, // kush/ship_fishing
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // kush/ship_merchant
-		{11.214f, 10.0f, 1.5f, -2.0f}, // kush/ship_scout
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // kush/siege_ram
-		{1.3083f, 0.75f, 4.0f, 0.7317f}, // kush/siege_tower
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/support_female_citizen
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/support_female_citizen_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/support_healer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/support_healer_e
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/support_trader
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/rts0_villager
-		{10.591f, 1.5f, 10.0f, 0.0707f}, // ptol/cavalry_archer_b
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // ptol/cavalry_javelineer_merc_b
-		{14.329f, 1.5f, 10.0f, 0.0707f}, // ptol/cavalry_spearman_merc_b
-		{14.329f, 1.5f, 5.0f, 0.0707f}, // ptol/champion_cavalry
-		{3.738f, 1.5f, 4.0f, 0.0707f}, // ptol/champion_elephant
-		{11.214f, 1.5f, 8.0f, 0.0707f}, // ptol/champion_infantry_pikeman
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // ptol/hero_cleopatra_vii
-		{6.23f, 1.5f, 4.0f, 0.0707f}, // ptol/hero_ptolemy_i
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // ptol/hero_ptolemy_iv
-		{13.3144f, 1.5f, 14.0f, 0.0707f}, // ptol/infantry_archer_b
-		{14.1688f, 1.5f, 14.0f, 0.0707f}, // ptol/infantry_javelineer_b
-		{11.214f, 1.5f, 14.0f, 0.0707f}, // ptol/infantry_pikeman_b
-		{14.952f, 1.5f, 14.0f, 0.0707f}, // ptol/infantry_slinger_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // ptol/infantry_spearman_merc_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // ptol/infantry_swordsman_merc_b
-		{11.214f, 10.0f, 1.3f, -2.0f}, // ptol/ship_arrow
-		{1.3706f, 10.0f, 1.2f, -2.0f}, // ptol/ship_fishing
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // ptol/ship_merchant
-		{2.8035f, 10.0f, 1.5f, -2.0f}, // ptol/ship_ram
-		{11.214f, 10.0f, 1.5f, -2.0f}, // ptol/ship_scout
-		{4.037f, 10.0f, 0.75f, -2.0f}, // ptol/ship_siege
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // ptol/siege_lithobolos_packed
-		{1.4017f, 0.75f, 4.0f, 0.7317f}, // ptol/siege_polybolos_packed
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // ptol/siege_ram
-		{1.3083f, 0.75f, 4.0f, 0.7317f}, // ptol/siege_tower
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // ptol/support_female_citizen
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // ptol/support_female_citizen_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // ptol/support_healer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // ptol/support_trader
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // ptol/rts0_villager
-		{10.591f, 1.5f, 10.0f, 0.0707f}, // sele/cavalry_archer_b
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // sele/cavalry_javelineer_b
-		{14.329f, 1.5f, 10.0f, 0.0707f}, // sele/cavalry_spearman_merc_b
-		{11.4632f, 1.5f, 4.0f, 0.0707f}, // sele/champion_cavalry
-		{5.2955f, 1.5f, 5.0f, 0.0707f}, // sele/champion_chariot
-		{3.738f, 1.5f, 4.0f, 0.0707f}, // sele/champion_elephant
-		{11.214f, 1.5f, 8.0f, 0.0707f}, // sele/champion_infantry_pikeman
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // sele/champion_infantry_swordsman
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // sele/hero_antiochus_iii
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // sele/hero_antiochus_iv
-		{6.23f, 1.5f, 4.0f, 0.0707f}, // sele/hero_seleucus_i
-		{13.3144f, 1.5f, 14.0f, 0.0707f}, // sele/infantry_archer_merc_b
-		{14.1688f, 1.5f, 14.0f, 0.0707f}, // sele/infantry_javelineer_b
-		{11.214f, 1.5f, 14.0f, 0.0707f}, // sele/infantry_pikeman_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // sele/infantry_spearman_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // sele/infantry_swordsman_merc_b
-		{11.214f, 10.0f, 1.3f, -2.0f}, // sele/ship_arrow
-		{1.3706f, 10.0f, 1.2f, -2.0f}, // sele/ship_fishing
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // sele/ship_merchant
-		{2.8035f, 10.0f, 1.5f, -2.0f}, // sele/ship_ram
-		{11.214f, 10.0f, 1.5f, -2.0f}, // sele/ship_scout
-		{4.037f, 10.0f, 0.75f, -2.0f}, // sele/ship_siege
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // sele/siege_lithobolos_packed
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // sele/siege_ram
-		{1.3083f, 0.75f, 4.0f, 0.7317f}, // sele/siege_tower
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // sele/support_female_citizen
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // sele/support_female_citizen_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // sele/support_healer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // sele/support_trader
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // sele/rts0_villager
-		{10.591f, 1.5f, 10.0f, 0.0707f}, // han/cavalry_archer_b
-		{14.329f, 1.5f, 10.0f, 0.0707f}, // han/cavalry_spearman_b
-		{12.46f, 1.5f, 10.0f, 0.0707f}, // han/cavalry_swordsman_b
-		{14.329f, 1.5f, 5.0f, 0.0707f}, // han/champion_cavalry_spearman_academy
-		{5.2955f, 1.5f, 5.0f, 0.0707f}, // han/champion_chariot_academy
-		{12.8872f, 1.5f, 8.0f, 0.0707f}, // han/champion_infantry_crossbowman_academy
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // han/champion_infantry_spearman_academy
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // han/hero_han_xin_horse
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // han/hero_liu_bang_horse
-		{4.984f, 1.5f, 5.0f, 0.0707f}, // han/hero_wei_qing_chariot
-		{13.3144f, 1.5f, 14.0f, 0.0707f}, // han/infantry_archer_b
-		{12.8872f, 1.5f, 14.0f, 0.0707f}, // han/infantry_crossbowman_b
-		{11.214f, 1.5f, 14.0f, 0.0707f}, // han/infantry_pikeman_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/infantry_spearman_b
-		{11.214f, 10.0f, 1.3f, -2.0f}, // han/ship_arrow
-		{1.3706f, 10.0f, 1.2f, -2.0f}, // han/ship_fishing
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // han/ship_merchant
-		{11.214f, 10.0f, 1.5f, -2.0f}, // han/ship_scout
-		{4.037f, 10.0f, 0.75f, -2.0f}, // han/ship_siege
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // han/siege_mangonel_packed
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // han/siege_ram
-		{1.3083f, 0.75f, 4.0f, 0.7317f}, // han/siege_tower
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/support_female_citizen
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/support_female_citizen_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/support_healer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/support_trader
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/rts0_villager
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // spart/champion_infantry_spear_olympian
-		{12.46f, 1.5f, 10.0f, 0.0707f}, // rome/cavalry_auxiliary_b
-		{14.1688f, 1.5f, 14.0f, 0.0707f}, // rome/infantry_antesignanus
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // mace/champion_infantry_spearman_02
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // han/support_minister
-		{3.4265f, 1.5f, 14.0f, 0.0707f}, // athen/catafalque
-		{3.4265f, 1.5f, 14.0f, 0.0707f}, // spart/catafalque
-		{3.4265f, 1.5f, 14.0f, 0.0707f}, // pers/catafalque
-		{3.4265f, 1.5f, 14.0f, 0.0707f}, // rome/catafalque
-		{3.4265f, 1.5f, 14.0f, 0.0707f}, // cart/catafalque
-		{3.4265f, 1.5f, 14.0f, 0.0707f}, // mace/catafalque
-		{3.4265f, 1.5f, 14.0f, 0.0707f}, // brit/catafalque
-		{3.4265f, 1.5f, 14.0f, 0.0707f}, // gaul/catafalque
-		{3.4265f, 1.5f, 14.0f, 0.0707f}, // iber/catafalque
-		{3.4265f, 1.5f, 14.0f, 0.0707f}, // maur/catafalque
-		{3.4265f, 1.5f, 14.0f, 0.0707f}, // kush/catafalque
-		{3.4265f, 1.5f, 14.0f, 0.0707f}, // ptol/catafalque
-		{3.4265f, 1.5f, 14.0f, 0.0707f}, // sele/catafalque
-		{3.4265f, 1.5f, 14.0f, 0.0707f}, // han/catafalque
-		{13.3144f, 1.5f, 8.0f, 0.0707f}, // pers/champion_infantry_archer_upgrade
-		{2.492f, 10.0f, 1.2f, -2.0f}, // brit/ship_fire_fire
-		{2.492f, 10.0f, 1.2f, -2.0f}, // gaul/ship_fire_fire
-		{2.492f, 10.0f, 1.2f, -2.0f}, // iber/ship_fire_fire
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/support_civilian
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/support_civilian_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/support_civilian
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/support_civilian_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // pers/support_civilian
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // pers/support_civilian_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/support_civilian
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/support_civilian_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // cart/support_civilian
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // cart/support_civilian_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // mace/support_civilian
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // mace/support_civilian_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/support_civilian
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/support_civilian_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/support_civilian
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/support_civilian_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/support_civilian
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/support_civilian_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/support_civilian
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/support_civilian_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/support_civilian
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/support_civilian_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // ptol/support_civilian
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // ptol/support_civilian_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // sele/support_civilian
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // sele/support_civilian_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/support_civilian
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/support_civilian_house
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // germ/cavalry_javelineer_b
-		{14.329f, 1.5f, 10.0f, 0.0707f}, // germ/cavalry_spearman_b
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // germ/champion_cavalry
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // germ/champion_healer
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // germ/champion_infantry_axeman
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // germ/champion_infantry_maceman
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // germ/hero_boiorix
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // germ/hero_lugius
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // germ/hero_teutobod
-		{14.1688f, 1.5f, 14.0f, 0.0707f}, // germ/infantry_javelineer_b
-		{14.952f, 1.5f, 14.0f, 0.0707f}, // germ/infantry_slinger_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // germ/infantry_spearman_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // germ/infantry_swordsman_b
-		{11.214f, 10.0f, 1.3f, -2.0f}, // germ/ship_arrow
-		{1.246f, 10.0f, 1.2f, -2.0f}, // germ/ship_fire
-		{1.3706f, 10.0f, 1.2f, -2.0f}, // germ/ship_fishing
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // germ/ship_merchant
-		{11.214f, 10.0f, 1.5f, -2.0f}, // germ/ship_scout
-		{2.2428f, 0.75f, 4.0f, 0.7317f}, // germ/siege_ram
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // germ/siege_ram_covered
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // germ/support_civilian
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // germ/support_civilian_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // germ/support_healer_b
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // germ/support_trader
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // germ/rts0_villager
-		{3.4265f, 1.5f, 14.0f, 0.0707f}, // germ/catafalque
-		{2.492f, 10.0f, 1.2f, -2.0f}, // germ/ship_fire_fire
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/infantry_spearman_conscript
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // cart/infantry_spearman_ital_b
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // rome/cavalry_javelineer_auxiliary_b
-		{14.329f, 1.5f, 10.0f, 0.0707f}, // rome/cavalry_spearman_auxiliary_b
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // rome/champion_infantry_swordsman_first
-		{12.46f, 1.5f, 3.0f, 0.0707f}, // germ/support_wagon
-		{12.46f, 1.5f, 3.0f, 0.0707f}, // germ/support_wagon_house
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // pers/support_healer_e
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/support_healer_e
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // mace/support_healer_e
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/support_healer_e
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // ptol/support_healer_e
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/support_healer_e
-		{13.3144f, 1.5f, 14.0f, 0.0707f}, // athen/infantry_marine_archer_b
-		{11.214f, 1.5f, 8.0f, 0.0707f}, // spart/champion_infantry_pike
-		{5.2955f, 1.5f, 5.0f, 0.0707f}, // pers/hero_xerxes_i_chariot
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // pers/kardakes_hoplite
-		{14.952f, 1.5f, 8.0f, 0.0707f}, // pers/kardakes_skirmisher
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/hero_marcellus_infantry
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/hero_maximus_infantry
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/hero_scipio_infantry
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // rome/infantry_swordsman_slave
-		{11.214f, 1.5f, 8.0f, 0.0707f}, // cart/champion_pikeman
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // mace/hero_craterus
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // mace/hero_philip_ii_pike
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // mace/hero_pyrrhus_i
-		{11.214f, 1.5f, 5.0f, 0.0707f}, // brit/hero_boudicca_cavalry_javelineer
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/hero_boudicca_sword
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/hero_cunobelin_infantry
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/hero_vercingetorix_infantry
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/hero_indibil_infantry
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/hero_ashoka_infantry
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/hero_bindusara_infantry
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/hero_chandragupta_infantry
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/hero_amanirenas_infantry
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // kush/hero_harsiotef
-		{4.037f, 10.0f, 0.75f, -2.0f}, // ptol/champion_juggernaut
-		{9.968f, 1.5f, 10.0f, 0.0707f}, // han/cavalry_crossbowman_b
-		{13.3144f, 1.5f, 8.0f, 0.0707f}, // han/champion_infantry_archer_academy
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/hero_han_xin
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/hero_liu_bang
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/hero_wei_qing
-		{9.968f, 1.5f, 5.0f, 0.0707f}, // han/hero_wei_qing_horse
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // merc_black_cloak
-		{11.214f, 10.0f, 1.3f, -2.0f}, // noldor_warship
-		{11.214f, 10.0f, 1.3f, -2.0f}, // pirates/ship_arrow
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // pirates/ship_merchant
-		{11.214f, 10.0f, 1.5f, -2.0f}, // pirates/ship_scout
-		{14.952f, 1.5f, 8.0f, 0.0707f}, // samnite_skirmisher
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // samnite_spearman
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // samnite_swordsman
-		{11.214f, 10.0f, 1.3f, -2.0f}, // viking_longship
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // merc_thorakites
-		{14.952f, 1.5f, 8.0f, 0.0707f}, // merc_thureophoros
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // theb_sacred_band
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // thesp_melanochitones
-		{1.869f, 0.75f, 4.0f, 0.7317f}, // theb_siege_fireraiser
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // rome/champion_infantry_swordsman_02
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // rome/champion_infantry_swordsman_03
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // rome/champion_infantry_swordsman_04
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // rome/champion_infantry_swordsman_05
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/hero_xenophon
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/hero_leonidas_300
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // pers/arstibara
-		{1.2616f, 0.75f, 4.0f, 0.7317f}, // han/siege_shoushe
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/infantry_spearman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // athen/support_healer_e
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/infantry_spearman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // spart/support_healer_e
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // pers/infantry_spearman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // cart/infantry_spearman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // cart/support_healer_e
-		{11.214f, 1.5f, 14.0f, 0.0707f}, // mace/infantry_pikeman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/infantry_spearman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // brit/support_healer_e
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // gaul/infantry_spearman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/infantry_spearman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/infantry_swordsman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // iber/support_healer_e
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/infantry_spearman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/infantry_swordsman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // maur/support_healer_e
-		{11.214f, 1.5f, 14.0f, 0.0707f}, // kush/infantry_pikeman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/infantry_spearman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // kush/infantry_swordsman_a
-		{11.214f, 1.5f, 14.0f, 0.0707f}, // ptol/infantry_pikeman_a
-		{11.214f, 1.5f, 14.0f, 0.0707f}, // sele/infantry_pikeman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // sele/infantry_spearman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // sele/support_healer_e
-		{11.214f, 1.5f, 14.0f, 0.0707f}, // han/infantry_pikeman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // han/infantry_spearman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // germ/infantry_spearman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // germ/infantry_swordsman_a
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // germ/support_healer_e
-		{12.46f, 1.5f, 1.0f, 0.0707f}, // plane
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // athen/cavalry_javelineer_b
+		{12.46f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // athen/cavalry_swordsman_b
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // athen/champion_infantry
+		{14.952f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // athen/champion_marine
+		{14.952f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // athen/champion_marine_dock
+		{13.3144f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // athen/champion_ranged
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/hero_hippocrates
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/hero_iphicrates
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/hero_pericles
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/hero_themistocles
+		{13.3144f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/infantry_archer_b
+		{13.3144f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/infantry_archer_b_dock
+		{14.1688f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/infantry_javelineer_b
+		{14.952f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/infantry_slinger_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/infantry_spearman_b
+		{11.214f, 10.0f, 1.3f, -2.0f, 10.0f, 40.0f}, // athen/ship_arrow
+		{1.3706f, 10.0f, 1.2f, -2.0f, 4.0f, 10.0f}, // athen/ship_fishing
+		{1.9936f, 10.0f, 1.2f, -2.0f, 10.0f, 30.0f}, // athen/ship_merchant
+		{2.8035f, 10.0f, 1.5f, -2.0f, 10.0f, 40.0f}, // athen/ship_ram
+		{11.214f, 10.0f, 1.5f, -2.0f, 8.0f, 33.0f}, // athen/ship_scout
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 6.0f, 15.0f}, // athen/siege_lithobolos_packed
+		{1.4017f, 0.75f, 4.0f, 0.7317f, 5.0f, 12.0f}, // athen/siege_oxybeles_packed
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 8.0f, 12.0f}, // athen/siege_ram
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/support_female_citizen
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/support_female_citizen_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/support_healer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 5.0f, 10.0f}, // athen/support_trader
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/rts0_villager
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // spart/cavalry_javelineer_b
+		{14.329f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // spart/cavalry_spearman_b
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // spart/champion_infantry_spear
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // spart/champion_infantry_swordsman
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // spart/hero_agis
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // spart/hero_brasidas
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // spart/hero_leonidas
+		{14.1688f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // spart/infantry_javelineer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // spart/infantry_spearman_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // spart/infantry_spearman_neodamodes
+		{11.214f, 10.0f, 1.3f, -2.0f, 10.0f, 40.0f}, // spart/ship_arrow
+		{1.3706f, 10.0f, 1.2f, -2.0f, 4.0f, 10.0f}, // spart/ship_fishing
+		{1.9936f, 10.0f, 1.2f, -2.0f, 10.0f, 30.0f}, // spart/ship_merchant
+		{2.8035f, 10.0f, 1.5f, -2.0f, 10.0f, 40.0f}, // spart/ship_ram
+		{11.214f, 10.0f, 1.5f, -2.0f, 8.0f, 33.0f}, // spart/ship_scout
+		{1.4017f, 0.75f, 4.0f, 0.7317f, 5.0f, 12.0f}, // spart/siege_oxybeles_packed
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 8.0f, 12.0f}, // spart/siege_ram
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // spart/support_female_citizen
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // spart/support_female_citizen_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // spart/support_healer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 5.0f, 10.0f}, // spart/support_trader
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // spart/rts0_villager
+		{10.591f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // pers/cavalry_archer_b
+		{12.46f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // pers/cavalry_axeman_b
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // pers/cavalry_javelineer_b
+		{14.329f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // pers/cavalry_spearman_b
+		{11.4632f, 1.5f, 4.0f, 0.0707f, 3.0f, 6.0f}, // pers/champion_cavalry
+		{10.591f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // pers/champion_cavalry_archer
+		{5.2955f, 1.5f, 5.0f, 0.0707f, 11.0f, 11.0f}, // pers/champion_chariot
+		{3.738f, 1.5f, 4.0f, 0.0707f, 4.5f, 9.0f}, // pers/champion_elephant
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // pers/champion_infantry
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // pers/hero_cyrus_ii
+		{5.2955f, 1.5f, 5.0f, 0.0707f, 11.0f, 11.0f}, // pers/hero_darius_i
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // pers/hero_xerxes_i
+		{13.3144f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // pers/infantry_archer_b
+		{14.1688f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // pers/infantry_javelineer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // pers/infantry_spearman_b
+		{11.214f, 10.0f, 1.3f, -2.0f, 9.0f, 42.0f}, // pers/ship_arrow
+		{1.3706f, 10.0f, 1.2f, -2.0f, 6.0f, 12.0f}, // pers/ship_fishing
+		{1.9936f, 10.0f, 1.2f, -2.0f, 6.0f, 25.0f}, // pers/ship_merchant
+		{2.8035f, 10.0f, 1.5f, -2.0f, 9.0f, 42.0f}, // pers/ship_ram
+		{11.214f, 10.0f, 1.5f, -2.0f, 7.0f, 37.0f}, // pers/ship_scout
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 7.0f, 15.0f}, // pers/siege_ram
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // pers/support_female_citizen
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // pers/support_female_citizen_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // pers/support_healer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 6.0f}, // pers/support_trader
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // pers/rts0_villager
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // rome/cavalry_javelineer_b
+		{14.329f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // rome/cavalry_spearman_b
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // rome/champion_cavalry
+		{18.69f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/champion_infantry_spear_gladiator
+		{17.444f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/champion_infantry_sword_gladiator
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // rome/champion_infantry_swordsman
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // rome/champion_infantry_swordsman_centurion
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // rome/hero_marcellus
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // rome/hero_maximus
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // rome/hero_scipio
+		{14.1688f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/infantry_javelineer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/infantry_legionary
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/infantry_spearman_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/infantry_swordsman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/infantry_swordsman_b
+		{11.214f, 10.0f, 1.3f, -2.0f, 10.0f, 43.0f}, // rome/ship_arrow
+		{1.3706f, 10.0f, 1.2f, -2.0f, 4.0f, 10.0f}, // rome/ship_fishing
+		{1.9936f, 10.0f, 1.2f, -2.0f, 12.0f, 24.0f}, // rome/ship_merchant
+		{2.8035f, 10.0f, 1.5f, -2.0f, 10.0f, 43.0f}, // rome/ship_ram
+		{11.214f, 10.0f, 1.5f, -2.0f, 8.0f, 33.0f}, // rome/ship_scout
+		{4.037f, 10.0f, 0.75f, -2.0f, 14.0f, 45.0f}, // rome/ship_siege
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 6.0f, 14.0f}, // rome/siege_ballista_packed
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 6.0f, 14.0f}, // rome/siege_onager_packed
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 10.0f, 14.0f}, // rome/siege_ram
+		{1.4017f, 0.75f, 4.0f, 0.7317f, 5.0f, 9.0f}, // rome/siege_scorpio_packed
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/support_female_citizen
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/support_female_citizen_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/support_healer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 5.0f, 10.0f}, // rome/support_trader
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/rts0_villager
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // cart/cavalry_javelineer_b
+		{14.329f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // cart/cavalry_spearman_ital_b
+		{12.46f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // cart/cavalry_swordsman_gaul_b
+		{12.46f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // cart/cavalry_swordsman_iber_b
+		{14.329f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // cart/champion_cavalry
+		{3.738f, 1.5f, 4.0f, 0.0707f, 4.5f, 9.0f}, // cart/champion_elephant
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // cart/champion_infantry
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // cart/hero_hamilcar
+		{6.23f, 1.5f, 4.0f, 0.0707f, 4.5f, 9.0f}, // cart/hero_hannibal
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // cart/hero_maharbal
+		{13.3144f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // cart/infantry_archer_b
+		{14.1688f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // cart/infantry_javelineer_iber_b
+		{14.952f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // cart/infantry_slinger_iber_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // cart/infantry_spearman_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // cart/infantry_swordsman_gaul_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // cart/infantry_swordsman_ital_b
+		{11.214f, 10.0f, 1.3f, -2.0f, 12.0f, 48.0f}, // cart/ship_arrow
+		{1.3706f, 10.0f, 1.2f, -2.0f, 4.0f, 10.0f}, // cart/ship_fishing
+		{1.9936f, 10.0f, 1.2f, -2.0f, 8.0f, 31.0f}, // cart/ship_merchant
+		{2.8035f, 10.0f, 1.5f, -2.0f, 12.0f, 48.0f}, // cart/ship_ram
+		{11.214f, 10.0f, 1.5f, -2.0f, 9.0f, 36.0f}, // cart/ship_scout
+		{4.037f, 10.0f, 0.75f, -2.0f, 14.0f, 45.0f}, // cart/ship_siege
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 6.0f, 15.0f}, // cart/siege_ballista_packed
+		{1.4017f, 0.75f, 4.0f, 0.7317f, 5.0f, 12.0f}, // cart/siege_oxybeles_packed
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 8.0f, 12.0f}, // cart/siege_ram
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // cart/support_female_citizen
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // cart/support_female_citizen_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // cart/support_healer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 6.0f}, // cart/support_trader
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // cart/rts0_villager
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // mace/cavalry_javelineer_b
+		{14.329f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // mace/cavalry_spearman_b
+		{14.329f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // mace/champion_cavalry
+		{12.8872f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // mace/champion_infantry_crossbowman
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // mace/champion_infantry_spearman
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // mace/champion_infantry_swordsman
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // mace/hero_alexander_iii
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // mace/hero_demetrius_i
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // mace/hero_philip_ii
+		{13.3144f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // mace/infantry_archer_b
+		{14.1688f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // mace/infantry_javelineer_b
+		{11.214f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // mace/infantry_pikeman_b
+		{14.952f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // mace/infantry_slinger_b
+		{11.214f, 10.0f, 1.3f, -2.0f, 10.0f, 40.0f}, // mace/ship_arrow
+		{1.3706f, 10.0f, 1.2f, -2.0f, 4.0f, 10.0f}, // mace/ship_fishing
+		{1.9936f, 10.0f, 1.2f, -2.0f, 10.0f, 30.0f}, // mace/ship_merchant
+		{2.8035f, 10.0f, 1.5f, -2.0f, 10.0f, 40.0f}, // mace/ship_ram
+		{11.214f, 10.0f, 1.5f, -2.0f, 8.0f, 33.0f}, // mace/ship_scout
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 6.0f, 15.0f}, // mace/siege_lithobolos_packed
+		{1.4017f, 0.75f, 4.0f, 0.7317f, 5.0f, 12.0f}, // mace/siege_oxybeles_packed
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 8.0f, 12.0f}, // mace/siege_ram
+		{1.3083f, 0.75f, 4.0f, 0.7317f, 12.0f, 12.0f}, // mace/siege_tower
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // mace/support_female_citizen
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // mace/support_female_citizen_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // mace/support_healer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 5.0f, 10.0f}, // mace/support_trader
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // mace/rts0_villager
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // brit/cavalry_javelineer_b
+		{12.46f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // brit/cavalry_swordsman_b
+		{5.607f, 1.5f, 5.0f, 0.0707f, 5.0f, 10.0f}, // brit/champion_chariot
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // brit/champion_infantry_swordsman
+		{5.607f, 1.5f, 5.0f, 0.0707f, 5.0f, 10.0f}, // brit/hero_boudicca
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // brit/hero_caratacos
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // brit/hero_cunobelin
+		{14.1688f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // brit/infantry_javelineer_b
+		{14.952f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // brit/infantry_slinger_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // brit/infantry_spearman_b
+		{10.0926f, 10.0f, 1.3f, -2.0f, 16.0f, 32.0f}, // brit/ship_arrow
+		{1.246f, 10.0f, 1.2f, -2.0f, 8.0f, 16.0f}, // brit/ship_fire
+		{1.3706f, 10.0f, 1.2f, -2.0f, 7.0f, 14.0f}, // brit/ship_fishing
+		{1.9936f, 10.0f, 1.2f, -2.0f, 12.0f, 24.0f}, // brit/ship_merchant
+		{11.214f, 10.0f, 1.5f, -2.0f, 8.0f, 24.0f}, // brit/ship_scout
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 8.0f, 12.0f}, // brit/siege_ram
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // brit/support_female_citizen
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // brit/support_female_citizen_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // brit/support_healer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 6.0f}, // brit/support_trader
+		{18.69f, 1.5f, 14.0f, 0.0707f, 1.5f, 3.0f}, // brit/war_dog
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // brit/rts0_villager
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // gaul/cavalry_javelineer_b
+		{12.46f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // gaul/cavalry_swordsman_b
+		{14.329f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // gaul/champion_cavalry
+		{17.444f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // gaul/champion_fanatic
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // gaul/champion_infantry_swordsman
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // gaul/champion_infantry_trumpeter
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // gaul/hero_brennus
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // gaul/hero_vercingetorix
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // gaul/hero_viridomarus
+		{14.1688f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // gaul/infantry_javelineer_b
+		{14.952f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // gaul/infantry_slinger_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // gaul/infantry_spearman_b
+		{10.0926f, 10.0f, 1.3f, -2.0f, 16.0f, 32.0f}, // gaul/ship_arrow
+		{1.246f, 10.0f, 1.2f, -2.0f, 8.0f, 16.0f}, // gaul/ship_fire
+		{1.3706f, 10.0f, 1.2f, -2.0f, 7.0f, 14.0f}, // gaul/ship_fishing
+		{1.9936f, 10.0f, 1.2f, -2.0f, 12.0f, 24.0f}, // gaul/ship_merchant
+		{11.214f, 10.0f, 1.5f, -2.0f, 8.0f, 24.0f}, // gaul/ship_scout
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 8.0f, 12.0f}, // gaul/siege_ram
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // gaul/support_female_citizen
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // gaul/support_female_citizen_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // gaul/support_healer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 6.0f}, // gaul/support_trader
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // gaul/rts0_villager
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // iber/cavalry_javelineer_b
+		{14.329f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // iber/cavalry_spearman_b
+		{11.214f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // iber/champion_cavalry
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // iber/champion_infantry_swordsman
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // iber/hero_caros
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // iber/hero_indibil
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // iber/hero_viriato
+		{14.1688f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // iber/infantry_javelineer_b
+		{14.952f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // iber/infantry_slinger_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // iber/infantry_spearman_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // iber/infantry_swordsman_b
+		{10.0926f, 10.0f, 1.3f, -2.0f, 16.0f, 32.0f}, // iber/ship_arrow
+		{1.246f, 10.0f, 1.2f, -2.0f, 8.0f, 16.0f}, // iber/ship_fire
+		{1.3706f, 10.0f, 1.2f, -2.0f, 6.0f, 12.0f}, // iber/ship_fishing
+		{1.9936f, 10.0f, 1.2f, -2.0f, 12.0f, 24.0f}, // iber/ship_merchant
+		{11.214f, 10.0f, 1.5f, -2.0f, 8.0f, 24.0f}, // iber/ship_scout
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 8.0f, 12.0f}, // iber/siege_ram
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // iber/support_female_citizen
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // iber/support_female_citizen_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // iber/support_healer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 6.0f}, // iber/support_trader
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // iber/rts0_villager
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // maur/cavalry_javelineer_b
+		{12.46f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // maur/cavalry_swordsman_b
+		{5.2955f, 1.5f, 5.0f, 0.0707f, 8.0f, 11.0f}, // maur/champion_chariot
+		{3.738f, 1.5f, 4.0f, 0.0707f, 4.5f, 9.0f}, // maur/champion_elephant
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // maur/champion_infantry_maceman
+		{17.8f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // maur/champion_maiden
+		{18.6544f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // maur/champion_maiden_archer
+		{6.23f, 1.5f, 4.0f, 0.0707f, 4.5f, 9.0f}, // maur/elephant_archer_b
+		{5.2955f, 1.5f, 5.0f, 0.0707f, 8.0f, 11.0f}, // maur/hero_ashoka
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // maur/hero_chanakya
+		{6.23f, 1.5f, 4.0f, 0.0707f, 4.5f, 9.0f}, // maur/hero_chandragupta
+		{13.3144f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // maur/infantry_archer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // maur/infantry_spearman_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // maur/infantry_swordsman_b
+		{10.0926f, 10.0f, 1.3f, -2.0f, 17.0f, 45.0f}, // maur/ship_arrow
+		{1.3706f, 10.0f, 1.2f, -2.0f, 7.0f, 17.0f}, // maur/ship_fishing
+		{1.9936f, 10.0f, 1.2f, -2.0f, 12.0f, 28.0f}, // maur/ship_merchant
+		{11.214f, 10.0f, 1.5f, -2.0f, 14.0f, 32.0f}, // maur/ship_scout
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 8.0f, 12.0f}, // maur/siege_ram
+		{3.738f, 1.5f, 4.0f, 0.0707f, 4.5f, 9.0f}, // maur/support_elephant
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // maur/support_female_citizen
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // maur/support_female_citizen_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // maur/support_healer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 6.0f, 12.0f}, // maur/support_trader
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // maur/rts0_villager
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // kush/cavalry_javelineer_b
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // kush/cavalry_javelineer_merc_b
+		{14.329f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // kush/cavalry_spearman_b
+		{14.329f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // kush/champion_cavalry
+		{3.738f, 1.5f, 4.0f, 0.0707f, 4.5f, 9.0f}, // kush/champion_elephant
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // kush/champion_infantry_amun
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // kush/champion_infantry_apedemak
+		{13.3144f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // kush/champion_infantry_archer
+		{5.2955f, 1.5f, 5.0f, 0.0707f, 6.0f, 14.0f}, // kush/hero_amanirenas
+		{6.23f, 1.5f, 4.0f, 0.0707f, 4.5f, 9.0f}, // kush/hero_arakamani
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // kush/hero_nastasen
+		{13.3144f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/infantry_archer_b
+		{14.1688f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/infantry_javelineer_merc_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/infantry_maceman_merc_b
+		{11.214f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/infantry_pikeman_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/infantry_spearman_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/infantry_swordsman_b
+		{11.214f, 10.0f, 1.3f, -2.0f, 10.0f, 40.0f}, // kush/ship_arrow
+		{1.3706f, 10.0f, 1.2f, -2.0f, 4.0f, 10.0f}, // kush/ship_fishing
+		{1.9936f, 10.0f, 1.2f, -2.0f, 8.0f, 24.0f}, // kush/ship_merchant
+		{11.214f, 10.0f, 1.5f, -2.0f, 8.0f, 33.0f}, // kush/ship_scout
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 7.0f, 15.0f}, // kush/siege_ram
+		{1.3083f, 0.75f, 4.0f, 0.7317f, 12.0f, 12.0f}, // kush/siege_tower
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/support_female_citizen
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/support_female_citizen_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/support_healer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 6.0f}, // kush/support_trader
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/rts0_villager
+		{10.591f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // ptol/cavalry_archer_b
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // ptol/cavalry_javelineer_merc_b
+		{14.329f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // ptol/cavalry_spearman_merc_b
+		{14.329f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // ptol/champion_cavalry
+		{3.738f, 1.5f, 4.0f, 0.0707f, 4.5f, 9.0f}, // ptol/champion_elephant
+		{11.214f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // ptol/champion_infantry_pikeman
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // ptol/hero_cleopatra_vii
+		{6.23f, 1.5f, 4.0f, 0.0707f, 4.5f, 9.0f}, // ptol/hero_ptolemy_i
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // ptol/hero_ptolemy_iv
+		{13.3144f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // ptol/infantry_archer_b
+		{14.1688f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // ptol/infantry_javelineer_b
+		{11.214f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // ptol/infantry_pikeman_b
+		{14.952f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // ptol/infantry_slinger_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // ptol/infantry_spearman_merc_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // ptol/infantry_swordsman_merc_b
+		{11.214f, 10.0f, 1.3f, -2.0f, 10.0f, 40.0f}, // ptol/ship_arrow
+		{1.3706f, 10.0f, 1.2f, -2.0f, 4.0f, 10.0f}, // ptol/ship_fishing
+		{1.9936f, 10.0f, 1.2f, -2.0f, 8.0f, 24.0f}, // ptol/ship_merchant
+		{2.8035f, 10.0f, 1.5f, -2.0f, 10.0f, 40.0f}, // ptol/ship_ram
+		{11.214f, 10.0f, 1.5f, -2.0f, 8.0f, 33.0f}, // ptol/ship_scout
+		{4.037f, 10.0f, 0.75f, -2.0f, 14.0f, 45.0f}, // ptol/ship_siege
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 6.0f, 15.0f}, // ptol/siege_lithobolos_packed
+		{1.4017f, 0.75f, 4.0f, 0.7317f, 5.0f, 12.0f}, // ptol/siege_polybolos_packed
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 8.0f, 12.0f}, // ptol/siege_ram
+		{1.3083f, 0.75f, 4.0f, 0.7317f, 12.0f, 12.0f}, // ptol/siege_tower
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // ptol/support_female_citizen
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // ptol/support_female_citizen_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // ptol/support_healer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 6.0f}, // ptol/support_trader
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // ptol/rts0_villager
+		{10.591f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // sele/cavalry_archer_b
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // sele/cavalry_javelineer_b
+		{14.329f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // sele/cavalry_spearman_merc_b
+		{11.4632f, 1.5f, 4.0f, 0.0707f, 3.0f, 6.0f}, // sele/champion_cavalry
+		{5.2955f, 1.5f, 5.0f, 0.0707f, 11.0f, 11.0f}, // sele/champion_chariot
+		{3.738f, 1.5f, 4.0f, 0.0707f, 4.5f, 9.0f}, // sele/champion_elephant
+		{11.214f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // sele/champion_infantry_pikeman
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // sele/champion_infantry_swordsman
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // sele/hero_antiochus_iii
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // sele/hero_antiochus_iv
+		{6.23f, 1.5f, 4.0f, 0.0707f, 4.5f, 9.0f}, // sele/hero_seleucus_i
+		{13.3144f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // sele/infantry_archer_merc_b
+		{14.1688f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // sele/infantry_javelineer_b
+		{11.214f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // sele/infantry_pikeman_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // sele/infantry_spearman_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // sele/infantry_swordsman_merc_b
+		{11.214f, 10.0f, 1.3f, -2.0f, 10.0f, 40.0f}, // sele/ship_arrow
+		{1.3706f, 10.0f, 1.2f, -2.0f, 4.0f, 10.0f}, // sele/ship_fishing
+		{1.9936f, 10.0f, 1.2f, -2.0f, 10.0f, 30.0f}, // sele/ship_merchant
+		{2.8035f, 10.0f, 1.5f, -2.0f, 10.0f, 40.0f}, // sele/ship_ram
+		{11.214f, 10.0f, 1.5f, -2.0f, 8.0f, 33.0f}, // sele/ship_scout
+		{4.037f, 10.0f, 0.75f, -2.0f, 14.0f, 45.0f}, // sele/ship_siege
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 6.0f, 15.0f}, // sele/siege_lithobolos_packed
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 8.0f, 12.0f}, // sele/siege_ram
+		{1.3083f, 0.75f, 4.0f, 0.7317f, 12.0f, 12.0f}, // sele/siege_tower
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // sele/support_female_citizen
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // sele/support_female_citizen_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // sele/support_healer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 5.0f, 10.0f}, // sele/support_trader
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // sele/rts0_villager
+		{10.591f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // han/cavalry_archer_b
+		{14.329f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // han/cavalry_spearman_b
+		{12.46f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // han/cavalry_swordsman_b
+		{14.329f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // han/champion_cavalry_spearman_academy
+		{5.2955f, 1.5f, 5.0f, 0.0707f, 10.0f, 10.0f}, // han/champion_chariot_academy
+		{12.8872f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // han/champion_infantry_crossbowman_academy
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // han/champion_infantry_spearman_academy
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // han/hero_han_xin_horse
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // han/hero_liu_bang_horse
+		{4.984f, 1.5f, 5.0f, 0.0707f, 10.0f, 10.0f}, // han/hero_wei_qing_chariot
+		{13.3144f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // han/infantry_archer_b
+		{12.8872f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // han/infantry_crossbowman_b
+		{11.214f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // han/infantry_pikeman_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // han/infantry_spearman_b
+		{11.214f, 10.0f, 1.3f, -2.0f, 17.0f, 34.0f}, // han/ship_arrow
+		{1.3706f, 10.0f, 1.2f, -2.0f, 5.0f, 20.0f}, // han/ship_fishing
+		{1.9936f, 10.0f, 1.2f, -2.0f, 8.0f, 22.0f}, // han/ship_merchant
+		{11.214f, 10.0f, 1.5f, -2.0f, 8.0f, 16.0f}, // han/ship_scout
+		{4.037f, 10.0f, 0.75f, -2.0f, 20.0f, 46.0f}, // han/ship_siege
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 6.0f, 15.0f}, // han/siege_mangonel_packed
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 8.0f, 12.0f}, // han/siege_ram
+		{1.3083f, 0.75f, 4.0f, 0.7317f, 9.0f, 9.0f}, // han/siege_tower
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // han/support_female_citizen
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // han/support_female_citizen_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // han/support_healer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 4.0f, 8.0f}, // han/support_trader
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // han/rts0_villager
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // spart/champion_infantry_spear_olympian
+		{12.46f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // rome/cavalry_auxiliary_b
+		{14.1688f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/infantry_antesignanus
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // mace/champion_infantry_spearman_02
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // han/support_minister
+		{3.4265f, 1.5f, 14.0f, 0.0707f, 5.0f, 12.0f}, // athen/catafalque
+		{3.4265f, 1.5f, 14.0f, 0.0707f, 5.0f, 12.0f}, // spart/catafalque
+		{3.4265f, 1.5f, 14.0f, 0.0707f, 5.0f, 12.0f}, // pers/catafalque
+		{3.4265f, 1.5f, 14.0f, 0.0707f, 5.0f, 12.0f}, // rome/catafalque
+		{3.4265f, 1.5f, 14.0f, 0.0707f, 5.0f, 12.0f}, // cart/catafalque
+		{3.4265f, 1.5f, 14.0f, 0.0707f, 5.0f, 12.0f}, // mace/catafalque
+		{3.4265f, 1.5f, 14.0f, 0.0707f, 5.0f, 12.0f}, // brit/catafalque
+		{3.4265f, 1.5f, 14.0f, 0.0707f, 5.0f, 12.0f}, // gaul/catafalque
+		{3.4265f, 1.5f, 14.0f, 0.0707f, 5.0f, 12.0f}, // iber/catafalque
+		{3.4265f, 1.5f, 14.0f, 0.0707f, 5.0f, 12.0f}, // maur/catafalque
+		{3.4265f, 1.5f, 14.0f, 0.0707f, 5.0f, 12.0f}, // kush/catafalque
+		{3.4265f, 1.5f, 14.0f, 0.0707f, 5.0f, 12.0f}, // ptol/catafalque
+		{3.4265f, 1.5f, 14.0f, 0.0707f, 5.0f, 12.0f}, // sele/catafalque
+		{3.4265f, 1.5f, 14.0f, 0.0707f, 5.0f, 12.0f}, // han/catafalque
+		{13.3144f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // pers/champion_infantry_archer_upgrade
+		{2.492f, 10.0f, 1.2f, -2.0f, 8.0f, 16.0f}, // brit/ship_fire_fire
+		{2.492f, 10.0f, 1.2f, -2.0f, 8.0f, 16.0f}, // gaul/ship_fire_fire
+		{2.492f, 10.0f, 1.2f, -2.0f, 8.0f, 16.0f}, // iber/ship_fire_fire
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/support_civilian
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/support_civilian_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // spart/support_civilian
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // spart/support_civilian_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // pers/support_civilian
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // pers/support_civilian_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/support_civilian
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/support_civilian_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // cart/support_civilian
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // cart/support_civilian_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // mace/support_civilian
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // mace/support_civilian_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // brit/support_civilian
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // brit/support_civilian_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // gaul/support_civilian
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // gaul/support_civilian_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // iber/support_civilian
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // iber/support_civilian_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // maur/support_civilian
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // maur/support_civilian_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/support_civilian
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/support_civilian_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // ptol/support_civilian
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // ptol/support_civilian_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // sele/support_civilian
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // sele/support_civilian_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // han/support_civilian
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // han/support_civilian_house
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // germ/cavalry_javelineer_b
+		{14.329f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // germ/cavalry_spearman_b
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // germ/champion_cavalry
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // germ/champion_healer
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // germ/champion_infantry_axeman
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // germ/champion_infantry_maceman
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // germ/hero_boiorix
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // germ/hero_lugius
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // germ/hero_teutobod
+		{14.1688f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // germ/infantry_javelineer_b
+		{14.952f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // germ/infantry_slinger_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // germ/infantry_spearman_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // germ/infantry_swordsman_b
+		{11.214f, 10.0f, 1.3f, -2.0f, 10.0f, 36.0f}, // germ/ship_arrow
+		{1.246f, 10.0f, 1.2f, -2.0f, 8.0f, 16.0f}, // germ/ship_fire
+		{1.3706f, 10.0f, 1.2f, -2.0f, 5.0f, 13.0f}, // germ/ship_fishing
+		{1.9936f, 10.0f, 1.2f, -2.0f, 10.0f, 32.0f}, // germ/ship_merchant
+		{11.214f, 10.0f, 1.5f, -2.0f, 8.0f, 24.0f}, // germ/ship_scout
+		{2.2428f, 0.75f, 4.0f, 0.7317f, 4.5f, 9.0f}, // germ/siege_ram
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 8.0f, 11.0f}, // germ/siege_ram_covered
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // germ/support_civilian
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // germ/support_civilian_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // germ/support_healer_b
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // germ/support_trader
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // germ/rts0_villager
+		{3.4265f, 1.5f, 14.0f, 0.0707f, 5.0f, 12.0f}, // germ/catafalque
+		{2.492f, 10.0f, 1.2f, -2.0f, 8.0f, 16.0f}, // germ/ship_fire_fire
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/infantry_spearman_conscript
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // cart/infantry_spearman_ital_b
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // rome/cavalry_javelineer_auxiliary_b
+		{14.329f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // rome/cavalry_spearman_auxiliary_b
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // rome/champion_infantry_swordsman_first
+		{12.46f, 1.5f, 3.0f, 0.0707f, 7.0f, 14.0f}, // germ/support_wagon
+		{12.46f, 1.5f, 3.0f, 0.0707f, 7.0f, 14.0f}, // germ/support_wagon_house
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // pers/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // mace/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // gaul/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // ptol/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // han/support_healer_e
+		{13.3144f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/infantry_marine_archer_b
+		{11.214f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // spart/champion_infantry_pike
+		{5.2955f, 1.5f, 5.0f, 0.0707f, 11.0f, 11.0f}, // pers/hero_xerxes_i_chariot
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // pers/kardakes_hoplite
+		{14.952f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // pers/kardakes_skirmisher
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/hero_marcellus_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/hero_maximus_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/hero_scipio_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // rome/infantry_swordsman_slave
+		{11.214f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // cart/champion_pikeman
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // mace/hero_craterus
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // mace/hero_philip_ii_pike
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // mace/hero_pyrrhus_i
+		{11.214f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // brit/hero_boudicca_cavalry_javelineer
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // brit/hero_boudicca_sword
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // brit/hero_cunobelin_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // gaul/hero_vercingetorix_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // iber/hero_indibil_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // maur/hero_ashoka_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // maur/hero_bindusara_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // maur/hero_chandragupta_infantry
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/hero_amanirenas_infantry
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // kush/hero_harsiotef
+		{4.037f, 10.0f, 0.75f, -2.0f, 12.0f, 48.0f}, // ptol/champion_juggernaut
+		{9.968f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // han/cavalry_crossbowman_b
+		{13.3144f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // han/champion_infantry_archer_academy
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // han/hero_han_xin
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // han/hero_liu_bang
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // han/hero_wei_qing
+		{9.968f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // han/hero_wei_qing_horse
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // merc_black_cloak
+		{11.214f, 10.0f, 1.3f, -2.0f, 10.0f, 28.0f}, // noldor_warship
+		{11.214f, 10.0f, 1.3f, -2.0f, 12.0f, 48.0f}, // pirates/ship_arrow
+		{1.9936f, 10.0f, 1.2f, -2.0f, 10.0f, 30.0f}, // pirates/ship_merchant
+		{11.214f, 10.0f, 1.5f, -2.0f, 9.0f, 37.0f}, // pirates/ship_scout
+		{14.952f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // samnite_skirmisher
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // samnite_spearman
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // samnite_swordsman
+		{11.214f, 10.0f, 1.3f, -2.0f, 14.0f, 56.0f}, // viking_longship
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // merc_thorakites
+		{14.952f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // merc_thureophoros
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // theb_sacred_band
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // thesp_melanochitones
+		{1.869f, 0.75f, 4.0f, 0.7317f, 6.0f, 20.0f}, // theb_siege_fireraiser
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // rome/champion_infantry_swordsman_02
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // rome/champion_infantry_swordsman_03
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // rome/champion_infantry_swordsman_04
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // rome/champion_infantry_swordsman_05
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/hero_xenophon
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // spart/hero_leonidas_300
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // pers/arstibara
+		{1.2616f, 0.75f, 4.0f, 0.7317f, 5.0f, 8.0f}, // han/siege_shoushe
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // athen/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // spart/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // spart/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // pers/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // cart/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // cart/support_healer_e
+		{11.214f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // mace/infantry_pikeman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // brit/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // brit/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // gaul/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // iber/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // iber/infantry_swordsman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // iber/support_healer_e
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // maur/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // maur/infantry_swordsman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // maur/support_healer_e
+		{11.214f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/infantry_pikeman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // kush/infantry_swordsman_a
+		{11.214f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // ptol/infantry_pikeman_a
+		{11.214f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // sele/infantry_pikeman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // sele/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // sele/support_healer_e
+		{11.214f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // han/infantry_pikeman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // han/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // germ/infantry_spearman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // germ/infantry_swordsman_a
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // germ/support_healer_e
+		{12.46f, 1.5f, 1.0f, 0.0707f, 3.0f, 3.0f}, // plane
 	};
 	return kTable;
 }
@@ -566,33 +567,33 @@ inline const UnitMotionProfile *motion_template_table() {
 inline constexpr uint8_t MOTION_CLASS_ROWS = 27; // = UNIT_TYPE_COUNT
 inline const UnitMotionProfile *motion_class_table() {
 	static const UnitMotionProfile kTable[MOTION_CLASS_ROWS] = {
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // UNIT_VILLAGER: template_unit_support_slave
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // UNIT_SWORDSMAN: template_unit_infantry_melee_swordsman
-		{13.3144f, 1.5f, 14.0f, 0.0707f}, // UNIT_ARCHER: template_unit_infantry_ranged_archer
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // UNIT_SPEARMAN: template_unit_infantry_melee_spearman
-		{12.46f, 1.5f, 10.0f, 0.0707f}, // UNIT_CAVALRY: template_unit_cavalry_melee_swordsman
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // UNIT_TRADER: template_unit_support_trader
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // UNIT_CATAPULT: template_unit_siege_stonethrower
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // UNIT_HERO: template_unit_hero_infantry_swordsman
-		{11.214f, 10.0f, 1.3f, -2.0f}, // UNIT_TRIREME: template_unit_ship_warship_arrow
-		{3.738f, 1.5f, 4.0f, 0.0707f}, // UNIT_ELEPHANT: template_unit_champion_elephant_melee
-		{1.4952f, 0.75f, 4.0f, 0.7317f}, // UNIT_SIEGE_RAM: template_unit_siege_ram
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // UNIT_HEALER: template_unit_support_healer
-		{11.214f, 1.5f, 10.0f, 0.0707f}, // UNIT_CHARIOT: units/brit/cavalry_javelineer_b
-		{18.69f, 1.5f, 14.0f, 0.0707f}, // UNIT_WAR_DOG: template_unit_dog
-		{1.4017f, 0.75f, 4.0f, 0.7317f}, // UNIT_BOLT_SHOOTER: template_unit_siege_boltshooter
-		{1.3706f, 10.0f, 1.2f, -2.0f}, // UNIT_FISHING_BOAT: template_unit_ship_fishing
-		{1.9936f, 10.0f, 1.2f, -2.0f}, // UNIT_MERCHANT_SHIP: template_unit_ship_merchant
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // UNIT_FEMALE_CITIZEN: template_unit_support_female_citizen
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // UNIT_CARNYX: template_unit_champion_infantry_trumpeter
-		{3.738f, 1.5f, 4.0f, 0.0707f}, // UNIT_WORKER_ELEPHANT: template_unit_support_elephant
-		{13.3144f, 1.5f, 14.0f, 0.0707f}, // UNIT_ARCHER_MAIDEN: template_unit_infantry_ranged_archer
-		{10.591f, 1.5f, 10.0f, 0.0707f}, // UNIT_CAMEL: template_unit_cavalry_ranged_archer
-		{12.46f, 1.5f, 5.0f, 0.0707f}, // UNIT_SCYTHED_CHARIOT: template_unit_champion_cavalry_swordsman
-		{12.46f, 1.5f, 8.0f, 0.0707f}, // UNIT_MINISTER: units/han/support_minister
-		{3.4265f, 1.5f, 14.0f, 0.0707f}, // UNIT_CATAFALQUE: template_unit_catafalque
-		{12.46f, 1.5f, 14.0f, 0.0707f}, // UNIT_TYPE_TECH: no template
-		{12.46f, 1.5f, 3.0f, 0.0707f}, // UNIT_WAGON: template_unit_support_wagon
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // UNIT_VILLAGER: template_unit_support_slave
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // UNIT_SWORDSMAN: template_unit_infantry_melee_swordsman
+		{13.3144f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // UNIT_ARCHER: template_unit_infantry_ranged_archer
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // UNIT_SPEARMAN: template_unit_infantry_melee_spearman
+		{12.46f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // UNIT_CAVALRY: template_unit_cavalry_melee_swordsman
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // UNIT_TRADER: template_unit_support_trader
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 6.0f, 15.0f}, // UNIT_CATAPULT: template_unit_siege_stonethrower
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // UNIT_HERO: template_unit_hero_infantry_swordsman
+		{11.214f, 10.0f, 1.3f, -2.0f, 5.0f, 20.0f}, // UNIT_TRIREME: template_unit_ship_warship_arrow
+		{3.738f, 1.5f, 4.0f, 0.0707f, 4.5f, 9.0f}, // UNIT_ELEPHANT: template_unit_champion_elephant_melee
+		{1.4952f, 0.75f, 4.0f, 0.7317f, 8.0f, 12.0f}, // UNIT_SIEGE_RAM: template_unit_siege_ram
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // UNIT_HEALER: template_unit_support_healer
+		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // UNIT_CHARIOT: units/brit/cavalry_javelineer_b
+		{18.69f, 1.5f, 14.0f, 0.0707f, 1.5f, 3.0f}, // UNIT_WAR_DOG: template_unit_dog
+		{1.4017f, 0.75f, 4.0f, 0.7317f, 5.0f, 12.0f}, // UNIT_BOLT_SHOOTER: template_unit_siege_boltshooter
+		{1.3706f, 10.0f, 1.2f, -2.0f, 5.0f, 20.0f}, // UNIT_FISHING_BOAT: template_unit_ship_fishing
+		{1.9936f, 10.0f, 1.2f, -2.0f, 5.0f, 20.0f}, // UNIT_MERCHANT_SHIP: template_unit_ship_merchant
+		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // UNIT_FEMALE_CITIZEN: template_unit_support_female_citizen
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // UNIT_CARNYX: template_unit_champion_infantry_trumpeter
+		{3.738f, 1.5f, 4.0f, 0.0707f, 4.5f, 9.0f}, // UNIT_WORKER_ELEPHANT: template_unit_support_elephant
+		{13.3144f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // UNIT_ARCHER_MAIDEN: template_unit_infantry_ranged_archer
+		{10.591f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // UNIT_CAMEL: template_unit_cavalry_ranged_archer
+		{12.46f, 1.5f, 5.0f, 0.0707f, 3.0f, 6.0f}, // UNIT_SCYTHED_CHARIOT: template_unit_champion_cavalry_swordsman
+		{12.46f, 1.5f, 8.0f, 0.0707f, 3.0f, 3.0f}, // UNIT_MINISTER: units/han/support_minister
+		{3.4265f, 1.5f, 14.0f, 0.0707f, 5.0f, 12.0f}, // UNIT_CATAFALQUE: template_unit_catafalque
+		{12.46f, 1.5f, 14.0f, 0.0707f, 1.0f, 1.0f}, // UNIT_TYPE_TECH: no template
+		{12.46f, 1.5f, 3.0f, 0.0707f, 7.0f, 14.0f}, // UNIT_WAGON: template_unit_support_wagon
 	};
 	return kTable;
 }
