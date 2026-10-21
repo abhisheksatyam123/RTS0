@@ -124,6 +124,10 @@ def fauna_rows(loader):
             flags.append("FAUNA_F_FISH")
         if t.value("UnitMotion/PassabilityClass", "") == "large":
             flags.append("FAUNA_F_LARGE")
+        # template_unit.xml Obstruction/BlockMovement true, which chickens, rabbits, sharks and
+        # whales turn off: CCmpUnitMotion::PreMove then leaves them out of pushing.
+        if t.value("Obstruction/BlockMovement", "true") != "true":
+            flags.append("FAUNA_F_NO_BLOCK_MOVEMENT")
         rows.append({
             "stem": stem,
             "name": t.value("Identity/GenericName", stem),
@@ -149,6 +153,7 @@ def fauna_rows(loader):
             "crush_armor": t.num("Resistance/Entity/Damage/Crush"),
             "xp": t.num("Loot/xp"),
             "footprint": round(footprint_radius(t), 3),
+            "weight": int(round(t.num("UnitMotion/Weight", 10.0))),
             "accel": r1(t.num("UnitMotion/Acceleration") * SPEED_SCALE),
             "corral_food": corral_food(loader, t),
             "cost": [int(t.num("Cost/Resources/" + r)) for r in ("food", "wood", "stone", "metal")],
@@ -320,6 +325,7 @@ def emit(fauna, treasures, ruins, scenery, corral):
     w("\tFAUNA_F_KILL_BEFORE_GATHER = 8, // ResourceSupply/KillBeforeGather")
     w("\tFAUNA_F_FISH = 16,              // food.fish (whales) instead of food.meat")
     w("\tFAUNA_F_LARGE = 32,             // UnitMotion/PassabilityClass large (bulls, adult elephants)")
+    w("\tFAUNA_F_NO_BLOCK_MOVEMENT = 64, // Obstruction/BlockMovement false (chickens, rabbits, sharks, whales)")
     w("};")
     w("")
     w("struct FaunaTypeInfo {")
@@ -345,9 +351,11 @@ def emit(fauna, treasures, ruins, scenery, corral):
     w("\tfloat loot_xp;")
     w("\tfloat footprint;          // Footprint radius in 0 A.D. metres (a square as the circle of equal area)")
     w("\tfloat acceleration;       // UnitMotion/Acceleration in RTS0 units/s^2 (0.28's m/s^2 x the speed scale)")
+    w("\tuint16_t weight;          // UnitMotion/Weight: how hard it pushes and how hard it is to push")
     w("\tbool is_domestic() const { return flags & FAUNA_F_DOMESTIC; }")
     w("\tbool is_naval() const { return flags & FAUNA_F_NAVAL; }")
     w("\tbool is_large() const { return flags & FAUNA_F_LARGE; }")
+    w("\tbool blocks_movement() const { return !(flags & FAUNA_F_NO_BLOCK_MOVEMENT); }")
     w("\tfloat attack_damage() const { return hack_damage + pierce_damage + crush_damage; }")
     w("\t// UnitAI.IsDangerousAnimal: an animal whose stance targets visible enemies and that can attack.")
     w("\tbool is_dangerous() const {")
@@ -363,7 +371,8 @@ def emit(fauna, treasures, ruins, scenery, corral):
             str(r["food"]), str(r["gatherers"]), r["stance"], r["flags"], f(r["vision"]), f(r["flee"]),
             f(r["roam"]), f(r["roam_min"]), f(r["roam_max"]), f(r["feed_min"]), f(r["feed_max"]),
             f(r["hack"]), f(r["pierce"]), f(r["crush"]), f(r["range"]), f(r["repeat"]), f(r["prepare"]),
-            f(r["hack_armor"]), f(r["pierce_armor"]), f(r["crush_armor"]), f(r["xp"]), f(r["footprint"]), f(r["accel"])]) + "},")
+            f(r["hack_armor"]), f(r["pierce_armor"]), f(r["crush_armor"]), f(r["xp"]), f(r["footprint"]), f(r["accel"]),
+            str(r["weight"])]) + "},")
     w("\t};")
     w("\treturn kTable[ftype < FAUNA_COUNT ? ftype : 0];")
     w("}")
