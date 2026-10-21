@@ -36,6 +36,7 @@ var overlay_for: Node
 var overlay_map := ""
 ## The stages the last match reported (for tests and the log).
 static var last_stages: Array = []
+static var last_title := "" # the title the last page showed (tests)
 
 var _settle := SETTLE_FRAMES
 var _show_description := false
@@ -146,6 +147,7 @@ func _pick(data: Dictionary) -> void:
 	if not quotes.is_empty():
 		quote = tr(str(quotes.pick_random()))
 	title = _title()
+	last_title = title
 
 ## Engine.HasNetClient(): a multiplayer match weighs the tips by their MP share.
 func _networked() -> bool:
