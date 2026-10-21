@@ -532,6 +532,16 @@ int main() {
 		research(TECH_WARSHIP_FIRESHIP_ATTACK, -10.0f);
 		CHECK(std::fabs(s.tech_mods(0).tmpl[ignited].health - 1.25f) < 1e-4f);
 		CHECK(s.tech_mods(0).tmpl[unlit].health == 1.0f); // only the ignited form is Ignited
+		// Undergirding Cables affects ArrowShip or NavalRam: no fire ship (Warship Fireship Melee)
+		// is a NavalRam, so even a captor's fire ships keep their health.
+		CHECK((civ_unit_template(unlit).tech_classes & TC_FIRESHIP) && (civ_unit_template(ignited).tech_classes & TC_FIRESHIP));
+		CHECK(!(civ_unit_template(ram).tech_classes & TC_FIRESHIP));
+		fresh(s);
+		s.set_player_civ(CIV_ATHENIANS);
+		s.player(0).phase = 3;
+		research(TECH_WARSHIP_HEALTH, -10.0f);
+		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].health - 1.2f) < 1e-4f);
+		CHECK(s.tech_mods(0).tmpl[unlit].health == 1.0f && s.tech_mods(0).tmpl[ignited].health == 1.0f);
 
 		s.set_player_civ(civ_before);
 	}
