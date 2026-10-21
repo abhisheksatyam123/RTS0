@@ -33,6 +33,8 @@ public:
 		AABB aabb;
 		float scale = 1.0f;
 		float y_offset = 0.0f; // add to instance Y so the model base sits on ground
+		float metre = 1.0f; // world units per 0.28 metre at the drawn size (StatusBars offsets)
+		float height = 0.0f; // the body height it was sized by, in GLB units (a person's excludes a held spear)
 		bool valid = false;
 		bool animated = false;
 		godot::String path; // the GLB it was loaded from (empty for a procedural stand-in)
