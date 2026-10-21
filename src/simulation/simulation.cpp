@@ -19141,8 +19141,8 @@ bool Simulation::flee_done(size_t i) {
 	float gap = d - unit_clearance_at(i);
 	if (auto bit = building_id_to_idx_.find(from); bit != building_id_to_idx_.end())
 		gap = structure_gap(buildings_[bit->second], px, pz, unit_clearance_at(i));
-	else if (const int32_t j = lookup_unit(from); j >= 0)
-		gap -= unit_clearance_at((size_t)j);
+	else if (const int32_t j = lookup_unit(from); j >= 0 && !unit_flies((size_t)j))
+		gap -= unit_clearance_at((size_t)j); // a plane has no obstruction: to its centre
 	const float want = units_.flee_dist[i];
 	if (gap >= want) return true;
 	const float goal = want + (d - gap);
