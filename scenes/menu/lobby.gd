@@ -1742,7 +1742,7 @@ func _on_game_selected() -> void:
 func _player_name() -> String:
 	var who := LobbySession.player_name if LobbySession.signed_in() else _name.text.strip_edges()
 	if who == "":
-		return "Player"
+		return "Anonymous" # SanitisePlayerName's name for a blank player
 	# gamesetup_mp.js: the name you join or host with is kept as playername.multiplayer.
 	if not LobbySession.signed_in() and who != multiplayer_name():
 		var cfg := RtsoUserConfig.new()
