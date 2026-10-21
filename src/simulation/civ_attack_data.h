@@ -53,7 +53,7 @@ struct CombatProfile {
 // 0 A.D. metres to RTS0 units for ranged distances (extract_0ad_rosters.py RANGED_RANGE_SCALE).
 inline constexpr float COMBAT_DISTANCE_SCALE = 0.28f;
 
-inline constexpr uint16_t COMBAT_TEMPLATE_COUNT = 545; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t COMBAT_TEMPLATE_COUNT = 548; // = CIV_UNIT_TEMPLATE_COUNT
 inline const CombatProfile *combat_template_table() {
 	static const CombatProfile kTable[COMBAT_TEMPLATE_COUNT] = {
 		{{0x0000000000000932ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 4.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 2.394f, 0, 0.0f, 0.0f, 0.0f, 0, 0.4f, 70.0f, 35.0f, 1.75f, 0.0f, true, {130, 10, 5, 0, 0}, 0}, // athen/cavalry_javelineer_b
@@ -601,6 +601,9 @@ inline const CombatProfile *combat_template_table() {
 		{{0x0000000000000930ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0.0f, 0, 0.375f, 0.0f, 0.0f, 2.5f, 0.0f, true, {100, 5, 4, 0, 1}, 0}, // germ/infantry_swordsman_a
 		{{0x0000000000000830ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, true, {8, 10, 0, 0, 3}, 0}, // germ/support_healer_e
 		{{0x0000000000000820ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 1.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0.0f, 0, 0.0f, 75.0f, 9.81f, 0.0f, 0.0f, true, {0, 0, 0, 0, 0}, 1}, // plane
+		{{0x0000000000000938ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 8.0f, 0, 0.0f, 0.0f, 0.0f, 0, 0.375f, 0.0f, 0.0f, 10.0f, 0.0f, true, {400, 10, 0, 0, 25}, 0}, // campaigns/army_mace_hero_alexander
+		{{0x0000000000000930ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 8.0f, 0, 0.0f, 0.0f, 0.0f, 0, 0.375f, 0.0f, 0.0f, 5.0f, 0.0f, true, {150, 8, 6, 0, 8}, 0}, // campaigns/army_mace_standard
+		{{0x0000000000000938ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 8.0f, 0, 0.0f, 0.0f, 0.0f, 0, 0.375f, 0.0f, 0.0f, 10.0f, 0.0f, true, {400, 10, 0, 0, 25}, 0}, // campaigns/army_spart_hero_leonidas
 	};
 	return kTable;
 }
@@ -641,7 +644,7 @@ inline const CombatProfile *combat_class_table() {
 inline constexpr uint8_t COMBAT_CLASS_ROWS = 27; // = UNIT_TYPE_COUNT
 
 // Structures by BuildingType; types past the table use the generic structure row.
-inline constexpr uint8_t COMBAT_BUILDING_ROWS = 88;
+inline constexpr uint8_t COMBAT_BUILDING_ROWS = 91;
 inline const CombatProfile *combat_building_table() {
 	static const CombatProfile kTable[COMBAT_BUILDING_ROWS + 1] = {
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 2.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 29.0f, 35.0f, 3.0f, 18.054f, 0, 0.0f, 0.0f, 0.0f, 1, 0.4f, 100.0f, 50.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
@@ -732,6 +735,9 @@ inline const CombatProfile *combat_building_table() {
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 24.0f, 30.0f, 3.0f, 17.752f, 0, 0.0f, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_TEMPLE_ISIS: structures/ptol/temple_2
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 11.0f, 0, 0.0f, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_MILL: structures/mill_greek
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 24.0f, 30.0f, 3.0f, 14.093f, 0, 0.0f, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_TOPHET: structures/cart/tophet
+		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 2.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 29.0f, 35.0f, 3.0f, 26.0f, 0, 0.0f, 0.0f, 0.0f, 1, 0.4f, 100.0f, 50.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_CAMPAIGN_CITY: campaigns/campaign_city_test
+		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 2.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 29.0f, 35.0f, 3.0f, 26.0f, 0, 0.0f, 0.0f, 0.0f, 1, 0.4f, 100.0f, 50.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_CAMPAIGN_CITY_MINOR: campaigns/campaign_city_minor_test
+		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 24.0f, 30.0f, 3.0f, 13.802f, 0, 0.0f, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // BLD_CAMPAIGN_SANCTUARY: campaigns/campaign_religious_test
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 1.0f, 10.0f, 1.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, {0, 0, 0, 0, 0}, 0}, // default: template_structure
 	};
 	return kTable;
