@@ -20608,14 +20608,17 @@ bool Simulation::petra_spot_free_but_distance(int cell_x, int cell_y, int footpr
 }
 
 // queueplanBuilding.js findGoodPosition's gap round a structure (obstructionRadius + 0, 4 or 8 m):
-// 0 for houses, dropsites, fields and markets, which ought to stand close to each other or a
-// resource; 2 (8 m) for fortresses, arsenals and elephant stables; 1 (4 m) for the rest.
+// 0 for dropsites, fields and markets, which ought to stand close to a resource or each other;
+// 2 (8 m) for fortresses, arsenals and elephant stables; 1 (4 m) for the rest. Houses take 1 too:
+// their radius, ceil(obstructionRadius.max / cellSize) (queueplanBuilding.js:336), keeps every
+// obstruction cell within 2 cells (8 m) of an 11-13 m house's centre clear, so 0.28's houses
+// stand about 5 m apart, and on RTS0's 8 m grid a ring is the nearest step: touching rows of
+// houses walled their builders in against shores.
 uint8_t Simulation::petra_clearance(uint8_t btype) {
 	if (btype >= BLD_TYPE_COUNT) return 1;
 	const uint8_t r = building_research_base(btype);
 	if (r == BLD_FORTRESS || r == BLD_ARSENAL || r == BLD_ELEPHANT_STABLE) return 2;
-	if (is_dropsite_type(btype) || (building_tech_classes(btype) & TC_HOUSE) || btype == BLD_FIELD || is_land_market(btype))
-		return 0;
+	if (is_dropsite_type(btype) || btype == BLD_FIELD || is_land_market(btype)) return 0;
 	return 1;
 }
 
@@ -20624,7 +20627,7 @@ uint8_t Simulation::petra_clearance(uint8_t btype) {
 // a ring cell (PART) refuses the spot when it comes within half a cell, 4 m, of the footprint:
 // the gap queueplanBuilding.js findGoodPosition adds round most structures (obstructionRadius + 4).
 // On-grid buildings mark only FULL cells, so they keep the whole-cell ring.
-// Clearance 0 (houses, dropsites, fields, markets) needs only the footprint free; 2 (fortress,
+// Clearance 0 (dropsites, fields, markets) needs only the footprint free; 2 (fortress,
 // arsenal, elephant stable) also keeps any building 8 m off.
 bool Simulation::petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance) const {
 	ensure_occupied_cells();

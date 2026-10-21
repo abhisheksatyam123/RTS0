@@ -37,9 +37,10 @@ None of these touches simulation state or the save format.
 
 ## Fix log
 
-- 2026-10-20 #PR3 pass 13 gap 1 (the client handshake carries the enabled mods less the ignoreInCompatibilityChecks ones, and the host refuses other mods with reason 17, "Different game engine versions or different mods loaded.", as CheckHandshake does) merged.
-- 2026-10-20 #PR3 pass 13 gap 3 (a disconnect in the setup keeps the setup page and its chat behind the "Disconnected" box, with the chat input hidden and Ready disabled, as ChatInputPanel and ReadyButton do) merged.
-- 2026-10-20 #PR3 pass 13 gap 4 (the lobby lists a scenario or skirmish map by its own name, as niceMapName) merged.
-- 2026-10-20 #PR3 pass 13 gap 5 (the lobby server keeps a game's name, map name and victory list up to 256 characters and up to 72 names, so observers are listed in full) merged.
-- 2026-10-20 #PR3 pass 13 gap 6 (the details' Host line is the plain lobby nick, as hostUsername) merged.
-- 2026-10-20 #PR3 pass 13 gap 7 (a blank Player Name joins or hosts as "Anonymous", as SanitisePlayerName, and is not saved) merged.
+- 2026-10-20 #1504 pass 13 gap 1 (the client handshake carries the enabled mods less the ignoreInCompatibilityChecks ones, and the host refuses other mods with reason 17, "Different game engine versions or different mods loaded.", as CheckHandshake does) merged.
+- 2026-10-20 #1504 pass 13 gap 3 (a disconnect in the setup keeps the setup page and its chat behind the "Disconnected" box, with the chat input hidden and Ready disabled, as ChatInputPanel and ReadyButton do) merged.
+- 2026-10-20 #1504 pass 13 gap 4 (the lobby lists a scenario or skirmish map by its own name, as niceMapName) merged.
+- 2026-10-20 #1504 pass 13 gap 5 (the lobby server keeps a game's name, map name and victory list up to 256 characters and up to 72 names, so observers are listed in full) merged.
+- 2026-10-20 #1504 pass 13 gap 6 (the details' Host line is the plain lobby nick, as hostUsername) merged.
+- 2026-10-20 #1504 pass 13 gap 7 (a blank Player Name joins or hosts as "Anonymous", as SanitisePlayerName, and is not saved) merged.
+- 2026-10-20 #PR4 pass 13 gap 2 (a rejoiner or late watcher sees the "rejoining" box only while the world downloads, then the loading page for the game's map, then the match with "Synchronizing gameplay with other players…" until it has run the turns that went by, as NetClient's fake game start and NetworkStatusOverlay do; playtest_godot_mp gains a late-observer case) merged.
