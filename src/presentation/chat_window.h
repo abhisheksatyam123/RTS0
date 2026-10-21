@@ -616,7 +616,9 @@ private:
 		if (me) text = text.substr(4);
 		text = text.replace("[", "[lb]");
 		const String ctx = context.is_empty() ? String() : "(" + context + ") ";
-		return ctx + (me ? "* " + user : "<" + user + ">") + " " + text;
+		// The setup's ClientChat.js sets the sender tag in bold.
+		const String tag = actions ? "<" + user + ">" : "[b]<" + user + ">[/b]";
+		return ctx + (me ? "* " + user : tag) + " " + text;
 	}
 
 	static bool is_private(const String &tag) { return tag.begins_with("[Player-") || tag.begins_with("[Observer-"); }

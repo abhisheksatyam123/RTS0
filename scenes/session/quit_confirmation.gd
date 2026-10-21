@@ -170,6 +170,9 @@ static func end_game(m: Node, show_summary: bool) -> void:
 	elif tree.root.has_node("LobbySession") and tree.root.get_node("LobbySession").signed_in():
 		ms.go("res://scenes/menu/lobby.tscn") # Engine.HasXmppClient: back to the lobby
 	elif status.get("replaying", false):
+		# endGame: SwitchGuiPage("page_replaymenu.xml") with no replaySelectionData, so the
+		# menu opens fresh; only the summary hands the selection back.
+		load("res://scenes/menu/replay_browser.gd").selection_data = {}
 		ms.go("res://scenes/menu/replay_browser.tscn")
 	else:
 		ms.go("res://scenes/menu/main_menu.tscn")
