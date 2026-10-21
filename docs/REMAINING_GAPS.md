@@ -657,6 +657,16 @@ Trigger.js, TriggerPoint.js, Timer.js and every TriggerHelper.js helper were che
 | TH9 | GetLandSpawnPoints left out treasures and catafalques | low | Fixed |
 | TH10 | Gallic Fields rounds the wave delay to whole ms; float vs double in RandomTemplateComposition; RegisterTrigger has no duplicate guard | negligible | Open: Triggers |
 
+The scenario test scripts (triggers_demo, pickup_test_map, unit_chasing_test, unit_dancing_test, unit_pushing_test, unit_motion_integration_test, treasure_islands, death_canyon_invasion_force) were checked line by line (fourteenth pass, 2026-10-21; docs/archive/triggers-audit-028-pass14.md):
+
+| # | Gap | Severity | State |
+|---|---|---|---|
+| SC1 | Unit Chasing's two fast_on_muskox experiments did nothing: the cavalryman got a gather order on a living animal, which no resource matches | medium | Fixed: a queued hunt order, as unit_motion's |
+| SC2 | Their muskox was Gaia's and stood grazing, and its death left the cavalryman; 0.28 spawns it as player 1's, walks it north to z 900 and removes the pair when it dies | low | Fixed: player 1's muskox walks north and is followed (TriggerWatch kind 2, an animal) |
+| SC3 | Unit Motion's multiple_resources chickens were Gaia's; QuickSpawn's owner is player 1 | cosmetic | Fixed |
+| SC4 | Unit Dancing's "not killed" report came from a 500 ms poll; 0.28 reports on IDLE's 100 ms FindNewTargets timer | cosmetic | Fixed: polled every 100 ms from 3.1 s |
+| SC5 | Pickup Test's UnitsIntoShipThenAnotherCloseBy sent the second walker up to 200 ms after the first boarded; 0.28's PerformGarrison hook sends it on boarding | cosmetic | Fixed: checked every tick |
+
 Scenario-only units: every unit the 0.28 scenario, demo and sandbox maps place was checked against the ported map JSON and the roster:
 
 | # | Gap | Severity | State |
