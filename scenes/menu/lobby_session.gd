@@ -552,6 +552,8 @@ static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictio
 			map_name = str(r[1]).trim_suffix(" (RMS)")
 			map_type = "random"
 	if map_type == "":
+		# LobbyGameRegistration's niceMapName: the map's own name, not its file's.
+		map_name = load("res://scenes/menu/loading.gd").map_display_name(map_id)
 		if not _map_types.has(map_id):
 			var known: Dictionary = setup._map_types_data().get("maps", {})
 			_map_types[map_id] = str((known.get(map_id, {}) as Dictionary).get("type", "skirmish"))
