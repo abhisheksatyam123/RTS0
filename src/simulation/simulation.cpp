@@ -15183,6 +15183,14 @@ void Simulation::tick_combat(float dt) {
 				units_.order_kind[i] == ORDER_RETURN_RESOURCE || units_.order_kind[i] == ORDER_COLLECT_TREASURE ||
 				(units_.order_kind[i] == ORDER_GATHER && units_.target_resource_id[i] == 0)))
 			return;
+		// Nor does a walk that ended this tick (move_units' arrival, motion_feedback) look yet: 0.28's
+		// WALKING MovementUpdate drops the order first (FinishOrder, UnitAI.js:1793-1799, 3911-3935)
+		// and IDLE looks for targets from the next turn (enter's StartTimer(100), :1637), where
+		// tick_unit_ai finishes it. A fight picked now would keep the walk's force and go back to it.
+		// A formation member's walk is its controller's (tick_formations).
+		if (st == ACTION_IDLE && !units_.has_order[i] && units_.order_kind[i] == ORDER_WALK &&
+				!(units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) && (formations_.empty() || formation_group_[i] == 0))
+			return;
 		const bool guarding = st == ACTION_GUARD; // target_unit_id is the guarded unit
 		const uint32_t prev_unit = units_.target_unit_id[i], prev_bld = units_.target_building_id[i];
 		const bool walk_and_fight = st == ACTION_ATTACK_MOVE || st == ACTION_PATROL ||

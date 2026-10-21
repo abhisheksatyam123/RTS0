@@ -3741,6 +3741,34 @@ static void test_queued_hunt_board() {
 	check(aboard, "then boards the siege tower");
 }
 
+static void test_walk_end_then_fight() {
+	std::printf("102. A walk that ends in sight of an enemy is done before the unit picks a fight (UnitAI.js WALKING FinishOrder, IDLE Timer)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t outpost = s.spawn_building_world(10.0f, 0.0f, BLD_OUTPOST, 1, 1.0f);
+	// Riders whose walks end on each tick of the target scan's four: varied lengths, varied indices.
+	std::vector<uint32_t> riders;
+	for (int k = 0; k < 8; ++k) {
+		uint32_t r = s.spawn_unit(-12.0f, -10.5f + 3.0f * (float)k, 0, UNIT_CAVALRY);
+		s.order_walk(&r, 1, 2.0f + 0.37f * (float)k, -10.5f + 3.0f * (float)k);
+		riders.push_back(r);
+	}
+	bool forced_fight = false;
+	const bool all_fight = run_until(s, 30.0f, [&] {
+		bool all = true;
+		for (uint32_t r : riders) {
+			const int i = idx_of(s, r);
+			if (i < 0) continue;
+			const bool fights = s.units_.action_state[i] == ACTION_ATTACK && s.units_.target_building_id[i] == outpost;
+			if (fights && s.units_.order_kind[i] == ORDER_WALK) forced_fight = true;
+			all = all && fights;
+		}
+		return all;
+	});
+	check(all_fight, "every rider's walk ends and it goes for the enemy outpost");
+	check(!forced_fight, "none fights with its finished walk still its order (forced, to go back to)");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -3850,6 +3878,7 @@ int main(int argc, char **argv) {
 	test_guard_click_targets();
 	test_walk_to_target();
 	test_queued_hunt_board();
+	test_walk_end_then_fight();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
