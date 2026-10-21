@@ -977,9 +977,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 				if (sid) {
 					if (turn_cmds())
-						post_lockstep(17, sel_ptr, sel_n, 0, 0, sid, capture ? 0 : rtso::NET_HUNT_SCENERY_NO_CAPTURE);
+						post_lockstep(17, sel_ptr, sel_n, 0, 0, sid, (uint8_t)(qbit | (capture ? 0 : rtso::NET_HUNT_SCENERY_NO_CAPTURE)));
 					else
-						sim->order_attack_scenery(sel_ptr, sel_n, sid, capture);
+						sim->order_attack_scenery(sel_ptr, sel_n, sid, capture, queue_shift);
 				} else {
 					if (turn_cmds())
 						post_lockstep(15, sel_ptr, sel_n, 0, 0, bid, (uint8_t)(qbit | (capture ? 0 : rtso::NET_PARAM_NO_CAPTURE)));
@@ -1160,9 +1160,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			const uint32_t clicked_transport_id = transport_under(click_pos.x, click_pos.z);
 			auto board = [&]() {
 				if (turn_cmds())
-					post_lockstep(18, sel_ptr, sel_n, 0, 0, clicked_transport_id);
+					post_lockstep(18, sel_ptr, sel_n, 0, 0, clicked_transport_id, qbit);
 				else
-					sim->order_board_transport(sel_ptr, sel_n, clicked_transport_id);
+					sim->order_board_transport(sel_ptr, sel_n, clicked_transport_id, queue_shift);
 				play_civ_voice("move");
 			};
 			if (clicked_transport_id != 0 && force_garrison) {
@@ -1303,11 +1303,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				uint8_t herd = finfo.is_domestic() && fview.behavior[best_f] != rtso::FAUNA_CORRALLED &&
 				               fview.owner[best_f] == local_player() && Input::get_singleton()->is_key_pressed(KEY_ALT) ? 1 : 0;
 				if (turn_cmds())
-					post_lockstep(17, sel_ptr, sel_n, 0, 0, clicked_fauna_id, herd);
+					post_lockstep(17, sel_ptr, sel_n, 0, 0, clicked_fauna_id, herd ? herd : qbit); // Shift queues a hunt
 				else if (herd)
 					sim->order_herd(sel_ptr, sel_n, clicked_fauna_id);
 				else
-					sim->order_hunt(sel_ptr, sel_n, clicked_fauna_id);
+					sim->order_hunt(sel_ptr, sel_n, clicked_fauna_id, queue_shift);
 				play_civ_voice(herd ? "gather" : "attack");
 				return;
 			}
