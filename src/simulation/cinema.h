@@ -52,7 +52,7 @@ struct CinemaPathInfo {
 	uint8_t mode = CINEMA_EASE_INOUT;
 	uint8_t style = CINEMA_STYLE_DEFAULT;
 	uint8_t look_at_target = 0;      // orientation="target"
-	uint8_t reserved = 0;            // CINEMA_PATH_DELETED: DeletePath ran while it was queued
+	uint8_t reserved = 0;            // CINEMA_PATH_DELETED: an older save's path deleted while queued
 };
 constexpr uint8_t CINEMA_PATH_DELETED = 1;
 static_assert(sizeof(CinemaPathInfo) == 40, "CinemaPathInfo is saved raw: keep it free of padding");

@@ -172,6 +172,11 @@ int main() {
 	CHECK(join("bob", "") == -1 && join("bob", "") == -1 &&
 	      admitted == (std::vector<std::string>{"bob", "bob (2)", "bob (3)"}),
 	      "with network.duplicateplayernames they come in as bob (2) and bob (3)");
+	game.setServerLoading(true);
+	CHECK(join("erin", "") == NDR_SERVER_LOADING && admitted.size() == 3,
+	      "a join while the started game loads is refused (NDR_SERVER_LOADING)");
+	game.setServerLoading(false);
+	CHECK(join("erin", "") == -1 && admitted.size() == 4, "once it has loaded, erin joins");
 	for (auto &p : live) p->stop();
 	live.clear();
 
@@ -300,6 +305,8 @@ int main() {
 	CHECK(has("P", to_p + " from O") && !has("A", to_p + " from O"), "an observer can message another observer privately");
 	CHECK(chat_wire_tag("[Observer-12] x") == "[Observer-12]" && chat_wire_tag("[Observer-] x").empty() &&
 	      chat_wire_tag("[Observer-99999999999] x").empty(), "the observer tag is parsed strictly");
+	CHECK(chat_wire_tag("[All] [Player-3] hi").empty() && chat_wire_tag("[All] [Flare] 1,2").empty(),
+	      "a typed tag behind [All] travels to everyone, as text");
 	CHECK(has("host", "hello all") && has("A", "hello all") && has("O", "hello all"), "an untagged line reaches everyone");
 	{
 		// A player whose game is over is an observer for chat (0.28 isPlayerObserver):
