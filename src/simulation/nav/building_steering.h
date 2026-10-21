@@ -268,13 +268,19 @@ bool segment_blocked_by_buildings(Vec2 pos, Vec2 end, Vec2 aim, float radius,
 	return blocked;
 }
 
+// A short path's first waypoints (at most SHORT_PATH_KEPT_MAX), as a search hands them on.
+struct KeptPath {
+	int n = 0;
+	Vec2 p[SHORT_PATH_KEPT_MAX];
+};
+
 // Searches a short path from `pos` towards `aim` around the nearby buildings and returns its first
-// waypoint in `out`. False when no path was found. Searches reuse per-thread storage, so this is safe
-// to call from parallel jobs.
+// waypoint in `out`, and its first waypoints in `kept` when given. False when no path was found.
+// Searches reuse per-thread storage, so this is safe to call from parallel jobs.
 template <class Buildings>
 bool search_short_path(Vec2 pos, Vec2 aim, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id,
-		const NavGrid& nav, Vec2& out, float range = BUILDING_STEER_RANGE)
+		const NavGrid& nav, Vec2& out, float range = BUILDING_STEER_RANGE, KeptPath* kept = nullptr)
 {
 	thread_local std::vector<ShortPathSquare> statics;
 	thread_local std::vector<Vec2> path;
@@ -301,6 +307,10 @@ bool search_short_path(Vec2 pos, Vec2 aim, float radius,
 	detail::with_terrain_rows(nav, pos, range, radius, [&](auto& rows, float cell, Vec2 origin, int w, int h) {
 		return compute_short_path(req, statics, no_units, rows, cell, origin, w, h, scratch, path);
 	});
+	if (kept) {
+		kept->n = static_cast<int>(std::min<size_t>(path.size(), SHORT_PATH_KEPT_MAX));
+		for (int k = 0; k < kept->n; ++k) kept->p[k] = path[static_cast<size_t>(k)];
+	}
 	if (path.empty()) return false;
 	out = path.front();
 	return true;
@@ -381,10 +391,11 @@ uint64_t small_obstacles_hash(const std::vector<T>& small)
 }
 
 // search_short_path among `obstacles` (the buildings `key` names, and the small ones `small` hashes),
-// answered from `memo` when it holds the same search.
+// answered from `memo` when it holds the same search; its first waypoints go to `kept` when given.
 template <class Obstacles>
 bool search_short_path_memo(ShortPathSearchMemo* memo, uint32_t key, uint64_t small, Vec2 pos, Vec2 aim, float radius,
-		const Obstacles& obstacles, uint32_t ignore_building_id, const NavGrid& nav, Vec2& out, float range)
+		const Obstacles& obstacles, uint32_t ignore_building_id, const NavGrid& nav, Vec2& out, float range,
+		KeptPath* kept = nullptr)
 {
 	ShortPathSearchMemo m;
 	m.pos_x = float_bits(pos.x); m.pos_z = float_bits(pos.y);
@@ -395,12 +406,23 @@ bool search_short_path_memo(ShortPathSearchMemo* memo, uint32_t key, uint64_t sm
 	    memo->aim_z == m.aim_z && memo->radius == m.radius && memo->range == m.range && memo->key == m.key &&
 	    memo->ignore == m.ignore && memo->terrain == m.terrain && memo->small == m.small) {
 		if (memo->found) out = Vec2(memo->out_x, memo->out_z);
+		if (kept) {
+			kept->n = memo->path_n;
+			for (int k = 0; k < kept->n; ++k) kept->p[k] = Vec2(memo->path_x[k], memo->path_z[k]);
+		}
 		return memo->found;
 	}
-	m.found = search_short_path(pos, aim, radius, obstacles, ignore_building_id, nav, out, range);
+	KeptPath whole;
+	m.found = search_short_path(pos, aim, radius, obstacles, ignore_building_id, nav, out, range, &whole);
+	if (kept) *kept = whole;
 	if (memo) {
 		m.out_x = m.found ? out.x : 0.0f;
 		m.out_z = m.found ? out.y : 0.0f;
+		m.path_n = static_cast<uint8_t>(whole.n);
+		for (int k = 0; k < whole.n; ++k) {
+			m.path_x[k] = whole.p[k].x;
+			m.path_z[k] = whole.p[k].y;
+		}
 		m.valid = true;
 		*memo = m;
 	}
@@ -425,7 +447,64 @@ inline uint32_t no_terrain_path_key(uint32_t key)
 	return k ? k : 5u;
 }
 
+// The memo key of a short path of several waypoints that a unit keeps and follows: 0.28's
+// CCmpUnitMotion::PerformMove (CCmpUnitMotion.h:1238-1250, 1299-1326) takes its path's waypoints one
+// by one, moving on to the next as it reaches each, and TryGoingStraightToTarget
+// (CCmpUnitMotion.h:1503-1507) leaves m_ShortPath alone while it has waypoints. RTS0 saves only the
+// memo (ShortPathMemo), so the memo holds where the unit searched from and the aim it searched for,
+// this key names the obstacles the search was among (the buildings `key` names, the small ones
+// `small` hashes, the building not steered round) and the unit's clearance and the range, and its low
+// bits (KEPT_PATH_INDEX_MASK) are the waypoint the unit heads for. The same search, run again from the
+// memo (and answered from ShortPathSearchMemo), gives the same waypoints, in a game loaded or joined
+// too. The terrain is left out: NavGrid's terrain_version counts changes in this process and isn't
+// saved, and the search runs on the terrain as it stands, the way to each waypoint checked against it
+// as the unit goes. Its top four bits are those of `key` with KEPT_PATH_TAG's flipped, which no other
+// memo key has (is_kept_path_key): `key` itself, its no-way notes (no_short_path_key,
+// no_terrain_path_key) and the keys of paths round idle units (Simulation::idle_path_key,
+// idle_corner_key, idle_stuck_key) flip other bits, and their stand-ins for 0 are below 16. Never 0.
+inline constexpr uint32_t KEPT_PATH_INDEX_MASK = 0xFu;
+inline constexpr uint32_t KEPT_PATH_TAG = 0xA0000000u;
+static_assert(SHORT_PATH_KEPT_MAX <= static_cast<int>(KEPT_PATH_INDEX_MASK) + 1, "a kept waypoint's index fits the key");
+inline uint32_t kept_path_key(uint32_t key, uint64_t small, uint32_t ignore_building_id, float radius, float range)
+{
+	uint64_t h = 1469598103934665603ull;
+	auto mix = [&h](uint32_t w) { h = (h ^ w) * 1099511628211ull; };
+	mix(key ^ 0x3C6EF372u); mix(static_cast<uint32_t>(small)); mix(static_cast<uint32_t>(small >> 32));
+	mix(ignore_building_id); mix(detail::float_bits(radius)); mix(detail::float_bits(range));
+	const uint32_t k = (static_cast<uint32_t>(h ^ (h >> 32)) & 0x0FFFFFF0u) | ((key ^ KEPT_PATH_TAG) & 0xF0000000u);
+	return k ? k : KEPT_PATH_INDEX_MASK + 1;
+}
+
+// Whether `k` is the memo key of a short path kept among the obstacles `key` names (kept_path_key).
+inline bool is_kept_path_key(uint32_t k, uint32_t key)
+{
+	return k != 0 && ((k ^ key) & 0xF0000000u) == KEPT_PATH_TAG;
+}
+
+// What steer_around_obstacles hands move_units besides the waypoint: whether that waypoint is one of
+// a kept short path with more after it, and the next one. PerformMove moves a unit whose step reaches
+// a waypoint onto it, drops it and spends the rest of the step heading for the next
+// (CCmpUnitMotion.h:1299-1326).
+struct SteerNext {
+	bool more = false;
+	Vec2 next;
+};
+
 namespace detail {
+// The memo kept for the short path `kept` searched from `pos` towards `aim`: its first waypoint and
+// `key` for a path of one waypoint or one the unit doesn't `keep` (steer_around_obstacles says which),
+// else the path itself (kept_path_key), the unit heading for its first waypoint.
+inline ShortPathMemo kept_memo(Vec2 pos, Vec2 aim, const KeptPath& kept, Vec2 out, bool keep, uint32_t key, uint64_t small,
+		uint32_t ignore_building_id, float radius, float range, SteerNext* next)
+{
+	if (!keep || kept.n < 2) return ShortPathMemo{out.x, out.y, aim.x, aim.y, key};
+	if (next) {
+		next->more = true;
+		next->next = kept.p[1];
+	}
+	return ShortPathMemo{pos.x, pos.y, aim.x, aim.y, kept_path_key(key, small, ignore_building_id, radius, range)};
+}
+
 // Whether `memo` notes a search from within NO_SHORT_PATH_MOVE of `pos` towards an aim within
 // SHORT_PATH_AIM_SLACK of `aim` that found no way among the obstacles `key` names.
 inline bool no_way_noted(const ShortPathMemo& memo, Vec2 pos, Vec2 aim, uint32_t key)
@@ -437,11 +516,12 @@ inline bool no_way_noted(const ShortPathMemo& memo, Vec2 pos, Vec2 aim, uint32_t
 
 // steer_around_buildings once the line to `aim` is known to be blocked by a building, or by steep
 // ground; `by_terrain` when steep ground meets the line, whose failed search gets the terrain note.
+// A unit that `follow`s its short path keeps one that steep ground meets (steer_around_obstacles).
 template <class Buildings>
 bool steer_round_buildings(Vec2 pos, Vec2 aim, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id,
 		const NavGrid& nav, bool by_terrain, uint32_t key, ShortPathMemo& memo, Vec2& out,
-		ShortPathSearchMemo* search = nullptr)
+		ShortPathSearchMemo* search = nullptr, bool follow = false, SteerNext* next = nullptr)
 {
 	if (no_way_noted(memo, pos, aim, key)) return false;
 	const Vec2 aim_moved = aim - Vec2(memo.aim_x, memo.aim_z);
@@ -453,12 +533,53 @@ bool steer_round_buildings(Vec2 pos, Vec2 aim, float radius,
 			return true;
 		}
 	}
+	KeptPath kept;
 	if (!search_short_path_memo(search, key, 0, pos, aim, radius, buildings, ignore_building_id, nav, out,
-			BUILDING_STEER_RANGE)) {
+			BUILDING_STEER_RANGE, &kept)) {
 		memo = ShortPathMemo{pos.x, pos.y, aim.x, aim.y, by_terrain ? no_terrain_path_key(key) : no_short_path_key(key)};
 		return false;
 	}
-	memo = ShortPathMemo{out.x, out.y, aim.x, aim.y, key};
+	memo = kept_memo(pos, aim, kept, out, follow && by_terrain, key, 0, ignore_building_id, radius, BUILDING_STEER_RANGE, next);
+	return true;
+}
+
+// The waypoint the unit heads for on the short path its memo keeps (kept_path_key), and the one
+// after it in `next`: the search the memo names, run again from where the unit searched towards the
+// aim it searched for, among the buildings and the small obstacles `fetch` finds round that point
+// (answered from `search` while it holds that search). False when the memo keeps no such path, the
+// obstacles have changed since, or the unit has used up its waypoints.
+template <class Buildings, class T, class Fetch>
+bool kept_waypoint(const ShortPathMemo& memo, uint32_t key, float radius, float small_range, uint32_t ignore_building_id,
+		const Buildings& buildings, Fetch& fetch, const NavGrid& nav, ShortPathSearchMemo* search, Vec2& out, SteerNext* next)
+{
+	const Vec2 from(memo.x, memo.z), aim(memo.aim_x, memo.aim_z);
+	thread_local std::vector<T> near_from;
+	near_from.clear();
+	fetch(from, near_from);
+	const uint32_t base = memo.key & ~KEPT_PATH_INDEX_MASK;
+	const int k = static_cast<int>(memo.key & KEPT_PATH_INDEX_MASK);
+	KeptPath kept;
+	Vec2 first;
+	if (near_from.empty()) {
+		if (base != kept_path_key(key, 0, ignore_building_id, radius, BUILDING_STEER_RANGE)) return false;
+		search_short_path_memo(search, key, 0, from, aim, radius, buildings, ignore_building_id, nav, first, BUILDING_STEER_RANGE,
+				&kept);
+	} else {
+		const uint64_t small = small_obstacles_hash(near_from);
+		float range = BUILDING_STEER_RANGE;
+		if (base != kept_path_key(key, small, ignore_building_id, radius, range)) {
+			range = small_range;
+			if (base != kept_path_key(key, small, ignore_building_id, radius, range)) return false;
+		}
+		const ConcatRange<T> both{buildings, near_from};
+		search_short_path_memo(search, key, small, from, aim, radius, both, ignore_building_id, nav, first, range, &kept);
+	}
+	if (k >= kept.n) return false;
+	out = kept.p[k];
+	if (next && k + 1 < kept.n) {
+		next->more = true;
+		next->next = kept.p[k + 1];
+	}
 	return true;
 }
 
@@ -491,16 +612,37 @@ bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
 // bushes, treasures: Simulation::gaia_obstacles_near) that only count within `small_range`. A line
 // blocked by a building is searched round both lists within BUILDING_STEER_RANGE; one blocked by
 // small obstacles alone within `small_range`, which is much cheaper, as 0 A.D.'s short paths
-// round a tree are short. The list is gathered (`fetch(small)`) only when it may matter: when a
+// round a tree are short. The list is gathered (`fetch(pos, small)`) only when it may matter: when a
 // building blocks the line, or `small_maybe` says a small obstacle may (one crosses the line within
-// `small_range` or holds the unit); the result is the same as with the whole list each time.
-// `by_buildings` is line_blocked_by_buildings over `buildings` within BUILDING_STEER_RANGE, which
-// the caller may have a quicker way to find.
+// `small_range` or holds the unit), or the unit has a short path to check the way along; the result
+// is the same as with the whole list each time. `fetch(centre, out)` adds the small obstacles round
+// `centre` to `out`. `by_buildings` is line_blocked_by_buildings over `buildings` within
+// BUILDING_STEER_RANGE, which the caller may have a quicker way to find.
+//
+// A unit that `follow`s its short path (all but a formation's members) keeps it whole, as 0.28 keeps
+// its paths, where trees or steep ground shape it: steep ground meets the line to the aim
+// (terrain_line), or small obstacles round the unit count in the search. 0.28's long path goes round
+// those itself: CCmpPathfinder rasterizes each tree's obstruction square, grown by the clearance, onto
+// 1 m navcells with the terrain's passability (CCmpPathfinder.cpp:583, CCmpObstructionManager.cpp:
+// 1166-1185), and PerformMove heads for the waypoints of the unit's paths one by one
+// (CCmpUnitMotion.h:1238-1250, 1299-1326), while TryGoingStraightToTarget leaves a short path alone
+// as long as it has waypoints (save for a formation member, whose offset moves are short and walk
+// straight; CCmpUnitMotion.h:1503-1507). RTS0's 8 m navcells leave the trees out of its long paths
+// (Simulation::gaia_obstacles_ block movement only), and steep ground finer than a navcell, so this
+// short path stands in for that part of 0.28's: the unit heads for its waypoints while the way there
+// is clear, even once the line to the aim has cleared, and follows it to its end (kept_path_key),
+// `next` telling move_units the waypoint after this one. Searched again from each corner instead, a
+// path round a cliff or a wood could turn back at a corner the line to the aim clears from, or a
+// search from the next corner send the unit back to the first, and the unit would walk between them
+// for good, every turn a free move. Round buildings on open ground, which RTS0's long paths go round
+// as well (Simulation::rebuild_nav_grid rasterizes them), the unit keeps only the first waypoint and
+// decides again from it, as before. `final_aim`: `aim` is the walk's end, with no long-path waypoint
+// after it.
 template <class Buildings, class T, class Fetch>
 bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 		const Buildings& buildings, bool by_buildings, std::vector<T>& small, bool small_maybe, Fetch&& fetch, float small_range,
 		uint32_t ignore_building_id, const NavGrid& nav, uint32_t key, ShortPathMemo& memo, Vec2& out,
-		ShortPathSearchMemo* search = nullptr)
+		ShortPathSearchMemo* search = nullptr, bool follow = false, SteerNext* next = nullptr, bool final_aim = true)
 {
 	const detail::TerrainLine tl = detail::terrain_line(nav, pos, aim, radius);
 	// A search that finds no way where steep ground meets the line is noted as such.
@@ -511,17 +653,49 @@ bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 		else memo.key = 0;
 		return false;
 	};
+	bool fetched = false;
+	auto fetch_small = [&] {
+		if (fetched) return;
+		fetched = true;
+		fetch(pos, small);
+	};
+	const Vec2 aim_moved = aim - Vec2(memo.aim_x, memo.aim_z);
+	const bool same_aim = aim_moved.lengthSq() <= SHORT_PATH_AIM_SLACK * SHORT_PATH_AIM_SLACK;
+	if (follow && same_aim && is_kept_path_key(memo.key, key)) {
+		Vec2 w;
+		SteerNext after;
+		// A kept path whose waypoints are used up is done, and the unit decides again at once, as
+		// PerformMove goes on along the long path when the short one runs out (CCmpUnitMotion.h:
+		// 1238-1250); so does one searched among obstacles that have changed since, which can't be
+		// found again.
+		if (detail::kept_waypoint<Buildings, T>(memo, key, radius, small_range, ignore_building_id, buildings, fetch, nav, search,
+				w, &after)) {
+			// The way to the waypoint must be clear of buildings, the small obstacles round the unit,
+			// steep ground and deep water.
+			fetch_small();
+			const ConcatRange<T> both{buildings, small};
+			if (!segment_blocked_by_buildings(pos, w, aim, radius, both, ignore_building_id) &&
+			    !detail::segment_near_steep(nav, pos, w, radius - TERRAIN_EDGE_SLACK) &&
+			    !detail::segment_near_deep_water(nav, pos, w, radius - TERRAIN_EDGE_SLACK)) {
+				out = w;
+				if (next) *next = after;
+				return true;
+			}
+		}
+		// Done, or something now stands in the way: the unit decides again from here at once, as the
+		// memo of a single waypoint does below, where 0.28's HandleObstructedMove asks for a new short
+		// path (CCmpUnitMotion.h:1436-1441).
+		memo.key = 0;
+	}
 	if (!by_buildings && !small_maybe) return straight();
-	fetch(small);
+	fetch_small();
 	if (small.empty()) {
 		if (!by_buildings) return straight();
 		return detail::steer_round_buildings(pos, aim, radius, buildings, ignore_building_id, nav, by_terrain, key, memo, out,
-				search);
+				search, follow, next);
 	}
 	if (!by_buildings && !line_blocked_by_buildings(pos, aim, small_range, radius, small, ignore_building_id)) return straight();
 	const ConcatRange<T> both{buildings, small};
-	const Vec2 aim_moved = aim - Vec2(memo.aim_x, memo.aim_z);
-	const bool same_aim = aim_moved.lengthSq() <= SHORT_PATH_AIM_SLACK * SHORT_PATH_AIM_SLACK;
 	if (memo.key == key && same_aim) {
 		const Vec2 w(memo.x, memo.z);
 		if (!segment_blocked_by_buildings(pos, w, aim, radius, both, ignore_building_id) &&
@@ -582,12 +756,12 @@ bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 						break;
 					}
 				if (inside) continue;
+				const Vec2 on = aim - w;
+				const float on_len = on.length();
+				const Vec2 on_end = on_len > small_range ? w + on * (small_range / on_len) : aim;
 				// A corner into a gap between trees that others close behind is a dead end the next
 				// search would turn back from: the way on from it must be open too.
 				{
-					const Vec2 on = aim - w;
-					const float on_len = on.length();
-					const Vec2 on_end = on_len > small_range ? w + on * (small_range / on_len) : aim;
 					bool closed = false;
 					for (const T& o : small) {
 						if (o.id == first->id || !detail::is_steering_obstacle(o, w, aim, radius, ignore_building_id, small_range)) continue;
@@ -599,6 +773,22 @@ bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 					}
 					if (closed) continue;
 				}
+				// CCmpUnitMotion::RejectFartherPaths (CCmpUnitMotion.h:904-914): a path whose end (its
+				// m_Waypoints.front(), as 0.28 keeps waypoints last first) is no nearer the goal than the unit
+				// is rejected, as it would take the unit between two places for good without ever failing a
+				// move. PathResult does so for a short path only when no long waypoint is left
+				// (pathedTowardsGoal, CCmpUnitMotion.h:932-933, 944-951), as a sub-goal may be farther than
+				// the unit is: here, only when `aim` is the walk's end. Where the way on from the corner still
+				// crosses this obstacle, the unit decides again at the corner, so the corner is the whole of
+				// this path and its end: such a corner no nearer the aim than the unit is rejected, and with
+				// none left the full search below decides (a way round of several corners, or none: the unit
+				// then walks on into the tree, and motion_feedback counts the turns it gets nowhere as failed
+				// movements).
+				if (final_aim) {
+					const Vec2 fc(first->x, first->z);
+					if ((aim - w).lengthSq() >= dir.lengthSq() &&
+					    TestRaySquare(w - fc, on_end - fc, u, v, Vec2(first->hu + radius, first->hv + radius))) continue;
+				}
 				found = true;
 				best = cost;
 				out = w;
@@ -609,12 +799,15 @@ bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 			}
 		}
 	}
-	if (!detail::search_short_path_memo(search, key, detail::small_obstacles_hash(small), pos, aim, radius, both,
-			ignore_building_id, nav, out, by_buildings ? BUILDING_STEER_RANGE : small_range)) {
+	const uint64_t small_hash = detail::small_obstacles_hash(small);
+	const float range = by_buildings ? BUILDING_STEER_RANGE : small_range;
+	KeptPath kept;
+	if (!detail::search_short_path_memo(search, key, small_hash, pos, aim, radius, both, ignore_building_id, nav, out, range,
+			&kept)) {
 		memo = ShortPathMemo{pos.x, pos.y, aim.x, aim.y, by_terrain ? no_terrain_path_key(key) : no_short_path_key(key)};
 		return false;
 	}
-	memo = ShortPathMemo{out.x, out.y, aim.x, aim.y, key};
+	memo = detail::kept_memo(pos, aim, kept, out, follow, key, small_hash, ignore_building_id, radius, range, next);
 	return true;
 }
 
