@@ -44,7 +44,8 @@ func run() -> void:
 	check("Loot: " in tip, "the loot closes the tooltip")
 	check(String(u["stats"]) == "" and String(u["attack_resistance"]).contains("Damage: "), "attack and resistance are the stance icon's tooltip, not text (attackAndResistanceStats)")
 	var ptip := String(u["portrait_tooltip"])
-	check(ptip.begins_with(String(u["title"])), "the portrait tooltip names the unit")
+	check(ptip.begins_with(String(u["title"]).get_slice(" (", 0)) and not ptip.split("\n")[0].ends_with(")"),
+		"the portrait tooltip opens with the unit's primary name only")
 	check("\nClasses: " in ptip, "then its visible classes")
 	if "Infantry" in ptip:
 		check("\nBattering Team: Battering Rams +0.15 speed" in ptip, "an infantry soldier lists template_unit_infantry's ram_garrison aura")
@@ -113,13 +114,14 @@ func run() -> void:
 	var fd: Dictionary = main.debug_inspector("field")
 	print("field: ", fd)
 	check(String(fd["resource"]) == "Food: ∞", "a field's resource bar reads \"Food:\" and \"∞\"")
-	check(String(fd["stats"]).ends_with("0 / 5") or String(fd["stats"]).contains("0 / "), "and its gatherers show, current / max")
+	check(String(fd["extra"]).ends_with("0 / 5") or String(fd["extra"]).contains("0 / "), "and its gatherers show, current / max")
 
 	var r: Dictionary = main.debug_inspector("resource")
 	print("resource: ", r)
 	check(String(r["resource"]).begins_with("Wood: "), "a tree's resource bar reads \"Wood:\" and its supply (a tree keeps no max)")
-	check(String(r["stats"]).split("\n").size() == 1 and " / " in String(r["stats"]), "and its gatherers, current / max")
-	check(String(r["stats_tooltip"]) == "Current/max gatherers", "with 0.28's gatherers tooltip")
+	check(String(r["stats"]) == "" and " / " in String(r["extra"]), "and its gatherers, current / max, in the carrying slot")
+	check(String(r["extra_tooltip"]) == "Current/max gatherers" and String(r["extra_icon"]).ends_with("icons/repair.png"),
+		"beside the repair icon with 0.28's gatherers tooltip (resourceCarryingIcon)")
 	check(String(r["portrait"]) == "res://assets/textures/ui/archive/portraits/gaia/flora_tree_generic.png", "a tree shows template_gaia_tree's icon")
 	check(String(r["title"]).ends_with(" (Tree)") or String(r["title"]) == "Tree", "a tree is named \"Specific (Tree)\" as getEntityNames")
 	check(String(r["portrait_tooltip"]).contains("Chop trees for wood."), "a tree's portrait tooltip gives template_gaia_tree's tooltip")
@@ -130,7 +132,8 @@ func run() -> void:
 	check(String(f["attack_resistance"]).contains("Resistance:"), "and its resistance")
 	check(String(f["attack_resistance"]).contains("\nSpeed: ") and " Walk, " in String(f["attack_resistance"]) and " Acceleration" in String(f["attack_resistance"]), "and its speed with acceleration (getSpeedTooltip)")
 	check(String(f["portrait"]).begins_with("res://assets/textures/ui/archive/portraits/gaia/fauna_"), "an animal shows its template's icon")
-	check(String(f["owner"]) == "Gaia" and String(f["owner_tooltip"]) == "" and Color(f["owner_color"]).a == 0.0, "Gaia has no colour, emblem or tooltip")
+	check(String(f["owner"]) == "Gaia" and String(f["owner_tooltip"]) == "" and absf(Color(f["owner_color"]).a - 0.502) < 0.01,
+		"Gaia keeps its colour band at alpha 128, with no emblem or tooltip")
 
 	var ram: PackedInt32Array = main.debug_spawn_units("athen/siege_ram", 1)
 	var crew: PackedInt32Array = main.debug_spawn_units("athen/infantry_spearman_b", 2)

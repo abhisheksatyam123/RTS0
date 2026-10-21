@@ -6,7 +6,7 @@
 //    connections have come and gone, a new client still gets in.
 //    A host name is resolved once at the join (CNetClientSession::Connect),
 //    and one that does not resolve fails it at once.
-// 2. With NET_MAX_CLIENTS connected, one more is told the server is full
+// 2. With NET_MAX_REMOTE_CLIENTS connected, one more is told the server is full
 //    (disconnect reason NDR_SERVER_FULL) instead of timing out.
 // 3. 0 A.D. NetServer's handshake checks: a client on another engine version
 //    or mods is refused (NDR_INCORRECT_SOFTWARE_VERSION); a name already in
@@ -119,22 +119,22 @@ int main() {
 
 	// 2. Fill the session, then one more.
 	std::vector<std::unique_ptr<NetHost>> live;
-	for (size_t i = 0; i < NET_MAX_CLIENTS; ++i) {
+	for (size_t i = 0; i < NET_MAX_REMOTE_CLIENTS; ++i) {
 		live.push_back(std::make_unique<NetHost>());
 		live.back()->setLocalPlayerName("p" + std::to_string(i));
 		live.back()->startClient("127.0.0.1", port);
 	}
 	const int base = joined;
 	max_id = 0;
-	pump(host, live, 8000, [&] { return joined - base == (int)NET_MAX_CLIENTS; });
-	CHECK(joined - base == (int)NET_MAX_CLIENTS, "NET_MAX_CLIENTS clients connect at once");
-	CHECK(max_id == NET_MAX_CLIENTS && max_id < NET_SETUP_CLIENTS, "with ids 1 to NET_MAX_CLIENTS, all inside the setup's masks");
+	pump(host, live, 8000, [&] { return joined - base == (int)NET_MAX_REMOTE_CLIENTS; });
+	CHECK(joined - base == (int)NET_MAX_REMOTE_CLIENTS, "NET_MAX_REMOTE_CLIENTS clients connect at once");
+	CHECK(max_id == NET_MAX_REMOTE_CLIENTS && max_id < NET_SETUP_CLIENTS, "with ids 1 to NET_MAX_REMOTE_CLIENTS, all inside the setup's masks");
 	live.push_back(std::make_unique<NetHost>());
 	NetHost &extra = *live.back();
 	extra.setLocalPlayerName("late");
 	extra.startClient("127.0.0.1", port);
 	pump(host, live, 3000, [&] { return extra.connectionLost(); });
-	CHECK(extra.connectionLost() && extra.disconnectReason() == NDR_SERVER_FULL && joined - base == (int)NET_MAX_CLIENTS,
+	CHECK(extra.connectionLost() && extra.disconnectReason() == NDR_SERVER_FULL && joined - base == (int)NET_MAX_REMOTE_CLIENTS,
 	      "one more is told the server is full (NDR_SERVER_FULL)");
 
 	// 3. Handshake checks, on a host of their own.

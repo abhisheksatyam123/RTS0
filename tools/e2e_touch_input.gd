@@ -57,6 +57,10 @@ func near(a: Vector2, b: Vector2) -> bool:
 func buttons(idx: int) -> Array:
 	return rec.events.filter(func(e): return e is InputEventMouseButton and e.button_index == idx)
 
+func _msgbox(under: Node) -> Node:
+	var box := under.find_child("MsgBox", true, false)
+	return box if box != null and not box.is_queued_for_deletion() else null
+
 func run() -> void:
 	touch = root.get_node_or_null("TouchInput")  # the autoload, when -s loads autoloads
 	if touch == null:
@@ -175,6 +179,27 @@ func run() -> void:
 	shift_btn.button_pressed = false
 	await frames(2)
 	check(not touch.is_modifier_on(KEY_SHIFT), "tapping it again releases Shift")
+
+	# Android's Back on the main menu: closes an open submenu, else asks to quit.
+	var menu: Node = load("res://scenes/menu/main_menu.tscn").instantiate()
+	root.add_child(menu)
+	current_scene = menu
+	await frames(5)
+	menu.get_node("MainPanel/Buttons/BtnSingle").pressed.emit()
+	await frames(30)
+	check(menu.submenu_panel.visible, "the Single-player submenu is open")
+	touch.notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	await frames(30)
+	check(not menu.submenu_panel.visible and _msgbox(menu) == null, "Back closes the submenu (and doesn't ask to quit)")
+	touch.notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	await frames(10)
+	var box := _msgbox(menu)
+	check(box != null, "Back on the bare main menu asks to quit")
+	if box:
+		touch.notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+		await frames(10)
+		check(_msgbox(menu) == null and not menu.is_queued_for_deletion(), "and Back again answers No")
+	check(not ProjectSettings.get_setting("application/config/quit_on_go_back"), "Back never quits the game")
 
 	print("e2e_touch_input: %s (%d failure(s))" % ["PASS" if failures == 0 else "FAIL", failures])
 	quit(1 if failures else 0)
