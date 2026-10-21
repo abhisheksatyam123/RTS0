@@ -111,6 +111,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_match_statistics"), &RtsoMain::statistics_summary);
 	ClassDB::bind_method(D_METHOD("toggle_summary"), &RtsoMain::toggle_summary);
 	ClassDB::bind_method(D_METHOD("close_open_dialogs"), &RtsoMain::close_open_dialogs);
+	ClassDB::bind_method(D_METHOD("nothing_to_cancel"), &RtsoMain::nothing_to_cancel);
 	ClassDB::bind_method(D_METHOD("_on_civ_icon_gui_input", "event"), &RtsoMain::_on_civ_icon_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_flare_button_pressed"), &RtsoMain::_on_flare_button_pressed);
 	ClassDB::bind_method(D_METHOD("debug_minimap_panel"), &RtsoMain::debug_minimap_panel);

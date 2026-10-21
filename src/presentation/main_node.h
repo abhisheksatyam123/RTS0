@@ -517,6 +517,11 @@ public:
 	// This client only watches: an observer, or a player who was defeated
 	// (0 A.D. g_IsObserver). Not in a replay, which has its own picker.
 	bool spectating() const;
+	// 0 A.D. controlsPlayer(g_ViewedPlayer), the gate on every order (input.js
+	// doAction, MiniMap.js): not in a replay, not an observer or defeated, and
+	// viewing our own side. A winner who stayed still plays (only "defeated"
+	// loses control), while the diplomacy rows stay closed to them (isPlayerObserver).
+	bool orders_allowed() const;
 	// An observer or replay viewer on the whole-map view (g_ViewedPlayer -1): every player's
 	// units are selectable (selection.js treats only Gaia's as unowned).
 	bool observer_all_view() const {
@@ -587,6 +592,7 @@ public:
 	std::vector<uint32_t> ui_selected_garrison_holders() const override { return selected_garrison_holders(); }
 	bool ui_garrison_panel_shown() const override;
 	bool ui_observing() const override { return turn_mgr_.is_replaying() || spectating(); }
+	bool ui_commands_player(uint8_t pid) const override { return pid == seat_player() && orders_allowed(); }
 	uint32_t ui_inspected_foreign(bool *building) const override;
 	bool ui_trains_units(uint32_t id) const override { return building_trains_units(id); }
 	// Tests: the training roster's rows (name, disabled).
@@ -1160,6 +1166,7 @@ private:
 	bool observer_view_gaia_ = false; // Gaia picked (its view is the observer's)
 	void sync_observer_view_picker();
 	OptionButton *new_player_view_picker() const;
+	void refresh_player_view_colors(OptionButton *picker) const;
 	void update_observer_view_picker();
 	void set_observer_view(int player);
 	void _on_observer_view_selected(int index);
@@ -1174,6 +1181,9 @@ private:
 	RichTextLabel *pause_by_label_ = nullptr;
 	void update_pause_overlay();
 	bool close_open_dialogs(); // session.js closeOpenDialogs; true when one was open
+	// Nothing for Escape to close or cancel: no session dialog or menu, no placement, no
+	// armed action and an empty selection. A phone's Back button then opens the menu.
+	bool nothing_to_cancel();
 	void _on_civ_icon_gui_input(const Ref<InputEvent> &event); // CivIcon.onPress
 	void _on_flare_button_pressed(); // MiniMapFlareButton.onPress
 	bool selected_building_trains_units() const; // its Trainer has entities (session.autorallypoint)

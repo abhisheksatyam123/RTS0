@@ -86,6 +86,9 @@ const Default kDefaults[] = {
 	// 0 A.D. default.cfg [lobby]: the account last signed in, and its password as
 	// EncryptPassword gives it (LobbySession.encrypt_password), kept only when remembered.
 	{"lobby.login", ""},
+	// 0 A.D. [lobby] server is lobby.wildfiregames.com; RTS0's lobby is
+	// tools/lobby_server.py, at "ip:port".
+	{"lobby.server", "127.0.0.1:8088"},
 	{"lobby.password", ""},
 	{"lobby.rememberpassword", "true"},
 	{"lobby.columns.gamerating", "false"},

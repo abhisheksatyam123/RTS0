@@ -432,6 +432,12 @@ struct PetraKept {
 	// anchors_seen: the finished anchors met so far, sorted ids (saved v113).
 	std::vector<uint32_t> anchors_seen;
 	bool space_freed = false, fields_freed = false;
+	// basesManager.js update: currentBase, the next base in anchor order to update (saved v115).
+	uint16_t current_base = 0;
+	// headquarters.js requireHouses: set when the phase needs houses and there is no room for
+	// one; petra_find_position then leaves out every structure's influence for houses, until
+	// the phase's Village count is met or no phase is waiting (saved v116).
+	bool require_houses = false;
 	static uint8_t at(const std::vector<uint8_t> &v, size_t s) { return s < v.size() ? v[s] : 0; }
 	static void raise(std::vector<uint8_t> &v, size_t s, int n) {
 		if (s >= v.size()) v.resize(s + 1, 0);

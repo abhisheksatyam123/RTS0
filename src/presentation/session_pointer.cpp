@@ -648,7 +648,7 @@ void RtsoMain::_on_minimap_order(Vector2 world_pos) {
 // apply: call-to-arms, attack-walk, patrol, walk, or (structures alone) set-rallypoint.
 // Returns false when no action applies.
 bool RtsoMain::minimap_unit_order(Vector2 world_pos) {
-	if (spectating()) return false;
+	if (!orders_allowed()) return false;
 	const bool queued = rtso::hotkeys::held("session.queue");
 	const uint8_t qbit = queued ? rtso::NET_PARAM_QUEUED : 0;
 	if (selected_ids.is_empty()) {

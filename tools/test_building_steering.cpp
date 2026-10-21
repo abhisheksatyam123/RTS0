@@ -233,7 +233,8 @@ static void guard_behind_wall() {
 		if (gi < 0 || ti < 0) break;
 		const Simulation::UnitView u = s.units();
 		const float dx = u.pos_x[gi] - u.pos_x[ti], dz = u.pos_z[gi] - u.pos_z[ti];
-		if (dx * dx + dz * dz <= 3.2f * 3.2f) arrived = t;
+		const float reach = s.guard_reach((size_t)gi, (size_t)ti) + 0.2f; // UnitAI guardRange, edge to edge
+		if (dx * dx + dz * dz <= reach * reach) arrived = t;
 	}
 	std::printf("  guard behind wall: arrived after %d ticks (-1 = never in 1200), max penetration %.3f\n", arrived, pen);
 	check(arrived >= 0, "guard never reached its target behind the wall");

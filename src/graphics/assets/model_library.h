@@ -73,6 +73,8 @@ public:
 	static void prefetch(const godot::String &category, const godot::String &id);
 	static HashMap<godot::String, bool> &threaded_paths(); // prefetch requests not yet taken
 	static void request_threaded(const godot::String &path);
+	// Prefetch requests the loader's workers have not finished yet.
+	static int loads_in_flight();
 	static void clear();
 	static bool capture_crowd_skin(godot::Node *root, CrowdSkin &out);
 	static godot::Ref<godot::ArrayMesh> bake_crowd_skin(CrowdSkin &skin, const godot::Ref<godot::ArrayMesh> &reuse = godot::Ref<godot::ArrayMesh>());

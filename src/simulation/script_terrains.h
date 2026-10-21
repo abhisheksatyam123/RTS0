@@ -37,6 +37,7 @@ enum AreaKind : uint8_t {
 	AREA_VOLCANO,
 	AREA_CORAL,    // a ring painted round an island, without elevation
 	AREA_HIGHLANDS, // ngorongoro.js's highlands and eden, which take the highland patches
+	AREA_GRASS,     // syria.js's grass round each base
 };
 
 // rmgen LayeredPainter(terrains, widths): a tile `d` tiles in from the area's
@@ -452,7 +453,12 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  "desert_grass_a_sand", "desert_grass_a_sand"},
 		 {"syria", {{FLORA_TREE_DATE_PALM, FLORA_TREE_DATE_PALM}}, {FLORA_TREE_DATE_PALM, FLORA_TREE_TAMARIX, FLORA_ALEPPO_PINE}, {{FLORA_TREE_TAMARIX, FLORA_TREE_TAMARIX}},
 		  FLORA_BERRY,
-		  {{200, 200}}, {200, 200, 200}, {{200, 200}}}},
+		  {{200, 200}}, {200, 200, 200}, {{200, 200}}},
+		 {},
+		 {{AREA_GRASS, {{"desert_grass_a_sand"}, {"desert_grass_a"}}, {3}},
+		  {AREA_HILL, {{"desert_cliff_persia_1", "desert_cliff_persia_2"}, {"desert_dirt_rocks_1", "desert_dirt_rocks_2", "desert_dirt_rocks_3"}}, {2}}},
+		 {{{{"medit_dirt_dry"}, {"desert_dirt_rough", "desert_dirt_rough_2"}}, {1}, {{3.0f, 6.0f}, {5.0f, 10.0f}, {8.0f, 21.0f}}, {50.0f, 90.0f}, -1, 0, 0, 8, 1},
+		  {{{"medit_dirt_dry"}, {"desert_dirt_rough", "desert_dirt_rough_2"}}, {1}, {{6.0f, 30.0f}, {10.0f, 50.0f}, {16.0f, 70.0f}}, {30.0f, 90.0f}, -1, 0, 0, 8, 1}}},
 		// the_nile.js: date and short Cretan date palms only; no cliffs or hills, so they reuse its cracked dirt and
 		// half sand; the river and ponds are wet sand. Its bank strips go in an area (synth_the_nile) painted dry,
 		// half-lush, then lush from 0.09 of the map out (widths of a 256-tile map).

@@ -55,7 +55,7 @@ func key(code: Key, ctrl := false, echo := false) -> void:
 
 func chat_input() -> LineEdit:
 	for le in main.find_children("*", "LineEdit", true, false):
-		if le.placeholder_text == "Type message...":
+		if le.name == "ChatInput":
 			return le
 	return null
 
@@ -260,12 +260,17 @@ func run() -> void:
 		panel = panel.get_parent()
 	var vp := root.get_visible_rect().size
 	var rect := panel.get_global_rect()
-	check(absf(rect.get_center().x - vp.x / 2.0) < 2.0 and absf(rect.size.x - 432.0) < 1.0, "a 432 px dialog in the middle: %s in %s" % [rect, vp])
+	# ChatWindow.resizeChatWindow: 432 px wide, or the golden ratio with the history (e2e_chat_window).
+	var wide: bool = dlg()["chat_extended"]
+	check(absf(rect.get_center().x - vp.x / 2.0) < 2.0 and (wide or absf(rect.size.x - 432.0) < 1.0), "a dialog in the middle: %s in %s" % [rect, vp])
 	var texts := []
 	for b in panel.find_children("*", "BaseButton", true, false):
 		if b.is_visible_in_tree() and b.text != "":
 			texts.append(b.text)
-	check("Cancel" in texts and "Send" in texts and "History" in texts and not ("All" in texts or "Ally" in texts or "✕" in texts), "Cancel, History and Send only: %s" % [texts])
+	for l in panel.find_children("*", "Label", true, false):
+		if l.is_visible_in_tree() and l.text == "History":
+			texts.append(l.text)
+	check("Cancel" in texts and "Send" in texts and "History" in texts and not ("All" in texts or "Ally" in texts or "✕" in texts), "Cancel, History and Send: %s" % [texts])
 	main.toggle_chat()
 
 	print("FAILURES: ", failures)

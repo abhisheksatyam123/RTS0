@@ -432,14 +432,15 @@ int main()
 			}
 			// A units/<civ>/ template keeps its civ's slot; one with no civ is Gaia's.
 			const char *slash = std::strchr(u.id, '/');
-			const bool civ_path = slash && std::strchr(slash + 1, '/') == nullptr && std::strncmp(u.id, "pirates/", 8) != 0;
+			const bool civ_path = slash && std::strchr(slash + 1, '/') == nullptr && std::strncmp(u.id, "pirates/", 8) != 0 &&
+			                      std::strncmp(u.id, "campaigns/", 10) != 0;
 			if (civ_path ? (u.civ == CIV_GAIA || std::strncmp(civ_info(u.civ).code, u.id, (size_t)(slash - u.id)) != 0) : u.civ != CIV_GAIA) {
 				map_rows_ok = false;
 				std::printf("      map-only row %s in civ slot %u\n", u.id, u.civ);
 			}
 		}
 		std::snprintf(msg, sizeof msg, "map-only rows (%d) are trained nowhere and sit in their civ's slot", map_rows);
-		check(map_rows_ok && map_rows == 53, msg); // 44 + the Marian legionaries _02-_05 + Xenophon, Leonidas 300, the Arstibara, Shoushe and plane
+		check(map_rows_ok && map_rows == 56, msg); // 44 + the Marian legionaries _02-_05 + Xenophon, Leonidas 300, the Arstibara, Shoushe and plane + the three campaign armies
 		for (uint8_t c = 0; c < CIV_COUNT; ++c)
 			for (uint16_t i : civ_roster_ids(c))
 				if (civ_unit_template(i).flags & ROSTER_MAP_ONLY) check(false, "a map-only row is in a civ's trainable roster");

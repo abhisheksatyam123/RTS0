@@ -21783,10 +21783,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -21889,10 +21894,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -21995,7 +22005,11 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
     "apartment_block",
@@ -22003,6 +22017,7 @@
     "house_a",
     "house_b",
     "inn",
+    "stall_big",
     "warehouse"
    ],
    "flags": [
@@ -22106,10 +22121,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -22212,11 +22232,16 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
     "apartment",
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -22319,10 +22344,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -22427,10 +22457,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -22533,10 +22568,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
     "house",
+    "stall_big",
     "tavern"
    ],
    "flags": [
@@ -22640,10 +22680,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -22746,10 +22791,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -22852,10 +22902,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -22958,10 +23013,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -23066,10 +23126,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -23174,10 +23239,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -24377,10 +24447,15 @@
     "BLD_APARTMENT",
     "BLD_INN",
     "BLD_WAREHOUSE",
-    "BLD_TAVERN"
+    "BLD_TAVERN",
+    "BLD_STALL",
+    "BLD_PERS_HOUSE_A",
+    "BLD_PERS_HOUSE_B",
+    "BLD_APARTMENT_BLOCK"
    ],
    "trained_at_0ad": [
-    "house"
+    "house",
+    "stall_big"
    ],
    "flags": [
     "ROSTER_CIVILIAN"
@@ -29497,6 +29572,153 @@
     "vision": 28.000000000000004,
     "damage": 327.0,
     "range": 33.6,
+    "carry": 0
+   }
+  },
+  {
+   "id": "campaigns/army_mace_hero_alexander",
+   "civ": "gaia",
+   "class": "UNIT_HERO",
+   "name": "Army of Alexander the Great.",
+   "specific_name": "Army of Alexander the Great",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 0.75,
+    "hack_dmg": 26.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 12.0,
+    "pierce_armor": 12.0,
+    "crush_armor": 20.0,
+    "food": 200,
+    "wood": 150,
+    "gold": 300,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 16.8,
+    "damage": 26.0,
+    "range": 4.2,
+    "carry": 0
+   }
+  },
+  {
+   "id": "campaigns/army_mace_standard",
+   "civ": "gaia",
+   "class": "UNIT_SWORDSMAN",
+   "name": "Army of Macedonia",
+   "specific_name": "Army of Macedon",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CHAMPION",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 200.0,
+    "cooldown": 0.75,
+    "hack_dmg": 16.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
+    "crush_armor": 20.0,
+    "food": 80,
+    "wood": 60,
+    "gold": 80,
+    "stone": 0,
+    "train_time": 20.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 14.000000000000002,
+    "damage": 16.0,
+    "range": 4.2,
+    "carry": 0
+   }
+  },
+  {
+   "id": "campaigns/army_spart_hero_leonidas",
+   "civ": "gaia",
+   "class": "UNIT_HERO",
+   "name": "Army of Leonidas I.",
+   "specific_name": "Army of Leonidas I",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_HERO",
+    "ROSTER_MAP_ONLY"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Hero",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000.0,
+    "cooldown": 0.75,
+    "hack_dmg": 26.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 12.0,
+    "pierce_armor": 12.0,
+    "crush_armor": 20.0,
+    "food": 200,
+    "wood": 150,
+    "gold": 300,
+    "stone": 0,
+    "train_time": 50.0,
+    "pop": 0,
+    "speed": 3.2039999999999997,
+    "vision": 16.8,
+    "damage": 26.0,
+    "range": 4.2,
     "carry": 0
    }
   }

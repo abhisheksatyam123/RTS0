@@ -71,6 +71,16 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Temple of Isis", "temple", "temple", 3000.0f, 2, 0, 0, 0, 450, 0, 30, 75.0f, 500.0f, 15.0f, 1.0f, 20.0f}, /* structures/ptol/temple_2 */ \
 		{"Rotary Mill", "farmstead", "farmstead", 1000.0f, 2, 0, 100, 0, 0, 0, 0, 11.25f, 500.0f, 0.0f, 3.0f, 0.0f}, /* structures/mill_greek */ \
 		{"Sacrificial Temple", "temple", "temple", 2000.0f, 2, 0, 0, 100, 200, 0, 20, 50.0f, 500.0f, 15.0f, 1.0f, 0.0f}, /* structures/cart/tophet */ \
+		{"Settlement", "town_center", "town_center", 3000.0f, 3, 0, 300, 250, 300, 20, 20, 125.0f, 2500.0f, 30.0f, 1.0f, 20.0f}, /* campaigns/campaign_city_test */ \
+		{"Settlement", "town_center", "town_center", 3000.0f, 3, 0, 300, 250, 300, 20, 20, 125.0f, 2500.0f, 30.0f, 1.0f, 20.0f}, /* campaigns/campaign_city_minor_test */ \
+		{"Religious Sanctuary", "temple", "temple", 2200.0f, 2, 0, 0, 0, 300, 0, 20, 50.0f, 500.0f, 15.0f, 1.0f, 20.0f}, /* campaigns/campaign_religious_test */ \
+		{"House", "house", "house", 500.0f, 1, 0, 75, 0, 0, 5, 3, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/stall_big */ \
+		{"House", "house", "house", 500.0f, 1, 0, 50, 0, 0, 2, 3, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/celt_hut */ \
+		{"House", "house", "house", 1000.0f, 1, 0, 100, 0, 100, 10, 3, 75.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/celt_longhouse */ \
+		{"House", "house", "house", 1000.0f, 2, 0, 75, 0, 0, 5, 3, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/house_a */ \
+		{"House", "house", "house", 1200.0f, 2, 0, 75, 0, 0, 10, 3, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/house_b */ \
+		{"House", "house", "house", 2000.0f, 2, 0, 75, 0, 0, 15, 3, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/apartment_block */ \
+		{"Epic Temple", "temple", "temple", 5000.0f, 2, 0, 0, 500, 1000, 0, 30, 125.0f, 500.0f, 15.0f, 1.0f, 20.0f}, /* structures/hellenic_epic_temple */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -137,6 +147,16 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 0, 90, 0}, /* structures/ptol/temple_2 */ \
 		{0, 0, 20, 0, 0}, /* structures/mill_greek */ \
 		{0, 0, 0, 40, 20}, /* structures/cart/tophet */ \
+		{0, 0, 60, 60, 50}, /* campaigns/campaign_city_test */ \
+		{0, 0, 60, 60, 50}, /* campaigns/campaign_city_minor_test */ \
+		{0, 0, 0, 60, 0}, /* campaigns/campaign_religious_test */ \
+		{0, 0, 15, 0, 0}, /* structures/stall_big */ \
+		{0, 0, 15, 0, 0}, /* structures/celt_hut */ \
+		{0, 0, 15, 0, 0}, /* structures/celt_longhouse */ \
+		{0, 0, 15, 0, 0}, /* structures/pers/house_a */ \
+		{0, 0, 15, 0, 0}, /* structures/pers/house_b */ \
+		{0, 0, 15, 0, 0}, /* structures/pers/apartment_block */ \
+		{0, 0, 0, 200, 500}, /* structures/hellenic_epic_temple */ \
 
 
 // Civilizations (bit per Civilization) that may build a structure: the civ-specific
@@ -212,6 +232,16 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_TEMPLE_ISIS: return 0x0800; // ptol
 		case BLD_MILL: return 0x0000; // 
 		case BLD_TOPHET: return 0x0000; // 
+		case BLD_CAMPAIGN_CITY: return 0x0000; // 
+		case BLD_CAMPAIGN_CITY_MINOR: return 0x0000; // 
+		case BLD_CAMPAIGN_SANCTUARY: return 0x0000; // 
+		case BLD_STALL: return 0x0000; // 
+		case BLD_HUT: return 0x0000; // 
+		case BLD_LONGHOUSE: return 0x0000; // 
+		case BLD_PERS_HOUSE_A: return 0x0000; // 
+		case BLD_PERS_HOUSE_B: return 0x0000; // 
+		case BLD_APARTMENT_BLOCK: return 0x0000; // 
+		case BLD_EPIC_TEMPLE: return 0x0000; // 
 		default: return 0xFFFF;
 	}
 }
@@ -281,6 +311,16 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_TEMPLE_ISIS: return 3;
 		case BLD_MILL: return 1;
 		case BLD_TOPHET: return 2;
+		case BLD_CAMPAIGN_CITY: return 1;
+		case BLD_CAMPAIGN_CITY_MINOR: return 1;
+		case BLD_CAMPAIGN_SANCTUARY: return 2;
+		case BLD_STALL: return 1;
+		case BLD_HUT: return 1;
+		case BLD_LONGHOUSE: return 1;
+		case BLD_PERS_HOUSE_A: return 1;
+		case BLD_PERS_HOUSE_B: return 1;
+		case BLD_APARTMENT_BLOCK: return 1;
+		case BLD_EPIC_TEMPLE: return 2;
 		default: return 0;
 	}
 }
@@ -334,7 +374,7 @@ inline const CivBuildingUpgrade *civ_building_upgrade_table() {
 
 // True for a civ-specific structure that takes every resource (ResourceDropsite).
 inline bool civ_building_is_dropsite(uint8_t type) {
-	return type == BLD_MILITARY_COLONY || type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG || type == BLD_WAGON_ENCAMPMENT || type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
+	return type == BLD_MILITARY_COLONY || type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG || type == BLD_WAGON_ENCAMPMENT || type == BLD_WAGON_ENCAMPMENT_FORTIFIED || type == BLD_CAMPAIGN_CITY || type == BLD_CAMPAIGN_CITY_MINOR;
 }
 
 #endif // RTSO_CIV_BUILDING_DATA_H
