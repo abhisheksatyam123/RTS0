@@ -182,7 +182,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 113; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 114; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_BASE_TURN = 114; // the base Petra updates next (basesManager.js currentBase)
 	static constexpr uint32_t SAVE_VERSION_PETRA_PASS5 = 113; // Petra's trade and transport ships, house plans, new bases
 	static constexpr uint32_t SAVE_VERSION_FLIGHT = 112; // each flying unit's UnitMotionFlying state
 	static constexpr uint32_t SAVE_VERSION_UNIT_AUTOQUEUE = 111; // unit trainers' queue clocks and autoqueue
@@ -4028,6 +4029,13 @@ private:
 		int at(float x, float z, float half) const;
 	};
 	void petra_bases_map(PetraBasesMap &m) const;
+	// basesManager.js update: one base a turn, in anchor order (petra_kept_.current_base). The
+	// anchor whose base runs this turn, 0 while there is at most one base (every base runs).
+	uint32_t petra_turn_anchor_ = 0;
+	void petra_pick_turn_base();
+	uint32_t petra_base_anchor_of(const Building &f) const;
+	// noBase (anchor 0) runs every turn.
+	bool petra_base_turn(uint32_t anchor_id) const { return !petra_turn_anchor_ || !anchor_id || anchor_id == petra_turn_anchor_; }
 	void petra_update_tile_bases();
 	mutable std::vector<int> petra_bases_tile_scratch_; // petra_bases_map's territory tile per column, then per row
 	// `bmap` and `base` (from 1) limit the search to that base's territory.
