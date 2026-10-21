@@ -606,6 +606,9 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0878fu, 0x0a8u}, // germ/infantry_swordsman_a
 		{0x0078fu, 0x040u}, // germ/support_healer_e
 		{0x00000u, 0x000u}, // plane
+		{0x0878fu, 0x029u}, // campaigns/army_mace_hero_alexander
+		{0x0878fu, 0x02au}, // campaigns/army_mace_standard
+		{0x0878fu, 0x029u}, // campaigns/army_spart_hero_leonidas
 	};
 	return kRows;
 }

@@ -1003,6 +1003,9 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		367, // germ/infantry_swordsman_a
 		370, // germ/support_healer_e
 		432, // plane (Flight Demo's P-51, units/global/plane.xml; hand-added)
+		85, // campaigns/army_mace_hero_alexander (Alexander's own model until the army actor is ported; hand-added)
+		-1, // campaigns/army_mace_standard (no model of its own: its owner civ's swordsman model)
+		-1, // campaigns/army_spart_hero_leonidas (no model of its own: its owner civ's hero model)
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -1555,6 +1558,6 @@ inline int unit_template_rank_draw_index(uint16_t tmpl, uint8_t rank) {
 	return kLookup[tmpl][rank >= 3 ? 1 : 0];
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 545, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 548, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso
