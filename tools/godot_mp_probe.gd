@@ -398,7 +398,7 @@ func _run() -> void:
 		if int(st.get("turn", 0)) >= turns + 5:
 			# 0.28 /list: "Users (N): ..." in the chat, and the command is no chat line.
 			for le in main.find_children("*", "LineEdit", true, false):
-				if le.placeholder_text == "Type message...":
+				if le.name == "ChatInput":
 					le.text = "/list"
 					main._on_chat_send_pressed()
 			var users := RegEx.create_from_string("Users \\((\\d+)\\): (.*)").search(str(main.get_lobby_state().get("chat", "")))
