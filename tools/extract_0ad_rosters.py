@@ -150,7 +150,8 @@ RTS0_ONLY = ("UNIT_VILLAGER",)
 # template stem -> structure kind (TRAINER_BUILDING key).
 # (civ, BuildingType, unit) a captured foreign structure adds (for --check output).
 CAPTURED_TRAINERS = set()
-GAIA_TRAINERS = {"merc_camp_egyptian": "mercenary_camp", "trading_post_desert": "trading_post"}
+GAIA_TRAINERS = {"merc_camp_egyptian": "mercenary_camp", "trading_post_desert": "trading_post",
+                 "stall_big": "stall_big"}  # stalls keep the house Trainer (huts disable theirs)
 # Gaia shrines (mixins/shrine.xml) train "units/{native}/support_healer_e": the Elite Healer
 # of the shrine's own civ (Identity/Civ), whoever holds it.
 GAIA_NATIVE_TRAINERS = ("shrine_celtic", "shrine_chinese", "shrine_egyptian", "shrine_greek_01",
@@ -177,10 +178,9 @@ TRAINER_BUILDING = {
     "tachara_food": "BLD_TOWN_CENTER", "tachara_wood": "BLD_TOWN_CENTER",
     "tachara_stone": "BLD_TOWN_CENTER", "tachara_metal": "BLD_TOWN_CENTER",
     "crannog": "BLD_TOWN_CENTER", "ministry": "BLD_TOWN_CENTER",
-    "apartment": "BLD_HOUSE", "apartment_block": "BLD_HOUSE",
-    "house_a": "BLD_HOUSE", "house_b": "BLD_HOUSE",
+    "apartment": "BLD_HOUSE",
     "warehouse": "BLD_HOUSE", "inn": "BLD_HOUSE", "tavern": "BLD_HOUSE",
-    "shrine": "BLD_SHRINE", "trading_post": "BLD_TRADING_POST",
+    "shrine": "BLD_SHRINE", "trading_post": "BLD_TRADING_POST", "stall_big": "BLD_STALL",
     "kennel": "BLD_BARRACKS", "amphitheater_pompeii": "BLD_BARRACKS",
     "camp_blemmye": "BLD_BARRACKS", "camp_noba": "BLD_BARRACKS",
     "practice_range": "BLD_RANGE",
@@ -290,6 +290,16 @@ UNIQUE_BUILDINGS = [
     ("BLD_CAMPAIGN_CITY", ["campaign_city_test"], "town_center", "town_center"),
     ("BLD_CAMPAIGN_CITY_MINOR", ["campaign_city_minor_test"], "town_center", "town_center"),
     ("BLD_CAMPAIGN_SANCTUARY", ["campaign_religious_test"], "temple", "temple"),
+    # The Gaia market stalls, Celtic huts and longhouses and the map-only Persian houses: houses
+    # with health and population of their own. Drawn with the house until their actors are ported.
+    ("BLD_STALL", ["stall_big"], "house", "house"),
+    ("BLD_HUT", ["celt_hut"], "house", "house"),
+    ("BLD_LONGHOUSE", ["celt_longhouse"], "house", "house"),
+    ("BLD_PERS_HOUSE_A", ["house_a"], "house", "house"),
+    ("BLD_PERS_HOUSE_B", ["house_b"], "house", "house"),
+    ("BLD_APARTMENT_BLOCK", ["apartment_block"], "house", "house"),
+    # The Gaia Hellenic epic temple (greek_acropolis): trains and researches nothing.
+    ("BLD_EPIC_TEMPLE", ["hellenic_epic_temple"], "temple", "temple"),
 ]
 # Numbered stems that are a building of their own rather than an upgrade's _N form.
 KEEP_NUMBERED_STEMS = {"temple_2"}
@@ -310,11 +320,12 @@ UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BL
 GENERIC_UNIQUE = {"BLD_PALISADE_GATE": "BLD_PALISADE"}
 # Gaia structures in UNIQUE_BUILDINGS (structures/<stem>.xml, mixins/shrine.xml and
 # mixins/trading_post.xml): no civ builds them.
-GAIA_UNIQUE = {"BLD_SHRINE", "BLD_TRADING_POST", "BLD_HELLENIC_STOA", "BLD_MILL"}
+GAIA_UNIQUE = {"BLD_SHRINE", "BLD_TRADING_POST", "BLD_HELLENIC_STOA", "BLD_MILL", "BLD_STALL", "BLD_HUT",
+               "BLD_LONGHOUSE", "BLD_EPIC_TEMPLE"}
 # Civ structures in UNIQUE_BUILDINGS that only maps place: no civ builds them.
 MAP_ONLY = {"BLD_TOWER_BOLT", "BLD_TOWER_ARTILLERY", "BLD_STOA", "BLD_INN", "BLD_TENT", "BLD_TRIUMPHAL_ARCH",
             "BLD_HALL", "BLD_WAREHOUSE", "BLD_TAVERN", "BLD_TOWER_DOUBLE", "BLD_KUSH_SHRINE", "BLD_FORTRESS_OLD",
-            "BLD_LAOZI_GATE", "BLD_TOPHET"}
+            "BLD_LAOZI_GATE", "BLD_TOPHET", "BLD_PERS_HOUSE_A", "BLD_PERS_HOUSE_B", "BLD_APARTMENT_BLOCK"}
 # Structures in UNIQUE_BUILDINGS read from simulation/templates/campaigns/<stem>.xml: only the
 # campaign test maps place them, and no civ builds them.
 CAMPAIGN_UNIQUE = {"BLD_CAMPAIGN_CITY", "BLD_CAMPAIGN_CITY_MINOR", "BLD_CAMPAIGN_SANCTUARY"}
@@ -922,14 +933,17 @@ def apply_unit_bonuses(raw, classes, civ, bonuses):
     return applied
 
 
+# The Gaia and map-only houses of their own (template_structure_civic_house children).
+MAP_HOUSES = ["BLD_STALL", "BLD_HUT", "BLD_LONGHOUSE", "BLD_PERS_HOUSE_A", "BLD_PERS_HOUSE_B", "BLD_APARTMENT_BLOCK"]
+
 # 0 A.D. structure classes in civ bonus "affects" lists, as RTS0 BuildingTypes.
 BUILDING_CLASS = {
     "Structure": BUILDING_BITS,
     "Wall": ["BLD_WALL_SEGMENT", "BLD_GATE", "BLD_WALL_TOWER"],
     "Tower": ["BLD_TOWER", "BLD_SENTRY_TOWER", "BLD_TOWER_GREAT"], "Field": ["BLD_FIELD"],
     "Storehouse": ["BLD_STOREHOUSE"],
-    "House": ["BLD_HOUSE"],
-    "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE",
+    "House": ["BLD_HOUSE"] + MAP_HOUSES,
+    "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"] + MAP_HOUSES + [
                  "BLD_TRADING_POST",  # trading_post_* inherit template_structure_economic_market
                  "BLD_MILL"],  # mill_greek: rotary_mill|template_structure_economic_farmstead
     "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG", "BLD_MILITARY_COLONY"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
@@ -938,7 +952,7 @@ BUILDING_CLASS = {
     # mercenary camps template_structure_military_barracks.
     "CivilCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG", "BLD_MILITARY_COLONY"],
     "Temple": ["BLD_TEMPLE", "BLD_TEMPLE_VESTA", "BLD_TEMPLE_MARS", "BLD_TEMPLE_AMUN", "BLD_TEMPLE_ISIS",
-               "BLD_KUSH_SHRINE", "BLD_SHRINE"], "Forge": ["BLD_FORGE"],
+               "BLD_KUSH_SHRINE", "BLD_SHRINE", "BLD_TOPHET", "BLD_EPIC_TEMPLE"], "Forge": ["BLD_FORGE"],
     "Barracks": ["BLD_BARRACKS", "BLD_ACADEMY", "BLD_MERCENARY_CAMP"], "Stable": ["BLD_STABLE"], "Arsenal": ["BLD_ARSENAL"],
 }
 BUILDING_STAT = {

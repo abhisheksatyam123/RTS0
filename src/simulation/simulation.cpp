@@ -4254,7 +4254,7 @@ uint8_t Simulation::train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint
 		// A civ without the unlock trains the unit outright, as in 0 A.D.
 		return tech_available_to_civ(tech, civ) ? tech : (uint8_t)TECH_NONE;
 	};
-	if (bld_type == BLD_HOUSE || bld_type == BLD_APARTMENT) {
+	if (house_trains_citizens(bld_type)) {
 		uint8_t tech = tech_available_to_civ(TECH_UNLOCK_CIVILIANS_HOUSE_KUSH, civ)
 				? (uint8_t)TECH_UNLOCK_CIVILIANS_HOUSE_KUSH : (uint8_t)TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC;
 		return gate(tech);
@@ -4400,7 +4400,7 @@ bool Simulation::can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_
 	if (player_id >= MAX_PLAYERS) return false;
 	if (!entity_limit_allows_unit(player_id, unit_type, tmpl)) return false; // EntityLimits (Hero 1, WarDog, ...)
 	// Houses only ever train citizens, and only once their civ's festival is in.
-	if ((bld_type == BLD_HOUSE || bld_type == BLD_APARTMENT) && !(unit_tech_classes(unit_type) & TC_CIVILIAN)) return false;
+	if (house_trains_citizens(bld_type) && !(unit_tech_classes(unit_type) & TC_CIVILIAN)) return false;
 	uint8_t tech = train_unlock_tech(player_id, unit_type, bld_type, tmpl);
 	return tech == TECH_NONE || players_[player_id].has_tech(tech);
 }
@@ -4433,7 +4433,7 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 			if (best == CIV_UNIT_TEMPLATE_NONE || u.phase < civ_unit_template(best).phase) best = i;
 		}
 		if (best != CIV_UNIT_TEMPLATE_NONE) tmpl = best;
-		else if ((b.type == BLD_HOUSE || b.type == BLD_APARTMENT) && (unit_tech_classes((uint8_t)u_type) & TC_CIVILIAN))
+		else if (house_trains_citizens(b.type) && (unit_tech_classes((uint8_t)u_type) & TC_CIVILIAN))
 			return cmd_train_template_at(player_id, building_id, tmpl, false, count);
 		else return false;
 	}
@@ -11485,8 +11485,20 @@ void Simulation::face_away_from(size_t i, float x, float z) {
 	units_.heading_z[i] = dz * inv;
 }
 
-// How close a guard keeps to the unit it guards (Guard.js/UnitAI guardRange).
-static constexpr float GUARD_RANGE = 3.0f;
+// How close a guard keeps to what it guards, edge to edge (UnitAI guardRange =
+// Guard.GetRange(guard): 8 m plus 3/2 of the guard's footprint radius, or 2/3 of its
+// square's diagonal), in RTS0 units. The motion table keeps no shape: a footprint as
+// wide as it is deep is taken as a circle (every 0.28 infantry and hero).
+float Simulation::guard_range(size_t i) const {
+	const UnitMotionProfile &mp = unit_motion(units_.tmpl[i], units_.unit_type[i]);
+	const float w = mp.footprint_width, d = mp.footprint_depth;
+	return (8.0f + (w == d ? w * 0.75f : std::sqrt(w * w + d * d) * (2.0f / 3.0f))) * 0.28f;
+}
+
+// guard_range between the centres of guard i and the unit g it guards.
+float Simulation::guard_reach(size_t i, size_t g) const {
+	return guard_range(i) + unit_clearance_at(i) + unit_clearance_at(g);
+}
 
 void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 	steps = MoveSteps{};
@@ -11723,7 +11735,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		const int32_t g = lookup_unit(units_.target_unit_id[i]);
 		if (g < 0 || !alive[g]) continue;
 		const float gdx = px[g] - px[i], gdz = pz[g] - pz[i];
-		if (gdx * gdx + gdz * gdz > (3.0f * GUARD_RANGE) * (3.0f * GUARD_RANGE)) continue;
+		const float far = 3.0f * guard_range(i) + unit_clearance_at(i) + unit_clearance_at((size_t)g);
+		if (gdx * gdx + gdz * gdz > far * far) continue;
 		const float gs = std::sqrt(vx[g] * vx[g] + vz[g] * vz[g]);
 		if (gs > 0.0f) guard_cap[i] = std::min(unit_walk_speed(i), gs);
 	}
@@ -11738,7 +11751,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			return;
 		}
 		if (any_flight && unit_flies(i)) return; // UnitMotionFlying moves it (tick_flight)
-		// Guard.js on a structure: stay within 3 m of its footprint.
+		// Guard.js on a structure: stay within guard_range of its footprint.
 		if (units_.action_state[i] == ACTION_GUARD && units_.target_unit_id[i] == 0 &&
 				units_.order_kind[i] == ORDER_GUARD) {
 			auto gb = building_id_to_idx_.find(units_.order_target[i]);
@@ -11747,7 +11760,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				const float cx = std::clamp(px[i], b.x - b.half_size, b.x + b.half_size);
 				const float cz = std::clamp(pz[i], b.z - b.half_size, b.z + b.half_size);
 				const float ex = px[i] - cx, ez = pz[i] - cz;
-				if (ex * ex + ez * ez > 3.0f * 3.0f) {
+				const float reach = guard_range(i) + unit_clearance_at(i);
+				if (ex * ex + ez * ez > reach * reach) {
 					const float el = std::sqrt(ex * ex + ez * ez);
 					tx[i] = cx + ex / el * 1.5f; // just outside the footprint, on the guard's side
 					tz[i] = cz + ez / el * 1.5f;
@@ -11761,11 +11775,12 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (units_.action_state[i] == ACTION_GUARD && units_.target_unit_id[i] != 0) {
 			int32_t gtidx = lookup_unit(units_.target_unit_id[i]);
 			if (gtidx >= 0 && units_.alive[gtidx]) {
-				// Stay within GUARD_RANGE of guarded unit
+				// Stay within guard range of the guarded unit
 				float gdx = px[gtidx] - px[i];
 				float gdz = pz[gtidx] - pz[i];
 				float gd2 = gdx * gdx + gdz * gdz;
-				if (gd2 > GUARD_RANGE * GUARD_RANGE) {
+				const float reach = guard_reach(i, (size_t)gtidx);
+				if (gd2 > reach * reach) {
 					tx[i] = px[gtidx];
 					tz[i] = pz[gtidx];
 					has[i] = 1;
@@ -15314,12 +15329,17 @@ void Simulation::tick_combat(float dt) {
 		// interrupted an order, or a player's attack with orders queued after it, is
 		// over once its target is: FINDINGNEWTARGET's FinishOrder goes on to that order
 		// rather than to FindNewTargets (attack-move and patrol look for more anyway).
+		// Walking, attack-move and patrol look once a second (WALKINGANDFIGHTING and
+		// PATROLLING Timer, 1000 ms; they don't answer LosAttackRangeUpdate). A formation's
+		// members still look every turn: their scan stands in for the controller's own.
+		const bool in_formation = !formations_.empty() && formation_group_[i] != 0;
 		const bool order_next = st == ACTION_ATTACK && !walk_and_fight &&
 				(((units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) && units_.order_kind[i] != ORDER_NONE) ||
 				 (explicit_target && order_queues_.count(units_.id[i])));
 		int32_t found_bld = -1, found_wild = -1;
 		if (found < 0 && !order_next && !leash_drop && units_.target_building_id[i] == 0 && stance != STANCE_PASSIVE &&
-				((i + ticks_) % 4 == 0 || st == ACTION_ATTACK || walk_and_fight)) {
+				(st == ACTION_ATTACK || (walk_and_fight && in_formation) ||
+				 (walk_and_fight ? again || chase_check_due : (i + ticks_) % 4 == 0))) {
 			const float scan_range = stance == STANCE_STAND_GROUND ? range
 					: stance == STANCE_DEFENSIVE ? std::min(range + vision * 0.5f, vision) : vision;
 			const uint8_t my_team = units_.team[i];
@@ -18479,18 +18499,23 @@ void Simulation::replace_orders(size_t i) {
 	if (!applying_queued_) order_queues_.erase(units_.id[i]);
 }
 
-// GuardedAttacked for a structure: an enemy of `team` fighting it (its attack target is
-// the structure) within 64 m of it, the nearest first; -1 if none.
-int32_t Simulation::structure_attacker(uint32_t building_id, uint8_t team) const {
+// An enemy of `team` fighting a structure (its attack target is the structure), the
+// nearest first; -1 if none. Petra's Attacked event looks within 64 m of it; a guard's
+// GuardedAttacked comes with every hit, from any range, and the guard answers an
+// attacker it can see (UnitAI GUARDING GuardedAttacked: CheckTargetVisible).
+int32_t Simulation::structure_attacker(uint32_t building_id, uint8_t team, bool seen_anywhere) const {
 	auto it = building_id_to_idx_.find(building_id);
 	if (it == building_id_to_idx_.end()) return -1;
 	const Building &b = buildings_[it->second];
 	int32_t best = -1;
-	float best_d2 = (NEARBY_SEARCH_RANGE + b.half_size) * (NEARBY_SEARCH_RANGE + b.half_size);
+	float best_d2 = seen_anywhere ? std::numeric_limits<float>::max()
+			: (NEARBY_SEARCH_RANGE + b.half_size) * (NEARBY_SEARCH_RANGE + b.half_size);
+	const bool fog = seen_anywhere && team < MAX_PLAYERS && !reveal_map_ && los_.cells() != 0;
 	for (size_t j = 0; j < units_.count; ++j) {
 		if (!units_.alive[j] || units_.target_building_id[j] != building_id || units_.action_state[j] != ACTION_ATTACK ||
 				!can_attack(team, units_.team[j]))
 			continue;
+		if (fog && !los_visible(team, units_.pos_x[j], units_.pos_z[j])) continue;
 		const float dx = units_.pos_x[j] - b.x, dz = units_.pos_z[j] - b.z;
 		const float d2 = dx * dx + dz * dz;
 		if (d2 < best_d2) { best_d2 = d2; best = (int32_t)j; }
@@ -18929,7 +18954,13 @@ bool Simulation::guard_keeps_target(size_t i, size_t t) const {
 	if (units_.order_kind[i] != ORDER_GUARD || !(units_.order_flags[i] & ORDER_FLAG_INTERRUPTED)) return false;
 	if (!units_.alive[t] || units_.attack_damage[t] <= 0.0f || unit_walk_speed(i) <= 0.0f) return false; // AbleToMove
 	const int32_t g = lookup_unit(units_.order_target[i]);
-	if (g < 0 || !units_.alive[g]) return false;
+	if (g < 0) { // a guarded structure in the attacker's range
+		auto bit = building_id_to_idx_.find(units_.order_target[i]);
+		if (bit == building_id_to_idx_.end()) return false;
+		const Building &b = buildings_[bit->second];
+		return !b.wrecked && structure_gap(b, units_.pos_x[t], units_.pos_z[t], unit_clearance_at(t)) <= attack_reach(t);
+	}
+	if (!units_.alive[g]) return false;
 	const float dx = units_.pos_x[g] - units_.pos_x[t], dz = units_.pos_z[g] - units_.pos_z[t];
 	return in_parabolic_range(dx * dx + dz * dz, unit_height(t), unit_height((size_t)g), attack_reach(t));
 }
@@ -19509,7 +19540,7 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 		// for a house, which is neither gathered nor a dropsite, so its builders look for a
 		// foundation nearby; any other structure leaves them idle for Petra to reassign.
 		if (petra_runs_for(units_.team[k])) {
-			const uint32_t f = b.type == BLD_HOUSE ? find_nearby_foundation(b.x, b.z, units_.team[k]) : 0;
+			const uint32_t f = b.type == BLD_HOUSE || is_map_house(b.type) ? find_nearby_foundation(b.x, b.z, units_.team[k]) : 0;
 			if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); return; }
 			set_order(k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
 			units_.has_order[k] = 0;
@@ -19545,7 +19576,7 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 }
 
 void Simulation::tick_unit_ai(float dt) {
-	(void)dt;
+	const uint64_t second = (uint64_t)std::max(1L, std::lround(1.0f / dt)); // ticks in a second
 	const size_t n = units_.count;
 	for (size_t i = 0; i < n && i < units_.count; ++i) {
 		if (!units_.alive[i]) continue;
@@ -19568,7 +19599,7 @@ void Simulation::tick_unit_ai(float dt) {
 				continue;
 			}
 			if (units_.attack_damage[i] > 0.0f && (i + ticks_) % 4 == 0) {
-				const int32_t a = structure_attacker(units_.order_target[i], units_.team[i]);
+				const int32_t a = structure_attacker(units_.order_target[i], units_.team[i], true);
 				if (a >= 0) {
 					units_.anchor_x[i] = units_.pos_x[i];
 					units_.anchor_z[i] = units_.pos_z[i];
@@ -19623,7 +19654,7 @@ void Simulation::tick_unit_ai(float dt) {
 			// a ship: PushOrderFront Repair), then guards again.
 			if (g >= 0 && (i + ticks_) % 4 == 0 && can_repair_unit(i, g)) {
 				const float dx = units_.pos_x[g] - units_.pos_x[i], dz = units_.pos_z[g] - units_.pos_z[i];
-				if (dx * dx + dz * dz <= GUARD_RANGE * GUARD_RANGE) {
+				if (dx * dx + dz * dz <= guard_reach(i, (size_t)g) * guard_reach(i, (size_t)g)) {
 					auto &q = order_queues_[units_.id[i]];
 					q.insert(q.begin(), current_order(i));
 					start_repair_unit(i, units_.id[g], 0);
@@ -19731,7 +19762,7 @@ void Simulation::tick_unit_ai(float dt) {
 		// WALKINGANDFIGHTING / PATROL Timer -> FindWalkAndFightTargets: a healer heals whoever is
 		// hurt nearby (FindNewHealTargets, an unforced Heal pushed in front), then walks on.
 		if ((now == ACTION_ATTACK_MOVE || now == ACTION_PATROL) && !interrupted && unit_heals(i) &&
-				(i + ticks_) % 4 == 0) {
+				(i + ticks_) % second == 0) {
 			const uint32_t t = find_heal_target(i);
 			if (t != 0) {
 				auto &q = order_queues_[units_.id[i]];
@@ -20257,7 +20288,7 @@ bool Simulation::can_heal(size_t h, int32_t t) const {
 	if (t < 0 || (size_t)t == h || !units_.alive[t]) return false;
 	if (!unit_is_human(units_.unit_type[t]) || units_.hp[t] >= units_.max_hp[t]) return false; // IsInjured
 	const uint8_t a = units_.team[h], b = units_.team[t];
-	return a == b || is_ally(a, b); // IsOwnedByAllyOfPlayer
+	return regards_as_ally(a, b); // IsOwnedByAllyOfPlayer: the healer's player calls them allies
 }
 
 uint32_t Simulation::find_heal_target(size_t h) const {
@@ -38415,15 +38446,19 @@ void Simulation::cinema_queue_path(const char *name) {
 }
 
 void Simulation::cinema_delete_path(const char *name) {
-	// DeletePath removes the path from m_Paths only: the queue holds copies, so a queued
-	// one still plays. Here a queued path is marked deleted (find skips it) and dropped
-	// once it has left the queue.
+	// DeletePath: the path goes with every queued copy, the one playing too
+	// (m_PathQueue.remove_if). The elapsed and total times stay, so the next path takes over
+	// with the time already run (no Reset); an emptied queue stops at the next tick, as ClearQueue.
 	const int idx = cinema_.find(name);
 	if (idx < 0) return;
-	cinema_.paths[(size_t)idx].info.reserved = CINEMA_PATH_DELETED;
-	cinema_drop_deleted_path((uint16_t)idx);
+	size_t n = 0;
+	for (uint16_t q : cinema_.queue)
+		if (q != (uint16_t)idx) cinema_.queue[n++] = q > (uint16_t)idx ? (uint16_t)(q - 1) : q;
+	cinema_.queue.resize(n);
+	cinema_.paths.erase(cinema_.paths.begin() + idx);
 }
 
+// A path a save from before DeletePath matched 0.28 marked deleted while it was queued.
 void Simulation::cinema_drop_deleted_path(uint16_t idx) {
 	if (idx >= cinema_.paths.size() || cinema_.paths[idx].info.reserved != CINEMA_PATH_DELETED) return;
 	for (uint16_t q : cinema_.queue)
