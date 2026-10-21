@@ -15701,7 +15701,7 @@ void Simulation::tick_combat(float dt) {
 			return !check_los || los_visible(team, units_.pos_x[t], units_.pos_z[t]);
 		};
 		auto building_ok = [&](const Building &ob) {
-			if (ob.wrecked || ob.hp <= 0.0f || ob.team == GAIA_PLAYER || !can_attack(team, ob.team)) return false;
+			if (ob.wrecked || ob.hp <= 0.0f || !structure_has_health(ob.type) || ob.team == GAIA_PLAYER || !can_attack(team, ob.team)) return false;
 			const float gap = structure_gap(ob, sx, sz, unit_clearance_at(i));
 			if (!in_parabolic_range(gap * gap, sy, get_terrain_height(ob.x, ob.z), range)) return false;
 			return !check_los || los_explored(team, ob.x, ob.z);
@@ -15870,6 +15870,10 @@ void Simulation::tick_combat(float dt) {
 		const double reach2 = (double)max_r * max_r - 2.0 * (double)max_r * ((double)lowest_ground - (double)b_y);
 		const float corner = det::hypot(b.hu, b.hv); // the footprint's farthest reach from its centre
 		const float ground_reach = max_r > 0.0f && reach2 > 0.0 ? (float)std::sqrt(reach2) + corner + 1.0f : -1.0f;
+		// Units too: CreateActiveParabolicQuery has no flat cap, so a tower on a hill reaches
+		// units past its flat range (ground_reach already holds the corner and a metre).
+		const float unit_scan_r = ground_reach >= 0.0f ? std::max(ground_reach, max_r + corner) + UNIT_RANGE_MARGIN
+				: max_r + corner + UNIT_RANGE_MARGIN;
 		auto beyond = [&](float dx, float dz, float other_half) {
 			return ground_reach >= 0.0f && (std::fabs(dx) > ground_reach + other_half || std::fabs(dz) > ground_reach + other_half);
 		};
@@ -15914,7 +15918,7 @@ void Simulation::tick_combat(float dt) {
 		if (!b.arrow_timer_on) {
 			// OnRangeUpdate -> StartTimer: the first round comes PrepareTime after an enemy enters.
 			bool any = false;
-			if (n) grid.visit_radius(b.x, b.z, max_r + corner + UNIT_RANGE_MARGIN, [&](int32_t i) { any = any || unit_target(i); });
+			if (n) grid.visit_radius(b.x, b.z, unit_scan_r, [&](int32_t i) { any = any || unit_target(i); });
 			if (!any) each_fauna([&](int32_t f) { any = any || fauna_target(f); });
 			if (!any) each_building([&](size_t o) { any = any || building_target(buildings_[o]); });
 			if (!any) continue;
@@ -15930,7 +15934,7 @@ void Simulation::tick_combat(float dt) {
 		bool in_reach = false; // targetUnits: everything in range, seen or not, keeps the timer going
 		arrow_targets.clear();
 		if (n) {
-			grid.visit_radius(b.x, b.z, max_r + corner + UNIT_RANGE_MARGIN, [&](int32_t i) {
+			grid.visit_radius(b.x, b.z, unit_scan_r, [&](int32_t i) {
 				if (!unit_target(i)) return;
 				in_reach = true;
 				if (!seen(units_.pos_x[i], units_.pos_z[i])) return;
@@ -20603,14 +20607,17 @@ bool Simulation::petra_spot_free_but_distance(int cell_x, int cell_y, int footpr
 }
 
 // queueplanBuilding.js findGoodPosition's gap round a structure (obstructionRadius + 0, 4 or 8 m):
-// 0 for houses, dropsites, fields and markets, which ought to stand close to each other or a
-// resource; 2 (8 m) for fortresses, arsenals and elephant stables; 1 (4 m) for the rest.
+// 0 for dropsites, fields and markets, which ought to stand close to a resource or each other;
+// 2 (8 m) for fortresses, arsenals and elephant stables; 1 (4 m) for the rest. Houses take 1 too:
+// their radius, ceil(obstructionRadius.max / cellSize) (queueplanBuilding.js:336), keeps every
+// obstruction cell within 2 cells (8 m) of an 11-13 m house's centre clear, so 0.28's houses
+// stand about 5 m apart, and on RTS0's 8 m grid a ring is the nearest step: touching rows of
+// houses walled their builders in against shores.
 uint8_t Simulation::petra_clearance(uint8_t btype) {
 	if (btype >= BLD_TYPE_COUNT) return 1;
 	const uint8_t r = building_research_base(btype);
 	if (r == BLD_FORTRESS || r == BLD_ARSENAL || r == BLD_ELEPHANT_STABLE) return 2;
-	if (is_dropsite_type(btype) || (building_tech_classes(btype) & TC_HOUSE) || btype == BLD_FIELD || is_land_market(btype))
-		return 0;
+	if (is_dropsite_type(btype) || btype == BLD_FIELD || is_land_market(btype)) return 0;
 	return 1;
 }
 
@@ -20619,7 +20626,7 @@ uint8_t Simulation::petra_clearance(uint8_t btype) {
 // a ring cell (PART) refuses the spot when it comes within half a cell, 4 m, of the footprint:
 // the gap queueplanBuilding.js findGoodPosition adds round most structures (obstructionRadius + 4).
 // On-grid buildings mark only FULL cells, so they keep the whole-cell ring.
-// Clearance 0 (houses, dropsites, fields, markets) needs only the footprint free; 2 (fortress,
+// Clearance 0 (dropsites, fields, markets) needs only the footprint free; 2 (fortress,
 // arsenal, elephant stable) also keeps any building 8 m off.
 bool Simulation::petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance) const {
 	ensure_occupied_cells();
@@ -21918,6 +21925,7 @@ float Simulation::petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl,
 		const float range = ui.attack_range * m.range_mul + m.range * COMBAT_DISTANCE_SCALE;
 		s += range / (ranged ? COMBAT_DISTANCE_SCALE : 0.6f) * 0.0125f;
 		s += ui.attack_cooldown * 1000.0f / 100000.0f;
+		s -= unit_combat(tmpl, type).prepare * 1000.0f / 100000.0f; // attackTimes prepare
 	}
 	// attackTypes() lists Capture too: no attackStrengths, but its MaxRange 4 and RepeatTime 1000.
 	if (unit_capture_attack(tmpl, type) > 0.0f) s += PETRA_CAPTURE_STRENGTH;
@@ -31788,6 +31796,7 @@ float Simulation::petra_unit_strength(size_t i) const {
 		const bool ranged = (unit_tech_classes(units_.unit_type[i]) & TC_RANGED) != 0;
 		s += units_.attack_range[i] / (ranged ? 0.28f : 0.6f) * 0.0125f; // back to 0 A.D. metres
 		s += units_.attack_cooldown[i] * 1000.0f / 100000.0f;
+		s -= unit_combat_at(i).prepare * 1000.0f / 100000.0f; // attackTimes prepare
 	}
 	if (unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f) s += PETRA_CAPTURE_STRENGTH;
 	float res[3];
@@ -31803,6 +31812,7 @@ float Simulation::petra_fauna_strength(size_t f) const {
 		s += (0.075f * info.hack_damage + 0.085f * info.pierce_damage + 0.045f * info.crush_damage) / 4.0f;
 		s += info.attack_range / 0.6f * 0.0125f; // back to 0 A.D. metres, as for a unit's melee
 		s += info.attack_cooldown * 1000.0f / 100000.0f;
+		s -= info.attack_prepare * 1000.0f / 100000.0f; // attackTimes prepare
 	}
 	s += (0.075f * info.hack_armor + 0.085f * info.pierce_armor + 0.045f * info.crush_armor) / 4.0f;
 	s *= fauna_.max_hp[f] / 100.0f;
