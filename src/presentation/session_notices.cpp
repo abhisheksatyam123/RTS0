@@ -189,7 +189,7 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 	}
 }
 
-void RtsoMain::play_civ_voice(const char *action) {
+void RtsoMain::play_civ_voice(const char *action, uint32_t unit_id) {
 	if (!voice_player) return;
 	static uint32_t voice_rand_idx = 0;
 	++voice_rand_idx;
@@ -239,7 +239,7 @@ void RtsoMain::play_civ_voice(const char *action) {
 				}
 		return;
 	}
-	const uint32_t first = (uint32_t)(int64_t)selected_ids[0];
+	const uint32_t first = unit_id ? unit_id : (uint32_t)(int64_t)selected_ids[0];
 	auto uv = sim->units();
 	for (size_t i = 0; i < uv.count; ++i) {
 		if (uv.id[i] != first) continue;
@@ -326,4 +326,28 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 	selected_ids.push_back((int32_t)uview.id[best]);
 	if (cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[best], 0, uview.pos_z[best]));
 	play_civ_voice("select");
+}
+
+void RtsoMain::play_select_added(const PackedInt32Array &before_units, const std::vector<uint32_t> &before_structs) {
+	if (!sim) return;
+	for (int s = 0; s < selected_ids.size(); ++s)
+		if (!before_units.has(selected_ids[s])) {
+			const uint32_t id = (uint32_t)(int64_t)selected_ids[s];
+			auto uv = sim->units();
+			for (size_t i = 0; i < uv.count; ++i)
+				if (uv.id[i] == id) {
+					play_civ_voice("select", id);
+					return;
+				}
+			return; // livestock: no select voice here
+		}
+	for (uint32_t id : selected_structures())
+		if (std::find(before_structs.begin(), before_structs.end(), id) == before_structs.end()) {
+			for (const auto &b : sim->buildings())
+				if (b.id == id) {
+					session_audio_.play_building_select(b.type);
+					break;
+				}
+			return;
+		}
 }
