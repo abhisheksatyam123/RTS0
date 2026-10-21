@@ -1282,9 +1282,9 @@ void RtsoMain::_on_pack_cancel_pressed(int pack) {
 			}
 	if (ids.empty()) return;
 	if (turn_cmds())
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_PACK, ids.data(), ids.size(), 0, 0, 0, pack ? 0 : 1);
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_PACK, ids.data(), ids.size(), 0, 0, 0, (uint8_t)(2 | (pack ? 0 : 1)));
 	else
-		sim->order_pack(ids.data(), ids.size(), pack == 0);
+		sim->order_pack(ids.data(), ids.size(), pack == 0, true);
 }
 
 // BarterButton sell press: BarterButtonManager.setSelectedResource.

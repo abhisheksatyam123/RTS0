@@ -6972,21 +6972,20 @@ void Simulation::order_set_stance(const uint32_t *unit_ids, size_t count, uint8_
 	}
 }
 
-void Simulation::order_pack(const uint32_t *unit_ids, size_t count, bool pack) {
+void Simulation::order_pack(const uint32_t *unit_ids, size_t count, bool pack, bool cancel) {
 	for (size_t i = 0; i < count; ++i) {
 		int32_t idx = lookup_unit(unit_ids[i]);
 		if (idx < 0 || !units_.alive[idx]) continue;
 		const uint8_t ps = units_.pack_state[idx];
-		if (ps == PACK_NONE) continue;
-		// Order.Pack / Order.Unpack replace the unit's orders (UnitAI ReplaceOrder).
+		// UnitAI Pack / Unpack add the order only when CanPack / CanUnpack (neither packing nor
+		// unpacking, and unpacked / packed); CancelPack / CancelUnpack only while in progress.
+		// The rest of a mixed selection keeps what it is doing.
+		const uint8_t from = cancel ? (pack ? PACK_UNPACKING : PACK_PACKING) : (pack ? PACK_UNPACKED : PACK_PACKED);
+		if (ps != from) continue;
+		// Order.Pack / Unpack / CancelPack replace the unit's orders (UnitAI ReplaceOrder).
 		cmd_stop(&unit_ids[i], 1);
-		if (pack) {
-			if (ps == PACK_UNPACKED) { units_.pack_state[idx] = PACK_PACKING; units_.pack_elapsed[idx] = 0.0f; }
-			else if (ps == PACK_UNPACKING) { units_.pack_state[idx] = PACK_PACKED; units_.pack_elapsed[idx] = 0.0f; }
-		} else {
-			if (ps == PACK_PACKED) { units_.pack_state[idx] = PACK_UNPACKING; units_.pack_elapsed[idx] = 0.0f; }
-			else if (ps == PACK_PACKING) { units_.pack_state[idx] = PACK_UNPACKED; units_.pack_elapsed[idx] = 0.0f; }
-		}
+		units_.pack_state[idx] = cancel ? (pack ? PACK_PACKED : PACK_UNPACKED) : (pack ? PACK_PACKING : PACK_UNPACKING);
+		units_.pack_elapsed[idx] = 0.0f;
 	}
 }
 
@@ -8630,7 +8629,9 @@ void Simulation::eject_foreign_passengers(size_t transport) {
 	if (foreign.empty()) return;
 	const uint32_t tid = units_.id[transport];
 	for (uint32_t puid : foreign) {
-		order_disembark_single(tid, puid);
+		// EjectOrKill: only EjectClassesOnDestroy may get off; the rest are killed aboard.
+		if (const int32_t p = lookup_unit(puid); p >= 0 && holder_ejects(transport, (size_t)p))
+			order_disembark_single(tid, puid);
 		auto it = transport_passengers_.find(tid);
 		if (it == transport_passengers_.end()) break;
 		auto at = std::find(it->second.begin(), it->second.end(), puid);
@@ -8700,24 +8701,31 @@ void Simulation::tick_siege_garrisons() {
 // (Civilian Infantry Healer Dog; warships' Civilian Infantry Dog) swim to a free spot on dry ground within its
 // loading reach; everyone else, everyone out at sea and anyone with no free spot (EjectOrKill
 // kills what the unforced PerformEject leaves aboard) goes down with it.
+// GarrisonHolder EjectClassesOnDestroy (every EjectOrKill): template_unit_ship "Civilian Infantry
+// Healer Dog", template_unit_ship_warship_{arrow,ram} "Civilian Infantry Dog", siege engines
+// "Unit", a plane none. The rest are killed.
+bool Simulation::holder_ejects(size_t holder, size_t p) const {
+	if (is_plane_at(holder)) return false;
+	if (!unit_is_ship(units_.unit_type[holder])) return true;
+	bool warship = units_.unit_type[holder] == UNIT_TRIREME;
+	if (warship && units_.tmpl[holder] < CIV_UNIT_TEMPLATE_COUNT) {
+		const std::string_view id = civ_unit_template(units_.tmpl[holder]).id;
+		warship = id.ends_with("/ship_arrow") || id.ends_with("/ship_ram");
+	}
+	const TechClasses ejected = warship ? TC_INFANTRY | TC_DOG : TC_INFANTRY | TC_HEALER | TC_DOG; // and Civilian
+	return (unit_classes_at(p) & ejected) || is_civilian_class(units_.tmpl[p], units_.unit_type[p]);
+}
+
 void Simulation::unload_sunk_ship(size_t ship) {
 	auto pit = transport_passengers_.find(units_.id[ship]);
 	if (pit == transport_passengers_.end()) return;
 	float lx = 0.0f, lz = 0.0f;
 	const bool shore = ship_unload_point(ship, lx, lz);
-	// template_unit_ship_warship_{arrow,ram} leave Healer out (Civilian Infantry Dog).
-	bool warship = units_.unit_type[ship] == UNIT_TRIREME;
-	if (warship && units_.tmpl[ship] < CIV_UNIT_TEMPLATE_COUNT) {
-		const std::string_view id = civ_unit_template(units_.tmpl[ship]).id;
-		warship = id.ends_with("/ship_arrow") || id.ends_with("/ship_ram");
-	}
-	const TechClasses ejected = warship ? TC_INFANTRY | TC_DOG : TC_INFANTRY | TC_HEALER | TC_DOG; // and Civilian
 	std::vector<SpawnSpot> taken;
 	for (uint32_t puid : pit->second) {
 		const int32_t p = lookup_unit(puid);
 		if (p < 0) continue;
-		if (shore && ((unit_classes_at((size_t)p) & ejected) || is_civilian_class(units_.tmpl[p], units_.unit_type[p])) &&
-				ship_unload_point(ship, lx, lz, (size_t)p, &taken)) {
+		if (shore && holder_ejects(ship, (size_t)p) && ship_unload_point(ship, lx, lz, (size_t)p, &taken)) {
 			units_.pos_x[p] = lx;
 			units_.pos_z[p] = lz;
 			units_.alive[p] = 1;
@@ -13408,6 +13416,8 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 			if (formations_.empty() || formation_group_[i] == 0) obstructed_long_path(i, m.failed);
 			if (m.failed < OBSTRUCTED_AT) continue;
 		}
+		// FLEEING MovementUpdate with likelyFailure: the flight ends (flee_done).
+		if (move_failed && units_.action_state[i] == ACTION_FLEE) units_.attack_timer[i] = 0.0f;
 		// MoveObstructed / MoveFailed reach UnitAI. Members of a formation follow its controller.
 		if (!formations_.empty() && formation_group_[i] != 0) continue;
 		// GATHER APPROACHING MovementUpdate with likelyFailure: FINDINGNEWTARGET, which goes on to
@@ -15173,9 +15183,9 @@ void Simulation::tick_combat(float dt) {
 			const float d2 = dx * dx + dz * dz;
 			if (stance == STANCE_STAND_GROUND)
 				return in_parabolic_range(d2, att_y, unit_height(j), range);
-			if (stance == STANCE_DEFENSIVE) {
+			if (stance == STANCE_DEFENSIVE) { // respondHoldGround, and not respondChaseBeyondVision
 				const float hx = units_.pos_x[j] - anc_x, hz = units_.pos_z[j] - anc_z;
-				return hx * hx + hz * hz < held_lim * held_lim;
+				return hx * hx + hz * hz < held_lim * held_lim && d2 <= vision * vision;
 			}
 			// Violent: respondChaseBeyondVision.
 			return stance == STANCE_VIOLENT || d2 <= vision * vision;
@@ -16406,73 +16416,6 @@ void Simulation::tick_promotion(float dt) {
 void Simulation::tick_capture(float dt) {
 	// 0 A.D. Capturable.js:93-132 (Reduce), 168-181 (RegisterCapturePointsChanged),
 	// 183-201 (GetRegenRate & GarrisonRegenRate), 203-247 (TimerTick)
-	// Multi-Team Structure Capture Mechanics:
-	// CapturePoints is an array whose sum equals max_capture_points.
-	// Attacking units within reach reduce enemy capture pools and transfer points to capturer.
-	// Owner regenerates capture points back when unattacked; structure flips ownership when
-	// a team crosses the majority threshold (>50% max) or owner points hit 0.
-	// Count and strength of the capturers (alive, teams 0-3) within 11 of each building, per team.
-	// Units go in the outer loop, so each building's strength sums in unit order. A grid of building
-	// reach (11, plus 1 to spare) limits each unit to the buildings near its cell.
-	auto tally_capturers = [this] {
-		const float half = map_half_;
-		constexpr float CELL = 8.0f, REACH = 12.0f;
-		const int W = std::max(1, (int)std::ceil(2.0f * half / CELL) + 1);
-		auto cell_of = [half, W](float v) { // monotonic in v, so nearby units can't fall outside a building's cells
-			const float f = (v + half) / CELL;
-			return f >= 0.0f ? (f < (float)W ? (int)f : W - 1) : 0;
-		};
-		// The grid depends only on the map and where the buildings stand, which rarely change.
-		bool same = capture_cell_key_.size() == 1 + 2 * buildings_.size() && !capture_cell_key_.empty()
-				&& capture_cell_key_[0] == half && capture_cell_start_.size() == (size_t)W * W + 1;
-		for (size_t i = 0; same && i < buildings_.size(); ++i)
-			same = capture_cell_key_[1 + 2 * i] == buildings_[i].x && capture_cell_key_[2 + 2 * i] == buildings_[i].z;
-		if (!same) {
-			capture_cell_key_.resize(1 + 2 * buildings_.size());
-			capture_cell_key_[0] = half;
-			for (size_t i = 0; i < buildings_.size(); ++i) {
-				capture_cell_key_[1 + 2 * i] = buildings_[i].x;
-				capture_cell_key_[2 + 2 * i] = buildings_[i].z;
-			}
-		}
-		if (!same) capture_cell_start_.assign((size_t)W * W + 1, 0);
-		for (int pass = 0; !same && pass < 2; ++pass) {
-			for (uint32_t i = 0; i < (uint32_t)buildings_.size(); ++i) {
-				const Building &b = buildings_[i];
-				const int x0 = cell_of(b.x - REACH), x1 = cell_of(b.x + REACH);
-				const int z0 = cell_of(b.z - REACH), z1 = cell_of(b.z + REACH);
-				for (int cz = z0; cz <= z1; ++cz)
-					for (int cx = x0; cx <= x1; ++cx) {
-						if (pass == 0) capture_cell_start_[(size_t)cz * W + cx + 1]++;
-						else capture_cell_buildings_[capture_cell_start_[(size_t)cz * W + cx]++] = CaptureReach{i, b.x, b.z};
-					}
-			}
-			if (pass == 0) {
-				for (size_t c = 1; c < capture_cell_start_.size(); ++c) capture_cell_start_[c] += capture_cell_start_[c - 1];
-				capture_cell_buildings_.resize(capture_cell_start_.back());
-			} else {
-				// Filling advanced each cell's start to the next cell's; shift back.
-				for (size_t c = capture_cell_start_.size() - 1; c > 0; --c) capture_cell_start_[c] = capture_cell_start_[c - 1];
-				capture_cell_start_[0] = 0;
-			}
-		}
-		capture_tally_.assign(buildings_.size(), CaptureTally{});
-		for (size_t u = 0; u < units_.count; ++u) {
-			if (!units_.alive[u] || units_.team[u] >= MAX_PLAYERS) continue;
-			const size_t c = (size_t)cell_of(units_.pos_z[u]) * W + cell_of(units_.pos_x[u]);
-			for (uint32_t k = capture_cell_start_[c]; k < capture_cell_start_[c + 1]; ++k) {
-				const CaptureReach &b = capture_cell_buildings_[k];
-				const float dx = units_.pos_x[u] - b.x;
-				const float dz = units_.pos_z[u] - b.z;
-				if (dx * dx + dz * dz <= 11.0f * 11.0f) {
-					CaptureTally &t = capture_tally_[b.building];
-					t.count[units_.team[u]]++;
-					t.strength[units_.team[u]] += unit_capture_attack(units_.tmpl[u], units_.unit_type[u]);
-				}
-			}
-		}
-	};
-	tally_capturers();
 	// Capturable.js TimerTick: decay and regeneration land once a second of match time.
 	const bool timer_tick = (ticks_ + 1) % (uint64_t)std::lround(1.0f / FIXED_STEP) == 0;
 	(void)dt;
@@ -19091,19 +19034,29 @@ bool Simulation::entity_xz(uint32_t id, float &x, float &z) const {
 // one fled from is now; done once that far from it, when the run ends short (likelyFailure),
 // or when the flight is stuck. Re-aims target_x/z while it goes on.
 bool Simulation::flee_done(size_t i) {
-	if (units_.attack_timer[i] <= 0.0f) return true;
+	if (units_.attack_timer[i] <= 0.0f) return true; // the run failed (MoveFailed: likelyFailure)
 	const float px = units_.pos_x[i], pz = units_.pos_z[i];
 	const float tx = units_.target_x[i] - px, tz = units_.target_z[i] - pz;
 	if (tx * tx + tz * tz <= 1.0f) return true;
 	float sx, sz;
-	if (units_.flee_from[i] == 0 || !entity_xz(units_.flee_from[i], sx, sz)) return false;
-	const float dx = px - sx, dz = pz - sz, d2 = dx * dx + dz * dz;
+	const uint32_t from = units_.flee_from[i];
+	if (from == 0 || !entity_xz(from, sx, sz)) return false;
+	const float dx = px - sx, dz = pz - sz;
+	const float d = sqrtf(dx * dx + dz * dz);
+	// MoveToTargetRange(target, distanceToFlee, -1): the range is measured between the two
+	// obstructions (CheckTargetRangeExplicit), so the run goes their sizes further than the
+	// centre-to-centre distanceToFlee.
+	float gap = d - unit_clearance_at(i);
+	if (auto bit = building_id_to_idx_.find(from); bit != building_id_to_idx_.end())
+		gap = structure_gap(buildings_[bit->second], px, pz, unit_clearance_at(i));
+	else if (const int32_t j = lookup_unit(from); j >= 0)
+		gap -= unit_clearance_at((size_t)j);
 	const float want = units_.flee_dist[i];
-	if (d2 >= want * want) return true;
-	const float d = sqrtf(d2);
+	if (gap >= want) return true;
+	const float goal = want + (d - gap);
 	const float nx = d > 1e-3f ? dx / d : 1.0f, nz = d > 1e-3f ? dz / d : 0.0f;
-	units_.target_x[i] = std::clamp(sx + nx * want, -map_half_ + 1.0f, map_half_ - 1.0f);
-	units_.target_z[i] = std::clamp(sz + nz * want, -map_half_ + 1.0f, map_half_ - 1.0f);
+	units_.target_x[i] = std::clamp(sx + nx * goal, -map_half_ + 1.0f, map_half_ - 1.0f);
+	units_.target_z[i] = std::clamp(sz + nz * goal, -map_half_ + 1.0f, map_half_ - 1.0f);
 	return false;
 }
 
@@ -19152,7 +19105,8 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		units_.target_building_id[i] = 0;
 		units_.waypoint_cur[i] = units_.waypoint_count[i] = 0;
 		if (i < unit_paths_.size()) unit_paths_[i].clear();
-		units_.attack_timer[i] = 4.0f; // give up a flight that is stuck
+		// FLEEING has no time limit: it ends at the distance, or when the run fails (MoveFailed).
+		units_.attack_timer[i] = FLEE_RUNNING;
 		units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
 		return;
 	}
@@ -19181,6 +19135,8 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		const float hx = ax - units_.anchor_x[i], hz = az - units_.anchor_z[i];
 		const float lim = vision * 0.5f + range; // to the attacker's centre, a structure's too
 		if (hx * hx + hz * hz >= lim * lim) return;
+		// AttackEntityInZone: no respondChaseBeyondVision, so only an attacker within its vision.
+		if (d2 > vision * vision) return;
 	}
 	units_.target_unit_id[i] = sb ? 0 : attacker_id;
 	units_.target_building_id[i] = sb ? attacker_id : 0;
@@ -38512,8 +38468,8 @@ bool Simulation::register_trigger_script(const std::string &name) {
 }
 
 namespace {
-// The rising-water maps' heights are 0 A.D.'s metres times this (rms_generator.cpp kTriggerMapHeight).
-constexpr float kTriggerHeight = 0.5f;
+// The rising-water maps' heights are 0 A.D.'s metres (rms_generator.cpp kTriggerMapHeight).
+constexpr float kTriggerHeight = HEIGHT_PER_METRE;
 
 // maps/random/flood_triggers.js
 constexpr float kFloodStepSeconds = 2.4f;   // deltaTime
