@@ -4370,7 +4370,6 @@ private:
 	bool flee_done(size_t i);
 	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee, bool structure = false);
 	std::vector<uint16_t> combat_wild_scratch_; // tick_combat: dangerous animals this tick
-	std::vector<uint8_t> walk_ended_look_; // finish_ended_walks -> tick_combat: idle units whose walk ended this tick (not saved: set and read within a tick)
 	std::vector<uint16_t> combat_herd_scratch_; // tick_combat: players' animals out of their corrals (structure targets)
 	std::vector<uint32_t> combat_look_again_scratch_; // tick_combat: units that hit a non-preferred target
 	std::vector<uint8_t> status_bits_scratch_; // tick_status_effects: each unit's Poisoned/Burning bits

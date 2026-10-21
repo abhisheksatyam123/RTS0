@@ -13567,12 +13567,9 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 // 3911-3940), so the next queued order starts or the unit is idle with no order before anything
 // looks for a fight or answers an attack. Left for tick_unit_ai's next tick, the finished walk
 // stayed the unit's order: tick_combat's scan or respond_to_attack started a fight under it, which
-// kept its force and went back to it afterwards (a Petra raid waited on such a rider for good). An
-// idle one looks for targets this tick (walk_ended_look_, read by tick_combat), as 0.28's IDLE Timer
-// runs FindNewTargets before WalkToHeldPosition (:1686-1712). A formation member's walk is its
-// controller's (tick_formations).
+// kept its force and went back to it afterwards (a Petra raid waited on such a rider for good). A
+// formation member's walk is its controller's (tick_formations).
 void Simulation::finish_ended_walks() {
-	walk_ended_look_.clear();
 	for (size_t i = 0; i < units_.count; ++i) {
 		const uint8_t kind = units_.order_kind[i];
 		if ((kind != ORDER_WALK && kind != ORDER_WALK_AND_FIGHT) || units_.has_order[i] || !units_.alive[i] ||
@@ -13580,10 +13577,6 @@ void Simulation::finish_ended_walks() {
 		    (!formations_.empty() && formation_group_[i] != 0))
 			continue;
 		finish_order(i);
-		if (units_.action_state[i] == ACTION_IDLE && units_.order_kind[i] == ORDER_NONE) {
-			if (walk_ended_look_.empty()) walk_ended_look_.assign(units_.count, 0);
-			walk_ended_look_[i] = 1;
-		}
 	}
 }
 
@@ -15305,11 +15298,8 @@ void Simulation::tick_combat(float dt) {
 				(((units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) && units_.order_kind[i] != ORDER_NONE) ||
 				 (explicit_target && order_queues_.count(units_.id[i])));
 		int32_t found_bld = -1, found_wild = -1;
-		// A unit whose walk ended this tick looks at once (finish_ended_walks): 0.28's IDLE Timer looks
-		// for targets before it walks back to its held position.
-		const bool walk_ended = i < walk_ended_look_.size() && walk_ended_look_[i];
 		if (found < 0 && !order_next && !leash_drop && units_.target_building_id[i] == 0 && stance != STANCE_PASSIVE &&
-				((i + ticks_) % 4 == 0 || st == ACTION_ATTACK || walk_and_fight || walk_ended)) {
+				((i + ticks_) % 4 == 0 || st == ACTION_ATTACK || walk_and_fight)) {
 			const float scan_range = stance == STANCE_STAND_GROUND ? range
 					: stance == STANCE_DEFENSIVE ? std::min(range + vision * 0.5f, vision) : vision;
 			const uint8_t my_team = units_.team[i];
@@ -19828,8 +19818,11 @@ void Simulation::tick_unit_ai(float dt) {
 					const uint32_t t = find_heal_target(i);
 					if (t != 0) start_heal(i, t, 0);
 				}
-				// IDLE Timer: tick_combat has had its look for targets (FindNewTargets) by now.
-				walk_back_if_drifted(i);
+				// IDLE Timer: FindNewTargets, then WalkToHeldPosition (UnitAI.js:1686-1712). The walk back
+				// waits for the tick after the unit's target scan (tick_combat, (i + ticks_) % 4 == 0), so
+				// it has looked since it went idle: one walking back to a held position it can't reach
+				// would otherwise go again each tick its scan didn't fall on, and never look.
+				if ((i + ticks_) % 4 == 1) walk_back_if_drifted(i);
 			}
 		}
 	}
