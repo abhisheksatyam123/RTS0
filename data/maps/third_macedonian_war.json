@@ -4298,7 +4298,8 @@
         150,
         20,
         20
-      ]
+      ],
+      "name": "Lucius Aemilius Paullus"
     },
     {
       "id": 2,
@@ -4310,7 +4311,8 @@
         46,
         46,
         200
-      ]
+      ],
+      "name": "Perseus of Macedon"
     },
     {
       "id": 3,
@@ -4322,7 +4324,8 @@
         13,
         221,
         190
-      ]
+      ],
+      "name": "Greek Allies"
     }
   ],
   "resources": [
