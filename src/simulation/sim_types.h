@@ -1148,6 +1148,18 @@ inline const char *unit_type_name(uint8_t type) { return unit_type_info(type).na
 inline const char *unit_type_model(uint8_t type) { return unit_type_info(type).model_id; }
 inline const char *unit_type_portrait(uint8_t type) { return unit_type_info(type).portrait_id; }
 
+inline bool unit_is_cavalry(uint8_t type) {
+	return type == UNIT_CAVALRY || type == UNIT_CAMEL;
+}
+
+// The horse-mounted cavalry only. The camelry's own gather clip is mounted
+// as well (camel.glb's "GatherMeat" keeps its rider on the camel), while the
+// cavalry's does not: cavalry.glb's "GatherMeat" is the biped gatherer's
+// standing animation, which leaves the rider 2 m above the horse's back.
+inline bool unit_is_horse_cavalry(uint8_t type) {
+	return type == UNIT_CAVALRY;
+}
+
 inline bool unit_is_ship(uint8_t type) {
 	return type == UNIT_TRIREME || type == UNIT_FISHING_BOAT || type == UNIT_MERCHANT_SHIP;
 }
@@ -2772,6 +2784,7 @@ inline uint8_t resource_default_max_gatherers(uint8_t type, uint8_t subtype, int
 	if (subtype == RES_SUB_FISH) return FISH_MAX_GATHERERS;
 	if (subtype == RES_SUB_GRAIN) return 5; // FIELD_MAX_GATHERERS
 	if (type == RES_GOLD || type == RES_STONE) return amount >= 5000 ? 24 : 12;
+	if (type == RES_FOOD && subtype == RES_SUB_NONE) return 3; // Berry/fruit bushes fit ~3 gatherers without crowding
 	return 8;
 }
 

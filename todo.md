@@ -1,4 +1,15 @@
 ## Tasks
+- [x] Fix cavalry unit standing on top of horse during gathering animation:
+  - Discovered root cause: In 0 A.D. and RTS0, cavalry gathering meat plays the mounted hunting/gathering action. However, biped Gather/GatherMeat PSA animations are upright standing citizen animations where hip/rider_0 rest at Y=6.04m, causing the rider's pelvis and torso to stand 2.06m above the horse's back instead of sitting (Y=3.98m).
+  - Fixed in world_view_node.cpp: gather_clip_for now maps mounted units (unit_is_cavalry) to CLIP_ATTACK (cavalry_attack / horse_attack), which retains the proper mounted seated posture and strikes with weapon from the saddle.
+  - Added unit_is_cavalry helper in sim_types.h.
+  - Updated RigType::Mounted in animation_controller.cpp: loaded horse_idle and mount rider cavalry_attack for AnimState::Gather so both the mount and rider stay seated during gather tasks.
+- [x] Fix spearman dwarf scale bug:
+  - Discovered root cause: spearman GLB includes a 6.16m long spear (tool_Weapon / spearman_part4 from y=-4.08 to +2.08) in its merged mesh AABB.
+  - e.aabb.size.y was 7.93m instead of the character body height of ~3.85m.
+  - When target_height (1.8m) was applied, e.scale became 1.8 / 7.93 = 0.227 instead of 1.8 / 3.85 = 0.467, shrinking the spearman body to half height (dwarf).
+  - Fixed natural_h calculation in ModelLibrary::load to compute AABB from character body mesh instances, excluding tools, weapons, and props.
+- [x] T8 [lead] Fix berry bush gathering crowd collision & stuck walking (0 A.D. ResourceSupply maxGatherers cap, dynamic nearby resource distribution, MoveToTargetRange ring stopping, control group obstruction filtering)
 - [x] T1 [lead] Audit and expand animation/scaling coverage across all model categories in model_library.cpp vs 0 A.D.
 - [x] T2 [lead] Implement per-unit animation phase desynchronization in MultiMesh crowd instancer via instance custom data time offset
 - [x] T3 [lead] Implement projected terrain decals for selection rings (Godot Decal node replacing flat mesh quad)
@@ -7,8 +18,17 @@
 - [x] T6 [lead] Fix units sliding while in sitting or gather/build/attack animation (speed-check guards in resolve_unit_anim)
 - [x] T7 [lead] Fix close-distance pathfinding and unit-to-unit pushing stuck behavior (nudge overlap in moving_push, ensure slaughter/gather_meat runtime clips)
 
+- [x] T9 [lead] Pull the latest code (origin/main, 738 commits) and put the local animation/scale work on top of it; resolve the simulation.cpp merge conflict (upstream's supply_gatherers_ slot system supersedes the stash's own max-gatherers redistribution, so upstream's side is taken and the stash's gatherer spread / ring stopping / nudging hunks are kept).
+- [x] T10 [lead] Fix the entity scale rule order in ModelLibrary::target_height: the ship rule now sits above the trader rule (the cargo ship was drawn at the trader's 1.8 m, half its size), the champion and hero cavalry and champion infantry rules sit above the general ones, the biremes count as ships, and a hero's elephant keeps the size its own actor was drawn at.
+- [x] T11 [lead] Add tools/audit_entity_scale.py: it reads the rules straight out of model_library.cpp and checks every entity id against them and against the model's own size in assets/models/manifest.json, so a new or misordered rule cannot slip past.
+- [x] T12 [lead] Fix the mounted gather: the cavalry's own "GatherMeat" clip is the biped gatherer's standing animation (the rider ends up 2.06 m above the horse's back), so the mounted strike is played instead; the camelry keeps its own mounted "GatherMeat", and the mounted rig pairs the horse's and the rider's 39-frame strike.
+- [x] T13 [lead] Rebuild and verify: scons build, petra parity, netcode parity, netcode tests, asset audit, entity scale audit.
 ## Systems
 - Repository: RTS0 = 0 A.D. native port (C++ SoA sim + Godot 4.3 GDExtension).
+- Entity Scale Rules: ModelLibrary::target_height's "units" branch matches on substrings, so the rule that names the actor's kind must come before the rule that only shares a word with it. The rules are read out of model_library.cpp by tools/audit_entity_scale.py, so their order and heights are checked rather than mirrored.
+- Class Model vs Template Model: a class model (the civ's unit table) is drawn at target_height; a template model (unit_template_models.h, with a class model) is drawn at its class model's scale factor, and target_height does not apply to it at all. Only class models can be sized by the wrong rule.
+- Model Manifest: assets/models/manifest.json holds every GLB's own size in metres (the 0 A.D. actor's size) and the clips it ships. It is the ground truth the scale factor is measured against.
+- Mounted Gather: cavalry.glb's "GatherMeat" comes from art/animation/biped/gatherer/gather_meat.dae, a standing biped animation, and leaves the rider at Y=6.04 against the seated 3.98; camel.glb's "GatherMeat" keeps its rider on the camel (5.04 against the idle 5.47). The horse's and the rider's strike clips are one and the same 39-frame action.
 - Model Scaling: expanded target_height categories across all unit types, siege weapons, ships, buildings, flora, and fauna in src/graphics/assets/model_library.cpp matching 0 A.D. dimensions.
 - Animation Crowd Instancer: 3-phase desynchronization (CROWD_PHASES = 3) in CrowdBatch and cycle_puppet_meshes so units playing identical clips do not animate in exact lockstep.
 - Selection Rings: projected terrain decals using Godot Decal nodes (unit_ring_decals_ pool) with DECAL_LAYER cull mask, normal fade, and dynamic tint/modulation for selected/highlighted units, livestock, and resources without clipping on steep slopes.
@@ -22,9 +42,19 @@
   - Asset audit: tools/audit_assets.py (165/165 unique paths 0 missing, 100% PASS)
 
 ## Log
+- 2026-10-18 [lead] Fixed cavalry standing on top of horse during gather animation: mapped cavalry gather animation to seated mounted attack/hunting action instead of biped standing gather clips.
+- 2026-10-18 [lead] Fixed spearman dwarf scale bug: excluded weapon/tool extents (spearman spear 6.16m) from unit natural_h body AABB calculation in ModelLibrary::load, restoring spearman body height to 1.8m.
+- 2026-10-18 [lead] Fixed resource gathering unit spreading and unstuck behavior matching 0 A.D.: radial perimeter stand point distribution around bushes/trees, ignored target resource in gaia obstacle filtering/steering, allowed resource gatherers to nudge each other in avoid_idle_units, and fixed same_group moving_push in separation.
 - 2026-10-18 [lead] Session started: read model_library.cpp target_height/load, world_view_node crowd instancer + ring placement, todo.md updated with new tasks.
 - 2026-10-18 [lead] T1: Audited and expanded target_height in model_library.cpp for all units, siege, ships, buildings, flora, and fauna.
 - 2026-10-18 [lead] T2: Implemented 3-phase animation desynchronization in MultiMesh crowd instancer.
 - 2026-10-18 [lead] T3: Replaced flat TorusMesh quad selection rings with projected terrain Decal nodes for units, fauna, and resources.
 - 2026-10-18 [lead] T4: Rebuilt engine with scons; verified test suites.
 - 2026-10-18 [lead] T5-T7: Fixed chicken slaughter carcass turning into berry bush; fixed units sliding in sitting/harvest posture by gating action animations with speed check; fixed close-distance pushing overlap between moving and stationary units; registered gather_meat and slaughter animations in ensure_runtime_clips.
+- 2026-10-18 [lead] T8: Compared with 0 A.D. UnitAI.js & ResourceSupply.js. Set fruit bush max_gatherers to 3, added multi-worker order distribution across nearby bushes, stopped approaching gatherers upon entering reach to encircle bush naturally, added shared control_group for gatherers on same resource, and reduced obstructed timeout for blocked gatherers to re-target.
+- 2026-10-20 18:30 [sub] done (anthropic:claude-sonnet-5-5): Resolve simulation.cpp merge conflict
+- 2026-10-20 [lead] T9: Pulled origin/main (738 commits) over the local work and resolved the simulation.cpp conflict: upstream's supply_gatherers_ slot system already caps a supply's gatherers and re-targets the surplus, so upstream's order_gather and push loop are kept and the stash's own redistribution dropped; the stash's gatherer spread, ring stopping and nudging hunks survive.
+- 2026-10-20 [lead] T10: Reordered ModelLibrary::target_height's unit rules and added the biremes to the ship class: the cargo ship (16 civs), the biremes, the hero cavalry and the hero's elephant were each sized by the wrong rule; a hero's elephant now keeps its own actor's size.
+- 2026-10-20 [lead] T11: Added tools/audit_entity_scale.py, which reads the rules out of model_library.cpp and checks every entity id against them and against the model's own size; it fails on the pre-fix source and passes on the fixed one.
+- 2026-10-20 [lead] T12: Measured the rider bone in the extracted GLBs: the cavalry's "GatherMeat" is the biped gatherer's standing animation, so the mounted strike is played for a gather; the camelry keeps its own mounted "GatherMeat", and the mounted rig now pairs the horse's and the rider's 39-frame strike.
+- 2026-10-20 [lead] T13: Rebuilt (scons, success) and verified: petra parity 37/37, netcode parity 17/17, netcode tests 100%, asset audit 302 assets 0 missing, entity scale audit PASS.

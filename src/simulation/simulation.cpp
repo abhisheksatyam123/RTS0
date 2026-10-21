@@ -10740,10 +10740,36 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// A mine's gatherer walks to the near side of the mine's square, as a builder to its
 		// foundation's: 0 A.D. UnitMotion moves to the range round the target's obstruction, and
 		// heading for the mine's centre would take it into the gatherers already working there.
-		if (units_.action_state[i] == ACTION_GATHER) {
+		// Similarly, distribute gatherers radially around circular resources (bushes, trees, meat)
+		// so gatherers aim for the perimeter rather than collapsing to the exact center.
+		if (units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0) {
 			nav::Footprint m;
-			if (gather_mine_footprint(i, m))
+			if (gather_mine_footprint(i, m)) {
 				stand_outside(m, units_.id[i], px[i], pz[i], &tx[i], &tz[i], unit_clearance_at(i) + kStandMargin);
+			} else {
+				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+				if (rit != res_id_to_idx_.end() && resources_.subtype[rit->second] != RES_SUB_FISH) {
+					const size_t ridx = rit->second;
+					const float rx = resources_.x[ridx], rz = resources_.z[ridx];
+					float to_dx = px[i] - rx, to_dz = pz[i] - rz;
+					float d = std::hypot(to_dx, to_dz);
+					if (d < 1e-4f) {
+						const float a = ((units_.id[i] % 12) / 12.0f) * 6.2831853f;
+						to_dx = std::cos(a);
+						to_dz = std::sin(a);
+						d = 1.0f;
+					}
+					// Offset angle distributed per unit id so multiple workers don't aim at the exact same radial ray
+					const float spread_angle = (((units_.id[i] * 5) % 8) - 3.5f) * 0.18f;
+					const float ca = std::cos(spread_angle), sa = std::sin(spread_angle);
+					const float nx = (to_dx * ca - to_dz * sa) / d;
+					const float nz = (to_dx * sa + to_dz * ca) / d;
+					const float stand_r = std::max(0.6f, resource_block_half(ridx) + unit_clearance_at(i) + 0.2f);
+					tx[i] = rx + nx * stand_r;
+					tz[i] = rz + nz * stand_r;
+					has[i] = 1;
+				}
+			}
 		}
 
 		if (!has[i]) {
@@ -10951,24 +10977,14 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			}
 		} else if ((units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] != 0) ||
 				(units_.action_state[i] == ACTION_MOVE && units_.order_kind[i] == ORDER_GARRISON) ||
-				gathering_mine(i)) {
+				units_.action_state[i] == ACTION_GATHER) {
 			// UnitMotion MoveToTargetRange for a builder (REPAIR.APPROACHING), a unit on its way
-			// into a structure (GARRISON.APPROACHING) and a gatherer on its way to a mine
-			// (GATHER.APPROACHING): the walk ends once the target is within the task's range, and until
-			// then goes right up to its stand point, as close as the unit can stand, so it gets within
-			// any range past its clearance.
+			// into a structure (GARRISON.APPROACHING) and a gatherer on its way to a resource
+			// (GATHER.APPROACHING): in 0 A.D., movement ends as soon as the target is within gather/work reach
+			// (CheckRange / IsInTargetRange), stopping immediately so gatherers ring around the resource
+			// rather than all pressing toward the resource origin.
 			at_building = walk_in_reach(i, px[i], pz[i]);
 			if (!at_building) stop_dist = ARRIVE_DIST * 0.25f;
-		} else if (units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0 &&
-				nav_grid_.near_steep_tile(tx[i], tz[i], unit_clearance_at(i))) {
-			// A tree or a bush within a cliff's margin, where no walker stands: a gatherer that has
-			// come up to the margin within reach of it works from there, as MoveToTargetRange ends in
-			// range, instead of pressing on at the margin, where its walk would fail.
-			const float q = 0.5f * map_half_ / static_cast<float>(nav_grid_.steep_tile_res());
-			const float rdx = tx[i] - px[i], rdz = tz[i] - pz[i], rl = std::sqrt(rdx * rdx + rdz * rdz);
-			const float t = rl > q ? q / rl : 1.0f;
-			at_building = nav_grid_.near_steep_tile(px[i] + rdx * t, pz[i] + rdz * t, unit_clearance_at(i)) &&
-					walk_in_reach(i, px[i], pz[i]);
 		}
 		if (at_building) {
 			d2 = 0.0f; // in reach: stop here
@@ -11012,10 +11028,14 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (!backing_off && stop_d2 <= stop_dist * stop_dist) {
 			vx[i] = 0;
 			vz[i] = 0;
-			// UnitAI FaceTowardsTarget: a unit attacking, healing or repairing another faces it at once.
+			// UnitAI FaceTowardsTarget: a unit attacking, healing, repairing, or gathering faces target at once.
 			const uint8_t work = units_.action_state[i];
 			if ((work == ACTION_ATTACK || work == ACTION_HEAL || work == ACTION_REPAIR) &&
 					units_.target_unit_id[i] != 0 && !using_path && d2 > 1e-6f) {
+				const float inv_d = 1.0f / std::sqrt(d2);
+				units_.heading_x[i] = dx * inv_d;
+				units_.heading_z[i] = dz * inv_d;
+			} else if (work == ACTION_GATHER && units_.target_resource_id[i] != 0 && d2 > 1e-6f) {
 				const float inv_d = 1.0f / std::sqrt(d2);
 				units_.heading_x[i] = dx * inv_d;
 				units_.heading_z[i] = dz * inv_d;
@@ -11065,9 +11085,17 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					steer_line_blocked(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z), nav::BUILDING_STEER_RANGE, clear,
 							units_.target_building_id[i]),
 					near_gaia,
-					gaia_in_the_way(px[i], pz[i], aim_x, aim_z, GAIA_STEER_REACH, clear, units_.target_building_id[i]),
-					[&](std::vector<SteerObstacle> &out) { gaia_obstacles_near(px[i], pz[i], GAIA_STEER_REACH, out); },
-					GAIA_STEER_REACH, units_.target_building_id[i], nav_grid_, short_path_key_, memo, steer,
+					gaia_in_the_way(px[i], pz[i], aim_x, aim_z, GAIA_STEER_REACH, clear, units_.action_state[i] == ACTION_GATHER ? units_.target_resource_id[i] : units_.target_building_id[i]),
+					[&](std::vector<SteerObstacle> &out) {
+						gaia_obstacles_near(px[i], pz[i], GAIA_STEER_REACH, out);
+						if (units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0) {
+							const uint32_t own_res = units_.target_resource_id[i];
+							out.erase(std::remove_if(out.begin(), out.end(), [own_res](const SteerObstacle &o) {
+								return o.id == own_res;
+							}), out.end());
+						}
+					},
+					GAIA_STEER_REACH, units_.action_state[i] == ACTION_GATHER ? units_.target_resource_id[i] : units_.target_building_id[i], nav_grid_, short_path_key_, memo, steer,
 					&short_path_search_[i])) {
 				const float sdx = steer.x - px[i];
 				const float sdz = steer.y - pz[i];
@@ -11396,7 +11424,23 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const uint32_t ignore = units_.target_unit_id[i];
 		const uint32_t group = crew[i];
 		auto obstructs = [&](int32_t j) {
-			return (size_t)j != i && idle[j] && units_.id[j] != ignore && !(group && crew[j] == group);
+			if ((size_t)j == i || !idle[j] || units_.id[j] == ignore) return false;
+			if (group && crew[j] == group) return false;
+			// Gatherers approaching or returning from nearby resources can push/nudge each other
+			// rather than treating fellow gatherers as hard infinite-collision walls
+			if (units_.action_state[i] == ACTION_GATHER && units_.action_state[j] == ACTION_GATHER) {
+				const uint32_t ri = units_.target_resource_id[i], rj = units_.target_resource_id[j];
+				if (ri != 0 && rj != 0) {
+					auto r_it1 = res_id_to_idx_.find(ri);
+					auto r_it2 = res_id_to_idx_.find(rj);
+					if (r_it1 != res_id_to_idx_.end() && r_it2 != res_id_to_idx_.end()) {
+						const float rdx = resources_.x[r_it1->second] - resources_.x[r_it2->second];
+						const float rdz = resources_.z[r_it1->second] - resources_.z[r_it2->second];
+						if (rdx * rdx + rdz * rdz <= 16.0f * 16.0f) return false;
+					}
+				}
+			}
+			return true;
 		};
 		auto step_blocked = [&](float ex, float ez) {
 			const float reach = det::hypot(ex - x0, ez - z0) + ci + c_max;
@@ -11516,6 +11560,13 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		thread_local std::vector<SteerObstacle> near_gaia; // and round the trees as move_units steers
 		near_gaia.clear();
 		gaia_obstacles_near(x0, z0, GAIA_STEER_REACH, near_gaia);
+		if (units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0) {
+			const uint32_t own_res = units_.target_resource_id[i];
+			near_gaia.erase(std::remove_if(near_gaia.begin(), near_gaia.end(), [own_res](const SteerObstacle &o) {
+				return o.id == own_res;
+			}), near_gaia.end());
+			if (building == 0) building = own_res;
+		}
 		if (!nav::search_short_path_with_units(pos, aim, goal, unit_clearance_at(i), ci, range,
 				nav::ConcatRange<SteerObstacle>{steer_obstacles_, near_gaia}, building, squares, nav_grid_, w, next)) {
 			if (obstructed) memo = ShortPathMemo{x0, z0, aim.x, aim.y, stuck_key};
@@ -11568,7 +11619,9 @@ uint32_t Simulation::control_group(size_t i) const {
 	const auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
 	if (rit == res_id_to_idx_.end()) return 0;
 	const uint8_t type = resources_.type[rit->second], sub = resources_.subtype[rit->second];
-	if ((type != RES_GOLD && type != RES_STONE) || (sub != RES_SUB_NONE && sub != RES_SUB_RUINS)) return 0; // mine_footprint's mines
+	// Mines as well as stationary berry/fruit bushes and tree patches share a control group
+	// so gatherers working the same resource do not hard-block each other into infinite collision loops.
+	if (type == RES_FOOD && sub == RES_SUB_FISH) return 0;
 	return 0x80000000u | units_.target_resource_id[i];
 }
 
@@ -12130,8 +12183,12 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		// dropsite. A boat's fish are on its own sea, so its walks to them don't fail this way.
 		// Only a unit still walking to its supply goes: one already harvesting it (0 A.D. GATHER
 		// GATHERING has no likelyFailure handler) keeps at it even if pushes wedge it in place.
-		if (move_failed && units_.order_kind[i] == ORDER_GATHER && units_.action_state[i] == ACTION_GATHER &&
-				units_.target_resource_id[i] != 0 && !unit_is_ship(units_.unit_type[i])) {
+		// 0 A.D. GATHER.APPROACHING MovementUpdate with likelyFailure / obstructed:
+		// If gatherer cannot make progress because other gatherers block the way, trigger FINDINGNEWTARGET early (at 4 failed turns instead of 35).
+		const bool gather_stuck = (move_failed || m.failed >= 4) &&
+				units_.order_kind[i] == ORDER_GATHER && units_.action_state[i] == ACTION_GATHER &&
+				units_.target_resource_id[i] != 0 && !unit_is_ship(units_.unit_type[i]);
+		if (gather_stuck) {
 			if (auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
 					rit != res_id_to_idx_.end() &&
 					gather_in_reach(i, rit->second, units_.pos_x[i], units_.pos_z[i])) {

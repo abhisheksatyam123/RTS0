@@ -1329,6 +1329,11 @@ static const StringName &clip_name(ClipId id) {
 static ClipId gather_clip_for(uint8_t utype, uint8_t res_type, uint8_t subtype) {
 	if (utype == rtso::UNIT_HEALER) return CLIP_HEAL;
 	if (utype == rtso::UNIT_FISHING_BOAT) return CLIP_GATHER_FISH;
+	// 0 A.D. gathers meat from horseback: the rider leans down from the
+	// saddle. The cavalry's own "GatherMeat" is the biped gatherer's
+	// standing animation (the rider ends up above the horse), so the
+	// mounted attack, whose rider stays seated, is played instead.
+	if (rtso::unit_is_horse_cavalry(utype)) return CLIP_ATTACK;
 	switch (res_type) {
 		case rtso::RES_WOOD: return CLIP_GATHER_TREE;
 		case rtso::RES_GOLD: return CLIP_GATHER_ORE;
