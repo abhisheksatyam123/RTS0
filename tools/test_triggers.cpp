@@ -876,8 +876,8 @@ static void check_cinema_demo() {
 	CHECK(cinema::camera_at(cp, ps, ts, 2.0f, eye, look) && std::fabs(eye[0] - 10) < 1e-3f && std::fabs(eye[2] - 5) < 1e-3f,
 	      "camera at the middle node after its 2 s");
 	CHECK(!cinema::camera_at(cp, ps, ts, 5.1f, eye, look), "nothing past the end");
-	// DeletePath leaves a queued copy playing (0 A.D.'s queue holds copies); a deleted
-	// path that is not queued goes at once, and its name can be added again.
+	// DeletePath drops the path and every queued copy, the playing one too (m_PathQueue.remove_if):
+	// the next path takes over with the time already run, and a deleted name can be added again.
 	{
 		static Simulation q;
 		setup(q);
@@ -886,20 +886,23 @@ static void check_cinema_demo() {
 		q.add_cinema_path(other);
 		q.cinema_queue_path("test");
 		q.cinema_queue_path("other");
+		q.cinema_queue_path("test");
 		q.cinema_play();
+		for (int i = 0; i < 20; ++i) q.tick(Simulation::FIXED_STEP);
 		const uint32_t h0 = q.trigger_hash();
+		const uint32_t ended0 = q.trigger_event_calls(TRIGGER_ON_CINEMA_PATH_ENDED);
 		q.cinema_delete_path("test");
-		CHECK(!q.cinema_has_path("test") && q.cinema().queue.size() == 2 && q.cinema().paths.size() == 2 && q.trigger_hash() != h0,
-		      "a deleted queued path still plays");
-		for (int i = 0; i < 101; ++i) q.tick(Simulation::FIXED_STEP);
-		CHECK(q.cinema().paths.size() == 1 && q.cinema().queue.size() == 1 && q.cinema().queue[0] == 0 &&
-		      !std::strcmp(q.cinema().paths[0].info.name, "other"), "and is dropped once it has played");
+		CHECK(!q.cinema_has_path("test") && q.cinema().queue.size() == 1 && q.cinema().paths.size() == 1 &&
+		      q.cinema().queue[0] == 0 && !std::strcmp(q.cinema().paths[0].info.name, "other") && q.cinema_playing() &&
+		      q.cinema().path_elapsed_ms == 1000 && q.trigger_hash() != h0, "the deleted path leaves the queue, playing or not");
+		for (int i = 0; i < 81; ++i) q.tick(Simulation::FIXED_STEP);
+		CHECK(q.trigger_event_calls(TRIGGER_ON_CINEMA_PATH_ENDED) == ended0 + 1 && q.cinema().queue.empty(),
+		      "the next path ends 5 s after the deleted one started");
+		q.tick(Simulation::FIXED_STEP);
+		CHECK(!q.cinema_playing() && q.trigger_event_calls(TRIGGER_ON_CINEMA_QUEUE_ENDED) == 0, "the emptied queue stops quietly");
 		q.cinema_delete_path("other");
 		q.add_cinema_path(other);
-		CHECK(q.cinema().paths.size() == 2 && q.cinema_has_path("other") && q.cinema().queue[0] == 0, "a deleted name can be added again");
-		for (int i = 0; i < 101; ++i) q.tick(Simulation::FIXED_STEP);
-		CHECK(!q.cinema_playing() && q.cinema().paths.size() == 1 && q.trigger_event_calls(TRIGGER_ON_CINEMA_QUEUE_ENDED) == 1,
-		      "the queue ends with the deleted copy played out");
+		CHECK(q.cinema().paths.size() == 1 && q.cinema_has_path("other"), "a deleted name can be added again");
 	}
 	if (failures == before) std::printf("cinema_demo: notice at 1 s, a 5 s path from 6 s with the map revealed, saved mid-path: ok\n");
 }

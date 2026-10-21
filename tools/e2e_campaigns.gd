@@ -111,13 +111,30 @@ func run() -> void:
 	page.render()
 	page.select(1)
 	check(page.start_button.disabled, "the walkthrough cannot start before the tutorial is done")
+	check(page.info_preview.texture != null and page.info_preview.visible,
+		"the walkthrough, with no preview of its own, shows the no-preview picture")
 	page.select(0)
 	check(not page.start_button.disabled and page.info_name.text == "Introductory Tutorial", "the tutorial can start")
 	check(page.info_preview.texture != null, "with its map preview")
 
 	print("3. Start")
 	var ms = root.get_node("MatchSettings")
+	# Left over from an earlier Game Setup: a level starts from fresh settings (new GameSettings()).
+	ms.local_slot = 1
+	ms.pop_cap = 50
+	ms.start_res = 3
+	ms.game_speed = 2.0
+	ms.reveal_map = true
+	ms.ceasefire_min = 10
+	ms.record_replay = false
 	page.start_level("introduction")
+	check(ms.local_slot == 0 and ms.pop_cap == 300 and ms.start_res == 1 and ms.game_speed == 1.0 and not ms.reveal_map
+		and ms.ceasefire_min == 0, "the level starts from default settings in seat 1: slot %d pop %d res %d speed %s" % [
+		ms.local_slot, ms.pop_cap, ms.start_res, ms.game_speed])
+	check(not ms.record_replay, "the replay flag is not a match setting")
+	ms.record_replay = true
+	check(ms.slot_names.size() == 1 and ms.slot_names[0] == load("res://scenes/menu/gamesetup.gd").singleplayer_name(),
+		"the local player has the single-player name: " + str(ms.slot_names))
 	check(ms.map_id == "introductory_tutorial" and ms.campaign_run == made.filename and ms.campaign_level == "introduction",
 		"the match is set up for the tutorial and the run: %s %s %s" % [ms.map_id, ms.campaign_run, ms.campaign_level])
 	check(ms.campaign_map_name == "Introductory Tutorial", "the map is named by the level (startScenario mapName): " + ms.campaign_map_name)
