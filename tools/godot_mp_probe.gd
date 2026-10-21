@@ -112,8 +112,10 @@ func _run() -> void:
 				await _wait(0.5)
 				var top = lobby._games.get_root()
 				# late=1: a watcher who joins once the game runs.
-				var running: bool = lobby._rooms.any(func(r): return str(r.get("id", "")) == "room-%d" % port
-						and str(r.get("state", "init")) != "init")
+				var running := false
+				for r in lobby._rooms:
+					if str(r.get("id", "")) == "room-%d" % port and str(r.get("state", "init")) != "init":
+						running = true
 				if top and (running or not late):
 					for it in top.get_children():
 						if str(it.get_metadata(0)) == "room-%d" % port:
