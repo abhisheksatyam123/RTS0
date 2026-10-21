@@ -74,7 +74,8 @@ static func _added(t: Texture2D, add: Color) -> Texture2D:
 ## with StoneButton buttons (the selected stone on hover, add_color 60 42 42 pressed,
 ## 42 42 42 disabled; no trims), plus the GenericPanel (session/sprites.xml
 ## genericPanel: modern/background.png stretched inside global/border's lines),
-## ModernDarkBoxGold and ChatPanel (sans-13 white, buffer_zone 5) variations.
+## ModernDarkBoxGold, ChatPanel (sans-13 white, buffer_zone 5), TutorialPanel and
+## ModernFade variations.
 static func session_theme() -> Theme:
 	if _session == null:
 		_session = _build_session()
@@ -109,6 +110,20 @@ static func _build_session() -> Theme:
 	t.set_font_size("normal_font_size", "ChatPanel", 13)
 	t.set_font_size("bold_font_size", "ChatPanel", 13)
 	t.set_color("default_color", "ChatPanel", Color.WHITE)
+	# TutorialPanel: ModernDarkBox with its gold edges, buffer_zone 8, white 14.
+	t.set_type_variation("TutorialPanel", "RichTextLabel")
+	var tut: StyleBoxFlat = modern._dark_box(modern.GOLD, modern.DARK_BOX, 8)
+	tut.content_margin_top = 8
+	tut.content_margin_bottom = 8
+	t.set_stylebox("normal", "TutorialPanel", tut)
+	t.set_font_size("normal_font_size", "TutorialPanel", 14)
+	t.set_font_size("bold_font_size", "TutorialPanel", 14)
+	t.set_color("default_color", "TutorialPanel", Color.WHITE)
+	# ModernFade: 0 0 0 85 behind a panel.
+	var fade := StyleBoxFlat.new()
+	fade.bg_color = Color8(0, 0, 0, 85)
+	t.set_type_variation("ModernFade", "Panel")
+	t.set_stylebox("panel", "ModernFade", fade)
 	t.set_font_size("font_size", "Label", 14)
 	t.set_font_size("font_size", "OptionButton", 14)
 	t.set_font_size("font_size", "LineEdit", 13)
