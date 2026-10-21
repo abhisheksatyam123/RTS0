@@ -43,3 +43,4 @@ None of these touches simulation state or the save format.
 - 2026-10-20 #1504 pass 13 gap 5 (the lobby server keeps a game's name, map name and victory list up to 256 characters and up to 72 names, so observers are listed in full) merged.
 - 2026-10-20 #1504 pass 13 gap 6 (the details' Host line is the plain lobby nick, as hostUsername) merged.
 - 2026-10-20 #1504 pass 13 gap 7 (a blank Player Name joins or hosts as "Anonymous", as SanitisePlayerName, and is not saved) merged.
+- 2026-10-20 #PR4 pass 13 gap 2 (a rejoiner or late watcher sees the "rejoining" box only while the world downloads, then the loading page for the game's map, then the match with "Synchronizing gameplay with other players…" until it has run the turns that went by, as NetClient's fake game start and NetworkStatusOverlay do; playtest_godot_mp gains a late-observer case) merged.

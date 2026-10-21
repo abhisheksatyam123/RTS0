@@ -1037,7 +1037,10 @@ void RtsoMain::update_net_status_overlay() {
 		return;
 	}
 	String status, loading;
-	if (client && !net_game_started_ && turn_mgr_.rejoin_syncing() && !net_host_.connectionLost()) {
+	// NetworkStatusOverlay join_syncing: once loaded, until the rejoiner has
+	// run the turns that went by while it loaded.
+	if (client && net_game_started_ && turn_mgr_.rejoin_catching_up() && !net_host_.connectionLost() &&
+			!(net_setup_.seq && net_setup_.setup.saved_game)) {
 		status = tr("Synchronizing gameplay with other players…");
 	} else if (net_game_started_ && !turn_mgr_.is_replaying() && turn_mgr_.current_turn() <= rtso::TurnManager::COMMAND_DELAY) {
 		// NMT_CLIENTS_LOADING: a saved game also waits on the clients still loading it.

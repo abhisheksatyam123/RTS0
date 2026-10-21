@@ -77,6 +77,7 @@ def main():
     for leave in ("join", "host"):
         ok = play(args, lobby, leave) and ok
     ok = play_saved(args, lobby) and ok
+    ok = play_late_observer(args, lobby) and ok
     ok = play_setup_leave(args, lobby) and ok
     ok = play_connect_timeout(args, lobby) and ok
     ok = play_connect_cancel(args, lobby) and ok
@@ -85,6 +86,54 @@ def main():
     server.shutdown()
     stun.close()
     return 0 if ok else 1
+
+
+def play_late_observer(args, lobby):
+    """0.28 NetClient's fake game start for a rejoiner: carol joins the running
+    match from the lobby to watch. The "rejoining" box shows only while the
+    world downloads, then the loading page for the game's map, then the match
+    with "Synchronizing gameplay with other players…" until she has caught up."""
+    print("[gmp] ---- a late observer joins the running match ----")
+    port = args.port + 5
+    def client(role, name, extra=()):
+        cmd = [args.godot, "--headless", "--path", ROOT, "-s", "res://tools/godot_mp_probe.gd", "--",
+               f"role={role}", f"name={name}", f"lobby={lobby}", f"port={port}", f"turns={args.turns}",
+               f"timeout={args.timeout}", f"stun={args.stun_port}", "lan=0", *extra]
+        if not args.no_firewall:
+            cmd.append("net_firewall=1")
+        log = tempfile.TemporaryFile(mode="w+")
+        p = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, text=True)
+        p.log = log
+        return p
+    host = client("host", "alice")
+    time.sleep(2.0)
+    join = client("join", "bob")
+    # carol waits in the lobby until the game is listed as running.
+    late = client("join", "carol", ("late=1", f"turns={args.turns // 2}"))
+    outs = {}
+    for role, p in (("late", late), ("join", join), ("host", host)):
+        try:
+            p.wait(timeout=args.timeout + 60)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            p.wait()
+        p.log.seek(0)
+        outs[role] = p.log.read()
+    line = next((l.split(" late done ", 1)[1] for l in gmp_lines(outs["late"]) if " late done " in l), "")
+    got = dict(kv.split("=", 1) for kv in line.split()) if line else {}
+    ok = (late.returncode == 0 and got.get("seat") == "-1" and got.get("rejoin_box") == "true"
+          and got.get("rejoin_loading") == "true" and got.get("box_after_loading") == "false"
+          and got.get("synchronizing") == "true" and got.get("title", "").startswith("Loading_"))
+    for l in gmp_lines(outs["late"]):
+        print("   " + l)
+    if ok:
+        print(f"[gmp] PASS carol joined the running match to watch: the rejoining box while the world came, "
+              f"then the loading page ({got['title'].replace('_', ' ')}), then \"Synchronizing gameplay with other "
+              f"players…\" until she caught up")
+        return True
+    print("\n".join(l for l in outs["late"].splitlines() if "NetHost" in l or "[gmp]" in l or "TurnManager" in l)[-4000:])
+    print(f"[gmp] FAIL late observer rc={late.returncode} got={got}")
+    return False
 
 
 def play_saved(args, lobby):
