@@ -45,13 +45,43 @@
 //     again from where it stands on its third failed turn; within 16 m of its goal it does neither.
 //     The pressure speed floor is the template walk speed when that is slower than 1.5 m/s, so a
 //     unit slowed by a modifier still walks at the floor.
+// 14. Animals push and are pushed like units: 0.28's CCmpUnitMotionManager holds every entity with
+//     UnitMotion, and template_unit_fauna.xml keeps template_unit.xml's blocking Obstruction. A
+//     walker whose line runs into a standing deer's body is nudged round it, sideways and never
+//     back, as one walking into an idle unit's body is, and the deer, standing, is not moved by a
+//     walker (Push never mixes moving and idle).
+// 15. Two of a player's sheep walking at each other on lines 0.1 apart part sideways, as two walkers
+//     do (test 9), and standing animals put on one spot spread out, as units do (test 2), a unit
+//     among them.
+// 16. An adult elephant (UnitMotion Weight 50, "large" class) pushes a spearman harder than he
+//     pushes it, and the pair parts by their clearances. A bull charging a soldier who stands still
+//     bites him: pushing never takes a melee pair out of range, as 0.28 measures range between the
+//     two obstructions.
+// 17. Animals whose obstruction does not block movement (BlockMovement false: chickens, rabbits,
+//     sharks, whales) push nobody and nobody pushes them; nor does a penned animal (garrisoned).
+//     A pushed animal never goes where it could not step itself (PushAdjust's CheckMovement): it
+//     stays off a structure.
+// 18. A herd under pushing pressure saved and loaded goes on as the original (0.28 serializes
+//     each animal's pushing pressure and failed movements).
+// 19. A player's sheep sent onto a standing ram or war elephant ends its walk near its point:
+//     UnitAI WALKING finishes a walk obstructed within DefaultRelaxedMaxRange (12 m) of its point,
+//     and on MoveFailed, so it doesn't walk in place against the body for good. A herded sheep and
+//     its herder push each other as any two walkers do (Push has no exception for an entity and the
+//     one it walks to); heading for its corral, the sheep is nudged round its herder standing in its
+//     way, and still gets into the corral.
+// 20. A boar or a bull charging an archer behind a line of idle spearmen bites it: the soldiers
+//     standing round an animal that stands at its target to bite don't push it out of reach.
 #define private public
 #include "simulation/simulation.h"
 #undef private
+#include "network/turn_manager.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <string>
+#include <unistd.h>
 #include <vector>
 
 using namespace rtso;
@@ -69,6 +99,19 @@ static void setup(Simulation &s) {
 }
 
 static int idx(const Simulation &s, uint32_t id) { return s.lookup_unit(id); }
+
+// A save file of this run's own in $TMPDIR (or /tmp), so runs side by side don't share one; empty
+// if none could be made.
+static std::string temp_save_path() {
+	const char *tmpdir = std::getenv("TMPDIR");
+	std::string tmpl = std::string(tmpdir && *tmpdir ? tmpdir : "/tmp") + "/rts0_test_unit_pushing_XXXXXX";
+	std::vector<char> name(tmpl.begin(), tmpl.end());
+	name.push_back('\0');
+	const int fd = mkstemp(name.data());
+	if (fd < 0) return std::string();
+	close(fd);
+	return std::string(name.data());
+}
 
 static float dist(const Simulation &s, int a, int b) {
 	return std::hypot(s.units_.pos_x[a] - s.units_.pos_x[b], s.units_.pos_z[a] - s.units_.pos_z[b]);
@@ -523,6 +566,302 @@ int main() {
 		s->units_.motion[wi].pressure = 200;
 		std::printf("  a walker at 0.30 under pressure 200 moves at %.3f (floor %.3f)\n", s->unit_move_speed(wi), 1.5f * FORMATION_METRE);
 		CHECK(std::fabs(s->unit_move_speed(wi) - 1.5f * FORMATION_METRE) < 1e-4f, "the pressure floor is the template speed's, not the modified one's");
+	}
+
+	// Animals (tests 14-18), north of the ones reset() puts on the map. An animal spawned with a
+	// long feeding time stands (LINGERING) for the whole test.
+	auto stand = [](Simulation &s, float x, float z, uint8_t type, uint8_t owner = GAIA_PLAYER) {
+		const uint32_t id = s.spawn_fauna(x, z, type, owner);
+		s.fauna_.state_timer[s.fauna_id_to_idx_.at(id)] = 1e6f;
+		return id;
+	};
+	auto fx = [](const Simulation &s, uint32_t id) { return s.fauna_.pos_x[s.fauna_id_to_idx_.at(id)]; };
+	auto fz = [](const Simulation &s, uint32_t id) { return s.fauna_.pos_z[s.fauna_id_to_idx_.at(id)]; };
+	auto fdist = [&](const Simulation &s, uint32_t a, uint32_t b) { return std::hypot(fx(s, a) - fx(s, b), fz(s, a) - fz(s, b)); };
+	{
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		const uint32_t deer = stand(*s, 0.0f, 40.0f, FAUNA_DEER);
+		const uint32_t w = s->spawn_unit(-10.0f, 40.2f, 0, UNIT_SWORDSMAN, 150.0f);
+		s->order_walk(&w, 1, 10.0f, 40.2f);
+		int arrived = -1;
+		float closest = 1e9f, aside = 0.0f, deer_moved = 0.0f;
+		for (int t = 1; t <= 400 && arrived < 0; ++t) {
+			s->tick(DT);
+			const int wi = idx(*s, w);
+			closest = std::min(closest, std::hypot(s->units_.pos_x[wi] - fx(*s, deer), s->units_.pos_z[wi] - fz(*s, deer)));
+			aside = std::max(aside, std::fabs(s->units_.pos_z[wi] - 40.2f));
+			deer_moved = std::max(deer_moved, std::hypot(fx(*s, deer), fz(*s, deer) - 40.0f));
+			if (!s->units_.has_order[wi]) arrived = t;
+		}
+		std::printf("  walker into a standing deer: done after %d ticks, closest %.2f, %.2f aside at most, deer moved %.3f\n",
+		            arrived, closest, aside, deer_moved);
+		CHECK(arrived > 0, "a walker gets past a standing deer");
+		// Its line passes 0.2 from the deer's centre: nudged round the deer, it passes further off.
+		CHECK(aside > 0.3f && closest > 0.3f, "nudged round it");
+		CHECK(deer_moved < 0.01f, "and the standing deer is not pushed by a walker");
+	}
+	{
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		uint32_t a = s->spawn_fauna(-8.0f, 40.0f, FAUNA_SHEEP_TRAINABLE, 0);
+		uint32_t b = s->spawn_fauna(8.0f, 40.1f, FAUNA_SHEEP_TRAINABLE, 0);
+		s->order_fauna_walk(0, &a, 1, 8.0f, 40.0f);
+		s->order_fauna_walk(0, &b, 1, -8.0f, 40.1f);
+		float closest = 1e9f, apart = 0.0f;
+		int done = -1;
+		for (int t = 0; t < 800 && done < 0; ++t) {
+			s->tick(DT);
+			closest = std::min(closest, fdist(*s, a, b));
+			apart = std::max(apart, std::fabs(fz(*s, a) - fz(*s, b)));
+			const size_t ia = s->fauna_id_to_idx_.at(a), ib = s->fauna_id_to_idx_.at(b);
+			if (s->fauna_.behavior[ia] != FAUNA_MOVING && s->fauna_.behavior[ib] != FAUNA_MOVING) done = t;
+		}
+		const float miss_a = std::hypot(fx(*s, a) - 8.0f, fz(*s, a) - 40.0f), miss_b = std::hypot(fx(*s, b) + 8.0f, fz(*s, b) - 40.1f);
+		std::printf("  two sheep head-on: %.2f apart sideways at most, %.2f at the closest, both stopped after %d ticks, %.2f and %.2f from their points\n",
+		            apart, closest, done, miss_a, miss_b);
+		CHECK(apart > 0.3f && closest > 0.5f, "walking animals pushing each other part sideways");
+		CHECK(done > 0 && miss_a < 1.0f && miss_b < 1.0f, "and both get where they were sent");
+
+		std::vector<uint32_t> heap;
+		for (int k = 0; k < 6; ++k) heap.push_back(stand(*s, 0.0f, 50.0f, FAUNA_DEER));
+		const uint32_t boar = stand(*s, 10.0f, 50.0f, FAUNA_BOAR);
+		const uint32_t pike = s->spawn_unit(10.0f, 50.05f, 0, UNIT_SPEARMAN, 150.0f);
+		for (int t = 0; t < 200; ++t) s->tick(DT);
+		float min_pair = 1e9f;
+		for (size_t i = 0; i < heap.size(); ++i)
+			for (size_t j = i + 1; j < heap.size(); ++j) min_pair = std::min(min_pair, fdist(*s, heap[i], heap[j]));
+		const int pi = idx(*s, pike);
+		const float boar_gap = std::hypot(s->units_.pos_x[pi] - fx(*s, boar), s->units_.pos_z[pi] - fz(*s, boar));
+		std::printf("  6 deer put on one spot: %.2f apart at least after 10 s; a spearman put on a boar: %.2f apart\n", min_pair, boar_gap);
+		CHECK(min_pair >= 1.0f, "standing animals put on one spot spread out");
+		CHECK(boar_gap >= 0.5f + unit_collision_radius(UNIT_SPEARMAN), "and a unit standing on an animal parts from it");
+	}
+	{
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		const uint32_t ele = stand(*s, 0.0f, 40.0f, FAUNA_ELEPHANT_AFRICAN_BUSH);
+		const uint32_t man = s->spawn_unit(0.3f, 40.0f, 0, UNIT_SPEARMAN, 150.0f);
+		for (int t = 0; t < 100; ++t) s->tick(DT);
+		const int m = idx(*s, man);
+		const float ele_moved = std::hypot(fx(*s, ele), fz(*s, ele) - 40.0f);
+		const float man_moved = std::hypot(s->units_.pos_x[m] - 0.3f, s->units_.pos_z[m] - 40.0f);
+		const float gap = std::hypot(s->units_.pos_x[m] - fx(*s, ele), s->units_.pos_z[m] - fz(*s, ele));
+		std::printf("  elephant and spearman on one spot: elephant moved %.2f, spearman %.2f, %.2f apart\n", ele_moved, man_moved, gap);
+		CHECK(man_moved > 3.0f * ele_moved, "an elephant (Weight 50) pushes a spearman harder than he pushes it");
+		CHECK(gap >= 1.4f + unit_collision_radius(UNIT_SPEARMAN), "and they part by their clearances");
+
+		// The bull stops within its reach of the spearman, who neither moves nor strikes back.
+		const uint32_t guard = s->spawn_unit(-20.0f, 40.0f, 0, UNIT_SPEARMAN, 150.0f);
+		const int gi = idx(*s, guard);
+		s->units_.stance[gi] = STANCE_STAND_GROUND;
+		s->units_.attack_damage[gi] = 0.0f;
+		const uint32_t bull = s->spawn_fauna(-12.0f, 40.0f, FAUNA_CATTLE_BULL);
+		s->tick(DT);
+		s->fauna_attacked(s->fauna_id_to_idx_.at(bull), guard);
+		int bitten = -1;
+		for (int t = 1; t <= 400 && bitten < 0; ++t) {
+			s->tick(DT);
+			if (s->units_.hp[idx(*s, guard)] < 150.0f) bitten = t;
+		}
+		std::printf("  a bull charging a spearman who stands still bites him after %d ticks\n", bitten);
+		CHECK(bitten > 0, "a bull charging a soldier who stands still bites him");
+	}
+	{
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		// A chicken, a whale and a sheep penned in its corral, each with a spearman on top: none of
+		// them is pushed, nor pushes him.
+		const uint32_t hen = stand(*s, -10.0f, 40.0f, FAUNA_CHICKEN);
+		const uint32_t whale = stand(*s, 0.0f, 40.0f, FAUNA_WHALE_HUMPBACK);
+		std::vector<uint32_t> men = {s->spawn_unit(-10.1f, 40.0f, 0, UNIT_SPEARMAN, 150.0f), s->spawn_unit(0.1f, 40.0f, 0, UNIT_SPEARMAN, 150.0f)};
+		const uint32_t corral = s->spawn_building_world(14.0f, 40.0f, BLD_CORRAL, 0, 1.0f);
+		const uint32_t penned = stand(*s, 14.0f, 40.0f, FAUNA_SHEEP_TRAINABLE, 0);
+		{
+			const size_t f = s->fauna_id_to_idx_.at(penned);
+			s->fauna_.behavior[f] = FAUNA_CORRALLED;
+			s->fauna_.corral_id[f] = corral;
+		}
+		// A barracks with a deer against its south side and a spearman standing on the deer's
+		// outer side: the push would put the deer into the barracks' clearance.
+		const uint32_t bar = s->spawn_building_world(0.0f, 60.0f, BLD_BARRACKS, 0, 1.0f);
+		const Simulation::Building &bb = s->buildings_[s->building_id_to_idx_.at(bar)];
+		const float edge = bb.z - bb.hv;
+		const uint32_t deer = stand(*s, 0.0f, edge - CLEARANCE_DEFAULT - 0.05f, FAUNA_DEER);
+		men.push_back(s->spawn_unit(0.0f, edge - CLEARANCE_DEFAULT - 0.1f, 0, UNIT_SPEARMAN, 150.0f));
+		std::vector<std::pair<float, float>> at;
+		for (uint32_t id : men) at.emplace_back(s->units_.pos_x[idx(*s, id)], s->units_.pos_z[idx(*s, id)]);
+		float deepest = 1e9f;
+		for (int t = 0; t < 100; ++t) {
+			s->tick(DT);
+			deepest = std::min(deepest, edge - fz(*s, deer));
+		}
+		auto moved = [&](size_t k) {
+			const int i = idx(*s, men[k]);
+			return std::hypot(s->units_.pos_x[i] - at[k].first, s->units_.pos_z[i] - at[k].second);
+		};
+		const float hen_moved = std::hypot(fx(*s, hen) + 10.0f, fz(*s, hen) - 40.0f), whale_moved = std::hypot(fx(*s, whale), fz(*s, whale) - 40.0f);
+		std::printf("  chicken moved %.3f and its spearman %.3f; whale %.3f and its spearman %.3f; deer by a barracks %.3f off it at the closest\n",
+		            hen_moved, moved(0), whale_moved, moved(1), deepest);
+		CHECK(hen_moved < 1e-4f && moved(0) < 1e-4f, "a chicken (BlockMovement false) neither pushes nor is pushed");
+		CHECK(whale_moved < 1e-4f && moved(1) < 1e-4f, "nor does a whale");
+		CHECK(s->fauna_.behavior[s->fauna_id_to_idx_.at(penned)] == FAUNA_CORRALLED, "a penned animal stays in its corral");
+		CHECK(moved(2) > 0.3f && deepest >= CLEARANCE_DEFAULT - 1e-3f, "a pushed animal stays off a structure, as its own steps do");
+	}
+	{
+		// A flock of a player's sheep sent to one point crowds there, building up pushing pressure.
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		std::vector<uint32_t> flock;
+		for (int k = 0; k < 12; ++k) flock.push_back(s->spawn_fauna(-10.0f + 1.2f * (k % 4), 36.0f + 1.2f * (k / 4), FAUNA_SHEEP_TRAINABLE, 0));
+		for (uint32_t id : flock) s->order_fauna_walk(0, &id, 1, 6.0f, 40.0f);
+		for (int t = 0; t < 120; ++t) s->tick(DT);
+		const std::string path = temp_save_path();
+		CHECK(s->save_state(path.c_str()), "a crowded flock saves");
+		auto t2 = std::make_unique<Simulation>();
+		CHECK(t2->load_state(path.c_str()), "and loads");
+		std::remove(path.c_str());
+		const uint32_t h0 = TurnManager().boot_sim_hash(*s), h1 = TurnManager().boot_sim_hash(*t2);
+		for (int t = 0; t < 200; ++t) {
+			s->tick(DT);
+			t2->tick(DT);
+		}
+		const uint32_t h2 = TurnManager().boot_sim_hash(*s), h3 = TurnManager().boot_sim_hash(*t2);
+		// Once every sheep has ended its walk (at its point, or obstructed near it by the others),
+		// the standing flock has spread out.
+		int walking = 1, t_settled = 200;
+		for (; walking && t_settled < 1200; ++t_settled) {
+			s->tick(DT);
+			walking = 0;
+			for (uint32_t id : flock) walking += s->fauna_.behavior[s->fauna_id_to_idx_.at(id)] == FAUNA_MOVING;
+		}
+		for (int t = 0; t < 100; ++t) s->tick(DT);
+		float min_pair = 1e9f;
+		for (size_t i = 0; i < flock.size(); ++i)
+			for (size_t j = i + 1; j < flock.size(); ++j) min_pair = std::min(min_pair, fdist(*s, flock[i], flock[j]));
+		std::printf("  flock of 12 sent to one point: hashes %08x %08x on load, %08x %08x 10 s on; all stopped %.1f s after the load, %.2f apart at least 5 s later\n",
+		            h0, h1, h2, h3, t_settled * DT, min_pair);
+		CHECK(h0 == h1 && h2 == h3, "a saved flock goes on as before after a load");
+		CHECK(!walking && min_pair >= 0.9f, "a flock sent to one point stops, and doesn't stand on itself");
+	}
+	for (const UnitType body : {UNIT_SIEGE_RAM, UNIT_ELEPHANT}) {
+		// A player's sheep sent to the point a ram or a war elephant stands on.
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		const uint32_t big = s->spawn_unit(10.0f, 40.0f, 0, body, 1000.0f);
+		uint32_t sheep = s->spawn_fauna(0.0f, 40.0f, FAUNA_SHEEP_TRAINABLE, 0);
+		s->order_fauna_walk(0, &sheep, 1, 10.0f, 40.0f);
+		// Saved and loaded on each of the 8 ticks from when it first gets no nearer its point over 4
+		// ticks, near it (a turn or two before its walk ends), each copy ends its walk on the same tick.
+		std::vector<std::unique_ptr<Simulation>> copies;
+		std::vector<int> copy_ended;
+		int ended = -1, saved = 0, first_save = -1;
+		float miss = -1.0f, body_moved = -1.0f; // when the walk ends
+		float to_go[4] = {10.0f, 10.0f, 10.0f, 10.0f}; // how far it was from its point, 4 ticks back
+		const float turn_step = fauna_type_info(FAUNA_SHEEP_TRAINABLE).speed * 4.0f * DT;
+		auto copies_walking = [&]() {
+			for (int e : copy_ended)
+				if (e < 0) return true;
+			return false;
+		};
+		for (int t = 1; t <= 1200 && (ended < 0 || copies_walking()); ++t) {
+			s->tick(DT);
+			for (size_t k = 0; k < copies.size(); ++k) {
+				copies[k]->tick(DT);
+				if (copy_ended[k] < 0 && copies[k]->fauna_.behavior[copies[k]->fauna_id_to_idx_.at(sheep)] != FAUNA_MOVING) copy_ended[k] = t;
+			}
+			const size_t f = s->fauna_id_to_idx_.at(sheep);
+			if (ended < 0 && s->fauna_.behavior[f] != FAUNA_MOVING) {
+				ended = t;
+				const int bi = idx(*s, big);
+				miss = std::hypot(fx(*s, sheep) - 10.0f, fz(*s, sheep) - 40.0f);
+				body_moved = std::hypot(s->units_.pos_x[bi] - 10.0f, s->units_.pos_z[bi] - 40.0f);
+			}
+			const float d = std::hypot(fx(*s, sheep) - 10.0f, fz(*s, sheep) - 40.0f), gained = to_go[t % 4] - d;
+			to_go[t % 4] = d;
+			if (first_save < 0 && ended < 0 && t > 4 && gained < 0.15f * turn_step && d < 3.0f) first_save = t;
+			if (first_save >= 0 && ended < 0 && t < first_save + 8) {
+				const std::string path = temp_save_path();
+				auto copy = std::make_unique<Simulation>();
+				if (s->save_state(path.c_str()) && copy->load_state(path.c_str())) {
+					++saved;
+					copies.push_back(std::move(copy));
+					copy_ended.push_back(-1);
+				}
+				std::remove(path.c_str());
+			}
+		}
+		bool same = saved > 0;
+		for (int e : copy_ended) same = same && e == ended;
+		std::printf("  saved and loaded on %d ticks as it stood against the body: every copy ended its walk on the same tick: %s\n", saved,
+		            same ? "yes" : "no");
+		CHECK(saved >= 4 && same, "a sheep walking into a standing body goes on as before after a load");
+		std::printf("  sheep sent onto a standing %s: walk ended after %.2f s (-1: still walking at 60 s), %.2f from its point; the %s moved %.3f\n",
+		            body == UNIT_ELEPHANT ? "war elephant" : "ram", ended < 0 ? -1.0f : ended * DT, miss, body == UNIT_ELEPHANT ? "elephant" : "ram", body_moved);
+		CHECK(ended > 0 && ended * DT < 15.0f && miss <= 3.0f, "a walk onto a standing body ends near its point (UnitAI WALKING, relaxed range)");
+		CHECK(body_moved >= 0.0f && body_moved < 0.01f, "and the standing body is not pushed by the walker");
+	}
+	{
+		// A villager herds a sheep that stands beside him to his corral on his other side: the sheep
+		// heads for the corral past him as he walks to where it stood. Herding is RTS0's own (0.28
+		// has no herding order), and 0.28's Push has no exception for an entity and the one it walks
+		// to (CCmpUnitMotion_System.cpp:671-687; specificIgnore, CCmpUnitMotion.h:1231-1237, only
+		// keeps the target out of the walker's own obstruction tests), so the two push each other as
+		// two walkers do. The sheep's move is to the corral, not to him, so once he stands in its way
+		// it is nudged round him, and it still gets into the corral.
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		s->spawn_building_world(-12.0f, 40.0f, BLD_CORRAL, 0, 1.0f);
+		const uint32_t herder = s->spawn_unit(0.0f, 40.0f, 0, UNIT_VILLAGER, 100.0f);
+		const uint32_t sheep = s->spawn_fauna(1.5f, 40.0f, FAUNA_SHEEP_TRAINABLE, 0);
+		s->order_herd(&herder, 1, sheep);
+		const size_t f = s->fauna_id_to_idx_.at(sheep);
+		float off_line = 0.0f, closest = 1e9f;
+		int herder_pressure = 0, sheep_pressure = 0, penned = -1;
+		for (int t = 1; t <= 600 && penned < 0; ++t) {
+			s->tick(DT);
+			if (s->fauna_.behavior[f] == FAUNA_CORRALLED) {
+				penned = t;
+				break;
+			}
+			off_line = std::max(off_line, std::fabs(s->fauna_.pos_z[f] - 40.0f));
+			const int hi = idx(*s, herder);
+			closest = std::min(closest, std::hypot(s->units_.pos_x[hi] - s->fauna_.pos_x[f], s->units_.pos_z[hi] - s->fauna_.pos_z[f]));
+			herder_pressure = std::max<int>(herder_pressure, s->units_.motion[hi].pressure);
+			sheep_pressure = std::max<int>(sheep_pressure, s->fauna_pressure_[f]);
+		}
+		std::printf("  a herded sheep walking past its herder: %.3f off its line at most, %.2f from him at the closest, pressure up to %d (herder) "
+		            "and %d (sheep); penned after %.2f s (-1: not in 30 s)\n",
+		            off_line, closest, herder_pressure, sheep_pressure, penned < 0 ? -1.0f : penned * DT);
+		CHECK(herder_pressure > 0 && sheep_pressure > 0, "a herded animal and its herder push each other as two walkers do");
+		CHECK(off_line > 0.3f, "a herded animal heading for its corral is nudged round its herder standing in its way");
+		CHECK(penned > 0, "and it still gets into its corral");
+	}
+	for (const uint8_t beast : {FAUNA_BOAR, FAUNA_CATTLE_BULL}) {
+		// An archer stands 1.5 behind a line of five idle spearmen 1.2 apart, and an animal it hit
+		// charges it from the far side of the line.
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		std::vector<uint32_t> line;
+		for (int k = 0; k < 5; ++k) line.push_back(s->spawn_unit(0.0f, 40.0f + 1.2f * (k - 2), 0, UNIT_SPEARMAN, 150.0f));
+		const uint32_t archer = s->spawn_unit(-1.5f, 40.0f, 0, UNIT_ARCHER, 150.0f);
+		line.push_back(archer);
+		for (uint32_t id : line) {
+			const int i = idx(*s, id);
+			s->units_.stance[i] = STANCE_STAND_GROUND;
+			s->units_.attack_damage[i] = 0.0f;
+		}
+		const uint32_t animal = s->spawn_fauna(10.0f, 40.3f, beast);
+		s->tick(DT);
+		s->fauna_attacked(s->fauna_id_to_idx_.at(animal), archer);
+		int bitten = -1;
+		for (int t = 1; t <= 600 && bitten < 0; ++t) {
+			s->tick(DT);
+			if (s->units_.hp[idx(*s, archer)] < 150.0f) bitten = t;
+		}
+		std::printf("  %s charging an archer behind a line of spearmen: bites after %.2f s (-1: not in 30 s)\n", fauna_type_info(beast).name,
+		            bitten < 0 ? -1.0f : bitten * DT);
+		CHECK(bitten > 0, "an animal charging a unit behind a line of idle soldiers bites it");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
