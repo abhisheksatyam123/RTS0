@@ -202,7 +202,12 @@ static void test_save_load(const char *path) {
 	run(l, 6.4f);
 	check(pack_of(l, a) == PACK_UNPACKED, "loaded game finishes the unpack on time");
 	s.order_pack(&a, 1, true);
-	check(pack_of(s, a) == PACK_PACKED, "Pack during an unpack cancels it");
+	check(pack_of(s, a) == PACK_UNPACKING, "Pack leaves an engine that is unpacking alone (CanPack)");
+	s.order_pack(&a, 1, true, true);
+	check(pack_of(s, a) == PACK_PACKED, "Cancel Unpack takes it back to packed");
+	s.order_walk(&b, 1, 20, 0);
+	s.order_pack(&b, 1, true);
+	check(s.unit_order(b).kind == ORDER_WALK, "Pack leaves a packed engine walking on");
 	std::remove(path);
 }
 
