@@ -7180,6 +7180,18 @@ static void test_worker_plans_wait() {
 	CHECK(waits_for_money, "an unpaid soldier plan waits in its queue");
 	CHECK(waits_for_room, "a batch waits for room for all of it");
 	CHECK(trained == 3 && plans.empty(), "the plan then trains its whole batch");
+	// The first plans shrink to the batch size only when trainMoreWorkers runs (every 4th turn).
+	plans.push_back({spear, 5, 1});
+	acc = {};
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 0.0f;
+	while (s->petra_turn_mod(4, 0)) s->ticks_ += 4;
+	s->petra_train_more_workers();
+	const int off_turn = plans.empty() ? -1 : plans[0].count;
+	while (!s->petra_turn_mod(4, 0)) s->ticks_ += 4;
+	s->petra_train_more_workers();
+	const int on_turn = plans.empty() ? -1 : plans[0].count;
+	std::printf("  a queued batch of 5 between trainMoreWorkers turns: %d, on its turn: %d\n", off_turn, on_turn);
+	CHECK(off_turn == 5 && on_turn >= 1 && on_turn < 5, "queued batches shrink on trainMoreWorkers' turn only");
 }
 
 static void test_strength_prepare_time() {

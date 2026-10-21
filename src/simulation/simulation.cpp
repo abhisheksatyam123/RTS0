@@ -21882,24 +21882,26 @@ int Simulation::petra_train_more_workers() {
 			else if (o.unit_type == UNIT_FISHING_BOAT) workers += o.count;
 		}
 	}
+	// headquarters.js:2281-2283: trainMoreWorkers runs every 4th turn, with an active base (the
+	// shortfall counts every turn).
+	const bool due = petra_turn_mod(4, 0) && petra_has_active_base();
 	// Anticipate the batch size and shrink the first two queued plans of each queue to it
 	// (a recovery after heavy losses).
 	const int size = workers < 12 ? 1 : std::min(5, (workers + 9) / 10);
 	auto &plans = petra_worker_plans_[petra_pid_];
 	int queued[2] = {0, 0}, seen[2] = {0, 0};
 	for (PetraWorkerPlan &p : plans) {
-		if (seen[p.queue]++ < 2) p.count = (uint8_t)std::min<int>(p.count, size);
+		if (due && seen[p.queue]++ < 2) p.count = (uint8_t)std::min<int>(p.count, size);
 		queued[p.queue] += p.count;
 	}
 	const int total = workers + queued[0] + queued[1];
 	const int target = petra_target_workers();
 	const int shortfall = std::max(0, target - total);
+	if (!due) return shortfall;
 	if (petra_attack_mgr_.save_resources && total > petra_pop_phase2() + 10) return shortfall;
 	const bool researching_town = research_check(petra_pid_, TECH_PHASE_TOWN) == TECH_ERR_IN_PROGRESS;
 	if (total > target || (total >= petra_pop_phase2() && petra_ps().phase == 1 && !researching_town)) return shortfall;
 	if (queued[0] + queued[1] > 50 || (queued[0] > 20 && queued[1] > 20) || in_training > 15) return shortfall;
-	// headquarters.js:2281-2283: every 4th turn, with an active base.
-	if (!petra_turn_mod(4, 0) || !petra_has_active_base()) return shortfall;
 	if (plans.size() >= MAX_PETRA_WORKER_PLANS) return shortfall;
 
 	// config.js Economy.supportRatio by difficulty; alpha lower while rushes are still to come
