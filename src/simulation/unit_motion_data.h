@@ -11,7 +11,7 @@ struct UnitMotionProfile {
 	float footprint_width, footprint_depth; // Footprint (circle: its diameter), metres
 };
 
-inline constexpr uint16_t MOTION_TEMPLATE_COUNT = 545; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t MOTION_TEMPLATE_COUNT = 548; // = CIV_UNIT_TEMPLATE_COUNT
 inline const UnitMotionProfile *motion_template_table() {
 	static const UnitMotionProfile kTable[MOTION_TEMPLATE_COUNT] = {
 		{11.214f, 1.5f, 10.0f, 0.0707f, 3.0f, 6.0f}, // athen/cavalry_javelineer_b
@@ -559,6 +559,9 @@ inline const UnitMotionProfile *motion_template_table() {
 		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // germ/infantry_swordsman_a
 		{12.46f, 1.5f, 14.0f, 0.0707f, 3.0f, 3.0f}, // germ/support_healer_e
 		{12.46f, 1.5f, 1.0f, 0.0707f, 3.0f, 3.0f}, // plane
+		{12.46f, 1.5f, 14.0f, 0.0707f, 16.0f, 16.0f}, // campaigns/army_mace_hero_alexander
+		{12.46f, 1.5f, 8.0f, 0.0707f, 16.0f, 16.0f}, // campaigns/army_mace_standard
+		{12.46f, 1.5f, 14.0f, 0.0707f, 16.0f, 16.0f}, // campaigns/army_spart_hero_leonidas
 	};
 	return kTable;
 }

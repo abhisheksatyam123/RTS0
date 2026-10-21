@@ -312,6 +312,7 @@ constexpr uint8_t NDR_INCORRECT_PROTOCOL_VERSION = 3;
 // 0 A.D. NetMessages.h: the handshake response flag of a host that checks a
 // joiner's name with the lobby.
 constexpr uint32_t PS_NETWORK_FLAG_REQUIRE_LOBBYAUTH = 0x1;
+constexpr uint8_t NDR_SERVER_LOADING = 4; // a join while the host's game loads
 constexpr uint8_t NDR_SERVER_ALREADY_IN_GAME = 5; // a late observer the host does not take
 constexpr uint8_t NDR_PLAYERNAME_IN_USE = 8;
 constexpr uint8_t NDR_SERVER_FULL = 9;
@@ -442,6 +443,7 @@ struct GameSetupParams {
 	uint8_t trigger_difficulty = 3; // 0 A.D. TriggerDifficulty: 1 Very Easy .. 5 Very Hard
 	uint8_t daytime = 0;        // 0 A.D. Daytime: 0 = the map picks, else the map's option (1-based)
 	uint8_t sea_rise_min = 25; // Extinct Volcano: minutes until the water rises, 0..60 (0 A.D. SeaLevelRiseTime)
+	std::string map_filter; // the setup's Map Filter id (0 A.D. GuiData mapFilter), shown to every client; no sim effect
 	uint16_t map_size = 128; // random-map width in meters, 128..512
 	uint8_t difficulty = 3; // Petra 0..5 sandbox..very hard
 	uint8_t behavior = 0;   // Petra 0..3 random/def/bal/agg (player_defaults.json: random)
@@ -553,6 +555,7 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	if (p.trigger_difficulty != 3) s += ";trigdiff=" + std::to_string((unsigned)p.trigger_difficulty);
 	if (p.daytime) s += ";daytime=" + std::to_string((unsigned)p.daytime);
 	s += ";searise=" + std::to_string((unsigned)p.sea_rise_min);
+	if (!p.map_filter.empty()) s += ";mapfilter=" + p.map_filter;
 	s += ";mapsize=" + std::to_string((unsigned)p.map_size);
 	s += ";diff=" + std::to_string((unsigned)p.difficulty);
 	s += ";behavior=" + std::to_string((unsigned)p.behavior);
@@ -700,6 +703,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "trigdiff") { uint8_t x; if (detail::parse_u8(v, 1, 5, x)) out.trigger_difficulty = x; }
 			else if (k == "daytime") { uint8_t x; if (detail::parse_u8(v, 0, 2, x)) out.daytime = x; }
 			else if (k == "searise") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.sea_rise_min = x; }
+			else if (k == "mapfilter" && v.size() <= 32 && v.find_first_not_of("abcdefghijklmnopqrstuvwxyz_") == std::string::npos) out.map_filter = v;
 			else if (k == "popcap" && !v.empty() && v.size() <= 4 && v.find_first_not_of("0123456789") == std::string::npos) {
 				unsigned x = (unsigned)std::stoul(v);
 				if (x <= 1000) out.pop_cap = (uint16_t)x;

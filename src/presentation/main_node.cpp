@@ -608,6 +608,9 @@ void RtsoMain::toggle_diplomacy_colors() {
 	rtso::display_colors::toggle();
 	if (minimap_view) minimap_view->queue_redraw();
 	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
+	// registerDiplomacyColorsChangeHandler(PlayerViewControl.rebuild).
+	refresh_player_view_colors(replay_view_picker_);
+	refresh_player_view_colors(observer_view_picker_);
 }
 
 // 0 A.D. ChatMessageFormatSimulation: who sees which tribute, barter, phase and
@@ -994,6 +997,7 @@ void RtsoMain::update_net_status_overlay() {
 		switch (net_host_.disconnectReason()) {
 			case 2: why = tr("The host has ended the game."); break;
 			case rtso::NDR_INCORRECT_PROTOCOL_VERSION: why = tr("Incorrect network protocol version."); break;
+			case rtso::NDR_SERVER_LOADING: why = tr("Game is loading, please try again later."); break;
 			case 6: why = tr("You have been kicked."); break;
 			case 7: why = tr("You have been banned."); break;
 			case rtso::NDR_PLAYERNAME_IN_USE: why = tr("Player name in use. If you were disconnected, retry in few seconds."); break;
@@ -1086,7 +1090,8 @@ void RtsoMain::_on_disconnected_exit_pressed() {
 // the kicked message, as ChatMessageFormatNetwork words them.
 void RtsoMain::post_network_chat() {
 	auto who = [&](const rtso::PlayerAssignmentMsg::Entry &e) {
-		String name = String::utf8(e.name.empty() ? rtso::peer_guid(e.client).c_str() : e.name.c_str()).replace("[", "[lb]");
+		// colorizePlayernameByGUID: "Unknown Player" for a client without a name.
+		String name = (e.name.empty() ? tr("Unknown Player") : String::utf8(e.name.c_str())).replace("[", "[lb]");
 		if (e.player >= rtso::MAX_PLAYERS || !sim) return name;
 		const uint32_t rgb = rtso::display_colors::rgb(*sim, e.player);
 		return "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + name + "[/color]";
@@ -1446,6 +1451,13 @@ bool RtsoMain::spectating() const {
 	return seat >= rtso::MAX_PLAYERS || sim->is_defeated(seat) || sim->is_victory_for(seat);
 }
 
+bool RtsoMain::orders_allowed() const {
+	if (turn_mgr_.is_replaying() || !sim) return false;
+	if (!spectating()) return true;
+	const uint8_t seat = seat_player();
+	return seat < rtso::MAX_PLAYERS && !sim->is_defeated(seat) && view_player() == seat;
+}
+
 // 0 A.D. session "viewPlayer" dropdown (gui/session/top_panel/PlayerViewControl):
 // an observer, or a player once defeated or victorious (isPlayerObserver), watches
 // the whole map or follows one player's sight and panels. A loss switches the view
@@ -1506,6 +1518,25 @@ void RtsoMain::_on_observer_view_selected(int index) {
 }
 
 // Gaia sees everything, so its view is the observer's (as in a replay).
+// PlayerViewControl.onPlayersFinished: when the viewed player loses, an observer's or a
+// replay's view goes to Observer; a winner stays viewed.
+void RtsoMain::follow_viewed_player_finish() {
+	if (!sim) return;
+	int finished = 0, lost = 0;
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+		if (sim->is_defeated(p)) lost |= 1 << p;
+		if (sim->is_defeated(p) || sim->is_victory_for(p)) finished |= 1 << p;
+	}
+	const int fresh = finished_seen_ < 0 ? 0 : lost & ~finished_seen_;
+	finished_seen_ = finished;
+	if (!fresh) return;
+	if (turn_mgr_.is_replaying()) {
+		if (replay_view_ < rtso::MAX_PLAYERS && (fresh & (1 << replay_view_))) set_replay_view(-1);
+	} else if (spectating() && observer_view_ < rtso::MAX_PLAYERS && (fresh & (1 << observer_view_))) {
+		set_observer_view(-1);
+	}
+}
+
 void RtsoMain::set_observer_view(int player) {
 	observer_view_gaia_ = player == rtso::GAIA_PLAYER;
 	observer_view_ = player >= 0 && player < rtso::MAX_PLAYERS ? (uint8_t)player : rtso::OBSERVER_VIEW;
@@ -1515,6 +1546,8 @@ void RtsoMain::set_observer_view(int player) {
 
 void RtsoMain::sync_observer_view_picker() {
 	if (observer_view_picker_) {
+		rtso::display_colors::state().viewer = view_player(); // onViewedPlayerChange: rebuild in its colours
+		refresh_player_view_colors(observer_view_picker_);
 		int want = observer_view_gaia_ ? kReplayViewGaiaId : observer_view_ == rtso::OBSERVER_VIEW ? 0 : observer_view_ + 1;
 		if (!spectating() && seat_player() < rtso::MAX_PLAYERS) // Change perspective: the seat, or the pick on its way
 			want = perspective_pick_ >= 0 ? perspective_pick_ : seat_player() + 1;
@@ -1537,6 +1570,10 @@ void RtsoMain::update_hud() {
 		const bool picker_shown = (replay_view_picker_ && replay_view_picker_->is_visible_in_tree()) ||
 				(observer_view_picker_ && observer_view_picker_->is_visible_in_tree());
 		top_panel_.set_build_label_view(view_player() < rtso::MAX_PLAYERS, picker_shown);
+		if (picker_shown) {
+			refresh_player_view_colors(replay_view_picker_);
+			refresh_player_view_colors(observer_view_picker_);
+		}
 		const uint8_t me = local_player();
 		const int idle = me < rtso::MAX_PLAYERS ? (int)sim->get_idle_workers(me).size() : 0;
 		minimap_panel_.update(idle, rtso::display_colors::state().enabled, me >= rtso::MAX_PLAYERS || spectating(),
@@ -2328,7 +2365,7 @@ void RtsoMain::select_group(int key, bool drop) {
 		for (size_t i = 0; i < uview.count; ++i) {
 			if (uview.id[i] != (uint32_t)selected_ids[s]) continue;
 			const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-			const bool in_group = RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl) == key;
+			const bool in_group = RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl, uview.rank[i]) == key;
 			if (in_group != drop) kept.push_back(selected_ids[s]);
 			found = true;
 			break;
@@ -2374,7 +2411,7 @@ void RtsoMain::_on_garrison_group_clicked(int key) {
 			for (size_t i = 0; i < uview.count; ++i) {
 				if (uview.id[i] != gid) continue;
 				const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-				if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i]) == key) out.push_back(gid);
+				if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i], uview.rank[i]) == key) out.push_back(gid);
 				break;
 			}
 			if (!all && !out.empty()) break;
@@ -3718,7 +3755,7 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	if (rtso::net_cmd_takes_push_front(cmd_type) && !(param & rtso::NET_PARAM_QUEUED) &&
 			rtso::hotkeys::held("session.pushorderfront"))
 		c.param |= rtso::NET_PARAM_PUSH_FRONT_ORDER;
-	if (spectating()) return; // observers and defeated players order nothing
+	if (!orders_allowed()) return; // observers and defeated players order nothing
 	if (ids && (cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_MOVE || cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_PATROL))
 		apply_default_formation(ids, n);
 	if (ids && n && order_disbands_formation(cmd_type)) {
@@ -4285,8 +4322,9 @@ std::vector<std::pair<String, String>> RtsoMain::chat_private_targets() {
 		const bool obs = e.player >= rtso::MAX_PLAYERS || player_finished(e.player);
 		if (me_obs && !obs) continue; // no private message from an observer to a player
 		// 0.28 /msg names the addressee's GUID: an observer by its client, so a
-		// line to one observer reaches no other.
-		const String tag = obs ? "[Observer-" + String::num_int64(e.client) + "]"
+		// line to one observer reaches no other. A seat whose game is over keeps
+		// its player tag, which chat_tag_reaches lets observers and players reach.
+		const String tag = e.player >= rtso::MAX_PLAYERS ? "[Observer-" + String::num_int64(e.client) + "]"
 		                       : "[Player-" + String::num_int64((int)e.player + 1) + "]";
 		out.push_back({tag, chat_user("peer-" + String::num_int64(e.client))});
 	}

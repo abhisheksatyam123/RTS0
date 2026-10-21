@@ -164,6 +164,9 @@ public:
 	// every client's NMT_LOADED_GAME), with no time limit.
 	void start_saved_game(const std::map<uint32_t, uint8_t> &seats, const Simulation *sim);
 	bool saved_game() const { return saved_game_; }
+	// Host: the started game is loading (0 A.D. SERVER_STATE_LOADING): no turn
+	// has run yet, or a saved game still waits on a client it started with.
+	bool host_loading() const { return net_game_started_ && (current_turn_ == 0 || !saved_waiting_.empty()); }
 	// Host: the clients a saved game still waits on.
 	const std::set<uint32_t> &saved_game_waiting() const { return saved_waiting_; }
 	bool rejoin_requested() const { return rejoin_wanted_; }

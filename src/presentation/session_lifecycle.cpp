@@ -110,7 +110,8 @@ void RtsoMain::_ready() {
 		String msg = String::utf8(cm.message.c_str());
 		// Tactical flare piggybacks NMT_CHAT (approximation of 0 A.D. minimap
 		// flare): "[Flare] x,z" -> local map ping, not chat text.
-		if (msg.begins_with("[Flare]")) {
+		// The game setup's chat goes as typed, so "[Flare]" there is text.
+		if (msg.begins_with("[Flare]") && !chat_setup_verbatim()) {
 			// 0 A.D. sends a flare to the sender's mutual allies and the observers.
 			const String guid = String::utf8(cm.sender_guid.c_str());
 			if (!chat_local_observer() && !chat_is_addressee(guid, "[Allies]")) return;
@@ -120,8 +121,9 @@ void RtsoMain::_ready() {
 			flare_received_ms_.erase(std::remove_if(flare_received_ms_.begin(), flare_received_ms_.end(),
 					[now](uint64_t t) { return now - t >= 6000; }), flare_received_ms_.end());
 			if (flare_received_ms_.size() >= 16) {
+				// messages.js: named by the sender's player name (g_PlayerAssignments).
 				const std::string line = "Received too many flares. Dropping a flare request by '" +
-						std::string(guid.utf8().get_data()) + "'.";
+						std::string(RtsoChatWindow::plain(chat_user(guid)).utf8().get_data()) + "'.";
 				rtso::Logger::warn("Chat", line.c_str());
 				return;
 			}
@@ -886,6 +888,7 @@ void RtsoMain::_ready() {
 void RtsoMain::_process(double delta) {
 	refresh_user_options();
 	if (net_host_.getRole() != rtso::NetRole::None) {
+		if (net_host_.isHost()) net_host_.setServerLoading(turn_mgr_.host_loading());
 		net_host_.poll(net_arena_);
 		net_arena_.reset();
 		// Consume NMT_GAME_START seed-sync queued by TurnManager::onMessage.
@@ -1546,6 +1549,7 @@ void RtsoMain::_process(double delta) {
 	tick_quit_confirmation();
 
 	update_observer_view_picker();
+	follow_viewed_player_finish();
 	// session.js handlePlayerState: the end of the match is the playerstate chat line and
 	// the "You have won!" / "You have been defeated!" question (quit_confirmation.gd);
 	// nothing is drawn across the screen.

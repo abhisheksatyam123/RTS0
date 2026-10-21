@@ -56,9 +56,11 @@ static bool unit_selection_group(uint8_t unit_type) {
 // with the civic centres, kush/temple_amun and the shrines with the temples, and so on).
 static uint8_t structure_selection_group(uint8_t type) {
 	switch (type) {
-		case rtso::BLD_CRANNOG: case rtso::BLD_IMPERIAL_COURT: return rtso::BLD_TOWN_CENTER;
+		case rtso::BLD_CRANNOG: case rtso::BLD_IMPERIAL_COURT: case rtso::BLD_CAMPAIGN_CITY:
+		case rtso::BLD_CAMPAIGN_CITY_MINOR: return rtso::BLD_TOWN_CENTER;
 		case rtso::BLD_TEMPLE_AMUN: case rtso::BLD_TEMPLE_VESTA: case rtso::BLD_TEMPLE_MARS:
-		case rtso::BLD_TEMPLE_ISIS: case rtso::BLD_TOPHET: case rtso::BLD_KUSH_SHRINE: case rtso::BLD_SHRINE: return rtso::BLD_TEMPLE;
+		case rtso::BLD_TEMPLE_ISIS: case rtso::BLD_TOPHET: case rtso::BLD_KUSH_SHRINE: case rtso::BLD_SHRINE:
+		case rtso::BLD_CAMPAIGN_SANCTUARY: return rtso::BLD_TEMPLE;
 		case rtso::BLD_INN: case rtso::BLD_TENT: case rtso::BLD_WAREHOUSE: case rtso::BLD_TAVERN:
 		case rtso::BLD_APARTMENT: return rtso::BLD_HOUSE;
 		case rtso::BLD_TOWER_GREAT: return rtso::BLD_TOWER;
@@ -844,7 +846,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			// input.js INPUT_NORMAL right button: with units selected, wait for the release, which
 			// either gives the usual order or, after a drag, spreads them along the drawn line.
-			if (!replaying_right_ && !selected_ids.is_empty() && !spectating()) {
+			if (!replaying_right_ && !selected_ids.is_empty() && orders_allowed()) {
 				right_line_ = RightLine();
 				right_line_.active = true;
 				right_line_.start = mouse_pos;
@@ -1633,7 +1635,7 @@ bool RtsoMain::armed_target_ok(const Vector3 &at) const {
 // order path of a right click), keep it armed under Shift (session.queue) or Alt (orderone),
 // and select nothing. Returns false when the selection is gone, which clears the action.
 bool RtsoMain::run_armed_click(const Ref<InputEventMouseButton> &press) {
-	if (!sim || selected_ids.is_empty() || spectating()) {
+	if (!sim || selected_ids.is_empty() || !orders_allowed()) {
 		attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
 		return false;
 	}
@@ -1672,7 +1674,7 @@ void RtsoMain::finish_right_line(const Ref<InputEventMouseButton> &release) {
 		_unhandled_input(press);
 		replaying_right_ = false;
 	};
-	if (!sim || !line.drawing || spectating()) {
+	if (!sim || !line.drawing || !orders_allowed()) {
 		replay();
 		return;
 	}
