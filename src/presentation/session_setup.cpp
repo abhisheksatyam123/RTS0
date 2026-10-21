@@ -987,6 +987,7 @@ void RtsoMain::match_settings_setup(rtso::GameSetupParams &setup) {
 		setup.water_level = (uint8_t)std::clamp((int)ms->get("water_level"), 0, 2);
 		setup.team_placement = (uint8_t)std::clamp((int)ms->get("team_placement"), 0, (int)rtso::TEAM_PLACEMENT_COUNT - 1);
 		setup.landscape = (uint8_t)std::clamp((int)ms->get("landscape"), 0, 15);
+		setup.map_filter = String(ms->get("map_filter")).utf8().get_data();
 		setup.trigger_difficulty = (uint8_t)std::clamp((int)ms->get("trigger_difficulty"), 1, 5);
 		setup.daytime = (uint8_t)std::clamp((int)ms->get("map_daytime"), 0, 2);
 		setup.sea_rise_min = (uint8_t)std::clamp((int)ms->get("sea_level_rise_min"), 0, 60);
@@ -1056,6 +1057,7 @@ void RtsoMain::store_net_setup_in_match_settings(const rtso::GameSetupParams &se
 	ms->set("trigger_difficulty", (int)setup.trigger_difficulty);
 	ms->set("map_daytime", (int)setup.daytime);
 	ms->set("sea_level_rise_min", (int)setup.sea_rise_min);
+	ms->set("map_filter", String::utf8(setup.map_filter.c_str()));
 	ms->set("map_size", (int)setup.map_size);
 	ms->set("ai_difficulty", (int)setup.difficulty);
 	ms->set("ai_behavior", (int)setup.behavior);

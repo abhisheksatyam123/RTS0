@@ -971,6 +971,10 @@ Dictionary RtsoMain::debug_minimap_panel() const {
 	return d;
 }
 
+void RtsoMain::debug_defeat_player(int64_t pid) {
+	if (sim && !net_lockstep() && pid >= 0 && pid < rtso::MAX_PLAYERS) sim->defeat_player((uint8_t)pid);
+}
+
 void RtsoMain::debug_attacked(int64_t target, int64_t attacker_owner) {
 	if (!sim) return;
 	auto uv = sim->units();
