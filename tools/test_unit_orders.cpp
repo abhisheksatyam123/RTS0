@@ -3903,6 +3903,74 @@ static void test_walk_end_then_fight() {
 	check(engaged == 4, "a unit walking back to its held position again and again still picks a fight");
 }
 
+static void test_walk_fight_guard_heal() {
+	std::printf("104. attack-move looks once a second; structure guards answer any attacker they see; guard range from the guard's footprint; healers heal one-sided allies\n");
+	{
+		Simulation s;
+		setup(s);
+		s.set_reveal_map(true);
+		std::vector<uint32_t> movers;
+		for (int k = 0; k < 8; ++k) movers.push_back(s.spawn_unit(-20.0f + 1.5f * k, 0, 0, UNIT_SPEARMAN));
+		s.order_attack_move(movers.data(), movers.size(), -20.0f, 40.0f);
+		s.tick(DT);
+		s.spawn_unit(-15.0f, 6.0f, 1, UNIT_SPEARMAN);
+		int first_tick = 0, last_tick = 0;
+		for (int t = 1; t <= 40; ++t) {
+			s.tick(DT);
+			for (uint32_t m : movers)
+				if (target_of(s, m) != 0 && !first_tick) first_tick = t;
+			bool all = true;
+			for (uint32_t m : movers) all = all && target_of(s, m) != 0;
+			if (all) { last_tick = t; break; }
+		}
+		std::printf("  first mover picks the enemy after %d ticks, the last after %d\n", first_tick, last_tick);
+		check(last_tick > first_tick, "attack-movers don't all look on the same tick (WALKINGANDFIGHTING Timer, 1000 ms)");
+		check(last_tick > 0 && last_tick <= (int)std::lround(1.0f / DT) + 1, "each looks within a second");
+	}
+	{
+		Simulation s;
+		setup(s);
+		s.set_reveal_map(true);
+		const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 0, 1.0f);
+		uint32_t g = s.spawn_unit(4, 0, 0, UNIT_SPEARMAN);
+		s.order_guard(&g, 1, house, false);
+		run(s, 1.0f);
+		const float far = NEARBY_SEARCH_RANGE + bld(s, house)->half_size + 2.0f;
+		const uint32_t e = s.spawn_unit(far, 0, 1, UNIT_CATAPULT);
+		const int ei = idx_of(s, e);
+		std::printf("  stone thrower %.1f from the house, reach %.1f\n", far, s.attack_reach(ei));
+		s.units_.target_building_id[ei] = house;
+		s.units_.action_state[ei] = ACTION_ATTACK;
+		s.units_.has_order[ei] = 1;
+		run(s, 1.0f);
+		check(target_of(s, g) == e, "a structure's guard answers an attacker it sees beyond 64 m (GuardedAttacked)");
+		run(s, 3.0f);
+		check(target_of(s, g) == e, "and chases it while the house is in its range (ShouldChaseTargetedEntity: isGuardOf)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t inf = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN), cav = s.spawn_unit(0, 4, 0, UNIT_CAVALRY);
+		const float ri = s.guard_range((size_t)idx_of(s, inf)), rc = s.guard_range((size_t)idx_of(s, cav));
+		std::printf("  guard range: infantry %.2f, cavalry %.2f\n", ri, rc);
+		check(std::fabs(ri - 10.25f * 0.28f) < 0.01f, "an infantry guard keeps 10.25 m (8 + 3/2 x radius 1.5)");
+		check(rc > ri + 0.5f, "a cavalry guard keeps further off (2/3 of its 3x6 m diagonal)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		s.set_player_active(2, true, false);
+		s.set_diplomacy(0, 2, Simulation::DIPLO_ALLY); // player 3 hasn't answered
+		uint32_t h = s.spawn_unit(0, 0, 0, UNIT_HEALER);
+		uint32_t hurt = s.spawn_unit(2, 0, 2, UNIT_SPEARMAN);
+		s.units_.hp[idx_of(s, hurt)] *= 0.5f;
+		check(s.can_heal((size_t)idx_of(s, h), idx_of(s, hurt)), "a healer heals a player its own calls an ally (IsOwnedByAllyOfPlayer)");
+		s.set_diplomacy(0, 2, Simulation::DIPLO_NEUTRAL);
+		s.set_diplomacy(2, 0, Simulation::DIPLO_ALLY);
+		check(!s.can_heal((size_t)idx_of(s, h), idx_of(s, hurt)), "not one that only calls it an ally");
+	}
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -4014,6 +4082,7 @@ int main(int argc, char **argv) {
 	test_queued_hunt_board();
 	test_flee_and_defensive_vision();
 	test_walk_end_then_fight();
+	test_walk_fight_guard_heal();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
