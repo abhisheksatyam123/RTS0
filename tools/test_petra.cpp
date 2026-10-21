@@ -4623,6 +4623,51 @@ static void test_wonder_guards() {
 	CHECK(hurt, "and fight whoever attacks it");
 }
 
+// victoryManager.js tryAssignMilitaryGuard checkForSameAccess false: with no soldiers on its
+// land, guards come from another and ask for a transport there (requireTransport); each one
+// guards it once it lands.
+static void test_guards_from_another_land() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->set_waves_enabled(false);
+	s->generate_random_map(MAP_ISLANDS, 7, 2, 128.0f);
+	s->set_victory_condition(VICTORY_RELIC);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, true);
+	s->petra_swap_slot(0);
+	s->petra_pid_ = 0;
+	float ox = 0, oz = 0, ex = 0, ez = 0;
+	for (const auto &b : s->buildings_) {
+		if (b.type != BLD_TOWN_CENTER) continue;
+		if (b.team == 0) { ox = b.x; oz = b.z; } else { ex = b.x; ez = b.z; }
+	}
+	CHECK(s->petra_land_at(ox, oz) != s->petra_land_at(ex, ez), "the two civic centres stand on different islands");
+	s->relics_.clear();
+	const uint32_t relic = s->spawn_relic(ex + 6.0f, ez + 6.0f);
+	const int32_t r = s->lookup_unit(relic);
+	if (r >= 0) s->units_.team[r] = 0;
+	std::vector<uint32_t> champs;
+	for (int i = 0; i < 3; ++i) champs.push_back(s->spawn_unit(ox + 6.0f + 2.0f * (float)i, oz + 6.0f, 0, UNIT_ELEPHANT));
+	// Over 25 workers: with fewer, the search stops after the champions on the relic's land.
+	for (int i = 0; i < 30; ++i) s->spawn_unit(ox - 6.0f + (float)(i % 6), oz - 6.0f - (float)(i / 6), 0, UNIT_FEMALE_CITIZEN);
+	s->petra_manage_critical_ent_guards();
+	int ferried = 0;
+	for (uint32_t id : champs) ferried += s->petra_ferried_guard(id) && s->petra_passenger(id);
+	// One lands on the relic's island.
+	const int32_t c0 = s->lookup_unit(champs[0]);
+	bool landed_guards = false;
+	if (c0 >= 0 && s->petra_ferried_guard(champs[0])) {
+		s->units_.pos_x[c0] = ex + 8.0f;
+		s->units_.pos_z[c0] = ez + 4.0f;
+		s->petra_manage_critical_ent_guards();
+		landed_guards = s->units_.order_kind[c0] == ORDER_GUARD && s->units_.order_target[c0] == relic && !s->petra_ferried_guard(champs[0]);
+	}
+	std::printf("  relic on another island: %d of 3 champions booked on a transport, one landed %s\n", ferried,
+	            landed_guards ? "guards it" : "does not guard it");
+	CHECK(ferried == 3, "champions from another island are ferried to guard the relic");
+	CHECK(landed_guards, "a ferried guard guards the relic once it lands");
+}
+
 // victoryManager.js criticalEnts: an owned relic is guarded like a hero
 // (4 + 5 * defensive); in regicide only the hero the game began with is
 // critical, so a hero trained later draws no guards; and buildWonder counts
@@ -8208,6 +8253,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_wood_poor_corral);
 	RUN(test_petra_sandbox_first_storehouse);
 	RUN(test_wonder_guards);
+	RUN(test_guards_from_another_land);
 	RUN(test_victory_critical_ents);
 	RUN(test_placement_miss_memory_exact);
 	RUN(test_defend_allies);
