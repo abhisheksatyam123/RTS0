@@ -318,8 +318,10 @@ func run() -> void:
 	var rated_box: CheckBox = page.get_node("%RatedGame")
 	check(vt != null and vt.text == ml.text and ml.self_modulate.a == 0.0 and rated_box.text.ends_with(": Yes"),
 		"GameSettingControl.updateVisibility: locked settings read as text, a checkbox Yes/No: %s / %s" % [vt.text if vt else "", rated_box.text])
-	check(picker(page, 0, 2).disabled and picker(page, 0, 3).disabled and picker(page, 1, 1).disabled and picker(page, 1, 4).disabled,
-		"other slots, and our slot's type and AI, are locked")
+	# AIConfigButton.js: the gear shows (read only) on AI rows only; a human row has none to click.
+	check(picker(page, 0, 2).disabled and picker(page, 0, 3).disabled and picker(page, 1, 1).disabled
+		and picker(page, 1, 4).mouse_filter == Control.MOUSE_FILTER_IGNORE,
+		"other slots and our slot's type are locked, and a human row has no AI gear")
 	# 0.28 GameSettingControl/PlayerColor: only the controller sets civ, team and colour.
 	check(picker(page, 1, 2).disabled and picker(page, 1, 3).disabled and picker(page, 1, 5).disabled
 		and cells(page)[1 * 6 + 1].modulate.a == 0.0, "our own civ and team are locked too, and the colours hidden")
