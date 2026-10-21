@@ -2786,6 +2786,15 @@ func _update_net_controls() -> void:
 	# ReadyButton.onPlayerAssignmentsChange: hidden for an unassigned client (an observer).
 	_ready_btn.visible = int(_net_state.get("my_slot", -1)) >= 0
 
+## The client lost the host in the setup: ChatInputPanel hides the chat input
+## and its button, and ReadyButton disables itself; the page and its chat stay.
+func net_disconnected() -> void:
+	var input := get_node_or_null("%NetChatInput") as Control
+	if input:
+		input.get_parent().visible = false
+	if _ready_btn:
+		_ready_btn.disabled = true
+
 func _on_ready_pressed() -> void:
 	if _mp_role != "client":
 		return

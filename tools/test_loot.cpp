@@ -357,10 +357,23 @@ static void test_structures() {
 	b = res_of(s, 0);
 	check(hl.metal > 0 && gained(a, b, hl.food, hl.wood, hl.stone, hl.metal), "a healer pays its metal loot");
 	s.players_[1].techs.set(TECH_COST_HEALER);
+	s.refresh_tech_mods(1);
 	a = res_of(s, 0);
 	s.collect_unit_loot(sw, 0, (size_t)idx_of(s, heal));
 	b = res_of(s, 0);
 	check(gained(a, b, hl.food, hl.wood, hl.stone, 0), "after Sacrificial Ritual it pays no metal");
+	// Its affects is Healer !Champion !Hero: a hero healer keeps its metal loot.
+	uint16_t hippo = 0xFFFF;
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+		if (std::strcmp(civ_unit_template(t).id, "athen/hero_hippocrates") == 0) hippo = t;
+	s.set_team_civ(1, CIV_ATHENIANS);
+	s.refresh_tech_mods(1);
+	uint32_t hh = s.spawn_unit(30.0f, -34.0f, 1, UNIT_HERO, 0.0f, hippo);
+	const LootInfo hhl = unit_loot(hippo, UNIT_HERO);
+	a = res_of(s, 0);
+	s.collect_unit_loot(sw, 0, (size_t)idx_of(s, hh));
+	b = res_of(s, 0);
+	check(hippo != 0xFFFF && hhl.metal > 0 && near(b.gold - a.gold, (float)hhl.metal), "Hippocrates keeps his metal loot after Sacrificial Ritual");
 	// Celtic Auxiliaries (celtic_auxiliaries.json, Carthage's Celtic embassy): Mercenary
 	// Swordsmen cost metal x0.5 and +50 food, and yield Loot/metal x0.5 and Loot/food +5.
 	uint16_t gaul = 0xFFFF;

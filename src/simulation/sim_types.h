@@ -820,7 +820,11 @@ enum UnitOrderKind : uint8_t {
 	ORDER_RETURN_RESOURCE = 12, // target = the dropsite (UnitAI ReturnResource)
 	ORDER_COLLECT_TREASURE = 13, // target treasure (UnitAI CollectTreasure)
 	ORDER_CAPTURE_RELIC = 14, // target catafalque unit (UnitAI Attack with the Capture attack)
-	ORDER_KIND_COUNT = 15
+	// Shift-queued only (the running hunt, scenery attack or boarding walk keeps ORDER_NONE):
+	ORDER_HUNT = 15,           // target animal (UnitAI Gather on a hunt or slaughter)
+	ORDER_ATTACK_SCENERY = 16, // target scenery; ORDER_FLAG_ALLOW_CAPTURE captures it
+	ORDER_BOARD = 17,          // target ship, ram or siege tower (UnitAI Garrison on a unit)
+	ORDER_KIND_COUNT = 18
 };
 
 enum UnitOrderFlag : uint8_t {
@@ -3110,7 +3114,7 @@ static_assert(COMBAT_TEMPLATE_COUNT == CIV_UNIT_TEMPLATE_COUNT,
 		"rosters changed: re-run tools/extract_0ad_attack.py");
 static_assert(COMBAT_CLASS_ROWS == UNIT_TYPE_COUNT, "unit types changed: re-run tools/extract_0ad_attack.py");
 static_assert(COMBAT_BUILDING_ROWS == BLD_TYPE_COUNT, "building types changed: re-run tools/extract_0ad_attack.py");
-// 0 A.D. UnitMotion Acceleration and InstantTurnAngle and Position TurnRate of a unit's template
+// 0 A.D. UnitMotion Acceleration and InstantTurnAngle, Position TurnRate and Footprint of a unit's template
 // (unit_motion_data.h, from tools/extract_0ad_motion.py).
 static_assert(MOTION_TEMPLATE_COUNT == CIV_UNIT_TEMPLATE_COUNT, "rosters changed: re-run tools/extract_0ad_motion.py");
 static_assert(MOTION_CLASS_ROWS == UNIT_TYPE_COUNT, "unit types changed: re-run tools/extract_0ad_motion.py");

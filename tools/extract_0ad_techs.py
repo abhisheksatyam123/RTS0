@@ -101,6 +101,7 @@ CLASSES = [
     "TempleOfApedemak",  # bit 67 (Arakamani's Follower of Apedemak: the Kushite temple)
     "Palisade",  # bit 68 (Themistoclean Walls: "Wall" or "Palisade")
     "Naval",  # bit 69 (Hellenistic Metropolis: "CivCentre !Colony !Naval", the crannog)
+    "Fireship",  # bit 70 (NavalRam is "Warship Melee !Fireship")
 ]
 assert len(CLASSES) <= 128, "TechClasses is a 128-bit mask"
 
@@ -129,12 +130,12 @@ constexpr TechClasses tc_bit(int i) { return i < 64 ? TechClasses(1ull << i, 0) 
 
 
 # 0 A.D. classes RTS0 has no bit for, spelled as classes it has. Exact for the
-# civs that research them: NavalRam (warship_ramming_speed) is a melee warship
-# for every civ in its civ list (the melee fire ships are brit, gaul and iber).
+# civs that research them: NavalRam (template_unit_ship_warship_ram) is a melee warship that
+# is no Fireship (template_unit_ship_fire: the melee warships of brit, gaul and iber).
 # RTS0's TC_CIVILIAN is 0.28's Support (every support unit); 0.28's own Civilian class is only
 # on template_unit_support_civilian (and RTS0's villager): a Support Worker that is no
 # FemaleCitizen. CivilCentre is the VisibleClass that rides with CivCentre.
-CLASS_ALIASES = {"NavalRam": "Warship Melee", "Civilian": "Civilian Worker !FemaleCitizen",
+CLASS_ALIASES = {"NavalRam": "Warship Melee !Fireship", "Civilian": "Civilian Worker !FemaleCitizen",
                  "CivilCentre": "CivCentre", "!CivilCentre": "!CivCentre"}
 
 # Civ-only technologies left out on purpose.

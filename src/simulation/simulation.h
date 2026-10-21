@@ -420,9 +420,10 @@ public:
 		// captured while decaying, which its owner's AI garrisons until the decay stops.
 		bool petra_decay_hold = false;
 	};
-	// Whether `b` is rasterized into the nav grid (0 A.D. Obstruction BlockPathfinding).
+	// Whether `b` is rasterized into the nav grid (0 A.D. Obstruction BlockPathfinding). A locked
+	// gate blocks paths once it has shut (Gate.js CloseGate), not while it is still open.
 	static bool blocks_pathfinding(const Building &b) {
-		return building_blocks_movement(b.type) && (!is_gate_type(b.type) || b.gate_locked);
+		return building_blocks_movement(b.type) && (!is_gate_type(b.type) || (b.gate_locked && !b.gate_open));
 	}
 	// Whether units collide with `b` right now (0 A.D. Obstruction BlockMovement).
 	// A foundation blocks nothing until it is committed (Foundation.js Commit).
@@ -1137,7 +1138,7 @@ public:
 	// Naval Transport Logistics (GarrisonHolder.js / UnitAI.js)
 	static constexpr int TRANSPORT_CAPACITY = 30; // 0 A.D. template_unit_ship_warship_arrow GarrisonHolder Max
 	static constexpr float SHIP_LOADING_RANGE = 10.0f * 0.28f; // GarrisonHolder LoadingRange 10 m in RTS0 scale
-	void order_board_transport(const uint32_t *unit_ids, size_t count, uint32_t transport_id);
+	void order_board_transport(const uint32_t *unit_ids, size_t count, uint32_t transport_id, bool queued = false);
 	void order_disembark(uint32_t transport_id, float target_x, float target_z);
 	void order_disembark_all(uint32_t transport_id, uint8_t notify = 0xFF);
 	void order_disembark_single(uint32_t transport_id, uint32_t unit_id);
@@ -2309,7 +2310,7 @@ public:
 		auto it = fauna_id_to_idx_.find(fauna_id);
 		return it == fauna_id_to_idx_.end() ? GAIA_PLAYER : fauna_owner_[it->second];
 	}
-	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
+	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id, bool queued = false);
 	uint32_t find_nearby_prey(size_t i, float x, float z, float max_d2, uint8_t fauna = 0, uint32_t exclude = 0) const;
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
 
@@ -2382,7 +2383,8 @@ public:
 	// the units walk up to it and strike it until it falls (tick_scenery_attackers).
 	// Capturable scenery (benches, tables, obelisks, wooden fences) is captured instead, as a
 	// structure is, unless `allow_capture` is false (Ctrl: session.attack).
-	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id, bool allow_capture = true);
+	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id, bool allow_capture = true,
+			bool queued = false);
 	bool scenery_capturable(const Scenery &sc) const { return scenery_type_info(sc.type).capture_points > 0; }
 	// unit_actions.js "attack" and "capture" on a structure: may one of unit_ids damage it (Attack.js
 	// CanAttack "!Capture": an enemy's, with hitpoints, outside the attack's RestrictedClasses) or take
@@ -2722,6 +2724,8 @@ private:
 	// Recompute a player's modifiers and rescale its existing units and structures
 	// (0 A.D. ModificationsManager: a modifier changes every entity it affects).
 	void refresh_tech_mods(uint8_t player_id);
+	float unit_civ_speed_add(size_t idx) const;
+	float civ_gather_bonus(size_t i, uint8_t kind) const;
 	// Bit g set: relic_global_auras()[g] reaches `player` (a relic it or a partner owns).
 	uint64_t relic_aura_mask(uint8_t player) const;
 	void global_aura_masks(uint64_t masks[MAX_PLAYERS]) const;
@@ -3577,6 +3581,8 @@ private:
 	// Whether a finished building of ours trains some roster template of the class, busy or
 	// not (findTrainableUnits; trainMoreUnits drops a class without one from the plan).
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
+	// Whether a finished building of ours lists roster template `tmpl`, busy or not.
+	bool petra_has_trainer(uint16_t tmpl) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
 	void petra_update_capture_strength();
@@ -4335,7 +4341,8 @@ private:
 	UnitOrder current_order(size_t i) const;
 	void set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t target, float x, float z);
 	void begin_walk_order(size_t i); // cmd_move's walk: not forced, replaces the queue
-	void drop_orders(size_t i);      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
+	void drop_orders(size_t i);
+	void replace_orders(size_t i); // drop_orders, but a queued order applied keeps the rest of the queue      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
 	// Without Shift every unit's queue is dropped and all of them run it now.
 	float unit_height(size_t i) const; // terrain, or the water surface under a ship
