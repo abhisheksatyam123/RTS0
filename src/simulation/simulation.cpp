@@ -21913,24 +21913,26 @@ int Simulation::petra_train_more_workers() {
 			else if (o.unit_type == UNIT_FISHING_BOAT) workers += o.count;
 		}
 	}
+	// headquarters.js:2281-2283: trainMoreWorkers runs every 4th turn, with an active base (the
+	// shortfall counts every turn).
+	const bool due = petra_turn_mod(4, 0) && petra_has_active_base();
 	// Anticipate the batch size and shrink the first two queued plans of each queue to it
 	// (a recovery after heavy losses).
 	const int size = workers < 12 ? 1 : std::min(5, (workers + 9) / 10);
 	auto &plans = petra_worker_plans_[petra_pid_];
 	int queued[2] = {0, 0}, seen[2] = {0, 0};
 	for (PetraWorkerPlan &p : plans) {
-		if (seen[p.queue]++ < 2) p.count = (uint8_t)std::min<int>(p.count, size);
+		if (due && seen[p.queue]++ < 2) p.count = (uint8_t)std::min<int>(p.count, size);
 		queued[p.queue] += p.count;
 	}
 	const int total = workers + queued[0] + queued[1];
 	const int target = petra_target_workers();
 	const int shortfall = std::max(0, target - total);
+	if (!due) return shortfall;
 	if (petra_attack_mgr_.save_resources && total > petra_pop_phase2() + 10) return shortfall;
 	const bool researching_town = research_check(petra_pid_, TECH_PHASE_TOWN) == TECH_ERR_IN_PROGRESS;
 	if (total > target || (total >= petra_pop_phase2() && petra_ps().phase == 1 && !researching_town)) return shortfall;
 	if (queued[0] + queued[1] > 50 || (queued[0] > 20 && queued[1] > 20) || in_training > 15) return shortfall;
-	// headquarters.js:2281-2283: every 4th turn, with an active base.
-	if (!petra_turn_mod(4, 0) || !petra_has_active_base()) return shortfall;
 	if (plans.size() >= MAX_PETRA_WORKER_PLANS) return shortfall;
 
 	// config.js Economy.supportRatio by difficulty; alpha lower while rushes are still to come
@@ -38256,17 +38258,19 @@ float Simulation::structure_decay_rate(const Building &b) const {
 float Simulation::attack_reach(size_t i) const {
 	const float r = units_.attack_range[i];
 	if (r <= 0.0f || !aura_mgr_.has(AURA_RANGE_ADD)) return r;
-	// Attack/Ranged/MaxRange and Attack/Melee/MaxRange "add" auras, in 0 A.D. metres scaled
-	// like the roster's ranges (extract_0ad_rosters.py RANGED_RANGE_SCALE, MELEE_RANGE_SCALE).
+	// Attack/Ranged/MaxRange and Attack/Melee/MaxRange auras: factors (Demetrius' Besieger),
+	// then 0 A.D. metres added, scaled like the roster's ranges (extract_0ad_rosters.py
+	// RANGED_RANGE_SCALE, MELEE_RANGE_SCALE), as ModifiersManager multiplies before it adds.
 	const uint16_t tmpl = units_.tmpl[i];
 	const bool ranged = tmpl < CIV_UNIT_TEMPLATE_COUNT ? (civ_unit_template(tmpl).flags & ROSTER_RANGED) != 0 : r > 3.0f;
-	float add = 0.0f;
+	float add = 0.0f, mul = 1.0f;
 	aura_mgr_.for_each_reaching(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_RANGE_ADD, tmpl,
 		&unit_combat_at(i).classes, false, [&](const AuraSource &s) {
 			const RangeAddRangeAura &a = range_add_range_auras()[(uint16_t)s.value];
 			add += ranged ? a.ranged * COMBAT_DISTANCE_SCALE : a.melee * 0.6f;
+			mul *= ranged ? a.ranged_mul : a.melee_mul;
 		}, units_.id[i]);
-	return r + add;
+	return r * mul + add;
 }
 
 // A capture_range_auras() row as an AuraManager source: its index is the source's aura, and
@@ -38336,9 +38340,9 @@ void Simulation::rebuild_auras() {
 	// Kushite pyramids and Temple of Amun, the Mauryan pillar, the civ temples' healing).
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 1.0f || b.team >= MAX_PLAYERS) continue;
-		// temple_2 and the shrines keep the temple's Auras; the Temple of Isis lists it in
-		// civ_building_auras.
-		if (b.type == BLD_TEMPLE || b.type == BLD_SHRINE) {
+		// temple_2, the shrines, hellenic_epic_temple and campaign_religious_test keep
+		// template_structure_civic_temple's Auras; the Temple of Isis lists it in civ_building_auras.
+		if (b.type == BLD_TEMPLE || b.type == BLD_SHRINE || b.type == BLD_EPIC_TEMPLE || b.type == BLD_CAMPAIGN_SANCTUARY) {
 			aura_mgr_.register_source(b.id, AURA_HEAL, 40.f * COMBAT_DISTANCE_SCALE, 1.0f, aura_player_bit(b.team),
 				b.x, b.z, temple_heal, CC_HUMAN);
 		}
@@ -38412,7 +38416,7 @@ void Simulation::rebuild_auras() {
 					if (std::strcmp(aura.id, gather_rate_range_auras()[k].id) == 0)
 						aura_mgr_.register_source(id, AURA_GATHER_RATE, gather_rate_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
 							(float)k, aura_affected_players(team, gather_rate_range_auras()[k].players), x, z, a);
-				// Range auras on Attack/*/MaxRange (Boiorix's High Ground).
+				// Range auras on Attack/*/MaxRange (Boiorix's High Ground, Demetrius' Besieger).
 				for (uint16_t k = 0; k < RANGE_ADD_RANGE_AURA_COUNT; ++k)
 					if (std::strcmp(aura.id, range_add_range_auras()[k].id) == 0)
 						aura_mgr_.register_source(id, AURA_RANGE_ADD, range_add_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,

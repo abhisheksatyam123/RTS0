@@ -694,7 +694,7 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 			// only the connected ones, as 0 A.D. counts m_Sessions.
 			const size_t live = (size_t)std::count_if(peers_.begin(), peers_.end(),
 					[](const NetPeer &p) { return p.connected; });
-			if (live >= NET_MAX_CLIENTS) {
+			if (live >= NET_MAX_REMOTE_CLIENTS) {
 				// NDR_SERVER_FULL, in the disconnect's channel byte; sent each
 				// time it asks, since the client resends its connect.
 				send_wire_packet(from_ip, from_port, 0, NET_FLAG_DISCONNECT, NDR_SERVER_FULL, nullptr, 0, false);
