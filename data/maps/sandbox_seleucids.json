@@ -4251,7 +4251,8 @@
         150,
         20,
         20
-      ]
+      ],
+      "name": "The Seleucids"
     },
     {
       "id": 2,
@@ -4269,7 +4270,8 @@
         46,
         46,
         200
-      ]
+      ],
+      "name": "The Ptolemies"
     }
   ],
   "resources": [

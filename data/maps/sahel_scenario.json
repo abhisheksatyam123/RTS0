@@ -6655,7 +6655,8 @@
         56,
         67,
         199
-      ]
+      ],
+      "name": "Hasdrubal the Fair"
     },
     {
       "id": 1,
@@ -6673,7 +6674,8 @@
         177,
         14,
         14
-      ]
+      ],
+      "name": "Aulus Manlius Capitolinus"
     },
     {
       "id": 3,
@@ -6691,7 +6693,8 @@
         50,
         165,
         5
-      ]
+      ],
+      "name": "Artaxshacha II"
     },
     {
       "id": 4,
@@ -6709,7 +6712,8 @@
         99,
         40,
         147
-      ]
+      ],
+      "name": "Tautalus"
     }
   ],
   "resources": [

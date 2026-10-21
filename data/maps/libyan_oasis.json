@@ -4306,6 +4306,7 @@
       "team": 0,
       "start_x": 44.67,
       "start_z": 70.06,
+      "name": "Northeast Player",
       "camera": {
         "x": 47.15,
         "z": 70.67,
@@ -4318,6 +4319,7 @@
       "team": 1,
       "start_x": -52.75,
       "start_z": -62.58,
+      "name": "Southwest Player",
       "camera": {
         "x": -50.87,
         "z": -62.86,
