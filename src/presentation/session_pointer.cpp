@@ -488,7 +488,9 @@ void RtsoMain::update_highlight() {
 			hover_cam_ = cam_xf;
 			hover_at_ms_ = now;
 			hover_target_ = entity_under_mouse(mouse, true);
-			if (const uint32_t pick = entity_under_mouse(mouse, false)) ids.push_back((int32_t)pick);
+			// setHighlightList: the whole formation a click would select (addFormationMembers).
+			if (const uint32_t pick = entity_under_mouse(mouse, false))
+				for (int32_t uid : formation_mates((int32_t)pick)) ids.push_back(uid);
 			hover_pick_ = ids;
 			}
 		}
