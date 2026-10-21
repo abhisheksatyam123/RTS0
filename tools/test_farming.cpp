@@ -54,7 +54,7 @@ int main() {
 
 	// Table: 26 generic building types plus area D's civ-specific ones; every
 	// one has a name, cost and sane stats.
-	CHECK(BLD_EMBASSY == 25 && CIV_BUILDING_FIRST == 26 && BLD_TYPE_COUNT == 91);
+	CHECK(BLD_EMBASSY == 25 && CIV_BUILDING_FIRST == 26 && BLD_TYPE_COUNT == 98);
 	for (uint8_t t = 0; t < BLD_TYPE_COUNT; ++t) {
 		const BuildingTypeInfo &bi = building_type_info(t);
 		CHECK(bi.name && bi.name[0] && bi.max_hp > 0.0f && bi.build_time > 0.0f);

@@ -60,9 +60,10 @@ static uint8_t structure_selection_group(uint8_t type) {
 		case rtso::BLD_CAMPAIGN_CITY_MINOR: return rtso::BLD_TOWN_CENTER;
 		case rtso::BLD_TEMPLE_AMUN: case rtso::BLD_TEMPLE_VESTA: case rtso::BLD_TEMPLE_MARS:
 		case rtso::BLD_TEMPLE_ISIS: case rtso::BLD_TOPHET: case rtso::BLD_KUSH_SHRINE: case rtso::BLD_SHRINE:
-		case rtso::BLD_CAMPAIGN_SANCTUARY: return rtso::BLD_TEMPLE;
+		case rtso::BLD_CAMPAIGN_SANCTUARY: case rtso::BLD_EPIC_TEMPLE: return rtso::BLD_TEMPLE;
 		case rtso::BLD_INN: case rtso::BLD_TENT: case rtso::BLD_WAREHOUSE: case rtso::BLD_TAVERN:
-		case rtso::BLD_APARTMENT: return rtso::BLD_HOUSE;
+		case rtso::BLD_APARTMENT: case rtso::BLD_STALL: case rtso::BLD_HUT: case rtso::BLD_LONGHOUSE:
+		case rtso::BLD_PERS_HOUSE_A: case rtso::BLD_PERS_HOUSE_B: case rtso::BLD_APARTMENT_BLOCK: return rtso::BLD_HOUSE;
 		case rtso::BLD_TOWER_GREAT: return rtso::BLD_TOWER;
 		case rtso::BLD_FORTRESS_OLD: return rtso::BLD_FORTRESS;
 		case rtso::BLD_TRADING_POST: return rtso::BLD_MARKET;
