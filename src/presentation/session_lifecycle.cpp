@@ -886,6 +886,7 @@ void RtsoMain::_ready() {
 void RtsoMain::_process(double delta) {
 	refresh_user_options();
 	if (net_host_.getRole() != rtso::NetRole::None) {
+		if (net_host_.isHost()) net_host_.setServerLoading(turn_mgr_.host_loading());
 		net_host_.poll(net_arena_);
 		net_arena_.reset();
 		// Consume NMT_GAME_START seed-sync queued by TurnManager::onMessage.

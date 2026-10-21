@@ -994,6 +994,7 @@ void RtsoMain::update_net_status_overlay() {
 		switch (net_host_.disconnectReason()) {
 			case 2: why = tr("The host has ended the game."); break;
 			case rtso::NDR_INCORRECT_PROTOCOL_VERSION: why = tr("Incorrect network protocol version."); break;
+			case rtso::NDR_SERVER_LOADING: why = tr("Game is loading, please try again later."); break;
 			case 6: why = tr("You have been kicked."); break;
 			case 7: why = tr("You have been banned."); break;
 			case rtso::NDR_PLAYERNAME_IN_USE: why = tr("Player name in use. If you were disconnected, retry in few seconds."); break;
