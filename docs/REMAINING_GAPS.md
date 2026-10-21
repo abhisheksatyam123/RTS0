@@ -178,7 +178,7 @@ Garrisons, structure arrows, attacks and resistance, territory decay and camps a
 |---|---|---|---|
 | L1 | ~~A Han minister in a Han corral is put outside when the corral drops below half health, is destroyed or is captured~~ Fixed: he dies inside, as the corral's EjectClassesOnDestroy is Animal only (structures/han/corral.xml adds Minister to the List; a 0.28 data oversight, followed); test_minister | low | Fixed |
 | L2 | ~~A structure left with no capture points goes to the top player when Gaia ties it~~ Fixed: Gaia wins a tie, then the lowest player (Capturable.js reduce from index 0, strict ">"); test_unit_orders 105 | low | Fixed |
-| L3 | Garrisoned units heal on one match-wide second rather than a timer per structure started by the first unit in (GarrisonHolder HEAL_TIMEOUT), so the first heal can come up to a second early. A per-structure timer needs a save field | low | Open: Unit orders |
+| L3 | ~~Garrisoned units heal on one match-wide second rather than a timer per structure started by the first unit in (GarrisonHolder HEAL_TIMEOUT), so the first heal can come up to a second early~~ Fixed: each structure keeps its own heal timer from the first unit in, stopped while it is empty or heals nothing (save v116); test_garrison_heal | low | Fixed |
 
 ### Unit orders, eleventh 0.28 pass (2026-10-21)
 
@@ -698,11 +698,11 @@ This file is the parity record: every difference from 0 A.D. 0.28 an audit found
 
 | Rows | Count | Share |
 |---|---|---|
-| Closed (fixed, landed, done) | 305 | 96.5% of closed + open |
-| Open | 11 | 3.5% |
+| Closed (fixed, landed, done) | 306 | 96.8% of closed + open |
+| Open | 10 | 3.2% |
 | Kept on purpose (0.28 bugs RTS0 doesn't copy, RTS0-scale choices such as build times x0.25, engine limits) | 51 | not counted above |
 
-Weighted by each row's Impact (high 3, medium 2, low 1) the closed share is about 96%. Counting every kept row as a gap too gives 305 of 367, about 83%; that is a floor, since most kept rows are 0.28 bugs or matches. The open rows are small: Options page leftovers (G36), map StartingCamera and colours (P5, F), a few Petra and map-structure details (X3, X5, Y4, Z16, Z17, TH10, LR4, LR5) and a garrison heal timer (L3). The counts are a measure of what audits have found, not of everything in 0.28: each area's thread keeps auditing and adds rows as it finds more.
+Weighted by each row's Impact (high 3, medium 2, low 1) the closed share is about 96%. Counting every kept row as a gap too gives 306 of 367, about 83%; that is a floor, since most kept rows are 0.28 bugs or matches. The open rows are small: Options page leftovers (G36), map StartingCamera and colours (P5, F), and a few Petra and map-structure details (X3, X5, Y4, Z16, Z17, TH10, LR4, LR5). The counts are a measure of what audits have found, not of everything in 0.28: each area's thread keeps auditing and adds rows as it finds more.
 
 This count replaces the 2026-10-08 estimate ("a little over half way", `check_parity.py` 92% for the G1-G10 systems). The list below is from that audit; all of it is fixed.
 

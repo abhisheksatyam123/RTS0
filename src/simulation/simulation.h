@@ -182,7 +182,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 115; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 116; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_GARRISON_HEAL = 116; // each structure's garrison heal timer (GarrisonHolder HEAL_TIMEOUT)
 	static constexpr uint32_t SAVE_VERSION_PETRA_BASE_TURN = 115; // the base Petra updates next (basesManager.js currentBase)
 	static constexpr uint32_t SAVE_VERSION_PETRA_WORKER_PLANS = 114; // trainMoreWorkers' queued TrainingPlans
 	static constexpr uint32_t SAVE_VERSION_PETRA_PASS5 = 113; // Petra's trade and transport ships, house plans, new bases
@@ -408,6 +409,9 @@ public:
 		// ProductionQueue.js ProgressTimeout: the queue works in whole seconds from when it
 		// started; this is the time into the current one (0 while the queue is empty).
 		float queue_clock = 0.0f;
+		// GarrisonHolder HealTimeout: time into the second its heal timer started on the first
+		// unit in (0 while nothing is inside or nothing heals).
+		float heal_clock = 0.0f;
 		std::array<float, RES_COUNT> upgrade_paid{};
 
 		// 0 A.D. Gate.js (gates: is_gate_type). An unlocked gate never blocks long-range
