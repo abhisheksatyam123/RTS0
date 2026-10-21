@@ -236,8 +236,16 @@ func _run() -> void:
 				await _wait(1.5)
 				break
 			if role == "join" and st.get("disconnected", false):
-				_say("setup_status=%s reason=%d saw_page=%s page=%s" % [str(st.get("net_status", "")).replace("\n", " | "),
-						int(st.get("disconnect_reason", -1)), str(saw_setup), str(st.get("setup_page", true))])
+				# ChatInputPanel / ReadyButton: the page and its chat stay behind the box,
+				# with no chat input and no Ready.
+				var chat_in = root.find_child("NetChatInput", true, false)
+				var ready_b = root.find_child("BtnReady", true, false)
+				var box = root.find_child("NetStatusOverlay", true, false)
+				var box_layer: int = box.get_parent().layer if box and box.get_parent() is CanvasLayer else -1
+				_say("setup_status=%s reason=%d saw_page=%s page=%s chat_input=%s ready_off=%s box_layer=%d" % [
+						str(st.get("net_status", "")).replace("\n", " | "), int(st.get("disconnect_reason", -1)),
+						str(saw_setup), str(st.get("setup_page", false)),
+						str(chat_in.is_visible_in_tree()) if chat_in else "-", str(ready_b.disabled) if ready_b else "-", box_layer])
 				main._on_disconnected_exit_pressed()
 				await _wait(1.0)
 				_say("setup_exit_scene=" + (current_scene.scene_file_path if current_scene else ""))

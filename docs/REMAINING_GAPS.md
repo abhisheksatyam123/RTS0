@@ -357,7 +357,7 @@ Every technology (ids 1-137) researched alone and in 13 stacked sets, for all 15
 | Z2 | Undergirding Cables and Bronze Ram (ArrowShip, NavalRam) reached the Briton, Gallic and Iberian fire ships: RTS0 spelled NavalRam "Warship Melee" | low | Fixed (TC_FIRESHIP, TechClasses bit 70; NavalRam is Warship Melee !Fireship; test_techs) |
 | Z3 | germ_women's +0.5 m/s walk speed was multiplied by later speed technologies; 0.28 adds it after them | nit | Fixed (test_gather_parity 3c) |
 | Z4 | The selection details' gather rates left out Silver Owls (Athenian metal x1.1 per phase) and cart_stone_01..03 (Carthaginian stone x1.25 per phase) that gathering applies | low | Fixed (civ_gather_bonus; test_gather_parity 3b) |
-| Z5 | Petra's gather-rate estimate (petra_gather_rate, entity.js currentGatherRate) leaves out the same civ bonuses, which 0.28 carries as technologies | low | Open (C) |
+| Z5 | Petra's gather-rate estimate (petra_gather_rate, entity.js currentGatherRate) leaves out the same civ bonuses, which 0.28 carries as technologies | low | Fixed: petra_gather_rate applies civ_gather_bonus |
 
 ### Structure attacks and upgrades, fifteenth 0.28 pass (2026-10-20)
 
