@@ -420,9 +420,10 @@ public:
 		// captured while decaying, which its owner's AI garrisons until the decay stops.
 		bool petra_decay_hold = false;
 	};
-	// Whether `b` is rasterized into the nav grid (0 A.D. Obstruction BlockPathfinding).
+	// Whether `b` is rasterized into the nav grid (0 A.D. Obstruction BlockPathfinding). A locked
+	// gate blocks paths once it has shut (Gate.js CloseGate), not while it is still open.
 	static bool blocks_pathfinding(const Building &b) {
-		return building_blocks_movement(b.type) && (!is_gate_type(b.type) || b.gate_locked);
+		return building_blocks_movement(b.type) && (!is_gate_type(b.type) || (b.gate_locked && !b.gate_open));
 	}
 	// Whether units collide with `b` right now (0 A.D. Obstruction BlockMovement).
 	// A foundation blocks nothing until it is committed (Foundation.js Commit).
