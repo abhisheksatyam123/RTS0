@@ -23,6 +23,7 @@
 #include "../simulation/simulation.h"
 #include "hotkeys.h"
 #include "l10n.h"
+#include "session_skin.h"
 
 using namespace godot;
 
@@ -79,44 +80,40 @@ inline std::string tutorial_panel_text(const Simulation &sim) {
 class RtsoTutorialPanel {
 public:
 	void build(Node *parent, Object *owner, const char *ready_method) {
+		// tutorial_panel.xml: a ModernFade at "50%-380 38 50%+380 292", the text in a
+		// TutorialPanel box at "10 10 100%-20 100%-48", the warning (ModernLeftLabelText) at
+		// "10 100%-42 100%-20 100%-12" and a ModernButtonRed Ready at
+		// "100%-160 100%-42 100%-20 100%-12".
 		panel_ = memnew(Panel);
-		panel_->set_anchor(SIDE_LEFT, 0.5f);
-		panel_->set_anchor(SIDE_RIGHT, 0.5f);
-		panel_->set_offset(SIDE_LEFT, -310.0f);
-		panel_->set_offset(SIDE_RIGHT, 310.0f);
-		panel_->set_offset(SIDE_TOP, 40.0f);
-		panel_->set_offset(SIDE_BOTTOM, 230.0f);
+		panel_->set_name("TutorialPanel");
+		panel_->set_theme(session_skin());
+		panel_->set_theme_type_variation("ModernFade");
+		place(panel_, 0.5f, 0, 0.5f, 0, -380, 38, 380, 292);
 		panel_->set_mouse_filter(Control::MOUSE_FILTER_STOP);
-		Ref<StyleBoxFlat> st;
-		st.instantiate();
-		st->set_bg_color(Color(0.06f, 0.07f, 0.10f, 0.88f));
-		st->set_border_width_all(1);
-		st->set_border_color(Color(0.90f, 0.75f, 0.31f));
-		st->set_corner_radius_all(4);
-		panel_->add_theme_stylebox_override("panel", st);
 
 		text_ = memnew(RichTextLabel);
+		text_->set_theme_type_variation("TutorialPanel");
 		text_->set_use_bbcode(true);
-		text_->set_scroll_follow(true); // the newest instruction stays in view
-		text_->set_position(Vector2(12, 8));
-		text_->set_size(Vector2(596, 120));
-		text_->add_theme_font_size_override("normal_font_size", 13);
+		text_->set_scroll_follow(true); // scroll_bottom: the newest instruction stays in view
 		panel_->add_child(text_);
+		place(text_, 0, 0, 1, 1, 10, 10, -20, -48);
 
 		status_ = memnew(RichTextLabel); // tutorialWarning
 		status_->set_use_bbcode(true);
 		status_->set_scroll_active(false);
-		status_->set_position(Vector2(12, 130));
-		status_->set_size(Vector2(400, 22));
-		status_->add_theme_font_size_override("normal_font_size", 13);
+		status_->add_theme_font_size_override("normal_font_size", 14);
+		status_->add_theme_color_override("default_color", Color(1, 1, 1));
+		status_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+		status_->add_theme_constant_override("outline_size", 3); // sans-bold-stroke-14
 		panel_->add_child(status_);
+		place(status_, 0, 1, 1, 1, 10, -36, -20, -12);
 
 		ready_ = memnew(Button);
+		ready_->set_theme(modern_skin()); // ModernButtonRed
 		ready_->set_text("Ready");
-		ready_->set_position(Vector2(468, 150));
-		ready_->set_size(Vector2(140, 30));
 		ready_->connect("pressed", Callable(owner, ready_method));
 		panel_->add_child(ready_);
+		place(ready_, 1, 1, 1, 1, -160, -42, -20, -12);
 
 		panel_->set_visible(false);
 		parent->add_child(panel_);
@@ -184,6 +181,16 @@ public:
 	}
 
 private:
+	static void place(Control *c, float al, float at, float ar, float ab, float l, float t, float r, float b) {
+		c->set_anchor(SIDE_LEFT, al);
+		c->set_anchor(SIDE_TOP, at);
+		c->set_anchor(SIDE_RIGHT, ar);
+		c->set_anchor(SIDE_BOTTOM, ab);
+		c->set_offset(SIDE_LEFT, l);
+		c->set_offset(SIDE_TOP, t);
+		c->set_offset(SIDE_RIGHT, r);
+		c->set_offset(SIDE_BOTTOM, b);
+	}
 	Panel *panel_ = nullptr;
 	RichTextLabel *text_ = nullptr;
 	RichTextLabel *status_ = nullptr;
