@@ -272,9 +272,11 @@ int main() {
 		CHECK(s.cmd_lock_gate(0, gate, true));
 		run(s, 2.0f);
 		CHECK(find_bld(s, gate)->gate_open); // locked, but someone is in the way
+		CHECK(!nav_blocked_at(s, 1.0f, 1.0f)); // Gate.js blocks paths only once it has shut
 		s.cmd_move(&u, 1, -20.0f, 1.0f);
 		run(s, 4.0f);
 		CHECK(!find_bld(s, gate)->gate_open);
+		CHECK(nav_blocked_at(s, 1.0f, 1.0f));
 		CHECK(unit_x(s, u) < -2.0f);
 	}
 
