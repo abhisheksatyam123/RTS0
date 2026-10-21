@@ -4142,7 +4142,15 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 			structure_cost(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ), cost);
 			bool afford = true;
 			for (int r = 0; r < RES_COUNT; ++r) afford &= (left[r] -= cost[r]) >= 0.0f;
-			if (!afford) break;
+			if (!afford) {
+				// TryConstructBuilding's TrySubtractResources (Player.js SubtractResourcesOrNotify):
+				// "Insufficient resources" with what this piece still needs.
+				SessionNotice need{SessionNotice::TEXT, player, 0, SessionNotice::TEXT_INSUFFICIENT_RESOURCES, {}};
+				for (int r = 0; r < RES_COUNT; ++r)
+					if (left[r] < 0.0f) need.amounts[r] = (int32_t)std::ceil(-left[r]);
+				note_session(need);
+				break;
+			}
 			any_segment = !(p.type == ws.tower && p.half_w == ws.tower_half);
 		}
 		if (!any_segment) return 0;
@@ -4157,7 +4165,15 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 		if (check_wall_piece(player, p, ignore.data(), ignore.size()) != PLACE_OK) break;
 		if (!entity_limit_allows_building(player, p.type)) break;
 		const bool segment = !(p.type == ws.tower && p.half_w == ws.tower_half);
-		if (!pay_for_structure(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ))) break;
+		if (!pay_for_structure(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ))) {
+			float cost[RES_COUNT];
+			structure_cost(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ), cost);
+			SessionNotice need{SessionNotice::TEXT, player, 0, SessionNotice::TEXT_INSUFFICIENT_RESOURCES, {}};
+			for (int r = 0; r < RES_COUNT; ++r)
+				if (cost[r] > players_[player].res[r]) need.amounts[r] = (int32_t)std::ceil(cost[r] - players_[player].res[r]);
+			note_session(need);
+			break;
+		}
 		const uint32_t bid = spawn_wall_piece(p, player, 0.0f);
 		if (!triggers_.triggers.empty()) { // each piece is a foundation entity (TryConstructWall), as in cmd_build
 			TriggerEventData ev;
@@ -15685,7 +15701,7 @@ void Simulation::tick_combat(float dt) {
 			return !check_los || los_visible(team, units_.pos_x[t], units_.pos_z[t]);
 		};
 		auto building_ok = [&](const Building &ob) {
-			if (ob.wrecked || ob.hp <= 0.0f || ob.team == GAIA_PLAYER || !can_attack(team, ob.team)) return false;
+			if (ob.wrecked || ob.hp <= 0.0f || !structure_has_health(ob.type) || ob.team == GAIA_PLAYER || !can_attack(team, ob.team)) return false;
 			const float gap = structure_gap(ob, sx, sz, unit_clearance_at(i));
 			if (!in_parabolic_range(gap * gap, sy, get_terrain_height(ob.x, ob.z), range)) return false;
 			return !check_los || los_explored(team, ob.x, ob.z);
@@ -15854,6 +15870,10 @@ void Simulation::tick_combat(float dt) {
 		const double reach2 = (double)max_r * max_r - 2.0 * (double)max_r * ((double)lowest_ground - (double)b_y);
 		const float corner = det::hypot(b.hu, b.hv); // the footprint's farthest reach from its centre
 		const float ground_reach = max_r > 0.0f && reach2 > 0.0 ? (float)std::sqrt(reach2) + corner + 1.0f : -1.0f;
+		// Units too: CreateActiveParabolicQuery has no flat cap, so a tower on a hill reaches
+		// units past its flat range (ground_reach already holds the corner and a metre).
+		const float unit_scan_r = ground_reach >= 0.0f ? std::max(ground_reach, max_r + corner) + UNIT_RANGE_MARGIN
+				: max_r + corner + UNIT_RANGE_MARGIN;
 		auto beyond = [&](float dx, float dz, float other_half) {
 			return ground_reach >= 0.0f && (std::fabs(dx) > ground_reach + other_half || std::fabs(dz) > ground_reach + other_half);
 		};
@@ -15898,7 +15918,7 @@ void Simulation::tick_combat(float dt) {
 		if (!b.arrow_timer_on) {
 			// OnRangeUpdate -> StartTimer: the first round comes PrepareTime after an enemy enters.
 			bool any = false;
-			if (n) grid.visit_radius(b.x, b.z, max_r + corner + UNIT_RANGE_MARGIN, [&](int32_t i) { any = any || unit_target(i); });
+			if (n) grid.visit_radius(b.x, b.z, unit_scan_r, [&](int32_t i) { any = any || unit_target(i); });
 			if (!any) each_fauna([&](int32_t f) { any = any || fauna_target(f); });
 			if (!any) each_building([&](size_t o) { any = any || building_target(buildings_[o]); });
 			if (!any) continue;
@@ -15914,7 +15934,7 @@ void Simulation::tick_combat(float dt) {
 		bool in_reach = false; // targetUnits: everything in range, seen or not, keeps the timer going
 		arrow_targets.clear();
 		if (n) {
-			grid.visit_radius(b.x, b.z, max_r + corner + UNIT_RANGE_MARGIN, [&](int32_t i) {
+			grid.visit_radius(b.x, b.z, unit_scan_r, [&](int32_t i) {
 				if (!unit_target(i)) return;
 				in_reach = true;
 				if (!seen(units_.pos_x[i], units_.pos_z[i])) return;
@@ -18311,8 +18331,8 @@ bool Simulation::cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool loc
 	if (b.gate_locked == lock) return false;
 	const bool blocked_paths = blocks_pathfinding(b);
 	b.gate_locked = lock;
-	// LockGate: an open gate closes on the next check once nobody stands in it.
-	// Only locking and unlocking change what long-range paths may cross.
+	// LockGate: an open gate closes on the next check once nobody stands in it, and blocks
+	// long-range paths from then on (the gate tick rebuilds the grid); unlocking frees them now.
 	if (blocks_pathfinding(b) != blocked_paths) rebuild_nav_grid();
 	return true;
 }

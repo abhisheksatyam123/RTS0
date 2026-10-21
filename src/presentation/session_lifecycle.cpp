@@ -1310,7 +1310,9 @@ void RtsoMain::_process(double delta) {
 	// Update Building Placement Ghost (0 A.D. gui/session/building_placement.js:45-92 BuildPreview parity)
 	if (build_mode) {
 		Vector2 mouse_pos = get_viewport()->get_mouse_position();
-		if (wall_drag_mode) {
+		const bool wall_type = current_build_type == rtso::BLD_WALL_SEGMENT || current_build_type == rtso::BLD_PALISADE ||
+				current_build_type == rtso::BLD_SIEGE_WALL;
+		if (wall_drag_mode || wall_type) {
 			if (ghost_mesh && ghost_mesh->is_visible()) ghost_mesh->set_visible(false);
 			// The pieces the sim will lay (helpers/Walls.js GetWallPlacement), each tinted by whether
 			// it can be placed where it stands.
@@ -1319,12 +1321,23 @@ void RtsoMain::_process(double delta) {
 			uint32_t start_tower = 0, end_tower = 0;
 			const uint8_t wall_kind = rtso::wallset_kind_of((uint8_t)current_build_type);
 			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind, sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_COUNT);
-			if (sim)
+			if (sim && !wall_drag_mode) {
+				// input.js INPUT_BUILDING_WALL_CLICK before the first click (GuiInterface.js
+				// SetWallPlacementPreview with only a start): one tower at the cursor, on the player's
+				// own tower or tower foundation when the cursor is within half a tower of it.
+				const uint8_t civ = sim->player_civ(local_player());
+				float tx = drag_curr_pos.x, tz = drag_curr_pos.z;
+				start_tower = sim->wall_snap_tower(local_player(), tx, tz, wall_kind);
+				if (start_tower)
+					for (const auto &b : sim->buildings())
+						if (b.id == start_tower) { tx = b.x; tz = b.z; break; }
+				pieces.push_back({wall_set.tower, tx, tz, 0.0f, wall_set.tower_half, civ});
+			} else if (sim)
 				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
 						drag_curr_pos.x, drag_curr_pos.z, &start_tower, &end_tower, wall_kind);
 			// Walls.js returns no segment for a wall no longer than a tower, but the preview still
 			// shows its end towers (GuiInterface.js SetWallPlacementPreview); a click then lays nothing.
-			if (sim && pieces.empty()) {
+			if (sim && wall_drag_mode && pieces.empty()) {
 				const uint8_t civ = sim->player_civ(local_player());
 				if (!start_tower)
 					pieces.push_back({wall_set.tower, wall_drag_start_pos.x, wall_drag_start_pos.z, 0.0f, wall_set.tower_half, civ});
@@ -1348,15 +1361,18 @@ void RtsoMain::_process(double delta) {
 			bool chain_ok = true, place_ok = true;
 			float spent[rtso::RES_COUNT] = {};
 			float wall_cost[rtso::RES_COUNT] = {};
+			float wall_time = 0.0f; // cost.time: each placeable piece's BuildTime (GuiInterface.js:1679)
 			for (size_t i = 0; i < pieces.size(); ++i) {
 				const auto &p = pieces[i];
 				MeshInstance3D *g = wall_ghosts[i];
 				if (sim && place_ok) {
 					place_ok = sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
 					float c[rtso::RES_COUNT];
-					sim->wall_piece_cost(local_player(), p, c);
-					if (place_ok)
+					const float t = sim->wall_piece_price(local_player(), p.type, p.half_w, c);
+					if (place_ok) {
 						for (int r = 0; r < rtso::RES_COUNT; ++r) wall_cost[r] += c[r];
+						wall_time += t;
+					}
 				}
 				// 0 A.D. previews each piece with its own actor (wall_long/medium/short, the
 				// tower): the model the world view will draw for it, turned the same way.
@@ -1399,16 +1415,19 @@ void RtsoMain::_process(double delta) {
 				}
 			}
 			// INPUT_BUILDING_WALL_PATHING: the wall's cost and what the stock lacks for it;
-			// after a refused click "Cannot build wall here!" until the cursor moves.
-			if (!wall_fail_tip_.is_empty() && mouse_pos.distance_to(wall_fail_mouse_) > 2.0f) wall_fail_tip_ = String();
+			// after a refused click "Cannot build wall here!" until the cursor moves to where the
+			// wall can stand (input.js keeps the message while the preview has no cost).
+			if (!wall_fail_tip_.is_empty() && mouse_pos.distance_to(wall_fail_mouse_) > 2.0f && place_ok && !pieces.empty())
+				wall_fail_tip_ = String();
 			if (!wall_fail_tip_.is_empty()) {
 				set_placement_tip(wall_fail_tip_, true);
-			} else if (sim && !pieces.empty()) {
+			} else if (sim && wall_drag_mode && !pieces.empty()) {
 				rtso::CostTip cost;
 				cost.food = (int64_t)std::lround(wall_cost[rtso::RES_FOOD]);
 				cost.wood = (int64_t)std::lround(wall_cost[rtso::RES_WOOD]);
 				cost.stone = (int64_t)std::lround(wall_cost[rtso::RES_STONE]);
 				cost.metal = (int64_t)std::lround(wall_cost[rtso::RES_GOLD]);
+				cost.time = (int64_t)std::lround(wall_time);
 				const auto &ps = sim->player(local_player());
 				String tip = rtso::cost_tooltip(cost);
 				const String need = rtso::needed_resources_tooltip(cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
