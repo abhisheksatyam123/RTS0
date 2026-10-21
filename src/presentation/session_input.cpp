@@ -56,9 +56,11 @@ static bool unit_selection_group(uint8_t unit_type) {
 // with the civic centres, kush/temple_amun and the shrines with the temples, and so on).
 static uint8_t structure_selection_group(uint8_t type) {
 	switch (type) {
-		case rtso::BLD_CRANNOG: case rtso::BLD_IMPERIAL_COURT: return rtso::BLD_TOWN_CENTER;
+		case rtso::BLD_CRANNOG: case rtso::BLD_IMPERIAL_COURT: case rtso::BLD_CAMPAIGN_CITY:
+		case rtso::BLD_CAMPAIGN_CITY_MINOR: return rtso::BLD_TOWN_CENTER;
 		case rtso::BLD_TEMPLE_AMUN: case rtso::BLD_TEMPLE_VESTA: case rtso::BLD_TEMPLE_MARS:
-		case rtso::BLD_TEMPLE_ISIS: case rtso::BLD_TOPHET: case rtso::BLD_KUSH_SHRINE: case rtso::BLD_SHRINE: return rtso::BLD_TEMPLE;
+		case rtso::BLD_TEMPLE_ISIS: case rtso::BLD_TOPHET: case rtso::BLD_KUSH_SHRINE: case rtso::BLD_SHRINE:
+		case rtso::BLD_CAMPAIGN_SANCTUARY: return rtso::BLD_TEMPLE;
 		case rtso::BLD_INN: case rtso::BLD_TENT: case rtso::BLD_WAREHOUSE: case rtso::BLD_TAVERN:
 		case rtso::BLD_APARTMENT: return rtso::BLD_HOUSE;
 		case rtso::BLD_TOWER_GREAT: return rtso::BLD_TOWER;
