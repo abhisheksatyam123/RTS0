@@ -312,6 +312,7 @@ constexpr uint8_t NDR_INCORRECT_PROTOCOL_VERSION = 3;
 // 0 A.D. NetMessages.h: the handshake response flag of a host that checks a
 // joiner's name with the lobby.
 constexpr uint32_t PS_NETWORK_FLAG_REQUIRE_LOBBYAUTH = 0x1;
+constexpr uint8_t NDR_SERVER_LOADING = 4; // a join while the host's game loads
 constexpr uint8_t NDR_SERVER_ALREADY_IN_GAME = 5; // a late observer the host does not take
 constexpr uint8_t NDR_PLAYERNAME_IN_USE = 8;
 constexpr uint8_t NDR_SERVER_FULL = 9;

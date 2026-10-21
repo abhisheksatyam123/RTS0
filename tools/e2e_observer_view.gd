@@ -91,6 +91,19 @@ func run() -> void:
 	# Cheats.executeCheat: controlsPlayer(Engine.GetPlayerID()), the own (defeated) seat, so the
 	# code goes out as chat instead of cheating for the viewed player.
 	check(not m.chat_try_cheat("brainiac"), "viewing a player, a defeated player's cheat code is not run for them")
+	# PlayerViewControl.rebuild on a Diplomacy Colors change: the squares follow the colours.
+	if picker:
+		await frames(2)
+		var before = [picker.get_item_metadata(2), picker.get_item_metadata(3)]
+		m.toggle_diplomacy_colors()
+		await frames(2)
+		var during = [picker.get_item_metadata(2), picker.get_item_metadata(3)]
+		m.toggle_diplomacy_colors()
+		await frames(2)
+		var after = [picker.get_item_metadata(2), picker.get_item_metadata(3)]
+		print("    squares ", before, " ", during, " ", after)
+		check(before[0] != null and during != before and after == before,
+				"the player squares take the Diplomacy Colors and give them back (PlayerViewControl)")
 
 	print("4. The viewed player loses")
 	# PlayerViewControl.onPlayersFinished: the view goes to Observer when the viewed player is
