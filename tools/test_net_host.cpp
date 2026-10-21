@@ -147,11 +147,13 @@ int main() {
 	for (auto &p : live) p->stop();
 	live.clear();
 	// Each joiner stays connected (and polled) for the next ones.
-	auto join = [&](const std::string &name, const std::string &version) {
+	auto join = [&](const std::string &name, const std::string &version,
+			std::vector<std::pair<std::string, std::string>> mods = {}) {
 		live.push_back(std::make_unique<NetHost>());
 		NetHost &cl = *live.back();
 		cl.setLocalPlayerName(name);
 		if (!version.empty()) cl.setSoftwareVersion(version);
+		cl.setEnabledMods(std::move(mods));
 		cl.startClient("127.0.0.1", game_port);
 		pump(game, live, 12000, [&] { return cl.connectionLost() || cl.authResult() >= 0; });
 		return cl.authResult() == ARC_OK ? -1 : cl.disconnectReason();
@@ -161,6 +163,8 @@ int main() {
 	      "another engine version is refused (NDR_INCORRECT_SOFTWARE_VERSION)");
 	CHECK(live.back()->hostSoftwareVersion() == game.softwareVersion() && live.back()->softwareVersion() == "RTS0-other",
 	      "the refused client knows the host's version, for the mismatch detail");
+	CHECK(join("dave", "", {{"public", "0.28.0"}, {"mymod", "1.0"}}) == NDR_INCORRECT_SOFTWARE_VERSION &&
+	      admitted.size() == 1, "other enabled mods are refused (NDR_INCORRECT_SOFTWARE_VERSION)");
 	CHECK(join("bob", "") == NDR_PLAYERNAME_IN_USE && admitted.size() == 1,
 	      "a second bob is refused (NDR_PLAYERNAME_IN_USE)");
 	CHECK(join("alice", "") == NDR_PLAYERNAME_IN_USE && admitted.size() == 1, "so is the host's own name");

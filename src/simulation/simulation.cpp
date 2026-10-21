@@ -4142,7 +4142,15 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 			structure_cost(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ), cost);
 			bool afford = true;
 			for (int r = 0; r < RES_COUNT; ++r) afford &= (left[r] -= cost[r]) >= 0.0f;
-			if (!afford) break;
+			if (!afford) {
+				// TryConstructBuilding's TrySubtractResources (Player.js SubtractResourcesOrNotify):
+				// "Insufficient resources" with what this piece still needs.
+				SessionNotice need{SessionNotice::TEXT, player, 0, SessionNotice::TEXT_INSUFFICIENT_RESOURCES, {}};
+				for (int r = 0; r < RES_COUNT; ++r)
+					if (left[r] < 0.0f) need.amounts[r] = (int32_t)std::ceil(-left[r]);
+				note_session(need);
+				break;
+			}
 			any_segment = !(p.type == ws.tower && p.half_w == ws.tower_half);
 		}
 		if (!any_segment) return 0;
@@ -4157,7 +4165,15 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 		if (check_wall_piece(player, p, ignore.data(), ignore.size()) != PLACE_OK) break;
 		if (!entity_limit_allows_building(player, p.type)) break;
 		const bool segment = !(p.type == ws.tower && p.half_w == ws.tower_half);
-		if (!pay_for_structure(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ))) break;
+		if (!pay_for_structure(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ))) {
+			float cost[RES_COUNT];
+			structure_cost(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ), cost);
+			SessionNotice need{SessionNotice::TEXT, player, 0, SessionNotice::TEXT_INSUFFICIENT_RESOURCES, {}};
+			for (int r = 0; r < RES_COUNT; ++r)
+				if (cost[r] > players_[player].res[r]) need.amounts[r] = (int32_t)std::ceil(cost[r] - players_[player].res[r]);
+			note_session(need);
+			break;
+		}
 		const uint32_t bid = spawn_wall_piece(p, player, 0.0f);
 		if (!triggers_.triggers.empty()) { // each piece is a foundation entity (TryConstructWall), as in cmd_build
 			TriggerEventData ev;
@@ -18402,8 +18418,8 @@ bool Simulation::cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool loc
 	if (b.gate_locked == lock) return false;
 	const bool blocked_paths = blocks_pathfinding(b);
 	b.gate_locked = lock;
-	// LockGate: an open gate closes on the next check once nobody stands in it.
-	// Only locking and unlocking change what long-range paths may cross.
+	// LockGate: an open gate closes on the next check once nobody stands in it, and blocks
+	// long-range paths from then on (the gate tick rebuilds the grid); unlocking frees them now.
 	if (blocks_pathfinding(b) != blocked_paths) rebuild_nav_grid();
 	return true;
 }
@@ -22426,11 +22442,11 @@ float Simulation::civ_gather_bonus(size_t i, uint8_t kind) const {
 }
 
 // ResourceGatherer/Rates of unit i for a supply kind (entity.js currentGatherRate), with its
-// technologies and the AI difficulty's gather rate.
+// technologies, the civ bonuses 0.28 carries as technologies, and the AI difficulty's gather rate.
 float Simulation::petra_gather_rate(size_t i, uint8_t kind) const {
 	const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
 	return gather_class_rate(gcls, kind) * unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).gather[kind] *
-		ai_gather_mult(units_.team[i]);
+		civ_gather_bonus(i, kind) * ai_gather_mult(units_.team[i]);
 }
 
 uint8_t Simulation::petra_gather_kind(size_t r) const {
