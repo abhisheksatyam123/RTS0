@@ -78,6 +78,7 @@ var water_level: int = 0
 var sea_level_rise_min: int = 25
 # 0 A.D. Player Placement (the patterns a random map lists): rtso::TeamPlacement, 0 = Random.
 var team_placement: int = 0
+var map_filter: String = "" # the setup's Map Filter (0 A.D. GuiData mapFilter), "" = Default
 var landscape: int = 0 # Unknown map Landscape (RmsGenerator::UNKNOWN_LANDSCAPE_*), 0 = random
 var trigger_difficulty: int = 3 # 0 A.D. Trigger Difficulty: 1 Very Easy .. 5 Very Hard, 3 Medium
 var map_daytime: int = 0 # 0 A.D. Daytime: 0 = the map picks, else the option in DAYTIMES (1-based)

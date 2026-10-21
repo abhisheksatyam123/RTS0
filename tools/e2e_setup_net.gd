@@ -268,6 +268,7 @@ func run() -> void:
 	ms.seed = 1234
 	ms.rated = true
 	ms.cheats = false
+	ms.map_filter = "all" # GuiData.js: the host's Map Filter
 	# LoadingPage: before the host's first setup the client sees only "Loading".
 	client.state["version"] = 0
 	page = await open_page(client)
@@ -294,7 +295,23 @@ func run() -> void:
 	check(not page.get_node("%SpinSeed").editable
 		and page.get_node("%MapList").disabled
 		and page.get_node("%Waves").disabled, "the host's settings are locked")
+	check(page._map_filter_name == "all", "the client shows the host's Map Filter (GuiData.js): " + page._map_filter_name)
+	ms.map_filter = ""
 	check(page._tab == -1 and not page.get_node("%MapTab").visible, "a client starts with no settings tab open (GameSettingTabs.onLoad)")
+	# GameSettingsTabs / CivInfoButton / MapBrowser.js: a client clicks the tabs and the viewers.
+	var tab_map: Button = page.find_child("TabMap", true, false)
+	var civ_info: Button = page.find_child("CivInfoButton", true, false)
+	var browse_btn: Button = page.find_child("BrowseMaps", true, false)
+	check(tab_map != null and not tab_map.disabled and civ_info != null and not civ_info.disabled
+		and browse_btn != null and browse_btn.visible and not browse_btn.disabled,
+		"a client can click the tabs, the civ info button and Browse Maps")
+	browse_btn.pressed.emit()
+	await frames(2)
+	check(page._map_browser != null and is_instance_valid(page._map_browser), "Browse Maps opens the browser for a client (read only)")
+	if page._map_browser != null and is_instance_valid(page._map_browser):
+		page._map_browser.get_parent().queue_free()
+		page._map_browser = null
+	await frames(2)
 	page._render_value_texts()
 	var ml: Control = page.get_node("%MapList")
 	var vt: Label = ml.get_node_or_null("ValueText")
@@ -413,6 +430,15 @@ func run() -> void:
 		and page.get_node("%NetChatInput").editable, "Start, Back and the chat stay")
 	check(ms.cheats and not ms.rated and not page.get_node("%RatedGame").visible and ms.seed == 4242
 		and ms.slot_types == [0, 1, 0], "the save keeps its own settings (cheats on, never rated)")
+	# MapPreview.js / MapBrowser.js EnabledWhenSavedGame: a saved game's map is fixed;
+	# the tabs stay clickable.
+	page._apply_mp_locks()
+	page._open_map_browser()
+	await frames(2)
+	var saved_browse: Control = page.find_child("BrowseMaps", true, false)
+	check((page._map_browser == null or not is_instance_valid(page._map_browser)) and saved_browse != null and not saved_browse.visible
+		and not (page.find_child("TabPlayer", true, false) as Button).disabled,
+		"a saved game's host opens no map browser and has no Browse Maps, but can switch tabs")
 	page.queue_free()
 	host.queue_free()
 	await frames(2)
