@@ -402,7 +402,10 @@ public:
 			const String context = tag == "[Allies]" ? "Ally" : tag == "[Enemies]" ? "Enemy" : tag == "[Observers]" ? "Observer"
 					: tag.is_empty() ? "" : "Private";
 			if (context == "Private") last_private_ = tag;
-			const String wire_tag = tag.is_empty() ? String() : tag + " ";
+			// A line to everyone that starts with "[" travels behind "[All] ", so a
+			// typed "[Player-3] hi" or "[Flare] 1,2" stays text (0.28 sends the
+			// text as typed; only the slash commands pick addressees).
+			const String wire_tag = !tag.is_empty() ? tag + " " : text.begins_with("[") ? String(ALL_TAG) + " " : String();
 			const String line = format_line(context, host_->chat_user(""), text);
 			add_log(line + String("\n"), message_bits(context, !observer));
 			post_overlay(line);
@@ -433,7 +436,9 @@ public:
 		// The wire tag is the addressee; 0.28 shows it as the context (ChatAddressees.js)
 		// and shows the message only to its addressees (isAddressee).
 		String context, tag;
-		if (msg.begins_with("[Allies]")) {
+		if (msg.begins_with(String(ALL_TAG) + " ")) {
+			msg = msg.substr(6);
+		} else if (msg.begins_with("[Allies]")) {
 			context = "Ally";
 			tag = "[Allies]";
 			msg = msg.substr(8).strip_edges();
@@ -621,6 +626,8 @@ private:
 		return ctx + (me ? "* " + user : tag) + " " + text;
 	}
 
+	// The wire tag of a line to everyone whose text starts with "[" (no addressee).
+	static constexpr const char *ALL_TAG = "[All]";
 	static bool is_private(const String &tag) { return tag.begins_with("[Player-") || tag.begins_with("[Observer-"); }
 	bool is_online(const String &tag) const {
 		if (!host_) return false;

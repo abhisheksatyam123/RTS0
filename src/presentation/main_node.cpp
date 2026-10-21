@@ -1087,7 +1087,8 @@ void RtsoMain::_on_disconnected_exit_pressed() {
 // the kicked message, as ChatMessageFormatNetwork words them.
 void RtsoMain::post_network_chat() {
 	auto who = [&](const rtso::PlayerAssignmentMsg::Entry &e) {
-		String name = String::utf8(e.name.empty() ? rtso::peer_guid(e.client).c_str() : e.name.c_str()).replace("[", "[lb]");
+		// colorizePlayernameByGUID: "Unknown Player" for a client without a name.
+		String name = (e.name.empty() ? tr("Unknown Player") : String::utf8(e.name.c_str())).replace("[", "[lb]");
 		if (e.player >= rtso::MAX_PLAYERS || !sim) return name;
 		const uint32_t rgb = rtso::display_colors::rgb(*sim, e.player);
 		return "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + name + "[/color]";
@@ -1447,6 +1448,13 @@ bool RtsoMain::spectating() const {
 	return seat >= rtso::MAX_PLAYERS || sim->is_defeated(seat) || sim->is_victory_for(seat);
 }
 
+bool RtsoMain::orders_allowed() const {
+	if (turn_mgr_.is_replaying() || !sim) return false;
+	if (!spectating()) return true;
+	const uint8_t seat = seat_player();
+	return seat < rtso::MAX_PLAYERS && !sim->is_defeated(seat) && view_player() == seat;
+}
+
 // 0 A.D. session "viewPlayer" dropdown (gui/session/top_panel/PlayerViewControl):
 // an observer, or a player once defeated or victorious (isPlayerObserver), watches
 // the whole map or follows one player's sight and panels. A loss switches the view
@@ -1538,6 +1546,10 @@ void RtsoMain::update_hud() {
 		const bool picker_shown = (replay_view_picker_ && replay_view_picker_->is_visible_in_tree()) ||
 				(observer_view_picker_ && observer_view_picker_->is_visible_in_tree());
 		top_panel_.set_build_label_view(view_player() < rtso::MAX_PLAYERS, picker_shown);
+		if (picker_shown) {
+			refresh_player_view_colors(replay_view_picker_);
+			refresh_player_view_colors(observer_view_picker_);
+		}
 		const uint8_t me = local_player();
 		const int idle = me < rtso::MAX_PLAYERS ? (int)sim->get_idle_workers(me).size() : 0;
 		minimap_panel_.update(idle, rtso::display_colors::state().enabled, me >= rtso::MAX_PLAYERS || spectating(),
@@ -3719,7 +3731,7 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	if (rtso::net_cmd_takes_push_front(cmd_type) && !(param & rtso::NET_PARAM_QUEUED) &&
 			rtso::hotkeys::held("session.pushorderfront"))
 		c.param |= rtso::NET_PARAM_PUSH_FRONT_ORDER;
-	if (spectating()) return; // observers and defeated players order nothing
+	if (!orders_allowed()) return; // observers and defeated players order nothing
 	if (ids && (cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_MOVE || cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_PATROL))
 		apply_default_formation(ids, n);
 	if (ids && n && order_disbands_formation(cmd_type)) {

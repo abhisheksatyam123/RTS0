@@ -844,7 +844,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			// input.js INPUT_NORMAL right button: with units selected, wait for the release, which
 			// either gives the usual order or, after a drag, spreads them along the drawn line.
-			if (!replaying_right_ && !selected_ids.is_empty() && !spectating()) {
+			if (!replaying_right_ && !selected_ids.is_empty() && orders_allowed()) {
 				right_line_ = RightLine();
 				right_line_.active = true;
 				right_line_.start = mouse_pos;
@@ -1633,7 +1633,7 @@ bool RtsoMain::armed_target_ok(const Vector3 &at) const {
 // order path of a right click), keep it armed under Shift (session.queue) or Alt (orderone),
 // and select nothing. Returns false when the selection is gone, which clears the action.
 bool RtsoMain::run_armed_click(const Ref<InputEventMouseButton> &press) {
-	if (!sim || selected_ids.is_empty() || spectating()) {
+	if (!sim || selected_ids.is_empty() || !orders_allowed()) {
 		attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
 		return false;
 	}
@@ -1672,7 +1672,7 @@ void RtsoMain::finish_right_line(const Ref<InputEventMouseButton> &release) {
 		_unhandled_input(press);
 		replaying_right_ = false;
 	};
-	if (!sim || !line.drawing || spectating()) {
+	if (!sim || !line.drawing || !orders_allowed()) {
 		replay();
 		return;
 	}
