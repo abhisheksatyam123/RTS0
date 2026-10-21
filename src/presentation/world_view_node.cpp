@@ -321,23 +321,6 @@ void RtsoWorldView::_ready() {
 		ring_decal_tex_ = ImageTexture::create_from_image(img);
 	}
 
-	ring_sel_mat.instantiate();
-	ring_sel_mat->set_albedo(Color(0.2f, 1.0f, 0.4f));
-	ring_sel_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-	ring_sel_mat->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
-
-	ring_enemy_mat.instantiate();
-	ring_enemy_mat->set_albedo(Color(0.92f, 0.25f, 0.2f));
-	ring_enemy_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-	// selection.js g_HighlightedAlpha = 0.75: the same ring, partly transparent.
-	for (Ref<StandardMaterial3D> *m : {&ring_hl_mat, &ring_enemy_hl_mat}) {
-		m->instantiate();
-		(*m)->set_albedo(m == &ring_hl_mat ? Color(0.2f, 1.0f, 0.4f, 0.75f) : Color(0.92f, 0.25f, 0.2f, 0.75f));
-		(*m)->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-		(*m)->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
-		(*m)->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
-	}
-
 	// Floating Health Bar Meshes and Materials
 	hp_bg_mesh.instantiate();
 	hp_bg_mesh->set_size(Vector3(0.9f, 0.08f, 0.04f));
@@ -758,6 +741,14 @@ void RtsoWorldView::update_damage_fx(BuildingVis &v, uint8_t level, float half_s
 static Color player_display_color(const rtso::Simulation *sim, uint8_t pid) {
 	const uint32_t rgb = rtso::display_colors::rgb(*sim, pid);
 	return Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 1.0f);
+}
+
+// GuiInterface SetSelectionHighlight: a ring or outline in its owner's displayed colour
+// (Gaia's white), at selection.js's alpha: 1 selected, g_HighlightedAlpha 0.75 hovered.
+static Color ring_color(const rtso::Simulation *sim, uint8_t owner, bool selected) {
+	Color c = player_display_color(sim, owner);
+	c.a = selected ? 1.0f : 0.75f;
+	return c;
 }
 
 // 0 A.D. player_trans surfaces take the owner's colour (model_common.fs).
@@ -4473,9 +4464,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			const bool ringed = is_selected || highlight_set_.count((int32_t)id) > 0;
 			if (ringed) {
 				Decal *d = get_or_create_ring_decal(unit_rings_used++);
-				const Color &mod_col = is_selected ? (is_player ? RING_SEL_COL : RING_ENEMY_COL)
-				                                   : (is_player ? RING_HL_COL : RING_ENEMY_HL_COL);
-				d->set_modulate(mod_col);
+				d->set_modulate(ring_color(sim, uview.team[i], is_selected));
 				const float rsize = std::max(1.1f, 1.25f * model_b.height * sc);
 				d->set_size(Vector3(rsize, 2.5f, rsize));
 				d->set_transform(Transform3D(Basis(), Vector3(x, ground + 0.1f, z)));
@@ -4563,9 +4552,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		const bool ringed = is_selected || highlight_set_.count((int32_t)id) > 0;
 		if (ringed) {
 			Decal *d = get_or_create_ring_decal(unit_rings_used++);
-			const Color &mod_col = is_selected ? (is_player ? RING_SEL_COL : RING_ENEMY_COL)
-			                                   : (is_player ? RING_HL_COL : RING_ENEMY_HL_COL);
-			d->set_modulate(mod_col);
+			d->set_modulate(ring_color(sim, uview.team[i], is_selected));
 			const float rsize = std::max(1.1f, 1.25f * model_b.height * sc);
 			d->set_size(Vector3(rsize, 2.5f, rsize));
 			d->set_transform(Transform3D(Basis(), Vector3(x, ground + 0.1f, z)));
@@ -5254,7 +5241,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (f_sel || (!highlight_set_.empty() && highlight_set_.count((int32_t)fview.id[f]))) {
 			// The player's own selected livestock (0 A.D. livestock are units), or a hovered animal.
 			Decal *r = get_or_create_ring_decal(unit_rings_used++);
-			r->set_modulate(f_sel ? RING_SEL_COL : RING_HL_COL);
+			r->set_modulate(ring_color(sim, fview.owner[f], f_sel));
 			const float rs = std::max(1.1f, fsc * 1.6f);
 			r->set_size(Vector3(rs, 2.5f, rs));
 			r->set_transform(Transform3D(Basis(), Vector3(fx, fy + 0.1f, fz)));
@@ -5296,7 +5283,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				bar_w = 3.0f, bar_h = 0.5f, offset = 4.0f;
 			}
 			Decal *ring = get_or_create_ring_decal(unit_rings_used++);
-			ring->set_modulate(RING_HL_COL);
+			ring->set_modulate(ring_color(sim, rtso::GAIA_PLAYER, false));
 			const float rs = 2.0f * radius;
 			ring->set_size(Vector3(rs, 2.5f, rs));
 			ring->set_transform(Transform3D(Basis(), Vector3(r.x, ry + 0.1f, r.z)));
@@ -5381,6 +5368,19 @@ void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3
 		status_sprites_.icon(st.rank_icon, at(icon) + Vector3(0.0f, 0.1f * metre, 0.0f), 0.0f, icon);
 		status_rank_icons_.push_back(status_sprites_.icon_path(st.rank_icon));
 	}
+}
+
+// One unshaded, always-on-top material per outline colour (owners x selected/hovered).
+const Ref<StandardMaterial3D> &RtsoWorldView::outline_material(const Color &c) {
+	Ref<StandardMaterial3D> &m = outline_mats_[c.to_rgba32()];
+	if (m.is_null()) {
+		m.instantiate();
+		m->set_albedo(c);
+		m->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+		if (c.a < 1.0f) m->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+		m->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
+	}
+	return m;
 }
 
 // Selectable.js overlay for structures: an outline round the footprint of each selected
@@ -5500,8 +5500,7 @@ void RtsoWorldView::draw_structure_outlines(const rtso::Simulation *sim) {
 			hu += 0.25f;
 			hv += 0.25f;
 			const float y = sim->get_terrain_height(b.x, b.z) + 0.06f;
-			const bool own = b.team == local_player_;
-			const Ref<StandardMaterial3D> &mat = sel ? (own ? ring_sel_mat : ring_enemy_mat) : (own ? ring_hl_mat : ring_enemy_hl_mat);
+			const Ref<StandardMaterial3D> &mat = outline_material(ring_color(sim, b.team, sel));
 			const Vector3 u(b.ux, 0.0f, b.uz), v(-b.uz, 0.0f, b.ux);
 			const float w = 0.15f;
 			// Two bars along u (at +-hv) and two along v (at +-hu).
