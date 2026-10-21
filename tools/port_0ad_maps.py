@@ -706,6 +706,12 @@ def apply_player_data(players, settings, scenario=False, to_world=None):
         c = pd.get("Color")
         if isinstance(c, dict) and all(isinstance(c.get(k), (int, float)) for k in "rgb"):
             p["color"] = [int(c["r"]), int(c["g"]), int(c["b"])]
+        # 0.28 PlayerName.js _set: the map's Name is the seat's default name (an AI keeps it); the
+        # default "Player N" adds nothing.
+        p.pop("name", None)
+        nm = pd.get("Name")
+        if isinstance(nm, str) and nm.strip() and nm != f"Player {p['id']}":
+            p["name"] = nm
         # helpers/Player.js SetStartingCamera: the game opens with this player's camera on
         # Position at Rotation (degrees) instead of on their civic centre.
         p.pop("camera", None)

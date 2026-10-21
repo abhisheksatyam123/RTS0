@@ -354,6 +354,7 @@ var _map_filter_name := "default"
 var _filter_names: Array = []  # the filters the map type has maps for, in dropdown order
 var _want_map_id := ""         # the map to select on the next refresh_map_list
 var _was_scenario := false     # the slots hold a scenario's locked teams
+var _locks_map_id := ""        # the map _apply_map_locks last saw (LockedTeams.onMapChange runs on a change)
 var _slot_rows: Array = []     # per-slot {kind,civ,team,diff,beh}
 ## Single player: the row you play (0.28 PlayerAssignment), -1 to watch the AIs.
 var _local_slot := 0
@@ -573,6 +574,7 @@ static func load_all_maps() -> Array:
 		m["kind"] = "Scenario" if m["type"] == "scenario" else "Skirmish"
 		m["keywords"] = t.get("keywords", [])
 		m["settings"] = t.get("settings", {})
+		m["lock_teams"] = bool(t.get("lock_teams", false))
 	var random_kw: Dictionary = types.get("random_keywords", {})
 	var placements: Dictionary = types.get("player_placements", {})
 	var biomes: Dictionary = types.get("random_biomes", {})
@@ -1104,6 +1106,14 @@ func _map_player(i: int) -> Dictionary:
 	var pl: Array = _selected_map().get("map_players", [])
 	return pl[i] if i < pl.size() else {}
 
+## Any non-random map's player entry for slot i: 0.28's PlayerCiv and PlayerName read a map's
+## PlayerData Civ and Name whatever its type (a skirmish's too), {} otherwise.
+func _map_seat(i: int) -> Dictionary:
+	if str(_selected_map().get("type", "")) == "random":
+		return {}
+	var pl: Array = _selected_map().get("map_players", [])
+	return pl[i] if i < pl.size() else {}
+
 ## A map player's civ as a civ id (the JSON's civ code or number), -1 when unset.
 func _map_civ(p: Dictionary) -> int:
 	var c: Variant = p.get("civ", -1)
@@ -1169,7 +1179,13 @@ func _apply_map_locks() -> void:
 	if scen:
 		for bit in _victory_checks:
 			_victory_checks[bit].disabled = true
+	var map_id := str(m.get("id", ""))
+	var new_map := map_id != _locks_map_id and _locks_map_id != ""
+	_locks_map_id = map_id
 	if not scen:
+		# LockedTeams.onMapChange: a new map sets Lock Teams to its own LockTeams (off when unset).
+		if new_map:
+			%LockTeams.button_pressed = bool(m.get("lock_teams", false))
 		pop.select(pop.get_selected())  # back from "Per Player"
 		pop.tooltip_text = tr(POP_CAP_TYPES[_pop_type][4])
 		_update_lock_teams_for_pop()
@@ -1179,6 +1195,13 @@ func _apply_map_locks() -> void:
 			for r in _slot_rows:
 				r["team"] = 0
 		_was_scenario = false
+		# PlayerCiv.onMapChange: a map whose PlayerData names civs resets every seat, those civs
+		# fixed and the rest Random.
+		var seats: Array = m.get("map_players", []) if str(m.get("type", "")) != "random" else []
+		if seats.any(func(p): return _map_civ(p) >= 0):
+			for i in range(_slot_rows.size()):
+				var c := _map_civ(_map_seat(i))
+				_slot_rows[i]["civ"] = c if c >= 0 else RANDOM_CIV
 		apply_map_colors(m.get("map_players", []))
 		refresh_slots()
 		return
@@ -1674,7 +1697,7 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 		civ.set_item_tooltip(civ.get_item_count() - 1, RefCommon.civ_history(int(c["id"]))) # PlayerCiv: g_CivData History
 	var civ_pos := _civ_pos(int(row["civ"]))
 	civ.select(_civ_order().find(civ_pos) + 1 if civ_pos >= 0 else 0)
-	civ.disabled = _map_civ(_map_player(i)) >= 0
+	civ.disabled = _map_civ(_map_seat(i)) >= 0
 	civ.tooltip_text = tr("Choose the civilization for this player.")
 	civ.item_selected.connect(_on_slot_civ.bind(i))
 	# team
@@ -2281,6 +2304,7 @@ func _collect_setup() -> Dictionary:
 	var n := int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value)
 	_ensure_slot_rows(n)
 	var types: Array = []
+	var map_names: Array = [] # the map's PlayerData Name per seat kept
 	var civs: Array = []
 	var teams: Array = []
 	var diffs: Array = []
@@ -2298,6 +2322,7 @@ func _collect_setup() -> Dictionary:
 		if k == 0 and i == _local_slot:
 			local = types.size()
 		types.append(k)
+		map_names.append(str(_map_seat(i).get("name", "")))
 		var c := int(_slot_rows[i]["civ"])
 		if _civ_pos(c) < 0: # "Random": 0 A.D. picks one when the match starts
 			c = int(CIVS[randi() % CIVS.size()]["id"])
@@ -2310,7 +2335,7 @@ func _collect_setup() -> Dictionary:
 			humans += 1
 		elif k == 1:
 			ai_total += 1
-	var names := _player_names(types, civs, local)
+	var names := _player_names(types, civs, local, map_names)
 	# Single-player Petra settings: the first AI slot's picks (per-slot AI is next).
 	var diff := 3
 	var beh := 0 # player_defaults.json AIBehavior "random"
@@ -2365,13 +2390,17 @@ static func singleplayer_name() -> String:
 # 0 A.D. PlayerName: your slot has your name (Options > player name), AI slots take an
 # unused name from their civ's AINames ("Name 2" when the list runs out), other humans
 # are "Player N".
-func _player_names(types: Array, civs: Array, local := 0) -> Array:
+func _player_names(types: Array, civs: Array, local := 0, map_names: Array = []) -> Array:
 	var you := singleplayer_name()
 	var picked: Array = []
 	var names: Array = []
 	for i in range(types.size()):
+		# PlayerName._set: the map's Name is the seat's default, which an AI keeps.
+		var map_name: String = str(map_names[i]) if i < map_names.size() else ""
 		if i == local and int(types[i]) == 0:
 			names.append(you if not you.is_empty() else "Player %d" % (i + 1))
+		elif not map_name.is_empty():
+			names.append(map_name)
 		elif int(types[i]) == 1:
 			var pool: Array = CivAINames.AI_NAMES[clampi(int(civs[i]), 0, CivAINames.AI_NAMES.size() - 1)]
 			var free: Array = pool.filter(func(n): return not picked.has(n))

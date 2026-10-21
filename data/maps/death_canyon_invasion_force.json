@@ -4362,7 +4362,8 @@
         230,
         230,
         75
-      ]
+      ],
+      "name": "Invasion Force"
     },
     {
       "id": 2,
@@ -4378,7 +4379,8 @@
         166,
         99,
         220
-      ]
+      ],
+      "name": "Invasion Force"
     }
   ],
   "resources": [
