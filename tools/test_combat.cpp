@@ -1624,11 +1624,13 @@ static void test_p14_leftovers() {
 		check(s.units_.hp[ti] < hp0 && s.units_.status_effects[ti] != 0, "a dead archer's arrow still poisons");
 	}
 	{
-		// Aimed at a boar with an enemy spearman under the same point: the boar takes it.
+		// Aimed at a boar with an enemy spearman under the same point: the boar takes it. The archer
+		// shoots from 6 away, so the arrow lands before the two, standing on each other, push each
+		// other out of the point (CCmpUnitMotion_System.cpp:671-804 pushes animals as units).
 		Simulation s;
 		setup(s);
 		s.set_player_active(1, true, false);
-		uint32_t ar = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
+		uint32_t ar = s.spawn_unit(14.0f, 0.0f, 0, UNIT_ARCHER);
 		const uint32_t boar = s.spawn_fauna(20.0f, 0.0f, FAUNA_BOAR);
 		uint32_t sp = dummy(s, 20.1f, 0.0f, UNIT_SPEARMAN, 500.0f);
 		s.units_.attack_damage[idx(s, sp)] = 0.0f;
