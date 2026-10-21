@@ -193,6 +193,18 @@ Pack, flee, stances, turrets and ship ejection against UnitAI.js, Pack.js, Garri
 | O5 | Turret occupants of a structure whose owner ends an alliance step down at once; 0.28's TurretHolder only reacts to an ownership change, so foreign turret units stay on a former ally's wall (a 0.28 bug) | low | Kept |
 | O6 | ~~A sunk or destroyed ship ejects every passenger, and a non-mutual-ally holder disembarks all of them~~ Fixed: only EjectClassesOnDestroy get off (ships: Civilian Infantry Healer Dog; warships: Civilian Infantry Dog; planes none), the rest die aboard; test_naval "alliance ends" | medium | Fixed |
 
+### Selection details layout: Compare's twelfth 0.28 pass (2026-10-21)
+
+| # | Gap | Severity | Status |
+|---|-----|----------|--------|
+| SD1 | What a unit carries, a trader's gain, builders or repairers with the time left and a supply's gatherers were a text line between the name and the player band (a field's gatherers over the stance icon), the resource as a word, with no icon. | medium | Fixed: resourceCarryingText and resourceCarryingIcon at 0.28's place beside the stance icon, the resource's icon or repair.png carrying the tooltip (`set_carrying`) |
+| SD2 | The resource label was clipped to two letters ("Wo"). | medium | Fixed: label left and amount right on the bar's row (StatsTextLeft/Right) |
+| SD3 | Another player's unit showed no experience bar and nothing it carries. | low | Fixed: `set_unit_extras` fills both for any unit |
+| SD4 | An animal's tooltip had no Loot line; trees, animals and treasures had no Gaia colour band; the health and capture bars had no hover text; the portrait tooltip opened with both names; the multiple-selection bars were 6 px short. | low | Fixed (getLootTooltip, playerColorBackground for Gaia, "Health" and "Capture Points", the primary name, 114 px bars) |
+| SD5 | Names share one clipped line "Primary (Secondary)"; 0.28 puts the secondary name on its own line under the primary (PrimaryNameCentered, SecondaryNameCentered). | low | Open: Compare |
+| SD6 | The bars sit in RTS0's own rows (x 118, 11 px, value centred, an HP/CP glyph left of each); 0.28 lays them from sectionPosTop/Middle/Bottom (x 96, a 14 px caption row over a 7 px bar). | low | Open: Compare |
+| SD7 | The player band is 20 px with the whole emblem tinted grey and the phase emblem squeezed to 44x16; 0.28's is 24 px with the emblem's centre strip in greyscale and the phase emblems across the band. | low | Open: Compare |
+
 ### Aura icons, fogged selections and structure tooltips: Compare's eleventh 0.28 pass (2026-10-20)
 
 Checked against 0.28: aura data and status-bar icons, the selection details panel, poison and burning, Petra's difficulty branches, and Allied View and diplomacy colours. Owner: Compare.
@@ -206,7 +218,7 @@ Checked against 0.28: aura data and status-bar icons, the selection details pane
 | U5 | A damaged siege engine or ship shows no repairers or repair time (template_unit_siege and template_unit_ship have Repairable). | low | Fixed: the unit panel shows "(repairers) m:ss" with the repair tooltip (`Simulation::unit_repair_work`) |
 | U6 | ~~Carcasses are titled "Carcass" with no portrait and a Gaia owner~~ Fixed: a carcass keeps its animal's name, icon and owner (special/filter/resource.xml). Fish stay "Fish": RTS0 has no gaia/fish template text. | low | Fixed |
 | U7 | A structure being built or repaired shows "Construction: N%" or "Repair" and a second bar; 0.28 shows only the repair icon with "(builders) m:ss" and its tooltip. | low | Fixed: own, foreign and fogged structures show only "(builders) m:ss" with its tooltip (`InspectorView::show_build_work`) |
-| U8 | 0.28's multiple-selection tooltip replaces "Garrison Size" with "Carrying:" (`numberOfUnits.tooltip =`, selection_details.js:486), a 0.28 bug. RTS0 keeps both lines. | low | Kept |
+| U8 | 0.28's multiple-selection tooltip replaces "Garrison Size" with "Carrying:" (`numberOfUnits.tooltip =`, selection_details.js:486), a 0.28 bug. | low | Matches 0.28 now (V6): RTS0 replaces the line too |
 
 ### Reference pages, selection details and flares: Compare's tenth 0.28 pass (2026-10-20)
 
