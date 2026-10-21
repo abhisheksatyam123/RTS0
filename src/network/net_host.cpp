@@ -244,6 +244,7 @@ bool NetHost::startClient(const std::string &host, uint16_t p) {
 	// Send initial connection request with client handshake
 	ClientHandshakeMsg chm;
 	chm.engine_version = software_version_;
+	chm.enabled_mods = enabled_mods_;
 	std::vector<uint8_t> chm_payload = NetPacketSerializer::frame_client_handshake(chm);
 	std::vector<uint8_t> chm_msg = NetPacketSerializer::pack_message(NetMessageType::NMT_CLIENT_HANDSHAKE, 0, chm_payload);
 
@@ -1073,7 +1074,8 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 			// 0 A.D. CNetServerWorker::OnClientHandshake: another protocol, or
 			// another engine version or mods (CheckHandshake), closes the link.
 			if (p && !p->kick_disconnect_ms &&
-					(chm.protocol_version != PS_PROTOCOL_VERSION || chm.engine_version != software_version_)) {
+					(chm.protocol_version != PS_PROTOCOL_VERSION || chm.engine_version != software_version_ ||
+						chm.enabled_mods != enabled_mods_)) {
 				std::cout << "[NetHost] Refused peer " << peerId << ": it runs " << chm.engine_version << "\n";
 				refuse_with(*p, chm.protocol_version != PS_PROTOCOL_VERSION ? NDR_INCORRECT_PROTOCOL_VERSION
 						: NDR_INCORRECT_SOFTWARE_VERSION);
