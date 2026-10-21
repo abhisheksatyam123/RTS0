@@ -182,7 +182,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 113; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 114; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_FAUNA_PRESSURE = 114; // each animal's pushing pressure and failed movements (fauna_pressure_, fauna_failed_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_PASS5 = 113; // Petra's trade and transport ships, house plans, new bases
 	static constexpr uint32_t SAVE_VERSION_FLIGHT = 112; // each flying unit's UnitMotionFlying state
 	static constexpr uint32_t SAVE_VERSION_UNIT_AUTOQUEUE = 111; // unit trainers' queue clocks and autoqueue
@@ -2909,6 +2910,16 @@ private:
 	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
 	void fauna_hit_fauna(size_t f, size_t v);             // ... or on a player's livestock v
 	bool fauna_can_step(size_t f, float x, float z) const;
+	// 0.28 CCmpUnitMotionManager registers every animal with UnitMotion for pushing; animal f is in
+	// separation()'s pass when it is alive and in the world (not penned) and blocks movement.
+	bool fauna_pushes(size_t f) const;
+	// CCmpUnitMotion::PreMove's isMoving for animal f: it has a move under way.
+	bool fauna_has_move(size_t f) const;
+	// The unit or animal unit i's move heads for (a MoveToTargetRange on an entity), whose obstruction
+	// never obstructs it (CCmpUnitMotion.h:1231-1237 specificIgnore); 0 for none.
+	uint32_t unit_move_target(size_t i) const;
+	// CCmpUnitMotion::PerformMove: animal f's speed `speed` (its walk or run) under its pushing pressure.
+	float fauna_move_speed(size_t f, float speed) const;
 	// UnitMotion for animal f heading to (tx, tz): where to steer now. The first waypoint of
 	// find_path when the navcell line there is blocked, then the short path round the structures
 	// in the way. A function of the map and the two points only, so nothing is kept or saved.
@@ -3087,6 +3098,12 @@ private:
 	// fauna_ like fauna_owner_; save v108 adds them.
 	float fauna_roam_angle_[FaunaStorage::MAX_FAUNA] = {};
 	float fauna_start_angle_[FaunaStorage::MAX_FAUNA] = {};
+	// Each animal's pushing pressure (0.28 CCmpUnitMotionManager MotionState::pushingPressure, which
+	// 0.28 serializes for animals as for units), beside fauna_ like fauna_owner_; save v114 adds it.
+	uint8_t fauna_pressure_[FaunaStorage::MAX_FAUNA] = {};
+	// Each animal's obstructed turns on a walk its owner sent it on (0.28 CCmpUnitMotion
+	// m_FailedMovements, serialized for animals as for units); save v114 adds it.
+	uint8_t fauna_failed_[FaunaStorage::MAX_FAUNA] = {};
 	IdIndex fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
 	// UnitMotionFlying.js state of each flying unit (units/plane), by unit id, so it saves and
