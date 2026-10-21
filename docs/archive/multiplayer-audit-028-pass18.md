@@ -37,6 +37,6 @@ None of these touches simulation state or the save format.
 
 ## Fix log
 
-- 2026-10-21 #PRn pass 18 gap 1 (the lobby signed in to is kept as `lobby.server` and opens the next launch's lobby page, as XmppClient) merged.
-- 2026-10-21 #PRn pass 18 gap 2 (the profile panel's role line follows a mute, unmute or promotion, as ProfilePanel.onRoleChange) merged.
-- 2026-10-21 #PRn pass 18 gap 3 (a signed-in host's Server Name from the main menu is checked against the lobby's game list, "Game name already in use.", as gamesetup_mp.js startHost) merged.
+- 2026-10-21 #1548 pass 18 gap 1 (the lobby signed in to is kept as `lobby.server` and opens the next launch's lobby page, as XmppClient) merged.
+- 2026-10-21 #1548 pass 18 gap 2 (the profile panel's role line follows a mute, unmute or promotion, as ProfilePanel.onRoleChange) merged.
+- 2026-10-21 #1548 pass 18 gap 3 (a signed-in host's Server Name from the main menu is checked against the lobby's game list, "Game name already in use.", as gamesetup_mp.js startHost) merged.
