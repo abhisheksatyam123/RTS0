@@ -69,7 +69,7 @@ func run() -> void:
 	check(server_pid > 0, "the lobby server starts")
 	var cfg := RtsoUserConfig.new()
 	var saved := {}
-	for key in ["lobby.login", "lobby.password", "lobby.rememberpassword",
+	for key in ["lobby.login", "lobby.password", "lobby.rememberpassword", "playername.multiplayer",
 			"lobby.terms_of_service", "lobby.terms_of_use", "lobby.privacy_policy"]:
 		saved[key] = cfg.get_value(key)
 	var ls: Node = root.get_node("/root/LobbySession")
@@ -107,6 +107,21 @@ func run() -> void:
 	lobby._on_sign_pressed() # the remembered password
 	await until(func() -> bool: return ls.signed_in())
 	check(ls.signed_in(), "Remember password signs in again with nothing typed")
+	cfg.reload()
+	check(cfg.get_value("playername.multiplayer") == "Alice", "credentials.js saveCredentials: the account is the multiplayer name too")
+	# login.js: a reopened lobby offers lobby.login and the remembered password, masked.
+	lobby._on_sign_pressed() # sign out
+	var again: Control = load("res://scenes/menu/lobby.tscn").instantiate()
+	root.add_child(again)
+	await process_frame
+	check(again._name.text == "Alice" and again._password.text == ALICE_PASSWORD.substr(0, 10) and again._password.secret,
+		"a reopened lobby shows the account and the remembered password: " + again._name.text)
+	again._server.text = "127.0.0.1:%d" % PORT
+	again._on_sign_pressed()
+	await until(func() -> bool: return ls.signed_in())
+	check(ls.signed_in() and ls.player_name == "Alice", "and Sign In with them signs in")
+	again.queue_free()
+	await process_frame
 
 	lobby._on_sign_pressed()
 	# credentials.js toggleRememberPassword: unticking a remembered password asks first.

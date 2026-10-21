@@ -8953,6 +8953,15 @@ void Simulation::set_building_civ(uint32_t building_id, uint8_t civ) {
 	auto it = building_id_to_idx_.find(building_id);
 	if (it == building_id_to_idx_.end() || civ >= CIV_COUNT) return;
 	Building &b = buildings_[it->second];
+	// Health/Max is the template's (a Gaia Gallic house 800, not the Athenian 1200); the
+	// owner's modifiers stay as they are.
+	const uint8_t base = is_playable_civ(b.civ) ? b.civ : (uint8_t)civ_of(b.team); // what spawning used
+	const float was = civ_building_type_info(base, b.type).max_hp;
+	const float now = civ_building_type_info(civ, b.type).max_hp;
+	if (is_playable_civ(civ) && was > 0.0f && now > 0.0f && now != was) {
+		b.max_hp *= now / was;
+		b.hp *= now / was;
+	}
 	b.civ = civ;
 	b.garrison_cap = structure_garrison_cap(b);
 }

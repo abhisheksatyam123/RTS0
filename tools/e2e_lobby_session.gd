@@ -87,16 +87,16 @@ func run() -> void:
 	print("1. the session's chat outlives the page")
 	await say.call("hi alice")
 	lobby._refresh()
-	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("bob: hi alice"))
-	check(lobby._chat_log.get_parsed_text().contains("bob: hi alice"), "the page shows bob's line")
+	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("<bob> hi alice"))
+	check(lobby._chat_log.get_parsed_text().contains("<bob> hi alice"), "the page shows bob's line")
 	# XmppMessages.js: lobby messages arrive pushed. With the fallback timer stopped,
 	# /events alone brings bob's next line at once.
 	lobby._timer.stop()
 	var t0 := Time.get_ticks_msec()
 	await say.call("pushed")
-	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("bob: pushed"), 120)
+	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("<bob> pushed"), 120)
 	var took := Time.get_ticks_msec() - t0
-	check(lobby._chat_log.get_parsed_text().contains("bob: pushed") and took < 1500,
+	check(lobby._chat_log.get_parsed_text().contains("<bob> pushed") and took < 1500,
 		"a line shows without waiting for the 3 s refresh (%d ms)" % took)
 	lobby._timer.start()
 	lobby.queue_free()
@@ -105,7 +105,7 @@ func run() -> void:
 	lobby = await open_lobby()
 	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("are you there?"))
 	var text: String = lobby._chat_log.get_parsed_text()
-	check(text.contains("bob: hi alice") and text.contains("bob: are you there?"),
+	check(text.contains("<bob> hi alice") and text.contains("<bob> are you there?"),
 		"a page opened again shows the line from before and the one said while it was closed")
 	check(text.find("hi alice") < text.find("are you there?") and text.count("hi alice") == 1, "once each, in order")
 
@@ -185,11 +185,13 @@ func run() -> void:
 	await say.call("hello alice")
 	lobby._refresh()
 	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("hello alice"))
-	check(lobby._format_chat("bob", "hello alice", "alice") == "[color=#6667ff]bob[/color]: hello [color=#6bedfa]alice[/color]",
+	check(lobby._format_chat("bob", "hello alice", "alice") == "[b]<[color=#6667ff]bob[/color]>[/b] hello [color=#6bedfa]alice[/color]",
 		"bob's line has his name in his colour and alice's highlighted")
-	check(lobby._format_chat("alice", "alice here", "alice") == "[color=#6bedfa]alice[/color]: alice here"
-		and lobby._format_chat("", "alice left", "alice") == "[color=#aaaaaa]alice left[/color]",
-		"but not in her own lines nor in system lines")
+	check(lobby._format_chat("alice", "alice here", "alice") == "[b]<[color=#6bedfa]alice[/color]>[/b] alice here"
+		and lobby._format_chat("", "alice left", "alice") == "[b]== alice left[/b]",
+		"but not in her own lines nor in status lines (StatusMessageFormat \"== \")")
+	check(lobby.system_line("Connected.") == "[b]=== [color=#960000]System:[/color] Connected.[/b]",
+		"system lines read \"=== System: \" in bold, System: in red (SystemMessageFormat)")
 	check(lobby._format_chat("bob", "/me waves [b]", "alice") == "* [b][color=#6667ff]bob[/color][/b] waves [lb]b]",
 		"/me lines too, escaped")
 

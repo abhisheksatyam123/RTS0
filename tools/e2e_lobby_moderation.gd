@@ -78,8 +78,8 @@ func run() -> void:
 	check(lobby._chat_line.max_length == 1024, "the lobby chat takes 1024 characters, as 0.28's")
 	lobby._chat_line.text = "hello"
 	lobby._on_send_pressed()
-	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("@alice: hello"))
-	check(lobby._chat_log.get_parsed_text().contains("@alice: hello"), "her chat lines read @alice")
+	await until(func() -> bool: return lobby._chat_log.get_parsed_text().contains("<@alice> hello"))
+	check(lobby._chat_log.get_parsed_text().contains("<@alice> hello"), "her chat lines read @alice")
 
 	var subj := [false]
 	ls.post_json("/subject", {"token": ls.token, "subject": "Play nice"}, func(_c: int, _o) -> void: subj[0] = true)
