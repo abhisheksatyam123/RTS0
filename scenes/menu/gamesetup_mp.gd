@@ -274,6 +274,10 @@ func confirm_setup() -> bool:
 		who = "Anonymous"
 	if game_name == "":
 		game_name = "%s's game" % who
+	# The Server Name row of a signed-in host, as the lobby page's Host checks it.
+	if host_server_name and LobbySession.signed_in() and LobbySession.game_name_taken(game_name, who):
+		host_feedback.text = "Game name already in use."
+		return false
 	var failed := host_port_error(typed.to_int())
 	if failed != "":
 		show_host_error(self, failed)

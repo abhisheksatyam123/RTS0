@@ -208,7 +208,7 @@ func _build() -> void:
 	login.visible = not dialog
 	root.add_child(login)
 	login.add_child(_label("Lobby server"))
-	_server = _line("127.0.0.1:8088", 180)
+	_server = _line(LobbySession.address, 180)
 	login.add_child(_server)
 	login.add_child(_label("Player name"))
 	var cfg := RtsoUserConfig.new()
@@ -619,11 +619,15 @@ func _request_profile(player: String) -> void:
 		return
 	_profile_name.text = player
 	_profile_name.add_theme_color_override("font_color", player_color(player)) # ColorPlayerName
-	# ProfilePanel RoleNames: Moderator, Muted Player (visitor), else Player.
-	_profile_role.text = "Moderator" if _moderators.has(player) else "Muted Player" if _muted.has(player) else "Player"
+	_profile_role.text = _role_name(player)
 	for k in _profile_values:
 		_profile_values[k].text = NOT_AVAILABLE
 	LobbySession.get_json("/profile?name=" + player.uri_encode(), _on_profile)
+
+
+# ProfilePanel RoleNames: Moderator, Muted Player (visitor), else Player.
+func _role_name(player: String) -> String:
+	return "Moderator" if _moderators.has(player) else "Muted Player" if _muted.has(player) else "Player"
 
 
 func _on_profile(code: int, obj) -> void:
@@ -953,6 +957,8 @@ func _sign_in(who: String) -> void:
 			# 0 A.D. prelobby: lobby.login, and lobby.password (encrypted) when remembered.
 			var cfg := RtsoUserConfig.new()
 			cfg.set_value("lobby.login", LobbySession.player_name)
+			# 0.28 lobby.server: the lobby signed in to, for the next launch.
+			cfg.set_value("lobby.server", LobbySession.address)
 			cfg.set_value("lobby.rememberpassword", "true" if _remember.button_pressed else "false")
 			cfg.set_value("lobby.password", encrypted if _remember.button_pressed else "")
 			# credentials.js saveCredentials: the account is the multiplayer name too.
@@ -1056,6 +1062,7 @@ func _on_rooms(code: int, obj) -> void:
 	if code != 200 or not (obj is Dictionary):
 		return
 	_rooms = obj.get("rooms", [])
+	LobbySession.games = _rooms
 	_show_rooms()
 
 
@@ -1389,6 +1396,9 @@ func _on_players(code: int, obj) -> void:
 		if str(p.get("name", "")) == _selected_player:
 			it.select(0)
 	LobbySession.moderator = _moderators.has(LobbySession.player_name)
+	# ProfilePanel.onRoleChange: the shown player's role line follows a mute or promotion.
+	if _profile_role and _requested_player != "" and _profile_name.text != "":
+		_profile_role.text = _role_name(_requested_player)
 	_update_chat_input()
 	var subject := str(obj.get("subject", ""))
 	if subject != _subject:
@@ -1951,10 +1961,9 @@ func _on_host_pressed(saved := false) -> void:
 	var who := _player_name()
 	var game_name := _host_name.text.strip_edges() if _host_name.text.strip_edges() != "" else who + "'s game"
 	# gamesetup_mp.js: a game name another host already lists is refused.
-	for r in _rooms:
-		if str(r.get("name", "")) == game_name and str(r.get("host_name", "")) != who:
-			_say("Game name already in use.")
-			return
+	if LobbySession.game_name_taken(game_name, who):
+		_say("Game name already in use.")
+		return
 	var failed := GameSetupMp.host_port_error(port)
 	if failed != "":
 		_say(failed)
