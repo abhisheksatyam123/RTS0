@@ -1,6 +1,7 @@
 #pragma once
 #include "net_types.h"
 #include "../core/memory/arena.h"
+#include <algorithm>
 #include <functional>
 #include <map>
 #include <vector>
@@ -222,6 +223,10 @@ public:
 	// no kick notice (0 A.D. NetServer Disconnect(NDR_SERVER_FULL)).
 	// reason: the NDR_* the closing packet names (0.28 NetServer refusals).
 	void refusePeer(uint32_t peer_id, uint8_t reason = 0);
+	// Reliable packets to a peer it has not acknowledged yet.
+	size_t pendingReliableTo(uint32_t peer_id) const {
+		return (size_t)std::count_if(pending_acks_.begin(), pending_acks_.end(), [&](const PendingReliablePacket &k) { return k.peer_id == peer_id; });
+	}
 	bool kickPeer(uint32_t peer_id, bool ban);
 	// Host: the admitted client with this name (0 if none).
 	uint32_t peerByName(const std::string &name) const;

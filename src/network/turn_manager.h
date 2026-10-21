@@ -547,6 +547,9 @@ private:
 	size_t rejoin_outbox_next_ = 0;
 	uint64_t rejoin_progress_ms_ = 0;
 	static constexpr size_t REJOIN_CHUNKS_PER_TICK = 16;
+	// 0 A.D. NetFileTransfer DEFAULT_SEQUENCE_WINDOW_SIZE: packets to one client
+	// still unacknowledged before more of its world is sent.
+	static constexpr size_t REJOIN_WINDOW = 32;
 	static constexpr uint64_t REJOIN_RETRY_MS = 5000;
 	void ensure_lockstep_peers();
 	std::string rejoin_path(const char *tag) const;
