@@ -38413,15 +38413,19 @@ void Simulation::cinema_queue_path(const char *name) {
 }
 
 void Simulation::cinema_delete_path(const char *name) {
-	// DeletePath removes the path from m_Paths only: the queue holds copies, so a queued
-	// one still plays. Here a queued path is marked deleted (find skips it) and dropped
-	// once it has left the queue.
+	// DeletePath: the path goes with every queued copy, the one playing too
+	// (m_PathQueue.remove_if). The elapsed and total times stay, so the next path takes over
+	// with the time already run (no Reset); an emptied queue stops at the next tick, as ClearQueue.
 	const int idx = cinema_.find(name);
 	if (idx < 0) return;
-	cinema_.paths[(size_t)idx].info.reserved = CINEMA_PATH_DELETED;
-	cinema_drop_deleted_path((uint16_t)idx);
+	size_t n = 0;
+	for (uint16_t q : cinema_.queue)
+		if (q != (uint16_t)idx) cinema_.queue[n++] = q > (uint16_t)idx ? (uint16_t)(q - 1) : q;
+	cinema_.queue.resize(n);
+	cinema_.paths.erase(cinema_.paths.begin() + idx);
 }
 
+// A path a save from before DeletePath matched 0.28 marked deleted while it was queued.
 void Simulation::cinema_drop_deleted_path(uint16_t idx) {
 	if (idx >= cinema_.paths.size() || cinema_.paths[idx].info.reserved != CINEMA_PATH_DELETED) return;
 	for (uint16_t q : cinema_.queue)
