@@ -60,7 +60,12 @@ func run() -> void:
 	change_scene_to_file("res://scenes/main.tscn")
 	await frames(3)
 	var dir: String = current_scene.get_replay_status().replay_dir
-	await frames(400)
+	await frames(380)
+	current_scene.resign() # the replay ends with player 1 defeated
+	await frames(5)
+	for box in current_scene.get_children().filter(func(c): return c.has_method("button_texts")):
+		box.press(0) # Stay: the defeat box pauses a single-player game
+	await frames(15)
 	change_scene_to_file("res://scenes/menu/replay_browser.tscn")
 	await frames(5)
 	check(FileAccess.file_exists(dir + "commands.rts0rec"), "a replay was written: " + dir)
@@ -115,6 +120,7 @@ func run() -> void:
 	DirAccess.remove_absolute(log_dir)
 
 	print("4. -replay-visual")
+	ms.game_speed = 2.0 # Game Setup's last speed doesn't reach a replay
 	change_scene_to_file("res://scenes/menu/replay_browser.tscn")
 	await frames(5)
 	check(cli(["-replay-visual=" + dir + "commands.rts0rec"]), "-replay-visual=.../commands.rts0rec starts")
@@ -126,7 +132,19 @@ func run() -> void:
 	check(current_scene != null and current_scene.has_method("is_replay_playback") and current_scene.is_replay_playback(),
 		"the match scene plays the replay")
 	check(ms.get_node_or_null("ReplayDriver") == null and not root.disable_3d, "it draws, with no driver")
+	var st: Dictionary = current_scene.get_replay_status()
+	check(is_equal_approx(float(st.get("speed", 0.0)), 1.0), "at normal speed, as a new CGame's sim rate: %s" % st.get("speed"))
+	check(current_scene.find_children("*", "Label", true, false).filter(func(l): return str(l.text).begins_with("REPLAY")).is_empty(),
+		"with no replay HUD of RTS0's own")
+	current_scene.set_replay_view(0)
+	guard = 3000
+	while guard > 0 and int(current_scene.get_replay_status().view) == 0:
+		await process_frame
+		guard -= 1
+	st = current_scene.get_replay_status()
+	check(int(st.view) == -1 and st.observer_mode, "the viewed player's defeat moves the view to Observer (onPlayersFinished): %s" % st.view)
 
+	ms.game_speed = 1.0
 	print("5. Missing")
 	check(not cli(["-replay=user://replays/zz_none"]), "a missing replay doesn't start")
 	check(exit_code == 1, "-replay exits 1")
