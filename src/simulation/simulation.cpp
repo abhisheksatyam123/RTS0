@@ -9939,7 +9939,12 @@ void Simulation::eject_or_kill(Building &b, uint8_t keep_allies_of) {
 		if (leave.empty()) return;
 		b.garrisoned_units = std::move(leave);
 	}
+	// GarrisonHolder.IsEjectable: a corral's EjectClassesOnDestroy is Animal only, so a Han
+	// minister in it (structures/han/corral.xml adds Minister to the List) dies with it.
+	std::vector<uint32_t> doomed;
+	if (building_research_base(b.type) == BLD_CORRAL) doomed.swap(b.garrisoned_units);
 	order_ungarrison(b.id, true); // TurretHolder.EjectOrKill: LeaveTurret(true)
+	b.garrisoned_units.insert(b.garrisoned_units.end(), doomed.begin(), doomed.end());
 	for (uint32_t uid : b.garrisoned_units) {
 		const int32_t i = lookup_unit(uid);
 		if (i < 0) continue;
@@ -16626,8 +16631,10 @@ void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
 	// whoever holds most, at once (before it can regenerate).
 	auto check_owner = [&]() {
 		if (pts[owner] > 0.0001f) return false;
-		int best = 0;
-		for (int t = 1; t <= GAIA; ++t) if (pts[t] > pts[best]) best = t;
+		// Capturable.js reduce from index 0 (Gaia) with a strict ">": Gaia wins a tie, then
+		// the lowest player.
+		int best = GAIA;
+		for (int t = 0; t < MAX_PLAYERS; ++t) if (pts[t] > pts[best]) best = t;
 		if (best == owner) return false;
 		b.has_rally_point = false; // RallyPoint.OnOwnershipChanged -> Reset
 		b.rally_more.clear();
