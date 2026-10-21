@@ -24,6 +24,10 @@ uniform sampler2D territory_map : hint_default_black;
 // 0 unexplored, blurred and eased by RtsoWorldView. los_map_half 0 = no fog.
 uniform sampler2D los_tex : hint_default_white, filter_linear, repeat_disable;
 uniform float los_map_half = 0.0;
+// terrain_common.fs fogs the colour first and multiplies by the LOS after, so
+// unexplored ground stays black under the haze. RtsoWorldView passes the
+// environment's exponential fog (light colour times energy, density; 0 = off).
+uniform vec4 scene_fog = vec4(0.0);
 
 // Painted ground, as 0 A.D. random maps paint tiles (rmbiome shore and
 // forestFloor terrains, dirt under mines). paint_tex: g = forest floor,
@@ -160,12 +164,15 @@ void fragment() {
 		final_color = mix(final_color, t_color, t_data.r * territory_strength);
 	}
 
+	float los = 1.0;
 	if (los_map_half > 0.0) {
 		vec2 los_uv = (v_world_pos.xz + vec2(los_map_half)) / (2.0 * los_map_half);
-		final_color *= texture(los_tex, los_uv).r;
+		los = texture(los_tex, los_uv).r;
 	}
+	final_color *= los;
 
 	ALBEDO = final_color;
+	FOG = vec4(scene_fog.rgb * los, 1.0 - exp(min(0.0, -length(VERTEX) * scene_fog.a)));
 	ROUGHNESS = mix(0.85, 0.65, rock_weight);
-	SPECULAR = mix(0.15, 0.25, rock_weight) * (los_map_half > 0.0 ? texture(los_tex, (v_world_pos.xz + vec2(los_map_half)) / (2.0 * los_map_half)).r : 1.0);
+	SPECULAR = mix(0.15, 0.25, rock_weight) * los;
 }
