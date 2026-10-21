@@ -39089,12 +39089,16 @@ void Simulation::tick_trigger_watches() {
 	std::vector<TriggerEventData> changed;
 	for (TriggerWatch &w : triggers_.watched) {
 		uint8_t now = 0xFF;
-		if (w.building) {
+		if (w.building == 1) {
 			auto it = building_id_to_idx_.find(w.id);
 			if (it != building_id_to_idx_.end()) {
 				const Building &b = buildings_[it->second];
 				if (b.hp > 0.0f && !b.wrecked) now = b.team;
 			}
+		} else if (w.building == 2) {
+			auto it = fauna_id_to_idx_.find(w.id);
+			if (it != fauna_id_to_idx_.end() && fauna_.alive[it->second] && fauna_.hp[it->second] > 0.0f)
+				now = fauna_owner_[it->second];
 		} else {
 			const int32_t u = lookup_unit(w.id);
 			if (u >= 0 && (units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED)) now = units_.team[u];
@@ -39289,7 +39293,7 @@ void Simulation::trigger_pickup_test(int step) {
 		const uint32_t ship = (uint32_t)triggers_.vars[0];
 		if (!is_transport(ship)) return;
 		if (get_transport_passenger_count(ship) == 0) {
-			triggers_.set_timeout(200, TRIGGER_ACTION_PICKUP_TEST, 2.0f);
+			triggers_.set_timeout(50, TRIGGER_ACTION_PICKUP_TEST, 2.0f); // every tick: the hook runs on boarding
 			return;
 		}
 		if (const uint32_t u = spawn(COAST_2, 0.0f, archer)) order_board_transport(&u, 1, ship);
@@ -39413,14 +39417,19 @@ void Simulation::trigger_unit_chasing(int step) {
 			script_walk(chasee, gx, 900.0f, true);
 			if (chaser && chasee) order_board_transport(&chaser, 1, chasee);
 		} else if (e.kind == HUNT) {
-			// The muskox is player 1's in 0 A.D.; RTS0's animals are Gaia's and are hunted, not
-			// attacked, so the cavalryman hunts a Gaia muskox (not followed: animals have no owner).
+			// straight_line on player 1's muskox, walking north; RTS0 attacks animals with a hunt
+			// order. The muskox is followed too, so its death removes the cavalryman.
 			uint32_t chaser = 0, chasee = 0;
 			const auto [mx, mz] = script_metres(gx, 120.0f);
 			if (e.attacker_first) chaser = script_spawn(gx, 80.0f, e.attacker, kAttackerTeam, role);
-			chasee = spawn_fauna(mx, mz, FAUNA_MUSKOX);
+			chasee = spawn_fauna(mx, mz, FAUNA_MUSKOX, kChaseTeam);
+			if (chasee) {
+				triggers_.watched.push_back({chasee, kChaseTeam, 2, role, 0});
+				const auto [wx, wz] = script_metres(gx, 900.0f);
+				order_fauna_walk(kChaseTeam, &chasee, 1, wx, wz);
+			}
 			if (!e.attacker_first) chaser = script_spawn(gx, 80.0f, e.attacker, kAttackerTeam, role);
-			if (chaser && chasee) order_gather(&chaser, 1, chasee, true);
+			if (chaser && chasee) order_hunt(&chaser, 1, chasee, true);
 		} else {
 			// straight_line: player 2's chaser 40 m behind its target, a forced queued attack.
 			uint32_t chaser = 0, chasee = 0;
@@ -39457,7 +39466,7 @@ void Simulation::trigger_unit_dancing(int step) {
 			triggers_.set_timeout(150000, TRIGGER_ACTION_UNIT_DANCING, 2.0f);
 			triggers_.set_timeout(151000, TRIGGER_ACTION_UNIT_DANCING, 1.0f);
 			triggers_.set_timeout(300000, TRIGGER_ACTION_UNIT_DANCING, 3.0f);
-			triggers_.register_trigger(TRIGGER_ON_INTERVAL, TRIGGER_ACTION_UNIT_DANCING_EVENT, true, 500, 3500);
+			triggers_.register_trigger(TRIGGER_ON_INTERVAL, TRIGGER_ACTION_UNIT_DANCING_EVENT, true, 100, 3100); // IDLE's 100 ms FindNewTargets timer
 			rebuild_all_tech_mods();
 			return;
 		case 2: // RemoveSpread
@@ -39868,7 +39877,7 @@ void Simulation::trigger_unit_motion(int step) {
 				uint32_t chicken = 0;
 				for (const float dx : {0.0f, 3.0f, -3.0f}) {
 					const auto [x, z] = script_metres(gx + dx, gy + 50.0f);
-					const uint32_t f = spawn_fauna(x, z, FAUNA_CHICKEN);
+					const uint32_t f = spawn_fauna(x, z, FAUNA_CHICKEN, kChaseTeam); // QuickSpawn's owner 1
 					if (!chicken) chicken = f;
 				}
 				if (const uint32_t u = unit(gx, gy); u && chicken) order_hunt(&u, 1, chicken);
