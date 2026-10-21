@@ -5678,6 +5678,15 @@ Simulation::TemplateStatMods Simulation::template_stat_mods(uint8_t player, uint
 	return out;
 }
 
+// The owner civ's walk-speed add baked into unit idx's speed (germ_women), which technology
+// multiplies leave out.
+float Simulation::unit_civ_speed_add(size_t idx) const {
+	const uint8_t team = units_.team[idx];
+	const uint16_t tmpl = units_.tmpl[idx];
+	if (team >= MAX_PLAYERS || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return 0.0f;
+	return civ_unit_speed_add((uint8_t)civ_of(team), civ_unit_template(tmpl).tech_classes);
+}
+
 void Simulation::apply_tech_mods_to_unit(size_t idx) {
 	uint8_t team = units_.team[idx];
 	uint8_t t = units_.unit_type[idx];
@@ -5686,7 +5695,9 @@ void Simulation::apply_tech_mods_to_unit(size_t idx) {
 	units_.attack_damage[idx] *= m.attack;
 	units_.max_hp[idx] *= m.health;
 	units_.hp[idx] = units_.max_hp[idx];
-	units_.speed[idx] *= m.speed;
+	// germ_women's +0.5 is an add on top of every multiply (GetTechModifiedProperty).
+	const float add = unit_civ_speed_add(idx);
+	units_.speed[idx] = (units_.speed[idx] - add) * m.speed + add;
 	// Attack/Ranged/MaxRange adds are metres: x COMBAT_DISTANCE_SCALE like the template ranges.
 	units_.attack_range[idx] = units_.attack_range[idx] * m.range_mul + m.range * COMBAT_DISTANCE_SCALE;
 }
@@ -5727,7 +5738,10 @@ void Simulation::refresh_tech_mods(uint8_t player_id) {
 			units_.max_hp[i] *= r;
 			units_.hp[i] *= r;
 		}
-		if (now.speed != was.speed) units_.speed[i] *= now.speed / was.speed;
+		if (now.speed != was.speed) {
+			const float add = unit_civ_speed_add(i);
+			units_.speed[i] = (units_.speed[i] - add) * (now.speed / was.speed) + add;
+		}
 		if (now.range_mul != was.range_mul || now.range != was.range)
 			units_.attack_range[i] = (units_.attack_range[i] - was.range * COMBAT_DISTANCE_SCALE) / was.range_mul * now.range_mul +
 				now.range * COMBAT_DISTANCE_SCALE;
@@ -10659,11 +10673,7 @@ void Simulation::collect_loot(uint32_t looter_id, uint8_t looter_player, LootInf
 void Simulation::collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim) {
 	if (victim >= units_.count) return;
 	LootInfo loot = loot_denied_unit(victim) ? LootInfo{} : unit_loot(units_.tmpl[victim], units_.unit_type[victim]);
-	// Sacrificial Ritual (cost_healer.json): the victim's owner's healers yield Loot/metal 0.
 	const uint8_t owner = units_.team[victim];
-	if (owner < MAX_PLAYERS && players_[owner].has_tech(TECH_COST_HEALER) &&
-			unit_is_healer(units_.tmpl[victim], units_.unit_type[victim]))
-		loot.metal = 0;
 	// Loot/<res> technologies of the victim's owner on its roster template (Celtic Auxiliaries).
 	// Loot.js GetResources applies every Loot modifier, the rank's included, then floors once
 	// (multiplications before additions, as GetTechModifiedProperty).
@@ -14105,24 +14115,9 @@ void Simulation::tick_gather(float dt) {
 					units_.attack_timer[i] = 0.0f;
 					units_.hunt_fauna[i] = resources_.fauna[ridx]; // order.data.template
 					float rate = class_rate * ai_gather_mult(uteam);
-					const Civilization civ = civ_of(uteam);
 					if (!ruins) {
-						rate *= unit_tech_mods(uteam, units_.unit_type[i], units_.tmpl[i]).gather[kind];
-						// Athenian Silver Owls: phase_town_athen and phase_city_athen each give Workers
-						// ResourceGatherer/Rates/metal.ore x1.1.
-						if (rt == RES_GOLD && civ_info(civ).metal_gather_mult > 1.0f &&
-								(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_WORKER))
-							for (uint8_t ph = player_phase(uteam); ph >= 2; --ph) rate *= civ_info(civ).metal_gather_mult;
-						// Carthaginian civbonuses/cart_stone_01..03 (auto-researched at Village, Town and
-						// City; Carthage has no servants/serfs/slaves): Workers stone.rock x1.25 each.
-						if (rt == RES_STONE && civ == CIV_CARTHAGINIANS &&
-								(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_WORKER))
-							for (uint8_t ph = player_phase(uteam); ph >= 1; --ph) rate *= 1.25f;
-						// Germanic Bovine Tradition (civbonuses/germ_meat.json): Civilians
-						// ResourceGatherer/Rates/food.meat x2.
-						if (kind == GK_MEAT && civ == CIV_GERMANS &&
-								(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_CIVILIAN))
-							rate *= 2.0f;
+						rate *= unit_tech_mods(uteam, units_.unit_type[i], units_.tmpl[i]).gather[kind] *
+							civ_gather_bonus(i, kind);
 					}
 					// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
 					// pyramid, catafalques, Han ministers): each one in reach, multiplied.
@@ -18111,7 +18106,8 @@ Simulation::UnitDetails Simulation::unit_details(size_t i) const {
 	const uint8_t gcls = unit_gather_class(ut, tmpl);
 	if (gcls != GATHER_NONE && units_.team[i] < MAX_PLAYERS && ut < UNIT_TYPE_COUNT) {
 		const UnitTechMods m = unit_tech_mods(units_.team[i], ut, tmpl);
-		for (uint8_t k = 0; k < 7; ++k) d.gather[k] = gather_class_rate(gcls, k) * m.gather[k] * ai_gather_mult(units_.team[i]);
+		for (uint8_t k = 0; k < 7; ++k)
+			d.gather[k] = gather_class_rate(gcls, k) * m.gather[k] * civ_gather_bonus(i, k) * ai_gather_mult(units_.team[i]);
 	}
 	if (units_.res_type_carried[i] < RES_COUNT) d.carry_max = carry_cap(i, units_.res_type_carried[i]);
 	if (unit_is_healer(tmpl, ut)) {
@@ -22283,6 +22279,26 @@ void Simulation::petra_resource_demand(float out[RES_COUNT]) const {
 	out[RES_WOOD] = demand_wood;
 	out[RES_GOLD] = demand_gold;
 	out[RES_STONE] = demand_stone;
+}
+
+// The civ bonuses RTS0 keeps out of the technology table on unit i's gather rate for a supply
+// kind (ruins aside): Athenian Silver Owls (phase_town_athen and phase_city_athen each give
+// Workers ResourceGatherer/Rates/metal.ore x1.1), Carthaginian civbonuses/cart_stone_01..03
+// (auto-researched at Village, Town and City; Carthage has no servants/serfs/slaves: Workers
+// stone.rock x1.25 each) and Germanic Bovine Tradition (civbonuses/germ_meat.json: Civilians
+// food.meat x2).
+float Simulation::civ_gather_bonus(size_t i, uint8_t kind) const {
+	const uint8_t team = units_.team[i];
+	if (team >= MAX_PLAYERS) return 1.0f;
+	const Civilization civ = civ_of(team);
+	const TechClasses c = unit_classes(units_.tmpl[i], units_.unit_type[i]);
+	float m = 1.0f;
+	if (kind == GK_METAL && civ_info(civ).metal_gather_mult > 1.0f && (c & TC_WORKER))
+		for (uint8_t ph = player_phase(team); ph >= 2; --ph) m *= civ_info(civ).metal_gather_mult;
+	if (kind == GK_STONE && civ == CIV_CARTHAGINIANS && (c & TC_WORKER))
+		for (uint8_t ph = player_phase(team); ph >= 1; --ph) m *= 1.25f;
+	if (kind == GK_MEAT && civ == CIV_GERMANS && (c & TC_CIVILIAN)) m *= 2.0f;
+	return m;
 }
 
 // ResourceGatherer/Rates of unit i for a supply kind (entity.js currentGatherRate), with its
