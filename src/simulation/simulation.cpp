@@ -25151,8 +25151,8 @@ void Simulation::petra_resource_maps(std::vector<uint8_t> (&maps)[3], float x0, 
 // twice as far (squared) as an enemy's is skipped, and 0.2 per metre the farthest dock of ours
 // on its sea falls short of the map's width is added, to stretch a trade route. Proximity
 // (buildFirstBase from a ship): on any land facing `sea`, the metres to (px, pz) instead of the
-// frontier term; the village-phase water rule is skipped, and a land under 4000 cells of 16 m²
-// fails the search.
+// frontier term; the village-phase water rule is skipped, and spots on a land under 4000 cells
+// of 16 m² are passed over.
 bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_cx, int &out_cz,
                                           const PetraDockSearch *search) const {
 	if (nav_grid_.cells.blank() || (!search && (!land || !sea))) return false;
@@ -25383,6 +25383,12 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 						p2.z = pz;
 						if (search ? !dock_sea(p2) || !sea_ok(dock_sea(p2)) || !land_ok(petra_building_land(p2, &topo))
 						           : dock_sea(p2) != sea || petra_building_land(p2, &topo, land) != land) continue;
+						// Proximity: a spot on a land under 4000 cells is passed over and the search
+						// goes on (queueplanBuilding.js:517).
+						if (proximity) {
+							const uint16_t l = petra_building_land(p2, &topo);
+							if (l >= topo.land_size.size() || topo.cell_m2 * (float)topo.land_size[l] < 4000.0f * 16.0f) continue;
+						}
 						fits = true;
 						cx = cx0 + dx;
 						cz = cz0 + dz;
@@ -25395,14 +25401,7 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 			out_cz = cz;
 		}
 	}
-	if (found && proximity) {
-		Building p;
-		p.half_size = half;
-		p.x = ((float)out_cx + 0.5f * (float)foot) * GRID;
-		p.z = ((float)out_cz + 0.5f * (float)foot) * GRID;
-		const uint16_t l = petra_building_land(p, &topo);
-		return l < topo.land_size.size() && topo.cell_m2 * (float)topo.land_size[l] >= 4000.0f * 16.0f;
-	}
+	if (found && proximity) return true;
 	// Still in the village phase with little water around: wait for the territory to grow.
 	if (found && best_water < 10 && petra_ps().phase == 1) return false;
 	return found;
@@ -25886,8 +25885,9 @@ void Simulation::petra_manage_buildings(float dt) {
 			const bool house_no_room = petra_no_room(house);
 			uint8_t &plans = petra_kept_.house_plans;
 			if (houses_turn) {
-				petra_queues_.priority[PETRA_Q_HOUSE] =
-						accounted_free < 5 && !house_no_room ? (int16_t)(2 * petra_queue_base_priority(PETRA_Q_HOUSE)) : 0;
+				// With no room for a house the priority stays as it was (headquarters.js:1501-1516).
+				if (accounted_free >= 5) petra_queues_.priority[PETRA_Q_HOUSE] = 0;
+				else if (!house_no_room) petra_queues_.priority[PETRA_Q_HOUSE] = (int16_t)(2 * petra_queue_base_priority(PETRA_Q_HOUSE));
 				if (plans < 3 || (plans < 5 && pop > 80)) ++plans;
 			}
 			const int needed_at = saving || pop <= 30 ? 10 : pop > 55 ? 21 : 15;
@@ -27100,15 +27100,17 @@ bool Simulation::petra_phasing() const {
 void Simulation::petra_available_techs(std::vector<uint8_t> &out) const {
 	out.clear();
 	// gameState.findAvailableTech: Petra's structures in creation order (buildings_ only
-	// grows), each one's Researcher list in template order, every tech once.
-	bool seen_type[BLD_TYPE_COUNT] = {};
+	// grows), each one's Researcher list in template order, every tech once. One structure per
+	// type and template civ: a captured one of another civ may list techs ours doesn't.
+	std::vector<uint16_t> seen_template;
 	TechSet listed;
 	uint8_t offers[TECH_COUNT];
 	for (const auto &b : buildings_) {
-		if (b.team != petra_pid_ || b.type >= BLD_TYPE_COUNT || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked ||
-		    seen_type[b.type])
+		if (b.team != petra_pid_ || b.type >= BLD_TYPE_COUNT || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked)
 			continue;
-		seen_type[b.type] = true;
+		const uint16_t key = (uint16_t)(b.type * 256u + structure_template_civ(b));
+		if (std::find(seen_template.begin(), seen_template.end(), key) != seen_template.end()) continue;
+		seen_template.push_back(key);
 		int n = 0;
 		for (uint8_t t = 1; t < TECH_COUNT; ++t)
 			if (t != TECH_PHASE_TOWN && t != TECH_PHASE_CITY && !listed.has(t) && building_researches_tech(b.type, t, structure_template_civ(b)))
@@ -27263,6 +27265,8 @@ void Simulation::petra_manage_research(float dt) {
 		// getOwnEntitiesByClass(class, true)), so market, temple and forge can go down together,
 		// and as many houses as there are house plans queued (3, or 5 above 80 population).
 		have += laying;
+		// requireHouses ends once the houses' class has its count (headquarters.js:1483-1491).
+		if (cls == 1 && have >= need) petra_kept_.require_houses = false;
 		if (have >= need) return;
 		static constexpr uint8_t kVillage[] = {BLD_HOUSE};
 		static constexpr uint8_t kTown[] = {BLD_MARKET, BLD_TEMPLE, BLD_FORGE}; // checkPhaseRequirements order
@@ -27280,10 +27284,8 @@ void Simulation::petra_manage_research(float dt) {
 				// relaxed search runs at once instead of waiting out the 90 s no-room mark.
 				if (!petra_turn_mod(4, 1)) continue;
 				petra_clear_no_room(t);
-				petra_require_houses_ = true;
-				const uint32_t bid = petra_place_generic(t, PETRA_Q_HOUSE);
-				petra_require_houses_ = false;
-				if (bid) { --plans; return; }
+				petra_kept_.require_houses = true;
+				if (petra_place_generic(t, PETRA_Q_HOUSE)) { --plans; return; }
 			}
 		} else {
 			// The first of market, temple and forge we lack and can build (checkPhaseRequirements
@@ -27361,29 +27363,33 @@ void Simulation::petra_manage_research(float dt) {
 	// checkPhase, then checkPhaseRequirements while phasing. A phase in the majorTech
 	// queue holds back every minor technology (update returns while it waits).
 	const uint8_t phase = petra_ps().phase;
+	// queueManager.js checkPausedQueues: minorTech waits while workers are short. update still
+	// picks (it checks only for a queued plan), so the pick and its priority wait in the
+	// paused queue (researchManager.js:161-180).
+	const bool minor_paused = petra_queues_.paused[PETRA_Q_MINOR_TECH];
+	// headquarters.js:2295: researchManager.update every 5th AI turn, with an active base (a
+	// finished civic centre of ours, hasActiveBase).
+	const bool update_turn = petra_turn_mod(5, 1) && petra_has_active_base();
+	// A minorTech plan waiting for its resources (a pick below, or researchTradeBonus /
+	// researchPopulationBonus): update returns while it waits (researchManager.js:163). The
+	// queue manager keeps funding and starting it while a phase waits in majorTech too.
+	bool minor_waiting = false;
+	if (uint8_t &st = petra_queues_.special_tech; st && update_turn) {
+		const ResearchCheck rc = research_check(petra_pid_, st);
+		if (petra_ps().has_tech(st) || (rc != TECH_OK && rc != TECH_ERR_COST)) st = 0;
+		else {
+			if (!minor_paused && start_tech(st)) st = 0;
+			minor_waiting = true;
+		}
+	}
+	// requireHouses ends with no phase waiting, or one (the City) that asks for no houses.
+	if (!petra_phasing() || phase != 1) petra_kept_.require_houses = false;
 	if (petra_phasing()) {
 		build_phase_structures(phase, phase == 1 ? 5 : 3);
 		start_tech(phase == 1 ? TECH_PHASE_TOWN : TECH_PHASE_CITY);
 		return;
 	}
-
-	// headquarters.js:2295: researchManager.update every 5th AI turn, with an active base (a
-	// finished civic centre of ours, hasActiveBase).
-	if (!petra_turn_mod(5, 1) || !petra_has_active_base()) return;
-	// queueManager.js checkPausedQueues: minorTech waits while workers are short. update still
-	// picks (it checks only for a queued plan), so the pick and its priority wait in the
-	// paused queue (researchManager.js:161-180).
-	const bool minor_paused = petra_queues_.paused[PETRA_Q_MINOR_TECH];
-	// A minorTech plan waiting for its resources (a pick below, or researchTradeBonus /
-	// researchPopulationBonus): update returns while it waits (researchManager.js:163).
-	if (uint8_t &st = petra_queues_.special_tech; st) {
-		const ResearchCheck rc = research_check(petra_pid_, st);
-		if (petra_ps().has_tech(st) || (rc != TECH_OK && rc != TECH_ERR_COST)) st = 0;
-		else {
-			if (!minor_paused && start_tech(st)) st = 0;
-			return;
-		}
-	}
+	if (!update_turn || minor_waiting) return;
 	std::vector<uint8_t> techs;
 	petra_available_techs(techs);
 	// findAvailableTech: a finished researcher of ours lists it; a full queue doesn't matter
@@ -27444,12 +27450,9 @@ void Simulation::petra_manage_research(float dt) {
 			// The Seleucid army reform, either one at random, likewise ahead of the rest.
 			uint8_t choice = t;
 			const uint8_t other = t == TECH_TRADITIONAL_ARMY_SELE ? TECH_REFORMED_ARMY_SELE : TECH_TRADITIONAL_ARMY_SELE;
-			// Drawn once and kept while it waits (researchManager.js:90): a hash of what Petra has
-			// researched, as the City-phase pick below, not a fresh draw each pass.
-			uint64_t h = 0xD6E8FEB86659FD93ull * (petra_pid_ + 1);
-			for (uint64_t w : petra_ps().techs.words) h = (h ^ w) * 0xBF58476D1CE4E5B9ull;
-			h ^= h >> 31;
-			if (std::find(techs.begin(), techs.end(), other) != techs.end() && (h & 1)) choice = other;
+			// pickRandom on the AI's random stream (researchManager.js:91); the pick then waits
+			// in minorTech, so it is drawn once.
+			if (std::find(techs.begin(), techs.end(), other) != techs.end() && petra_rng_.range_int(0, 1) == 1) choice = other;
 			petra_change_priority(PETRA_Q_MINOR_TECH, 2 * petra_queue_base_priority(PETRA_Q_MINOR_TECH), PETRA_Q_MINOR_TECH);
 			pick(choice);
 			return;
@@ -27489,13 +27492,9 @@ void Simulation::petra_manage_research(float dt) {
 	techs.erase(std::remove_if(techs.begin(), techs.end(), [&](uint8_t t) { return petra_skips_random_tech(t, has_ally); }),
 	            techs.end());
 	if (techs.empty()) return;
-	// pickRandom, kept while the pick waits for resources: the draw is a hash of
-	// what Petra has researched, so it is the same until a research completes.
-	const TechSet &done = petra_ps().techs;
-	uint64_t h = 0x9E3779B97F4A7C15ull * (petra_pid_ + 1);
-	for (uint64_t w : done.words) h = (h ^ w) * 0xBF58476D1CE4E5B9ull;
-	h ^= h >> 31;
-	pick(techs[h % techs.size()]);
+	// pickRandom on the AI's random stream (researchManager.js:227); the pick then waits in
+	// minorTech for its resources, so it is drawn once.
+	pick(techs[(size_t)petra_rng_.range_int(0, (int)techs.size() - 1)]);
 }
 
 // The centres of the foes of each defense army (Army.foePosition), for isNearInvadingArmy.
@@ -31342,7 +31341,7 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 			}
 	};
 	for (const Building &b : buildings_) {
-		if (house && petra_require_houses_) break; // requireHouses: houses anywhere they fit
+		if (house && petra_kept_.require_houses) break; // requireHouses: houses anywhere they fit
 		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
 		// The Wall class: palisades are class Palisade, so ["Gate", "!Wall"] takes them in.
 		const bool wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER || b.type == BLD_SIEGE_WALL;
@@ -35673,6 +35672,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					ar.pod(v.house_plans);
 					io_vec(ar, v.anchors_seen, 1u << 16, [&](uint32_t &id) { ar.pod(id); });
 					ar.pod(v.space_freed); ar.pod(v.fields_freed);
+					if (ar.version >= Simulation::SAVE_VERSION_PETRA_REQUIRE_HOUSES) ar.pod(v.require_houses);
+					else v.require_houses = false; // set again at the next no-room house while phasing
 					if constexpr (Ar::loading)
 						if (v.house_plans > 5 || !std::is_sorted(v.anchors_seen.begin(), v.anchors_seen.end())) ar.ok = false;
 				} else {

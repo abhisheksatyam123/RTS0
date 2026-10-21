@@ -41,6 +41,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G56 | Barter & Trade dialog (Session UI pass 25, static against 0.28 gui/session/trade): ~~every caption, tooltip and trader line is English-only (0.28: "Sell %(resource)s", the InstructionsTooltip and TradeSwapTooltip, translatePlural trader lines); the help tooltips' hotkeys are plain "[Shift]" (colorizeHotkey); it opens while viewing no player (TradeDialog.open returns), and a defeated viewer or observer gets live buy buttons (controlsPlayer)~~ (fixed: `tools/e2e_trade_dialog.gd` 6-7) | low | Session UI |
 | G57 | Phone screen edges: on iPhones Godot 4.3 draws under the notch and the home indicator in landscape, so the top bar's ends and the bottom panels can sit under them (Android letterboxes the cutout by default: the template theme sets no `windowLayoutInDisplayCutoutMode`). Fitting the HUD to `DisplayServer.get_display_safe_area()` needs every session panel inset; a viewport-wide `global_canvas_transform` would shift the world-anchored status bars and labels off their units. Needs an iPhone to check | medium (iOS) | Device builds |
 | G58 | Area D pass 7, Petra unit choice and rosters against 0.28 (StartEntities, Trainer lists, gather rates, RunMultiplier and the class bits checked and matching): ~~queued worker batches shrink every turn instead of on trainMoreWorkers' turn~~ (fixed: `test_worker_plans_wait`); left: the Briton war dog is FastMoving but not Cavalry, and Petra reads FastMoving from Cavalry, so it never raids or stays as one of the two kept hunters; TrainingPlan.start's +10 s goes to every Civic trainer of a non-Support unit (temples, wagon encampments, military colonies) and its +50 s near an invading army to every Support unit (healers, traders), RTS0 only to civic centres and gatherer civilians; once addSiegeUnits fixed the siege class, losing its trainer switches the plan to another class where 0.28 deletes the order, and the main plan's trainer check skips no map-disabled template | low | D |
+| G59 | Chat window and Match Settings (Session UI pass 26, static against 0.28 chat_window.xml, ChatWindow.js, MatchSettingsDialog.xml): ~~the chat window is a flat translucent box of stacked rows (10-11 px labels, a "Type message..." placeholder, plain Godot buttons and tick box), always 432 px wide; picking History, an addressee or a filter leaves the input unfocused; Match Settings is a flat box with a plain Close~~ (fixed: genericPanel, every widget at chat_window.xml's size in ModernDropDown, ModernInput, ModernTickBox and ChatPanel with StoneButton buttons (`scenes/common/stone_theme.gd` session_theme), resizeChatWindow's golden-ratio width with the history shown, onSelectionChange and extendedChat focus the input; ModernDialog, ModernDarkBoxGold and a StoneButton Close; `tools/e2e_chat_window.gd`) | low | Session UI |
 
 Closed since re-check 3 (2026-10-15): G1 (large units' long paths keep out of woods too tight for them, #1086) and the rows below.
 
@@ -402,6 +403,21 @@ Every structure template the maps place (614 across data/maps) traced to the RTS
 | Z15 | hellenic_epic_temple loads as a temple (2000 HP, trains healers); 0.28's has 5000 HP, 60 m territory, 30 garrison and trains and researches nothing | low | Fixed: BLD_EPIC_TEMPLE with its own row; heals its garrison, trains and researches nothing (test_map_structures) |
 | Z16 | mill_field_wheat loads as a field with Health and 5 gatherers; 0.28's has no Health, Capturable or decay and takes 2 | low | Open |
 | Z17 | merc_camp_egyptian counts as Village (0.28: VisibleClasses -Village Town); pirates/dock trains the captor's dock roster, not the pirate ships | nit | Open |
+
+### Petra research and placement, nineteenth 0.28 pass (2026-10-21)
+
+researchManager.js (update, checkPhase, the wanted/preferred/random picks) and the placement in queueplanBuilding.js and headquarters.js (houses, docks) against RTS0. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| PR1 | A minor tech waiting for resources stopped while a phase waited in majorTech, and its reserve lapsed; 0.28's queue manager keeps funding and starting it | medium | Fixed: the waiting pick is retried before the phase check |
+| PR2 | requireHouses relaxed one house placement every 4th turn; 0.28 keeps it set (every house ignores the influence map) until the phase's Village count is met | low | Fixed: kept per Petra player, saved (v115) |
+| PR3 | The proximity dock search failed outright when its best spot was on a land under 4000 cells; 0.28 passes those spots over and keeps searching | low | Fixed |
+| PR4 | The City-phase random tech and the Seleucid army reform were a hash of the researched techs (the same pick every game for a slot); 0.28 draws on the AI's random stream | low | Fixed: petra_rng_ |
+| PR5 | With under 5 free slots and no room for a house, the house priority was reset; 0.28 leaves it as it was | nit | Fixed |
+| PR6 | findAvailableTech read one structure per type, so a captured one of another civ added none of its techs; 0.28 reads every structure | nit | Fixed: one per type and template civ |
+
+Checked and matching: the wanted and preferred tech filters and their order, the cheap-pick priority boost and the paused minorTech queue. Not yet traced: the dock water test (getDockAngle, checkDockPlacement) and defensive placement falling back to ally structures.
 
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 
