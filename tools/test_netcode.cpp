@@ -854,6 +854,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     bool stall_done = false;
     // Observer: how far behind the host it ran over the match's last 100 turns.
     uint64_t behind_sum = 0, behind_samples = 0;
+    int most_turns_a_frame = 0; // an observer: the most turns it ran in one frame
     // The last non-empty status report: the host's empties once the joiner has
     // finished and gone, which can happen before this peer's last turn.
     std::vector<ClientPerformanceMsg::Entry> last_perf;
@@ -1082,7 +1083,13 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             std::printf("[net-peer] host: kick %s peer=%u turn=%u ok=%d\n", opt.kick_name.c_str(), victim,
                         tm.current_turn(), net.kickPeer(victim, opt.ban) ? 1 : 0);
         }
-        if (tm.tick(dt, sim)) {
+        // CGame::Update runs up to sim-rate turns a frame. Seated peers run one,
+        // so each scripted turn above posts its orders; an observer, which
+        // posts nothing, may run more to catch up at speeds the frame rate
+        // alone could not reach.
+        const int max_turns = tm.is_observer() ? std::max(1, (int)speed) : 1;
+        int ran = 0;
+        for (; ran < max_turns && tm.current_turn() < turns && tm.tick(ran ? 0.0f : dt, sim); ++ran) {
             const auto &f = tm.turn_history().back();
             // Both peers stand on the same state at this turn boundary: wipe the
             // joiner's player out so the conquest check defeats it. It keeps
@@ -1147,6 +1154,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                          order_kind_of(sim, host_carrier), carry_of(sim, host_carrier),
                          order_kind_of(sim, host_trader), order_queue_len_of(sim, host_trader));
         }
+        if (tm.is_observer()) most_turns_a_frame = std::max(most_turns_a_frame, ran);
         if (tm.has_out_of_sync() && !opt.force_oos) {
             std::fprintf(stderr, "[net-peer] %s: OOS at turn %u local=%08X peer=%08X\n",
                          host ? "host" : "join", tm.oos_turn(), tm.oos_expected_hash(), tm.oos_received_hash());
@@ -1235,8 +1243,8 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                     list.empty() ? "-" : list.c_str());
     }
     if (tm.is_observer())
-        std::printf("[net-peer] join: catchup behind_late=%.1f\n",
-                    behind_samples ? (double)behind_sum / (double)behind_samples : 0.0);
+        std::printf("[net-peer] join: catchup behind_late=%.1f most_a_frame=%d\n",
+                    behind_samples ? (double)behind_sum / (double)behind_samples : 0.0, most_turns_a_frame);
     if (!tm.rejoined_clients().empty()) {
         std::string ids;
         for (uint32_t c : tm.rejoined_clients()) ids += (ids.empty() ? "" : ",") + std::to_string(c);
@@ -1396,6 +1404,7 @@ int run_legacy_tests() {
         assert(s.food() == 400);
 
         s.set_victory_condition(VICTORY_WONDER);
+        s.tick(0.05f); // a wonder there at the start runs no countdown (WonderVictory.js)
         s.spawn_building_world(0.0f, 8.0f, BLD_WONDER, 0, 1.0f);
         s.tick(1.0f);
         assert(!s.is_victory());

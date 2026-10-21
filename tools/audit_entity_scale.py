@@ -116,6 +116,8 @@ CONDITIONS = {
         (lambda c, b: c == "arrow_projectile", 25),
     'id == "stone_projectile"':
         (lambda c, b: c == "stone_projectile", 25),
+    'id == "plane"':
+        (lambda c, b: c == "plane", 90),
 }
 
 

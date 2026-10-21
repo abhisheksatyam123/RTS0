@@ -74,7 +74,7 @@ void RtsoMain::debug_gather_nearest() {
 }
 
 // Test hook (single player): two markets and two traders by the local Town
-// Center, the traders selected, then the two right-clicks of setup-trade-route.
+// Center, the traders selected (debug_trade_click right-clicks a market).
 Dictionary RtsoMain::debug_trade_route_clicks() {
 	Dictionary d;
 	if (!sim || net_lockstep()) return d;
@@ -93,20 +93,18 @@ Dictionary RtsoMain::debug_trade_route_clicks() {
 		if (b.id == m2) b2 = &b;
 	}
 	if (!b1 || !b2) return d;
-	String tip;
-	const char *cur = nullptr;
-	trade_route_click(*b1, false, false, &tip);
-	d["hover_first"] = tip;
-	d["first"] = trade_route_click(*b1, true, false, nullptr);
-	trade_route_click(*b1, false, false, &tip, &cur);
-	d["hover_origin"] = tip;
-	d["origin_cursor"] = String(cur);
-	trade_route_click(*b2, false, false, &tip);
-	d["hover_second"] = tip;
-	d["second"] = trade_route_click(*b2, true, false, nullptr);
-	d["origin_after"] = (int)trade_origin_market_;
 	d["m1"] = (int64_t)m1;
 	d["m2"] = (int64_t)m2;
+	return d;
+}
+
+// Test hook: a right-click on market `market` with the selection (Shift when `queued`), through
+// lockstep as a player's click goes.
+Dictionary RtsoMain::debug_trade_click(int64_t market, bool queued) {
+	Dictionary d;
+	if (!sim) return d;
+	for (const auto &b : sim->buildings())
+		if (b.id == (uint32_t)market) d["ok"] = trade_route_click(b, true, queued, nullptr);
 	return d;
 }
 
@@ -121,6 +119,11 @@ Dictionary RtsoMain::debug_trade_tip(int64_t market) {
 			d["ok"] = trade_route_click(b, false, false, &tip, &cur);
 			d["tip"] = tip;
 			d["cursor"] = String(cur ? cur : "");
+			uint32_t ma = 0, mb = 0;
+			int leg = 0;
+			if (!selected_ids.is_empty()) sim->trader_route((uint32_t)(int64_t)selected_ids[0], ma, mb, leg);
+			d["market_a"] = (int64_t)ma;
+			d["market_b"] = (int64_t)mb;
 		}
 	return d;
 }
@@ -246,6 +249,23 @@ Dictionary RtsoMain::debug_civic_centre_roof() {
 // "unit": the first own unit selected; "multi": all own units; "building": the first own
 // structure; "field": the first own finished field (spawning one if there is none); "resource" /
 // "fauna": the first tree or mine / animal, inspected as a click would; a number: that unit.
+void RtsoMain::debug_inspect_entity(int64_t id) {
+	if (!sim) return;
+	clear_selection();
+	// The click at its position (inspect_at reads the structures as the viewer knows them).
+	for (const auto &b : sim->buildings())
+		if (b.id == (uint32_t)id) {
+			inspector_.inspect_at(Vector3(b.x, 0.0f, b.z));
+			return;
+		}
+	auto uv = sim->units();
+	for (size_t i = 0; i < uv.count; ++i)
+		if (uv.id[i] == (uint32_t)id) {
+			inspector_.inspect_at(Vector3(uv.pos_x[i], 0.0f, uv.pos_z[i]));
+			return;
+		}
+}
+
 Dictionary RtsoMain::debug_inspector(const String &what) {
 	if (!sim) return Dictionary();
 	if (what == "current") { // the details of the selection as it stands
@@ -263,6 +283,8 @@ Dictionary RtsoMain::debug_inspector(const String &what) {
 				selected_ids.push_back((int32_t)uview.id[i]);
 				if (what == "unit") break;
 			}
+	} else if (what.begins_with("building:")) { // a structure by id
+		selected_building_id = (uint32_t)what.substr(9).to_int();
 	} else if (what == "building") {
 		for (const auto &b : sim->buildings())
 			if (b.team == local_player() && rtso::is_civic_centre(b.type)) { selected_building_id = b.id; break; }
@@ -489,15 +511,16 @@ Vector2 RtsoMain::debug_spawn_offset(const String &template_id, int count, int p
 // Test hook: spawns `count` of the roster template `template_id` (e.g.
 // "athen/support_female_citizen") for the local player in a row by its Civic Centre,
 // 3 m apart from debug_spawn_offset.
-PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int count, int player) {
+PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int count, int player, int near) {
 	PackedInt32Array out;
 	if (!sim) return out;
 	const uint16_t t = rtso::civ_unit_template_by_id(template_id.utf8().get_data());
 	if (t >= rtso::CIV_UNIT_TEMPLATE_COUNT) return out;
 	const uint8_t me = player < 0 ? local_player() : (uint8_t)player;
+	const uint8_t by = near < 0 ? me : (uint8_t)near; // whose Civic Centre they spawn by
 	float cx = 0.0f, cz = 0.0f;
 	for (const auto &b : sim->buildings())
-		if (b.team == me && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
+		if (b.team == by && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
 	const Vector2 o = debug_spawn_offset(template_id, count, player);
 	for (int i = 0; i < count; ++i)
 		out.push_back((int32_t)sim->spawn_unit(cx + o.x + 3.0f * i, cz + o.y, me,
@@ -505,16 +528,44 @@ PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int coun
 	return out;
 }
 
+void RtsoMain::debug_complete_research(int player, int tech) {
+	if (sim) sim->debug_complete_research((uint8_t)player, (uint8_t)tech);
+}
+
+// Test hooks: `player` holds `points` of a structure's capture points, taken from its owner;
+// and each player's points.
+void RtsoMain::debug_set_capture_points(int64_t building_id, int player, float points) {
+	if (!sim || player < 0 || player >= rtso::MAX_PLAYERS) return;
+	for (const auto &cb : sim->buildings()) {
+		if (cb.id != (uint32_t)building_id) continue;
+		auto &b = const_cast<rtso::Simulation::Building &>(cb);
+		const float moved = points - b.capture_points_by_team[player];
+		b.capture_points_by_team[player] = points;
+		if (b.team < rtso::MAX_PLAYERS && b.team != player)
+			b.capture_points_by_team[b.team] = std::max(0.0f, b.capture_points_by_team[b.team] - moved);
+		return;
+	}
+}
+
+PackedFloat32Array RtsoMain::debug_capture_points(int64_t building_id) const {
+	PackedFloat32Array out;
+	if (!sim) return out;
+	for (const auto &b : sim->buildings())
+		if (b.id == (uint32_t)building_id)
+			for (int p = 0; p < rtso::MAX_PLAYERS; ++p) out.push_back(b.capture_points_by_team[p]);
+	return out;
+}
+
 // Test hook: `count` animals of a FaunaType by the player's Civic Centre, owned by the
 // player (trained livestock) or Gaia.
-PackedInt32Array RtsoMain::debug_spawn_fauna(int fauna_type, int count, bool owned) {
+PackedInt32Array RtsoMain::debug_spawn_fauna(int fauna_type, int count, bool owned, float dx, float dz) {
 	PackedInt32Array out;
 	if (!sim) return out;
 	float cx = 0.0f, cz = 0.0f;
 	for (const auto &b : sim->buildings())
 		if (b.team == local_player() && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
 	for (int i = 0; i < count; ++i)
-		out.push_back((int32_t)sim->spawn_fauna(cx + 16.0f + 3.0f * i, cz + 16.0f, (uint8_t)fauna_type,
+		out.push_back((int32_t)sim->spawn_fauna(cx + dx + 3.0f * i, cz + dz, (uint8_t)fauna_type,
 				owned ? local_player() : rtso::GAIA_PLAYER));
 	return out;
 }
@@ -622,6 +673,23 @@ int64_t RtsoMain::debug_civic_centre_id(int player) const {
 }
 
 // Test hook: each player's structures by type name, {player: {name: count}}.
+Array RtsoMain::debug_building_looks() const {
+	Array out;
+	if (!sim || !view) return out;
+	const Array rows = view->building_looks_data();
+	for (int i = 0; i < rows.size(); ++i) {
+		Array row = rows[i];
+		for (const auto &b : sim->buildings())
+			if (b.id == (uint32_t)(int64_t)row[0]) {
+				row.push_back(b.x);
+				row.push_back(b.z);
+				out.push_back(row);
+				break;
+			}
+	}
+	return out;
+}
+
 Dictionary RtsoMain::debug_structure_types(bool with_civ) {
 	Dictionary d;
 	if (!sim) return d;
@@ -697,6 +765,15 @@ Dictionary RtsoMain::debug_dialogs() {
 	d["chat_names"] = names;
 	d["chat_addressees"] = chat_window_.addressee_list();
 	return d;
+}
+
+void RtsoMain::debug_set_rally(int64_t building_id, float x, float z) {
+	if (!sim || net_lockstep()) return;
+	for (const auto &b : sim->buildings())
+		if (b.id == (uint32_t)building_id) {
+			sim->cmd_set_rally_point(b.team, b.id, x, z, 0, 0, false);
+			return;
+		}
 }
 
 // Test hook: step 0 places a barracks with a rally point and selects it; step 1
@@ -859,6 +936,7 @@ Dictionary RtsoMain::debug_placement_tip() const {
 
 // Tests: the action tooltip beside the cursor and the cursor's name.
 Dictionary RtsoMain::debug_cursor_tip() {
+	update_highlight();
 	update_cursor();
 	Dictionary d;
 	d["visible"] = cursor_tip_ && cursor_tip_->is_visible();
@@ -891,6 +969,10 @@ Dictionary RtsoMain::debug_minimap_panel() const {
 	d["flare_armed"] = flare_armed_;
 	d["pings"] = minimap_view ? (int64_t)minimap_view->entity_ping_count() : (int64_t)0;
 	return d;
+}
+
+void RtsoMain::debug_defeat_player(int64_t pid) {
+	if (sim && !net_lockstep() && pid >= 0 && pid < rtso::MAX_PLAYERS) sim->defeat_player((uint8_t)pid);
 }
 
 void RtsoMain::debug_attacked(int64_t target, int64_t attacker_owner) {

@@ -174,7 +174,9 @@ enum class NetCommandType : uint8_t {
 	// 0 A.D. "setup-trade-route" (Commands.js, UnitAI Trade): traders in entity_ids
 	// trade between market target_id and the market whose id is target_x; `route` holds
 	// the clicked waypoints between them as flat x,z pairs (UnitAI SetupTradeRoute route).
-	// param bit NET_PARAM_QUEUED queues it.
+	// target_x 0 is a player's click with no source (Simulation::order_setup_trade): each
+	// trader takes target_id as its first or second market; with NET_PARAM_CANCEL_TRADE it
+	// is "cancel-setup-trade-route" on target_id. param bit NET_PARAM_QUEUED queues it.
 	NET_CMD_SETUP_TRADE_ROUTE = 35,
 	// 0 A.D. "alert-raise" / "alert-end" (AlertRaiser.js) on structure target_id;
 	// param 0 raises, 1 ends.
@@ -240,10 +242,15 @@ inline constexpr uint8_t NET_PARAM_PUSH_FRONT = 0x04; // focus-fire: put the tar
 // (UnitAI PushOrderFront, ProductionQueue.AddItem pushFront). NET_CMD_RESEARCH says so
 // with target_x 1.
 inline constexpr uint8_t NET_PARAM_PUSH_FRONT_ORDER = 0x40;
+// Build (5): param holds the building type, so the order flags ride above the packed angle
+// (low 16 bits) of target_id (0 A.D. "construct" queued / pushFront).
+inline constexpr uint32_t NET_BUILD_QUEUED = 1u << 16;
+inline constexpr uint32_t NET_BUILD_PUSH_FRONT = 1u << 17;
 inline bool net_cmd_takes_push_front(uint8_t cmd) {
 	return cmd == 1 || cmd == 3 || cmd == 4 || cmd == 10 || cmd == 11 || cmd == 12 || cmd == 15 || cmd == 16 || cmd == 21;
 }
 inline constexpr uint8_t NET_PARAM_OCCUPY_TURRET = 0x01; // garrison: the holder's turret points (0 A.D. "occupy-turret")
+inline constexpr uint8_t NET_PARAM_CANCEL_TRADE = 0x01;  // setup-trade-route: "cancel-setup-trade-route" on market target_id
 inline constexpr uint8_t NET_HUNT_SCENERY_NO_CAPTURE = 3; // hunt (17) on scenery: attack it, don't capture it (Ctrl)
 
 struct NetCommand {
@@ -295,6 +302,10 @@ struct NetPeer {
 // 0 A.D. NetServer.cpp MAX_CLIENTS: connected sessions a host takes (players
 // and observers); one more is refused with NDR_SERVER_FULL.
 constexpr size_t NET_MAX_CLIENTS = 41;
+// The remote clients that fills: 0 A.D.'s m_Sessions holds the host's own
+// client and the joiner too (a session is added on connect, before
+// OnAuthenticate checks it against MAX_CLIENTS), so 39 others get in.
+constexpr size_t NET_MAX_REMOTE_CLIENTS = NET_MAX_CLIENTS - 2;
 // Lockstep client ids the game setup lists, seats and counts for Ready (bit k
 // of the 64-bit setup masks; the host is 0). Before Start a joiner takes the
 // lowest free id, and at most NET_MAX_CLIENTS are connected, so every one fits.
@@ -305,6 +316,7 @@ constexpr uint8_t NDR_INCORRECT_PROTOCOL_VERSION = 3;
 // 0 A.D. NetMessages.h: the handshake response flag of a host that checks a
 // joiner's name with the lobby.
 constexpr uint32_t PS_NETWORK_FLAG_REQUIRE_LOBBYAUTH = 0x1;
+constexpr uint8_t NDR_SERVER_LOADING = 4; // a join while the host's game loads
 constexpr uint8_t NDR_SERVER_ALREADY_IN_GAME = 5; // a late observer the host does not take
 constexpr uint8_t NDR_PLAYERNAME_IN_USE = 8;
 constexpr uint8_t NDR_SERVER_FULL = 9;
@@ -435,6 +447,7 @@ struct GameSetupParams {
 	uint8_t trigger_difficulty = 3; // 0 A.D. TriggerDifficulty: 1 Very Easy .. 5 Very Hard
 	uint8_t daytime = 0;        // 0 A.D. Daytime: 0 = the map picks, else the map's option (1-based)
 	uint8_t sea_rise_min = 25; // Extinct Volcano: minutes until the water rises, 0..60 (0 A.D. SeaLevelRiseTime)
+	std::string map_filter; // the setup's Map Filter id (0 A.D. GuiData mapFilter), shown to every client; no sim effect
 	uint16_t map_size = 128; // random-map width in meters, 128..512
 	uint8_t difficulty = 3; // Petra 0..5 sandbox..very hard
 	uint8_t behavior = 0;   // Petra 0..3 random/def/bal/agg (player_defaults.json: random)
@@ -546,6 +559,7 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	if (p.trigger_difficulty != 3) s += ";trigdiff=" + std::to_string((unsigned)p.trigger_difficulty);
 	if (p.daytime) s += ";daytime=" + std::to_string((unsigned)p.daytime);
 	s += ";searise=" + std::to_string((unsigned)p.sea_rise_min);
+	if (!p.map_filter.empty()) s += ";mapfilter=" + p.map_filter;
 	s += ";mapsize=" + std::to_string((unsigned)p.map_size);
 	s += ";diff=" + std::to_string((unsigned)p.difficulty);
 	s += ";behavior=" + std::to_string((unsigned)p.behavior);
@@ -693,6 +707,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "trigdiff") { uint8_t x; if (detail::parse_u8(v, 1, 5, x)) out.trigger_difficulty = x; }
 			else if (k == "daytime") { uint8_t x; if (detail::parse_u8(v, 0, 2, x)) out.daytime = x; }
 			else if (k == "searise") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.sea_rise_min = x; }
+			else if (k == "mapfilter" && v.size() <= 32 && v.find_first_not_of("abcdefghijklmnopqrstuvwxyz_") == std::string::npos) out.map_filter = v;
 			else if (k == "popcap" && !v.empty() && v.size() <= 4 && v.find_first_not_of("0123456789") == std::string::npos) {
 				unsigned x = (unsigned)std::stoul(v);
 				if (x <= 1000) out.pop_cap = (uint16_t)x;

@@ -7,7 +7,9 @@ extends SceneTree
 #   3. the instructions are the tooltips of the (i) buttons, not text on the page;
 #   4. 38 px barter icons with the amount on them, 32 px trade buttons with 16 px
 #      arrows beside them;
-#   5. the land and ship trader texts are a blank line apart.
+#   5. the land and ship trader texts are a blank line apart;
+#   6. its strings are 0.28's msgids, translated, with gold hotkeys;
+#   7. it won't open while viewing no player, and a defeated viewer can't buy.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_trade_dialog.gd
 # Exit code 0 = pass.
@@ -71,10 +73,58 @@ func run() -> void:
 	check(sells.all(func(b): return str(b.get_node("amount").text) == "-100"), "-100 on each sell icon")
 	var row: Dictionary = d._trade_rows[0]
 	check(row["button"].size == Vector2(32, 32) and row["up"].size == Vector2(16, 16), "32 px trade buttons, 16 px arrows: %s %s" % [row["button"].size, row["up"].size])
+	check(row["up"] is TextureButton and row["up"].texture_normal != null and row["up"].texture_hover != null and row["dn"].texture_hover != null,
+		"the arrows are bare arrowbox sprites with their _over sprite on hover (StoneArrowUp/Dn)")
 
 	print("5. Trader texts")
 	var tt: String = (body.find_child("traderCountText", true, false) as RichTextLabel).get_parsed_text()
 	check(tt.contains(".\n\nThere"), "a blank line between them: " + tt.replace("\n", " | "))
+
+	print("6. 0.28's msgids, translated, with gold hotkeys")
+	check(trade_help.tooltip_text.contains("[color=") and barter_help.tooltip_text.contains("[color="),
+		"colorizeHotkey in both help tooltips")
+	check(sells[0].tooltip_text == "Sell food" or sells[0].tooltip_text.begins_with("Sell "), "Sell %(resource)s: " + sells[0].tooltip_text)
+	var de: Translation = load("res://assets/l10n/de.po")
+	TranslationServer.add_translation(de)
+	TranslationServer.set_locale("de")
+	main._toggle_session_dialog("BarterDialog")
+	await frames(2)
+	var d2 = main.get_node("BarterDialog")
+	var old: Node = d2.get_node("CenterContainer/Panel/Body")
+	for c in old.get_children():
+		c.free()
+	d2._sell_buttons.clear()
+	d2._buy_buttons.clear()
+	d2._trade_rows.clear()
+	d2._build()
+	main._toggle_session_dialog("BarterDialog")
+	await frames(3)
+	t = texts(body)
+	var title_de := TranslationServer.translate("Barter & Trade")
+	check(title_de != "Barter & Trade" and t.has(title_de) and t.has(TranslationServer.translate("Resources:")), "German title and labels: " + str(t))
+	var tt_de: String = (body.find_child("traderCountText", true, false) as RichTextLabel).get_parsed_text()
+	check(tt_de.contains(TranslationServer.translate("There are no merchant ships.")) and not tt_de.contains("merchant ships."),
+		"German trader lines: " + tt_de.replace("\n", " | "))
+	TranslationServer.set_locale("en")
+	main._toggle_session_dialog("BarterDialog")
+	await frames(2)
+
+	print("7. Viewing no player")
+	main.resign()
+	await frames(40)
+	check(not d.is_open(), "closed after resigning (closeOpenDialogs)")
+	main._on_observer_view_selected(0) # Observer: g_ViewedPlayer -1
+	await frames(3)
+	main._toggle_session_dialog("BarterDialog")
+	await frames(3)
+	check(not d.is_open(), "TradeDialog.open does nothing while viewing no player")
+	main._on_observer_view_selected(2) # player 1
+	await frames(3)
+	main._toggle_session_dialog("BarterDialog")
+	await frames(3)
+	d.update_panels()
+	var buy_any: Button = d._buy_buttons.values().filter(func(b): return b.visible)[0]
+	check(d.is_open() and buy_any.disabled, "a defeated viewer reads a player's dialog with its buy buttons off (controlsPlayer)")
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

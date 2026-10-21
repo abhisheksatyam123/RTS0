@@ -120,7 +120,7 @@ func _ready() -> void:
 			ms.match_music = {}
 			var menu_audio = get_node_or_null("/root/MenuAudio")
 			if menu_audio != null:
-				menu_audio.play_match_track(str(mm.get("track", "")), float(mm.get("position", 0.0)))
+				menu_audio.play_match_track(str(mm.get("track", "")), float(mm.get("position", 0.0)), mm.get("playlist", []))
 
 func is_open() -> bool:
 	return visible
@@ -177,8 +177,10 @@ func _init_players() -> void:
 
 ## translateAISettings: "Medium Balanced Petra Bot".
 static func ai_description(p: Dictionary) -> String:
-	return "%s %s Petra Bot" % [AI_DIFFICULTIES[clampi(int(p.get("ai_difficulty", 3)), 0, 5)],
-		AI_BEHAVIORS[clampi(int(p.get("ai_behavior", 2)), 0, 3)]]
+	return TranslationServer.translate("%(AIdifficulty)s %(AIbehavior)s %(AIname)s") \
+		.replace("%(AIdifficulty)s", TranslationServer.translate(AI_DIFFICULTIES[clampi(int(p.get("ai_difficulty", 3)), 0, 5)])) \
+		.replace("%(AIbehavior)s", TranslationServer.translate(AI_BEHAVIORS[clampi(int(p.get("ai_behavior", 2)), 0, 3)])) \
+		.replace("%(AIname)s", TranslationServer.translate("Petra Bot"))
 
 ## playerState.team: the Game Setup team, -1 for none. Records from before
 ## setup_team only have RTS0's sim team (its lowest member's id + 1): players
@@ -605,6 +607,18 @@ static func bold_font() -> FontVariation:
 		_bold_font.variation_embolden = 0.6
 	return _bold_font
 
+# ModernDropDown's sans-stroke-14 in a 28 px box: Linux Biolinum's line is 2 px per point
+# where 0.28's bitmap font is about 1.2, so the face is trimmed to that line.
+static var _dd_font: FontVariation
+
+static func _dropdown_font() -> FontVariation:
+	if _dd_font == null:
+		_dd_font = FontVariation.new()
+		_dd_font.base_font = load("res://assets/fonts/LinBiolinum_Rah.ttf")
+		_dd_font.spacing_top = -6
+		_dd_font.spacing_bottom = -5
+	return _dd_font
+
 func _label(text: String, size := 14, color := Color.WHITE) -> Label:
 	var l := Label.new()
 	l.text = text
@@ -712,11 +726,11 @@ func _build() -> void:
 		b.toggle_mode = true
 		b.button_group = group
 		b.tooltip_text = "\n".join([L10n.sprintf(L10n.t("Focus the %(name)s summary tab."), {"name": L10n.t(labels[i])}),
-			L10n.sprintf(L10n.t("Scroll down or use %(hotkey)s to move a tab right."), {"hotkey": _hotkey_text("tab.next")}),
-			L10n.sprintf(L10n.t("Scroll up or use %(hotkey)s to move a tab left."), {"hotkey": _hotkey_text("tab.prev")})])
+			_colorize_hotkey(L10n.t("Scroll down or use %(hotkey)s to move a tab right."), "tab.next"),
+			_colorize_hotkey(L10n.t("Scroll up or use %(hotkey)s to move a tab left."), "tab.prev")])
 		b.pressed.connect(select_panel.bind(i))
 		b.gui_input.connect(_on_tab_wheel)
-		_place(b, _window, Vector2(17 + i * (TAB_W + TAB_GAP), 92), Vector2(TAB_W, 28)) # tabButtonsFrame "17 92 883 120"
+		_place(b, _window, Vector2(17 + i * (TAB_W + TAB_GAP) + TAB_GAP / 2, 92), Vector2(TAB_W, 28)) # tabButtonsFrame "17 92 883 120"
 		_tab_buttons.append(b)
 	var frame := Panel.new() # generalPanel / chartsPanel frame
 	frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -775,7 +789,7 @@ func _build() -> void:
 	lobby.self_modulate = BUBBLE_GOLD
 	lobby.mouse_entered.connect(func(): lobby.self_modulate = Color.WHITE)
 	lobby.mouse_exited.connect(func(): lobby.self_modulate = BUBBLE_GOLD)
-	lobby.tooltip_text = "%s: Toggle the multiplayer lobby in a dialog window." % _hotkey_text("lobby")
+	lobby.tooltip_text = _colorize_hotkey(L10n.t("%(hotkey)s: Toggle the multiplayer lobby in a dialog window."), "lobby")
 	lobby.visible = not gui.get("isInGame", false) and _lobby_signed_in()
 	lobby.pressed.connect(open_lobby)
 	lobby.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -796,6 +810,12 @@ func _on_tab_wheel(event: InputEvent) -> void:
 ## colorizeHotkey: every binding, shortest first, or "Unassigned hotkey: name".
 func _hotkey_text(hotkey: String) -> String:
 	return load("res://scenes/menu/replay_browser.gd").hotkey_text(_hotkeys.call("get_hotkey_map") if _hotkeys else {}, hotkey)
+
+## colorizeHotkey: the bindings in g_HotkeyTags' gold.
+func _colorize_hotkey(text: String, hotkey: String) -> String:
+	if _hotkeys:
+		return _hotkeys.colorize(text, hotkey)
+	return L10n.sprintf(text, {"hotkey": _hotkey_text(hotkey)})
 
 func select_panel(i: int) -> void:
 	panel_index = clampi(i, 0, panels.size())
@@ -840,7 +860,7 @@ func _update_panel(pd: Dictionary) -> void:
 	for c in counters:
 		row_w += c["w"]
 	var index := sample_count() - 1
-	var y := 65
+	var y := 70 # noTeamsBox "0 70 100% 100%-50"
 	if teams.is_empty():
 		for i in players.size():
 			_player_row(players[i], counters, headings, index, Vector2(10, y + i * (BOX_H + BOX_GAP)), row_w)
@@ -848,10 +868,11 @@ func _update_panel(pd: Dictionary) -> void:
 	else:
 		var keys := teams.keys()
 		keys.sort()
-		if keys.has(-1): # updateGeneralPanelTeams: noTeamsBox, then a box per team
+		y = 40 # g_TeamsBoxYStart
+		if keys.has(-1): # updateGeneralPanelTeams: noTeamsBox at 70, then a box per team
 			var loose: Array = teams[-1]
 			for n in loose.size():
-				_player_row(players[loose[n]], counters, headings, index, Vector2(10, y + n * (BOX_H + BOX_GAP)), row_w)
+				_player_row(players[loose[n]], counters, headings, index, Vector2(10, 70 + n * (BOX_H + BOX_GAP)), row_w)
 			y += loose.size() * (BOX_H + BOX_GAP) + 30
 			keys.erase(-1)
 		for t in keys:
@@ -871,7 +892,7 @@ func _update_panel(pd: Dictionary) -> void:
 				cell.name = "TeamValue%d_%d" % [t, ci]
 				_place(cell, _general, Vector2(x + 20, total_y - 10 + 3 + counters[ci]["off"]), Vector2(counters[ci]["w"] - 20, 36))
 				x += counters[ci]["w"]
-			y = total_y + 42
+			y += 30 + members.size() * (BOX_H + BOX_GAP) + 32
 	_general.custom_minimum_size = Vector2(maxi(row_w + 20, left + 20), y + 10)
 
 func _player_row(p: Dictionary, counters: Array, headings: Array, index: int, pos: Vector2, width: int) -> void:
@@ -890,7 +911,7 @@ func _player_row(p: Dictionary, counters: Array, headings: Array, index: int, po
 	name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	name.clip_text = true
 	name.tooltip_text = p["tooltip"]
-	_place(name, box, Vector2(46, 2), Vector2(168, BOX_H - 2))
+	_place(name, box, Vector2(40, 2), Vector2(170, BOX_H - 2)) # playerName "40 2 210 100%"
 	var civ_info: Dictionary = Ref.ref().get_civ_info(p["civ"])
 	if not civ_info.is_empty():
 		var emblem := TextureRect.new()
@@ -898,7 +919,7 @@ func _player_row(p: Dictionary, counters: Array, headings: Array, index: int, po
 		emblem.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		emblem.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		emblem.tooltip_text = str(civ_info.get("name", ""))
-		_place(emblem, box, Vector2(214, 5), Vector2(32, 32))
+		_place(emblem, box, Vector2(210, 5), Vector2(32, 32)) # civIcon "210 5 242 37"
 	var x := 240
 	for ci in counters.size():
 		var v: Variant = counters[ci]["fn"].call(p, index, headings[ci + 1]["id"])
@@ -916,7 +937,7 @@ func _build_charts() -> void:
 		part.anchor_left = 0.0 if k == 0 else 0.5
 		part.anchor_right = 0.5 if k == 0 else 1.0
 		part.anchor_bottom = 1.0
-		part.offset_left = 15 if k == 0 else 5
+		part.offset_left = 15 if k == 0 else 10 # initGUICharts: chart[1]Part "50%+10 0 100%-15 100%-35"
 		part.offset_right = -10 if k == 0 else -15
 		part.offset_bottom = -35
 		_charts_panel.add_child(part)
@@ -927,6 +948,9 @@ func _build_charts() -> void:
 			var dd := OptionButton.new()
 			dd.name = ["Category", "Value", "Type"][j]
 			dd.tooltip_text = ["Category", "Value", "Type"][j]
+			dd.theme = preload("res://scenes/common/modern_theme.gd").theme() # ModernDropDown
+			dd.add_theme_font_override("font", _dropdown_font())
+			dd.add_theme_font_size_override("font_size", 14)
 			dd.fit_to_longest_item = false
 			dd.clip_text = true
 			_place(dd, part, Vector2(5 + j * 150, 28), Vector2(140, 28)) # "5 28 145 56"
@@ -990,9 +1014,24 @@ func _update_category(n: int) -> void:
 	for p in panels:
 		dd.add_item(p["label"])
 	dd.select(clampi(int(selection["category"][n]), 0, panels.size() - 1))
+	_resize_dropdown(dd)
 	_update_value(n)
 
+## resizeDropdown: two lines (42 px) when the caption is wider than the box's text
+## area and has a space to wrap at, else 28 px.
+func _resize_dropdown(dd: OptionButton) -> void:
+	var text := dd.get_item_text(dd.selected) if dd.selected >= 0 else ""
+	var arrow := dd.get_theme_icon("arrow")
+	var box := dd.get_theme_stylebox("normal")
+	var room := dd.size.x - box.get_margin(SIDE_LEFT) - box.get_margin(SIDE_RIGHT) - (arrow.get_width() if arrow else 0) \
+		- dd.get_theme_constant("h_separation")
+	var wide := dd.get_theme_font("font").get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, dd.get_theme_font_size("font_size")).x > room
+	var tall := wide and text.contains(" ")
+	dd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if tall else TextServer.AUTOWRAP_OFF
+	dd.size.y = 42 if tall else 28
+
 func _on_category_selected(i: int, n: int) -> void:
+	_resize_dropdown(_pickers[n][0])
 	if selection["category"][n] != i:
 		selection["category"][n] = i
 		selection["value"][n] = 0
@@ -1008,9 +1047,11 @@ func _update_value(n: int) -> void:
 		dd.add_item(headings[i]["caption"])
 	selection["value"][n] = clampi(int(selection["value"][n]), 0, headings.size() - 2)
 	dd.select(selection["value"][n])
+	_resize_dropdown(dd)
 	_update_type(n)
 
 func _on_value_selected(i: int, n: int) -> void:
+	_resize_dropdown(_pickers[n][1])
 	if selection["value"][n] != i:
 		selection["value"][n] = i
 		selection["type"][n] = 0
@@ -1032,9 +1073,11 @@ func _update_type(n: int) -> void:
 		dd.add_item(SUMMARY_TYPES[t]["caption"])
 	selection["type"][n] = clampi(int(selection["type"][n]), 0, test.size() - 1)
 	dd.select(selection["type"][n])
+	_resize_dropdown(dd)
 	_update_chart(n, cat, item, test.keys()[selection["type"][n]])
 
 func _on_type_selected(i: int, n: int) -> void:
+	_resize_dropdown(_pickers[n][2])
 	selection["type"][n] = i
 	_update_type(n)
 
@@ -1132,7 +1175,7 @@ func _draw_chart(n: int) -> void:
 	var chart: Control = _chart_nodes[n]
 	if series[n].is_empty():
 		return
-	var font := ThemeDB.fallback_font
+	var font := chart.get_theme_default_font() # sans-stroke-14: the theme's regular face
 	var rect := Rect2(Vector2(CHART_AXIS_WIDTH, CHART_AXIS_WIDTH), chart.size - Vector2(2, 2) * CHART_AXIS_WIDTH)
 	var b := chart_bounds(series[n])
 	var lb: Vector2 = b[0]
@@ -1207,12 +1250,13 @@ func _lobby_signed_in() -> bool:
 	var lobby := get_tree().root.get_node_or_null("LobbySession")
 	return lobby != null and lobby.signed_in()
 
-## The lobby button: RTS0's lobby is a page, not a dialog, so it is opened in place of the summary.
+## summary.xml lobbyButton: the lobby as a dialog over the summary (lobby.js attribs.dialog).
 func open_lobby() -> void:
 	if not _lobby_signed_in():
 		return
-	get_tree().paused = false
-	MatchSettings.go("res://scenes/menu/lobby.tscn")
+	var page: Node = load("res://scenes/menu/lobby.gd").open_dialog(get_tree())
+	if page:
+		(page.get_parent() as CanvasLayer).layer = layer + 1
 
 ## 0 A.D. session CampaignSession.onFinish and campaigns/default_menu/endgame: the
 ## level is completed the moment the player wins it, before the summary (the main
@@ -1236,6 +1280,7 @@ static func leave_campaign(victory: bool, replaying := false) -> void:
 		run.set_current()
 	MatchSettings.campaign_run = ""
 	MatchSettings.campaign_level = ""
+	MatchSettings.campaign_map_name = ""
 	MatchSettings.go("res://scenes/menu/campaigns.tscn")
 
 ## startReplay.
@@ -1265,7 +1310,8 @@ func _fired(event: InputEvent, hotkey: String) -> bool:
 	return false
 
 func _input(event: InputEvent) -> void:
-	if not visible:
+	# The lobby dialog over the summary takes the keyboard (and closes on its hotkey).
+	if not visible or get_tree().root.get_node_or_null("LobbyDialog"):
 		return
 	if _fired(event, "summary") or (gui.get("isInGame", false) and event is InputEventKey and event.pressed
 			and "cancel" in RtsoHotkeyConfig.new().fired(event)):

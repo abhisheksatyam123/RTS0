@@ -65,61 +65,79 @@ func _run() -> void:
 	if role == "make_save":
 		await _make_save(ms, args.get("saves", "mp_saved"))
 		return
-	var lobby = load("res://scenes/menu/lobby.tscn").instantiate()
-	root.add_child(lobby)
-	current_scene = lobby
-	await _wait(0.3)
-	lobby._server.text = args.get("lobby", "127.0.0.1:8088")
-	lobby._name.text = args.get("name", role)
-	lobby._on_sign_pressed()
+	var direct: bool = args.get("nolobby", "") == "1" and args.has("join_addr")
+	var late: bool = args.get("late", "") == "1"
 	var session = root.get_node("LobbySession")
-	session.publish_lan = args.get("lan", "1") != "0"
-	while not session.signed_in():
-		if Time.get_ticks_msec() > deadline:
-			return _fail("could not sign in: " + lobby._status.text)
-		await _wait(0.2)
-	_say("signed in as " + session.player_name)
+	if direct:
+		# "Connect by IP" from the main menu, not signed in to the lobby.
+		var at: PackedStringArray = str(args["join_addr"]).split(":")
+		_say("joining %s without the lobby" % args["join_addr"])
+		load("res://scenes/menu/gamesetup_mp.gd").start_join(args.get("name", role), at[0], int(at[1]))
+	if not direct:
+		var lobby = load("res://scenes/menu/lobby.tscn").instantiate()
+		root.add_child(lobby)
+		current_scene = lobby
+		await _wait(0.3)
+		lobby._server.text = args.get("lobby", "127.0.0.1:8088")
+		lobby._name.text = args.get("name", role)
+		lobby._on_sign_pressed()
+		session.publish_lan = args.get("lan", "1") != "0"
+		while not session.signed_in():
+			if Time.get_ticks_msec() > deadline:
+				return _fail("could not sign in: " + lobby._status.text)
+			await _wait(0.2)
+		_say("signed in as " + session.player_name)
 
-	if role == "host":
-		lobby._host_name.text = "Godot session"
-		lobby._host_port.text = str(port)
-		if args.has("saved"):
-			# Host Saved Game, with the save the load page would hand over.
-			ms.load_save_path = "user://saves/%s.rts0sav" % args["saved"]
-			ms.net_saved_game = true
-		lobby._on_host_pressed()
-	elif args.has("join_addr"):
-		# A typed address nobody answers at.
-		var addr: PackedStringArray = str(args["join_addr"]).split(":")
-		lobby._join_ip.text = addr[0]
-		lobby._join_port.text = addr[1]
-		_say("joining %s" % args["join_addr"])
-		lobby._on_join_pressed()
-	else:
-		var row = null
-		while row == null:
-			if Time.get_ticks_msec() > deadline:
-				return _fail("the host's game never showed in the list")
-			lobby._refresh()
-			await _wait(0.5)
-			var top = lobby._games.get_root()
-			if top:
-				for it in top.get_children():
-					if str(it.get_metadata(0)) == "room-%d" % port:
-						row = it
-		# The list is rebuilt whenever the lobby pushes a change (/events), which
-		# frees its TreeItems: never hold one across an await.
-		var picked: String = row.get_text(0)
-		row.select(0)
-		await _wait(0.1)
-		_say("picked %s (address %s)" % [picked, "hidden" if lobby._join_ip.text == "" else lobby._join_ip.text])
-		lobby._on_join_pressed()
-		# The lobby hands the address over on request (/rooms/connect).
-		while ms.net_mode != "join":
-			if Time.get_ticks_msec() > deadline:
-				return _fail("the lobby never gave the game's address: " + lobby._status.text)
+		if role == "host":
+			lobby._host_name.text = "Godot session"
+			lobby._host_port.text = str(port)
+			if args.has("saved"):
+				# Host Saved Game, with the save the load page would hand over.
+				ms.load_save_path = "user://saves/%s.rts0sav" % args["saved"]
+				ms.net_saved_game = true
+			lobby._on_host_pressed()
+		elif args.has("join_addr"):
+			# A typed address nobody answers at.
+			var addr: PackedStringArray = str(args["join_addr"]).split(":")
+			lobby._join_ip.text = addr[0]
+			lobby._join_port.text = addr[1]
+			_say("joining %s" % args["join_addr"])
+			lobby._on_join_pressed()
+		else:
+			var row = null
+			while row == null:
+				if Time.get_ticks_msec() > deadline:
+					return _fail("the host's game never showed in the list")
+				lobby._refresh()
+				await _wait(0.5)
+				var top = lobby._games.get_root()
+				# late=1: a watcher who joins once the game runs.
+				var running := false
+				for r in lobby._rooms:
+					if str(r.get("id", "")) == "room-%d" % port and str(r.get("state", "init")) != "init":
+						running = true
+				if top and (running or not late):
+					for it in top.get_children():
+						if str(it.get_metadata(0)) == "room-%d" % port:
+							row = it
+			# The list is rebuilt whenever the lobby pushes a change (/events), which
+			# frees its TreeItems: never hold one across an await.
+			var picked: String = row.get_text(1)
+			row.select(0)
 			await _wait(0.1)
-		_say("joining %s:%d" % [ms.net_ip, ms.net_port])
+			_say("picked %s (address %s)" % [picked, "hidden" if lobby._join_ip.text == "" else lobby._join_ip.text])
+			if late:
+				# JoinButton.js: Yes to "join as observer?" for a running game.
+				lobby._observe.button_pressed = true
+				lobby._on_join_pressed(true)
+			else:
+				lobby._on_join_pressed()
+			# The lobby hands the address over on request (/rooms/connect).
+			while ms.net_mode != "join":
+				if Time.get_ticks_msec() > deadline:
+					return _fail("the lobby never gave the game's address: " + lobby._status.text)
+				await _wait(0.1)
+			_say("joining %s:%d" % [ms.net_ip, ms.net_port])
 
 	# The match: main.tscn behind the loading page.
 	var main = null
@@ -136,6 +154,16 @@ func _run() -> void:
 	var saw_random := false
 	var saw_setup := false
 	var saw_observer := false
+	# A saved game's Start: the joiner loads under the loading page, never the
+	# rejoin box, and the host lists who is still loading.
+	var saw_rejoin_box := false
+	var saw_saved_loading := false
+	var saw_saved_wait := ""
+	# A late watcher (NetClient's fake game start): the rejoining box only while
+	# the world downloads, then the loading page, then "Synchronizing…" in the match.
+	var saw_rejoin_loading := false
+	var rejoin_box_after_loading := false
+	var saw_sync := false
 	while true:
 		if Time.get_ticks_msec() > deadline:
 			return _fail("timed out at turn %s" % (main.get_lobby_state().get("turn", -1) if main else -1))
@@ -148,6 +176,19 @@ func _run() -> void:
 		if main == null:
 			continue
 		var st: Dictionary = main.get_lobby_state()
+		var rbox = root.find_child("NetConnecting", true, false)
+		if rbox and str(rbox.text).contains("rejoining"):
+			saw_rejoin_box = true
+			rejoin_box_after_loading = rejoin_box_after_loading or saw_rejoin_loading
+		var lt: String = load("res://scenes/menu/loading.gd").last_title
+		if late and saw_rejoin_box and root.get_node_or_null("Loading") != null and lt.contains("“"):
+			saw_rejoin_loading = true
+		if late and str(st.get("net_status", "")).begins_with("Synchronizing") and int(st.get("turn", 0)) > 0:
+			saw_sync = true
+		if main.net_loading_hold() and root.get_node_or_null("Loading") != null:
+			saw_saved_loading = true
+		if saw_saved_wait == "" and str(st.get("net_status", "")).begins_with("Waiting for players to connect:"):
+			saw_saved_wait = str(st.get("net_status", "")).replace("\n", " ").replace(" ", "_")
 		if args.has("join_addr"):
 			# gamesetup_mp.js pageConnecting: the box over the screen while connecting.
 			var box = root.find_child("NetConnecting", true, false)
@@ -159,6 +200,8 @@ func _run() -> void:
 					box.find_child("Cancel", true, false).pressed.emit()
 					await _wait(1.0)
 					_say("connect_exit_scene=" + (current_scene.scene_file_path if current_scene else ""))
+					var form = current_scene.find_child("GameSetupMp", true, false) if current_scene else null
+					_say("reopened=" + ("%s %s:%s" % [form.mode, form.join_server.text, form.join_port.text] if form else "none"))
 					break
 			# 0.28 reportConnectionRequestTimeOut.
 			if st.get("disconnected", false):
@@ -215,8 +258,16 @@ func _run() -> void:
 				await _wait(1.5)
 				break
 			if role == "join" and st.get("disconnected", false):
-				_say("setup_status=%s reason=%d saw_page=%s page=%s" % [str(st.get("net_status", "")).replace("\n", " | "),
-						int(st.get("disconnect_reason", -1)), str(saw_setup), str(st.get("setup_page", true))])
+				# ChatInputPanel / ReadyButton: the page and its chat stay behind the box,
+				# with no chat input and no Ready.
+				var chat_in = root.find_child("NetChatInput", true, false)
+				var ready_b = root.find_child("BtnReady", true, false)
+				var box = root.find_child("NetStatusOverlay", true, false)
+				var box_layer: int = box.get_parent().layer if box and box.get_parent() is CanvasLayer else -1
+				_say("setup_status=%s reason=%d saw_page=%s page=%s chat_input=%s ready_off=%s box_layer=%d" % [
+						str(st.get("net_status", "")).replace("\n", " | "), int(st.get("disconnect_reason", -1)),
+						str(saw_setup), str(st.get("setup_page", false)),
+						str(chat_in.is_visible_in_tree()) if chat_in else "-", str(ready_b.disabled) if ready_b else "-", box_layer])
 				main._on_disconnected_exit_pressed()
 				await _wait(1.0)
 				_say("setup_exit_scene=" + (current_scene.scene_file_path if current_scene else ""))
@@ -338,10 +389,16 @@ func _run() -> void:
 					main._on_lobby_start_pressed()
 		if st.get("oos", false):
 			return _fail("out of sync at turn %d" % int(st.get("oos_turn", 0)))
+		if late and int(st.get("turn", 0)) >= turns:
+			_say("late done turn=%d seat=%d rejoin_box=%s box_after_loading=%s synchronizing=%s title=%s" % [
+					int(st.get("turn", 0)), int(st.get("seat", -1)), str(saw_rejoin_box).to_lower(),
+					str(rejoin_box_after_loading).to_lower(), str(saw_sync).to_lower(),
+					str(load("res://scenes/menu/loading.gd").last_title).replace(" ", "_")])
+			break
 		if int(st.get("turn", 0)) >= turns + 5:
 			# 0.28 /list: "Users (N): ..." in the chat, and the command is no chat line.
 			for le in main.find_children("*", "LineEdit", true, false):
-				if le.placeholder_text == "Type message...":
+				if le.name == "ChatInput":
 					le.text = "/list"
 					main._on_chat_send_pressed()
 			var users := RegEx.create_from_string("Users \\((\\d+)\\): (.*)").search(str(main.get_lobby_state().get("chat", "")))
@@ -356,13 +413,16 @@ func _run() -> void:
 				main.toggle_chat()
 				_say("addressees=%s names=%s" % [str(dd.get("chat_addressees", "")).replace(" ", "_"), ",".join(dd.get("chat_names", []))])
 			_say("users=%s list=%s" % [users.get_string(1) if users else "-", users.get_string(2).replace(" ", "_") if users else "-"])
+			# Chat.js: the match's chat history starts empty, without the setup's lines.
+			_say("match_chat_carried=%s" % str(str(main.get_setup_chat().get("text", "")).contains("hello from bob")).to_lower())
 			st = main.get_lobby_state()
 			# 0.28 page_loading at "start": the networked Start loads under the loading page.
 			_say("start_loading=" + ",".join(load("res://scenes/menu/loading.gd").last_stages.map(func(x): return str(x[1]).replace(" ", "_"))))
-			_say("done turn=%d seat=%d hash=%08X speed=%s civ1=%d team1=%d color1=%d rejoined_lines=%d" % [turns, int(st.get("seat", -1)),
+			_say("done turn=%d seat=%d hash=%08X speed=%s civ1=%d team1=%d color1=%d rejoined_lines=%d rejoin_box=%s saved_loading=%s waiting=%s" % [turns, int(st.get("seat", -1)),
 					int(main.get_turn_hash(turns)), str(main.get_game_speed()), int(ms.slot_civs[1]),
 					int(ms.slot_teams[1]) if ms.slot_teams.size() > 1 else -1, int(ms.slot_colors[1]),
-					str(st.get("chat", "")).count("has rejoined the game.")])
+					str(st.get("chat", "")).count("has rejoined the game."), str(saw_rejoin_box).to_lower(),
+					str(saw_saved_loading).to_lower(), saw_saved_wait if saw_saved_wait != "" else "-"])
 			# PlayerName onFinalizeAttributes: the seated clients' names are the players' names.
 			_say("slot_names=" + "|".join(Array(ms.slot_names).slice(0, 2)))
 			# 0.28 PauseOverlay: the client sees "Paused by" the host's name in its colour.

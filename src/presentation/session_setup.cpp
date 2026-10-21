@@ -100,6 +100,16 @@ static uint8_t map_building_template(const String &tmpl) {
 		{"dock", rtso::BLD_DOCK}, {"fortress", rtso::BLD_FORTRESS}, {"wonder", rtso::BLD_WONDER},
 		{"corral", rtso::BLD_CORRAL}, {"elephant_stable", rtso::BLD_ELEPHANT_STABLE},
 		{"pillar_ashoka", rtso::BLD_PILLAR}, {"apartment", rtso::BLD_APARTMENT},
+		// Generic types and civ forms whose stem is no model id (the loop below starts after the
+		// generic types): the theatres, embassies, Han court, great tower, practice range and
+		// grain field, the Tachara's tribute forms, the German forge and totem.
+		{"theater", rtso::BLD_THEATER}, {"embassy", rtso::BLD_EMBASSY}, {"embassy_celtic", rtso::BLD_EMBASSY},
+		{"civil_centre_court", rtso::BLD_IMPERIAL_COURT}, {"defense_tower_great", rtso::BLD_TOWER_GREAT},
+		{"practice_range", rtso::BLD_RANGE}, {"field_grain", rtso::BLD_FIELD}, {"blacksmith", rtso::BLD_FORGE},
+		{"ministry", rtso::BLD_MINISTRY}, {"totem", rtso::BLD_MONUMENT},
+		{"amphitheater_pompeii", rtso::BLD_AMPHITHEATER},
+		{"tachara_food", rtso::BLD_TACHARA_FOOD}, {"tachara_wood", rtso::BLD_TACHARA_WOOD},
+		{"tachara_stone", rtso::BLD_TACHARA_STONE}, {"tachara_metal", rtso::BLD_TACHARA_METAL},
 	};
 	for (const auto &k : kNames)
 		if (n == k.name) return k.type;
@@ -137,9 +147,21 @@ static rtso::UnitType map_unit_type(const String &n) {
 	return rtso::UNIT_VILLAGER;
 }
 
+// The map structures 0.28 places by their own template that RTS0's sim folds into another type
+// (structures/stall_* and celt_hut/celt_longhouse are houses) draw that template's actor
+// (data/building_models.json "look_<template>").
+static String map_building_look(const String &tmpl) {
+	static const char *kLooks[] = {"stall_small_a", "stall_small_b", "stall_med", "stall_big", "celt_hut", "celt_longhouse"};
+	const String stem = tmpl.trim_prefix("structures/");
+	for (const char *l : kLooks)
+		if (stem == l) return String("look_") + l;
+	return String();
+}
+
 bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	if (!sim || !view) return false;
 	clear_selection();
+	view->clear_building_looks();
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
 		map_civ_[p] = -1;
 		map_has_res_[p] = false;
@@ -390,7 +412,9 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			if (stype_str.is_empty()) continue; // a civ structure RTS0 doesn't have
 			btype = rtso::BLD_HOUSE;
 		}
-		sim->spawn_building_world(bx, bz, btype, team, 1.0f);
+		const uint32_t bid = sim->spawn_building_world(bx, bz, btype, team, 1.0f);
+		const String look = map_building_look(tmpl);
+		if (bid && !look.is_empty()) view->set_building_look(bid, btype, look);
 	}
 	// Gaia-owned structures (Player 0 in 0 A.D.'s map: towers, palisades, houses, docks,
 	// structures/merc_camp_egyptian): hostile to everyone, captured or destroyed like 0 A.D.'s.
@@ -416,6 +440,8 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		if (btype >= rtso::BLD_TYPE_COUNT) continue;
 		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);
 		if (civ < rtso::CIV_COUNT && gaia_structure_ids[i]) sim->set_building_civ(gaia_structure_ids[i], civ);
+		const String look = map_building_look(gtmpl);
+		if (gaia_structure_ids[i] && !look.is_empty()) view->set_building_look(gaia_structure_ids[i], btype, look);
 	}
 	// Gaia scenery (fences, columns, obelisks): oriented obstructions.
 	Array scenery_arr = d.get("scenery", Array());
@@ -457,14 +483,19 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			// template it inherits from that RTS0 has ("parents"), at the variant's own rank.
 			int rank = 0;
 			CharString pick = t;
-			if (rtso::Simulation::resolve_map_template(t.get_data(), &rank) == rtso::CIV_UNIT_TEMPLATE_NONE) {
+			bool resolved = rtso::Simulation::resolve_map_template(t.get_data(), &rank) != rtso::CIV_UNIT_TEMPLATE_NONE;
+			if (!resolved) {
 				Array parents = u.get("parents", Array());
-				for (int k = 0; k < parents.size(); ++k) {
+				for (int k = 0; k < parents.size() && !resolved; ++k) {
 					const CharString pt = String(parents[k]).utf8();
-					if (rtso::Simulation::resolve_map_template(pt.get_data(), &rank) != rtso::CIV_UNIT_TEMPLATE_NONE) { pick = pt; break; }
+					if (rtso::Simulation::resolve_map_template(pt.get_data(), &rank) != rtso::CIV_UNIT_TEMPLATE_NONE) { pick = pt; resolved = true; }
 				}
 			}
-			unit_ids[i] = sim->spawn_map_unit(ux, uz, team, utype, pick.get_data(), rank);
+			// port_0ad_maps.py gives a unit no type when its name says nothing (units/plane): with
+			// no template of its own or a parent's to stand in, it is left out.
+			if (!resolved && utype_str.is_empty()) continue;
+			unit_ids[i] = sim->spawn_map_unit(ux, uz, team, utype, pick.get_data(), rank,
+					String::utf8(t.get_data()).ends_with("_unpacked"));
 			continue;
 		}
 		unit_ids[i] = sim->spawn_map_unit(ux, uz, team, utype, nullptr);
@@ -476,6 +507,15 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		int holder = (int)u.get("garrison_in", -1);
 		if (holder < 0 || holder >= (int)unit_ids.size() || !unit_ids[i] || !unit_ids[holder]) continue;
 		sim->order_board_transport(&unit_ids[i], 1, unit_ids[holder]);
+	}
+	// The map's Gaia catafalques (relics), each its own civ's ("civ"; -1 picks one from the id).
+	Array relics_arr = d.get("relics", Array());
+	for (int i = 0; i < relics_arr.size(); ++i) {
+		Dictionary r = relics_arr[i];
+		const int civ = (int)r.get("civ", -1);
+		// spawn_relic takes the index playable_civ() maps to the civ.
+		const int pick = rtso::is_playable_civ(civ) ? (civ < rtso::CIV_GAIA ? civ : civ - 1) : -1;
+		sim->spawn_relic((float)r.get("x", 0.0), (float)r.get("z", 0.0), pick);
 	}
 	// Gaia-owned units: 0 A.D. template ("gaul/infantry_javelineer_a"), its rank, and the
 	// Gaia ship or structure it starts in.
@@ -803,6 +843,12 @@ void RtsoMain::apply_match_settings() {
 		if (!load_map_seeded("random_mainland", seed)) sim->spawn_initial();
 		return;
 	}
+	{
+		// A campaign level is named by its Name (CampaignMenu.startScenario mapName).
+		const String level_name = ms->get("campaign_map_name");
+		if (!level_name.is_empty())
+			sim->set_map_info(sim->current_map_id(), level_name.utf8().get_data(), sim->current_map_biome());
+	}
 	if (victory >= 0 && victory < 256 && rtso::valid_victory_code((uint8_t)victory)) sim->set_victory_condition((uint8_t)victory);
 	sim->set_waves_enabled((bool)ms->get("waves_enabled"));
 	sim->set_last_man_standing((bool)ms->get("last_man_standing"));
@@ -941,6 +987,7 @@ void RtsoMain::match_settings_setup(rtso::GameSetupParams &setup) {
 		setup.water_level = (uint8_t)std::clamp((int)ms->get("water_level"), 0, 2);
 		setup.team_placement = (uint8_t)std::clamp((int)ms->get("team_placement"), 0, (int)rtso::TEAM_PLACEMENT_COUNT - 1);
 		setup.landscape = (uint8_t)std::clamp((int)ms->get("landscape"), 0, 15);
+		setup.map_filter = String(ms->get("map_filter")).utf8().get_data();
 		setup.trigger_difficulty = (uint8_t)std::clamp((int)ms->get("trigger_difficulty"), 1, 5);
 		setup.daytime = (uint8_t)std::clamp((int)ms->get("map_daytime"), 0, 2);
 		setup.sea_rise_min = (uint8_t)std::clamp((int)ms->get("sea_level_rise_min"), 0, 60);
@@ -1010,6 +1057,7 @@ void RtsoMain::store_net_setup_in_match_settings(const rtso::GameSetupParams &se
 	ms->set("trigger_difficulty", (int)setup.trigger_difficulty);
 	ms->set("map_daytime", (int)setup.daytime);
 	ms->set("sea_level_rise_min", (int)setup.sea_rise_min);
+	ms->set("map_filter", String::utf8(setup.map_filter.c_str()));
 	ms->set("map_size", (int)setup.map_size);
 	ms->set("ai_difficulty", (int)setup.difficulty);
 	ms->set("ai_behavior", (int)setup.behavior);

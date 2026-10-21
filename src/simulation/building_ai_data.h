@@ -19,7 +19,7 @@ struct BuildingAIInfo {
 	bool shoots() const { return default_arrows > 0 || garrison_arrow_multiplier > 0.0f; }
 };
 
-inline constexpr uint8_t BUILDING_AI_ROWS = 87;
+inline constexpr uint8_t BUILDING_AI_ROWS = 98;
 inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 	static const BuildingAIInfo kTable[BUILDING_AI_ROWS + 1] = {
 		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true, false}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
@@ -109,6 +109,17 @@ inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_LAOZI_GATE: structures/han/laozigate
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_TEMPLE_ISIS: structures/ptol/temple_2
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_MILL: structures/mill_greek
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_TOPHET: structures/cart/tophet
+		{5, 0, 0.5f, TC_SOLDIER, 0.0f, 25.0f, 0.0f, 0.0f, 14.0f, 0.0f, 0.4f, 4.0f, true, false}, // BLD_CAMPAIGN_CITY: campaigns/campaign_city_test
+		{3, 0, 0.5f, TC_SOLDIER, 0.0f, 25.0f, 0.0f, 0.0f, 14.0f, 0.0f, 0.4f, 4.0f, true, false}, // BLD_CAMPAIGN_CITY_MINOR: campaigns/campaign_city_minor_test
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_CAMPAIGN_SANCTUARY: campaigns/campaign_religious_test
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_STALL: structures/stall_big
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_HUT: structures/celt_hut
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_LONGHOUSE: structures/celt_longhouse
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_PERS_HOUSE_A: structures/pers/house_a
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_PERS_HOUSE_B: structures/pers/house_b
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_APARTMENT_BLOCK: structures/pers/apartment_block
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // BLD_EPIC_TEMPLE: structures/hellenic_epic_temple
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false, false}, // none
 	};
 	return kTable[type < BUILDING_AI_ROWS ? type : BUILDING_AI_ROWS];

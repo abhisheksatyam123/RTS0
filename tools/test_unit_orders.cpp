@@ -76,6 +76,8 @@
 //     such builders farm the field or gather near the dropsite they finish.
 // 45. GATHER FINDINGNEWTARGET: an empty-handed gatherer with nothing left nearby walks to the
 //     nearest dropsite to idle.
+//     A hunter walking back to its eaten carcass (GatherNearPosition) keeps to the same animal:
+//     it hunts one there or goes on to the dropsite, never the berry bush beside the spot.
 // 46. ShouldAbandonChase: once a second a chase whose target is hidden in the player's fog ends,
 //     a player's attack too (CheckTargetVisible).
 // 47. Attacked by a unit hidden in the fog: the unit doesn't charge it (APPROACHING enter).
@@ -1886,6 +1888,77 @@ static void test_gather_walk_back() {
 	check(idles, "with nothing there she goes on to the storehouse");
 }
 
+// GatherNearPosition keeps the order's type and template (UnitAI.js:5705-5711), so a hunter
+// walking back to where its carcass was searches there for the same animal (FINDINGNEWTARGET's
+// filter, UnitAI.js:2622-2629), never for food of another kind: a rider can't gather the berry
+// bush beside the spot (CanGather in FindNearbyResource, UnitAI.js:4478). With no deer left there
+// it goes on to the farmstead; with a deer there it hunts it. Deep Forest soak (seed 2): a rider
+// whose walk back had lost the meat kind stood at its old carcass for the rest of the match.
+static void test_hunter_walk_back() {
+	std::printf("45c. a hunter walking back to its eaten carcass keeps to meat (GatherNearPosition type and template)\n");
+	for (int with_deer = 0; with_deer < 2; ++with_deer) {
+		Simulation s;
+		setup(s);
+		s.set_explore_map(true); // FindNearbyResource takes only supplies the player has seen
+		s.spawn_building_world(-20, 0, BLD_FARMSTEAD, 0, 1.0f);
+		const uint32_t deer = s.spawn_fauna(10, 0, FAUNA_DEER);
+		s.fauna_.hp[s.fauna_id_to_idx_.at(deer)] = 1.0f;
+		uint32_t c = s.spawn_unit(6, 0, 0, UNIT_CAVALRY);
+		s.order_set_stance(&c, 1, STANCE_PASSIVE);
+		s.order_hunt(&c, 1, deer);
+		const bool carving = run_until(s, 20.0f, [&] {
+			const int k = idx_of(s, c);
+			const uint32_t r = s.units_.target_resource_id[k];
+			return s.units_.action_state[k] == ACTION_GATHER && r != 0 && s.res_id_to_idx_.count(r) &&
+				s.resources_.subtype[s.res_id_to_idx_.at(r)] == RES_SUB_MEAT;
+		});
+		check(carving, "the rider kills the deer and gathers its carcass");
+		if (!carving) continue;
+		int ci = idx_of(s, c);
+		const uint32_t carcass = s.units_.target_resource_id[ci];
+		const int ri = (int)s.res_id_to_idx_.at(carcass);
+		const float kx = s.resources_.x[ri], kz = s.resources_.z[ri];
+		// A berry bush beside the spot: food, but not meat.
+		const uint32_t berries = s.spawn_resource_world(kx + 1.0f, kz + 1.0f, RES_FOOD, 200);
+		// Driven far off, out of search range of the spot, with the carcass eaten while away.
+		s.units_.pos_x[ci] = 40.0f;
+		s.units_.pos_z[ci] = 0.0f;
+		s.units_.target_x[ci] = 40.0f;
+		s.units_.target_z[ci] = 0.0f;
+		s.units_.waypoint_cur[ci] = 0;
+		s.units_.waypoint_count[ci] = 0;
+		s.units_.carry[ci] = 0;
+		s.resources_.amount[ri] = 0;
+		s.resources_.alive[ri] = 0;
+		bool berry = false;
+		if (with_deer) {
+			// FINDINGNEWTARGET looks round the unit and then round initPos, live animals included
+			// (FindNearbyResource, UnitAI.js:2636-2645), so he goes straight for the deer there.
+			const uint32_t deer2 = s.spawn_fauna(kx + 2.0f, kz - 2.0f, FAUNA_DEER);
+			const bool hunts = run_until(s, 60.0f, [&] {
+				berry |= s.units_.target_resource_id[idx_of(s, c)] == berries;
+				return target_of(s, c) == deer2;
+			});
+			check(hunts && !berry, "with a deer there he hunts it, not the berries");
+			continue;
+		}
+		const bool leg = run_until(s, 10.0f, [&] {
+			const int k = idx_of(s, c);
+			return s.unit_order(c).kind == ORDER_GATHER && s.units_.target_resource_id[k] == 0 &&
+				s.units_.action_state[k] == ACTION_MOVE;
+		});
+		ci = idx_of(s, c);
+		const int sub = (s.units_.order_flags[ci] & ORDER_FLAG_SUB_MASK) >> ORDER_FLAG_SUB_SHIFT;
+		check(leg && sub == RES_SUB_MEAT && s.units_.hunt_fauna[ci] == FAUNA_DEER + 1,
+				"he walks back to the spot still after the deer's meat");
+		const bool home = run_until(s, 60.0f, [&] {
+			berry |= s.units_.target_resource_id[idx_of(s, c)] == berries;
+			return dist(s, c, -20, 0) < 6.0f && s.unit_order(c).kind != ORDER_GATHER;
+		});
+		check(home && !berry, "with nothing to hunt there he goes on to the farmstead, not to the berries");
+	}
+}
+
 
 static void test_chase_into_fog() {
 	std::printf("46. a chase is dropped once the target is hidden in the fog (ShouldAbandonChase)\n");
@@ -3029,7 +3102,9 @@ static void test_liu_bang_wall_regen() {
 	const uint32_t pal = s.spawn_building_world(-20.0f, 36.0f, BLD_PALISADE, 0, 1.0f);
 	const uint32_t theirs = s.spawn_building_world(20.0f, -20.0f, BLD_WALL_SEGMENT, 1, 1.0f);
 	auto wound = [&](uint32_t id) { bld_mut(s, id)->hp = bld_mut(s, id)->max_hp * 0.25f; return bld_mut(s, id)->hp; };
+	const uint32_t fnd = s.spawn_building_world(20.0f, 20.0f, BLD_WALL_SEGMENT, 0, 0.2f);
 	const float w0 = wound(wall), p0 = wound(pal), t0 = wound(theirs);
+	const float f0 = bld_mut(s, fnd)->hp, fp0 = bld_mut(s, fnd)->build_progress;
 	run(s, 5.0f);
 	check(bld_mut(s, wall)->hp == w0, "no Liu Bang: the wall stays damaged");
 	const uint32_t hero = s.spawn_unit(-40.0f, -40.0f, 0, UNIT_HERO, 0.0f, roster_named("han/hero_liu_bang"));
@@ -3038,6 +3113,8 @@ static void test_liu_bang_wall_regen() {
 	std::printf("  wall %.1f -> %.1f in 10 s\n", w0, w1);
 	check(std::fabs(w1 - (w0 + 100.0f)) < 1.0f, "with Liu Bang: +10 hp/s");
 	check(bld_mut(s, pal)->hp == p0 && bld_mut(s, theirs)->hp == t0, "not palisades, not the enemy's walls");
+	check(std::fabs(bld_mut(s, fnd)->hp - std::min(bld_mut(s, fnd)->max_hp, f0 + 100.0f)) < 1.0f && bld_mut(s, fnd)->build_progress == fp0,
+		"a wall foundation's health regenerates too, its build progress waits for a builder");
 	s.cmd_delete(0, &hero, 1);
 	run(s, 3.0f);
 	const float w2 = bld_mut(s, wall)->hp;
@@ -3102,6 +3179,7 @@ static void test_work_order_queue() {
 	s.order_gather(&w, 1, tree);
 	s.order_build_or_repair(&w, 1, house, true); // Shift: build the house after
 	run(s, 2.0f);
+	check(!s.unit_has_work_order(w), "a working unit has no work orders kept (no Back to Work button)");
 	s.order_walk(&w, 1, -20, 0);
 	s.cmd_stop(&w, 1); // a Stop after that keeps the work orders the walk kept
 	run(s, 1.0f);
@@ -3117,6 +3195,13 @@ static void test_work_order_queue() {
 	const std::vector<UnitOrder> *q = s.unit_order_queue(w);
 	check(s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == tree, "back to the tree");
 	check(q && q->size() == 1 && (*q)[0].kind == ORDER_BUILD && (*q)[0].target == house, "with the house queued behind it");
+	check(!s.unit_has_work_order(w), "Back to Work uses up the kept work orders");
+	s.order_walk(&w, 1, -25, 0);
+	s.order_back_to_work(&w, 1); // the walk keeps the restored queue
+	check(s.unit_order(w).kind == ORDER_GATHER, "a second walk keeps them again");
+	s.order_gather(&w, 1, tree);
+	s.order_back_to_work(&w, 1);
+	check(s.unit_order(w).kind == ORDER_GATHER && !s.unit_has_work_order(w), "a new Gather order clears them; Back to Work then fails");
 
 	// A trader sheltered in a house goes back to trading.
 	const uint32_t ma = s.spawn_building_world(-40, 20, BLD_MARKET, 0, 1.0f);
@@ -3127,6 +3212,7 @@ static void test_work_order_queue() {
 	run(s, 2.0f);
 	s.order_garrison(&tr, 1, shelter);
 	run_until(s, 10.0f, [&] { return act_of(s, tr) == ACTION_GARRISONED; });
+	check(s.unit_has_work_order(tr), "a sheltered trader keeps its trade route as its work orders");
 	s.order_ungarrison(shelter);
 	run(s, 1.0f);
 	s.order_back_to_work(&tr, 1);
@@ -3344,6 +3430,10 @@ static void test_hidden_targets() {
 	turns(0.4f);
 	check(!s.los_visible(0, -40.0f, 40.0f) && s.player_can_target_fauna(0, sheep),
 			"once explored, the sheep in the fog can still be targeted");
+	// gaia/fauna_*_trainable RetainInFog false: another player's corral sheep there is not.
+	const uint32_t penned = s.spawn_fauna(-40.0f, 41.0f, FAUNA_SHEEP_TRAINABLE, 1);
+	check(!s.player_can_target_fauna(0, penned) && s.player_can_target_fauna(1, penned),
+			"another player's livestock in the fog can't be targeted");
 }
 
 // Guard.js OnAttacked: a poison or burning tick on the guarded unit sends its guards after
@@ -3495,6 +3585,77 @@ static void test_approach_walks() {
 	check(ran && walked, "once he has been in range of her and she flees again, he runs after her");
 }
 
+static void test_rally_repair_or_garrison() {
+	std::printf("96. a rally point on an own damaged garrison holder garrisons, or repairs with session.repair held (set-rallypoint)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t cc = s.spawn_building_world(-20.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	const uint32_t tower = s.spawn_building_world(10.0f, 10.0f, BLD_TOWER, 0, 1.0f);
+	for (auto &b : s.buildings_) if (b.id == tower) b.hp = b.max_hp * 0.6f;
+	const uint32_t site = s.spawn_building_world(10.0f, -10.0f, BLD_BARRACKS, 0, 0.5f);
+	uint32_t sp = s.spawn_unit(-12.0f, 0.0f, 0, UNIT_SPEARMAN), cav = s.spawn_unit(-12.0f, 3.0f, 0, UNIT_CAVALRY);
+	s.cmd_set_rally_point(0, cc, 10.0f, 10.0f, 0, tower);
+	s.apply_rally_point(sp, *bld(s, cc));
+	check(s.unit_order(sp).kind == ORDER_GARRISON && s.unit_order(sp).target == tower, "a builder garrisons in the damaged tower");
+	s.cmd_set_rally_point(0, cc, 10.0f, 10.0f, 0, tower, false, RALLY_CMD_REPAIR);
+	s.apply_rally_point(sp, *bld(s, cc));
+	s.apply_rally_point(cav, *bld(s, cc));
+	check(s.unit_order(sp).kind == ORDER_BUILD && s.unit_order(sp).target == tower, "with session.repair held it repairs it");
+	check(s.unit_order(cav).kind == ORDER_WALK, "a unit that can't repair walks there");
+	s.cmd_set_rally_point(0, cc, 10.0f, -10.0f, 0, site);
+	s.apply_rally_point(sp, *bld(s, cc));
+	check(s.unit_order(sp).kind == ORDER_BUILD && s.unit_order(sp).target == site, "a foundation is built");
+}
+
+static void test_rally_on_animal() {
+	std::printf("97. a rally point on an animal sends hunters after that kind near the spot (gather-near-position, resourceTemplate)\n");
+	Simulation s;
+	setup(s);
+	s.set_explore_map(true);
+	const uint32_t cc = s.spawn_building_world(-20.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s.spawn_fauna(19.0f, 0.0f, FAUNA_CHICKEN); // nearer the spot, but another kind
+	const uint32_t deer = s.spawn_fauna(22.0f, 0.0f, FAUNA_DEER);
+	s.cmd_set_rally_point(0, cc, 20.0f, 0.0f, 0, 0, false, RALLY_CMD_HUNT, (uint32_t)FAUNA_DEER + 1);
+	uint32_t cav = s.spawn_unit(-12.0f, 0.0f, 0, UNIT_CAVALRY), sp = s.spawn_unit(-12.0f, 3.0f, 0, UNIT_SPEARMAN);
+	s.apply_rally_point(cav, *bld(s, cc));
+	const int ci = idx_of(s, cav);
+	check(ci >= 0 && s.units_.action_state[ci] == ACTION_ATTACK && s.units_.target_unit_id[ci] == deer,
+			"the cavalryman hunts the deer, not the nearer chicken");
+	for (size_t f = 0; f < s.fauna_.count; ++f)
+		if (s.fauna_.id[f] == deer) s.fauna_.alive[f] = 0;
+	s.apply_rally_point(sp, *bld(s, cc));
+	check(s.unit_order(sp).kind == ORDER_WALK, "with no deer left the spearman walks to the spot");
+}
+
+static void test_heal_click_targets() {
+	std::printf("98. right-click heals only a unit a selected healer may heal (unit_actions.js heal, Heal.js CanHeal)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t h1 = s.spawn_unit(0.0f, 0.0f, 0, UNIT_HEALER), h2 = s.spawn_unit(2.0f, 0.0f, 0, UNIT_HEALER);
+	const uint32_t ram = s.spawn_unit(5.0f, 0.0f, 0, UNIT_SIEGE_RAM), sp = s.spawn_unit(0.0f, 5.0f, 0, UNIT_SPEARMAN);
+	for (uint32_t id : {h1, ram, sp}) s.units_.hp[idx_of(s, id)] *= 0.5f;
+	const uint32_t both[2] = {h1, h2};
+	check(s.first_able_healer(both, 2, ram) == 0, "an injured ram is not healable");
+	check(s.first_able_healer(both, 2, sp) == h1, "an injured spearman: the first healer heals");
+	check(s.first_able_healer(&h1, 1, h1) == 0, "a lone healer can't heal itself");
+	check(s.first_able_healer(both, 2, h1) == h2, "the other healer heals an injured healer");
+	check(s.first_able_healer(&sp, 1, sp) == 0, "a spearman heals nobody");
+}
+
+static void test_guard_click_targets() {
+	std::printf("99. G guards only when a selected unit may guard the target (unit_actions.js guard, UnitAI CanGuard)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t ram = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SIEGE_RAM), sp = s.spawn_unit(3.0f, 0.0f, 0, UNIT_SPEARMAN);
+	const uint32_t friend_ = s.spawn_unit(6.0f, 0.0f, 0, UNIT_ARCHER), foe = s.spawn_unit(9.0f, 0.0f, 1, UNIT_ARCHER);
+	const uint32_t house = s.spawn_building_world(0.0f, 12.0f, BLD_HOUSE, 0, 1.0f);
+	const uint32_t both[2] = {ram, sp};
+	check(!s.any_can_guard(&ram, 1, friend_) && !s.any_can_guard(&ram, 1, house), "a ram alone guards nothing");
+	check(s.any_can_guard(both, 2, friend_) && s.any_can_guard(both, 2, house), "with a spearman the selection guards a unit or a house");
+	check(!s.any_can_guard(both, 2, foe), "nobody guards an enemy");
+	check(!s.any_can_guard(&sp, 1, sp), "a unit can't guard itself");
+}
+
 static void test_cant_do_walks() {
 	std::printf("units that can't gather or return walk to the target\n");
 	Simulation s;
@@ -3516,6 +3677,313 @@ static void test_cant_do_walks() {
 	s.order_return_resource(pair, 2, store);
 	check(s.unit_order(loaded).kind == ORDER_RETURN_RESOURCE && s.unit_order(empty).kind == ORDER_WALK,
 			"the loaded one returns, the empty-handed one walks to the storehouse");
+}
+
+static void test_walk_to_target() {
+	std::printf("100. Repair, Heal and Guard walk the units that can't do the task to the target (UnitAI WalkToTarget)\n");
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(0.0f, -30.0f, BLD_TOWN_CENTER, 0, 1.0f); // territory
+	const uint32_t house = s.spawn_building_world(20.0f, 0.0f, BLD_HOUSE, 0, 0.5f); // a foundation
+	uint32_t pair[2] = {s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN), s.spawn_unit(0, 3, 0, UNIT_CAVALRY)};
+	s.order_build_or_repair(pair, 2, house, false, true);
+	check(s.unit_order(pair[0]).kind == ORDER_BUILD, "the woman builds");
+	check(s.unit_order(pair[1]).kind == ORDER_WALK, "the horseman walks there");
+	run(s, 8.0f);
+	const Simulation::Building *hb = bld(s, house);
+	check(dist(s, pair[1], hb->x, hb->z) < hb->half_size + 4.0f, "beside the house");
+	uint32_t pair2[2] = {s.spawn_unit(-10, 0, 0, UNIT_FEMALE_CITIZEN), s.spawn_unit(-10, 3, 0, UNIT_CAVALRY)};
+	s.order_build_or_repair(pair2, 2, house, false, false); // not forced: an automatic follow-up
+	check(s.unit_order(pair2[1]).kind == ORDER_NONE, "an automatic repair walks nobody");
+
+	const uint32_t hurt = s.spawn_unit(-30, 20, 0, UNIT_SPEARMAN);
+	s.units_.hp[idx_of(s, hurt)] *= 0.5f;
+	uint32_t heal_pair[2] = {s.spawn_unit(-30, -10, 0, UNIT_HEALER), s.spawn_unit(-28, -10, 0, UNIT_SPEARMAN)};
+	s.order_heal(heal_pair, 2, hurt, false);
+	check(s.unit_order(heal_pair[0]).kind == ORDER_HEAL, "the healer heals");
+	check(s.unit_order(heal_pair[1]).kind == ORDER_WALK && s.unit_order(heal_pair[1]).target == hurt,
+			"the spearman walks after the wounded man");
+
+	const uint32_t trader = s.spawn_unit(10, 20, 0, UNIT_TRADER); // no CanGuard
+	s.order_guard(&trader, 1, hurt, false);
+	check(s.unit_order(trader).kind == ORDER_WALK && s.unit_order(trader).target == hurt, "a trader told to guard walks to him");
+	run(s, 15.0f);
+	check(dist(s, trader, x_of(s, hurt), z_of(s, hurt)) < 4.0f, "and reaches him");
+}
+
+static void test_queued_hunt_board() {
+	std::printf("101. Shift queues a hunt and a boarding behind the current order (unit_actions.js gather/garrison \"queued\")\n");
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(0.0f, -30.0f, BLD_TOWN_CENTER, 0, 1.0f); // territory
+	const uint32_t chicken = s.spawn_fauna(20.0f, 10.0f, FAUNA_CHICKEN);
+	uint32_t cav = s.spawn_unit(0, 0, 0, UNIT_CAVALRY);
+	s.order_walk(&cav, 1, 10, 0);
+	s.order_hunt(&cav, 1, chicken, true);
+	const std::vector<UnitOrder> *q = s.unit_order_queue(cav);
+	check(s.unit_order(cav).kind == ORDER_WALK && q && q->size() == 1 && (*q)[0].kind == ORDER_HUNT,
+			"the hunt waits behind the walk");
+	s.order_walk(&cav, 1, -10, 0, true); // and a walk after the hunt
+	const bool hunting = run_until(s, 10.0f, [&] { return target_of(s, cav) == chicken; });
+	check(hunting, "after the walk it hunts the chicken");
+	q = s.unit_order_queue(cav);
+	check(q && q->size() == 1 && (*q)[0].kind == ORDER_WALK, "with the walk still queued");
+	run_until(s, 20.0f, [&] { return s.unit_order(cav).kind == ORDER_GATHER; });
+	q = s.unit_order_queue(cav);
+	check(s.unit_order(cav).kind == ORDER_GATHER && q && q->size() == 1, "the kill goes on to the carcass, the walk still queued");
+
+	const uint32_t tower = s.spawn_unit(-20.0f, 10.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, civ_unit_template_by_id("mace/siege_tower"));
+	uint32_t archer = s.spawn_unit(-10.0f, 0.0f, 0, UNIT_ARCHER);
+	s.order_walk(&archer, 1, -10, 10);
+	s.order_board_transport(&archer, 1, tower, true);
+	check(s.unit_order(archer).kind == ORDER_WALK, "the archer walks first");
+	const bool aboard = run_until(s, 15.0f, [&] { return act_of(s, archer) == ACTION_GARRISONED; });
+	check(aboard, "then boards the siege tower");
+}
+
+static void test_flee_and_defensive_vision() {
+	std::printf("102. a flight has no time limit and ends edge to edge; a defensive unit answers only attackers it sees\n");
+	Simulation s;
+	setup(s);
+	const uint32_t tower = s.spawn_building_world(20, 0, BLD_TOWER, 1, 1.0f);
+	uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_set_stance(&w, 1, STANCE_PASSIVE);
+	s.units_.attacked_by[idx_of(s, w)] = tower;
+	s.tick(DT);
+	check(act_of(s, w) == ACTION_FLEE, "a woman shot by a tower flees from it");
+	s.units_.flee_dist[idx_of(s, w)] = 50.0f; // a long run, as from a faraway attacker
+	const float want = s.units_.flee_dist[idx_of(s, w)];
+	run(s, 5.0f);
+	const bool still = act_of(s, w) == ACTION_FLEE;
+	const bool ended = run_until(s, 40.0f, [&] { return act_of(s, w) != ACTION_FLEE; });
+	const Simulation::Building *tb = bld(s, tower);
+	const float gap = dist(s, w, tb->x, tb->z) - tb->half_size;
+	std::printf("  flee distance %.1f, ended %.1f from the tower's edge\n", want, gap);
+	check(still, "still running after 5 s (FLEEING has no timer)");
+	check(ended && gap >= want - 1.5f, "the flight ends that far from the tower's edge (CheckTargetRangeExplicit)");
+
+	Simulation d;
+	setup(d);
+	uint32_t archer = d.spawn_unit(0, 0, 0, UNIT_ARCHER);
+	d.order_set_stance(&archer, 1, STANCE_DEFENSIVE);
+	const int ai = idx_of(d, archer);
+	const float vision = d.unit_vision_at(ai), lim = vision * 0.5f + d.attack_reach(ai);
+	std::printf("  archer vision %.1f, held-position limit %.1f\n", vision, lim);
+	if (lim > vision + 1.0f) {
+		const uint32_t far = d.spawn_unit(0.5f * (vision + lim), 0, 1, UNIT_SPEARMAN);
+		d.units_.attacked_by[ai] = far;
+		d.tick(DT);
+		check(target_of(d, archer) != far, "a defensive archer ignores an attacker beyond its vision (AttackEntityInZone)");
+	}
+	const uint32_t near = d.spawn_unit(0.5f * vision, 0, 1, UNIT_SPEARMAN);
+	d.units_.attacked_by[ai] = near;
+	d.tick(DT);
+	check(target_of(d, archer) == near, "and answers one within it");
+}
+
+static void test_walk_end_then_fight() {
+	std::printf("103. A walk that ends is done before the unit fights (UnitAI.js WALKING FinishOrder, IDLE Timer)\n");
+	// Riders' forced walks end in sight of an enemy outpost, once per phase of the target scan's four
+	// ticks: none fights with its finished walk still its order (forced, to go back to afterwards).
+	bool all_fight = true, under_walk = false;
+	int on_scan_tick = 0;
+	for (int phase = 0; phase < 4; ++phase) {
+		Simulation s;
+		setup(s);
+		run(s, (float)phase * DT);
+		const uint32_t outpost = s.spawn_building_world(10.0f, 0.0f, BLD_OUTPOST, 1, 1.0f);
+		std::vector<uint32_t> riders;
+		for (int k = 0; k < 8; ++k) {
+			uint32_t r = s.spawn_unit(-12.0f, -10.5f + 3.0f * (float)k, 0, UNIT_CAVALRY);
+			s.order_walk(&r, 1, 2.0f + 0.37f * (float)k, -10.5f + 3.0f * (float)k);
+			riders.push_back(r);
+		}
+		std::vector<uint8_t> walking(riders.size(), 1);
+		all_fight = run_until(s, 30.0f, [&] {
+			bool all = true;
+			for (size_t k = 0; k < riders.size(); ++k) {
+				const int i = idx_of(s, riders[k]);
+				if (i < 0) continue;
+				if (walking[k] && s.units_.action_state[i] != ACTION_MOVE) {
+					walking[k] = 0;
+					if (((size_t)i + s.ticks_ - 1) % 4 == 0) ++on_scan_tick;
+				}
+				const bool fights = s.units_.action_state[i] == ACTION_ATTACK && s.units_.target_building_id[i] == outpost;
+				if (fights && s.units_.order_kind[i] != ORDER_NONE) under_walk = true;
+				all = all && fights;
+			}
+			return all;
+		}) && all_fight;
+	}
+	check(on_scan_tick > 0, "some walks end on a tick the rider looks for targets");
+	check(all_fight, "every rider's walk ends and it goes for the enemy outpost");
+	check(!under_walk, "none fights with its finished walk still its order");
+
+	// The same for an attack-walk that leaves structures alone (WALKINGANDFIGHTING FinishOrder).
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t outpost = s.spawn_building_world(10.0f, 0.0f, BLD_OUTPOST, 1, 1.0f);
+		std::vector<uint32_t> riders;
+		for (int k = 0; k < 8; ++k) {
+			uint32_t r = s.spawn_unit(-12.0f, -10.5f + 3.0f * (float)k, 0, UNIT_CAVALRY);
+			s.order_attack_move(&r, 1, 2.0f + 0.37f * (float)k, -10.5f + 3.0f * (float)k, false, true);
+			riders.push_back(r);
+		}
+		bool under_attack_walk = false;
+		const bool fight = run_until(s, 30.0f, [&] {
+			bool all = true;
+			for (uint32_t r : riders) {
+				const int i = idx_of(s, r);
+				if (i < 0) continue;
+				const bool fights = s.units_.action_state[i] == ACTION_ATTACK && s.units_.target_building_id[i] == outpost;
+				if (fights && s.units_.order_kind[i] == ORDER_WALK_AND_FIGHT) under_attack_walk = true;
+				all = all && fights;
+			}
+			return all;
+		});
+		check(fight && !under_attack_walk, "an attack-walk on units only ends first, then the riders go for the outpost");
+	}
+
+	// Riders shot at as their walk ends go on with the forced walk queued after it, as 0.28's
+	// FinishOrder starts it in the same turn and a forced walk ignores attacks.
+	{
+		Simulation s;
+		setup(s);
+		for (int k = 0; k < 4; ++k) post(s, 12.0f, -6.0f + 4.0f * (float)k, UNIT_ARCHER, 5000.0f);
+		std::vector<uint32_t> riders;
+		for (int k = 0; k < 12; ++k) {
+			uint32_t r = s.spawn_unit(-14.0f, -11.0f + 2.0f * (float)k, 0, UNIT_CAVALRY, 5000.0f);
+			s.order_walk(&r, 1, 4.0f + 0.31f * (float)k, -11.0f + 2.0f * (float)k);
+			s.order_walk(&r, 1, -20.0f, -11.0f + 2.0f * (float)k, true);
+			riders.push_back(r);
+		}
+		bool fought_first = false;
+		std::vector<uint8_t> done(riders.size(), 0);
+		const bool back = run_until(s, 40.0f, [&] {
+			bool all = true;
+			for (size_t k = 0; k < riders.size(); ++k) {
+				const int i = idx_of(s, riders[k]);
+				if (i < 0) continue;
+				const std::vector<UnitOrder> *q = s.unit_order_queue(riders[k]);
+				// Done once both walks have ended, back out of the archers' reach.
+				if (!done[k] && s.units_.order_kind[i] == ORDER_NONE && (!q || q->empty()) && s.units_.pos_x[i] < -12.0f) done[k] = 1;
+				if (!done[k] && s.units_.action_state[i] == ACTION_ATTACK) fought_first = true;
+				all = all && done[k];
+			}
+			return all;
+		});
+		check(back && !fought_first, "riders shot at as they arrive ride on to their queued walk without a fight");
+	}
+
+	// A defensive elephant sent into its own fortress stops outside, too far from the held position
+	// inside, and walk_back_if_drifted sends it again and again: whatever its index, it looks for
+	// targets each time its walk ends (IDLE Timer: FindNewTargets before WalkToHeldPosition).
+	int engaged = 0;
+	for (int pad = 0; pad < 4; ++pad) {
+		Simulation s;
+		setup(s);
+		const float bx = -20.0f, bz = -20.0f;
+		s.spawn_building_world(bx, bz, BLD_FORTRESS, 0, 1.0f);
+		for (int k = 0; k < pad; ++k) s.spawn_unit(-120.0f + 2.0f * (float)k, 100.0f, 0, UNIT_SPEARMAN);
+		uint32_t u = s.spawn_unit(bx + 10.0f, bz, 0, UNIT_ELEPHANT, 5000.0f);
+		s.order_set_stance(&u, 1, STANCE_DEFENSIVE);
+		s.order_walk(&u, 1, bx, bz, false, true);
+		for (int t = 0; t < 200; ++t) s.tick(Simulation::FIXED_STEP);
+		uint32_t e = s.spawn_unit(bx + 6.0f, bz, 1, UNIT_SPEARMAN, 50000.0f);
+		s.order_set_stance(&e, 1, STANCE_PASSIVE);
+		bool fought = false;
+		for (int t = 0; t < 200 && !fought; ++t) {
+			s.tick(Simulation::FIXED_STEP);
+			fought = act_of(s, u) == ACTION_ATTACK;
+		}
+		if (fought) ++engaged;
+	}
+	std::printf("  defensive elephants walking back into their fortress that engage an enemy beside them: %d of 4\n", engaged);
+	check(engaged == 4, "a unit walking back to its held position again and again still picks a fight");
+}
+
+static void test_walk_fight_guard_heal() {
+	std::printf("104. attack-move looks once a second; structure guards answer any attacker they see; guard range from the guard's footprint; healers heal one-sided allies\n");
+	{
+		Simulation s;
+		setup(s);
+		s.set_reveal_map(true);
+		std::vector<uint32_t> movers;
+		for (int k = 0; k < 8; ++k) movers.push_back(s.spawn_unit(-20.0f + 1.5f * k, 0, 0, UNIT_SPEARMAN));
+		s.order_attack_move(movers.data(), movers.size(), -20.0f, 40.0f);
+		s.tick(DT);
+		s.spawn_unit(-15.0f, 6.0f, 1, UNIT_SPEARMAN);
+		int first_tick = 0, last_tick = 0;
+		for (int t = 1; t <= 40; ++t) {
+			s.tick(DT);
+			for (uint32_t m : movers)
+				if (target_of(s, m) != 0 && !first_tick) first_tick = t;
+			bool all = true;
+			for (uint32_t m : movers) all = all && target_of(s, m) != 0;
+			if (all) { last_tick = t; break; }
+		}
+		std::printf("  first mover picks the enemy after %d ticks, the last after %d\n", first_tick, last_tick);
+		check(last_tick > first_tick, "attack-movers don't all look on the same tick (WALKINGANDFIGHTING Timer, 1000 ms)");
+		check(last_tick > 0 && last_tick <= (int)std::lround(1.0f / DT) + 1, "each looks within a second");
+	}
+	{
+		Simulation s;
+		setup(s);
+		s.set_reveal_map(true);
+		const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 0, 1.0f);
+		uint32_t g = s.spawn_unit(4, 0, 0, UNIT_SPEARMAN);
+		s.order_guard(&g, 1, house, false);
+		run(s, 1.0f);
+		const float far = NEARBY_SEARCH_RANGE + bld(s, house)->half_size + 2.0f;
+		const uint32_t e = s.spawn_unit(far, 0, 1, UNIT_CATAPULT);
+		const int ei = idx_of(s, e);
+		std::printf("  stone thrower %.1f from the house, reach %.1f\n", far, s.attack_reach(ei));
+		s.units_.target_building_id[ei] = house;
+		s.units_.action_state[ei] = ACTION_ATTACK;
+		s.units_.has_order[ei] = 1;
+		run(s, 1.0f);
+		check(target_of(s, g) == e, "a structure's guard answers an attacker it sees beyond 64 m (GuardedAttacked)");
+		run(s, 3.0f);
+		check(target_of(s, g) == e, "and chases it while the house is in its range (ShouldChaseTargetedEntity: isGuardOf)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t inf = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN), cav = s.spawn_unit(0, 4, 0, UNIT_CAVALRY);
+		const float ri = s.guard_range((size_t)idx_of(s, inf)), rc = s.guard_range((size_t)idx_of(s, cav));
+		std::printf("  guard range: infantry %.2f, cavalry %.2f\n", ri, rc);
+		check(std::fabs(ri - 10.25f * 0.28f) < 0.01f, "an infantry guard keeps 10.25 m (8 + 3/2 x radius 1.5)");
+		check(rc > ri + 0.5f, "a cavalry guard keeps further off (2/3 of its 3x6 m diagonal)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		s.set_player_active(2, true, false);
+		s.set_diplomacy(0, 2, Simulation::DIPLO_ALLY); // player 3 hasn't answered
+		uint32_t h = s.spawn_unit(0, 0, 0, UNIT_HEALER);
+		uint32_t hurt = s.spawn_unit(2, 0, 2, UNIT_SPEARMAN);
+		s.units_.hp[idx_of(s, hurt)] *= 0.5f;
+		check(s.can_heal((size_t)idx_of(s, h), idx_of(s, hurt)), "a healer heals a player its own calls an ally (IsOwnedByAllyOfPlayer)");
+		s.set_diplomacy(0, 2, Simulation::DIPLO_NEUTRAL);
+		s.set_diplomacy(2, 0, Simulation::DIPLO_ALLY);
+		check(!s.can_heal((size_t)idx_of(s, h), idx_of(s, hurt)), "not one that only calls it an ally");
+	}
+}
+
+static void test_capture_tie_to_gaia() {
+	std::printf("105. a structure left with no points goes to Gaia when Gaia ties the top player (Capturable.js reduce from Gaia)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t house = s.spawn_building_world(48.0f, 40.0f, BLD_HOUSE, 1, 1.0f);
+	Simulation::Building *b = const_cast<Simulation::Building *>(bld(s, house));
+	const float m = b->max_capture_points;
+	for (int t = 0; t < MAX_PLAYERS; ++t) b->capture_points_by_team[t] = 0.0f;
+	b->capture_points_by_team[0] = m * 0.5f; // the other half is Gaia's
+	s.tick(DT);
+	b = const_cast<Simulation::Building *>(bld(s, house));
+	std::printf("  owner after the tie: %d\n", b ? (int)b->team : -1);
+	check(b && b->team == GAIA_PLAYER, "Gaia takes it, not player 1");
 }
 
 int main(int argc, char **argv) {
@@ -3568,6 +4036,7 @@ int main(int argc, char **argv) {
 	test_autoharvest();
 	test_idle_at_dropsite();
 	test_gather_walk_back();
+	test_hunter_walk_back();
 	test_chase_into_fog();
 	test_hidden_attacker();
 	test_patrol_loop();
@@ -3620,6 +4089,16 @@ int main(int argc, char **argv) {
 	test_hidden_targets();
 	test_cant_do_walks();
 	test_approach_walks();
+	test_rally_repair_or_garrison();
+	test_rally_on_animal();
+	test_heal_click_targets();
+	test_guard_click_targets();
+	test_walk_to_target();
+	test_queued_hunt_board();
+	test_flee_and_defensive_vision();
+	test_walk_end_then_fight();
+	test_walk_fight_guard_heal();
+	test_capture_tie_to_gaia();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

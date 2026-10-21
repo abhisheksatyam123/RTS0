@@ -36,6 +36,7 @@ var overlay_for: Node
 var overlay_map := ""
 ## The stages the last match reported (for tests and the log).
 static var last_stages: Array = []
+static var last_title := "" # the title the last page showed (tests)
 
 var _settle := SETTLE_FRAMES
 var _show_description := false
@@ -87,6 +88,9 @@ func _process(_delta: float) -> void:
 		State.STARTING:
 			_start_match()
 		State.SETTLING:
+			# A client loading the host's saved game waits for its world to come.
+			if match_node and match_node.has_method("net_loading_hold") and match_node.net_loading_hold():
+				return
 			_settle -= 1
 			if _settle <= 0:
 				_finish()
@@ -143,6 +147,7 @@ func _pick(data: Dictionary) -> void:
 	if not quotes.is_empty():
 		quote = tr(str(quotes.pick_random()))
 	title = _title()
+	last_title = title
 
 ## Engine.HasNetClient(): a multiplayer match weighs the tips by their MP share.
 func _networked() -> bool:

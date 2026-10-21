@@ -12,6 +12,8 @@ config_version=5
 
 config/name="RTS0"
 run/main_scene="res://scenes/menu/main_menu.tscn"
+; Android Back closes dialogs and opens menus (scenes/common/touch_input.gd), never quits.
+config/quit_on_go_back=false
 config/features=PackedStringArray("4.3", "Forward Plus")
 config/icon="res://icon.png"
 
@@ -35,6 +37,10 @@ enabled=PackedStringArray("res://addons/rts0_export/plugin.cfg")
 timers/tooltip_delay_sec=3600.0
 
 [rendering]
+
+; Phones and tablets run GL Compatibility: the cheapest on mobile GPUs and every
+; device has it (docs/BUILD.md "Mobile renderer").
+renderer/rendering_method.mobile="gl_compatibility"
 
 textures/vram_compression/import_etc2_astc=true
 environment/defaults/default_clear_color=Color(0.12, 0.14, 0.18, 1)

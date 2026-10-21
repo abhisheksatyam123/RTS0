@@ -107,5 +107,21 @@ func run() -> void:
 	check(o["cursor"] == "action-attack-move", "the attack-move cursor: " + o["cursor"])
 	check(o["kind"] == 2, "an attack-walk: %s" % o)
 
+	print("5. A click on an own man by an enemy barracks walks there (PickEntityAtPoint: the man)")
+	var off: Vector2 = main.debug_spawn_offset("athen/infantry_spearman_b", 1)
+	var by_man: int = main.debug_spawn_units("athen/infantry_spearman_b", 1)[0]
+	# Its 4 x 4 footprint ends 0.7 from him, inside the 1.2 a click on it reaches beyond.
+	main.debug_spawn_building(2, off.x, off.y + 2.7, 1)
+	await frames(40)
+	main.debug_select_units(PackedInt32Array([men[0]]))
+	await frames(2)
+	var by: Vector2 = main.debug_unit_screen(by_man)
+	await move(by)
+	var c := cursor()
+	await right_click(by)
+	o = main.debug_unit_order(men[0])
+	check(c != "action-attack", "no attack cursor over him: " + c)
+	check(o["kind"] == 1, "a walk, not an attack on the barracks: %s" % o)
+
 	print("RESULT: %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)

@@ -4298,7 +4298,8 @@
         150,
         20,
         20
-      ]
+      ],
+      "name": "Lucius Aemilius Paullus"
     },
     {
       "id": 2,
@@ -4310,7 +4311,8 @@
         46,
         46,
         200
-      ]
+      ],
+      "name": "Perseus of Macedon"
     },
     {
       "id": 3,
@@ -4322,7 +4324,8 @@
         13,
         221,
         190
-      ]
+      ],
+      "name": "Greek Allies"
     }
   ],
   "resources": [
@@ -10481,6 +10484,216 @@
       "template": "mace/champion_cavalry"
     },
     {
+      "type": "",
+      "player": 3,
+      "x": -59.25,
+      "z": -34.92,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -58.91,
+      "z": -34.46,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -58.55,
+      "z": -34.15,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -58.32,
+      "z": -33.78,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -58.02,
+      "z": -33.4,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -58.65,
+      "z": -35.48,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -58.36,
+      "z": -35.2,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -58.03,
+      "z": -34.88,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -57.82,
+      "z": -34.47,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -57.43,
+      "z": -34.0,
+      "template": "merc_black_cloak"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -60.14,
+      "z": -36.32,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -59.62,
+      "z": -36.68,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -59.98,
+      "z": -37.33,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -60.41,
+      "z": -36.97,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -60.81,
+      "z": -37.36,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -60.29,
+      "z": -37.85,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -60.6,
+      "z": -38.3,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -61.06,
+      "z": -37.95,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -61.42,
+      "z": -38.39,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -60.75,
+      "z": -38.82,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -56.1,
+      "z": -32.89,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -55.78,
+      "z": -32.59,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -55.54,
+      "z": -32.22,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -55.16,
+      "z": -31.88,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -54.77,
+      "z": -31.51,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -55.22,
+      "z": -31.11,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -55.72,
+      "z": -31.41,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -55.98,
+      "z": -31.72,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -56.39,
+      "z": -32.05,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 3,
+      "x": -56.71,
+      "z": -32.36,
+      "template": "merc_thorakites"
+    },
+    {
       "type": "cavalry",
       "player": 3,
       "x": -65.81,
@@ -10507,6 +10720,146 @@
       "x": -63.35,
       "z": -39.91,
       "template": "cart/champion_cavalry"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 64.0,
+      "z": -54.17,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 64.26,
+      "z": -53.79,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 64.5,
+      "z": -53.41,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 64.81,
+      "z": -53.06,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 65.11,
+      "z": -52.5,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 64.48,
+      "z": -54.45,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 64.72,
+      "z": -54.06,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 64.91,
+      "z": -53.72,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 65.17,
+      "z": -53.4,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 65.5,
+      "z": -52.95,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 63.45,
+      "z": -56.51,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 63.72,
+      "z": -56.11,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 64.02,
+      "z": -55.7,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 64.18,
+      "z": -55.37,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 64.38,
+      "z": -54.98,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 63.89,
+      "z": -54.72,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 63.65,
+      "z": -55.04,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 63.44,
+      "z": -55.39,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 63.25,
+      "z": -55.73,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 62.95,
+      "z": -56.11,
+      "template": "merc_thureophoros"
     },
     {
       "type": "swordsman",

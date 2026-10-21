@@ -39,7 +39,7 @@ func _ready() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.position = Vector2(488 - 128, -18)
 	title.size = Vector2(256, 32)
-	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_font_size_override("font_size", 14) # TitleText: sans-bold-stroke-14
 	title.add_theme_color_override("font_outline_color", Color.BLACK)
 	title.add_theme_constant_override("outline_size", 4)
 	panel.add_child(title)
@@ -53,9 +53,7 @@ func _ready() -> void:
 	close.text = tr("Close")
 	close.position = Vector2(976 - 216, 510 - 56)
 	close.size = Vector2(192, 32)
-	var keys: String = _hotkeys.display("cancel")
-	close.tooltip_text = L10n.sprintf(tr("%(hotkey)s: Close Tips and Tricks."),
-		{"hotkey": keys if keys != "" else tr("Unassigned")})
+	close.tooltip_text = _hotkeys.colorize(tr("%(hotkey)s: Close Tips and Tricks."), "cancel")
 	close.pressed.connect(close_page)
 	panel.add_child(close)
 

@@ -848,6 +848,24 @@ int main() {
 		CHECK(corsica >= 60 && corsica <= 3 * 240, "corsica: %d fish, 0.28 tries 50 and 70 groups of 2-3 per player", corsica);
 	}
 	{
+		// 0.28's whales: arctic_summer, polar_sea, cycladic_archipelago, island_stronghold and mediterranean
+		// place fin and humpback whales at sea, among their fish (clFood).
+		for (MapType mt : {MAP_ARCTIC_SUMMER, MAP_POLAR_SEA, MAP_CYCLADIC_ARCHIPELAGO, MAP_ISLAND_STRONGHOLD, MAP_MEDITERRANEAN}) {
+			static Simulation s;
+			s.reset();
+			s.generate_random_map(mt, 7, 2, 128.0f);
+			const auto fv = s.fauna();
+			int whales = 0, dry = 0;
+			for (size_t i = 0; i < fv.count; ++i) {
+				if (fv.fauna_type[i] != FAUNA_WHALE_FIN && fv.fauna_type[i] != FAUNA_WHALE_HUMPBACK) continue;
+				++whales;
+				dry += s.get_terrain_height(fv.pos_x[i], fv.pos_z[i]) >= s.water_height();
+			}
+			// arctic_summer's few small lakes rarely hold a spot 6 tiles from the shore on a Tiny map.
+			CHECK((whales >= 1 || mt == MAP_ARCTIC_SUMMER) && dry == 0, "%s: %d whales, %d on land", map_type_info(mt).id, whales, dry);
+		}
+	}
+	{
 		// Every map with a 0 A.D. script has at least the mines, fruit and hunt its script
 		// places outside the bases (resource_counts_data.h), on a Medium map for 2 players.
 		for (const MapResourceCounts &rc : kMapResourceCounts) {

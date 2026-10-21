@@ -38,6 +38,8 @@ static int32_t fidx(const Simulation &s, uint32_t id) {
 }
 static bool f_alive(const Simulation &s, uint32_t id) { int32_t f = fidx(s, id); return f >= 0 && s.fauna_.alive[f]; }
 static int32_t uidx(const Simulation &s, uint32_t id) { return s.lookup_unit(id); }
+// A unit that died is gone from units_ once its death is over (lookup_unit gives -1).
+static bool u_alive(const Simulation &s, uint32_t id) { int32_t u = uidx(s, id); return u >= 0 && s.units_.alive[u]; }
 
 // Meat left on the map within r of (x, z).
 static int meat_near(const Simulation &s, float x, float z, float r) {
@@ -227,7 +229,7 @@ int main() {
 		uint32_t near_v = s.spawn_unit(q - 3.0f, 2.0f, 0, UNIT_FEMALE_CITIZEN);
 		const float hp_near = s.units_.hp[uidx(s, near_v)];
 		run(s, 6.0f);
-		CHECK(s.units_.hp[uidx(s, near_v)] < hp_near || !s.units_.alive[uidx(s, near_v)]);
+		CHECK(!u_alive(s, near_v) || s.units_.hp[uidx(s, near_v)] < hp_near);
 	}
 
 	// 6. An aggressive wolf attacks inside its vision; an idle soldier fights back and kills it.
@@ -238,8 +240,8 @@ int main() {
 		const float hp0 = s.units_.hp[uidx(s, sword)];
 		run(s, 40.0f);
 		CHECK(!f_alive(s, wolf));
-		CHECK(s.units_.hp[uidx(s, sword)] < hp0);
-		CHECK(s.units_.alive[uidx(s, sword)]);
+		CHECK(u_alive(s, sword) && s.units_.hp[uidx(s, sword)] < hp0);
+		CHECK(u_alive(s, sword));
 		CHECK(meat_near(s, 0.0f, 0.0f, 30.0f) == 0); // wolves are not food in 0 A.D.
 	}
 
@@ -250,7 +252,7 @@ int main() {
 		s.order_set_stance(&w, 1, STANCE_PASSIVE);
 		s.spawn_fauna(5.0f, 0.0f, FAUNA_WOLF_ARCTIC_VIOLENT);
 		run(s, 60.0f);
-		CHECK(!s.units_.alive[uidx(s, w)]);
+		CHECK(!u_alive(s, w));
 	}
 
 	// 7b. FLEEING runs FleeDistance further than the attacker was (UnitAI.js distanceToFlee),
@@ -721,7 +723,9 @@ int main() {
 		}
 		const uint32_t chaser = s.spawn_unit(-9.0f, 1.0f, 0, UNIT_SPEARMAN);
 		const uint32_t d2 = s.spawn_fauna(-5.0f, 1.0f, FAUNA_DEER);
-		const uint32_t e2 = s.spawn_fauna(-5.0f, 0.95f, FAUNA_ELEPHANT_AFRICAN_BUSH);
+		// The elephant comes on the deer's line, behind it: beside it, it would push the deer off
+		// the gap's line, as 0.28 pushes any two animals that walk (CCmpUnitMotion_System.cpp:671-804).
+		const uint32_t e2 = s.spawn_fauna(-6.0f, 1.0f, FAUNA_ELEPHANT_AFRICAN_BUSH);
 		const uint32_t bait = s.spawn_unit(6.0f, 1.0f, 1, UNIT_SPEARMAN);
 		for (uint32_t id : {chaser, bait}) s.units_.stance[s.lookup_unit(id)] = STANCE_PASSIVE; // they stay put
 		s.tick(Simulation::FIXED_STEP);
@@ -795,7 +799,7 @@ int main() {
 		CHECK(std::fabs(s.fauna_.pos_x[fidx(s, ewe)] - stop_x) < 0.5f);
 		// Garrison: into its owner's corral; penned, it is no longer selectable.
 		s.order_fauna_walk(1, herd, 2, 0.0f, 0.0f, pen);
-		run(s, 20.0f);
+		run(s, 25.0f);
 		CHECK(s.fauna_.behavior[fidx(s, ewe)] == FAUNA_CORRALLED && s.corral_count(pen) == 2);
 		CHECK(!s.fauna_selectable_by(1, ewe));
 		std::printf("livestock orders: ewe walked to (%.1f, %.1f), both penned\n", ex, ez);
@@ -812,13 +816,18 @@ int main() {
 		s.fauna_start_attack((size_t)fidx(s, wolf), u);
 		s.tick(Simulation::FIXED_STEP);
 		int32_t w = fidx(s, wolf);
+		// UnitMotion Acceleration: from rest it gains Acceleration x the tick, up to its walk speed.
+		const float first = std::hypot(s.fauna_.vel_x[w], s.fauna_.vel_z[w]);
+		CHECK(std::fabs(first - std::min(wi.speed, wi.acceleration * Simulation::FIXED_STEP)) < 0.01f);
+		run(s, 0.5f);
+		w = fidx(s, wolf);
 		const float walk = std::hypot(s.fauna_.vel_x[w], s.fauna_.vel_z[w]);
 		CHECK(std::fabs(walk - wi.speed) < 0.01f);
 		uint32_t sheep = s.spawn_fauna(-6.0f, 0.0f, FAUNA_SHEEP_TRAINABLE, 1);
 		s.fauna_attacked((size_t)fidx(s, sheep), wolf, true);
 		CHECK(s.fauna_.behavior[fidx(s, sheep)] == FAUNA_FLEE);
 		s.fauna_start_attack((size_t)fidx(s, wolf), sheep);
-		s.tick(Simulation::FIXED_STEP);
+		run(s, 0.5f);
 		w = fidx(s, wolf);
 		CHECK(std::fabs(std::hypot(s.fauna_.vel_x[w], s.fauna_.vel_z[w]) - wi.speed) < 0.01f);
 		// The wolf is defensive (no respondChase): after its first ATTACKING it gives up instead.
@@ -827,7 +836,7 @@ int main() {
 		const uint32_t dog = s.spawn_fauna(0.0f, 4.0f, FAUNA_DOG_MASTIFF);
 		s.fauna_start_attack((size_t)fidx(s, dog), sheep);
 		s.fauna_.flee_distance[fidx(s, dog)] = 1.0f; // COMBAT ATTACKING once: the sheep got away
-		s.tick(Simulation::FIXED_STEP);
+		run(s, 0.5f);
 		const int32_t m = fidx(s, dog);
 		const float run_sp = std::hypot(s.fauna_.vel_x[m], s.fauna_.vel_z[m]);
 		CHECK(std::fabs(run_sp - mi.speed * mi.run_mult) < 0.01f);
@@ -1105,6 +1114,32 @@ int main() {
 		CHECK(s.fauna_owner(goat) == GAIA_PLAYER && s.fauna_.behavior[fidx(s, goat)] != FAUNA_MOVING);
 		CHECK(carcass >= 0 && s.resources_.owner[carcass] == GAIA_PLAYER);
 		std::printf("livestock audit: walk kept under attack, rally followed, defeat hands animals to Gaia\n");
+	}
+
+	// 17. MoveRandomly: roamAngle (+-30 degrees) is drawn on the first roam and kept, its sign
+	//     redrawn when the heading comes back round; save/load keeps it.
+	{
+		fresh(s);
+		const uint32_t deer = s.spawn_fauna(0.0f, 0.0f, FAUNA_DEER);
+		CHECK(s.fauna_roam_angle_[fidx(s, deer)] == 0.0f);
+		int flips = 0;
+		float last = 0.0f;
+		for (int k = 0; k < 600; ++k) {
+			run(s, 1.0f);
+			const float a = s.fauna_roam_angle_[fidx(s, deer)];
+			if (last != 0.0f && a != last) ++flips;
+			if (a != 0.0f) last = a;
+		}
+		CHECK(std::fabs(std::fabs(last) - 3.14159265f / 6.0f) < 1e-5f);
+		std::printf("roam: roamAngle %.3f, %d sign flips in 10 minutes\n", last, flips);
+		const char *path = "/tmp/rts0_test_fauna_roam.sav";
+		CHECK(s.save_state(path));
+		static Simulation t;
+		CHECK(t.load_state(path));
+		CHECK(t.fauna_roam_angle_[fidx(t, deer)] == s.fauna_roam_angle_[fidx(s, deer)] &&
+		      t.fauna_start_angle_[fidx(t, deer)] == s.fauna_start_angle_[fidx(s, deer)]);
+		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(t));
+		std::remove(path);
 	}
 
 	if (failures) {

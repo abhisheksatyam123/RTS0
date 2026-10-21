@@ -568,6 +568,47 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0879fu, 0x02au}, // theb_sacred_band
 		{0x0878fu, 0x02au}, // thesp_melanochitones
 		{0x0078fu, 0x000u}, // theb_siege_fireraiser
+		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_02
+		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_03
+		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_04
+		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_05
+		{0x007cfu, 0x031u}, // athen/hero_xenophon
+		{0x0879fu, 0x029u}, // spart/hero_leonidas_300
+		{0x0878fu, 0x02au}, // pers/arstibara
+		{0x0078fu, 0x010u}, // han/siege_shoushe
+		{0x0879fu, 0x0a8u}, // athen/infantry_spearman_a
+		{0x0078fu, 0x040u}, // athen/support_healer_e
+		{0x0879fu, 0x0a8u}, // spart/infantry_spearman_a
+		{0x0078fu, 0x040u}, // spart/support_healer_e
+		{0x0878fu, 0x0a8u}, // pers/infantry_spearman_a
+		{0x0879fu, 0x0a8u}, // cart/infantry_spearman_a
+		{0x0078fu, 0x040u}, // cart/support_healer_e
+		{0x0c78fu, 0x0a8u}, // mace/infantry_pikeman_a
+		{0x0878fu, 0x0a8u}, // brit/infantry_spearman_a
+		{0x0078fu, 0x040u}, // brit/support_healer_e
+		{0x0878fu, 0x0a8u}, // gaul/infantry_spearman_a
+		{0x0878fu, 0x0a8u}, // iber/infantry_spearman_a
+		{0x0878fu, 0x0a8u}, // iber/infantry_swordsman_a
+		{0x0078fu, 0x040u}, // iber/support_healer_e
+		{0x0878fu, 0x0a8u}, // maur/infantry_spearman_a
+		{0x0878fu, 0x0a8u}, // maur/infantry_swordsman_a
+		{0x0078fu, 0x040u}, // maur/support_healer_e
+		{0x0c78fu, 0x0a8u}, // kush/infantry_pikeman_a
+		{0x0878fu, 0x0a8u}, // kush/infantry_spearman_a
+		{0x0878fu, 0x0a8u}, // kush/infantry_swordsman_a
+		{0x0c78fu, 0x0a8u}, // ptol/infantry_pikeman_a
+		{0x0c78fu, 0x0a8u}, // sele/infantry_pikeman_a
+		{0x0879fu, 0x0a8u}, // sele/infantry_spearman_a
+		{0x0078fu, 0x040u}, // sele/support_healer_e
+		{0x1c78fu, 0x0a8u}, // han/infantry_pikeman_a
+		{0x1878fu, 0x0a8u}, // han/infantry_spearman_a
+		{0x3878fu, 0x0a8u}, // germ/infantry_spearman_a
+		{0x0878fu, 0x0a8u}, // germ/infantry_swordsman_a
+		{0x0078fu, 0x040u}, // germ/support_healer_e
+		{0x00000u, 0x000u}, // plane
+		{0x0878fu, 0x029u}, // campaigns/army_mace_hero_alexander
+		{0x0878fu, 0x02au}, // campaigns/army_mace_standard
+		{0x0878fu, 0x029u}, // campaigns/army_spart_hero_leonidas
 	};
 	return kRows;
 }

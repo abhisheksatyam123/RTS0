@@ -1,8 +1,9 @@
 extends SceneTree
 # gui/common/styles.xml sound_pressed: 0.28's session buttons (iconButton, StoneButton,
 # BrownButton, CivIconOverlay) and dropdowns play ui_button_click.ogg when pressed. Every
-# button of the session UI does here, buttons added later included; a disabled one and a
-# button outside the session stay silent.
+# button of the session UI does here, buttons added later included; a disabled one, a
+# button outside the session, the minimap's three unstyled buttons and the pause
+# overlay stay silent.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_ui_click_sound.gd
 # Exit code 0 = pass.
@@ -78,6 +79,21 @@ func run() -> void:
 	await click(Vector2(640, 615))
 	check(main.debug_ui_clicks() == before + 1, "a disabled one is silent")
 
+	print("2b. A session dropdown: sound_closed, and a pick that closes the list clicks once")
+	var sel := RtsoSafeSelect.new()
+	sel.add_item("A")
+	sel.add_item("B")
+	layer.add_child(sel)
+	await frames(2)
+	before = main.debug_ui_clicks()
+	sel.menu_closed.emit()
+	await frames(1)
+	check(main.debug_ui_clicks() == before + 1, "closing the list unpicked clicks (sound_closed)")
+	sel.item_selected.emit(1)
+	sel.menu_closed.emit()
+	await frames(1)
+	check(main.debug_ui_clicks() == before + 2, "a pick and the close in one frame click once: %d" % (main.debug_ui_clicks() - before))
+
 	print("3. A button outside the session")
 	var outside := CanvasLayer.new()
 	outside.layer = 121
@@ -87,8 +103,20 @@ func run() -> void:
 	outside.add_child(o)
 	root.add_child(outside)
 	await frames(2)
+	before = main.debug_ui_clicks()
 	await click(Vector2(340, 315))
-	check(main.debug_ui_clicks() == before + 1, "is not the session's to sound")
+	check(main.debug_ui_clicks() == before, "is not the session's to sound")
+
+	print("4. MiniMap.xml's buttons have no sounding style")
+	for name in ["idleWorkerButton", "diplomacyColorsButton", "flareButton"]:
+		var mb: BaseButton = main.find_child(name, true, false)
+		before = main.debug_ui_clicks()
+		if mb:
+			mb.pressed.emit()
+			await frames(2)
+		check(mb != null and main.debug_ui_clicks() == before, name + " is silent")
+	if main.has_method("_on_flare_button_pressed"):
+		main._on_flare_button_pressed() # disarm the flare again
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

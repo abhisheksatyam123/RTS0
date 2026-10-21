@@ -432,14 +432,15 @@ int main()
 			}
 			// A units/<civ>/ template keeps its civ's slot; one with no civ is Gaia's.
 			const char *slash = std::strchr(u.id, '/');
-			const bool civ_path = slash && std::strchr(slash + 1, '/') == nullptr && std::strncmp(u.id, "pirates/", 8) != 0;
+			const bool civ_path = slash && std::strchr(slash + 1, '/') == nullptr && std::strncmp(u.id, "pirates/", 8) != 0 &&
+			                      std::strncmp(u.id, "campaigns/", 10) != 0;
 			if (civ_path ? (u.civ == CIV_GAIA || std::strncmp(civ_info(u.civ).code, u.id, (size_t)(slash - u.id)) != 0) : u.civ != CIV_GAIA) {
 				map_rows_ok = false;
 				std::printf("      map-only row %s in civ slot %u\n", u.id, u.civ);
 			}
 		}
 		std::snprintf(msg, sizeof msg, "map-only rows (%d) are trained nowhere and sit in their civ's slot", map_rows);
-		check(map_rows_ok && map_rows == 48, msg); // 44 + the Marian legionaries _02-_05
+		check(map_rows_ok && map_rows == 56, msg); // 44 + the Marian legionaries _02-_05 + Xenophon, Leonidas 300, the Arstibara, Shoushe and plane + the three campaign armies
 		for (uint8_t c = 0; c < CIV_COUNT; ++c)
 			for (uint16_t i : civ_roster_ids(c))
 				if (civ_unit_template(i).flags & ROSTER_MAP_ONLY) check(false, "a map-only row is in a civ's trainable roster");
@@ -475,6 +476,28 @@ int main()
 				u.auras[0] >= 0 && std::strcmp(civ_hero_aura(u.auras[0]).id, "mace_hero_craterus") == 0,
 				"Craterus: 1000 health, 26 hack every 0.75 s, his own aura");
 		}
+		// Regicide.js draws each player's hero from every Hero template of its civ
+		// (GetTemplateNamesByClasses), Xenophon and the 300's Leonidas included.
+		{
+			static const struct { uint8_t civ; int heroes; } kPools[] = {
+				{CIV_ATHENIANS, 5}, {CIV_SPARTANS, 4}, {CIV_PERSIANS, 4}, {CIV_ROMANS, 6}, {CIV_CARTHAGINIANS, 3},
+				{CIV_MACEDONIANS, 6}, {CIV_BRITONS, 6}, {CIV_GAULS, 4}, {CIV_IBERIANS, 4}, {CIV_MAURYANS, 6},
+				{CIV_KUSHITES, 5}, {CIV_PTOLEMIES, 3}, {CIV_SELEUCIDS, 3}, {CIV_HAN, 7}, {CIV_GERMANS, 3}};
+			bool pools = row_of("athen/hero_xenophon") != CIV_UNIT_TEMPLATE_NONE &&
+					row_of("spart/hero_leonidas_300") != CIV_UNIT_TEMPLATE_NONE;
+			for (const auto &p : kPools) {
+				int n = 0;
+				for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i) {
+					const CivUnitTemplate &u = civ_unit_template(i);
+					if (u.civ == p.civ && (u.flags & ROSTER_HERO) && !std::strstr(u.id, "/rts0_")) ++n;
+				}
+				if (n != p.heroes) {
+					std::printf("  civ %d: %d heroes, 0.28 has %d\n", p.civ, n, p.heroes);
+					pools = false;
+				}
+			}
+			check(pools, "each civ's Regicide hero pool holds all of 0.28's Hero templates");
+		}
 		static const char *const kMapRows[] = {"samnite_spearman", "samnite_skirmisher", "athen/infantry_marine_archer_b",
 			"pers/kardakes_hoplite", "pers/kardakes_skirmisher", "cart/champion_pikeman", "spart/champion_infantry_pike",
 			"rome/infantry_swordsman_slave", "pers/hero_xerxes_i_chariot", "ptol/champion_juggernaut",
@@ -485,7 +508,7 @@ int main()
 			"rome/hero_marcellus_infantry", "rome/hero_maximus_infantry", "rome/hero_scipio_infantry",
 			"gaul/hero_vercingetorix_infantry", "iber/hero_indibil_infantry", "han/champion_infantry_archer_academy",
 			"han/cavalry_crossbowman_b", "pirates/ship_merchant", "pirates/ship_scout", "noldor_warship",
-			"viking_longship", "merc_black_cloak"};
+			"viking_longship", "merc_black_cloak", "pers/arstibara", "han/siege_shoushe", "plane"};
 		bool all_rows = true;
 		for (const char *id : kMapRows) all_rows = row_of(id) != CIV_UNIT_TEMPLATE_NONE && all_rows;
 		check(all_rows, "every map-only 0.28 template has its own row");
@@ -532,6 +555,13 @@ int main()
 		sim.reset();
 		sim.set_team_civ(0, CIV_MACEDONIANS);
 		sim.set_team_civ(1, CIV_ROMANS);
+		// A map's _unpacked siege stands in as its packed row, unpacked (REMAINING_GAPS SU2).
+		{
+			const int32_t up = sim.lookup_unit(sim.spawn_map_unit(-20.0f, 0.0f, 0, UNIT_SWORDSMAN, "athen/siege_lithobolos_packed", 0, true));
+			const int32_t pk = sim.lookup_unit(sim.spawn_map_unit(-30.0f, 0.0f, 0, UNIT_SWORDSMAN, "athen/siege_lithobolos_packed"));
+			check(up >= 0 && pk >= 0 && sim.units_.pack_state[up] == PACK_UNPACKED && sim.units_.pack_state[pk] == PACK_PACKED,
+				"a map's unpacked stone thrower starts unpacked, a packed one packed");
+		}
 		int32_t i = sim.lookup_unit(sim.spawn_map_unit(0.0f, 0.0f, 0, UNIT_HERO, "mace/hero_craterus"));
 		check(i >= 0 && sim.units_.tmpl[i] == civ_unit_template_by_id("mace/hero_craterus") && sim.units_.max_hp[i] == 1000.0f,
 			"a map's Craterus spawns as Craterus, not the Macedonian default hero");
@@ -631,7 +661,7 @@ int main()
 
 	// No ported map's unit falls back to its owner's generic unit any more.
 	{
-		int maps = 0, missing = 0;
+		int maps = 0, missing = 0, left_out = 0;
 		std::error_code ec;
 		for (const auto &e : std::filesystem::recursive_directory_iterator("data/maps", ec)) {
 			if (e.path().extension() != ".json") continue;
@@ -641,14 +671,19 @@ int main()
 			for (const char *key : {"units", "gaia_units"})
 				if (const Json *units = map.get(key))
 					for (const Json &u : units->arr)
-						if (map_unit_row(u) == CIV_UNIT_TEMPLATE_NONE) {
+						if (map_unit_row(u) == CIV_UNIT_TEMPLATE_NONE && u.string("type").empty()) {
+							// No type to fall back to: load_map_seeded leaves it out (REMAINING_GAPS SU3).
+							++left_out;
+							std::printf("      %s: %s is left out (no row)\n", e.path().filename().string().c_str(),
+								u.string("template").c_str());
+						} else if (map_unit_row(u) == CIV_UNIT_TEMPLATE_NONE) {
 							++missing;
 							std::printf("      %s: %s falls back to its class\n", e.path().filename().string().c_str(),
 								u.string("template").c_str());
 						}
 		}
-		std::snprintf(msg, sizeof msg, "every unit template of the %d ported maps has a roster row (%d fall back)", maps, missing);
-		check(maps >= 100 && missing == 0, msg);
+		std::snprintf(msg, sizeof msg, "every unit template of the %d ported maps has a roster row (%d fall back, %d left out)", maps, missing, left_out);
+		check(maps >= 100 && missing == 0 && left_out == 0, msg);
 	}
 
 	std::printf("%d/%d checks passed (%u unit templates, %u hero auras)\n",

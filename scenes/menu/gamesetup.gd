@@ -278,6 +278,8 @@ const BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
 ## The AI Behavior list order (0.28 settings.js loadAIBehaviors); entries are BEHAVIORS values.
 const BEHAVIOR_ORDER := [0, 2, 1, 3]
 # Random-map biome override (index - 1 == rtso::BiomeType) and 0 A.D. game speeds.
+# GameSettingControlDropdown.RandomItemTags: Random entries read in orange.
+const RANDOM_ITEM_COLOR := Color8(255, 165, 0)
 const RANDOM_BIOME := 99 # the Biome dropdown's Random entry (its item id too); resolved at Start
 const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India", "Autumn", "Nubia"]
 ## 0.28 rmbiome ids -> BIOMES index, as tools/extract_0ad_map_types.py RTS0_BIOMES maps
@@ -352,6 +354,7 @@ var _map_filter_name := "default"
 var _filter_names: Array = []  # the filters the map type has maps for, in dropdown order
 var _want_map_id := ""         # the map to select on the next refresh_map_list
 var _was_scenario := false     # the slots hold a scenario's locked teams
+var _locks_map_id := ""        # the map _apply_map_locks last saw (LockedTeams.onMapChange runs on a change)
 var _slot_rows: Array = []     # per-slot {kind,civ,team,diff,beh}
 ## Single player: the row you play (0.28 PlayerAssignment), -1 to watch the AIs.
 var _local_slot := 0
@@ -380,11 +383,87 @@ func _ready() -> void:
 	_restore_settings()
 	refresh_map_list()
 	refresh_slots()
+	# The panel has its width once the first layout is done.
+	get_tree().process_frame.connect(_size_slot_columns, CONNECT_ONE_SHOT)
 	_update_preview()
 	_init_net()
 	_render_reset_buttons()
 	_build_tips()
 	_build_tabs()
+	_title_labels()
+
+## GameSettingControl.js TitleCaptionFormat: every setting's title reads "%(setting)s:".
+static func _title(caption: String) -> String:
+	return L10n.sprintf(TranslationServer.translate("%(setting)s:"), {"setting": TranslationServer.translate(caption)})
+
+func _title_labels() -> void:
+	for tab in SETTING_TABS:
+		for l in get_node("VBox/HBox/LeftScroll/Left/" + tab).find_children("*Label", "Label", true, false):
+			if l.name != "SeedLabel" and not l.text.ends_with(":"):
+				l.mouse_filter = Control.MOUSE_FILTER_PASS # its tooltip shows on hover
+				l.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+				l.text = _title(l.text)
+
+## GameSettingControl.updateVisibility: a setting the player can't change (a
+## client's, a scenario's locked ones, a saved game's) shows its value as text,
+## the label carrying the control's caption: a dropdown its item, a slider its
+## caption, a checkbox Yes or No.
+func _render_value_texts() -> void:
+	var roots: Array = SETTING_TABS.map(func(t): return get_node("VBox/HBox/LeftScroll/Left/" + t))
+	roots.append(_slots_grid())
+	for root in roots:
+		for c in root.find_children("*", "Control", true, false):
+			if c is RtsoSafeSelect:
+				# PlayerColor has no label: its locked swatch stays.
+				_value_text(c, c.disabled and c.text.strip_edges() != "", c.text, c.get_theme_color("font_color"))
+			elif c is CheckBox:
+				_checkbox_value_text(c)
+			elif c.has_method("get_slider"):
+				c.get_slider().visible = c.get_slider().editable
+
+func _value_text(c: Control, locked: bool, text: String, color: Color) -> void:
+	var l: Label = c.get_node_or_null("ValueText")
+	if not locked:
+		if l:
+			c.self_modulate = Color.WHITE
+			l.queue_free()
+			l.name = "ValueTextGone"
+		return
+	if l == null:
+		l = Label.new()
+		l.name = "ValueText"
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.clip_text = true
+		l.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		c.add_child(l)
+		l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		l.offset_left = 4
+		c.self_modulate = Color.TRANSPARENT
+	l.text = text
+	l.add_theme_color_override("font_color", color)
+
+## GameSettingControlCheckbox: "Yes" / "No" in place of the box.
+var _no_icon: Texture2D
+func _checkbox_value_text(c: CheckBox) -> void:
+	if not c.has_meta("title"):
+		if not c.disabled:
+			return
+		c.set_meta("title", c.text)
+	var title := str(c.get_meta("title"))
+	if not c.disabled:
+		c.text = title
+		c.remove_meta("title")
+		for i in ["checked_disabled", "unchecked_disabled"]:
+			c.remove_theme_icon_override(i)
+		c.remove_theme_color_override("font_disabled_color")
+		return
+	c.text = "%s %s" % [_title(title), tr("Yes") if c.button_pressed else tr("No")]
+	if _no_icon == null:
+		_no_icon = ImageTexture.create_from_image(Image.create(1, 1, false, Image.FORMAT_RGBA8))
+	for i in ["checked_disabled", "unchecked_disabled"]:
+		c.add_theme_icon_override(i, _no_icon)
+	c.add_theme_color_override("font_disabled_color", c.get_theme_color("font_color"))
 
 # ---------------------------------------------------------------- tabs ---
 
@@ -495,6 +574,7 @@ static func load_all_maps() -> Array:
 		m["kind"] = "Scenario" if m["type"] == "scenario" else "Skirmish"
 		m["keywords"] = t.get("keywords", [])
 		m["settings"] = t.get("settings", {})
+		m["lock_teams"] = bool(t.get("lock_teams", false))
 	var random_kw: Dictionary = types.get("random_keywords", {})
 	var placements: Dictionary = types.get("player_placements", {})
 	var biomes: Dictionary = types.get("random_biomes", {})
@@ -539,6 +619,7 @@ func _rebuild_biomes(values: Array) -> void:
 	bio.clear()
 	bio.add_item(tr("Random"), RANDOM_BIOME)
 	bio.set_item_tooltip(0, tr("Pick a biome at random."))
+	bio.set_item_color(0, RANDOM_ITEM_COLOR)
 	for v in values:
 		bio.add_item(GameDescription.BIOME_TEXT.get(v, [BIOMES[v]])[0], v) # the rmbiome's Title
 		bio.set_item_tooltip(bio.get_item_count() - 1, GameDescription.BIOME_TEXT.get(v, ["", ""])[1])
@@ -565,8 +646,11 @@ func _rebuild_team_placement(placements: Array) -> void:
 	var tpl: RtsoSafeSelect = slot.get_child(0)
 	tpl.clear()
 	tpl.add_item(TEAM_PLACEMENTS[0][1], 0)
+	tpl.set_item_color(0, RANDOM_ITEM_COLOR)
+	tpl.set_item_tooltip(0, tr(TEAM_PLACEMENTS[0][2]))
 	for v in placements:
 		tpl.add_item(TEAM_PLACEMENTS[v][1], v)
+		tpl.set_item_tooltip(tpl.get_item_count() - 1, tr(TEAM_PLACEMENTS[v][2]))
 	var i := ([0] + placements).find(_team_placement)
 	tpl.select(maxi(i, 0))
 	_update_team_placement_tooltip()
@@ -588,8 +672,8 @@ func _update_team_placement_tooltip() -> void:
 	if slot == null or slot.get_child_count() == 0:
 		return
 	var tpl: RtsoSafeSelect = slot.get_child(0)
-	var v := tpl.get_item_id(tpl.get_selected()) if tpl.get_selected() >= 0 else 0
-	tpl.tooltip_text = TEAM_PLACEMENTS[clampi(v, 0, TEAM_PLACEMENTS.size() - 1)][2]
+	# PlayerPlacement.onHoverChange: the hovered pattern's description shows in the open list.
+	tpl.tooltip_text = tr(TEAM_PLACEMENT_TOOLTIP)
 	var lbl := get_node_or_null("%TeamPlacementLabel")
 	if lbl:
 		lbl.tooltip_text = TEAM_PLACEMENT_TOOLTIP
@@ -669,7 +753,7 @@ func _set_pop_type(type: int, cap: int) -> void:
 	var t: Array = POP_CAP_TYPES[type]
 	_pop_type_select().select(type)
 	_pop_type_select().tooltip_text = tr(t[2])
-	%PopCapLabel.text = tr(t[3])
+	%PopCapLabel.text = _title(t[3])
 	var pop := _pop_select()
 	pop.clear()
 	for v in t[5]:
@@ -723,7 +807,7 @@ func _update_lock_teams_for_pop() -> void:
 		lock.button_pressed = true
 		lock.disabled = true
 	else:
-		lock.disabled = _is_scenario()
+		lock.disabled = _is_scenario() or _rated_locked
 	_render_mode_checks()
 
 ## GameSettingControlSlider: one step per item, read as the dropdowns are.
@@ -758,7 +842,9 @@ func _update_map_type_tooltip() -> void:
 	for i in range(MAP_TYPES.size()):
 		if MAP_TYPES[i][0] == _map_type:
 			t.select(i)
-			t.tooltip_text = "Select a map type.\n\n%s: %s" % [MAP_TYPES[i][1], MAP_TYPES[i][2]]
+			# MapType.onHoverChange: the hovered type's description shows in the open list.
+			t.tooltip_text = tr("Select a map type.")
+			%MapTypeLabel.tooltip_text = t.tooltip_text
 
 func _on_map_type_selected(idx: int) -> void:
 	_map_type = MAP_TYPES[clampi(idx, 0, MAP_TYPES.size() - 1)][0]
@@ -811,7 +897,8 @@ func _rebuild_map_filter() -> void:
 	if shown:
 		var i := _filter_names.find(_map_filter_name)
 		f.select(i)
-		f.tooltip_text = "Select a map filter.\n\n%s: %s" % [MAP_FILTERS[_filter_index(_map_filter_name)][1], MAP_FILTERS[_filter_index(_map_filter_name)][2]]
+		f.tooltip_text = tr("Select a map filter.")
+		%MapFilterLabel.tooltip_text = f.tooltip_text
 
 func _filter_index(name: String) -> int:
 	for i in range(MAP_FILTERS.size()):
@@ -868,7 +955,8 @@ func _build_map_list() -> void:
 ## MapBrowserPage.openPage: on the current type, filter and map; only the
 ## controller picks (a client looks).
 func _open_map_browser() -> void:
-	if _map_browser != null and is_instance_valid(_map_browser):
+	# MapPreview.js / MapBrowser.js: a saved game's map is fixed, so neither opens.
+	if (_map_browser != null and is_instance_valid(_map_browser)) or _saved_game():
 		return
 	_map_browser = MapBrowser.open_overlay(self, _maps, _map_type, _map_filter_name, str(_selected_map().get("id", "")), _mp_role != "client")
 	_map_browser.map_chosen.connect(_on_map_browsed)
@@ -992,6 +1080,8 @@ func refresh_map_list() -> void:
 		list.add_item(str(_filtered[i]["name"]))
 		var desc := str(_filtered[i].get("desc", ""))
 		list.set_item_tooltip(i, tr(desc) if desc != "" else tr("Select a map to play on."))
+		if str(_filtered[i]["id"]) == RANDOM_MAP_ID:
+			list.set_item_color(i, RANDOM_ITEM_COLOR)
 		if str(_filtered[i]["id"]) == keep:
 			_sel_map = i
 	if not _filtered.is_empty():
@@ -1012,6 +1102,14 @@ func _is_scenario() -> bool:
 ## tools/port_0ad_maps.py), {} otherwise.
 func _map_player(i: int) -> Dictionary:
 	if not _is_scenario():
+		return {}
+	var pl: Array = _selected_map().get("map_players", [])
+	return pl[i] if i < pl.size() else {}
+
+## Any non-random map's player entry for slot i: 0.28's PlayerCiv and PlayerName read a map's
+## PlayerData Civ and Name whatever its type (a skirmish's too), {} otherwise.
+func _map_seat(i: int) -> Dictionary:
+	if str(_selected_map().get("type", "")) == "random":
 		return {}
 	var pl: Array = _selected_map().get("map_players", [])
 	return pl[i] if i < pl.size() else {}
@@ -1081,7 +1179,13 @@ func _apply_map_locks() -> void:
 	if scen:
 		for bit in _victory_checks:
 			_victory_checks[bit].disabled = true
+	var map_id := str(m.get("id", ""))
+	var new_map := map_id != _locks_map_id and _locks_map_id != ""
+	_locks_map_id = map_id
 	if not scen:
+		# LockedTeams.onMapChange: a new map sets Lock Teams to its own LockTeams (off when unset).
+		if new_map:
+			%LockTeams.button_pressed = bool(m.get("lock_teams", false))
 		pop.select(pop.get_selected())  # back from "Per Player"
 		pop.tooltip_text = tr(POP_CAP_TYPES[_pop_type][4])
 		_update_lock_teams_for_pop()
@@ -1091,6 +1195,13 @@ func _apply_map_locks() -> void:
 			for r in _slot_rows:
 				r["team"] = 0
 		_was_scenario = false
+		# PlayerCiv.onMapChange: a map whose PlayerData names civs resets every seat, those civs
+		# fixed and the rest Random.
+		var seats: Array = m.get("map_players", []) if str(m.get("type", "")) != "random" else []
+		if seats.any(func(p): return _map_civ(p) >= 0):
+			for i in range(_slot_rows.size()):
+				var c := _map_civ(_map_seat(i))
+				_slot_rows[i]["civ"] = c if c >= 0 else RANDOM_CIV
 		apply_map_colors(m.get("map_players", []))
 		refresh_slots()
 		return
@@ -1103,11 +1214,6 @@ func _apply_map_locks() -> void:
 	var per_player: Array = map_players.filter(func(p): return p.has("pop_limit"))
 	if not per_player.is_empty() or players.any(func(p): return typeof(p) == TYPE_DICTIONARY and p.has("pop")):
 		pop.text = "Per Player"
-		var lines := PackedStringArray()
-		for i in range(map_players.size()):
-			if map_players[i].has("pop_limit"):
-				lines.append("Player %d: %d" % [int(map_players[i].get("id", i + 1)), int(map_players[i]["pop_limit"])])
-		pop.tooltip_text = "Population limits set by the map.\n" + "\n".join(lines)
 	res.select(maxi(START_RES_AMOUNTS.find(int(s.get("StartingResources", 300))), 0))
 	if players.any(func(p): return typeof(p) == TYPE_DICTIONARY and p.has("resources")):
 		res.text = "Per Player"
@@ -1162,6 +1268,7 @@ func _fill_daytimes(id: String) -> void:
 	dsel.clear()
 	dsel.add_item(tr("Random"))
 	dsel.set_item_tooltip(0, tr("Randomly pick a time of the day."))
+	dsel.set_item_color(0, RANDOM_ITEM_COLOR)
 	for d in DAYTIMES[id]:
 		dsel.add_item(tr(d[0]))
 		dsel.set_item_tooltip(dsel.get_item_count() - 1, tr(d[1]))
@@ -1190,15 +1297,12 @@ func _update_preview() -> void:
 		img.texture = null if m.is_empty() else map_preview(str(m["id"]))
 		img.visible = img.texture != null
 		if info: info.offset_left = 192.0 if img.visible else 12.0
+	# MapPreview.js: the translated map name, or "No selected map".
 	if m.is_empty():
-		if lbl: lbl.text = "No map selected."
+		if lbl: lbl.text = tr("No selected map")
 		return
-	var seed_txt := "Random seed" if int(%SpinSeed.value) == 0 else "Seed %d" % int(%SpinSeed.value)
 	if lbl:
-		lbl.text = "%s • %s • %s • %dm • %d players • %s" % [
-			m["name"], m["kind"], m["biome"], int(m["size"]), int(m["players"]), seed_txt]
-		if _mp_role == "none" and _local_slot < 0:
-			lbl.text += "\nYou are not assigned to a slot: you watch the AIs play with the map revealed."
+		lbl.text = tr(str(m["name"]))
 	_update_description()
 
 ## 0.28 Panels/GameDescription.js: getGameDescription of the settings as they
@@ -1295,15 +1399,21 @@ func _build_description() -> void:
 	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_theme_font_size_override("normal_font_size", 13)
 	info.add_child(box)
-	var row := $VBox/HBox/Right/SlotsBox/SlotCountRow
-	for b in [["ResetCivs", "Reset Civs", "Reset any civilizations that have been selected to the default (random).", _on_reset_civs],
-			["ResetTeams", "Reset Teams", "Reset all teams to the default.", _on_reset_teams]]:
-		var btn := Button.new()
+	# PlayersPanel.xml civResetButton / teamResetButton: 16 px IconButtons at the
+	# Civilization and Team headings, iconResetGold, iconResetWhite on hover.
+	var header: Control = $VBox/HBox/Right/SlotsBox/SlotsHeader
+	for b in [["ResetCivs", "Reset any civilizations that have been selected to the default (random).", _on_reset_civs],
+			["ResetTeams", "Reset all teams to the default.", _on_reset_teams]]:
+		var btn := TextureButton.new()
 		btn.name = b[0]
-		btn.text = tr(b[1])
-		btn.tooltip_text = tr(b[2])
-		btn.pressed.connect(b[3])
-		row.add_child(btn)
+		btn.texture_normal = load("res://assets/textures/ui/global/icon/reset_gold.png")
+		btn.texture_hover = load("res://assets/textures/ui/global/icon/reset_white.png")
+		btn.ignore_texture_size = true
+		btn.stretch_mode = TextureButton.STRETCH_SCALE
+		btn.size = Vector2(16, 16)
+		btn.tooltip_text = tr(b[1])
+		btn.pressed.connect(b[2])
+		header.add_child(btn)
 
 ## 0.28 Buttons/ResetCivsButton.js: every player's civ back to Random.
 func _on_reset_civs() -> void:
@@ -1321,9 +1431,9 @@ func _on_reset_teams() -> void:
 ## The reset buttons are the controller's, and a scenario sets the civs and teams.
 func _render_reset_buttons() -> void:
 	for n in ["ResetCivs", "ResetTeams"]:
-		var b := get_node_or_null("VBox/HBox/Right/SlotsBox/SlotCountRow/" + n) as Button
+		var b := get_node_or_null("VBox/HBox/Right/SlotsBox/SlotsHeader/" + n) as Control
 		if b:
-			b.visible = not _is_scenario() and _mp_role != "client"
+			b.visible = not _is_scenario() and _mp_role != "client" and not _saved_game() # ResetCivsButton: hidden for a saved game
 
 # ---------------------------------------------------------------- slots ---
 
@@ -1366,6 +1476,12 @@ func _build_slot_headings() -> void:
 	header.add_child(info)
 	var grid := _slots_grid()
 	grid.sort_children.connect(_place_slot_headings)
+	# The columns follow the panel's width: on a new window size they let go first, so
+	# the panel can shrink, and are set again from its new width.
+	get_viewport().size_changed.connect(func():
+		for c in grid.get_children():
+			(c as Control).custom_minimum_size.x = 0.0
+		_size_slot_columns.call_deferred())
 	# PlayerColor.render: each row on its player's colour (alpha 100 of 255).
 	grid.draw.connect(func():
 		var cells := grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
@@ -1382,16 +1498,25 @@ func _place_slot_headings() -> void:
 	var header: Control = $VBox/HBox/Right/SlotsBox/SlotsHeader
 	var grid := _slots_grid()
 	var cells := grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
-	for c in range(mini(header.get_child_count(), grid.columns)):
-		var l: Label = header.get_child(c)
-		l.visible = c < cells.size() and (c != 1 or not _is_scenario())
+	var headings := header.get_children().filter(func(n): return n is Label)
+	for c in range(mini(headings.size(), grid.columns)):
+		var l: Label = headings[c]
+		# PlayerColor.js: the Color heading only for the controller, never on a scenario.
+		l.visible = c < cells.size() and (c != 1 or (not _is_scenario() and _mp_role != "client"))
 		if c < cells.size():
 			l.position = Vector2((cells[c] as Control).position.x, 0.0)
 			l.size = Vector2((cells[c] as Control).size.x if c < grid.columns - 1 else maxf((cells[c] as Control).size.x, 48.0), header.size.y)
 	var info := header.get_node_or_null("CivInfoButton") as Control
 	if info and cells.size() > 4:
 		var cc: Control = cells[4]
-		info.position = Vector2(cc.position.x + cc.size.x - 18.0, 2.0)
+		info.position = Vector2(cc.position.x + cc.size.x - 37.0, 2.0) # 85%-37 .. 85%-21
+		var rc := header.get_node_or_null("ResetCivs") as Control
+		if rc:
+			rc.position = Vector2(cc.position.x + cc.size.x - 16.0, 3.0) # 85%-16 .. 85%; iconReset draws 3 px down
+	var rt := header.get_node_or_null("ResetTeams") as Control
+	if rt and cells.size() > 5:
+		var tc: Control = cells[5]
+		rt.position = Vector2(tc.position.x + maxf(tc.size.x, 48.0) - 21.0, 3.0) # 100%-21 .. 100%-5
 	grid.queue_redraw()
 
 func _slots_grid() -> GridContainer:
@@ -1481,9 +1606,26 @@ func refresh_slots() -> void:
 	for i in range(n):
 		_add_slot_row(grid, i)
 	_rebuilding_slots = false
+	_size_slot_columns()
 	_apply_mp_locks()
 	_render_speeds()
 	_render_pop_tips()
+
+## PlayersPanel.xml's columns over the panel's width W, 5 px apart: name 0-22%, colour
+## 28 px, assignment to 50%+35, the 28 px AI gear, civ to 85%, team to 100%-5.
+func _size_slot_columns() -> void:
+	var grid := _slots_grid()
+	var w: float = (get_node("VBox/HBox/Right/SlotsBox") as Control).size.x
+	if w <= 0.0:
+		return
+	grid.add_theme_constant_override("h_separation", 5)
+	var widths := [w * 0.22, 28.0, w * 0.28 - 3.0, 28.0, w * 0.35 - 73.0, w * 0.15 - 10.0]
+	var cells := grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
+	for k in cells.size():
+		var c: Control = cells[k]
+		if c is Label:
+			(c as Label).clip_text = true
+		c.custom_minimum_size.x = maxf(floorf(widths[k % grid.columns]), 0.0)
 
 ## GameSpeed.render: the Fast Forward speeds only while nobody holds a player
 ## slot (every slot AI or unassigned); a speed no longer listed goes back to Normal.
@@ -1516,6 +1658,8 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	cols.resize(6)
 	var name := Label.new()
 	name.text = _slot_label(i, row)
+	if _mp_role != "none":
+		name.add_theme_color_override("font_color", _ready_color(i))
 	cols[0] = name
 	# kind
 	var kind_slot := Control.new()
@@ -1533,6 +1677,7 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 		kind.add_item(tr("Unassigned"), 0)
 		if i > 0:
 			kind.add_item(tr("Removed"), 2)
+		_color_assignment_items(kind, [])
 		var k := KIND_YOU if i == _local_slot and int(row["kind"]) == 0 else int(row["kind"])
 		kind.select(maxi(kind.get_item_index(k), 0))
 		kind.tooltip_text = tr("Select player.")
@@ -1545,15 +1690,14 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	# 0.28 PlayerCiv.getItems: Random first, then the civs by name.
 	civ.add_item("Random")
 	civ.set_item_tooltip(0, tr("Picks one civilization at random when the game starts."))
+	civ.set_item_color(0, RANDOM_ITEM_COLOR)
 	for ci in _civ_order():
 		var c: Dictionary = CIVS[ci]
-		var emblem: Texture2D = load(c["emblem"])
-		if emblem: civ.add_icon_item(emblem, c["name"])
-		else: civ.add_item(c["name"])
+		civ.add_item(c["name"]) # PlayerCiv.js: names only
 		civ.set_item_tooltip(civ.get_item_count() - 1, RefCommon.civ_history(int(c["id"]))) # PlayerCiv: g_CivData History
 	var civ_pos := _civ_pos(int(row["civ"]))
 	civ.select(_civ_order().find(civ_pos) + 1 if civ_pos >= 0 else 0)
-	civ.disabled = _map_civ(_map_player(i)) >= 0
+	civ.disabled = _map_civ(_map_seat(i)) >= 0
 	civ.tooltip_text = tr("Choose the civilization for this player.")
 	civ.item_selected.connect(_on_slot_civ.bind(i))
 	# team
@@ -1635,7 +1779,7 @@ func _on_slot_kind(idx: int, slot: int) -> void:
 		_local_slot = -1 # PlayerAssignment: you watch once your slot is given away
 	_render_speeds()
 	if slot == 0:
-		refresh_slots.call_deferred() # the "(You)" label follows slot 1's kind
+		refresh_slots.call_deferred() # slot 1's row follows its kind
 	_render_ai_button(slot)
 	_update_preview()
 
@@ -1698,7 +1842,7 @@ static func _draw_gear(b: Button) -> void:
 func _open_ai_config(slot: int) -> void:
 	if get_node_or_null("AIConfigLayer") != null:
 		return
-	var dlg = AIConfig.open_overlay(self, slot, _mp_role != "client")
+	var dlg = AIConfig.open_overlay(self, slot, _mp_role != "client" and not _saved_game())
 	dlg.get_parent().name = "AIConfigLayer"
 
 func _on_slot_civ(idx: int, slot: int) -> void:
@@ -1809,7 +1953,7 @@ func _build_options() -> void:
 	rt.tooltip_text = tr("Minutes until the player has achieved Relic Victory.")
 	var rc := _make_slider(%RelicCountSlot)
 	for c in RELIC_COUNTS:
-		rc.add_item(tr("%d relic") % c if c == 1 else tr("%d relics") % c)
+		rc.add_item(L10n.sprintf(tr("%(number)s relic") if c == 1 else tr("%(number)s relics"), {"number": c}))
 	rc.select(RELIC_COUNTS.find(2))
 	rc.tooltip_text = tr("Total number of relics spawned on the map. Relic victory is most realistic with only one or two relics. With greater numbers, the relics are important to capture to receive aura bonuses.")
 	var wl := _make_option(%WaterLevelSlot)
@@ -1830,6 +1974,8 @@ func _build_options() -> void:
 	for l in LANDSCAPES:
 		lsc.add_item(tr(l[0]))
 		lsc.set_item_tooltip(lsc.get_item_count() - 1, tr(l[2]))
+		if int(l[1]) <= 2: # Random and the group headers (Landscape.js randomItems)
+			lsc.set_item_color(lsc.get_item_count() - 1, RANDOM_ITEM_COLOR)
 	%LandscapeLabel.tooltip_text = tr("Select one of the landscapes of this map.")
 	lsc.select(0)
 	var tdf := _make_option(%TriggerDifficultySlot)
@@ -1840,6 +1986,7 @@ func _build_options() -> void:
 	tdf.select(2)
 	var dsel := _make_option(%DaytimeSlot)
 	dsel.add_item("Random")
+	dsel.set_item_color(0, RANDOM_ITEM_COLOR)
 	dsel.select(0)
 	var res := _make_option(%ResSlot)
 	for r in START_RES:
@@ -1848,6 +1995,9 @@ func _build_options() -> void:
 		res.set_item_tooltip(res.get_item_count() - 1, tr("Initial amount of each resource: %(resources)s.").replace("%(resources)s", str(START_RES_AMOUNTS[res.get_item_count() - 1])))
 	res.select(1)
 	res.tooltip_text = tr("Select the game's starting resources.")
+	# GameSettingControl.setTooltip: the title carries the setting's tooltip too.
+	for pair in [["MapSizeLabel", "MapSizeSlot"], ["PopCapTypeLabel", "PopCapTypeSlot"], ["ResLabel", "ResSlot"], ["CeasefireLabel", "CeasefireSlot"]]:
+		get_node("%" + pair[0]).tooltip_text = get_node("%" + pair[1]).get_child(0).tooltip_text
 	var bio := _make_option(%BiomeSlot)
 	bio.add_item(BIOMES[0], 0)
 	bio.select(0)
@@ -1937,7 +2087,7 @@ const PERSISTED_KEYS := ["map_id", "seed", "victory", "waves_enabled", "last_man
 	"regicide_garrison", "lock_teams", "disable_spies", "disable_treasures", "pop_cap", "team_pop",
 	"ceasefire_min", "reveal_map", "explore_map", "ally_view", "wonder_min", "relic_min", "relic_count", "water_level",
 	"sea_level_rise_min", "team_placement", "landscape", "trigger_difficulty", "map_daytime", "map_size", "start_res", "biome", "game_speed",
-	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors", "local_slot"]
+	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors", "local_slot", "map_filter"]
 ## 0 A.D. PersistentMatchSettings.PersistedSettingsFileSingleplayer.
 const PERSIST_FILE := "user://config/matchsettings.json"
 ## PersistentMatchSettings(isNetworked): a networked game's controller keeps its own file.
@@ -1993,7 +2143,9 @@ func page_state() -> Dictionary:
 		"slot_types": rows.map(func(r): return int(r["kind"])), "slot_civs": rows.map(func(r): return int(r["civ"])),
 		"slot_teams": rows.map(func(r): return int(r["team"])), "slot_diffs": rows.map(func(r): return int(r["diff"])),
 		"slot_behs": rows.map(func(r): return int(r["beh"])), "slot_colors": rows.map(func(r): return int(r["color"])),
-		"local_slot": _local_slot}
+		"local_slot": _local_slot,
+		# GuiData.js: the Map Filter travels with the settings and is persisted with them.
+		"map_filter": _map_filter_name}
 
 ## The settings to show: the persisted file when there is one, else what this
 ## run last started with (MatchSettings).
@@ -2088,6 +2240,9 @@ func _apply_settings(ms: Dictionary) -> void:
 			spd.select(spd.get_item_index(i))
 	%SpinSeed.value = int(ms.get("seed"))
 	# Restore map selection by id, with its map type.
+	var filter := str(ms.get("map_filter")) if ms.get("map_filter") != null else ""
+	if filter != "" and MAP_FILTERS.any(func(f): return f[0] == filter):
+		_map_filter_name = filter
 	_select_map_id(str(ms.get("map_id")))
 	# Restore slots.
 	var types: Array = ms.get("slot_types", [])
@@ -2123,7 +2278,7 @@ func _apply_settings(ms: Dictionary) -> void:
 func _on_back_pressed() -> void:
 	if _mp_role != "none":
 		save_persisted() # GameSettingsController.onClose (the host's)
-		# 0 A.D. gamesetup's Back in a networked game: leave it for the lobby.
+		# 0 A.D. gamesetup's Back in a networked game: to the lobby while signed in, else the main menu.
 		net_main.leave_net_game()
 		return
 	save_persisted() # GameSettingsController.onClose
@@ -2149,6 +2304,7 @@ func _collect_setup() -> Dictionary:
 	var n := int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value)
 	_ensure_slot_rows(n)
 	var types: Array = []
+	var map_names: Array = [] # the map's PlayerData Name per seat kept
 	var civs: Array = []
 	var teams: Array = []
 	var diffs: Array = []
@@ -2166,6 +2322,7 @@ func _collect_setup() -> Dictionary:
 		if k == 0 and i == _local_slot:
 			local = types.size()
 		types.append(k)
+		map_names.append(str(_map_seat(i).get("name", "")))
 		var c := int(_slot_rows[i]["civ"])
 		if _civ_pos(c) < 0: # "Random": 0 A.D. picks one when the match starts
 			c = int(CIVS[randi() % CIVS.size()]["id"])
@@ -2178,7 +2335,7 @@ func _collect_setup() -> Dictionary:
 			humans += 1
 		elif k == 1:
 			ai_total += 1
-	var names := _player_names(types, civs, local)
+	var names := _player_names(types, civs, local, map_names)
 	# Single-player Petra settings: the first AI slot's picks (per-slot AI is next).
 	var diff := 3
 	var beh := 0 # player_defaults.json AIBehavior "random"
@@ -2233,13 +2390,17 @@ static func singleplayer_name() -> String:
 # 0 A.D. PlayerName: your slot has your name (Options > player name), AI slots take an
 # unused name from their civ's AINames ("Name 2" when the list runs out), other humans
 # are "Player N".
-func _player_names(types: Array, civs: Array, local := 0) -> Array:
+func _player_names(types: Array, civs: Array, local := 0, map_names: Array = []) -> Array:
 	var you := singleplayer_name()
 	var picked: Array = []
 	var names: Array = []
 	for i in range(types.size()):
+		# PlayerName._set: the map's Name is the seat's default, which an AI keeps.
+		var map_name: String = str(map_names[i]) if i < map_names.size() else ""
 		if i == local and int(types[i]) == 0:
 			names.append(you if not you.is_empty() else "Player %d" % (i + 1))
+		elif not map_name.is_empty():
+			names.append(map_name)
 		elif int(types[i]) == 1:
 			var pool: Array = CivAINames.AI_NAMES[clampi(int(civs[i]), 0, CivAINames.AI_NAMES.size() - 1)]
 			var free: Array = pool.filter(func(n): return not picked.has(n))
@@ -2290,6 +2451,7 @@ func _on_start_pressed() -> void:
 	ms.map_id = str(m["id"])
 	ms.campaign_run = "" # a match from Game Setup is not a campaign level
 	ms.campaign_level = ""
+	ms.campaign_map_name = ""
 	ms.seed = int(st["seed"])
 	ms.seed_exact = false
 	ms.ai_seed = 0 # only -autostart-aiseed sets one
@@ -2348,7 +2510,7 @@ func _on_start_pressed() -> void:
 
 ## translatePlural("%(min)s minute", "%(min)s minutes").
 func _minutes(n: int) -> String:
-	return (tr("%d minute") if n == 1 else tr("%d minutes")) % n
+	return L10n.sprintf(tr("%(min)s minute") if n == 1 else tr("%(min)s minutes"), {"min": n})
 
 func _show_error(msg: String) -> void:
 	var lbl := $VBox/HBox/Right/Buttons/BtnStart as Button
@@ -2379,6 +2541,7 @@ var _setting_warning: Label
 var _saved_label: Label
 ## The player count and cheats setting Rated Game was last set from (Rating.js maybeUpdate).
 var _rated_key := ""
+var _rated_locked := false # LockedTeams.onRatingChange: the rated game has locked the teams
 ## 0.28 ReadyButton captions and tooltips per ready state (NotReady, Ready,
 ## StayReady); pressing moves to the next state.
 const READY_CAPTIONS := ["I'm ready", "Stay ready", "I'm not ready!"]
@@ -2408,6 +2571,7 @@ func _init_net() -> void:
 		net_main.net_setup_refused.connect(_show_error)
 	if _mp_role == "client":
 		_on_net_setup_changed()
+		_render_loading()
 	else:
 		_host_write_setup(true)
 		refresh_slots()
@@ -2429,7 +2593,7 @@ func _build_net_controls() -> void:
 	_setting_warning = Label.new()
 	_setting_warning.name = "GameSettingWarning"
 	_setting_warning.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_setting_warning.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	_setting_warning.add_theme_color_override("font_color", Color.RED) # GameSettingWarning.xml textcolor="red"
 	right.add_child(_setting_warning)
 	right.move_child(_setting_warning, $VBox/HBox/Right/Buttons.get_index())
 	# 0.28 SavedGameLabel: shown while the controller hosts a saved game.
@@ -2628,6 +2792,12 @@ func _update_rated() -> void:
 		_rated.set_pressed_no_signal(false)
 	_rated.visible = avail
 	cheats.disabled = avail and _rated.button_pressed
+	# LockedTeams.onRatingChange: a rated game has Locked teams on and fixed; unrating it unlocks them.
+	var rated := avail and _rated.button_pressed
+	if rated != _rated_locked:
+		_rated_locked = rated
+		%LockTeams.button_pressed = rated
+		_update_lock_teams_for_pop()
 
 func _update_net_controls() -> void:
 	if _mp_role == "none":
@@ -2650,6 +2820,15 @@ func _update_net_controls() -> void:
 	_ready_btn.tooltip_text = READY_TOOLTIPS[ready]
 	# ReadyButton.onPlayerAssignmentsChange: hidden for an unassigned client (an observer).
 	_ready_btn.visible = int(_net_state.get("my_slot", -1)) >= 0
+
+## The client lost the host in the setup: ChatInputPanel hides the chat input
+## and its button, and ReadyButton disables itself; the page and its chat stay.
+func net_disconnected() -> void:
+	var input := get_node_or_null("%NetChatInput") as Control
+	if input:
+		input.get_parent().visible = false
+	if _ready_btn:
+		_ready_btn.disabled = true
 
 func _on_ready_pressed() -> void:
 	if _mp_role != "client":
@@ -2677,6 +2856,7 @@ func _process(delta: float) -> void:
 	if _desc_tick >= 0.3:
 		_desc_tick = 0.0
 		_update_description()
+		_render_value_texts()
 	if _mp_role == "none":
 		return
 	_update_net_chat()
@@ -2737,6 +2917,7 @@ func _host_write_setup(force: bool) -> void:
 	ms.player_count = ps["slot_types"].size()
 	ms.campaign_run = ""
 	ms.campaign_level = ""
+	ms.campaign_map_name = ""
 	ms.ai_difficulty = 3
 	ms.ai_behavior = 0
 	for i in range(ps["slot_types"].size()):
@@ -2746,9 +2927,49 @@ func _host_write_setup(force: bool) -> void:
 			break
 	net_main.push_net_setup()
 
+## LoadingPage: a client sees "Loading map data. Please wait…", not its own
+## last settings, until the host's first setup arrives (GameSettingsController's
+## loading state); the setup page shows only then.
+var _loading_page: Control
+func _net_loading() -> bool:
+	return _mp_role == "client" and int(_net_state.get("version", 0)) <= 0
+
+func _render_loading() -> void:
+	var loading := _net_loading()
+	if loading and _loading_page == null:
+		_loading_page = Panel.new()
+		_loading_page.name = "LoadingPage"
+		_loading_page.theme = MODERN.theme()
+		_loading_page.theme_type_variation = "ModernDialog"
+		_loading_page.set_anchors_preset(Control.PRESET_CENTER)
+		_loading_page.offset_left = -190
+		_loading_page.offset_right = 190
+		_loading_page.offset_top = -80
+		_loading_page.offset_bottom = 80
+		var title := Label.new()
+		title.text = tr("Loading")
+		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		title.position = Vector2(62, -16)
+		title.size = Vector2(256, 32)
+		_loading_page.add_child(title)
+		var text := Label.new()
+		text.name = "Text"
+		text.text = tr("Loading map data. Please wait…")
+		text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		text.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_loading_page.add_child(text)
+		add_child(_loading_page)
+	if _loading_page:
+		_loading_page.visible = loading
+	$VBox.visible = not loading
+
 func _on_net_setup_changed() -> void:
 	_net_state = net_main.get_net_setup_state()
 	var ms := get_node("/root/MatchSettings")
+	_render_loading()
+	if _net_loading():
+		return
 	if _mp_role == "client":
 		var src := {}
 		for k in PERSISTED_KEYS:
@@ -2778,17 +2999,27 @@ func _net_request(key: String, value: int) -> void:
 	if _mp_role == "client" and not _rebuilding_slots:
 		net_main.request_net_player_setting(key, value)
 
-## The slot's name: in a networked game, the client in it and whether it is ready.
-func _slot_label(i: int, row: Dictionary) -> String:
+## The slot's name (PlayerName.js): player_defaults.json's "Player N", translated in
+## a single-player setup, where the players' own names are only filled in at launch;
+## in a networked game, the client in it.
+func _slot_label(i: int, _row: Dictionary) -> String:
+	var default_name := "Player %d" % (i + 1)
 	if _mp_role == "none":
-		return "P%d%s" % [i + 1, " (You)" if i == _local_slot and int(row["kind"]) == 0 else ""]
+		return tr(default_name)
 	var k := _net_rows().find(i) if _mp_role == "host" else i
 	var slots: Array = _net_state.get("slots", [])
 	if k < 0 or k >= slots.size() or int(slots[k].get("client", -1)) < 0:
-		return "P%d" % (i + 1)
+		return default_name
+	return str(slots[k].get("name", ""))
+
+## PlayerName.js ReadyTags: a client not ready white, ready green; a slot with no client 150 150 250.
+func _ready_color(i: int) -> Color:
+	var k := _net_rows().find(i) if _mp_role == "host" else i
+	var slots: Array = _net_state.get("slots", [])
+	if k < 0 or k >= slots.size() or int(slots[k].get("client", -1)) < 0:
+		return Color8(150, 150, 250)
 	var e: Dictionary = slots[k]
-	var you := int(e["client"]) == int(_net_state.get("my_client", -2))
-	return "%s%s%s" % [str(e.get("name", "")), " (You)" if you else "", " (Ready)" if int(e["client"]) > 0 and int(e.get("ready", 0)) > 0 else ""]
+	return Color.GREEN if int(e["client"]) > 0 and int(e.get("ready", 0)) > 0 else Color.WHITE
 
 ## 0.28 PlayerAssignment in a networked setup: one dropdown per slot listing the
 ## connected clients, "AI: Petra Bot", "Unassigned" and "Removed" (not on slot 1).
@@ -2797,6 +3028,22 @@ func _slot_label(i: int, row: Dictionary) -> String:
 ## game offers no AI on a human slot and keeps an AI slot as it is. Only the host
 ## changes it; a client sees it locked.
 const ASSIGN_CLIENT_ID := 10 # item id of client c: 10 + c
+
+## PlayerAssignmentItem tags: a player white, an observer 170 170 250, an AI
+## 70 150 70, Unassigned 140 140 140, Removed 255 140 140.
+func _color_assignment_items(sel: RtsoSafeSelect, observers: Array) -> void:
+	for ix in range(sel.get_item_count()):
+		var id := sel.get_item_id(ix)
+		var c := Color.WHITE
+		if id == 1:
+			c = Color8(70, 150, 70)
+		elif id == 0:
+			c = Color8(140, 140, 140)
+		elif id == 2:
+			c = Color8(255, 140, 140)
+		elif id >= ASSIGN_CLIENT_ID and observers.has(id - ASSIGN_CLIENT_ID):
+			c = Color8(170, 170, 250)
+		sel.set_item_color(ix, c)
 
 func _assignment_cell(i: int) -> Control:
 	var cell := Control.new()
@@ -2814,14 +3061,14 @@ func _assignment_cell(i: int) -> Control:
 			clients.append(e)
 	var saved := _saved_game()
 	for e in clients:
-		var you := int(e["client"]) == int(_net_state.get("my_client", -2))
-		var ready := int(e["client"]) > 0 and int(e.get("ready", 0)) > 0
-		ob.add_item("%s%s%s" % [str(e.get("name", "")), " (You)" if you else "", " (Ready)" if ready else ""], ASSIGN_CLIENT_ID + int(e["client"]))
+		ob.add_item(str(e.get("name", "")), ASSIGN_CLIENT_ID + int(e["client"]))
 	if not saved or kind == 1:
 		ob.add_item(tr("AI: %(ai)s").replace("%(ai)s", tr("Petra Bot")), 1)
 	ob.add_item(tr("Unassigned"), 0)
 	if i > 0 and (not saved or kind == 2):
 		ob.add_item(tr("Removed"), 2)
+	var observers: Array = Array(_net_state.get("observers", [])).map(func(e): return int(e.get("client", -1)))
+	_color_assignment_items(ob, observers)
 	var sel := ASSIGN_CLIENT_ID + holder if kind == 0 and holder >= 0 else kind
 	ob.select(maxi(ob.get_item_index(sel), 0))
 	ob.tooltip_text = tr("Select player.")
@@ -2833,8 +3080,26 @@ func _assignment_cell(i: int) -> Control:
 		if holder >= 0 and id < ASSIGN_CLIENT_ID:
 			net_main.assign_net_client(holder, -1)
 		if id >= ASSIGN_CLIENT_ID:
+			# PlayerAssignment Client.onSelectionChange: a seated player takes its
+			# civ and colour along (not on a scenario or a saved game), and an AI
+			# here moves to the slot the player left.
+			var src := _net_client_row(id - ASSIGN_CLIENT_ID)
+			var moved := src >= 0 and src != i
+			if moved:
+				var old: Dictionary = _slot_rows[src]
+				var row: Dictionary = _slot_rows[i]
+				var keys: Array = ["diff", "beh"] if kind == 1 else []
+				if not _is_scenario() and not saved:
+					keys += ["civ", "color"]
+				for key in keys:
+					var t = old[key]
+					old[key] = row[key]
+					row[key] = t
+				if kind == 1:
+					_on_slot_kind(1, src)
 			if kind != 0:
 				_on_slot_kind(0, i)
+			if moved or kind != 0:
 				_host_write_setup(true)
 			net_main.assign_net_client(id - ASSIGN_CLIENT_ID, _net_rows().find(i))
 		elif id != kind:
@@ -2843,6 +3108,15 @@ func _assignment_cell(i: int) -> Control:
 		_net_state = net_main.get_net_setup_state()
 		refresh_slots.call_deferred())
 	return cell
+
+## Host: the slot row client `c` plays in the sent setup (-1 while it watches).
+func _net_client_row(c: int) -> int:
+	var slots: Array = _net_state.get("slots", [])
+	var rows := _net_rows()
+	for k in mini(slots.size(), rows.size()):
+		if int(slots[k].get("client", -1)) == c:
+			return int(rows[k])
+	return -1
 
 ## Observers.js / the 0.28 player list: who watches, under the slots.
 func _update_net_observers() -> void:
@@ -2875,6 +3149,16 @@ func _apply_mp_locks() -> void:
 		for c in cells:
 			if c.has_node("AssignSelect"):
 				keep[c] = true
+	# GameSettingsTabs, CivInfoButton, AIConfigButton and MapBrowser.js: the tabs
+	# and the viewers are no settings, so everyone opens them (a client and a
+	# saved game's host read only); Browse Maps is hidden for a saved game.
+	for name in TAB_BUTTONS + ["CivInfoButton", "AIConfigButton", "BrowseMaps"]:
+		for b in $VBox/HBox.find_children(name, "BaseButton", true, false):
+			keep[b] = true
+			(b as BaseButton).disabled = false
+	var browse := find_child("BrowseMaps", true, false) as Control
+	if browse:
+		browse.visible = not _saved_game()
 	# GameSettingControl: a client changes nothing, its own slot included (0.28
 	# NetServer relays only the controller's setup).
 	_lock_tree($VBox/HBox, keep)

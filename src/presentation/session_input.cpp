@@ -56,17 +56,28 @@ static bool unit_selection_group(uint8_t unit_type) {
 // with the civic centres, kush/temple_amun and the shrines with the temples, and so on).
 static uint8_t structure_selection_group(uint8_t type) {
 	switch (type) {
-		case rtso::BLD_CRANNOG: case rtso::BLD_IMPERIAL_COURT: return rtso::BLD_TOWN_CENTER;
+		case rtso::BLD_CRANNOG: case rtso::BLD_IMPERIAL_COURT: case rtso::BLD_CAMPAIGN_CITY:
+		case rtso::BLD_CAMPAIGN_CITY_MINOR: return rtso::BLD_TOWN_CENTER;
 		case rtso::BLD_TEMPLE_AMUN: case rtso::BLD_TEMPLE_VESTA: case rtso::BLD_TEMPLE_MARS:
-		case rtso::BLD_TEMPLE_ISIS: case rtso::BLD_KUSH_SHRINE: case rtso::BLD_SHRINE: return rtso::BLD_TEMPLE;
+		case rtso::BLD_TEMPLE_ISIS: case rtso::BLD_TOPHET: case rtso::BLD_KUSH_SHRINE: case rtso::BLD_SHRINE:
+		case rtso::BLD_CAMPAIGN_SANCTUARY: case rtso::BLD_EPIC_TEMPLE: return rtso::BLD_TEMPLE;
 		case rtso::BLD_INN: case rtso::BLD_TENT: case rtso::BLD_WAREHOUSE: case rtso::BLD_TAVERN:
-		case rtso::BLD_APARTMENT: return rtso::BLD_HOUSE;
+		case rtso::BLD_APARTMENT: case rtso::BLD_STALL: case rtso::BLD_HUT: case rtso::BLD_LONGHOUSE:
+		case rtso::BLD_PERS_HOUSE_A: case rtso::BLD_PERS_HOUSE_B: case rtso::BLD_APARTMENT_BLOCK: return rtso::BLD_HOUSE;
 		case rtso::BLD_TOWER_GREAT: return rtso::BLD_TOWER;
 		case rtso::BLD_FORTRESS_OLD: return rtso::BLD_FORTRESS;
 		case rtso::BLD_TRADING_POST: return rtso::BLD_MARKET;
 		case rtso::BLD_MILL: return rtso::BLD_FARMSTEAD;
 		default: return type;
 	}
+}
+
+// popOneFromSelection for "construct": the first selected unit that can build, 0 if none.
+uint32_t RtsoMain::first_selected_builder() const {
+	if (!sim) return 0;
+	for (int64_t i = 0; i < selected_ids.size(); ++i)
+		if (sim->unit_id_builds((uint32_t)selected_ids[i])) return (uint32_t)selected_ids[i];
+	return 0;
 }
 
 static void pop_from_selection(PackedInt32Array &sel, uint32_t id) {
@@ -133,7 +144,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					return;
 				}
 			}
-			if (build_mode && !wall_drag_mode) {
+			// Walls have no rotation (input.js rotates only INPUT_BUILDING_PLACEMENT).
+			if (build_mode && !wall_drag_mode && current_build_type != rtso::BLD_WALL_SEGMENT &&
+					current_build_type != rtso::BLD_PALISADE && current_build_type != rtso::BLD_SIEGE_WALL) {
 			constexpr float ROTATION_STEP = 3.14159265f / 12.0f; // 24 presses make a full turn
 			if (fired("session.rotate.cw")) { placement_angle += ROTATION_STEP; return; }
 			if (fired("session.rotate.ccw")) { placement_angle -= ROTATION_STEP; return; }
@@ -173,9 +186,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (save) {
 				selected_groups[grp].clear();
 				const bool disjoint = rtso::user_config::get_bool("gui.session.disjointcontrolgroups");
-				// Any selected entity, a structure too (EntityGroupsContainer).
+				// Every selected entity, structures too (EntityGroupsContainer.addEntities).
 				PackedInt32Array members = selected_ids;
-				if (selected_building_id != 0) members.push_back((int32_t)selected_building_id);
+				for (uint32_t b : selected_structures()) members.push_back((int32_t)b);
 				for (int s = 0; s < members.size(); ++s) {
 					for (int o = 0; o < 10 && disjoint; ++o) {
 						if (o == grp) continue;
@@ -513,13 +526,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				drag_start = mouse_pos;
 				if (sim) {
 					// selection.js addList: Control all units selects anyone visible.
-					const size_t hit = own_unit_under_mouse(mouse_pos, sim->controls_all(local_player()));
+					const size_t hit = click_pick_unit(mouse_pos, sim->controls_all(local_player()) || observer_all_view());
 					press_pick_unit_ = hit == (size_t)-1 ? 0 : sim->units().id[hit];
 				}
 				sel_rect->set_rect(drag_start, mouse_pos, true);
 			} else {
 				const bool dbl_click = double_click_pending;
 				double_click_pending = false;
+				// selection.js addList plays the first added entity's sound; removeList none.
+				const PackedInt32Array before_sel = selected_ids;
+				const std::vector<uint32_t> before_structs = selected_structures();
 				if (build_click_pending) {
 					build_click_pending = false;
 					int cell_x = build_click_cell_x, cell_y = build_click_cell_y;
@@ -527,25 +543,32 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					const float fp = (float)rtso::building_type_info(current_build_type).footprint;
 					const float angle = placement_angle_at(current_build_type, (cell_x + fp * 0.5f) * rtso::Simulation::GRID,
 							(cell_y + fp * 0.5f) * rtso::Simulation::GRID);
-					// Shift or Alt keeps placing; Alt sends one builder, which leaves the
-					// selection (input.js:895 and popOneFromSelection).
-					const bool order_one = rtso::hotkeys::held("session.orderone") && !selected_ids.is_empty();
-					const bool keep_placing = order_one || rtso::hotkeys::held("session.queue");
-					const uint32_t one_builder = order_one ? (uint32_t)selected_ids[0] : 0;
+					// tryPlaceBuilding (input.js:306-347): Shift queues the build for the builders
+					// and keeps placing while units stay selected; Alt sends the first selected
+					// builder, which leaves the selection (popOneFromSelection), else everyone.
+					const bool queued = rtso::hotkeys::held("session.queue");
+					const bool push_front = !queued && rtso::hotkeys::held("session.pushorderfront");
+					const uint32_t one_builder = rtso::hotkeys::held("session.orderone") ? first_selected_builder() : 0;
+					const bool order_one = one_builder != 0;
 					const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
 					const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
+					auto after_place = [&]() {
+						play_civ_voice("build");
+						if (order_one) pop_from_selection(selected_ids, one_builder);
+						if (!queued || selected_ids.is_empty()) enter_build_mode(false);
+					};
 					if (turn_cmds()) {
+						const uint32_t flags = (queued ? rtso::NET_BUILD_QUEUED : 0) | (push_front ? rtso::NET_BUILD_PUSH_FRONT : 0);
 						post_lockstep(5, builders, builder_n,
-								(float)cell_x, (float)cell_y, rtso::Simulation::pack_angle(angle), current_build_type);
-						play_civ_voice("build");
-						if (order_one) pop_from_selection(selected_ids, one_builder);
-						if (!keep_placing) enter_build_mode(false);
+								(float)cell_x, (float)cell_y, rtso::Simulation::pack_angle(angle) | flags, current_build_type);
+						after_place();
 					} else if (uint32_t bid = sim->cmd_build(local_player(), cell_x, cell_y, current_build_type, angle)) {
-						if (builder_n > 0)
-							sim->order_build_or_repair(builders, builder_n, bid);
-						play_civ_voice("build");
-						if (order_one) pop_from_selection(selected_ids, one_builder);
-						if (!keep_placing) enter_build_mode(false);
+						if (builder_n > 0) {
+							sim->set_push_front_order(push_front);
+							sim->order_build_or_repair(builders, builder_n, bid, queued);
+							sim->set_push_front_order(false);
+						}
+						after_place();
 					} else {
 						session_audio_.play_invalid_placement();
 					}
@@ -575,17 +598,20 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						// input.js: the entity hit on mouse-down is kept, so a unit that walked away
 						// before the release is still picked; else the one under the release.
 						size_t best_uidx = (size_t)-1;
-						const bool control_all = sim->controls_all(local_player());
+						const bool control_all = sim->controls_all(local_player()) || observer_all_view();
 						if (press_pick_unit_ != 0)
 							for (size_t i = 0; i < uview.count; ++i)
 								if (uview.id[i] == press_pick_unit_ && uview.alive[i] &&
 										(uview.team[i] == local_player() || control_all)) best_uidx = i;
-						if (best_uidx == (size_t)-1) best_uidx = own_unit_under_mouse(mouse_pos, control_all);
+						if (best_uidx == (size_t)-1) best_uidx = click_pick_unit(mouse_pos, control_all);
 
 						if (best_uidx != (size_t)-1 && is_ctrl && !dbl_click) {
-							// Ctrl+click drops the unit from the selection (selection.remove).
-							const int64_t at = selected_ids.find((int32_t)uview.id[best_uidx]);
-							if (at >= 0) selected_ids.remove_at(at);
+							// Ctrl+click drops the unit, and its formation, from the selection
+							// (selection.remove: removeList's addFormationMembers).
+							for (int32_t uid : formation_mates((int32_t)uview.id[best_uidx])) {
+								const int64_t at = selected_ids.find(uid);
+								if (at >= 0) selected_ids.remove_at(at);
+							}
 						} else if (best_uidx != (size_t)-1) {
 							if (dbl_click) {
 								// Double-click selects the player's units of the clicked one's template
@@ -607,26 +633,30 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 									return !exact || uview.rank[i] == same_rank;
 								};
 								Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+								// addList / removeList change only the units they name: selected
+								// structures stay under Shift or Ctrl (selection.js).
 								if (!is_shift && !is_ctrl) {
 									selected_ids.clear();
+									selected_building_id = 0;
 								}
-								selected_building_id = 0;
 								if (cam) {
 									const Vector2 vp_size = get_viewport()->get_visible_rect().size;
 									for (size_t i = 0; i < uview.count; ++i) {
-										if (!uview.alive[i] || uview.team[i] != local_player() || !matches(i))
+										if (!uview.alive[i] || uview.team[i] != (observer_all_view() ? uview.team[best_uidx] : local_player()) || !matches(i))
 											continue;
 										Vector3 world_pos(uview.pos_x[i], 0, uview.pos_z[i]);
 										if (!offscreen && cam->is_position_behind(world_pos)) continue;
 										Vector2 screen_pos = cam->unproject_position(world_pos);
 										if (offscreen || (screen_pos.x >= 0.0f && screen_pos.x <= vp_size.x &&
 											screen_pos.y >= 0.0f && screen_pos.y <= vp_size.y)) {
-											int32_t uid = (int32_t)uview.id[i];
-											const int64_t at = selected_ids.find(uid);
-											if (is_ctrl) {
-												if (at >= 0) selected_ids.remove_at(at);
-											} else if (at < 0) {
-												selected_ids.push_back(uid);
+											// addList / removeList take whole formations.
+											for (int32_t uid : formation_mates((int32_t)uview.id[i])) {
+												const int64_t at = selected_ids.find(uid);
+												if (is_ctrl) {
+													if (at >= 0) selected_ids.remove_at(at);
+												} else if (at < 0) {
+													selected_ids.push_back(uid);
+												}
 											}
 										}
 									}
@@ -638,23 +668,46 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								// already selected; Ctrl+click is the removal).
 								for (int32_t uid : formation_mates((int32_t)uview.id[best_uidx]))
 									if (!selected_ids.has(uid)) selected_ids.push_back(uid);
-								selected_building_id = 0;
 							} else {
 								selected_ids.clear();
 								selected_building_id = 0;
 								for (int32_t uid : formation_mates((int32_t)uview.id[best_uidx]))
 									selected_ids.push_back(uid);
 							}
-							play_civ_voice("select");
+							play_select_added(before_sel, before_structs);
 						} else if (uint32_t animal = own_fauna_at(click_pos.x, click_pos.z)) {
-							// The player's own livestock (0 A.D. livestock are units).
-							const int64_t at = selected_ids.find((int32_t)animal);
-							if (is_ctrl) {
-								if (at >= 0) selected_ids.remove_at(at);
-							} else {
-								if (!is_shift) selected_ids.clear();
+							// The player's own livestock (0 A.D. livestock are units). A double-click takes
+							// the player's animals of its kind on screen, or everywhere with
+							// selection.offscreen (input.js PickSimilarPlayerEntities).
+							std::vector<int32_t> picked{(int32_t)animal};
+							if (dbl_click) {
+								auto fv = sim->fauna();
+								uint8_t kind = 0xFF;
+								for (size_t f = 0; f < fv.count; ++f)
+									if (fv.id[f] == animal) kind = fv.fauna_type[f];
+								Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+								const Vector2 vp_size = get_viewport()->get_visible_rect().size;
+								for (size_t f = 0; f < fv.count && cam; ++f) {
+									if (fv.id[f] == animal || fv.fauna_type[f] != kind || !sim->fauna_selectable_by(local_player(), fv.id[f]))
+										continue;
+									const Vector3 wp(fv.pos_x[f], sim->get_terrain_height(fv.pos_x[f], fv.pos_z[f]), fv.pos_z[f]);
+									if (!offscreen && cam->is_position_behind(wp)) continue;
+									const Vector2 sp = cam->unproject_position(wp);
+									if (offscreen || (sp.x >= 0.0f && sp.x <= vp_size.x && sp.y >= 0.0f && sp.y <= vp_size.y))
+										picked.push_back((int32_t)fv.id[f]);
+								}
+							}
+							if (!is_ctrl && !is_shift) {
+								selected_ids.clear();
 								selected_building_id = 0;
-								if (at < 0) selected_ids.push_back((int32_t)animal);
+							}
+							for (int32_t id : picked) {
+								const int64_t at = selected_ids.find(id);
+								if (is_ctrl) {
+									if (at >= 0) selected_ids.remove_at(at);
+								} else if (at < 0) {
+									selected_ids.push_back(id);
+								}
 							}
 						} else {
 							// Check building hit: any visible part (0 A.D. picks the
@@ -705,6 +758,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 									structs = picked;
 								}
 								set_selected_structures(structs);
+								play_select_added(before_sel, before_structs);
 							} else if (!is_ctrl && !(is_shift && (!selected_ids.is_empty() || selected_building_id != 0)) &&
 									inspector_.inspect_at(click_pos)) {
 								// Another player's unit or structure, an animal or a resource:
@@ -746,13 +800,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								structs = boxed_structs;
 							}
 							set_selected_structures(structs);
-							play_civ_voice("select");
+							play_select_added(before_sel, before_structs);
 							return;
 						}
 						if (!is_shift && !is_ctrl) {
 							selected_ids.clear();
+							selected_building_id = 0;
 						}
-						selected_building_id = 0;
 						for (int32_t uid : boxed) {
 							const int64_t at = selected_ids.find(uid);
 							if (is_ctrl) {
@@ -761,9 +815,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								selected_ids.push_back(uid);
 							}
 						}
-						if (selected_ids.size() > 0) {
-							play_civ_voice("select");
-						}
+						play_select_added(before_sel, before_structs);
 					}
 				}
 			}
@@ -775,9 +827,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			flare_armed_ = false; // INPUT_FLARE: a right click cancels the flare
 			return;
 		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed()) {
-			// INPUT_PRESELECTEDACTION: a right click drops the armed action, then gives the usual order.
-			if (!replaying_right_ && any_armed_mode())
+			// input.js INPUT_PRESELECTEDACTION: a right press only drops the armed action, and
+			// its release gives no order.
+			if (!replaying_right_ && any_armed_mode()) {
 				attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
+				return;
+			}
 			// A right-click while band-boxing cancels the box and gives no order
 			// (input.js INPUT_BANDBOXING: right button resets to INPUT_NORMAL).
 			if (dragging && drag_start.distance_to(mouse_pos) > 4.0f) {
@@ -792,7 +847,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			// input.js INPUT_NORMAL right button: with units selected, wait for the release, which
 			// either gives the usual order or, after a drag, spreads them along the drawn line.
-			if (!replaying_right_ && !selected_ids.is_empty() && !spectating()) {
+			if (!replaying_right_ && !selected_ids.is_empty() && orders_allowed()) {
 				right_line_ = RightLine();
 				right_line_.active = true;
 				right_line_.start = mouse_pos;
@@ -813,6 +868,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					sim->cmd_unset_rally_point(local_player(), selected_building_id);
 				return;
 			}
+			// unit_actions.js "set-rallypoint" getActionInfo: a selected structure is no target
+			// (unless session.autorallypoint), and with no rally point to drop nothing happens.
+			if (selected_ids.is_empty() && over_own_rally_structure(click_pos, false) && !auto_rally) return;
 			// A selected structure alone: a right-click sets its rally point. With units also
 			// selected (Shift+click), their orders come first (unit_actions.js: the units'
 			// actions are checked before "set-rallypoint").
@@ -864,11 +922,27 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					if (id != 0) pop_from_selection(sel, id);
 				}
 			} pop_one{ selected_ids, one_id };
+			const uint32_t *all_ptr = sel_ptr;
+			const size_t all_n = sel_n;
 			if (rtso::hotkeys::held("session.orderone")) {
 				one_id = sel_ptr[0];
 				sel_ptr = &one_id;
 				sel_n = 1;
 			}
+			// popOneFromSelection: with Alt the action checks look at the whole selection, and the
+			// order goes to the first selected unit able to carry it out.
+			auto able_any = [&](auto &&able) {
+				const uint32_t *p = one_id ? all_ptr : sel_ptr;
+				const size_t n = one_id ? all_n : sel_n;
+				for (size_t k = 0; k < n; ++k)
+					if (able(p[k])) return true;
+				return false;
+			};
+			auto pick_one = [&](auto &&able) {
+				for (size_t k = 0; one_id && k < all_n; ++k)
+					if (able(all_ptr[k])) { one_id = all_ptr[k]; return; }
+			};
+			auto builds = [&](uint32_t id) { return sim->unit_id_builds(id); };
 
 			// 5. Default: Move Order (a player's walk ignores enemies until it arrives)
 			auto walk_there = [&]() {
@@ -915,11 +989,24 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			const auto send_structure_click = [&](StructureClick c, uint32_t bid, uint32_t sid) {
 				if (c == CLICK_NONE) return false;
 				const bool capture = c == CLICK_CAPTURE;
+				// Alt (orderone): the first selected unit able to attack or capture it.
+				if (sid) {
+					pick_one([&](uint32_t id) {
+						auto v = sim->units();
+						for (size_t i = 0; i < v.count; ++i)
+							if (v.id[i] == id) return v.alive[i] && v.attack_damage[i] > 0.0f;
+						return false;
+					});
+				} else {
+					pick_one([&](uint32_t id) {
+						return capture ? sim->any_can_capture_building(&id, 1, bid) : sim->any_can_damage_building(&id, 1, bid);
+					});
+				}
 				if (sid) {
 					if (turn_cmds())
-						post_lockstep(17, sel_ptr, sel_n, 0, 0, sid, capture ? 0 : rtso::NET_HUNT_SCENERY_NO_CAPTURE);
+						post_lockstep(17, sel_ptr, sel_n, 0, 0, sid, (uint8_t)(qbit | (capture ? 0 : rtso::NET_HUNT_SCENERY_NO_CAPTURE)));
 					else
-						sim->order_attack_scenery(sel_ptr, sel_n, sid, capture);
+						sim->order_attack_scenery(sel_ptr, sel_n, sid, capture, queue_shift);
 				} else {
 					if (turn_cmds())
 						post_lockstep(15, sel_ptr, sel_n, 0, 0, bid, (uint8_t)(qbit | (capture ? 0 : rtso::NET_PARAM_NO_CAPTURE)));
@@ -939,7 +1026,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					if (send_structure_click(scenery_click(sid), 0, sid)) return;
 				}
 				for (const auto &b : sim->buildings()) {
-					if (b.wrecked || b.team == local_player()) continue;
+					if (b.wrecked) continue; // own structures too: C recaptures (Capturable.CanCapture)
 					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z;
 					const float hit_r = b.half_size + 1.2f;
 					if (dx * dx + dz * dz > hit_r * hit_r) continue;
@@ -1058,6 +1145,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 
 			auto uview = sim->units();
+			// input.js determineAction: the actions below test the one entity under the cursor
+			// (PickEntityAtPoint, as the hover highlights it); over bare ground, what lies near the
+			// click point.
+			const uint32_t picked = entity_under_mouse(mouse_pos);
+			const auto near_pick = [&](uint32_t id, float d2, float best_d2) {
+				return picked != 0 ? id == picked : d2 < best_d2;
+			};
 
 			// A loaded ship right-clicked on land just moves (unit_actions.js has no unload-on-click
 			// action): passengers leave through Unload All, the garrison icons or session.unload.
@@ -1070,14 +1164,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				for (size_t i = 0; i < uview.count; ++i) {
 					if (!uview.alive[i] || !rtso::unit_is_mobile_dropsite(uview.unit_type[i])) continue;
 					const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
-					if (dx * dx + dz * dz >= best) continue;
-					bool carriers = false;
-					for (size_t k = 0; k < sel_n && !carriers; ++k) carriers = sim->can_return_resource(sel_ptr[k], uview.id[i]);
-					if (!carriers) continue;
+					if (!near_pick(uview.id[i], dx * dx + dz * dz, best)) continue;
+					const uint32_t wagon = uview.id[i];
+					if (!able_any([&](uint32_t id) { return sim->can_return_resource(id, wagon); })) continue;
 					best = dx * dx + dz * dz;
 					drop_id = uview.id[i];
 				}
 				if (drop_id != 0) {
+					pick_one([&](uint32_t id) { return sim->can_return_resource(id, drop_id); });
 					if (turn_cmds())
 						post_lockstep(34, sel_ptr, sel_n, 0, 0, drop_id, qbit);
 					else
@@ -1093,9 +1187,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			const uint32_t clicked_transport_id = transport_under(click_pos.x, click_pos.z);
 			auto board = [&]() {
 				if (turn_cmds())
-					post_lockstep(18, sel_ptr, sel_n, 0, 0, clicked_transport_id);
+					post_lockstep(18, sel_ptr, sel_n, 0, 0, clicked_transport_id, qbit);
 				else
-					sim->order_board_transport(sel_ptr, sel_n, clicked_transport_id);
+					sim->order_board_transport(sel_ptr, sel_n, clicked_transport_id, queue_shift);
 				play_civ_voice("move");
 			};
 			if (clicked_transport_id != 0 && force_garrison) {
@@ -1120,9 +1214,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					if (uview.team[i] != local_player() && !sim->is_ally(local_player(), uview.team[i])) continue;
 					const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
 					const float d2 = dx * dx + dz * dz;
-					if (d2 < best_rd2) { best_rd2 = d2; repair_id = uview.id[i]; }
+					if (near_pick(uview.id[i], d2, best_rd2)) { best_rd2 = d2; repair_id = uview.id[i]; }
 				}
 				if (repair_id != 0) {
+					pick_one(builds);
 					if (turn_cmds())
 						post_lockstep(16, sel_ptr, sel_n, 0, 0, repair_id, qbit);
 					else
@@ -1132,27 +1227,25 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 
-			// 1c. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor).
+			// 1c. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor):
+			// only a unit a selected healer may heal (Heal.js CanHeal: a Human, not the healer itself).
 			{
-				// With orderone the first healer of the selection is the one ordered
+				// With orderone the first able healer of the selection is the one ordered
 				// (input.js firstAbleEntity).
 				uint32_t first_healer = 0;
-				for (int k = 0; k < selected_ids.size() && !first_healer; ++k) {
-					for (size_t i = 0; i < uview.count; ++i)
-						if (uview.id[i] == (uint32_t)selected_ids[k]) {
-							if (rtso::unit_is_healer(uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, uview.unit_type[i])) first_healer = uview.id[i];
-							break;
-						}
-				}
-				const bool any_healer = first_healer != 0;
 				uint32_t heal_id = 0;
 				float best_hd2 = 2.2f * 2.2f;
-				for (size_t i = 0; any_healer && i < uview.count; ++i) {
+				for (size_t i = 0; i < uview.count; ++i) {
 					if (!uview.alive[i] || uview.hp[i] >= uview.max_hp[i]) continue;
-					if (uview.team[i] != local_player() && !sim->is_ally(local_player(), uview.team[i])) continue;
+					if (uview.team[i] != local_player() && !sim->regards_as_ally(local_player(), uview.team[i])) continue;
 					const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
 					const float d2 = dx * dx + dz * dz;
-					if (d2 < best_hd2) { best_hd2 = d2; heal_id = uview.id[i]; }
+					if (!near_pick(uview.id[i], d2, best_hd2)) continue;
+					const uint32_t h = sim->first_able_healer((const uint32_t *)selected_ids.ptr(), (size_t)selected_ids.size(), uview.id[i]);
+					if (h == 0) continue;
+					best_hd2 = d2;
+					heal_id = uview.id[i];
+					first_healer = h;
 				}
 				if (heal_id != 0) {
 					if (one_id != 0) one_id = first_healer;
@@ -1172,7 +1265,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				for (const auto &t : sim->treasures()) {
 					if (!sim->los_explored(local_player(), t.x, t.z)) continue; // none in the shroud
 					const float dx = t.x - click_pos.x, dz = t.z - click_pos.z;
-					if (dx * dx + dz * dz < best_td2) { best_td2 = dx * dx + dz * dz; treasure_id = t.id; }
+					if (near_pick(t.id, dx * dx + dz * dz, best_td2)) { best_td2 = dx * dx + dz * dz; treasure_id = t.id; }
 				}
 				if (treasure_id != 0) {
 					if (turn_cmds())
@@ -1188,18 +1281,21 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			uint32_t clicked_enemy_id = 0;
 			float best_ed2 = 2.2f * 2.2f;
 			for (size_t i = 0; i < uview.count; ++i) {
-				if (!uview.alive[i] || uview.team[i] == local_player()) continue;
+				// unit_actions "attack" needs an enemy (Attack.js CanAttack IsEnemy): an ally or a
+				// neutral unit gets "move", a walk to the click.
+				if (!uview.alive[i] || !sim->is_hostile(local_player(), uview.team[i])) continue;
 				// PickEntityAtPoint: only units the player sees (none in the fog or the shroud).
 				if (!rtso::los_sees_unit(*sim, local_player(), uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 				float dx = uview.pos_x[i] - click_pos.x;
 				float dz = uview.pos_z[i] - click_pos.z;
 				float d2 = dx * dx + dz * dz;
-				if (d2 < best_ed2) {
+				if (near_pick(uview.id[i], d2, best_ed2)) {
 					best_ed2 = d2;
 					clicked_enemy_id = uview.id[i];
 				}
 			}
 			if (clicked_enemy_id != 0) {
+				pick_one([&](uint32_t id) { return sim->unit_id_can_attack(id, clicked_enemy_id); });
 				if (turn_cmds())
 					post_lockstep(3, sel_ptr, sel_n, 0, 0, clicked_enemy_id, qbit);
 				else
@@ -1216,11 +1312,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			size_t best_f = 0;
 			for (size_t f = 0; f < fview.count; ++f) {
 				if (!fview.alive[f]) continue;
-				if (!rtso::los_sees_fauna(*sim, local_player(), fview.pos_x[f], fview.pos_z[f], fview.owner[f])) continue;
+				if (!rtso::los_sees_fauna(*sim, local_player(), fview.pos_x[f], fview.pos_z[f], fview.owner[f], fview.fauna_type[f])) continue;
 				float dx = fview.pos_x[f] - click_pos.x;
 				float dz = fview.pos_z[f] - click_pos.z;
 				float d2 = dx * dx + dz * dz;
-				if (d2 < best_fd2) {
+				if (near_pick(fview.id[f], d2, best_fd2)) {
 					best_fd2 = d2;
 					clicked_fauna_id = fview.id[f];
 					clicked_fauna_type = fview.fauna_type[f];
@@ -1234,18 +1330,18 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				uint8_t herd = finfo.is_domestic() && fview.behavior[best_f] != rtso::FAUNA_CORRALLED &&
 				               fview.owner[best_f] == local_player() && Input::get_singleton()->is_key_pressed(KEY_ALT) ? 1 : 0;
 				if (turn_cmds())
-					post_lockstep(17, sel_ptr, sel_n, 0, 0, clicked_fauna_id, herd);
+					post_lockstep(17, sel_ptr, sel_n, 0, 0, clicked_fauna_id, herd ? herd : qbit); // Shift queues a hunt
 				else if (herd)
 					sim->order_herd(sel_ptr, sel_n, clicked_fauna_id);
 				else
-					sim->order_hunt(sel_ptr, sel_n, clicked_fauna_id);
+					sim->order_hunt(sel_ptr, sel_n, clicked_fauna_id, queue_shift);
 				play_civ_voice(herd ? "gather" : "attack");
 				return;
 			}
 
 			// Right click on Gaia scenery (a fence, column, obelisk): "attack" (9) before "capture" (10);
 			// Capturable scenery (benches and fences) is captured with session.capture.
-			if (const uint32_t sid = scenery_at(click_pos.x, click_pos.z); sid != 0) {
+			if (const uint32_t sid = scenery_at(click_pos.x, click_pos.z); sid != 0 && near_pick(sid, 0.0f, 1.0f)) {
 				send_structure_click(scenery_click(sid), 0, sid);
 				return;
 			}
@@ -1266,7 +1362,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				for (const auto &r : view->resource_mirages()) {
 					if (r.amount <= 0 || r.subtype == rtso::RES_SUB_GRAIN) continue; // fields: the structure's click
 					const float dx = r.x - click_pos.x, dz = r.z - click_pos.z;
-					if (dx * dx + dz * dz >= best_rd2) continue;
+					if (!near_pick(r.id, dx * dx + dz * dz, best_rd2)) continue;
 					best_rd2 = dx * dx + dz * dz;
 					clicked_res_id = r.id;
 					gone = &r;
@@ -1278,7 +1374,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					float dx = rview.x[r] - click_pos.x;
 					float dz = rview.z[r] - click_pos.z;
 					float d2 = dx * dx + dz * dz;
-					if (d2 < best_rd2) {
+					if (near_pick(rview.id[r], d2, best_rd2)) {
 						best_rd2 = d2;
 						clicked_res_id = rview.id[r];
 					}
@@ -1294,8 +1390,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				return;
 			}
 			// unit_actions "gather" needs a unit that can gather it; else the click falls through (move).
-			if (clicked_res_id != 0 && !sim->any_can_gather(sel_ptr, sel_n, clicked_res_id)) clicked_res_id = 0;
+			auto gathers = [&](uint32_t res) { return [&, res](uint32_t id) { return sim->any_can_gather(&id, 1, res); }; };
+			if (clicked_res_id != 0 && !able_any(gathers(clicked_res_id))) clicked_res_id = 0;
 			if (clicked_res_id != 0) {
+				pick_one(gathers(clicked_res_id));
 				if (turn_cmds())
 					post_lockstep(4, sel_ptr, sel_n, 0, 0, clicked_res_id, qbit);
 				else
@@ -1310,7 +1408,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				float dx = b.x - click_pos.x;
 				float dz = b.z - click_pos.z;
 				float hit_r = b.half_size + 1.2f;
-				if (dx * dx + dz * dz <= hit_r * hit_r) {
+				if (picked != 0 ? b.id == picked : dx * dx + dz * dz <= hit_r * hit_r) {
 					// A finished field's grain, whoever owns it (0 A.D. "gather" has no owner check
 					// and its specificness 1 beats capture, attack and repair).
 					const uint32_t field_grain = b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
@@ -1330,8 +1428,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
 					} else if (force_turret && friendly && selection_can_occupy_turret(b.id)) {
 						occupy_turret();
-					} else if (force_repair && friendly && (b.build_progress < 1.0f || b.hp < b.max_hp)) {
+					} else if (force_repair && friendly && (b.build_progress < 1.0f || b.hp < b.max_hp) && able_any(builds)) {
 						// session.repair likewise wins over returning resources (unit_actions.js "repair").
+						pick_one(builds);
 						if (turn_cmds())
 							post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
 						else
@@ -1339,7 +1438,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						play_civ_voice("build");
 					} else if (trade_route_click(b, true, queue_shift, nullptr)) {
 						// setup-trade-route has specificness 0: it wins over garrison and capture.
-					} else if (field_grain && sim->any_can_gather(sel_ptr, sel_n, field_grain)) { // any player's finished field
+					} else if (field_grain && able_any(gathers(field_grain))) { // any player's finished field
+						pick_one(gathers(field_grain));
 						if (turn_cmds())
 							post_lockstep(4, sel_ptr, sel_n, 0, 0, field_grain, qbit);
 						else
@@ -1349,21 +1449,28 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							structure_click(b.id) != CLICK_NONE) {
 						// "attack" (9, allowCapture false) before "capture" (10); C captures.
 						send_structure_click(structure_click(b.id), b.id, 0);
+					} else if (structure_click(b.id) == CLICK_CAPTURE && !able_any([&](uint32_t id) {
+								   return sim->can_return_resource(id, b.id);
+							   })) {
+						// "capture" (10) on an own, allied or neutral structure an enemy holds points of
+						// (Capturable.CanCapture): recapture, before "repair" (11) and "move" (12).
+						send_structure_click(CLICK_CAPTURE, b.id, 0);
 					} else if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) {
 						break; // neutral: walk there
 					} else if (b.team != local_player()) {
 						// An ally's structure: return resources to its shared dropsite ("returnresource", 2,
 						// Diaspora), else repair it, else walk there ("move", 12, beats "garrison", 20,
 						// which needs session.garrison).
-						bool carriers = false;
-						for (size_t k = 0; k < sel_n && !carriers; ++k) carriers = sim->can_return_resource(sel_ptr[k], b.id);
-						if (carriers) {
+						auto returns_here = [&](uint32_t id) { return sim->can_return_resource(id, b.id); };
+						if (able_any(returns_here)) {
+							pick_one(returns_here);
 							if (turn_cmds())
 								post_lockstep(34, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
 								sim->order_return_resource(sel_ptr, sel_n, b.id, queue_shift);
 							play_civ_voice("gather");
-						} else if (b.build_progress < 1.0f || b.hp < b.max_hp) {
+						} else if ((b.build_progress < 1.0f || b.hp < b.max_hp) && able_any(builds)) { // "repair" needs a builder
+							pick_one(builds);
 							if (turn_cmds())
 								post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
@@ -1374,26 +1481,21 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						}
 					} else {
 						// 0 A.D. "returnresource" comes first: carriers take their load to this dropsite.
-						bool carriers = false;
-						for (size_t k = 0; k < sel_n && !carriers; ++k) carriers = sim->can_return_resource(sel_ptr[k], b.id);
-						if (carriers) {
+						auto returns_here = [&](uint32_t id) { return sim->can_return_resource(id, b.id); };
+						if (able_any(returns_here)) {
+							pick_one(returns_here);
 							if (turn_cmds())
 								post_lockstep(34, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
 								sim->order_return_resource(sel_ptr, sel_n, b.id, queue_shift);
 							play_civ_voice("gather");
-						} else if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) { // finished fields: farm
+						} else if ((b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) && able_any(builds)) {
+							// finished fields: farm; "repair" needs a builder, else the click walks there
+							pick_one(builds);
 							if (turn_cmds())
 								post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
 								sim->order_build_or_repair(sel_ptr, sel_n, b.id, queue_shift);
-							play_civ_voice("build");
-						} else if (b.type == rtso::BLD_WALL_SEGMENT && Input::get_singleton()->is_key_pressed(KEY_CTRL)) {
-							// 0 A.D. Upgrade.js wall -> gate (lockstep cmd 26), so replays and peers see it.
-							if (turn_cmds())
-								post_lockstep(26, nullptr, 0, 0, 0, b.id, 0);
-							else
-								sim->cmd_upgrade_building(local_player(), b.id);
 							play_civ_voice("build");
 						} else {
 							break; // "move" (12) beats "garrison" (20) without session.garrison: walk
@@ -1445,8 +1547,8 @@ bool RtsoMain::try_place_wall(const Vector3 &end, bool queued) {
 	// Commands.js "construct-wall": the sim lays the pieces (helpers/Walls.js) and snaps the ends
 	// onto the player's wall towers, the same on every peer. Alt hands the whole wall to one
 	// builder (popOneFromSelection).
-	const bool order_one = rtso::hotkeys::held("session.orderone") && !selected_ids.is_empty();
-	const uint32_t one_builder = order_one ? (uint32_t)selected_ids[0] : 0;
+	const uint32_t one_builder = rtso::hotkeys::held("session.orderone") ? first_selected_builder() : 0;
+	const bool order_one = one_builder != 0;
 	const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
 	const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
 	const uint8_t wall_kind = rtso::wallset_kind_of((uint8_t)current_build_type);
@@ -1484,13 +1586,15 @@ uint32_t RtsoMain::guard_target_at(const Vector3 &at) const {
 		const float dx = uv.pos_x[i] - at.x, dz = uv.pos_z[i] - at.z, d2 = dx * dx + dz * dz;
 		if (d2 < best_d2) { best_d2 = d2; best = uv.id[i]; }
 	}
-	if (best) return best;
-	for (const auto &b : sim->buildings()) {
-		if (b.wrecked || (b.team != me && !sim->is_ally(me, b.team))) continue;
-		const float dx = b.x - at.x, dz = b.z - at.z, hit_r = b.half_size + 1.2f;
-		if (dx * dx + dz * dz <= hit_r * hit_r) return b.id;
-	}
-	return 0;
+	if (!best)
+		for (const auto &b : sim->buildings()) {
+			if (b.wrecked || (b.team != me && !sim->is_ally(me, b.team))) continue;
+			const float dx = b.x - at.x, dz = b.z - at.z, hit_r = b.half_size + 1.2f;
+			if (dx * dx + dz * dz <= hit_r * hit_r) { best = b.id; break; }
+		}
+	// getActionInfo "guard": only when a selected unit may guard it (UnitAI canGuard).
+	if (best && !sim->any_can_guard((const uint32_t *)selected_ids.ptr(), (size_t)selected_ids.size(), best)) return 0;
+	return best;
 }
 
 bool RtsoMain::selection_guarding() const {
@@ -1504,6 +1608,7 @@ bool RtsoMain::selection_guarding() const {
 // target it takes (else the click does nothing and the action stays armed).
 bool RtsoMain::armed_target_ok(const Vector3 &at) const {
 	if (!(garrison_mode || turret_mode || repair_mode || guard_mode)) return true; // ground actions
+	if (guard_mode) return guard_target_at(at) != 0;
 	const uint8_t me = local_player();
 	for (const auto &b : sim->buildings()) {
 		if (b.wrecked || (b.team != me && !sim->is_ally(me, b.team))) continue;
@@ -1511,20 +1616,15 @@ bool RtsoMain::armed_target_ok(const Vector3 &at) const {
 		if (dx * dx + dz * dz > hit_r * hit_r) continue;
 		if (garrison_mode) return selection_can_garrison(b.id) || transport_under(at.x, at.z);
 		if (turret_mode) return selection_can_occupy_turret(b.id);
-		if (repair_mode) return b.build_progress < 1.0f || b.hp < b.max_hp;
-		return true; // Guard.js guards own and allied structures
+		return b.build_progress < 1.0f || b.hp < b.max_hp; // repair
 	}
-	if (guard_mode) return guard_target_at(at) != 0;
 	if (garrison_mode) return transport_under(at.x, at.z) != 0;
-	if (guard_mode || repair_mode) {
+	if (repair_mode) {
 		auto uv = sim->units();
 		for (size_t i = 0; i < uv.count; ++i) {
 			if (!uv.alive[i]) continue;
 			const float dx = uv.pos_x[i] - at.x, dz = uv.pos_z[i] - at.z;
-			if (guard_mode && uv.team[i] == me && dx * dx + dz * dz < 3.0f * 3.0f &&
-					!selected_ids.has((int32_t)uv.id[i]))
-				return true;
-			if (repair_mode && dx * dx + dz * dz <= 2.2f * 2.2f && uv.hp[i] < uv.max_hp[i] &&
+			if (dx * dx + dz * dz <= 2.2f * 2.2f && uv.hp[i] < uv.max_hp[i] &&
 					(uv.team[i] == me || sim->is_ally(me, uv.team[i])) && sim->is_repairable_unit(uv.id[i]))
 				return true;
 		}
@@ -1536,12 +1636,17 @@ bool RtsoMain::armed_target_ok(const Vector3 &at) const {
 // order path of a right click), keep it armed under Shift (session.queue) or Alt (orderone),
 // and select nothing. Returns false when the selection is gone, which clears the action.
 bool RtsoMain::run_armed_click(const Ref<InputEventMouseButton> &press) {
-	if (!sim || selected_ids.is_empty() || spectating()) {
+	if (!sim || selected_ids.is_empty() || !orders_allowed()) {
 		attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
 		return false;
 	}
-	if (!armed_target_ok(get_ground_click_pos(press->get_position()))) return true; // the -disabled cursor: nothing happens
 	const bool keep = rtso::hotkeys::held("session.queue") || rtso::hotkeys::held("session.orderone");
+	// The -disabled cursor ("none"): nothing happens, and the armed action still ends unless
+	// Shift or Alt is held (input.js INPUT_PRESELECTEDACTION).
+	if (!armed_target_ok(get_ground_click_pos(press->get_position()))) {
+		if (!keep) attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
+		return true;
+	}
 	const bool modes[7] = { attack_move_mode, patrol_mode, guard_mode, call_to_arms_mode, garrison_mode, turret_mode, repair_mode };
 	Ref<InputEventMouseButton> right = press->duplicate();
 	right->set_button_index(MOUSE_BUTTON_RIGHT);
@@ -1570,7 +1675,7 @@ void RtsoMain::finish_right_line(const Ref<InputEventMouseButton> &release) {
 		_unhandled_input(press);
 		replaying_right_ = false;
 	};
-	if (!sim || !line.drawing || spectating()) {
+	if (!sim || !line.drawing || !orders_allowed()) {
 		replay();
 		return;
 	}
@@ -1699,10 +1804,12 @@ std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
 	if (!sim || !cam) return out;
 	const Vector2 min_p(std::min(a.x, b.x), std::min(a.y, b.y));
 	const Vector2 max_p(std::max(a.x, b.x), std::max(a.y, b.y));
-	const bool nonmilitary_only = rtso::hotkeys::held("selection.nonmilitaryonly");
-	const bool military_only = !nonmilitary_only && rtso::hotkeys::held("selection.militaryonly");
-	const bool idle_only = rtso::hotkeys::held("selection.idleonly");
+	// input.js getPreferredEntities: one filter, the last held of military, non-military,
+	// idle and wounded.
 	const bool wounded_only = rtso::hotkeys::held("selection.woundedonly");
+	const bool idle_only = !wounded_only && rtso::hotkeys::held("selection.idleonly");
+	const bool nonmilitary_only = !wounded_only && !idle_only && rtso::hotkeys::held("selection.nonmilitaryonly");
+	const bool military_only = !wounded_only && !idle_only && !nonmilitary_only && rtso::hotkeys::held("selection.militaryonly");
 	auto in_box = [&](float x, float z) {
 		// The entity as drawn, on the ground (PickPlayerEntitiesInRect projects its position).
 		const Vector3 world_pos(x, sim->get_terrain_height(x, z), z);
@@ -1714,7 +1821,11 @@ std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
 	for (size_t i = 0; i < uview.count; ++i) {
 		// PickPlayerEntitiesInRect(..., g_ViewedPlayer): own units only, Control all units or not
 		// (only a click or Shift-click takes another player's, selection.js addList force).
-		if (!uview.alive[i] || uview.team[i] != local_player()) continue;
+		if (!uview.alive[i]) continue;
+		if (observer_all_view() ? uview.team[i] >= rtso::MAX_PLAYERS ||
+						!rtso::los_sees_unit(*sim, view_player(), uview.pos_x[i], uview.pos_z[i], uview.team[i])
+				: uview.team[i] != local_player())
+			continue;
 		const rtso::TechClasses cls = rtso::unit_tech_classes(uview.unit_type[i]);
 		const bool military = (cls & (rtso::TC_MELEE | rtso::TC_RANGED)) != 0;
 		if ((military_only && !military) || (nonmilitary_only && military)) continue;
@@ -1739,7 +1850,7 @@ std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
 // The local player's unit nearest the ground point under the mouse (within 2 units), or
 // SIZE_MAX; a structure the ray reaches first hides the units behind it. With
 // `any_player`, any unit the viewed player sees (Engine.PickEntityAtPoint).
-size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player) const {
+size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player, float radius) const {
 	if (!sim) return (size_t)-1;
 	const Vector3 click_pos = get_ground_click_pos(mouse_pos);
 	auto uview = sim->units();
@@ -1749,7 +1860,7 @@ size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player) const 
 	const Vector3 ray_o = pick_cam ? pick_cam->project_ray_origin(mouse_pos) : Vector3();
 	const Vector3 ray_d = pick_cam ? pick_cam->project_ray_normal(mouse_pos) : Vector3();
 	size_t best_uidx = (size_t)-1;
-	float best_ud2 = 2.0f * 2.0f;
+	float best_ud2 = radius * radius;
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!uview.alive[i]) continue;
 		// Distance first: it rules out nearly every unit before the costlier checks.
@@ -1769,4 +1880,14 @@ size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player) const 
 		}
 	}
 	return best_uidx;
+}
+
+size_t RtsoMain::click_pick_unit(Vector2 mouse_pos, bool any_player) const {
+	if (!sim) return (size_t)-1;
+	// The unit nearest the cursor within a unit's reach, whoever owns it (a structure in front
+	// hides it): selected only when it is the player's (or anyone's, with any_player), so an
+	// enemy, ally or animal standing there is not swapped for one of the player's units nearby.
+	const size_t u = own_unit_under_mouse(mouse_pos, true, 2.0f);
+	if (u == (size_t)-1) return u;
+	return sim->units().team[u] == local_player() || any_player ? u : (size_t)-1;
 }

@@ -84,9 +84,13 @@ signal closed
 static func open_dialog(tree: SceneTree) -> Node:
 	if not tree.root.get_node("LobbySession").signed_in():
 		return null
+	var open := tree.root.get_node_or_null("LobbyDialog")
+	if open and not open.is_queued_for_deletion():
+		return open.get_child(0) # one lobby page at a time
 	var layer := CanvasLayer.new()
 	layer.name = "LobbyDialog"
 	layer.layer = 40
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS # over a paused match or its summary too
 	var lobby: Control = load("res://scenes/menu/lobby.tscn").instantiate()
 	lobby.dialog = true
 	lobby.closed.connect(layer.queue_free)
@@ -111,10 +115,10 @@ var _buddy_btn: Button
 const BUDDY_SYMBOL := "•"
 const MAX_PLAYERS := 8
 
-# GameList.xml gamesBox: the columns, and the key each one sorts on.
-const GAME_COLUMNS := ["Name", "Map Name", "Size", "Type", "Players"]
-const RATING_COL := 5 # where the Rating column goes when shown
-const GAME_SORT_KEYS := {"Name": "gameName", "Map Name": "mapName", "Size": "mapSize", "Type": "mapType",
+# GameList.xml gamesBox: the columns, and the key each one sorts on. The
+# first, headed by nothing, holds the lock of a game with a password.
+const GAME_COLUMNS := ["Password", "Name", "Map Name", "Size", "Type", "Players"]
+const GAME_SORT_KEYS := {"Password": "hasPassword", "Name": "gameName", "Map Name": "mapName", "Size": "mapSize", "Type": "mapType",
 	"Players": "maxnbp", "Rating": "gameRating"}
 # Game.js GameStatusOrder and StateTags: setups first, in green; running red.
 const GAME_STATES := ["init", "waiting", "running"]
@@ -143,7 +147,10 @@ func _ready() -> void:
 	_timer.start()
 	_watch_events()
 	_server.text = LobbySession.address
-	_name.text = LobbySession.player_name if LobbySession.signed_in() else multiplayer_name()
+	# login.js: the account last signed in with (lobby.login), else the multiplayer name.
+	var login_cfg := RtsoUserConfig.new()
+	_name.text = LobbySession.player_name if LobbySession.signed_in() \
+			else login_cfg.get_value("lobby.login") if login_cfg.get_value("lobby.login") != "" else multiplayer_name()
 	LobbySession.kicked.connect(_on_kicked)
 	LobbySession.disconnected.connect(_on_disconnected)
 	if LobbySession.signed_in() and LobbySession.chat_from >= 0:
@@ -158,16 +165,30 @@ func _ready() -> void:
 
 
 func _build() -> void:
+	# LobbyPage.setDialogStyle: as a dialog, a framed window 40 px in from each
+	# edge (WindowMargin) over a translucent fade (ModernFade); else the full page.
+	var margin := 40 if dialog else 0
+	if dialog:
+		var fade := ColorRect.new()
+		fade.name = "LobbyFade"
+		fade.color = Color(0, 0, 0, 0.5)
+		fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+		add_child(fade)
 	var bg := ColorRect.new()
+	bg.name = "LobbyWindow"
 	bg.color = Color(0.09, 0.09, 0.15, 1)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.offset_left = margin
+	bg.offset_top = margin
+	bg.offset_right = -margin
+	bg.offset_bottom = -margin
 	add_child(bg)
 	var root := VBoxContainer.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.offset_left = 24
-	root.offset_top = 24
-	root.offset_right = -24
-	root.offset_bottom = -24
+	root.offset_left = margin + 24
+	root.offset_top = margin + 24
+	root.offset_right = -margin - 24
+	root.offset_bottom = -margin - 24
 	add_child(root)
 
 	var header := HBoxContainer.new()
@@ -187,7 +208,7 @@ func _build() -> void:
 	login.visible = not dialog
 	root.add_child(login)
 	login.add_child(_label("Lobby server"))
-	_server = _line("127.0.0.1:8088", 180)
+	_server = _line(LobbySession.address, 180)
 	login.add_child(_server)
 	login.add_child(_label("Player name"))
 	var cfg := RtsoUserConfig.new()
@@ -198,6 +219,11 @@ func _build() -> void:
 	login.add_child(_label("Password"))
 	_password = _line("", 140)
 	_password.secret = true
+	# login.js: a remembered password shows as its first 10 characters (masked);
+	# credentials.js getEncryptedPassword sends the stored one while they stay.
+	if cfg.get_bool("lobby.rememberpassword") and cfg.get_value("lobby.password") != "":
+		_password_stub = cfg.get_value("lobby.password").substr(0, 10)
+		_password.text = _password_stub
 	login.add_child(_password)
 	_password2 = _line("", 120)
 	_password2.secret = true
@@ -246,6 +272,7 @@ func _build() -> void:
 	games_head.add_child(_size_filter)
 	_type_filter = _filter_dropdown(["Any"] + setup.MAP_TYPES.map(func(t) -> String: return str(t[1])),
 		"Filter the games by map type.")
+	_type_filter.visible = not _rating_column # GameListFilters/Rating.js makes room for the rating filter
 	games_head.add_child(_type_filter)
 	var counts := ["Any"]
 	for i in MAX_PLAYERS:
@@ -266,8 +293,10 @@ func _build() -> void:
 	_games.column_titles_visible = true
 	for i in titles.size():
 		_games.set_column_title(i, titles[i])
-	_games.set_column_expand_ratio(0, 3)
-	_games.set_column_expand_ratio(2, 2)
+	_games.set_column_expand(0, false)
+	_games.set_column_custom_minimum_width(0, 20)
+	_games.set_column_expand_ratio(1, 3)
+	_games.set_column_expand_ratio(3, 2)
 	_games.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_games.item_selected.connect(_on_game_selected)
 	# gamesBox sortable: a click on a heading sorts on it, again reverses.
@@ -464,6 +493,9 @@ func _build_lookup() -> AcceptDialog:
 	box.add_child(row)
 	_lookup_input = _line("", 180)
 	_lookup_input.text_submitted.connect(func(_t: String) -> void: _on_lookup_view())
+	# ProfilePage.js fetchInput: Tab completes from the online players and the board.
+	_lookup_input.tooltip_text = AUTOCOMPLETE_TIP
+	_lookup_input.gui_input.connect(_on_name_input.bind(_lookup_input, true))
 	row.add_child(_lookup_input)
 	row.add_child(_button("View Profile", _on_lookup_view))
 	_lookup_error = _label("")
@@ -587,11 +619,15 @@ func _request_profile(player: String) -> void:
 		return
 	_profile_name.text = player
 	_profile_name.add_theme_color_override("font_color", player_color(player)) # ColorPlayerName
-	# ProfilePanel RoleNames: Moderator, Muted Player (visitor), else Player.
-	_profile_role.text = "Moderator" if _moderators.has(player) else "Muted Player" if _muted.has(player) else "Player"
+	_profile_role.text = _role_name(player)
 	for k in _profile_values:
 		_profile_values[k].text = NOT_AVAILABLE
 	LobbySession.get_json("/profile?name=" + player.uri_encode(), _on_profile)
+
+
+# ProfilePanel RoleNames: Moderator, Muted Player (visitor), else Player.
+func _role_name(player: String) -> String:
+	return "Moderator" if _moderators.has(player) else "Muted Player" if _muted.has(player) else "Player"
 
 
 func _on_profile(code: int, obj) -> void:
@@ -607,7 +643,7 @@ func _on_leaderboard_pressed() -> void:
 	if not LobbySession.signed_in():
 		_say("Sign in to see the leaderboard.")
 		return
-	_board.clear()
+	# LeaderboardPage.openPage: the last list shows at once while it asks again.
 	_leaderboard.popup_centered()
 	LobbySession.get_json("/leaderboard", _on_leaderboard)
 
@@ -615,16 +651,22 @@ func _on_leaderboard_pressed() -> void:
 func _on_leaderboard(code: int, obj) -> void:
 	if code != 200 or not (obj is Dictionary):
 		return
+	# LeaderboardList.rebuild: the selected row stays selected, within the new list.
+	var picked := _board.get_selected()
+	var at := picked.get_index() if picked else -1
 	_board.clear()
 	var top := _board.create_item()
 	var rank := 0
-	for p in obj.get("players", []):
+	var players: Array = obj.get("players", [])
+	for p in players:
 		rank += 1
 		var it := _board.create_item(top)
 		it.set_text(0, str(rank))
 		it.set_text(1, str(p.get("name", "")))
 		it.set_text(2, str(p.get("rating", "")))
 		it.set_metadata(0, str(p.get("name", "")))
+	if at >= 0 and not players.is_empty():
+		top.get_child(mini(at, players.size() - 1)).select(0)
 
 
 func _label(text: String) -> Label:
@@ -703,10 +745,14 @@ func _on_disconnected() -> void:
 ## credentials.js toggleRememberPassword: unticking a remembered password asks first;
 ## No ticks it again.
 var _forget_dlg: ConfirmationDialog
+var _password_stub := "" # the remembered password's first 10 characters, while the field shows them
 
 func _on_remember_toggled(on: bool) -> void:
 	var cfg := RtsoUserConfig.new()
 	if on or not cfg.get_bool("lobby.rememberpassword") or cfg.get_value("lobby.password") == "" or _forget_dlg != null:
+		# credentials.js toggleRememberPassword: the box is saved when clicked.
+		cfg.set_value("lobby.rememberpassword", "true" if on else "false")
+		cfg.save()
 		return
 	_forget_dlg = ConfirmationDialog.new()
 	_forget_dlg.name = "ForgetPasswordDialog"
@@ -718,6 +764,9 @@ func _on_remember_toggled(on: bool) -> void:
 	var done := func(keep: bool) -> void:
 		_forget_dlg.queue_free()
 		_forget_dlg = null
+		var c := RtsoUserConfig.new()
+		c.set_value("lobby.rememberpassword", "true" if keep else "false")
+		c.save()
 		if keep:
 			_remember.set_pressed_no_signal(true)
 	_forget_dlg.confirmed.connect(func() -> void: done.call(false))
@@ -730,7 +779,7 @@ func _ask_reconnect() -> void:
 		return
 	_reconnect_dlg = ConfirmationDialog.new()
 	_reconnect_dlg.name = "ReconnectDialog"
-	_reconnect_dlg.title = "Connection Lost"
+	_reconnect_dlg.title = "Confirmation" # ConnectionHandler.js
 	_reconnect_dlg.dialog_text = "You have been disconnected from the lobby. Do you want to reconnect?"
 	_reconnect_dlg.ok_button_text = "Yes"
 	_reconnect_dlg.cancel_button_text = "No"
@@ -760,9 +809,29 @@ func _ask_reconnect() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if dialog and event.is_action_pressed("ui_cancel"):
+	if not dialog:
+		return
+	if event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
 		_on_back_pressed()
+		return
+	if event is InputEventKey:
+		# QuitButton.js: the "lobby" hotkey closes the dialog again.
+		if event.pressed and "lobby" in _dialog_hotkeys().fired(event):
+			get_viewport().set_input_as_handled()
+			_on_back_pressed()
+			return
+		# A child page (Engine.OpenChildPage) is the top of the page stack and
+		# takes the keyboard: no key reaches the setup or the match behind it.
+		get_viewport().set_input_as_handled()
+
+
+var _hotkeys: RtsoHotkeyConfig
+
+func _dialog_hotkeys() -> RtsoHotkeyConfig:
+	if _hotkeys == null:
+		_hotkeys = RtsoHotkeyConfig.new()
+	return _hotkeys
 
 
 ## termslobby.js initLobbyTerms: each page's title, instruction and config key.
@@ -858,11 +927,13 @@ func _on_sign_pressed() -> void:
 
 # The password typed now, else the one lobby.password remembers for this name.
 func _encrypted_password(who: String) -> String:
-	if _password.text != "":
-		return LobbySession.encrypt_password(_password.text, who)
 	var cfg := RtsoUserConfig.new()
-	if _remember.button_pressed and cfg.get_value("lobby.login").to_lower() == who.to_lower():
-		return cfg.get_value("lobby.password")
+	var stored := cfg.get_value("lobby.password")
+	if (_password.text == "" or (_password_stub != "" and _password.text == _password_stub)) and stored != "" \
+			and cfg.get_value("lobby.login").to_lower() == who.to_lower():
+		return stored
+	if _password.text != "" and _password.text != _password_stub:
+		return LobbySession.encrypt_password(_password.text, who)
 	return ""
 
 
@@ -886,9 +957,14 @@ func _sign_in(who: String) -> void:
 			# 0 A.D. prelobby: lobby.login, and lobby.password (encrypted) when remembered.
 			var cfg := RtsoUserConfig.new()
 			cfg.set_value("lobby.login", LobbySession.player_name)
+			# 0.28 lobby.server: the lobby signed in to, for the next launch.
+			cfg.set_value("lobby.server", LobbySession.address)
 			cfg.set_value("lobby.rememberpassword", "true" if _remember.button_pressed else "false")
 			cfg.set_value("lobby.password", encrypted if _remember.button_pressed else "")
+			# credentials.js saveCredentials: the account is the multiplayer name too.
+			cfg.set_value("playername.multiplayer", LobbySession.player_name)
 			cfg.save()
+			_password_stub = ""
 			_password.text = ""
 			_password2.text = ""
 			MatchSettings.net_player_name = LobbySession.player_name
@@ -986,15 +1062,17 @@ func _on_rooms(code: int, obj) -> void:
 	if code != 200 or not (obj is Dictionary):
 		return
 	_rooms = obj.get("rooms", [])
+	LobbySession.games = _rooms
 	_show_rooms()
 
 
-## The game list's columns; Rating (GameList.js gameRating) when
-## lobby.columns.gamerating is on.
+## The game list's columns; with lobby.columns.gamerating, Rating
+## (GameList.js gameRating) in place of Type (hidden_mapType).
 static func game_columns(rating: bool) -> Array:
 	var cols: Array = GAME_COLUMNS.duplicate()
 	if rating:
-		cols.insert(RATING_COL, "Rating")
+		cols.erase("Type")
+		cols.append("Rating")
 	return cols
 
 
@@ -1059,7 +1137,8 @@ func sort_games_by(column: String) -> void:
 func _update_game_titles() -> void:
 	var titles := game_columns(_rating_column)
 	for i in titles.size():
-		_games.set_column_title(i, titles[i] + (("  ▲" if game_sort_order > 0 else "  ▼") if titles[i] == game_sort_column else ""))
+		_games.set_column_title(i, ("" if titles[i] == "Password" else titles[i])
+			+ (("  ▲" if game_sort_order > 0 else "  ▼") if titles[i] == game_sort_column else ""))
 
 
 ## Game.js sortValues: Name sorts setups, then running games, by name; the
@@ -1076,8 +1155,27 @@ func _game_sort_value(r: Dictionary, column: String) -> Variant:
 			return int(r.get("max_players", MAX_PLAYERS))
 		"gameRating":
 			return _room_rating(r)
+		"hasPassword":
+			return 1 if int(r.get("password", 0)) else 0
 	# compatibility + state + name, as Game.js sortValues.gameName.
 	return "%s%d%s" % [str(LobbySession.game_compatible(r)), GAME_STATES.find(str(r.get("state", "init"))), game_title(r).to_lower()]
+
+
+static var _lock: Texture2D
+
+## icon_private: the lock from the UI icons (read from the file where it is not imported).
+static func _lock_icon() -> Texture2D:
+	const PATH := "res://assets/textures/ui/archive/icons/locked_small.png"
+	if _lock == null:
+		var img: Image = null
+		if ResourceLoader.exists(PATH):
+			img = (load(PATH) as Texture2D).get_image()
+		elif FileAccess.file_exists(PATH):
+			img = Image.load_from_file(ProjectSettings.globalize_path(PATH))
+		if img:
+			img.resize(16, 16)
+			_lock = ImageTexture.create_from_image(img)
+	return _lock
 
 
 static func game_title(r: Dictionary) -> String:
@@ -1123,10 +1221,14 @@ func _show_rooms() -> void:
 	var reselected := false
 	for r in _shown_rooms:
 		var it := _games.create_item(top)
-		it.set_text(0, (BUDDY_SYMBOL + " " if room_buddies(r, buddy_list) else "") + game_title(r)
-			+ (" (password)" if int(r.get("password", 0)) else ""))
+		# Game.js: the private column's [icon="icon_private"].
+		if int(r.get("password", 0)):
+			it.set_icon(0, _lock_icon())
+			it.set_tooltip_text(0, "Password protected")
+		var name_col: int = col.call("Name")
+		it.set_text(name_col, (BUDDY_SYMBOL + " " if room_buddies(r, buddy_list) else "") + game_title(r))
 		# Game.js IncompatibleTags: a game needing other mods is grey.
-		it.set_custom_color(0, STATE_COLORS.get(str(r.get("state", "init")), STATE_COLORS["init"])
+		it.set_custom_color(name_col, STATE_COLORS.get(str(r.get("state", "init")), STATE_COLORS["init"])
 			if LobbySession.game_compatible(r) else Color8(128, 128, 128))
 		it.set_text(col.call("Map Name"), game_map_title(r))
 		it.set_text(col.call("Size"), str(r.get("map_size", "")))
@@ -1134,7 +1236,8 @@ func _show_rooms() -> void:
 		for t in _setup.MAP_TYPES:
 			if t[0] == str(r.get("map_type", "")):
 				type_title = t[1]
-		it.set_text(col.call("Type"), type_title)
+		if col.call("Type") >= 0:
+			it.set_text(col.call("Type"), type_title)
 		if _rating_column:
 			it.set_text(col.call("Rating"), str(_room_rating(r)))
 		it.set_text(col.call("Players"), game_player_count(r))
@@ -1163,7 +1266,7 @@ func _filter_dropdown(items: Array, tip: String) -> OptionButton:
 func _filters() -> Dictionary:
 	var setup: GDScript = load("res://scenes/menu/gamesetup.gd")
 	var size_i := _size_filter.selected - 1
-	var type_i := _type_filter.selected - 1
+	var type_i := _type_filter.selected - 1 if _type_filter.visible else -1
 	return {"open": _open_filter.button_pressed,
 		"map_size": str(setup.MAP_SIZES[size_i][1]).get_slice(" (", 0) if size_i >= 0 else "",
 		"map_type": str(setup.MAP_TYPES[type_i][0]) if type_i >= 0 else "",
@@ -1192,7 +1295,7 @@ static func buddies() -> PackedStringArray:
 static func room_buddies(r: Dictionary, list: PackedStringArray) -> int:
 	var found := 0
 	for p in r.get("player_names", []):
-		if list.has(str(p.get("name", ""))) and not p.get("ai", false):
+		if list.has(split_rating(str(p.get("name", "")))) and not p.get("ai", false):
 			found = maxi(found, 1 if p.get("observer", false) else 2)
 	return found
 
@@ -1270,15 +1373,19 @@ func _on_players(code: int, obj) -> void:
 	for p in sorted_players(obj.get("players", [])):
 		if p.get("rating") != null:
 			_ratings[str(p.get("name", ""))] = p["rating"]
+		if str(p.get("name", "")) == LobbySession.player_name:
+			LobbySession.rating = p.get("rating")
 		var st := str(p.get("status", "available"))
 		if p.get("moderator", false):
 			_moderators[str(p.get("name", ""))] = true
 		if p.get("muted", false):
 			_muted[str(p.get("name", ""))] = true
 		var it := _players.create_item(top)
-		var col: Color = {"available": Color(0.6, 0.9, 0.6), "away": Color(0.9, 0.8, 0.4), "playing": Color(0.9, 0.5, 0.5)}.get(st, Color.WHITE)
-		# PlayerList.js presences: Online, Away, Busy (in a game).
-		it.set_text(0, {"available": "Online", "away": "Away", "playing": "Busy"}.get(st, st))
+		# PlayerList.js PlayerStatuses: Online, Away, Busy (in a game), Offline,
+		# and Unknown for any other presence, each in its colour.
+		var col: Color = {"available": Color8(0, 219, 0), "away": Color8(255, 127, 0), "playing": Color8(200, 0, 0),
+			"offline": Color8(0, 0, 0)}.get(st, Color8(178, 178, 178))
+		it.set_text(0, {"available": "Online", "away": "Away", "playing": "Busy", "offline": "Offline"}.get(st, "Unknown"))
 		it.set_custom_color(0, col)
 		it.set_text(1, (BUDDY_SYMBOL + " " if buddy_list.has(str(p.get("name", ""))) else "") + _nick(str(p.get("name", ""))))
 		it.set_custom_color(1, player_color(str(p.get("name", ""))))
@@ -1289,6 +1396,9 @@ func _on_players(code: int, obj) -> void:
 		if str(p.get("name", "")) == _selected_player:
 			it.select(0)
 	LobbySession.moderator = _moderators.has(LobbySession.player_name)
+	# ProfilePanel.onRoleChange: the shown player's role line follows a mute or promotion.
+	if _profile_role and _requested_player != "" and _profile_name.text != "":
+		_profile_role.text = _role_name(_requested_player)
 	_update_chat_input()
 	var subject := str(obj.get("subject", ""))
 	if subject != _subject:
@@ -1337,14 +1447,25 @@ func _on_chat(code: int, obj) -> void:
 func _format_chat(who: String, raw: String, me: String) -> String:
 	var text := raw.replace("[", "[lb]")
 	if who == "":
-		return "[color=#aaaaaa]%s[/color]" % text
+		return status_line(text) # the lobby's own join, leave and subject lines
 	if who != me:
 		text = highlight_name(text, me)
 	if raw.begins_with("/me "):
 		return "* [b]%s[/b] %s" % [colored_name(who, _nick(who)), text.substr(4)]
 	if raw.begins_with("/say "):
 		text = text.substr(5)
-	return "%s: %s" % [colored_name(who, _nick(who)), text]
+	# ChatMessageFormatSay: "<sender> message", the sender tag in bold.
+	return "[b]<%s>[/b] %s" % [colored_name(who, _nick(who)), text]
+
+
+## StatusMessageFormat: "== message" in bold (joins, leaves, roles, the subject).
+static func status_line(text: String) -> String:
+	return "[b]== %s[/b]" % text
+
+
+## SystemMessageFormat: "=== System: message" in bold, "System:" in red.
+static func system_line(text: String) -> String:
+	return "[b]=== [color=#960000]System:[/color] %s[/b]" % text
 
 
 ## StatusMessageEvents.js Role (worded for the reader) and
@@ -1364,7 +1485,7 @@ func _format_event(event: Dictionary, me: String) -> String:
 				if r["newrole"] == str(event.get("newrole", "")) and (not r.has("oldrole") or r["oldrole"] == str(event.get("oldrole", ""))):
 					var nick := str(event.get("nick", ""))
 					var txt: String = r["you"] if nick == me else r["nick"] % nick
-					return "[color=#aaaaaa]%s[/color]" % txt.replace("[", "[lb]")
+					return status_line(txt.replace("[", "[lb]"))
 		"announcement":
 			return "[b]== Notice:\n%s[/b]" % format_announcement(str(event.get("subject", "")), str(event.get("text", ""))).replace("[", "[lb]")
 	return ""
@@ -1503,16 +1624,28 @@ func _online_names() -> Array:
 			names.append(str(it.get_metadata(0)))
 	return names
 
-## autoCompleteText: Tab in the search field or the chat line completes the
-## name before the caret.
-func _on_name_input(ev: InputEvent, line: LineEdit) -> void:
+## ProfilePage.autocomplete: the online players, then the board's names that
+## are not among them (the board list is lower case).
+func _profile_names() -> Array:
+	var names := _online_names()
+	var lower := names.map(func(n) -> String: return str(n).to_lower())
+	if _board and _board.get_root():
+		for it in _board.get_root().get_children():
+			var n := str(it.get_metadata(0))
+			if n != "" and not lower.has(n.to_lower()):
+				names.append(n)
+	return names
+
+## autoCompleteText: Tab in the search field, the chat line or the profile
+## lookup completes the name before the caret.
+func _on_name_input(ev: InputEvent, line: LineEdit, with_board := false) -> void:
 	var k := ev as InputEventKey
 	if k == null or not k.pressed or k.keycode != KEY_TAB:
 		return
 	line.accept_event()
 	var caret := line.caret_column
 	var before := line.text.substr(0, caret)
-	var done := autocomplete(before, _online_names())
+	var done := autocomplete(before, _profile_names() if with_board else _online_names())
 	line.text = done + line.text.substr(caret)
 	line.caret_column = caret + done.length() - before.length()
 
@@ -1548,8 +1681,7 @@ static func game_of_player(rooms: Array, name: String) -> int:
 
 ## splitRatingFromNick: "name (1500)" is "name".
 static func split_rating(s: String) -> String:
-	var m := RegEx.create_from_string("^(.+) \\(\\d+\\)$").search(s)
-	return m.get_string(1) if m else s
+	return str(preload("res://scenes/menu/lobby_session.gd").split_nick(s)["nick"])
 
 func _select_game_of(name: String) -> void:
 	var i := game_of_player(_shown_rooms, name)
@@ -1582,7 +1714,7 @@ const CHAT_COMMANDS := [
 ]
 
 func _system_line(text: String) -> void:
-	_chat_log.append_text("[color=#aaaaaa]%s[/color]\n" % text)
+	_chat_log.append_text(system_line(text) + "\n")
 
 ## handleChatCommand: true when the input was a command, run here and not sent.
 func _chat_command(text: String) -> bool:
@@ -1671,13 +1803,18 @@ func _on_game_selected() -> void:
 func _player_name() -> String:
 	var who := LobbySession.player_name if LobbySession.signed_in() else _name.text.strip_edges()
 	if who == "":
-		return "Player"
+		return "Anonymous" # SanitisePlayerName's name for a blank player
 	# gamesetup_mp.js: the name you join or host with is kept as playername.multiplayer.
 	if not LobbySession.signed_in() and who != multiplayer_name():
 		var cfg := RtsoUserConfig.new()
 		cfg.set_value("playername.multiplayer", who)
 		cfg.save()
 	return who
+
+
+## The name a lobby player hosts or joins with: "nick (rating)" once rated (gamesetup_mp.js).
+func _net_name(joined_room := {}) -> String:
+	return LobbySession.rated_player_name(joined_room) if LobbySession.signed_in() else _player_name()
 
 
 ## functions_utility.js multiplayerName: Options' "Player name (multiplayer)",
@@ -1738,7 +1875,7 @@ func _on_join_pressed(confirmed := false, password = null) -> void:
 			return
 		# JoinButton.js: a running game we are not in is joined only to watch, if we say so.
 		if not confirmed and str(r.get("state", "init")) != "init" and not (r.get("player_names", []) as Array).any(
-				func(p) -> bool: return str(p.get("name", "")) == LobbySession.player_name):
+				func(p) -> bool: return split_rating(str(p.get("name", ""))) == LobbySession.player_name):
 			var ask := ConfirmationDialog.new()
 			ask.name = "ObserveDialog"
 			ask.title = "Confirmation"
@@ -1781,7 +1918,11 @@ func _start_join(ip: String, port: int, room_id: String, ticket := "", password 
 	if ip == "" or port <= 0 or port > 65535:
 		_say("Type the host's address and port, or pick a game.")
 		return
-	GameSetupMp.start_join(_player_name(), ip, port, _join_pwd.text if password == null else str(password),
+	var joined := {}
+	for r in _rooms:
+		if str(r.get("id", "")) == room_id:
+			joined = r
+	GameSetupMp.start_join(_net_name(joined), ip, port, _join_pwd.text if password == null else str(password),
 		_observe.button_pressed, room_id, ticket)
 
 
@@ -1820,13 +1961,12 @@ func _on_host_pressed(saved := false) -> void:
 	var who := _player_name()
 	var game_name := _host_name.text.strip_edges() if _host_name.text.strip_edges() != "" else who + "'s game"
 	# gamesetup_mp.js: a game name another host already lists is refused.
-	for r in _rooms:
-		if str(r.get("name", "")) == game_name and str(r.get("host_name", "")) != who:
-			_say("Game name already in use.")
-			return
+	if LobbySession.game_name_taken(game_name, who):
+		_say("Game name already in use.")
+		return
 	var failed := GameSetupMp.host_port_error(port)
 	if failed != "":
 		_say(failed)
 		GameSetupMp.show_host_error(self, failed)
 		return
-	GameSetupMp.start_host(self, who, game_name, port, _host_pwd.text, saved)
+	GameSetupMp.start_host(self, _net_name(), game_name, port, _host_pwd.text, saved)

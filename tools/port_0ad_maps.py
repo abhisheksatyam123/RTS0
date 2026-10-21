@@ -270,7 +270,9 @@ def _wall_length(root):
 
 # simulation/templates/campaigns/: army_* are hero or champion swordsmen (their parents,
 # here the army's own hero), campaign_city_* civic centres and campaign_religious_test a
-# temple, all Macedonian or Spartan as their names say.
+# temple, all Macedonian or Spartan as their names say. The stand-in picks the entry's "type";
+# its "template" stays the campaign one, which RTS0 has as roster rows (campaigns/army_*) and
+# BuildingTypes (map_structure_template).
 CAMPAIGN_STAND_INS = {
     "campaigns/army_mace_hero_alexander": "units/mace/hero_alexander_iii",
     "campaigns/army_spart_hero_leonidas": "units/spart/hero_leonidas",
@@ -704,6 +706,12 @@ def apply_player_data(players, settings, scenario=False, to_world=None):
         c = pd.get("Color")
         if isinstance(c, dict) and all(isinstance(c.get(k), (int, float)) for k in "rgb"):
             p["color"] = [int(c["r"]), int(c["g"]), int(c["b"])]
+        # 0.28 PlayerName.js _set: the map's Name is the seat's default name (an AI keeps it); the
+        # default "Player N" adds nothing.
+        p.pop("name", None)
+        nm = pd.get("Name")
+        if isinstance(nm, str) and nm.strip() and nm != f"Player {p['id']}":
+            p["name"] = nm
         # helpers/Player.js SetStartingCamera: the game opens with this player's camera on
         # Position at Rotation (degrees) instead of on their civic centre.
         p.pop("camera", None)
@@ -866,7 +874,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
 
         # Convert entities into RTS0 format
         resources = []
-        gaia = {"fauna": [], "treasures": [], "ruins": [], "gaia_structures": [], "gaia_units": [], "scenery": []}
+        gaia = {"fauna": [], "treasures": [], "ruins": [], "gaia_structures": [], "gaia_units": [], "scenery": [], "relics": []}
         gaia_unit_index = {}       # uid -> index in gaia["gaia_units"]
         gaia_structure_index = {}  # uid -> index in gaia["gaia_structures"]
         fauna = gaia["fauna"]
@@ -924,9 +932,10 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 continue
             if ltpl.startswith("territory_pulls/"):
                 continue  # campaign_test_map's territory_pull_30 markers: RTS0 has no such entity
-            if ltpl in CAMPAIGN_STAND_INS:
+            campaign = ltpl if ltpl in CAMPAIGN_STAND_INS else ""
+            if campaign:
                 # The campaign test maps' armies and cities (simulation/templates/campaigns/)
-                # stand in as the unit or structure their template inherits from.
+                # take the type of the unit or structure their template inherits from.
                 tpl = CAMPAIGN_STAND_INS[ltpl]
                 ltpl = tpl.lower()
 
@@ -938,6 +947,12 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 elif gaia_entity(ltpl, wx, wz):
                     key, ent = gaia_entity(ltpl, wx, wz)
                     gaia[key].append(ent)
+                elif ltpl.startswith("units/") and ltpl.endswith("/catafalque"):
+                    # A Gaia catafalque is a relic (template_unit_catafalque.xml, Identity class
+                    # Relic), there to be captured whatever the victory conditions; Capture the
+                    # Relic adds its relicCount on top (CaptureTheRelic.js). "civ": whose catafalque.
+                    code = ltpl.split("/")[1]
+                    gaia["relics"].append({"civ": CIV_CODES.index(code) if code in CIV_CODES else -1, "x": wx, "z": wz})
                 elif ltpl.startswith(("units/", "structures/")):
                     owned = gaia_owned(files, ltpl, wx, wz, angle_by_uid.get(uid, 0.0), scale)
                     if owned:
@@ -1061,9 +1076,14 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     units.append({"type": "bolt_shooter", "player": ply, "x": wx, "z": wz})
                 elif any(k in ltpl for k in ["fishing_boat", "boat"]):
                     units.append({"type": "fishing_boat", "player": ply, "x": wx, "z": wz})
+                else:
+                    # No keyword in the name (merc_thureophoros, theb_sacred_band, support_wagon,
+                    # catafalque, siege_tower, the packed/unpacked siege variants): RTS0 spawns it by
+                    # its template or a parent's, and leaves it out when it has neither (type "").
+                    units.append({"type": "", "player": ply, "x": wx, "z": wz})
                 # The 0 A.D. template ("athen/infantry_javelineer_b"): RTS0 spawns that civ roster
                 # template or building when it has one, else falls back to "type".
-                short = tpl.split("/", 1)[1] if "/" in tpl else tpl
+                short = campaign or (tpl.split("/", 1)[1] if "/" in tpl else tpl)
                 if len(units) > n_units:
                     unit_index[uid] = n_units
                     units[-1]["template"] = short
@@ -1121,6 +1141,8 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             "revealers": revealers
         }
         # TriggerScripts, by base name; RTS0 runs its C++ port of each (Simulation::register_trigger_script).
+        if gaia["relics"]:
+            map_data["relics"] = gaia["relics"]
         if pop_limit is not None:
             map_data["pop_limit"] = pop_limit
         if scripts:
@@ -1233,11 +1255,15 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 old = json.load(f)
             k = old.get("world_size", world_size_m) / world_size_m
             mine = [dict(e, x=round(e["x"] * k, 2), z=round(e["z"] * k, 2)) for e in units]
-            if mine != old.get("units", []):
+            relics = [dict(e, x=round(e["x"] * k, 2), z=round(e["z"] * k, 2)) for e in gaia["relics"]]
+            if mine != old.get("units", []) or relics != old.get("relics", []):
                 old["units"] = mine
+                old.pop("relics", None)
+                if relics:
+                    old["relics"] = relics
                 with open(out_path, "w") as f:
                     json.dump(old, f, indent=2)
-            print(f"  -> {out_path}: {len(mine)} units")
+            print(f"  -> {out_path}: {len(mine)} units, {len(relics)} relics")
             return
         if livestock_only:
             # Keep the existing map; only refresh the players' own livestock (fauna with a player).

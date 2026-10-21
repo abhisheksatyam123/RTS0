@@ -30,6 +30,7 @@ const REFERENCE_STYLES := {
 	"reference": {"delay": 0.05, "width": 480.0, "offset": Vector2(16, 24), "font": 14, "buffer": 4.0},
 	"civinfo": {"delay": 0.05, "width": 440.0, "offset": Vector2(16, 32), "font": 12, "buffer": 10.0},
 	"session_bold": {"delay": 0.1, "width": 400.0, "offset": Vector2(16, 32), "font": 14, "bold": true},
+	"session_instant": {"delay": 0.0, "width": 400.0, "offset": Vector2(16, 32), "font": 14}, # sessionToolTipInstantly
 	"session_bottom": {"delay": 0.1, "width": 400.0, "offset": Vector2(-4, -4), "font": 14, "bottom": true},
 	"session_bottom_bold": {"delay": 0.1, "width": 400.0, "offset": Vector2(-4, -4), "font": 14, "bottom": true, "bold": true},
 	"pg": {"delay": 0.0, "width": 293.0, "font": 14, "fixed": Rect2(-313, 25, 313, 175)},
@@ -105,6 +106,11 @@ func _in_session() -> bool:
 
 func _process(delta: float) -> void:
 	var vp := get_viewport()
+	# Godot hovers afresh only when the mouse moves, so a page or dialog opened under a
+	# still cursor (the Summary on Ctrl+Tab) would leave the covered control's tooltip
+	# drawn over it. While one is shown or pending, hover the cursor's control again.
+	if is_instance_valid(_owner):
+		vp.update_mouse_cursor_state()
 	var c := vp.gui_get_hovered_control()
 	var mouse := vp.get_mouse_position()
 	var text := ""

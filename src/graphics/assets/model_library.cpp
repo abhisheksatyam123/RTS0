@@ -76,6 +76,21 @@ static float glb_root_scale(Node *n, int depth = 0) {
 	return 0.0f;
 }
 
+// A person on foot. The extractors fitted each 0.28 actor to a height of its own and
+// kept the factor as the GLB root's scale; a bare body (a slinger, a citizen) comes out
+// PERSON_RS_HEIGHT root-scaled units tall. A held spear, bow or staff reaches past the
+// body in the bind pose, so a spearman's bounds run ~60% taller: sizing a person by its
+// root scale draws a hoplite as tall as the citizen beside it, as 0.28 does.
+static constexpr float PERSON_RS_HEIGHT = 4.98f;
+static bool is_person_model(const String &id) {
+	static const char *kNot[] = { "cavalry", "camel", "elephant", "eleph_", "chariot", "ram", "siege", "catapult",
+		"bolt", "lithobolos", "oxybeles", "ballista", "onager", "mangonel", "ship", "boat", "trireme",
+		"projectile", "plane", "wagon", "dog", "packed", "horse", "catafalque", "tower", "_cav", "trader", "merchant" };
+	for (const char *k : kNot)
+		if (id.contains(k)) return false;
+	return !is_fauna_model(id);
+}
+
 float ModelLibrary::target_height(const String &category, const String &id, float natural_h) {
 	if (category == "units") {
 		// Animals keep their height here; load() redraws them at one shared scale.
@@ -84,6 +99,9 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		}
 		// So do the packed siege wagons (tools/extract_0ad_packed_siege.py).
 		if (is_packed_siege_model(id.utf8().get_data())) return natural_h;
+		// Flight Demo's P-51: 0.28's aeroplane.dae stands 5.5 units to a hoplite's 4.5,
+		// so ~2.2 m (a ~9 m wingspan) beside the 1.8 m infantry.
+		if (id == "plane") return 2.2f;
 		// And the Germans' ox wagons (ram-wide, extract_0ad_assets.py ZIP_UNITS),
 		// asked for by civ (germ_wagon) and drawn from wagon.glb.
 		if (id == "wagon" || id.ends_with("_wagon") || id.ends_with("wagon_house")) return natural_h;
@@ -162,7 +180,7 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		else if (base == "temple") return 6.4f;
 		else if (base == "wonder") return 8.5f;
 		else if (base == "barracks" || base == "market" || base == "stable") return 4.4f;
-		else if (base == "wall_tower" || base == "tower") return 4.6f;
+		else if (base == "wall_tower" || base == "tower" || base == "defense_tower") return 4.6f;
 		else if (base == "gate") return 4.5f;
 		else if (base == "wall" || base == "wall_segment") return 3.0f;
 		else if (base == "dock" || base == "shipyard" || base == "blacksmith" || base == "siege_workshop") return 4.0f;
@@ -749,6 +767,7 @@ struct UnitHelmet {
 	std::vector<float> cut;
 	uint32_t salt = 0;
 	std::vector<Ref<ArrayMesh>> built;
+	bool requested = false; // prefetch_unit_helmets asked for its GLBs
 };
 static HashMap<String, UnitHelmet> &unit_helmets() {
 	static auto &m = *new HashMap<String, UnitHelmet>();
@@ -785,14 +804,22 @@ static HashMap<String, UnitHelmet> &unit_helmets() {
 }
 
 static void collect_mesh_xforms(Node *n, const Transform3D &acc, Vector<MeshXform> &out);
+static void take_companions(const String &path, std::vector<Ref<Resource>> &keep, HashMap<String, bool> &pending);
 
 // The helmet GLB's surfaces with their own materials, moved onto the baked
 // helmet and weighted fully to its joint.
 static Ref<ArrayMesh> build_unit_helmet(UnitHelmet &h, int k) {
 	if (h.built[k].is_valid() || h.helmets[k] == "none") return h.built[k];
-	Ref<PackedScene> scene = ResourceLoader::get_singleton()->exists(h.helmets[k])
-			? Ref<PackedScene>(ResourceLoader::get_singleton()->load(h.helmets[k]))
-			: Ref<PackedScene>();
+	// prefetch() asks for a unit's helmet GLBs with the unit's own: take them from the worker.
+	std::vector<Ref<Resource>> companions; // held through the fixups below
+	take_companions(h.helmets[k], companions, ModelLibrary::threaded_paths());
+	Ref<PackedScene> scene;
+	if (ModelLibrary::threaded_paths().has(h.helmets[k])) {
+		ModelLibrary::threaded_paths().erase(h.helmets[k]);
+		scene = ResourceLoader::get_singleton()->load_threaded_get(h.helmets[k]);
+	}
+	if (scene.is_null() && ResourceLoader::get_singleton()->exists(h.helmets[k]))
+		scene = ResourceLoader::get_singleton()->load(h.helmets[k]);
 	Node *inst = scene.is_valid() ? scene->instantiate() : nullptr;
 	if (!inst) return h.built[k];
 	ModelLibrary::apply_imported_material_fixups(inst);
@@ -1899,11 +1926,29 @@ HashMap<String, bool> &ModelLibrary::threaded_paths() {
 	return m;
 }
 
+// The requests not yet seen finished (a short list: finished ones drop out on each count).
+static std::vector<String> &requests_in_flight() {
+	static auto &v = *new std::vector<String>();
+	return v;
+}
+
+int ModelLibrary::loads_in_flight() {
+	std::vector<String> &v = requests_in_flight();
+	v.erase(std::remove_if(v.begin(), v.end(), [](const String &p) {
+		return !threaded_paths().has(p) ||
+				ResourceLoader::get_singleton()->load_threaded_get_status(p) != ResourceLoader::THREAD_LOAD_IN_PROGRESS;
+	}), v.end());
+	return (int)v.size();
+}
+
 void ModelLibrary::request_threaded(const String &path) {
 	if (threaded_paths().has(path) || ResourceLoader::get_singleton()->has_cached(path) ||
 			!ResourceLoader::get_singleton()->exists(path))
 		return;
-	if (ResourceLoader::get_singleton()->load_threaded_request(path) == OK) threaded_paths().insert(path, true);
+	if (ResourceLoader::get_singleton()->load_threaded_request(path) == OK) {
+		threaded_paths().insert(path, true);
+		requests_in_flight().push_back(path);
+	}
 }
 
 // Takes the prefetched companion textures of a GLB (they stay cached while `keep` holds them).
@@ -1920,7 +1965,22 @@ static void take_companions(const String &path, std::vector<Ref<Resource>> &keep
 // ResourceLoader's threaded load reads the GLB and the textures it names on a
 // worker; load() then takes it with load_threaded_get instead of reading it on
 // the frame that first draws the model.
+// The helmets set_unit_helmet may draw on a unit GLB (data/unit_helmets.json) are read the
+// first time a unit wearing each comes close: ask for them along with the unit's model.
+static void prefetch_unit_helmets(const String &id) {
+	UnitHelmet *h = unit_helmets().getptr(id);
+	if (!h || h->requested) return;
+	h->requested = true;
+	for (int k = 1; k < h->helmets.size(); ++k) {
+		if (h->helmets[k] == "none" || h->built[k].is_valid()) continue;
+		ModelLibrary::request_threaded(h->helmets[k]);
+		if (const PackedStringArray *tex = companion_textures().getptr(h->helmets[k].trim_prefix("res://assets/models/").get_basename()))
+			for (const String &t : *tex) ModelLibrary::request_threaded(t);
+	}
+}
+
 void ModelLibrary::prefetch(const String &category, const String &id) {
+	if (category == "units") prefetch_unit_helmets(id);
 	if (cache().has(category + String("/") + id)) return;
 	const Vector<String> candidates = candidate_paths(category, id);
 	for (int i = 0; i < candidates.size(); ++i) {
@@ -1990,6 +2050,7 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 							// weapons and tools (spears, pikes, longbows, scythes, picks), whose extents
 							// would otherwise cause the unit body to scale down to dwarf proportions.
 							float natural_h = e.aabb.size.y;
+							const float rs = category == "units" ? glb_root_scale(inst) : 0.0f;
 							if (category == "units") {
 								AABB body_aabb;
 								bool have_body = false;
@@ -2015,19 +2076,22 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 									natural_h = body_aabb.size.y;
 								}
 							}
+							// A mounted hero (template model sized by a cavalry class model) is no person on foot.
+							const bool on_foot = is_person_model(id) && !(tm && tm->class_model && !is_person_model(String(tm->class_model)));
+							if (rs >= 0.3f && rs <= 0.5f && on_foot) natural_h = PERSON_RS_HEIGHT * rs;
 							float want_h = target_height(category, id, natural_h);
 							if (natural_h > 0.05f && want_h > 0.05f)
 								e.scale = want_h / natural_h;
-							if (category == "units" && is_fauna_model(id)) {
-								const float rs = glb_root_scale(inst);
-								if (rs > 0.01f) e.scale = FAUNA_SCALE / rs;
-							}
+							if (category == "units" && is_fauna_model(id) && rs > 0.01f) e.scale = FAUNA_SCALE / rs;
 							// A template model is drawn at its class model's scale, so a
 							// hero's crest or a champion's spear doesn't shrink the body.
 							if (tm && tm->class_model) {
 								const Entry &cls = get(category, String(tm->class_model));
 								if (cls.valid && cls.scale > 0.0f) e.scale = cls.scale;
 							}
+							e.height = natural_h;
+							// World units per 0.28 metre: the GLB's units are 0.28's times its root scale.
+							e.metre = rs > 0.01f ? e.scale * rs : e.scale;
 							// Props keep their 0 A.D. actor origin (a wreck sits partly under water).
 							e.y_offset = e.animated || category == "props" ? 0.0f : -e.aabb.position.y * e.scale;
 							e.valid = true;
@@ -2057,6 +2121,8 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 		if (e.mesh.is_valid()) {
 			e.aabb = e.mesh->get_aabb();
 			e.scale = 1.0f;
+			e.metre = 1.0f;
+			e.height = e.aabb.size.y;
 			e.y_offset = -e.aabb.position.y;
 			e.valid = true;
 			e.crowd_mesh = e.mesh;
@@ -2072,6 +2138,7 @@ const ModelLibrary::Entry &ModelLibrary::get(const String &category, const Strin
 	Entry *found = cache().getptr(key);
 	if (found) return *found;
 	load(category, id);
+	if (category == "units") prefetch_unit_helmets(id);
 	found = cache().getptr(key);
 	static Entry empty;
 	return found ? *found : empty;
@@ -2080,6 +2147,7 @@ const ModelLibrary::Entry &ModelLibrary::get(const String &category, const Strin
 void ModelLibrary::clear() {
 	for (const KeyValue<String, bool> &kv : threaded_paths()) ResourceLoader::get_singleton()->load_threaded_get(kv.key);
 	threaded_paths().clear();
+	requests_in_flight().clear();
 	cache().clear();
 	player_color_mats().clear();
 }

@@ -55,6 +55,9 @@ func run() -> void:
 	check(items(kind_select(page, 1)) == [you, "AI: Petra Bot", "Unassigned", "Removed"], "a slot offers you, AI, Unassigned and Removed: " + str(items(kind_select(page, 1))))
 	check(items(kind_select(page, 0)) == [you, "AI: Petra Bot", "Unassigned"] and kind_select(page, 0).text == you, "slot 1 has no Removed, and is you")
 	check(kind_select(page, 1).tooltip_text == "Select player.", "the 0.28 tooltip")
+	var ks1: RtsoSafeSelect = kind_select(page, 1)
+	check([0, 1, 2, 3].map(func(ix): return ks1.get_item_color(ix)) == [Color.WHITE, Color8(70, 150, 70), Color8(140, 140, 140), Color8(255, 140, 140)],
+		"PlayerAssignmentItem colours: you white, AI green, Unassigned grey, Removed red")
 
 	print("2. Moving yourself")
 	var ks := kind_select(page, 2)
@@ -67,7 +70,13 @@ func run() -> void:
 		"civ and colour swap with it")
 	var st: Dictionary = page._collect_setup()
 	check(int(st["local_slot"]) == 2 and st["names"][2] == you, "the setup seats you in slot 3, with your name")
-	check(page._slot_label(2, page._slot_rows[2]) == "P3 (You)" and page._slot_label(0, page._slot_rows[0]) == "P1", "P3 (You)")
+	check(page._slot_label(2, page._slot_rows[2]) == "Player 3" and page._slot_label(0, page._slot_rows[0]) == "Player 1",
+		"the rows keep player_defaults' names, yours filled in at launch")
+	await frames(2)
+	var bw: float = page.get_node("VBox/HBox/Right/SlotsBox").size.x
+	var cells: Array = page._slots_grid().get_children().filter(func(c): return not c.is_queued_for_deletion())
+	check(bw > 0.0 and absf(cells[0].size.x - floorf(bw * 0.22)) <= 1.0 and absf(cells[4].position.x + cells[4].size.x - bw * 0.85) <= 2.0,
+		"PlayersPanel.xml's columns: name to 22%%, civ to 85%% of %d px" % int(bw))
 	ks = kind_select(page, 2)
 	ks.select(2)
 	ks.item_selected.emit(2)

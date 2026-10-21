@@ -163,6 +163,144 @@ int main() {
 	}
 	CHECK(ptol_heroes == 3);
 
+	// The Carthaginian Tophet (cart/tophet): a map-only temple that trains the healer, not the
+	// Carthaginian temple's champions, costs 200 stone and 100 metal and doesn't decay.
+	CHECK(map_structure_template("structures/cart/tophet").type == BLD_TOPHET);
+	CHECK(map_structure_template("cart/tophet").civ == CIV_CARTHAGINIANS);
+	for (uint8_t c = 0; c < CIV_COUNT; ++c) CHECK(!civ_can_build(c, BLD_TOPHET));
+	CHECK(building_type_info(BLD_TOPHET).stone_cost == 200 && building_type_info(BLD_TOPHET).gold_cost == 100 &&
+		building_type_info(BLD_TOPHET).territory_decay_rate == 0.0f);
+	CHECK(building_garrison_heal(BLD_TOPHET) == 3.0f && (building_tech_classes(BLD_TOPHET) & TC_TEMPLE));
+	CHECK(building_researches_tech(BLD_TOPHET, TECH_HEAL_RATE, CIV_CARTHAGINIANS));
+	{
+		int healers = 0, champions = 0, temple_champions = 0;
+		for (uint16_t id : civ_roster_ids(CIV_CARTHAGINIANS)) {
+			const CivUnitTemplate &u = civ_unit_template(id);
+			if (building_trains_template(BLD_TOPHET, CIV_CARTHAGINIANS, CIV_CARTHAGINIANS, id))
+				(u.unit_type == UNIT_HEALER ? healers : champions)++;
+			if (u.unit_type != UNIT_HEALER && building_trains_template(BLD_TEMPLE, CIV_CARTHAGINIANS, CIV_CARTHAGINIANS, id))
+				++temple_champions;
+		}
+		CHECK(healers == 1 && champions == 0 && temple_champions > 0);
+		std::printf("tophet: %d healer, %d others (the temple trains %d champions)\n", healers, champions, temple_champions);
+	}
+
+	// The campaign test maps' cities and sanctuary (simulation/templates/campaigns/, Units Demo):
+	// civic centres with a 48 m obstruction (three cells), 5 and 3 arrows of 25 pierce out to
+	// 50 m and a 300 and 150 m territory root, and a temple that trains and researches nothing.
+	CHECK(map_structure_template("campaigns/campaign_city_test").type == BLD_CAMPAIGN_CITY);
+	CHECK(map_structure_template("campaigns/campaign_city_minor_test").type == BLD_CAMPAIGN_CITY_MINOR);
+	CHECK(map_structure_template("campaigns/campaign_religious_test").type == BLD_CAMPAIGN_SANCTUARY);
+	for (uint8_t t = BLD_CAMPAIGN_CITY; t <= BLD_CAMPAIGN_SANCTUARY; ++t)
+		for (uint8_t c = 0; c < CIV_COUNT; ++c) CHECK(!civ_can_build(c, t));
+	CHECK(building_type_info(BLD_CAMPAIGN_CITY).footprint == 3 && building_type_info(BLD_CAMPAIGN_CITY_MINOR).footprint == 3);
+	CHECK(building_ai_info(BLD_CAMPAIGN_CITY).default_arrows == 5 && building_ai_info(BLD_CAMPAIGN_CITY_MINOR).default_arrows == 3);
+	CHECK(building_ai_info(BLD_CAMPAIGN_CITY).pierce == 25.0f &&
+		std::fabs(building_ai_info(BLD_CAMPAIGN_CITY).max_range - 50.0f * 0.28f) < 0.01f);
+	CHECK(territory_influence_info(BLD_CAMPAIGN_CITY).radius == 300.0f * 0.25f &&
+		territory_influence_info(BLD_CAMPAIGN_CITY_MINOR).radius == 150.0f * 0.25f &&
+		territory_influence_info(BLD_CAMPAIGN_SANCTUARY).radius == 100.0f * 0.25f);
+	CHECK(is_civic_centre(BLD_CAMPAIGN_CITY) && civ_building_is_dropsite(BLD_CAMPAIGN_CITY_MINOR));
+	CHECK(building_type_info(BLD_CAMPAIGN_SANCTUARY).max_hp == 2200.0f && building_garrison_heal(BLD_CAMPAIGN_SANCTUARY) == 3.0f);
+	CHECK(!building_researches_tech(BLD_CAMPAIGN_SANCTUARY, TECH_HEAL_RATE, CIV_ATHENIANS));
+	CHECK(building_researches_tech(BLD_CAMPAIGN_CITY, TECH_PHASE_TOWN, CIV_ATHENIANS));
+	{
+		int trained = 0;
+		for (uint16_t id = 0; id < CIV_UNIT_TEMPLATE_COUNT; ++id)
+			for (uint8_t t = BLD_CAMPAIGN_CITY; t <= BLD_CAMPAIGN_SANCTUARY; ++t)
+				trained += building_trains_template(t, CIV_ATHENIANS, CIV_ATHENIANS, id);
+		CHECK(trained == 0);
+	}
+	// Their armies (campaigns/army_*): hero and champion swordsmen with a 7 m reach, 60 and 50 m
+	// vision and an 8 m footprint; the heroes add 20 crush resistance.
+	{
+		const uint16_t alex = civ_unit_template_by_id("campaigns/army_mace_hero_alexander");
+		const uint16_t army = civ_unit_template_by_id("campaigns/army_mace_standard");
+		const uint16_t leo = civ_unit_template_by_id("campaigns/army_spart_hero_leonidas");
+		CHECK(alex < CIV_UNIT_TEMPLATE_COUNT && army < CIV_UNIT_TEMPLATE_COUNT && leo < CIV_UNIT_TEMPLATE_COUNT);
+		if (alex < CIV_UNIT_TEMPLATE_COUNT && army < CIV_UNIT_TEMPLATE_COUNT && leo < CIV_UNIT_TEMPLATE_COUNT) {
+			const CivUnitTemplate &a = civ_unit_template(alex), &m = civ_unit_template(army);
+			CHECK(a.unit_type == UNIT_HERO && m.unit_type == UNIT_SWORDSMAN && civ_unit_template(leo).unit_type == UNIT_HERO);
+			CHECK(std::fabs(a.attack_range - 7.0f * 0.6f) < 0.01f && std::fabs(m.attack_range - 7.0f * 0.6f) < 0.01f);
+			CHECK(std::fabs(a.vision - 60.0f * 0.28f) < 0.01f && std::fabs(m.vision - 50.0f * 0.28f) < 0.01f);
+			CHECK(a.crush_armor == 20.0f && a.gold_cost == 300);
+			CHECK(combat_template_table()[alex].footprint == 8.0f && combat_template_table()[army].footprint == 8.0f);
+		}
+	}
+	{
+		static Simulation c;
+		c.set_sim_seed(7);
+		c.set_team_civ(0, CIV_ATHENIANS);
+		c.set_team_civ(1, CIV_GAULS);
+		c.reset();
+		const uint32_t city = c.spawn_building_world(-60.0f, 0.0f, BLD_CAMPAIGN_CITY, 0, 1.0f);
+		c.spawn_building_world(100.0f, 100.0f, BLD_TOWN_CENTER, 1, 1.0f);
+		CHECK(find_bld(c, city) && find_bld(c, city)->half_size == 3.0f);
+		CHECK(c.territory_owner_at(-60.0f + 60.0f, 0.0f) == 0); // past a civic centre's 32, inside 75
+		const uint32_t hero = c.spawn_map_unit(-60.0f, 20.0f, 0, UNIT_HERO, "campaigns/army_mace_hero_alexander");
+		CHECK(hero != 0);
+		const uint32_t foe = c.spawn_unit(-60.0f, -14.0f, 1, UNIT_SWORDSMAN, 0.0f); // 11 from the city's edge
+		c.order_set_stance(&foe, 1, STANCE_STAND_GROUND);
+		const float foe0 = unit_hp(c, foe);
+		run(c, 8.0f);
+		std::printf("campaign city: foe %.1f -> %.1f\n", foe0, unit_hp(c, foe));
+		CHECK(unit_hp(c, foe) < foe0);
+	}
+
+	// Map-only Gaia pieces (seventeenth/eighteenth passes): the wonders, the army tents and the
+	// market stalls load as structures of their own kind instead of being dropped.
+	CHECK(map_structure_template("structures/stonehenge").type == BLD_WONDER);
+	CHECK(map_structure_template("structures/uffington_horse").civ == CIV_BRITONS);
+	CHECK(map_structure_template("structures/tent_desert").type == BLD_TENT &&
+		map_structure_template("structures/tent_desert").civ == CIV_PTOLEMIES);
+	CHECK(map_structure_template("structures/stall_big").type == BLD_STALL);
+	CHECK(map_structure_template("structures/stall_small_b").type == BLD_STALL);
+	// Gaia huts, longhouses, stalls and the Persian map houses (nineteenth pass): each its own
+	// template_structure_civic_house child with its own health and population; the stalls and
+	// Persian houses keep the house Trainer, the Celtic huts and longhouses disable it.
+	CHECK(map_structure_template("structures/celt_hut").type == BLD_HUT);
+	CHECK(map_structure_template("structures/celt_longhouse").type == BLD_LONGHOUSE);
+	CHECK(map_structure_template("structures/pers/house_a").type == BLD_PERS_HOUSE_A &&
+		map_structure_template("structures/pers/house_a").civ == CIV_PERSIANS);
+	CHECK(map_structure_template("structures/pers/apartment_block").type == BLD_APARTMENT_BLOCK);
+	struct HouseRow { uint8_t type; float hp; int pop; bool trains; };
+	for (const HouseRow &r : {HouseRow{BLD_STALL, 500.0f, 5, true}, HouseRow{BLD_HUT, 500.0f, 2, false},
+			HouseRow{BLD_LONGHOUSE, 1000.0f, 10, false}, HouseRow{BLD_PERS_HOUSE_A, 1000.0f, 5, true},
+			HouseRow{BLD_PERS_HOUSE_B, 1200.0f, 10, true}, HouseRow{BLD_APARTMENT_BLOCK, 2000.0f, 15, true}}) {
+		CHECK(is_map_house(r.type) && building_research_base(r.type) == BLD_HOUSE);
+		CHECK(building_type_info(r.type).max_hp == r.hp && building_type_info(r.type).pop_bonus == r.pop);
+		CHECK((building_tech_classes(r.type) & TC_HOUSE) && house_trains_citizens(r.type) == r.trains);
+		for (uint8_t c = 0; c < CIV_COUNT; ++c) CHECK(!civ_can_build(c, r.type));
+		int citizens = 0;
+		for (uint16_t id : civ_roster_ids(CIV_GAULS))
+			if (building_trains_template(r.type, CIV_GAULS, CIV_GAULS, id)) ++citizens;
+		CHECK((citizens > 0) == r.trains);
+	}
+	// The Hellenic epic temple: 5000 health, heals its garrison like a temple, trains and
+	// researches nothing (ProductionQueue, Researcher and Trainer disabled).
+	CHECK(map_structure_template("structures/hellenic_epic_temple").type == BLD_EPIC_TEMPLE);
+	CHECK(building_type_info(BLD_EPIC_TEMPLE).max_hp == 5000.0f && building_garrison_heal(BLD_EPIC_TEMPLE) == 3.0f);
+	CHECK(!building_researches_tech(BLD_EPIC_TEMPLE, TECH_HEAL_RATE, CIV_ATHENIANS));
+	for (uint16_t id : civ_roster_ids(CIV_ATHENIANS)) CHECK(!building_trains_template(BLD_EPIC_TEMPLE, CIV_ATHENIANS, CIV_ATHENIANS, id));
+	CHECK(map_structure_template("structures/mill_field_wheat").type == BLD_FIELD);
+	// A captured Ptolemaic mercenary camp keeps the generic barracks list: no crossbow_training.
+	CHECK(building_researches_tech(BLD_MERCENARY_CAMP, TECH_BARRACKS_BATCH_TRAINING, CIV_HAN));
+	CHECK(!building_researches_tech(BLD_MERCENARY_CAMP, TECH_CROSSBOW_TRAINING, CIV_HAN));
+	{
+		// A Gaia Gallic house has the Gallic template's health (800), not the Athenian 1200,
+		// and a Gaul who captures it keeps that base under its own modifiers.
+		static Simulation g;
+		g.set_sim_seed(3);
+		g.reset();
+		const uint32_t h = g.spawn_building_world(10.0f, 10.0f, BLD_HOUSE, GAIA_PLAYER, 1.0f);
+		const float athen = g.buildings_[g.building_id_to_idx_.at(h)].max_hp;
+		g.set_building_civ(h, CIV_GAULS);
+		const auto &hb = g.buildings_[g.building_id_to_idx_.at(h)];
+		std::printf("gaia Gallic house: %.0f hp (spawned %.0f), Gallic row %.0f\n", hb.max_hp, athen,
+				civ_building_type_info(CIV_GAULS, BLD_HOUSE).max_hp);
+		CHECK(hb.max_hp == civ_building_type_info(CIV_GAULS, BLD_HOUSE).max_hp && hb.hp == hb.max_hp && hb.max_hp < athen);
+	}
+
 	// The Gaia mills (structures/mill_*, {brit,gaul}/rotarymill, mixins/rotary_mill.xml): a
 	// food dropsite captured but never damaged, whose farmstead_60 aura makes its owner's grain
 	// gatherers within 60 m gather x1.75.

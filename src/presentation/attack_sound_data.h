@@ -99,9 +99,9 @@ struct EntityAttackSounds {
 	uint8_t a, b, c, d;
 };
 
-inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 511;
+inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 548;
 inline constexpr uint8_t ATTACK_SOUND_GENERIC_ROWS = 27;
-inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 87;
+inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 98;
 inline constexpr uint8_t ATTACK_SOUND_FAUNA_ROWS = 61;
 
 // Melee, ranged and impact groups of a civ roster row (civ_unit_template_table order).
@@ -614,10 +614,47 @@ inline const EntityAttackSounds *roster_attack_sounds() {
 		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // theb_sacred_band
 		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // thesp_melanochitones
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // theb_siege_fireraiser
-		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_infantry_swordsman_02 (hand-added: its parent's)
-		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_infantry_swordsman_03 (hand-added: its parent's)
-		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_infantry_swordsman_04 (hand-added: its parent's)
-		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_infantry_swordsman_05 (hand-added: its parent's)
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_infantry_swordsman_02
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_infantry_swordsman_03
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_infantry_swordsman_04
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_infantry_swordsman_05
+		{ATTACK_SOUND_NONE, 29, 23, ATTACK_SOUND_NONE}, // athen/hero_xenophon
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/hero_leonidas_300
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // pers/arstibara
+		{ATTACK_SOUND_NONE, 27, 22, ATTACK_SOUND_NONE}, // han/siege_shoushe
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // athen/infantry_spearman_a
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // athen/support_healer_e
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // spart/infantry_spearman_a
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // spart/support_healer_e
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // pers/infantry_spearman_a
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // cart/infantry_spearman_a
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // cart/support_healer_e
+		{31, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // mace/infantry_pikeman_a
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // brit/infantry_spearman_a
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // brit/support_healer_e
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // gaul/infantry_spearman_a
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // iber/infantry_spearman_a
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // iber/infantry_swordsman_a
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // iber/support_healer_e
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // maur/infantry_spearman_a
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // maur/infantry_swordsman_a
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // maur/support_healer_e
+		{31, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // kush/infantry_pikeman_a
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // kush/infantry_spearman_a
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // kush/infantry_swordsman_a
+		{31, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // ptol/infantry_pikeman_a
+		{31, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // sele/infantry_pikeman_a
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // sele/infantry_spearman_a
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // sele/support_healer_e
+		{31, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // han/infantry_pikeman_a
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // han/infantry_spearman_a
+		{33, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // germ/infantry_spearman_a
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 30}, // germ/infantry_swordsman_a
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/support_healer_e
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // plane
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // campaigns/army_mace_hero_alexander
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // campaigns/army_mace_standard
+		{35, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // campaigns/army_spart_hero_leonidas
 	};
 	return kRows;
 }
@@ -747,6 +784,17 @@ inline const EntityAttackSounds &building_attack_sounds(uint8_t type) {
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_LAOZI_GATE: structures/han/laozigate
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TEMPLE_ISIS: structures/ptol/temple_2
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_MILL: structures/mill_greek
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_TOPHET: structures/cart/tophet
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_CAMPAIGN_CITY: campaigns/campaign_city_test
+		{28, 21, 19, ATTACK_SOUND_NONE}, // BLD_CAMPAIGN_CITY_MINOR: campaigns/campaign_city_minor_test
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_CAMPAIGN_SANCTUARY: campaigns/campaign_religious_test
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_STALL: structures/stall_big
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_HUT: structures/celt_hut
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_LONGHOUSE: structures/celt_longhouse
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_PERS_HOUSE_A: structures/pers/house_a
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_PERS_HOUSE_B: structures/pers/house_b
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_APARTMENT_BLOCK: structures/pers/apartment_block
+		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // BLD_EPIC_TEMPLE: structures/hellenic_epic_temple
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19, ATTACK_SOUND_NONE}, // default: template_structure
 	};
 	return kRows[type < ATTACK_SOUND_BUILDING_ROWS ? type : ATTACK_SOUND_BUILDING_ROWS];
@@ -1331,10 +1379,47 @@ inline uint8_t roster_death_sound(uint16_t row) {
 		ATTACK_SOUND_PHENOTYPE, // theb_sacred_band
 		ATTACK_SOUND_PHENOTYPE, // thesp_melanochitones
 		ATTACK_SOUND_NONE, // theb_siege_fireraiser
-		ATTACK_SOUND_PHENOTYPE, // rome/champion_infantry_swordsman_02 (hand-added: its parent's)
-		ATTACK_SOUND_PHENOTYPE, // rome/champion_infantry_swordsman_03 (hand-added: its parent's)
-		ATTACK_SOUND_PHENOTYPE, // rome/champion_infantry_swordsman_04 (hand-added: its parent's)
-		ATTACK_SOUND_PHENOTYPE, // rome/champion_infantry_swordsman_05 (hand-added: its parent's)
+		ATTACK_SOUND_PHENOTYPE, // rome/champion_infantry_swordsman_02
+		ATTACK_SOUND_PHENOTYPE, // rome/champion_infantry_swordsman_03
+		ATTACK_SOUND_PHENOTYPE, // rome/champion_infantry_swordsman_04
+		ATTACK_SOUND_PHENOTYPE, // rome/champion_infantry_swordsman_05
+		ATTACK_SOUND_PHENOTYPE, // athen/hero_xenophon
+		ATTACK_SOUND_PHENOTYPE, // spart/hero_leonidas_300
+		ATTACK_SOUND_PHENOTYPE, // pers/arstibara
+		ATTACK_SOUND_NONE, // han/siege_shoushe
+		ATTACK_SOUND_PHENOTYPE, // athen/infantry_spearman_a
+		ATTACK_SOUND_PHENOTYPE, // athen/support_healer_e
+		ATTACK_SOUND_PHENOTYPE, // spart/infantry_spearman_a
+		ATTACK_SOUND_PHENOTYPE, // spart/support_healer_e
+		ATTACK_SOUND_PHENOTYPE, // pers/infantry_spearman_a
+		ATTACK_SOUND_PHENOTYPE, // cart/infantry_spearman_a
+		ATTACK_SOUND_PHENOTYPE, // cart/support_healer_e
+		ATTACK_SOUND_PHENOTYPE, // mace/infantry_pikeman_a
+		ATTACK_SOUND_PHENOTYPE, // brit/infantry_spearman_a
+		ATTACK_SOUND_PHENOTYPE, // brit/support_healer_e
+		ATTACK_SOUND_PHENOTYPE, // gaul/infantry_spearman_a
+		ATTACK_SOUND_PHENOTYPE, // iber/infantry_spearman_a
+		ATTACK_SOUND_PHENOTYPE, // iber/infantry_swordsman_a
+		ATTACK_SOUND_PHENOTYPE, // iber/support_healer_e
+		ATTACK_SOUND_PHENOTYPE, // maur/infantry_spearman_a
+		ATTACK_SOUND_PHENOTYPE, // maur/infantry_swordsman_a
+		ATTACK_SOUND_PHENOTYPE, // maur/support_healer_e
+		ATTACK_SOUND_PHENOTYPE, // kush/infantry_pikeman_a
+		ATTACK_SOUND_PHENOTYPE, // kush/infantry_spearman_a
+		ATTACK_SOUND_PHENOTYPE, // kush/infantry_swordsman_a
+		ATTACK_SOUND_PHENOTYPE, // ptol/infantry_pikeman_a
+		ATTACK_SOUND_PHENOTYPE, // sele/infantry_pikeman_a
+		ATTACK_SOUND_PHENOTYPE, // sele/infantry_spearman_a
+		ATTACK_SOUND_PHENOTYPE, // sele/support_healer_e
+		ATTACK_SOUND_PHENOTYPE, // han/infantry_pikeman_a
+		ATTACK_SOUND_PHENOTYPE, // han/infantry_spearman_a
+		ATTACK_SOUND_PHENOTYPE, // germ/infantry_spearman_a
+		ATTACK_SOUND_PHENOTYPE, // germ/infantry_swordsman_a
+		ATTACK_SOUND_PHENOTYPE, // germ/support_healer_e
+		ATTACK_SOUND_NONE, // plane
+		ATTACK_SOUND_PHENOTYPE, // campaigns/army_mace_hero_alexander
+		ATTACK_SOUND_PHENOTYPE, // campaigns/army_mace_standard
+		ATTACK_SOUND_PHENOTYPE, // campaigns/army_spart_hero_leonidas
 	};
 	return row < ATTACK_SOUND_ROSTER_ROWS ? kRows[row] : ATTACK_SOUND_NONE;
 }

@@ -2,7 +2,8 @@ extends SceneTree
 # Touch input for Android and iOS (scenes/common/touch_input.gd): touches become the
 # mouse events the session reads.
 #   tap -> left click, second quick tap -> double click, drag -> left drag,
-#   hold still -> right click, two fingers -> pan and magnify gestures and no clicks,
+#   hold still or a two-finger tap -> right click, two fingers -> pan and magnify
+#   gestures and no clicks, the pointer parked off the screen between touches,
 #   a latched Shift/Ctrl/Alt -> Input reports the key held and the clicks carry it.
 #
 #   godot --headless --path . --fixed-fps 60 -s tools/e2e_touch_input.gd
@@ -33,7 +34,7 @@ func frames(n: int) -> void:
 func finger(index: int, pos: Vector2, pressed: bool) -> void:
 	var t := InputEventScreenTouch.new()
 	t.index = index
-	t.position = pos
+	t.position = root.get_final_transform() * pos
 	t.pressed = pressed
 	Input.parse_input_event(t)
 	await frames(2)
@@ -41,20 +42,24 @@ func finger(index: int, pos: Vector2, pressed: bool) -> void:
 func slide(index: int, pos: Vector2) -> void:
 	var d := InputEventScreenDrag.new()
 	d.index = index
-	d.position = pos
+	d.position = root.get_final_transform() * pos
 	Input.parse_input_event(d)
 	await frames(2)
 
-# Where the session sees a touch made at window point p (events are delivered in
-# viewport coordinates, after the stretch transform).
+# Test points are UI (viewport) pixels: finger() and slide() send them in window
+# pixels, as a screen would, and the session should see them back where they were.
 func vp(p: Vector2) -> Vector2:
-	return root.get_final_transform().affine_inverse() * p
+	return p
 
 func near(a: Vector2, b: Vector2) -> bool:
 	return a.distance_to(b) < 0.01 * maxf(1.0, b.length())
 
 func buttons(idx: int) -> Array:
 	return rec.events.filter(func(e): return e is InputEventMouseButton and e.button_index == idx)
+
+func _msgbox(under: Node) -> Node:
+	var box := under.find_child("MsgBox", true, false)
+	return box if box != null and not box.is_queued_for_deletion() else null
 
 func run() -> void:
 	touch = root.get_node_or_null("TouchInput")  # the autoload, when -s loads autoloads
@@ -117,6 +122,18 @@ func run() -> void:
 	check(not pans.is_empty(), "moving two fingers pans")
 	check(buttons(MOUSE_BUTTON_LEFT).is_empty() and buttons(MOUSE_BUTTON_RIGHT).is_empty(), "two fingers give no clicks")
 
+	# A quick two-finger tap is a right click where the first finger went down.
+	rec.events.clear()
+	await finger(0, Vector2(500, 300), true)
+	await finger(1, Vector2(560, 300), true)
+	await finger(1, Vector2(560, 300), false)
+	await finger(0, Vector2(500, 300), false)
+	right = buttons(MOUSE_BUTTON_RIGHT)
+	check(right.size() == 2 and right[0].pressed and near(right[0].position, vp(Vector2(500, 300))) and buttons(MOUSE_BUTTON_LEFT).is_empty(), "a two-finger tap is a right click at the first finger")
+
+	# Between touches the pointer is off the screen (no edge scrolling).
+	check(not root.get_visible_rect().has_point(root.get_mouse_position()), "the pointer is parked off the screen once the fingers lift: %s" % root.get_mouse_position())
+
 	# Latched modifiers.
 	rec.events.clear()
 	touch.set_modifier(KEY_SHIFT, true)
@@ -162,6 +179,27 @@ func run() -> void:
 	shift_btn.button_pressed = false
 	await frames(2)
 	check(not touch.is_modifier_on(KEY_SHIFT), "tapping it again releases Shift")
+
+	# Android's Back on the main menu: closes an open submenu, else asks to quit.
+	var menu: Node = load("res://scenes/menu/main_menu.tscn").instantiate()
+	root.add_child(menu)
+	current_scene = menu
+	await frames(5)
+	menu.get_node("MainPanel/Buttons/BtnSingle").pressed.emit()
+	await frames(30)
+	check(menu.submenu_panel.visible, "the Single-player submenu is open")
+	touch.notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	await frames(30)
+	check(not menu.submenu_panel.visible and _msgbox(menu) == null, "Back closes the submenu (and doesn't ask to quit)")
+	touch.notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	await frames(10)
+	var box := _msgbox(menu)
+	check(box != null, "Back on the bare main menu asks to quit")
+	if box:
+		touch.notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+		await frames(10)
+		check(_msgbox(menu) == null and not menu.is_queued_for_deletion(), "and Back again answers No")
+	check(not ProjectSettings.get_setting("application/config/quit_on_go_back"), "Back never quits the game")
 
 	print("e2e_touch_input: %s (%d failure(s))" % ["PASS" if failures == 0 else "FAIL", failures])
 	quit(1 if failures else 0)

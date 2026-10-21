@@ -81,6 +81,25 @@ func run() -> void:
 	await frames(2)
 	var page = root.get_node_or_null("LobbyDialog")
 	check(page != null and page.get_child(0).dialog and not menu.visible, "it opens the lobby page as a dialog and closes the menu")
+	# A child page takes the keyboard: the menu hotkey does nothing behind it,
+	# a second open keeps the one page, and the lobby hotkey closes it (QuitButton.js).
+	await key(KEY_F10)
+	await frames(10)
+	check(not menu.visible, "the lobby dialog takes the keyboard: F10 opens no menu behind it")
+	load("res://scenes/menu/lobby.gd").open_dialog(self)
+	await frames(2)
+	check(root.get_children().filter(func(n) -> bool: return n.name.begins_with("LobbyDialog")).size() == 1,
+		"opening the lobby again keeps the one dialog")
+	for down in [true, false]:
+		var k := InputEventKey.new()
+		k.keycode = KEY_L
+		k.physical_keycode = KEY_L
+		k.alt_pressed = true
+		k.pressed = down
+		Input.parse_input_event(k)
+		await frames(2)
+	check(root.get_node_or_null("LobbyDialog") == null, "and the lobby hotkey (%s) closes it" % str(RtsoHotkeyConfig.new().get_default("lobby")))
+	page = root.get_node_or_null("LobbyDialog")
 	if page:
 		page.queue_free()
 	ls.token = ""
@@ -136,6 +155,17 @@ func run() -> void:
 	var prect: Rect2 = menu.get_node("CenterContainer/Panel").get_global_rect()
 	check(absf(prect.end.x - (mrect.end.x + 8.0)) < 1.0 and prect.position.y >= mrect.end.y and prect.size.x == 164.0 and mrect.size.x == 156.0,
 		"the 164 px panel hangs under the 156 px Menu button, 8 px past its right edge: %s under %s" % [prect, mrect])
+	# Menu.xml: StonePanelThinBorder with StoneButtonFancy buttons, 28 px at a 32 px pitch.
+	var panel: PanelContainer = menu.get_node("CenterContainer/Panel")
+	var pstyle = panel.get_theme_stylebox("panel")
+	var b0: Button = btn(menu, "BtnManual")
+	var b1: Button = btn(menu, "BtnChat")
+	var over = b0.get_theme_stylebox("hover")
+	check("parts" in pstyle and pstyle.parts.size() == 9 and pstyle.get_margin(SIDE_LEFT) == 4.0
+		and "images" in over and over.images.size() == 3 and b0.get_theme_stylebox("normal").images.size() == 1
+		and b0.get_theme_color("font_color") == Color.WHITE and b0.get_theme_font_size("font_size") == 14
+		and b0.size.y == 28.0 and b1.position.y - b0.position.y == 32.0,
+		"the menu is a StonePanelThinBorder of StoneButtonFancy buttons")
 	# Esc (cancel) closes the menu and every open dialog (closeOpenDialogs).
 	main.toggle_chat()
 	await frames(2)
@@ -161,6 +191,17 @@ func run() -> void:
 	# BuildLabel: the release line over the build string; no clock or phase in the bar.
 	var bl: Label = main.find_child("BuildLabel", true, false)
 	check(bl != null and bl.text.begins_with("Release XXVIII: Boiorix\nBuild: "), "the top panel's build label: " + (bl.text.replace("\n", " | ") if bl else ""))
+	check(bl != null and bl.visible and bl.anchor_left == 0.5 and bl.offset_left == 44.0 and bl.offset_right == -283.0,
+		"at BuildLabel.SizePlayer while a player is viewed with no view dropdown")
+	# CounterResource.rebuild: the name, then the resource's description.
+	var food_tip := ""
+	for c in main.find_children("*", "Control", true, false):
+		if str(c.tooltip_text).begins_with("Food\n"):
+			food_tip = c.tooltip_text
+	check(food_tip.begins_with("Food\nHarvest from animals, berry bushes, fish, or fields."), "the food counter's tooltip: " + food_tip.replace("\n", " | "))
+	# OverlayCounterElapsedTime: the simulation's clock, whole 50 ms ticks.
+	var el: float = main.get_overlay_times()["elapsed"]
+	check(el > 0.0 and absf(el * 20.0 - roundf(el * 20.0)) < 0.001, "the match clock counts simulation ticks: %.3f" % el)
 	for b in main.find_children("*", "Button", true, false):
 		if b.text == "Menu":
 			mb = b

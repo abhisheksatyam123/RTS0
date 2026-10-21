@@ -7,6 +7,7 @@
 #include "simulation/simulation.h"
 #include "simulation/entity_limits_data.h"
 #include "simulation/promotion_data.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -245,6 +246,21 @@ int main() {
 		CHECK(!building_trains_template(BLD_TOWN_CENTER, CIV_ATHENIANS, CIV_PERSIANS, roster_id("pers/support_civilian")));
 		// Nothing of the builder's other units.
 		CHECK(!building_trains_template(BLD_TOWN_CENTER, CIV_ATHENIANS, CIV_PERSIANS, roster_id("athen/infantry_spearman_b")));
+		// Units only the captured structure trains for the captor get rows of their own: a Roman
+		// Army Camp held by Athenians trains athen/infantry_spearman_a, and a Kushite Temple of
+		// Amun the Athenian elite healer (G34); neither comes from the captor's own structures.
+		const uint16_t athen_spear_a = roster_id("athen/infantry_spearman_a"), athen_healer_e = roster_id("athen/support_healer_e");
+		CHECK(building_trains_template(BLD_ARMY_CAMP, CIV_ROMANS, CIV_ATHENIANS, athen_spear_a));
+		CHECK(!building_trains_template(BLD_ARMY_CAMP, CIV_ROMANS, CIV_ATHENIANS, roster_id("athen/infantry_spearman_b")));
+		CHECK(!building_trains_template(BLD_BARRACKS, CIV_ATHENIANS, CIV_ATHENIANS, athen_spear_a));
+		CHECK(building_trains_template(BLD_TEMPLE_AMUN, CIV_KUSHITES, CIV_ATHENIANS, athen_healer_e));
+		CHECK(!building_trains_template(BLD_TEMPLE, CIV_ATHENIANS, CIV_ATHENIANS, athen_healer_e));
+		CHECK(building_trains_template(BLD_ARMY_CAMP, CIV_ROMANS, CIV_MAURYANS, roster_id("maur/infantry_swordsman_a")));
+		CHECK(building_trains_template(BLD_ARMY_CAMP, CIV_ROMANS, CIV_MACEDONIANS, roster_id("mace/infantry_pikeman_a")));
+		{
+			const std::vector<uint16_t> &ids = civ_roster_ids(CIV_ATHENIANS);
+			CHECK(std::find(ids.begin(), ids.end(), athen_spear_a) != ids.end());
+		}
 
 		static Simulation k;
 		k.set_sim_seed(17);
@@ -400,9 +416,9 @@ int main() {
 		CHECK(building_loot(BLD_ARMY_CAMP).wood == 80 && building_loot(BLD_ARMY_CAMP).stone == 30);
 		CHECK(building_loot(BLD_PYRAMID_LARGE).stone == 90 && building_loot(BLD_PYRAMID_LARGE).metal == 30);
 		// A Military Colony is a territory root and a dropsite; the Lighthouse sees far.
-		CHECK(civ_building_territory_radius(BLD_MILITARY_COLONY) > 10.0f && civ_building_is_dropsite(BLD_MILITARY_COLONY));
-		CHECK(civ_building_territory_radius(BLD_LIBRARY) == 0.0f && !civ_building_is_dropsite(BLD_LIBRARY));
-		CHECK(civ_building_vision(BLD_LIGHTHOUSE) > 40.0f);
+		CHECK(structure_territory_influence(BLD_MILITARY_COLONY, CIV_SELEUCIDS).root && civ_building_is_dropsite(BLD_MILITARY_COLONY));
+		CHECK(!structure_territory_influence(BLD_LIBRARY, CIV_PTOLEMIES).root && !civ_building_is_dropsite(BLD_LIBRARY));
+		CHECK(structure_vision_range(BLD_LIGHTHOUSE) > 40.0f);
 		auto claimed = [&]() {
 			int n = 0;
 			for (uint8_t v : c.territory_grid().data) n += v != 0;
@@ -560,7 +576,7 @@ int main() {
 	// a shore, a territory root that trains warships but no fishing boats.
 	{
 		CHECK(civ_can_build(CIV_CARTHAGINIANS, BLD_SUPER_DOCK) && !civ_can_build(CIV_ATHENIANS, BLD_SUPER_DOCK));
-		CHECK(civ_building_territory_radius(BLD_SUPER_DOCK) > civ_building_territory_radius(BLD_MILITARY_COLONY));
+		CHECK(structure_territory_influence(BLD_SUPER_DOCK, CIV_CARTHAGINIANS).radius > structure_territory_influence(BLD_MILITARY_COLONY, CIV_SELEUCIDS).radius);
 		CHECK(building_type_info(BLD_SUPER_DOCK).territory_decay_rate == 0.0f);
 		const uint16_t arrow = roster_id("cart/ship_arrow"), fishing = roster_id("cart/ship_fishing");
 		CHECK(civ_unit_template(arrow).trainers & bld_bit(BLD_SUPER_DOCK));

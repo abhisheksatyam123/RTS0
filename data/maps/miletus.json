@@ -4124,6 +4124,7 @@
         46,
         200
       ],
+      "name": "Miletus",
       "camera": {
         "x": -39.53,
         "z": -36.73,
@@ -4142,6 +4143,7 @@
         20,
         20
       ],
+      "name": "Romans",
       "camera": {
         "x": -86.23,
         "z": -81.41,
@@ -7298,6 +7300,13 @@
     }
   ],
   "units": [
+    {
+      "type": "",
+      "player": 1,
+      "x": -47.08,
+      "z": -38.99,
+      "template": "theb_sacred_band"
+    },
     {
       "type": "trireme",
       "player": 1,

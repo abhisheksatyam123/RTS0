@@ -16742,7 +16742,8 @@
         50,
         165,
         5
-      ]
+      ],
+      "name": "Elis"
     },
     {
       "id": 4,
@@ -16760,7 +16761,8 @@
         255,
         128,
         0
-      ]
+      ],
+      "name": "Thebes"
     },
     {
       "id": 5,
@@ -16778,7 +16780,8 @@
         0,
         255,
         255
-      ]
+      ],
+      "name": "Corinth"
     },
     {
       "id": 6,
@@ -16796,7 +16799,8 @@
         160,
         80,
         200
-      ]
+      ],
+      "name": "Thessaly"
     },
     {
       "id": 1,
@@ -16815,6 +16819,7 @@
         46,
         200
       ],
+      "name": "Athens",
       "camera": {
         "x": 99.96,
         "z": 21.86,
@@ -16839,6 +16844,7 @@
         20,
         20
       ],
+      "name": "Sparta",
       "camera": {
         "x": -49.49,
         "z": -112.6,
@@ -32772,6 +32778,41 @@
       "x": -41.9,
       "z": 199.48,
       "template": "athen/support_civilian"
+    },
+    {
+      "type": "",
+      "player": 4,
+      "x": -8.84,
+      "z": 88.53,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 4,
+      "x": -8.42,
+      "z": 89.33,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 4,
+      "x": -8.0,
+      "z": 89.92,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 4,
+      "x": -7.58,
+      "z": 90.4,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 4,
+      "x": -7.22,
+      "z": 91.0,
+      "template": "theb_sacred_band"
     },
     {
       "type": "swordsman",

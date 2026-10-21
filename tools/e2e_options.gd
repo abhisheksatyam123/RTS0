@@ -281,5 +281,14 @@ func run() -> void:
 		overlay._on_close()
 		await frames(3)
 	check(m.find_child("Options", true, false) == null, "Close returns to the game")
+	# Phones (or -mobiledefaults) start cheaper; desktop keeps 0 A.D.'s defaults.
+	var mc := RtsoUserConfig.new()
+	check(mc.get_default("shadows") == "true" and mc.get_default("adaptivefps.session") == "60" and mc.get_default("renderer.scale") == "1.0", "desktop defaults are 0 A.D.'s")
+	mc.set_command_args(PackedStringArray(["-mobiledefaults"]))
+	check(mc.get_default("shadows") == "false" and mc.get_default("postproc") == "false" and mc.get_default("particles") == "false"
+		and mc.get_default("renderer.scale") == "0.75" and mc.get_default("renderer.upscale.technique") == "bilinear"
+		and mc.get_default("adaptivefps.session") == "30" and mc.get_default("adaptivefps.menu") == "30", "phone defaults: no shadows, post or particles, 0.75 scale, 30 fps")
+	check(mc.get_default("silhouettes") == "true" and mc.get_default("fog") == "true", "phones keep silhouettes and fog")
+	mc.set_command_args(OS.get_cmdline_args() + OS.get_cmdline_user_args())
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)

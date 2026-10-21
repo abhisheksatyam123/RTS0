@@ -16667,7 +16667,8 @@
         46,
         46,
         200
-      ]
+      ],
+      "name": "The Macedonians"
     },
     {
       "id": 2,
@@ -16679,7 +16680,8 @@
         150,
         20,
         20
-      ]
+      ],
+      "name": "The Spartans"
     }
   ],
   "resources": [
@@ -20374,6 +20376,27 @@
       "x": -98.8,
       "z": 90.49,
       "template": "mace/hero_philip_ii"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -79.07,
+      "z": 71.95,
+      "template": "mace/siege_tower"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -81.31,
+      "z": 69.71,
+      "template": "mace/siege_oxybeles_packed"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -83.29,
+      "z": 68.1,
+      "template": "mace/siege_lithobolos_packed"
     },
     {
       "type": "siege_ram",

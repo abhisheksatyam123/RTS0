@@ -321,23 +321,6 @@ void RtsoWorldView::_ready() {
 		ring_decal_tex_ = ImageTexture::create_from_image(img);
 	}
 
-	ring_sel_mat.instantiate();
-	ring_sel_mat->set_albedo(Color(0.2f, 1.0f, 0.4f));
-	ring_sel_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-	ring_sel_mat->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
-
-	ring_enemy_mat.instantiate();
-	ring_enemy_mat->set_albedo(Color(0.92f, 0.25f, 0.2f));
-	ring_enemy_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-	// selection.js g_HighlightedAlpha = 0.75: the same ring, partly transparent.
-	for (Ref<StandardMaterial3D> *m : {&ring_hl_mat, &ring_enemy_hl_mat}) {
-		m->instantiate();
-		(*m)->set_albedo(m == &ring_hl_mat ? Color(0.2f, 1.0f, 0.4f, 0.75f) : Color(0.92f, 0.25f, 0.2f, 0.75f));
-		(*m)->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-		(*m)->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
-		(*m)->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
-	}
-
 	// Floating Health Bar Meshes and Materials
 	hp_bg_mesh.instantiate();
 	hp_bg_mesh->set_size(Vector3(0.9f, 0.08f, 0.04f));
@@ -595,9 +578,28 @@ void RtsoWorldView::_ready() {
 	init_animation_controllers();
 }
 
+// The terrain and water write their own FOG (fogged, then darkened by the LOS, as
+// 0.28's shaders do), so they take the scene's exponential fog: light colour times
+// energy, and density (0 = off).
+Color RtsoWorldView::scene_fog() const {
+	Color fog(0.0f, 0.0f, 0.0f, 0.0f);
+	if (Node *scene = get_parent()) {
+		for (int i = 0; i < scene->get_child_count(); ++i) {
+			WorldEnvironment *we = Object::cast_to<WorldEnvironment>(scene->get_child(i));
+			Ref<Environment> env = we ? we->get_environment() : Ref<Environment>();
+			if (env.is_null() || !env->is_fog_enabled()) continue;
+			const Color c = env->get_fog_light_color() * env->get_fog_light_energy();
+			fog = Color(c.r, c.g, c.b, env->get_fog_density());
+		}
+	}
+	return fog;
+}
+
 void RtsoWorldView::bind_los(const Ref<Material> &mat) {
 	Ref<ShaderMaterial> sm = mat;
-	if (sm.is_null() || los_tex_.is_null()) return;
+	if (sm.is_null()) return;
+	sm->set_shader_parameter("scene_fog", scene_fog());
+	if (los_tex_.is_null()) return;
 	sm->set_shader_parameter("los_tex", los_tex_);
 	sm->set_shader_parameter("los_map_half", los_half_);
 }
@@ -739,6 +741,14 @@ void RtsoWorldView::update_damage_fx(BuildingVis &v, uint8_t level, float half_s
 static Color player_display_color(const rtso::Simulation *sim, uint8_t pid) {
 	const uint32_t rgb = rtso::display_colors::rgb(*sim, pid);
 	return Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 1.0f);
+}
+
+// GuiInterface SetSelectionHighlight: a ring or outline in its owner's displayed colour
+// (Gaia's white), at selection.js's alpha: 1 selected, g_HighlightedAlpha 0.75 hovered.
+static Color ring_color(const rtso::Simulation *sim, uint8_t owner, bool selected) {
+	Color c = player_display_color(sim, owner);
+	c.a = selected ? 1.0f : 0.75f;
+	return c;
 }
 
 // 0 A.D. player_trans surfaces take the owner's colour (model_common.fs).
@@ -921,8 +931,8 @@ float RtsoWorldView::turret_draw_y(const rtso::Simulation *sim, uint32_t unit_id
 			if (b.id == holder) { hb = &b; break; }
 	if (!hb) return sim->get_terrain_height(x, z) + offset;
 	if (!flags_loaded_) load_garrison_flags();
-	const String mid = building_visual_id(sim->team_civ(hb->team), hb->type, hb->half_size);
-	auto entry = rtso::ModelLibrary::get("buildings", mid);
+	const String mid = building_model_of(hb->id, sim->team_civ(hb->team), hb->type, hb->half_size);
+	const auto &entry = rtso::ModelLibrary::get("buildings", mid);
 	const float b_scale = entry.scale > 0.05f ? entry.scale : 1.0f;
 	const float base = sim->get_terrain_height(hb->x, hb->z) + entry.y_offset;
 	// ModelLibrary falls back to the civ-less model ("athen_outpost" -> "outpost").
@@ -980,30 +990,33 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 	if (!border_mi_) {
 		Ref<Shader> sh;
 		sh.instantiate();
-		// A player-coloured line (0 A.D. territory_border.png is not in RTS0's assets); darkened by LOS
-		// and hidden in unexplored land like 0 A.D.'s textured overlay lines.
+		// overlayline.fs with territory_border.png and its mask (CCmpTerritoryManager::
+		// UpdateBoundaryLines): the mask picks where the owner's colour replaces the
+		// texture, whose alpha shapes the line; darkened by LOS and hidden in unexplored
+		// land like 0 A.D.'s textured overlay lines.
 		sh->set_code(
 				"shader_type spatial;\n"
 				"render_mode blend_mix, unshaded, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;\n"
+				"uniform sampler2D base_tex : source_color, filter_linear, repeat_disable;\n"
+				"uniform sampler2D mask_tex : filter_linear, repeat_disable;\n"
 				"uniform sampler2D los_tex : hint_default_white, filter_linear, repeat_disable;\n"
 				"uniform float los_map_half = 0.0;\n"
 				"varying vec3 wpos;\n"
 				"void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }\n"
 				"void fragment() {\n"
-				// Across the line (UV.y 0..1, centred on the path): solid with soft edges.
-				"  float d = abs(UV.y - 0.5) * 2.0;\n"
-				"  float core = 1.0 - smoothstep(0.6, 1.0, d);\n"
-				"  float dash = 0.8 + 0.2 * step(0.5, fract(UV.x));\n"
+				"  vec4 b = texture(base_tex, UV);\n"
 				"  float los = 1.0;\n"
 				"  if (los_map_half > 0.0) los = texture(los_tex, (wpos.xz + vec2(los_map_half)) / (2.0 * los_map_half)).r;\n"
-				"  ALBEDO = COLOR.rgb * mix(0.5, 1.0, los) * dash;\n"
+				"  ALBEDO = mix(b.rgb, COLOR.rgb, texture(mask_tex, UV).r) * mix(0.5, 1.0, los);\n"
 				// CCmpTerritoryManager::Interpolate: a region cut off from its owner's
 				// civic centres (COLOR.a 0) blinks, alpha * (0.2 + 0.8 |cos(t pi)|).
 				"  float blink = mix(0.2 + 0.8 * abs(cos(TIME * PI)), 1.0, COLOR.a);\n"
-				"  ALPHA = core * smoothstep(0.02, 0.25, los) * blink;\n"
+				"  ALPHA = b.a * smoothstep(0.02, 0.25, los) * blink;\n"
 				"}\n");
 		border_mat_.instantiate();
 		border_mat_->set_shader(sh);
+		border_mat_->set_shader_parameter("base_tex", ResourceLoader::get_singleton()->load("res://assets/textures/misc/territory_border.png"));
+		border_mat_->set_shader_parameter("mask_tex", ResourceLoader::get_singleton()->load("res://assets/textures/misc/territory_border_mask.png"));
 		border_mi_ = memnew(MeshInstance3D);
 		border_mi_->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
 		border_mi_->set_material_override(border_mat_);
@@ -1045,7 +1058,6 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 		col.a = blinking ? 0.0f : 1.0f;
 		const int n = (int)b.points.size();
 		const int base = verts.size();
-		float run = 0.0f;
 		for (int k = 0; k <= n; ++k) {
 			const rtso::BoundaryPoint &p = b.points[k % n];
 			const rtso::BoundaryPoint &pn = b.points[(k + 1) % n];
@@ -1059,15 +1071,13 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 			// Owner's land is on the left of the walk: (-t.z, t.x) points inward.
 			const float ox = wx + tz * thickness, oz = wz - tx * thickness;
 			const float ix = wx - tz * thickness, iz = wz + tx * thickness;
-			if (k > 0) {
-				const rtso::BoundaryPoint &q = b.points[(k - 1) % n];
-				const float dx = (p.x - q.x) * cell, dz = (p.y - q.y) * cell;
-				run += Math::sqrt(dx * dx + dz * dz);
-			}
+			// CTexturedLineRData: u runs across the line, 0 on the owner's side (p1 + b)
+			// to 1 outside; v flips between 0 and 1 from one point to the next.
+			const float v = (float)(k & 1);
 			verts.push_back(Vector3(ox, line_y(ox, oz), oz));
 			verts.push_back(Vector3(ix, line_y(ix, iz), iz));
-			uvs.push_back(Vector2(run / 1.5f, 0.0f));
-			uvs.push_back(Vector2(run / 1.5f, 1.0f));
+			uvs.push_back(Vector2(1.0f, v));
+			uvs.push_back(Vector2(0.0f, v));
 			cols.push_back(col);
 			cols.push_back(col);
 			if (k > 0) {
@@ -1097,13 +1107,13 @@ void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 void RtsoWorldView::update_fog(const rtso::Simulation *sim, float delta) {
 	mirages_.update(*sim, local_player_);
 	const int res = sim->fow_res();
-	const bool new_map = res != los_.res() || los_half_ != sim->map_half();
+	const bool new_map = res * rtso::LosShading::UPSAMPLE != los_.res() || los_half_ != sim->map_half();
 	// The sim's per-player LOS (Simulation::los), as FogMirages built it this frame.
 	los_.set_target(mirages_.view().size() == (size_t)res * (size_t)res ? mirages_.view().data() : nullptr, res);
 	if (new_map) {
 		los_.snap();
 		los_half_ = sim->map_half();
-		los_image_ = Image::create(res, res, false, Image::FORMAT_L8);
+		los_image_ = Image::create(los_.res(), los_.res(), false, Image::FORMAT_L8);
 		los_tex_ = ImageTexture::create_from_image(los_image_);
 		if (terrain) bind_los(terrain->get_material_override());
 		if (water_mesh_node) bind_los(water_mesh_node->get_material_override());
@@ -1115,11 +1125,17 @@ void RtsoWorldView::update_fog(const rtso::Simulation *sim, float delta) {
 	if (los_upload_timer_ < 1.0f / 30.0f) return;
 	const float step = los_upload_timer_;
 	los_upload_timer_ = 0.0f;
+	// The map's environment and the Fog option set the scene's fog.
+	if (const Color fog = scene_fog(); fog != bound_fog_) {
+		bound_fog_ = fog;
+		if (terrain) bind_los(terrain->get_material_override());
+		if (water_mesh_node) bind_los(water_mesh_node->get_material_override());
+	}
 	if (!los_.interpolate(step) && !new_map) return;
 	const auto &shown = los_.shown();
 	if (los_bytes_.size() != (int64_t)shown.size()) los_bytes_.resize((int64_t)shown.size());
 	memcpy(los_bytes_.ptrw(), shown.data(), shown.size());
-	los_image_->set_data(res, res, false, Image::FORMAT_L8, los_bytes_);
+	los_image_->set_data(los_.res(), los_.res(), false, Image::FORMAT_L8, los_bytes_);
 	los_tex_->update(los_image_);
 }
 
@@ -2693,7 +2709,11 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key)
 		auto entry = rtso::ModelLibrary::get("units", slot->model_id);
 		slot->y_offset = entry.y_offset;
 		slot->scale = entry.scale;
-		slot->height = entry.aabb.size.y;
+		slot->metre = entry.metre;
+		slot->height = entry.height > 0.0f ? entry.height : entry.aabb.size.y;
+		// silhouette.gdshader: the model's bounding sphere about the unit's origin.
+		for (int k = 0; k < 8; ++k)
+			slot->sil_radius = std::max(slot->sil_radius, entry.aabb.get_endpoint(k).length() * entry.scale);
 		slot->rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
 		slot->no_scene = !entry.scene.is_valid();
 		// Owner-coloured: a player_color.gdshader surface with a mask, or a crowd's parts
@@ -2719,6 +2739,7 @@ MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip, int phase) {
 		// 0 A.D. unit actors carry <castshadow/>.
 		b.mmi[clip][phase]->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_ON);
 		if (silhouettes_ && silhouette_mat_.is_valid()) b.mmi[clip][phase]->set_material_overlay(silhouette_mat_);
+		rtso::set_instance_param(b.mmi[clip][phase], "silhouette_radius", b.sil_radius);
 		add_child(b.mmi[clip][phase]);
 	}
 	return b.mm[clip][phase].ptr();
@@ -3093,18 +3114,18 @@ int RtsoWorldView::fauna_row(uint8_t ftype, uint32_t id) const {
 // (behind the loading page, or warm_models for a save), so exploring never stalls
 // a frame on a model; a scan runs when a list's length changes.
 void RtsoWorldView::ensure_map_models(const rtso::Simulation *sim) {
-	if (const auto rv = sim->resources(); rv.count != flora_scan_count_) {
-		flora_scan_count_ = rv.count;
+	// Only a longer list can hold a kind not loaded yet; a shorter one (trees felled, animals
+	// killed) just records its length. ~0 (nothing scanned) compares as longest.
+	auto grew = [](size_t n, size_t &seen) { const bool g = seen == ~(size_t)0 || n > seen; seen = n; return g; };
+	if (const auto rv = sim->resources(); grew(rv.count, flora_scan_count_)) {
 		for (size_t i = 0; i < rv.count; ++i)
 			if (rv.flora[i] != 0 && rv.flora[i] < FLORA_KINDS && !flora_loaded_[rv.flora[i]]) ensure_flora(rv.flora[i]);
 	}
-	if (const auto fview = sim->fauna(); fview.count != fauna_scan_count_) {
-		fauna_scan_count_ = fview.count;
+	if (const auto fview = sim->fauna(); grew(fview.count, fauna_scan_count_)) {
 		for (size_t f = 0; f < fview.count; ++f)
 			if (fview.fauna_type[f] < rtso::FAUNA_COUNT) ensure_fauna_row(fauna_row(fview.fauna_type[f], fview.id[f]));
 	}
-	if (sim->treasures().size() != treasure_scan_count_) {
-		treasure_scan_count_ = sim->treasures().size();
+	if (grew(sim->treasures().size(), treasure_scan_count_)) {
 		for (const auto &t : sim->treasures()) ensure_treasure(t.type);
 	}
 }
@@ -3169,20 +3190,36 @@ void RtsoWorldView::ensure_fauna_frames(int row) {
 
 // A unit model's first draw reads its GLB, tens of milliseconds on the frame. Twice a
 // second, the models of units that exist but aren't drawn yet (in the fog, in a
-// structure) and of units in the production queues start loading on a worker.
+// structure) and of units in the production queues start loading on a worker, while
+// few are in flight: a model the frame needs waits for every request queued ahead of it,
+// so a flood (the first poll after a save loads asks for hundreds) stalls that frame for seconds.
 void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso::Simulation::UnitView &uview, float delta) {
 	prefetch_poll_ -= delta;
 	if (prefetch_poll_ > 0.0f) return;
 	prefetch_poll_ = 0.5f;
 	if (prefetched_.size() != (size_t)rtso::CIV_COUNT * CROWD_KEY_COUNT) prefetched_.assign((size_t)rtso::CIV_COUNT * CROWD_KEY_COUNT, false);
+	// Requests (GLBs and their textures) still loading; new ones wait for a later poll past this.
+	constexpr int kMaxInFlight = 24;
+	const int in_flight = rtso::ModelLibrary::loads_in_flight();
+	if (in_flight >= kMaxInFlight) return;
+	int budget = std::max(1, (kMaxInFlight - in_flight) / 4); // unit models asked for this poll
 	auto want = [&](uint8_t civ, uint16_t key) {
 		if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
-		if (key >= CROWD_KEY_COUNT || crowd_[civ][key]) return;
+		if (budget <= 0 || key >= CROWD_KEY_COUNT || crowd_[civ][key]) return;
 		std::vector<bool>::reference done = prefetched_[(size_t)civ * CROWD_KEY_COUNT + key];
 		if (done) return;
 		done = true;
+		--budget;
 		rtso::ModelLibrary::prefetch("units", crowd_key_model(civ, key));
 	};
+	// The units the production queues are about to train first, then those that exist.
+	for (const auto &b : sim->buildings()) {
+		for (const rtso::ProductionOrder &o : b.queue) {
+			if (o.is_tech() || o.unit_type >= rtso::UNIT_TYPE_COUNT) continue;
+			const uint8_t civ = sim->team_civ(b.team);
+			want(civ, crowd_key_of(civ, o.unit_type, 0, o.tmpl, 0, 1));
+		}
+	}
 	for (size_t i = 0; i < uview.count; ++i) {
 		uint8_t t = uview.unit_type[i];
 		if (t >= rtso::UNIT_TYPE_COUNT) t = rtso::UNIT_VILLAGER;
@@ -3196,16 +3233,19 @@ void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso
 	// foundation and scaffold (its owner builds more of that kind), and a damaged one's rubble.
 	if (!rubble_loaded_) load_rubble();
 	if (!foundations_loaded_) load_foundations();
+	budget = std::max(5, (kMaxInFlight - in_flight) / 4); // and structure models
 	auto want_building = [&](const String &id) {
 		if (id.is_empty() || !building_prefetched_.insert(id.utf8().get_data()).second) return;
+		--budget;
 		rtso::ModelLibrary::prefetch("buildings", id);
 	};
 	for (const auto &b : sim->buildings()) {
+		if (budget < 5) break; // its model and up to four site or rubble models
 		if (b.wrecked) continue;
 		const uint8_t civ = sim->team_civ(b.team);
 		const uint32_t kind = (uint32_t)civ << 16 | b.type << 1;
 		const bool damaged = b.hp < b.max_hp;
-		want_building(building_visual_id(civ, b.type, b.half_size));
+		want_building(building_model_of(b.id, civ, b.type, b.half_size));
 		if (!building_kinds_prefetched_.insert(kind | (uint32_t)damaged).second) continue;
 		const std::string civ_type = std::string(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "/" + std::to_string(b.type);
 		if (!damaged) {
@@ -3221,13 +3261,6 @@ void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso
 			const auto ro = rubble_of_.find(civ_type);
 			if (ro != rubble_of_.end()) want_building(String(ro->second.c_str()));
 			if (const char *r = rtso::civ_building_rubble(civ, b.type)) want_building(String(r));
-		}
-	}
-	for (const auto &b : sim->buildings()) {
-		for (const rtso::ProductionOrder &o : b.queue) {
-			if (o.is_tech() || o.unit_type >= rtso::UNIT_TYPE_COUNT) continue;
-			const uint8_t civ = sim->team_civ(b.team);
-			want(civ, crowd_key_of(civ, o.unit_type, 0, o.tmpl, 0, 1));
 		}
 	}
 }
@@ -3279,6 +3312,8 @@ void RtsoWorldView::model_boxes(const std::vector<uint32_t> &ids, std::vector<Mo
 
 void RtsoWorldView::warm_models(const rtso::Simulation *sim, const std::function<void(int, int)> &progress) {
 	if (!sim) return;
+	// A loaded save is a new world: scan its lists in full, whatever their lengths.
+	flora_scan_count_ = fauna_scan_count_ = treasure_scan_count_ = ~(size_t)0;
 	ensure_map_models(sim);
 	const auto uview = sim->units();
 	std::vector<std::pair<const char *, String>> wanted;
@@ -3297,7 +3332,7 @@ void RtsoWorldView::warm_models(const rtso::Simulation *sim, const std::function
 	}
 	mirages_.update(*sim, local_player_);
 	for (const auto &fb : mirages_.buildings())
-		add("buildings", building_visual_id(fb.civ, fb.type, fb.half_size));
+		add("buildings", building_model_of(fb.id, fb.civ, fb.type, fb.half_size));
 	for (size_t i = 0; i < wanted.size(); ++i) {
 		rtso::ModelLibrary::get(String(wanted[i].first), wanted[i].second);
 		if (progress && (i % 8 == 7 || i + 1 == wanted.size())) progress((int)i + 1, (int)wanted.size());
@@ -3993,21 +4028,30 @@ void RtsoWorldView::refresh_silhouettes() {
 			if (b)
 				for (int c = 0; c < CROWD_CLIP_COUNT; ++c)
 					for (int p = 0; p < CROWD_PHASES; ++p)
-						if (b->mmi[c][p]) b->mmi[c][p]->set_material_overlay(overlay);
+						if (b->mmi[c][p]) {
+							b->mmi[c][p]->set_material_overlay(overlay);
+							// Under Compatibility the value rides on the node's own copy of the overlay.
+							if (on) rtso::set_instance_param(b->mmi[c][p], "silhouette_radius", b->sil_radius);
+						}
 	for (auto &per_fauna : fauna_mmi)
 		for (MultiMeshInstance3D *mmi : per_fauna)
 			if (mmi) mmi->set_material_overlay(overlay);
 	for (UnitVis &v : unit_pool) v.silhouette_rgba = -1;
 }
 
-void RtsoWorldView::set_silhouette(Node *n, const Color &c) {
+void RtsoWorldView::set_silhouette(Node *n, const Color &c, float radius, const Node3D *root) {
 	if (!n) return;
 	if (MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(n)) {
 		const Ref<Material> overlay = silhouettes_ ? Ref<Material>(silhouette_mat_) : Ref<Material>();
 		if (!rtso::is_material_or_copy(mi->get_material_overlay(), overlay)) mi->set_material_overlay(overlay);
-		if (silhouettes_) rtso::set_instance_param(mi, "silhouette_color", c);
+		if (silhouettes_) {
+			rtso::set_instance_param(mi, "silhouette_color", c);
+			// The shader measures from this part's origin, so the sphere grows by its offset.
+			const float off = root ? mi->get_global_position().distance_to(root->get_global_position()) : 0.0f;
+			rtso::set_instance_param(mi, "silhouette_radius", radius + off);
+		}
 	}
-	for (int i = 0; i < n->get_child_count(); ++i) set_silhouette(n->get_child(i), c);
+	for (int i = 0; i < n->get_child_count(); ++i) set_silhouette(n->get_child(i), c, radius, root);
 }
 
 // MultiMesh::set_instance_count goes to the RenderingServer every call; most batches keep their
@@ -4060,12 +4104,38 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	status_rank_icons_.clear();
 	status_xp_bars_ = 0;
 	aura_icon_sources_.clear();
+	// A capture source's aura is its capture_range_auras() row and the Rotary Mill's gather-rate
+	// source keeps its gather_rate_range_auras() row in value: their icons come from those
+	// rows' 0.28 aura ids, reaching what the same-named hero aura affects, else structures
+	// (eternal_fire, loyalty_regen) or units (farmstead_60).
+	auto hero_row = [](const char *id) -> int16_t {
+		for (uint16_t a = 0; a < rtso::CIV_HERO_AURA_COUNT; ++a)
+			if (std::strcmp(rtso::civ_hero_aura(a).id, id) == 0) return (int16_t)a;
+		return -1;
+	};
 	for (const rtso::AuraSource &as : sim->aura_manager().sources) {
-		if (!as.alive || as.aura < 0) continue;
+		if (!as.alive) continue;
 		const int32_t sid = (int32_t)as.source_id;
 		if (cinema_playing_ || (!show_all_status_bars_ && !sel_set.count(sid) && !sel_buildings_.count(sid) && !highlight_set_.count(sid))) continue;
-		const int icon = status_sprites_.aura_icon(rtso::civ_hero_aura(as.aura).id);
-		if (icon >= 0) aura_icon_sources_.push_back({ &as, icon });
+		AuraIconSource src{ &as, -1 };
+		const char *id = nullptr;
+		if (as.type == rtso::AURA_CAPTURE_POINTS || as.type == rtso::AURA_GARRISON_REGEN) {
+			if (as.aura < 0 || as.aura >= rtso::CAPTURE_RANGE_AURA_COUNT) continue;
+			id = rtso::capture_range_auras()[as.aura].id;
+			src.hero = hero_row(id);
+			src.structures = src.hero < 0 || rtso::civ_hero_aura(src.hero).structures;
+		} else if (as.aura < 0) {
+			if (as.type != rtso::AURA_GATHER_RATE || as.value < 0.0f || as.value >= rtso::GATHER_RATE_RANGE_AURA_COUNT) continue;
+			id = rtso::gather_rate_range_auras()[(int)as.value].id;
+			src.units = true;
+		} else {
+			id = rtso::civ_hero_aura(as.aura).id;
+			src.hero = as.aura;
+			src.structures = rtso::civ_hero_aura(as.aura).structures;
+		}
+		src.icon = status_sprites_.aura_icon(id);
+		src.aura_id = id;
+		if (src.icon >= 0) aura_icon_sources_.push_back(src);
 	}
 
 	Vector3 cam_pos;
@@ -4108,15 +4178,20 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	};
 	// template_unit_fauna.xml RetainInFog: an animal stays drawn where it is in explored fog
 	// (CCmpRangeManager VIS_FOGGED with no Fogging mirage), hidden only in unexplored land.
-	auto fauna_visible = [sim, this](float x, float z) {
-		return rtso::los_sees_all(*sim, local_player_) || mirages_.los_at(x, z) != rtso::Simulation::FOW_UNEXPLORED;
+	// Corral livestock (gaia/fauna_*_trainable RetainInFog false) shows only in sight, or to its
+	// owner and those it shares sight with.
+	auto fauna_visible = [sim, this](float x, float z, uint8_t ftype, uint8_t owner) {
+		if (rtso::los_sees_all(*sim, local_player_)) return true;
+		if (rtso::fauna_retained_in_fog(ftype)) return mirages_.los_at(x, z) != rtso::Simulation::FOW_UNEXPLORED;
+		return (owner < rtso::MAX_PLAYERS && sim->shares_los(local_player_, owner)) || mirages_.los_at(x, z) == rtso::Simulation::FOW_VISIBLE;
 	};
-	std::unordered_map<uint32_t, uint8_t> res_sub;
-	res_sub.reserve(rview_g.count);
+	// Resource id -> subtype, sorted for binary search (reused buffer, no per-frame hashing).
+	res_sub_.clear();
 	for (size_t r = 0; r < rview_g.count; ++r) {
 		if (rview_g.subtype && rview_g.subtype[r])
-			res_sub[rview_g.id[r]] = rview_g.subtype[r];
+			res_sub_.emplace_back(rview_g.id[r], rview_g.subtype[r]);
 	}
+	if (!std::is_sorted(res_sub_.begin(), res_sub_.end())) std::sort(res_sub_.begin(), res_sub_.end());
 
 	std::unordered_set<uint32_t> detailed;
 	detailed.reserve(MAX_DETAILED_UNITS * 2);
@@ -4152,8 +4227,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		const float vx = uview.vel_x[i], vz = uview.vel_z[i];
 		uint8_t sub = 0;
 		if (uview.target_resource_id && uview.target_resource_id[i]) {
-			auto it = res_sub.find(uview.target_resource_id[i]);
-			if (it != res_sub.end()) sub = it->second;
+			const uint32_t rid = uview.target_resource_id[i];
+			auto it = std::lower_bound(res_sub_.begin(), res_sub_.end(), std::make_pair(rid, (uint8_t)0));
+			if (it != res_sub_.end() && it->first == rid) sub = it->second;
 		}
 		WantAnim w = resolve_unit_anim(uview.action_state[i], vx * vx + vz * vz, uview.alive[i] != 0,
 				uview.carry[i], ut, uview.res_type_carried[i], sub, sim->unit_capturing(i));
@@ -4237,8 +4313,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	const Color col_player(0.55f, 0.72f, 1.0f);
 	const Color col_enemy(1.0f, 0.52f, 0.42f);
 
-	std::unordered_set<uint32_t> active_unit_ids;
-	active_unit_ids.reserve(uview.count);
+	active_unit_ids_.clear(); // ids of the units drawn this frame, sorted only when stale entries are swept
 
 	size_t unit_rings_used = 0;
 	const bool status_rank_icon = rtso::user_config::get_bool("gui.session.rankabovestatusbar");
@@ -4246,7 +4321,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 		uint32_t id = uview.id[i];
-		active_unit_ids.insert(id);
+		active_unit_ids_.push_back(id);
 
 		bool is_player = (uview.team[i] == local_player_);
 		uint8_t utype = uview.unit_type[i];
@@ -4318,9 +4393,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float ground = sim->get_terrain_height(x, z);
 		// 0 A.D. ships are Position Floating: they ride the water surface, not the seabed.
 		if (rtso::unit_is_ship(utype) && sim->water_height() > -0.5f) ground = std::max(ground, drawn_water_height(sim));
-		float y = (turret_h > 0.0f ? turret_draw_y(sim, id, turret_h, x, z) : ground) + model_b.y_offset;
+		// UnitMotionFlying: a plane at its height, pitched and banked (Position SetXZRotation; a
+		// positive roll banks it into a left turn).
+		float fly_y = 0.0f, fly_pitch = 0.0f, fly_roll = 0.0f;
+		const bool flying = sim->unit_flight_pose(i, fly_y, fly_pitch, fly_roll);
+		float y = (flying ? fly_y : turret_h > 0.0f ? turret_draw_y(sim, id, turret_h, x, z) : ground) + model_b.y_offset;
 		float sc = model_b.scale > 0.05f ? model_b.scale : 1.0f;
-		Transform3D xf(Basis(Vector3(0, 1, 0), yaw).scaled(Vector3(sc, sc, sc)), Vector3(x, y, z));
+		const Basis fly_tilt = flying ? Basis(Vector3(1, 0, 0), fly_pitch) * Basis(Vector3(0, 0, 1), fly_roll) : Basis();
+		Transform3D xf((Basis(Vector3(0, 1, 0), yaw) * fly_tilt).scaled(Vector3(sc, sc, sc)), Vector3(x, y, z));
 		const bool dying = !uview.alive[i] || uaction == rtso::ACTION_DYING;
 		const float death_t = dying ? uview.death_timer[i] : 0.0f;
 		const bool ship_wave = !dying && rtso::unit_is_ship(utype);
@@ -4389,9 +4469,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (!aura_icon_sources_.empty())
 				status_aura_icons(uview.id[i], x, z, uview.team[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, false, st);
 			if (bars || st.n_icons > 0) {
-				// The GLBs are in metres, so the model's scale is world units per metre.
+				// HeightOffset and the bar sizes are 0.28 metres, drawn at the model's own size.
 				const rtso::StatusBarsSize sb = unit_status_bars(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
-				draw_status_stack(sim, Vector3(x, y - model_b.y_offset + sb.height_offset * sc, z), sb.bar_width * sc, sb.bar_height * sc, sc, st);
+				const float m = model_b.metre;
+				draw_status_stack(sim, Vector3(x, y - model_b.y_offset + sb.height_offset * m, z), sb.bar_width * m, sb.bar_height * m, m, st);
 			}
 		}
 
@@ -4400,9 +4481,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			const bool ringed = is_selected || highlight_set_.count((int32_t)id) > 0;
 			if (ringed) {
 				Decal *d = get_or_create_ring_decal(unit_rings_used++);
-				const Color &mod_col = is_selected ? (is_player ? RING_SEL_COL : RING_ENEMY_COL)
-				                                   : (is_player ? RING_HL_COL : RING_ENEMY_HL_COL);
-				d->set_modulate(mod_col);
+				d->set_modulate(ring_color(sim, uview.team[i], is_selected));
 				const float rsize = std::max(1.1f, 1.25f * model_b.height * sc);
 				d->set_size(Vector3(rsize, 2.5f, rsize));
 				d->set_transform(Transform3D(Basis(), Vector3(x, ground + 0.1f, z)));
@@ -4430,7 +4509,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			const Color sc = player_display_color(sim, uview.team[i]);
 			const int64_t key = silhouettes_ ? (int64_t)sc.to_rgba32() : -2;
 			if (v.silhouette_rgba != key) {
-				set_silhouette(v.model, sc);
+				set_silhouette(v.model, sc, model_b.sil_radius, Object::cast_to<Node3D>(v.model));
 				v.silhouette_rgba = key;
 			}
 		}
@@ -4473,7 +4552,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 
 		float dsc = model_b.scale > 0.05f ? model_b.scale : 1.0f;
-		Transform3D dxf(Basis(Vector3(0, 1, 0), v.yaw).scaled(Vector3(dsc, dsc, dsc)),
+		Transform3D dxf((Basis(Vector3(0, 1, 0), v.yaw) * fly_tilt).scaled(Vector3(dsc, dsc, dsc)),
 		               Vector3(x, y, z));
 		if (ship_wave) {
 			apply_ship_wave_xform(dxf, id, anim_time, speed2);
@@ -4490,9 +4569,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		const bool ringed = is_selected || highlight_set_.count((int32_t)id) > 0;
 		if (ringed) {
 			Decal *d = get_or_create_ring_decal(unit_rings_used++);
-			const Color &mod_col = is_selected ? (is_player ? RING_SEL_COL : RING_ENEMY_COL)
-			                                   : (is_player ? RING_HL_COL : RING_ENEMY_HL_COL);
-			d->set_modulate(mod_col);
+			d->set_modulate(ring_color(sim, uview.team[i], is_selected));
 			const float rsize = std::max(1.1f, 1.25f * model_b.height * sc);
 			d->set_size(Vector3(rsize, 2.5f, rsize));
 			d->set_transform(Transform3D(Basis(), Vector3(x, ground + 0.1f, z)));
@@ -4523,18 +4600,21 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	}
 
 	// Clean up stale visual interpolation entries
-	if (crowd_pos.size() > uview.count + 64) {
+	const bool sweep_pos = crowd_pos.size() > uview.count + 64, sweep_yaw = crowd_yaw.size() > uview.count + 64;
+	if (sweep_pos || sweep_yaw) std::sort(active_unit_ids_.begin(), active_unit_ids_.end());
+	auto drawn_now = [this](uint32_t id) { return std::binary_search(active_unit_ids_.begin(), active_unit_ids_.end(), id); };
+	if (sweep_pos) {
 		for (auto it = crowd_pos.begin(); it != crowd_pos.end(); ) {
-			if (active_unit_ids.find(it->first) == active_unit_ids.end()) {
+			if (!drawn_now(it->first)) {
 				it = crowd_pos.erase(it);
 			} else {
 				++it;
 			}
 		}
 	}
-	if (crowd_yaw.size() > uview.count + 64) {
+	if (sweep_yaw) {
 		for (auto it = crowd_yaw.begin(); it != crowd_yaw.end(); ) {
-			if (active_unit_ids.find(it->first) == active_unit_ids.end()) {
+			if (!drawn_now(it->first)) {
 				it = crowd_yaw.erase(it);
 			} else {
 				++it;
@@ -4566,7 +4646,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (v.root) v.root->set_visible(!locked_out(b.x, b.z, b.half_size * 1.5f + 4.0f));
 
 		uint8_t bciv = b.civ;
-		const String mid = building_visual_id(bciv, b.type, b.half_size);
+		const String mid = building_model_of(b.id, bciv, b.type, b.half_size);
 		const char *rubble_id = rtso::civ_building_rubble(bciv, b.type);
 		float b_progress = b.build_progress;
 		bool destroyed = (b.hp <= 0.0f || b.wrecked);
@@ -4619,7 +4699,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			}
 		}
 		attach_building_model(v, visual_id);
-		auto entry = rtso::ModelLibrary::get(cat_b, visual_id);
+		const auto &entry = rtso::ModelLibrary::get(cat_b, visual_id);
 		float b_scale = entry.scale > 0.05f ? entry.scale : 1.0f;
 
 		// Models face -z unrotated, so the sim's 0 A.D. rotation is offset by DEFAULT_BUILDING_ROT.
@@ -4781,7 +4861,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 					}
 				}
 			}
-			if (!aura_icon_sources_.empty()) status_aura_icons(b.id, b.x, b.z, b.team, rtso::CIV_UNIT_TEMPLATE_NONE, true, st);
+			if (!aura_icon_sources_.empty()) status_aura_icons(b.id, b.x, b.z, b.team, rtso::CIV_UNIT_TEMPLATE_NONE, true, st,
+					(rtso::building_tech_classes(b.type) & rtso::TC_CIVCENTRE) != 0);
 			if (bars || st.n_icons > 0) {
 				// In the model's metres (its actor frame), as the GLBs are not drawn 1 unit = 4 m.
 				float m = 0.25f;
@@ -5122,7 +5203,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	int f_counts[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (fview.behavior[f] == rtso::FAUNA_CORRALLED) continue; // garrisoned: hidden, the corral flies its flag
-		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f])) continue;
+		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f], fview.fauna_type[f], fview.owner[f])) continue;
 		if (fview.fauna_type[f] >= rtso::FAUNA_COUNT) continue;
 		const int ft = fauna_row(fview.fauna_type[f], fview.id[f]);
 		// Baked before the first count, so both passes pick the same clips.
@@ -5143,7 +5224,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	int f_written[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (fview.behavior[f] == rtso::FAUNA_CORRALLED) continue; // garrisoned: hidden, the corral flies its flag
-		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f])) continue;
+		if (!fauna_visible(fview.pos_x[f], fview.pos_z[f], fview.fauna_type[f], fview.owner[f])) continue;
 		uint8_t ft = fview.fauna_type[f];
 		if (ft >= rtso::FAUNA_COUNT) continue;
 		const int row = fauna_row(ft, fview.id[f]);
@@ -5156,15 +5237,17 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float fy = sim->get_terrain_height(fx, fz);
 		if (rtso::fauna_type_info(ft).is_naval()) fy = std::max(fy, drawn_water_height(sim)); // whales and sharks swim
 		float frot = fview.rot_y[f];
-		const char *fid = rtso::fauna_type_info(ft).model_id;
-		auto fent = rtso::ModelLibrary::get("units", fauna_row_model_[row]);
+		static_assert(rtso::FAUNA_COUNT <= 64, "fauna_fx_id_ holds 64 types");
+		if (fauna_fx_id_[ft].is_empty()) fauna_fx_id_[ft] = String(rtso::fauna_type_info(ft).model_id);
+		const String &fid = fauna_fx_id_[ft];
+		const auto &fent = rtso::ModelLibrary::get("units", fauna_row_model_[row]);
 		float fsc = fent.scale > 0.05f ? fent.scale : 1.0f;
 		Transform3D xf(Basis(Vector3(0, 1, 0), frot).scaled(Vector3(fsc, fsc, fsc)),
 		               Vector3(fx, fy + fent.y_offset, fz));
 		// Fleeing (or moving at a run) on the Run clip: the actor's dust.
 		if (clip == 1 && (fview.behavior[f] == rtso::FAUNA_FLEE || vx * vx + vz * vz > 18.0f))
-			emit_run_dust(String(fid), Vector3(fx, fy, fz), fsc, delta);
-		if (fview.alive[f]) emit_unit_fx(String(fid), xf, fsc, delta);
+			emit_run_dust(fid, Vector3(fx, fy, fz), fsc, delta);
+		if (fview.alive[f]) emit_unit_fx(fid, xf, fsc, delta);
 		int fslot = f_written[row][clip]++;
 		if (fauna_mm[row][clip].is_valid()) {
 			fauna_mm[row][clip]->set_instance_transform(fslot, xf);
@@ -5175,7 +5258,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (f_sel || (!highlight_set_.empty() && highlight_set_.count((int32_t)fview.id[f]))) {
 			// The player's own selected livestock (0 A.D. livestock are units), or a hovered animal.
 			Decal *r = get_or_create_ring_decal(unit_rings_used++);
-			r->set_modulate(f_sel ? RING_SEL_COL : RING_HL_COL);
+			r->set_modulate(ring_color(sim, fview.owner[f], f_sel));
 			const float rs = std::max(1.1f, fsc * 1.6f);
 			r->set_size(Vector3(rs, 2.5f, rs));
 			r->set_transform(Transform3D(Basis(), Vector3(fx, fy + 0.1f, fz)));
@@ -5187,9 +5270,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (fview.alive[f] && fview.max_hp[f] > 0.0f) {
 				st.health = fview.hp[f] / fview.max_hp[f];
 			}
-			// The animal GLBs are in metres (fsc is world units per metre).
+			// 0.28 metres at the animal's drawn size.
 			const rtso::StatusBarsSize sb = rtso::fauna_status_bars(rtso::fauna_type_info(ft).template_name);
-			draw_status_stack(sim, Vector3(fx, fy + sb.height_offset * fsc, fz), sb.bar_width * fsc, sb.bar_height * fsc, fsc, st);
+			const float fm = fent.metre;
+			draw_status_stack(sim, Vector3(fx, fy + sb.height_offset * fm, fz), sb.bar_width * fm, sb.bar_height * fm, fm, st);
 		}
 	}
 	// A hovered tree, mine, bush or shoal (as last seen): its selection ring and
@@ -5216,7 +5300,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				bar_w = 3.0f, bar_h = 0.5f, offset = 4.0f;
 			}
 			Decal *ring = get_or_create_ring_decal(unit_rings_used++);
-			ring->set_modulate(RING_HL_COL);
+			ring->set_modulate(ring_color(sim, rtso::GAIA_PLAYER, false));
 			const float rs = 2.0f * radius;
 			ring->set_size(Vector3(rs, 2.5f, rs));
 			ring->set_transform(Transform3D(Basis(), Vector3(r.x, ry + 0.1f, r.z)));
@@ -5237,13 +5321,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 // (x, z): a unit of roster row tmpl the aura affects, or a structure when the aura
 // names the Structure class. Each icon once. A range aura's query leaves its own source
 // out (Auras.js CreateActiveQuery), so a hero doesn't wear its own range aura's icon.
-void RtsoWorldView::status_aura_icons(uint32_t id, float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const {
+void RtsoWorldView::status_aura_icons(uint32_t id, float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st, bool civic_centre) const {
 	const uint16_t bit = rtso::aura_player_bit(team);
 	for (const AuraIconSource &a : aura_icon_sources_) {
 		const rtso::AuraSource &s = *a.src;
 		if (!(s.affected & bit)) continue;
-		if (s.source_id == id && rtso::civ_hero_aura(s.aura).radius > 0.0f) continue;
-		if (structure ? !rtso::civ_hero_aura(s.aura).structures : !rtso::civ_aura_affects(s.aura, tmpl)) continue;
+		if (s.source_id == id && (a.hero < 0 || rtso::civ_hero_aura(a.hero).radius > 0.0f)) continue;
+		if (structure ? !a.structures : a.hero >= 0 ? !rtso::civ_aura_affects(a.hero, tmpl) : !a.units) continue;
+		// Alexander's aura reaches Civil Centres only (query_capture's need_class 1).
+		if (structure && s.need_class == 1 && !civic_centre && (s.type == rtso::AURA_CAPTURE_POINTS || s.type == rtso::AURA_GARRISON_REGEN)) continue;
 		const float dx = x - s.x, dz = z - s.z;
 		if (dx * dx + dz * dz > s.range * s.range) continue;
 		bool dup = false;
@@ -5301,6 +5387,19 @@ void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3
 	}
 }
 
+// One unshaded, always-on-top material per outline colour (owners x selected/hovered).
+const Ref<StandardMaterial3D> &RtsoWorldView::outline_material(const Color &c) {
+	Ref<StandardMaterial3D> &m = outline_mats_[c.to_rgba32()];
+	if (m.is_null()) {
+		m.instantiate();
+		m->set_albedo(c);
+		m->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+		if (c.a < 1.0f) m->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+		m->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
+	}
+	return m;
+}
+
 // Selectable.js overlay for structures: an outline round the footprint of each selected
 // structure, and a fainter one round a highlighted (hovered or band-boxed) one.
 void RtsoWorldView::sync_gl_decal(const rtso::Simulation *sim, Decal *d) {
@@ -5318,7 +5417,7 @@ void RtsoWorldView::sync_gl_decal(const rtso::Simulation *sim, Decal *d) {
 	const Vector3 size = d->get_size();
 	const Color mod = d->get_modulate();
 	const Array key = Array::make(xf, size, mod);
-	if (mi->get_meta("gl_key", Variant()) == Variant(key)) return;
+	if (mi->has_meta("gl_key") && mi->get_meta("gl_key") == Variant(key)) return;
 	mi->set_meta("gl_key", key);
 	Ref<StandardMaterial3D> &mat = gl_decal_mats_[tex.ptr()];
 	if (mat.is_null()) {
@@ -5406,7 +5505,7 @@ void RtsoWorldView::draw_structure_outlines(const rtso::Simulation *sim) {
 			// RTS0's grid footprints are coarser than 0 A.D.'s template Footprint, which the
 			// outline follows: take the drawn model's ground extent where it is larger.
 			if (auto it = building_slot.find(b.id); it != building_slot.end() && !building_pool[it->second].model_id.is_empty()) {
-				const auto entry = rtso::ModelLibrary::get("buildings", building_pool[it->second].model_id);
+				const auto &entry = rtso::ModelLibrary::get("buildings", building_pool[it->second].model_id);
 				if (entry.valid) {
 					const float sc = entry.scale > 0.05f ? entry.scale : 1.0f;
 					const float mx = 0.5f * entry.aabb.size.x * sc, mz = 0.5f * entry.aabb.size.z * sc;
@@ -5418,8 +5517,7 @@ void RtsoWorldView::draw_structure_outlines(const rtso::Simulation *sim) {
 			hu += 0.25f;
 			hv += 0.25f;
 			const float y = sim->get_terrain_height(b.x, b.z) + 0.06f;
-			const bool own = b.team == local_player_;
-			const Ref<StandardMaterial3D> &mat = sel ? (own ? ring_sel_mat : ring_enemy_mat) : (own ? ring_hl_mat : ring_enemy_hl_mat);
+			const Ref<StandardMaterial3D> &mat = outline_material(ring_color(sim, b.team, sel));
 			const Vector3 u(b.ux, 0.0f, b.uz), v(-b.uz, 0.0f, b.ux);
 			const float w = 0.15f;
 			// Two bars along u (at +-hv) and two along v (at +-hu).

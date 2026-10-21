@@ -58,7 +58,7 @@ func run() -> void:
 	var pop: RtsoSafeSelect = left(page, "PopCapSlot").get_child(0)
 	check(items(typ) == ["Player Population", "Team Population", "World Population"] and typ.text == "Player Population", "types: " + str(items(typ)))
 	check(items(pop) == ["50", "100", "150", "200", "250", "300", "Unlimited"] and pop.text == "300", "player caps, 300: " + str(items(pop)))
-	check(left(page, "PopCapLabel").text == "Player Population Cap", "titled Player Population Cap")
+	check(left(page, "PopCapLabel").text == "Player Population Cap:", "titled Player Population Cap")
 	# PopulationCap.onHoverChange: past 1200 units the entry warns of lag.
 	var warn := "Warning: These settings can result in significant lag when all players reach their maximum population capacity."
 	check(pop.get_item_tooltip(0) == "Choose the player population cap." and pop.get_item_tooltip(6) == warn, "Unlimited warns of lag, 50 does not")
@@ -76,7 +76,7 @@ func run() -> void:
 	typ.select(1)
 	page._on_pop_type_selected(1)
 	check(pop.text == "400" and items(pop).size() == 15 and items(pop)[0] == "100" and items(pop)[-1] == "Unlimited", "team caps, 400: " + str(items(pop)))
-	check(left(page, "PopCapLabel").text == "Team Population Cap" and typ.tooltip_text.contains("Locked teams"), "Team Population Cap, with 0.28's tooltip")
+	check(left(page, "PopCapLabel").text == "Team Population Cap:" and typ.tooltip_text.contains("Locked teams"), "Team Population Cap, with 0.28's tooltip")
 	check(lock.button_pressed and lock.disabled, "Locked teams on and fixed")
 	page._on_start_pressed()
 	check(ms.pop_cap == 400 and ms.team_pop and ms.lock_teams, "Start: team cap %d, team_pop %s, locked %s" % [ms.pop_cap, ms.team_pop, ms.lock_teams])

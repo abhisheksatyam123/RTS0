@@ -532,6 +532,16 @@ int main() {
 		research(TECH_WARSHIP_FIRESHIP_ATTACK, -10.0f);
 		CHECK(std::fabs(s.tech_mods(0).tmpl[ignited].health - 1.25f) < 1e-4f);
 		CHECK(s.tech_mods(0).tmpl[unlit].health == 1.0f); // only the ignited form is Ignited
+		// Undergirding Cables affects ArrowShip or NavalRam: no fire ship (Warship Fireship Melee)
+		// is a NavalRam, so even a captor's fire ships keep their health.
+		CHECK((civ_unit_template(unlit).tech_classes & TC_FIRESHIP) && (civ_unit_template(ignited).tech_classes & TC_FIRESHIP));
+		CHECK(!(civ_unit_template(ram).tech_classes & TC_FIRESHIP));
+		fresh(s);
+		s.set_player_civ(CIV_ATHENIANS);
+		s.player(0).phase = 3;
+		research(TECH_WARSHIP_HEALTH, -10.0f);
+		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].health - 1.2f) < 1e-4f);
+		CHECK(s.tech_mods(0).tmpl[unlit].health == 1.0f && s.tech_mods(0).tmpl[ignited].health == 1.0f);
 
 		s.set_player_civ(civ_before);
 	}
@@ -740,7 +750,7 @@ int main() {
 		const uint32_t sh = m.spawn_building_world(20.0f, -20.0f, BLD_STOREHOUSE, 0, 1.0f);
 		CHECK(m.cmd_research(0, sh, TECH_WOODCUTTING_1));
 		CHECK(queued_duration(m, sh) == 0.0f);
-		run(m, 0.2f);
+		run(m, 1.1f); // done at the queue's first second (ProgressTimeout)
 		CHECK(m.players_[0].techs.has(TECH_WOODCUTTING_1));
 		CHECK(civ_bonus_mult(CIV_MACEDONIANS, CIV_BONUS_BUILDING_RESEARCH_TIME, BLD_TOWN_CENTER) == 1.0f);
 		std::printf("Resource-Rich Economy: storehouse tech %.0f s for Athenians, instant for Macedonians\n",
@@ -919,6 +929,32 @@ int main() {
 		std::printf("Ptolemaic house %.1f hp, captured by Athens %.1f (want %.1f)\n", ptol_hp, bld(house)->max_hp, want);
 		CHECK(std::fabs(k.structure_hp_mult(BLD_HOUSE, 0) - 0.6f) < 1e-4f);
 		CHECK(bld(house)->team == 1 && std::fabs(bld(house)->max_hp - want) < 0.01f && bld(house)->hp <= bld(house)->max_hp + 0.01f);
+	}
+
+	// Researcher.js GetTechnologiesList reads a structure's own template: a captured Carthaginian
+	// dock keeps cart/dock's "-warship_health", an Athenian one researches it; a Han player can
+	// research Espionage at a captured Athenian Civic Center (han/civil_centre drops it).
+	{
+		static Simulation k;
+		k.set_sim_seed(5);
+		k.set_team_civ(0, CIV_ATHENIANS);
+		k.set_team_civ(1, CIV_HAN);
+		k.reset();
+		for (uint8_t p : {0, 1}) {
+			k.player(p).phase = 3;
+			k.set_player_resources(p, 5000, 5000, 5000, 5000);
+		}
+		const uint32_t cart_dock = k.spawn_building(-30, 30, BLD_DOCK, 0, 1.0f);
+		const uint32_t athen_dock = k.spawn_building(30, 30, BLD_DOCK, 0, 1.0f);
+		k.set_building_civ(cart_dock, CIV_CARTHAGINIANS);
+		k.set_building_civ(athen_dock, CIV_ATHENIANS);
+		CHECK(k.research_check(0, TECH_WARSHIP_HEALTH, cart_dock) == Simulation::TECH_ERR_BUILDING);
+		CHECK(k.research_check(0, TECH_WARSHIP_HEALTH, athen_dock) != Simulation::TECH_ERR_BUILDING);
+		const uint32_t cc = k.spawn_building(30, -30, BLD_TOWN_CENTER, 1, 1.0f);
+		k.set_building_civ(cc, CIV_ATHENIANS);
+		CHECK(k.research_check(1, TECH_UNLOCK_SPIES, cc) != Simulation::TECH_ERR_BUILDING);
+		k.set_building_civ(cc, CIV_HAN);
+		CHECK(k.research_check(1, TECH_UNLOCK_SPIES, cc) == Simulation::TECH_ERR_BUILDING);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

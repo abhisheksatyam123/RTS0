@@ -18,8 +18,10 @@
 // is rebuilt from the setup first, as Simulation::load_state expects).
 
 #include "main_node.h"
+#include "display_colors.h"
 #include <godot_cpp/classes/canvas_layer.hpp>
 #include <godot_cpp/classes/dir_access.hpp>
+#include <godot_cpp/classes/display_server.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/image_texture.hpp>
@@ -40,7 +42,7 @@ const char *const kSetupKeys[] = {
 	"map_id", "victory", "waves_enabled", "last_man_standing", "pop_cap", "team_pop", "ceasefire_min",
 	"reveal_map", "explore_map", "ally_view", "wonder_min", "relic_min", "relic_count", "map_size",
 	"ai_difficulty", "ai_behavior", "start_res", "slot_types", "slot_civs", "slot_teams",
-	"player_civ", "ai_civ", "campaign_run", "campaign_level", "lock_teams",
+	"player_civ", "ai_civ", "campaign_run", "campaign_level", "campaign_map_name", "lock_teams",
 	// Everything else apply_match_settings reads: the options that shape the rebuilt map
 	// before a save's state is loaded onto it, and the rest, so a replay never picks up
 	// a setting changed in the Game Setup since it was recorded.
@@ -206,6 +208,7 @@ Array RtsoMain::player_list() const {
 		d["id"] = (int)p;
 		d["name"] = player_display_name(p);
 		d["civ"] = (int)ps.civ;
+		d["civ_code"] = String(rtso::civ_info(ps.civ).code); // playerState.civ
 		d["civ_name"] = String(rtso::civ_info(ps.civ).name);
 		d["team"] = (int)ps.team + 1;
 		d["setup_team"] = p < slot_teams.size() && (int)slot_teams[p] > 0 ? (int)slot_teams[p] - 1 : -1;
@@ -536,6 +539,10 @@ bool RtsoMain::start_pending_replay() {
 	// no counters; the picker follows one player.
 	replay_view_ = rtso::OBSERVER_VIEW;
 	replay_hud_player_ = 0xFF; // seat_player()'s observer
+	replay_defeated_mask_ = 0;
+	// A visual replay runs in a new CGame, whose sim rate starts at 1 (Game.cpp m_SimRate);
+	// the replay menu never sets the recorded speed.
+	game_speed = 1.0f;
 	UtilityFunctions::print("[RTS0] Playing replay ", dir, " (", (int64_t)turn_mgr_.turn_history().size(), " turns)");
 	return true;
 }
@@ -590,34 +597,29 @@ Dictionary RtsoMain::get_replay_status() const {
 	return d;
 }
 
-// Per-frame upkeep: write the replay now and then, show playback progress and
-// stop at the replay's last turn.
+// Per-frame upkeep: write the replay now and then, follow the viewed player's defeat
+// and stop at the replay's last turn.
 void RtsoMain::tick_match_archive() {
 	if (replay_recording_ && turn_mgr_.turn_history().size() >= replay_written_turn_ + kReplayWriteEveryTurns)
 		write_replay();
 	if (!turn_mgr_.is_replaying()) return;
-	if (!replay_label_) {
-		replay_label_ = memnew(Label);
-		replay_label_->set_position(Vector2(16.0f, 64.0f));
-		replay_label_->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.4f));
-		replay_label_->add_theme_font_size_override("font_size", 18);
-		CanvasLayer *layer = memnew(CanvasLayer);
-		layer->set_layer(5);
-		add_child(layer);
-		layer->add_child(replay_label_);
+	// 0.28 draws no replay HUD of its own: the session's top panel and the view dropdown.
+	if (!replay_layer_) {
+		replay_layer_ = memnew(CanvasLayer);
+		replay_layer_->set_layer(5);
+		add_child(replay_layer_);
 		build_replay_view_picker();
 	}
-	const int64_t total = (int64_t)turn_mgr_.turn_history().size();
-	const int64_t turn = std::min<int64_t>((int64_t)turn_mgr_.current_turn(), total);
-	auto clock = [](int64_t turns) {
-		const int64_t s = (int64_t)((double)turns * rtso::TurnManager::TURN_DURATION);
-		return String::num_int64(s / 60).pad_zeros(2) + ":" + String::num_int64(s % 60).pad_zeros(2);
-	};
-	// A replay continued from a save shows the game clock, which starts at the save's time.
-	const int64_t start_turns = (int64_t)((double)replay_meta_.get("start_time", 0.0) / rtso::TurnManager::TURN_DURATION + 0.5);
-	String text = "REPLAY  " + clock(start_turns + turn) + " / " + clock(start_turns + total);
+	// PlayerViewControl.onPlayersFinished: a defeat moves the view to Observer; a win keeps it.
+	if (sim) {
+		uint32_t defeated = 0;
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
+			if (sim->is_defeated(p) && !sim->is_victory_for(p)) defeated |= 1u << p;
+		const uint32_t fresh = defeated & ~replay_defeated_mask_;
+		replay_defeated_mask_ = defeated;
+		if (replay_view_ < rtso::MAX_PLAYERS && (fresh & (1u << replay_view_))) set_replay_view(-1);
+	}
 	if (turn_mgr_.replay_out_of_sync()) {
-		text += "  (out of sync at turn " + String::num_int64(turn_mgr_.replay_out_of_sync_turn()) + ")";
 		// OutOfSyncReplay: an "Out of Sync" message box that pauses the replay until answered.
 		if (!replay_oos_shown_) {
 			replay_oos_shown_ = true;
@@ -628,8 +630,6 @@ void RtsoMain::tick_match_archive() {
 		replay_finished_ = true;
 		quit_confirmation("replay_finished"); // QuitConfirmationReplay
 	}
-	if (replay_finished_) text += "  finished";
-	replay_label_->set_text(text);
 }
 
 // The 0 A.D. viewPlayer dropdown's entries: Observer, Gaia, then each player
@@ -638,19 +638,32 @@ OptionButton *RtsoMain::new_player_view_picker() const {
 	OptionButton *picker = memnew(OptionButton);
 	picker->set_tooltip_text("Choose player to view");
 	picker->add_item("Observer", 0);
-	auto add_player = [&](uint8_t pid, const String &name, int id) {
-		const uint32_t rgb = sim->player_color(pid);
-		Ref<Image> img = Image::create(12, 12, false, Image::FORMAT_RGB8);
-		img->fill(Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f));
-		picker->add_icon_item(ImageTexture::create_from_image(img), name, id);
-	};
-	add_player(rtso::GAIA_PLAYER, "Gaia", kReplayViewGaiaId);
+	picker->add_item("Gaia", kReplayViewGaiaId);
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
 		if (!sim->player_in_match(p) && !((sim->participant_mask() >> p) & 1)) continue;
-		add_player(p, player_display_name(p), p + 1);
+		picker->add_item(player_display_name(p), p + 1);
 	}
+	refresh_player_view_colors(picker);
 	picker->set_focus_mode(Control::FOCUS_NONE);
 	return picker;
+}
+
+// PlayerViewControl.rebuild on a view or Diplomacy Colors change: each square
+// in the colour colorizePlayernameHelper gives the player now.
+void RtsoMain::refresh_player_view_colors(OptionButton *picker) const {
+	if (!picker || !sim) return;
+	for (int i = 0; i < picker->get_item_count(); ++i) {
+		const int id = picker->get_item_id(i);
+		if (id == 0) continue;
+		const uint8_t pid = id == kReplayViewGaiaId ? rtso::GAIA_PLAYER : (uint8_t)(id - 1);
+		const int64_t rgb = (int64_t)(rtso::display_colors::rgb(*sim, pid) & 0xFFFFFF);
+		const Variant had = picker->get_item_metadata(i);
+		if (had.get_type() == Variant::INT && (int64_t)had == rgb) continue;
+		Ref<Image> img = Image::create(12, 12, false, Image::FORMAT_RGB8);
+		img->fill(Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f));
+		picker->set_item_icon(i, ImageTexture::create_from_image(img));
+		picker->set_item_metadata(i, rgb);
+	}
 }
 
 Control *RtsoMain::new_player_view_row(OptionButton *picker, Label *observer_label, CheckBox *follow) const {
@@ -706,13 +719,13 @@ Control *RtsoMain::new_player_view_row(OptionButton *picker, Label *observer_lab
 // "Observer Mode" shows while the view is Observer or Gaia. Presentation only, so the
 // replay's hashes are unaffected.
 void RtsoMain::build_replay_view_picker() {
-	if (replay_view_picker_ || !replay_label_) return;
+	if (replay_view_picker_ || !replay_layer_) return;
 	replay_view_picker_ = new_player_view_picker();
 	replay_view_picker_->connect("item_selected", Callable(this, "_on_replay_view_selected"));
 	replay_observer_label_ = memnew(Label);
 	replay_observer_label_->set_text("Observer Mode");
 	replay_follow_box_ = new_follow_player_box();
-	replay_label_->get_parent()->add_child(new_player_view_row(replay_view_picker_, replay_observer_label_, replay_follow_box_));
+	replay_layer_->add_child(new_player_view_row(replay_view_picker_, replay_observer_label_, replay_follow_box_));
 }
 
 void RtsoMain::_on_replay_view_selected(int index) {
@@ -756,7 +769,7 @@ bool RtsoMain::write_save_metadata(const String &path, const String &description
 	meta["map_id"] = String(sim->current_map_id().c_str());
 	meta["map_name"] = String(sim->current_map_name().c_str());
 	meta["game_time"] = (double)sim->stats().ticks * rtso::Simulation::FIXED_STEP;
-	meta["elapsed"] = match_elapsed_time;
+	meta["elapsed"] = match_elapsed_time();
 	meta["kind"] = net_lockstep() ? "mp" : "sp";
 	meta["settings"] = match_settings_snapshot(match_seed_);
 	meta["players"] = player_list();
@@ -767,6 +780,7 @@ bool RtsoMain::write_save_metadata(const String &path, const String &description
 	for (int g = 0; g < 10; ++g) groups.push_back(selected_groups[g]);
 	gui["groups"] = groups;
 	if (cam_rig) gui["camera"] = cam_rig->camera_data();
+	if (view) gui["building_looks"] = view->building_looks_data();
 	meta["gui"] = gui;
 	return write_text(path.get_basename() + ".json", JSON::stringify(meta, "\t"));
 }
@@ -777,7 +791,7 @@ void RtsoMain::write_save_thumbnail(const String &path) {
 	const String png = path.get_basename() + ".png";
 	if (FileAccess::file_exists(png)) DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(png));
 	Viewport *vp = get_viewport();
-	if (!vp) return;
+	if (!vp || DisplayServer::get_singleton()->get_name() == "headless") return;
 	Ref<ViewportTexture> tex = vp->get_texture();
 	if (tex.is_null()) return;
 	Ref<Image> img = tex->get_image();
@@ -820,7 +834,6 @@ bool RtsoMain::load_pending_save() {
 	apply_match_settings();
 	turn_mgr_.reset();
 	if (!load_game(path)) return false;
-	match_elapsed_time = (double)meta.get("elapsed", 0.0);
 	// Host Saved Game: host it once loaded; Start continues it for everyone.
 	net_saved_game_ = (bool)ms->get("net_saved_game") && String(ms->get("net_mode")) == "host" ? path : String();
 	ms->set("net_saved_game", false);
@@ -901,6 +914,7 @@ void RtsoMain::host_start_saved_game() {
 	net_host_.note_game_start_sent();
 	net_host_.sendGameStart(rtso::format_game_start_full(setup));
 	net_game_started_ = true;
+	chat_window_.clear_history(); // the session's chat starts empty (Chat.js)
 	selected_ids.clear();
 	selected_building_id = 0;
 	UtilityFunctions::print("[RTS0][GameStart] HOST continues saved game ", net_saved_game_, " as player ",
@@ -917,6 +931,7 @@ Dictionary RtsoMain::saved_gui(const String &path) {
 // session.js restoreSavedGameData: the camera, an empty selection and the control groups.
 void RtsoMain::restore_saved_gui(const Dictionary &gui) {
 	if (cam_rig && gui.has("camera")) cam_rig->set_camera_data(gui["camera"]);
+	if (view) view->set_building_looks_data(gui.get("building_looks", Array()));
 	const Array groups = gui.get("groups", Array());
 	for (int g = 0; g < 10; ++g) {
 		selected_groups[g].clear();

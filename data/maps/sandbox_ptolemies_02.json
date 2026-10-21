@@ -6663,14 +6663,16 @@
         "metal": 50000,
         "stone": 50000,
         "wood": 50000
-      }
+      },
+      "name": "Ptolemy \"Savior\""
     },
     {
       "id": 4,
       "team": 3,
       "start_x": -115.95,
       "start_z": 46.45,
-      "civ": 4
+      "civ": 4,
+      "name": "Libyans"
     },
     {
       "id": 3,
@@ -6682,7 +6684,8 @@
         0,
         0,
         0
-      ]
+      ],
+      "name": "Seleucids"
     }
   ],
   "resources": [
@@ -15116,6 +15119,53 @@
       "x": -113.74,
       "z": -27.31,
       "template": "ptol/champion_elephant"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -108.45,
+      "z": -26.64,
+      "template": "ptol/siege_lithobolos_unpacked",
+      "parents": [
+        "ptol/siege_lithobolos_packed"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -106.98,
+      "z": -25.35,
+      "template": "ptol/siege_lithobolos_unpacked",
+      "parents": [
+        "ptol/siege_lithobolos_packed"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -109.6,
+      "z": -28.16,
+      "template": "ptol/siege_polybolos_unpacked",
+      "parents": [
+        "ptol/siege_polybolos_packed"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -110.53,
+      "z": -29.07,
+      "template": "ptol/siege_polybolos_unpacked",
+      "parents": [
+        "ptol/siege_polybolos_packed"
+      ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -114.07,
+      "z": -31.38,
+      "template": "ptol/siege_tower"
     },
     {
       "type": "healer",

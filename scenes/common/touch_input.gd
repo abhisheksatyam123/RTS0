@@ -6,15 +6,24 @@ extends Node
 #   tap               left click (select, press a button); a quick second tap is a double click
 #   drag              left drag (box select, scroll a list)
 #   hold still        right click (order the selection: move, gather, attack, build)
+#   two-finger tap    right click where the first finger went down (a quicker order)
 #   two fingers       pan the camera; pinch to zoom
+# The mouse is parked off the screen until a finger is down: a touch near an edge (or
+# the pointer's start at a corner) would otherwise scroll the camera until the next touch.
 # The session's touch bar latches Shift, Ctrl and Alt through set_modifier(): while one
 # is on, Input reports the key held and every touch-made mouse event carries it, so
 # Shift queues orders and adds to the selection, Ctrl and Alt work as with a keyboard.
+# Android's Back button (project.godot keeps quit_on_go_back off, so it never quits the
+# game) works as Escape: it closes the open dialog or page, ends placement, drops the
+# selection; in a match with nothing to cancel it opens the session menu, and on the main
+# menu it asks to quit.
 # Desktop builds leave it off.
 
 const HOLD_SEC := 0.45
-const DRAG_PX := 18.0
+const DRAG_PX := 18.0  # in UI pixels (the 1280x720 canvas), so the same finger travel on any screen
 const DOUBLE_TAP_SEC := 0.35
+const TWO_FINGER_TAP_SEC := 0.4
+const PARKED := Vector2(-10000, -10000)
 
 var _touches := {}       # index -> current position
 var _start := Vector2.ZERO
@@ -22,6 +31,11 @@ var _start_time := 0.0
 var _dragging := false
 var _held := false
 var _multi := false      # a second finger went down: no clicks until every finger lifts
+var _multi_tap := false  # ... and it may still be a two-finger tap
+var _multi_time := 0.0
+var _multi_pos := Vector2.ZERO
+var _multi_mid := Vector2.ZERO
+var _multi_dist := 0.0
 var _last_tap_time := -10.0
 var _last_tap_pos := Vector2.ZERO
 var _pinch_dist := 0.0
@@ -43,6 +57,37 @@ func activate() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_process(true)
 	set_process_input(true)
+	# Until the first touch the pointer sits at (0, 0), a screen corner: park it so the
+	# camera doesn't edge-scroll from the start of a match.
+	_park.call_deferred()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST and _active:
+		back()
+
+func back() -> void:
+	var scene := get_tree().current_scene
+	var idle_match: bool = scene != null and scene.has_method("nothing_to_cancel") and scene.nothing_to_cancel()
+	if _escape():
+		return
+	if idle_match:
+		scene._on_menu_button_pressed()
+	elif scene != null and scene.has_method("_on_exit_pressed") and not scene.submenu_panel.visible:
+		scene._on_exit_pressed()
+
+# Press and release Escape ("cancel"); true when a page or dialog took it.
+func _escape() -> bool:
+	var vp := get_viewport()
+	var handled := false
+	for pressed in [true, false]:
+		var k := InputEventKey.new()
+		k.keycode = KEY_ESCAPE
+		k.physical_keycode = KEY_ESCAPE
+		k.pressed = pressed
+		vp.push_input(k)
+		if pressed:
+			handled = vp.is_input_handled()
+	return handled
 
 # Latch (on) or release a modifier key for touch play.
 func set_modifier(key: Key, on: bool) -> void:
@@ -68,6 +113,10 @@ func _apply_mods(e: InputEventWithModifiers) -> void:
 	e.ctrl_pressed = _mods[KEY_CTRL]
 	e.alt_pressed = _mods[KEY_ALT]
 
+# UI pixels to window pixels: touches arrive in window pixels.
+func _px(v: float) -> float:
+	return v * maxf(get_viewport().get_final_transform().get_scale().x, 0.001)
+
 func _now() -> float:
 	return Time.get_ticks_msec() / 1000.0
 
@@ -91,15 +140,29 @@ func _on_touch(e: InputEventScreenTouch) -> void:
 			_held = false
 			_motion(e.position, 0)
 		elif _touches.size() >= 2:
-			if _dragging and not _multi:
-				_button(MOUSE_BUTTON_LEFT, false, _touches.values()[0])
+			if not _multi:
+				if _dragging:
+					_button(MOUSE_BUTTON_LEFT, false, _touches.values()[0])
+				_multi_tap = not _dragging and not _held and _touches.size() == 2
+				_multi_time = _now()
+				_multi_pos = _start
+			else:
+				_multi_tap = false
 			_multi = true
 			_pinch_reset()
+			_multi_mid = _pinch_mid
+			_multi_dist = _pinch_dist
 		return
 	_touches.erase(e.index)
 	if _multi:
 		if _touches.is_empty():
 			_multi = false
+			if _multi_tap and _now() - _multi_time < TWO_FINGER_TAP_SEC:
+				_motion(_multi_pos, 0)
+				_button(MOUSE_BUTTON_RIGHT, true, _multi_pos)
+				_button(MOUSE_BUTTON_RIGHT, false, _multi_pos)
+			_multi_tap = false
+			_park()
 		else:
 			_pinch_reset()
 		return
@@ -108,7 +171,7 @@ func _on_touch(e: InputEventScreenTouch) -> void:
 		_button(MOUSE_BUTTON_LEFT, false, e.position)
 	elif not _held:
 		var t := _now()
-		var dbl := t - _last_tap_time < DOUBLE_TAP_SEC and e.position.distance_to(_last_tap_pos) < DRAG_PX * 2.0
+		var dbl := t - _last_tap_time < DOUBLE_TAP_SEC and e.position.distance_to(_last_tap_pos) < _px(DRAG_PX * 2.0)
 		_motion(e.position, 0)
 		_button(MOUSE_BUTTON_LEFT, true, e.position, dbl)
 		_button(MOUSE_BUTTON_LEFT, false, e.position)
@@ -116,6 +179,7 @@ func _on_touch(e: InputEventScreenTouch) -> void:
 		_last_tap_pos = e.position
 	_dragging = false
 	_held = false
+	_park()
 
 func _on_drag(e: InputEventScreenDrag) -> void:
 	_touches[e.index] = e.position
@@ -124,7 +188,7 @@ func _on_drag(e: InputEventScreenDrag) -> void:
 		return
 	if _held:
 		return
-	if not _dragging and e.position.distance_to(_start) > DRAG_PX:
+	if not _dragging and e.position.distance_to(_start) > _px(DRAG_PX):
 		_dragging = true
 		_motion(_start, 0)
 		_button(MOUSE_BUTTON_LEFT, true, _start)
@@ -156,12 +220,14 @@ func _two_finger() -> void:
 	var b: Vector2 = p[1]
 	var dist := a.distance_to(b)
 	var mid := (a + b) * 0.5
-	if _pinch_dist > 1.0 and absf(dist - _pinch_dist) > 2.0:
+	if mid.distance_to(_multi_mid) > _px(DRAG_PX) or absf(dist - _multi_dist) > _px(DRAG_PX):
+		_multi_tap = false
+	if _pinch_dist > _px(1.0) and absf(dist - _pinch_dist) > _px(2.0):
 		var mag := InputEventMagnifyGesture.new()
 		mag.position = mid
 		mag.factor = dist / _pinch_dist
 		Input.parse_input_event(mag)
-	var d := mid - _pinch_mid
+	var d := (mid - _pinch_mid) / _px(1.0)
 	if d.length() > 0.5:
 		var pan := InputEventPanGesture.new()
 		pan.position = mid
@@ -170,6 +236,11 @@ func _two_finger() -> void:
 		Input.parse_input_event(pan)
 	_pinch_dist = dist
 	_pinch_mid = mid
+
+# Move the pointer off the screen once no finger is down (see the top).
+func _park() -> void:
+	if _touches.is_empty():
+		_motion(PARKED, 0)
 
 func _motion(pos: Vector2, mask: int) -> void:
 	var m := InputEventMouseMotion.new()

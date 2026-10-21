@@ -172,6 +172,13 @@
      1.0,
      0.0,
      1.0
+    ],
+    "spart/hero_leonidas_300": [
+     0.0,
+     0.0,
+     1.0,
+     0.0,
+     1.0
     ]
    }
   },
@@ -27166,6 +27173,371 @@
      }
     }
    }
+  },
+  "rome/champion_infantry_swordsman_02": {
+   "generic_name": "Marian Legionary",
+   "specific_name": "Legiōnārius",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "icon": "units/rome/champion_legion_marian.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 16
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9.5,
+     "run": 15.865,
+     "acceleration": 35
+    }
+   }
+  },
+  "rome/champion_infantry_swordsman_03": {
+   "generic_name": "Marian Legionary",
+   "specific_name": "Legiōnārius",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "icon": "units/rome/champion_legion_imperial.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 18.5
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9.5,
+     "run": 15.865,
+     "acceleration": 35
+    }
+   }
+  },
+  "rome/champion_infantry_swordsman_04": {
+   "generic_name": "Roman Centurion",
+   "specific_name": "Centuriō",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "icon": "units/rome/champion_legion_centurio.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 20
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9.5,
+     "run": 15.865,
+     "acceleration": 35
+    }
+   }
+  },
+  "rome/champion_infantry_swordsman_05": {
+   "generic_name": "Praetorian Guard",
+   "specific_name": "Praetorianus",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "icon": "units/rome/champion_legion_centurio.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Melee",
+      "name": "Sword",
+      "min_range": 0,
+      "max_range": 3,
+      "y_origin": 0,
+      "repeat_time": 0.75,
+      "damage": {
+       "Hack": 25
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9.5,
+     "run": 15.865,
+     "acceleration": 35
+    }
+   }
+  },
+  "athen/hero_xenophon": {
+   "generic_name": "Xenophon",
+   "specific_name": "Xenophōn",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Ranged",
+    "Javelineer"
+   ],
+   "icon": "units/athen/hero_xenophon.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Ranged",
+      "name": "Javelin",
+      "min_range": 0,
+      "max_range": 30,
+      "y_origin": 0,
+      "repeat_time": 1.5,
+      "damage": {
+       "Pierce": 62
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "spart/hero_leonidas_300": {
+   "generic_name": "Leonidas I",
+   "specific_name": "Leōnidēs",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Melee",
+    "Spearman"
+   ],
+   "icon": "units/spart/hero_leonidas_300.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 10
+     },
+     {
+      "type": "Melee",
+      "name": "Spear",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "damage": {
+       "Hack": 15,
+       "Pierce": 12
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9,
+     "run": 15.03,
+     "acceleration": 35
+    }
+   }
+  },
+  "pers/arstibara": {
+   "generic_name": "Persian Apple Bearer",
+   "specific_name": "Arštibara",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Spearman",
+    "Immortal"
+   ],
+   "icon": "units/pers/arstibara.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Capture",
+      "name": "Capture",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "capture": 5
+     },
+     {
+      "type": "Melee",
+      "name": "Spear",
+      "min_range": 0,
+      "max_range": 4,
+      "y_origin": 0,
+      "repeat_time": 1,
+      "damage": {
+       "Hack": 8.5,
+       "Pierce": 7.225
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 9.5,
+     "run": 15.865,
+     "acceleration": 35
+    }
+   }
+  },
+  "han/siege_shoushe": {
+   "generic_name": "Bolt Shooter",
+   "specific_name": "Nǔ Chē",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Siege",
+    "Ranged",
+    "BoltShooter"
+   ],
+   "icon": "units/han/siege_boltshooter.png",
+   "builds": [],
+   "viewer": {
+    "attacks": [
+     {
+      "type": "Ranged",
+      "name": "Bolt",
+      "min_range": 15,
+      "max_range": 80,
+      "y_origin": 0,
+      "repeat_time": 6,
+      "damage": {
+       "Pierce": 240
+      },
+      "splash": {
+       "damage": {
+        "Pierce": 80
+       },
+       "shape": "Linear",
+       "friendly_fire": false
+      }
+     }
+    ],
+    "garrison_size": 1,
+    "speed": {
+     "walk": 6.075,
+     "run": 6.075,
+     "acceleration": 3.5438
+    },
+    "status_resistance": {
+     "Poisoned": {
+      "block": 1,
+      "duration": 0
+     }
+    }
+   }
   }
  },
  "structures": {
@@ -27576,7 +27948,18 @@
       "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
       "radius": 0
      }
-    ]
+    ],
+    "wallset": {
+     "generic_name": "Wall",
+     "specific_name": "Teichos",
+     "tooltip": "Wall off an area.",
+     "history": "",
+     "classes": [
+      "Wall"
+     ],
+     "icon": "structures/wall.png",
+     "template": "structures/athen/wallset_stone"
+    }
    },
    "13": {
     "generic_name": "Corral",
@@ -27826,6 +28209,17 @@
        "duration": 0
       }
      }
+    },
+    "wallset": {
+     "generic_name": "Palisade",
+     "specific_name": "",
+     "tooltip": "Wall off an area. Build in own or neutral territory.",
+     "history": "",
+     "classes": [
+      "Palisade"
+     ],
+     "icon": "structures/palisade_wall.png",
+     "template": "structures/wallset_palisade"
     }
    },
    "22": {
@@ -28612,7 +29006,18 @@
       "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
       "radius": 0
      }
-    ]
+    ],
+    "wallset": {
+     "generic_name": "Wall",
+     "specific_name": "Teichos",
+     "tooltip": "Wall off an area.",
+     "history": "",
+     "classes": [
+      "Wall"
+     ],
+     "icon": "structures/wall.png",
+     "template": "structures/spart/wallset_stone"
+    }
    },
    "13": {
     "generic_name": "Corral",
@@ -28862,6 +29267,17 @@
        "duration": 0
       }
      }
+    },
+    "wallset": {
+     "generic_name": "Palisade",
+     "specific_name": "",
+     "tooltip": "Wall off an area. Build in own or neutral territory.",
+     "history": "",
+     "classes": [
+      "Palisade"
+     ],
+     "icon": "structures/palisade_wall.png",
+     "template": "structures/wallset_palisade"
     }
    },
    "22": {
@@ -29602,7 +30018,18 @@
       "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
       "radius": 0
      }
-    ]
+    ],
+    "wallset": {
+     "generic_name": "Wall",
+     "specific_name": "Para",
+     "tooltip": "Wall off an area.",
+     "history": "",
+     "classes": [
+      "Wall"
+     ],
+     "icon": "structures/wall.png",
+     "template": "structures/pers/wallset_stone"
+    }
    },
    "13": {
     "generic_name": "Corral",
@@ -29852,6 +30279,17 @@
        "duration": 0
       }
      }
+    },
+    "wallset": {
+     "generic_name": "Palisade",
+     "specific_name": "",
+     "tooltip": "Wall off an area. Build in own or neutral territory.",
+     "history": "",
+     "classes": [
+      "Palisade"
+     ],
+     "icon": "structures/palisade_wall.png",
+     "template": "structures/wallset_palisade"
     }
    },
    "22": {
@@ -30760,7 +31198,18 @@
       "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
       "radius": 0
      }
-    ]
+    ],
+    "wallset": {
+     "generic_name": "Wall",
+     "specific_name": "Moenia",
+     "tooltip": "Wall off an area.",
+     "history": "",
+     "classes": [
+      "Wall"
+     ],
+     "icon": "structures/wall.png",
+     "template": "structures/rome/wallset_stone"
+    }
    },
    "13": {
     "generic_name": "Corral",
@@ -31010,6 +31459,17 @@
        "duration": 0
       }
      }
+    },
+    "wallset": {
+     "generic_name": "Palisade",
+     "specific_name": "",
+     "tooltip": "Wall off an area. Build in own or neutral territory.",
+     "history": "",
+     "classes": [
+      "Palisade"
+     ],
+     "icon": "structures/palisade_wall.png",
+     "template": "structures/wallset_palisade"
     }
    },
    "22": {
@@ -31304,7 +31764,19 @@
       "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
       "radius": 0
      }
-    ]
+    ],
+    "wallset": {
+     "generic_name": "Siege Wall",
+     "specific_name": "Mūrus Circummūnītiōnis",
+     "tooltip": "Wall off an area. Build in own, neutral, or enemy territory.",
+     "history": "",
+     "classes": [
+      "Wall",
+      "SiegeWall"
+     ],
+     "icon": "structures/siege_wall.png",
+     "template": "structures/rome/wallset_siege"
+    }
    },
    "64": {
     "generic_name": "Siege Wall Gate",
@@ -31951,7 +32423,18 @@
       "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
       "radius": 0
      }
-    ]
+    ],
+    "wallset": {
+     "generic_name": "Wall",
+     "specific_name": "Jdar",
+     "tooltip": "Wall off an area.",
+     "history": "",
+     "classes": [
+      "Wall"
+     ],
+     "icon": "structures/wall.png",
+     "template": "structures/cart/wallset_stone"
+    }
    },
    "13": {
     "generic_name": "Corral",
@@ -32201,6 +32684,17 @@
        "duration": 0
       }
      }
+    },
+    "wallset": {
+     "generic_name": "Palisade",
+     "specific_name": "",
+     "tooltip": "Wall off an area. Build in own or neutral territory.",
+     "history": "",
+     "classes": [
+      "Palisade"
+     ],
+     "icon": "structures/palisade_wall.png",
+     "template": "structures/wallset_palisade"
     }
    },
    "22": {
@@ -33014,7 +33508,18 @@
       "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
       "radius": 0
      }
-    ]
+    ],
+    "wallset": {
+     "generic_name": "Wall",
+     "specific_name": "Teichos",
+     "tooltip": "Wall off an area.",
+     "history": "",
+     "classes": [
+      "Wall"
+     ],
+     "icon": "structures/wall.png",
+     "template": "structures/mace/wallset_stone"
+    }
    },
    "13": {
     "generic_name": "Corral",
@@ -33264,6 +33769,17 @@
        "duration": 0
       }
      }
+    },
+    "wallset": {
+     "generic_name": "Palisade",
+     "specific_name": "",
+     "tooltip": "Wall off an area. Build in own or neutral territory.",
+     "history": "",
+     "classes": [
+      "Palisade"
+     ],
+     "icon": "structures/palisade_wall.png",
+     "template": "structures/wallset_palisade"
     }
    },
    "22": {
@@ -34026,7 +34542,18 @@
       "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
       "radius": 0
      }
-    ]
+    ],
+    "wallset": {
+     "generic_name": "Wall",
+     "specific_name": "Rate",
+     "tooltip": "Wall off an area.",
+     "history": "",
+     "classes": [
+      "Wall"
+     ],
+     "icon": "structures/wall.png",
+     "template": "structures/brit/wallset_stone"
+    }
    },
    "13": {
     "generic_name": "Corral",
@@ -34276,6 +34803,17 @@
        "duration": 0
       }
      }
+    },
+    "wallset": {
+     "generic_name": "Palisade",
+     "specific_name": "",
+     "tooltip": "Wall off an area. Build in own or neutral territory.",
+     "history": "",
+     "classes": [
+      "Palisade"
+     ],
+     "icon": "structures/palisade_wall.png",
+     "template": "structures/wallset_palisade"
     }
    },
    "22": {
@@ -34975,7 +35513,18 @@
       "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
       "radius": 0
      }
-    ]
+    ],
+    "wallset": {
+     "generic_name": "Wall",
+     "specific_name": "Rate",
+     "tooltip": "Wall off an area.",
+     "history": "",
+     "classes": [
+      "Wall"
+     ],
+     "icon": "structures/wall.png",
+     "template": "structures/gaul/wallset_stone"
+    }
    },
    "13": {
     "generic_name": "Corral",
@@ -35225,6 +35774,17 @@
        "duration": 0
       }
      }
+    },
+    "wallset": {
+     "generic_name": "Palisade",
+     "specific_name": "",
+     "tooltip": "Wall off an area. Build in own or neutral territory.",
+     "history": "",
+     "classes": [
+      "Palisade"
+     ],
+     "icon": "structures/palisade_wall.png",
+     "template": "structures/wallset_palisade"
     }
    },
    "22": {
@@ -35903,7 +36463,18 @@
       "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
       "radius": 0
      }
-    ]
+    ],
+    "wallset": {
+     "generic_name": "Wall",
+     "specific_name": "Zabal Horma",
+     "tooltip": "Wall off an area.",
+     "history": "",
+     "classes": [
+      "Wall"
+     ],
+     "icon": "structures/wall.png",
+     "template": "structures/iber/wallset_stone"
+    }
    },
    "13": {
     "generic_name": "Corral",
@@ -36153,6 +36724,17 @@
        "duration": 0
       }
      }
+    },
+    "wallset": {
+     "generic_name": "Palisade",
+     "specific_name": "",
+     "tooltip": "Wall off an area. Build in own or neutral territory.",
+     "history": "",
+     "classes": [
+      "Palisade"
+     ],
+     "icon": "structures/palisade_wall.png",
+     "template": "structures/wallset_palisade"
     }
    },
    "22": {
@@ -36809,7 +37391,18 @@
       "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
       "radius": 0
      }
-    ]
+    ],
+    "wallset": {
+     "generic_name": "Wall",
+     "specific_name": "Shilabanda",
+     "tooltip": "Wall off an area.",
+     "history": "",
+     "classes": [
+      "Wall"
+     ],
+     "icon": "structures/wall.png",
+     "template": "structures/maur/wallset_stone"
+    }
    },
    "13": {
     "generic_name": "Corral",
@@ -37059,6 +37652,17 @@
        "duration": 0
       }
      }
+    },
+    "wallset": {
+     "generic_name": "Palisade",
+     "specific_name": "",
+     "tooltip": "Wall off an area. Build in own or neutral territory.",
+     "history": "",
+     "classes": [
+      "Palisade"
+     ],
+     "icon": "structures/palisade_wall.png",
+     "template": "structures/wallset_palisade"
     }
    },
    "22": {
@@ -37779,7 +38383,18 @@
       "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
       "radius": 0
      }
-    ]
+    ],
+    "wallset": {
+     "generic_name": "Wall",
+     "specific_name": "Sbty",
+     "tooltip": "Wall off an area.",
+     "history": "",
+     "classes": [
+      "Wall"
+     ],
+     "icon": "structures/wall.png",
+     "template": "structures/kush/wallset_stone"
+    }
    },
    "13": {
     "generic_name": "Corral",
@@ -38029,6 +38644,17 @@
        "duration": 0
       }
      }
+    },
+    "wallset": {
+     "generic_name": "Palisade",
+     "specific_name": "",
+     "tooltip": "Wall off an area. Build in own or neutral territory.",
+     "history": "",
+     "classes": [
+      "Palisade"
+     ],
+     "icon": "structures/palisade_wall.png",
+     "template": "structures/wallset_palisade"
     }
    },
    "22": {
@@ -38834,7 +39460,18 @@
       "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
       "radius": 0
      }
-    ]
+    ],
+    "wallset": {
+     "generic_name": "Wall",
+     "specific_name": "Teichos",
+     "tooltip": "Wall off an area.",
+     "history": "",
+     "classes": [
+      "Wall"
+     ],
+     "icon": "structures/wall.png",
+     "template": "structures/ptol/wallset_stone"
+    }
    },
    "13": {
     "generic_name": "Corral",
@@ -39084,6 +39721,17 @@
        "duration": 0
       }
      }
+    },
+    "wallset": {
+     "generic_name": "Palisade",
+     "specific_name": "",
+     "tooltip": "Wall off an area. Build in own or neutral territory.",
+     "history": "",
+     "classes": [
+      "Palisade"
+     ],
+     "icon": "structures/palisade_wall.png",
+     "template": "structures/wallset_palisade"
     }
    },
    "22": {
@@ -39955,7 +40603,18 @@
       "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
       "radius": 0
      }
-    ]
+    ],
+    "wallset": {
+     "generic_name": "Wall",
+     "specific_name": "Teichos",
+     "tooltip": "Wall off an area.",
+     "history": "",
+     "classes": [
+      "Wall"
+     ],
+     "icon": "structures/wall.png",
+     "template": "structures/sele/wallset_stone"
+    }
    },
    "13": {
     "generic_name": "Corral",
@@ -40205,6 +40864,17 @@
        "duration": 0
       }
      }
+    },
+    "wallset": {
+     "generic_name": "Palisade",
+     "specific_name": "",
+     "tooltip": "Wall off an area. Build in own or neutral territory.",
+     "history": "",
+     "classes": [
+      "Palisade"
+     ],
+     "icon": "structures/palisade_wall.png",
+     "template": "structures/wallset_palisade"
     }
    },
    "22": {
@@ -40957,7 +41627,18 @@
       "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
       "radius": 0
      }
-    ]
+    ],
+    "wallset": {
+     "generic_name": "Wall",
+     "specific_name": "Yōng",
+     "tooltip": "Wall off an area.",
+     "history": "",
+     "classes": [
+      "Wall"
+     ],
+     "icon": "structures/wall.png",
+     "template": "structures/han/wallset_stone"
+    }
    },
    "13": {
     "generic_name": "Corral",
@@ -41207,6 +41888,17 @@
        "duration": 0
       }
      }
+    },
+    "wallset": {
+     "generic_name": "Bamboo Stockade",
+     "specific_name": "",
+     "tooltip": "Wall off an area. Build in own or neutral territory.",
+     "history": "",
+     "classes": [
+      "Palisade"
+     ],
+     "icon": "structures/palisade_wall.png",
+     "template": "structures/han/wallset_palisade"
     }
    },
    "22": {
@@ -42037,7 +42729,18 @@
       "description": "Turreted Soldiers +3 crush, hack, pierce resistance and +20 vision range.",
       "radius": 0
      }
-    ]
+    ],
+    "wallset": {
+     "generic_name": "Wall",
+     "specific_name": "Wallaz",
+     "tooltip": "Wall off an area.",
+     "history": "",
+     "classes": [
+      "Wall"
+     ],
+     "icon": "structures/wall.png",
+     "template": "structures/germ/wallset_stone"
+    }
    },
    "13": {
     "generic_name": "Corral",
@@ -42287,6 +42990,17 @@
        "duration": 0
       }
      }
+    },
+    "wallset": {
+     "generic_name": "Palisade",
+     "specific_name": "",
+     "tooltip": "Wall off an area. Build in own or neutral territory.",
+     "history": "",
+     "classes": [
+      "Palisade"
+     ],
+     "icon": "structures/palisade_wall.png",
+     "template": "structures/wallset_palisade"
     }
    },
    "22": {

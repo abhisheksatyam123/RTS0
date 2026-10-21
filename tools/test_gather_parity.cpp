@@ -121,6 +121,39 @@ int main() {
 				c1, c2, c3, a1, cm, sm);
 		CHECK(std::fabs(a1 / c1 - 1.25f) < 0.04f && std::fabs(a1 / c2 - 1.5625f) < 0.06f && std::fabs(a1 / c3 - 1.953f) < 0.08f);
 		CHECK(std::fabs(cm - sm) < 0.06f);
+		// The selection details show the same rates: a City Carthaginian woman's stone is the
+		// Athenian's x1.25^3, an Athenian City woman's metal x1.21.
+		static Simulation s;
+		fresh(s);
+		s.set_team_civ(0, CIV_CARTHAGINIANS);
+		s.set_team_civ(1, CIV_ATHENIANS);
+		s.player(0).phase = 3;
+		s.player(1).phase = 3;
+		const uint32_t cw = s.spawn_unit(0.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN), aw = s.spawn_unit(4.0f, 0.0f, 1, UNIT_FEMALE_CITIZEN);
+		const auto cd = s.unit_details((size_t)s.lookup_unit(cw)), ad = s.unit_details((size_t)s.lookup_unit(aw));
+		std::printf("  panel: Carthaginian stone %.3f, Athenian stone %.3f, metal %.3f / %.3f\n", cd.gather[Simulation::GK_STONE],
+				ad.gather[Simulation::GK_STONE], cd.gather[Simulation::GK_METAL], ad.gather[Simulation::GK_METAL]);
+		CHECK(std::fabs(cd.gather[Simulation::GK_STONE] / ad.gather[Simulation::GK_STONE] - 1.953125f) < 1e-3f);
+		CHECK(std::fabs(ad.gather[Simulation::GK_METAL] / cd.gather[Simulation::GK_METAL] - 1.21f) < 1e-3f);
+	}
+
+	// 3c. germ_women's +0.5 m/s is added after the technologies' multiplies (GetTechModifiedProperty):
+	// Roman Roads x1.05 on a German civilian scales her base speed, not the bonus.
+	{
+		static Simulation s;
+		fresh(s);
+		s.set_team_civ(0, CIV_GERMANS);
+		const uint32_t before = s.spawn_unit(0.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		const float add = s.unit_civ_speed_add((size_t)s.lookup_unit(before));
+		const float v0 = s.units_.speed[s.lookup_unit(before)];
+		s.players_[0].techs.set(TECH_ROMAN_ROADS);
+		s.refresh_tech_mods(0);
+		const uint32_t after = s.spawn_unit(4.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		const float want = (v0 - add) * 1.05f + add;
+		std::printf("  germ_women: add %.3f, speed %.4f -> %.4f / %.4f (want %.4f)\n", add, v0,
+				s.units_.speed[s.lookup_unit(before)], s.units_.speed[s.lookup_unit(after)], want);
+		CHECK(add > 0.0f && std::fabs(s.units_.speed[s.lookup_unit(before)] - want) < 1e-4f &&
+				std::fabs(s.units_.speed[s.lookup_unit(after)] - want) < 1e-4f);
 	}
 
 	// 4. Loot is floored after the rank multiplier.
@@ -244,6 +277,54 @@ int main() {
 		}
 		std::printf("  max gatherers: %d on the full tree, %d sent on from x %.1f\n", on_full, on_other, other_x);
 		CHECK(on_full == 2 && on_other == 1 && other_x > 20.0f);
+	}
+
+	// 9b. UnitAI FINDINGNEWTARGET with no free supply near: the turned-away worker walks back
+	// toward where it was sent (GatherNearPosition) or to a dropsite, not idle where it stood.
+	// 9c. The search is for the order's type, not the load: a worker carrying wood sent to a
+	// full mine goes on to the free mine beside it.
+	{
+		static Simulation s;
+		fresh(s);
+		s.set_explore_map(true);
+		s.spawn_building_world(40.0f, 20.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t mine = s.spawn_resource_world(0.0f, 0.0f, RES_STONE, 2000);
+		s.set_resource_max_gatherers(mine, 1);
+		uint32_t men[2];
+		for (int k = 0; k < 2; ++k) men[k] = s.spawn_unit(30.0f, -1.0f + k, 0, UNIT_FEMALE_CITIZEN);
+		s.order_gather(men, 2, mine);
+		run(s, 1.0f);
+		int idle_at_start = 0, sent_on = 0;
+		for (uint32_t id : men) {
+			const int32_t u = s.lookup_unit(id);
+			if (s.units_.target_resource_id[u] == mine) continue;
+			++sent_on;
+			if (s.units_.action_state[u] == ACTION_IDLE && !s.units_.has_order[u]) ++idle_at_start;
+		}
+		std::printf("  full mine, nothing near: %d turned away, %d idle\n", sent_on, idle_at_start);
+		CHECK(sent_on == 1 && idle_at_start == 0);
+
+		static Simulation t;
+		fresh(t);
+		t.set_explore_map(true);
+		t.spawn_building_world(40.0f, 20.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t full = t.spawn_resource_world(0.0f, 0.0f, RES_STONE, 2000);
+		const uint32_t free_mine = t.spawn_resource_world(0.0f, 8.0f, RES_STONE, 2000);
+		t.spawn_resource_world(26.0f, 0.0f, RES_WOOD, 200); // a tree beside the worker
+		t.set_resource_max_gatherers(full, 1);
+		uint32_t w[2];
+		for (int k = 0; k < 2; ++k) w[k] = t.spawn_unit(30.0f, -1.0f + k, 0, UNIT_FEMALE_CITIZEN);
+		const int32_t u1 = t.lookup_unit(w[1]);
+		t.units_.carry[u1] = 5;
+		t.units_.res_type_carried[u1] = RES_WOOD;
+		t.order_gather(&w[0], 1, full);
+		run(t, 0.5f);
+		t.order_gather(&w[1], 1, full);
+		run(t, 1.0f);
+		const int32_t v = t.lookup_unit(w[1]);
+		std::printf("  wood-laden worker turned from a full mine: target %u (free mine %u)\n",
+				t.units_.target_resource_id[v], free_mine);
+		CHECK(t.units_.target_resource_id[v] == free_mine);
 	}
 
 	// 10. 0.28 FindNearestDropsite measures to the footprint (DistanceToPoint): a civic centre

@@ -35,6 +35,12 @@ PATH/TO/0ad is a checkout of https://github.com/0ad/0ad (only
 binaries/data/mods/public/simulation is read). Writes
 src/simulation/civ_roster_data.h and data/civs/rosters.json.
 --check regenerates into memory and fails if the checked-in files differ.
+The 0.28 regen runs --keep-trainers --previous-0ad with --append taking the row list in
+/mnt/project-files/d-civ-rosters/roster-append-028.txt followed by
+",rome/champion_infantry_swordsman_02,rome/champion_infantry_swordsman_03,
+rome/champion_infantry_swordsman_04,rome/champion_infantry_swordsman_05,athen/hero_xenophon,
+spart/hero_leonidas_300,pers/arstibara,han/siege_shoushe,plane" (rows 507-514 and 544, added
+after that file was last written) and --retire the patterns in roster-retire-028.txt.
 """
 
 import argparse
@@ -144,7 +150,8 @@ RTS0_ONLY = ("UNIT_VILLAGER",)
 # template stem -> structure kind (TRAINER_BUILDING key).
 # (civ, BuildingType, unit) a captured foreign structure adds (for --check output).
 CAPTURED_TRAINERS = set()
-GAIA_TRAINERS = {"merc_camp_egyptian": "mercenary_camp", "trading_post_desert": "trading_post"}
+GAIA_TRAINERS = {"merc_camp_egyptian": "mercenary_camp", "trading_post_desert": "trading_post",
+                 "stall_big": "stall_big"}  # stalls keep the house Trainer (huts disable theirs)
 # Gaia shrines (mixins/shrine.xml) train "units/{native}/support_healer_e": the Elite Healer
 # of the shrine's own civ (Identity/Civ), whoever holds it.
 GAIA_NATIVE_TRAINERS = ("shrine_celtic", "shrine_chinese", "shrine_egyptian", "shrine_greek_01",
@@ -171,14 +178,13 @@ TRAINER_BUILDING = {
     "tachara_food": "BLD_TOWN_CENTER", "tachara_wood": "BLD_TOWN_CENTER",
     "tachara_stone": "BLD_TOWN_CENTER", "tachara_metal": "BLD_TOWN_CENTER",
     "crannog": "BLD_TOWN_CENTER", "ministry": "BLD_TOWN_CENTER",
-    "apartment": "BLD_HOUSE", "apartment_block": "BLD_HOUSE",
-    "house_a": "BLD_HOUSE", "house_b": "BLD_HOUSE",
+    "apartment": "BLD_HOUSE",
     "warehouse": "BLD_HOUSE", "inn": "BLD_HOUSE", "tavern": "BLD_HOUSE",
-    "shrine": "BLD_SHRINE", "trading_post": "BLD_TRADING_POST",
+    "shrine": "BLD_SHRINE", "trading_post": "BLD_TRADING_POST", "stall_big": "BLD_STALL",
     "kennel": "BLD_BARRACKS", "amphitheater_pompeii": "BLD_BARRACKS",
     "camp_blemmye": "BLD_BARRACKS", "camp_noba": "BLD_BARRACKS",
     "practice_range": "BLD_RANGE",
-    "temple_mars": "BLD_TEMPLE", "temple_vesta": "BLD_TEMPLE", "tophet": "BLD_TEMPLE",
+    "temple_mars": "BLD_TEMPLE", "temple_vesta": "BLD_TEMPLE",
 }
 # Civ-specific 0 A.D. structures RTS0 models as their own BuildingType
 # (appended after BLD_EMBASSY): enum, 0 A.D. file stems, model id, portrait id.
@@ -274,6 +280,26 @@ UNIQUE_BUILDINGS = [
     # mixins/rotary_mill.xml): captured, never destroyed; their farmstead_60 aura speeds the
     # grain of the owner's workers nearby. Drawn with the farmstead of the template's civ.
     ("BLD_MILL", ["mill_greek"], "farmstead", "farmstead"),
+    # The Carthaginian Tophet maps place (cart/tophet): a temple that trains only the healer
+    # (cart/temple adds the champions). Drawn with the civ's temple until its actor is ported.
+    ("BLD_TOPHET", ["tophet"], "temple", "temple"),
+    # The campaign test maps' Greek cities and sanctuary (simulation/templates/campaigns/, read
+    # through CAMPAIGN_UNIQUE): civic centres with their own arrows, 48 m obstruction and
+    # territory, and a temple that trains and researches nothing. Drawn with the civic centre and
+    # the temple until the campaign actors are ported.
+    ("BLD_CAMPAIGN_CITY", ["campaign_city_test"], "town_center", "town_center"),
+    ("BLD_CAMPAIGN_CITY_MINOR", ["campaign_city_minor_test"], "town_center", "town_center"),
+    ("BLD_CAMPAIGN_SANCTUARY", ["campaign_religious_test"], "temple", "temple"),
+    # The Gaia market stalls, Celtic huts and longhouses and the map-only Persian houses: houses
+    # with health and population of their own. Drawn with the house until their actors are ported.
+    ("BLD_STALL", ["stall_big"], "house", "house"),
+    ("BLD_HUT", ["celt_hut"], "house", "house"),
+    ("BLD_LONGHOUSE", ["celt_longhouse"], "house", "house"),
+    ("BLD_PERS_HOUSE_A", ["house_a"], "house", "house"),
+    ("BLD_PERS_HOUSE_B", ["house_b"], "house", "house"),
+    ("BLD_APARTMENT_BLOCK", ["apartment_block"], "house", "house"),
+    # The Gaia Hellenic epic temple (greek_acropolis): trains and researches nothing.
+    ("BLD_EPIC_TEMPLE", ["hellenic_epic_temple"], "temple", "temple"),
 ]
 # Numbered stems that are a building of their own rather than an upgrade's _N form.
 KEEP_NUMBERED_STEMS = {"temple_2"}
@@ -294,11 +320,15 @@ UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BL
 GENERIC_UNIQUE = {"BLD_PALISADE_GATE": "BLD_PALISADE"}
 # Gaia structures in UNIQUE_BUILDINGS (structures/<stem>.xml, mixins/shrine.xml and
 # mixins/trading_post.xml): no civ builds them.
-GAIA_UNIQUE = {"BLD_SHRINE", "BLD_TRADING_POST", "BLD_HELLENIC_STOA", "BLD_MILL"}
+GAIA_UNIQUE = {"BLD_SHRINE", "BLD_TRADING_POST", "BLD_HELLENIC_STOA", "BLD_MILL", "BLD_STALL", "BLD_HUT",
+               "BLD_LONGHOUSE", "BLD_EPIC_TEMPLE"}
 # Civ structures in UNIQUE_BUILDINGS that only maps place: no civ builds them.
 MAP_ONLY = {"BLD_TOWER_BOLT", "BLD_TOWER_ARTILLERY", "BLD_STOA", "BLD_INN", "BLD_TENT", "BLD_TRIUMPHAL_ARCH",
             "BLD_HALL", "BLD_WAREHOUSE", "BLD_TAVERN", "BLD_TOWER_DOUBLE", "BLD_KUSH_SHRINE", "BLD_FORTRESS_OLD",
-            "BLD_LAOZI_GATE"}
+            "BLD_LAOZI_GATE", "BLD_TOPHET", "BLD_PERS_HOUSE_A", "BLD_PERS_HOUSE_B", "BLD_APARTMENT_BLOCK"}
+# Structures in UNIQUE_BUILDINGS read from simulation/templates/campaigns/<stem>.xml: only the
+# campaign test maps place them, and no civ builds them.
+CAMPAIGN_UNIQUE = {"BLD_CAMPAIGN_CITY", "BLD_CAMPAIGN_CITY_MINOR", "BLD_CAMPAIGN_SANCTUARY"}
 # Generic structures a civ structure's Upgrade can start from (structures/cart/house,
 # structures/han/civil_centre, structures/han/defense_tower).
 UPGRADE_FROM_GENERIC = {"house": "BLD_HOUSE", "civil_centre": "BLD_TOWN_CENTER", "defense_tower": "BLD_TOWER"}
@@ -464,8 +494,16 @@ class TemplateLoader:
         # (--keep-trainers keeps rows whose template the release dropped).
         self.fallback = TemplateLoader(PREVIOUS_SIM_ROOT) if PREVIOUS_SIM_ROOT and PREVIOUS_SIM_ROOT != sim_root else None
 
+    def file(self, name):
+        """The template file of `name`: the campaign armies' rows (units/campaigns/army_*, MAP_ROWS)
+        are simulation/templates/campaigns/army_*.xml."""
+        name = name.split("|")[-1]
+        if name.startswith("units/campaigns/"):
+            name = name[len("units/"):]
+        return os.path.join(self.root, name + ".xml")
+
     def own_exists(self, name):
-        return os.path.isfile(os.path.join(self.root, name.split("|")[-1] + ".xml"))
+        return os.path.isfile(self.file(name))
 
     def exists(self, name):
         return self.own_exists(name) or (self.fallback is not None and self.fallback.exists(name))
@@ -482,7 +520,7 @@ class TemplateLoader:
             node = self.load(rest).copy()
             self.apply_mixin(node, mixin)
         else:
-            elem = ET.parse(os.path.join(self.root, name + ".xml")).getroot()
+            elem = ET.parse(self.file(name)).getroot()
             parent = elem.attrib.get("parent")
             node = self.load(parent).copy() if parent else Node()
             merge_into(node, elem)
@@ -491,7 +529,7 @@ class TemplateLoader:
 
     def own_tokens(self, name, path):
         """Tokens a template file lists itself under path, not its parents' (empty for mixins)."""
-        f = os.path.join(self.root, name + ".xml")
+        f = self.file(name)
         if "|" in name or not os.path.isfile(f):
             return []
         e = ET.parse(f).getroot().find(path)
@@ -545,7 +583,8 @@ def raw_stats(t):
         carry = max([_safe(c.text) for c in caps.children.values()] or [0.0])
     return {
         "hp": t.num("Health/Max"),
-        "speed": t.num("UnitMotion/WalkSpeed"),
+        # UnitMotionFlying.GetWalkSpeed is its MaxSpeed (units/plane).
+        "speed": t.num("UnitMotion/WalkSpeed") or t.num("UnitMotionFlying/MaxSpeed"),
         "vision": t.num("Vision/Range"),
         "range": rng,
         "damage": hack + pierce + crush + fire,
@@ -619,6 +658,10 @@ def rts0_class(name, t, civ):
     """RTS0 UnitType for a 0 A.D. unit template, or None to leave it out."""
     c = classes_of(t)
     stem = name.rsplit("/", 1)[-1]
+    if t.value("UnitMotionFlying/MaxSpeed", ""):
+        # units/plane (Flight Demo's P-51): no classes of its own; a ranged engine that neither
+        # packs, gathers nor promotes, so the bolt shooter's class, flagged ROSTER_FLYING.
+        return "UNIT_BOLT_SHOOTER"
     if "Minister" in c:
         return "UNIT_MINISTER"  # units/han/support_minister
     if "Relic" in c:
@@ -890,14 +933,17 @@ def apply_unit_bonuses(raw, classes, civ, bonuses):
     return applied
 
 
+# The Gaia and map-only houses of their own (template_structure_civic_house children).
+MAP_HOUSES = ["BLD_STALL", "BLD_HUT", "BLD_LONGHOUSE", "BLD_PERS_HOUSE_A", "BLD_PERS_HOUSE_B", "BLD_APARTMENT_BLOCK"]
+
 # 0 A.D. structure classes in civ bonus "affects" lists, as RTS0 BuildingTypes.
 BUILDING_CLASS = {
     "Structure": BUILDING_BITS,
     "Wall": ["BLD_WALL_SEGMENT", "BLD_GATE", "BLD_WALL_TOWER"],
     "Tower": ["BLD_TOWER", "BLD_SENTRY_TOWER", "BLD_TOWER_GREAT"], "Field": ["BLD_FIELD"],
     "Storehouse": ["BLD_STOREHOUSE"],
-    "House": ["BLD_HOUSE"],
-    "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE",
+    "House": ["BLD_HOUSE"] + MAP_HOUSES,
+    "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"] + MAP_HOUSES + [
                  "BLD_TRADING_POST",  # trading_post_* inherit template_structure_economic_market
                  "BLD_MILL"],  # mill_greek: rotary_mill|template_structure_economic_farmstead
     "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG", "BLD_MILITARY_COLONY"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
@@ -906,7 +952,7 @@ BUILDING_CLASS = {
     # mercenary camps template_structure_military_barracks.
     "CivilCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG", "BLD_MILITARY_COLONY"],
     "Temple": ["BLD_TEMPLE", "BLD_TEMPLE_VESTA", "BLD_TEMPLE_MARS", "BLD_TEMPLE_AMUN", "BLD_TEMPLE_ISIS",
-               "BLD_KUSH_SHRINE", "BLD_SHRINE"], "Forge": ["BLD_FORGE"],
+               "BLD_KUSH_SHRINE", "BLD_SHRINE", "BLD_TOPHET", "BLD_EPIC_TEMPLE"], "Forge": ["BLD_FORGE"],
     "Barracks": ["BLD_BARRACKS", "BLD_ACADEMY", "BLD_MERCENARY_CAMP"], "Stable": ["BLD_STABLE"], "Arsenal": ["BLD_ARSENAL"],
 }
 BUILDING_STAT = {
@@ -1119,7 +1165,8 @@ PREVIOUS_SIM_ROOT = None
 KEEP_TRAINERS_NEW_BUILDINGS = {"BLD_CRANNOG": ("crannog", "BLD_TOWN_CENTER")}
 # --append: new rows --keep-trainers still adds (after every existing row, so no id moves).
 APPEND_ROWS = set()
-# Templates only 0.28's maps place (scenario heroes, the Samnite, Kardakes and pirate units,
+# Templates only 0.28's maps or Regicide place (scenario heroes, Xenophon and the 300's Leonidas, whom
+# Regicide.js draws with every Hero template of the civ, the Samnite, Kardakes and pirate units,
 # Juggernaut, Noldor and Viking ships): no structure trains them, so the civ walk never reaches
 # them, and a map spawning one fell back to its owner's generic unit of the class. Each is a
 # row of its own (ROSTER_MAP_ONLY, no trainers), after every existing row (name them in
@@ -1129,17 +1176,18 @@ APPEND_ROWS = set()
 # An _a/_e template stays its _b row at that rank (Simulation::resolve_map_template).
 MAP_CIV = "gaia"
 MAP_ROWS = (
-    "units/athen/infantry_marine_archer_b",
+    "units/athen/hero_xenophon", "units/athen/infantry_marine_archer_b",
     "units/brit/hero_boudicca_cavalry_javelineer", "units/brit/hero_boudicca_sword", "units/brit/hero_cunobelin_infantry",
     "units/cart/champion_pikeman",
     "units/gaul/hero_vercingetorix_infantry",
     "units/han/cavalry_crossbowman_b", "units/han/champion_infantry_archer_academy",
     "units/han/hero_han_xin", "units/han/hero_liu_bang", "units/han/hero_wei_qing", "units/han/hero_wei_qing_horse",
+    "units/han/siege_shoushe",
     "units/iber/hero_indibil_infantry",
     "units/kush/hero_amanirenas_infantry", "units/kush/hero_harsiotef",
     "units/mace/hero_craterus", "units/mace/hero_philip_ii_pike", "units/mace/hero_pyrrhus_i",
     "units/maur/hero_ashoka_infantry", "units/maur/hero_bindusara_infantry", "units/maur/hero_chandragupta_infantry",
-    "units/pers/hero_xerxes_i_chariot", "units/pers/kardakes_hoplite", "units/pers/kardakes_skirmisher",
+    "units/pers/arstibara", "units/pers/hero_xerxes_i_chariot", "units/pers/kardakes_hoplite", "units/pers/kardakes_skirmisher",
     "units/ptol/champion_juggernaut",
     "units/rome/hero_marcellus_infantry", "units/rome/hero_maximus_infantry", "units/rome/hero_scipio_infantry",
     "units/rome/infantry_swordsman_slave",
@@ -1147,14 +1195,17 @@ MAP_ROWS = (
     # at 150 xp and _03 to the Centurion (_04) at 300; the Praetorian Guard (_05) never promotes.
     "units/rome/champion_infantry_swordsman_02", "units/rome/champion_infantry_swordsman_03",
     "units/rome/champion_infantry_swordsman_04", "units/rome/champion_infantry_swordsman_05",
-    "units/spart/champion_infantry_pike",
-    "units/merc_black_cloak", "units/noldor_warship",
+    "units/spart/champion_infantry_pike", "units/spart/hero_leonidas_300",
+    "units/merc_black_cloak", "units/noldor_warship", "units/plane",
     "units/pirates/ship_arrow", "units/pirates/ship_merchant", "units/pirates/ship_scout",
     "units/samnite_skirmisher", "units/samnite_spearman", "units/samnite_swordsman",
     "units/viking_longship",
     # Survival of the Fittest's Gaia champions (Survival's champion pool), placed by its trigger.
     "units/merc_thorakites", "units/merc_thureophoros", "units/theb_sacred_band", "units/theb_siege_fireraiser",
     "units/thesp_melanochitones",
+    # The campaign test maps' armies (simulation/templates/campaigns/army_*.xml, TemplateLoader.file).
+    "units/campaigns/army_mace_hero_alexander", "units/campaigns/army_mace_standard",
+    "units/campaigns/army_spart_hero_leonidas",
 )
 
 
@@ -1312,12 +1363,20 @@ def collect(sim_root):
                     bld = TRAINER_BUILDING.get(structure_kind(fn[:-4]))
                     if bld is None or bld in own:
                         continue
-                    for e in loader.load("structures/%s/%s" % (other, fn[:-4])).tokens("Trainer/Entities"):
+                    ostruct = loader.load("structures/%s/%s" % (other, fn[:-4]))
+                    for e in ostruct.tokens("Trainer/Entities"):
                         if "{civ}" not in e:
                             continue
                         e = e.replace("{civ}", civ)
                         if e in trainers and trainers[e]["buildings"]:
                             trainers[e]["buildings"].add(bld)
+                            CAPTURED_TRAINERS.add((civ, bld, e))
+                        elif e not in trainers and loader.exists(e):
+                            # A template only the captured structure trains for this civ (the Army
+                            # Camp's advanced infantry, the Temple of Amun's elite healer): a row of
+                            # its own with that type's bit, at the structure's phase.
+                            trainers[e] = {"buildings": {bld}, "kinds": {structure_kind(fn[:-4])},
+                                           "phase": phase_of(ostruct)}
                             CAPTURED_TRAINERS.add((civ, bld, e))
         map_only = {ent for ent in MAP_ROWS if map_row_civ(ent) == civ and ent not in trainers and loader.exists(ent)}
         for ent in sorted(map_only):
@@ -1391,6 +1450,8 @@ def collect(sim_root):
                 flags.append("ROSTER_PACKABLE")  # 0 A.D. Pack: unpack before firing, pack to move
             if "SiegeTower" in c:
                 flags.append("ROSTER_SIEGE_TOWER")
+            if t.value("UnitMotionFlying/MaxSpeed", ""):
+                flags.append("ROSTER_FLYING")  # UnitMotionFlying: takes off, flies over everything, lands
             if name in map_only:
                 flags.append("ROSTER_MAP_ONLY")  # MAP_ROWS: only maps place it
             if "Relic" in c:
@@ -1817,6 +1878,9 @@ def unique_building_rows(sim_root, generic_masks=None):
         if enum in GAIA_UNIQUE:
             civs, src = [], "structures/%s" % stems[0]
             t = loader.load(src)
+        if enum in CAMPAIGN_UNIQUE:
+            civs, src = [], "campaigns/%s" % stems[0]
+            t = loader.load(src)
         if t is None:
             raise SystemExit("no 0 A.D. template for %s" % enum)
         fp = t.get("Footprint/Square")
@@ -1832,7 +1896,8 @@ def unique_building_rows(sim_root, generic_masks=None):
             "generic": t.value("Identity/GenericName", ""),
             "model": model, "portrait": portrait,
             "hp": t.num("Health/Max", 1000.0),
-            "foot": 2 if width > 15.0 and enum not in ONE_CELL else 1,
+            # The campaign cities: three cells for their 52 m circle (0.28's 30 m civic centre is two).
+            "foot": 3 if width > 45.0 and enum in CAMPAIGN_UNIQUE else 2 if width > 15.0 and enum not in ONE_CELL else 1,
             "food": int(t.num("Cost/Resources/food")), "wood": int(t.num("Cost/Resources/wood")),
             "gold": int(t.num("Cost/Resources/metal")), "stone": int(t.num("Cost/Resources/stone")),
             "pop": int(t.num("Population/Bonus")), "garrison": int(t.num("GarrisonHolder/Max")),
@@ -1946,26 +2011,6 @@ def emit_buildings(rows, generic_masks, upgrades=()):
     for r in rows:
         w("\t\tcase %s: return %d;" % (r["enum"], r["phase"]))
     w("\t\tdefault: return 0;")
-    w("\t}")
-    w("}")
-    w("")
-    w("// TerritoryInfluence radius of a civ-specific territory root (0 = not a root).")
-    w("inline float civ_building_territory_radius(uint8_t type) {")
-    w("\tswitch (type) {")
-    for r in rows:
-        if r["territory"] > 0:
-            w("\t\tcase %s: return %s;" % (r["enum"], f(round(r["territory"], 1))))
-    w("\t\tdefault: return 0.0f;")
-    w("\t}")
-    w("}")
-    w("")
-    w("// Vision range of a civ-specific structure (0 = the default structure vision).")
-    w("inline float civ_building_vision(uint8_t type) {")
-    w("\tswitch (type) {")
-    for r in rows:
-        if r["vision"] > 18.0:
-            w("\t\tcase %s: return %s;" % (r["enum"], f(round(r["vision"], 1))))
-    w("\t\tdefault: return 0.0f;")
     w("\t}")
     w("}")
     w("")

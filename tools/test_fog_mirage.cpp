@@ -71,7 +71,10 @@ static void test_building_mirages() {
 
 	// Frame 1: enemy house in sight; enemy barracks in explored fog, never seen.
 	m.begin(g.c, 4, 8.0f);
-	m.add_building(bld(1, 0, 0, 1, 900.0f), false);
+	FoggedBuilding seen_house = bld(1, 0, 0, 1, 900.0f);
+	seen_house.has_resistance = true; // as update() fills it for a structure in sight
+	seen_house.resistance[0] = 5.0f;
+	m.add_building(seen_house, false);
 	m.add_building(bld(2, 2, 2, 1, 1000.0f), false);
 	m.add_building(bld(3, 3, 3, 0, 1000.0f), true); // own, in fog
 	m.end();
@@ -89,6 +92,7 @@ static void test_building_mirages() {
 	const FoggedBuilding *h = find_b(m, 1);
 	CHECK(h && h->miraged, "fogged enemy structure becomes a mirage");
 	CHECK(h && h->hp == 900.0f, "mirage keeps the last seen hit points, not live ones");
+	CHECK(h && h->has_resistance && h->resistance[0] == 5.0f, "mirage keeps the last seen resistance (ResistanceMirage)");
 
 	// Frame 3: the house is destroyed out of sight; its mirage stays.
 	m.begin(g.c, 4, 8.0f);
@@ -232,10 +236,22 @@ static void test_los_bitmap() {
 	for (int x = 0; x < R; ++x) fow[12 * R + x] = Simulation::FOW_EXPLORED;
 	std::vector<uint8_t> out;
 	LosShading::generate_bitmap(fow.data(), R, out);
-	CHECK(out[8 * R + 8] == 255, "deep visible cell is fully lit (255)");
-	CHECK(out[0] < 20, "deep unexplored cell is dark");
-	CHECK(out[12 * R + 8] > 127 && out[12 * R + 8] < 255, "explored band is blurred between 127 and 255");
-	CHECK(out[3 * R + 3] > out[1 * R + 1] && out[3 * R + 3] < 255, "the fog edge is a soft gradient");
+	// UPSAMPLE pixels per FOW cell each way (0.28's LOS vertices are 1 unit apart).
+	const int F = R * LosShading::UPSAMPLE;
+	CHECK(out.size() == (size_t)F * F, "the bitmap has two pixels per FOW cell each way");
+	auto px = [&](int x, int z) { return (int)out[(size_t)z * F + x]; };
+	CHECK(px(16, 16) == 255, "deep visible cell is fully lit (255)");
+	CHECK(px(0, 0) < 20, "deep unexplored cell is dark");
+	CHECK(px(16, 24) > 127 && px(16, 24) < 255, "explored band is blurred between 127 and 255");
+	CHECK(px(7, 7) > px(2, 2) && px(7, 7) < 255, "the fog edge is a soft gradient");
+	// 0.28's blur spans 7 LOS vertices (7 units); with 2-unit FOW cells blurred
+	// directly it spanned 14. From the unexplored corner's edge (x = 8 pixels) along
+	// a visible row, the gradient reaches 255 within about half that.
+	int ramp = 0;
+	for (int x = 8; x < F && px(x, 4) < 255; ++x) ++ramp;
+	int dark = 0;
+	for (int x = 7; x >= 0 && px(x, 4) > 0; --x) ++dark;
+	CHECK(ramp + dark <= 9, "the fog edge is about 7 pixels (units) wide, as 0.28's");
 
 	// Interpolation reaches the new target within half a second (los_interp delta).
 	LosShading s;

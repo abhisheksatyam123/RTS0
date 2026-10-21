@@ -4722,6 +4722,755 @@
       ]
     },
     {
+      "type": "",
+      "player": 1,
+      "x": -13.43,
+      "z": -77.18,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -13.05,
+      "z": -76.85,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -12.7,
+      "z": -76.53,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -12.37,
+      "z": -76.14,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -11.98,
+      "z": -75.78,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -13.79,
+      "z": -77.51,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -13.39,
+      "z": -77.9,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -13.06,
+      "z": -78.2,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -11.59,
+      "z": -76.18,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -11.23,
+      "z": -76.46,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -10.91,
+      "z": -76.88,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -10.59,
+      "z": -77.2,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -10.18,
+      "z": -77.6,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -12.0,
+      "z": -76.55,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -11.68,
+      "z": -76.84,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -11.26,
+      "z": -77.17,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -10.94,
+      "z": -77.49,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -10.57,
+      "z": -77.88,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -12.33,
+      "z": -76.9,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -11.98,
+      "z": -77.18,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -11.64,
+      "z": -77.49,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -11.27,
+      "z": -77.85,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -10.93,
+      "z": -78.21,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -12.69,
+      "z": -77.22,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -12.37,
+      "z": -77.49,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -12.03,
+      "z": -77.88,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -11.68,
+      "z": -78.19,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -11.32,
+      "z": -78.54,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -13.02,
+      "z": -77.56,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -12.68,
+      "z": -77.86,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -12.31,
+      "z": -78.24,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -11.97,
+      "z": -78.55,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -11.66,
+      "z": -78.9,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -12.71,
+      "z": -78.57,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -12.36,
+      "z": -78.92,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -12.0,
+      "z": -79.21,
+      "template": "merc_thureophoros"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.56,
+      "z": -67.34,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.14,
+      "z": -67.7,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -2.81,
+      "z": -67.97,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -2.43,
+      "z": -68.34,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -2.06,
+      "z": -68.69,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.9,
+      "z": -67.64,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -4.18,
+      "z": -67.97,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -4.55,
+      "z": -68.28,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -4.89,
+      "z": -68.67,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -5.28,
+      "z": -69.03,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.52,
+      "z": -68.05,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.17,
+      "z": -68.33,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -2.79,
+      "z": -68.68,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -2.43,
+      "z": -68.99,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.8,
+      "z": -68.4,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.51,
+      "z": -68.7,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.16,
+      "z": -69.03,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -2.8,
+      "z": -69.36,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -4.24,
+      "z": -68.76,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.88,
+      "z": -69.05,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.5,
+      "z": -69.36,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.18,
+      "z": -69.73,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -4.56,
+      "z": -69.05,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -4.23,
+      "z": -69.39,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.87,
+      "z": -69.72,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.51,
+      "z": -70.09,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -4.94,
+      "z": -69.39,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -4.61,
+      "z": -69.75,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -4.23,
+      "z": -70.08,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.86,
+      "z": -70.42,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.49,
+      "z": -70.8,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -3.08,
+      "z": -70.55,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -2.79,
+      "z": -70.17,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -2.41,
+      "z": -69.82,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -2.06,
+      "z": -69.52,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -1.75,
+      "z": -69.1,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -7.05,
+      "z": -70.82,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -7.4,
+      "z": -71.16,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -7.72,
+      "z": -71.5,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -8.1,
+      "z": -71.84,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -8.46,
+      "z": -72.18,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -8.79,
+      "z": -72.51,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -9.15,
+      "z": -72.96,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -6.69,
+      "z": -71.2,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -6.33,
+      "z": -71.5,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -6.02,
+      "z": -71.84,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -7.04,
+      "z": -71.53,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -6.67,
+      "z": -71.84,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -6.33,
+      "z": -72.26,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -5.63,
+      "z": -72.23,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -5.97,
+      "z": -72.55,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -7.36,
+      "z": -71.88,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -7.06,
+      "z": -72.24,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -6.71,
+      "z": -72.58,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -6.35,
+      "z": -72.93,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -7.75,
+      "z": -72.26,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -7.4,
+      "z": -72.58,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -7.05,
+      "z": -72.93,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -6.69,
+      "z": -73.27,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -8.1,
+      "z": -72.57,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -7.75,
+      "z": -72.9,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -7.42,
+      "z": -73.27,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -7.04,
+      "z": -73.64,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -8.44,
+      "z": -73.04,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -8.1,
+      "z": -73.34,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -7.77,
+      "z": -73.61,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -7.42,
+      "z": -73.97,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -8.71,
+      "z": -73.36,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -8.45,
+      "z": -73.64,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -8.06,
+      "z": -73.99,
+      "template": "theb_sacred_band"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -7.75,
+      "z": -74.33,
+      "template": "theb_sacred_band"
+    },
+    {
       "type": "swordsman",
       "player": 2,
       "x": -28.88,
@@ -5840,6 +6589,216 @@
         "rome/champion_infantry_swordsman_02",
         "rome/champion_infantry_swordsman"
       ]
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -15.28,
+      "z": -78.88,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -14.94,
+      "z": -79.38,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -14.65,
+      "z": -79.87,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -14.4,
+      "z": -80.35,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -14.19,
+      "z": -80.87,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -15.71,
+      "z": -79.2,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -16.21,
+      "z": -79.37,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -16.61,
+      "z": -79.63,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -17.01,
+      "z": -79.9,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -15.52,
+      "z": -79.62,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -15.16,
+      "z": -80.1,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -14.94,
+      "z": -80.62,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -14.7,
+      "z": -81.08,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -17.5,
+      "z": -80.07,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -16.03,
+      "z": -79.78,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -16.45,
+      "z": -80.01,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -16.82,
+      "z": -80.22,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -17.3,
+      "z": -80.48,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -15.69,
+      "z": -80.21,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -15.48,
+      "z": -80.68,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -15.26,
+      "z": -81.15,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -16.18,
+      "z": -80.4,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -15.87,
+      "z": -80.84,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -15.67,
+      "z": -81.34,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -16.59,
+      "z": -80.58,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -16.36,
+      "z": -80.99,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -16.13,
+      "z": -81.54,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -17.05,
+      "z": -80.8,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -16.81,
+      "z": -81.29,
+      "template": "merc_thorakites"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -16.56,
+      "z": -81.69,
+      "template": "merc_thorakites"
     }
   ],
   "circular": true

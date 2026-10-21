@@ -78,6 +78,7 @@ var water_level: int = 0
 var sea_level_rise_min: int = 25
 # 0 A.D. Player Placement (the patterns a random map lists): rtso::TeamPlacement, 0 = Random.
 var team_placement: int = 0
+var map_filter: String = "" # the setup's Map Filter (0 A.D. GuiData mapFilter), "" = Default
 var landscape: int = 0 # Unknown map Landscape (RmsGenerator::UNKNOWN_LANDSCAPE_*), 0 = random
 var trigger_difficulty: int = 3 # 0 A.D. Trigger Difficulty: 1 Very Easy .. 5 Very Hard, 3 Medium
 var map_daytime: int = 0 # 0 A.D. Daytime: 0 = the map picks, else the option in DAYTIMES (1-based)
@@ -113,6 +114,9 @@ var net_lobby_ticket: String = ""
 # 0 A.D. "Host Saved Game": with net_mode "host", the save in load_save_path is
 # continued in multiplayer (cleared once used).
 var net_saved_game: bool = false
+# A direct join the host never let in, left by Cancel or a refusal's OK: the
+# main menu reopens this gamesetup_mp page ("join") over itself (cleared once used).
+var net_reopen: String = ""
 # Host, before Start: the map is Random (MapSelection.js). map_id holds the map
 # it picked, which RtsoMain sends as "random" until NMT_GAME_START.
 var net_map_random: bool = false
@@ -122,6 +126,24 @@ var campaign_run: String = ""
 # 0 A.D. -autostart-disable-replay: false, and matches this run write no replay.
 var record_replay: bool = true
 var campaign_level: String = ""
+# CampaignMenu.startScenario's mapName: the level's Name, shown for the map in game,
+# saves and replays; empty outside a campaign (the map's own name).
+var campaign_map_name: String = ""
+
+# Not match settings: the -autostart-disable-replay flag, the summary's music and the
+# multiplayer name, which outlive a match.
+const _KEPT_ON_RESET := ["record_replay", "match_music", "net_player_name"]
+
+## A fresh GameSettings (CampaignMenu.startScenario's new GameSettings().init(), the
+## autostart page's): every match field back to its default, none left from the last setup.
+func reset_match() -> void:
+	var fresh: Node = (get_script() as Script).new()
+	for p in (get_script() as Script).get_script_property_list():
+		if not (int(p["usage"]) & PROPERTY_USAGE_SCRIPT_VARIABLE) or _KEPT_ON_RESET.has(p["name"]):
+			continue
+		var v: Variant = fresh.get(p["name"])
+		set(p["name"], v.duplicate() if v is Array or v is Dictionary else v)
+	fresh.free()
 
 func strip_engine_popups(n: Node) -> void:
 	if n == null:

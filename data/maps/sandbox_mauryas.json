@@ -4539,6 +4539,13 @@
   ],
   "units": [
     {
+      "type": "",
+      "player": 1,
+      "x": -14.46,
+      "z": -47.76,
+      "template": "maur/catafalque"
+    },
+    {
       "type": "cavalry",
       "player": 1,
       "x": -23.5,

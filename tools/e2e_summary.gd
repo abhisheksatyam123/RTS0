@@ -84,6 +84,10 @@ func run() -> void:
 	check(s.players.size() == 4 and s.teams.size() == 2 and s.teams[0].size() == 2 and s.teams[1].size() == 2, "every player, the two allies as one team")
 	check(s.find_child("TeamHeading0", true, false) != null and s.find_child("TeamHeading0", true, false).text == "Team 1"
 		and s.find_child("TeamHeading1", true, false).text == "Team 2", "headed Team 1 and Team 2, the Game Setup teams")
+	# layout.js updateGeneralPanelTeams: the first team box at 40, its heading 5 and its players 30 below,
+	# the next team 30 + 2 * 42 + 32 further down.
+	check(s.find_child("TeamHeading0", true, false).position.y == 45 and s.find_child("TeamHeading1", true, false).position.y == 191,
+		"team headings at 0.28's 45 and 191: %s" % [[s.find_child("TeamHeading0", true, false).position.y, s.find_child("TeamHeading1", true, false).position.y]])
 	check(s.find_child("Heading0", true, false).get_parsed_text() == "", "no Player name heading when everyone has a team")
 	var loose: Dictionary = m.get_match_statistics()
 	for p in loose.players:
@@ -92,18 +96,44 @@ func run() -> void:
 	await frames(2)
 	check(s.teams.keys() == [0, -1] and s.find_child("TeamHeading-1", true, false) == null
 		and s.find_child("Heading0", true, false).get_parsed_text() == "Player name", "players without a team come first, untitled, under Player name")
+	check(s.find_child("Player2", true, false).position.y == 70 and s.find_child("TeamHeading0", true, false).position.y == 159,
+		"noTeamsBox rows from 70, the team box straight after them: %s" % [[s.find_child("Player2", true, false).position.y, s.find_child("TeamHeading0", true, false).position.y]])
 	loose.lock_teams = false
 	s.show_summary(false, loose, 0.0)
 	await frames(2)
 	check(s.teams.is_empty(), "no teams when they were not locked")
+	check(s.find_child("Player0", true, false).position.y == 70, "rows from noTeamsBox's 70")
+	var p0 = s.find_child("Player0", true, false)
+	var emblem_x := -1.0
+	for c in p0.get_children():
+		if c is TextureRect and c.size == Vector2(32, 32) and c.position.y == 5 and c.position.x > 100:
+			emblem_x = c.position.x
+	check(emblem_x == 210, "the civ emblem at civIcon's 210: %s" % emblem_x)
 	s.show_summary(false, m.get_match_statistics(), 0.0)
 	await frames(2)
 	check(s._tab_buttons.map(func(b): return b.text) == ["Score", "Structures", "Units", "Resources", "Market", "Miscellaneous", "Charts"],
 		"0 A.D.'s tabs")
+	check(s._tab_buttons[0].position.x == 20 and s._tab_buttons[1].position.x == 144, "tabs at tab_buttons.js's 20 + i * 124")
+	check(s._tab_buttons[0].tooltip_text.contains("[color=#fffb83]"), "the tab tooltip's hotkeys in gold: " + s._tab_buttons[0].tooltip_text)
+	check(s.find_child("LobbyButton", true, false).tooltip_text.begins_with("[color=#fffb83]"), "and the lobby button's")
 	check(not s.find_child("ReplayButton", true, false).visible, "no Watch Replay in game")
 	var lobby_btn = s.find_child("LobbyButton", true, false)
 	check(lobby_btn is TextureButton and lobby_btn.texture_normal != null and lobby_btn.size == Vector2(16, 16),
 		"the lobby button is 0.28's 16 px speech bubble")
+	# summary.xml lobbyButton: the lobby as a dialog over the summary, which stays.
+	var ls = root.get_node("LobbySession")
+	var token = ls.token
+	ls.token = "e2e"
+	s.open_lobby()
+	await frames(2)
+	var dlg = root.get_node_or_null("LobbyDialog")
+	check(dlg != null and dlg.get_child(0).dialog and dlg.layer > s.layer and s.visible and s.is_inside_tree(),
+		"its Lobby opens the lobby as a dialog over the summary")
+	if dlg:
+		dlg.get_child(0)._on_back_pressed()
+	await frames(2)
+	check(root.get_node_or_null("LobbyDialog") == null and s.visible, "and Back returns to the summary")
+	ls.token = token
 
 	print("2. counters")
 	var econ: int = s.player_value(1, 0, 1)
@@ -164,6 +194,22 @@ func run() -> void:
 	check(s.series[0].size() == 4 and s.series[0][0].points.size() == s.sample_count() and s.sample_count() >= 3,
 		"one series per player with a point per row (%d)" % s.sample_count())
 	check(not s._pickers[0][2].visible, "Score charts have no Type picker")
+	s._pickers[0][0].select(5)
+	s._pickers[0][0].item_selected.emit(5)
+	await frames(1)
+	var long_item := -1
+	for i in s._pickers[0][1].item_count:
+		if s._pickers[0][1].get_item_text(i) == "Map control (finish)":
+			long_item = i
+	s._pickers[0][1].select(long_item)
+	s._pickers[0][1].item_selected.emit(long_item)
+	await frames(1)
+	check(long_item >= 0 and s._pickers[0][1].size.y == 42 and s._pickers[0][0].size.y == 28,
+		"resizeDropdown: a caption too wide for the box takes two lines: %s" % [[s._pickers[0][1].size.y, s._pickers[0][0].size.y]])
+	s._pickers[0][0].select(0)
+	s._pickers[0][0].item_selected.emit(0)
+	await frames(1)
+	check(s._pickers[0][1].size.y == 28, "and one again when it fits")
 	s._pickers[0][0].select(2)
 	s._pickers[0][0].item_selected.emit(2)
 	await frames(1)

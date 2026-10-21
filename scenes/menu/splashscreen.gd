@@ -6,8 +6,9 @@ extends Control
 ## "Show this message in the future" and OK store both.
 
 const L10n := preload("res://scenes/menu/l10n.gd")
+const MODERN := preload("res://scenes/common/modern_theme.gd")
 
-## splashscreen.txt, line by line as Engine.TranslateLines translates it (its
+## splashscreen.txt (0.27), line by line as Engine.TranslateLines translates it (its
 ## "0 A.D." has a no-break space, as the msgids do).
 const LINES := [
 	"[font=\"sans-bold-20\"]  Thank you for installing 0 A.D. Empires Ascendant!",
@@ -28,7 +29,7 @@ var display: CheckBox
 
 ## The text's version: 0.28 compares the page file's MD5.
 static func version() -> String:
-	return "\n".join(LINES).md5_text()
+	return ("\n".join(LINES) + "\n" + HEADING + "\n" + "\n".join(PackedStringArray(PARAGRAPHS.map(func(p): return p[0])))).md5_text()
 
 ## SplashScreenHandler.openPage: shown when enabled or when the text changed.
 static func should_show() -> bool:
@@ -48,74 +49,118 @@ static func open(parent: Node) -> Control:
 	parent.add_child(page)
 	return page
 
-## TranslateLines, with 0 A.D.'s font tags as bold or sized text and its
-## inline images left out.
-static func bbcode() -> String:
+## splashscreen.xml's heading and three paragraphs. The shipped .po files only
+## have splashscreen.txt's msgids, so a paragraph 0.28 doesn't translate yet
+## falls back to those lines, tags left out.
+const HEADING := "Thank you for installing 0 A.D. Empires Ascendant!"
+const ICONS := ["experimental", "lag", "map"]
+const PARAGRAPHS := [
+	["This game is still in development. You may encounter bugs, and some features are not as fleshed out as we would like.", [2]],
+	["The game can have performance problems, especially with large maps and a great number of units.", [4]],
+	["0 A.D. is Free Software: you can participate in its development. If you want to help with art, sound, gameplay or programming, make sure to join our official forum.", [6, 7]],
+]
+
+static func _old_line(i: int) -> String:
+	var re := RegEx.create_from_string("\\[(font|img(left|right)?)=\"[^\"]*\"\\]")
+	return re.sub(L10n.t(LINES[i]), "", true).strip_edges()
+
+static func _translate(msgid: String, fallback: Array) -> String:
+	var t := L10n.t(msgid)
+	if t != msgid:
+		return t
+	return " ".join(PackedStringArray(fallback.map(func(i): return _old_line(i))))
+
+static func heading() -> String:
+	return _translate(HEADING, [0])
+
+static func paragraphs() -> PackedStringArray:
 	var out := PackedStringArray()
-	var size := 16
-	var re_font := RegEx.create_from_string("^\\[font=\"sans-(bold-)?(\\d+)\"\\]")
-	var re_img := RegEx.create_from_string("\\[img(left|right)?=\"[^\"]*\"\\]")
-	for line in LINES:
-		var t: String = L10n.t(line) if line != "" else ""
-		var bold := false
-		var m := re_font.search(t)
-		if m:
-			bold = m.get_string(1) != ""
-			size = int(m.get_string(2))
-			t = t.substr(m.get_end())
-		t = re_img.sub(t, "", true).strip_edges().replace("[", "[lb]")
-		if t == "" and m:
-			continue
-		out.append(("[b][font_size=%d]%s[/font_size][/b]" % [size, t]) if bold else ("[font_size=%d]%s[/font_size]" % [size, t]))
-	return "\n".join(out)
+	for p in PARAGRAPHS:
+		out.append(_translate(p[0], p[1]))
+	return out
+
+## The page's text as one string, for tests and the version.
+static func bbcode() -> String:
+	return "\n".join(PackedStringArray([heading()]) + paragraphs())
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	theme = MODERN.theme()
 	var fade := ColorRect.new() # "ModernFade"
 	fade.color = Color(0, 0, 0, 0.6)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fade)
-	var panel := Panel.new() # size="50%-300 50%-225 50%+300 50%+225"
+	var panel := Panel.new() # ModernDialog, size="50%-310 50%-225 50%+310 50%+225"
+	panel.theme_type_variation = "ModernDialog"
 	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.offset_left = -300
-	panel.offset_right = 300
+	panel.offset_left = -310
+	panel.offset_right = 310
 	panel.offset_top = -225
 	panel.offset_bottom = 225
 	add_child(panel)
-	var title := Label.new()
-	title.text = L10n.t("Welcome!")
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(172, 2)
-	title.size = Vector2(256, 26)
-	title.add_theme_font_size_override("font_size", 18)
-	panel.add_child(title)
+	load("res://scenes/menu/hotkeys.gd")._edge_title(panel, L10n.t("Welcome!"))
+	# ModernDarkBox with ModernDarkBoxGoldBorder, size="20 20 100%-20 100%-52".
+	var box := Panel.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = MODERN.DARK_BOX
+	style.border_color = MODERN.GOLD
+	style.set_border_width_all(1)
+	box.add_theme_stylebox_override("panel", style)
+	box.set_anchors_preset(Control.PRESET_FULL_RECT)
+	box.offset_left = 20
+	box.offset_top = 20
+	box.offset_right = -20
+	box.offset_bottom = -52
+	panel.add_child(box)
 	main_text = RichTextLabel.new()
 	main_text.name = "mainText"
 	main_text.bbcode_enabled = true
-	main_text.position = Vector2(20, 30)
-	main_text.size = Vector2(560, 330)
-	main_text.text = bbcode()
-	panel.add_child(main_text)
-	display = CheckBox.new()
+	main_text.scroll_active = false
+	main_text.set_anchors_preset(Control.PRESET_FULL_RECT)
+	main_text.offset_left = 10
+	main_text.offset_top = 8
+	main_text.offset_right = -10
+	main_text.offset_bottom = -34
+	# sans-bold-20 centred heading, then sans-16 paragraphs 20 px apart.
+	var parts := PackedStringArray(["[center][b][font_size=20]%s[/font_size][/b][/center]" % heading().replace("[", "[lb]")])
+	# Each paragraph beside its 32 px pregame/icons picture, 15 px in (splashscreen.js).
+	var texts := paragraphs()
+	for i in texts.size():
+		var icon := "res://assets/textures/ui/pregame/icons/%s.png" % ICONS[i]
+		var img := "    [img=32x32]%s[/img]    " % icon if ResourceLoader.exists(icon) else ""
+		parts.append("[table=2][cell]%s[/cell][cell expand=1][font_size=16]%s[/font_size][/cell][/table]" % [img, texts[i].replace("[", "[lb]")])
+	main_text.add_theme_constant_override("paragraph_separation", 20)
+	# paragraphSpacing 20: a spacer line between the paragraph tables.
+	main_text.text = "\n[font_size=8] [/font_size]\n".join(parts)
+	box.add_child(main_text)
+	display = CheckBox.new() # size="8 100%-30 ..."
 	display.name = "displaySplashScreen"
 	display.text = L10n.t("Show this message in the future")
-	display.position = Vector2(20, 366)
+	display.anchor_top = 1.0
+	display.anchor_bottom = 1.0
+	display.offset_left = 8
+	display.offset_top = -30
+	display.offset_bottom = -8
 	display.button_pressed = RtsoUserConfig.new().get_bool(ENABLE_KEY)
-	panel.add_child(display)
-	var ok := Button.new()
-	ok.name = "btnOK"
-	ok.text = L10n.t("OK")
-	ok.position = Vector2(18, 405)
-	ok.size = Vector2(277, 28)
-	ok.pressed.connect(close_page)
-	panel.add_child(ok)
-	var forum := Button.new()
-	forum.text = L10n.t("Official Forum (web)")
-	forum.position = Vector2(305, 405)
-	forum.size = Vector2(277, 28)
-	forum.pressed.connect(func(): load("res://scenes/common/msgbox.gd").open_url(self, FORUM_URL))
-	panel.add_child(forum)
+	box.add_child(display)
+	var buttons := [["btnOK", L10n.t("OK"), close_page],
+		["", L10n.t("Official Forum (web)"), func(): load("res://scenes/common/msgbox.gd").open_url(self, FORUM_URL)]]
+	for i in 2:
+		var b := Button.new()
+		if buttons[i][0] != "":
+			b.name = buttons[i][0]
+		b.text = buttons[i][1]
+		b.anchor_left = i * 0.5
+		b.anchor_right = (i + 1) * 0.5
+		b.anchor_top = 1.0
+		b.anchor_bottom = 1.0
+		b.offset_left = 18 if i == 0 else 5
+		b.offset_right = -5 if i == 0 else -18
+		b.offset_top = -45
+		b.offset_bottom = -17
+		b.pressed.connect(buttons[i][2])
+		panel.add_child(b)
 
 ## splashscreen.js closePage.
 func close_page() -> void:

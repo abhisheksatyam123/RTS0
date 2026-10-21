@@ -525,7 +525,18 @@ enum BuildingType : uint8_t {
 	BLD_LAOZI_GATE = 84,      // han/laozigate (not capturable)
 	BLD_TEMPLE_ISIS = 85,     // ptol/temple_2 (Temple of Isis: City, one per player, trains the heroes)
 	BLD_MILL = 86,            // structures/mill_*, {brit,gaul}/rotarymill (Gaia; capture only, farmstead_60)
-	BLD_TYPE_COUNT = 87
+	BLD_TOPHET = 87,          // cart/tophet (a temple that trains only the healer)
+	BLD_CAMPAIGN_CITY = 88,   // campaigns/campaign_city_test (a civic centre: 5 arrows, 300 m territory)
+	BLD_CAMPAIGN_CITY_MINOR = 89, // campaigns/campaign_city_minor_test (3 arrows, 150 m territory)
+	BLD_CAMPAIGN_SANCTUARY = 90,  // campaigns/campaign_religious_test (a temple that trains and researches nothing)
+	BLD_STALL = 91,           // structures/stall_* (Gaia market stalls: a 500-health house)
+	BLD_HUT = 92,             // structures/celt_hut (a house: Population/Bonus 2)
+	BLD_LONGHOUSE = 93,       // structures/celt_longhouse (a house: Population/Bonus 10)
+	BLD_PERS_HOUSE_A = 94,    // pers/house_a (map-only Persian house: 1000 health)
+	BLD_PERS_HOUSE_B = 95,    // pers/house_b (map-only Persian house: 1200 health, Population/Bonus 10)
+	BLD_APARTMENT_BLOCK = 96, // pers/apartment_block (map-only: 2000 health, Population/Bonus 15)
+	BLD_EPIC_TEMPLE = 97,     // structures/hellenic_epic_temple (a temple that trains and researches nothing)
+	BLD_TYPE_COUNT = 98
 };
 
 #include "civ_building_data.h"
@@ -541,16 +552,29 @@ static_assert(STRUCTURE_VISION_ROWS == BLD_TYPE_COUNT,
 // Imperial Court the Civic Center's, the Great Archery Tower the defense tower's). The
 // maps' Persian inn and Roman tent are houses and their bolt and artillery towers defense
 // towers wherever the role matters (building_researches_tech narrows what they research).
+// The Gaia and map-only houses with health and population of their own (stalls, Celtic huts
+// and longhouses, the Persian house_a, house_b and apartment block).
+inline constexpr bool is_map_house(uint8_t type) { return type >= BLD_STALL && type <= BLD_APARTMENT_BLOCK; }
+// A house that keeps template_structure_civic_house's Trainer (units/{civ}/support_civilian_house):
+// the civ houses and apartments, the stalls and the Persian map houses; huts and longhouses disable it.
+inline constexpr bool house_trains_citizens(uint8_t type) {
+	return type == BLD_HOUSE || type == BLD_APARTMENT || type == BLD_STALL || type == BLD_PERS_HOUSE_A ||
+			type == BLD_PERS_HOUSE_B || type == BLD_APARTMENT_BLOCK;
+}
+
 inline constexpr uint8_t building_research_base(uint8_t type) {
 	return (type >= BLD_TACHARA_FOOD && type <= BLD_TACHARA_METAL) ? (uint8_t)BLD_TACHARA
 	       : type == BLD_APARTMENT ? (uint8_t)BLD_HOUSE
-	       : (type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG) ? (uint8_t)BLD_TOWN_CENTER
+	       : (type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG || type == BLD_CAMPAIGN_CITY ||
+	          type == BLD_CAMPAIGN_CITY_MINOR) ? (uint8_t)BLD_TOWN_CENTER
 	       : (type == BLD_TOWER_GREAT || type == BLD_TOWER_BOLT || type == BLD_TOWER_ARTILLERY ||
 	          type == BLD_TOWER_DOUBLE) ? (uint8_t)BLD_TOWER
-	       : (type == BLD_INN || type == BLD_TENT || type == BLD_WAREHOUSE || type == BLD_TAVERN) ? (uint8_t)BLD_HOUSE
+	       : (type == BLD_INN || type == BLD_TENT || type == BLD_WAREHOUSE || type == BLD_TAVERN || is_map_house(type))
+	          ? (uint8_t)BLD_HOUSE
 	       : type == BLD_FORTRESS_OLD ? (uint8_t)BLD_FORTRESS
 	       : type == BLD_MILL ? (uint8_t)BLD_FARMSTEAD
-	       : (type == BLD_KUSH_SHRINE || type == BLD_TEMPLE_ISIS) ? (uint8_t)BLD_TEMPLE
+	       : (type == BLD_KUSH_SHRINE || type == BLD_TEMPLE_ISIS || type == BLD_TOPHET ||
+	          type == BLD_CAMPAIGN_SANCTUARY || type == BLD_EPIC_TEMPLE) ? (uint8_t)BLD_TEMPLE
 	       : type == BLD_WAGON_ENCAMPMENT_FORTIFIED ? (uint8_t)BLD_WAGON_ENCAMPMENT
 	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
@@ -599,7 +623,24 @@ inline MapStructureTemplate map_structure_template(const char *tpl) {
 		{"mill_indian", BLD_MILL, CIV_MAURYANS}, {"mill_italian", BLD_MILL, CIV_ROMANS},
 		{"mill_middle_eastern", BLD_MILL, CIV_PERSIANS}, {"mill_saharan", BLD_MILL, CIV_KUSHITES},
 		{"mill_temperate_europe", BLD_MILL, CIV_GAULS}, {"gaul/rotarymill", BLD_MILL, CIV_GAULS},
-		{"brit/rotarymill", BLD_MILL, CIV_BRITONS},
+		{"brit/rotarymill", BLD_MILL, CIV_BRITONS}, {"cart/tophet", BLD_TOPHET, CIV_CARTHAGINIANS},
+		// The campaign test maps' Greek cities and sanctuary (simulation/templates/campaigns/).
+		{"campaigns/campaign_city_test", BLD_CAMPAIGN_CITY, CIV_ATHENIANS},
+		{"campaigns/campaign_city_minor_test", BLD_CAMPAIGN_CITY_MINOR, CIV_ATHENIANS},
+		{"campaigns/campaign_religious_test", BLD_CAMPAIGN_SANCTUARY, CIV_ATHENIANS},
+		// The Gaia wonders and army tents (template_structure_wonder, template_structure_special
+		// with Population/Bonus 5) and the market stalls (template_structure_civic_house).
+		{"stonehenge", BLD_WONDER, CIV_COUNT}, {"uffington_horse", BLD_WONDER, CIV_BRITONS},
+		{"tent_desert", BLD_TENT, CIV_PTOLEMIES}, {"tent_arab", BLD_TENT, CIV_PTOLEMIES},
+		{"tent_bedouin", BLD_TENT, CIV_PERSIANS}, {"tent_mace", BLD_TENT, CIV_MACEDONIANS},
+		{"tent_rome", BLD_TENT, CIV_ROMANS},
+		{"stall_big", BLD_STALL, CIV_COUNT}, {"stall_med", BLD_STALL, CIV_COUNT},
+		{"stall_small_a", BLD_STALL, CIV_COUNT}, {"stall_small_b", BLD_STALL, CIV_COUNT},
+		{"celt_hut", BLD_HUT, CIV_COUNT}, {"celt_longhouse", BLD_LONGHOUSE, CIV_COUNT},
+		{"pers/house_a", BLD_PERS_HOUSE_A, CIV_PERSIANS}, {"pers/house_b", BLD_PERS_HOUSE_B, CIV_PERSIANS},
+		{"pers/apartment_block", BLD_APARTMENT_BLOCK, CIV_PERSIANS},
+		{"hellenic_epic_temple", BLD_EPIC_TEMPLE, CIV_COUNT},
+		{"generic_field", BLD_FIELD, CIV_COUNT}, {"mill_field_wheat", BLD_FIELD, CIV_COUNT},
 	};
 	const char *stem = std::strncmp(tpl, "structures/", 11) == 0 ? tpl + 11 : tpl;
 	for (const auto &r : kRows)
@@ -616,9 +657,11 @@ inline constexpr bool is_land_market(uint8_t type) {
 }
 
 // 0 A.D. class CivCentre: the Civic Center and its Han Imperial Court form (a
-// territory root, a dropsite for every resource, a conquest-critical base).
+// territory root, a dropsite for every resource, a conquest-critical base), and the campaign
+// test cities (template_structure_civic_civil_centre children).
 inline constexpr bool is_civic_centre(uint8_t type) {
-	return type == BLD_TOWN_CENTER || type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG;
+	return type == BLD_TOWN_CENTER || type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG ||
+	       type == BLD_CAMPAIGN_CITY || type == BLD_CAMPAIGN_CITY_MINOR;
 }
 // 0 A.D. class ConquestCritical (template_structure_civic, _military and _wonder, less the
 // stoa and the forge): the structures that keep a player in a Conquest match. Towers, walls,
@@ -794,6 +837,8 @@ enum RallyCommand : uint8_t {
 	RALLY_CMD_TRADE = 4,             // a trader trades between the structure and bld_id
 	RALLY_CMD_TREASURE = 5,          // collect treasure ent_id, else the nearest near the spot
 	RALLY_CMD_TURRET = 6,            // occupy a turret point of bld_id
+	RALLY_CMD_REPAIR = 7,            // session.repair held: repair bld_id rather than garrison in it
+	RALLY_CMD_HUNT = 8,              // an animal: gather the same kind near the spot (ent_id = fauna type + 1)
 	RALLY_CMD_COUNT
 };
 
@@ -817,7 +862,11 @@ enum UnitOrderKind : uint8_t {
 	ORDER_RETURN_RESOURCE = 12, // target = the dropsite (UnitAI ReturnResource)
 	ORDER_COLLECT_TREASURE = 13, // target treasure (UnitAI CollectTreasure)
 	ORDER_CAPTURE_RELIC = 14, // target catafalque unit (UnitAI Attack with the Capture attack)
-	ORDER_KIND_COUNT = 15
+	// Shift-queued only (the running hunt, scenery attack or boarding walk keeps ORDER_NONE):
+	ORDER_HUNT = 15,           // target animal (UnitAI Gather on a hunt or slaughter)
+	ORDER_ATTACK_SCENERY = 16, // target scenery; ORDER_FLAG_ALLOW_CAPTURE captures it
+	ORDER_BOARD = 17,          // target ship, ram or siege tower (UnitAI Garrison on a unit)
+	ORDER_KIND_COUNT = 18
 };
 
 enum UnitOrderFlag : uint8_t {
@@ -1282,7 +1331,7 @@ struct BuildingTypeInfo {
 	const char *model_id;
 	const char *portrait_id;
 	float max_hp;
-	int footprint; // 1 or 2
+	int footprint; // cells: 1 or 2 (3 for the campaign test cities)
 	int food_cost;
 	int wood_cost;
 	int gold_cost;
@@ -1310,7 +1359,7 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		{"House", "house", "house", 800.0f, 1, 0, 75, 0, 0, 5, 3, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f},
 		{"Barracks", "barracks", "barracks", 2000.0f, 2, 0, 200, 0, 100, 0, 10, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f},
 		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 0, 10.0f, 500.0f, 5.0f, 1.0f, 20.0f},
-		{"Defense Tower", "wall_tower", "tower", 1000.0f, 1, 0, 100, 0, 100, 0, 5, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Defense Tower", "defense_tower", "tower", 1000.0f, 1, 0, 100, 0, 100, 0, 5, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f},
 		{"Farmstead", "farmstead", "farmstead", 900.0f, 1, 0, 100, 0, 0, 0, 0, 11.25f, 300.0f, 5.0f, 1.0f, 20.0f},
 		{"Market", "market", "market", 1500.0f, 2, 0, 300, 0, 0, 0, 0, 37.5f, 500.0f, 5.0f, 1.0f, 20.0f},
 		{"Fortress", "fortress", "fortress", 5200.0f, 2, 0, 300, 0, 600, 0, 20, 112.5f, 4000.0f, 45.0f, 1.0f, 40.0f},
@@ -1898,7 +1947,8 @@ inline bool tech_available_to_civ(uint8_t tech_id, uint8_t civ) {
 	return civ < 16 && (tech_info(tech_id).civ_mask >> civ) & 1u;
 }
 
-// Can a building of this type research the tech for a player of this civ? Its research
+// Can a building of this type, placed from a `civ` template, research the tech? (Researcher.js
+// reads the entity's own template list; its owner's civ only filters it: tech_available_to_civ.) Its research
 // base's list, with 0.28's per-structure Researcher changes ("-" drops a token):
 //  - the crannog drops phase_town and hellenistic_metropolis, the Han Imperial Court
 //    phase_town, and the military colony (template_structure_civic_civil_centre_military_colony)
@@ -1919,6 +1969,7 @@ inline bool tech_available_to_civ(uint8_t tech_id, uint8_t civ) {
 inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ) {
 	const uint8_t r = tech_info(tech_id).researcher;
 	if (tech_id == TECH_AGOGE) return false;
+	if (type == BLD_CAMPAIGN_SANCTUARY) return false; // campaign_religious_test: Researcher disable=""
 	if (tech_id == TECH_CELTIC_AUXILIARIES) return type == BLD_EMBASSY;
 	if (tech_id == TECH_UNLOCK_SHARED_LOS && building_research_base(type) == BLD_MARKET) return true;
 	if (tech_id == TECH_TOWER_MURDERHOLES && (type == BLD_FORTRESS || type == BLD_FORTRESS_OLD)) return true;
@@ -1926,7 +1977,8 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	if (tech_id == TECH_IPHICRATEAN_REFORMS && type == BLD_GYMNASIUM) return true;
 	if ((type == BLD_TEMPLE_VESTA || type == BLD_TEMPLE_AMUN || type == BLD_TEMPLE_MARS) && r == BLD_TEMPLE) return true;
 	// ptol/mercenary_camp keeps template_structure_military_barracks' Researcher list.
-	if (type == BLD_MERCENARY_CAMP && r == BLD_BARRACKS) return true;
+	// (han/barracks alone adds crossbow_training.)
+	if (type == BLD_MERCENARY_CAMP && r == BLD_BARRACKS) return tech_id != TECH_CROSSBOW_TRAINING;
 	const bool spies = tech_id == TECH_UNLOCK_SPIES || tech_id == TECH_SPY_COUNTER;
 	if (civ == CIV_HAN) {
 		if (spies) return type == BLD_MINISTRY;
@@ -1966,7 +2018,7 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	// rome/tent has Researcher disable="" (pers/inn keeps the house's list).
 	case BLD_TOWER_BOLT: case BLD_TOWER_ARTILLERY: return tech_id == TECH_TOWER_HEALTH;
 	case BLD_TENT: return false;
-	case BLD_KUSH_SHRINE: return false; // kush/shrine: Researcher disable=
+	case BLD_KUSH_SHRINE: case BLD_EPIC_TEMPLE: return false; // kush/shrine, hellenic_epic_temple: Researcher disable=
 	// ptol/temple_2 adds pair_unlock_cult_ptol (Pharaonic and Serapis Cult) to the temple's list.
 	case BLD_TEMPLE_ISIS: return r == BLD_TEMPLE || r == BLD_TEMPLE_ISIS;
 	default: return r == building_research_base(type);
@@ -2041,7 +2093,7 @@ inline float building_garrison_heal(uint8_t type) {
 		case BLD_WAGON_ENCAMPMENT: return 1.0f;
 		// kush/temple_amun, rome/temple_mars, rome/temple_vesta and the shrines keep template_structure_civic_temple's 3
 		case BLD_TEMPLE: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_MARS: case BLD_TEMPLE_VESTA: case BLD_SHRINE:
-		case BLD_TEMPLE_ISIS: return 3.0f;
+		case BLD_TEMPLE_ISIS: case BLD_TOPHET: case BLD_CAMPAIGN_SANCTUARY: case BLD_EPIC_TEMPLE: return 3.0f;
 		case BLD_WONDER: return 5.0f;
 		default: return 0.0f;
 	}
@@ -2075,6 +2127,8 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		// The Crannog and the military colony are template_structure_civic_civil_centre too,
 		// whose VisibleClasses are Defensive CivilCentre (Danubius and Jebel Barkal aim at them).
 		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: return c | TC_CIVCENTRE | TC_CIVIC | TC_DEFENSIVE;
+		// campaigns/campaign_city_*_test.xml add VisibleClasses Market.
+		case BLD_CAMPAIGN_CITY: case BLD_CAMPAIGN_CITY_MINOR: return c | TC_CIVCENTRE | TC_CIVIC | TC_DEFENSIVE | TC_MARKET;
 		case BLD_CRANNOG: return c | TC_CIVCENTRE | TC_CIVIC | TC_DEFENSIVE | TC_NAVAL; // brit/crannog.xml VisibleClasses Naval
 		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
 		// han/academy and ptol/mercenary_camp are template_structure_military_barracks.
@@ -2083,7 +2137,8 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_TOWER: case BLD_TOWER_GREAT: case BLD_TOWER_DOUBLE: return c | TC_TOWER | TC_STONETOWER | TC_DEFENSIVE;
 		case BLD_SENTRY_TOWER: return c | TC_TOWER | TC_SENTRYTOWER | TC_DEFENSIVE;
 		case BLD_TOWER_BOLT: case BLD_TOWER_ARTILLERY: return c | TC_TOWER | TC_DEFENSIVE; // not StoneTower
-		case BLD_INN: case BLD_TENT: case BLD_WAREHOUSE: case BLD_TAVERN: return c | TC_HOUSE | TC_CIVIC;
+		case BLD_INN: case BLD_TENT: case BLD_WAREHOUSE: case BLD_TAVERN: case BLD_STALL: case BLD_HUT:
+		case BLD_LONGHOUSE: case BLD_PERS_HOUSE_A: case BLD_PERS_HOUSE_B: case BLD_APARTMENT_BLOCK: return c | TC_HOUSE | TC_CIVIC;
 		case BLD_STOA: case BLD_HELLENIC_STOA: return c | TC_CIVIC;
 		case BLD_WALL_TOWER: return c | TC_WALL | TC_DEFENSIVE;
 		case BLD_FARMSTEAD: case BLD_MILL: return c | TC_FARMSTEAD;
@@ -2100,7 +2155,8 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_TEMPLE: return c | TC_TEMPLE | TC_CIVIC | TC_TEMPLEOFAPEDEMAK;
 		// template_structure_civic_temple's other children: the shrines, the temples of Isis,
 		// Amun, Vesta and Mars.
-		case BLD_SHRINE: case BLD_KUSH_SHRINE: case BLD_TEMPLE_ISIS:
+		case BLD_SHRINE: case BLD_KUSH_SHRINE: case BLD_TEMPLE_ISIS: case BLD_TOPHET: case BLD_CAMPAIGN_SANCTUARY:
+		case BLD_EPIC_TEMPLE:
 		case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA: case BLD_TEMPLE_MARS: return c | TC_TEMPLE | TC_CIVIC;
 		// Other template_structure_civic children.
 		case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL: case BLD_MINISTRY: return c | TC_CIVIC;
@@ -2232,7 +2288,8 @@ enum CivRosterFlag : uint16_t {
 	ROSTER_RELIC = 128, // a catafalque (template_unit_catafalque): Capture the Relic
 	ROSTER_NO_GATHER = 256, // a Citizen whose template disables ResourceGatherer (mercenaries)
 	ROSTER_CIVILIAN = 512, // 0.28's Civilian class (template_unit_support_civilian): StatisticsTracker's Civilian
-	ROSTER_MAP_ONLY = 1024 // only maps place it (scenario heroes, Samnites, pirate ships): no structure trains it
+	ROSTER_MAP_ONLY = 1024, // only maps place it (scenario heroes, Samnites, pirate ships): no structure trains it
+	ROSTER_FLYING = 2048 // 0 A.D. UnitMotionFlying (units/plane): flies at a height over everything, lands when stopped
 };
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
@@ -2244,13 +2301,20 @@ inline constexpr uint16_t CIV_TEMPLATE_WORDS_MAX = 16;
 
 // A unit's short path around buildings (nav/building_steering.h), kept between ticks as 0 A.D.'s
 // CCmpUnitMotion keeps m_ShortPath: the first waypoint (x, z), the aim it leads towards, and the
-// obstacle key it was searched among. key 0 = no short path. Saved raw (no padding).
+// obstacle key it was searched among. key 0 = no short path. A short path of several waypoints is
+// kept as the point it was searched from (x, z) and its aim instead, its key naming the search and
+// the waypoint the unit heads for (nav::kept_path_key), and each waypoint is found again from those
+// (ShortPathSearchMemo answers it). Saved raw (no padding).
 struct ShortPathMemo {
 	float x = 0.0f, z = 0.0f;
 	float aim_x = 0.0f, aim_z = 0.0f;
 	uint32_t key = 0;
 };
 static_assert(sizeof(ShortPathMemo) == 20, "ShortPathMemo is saved raw");
+
+// The waypoints of a short path a unit keeps and follows (ShortPathMemo); a longer path is followed
+// as far as its SHORT_PATH_KEPT_MAX-th waypoint, where the unit decides again.
+inline constexpr int SHORT_PATH_KEPT_MAX = 16;
 
 // A unit's last short path search and what it found, kept beside the saved state, not in it: a
 // search is a function of these inputs alone, so while they are the same bit for bit (a unit held
@@ -2264,6 +2328,9 @@ struct ShortPathSearchMemo {
 	uint64_t small = 0;   // the small obstacles' contents (small_obstacles_hash), 0 for none
 	float out_x = 0.0f, out_z = 0.0f;
 	bool found = false, valid = false;
+	// The path's waypoints from the first (out_x, out_z), at most SHORT_PATH_KEPT_MAX.
+	uint8_t path_n = 0;
+	float path_x[SHORT_PATH_KEPT_MAX] = {}, path_z[SHORT_PATH_KEPT_MAX] = {};
 };
 
 // CCmpUnitMotion's m_FailedMovements and the move of the 0 A.D. turn under way (200 ms, four RTS0
@@ -2339,6 +2406,30 @@ struct CivTeamBonus {
 	const char *description;
 	uint64_t units[CIV_TEMPLATE_WORDS_MAX]; // civ_unit_template_table() rows affected
 };
+
+// units/plane UnitMotionFlying (0.28), the one flying template: horizontal speeds and rates x the
+// roster's SPEED_SCALE (0.356), heights x kMetre (0.25). TurnRate is radians per second.
+struct FlightProfile {
+	float max_speed, takeoff_speed, landing_speed; // RTS0 units/s
+	float accel_rate, slowing_rate, braking_rate; // RTS0 units/s^2
+	float turn_rate, overshoot_time; // rad/s, s
+	float flying_height, climb_rate; // RTS0 units above the ground, units/s
+	bool dies_in_water;
+};
+inline constexpr FlightProfile PLANE_FLIGHT = {
+	60.0f * 0.356f, 50.0f * 0.356f, 40.0f * 0.356f,
+	25.0f * 0.356f, 5.0f * 0.356f, 10.0f * 0.356f,
+	2.0f, 2.0f,
+	50.0f * 0.25f, 15.0f * 0.25f,
+	true,
+};
+// UnitMotionFlying.js SHORT_FINAL: the final approach's descent constant (m/s, x kMetre here).
+inline constexpr float FLIGHT_SHORT_FINAL = 2.5f;
+// units/plane.xml GarrisonHolder: Max 1 of Support or Infantry, EjectHealth 0, BuffHeal 1 hp a
+// second, LoadingRange 5 m, and no EjectClassesOnDestroy (whoever is aboard dies with it).
+inline constexpr int PLANE_GARRISON = 1;
+inline constexpr float PLANE_LOADING_RANGE = 5.0f * 0.28f;
+inline constexpr float PLANE_BUFF_HEAL = 1.0f;
 
 struct CivUnitTemplate {
 	const char *id; // 0 A.D. template path under units/, e.g. "athen/infantry_spearman_b"
@@ -2639,6 +2730,7 @@ inline float unit_min_range_ratio(uint8_t type, uint16_t tmpl) {
 		if (type == UNIT_CATAPULT && std::strstr(t.id, "onager")) return 20.0f / 60.0f;
 		// template_unit_siege_flamethrower.xml (the Theban fire-raiser): MinRange 10 of MaxRange 15.
 		if (type == UNIT_BOLT_SHOOTER && std::strstr(t.id, "fireraiser")) return 10.0f / 15.0f;
+		if (t.flags & ROSTER_FLYING) return 80.0f / 120.0f; // units/plane: MinRange 80 of MaxRange 120
 	}
 	return unit_min_range_ratio(type);
 }
@@ -2784,7 +2876,6 @@ inline uint8_t resource_default_max_gatherers(uint8_t type, uint8_t subtype, int
 	if (subtype == RES_SUB_FISH) return FISH_MAX_GATHERERS;
 	if (subtype == RES_SUB_GRAIN) return 5; // FIELD_MAX_GATHERERS
 	if (type == RES_GOLD || type == RES_STONE) return amount >= 5000 ? 24 : 12;
-	if (type == RES_FOOD && subtype == RES_SUB_NONE) return 3; // Berry/fruit bushes fit ~3 gatherers without crowding
 	return 8;
 }
 
@@ -3093,7 +3184,7 @@ static_assert(COMBAT_TEMPLATE_COUNT == CIV_UNIT_TEMPLATE_COUNT,
 		"rosters changed: re-run tools/extract_0ad_attack.py");
 static_assert(COMBAT_CLASS_ROWS == UNIT_TYPE_COUNT, "unit types changed: re-run tools/extract_0ad_attack.py");
 static_assert(COMBAT_BUILDING_ROWS == BLD_TYPE_COUNT, "building types changed: re-run tools/extract_0ad_attack.py");
-// 0 A.D. UnitMotion Acceleration and InstantTurnAngle and Position TurnRate of a unit's template
+// 0 A.D. UnitMotion Acceleration and InstantTurnAngle, Position TurnRate and Footprint of a unit's template
 // (unit_motion_data.h, from tools/extract_0ad_motion.py).
 static_assert(MOTION_TEMPLATE_COUNT == CIV_UNIT_TEMPLATE_COUNT, "rosters changed: re-run tools/extract_0ad_motion.py");
 static_assert(MOTION_CLASS_ROWS == UNIT_TYPE_COUNT, "unit types changed: re-run tools/extract_0ad_motion.py");
@@ -3238,6 +3329,14 @@ inline uint8_t building_train_civ(uint8_t type, uint8_t bld_civ, uint8_t owner_c
 	                   type == BLD_MILITARY_COLONY || type == BLD_WAGON_ENCAMPMENT ||
 	                   type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
 	return civic && (t.flags & ROSTER_CIVILIAN) && (t.trainers & bld_bit(type)) ? bld_civ : owner_civ;
+}
+
+// The names `bld_civ`'s own `type` structure lists as units/{civ}/<name>, space-separated in
+// its Trainer order (TRAINER_CIV_LISTS), or nullptr.
+inline const char *trainer_civ_list(uint8_t bld_civ, uint8_t type) {
+	for (const TrainerCivList &l : TRAINER_CIV_LISTS)
+		if (l.civ == bld_civ && l.type == type) return l.units;
+	return nullptr;
 }
 
 // Whether `tmpl` is a unit of the names `bld_civ`'s own `type` structure lists as
@@ -3530,5 +3629,11 @@ enum FaunaBehavior : uint8_t {
 } // namespace rtso
 
 #include "gaia_data.h"
+
+namespace rtso {
+// Visibility/RetainInFog: template_unit_fauna keeps a Gaia animal seen and targetable in explored
+// fog; the corral's gaia/fauna_*_trainable livestock sets it false and shows only in sight.
+inline bool fauna_retained_in_fog(uint8_t ftype) { return !(fauna_type_info(ftype).flags & FAUNA_F_TRAINABLE); }
+} // namespace rtso
 
 #endif

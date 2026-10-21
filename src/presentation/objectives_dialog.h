@@ -18,6 +18,8 @@
 #include <godot_cpp/variant/callable.hpp>
 #include <godot_cpp/variant/string.hpp>
 
+#include "session_skin.h"
+
 using namespace godot;
 
 namespace rtso {
@@ -38,13 +40,8 @@ public:
 		panel_->set_offset(SIDE_RIGHT, 300.0f);
 		panel_->set_offset(SIDE_TOP, -70.0f);
 		panel_->set_offset(SIDE_BOTTOM, -70.0f);
-		Ref<StyleBoxFlat> st;
-		st.instantiate();
-		st->set_bg_color(Color(0.08f, 0.09f, 0.12f, 0.96f));
-		st->set_border_width_all(2);
-		st->set_border_color(Color(0.55f, 0.5f, 0.42f));
-		st->set_corner_radius_all(4);
-		panel_->add_theme_stylebox_override("panel", st);
+		panel_->set_theme(rtso::session_skin());
+		panel_->set_theme_type_variation("ModernDialog");
 
 		Label *title = memnew(Label);
 		title->set_text(title->tr("Match Settings"));
@@ -57,6 +54,7 @@ public:
 		title->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 		title->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
 		// TitleText: sans-bold-stroke-14, white.
+		title->set_name("MatchSettingsTitle");
 		Ref<FontVariation> bold;
 		bold.instantiate();
 		bold->set_variation_embolden(0.6f);
@@ -88,12 +86,7 @@ public:
 		box_->set_offset(SIDE_RIGHT, -20.0f);
 		box_->set_offset(SIDE_TOP, 16.0f);
 		box_->set_offset(SIDE_BOTTOM, -60.0f);
-		Ref<StyleBoxFlat> bs;
-		bs.instantiate();
-		bs->set_bg_color(Color(0.0f, 0.0f, 0.0f, 0.6f));
-		bs->set_border_width_all(1);
-		bs->set_border_color(Color(0.90f, 0.75f, 0.31f));
-		box_->add_theme_stylebox_override("panel", bs);
+		box_->set_theme_type_variation("ModernDarkBoxGold");
 		panel_->add_child(box_);
 		text_ = memnew(RichTextLabel);
 		text_->set_use_bbcode(true);
@@ -105,6 +98,7 @@ public:
 		text_->set_offset(SIDE_BOTTOM, -8.0f);
 		text_->add_theme_font_size_override("normal_font_size", 14);
 		text_->add_theme_font_size_override("bold_font_size", 14);
+		text_->add_theme_color_override("default_color", Color(1, 1, 1));
 		box_->add_child(text_);
 
 		Button *close = memnew(Button);

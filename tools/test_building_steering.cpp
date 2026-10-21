@@ -117,6 +117,34 @@
 //     grown by the class clearance and the steps that cut its corners, not a margin round every
 //     face, so a swordsman and a ram walk through gaps the steering lets them through (as 0.28
 //     does), instead of round the walls' ends.
+// 36. Corner dances: walks on Islands by a Gaul javelineer that never ended, the walker stepping to
+//     and fro for good, every turn a free move. Seed 11, from (40, -24) to (0, -55): beside a lake,
+//     from one point its line to the point was blocked and it headed for a corner, from the next, 0.05
+//     on, the line was clear and it dropped the corner. Seed 3 (every player on one team, as the soak
+//     has it): the search from the corner of a wood found no way and the walker went back to where
+//     it searched from. 0.28's long path goes round steep ground and trees, which its 1 m navcells
+//     hold, and the unit follows its paths' waypoints one by one (CCmpUnitMotion.h:1238-1250,
+//     1299-1326, 1503-1507): the short path the steering keeps round them stands in for that, so
+//     these walks go round the lake and the wood. Seeds 7 and 4 (one team): walks past trees swung
+//     between a tree's corner behind the walker and the spot it left, the way on from that corner still
+//     crossing the tree: 0.28 rejects a short path towards the goal whose end is no nearer it
+//     (CCmpUnitMotion.h:904-914 RejectFartherPaths, 932-933 and 944-951 when no long waypoint is
+//     left), and a corner the unit decides again from is the whole of its path. Seed 1 (one team): the next waypoint of the long path lay inside a bush, and the walker
+//     went from one corner of the bush in front of it to the other for good: 0.28's long path never
+//     leads into a tree, and HandleObstructedMove drops a long waypoint the unit has come close to
+//     (CCmpUnitMotion.h:1416-1426). Every walk ends, the first within 4 of its point and seed 7's
+//     within 1; so does the walk from (88, 40) to (-59.83, 29.83) on seed 11.
+// 37. Kept round trees, then obstructed: a swordsman beside an oak walks past a barracks, so the
+//     short path round the barracks is searched with a tree round it and kept whole (a kept path's
+//     memo key, nav::is_kept_path_key). An oak is then put on the leg it follows: the way there is
+//     no longer clear, so it drops the path at once and decides again from where it stands, as 0.28's
+//     HandleObstructedMove asks for a new short path (CCmpUnitMotion.h:1436-1441), and goes round the
+//     oak to its point, never into it.
+// 38. A waypoint inside a tree: a swordsman's path to (6, 3) runs through (0.62, 0.25), inside an oak
+//     beside another one, where 0.28's long path never leads. Once within 4 of that waypoint it moves
+//     on to the next (HandleObstructedMove drops a close long waypoint, CCmpUnitMotion.h:1416-1426)
+//     instead of pressing into the oak towards it (or, as the walk of Islands seed 1 in 36 did,
+//     walking between the corners of a bush in front of it for good), and gets to its point.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -205,7 +233,8 @@ static void guard_behind_wall() {
 		if (gi < 0 || ti < 0) break;
 		const Simulation::UnitView u = s.units();
 		const float dx = u.pos_x[gi] - u.pos_x[ti], dz = u.pos_z[gi] - u.pos_z[ti];
-		if (dx * dx + dz * dz <= 3.2f * 3.2f) arrived = t;
+		const float reach = s.guard_reach((size_t)gi, (size_t)ti) + 0.2f; // UnitAI guardRange, edge to edge
+		if (dx * dx + dz * dz <= reach * reach) arrived = t;
 	}
 	std::printf("  guard behind wall: arrived after %d ticks (-1 = never in 1200), max penetration %.3f\n", arrived, pen);
 	check(arrived >= 0, "guard never reached its target behind the wall");
@@ -1574,7 +1603,7 @@ static void tree_gap_dead_end() {
 		nav::Vec2 out = pos;
 		const nav::Vec2 aim(-0.06f, -9.0f);
 		nav::steer_around_obstacles(pos, aim, CLEARANCE_DEFAULT, s.steer_obstacles_, false, near, true,
-				[&](std::vector<Simulation::SteerObstacle> &o) { s.gaia_obstacles_near(pos.x, pos.y, Simulation::GAIA_STEER_REACH, o); },
+				[&](nav::Vec2 c, std::vector<Simulation::SteerObstacle> &o) { s.gaia_obstacles_near(c.x, c.y, Simulation::GAIA_STEER_REACH, o); },
 				Simulation::GAIA_STEER_REACH, 0, s.nav_grid_, 1u, memo, out);
 		return out;
 	};
@@ -2138,6 +2167,147 @@ static void turned_structure_beside_cliff() {
 		}
 }
 
+// 36. A corner dance. Islands (map 61) with civs 6, 7, 8 and 9 and no AI, as the soak plays it, every
+// player on one team when `one_team` (as the soak has it: no one shoots the walker). A player's walk
+// by a Gaul javelineer (player 1) from (x, z) to (gx, gz). Sets the tick it ended (-1: never in 1200,
+// a minute), where the javelineer stood then and how far it walked.
+static void corner_dance_walk(uint32_t seed, bool one_team, float x, float z, float gx, float gz, int &ended, float &ex, float &ez,
+		float &walked) {
+	auto sp = std::make_unique<Simulation>();
+	Simulation &s = *sp;
+	s.reset();
+	s.set_sim_seed(seed);
+	s.set_waves_enabled(false);
+	const uint8_t civs[4] = {6, 7, 8, 9};
+	for (uint8_t p = 0; p < 4; ++p) s.set_team_civ(p, civs[p]);
+	s.generate_random_map(MAP_ISLANDS, seed, 4, 128.0f);
+	for (uint8_t p = 0; p < 4; ++p) s.set_team_civ(p, civs[p]);
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) s.set_player_active(p, p < 4, false);
+	if (one_team)
+		for (uint8_t p = 0; p < 4; ++p) s.set_player_team(p, 0);
+	for (int t = 0; t < 20; ++t) s.tick(DT);
+	const uint32_t id = s.spawn_unit(x, z, 1, UNIT_ARCHER, 0.0f, civ_unit_template_by_id("gaul/infantry_javelineer_b"));
+	s.order_walk(&id, 1, gx, gz);
+	ended = -1;
+	ex = x;
+	ez = z;
+	walked = 0.0f;
+	for (int t = 0; t < 1200 && ended < 0; ++t) {
+		s.tick(DT);
+		const int i = index_of(s, id);
+		if (i < 0) break;
+		walked += std::hypot(s.units_.pos_x[i] - ex, s.units_.pos_z[i] - ez);
+		ex = s.units_.pos_x[i];
+		ez = s.units_.pos_z[i];
+		if (s.units_.order_kind[i] != ORDER_WALK) ended = t;
+	}
+}
+
+static void corner_dance() {
+	// Seed 11's first point lies in a steep pocket by the lake, reachable to within 4 units (the
+	// javelineer danced 16 away); seed 7's point is open ground past the trees. The others lie across
+	// the sea, so those walks end at the shore their long paths reach.
+	struct Case { uint32_t seed; bool one_team; float x, z, gx, gz, near; };
+	for (const Case c : {Case{11, false, 40.0f, -24.0f, 0.0f, -55.0f, 4.0f}, Case{11, false, 88.0f, 40.0f, -59.83f, 29.83f, 0.0f},
+			Case{7, true, 42.22f, 59.80f, 89.57f, 63.56f, 1.0f}, Case{4, true, 29.60f, -89.09f, -83.41f, 12.11f, 0.0f},
+			Case{3, true, -77.32f, -42.95f, -36.98f, 68.04f, 0.0f}, Case{1, true, 6.20f, 4.20f, -39.23f, 26.70f, 0.0f}}) {
+		int ended;
+		float ex, ez, walked;
+		corner_dance_walk(c.seed, c.one_team, c.x, c.z, c.gx, c.gz, ended, ex, ez, walked);
+		const float left = std::hypot(c.gx - ex, c.gz - ez);
+		std::printf("  corner dance (Islands seed %u%s): a walk from (%.2f, %.2f) to (%.2f, %.2f) ended after %d ticks (-1 = never "
+				"in 1200) at (%.2f, %.2f), %.2f from its point, after %.1f units\n", c.seed, c.one_team ? ", one team" : "", c.x, c.z,
+				c.gx, c.gz, ended, ex, ez, left, walked);
+		check(ended >= 0, "a walk on Islands never ended");
+		check(c.near <= 0.0f || left < c.near, "a walk on Islands ended short of the point it can reach");
+	}
+}
+
+// 37. Kept round trees, then obstructed. A swordsman walks from (-8, 0.3) to (8, 0.3) past a barracks at
+// the origin, an oak 1.5 south of where it starts, so the short path round the barracks is searched
+// with a tree round the unit and kept whole. Once it has walked some way along a leg of that path, an
+// oak goes down 1.2 ahead of it on the leg, out of reach of the obstacles its path was searched among.
+static void kept_path_obstructed() {
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(0.0f, 0.0f, BLD_BARRACKS, 0, 1.0f);
+	s.spawn_resource_world(-8.0f, -1.2f, RES_WOOD, 200, RES_SUB_NONE, 0, FLORA_OAK);
+	const uint32_t id = s.spawn_unit(-8.0f, 0.3f, 0, UNIT_SWORDSMAN);
+	s.cmd_move(&id, 1, 8.0f, 0.3f);
+	bool kept = false, put = false, dropped = false;
+	int arrived = -1;
+	float pen = 0.0f;
+	for (int t = 0; t < 1200 && arrived < 0; ++t) {
+		const int i = index_of(s, id);
+		const float x = s.units_.pos_x[i], z = s.units_.pos_z[i];
+		const ShortPathMemo m = s.units_.short_path[i];
+		kept = kept || nav::is_kept_path_key(m.key, s.short_path_key_);
+		float wx, wz;
+		if (!put && nav::is_kept_path_key(m.key, s.short_path_key_) && std::hypot(x + 8.0f, z - 0.3f) > 3.5f &&
+		    s.unit_short_waypoint((size_t)i, m.aim_x, m.aim_z, &wx, &wz) && std::hypot(wx - x, wz - z) > 2.0f) {
+			const float l = std::hypot(wx - x, wz - z), ox = x + (wx - x) / l * 1.2f, oz = z + (wz - z) / l * 1.2f;
+			if (std::hypot(ox - m.x, oz - m.z) > 3.5f) {
+				s.spawn_resource_world(ox, oz, RES_WOOD, 200, RES_SUB_NONE, 0, FLORA_OAK);
+				put = true;
+				s.tick(DT);
+				// Dropped: no longer this path's kept key (only the waypoint index moving on would keep its base).
+				const uint32_t k2 = s.units_.short_path[index_of(s, id)].key;
+				dropped = !nav::is_kept_path_key(k2, s.short_path_key_) ||
+				          (k2 & ~nav::KEPT_PATH_INDEX_MASK) != (m.key & ~nav::KEPT_PATH_INDEX_MASK);
+				pen = std::max(pen, gaia_penetration(s));
+				continue;
+			}
+		}
+		s.tick(DT);
+		pen = std::max(pen, gaia_penetration(s));
+		const int j = index_of(s, id);
+		if (s.units_.action_state[j] == ACTION_IDLE) arrived = t;
+	}
+	const int i = index_of(s, id);
+	const float left = std::hypot(s.units_.pos_x[i] - 8.0f, s.units_.pos_z[i] - 0.3f);
+	std::printf("  kept round trees, then obstructed: kept its path (%s), an oak put in the way (%s), path dropped at once (%s), "
+			"got there after %d ticks (-1 = never in 1200), %.2f from its point, max penetration %.3f\n", kept ? "yes" : "no",
+			put ? "yes" : "no", dropped ? "yes" : "no", arrived, left, pen);
+	check(kept, "a swordsman beside a tree didn't keep its short path round a barracks");
+	check(put, "no oak could be put in the way of the kept short path");
+	check(dropped, "a swordsman whose kept short path an oak blocked held on to it");
+	check(arrived >= 0 && left < 1.0f, "a walk past an oak put in its way never got there");
+	check(pen <= MAX_PENETRATION, "a swordsman walked into an oak put in its way");
+}
+
+// 38. A waypoint inside a tree. Oaks at (0, 0) and (0.62, 0.05); a swordsman at (-6, -1.5) walks to
+// (6, 3) along a path whose first waypoint, (0.62, 0.25), lies inside the second oak.
+static void waypoint_in_a_tree() {
+	Simulation s;
+	setup(s);
+	s.spawn_resource_world(0.0f, 0.0f, RES_WOOD, 200, RES_SUB_NONE, 0, FLORA_OAK);
+	s.spawn_resource_world(0.62f, 0.05f, RES_WOOD, 200, RES_SUB_NONE, 0, FLORA_OAK);
+	const uint32_t id = s.spawn_unit(-6.0f, -1.5f, 0, UNIT_SWORDSMAN);
+	s.cmd_move(&id, 1, 6.0f, 3.0f);
+	s.tick(DT);
+	int w = index_of(s, id);
+	WaypointPath &wp = s.unit_paths_[w];
+	wp.clear();
+	wp.push_back(0.62f, 0.25f);
+	wp.push_back(6.0f, 3.0f);
+	s.units_.waypoint_cur[w] = 0;
+	s.units_.waypoint_count[w] = (int16_t)wp.count;
+	int arrived = -1;
+	float pen = 0.0f;
+	for (int t = 0; t < 1200 && arrived < 0; ++t) {
+		s.tick(DT);
+		pen = std::max(pen, gaia_penetration(s));
+		const int i = index_of(s, id);
+		if (s.units_.action_state[i] == ACTION_IDLE) arrived = t;
+	}
+	w = index_of(s, id);
+	const float left = std::hypot(s.units_.pos_x[w] - 6.0f, s.units_.pos_z[w] - 3.0f);
+	std::printf("  a waypoint inside a tree: got there after %d ticks (-1 = never in 1200), %.2f from its point, at (%.2f, %.2f), "
+			"max penetration %.3f\n", arrived, left, s.units_.pos_x[w], s.units_.pos_z[w], pen);
+	check(arrived >= 0 && left < 1.0f, "a walk whose waypoint lies inside a tree never got there");
+	check(pen <= MAX_PENETRATION, "a swordsman walked into an oak round a waypoint inside it");
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -2174,6 +2344,9 @@ int main() {
 	structure_beside_one_tile_gap();
 	nodes_after_load();
 	turned_structure_beside_cliff();
+	corner_dance();
+	kept_path_obstructed();
+	waypoint_in_a_tree();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

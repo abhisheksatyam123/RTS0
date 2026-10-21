@@ -162,13 +162,17 @@ static func end_game(m: Node, show_summary: bool) -> void:
 		# (gui/summary/summary.js has no music calls): hand the track over, since
 		# the session scene (and its players) leaves the tree with the match.
 		var audio: Dictionary = m.get_audio_state()
-		ms.match_music = {"track": str(audio.get("track", "")), "position": float(audio.get("music_position", 0.0))}
+		ms.match_music = {"track": str(audio.get("track", "")), "position": float(audio.get("music_position", 0.0)),
+			"playlist": Array(audio.get("playlist", PackedStringArray()))}
 		ms.go("res://scenes/session/summary_screen.tscn")
 	elif ms.campaign_run != "":
 		load("res://scenes/session/summary_screen.gd").leave_campaign(m.get_summary_gui(false).get("victory", false), status.get("replaying", false))
 	elif tree.root.has_node("LobbySession") and tree.root.get_node("LobbySession").signed_in():
 		ms.go("res://scenes/menu/lobby.tscn") # Engine.HasXmppClient: back to the lobby
 	elif status.get("replaying", false):
+		# endGame: SwitchGuiPage("page_replaymenu.xml") with no replaySelectionData, so the
+		# menu opens fresh; only the summary hands the selection back.
+		load("res://scenes/menu/replay_browser.gd").selection_data = {}
 		ms.go("res://scenes/menu/replay_browser.tscn")
 	else:
 		ms.go("res://scenes/menu/main_menu.tscn")

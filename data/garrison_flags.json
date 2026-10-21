@@ -2113,6 +2113,16 @@
    ],
    "flag": "kart"
   },
+  "s_carthaginians_scout_tower": {
+   "scale": 0.23408,
+   "ground": 1.8355,
+   "pos": [
+    0.3396,
+    6.5192,
+    -0.0875
+   ],
+   "flag": "kart"
+  },
   "s_carthaginians_stable": {
    "scale": 0.18989,
    "ground": 1.8199,
@@ -2120,6 +2130,16 @@
     1.9226,
     3.9263,
     0.2936
+   ],
+   "flag": "kart"
+  },
+  "s_carthaginians_temple_big": {
+   "scale": 0.17329,
+   "ground": 0.0085,
+   "pos": [
+    -0.7738,
+    2.9703,
+    -1.385
    ],
    "flag": "kart"
   },
@@ -2155,6 +2175,14 @@
    ],
    "flag": "kart"
   },
+  "s_celts_hut": {
+   "scale": 0.33734,
+   "ground": 0.0239
+  },
+  "s_celts_longhouse": {
+   "scale": 0.37012,
+   "ground": 2.2213
+  },
   "s_celts_outpost": {
    "scale": 0.29458,
    "ground": 2.2973,
@@ -2182,6 +2210,16 @@
     -0.4688,
     2.8759,
     0.7966
+   ],
+   "flag": "celt"
+  },
+  "s_gauls_scout_tower": {
+   "scale": 0.3258,
+   "ground": 2.8221,
+   "pos": [
+    0.0304,
+    9.1165,
+    -0.7382
    ],
    "flag": "celt"
   },
@@ -2273,6 +2311,16 @@
    "scale": 0.25,
    "ground": 0.0
   },
+  "s_hellenes_scout_tower": {
+   "scale": 0.29905,
+   "ground": 3.2811,
+   "pos": [
+    0.8606,
+    9.0064,
+    0.9399
+   ],
+   "flag": "hele"
+  },
   "s_hellenes_wall_long": {
    "scale": 0.25,
    "ground": 0.0
@@ -2339,6 +2387,16 @@
    "scale": 0.22857,
    "ground": 0.0
   },
+  "s_iberians_scout_tower": {
+   "scale": 0.13375,
+   "ground": 1.1368,
+   "pos": [
+    -0.0056,
+    3.4774,
+    0.1394
+   ],
+   "flag": "iber"
+  },
   "s_iberians_stable": {
    "scale": 0.17444,
    "ground": 1.4917,
@@ -2380,6 +2438,16 @@
     0.5397
    ],
    "flag": "iber"
+  },
+  "s_kushites_civic_centre_kush": {
+   "scale": 0.21423,
+   "ground": 0.0107,
+   "pos": [
+    1.7602,
+    3.2649,
+    -1.3844
+   ],
+   "flag": "kush"
   },
   "s_kushites_outpost": {
    "scale": 0.29458,
@@ -2503,6 +2571,16 @@
    ],
    "flag": "persians"
   },
+  "s_persians_gardens_struct": {
+   "scale": 0.10782,
+   "ground": 0.0054,
+   "pos": [
+    0.635,
+    3.3358,
+    0.4426
+   ],
+   "flag": "persians"
+  },
   "s_persians_hall": {
    "scale": 0.18,
    "ground": 2.2786
@@ -2538,6 +2616,16 @@
     -0.6216,
     3.4754,
     0.3497
+   ],
+   "flag": "persians"
+  },
+  "s_persians_scout_tower": {
+   "scale": 0.26953,
+   "ground": 3.4282,
+   "pos": [
+    -0.5469,
+    8.6908,
+    0.6114
    ],
    "flag": "persians"
   },
@@ -2603,6 +2691,14 @@
    ],
    "flag": "persians"
   },
+  "s_plot_field_medit": {
+   "scale": 1.13974,
+   "ground": 0.057
+  },
+  "s_plot_field_temp": {
+   "scale": 1.13974,
+   "ground": 0.057
+  },
   "s_ptolemies_blacksmith": {
    "scale": 0.19798,
    "ground": 1.7676,
@@ -2610,6 +2706,16 @@
     0.5654,
     3.986,
     -0.1945
+   ],
+   "flag": "ptol"
+  },
+  "s_ptolemies_defense_tower": {
+   "scale": 0.28694,
+   "ground": 2.3867,
+   "pos": [
+    0.0095,
+    8.2178,
+    0.9359
    ],
    "flag": "ptol"
   },
@@ -2673,6 +2779,22 @@
    ],
    "flag": "ptol"
   },
+  "s_ptolemies_stall_big": {
+   "scale": 0.25,
+   "ground": 0.0125
+  },
+  "s_ptolemies_stall_med": {
+   "scale": 0.28104,
+   "ground": 0.0141
+  },
+  "s_ptolemies_stall_small_a": {
+   "scale": 0.25789,
+   "ground": 0.0129
+  },
+  "s_ptolemies_stall_small_b": {
+   "scale": 0.25,
+   "ground": 0.0125
+  },
   "s_ptolemies_wall_long": {
    "scale": 0.24745,
    "ground": 0.0
@@ -2704,6 +2826,10 @@
     -0.0352
    ],
    "flag": "ptol"
+  },
+  "s_rice_paddy": {
+   "scale": 2085.16202,
+   "ground": 104.2581
   },
   "s_romans_amphitheater_pompeii": {
    "scale": 0.07251,
@@ -2746,6 +2872,16 @@
     -1.1909,
     2.8428,
     0.9754
+   ],
+   "flag": "rome"
+  },
+  "s_romans_scout_tower": {
+   "scale": 0.24386,
+   "ground": 1.8345,
+   "pos": [
+    0.0125,
+    7.1253,
+    -0.0008
    ],
    "flag": "rome"
   },
@@ -2861,6 +2997,16 @@
    ],
    "flag": "seleucids"
   },
+  "s_seleucids_scout_tower": {
+   "scale": 0.24565,
+   "ground": 1.1179,
+   "pos": [
+    0.5037,
+    5.6617,
+    -0.4624
+   ],
+   "flag": "seleucids"
+  },
   "s_seleucids_stable": {
    "scale": 0.1742,
    "ground": 2.4183,
@@ -2924,6 +3070,16 @@
     1.2211,
     3.8632,
     -0.2517
+   ],
+   "flag": "hele"
+  },
+  "s_spartans_civic_center": {
+   "scale": 0.19522,
+   "ground": 0.0098,
+   "pos": [
+    0.0007,
+    2.5316,
+    1.4223
    ],
    "flag": "hele"
   },

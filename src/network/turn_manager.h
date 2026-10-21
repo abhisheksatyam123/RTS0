@@ -161,10 +161,12 @@ public:
 	// starts with is sent that world as a rejoiner is, and takes the seat given
 	// in seats (client id -> player, 0xFF watches); the host plays seats[0].
 	// No turn runs until each of them has loaded or left (0 A.D. waits for
-	// every client's NMT_LOADED_GAME), or SAVED_GAME_WAIT_MS has passed.
+	// every client's NMT_LOADED_GAME), with no time limit.
 	void start_saved_game(const std::map<uint32_t, uint8_t> &seats, const Simulation *sim);
 	bool saved_game() const { return saved_game_; }
-	static constexpr uint64_t SAVED_GAME_WAIT_MS = 120000;
+	// Host: the started game is loading (0 A.D. SERVER_STATE_LOADING): no turn
+	// has run yet, or a saved game still waits on a client it started with.
+	bool host_loading() const { return net_game_started_ && (current_turn_ == 0 || !saved_waiting_.empty()); }
 	// Host: the clients a saved game still waits on.
 	const std::set<uint32_t> &saved_game_waiting() const { return saved_waiting_; }
 	bool rejoin_requested() const { return rejoin_wanted_; }
@@ -176,6 +178,13 @@ public:
 	uint8_t rejoin_reject_reason() const { return rejoin_reject_; }
 	// Client: the host is sending its world for our rejoin (0 A.D. join_syncing).
 	bool rejoin_syncing() const { return rejoin_have_header_ && !rejoined_; }
+	// Client: the whole world has come and waits to be loaded (NetClient's fake
+	// game start: the download box gives way to the loading page).
+	bool rejoin_world_complete() const {
+		return rejoin_wanted_ && rejoin_have_header_ && !rejoined_ && rejoin_received_ == rejoin_world_.size();
+	}
+	// Client: loaded, still running the turns queued while it loaded (join_syncing).
+	bool rejoin_catching_up() const { return rejoined_ && rejoin_fast_forward_; }
 	// 0 A.D. "Waiting for players": the lockstep clients whose batch the next turn
 	// still needs, and how long this peer has been held (0 while turns run).
 	std::vector<uint32_t> waiting_on();
@@ -519,6 +528,7 @@ private:
 	std::unordered_map<uint32_t, std::string> client_names_;
 	void send_player_assignment();
 	bool rejoin_wanted_ = false, rejoin_have_header_ = false, rejoined_ = false;
+	bool rejoin_announced_ = false; // the host's CMD_PEER_JOINED for us has arrived
 	uint32_t rejoin_turn_ = 0;
 	uint8_t rejoin_reject_ = 0;
 	RejoinMsg rejoin_header_;

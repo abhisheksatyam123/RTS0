@@ -203,7 +203,6 @@ public:
 				r.stance[s] = memnew(Button);
 				r.stance[s]->set_custom_minimum_size(Vector2(STANCE_W, 22));
 				r.stance[s]->add_theme_font_size_override("font_size", 11);
-				r.stance[s]->set_tooltip_text(s == 0 ? "Ally" : s == 1 ? "Neutral" : "Enemy");
 				r.stance[s]->connect("pressed", Callable(owner, "_on_diplo_stance_changed").bind(s, p));
 				r.box->add_child(r.stance[s]);
 			}
@@ -280,6 +279,8 @@ public:
 			row["tint"] = r.tint.is_valid() ? r.tint->get_bg_color() : Color();
 			row["tribute_icon"] = r.tribute[0]->get_button_icon().is_valid() ? r.tribute[0]->get_button_icon()->get_path() : String();
 			row["tribute_text"] = r.tribute[0]->get_text();
+			row["tribute_tooltip"] = r.tribute[0]->get_tooltip_text();
+			row["stance_tooltip"] = r.stance[0]->get_tooltip_text();
 			row["outcome_tooltip"] = r.outcome->get_tooltip_text();
 			rows.push_back(row);
 		}
@@ -370,14 +371,18 @@ public:
 				r.stance[s]->set_text(cur == s ? "x" : "");
 				r.stance[s]->set_disabled(cur == s || !ctrl);
 			}
+			const String colored_name = "[color=#" + String::num_int64(rtso::display_colors::rgb(*sim, p), 16).lpad(6, "0") + "]" +
+					host_->player_display_name(p) + "[/color]";
 			for (int t = 0; t < 4; ++t) {
 				r.tribute[t]->set_visible(!inactive);
 				// TributeButton.onMassTributeRelease: releasing Shift sends a gathered mass tribute.
 				r.tribute[t]->set_disabled(!ctrl);
 				if (!mass_held && r.amount[t] >= TRIBUTE_MASS) send_tribute(p, t);
-				r.tribute[t]->set_tooltip_text("Tribute " + String::num_int64(r.amount[t]) + " " + res_name(TRIBUTE_RES[t]) +
-						" to " + host_->player_display_name(p) + ". Shift-click to tribute " +
-						String::num_int64(next_tribute_amount(r.amount[t])) + ".");
+				// TributeButton.update: resourceNameWithinSentence and colorizePlayernameByID.
+				r.tribute[t]->set_tooltip_text(rtso::sprintf0(
+						rtso::tr0("Tribute %(resourceAmount)s %(type)s to %(playerName)s. Shift-click to tribute %(greaterAmount)s."),
+						{{"resourceAmount", String::num_int64(r.amount[t])}, {"type", rtso::tr0(res_name(TRIBUTE_RES[t]))},
+						 {"playerName", colored_name}, {"greaterAmount", String::num_int64(next_tribute_amount(r.amount[t]))}}));
 			}
 			// SpyRequestButton.update: hidden when spies are disabled, and for a mutual ally only
 			// while the viewer lacks shared vision (hasSharedLos, Cartography), as 0.28 tests it.
@@ -388,11 +393,12 @@ public:
 				// The cost (x the target's spyCostMultiplier), what is missing, then what a failed
 				// bribe costs (VisionSharing FailureCostRatio). A request in flight disables it
 				// until the bribe is answered (onSpyResponse).
-				String tip = "Bribe a random unit from this player and share its vision during a limited period.\n";
+				String tip = rtso::tr0("Bribe a random unit from this player and share its vision during a limited period.") + "\n";
 				bool can = sim->can_bribe(me, p);
+				int short_by = 0; // resourcesToAlphaMask: the missing resources tint the icon red
 				if (!sim->player(me).has_tech(rtso::TECH_UNLOCK_SPIES)) {
-					// getRequirementsTooltip: "Requires %(technology)s".
-					tip += "Requires Espionage";
+					// getRequirementsTooltip: "Requires %(technology)s" in objectionFont.
+					tip += rtso::objection_font(rtso::sprintf0(rtso::tr0("Requires %(technology)s"), {{"technology", rtso::tr0("Espionage")}}));
 				} else {
 					rtso::CostTip cost, failed;
 					cost.metal = sim->bribe_cost(me, p);
@@ -404,8 +410,9 @@ public:
 					if (!need.is_empty()) {
 						tip += "\n" + need;
 						can = false;
+						short_by = (int)std::max<int64_t>(0, cost.metal - (int64_t)sim->player_resource(me, rtso::RES_GOLD));
 					} else {
-						tip += "\nA failed bribe will cost you:\n" + rtso::cost_tooltip(failed, true);
+						tip += "\n" + rtso::tr0("A failed bribe will cost you:") + "\n" + rtso::cost_tooltip(failed, true);
 					}
 				}
 				if (spy_pending_[p]) {
@@ -416,23 +423,30 @@ public:
 				}
 				r.spy->set_disabled(!can || spy_pending_[p] || !ctrl);
 				r.spy->set_tooltip_text(tip);
+				// resourcesToAlphaMask "color:255 0 0 <alpha>" when short of metal, else
 				// SpriteModifierDisabled "color:0 0 0 127:grayscale:".
-				r.spy->set_self_modulate(r.spy->is_disabled() ? Color(0.5f, 0.5f, 0.5f) : Color(1, 1, 1));
+				if (short_by > 0) {
+					const float a = std::min(125.0f, short_by / 10.0f + 50.0f) / 255.0f;
+					r.spy->set_self_modulate(Color(1.0f, 1.0f - a, 1.0f - a));
+				} else {
+					r.spy->set_self_modulate(r.spy->is_disabled() ? Color(0.5f, 0.5f, 0.5f) : Color(1, 1, 1));
+				}
 			}
 			// AttackRequestButton.update: for an enemy, while we have an ally to ask.
 			bool has_ally = false;
 			for (uint8_t q = 0; q < rtso::MAX_PLAYERS; ++q)
-				has_ally |= q != me && sim->player(q).active && !sim->is_defeated(q) && sim->is_ally(me, q);
+				has_ally |= q != me && sim->player(q).active && sim->is_ally(me, q); // IsMutualAlly: stances only, a defeated ally too
 			r.attack->set_visible(!inactive && !sim->ceasefire_active() && has_ally && sim->is_hostile(me, p));
 			r.attack->set_disabled(!ctrl);
 		}
 		// DiplomacyDialogCeasefireCounter.
 		ceasefire_->set_visible(sim->ceasefire_active());
 		if (sim->ceasefire_active()) {
-			// timeToString truncates to the second.
-			const int s = (int)std::floor(sim->ceasefire_remaining());
-			set_text(ceasefire_, "Remaining ceasefire time: " + String::num_int64(s / 60) + ":" + (s % 60 < 10 ? "0" : "") +
-					String::num_int64(s % 60) + ".");
+			// translateWithContext("ceasefire", ...) with timeToString: "mm:ss", or
+			// "HH:mm:ss" from an hour on, truncated to the second.
+			const int64_t t = (int64_t)std::floor(sim->ceasefire_remaining());
+			const String time = t < 3600 ? vformat("%02d:%02d", t / 60, t % 60) : vformat("%02d:%02d:%02d", t / 3600, t / 60 % 60, t % 60);
+			set_text(ceasefire_, rtso::sprintf0(rtso::tr0("Remaining ceasefire time: %(time)s."), {{"time", time}}));
 		}
 	}
 

@@ -78,6 +78,26 @@ func run() -> void:
 	# The first goal has nothing to do: Ready from the first frame the panel shows it.
 	check(tp["status"] == "Click when ready.", "the status line: " + str(tp["status"]))
 	check(tp["button_visible"] and tp["button"] == "Ready", "the button reads Ready")
+	# tutorial_panel.xml: a ModernFade at 50%-380 38 50%+380 292, the text in a TutorialPanel
+	# box at 10 10 100%-20 100%-48, a ModernButtonRed Ready at 100%-160 100%-42 100%-20 100%-12.
+	var panel: Panel = current_scene.find_child("TutorialPanel", true, false)
+	if panel:
+		var vw: float = root.get_visible_rect().size.x
+		var r := panel.get_global_rect()
+		check(panel.theme_type_variation == "ModernFade" and absf(r.position.x - (vw / 2 - 380)) < 1
+			and r.position.y == 38 and r.size == Vector2(760, 254), "the panel's ModernFade at 0.28's size: " + str(r))
+		var box: RichTextLabel = null
+		var ready: Button = null
+		for c in panel.get_children():
+			if c is RichTextLabel and c.theme_type_variation == "TutorialPanel":
+				box = c
+			elif c is Button:
+				ready = c
+		check(box != null and Rect2(box.position, box.size) == Rect2(10, 10, 730, 196), "the TutorialPanel text box: " + (str(Rect2(box.position, box.size)) if box else "none"))
+		check(ready != null and ready.position == Vector2(600, 212) and ready.size.x == 140
+			and ready.get_theme_stylebox("normal") is StyleBoxTexture, "a ModernButtonRed Ready at 100%-160 100%-42: " + (str(Rect2(ready.position, ready.size)) if ready else "none"))
+	else:
+		check(false, "the tutorial panel")
 	# messages.js translate(): the instructions, status and button follow the language.
 	var de: Translation = load("res://assets/l10n/de.po")
 	de.locale = "de"

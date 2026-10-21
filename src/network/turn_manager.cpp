@@ -204,12 +204,18 @@ void TurnManager::apply_peer_left(uint32_t client_id, uint32_t last_turn) {
 void TurnManager::apply_peer_control(const NetCommand &c) {
 	ensure_lockstep_peers();
 	const uint32_t id = c.target_id;
-	if (id != 0 && id == local_client_id_ && c.cmd_type == CMD_PEER_JOINED && c.target_z > 0.5f)
-		rejoined_clients_.push_back(id); // the rejoiner hears it too
+	if (id != 0 && id == local_client_id_ && c.cmd_type == CMD_PEER_JOINED) {
+		rejoin_announced_ = true;
+		if (c.target_z > 0.5f) rejoined_clients_.push_back(id); // the rejoiner hears it too
+	}
 	if (id == 0 || id == local_client_id_) return;
+	// 0 A.D. NetServer multicasts NMT_REJOINED to the clients in the game only:
+	// a rejoiner, from the world the host sent it until the host announces it,
+	// does not hear that someone else has joined.
+	const bool hears = !rejoin_have_header_ || rejoin_announced_;
 	// A late observer loaded: everyone hears "has joined the game.", and it stays out of the lockstep.
 	if (c.cmd_type == CMD_PEER_JOINED && c.param >= MAX_PLAYERS) {
-		if (c.target_z > 0.5f) rejoined_clients_.push_back(id);
+		if (c.target_z > 0.5f && hears) rejoined_clients_.push_back(id);
 		return;
 	}
 	if (c.cmd_type == CMD_PEER_LEFT) {
@@ -222,7 +228,7 @@ void TurnManager::apply_peer_control(const NetCommand &c) {
 		lockstep_until_.erase(id);
 		left_clients_.erase(id);
 		client_player_[id] = c.param;
-		if (c.target_z > 0.5f) rejoined_clients_.push_back(id);
+		if (c.target_z > 0.5f && hears) rejoined_clients_.push_back(id);
 		std::cerr << "[TurnManager] client " << id << " takes player " << (unsigned)c.param
 		          << " from turn " << (uint32_t)c.target_x << "\n";
 	}
@@ -327,6 +333,7 @@ void TurnManager::request_rejoin(bool observe) {
 	rejoin_wanted_ = true;
 	rejoin_observe_ = observe;
 	rejoin_have_header_ = false;
+	rejoin_announced_ = false;
 	rejoin_reject_ = 0;
 	rejoin_world_.clear();
 	rejoin_chunks_.clear();
@@ -731,10 +738,7 @@ bool TurnManager::saved_game_hold() {
 		if (!p || !p->connected || lockstep_since_.count(*it) || watching_served) it = saved_waiting_.erase(it);
 		else ++it;
 	}
-	if (!saved_waiting_.empty() && rejoin_now_ms() - saved_since_ms_ > SAVED_GAME_WAIT_MS) {
-		std::cerr << "[TurnManager] saved game: starting without " << saved_waiting_.size() << " client(s)\n";
-		saved_waiting_.clear();
-	}
+	// NetServer CheckGameLoadStatus: no time limit; the host can kick a client that never loads.
 	return !saved_waiting_.empty();
 }
 
@@ -1184,6 +1188,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u8(b.is_burning ? 1 : 0);
 		mix_u8(b.upgrade_to);
 		mix_float(b.upgrade_timer);
+		mix_float(b.queue_clock);
 		mix_u8((uint8_t)((b.gate_open ? 1 : 0) | (b.gate_locked ? 2 : 0)));
 	}
 
@@ -1210,6 +1215,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u8(kv.second.orders.front().count);
 		mix_u8(kv.second.orders.front().tech);
 		mix_float(kv.second.orders.front().timer);
+		mix_float(kv.second.clock);
 	}
 
 	// 2d. Trade routes (Trader.js markets, goods and SetupTradeRoute route): every trader's
@@ -1723,7 +1729,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			if (bid && n) {
 				// TryConstructBuilding hands the builders a "repair" of the new foundation.
 				if (sim.has_map_triggers()) sim.note_player_command(pl, TRIGGER_CMD_REPAIR, bid, 0, 0, 0);
-				sim.order_build_or_repair(ids, n, bid);
+				const bool build_queued = (c.target_id & NET_BUILD_QUEUED) != 0;
+				sim.set_push_front_order(!build_queued && (c.target_id & NET_BUILD_PUSH_FRONT) != 0);
+				sim.order_build_or_repair(ids, n, bid, build_queued);
 			}
 		} else if (c.cmd_type == 6) { // Train
 			// At a corral target_x names the animal (corral Trainer list); 0 is the civ's default.
@@ -1746,7 +1754,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			if (raw_n > n) sim.order_fauna_walk(pl, raw, raw_n, 0.0f, 0.0f, c.target_id);
 		} else if (c.cmd_type == 13) { // Ungarrison / disembark-all / leave-turret
 			if (c.param == 1) {
-				if (n) sim.order_disembark_all(ids[0]);
+				if (n) sim.order_disembark_all(ids[0], pl);
 			} else if (c.param == 2) { // 0 A.D. "leave-turret": entity_ids are the turret units
 				sim.cmd_leave_turret(pl, c.entity_ids.data(), c.entity_ids.size());
 			} else if (c.param == 3) { // 0 A.D. "unload-turrets": target_id is the holder
@@ -1774,11 +1782,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			else if ((c.param & (uint8_t)~NET_PARAM_QUEUED) == 2) // TreasureCollector: collect a Gaia treasure
 				sim.order_collect_treasure(ids, n, c.target_id, queued);
 			else if ((c.param & (uint8_t)~NET_PARAM_QUEUED) == NET_HUNT_SCENERY_NO_CAPTURE)
-				sim.order_attack_scenery(ids, n, c.target_id, false);
+				sim.order_attack_scenery(ids, n, c.target_id, false, queued);
 			else if (sim.player_can_target_fauna(pl, c.target_id))
-				sim.order_hunt(ids, n, c.target_id);
-		} else if (c.cmd_type == 18) { // Board
-			sim.order_board_transport(ids, n, c.target_id);
+				sim.order_hunt(ids, n, c.target_id, queued);
+		} else if (c.cmd_type == 18) { // Board; NET_PARAM_QUEUED queues it
+			sim.order_board_transport(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 19) { // Disembark
 			if (n) sim.order_disembark(ids[0], c.target_x, c.target_z);
 		} else if (c.cmd_type == 20) { // Cancel train
@@ -1800,7 +1808,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			// non-finite point straightens that leg's walk (order_trade drops it too).
 			std::vector<std::pair<float, float>> route;
 			for (size_t k = 0; k + 1 < c.route.size(); k += 2) route.emplace_back(c.route[k], c.route[k + 1]);
-			if (c.target_x >= 1.0f && c.target_x < 16777216.0f && c.target_x == (float)(uint32_t)c.target_x)
+			if (c.target_x == 0.0f && (c.param & NET_PARAM_CANCEL_TRADE))
+				sim.order_cancel_trade_setup(ids, n, c.target_id);
+			else if (c.target_x == 0.0f)
+				sim.order_setup_trade(ids, n, c.target_id, queued);
+			else if (c.target_x >= 1.0f && c.target_x < 16777216.0f && c.target_x == (float)(uint32_t)c.target_x)
 				sim.order_trade(ids, n, c.target_id, (uint32_t)c.target_x, queued, route);
 		} else if (c.cmd_type == 37) { // Remove guard
 			sim.order_remove_guard(ids, n);
@@ -1825,8 +1837,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.cmd_set_dropsite_sharing(pl, c.target_id, c.param == 1);
 		} else if (c.cmd_type == 28) { // Gate lock — target_id=building, param 1 lock / 0 unlock.
 			sim.cmd_lock_gate(pl, c.target_id, c.param == 1);
-		} else if (c.cmd_type == 29) { // Pack / unpack siege — param 1 pack / 0 unpack.
-			sim.order_pack(ids, n, c.param == 1);
+		} else if (c.cmd_type == 29) { // Pack / unpack siege — param bit 0: pack / unpack; bit 1: cancel the one in progress.
+			sim.order_pack(ids, n, (c.param & 1) != 0, (c.param & 2) != 0);
 		} else if (c.cmd_type == 25) { // Train roster template — target_id=building, target_x=template.
 			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT)
 				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x, batch_count(c.target_z),

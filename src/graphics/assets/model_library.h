@@ -33,6 +33,8 @@ public:
 		AABB aabb;
 		float scale = 1.0f;
 		float y_offset = 0.0f; // add to instance Y so the model base sits on ground
+		float metre = 1.0f; // world units per 0.28 metre at the drawn size (StatusBars offsets)
+		float height = 0.0f; // the body height it was sized by, in GLB units (a person's excludes a held spear)
 		bool valid = false;
 		bool animated = false;
 		godot::String path; // the GLB it was loaded from (empty for a procedural stand-in)
@@ -69,6 +71,10 @@ public:
 	static const Entry &get(const godot::String &category, const godot::String &id);
 	// Read the model's GLB on a worker thread ahead of its first get().
 	static void prefetch(const godot::String &category, const godot::String &id);
+	static HashMap<godot::String, bool> &threaded_paths(); // prefetch requests not yet taken
+	static void request_threaded(const godot::String &path);
+	// Prefetch requests the loader's workers have not finished yet.
+	static int loads_in_flight();
 	static void clear();
 	static bool capture_crowd_skin(godot::Node *root, CrowdSkin &out);
 	static godot::Ref<godot::ArrayMesh> bake_crowd_skin(CrowdSkin &skin, const godot::Ref<godot::ArrayMesh> &reuse = godot::Ref<godot::ArrayMesh>());
@@ -100,8 +106,6 @@ public:
 private:
 	static Entry load(const godot::String &category, const godot::String &id);
 	static godot::Vector<godot::String> candidate_paths(const godot::String &category, const godot::String &id);
-	static HashMap<godot::String, bool> &threaded_paths(); // prefetch requests not yet taken
-	static void request_threaded(const godot::String &path);
 	static godot::Ref<godot::PackedScene> borrow_clips(godot::Node *inst, const godot::String &donor);
 	static float target_height(const godot::String &category, const godot::String &id, float natural_h);
 	static HashMap<godot::String, Entry> &cache();

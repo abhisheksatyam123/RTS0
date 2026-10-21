@@ -46,7 +46,7 @@ func until(cond: Callable, max_frames := 600) -> bool:
 	return cond.call()
 
 func player(id: int, name: String, state: String, ai := false) -> Dictionary:
-	return {"id": id, "name": name, "state": state, "ai": ai, "civ_name": "Athenians", "team": 1,
+	return {"id": id, "name": name, "state": state, "ai": ai, "civ_code": "athen", "civ_name": "Athenians", "team": id + 1, "setup_team": -1,
 		"economyScore": 10, "militaryScore": 20, "totalScore": 30, "percentMapExplored": 12.5,
 		"stats": {"tradeIncome": 5, "resourcesGathered": {"food": 100, "vegetarianFood": 60},
 			"unitsTrained": {"Infantry": 3}, "enemyUnitsKilled": {"Cavalry": 1},
@@ -63,12 +63,19 @@ func run() -> void:
 	check(r.get("matchID") == "42-random_mainland-alice,bob" and r.get("timeElapsed") == 600000,
 		"both players name the match alike (seed, map, players)")
 	check(r.get("tradeIncome") == "5,5,", "the Misc counters ride along")
+	check(r.get("civs") == "athen,athen," and r.get("teams") == "-1,-1,",
+		"Players.js: civ codes, and the Diplomacy team (-1 without a team): " + str([r.get("civs"), r.get("teams")]))
 	# LobbyRatingReport Resources, Units, Buildings, Misc percentMapExplored, Players teamsLocked.
 	check(r.get("foodGathered") == "100,100," and r.get("vegetarianFoodGathered") == "60,60," and r.get("woodUsed") == "0,0,"
 		and r.get("infantryUnitsTrained") == "3,3," and r.get("enemyCavalryUnitsKilled") == "1,1,"
 		and r.get("houseBuildingsConstructed") == "2,2," and r.get("percentMapExplored") == "12.5,12.5,"
 		and r.get("teamsLocked") == "false",
 		"the resource, unit, building and exploration parts ride along: " + str(r))
+	var rated_stats := stats.duplicate(true)
+	rated_stats["players"][0]["name"] = "alice (1265)"
+	check(LobbySessionScript.rating_report(rated_stats, summary, 1).get("matchID") == r.get("matchID")
+		and LobbySessionScript.rating_report(rated_stats, summary, 1).get("players") == "alice,bob,",
+		"a rated name reports as its lobby account")
 	var other: Dictionary = LobbySessionScript.rating_report(stats, summary, 0)
 	check(other.get("matchID") == r.get("matchID"), "the winner sends the same match id")
 	stats.players[1].state = "active"
@@ -150,10 +157,33 @@ func run() -> void:
 	lobby._leaderboard.custom_action.emit(&"update")
 	await until(func() -> bool: return lobby._board.get_root() != null and lobby._board.get_root().get_child_count() == 2)
 	check(lobby._board.get_root() != null and lobby._board.get_root().get_child_count() == 2, "Update asks the lobby again")
+	# LeaderboardList.rebuild: Update keeps the selected row; reopening shows the last list at once.
+	if lobby._board.get_root():
+		lobby._board.get_root().get_child(1).select(0)
+	lobby._leaderboard.custom_action.emit(&"update")
+	await create_timer(1.0).timeout
+	var sel: TreeItem = lobby._board.get_selected()
+	check(sel != null and sel.get_text(1) == "bob", "Update keeps bob selected")
+	lobby._leaderboard.hide()
+	lobby._on_leaderboard_pressed()
+	check(lobby._board.get_root() != null and lobby._board.get_root().get_child_count() == 2, "reopening shows the last list at once")
 	lobby._leaderboard.hide()
 	check(lobby._profile_role.text == "Player", "the profile names bob's role: Player")
 	# ProfilePage: any player, by name.
 	lobby._on_lookup_pressed()
+	# ProfilePage.js autocomplete: Tab completes from the online players and the board.
+	var zed: TreeItem = lobby._board.create_item(lobby._board.get_root())
+	zed.set_metadata(0, "zed")
+	var tab := InputEventKey.new()
+	tab.keycode = KEY_TAB
+	tab.pressed = true
+	for typed in [["b", "bob, "], ["z", "zed, "]]:
+		lobby._lookup_input.text = typed[0]
+		lobby._lookup_input.caret_column = typed[0].length()
+		lobby._lookup_input.gui_input.emit(tab)
+		check(lobby._lookup_input.text == typed[1], "Tab completes \"%s\" to \"%s\" (%s)" % [typed[0], typed[1], lobby._lookup_input.text])
+	check(lobby._lookup_input.tooltip_text == lobby.AUTOCOMPLETE_TIP, "and the field says so")
+	zed.free()
 	lobby._lookup_input.text = "ALICE"
 	lobby._on_lookup_view()
 	await until(func() -> bool: return lobby._lookup_grid.visible)
@@ -178,6 +208,7 @@ func run() -> void:
 	ms.slot_names = ["", "Cleopatra", ""]
 	ms.slot_diffs = [3, 4, 3]
 	ms.slot_behs = [2, 3, 2]
+	ms.lock_teams = true
 	var net := {"slots": [{"client": 0, "name": "alice"}, {"client": -1, "name": ""}, {"client": 1, "name": "bob"}],
 		"observers": [{"client": 2, "name": "carol"}]}
 	var det: Dictionary = LobbySessionScript.room_details(ms, net, 0)
@@ -190,6 +221,12 @@ func run() -> void:
 		and names[1].get("team") == 1 and names[1].get("ai_difficulty") == 4 and names[1].get("ai_behavior") == 3
 		and names[2].get("name") == "bob" and names[3] == {"name": "carol", "team": -1, "observer": true},
 		"the seated players, the AI and the observers (%s)" % str(names))
+	# LobbyGamelistReporter getPlayers: Team only when LockTeams is set.
+	ms.lock_teams = false
+	var unlocked: Array = LobbySessionScript.room_details(ms, net, 0)["player_names"]
+	check(not unlocked[0].has("team") and not unlocked[1].has("team") and unlocked[3].get("team") == -1,
+		"teams not locked: no player team, observers still marked (%s)" % str(unlocked))
+	ms.lock_teams = true
 	ms.slot_types = [0, 2, 0]
 	check(LobbySessionScript.room_details(ms, net, 0)["player_names"].size() == 3, "a closed seat lists nobody")
 	# LobbyGameRegistration.formatClientsForStanza: before Start only the names of
@@ -207,13 +244,34 @@ func run() -> void:
 	ms.map_id = "acropolis_bay"
 	var sk: Dictionary = LobbySessionScript.room_details(ms, {}, 0)
 	check(sk.get("map_type") == "skirmish" and sk.get("map_size") == "Default", "a skirmish map's size is Default")
+	# LobbyGameRegistration.js niceMapName: the map's own name, not its file's.
+	check(sk.get("map_name") == "Acropolis Bay (2)", "a skirmish map is listed by its name: " + str(sk.get("map_name")))
 	ms.slot_types = [0, 1, 0]
 	ms.map_id = "random_continental"
 	check(LobbySessionScript.game_rating(names, {"alice": 1265, "bob": 1135}) == 1200
 		and LobbySessionScript.game_rating(names, {"alice": 1500, "bob": 1500}) == 1400
 		and LobbySessionScript.game_rating([], {}) == 1200, "a game's rating averages its players, 1200 for none")
-	check(lobby.game_columns(true) == ["Name", "Map Name", "Size", "Type", "Players", "Rating"]
-		and lobby.game_columns(false).size() == 5, "the Rating column only with lobby.columns.gamerating")
+	# gamesetup_mp.js: lobby players join as "nick (rating)"; Game.js reads the rating in the name.
+	check(LobbySessionScript.split_nick("alice (1500)") == {"nick": "alice", "rating": 1500}
+		and LobbySessionScript.split_nick("bob") == {"nick": "bob", "rating": ""}
+		and LobbySessionScript.split_nick("a b (1500)") == {"nick": "a b (1500)", "rating": ""}, "splitRatingFromNick")
+	check(LobbySessionScript.game_rating([{"name": "alice (1500)"}, {"name": "bob"}], {"alice": 1000, "bob": 1300}) == 1400,
+		"a player's game rating is the one they joined with")
+	var rated_text: String = LobbySessionScript.game_details({"name": "g", "player_names": [{"name": "alice (1500)", "civ": "athen", "team": -1}]}, {})
+	check(rated_text.contains("alice (1500) (Athenians)") and not rated_text.contains("(1500) (1500)"), "and the details show it once: " + rated_text.replace("\n", " | "))
+	var ls_name: String = ls.player_name
+	var ls_rating = ls.rating
+	ls.player_name = "alice"
+	ls.rating = 1265
+	check(ls.rated_player_name() == "alice (1265)" and ls.rated_player_name({"player_names": [{"name": "alice (1300)"}]}) == "alice (1300)",
+		"hosting as alice (1265); a rejoin keeps the rating alice joined with (getRejoinRating)")
+	ls.rating = null
+	check(ls.rated_player_name() == "alice", "unrated: the plain nick")
+	ls.player_name = ls_name
+	ls.rating = ls_rating
+	check(lobby.game_columns(true) == ["Password", "Name", "Map Name", "Size", "Players", "Rating"]
+		and lobby.game_columns(false) == ["Password", "Name", "Map Name", "Size", "Type", "Players"],
+		"the Rating column only with lobby.columns.gamerating, and Type then hidden (GameList.js hidden_mapType)")
 	check(lobby.rating_passes(">1300", 1300) and not lobby.rating_passes(">1300", 1299)
 		and lobby.rating_passes("<1200", 1199) and not lobby.rating_passes("<1200", 1200)
 		and lobby.rating_passes("", 0), "the Rating filter as GameListFilters/Rating.js")
@@ -230,10 +288,10 @@ func run() -> void:
 	var game_item: TreeItem = lobby._games.get_root().get_child(0) if lobby._games.get_root() and lobby._games.get_root().get_child_count() else null
 	check(game_item != null, "the game is listed")
 	if game_item:
-		check(game_item.get_text(1) == "Continental" and game_item.get_text(2) == "Medium" and game_item.get_text(3) == "Random"
-			and game_item.get_text(4) == "2/8 +1" and game_item.get_custom_color(0) == Color8(219, 0, 0),
+		check(game_item.get_text(2) == "Continental" and game_item.get_text(3) == "Medium" and game_item.get_text(4) == "Random"
+			and game_item.get_text(5) == "2/8 +1" and game_item.get_custom_color(1) == Color8(219, 0, 0),
 			"its row: map, size, type, \"2/8 +1\" with carol watching, red while running: %s | %s | %s | %s" % [
-			game_item.get_text(1), game_item.get_text(2), game_item.get_text(3), game_item.get_text(4)])
+			game_item.get_text(2), game_item.get_text(3), game_item.get_text(4), game_item.get_text(5)])
 	if game_item:
 		game_item.select(0)
 	await frames(2)

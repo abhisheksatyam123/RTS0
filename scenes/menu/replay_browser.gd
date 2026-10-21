@@ -22,6 +22,7 @@ const SummaryPage = preload("res://scenes/session/summary_screen.gd")
 const MSGBOX := preload("res://scenes/common/msgbox.gd")
 const L10n := preload("res://scenes/menu/l10n.gd")
 const Mods := preload("res://scenes/menu/mods.gd")
+const LobbySession := preload("res://scenes/menu/lobby_session.gd")
 const GOLD := Color(0.9, 0.75, 0.31)
 ## compatibilityColor: incompatible replays are greyed out.
 const INCOMPATIBLE := Color8(96, 96, 96)
@@ -451,13 +452,19 @@ static func player_info(r: Dictionary, spoiler: bool) -> String:
 static func _player_description(p: Dictionary, spoiler: bool) -> String:
 	var c: Variant = p.get("color", null)
 	var color := Color(float(c["r"]), float(c["g"]), float(c["b"])) if c is Dictionary else Color.WHITE
-	var parts := [str(p.get("civ_name", "Unknown Civilization"))]
-	if p.get("ai", false):
-		parts.append(SummaryPage.ai_description(p))
 	var state := str(p.get("state", "won" if p.get("winner", false) else ("defeated" if p.get("defeated", false) else "active")))
-	if spoiler and state != "active" and state != "":
-		parts.append("defeated" if state == "defeated" else "won")
-	return "[color=#%s]%s[/color] (%s)" % [color.to_html(false), str(p.get("name", "?")).replace("[", "[lb]"), ", ".join(parts)]
+	var shown_state := spoiler and state != "active" and state != ""
+	# formatPlayerInfo: one msgid per combination, so a language can reorder them.
+	var fmt := "%(playerName)s (%(civ)s, %(AIdescription)s" if p.get("ai", false) else "%(playerName)s (%(civ)s"
+	fmt += ", %(state)s)" if shown_state else ")"
+	# g_BuddySymbol: "• " before a lobby buddy's name (its rating split off).
+	var name := str(p.get("name", "?"))
+	var buddy := "• " if LobbySession.buddies().has(str(LobbySession.split_nick(name)["nick"])) else ""
+	return L10n.sprintf(L10n.t(fmt), {
+		"playerName": "[color=#%s]%s%s[/color]" % [color.to_html(false), buddy, name.replace("[", "[lb]")],
+		"civ": L10n.t(str(p.get("civ_name", "Unknown Civilization"))),
+		"AIdescription": SummaryPage.ai_description(p) if p.get("ai", false) else "",
+		"state": L10n.t("defeated" if state == "defeated" else "won")})
 
 ## displayReplayDetails.
 func display_replay_details() -> void:
@@ -472,8 +479,9 @@ func display_replay_details() -> void:
 	if not picked:
 		return
 	_info_labels["name"].text = r["map"]
-	_info_labels["preview"].texture = SetupPage.map_preview(r["map_id"]) if r["map_id"] != "" else null
-	_info_labels["preview"].visible = _info_labels["preview"].texture != null
+	# MapCache.getMapPreview: the map's preview, else 0 A.D.'s "no preview" picture.
+	var preview: Texture2D = SetupPage.map_preview(r["map_id"]) if r["map_id"] != "" else null
+	_info_labels["preview"].texture = preview if preview != null else preload("res://scenes/menu/campaigns.gd").no_preview()
 	_info_labels["type"].text = r["map_type"]
 	_info_labels["size"].text = map_size_name(r["size"])
 	_info_labels["victory"].text = victory_name(r["victory"])
@@ -718,14 +726,23 @@ func _build() -> void:
 	frame.bg_color = Color(0, 0, 0, 0.35)
 	frame.border_color = GOLD.darkened(0.3)
 	frame.set_border_width_all(1)
-	_info_empty = PanelContainer.new()
+	_info_empty = Panel.new()
 	_info_empty.name = "ReplayInfoEmpty"
 	_info_empty.add_theme_stylebox_override("panel", frame)
-	var logo := TextureRect.new() # replayInfoEmpty: the logo, no text
+	var logo := TextureRect.new() # replayInfoEmpty's logo "50%-110 40 50%+110 140"
+	logo.name = "Logo"
 	logo.texture = load("res://assets/textures/ui/pregame/logo/0ad_logo.png")
 	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_info_empty.add_child(logo)
+	_info_empty.add_child(_anchor(logo, 0.5, 0, 0.5, 0, -110, 40, 110, 140))
+	var subject := Panel.new() # subjectBox "3% 180 97% 99%": ModernDarkBoxWhite, its text left empty
+	subject.name = "SubjectBox"
+	var white := StyleBoxFlat.new()
+	white.bg_color = Color(0, 0, 0, 0.35)
+	white.border_color = Color(1, 1, 1, 0.8)
+	white.set_border_width_all(1)
+	subject.add_theme_stylebox_override("panel", white)
+	_info_empty.add_child(_anchor(subject, 0.03, 0, 0.97, 0.99, 0, 180, 0, 0))
 	right.add_child(_anchor(_info_empty, 0, 0, 1, 1, 0, 160, 0, 0))
 	_info = PanelContainer.new()
 	_info.name = "ReplayInfo"
@@ -780,21 +797,20 @@ func _build() -> void:
 	_spoiler.toggled.connect(func(_on): display_replay_details())
 	box.add_child(_spoiler)
 	# Bottom panel: buttons.
-	var bottom := HBoxContainer.new()
+	var bottom := Control.new() # each button in its own fifth, "0 0 19% 100%" .. "80% 0 99% 100%"
 	bottom.name = "BottomPanel"
-	bottom.add_theme_constant_override("separation", 12)
 	add_child(_anchor(bottom, 0, 1, 1, 1, 25, -60, -25, -22))
 	var buttons := [["Main Menu", _on_back_pressed, ""], ["Delete", delete_pressed, _delete_tooltip()],
 		["Rebuild Cache", load_replays, "Rebuild the replay cache from scratch. Potentially slow!"],
 		["Summary", show_summary, ""], ["Start Replay", start_replay, ""]]
-	for b in buttons:
+	for i in buttons.size():
+		var b: Array = buttons[i]
 		var btn := Button.new()
 		btn.name = str(b[0]).replace(" ", "") + "Button"
 		btn.text = b[0]
 		btn.tooltip_text = b[2]
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.pressed.connect(func(): b[1].call())
-		bottom.add_child(btn)
+		bottom.add_child(_anchor(btn, i * 0.2, 0, i * 0.2 + 0.19, 1))
 	_btn_delete = bottom.get_node("DeleteButton")
 	_btn_summary = bottom.get_node("SummaryButton")
 	_btn_start = bottom.get_node("StartReplayButton")

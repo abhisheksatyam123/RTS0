@@ -67,6 +67,8 @@ class RtsoMiniMapView : public Control {
 	Ref<ImageTexture> territory_tex_;
 	enum MinimapIcon { ICON_CIVIL_CENTRE, ICON_WONDER, ICON_OTHER, ICON_STONE, ICON_METAL, ICON_RELIC, ICON_COUNT };
 	Ref<Texture2D> icon_tex_[ICON_COUNT];
+	static constexpr int kFlareFrames = 16; // MiniMap.xml flare_texture_count
+	Ref<Texture2D> flare_tex_[kFlareFrames];
 	std::vector<uint8_t> territory_tex_cache_;
 	uint64_t territory_colors_ = 0; // display_colors::key the texture was drawn with
 	bool ensure_territory_texture();

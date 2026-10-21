@@ -97,6 +97,8 @@ func _ready() -> void:
 	_make_buses()
 	_make_overlay()
 	get_tree().node_added.connect(_on_node_added)
+	# A phone turning or a window resizing changes the phone UI factor.
+	get_tree().root.size_changed.connect(func(): if is_phone_screen(): _apply_viewport())
 	apply_all()
 	sync_text_hotkeys()
 	# VideoMode.cpp DEFAULT_CURSOR_NAME: 0 A.D.'s own arrow (default-arrow.txt: hotspot 1 1).
@@ -516,13 +518,42 @@ func _apply_fps() -> void:
 	if not is_headless():
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if cfg.get_bool("vsync") else DisplayServer.VSYNC_DISABLED)
 
+## On a phone the 1280x720 UI shrinks to a few millimetres per button, so it is drawn
+## larger: the layout gets 540 UI pixels of height (at most 4/3 larger) while keeping
+## at least 1200 of width for the session's top bar and bottom panels. Tablets and desktops keep
+## 1.0. `-- --phone-ui` turns it on anywhere (tools/shot_layouts.gd).
+const PHONE_UI_HEIGHT := 540.0
+const PHONE_UI_MIN_WIDTH := 1200.0
+const PHONE_MAX_INCHES := 7.5
+
+func is_phone_screen() -> bool:
+	if "--phone-ui" in OS.get_cmdline_user_args():
+		return true
+	if not OS.has_feature("mobile"):
+		return false
+	var dpi := float(DisplayServer.screen_get_dpi())
+	var px := Vector2(DisplayServer.screen_get_size())
+	return dpi > 0.0 and px.length() / dpi < PHONE_MAX_INCHES
+
+func phone_ui_factor() -> float:
+	if not is_phone_screen():
+		return 1.0
+	var win := Vector2(get_tree().root.size)
+	if win.x <= 0.0 or win.y <= 0.0:
+		return 1.0
+	var base := minf(win.x / 1280.0, win.y / 720.0)  # canvas_items stretch, aspect expand
+	var logical := win / base
+	return clampf(minf(logical.y / PHONE_UI_HEIGHT, logical.x / PHONE_UI_MIN_WIDTH), 1.0, 720.0 / PHONE_UI_HEIGHT)
+
 ## renderer.scale with renderer.upscale.technique, antialiasing and
-## gui.scale on the main viewport.
+## gui.scale on the main viewport (times phone_ui_factor()).
 func _apply_viewport() -> void:
 	var vp := get_tree().root
 	vp.scaling_3d_scale = clampf(cfg.get_number("renderer.scale"), 0.25, 2.0)
 	var tech := cfg.get_value("renderer.upscale.technique")
-	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if tech == "fsr" and vp.scaling_3d_scale < 1.0 else Viewport.SCALING_3D_MODE_BILINEAR
+	# FSR 1.0 needs Forward+; under GL Compatibility (no rendering device) it is bilinear.
+	var fsr_ok := RenderingServer.get_rendering_device() != null
+	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if tech == "fsr" and fsr_ok and vp.scaling_3d_scale < 1.0 else Viewport.SCALING_3D_MODE_BILINEAR
 	var aa := cfg.get_value("antialiasing")
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if aa == "fxaa" else Viewport.SCREEN_SPACE_AA_DISABLED
 	match aa:
@@ -530,7 +561,7 @@ func _apply_viewport() -> void:
 		"msaa4": vp.msaa_3d = Viewport.MSAA_4X
 		"msaa8", "msaa16": vp.msaa_3d = Viewport.MSAA_8X
 		_: vp.msaa_3d = Viewport.MSAA_DISABLED
-	vp.content_scale_factor = clampf(cfg.get_number("gui.scale"), 0.75, 2.5)
+	vp.content_scale_factor = clampf(cfg.get_number("gui.scale"), 0.75, 2.5) * phone_ui_factor()
 	# textures.quality as a mipmap bias: each step below High drops a mip level, as
 	# 0.28's texture manager loads smaller textures.
 	# textures.maxanisotropy (1x..16x) as Godot's level 0..4, which the renderer reads
@@ -677,13 +708,22 @@ func _make_overlay() -> void:
 func overlay_height() -> float:
 	return _overlay_label.size.y if _overlay_label != null and _overlay_label.visible else 0.0
 
+## OverlayCounterRealtime: Date.toLocaleTimeString(), "3:45:12 PM" where the locale
+## keeps a 12-hour clock (ICU's h:mm:ss a), "15:45:12" elsewhere.
+const TWELVE_HOUR_REGIONS := ["US", "CA", "AU", "NZ", "IN", "PH", "PK", "BD", "EG", "SA", "MY", "CO", "MX"]
+static func local_time_string(t: Dictionary, locale: String) -> String:
+	var region := locale.get_slice("_", 1).left(2).to_upper()
+	if not (region in TWELVE_HOUR_REGIONS):
+		return "%02d:%02d:%02d" % [t.hour, t.minute, t.second]
+	var h: int = int(t.hour) % 12
+	return "%d:%02d:%02d %s" % [12 if h == 0 else h, t.minute, t.second, "PM" if int(t.hour) >= 12 else "AM"]
+
 func _update_overlay() -> void:
 	var lines: PackedStringArray = []
 	if cfg.get_bool("overlay.fps"):
 		lines.append("FPS: %4d" % int(Engine.get_frames_per_second())) # "FPS: %(fps)4s"
 	if cfg.get_bool("overlay.realtime"):
-		var t := Time.get_time_dict_from_system()
-		lines.append("%02d:%02d:%02d" % [t.hour, t.minute, t.second])
+		lines.append(local_time_string(Time.get_time_dict_from_system(), OS.get_locale()))
 	# OverlayCounterElapsedTime / OverlayCounterRemainingCeasefire, in a match.
 	var scene := get_tree().current_scene
 	if scene != null and scene.has_method("get_overlay_times"):

@@ -6,7 +6,7 @@
 //    connections have come and gone, a new client still gets in.
 //    A host name is resolved once at the join (CNetClientSession::Connect),
 //    and one that does not resolve fails it at once.
-// 2. With NET_MAX_CLIENTS connected, one more is told the server is full
+// 2. With NET_MAX_REMOTE_CLIENTS connected, one more is told the server is full
 //    (disconnect reason NDR_SERVER_FULL) instead of timing out.
 // 3. 0 A.D. NetServer's handshake checks: a client on another engine version
 //    or mods is refused (NDR_INCORRECT_SOFTWARE_VERSION); a name already in
@@ -119,22 +119,22 @@ int main() {
 
 	// 2. Fill the session, then one more.
 	std::vector<std::unique_ptr<NetHost>> live;
-	for (size_t i = 0; i < NET_MAX_CLIENTS; ++i) {
+	for (size_t i = 0; i < NET_MAX_REMOTE_CLIENTS; ++i) {
 		live.push_back(std::make_unique<NetHost>());
 		live.back()->setLocalPlayerName("p" + std::to_string(i));
 		live.back()->startClient("127.0.0.1", port);
 	}
 	const int base = joined;
 	max_id = 0;
-	pump(host, live, 8000, [&] { return joined - base == (int)NET_MAX_CLIENTS; });
-	CHECK(joined - base == (int)NET_MAX_CLIENTS, "NET_MAX_CLIENTS clients connect at once");
-	CHECK(max_id == NET_MAX_CLIENTS && max_id < NET_SETUP_CLIENTS, "with ids 1 to NET_MAX_CLIENTS, all inside the setup's masks");
+	pump(host, live, 8000, [&] { return joined - base == (int)NET_MAX_REMOTE_CLIENTS; });
+	CHECK(joined - base == (int)NET_MAX_REMOTE_CLIENTS, "NET_MAX_REMOTE_CLIENTS clients connect at once");
+	CHECK(max_id == NET_MAX_REMOTE_CLIENTS && max_id < NET_SETUP_CLIENTS, "with ids 1 to NET_MAX_REMOTE_CLIENTS, all inside the setup's masks");
 	live.push_back(std::make_unique<NetHost>());
 	NetHost &extra = *live.back();
 	extra.setLocalPlayerName("late");
 	extra.startClient("127.0.0.1", port);
 	pump(host, live, 3000, [&] { return extra.connectionLost(); });
-	CHECK(extra.connectionLost() && extra.disconnectReason() == NDR_SERVER_FULL && joined - base == (int)NET_MAX_CLIENTS,
+	CHECK(extra.connectionLost() && extra.disconnectReason() == NDR_SERVER_FULL && joined - base == (int)NET_MAX_REMOTE_CLIENTS,
 	      "one more is told the server is full (NDR_SERVER_FULL)");
 
 	// 3. Handshake checks, on a host of their own.
@@ -147,11 +147,13 @@ int main() {
 	for (auto &p : live) p->stop();
 	live.clear();
 	// Each joiner stays connected (and polled) for the next ones.
-	auto join = [&](const std::string &name, const std::string &version) {
+	auto join = [&](const std::string &name, const std::string &version,
+			std::vector<std::pair<std::string, std::string>> mods = {}) {
 		live.push_back(std::make_unique<NetHost>());
 		NetHost &cl = *live.back();
 		cl.setLocalPlayerName(name);
 		if (!version.empty()) cl.setSoftwareVersion(version);
+		cl.setEnabledMods(std::move(mods));
 		cl.startClient("127.0.0.1", game_port);
 		pump(game, live, 12000, [&] { return cl.connectionLost() || cl.authResult() >= 0; });
 		return cl.authResult() == ARC_OK ? -1 : cl.disconnectReason();
@@ -161,6 +163,8 @@ int main() {
 	      "another engine version is refused (NDR_INCORRECT_SOFTWARE_VERSION)");
 	CHECK(live.back()->hostSoftwareVersion() == game.softwareVersion() && live.back()->softwareVersion() == "RTS0-other",
 	      "the refused client knows the host's version, for the mismatch detail");
+	CHECK(join("dave", "", {{"public", "0.28.0"}, {"mymod", "1.0"}}) == NDR_INCORRECT_SOFTWARE_VERSION &&
+	      admitted.size() == 1, "other enabled mods are refused (NDR_INCORRECT_SOFTWARE_VERSION)");
 	CHECK(join("bob", "") == NDR_PLAYERNAME_IN_USE && admitted.size() == 1,
 	      "a second bob is refused (NDR_PLAYERNAME_IN_USE)");
 	CHECK(join("alice", "") == NDR_PLAYERNAME_IN_USE && admitted.size() == 1, "so is the host's own name");
@@ -168,6 +172,11 @@ int main() {
 	CHECK(join("bob", "") == -1 && join("bob", "") == -1 &&
 	      admitted == (std::vector<std::string>{"bob", "bob (2)", "bob (3)"}),
 	      "with network.duplicateplayernames they come in as bob (2) and bob (3)");
+	game.setServerLoading(true);
+	CHECK(join("erin", "") == NDR_SERVER_LOADING && admitted.size() == 3,
+	      "a join while the started game loads is refused (NDR_SERVER_LOADING)");
+	game.setServerLoading(false);
+	CHECK(join("erin", "") == -1 && admitted.size() == 4, "once it has loaded, erin joins");
 	for (auto &p : live) p->stop();
 	live.clear();
 
@@ -296,6 +305,8 @@ int main() {
 	CHECK(has("P", to_p + " from O") && !has("A", to_p + " from O"), "an observer can message another observer privately");
 	CHECK(chat_wire_tag("[Observer-12] x") == "[Observer-12]" && chat_wire_tag("[Observer-] x").empty() &&
 	      chat_wire_tag("[Observer-99999999999] x").empty(), "the observer tag is parsed strictly");
+	CHECK(chat_wire_tag("[All] [Player-3] hi").empty() && chat_wire_tag("[All] [Flare] 1,2").empty(),
+	      "a typed tag behind [All] travels to everyone, as text");
 	CHECK(has("host", "hello all") && has("A", "hello all") && has("O", "hello all"), "an untagged line reaches everyone");
 	{
 		// A player whose game is over is an observer for chat (0.28 isPlayerObserver):

@@ -101,10 +101,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	AudioStreamPlayer *sfx_player = nullptr;
 	AudioStreamPlayer *click_player_ = nullptr; // ui_button_click.ogg
 	int ui_clicks_ = 0; // tests: clicks played
+	uint64_t ui_click_frame_ = UINT64_MAX; // the frame the last click played
 	void hook_ui_click_sounds(Node *n);
 	AudioStreamPlayer *ambient_player = nullptr;
-	AudioStreamPlayer *ambient_wind_player = nullptr;
-	AudioStreamPlayer *ambient_water_player = nullptr;
 	AudioStreamPlayer3D *spatial_sfx_player = nullptr;
 
 	// 1. Top HUD Bar
@@ -298,7 +297,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool net_game_started_ = false;
 	bool net_status_shown_ = false; // a network warning is on lobby_status
 	float game_speed = 1.0f;
-	double match_elapsed_time = 0.0;
+	// The match clock is the simulation's (OverlayCounterElapsedTime: g_SimState.timeElapsed),
+	// so it stops while paused or waiting for turns and follows loads, rewinds and rejoins.
+	double match_elapsed_time() const { return sim ? (double)sim->stats().ticks * rtso::Simulation::FIXED_STEP : 0.0; }
 
 	Vector2 drag_start;
 	PackedInt32Array selected_ids;
@@ -459,6 +460,9 @@ public:
 	void _on_lobby_seat_selected(int index, int client);
 	void apply_net_game_start();
 	void show_net_loading_page(const std::string &map_id);
+	// The loading page stays while a client loads the host's saved game (its
+	// world comes over the network after NMT_SAVED_GAME_START).
+	bool net_loading_hold() const { return net_saved_loading_ && !net_game_started_ && !net_disconnected_; }
 	void apply_match_settings();
 	void sync_victory_selector();
 	void apply_game_setup(const rtso::GameSetupParams &setup);
@@ -513,6 +517,16 @@ public:
 	// This client only watches: an observer, or a player who was defeated
 	// (0 A.D. g_IsObserver). Not in a replay, which has its own picker.
 	bool spectating() const;
+	// 0 A.D. controlsPlayer(g_ViewedPlayer), the gate on every order (input.js
+	// doAction, MiniMap.js): not in a replay, not an observer or defeated, and
+	// viewing our own side. A winner who stayed still plays (only "defeated"
+	// loses control), while the diplomacy rows stay closed to them (isPlayerObserver).
+	bool orders_allowed() const;
+	// An observer or replay viewer on the whole-map view (g_ViewedPlayer -1): every player's
+	// units are selectable (selection.js treats only Gaia's as unowned).
+	bool observer_all_view() const {
+		return (spectating() || turn_mgr_.is_replaying()) && view_player() == rtso::OBSERVER_VIEW;
+	}
 	// Whose sight the world, minimap and fog show: the local player, or the
 	// perspective a replay viewer or an observer picked (a player, or
 	// rtso::OBSERVER_VIEW, the whole map).
@@ -578,6 +592,8 @@ public:
 	std::vector<uint32_t> ui_selected_garrison_holders() const override { return selected_garrison_holders(); }
 	bool ui_garrison_panel_shown() const override;
 	bool ui_observing() const override { return turn_mgr_.is_replaying() || spectating(); }
+	bool ui_commands_player(uint8_t pid) const override { return pid == seat_player() && orders_allowed(); }
+	uint32_t ui_inspected_foreign(bool *building) const override;
 	bool ui_trains_units(uint32_t id) const override { return building_trains_units(id); }
 	// Tests: the training roster's rows (name, disabled).
 	Array debug_roster() {
@@ -625,7 +641,11 @@ public:
 	void _on_chat_send_pressed();
 	void _on_chat_filter_selected(int index); // ChatHistory.onSelectionChange
 	void _on_chat_history_toggled(bool on); // ChatWindow.onToggleExtended: saved to chat.session.extended
-	bool chat_sender_is_player(const String &sender_guid) override { return chat_player_of(sender_guid) < rtso::MAX_PLAYERS; }
+	// ChatMessageFilters "Players chat": isPlayerObserver is false, so not a seat whose game is over.
+	bool chat_sender_is_player(const String &sender_guid) override {
+		const uint8_t p = chat_player_of(sender_guid);
+		return p < rtso::MAX_PLAYERS && !player_finished(p);
+	}
 	void _on_chat_text_submitted(const String &text);
 	void _on_chat_input_gui(const Ref<InputEvent> &event);
 	std::vector<String> chat_autocomplete_names() override;
@@ -658,6 +678,7 @@ public:
 	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip, const char **cursor = nullptr);
 	Dictionary debug_trade_route_clicks();
 	Dictionary debug_trade_tip(int64_t market);
+	Dictionary debug_trade_click(int64_t market, bool queued);
 	Dictionary debug_tutorial_panel() const { return tutorial_panel_.debug_state(); }
 	Dictionary debug_guard_step(int step);
 	PackedStringArray debug_train_buttons(int btype);
@@ -683,6 +704,7 @@ public:
 	int debug_status_sprites() const { return view ? view->status_sprite_count() : 0; }
 	PackedStringArray debug_status_rank_icons() const { return view ? view->status_rank_icons() : PackedStringArray(); }
 	int debug_status_xp_bars() const { return view ? view->status_xp_bars() : 0; }
+	PackedStringArray debug_status_aura_sources() const { return view ? view->status_aura_sources() : PackedStringArray(); }
 	PackedInt32Array debug_selected_structures() const {
 		PackedInt32Array out;
 		for (uint32_t id : selected_structures()) out.push_back((int32_t)id);
@@ -700,12 +722,37 @@ public:
 		return d;
 	}
 	// Tests: where a unit stands on screen (viewport pixels), or (-1, -1).
+	// Tests: a unit's ground position (x, z), or where it is walking to with `goal`;
+	// (0, 0) when it is gone.
+	Vector2 debug_unit_ground(int64_t uid, bool goal) const {
+		if (!sim) return Vector2();
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == (uint32_t)uid && uv.alive[i])
+				return goal ? Vector2(uv.target_x[i], uv.target_z[i]) : Vector2(uv.pos_x[i], uv.pos_z[i]);
+		return Vector2();
+	}
 	Vector2 debug_unit_screen(int64_t uid) const {
 		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
 		auto uv = sim->units();
 		for (size_t i = 0; i < uv.count; ++i)
 			if (uv.id[i] == (uint32_t)uid && uv.alive[i])
 				return cam_rig->get_camera()->unproject_position(Vector3(uv.pos_x[i], sim->get_terrain_height(uv.pos_x[i], uv.pos_z[i]), uv.pos_z[i]));
+		return Vector2(-1, -1);
+	}
+	Vector2 debug_unit_pos(int64_t uid) const { // tests: any player's unit, world x/z
+		if (!sim) return Vector2();
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == (uint32_t)uid) return Vector2(uv.pos_x[i], uv.pos_z[i]);
+		return Vector2();
+	}
+	Vector2 debug_resource_screen(int64_t rid) const {
+		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
+		auto rv = sim->resources();
+		for (size_t r = 0; r < rv.count; ++r)
+			if (rv.id[r] == (uint32_t)rid && rv.alive[r])
+				return cam_rig->get_camera()->unproject_position(Vector3(rv.x[r], sim->get_terrain_height(rv.x[r], rv.z[r]), rv.z[r]));
 		return Vector2(-1, -1);
 	}
 	// Tests: where a structure's centre is on screen, or (-1, -1).
@@ -720,14 +767,19 @@ public:
 		const Vector3 g = get_ground_click_pos(screen);
 		return Vector2(g.x, g.z);
 	}
-	Dictionary debug_inspector(const String &what); // tests: the selection details of a unit, units, a structure, a resource or an animal
+	Dictionary debug_inspector(const String &what);
+	// Tests: another player's unit or structure `id` shown as a click on it would (the inspector).
+	void debug_inspect_entity(int64_t id); // tests: the selection details of a unit, units, a structure, a resource or an animal
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();
 	Array debug_command_row();
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
-	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1);
+	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1, int near = -1);
+	void debug_complete_research(int player, int tech); // tests: the technology finishes for the player
+	void debug_set_capture_points(int64_t building_id, int player, float points); // tests: taken from the owner
+	PackedFloat32Array debug_capture_points(int64_t building_id) const; // tests: each player's points
 	Vector2 debug_spawn_offset(const String &template_id, int count, int player = -1) const;
-	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned);
+	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned, float dx = 16.0f, float dz = 16.0f);
 	int64_t debug_spawn_mine(float x, float z, int max_gatherers);
 	String debug_unit_model_path(int civ, int unit_type);
 	String debug_template_model_path(const String &template_id);
@@ -741,6 +793,7 @@ public:
 	int64_t debug_civic_centre_id(int player) const;
 	int64_t debug_spawn_building(int type, float dx, float dz, int player = -1);
 	Dictionary debug_research_any();
+	Array debug_building_looks() const; // [id, type, model, x, z] of each map structure drawn by its own template
 	Dictionary debug_structure_types(bool with_civ = false);
 	void debug_delete_units(const PackedInt32Array &ids);
 	void debug_add_xp(const PackedInt32Array &ids, float xp); // tests: Promotion IncreaseXp
@@ -748,7 +801,8 @@ public:
 	void debug_set_observer_view(int player) { set_observer_view(player); } // tests: an observer follows a player (-1: none)
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr, bool any_player = false) const;
-	size_t own_unit_under_mouse(Vector2 mouse_pos, bool any_player = false) const;
+	size_t own_unit_under_mouse(Vector2 mouse_pos, bool any_player = false, float radius = 2.0f) const;
+	uint32_t entity_under_mouse(Vector2 mouse, bool with_props = true) const; // Engine.PickEntityAtPoint
 	std::vector<int32_t> band_box_ids(Vector2 a, Vector2 b) const;
 	// input.js INPUT_UNIT_POSITION: a right press with units selected, and the ground line
 	// drawn while the button is held.
@@ -762,6 +816,7 @@ public:
 	PackedInt32Array last_line_entities_;
 	void finish_right_line(const Ref<InputEventMouseButton> &release);
 	// input.js INPUT_PRESELECTEDACTION: a command button armed an action for the next left click.
+	bool debug_armed() const { return any_armed_mode(); } // tests: an armed action (input.js preSelectedAction)
 	bool any_armed_mode() const {
 		return attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || turret_mode || repair_mode;
 	}
@@ -788,6 +843,7 @@ public:
 	// The hover pick (PickEntityAtPoint) is redone when the mouse or camera moves, or
 	// every kHoverRepickMs while they stand still (units walk under the cursor).
 	PackedInt32Array hover_pick_;
+	uint32_t hover_target_ = 0; // the same pick with treasures and scenery: what a right click acts on
 	Vector2 hover_mouse_ = Vector2(-1e9f, -1e9f);
 	Transform3D hover_cam_;
 	uint64_t hover_at_ms_ = 0;
@@ -807,7 +863,8 @@ public:
 	bool can_afford_template(uint16_t tmpl, int count) const;
 	uint32_t press_pick_unit_ = 0; // the own unit under the left press (input.js clickedEntity)
 	Dictionary debug_unset_rally_step(int step);
-	uint32_t trade_origin_market_ = 0;
+	// Tests: `building_id`'s owner sets its rally point at (x, z) (no lockstep).
+	void debug_set_rally(int64_t building_id, float x, float z);
 	Label *cursor_tip_ = nullptr;
 	// 0.28 placementTooltip (input.js updateBuildingPlacementPreview): why the structure or
 	// wall can't go where the cursor is, or a wall's cost; wall_fail_tip_ ("Cannot build wall
@@ -856,7 +913,6 @@ public:
 		d["names"] = names;
 		return d;
 	}
-	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 	void _on_diplo_spy_pressed(int player_idx);
@@ -929,6 +985,7 @@ private:
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);
 	// Commands.js "construct-wall" from wall_drag_start_pos to `end` (input.js tryPlaceWall): false when no piece can go down.
 	bool try_place_wall(const Vector3 &end, bool queued);
+	uint32_t first_selected_builder() const;
 	void update_ghost_mesh();
 	// The placement rotation for a building at (x, z): docks face the sea (GetDockAngle).
 	float placement_angle_at(uint8_t btype, float x, float z) const;
@@ -970,12 +1027,18 @@ private:
 		if (!cam_rig) return d;
 		d["target"] = Vector2(cam_rig->get_target_pos().x, cam_rig->get_target_pos().z);
 		d["follow"] = (int64_t)cam_rig->follow_id();
+		d["zoom"] = cam_rig->get_zoom();
 		return d;
 	}
 	void play_voice(const char *path);
 	// Tells the loading page how far setup got (signal load_progress).
 	void load_progress(int percent, const char *description) { emit_signal("load_progress", percent, String(description)); }
-	void play_civ_voice(const char *action);
+	void play_civ_voice(const char *action, uint32_t unit_id = 0);
+	// selection.js addList: the select sound of the first entity this change added (none, none).
+	void play_select_added(const PackedInt32Array &before_units, const std::vector<uint32_t> &before_structs);
+	// The unit a left click selects (input.js PickEntityAtPoint): the visible unit nearest the
+	// cursor within 2 units, if it is selectable; SIZE_MAX otherwise.
+	size_t click_pick_unit(Vector2 mouse_pos, bool any_player) const;
 	void update_music_state();
 	// The session music's tick, driven by the MenuAudio autoload (methods bound for
 	// GDScript live in session_bindings.cpp) so tracks fade and advance while paused.
@@ -1007,7 +1070,8 @@ private:
 	String watched_replay_dir_;    // the replay being watched (0 A.D. Engine.GetCurrentReplayDirectory)
 	Dictionary replay_meta_;       // its metadata.json, minus what is filled at write time
 	uint32_t replay_written_turn_ = 0;
-	Label *replay_label_ = nullptr;
+	CanvasLayer *replay_layer_ = nullptr; // holds the replay's player view row
+	uint32_t replay_defeated_mask_ = 0; // players seen defeated, for onPlayersFinished
 	OptionButton *replay_view_picker_ = nullptr;
 	Label *replay_observer_label_ = nullptr; // PlayerViewControl's "Observer Mode"
 	bool replay_view_gaia_ = false;          // Gaia picked (its view is the observer's)
@@ -1018,6 +1082,10 @@ private:
 	// An observer's perspective (0 A.D. session "viewPlayer" dropdown): the whole
 	// map, or one player's sight and panels. Presentation only.
 	uint8_t observer_view_ = rtso::OBSERVER_VIEW;
+	// PlayerViewControl.onPlayersFinished: the players already defeated or victorious last
+	// frame (-1 before the first), so a loss of the viewed player switches to Observer once.
+	int finished_seen_ = -1;
+	void follow_viewed_player_finish();
 	// The developer overlay's Change perspective: the player view dropdown shows for a
 	// player too, and picking in it takes that player over (PlayerViewControl.setChangePerspective).
 	bool change_perspective_ = false;
@@ -1098,6 +1166,7 @@ private:
 	bool observer_view_gaia_ = false; // Gaia picked (its view is the observer's)
 	void sync_observer_view_picker();
 	OptionButton *new_player_view_picker() const;
+	void refresh_player_view_colors(OptionButton *picker) const;
 	void update_observer_view_picker();
 	void set_observer_view(int player);
 	void _on_observer_view_selected(int index);
@@ -1112,6 +1181,9 @@ private:
 	RichTextLabel *pause_by_label_ = nullptr;
 	void update_pause_overlay();
 	bool close_open_dialogs(); // session.js closeOpenDialogs; true when one was open
+	// Nothing for Escape to close or cancel: no session dialog or menu, no placement, no
+	// armed action and an empty selection. A phone's Back button then opens the menu.
+	bool nothing_to_cancel();
 	void _on_civ_icon_gui_input(const Ref<InputEvent> &event); // CivIcon.onPress
 	void _on_flare_button_pressed(); // MiniMapFlareButton.onPress
 	bool selected_building_trains_units() const; // its Trainer has entities (session.autorallypoint)
@@ -1121,6 +1193,7 @@ private:
 	Dictionary debug_minimap_panel() const;
 	// An Attacked message on `target` (a unit) from `attacker_owner`, through the session's AttackDetection.
 	void debug_attacked(int64_t target, int64_t attacker_owner);
+	void debug_defeat_player(int64_t pid); // tests: a player loses (single player only)
 	void _on_pause_overlay_pressed();
 	// 0 A.D. NetworkStatusOverlay: "Waiting for players to connect:" with the
 	// players still loading, "Synchronizing gameplay with other players…" while
@@ -1134,6 +1207,8 @@ private:
 	Label *net_status_label_ = nullptr;
 	RichTextLabel *net_loading_clients_ = nullptr; // loadingClientsText
 	bool net_disconnected_ = false; // session.js g_Disconnected
+	bool net_saved_loading_ = false; // client: loading the host's saved game, or a rejoin's world, under the loading page
+	int net_rejoin_load_frames_ = 0; // frames the rejoin loading page draws before the world loads
 	void update_net_status_overlay();
 	void _on_disconnected_exit_pressed();
 	// 0 A.D. gameStateNotifications (overlay.netwarnings): network.js's

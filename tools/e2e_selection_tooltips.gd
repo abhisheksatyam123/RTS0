@@ -41,10 +41,14 @@ func run() -> void:
 	print("    ", tips)
 	check(tips.size() == 2, "two groups")
 	if tips.size() == 2:
-		var lines: PackedStringArray = tips[0].split("\n")
+		# selection.js getKeys: groups in sorted "p<player>&<template>" order, so
+		# units/athen/infantry_archer_b comes before units/athen/infantry_spearman_b.
+		var archer_tip: String = tips[0]
+		var spear_tip: String = tips[1]
+		var lines: PackedStringArray = spear_tip.split("\n")
 		check(lines.size() >= 2 and lines[1] == "Food 5  Wood 17", "spearmen carry Food 5  Wood 17")
-		check(not tips[0].contains("Health"), "no health line")
-		check(not tips[1].contains("Food") and not tips[1].contains("Wood"), "archer carries nothing")
-		check(tips[1].ends_with("Click to select only these, Ctrl+click or right-click to deselect them."), "click help last")
+		check(not spear_tip.contains("Health"), "no health line")
+		check(not archer_tip.contains("Food") and not archer_tip.contains("Wood"), "archer carries nothing")
+		check(archer_tip.ends_with("Click to select only these, Ctrl+click or right-click to deselect them."), "click help last")
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures else 0)

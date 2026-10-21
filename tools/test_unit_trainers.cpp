@@ -96,7 +96,7 @@ int main() {
 		const float single = civ_template_unit_info(archer, civ_unit_template(archer).unit_type).train_time;
 		CHECK(o.count == 3 && o.duration < 3.0f * single && o.duration > 2.0f * single); // 3^0.7 = 2.16
 		const int pop0 = s.pop_current(0);
-		run(s, Simulation::FIXED_STEP);
+		run(s, 1.0f + Simulation::FIXED_STEP); // the queue's first second starts it (ProgressTimeout)
 		CHECK(s.pop_current(0) == pop0 + 3); // the started batch holds its population
 		run(s, o.duration + 1.0f);
 		CHECK(count_tmpl(s, archer) == 3);
@@ -217,6 +217,39 @@ int main() {
 		s.cmd_unload(0, cc, &hero, 1);
 		run(s, 60.0f);
 		CHECK(count_tmpl(s, immortal) == 1);
+	}
+
+	// 5. A trainer unit's queue works in whole seconds, as a structure's does, and autoqueues
+	//    (ProductionQueue.js EnableAutoQueue on any entity with a ProductionQueue).
+	{
+		fresh(s, CIV_ATHENIANS);
+		s.player(0).phase = 3;
+		s.player(0).techs.set(TECH_IPHICRATEAN_REFORMS);
+		const uint32_t ship = s.spawn_unit(10.0f, 10.0f, 0, UNIT_TRIREME, 0.0f, athen_arrow);
+		CHECK(Simulation::unit_trains_units(athen_arrow) && !Simulation::unit_trains_units(marine));
+		CHECK(!s.cmd_set_autoqueue(1, ship, true)); // not the owner
+		CHECK(s.cmd_set_autoqueue(0, ship, true) && s.unit_autoqueue(ship));
+		CHECK(s.cmd_train_from_unit(0, ship, archer, 2));
+		const float t = s.unit_queue(ship)->front().duration;
+		int ticks = 0;
+		while (count_tmpl(s, archer) < 2 && ticks < 4000) { s.tick(Simulation::FIXED_STEP); ++ticks; }
+		CHECK(ticks == (int)std::lround(std::ceil(t) / Simulation::FIXED_STEP));
+		CHECK(s.unit_queue(ship) && s.unit_queue(ship)->size() == 1 && s.unit_queue(ship)->front().count == 2); // queued again
+		run(s, 2.0f * std::ceil(t) + 1.0f);
+		std::printf("autoqueued trireme: %d archers, batch of 2 in %.2f s (%.0f s whole)\n", count_tmpl(s, archer), t, std::ceil(t));
+		CHECK(count_tmpl(s, archer) >= 6);
+		CHECK(s.cmd_set_autoqueue(0, ship, false) && !s.unit_autoqueue(ship));
+		run(s, std::ceil(t) + 1.0f);
+		const int n = count_tmpl(s, archer);
+		run(s, 2.0f * std::ceil(t));
+		CHECK(count_tmpl(s, archer) == n && !s.unit_queue(ship));
+		// Saved and loaded with the queue's clock and the autoqueue flag.
+		CHECK(s.cmd_set_autoqueue(0, ship, true));
+		CHECK(s.cmd_train_from_unit(0, ship, archer, 1));
+		run(s, 0.4f);
+		static Simulation l;
+		CHECK(s.save_state("/tmp/test_unit_trainers_aq.sav") && l.load_state("/tmp/test_unit_trainers_aq.sav"));
+		CHECK(l.unit_autoqueue(ship) && l.unit_queues().at(ship).clock == s.unit_queues().at(ship).clock);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

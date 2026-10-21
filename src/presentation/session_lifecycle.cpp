@@ -107,10 +107,14 @@ void RtsoMain::_ready() {
 		return tag.empty() || chat_reaches(chat_player_of_client(from), chat_player_of_client(to), tag, to);
 	});
 	net_host_.onChat([this](const rtso::ChatMsg &cm) {
+		// gamesetup_mp.js onNetMessage: a rejoiner drops chat while the world
+		// downloads (g_IsRejoining), so no line or name chime from it.
+		if (!net_host_.isHost() && !net_game_started_ && turn_mgr_.rejoin_syncing()) return;
 		String msg = String::utf8(cm.message.c_str());
 		// Tactical flare piggybacks NMT_CHAT (approximation of 0 A.D. minimap
 		// flare): "[Flare] x,z" -> local map ping, not chat text.
-		if (msg.begins_with("[Flare]")) {
+		// The game setup's chat goes as typed, so "[Flare]" there is text.
+		if (msg.begins_with("[Flare]") && !chat_setup_verbatim()) {
 			// 0 A.D. sends a flare to the sender's mutual allies and the observers.
 			const String guid = String::utf8(cm.sender_guid.c_str());
 			if (!chat_local_observer() && !chat_is_addressee(guid, "[Allies]")) return;
@@ -120,8 +124,9 @@ void RtsoMain::_ready() {
 			flare_received_ms_.erase(std::remove_if(flare_received_ms_.begin(), flare_received_ms_.end(),
 					[now](uint64_t t) { return now - t >= 6000; }), flare_received_ms_.end());
 			if (flare_received_ms_.size() >= 16) {
+				// messages.js: named by the sender's player name (g_PlayerAssignments).
 				const std::string line = "Received too many flares. Dropping a flare request by '" +
-						std::string(guid.utf8().get_data()) + "'.";
+						std::string(RtsoChatWindow::plain(chat_user(guid)).utf8().get_data()) + "'.";
 				rtso::Logger::warn("Chat", line.c_str());
 				return;
 			}
@@ -593,6 +598,7 @@ void RtsoMain::_ready() {
 	pause_overlay_->set_anchors_preset(Control::PRESET_FULL_RECT);
 	pause_overlay_->set_flat(true);
 	pause_overlay_->set_focus_mode(Control::FOCUS_NONE);
+	pause_overlay_->set_meta("rtso_no_click", true); // style sessionToolTip: no sound_pressed
 	pause_overlay_->set_visible(false);
 	pause_overlay_->connect("pressed", Callable(this, "_on_pause_overlay_pressed"));
 	{
@@ -605,28 +611,30 @@ void RtsoMain::_ready() {
 		bold.instantiate();
 		bold->set_base_font(ThemeDB::get_singleton()->get_fallback_font());
 		bold->set_variation_embolden(0.7f);
-		auto caption = [&](const String &text, float top, int size) {
+		// PauseOverlay.xml: 50%-128 40%+top 50%+128 40%+bottom, centred both ways, no stroke.
+		auto caption = [&](const String &text, float top, float bottom, int size) {
 			Label *l = memnew(Label);
 			l->set_text(text);
-			l->set_anchor(SIDE_LEFT, 0.3f);
-			l->set_anchor(SIDE_RIGHT, 0.7f);
+			l->set_anchor(SIDE_LEFT, 0.5f);
+			l->set_anchor(SIDE_RIGHT, 0.5f);
 			l->set_anchor(SIDE_TOP, 0.4f);
 			l->set_anchor(SIDE_BOTTOM, 0.4f);
+			l->set_offset(SIDE_LEFT, -128.0f);
+			l->set_offset(SIDE_RIGHT, 128.0f);
 			l->set_offset(SIDE_TOP, top);
-			l->set_offset(SIDE_BOTTOM, top + size + 8);
+			l->set_offset(SIDE_BOTTOM, bottom);
 			l->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+			l->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
 			l->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
 			l->add_theme_font_size_override("font_size", size);
 			l->add_theme_font_override("font", bold); // styles.xml: sans-bold-*
-			l->add_theme_color_override("font_outline_color", Color(0, 0, 0));
-			l->add_theme_constant_override("outline_size", 4);
 			l->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 			pause_overlay_->add_child(l);
 			return l;
 		};
 		// PauseOverlay.xml: "Game Paused" sans-bold-24, "Click to Resume Game" sans-bold-12.
-		caption(tr("Game Paused"), -20.0f, 24);
-		pause_resume_label_ = caption(tr("Click to Resume Game"), 20.0f, 12);
+		caption(tr("Game Paused"), -20.0f, 20.0f, 24);
+		pause_resume_label_ = caption(tr("Click to Resume Game"), 20.0f, 40.0f, 12);
 		// "Paused by" names each client in its player's colour, so it is bbcode.
 		pause_by_label_ = memnew(RichTextLabel);
 		pause_by_label_->set_use_bbcode(true);
@@ -670,6 +678,7 @@ void RtsoMain::_ready() {
 	// NetworkStatusOverlay.xml: the status text on sessionOverlayBackground,
 	// over the whole screen, with the disconnectedExitButton below it.
 	net_status_overlay_ = memnew(Control);
+	net_status_overlay_->set_name("NetStatusOverlay");
 	net_status_overlay_->set_anchors_preset(Control::PRESET_FULL_RECT);
 	net_status_overlay_->set_mouse_filter(Control::MOUSE_FILTER_STOP);
 	net_status_overlay_->set_visible(false);
@@ -808,7 +817,10 @@ void RtsoMain::_ready() {
 		if (view) view->play_spatial_sound(s, pos, db, 75.0f, pitch);
 	});
 
-	// gui/session/Ambient.js: one looping dayscape track ("TODO: Let the map decide the tracks").
+	// gui/session/Ambient.js: one looping dayscape track ("TODO: Let the map decide the tracks"),
+	// played by PlayAmbientSound at a constant sound.ambientgain. 0.28 plays it at 0.6 beside
+	// actions at 0.7; RTS0's buses are relative to their defaults, so it sits that ratio
+	// (about -1.3 dB) lower, as the music does (music_manager.h kGainDb).
 	{
 		Ref<AudioStream> amb_stream = rtso::load_audio("res://assets/audio/ambient/dayscape/day_temperate_gen_03.ogg");
 		if (amb_stream.is_null()) amb_stream = rtso::load_audio("res://assets/sounds/ambient/nature_ambient.ogg");
@@ -817,36 +829,10 @@ void RtsoMain::_ready() {
 			ambient_player = memnew(AudioStreamPlayer);
 			ambient_player->set_stream(amb_stream);
 			ambient_player->set_autoplay(true);
-			ambient_player->set_volume_db(-12.0f);
+			ambient_player->set_volume_db(-1.3f); // 20 log10(0.6 / 0.7)
 			ambient_player->set_bus("Ambient");
 			add_child(ambient_player);
 			ambient_player->play();
-		}
-	}
-
-	if (ResourceLoader::get_singleton()->exists("res://assets/sounds/ambient/wind_ambient.ogg")) {
-		Ref<AudioStream> wind_stream = ResourceLoader::get_singleton()->load("res://assets/sounds/ambient/wind_ambient.ogg");
-		if (wind_stream.is_valid()) {
-			ambient_wind_player = memnew(AudioStreamPlayer);
-			ambient_wind_player->set_stream(wind_stream);
-			ambient_wind_player->set_autoplay(true);
-			ambient_wind_player->set_volume_db(-25.0f);
-			ambient_wind_player->set_bus("Ambient");
-			add_child(ambient_wind_player);
-			ambient_wind_player->play();
-		}
-	}
-
-	if (ResourceLoader::get_singleton()->exists("res://assets/sounds/ambient/water_coast.ogg")) {
-		Ref<AudioStream> water_stream = ResourceLoader::get_singleton()->load("res://assets/sounds/ambient/water_coast.ogg");
-		if (water_stream.is_valid()) {
-			ambient_water_player = memnew(AudioStreamPlayer);
-			ambient_water_player->set_stream(water_stream);
-			ambient_water_player->set_autoplay(true);
-			ambient_water_player->set_volume_db(-80.0f);
-			ambient_water_player->set_bus("Ambient");
-			add_child(ambient_water_player);
-			ambient_water_player->play();
 		}
 	}
 
@@ -905,6 +891,7 @@ void RtsoMain::_ready() {
 void RtsoMain::_process(double delta) {
 	refresh_user_options();
 	if (net_host_.getRole() != rtso::NetRole::None) {
+		if (net_host_.isHost()) net_host_.setServerLoading(turn_mgr_.host_loading());
 		net_host_.poll(net_arena_);
 		net_arena_.reset();
 		// Consume NMT_GAME_START seed-sync queued by TurnManager::onMessage.
@@ -928,8 +915,23 @@ void RtsoMain::_process(double delta) {
 					: nullptr;
 			if (text && lobby_status->get_text() != text) lobby_status->set_text(text);
 		}
-		if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
+		// NetClient OnJoinSyncEnd's fake game start: once the world has come,
+		// the "rejoining" box gives way to the loading page for the game's map,
+		// drawn for a frame before the world loads under it.
+		if (!net_host_.isHost() && !net_game_started_ && !net_saved_loading_ && turn_mgr_.rejoin_world_complete()) {
+			Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
+			const std::string map_id = net_setup_.seq ? net_setup_.setup.map_id
+					: ms ? std::string(String(ms->get("map_id")).utf8().get_data()) : std::string();
+			net_saved_loading_ = true;
+			net_rejoin_load_frames_ = 3;
+			show_net_loading_page(map_id);
+			update_net_connect_overlay();
+		}
+		if (net_rejoin_load_frames_ > 0) --net_rejoin_load_frames_;
+		else if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
 			net_game_started_ = true;
+			net_saved_loading_ = false;
+			chat_window_.clear_history(); // the session's chat starts empty (Chat.js)
 			// VisualReplay skips a rejoined client's replay ("Don't process files of rejoined
 			// clients"): its commands start mid-match, so it is not recorded at all.
 			replay_recording_ = false;
@@ -976,7 +978,6 @@ void RtsoMain::_process(double delta) {
 	if (hotkey_paused_ && !net_lockstep()) return;
 	if (app_unfocused_ && !net_lockstep() && rtso::user_config::get_bool("pauseonfocusloss")) return;
 	double scaled_delta = delta * game_speed;
-	match_elapsed_time += scaled_delta;
 
 	rtso::PerfTracker::begin_frame();
 	uint64_t start_us = Time::get_singleton()->get_ticks_usec();
@@ -1008,9 +1009,14 @@ void RtsoMain::_process(double delta) {
 	}
 	if (net_lockstep()) {
 		if (net_game_started_) {
-			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
-			if (turn_mgr_.tick((float)scaled_delta, *sim)) {
-				ticks = rtso::TurnManager::TICKS_PER_TURN;
+			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick.
+			// CGame::Update: at most game-speed turns a frame (one at the normal rate),
+			// so a fast game is not bounded by the frame rate.
+			float step = (float)scaled_delta;
+			const int max_turns = std::max(1, (int)game_speed);
+			for (int t = 0; t < max_turns && turn_mgr_.tick(step, *sim); ++t) {
+				ticks += rtso::TurnManager::TICKS_PER_TURN;
+				step = 0.0f;
 				sim_tests_turn();
 				rejoin_test_turn();
 			}
@@ -1293,8 +1299,8 @@ void RtsoMain::_process(double delta) {
 	detect_attacks(attacks);
 	show_session_notices(sim->take_session_notices());
 	show_trigger_dialogs(sim->take_trigger_dialogs());
+	update_highlight(); // the hover pick the cursor's action reads
 	update_cursor();
-	update_highlight();
 	// input.js INPUT_BATCHTRAINING: releasing session.batchtrain posts the batch.
 	if (batch_training_.active && !rtso::hotkeys::held("session.batchtrain")) flush_training_batch();
 	chat_window_.tick_overlay();
@@ -1313,56 +1319,19 @@ void RtsoMain::_process(double delta) {
 		const Vector3 focus = cam_rig->get_target_pos();
 		session_audio_.set_listener(focus.x, focus.z);
 	}
-	session_audio_.tick(sim, local_player(), match_elapsed_time, true);
-	session_audio_.tick_combat(sim, local_player(), attacks, sim->take_fauna_strikes(), match_elapsed_time);
+	session_audio_.tick(sim, local_player(), match_elapsed_time(), true);
+	session_audio_.tick_combat(sim, local_player(), attacks, sim->take_fauna_strikes(), match_elapsed_time());
 	update_music_state();
 
-	// Environmental Ambience: Viewport Elevation & Coastal Water Proximity
-	Vector3 cam_world_pos(0, 30, 0);
-	if (cam_rig && cam_rig->get_camera()) {
-		cam_world_pos = cam_rig->get_camera()->get_global_position();
-	} else if (cam_rig) {
-		cam_world_pos = cam_rig->get_target_pos() + Vector3(0, 30, 0);
-	}
-
-	// 1. Wind & Nature elevation crossfade
-	float elev_factor = Math::clamp((cam_world_pos.y - 12.0f) / 38.0f, 0.0f, 1.0f);
-	float target_wind_db = Math::lerp(-32.0f, -8.0f, elev_factor);
-	float target_nature_db = Math::lerp(-12.0f, -28.0f, elev_factor);
-
-	if (ambient_wind_player) {
-		if (!ambient_wind_player->is_playing()) ambient_wind_player->play();
-		float cur_db = ambient_wind_player->get_volume_db();
-		ambient_wind_player->set_volume_db(Math::lerp(cur_db, target_wind_db, (float)delta * 3.5f));
-	}
-	if (ambient_player) {
-		if (!ambient_player->is_playing()) ambient_player->play();
-		float cur_db = ambient_player->get_volume_db();
-		ambient_player->set_volume_db(Math::lerp(cur_db, target_nature_db, (float)delta * 3.5f));
-	}
-
-	// 2. Coastal water proximity modulation
-	float target_water_db = -80.0f;
-	if (sim && sim->water_height() > 0.0f) {
-		float water_h = sim->water_height();
-		Vector3 target_pos = cam_rig ? cam_rig->get_target_pos() : cam_world_pos;
-		float terrain_h = sim->get_terrain_height(target_pos.x, target_pos.z);
-		float d_water = terrain_h - water_h;
-		if (d_water <= 3.5f) {
-			float coast_factor = Math::clamp(1.0f - (d_water / 3.5f), 0.0f, 1.0f);
-			target_water_db = Math::lerp(-40.0f, -10.0f, coast_factor);
-		}
-	}
-	if (ambient_water_player) {
-		if (!ambient_water_player->is_playing()) ambient_water_player->play();
-		float cur_db = ambient_water_player->get_volume_db();
-		ambient_water_player->set_volume_db(Math::lerp(cur_db, target_water_db, (float)delta * 3.0f));
-	}
+	// The dayscape loop never stops (PlayAmbientSound's looping track).
+	if (ambient_player && !ambient_player->is_playing()) ambient_player->play();
 
 	// Update Building Placement Ghost (0 A.D. gui/session/building_placement.js:45-92 BuildPreview parity)
 	if (build_mode) {
 		Vector2 mouse_pos = get_viewport()->get_mouse_position();
-		if (wall_drag_mode) {
+		const bool wall_type = current_build_type == rtso::BLD_WALL_SEGMENT || current_build_type == rtso::BLD_PALISADE ||
+				current_build_type == rtso::BLD_SIEGE_WALL;
+		if (wall_drag_mode || wall_type) {
 			if (ghost_mesh && ghost_mesh->is_visible()) ghost_mesh->set_visible(false);
 			// The pieces the sim will lay (helpers/Walls.js GetWallPlacement), each tinted by whether
 			// it can be placed where it stands.
@@ -1371,12 +1340,23 @@ void RtsoMain::_process(double delta) {
 			uint32_t start_tower = 0, end_tower = 0;
 			const uint8_t wall_kind = rtso::wallset_kind_of((uint8_t)current_build_type);
 			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind, sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_COUNT);
-			if (sim)
+			if (sim && !wall_drag_mode) {
+				// input.js INPUT_BUILDING_WALL_CLICK before the first click (GuiInterface.js
+				// SetWallPlacementPreview with only a start): one tower at the cursor, on the player's
+				// own tower or tower foundation when the cursor is within half a tower of it.
+				const uint8_t civ = sim->player_civ(local_player());
+				float tx = drag_curr_pos.x, tz = drag_curr_pos.z;
+				start_tower = sim->wall_snap_tower(local_player(), tx, tz, wall_kind);
+				if (start_tower)
+					for (const auto &b : sim->buildings())
+						if (b.id == start_tower) { tx = b.x; tz = b.z; break; }
+				pieces.push_back({wall_set.tower, tx, tz, 0.0f, wall_set.tower_half, civ});
+			} else if (sim)
 				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
 						drag_curr_pos.x, drag_curr_pos.z, &start_tower, &end_tower, wall_kind);
 			// Walls.js returns no segment for a wall no longer than a tower, but the preview still
 			// shows its end towers (GuiInterface.js SetWallPlacementPreview); a click then lays nothing.
-			if (sim && pieces.empty()) {
+			if (sim && wall_drag_mode && pieces.empty()) {
 				const uint8_t civ = sim->player_civ(local_player());
 				if (!start_tower)
 					pieces.push_back({wall_set.tower, wall_drag_start_pos.x, wall_drag_start_pos.z, 0.0f, wall_set.tower_half, civ});
@@ -1400,15 +1380,18 @@ void RtsoMain::_process(double delta) {
 			bool chain_ok = true, place_ok = true;
 			float spent[rtso::RES_COUNT] = {};
 			float wall_cost[rtso::RES_COUNT] = {};
+			float wall_time = 0.0f; // cost.time: each placeable piece's BuildTime (GuiInterface.js:1679)
 			for (size_t i = 0; i < pieces.size(); ++i) {
 				const auto &p = pieces[i];
 				MeshInstance3D *g = wall_ghosts[i];
 				if (sim && place_ok) {
 					place_ok = sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
 					float c[rtso::RES_COUNT];
-					sim->wall_piece_cost(local_player(), p, c);
-					if (place_ok)
+					const float t = sim->wall_piece_price(local_player(), p.type, p.half_w, c);
+					if (place_ok) {
 						for (int r = 0; r < rtso::RES_COUNT; ++r) wall_cost[r] += c[r];
+						wall_time += t;
+					}
 				}
 				// 0 A.D. previews each piece with its own actor (wall_long/medium/short, the
 				// tower): the model the world view will draw for it, turned the same way.
@@ -1451,16 +1434,19 @@ void RtsoMain::_process(double delta) {
 				}
 			}
 			// INPUT_BUILDING_WALL_PATHING: the wall's cost and what the stock lacks for it;
-			// after a refused click "Cannot build wall here!" until the cursor moves.
-			if (!wall_fail_tip_.is_empty() && mouse_pos.distance_to(wall_fail_mouse_) > 2.0f) wall_fail_tip_ = String();
+			// after a refused click "Cannot build wall here!" until the cursor moves to where the
+			// wall can stand (input.js keeps the message while the preview has no cost).
+			if (!wall_fail_tip_.is_empty() && mouse_pos.distance_to(wall_fail_mouse_) > 2.0f && place_ok && !pieces.empty())
+				wall_fail_tip_ = String();
 			if (!wall_fail_tip_.is_empty()) {
 				set_placement_tip(wall_fail_tip_, true);
-			} else if (sim && !pieces.empty()) {
+			} else if (sim && wall_drag_mode && !pieces.empty()) {
 				rtso::CostTip cost;
 				cost.food = (int64_t)std::lround(wall_cost[rtso::RES_FOOD]);
 				cost.wood = (int64_t)std::lround(wall_cost[rtso::RES_WOOD]);
 				cost.stone = (int64_t)std::lround(wall_cost[rtso::RES_STONE]);
 				cost.metal = (int64_t)std::lround(wall_cost[rtso::RES_GOLD]);
+				cost.time = (int64_t)std::lround(wall_time);
 				const auto &ps = sim->player(local_player());
 				String tip = rtso::cost_tooltip(cost);
 				const String need = rtso::needed_resources_tooltip(cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
@@ -1566,6 +1552,7 @@ void RtsoMain::_process(double delta) {
 	tick_quit_confirmation();
 
 	update_observer_view_picker();
+	follow_viewed_player_finish();
 	// session.js handlePlayerState: the end of the match is the playerstate chat line and
 	// the "You have won!" / "You have been defeated!" question (quit_confirmation.gd);
 	// nothing is drawn across the screen.
@@ -1629,6 +1616,7 @@ void RtsoMain::_on_chat_filter_selected(int index) { chat_window_.set_filter(ind
 void RtsoMain::_on_chat_history_toggled(bool on) {
 	chat_window_.set_extended(on);
 	rtso::user_config::set("chat.session.extended", on ? "true" : "false");
+	chat_window_.focus_input();
 	rtso::user_config::save();
 }
 
@@ -1669,12 +1657,20 @@ void RtsoMain::refresh_chat_tooltips() {
 
 // gui/common/styles.xml sound_pressed, and the dropdowns' sound_opened / sound_selected.
 void RtsoMain::hook_ui_click_sounds(Node *n) {
-	if (BaseButton *b = Object::cast_to<BaseButton>(n)) {
+	// A button whose 0.28 style has no sound_pressed is marked rtso_no_click.
+	BaseButton *b = Object::cast_to<BaseButton>(n);
+	if (b && b->has_meta("rtso_no_click")) b = nullptr;
+	if (b) {
 		const Callable click(this, "_on_ui_click");
 		if (!b->is_connected("pressed", click)) b->connect("pressed", click);
-		if (OptionButton *o = Object::cast_to<OptionButton>(n)) {
+		if (Object::cast_to<OptionButton>(n) || Object::cast_to<RtsoSafeSelect>(n)) {
 			const Callable picked = Callable(this, "_on_ui_click_item");
-			if (!o->is_connected("item_selected", picked)) o->connect("item_selected", picked);
+			if (!b->is_connected("item_selected", picked)) b->connect("item_selected", picked);
+		}
+		// RtsoSafeSelect's list closing, picked or not: sound_closed.
+		if (Object::cast_to<RtsoSafeSelect>(n)) {
+			const Callable closed(this, "_on_ui_click");
+			if (!b->is_connected("menu_closed", closed)) b->connect("menu_closed", closed);
 		}
 	}
 	for (int i = 0; i < n->get_child_count(); ++i) hook_ui_click_sounds(n->get_child(i));
@@ -1685,6 +1681,10 @@ void RtsoMain::_on_tree_node_added(Node *n) {
 }
 
 void RtsoMain::_on_ui_click() {
+	// A pick also closes the list: sounds that fall in one frame play once.
+	const uint64_t frame = Engine::get_singleton()->get_process_frames();
+	if (frame == ui_click_frame_) return;
+	ui_click_frame_ = frame;
 	++ui_clicks_;
 	if (click_player_ && click_player_->get_stream().is_valid()) click_player_->play();
 }

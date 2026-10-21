@@ -188,7 +188,6 @@ inline String speed_tooltip(const Simulation::UnitDetails &d) {
 	auto speed = [](float v, const char *kind) {
 		return sprintf0(tr0("%(speed)s %(movementType)s"), {{"speed", fixed(v, 1)}, {"movementType", tr0(kind)}});
 	};
-	// An animal has no acceleration here: walk and run only.
 	return sprintf0(tr0("%(label)s %(speeds)s"), {{"label", tr0("Speed:")}, {"speeds", speed(d.walk, "Walk") + comma() + speed(d.run, "Run") +
 			(d.acceleration > 0.0f ? comma() + speed(d.acceleration, "Acceleration") : String())}});
 }
@@ -321,14 +320,27 @@ inline String aura_line(const String &name, const String &description, float rad
 	return tip;
 }
 
+// getAurasTooltip of a structure's template: its templates.json "auras", one line each.
+inline String structure_auras_tooltip(const godot::Dictionary &entry) {
+	const godot::Array auras = entry.get("auras", godot::Array());
+	String out;
+	for (int k = 0; k < auras.size(); ++k) {
+		const godot::Dictionary a = auras[k];
+		out += (out.is_empty() ? String() : String("\n")) +
+				aura_line(String(a.get("name", "")), String(a.get("description", "")), (float)a.get("radius", 0.0f));
+	}
+	return out;
+}
+
 // displayMultiple's numberOfUnits tooltip: garrison size, then what the selection carries
 // and its loot.
 inline String multiple_tooltip(int64_t garrison_size, const Amounts &carrying, const Amounts &loot) {
 	String tip;
 	if (garrison_size)
 		tip = sprintf0(tr0("%(label)s: %(details)s\n"), {{"label", tr0("Garrison Size")}, {"details", num(garrison_size)}});
+	// selection_details.js:493 assigns this line (=, not +=): it replaces the garrison size.
 	if (carrying.any())
-		tip += sprintf0(tr0("%(label)s %(details)s\n"), {{"label", tr0("Carrying:")}, {"details", amounts_list(carrying, false)}});
+		tip = sprintf0(tr0("%(label)s %(details)s\n"), {{"label", tr0("Carrying:")}, {"details", amounts_list(carrying, false)}});
 	if (loot.any())
 		tip += sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Loot:")}, {"details", amounts_list(loot, true)}});
 	return tip.strip_edges();

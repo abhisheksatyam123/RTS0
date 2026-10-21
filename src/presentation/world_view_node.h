@@ -362,11 +362,8 @@ class RtsoWorldView : public Node3D {
 
 	Ref<Texture2D> ring_decal_tex_;
 	std::vector<Decal *> unit_ring_decals_;
-	static inline const Color RING_SEL_COL = Color(0.2f, 1.0f, 0.4f, 1.0f);
-	static inline const Color RING_ENEMY_COL = Color(0.92f, 0.25f, 0.2f, 1.0f);
-	static inline const Color RING_HL_COL = Color(0.2f, 1.0f, 0.4f, 0.75f);
-	static inline const Color RING_ENEMY_HL_COL = Color(0.92f, 0.25f, 0.2f, 0.75f);
-	Ref<StandardMaterial3D> ring_sel_mat, ring_enemy_mat, ring_hl_mat, ring_enemy_hl_mat;
+	std::unordered_map<uint32_t, Ref<StandardMaterial3D>> outline_mats_; // by RGBA32 (outline_material)
+	const Ref<StandardMaterial3D> &outline_material(const Color &c);
 	std::unordered_set<int32_t> highlight_set_;
 	std::unordered_set<int32_t> sel_buildings_; // the selected structures (outlined)
 	Ref<BoxMesh> outline_mesh_;
@@ -412,6 +409,8 @@ class RtsoWorldView : public Node3D {
 		// The model's id and the ModelLibrary entry values a frame's unit loop reads.
 		String model_id;
 		float y_offset = 0.0f, scale = 1.0f, height = 0.0f;
+		float metre = 1.0f; // world units per 0.28 metre (ModelLibrary::Entry::metre)
+		float sil_radius = 0.0f; // world units from the unit's origin to its model's farthest corner
 		bool player_color = false; // has 0 A.D. player_trans surfaces (owner colour in custom data)
 	};
 	// Crowd keys: a unit type, UNIT_TYPE_COUNT + type for a siege engine
@@ -471,6 +470,10 @@ class RtsoWorldView : public Node3D {
 
 	std::unordered_map<uint32_t, float> crowd_yaw;
 	std::unordered_map<uint32_t, Vector2> crowd_pos;
+	// Per-frame scratch reused by sync (no per-frame allocation).
+	std::vector<std::pair<uint32_t, uint8_t>> res_sub_;
+	std::vector<uint32_t> active_unit_ids_;
+	String fauna_fx_id_[64]; // fauna type -> its actor id for run dust / unit fx, built on first use
 
 	// Skeletal animation controllers per unit type
 	rtso::AnimationController anim_controllers[rtso::UNIT_TYPE_COUNT];
@@ -485,7 +488,9 @@ class RtsoWorldView : public Node3D {
 	uint32_t silhouette_gen_ = 0xFFFFFFFFu;
 	bool cinema_playing_ = false; // Simulation::cinema_playing() at the last sync
 	void refresh_silhouettes();
-	void set_silhouette(Node *model, const Color &c);
+	// The overlay and owner's colour on every mesh under `n`; `radius` (world units about
+	// the model's origin `root`) keeps the model's own parts from outlining it.
+	void set_silhouette(Node *n, const Color &c, float radius, const Node3D *root);
 
 	// 3D Positional Combat Acoustics
 	static constexpr size_t SPATIAL_AUDIO_POOL_SIZE = 32;
@@ -577,6 +582,11 @@ public:
 	int status_sprite_count() const { return status_sprites_.sprite_count(); }
 	const PackedStringArray &status_rank_icons() const { return status_rank_icons_; } // drawn last frame (tests)
 	int status_xp_bars() const { return status_xp_bars_; }
+	PackedStringArray status_aura_sources() const { // "source id:aura id" of last frame's shown auras (tests)
+		PackedStringArray out;
+		for (const AuraIconSource &a : aura_icon_sources_) out.push_back(String::num_int64(a.src->source_id) + ":" + a.aura_id);
+		return out;
+	}
 
 	void play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 	void play_spatial_sound_path(const String &path, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
@@ -584,8 +594,36 @@ public:
 	// The building model a structure of this civ, type and (WallSet) half length draws; the
 	// wall placement ghost previews its pieces with it.
 	static String building_visual_id(uint8_t civ, uint8_t type, float half_size);
+	// A map-placed structure whose own 0.28 template the sim folds into a shared type (stalls and
+	// Celtic huts are houses) draws its template's actor while its id keeps that type.
+	void set_building_look(uint32_t id, uint8_t type, const String &model) { building_looks_[id] = {type, model}; }
+	void clear_building_looks() { building_looks_.clear(); }
+	// A saved game keeps them in its GUI data ([id, type, model] rows), the sim having no field for them.
+	Array building_looks_data() const {
+		Array out;
+		for (const auto &kv : building_looks_) {
+			Array row;
+			row.push_back((int64_t)kv.first);
+			row.push_back((int)kv.second.first);
+			row.push_back(kv.second.second);
+			out.push_back(row);
+		}
+		return out;
+	}
+	void set_building_looks_data(const Array &rows) {
+		building_looks_.clear();
+		for (int i = 0; i < rows.size(); ++i) {
+			const Array row = rows[i];
+			if (row.size() == 3) set_building_look((uint32_t)(int64_t)row[0], (uint8_t)(int)row[1], row[2]);
+		}
+	}
+	String building_model_of(uint32_t id, uint8_t civ, uint8_t type, float half_size) const {
+		const auto it = building_looks_.find(id);
+		return it != building_looks_.end() && it->second.first == type ? it->second.second : building_visual_id(civ, type, half_size);
+	}
 
 private:
+	std::unordered_map<uint32_t, std::pair<uint8_t, String>> building_looks_;
 	uint8_t local_player_ = 0;
 	bool show_all_status_bars_ = false;
 	bool anim_cull_enabled_ = true; // GameView.cpp Culling
@@ -596,6 +634,10 @@ private:
 	struct AuraIconSource {
 		const rtso::AuraSource *src;
 		int icon;
+		int16_t hero = -1;          // the civ_hero_aura row whose affects it reaches, -1 none
+		bool structures = false;    // reaches structures (with no hero row: only them)
+		bool units = false;         // with no hero row: reaches every unit
+		const char *aura_id = "";   // the 0.28 aura (tests)
 	};
 	std::vector<AuraIconSource> aura_icon_sources_;
 	// StatusBars.js RegenerateSprites: one entity's sprites, bottom up.
@@ -608,7 +650,7 @@ private:
 		int icons[8];
 		int n_icons = 0;
 	};
-	void status_aura_icons(uint32_t id, float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st) const;
+	void status_aura_icons(uint32_t id, float x, float z, uint8_t team, uint16_t tmpl, bool structure, StatusStack &st, bool civic_centre = false) const;
 	PackedStringArray status_rank_icons_;
 	int status_xp_bars_ = 0;
 	void draw_status_stack(const rtso::Simulation *sim, const Vector3 &base, float width, float height, float metre, const StatusStack &st);
@@ -625,6 +667,8 @@ private:
 	static constexpr int FOG_OVERLAY_LEVELS = 17;
 	Ref<ShaderMaterial> fog_overlay_mats_[FOG_OVERLAY_LEVELS]; // multiply a fogged structure by its LOS brightness
 	void update_fog(const rtso::Simulation *sim, float delta);
+	Color scene_fog() const;
+	Color bound_fog_ = Color(-1, -1, -1, -1); // the scene_fog the terrain and water last took
 	void bind_los(const Ref<Material> &mat);
 	float los_brightness(float x, float z) const;
 	void set_fog_overlay(Node *n, float brightness);
