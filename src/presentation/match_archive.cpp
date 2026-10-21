@@ -538,6 +538,10 @@ bool RtsoMain::start_pending_replay() {
 	// no counters; the picker follows one player.
 	replay_view_ = rtso::OBSERVER_VIEW;
 	replay_hud_player_ = 0xFF; // seat_player()'s observer
+	replay_defeated_mask_ = 0;
+	// A visual replay runs in a new CGame, whose sim rate starts at 1 (Game.cpp m_SimRate);
+	// the replay menu never sets the recorded speed.
+	game_speed = 1.0f;
 	UtilityFunctions::print("[RTS0] Playing replay ", dir, " (", (int64_t)turn_mgr_.turn_history().size(), " turns)");
 	return true;
 }
@@ -592,34 +596,29 @@ Dictionary RtsoMain::get_replay_status() const {
 	return d;
 }
 
-// Per-frame upkeep: write the replay now and then, show playback progress and
-// stop at the replay's last turn.
+// Per-frame upkeep: write the replay now and then, follow the viewed player's defeat
+// and stop at the replay's last turn.
 void RtsoMain::tick_match_archive() {
 	if (replay_recording_ && turn_mgr_.turn_history().size() >= replay_written_turn_ + kReplayWriteEveryTurns)
 		write_replay();
 	if (!turn_mgr_.is_replaying()) return;
-	if (!replay_label_) {
-		replay_label_ = memnew(Label);
-		replay_label_->set_position(Vector2(16.0f, 64.0f));
-		replay_label_->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.4f));
-		replay_label_->add_theme_font_size_override("font_size", 18);
-		CanvasLayer *layer = memnew(CanvasLayer);
-		layer->set_layer(5);
-		add_child(layer);
-		layer->add_child(replay_label_);
+	// 0.28 draws no replay HUD of its own: the session's top panel and the view dropdown.
+	if (!replay_layer_) {
+		replay_layer_ = memnew(CanvasLayer);
+		replay_layer_->set_layer(5);
+		add_child(replay_layer_);
 		build_replay_view_picker();
 	}
-	const int64_t total = (int64_t)turn_mgr_.turn_history().size();
-	const int64_t turn = std::min<int64_t>((int64_t)turn_mgr_.current_turn(), total);
-	auto clock = [](int64_t turns) {
-		const int64_t s = (int64_t)((double)turns * rtso::TurnManager::TURN_DURATION);
-		return String::num_int64(s / 60).pad_zeros(2) + ":" + String::num_int64(s % 60).pad_zeros(2);
-	};
-	// A replay continued from a save shows the game clock, which starts at the save's time.
-	const int64_t start_turns = (int64_t)((double)replay_meta_.get("start_time", 0.0) / rtso::TurnManager::TURN_DURATION + 0.5);
-	String text = "REPLAY  " + clock(start_turns + turn) + " / " + clock(start_turns + total);
+	// PlayerViewControl.onPlayersFinished: a defeat moves the view to Observer; a win keeps it.
+	if (sim) {
+		uint32_t defeated = 0;
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
+			if (sim->is_defeated(p) && !sim->is_victory_for(p)) defeated |= 1u << p;
+		const uint32_t fresh = defeated & ~replay_defeated_mask_;
+		replay_defeated_mask_ = defeated;
+		if (replay_view_ < rtso::MAX_PLAYERS && (fresh & (1u << replay_view_))) set_replay_view(-1);
+	}
 	if (turn_mgr_.replay_out_of_sync()) {
-		text += "  (out of sync at turn " + String::num_int64(turn_mgr_.replay_out_of_sync_turn()) + ")";
 		// OutOfSyncReplay: an "Out of Sync" message box that pauses the replay until answered.
 		if (!replay_oos_shown_) {
 			replay_oos_shown_ = true;
@@ -630,8 +629,6 @@ void RtsoMain::tick_match_archive() {
 		replay_finished_ = true;
 		quit_confirmation("replay_finished"); // QuitConfirmationReplay
 	}
-	if (replay_finished_) text += "  finished";
-	replay_label_->set_text(text);
 }
 
 // The 0 A.D. viewPlayer dropdown's entries: Observer, Gaia, then each player
@@ -708,13 +705,13 @@ Control *RtsoMain::new_player_view_row(OptionButton *picker, Label *observer_lab
 // "Observer Mode" shows while the view is Observer or Gaia. Presentation only, so the
 // replay's hashes are unaffected.
 void RtsoMain::build_replay_view_picker() {
-	if (replay_view_picker_ || !replay_label_) return;
+	if (replay_view_picker_ || !replay_layer_) return;
 	replay_view_picker_ = new_player_view_picker();
 	replay_view_picker_->connect("item_selected", Callable(this, "_on_replay_view_selected"));
 	replay_observer_label_ = memnew(Label);
 	replay_observer_label_->set_text("Observer Mode");
 	replay_follow_box_ = new_follow_player_box();
-	replay_label_->get_parent()->add_child(new_player_view_row(replay_view_picker_, replay_observer_label_, replay_follow_box_));
+	replay_layer_->add_child(new_player_view_row(replay_view_picker_, replay_observer_label_, replay_follow_box_));
 }
 
 void RtsoMain::_on_replay_view_selected(int index) {

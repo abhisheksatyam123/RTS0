@@ -1060,7 +1060,8 @@ private:
 	String watched_replay_dir_;    // the replay being watched (0 A.D. Engine.GetCurrentReplayDirectory)
 	Dictionary replay_meta_;       // its metadata.json, minus what is filled at write time
 	uint32_t replay_written_turn_ = 0;
-	Label *replay_label_ = nullptr;
+	CanvasLayer *replay_layer_ = nullptr; // holds the replay's player view row
+	uint32_t replay_defeated_mask_ = 0; // players seen defeated, for onPlayersFinished
 	OptionButton *replay_view_picker_ = nullptr;
 	Label *replay_observer_label_ = nullptr; // PlayerViewControl's "Observer Mode"
 	bool replay_view_gaia_ = false;          // Gaia picked (its view is the observer's)

@@ -182,19 +182,28 @@ func run() -> void:
 	pick.call(b._map_filter, "Any")
 
 	print("3. details")
+	b.replay_list.deselect_all()
+	b.display_replay_details()
+	var subject = b.find_child("SubjectBox", true, false)
+	check(b._info_empty.visible and subject != null and is_equal_approx(subject.anchor_left, 0.03) and subject.offset_top == 180,
+		"with nothing picked: the logo over the empty subjectBox")
 	b.sort_by("months")
 	var idx: int = b._replays.map(func(r): return r.dir.get_file()).find(NAMES[0])
 	b.select_replay(idx)
 	check(b._info.visible and b._info_labels.name.text == "E2E Continental" and b._info_labels.victory.text == "Conquest, Wonder"
 		and b._info_labels.type.text == "Random" and b._info_labels.size.text == "Small", "map, type, size and victory")
-	# map_preview is null in an unimported headless project; the menu shows what Game Setup shows.
-	check(b._info_labels.preview.texture == b.SetupPage.map_preview("random_continental")
-		and b._info_labels.preview.visible == (b._info_labels.preview.texture != null), "the map's preview image")
+	# map_preview is null in an unimported headless project: then MapCache's "no preview" picture.
+	var want_preview = b.SetupPage.map_preview("random_continental")
+	check(b._info_labels.preview.visible and (b._info_labels.preview.texture == want_preview if want_preview != null
+		else b._info_labels.preview.texture is AtlasTexture), "the map's preview image, else the no-preview picture")
 	check(b._info_labels.players.text == "Players: 4" and b._players_text.get_parsed_text().contains("Team 1"), "players by team")
 	check(not b._players_text.get_parsed_text().contains("won"), "no outcome without Spoiler")
 	b._spoiler.button_pressed = true
 	check(b._players_text.get_parsed_text().contains("e2eAlpha (Athenians, won)"), "Spoiler shows who won, as formatPlayerInfo")
 	check(b._btn_summary.visible and b._filename.text.ends_with(NAMES[0]), "Summary and the file path")
+	var slots := ["MainMenuButton", "DeleteButton", "RebuildCacheButton", "SummaryButton", "StartReplayButton"].map(
+		func(n): return [snappedf(b.find_child(n, true, false).anchor_left, 0.01), snappedf(b.find_child(n, true, false).anchor_right, 0.01)])
+	check(slots == [[0.0, 0.19], [0.2, 0.39], [0.4, 0.59], [0.6, 0.79], [0.8, 0.99]], "each button in its fifth of the row: %s" % [slots])
 	idx = b._replays.map(func(r): return r.dir.get_file()).find(NAMES[2])
 	b.select_replay(idx)
 	check(b.replay_list.get_selected().get_custom_color(1) == b.INCOMPATIBLE, "an incompatible replay is greyed out")
