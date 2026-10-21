@@ -218,6 +218,9 @@ int main() {
 		s.rebuild_auras();
 		CHECK(near(s.promotion_required_xp(i), 75.0f));
 		CHECK(near(s.promotion_required_xp(j), 100.0f));
+		// A garrisoned soldier is out of the world, where no range aura reaches it (B pass 7).
+		s.units_.action_state[i] = ACTION_GARRISONED;
+		CHECK(near(s.promotion_required_xp(i), 100.0f));
 	}
 
 	// 5c. A promotion that skips ranks uses the range auras only for the first step

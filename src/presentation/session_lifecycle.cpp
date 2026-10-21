@@ -1546,6 +1546,7 @@ void RtsoMain::_process(double delta) {
 	tick_quit_confirmation();
 
 	update_observer_view_picker();
+	follow_viewed_player_finish();
 	// session.js handlePlayerState: the end of the match is the playerstate chat line and
 	// the "You have won!" / "You have been defeated!" question (quit_confirmation.gd);
 	// nothing is drawn across the screen.
