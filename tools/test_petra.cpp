@@ -7108,6 +7108,39 @@ static void test_workers_while_cc_on_emergency() {
 	CHECK(soldiers[1] == 0, "a civic centre busy with emergency units doesn't make the workers soldiers");
 }
 
+static void test_strength_prepare_time() {
+	// getMaxStrength takes attackTimes' prepare off (and adds repeat): a unit and its template
+	// agree, and a slower-preparing unit scores less than its 0 ms counterpart would.
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->petra_pid_ = 1;
+	const uint16_t tmpl = civ_unit_template_by_id("athen/infantry_spearman_b");
+	CHECK(tmpl != CIV_UNIT_TEMPLATE_NONE, "the Athenian spearman is on the roster");
+	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return;
+	const uint8_t type = civ_unit_template(tmpl).unit_type;
+	const uint32_t id = s->spawn_unit(10.0f, 10.0f, 1, (UnitType)type, 0.0f, tmpl);
+	const int32_t i = s->lookup_unit(id);
+	CHECK(i >= 0, "the spearman spawned");
+	if (i < 0) return;
+	const float prepare = unit_combat(tmpl, type).prepare;
+	const float unit = s->petra_unit_strength((size_t)i);
+	const float templ = s->petra_template_strength(civ_template_unit_info(tmpl, type), tmpl, type);
+	std::printf("  spearman PrepareTime %.0f ms: strength %.4f (unit) / %.4f (template)\n", prepare * 1000.0f, unit, templ);
+	CHECK(prepare > 0.0f, "the spearman's attack has a PrepareTime");
+	CHECK(std::fabs(unit - templ) < 1e-4f, "unit and template strength agree");
+	// getMaxStrength by hand, no technologies yet: damage, MaxRange x 0.0125, RepeatTime and
+	// PrepareTime / 1e5, the Capture attack (4 m, 1000 ms), resistances, times maxHitpoints / 100.
+	const UnitTypeInfo &ui = civ_template_unit_info(tmpl, type);
+	float want = (0.075f * ui.hack_damage + 0.085f * ui.pierce_damage + 0.045f * ui.crush_damage) / 4.0f;
+	want += ui.attack_range / 0.6f * 0.0125f + ui.attack_cooldown * 0.01f - prepare * 0.01f;
+	if (unit_capture_attack(tmpl, type) > 0.0f) want += 4.0f * 0.0125f + 0.01f;
+	want += (0.075f * ui.hack_armor + 0.085f * ui.pierce_armor + 0.045f * ui.crush_armor) / 4.0f;
+	want *= ui.hp / 100.0f;
+	std::printf("  by hand %.4f\n", want);
+	CHECK(std::fabs(templ - want) < 1e-4f, "the template strength takes PrepareTime off");
+}
+
 static void test_emergency_units_captured_cc() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -7866,6 +7899,7 @@ int main(int argc, char **argv) {
 	RUN(test_emergency_units_captured_cc);
 	RUN(test_unit_stat_trainable_busy);
 	RUN(test_workers_while_cc_on_emergency);
+	RUN(test_strength_prepare_time);
 	RUN(test_new_cc_defenders);
 	RUN(test_temple_wonder_save);
 	RUN(test_personality_draw);

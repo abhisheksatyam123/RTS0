@@ -21922,6 +21922,7 @@ float Simulation::petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl,
 		const float range = ui.attack_range * m.range_mul + m.range * COMBAT_DISTANCE_SCALE;
 		s += range / (ranged ? COMBAT_DISTANCE_SCALE : 0.6f) * 0.0125f;
 		s += ui.attack_cooldown * 1000.0f / 100000.0f;
+		s -= unit_combat(tmpl, type).prepare * 1000.0f / 100000.0f; // attackTimes prepare
 	}
 	// attackTypes() lists Capture too: no attackStrengths, but its MaxRange 4 and RepeatTime 1000.
 	if (unit_capture_attack(tmpl, type) > 0.0f) s += PETRA_CAPTURE_STRENGTH;
@@ -31792,6 +31793,7 @@ float Simulation::petra_unit_strength(size_t i) const {
 		const bool ranged = (unit_tech_classes(units_.unit_type[i]) & TC_RANGED) != 0;
 		s += units_.attack_range[i] / (ranged ? 0.28f : 0.6f) * 0.0125f; // back to 0 A.D. metres
 		s += units_.attack_cooldown[i] * 1000.0f / 100000.0f;
+		s -= unit_combat_at(i).prepare * 1000.0f / 100000.0f; // attackTimes prepare
 	}
 	if (unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f) s += PETRA_CAPTURE_STRENGTH;
 	float res[3];
@@ -31807,6 +31809,7 @@ float Simulation::petra_fauna_strength(size_t f) const {
 		s += (0.075f * info.hack_damage + 0.085f * info.pierce_damage + 0.045f * info.crush_damage) / 4.0f;
 		s += info.attack_range / 0.6f * 0.0125f; // back to 0 A.D. metres, as for a unit's melee
 		s += info.attack_cooldown * 1000.0f / 100000.0f;
+		s -= info.attack_prepare * 1000.0f / 100000.0f; // attackTimes prepare
 	}
 	s += (0.075f * info.hack_armor + 0.085f * info.pierce_armor + 0.045f * info.crush_armor) / 4.0f;
 	s *= fauna_.max_hp[f] / 100.0f;
