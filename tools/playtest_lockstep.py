@@ -1068,6 +1068,7 @@ def main() -> int:
         return 2
 
     out_dir = os.path.abspath(args.out_dir)
+    os.makedirs(out_dir, exist_ok=True)
     binary_path = os.path.join(out_dir, args.binary)
     need_build = args.rebuild or not os.path.exists(binary_path)
     if not need_build:

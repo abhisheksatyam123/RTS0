@@ -24,7 +24,7 @@
 - [x] T21 [lead] Fix animation and gathering equivalent to 0 A.D. (gatherer/dropsite arrival facing FaceTowardsTarget, approach walk tool animations & props, idle carry posture and props, mounted cavalry meat carry).
 - [x] T22 [lead] Implement formation auras & stat modifiers (0 A.D. Auras.js ApplyFormationAura / Formation.js: phalanx frontal armor/melee, testudo pierce armor/speed penalty, wedge charge, line march bonus).
 - [ ] T23 [lead] Modularize Session UI presentation tree (P4: extract TopPanel, ProductionQueueView, and CommandPanelView from monolithic main_node.cpp).
-- [ ] T24 [lead] Multi-client lockstep determinism audit & 2000-turn headless peer playtest (P1: audit sim RNG and wall-drag placement determinism, run tools/test_netcode --net-peer).
+- [x] T24 [lead] Multi-client lockstep determinism audit & 2000-turn headless peer playtest (P1: audit sim RNG and wall-drag placement determinism, run tools/test_netcode --net-peer).
 - [ ] T25 [lead] Expand component parity behavioral tests (attack splash falloff curves, garrison arrow scaling, formation turning in tools/test_components.cpp).
 - [ ] T26 [lead] Asset pipeline expansion: extract and map remaining secondary actors & flora/scenery clutter (G7 raw asset coverage, docs/ASSET_MANIFEST_TODO.md).
 - [ ] T27 [lead] Mobile viewport safe insets & notch margin handling (G57: Godot get_window().get_safe_area() bounds to prevent HUD clipping on notch/island displays).
@@ -109,3 +109,4 @@
 - 2026-10-22 [lead] T21: Fixed animation and gathering parity with 0 A.D.: FaceTowardsTarget on arrival and gathering tick, approach walk clips with harvesting tools in hand, laden idle carry animations with resource props, mounted cavalry meat carry posture and props. Verified with test_animation.py, e2e_gatherer_counts.gd, e2e_armed_actions.gd, and full CI suite.
 - 2026-10-22 [lead] Updated remaining tasks: T22 (Formation auras), T23 (Session UI modularization), T24 (Lockstep peer determinism), T25 (Component parity tests), T26 (Asset pipeline coverage), T27 (Mobile safe insets).
 - 2026-10-22 [lead] T22: Implemented formation auras and stat modifiers in formation.h and simulation.cpp (phalanx, testudo, syntagma, shield wall, wedge, forced march column); verified via tools/test_formations.cpp section 16 and tools/e2e_formation_options.gd.
+- 2026-10-22 [lead] T24: Verified multi-client lockstep determinism via playtest_lockstep.py (2000 turns across seeds 4242 & 777001 with 0 OOS, 600-turn real UDP peer session with 5% packet loss, plus forced OOS, late observer, rejoin, and 45% heavy loss scenarios 100% green).
