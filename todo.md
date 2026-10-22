@@ -22,8 +22,21 @@
 - [x] T19 [lead] Fix G58 items (Briton war dog FastMoving raid/hunt handling and TrainingPlan civic trainer timings).
 - [x] T20 [lead] Rebuild with SCons, run full headless CI suite (63/63 steps), verify zero regressions and push to origin/main.
 - [x] T21 [lead] Fix animation and gathering equivalent to 0 A.D. (gatherer/dropsite arrival facing FaceTowardsTarget, approach walk tool animations & props, idle carry posture and props, mounted cavalry meat carry).
+- [ ] T22 [lead] Implement formation auras & stat modifiers (0 A.D. Auras.js ApplyFormationAura / Formation.js: phalanx frontal armor/melee, testudo pierce armor/speed penalty, wedge charge, line march bonus).
+- [ ] T23 [lead] Modularize Session UI presentation tree (P4: extract TopPanel, ProductionQueueView, and CommandPanelView from monolithic main_node.cpp).
+- [ ] T24 [lead] Multi-client lockstep determinism audit & 2000-turn headless peer playtest (P1: audit sim RNG and wall-drag placement determinism, run tools/test_netcode --net-peer).
+- [ ] T25 [lead] Expand component parity behavioral tests (attack splash falloff curves, garrison arrow scaling, formation turning in tools/test_components.cpp).
+- [ ] T26 [lead] Asset pipeline expansion: extract and map remaining secondary actors & flora/scenery clutter (G7 raw asset coverage, docs/ASSET_MANIFEST_TODO.md).
+- [ ] T27 [lead] Mobile viewport safe insets & notch margin handling (G57: Godot get_window().get_safe_area() bounds to prevent HUD clipping on notch/island displays).
 
 ## Systems
+- Remaining Roadmap & Gaps (P1-P4, G7, G57):
+  - Formations: formation templates in simulation/templates/special/formations/*.xml define stat modifiers (ApplyFormationAura) that alter armor, attack repeat time, and movement speed for member units while in formation.
+  - Session UI modularization (P4): main_node.cpp coordinates scene lifecycle, camera, and UI (~3,500 lines); staged extraction targets TopPanel, ProductionQueueView, and CommandPanelView into decoupled Godot Control widgets.
+  - Multi-client Lockstep Determinism (P1): extended headless dual-process runs (tools/test_netcode --net-peer and playtest_lockstep.py) to guard against long-drift desyncs across sim ticks.
+  - Component Parity Tests: expand granular behavioral tests for weapon splash damage falloff (CauseDamageOverArea), BuildingAI garrison arrow scaling, and formation turning smoothing.
+  - Asset Pipeline Long-Tail (G7): 1,983 GLBs vs 4,280 PMDs (46.3% raw coverage); unit/building silhouettes are complete, secondary flora variants, siege pack states, and map clutter remain.
+  - Mobile Viewport Bounds (G57): safe area inset margins via Godot get_window().get_safe_area() to avoid notch/home indicator overlap on mobile platforms.
 - 0 A.D. Gathering & Carry Animations:
   - Gatherer facing: in src/simulation/simulation.cpp, updated move_units and tick_gather to face towards the target resource center (rx - px, rz - pz) and dropsite center (tx0 - px, tz0 - pz) upon arrival (FaceTowardsTarget), preventing sideways/backward harvest posture.
   - Approach walk tool animations & props: in src/presentation/world_view_node.cpp and src/graphics/assets/model_library.cpp, added approach clips (CLIP_APPROACH_TREE, CLIP_APPROACH_ORE, CLIP_APPROACH_ROCK, CLIP_APPROACH_GRAIN, CLIP_APPROACH_MEAT) mapping to biped_gatherer_walk_axe, biped_gatherer_walk_pickaxe, biped_gatherer_walk_hoe with proper tools displayed in hand while walking to resources instead of weapons.
@@ -87,3 +100,4 @@
 - 2026-10-22 [lead] T16-T19 complete: ported G46 ferried guards (save 119) & allied defense, G60 template selection overlays & textures, G58 war dog FastMoving & Civic trainer timings, updated G3 parity probe (95% overall). Running T20 full CI suite.
 - 2026-10-22 [lead] T20: Headless CI suite (63/63 steps) completed with 0 failures; zero regressions.
 - 2026-10-22 [lead] T21: Fixed animation and gathering parity with 0 A.D.: FaceTowardsTarget on arrival and gathering tick, approach walk clips with harvesting tools in hand, laden idle carry animations with resource props, mounted cavalry meat carry posture and props. Verified with test_animation.py, e2e_gatherer_counts.gd, e2e_armed_actions.gd, and full CI suite.
+- 2026-10-22 [lead] Updated remaining tasks: T22 (Formation auras), T23 (Session UI modularization), T24 (Lockstep peer determinism), T25 (Component parity tests), T26 (Asset pipeline coverage), T27 (Mobile safe insets).
