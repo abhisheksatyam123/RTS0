@@ -66,6 +66,9 @@ RtsoMain::~RtsoMain() {
 }
 
 void RtsoMain::_notification(int p_what) {
+	if (p_what == NOTIFICATION_WM_SIZE_CHANGED) {
+		apply_safe_area_insets();
+	}
 	// 0 A.D. "pauseonfocusloss" (main.cpp Frame: isUnfocusedSP): while the window has
 	// no focus a single-player game's simulation doesn't advance; it carries on when
 	// focus returns, with no pause overlay.
@@ -4534,4 +4537,60 @@ void RtsoMain::_on_diplo_spy_pressed(int player_idx) {
 
 void RtsoMain::_on_diplo_attack_request_pressed(int player_idx) {
 	diplo_dialog_.attack_request_pressed(player_idx);
+}
+
+// ---------------------------------------------------------------------------
+// Mobile Viewport Safe Insets (G57)
+// ---------------------------------------------------------------------------
+void RtsoMain::apply_safe_area_insets() {
+	DisplayServer *ds = DisplayServer::get_singleton();
+	if (!ds) return;
+
+	Rect2i safe_rect = ds->get_display_safe_area();
+	Vector2i win_size = ds->window_get_size();
+	if (win_size.x <= 0 || win_size.y <= 0 || safe_rect.size.x <= 0 || safe_rect.size.y <= 0) return;
+
+	float s_left = (float)safe_rect.position.x;
+	float s_top = (float)safe_rect.position.y;
+	float s_right = std::max(0.0f, (float)(win_size.x - (safe_rect.position.x + safe_rect.size.x)));
+	float s_bottom = std::max(0.0f, (float)(win_size.y - (safe_rect.position.y + safe_rect.size.y)));
+
+	set_safe_area_insets(s_left, s_top, s_right, s_bottom);
+}
+
+void RtsoMain::set_safe_area_insets(float left, float top, float right, float bottom) {
+	safe_inset_left_ = std::max(0.0f, left);
+	safe_inset_top_ = std::max(0.0f, top);
+	safe_inset_right_ = std::max(0.0f, right);
+	safe_inset_bottom_ = std::max(0.0f, bottom);
+
+	if (top_hud_panel) {
+		top_hud_panel->set_offset(SIDE_LEFT, 12.0f + safe_inset_left_);
+		top_hud_panel->set_offset(SIDE_RIGHT, -12.0f - safe_inset_right_);
+		top_hud_panel->set_offset(SIDE_TOP, 8.0f + safe_inset_top_);
+		top_hud_panel->set_offset(SIDE_BOTTOM, 54.0f + safe_inset_top_);
+	}
+	command_panel_.apply_safe_insets(safe_inset_bottom_);
+	minimap_panel_.apply_safe_insets(safe_inset_bottom_);
+	if (minimap_view) {
+		minimap_view->set_offset(SIDE_TOP, -204.0f - safe_inset_bottom_);
+		minimap_view->set_offset(SIDE_BOTTOM, -14.0f - safe_inset_bottom_);
+	}
+	chat_window_.apply_safe_insets(safe_inset_left_, safe_inset_top_);
+}
+
+Vector4 RtsoMain::debug_top_hud_offsets() const {
+	if (!top_hud_panel) return Vector4(0, 0, 0, 0);
+	return Vector4(
+		top_hud_panel->get_offset(SIDE_LEFT),
+		top_hud_panel->get_offset(SIDE_TOP),
+		top_hud_panel->get_offset(SIDE_RIGHT),
+		top_hud_panel->get_offset(SIDE_BOTTOM)
+	);
+}
+
+Vector2 RtsoMain::debug_bottom_panel_offsets() const {
+	float mm = minimap_view ? minimap_view->get_offset(SIDE_BOTTOM) : 0.0f;
+	float cp = command_panel_.bottom_offset();
+	return Vector2(mm, cp);
 }

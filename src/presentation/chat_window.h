@@ -211,6 +211,14 @@ public:
 		parent->add_child(overlay_);
 	}
 
+	void apply_safe_insets(float left_inset, float top_inset) {
+		if (overlay_) {
+			overlay_->set_offset(godot::SIDE_LEFT, 16.0f + left_inset);
+			overlay_->set_offset(godot::SIDE_RIGHT, 520.0f + left_inset);
+			overlay_->set_offset(godot::SIDE_TOP, 114.0f + top_inset);
+			overlay_->set_offset(godot::SIDE_BOTTOM, 114.0f + 20 * 18.0f + top_inset);
+		}
+	}
 	bool is_ready() const { return log_ != nullptr; }
 	bool is_open() const { return panel_ != nullptr && panel_->is_visible(); }
 	// ChatInput.onHotkeyChange: the input and Send button share one tooltip.
