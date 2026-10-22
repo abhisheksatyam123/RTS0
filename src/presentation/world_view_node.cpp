@@ -299,28 +299,6 @@ void RtsoWorldView::init_animation_controllers() {
 }
 
 void RtsoWorldView::_ready() {
-	// Selection Ring
-	// Selection Ring: create procedural smooth ring texture in memory so it never relies on disk import
-	{
-		const int sz = 256;
-		Ref<Image> img = Image::create_empty(sz, sz, false, Image::FORMAT_RGBA8);
-		const float center = (sz - 1) * 0.5f;
-		const float radius = sz * 0.42f;
-		const float half_w = sz * 0.045f;
-		const float feather = 1.5f;
-		for (int y = 0; y < sz; ++y) {
-			for (int x = 0; x < sz; ++x) {
-				const float dx = (float)x - center;
-				const float dy = (float)y - center;
-				const float dist = Math::sqrt(dx * dx + dy * dy);
-				const float diff = Math::abs(dist - radius);
-				const float a = Math::clamp((half_w - diff) / feather, 0.0f, 1.0f);
-				img->set_pixel(x, y, Color(1.0f, 1.0f, 1.0f, a));
-			}
-		}
-		ring_decal_tex_ = ImageTexture::create_from_image(img);
-	}
-
 	// Floating Health Bar Meshes and Materials
 	hp_bg_mesh.instantiate();
 	hp_bg_mesh->set_size(Vector3(0.9f, 0.08f, 0.04f));
@@ -749,6 +727,27 @@ static Color ring_color(const rtso::Simulation *sim, uint8_t owner, bool selecte
 	Color c = player_display_color(sim, owner);
 	c.a = selected ? 1.0f : 0.75f;
 	return c;
+}
+
+// CCmpSelectable::SetSelectionHighlight: an Overlay/AlwaysVisible overlay (a hero's star)
+// not selected is a third desaturated, at no less than 0.65 alpha.
+static Color overlay_color(const rtso::Simulation *sim, uint8_t owner, bool selected, bool always_visible) {
+	Color c = ring_color(sim, owner, selected);
+	if (always_visible && !selected) {
+		const float mx = std::max({c.r, c.g, c.b});
+		c.r += (mx - c.r) / 3.0f;
+		c.g += (mx - c.g) / 3.0f;
+		c.b += (mx - c.b) / 3.0f;
+	}
+	return c;
+}
+
+// A unit's 0.28 Selectable overlay (selection_overlay_data.h, from tools/extract_0ad_selectable.py).
+static_assert(rtso::SELECTION_TEMPLATE_ROWS == rtso::CIV_UNIT_TEMPLATE_COUNT, "rosters changed: re-run tools/extract_0ad_selectable.py");
+static_assert(rtso::SELECTION_CLASS_ROWS == rtso::UNIT_TYPE_COUNT, "unit types changed: re-run tools/extract_0ad_selectable.py");
+static const rtso::SelectionOverlay &unit_selection_overlay(uint8_t type, uint16_t tmpl) {
+	if (tmpl < rtso::SELECTION_TEMPLATE_ROWS) return rtso::selection_template_table()[tmpl];
+	return rtso::selection_class_table()[type < rtso::SELECTION_CLASS_ROWS ? type : rtso::UNIT_VILLAGER];
 }
 
 // 0 A.D. player_trans surfaces take the owner's colour (model_common.fs).
@@ -4478,14 +4477,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 				if (detailed.count(id) == 0) {
 			bool is_selected = (sel_set.count((int32_t)id) > 0);
-			const bool ringed = is_selected || highlight_set_.count((int32_t)id) > 0;
-			if (ringed) {
-				Decal *d = get_or_create_ring_decal(unit_rings_used++);
-				d->set_modulate(ring_color(sim, uview.team[i], is_selected));
-				const float rsize = std::max(1.1f, 1.25f * model_b.height * sc);
-				d->set_size(Vector3(rsize, 2.5f, rsize));
-				d->set_transform(Transform3D(Basis(), Vector3(x, ground + 0.1f, z)));
-				d->set_visible(true);
+			const rtso::SelectionOverlay &ov = unit_selection_overlay(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
+			if (is_selected || highlight_set_.count((int32_t)id) > 0 || (ov.always_visible && !dying)) {
+				place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), ov, model_b.metre, yaw,
+						Vector3(x, ground + 0.1f, z), overlay_color(sim, uview.team[i], is_selected, ov.always_visible));
 			}
 			continue;
 		}
@@ -4566,14 +4561,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 
 		bool is_selected = (sel_set.count((int32_t)id) > 0);
-		const bool ringed = is_selected || highlight_set_.count((int32_t)id) > 0;
+		const rtso::SelectionOverlay &ov = unit_selection_overlay(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
+		const bool ringed = is_selected || highlight_set_.count((int32_t)id) > 0 || (ov.always_visible && !dying);
 		if (ringed) {
-			Decal *d = get_or_create_ring_decal(unit_rings_used++);
-			d->set_modulate(ring_color(sim, uview.team[i], is_selected));
-			const float rsize = std::max(1.1f, 1.25f * model_b.height * sc);
-			d->set_size(Vector3(rsize, 2.5f, rsize));
-			d->set_transform(Transform3D(Basis(), Vector3(x, ground + 0.1f, z)));
-			d->set_visible(true);
+			place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), ov, model_b.metre, yaw,
+					Vector3(x, ground + 0.1f, z), overlay_color(sim, uview.team[i], is_selected, ov.always_visible));
 		}
 		v.ring_on = ringed;
 
@@ -5257,12 +5249,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		const bool f_sel = !sel_set.empty() && sel_set.count((int32_t)fview.id[f]);
 		if (f_sel || (!highlight_set_.empty() && highlight_set_.count((int32_t)fview.id[f]))) {
 			// The player's own selected livestock (0 A.D. livestock are units), or a hovered animal.
-			Decal *r = get_or_create_ring_decal(unit_rings_used++);
-			r->set_modulate(ring_color(sim, fview.owner[f], f_sel));
-			const float rs = std::max(1.1f, fsc * 1.6f);
-			r->set_size(Vector3(rs, 2.5f, rs));
-			r->set_transform(Transform3D(Basis(), Vector3(fx, fy + 0.1f, fz)));
-			r->set_visible(true);
+			place_selection_overlay(get_or_create_ring_decal(unit_rings_used++),
+					rtso::fauna_selection_overlay(rtso::fauna_type_info(ft).template_name), fent.metre, frot,
+					Vector3(fx, fy + 0.1f, fz), ring_color(sim, fview.owner[f], f_sel));
 			// StatusBars.js: an animal's food supply and, alive, its health.
 			StatusStack st;
 			const int food = rtso::fauna_type_info(ft).food_amount;
@@ -5299,12 +5288,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			} else if (r.type == rtso::RES_FOOD) {
 				bar_w = 3.0f, bar_h = 0.5f, offset = 4.0f;
 			}
-			Decal *ring = get_or_create_ring_decal(unit_rings_used++);
-			ring->set_modulate(ring_color(sim, rtso::GAIA_PLAYER, false));
+			// template_gaia_tree's ellipse (mines, fruit, fish and treasures draw 0.28's Outline line instead).
 			const float rs = 2.0f * radius;
-			ring->set_size(Vector3(rs, 2.5f, rs));
-			ring->set_transform(Transform3D(Basis(), Vector3(r.x, ry + 0.1f, r.z)));
-			ring->set_visible(true);
+			place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), {"128x128/ellipse", rs, rs, false}, 1.0f, 0.0f,
+					Vector3(r.x, ry + 0.1f, r.z), ring_color(sim, rtso::GAIA_PLAYER, false));
 			const int32_t max = supply_max_.emplace(r.id, r.amount).first->second;
 			StatusStack st;
 			st.supply = max > 0 ? (float)r.amount / (float)max : 1.0f;
@@ -5416,7 +5403,7 @@ void RtsoWorldView::sync_gl_decal(const rtso::Simulation *sim, Decal *d) {
 	const Transform3D xf = d->get_global_transform();
 	const Vector3 size = d->get_size();
 	const Color mod = d->get_modulate();
-	const Array key = Array::make(xf, size, mod);
+	const Array key = Array::make(xf, size, mod, tex);
 	if (mi->has_meta("gl_key") && mi->get_meta("gl_key") == Variant(key)) return;
 	mi->set_meta("gl_key", key);
 	Ref<StandardMaterial3D> &mat = gl_decal_mats_[tex.ptr()];
@@ -5478,9 +5465,6 @@ void RtsoWorldView::sync_gl_decal(const rtso::Simulation *sim, Decal *d) {
 Decal *RtsoWorldView::get_or_create_ring_decal(size_t index) {
 	while (unit_ring_decals_.size() <= index) {
 		Decal *d = memnew(Decal);
-		if (ring_decal_tex_.is_valid()) {
-			d->set_texture(Decal::TEXTURE_ALBEDO, ring_decal_tex_);
-		}
 		d->set_cull_mask(DECAL_LAYER);
 		d->set_normal_fade(0.2f);
 		d->set_visible(false);
@@ -5488,6 +5472,65 @@ Decal *RtsoWorldView::get_or_create_ring_decal(size_t index) {
 		unit_ring_decals_.push_back(d);
 	}
 	return unit_ring_decals_[index];
+}
+
+Ref<Texture2D> RtsoWorldView::selection_texture(const char *texture, const Color &c) {
+	const std::string key = std::string(texture) + "#" + std::to_string(Color(c.r, c.g, c.b).to_rgba32());
+	if (auto it = selection_textures_.find(key); it != selection_textures_.end()) return it->second;
+	auto &imgs = selection_images_[texture];
+	if (imgs.first.is_null()) {
+		auto load = [](const String &path) {
+			Ref<Image> img;
+			if (ResourceLoader::get_singleton()->exists(path)) {
+				Ref<Texture2D> tex = ResourceLoader::get_singleton()->load(path);
+				if (tex.is_valid()) img = tex->get_image();
+			}
+			if (img.is_null() || img->is_empty()) img = Image::load_from_file(ProjectSettings::get_singleton()->globalize_path(path));
+			if (img.is_null() || img->is_empty()) return Ref<Image>();
+			img = img->duplicate();
+			if (img->is_compressed()) img->decompress();
+			img->clear_mipmaps();
+			img->convert(Image::FORMAT_RGBA8);
+			return img;
+		};
+		const String base = String("res://assets/textures/selection/") + texture;
+		imgs.first = load(base + String(".png"));
+		imgs.second = load(base + String("_mask.png"));
+		if (imgs.first.is_null()) { // a plain ring
+			imgs.first = Image::create_empty(64, 64, false, Image::FORMAT_RGBA8);
+			for (int y = 0; y < 64; ++y)
+				for (int x = 0; x < 64; ++x) {
+					const float d = Vector2(x - 31.5f, y - 31.5f).length();
+					imgs.first->set_pixel(x, y, Color(0, 0, 0, d > 26.0f && d < 31.0f ? 1.0f : 0.0f));
+				}
+		}
+	}
+	// overlayline.fs: colour = mix(base.rgb, colour, mask.r) at the base's alpha.
+	Ref<Image> out = imgs.first->duplicate();
+	const Ref<Image> &mask = imgs.second;
+	const bool masked = mask.is_valid() && mask->get_size() == out->get_size();
+	for (int y = 0; y < out->get_height(); ++y) {
+		for (int x = 0; x < out->get_width(); ++x) {
+			const Color b = out->get_pixel(x, y);
+			const float k = masked ? mask->get_pixel(x, y).r : (b.a > 0.0f ? 1.0f : 0.0f);
+			out->set_pixel(x, y, Color(b.r + (c.r - b.r) * k, b.g + (c.g - b.g) * k, b.b + (c.b - b.b) * k, b.a));
+		}
+	}
+	out->generate_mipmaps();
+	Ref<Texture2D> tex = ImageTexture::create_from_image(out);
+	selection_textures_[key] = tex;
+	return tex;
+}
+
+// CCmpSelectable::UpdateDynamicOverlay: the overlay's width x depth metre quad on the ground,
+// turned with the entity (its depth along the facing, the texture's top ahead), at the colour's alpha.
+void RtsoWorldView::place_selection_overlay(Decal *d, const rtso::SelectionOverlay &ov, float metre, float yaw, const Vector3 &at, const Color &c) {
+	const Ref<Texture2D> tex = selection_texture(ov.texture, c);
+	if (d->get_texture(Decal::TEXTURE_ALBEDO) != tex) d->set_texture(Decal::TEXTURE_ALBEDO, tex);
+	d->set_modulate(Color(1.0f, 1.0f, 1.0f, c.a));
+	d->set_size(Vector3(ov.width * metre, 2.5f, ov.depth * metre));
+	d->set_transform(Transform3D(Basis(Vector3(0, 1, 0), yaw), at));
+	d->set_visible(true);
 }
 
 void RtsoWorldView::draw_structure_outlines(const rtso::Simulation *sim) {
