@@ -3447,7 +3447,8 @@ static void test_huge_attack_drops_classes() {
 	uint16_t elite = 0;
 	for (const auto &st : full)
 		if ((st.classes & (TC_CHAMPION | TC_HERO)).any()) elite |= (uint16_t)(1u << st.index);
-	for (int k = 0; k < 4; ++k) {
+	// One order leaves a turn (buildOrders.splice, then nothing more that turn): five here.
+	for (int k = 0; k < 8; ++k) {
 		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 20000.0f;
 		run_ai_turns(*s, 1);
 	}
@@ -3461,6 +3462,77 @@ static void test_huge_attack_drops_classes() {
 	CHECK(elite && (dropped & elite) == elite, "the champion and hero classes leave the plan when nothing trains them");
 	CHECK(elite_left == 0, "they stay out once the city phase arrives");
 	CHECK((dropped & ~elite) == 0, "the citizen-soldier classes stay");
+}
+
+// attackPlan.js trainMoreUnits: when the order furthest behind has no template, the order is
+// deleted and nothing is queued that turn; the next order trains on the plan's next turn.
+// Each order trains in the queue its classes name, not the template's: the "Siege" order's war
+// elephants (Champion units) in the siege queue.
+static void test_attack_order_no_template() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->spawn_building_world(tx + (tx > 0.0f ? -12.0f : 12.0f), tz, BLD_BARRACKS, 1, 1.0f);
+	s->players_[1].phase = 2;
+	s->cheat_mods_[1].pop_bonus = 300;
+	// Nothing of ours trains ranged infantry, the Attack's first order.
+	for (uint16_t tmpl : civ_roster_ids(s->players_[1].civ)) {
+		const TechClasses c = civ_unit_template(tmpl).tech_classes;
+		if ((c & (TC_INFANTRY | TC_RANGED)) == (TC_INFANTRY | TC_RANGED)) s->triggers_.disabled_templates.push_back(tmpl);
+	}
+	auto &m = s->petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 0;
+	m.kind = PETRA_ATTACK_ATTACK;
+	s->petra_plan_sizes(PETRA_ATTACK_ATTACK);
+	m.dropped_classes = 0;
+	auto &plan = s->petra_attack_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	auto queued = [&] {
+		int n = 0;
+		for (const auto &b : s->buildings())
+			for (const auto &o : b.queue) n += o.petra_plan == PETRA_ORDER_ATTACK ? o.count : 0;
+		return n;
+	};
+	auto fund = [&] {
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 20000.0f;
+		for (uint8_t q : {PETRA_Q_PLAN, PETRA_Q_PLAN_CHAMP, PETRA_Q_PLAN_SIEGE}) {
+			auto &a = s->petra_queues_.accounts[q];
+			a.food = a.wood = a.gold = a.stone = 20000.0f;
+		}
+	};
+	fund();
+	s->petra_manage_military_production(0.0f);
+	const int first = queued();
+	const bool ranged_dropped = (m.dropped_classes & 1u) != 0;
+	fund();
+	s->petra_manage_military_production(0.0f);
+	const int second = queued();
+	std::printf("  Attack with no ranged infantry template: %d queued on its turn (ranged order %s), %d on the next\n",
+	            first, ranged_dropped ? "dropped" : "kept", second);
+	CHECK(ranged_dropped, "the order with no template leaves the plan");
+	CHECK(first == 0, "nothing else is queued on that turn");
+	CHECK(second > 0, "the next order trains on the plan's next turn");
+
+	using St = Simulation::PetraUnitStat;
+	const St elephants{TC_ELEPHANT | TC_MELEE, 1.0f, 0, 2, 2, 0.0f, 3.0f, 1.0f, 1.0f};
+	const St hero{TC_HERO, 1.0f, 0, 1, 1, 2.0f, 0.0f, 1.0f, 1.0f};
+	const St champions{TC_INFANTRY | TC_MELEE | TC_CHAMPION, 1.0f, 3, 18, 3, 3.0f, 0.0f, 1.0f, 1.0f};
+	const St infantry{TC_INFANTRY | TC_MELEE, 1.0f, 6, 16, 3, 1.6f, 0.0f, 0.3f, 0.3f};
+	CHECK(Simulation::petra_plan_order_queue(elephants) == PETRA_Q_PLAN_SIEGE, "the Siege order's elephants train in the siege queue");
+	CHECK(Simulation::petra_plan_order_queue(hero) == PETRA_Q_PLAN_SIEGE, "a Hero order trains in the siege queue");
+	CHECK(Simulation::petra_plan_order_queue(champions) == PETRA_Q_PLAN_CHAMP, "a Champion order trains in the champion queue");
+	CHECK(Simulation::petra_plan_order_queue(infantry) == PETRA_Q_PLAN, "a citizen order trains in the plan's queue");
 }
 
 // defenseManager.js assignDefenders: soldiers of a plan still mustering defend the base
@@ -4549,6 +4621,51 @@ static void test_wonder_guards() {
 	            !u.alive[f] ? "killed" : (hurt ? "hurt" : "untouched"));
 	CHECK(wonder != 0 && guarding == 4, "champions guard Petra's finished wonder");
 	CHECK(hurt, "and fight whoever attacks it");
+}
+
+// victoryManager.js tryAssignMilitaryGuard checkForSameAccess false: with no soldiers on its
+// land, guards come from another and ask for a transport there (requireTransport); each one
+// guards it once it lands.
+static void test_guards_from_another_land() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->set_waves_enabled(false);
+	s->generate_random_map(MAP_ISLANDS, 7, 2, 128.0f);
+	s->set_victory_condition(VICTORY_RELIC);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, true);
+	s->petra_swap_slot(0);
+	s->petra_pid_ = 0;
+	float ox = 0, oz = 0, ex = 0, ez = 0;
+	for (const auto &b : s->buildings_) {
+		if (b.type != BLD_TOWN_CENTER) continue;
+		if (b.team == 0) { ox = b.x; oz = b.z; } else { ex = b.x; ez = b.z; }
+	}
+	CHECK(s->petra_land_at(ox, oz) != s->petra_land_at(ex, ez), "the two civic centres stand on different islands");
+	s->relics_.clear();
+	const uint32_t relic = s->spawn_relic(ex + 6.0f, ez + 6.0f);
+	const int32_t r = s->lookup_unit(relic);
+	if (r >= 0) s->units_.team[r] = 0;
+	std::vector<uint32_t> champs;
+	for (int i = 0; i < 3; ++i) champs.push_back(s->spawn_unit(ox + 6.0f + 2.0f * (float)i, oz + 6.0f, 0, UNIT_ELEPHANT));
+	// Over 25 workers: with fewer, the search stops after the champions on the relic's land.
+	for (int i = 0; i < 30; ++i) s->spawn_unit(ox - 6.0f + (float)(i % 6), oz - 6.0f - (float)(i / 6), 0, UNIT_FEMALE_CITIZEN);
+	s->petra_manage_critical_ent_guards();
+	int ferried = 0;
+	for (uint32_t id : champs) ferried += s->petra_ferried_guard(id) && s->petra_passenger(id);
+	// One lands on the relic's island.
+	const int32_t c0 = s->lookup_unit(champs[0]);
+	bool landed_guards = false;
+	if (c0 >= 0 && s->petra_ferried_guard(champs[0])) {
+		s->units_.pos_x[c0] = ex + 8.0f;
+		s->units_.pos_z[c0] = ez + 4.0f;
+		s->petra_manage_critical_ent_guards();
+		landed_guards = s->units_.order_kind[c0] == ORDER_GUARD && s->units_.order_target[c0] == relic && !s->petra_ferried_guard(champs[0]);
+	}
+	std::printf("  relic on another island: %d of 3 champions booked on a transport, one landed %s\n", ferried,
+	            landed_guards ? "guards it" : "does not guard it");
+	CHECK(ferried == 3, "champions from another island are ferried to guard the relic");
+	CHECK(landed_guards, "a ferried guard guards the relic once it lands");
 }
 
 // victoryManager.js criticalEnts: an owned relic is guarded like a hero
@@ -6327,6 +6444,25 @@ static void test_defensive_location() {
 		std::printf("  wonder victory: sentry tower spot %.1f from our wonder (at least %.1f)\n", d, dmin);
 		CHECK(got && d >= dmin - 1.5f && d < dmin + 6.0f, "the tower rings our wonder just beyond 50 m");
 	}
+
+	// No enemy or neutral structures: an ally's count unless in allied victory (headquarters.js:1149).
+	for (const bool last_man : {true, false}) {
+		auto a = std::make_unique<Simulation>();
+		a->set_sim_seed(42);
+		a->reset();
+		a->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		a->set_victory_condition(VICTORY_ENDLESS);
+		a->set_last_man_standing(last_man);
+		a->set_diplomacy(0, 1, Simulation::DIPLO_ALLY);
+		a->set_diplomacy(1, 0, Simulation::DIPLO_ALLY);
+		run_for(*a, 20.0f);
+		a->petra_pid_ = 1;
+		int ax = 0, az = 0;
+		const bool got = a->petra_find_defensive_location(BLD_SENTRY_TOWER, ax, az);
+		std::printf("  only an ally, %s: %s\n", last_man ? "last man standing" : "allied victory", got ? "a spot facing it" : "no spot");
+		if (last_man) CHECK(got && !a->allied_victory(), "with only an ally, towers face its structures");
+		else CHECK(!got, "in allied victory, allies' structures don't count");
+	}
 }
 
 // queueplanTraining.js: each batch Petra queues carries what it is for (a worker, the attack
@@ -8074,6 +8210,7 @@ int main(int argc, char **argv) {
 	RUN(test_attack_plan_keeps_hunters);
 	RUN(test_raid_takes_every_rider);
 	RUN(test_huge_attack_drops_classes);
+	RUN(test_attack_order_no_template);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
 	RUN(test_attack_request_counts_raid);
@@ -8116,6 +8253,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_wood_poor_corral);
 	RUN(test_petra_sandbox_first_storehouse);
 	RUN(test_wonder_guards);
+	RUN(test_guards_from_another_land);
 	RUN(test_victory_critical_ents);
 	RUN(test_placement_miss_memory_exact);
 	RUN(test_defend_allies);
