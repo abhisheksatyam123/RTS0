@@ -22,7 +22,7 @@
 - [x] T19 [lead] Fix G58 items (Briton war dog FastMoving raid/hunt handling and TrainingPlan civic trainer timings).
 - [x] T20 [lead] Rebuild with SCons, run full headless CI suite (63/63 steps), verify zero regressions and push to origin/main.
 - [x] T21 [lead] Fix animation and gathering equivalent to 0 A.D. (gatherer/dropsite arrival facing FaceTowardsTarget, approach walk tool animations & props, idle carry posture and props, mounted cavalry meat carry).
-- [ ] T22 [lead] Implement formation auras & stat modifiers (0 A.D. Auras.js ApplyFormationAura / Formation.js: phalanx frontal armor/melee, testudo pierce armor/speed penalty, wedge charge, line march bonus).
+- [x] T22 [lead] Implement formation auras & stat modifiers (0 A.D. Auras.js ApplyFormationAura / Formation.js: phalanx frontal armor/melee, testudo pierce armor/speed penalty, wedge charge, line march bonus).
 - [ ] T23 [lead] Modularize Session UI presentation tree (P4: extract TopPanel, ProductionQueueView, and CommandPanelView from monolithic main_node.cpp).
 - [ ] T24 [lead] Multi-client lockstep determinism audit & 2000-turn headless peer playtest (P1: audit sim RNG and wall-drag placement determinism, run tools/test_netcode --net-peer).
 - [ ] T25 [lead] Expand component parity behavioral tests (attack splash falloff curves, garrison arrow scaling, formation turning in tools/test_components.cpp).
@@ -30,6 +30,13 @@
 - [ ] T27 [lead] Mobile viewport safe insets & notch margin handling (G57: Godot get_window().get_safe_area() bounds to prevent HUD clipping on notch/island displays).
 
 ## Systems
+- Formation Stat Modifiers & Auras (T22, formation.h / simulation.cpp):
+  - Added FormationStatMods and formation_stat_modifiers() mapping each UnitFormation to deterministic combat, armor, speed, and attack rate modifiers matching 0 A.D. templates.
+  - unit_resistance(): applies formation hack, pierce, and crush armor bonuses (e.g. +5/+5/+2 in Phalanx, +3/+10/+1 in Testudo, +4/+6/+2 in Syntagma, +4/+4 in Shield Wall, -2 in Wedge/Column).
+  - unit_attack_effects(): applies damage multiplier (e.g. +20% melee damage in Phalanx, +25% in Syntagma, +30% in Wedge).
+  - unit_repeat_time(): applies repeat time multiplier (e.g. 0.85x repeat time in Wedge).
+  - unit_base_walk_speed(): applies formation speed multiplier (e.g. 0.75x in Phalanx, 0.60x in Testudo, 1.10x in Wedge, 1.20x in Forced March Column), which also naturally drives formation controller march speed.
+  - Verified in tools/test_formations.cpp section 16 with 100% test pass.
 - Remaining Roadmap & Gaps (P1-P4, G7, G57):
   - Formations: formation templates in simulation/templates/special/formations/*.xml define stat modifiers (ApplyFormationAura) that alter armor, attack repeat time, and movement speed for member units while in formation.
   - Session UI modularization (P4): main_node.cpp coordinates scene lifecycle, camera, and UI (~3,500 lines); staged extraction targets TopPanel, ProductionQueueView, and CommandPanelView into decoupled Godot Control widgets.
@@ -101,3 +108,4 @@
 - 2026-10-22 [lead] T20: Headless CI suite (63/63 steps) completed with 0 failures; zero regressions.
 - 2026-10-22 [lead] T21: Fixed animation and gathering parity with 0 A.D.: FaceTowardsTarget on arrival and gathering tick, approach walk clips with harvesting tools in hand, laden idle carry animations with resource props, mounted cavalry meat carry posture and props. Verified with test_animation.py, e2e_gatherer_counts.gd, e2e_armed_actions.gd, and full CI suite.
 - 2026-10-22 [lead] Updated remaining tasks: T22 (Formation auras), T23 (Session UI modularization), T24 (Lockstep peer determinism), T25 (Component parity tests), T26 (Asset pipeline coverage), T27 (Mobile safe insets).
+- 2026-10-22 [lead] T22: Implemented formation auras and stat modifiers in formation.h and simulation.cpp (phalanx, testudo, syntagma, shield wall, wedge, forced march column); verified via tools/test_formations.cpp section 16 and tools/e2e_formation_options.gd.
