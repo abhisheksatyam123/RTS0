@@ -16,6 +16,11 @@
 - [x] T13 [lead] Rebuild and verify: scons build, petra parity (37/37), netcode parity (17/17), netcode tests, asset audit (302/0), entity scale audit (384 ids).
 - [x] T14 [lead] Merge origin/main (3bed76a86) into local main: resolve model_library.cpp & simulation.cpp conflicts, fix naval gather spread regression, revert berry bush MaxGatherers to 8, run full CI headless suite (63/63 OK), commit and push.
 - [x] T15 [lead] Merge all open PRs (#1541, #1550, #1556) into main one by one with merge commits; resolve save-version collision on #1550 (SAVE_VERSION bumped to 118); verify with full headless CI suite (63/63 OK); push to origin/main.
+- [x] T16 [lead] Port & integrate G46 Petra defense/formations from origin/claude/port-0ad-formations-08y4hg (L8 allied structure fallback, L11 ferried guards save v119, attack order trainMoreUnits queue mapping, test_petra).
+- [x] T17 [lead] Port & integrate G60 selection overlays from origin/claude/rendering-fog-of-war-tcpjaw (0.28 template shapes/footprints, hero star always visible, selection textures).
+- [x] T18 [lead] Update tools/check_parity.py market & combat probes to match template-based counter multipliers and verify G1-G10 parity.
+- [x] T19 [lead] Fix G58 items (Briton war dog FastMoving raid/hunt handling and TrainingPlan civic trainer timings).
+- [ ] T20 [lead] Rebuild with SCons, run full headless CI suite (63/63 steps), verify zero regressions and push to origin/main.
 
 ## Systems
 - Repository: RTS0 = 0 A.D. native port (C++ SoA sim + Godot 4.3 GDExtension).
@@ -72,3 +77,5 @@
 - 2026-10-21 [lead] Fresh commit: assets/textures/selection_ring.png (the selection ring's texture; note the ring itself is drawn by projected Godot Decal nodes now, so this file is currently unreferenced) and scratchpad/todo.md (the qcode-server task file, which .gitignore un-ignores with "!scratchpad/todo.md"). Both were the last untracked paths in the tree.
 - 2026-10-21 [lead] T15: starting the PR merges at main = ee0b692e2, oldest PR first (#1541, #1550, #1556).
 - 2026-10-22 [lead] T15: merged all 3 open PRs (#1541, #1550, #1556) into main with merge commits; resolved save-version collision on #1550 by advancing SAVE_VERSION to 118; pushed to origin/main. Full CI headless suite 63/63 PASS with 0 failures.
+- 2026-10-22 [lead] Identified remaining gaps (G46 Petra ferry/allies, G60 selection overlays, G58 Petra unit choice, G3 parity probe). Began work on T16-T20.
+- 2026-10-22 [lead] T16-T19 complete: ported G46 ferried guards (save 119) & allied defense, G60 template selection overlays & textures, G58 war dog FastMoving & Civic trainer timings, updated G3 parity probe (95% overall). Running T20 full CI suite.
