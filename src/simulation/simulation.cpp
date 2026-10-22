@@ -21511,9 +21511,7 @@ std::vector<Simulation::PetraUnitStat> Simulation::petra_plan_unit_stats(uint8_t
 		return tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	};
 	// A building of ours that trains `tmpl` at all (findTrainableUnits ignores queue lengths).
-	auto trainer_for = [&](uint16_t tmpl) -> uint32_t {
-		return petra_best_trainer(tmpl, civ_unit_template(tmpl).unit_type, PRODUCTION_QUEUE_MAX);
-	};
+	auto trainer_for = [&](uint16_t tmpl) { return petra_has_trainer(tmpl); };
 	// attackPlan.js constructor unitStat: {classes, priority, minSize, targetSize, batchSize,
 	// strength, costsResource stone, costsResource metal}.
 	std::vector<UnitStat> stats;
@@ -21565,17 +21563,19 @@ std::vector<Simulation::PetraUnitStat> Simulation::petra_plan_unit_stats(uint8_t
 		bool has_trainer[3] = {};
 		for (uint16_t tmpl : civ_roster_ids(ai_civ)) {
 			const CivUnitTemplate &t = civ_unit_template(tmpl);
-			if (t.phase > phase || !trainer_for(tmpl)) continue;
+			if (t.phase > phase || triggers_.template_disabled(tmpl) || !trainer_for(tmpl)) continue;
 			const TechClasses c = classes_of(tmpl, t.unit_type);
 			for (int k = 0; k < 3; ++k)
 				if ((c & siege_classes[k]) == siege_classes[k]) has_trainer[k] = true;
 		}
-		// The class is picked once (SIEGE_ADDED), from the plan's name: rams for plan 0.
-		int k = petra_attack_mgr_.attack_siege ? petra_attack_mgr_.attack_siege - 1 : petra_attack_mgr_.attack_name % 3;
-		for (int n = 0; n < 3 && !has_trainer[k]; ++n) k = (k + 1) % 3;
-		if (has_trainer[k]) petra_attack_mgr_.attack_siege = (uint8_t)(k + 1);
+		// The class is picked once (SIEGE_ADDED), from the plan's name: rams for plan 0. Once
+		// picked it stays; without a trainer any more trainMoreUnits drops it from the plan.
+		const bool added = petra_attack_mgr_.attack_siege != 0;
+		int k = added ? petra_attack_mgr_.attack_siege - 1 : petra_attack_mgr_.attack_name % 3;
+		for (int n = 0; n < 3 && !added && !has_trainer[k]; ++n) k = (k + 1) % 3;
+		if (!added && has_trainer[k]) petra_attack_mgr_.attack_siege = (uint8_t)(k + 1);
 		const int target = petra_plan_siege_target(kind == PETRA_ATTACK_HUGE);
-		if (has_trainer[k] && target > 0)
+		if ((added || has_trainer[k]) && target > 0)
 			stats.push_back({siege_classes[k], 1.0f, 0, target, std::min(target, 2), 0.0f, 3.0f, 1.0f, 1.0f});
 	}
 	// A raid's siege engines, once petra_raid_add_siege added them (0.28 runs addSiegeUnits for
