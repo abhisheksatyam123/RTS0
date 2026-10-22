@@ -20,9 +20,15 @@
 - [x] T17 [lead] Port & integrate G60 selection overlays from origin/claude/rendering-fog-of-war-tcpjaw (0.28 template shapes/footprints, hero star always visible, selection textures).
 - [x] T18 [lead] Update tools/check_parity.py market & combat probes to match template-based counter multipliers and verify G1-G10 parity.
 - [x] T19 [lead] Fix G58 items (Briton war dog FastMoving raid/hunt handling and TrainingPlan civic trainer timings).
-- [ ] T20 [lead] Rebuild with SCons, run full headless CI suite (63/63 steps), verify zero regressions and push to origin/main.
+- [x] T20 [lead] Rebuild with SCons, run full headless CI suite (63/63 steps), verify zero regressions and push to origin/main.
+- [x] T21 [lead] Fix animation and gathering equivalent to 0 A.D. (gatherer/dropsite arrival facing FaceTowardsTarget, approach walk tool animations & props, idle carry posture and props, mounted cavalry meat carry).
 
 ## Systems
+- 0 A.D. Gathering & Carry Animations:
+  - Gatherer facing: in src/simulation/simulation.cpp, updated move_units and tick_gather to face towards the target resource center (rx - px, rz - pz) and dropsite center (tx0 - px, tz0 - pz) upon arrival (FaceTowardsTarget), preventing sideways/backward harvest posture.
+  - Approach walk tool animations & props: in src/presentation/world_view_node.cpp and src/graphics/assets/model_library.cpp, added approach clips (CLIP_APPROACH_TREE, CLIP_APPROACH_ORE, CLIP_APPROACH_ROCK, CLIP_APPROACH_GRAIN, CLIP_APPROACH_MEAT) mapping to biped_gatherer_walk_axe, biped_gatherer_walk_pickaxe, biped_gatherer_walk_hoe with proper tools displayed in hand while walking to resources instead of weapons.
+  - Laden idle animation & carry props: added CLIP_IDLE_CARRY_FOOD, CLIP_IDLE_CARRY_MEAT, CLIP_IDLE_CARRY_WOOD, CLIP_IDLE_CARRY_STONE, CLIP_IDLE_CARRY_METAL backed by biped_gatherer_idle_carry_* PSA clips and attach_carry_prop so idle/stopped laden workers maintain carry posture and props without switching to combat idle with weapons or walking in place.
+  - Mounted cavalry meat carry: added cavalry_carry (biped_rider_cavalry_generic_carry_meat) and cavalry_idle_carry (biped_rider_cavalry_generic_idle_carry_meat) to src/animation/psa_loader.cpp, tools/test_animation.py, and src/animation/animation_controller.cpp (load_clip(AnimState::Carry) for Mounted rig); in attach_carry_prop, mounted riders attach only carry_meat_r on weapon_R (0 A.D. biped/rider/carry_meat.xml), keeping rider seated in saddle.
 - Repository: RTS0 = 0 A.D. native port (C++ SoA sim + Godot 4.3 GDExtension).
 - Entity Scale Rules: ModelLibrary::target_height's "units" branch matches on substrings, so the rule that names the actor's kind must come before the rule that only shares a word with it. The rules are read out of model_library.cpp by tools/audit_entity_scale.py, so their order and heights are checked rather than mirrored.
 - Class Model vs Template Model: a class model (the civ's unit table) is drawn at target_height; a template model (unit_template_models.h, with a class model) is drawn at its class model's scale factor, and target_height does not apply to it at all. Only class models can be sized by the wrong rule.
@@ -79,3 +85,5 @@
 - 2026-10-22 [lead] T15: merged all 3 open PRs (#1541, #1550, #1556) into main with merge commits; resolved save-version collision on #1550 by advancing SAVE_VERSION to 118; pushed to origin/main. Full CI headless suite 63/63 PASS with 0 failures.
 - 2026-10-22 [lead] Identified remaining gaps (G46 Petra ferry/allies, G60 selection overlays, G58 Petra unit choice, G3 parity probe). Began work on T16-T20.
 - 2026-10-22 [lead] T16-T19 complete: ported G46 ferried guards (save 119) & allied defense, G60 template selection overlays & textures, G58 war dog FastMoving & Civic trainer timings, updated G3 parity probe (95% overall). Running T20 full CI suite.
+- 2026-10-22 [lead] T20: Headless CI suite (63/63 steps) completed with 0 failures; zero regressions.
+- 2026-10-22 [lead] T21: Fixed animation and gathering parity with 0 A.D.: FaceTowardsTarget on arrival and gathering tick, approach walk clips with harvesting tools in hand, laden idle carry animations with resource props, mounted cavalry meat carry posture and props. Verified with test_animation.py, e2e_gatherer_counts.gd, e2e_armed_actions.gd, and full CI suite.

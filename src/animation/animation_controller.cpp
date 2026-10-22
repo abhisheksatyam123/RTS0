@@ -82,8 +82,10 @@ bool AnimationController::load_rig(RigType rig) {
 			// rider's own "GatherMeat" is the biped gatherer's standing
 			// animation, which leaves the rider above the horse's back.
 			load_clip(AnimState::Gather, "horse_attack");
+			load_clip(AnimState::Carry, "horse_walk");
 			mount_rider_controller->load_clip(AnimState::Death, "cavalry_death");
 			mount_rider_controller->load_clip(AnimState::Gather, "cavalry_attack");
+			mount_rider_controller->load_clip(AnimState::Carry, "cavalry_carry");
 			mount_rider_controller->get_skeleton().load_xml("biped");
 			break;
 		}

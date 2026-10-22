@@ -1256,7 +1256,18 @@ enum ClipId : uint8_t {
 	CLIP_FEEDING, // 0.28 UnitAI animal IDLE.LINGERING (add_0ad_feeding_clips.py)
 	// Formation variant clips (kFormClips), loaded from their PSA on first use.
 	CLIP_FORM_FIRST,
-	CLIP_COUNT = CLIP_FORM_FIRST + 36
+	CLIP_COUNT = CLIP_FORM_FIRST + 36,
+	CLIP_APPROACH_TREE = CLIP_COUNT,
+	CLIP_APPROACH_ORE,
+	CLIP_APPROACH_ROCK,
+	CLIP_APPROACH_GRAIN,
+	CLIP_APPROACH_MEAT,
+	CLIP_IDLE_CARRY_FOOD,
+	CLIP_IDLE_CARRY_MEAT,
+	CLIP_IDLE_CARRY_WOOD,
+	CLIP_IDLE_CARRY_STONE,
+	CLIP_IDLE_CARRY_METAL,
+	CLIP_TOTAL_COUNT
 };
 
 // The clips the formation variants name (formation_variants.h variant_clips), each
@@ -1320,7 +1331,7 @@ static const StringName &clip_name(ClipId id) {
 	// Leaked on purpose: Godot objects in statics would be destroyed after the
 	// engine has gone, crashing the exit (here and in the caches below).
 	static const StringName *names = [] {
-		StringName *n = new StringName[CLIP_COUNT]{
+		StringName *n = new StringName[CLIP_TOTAL_COUNT]{
 		StringName(), StringName("Idle"), StringName("Walk"), StringName("Run"),
 		StringName("Attack"), StringName("Death"), StringName("Gather"),
 		StringName("GatherTree"), StringName("GatherOre"), StringName("GatherRock"),
@@ -1335,9 +1346,19 @@ static const StringName &clip_name(ClipId id) {
 		// ModelLibrary::apply_clip_tools: "Form" clips show the weapon, "FormBare" none.
 		for (int i = 0; i < CLIP_COUNT - CLIP_FORM_FIRST; ++i)
 			n[CLIP_FORM_FIRST + i] = StringName(String(kFormClips[i].bare ? "FormBare_" : "Form_") + kFormClips[i].psa);
+		n[CLIP_APPROACH_TREE] = StringName("ApproachTree");
+		n[CLIP_APPROACH_ORE] = StringName("ApproachOre");
+		n[CLIP_APPROACH_ROCK] = StringName("ApproachRock");
+		n[CLIP_APPROACH_GRAIN] = StringName("ApproachGrain");
+		n[CLIP_APPROACH_MEAT] = StringName("ApproachMeat");
+		n[CLIP_IDLE_CARRY_FOOD] = StringName("IdleCarryFood");
+		n[CLIP_IDLE_CARRY_MEAT] = StringName("IdleCarryMeat");
+		n[CLIP_IDLE_CARRY_WOOD] = StringName("IdleCarryWood");
+		n[CLIP_IDLE_CARRY_STONE] = StringName("IdleCarryStone");
+		n[CLIP_IDLE_CARRY_METAL] = StringName("IdleCarryMetal");
 		return n;
 	}();
-	return names[id < CLIP_COUNT ? id : CLIP_NONE];
+	return names[id < CLIP_TOTAL_COUNT ? id : CLIP_NONE];
 }
 
 // 0 A.D. ResourceGatherer.js SelectAnimation("gather_" + type).
@@ -1388,7 +1409,9 @@ static bool unit_is_female(uint8_t utype) {
 }
 
 static bool is_carry_variant(ClipId c) {
-	return c >= CLIP_CARRY_FOOD && c <= CLIP_CARRY_METAL;
+	return (c >= CLIP_CARRY_FOOD && c <= CLIP_CARRY_METAL) ||
+	       (c >= CLIP_IDLE_CARRY_FOOD && c <= CLIP_IDLE_CARRY_METAL) ||
+	       c == CLIP_CARRY;
 }
 
 // UnitAI.SetDefaultAnimationVariant: "carry_" + generic type, with meat split
@@ -1403,6 +1426,16 @@ static ClipId carry_clip_for(uint8_t res_type, uint8_t subtype) {
 	}
 }
 
+static ClipId idle_carry_clip_for(uint8_t res_type, uint8_t subtype) {
+	switch (res_type) {
+		case rtso::RES_WOOD: return CLIP_IDLE_CARRY_WOOD;
+		case rtso::RES_GOLD: return CLIP_IDLE_CARRY_METAL;
+		case rtso::RES_STONE: return CLIP_IDLE_CARRY_STONE;
+		case rtso::RES_FOOD: return subtype == rtso::RES_SUB_MEAT ? CLIP_IDLE_CARRY_MEAT : CLIP_IDLE_CARRY_FOOD;
+		default: return CLIP_IDLE;
+	}
+}
+
 // 0 A.D. action → clip (Attack.js, ResourceGatherer.js, CCmpVisualActor, UnitAI carry variant).
 struct WantAnim {
 	ClipId clip = CLIP_IDLE;
@@ -1413,15 +1446,23 @@ struct WantAnim {
 static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int32_t carry,
 		uint8_t utype, uint8_t res_type, uint8_t res_sub, bool capturing) {
 	WantAnim w;
-	// A laden unit keeps the carry variant through any movement clip.
-	const bool laden_move = carry > 0 && (speed2 > 0.001f || uaction == rtso::ACTION_MOVE);
-	// ~4.24 m/s: infantry walk (~3.2) stays Walk; cavalry/camel/chariot pick Run.
-	const bool sprint = !laden_move && speed2 > 18.0f;
+	const bool is_cavalry = rtso::unit_is_cavalry(utype);
+	// A laden unit keeps the carry variant through any movement or idle while holding cargo.
+	const bool laden = carry > 0 && uaction != rtso::ACTION_ATTACK && alive && uaction != rtso::ACTION_DYING;
+	const bool moving = speed2 > 0.001f;
+	const bool sprint = !laden && speed2 > 18.0f;
+
 	WantAnim w_move;
-	const ClipId carry_clip = carry_clip_for(res_type, res_sub);
-	w_move.clip = laden_move ? carry_clip : (sprint ? CLIP_RUN : CLIP_WALK);
-	w_move.state = laden_move ? rtso::AnimState::Carry
-			: (sprint ? rtso::AnimState::Run : rtso::AnimState::Walk);
+	if (laden && is_cavalry) {
+		w_move.clip = CLIP_WALK; // For mounted unit, rider controller plays cavalry_carry
+		w_move.state = rtso::AnimState::Carry;
+	} else if (laden) {
+		w_move.clip = moving ? carry_clip_for(res_type, res_sub) : idle_carry_clip_for(res_type, res_sub);
+		w_move.state = rtso::AnimState::Carry;
+	} else {
+		w_move.clip = sprint ? CLIP_RUN : CLIP_WALK;
+		w_move.state = sprint ? rtso::AnimState::Run : rtso::AnimState::Walk;
+	}
 
 	if (!alive || uaction == rtso::ACTION_DYING) {
 		w.clip = CLIP_DEATH;
@@ -1432,7 +1473,23 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 	switch (uaction) {
 		// Gather/build/attack block movement clips (SelectMovementAnimation early-out).
 		case rtso::ACTION_GATHER:
-			if (speed2 > 0.05f) return w_move;
+			if (speed2 > 0.05f) {
+				if (laden) return w_move;
+				if (is_cavalry) return w_move;
+				switch (res_type) {
+					case rtso::RES_WOOD: w.clip = CLIP_APPROACH_TREE; break;
+					case rtso::RES_GOLD: w.clip = CLIP_APPROACH_ORE; break;
+					case rtso::RES_STONE: w.clip = CLIP_APPROACH_ROCK; break;
+					case rtso::RES_FOOD:
+						if (res_sub == rtso::RES_SUB_GRAIN) w.clip = CLIP_APPROACH_GRAIN;
+						else if (res_sub == rtso::RES_SUB_MEAT) w.clip = CLIP_APPROACH_MEAT;
+						else w.clip = CLIP_WALK;
+						break;
+					default: w.clip = CLIP_WALK; break;
+				}
+				w.state = rtso::AnimState::Walk;
+				return w;
+			}
 			w.clip = gather_clip_for(utype, res_type, res_sub);
 			w.state = rtso::AnimState::Gather;
 			return w;
@@ -1469,17 +1526,21 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 				return w;
 			}
 			return w_move;
-		// UnitAI.SetDefaultAnimationVariant → carry_food / carry_*; fishing hull uses rowing_move.
+		// UnitAI.SetDefaultAnimationVariant: carry_food / carry_*; fishing hull uses rowing_move.
 		case rtso::ACTION_RETURN_DROPSITE:
-			w.clip = carry_clip;
-			w.state = rtso::AnimState::Carry;
-			return w;
+			if (laden) return w_move;
+			return w_move;
 		case rtso::ACTION_MOVE:
 		case rtso::ACTION_ATTACK_MOVE:
 		case rtso::ACTION_PATROL:
 			return w_move;
 		default:
 			break;
+	}
+	if (laden && !is_cavalry) {
+		w.clip = idle_carry_clip_for(res_type, res_sub);
+		w.state = rtso::AnimState::Carry;
+		return w;
 	}
 	if (speed2 > 0.001f) return w_move;
 	w.clip = CLIP_IDLE;
@@ -1531,6 +1592,21 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 		case CLIP_CARRY_STONE:
 		case CLIP_CARRY_METAL:
 			if (anim->has_animation(clip_name(CLIP_CARRY))) return CLIP_CARRY;
+			alt = CLIP_WALK;
+			break;
+		case CLIP_IDLE_CARRY_FOOD:
+		case CLIP_IDLE_CARRY_MEAT:
+		case CLIP_IDLE_CARRY_WOOD:
+		case CLIP_IDLE_CARRY_STONE:
+		case CLIP_IDLE_CARRY_METAL:
+			if (anim->has_animation(clip_name(CLIP_CARRY))) return CLIP_CARRY;
+			alt = CLIP_IDLE;
+			break;
+		case CLIP_APPROACH_TREE:
+		case CLIP_APPROACH_ORE:
+		case CLIP_APPROACH_ROCK:
+		case CLIP_APPROACH_GRAIN:
+		case CLIP_APPROACH_MEAT:
 			alt = CLIP_WALK;
 			break;
 		case CLIP_GATHER_TREE:
@@ -2616,6 +2692,17 @@ static int crowd_slot_of(ClipId clip) {
 		case CLIP_CARRY_WOOD: return 18;
 		case CLIP_CARRY_STONE: return 19;
 		case CLIP_CARRY_METAL: return 20;
+		case CLIP_APPROACH_TREE:
+		case CLIP_APPROACH_ORE:
+		case CLIP_APPROACH_ROCK:
+		case CLIP_APPROACH_GRAIN:
+		case CLIP_APPROACH_MEAT:
+			return 1;
+		case CLIP_IDLE_CARRY_FOOD: return 16;
+		case CLIP_IDLE_CARRY_MEAT: return 17;
+		case CLIP_IDLE_CARRY_WOOD: return 18;
+		case CLIP_IDLE_CARRY_STONE: return 19;
+		case CLIP_IDLE_CARRY_METAL: return 20;
 		case CLIP_PROMOTION: return 21;
 		case CLIP_CAPTURE: return 22;
 		case CLIP_IDLE2: return 23;
@@ -3369,6 +3456,15 @@ void RtsoWorldView::ensure_runtime_clips(AnimationPlayer *ap, bool female) {
 		{ CLIP_CARRY_WOOD, "carry_wood", "biped_gatherer_carry_wood_f" },
 		{ CLIP_CARRY_STONE, "carry_ore", "biped_gatherer_carry_ore_f" },
 		{ CLIP_CARRY_METAL, "carry_ore", "biped_gatherer_carry_ore_f" },
+		{ CLIP_IDLE_CARRY_FOOD, "biped_gatherer_idle_carry_grain_m", "biped_gatherer_idle_carry_grain_f" },
+		{ CLIP_IDLE_CARRY_MEAT, "biped_gatherer_idle_carry_meat_m", "biped_gatherer_idle_carry_meat_f" },
+		{ CLIP_IDLE_CARRY_WOOD, "biped_gatherer_idle_carry_wood_m", "biped_gatherer_idle_carry_wood_f" },
+		{ CLIP_IDLE_CARRY_STONE, "biped_gatherer_idle_carry_ore_m", "biped_gatherer_idle_carry_ore_f" },
+		{ CLIP_IDLE_CARRY_METAL, "biped_gatherer_idle_carry_ore_m", "biped_gatherer_idle_carry_ore_f" },
+		{ CLIP_APPROACH_TREE, "biped_gatherer_walk_axe", "biped_gatherer_walk_axe" },
+		{ CLIP_APPROACH_ORE, "biped_gatherer_walk_pickaxe", "biped_gatherer_walk_pickaxe" },
+		{ CLIP_APPROACH_ROCK, "biped_gatherer_walk_pickaxe", "biped_gatherer_walk_pickaxe" },
+		{ CLIP_APPROACH_GRAIN, "biped_gatherer_walk_hoe", "biped_gatherer_walk_hoe" },
 		{ CLIP_PROMOTION, "biped_infantry_promotion", "biped_infantry_promotion" },
 		{ CLIP_GATHER_MEAT, "gather_meat", "gather_meat" },
 		{ CLIP_SLAUGHTER, "slaughter", "slaughter" },
@@ -3388,15 +3484,26 @@ Node3D *RtsoWorldView::attach_carry_prop(Node *model, uint8_t clip, bool female)
 	// hand for men, one for women; wood, stone, metal: weapon_R.
 	struct Prop { int scene; const char *bone; bool back; };
 	Prop props[2] = { { -1, "weapon_R", false }, { -1, "weapon_L", false } };
+	const bool is_cavalry_mount = sk->find_bone("horse") >= 0 || sk->find_bone("rider_0") >= 0;
 	switch ((ClipId)clip) {
-		case CLIP_CARRY_FOOD: props[0] = { 0, "chest", true }; break;
+		case CLIP_CARRY_FOOD:
+		case CLIP_IDLE_CARRY_FOOD: props[0] = { 0, "chest", true }; break;
 		case CLIP_CARRY_MEAT:
-			props[0].scene = female ? 6 : 1;
-			if (!female) props[1].scene = 5;
+		case CLIP_IDLE_CARRY_MEAT:
+			if (is_cavalry_mount) {
+				props[0].scene = 1; // 0 A.D. biped/rider/carry_meat.xml: shuttle_meat_male_R on weapon_R
+				props[1].scene = -1;
+			} else {
+				props[0].scene = female ? 6 : 1;
+				if (!female) props[1].scene = 5;
+			}
 			break;
-		case CLIP_CARRY_WOOD: props[0].scene = 2; break;
-		case CLIP_CARRY_STONE: props[0].scene = 3; break;
-		case CLIP_CARRY_METAL: props[0].scene = 4; break;
+		case CLIP_CARRY_WOOD:
+		case CLIP_IDLE_CARRY_WOOD: props[0].scene = 2; break;
+		case CLIP_CARRY_STONE:
+		case CLIP_IDLE_CARRY_STONE: props[0].scene = 3; break;
+		case CLIP_CARRY_METAL:
+		case CLIP_IDLE_CARRY_METAL: props[0].scene = 4; break;
 		default: return nullptr;
 	}
 	static const char *kFiles[7] = {

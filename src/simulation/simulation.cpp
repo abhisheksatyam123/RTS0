@@ -12168,10 +12168,27 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				const float inv_d = 1.0f / std::sqrt(d2);
 				units_.heading_x[i] = dx * inv_d;
 				units_.heading_z[i] = dz * inv_d;
-			} else if (work == ACTION_GATHER && units_.target_resource_id[i] != 0 && d2 > 1e-6f) {
-				const float inv_d = 1.0f / std::sqrt(d2);
-				units_.heading_x[i] = dx * inv_d;
-				units_.heading_z[i] = dz * inv_d;
+			} else if (work == ACTION_GATHER && units_.target_resource_id[i] != 0) {
+				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+				if (rit != res_id_to_idx_.end()) {
+					const float rdx = resources_.x[rit->second] - px[i];
+					const float rdz = resources_.z[rit->second] - pz[i];
+					const float rd2 = rdx * rdx + rdz * rdz;
+					if (rd2 > 1e-6f) {
+						const float inv_rd = 1.0f / std::sqrt(rd2);
+						units_.heading_x[i] = rdx * inv_rd;
+						units_.heading_z[i] = rdz * inv_rd;
+					}
+				}
+			} else if (work == ACTION_RETURN_DROPSITE) {
+				const float tx0 = units_.target_x[i], tz0 = units_.target_z[i];
+				const float ddx = tx0 - px[i], ddz = tz0 - pz[i];
+				const float dd2 = ddx * ddx + ddz * ddz;
+				if (dd2 > 1e-6f) {
+					const float inv_dd = 1.0f / std::sqrt(dd2);
+					units_.heading_x[i] = ddx * inv_dd;
+					units_.heading_z[i] = ddz * inv_dd;
+				}
 			}
 			if (units_.action_state[i] == ACTION_MOVE || units_.action_state[i] == ACTION_ATTACK_MOVE) {
 				has[i] = 0;
@@ -14538,6 +14555,15 @@ void Simulation::tick_gather(float dt) {
 				// (Gather techs name stone.rock, metal.ore and so on, never *.ruins.)
 				const uint32_t rid = units_.target_resource_id[i];
 				if (units_.gather_res[i] != rid || !(units_.gather_rate[i] > 0.0f)) {
+					// 0 A.D. UnitAI.js GATHERING enter: FaceTowardsTarget
+					const float rdx = resources_.x[ridx] - units_.pos_x[i];
+					const float rdz = resources_.z[ridx] - units_.pos_z[i];
+					const float rd2 = rdx * rdx + rdz * rdz;
+					if (rd2 > 1e-6f) {
+						const float inv_rd = 1.0f / std::sqrt(rd2);
+						units_.heading_x[i] = rdx * inv_rd;
+						units_.heading_z[i] = rdz * inv_rd;
+					}
 					// StartGathering sets a fresh SetInterval(timing, timing): the first unit comes
 					// 1 / rate after it, whatever a kill or a fight left on the shared timer.
 					units_.attack_timer[i] = 0.0f;

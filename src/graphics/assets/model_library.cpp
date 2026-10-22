@@ -1016,11 +1016,14 @@ void ModelLibrary::apply_clip_tools(Node *root, const StringName &clip) {
 	if (tools.empty()) return;
 	String tag = String(clip);
 	// 0 A.D. carry_* variants empty weapon_R/weapon_L: the shuttle replaces the tool.
-	if (tag.begins_with("Carry")) return;
+	if (tag.begins_with("Carry") || tag.begins_with("IdleCarry")) return;
 	// Formation variant clips: testudo_top's empties weapon_R ("FormBare_"), the rest keep it.
 	if (tag.begins_with("FormBare_")) return;
 	if (tag.begins_with("Form_")) tag = "Weapon";
-	if (tag == "Gather") tag = "GatherTree";
+	if (tag == "Gather" || tag == "ApproachTree") tag = "GatherTree";
+	if (tag == "ApproachOre" || tag == "ApproachRock") tag = "GatherOre";
+	if (tag == "ApproachGrain") tag = "GatherGrain";
+	if (tag == "ApproachMeat") tag = "GatherMeat";
 	if (tag == "Idle" || tag == "Walk" || tag == "Run" ||
 			tag == "Attack" || tag == "Death" || tag == "Slaughter" || tag == "Heal" ||
 			tag == "Promotion")
