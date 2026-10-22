@@ -1218,6 +1218,7 @@ void Simulation::set_resource_position(uint32_t res_id, float x, float z) {
 	if (it == res_id_to_idx_.end()) return;
 	resources_.x[it->second] = x;
 	resources_.z[it->second] = z;
+	gaia_obstacles_sig_ = 0; // where it blocks (CCmpObstructionManager.cpp:381-396 MoveShape)
 }
 
 size_t Simulation::snap_trees_to_tiles() {
@@ -2527,6 +2528,15 @@ void Simulation::rebuild_territory() {
 			petra_decay_events_.push_back(b.id);
 }
 
+// The territory tiles each player holds: every tile the grid gives the player. 0.28's
+// m_TerritoryCellCounts (CCmpTerritoryManager.cpp:607-616) counts only tiles connected to a root and
+// below the impassable cost; RTS0 counts every owned tile, live and after a load alike.
+static void count_territory_tiles(const Grid<uint8_t> &grid, std::array<uint32_t, MAX_PLAYERS> &tiles) {
+	tiles.fill(0);
+	for (const uint8_t owner : grid.data)
+		if (owner > 0 && owner <= MAX_PLAYERS) ++tiles[owner - 1];
+}
+
 void Simulation::rebuild_territory_grids() {
 	const int R = grid_res_;
 	auto &roots = territory_roots_scratch_;
@@ -2744,9 +2754,7 @@ void Simulation::rebuild_territory_grids() {
 			}
 	territory_last_influence_ = influence_grid_.data;
 	territory_grid_ = influence_grid_;
-	territory_tiles_.fill(0);
-	for (const uint8_t owner : territory_grid_.data)
-		if (owner > 0 && owner <= MAX_PLAYERS) ++territory_tiles_[owner - 1];
+	count_territory_tiles(territory_grid_, territory_tiles_);
 }
 
 // A ship's long-path class: 0 A.D. "ship-small" for fishing and merchant ships, "ship" (10 m
@@ -3155,10 +3163,13 @@ const std::vector<Simulation::SteerObstacle> &Simulation::tick_mine_obstacles() 
 }
 
 void Simulation::ensure_gaia_obstacles() {
-	// Supplies are only ever appended (spawn_resource_world) and keep their place, type and
-	// position: a depleted one stays in the list, which the lookups skip (gaia_obstacle_live). So
-	// the lists change only with the supply count, a new map or a load (both renumber them), and
-	// the treasures, few enough to name every one.
+	// During play supplies are only ever appended (spawn_resource_world) and keep their place, type
+	// and position: a depleted one stays in the list, which the lookups skip (gaia_obstacle_live). So
+	// the lists change only with the supply count, a new map or a load (both renumber them), and the
+	// treasures, few enough to name every one. Map generation is the exception: it resizes and moves
+	// trees under the same signature (set_resource_flora, set_resource_position, snap_trees_to_tiles),
+	// and each of those clears gaia_obstacles_sig_, so the re-list here also marks the woods stale
+	// (forest_stale_) for update_forest_cells.
 	uint64_t h = 1469598103934665603ull;
 	auto mix = [&h](uint64_t v) { h = (h ^ v) * 1099511628211ull; };
 	uint32_t mh;
@@ -3169,6 +3180,7 @@ void Simulation::ensure_gaia_obstacles() {
 	for (const Treasure &t : treasures_) mix(t.id);
 	if (h == gaia_obstacles_sig_) return;
 	gaia_obstacles_sig_ = h;
+	forest_stale_ = true; // the woods follow the list as it is now (update_forest_cells)
 	gaia_obstacles_.clear();
 	gaia_res_idx_.clear();
 	mine_candidates_.clear();
@@ -3325,8 +3337,9 @@ bool Simulation::update_forest_cells() {
 	const uint64_t sig = forest_sig_of_gaia();
 	const bool removals_only = forest_removals_only_ && forest_cells_.size() == cells;
 	forest_removals_only_ = false;
-	if (sig == forest_sig_ && forest_cells_.size() == cells) return false;
+	if (!forest_stale_ && sig == forest_sig_ && forest_cells_.size() == cells) return false;
 	forest_sig_ = sig;
+	forest_stale_ = false;
 	// What a wood leaves of navcell (cx, cy): closed to every land class, only to the large class
 	// (its 3 m clearance closes gaps the default 0.8 m leaves), or open.
 	auto state = [&](int cx, int cy) -> uint8_t {
@@ -14622,7 +14635,8 @@ void Simulation::tick_gather(float dt) {
 			if (!removed) {
 				removed = true;
 				ensure_gaia_obstacles();
-				forest_current = forest_sig_ == forest_sig_of_gaia() && forest_cells_.size() == (size_t)nav_grid_.res * nav_grid_.res;
+				forest_current = !forest_stale_ && forest_sig_ == forest_sig_of_gaia() &&
+						forest_cells_.size() == (size_t)nav_grid_.res * nav_grid_.res;
 			}
 			nav::Footprint m;
 			mine_gone = mine_footprint(r, m) || mine_gone;
@@ -34605,9 +34619,14 @@ bool Simulation::save_state(const char *filepath) const {
 	out.write((const char *)barter_price_diff_, sizeof(barter_price_diff_));
 	out.write((const char *)&barter_timer_, sizeof(barter_timer_));
 	out.write((const char *)market_trade_history_, sizeof(market_trade_history_));
-	uint32_t num_routes = (uint32_t)trader_routes_.size();
+	// Each trader's markets and leg, by unit id as the goods and waypoints below: a hash map's order
+	// follows the order its entries came in, which a game loaded from a save doesn't share with the
+	// game that wrote it, so the same state would be saved two ways (the layout is unchanged).
+	std::vector<std::pair<uint32_t, std::pair<uint32_t, uint32_t>>> markets(trader_routes_.begin(), trader_routes_.end());
+	std::sort(markets.begin(), markets.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+	uint32_t num_routes = (uint32_t)markets.size();
 	out.write((const char *)&num_routes, sizeof(num_routes));
-	for (const auto &kv : trader_routes_) {
+	for (const auto &kv : markets) {
 		uint32_t uid = kv.first;
 		uint32_t a = kv.second.first;
 		uint32_t b = kv.second.second;
@@ -34615,9 +34634,11 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&a, sizeof(a));
 		out.write((const char *)&b, sizeof(b));
 	}
-	uint32_t num_legs = (uint32_t)trader_leg_.size();
+	std::vector<std::pair<uint32_t, int>> legs(trader_leg_.begin(), trader_leg_.end());
+	std::sort(legs.begin(), legs.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+	uint32_t num_legs = (uint32_t)legs.size();
 	out.write((const char *)&num_legs, sizeof(num_legs));
-	for (const auto &kv : trader_leg_) {
+	for (const auto &kv : legs) {
 		uint32_t uid = kv.first;
 		int32_t leg = kv.second;
 		out.write((const char *)&uid, sizeof(uid));
@@ -35204,6 +35225,14 @@ bool Simulation::load_state(const char *filepath) {
 	if (version >= 15) {
 		if (!load_tick_state(in, version)) return false;
 		territory_regions_dirty_ = true;
+		// The saved grid stands until its roots change (rebuild_territory_grids keeps it while they
+		// don't), so the tiles each player holds are counted from it here: 0.28 saves no territory
+		// and works it out again, counts and all, on load (CCmpTerritoryManager.cpp:189-198, "Territory
+		// state can be recomputed as required"). Else Petra's room (headquarters.js:2042) would see a
+		// loaded game's territory as none until a structure claimed or lost some. The structures'
+		// floods weren't saved either: the next change floods them all afresh.
+		count_territory_tiles(territory_grid_, territory_tiles_);
+		territory_teams_valid_ = false;
 		if (version < 23)
 			for (size_t u = 0; u < units_.count; ++u) units_.formation[u] = FORMATION_NONE; // no controllers saved
 		formation_refresh_groups();
