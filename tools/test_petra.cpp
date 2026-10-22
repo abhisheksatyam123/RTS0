@@ -1806,6 +1806,45 @@ static void test_no_room_only_once_funded() {
 	CHECK(!funded && funded_marked, "a funded house with no spot is marked short of room");
 }
 
+// queueManager.js startNextItems starts each queue's first plan: a forge asked for after a
+// barracks waits in the military-building queue until the barracks goes down, or stops asking.
+static void test_queue_plans_in_order() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	s->petra_in_turn_ = true;
+	s->players_[1].phase = 2;
+	s->set_player_resources(1, 0, 0, 0, 0);
+	s->petra_queues_.accounts[PETRA_Q_MILITARY_BUILDING] = PetraQueueAccount{};
+	s->petra_turn_built_ = false;
+	const uint32_t b0 = s->petra_place_generic(BLD_BARRACKS, PETRA_Q_MILITARY_BUILDING); // asks first, can't pay
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	PetraQueueAccount &acc = s->petra_queues_.accounts[PETRA_Q_MILITARY_BUILDING];
+	acc.food = acc.wood = acc.gold = acc.stone = 2000.0f;
+	const uint32_t f0 = s->petra_place_generic(BLD_FORGE, PETRA_Q_MILITARY_BUILDING); // behind the barracks
+	const uint32_t b1 = s->petra_place_generic(BLD_BARRACKS, PETRA_Q_MILITARY_BUILDING);
+	s->petra_turn_built_ = false;
+	const uint32_t f1 = s->petra_place_generic(BLD_FORGE, PETRA_Q_MILITARY_BUILDING);
+	// A head that stops asking lets the next one through once its want lapses.
+	s->petra_turn_built_ = false;
+	s->set_player_resources(1, 0, 0, 0, 0);
+	s->petra_place_generic(BLD_BARRACKS, PETRA_Q_MILITARY_BUILDING);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	acc.food = acc.wood = acc.gold = acc.stone = 2000.0f;
+	const uint32_t f2 = s->petra_place_generic(BLD_FORGE, PETRA_Q_MILITARY_BUILDING);
+	for (int k = 0; k < 8; ++k) s->petra_queue_heads_.age[PETRA_Q_MILITARY_BUILDING] += 1.6f;
+	acc.food = acc.wood = acc.gold = acc.stone = 2000.0f;
+	const uint32_t f3 = s->petra_place_generic(BLD_FORGE, PETRA_Q_MILITARY_BUILDING);
+	std::printf("  queue order: barracks unpaid %u, forge behind it %u, barracks %u, then forge %u; lapsed head: forge %u then %u\n", b0, f0,
+	            b1, f1, f2, f3);
+	CHECK(!b0 && !f0 && b1 && f1, "a forge waits behind the barracks asked for first");
+	CHECK(!f2 && f3, "a head that stops asking lets the next structure start");
+}
+
 // baseManager.js assignRolelessUnits gives the Mauryan worker elephant the worker role, and
 // assignToFoundations sends it to a foundation next to it.
 static void test_worker_elephant_builds() {
@@ -2327,6 +2366,7 @@ static void test_first_market_border() {
 	s->set_player_resources(1, 50000, 50000, 50000, 50000);
 	for (auto &a : s->petra_queues_.accounts) a = {50000, 50000, 50000, 50000};
 	for (auto &p : s->petra_queues_.paused) p = 0; // checkPausedQueues counts few workers yet
+	s->petra_queue_heads_ = {}; // no earlier plan waiting
 	s->petra_turn_built_ = false;
 	const uint32_t id = s->petra_build_market(cx, cz, PETRA_Q_ECONOMIC_BUILDING);
 	const Simulation::Building *m = nullptr;
@@ -7539,6 +7579,7 @@ static void test_temple_wonder_save() {
 		s->set_player_resources(1, 50000, 50000, 50000, 50000);
 		for (auto &a : s->petra_queues_.accounts) a = {50000, 50000, 50000, 50000};
 		for (auto &p : s->petra_queues_.paused) p = 0; // checkPausedQueues counts few workers yet
+		s->petra_queue_heads_ = {}; // no earlier plan waiting
 	};
 	CHECK(s->spawn_building_world(cx + 30.0f, cz, BLD_MARKET, 1, 1.0f) != 0, "a market is placed");
 	CHECK(s->spawn_building_world(cx - 30.0f, cz, BLD_FORGE, 1, 1.0f) != 0, "a forge is placed");
@@ -7995,6 +8036,7 @@ int main(int argc, char **argv) {
 	RUN(test_gather_rate_civ_bonus);
 	RUN(test_one_base_a_turn);
 	RUN(test_no_room_only_once_funded);
+	RUN(test_queue_plans_in_order);
 	RUN(test_idle_workers_repair_cc);
 	RUN(test_worker_elephant_builds);
 	RUN(test_anchor_dropsite_unshared);

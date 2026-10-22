@@ -182,8 +182,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 117; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 118; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_PRESSURE = 117; // each animal's pushing pressure and failed movements (fauna_pressure_, fauna_failed_)
+	static constexpr uint32_t SAVE_VERSION_PETRA_QUEUE_HEADS = 118; // the structure at the head of each Petra queue
 	static constexpr uint32_t SAVE_VERSION_PETRA_REQUIRE_HOUSES = 116; // headquarters.js requireHouses, kept until the phase has its houses
 	static constexpr uint32_t SAVE_VERSION_PETRA_BASE_TURN = 115; // the base Petra updates next (basesManager.js currentBase)
 	static constexpr uint32_t SAVE_VERSION_PETRA_WORKER_PLANS = 114; // trainMoreWorkers' queued TrainingPlans
@@ -3699,6 +3700,12 @@ private:
 	// enemy civic centres going up near our structures; kept until gone or no longer an enemy's.
 	struct PetraDefenseTargets { std::vector<uint32_t> ids; }; // sorted
 	PetraDefenseTargets petra_defense_targets_;
+	// queue.js plans in order: the structure at the head of each queue (type + 1, 0 none) and the
+	// seconds since it last asked; another structure in that queue waits until it starts or
+	// stops asking (the want's lifetime).
+	struct PetraQueueHeads { uint8_t item[PETRA_Q_COUNT] = {}; float age[PETRA_Q_COUNT] = {}; };
+	PetraQueueHeads petra_queue_heads_;
+	bool petra_queue_head_turn(uint8_t queue, uint8_t btype);
 	// basesManager.js basesMap kept between turns: the anchor (civic centre or colony id) that
 	// claimed each of petra_bases_map's tiles (w x w), 0 none. A tile stays with the base that
 	// first claimed it (addTerritoryIndexToBase) until the territory or that anchor is lost.
@@ -4119,7 +4126,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_) X(petra_queue_heads_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
