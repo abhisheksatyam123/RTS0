@@ -8128,6 +8128,44 @@ static void test_raids_at_once() {
 	CHECK(plan.state == Simulation::AttackPlan::MUSTER && plan.target_building_id == target, "another raid is planned while it runs");
 }
 
+// Area D pass 7 (G58): Briton war dog is FastMoving, so it can raid or be kept home as
+// one of the two kept hunters; Civic trainers give +10 s priority to support units, and
+// support units take a +50 s penalty near an invading army.
+static void test_g58_wardog_and_trainer_timings() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->petra_pid_ = 1;
+	s->players_[1].civ = CIV_BRITONS;
+
+	// 1. War dog FastMoving check in raid unit collection
+	const uint32_t dog1 = s->spawn_unit(0.0f, 0.0f, 1, UNIT_WAR_DOG);
+	const uint32_t dog2 = s->spawn_unit(1.0f, 0.0f, 1, UNIT_WAR_DOG);
+	const uint32_t dog3 = s->spawn_unit(2.0f, 0.0f, 1, UNIT_WAR_DOG);
+	CHECK(dog1 && dog2 && dog3, "spawned war dogs");
+
+	// Spawn a raid target in territory
+	const uint32_t foe_cc = s->spawn_building_world(20.0f, 0.0f, BLD_TOWN_CENTER, 2, 1.0f);
+	s->petra_defense_targets_.ids.push_back(foe_cc);
+	auto &plan = s->petra_raid_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_RAID;
+	plan.target_building_id = foe_cc;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	s->petra_attack_mgr_.raid_target = 4;
+	s->petra_attack_mgr_.raid_min = 1;
+
+	s->petra_manage_raid(0.0f);
+	// Two dogs are kept to hunt, the third joins the raid!
+	std::printf("  Raid squad with 3 war dogs: %zu joined (2 kept as hunters)\n", plan.squad.size());
+	CHECK(plan.squad.size() == 1, "third dog joined raid, first two kept as hunters");
+
+	// 2. Trainer timings: Civic trainers (Temple, Colony, Civic Centre)
+	const uint32_t temple = s->spawn_building_world(10.0f, 10.0f, BLD_TEMPLE, 1, 1.0f);
+	uint32_t pick_healer = s->petra_best_trainer(CIV_UNIT_TEMPLATE_NONE, UNIT_HEALER, 8);
+	CHECK(pick_healer == temple, "temple picked for healer");
+}
+
 int main(int argc, char **argv) {
 	// Optional test names on the command line run just those.
 	auto want = [&](const char *name) {
@@ -8298,6 +8336,7 @@ int main(int argc, char **argv) {
 	RUN(test_pending_dropsite);
 	RUN(test_inaccessible_supply);
 	RUN(test_land_access);
+	RUN(test_g58_wardog_and_trainer_timings);
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

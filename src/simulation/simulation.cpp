@@ -21835,7 +21835,7 @@ int Simulation::petra_pop_room() const {
 // for anything but a support unit and a support unit's trainer 50 s later near an invading
 // army. (Every trainer charges the same here, so the cheapest-trainer cut keeps them all.)
 uint32_t Simulation::petra_best_trainer(uint16_t tmpl, uint8_t unit_type, size_t max_queue) const {
-	const bool support = unit_gather_class(unit_type, tmpl) == GATHER_SUPPORT;
+	const bool support = (unit_classes(tmpl, unit_type) & TC_CIVILIAN) != 0;
 	uint32_t best = 0;
 	float best_time = 0.0f;
 	for (const auto &b : buildings_) {
@@ -21851,7 +21851,9 @@ uint32_t Simulation::petra_best_trainer(uint16_t tmpl, uint8_t unit_type, size_t
 		if (!can_train_at(petra_pid_, unit_type, b.type, tmpl)) continue;
 		float t = 0.0f;
 		for (const ProductionOrder &o : b.queue) t += std::max(o.duration - o.timer, 0.0f);
-		if (is_civic_centre(b.type) && !support) t += 10.0f;
+		// queueplanTraining.js start: Civic trainers give priority to support units (+10 s for others).
+		if ((building_tech_classes(b.type) & TC_CIVIC) && !support) t += 10.0f;
+		// Support units should not be trained too near an invading army (+50 s penalty).
 		if (support && petra_near_invading_army(b.x, b.z, 12000.0f / 16.0f)) t += 50.0f;
 		if (!best || t < best_time) { best = b.id; best_time = t; }
 	}
@@ -23597,7 +23599,7 @@ bool Simulation::petra_gather_treasure(size_t u, PetraHuntScan &scan, bool water
 uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHuntScan &scan, bool &live) const {
 	if (scan.food_drops.empty()) return 0;
 	const uint8_t ut = units_.unit_type[u];
-	const bool fast = formation_unit_mounted(ut);
+	const bool fast = formation_unit_mounted(ut) || ut == UNIT_WAR_DOG;
 	const bool ranged = template_has_ranged_attack(units_.tmpl[u], ut, civ_of(petra_pid_));
 	const uint8_t pass = fast ? PASS_CAVALRY : PASS_INFANTRY;
 	auto [ucx, ucz] = nav_grid_.world_to_cell(units_.pos_x[u], units_.pos_z[u]);
@@ -23823,7 +23825,7 @@ void Simulation::petra_build_first_base() {
 		auto in_ship = units_.alive[i] ? aboard.end() : aboard.find(units_.id[i]);
 		if ((!units_.alive[i] && in_ship == aboard.end()) || units_.team[i] != petra_pid_ || carry_cap(i, RES_WOOD) <= 0) continue; // Worker
 		const uint8_t ut = units_.unit_type[i];
-		if (formation_unit_mounted(ut) || unit_is_ship(ut)) continue; // FastMoving
+		if (formation_unit_mounted(ut) || ut == UNIT_WAR_DOG || unit_is_ship(ut)) continue; // FastMoving
 		workers.push_back(units_.id[i]);
 		const size_t at = in_ship != aboard.end() ? in_ship->second : i;
 		const float x = units_.pos_x[at], z = units_.pos_z[at];
@@ -30015,7 +30017,7 @@ void Simulation::petra_manage_raid(float dt) {
 			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 			uint8_t ut = units_.unit_type[i];
 			if (!petra_is_combat_unit(ut) || unit_is_ship(ut) || ut == UNIT_TRIREME) continue;
-			const bool fast = (unit_classes(units_.tmpl[i], ut) & TC_CAVALRY) != 0;
+			const bool fast = (unit_classes(units_.tmpl[i], ut) & (TC_CAVALRY | TC_DOG)) != 0;
 			if (naval ? (ut == UNIT_CATAPULT || ut == UNIT_SIEGE_RAM || ut == UNIT_BOLT_SHOOTER || ut == UNIT_HERO) : !fast) continue;
 			uint32_t uid = units_.id[i];
 			if (uid == petra_scout_unit_id_) continue;
@@ -30034,7 +30036,7 @@ void Simulation::petra_manage_raid(float dt) {
 			for (auto it = main.begin(); it != main.end(); ++it) {
 				const int32_t k = lookup_unit(*it);
 				if (k < 0 || !units_.alive[k] || petra_passenger(*it)) continue;
-				if (!(unit_classes(units_.tmpl[k], units_.unit_type[k]) & (TC_CAVALRY | TC_CITIZENSOLDIER))) continue;
+				if (!(unit_classes(units_.tmpl[k], units_.unit_type[k]) & (TC_CAVALRY | TC_DOG | TC_CITIZENSOLDIER))) continue;
 				plan.squad.push_back(*it);
 				main.erase(it);
 				break;
