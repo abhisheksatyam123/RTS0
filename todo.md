@@ -23,7 +23,7 @@
 - [x] T20 [lead] Rebuild with SCons, run full headless CI suite (63/63 steps), verify zero regressions and push to origin/main.
 - [x] T21 [lead] Fix animation and gathering equivalent to 0 A.D. (gatherer/dropsite arrival facing FaceTowardsTarget, approach walk tool animations & props, idle carry posture and props, mounted cavalry meat carry).
 - [x] T22 [lead] Implement formation auras & stat modifiers (0 A.D. Auras.js ApplyFormationAura / Formation.js: phalanx frontal armor/melee, testudo pierce armor/speed penalty, wedge charge, line march bonus).
-- [ ] T23 [lead] Modularize Session UI presentation tree (P4: extract TopPanel, ProductionQueueView, and CommandPanelView from monolithic main_node.cpp).
+- [x] T23 [lead] Modularize Session UI presentation tree (P4: extract TopPanel, ProductionQueueView, and CommandPanelView from monolithic main_node.cpp).
 - [x] T24 [lead] Multi-client lockstep determinism audit & 2000-turn headless peer playtest (P1: audit sim RNG and wall-drag placement determinism, run tools/test_netcode --net-peer).
 - [x] T25 [lead] Expand component parity behavioral tests (attack splash falloff curves, garrison arrow scaling, formation turning in tools/test_components.cpp).
 - [x] T26 [lead] Asset pipeline expansion: extract and map remaining secondary actors & flora/scenery clutter (G7 raw asset coverage, docs/ASSET_MANIFEST_TODO.md).
@@ -78,6 +78,7 @@
   - Asset audit: tools/audit_assets.py (165/165 unique paths 0 missing, 100% PASS)
 
 ## Log
+- 2026-10-22 [lead] T23: Modularized monolithic main_node.cpp (reduced from 4596 to 1740 lines, -62%): extracted session_lobby.cpp (1103 lines), session_chat.cpp (390 lines), session_dialogs.cpp (380 lines), expanded session_commands.cpp (+307 lines), session_debug.cpp (+485 lines), and session_setup.cpp (+196 lines); verified build, e2e, and parity suites.
 - 2026-10-22 [lead] T26: Extracted missing wicker fence scenery meshes (long, medium, short) from public.zip; generated fence_wicker_long_0.glb, fence_wicker_medium_0.glb, fence_wicker_short_0.glb; registered in manifest.json & scenery_actors.json; verified via tools/audit_assets.py.
 - 2026-10-22 [lead] T25: Implemented component parity behavioral tests in tools/test_components.cpp covering splash damage falloff curves, BuildingAI garrison arrow scaling, and formation turning & wheeling dynamics. Integrated into ci.yml and run_ci.sh.
 - 2026-10-22 [lead] T27: Implemented mobile viewport safe insets (G57) via DisplayServer::get_display_safe_area() on init and resize notifications; dynamic insets on top HUD, minimap, command queue, and chat panels; verified via tools/e2e_safe_insets.gd.
