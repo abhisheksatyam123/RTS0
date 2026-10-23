@@ -29,8 +29,13 @@
 - [x] T26 [lead] Asset pipeline expansion: extract and map remaining secondary actors & flora/scenery clutter (G7 raw asset coverage, docs/ASSET_MANIFEST_TODO.md).
 - [x] T27 [lead] Mobile viewport safe insets & notch margin handling (G57: Godot get_window().get_safe_area() bounds to prevent HUD clipping on notch/island displays).
 - [x] T28 [lead] Expand component parity behavioral tests: foundation construction diminishing returns, research queue cancellation & refunds, and victory state machines (tools/test_components.cpp).
+- [x] T29 [lead] Formation Scatter layout parity (0 A.D. Formation.js FSHAPE_SPECIAL): implemented randomized scatter offsets and FormationRng::next_float(), verified with tools/test_formations.cpp.
 
 ## Systems
+- Formation Scatter Layout (T29, formation.h):
+  - Implemented FSHAPE_SPECIAL in compute_formation_offsets() matching 0 A.D. Formation.js:724-735.
+  - Uses randomized scatter offsets within width = sqrt(count) * (sep_w + sep_d) * 2.5f with rows = 1 and center-averaged offsets.
+  - Added FormationRng::next_float() for deterministic [0, 1) float generation.
 - Formation Stat Modifiers & Auras (T22, formation.h / simulation.cpp):
   - Added FormationStatMods and formation_stat_modifiers() mapping each UnitFormation to deterministic combat, armor, speed, and attack rate modifiers matching 0 A.D. templates.
   - unit_resistance(): applies formation hack, pierce, and crush armor bonuses (e.g. +5/+5/+2 in Phalanx, +3/+10/+1 in Testudo, +4/+6/+2 in Syntagma, +4/+4 in Shield Wall, -2 in Wedge/Column).
@@ -79,6 +84,7 @@
   - Asset audit: tools/audit_assets.py (165/165 unique paths 0 missing, 100% PASS)
 
 ## Log
+- 2026-10-22 [lead] T29: Implemented 0 A.D. Formation.js FSHAPE_SPECIAL Scatter layout in src/simulation/formation.h using next_float() randomized offsets with sqrt(count)*(sep_w+sep_d)*2.5f width; verified via tools/test_formations.cpp and check_parity.py --unit formation.
 - 2026-10-22 [lead] T28: Expanded tools/test_components.cpp with sections 4, 5, 6 testing foundation construction diminishing returns (n^0.7 / n), live commitment and repair, research queueing with 100% cancellation refunds, and victory state machine (Conquest unit elimination and Regicide hero death). 100% PASS.
 - 2026-10-22 [lead] T28: Began expanding component parity tests in tools/test_components.cpp (Foundation.js build multiplier & repair, Researcher.js production queue & cancel refund, VictoryConditions.js conquest & regicide).
 - 2026-10-22 [lead] T23: Modularized monolithic main_node.cpp (reduced from 4596 to 1740 lines, -62%): extracted session_lobby.cpp (1103 lines), session_chat.cpp (390 lines), session_dialogs.cpp (380 lines), expanded session_commands.cpp (+307 lines), session_debug.cpp (+485 lines), and session_setup.cpp (+196 lines); verified build, e2e, and parity suites.

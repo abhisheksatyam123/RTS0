@@ -201,6 +201,15 @@ static void test_offsets() {
 	auto col = compute_formation_offsets(formation_template(FORMATION_BOX), true, members(9), 0, 0, 0, rng, &rows);
 	check(col.size() == 9 && rows == 3, "marching column: 3 abreast");
 
+	// Scatter (FSHAPE_SPECIAL): Formation.js:724-735
+	FormationTemplate scatter_tmpl = formation_template(FORMATION_SKIRMISH);
+	scatter_tmpl.shape = FSHAPE_SPECIAL;
+	auto scatter = compute_formation_offsets(scatter_tmpl, false, members(10), 0, 0, 0, rng, &rows);
+	check(scatter.size() == 10 && rows == 1, "scatter of 10 generates 10 slots with rows=1");
+	float sc_sx = 0, sc_sy = 0;
+	for (auto &o : scatter) { sc_sx += o.x; sc_sy += o.y; }
+	check(std::fabs(sc_sx) < 1e-3f && std::fabs(sc_sy) < 1e-3f, "scatter offsets average to the centre");
+
 	// Sorting: in a box, melee take the outer places and ranged the centre (fillToTheCenter).
 	std::vector<FormationMember> mixed = members(9);
 	mixed[4].classes = FCLASS_INFANTRY | FCLASS_RANGED;

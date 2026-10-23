@@ -169,6 +169,10 @@ struct FormationRng {
 		s ^= s << 13; s ^= s >> 17; s ^= s << 5;
 		return ((s & 0xFFFFFF) / 16777216.0f) * 2.0f - 1.0f;
 	}
+	float next_float() {
+		s ^= s << 13; s ^= s >> 17; s ^= s << 5;
+		return ((s & 0xFFFFFF) / 16777216.0f);
+	}
 };
 
 // Formation.js GetRealOffsetPositions for one offset.
@@ -188,7 +192,7 @@ inline bool formation_turn_allowed(const FormationTemplate &t, float a1, float a
 // Formation.js ComputeFormationOffsets: slots for `members` around (cx, cz) facing `rot`,
 // each member given the free slot nearest to it within its sorting class. `columnar`
 // is the marching column used for long walks. Scatter (FSHAPE_SPECIAL) is gaia-only in
-// 0 A.D. and is laid out as a square here.
+// 0 A.D. and uses randomized offsets (Formation.js:724-735).
 inline std::vector<FormationSlot> compute_formation_offsets(const FormationTemplate &t, bool columnar,
 		const std::vector<FormationMember> &members, float cx, float cz, float rot, FormationRng rng,
 		uint8_t *max_rows_used = nullptr) {
@@ -242,10 +246,19 @@ inline std::vector<FormationSlot> compute_formation_offsets(const FormationTempl
 	struct Off { float x, y; uint8_t row, column; };
 	std::vector<Off> offsets;
 	offsets.reserve(count);
-	int r = 0;
-	int left = count;
-	const float slop = t.sloppiness * FORMATION_METRE;
-	while (left > 0) {
+
+	// 0 A.D. Formation.js:724-735: Define special formations here (Scatter).
+	if (!columnar && t.shape == FSHAPE_SPECIAL) {
+		const float width = std::sqrt((float)count) * (sep_w + sep_d) * 2.5f;
+		for (int i = 0; i < count; ++i) {
+			offsets.push_back(Off{rng.next_float() * width, rng.next_float() * width, 1, (uint8_t)std::clamp(i + 1, 0, 255)});
+		}
+		if (max_rows_used) *max_rows_used = 1;
+	} else {
+		int r = 0;
+		int left = count;
+		const float slop = t.sloppiness * FORMATION_METRE;
+		while (left > 0) {
 		const float z = -r * sep_d;
 		int side = 1;
 		int n;
@@ -277,7 +290,8 @@ inline std::vector<FormationSlot> compute_formation_offsets(const FormationTempl
 		// One column with a centre gap skips every place (Formation.js would loop forever).
 		if (r > 2 * count + 4) center_gap = 0.0f;
 	}
-	if (max_rows_used) *max_rows_used = (uint8_t)std::min(r, 255);
+		if (max_rows_used) *max_rows_used = (uint8_t)std::min(r, 255);
+	}
 
 	// Zero the average offset so the formation is centred on its controller.
 	float ax = 0.0f, ay = 0.0f;
