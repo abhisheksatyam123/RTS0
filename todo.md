@@ -28,6 +28,7 @@
 - [x] T25 [lead] Expand component parity behavioral tests (attack splash falloff curves, garrison arrow scaling, formation turning in tools/test_components.cpp).
 - [x] T26 [lead] Asset pipeline expansion: extract and map remaining secondary actors & flora/scenery clutter (G7 raw asset coverage, docs/ASSET_MANIFEST_TODO.md).
 - [x] T27 [lead] Mobile viewport safe insets & notch margin handling (G57: Godot get_window().get_safe_area() bounds to prevent HUD clipping on notch/island displays).
+- [x] T28 [lead] Expand component parity behavioral tests: foundation construction diminishing returns, research queue cancellation & refunds, and victory state machines (tools/test_components.cpp).
 
 ## Systems
 - Formation Stat Modifiers & Auras (T22, formation.h / simulation.cpp):
@@ -78,6 +79,8 @@
   - Asset audit: tools/audit_assets.py (165/165 unique paths 0 missing, 100% PASS)
 
 ## Log
+- 2026-10-22 [lead] T28: Expanded tools/test_components.cpp with sections 4, 5, 6 testing foundation construction diminishing returns (n^0.7 / n), live commitment and repair, research queueing with 100% cancellation refunds, and victory state machine (Conquest unit elimination and Regicide hero death). 100% PASS.
+- 2026-10-22 [lead] T28: Began expanding component parity tests in tools/test_components.cpp (Foundation.js build multiplier & repair, Researcher.js production queue & cancel refund, VictoryConditions.js conquest & regicide).
 - 2026-10-22 [lead] T23: Modularized monolithic main_node.cpp (reduced from 4596 to 1740 lines, -62%): extracted session_lobby.cpp (1103 lines), session_chat.cpp (390 lines), session_dialogs.cpp (380 lines), expanded session_commands.cpp (+307 lines), session_debug.cpp (+485 lines), and session_setup.cpp (+196 lines); verified build, e2e, and parity suites.
 - 2026-10-22 [lead] T26: Extracted missing wicker fence scenery meshes (long, medium, short) from public.zip; generated fence_wicker_long_0.glb, fence_wicker_medium_0.glb, fence_wicker_short_0.glb; registered in manifest.json & scenery_actors.json; verified via tools/audit_assets.py.
 - 2026-10-22 [lead] T25: Implemented component parity behavioral tests in tools/test_components.cpp covering splash damage falloff curves, BuildingAI garrison arrow scaling, and formation turning & wheeling dynamics. Integrated into ci.yml and run_ci.sh.
