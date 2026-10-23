@@ -25,9 +25,9 @@
 - [x] T22 [lead] Implement formation auras & stat modifiers (0 A.D. Auras.js ApplyFormationAura / Formation.js: phalanx frontal armor/melee, testudo pierce armor/speed penalty, wedge charge, line march bonus).
 - [ ] T23 [lead] Modularize Session UI presentation tree (P4: extract TopPanel, ProductionQueueView, and CommandPanelView from monolithic main_node.cpp).
 - [x] T24 [lead] Multi-client lockstep determinism audit & 2000-turn headless peer playtest (P1: audit sim RNG and wall-drag placement determinism, run tools/test_netcode --net-peer).
-- [ ] T25 [lead] Expand component parity behavioral tests (attack splash falloff curves, garrison arrow scaling, formation turning in tools/test_components.cpp).
-- [ ] T26 [lead] Asset pipeline expansion: extract and map remaining secondary actors & flora/scenery clutter (G7 raw asset coverage, docs/ASSET_MANIFEST_TODO.md).
-- [ ] T27 [lead] Mobile viewport safe insets & notch margin handling (G57: Godot get_window().get_safe_area() bounds to prevent HUD clipping on notch/island displays).
+- [x] T25 [lead] Expand component parity behavioral tests (attack splash falloff curves, garrison arrow scaling, formation turning in tools/test_components.cpp).
+- [x] T26 [lead] Asset pipeline expansion: extract and map remaining secondary actors & flora/scenery clutter (G7 raw asset coverage, docs/ASSET_MANIFEST_TODO.md).
+- [x] T27 [lead] Mobile viewport safe insets & notch margin handling (G57: Godot get_window().get_safe_area() bounds to prevent HUD clipping on notch/island displays).
 
 ## Systems
 - Formation Stat Modifiers & Auras (T22, formation.h / simulation.cpp):
@@ -78,6 +78,9 @@
   - Asset audit: tools/audit_assets.py (165/165 unique paths 0 missing, 100% PASS)
 
 ## Log
+- 2026-10-22 [lead] T26: Extracted missing wicker fence scenery meshes (long, medium, short) from public.zip; generated fence_wicker_long_0.glb, fence_wicker_medium_0.glb, fence_wicker_short_0.glb; registered in manifest.json & scenery_actors.json; verified via tools/audit_assets.py.
+- 2026-10-22 [lead] T25: Implemented component parity behavioral tests in tools/test_components.cpp covering splash damage falloff curves, BuildingAI garrison arrow scaling, and formation turning & wheeling dynamics. Integrated into ci.yml and run_ci.sh.
+- 2026-10-22 [lead] T27: Implemented mobile viewport safe insets (G57) via DisplayServer::get_display_safe_area() on init and resize notifications; dynamic insets on top HUD, minimap, command queue, and chat panels; verified via tools/e2e_safe_insets.gd.
 - 2026-10-18 [lead] Fixed cavalry standing on top of horse during gather animation: mapped cavalry gather animation to seated mounted attack/hunting action instead of biped standing gather clips.
 - 2026-10-18 [lead] Fixed spearman dwarf scale bug: excluded weapon/tool extents (spearman spear 6.16m) from unit natural_h body AABB calculation in ModelLibrary::load, restoring spearman body height to 1.8m.
 - 2026-10-18 [lead] Fixed resource gathering unit spreading and unstuck behavior matching 0 A.D.: radial perimeter stand point distribution around bushes/trees, ignored target resource in gaia obstacle filtering/steering, allowed resource gatherers to nudge each other in avoid_idle_units, and fixed same_group moving_push in separation.
