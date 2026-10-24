@@ -402,8 +402,8 @@ Every structure template the maps place (614 across data/maps) traced to the RTS
 | Z13 | A captured mercenary camp offered the Han barracks' Crossbow Training | nit | Fixed |
 | Z14 | Gaia huts, longhouses, stalls and Persian house_a/b/apartment_block are RTS0 houses: the captor's house health and population (0.28: 500-2000 HP, 2-15 population of their own) | low | Fixed: BLD_STALL, BLD_HUT, BLD_LONGHOUSE and BLD_PERS_HOUSE_A/B/BLD_APARTMENT_BLOCK carry their own 0.28 health, cost and population; stalls and Persian houses train the captor's citizens, huts and longhouses train nothing (test_map_structures) |
 | Z15 | hellenic_epic_temple loads as a temple (2000 HP, trains healers); 0.28's has 5000 HP, 60 m territory, 30 garrison and trains and researches nothing | low | Fixed: BLD_EPIC_TEMPLE with its own row; heals its garrison, trains and researches nothing (test_map_structures) |
-| Z16 | mill_field_wheat loads as a field with Health and 5 gatherers; 0.28's has no Health, Capturable or decay and takes 2 | low | Open |
-| Z17 | merc_camp_egyptian counts as Village (0.28: VisibleClasses -Village Town); pirates/dock trains the captor's dock roster, not the pirate ships | nit | Open |
+| Z16 | mill_field_wheat loads as a field with Health and 5 gatherers; 0.28's has no Health, Capturable or decay and takes 2 | low | Fixed: setup_mill_field_wheat sets hp=0, max_capture_points=0, decay_disabled=true, and field_cap caps gatherers at 2 (test_map_structures) |
+| Z17 | merc_camp_egyptian counts as Village (0.28: VisibleClasses -Village Town); pirates/dock trains the captor's dock roster, not the pirate ships | nit | Fixed: building_phase_class returns 2 (Town) for BLD_MERCENARY_CAMP; pirates/dock is mapped to BLD_DOCK with civ CIV_GAIA, training only pirate ships (pirates/ship_scout and pirates/ship_arrow) at 0.8 batch modifier, with tech research disabled (test_map_structures) |
 
 ### Petra research and placement, nineteenth 0.28 pass (2026-10-21)
 
@@ -462,7 +462,7 @@ Every structures/<civ>/*.xml of the 15 civ folders, inheritance resolved, agains
 | Y1 | Footprints are one per type at about half 0.28's size (1 or 2 cells); farmsteads (16-20 m in 0.28), storehouses of four civs and the Han and German houses (16 m) would be 2 cells by RTS0's own ">15 m" rule; the Mauryan and Kushite corrals (15 and 14 m) and the Celtic embassy (15 m) would be 1 | low | Kept (one footprint per type) |
 | Y2 | civ_building_territory_radius / civ_building_vision were generated but disagreed with the live tables (Tachara 11 vs 12, super dock 45.7 vs 50, lighthouse 97.5 vs 91); only a test read them | none | Fixed (removed; the test reads structure_territory_influence and structure_vision_range) |
 | Y3 | The arch, monument, totem, Ashoka pillar and Laozi gate carry a capture regen rate with 0 capture points; 0.28 has no Capturable. Every capture path skips 0 points | none | Kept |
-| Y4 | The map-only Egyptian mercenary camp takes the Ptolemaic camp's row (100 stone); 0.28 overrides stone to 0. No civ builds it | low | Open |
+| Y4 | The map-only Egyptian mercenary camp takes the Ptolemaic camp's row (100 stone); 0.28 overrides stone to 0. No civ builds it | low | Fixed: civ_building_data.h row for BLD_MERCENARY_CAMP sets stone cost to 0 (test_map_structures) |
 
 ### Petra structures and research, thirteenth 0.28 pass (2026-10-20)
 
@@ -724,11 +724,11 @@ This file is the parity record: every difference from 0 A.D. 0.28 an audit found
 
 | Rows | Count | Share |
 |---|---|---|
-| Closed (fixed, landed, done) | 305 | 96.5% of closed + open |
-| Open | 11 | 3.5% |
+| Closed (fixed, landed, done) | 308 | 97.5% of closed + open |
+| Open | 8 | 2.5% |
 | Kept on purpose (0.28 bugs RTS0 doesn't copy, RTS0-scale choices such as build times x0.25, engine limits) | 51 | not counted above |
 
-Weighted by each row's Impact (high 3, medium 2, low 1) the closed share is about 96%. Counting every kept row as a gap too gives 305 of 367, about 83%; that is a floor, since most kept rows are 0.28 bugs or matches. The open rows are small: Options page leftovers (G36), map StartingCamera and colours (P5, F), a few Petra and map-structure details (X3, X5, Y4, Z16, Z17, TH10, LR4, LR5) and a garrison heal timer (L3). The counts are a measure of what audits have found, not of everything in 0.28: each area's thread keeps auditing and adds rows as it finds more.
+Weighted by each row's Impact (high 3, medium 2, low 1) the closed share is about 96%. Counting every kept row as a gap too gives 305 of 367, about 83%; that is a floor, since most kept rows are 0.28 bugs or matches. The open rows are small: Options page leftovers (G36), map StartingCamera and colours (P5, F), a few triggers and lobby details (TH10, LR4, LR5) and a garrison heal timer (L3). The counts are a measure of what audits have found, not of everything in 0.28: each area's thread keeps auditing and adds rows as it finds more.
 
 This count replaces the 2026-10-08 estimate ("a little over half way", `check_parity.py` 92% for the G1-G10 systems). The list below is from that audit; all of it is fixed.
 

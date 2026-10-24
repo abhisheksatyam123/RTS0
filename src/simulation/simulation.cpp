@@ -4466,7 +4466,7 @@ static void add_to_queue(std::vector<ProductionOrder> &queue, const ProductionOr
 
 float Simulation::batch_time_multiplier(uint8_t player_id, uint8_t bld_type, int count, uint8_t bld_civ) const {
 	if (count <= 1) return 1.0f;
-	float mod = trainer_batch_time_modifier(bld_civ < CIV_COUNT ? bld_civ : (uint8_t)civ_of(player_id), bld_type);
+	float mod = (bld_type == BLD_DOCK && bld_civ == CIV_GAIA) ? 0.8f : trainer_batch_time_modifier(bld_civ < CIV_COUNT ? bld_civ : (uint8_t)civ_of(player_id), bld_type);
 	if (bld_type < BLD_TYPE_COUNT && player_id < MAX_PLAYERS) {
 		mod += tech_mods(player_id).bld_batch_time_add[bld_type]; // Conscription (barracks/stable_batch_training)
 		// phase_town_pers and phase_city_pers: Trainer/BatchTimeModifier -0.1 each for Stables.

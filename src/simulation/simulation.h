@@ -2008,7 +2008,10 @@ public:
 	void set_player_civ(uint8_t civ) { set_team_civ(0, civ); }
 	uint8_t player_civ(uint8_t pid = 0) const { return player(pid).civ; }
 	// A field's MaxGatherers, from the civ it was placed as (its owner's when that is unset).
-	int field_cap(const Building &b) const { return field_max_gatherers(b.civ != CIV_COUNT ? b.civ : player(b.team).civ); }
+	int field_cap(const Building &b) const {
+		if (b.type == BLD_FIELD && b.max_hp == 0.0f && b.max_capture_points == 0.0f) return 2;
+		return field_max_gatherers(b.civ != CIV_COUNT ? b.civ : player(b.team).civ);
+	}
 	// A civ chosen after the player's starting structures were placed re-templates them too.
 	void set_team_civ(uint8_t team, uint8_t civ);
 	uint8_t team_civ(uint8_t team) const { return (team < MAX_PLAYERS) ? players_[team].civ : CIV_ATHENIANS; }
@@ -2474,6 +2477,25 @@ public:
 		b.max_capture_points = 0.0f;
 		b.capture_points = 0.0f;
 		b.capture_points_by_team.fill(0.0f);
+	}
+	// A wheat field (structures/mill_field_wheat): no health (Health disable=""),
+	// uncapturable (Capturable disable=""), no decay (TerritoryDecay disable=""),
+	// and MaxGatherers 2 (ResourceSupply).
+	void setup_mill_field_wheat(uint32_t building_id) {
+		auto it = building_id_to_idx_.find(building_id);
+		if (it == building_id_to_idx_.end()) return;
+		Building &b = buildings_[it->second];
+		b.hp = 0.0f;
+		b.max_hp = 0.0f;
+		b.max_capture_points = 0.0f;
+		b.capture_points = 0.0f;
+		b.capture_points_by_team.fill(0.0f);
+		b.decay_disabled = true;
+		b.territory_decay_rate = 0.0f;
+		auto res_it = field_res_by_bld_.find(building_id);
+		if (res_it != field_res_by_bld_.end()) {
+			set_resource_max_gatherers(res_it->second, 2);
+		}
 	}
 	// A map script's Gaia wall (placeCustomFortress): the `kind` WallSet's pieces from (sx, sz)
 	// to (ex, ez), built and uncapturable, joined to Gaia towers already at the ends. Pieces

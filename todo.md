@@ -1,4 +1,5 @@
 ## Tasks
+- [x] T32 [lead] Update remaining gaps and 0 A.D. migration parity (Y4, Z16, Z17, G49, G57, G60): set BLD_MERCENARY_CAMP stone cost to 0 (Y4); set BLD_MERCENARY_CAMP phase to Town (phase 2); map structures/pirates/dock to BLD_DOCK with civ CIV_GAIA (disabling tech research, training Rhodian Marauder and Cilician pirate ships, with 0.8 batch modifier) (Z17); support structures/mill_field_wheat loaded with no health, uncapturable, no territory decay, and capping at 2 gatherers (Z16); updated docs/REMAINING_GAPS.md and docs/MIGRATION.md; verified with test_map_structures, test_naval, test_components, test_formations, e2e_selection_*, audit_assets, audit_entity_scale, and SCons build.
 - [x] T31 [lead] Petra Naval Queued Ships per Sea Parity (G49): Ensure a queued ship on one sea body does not delay queues on separate seas (navalManager.js:509-540 maintainFleet independent loop, BLD_SUPER_DOCK dock/training support, checkLevels independent per-sea evaluation, verified in tools/test_naval.cpp test_petra_multi_sea_queues).
 - [x] T30 [lead] Implement selection overlay parity (0 A.D. G60: 0.3s QuartOut fade in/out, water surface overlay height max(ground, water), gaia circular outline and treasure square footprint outline).
 - [x] T0a [lead] Fix cavalry unit standing on top of horse during gathering animation (cavalry meat gathering posture mapped to mounted strike clip).
@@ -34,6 +35,13 @@
 - [x] T29 [lead] Formation Scatter layout parity (0 A.D. Formation.js FSHAPE_SPECIAL): implemented randomized scatter offsets and FormationRng::next_float(), verified with tools/test_formations.cpp.
 
 ## Systems
+- Map Structures & 0 A.D. Migration Parity (Y4, Z16, Z17):
+  - In src/simulation/civ_building_data.h and tools/extract_0ad_rosters.py: corrected BLD_MERCENARY_CAMP stone cost from 100 to 0 (Y4: ptol/mercenary_camp and structures/merc_camp_egyptian override stone to 0).
+  - In src/simulation/sim_types.h: building_phase_class(BLD_MERCENARY_CAMP) returns 2 (Town phase, not Village) matching 0 A.D. VisibleClasses -Village Town (Z17).
+  - In src/simulation/sim_types.h: map_structure_template maps structures/pirates/dock to BLD_DOCK with CIV_GAIA. building_researches_tech disables all research (Researcher disable=""); building_train_civ returns CIV_GAIA; building_trains_template trains only pirates/ship_scout and pirates/ship_arrow for any captor civ; Simulation::batch_time_multiplier applies 0.8 batch modifier (BatchTimeModifier 0.8) (Z17).
+  - In src/simulation/simulation.h and session_setup.cpp: setup_mill_field_wheat sets hp=0, max_hp=0, max_capture_points=0, capture_points=0, decay_disabled=true, territory_decay_rate=0, and field_cap returns 2 gatherers (matching mill_field_wheat.xml: Health disable="", Capturable disable="", TerritoryDecay disable="", MaxGatherers 2) (Z16).
+  - In docs/MIGRATION.md: updated vendored C++ status for NetFileTransfer, NetClientTurnManager, NetServerTurnManager, NetHost, NetStats, Grid.h, and Pathfinding.h to reflect completed UDP lockstep and late-join state sync implementation.
+  - In docs/REMAINING_GAPS.md: updated open gaps count to 8 (97.5% closed), marked Y4, Z16, Z17, G49, G57, G60 closed/fixed.
 - Petra Naval Queued Ships per Sea Parity (G49 / navalManager.js:509-540):
   - In `petra_manage_naval`: decoupled per-sea ship queueing in `maintainFleet` by replacing loop-breaking with `continue;` across all seas, ensuring a queued/waiting or blocked ship on one sea body does not delay or starve ship queues on separate seas.
   - Added `BLD_SUPER_DOCK` (Cothon) recognition to `sea_dock` finished dock scanning and `training[s]` active production order registry.
@@ -96,6 +104,7 @@
   - Asset audit: tools/audit_assets.py (165/165 unique paths 0 missing, 100% PASS)
 
 ## Log
+- 2026-10-24 17:30 [lead] completed T32 (Update remaining gaps and 0 A.D. migration parity: Y4 mercenary camp stone cost 0, Z17 Egyptian mercenary camp Town phase and pirate dock training/no-research/batch-0.8 parity, Z16 mill_field_wheat 2-gatherer uncapturable non-decaying field, updated docs/MIGRATION.md and docs/REMAINING_GAPS.md; verified test_map_structures, test_naval, test_components, test_formations, e2e_selection_*, audit_assets, audit_entity_scale, and SCons build).
 - 2026-10-24 17:00 [lead] completed T31 (G49 Petra naval queued ships per sea parity); verified with tools/test_naval.cpp, tools/test_components.cpp, tools/test_formations.cpp, e2e_selection_*.gd, check_parity.py (95% G1-G10), and SCons build.
 - 2026-10-23 [lead] T30: Began implementing selection overlay parity (G60) covering 0.3s QuartOut fade in/out, water overlay height parity, and gaia/treasure footprint outlines.
 - 2026-10-22 [lead] T29: Implemented 0 A.D. Formation.js FSHAPE_SPECIAL Scatter layout in src/simulation/formation.h using next_float() randomized offsets with sqrt(count)*(sep_w+sep_d)*2.5f width; verified via tools/test_formations.cpp and check_parity.py --unit formation.

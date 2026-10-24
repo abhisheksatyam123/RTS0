@@ -413,6 +413,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			btype = rtso::BLD_HOUSE;
 		}
 		const uint32_t bid = sim->spawn_building_world(bx, bz, btype, team, 1.0f);
+		if (bid && tmpl.contains("mill_field_wheat")) sim->setup_mill_field_wheat(bid);
 		const String look = map_building_look(tmpl);
 		if (bid && !look.is_empty()) view->set_building_look(bid, btype, look);
 	}
@@ -439,6 +440,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		if (btype >= rtso::BLD_TYPE_COUNT) btype = map_building_type(b.get("type", ""));
 		if (btype >= rtso::BLD_TYPE_COUNT) continue;
 		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);
+		if (gaia_structure_ids[i] && gtmpl.contains("mill_field_wheat")) sim->setup_mill_field_wheat(gaia_structure_ids[i]);
 		if (civ < rtso::CIV_COUNT && gaia_structure_ids[i]) sim->set_building_civ(gaia_structure_ids[i], civ);
 		const String look = map_building_look(gtmpl);
 		if (gaia_structure_ids[i] && !look.is_empty()) view->set_building_look(gaia_structure_ids[i], btype, look);
