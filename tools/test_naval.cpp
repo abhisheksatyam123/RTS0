@@ -1332,7 +1332,7 @@ static void test_petra_concurrent_transports() {
 		const PetraTransportPlan *a = plan_of(PETRA_TRANSPORT_ATTACK), *b = plan_of(PETRA_TRANSPORT_BUILDERS);
 		if (a && b) {
 			both = true;
-			shared |= a->ship_id == b->ship_id;
+			shared |= (a->ship_id != 0 && a->ship_id == b->ship_id);
 			for (uint32_t uid : a->passenger_ids)
 				shared |= std::find(b->passenger_ids.begin(), b->passenger_ids.end(), uid) != b->passenger_ids.end();
 		}
@@ -2507,6 +2507,90 @@ static void test_board_rules() {
 	CHECK(!fought);
 }
 
+// 0 A.D. navalManager.js:509-540: a queued ship or queue wait on one sea body does
+// not delay or hold back ship queues on separate seas (G49).
+static void test_petra_multi_sea_queues() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 1000, 1000, 1000, 1000);
+	const uint32_t tc_id = s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	Simulation::PetraBase pb;
+	pb.x = -30.0f; pb.z = 40.0f; pb.anchor_building_id = tc_id; pb.is_primary = true;
+	s.petra_bases_.push_back(pb);
+
+	// Dock on the main sea (sea 1) and dock on the isolated lake (sea 2)
+	const uint32_t dock_sea_id = s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t dock_lake_id = s.spawn_building_world(44.0f, 56.0f, BLD_DOCK, 1);
+	// Fish in the lake so that the lake wants a fishing boat
+	s.spawn_resource_world(44.0f, 44.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+
+	Simulation::PetraNavalTopo topo;
+	s.petra_naval_topology(topo);
+	auto [scx, scz] = s.nav_grid_.world_to_cell(0.0f, 0.0f);
+	auto [lcx, lcz] = s.nav_grid_.world_to_cell(44.0f, 44.0f);
+	const uint16_t sea = s.nav_grid_.global_region_at(scx, scz, PASS_SHIP);
+	const uint16_t lake = s.nav_grid_.global_region_at(lcx, lcz, PASS_SHIP);
+	CHECK(sea && lake && sea != lake);
+
+	// Case 1: Sea 1's dock is blocked with full queue or already training a ship.
+	// Fill dock_sea's queue so it cannot train any ships.
+	Simulation::Building *b_sea = const_cast<Simulation::Building*>(bld(s, dock_sea_id));
+	CHECK(b_sea != nullptr);
+	if (b_sea) {
+		for (int k = 0; k < 8; ++k) {
+			ProductionOrder ord;
+			ord.unit_type = UNIT_TRIREME;
+			ord.count = 1;
+			b_sea->queue.push_back(ord);
+		}
+	}
+	// Give Petra enough population room and some workers
+	s.spawn_building_world(-20.0f, 40.0f, BLD_HOUSE, 1);
+	for (int k = 0; k < 6; ++k) s.spawn_unit(-40.0f + (float)k * 2.0f, 50.0f, 1, UNIT_VILLAGER);
+	s.petra_pid_ = 1;
+	// Fund the ships queue account
+	s.petra_queues_.accounts[PETRA_Q_SHIPS].wood = 500.0f;
+	s.petra_queues_.accounts[PETRA_Q_SHIPS].food = 500.0f;
+	// Make lake want a fishing boat
+	s.petra_kept_.wanted_fish.resize(std::max<size_t>(s.petra_kept_.wanted_fish.size(), lake + 1), 0);
+	s.petra_kept_.wanted_fish[lake] = 1;
+
+	// Run naval management on a third turn (petra_turn_mod(3) == true)
+	// (k + pid) % 8 == 5 gives played turn; played turn % 3 == 0 on turn 3
+	s.ticks_ = 4 * (5 + 8); // played turn 3 (3 % 3 == 0)
+	s.petra_pid_ = 1;
+	s.petra_manage_naval(1.6f);
+
+	// Verify that despite dock_sea being completely blocked/queued, dock_lake was NOT delayed and trained its fishing boat!
+	const Simulation::Building *b_lake = bld(s, dock_lake_id);
+	CHECK(b_lake != nullptr);
+	bool lake_trained = false;
+	if (b_lake) {
+		for (const auto &ord : b_lake->queue)
+			if (ord.unit_type == UNIT_FISHING_BOAT) lake_trained = true;
+	}
+	std::printf("Petra multi-sea queues: lake dock trained boat while sea dock blocked: %s\n", lake_trained ? "yes" : "no");
+	CHECK(lake_trained);
+
+	// Case 2: checkLevels independence.
+	// Sea 1 has training[sea] > 0.
+	// A transport plan on the lake needs a ship with passengers waiting.
+	PetraTransportPlan lake_plan;
+	lake_plan.sea = lake;
+	lake_plan.ship_id = 0;
+	lake_plan.passenger_ids = {1001, 1002}; // 2 passengers waiting for ship
+	s.petra_transports_.push_back(lake_plan);
+	const int lake_wanted_before = PetraKept::at(s.petra_kept_.wanted_transport, lake);
+	s.ticks_ = 4 * (5 + 8 * 4); // played turn 6 (6 % 3 == 0)
+	s.petra_pid_ = 1;
+	s.petra_manage_naval(1.6f);
+	const int lake_wanted_after = PetraKept::at(s.petra_kept_.wanted_transport, lake);
+	std::printf("Petra multi-sea checkLevels: lake transport bumped from %d to %d while sea dock queued\n",
+	            lake_wanted_before, lake_wanted_after);
+	CHECK(lake_wanted_after > lake_wanted_before);
+}
+
 int main() {
 	test_ships_accelerate();
 	test_transport();
@@ -2562,6 +2646,7 @@ int main() {
 	test_whale_hunt();
 	test_gather_unreachable();
 	test_board_rules();
+	test_petra_multi_sea_queues();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

@@ -1,4 +1,5 @@
 ## Tasks
+- [x] T31 [lead] Petra Naval Queued Ships per Sea Parity (G49): Ensure a queued ship on one sea body does not delay queues on separate seas (navalManager.js:509-540 maintainFleet independent loop, BLD_SUPER_DOCK dock/training support, checkLevels independent per-sea evaluation, verified in tools/test_naval.cpp test_petra_multi_sea_queues).
 - [x] T30 [lead] Implement selection overlay parity (0 A.D. G60: 0.3s QuartOut fade in/out, water surface overlay height max(ground, water), gaia circular outline and treasure square footprint outline).
 - [x] T0a [lead] Fix cavalry unit standing on top of horse during gathering animation (cavalry meat gathering posture mapped to mounted strike clip).
 - [x] T0b [lead] Fix spearman dwarf scale bug (mesh AABB excluding tools/weapons in ModelLibrary::load).
@@ -33,6 +34,11 @@
 - [x] T29 [lead] Formation Scatter layout parity (0 A.D. Formation.js FSHAPE_SPECIAL): implemented randomized scatter offsets and FormationRng::next_float(), verified with tools/test_formations.cpp.
 
 ## Systems
+- Petra Naval Queued Ships per Sea Parity (G49 / navalManager.js:509-540):
+  - In `petra_manage_naval`: decoupled per-sea ship queueing in `maintainFleet` by replacing loop-breaking with `continue;` across all seas, ensuring a queued/waiting or blocked ship on one sea body does not delay or starve ship queues on separate seas.
+  - Added `BLD_SUPER_DOCK` (Cothon) recognition to `sea_dock` finished dock scanning and `training[s]` active production order registry.
+  - In `checkLevels`, removed the global `!ships_queued` gate that previously blocked all seas when any sea had an unpaid ship want, restoring 0 A.D. per-sea `training[s]` and `transports[s] < wanted` evaluation.
+  - Added `test_petra_multi_sea_queues()` to `tools/test_naval.cpp` verifying independent queue processing and level-checking across distinct sea bodies.
 - Selection Overlay Parity (G60 / CCmpSelectable.cpp):
   - Fading: Implemented `update_overlay_fade()` using 0 A.D. `Ease::QuartOut` with `FADE_DURATION = 0.3s`. Smoothly interpolates selection alpha (1.0 selected, 0.75 hover, 0.65 always-visible hero star) on units, fauna, buildings, resources, and treasures.
   - Water Height Parity: Water mesh set with `DECAL_LAYER` mask and `sync_gl_decal()` samples `std::max(terrain_height, water_height)` so naval / floating unit overlays project onto the water plane rather than the seabed.
@@ -90,6 +96,7 @@
   - Asset audit: tools/audit_assets.py (165/165 unique paths 0 missing, 100% PASS)
 
 ## Log
+- 2026-10-24 17:00 [lead] completed T31 (G49 Petra naval queued ships per sea parity); verified with tools/test_naval.cpp, tools/test_components.cpp, tools/test_formations.cpp, e2e_selection_*.gd, check_parity.py (95% G1-G10), and SCons build.
 - 2026-10-23 [lead] T30: Began implementing selection overlay parity (G60) covering 0.3s QuartOut fade in/out, water overlay height parity, and gaia/treasure footprint outlines.
 - 2026-10-22 [lead] T29: Implemented 0 A.D. Formation.js FSHAPE_SPECIAL Scatter layout in src/simulation/formation.h using next_float() randomized offsets with sqrt(count)*(sep_w+sep_d)*2.5f width; verified via tools/test_formations.cpp and check_parity.py --unit formation.
 - 2026-10-22 [lead] T28: Expanded tools/test_components.cpp with sections 4, 5, 6 testing foundation construction diminishing returns (n^0.7 / n), live commitment and repair, research queueing with 100% cancellation refunds, and victory state machine (Conquest unit elimination and Regicide hero death). 100% PASS.
