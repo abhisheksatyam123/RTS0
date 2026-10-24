@@ -4088,6 +4088,7 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 				water_mat->set_metallic(0.2f);
 				water_mesh_node->set_material_override(water_mat);
 			}
+			water_mesh_node->set_layer_mask(1u | DECAL_LAYER);
 			add_child(water_mesh_node);
 			bind_los(water_mesh_node->get_material_override());
 		}
@@ -4585,9 +4586,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				if (detailed.count(id) == 0) {
 			bool is_selected = (sel_set.count((int32_t)id) > 0);
 			const rtso::SelectionOverlay &ov = unit_selection_overlay(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
-			if (is_selected || highlight_set_.count((int32_t)id) > 0 || (ov.always_visible && !dying)) {
+			const float target_alpha = dying ? 0.0f : (is_selected ? 1.0f : (highlight_set_.count((int32_t)id) > 0 ? 0.75f : (ov.always_visible ? 0.65f : 0.0f)));
+			const float alpha = update_overlay_fade(id, target_alpha, delta);
+			if (alpha > 0.005f) {
+				Color c = overlay_color(sim, uview.team[i], is_selected, ov.always_visible);
+				c.a = alpha;
 				place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), ov, model_b.metre, yaw,
-						Vector3(x, ground + 0.1f, z), overlay_color(sim, uview.team[i], is_selected, ov.always_visible));
+						Vector3(x, ground + 0.1f, z), c);
 			}
 			continue;
 		}
@@ -4669,10 +4674,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 		bool is_selected = (sel_set.count((int32_t)id) > 0);
 		const rtso::SelectionOverlay &ov = unit_selection_overlay(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
-		const bool ringed = is_selected || highlight_set_.count((int32_t)id) > 0 || (ov.always_visible && !dying);
+		const float target_alpha = dying ? 0.0f : (is_selected ? 1.0f : (highlight_set_.count((int32_t)id) > 0 ? 0.75f : (ov.always_visible ? 0.65f : 0.0f)));
+		const float alpha = update_overlay_fade(id, target_alpha, delta);
+		const bool ringed = alpha > 0.005f;
 		if (ringed) {
+			Color c = overlay_color(sim, uview.team[i], is_selected, ov.always_visible);
+			c.a = alpha;
 			place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), ov, model_b.metre, yaw,
-					Vector3(x, ground + 0.1f, z), overlay_color(sim, uview.team[i], is_selected, ov.always_visible));
+					Vector3(x, ground + 0.1f, z), c);
 		}
 		v.ring_on = ringed;
 
@@ -5354,11 +5363,18 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			fauna_mm[row][clip]->set_instance_custom_data(fslot, Color(1.0f, 1.0f, 1.0f, 1.0f + 0.999f * rtso::ModelLibrary::variant_draw(fview.id[f])));
 		}
 		const bool f_sel = !sel_set.empty() && sel_set.count((int32_t)fview.id[f]);
-		if (f_sel || (!highlight_set_.empty() && highlight_set_.count((int32_t)fview.id[f]))) {
+		const bool f_high = !highlight_set_.empty() && highlight_set_.count((int32_t)fview.id[f]);
+		const float f_target = f_sel ? 1.0f : (f_high ? 0.75f : 0.0f);
+		const float f_alpha = update_overlay_fade(0x10000000u | fview.id[f], f_target, delta);
+		if (f_alpha > 0.005f) {
 			// The player's own selected livestock (0 A.D. livestock are units), or a hovered animal.
+			Color c = ring_color(sim, fview.owner[f], f_sel);
+			c.a = f_alpha;
 			place_selection_overlay(get_or_create_ring_decal(unit_rings_used++),
 					rtso::fauna_selection_overlay(rtso::fauna_type_info(ft).template_name), fent.metre, frot,
-					Vector3(fx, fy + 0.1f, fz), ring_color(sim, fview.owner[f], f_sel));
+					Vector3(fx, fy + 0.1f, fz), c);
+		}
+		if (f_sel || f_high) {
 			// StatusBars.js: an animal's food supply and, alive, its health.
 			StatusStack st;
 			const int food = rtso::fauna_type_info(ft).food_amount;
@@ -5374,41 +5390,59 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	}
 	// A hovered tree, mine, bush or shoal (as last seen): its selection ring and
 	// StatusBars.js ResourceSupply bar.
-	if (!highlight_set_.empty()) {
+	if (!highlight_set_.empty() || !selection_fades_.empty()) {
 		for (const auto &r : mirages_.resources()) {
-			if (r.subtype == rtso::RES_SUB_GRAIN || !highlight_set_.count((int32_t)r.id)) continue;
+			if (r.subtype == rtso::RES_SUB_GRAIN) continue;
+			const bool high = highlight_set_.count((int32_t)r.id) > 0;
+			const float target_a = high ? 0.75f : 0.0f;
+			const float alpha = update_overlay_fade(0x40000000u | r.id, target_a, delta);
+			if (alpha <= 0.005f) continue;
+
 			const float ry = r.subtype == rtso::RES_SUB_FISH ? std::max(sim->get_terrain_height(r.x, r.z), drawn_water_height(sim))
 			                                                : sim->get_terrain_height(r.x, r.z);
-			// The StatusBars of template_gaia (2 m wide, 0.333 m tall, 5 m up), _tree,
-			// _fruit, _fish and _ore/_rock_large, at 4 m a unit.
+			// 0 A.D. footprint circle radii (template_gaia_tree 2.5m, _fruit 3.0m, _fish 10.0m, _ore/_rock 5.0m/3.0m)
 			const bool mine = (r.type == rtso::RES_GOLD || r.type == rtso::RES_STONE) && r.subtype != rtso::RES_SUB_RUINS;
-			float radius = 0.7f, bar_w = 2.0f, bar_h = 0.333f, offset = 5.0f;
+			float radius = 2.5f, bar_w = 2.0f, bar_h = 0.333f, offset = 5.0f;
 			if (mine) {
 				auto it = mine_large_.find(r.id);
 				const bool large = it != mine_large_.end() && it->second;
-				radius = large ? 2.2f : 1.3f;
-				if (large) bar_w = 5.0f, bar_h = 0.5f;
+				radius = large ? 5.0f : 3.0f;
+				bar_w = large ? 5.0f : 3.0f;
+				bar_h = 0.5f;
 			} else if (r.type == rtso::RES_WOOD) {
+				radius = 2.5f;
 				bar_w = 3.0f, bar_h = 0.5f, offset = 10.0f;
 			} else if (r.subtype == rtso::RES_SUB_FISH) {
-				radius = 1.0f, bar_w = 4.0f, bar_h = 0.666f;
+				radius = 10.0f;
+				bar_w = 4.0f, bar_h = 0.666f;
 			} else if (r.type == rtso::RES_FOOD) {
+				radius = 3.0f;
 				bar_w = 3.0f, bar_h = 0.5f, offset = 4.0f;
 			}
-			// template_gaia_tree's ellipse (mines, fruit, fish and treasures draw 0.28's Outline line instead).
 			const float rs = 2.0f * radius;
+			Color col = ring_color(sim, rtso::GAIA_PLAYER, false);
+			col.a = alpha;
 			place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), {"128x128/ellipse", rs, rs, false}, 1.0f, 0.0f,
-					Vector3(r.x, ry + 0.1f, r.z), ring_color(sim, rtso::GAIA_PLAYER, false));
-			const int32_t max = supply_max_.emplace(r.id, r.amount).first->second;
-			StatusStack st;
-			st.supply = max > 0 ? (float)r.amount / (float)max : 1.0f;
-			draw_status_stack(sim, Vector3(r.x, ry + 0.25f * offset, r.z), 0.25f * bar_w, 0.25f * bar_h, 0.25f, st);
+					Vector3(r.x, ry + 0.1f, r.z), col);
+			if (high) {
+				const int32_t max = supply_max_.emplace(r.id, r.amount).first->second;
+				StatusStack st;
+				st.supply = max > 0 ? (float)r.amount / (float)max : 1.0f;
+				draw_status_stack(sim, Vector3(r.x, ry + 0.25f * offset, r.z), 0.25f * bar_w, 0.25f * bar_h, 0.25f, st);
+			}
 		}
 	}
 	for (size_t k = 0; k < unit_rings_used; ++k) sync_gl_decal(sim, unit_ring_decals_[k]);
-	for (size_t k = unit_rings_used; k < unit_ring_decals_.size(); ++k) unit_ring_decals_[k]->set_visible(false);
+	for (size_t k = unit_rings_used; k < unit_ring_decals_.size(); ++k) {
+		unit_ring_decals_[k]->set_visible(false);
+		if (unit_ring_decals_[k]->get_child_count() > 0) {
+			if (MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(unit_ring_decals_[k]->get_child(0))) {
+				mi->set_visible(false);
+			}
+		}
+	}
 	status_sprites_.end_frame();
-	draw_structure_outlines(sim);
+	draw_structure_outlines(sim, delta);
 }
 
 // The icons of the shown auras (aura_icon_sources_) reaching an entity of `team` at
@@ -5497,15 +5531,29 @@ const Ref<StandardMaterial3D> &RtsoWorldView::outline_material(const Color &c) {
 // Selectable.js overlay for structures: an outline round the footprint of each selected
 // structure, and a fainter one round a highlighted (hovered or band-boxed) one.
 void RtsoWorldView::sync_gl_decal(const rtso::Simulation *sim, Decal *d) {
-	if (!rtso::gl_compatibility() || !sim || !d || !d->is_inside_tree()) return;
+	if (!sim || !d || !d->is_inside_tree()) return;
+	const bool on_water = (sim->water_height() > -0.5f) && (d->get_position().y >= drawn_water_height(sim) - 0.2f);
+	if (!rtso::gl_compatibility() && !on_water) {
+		if (d->get_child_count() > 0) {
+			if (MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(d->get_child(0))) {
+				mi->set_visible(false);
+			}
+		}
+		d->set_cull_mask(DECAL_LAYER);
+		return;
+	}
 	Ref<Texture2D> tex = d->get_texture(Decal::TEXTURE_ALBEDO);
 	if (tex.is_null()) return;
+	if (on_water && !rtso::gl_compatibility()) {
+		d->set_cull_mask(0); // On water in Forward+/Mobile, avoid projection onto seabed
+	}
 	MeshInstance3D *mi = d->get_child_count() > 0 ? Object::cast_to<MeshInstance3D>(d->get_child(0)) : nullptr;
 	if (!mi) {
 		mi = memnew(MeshInstance3D);
 		mi->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
 		d->add_child(mi);
 	}
+	mi->set_visible(true);
 	// Rebuilt only when the decal moves, turns, resizes or changes colour.
 	const Transform3D xf = d->get_global_transform();
 	const Vector3 size = d->get_size();
@@ -5524,7 +5572,7 @@ void RtsoWorldView::sync_gl_decal(const rtso::Simulation *sim, Decal *d) {
 		mat->set_flag(BaseMaterial3D::FLAG_DISABLE_FOG, true);
 		mat->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, tex);
 	}
-	// A grid about a world unit (4 m) apart, each vertex on the terrain under it,
+	// A grid about a world unit (4 m) apart, each vertex on the terrain or water under it,
 	// UVs as the Decal maps its albedo (u along x, v along z).
 	const int n = Math::clamp((int)Math::ceil(std::max(size.x, size.z)), 2, 16);
 	const Transform3D inv = xf.affine_inverse();
@@ -5535,11 +5583,12 @@ void RtsoWorldView::sync_gl_decal(const rtso::Simulation *sim, Decal *d) {
 	verts.resize((n + 1) * (n + 1));
 	uvs.resize(verts.size());
 	cols.resize(verts.size());
+	const float water_y = (sim->water_height() > -0.5f) ? drawn_water_height(sim) : -1000.0f;
 	for (int j = 0; j <= n; ++j) {
 		for (int i = 0; i <= n; ++i) {
 			const float u = (float)i / n, v = (float)j / n;
 			Vector3 w = xf.xform(Vector3((u - 0.5f) * size.x, 0.0f, (v - 0.5f) * size.z));
-			w.y = sim->get_terrain_height(w.x, w.z) + 0.03f;
+			w.y = std::max(sim->get_terrain_height(w.x, w.z), water_y) + 0.03f;
 			const int k = j * (n + 1) + i;
 			verts.set(k, inv.xform(w));
 			uvs.set(k, Vector2(u, v));
@@ -5640,17 +5689,59 @@ void RtsoWorldView::place_selection_overlay(Decal *d, const rtso::SelectionOverl
 	d->set_visible(true);
 }
 
-void RtsoWorldView::draw_structure_outlines(const rtso::Simulation *sim) {
+float RtsoWorldView::update_overlay_fade(uint32_t key, float target_alpha, float delta) {
+	auto it = selection_fades_.find(key);
+	if (it == selection_fades_.end()) {
+		if (target_alpha <= 0.001f) return 0.0f;
+		OverlayFade f;
+		f.alpha = 0.0f;
+		f.baseline = 0.0f;
+		f.target = target_alpha;
+		f.progress = 0.0f;
+		it = selection_fades_.emplace(key, f).first;
+	}
+	OverlayFade &f = it->second;
+	if (std::abs(f.target - target_alpha) > 0.01f) {
+		f.baseline = f.alpha;
+		f.target = target_alpha;
+		f.progress = 0.0f;
+	}
+	static constexpr float FADE_DURATION = 0.3f;
+	if (f.progress < FADE_DURATION) {
+		f.progress += delta;
+		if (f.progress >= FADE_DURATION) {
+			f.alpha = f.target;
+			f.progress = FADE_DURATION;
+		} else {
+			// Ease::QuartOut (0 A.D. CCmpSelectable.cpp / Ease.h):
+			// t = t/d - 1; return -c*(t*t*t*t - 1) + b;
+			const float t = f.progress / FADE_DURATION - 1.0f;
+			const float c = f.target - f.baseline;
+			f.alpha = -c * (t * t * t * t - 1.0f) + f.baseline;
+		}
+	}
+	if (f.alpha <= 0.005f && f.target <= 0.001f) {
+		selection_fades_.erase(it);
+		return 0.0f;
+	}
+	return std::clamp(f.alpha, 0.0f, 1.0f);
+}
+
+void RtsoWorldView::draw_structure_outlines(const rtso::Simulation *sim, float delta) {
 	size_t used = 0;
-	if (!sel_buildings_.empty() || !highlight_set_.empty()) {
+	if (!sel_buildings_.empty() || !highlight_set_.empty() || !selection_fades_.empty()) {
 		if (outline_mesh_.is_null()) {
 			outline_mesh_.instantiate();
 			outline_mesh_->set_size(Vector3(1.0f, 0.04f, 1.0f));
 		}
 		for (const auto &b : sim->buildings()) {
 			const bool sel = sel_buildings_.count((int32_t)b.id) > 0;
-			if (!sel && !highlight_set_.count((int32_t)b.id)) continue;
+			const bool high = highlight_set_.count((int32_t)b.id) > 0;
 			if (b.wrecked || b.hp <= 0.0f) continue;
+			const float target_a = sel ? 1.0f : (high ? 0.75f : 0.0f);
+			const float alpha = update_overlay_fade(0x20000000u | b.id, target_a, delta);
+			if (alpha <= 0.005f) continue;
+
 			float hu = b.hu > 0.0f ? b.hu : b.half_size, hv = b.hv > 0.0f ? b.hv : b.half_size;
 			// RTS0's grid footprints are coarser than 0 A.D.'s template Footprint, which the
 			// outline follows: take the drawn model's ground extent where it is larger.
@@ -5667,7 +5758,9 @@ void RtsoWorldView::draw_structure_outlines(const rtso::Simulation *sim) {
 			hu += 0.25f;
 			hv += 0.25f;
 			const float y = sim->get_terrain_height(b.x, b.z) + 0.06f;
-			const Ref<StandardMaterial3D> &mat = outline_material(ring_color(sim, b.team, sel));
+			Color col = ring_color(sim, b.team, sel);
+			col.a = alpha;
+			const Ref<StandardMaterial3D> &mat = outline_material(col);
 			const Vector3 u(b.ux, 0.0f, b.uz), v(-b.uz, 0.0f, b.ux);
 			const float w = 0.15f;
 			// Two bars along u (at +-hv) and two along v (at +-hu).
@@ -5687,6 +5780,42 @@ void RtsoWorldView::draw_structure_outlines(const rtso::Simulation *sim) {
 				const Vector3 across = bar.axis == u ? v : u;
 				const Basis basis(bar.axis * bar.len, Vector3(0, 1, 0), across * w);
 				m->set_transform(Transform3D(basis, Vector3(b.x, y, b.z) + bar.c));
+				if (m->get_material_override() != mat) m->set_material_override(mat);
+				m->set_visible(true);
+			}
+		}
+		// 0 A.D. template_gaia_treasure footprint: Square width="2.0", depth="2.0" turned by treasure_angle
+		// (SimRender::ConstructTexturedLineBox)
+		for (const auto &t : sim->treasures()) {
+			const bool high = highlight_set_.count((int32_t)t.id) > 0;
+			const float target_a = high ? 0.75f : 0.0f;
+			const float alpha = update_overlay_fade(0x60000000u | t.id, target_a, delta);
+			if (alpha <= 0.005f) continue;
+			const float hu = 1.0f + 0.15f, hv = 1.0f + 0.15f;
+			const float yaw = rtso::Simulation::treasure_angle(t.id);
+			const float ground = std::max(sim->get_terrain_height(t.x, t.z), sim->water_height());
+			const float y = ground + 0.06f;
+			Color col = ring_color(sim, rtso::GAIA_PLAYER, false);
+			col.a = alpha;
+			const Ref<StandardMaterial3D> &mat = outline_material(col);
+			const Vector3 u(std::cos(yaw), 0.0f, -std::sin(yaw)), v(std::sin(yaw), 0.0f, std::cos(yaw));
+			const float w = 0.15f;
+			const struct { Vector3 c; Vector3 axis; float len; } bars[4] = {
+				{u * 0.0f + v * hv, u, 2.0f * hu + w}, {v * -hv, u, 2.0f * hu + w},
+				{u * hu, v, 2.0f * hv + w}, {u * -hu, v, 2.0f * hv + w},
+			};
+			for (const auto &bar : bars) {
+				if (used == outline_bars_.size()) {
+					MeshInstance3D *m = memnew(MeshInstance3D);
+					m->set_mesh(outline_mesh_);
+					m->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+					add_child(m);
+					outline_bars_.push_back(m);
+				}
+				MeshInstance3D *m = outline_bars_[used++];
+				const Vector3 across = bar.axis == u ? v : u;
+				const Basis basis(bar.axis * bar.len, Vector3(0, 1, 0), across * w);
+				m->set_transform(Transform3D(basis, Vector3(t.x, y, t.z) + bar.c));
 				if (m->get_material_override() != mat) m->set_material_override(mat);
 				m->set_visible(true);
 			}

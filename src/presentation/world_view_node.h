@@ -368,7 +368,15 @@ class RtsoWorldView : public Node3D {
 	std::unordered_set<int32_t> sel_buildings_; // the selected structures (outlined)
 	Ref<BoxMesh> outline_mesh_;
 	std::vector<MeshInstance3D *> outline_bars_;
-	void draw_structure_outlines(const rtso::Simulation *sim);
+	struct OverlayFade {
+		float alpha = 0.0f;
+		float baseline = 0.0f;
+		float target = 0.0f;
+		float progress = 0.3f;
+	};
+	std::unordered_map<uint32_t, OverlayFade> selection_fades_;
+	float update_overlay_fade(uint32_t key, float target_alpha, float delta);
+	void draw_structure_outlines(const rtso::Simulation *sim, float delta);
 	Decal *get_or_create_ring_decal(size_t index);
 	// CCmpSelectable's overlay quad: the shape's texture in this colour (overlayline.fs:
 	// mix(base, colour, mask)), cached per shape and colour.

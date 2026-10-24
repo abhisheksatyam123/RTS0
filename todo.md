@@ -1,4 +1,5 @@
 ## Tasks
+- [x] T30 [lead] Implement selection overlay parity (0 A.D. G60: 0.3s QuartOut fade in/out, water surface overlay height max(ground, water), gaia circular outline and treasure square footprint outline).
 - [x] T0a [lead] Fix cavalry unit standing on top of horse during gathering animation (cavalry meat gathering posture mapped to mounted strike clip).
 - [x] T0b [lead] Fix spearman dwarf scale bug (mesh AABB excluding tools/weapons in ModelLibrary::load).
 - [x] T1 [lead] Audit and expand animation/scaling coverage across all model categories in model_library.cpp vs 0 A.D.
@@ -32,6 +33,11 @@
 - [x] T29 [lead] Formation Scatter layout parity (0 A.D. Formation.js FSHAPE_SPECIAL): implemented randomized scatter offsets and FormationRng::next_float(), verified with tools/test_formations.cpp.
 
 ## Systems
+- Selection Overlay Parity (G60 / CCmpSelectable.cpp):
+  - Fading: Implemented `update_overlay_fade()` using 0 A.D. `Ease::QuartOut` with `FADE_DURATION = 0.3s`. Smoothly interpolates selection alpha (1.0 selected, 0.75 hover, 0.65 always-visible hero star) on units, fauna, buildings, resources, and treasures.
+  - Water Height Parity: Water mesh set with `DECAL_LAYER` mask and `sync_gl_decal()` samples `std::max(terrain_height, water_height)` so naval / floating unit overlays project onto the water plane rather than the seabed.
+  - Gaia Resource Footprints & Outlines: Aligned footprint circle radii with 0 A.D. templates (trees 2.5m, fruit 3m, fish 10m, ore/large stone 5m).
+  - Treasures: Added square footprint outline (2.0m x 2.0m, rotated to match `treasure_angle`) rendered via `draw_structure_outlines()`.
 - Formation Scatter Layout (T29, formation.h):
   - Implemented FSHAPE_SPECIAL in compute_formation_offsets() matching 0 A.D. Formation.js:724-735.
   - Uses randomized scatter offsets within width = sqrt(count) * (sep_w + sep_d) * 2.5f with rows = 1 and center-averaged offsets.
@@ -84,6 +90,7 @@
   - Asset audit: tools/audit_assets.py (165/165 unique paths 0 missing, 100% PASS)
 
 ## Log
+- 2026-10-23 [lead] T30: Began implementing selection overlay parity (G60) covering 0.3s QuartOut fade in/out, water overlay height parity, and gaia/treasure footprint outlines.
 - 2026-10-22 [lead] T29: Implemented 0 A.D. Formation.js FSHAPE_SPECIAL Scatter layout in src/simulation/formation.h using next_float() randomized offsets with sqrt(count)*(sep_w+sep_d)*2.5f width; verified via tools/test_formations.cpp and check_parity.py --unit formation.
 - 2026-10-22 [lead] T28: Expanded tools/test_components.cpp with sections 4, 5, 6 testing foundation construction diminishing returns (n^0.7 / n), live commitment and repair, research queueing with 100% cancellation refunds, and victory state machine (Conquest unit elimination and Regicide hero death). 100% PASS.
 - 2026-10-22 [lead] T28: Began expanding component parity tests in tools/test_components.cpp (Foundation.js build multiplier & repair, Researcher.js production queue & cancel refund, VictoryConditions.js conquest & regicide).

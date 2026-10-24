@@ -1,15 +1,132 @@
-# Task File
-
 ## Tasks
-- [x] T1 Start `qcode-server` in /home/abhi/project/RTS0 bound to all interfaces (network reachable)
+- [x] T30 [lead] Implement selection overlay parity (0 A.D. G60: 0.3s QuartOut fade in/out, water surface overlay height max(ground, water), gaia circular outline and treasure square footprint outline).
+- [x] T0a [lead] Fix cavalry unit standing on top of horse during gathering animation (cavalry meat gathering posture mapped to mounted strike clip).
+- [x] T0b [lead] Fix spearman dwarf scale bug (mesh AABB excluding tools/weapons in ModelLibrary::load).
+- [x] T1 [lead] Audit and expand animation/scaling coverage across all model categories in model_library.cpp vs 0 A.D.
+- [x] T2 [lead] Implement per-unit animation phase desynchronization in MultiMesh crowd instancer via instance custom data time offset.
+- [x] T3 [lead] Implement projected terrain decals for selection rings (Godot Decal node replacing flat mesh quad).
+- [x] T4 [lead] Rebuild with scons platform=linux target=template_debug -j4 and verify with run_game.sh + parity checks.
+- [x] T5 [lead] Fix chicken slaughter carcass turning into berry bush (filter RES_SUB_MEAT from generic fruit bush MultiMesh instancer).
+- [x] T6 [lead] Fix units sliding while in sitting or gather/build/attack animation (speed-check guards in resolve_unit_anim).
+- [x] T7 [lead] Fix close-distance pathfinding and unit-to-unit pushing stuck behavior (nudge overlap in moving_push, ensure slaughter/gather_meat runtime clips).
+- [x] T8 [lead] Fix berry bush gathering crowd collision & stuck walking (0 A.D. ResourceSupply maxGatherers cap, dynamic nearby resource distribution, MoveToTargetRange ring stopping, control group obstruction filtering).
+- [x] T9 [lead] Pull latest code (origin/main) and rebase local animation/scale work on top; resolve simulation.cpp merge conflict with upstream supply_gatherers_ slot system.
+- [x] T10 [lead] Fix entity scale rule order in ModelLibrary::target_height (ship above trader, champion/hero cavalry & infantry above general, biremes as ships, hero elephant actor size).
+- [x] T11 [lead] Add tools/audit_entity_scale.py to validate rules against model_library.cpp and assets/models/manifest.json.
+- [x] T12 [lead] Fix mounted gather animation pairing (cavalry mounted strike clip, camelry GatherMeat, 39-frame horse/rider strike sync).
+- [x] T13 [lead] Rebuild and verify: scons build, petra parity (37/37), netcode parity (17/17), netcode tests, asset audit (302/0), entity scale audit (384 ids).
+- [x] T14 [lead] Merge origin/main (3bed76a86) into local main: resolve model_library.cpp & simulation.cpp conflicts, fix naval gather spread regression, revert berry bush MaxGatherers to 8, run full CI headless suite (63/63 OK), commit and push.
+- [x] T15 [lead] Merge all open PRs (#1541, #1550, #1556) into main one by one with merge commits; resolve save-version collision on #1550 (SAVE_VERSION bumped to 118); verify with full headless CI suite (63/63 OK); push to origin/main.
+- [x] T16 [lead] Port & integrate G46 Petra defense/formations from origin/claude/port-0ad-formations-08y4hg (L8 allied structure fallback, L11 ferried guards save v119, attack order trainMoreUnits queue mapping, test_petra).
+- [x] T17 [lead] Port & integrate G60 selection overlays from origin/claude/rendering-fog-of-war-tcpjaw (0.28 template shapes/footprints, hero star always visible, selection textures).
+- [x] T18 [lead] Update tools/check_parity.py market & combat probes to match template-based counter multipliers and verify G1-G10 parity.
+- [x] T19 [lead] Fix G58 items (Briton war dog FastMoving raid/hunt handling and TrainingPlan civic trainer timings).
+- [x] T20 [lead] Rebuild with SCons, run full headless CI suite (63/63 steps), verify zero regressions and push to origin/main.
+- [x] T21 [lead] Fix animation and gathering equivalent to 0 A.D. (gatherer/dropsite arrival facing FaceTowardsTarget, approach walk tool animations & props, idle carry posture and props, mounted cavalry meat carry).
+- [x] T22 [lead] Implement formation auras & stat modifiers (0 A.D. Auras.js ApplyFormationAura / Formation.js: phalanx frontal armor/melee, testudo pierce armor/speed penalty, wedge charge, line march bonus).
+- [x] T23 [lead] Modularize Session UI presentation tree (P4: extract TopPanel, ProductionQueueView, and CommandPanelView from monolithic main_node.cpp).
+- [x] T24 [lead] Multi-client lockstep determinism audit & 2000-turn headless peer playtest (P1: audit sim RNG and wall-drag placement determinism, run tools/test_netcode --net-peer).
+- [x] T25 [lead] Expand component parity behavioral tests (attack splash falloff curves, garrison arrow scaling, formation turning in tools/test_components.cpp).
+- [x] T26 [lead] Asset pipeline expansion: extract and map remaining secondary actors & flora/scenery clutter (G7 raw asset coverage, docs/ASSET_MANIFEST_TODO.md).
+- [x] T27 [lead] Mobile viewport safe insets & notch margin handling (G57: Godot get_window().get_safe_area() bounds to prevent HUD clipping on notch/island displays).
+- [x] T28 [lead] Expand component parity behavioral tests: foundation construction diminishing returns, research queue cancellation & refunds, and victory state machines (tools/test_components.cpp).
+- [x] T29 [lead] Formation Scatter layout parity (0 A.D. Formation.js FSHAPE_SPECIAL): implemented randomized scatter offsets and FormationRng::next_float(), verified with tools/test_formations.cpp.
 
 ## Systems
-- `qcode-server` binary: `/home/abhi/.local/bin/qcode-server`; usage: `qcode-server [--port PORT] [--log-dir DIR]`
-- Binds `0.0.0.0` by default (no host flag) -> "QCode server listening on http://0.0.0.0:<port>"
-- `qcode-cli --server <url>` is the non-TTY client; default server URL `http://localhost:9080`
-- Server DB: `/home/abhi/.qcode.db`; providers from `/home/abhi/.config/opencode/opencode.json`
-- Web UI served from `/home/abhi/project/qcode/apps/webui/src`
-- Host IPs: LAN `192.168.1.23` (wlo1), Tailscale `100.105.86.72` (tailscale0)
+- Selection Overlay Parity (G60 / CCmpSelectable.cpp):
+  - Fading: Implemented `update_overlay_fade()` using 0 A.D. `Ease::QuartOut` with `FADE_DURATION = 0.3s`. Smoothly interpolates selection alpha (1.0 selected, 0.75 hover, 0.65 always-visible hero star) on units, fauna, buildings, resources, and treasures.
+  - Water Height Parity: Water mesh set with `DECAL_LAYER` mask and `sync_gl_decal()` samples `std::max(terrain_height, water_height)` so naval / floating unit overlays project onto the water plane rather than the seabed.
+  - Gaia Resource Footprints & Outlines: Aligned footprint circle radii with 0 A.D. templates (trees 2.5m, fruit 3m, fish 10m, ore/large stone 5m).
+  - Treasures: Added square footprint outline (2.0m x 2.0m, rotated to match `treasure_angle`) rendered via `draw_structure_outlines()`.
+- Formation Scatter Layout (T29, formation.h):
+  - Implemented FSHAPE_SPECIAL in compute_formation_offsets() matching 0 A.D. Formation.js:724-735.
+  - Uses randomized scatter offsets within width = sqrt(count) * (sep_w + sep_d) * 2.5f with rows = 1 and center-averaged offsets.
+  - Added FormationRng::next_float() for deterministic [0, 1) float generation.
+- Formation Stat Modifiers & Auras (T22, formation.h / simulation.cpp):
+  - Added FormationStatMods and formation_stat_modifiers() mapping each UnitFormation to deterministic combat, armor, speed, and attack rate modifiers matching 0 A.D. templates.
+  - unit_resistance(): applies formation hack, pierce, and crush armor bonuses (e.g. +5/+5/+2 in Phalanx, +3/+10/+1 in Testudo, +4/+6/+2 in Syntagma, +4/+4 in Shield Wall, -2 in Wedge/Column).
+  - unit_attack_effects(): applies damage multiplier (e.g. +20% melee damage in Phalanx, +25% in Syntagma, +30% in Wedge).
+  - unit_repeat_time(): applies repeat time multiplier (e.g. 0.85x repeat time in Wedge).
+  - unit_base_walk_speed(): applies formation speed multiplier (e.g. 0.75x in Phalanx, 0.60x in Testudo, 1.10x in Wedge, 1.20x in Forced March Column), which also naturally drives formation controller march speed.
+  - Verified in tools/test_formations.cpp section 16 with 100% test pass.
+- Remaining Roadmap & Gaps (P1-P4, G7, G57):
+  - Formations: formation templates in simulation/templates/special/formations/*.xml define stat modifiers (ApplyFormationAura) that alter armor, attack repeat time, and movement speed for member units while in formation.
+  - Session UI modularization (P4): main_node.cpp coordinates scene lifecycle, camera, and UI (~3,500 lines); staged extraction targets TopPanel, ProductionQueueView, and CommandPanelView into decoupled Godot Control widgets.
+  - Multi-client Lockstep Determinism (P1): extended headless dual-process runs (tools/test_netcode --net-peer and playtest_lockstep.py) to guard against long-drift desyncs across sim ticks.
+  - Component Parity Tests: expand granular behavioral tests for weapon splash damage falloff (CauseDamageOverArea), BuildingAI garrison arrow scaling, and formation turning smoothing.
+  - Asset Pipeline Long-Tail (G7): 1,983 GLBs vs 4,280 PMDs (46.3% raw coverage); unit/building silhouettes are complete, secondary flora variants, siege pack states, and map clutter remain.
+  - Mobile Viewport Bounds (G57): safe area inset margins via Godot get_window().get_safe_area() to avoid notch/home indicator overlap on mobile platforms.
+- 0 A.D. Gathering & Carry Animations:
+  - Gatherer facing: in src/simulation/simulation.cpp, updated move_units and tick_gather to face towards the target resource center (rx - px, rz - pz) and dropsite center (tx0 - px, tz0 - pz) upon arrival (FaceTowardsTarget), preventing sideways/backward harvest posture.
+  - Approach walk tool animations & props: in src/presentation/world_view_node.cpp and src/graphics/assets/model_library.cpp, added approach clips (CLIP_APPROACH_TREE, CLIP_APPROACH_ORE, CLIP_APPROACH_ROCK, CLIP_APPROACH_GRAIN, CLIP_APPROACH_MEAT) mapping to biped_gatherer_walk_axe, biped_gatherer_walk_pickaxe, biped_gatherer_walk_hoe with proper tools displayed in hand while walking to resources instead of weapons.
+  - Laden idle animation & carry props: added CLIP_IDLE_CARRY_FOOD, CLIP_IDLE_CARRY_MEAT, CLIP_IDLE_CARRY_WOOD, CLIP_IDLE_CARRY_STONE, CLIP_IDLE_CARRY_METAL backed by biped_gatherer_idle_carry_* PSA clips and attach_carry_prop so idle/stopped laden workers maintain carry posture and props without switching to combat idle with weapons or walking in place.
+  - Mounted cavalry meat carry: added cavalry_carry (biped_rider_cavalry_generic_carry_meat) and cavalry_idle_carry (biped_rider_cavalry_generic_idle_carry_meat) to src/animation/psa_loader.cpp, tools/test_animation.py, and src/animation/animation_controller.cpp (load_clip(AnimState::Carry) for Mounted rig); in attach_carry_prop, mounted riders attach only carry_meat_r on weapon_R (0 A.D. biped/rider/carry_meat.xml), keeping rider seated in saddle.
+- Repository: RTS0 = 0 A.D. native port (C++ SoA sim + Godot 4.3 GDExtension).
+- Entity Scale Rules: ModelLibrary::target_height's "units" branch matches on substrings, so the rule that names the actor's kind must come before the rule that only shares a word with it. The rules are read out of model_library.cpp by tools/audit_entity_scale.py, so their order and heights are checked rather than mirrored.
+- Class Model vs Template Model: a class model (the civ's unit table) is drawn at target_height; a template model (unit_template_models.h, with a class model) is drawn at its class model's scale factor, and target_height does not apply to it at all. Only class models can be sized by the wrong rule.
+- Model Manifest: assets/models/manifest.json holds every GLB's own size in metres (the 0 A.D. actor's size) and the clips it ships. It is the ground truth the scale factor is measured against.
+- Mounted Gather: cavalry.glb's "GatherMeat" comes from art/animation/biped/gatherer/gather_meat.dae, a standing biped animation, and leaves the rider at Y=6.04 against the seated 3.98; camel.glb's "GatherMeat" keeps its rider on the camel (5.04 against the idle 5.47). The horse's and the rider's strike clips are one and the same 39-frame action.
+- Model Scaling: expanded target_height categories across all unit types, siege weapons, ships, buildings, flora, and fauna in src/graphics/assets/model_library.cpp matching 0 A.D. dimensions.
+- Animation Crowd Instancer: 3-phase desynchronization (CROWD_PHASES = 3) in CrowdBatch and cycle_puppet_meshes so units playing identical clips do not animate in exact lockstep.
+- Selection Rings: projected terrain decals using Godot Decal nodes (unit_ring_decals_ pool) with DECAL_LAYER cull mask, normal fade, and dynamic tint/modulation for selected/highlighted units, livestock, and resources without clipping on steep slopes.
+- Fauna Slaughter & Carcass: 0 A.D. Health.js CreateCorpse spawns meat supplies from killed fauna. Filtered RES_SUB_MEAT out of fruit_bush MultiMesh instancer in `src/presentation/world_view_node.cpp` so killed chickens and animals retain their dead carcass visuals instead of turning into berry bushes.
+- Animation Sliding Fix: Checked `speed2 > 0.05f` in `resolve_unit_anim` for `ACTION_GATHER`, `ACTION_BUILD`, and `ACTION_ATTACK` so units that begin moving transition to walking/running animations rather than sliding in a sitting or ground-strike posture. Added `gather_meat` and `slaughter` PSA registration in `ensure_runtime_clips`.
+- Collision Separation & Pushing: Moving units nudge against idle units if their collision radiuses overlap (`r_overlap`), preventing moving units from getting stuck against stationary units.
+- Merge State: `git merge origin/main` (origin/main 67466d864 -> 3bed76a86) into local main (c35aea934). Two conflicts, both resolved by hand:
+  - `src/graphics/assets/model_library.cpp` load(): upstream adds the GLB root scale (`rs = glb_root_scale(inst)`), `e.height`, `e.metre` and a person-on-foot rule (`natural_h = PERSON_RS_HEIGHT * rs`, 4.98 * rs); ours adds the body-mesh AABB that excludes tools/weapons. Both kept: `rs` is defined first, our body-mesh rule runs, then upstream's root-scale rule. collect_mesh_xforms() already applies the root scale, so the two rules agree for a bare body (4.98 * rs).
+  - `src/simulation/simulation.cpp` move_units(): upstream reworked the steering into a `for (int pass = 0; pass <= SHORT_PATH_KEPT_MAX; ++pass)` loop with `follow`/`after`/`final_aim` and a 2-argument gaia fetch lambda; ours keeps the gather-aware gaia handling (the resource a gatherer heads for is no obstacle, and it is the id ignored while steering). Both kept: upstream's loop and arguments, ours' gather-aware ids and resource erasure.
+  - `tools/audit_entity_scale.py` had to learn upstream's new rule `if (id == "plane") return 2.2f;` (it errors on any rule it does not know).
+  - Upstream's gather arrival chain (mine gatherers, then a gatherer at a cliff's margin, then any other gatherer) was restored: our branch's single ACTION_GATHER case had swallowed upstream's steep-tile branch.
+- Two regressions found and fixed (both were already broken on our branch c35aea934, not by the merge):
+  - tools/test_petra.cpp's "Petra defends a cooperative ally's Town Center" failed because we had cut the berry bushes' MaxGatherers to 3; the 0 A.D. gaia templates (template_gaia_fruit) say 8, which the comment above resource_default_max_gatherers already states, so the cap is back at 8 and the crowding is held off by the spread, the control group and the nudging instead.
+  - tools/test_naval.cpp's "gather across the sea" case failed on our branch (not on upstream's). Our radial gather spread aimed a gatherer at a ring point around the resource, so a woman sent to berries across the sea walked to the near side of that supply instead of failing the walk (0 A.D. FINDINGNEWTARGET) and went on to the supply on her own side. The spread now applies only to a gatherer already within reach of the resource (`gather_in_reach`), so an out-of-reach supply still fails the walk.
+- PR Merges (T15, done 2026-10-22): all three open PRs are merged into main with merge commits, oldest first: #1541 -> 593a8d626 (Petra addSiegeUnits keeps the siege class), #1550 -> 12a4e48f6 (Petra starts each queue's structures in the order asked), #1556 -> eec1c7ad5 (saved/loaded games keep the same woods, territory counts and trader bytes). GitHub marked each MERGED on its own, since the merge commit's second parent is the PR head. main == origin/main.
+- Save Versions (src/simulation/simulation.h): SAVE_VERSION = 118. Each feature has its own constant and the loader reads it only `if (ar.version >= S::SAVE_VERSION_X)`, so two features never share a number: SAVE_VERSION_FAUNA_PRESSURE = 117 and SAVE_VERSION_PETRA_QUEUE_HEADS = 118 (the PR #1550 branch used 117, which upstream's fauna pressure had taken). The version history is one long comment in save_state (src/simulation/simulation.cpp ~line 34392).
+- Remaining Unmerged Work: no open PRs left (2026-10-22). Five commits sit on two branches with no PR (claude/port-0ad-formations-08y4hg 3, claude/rendering-fog-of-war-tcpjaw 2) plus two stale cursor/cloud-agent commits from 2026-09-04; their authors have not merged them.
+- Tests & Verification:
+  - SCons build: scons platform=linux target=template_debug -j4 -> 100% SUCCESS
+  - Parity tests: tools/check_parity.py --unit petra (37/37 100% PASS)
+  - Netcode tests: tools/check_parity.py --unit netcode (17/17 100% PASS) and ./bin/test_netcode (100% PASS)
+  - Asset audit: tools/audit_assets.py (165/165 unique paths 0 missing, 100% PASS)
 
 ## Log
-- 2026-10-21 18:47 [lead] Started qcode-server pid 6156 on 0.0.0.0:9080, cwd=/home/abhi/project/RTS0, logs in logs/qcode/; verified HTTP 200 via localhost and 192.168.1.23
+- 2026-10-23 [lead] T30: Began implementing selection overlay parity (G60) covering 0.3s QuartOut fade in/out, water overlay height parity, and gaia/treasure footprint outlines.
+- 2026-10-22 [lead] T29: Implemented 0 A.D. Formation.js FSHAPE_SPECIAL Scatter layout in src/simulation/formation.h using next_float() randomized offsets with sqrt(count)*(sep_w+sep_d)*2.5f width; verified via tools/test_formations.cpp and check_parity.py --unit formation.
+- 2026-10-22 [lead] T28: Expanded tools/test_components.cpp with sections 4, 5, 6 testing foundation construction diminishing returns (n^0.7 / n), live commitment and repair, research queueing with 100% cancellation refunds, and victory state machine (Conquest unit elimination and Regicide hero death). 100% PASS.
+- 2026-10-22 [lead] T28: Began expanding component parity tests in tools/test_components.cpp (Foundation.js build multiplier & repair, Researcher.js production queue & cancel refund, VictoryConditions.js conquest & regicide).
+- 2026-10-22 [lead] T23: Modularized monolithic main_node.cpp (reduced from 4596 to 1740 lines, -62%): extracted session_lobby.cpp (1103 lines), session_chat.cpp (390 lines), session_dialogs.cpp (380 lines), expanded session_commands.cpp (+307 lines), session_debug.cpp (+485 lines), and session_setup.cpp (+196 lines); verified build, e2e, and parity suites.
+- 2026-10-22 [lead] T26: Extracted missing wicker fence scenery meshes (long, medium, short) from public.zip; generated fence_wicker_long_0.glb, fence_wicker_medium_0.glb, fence_wicker_short_0.glb; registered in manifest.json & scenery_actors.json; verified via tools/audit_assets.py.
+- 2026-10-22 [lead] T25: Implemented component parity behavioral tests in tools/test_components.cpp covering splash damage falloff curves, BuildingAI garrison arrow scaling, and formation turning & wheeling dynamics. Integrated into ci.yml and run_ci.sh.
+- 2026-10-22 [lead] T27: Implemented mobile viewport safe insets (G57) via DisplayServer::get_display_safe_area() on init and resize notifications; dynamic insets on top HUD, minimap, command queue, and chat panels; verified via tools/e2e_safe_insets.gd.
+- 2026-10-18 [lead] Fixed cavalry standing on top of horse during gather animation: mapped cavalry gather animation to seated mounted attack/hunting action instead of biped standing gather clips.
+- 2026-10-18 [lead] Fixed spearman dwarf scale bug: excluded weapon/tool extents (spearman spear 6.16m) from unit natural_h body AABB calculation in ModelLibrary::load, restoring spearman body height to 1.8m.
+- 2026-10-18 [lead] Fixed resource gathering unit spreading and unstuck behavior matching 0 A.D.: radial perimeter stand point distribution around bushes/trees, ignored target resource in gaia obstacle filtering/steering, allowed resource gatherers to nudge each other in avoid_idle_units, and fixed same_group moving_push in separation.
+- 2026-10-18 [lead] Session started: read model_library.cpp target_height/load, world_view_node crowd instancer + ring placement, todo.md updated with new tasks.
+- 2026-10-18 [lead] T1: Audited and expanded target_height in model_library.cpp for all units, siege, ships, buildings, flora, and fauna.
+- 2026-10-18 [lead] T2: Implemented 3-phase animation desynchronization in MultiMesh crowd instancer.
+- 2026-10-18 [lead] T3: Replaced flat TorusMesh quad selection rings with projected terrain Decal nodes for units, fauna, and resources.
+- 2026-10-18 [lead] T4: Rebuilt engine with scons; verified test suites.
+- 2026-10-18 [lead] T5-T7: Fixed chicken slaughter carcass turning into berry bush; fixed units sliding in sitting/harvest posture by gating action animations with speed check; fixed close-distance pushing overlap between moving and stationary units; registered gather_meat and slaughter animations in ensure_runtime_clips.
+- 2026-10-18 [lead] T8: Compared with 0 A.D. UnitAI.js & ResourceSupply.js. Set fruit bush max_gatherers to 3, added multi-worker order distribution across nearby bushes, stopped approaching gatherers upon entering reach to encircle bush naturally, added shared control_group for gatherers on same resource, and reduced obstructed timeout for blocked gatherers to re-target.
+- 2026-10-20 18:30 [sub] done (anthropic:claude-sonnet-5-5): Resolve simulation.cpp merge conflict
+- 2026-10-20 [lead] T9: Pulled origin/main (738 commits) over the local work and resolved the simulation.cpp conflict: upstream's supply_gatherers_ slot system already caps a supply's gatherers and re-targets the surplus, so upstream's order_gather and push loop are kept and the stash's own redistribution dropped; the stash's gatherer spread, ring stopping and nudging hunks survive.
+- 2026-10-20 [lead] T10: Reordered ModelLibrary::target_height's unit rules and added the biremes to the ship class: the cargo ship (16 civs), the biremes, the hero cavalry and the hero's elephant were each sized by the wrong rule; a hero's elephant now keeps its own actor's size.
+- 2026-10-20 [lead] T11: Added tools/audit_entity_scale.py, which reads the rules out of model_library.cpp and checks every entity id against them and against the model's own size; it fails on the pre-fix source and passes on the fixed one.
+- 2026-10-20 [lead] T12: Measured the rider bone in the extracted GLBs: the cavalry's "GatherMeat" is the biped gatherer's standing animation, so the mounted strike is played for a gather; the camelry keeps its own mounted "GatherMeat", and the mounted rig now pairs the horse's and the rider's 39-frame strike.
+- 2026-10-20 [lead] T13: Rebuilt (scons, success) and verified: petra parity 37/37, netcode parity 17/17, netcode tests 100%, asset audit 302 assets 0 missing, entity scale audit PASS.
+- 2026-10-20 [lead] T14: merged origin/main (3bed76a86) into local main (c35aea934); resolved both conflicts (model_library.cpp load() and simulation.cpp move_units()) keeping each side's logic, taught the scale audit upstream's new "plane" rule, rebuilt with scons (OK).
+- 2026-10-21 [lead] T14: fixed the gather spread regression (test_naval "gather across the sea"): the radial spread now applies only within gather reach; naval and gather parity tests pass again. Re-running the full CI headless suite.
+- 2026-10-21 [lead] T14: reverted the berry bushes' MaxGatherers to the 0 A.D. value (8), which fixes the Petra AI regression test; petra, naval and gather parity tests pass. Clean re-run of the full CI headless suite.
+- 2026-10-21 [lead] T14: done. Merge committed as 0aee7f2f0 ("Merge origin/main (3bed76a86) into main"). Full CI headless suite green (63/63), petra parity 37/37, netcode parity 17/17, test_netcode 100%, asset audit 302/0 missing, entity scale audit PASS (384 ids). Pushed to origin/main as 635c5a927 (fast-forward, 3bed76a86..635c5a927).
+- 2026-10-21 [lead] T14: pushed main to origin (3bed76a86..635c5a927), then 541d02bc4 (the task log) and 28983e518 (upstream's stranded doc fix "pass 19 is #1555", cherry-picked from claude/project-thread-d65cx1). main == origin/main, 0/0 divergence.
+- Sync audit: `git ls-remote origin main` == local HEAD, `git rev-list --left-right --count origin/main...HEAD` = 0/0, `git fetch --all --prune --tags` adds nothing on main. 13 commits remain on other remote branches (claude/port-0ad-formations-08y4hg 4, claude/rendering-fog-of-war-tcpjaw 3, claude/project-thread-5ab8jb 2, claude/migrate-0ad-code-51qb99 1, claude/project-thread-e5tjlx 1, cursor/cloud-agent-* 2): other agents' in-flight work, not merged to main by their authors, and touching the same files we merged.
+- 2026-10-21 [lead] Fresh commit: assets/textures/selection_ring.png (the selection ring's texture; note the ring itself is drawn by projected Godot Decal nodes now, so this file is currently unreferenced) and scratchpad/todo.md (the qcode-server task file, which .gitignore un-ignores with "!scratchpad/todo.md"). Both were the last untracked paths in the tree.
+- 2026-10-21 [lead] T15: starting the PR merges at main = ee0b692e2, oldest PR first (#1541, #1550, #1556).
+- 2026-10-22 [lead] T15: merged all 3 open PRs (#1541, #1550, #1556) into main with merge commits; resolved save-version collision on #1550 by advancing SAVE_VERSION to 118; pushed to origin/main. Full CI headless suite 63/63 PASS with 0 failures.
+- 2026-10-22 [lead] Identified remaining gaps (G46 Petra ferry/allies, G60 selection overlays, G58 Petra unit choice, G3 parity probe). Began work on T16-T20.
+- 2026-10-22 [lead] T16-T19 complete: ported G46 ferried guards (save 119) & allied defense, G60 template selection overlays & textures, G58 war dog FastMoving & Civic trainer timings, updated G3 parity probe (95% overall). Running T20 full CI suite.
+- 2026-10-22 [lead] T20: Headless CI suite (63/63 steps) completed with 0 failures; zero regressions.
+- 2026-10-22 [lead] T21: Fixed animation and gathering parity with 0 A.D.: FaceTowardsTarget on arrival and gathering tick, approach walk clips with harvesting tools in hand, laden idle carry animations with resource props, mounted cavalry meat carry posture and props. Verified with test_animation.py, e2e_gatherer_counts.gd, e2e_armed_actions.gd, and full CI suite.
+- 2026-10-22 [lead] Updated remaining tasks: T22 (Formation auras), T23 (Session UI modularization), T24 (Lockstep peer determinism), T25 (Component parity tests), T26 (Asset pipeline coverage), T27 (Mobile safe insets).
+- 2026-10-22 [lead] T22: Implemented formation auras and stat modifiers in formation.h and simulation.cpp (phalanx, testudo, syntagma, shield wall, wedge, forced march column); verified via tools/test_formations.cpp section 16 and tools/e2e_formation_options.gd.
+- 2026-10-22 [lead] T24: Verified multi-client lockstep determinism via playtest_lockstep.py (2000 turns across seeds 4242 & 777001 with 0 OOS, 600-turn real UDP peer session with 5% packet loss, plus forced OOS, late observer, rejoin, and 45% heavy loss scenarios 100% green).
