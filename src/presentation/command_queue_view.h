@@ -1375,15 +1375,16 @@ public:
 						// 0.28's Construction tooltip: names, Identity/Tooltip, cost and time, garrison,
 						// population bonus (selection_panels.js Construction setupButton).
 						// A wall's button is its WallSet proxy: the set's name, tooltip and classes,
-						// no auras or turrets of its own.
+						// no turrets of its own; its auras are the long wall's (getAurasTooltip).
 						Dictionary text = structure_template_text(my_civ, bt);
+						const String auras_line = structure_auras_tooltip(text);
 						if (text.has("wallset")) text = text["wallset"];
 						const String generic = text.get("generic_name", String::utf8(bi.name));
 						const String specific = text.get("specific_name", String());
 						String tip = rtso::entity_names_formatted(generic, specific);
 						auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
 						add_line(classes_tooltip(text));
-						add_line(structure_auras_tooltip(text));
+						add_line(auras_line);
 						add_line(identity_tooltip(text));
 						const rtso::CostTip b_cost{(int64_t)price[rtso::RES_FOOD], (int64_t)price[rtso::RES_WOOD],
 								(int64_t)price[rtso::RES_STONE], (int64_t)price[rtso::RES_GOLD], 0,
@@ -2243,7 +2244,7 @@ private:
 		return out;
 	}
 
-	// getResourceDropsiteTooltip: "Dropsite for: Food Wood", a resource's name for its icon.
+	// getResourceDropsiteTooltip: "Dropsite for:" in the header font, then each resource's icon.
 	static godot::String dropsite_tooltip(const godot::Dictionary &text) {
 		using namespace godot;
 		const Array types = Dictionary(text.get("viewer", Dictionary())).get("dropsite", Array());
@@ -2251,9 +2252,9 @@ private:
 		String icons;
 		for (int k = 0; k < types.size(); ++k) {
 			if (k) icons += "  ";
-			icons += rtso::tr0(String(types[k]).capitalize());
+			icons += rtso::resource_icon(String(types[k]).utf8().get_data());
 		}
-		return rtso::sprintf0(rtso::tr0("%(label)s %(icons)s"), {{"label", rtso::tr0("Dropsite for:")}, {"icons", icons}});
+		return rtso::sprintf0(rtso::tr0("%(label)s %(icons)s"), {{"label", rtso::header_font(rtso::tr0("Dropsite for:"))}, {"icons", icons}});
 	}
 
 	// getTurretsTooltip: "Turret Positions: 4".
@@ -2262,10 +2263,12 @@ private:
 		const int turrets = (int)Dictionary(text.get("viewer", Dictionary())).get("turrets", 0);
 		if (turrets <= 0) return String();
 		return rtso::sprintf0(rtso::tr0("%(label)s: %(turretsLimit)s"),
-				{{"label", rtso::tr0("Turret Positions")}, {"turretsLimit", String::num_int64(turrets)}});
+				{{"label", rtso::header_font(rtso::tr0("Turret Positions"))}, {"turretsLimit", String::num_int64(turrets)}});
 	}
 
-	// formatLimitString: "Current Count: 1, Limit: 1." and each LimitChanger the player owns.
+	// formatLimitString: "Current Count: 1, Limit: 1." and each of the player's LimitChangers
+	// for the category (template_player.xml EntityLimits/LimitChangers), owned or not, by its
+	// class key with its template value: "Ashoka enlarges the limit with 5.".
 	godot::String limit_tooltip(uint8_t pid, uint8_t category) const {
 		using namespace godot;
 		rtso::Simulation *sim = host_->ui_sim();
@@ -2278,15 +2281,14 @@ private:
 		if (count >= limit) text = rtso::objection_font(text);
 		const uint8_t civ = sim->player_civ(pid);
 		for (const rtso::LimitChanger &c : rtso::LIMIT_CHANGERS) {
-			if (c.civ != civ || c.category != category || c.bld >= rtso::BLD_TYPE_COUNT || c.value == 0) continue;
-			int owned = 0;
-			for (const auto &b : sim->buildings())
-				owned += b.team == pid && b.type == c.bld && b.hp > 0.0f && !b.wrecked && b.build_progress >= 1.0f;
-			if (!owned) continue;
-			const int change = owned * c.value;
-			text += "\n" + rtso::sprintf0(rtso::tr0(change > 0 ? "%(changer)s enlarges the limit with %(change)s."
+			if (c.civ != civ || c.category != category || c.value == 0) continue;
+			const char *key = category == rtso::LIMIT_GLADIATOR ? "Amphitheater" : category == rtso::LIMIT_WAR_DOG ? "Kennel"
+					: category == rtso::LIMIT_PILLAR ? "Ashoka" : category == rtso::LIMIT_JUGGERNAUT ? "PtolemyIV"
+					: c.bld < rtso::BLD_TYPE_COUNT ? rtso::building_type_info(c.bld).name : nullptr;
+			if (!key) continue;
+			text += "\n" + rtso::sprintf0(rtso::tr0(c.value > 0 ? "%(changer)s enlarges the limit with %(change)s."
 					: "%(changer)s lessens the limit with %(change)s."),
-					{{"changer", rtso::tr0(String::utf8(rtso::building_type_info(c.bld).name))}, {"change", String::num_int64(change)}});
+					{{"changer", rtso::tr0(String::utf8(key))}, {"change", String::num_int64(c.value)}});
 		}
 		return text;
 	}
