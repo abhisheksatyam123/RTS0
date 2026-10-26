@@ -11862,16 +11862,16 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					const size_t ridx = rit->second;
 					const float rx = resources_.x[ridx], rz = resources_.z[ridx];
 					float to_dx = px[i] - rx, to_dz = pz[i] - rz;
-					float d = std::hypot(to_dx, to_dz);
+					float d = det::hypot(to_dx, to_dz);
 					if (d < 1e-4f) {
 						const float a = ((units_.id[i] % 12) / 12.0f) * 6.2831853f;
-						to_dx = std::cos(a);
-						to_dz = std::sin(a);
+						to_dx = det::cos(a);
+						to_dz = det::sin(a);
 						d = 1.0f;
 					}
 					// Offset angle distributed per unit id so multiple workers don't aim at the exact same radial ray
 					const float spread_angle = (((units_.id[i] * 5) % 8) - 3.5f) * 0.18f;
-					const float ca = std::cos(spread_angle), sa = std::sin(spread_angle);
+					const float ca = det::cos(spread_angle), sa = det::sin(spread_angle);
 					const float nx = (to_dx * ca - to_dz * sa) / d;
 					const float nz = (to_dx * sa + to_dz * ca) / d;
 					const float stand_r = std::max(0.6f, resource_block_half(ridx) + unit_clearance_at(i) + 0.2f);
