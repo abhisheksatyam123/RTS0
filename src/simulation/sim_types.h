@@ -641,6 +641,7 @@ inline MapStructureTemplate map_structure_template(const char *tpl) {
 		{"pers/apartment_block", BLD_APARTMENT_BLOCK, CIV_PERSIANS},
 		{"hellenic_epic_temple", BLD_EPIC_TEMPLE, CIV_COUNT},
 		{"generic_field", BLD_FIELD, CIV_COUNT}, {"mill_field_wheat", BLD_FIELD, CIV_COUNT},
+		{"pirates/dock", BLD_DOCK, CIV_GAIA},
 	};
 	const char *stem = std::strncmp(tpl, "structures/", 11) == 0 ? tpl + 11 : tpl;
 	for (const auto &r : kRows)
@@ -1196,6 +1197,18 @@ inline float unit_collision_radius(uint8_t type) {
 inline const char *unit_type_name(uint8_t type) { return unit_type_info(type).name; }
 inline const char *unit_type_model(uint8_t type) { return unit_type_info(type).model_id; }
 inline const char *unit_type_portrait(uint8_t type) { return unit_type_info(type).portrait_id; }
+
+inline bool unit_is_cavalry(uint8_t type) {
+	return type == UNIT_CAVALRY || type == UNIT_CAMEL;
+}
+
+// The horse-mounted cavalry only. The camelry's own gather clip is mounted
+// as well (camel.glb's "GatherMeat" keeps its rider on the camel), while the
+// cavalry's does not: cavalry.glb's "GatherMeat" is the biped gatherer's
+// standing animation, which leaves the rider 2 m above the horse's back.
+inline bool unit_is_horse_cavalry(uint8_t type) {
+	return type == UNIT_CAVALRY;
+}
 
 inline bool unit_is_ship(uint8_t type) {
 	return type == UNIT_TRIREME || type == UNIT_FISHING_BOAT || type == UNIT_MERCHANT_SHIP;
@@ -1808,11 +1821,12 @@ inline uint8_t building_phase_class(uint8_t type, uint8_t civ = 0xFF) {
 	switch (building_research_base(type)) {
 		case BLD_HOUSE: case BLD_APARTMENT: case BLD_BARRACKS: case BLD_STOREHOUSE: case BLD_FARMSTEAD:
 		case BLD_DOCK: case BLD_CORRAL: case BLD_STABLE: case BLD_RANGE: case BLD_KENNEL:
-		case BLD_MERCENARY_CAMP: case BLD_MINISTRY: case BLD_PYRAMID_SMALL: case BLD_SYSSITON: case BLD_ICE_HOUSE:
+		case BLD_MINISTRY: case BLD_PYRAMID_SMALL: case BLD_SYSSITON: case BLD_ICE_HOUSE:
 			return 1;
 		case BLD_MARKET: case BLD_TEMPLE: case BLD_FORGE: case BLD_EMBASSY: case BLD_ARMY_CAMP:
 		case BLD_TEMPLE_VESTA: case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_GEROUSIA: case BLD_GYMNASIUM:
 		case BLD_MONUMENT: case BLD_SUPER_DOCK: case BLD_TRADING_POST: // a shrine is -Town
+		case BLD_MERCENARY_CAMP: // ptol/mercenary_camp (Requirements -phase_village phase_town), merc_camp_egyptian (-Village Town)
 			return 2;
 		case BLD_ARSENAL: return civ == CIV_MACEDONIANS ? 2 : 0;
 		case BLD_ELEPHANT_STABLE: return civ == CIV_MAURYANS ? 2 : 0;
@@ -1958,6 +1972,7 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	const uint8_t r = tech_info(tech_id).researcher;
 	if (tech_id == TECH_AGOGE) return false;
 	if (type == BLD_CAMPAIGN_SANCTUARY) return false; // campaign_religious_test: Researcher disable=""
+	if (type == BLD_DOCK && civ == CIV_GAIA) return false; // structures/pirates/dock: Researcher disable=""
 	if (tech_id == TECH_CELTIC_AUXILIARIES) return type == BLD_EMBASSY;
 	if (tech_id == TECH_UNLOCK_SHARED_LOS && building_research_base(type) == BLD_MARKET) return true;
 	if (tech_id == TECH_TOWER_MURDERHOLES && (type == BLD_FORTRESS || type == BLD_FORTRESS_OLD)) return true;
@@ -3309,6 +3324,7 @@ inline bool building_trains_native(uint8_t type) {
 // military colony and German encampments) list units/{native}/support_civilian, so a
 // captured one trains its builder's civilians (template_structure_civic_civil_centre.xml).
 inline uint8_t building_train_civ(uint8_t type, uint8_t bld_civ, uint8_t owner_civ, const CivUnitTemplate &t) {
+	if (type == BLD_DOCK && bld_civ == CIV_GAIA) return CIV_GAIA;
 	// A mercenary camp lists units/{civ}/..._merc_b (ptol/mercenary_camp.xml, merc_camp_egyptian.xml):
 	// the holder's own mercenaries, so a Ptolemaic player's camp trains Ptolemaic ones and a
 	// captured camp, Gaia's or another player's, trains its captor's (0.28).
@@ -3369,6 +3385,9 @@ inline bool trainer_civ_list_has(uint8_t bld_civ, uint8_t type, uint16_t tmpl, b
 inline bool building_trains_template(uint8_t type, uint8_t bld_civ, uint8_t owner_civ, uint16_t tmpl) {
 	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
+	if (type == BLD_DOCK && bld_civ == CIV_GAIA) {
+		return std::strcmp(t.id, "pirates/ship_scout") == 0 || std::strcmp(t.id, "pirates/ship_arrow") == 0;
+	}
 	const uint8_t civ = building_train_civ(type, bld_civ, owner_civ, t);
 	if (t.civ != civ) return false;
 	if (civ != bld_civ) {

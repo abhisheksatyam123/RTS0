@@ -24,7 +24,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Edict Pillar of Ashoka", "pillar", "pillar", 1000.0f, 1, 0, 0, 100, 100, 0, 0, 20.0f, 0.0f, 5.0f, 1.0f, 0.0f}, /* structures/maur/pillar_ashoka */ \
 		{"Large Pyramid", "pyramid_large", "pyramid_large", 3000.0f, 2, 0, 0, 150, 450, 0, 0, 75.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/kush/pyramid_large */ \
 		{"Small Pyramid", "pyramid_small", "pyramid_small", 2000.0f, 2, 0, 0, 100, 100, 0, 0, 25.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/kush/pyramid_small */ \
-		{"Mercenary Camp", "mercenary_camp", "mercenary_camp", 1200.0f, 2, 0, 100, 100, 100, 0, 10, 75.0f, 500.0f, 10.0f, 1.0f, 1.0f}, /* structures/ptol/mercenary_camp */ \
+		{"Mercenary Camp", "mercenary_camp", "mercenary_camp", 1200.0f, 2, 0, 100, 100, 0, 0, 10, 75.0f, 500.0f, 10.0f, 1.0f, 1.0f}, /* structures/ptol/mercenary_camp */ \
 		{"Lighthouse", "lighthouse", "lighthouse", 2000.0f, 2, 0, 0, 200, 200, 0, 5, 50.0f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/ptol/lighthouse */ \
 		{"Military Colony", "military_colony", "military_colony", 2000.0f, 2, 0, 200, 150, 200, 20, 20, 75.0f, 2500.0f, 30.0f, 1.0f, 20.0f}, /* structures/ptol/military_colony */ \
 		{"Imperial Academy", "academy", "academy", 2000.0f, 2, 0, 0, 150, 150, 0, 10, 50.0f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/han/academy */ \

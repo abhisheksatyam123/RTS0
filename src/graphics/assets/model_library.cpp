@@ -111,34 +111,49 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		if (us > 0 && us < id.length() - 1)
 			base = id.substr(us + 1);
 
+		// The rules below match on a substring, so the rule that names the
+		// actor's kind has to come before the rule that only shares a word
+		// with it: "athen_merchant_ship" is a ship and not a trader, and
+		// "han_hero_cav_han_xin" is a hero on horseback and not a foot hero.
+		// A rule placed too low sizes the entity by the wrong kind entirely
+		// (the cargo ship came out at the trader's 1.8 m, half its size).
+
 		// Infantry (0 A.D. template_unit_infantry: ~1.6-1.9 m eye height).
-		if (base == "infantry" || id.contains("infantry_")) return 1.8f;
 		if (id.contains("champion_infantry")) return 1.9f;
-		if (id.contains("hero_") || id.contains("_hero")) return 2.0f;
+		if (base == "infantry" || id.contains("infantry_")) return 1.8f;
 		if (id.contains("support_female_citizen") || id.contains("female_citizen") || id.contains("female")) return 1.68f;
 		if (id.contains("archer_maiden")) return 1.7f;
 		if (id.contains("priestess") || id.contains("priest") || id.contains("healer")) return 1.72f;
 
-		// Cavalry and mounted units.
+		// Cavalry and mounted units. A hero on horseback is taller than a
+		// plain rider, and a champion a little taller again.
+		if (id.contains("hero_cav") || id.contains("_cav_")) return 3.0f;
+		if (id.contains("champion_cavalry")) return 2.95f;
 		if (base == "cavalry" || id.contains("cavalry")) return 2.85f;
 		if (base == "camel" || id.contains("camel")) return 2.9f;
-		if (id.contains("champion_cavalry")) return 2.95f;
-		if (id.contains("hero_cav") || id.contains("_cav_")) return 3.0f;
+		// A hero's elephant carries a howdah and a rider, so it is taller
+		// than the plain one: it keeps the size its own actor was drawn at.
+		if (id.contains("hero_elephant")) return natural_h;
 		if (id.contains("worker_elephant") || id.contains("elephant")) return 3.2f;
+		if (id.contains("hero_") || id.contains("_hero")) return 2.0f;
 
-		// Traders and merchants.
+		// Ships. The biremes are warships of the same class as the trireme.
+		if (id.contains("fishing_boat") || id.contains("fishing_ship")) return 2.0f;
+		if (id.contains("merchant_ship") || id.contains("trireme") || id.contains("ship_merchant") ||
+				id.contains("warship") || id.contains("bireme") || id.contains("ship"))
+			return 3.5f;
+
+		// Traders and merchants (on foot).
 		if (id.contains("trader") || id.contains("merchant")) return 1.8f;
 
 		// Siege engines.
 		if (id.contains("scythed_chariot") || id.contains("chariot")) return 2.4f;
-		if (base == "ram" || base == "siege_ram" || id.ends_with("_ram")) return 2.0f;
+		// A battering ram, but not a war galley: the "_ram" ships are ships.
+		if (!id.contains("ship") && (base == "ram" || base == "siege_ram" || id.ends_with("_ram")))
+			return 2.0f;
 		if (id.contains("siege_tower")) return 3.5f;
 		if (id.contains("bolt_shooter") || id.contains("ballista") || id.contains("oxybeles")) return 1.8f;
 		if (id.contains("catapult") || id.contains("onager") || id.contains("lithobolos") || id.contains("mangonel")) return 2.2f;
-
-		// Ships.
-		if (id.contains("fishing_boat") || id.contains("fishing_ship")) return 2.0f;
-		if (id.contains("merchant_ship") || id.contains("trireme") || id.contains("ship_merchant") || id.contains("warship") || id.contains("ship")) return 3.5f;
 
 		// Animals and special actors.
 		if (id.contains("war_dog") || id.contains("dog")) return 0.85f;
@@ -1001,11 +1016,14 @@ void ModelLibrary::apply_clip_tools(Node *root, const StringName &clip) {
 	if (tools.empty()) return;
 	String tag = String(clip);
 	// 0 A.D. carry_* variants empty weapon_R/weapon_L: the shuttle replaces the tool.
-	if (tag.begins_with("Carry")) return;
+	if (tag.begins_with("Carry") || tag.begins_with("IdleCarry")) return;
 	// Formation variant clips: testudo_top's empties weapon_R ("FormBare_"), the rest keep it.
 	if (tag.begins_with("FormBare_")) return;
 	if (tag.begins_with("Form_")) tag = "Weapon";
-	if (tag == "Gather") tag = "GatherTree";
+	if (tag == "Gather" || tag == "ApproachTree") tag = "GatherTree";
+	if (tag == "ApproachOre" || tag == "ApproachRock") tag = "GatherOre";
+	if (tag == "ApproachGrain") tag = "GatherGrain";
+	if (tag == "ApproachMeat") tag = "GatherMeat";
 	if (tag == "Idle" || tag == "Walk" || tag == "Run" ||
 			tag == "Attack" || tag == "Death" || tag == "Slaughter" || tag == "Heal" ||
 			tag == "Promotion")
@@ -1911,11 +1929,29 @@ HashMap<String, bool> &ModelLibrary::threaded_paths() {
 	return m;
 }
 
+// The requests not yet seen finished (a short list: finished ones drop out on each count).
+static std::vector<String> &requests_in_flight() {
+	static auto &v = *new std::vector<String>();
+	return v;
+}
+
+int ModelLibrary::loads_in_flight() {
+	std::vector<String> &v = requests_in_flight();
+	v.erase(std::remove_if(v.begin(), v.end(), [](const String &p) {
+		return !threaded_paths().has(p) ||
+				ResourceLoader::get_singleton()->load_threaded_get_status(p) != ResourceLoader::THREAD_LOAD_IN_PROGRESS;
+	}), v.end());
+	return (int)v.size();
+}
+
 void ModelLibrary::request_threaded(const String &path) {
 	if (threaded_paths().has(path) || ResourceLoader::get_singleton()->has_cached(path) ||
 			!ResourceLoader::get_singleton()->exists(path))
 		return;
-	if (ResourceLoader::get_singleton()->load_threaded_request(path) == OK) threaded_paths().insert(path, true);
+	if (ResourceLoader::get_singleton()->load_threaded_request(path) == OK) {
+		threaded_paths().insert(path, true);
+		requests_in_flight().push_back(path);
+	}
 }
 
 // Takes the prefetched companion textures of a GLB (they stay cached while `keep` holds them).
@@ -2013,8 +2049,36 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 						if (e.mesh.is_valid()) {
 							e.aabb = e.mesh->get_aabb();
 							e.scale = 1.0f;
+							// For units, compute natural height from character body meshes excluding
+							// weapons and tools (spears, pikes, longbows, scythes, picks), whose extents
+							// would otherwise cause the unit body to scale down to dwarf proportions.
 							float natural_h = e.aabb.size.y;
 							const float rs = category == "units" ? glb_root_scale(inst) : 0.0f;
+							if (category == "units") {
+								AABB body_aabb;
+								bool have_body = false;
+								for (int mi_i = 0; mi_i < mesh_instances.size(); ++mi_i) {
+									MeshInstance3D *m = mesh_instances[mi_i].mi;
+									if (!m) continue;
+									String mname = m->get_name();
+									if (!tool_tag_of(mname).is_empty() || mname.begins_with("tool_") ||
+											mname.contains("weapon") || mname.contains("Weapon") ||
+											mname.contains("prop_") || mname.contains("shield"))
+										continue;
+									Ref<Mesh> sm = m->get_mesh();
+									if (!sm.is_valid()) continue;
+									AABB ma = mesh_instances[mi_i].xf.xform(sm->get_aabb());
+									if (!have_body) {
+										body_aabb = ma;
+										have_body = true;
+									} else {
+										body_aabb = body_aabb.merge(ma);
+									}
+								}
+								if (have_body && body_aabb.size.y > 0.2f) {
+									natural_h = body_aabb.size.y;
+								}
+							}
 							// A mounted hero (template model sized by a cavalry class model) is no person on foot.
 							const bool on_foot = is_person_model(id) && !(tm && tm->class_model && !is_person_model(String(tm->class_model)));
 							if (rs >= 0.3f && rs <= 0.5f && on_foot) natural_h = PERSON_RS_HEIGHT * rs;
@@ -2086,6 +2150,7 @@ const ModelLibrary::Entry &ModelLibrary::get(const String &category, const Strin
 void ModelLibrary::clear() {
 	for (const KeyValue<String, bool> &kv : threaded_paths()) ResourceLoader::get_singleton()->load_threaded_get(kv.key);
 	threaded_paths().clear();
+	requests_in_flight().clear();
 	cache().clear();
 	player_color_mats().clear();
 }

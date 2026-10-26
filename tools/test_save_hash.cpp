@@ -12,7 +12,8 @@
 //   g++ -std=c++20 -O2 -Isrc tools/test_save_hash.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_save_hash && /tmp/test_save_hash
-// Private access only to stage a defeat and read wonder holds, as test_victory does.
+// Private access only to stage a defeat and read wonder holds, as test_victory does, and to
+// compare the woods' navcells and territory counts, which the hash doesn't read.
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -425,6 +426,150 @@ static void check_reused_sim(TurnManager &tm, const char *path) {
 	}
 }
 
+// Traders on routes, saved, loaded and saved again: the second save is the first, byte for byte.
+// Their routes and legs live in hash maps, whose order follows the order their entries came in;
+// the loaded game puts them in in the order the save lists them, so a save written in map order
+// would list them otherwise the second time (and a rejoining client's state would differ in bytes).
+static void check_trader_save_order(const char *path) {
+	static Simulation a, b;
+	a.reset();
+	const uint32_t m0 = a.spawn_building_world(-60.0f, 0.0f, BLD_MARKET, 0, 1.0f);
+	const uint32_t m1 = a.spawn_building_world(60.0f, 0.0f, BLD_MARKET, 0, 1.0f);
+	for (int k = 0; k < 4; ++k) {
+		const uint32_t trader = a.spawn_unit(-52.0f, -6.0f + 4.0f * (float)k, 0, UNIT_TRADER);
+		a.order_trade(&trader, 1, m0, m1);
+	}
+	run(a, 100);
+	if (a.trader_routes_map().size() < 2) {
+		std::printf("  FAIL expected at least 2 of 4 traders on routes, %zu\n", a.trader_routes_map().size());
+		++failures;
+		return;
+	}
+	if (!a.save_state(path)) { std::printf("FAIL save (traders)\n"); ++failures; return; }
+	b.reset();
+	if (!b.load_state(path)) { std::printf("FAIL load (traders)\n"); ++failures; return; }
+	const std::vector<char> first = read_file(path);
+	if (!b.save_state(path) || read_file(path) != first) {
+		std::printf("  FAIL %zu traders on routes: the loaded game saves differently\n", a.trader_routes_map().size());
+		++failures;
+		return;
+	}
+	std::printf("%zu traders on routes: the loaded game saves the same bytes: ok\n", a.trader_routes_map().size());
+}
+
+// A forest map's woods and territory come back with a save as the game that wrote it has them.
+// Gaul cavalry and rams walk long paths across the map, through and around the woods, while the
+// game is saved every 24 s; each save is loaded into a second sim built the same way, and the two
+// play on side by side, their hashes compared every few ticks. Neither the woods' navcells nor the
+// territory each player holds is saved: a load works both out again from what is (0.28 rebuilds its
+// pathfinder grid from the obstructions on MT_Deserialized, CCmpPathfinder.cpp:222-223, and saves no
+// territory, CCmpTerritoryManager.cpp:191), so the live game must hold what a fresh count gives.
+// Then a game loaded from a save writes the same save again, byte for byte.
+static void check_forest_twin(TurnManager &tm, const char *path) {
+	static Simulation live, twin;
+	const int maps[] = {MAP_ARDENNES_FOREST, MAP_CALEDONIAN_MEADOWS};
+	const int save_every = 480, keep_playing = 200, every = 5;
+	for (const int map : maps) {
+		auto make = [&](Simulation &s) {
+			s.reset();
+			s.set_sim_seed(1);
+			s.set_waves_enabled(false);
+			for (uint8_t p = 0; p < PLAYERS; ++p) s.set_team_civ(p, (uint8_t)(6 + p));
+			s.generate_random_map((MapType)map, 1, PLAYERS, MAP_HALF);
+			s.set_victory_condition(VICTORY_ENDLESS);
+			// Players at peace who build nothing: the woods stand as the map made them.
+			for (uint8_t p = 0; p < PLAYERS; ++p) {
+				s.set_player_active(p, true, false);
+				s.set_player_team(p, 0);
+			}
+		};
+		make(live);
+		run(live, 20);
+		uint64_t rng = 0x9E3779B97F4A7C15ull ^ (uint64_t)map;
+		auto unit = [&]() {
+			rng = rng * 6364136223846793005ull + 1442695040888963407ull;
+			return (float)((uint32_t)(rng >> 33) & 0xFFFFFF) / (float)0x1000000;
+		};
+		// A spot a unit can stand on, clear of trees and away from the structures.
+		auto open_point = [&](float &x, float &z) {
+			for (int tries = 0; tries < 2000; ++tries) {
+				x = (unit() * 2.0f - 1.0f) * (MAP_HALF - 4.0f);
+				z = (unit() * 2.0f - 1.0f) * (MAP_HALF - 4.0f);
+				auto [cx, cy] = live.nav_grid_.world_to_cell(x, z);
+				if (!live.nav_grid_.cells.inside(cx, cy) || !live.nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY)) continue;
+				if (live.near_impassable_terrain(x, z, 1.2f)) continue;
+				std::vector<Simulation::SteerObstacle> near;
+				live.gaia_obstacles_near(x, z, 1.5f, near);
+				if (!near.empty()) continue;
+				bool clear = true;
+				for (const auto &b : live.buildings_)
+					if ((b.x - x) * (b.x - x) + (b.z - z) * (b.z - z) < 400.0f) { clear = false; break; }
+				if (clear) return true;
+			}
+			return false;
+		};
+		std::vector<uint32_t> army;
+		for (int k = 0; k < 30; ++k) {
+			float x, z;
+			if (!open_point(x, z)) break;
+			const bool ram = k % 5 == 4;
+			const uint32_t id = live.spawn_unit(x, z, 1, ram ? UNIT_SIEGE_RAM : UNIT_CAVALRY, 0.0f,
+					civ_unit_template_by_id(ram ? "gaul/siege_ram" : "gaul/cavalry_javelineer_b"));
+			if (live.lookup_unit(id) >= 0) army.push_back(id);
+		}
+		const int before = failures;
+		int saves = 0, walks = 0;
+		for (int wave = 0; wave < 3; ++wave) {
+			for (uint32_t &id : army) {
+				float x, z;
+				if (live.lookup_unit(id) < 0 || !open_point(x, z)) continue;
+				live.order_walk(&id, 1, x, z);
+				++walks;
+			}
+			for (int t = 1; t <= 2 * save_every; ++t) {
+				live.tick(Simulation::FIXED_STEP);
+				if (t % save_every) continue;
+				++saves;
+				if (!live.save_state(path)) { std::printf("FAIL save (forest map %d)\n", map); ++failures; return; }
+				make(twin);
+				if (!twin.load_state(path)) { std::printf("FAIL load (forest map %d)\n", map); ++failures; return; }
+				const std::pair<bool, const char *> derived[] = {
+						{live.forest_cells_ != twin.forest_cells_, "the woods' navcells"},
+						{live.nav_grid_.cells != twin.nav_grid_.cells, "the navcells"},
+						{live.territory_tiles_ != twin.territory_tiles_, "the territory each player holds"}};
+				for (const auto &[differ, what] : derived)
+					if (differ) {
+						std::printf("  FAIL forest map %d, save %d (tick %llu): %s differ after the load\n", map, saves,
+						            (unsigned long long)live.ticks_, what);
+						++failures;
+					}
+				const std::vector<char> a = read_file(path);
+				if (!twin.save_state(path) || read_file(path) != a) {
+					std::printf("  FAIL forest map %d, save %d: the loaded game saves differently\n", map, saves);
+					++failures;
+				}
+				// The live game plays on through the comparison: the twin has to keep up with it.
+				int diverged = tm.compute_sim_hash(live) != tm.compute_sim_hash(twin) ? 0 : -1;
+				for (int k = 1; k <= keep_playing && diverged < 0; ++k) {
+					live.tick(Simulation::FIXED_STEP);
+					twin.tick(Simulation::FIXED_STEP);
+					if (k % every == 0 && tm.compute_sim_hash(live) != tm.compute_sim_hash(twin)) diverged = k;
+				}
+				if (diverged >= 0) {
+					std::printf("  FAIL forest map %d, save %d (tick %llu): the loaded copy diverged %d ticks after the load\n",
+					            map, saves, (unsigned long long)live.ticks_, diverged);
+					++failures;
+					compare(live, twin);
+					print_diffs();
+				}
+			}
+		}
+		if (failures == before)
+			std::printf("forest map %d: %zu cavalry and rams, %d walks, %d saves, each identical for %d ticks: ok\n", map,
+			            army.size(), walks, saves, keep_playing);
+	}
+}
+
 int main() {
 	static Simulation live, loaded;
 	TurnManager tm;
@@ -433,6 +578,8 @@ int main() {
 	check_queued_tech(tm, "/tmp/rts0_test_save_hash.sav");
 	check_reset_load(tm, "/tmp/rts0_test_save_hash.sav");
 	check_other_size_load(tm, "/tmp/rts0_test_save_hash.sav");
+	check_trader_save_order("/tmp/rts0_test_save_hash.sav");
+	check_forest_twin(tm, "/tmp/rts0_test_save_hash.sav");
 	build(live);
 	const char *path = "/tmp/rts0_test_save_hash.sav";
 	// Save points: early game, mid game (armies, fields, traders), later.
@@ -456,6 +603,14 @@ int main() {
 			compare(live, loaded);
 			print_diffs();
 		}
+		// The loaded game writes the same save again (traders and all): a save written in the order
+		// a hash map happens to hold would differ between the two.
+		const std::vector<char> saved = read_file(path);
+		if (!loaded.save_state("/tmp/rts0_test_save_hash_2.sav") || read_file("/tmp/rts0_test_save_hash_2.sav") != saved) {
+			std::printf("  FAIL the loaded game saves differently\n");
+			++failures;
+		}
+		std::remove("/tmp/rts0_test_save_hash_2.sav");
 		// Both copies keep playing; per-tick state that wasn't saved shows up here.
 		static Simulation cont;
 		build(cont);

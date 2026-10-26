@@ -2,11 +2,12 @@
 // (register_types.cpp) and no other headless test does.
 //  1. parallel_for runs every index of a job exactly once and returns only when all are done, over
 //     many jobs back to back whose chunk counts go up and down, as a move command's loop over its
-//     units (cmd_move_individual) and then the tick's loops over every unit do. A worker still
-//     finishing one job must never claim a chunk of the next: it would run it outside that job's
-//     count and finish the next job early, while another worker is still inside its loop.
-//  2. A match with units walking through a herd ends on the same lockstep hash with three workers as
-//     serially.
+//     units (cmd_move_individual) and then the tick's loops do (move_units over the units, then
+//     separation over the units and the animals, a longer loop). A worker still finishing one job
+//     must never claim a chunk of the next: it would run it outside that job's count and finish the
+//     next job early, while another worker is still inside its loop.
+//  2. A match with units walking through a herd, units and animals pushing each other, ends on the
+//     same lockstep hash with three workers as serially.
 // A watchdog fails the test if a job never returns.
 //
 // g++ -std=c++20 -O2 -Isrc tools/test_job_system.cpp src/simulation/simulation.cpp \
@@ -67,7 +68,8 @@ static uint32_t run_match(int ticks) {
 	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, false);
 	s->spawn_building_world(-56.0f, -56.0f, BLD_TOWN_CENTER, 0, 1.0f);
 	s->spawn_building_world(56.0f, 56.0f, BLD_TOWN_CENTER, 1, 1.0f);
-	// Units walk through a herd of animals of every size.
+	// Units walk through a herd of animals of every size. There are more animals than units, so
+	// separation's loop (units and animals) has more chunks than move_units' (units) just before it.
 	const uint8_t kinds[] = {FAUNA_DEER, FAUNA_SHEEP, FAUNA_BOAR, FAUNA_GOAT, FAUNA_CATTLE_COW, FAUNA_ELEPHANT_AFRICAN_BUSH};
 	for (int k = 0; k < 300; ++k) s->spawn_fauna(-30.0f + 1.6f * (k % 30), -8.0f + 1.6f * (k / 30), kinds[k % 6]);
 	std::vector<uint32_t> men;

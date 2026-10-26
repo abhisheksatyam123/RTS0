@@ -182,7 +182,11 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 115; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 119; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_FERRIED_GUARDS = 119; // guards on their way by sea to a critical entity
+	static constexpr uint32_t SAVE_VERSION_FAUNA_PRESSURE = 117; // each animal's pushing pressure and failed movements (fauna_pressure_, fauna_failed_)
+	static constexpr uint32_t SAVE_VERSION_PETRA_QUEUE_HEADS = 118; // the structure at the head of each Petra queue
+	static constexpr uint32_t SAVE_VERSION_PETRA_REQUIRE_HOUSES = 116; // headquarters.js requireHouses, kept until the phase has its houses
 	static constexpr uint32_t SAVE_VERSION_PETRA_BASE_TURN = 115; // the base Petra updates next (basesManager.js currentBase)
 	static constexpr uint32_t SAVE_VERSION_PETRA_WORKER_PLANS = 114; // trainMoreWorkers' queued TrainingPlans
 	static constexpr uint32_t SAVE_VERSION_PETRA_PASS5 = 113; // Petra's trade and transport ships, house plans, new bases
@@ -2004,7 +2008,10 @@ public:
 	void set_player_civ(uint8_t civ) { set_team_civ(0, civ); }
 	uint8_t player_civ(uint8_t pid = 0) const { return player(pid).civ; }
 	// A field's MaxGatherers, from the civ it was placed as (its owner's when that is unset).
-	int field_cap(const Building &b) const { return field_max_gatherers(b.civ != CIV_COUNT ? b.civ : player(b.team).civ); }
+	int field_cap(const Building &b) const {
+		if (b.type == BLD_FIELD && b.max_hp == 0.0f && b.max_capture_points == 0.0f) return 2;
+		return field_max_gatherers(b.civ != CIV_COUNT ? b.civ : player(b.team).civ);
+	}
 	// A civ chosen after the player's starting structures were placed re-templates them too.
 	void set_team_civ(uint8_t team, uint8_t civ);
 	uint8_t team_civ(uint8_t team) const { return (team < MAX_PLAYERS) ? players_[team].civ : CIV_ATHENIANS; }
@@ -2471,6 +2478,25 @@ public:
 		b.capture_points = 0.0f;
 		b.capture_points_by_team.fill(0.0f);
 	}
+	// A wheat field (structures/mill_field_wheat): no health (Health disable=""),
+	// uncapturable (Capturable disable=""), no decay (TerritoryDecay disable=""),
+	// and MaxGatherers 2 (ResourceSupply).
+	void setup_mill_field_wheat(uint32_t building_id) {
+		auto it = building_id_to_idx_.find(building_id);
+		if (it == building_id_to_idx_.end()) return;
+		Building &b = buildings_[it->second];
+		b.hp = 0.0f;
+		b.max_hp = 0.0f;
+		b.max_capture_points = 0.0f;
+		b.capture_points = 0.0f;
+		b.capture_points_by_team.fill(0.0f);
+		b.decay_disabled = true;
+		b.territory_decay_rate = 0.0f;
+		auto res_it = field_res_by_bld_.find(building_id);
+		if (res_it != field_res_by_bld_.end()) {
+			set_resource_max_gatherers(res_it->second, 2);
+		}
+	}
 	// A map script's Gaia wall (placeCustomFortress): the `kind` WallSet's pieces from (sx, sz)
 	// to (ex, ez), built and uncapturable, joined to Gaia towers already at the ends. Pieces
 	// that would stand in water are left out.
@@ -2926,6 +2952,16 @@ private:
 	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
 	void fauna_hit_fauna(size_t f, size_t v);             // ... or on a player's livestock v
 	bool fauna_can_step(size_t f, float x, float z) const;
+	// 0.28 CCmpUnitMotionManager registers every animal with UnitMotion for pushing; animal f is in
+	// separation()'s pass when it is alive and in the world (not penned) and blocks movement.
+	bool fauna_pushes(size_t f) const;
+	// CCmpUnitMotion::PreMove's isMoving for animal f: it has a move under way.
+	bool fauna_has_move(size_t f) const;
+	// The unit or animal unit i's move heads for (a MoveToTargetRange on an entity), whose obstruction
+	// never obstructs it (CCmpUnitMotion.h:1231-1237 specificIgnore); 0 for none.
+	uint32_t unit_move_target(size_t i) const;
+	// CCmpUnitMotion::PerformMove: animal f's speed `speed` (its walk or run) under its pushing pressure.
+	float fauna_move_speed(size_t f, float speed) const;
 	// UnitMotion for animal f heading to (tx, tz): where to steer now. The first waypoint of
 	// find_path when the navcell line there is blocked, then the short path round the structures
 	// in the way. A function of the map and the two points only, so nothing is kept or saved.
@@ -3104,6 +3140,12 @@ private:
 	// fauna_ like fauna_owner_; save v108 adds them.
 	float fauna_roam_angle_[FaunaStorage::MAX_FAUNA] = {};
 	float fauna_start_angle_[FaunaStorage::MAX_FAUNA] = {};
+	// Each animal's pushing pressure (0.28 CCmpUnitMotionManager MotionState::pushingPressure, which
+	// 0.28 serializes for animals as for units), beside fauna_ like fauna_owner_; save v114 adds it.
+	uint8_t fauna_pressure_[FaunaStorage::MAX_FAUNA] = {};
+	// Each animal's obstructed turns on a walk its owner sent it on (0.28 CCmpUnitMotion
+	// m_FailedMovements, serialized for animals as for units); save v114 adds it.
+	uint8_t fauna_failed_[FaunaStorage::MAX_FAUNA] = {};
 	IdIndex fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
 	// UnitMotionFlying.js state of each flying unit (units/plane), by unit id, so it saves and
@@ -3264,9 +3306,6 @@ private:
 		uint8_t pid, btype;
 	};
 	std::vector<PetraPlaceMiss> petra_place_misses_;
-	// headquarters.js requireHouses: a house the phase needs and no room for one, so
-	// petra_find_position leaves out every structure's influence for houses (set for one call).
-	bool petra_require_houses_ = false;
 	bool petra_place_no_room_ = false; // last petra_place_building found no spot (read at once, not saved)
 	// queueplanBuilding.js canStart: one foundation per AI turn (HQ.turnCache.buildingBuilt).
 	// Both are set only inside one AI's turn (tick_petra_ai), so a save between ticks never
@@ -3602,6 +3641,8 @@ private:
 	// Whether a finished building of ours trains some roster template of the class, busy or
 	// not (findTrainableUnits; trainMoreUnits drops a class without one from the plan).
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
+	// The plan queue an attack plan's order trains in (trainMoreUnits: by the order's classes).
+	static uint8_t petra_plan_order_queue(const PetraUnitStat &st);
 	// Whether a finished building of ours lists roster template `tmpl`, busy or not.
 	bool petra_has_trainer(uint16_t tmpl) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;
@@ -3684,6 +3725,16 @@ private:
 	// enemy civic centres going up near our structures; kept until gone or no longer an enemy's.
 	struct PetraDefenseTargets { std::vector<uint32_t> ids; }; // sorted
 	PetraDefenseTargets petra_defense_targets_;
+	// queue.js plans in order: the structure at the head of each queue (type + 1, 0 none) and the
+	// seconds since it last asked; another structure in that queue waits until it starts or
+	// stops asking (the want's lifetime).
+	struct PetraQueueHeads { uint8_t item[PETRA_Q_COUNT] = {}; float age[PETRA_Q_COUNT] = {}; };
+	PetraQueueHeads petra_queue_heads_;
+	bool petra_queue_head_turn(uint8_t queue, uint8_t btype);
+	// victoryManager.js guardEnts false: guards taken from another land than their critical entity,
+	// waiting for or riding a transport (navalManager.requireTransport); each guards it on landing.
+	struct PetraFerriedGuards { std::vector<std::pair<uint32_t, uint32_t>> ids; }; // (guard, critical entity), by guard
+	PetraFerriedGuards petra_ferried_guards_;
 	// basesManager.js basesMap kept between turns: the anchor (civic centre or colony id) that
 	// claimed each of petra_bases_map's tiles (w x w), 0 none. A tile stays with the base that
 	// first claimed it (addTerritoryIndexToBase) until the territory or that anchor is lost.
@@ -3887,7 +3938,8 @@ private:
 	void petra_remove_defender(uint32_t uid);
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
 	float petra_available_resource(uint8_t r) const; // queueManager.getAvailableResources: stock less every queue's account
-	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
+	bool petra_passenger(uint32_t uid) const;
+	bool petra_ferried_guard(uint32_t uid) const; // on its way by sea to guard a critical entity   // booked on one of our transport plans
 	void petra_assign_bombers(); // attackManager.js assignBombers
 	void petra_move_dropsites_to_gatherers(); // worker.js moveToGatherer for mobile dropsites
 	void petra_cancel_attacks_against(uint8_t player); // attackManager.js cancelAttacksAgainstPlayer
@@ -4003,10 +4055,13 @@ private:
 	bool petra_limit_allows_building(uint8_t btype) const;
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
 	mutable std::array<uint8_t, BLD_TYPE_COUNT> petra_limit_cache_{};
-	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
+	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone, bool pay = true); // pay false: only check
 	// What a structure costs this AI (structure_cost: its civ's template and cost bonuses), and paying it.
 	void petra_structure_cost(uint8_t btype, float &food, float &wood, float &gold, float &stone) const;
 	bool petra_try_pay_structure(uint8_t queue, uint8_t btype);
+	// queueManager.js startNextItems: whether `queue` can start the structure now (a builder, its
+	// account and our stock cover it); if not, its want is kept as petra_try_pay keeps it.
+	bool petra_can_start_structure(uint8_t queue, uint8_t btype);
 	// chatHelper.js: queue a line of `kind` (PetraChatKind) to `to` (a player, PETRA_CHAT_ALLIES or
 	// PETRA_CHAT_EVERYONE) about `player`; sub is the request type or PetraChatStance.
 	void petra_say(uint8_t kind, uint8_t to, uint8_t player = 0xFF, uint8_t sub = 0, int amount = 0, uint8_t res = 0,
@@ -4101,7 +4156,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_) X(petra_queue_heads_) X(petra_ferried_guards_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
@@ -4312,6 +4367,15 @@ private:
 	enum : uint8_t { FOREST_OPEN = 0, FOREST_CLOSED = 1, FOREST_CLOSED_LARGE = 2 };
 	std::vector<uint8_t> forest_cells_;
 	uint64_t forest_sig_ = 0;
+	// The Gaia obstacles were listed afresh (ensure_gaia_obstacles) since forest_cells_ were worked
+	// out. Their signature names the supplies, not where they stand or how big they are, and a tree
+	// moved (snap_trees_to_tiles) or given its flora's size (set_resource_flora) is listed again under
+	// the same one: the woods are worked out again from the new list all the same, as 0.28 rasterizes
+	// a static shape that moved again (CCmpObstructionManager.cpp:381-396 MoveShape dirties its old and
+	// new squares). Else a game would keep the woods of the trees as they first stood, and the same
+	// game loaded from a save (which lists them afresh, as CCmpPathfinder.cpp:222-223 rebuilds its grid
+	// from the obstructions on MT_Deserialized) other ones: their long paths would part.
+	bool forest_stale_ = true;
 	bool forest_removals_only_ = false; // tick_gather felled trees from up-to-date forest_cells_
 	uint64_t forest_sig_of_gaia() const { return gaia_obstacles_sig_ ^ ((uint64_t)nav_grid_.res << 48); }
 	bool forest_cell_closed(int cx, int cy, float clr = CLEARANCE_DEFAULT) const;

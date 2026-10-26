@@ -107,6 +107,9 @@ void RtsoMain::_ready() {
 		return tag.empty() || chat_reaches(chat_player_of_client(from), chat_player_of_client(to), tag, to);
 	});
 	net_host_.onChat([this](const rtso::ChatMsg &cm) {
+		// gamesetup_mp.js onNetMessage: a rejoiner drops chat while the world
+		// downloads (g_IsRejoining), so no line or name chime from it.
+		if (!net_host_.isHost() && !net_game_started_ && turn_mgr_.rejoin_syncing()) return;
 		String msg = String::utf8(cm.message.c_str());
 		// Tactical flare piggybacks NMT_CHAT (approximation of 0 A.D. minimap
 		// flare): "[Flare] x,z" -> local map ping, not chat text.
@@ -883,6 +886,8 @@ void RtsoMain::_ready() {
 		begin_match_recording(nullptr);
 		call_deferred("_start_menu_net");
 	}
+	if (Viewport *vp = get_viewport()) vp->connect("size_changed", Callable(this, "apply_safe_area_insets"));
+	apply_safe_area_insets();
 }
 
 void RtsoMain::_process(double delta) {
@@ -1613,6 +1618,7 @@ void RtsoMain::_on_chat_filter_selected(int index) { chat_window_.set_filter(ind
 void RtsoMain::_on_chat_history_toggled(bool on) {
 	chat_window_.set_extended(on);
 	rtso::user_config::set("chat.session.extended", on ? "true" : "false");
+	chat_window_.focus_input();
 	rtso::user_config::save();
 }
 

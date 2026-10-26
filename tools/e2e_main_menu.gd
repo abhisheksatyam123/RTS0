@@ -167,7 +167,16 @@ func run() -> void:
 			and menu.find_child("GameSetupMp", false, false) == mp,
 			"an unknown host name: \"Cannot join game: Failed to connect to server.\" and the page stays open")
 		if bad_box:
-			bad_box.queue_free()
+			bad_box.free()
+		# enet_address_set_host(""): an empty server does not resolve either, and nothing is saved.
+		mp.join_server.text = "  "
+		var joined_empty: bool = mp.confirm_setup()
+		var empty_box: AcceptDialog = mp.find_child("HostErrorDialog", false, false)
+		check(not joined_empty and empty_box != null and empty_box.dialog_text == "Cannot join game: Failed to connect to server."
+			and current_scene == menu and str(RtsoUserConfig.new().get_value("multiplayerserver")) == "192.0.2.7",
+			"an empty server is refused the same way, and the last server is kept")
+		if empty_box:
+			empty_box.free()
 		mp.join_server.text = "192.0.2.7"
 		mp.cancel_button.pressed.emit()
 		await frames(2)

@@ -264,7 +264,7 @@ def main() -> int:
     gather_keys = ["food.grain", "food.fruit", "food.meat", "food.fish", "wood.tree", "stone.rock", "metal.ore"]
     gather_auras: list[tuple[str, list[float], float, int]] = []
     # Range auras adding to Attack/Ranged/MaxRange and Attack/Melee/MaxRange (Boiorix).
-    range_add_auras: list[tuple[str, float, float, float, int]] = []
+    range_add_auras: list[tuple[str, float, float, float, float, float, int]] = []
     for rel in sorted(list_files(src, "simulation/data/auras/")):
         if not rel.endswith(".json"):
             continue
@@ -279,10 +279,13 @@ def main() -> int:
         zero = False
         rates = [1.0] * len(gather_keys)
         range_add = {"Ranged": 0.0, "Melee": 0.0}
+        range_mul = {"Ranged": 1.0, "Melee": 1.0}
         for m in j.get("modifications", []):
             v = m["value"]
             if v in ("Attack/Ranged/MaxRange", "Attack/Melee/MaxRange") and "add" in m:
                 range_add[v.split("/")[1]] += float(m["add"])
+            if v in ("Attack/Ranged/MaxRange", "Attack/Melee/MaxRange") and "multiply" in m:
+                range_mul[v.split("/")[1]] *= float(m["multiply"])
             if v.startswith("ResourceGatherer/Rates/") and v.split("/")[-1] in gather_keys and "multiply" in m:
                 rates[gather_keys.index(v.split("/")[-1])] *= float(m["multiply"])
             if v.startswith("Looter/Resource/") and v.split("/")[-1] in loot_res:
@@ -297,8 +300,9 @@ def main() -> int:
             no_loot_auras.append((name, float(j.get("radius", 0)), players))
         if rates != [1.0] * len(gather_keys):
             gather_auras.append((name, rates, float(j.get("radius", 0)), players))
-        if range_add["Ranged"] or range_add["Melee"]:
-            range_add_auras.append((name, range_add["Ranged"], range_add["Melee"], float(j.get("radius", 0)), players))
+        if range_add["Ranged"] or range_add["Melee"] or range_mul["Ranged"] != 1.0 or range_mul["Melee"] != 1.0:
+            range_add_auras.append((name, range_add["Ranged"], range_add["Melee"], range_mul["Ranged"], range_mul["Melee"],
+                                    float(j.get("radius", 0)), players))
     # Unit auras' AuraManager effects of every kind (the roster keeps the strongest one).
     import extract_0ad_rosters as ros  # noqa: E402
     effect_rows: list[tuple[str, str, float, float]] = []
@@ -441,14 +445,15 @@ def main() -> int:
     w("\treturn kAuras;")
     w("}")
     w("")
-    w("// Range auras adding to the MaxRange of the units they reach (AURA_RANGE_ADD sources,")
-    w("// value = row): 0 A.D. metres added to a ranged and to a melee attack; radius in 0 A.D. metres.")
-    w("struct RangeAddRangeAura { const char *id; float ranged; float melee; float radius; uint8_t players; };")
+    w("// Range auras on the MaxRange of the units they reach (AURA_RANGE_ADD sources, value = row):")
+    w("// 0 A.D. metres added to a ranged and to a melee attack, the factors they multiply it by")
+    w("// (ModifiersManager: multiplied, then added); radius in 0 A.D. metres.")
+    w("struct RangeAddRangeAura { const char *id; float ranged; float melee; float ranged_mul; float melee_mul; float radius; uint8_t players; };")
     w(f"constexpr uint16_t RANGE_ADD_RANGE_AURA_COUNT = {len(range_add_auras)};")
     w("inline const RangeAddRangeAura *range_add_range_auras() {")
     w(f"\tstatic const RangeAddRangeAura kAuras[{max(1, len(range_add_auras))}] = {{")
-    for name, ranged, melee, radius, players in range_add_auras:
-        w(f"\t\t{{\"{name}\", {ranged!r}f, {melee!r}f, {radius!r}f, {players}}},")
+    for name, ranged, melee, ranged_mul, melee_mul, radius, players in range_add_auras:
+        w(f"\t\t{{\"{name}\", {ranged!r}f, {melee!r}f, {ranged_mul!r}f, {melee_mul!r}f, {radius!r}f, {players}}},")
     w("\t};")
     w("\treturn kAuras;")
     w("}")

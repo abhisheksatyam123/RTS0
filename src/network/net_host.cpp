@@ -694,7 +694,7 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 			// only the connected ones, as 0 A.D. counts m_Sessions.
 			const size_t live = (size_t)std::count_if(peers_.begin(), peers_.end(),
 					[](const NetPeer &p) { return p.connected; });
-			if (live >= NET_MAX_CLIENTS) {
+			if (live >= NET_MAX_REMOTE_CLIENTS) {
 				// NDR_SERVER_FULL, in the disconnect's channel byte; sent each
 				// time it asks, since the client resends its connect.
 				send_wire_packet(from_ip, from_port, 0, NET_FLAG_DISCONNECT, NDR_SERVER_FULL, nullptr, 0, false);
@@ -1391,19 +1391,6 @@ void NetHost::authenticate_peer(NetPeer &peer, AuthenticateMsg auth) {
 		return;
 	}
 	const std::string sent_name = auth.sent_name.empty() ? auth.name : auth.sent_name; // the password's salt, as sent
-	// 0 A.D. NetServer::OnAuthenticate: a name already in the game is
-	// refused, or with network.duplicateplayernames made unique
-	// (DeduplicatePlayerName); unnamed (test) clients are left alone.
-	if (!auth.name.empty() && name_taken(auth.name, p)) {
-		if (!duplicate_names_) {
-			std::cout << "[NetHost] Refused peer " << p->id << ": the name " << auth.name << " is in use\n";
-			refuse_with(*p, NDR_PLAYERNAME_IN_USE);
-			return;
-		}
-		std::string name;
-		for (int i = 2; name_taken(name = auth.name + " (" + std::to_string(i) + ")", p); ++i) {}
-		auth.name = name;
-	}
 	// A banned name or address, or the wrong password, is refused and
 	// the link closed.
 	AuthenticateResultMsg res;
@@ -1424,6 +1411,21 @@ void NetHost::authenticate_peer(NetPeer &peer, AuthenticateMsg auth) {
 	} else {
 		failed = 0;
 		res.code = ARC_OK;
+		res.message = "Welcome " + auth.name;
+	}
+	// 0 A.D. NetServer::OnAuthenticate, after the password: a name already in
+	// the game is refused, or with network.duplicateplayernames (and no lobby
+	// authentication) made unique (DeduplicatePlayerName); unnamed (test)
+	// clients are left alone.
+	if (res.code == ARC_OK && !auth.name.empty() && name_taken(auth.name, p)) {
+		if (!duplicate_names_ || lobbyAuth()) {
+			std::cout << "[NetHost] Refused peer " << p->id << ": the name " << auth.name << " is in use\n";
+			refuse_with(*p, NDR_PLAYERNAME_IN_USE);
+			return;
+		}
+		std::string name;
+		for (int i = 2; name_taken(name = auth.name + " (" + std::to_string(i) + ")", p); ++i) {}
+		auth.name = name;
 		res.message = "Welcome " + auth.name;
 	}
 	std::vector<uint8_t> payload = NetPacketSerializer::frame_authenticate_result(res);

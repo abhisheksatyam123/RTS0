@@ -54,6 +54,9 @@ struct FoggedBuilding {
 	bool work = false, work_repair = false;
 	uint16_t work_builders = 0;
 	float work_remaining = 0.0f, work_remaining_new = 0.0f;
+	// ResistanceMirage: hack, pierce and crush as last seen (another player's structure in sight).
+	bool has_resistance = false;
+	float resistance[3] = {};
 	bool miraged = false; // true: last-seen copy (0 A.D. Mirage entity), not the live structure
 };
 

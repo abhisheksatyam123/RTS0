@@ -206,7 +206,7 @@ public:
 			// stance_panel.xml: a 38 px icon button, no caption; the name is in the tooltip.
 			sb->set_name(stance_names[s]);
 			sb->set_custom_minimum_size(Vector2(38, 38));
-			sb->set_tooltip_text(String(stance_names[s]) + "\n" + stance_tips[s]);
+			sb->set_tooltip_text(String(stance_names[s]) + "\n" + rtso::body_font(stance_tips[s]));
 			sb->set_toggle_mode(true); // pressed = some selected unit holds it (IsStanceSelected)
 			Ref<Texture2D> s_ico = rtso::load_ui_texture(stance_icons[s]);
 			if (s_ico.is_valid()) {
@@ -269,6 +269,24 @@ public:
 		commands_row_->set_meta("tooltip_style", "session_bottom_bold");
 		if (theme.is_valid()) commands_row_->set_theme(theme);
 		parent->add_child(commands_row_);
+	}
+
+	void apply_safe_insets(float bottom_inset) {
+		if (panel_) {
+			panel_->set_offset(godot::SIDE_TOP, -10.0f - kPanelH - bottom_inset);
+			panel_->set_offset(godot::SIDE_BOTTOM, -10.0f - bottom_inset);
+		}
+		if (left_panel_) {
+			left_panel_->set_offset(godot::SIDE_TOP, -10.0f - kPanelH - bottom_inset);
+			left_panel_->set_offset(godot::SIDE_BOTTOM, -10.0f - bottom_inset);
+		}
+		if (commands_row_) {
+			commands_row_->set_offset(godot::SIDE_TOP, -10.0f - 40.0f - bottom_inset);
+			commands_row_->set_offset(godot::SIDE_BOTTOM, -10.0f - 4.0f - bottom_inset);
+		}
+	}
+	float bottom_offset() const {
+		return panel_ ? panel_->get_offset(godot::SIDE_BOTTOM) : -10.0f;
 	}
 
 	godot::Panel *panel() const { return panel_; }
@@ -339,13 +357,21 @@ public:
 			bool any = false;
 			if (selected_building_id == 0 && !selected_ids.is_empty() && !foreign_units) {
 				auto uv = sim->units();
-				for (int s = 0; s < selected_ids.size(); ++s)
+				auto fv = sim->fauna();
+				bool animal = false;
+				for (int s = 0; s < selected_ids.size(); ++s) {
+					bool unit = false;
 					for (size_t i = 0; i < uv.count; ++i)
 						if (uv.id[i] == (uint32_t)selected_ids[s]) {
 							if (uv.stance[i] < 5) held[uv.stance[i]] = true;
-							any = true;
+							any = unit = true;
 							break;
 						}
+					for (size_t f = 0; f < fv.count && !unit && !animal; ++f) animal = fv.id[f] == (uint32_t)selected_ids[s];
+				}
+				// getItems: no stances with an Animal selected (the player's livestock), nor when
+				// the first unit stands on a turret point (UnitAI selectableStances is empty there).
+				if (animal || sim->turret_holder_of((uint32_t)selected_ids[0]) != 0) any = false;
 			}
 			stances_bar_->set_visible(any);
 			for (int st = 0; st < 5; ++st)
@@ -905,7 +931,7 @@ public:
 				// highlighted when a selected unit is in it (GuiInterface IsFormationSelected).
 				static const char *const kFormationIcons[rtso::FORMATION_COUNT] = {
 					"null", "line_closed", "box", "column", "phalanx", "wedge", "skirmish", "line_open",
-					"column_open", "flank", "battle_line", "ship_line", "ship_column", "flank", "syntagma",
+					"column_open", "flank", "battle_line", "battle_line", "column", "flank", "syntagma",
 					"testudo", "testudo", "phalanx"};
 				const uint32_t *sel_ids = (const uint32_t *)selected_ids.ptr();
 				const size_t sel_n = (size_t)selected_ids.size();
@@ -923,7 +949,15 @@ public:
 				// g_SelectionPanels.Formation conflictsWith Garrison.
 				const uint32_t available = any_can_form && !host_->ui_garrison_panel_shown() ? sim->player_formation_mask(local_player()) : 0u;
 				const uint8_t default_f = default_formation();
-				for (uint8_t f = 0; f < rtso::FORMATION_COUNT; ++f) {
+				// Player.js GetFormations order: template_player.xml's list, then the civ's own.
+				static const uint8_t kFormationOrder[rtso::FORMATION_COUNT] = {
+					rtso::FORMATION_NONE, rtso::FORMATION_BOX, rtso::FORMATION_COLUMN, rtso::FORMATION_LINE,
+					rtso::FORMATION_COLUMN_OPEN, rtso::FORMATION_LINE_OPEN, rtso::FORMATION_FLANK,
+					rtso::FORMATION_BATTLE_LINE, rtso::FORMATION_SKIRMISH, rtso::FORMATION_WEDGE,
+					rtso::FORMATION_SHIPS_LINE, rtso::FORMATION_SHIPS_COLUMN, rtso::FORMATION_SHIPS_FLANK,
+					rtso::FORMATION_PHALANX, rtso::FORMATION_SYNTAGMA, rtso::FORMATION_TESTUDO,
+					rtso::FORMATION_ANTI_CAVALRY, rtso::FORMATION_SHIELD_WALL};
+				for (uint8_t f : kFormationOrder) {
 					if (!((available >> f) & 1u)) continue;
 					// getItems: only the formations some selected unit can take.
 					bool someone_can = f == rtso::FORMATION_NONE;
@@ -937,14 +971,14 @@ public:
 					fb->set_clip_text(true);
 					// setupButton: name, description, the default-formation line, then why not.
 					String tip = String::utf8(ft.name);
-					if (ft.tooltip && *ft.tooltip) tip += String("\n") + String::utf8(ft.tooltip);
+					if (ft.tooltip && *ft.tooltip) tip += String("\n") + rtso::body_font(String::utf8(ft.tooltip));
 					const bool is_default = f == default_f;
 					if (f == rtso::FORMATION_NONE)
 						tip += is_default ? "\nDefault formation is disabled." : "\nRight-click to disable the default formation feature.";
 					else
 						tip += is_default ? "\nThis is the default formation, used for movement orders." : "\nRight-click to set this as the default formation.";
 					if (!enabled && ft.disabled_tooltip && *ft.disabled_tooltip)
-						tip += String("\n") + String::utf8(ft.disabled_tooltip);
+						tip += String("\n") + rtso::objection_font(String::utf8(ft.disabled_tooltip));
 					fb->set_tooltip_text(tip);
 					if (is_default) { // countDisplay: the default formation is marked
 						Label *mark = memnew(Label);
