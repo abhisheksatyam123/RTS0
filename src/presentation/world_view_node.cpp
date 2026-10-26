@@ -407,6 +407,22 @@ void RtsoWorldView::_ready() {
 		add_child(stone_proj_mmi);
 	}
 
+	// Javelins and sling stones: drawn as arrows when the model is missing.
+	{
+		const char *ids[2] = { "javelin_projectile", "sling_projectile" };
+		for (int k = 0; k < 2; ++k) {
+			const auto e = rtso::ModelLibrary::get("units", ids[k]);
+			if (!e.mesh.is_valid()) continue;
+			Ref<MultiMesh> mm = create_multimesh(e.mesh, false);
+			MultiMeshInstance3D *mmi = memnew(MultiMeshInstance3D);
+			mmi->set_multimesh(mm);
+			add_child(mmi);
+			(k ? sling_mm : javelin_mm) = mm;
+			(k ? sling_scale : javelin_scale) = e.scale > 0.0f ? e.scale : 1.0f;
+		}
+		load_unit_projectiles();
+	}
+
 	// Resource batches — real 0ad flora & mines with variety
 	// Instance colours carry the LOS brightness (fogged supplies read darker).
 	auto tinted = [](const Ref<Mesh> &m) {
@@ -756,6 +772,16 @@ static void push_player_color(Node *model, int64_t &last, const Color &c) {
 	if (!model || last == key) return;
 	rtso::ModelLibrary::set_player_color(model, c);
 	last = key;
+}
+
+void RtsoWorldView::load_unit_projectiles() {
+	tmpl_projectile_.assign(rtso::CIV_UNIT_TEMPLATE_COUNT, 0);
+	const Dictionary d = JSON::parse_string(FileAccess::get_file_as_string("res://data/unit_projectiles.json"));
+	if (d.is_empty()) return;
+	for (uint16_t t = 0; t < rtso::CIV_UNIT_TEMPLATE_COUNT; ++t) {
+		const String kind = d.get(String(rtso::civ_unit_template(t).id), "");
+		tmpl_projectile_[t] = kind == "javelin" ? 1 : (kind == "sling" ? 2 : 0);
+	}
 }
 
 void RtsoWorldView::load_garrison_flags() {
@@ -5052,18 +5078,27 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// 3. Flying Projectiles (Ballistic Arrows & Catapult Stones)
 	// =========================================================================
 	const auto &projectiles = sim->projectiles();
-	int arrow_n = 0, bolt_n = 0, stone_n = 0;
+	// A unit's arrow is its 0.28 actor's projectile: a javelinist's javelin, a slinger's stone.
+	auto launched = [&](const rtso::Projectile &p) -> uint8_t {
+		if (p.visual != 0 || p.src_kind != 1 || p.src_tmpl >= tmpl_projectile_.size()) return 0;
+		const uint8_t k = tmpl_projectile_[p.src_tmpl];
+		return (k == 1 && javelin_mm.is_valid()) || (k == 2 && sling_mm.is_valid()) ? k : 0;
+	};
+	int arrow_n = 0, bolt_n = 0, stone_n = 0, jav_n = 0, sling_n = 0;
 	for (const auto &proj : projectiles) {
 		if (!entity_visible(proj.current_x, proj.current_z, proj.team)) continue;
 		if (proj.visual == 2) stone_n++;
 		else if (proj.visual == 1) bolt_n++;
+		else if (const uint8_t k = launched(proj)) (k == 1 ? jav_n : sling_n)++;
 		else arrow_n++;
 	}
 	if (arrow_mm.is_valid()) set_mm_count(arrow_mm, arrow_n);
 	if (bolt_mm.is_valid()) set_mm_count(bolt_mm, bolt_n);
 	if (stone_proj_mm.is_valid()) set_mm_count(stone_proj_mm, stone_n);
+	if (javelin_mm.is_valid()) set_mm_count(javelin_mm, jav_n);
+	if (sling_mm.is_valid()) set_mm_count(sling_mm, sling_n);
 
-	int arrow_i = 0, bolt_i = 0, stone_i = 0;
+	int arrow_i = 0, bolt_i = 0, stone_i = 0, jav_i = 0, sling_i = 0;
 
 	for (size_t p = 0; p < projectiles.size(); ++p) {
 		const auto &proj = projectiles[p];
@@ -5095,6 +5130,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		} else if (proj.visual == 1 && bolt_mm.is_valid()) {
 			xf.basis = xf.basis.scaled(Vector3(bolt_scale, bolt_scale, bolt_scale));
 			bolt_mm->set_instance_transform(bolt_i++, xf);
+		} else if (const uint8_t k = launched(proj)) {
+			const float sc = k == 1 ? javelin_scale : sling_scale;
+			xf.basis = xf.basis.scaled(Vector3(sc, sc, sc));
+			if (k == 1) javelin_mm->set_instance_transform(jav_i++, xf);
+			else sling_mm->set_instance_transform(sling_i++, xf);
 		} else if (arrow_mm.is_valid()) {
 			xf.basis = xf.basis.scaled(Vector3(arrow_scale, arrow_scale, arrow_scale));
 			arrow_mm->set_instance_transform(arrow_i++, xf);
