@@ -63,6 +63,8 @@ static const std::pair<const char*, const char*> kPsaAliasTable[] = {
 	{"hero_death", "biped_death"},
 	// cavalry rider (only walk/idle/attack/death shipped)
 	{"cavalry_run", "cavalry_walk"},
+	{"cavalry_carry", "biped_rider_cavalry_generic_carry_meat"},
+	{"cavalry_idle_carry", "biped_rider_cavalry_generic_idle_carry_meat"},
 	// traders on foot (only idle/walk/death shipped)
 	{"trader_run", "trader_walk"},
 	{"trader_attack", "biped_attack"},

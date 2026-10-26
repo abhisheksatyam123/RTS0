@@ -5,6 +5,9 @@
 #include <godot_cpp/classes/camera3d.hpp>
 #include <godot_cpp/variant/plane.hpp>
 #include <godot_cpp/variant/vector3.hpp>
+#include <godot_cpp/variant/vector4.hpp>
+#include <godot_cpp/variant/rect2.hpp>
+#include <godot_cpp/classes/display_server.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/rich_text_label.hpp>
 #include <godot_cpp/classes/panel.hpp>
@@ -343,6 +346,19 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 
 	double accumulator = 0.0;
 	rtso::AnimationController anim_ctrl;
+
+	// Mobile Viewport Safe Insets (G57)
+	float safe_inset_left_ = 0.0f;
+	float safe_inset_top_ = 0.0f;
+	float safe_inset_right_ = 0.0f;
+	float safe_inset_bottom_ = 0.0f;
+	void apply_safe_area_insets();
+	void set_safe_area_insets(float left, float top, float right, float bottom);
+	godot::Rect2 get_safe_area_insets() const {
+		return godot::Rect2(safe_inset_left_, safe_inset_top_, safe_inset_right_, safe_inset_bottom_);
+	}
+	godot::Vector4 debug_top_hud_offsets() const;
+	godot::Vector2 debug_bottom_panel_offsets() const;
 
 protected:
 	static void _bind_methods();
