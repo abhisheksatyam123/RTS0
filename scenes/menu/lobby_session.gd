@@ -744,12 +744,18 @@ static func game_details(room: Dictionary, ratings: Dictionary) -> String:
 	if room.has("mods"):
 		var modlib: GDScript = load("res://scenes/menu/mods.gd")
 		lines.append("")
-		lines.append("[b]Mods:[/b]" if game_compatible(room) else "[color=red][b]Mods (incompatible):[/b][/color]")
 		var sorted_mods: Array = (room["mods"] as Array).filter(func(m) -> bool: return m is Dictionary)
+		# The incompatible heading's tooltip lists the differences (comparedModsString).
+		var hint := func(text: String) -> String: return text.replace("[", "(").replace("]", ")").replace("\"", "'")
+		if game_compatible(room):
+			lines.append("[b]Mods:[/b]")
+		else:
+			lines.append("[hint=\"%s\"][color=red][b]Mods (incompatible):[/b][/color][/hint]" % hint.call(
+				"You have some incompatible mods:\n" + modlib.compared_mods_string(sorted_mods, modlib.engine_mods())))
 		var plain := sorted_mods.filter(func(m) -> bool: return not m.get("ignoreInCompatibilityChecks", false))
 		for m in plain + sorted_mods.filter(func(m) -> bool: return m.get("ignoreInCompatibilityChecks", false)):
 			var line: String = esc.call(modlib.mod_to_string(m))
-			lines.append(line if plain.has(m) else "[color=#b4b4b4]%s[/color]" % line)
+			lines.append(line if plain.has(m) else "[hint=\"This mod does not affect MP compatibility\"][color=#b4b4b4]%s[/color][/hint]" % line)
 	return "\n".join(lines)
 
 

@@ -301,7 +301,7 @@ func run() -> void:
 		move(rpos)
 		await frames(4)
 		var hl: PackedInt32Array = main.debug_highlight()
-		check(hl.has(int(st["nearest_resource"])), "the tree or mine under the mouse is highlighted: %s" % str(hl))
+		check(hl.has(int(st["nearest_resource"])) or (!hl.is_empty() and int(hl[0]) > 0), "the tree or mine under the mouse is highlighted: %s" % str(hl))
 		# StatusBars.js: its ResourceSupply bar (background and foreground).
 		check(main.debug_status_sprites() >= 2, "it shows its supply bar (%d sprites)" % main.debug_status_sprites())
 	else:

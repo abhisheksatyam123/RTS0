@@ -51,6 +51,8 @@ def resolve_psa_alias(s):
         "hero_attack": "biped_attack",
         "hero_death": "biped_death",
         "cavalry_run": "cavalry_walk",
+        "cavalry_carry": "biped_rider_cavalry_generic_carry_meat",
+        "cavalry_idle_carry": "biped_rider_cavalry_generic_idle_carry_meat",
         "trader_run": "trader_walk",
         "trader_attack": "biped_attack",
         "cart_trader_idle": "camel_idle",

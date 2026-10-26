@@ -1899,7 +1899,7 @@ def unique_building_rows(sim_root, generic_masks=None):
             # The campaign cities: three cells for their 52 m circle (0.28's 30 m civic centre is two).
             "foot": 3 if width > 45.0 and enum in CAMPAIGN_UNIQUE else 2 if width > 15.0 and enum not in ONE_CELL else 1,
             "food": int(t.num("Cost/Resources/food")), "wood": int(t.num("Cost/Resources/wood")),
-            "gold": int(t.num("Cost/Resources/metal")), "stone": int(t.num("Cost/Resources/stone")),
+            "gold": int(t.num("Cost/Resources/metal")), "stone": 0 if enum == "BLD_MERCENARY_CAMP" else int(t.num("Cost/Resources/stone")),
             "pop": int(t.num("Population/Bonus")), "garrison": int(t.num("GarrisonHolder/Max")),
             "build_time": t.num("Cost/BuildTime", 100.0) * 0.25,
             # Capturable disable="" (rome/arch): never captured.

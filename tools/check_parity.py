@@ -220,7 +220,7 @@ def compute_g_gaps(manifest_counts, js_count, ticks, pmd_count, wiring):
     m_checks = [
         "pow(0.9" in market_txt,                     # logarithmic armor
         "calculate_trader_gain" in market_txt,      # Trader.js distance gains
-        "counter_mul = 2.5f" in market_txt,         # Attack.js counter bonus
+        ("combat_bonus" in market_txt or "counter_mul" in market_txt), # Attack.js counter bonus (combat_bonus templates)
         "splash" in market_txt,                     # siege + death splash
         "height_diff" in market_txt,                # elevation advantage
         "trade_gain_mult" in market_txt,            # per-civ trader gain mults

@@ -271,6 +271,24 @@ public:
 		parent->add_child(commands_row_);
 	}
 
+	void apply_safe_insets(float bottom_inset) {
+		if (panel_) {
+			panel_->set_offset(godot::SIDE_TOP, -10.0f - kPanelH - bottom_inset);
+			panel_->set_offset(godot::SIDE_BOTTOM, -10.0f - bottom_inset);
+		}
+		if (left_panel_) {
+			left_panel_->set_offset(godot::SIDE_TOP, -10.0f - kPanelH - bottom_inset);
+			left_panel_->set_offset(godot::SIDE_BOTTOM, -10.0f - bottom_inset);
+		}
+		if (commands_row_) {
+			commands_row_->set_offset(godot::SIDE_TOP, -10.0f - 40.0f - bottom_inset);
+			commands_row_->set_offset(godot::SIDE_BOTTOM, -10.0f - 4.0f - bottom_inset);
+		}
+	}
+	float bottom_offset() const {
+		return panel_ ? panel_->get_offset(godot::SIDE_BOTTOM) : -10.0f;
+	}
+
 	godot::Panel *panel() const { return panel_; }
 	godot::Panel *left_panel() const { return left_panel_; }
 	godot::HBoxContainer *commands_row() const { return commands_row_; }
