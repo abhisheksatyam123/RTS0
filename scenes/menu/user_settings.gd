@@ -542,7 +542,9 @@ func phone_ui_factor() -> float:
 	if win.x <= 0.0 or win.y <= 0.0:
 		return 1.0
 	var base := minf(win.x / 1280.0, win.y / 720.0)  # canvas_items stretch, aspect expand
-	var logical := win / base
+	# The notch and home indicator's insets (scenes/common/safe_area.gd) leave less room.
+	var inset := preload("res://scenes/common/safe_area.gd").window_insets()
+	var logical := (win - Vector2(inset.x + inset.z, inset.y + inset.w)) / base
 	return clampf(minf(logical.y / PHONE_UI_HEIGHT, logical.x / PHONE_UI_MIN_WIDTH), 1.0, 720.0 / PHONE_UI_HEIGHT)
 
 ## renderer.scale with renderer.upscale.technique, antialiasing and
