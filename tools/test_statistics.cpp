@@ -74,6 +74,17 @@ static void test_kill_credit() {
 	// champion elephants are Champions.
 	CHECK(stat_unit_classes(UNIT_ELEPHANT, ROSTER_RANGED | ROSTER_CITIZEN | ROSTER_NO_GATHER) == 0);
 	CHECK(stat_unit_classes(UNIT_WORKER_ELEPHANT, 0) == 0);
+	// units/plane (template_unit only): Units Total, not Siege.
+	CHECK(stat_unit_classes(UNIT_BOLT_SHOOTER, ROSTER_RANGED | ROSTER_FLYING | ROSTER_MAP_ONLY) == 0);
+	// Health.KilledBy: the attacker's owner now (a captured tower's arrow credits the captor);
+	// a gone attacker leaves the owner at the attack.
+	{
+		const uint32_t tower = s.spawn_building_world(20.0f, -20.0f, BLD_TOWER, 1, 1.0f);
+		CHECK(s.stat_killer(tower, 0) == 1);
+		s.buildings_[s.building_id_to_idx_.at(tower)].team = 0;
+		CHECK(s.stat_killer(tower, 1) == 0);
+		CHECK(s.stat_killer(999999u, 1) == 1 && s.stat_killer(0, 1) == 1);
+	}
 	CHECK(stat_unit_classes(UNIT_ELEPHANT, ROSTER_CHAMPION) == (1u << STAT_UNIT_CHAMPION));
 	CHECK(stat_building_classes(BLD_TOWN_CENTER) == (1u << STAT_BLD_CIV_CENTRE));
 	CHECK(stat_building_classes(BLD_MILITARY_COLONY) == (1u << STAT_BLD_CIV_CENTRE));
