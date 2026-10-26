@@ -6632,7 +6632,7 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 	UnitOrder o; o.kind = ORDER_GATHER; o.flags = flags; o.target = resource_id; o.x = rx; o.z = rz;
 	o.res_type = (uint8_t)(resources_.type[ridx] + 1);
 	std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
-	if (!queued && force && !formations_.empty()) now = formation_take_task(now, FTASK_GATHER, resource_id);
+	if (!queued && force && !formations_.empty()) now = formation_take_task(now, FTASK_GATHER, resource_id, true);
 	const uint32_t *unit_ids = now.data();
 	const size_t count = now.size();
 	std::vector<uint32_t> walkers;
@@ -6940,7 +6940,7 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count
 	const Building &b = buildings_[bit->second];
 	UnitOrder o; o.kind = ORDER_BUILD; o.flags = force ? ORDER_FLAG_FORCE : 0; o.target = building_id; o.x = b.x; o.z = b.z;
 	std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
-	if (!queued && force && !formations_.empty()) now = formation_take_task(now, FTASK_REPAIR, building_id);
+	if (!queued && force && !formations_.empty()) now = formation_take_task(now, FTASK_REPAIR, building_id, true);
 	const uint32_t *unit_ids = now.data();
 	const size_t count = now.size();
 
@@ -7157,7 +7157,9 @@ void Simulation::formation_disband(size_t ci) {
 
 void Simulation::formation_remove_units(const uint32_t *unit_ids, size_t count) {
 	// Commands.js RemoveFromFormation -> Formation.js RemoveMembers: below
-	// RequiredMemberCount the formation disbands, else the rest re-form.
+	// RequiredMemberCount the formation disbands, else the rest re-form, but only while it
+	// rearranges: FORMATIONCONTROLLER IDLE and MEMBER SetRearrange(false), so a death in a
+	// fight or in an idle block moves no one (the IDLE timer re-forms idle members later).
 	for (size_t ci = formations_.size(); ci-- > 0;) {
 		FormationController &fc = formations_[ci];
 		bool changed = false;
@@ -7175,7 +7177,7 @@ void Simulation::formation_remove_units(const uint32_t *unit_ids, size_t count) 
 			continue;
 		}
 		fc.has_offsets = 0;
-		formation_move_members_into(ci, true, false);
+		if (fc.order != FORDER_IDLE && fc.order != FORDER_MEMBER) formation_move_members_into(ci, true, false);
 	}
 	formation_refresh_groups();
 }
@@ -7231,7 +7233,9 @@ void Simulation::formation_move_members_into(size_t ci, bool move_center, bool f
 		const float gdx = fc.goal_x - ax, gdz = fc.goal_z - az;
 		const float new_rot = walking && gdx * gdx + gdz * gdz > FORMATION_ROTATE_DISTANCE * FORMATION_ROTATE_DISTANCE
 				? det::atan2(gdx, gdz) : fc.rot; // Vector2D.angleTo
-		if (!formation_turn_allowed(t, new_rot, fc.offsets_rot)) fc.has_offsets = 0;
+		// DoesAngleDifferenceAllowTurning(newRotation, oldRotation): against the way the
+		// controller faces now, which its walk has turned since the slots were assigned.
+		if (!formation_turn_allowed(t, new_rot, fc.rot)) fc.has_offsets = 0;
 		fc.x = ax;
 		fc.z = az;
 		fc.rot = new_rot;
@@ -7442,19 +7446,19 @@ std::vector<size_t> Simulation::formation_controllers_for(const uint32_t *unit_i
 		fc.owner = units_.team[idx0];
 		fc.tmpl = want;
 		fc.members = cluster;
-		// Formation.js MoveToMembersCenter: the members' centre and average facing.
-		float vx = 0.0f, vz = 0.0f;
+		// Formation.js MoveToMembersCenter: the members' centre and the plain mean of their
+		// Position rotations (rotations / positions.length, as 0.28 averages them).
+		float rots = 0.0f;
 		for (uint32_t id : cluster) {
 			const int32_t idx = lookup_unit(id);
 			fc.x += units_.pos_x[idx];
 			fc.z += units_.pos_z[idx];
-			vx += units_.vel_x[idx];
-			vz += units_.vel_z[idx];
+			rots += det::atan2(units_.heading_x[idx], units_.heading_z[idx]);
 			units_.formation[idx] = want;
 		}
 		fc.x /= cluster.size();
 		fc.z /= cluster.size();
-		fc.rot = (vx * vx + vz * vz > 1e-6f) ? det::atan2(vx, vz) : 0.0f;
+		fc.rot = rots / cluster.size();
 		fc.offsets_rot = fc.rot;
 		fc.goal_x = fc.x;
 		fc.goal_z = fc.z;
@@ -7817,16 +7821,25 @@ void Simulation::formation_apply_order(const std::vector<uint32_t> &members, con
 	applying_queued_ = was;
 }
 
-std::vector<uint32_t> Simulation::formation_take_task(const std::vector<uint32_t> &ids, uint8_t task, uint32_t target) {
+std::vector<uint32_t> Simulation::formation_take_task(const std::vector<uint32_t> &ids, uint8_t task, uint32_t target,
+		bool split) {
 	// Only formations ordered as a whole (a player's selection of them) take the order; a
 	// member ordered on its own (UnitAI follow-ups, rally points) does the work as it is.
+	// A player's forced order (`split`) goes through Commands.js GetFormationUnitAIs: members
+	// picked out of a formation leave it and form up on their own to do the task.
 	std::vector<uint32_t> individual;
 	if (formation_acting_) return ids;
-	const std::vector<uint32_t> fids = formation_whole_ids(ids.data(), ids.size());
-	if (fids.empty()) return ids;
-	for (uint32_t id : ids) {
-		const uint32_t f = formation_of_unit(id);
-		if (std::find(fids.begin(), fids.end(), f) == fids.end()) individual.push_back(id);
+	std::vector<uint32_t> fids;
+	if (split) {
+		for (size_t ci : formation_controllers_for(ids.data(), ids.size(), FORMATION_NONE, false, individual))
+			fids.push_back(formations_[ci].id);
+	} else {
+		fids = formation_whole_ids(ids.data(), ids.size());
+		if (fids.empty()) return ids;
+		for (uint32_t id : ids) {
+			const uint32_t f = formation_of_unit(id);
+			if (std::find(fids.begin(), fids.end(), f) == fids.end()) individual.push_back(id);
+		}
 	}
 	for (uint32_t fid : fids) {
 		size_t ci = formations_.size();

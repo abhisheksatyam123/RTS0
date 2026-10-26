@@ -2817,7 +2817,7 @@ private:
 	void formation_members_attack(size_t ci);   // CallMemberFunction("Attack"/"Gather"/"Repair"/...)
 	// Commands.js "gather"/"repair"/"garrison"/"heal" through GetFormationUnitAIs: whole
 	// formations in ids walk up as one (APPROACH), then their members do the work (MEMBER).
-	std::vector<uint32_t> formation_take_task(const std::vector<uint32_t> &ids, uint8_t task, uint32_t target);
+	std::vector<uint32_t> formation_take_task(const std::vector<uint32_t> &ids, uint8_t task, uint32_t target, bool split = false);
 	// Controllers whose every member is in ids (a player ordering the whole formation).
 	std::vector<uint32_t> formation_whole_ids(const uint32_t *ids, size_t count) const;
 	void formation_apply_order(const std::vector<uint32_t> &members, const UnitOrder &o); // FinishOrder's next order
