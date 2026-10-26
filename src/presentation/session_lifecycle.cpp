@@ -107,10 +107,14 @@ void RtsoMain::_ready() {
 		return tag.empty() || chat_reaches(chat_player_of_client(from), chat_player_of_client(to), tag, to);
 	});
 	net_host_.onChat([this](const rtso::ChatMsg &cm) {
+		// gamesetup_mp.js onNetMessage: a rejoiner drops chat while the world
+		// downloads (g_IsRejoining), so no line or name chime from it.
+		if (!net_host_.isHost() && !net_game_started_ && turn_mgr_.rejoin_syncing()) return;
 		String msg = String::utf8(cm.message.c_str());
 		// Tactical flare piggybacks NMT_CHAT (approximation of 0 A.D. minimap
 		// flare): "[Flare] x,z" -> local map ping, not chat text.
-		if (msg.begins_with("[Flare]")) {
+		// The game setup's chat goes as typed, so "[Flare]" there is text.
+		if (msg.begins_with("[Flare]") && !chat_setup_verbatim()) {
 			// 0 A.D. sends a flare to the sender's mutual allies and the observers.
 			const String guid = String::utf8(cm.sender_guid.c_str());
 			if (!chat_local_observer() && !chat_is_addressee(guid, "[Allies]")) return;
@@ -120,8 +124,9 @@ void RtsoMain::_ready() {
 			flare_received_ms_.erase(std::remove_if(flare_received_ms_.begin(), flare_received_ms_.end(),
 					[now](uint64_t t) { return now - t >= 6000; }), flare_received_ms_.end());
 			if (flare_received_ms_.size() >= 16) {
+				// messages.js: named by the sender's player name (g_PlayerAssignments).
 				const std::string line = "Received too many flares. Dropping a flare request by '" +
-						std::string(guid.utf8().get_data()) + "'.";
+						std::string(RtsoChatWindow::plain(chat_user(guid)).utf8().get_data()) + "'.";
 				rtso::Logger::warn("Chat", line.c_str());
 				return;
 			}
@@ -881,11 +886,14 @@ void RtsoMain::_ready() {
 		begin_match_recording(nullptr);
 		call_deferred("_start_menu_net");
 	}
+	if (Viewport *vp = get_viewport()) vp->connect("size_changed", Callable(this, "apply_safe_area_insets"));
+	apply_safe_area_insets();
 }
 
 void RtsoMain::_process(double delta) {
 	refresh_user_options();
 	if (net_host_.getRole() != rtso::NetRole::None) {
+		if (net_host_.isHost()) net_host_.setServerLoading(turn_mgr_.host_loading());
 		net_host_.poll(net_arena_);
 		net_arena_.reset();
 		// Consume NMT_GAME_START seed-sync queued by TurnManager::onMessage.
@@ -1610,6 +1618,7 @@ void RtsoMain::_on_chat_filter_selected(int index) { chat_window_.set_filter(ind
 void RtsoMain::_on_chat_history_toggled(bool on) {
 	chat_window_.set_extended(on);
 	rtso::user_config::set("chat.session.extended", on ? "true" : "false");
+	chat_window_.focus_input();
 	rtso::user_config::save();
 }
 

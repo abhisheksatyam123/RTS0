@@ -89,6 +89,11 @@ What each target needs on the host, beyond Godot 4.3-stable, its export template
   `tools/e2e_touch_input.gd` checks the gestures and `tools/e2e_touch_match.gd` plays a match by touch
   (select, orders, camera, minimap, placing a House), both headless; pass `-- --touch-input` to try it on
   a desktop touch screen.
+- **Back button and backgrounding.** Android's Back never quits (`quit_on_go_back` is off): it acts
+  as Escape (closes the open dialog or page, ends placement, drops the selection); in a match with
+  nothing to cancel it opens the session menu, and on the main menu it asks to quit. When the app goes
+  to the background a single-player match is saved to `saves/background.rts0sav` (listed in Load Game),
+  because the phone may close the app to free memory.
 - **Phone screens.** On a phone (a mobile screen under 7.5 inches across, or `-- --phone-ui` on a
   desktop) `scenes/menu/user_settings.gd` enlarges the whole UI so the layout is at least 1200x540 UI
   pixels: 1.33x on 2400x1080 and 1600x720 phones, on top of the GUI scale option. Tablets and desktops

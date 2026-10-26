@@ -1723,6 +1723,128 @@ static void test_idle_workers_repair_cc() {
 	CHECK(on_cc >= 1 && on_cc <= 2, "idle workers repair their damaged civic centre, at most 2");
 }
 
+// basesManager.js update: one base a turn, in turn (currentBase). The idle workers of a base
+// whose turn it is not wait: here they repair their damaged civic centre only on its turn.
+static void test_one_base_a_turn() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	Simulation::Building *cc = nullptr;
+	for (auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "AI 1 has a civic centre");
+	if (!cc) return;
+	const uint32_t cc_id = cc->id;
+	const float cx = cc->x, cz = cc->z;
+	// A second base well away from the first, toward the map's middle.
+	const float len = std::sqrt(cx * cx + cz * cz);
+	const uint32_t colony = s->spawn_building_world(cx - cx / len * 40.0f, cz - cz / len * 40.0f, BLD_MILITARY_COLONY, 1, 1.0f);
+	s->rebuild_territory();
+	cc = &s->buildings_[s->building_id_to_idx_.at(cc_id)];
+	cc->hp = cc->max_hp * 0.7f;
+	auto stop_all = [&]() {
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1) {
+				const uint32_t uid = s->units_.id[i];
+				s->cmd_stop(&uid, 1);
+			}
+	};
+	auto on_cc = [&]() {
+		int n = 0;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.action_state[i] == ACTION_BUILD &&
+			    s->units_.target_building_id[i] == cc_id) ++n;
+		return n;
+	};
+	stop_all();
+	s->petra_kept_.current_base = 1; // the colony's turn
+	s->petra_pick_turn_base();
+	const uint32_t first = s->petra_turn_anchor_;
+	s->petra_manage_economy(0.0f);
+	const int waiting = on_cc();
+	stop_all();
+	s->petra_pick_turn_base();
+	const uint32_t second = s->petra_turn_anchor_;
+	s->petra_manage_economy(0.0f);
+	const int repairing = on_cc();
+	std::printf("  one base a turn: turns %s then %s, repairers %d then %d, next base %u\n", first == colony ? "colony" : "?",
+	            second == cc_id ? "civic centre" : "?", waiting, repairing, (unsigned)s->petra_kept_.current_base);
+	CHECK(first == colony && second == cc_id && s->petra_kept_.current_base == 1, "the bases take turns in anchor order");
+	CHECK(waiting == 0 && repairing >= 1, "a base's idle workers wait for its turn");
+}
+
+// queueplanBuilding.js start: a structure looks for a spot only when its queue can pay for it,
+// so it is marked short of room (90 s) only then; until then the plan waits, funded.
+static void test_no_room_only_once_funded() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	std::fill(s->territory_grid_.data.begin(), s->territory_grid_.data.end(), (uint8_t)0); // no spot anywhere
+	s->petra_room_.marks.clear();
+	s->set_player_resources(1, 0, 0, 0, 0);
+	s->petra_queues_.accounts[PETRA_Q_HOUSE] = PetraQueueAccount{};
+	s->petra_turn_built_ = false;
+	const uint32_t poor = s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
+	const bool poor_marked = s->petra_no_room(BLD_HOUSE);
+	const PetraQueueAccount &want = s->petra_queues_.wants[PETRA_Q_HOUSE];
+	const bool waits = want.wood > 0.0f;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	PetraQueueAccount &acc = s->petra_queues_.accounts[PETRA_Q_HOUSE];
+	acc.food = acc.wood = acc.gold = acc.stone = 1000.0f;
+	const uint32_t funded = s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
+	const bool funded_marked = s->petra_no_room(BLD_HOUSE);
+	std::printf("  no room once funded: unfunded placed %u marked %d want %d, funded placed %u marked %d\n", poor, (int)poor_marked,
+	            (int)waits, funded, (int)funded_marked);
+	CHECK(!poor && !poor_marked && waits, "an unfunded house waits in its queue, not marked short of room");
+	CHECK(!funded && funded_marked, "a funded house with no spot is marked short of room");
+}
+
+// queueManager.js startNextItems starts each queue's first plan: a forge asked for after a
+// barracks waits in the military-building queue until the barracks goes down, or stops asking.
+static void test_queue_plans_in_order() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	s->petra_in_turn_ = true;
+	s->players_[1].phase = 2;
+	s->set_player_resources(1, 0, 0, 0, 0);
+	s->petra_queues_.accounts[PETRA_Q_MILITARY_BUILDING] = PetraQueueAccount{};
+	s->petra_turn_built_ = false;
+	const uint32_t b0 = s->petra_place_generic(BLD_BARRACKS, PETRA_Q_MILITARY_BUILDING); // asks first, can't pay
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	PetraQueueAccount &acc = s->petra_queues_.accounts[PETRA_Q_MILITARY_BUILDING];
+	acc.food = acc.wood = acc.gold = acc.stone = 2000.0f;
+	const uint32_t f0 = s->petra_place_generic(BLD_FORGE, PETRA_Q_MILITARY_BUILDING); // behind the barracks
+	const uint32_t b1 = s->petra_place_generic(BLD_BARRACKS, PETRA_Q_MILITARY_BUILDING);
+	s->petra_turn_built_ = false;
+	const uint32_t f1 = s->petra_place_generic(BLD_FORGE, PETRA_Q_MILITARY_BUILDING);
+	// A head that stops asking lets the next one through once its want lapses.
+	s->petra_turn_built_ = false;
+	s->set_player_resources(1, 0, 0, 0, 0);
+	s->petra_place_generic(BLD_BARRACKS, PETRA_Q_MILITARY_BUILDING);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	acc.food = acc.wood = acc.gold = acc.stone = 2000.0f;
+	const uint32_t f2 = s->petra_place_generic(BLD_FORGE, PETRA_Q_MILITARY_BUILDING);
+	for (int k = 0; k < 8; ++k) s->petra_queue_heads_.age[PETRA_Q_MILITARY_BUILDING] += 1.6f;
+	acc.food = acc.wood = acc.gold = acc.stone = 2000.0f;
+	const uint32_t f3 = s->petra_place_generic(BLD_FORGE, PETRA_Q_MILITARY_BUILDING);
+	std::printf("  queue order: barracks unpaid %u, forge behind it %u, barracks %u, then forge %u; lapsed head: forge %u then %u\n", b0, f0,
+	            b1, f1, f2, f3);
+	CHECK(!b0 && !f0 && b1 && f1, "a forge waits behind the barracks asked for first");
+	CHECK(!f2 && f3, "a head that stops asking lets the next structure start");
+}
+
 // baseManager.js assignRolelessUnits gives the Mauryan worker elephant the worker role, and
 // assignToFoundations sends it to a foundation next to it.
 static void test_worker_elephant_builds() {
@@ -2244,6 +2366,7 @@ static void test_first_market_border() {
 	s->set_player_resources(1, 50000, 50000, 50000, 50000);
 	for (auto &a : s->petra_queues_.accounts) a = {50000, 50000, 50000, 50000};
 	for (auto &p : s->petra_queues_.paused) p = 0; // checkPausedQueues counts few workers yet
+	s->petra_queue_heads_ = {}; // no earlier plan waiting
 	s->petra_turn_built_ = false;
 	const uint32_t id = s->petra_build_market(cx, cz, PETRA_Q_ECONOMIC_BUILDING);
 	const Simulation::Building *m = nullptr;
@@ -3324,7 +3447,8 @@ static void test_huge_attack_drops_classes() {
 	uint16_t elite = 0;
 	for (const auto &st : full)
 		if ((st.classes & (TC_CHAMPION | TC_HERO)).any()) elite |= (uint16_t)(1u << st.index);
-	for (int k = 0; k < 4; ++k) {
+	// One order leaves a turn (buildOrders.splice, then nothing more that turn): five here.
+	for (int k = 0; k < 8; ++k) {
 		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 20000.0f;
 		run_ai_turns(*s, 1);
 	}
@@ -3338,6 +3462,77 @@ static void test_huge_attack_drops_classes() {
 	CHECK(elite && (dropped & elite) == elite, "the champion and hero classes leave the plan when nothing trains them");
 	CHECK(elite_left == 0, "they stay out once the city phase arrives");
 	CHECK((dropped & ~elite) == 0, "the citizen-soldier classes stay");
+}
+
+// attackPlan.js trainMoreUnits: when the order furthest behind has no template, the order is
+// deleted and nothing is queued that turn; the next order trains on the plan's next turn.
+// Each order trains in the queue its classes name, not the template's: the "Siege" order's war
+// elephants (Champion units) in the siege queue.
+static void test_attack_order_no_template() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->spawn_building_world(tx + (tx > 0.0f ? -12.0f : 12.0f), tz, BLD_BARRACKS, 1, 1.0f);
+	s->players_[1].phase = 2;
+	s->cheat_mods_[1].pop_bonus = 300;
+	// Nothing of ours trains ranged infantry, the Attack's first order.
+	for (uint16_t tmpl : civ_roster_ids(s->players_[1].civ)) {
+		const TechClasses c = civ_unit_template(tmpl).tech_classes;
+		if ((c & (TC_INFANTRY | TC_RANGED)) == (TC_INFANTRY | TC_RANGED)) s->triggers_.disabled_templates.push_back(tmpl);
+	}
+	auto &m = s->petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 0;
+	m.kind = PETRA_ATTACK_ATTACK;
+	s->petra_plan_sizes(PETRA_ATTACK_ATTACK);
+	m.dropped_classes = 0;
+	auto &plan = s->petra_attack_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	auto queued = [&] {
+		int n = 0;
+		for (const auto &b : s->buildings())
+			for (const auto &o : b.queue) n += o.petra_plan == PETRA_ORDER_ATTACK ? o.count : 0;
+		return n;
+	};
+	auto fund = [&] {
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 20000.0f;
+		for (uint8_t q : {PETRA_Q_PLAN, PETRA_Q_PLAN_CHAMP, PETRA_Q_PLAN_SIEGE}) {
+			auto &a = s->petra_queues_.accounts[q];
+			a.food = a.wood = a.gold = a.stone = 20000.0f;
+		}
+	};
+	fund();
+	s->petra_manage_military_production(0.0f);
+	const int first = queued();
+	const bool ranged_dropped = (m.dropped_classes & 1u) != 0;
+	fund();
+	s->petra_manage_military_production(0.0f);
+	const int second = queued();
+	std::printf("  Attack with no ranged infantry template: %d queued on its turn (ranged order %s), %d on the next\n",
+	            first, ranged_dropped ? "dropped" : "kept", second);
+	CHECK(ranged_dropped, "the order with no template leaves the plan");
+	CHECK(first == 0, "nothing else is queued on that turn");
+	CHECK(second > 0, "the next order trains on the plan's next turn");
+
+	using St = Simulation::PetraUnitStat;
+	const St elephants{TC_ELEPHANT | TC_MELEE, 1.0f, 0, 2, 2, 0.0f, 3.0f, 1.0f, 1.0f};
+	const St hero{TC_HERO, 1.0f, 0, 1, 1, 2.0f, 0.0f, 1.0f, 1.0f};
+	const St champions{TC_INFANTRY | TC_MELEE | TC_CHAMPION, 1.0f, 3, 18, 3, 3.0f, 0.0f, 1.0f, 1.0f};
+	const St infantry{TC_INFANTRY | TC_MELEE, 1.0f, 6, 16, 3, 1.6f, 0.0f, 0.3f, 0.3f};
+	CHECK(Simulation::petra_plan_order_queue(elephants) == PETRA_Q_PLAN_SIEGE, "the Siege order's elephants train in the siege queue");
+	CHECK(Simulation::petra_plan_order_queue(hero) == PETRA_Q_PLAN_SIEGE, "a Hero order trains in the siege queue");
+	CHECK(Simulation::petra_plan_order_queue(champions) == PETRA_Q_PLAN_CHAMP, "a Champion order trains in the champion queue");
+	CHECK(Simulation::petra_plan_order_queue(infantry) == PETRA_Q_PLAN, "a citizen order trains in the plan's queue");
 }
 
 // defenseManager.js assignDefenders: soldiers of a plan still mustering defend the base
@@ -4428,6 +4623,51 @@ static void test_wonder_guards() {
 	CHECK(hurt, "and fight whoever attacks it");
 }
 
+// victoryManager.js tryAssignMilitaryGuard checkForSameAccess false: with no soldiers on its
+// land, guards come from another and ask for a transport there (requireTransport); each one
+// guards it once it lands.
+static void test_guards_from_another_land() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->set_waves_enabled(false);
+	s->generate_random_map(MAP_ISLANDS, 7, 2, 128.0f);
+	s->set_victory_condition(VICTORY_RELIC);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, true);
+	s->petra_swap_slot(0);
+	s->petra_pid_ = 0;
+	float ox = 0, oz = 0, ex = 0, ez = 0;
+	for (const auto &b : s->buildings_) {
+		if (b.type != BLD_TOWN_CENTER) continue;
+		if (b.team == 0) { ox = b.x; oz = b.z; } else { ex = b.x; ez = b.z; }
+	}
+	CHECK(s->petra_land_at(ox, oz) != s->petra_land_at(ex, ez), "the two civic centres stand on different islands");
+	s->relics_.clear();
+	const uint32_t relic = s->spawn_relic(ex + 6.0f, ez + 6.0f);
+	const int32_t r = s->lookup_unit(relic);
+	if (r >= 0) s->units_.team[r] = 0;
+	std::vector<uint32_t> champs;
+	for (int i = 0; i < 3; ++i) champs.push_back(s->spawn_unit(ox + 6.0f + 2.0f * (float)i, oz + 6.0f, 0, UNIT_ELEPHANT));
+	// Over 25 workers: with fewer, the search stops after the champions on the relic's land.
+	for (int i = 0; i < 30; ++i) s->spawn_unit(ox - 6.0f + (float)(i % 6), oz - 6.0f - (float)(i / 6), 0, UNIT_FEMALE_CITIZEN);
+	s->petra_manage_critical_ent_guards();
+	int ferried = 0;
+	for (uint32_t id : champs) ferried += s->petra_ferried_guard(id) && s->petra_passenger(id);
+	// One lands on the relic's island.
+	const int32_t c0 = s->lookup_unit(champs[0]);
+	bool landed_guards = false;
+	if (c0 >= 0 && s->petra_ferried_guard(champs[0])) {
+		s->units_.pos_x[c0] = ex + 8.0f;
+		s->units_.pos_z[c0] = ez + 4.0f;
+		s->petra_manage_critical_ent_guards();
+		landed_guards = s->units_.order_kind[c0] == ORDER_GUARD && s->units_.order_target[c0] == relic && !s->petra_ferried_guard(champs[0]);
+	}
+	std::printf("  relic on another island: %d of 3 champions booked on a transport, one landed %s\n", ferried,
+	            landed_guards ? "guards it" : "does not guard it");
+	CHECK(ferried == 3, "champions from another island are ferried to guard the relic");
+	CHECK(landed_guards, "a ferried guard guards the relic once it lands");
+}
+
 // victoryManager.js criticalEnts: an owned relic is guarded like a hero
 // (4 + 5 * defensive); in regicide only the hero the game began with is
 // critical, so a hero trained later draws no guards; and buildWonder counts
@@ -4983,13 +5223,14 @@ static void test_new_base_builders() {
 		for (int k = 0; k < extra; ++k) s->spawn_unit(cx - 8.0f + (float)(k % 6), cz + 8.0f + (float)(k / 6), 1, UNIT_FEMALE_CITIZEN);
 		const float ang = std::atan2(-cz, -cx);
 		const uint32_t anchor = s->spawn_building_world(cx + std::cos(ang) * 36.0f, cz + std::sin(ang) * 36.0f, BLD_TOWN_CENTER, 1, 0.0f);
-		run_for(*s, 3.0f);
+		run_for(*s, 5.0f); // the new base's turn comes after the standing one's (one base a turn)
 		int n = 0;
 		for (size_t i = 0; i < s->units_.count; ++i)
 			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.target_building_id[i] == anchor) ++n;
 		std::printf("  new base with %d more women: %d builders on the civic centre\n", extra, n);
 		if (extra == 30) CHECK(n == 10, "a new civic centre takes 10 workers");
-		else CHECK(n == 5, "the standing base keeps 3 workers");
+		// The standing base's turn comes first and may send some of its 8 to its own foundation.
+		else CHECK(n >= 4 && n <= 5, "the standing base keeps 3 workers");
 	}
 }
 
@@ -5230,15 +5471,30 @@ static void test_defense_armies() {
 		const int j = k % 15;
 		s->spawn_unit(cx + (k < 15 ? -1.0f : 1.0f) * (5.0f + (float)(j % 3)), cz + 8.0f + (float)(j / 3), 1, UNIT_SPEARMAN);
 	}
+	// Petra's other units stand back beyond the blocks, so each group goes for its own block
+	// whichever way the starting workers happened to go.
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.unit_type[i] != UNIT_SPEARMAN) {
+			s->units_.pos_x[i] = cx + 0.5f * (float)(i % 5);
+			s->units_.pos_z[i] = cz + 22.0f + 0.5f * (float)(i / 5 % 5);
+		}
 	std::vector<uint32_t> east, west;
 	for (int k = 0; k < 3; ++k) east.push_back(s->spawn_unit(cx + 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
 	for (int k = 0; k < 3; ++k) west.push_back(s->spawn_unit(cx - 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
-	// checkEnemyUnits looks in our land one turn in (players + 1): the armies form within three
-	// turns, and are counted the turn they do, before the fight moves either group.
-	for (int t = 0; t < 3 && s->petra_defense_armies().empty(); ++t) run_ai_turns(*s, 1);
+	// The groups hold their ground: chasing whichever of Petra's workers is nearest could carry
+	// one group to the other before both are seen.
+	for (uint32_t id : east) s->units_.stance[s->lookup_unit(id)] = STANCE_STAND_GROUND;
+	for (uint32_t id : west) s->units_.stance[s->lookup_unit(id)] = STANCE_STAND_GROUND;
+	// checkEnemyUnits looks in our land one turn in (players + 1), and assignDefenders serves
+	// the armies in turn: within a few turns there is an army per group, each defended.
 	const auto &armies = s->petra_defense_armies();
 	size_t with_defenders = 0;
-	for (const auto &a : armies) with_defenders += !a.defender_ids.empty();
+	for (int t = 0; t < 6; ++t) {
+		run_ai_turns(*s, 1);
+		with_defenders = 0;
+		for (const auto &a : armies) with_defenders += !a.defender_ids.empty();
+		if (armies.size() >= 2 && with_defenders == armies.size()) break;
+	}
 	std::printf("  defense: two groups 18 units apart make %zu armies, %zu with defenders\n", armies.size(), with_defenders);
 	CHECK(armies.size() == 2 && with_defenders == 2, "one army per group of foes, each defended (makeIntoArmy, assignDefenders)");
 	// The western group joins the eastern one where its fight has taken it (a mine beside the
@@ -6188,6 +6444,25 @@ static void test_defensive_location() {
 		std::printf("  wonder victory: sentry tower spot %.1f from our wonder (at least %.1f)\n", d, dmin);
 		CHECK(got && d >= dmin - 1.5f && d < dmin + 6.0f, "the tower rings our wonder just beyond 50 m");
 	}
+
+	// No enemy or neutral structures: an ally's count unless in allied victory (headquarters.js:1149).
+	for (const bool last_man : {true, false}) {
+		auto a = std::make_unique<Simulation>();
+		a->set_sim_seed(42);
+		a->reset();
+		a->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		a->set_victory_condition(VICTORY_ENDLESS);
+		a->set_last_man_standing(last_man);
+		a->set_diplomacy(0, 1, Simulation::DIPLO_ALLY);
+		a->set_diplomacy(1, 0, Simulation::DIPLO_ALLY);
+		run_for(*a, 20.0f);
+		a->petra_pid_ = 1;
+		int ax = 0, az = 0;
+		const bool got = a->petra_find_defensive_location(BLD_SENTRY_TOWER, ax, az);
+		std::printf("  only an ally, %s: %s\n", last_man ? "last man standing" : "allied victory", got ? "a spot facing it" : "no spot");
+		if (last_man) CHECK(got && !a->allied_victory(), "with only an ally, towers face its structures");
+		else CHECK(!got, "in allied victory, allies' structures don't count");
+	}
 }
 
 // queueplanTraining.js: each batch Petra queues carries what it is for (a worker, the attack
@@ -6684,10 +6959,10 @@ static void test_building_plan_028() {
 	std::printf("  building plan: house %.1f m from the barracks\n", d);
 	CHECK(d > 12.0f, "a house keeps away from a barracks");
 	// requireHouses: with every influence dropped the house takes the first free tile of the base.
-	s->petra_require_houses_ = true;
+	s->petra_kept_.require_houses = true;
 	int cx3 = 0, cz3 = 0;
 	CHECK(s->petra_find_position(BLD_HOUSE, nullptr, nullptr, false, cx3, cz3), "requireHouses still finds room");
-	s->petra_require_houses_ = false;
+	s->petra_kept_.require_houses = false;
 	const float d3 = std::hypot(((float)cx3 + 1.0f) * Simulation::GRID - hx, ((float)cz3 + 1.0f) * Simulation::GRID - hz);
 	std::printf("  building plan: requireHouses house %.1f m from the barracks\n", d3);
 	CHECK(d3 < d, "requireHouses lets the house come closer");
@@ -7067,7 +7342,7 @@ static void test_unit_stat_trainable_busy() {
 static void test_workers_while_cc_on_emergency() {
 	// The civic centre training emergency units still decides the civilian; the workers'
 	// plan waits for it rather than turning into soldiers at the barracks.
-	int soldiers[2] = {0, 0}, civilians[2] = {0, 0};
+	int soldiers[2] = {0, 0}, civilians[2] = {0, 0}, first_soldiers = -1, waiting = 0;
 	for (int busy = 0; busy < 2; ++busy) {
 		auto s = std::make_unique<Simulation>();
 		s->set_sim_seed(42);
@@ -7101,13 +7376,119 @@ static void test_workers_while_cc_on_emergency() {
 				for (const auto &o : b.queue)
 					if (o.petra_plan == PETRA_ORDER_WORKER)
 						(unit_gather_class(o.unit_type, o.tmpl) == GATHER_SUPPORT ? civilians : soldiers)[busy] += o.count;
+			if (busy && first_soldiers < 0) first_soldiers = soldiers[1];
 			s->ticks_ += 4;
 		}
+		if (busy)
+			for (const auto &p : s->petra_worker_plans_[1]) waiting += p.queue == 0 ? p.count : 0;
 	}
-	std::printf("  worker orders, civic centre free: %d civilians %d soldiers; on emergency units: %d civilians %d soldiers\n",
-	            civilians[0], soldiers[0], civilians[1], soldiers[1]);
+	std::printf("  worker orders, civic centre free: %d civilians %d soldiers; on emergency units: %d civilians %d soldiers"
+	            " (first turn %d), %d civilians waiting\n", civilians[0], soldiers[0], civilians[1], soldiers[1], first_soldiers, waiting);
 	CHECK(civilians[0] > 0 && soldiers[0] == 0, "a free civic centre trains civilians as workers");
-	CHECK(soldiers[1] == 0, "a civic centre busy with emergency units doesn't make the workers soldiers");
+	// The waiting civilians count as queued supports, so soldiers may follow once they pass
+	// supportNum, as in 0.28; the first plan is a civilian.
+	CHECK(first_soldiers == 0 && civilians[1] == 0 && waiting > 0, "a civic centre busy with emergency units keeps the civilians waiting");
+}
+
+static void test_worker_plans_wait() {
+	// trainMoreWorkers' plans wait in their queue: for the queue's resources (no civilian in
+	// a soldier's place) and for room for the whole batch (no smaller batch).
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_team_civ(1, CIV_ATHENIANS);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	Simulation::Building *cc = nullptr;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const uint32_t cc_id = cc->id;
+	const uint32_t bar = s->spawn_building_world(cc->x + (cc->x > 0 ? -10.0f : 10.0f), cc->z, BLD_BARRACKS, 1, 1.0f);
+	auto queue_of = [&](uint32_t id) -> std::vector<ProductionOrder> & { return s->buildings_[s->building_id_to_idx_.at(id)].queue; };
+	queue_of(cc_id).clear();
+	const uint16_t spear = civ_unit_template_by_id("athen/infantry_spearman_b");
+	auto &plans = s->petra_worker_plans_[1];
+	plans.clear();
+	plans.push_back({spear, 3, 1});
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 5000.0f;
+	auto &acc = s->petra_queues_.accounts[PETRA_Q_CITIZEN_SOLDIER];
+	acc = {};
+	s->petra_start_worker_plans();
+	const bool waits_for_money = plans.size() == 1 && queue_of(bar).empty() && queue_of(cc_id).empty();
+	// Room for two: a batch of three waits.
+	const int room = s->petra_pop_room();
+	ProductionOrder filler;
+	filler.unit_type = UNIT_VILLAGER;
+	filler.count = (uint8_t)std::max(0, room - 2);
+	filler.duration = 10.0f;
+	filler.tmpl = CIV_UNIT_TEMPLATE_NONE;
+	if (filler.count) queue_of(cc_id).push_back(filler);
+	acc.food = acc.wood = acc.gold = acc.stone = 5000.0f;
+	s->petra_start_worker_plans();
+	const bool waits_for_room = plans.size() == 1 && queue_of(bar).empty() && s->petra_pop_room() == 2;
+	queue_of(cc_id).clear();
+	s->petra_start_worker_plans();
+	int trained = 0;
+	for (const auto &o : queue_of(bar)) trained += o.tmpl == spear ? o.count : 0;
+	for (const auto &o : queue_of(cc_id)) trained += o.tmpl == spear ? o.count : 0;
+	std::printf("  worker plan of 3 spearmen: waits unpaid %s, waits with room 2 %s, then trains %d (%zu plans left)\n",
+	            waits_for_money ? "yes" : "no", waits_for_room ? "yes" : "no", trained, plans.size());
+	CHECK(waits_for_money, "an unpaid soldier plan waits in its queue");
+	CHECK(waits_for_room, "a batch waits for room for all of it");
+	CHECK(trained == 3 && plans.empty(), "the plan then trains its whole batch");
+	// The first plans shrink to the batch size only when trainMoreWorkers runs (every 4th turn).
+	plans.push_back({spear, 5, 1});
+	acc = {};
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 0.0f;
+	while (s->petra_turn_mod(4, 0)) s->ticks_ += 4;
+	s->petra_train_more_workers();
+	const int off_turn = plans.empty() ? -1 : plans[0].count;
+	while (!s->petra_turn_mod(4, 0)) s->ticks_ += 4;
+	s->petra_train_more_workers();
+	const int on_turn = plans.empty() ? -1 : plans[0].count;
+	std::printf("  a queued batch of 5 between trainMoreWorkers turns: %d, on its turn: %d\n", off_turn, on_turn);
+	CHECK(off_turn == 5 && on_turn >= 1 && on_turn < 5, "queued batches shrink on trainMoreWorkers' turn only");
+}
+
+static void test_siege_class_kept() {
+	// addSiegeUnits fixes the siege class once (SIEGE_ADDED): losing its trainer drops the
+	// order, it doesn't switch to a class some other building trains.
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_team_civ(1, CIV_ATHENIANS);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	s->players_[1].phase = 3;
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	s->spawn_building_world(cc->x + (cc->x > 0 ? -14.0f : 14.0f), cc->z, BLD_ARSENAL, 1, 1.0f);
+	auto siege_of = [&]() {
+		for (const auto &st : s->petra_plan_unit_stats(PETRA_ATTACK_HUGE))
+			if ((st.classes & (TC_SIEGE | TC_ELEPHANT)).any()) return st.classes;
+		return TechClasses{};
+	};
+	s->petra_attack_mgr_.attack_siege = 0;
+	s->petra_attack_mgr_.attack_name = 2; // would start from Elephant+Melee
+	const TechClasses first = siege_of();
+	const uint8_t picked = s->petra_attack_mgr_.attack_siege;
+	// Elephants fixed (an Athenian arsenal trains none): the class stays elephants.
+	s->petra_attack_mgr_.attack_siege = 3;
+	const TechClasses fixed = siege_of();
+	std::printf("  siege class: unfixed picks %u (%s), fixed elephants stay %s\n", picked,
+	            first == (TC_SIEGE | TC_MELEE) ? "rams" : "other", fixed == (TC_ELEPHANT | TC_MELEE) ? "yes" : "no");
+	CHECK(picked == 1 && first == (TC_SIEGE | TC_MELEE), "an unfixed class moves on to one a building of ours trains");
+	CHECK(fixed == (TC_ELEPHANT | TC_MELEE) && s->petra_attack_mgr_.attack_siege == 3, "a fixed siege class stays");
+	CHECK(!s->petra_unit_stat_trainable({fixed, 1.0f, 0, 2, 2, 0.0f, 3.0f, 1.0f, 1.0f}), "and trainMoreUnits drops it without a trainer");
 }
 
 static void test_strength_prepare_time() {
@@ -7334,6 +7715,7 @@ static void test_temple_wonder_save() {
 		s->set_player_resources(1, 50000, 50000, 50000, 50000);
 		for (auto &a : s->petra_queues_.accounts) a = {50000, 50000, 50000, 50000};
 		for (auto &p : s->petra_queues_.paused) p = 0; // checkPausedQueues counts few workers yet
+		s->petra_queue_heads_ = {}; // no earlier plan waiting
 	};
 	CHECK(s->spawn_building_world(cx + 30.0f, cz, BLD_MARKET, 1, 1.0f) != 0, "a market is placed");
 	CHECK(s->spawn_building_world(cx - 30.0f, cz, BLD_FORGE, 1, 1.0f) != 0, "a forge is placed");
@@ -7746,6 +8128,44 @@ static void test_raids_at_once() {
 	CHECK(plan.state == Simulation::AttackPlan::MUSTER && plan.target_building_id == target, "another raid is planned while it runs");
 }
 
+// Area D pass 7 (G58): Briton war dog is FastMoving, so it can raid or be kept home as
+// one of the two kept hunters; Civic trainers give +10 s priority to support units, and
+// support units take a +50 s penalty near an invading army.
+static void test_g58_wardog_and_trainer_timings() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->petra_pid_ = 1;
+	s->players_[1].civ = CIV_BRITONS;
+
+	// 1. War dog FastMoving check in raid unit collection
+	const uint32_t dog1 = s->spawn_unit(0.0f, 0.0f, 1, UNIT_WAR_DOG);
+	const uint32_t dog2 = s->spawn_unit(1.0f, 0.0f, 1, UNIT_WAR_DOG);
+	const uint32_t dog3 = s->spawn_unit(2.0f, 0.0f, 1, UNIT_WAR_DOG);
+	CHECK(dog1 && dog2 && dog3, "spawned war dogs");
+
+	// Spawn a raid target in territory
+	const uint32_t foe_cc = s->spawn_building_world(20.0f, 0.0f, BLD_TOWN_CENTER, 2, 1.0f);
+	s->petra_defense_targets_.ids.push_back(foe_cc);
+	auto &plan = s->petra_raid_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_RAID;
+	plan.target_building_id = foe_cc;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	s->petra_attack_mgr_.raid_target = 4;
+	s->petra_attack_mgr_.raid_min = 1;
+
+	s->petra_manage_raid(0.0f);
+	// Two dogs are kept to hunt, the third joins the raid!
+	std::printf("  Raid squad with 3 war dogs: %zu joined (2 kept as hunters)\n", plan.squad.size());
+	CHECK(plan.squad.size() == 1, "third dog joined raid, first two kept as hunters");
+
+	// 2. Trainer timings: Civic trainers (Temple, Colony, Civic Centre)
+	const uint32_t temple = s->spawn_building_world(10.0f, 10.0f, BLD_TEMPLE, 1, 1.0f);
+	uint32_t pick_healer = s->petra_best_trainer(CIV_UNIT_TEMPLATE_NONE, UNIT_HEALER, 8);
+	CHECK(pick_healer == temple, "temple picked for healer");
+}
+
 int main(int argc, char **argv) {
 	// Optional test names on the command line run just those.
 	auto want = [&](const char *name) {
@@ -7788,6 +8208,9 @@ int main(int argc, char **argv) {
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_garrisoned_workers_count);
 	RUN(test_gather_rate_civ_bonus);
+	RUN(test_one_base_a_turn);
+	RUN(test_no_room_only_once_funded);
+	RUN(test_queue_plans_in_order);
 	RUN(test_idle_workers_repair_cc);
 	RUN(test_worker_elephant_builds);
 	RUN(test_anchor_dropsite_unshared);
@@ -7825,6 +8248,7 @@ int main(int argc, char **argv) {
 	RUN(test_attack_plan_keeps_hunters);
 	RUN(test_raid_takes_every_rider);
 	RUN(test_huge_attack_drops_classes);
+	RUN(test_attack_order_no_template);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
 	RUN(test_attack_request_counts_raid);
@@ -7867,6 +8291,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_wood_poor_corral);
 	RUN(test_petra_sandbox_first_storehouse);
 	RUN(test_wonder_guards);
+	RUN(test_guards_from_another_land);
 	RUN(test_victory_critical_ents);
 	RUN(test_placement_miss_memory_exact);
 	RUN(test_defend_allies);
@@ -7902,6 +8327,8 @@ int main(int argc, char **argv) {
 	RUN(test_unit_stat_trainable_busy);
 	RUN(test_workers_while_cc_on_emergency);
 	RUN(test_strength_prepare_time);
+	RUN(test_siege_class_kept);
+	RUN(test_worker_plans_wait);
 	RUN(test_new_cc_defenders);
 	RUN(test_temple_wonder_save);
 	RUN(test_personality_draw);
@@ -7909,6 +8336,7 @@ int main(int argc, char **argv) {
 	RUN(test_pending_dropsite);
 	RUN(test_inaccessible_supply);
 	RUN(test_land_access);
+	RUN(test_g58_wardog_and_trainer_timings);
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

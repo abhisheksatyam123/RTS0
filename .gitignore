@@ -33,3 +33,6 @@ data_*/
 # Full dump: python3 tools/extract_0ad_assets.py --all-animations
 .clangd
 compile_commands.json
+
+# Game logs written by run_game.sh
+logs/

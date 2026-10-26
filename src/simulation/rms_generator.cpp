@@ -1585,24 +1585,6 @@ void scatter_hills(HeightmapGrid &hm, RmsRng &rng, const std::vector<RmsGenerato
 }
 } // namespace
 
-void RmsGenerator::synth_syria(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
-	// syria.js: dry plains with slightly rolling highlands, players on a
-	// circle at f = 0.35, scaleByMapSize(1, 3) * 3 hills per player. No
-	// water; heights in metres over 0.28's water line: land at heightLand 1,
-	// 2 m bumps (heightOffsetBump), hills set to heightHill 22.
-	water_h = -10.0f;
-	const float land = 1.0f * kMetre;
-	hm.init(hm.res, hm.map_half, land);
-	const float half = hm.map_half;
-	add_bumps(hm, rng, 2.0f * kMetre);
-	place_team_spawns(hm, rng, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), land);
-	scatter_hills(hm, rng, spawns, scale_by_map_size(1, 3, half) * 3 * std::max(1, num_players),
-	              half * 0.03f + 2.0f, half * 0.06f + 3.0f, (22.0f - 1.0f) * kMetre, (22.0f - 1.0f) * kMetre, 20.0f);
-	for (float &h : hm.data) h = std::min(h, 22.0f * kMetre); // ELEVATION_SET: overlaps stay at 22
-	hm.blur(1, 0.35f);
-	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
-}
-
 void RmsGenerator::synth_cantabrian_highlands(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
 	// cantabrian_highlands.js: each player starts on a hill (heightHill 20)
 	// ringed by cliffs, with one ramp facing the map centre; players on a
@@ -5324,6 +5306,36 @@ void RmsGenerator::synth_atlas_mountains(HeightmapGrid &hm, RmsRng &rng, float &
 	const auto to_player = seas_dist_to_players(hm, spawn_points(spawns), seas_scale(15, 25, half) / 3.0f);
 	seas_bumps(hm, rng, seas_scale(100, 200, half), [&](int i) { return to_player[(size_t)i] > 9.0f; });
 	default_mountains_028(hm, rng, 0.0f, seas_scale(20, 120, half), 8.0f, [&](int i) { return to_player[(size_t)i] > 20.0f; });
+}
+
+void RmsGenerator::synth_syria(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// syria.js (0.28), in 0 A.D. metres: land at heightLand 1 m and no water; players by
+	// playerPlacementByPattern at fractionToTiles(0.35), teammates fractionToTiles(0.1) apart, each
+	// in clPlayer's disk of defaultPlayerBaseRadius and a ChainPlacer of grass round it (AREA_GRASS:
+	// desert_grass_a_sand 3 tiles in, desert_grass_a inside); scaleByMapSize(300, 800) 2 m bumps 13
+	// from the players, then scaleByMapSize(1, 3) * numPlayers * 3 hills set to heightHill 22, 3 from
+	// the players, 1 from the grass and 10 from each other.
+	water_h = -10.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	hm.init(hm.res, half, metres(0.0f, 1.0f));
+	place_team_spawns(hm, rng, spawns, num_players, 0.35f * size, rng.range_float(0.0f, 2.0f * kSeasPi), 0.0f);
+	const auto to_player = seas_dist_to_players(hm, spawn_points(spawns), seas_scale(15, 25, half));
+	std::vector<uint8_t> grass(hm.data.size(), 0);
+	for (const auto &sp : spawns) {
+		const auto m = seas_chain(hm, rng, sp.x, sp.z, 2, (int)std::floor(seas_scale(5, 12, half)), (int)std::floor(seas_scale(25, 60, half)),
+		                          1e9f, 0.0f, {(int)std::floor(seas_scale(16, 30, half))}, [](int) { return true; });
+		record_area(hm, m, AREA_GRASS);
+		seas_add(grass, m);
+	}
+	const auto to_grass = seas_dist_inside(hm, grass);
+	seas_create_areas(hm, rng, seas_scale(300, 800, half), 10, [&](float x, float z) {
+		const auto m = seas_clump(hm, rng, seas_scale(20, 50, half), 0.3f, 0.06f, 1e9f, x, z, [&](int i) { return to_player[(size_t)i] > 13.0f; });
+		if (!seas_any(m)) return false;
+		seas_paint_modify(hm, m, 2.0f * kMetre, 2.0f);
+		return true;
+	});
+	seas_hills(hm, rng, 0.0f, seas_scale(1, 3, half) * (float)std::max(1, num_players) * 3.0f, false, 10.0f, 22.0f,
+	           [&](int i) { return to_player[(size_t)i] > 3.0f && to_grass[(size_t)i] > 1.0f; });
 }
 
 void RmsGenerator::synth_alpine_lakes(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
@@ -13318,6 +13330,9 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 			const auto to_forest = distance_to([&](size_t j) { return forest[j] != 0; });
 			const auto to_player = distance_to([&](size_t j) { return player[j] != 0; });
 			std::vector<uint8_t> patched(t.tiles.size(), 0), got(t.tiles.size(), 0), near(t.tiles.size(), 0);
+			for (const MapArea &a : t_map_areas)
+				if (a.kind == AREA_GRASS) // syria.js clGrass: its patches keep off the grass round the bases
+					for (uint32_t j : a.tiles) patched[j] = 1;
 			std::vector<uint32_t> points, touched;
 			std::vector<std::pair<int, int>> edges;
 			for (const PatchSet &ps : own->patches) {
@@ -13521,9 +13536,24 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 		int shore;
 		int retry = 40;
 		uint8_t fauna = 0xFF;
+		// rmgen2 addFish's SimpleObjects: a fractional count range drawn by randIntInclusive
+		// (count_hi > 0 replaces min_n/max_n), and members spread_min-spread off the tile.
+		float count_lo = 0.0f, count_hi = 0.0f, spread_min = 0.0f;
 	};
 	std::vector<FishPass> passes;
 	const int players = std::max(1, config.num_players);
+	RmsRng rng(config.seed ^ 0x46495348u); // 'FISH'
+	// rmgen2 addFish(constraint, size, deviation, fill): groupOffset = size +- deviation
+	// (getRandomDeviation), then floor(40 * fill) tries each of groupOffset-2x fish 0-2x
+	// off the tile and 2x-4x fish 10x-20x off it (createObjectGroupsDeprecated).
+	auto add_fish = [&](float size, float deviation, float fill, int water, float spacing, uint8_t fauna) {
+		const float off = size + rng.range_float(-1.0f, 1.0f) * std::min(size, deviation);
+		const int tries = (int)std::floor(40.0f * fill);
+		FishPass near{tries, 0, 0, water, spacing, 2.0f * off, 0, 0, fauna, off, 2.0f * off, 0.0f};
+		FishPass far{tries, 0, 0, water, spacing, 20.0f * off, 0, 0, fauna, 2.0f * off, 4.0f * off, 10.0f * off};
+		passes.push_back(near);
+		passes.push_back(far);
+	};
 	switch (config.map_type) {
 		case MAP_GULF_OF_BOTHNIA:
 			// 0.28 gulf_of_bothnia.js (unfrozen): createFood of 2-3 fish,
@@ -13623,11 +13653,18 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 			passes.push_back({25 * players, 2, 3, 4, 20.0f, 2.0f, 0, 0});
 			passes.push_back({(int)std::ceil(sbms(5.0f, 20.0f)), 1, 1, 4, 8.0f, 3.0f, 0, 0, FAUNA_WHALE_HUMPBACK});
 			break;
+		case MAP_MEDITERRANEAN:
+			// mediterranean.js: addFish "normal" size, "similar" mix, "many" amount, stay
+			// clWater 4, avoid fish 10; then fin whales the same way, "small", "same",
+			// "scarce", stay clWater 7, avoid fish 2 (its desert and steppe classes are
+			// never painted, so their avoidance holds everywhere).
+			add_fish(1.0f, 0.1f, 1.75f, 4, 10.0f, 0xFF);
+			add_fish(0.75f, 0.0f, 0.2f, 7, 2.0f, FAUNA_WHALE_FIN);
+			break;
 		default:
 			passes.push_back({(int)std::lround(sbms(15.0f, 50.0f)), 2, 3, 2, 20.0f, 2.0f, 0});
 			break;
 	}
-	RmsRng rng(config.seed ^ 0x46495348u); // 'FISH'
 	// rmgen works on tiles: a constraint is tested at a position's tile (floor), over the
 	// tiles whose index lies within its radius (TileClass.countInRadius). clWater is the
 	// tiles under the water plane.
@@ -13681,13 +13718,17 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 			// SimpleGroup.place (avoidSelf): each fish 0-spread from the tile's centre, 1 apart,
 			// on a tile the constraint allows; 30 failed spots and the whole group is dropped.
 			std::vector<std::pair<float, float>> group;
-			const int n = f.min_n == f.max_n ? f.min_n : rng.range_int(f.min_n, f.max_n);
+			int n = f.min_n == f.max_n ? f.min_n : rng.range_int(f.min_n, f.max_n);
+			if (f.count_hi > 0.0f) {
+				const float u = rng.range_float(0.0f, 1.0f);
+				n = (int)std::floor(f.count_lo + u * (f.count_hi + 1.0f - f.count_lo)); // randIntInclusive
+			}
 			int retries = 0;
 			bool ok = true;
 			for (int k = 0; k < n && ok; ++k)
 				for (;;) {
 					// One draw per statement: compilers order a call's arguments differently.
-					const float dist = rng.range_float(0.0f, f.spread);
+					const float dist = rng.range_float(f.spread_min, f.spread);
 					const float ang = rng.range_float(0.0f, kTwoPi);
 					const auto o = polar(ang, dist);
 					const float fx = cx + 0.5f + o.first, fz = cz + 0.5f + o.second;

@@ -408,6 +408,18 @@ static void test_auras() {
 	t.rebuild_auras();
 	std::printf("      two temples and an Isis temple heal %.2f hp/s\n", heal(near_u));
 	check(std::fabs(heal(near_u) - 1.0f) < 1e-4f, "temple: overlapping temples heal +1 hp/s, not +1 each");
+	// hellenic_epic_temple inherits template_structure_civic_temple's temple_heal: a captured one
+	// heals its new owner's units.
+	{
+		Simulation e;
+		setup(e);
+		e.spawn_building_world(0.0f, 0.0f, BLD_EPIC_TEMPLE, 0, 1.0f);
+		const uint32_t hurt = e.spawn_unit(8.0f, 0.0f, 0, UNIT_SWORDSMAN, 50.0f);
+		e.rebuild_auras();
+		const int i = idx(e, hurt);
+		check(std::fabs(e.aura_mgr_.query_modifier(e.units_.pos_x[i], e.units_.pos_z[i], e.units_.team[i], AURA_HEAL,
+				e.units_.tmpl[i], &e.unit_combat_at(i).classes) - 1.0f) < 1e-4f, "epic temple: own soldier within 40 m +1 hp/s");
+	}
 	// A global hero aura holds while its hero is garrisoned (Darius: own units +15% speed).
 	Simulation g;
 	setup(g);
@@ -1110,6 +1122,22 @@ static void test_germanic_auras() {
 	check(reach(far_sl) == 0.0f, "Boiorix: own slinger beyond 60 m unchanged");
 	check(reach(foe) == 0.0f, "Boiorix: enemy slinger unchanged");
 
+	// Demetrius' Besieger: his own Siege within 60 m reach 10% further (Attack/Ranged/MaxRange
+	// multiply 1.1), other units nothing.
+	Simulation d;
+	setup(d);
+	const uint16_t demetrius = template_named("mace/hero_demetrius_i"), litho = template_named("mace/siege_lithobolos_packed");
+	check(demetrius != CIV_UNIT_TEMPLATE_NONE && litho != CIV_UNIT_TEMPLATE_NONE, "roster has Demetrius and the lithobolos");
+	d.spawn_unit(-20.0f, 0.0f, 0, UNIT_HERO, 0.0f, demetrius);
+	uint32_t engine = d.spawn_unit(-16.0f, 0.0f, 0, UNIT_CATAPULT, 0.0f, litho);
+	uint32_t mace_sl = d.spawn_unit(-18.0f, 2.0f, 0, UNIT_ARCHER, 0.0f, template_named("mace/infantry_slinger_b"));
+	d.rebuild_auras();
+	const int ei = idx(d, engine), si = idx(d, mace_sl);
+	std::printf("  lithobolos range %.3f, reach %.3f\n", d.units_.attack_range[ei], d.attack_reach((size_t)ei));
+	check(d.units_.attack_range[ei] > 0.0f && std::fabs(d.attack_reach((size_t)ei) - d.units_.attack_range[ei] * 1.1f) < 1e-3f,
+		"Demetrius: own siege engine nearby +10% range");
+	check(si >= 0 && d.attack_reach((size_t)si) == d.units_.attack_range[si], "Demetrius: own slinger (not Siege) unchanged");
+
 	Simulation v;
 	setup(v);
 	v.spawn_unit(20.0f, 0.0f, 0, UNIT_HERO, 0.0f, lugius);
@@ -1596,11 +1624,13 @@ static void test_p14_leftovers() {
 		check(s.units_.hp[ti] < hp0 && s.units_.status_effects[ti] != 0, "a dead archer's arrow still poisons");
 	}
 	{
-		// Aimed at a boar with an enemy spearman under the same point: the boar takes it.
+		// Aimed at a boar with an enemy spearman under the same point: the boar takes it. The archer
+		// shoots from 6 away, so the arrow lands before the two, standing on each other, push each
+		// other out of the point (CCmpUnitMotion_System.cpp:671-804 pushes animals as units).
 		Simulation s;
 		setup(s);
 		s.set_player_active(1, true, false);
-		uint32_t ar = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
+		uint32_t ar = s.spawn_unit(14.0f, 0.0f, 0, UNIT_ARCHER);
 		const uint32_t boar = s.spawn_fauna(20.0f, 0.0f, FAUNA_BOAR);
 		uint32_t sp = dummy(s, 20.1f, 0.0f, UNIT_SPEARMAN, 500.0f);
 		s.units_.attack_damage[idx(s, sp)] = 0.0f;

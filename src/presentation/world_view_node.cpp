@@ -299,45 +299,6 @@ void RtsoWorldView::init_animation_controllers() {
 }
 
 void RtsoWorldView::_ready() {
-	// Selection Ring
-	// Selection Ring: create procedural smooth ring texture in memory so it never relies on disk import
-	{
-		const int sz = 256;
-		Ref<Image> img = Image::create_empty(sz, sz, false, Image::FORMAT_RGBA8);
-		const float center = (sz - 1) * 0.5f;
-		const float radius = sz * 0.42f;
-		const float half_w = sz * 0.045f;
-		const float feather = 1.5f;
-		for (int y = 0; y < sz; ++y) {
-			for (int x = 0; x < sz; ++x) {
-				const float dx = (float)x - center;
-				const float dy = (float)y - center;
-				const float dist = Math::sqrt(dx * dx + dy * dy);
-				const float diff = Math::abs(dist - radius);
-				const float a = Math::clamp((half_w - diff) / feather, 0.0f, 1.0f);
-				img->set_pixel(x, y, Color(1.0f, 1.0f, 1.0f, a));
-			}
-		}
-		ring_decal_tex_ = ImageTexture::create_from_image(img);
-	}
-
-	ring_sel_mat.instantiate();
-	ring_sel_mat->set_albedo(Color(0.2f, 1.0f, 0.4f));
-	ring_sel_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-	ring_sel_mat->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
-
-	ring_enemy_mat.instantiate();
-	ring_enemy_mat->set_albedo(Color(0.92f, 0.25f, 0.2f));
-	ring_enemy_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-	// selection.js g_HighlightedAlpha = 0.75: the same ring, partly transparent.
-	for (Ref<StandardMaterial3D> *m : {&ring_hl_mat, &ring_enemy_hl_mat}) {
-		m->instantiate();
-		(*m)->set_albedo(m == &ring_hl_mat ? Color(0.2f, 1.0f, 0.4f, 0.75f) : Color(0.92f, 0.25f, 0.2f, 0.75f));
-		(*m)->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-		(*m)->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
-		(*m)->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
-	}
-
 	// Floating Health Bar Meshes and Materials
 	hp_bg_mesh.instantiate();
 	hp_bg_mesh->set_size(Vector3(0.9f, 0.08f, 0.04f));
@@ -758,6 +719,35 @@ void RtsoWorldView::update_damage_fx(BuildingVis &v, uint8_t level, float half_s
 static Color player_display_color(const rtso::Simulation *sim, uint8_t pid) {
 	const uint32_t rgb = rtso::display_colors::rgb(*sim, pid);
 	return Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 1.0f);
+}
+
+// GuiInterface SetSelectionHighlight: a ring or outline in its owner's displayed colour
+// (Gaia's white), at selection.js's alpha: 1 selected, g_HighlightedAlpha 0.75 hovered.
+static Color ring_color(const rtso::Simulation *sim, uint8_t owner, bool selected) {
+	Color c = player_display_color(sim, owner);
+	c.a = selected ? 1.0f : 0.75f;
+	return c;
+}
+
+// CCmpSelectable::SetSelectionHighlight: an Overlay/AlwaysVisible overlay (a hero's star)
+// not selected is a third desaturated, at no less than 0.65 alpha.
+static Color overlay_color(const rtso::Simulation *sim, uint8_t owner, bool selected, bool always_visible) {
+	Color c = ring_color(sim, owner, selected);
+	if (always_visible && !selected) {
+		const float mx = std::max({c.r, c.g, c.b});
+		c.r += (mx - c.r) / 3.0f;
+		c.g += (mx - c.g) / 3.0f;
+		c.b += (mx - c.b) / 3.0f;
+	}
+	return c;
+}
+
+// A unit's 0.28 Selectable overlay (selection_overlay_data.h, from tools/extract_0ad_selectable.py).
+static_assert(rtso::SELECTION_TEMPLATE_ROWS == rtso::CIV_UNIT_TEMPLATE_COUNT, "rosters changed: re-run tools/extract_0ad_selectable.py");
+static_assert(rtso::SELECTION_CLASS_ROWS == rtso::UNIT_TYPE_COUNT, "unit types changed: re-run tools/extract_0ad_selectable.py");
+static const rtso::SelectionOverlay &unit_selection_overlay(uint8_t type, uint16_t tmpl) {
+	if (tmpl < rtso::SELECTION_TEMPLATE_ROWS) return rtso::selection_template_table()[tmpl];
+	return rtso::selection_class_table()[type < rtso::SELECTION_CLASS_ROWS ? type : rtso::UNIT_VILLAGER];
 }
 
 // 0 A.D. player_trans surfaces take the owner's colour (model_common.fs).
@@ -1266,7 +1256,18 @@ enum ClipId : uint8_t {
 	CLIP_FEEDING, // 0.28 UnitAI animal IDLE.LINGERING (add_0ad_feeding_clips.py)
 	// Formation variant clips (kFormClips), loaded from their PSA on first use.
 	CLIP_FORM_FIRST,
-	CLIP_COUNT = CLIP_FORM_FIRST + 36
+	CLIP_COUNT = CLIP_FORM_FIRST + 36,
+	CLIP_APPROACH_TREE = CLIP_COUNT,
+	CLIP_APPROACH_ORE,
+	CLIP_APPROACH_ROCK,
+	CLIP_APPROACH_GRAIN,
+	CLIP_APPROACH_MEAT,
+	CLIP_IDLE_CARRY_FOOD,
+	CLIP_IDLE_CARRY_MEAT,
+	CLIP_IDLE_CARRY_WOOD,
+	CLIP_IDLE_CARRY_STONE,
+	CLIP_IDLE_CARRY_METAL,
+	CLIP_TOTAL_COUNT
 };
 
 // The clips the formation variants name (formation_variants.h variant_clips), each
@@ -1330,7 +1331,7 @@ static const StringName &clip_name(ClipId id) {
 	// Leaked on purpose: Godot objects in statics would be destroyed after the
 	// engine has gone, crashing the exit (here and in the caches below).
 	static const StringName *names = [] {
-		StringName *n = new StringName[CLIP_COUNT]{
+		StringName *n = new StringName[CLIP_TOTAL_COUNT]{
 		StringName(), StringName("Idle"), StringName("Walk"), StringName("Run"),
 		StringName("Attack"), StringName("Death"), StringName("Gather"),
 		StringName("GatherTree"), StringName("GatherOre"), StringName("GatherRock"),
@@ -1345,15 +1346,30 @@ static const StringName &clip_name(ClipId id) {
 		// ModelLibrary::apply_clip_tools: "Form" clips show the weapon, "FormBare" none.
 		for (int i = 0; i < CLIP_COUNT - CLIP_FORM_FIRST; ++i)
 			n[CLIP_FORM_FIRST + i] = StringName(String(kFormClips[i].bare ? "FormBare_" : "Form_") + kFormClips[i].psa);
+		n[CLIP_APPROACH_TREE] = StringName("ApproachTree");
+		n[CLIP_APPROACH_ORE] = StringName("ApproachOre");
+		n[CLIP_APPROACH_ROCK] = StringName("ApproachRock");
+		n[CLIP_APPROACH_GRAIN] = StringName("ApproachGrain");
+		n[CLIP_APPROACH_MEAT] = StringName("ApproachMeat");
+		n[CLIP_IDLE_CARRY_FOOD] = StringName("IdleCarryFood");
+		n[CLIP_IDLE_CARRY_MEAT] = StringName("IdleCarryMeat");
+		n[CLIP_IDLE_CARRY_WOOD] = StringName("IdleCarryWood");
+		n[CLIP_IDLE_CARRY_STONE] = StringName("IdleCarryStone");
+		n[CLIP_IDLE_CARRY_METAL] = StringName("IdleCarryMetal");
 		return n;
 	}();
-	return names[id < CLIP_COUNT ? id : CLIP_NONE];
+	return names[id < CLIP_TOTAL_COUNT ? id : CLIP_NONE];
 }
 
 // 0 A.D. ResourceGatherer.js SelectAnimation("gather_" + type).
 static ClipId gather_clip_for(uint8_t utype, uint8_t res_type, uint8_t subtype) {
 	if (utype == rtso::UNIT_HEALER) return CLIP_HEAL;
 	if (utype == rtso::UNIT_FISHING_BOAT) return CLIP_GATHER_FISH;
+	// 0 A.D. gathers meat from horseback: the rider leans down from the
+	// saddle. The cavalry's own "GatherMeat" is the biped gatherer's
+	// standing animation (the rider ends up above the horse), so the
+	// mounted attack, whose rider stays seated, is played instead.
+	if (rtso::unit_is_horse_cavalry(utype)) return CLIP_ATTACK;
 	switch (res_type) {
 		case rtso::RES_WOOD: return CLIP_GATHER_TREE;
 		case rtso::RES_GOLD: return CLIP_GATHER_ORE;
@@ -1393,7 +1409,9 @@ static bool unit_is_female(uint8_t utype) {
 }
 
 static bool is_carry_variant(ClipId c) {
-	return c >= CLIP_CARRY_FOOD && c <= CLIP_CARRY_METAL;
+	return (c >= CLIP_CARRY_FOOD && c <= CLIP_CARRY_METAL) ||
+	       (c >= CLIP_IDLE_CARRY_FOOD && c <= CLIP_IDLE_CARRY_METAL) ||
+	       c == CLIP_CARRY;
 }
 
 // UnitAI.SetDefaultAnimationVariant: "carry_" + generic type, with meat split
@@ -1408,6 +1426,16 @@ static ClipId carry_clip_for(uint8_t res_type, uint8_t subtype) {
 	}
 }
 
+static ClipId idle_carry_clip_for(uint8_t res_type, uint8_t subtype) {
+	switch (res_type) {
+		case rtso::RES_WOOD: return CLIP_IDLE_CARRY_WOOD;
+		case rtso::RES_GOLD: return CLIP_IDLE_CARRY_METAL;
+		case rtso::RES_STONE: return CLIP_IDLE_CARRY_STONE;
+		case rtso::RES_FOOD: return subtype == rtso::RES_SUB_MEAT ? CLIP_IDLE_CARRY_MEAT : CLIP_IDLE_CARRY_FOOD;
+		default: return CLIP_IDLE;
+	}
+}
+
 // 0 A.D. action → clip (Attack.js, ResourceGatherer.js, CCmpVisualActor, UnitAI carry variant).
 struct WantAnim {
 	ClipId clip = CLIP_IDLE;
@@ -1418,15 +1446,23 @@ struct WantAnim {
 static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int32_t carry,
 		uint8_t utype, uint8_t res_type, uint8_t res_sub, bool capturing) {
 	WantAnim w;
-	// A laden unit keeps the carry variant through any movement clip.
-	const bool laden_move = carry > 0 && (speed2 > 0.001f || uaction == rtso::ACTION_MOVE);
-	// ~4.24 m/s: infantry walk (~3.2) stays Walk; cavalry/camel/chariot pick Run.
-	const bool sprint = !laden_move && speed2 > 18.0f;
+	const bool is_cavalry = rtso::unit_is_cavalry(utype);
+	// A laden unit keeps the carry variant through any movement or idle while holding cargo.
+	const bool laden = carry > 0 && uaction != rtso::ACTION_ATTACK && alive && uaction != rtso::ACTION_DYING;
+	const bool moving = speed2 > 0.001f;
+	const bool sprint = !laden && speed2 > 18.0f;
+
 	WantAnim w_move;
-	const ClipId carry_clip = carry_clip_for(res_type, res_sub);
-	w_move.clip = laden_move ? carry_clip : (sprint ? CLIP_RUN : CLIP_WALK);
-	w_move.state = laden_move ? rtso::AnimState::Carry
-			: (sprint ? rtso::AnimState::Run : rtso::AnimState::Walk);
+	if (laden && is_cavalry) {
+		w_move.clip = CLIP_WALK; // For mounted unit, rider controller plays cavalry_carry
+		w_move.state = rtso::AnimState::Carry;
+	} else if (laden) {
+		w_move.clip = moving ? carry_clip_for(res_type, res_sub) : idle_carry_clip_for(res_type, res_sub);
+		w_move.state = rtso::AnimState::Carry;
+	} else {
+		w_move.clip = sprint ? CLIP_RUN : CLIP_WALK;
+		w_move.state = sprint ? rtso::AnimState::Run : rtso::AnimState::Walk;
+	}
 
 	if (!alive || uaction == rtso::ACTION_DYING) {
 		w.clip = CLIP_DEATH;
@@ -1437,7 +1473,23 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 	switch (uaction) {
 		// Gather/build/attack block movement clips (SelectMovementAnimation early-out).
 		case rtso::ACTION_GATHER:
-			if (speed2 > 0.05f) return w_move;
+			if (speed2 > 0.05f) {
+				if (laden) return w_move;
+				if (is_cavalry) return w_move;
+				switch (res_type) {
+					case rtso::RES_WOOD: w.clip = CLIP_APPROACH_TREE; break;
+					case rtso::RES_GOLD: w.clip = CLIP_APPROACH_ORE; break;
+					case rtso::RES_STONE: w.clip = CLIP_APPROACH_ROCK; break;
+					case rtso::RES_FOOD:
+						if (res_sub == rtso::RES_SUB_GRAIN) w.clip = CLIP_APPROACH_GRAIN;
+						else if (res_sub == rtso::RES_SUB_MEAT) w.clip = CLIP_APPROACH_MEAT;
+						else w.clip = CLIP_WALK;
+						break;
+					default: w.clip = CLIP_WALK; break;
+				}
+				w.state = rtso::AnimState::Walk;
+				return w;
+			}
 			w.clip = gather_clip_for(utype, res_type, res_sub);
 			w.state = rtso::AnimState::Gather;
 			return w;
@@ -1474,17 +1526,21 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 				return w;
 			}
 			return w_move;
-		// UnitAI.SetDefaultAnimationVariant → carry_food / carry_*; fishing hull uses rowing_move.
+		// UnitAI.SetDefaultAnimationVariant: carry_food / carry_*; fishing hull uses rowing_move.
 		case rtso::ACTION_RETURN_DROPSITE:
-			w.clip = carry_clip;
-			w.state = rtso::AnimState::Carry;
-			return w;
+			if (laden) return w_move;
+			return w_move;
 		case rtso::ACTION_MOVE:
 		case rtso::ACTION_ATTACK_MOVE:
 		case rtso::ACTION_PATROL:
 			return w_move;
 		default:
 			break;
+	}
+	if (laden && !is_cavalry) {
+		w.clip = idle_carry_clip_for(res_type, res_sub);
+		w.state = rtso::AnimState::Carry;
+		return w;
 	}
 	if (speed2 > 0.001f) return w_move;
 	w.clip = CLIP_IDLE;
@@ -1536,6 +1592,21 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 		case CLIP_CARRY_STONE:
 		case CLIP_CARRY_METAL:
 			if (anim->has_animation(clip_name(CLIP_CARRY))) return CLIP_CARRY;
+			alt = CLIP_WALK;
+			break;
+		case CLIP_IDLE_CARRY_FOOD:
+		case CLIP_IDLE_CARRY_MEAT:
+		case CLIP_IDLE_CARRY_WOOD:
+		case CLIP_IDLE_CARRY_STONE:
+		case CLIP_IDLE_CARRY_METAL:
+			if (anim->has_animation(clip_name(CLIP_CARRY))) return CLIP_CARRY;
+			alt = CLIP_IDLE;
+			break;
+		case CLIP_APPROACH_TREE:
+		case CLIP_APPROACH_ORE:
+		case CLIP_APPROACH_ROCK:
+		case CLIP_APPROACH_GRAIN:
+		case CLIP_APPROACH_MEAT:
 			alt = CLIP_WALK;
 			break;
 		case CLIP_GATHER_TREE:
@@ -2621,6 +2692,17 @@ static int crowd_slot_of(ClipId clip) {
 		case CLIP_CARRY_WOOD: return 18;
 		case CLIP_CARRY_STONE: return 19;
 		case CLIP_CARRY_METAL: return 20;
+		case CLIP_APPROACH_TREE:
+		case CLIP_APPROACH_ORE:
+		case CLIP_APPROACH_ROCK:
+		case CLIP_APPROACH_GRAIN:
+		case CLIP_APPROACH_MEAT:
+			return 1;
+		case CLIP_IDLE_CARRY_FOOD: return 16;
+		case CLIP_IDLE_CARRY_MEAT: return 17;
+		case CLIP_IDLE_CARRY_WOOD: return 18;
+		case CLIP_IDLE_CARRY_STONE: return 19;
+		case CLIP_IDLE_CARRY_METAL: return 20;
 		case CLIP_PROMOTION: return 21;
 		case CLIP_CAPTURE: return 22;
 		case CLIP_IDLE2: return 23;
@@ -3194,20 +3276,36 @@ void RtsoWorldView::ensure_fauna_frames(int row) {
 
 // A unit model's first draw reads its GLB, tens of milliseconds on the frame. Twice a
 // second, the models of units that exist but aren't drawn yet (in the fog, in a
-// structure) and of units in the production queues start loading on a worker.
+// structure) and of units in the production queues start loading on a worker, while
+// few are in flight: a model the frame needs waits for every request queued ahead of it,
+// so a flood (the first poll after a save loads asks for hundreds) stalls that frame for seconds.
 void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso::Simulation::UnitView &uview, float delta) {
 	prefetch_poll_ -= delta;
 	if (prefetch_poll_ > 0.0f) return;
 	prefetch_poll_ = 0.5f;
 	if (prefetched_.size() != (size_t)rtso::CIV_COUNT * CROWD_KEY_COUNT) prefetched_.assign((size_t)rtso::CIV_COUNT * CROWD_KEY_COUNT, false);
+	// Requests (GLBs and their textures) still loading; new ones wait for a later poll past this.
+	constexpr int kMaxInFlight = 24;
+	const int in_flight = rtso::ModelLibrary::loads_in_flight();
+	if (in_flight >= kMaxInFlight) return;
+	int budget = std::max(1, (kMaxInFlight - in_flight) / 4); // unit models asked for this poll
 	auto want = [&](uint8_t civ, uint16_t key) {
 		if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
-		if (key >= CROWD_KEY_COUNT || crowd_[civ][key]) return;
+		if (budget <= 0 || key >= CROWD_KEY_COUNT || crowd_[civ][key]) return;
 		std::vector<bool>::reference done = prefetched_[(size_t)civ * CROWD_KEY_COUNT + key];
 		if (done) return;
 		done = true;
+		--budget;
 		rtso::ModelLibrary::prefetch("units", crowd_key_model(civ, key));
 	};
+	// The units the production queues are about to train first, then those that exist.
+	for (const auto &b : sim->buildings()) {
+		for (const rtso::ProductionOrder &o : b.queue) {
+			if (o.is_tech() || o.unit_type >= rtso::UNIT_TYPE_COUNT) continue;
+			const uint8_t civ = sim->team_civ(b.team);
+			want(civ, crowd_key_of(civ, o.unit_type, 0, o.tmpl, 0, 1));
+		}
+	}
 	for (size_t i = 0; i < uview.count; ++i) {
 		uint8_t t = uview.unit_type[i];
 		if (t >= rtso::UNIT_TYPE_COUNT) t = rtso::UNIT_VILLAGER;
@@ -3221,11 +3319,14 @@ void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso
 	// foundation and scaffold (its owner builds more of that kind), and a damaged one's rubble.
 	if (!rubble_loaded_) load_rubble();
 	if (!foundations_loaded_) load_foundations();
+	budget = std::max(5, (kMaxInFlight - in_flight) / 4); // and structure models
 	auto want_building = [&](const String &id) {
 		if (id.is_empty() || !building_prefetched_.insert(id.utf8().get_data()).second) return;
+		--budget;
 		rtso::ModelLibrary::prefetch("buildings", id);
 	};
 	for (const auto &b : sim->buildings()) {
+		if (budget < 5) break; // its model and up to four site or rubble models
 		if (b.wrecked) continue;
 		const uint8_t civ = sim->team_civ(b.team);
 		const uint32_t kind = (uint32_t)civ << 16 | b.type << 1;
@@ -3246,13 +3347,6 @@ void RtsoWorldView::prefetch_unit_models(const rtso::Simulation *sim, const rtso
 			const auto ro = rubble_of_.find(civ_type);
 			if (ro != rubble_of_.end()) want_building(String(ro->second.c_str()));
 			if (const char *r = rtso::civ_building_rubble(civ, b.type)) want_building(String(r));
-		}
-	}
-	for (const auto &b : sim->buildings()) {
-		for (const rtso::ProductionOrder &o : b.queue) {
-			if (o.is_tech() || o.unit_type >= rtso::UNIT_TYPE_COUNT) continue;
-			const uint8_t civ = sim->team_civ(b.team);
-			want(civ, crowd_key_of(civ, o.unit_type, 0, o.tmpl, 0, 1));
 		}
 	}
 }
@@ -3362,6 +3456,15 @@ void RtsoWorldView::ensure_runtime_clips(AnimationPlayer *ap, bool female) {
 		{ CLIP_CARRY_WOOD, "carry_wood", "biped_gatherer_carry_wood_f" },
 		{ CLIP_CARRY_STONE, "carry_ore", "biped_gatherer_carry_ore_f" },
 		{ CLIP_CARRY_METAL, "carry_ore", "biped_gatherer_carry_ore_f" },
+		{ CLIP_IDLE_CARRY_FOOD, "biped_gatherer_idle_carry_grain_m", "biped_gatherer_idle_carry_grain_f" },
+		{ CLIP_IDLE_CARRY_MEAT, "biped_gatherer_idle_carry_meat_m", "biped_gatherer_idle_carry_meat_f" },
+		{ CLIP_IDLE_CARRY_WOOD, "biped_gatherer_idle_carry_wood_m", "biped_gatherer_idle_carry_wood_f" },
+		{ CLIP_IDLE_CARRY_STONE, "biped_gatherer_idle_carry_ore_m", "biped_gatherer_idle_carry_ore_f" },
+		{ CLIP_IDLE_CARRY_METAL, "biped_gatherer_idle_carry_ore_m", "biped_gatherer_idle_carry_ore_f" },
+		{ CLIP_APPROACH_TREE, "biped_gatherer_walk_axe", "biped_gatherer_walk_axe" },
+		{ CLIP_APPROACH_ORE, "biped_gatherer_walk_pickaxe", "biped_gatherer_walk_pickaxe" },
+		{ CLIP_APPROACH_ROCK, "biped_gatherer_walk_pickaxe", "biped_gatherer_walk_pickaxe" },
+		{ CLIP_APPROACH_GRAIN, "biped_gatherer_walk_hoe", "biped_gatherer_walk_hoe" },
 		{ CLIP_PROMOTION, "biped_infantry_promotion", "biped_infantry_promotion" },
 		{ CLIP_GATHER_MEAT, "gather_meat", "gather_meat" },
 		{ CLIP_SLAUGHTER, "slaughter", "slaughter" },
@@ -3381,15 +3484,26 @@ Node3D *RtsoWorldView::attach_carry_prop(Node *model, uint8_t clip, bool female)
 	// hand for men, one for women; wood, stone, metal: weapon_R.
 	struct Prop { int scene; const char *bone; bool back; };
 	Prop props[2] = { { -1, "weapon_R", false }, { -1, "weapon_L", false } };
+	const bool is_cavalry_mount = sk->find_bone("horse") >= 0 || sk->find_bone("rider_0") >= 0;
 	switch ((ClipId)clip) {
-		case CLIP_CARRY_FOOD: props[0] = { 0, "chest", true }; break;
+		case CLIP_CARRY_FOOD:
+		case CLIP_IDLE_CARRY_FOOD: props[0] = { 0, "chest", true }; break;
 		case CLIP_CARRY_MEAT:
-			props[0].scene = female ? 6 : 1;
-			if (!female) props[1].scene = 5;
+		case CLIP_IDLE_CARRY_MEAT:
+			if (is_cavalry_mount) {
+				props[0].scene = 1; // 0 A.D. biped/rider/carry_meat.xml: shuttle_meat_male_R on weapon_R
+				props[1].scene = -1;
+			} else {
+				props[0].scene = female ? 6 : 1;
+				if (!female) props[1].scene = 5;
+			}
 			break;
-		case CLIP_CARRY_WOOD: props[0].scene = 2; break;
-		case CLIP_CARRY_STONE: props[0].scene = 3; break;
-		case CLIP_CARRY_METAL: props[0].scene = 4; break;
+		case CLIP_CARRY_WOOD:
+		case CLIP_IDLE_CARRY_WOOD: props[0].scene = 2; break;
+		case CLIP_CARRY_STONE:
+		case CLIP_IDLE_CARRY_STONE: props[0].scene = 3; break;
+		case CLIP_CARRY_METAL:
+		case CLIP_IDLE_CARRY_METAL: props[0].scene = 4; break;
 		default: return nullptr;
 	}
 	static const char *kFiles[7] = {
@@ -3974,6 +4088,7 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 				water_mat->set_metallic(0.2f);
 				water_mesh_node->set_material_override(water_mat);
 			}
+			water_mesh_node->set_layer_mask(1u | DECAL_LAYER);
 			add_child(water_mesh_node);
 			bind_los(water_mesh_node->get_material_override());
 		}
@@ -4470,16 +4585,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 				if (detailed.count(id) == 0) {
 			bool is_selected = (sel_set.count((int32_t)id) > 0);
-			const bool ringed = is_selected || highlight_set_.count((int32_t)id) > 0;
-			if (ringed) {
-				Decal *d = get_or_create_ring_decal(unit_rings_used++);
-				const Color &mod_col = is_selected ? (is_player ? RING_SEL_COL : RING_ENEMY_COL)
-				                                   : (is_player ? RING_HL_COL : RING_ENEMY_HL_COL);
-				d->set_modulate(mod_col);
-				const float rsize = std::max(1.1f, 1.25f * model_b.height * sc);
-				d->set_size(Vector3(rsize, 2.5f, rsize));
-				d->set_transform(Transform3D(Basis(), Vector3(x, ground + 0.1f, z)));
-				d->set_visible(true);
+			const rtso::SelectionOverlay &ov = unit_selection_overlay(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
+			const float target_alpha = dying ? 0.0f : (is_selected ? 1.0f : (highlight_set_.count((int32_t)id) > 0 ? 0.75f : (ov.always_visible ? 0.65f : 0.0f)));
+			const float alpha = update_overlay_fade(id, target_alpha, delta);
+			if (alpha > 0.005f) {
+				Color c = overlay_color(sim, uview.team[i], is_selected, ov.always_visible);
+				c.a = alpha;
+				place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), ov, model_b.metre, yaw,
+						Vector3(x, ground + 0.1f, z), c);
 			}
 			continue;
 		}
@@ -4560,16 +4673,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 
 		bool is_selected = (sel_set.count((int32_t)id) > 0);
-		const bool ringed = is_selected || highlight_set_.count((int32_t)id) > 0;
+		const rtso::SelectionOverlay &ov = unit_selection_overlay(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
+		const float target_alpha = dying ? 0.0f : (is_selected ? 1.0f : (highlight_set_.count((int32_t)id) > 0 ? 0.75f : (ov.always_visible ? 0.65f : 0.0f)));
+		const float alpha = update_overlay_fade(id, target_alpha, delta);
+		const bool ringed = alpha > 0.005f;
 		if (ringed) {
-			Decal *d = get_or_create_ring_decal(unit_rings_used++);
-			const Color &mod_col = is_selected ? (is_player ? RING_SEL_COL : RING_ENEMY_COL)
-			                                   : (is_player ? RING_HL_COL : RING_ENEMY_HL_COL);
-			d->set_modulate(mod_col);
-			const float rsize = std::max(1.1f, 1.25f * model_b.height * sc);
-			d->set_size(Vector3(rsize, 2.5f, rsize));
-			d->set_transform(Transform3D(Basis(), Vector3(x, ground + 0.1f, z)));
-			d->set_visible(true);
+			Color c = overlay_color(sim, uview.team[i], is_selected, ov.always_visible);
+			c.a = alpha;
+			place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), ov, model_b.metre, yaw,
+					Vector3(x, ground + 0.1f, z), c);
 		}
 		v.ring_on = ringed;
 
@@ -5251,14 +5363,18 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			fauna_mm[row][clip]->set_instance_custom_data(fslot, Color(1.0f, 1.0f, 1.0f, 1.0f + 0.999f * rtso::ModelLibrary::variant_draw(fview.id[f])));
 		}
 		const bool f_sel = !sel_set.empty() && sel_set.count((int32_t)fview.id[f]);
-		if (f_sel || (!highlight_set_.empty() && highlight_set_.count((int32_t)fview.id[f]))) {
+		const bool f_high = !highlight_set_.empty() && highlight_set_.count((int32_t)fview.id[f]);
+		const float f_target = f_sel ? 1.0f : (f_high ? 0.75f : 0.0f);
+		const float f_alpha = update_overlay_fade(0x10000000u | fview.id[f], f_target, delta);
+		if (f_alpha > 0.005f) {
 			// The player's own selected livestock (0 A.D. livestock are units), or a hovered animal.
-			Decal *r = get_or_create_ring_decal(unit_rings_used++);
-			r->set_modulate(f_sel ? RING_SEL_COL : RING_HL_COL);
-			const float rs = std::max(1.1f, fsc * 1.6f);
-			r->set_size(Vector3(rs, 2.5f, rs));
-			r->set_transform(Transform3D(Basis(), Vector3(fx, fy + 0.1f, fz)));
-			r->set_visible(true);
+			Color c = ring_color(sim, fview.owner[f], f_sel);
+			c.a = f_alpha;
+			place_selection_overlay(get_or_create_ring_decal(unit_rings_used++),
+					rtso::fauna_selection_overlay(rtso::fauna_type_info(ft).template_name), fent.metre, frot,
+					Vector3(fx, fy + 0.1f, fz), c);
+		}
+		if (f_sel || f_high) {
 			// StatusBars.js: an animal's food supply and, alive, its health.
 			StatusStack st;
 			const int food = rtso::fauna_type_info(ft).food_amount;
@@ -5274,43 +5390,59 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	}
 	// A hovered tree, mine, bush or shoal (as last seen): its selection ring and
 	// StatusBars.js ResourceSupply bar.
-	if (!highlight_set_.empty()) {
+	if (!highlight_set_.empty() || !selection_fades_.empty()) {
 		for (const auto &r : mirages_.resources()) {
-			if (r.subtype == rtso::RES_SUB_GRAIN || !highlight_set_.count((int32_t)r.id)) continue;
+			if (r.subtype == rtso::RES_SUB_GRAIN) continue;
+			const bool high = highlight_set_.count((int32_t)r.id) > 0;
+			const float target_a = high ? 0.75f : 0.0f;
+			const float alpha = update_overlay_fade(0x40000000u | r.id, target_a, delta);
+			if (alpha <= 0.005f) continue;
+
 			const float ry = r.subtype == rtso::RES_SUB_FISH ? std::max(sim->get_terrain_height(r.x, r.z), drawn_water_height(sim))
 			                                                : sim->get_terrain_height(r.x, r.z);
-			// The StatusBars of template_gaia (2 m wide, 0.333 m tall, 5 m up), _tree,
-			// _fruit, _fish and _ore/_rock_large, at 4 m a unit.
+			// 0 A.D. footprint circle radii (template_gaia_tree 2.5m, _fruit 3.0m, _fish 10.0m, _ore/_rock 5.0m/3.0m)
 			const bool mine = (r.type == rtso::RES_GOLD || r.type == rtso::RES_STONE) && r.subtype != rtso::RES_SUB_RUINS;
-			float radius = 0.7f, bar_w = 2.0f, bar_h = 0.333f, offset = 5.0f;
+			float radius = 2.5f, bar_w = 2.0f, bar_h = 0.333f, offset = 5.0f;
 			if (mine) {
 				auto it = mine_large_.find(r.id);
 				const bool large = it != mine_large_.end() && it->second;
-				radius = large ? 2.2f : 1.3f;
-				if (large) bar_w = 5.0f, bar_h = 0.5f;
+				radius = large ? 5.0f : 3.0f;
+				bar_w = large ? 5.0f : 3.0f;
+				bar_h = 0.5f;
 			} else if (r.type == rtso::RES_WOOD) {
+				radius = 2.5f;
 				bar_w = 3.0f, bar_h = 0.5f, offset = 10.0f;
 			} else if (r.subtype == rtso::RES_SUB_FISH) {
-				radius = 1.0f, bar_w = 4.0f, bar_h = 0.666f;
+				radius = 10.0f;
+				bar_w = 4.0f, bar_h = 0.666f;
 			} else if (r.type == rtso::RES_FOOD) {
+				radius = 3.0f;
 				bar_w = 3.0f, bar_h = 0.5f, offset = 4.0f;
 			}
-			Decal *ring = get_or_create_ring_decal(unit_rings_used++);
-			ring->set_modulate(RING_HL_COL);
 			const float rs = 2.0f * radius;
-			ring->set_size(Vector3(rs, 2.5f, rs));
-			ring->set_transform(Transform3D(Basis(), Vector3(r.x, ry + 0.1f, r.z)));
-			ring->set_visible(true);
-			const int32_t max = supply_max_.emplace(r.id, r.amount).first->second;
-			StatusStack st;
-			st.supply = max > 0 ? (float)r.amount / (float)max : 1.0f;
-			draw_status_stack(sim, Vector3(r.x, ry + 0.25f * offset, r.z), 0.25f * bar_w, 0.25f * bar_h, 0.25f, st);
+			Color col = ring_color(sim, rtso::GAIA_PLAYER, false);
+			col.a = alpha;
+			place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), {"128x128/ellipse", rs, rs, false}, 1.0f, 0.0f,
+					Vector3(r.x, ry + 0.1f, r.z), col);
+			if (high) {
+				const int32_t max = supply_max_.emplace(r.id, r.amount).first->second;
+				StatusStack st;
+				st.supply = max > 0 ? (float)r.amount / (float)max : 1.0f;
+				draw_status_stack(sim, Vector3(r.x, ry + 0.25f * offset, r.z), 0.25f * bar_w, 0.25f * bar_h, 0.25f, st);
+			}
 		}
 	}
 	for (size_t k = 0; k < unit_rings_used; ++k) sync_gl_decal(sim, unit_ring_decals_[k]);
-	for (size_t k = unit_rings_used; k < unit_ring_decals_.size(); ++k) unit_ring_decals_[k]->set_visible(false);
+	for (size_t k = unit_rings_used; k < unit_ring_decals_.size(); ++k) {
+		unit_ring_decals_[k]->set_visible(false);
+		if (unit_ring_decals_[k]->get_child_count() > 0) {
+			if (MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(unit_ring_decals_[k]->get_child(0))) {
+				mi->set_visible(false);
+			}
+		}
+	}
 	status_sprites_.end_frame();
-	draw_structure_outlines(sim);
+	draw_structure_outlines(sim, delta);
 }
 
 // The icons of the shown auras (aura_icon_sources_) reaching an entity of `team` at
@@ -5383,23 +5515,50 @@ void RtsoWorldView::draw_status_stack(const rtso::Simulation *sim, const Vector3
 	}
 }
 
+// One unshaded, always-on-top material per outline colour (owners x selected/hovered).
+const Ref<StandardMaterial3D> &RtsoWorldView::outline_material(const Color &c) {
+	Ref<StandardMaterial3D> &m = outline_mats_[c.to_rgba32()];
+	if (m.is_null()) {
+		m.instantiate();
+		m->set_albedo(c);
+		m->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+		if (c.a < 1.0f) m->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+		m->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
+	}
+	return m;
+}
+
 // Selectable.js overlay for structures: an outline round the footprint of each selected
 // structure, and a fainter one round a highlighted (hovered or band-boxed) one.
 void RtsoWorldView::sync_gl_decal(const rtso::Simulation *sim, Decal *d) {
-	if (!rtso::gl_compatibility() || !sim || !d || !d->is_inside_tree()) return;
+	if (!sim || !d || !d->is_inside_tree()) return;
+	const bool on_water = (sim->water_height() > -0.5f) && (d->get_position().y >= drawn_water_height(sim) - 0.2f);
+	if (!rtso::gl_compatibility() && !on_water) {
+		if (d->get_child_count() > 0) {
+			if (MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(d->get_child(0))) {
+				mi->set_visible(false);
+			}
+		}
+		d->set_cull_mask(DECAL_LAYER);
+		return;
+	}
 	Ref<Texture2D> tex = d->get_texture(Decal::TEXTURE_ALBEDO);
 	if (tex.is_null()) return;
+	if (on_water && !rtso::gl_compatibility()) {
+		d->set_cull_mask(0); // On water in Forward+/Mobile, avoid projection onto seabed
+	}
 	MeshInstance3D *mi = d->get_child_count() > 0 ? Object::cast_to<MeshInstance3D>(d->get_child(0)) : nullptr;
 	if (!mi) {
 		mi = memnew(MeshInstance3D);
 		mi->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
 		d->add_child(mi);
 	}
+	mi->set_visible(true);
 	// Rebuilt only when the decal moves, turns, resizes or changes colour.
 	const Transform3D xf = d->get_global_transform();
 	const Vector3 size = d->get_size();
 	const Color mod = d->get_modulate();
-	const Array key = Array::make(xf, size, mod);
+	const Array key = Array::make(xf, size, mod, tex);
 	if (mi->has_meta("gl_key") && mi->get_meta("gl_key") == Variant(key)) return;
 	mi->set_meta("gl_key", key);
 	Ref<StandardMaterial3D> &mat = gl_decal_mats_[tex.ptr()];
@@ -5413,7 +5572,7 @@ void RtsoWorldView::sync_gl_decal(const rtso::Simulation *sim, Decal *d) {
 		mat->set_flag(BaseMaterial3D::FLAG_DISABLE_FOG, true);
 		mat->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, tex);
 	}
-	// A grid about a world unit (4 m) apart, each vertex on the terrain under it,
+	// A grid about a world unit (4 m) apart, each vertex on the terrain or water under it,
 	// UVs as the Decal maps its albedo (u along x, v along z).
 	const int n = Math::clamp((int)Math::ceil(std::max(size.x, size.z)), 2, 16);
 	const Transform3D inv = xf.affine_inverse();
@@ -5424,11 +5583,12 @@ void RtsoWorldView::sync_gl_decal(const rtso::Simulation *sim, Decal *d) {
 	verts.resize((n + 1) * (n + 1));
 	uvs.resize(verts.size());
 	cols.resize(verts.size());
+	const float water_y = (sim->water_height() > -0.5f) ? drawn_water_height(sim) : -1000.0f;
 	for (int j = 0; j <= n; ++j) {
 		for (int i = 0; i <= n; ++i) {
 			const float u = (float)i / n, v = (float)j / n;
 			Vector3 w = xf.xform(Vector3((u - 0.5f) * size.x, 0.0f, (v - 0.5f) * size.z));
-			w.y = sim->get_terrain_height(w.x, w.z) + 0.03f;
+			w.y = std::max(sim->get_terrain_height(w.x, w.z), water_y) + 0.03f;
 			const int k = j * (n + 1) + i;
 			verts.set(k, inv.xform(w));
 			uvs.set(k, Vector2(u, v));
@@ -5461,9 +5621,6 @@ void RtsoWorldView::sync_gl_decal(const rtso::Simulation *sim, Decal *d) {
 Decal *RtsoWorldView::get_or_create_ring_decal(size_t index) {
 	while (unit_ring_decals_.size() <= index) {
 		Decal *d = memnew(Decal);
-		if (ring_decal_tex_.is_valid()) {
-			d->set_texture(Decal::TEXTURE_ALBEDO, ring_decal_tex_);
-		}
 		d->set_cull_mask(DECAL_LAYER);
 		d->set_normal_fade(0.2f);
 		d->set_visible(false);
@@ -5473,17 +5630,118 @@ Decal *RtsoWorldView::get_or_create_ring_decal(size_t index) {
 	return unit_ring_decals_[index];
 }
 
-void RtsoWorldView::draw_structure_outlines(const rtso::Simulation *sim) {
+Ref<Texture2D> RtsoWorldView::selection_texture(const char *texture, const Color &c) {
+	const std::string key = std::string(texture) + "#" + std::to_string(Color(c.r, c.g, c.b).to_rgba32());
+	if (auto it = selection_textures_.find(key); it != selection_textures_.end()) return it->second;
+	auto &imgs = selection_images_[texture];
+	if (imgs.first.is_null()) {
+		auto load = [](const String &path) {
+			Ref<Image> img;
+			if (ResourceLoader::get_singleton()->exists(path)) {
+				Ref<Texture2D> tex = ResourceLoader::get_singleton()->load(path);
+				if (tex.is_valid()) img = tex->get_image();
+			}
+			if (img.is_null() || img->is_empty()) img = Image::load_from_file(ProjectSettings::get_singleton()->globalize_path(path));
+			if (img.is_null() || img->is_empty()) return Ref<Image>();
+			img = img->duplicate();
+			if (img->is_compressed()) img->decompress();
+			img->clear_mipmaps();
+			img->convert(Image::FORMAT_RGBA8);
+			return img;
+		};
+		const String base = String("res://assets/textures/selection/") + texture;
+		imgs.first = load(base + String(".png"));
+		imgs.second = load(base + String("_mask.png"));
+		if (imgs.first.is_null()) { // a plain ring
+			imgs.first = Image::create_empty(64, 64, false, Image::FORMAT_RGBA8);
+			for (int y = 0; y < 64; ++y)
+				for (int x = 0; x < 64; ++x) {
+					const float d = Vector2(x - 31.5f, y - 31.5f).length();
+					imgs.first->set_pixel(x, y, Color(0, 0, 0, d > 26.0f && d < 31.0f ? 1.0f : 0.0f));
+				}
+		}
+	}
+	// overlayline.fs: colour = mix(base.rgb, colour, mask.r) at the base's alpha.
+	Ref<Image> out = imgs.first->duplicate();
+	const Ref<Image> &mask = imgs.second;
+	const bool masked = mask.is_valid() && mask->get_size() == out->get_size();
+	for (int y = 0; y < out->get_height(); ++y) {
+		for (int x = 0; x < out->get_width(); ++x) {
+			const Color b = out->get_pixel(x, y);
+			const float k = masked ? mask->get_pixel(x, y).r : (b.a > 0.0f ? 1.0f : 0.0f);
+			out->set_pixel(x, y, Color(b.r + (c.r - b.r) * k, b.g + (c.g - b.g) * k, b.b + (c.b - b.b) * k, b.a));
+		}
+	}
+	out->generate_mipmaps();
+	Ref<Texture2D> tex = ImageTexture::create_from_image(out);
+	selection_textures_[key] = tex;
+	return tex;
+}
+
+// CCmpSelectable::UpdateDynamicOverlay: the overlay's width x depth metre quad on the ground,
+// turned with the entity (its depth along the facing, the texture's top ahead), at the colour's alpha.
+void RtsoWorldView::place_selection_overlay(Decal *d, const rtso::SelectionOverlay &ov, float metre, float yaw, const Vector3 &at, const Color &c) {
+	const Ref<Texture2D> tex = selection_texture(ov.texture, c);
+	if (d->get_texture(Decal::TEXTURE_ALBEDO) != tex) d->set_texture(Decal::TEXTURE_ALBEDO, tex);
+	d->set_modulate(Color(1.0f, 1.0f, 1.0f, c.a));
+	d->set_size(Vector3(ov.width * metre, 2.5f, ov.depth * metre));
+	d->set_transform(Transform3D(Basis(Vector3(0, 1, 0), yaw), at));
+	d->set_visible(true);
+}
+
+float RtsoWorldView::update_overlay_fade(uint32_t key, float target_alpha, float delta) {
+	auto it = selection_fades_.find(key);
+	if (it == selection_fades_.end()) {
+		if (target_alpha <= 0.001f) return 0.0f;
+		OverlayFade f;
+		f.alpha = 0.0f;
+		f.baseline = 0.0f;
+		f.target = target_alpha;
+		f.progress = 0.0f;
+		it = selection_fades_.emplace(key, f).first;
+	}
+	OverlayFade &f = it->second;
+	if (std::abs(f.target - target_alpha) > 0.01f) {
+		f.baseline = f.alpha;
+		f.target = target_alpha;
+		f.progress = 0.0f;
+	}
+	static constexpr float FADE_DURATION = 0.3f;
+	if (f.progress < FADE_DURATION) {
+		f.progress += delta;
+		if (f.progress >= FADE_DURATION) {
+			f.alpha = f.target;
+			f.progress = FADE_DURATION;
+		} else {
+			// Ease::QuartOut (0 A.D. CCmpSelectable.cpp / Ease.h):
+			// t = t/d - 1; return -c*(t*t*t*t - 1) + b;
+			const float t = f.progress / FADE_DURATION - 1.0f;
+			const float c = f.target - f.baseline;
+			f.alpha = -c * (t * t * t * t - 1.0f) + f.baseline;
+		}
+	}
+	if (f.alpha <= 0.005f && f.target <= 0.001f) {
+		selection_fades_.erase(it);
+		return 0.0f;
+	}
+	return std::clamp(f.alpha, 0.0f, 1.0f);
+}
+
+void RtsoWorldView::draw_structure_outlines(const rtso::Simulation *sim, float delta) {
 	size_t used = 0;
-	if (!sel_buildings_.empty() || !highlight_set_.empty()) {
+	if (!sel_buildings_.empty() || !highlight_set_.empty() || !selection_fades_.empty()) {
 		if (outline_mesh_.is_null()) {
 			outline_mesh_.instantiate();
 			outline_mesh_->set_size(Vector3(1.0f, 0.04f, 1.0f));
 		}
 		for (const auto &b : sim->buildings()) {
 			const bool sel = sel_buildings_.count((int32_t)b.id) > 0;
-			if (!sel && !highlight_set_.count((int32_t)b.id)) continue;
+			const bool high = highlight_set_.count((int32_t)b.id) > 0;
 			if (b.wrecked || b.hp <= 0.0f) continue;
+			const float target_a = sel ? 1.0f : (high ? 0.75f : 0.0f);
+			const float alpha = update_overlay_fade(0x20000000u | b.id, target_a, delta);
+			if (alpha <= 0.005f) continue;
+
 			float hu = b.hu > 0.0f ? b.hu : b.half_size, hv = b.hv > 0.0f ? b.hv : b.half_size;
 			// RTS0's grid footprints are coarser than 0 A.D.'s template Footprint, which the
 			// outline follows: take the drawn model's ground extent where it is larger.
@@ -5500,8 +5758,9 @@ void RtsoWorldView::draw_structure_outlines(const rtso::Simulation *sim) {
 			hu += 0.25f;
 			hv += 0.25f;
 			const float y = sim->get_terrain_height(b.x, b.z) + 0.06f;
-			const bool own = b.team == local_player_;
-			const Ref<StandardMaterial3D> &mat = sel ? (own ? ring_sel_mat : ring_enemy_mat) : (own ? ring_hl_mat : ring_enemy_hl_mat);
+			Color col = ring_color(sim, b.team, sel);
+			col.a = alpha;
+			const Ref<StandardMaterial3D> &mat = outline_material(col);
 			const Vector3 u(b.ux, 0.0f, b.uz), v(-b.uz, 0.0f, b.ux);
 			const float w = 0.15f;
 			// Two bars along u (at +-hv) and two along v (at +-hu).
@@ -5521,6 +5780,42 @@ void RtsoWorldView::draw_structure_outlines(const rtso::Simulation *sim) {
 				const Vector3 across = bar.axis == u ? v : u;
 				const Basis basis(bar.axis * bar.len, Vector3(0, 1, 0), across * w);
 				m->set_transform(Transform3D(basis, Vector3(b.x, y, b.z) + bar.c));
+				if (m->get_material_override() != mat) m->set_material_override(mat);
+				m->set_visible(true);
+			}
+		}
+		// 0 A.D. template_gaia_treasure footprint: Square width="2.0", depth="2.0" turned by treasure_angle
+		// (SimRender::ConstructTexturedLineBox)
+		for (const auto &t : sim->treasures()) {
+			const bool high = highlight_set_.count((int32_t)t.id) > 0;
+			const float target_a = high ? 0.75f : 0.0f;
+			const float alpha = update_overlay_fade(0x60000000u | t.id, target_a, delta);
+			if (alpha <= 0.005f) continue;
+			const float hu = 1.0f + 0.15f, hv = 1.0f + 0.15f;
+			const float yaw = rtso::Simulation::treasure_angle(t.id);
+			const float ground = std::max(sim->get_terrain_height(t.x, t.z), sim->water_height());
+			const float y = ground + 0.06f;
+			Color col = ring_color(sim, rtso::GAIA_PLAYER, false);
+			col.a = alpha;
+			const Ref<StandardMaterial3D> &mat = outline_material(col);
+			const Vector3 u(std::cos(yaw), 0.0f, -std::sin(yaw)), v(std::sin(yaw), 0.0f, std::cos(yaw));
+			const float w = 0.15f;
+			const struct { Vector3 c; Vector3 axis; float len; } bars[4] = {
+				{u * 0.0f + v * hv, u, 2.0f * hu + w}, {v * -hv, u, 2.0f * hu + w},
+				{u * hu, v, 2.0f * hv + w}, {u * -hu, v, 2.0f * hv + w},
+			};
+			for (const auto &bar : bars) {
+				if (used == outline_bars_.size()) {
+					MeshInstance3D *m = memnew(MeshInstance3D);
+					m->set_mesh(outline_mesh_);
+					m->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+					add_child(m);
+					outline_bars_.push_back(m);
+				}
+				MeshInstance3D *m = outline_bars_[used++];
+				const Vector3 across = bar.axis == u ? v : u;
+				const Basis basis(bar.axis * bar.len, Vector3(0, 1, 0), across * w);
+				m->set_transform(Transform3D(basis, Vector3(t.x, y, t.z) + bar.c));
 				if (m->get_material_override() != mat) m->set_material_override(mat);
 				m->set_visible(true);
 			}

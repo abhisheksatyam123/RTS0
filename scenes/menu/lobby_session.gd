@@ -28,6 +28,8 @@ var player_name := ""
 var rating = null # this player's lobby rating (Engine.LobbyGetPlayerRating), null while unrated
 # The game this player hosts, as registered with the lobby; empty when not hosting.
 var room := {}
+# The lobby's game list as the lobby page last read it (0.28 g_LobbyGames).
+var games: Array = []
 
 # XmppClient keeps the session's lobby chat: every lobby page replays the
 # messages after this id (-1: no page has read the chat since signing in).
@@ -55,6 +57,10 @@ var _punch_busy := false
 
 
 func _ready() -> void:
+	# 0.28 lobby.server (XmppClient): the lobby last signed in to.
+	var saved := str(RtsoUserConfig.new().get_value("lobby.server"))
+	if saved != "":
+		address = saved
 	_timer = Timer.new()
 	_timer.wait_time = HEARTBEAT_S
 	_timer.autostart = true
@@ -255,6 +261,14 @@ func change_password(encrypted: String, cb: Callable) -> void:
 		cb.call(code, obj))
 
 
+## gamesetup_mp.js startHost: a game name another host already lists.
+func game_name_taken(game_name: String, host: String) -> bool:
+	for r in games:
+		if r is Dictionary and str(r.get("name", "")) == game_name and str(r.get("host_name", "")) != host:
+			return true
+	return false
+
+
 func sign_in(addr: String, name: String, cb: Callable, encrypted: String = "") -> void:
 	if _logout_pending:
 		_after_logout.append(func() -> void: sign_in(addr, name, cb, encrypted))
@@ -297,6 +311,7 @@ func reconnect(cb: Callable) -> void:
 
 func sign_out() -> void:
 	in_game = false
+	games = []
 	if token != "":
 		_logout_pending = true
 		post_json("/logout", {"token": token}, func(_code: int, _obj) -> void:
@@ -730,12 +745,18 @@ static func game_details(room: Dictionary, ratings: Dictionary) -> String:
 	if room.has("mods"):
 		var modlib: GDScript = load("res://scenes/menu/mods.gd")
 		lines.append("")
-		lines.append("[b]Mods:[/b]" if game_compatible(room) else "[color=red][b]Mods (incompatible):[/b][/color]")
 		var sorted_mods: Array = (room["mods"] as Array).filter(func(m) -> bool: return m is Dictionary)
+		# The incompatible heading's tooltip lists the differences (comparedModsString).
+		var hint := func(text: String) -> String: return text.replace("[", "(").replace("]", ")").replace("\"", "'")
+		if game_compatible(room):
+			lines.append("[b]Mods:[/b]")
+		else:
+			lines.append("[hint=\"%s\"][color=red][b]Mods (incompatible):[/b][/color][/hint]" % hint.call(
+				"You have some incompatible mods:\n" + modlib.compared_mods_string(sorted_mods, modlib.engine_mods())))
 		var plain := sorted_mods.filter(func(m) -> bool: return not m.get("ignoreInCompatibilityChecks", false))
 		for m in plain + sorted_mods.filter(func(m) -> bool: return m.get("ignoreInCompatibilityChecks", false)):
 			var line: String = esc.call(modlib.mod_to_string(m))
-			lines.append(line if plain.has(m) else "[color=#b4b4b4]%s[/color]" % line)
+			lines.append(line if plain.has(m) else "[hint=\"This mod does not affect MP compatibility\"][color=#b4b4b4]%s[/color][/hint]" % line)
 	return "\n".join(lines)
 
 

@@ -1,7 +1,8 @@
 extends RefCounted
 ## Starts a scenario map with its own players, as 0 A.D. does for campaign levels
 ## (startScenario) and Learn to Play's Tutorial (page_autostart): the local player
-## in the first seat, AI in the others, the map's civs, cheats on.
+## in the first seat, AI in the others, the map's civs, cheats on, every other setting
+## at its default.
 
 ## The maps 0 A.D. keeps in maps/tutorials: reached from Learn to Play and the
 ## Tutorial campaign, not listed in game setup (whose Scenario type is maps/scenarios).
@@ -23,7 +24,10 @@ static func configure(ms: Node, map_id: String) -> bool:
 	for i in n:
 		types.append(0 if i == 0 else 1)
 		civs.append(int(players[i].get("civ", 0)) if i < players.size() and typeof(players[i]) == TYPE_DICTIONARY else 0)
+	if ms.has_method("reset_match"):
+		ms.reset_match() # a fresh GameSettings: nothing kept from the last Game Setup
 	ms.map_id = map_id
+	ms.local_slot = 0 # PlayerAssignment: the local player in the first seat
 	ms.seed = 0
 	ms.seed_exact = false
 	ms.ai_seed = 0
@@ -34,7 +38,9 @@ static func configure(ms: Node, map_id: String) -> bool:
 	ms.slot_types = types
 	ms.slot_civs = civs
 	ms.slot_teams = range(n).map(func(_i): return 0)
-	ms.slot_names = []
+	# The local player's name (playername.singleplayer, else the system user name); the
+	# others keep the map's.
+	ms.slot_names = [load("res://scenes/menu/gamesetup.gd").singleplayer_name()]
 	ms.slot_colors = []
 	ms.player_civ = civs[0]
 	ms.ai_civ = civs[1] if n > 1 else civs[0]

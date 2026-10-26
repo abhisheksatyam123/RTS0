@@ -331,6 +331,30 @@ func run() -> void:
 	spin = page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots")
 	check(not spin.editable and (page.get_node("%PlayerCountSlot").get_child(0) as RtsoSafeSelect).disabled, "a skirmish keeps its player count")
 
+	print("5b. A skirmish's PlayerData civs, names and LockTeams (PlayerCiv, PlayerName, LockedTeams)")
+	set_filter(page, "All Maps")
+	check(select_map(page, "egypt"), "Egypt (3v3)")
+	await frames(2)
+	rows = slot_selects(page)
+	check(rows.size() == 6 and rows.all(func(r): return r["civ"].disabled and r["civ"].text != "Random"),
+		"its six civs, locked: " + str(rows.map(func(r): return r["civ"].text)))
+	check(page.get_node("%LockTeams").button_pressed and not page.get_node("%LockTeams").disabled, "Lock Teams on, still editable")
+	for i in range(1, 6):
+		page._slot_rows[i]["kind"] = 1
+	page._on_start_pressed()
+	check(ms.slot_civs == [12, 10, 4, 2, 11, 3] and ms.slot_names.slice(1) == ["Thebes", "Siwa", "Sinai", "Memphis", "Cyrene"],
+		"Start sends its civs and the AIs keep its names: %s %s" % [str(ms.slot_civs), str(ms.slot_names)])
+	await frames(4)
+	change_scene_to_file("res://scenes/menu/gamesetup.tscn")
+	await frames(6)
+	page = current_scene
+	set_filter(page, "All Maps")
+	check(select_map(page, "acropolis_bay"), "Acropolis Bay")
+	await frames(2)
+	rows = slot_selects(page)
+	check(rows.size() > 0 and not rows[0]["civ"].disabled, "civs free again")
+	check(not page.get_node("%LockTeams").button_pressed, "a map without LockTeams clears it")
+
 	print("Map colours (PlayerColor.onMapChange)")
 	var GS = load("res://scenes/menu/gamesetup.gd")
 	check(GS.nearest_color(Color8(46, 46, 200)) == 8 and GS.nearest_color(Color8(150, 20, 20)) == 1, "a map colour takes the nearest palette entry")

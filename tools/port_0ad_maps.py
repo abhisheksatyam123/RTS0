@@ -270,7 +270,9 @@ def _wall_length(root):
 
 # simulation/templates/campaigns/: army_* are hero or champion swordsmen (their parents,
 # here the army's own hero), campaign_city_* civic centres and campaign_religious_test a
-# temple, all Macedonian or Spartan as their names say.
+# temple, all Macedonian or Spartan as their names say. The stand-in picks the entry's "type";
+# its "template" stays the campaign one, which RTS0 has as roster rows (campaigns/army_*) and
+# BuildingTypes (map_structure_template).
 CAMPAIGN_STAND_INS = {
     "campaigns/army_mace_hero_alexander": "units/mace/hero_alexander_iii",
     "campaigns/army_spart_hero_leonidas": "units/spart/hero_leonidas",
@@ -704,6 +706,12 @@ def apply_player_data(players, settings, scenario=False, to_world=None):
         c = pd.get("Color")
         if isinstance(c, dict) and all(isinstance(c.get(k), (int, float)) for k in "rgb"):
             p["color"] = [int(c["r"]), int(c["g"]), int(c["b"])]
+        # 0.28 PlayerName.js _set: the map's Name is the seat's default name (an AI keeps it); the
+        # default "Player N" adds nothing.
+        p.pop("name", None)
+        nm = pd.get("Name")
+        if isinstance(nm, str) and nm.strip() and nm != f"Player {p['id']}":
+            p["name"] = nm
         # helpers/Player.js SetStartingCamera: the game opens with this player's camera on
         # Position at Rotation (degrees) instead of on their civic centre.
         p.pop("camera", None)
@@ -924,9 +932,10 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 continue
             if ltpl.startswith("territory_pulls/"):
                 continue  # campaign_test_map's territory_pull_30 markers: RTS0 has no such entity
-            if ltpl in CAMPAIGN_STAND_INS:
+            campaign = ltpl if ltpl in CAMPAIGN_STAND_INS else ""
+            if campaign:
                 # The campaign test maps' armies and cities (simulation/templates/campaigns/)
-                # stand in as the unit or structure their template inherits from.
+                # take the type of the unit or structure their template inherits from.
                 tpl = CAMPAIGN_STAND_INS[ltpl]
                 ltpl = tpl.lower()
 
@@ -1074,7 +1083,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     units.append({"type": "", "player": ply, "x": wx, "z": wz})
                 # The 0 A.D. template ("athen/infantry_javelineer_b"): RTS0 spawns that civ roster
                 # template or building when it has one, else falls back to "type".
-                short = tpl.split("/", 1)[1] if "/" in tpl else tpl
+                short = campaign or (tpl.split("/", 1)[1] if "/" in tpl else tpl)
                 if len(units) > n_units:
                     unit_index[uid] = n_units
                     units[-1]["template"] = short

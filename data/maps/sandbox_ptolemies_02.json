@@ -6663,14 +6663,16 @@
         "metal": 50000,
         "stone": 50000,
         "wood": 50000
-      }
+      },
+      "name": "Ptolemy \"Savior\""
     },
     {
       "id": 4,
       "team": 3,
       "start_x": -115.95,
       "start_z": 46.45,
-      "civ": 4
+      "civ": 4,
+      "name": "Libyans"
     },
     {
       "id": 3,
@@ -6682,7 +6684,8 @@
         0,
         0,
         0
-      ]
+      ],
+      "name": "Seleucids"
     }
   ],
   "resources": [

@@ -693,6 +693,9 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // germ/infantry_swordsman_a
 	{LIMIT_NONE, 0}, // germ/support_healer_e
 	{LIMIT_NONE, 0}, // plane
+	{LIMIT_HERO, 1}, // campaigns/army_mace_hero_alexander
+	{LIMIT_NONE, 0}, // campaigns/army_mace_standard
+	{LIMIT_HERO, 1}, // campaigns/army_spart_hero_leonidas
 };
 static_assert(sizeof(UNIT_LIMITS) / sizeof(UNIT_LIMITS[0]) == CIV_UNIT_TEMPLATE_COUNT,
 		"one UnitLimit per roster row: rerun tools/extract_0ad_entity_limits.py");
@@ -818,6 +821,16 @@ inline constexpr uint8_t BUILDING_LIMIT_CATEGORY[BLD_TYPE_COUNT] = {
 	LIMIT_TEMPLE_OF_ISIS, // BLD_TEMPLE_ISIS
 	LIMIT_NONE, // BLD_MILL
 	LIMIT_NONE, // BLD_TOPHET
+	LIMIT_CIVIL_CENTRE, // BLD_CAMPAIGN_CITY
+	LIMIT_CIVIL_CENTRE, // BLD_CAMPAIGN_CITY_MINOR
+	LIMIT_NONE, // BLD_CAMPAIGN_SANCTUARY
+	LIMIT_NONE, // BLD_STALL
+	LIMIT_NONE, // BLD_HUT
+	LIMIT_NONE, // BLD_LONGHOUSE
+	LIMIT_NONE, // BLD_PERS_HOUSE_A
+	LIMIT_NONE, // BLD_PERS_HOUSE_B
+	LIMIT_NONE, // BLD_APARTMENT_BLOCK
+	LIMIT_NONE, // BLD_EPIC_TEMPLE
 };
 
 } // namespace rtso

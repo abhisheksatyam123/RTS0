@@ -722,10 +722,14 @@ Dictionary RtsoMain::get_trade_dialog_state() const {
 	Dictionary d;
 	if (!sim) return d;
 	const uint8_t me = local_player();
+	// TradeDialog.open / onViewedPlayerChange: nothing to show while viewing no player.
+	d["viewed"] = me < rtso::MAX_PLAYERS && view_player() < rtso::MAX_PLAYERS;
+	if (!(bool)d["viewed"]) return d;
 	const auto &ps = sim->player(me);
 	d["player"] = (int)me;
 	d["can_barter"] = sim->can_barter(me);
-	d["controls"] = !sim->is_defeated(me);
+	// controlsPlayer(g_ViewedPlayer): an observer or defeated player viewing a side only reads it.
+	d["controls"] = controls_player(me) && !sim->is_defeated(me);
 	// Barter.js: 100 per click, 5x with session.massbarter (the only amounts cmd_barter takes).
 	const int multiplier = 5;
 	const int amount = 100 * (rtso::hotkeys::held("session.massbarter") ? multiplier : 1);
@@ -798,3 +802,322 @@ void RtsoMain::_on_trading_goods_requested(const PackedInt32Array &shares) {
 	else
 		sim->cmd_set_trading_goods(local_player(), pct);
 }
+
+// --- Additional command panel, build mode, training, and queue methods (split from main_node.cpp) ---
+
+// 0 A.D. Trainer lists (civ_unit_template(..).trainers): does a structure of type
+// `btype` train any of `civ`'s units of class `utype`?
+static bool building_trains_class(uint8_t civ, uint8_t utype, uint8_t btype) {
+	for (uint16_t i : rtso::civ_roster_ids(civ)) {
+		const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
+		if (u.unit_type == utype && !(u.flags & rtso::ROSTER_SIEGE_TOWER) && (u.trainers & rtso::bld_bit(btype))) return true;
+	}
+	return false;
+}
+
+// go back; Order.CancelPack / CancelUnpack (the opposite order, while in progress).
+void RtsoMain::_on_pack_cancel_pressed(int pack) {
+	if (!sim || selected_ids.is_empty()) return;
+	const uint8_t want = pack ? rtso::PACK_PACKING : rtso::PACK_UNPACKING;
+	std::vector<uint32_t> ids;
+	auto uv = sim->units();
+	for (int s = 0; s < selected_ids.size(); ++s)
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == (uint32_t)selected_ids[s]) {
+				if (uv.alive[i] && uv.pack_state[i] == want) ids.push_back(uv.id[i]);
+				break;
+			}
+	if (ids.empty()) return;
+	if (turn_cmds())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_PACK, ids.data(), ids.size(), 0, 0, 0, (uint8_t)(2 | (pack ? 0 : 1)));
+	else
+		sim->order_pack(ids.data(), ids.size(), pack == 0, true);
+}
+
+// BarterButton sell press: BarterButtonManager.setSelectedResource.
+void RtsoMain::_on_barter_sell_selected(int resource) {
+	command_panel_.set_barter_sell(resource);
+	update_command_panel();
+}
+
+
+void RtsoMain::enter_build_mode(bool enable, uint8_t btype) {
+	build_mode = enable;
+	current_build_type = btype;
+	build_click_pending = false;
+	placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT; // placementSupport.Reset()
+	if (!enable) {
+		wall_drag_mode = false;
+		for (auto *wg : wall_ghosts) {
+			if (wg) wg->set_visible(false);
+		}
+	}
+	update_ghost_mesh();
+	if (ghost_mesh) ghost_mesh->set_visible(build_mode && !wall_drag_mode);
+}
+
+float RtsoMain::placement_angle_at(uint8_t btype, float x, float z) const {
+	if (btype == rtso::BLD_DOCK && sim) {
+		const float a = sim->dock_angle(x, z, rtso::building_type_info(btype).footprint * rtso::Simulation::GRID * 0.5f);
+		if (!std::isnan(a)) return a;
+	}
+	return placement_angle;
+}
+
+bool RtsoMain::snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y, bool hover) {
+	// A dock faces the sea (dock_angle): the simulation turns it so whatever the command says.
+	if (!sim || btype == rtso::BLD_DOCK) return false;
+	// isSnapToEdgesEnabled: the hotkey turns it on, or off when the option is "enabled".
+	if (!debug_force_snap_ && rtso::hotkeys::held("session.snaptoedges") == (rtso::user_config::get("gui.session.snaptoedges") == "enabled")) return false;
+	// input.js: the hover resets the angle first, to snap to the edge nearest the default facing.
+	if (hover) placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
+	const float GRID = rtso::Simulation::GRID;
+	const int fp = rtso::building_type_info(btype).footprint;
+	const float half = fp * GRID * 0.5f;
+	const float x = cell_x * GRID + half, z = cell_y * GRID + half;
+	// The structures the player has seen (GetEntitiesWithStaticObstructionOnScreen draws mirages too).
+	std::vector<rtso::snap::Rect> rects;
+	const float reach = rtso::snap::kDistanceThreshold + 2.0f * half + 4.0f * GRID;
+	for (const auto &b : sim->buildings()) {
+		if (b.wrecked || std::fabs(b.x - x) > reach || std::fabs(b.z - z) > reach) continue;
+		if (!sim->los_explored(local_player(), b.x, b.z)) continue;
+		rects.push_back({b.x, b.z, b.half_size, b.half_d, b.rot});
+	}
+	// Mines and ruins have static obstructions too (template_gaia_ore, _rock, _ruins).
+	auto rv = sim->resources();
+	for (size_t i = 0; i < rv.count; ++i) {
+		if (!rv.alive[i] || std::fabs(rv.x[i] - x) > reach || std::fabs(rv.z[i] - z) > reach) continue;
+		rtso::nav::Footprint f;
+		if (!sim->mine_footprint(i, f) || !sim->los_explored(local_player(), f.x, f.z)) continue;
+		rects.push_back({f.x, f.z, f.hu, f.hv, std::atan2(-f.uz, f.ux)}); // snap::rotate turns (1, 0) to (cos, -sin)
+	}
+	const std::vector<rtso::snap::Edge> edges = rtso::snap::edges_near(rects, x, z);
+	rtso::snap::Result r;
+	if (!rtso::snap::snap_position(edges, half, rtso::building_half_depth(btype, half), x, z, placement_angle, r)) return false;
+	placement_angle = r.angle;
+	// RTS0 places on GRID cells: the cell nearest the flush centre that can be built, else the nearest.
+	const float fx = r.x / GRID - fp * 0.5f, fz = r.z / GRID - fp * 0.5f;
+	int best_x = (int)std::lround(fx), best_y = (int)std::lround(fz);
+	float best_d = 1e30f;
+	for (int cx = (int)std::floor(fx); cx <= (int)std::floor(fx) + 1; ++cx)
+		for (int cy = (int)std::floor(fz); cy <= (int)std::floor(fz) + 1; ++cy) {
+			const float d = (cx - fx) * (cx - fx) + (cy - fz) * (cy - fz);
+			if (d >= best_d) continue;
+			if (sim->check_placement(local_player(), cx, cy, btype, r.angle) != rtso::Simulation::PLACE_OK) continue;
+			best_d = d;
+			best_x = cx;
+			best_y = cy;
+		}
+	cell_x = best_x;
+	cell_y = best_y;
+	return true;
+}
+
+void RtsoMain::try_train_unit(rtso::UnitType utype) {
+	if (!sim || !rtso::civ_can_train(sim->player_civ(local_player()), (uint8_t)utype)) return;
+	// The selected structure if it trains the class, else the first finished one
+	// that does (0 A.D. trains a unit only where its template's Trainer lists it).
+	const uint8_t civ = sim->player_civ(local_player());
+	uint32_t bid = 0;
+	for (const auto &b : sim->buildings()) {
+		if (b.team != local_player() || b.wrecked || b.build_progress < 1.0f) continue;
+		if (!building_trains_class(civ, (uint8_t)utype, b.type)) continue;
+		if (b.id == selected_building_id) { bid = b.id; break; }
+		if (bid == 0) bid = b.id;
+	}
+	if (bid == 0) return;
+	const int count = train_batch();
+	if (turn_cmds()) {
+		post_lockstep(6, nullptr, 0, 0, (float)count, bid, (uint8_t)utype);
+		play_civ_voice("select");
+		return;
+	}
+	if (sim->cmd_train(local_player(), bid, utype, count))
+		play_civ_voice("select");
+}
+
+int RtsoMain::train_batch() const {
+	return rtso::hotkeys::held("session.batchtrain") ? user_opts_.batch_size : 1;
+}
+
+int RtsoMain::ui_pending_batch(uint16_t tmpl) const {
+	const BatchTraining &bt = batch_training_;
+	return bt.active && bt.tmpl == tmpl ? bt.batches * std::max(1, user_opts_.batch_size) : 0;
+}
+
+// EntityLimits canBeAddedCount for a template: how many more the player may have, -1 if no limit.
+int RtsoMain::template_can_be_added(uint16_t tmpl) const {
+	if (!sim || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return -1;
+	const uint8_t cat = rtso::UNIT_LIMITS[tmpl].category;
+	if (cat == rtso::LIMIT_NONE || cat >= rtso::LIMIT_CATEGORY_COUNT) return -1;
+	const int limit = sim->entity_limit(local_player(), cat);
+	return limit < 0 ? -1 : std::max(0, limit - sim->entity_limit_count(local_player(), cat));
+}
+
+// GetNeededResources for `count` of a template: whether the player can pay for them all.
+bool RtsoMain::can_afford_template(uint16_t tmpl, int count) const {
+	if (!sim || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return false;
+	const auto &t = rtso::civ_unit_template(tmpl);
+	float cost[rtso::RES_COUNT];
+	sim->unit_train_cost(local_player(), tmpl, rtso::civ_template_unit_info(tmpl, t.unit_type), cost);
+	const auto &ps = sim->player(local_player());
+	for (int r = 0; r < rtso::RES_COUNT; ++r)
+		if (ps.res[r] < cost[r] * (float)count) return false;
+	return true;
+}
+
+// input.js addTrainingToQueue: with session.batchtrain (Shift) held, clicks on the same
+// trainee of the same trainer build one batch of N x the batch size, posted when Shift is
+// released (or another trainee is clicked); Ctrl takes a batch back off. Without Shift
+// one unit is queued at once.
+void RtsoMain::add_training(bool from_unit, uint32_t holder, uint16_t tmpl) {
+	if (holder == 0 || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return;
+	const bool decrement = rtso::hotkeys::held("selection.remove");
+	const int allowed = template_can_be_added(tmpl);
+	const int size = std::max(1, user_opts_.batch_size);
+	if (rtso::hotkeys::held("session.batchtrain") && (allowed < 0 || allowed > 1)) {
+		BatchTraining &bt = batch_training_;
+		if (bt.active) {
+			if (bt.from_unit == from_unit && bt.holder == holder && bt.tmpl == tmpl) {
+				if (decrement) {
+					if (--bt.batches <= 0) bt.active = false;
+				} else if (allowed < 0 ||
+						allowed > bt.batches * size * (from_unit ? 1 : std::max<int>(1, (int)structure_trainers(tmpl, holder).size()))) {
+					if (!can_afford_template(tmpl, (bt.batches + 1) * size)) return;
+					++bt.batches;
+				}
+				bt.allowed = allowed;
+				return;
+			}
+			if (!decrement) flush_training_batch();
+		}
+		if (decrement || !can_afford_template(tmpl, size)) return;
+		bt = BatchTraining{true, from_unit, holder, tmpl, 1, allowed};
+		return;
+	}
+	if (from_unit) {
+		try_train_from_unit(holder, tmpl, 1);
+		return;
+	}
+	// One unit in each selected structure that trains it, as far as the entity limit allows.
+	std::vector<uint32_t> trainers = structure_trainers(tmpl, holder);
+	if (allowed >= 0 && (int)trainers.size() > allowed) trainers.resize((size_t)allowed);
+	for (uint32_t b : trainers) try_train_template(b, tmpl, 1);
+}
+
+// input.js flushTrainingBatch: the batch, cut to what the entity limit still allows.
+void RtsoMain::flush_training_batch() {
+	BatchTraining &bt = batch_training_;
+	if (!bt.active) return;
+	bt.active = false;
+	int count = bt.batches * std::max(1, user_opts_.batch_size);
+	if (bt.from_unit) {
+		if (bt.allowed >= 0) count = std::min(count, bt.allowed);
+		if (count > 0) try_train_from_unit(bt.holder, bt.tmpl, count);
+		return;
+	}
+	// The batch in every selected structure that trains it; under an entity limit, full
+	// batches in as many as it allows and the rest in one more.
+	const std::vector<uint32_t> trainers = structure_trainers(bt.tmpl, bt.holder);
+	if (bt.allowed >= 0 && bt.allowed < count * (int)trainers.size()) {
+		const size_t full = (size_t)(bt.allowed / count);
+		for (size_t k = 0; k < full && k < trainers.size(); ++k) try_train_template(trainers[k], bt.tmpl, count);
+		const int rest = bt.allowed % count;
+		if (rest > 0 && full < trainers.size()) try_train_template(trainers[full], bt.tmpl, rest);
+		return;
+	}
+	for (uint32_t b : trainers) try_train_template(b, bt.tmpl, count);
+}
+
+// One queue item of `count` units (0 A.D. batch training: one cost x count, one shorter timer).
+void RtsoMain::try_train_template(uint32_t building_id, uint16_t tmpl, int count) {
+	if (building_id == 0 || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return;
+	if (turn_cmds()) {
+		// input.js addTrainingToQueue / flushTrainingBatch: "pushFront" with session.pushorderfront.
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, (float)count, building_id,
+				rtso::hotkeys::held("session.pushorderfront") ? rtso::NET_PARAM_PUSH_FRONT_ORDER : 0);
+		play_civ_voice("select");
+		return;
+	}
+	if (sim->cmd_train_template(local_player(), building_id, tmpl, count))
+		play_civ_voice("select");
+}
+
+// FollowPlayer.xml: a "Follow Player" tick box with that tooltip, shown while an
+// observer or replay viewer watches one player (not Observer).
+CheckBox *RtsoMain::new_follow_player_box() {
+	CheckBox *box = memnew(CheckBox);
+	box->set_text("Follow Player");
+	box->set_tooltip_text("Follow Player");
+	box->set_focus_mode(Control::FOCUS_NONE);
+	box->set_pressed_no_signal(follow_player_);
+	box->set_visible(false);
+	box->connect("toggled", Callable(this, "set_follow_player"));
+	return box;
+}
+
+
+void RtsoMain::_on_queue_slot_gui_input(const Ref<InputEvent> &event, int slot_idx) {
+	command_panel_.production_queue().handle_gui_input(event, slot_idx, get_viewport());
+}
+
+// 0.28 placementTooltip: BackgroundErrorTooltip for a refusal, else
+// BackgroundInformationTooltip, beside the cursor; hidden with no message.
+void RtsoMain::set_placement_tip(const String &text, bool error) {
+	if (!placement_tip_) return;
+	placement_tip_->set_visible(!text.is_empty());
+	if (text.is_empty()) return;
+	if (placement_tip_->get_text() != text) placement_tip_->set_text(text);
+	if (error != placement_tip_error_ || !placement_tip_->has_theme_stylebox_override("normal")) {
+		placement_tip_error_ = error;
+		Ref<StyleBoxFlat> bg;
+		bg.instantiate();
+		bg->set_bg_color(error ? Color(0.35f, 0.04f, 0.04f, 0.85f) : Color(0.05f, 0.05f, 0.08f, 0.85f));
+		bg->set_border_width_all(1);
+		bg->set_border_color(error ? Color(0.75f, 0.25f, 0.2f) : Color(0.55f, 0.5f, 0.35f));
+		bg->set_content_margin_all(5.0f);
+		placement_tip_->add_theme_stylebox_override("normal", bg);
+	}
+	placement_tip_->set_size(Vector2());
+	placement_tip_->set_position(get_viewport()->get_mouse_position() + Vector2(24, 20));
+}
+
+// BuildRestrictions.js CheckPlacement's message for a refused placement of `btype` centred at (x, z).
+String RtsoMain::placement_failure_text(int result, uint8_t btype, float x, float z) const {
+	using S = rtso::Simulation;
+	if (!sim || result == S::PLACE_OK) return String();
+	const String name = rtso::tr0(String::utf8(rtso::civ_building_type_info(sim->player_civ(local_player()), btype).name));
+	auto named = [&](const char *msg) { return rtso::sprintf0(rtso::tr0(msg), {{"name", name}}); };
+	switch (result) {
+		case S::PLACE_OBSTRUCTED: return named("%(name)s cannot be built on another building or resource");
+		case S::PLACE_TERRAIN: return named("%(name)s cannot be built on invalid terrain");
+		case S::PLACE_SHORE: return named("%(name)s must be built on a valid shoreline");
+		case S::PLACE_UNEXPLORED: return named("%(name)s cannot be built in unexplored area");
+		case S::PLACE_TERRITORY: {
+			const S::PlacementDetails d = sim->placement_details(local_player(), btype, x, z);
+			// markForTranslationWithContext("Territory type", ...) and the template's Territory list.
+			const char *found = d.territory_found == 1 ? (d.connected ? "own" : "unconnected own")
+					: d.territory_found == 2 ? (d.connected ? "allied" : "unconnected allied")
+					: d.territory_found == 4 ? "neutral" : "enemy";
+			String valid;
+			const char *const kinds[] = {"own", "ally", "neutral", "enemy"};
+			for (int i = 0; i < 4; ++i)
+				if (d.territory_allowed & (1 << i)) valid += (valid.is_empty() ? String() : rtso::tr0(", ")) + rtso::tr0(kinds[i]);
+			return rtso::sprintf0(rtso::tr0("%(name)s cannot be built in %(territoryType)s territory. Valid territories: %(validTerritories)s"),
+					{{"name", name}, {"territoryType", rtso::tr0(found)}, {"validTerritories", valid}});
+		}
+		case S::PLACE_DISTANCE: {
+			const S::PlacementDetails d = sim->placement_details(local_player(), btype, x, z);
+			const int64_t m = (int64_t)std::lround(d.min_distance_m);
+			return rtso::sprintf0(rtso::tr0(m == 1 ? "%(name)s too close to a %(category)s, must be at least %(distance)s meter away"
+							: "%(name)s too close to a %(category)s, must be at least %(distance)s meters away"),
+					{{"name", name}, {"category", rtso::tr0(d.distance_class ? d.distance_class : "")}, {"distance", String::num_int64(m)}});
+		}
+		default: return named("%(name)s cannot be built due to unknown error");
+	}
+}
+
+void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
+	command_panel_.production_queue().cancel(slot_idx);
+}
+

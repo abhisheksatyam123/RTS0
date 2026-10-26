@@ -29,6 +29,8 @@
 
 #include <godot_cpp/classes/time.hpp>
 
+#include <algorithm>
+#include <cmath>
 #include <deque>
 #include <string>
 #include <utility>
@@ -37,6 +39,7 @@
 
 #include "popup_safe.h"
 #include "safe_select.h"
+#include "session_skin.h"
 
 using namespace godot;
 
@@ -118,127 +121,73 @@ public:
 		// =========================================================================
 		// 5. IN-GAME CHAT OVERLAY (LineEdit + All/Allies/Team channels)
 		// =========================================================================
-		// chat_window.xml chatDialogPanel: a 432 px dialog in the middle of the screen,
-		// sized by set_extended (chatDialogPanelLarge / chatDialogPanelSmall).
+		// chat_window.xml chatDialogPanel: a genericPanel in the middle of the screen,
+		// sized by set_extended (chatDialogPanelLarge / chatDialogPanelSmall), its
+		// widgets at their 0.28 places in the session skin.
 		panel_ = memnew(Panel);
+		panel_->set_name("ChatDialogPanel");
 		panel_->set_anchor(SIDE_LEFT, 0.5f);
 		panel_->set_anchor(SIDE_RIGHT, 0.5f);
 		panel_->set_offset(SIDE_LEFT, -216.0f);
 		panel_->set_offset(SIDE_RIGHT, 216.0f);
+		panel_->set_theme(rtso::session_skin());
+		panel_->set_theme_type_variation("GenericPanel");
+		panel_->set_meta("tooltip_style", "session_bold"); // the dropdowns' sessionToolTipBold
 
-		Ref<StyleBoxFlat> chat_style;
-		chat_style.instantiate();
-		chat_style->set_bg_color(Color(0.06f, 0.07f, 0.10f, 0.94f));
-		chat_style->set_corner_radius_all(6);
-		chat_style->set_border_width_all(1);
-		chat_style->set_border_color(Color(0.35f, 0.38f, 0.48f, 0.85f));
-		panel_->add_theme_stylebox_override("panel", chat_style);
-
-		VBoxContainer *chat_vbox = memnew(VBoxContainer);
-		chat_vbox->set_anchor(SIDE_LEFT, 0.0f);
-		chat_vbox->set_anchor(SIDE_RIGHT, 1.0f);
-		chat_vbox->set_anchor(SIDE_TOP, 0.0f);
-		chat_vbox->set_anchor(SIDE_BOTTOM, 1.0f);
-		chat_vbox->set_offset(SIDE_LEFT, 8.0f);
-		chat_vbox->set_offset(SIDE_RIGHT, -8.0f);
-		chat_vbox->set_offset(SIDE_TOP, 6.0f);
-		chat_vbox->set_offset(SIDE_BOTTOM, -6.0f);
-		chat_vbox->add_theme_constant_override("separation", 4);
-		panel_->add_child(chat_vbox);
-
-		HBoxContainer *chat_top_bar = memnew(HBoxContainer);
-		chat_top_bar->set_custom_minimum_size(Vector2(0, 24));
-		// chat_window.xml chatHistoryFilter: "Filter:" and ChatHistory's filters.
-		filter_bar_ = memnew(HBoxContainer);
-		filter_bar_->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-		Label *filter_lbl = memnew(Label);
-		filter_lbl->set_text("Filter:");
-		filter_lbl->add_theme_font_size_override("font_size", 10);
-		filter_lbl->add_theme_color_override("font_color", Color(0.75f, 0.78f, 0.88f));
-		filter_bar_->add_child(filter_lbl);
+		// chatHistoryPage "0 0 100% 100%-120".
+		history_page_ = place(panel_, memnew(Control), 0, 0, 1, 1, 0, 0, 0, -120);
+		history_page_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		place(history_page_, caption("Filter:"), 0, 0, 0, 0, 16, 12, 60, 32);
 		filter_select_ = memnew(RtsoSafeSelect);
-		filter_select_->set_custom_minimum_size(Vector2(170, 22));
-		filter_select_->add_theme_font_size_override("font_size", 10);
 		refill_filters(false);
+		filter_select_->set_tooltip_text("Filter the chat history.");
 		filter_select_->connect("item_selected", Callable(owner, "_on_chat_filter_selected"));
-		filter_bar_->add_child(filter_select_);
-		chat_top_bar->add_child(filter_bar_);
-		chat_vbox->add_child(chat_top_bar);
-
+		place(history_page_, filter_select_, 0, 0, 1, 0, 75, 10, -16, 34);
+		// chatHistoryText "10 46 100%-10 100%": ModernDarkBoxGold, ChatPanel.
 		log_ = memnew(RichTextLabel);
-		log_->set_v_size_flags(Control::SIZE_EXPAND_FILL);
+		log_->set_theme_type_variation("ChatPanel");
 		log_->set_use_bbcode(true);
 		log_->set_scroll_follow(true);
-		log_->add_theme_font_size_override("normal_font_size", 11);
-		chat_vbox->add_child(log_);
+		place(history_page_, log_, 0, 0, 1, 1, 10, 46, -10, 0);
 
-		// Chat addressee selector row above chat input (0 A.D. gui/session/chat/ChatWindow.js:35-58 parity)
-		HBoxContainer *chat_addressee_bar = memnew(HBoxContainer);
-		chat_addressee_bar->set_custom_minimum_size(Vector2(0, 24));
-
-		Label *to_lbl = memnew(Label);
-		to_lbl->set_text("To:");
-		to_lbl->add_theme_font_size_override("font_size", 10);
-		to_lbl->add_theme_color_override("font_color", Color(0.75f, 0.78f, 0.88f));
-		chat_addressee_bar->add_child(to_lbl);
-
-		to_lbl->set_custom_minimum_size(Vector2(50, 0));
+		// chatPage "0 100%-128 100% 100%".
+		Control *page = place(panel_, memnew(Control), 0, 1, 1, 1, 0, -128, 0, 0);
+		page->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		place(page, caption("To:"), 0, 0, 0, 0, 16, 14, 50, 38);
 		channel_ = memnew(RtsoSafeSelect);
-		channel_->set_custom_minimum_size(Vector2(110, 22));
-		channel_->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 		refill_addressees();
-		channel_->add_theme_font_size_override("font_size", 10);
-		chat_addressee_bar->add_child(channel_);
-
-		chat_vbox->add_child(chat_addressee_bar);
-
-		// "Text:" and the input, then Cancel, the History tickbox and Send.
-		HBoxContainer *chat_input_bar = memnew(HBoxContainer);
-		chat_input_bar->set_custom_minimum_size(Vector2(0, 26));
-		Label *text_lbl = memnew(Label);
-		text_lbl->set_text("Text:");
-		text_lbl->set_custom_minimum_size(Vector2(50, 0));
-		text_lbl->add_theme_font_size_override("font_size", 10);
-		text_lbl->add_theme_color_override("font_color", Color(0.75f, 0.78f, 0.88f));
-		chat_input_bar->add_child(text_lbl);
+		channel_->set_tooltip_text("Select chat addressee.");
+		place(page, channel_, 0, 0, 1, 0, 75, 12, -16, 38);
+		place(page, caption("Text:"), 0, 0, 0, 0, 16, 46, 50, 70);
 		input_ = memnew(LineEdit);
-		input_->set_placeholder("Type message...");
-		input_->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-		input_->add_theme_font_size_override("font_size", 11);
+		input_->set_name("ChatInput");
 		input_->connect("text_submitted", Callable(owner, "_on_chat_text_submitted"));
 		input_->connect("gui_input", Callable(owner, "_on_chat_input_gui"));
 		input_->set_max_length(1024); // chat_window.xml chatInput max_length
-		rtso::parent_line_edit(chat_input_bar, input_);
-
-		chat_vbox->add_child(chat_input_bar);
-
-		HBoxContainer *chat_button_bar = memnew(HBoxContainer);
-		chat_button_bar->set_custom_minimum_size(Vector2(0, 30));
+		rtso::parent_line_edit(page, input_);
+		place(nullptr, input_, 0, 0, 1, 0, 75, 46, -16, 72);
+		// ChatWindow.onSelectionChange: picking an addressee or a filter focuses the input.
+		channel_->connect("item_selected", Callable(input_, "grab_focus").unbind(1));
+		filter_select_->connect("item_selected", Callable(input_, "grab_focus").unbind(1));
 		Button *cancel = memnew(Button);
 		cancel->set_text("Cancel");
-		cancel->set_custom_minimum_size(Vector2(130, 28));
-		cancel->add_theme_font_size_override("font_size", 11);
 		cancel->connect("pressed", Callable(owner, "toggle_chat"));
-		chat_button_bar->add_child(cancel);
-		send_btn_ = memnew(Button);
-		send_btn_->set_custom_minimum_size(Vector2(130, 28));
-		send_btn_->set_text("Send");
-		send_btn_->add_theme_font_size_override("font_size", 11);
-		send_btn_->connect("pressed", Callable(owner, "_on_chat_send_pressed"));
+		place(page, cancel, 0, 0, 0.3f, 0, 16, 80, 16, 116);
+		// extendedChat, a ModernTickBox at "50%-40 100%-40 50%-20 100%-12", and its caption.
 		history_box_ = memnew(CheckBox);
-		history_box_->set_text("History");
-		history_box_->add_theme_font_size_override("font_size", 10);
-		history_box_->set_tooltip_text("Show the chat history.");
 		history_box_->connect("toggled", Callable(owner, "_on_chat_history_toggled"));
-		Control *gap_l = memnew(Control);
-		gap_l->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-		Control *gap_r = memnew(Control);
-		gap_r->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-		chat_button_bar->add_child(gap_l);
-		chat_button_bar->add_child(history_box_);
-		chat_button_bar->add_child(gap_r);
-		chat_button_bar->add_child(send_btn_);
-		chat_vbox->add_child(chat_button_bar);
+		place(page, history_box_, 0.5f, 0, 0.5f, 0, -40, 88, -20, 116);
+		Label *history = memnew(Label);
+		history->set_text("History");
+		history->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
+		history->add_theme_constant_override("outline_size", 0); // textcolor white, no stroke
+		history->add_theme_font_size_override("font_size", 13);
+		history->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		place(page, history, 0.5f, 0, 0.5f, 0, -20, 80, 50, 116);
+		send_btn_ = memnew(Button);
+		send_btn_->set_text("Send");
+		send_btn_->connect("pressed", Callable(owner, "_on_chat_send_pressed"));
+		place(page, send_btn_, 0.7f, 0, 1, 0, -16, 80, -16, 116);
 
 		panel_->set_visible(false);
 		parent->add_child(panel_);
@@ -262,6 +211,14 @@ public:
 		parent->add_child(overlay_);
 	}
 
+	void apply_safe_insets(float left_inset, float top_inset) {
+		if (overlay_) {
+			overlay_->set_offset(godot::SIDE_LEFT, 16.0f + left_inset);
+			overlay_->set_offset(godot::SIDE_RIGHT, 520.0f + left_inset);
+			overlay_->set_offset(godot::SIDE_TOP, 114.0f + top_inset);
+			overlay_->set_offset(godot::SIDE_BOTTOM, 114.0f + 20 * 18.0f + top_inset);
+		}
+	}
 	bool is_ready() const { return log_ != nullptr; }
 	bool is_open() const { return panel_ != nullptr && panel_->is_visible(); }
 	// ChatInput.onHotkeyChange: the input and Send button share one tooltip.
@@ -404,7 +361,10 @@ public:
 			// ChatWindow.onSelectionChange: only a /msg picked in the To: list is reopened
 			// by session.privatechat, not one typed with To: Everyone.
 			if (context == "Private" && !selected_tag().is_empty()) last_private_ = tag;
-			const String wire_tag = tag.is_empty() ? String() : tag + " ";
+			// A line to everyone that starts with "[" travels behind "[All] ", so a
+			// typed "[Player-3] hi" or "[Flare] 1,2" stays text (0.28 sends the
+			// text as typed; only the slash commands pick addressees).
+			const String wire_tag = !tag.is_empty() ? tag + " " : text.begins_with("[") ? String(ALL_TAG) + " " : String();
 			const String line = format_line(context, host_->chat_user(""), text);
 			add_log(line + String("\n"), message_bits(context, !observer));
 			post_overlay(line);
@@ -435,7 +395,9 @@ public:
 		// The wire tag is the addressee; 0.28 shows it as the context (ChatAddressees.js)
 		// and shows the message only to its addressees (isAddressee).
 		String context, tag;
-		if (msg.begins_with("[Allies]")) {
+		if (msg.begins_with(String(ALL_TAG) + " ")) {
+			msg = msg.substr(6);
+		} else if (msg.begins_with("[Allies]")) {
 			context = "Ally";
 			tag = "[Allies]";
 			msg = msg.substr(8).strip_edges();
@@ -561,8 +523,7 @@ public:
 	// else only the addressee and the input.
 	void set_extended(bool on) {
 		extended_ = on;
-		if (log_) log_->set_visible(on);
-		if (filter_bar_) filter_bar_->set_visible(on);
+		if (history_page_) history_page_->set_visible(on);
 		if (history_box_) history_box_->set_pressed_no_signal(on);
 		// ChatWindow.resizeChatWindow: chatDialogPanelLarge "50%-216 22%-75 50%+216 78%-85",
 		// chatDialogPanelSmall "50%-216 50%-140 50%+216 50%-20".
@@ -572,8 +533,29 @@ public:
 			panel_->set_offset(SIDE_TOP, on ? -75.0f : -140.0f);
 			panel_->set_offset(SIDE_BOTTOM, on ? -85.0f : -20.0f);
 		}
+		fitted_height_ = -1.0f;
+		fit_width();
+	}
+	// ChatWindow.resizeChatWindow (and onWindowResized): with the history shown, the
+	// width puts the history text in the golden ratio, plus its 10 px sides; else 432 px.
+	void fit_width() {
+		if (!panel_ || !panel_->is_inside_tree()) return;
+		const float h = panel_->get_viewport_rect().size.y;
+		if (h == fitted_height_) return;
+		fitted_height_ = h;
+		float half = 216.0f;
+		if (extended_) {
+			const float text_h = (0.78f - 0.22f) * h - 85.0f + 75.0f - 120.0f - 46.0f;
+			half = (1.0f + std::sqrt(5.0f)) / 2.0f * std::max(text_h, 0.0f) / 2.0f + 10.0f;
+		}
+		panel_->set_offset(SIDE_LEFT, -half);
+		panel_->set_offset(SIDE_RIGHT, half);
 	}
 	bool extended() const { return extended_; }
+	// extendedChat.onPress: the input keeps the focus.
+	void focus_input() {
+		if (input_ && is_open()) input_->grab_focus();
+	}
 	// "Network notifications" is hidden unless in multiplayer (Engine.HasNetClient).
 	void refill_filters(bool network) {
 		if (!filter_select_) return;
@@ -599,6 +581,7 @@ public:
 	// Drops overlay lines older than 30 s; the overlay stays up while the chat
 	// window is open, as 0.28's chatPanel. Call once per frame.
 	void tick_overlay() {
+		fit_width();
 		if (!overlay_) return;
 		const uint64_t now = Time::get_singleton()->get_ticks_msec();
 		bool changed = false;
@@ -611,6 +594,29 @@ public:
 	}
 
 private:
+	// A 0.28 size "l% + x, t% + y, r% + x2, b% + y2" for c, added to parent when given.
+	template <typename T>
+	static T *place(Node *parent, T *c, float al, float at, float ar, float ab, float l, float t, float r, float b) {
+		if (parent) parent->add_child(c);
+		c->set_anchor(SIDE_LEFT, al);
+		c->set_anchor(SIDE_TOP, at);
+		c->set_anchor(SIDE_RIGHT, ar);
+		c->set_anchor(SIDE_BOTTOM, ab);
+		c->set_offset(SIDE_LEFT, l);
+		c->set_offset(SIDE_TOP, t);
+		c->set_offset(SIDE_RIGHT, r);
+		c->set_offset(SIDE_BOTTOM, b);
+		return c;
+	}
+	// ModernLeftLabelText: white sans-bold-stroke-14, left, centred vertically.
+	static Label *caption(const char *text) {
+		Label *l = memnew(Label);
+		l->set_text(text);
+		l->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
+		l->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		return l;
+	}
+
 	// ChatMessageFormatPlayer strings: "(context) <user> message", or with /me
 	// "(context) * user message". The text is escaped (escapeText).
 	static String format_line(const String &context, const String &user, String text, bool actions = true) {
@@ -623,6 +629,8 @@ private:
 		return ctx + (me ? "* " + user : tag) + " " + text;
 	}
 
+	// The wire tag of a line to everyone whose text starts with "[" (no addressee).
+	static constexpr const char *ALL_TAG = "[All]";
 	static bool is_private(const String &tag) { return tag.begins_with("[Player-") || tag.begins_with("[Observer-"); }
 	bool is_online(const String &tag) const {
 		if (!host_) return false;
@@ -747,7 +755,8 @@ private:
 	std::vector<Entry> entries_;
 	int filter_ = 0;
 	bool extended_ = false;
-	HBoxContainer *filter_bar_ = nullptr;
+	Control *history_page_ = nullptr;
+	float fitted_height_ = -1.0f;
 	RtsoSafeSelect *filter_select_ = nullptr;
 	CheckBox *history_box_ = nullptr;
 	bool shows(const Entry &e) const {

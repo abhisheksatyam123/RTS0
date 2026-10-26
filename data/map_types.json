@@ -560,6 +560,7 @@
 		},
 		"egypt": {
 			"keywords": [],
+			"lock_teams": true,
 			"type": "skirmish"
 		},
 		"eire_and_albion": {

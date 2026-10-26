@@ -62,13 +62,13 @@
    "scenery/table_square_0.glb"
   ],
   "fence_wicker_long": [
-   "scenery/fence_long_0.glb"
+   "scenery/fence_wicker_long_0.glb"
   ],
   "fence_wicker_medium": [
-   "scenery/fence_short_0.glb"
+   "scenery/fence_wicker_medium_0.glb"
   ],
   "fence_wicker_short": [
-   "scenery/fence_short_0.glb"
+   "scenery/fence_wicker_short_0.glb"
   ]
  }
 }

@@ -4,7 +4,7 @@
 #pragma once
 
 // 0 A.D. Vision/Range of each finished structure, RTS0 units (COMBAT_DISTANCE_SCALE); 0 = sees nothing.
-inline constexpr uint8_t STRUCTURE_VISION_ROWS = 88;
+inline constexpr uint8_t STRUCTURE_VISION_ROWS = 98;
 inline float structure_vision_range(uint8_t type) {
 	static const float kTable[STRUCTURE_VISION_ROWS + 1] = {
 		25.2f, // BLD_TOWN_CENTER: template_structure_civic_civil_centre (90 m)
@@ -95,6 +95,16 @@ inline float structure_vision_range(uint8_t type) {
 		11.2f, // BLD_TEMPLE_ISIS: structures/ptol/temple_2 (40 m)
 		8.4f, // BLD_MILL: structures/mill_greek (30 m)
 		11.2f, // BLD_TOPHET: structures/cart/tophet (40 m)
+		25.2f, // BLD_CAMPAIGN_CITY: campaigns/campaign_city_test (90 m)
+		25.2f, // BLD_CAMPAIGN_CITY_MINOR: campaigns/campaign_city_minor_test (90 m)
+		11.2f, // BLD_CAMPAIGN_SANCTUARY: campaigns/campaign_religious_test (40 m)
+		5.6f, // BLD_STALL: structures/stall_big (20 m)
+		5.6f, // BLD_HUT: structures/celt_hut (20 m)
+		5.6f, // BLD_LONGHOUSE: structures/celt_longhouse (20 m)
+		5.6f, // BLD_PERS_HOUSE_A: structures/pers/house_a (20 m)
+		5.6f, // BLD_PERS_HOUSE_B: structures/pers/house_b (20 m)
+		5.6f, // BLD_APARTMENT_BLOCK: structures/pers/apartment_block (20 m)
+		22.4f, // BLD_EPIC_TEMPLE: structures/hellenic_epic_temple (80 m)
 		0.0f, // out of range
 	};
 	return kTable[type < STRUCTURE_VISION_ROWS ? type : STRUCTURE_VISION_ROWS];
