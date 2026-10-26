@@ -420,6 +420,20 @@ researchManager.js (update, checkPhase, the wanted/preferred/random picks) and t
 
 Checked and matching: the wanted and preferred tech filters and their order, the cheap-pick priority boost and the paused minorTech queue. Not yet traced: the dock water test (getDockAngle, checkDockPlacement) and defensive placement falling back to ally structures.
 
+### Structure and technology tooltips, twentieth 0.28 pass (2026-10-21)
+
+gui/common/tooltips.js and selection_panels_helpers.js against RTS0's construction, research, training and selected-structure tooltips. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| TT1 | A foundation's detailed tooltip and portrait showed the finished structure's attack, garrison, loot, population bonus and auras; 0.28's foundation template keeps only Resistance | medium | Fixed |
+| TT2 | The entity-limit lines named only changers that were built, multiplied by how many, and never the unit ones; 0.28 lists each LimitChanger with its template value ("Ashoka enlarges the limit with 5.") | medium | Fixed |
+| TT3 | The wall construction button left out the long wall's Wall Protection aura | low | Fixed |
+| TT4 | "Dropsite for:" listed resource names, and it and "Turret Positions" weren't in the header font; 0.28 shows resource icons | low | Fixed |
+| TT5 | The selected-structure detailed tooltip is plain text (no header font, unit words or icons) and indents its Attack and Resistance blocks 2 spaces, not g_Indent's 4 | nit | Open |
+| TT6 | The wall-dragging cost tip is a plain Label: "Cost: Stone 36" without the header font or icons | nit | Open |
+| TT7 | "Requires ..." from a unit trainer shows only the generic name, not "Specific (Generic)"; no case found in the current rosters | nit | Open |
+
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 
 BuildingAI.js, Attack.js and DelayedDamage.js against the arrow code, measured in the simulation and against a Python port of FireArrows: arrow counts with garrisons, auras and technologies (civic centre 6-26, tower 4-9, fortress 10-30), the 20 rounds per RepeatTime and their rounding, the first volley PrepareTime after a target enters, the paused round when targets leave, target order (preference, then distance, every arrow of a round on the first), what is shot (enemies, structures with Health, livestock, Gaia that can fight back), visibility, MinRange from the footprint, foundations, ownership changes, spread and stray hits all match. Owner: E.
