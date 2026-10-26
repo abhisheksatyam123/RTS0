@@ -5173,9 +5173,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	set_mm_count(fish_mm, (int)fish_n);
 
 	size_t ia[TREE_KINDS][TREE_VARIANTS] = {}, iflora[FLORA_KINDS][TREE_VARIANTS] = {}, imine[MINE_KINDS] = {}, ifd = 0, iru = 0, ifish = 0;
-	auto e_ruins = rtso::ModelLibrary::get("buildings", "ruins");
+	const auto &e_ruins = rtso::ModelLibrary::get("buildings", "ruins");
 	String cat_veg = "vegetation";
-	String id_food = "fruit_bush"; auto e_food = rtso::ModelLibrary::get(cat_veg, id_food);
+	String id_food = "fruit_bush"; const auto &e_food = rtso::ModelLibrary::get(cat_veg, id_food);
 
 	for (const auto &r : fres) {
 		if (r.subtype == rtso::RES_SUB_GRAIN) continue;
