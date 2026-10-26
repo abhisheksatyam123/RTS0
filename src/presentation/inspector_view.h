@@ -1498,7 +1498,9 @@ private:
 				: b.team < rtso::MAX_PLAYERS ? sim.player_civ(b.team) : sim.player_civ(host_->local_player());
 		set_portrait_target(false, b.id, b.x, b.z, "structure", b.type, civ);
 		const godot::Dictionary entry = rtso::portraits::structure_entry(b.civ, b.type);
-		portrait_->set_tooltip_text(portrait_tooltip(title_full_, entry, rtso::seldet::structure_auras_tooltip(entry), String(), false));
+		// A foundation's template (foundation|...) drops the Auras.
+		const String auras = b.build_progress < 1.0f ? String() : rtso::seldet::structure_auras_tooltip(entry);
+		portrait_->set_tooltip_text(portrait_tooltip(title_full_, entry, auras, String(), false));
 	}
 	// displaySingle for a unit: the stance icon's detailed tooltip
 	// (getAttackTooltip, getHealerTooltip, getResistanceTooltip, getGatherTooltip,
@@ -1554,6 +1556,9 @@ private:
 		// bonus, projectiles, resource trickle and loot.
 		float res[3];
 		sim.structure_resistance(b, res);
+		// A foundation (template_foundation: no Attack, BuildingAI, GarrisonHolder, Loot,
+		// Population or ResourceTrickle) shows only its Resistance.
+		if (b.build_progress < 1.0f) return resistance_tooltip(res, true);
 		const rtso::Simulation::StructureDetails d = sim.structure_details(b);
 		constexpr float kM = rtso::AttackDetection::kMetresPerUnit;
 		// GuiInterface elevationAdaptedRange for BuildingAI: the reach from its arrows' origin there.
