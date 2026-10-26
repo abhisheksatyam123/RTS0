@@ -50,6 +50,10 @@ func run() -> void:
 	check(others(d, 0).all(func(r): return not r["tribute_shown"] or r["tribute_enabled"]), "tribute buttons work")
 	check(d["rows"].all(func(r): return absf(Color(r["tint"]).a - 32.0 / 255.0) < 0.01), "each row on its player's colour at alpha 32")
 	check(others(d, 0).all(func(r): return str(r["tribute_icon"]).ends_with("_small.png") and str(r["tribute_text"]) == ""), "tribute buttons are resource icons")
+	# TributeButton.update: the player's name in their colour; the stance buttons carry no tooltip.
+	check(others(d, 0).all(func(r): return str(r["tribute_tooltip"]).begins_with("Tribute 100 food to [color=#") and str(r["tribute_tooltip"]).ends_with("Shift-click to tribute 500.")),
+			"tribute tooltips colour the player's name: " + str(others(d, 0)[0]["tribute_tooltip"] if others(d, 0).size() else ""))
+	check(others(d, 0).all(func(r): return str(r["stance_tooltip"]) == ""), "the stance buttons have no tooltip")
 	check(str(d["close_text"]) == "Close" and str(d["colors_tooltip"]).ends_with("Toggle Diplomacy Colors"), "\"Close\" and the colours icon's hotkey-led tooltip")
 	main.toggle_diplomacy()
 

@@ -18,6 +18,14 @@ inline godot::Ref<godot::Theme> session_skin() {
 	return s->call("session_theme");
 }
 
+// The modern skin alone (scenes/common/modern_theme.gd): ModernButtonRed buttons.
+inline godot::Ref<godot::Theme> modern_skin() {
+	using namespace godot;
+	Ref<Script> s = ResourceLoader::get_singleton()->load("res://scenes/common/modern_theme.gd");
+	if (s.is_null()) return Ref<Theme>();
+	return s->call("theme");
+}
+
 } // namespace rtso
 
 #endif

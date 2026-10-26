@@ -92,6 +92,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_stance_selected", "stance"), &RtsoMain::_on_stance_selected);
 	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);
 	ClassDB::bind_method(D_METHOD("_on_formation_gui_input", "event", "formation"), &RtsoMain::_on_formation_gui_input);
+	ClassDB::bind_method(D_METHOD("toggle_default_formation"), &RtsoMain::toggle_default_formation);
 	ClassDB::bind_method(D_METHOD("_on_train_pressed", "utype"), &RtsoMain::_on_train_pressed);
 	ClassDB::bind_method(D_METHOD("_on_roster_item_clicked", "index", "at", "mouse_button"), &RtsoMain::_on_roster_item_clicked);
 	ClassDB::bind_method(D_METHOD("_on_roster_gui_input", "event"), &RtsoMain::_on_roster_gui_input);
@@ -298,6 +299,11 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("net_retarget_host", "ip", "port"), &RtsoMain::net_retarget_host);
 	ClassDB::bind_method(D_METHOD("net_lobby_auth_result", "peer", "ticket", "name"), &RtsoMain::net_lobby_auth_result);
 	ClassDB::bind_method(D_METHOD("get_turn_hash", "turn"), &RtsoMain::get_turn_hash);
+	ClassDB::bind_method(D_METHOD("apply_safe_area_insets"), &RtsoMain::apply_safe_area_insets);
+	ClassDB::bind_method(D_METHOD("set_safe_area_insets", "left", "top", "right", "bottom"), &RtsoMain::set_safe_area_insets);
+	ClassDB::bind_method(D_METHOD("get_safe_area_insets"), &RtsoMain::get_safe_area_insets);
+	ClassDB::bind_method(D_METHOD("debug_top_hud_offsets"), &RtsoMain::debug_top_hud_offsets);
+	ClassDB::bind_method(D_METHOD("debug_bottom_panel_offsets"), &RtsoMain::debug_bottom_panel_offsets);
 
 	const StringName cls = get_class_static();
 	auto bind_enum = [&](const char *enum_name, const char *name, int64_t value) {

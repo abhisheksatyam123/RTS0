@@ -79,9 +79,12 @@ static func host_port_error(port: int) -> String:
 
 ## Engine.StartNetworkJoin throws "Failed to connect to server" when the host's
 ## name does not resolve (CNetClientSession::Connect), and startJoin shows it
-## as "Cannot join game: %(message)s." and stays open.
+## as "Cannot join game: %(message)s." and stays open. An empty name does not
+## resolve either (enet_address_set_host("")).
 static func join_host_error(server: String) -> String:
-	if server == "" or server.is_valid_ip_address():
+	if server == "":
+		return "Cannot join game: Failed to connect to server."
+	if server.is_valid_ip_address():
 		return ""
 	return "" if IP.resolve_hostname(server, IP.TYPE_IPV4) != "" else "Cannot join game: Failed to connect to server."
 

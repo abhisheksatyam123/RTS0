@@ -38,6 +38,8 @@ static int32_t fidx(const Simulation &s, uint32_t id) {
 }
 static bool f_alive(const Simulation &s, uint32_t id) { int32_t f = fidx(s, id); return f >= 0 && s.fauna_.alive[f]; }
 static int32_t uidx(const Simulation &s, uint32_t id) { return s.lookup_unit(id); }
+// A unit that died is gone from units_ once its death is over (lookup_unit gives -1).
+static bool u_alive(const Simulation &s, uint32_t id) { int32_t u = uidx(s, id); return u >= 0 && s.units_.alive[u]; }
 
 // Meat left on the map within r of (x, z).
 static int meat_near(const Simulation &s, float x, float z, float r) {
@@ -227,7 +229,7 @@ int main() {
 		uint32_t near_v = s.spawn_unit(q - 3.0f, 2.0f, 0, UNIT_FEMALE_CITIZEN);
 		const float hp_near = s.units_.hp[uidx(s, near_v)];
 		run(s, 6.0f);
-		CHECK(s.units_.hp[uidx(s, near_v)] < hp_near || !s.units_.alive[uidx(s, near_v)]);
+		CHECK(!u_alive(s, near_v) || s.units_.hp[uidx(s, near_v)] < hp_near);
 	}
 
 	// 6. An aggressive wolf attacks inside its vision; an idle soldier fights back and kills it.
@@ -238,8 +240,8 @@ int main() {
 		const float hp0 = s.units_.hp[uidx(s, sword)];
 		run(s, 40.0f);
 		CHECK(!f_alive(s, wolf));
-		CHECK(s.units_.hp[uidx(s, sword)] < hp0);
-		CHECK(s.units_.alive[uidx(s, sword)]);
+		CHECK(u_alive(s, sword) && s.units_.hp[uidx(s, sword)] < hp0);
+		CHECK(u_alive(s, sword));
 		CHECK(meat_near(s, 0.0f, 0.0f, 30.0f) == 0); // wolves are not food in 0 A.D.
 	}
 
@@ -250,7 +252,7 @@ int main() {
 		s.order_set_stance(&w, 1, STANCE_PASSIVE);
 		s.spawn_fauna(5.0f, 0.0f, FAUNA_WOLF_ARCTIC_VIOLENT);
 		run(s, 60.0f);
-		CHECK(!s.units_.alive[uidx(s, w)]);
+		CHECK(!u_alive(s, w));
 	}
 
 	// 7b. FLEEING runs FleeDistance further than the attacker was (UnitAI.js distanceToFlee),
@@ -721,7 +723,9 @@ int main() {
 		}
 		const uint32_t chaser = s.spawn_unit(-9.0f, 1.0f, 0, UNIT_SPEARMAN);
 		const uint32_t d2 = s.spawn_fauna(-5.0f, 1.0f, FAUNA_DEER);
-		const uint32_t e2 = s.spawn_fauna(-5.0f, 0.95f, FAUNA_ELEPHANT_AFRICAN_BUSH);
+		// The elephant comes on the deer's line, behind it: beside it, it would push the deer off
+		// the gap's line, as 0.28 pushes any two animals that walk (CCmpUnitMotion_System.cpp:671-804).
+		const uint32_t e2 = s.spawn_fauna(-6.0f, 1.0f, FAUNA_ELEPHANT_AFRICAN_BUSH);
 		const uint32_t bait = s.spawn_unit(6.0f, 1.0f, 1, UNIT_SPEARMAN);
 		for (uint32_t id : {chaser, bait}) s.units_.stance[s.lookup_unit(id)] = STANCE_PASSIVE; // they stay put
 		s.tick(Simulation::FIXED_STEP);

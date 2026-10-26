@@ -279,6 +279,54 @@ int main() {
 		CHECK(on_full == 2 && on_other == 1 && other_x > 20.0f);
 	}
 
+	// 9b. UnitAI FINDINGNEWTARGET with no free supply near: the turned-away worker walks back
+	// toward where it was sent (GatherNearPosition) or to a dropsite, not idle where it stood.
+	// 9c. The search is for the order's type, not the load: a worker carrying wood sent to a
+	// full mine goes on to the free mine beside it.
+	{
+		static Simulation s;
+		fresh(s);
+		s.set_explore_map(true);
+		s.spawn_building_world(40.0f, 20.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t mine = s.spawn_resource_world(0.0f, 0.0f, RES_STONE, 2000);
+		s.set_resource_max_gatherers(mine, 1);
+		uint32_t men[2];
+		for (int k = 0; k < 2; ++k) men[k] = s.spawn_unit(30.0f, -1.0f + k, 0, UNIT_FEMALE_CITIZEN);
+		s.order_gather(men, 2, mine);
+		run(s, 1.0f);
+		int idle_at_start = 0, sent_on = 0;
+		for (uint32_t id : men) {
+			const int32_t u = s.lookup_unit(id);
+			if (s.units_.target_resource_id[u] == mine) continue;
+			++sent_on;
+			if (s.units_.action_state[u] == ACTION_IDLE && !s.units_.has_order[u]) ++idle_at_start;
+		}
+		std::printf("  full mine, nothing near: %d turned away, %d idle\n", sent_on, idle_at_start);
+		CHECK(sent_on == 1 && idle_at_start == 0);
+
+		static Simulation t;
+		fresh(t);
+		t.set_explore_map(true);
+		t.spawn_building_world(40.0f, 20.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t full = t.spawn_resource_world(0.0f, 0.0f, RES_STONE, 2000);
+		const uint32_t free_mine = t.spawn_resource_world(0.0f, 8.0f, RES_STONE, 2000);
+		t.spawn_resource_world(26.0f, 0.0f, RES_WOOD, 200); // a tree beside the worker
+		t.set_resource_max_gatherers(full, 1);
+		uint32_t w[2];
+		for (int k = 0; k < 2; ++k) w[k] = t.spawn_unit(30.0f, -1.0f + k, 0, UNIT_FEMALE_CITIZEN);
+		const int32_t u1 = t.lookup_unit(w[1]);
+		t.units_.carry[u1] = 5;
+		t.units_.res_type_carried[u1] = RES_WOOD;
+		t.order_gather(&w[0], 1, full);
+		run(t, 0.5f);
+		t.order_gather(&w[1], 1, full);
+		run(t, 1.0f);
+		const int32_t v = t.lookup_unit(w[1]);
+		std::printf("  wood-laden worker turned from a full mine: target %u (free mine %u)\n",
+				t.units_.target_resource_id[v], free_mine);
+		CHECK(t.units_.target_resource_id[v] == free_mine);
+	}
+
 	// 10. 0.28 FindNearestDropsite measures to the footprint (DistanceToPoint): a civic centre
 	// whose edge is nearer wins over a storehouse whose centre is nearer.
 	{

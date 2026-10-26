@@ -1012,3 +1012,488 @@ String RtsoMain::debug_template_model_path(const String &template_id) {
 	const char *own = rtso::unit_template_draw_model(rtso::unit_template_draw_index(t));
 	return own ? rtso::ModelLibrary::get("units", String(own)).path : String();
 }
+
+// --- Dev overlay and sim test tools (split from main_node.cpp) ---
+
+// DeveloperOverlay.toggle: only with cheats in a networked game; DeveloperOverlay.sendNotification
+// tells the other players ("aichat", shown as the player's chat line).
+void RtsoMain::toggle_dev_overlay() {
+	if (!sim || (net_lockstep() && !sim->cheats_enabled())) return;
+	const bool open = !dev_overlay_.is_open();
+	dev_overlay_.set_open(open);
+	chat_window_.post_own(tr(open ? "The Developer Overlay was opened." : "The Developer Overlay was closed."));
+	refresh_dev_overlay();
+}
+
+// GameView.cpp m_CullCamera: freeze the view camera's frustum (outward planes for
+// the animation culling, corners for the frustum overlay); cleared on unlock.
+void RtsoMain::lock_cull_camera() {
+	locked_cull_planes_.clear();
+	locked_cull_corners_.clear();
+	Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+	if (!cam || !cam->get_viewport()) return;
+	const TypedArray<Plane> planes = cam->get_frustum();
+	for (int i = 0; i < planes.size(); ++i) locked_cull_planes_.push_back(planes[i]);
+	const Vector2 size = cam->get_viewport()->get_visible_rect().size;
+	if (size.x <= 0.0f || size.y <= 0.0f) return;
+	const float d_near = cam->get_near(), d_far = cam->get_far();
+	const Vector2 at[4] = { Vector2(0, 0), Vector2(size.x, 0), Vector2(0, size.y), Vector2(size.x, size.y) };
+	Vector3 corners[8];
+	for (int i = 0; i < 4; ++i) {
+		const Vector3 o = cam->project_ray_origin(at[i]);
+		const Vector3 d = cam->project_ray_normal(at[i]);
+		corners[i] = o + d * d_near;
+		corners[i + 4] = o + d * d_far;
+	}
+	for (int i = 0; i < 8; ++i) locked_cull_corners_.push_back(corners[i]);
+}
+
+void RtsoMain::sync_cull_camera() {
+	if (view) {
+		view->set_anim_culling(culling_enabled_);
+		view->set_locked_cull_frustum(lock_cull_camera_ ? locked_cull_planes_ : std::vector<Plane>());
+	}
+	debug_overlays_.set_cull_corners(lock_cull_camera_ ? locked_cull_corners_ : std::vector<Vector3>());
+}
+
+// DeveloperOverlayControlCheckboxes.js onPress handlers.
+void RtsoMain::_on_dev_command(int command) {
+	using D = rtso::RtsoDevOverlay;
+	if (!sim) return;
+	const bool on = dev_overlay_.checked(command);
+	const uint8_t me = local_player();
+	auto cheat = [&](uint8_t action, int32_t parameter, const std::vector<uint32_t> &ids) {
+		if (turn_cmds()) post_lockstep(39, ids.data(), ids.size(), 0.0f, 0.0f, (uint32_t)parameter, action);
+		else sim->cmd_cheat(me, action, parameter, 0, ids.data(), ids.size());
+	};
+	switch (command) {
+		case D::DEV_CONTROL_ALL: // ControlAll: Commands.js "control-all", Player.js SetControlAllUnits
+			cheat(rtso::Simulation::CHEAT_DEV_CONTROL_ALL, on ? 1 : 0, {});
+			break;
+		case D::DEV_CHANGE_PERSPECTIVE: // ChangePerspective: PlayerViewControl.setChangePerspective
+			change_perspective_ = on;
+			update_observer_view_picker();
+			break;
+		case D::DEV_SELECTION_STATE: // SelectionEntityState
+			dev_overlay_.show_state(on);
+			break;
+		case D::DEV_PATHFINDER_OVERLAY: // PathfinderOverlay: SetPathfinderDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::PATHFINDER, on);
+			break;
+		case D::DEV_HIER_PATHFINDER_OVERLAY: // HierarchicalPathfinderOverlay: SetPathfinderHierDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::HIER_PATHFINDER, on);
+			break;
+		case D::DEV_OBSTRUCTION_OVERLAY: // ObstructionOverlay: SetObstructionDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::OBSTRUCTION, on);
+			break;
+		case D::DEV_UNIT_MOTION_OVERLAY: // UnitMotionOverlay: SetMotionDebugOverlay on every entity
+			debug_overlays_.set(rtso::RtsoDebugOverlays::UNIT_MOTION, on);
+			break;
+		case D::DEV_RANGE_OVERLAY: // RangeOverlay: SetRangeDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::RANGE, on);
+			break;
+		case D::DEV_BOUNDING_BOX_OVERLAY: // BoundingBoxOverlay: Engine.SetBoundingBoxDebugOverlay
+			debug_overlays_.set(rtso::RtsoDebugOverlays::BOUNDING_BOX, on);
+			break;
+		case D::DEV_REVEAL_MAP: // RevealMap: "reveal-map" with enable
+			cheat(rtso::Simulation::CHEAT_DEV_REVEAL_MAP, on ? 1 : 0, {});
+			break;
+		case D::DEV_RESTRICT_CAMERA: // RestrictCamera: GameView_SetConstrainCameraEnabled
+			if (cam_rig) cam_rig->set_constrain_camera(on);
+			break;
+		case D::DEV_REJOIN_TEST: // ActivateRejoinTest: its SessionMessageBox, OK starting it
+			if (on && !rejoin_test_) quit_confirmation("rejoin_test");
+			break;
+		case D::DEV_TIME_WARP: // EnableTimeWarp: TimeWarp.setEnabled
+			set_time_warp(on);
+			break;
+		case D::DEV_PROMOTE: { // PromoteSelectedUnits: "promote" the selection; checked() is always false
+			std::vector<uint32_t> ids;
+			for (int k = 0; k < selected_ids.size(); ++k) ids.push_back((uint32_t)(int64_t)selected_ids[k]);
+			cheat(rtso::Simulation::CHEAT_DEV_PROMOTE, 0, ids); // "(Cheat - promoted units)" even with nothing selected
+			break;
+		}
+		case D::DEV_ENABLE_CULLING: // EnableCulling: GameView_SetCullingEnabled
+			culling_enabled_ = on;
+			sync_cull_camera();
+			break;
+		case D::DEV_LOCK_CULL_CAMERA: // LockCullCamera: GameView_SetLockCullCameraEnabled
+			lock_cull_camera_ = on;
+			if (on) lock_cull_camera();
+			else {
+				locked_cull_planes_.clear();
+				locked_cull_corners_.clear();
+			}
+			sync_cull_camera();
+			break;
+		case D::DEV_DISPLAY_CAMERA_FRUSTUM: // DisplayCameraFrustum: Renderer_SetDisplayFrustumEnabled
+			debug_overlays_.set(rtso::RtsoDebugOverlays::CULL_CAMERA_FRUSTUM, on);
+			break;
+		case D::DEV_DISPLAY_SHADOWS_FRUSTUM: // DisplayShadowsFrustum: Renderer_SetDisplayShadowsFrustumEnabled
+			debug_overlays_.set(rtso::RtsoDebugOverlays::SHADOWS_FRUSTUM, on);
+			break;
+		default:
+			break;
+	}
+	refresh_dev_overlay();
+}
+
+// RenderDebugMode.onSelectionChange: Renderer_SetRenderDebugMode. Godot's viewport debug draws
+// stand in for 0.28's shader defines: AO shows the ambient occlusion buffer, Alpha the
+// overdraw of blended surfaces, and Custom draws albedo only, unlit.
+void RtsoMain::_on_render_debug_mode(int index) {
+	using D = rtso::RtsoDevOverlay;
+	if (index < 0 || index >= D::RENDER_DEBUG_COUNT) return;
+	render_debug_mode_ = index;
+	static constexpr Viewport::DebugDraw kDraw[D::RENDER_DEBUG_COUNT] = {
+		Viewport::DEBUG_DRAW_DISABLED, Viewport::DEBUG_DRAW_SSAO, Viewport::DEBUG_DRAW_OVERDRAW, Viewport::DEBUG_DRAW_UNSHADED,
+	};
+	if (Viewport *vp = get_viewport()) vp->set_debug_draw(kDraw[index]);
+	refresh_dev_overlay();
+}
+
+void RtsoMain::activate_rejoin_test() {
+	if (rejoin_test_ || !sim || turn_mgr_.is_replaying()) return;
+	rejoin_test_ = true;
+	refresh_dev_overlay();
+	// 0.28 Engine.ActivateRejoinTest: LOGMESSAGERENDER("Rejoin test will activate in %i turns"); the copy joins after the next turn.
+	show_notice(String("Rejoin test will activate in %d turns").replace("%d", "1"));
+}
+
+// After each turn: the first takes the snapshot and rejoins the copy from it (a fresh
+// Simulation loading the save, as a rejoining client loads the host's state); each later
+// one replays that turn's commands onto the copy, whose turn manager checks the copy's
+// hash against the turn's.
+void RtsoMain::rejoin_test_turn() {
+	rtso::TurnFrame frame;
+	if (!rejoin_test_ || !sim || !turn_mgr_.last_turn_frame(frame)) return;
+	if (!rejoin_sim_) {
+		const String path = ProjectSettings::get_singleton()->globalize_path("user://rejoin_test.rts0sav");
+		const std::string p = path.utf8().get_data();
+		auto copy = std::make_unique<rtso::Simulation>();
+		if (!sim->save_state(p.c_str()) || !copy->load_state(p.c_str())) {
+			DirAccess::remove_absolute(path);
+			return;
+		}
+		DirAccess::remove_absolute(path);
+		rejoin_sim_ = std::move(copy);
+		rejoin_tm_ = std::make_unique<rtso::TurnManager>();
+		rejoin_tm_->begin_shadow_replay(turn_mgr_);
+		rejoin_from_turn_ = turn_mgr_.current_turn();
+		return;
+	}
+	rejoin_tm_->push_shadow_frame(frame);
+	if (!rejoin_tm_->tick(rtso::TurnManager::TURN_DURATION, *rejoin_sim_)) return;
+	++rejoin_turns_;
+	if (rejoin_tm_->replay_out_of_sync() && !rejoin_oos_turn_) {
+		rejoin_oos_turn_ = rejoin_tm_->replay_out_of_sync_turn();
+		// A replay (-rejointest with -replay) reports it on the command line instead.
+		if (turn_mgr_.is_replaying()) UtilityFunctions::printerr(String("Rejoin test failure on turn %d").replace("%d", String::num_int64(rejoin_oos_turn_)));
+		else quit_confirmation("out_of_sync_rejoin_test");
+	}
+}
+
+void RtsoMain::set_sim_tests(const Dictionary &d) {
+	ooslog_ = bool(d.get("ooslog", false));
+	serialization_test_ = bool(d.get("serializationtest", false));
+	rejoin_test_turn_ = int(d.get("rejointest", -1));
+	if (bool(d.get("unique_logs", false)))
+		turn_mgr_.set_oos_dump_name(("oos_dump_" + String::num_int64((int64_t)Time::get_singleton()->get_unix_time_from_system()) +
+				"_" + String::num_int64(OS::get_singleton()->get_process_id())).utf8().get_data());
+	else
+		turn_mgr_.set_oos_dump_name("oos_dump");
+	// CSimulation2: sim_log/<pid> under the log directory.
+	sim_log_dir_ = OS::get_singleton()->get_user_data_dir() + "/sim_log/" + String::num_int64(OS::get_singleton()->get_process_id()) + "/";
+	serial_sim_.reset();
+	serial_tm_.reset();
+	serial_turns_ = serial_fail_turn_ = 0;
+}
+
+Dictionary RtsoMain::get_sim_tests() const {
+	Dictionary d;
+	d["ooslog"] = ooslog_;
+	d["serializationtest"] = serialization_test_;
+	d["rejointest"] = rejoin_test_turn_;
+	d["sim_log"] = sim_log_dir_;
+	d["oos_dump_name"] = String::utf8(turn_mgr_.oos_dump_name().c_str());
+	d["serialization_turns"] = serial_turns_;
+	d["serialization_failure_turn"] = serial_fail_turn_;
+	d["rejoin_failure_turn"] = rejoin_oos_turn_;
+	return d;
+}
+
+// After every turn (CSimulation2::Update): the OOS log, the serialization test, and
+// the rejoin test's start at its turn.
+void RtsoMain::sim_tests_turn() {
+	rtso::TurnFrame frame;
+	if (!sim || !turn_mgr_.last_turn_frame(frame)) return;
+	const String turn = String::num_int64(frame.turn_index).lpad(8, "0");
+	if (ooslog_) {
+		DirAccess::make_dir_recursive_absolute(sim_log_dir_);
+		const std::string base = (sim_log_dir_ + turn).utf8().get_data();
+		std::ofstream file(base + ".txt", std::ios::out | std::ios::trunc);
+		if (file) {
+			file << "turn: " << frame.turn_index << "\nhash: " << frame.sim_state_hash << "\n";
+			rtso::TurnManager::write_state_text(file, *sim);
+		}
+		sim->save_state((base + ".dat").c_str());
+	}
+	if (rejoin_test_turn_ >= 0 && !rejoin_test_ && frame.turn_index >= (uint32_t)rejoin_test_turn_) {
+		rejoin_test_ = true;
+		refresh_dev_overlay();
+	}
+	if (!serialization_test_) return;
+	// The copy loaded last turn has run this turn too: it must agree.
+	if (serial_sim_) {
+		serial_tm_->push_shadow_frame(frame);
+		if (serial_tm_->tick(rtso::TurnManager::TURN_DURATION, *serial_sim_)) {
+			++serial_turns_;
+			if (serial_tm_->replay_out_of_sync()) {
+				serial_fail_turn_ = frame.turn_index;
+				const String dir = sim_log_dir_ + "serializationtest/";
+				DirAccess::make_dir_recursive_absolute(dir);
+				for (int i = 0; i < 2; ++i) {
+					const rtso::Simulation &s = i ? *serial_sim_ : *sim;
+					const std::string base = (dir + turn + (i ? ".deserialized" : ".original")).utf8().get_data();
+					std::ofstream file(base + ".txt", std::ios::out | std::ios::trunc);
+					if (file) rtso::TurnManager::write_state_text(file, s);
+					s.save_state((base + ".dat").c_str());
+				}
+				UtilityFunctions::printerr(String("Serialization test failure on turn %d; logs in ").replace("%d", String::num_int64(frame.turn_index)) + dir);
+				serialization_test_ = false; // 0.28 turns the test off after a failure
+				serial_sim_.reset();
+				serial_tm_.reset();
+				return;
+			}
+		}
+	}
+	const String path = sim_log_dir_ + "serializationtest.rts0sav";
+	DirAccess::make_dir_recursive_absolute(sim_log_dir_);
+	const std::string p = path.utf8().get_data();
+	auto copy = std::make_unique<rtso::Simulation>();
+	const bool ok = sim->save_state(p.c_str()) && copy->load_state(p.c_str());
+	DirAccess::remove_absolute(path);
+	if (!ok) return;
+	serial_sim_ = std::move(copy);
+	if (!serial_tm_) serial_tm_ = std::make_unique<rtso::TurnManager>();
+	serial_tm_->begin_shadow_replay(turn_mgr_);
+}
+
+Dictionary RtsoMain::get_rejoin_test() const {
+	Dictionary d;
+	d["active"] = rejoin_test_;
+	d["rejoined_at"] = rejoin_from_turn_;
+	d["turns"] = rejoin_turns_;
+	d["out_of_sync_turn"] = rejoin_oos_turn_;
+	return d;
+}
+
+// TimeWarp.setEnabled: not in networked games (nor replays); turning it on shows
+// TimeWarpMessageBox and starts the snapshots (Engine.EnableTimeWarpRecording(10)).
+void RtsoMain::set_time_warp(bool on) {
+	if (net_lockstep() || turn_mgr_.is_replaying()) on = false;
+	if (on == time_warp_) return;
+	time_warp_ = on;
+	if (!on) {
+		if (time_warp_ff_) game_speed = 1.0f;
+		time_warp_ff_ = false;
+		for (const String &p : time_warp_snapshots_) DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(p));
+		time_warp_snapshots_.clear();
+		return;
+	}
+	time_warp_turn_ = UINT32_MAX;
+	quit_confirmation("time_warp");
+}
+
+// CTurnManager time warp: a snapshot of the game every 10 turns, and SetSimRate(20)
+// while the fast forward hotkey is held, back to 1 when it is let go.
+void RtsoMain::time_warp_tick() {
+	if (!time_warp_ || !sim) return;
+	const bool ff = rtso::hotkeys::held("session.timewarp.fastforward");
+	if (ff != time_warp_ff_) {
+		game_speed = ff ? 20.0f : 1.0f; // TimeWarp.resetSpeed: SetSimRate(1), whatever the speed was
+		time_warp_ff_ = ff;
+	}
+	const uint32_t turn = turn_mgr_.current_turn();
+	if (turn % 10 != 0 || turn == time_warp_turn_) return;
+	time_warp_turn_ = turn;
+	DirAccess::make_dir_recursive_absolute(ProjectSettings::get_singleton()->globalize_path("user://timewarp"));
+	const String path = "user://timewarp/turn_" + String::num_int64(time_warp_serial_++) + ".rts0sav";
+	if (!sim->save_state(ProjectSettings::get_singleton()->globalize_path(path).utf8().get_data())) return;
+	time_warp_snapshots_.push_back(path);
+	if (time_warp_snapshots_.size() > 100) { // TimeWarp's caption warns of memory: keep the last 100 on disk
+		DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(time_warp_snapshots_.front()));
+		time_warp_snapshots_.erase(time_warp_snapshots_.begin());
+	}
+}
+
+// CTurnManager::RewindTimeWarp: back to the latest snapshot, which is then dropped, so
+// rewinding again goes further back. Only the simulation goes back: the control groups
+// and selection stay, less what the snapshot doesn't have (0.28's GUI drops entities
+// that no longer exist). The game goes on as a new replay from there, where 0.28 keeps
+// writing a replay that can no longer be played.
+bool RtsoMain::time_warp_rewind() {
+	if (!time_warp_ || time_warp_snapshots_.empty()) return false;
+	const String path = time_warp_snapshots_.back();
+	time_warp_snapshots_.pop_back();
+	PackedInt32Array groups[10];
+	for (int g = 0; g < 10; ++g) groups[g] = selected_groups[g];
+	const PackedInt32Array units = selected_ids;
+	const std::vector<uint32_t> structures = selected_structures();
+	const bool ok = load_game(path);
+	DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(path));
+	time_warp_turn_ = turn_mgr_.current_turn(); // no snapshot of the state just restored
+	if (ok) {
+		auto exists = [this](int32_t id) { return sim->entity_owner((uint32_t)id) != 0xFF; };
+		for (int g = 0; g < 10; ++g) {
+			selected_groups[g].clear();
+			for (int32_t id : groups[g])
+				if (exists(id)) selected_groups[g].push_back(id);
+		}
+		selected_ids.clear();
+		for (int32_t id : units)
+			if (exists(id)) selected_ids.push_back(id);
+		std::vector<uint32_t> kept;
+		for (uint32_t id : structures)
+			if (exists((int32_t)id)) kept.push_back(id);
+		set_selected_structures(kept);
+	}
+	return ok;
+}
+
+// The checked() handlers while the overlay is open, and DeveloperOverlayEntityState.update:
+// the first selected entity's state.
+void RtsoMain::refresh_dev_overlay() {
+	using D = rtso::RtsoDevOverlay;
+	if (!sim) return;
+	// ControlAll's checked(): the viewed player's controlsAll; the cheat applies to
+	// the local player, which is the viewed one outside observer views.
+	const uint8_t me = local_player();
+	if (dev_overlay_.is_open()) {
+		dev_overlay_.set_checked(D::DEV_CONTROL_ALL, sim->controls_all(me));
+		dev_overlay_.set_checked(D::DEV_REVEAL_MAP, sim->reveal_map());
+		dev_overlay_.set_checked(D::DEV_RESTRICT_CAMERA, cam_rig ? cam_rig->is_constrain_camera() : true);
+		dev_overlay_.set_checked(D::DEV_ENABLE_CULLING, culling_enabled_); // checked(): GameView_GetCullingEnabled
+		dev_overlay_.set_checked(D::DEV_LOCK_CULL_CAMERA, lock_cull_camera_); // checked(): GameView_GetLockCullCameraEnabled
+		dev_overlay_.set_checked(D::DEV_PROMOTE, false);
+		dev_overlay_.set_checked(D::DEV_TIME_WARP, time_warp_);
+		dev_overlay_.set_checked(D::DEV_REJOIN_TEST, rejoin_test_); // checked(): this.disabled
+		// 0.28 enabled(): !this.disabled && g_InitAttributes.mapType != "random".
+		dev_overlay_.set_enabled(D::DEV_REJOIN_TEST, !rejoin_test_ && !random_map_ && !turn_mgr_.is_replaying());
+		using O = rtso::RtsoDebugOverlays;
+		dev_overlay_.set_checked(D::DEV_PATHFINDER_OVERLAY, debug_overlays_.on(O::PATHFINDER));
+		dev_overlay_.set_checked(D::DEV_HIER_PATHFINDER_OVERLAY, debug_overlays_.on(O::HIER_PATHFINDER));
+		dev_overlay_.set_checked(D::DEV_OBSTRUCTION_OVERLAY, debug_overlays_.on(O::OBSTRUCTION));
+		dev_overlay_.set_checked(D::DEV_UNIT_MOTION_OVERLAY, debug_overlays_.on(O::UNIT_MOTION));
+		dev_overlay_.set_checked(D::DEV_RANGE_OVERLAY, debug_overlays_.on(O::RANGE));
+		dev_overlay_.set_checked(D::DEV_BOUNDING_BOX_OVERLAY, debug_overlays_.on(O::BOUNDING_BOX));
+		dev_overlay_.set_checked(D::DEV_DISPLAY_CAMERA_FRUSTUM, debug_overlays_.on(O::CULL_CAMERA_FRUSTUM));
+		dev_overlay_.set_checked(D::DEV_DISPLAY_SHADOWS_FRUSTUM, debug_overlays_.on(O::SHADOWS_FRUSTUM));
+		dev_overlay_.set_render_debug(render_debug_mode_);
+	}
+	if (!dev_overlay_.state_shown()) return;
+	// GuiInterface GetSimulationState's keys in its order, players omitted (DeveloperOverlayEntityState.update).
+	// mapSize is in 0.28 metres (4 per tile); times in milliseconds, as cmpTimer.
+	String text = vformat("simulation: {players:\"<<<omitted>>>\", circularMap:%s, mapSize:%d, timeElapsed:%d",
+			sim->circular_map() ? "true" : "false", (int64_t)std::lround(sim->map_half() * 2.0f * 4.0f),
+			(int64_t)(match_elapsed_time() * 1000.0));
+	text += vformat(", ceasefireActive:%s, ceasefireTimeRemaining:%d, cinemaPlaying:%s", sim->ceasefire_active() ? "true" : "false",
+			(int64_t)std::lround(sim->ceasefire_remaining() * 1000.0f), sim->cinema_playing() ? "true" : "false");
+	{
+		// EndGameManager GetVictoryConditions: the victory_conditions/*.json names.
+		static constexpr struct { uint8_t bit; const char *name; } kVictory[] = {
+			{rtso::VK_CONQUEST, "conquest"}, {rtso::VK_CONQUEST_UNITS, "conquest_units"},
+			{rtso::VK_CONQUEST_STRUCTURES, "conquest_structures"}, {rtso::VK_CONQUEST_CIVIC_CENTRES, "conquest_civic_centers"},
+			{rtso::VK_WONDER, "wonder"}, {rtso::VK_RELIC, "capture_the_relic"}, {rtso::VK_REGICIDE, "regicide"},
+		};
+		String vc;
+		for (const auto &v : kVictory)
+			if (sim->has_victory(v.bit)) vc += String(vc.is_empty() ? "\"" : ", \"") + v.name + "\"";
+		// PopulationCapManager: "player", "world" or "team" and its value.
+		const char *cap_type = sim->world_pop_cap() ? "world" : sim->team_pop_cap() ? "team" : "player";
+		const int cap = sim->world_pop_cap() ? sim->world_pop_cap() : sim->team_pop_cap() ? sim->team_pop_cap() : sim->pop_cap_setting();
+		text += vformat(", victoryConditions:[%s], alliedVictory:%s, populationCapType:\"%s\", populationCap:%d}", vc,
+				sim->last_man_standing() ? "false" : "true", cap_type, (int64_t)cap);
+	}
+	const uint32_t first = !selected_ids.is_empty() ? (uint32_t)(int64_t)selected_ids[0] : 0;
+	if (first) {
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i) {
+			if (uv.id[i] != first) continue;
+			const uint16_t tmpl = uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
+			const char *tid = tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tmpl).id : "";
+			text += "\n\nentity: {\n";
+			text += vformat("  id:%d\n  template:\"%s\"\n  player:%d\n", (int64_t)uv.id[i], String::utf8(tid ? tid : ""), (int64_t)uv.team[i]);
+			text += vformat("  hitpoints:%.1f\n  maxHitpoints:%.1f\n", uv.hp[i], uv.max_hp[i]);
+			text += vformat("  position:{x:%.2f, z:%.2f}\n  heading:{x:%.2f, z:%.2f}\n", uv.pos_x[i], uv.pos_z[i],
+					uv.heading_x ? uv.heading_x[i] : 0.0f, uv.heading_z ? uv.heading_z[i] : 1.0f);
+			text += vformat("  unitType:%d\n  actionState:%d\n  stance:%d\n  rank:%d\n  xp:%d\n  kills:%d\n",
+					(int64_t)uv.unit_type[i], (int64_t)uv.action_state[i], (int64_t)uv.stance[i], (int64_t)uv.rank[i],
+					(int64_t)(uv.xp ? uv.xp[i] : 0), (int64_t)(uv.kills ? uv.kills[i] : 0));
+			text += vformat("  carrying:{type:%d, amount:%d}\n  formation:%d\n", (int64_t)uv.res_type_carried[i],
+					(int64_t)uv.carry[i], (int64_t)uv.formation[i]);
+			// The rest of the entity's live state (0.28 lists every GetEntityState key).
+			text += vformat("  alive:%d\n  velocity:{x:%.2f, z:%.2f}\n  target:{x:%.2f, z:%.2f}\n  targetResource:%d\n",
+					(int64_t)uv.alive[i], uv.vel_x[i], uv.vel_z[i], uv.target_x[i], uv.target_z[i], (int64_t)uv.target_resource_id[i]);
+			text += vformat("  deathTimer:%.2f\n  statusEffects:%d\n  packState:%d\n  packElapsed:%.2f\n}",
+					uv.death_timer ? uv.death_timer[i] : 0.0f, (int64_t)(uv.status_effects ? uv.status_effects[i] : 0),
+					(int64_t)(uv.pack_state ? uv.pack_state[i] : 0), uv.pack_elapsed ? uv.pack_elapsed[i] : 0.0f);
+			if (tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT) {
+				// template: GetTemplateData of the entity's template.
+				const rtso::CivUnitTemplate &t = rtso::civ_unit_template(tmpl);
+				text += vformat("\n\ntemplate: {name:{generic:\"%s\", specific:\"%s\"}, civ:%d, phase:%d, ",
+						String::utf8(t.name ? t.name : ""), String::utf8(t.specific_name ? t.specific_name : ""), (int64_t)t.civ, (int64_t)t.phase);
+				text += vformat("cost:{food:%d, wood:%d, stone:%d, metal:%d, population:%d, time:%.1f}, ", (int64_t)t.food_cost,
+						(int64_t)t.wood_cost, (int64_t)t.stone_cost, (int64_t)t.gold_cost, (int64_t)t.pop_cost, t.train_time);
+				text += vformat("maxHitpoints:%.1f, speed:%.2f, vision:%.2f, ", t.hp, t.speed, t.vision);
+				text += vformat("attack:{hack:%.1f, pierce:%.1f, crush:%.1f, range:%.2f, repeatTime:%.2f}, ", t.hack_damage,
+						t.pierce_damage, t.crush_damage, t.attack_range, t.attack_cooldown);
+				text += vformat("resistance:{hack:%.1f, pierce:%.1f, crush:%.1f}, carryCapacity:%d}", t.hack_armor, t.pierce_armor,
+						t.crush_armor, (int64_t)t.carry_capacity);
+			}
+			break;
+		}
+	} else if (selected_building_id) {
+		for (const auto &b : sim->buildings()) {
+			if (b.id != selected_building_id) continue;
+			text += "\n\nentity: {\n";
+			text += vformat("  id:%d\n  type:%d\n  player:%d\n  hitpoints:%.1f\n  maxHitpoints:%.1f\n", (int64_t)b.id,
+					(int64_t)b.type, (int64_t)b.team, b.hp, b.max_hp);
+			text += vformat("  position:{x:%.2f, z:%.2f}\n  rotation:%.2f\n  buildProgress:%.2f\n  queue:%d\n", b.x, b.z, b.rot,
+					b.build_progress, (int64_t)b.queue.size());
+			text += vformat("  garrisoned:%d\n  capturePoints:%.1f\n  maxCapturePoints:%.1f\n}", (int64_t)sim->get_garrison_count(b.id),
+					b.capture_points, b.max_capture_points);
+			// template: GetTemplateData of the structure's template (its civ's, Gaia's plain one).
+			const rtso::BuildingTypeInfo &info = rtso::building_type_info(b.type);
+			const Dictionary e = rtso::portraits::structure_entry(b.civ, b.type);
+			float cost[rtso::RES_COUNT] = {};
+			sim->structure_cost_for(b.team, b.type, cost);
+			text += vformat("\n\ntemplate: {template:\"%s\", name:{generic:\"%s\", specific:\"%s\"}, civ:%d, ", e.get("template", String()),
+					e.get("generic_name", String(info.name)), e.get("specific_name", String()), (int64_t)b.civ);
+			text += vformat("cost:{food:%d, wood:%d, stone:%d, metal:%d, time:%.1f}, ", (int64_t)std::lround(cost[rtso::RES_FOOD]),
+					(int64_t)std::lround(cost[rtso::RES_WOOD]), (int64_t)std::lround(cost[rtso::RES_STONE]),
+					(int64_t)std::lround(cost[rtso::RES_GOLD]), sim->structure_build_time_for(b.team, b.type));
+			text += vformat("maxHitpoints:%.1f, population:{bonus:%d}, garrisonHolder:{max:%d}, capturable:{max:%.1f}}",
+					sim->structure_max_hp(b.type, b.team), (int64_t)info.pop_bonus, (int64_t)info.garrison_cap, info.capture_max_points);
+			break;
+		}
+	}
+	dev_overlay_.set_state_text(text);
+}
+
+
+Vector4 RtsoMain::debug_top_hud_offsets() const {
+	if (!top_hud_panel) return Vector4(0, 0, 0, 0);
+	return Vector4(
+		top_hud_panel->get_offset(SIDE_LEFT),
+		top_hud_panel->get_offset(SIDE_TOP),
+		top_hud_panel->get_offset(SIDE_RIGHT),
+		top_hud_panel->get_offset(SIDE_BOTTOM)
+	);
+}
+
+Vector2 RtsoMain::debug_bottom_panel_offsets() const {
+	float mm = minimap_view ? minimap_view->get_offset(SIDE_BOTTOM) : 0.0f;
+	float cp = command_panel_.bottom_offset();
+	return Vector2(mm, cp);
+}

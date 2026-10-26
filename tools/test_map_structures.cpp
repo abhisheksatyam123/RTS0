@@ -282,7 +282,41 @@ int main() {
 	CHECK(building_type_info(BLD_EPIC_TEMPLE).max_hp == 5000.0f && building_garrison_heal(BLD_EPIC_TEMPLE) == 3.0f);
 	CHECK(!building_researches_tech(BLD_EPIC_TEMPLE, TECH_HEAL_RATE, CIV_ATHENIANS));
 	for (uint16_t id : civ_roster_ids(CIV_ATHENIANS)) CHECK(!building_trains_template(BLD_EPIC_TEMPLE, CIV_ATHENIANS, CIV_ATHENIANS, id));
+	// Z16: mill_field_wheat has no Health, Capturable or decay and takes 2 gatherers.
 	CHECK(map_structure_template("structures/mill_field_wheat").type == BLD_FIELD);
+	{
+		Simulation m;
+		m.reset();
+		const uint32_t f = m.spawn_building_world(0.0f, 0.0f, BLD_FIELD, GAIA_PLAYER, 1.0f);
+		m.setup_mill_field_wheat(f);
+		const auto &fb = m.buildings_[m.building_id_to_idx_.at(f)];
+		CHECK(fb.hp == 0.0f && fb.max_hp == 0.0f);
+		CHECK(fb.max_capture_points == 0.0f && fb.decay_disabled && fb.territory_decay_rate == 0.0f);
+		CHECK(m.field_cap(fb) == 2);
+	}
+
+	// Y4: Egyptian mercenary camp overrides stone to 0 (wood 100, metal 100).
+	CHECK(building_type_info(BLD_MERCENARY_CAMP).stone_cost == 0);
+	CHECK(building_type_info(BLD_MERCENARY_CAMP).wood_cost == 100);
+	CHECK(building_type_info(BLD_MERCENARY_CAMP).gold_cost == 100);
+
+	// Z17: merc_camp_egyptian counts as Town (phase 2), not Village.
+	CHECK(building_phase_class(BLD_MERCENARY_CAMP) == 2);
+	// Z17: structures/pirates/dock is a dock with civ CIV_GAIA that trains pirate ships,
+	// researches no tech, and applies 0.8 batch modifier.
+	CHECK(map_structure_template("structures/pirates/dock").type == BLD_DOCK);
+	CHECK(map_structure_template("structures/pirates/dock").civ == CIV_GAIA);
+	CHECK(!building_researches_tech(BLD_DOCK, TECH_WARSHIP_HEALTH, CIV_GAIA));
+	CHECK(!building_researches_tech(BLD_DOCK, TECH_DOCK_EFFICIENCY, CIV_GAIA));
+	const uint16_t pirate_scout = civ_unit_template_by_id("pirates/ship_scout");
+	const uint16_t pirate_arrow = civ_unit_template_by_id("pirates/ship_arrow");
+	CHECK(pirate_scout != CIV_UNIT_TEMPLATE_NONE && pirate_arrow != CIV_UNIT_TEMPLATE_NONE);
+	CHECK(building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, pirate_scout));
+	CHECK(building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, pirate_arrow));
+	const uint16_t athen_trireme = civ_unit_template_by_id("athen/ship_trireme");
+	if (athen_trireme != CIV_UNIT_TEMPLATE_NONE) {
+		CHECK(!building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, athen_trireme));
+	}
 	// A captured Ptolemaic mercenary camp keeps the generic barracks list: no crossbow_training.
 	CHECK(building_researches_tech(BLD_MERCENARY_CAMP, TECH_BARRACKS_BATCH_TRAINING, CIV_HAN));
 	CHECK(!building_researches_tech(BLD_MERCENARY_CAMP, TECH_CROSSBOW_TRAINING, CIV_HAN));

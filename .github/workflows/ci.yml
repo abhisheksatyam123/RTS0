@@ -388,6 +388,13 @@ jobs:
           /tmp/test_formations
           python3 tools/check_parity.py --unit formation
 
+      - name: Component parity tests (attack splash falloff, BuildingAI arrows, formation turning)
+        run: |
+          g++ -std=c++20 -O1 -Isrc tools/test_components.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_components
+          /tmp/test_components
+
       - name: Treasures, ruins and mercenary camps
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_treasures.cpp src/simulation/simulation.cpp \

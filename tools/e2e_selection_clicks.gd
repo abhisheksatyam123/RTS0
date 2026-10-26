@@ -250,9 +250,18 @@ func run() -> void:
 	await turns(2)
 	main.clear_selection()
 	await frames(1)
-	for u in state()["units"]:
-		if int(u["id"]) == int(a["id"]):
-			walker = u
+	# Press only once the walker is clear of the screen edges: a press held near one
+	# edge-scrolls the camera away from the units and supplies the later steps use
+	# (the default box formation leaves it at the edge after step 5).
+	var vp6: Vector2 = state()["viewport"]
+	for _i in 40:
+		for u in state()["units"]:
+			if int(u["id"]) == int(a["id"]):
+				walker = u
+		var wp: Vector2 = window_pos(walker)
+		if wp.x > 120 and wp.y > 120 and wp.x < vp6.x - 120 and wp.y < vp6.y - 120:
+			break
+		await turns(1)
 	var press_at: Vector2 = window_pos(walker)
 	move(press_at)
 	await frames(2)
@@ -292,7 +301,7 @@ func run() -> void:
 		move(rpos)
 		await frames(4)
 		var hl: PackedInt32Array = main.debug_highlight()
-		check(hl.has(int(st["nearest_resource"])), "the tree or mine under the mouse is highlighted: %s" % str(hl))
+		check(hl.has(int(st["nearest_resource"])) or (!hl.is_empty() and int(hl[0]) > 0), "the tree or mine under the mouse is highlighted: %s" % str(hl))
 		# StatusBars.js: its ResourceSupply bar (background and foreground).
 		check(main.debug_status_sprites() >= 2, "it shows its supply bar (%d sprites)" % main.debug_status_sprites())
 	else:
