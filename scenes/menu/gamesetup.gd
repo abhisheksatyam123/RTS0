@@ -163,8 +163,10 @@ const POP_TYPE_PLAYER := 0
 const POP_TYPE_TEAM := 1
 const POP_TYPE_WORLD := 2
 const POP_UNLIMITED := 10000
-# 0.28 Sliders/Ceasefire.js (0-45 min), WonderDuration.js and RelicDuration.js (0-60 min,
-# default 20) and RelicCount.js (1 to the number of civs, default 2), one entry a step.
+# 0.28 Sliders/Ceasefire.js (0-45 min), WonderDuration.js and RelicDuration.js (0-60 min)
+# and RelicCount.js (1 to the number of civs), one entry a step. RTS0 starts them at 20 min,
+# 20 min and 2 relics on purpose: WonderDuration.js declares DefaultValue 20, but nothing in
+# 0.28 reads it, so a fresh 0.28 setup opens at an immediate victory and one relic.
 const SettingSlider := preload("res://scenes/menu/setting_slider.gd")
 static var CEASEFIRES: Array = range(0, 46)
 static var VICTORY_TIMES: Array = range(0, 61)
@@ -746,7 +748,12 @@ func _select_pop(setting: int, team: bool) -> void:
 
 ## PopulationCapType.onSelectionChange: the new type's caps at its default.
 func _on_pop_type_selected(i: int) -> void:
-	_set_pop_type(clampi(i, 0, POP_CAP_TYPES.size() - 1), -1)
+	var type := clampi(i, 0, POP_CAP_TYPES.size() - 1)
+	# 0.28 LockedTeams watches population.capType: any change of type sets Locked
+	# teams to (type is Team Population), so leaving it unlocks the teams again.
+	if type != _pop_type:
+		%LockTeams.button_pressed = type == POP_TYPE_TEAM
+	_set_pop_type(type, -1)
 
 func _set_pop_type(type: int, cap: int) -> void:
 	_pop_type = type
@@ -1150,9 +1157,10 @@ func _apply_map_locks() -> void:
 	# 0.28 MapSize.available: random maps only.
 	%MapSizeLabel.visible = _slot_count_node().editable
 	%MapSizeSlot.visible = _slot_count_node().editable
+	# ExploreMap before RevealMap: a scenario's RevealMap explores the map too (MapExploration.js).
 	var checks := {"LastManStanding": "LastManStanding", "StartRow/LockTeams": "LockTeams",
-		"StartRow/DisableTreasures": "DisableTreasures", "MapVisRow/RevealMap": "RevealMap",
-		"MapVisRow/ExploreMap": "ExploreMap", "MapVisRow/AlliedView": "AllyView", "MapVisRow/DisableSpies": "DisableSpies"}
+		"StartRow/DisableTreasures": "DisableTreasures", "MapVisRow/ExploreMap": "ExploreMap",
+		"MapVisRow/RevealMap": "RevealMap", "MapVisRow/AlliedView": "AllyView", "MapVisRow/DisableSpies": "DisableSpies"}
 	for path in checks:
 		var cb: BaseButton = get_node("%" + path.get_file())
 		cb.disabled = scen
@@ -1922,6 +1930,10 @@ func _build_options() -> void:
 		_victory_checks[int(k[0])] = cb
 	_set_victory_mask(1)
 	%LockTeams.toggled.connect(func(_on): _render_mode_checks())
+	# 0.28 MapExploration.setRevealed / setExplored: a revealed map is explored, and an
+	# unexplored one isn't revealed.
+	%RevealMap.toggled.connect(func(on: bool): if on: %ExploreMap.set_pressed_no_signal(true))
+	%ExploreMap.toggled.connect(func(on: bool): if not on: %RevealMap.set_pressed_no_signal(false))
 	var msz := _make_option(%MapSizeSlot)
 	for s in MAP_SIZES:
 		msz.add_item(tr(s[1]), s[0])
@@ -2059,8 +2071,14 @@ func _set_victory_mask(mask: int) -> void:
 func _render_mode_checks() -> void:
 	var scen := _is_scenario()
 	%LastManStanding.disabled = scen or %LockTeams.button_pressed
+	# LastManStanding / RegicideGarrison setEnabled(enabled && available): losing their
+	# condition clears them, and they stay cleared when it comes back.
+	if not scen and %LockTeams.button_pressed:
+		%LastManStanding.set_pressed_no_signal(false)
 	%Nomad.visible = str(_selected_map().get("kind", "")) == "Random"
 	%RegicideGarrison.visible = not scen and (_victory_mask() & VK_REGICIDE) != 0
+	if not scen and (_victory_mask() & VK_REGICIDE) == 0:
+		%RegicideGarrison.set_pressed_no_signal(false)
 
 ## 0.28 WonderDuration / RelicCount / RelicDuration: shown only while their condition
 ## is checked, and fixed (disabled) on a scenario.
@@ -2145,7 +2163,9 @@ func page_state() -> Dictionary:
 		"slot_behs": rows.map(func(r): return int(r["beh"])), "slot_colors": rows.map(func(r): return int(r["color"])),
 		"local_slot": _local_slot,
 		# GuiData.js: the Map Filter travels with the settings and is persisted with them.
-		"map_filter": _map_filter_name}
+		"map_filter": _map_filter_name,
+		# Only a networked host persists Cheats; single player always has them on.
+		"cheats": _mp_role == "host" and %Cheats.button_pressed}
 
 ## The settings to show: the persisted file when there is one, else what this
 ## run last started with (MatchSettings).
@@ -2195,8 +2215,8 @@ func _apply_settings(ms: Dictionary) -> void:
 	_select_pop(int(ms.get("pop_cap")), bool(ms.get("team_pop")))
 	var cf: SettingSlider = %CeasefireSlot.get_child(0)
 	cf.select(maxi(CEASEFIRES.find(int(ms.get("ceasefire_min"))), 0))
-	%RevealMap.button_pressed = bool(ms.get("reveal_map"))
 	%ExploreMap.button_pressed = bool(ms.get("explore_map"))
+	%RevealMap.button_pressed = bool(ms.get("reveal_map"))
 	%AlliedView.button_pressed = bool(ms.get("ally_view"))
 	var wt: SettingSlider = %WonderTimeSlot.get_child(0)
 	var rt: SettingSlider = %RelicTimeSlot.get_child(0)
@@ -2623,8 +2643,13 @@ func _build_net_controls() -> void:
 	# 0.28 Rating.js "Rated Game" and Cheats.js, which the host sets in a
 	# networked game (off by default) unless the game is rated.
 	var cheats: CheckBox = %Cheats
-	# A saved game keeps its own cheats setting (nothing but the seats changes).
-	cheats.button_pressed = _saved_game() and bool(get_node("/root/MatchSettings").cheats)
+	# A saved game keeps its own cheats setting (nothing but the seats changes); a new
+	# game's host gets the Cheats choice it persisted (matchsettings.mp.json), as 0.28
+	# restores every persisted setting and Cheats.onLoad only forces it in single player.
+	if _saved_game():
+		cheats.button_pressed = bool(get_node("/root/MatchSettings").cheats)
+	else:
+		cheats.button_pressed = _mp_role == "host" and bool(load_persisted(true).get("cheats", false))
 	cheats.disabled = false
 	cheats.toggled.connect(func(_on): _update_rated(); _update_net_controls())
 	_rated = CheckBox.new()
