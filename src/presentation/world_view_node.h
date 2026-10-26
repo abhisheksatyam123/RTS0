@@ -39,6 +39,7 @@
 #include "fog_mirage.h"
 #include "status_sprites.h"
 #include "status_bars_data.h"
+#include "selection_overlay_data.h"
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/image_texture.hpp>
 #include <godot_cpp/classes/shader_material.hpp>
@@ -360,7 +361,6 @@ class RtsoWorldView : public Node3D {
 	bool apply_sky_box(const godot::Ref<godot::Sky> &sky, const std::string &set, const std::string &map_id, float sun_yaw, const godot::Color &ground);
 	godot::Ref<godot::Shader> sky_box_shader_;
 
-	Ref<Texture2D> ring_decal_tex_;
 	std::vector<Decal *> unit_ring_decals_;
 	std::unordered_map<uint32_t, Ref<StandardMaterial3D>> outline_mats_; // by RGBA32 (outline_material)
 	const Ref<StandardMaterial3D> &outline_material(const Color &c);
@@ -368,8 +368,22 @@ class RtsoWorldView : public Node3D {
 	std::unordered_set<int32_t> sel_buildings_; // the selected structures (outlined)
 	Ref<BoxMesh> outline_mesh_;
 	std::vector<MeshInstance3D *> outline_bars_;
-	void draw_structure_outlines(const rtso::Simulation *sim);
+	struct OverlayFade {
+		float alpha = 0.0f;
+		float baseline = 0.0f;
+		float target = 0.0f;
+		float progress = 0.3f;
+	};
+	std::unordered_map<uint32_t, OverlayFade> selection_fades_;
+	float update_overlay_fade(uint32_t key, float target_alpha, float delta);
+	void draw_structure_outlines(const rtso::Simulation *sim, float delta);
 	Decal *get_or_create_ring_decal(size_t index);
+	// CCmpSelectable's overlay quad: the shape's texture in this colour (overlayline.fs:
+	// mix(base, colour, mask)), cached per shape and colour.
+	std::unordered_map<std::string, std::pair<Ref<Image>, Ref<Image>>> selection_images_; // base, mask by texture
+	std::unordered_map<std::string, Ref<Texture2D>> selection_textures_; // by texture and RGBA32
+	Ref<Texture2D> selection_texture(const char *texture, const Color &c);
+	void place_selection_overlay(Decal *d, const rtso::SelectionOverlay &ov, float metre, float yaw, const Vector3 &at, const Color &c);
 	// Godot 4.3's Compatibility renderer (OpenGL) draws no Decal: there a decal
 	// carries a child mesh laid over the terrain under it instead (gl_decal_mats_
 	// per texture, the modulate in its vertex colours). No-op on Vulkan.

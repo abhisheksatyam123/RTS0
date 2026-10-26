@@ -886,6 +886,8 @@ void RtsoMain::_ready() {
 		begin_match_recording(nullptr);
 		call_deferred("_start_menu_net");
 	}
+	if (Viewport *vp = get_viewport()) vp->connect("size_changed", Callable(this, "apply_safe_area_insets"));
+	apply_safe_area_insets();
 }
 
 void RtsoMain::_process(double delta) {

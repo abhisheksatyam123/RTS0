@@ -413,6 +413,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			btype = rtso::BLD_HOUSE;
 		}
 		const uint32_t bid = sim->spawn_building_world(bx, bz, btype, team, 1.0f);
+		if (bid && tmpl.contains("mill_field_wheat")) sim->setup_mill_field_wheat(bid);
 		const String look = map_building_look(tmpl);
 		if (bid && !look.is_empty()) view->set_building_look(bid, btype, look);
 	}
@@ -439,6 +440,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		if (btype >= rtso::BLD_TYPE_COUNT) btype = map_building_type(b.get("type", ""));
 		if (btype >= rtso::BLD_TYPE_COUNT) continue;
 		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);
+		if (gaia_structure_ids[i] && gtmpl.contains("mill_field_wheat")) sim->setup_mill_field_wheat(gaia_structure_ids[i]);
 		if (civ < rtso::CIV_COUNT && gaia_structure_ids[i]) sim->set_building_civ(gaia_structure_ids[i], civ);
 		const String look = map_building_look(gtmpl);
 		if (gaia_structure_ids[i] && !look.is_empty()) view->set_building_look(gaia_structure_ids[i], btype, look);
@@ -1084,3 +1086,199 @@ void RtsoMain::store_net_setup_in_match_settings(const rtso::GameSetupParams &se
 	ms->set("slot_names", names);
 	ms->set("player_count", (int)setup.slot_count);
 }
+
+// --- Additional save, load, and session setup methods (split from main_node.cpp) ---
+
+bool RtsoMain::save_game(String path, String description) {
+	if (!sim) return false;
+	String global_path = ProjectSettings::get_singleton()->globalize_path(path);
+	Ref<DirAccess> dir = DirAccess::open("user://");
+	if (dir.is_valid()) {
+		dir->make_dir_recursive("saves");
+	}
+	bool res = sim->save_state(global_path.utf8().get_data());
+	if (res) {
+		// The save and load dialogs list saves by this metadata (0 A.D. gui/savedgames).
+		write_save_metadata(path, description);
+		write_save_thumbnail(path);
+		print_line("[RTS0] Game saved successfully to " + path);
+	}
+	return res;
+}
+
+bool RtsoMain::load_game(String path) {
+	return load_world(path, saved_gui(path));
+}
+
+// session.js restoreSavedGameData gets the save's GUI data: a saved game's camera and
+// control groups, or a quicksave's groups alone.
+bool RtsoMain::load_world(const String &path, const Dictionary &gui) {
+	if (!sim) return false;
+	String global_path = ProjectSettings::get_singleton()->globalize_path(path);
+	load_progress(50, "Loading saved game");
+	// The replay so far stays valid up to here; what follows starts from the save. Loading
+	// leaves this match (0.28 endGame), so its replay keeps its summary.
+	stop_replay_recording(true);
+	bool success = sim->load_state(global_path.utf8().get_data());
+	if (success) {
+		selected_ids.clear();
+		selected_building_id = 0;
+		restore_saved_gui(gui);
+		// The models the saved world draws load here, behind the loading page (0.28's
+		// LDR_ProgressiveLoad), not on the first frame of play.
+		if (view) {
+			const uint64_t t0 = Time::get_singleton()->get_ticks_msec();
+			view->warm_models(sim, [this](int done, int total) {
+				load_progress(60 + 35 * done / std::max(1, total), "Loading models");
+			});
+			print_line(String("[RTS0] Loaded the saved world's models in ") + String::num_int64(Time::get_singleton()->get_ticks_msec() - t0) + " ms");
+		}
+		print_line("[RTS0] Game loaded successfully from " + path);
+		// The game goes on from the save as a new replay that starts from it.
+		if (!loading_replay_start_ && !net_lockstep()) begin_recording_from_save(path);
+	}
+	return success;
+}
+
+PackedByteArray RtsoMain::get_fow_grid() const {
+	if (!sim) return PackedByteArray();
+	const uint8_t* grid = sim->fow_grid(view_player());
+	int sz = sim->fow_res() * sim->fow_res();
+	PackedByteArray arr;
+	arr.resize(sz);
+	for (int i = 0; i < sz; ++i) arr.set(i, grid[i]);
+	return arr;
+}
+
+void RtsoMain::_on_map_selected(int index) {
+	PackedStringArray maps = get_available_maps();
+	if (index >= 0 && index < maps.size()) {
+		load_map(maps[index]);
+	}
+}
+
+PackedStringArray RtsoMain::get_available_maps() const {
+	PackedStringArray maps;
+	Ref<DirAccess> dir = DirAccess::open("res://data/maps");
+	if (dir.is_valid()) {
+		dir->list_dir_begin();
+		String fname = dir->get_next();
+		PackedStringArray json_maps;
+		while (!fname.is_empty()) {
+			if (!dir->current_is_dir() && fname.ends_with(".json")) {
+				json_maps.push_back(fname.get_basename());
+			}
+			fname = dir->get_next();
+		}
+		json_maps.sort();
+		for (int i = 0; i < json_maps.size(); ++i) {
+			maps.push_back(json_maps[i]);
+		}
+	}
+	if (maps.is_empty()) {
+		maps.push_back("acropolis_bay");
+		maps.push_back("corinthian_isthmus");
+		maps.push_back("atlas_valleys");
+		maps.push_back("bactria");
+		maps.push_back("battle_for_the_tiber");
+	}
+	maps.push_back("default");
+	maps.push_back("random_continental");
+	maps.push_back("random_archipelago");
+	maps.push_back("random_oasis");
+	maps.push_back("random_highlands");
+	maps.push_back("random_valley");
+	maps.push_back("random_mediterranean");
+	maps.push_back("random_acropolis");
+	maps.push_back("random_spartan_valley");
+	maps.push_back("random_danubius");
+	maps.push_back("random_saharan_oases");
+	maps.push_back("random_anatolian_plateau");
+	maps.push_back("random_jebel_barkal");
+	for (int t = rtso::MAP_MAINLAND; t < rtso::MAP_TYPE_COUNT; ++t)
+		maps.push_back(String("random_") + rtso::map_type_info((uint8_t)t).id);
+	return maps;
+}
+
+bool RtsoMain::load_map(String map_id) {
+	uint32_t seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
+	if (sim) {
+		sim->set_biome_override(-1); // a map picked in game keeps its own biome
+		sim->set_nomad(false);
+	}
+	local_observer_ = false; // a map picked in game is played from slot 1
+	return load_map_seeded(map_id, seed);
+}
+
+void RtsoMain::apply_map_player_overrides() {
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+		if (map_civ_[p] >= 0) sim->set_team_civ(p, (uint8_t)map_civ_[p]);
+		if (map_has_res_[p]) sim->set_player_resources(p, map_res_[p][0], map_res_[p][1], map_res_[p][3], map_res_[p][2]);
+		sim->set_player_pop_cap(p, map_player_pop_limit_[p]);
+	}
+	if (map_pop_limit_ > 0) sim->set_pop_cap(map_pop_limit_);
+	if (map_has_teams_) {
+		// A map with LockTeams sets the teams itself (0 A.D. gamesetup locks them).
+		sim->set_setup_teams(map_team_);
+		sim->apply_team_diplomacy();
+	}
+}
+
+void RtsoMain::_on_civ_selected(int index) {
+	set_civ(index);
+}
+
+void RtsoMain::_on_ai_diff_selected(int index) {
+	if (!sim || !ai_diff_selector) return;
+	sim->set_petra_difficulty((uint8_t)ai_diff_selector->get_item_id(index));
+}
+
+void RtsoMain::_on_ai_behavior_selected(int index) {
+	if (!sim || !ai_behavior_selector) return;
+	sim->set_petra_behavior((uint8_t)ai_behavior_selector->get_item_id(index));
+}
+
+String RtsoMain::player_display_name(uint8_t pid) const {
+	if (pid >= rtso::MAX_PLAYERS) return pid == rtso::GAIA_PLAYER ? String("Gaia") : String("an observer");
+	// 0 A.D. onFinalizeAttributes: a seated client's own name replaces the slot's.
+	if (net_lockstep())
+		for (const auto &e : net_host_.playerAssignment())
+			if (e.player == pid && !e.name.empty()) return String::utf8(e.name.c_str());
+	if (!player_names_[pid].is_empty()) return player_names_[pid];
+	return "Player " + String::num_int64(pid + 1);
+}
+
+// messages.js onClientLeave / onClientJoin: the seat's client left the match
+// and nobody (a rejoin under a new id) has taken the seat again.
+bool RtsoMain::player_offline(uint8_t pid) const {
+	if (!net_lockstep() || !net_game_started_ || pid >= rtso::MAX_PLAYERS || pid >= net_setup_.setup.slot_count) return false;
+	const int c = net_setup_.slot_client[pid];
+	if (c <= 0 || !turn_mgr_.client_left((uint32_t)c)) return false;
+	for (const auto &e : net_host_.playerAssignment())
+		if (e.player == pid && !turn_mgr_.client_left(e.client)) return false;
+	return true;
+}
+
+void RtsoMain::apply_player_names(const Array &names) {
+	for (int p = 0; p < rtso::MAX_PLAYERS; ++p)
+		player_names_[p] = p < names.size() ? String(names[p]).strip_edges().left(48) : String();
+}
+
+void RtsoMain::sync_victory_selector() {
+	if (!sim || !victory_selector) return;
+	for (int i = 0; i < victory_selector->get_item_count(); ++i) {
+		if (victory_selector->get_item_id(i) == (int)sim->victory_condition()) victory_selector->select(i);
+	}
+}
+
+void RtsoMain::_on_victory_selected(int index) {
+	if (!sim || !victory_selector) return;
+	sim->set_victory_condition((uint8_t)victory_selector->get_item_id(index));
+}
+
+void RtsoMain::_on_voice_button_pressed() {
+	use_english_voice_orders_ = !use_english_voice_orders_;
+	if (voice_btn)
+		voice_btn->set_text(use_english_voice_orders_ ? "Voice: EN" : "Voice: Civ");
+}
+

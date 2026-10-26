@@ -181,6 +181,20 @@ public:
 	godot::TextureButton *button(int i) const { return i >= 0 && i < COUNT ? buttons_[i] : nullptr; }
 	godot::String idle_count_text() const { return count_ ? count_->get_text() : godot::String(); }
 
+	void apply_safe_insets(float bottom_inset) {
+		if (panel_) {
+			panel_->set_offset(godot::SIDE_TOP, -204.0f - 10.0f - bottom_inset);
+			panel_->set_offset(godot::SIDE_BOTTOM, -204.0f - 10.0f + 200.0f - bottom_inset);
+		}
+		if (back_) {
+			back_->set_offset(godot::SIDE_TOP, -204.0f - 10.0f - bottom_inset);
+			back_->set_offset(godot::SIDE_BOTTOM, -204.0f - 10.0f + 200.0f - bottom_inset);
+		}
+	}
+	float bottom_offset() const {
+		return panel_ ? panel_->get_offset(godot::SIDE_BOTTOM) : (-204.0f - 10.0f + 200.0f);
+	}
+
 private:
 	godot::Control *back_ = nullptr;
 	godot::TextureRect *civ_back_ = nullptr;

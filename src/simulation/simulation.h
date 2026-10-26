@@ -182,9 +182,11 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 118; // save_state's format; see the history beside it
-	static constexpr uint32_t SAVE_VERSION_GARRISON_HEAL = 118; // each structure's garrison heal timer (GarrisonHolder HEAL_TIMEOUT)
+	static constexpr uint32_t SAVE_VERSION = 120; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_GARRISON_HEAL = 120; // each structure's garrison heal timer (GarrisonHolder HEAL_TIMEOUT)
+	static constexpr uint32_t SAVE_VERSION_PETRA_FERRIED_GUARDS = 119; // guards on their way by sea to a critical entity
 	static constexpr uint32_t SAVE_VERSION_FAUNA_PRESSURE = 117; // each animal's pushing pressure and failed movements (fauna_pressure_, fauna_failed_)
+	static constexpr uint32_t SAVE_VERSION_PETRA_QUEUE_HEADS = 118; // the structure at the head of each Petra queue
 	static constexpr uint32_t SAVE_VERSION_PETRA_REQUIRE_HOUSES = 116; // headquarters.js requireHouses, kept until the phase has its houses
 	static constexpr uint32_t SAVE_VERSION_PETRA_BASE_TURN = 115; // the base Petra updates next (basesManager.js currentBase)
 	static constexpr uint32_t SAVE_VERSION_PETRA_WORKER_PLANS = 114; // trainMoreWorkers' queued TrainingPlans
@@ -2010,7 +2012,10 @@ public:
 	void set_player_civ(uint8_t civ) { set_team_civ(0, civ); }
 	uint8_t player_civ(uint8_t pid = 0) const { return player(pid).civ; }
 	// A field's MaxGatherers, from the civ it was placed as (its owner's when that is unset).
-	int field_cap(const Building &b) const { return field_max_gatherers(b.civ != CIV_COUNT ? b.civ : player(b.team).civ); }
+	int field_cap(const Building &b) const {
+		if (b.type == BLD_FIELD && b.max_hp == 0.0f && b.max_capture_points == 0.0f) return 2;
+		return field_max_gatherers(b.civ != CIV_COUNT ? b.civ : player(b.team).civ);
+	}
 	// A civ chosen after the player's starting structures were placed re-templates them too.
 	void set_team_civ(uint8_t team, uint8_t civ);
 	uint8_t team_civ(uint8_t team) const { return (team < MAX_PLAYERS) ? players_[team].civ : CIV_ATHENIANS; }
@@ -2476,6 +2481,25 @@ public:
 		b.max_capture_points = 0.0f;
 		b.capture_points = 0.0f;
 		b.capture_points_by_team.fill(0.0f);
+	}
+	// A wheat field (structures/mill_field_wheat): no health (Health disable=""),
+	// uncapturable (Capturable disable=""), no decay (TerritoryDecay disable=""),
+	// and MaxGatherers 2 (ResourceSupply).
+	void setup_mill_field_wheat(uint32_t building_id) {
+		auto it = building_id_to_idx_.find(building_id);
+		if (it == building_id_to_idx_.end()) return;
+		Building &b = buildings_[it->second];
+		b.hp = 0.0f;
+		b.max_hp = 0.0f;
+		b.max_capture_points = 0.0f;
+		b.capture_points = 0.0f;
+		b.capture_points_by_team.fill(0.0f);
+		b.decay_disabled = true;
+		b.territory_decay_rate = 0.0f;
+		auto res_it = field_res_by_bld_.find(building_id);
+		if (res_it != field_res_by_bld_.end()) {
+			set_resource_max_gatherers(res_it->second, 2);
+		}
 	}
 	// A map script's Gaia wall (placeCustomFortress): the `kind` WallSet's pieces from (sx, sz)
 	// to (ex, ez), built and uncapturable, joined to Gaia towers already at the ends. Pieces
@@ -3621,6 +3645,8 @@ private:
 	// Whether a finished building of ours trains some roster template of the class, busy or
 	// not (findTrainableUnits; trainMoreUnits drops a class without one from the plan).
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
+	// The plan queue an attack plan's order trains in (trainMoreUnits: by the order's classes).
+	static uint8_t petra_plan_order_queue(const PetraUnitStat &st);
 	// Whether a finished building of ours lists roster template `tmpl`, busy or not.
 	bool petra_has_trainer(uint16_t tmpl) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;
@@ -3703,6 +3729,16 @@ private:
 	// enemy civic centres going up near our structures; kept until gone or no longer an enemy's.
 	struct PetraDefenseTargets { std::vector<uint32_t> ids; }; // sorted
 	PetraDefenseTargets petra_defense_targets_;
+	// queue.js plans in order: the structure at the head of each queue (type + 1, 0 none) and the
+	// seconds since it last asked; another structure in that queue waits until it starts or
+	// stops asking (the want's lifetime).
+	struct PetraQueueHeads { uint8_t item[PETRA_Q_COUNT] = {}; float age[PETRA_Q_COUNT] = {}; };
+	PetraQueueHeads petra_queue_heads_;
+	bool petra_queue_head_turn(uint8_t queue, uint8_t btype);
+	// victoryManager.js guardEnts false: guards taken from another land than their critical entity,
+	// waiting for or riding a transport (navalManager.requireTransport); each guards it on landing.
+	struct PetraFerriedGuards { std::vector<std::pair<uint32_t, uint32_t>> ids; }; // (guard, critical entity), by guard
+	PetraFerriedGuards petra_ferried_guards_;
 	// basesManager.js basesMap kept between turns: the anchor (civic centre or colony id) that
 	// claimed each of petra_bases_map's tiles (w x w), 0 none. A tile stays with the base that
 	// first claimed it (addTerritoryIndexToBase) until the territory or that anchor is lost.
@@ -3906,7 +3942,8 @@ private:
 	void petra_remove_defender(uint32_t uid);
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
 	float petra_available_resource(uint8_t r) const; // queueManager.getAvailableResources: stock less every queue's account
-	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
+	bool petra_passenger(uint32_t uid) const;
+	bool petra_ferried_guard(uint32_t uid) const; // on its way by sea to guard a critical entity   // booked on one of our transport plans
 	void petra_assign_bombers(); // attackManager.js assignBombers
 	void petra_move_dropsites_to_gatherers(); // worker.js moveToGatherer for mobile dropsites
 	void petra_cancel_attacks_against(uint8_t player); // attackManager.js cancelAttacksAgainstPlayer
@@ -4123,7 +4160,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_) X(petra_queue_heads_) X(petra_ferried_guards_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
@@ -4334,6 +4371,15 @@ private:
 	enum : uint8_t { FOREST_OPEN = 0, FOREST_CLOSED = 1, FOREST_CLOSED_LARGE = 2 };
 	std::vector<uint8_t> forest_cells_;
 	uint64_t forest_sig_ = 0;
+	// The Gaia obstacles were listed afresh (ensure_gaia_obstacles) since forest_cells_ were worked
+	// out. Their signature names the supplies, not where they stand or how big they are, and a tree
+	// moved (snap_trees_to_tiles) or given its flora's size (set_resource_flora) is listed again under
+	// the same one: the woods are worked out again from the new list all the same, as 0.28 rasterizes
+	// a static shape that moved again (CCmpObstructionManager.cpp:381-396 MoveShape dirties its old and
+	// new squares). Else a game would keep the woods of the trees as they first stood, and the same
+	// game loaded from a save (which lists them afresh, as CCmpPathfinder.cpp:222-223 rebuilds its grid
+	// from the obstructions on MT_Deserialized) other ones: their long paths would part.
+	bool forest_stale_ = true;
 	bool forest_removals_only_ = false; // tick_gather felled trees from up-to-date forest_cells_
 	uint64_t forest_sig_of_gaia() const { return gaia_obstacles_sig_ ^ ((uint64_t)nav_grid_.res << 48); }
 	bool forest_cell_closed(int cx, int cy, float clr = CLEARANCE_DEFAULT) const;

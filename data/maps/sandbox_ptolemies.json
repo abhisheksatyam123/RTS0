@@ -4245,7 +4245,8 @@
         150,
         20,
         20
-      ]
+      ],
+      "name": "Kautilya"
     },
     {
       "id": 1,
@@ -4263,7 +4264,8 @@
         46,
         46,
         200
-      ]
+      ],
+      "name": "Ptolemaios A' Soter"
     }
   ],
   "resources": [
