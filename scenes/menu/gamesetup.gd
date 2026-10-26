@@ -2978,7 +2978,9 @@ func _on_net_setup_changed() -> void:
 		refresh_map_list()
 		%Cheats.set_pressed_no_signal(bool(ms.cheats))
 		_rated.set_pressed_no_signal(bool(ms.rated))
-		_rated.visible = bool(ms.rated)
+		# Rating.js render: hidden only while a rated game isn't available, so a client sees
+		# the host's box, locked, ticked or not.
+		_rated.visible = _rated_available() and not bool(ms.cheats)
 	elif _mp_role == "host":
 		# A client's own civ, team or colour, which RtsoMain wrote into MatchSettings.
 		var rows := _net_rows()
