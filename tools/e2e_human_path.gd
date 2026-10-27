@@ -273,6 +273,14 @@ func finish(id: int, what: String, max_turns: int) -> bool:
 		return true
 	if prog.call() <= 0.0 and not sel.is_empty():
 		var at: Vector2 = main.debug_unit_pos(sel[0])
+		# The stuck builder as it stands: its order, where it walks to, and the foundation.
+		print("    builder %d at %s: order %s goal %s" % [sel[0], at, main.debug_unit_order(sel[0]), main.debug_unit_ground(sel[0], true)])
+		for b in state()["buildings"]:
+			if int(b["id"]) == id:
+				print("    foundation %d: type %d at %s half %s" % [id, b["type"], b["pos"], b["half"]])
+		for u in state()["unit_list"]:
+			if int(u[0]) != sel[0] and Vector2(u[1], u[2]).distance_to(at) < 3.0:
+				print("    unit %d at (%.2f, %.2f): order %s" % [u[0], u[1], u[2], main.debug_unit_order(u[0])])
 		await look_at(at)
 		var walk_to: Vector2 = main.get_viewport().get_visible_rect().get_center() + Vector2(0, 120)
 		print("    selected %s, walking to %s" % [main.debug_selection_state()["selected"], main.debug_ground_at(walk_to)])
@@ -284,7 +292,7 @@ func finish(id: int, what: String, max_turns: int) -> bool:
 		var moved: float = at.distance_to(main.debug_unit_pos(sel[0]))
 		for p in [-1, 1]:
 			for b in main.debug_player_state(p)["buildings"]:
-				if Vector2(b["pos"]).distance_to(at) < 6.0:
+				if Vector2(b["pos"]).distance_to(at) < 8.0:
 					print("    nearby: type %d at %s half %s done %s" % [b["type"], b["pos"], b["half"], b["done"]])
 		for u in state()["unit_list"]:
 			if int(u[0]) != sel[0] and Vector2(u[1], u[2]).distance_to(at) < 1.5:

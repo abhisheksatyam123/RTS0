@@ -371,6 +371,8 @@ public:
 	void _ready() override;
 	void _process(double delta) override;
 	void _unhandled_input(const Ref<InputEvent> &event) override;
+	// input.js handleInputBeforeGui: a band box in progress takes the right button before the GUI.
+	void _input(const Ref<InputEvent> &event) override;
 
 	void _on_minimap_clicked(Vector2 world_pos);
 	void _on_minimap_order(Vector2 world_pos);
