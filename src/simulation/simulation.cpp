@@ -388,46 +388,131 @@ struct UnitGrid {
 	// chains hold them (descending index), for a caller that tests many units per query.
 	struct Packed {
 		float x, z;
-		int32_t j;
+		uint32_t j; // the unit's index, with PACKED_FLAG set where pack()'s `flag` marks it (separation(): one that moves)
 	};
+	static constexpr uint32_t PACKED_FLAG = 0x80000000u;
 	uint32_t *packed_start = nullptr; // cell c's units are packed[packed_start[c] .. packed_start[c + 1])
 	Packed *packed = nullptr;
 
-	bool pack(Arena &arena, size_t n, const float *px, const float *pz) {
+	bool pack(Arena &arena, size_t n, const float *px, const float *pz, const uint8_t *flag = nullptr) {
 		const size_t cells = (size_t)res * res;
 		packed_start = arena.alloc_array<uint32_t>(cells + 1);
 		packed = arena.alloc_array<Packed>(n ? n : 1);
 		if (!packed_start || !packed) return false;
 		uint32_t k = 0;
-		for (size_t c = 0; c < cells; ++c) {
-			packed_start[c] = k;
-			for (int32_t j = head[c]; j >= 0; j = nxt[j]) packed[k++] = Packed{px[j], pz[j], j};
+		for (int zz = 0; zz < res; ++zz) {
+			// Only the row's occupied cells hold units; an empty cell starts where the next one does.
+			uint32_t *start = packed_start + (size_t)zz * res;
+			int x = 0;
+			for (uint64_t occ = occupied[zz]; occ; occ &= occ - 1) {
+				const int b = std::countr_zero(occ);
+				std::fill(start + x, start + b + 1, k);
+				for (int32_t j = head[zz * res + b]; j >= 0; j = nxt[j])
+					packed[k++] = Packed{px[j], pz[j], (uint32_t)j | (flag && flag[j] ? PACKED_FLAG : 0u)};
+				x = b + 1;
+			}
+			std::fill(start + x, start + res, k);
 		}
 		packed_start[cells] = k;
 		return true;
 	}
 
-	// visit_radius_within() over the packed units: the same units in the same order.
-	template <typename Fn>
-	void visit_packed_within(float x, float z, float radius, float reach, Fn &&fn) const {
-		int cr = std::max(1, (int)std::ceil(radius * inv) + 1);
-		int cx = std::clamp((int)((x + half) * inv), 0, res - 1);
-		int cz = std::clamp((int)((z + half) * inv), 0, res - 1);
-		int x0 = std::max(0, cx - cr);
-		int x1 = std::min(res - 1, cx + cr);
-		int z0 = std::max(0, cz - cr);
-		int z1 = std::min(res - 1, cz + cr);
-		if (reach < radius + (float)cr / inv) {
-			auto axis = [this](float f) { return std::clamp((int)((f + half) * inv), 0, res - 1); };
-			x0 = std::max(x0, axis(x - reach));
-			x1 = std::min(x1, axis(x + reach));
-			z0 = std::max(z0, axis(z - reach));
-			z1 = std::min(z1, axis(z + reach));
+	// The packed units without PACKED_FLAG (separation(): those that stand) and those with it, each in
+	// the same order, and how many without it come before each packed unit (unflagged_before, one
+	// more for the end): the packed units [a, b) hold unflagged[unflagged_before[a] ..
+	// unflagged_before[b]) and flagged[a - unflagged_before[a] .. b - unflagged_before[b]).
+	Packed *unflagged = nullptr;
+	Packed *flagged = nullptr;
+	uint32_t *unflagged_before = nullptr;
+	bool split_flagged(Arena &arena) {
+		const uint32_t total = packed_start[(size_t)res * res];
+		unflagged = arena.alloc_array<Packed>(total ? total : 1);
+		flagged = arena.alloc_array<Packed>(total ? total : 1);
+		unflagged_before = arena.alloc_array<uint32_t>((size_t)total + 1);
+		if (!unflagged || !flagged || !unflagged_before) return false;
+		uint32_t m = 0;
+		for (uint32_t k = 0; k < total; ++k) {
+			unflagged_before[k] = m;
+			if (packed[k].j & PACKED_FLAG) flagged[k - m] = packed[k];
+			else unflagged[m++] = packed[k];
 		}
-		if (x0 > x1) return;
+		unflagged_before[total] = m;
+		return true;
+	}
+
+	int axis_cell(float f) const { return std::clamp((int)((f + half) * inv), 0, res - 1); }
+
+	// The cells visit_radius_within() visits: columns x0..x1 of rows z0..z1; false for none.
+#if defined(__GNUC__)
+	[[gnu::always_inline]] // once per query, for every entity in separation()'s pass
+#endif
+	bool packed_box(float x, float z, float radius, float reach, int &x0, int &x1, int &z0, int &z1) const {
+		const int cr = std::max(1, (int)std::ceil(radius * inv) + 1);
+		const int cx = axis_cell(x), cz = axis_cell(z);
+		x0 = std::max(0, cx - cr);
+		x1 = std::min(res - 1, cx + cr);
+		z0 = std::max(0, cz - cr);
+		z1 = std::min(res - 1, cz + cr);
+		if (reach < radius + (float)cr / inv) {
+			x0 = std::max(x0, axis_cell(x - reach));
+			x1 = std::min(x1, axis_cell(x + reach));
+			z0 = std::max(z0, axis_cell(z - reach));
+			z1 = std::min(z1, axis_cell(z + reach));
+		}
+		return x0 <= x1;
+	}
+
+	// visit_radius_within() over the packed units: the same units in the same order; with
+	// `unflagged_only`, only those without PACKED_FLAG (split_flagged()), still in that order.
+	template <typename Fn>
+	void visit_packed_within(float x, float z, float radius, float reach, bool unflagged_only, Fn &&fn) const {
+		int x0, x1, z0, z1;
+		if (!packed_box(x, z, radius, reach, x0, x1, z0, z1)) return;
 		for (int zz = z0; zz <= z1; ++zz) {
 			const size_t row = (size_t)zz * res;
-			for (uint32_t k = packed_start[row + x0], e = packed_start[row + x1 + 1]; k < e; ++k) fn(packed[k]);
+			const uint32_t a = packed_start[row + x0], b = packed_start[row + x1 + 1];
+			const Packed *e = packed + a, *end = packed + b;
+			if (unflagged_only) {
+				e = unflagged + unflagged_before[a];
+				end = unflagged + unflagged_before[b];
+			}
+			for (; e < end; ++e) fn(*e);
+		}
+	}
+
+	// visit_packed_within()'s units with PACKED_FLAG, and of those without it only the ones in the
+	// cells that can hold a unit within `near` of (x, z) on both axes, all still in that order. The
+	// cell mapping is monotonic, so each it passes over is `near` or further from (x, z) on an axis,
+	// as nearly as float rounding takes it.
+	template <typename Fn>
+	void visit_flagged_or_near(float x, float z, float radius, float reach, float near, Fn &&fn) const {
+		int x0, x1, z0, z1;
+		if (!packed_box(x, z, radius, reach, x0, x1, z0, z1)) return;
+		const int nx0 = std::max(x0, axis_cell(x - near)), nx1 = std::min(x1, axis_cell(x + near));
+		const int nz0 = axis_cell(z - near), nz1 = axis_cell(z + near);
+		auto flagged_at = [this](uint32_t k) { return flagged + (k - unflagged_before[k]); };
+		for (int zz = z0; zz <= z1; ++zz) {
+			const size_t row = (size_t)zz * res;
+			const uint32_t a = packed_start[row + x0], b = packed_start[row + x1 + 1];
+			// The row's units in up to three runs: those with PACKED_FLAG of the cells before the near
+			// ones, all of the near cells', those with it of the cells after them.
+			const Packed *from[3], *to[3];
+			int runs = 1;
+			if (zz < nz0 || zz > nz1 || nx0 > nx1) {
+				from[0] = flagged_at(a);
+				to[0] = flagged_at(b);
+			} else {
+				const uint32_t c = packed_start[row + nx0], d = packed_start[row + nx1 + 1];
+				from[0] = flagged_at(a);
+				to[0] = flagged_at(c);
+				from[1] = packed + c;
+				to[1] = packed + d;
+				from[2] = flagged_at(d);
+				to[2] = flagged_at(b);
+				runs = 3;
+			}
+			for (int r = 0; r < runs; ++r)
+				for (const Packed *e = from[r]; e < to[r]; ++e) fn(*e);
 		}
 	}
 
@@ -13401,6 +13486,13 @@ constexpr float FAUNA_PUSH_RADIUS = 0.5f;
 const float FAUNA_PUSH_RADIUS_LARGE = unit_collision_radius(UNIT_ELEPHANT);
 } // namespace
 
+// separation()'s pair push, inlined into each of its grid queries.
+#if defined(__GNUC__)
+#define SEP_INLINE __attribute__((always_inline))
+#else
+#define SEP_INLINE
+#endif
+
 void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	const size_t n = units_.count;
 	// Pressure changes on the last tick of each turn, as MoveSubset decays it after the turn's moves
@@ -13495,9 +13587,10 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		qalive = ca;
 	}
 
+	// Packed below, once it is known which entities move.
 	UnitGrid grid, big;
-	if (!grid.build(arena, N, epx, epz, qalive, map_half_) || !grid.pack(arena, N, epx, epz)) return;
-	if (n_big && (!big.build(arena, N, epx, epz, qbig, map_half_) || !big.pack(arena, N, epx, epz))) return;
+	if (!grid.build(arena, N, epx, epz, qalive, map_half_)) return;
+	if (n_big && !big.build(arena, N, epx, epz, qbig, map_half_)) return;
 
 	// The pair loop's inputs, gathered once: twice the average of where each unit stood before and
 	// after move_units (the pushes compare that), where it stood when the turn began (the crossing
@@ -13519,7 +13612,8 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	float *frz = arena.alloc_array<float>(N);
 	float *wsx = arena.alloc_array<float>(N); // the step each tried to take this tick
 	float *wsz = arena.alloc_array<float>(N);
-	if (!pu || !frx || !frz || !wsx || !wsz) return;
+	uint8_t *mov = arena.alloc_array<uint8_t>(N); // PushUnit::moving, which the grids' packed units carry (PACKED_FLAG; see the pair loop)
+	if (!pu || !frx || !frz || !wsx || !wsz || !mov) return;
 	// With animals in the pass (see the pair loop): the unit or animal each attacks (0 for none),
 	// whether it is an animal standing at its target in COMBAT ATTACKING (swing), and the unit or
 	// animal its move heads for, whose shape never obstructs it (CCmpUnitMotion.h:1231-1237
@@ -13620,8 +13714,11 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			r_max = std::max(r_max, u.r);
 		}
 		step_max = std::max({step_max, std::fabs(epx[i] - frx[i]), std::fabs(epz[i] - frz[i])});
+		mov[i] = u.moving;
 	}
 	const float min_push = PUSH_MIN_FORCE * dt / PUSH_TURN;
+	if (!grid.pack(arena, N, epx, epz, mov) || !grid.split_flagged(arena)) return;
+	if (n_big && (!big.pack(arena, N, epx, epz, mov) || !big.split_flagged(arena))) return;
 
 	JobSystem::instance().for_each_index(N, [&](size_t i) {
 		const bool is_unit = i < n;
@@ -13654,9 +13751,16 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		// within `reach` of it once both averages are taken (each moved at most step_max), so it
 		// is passed over before its data is read. The hundredth covers float rounding.
 		float skip = std::max(reach + step_max, ri + r_max) + 0.01f;
-		auto push_pair = [&](const UnitGrid::Packed &e) {
-			if (std::fabs(e.x - pxi) > skip || std::fabs(e.z - pzi) > skip) return;
-			const int32_t j = e.j;
+		float body = 0.0f; // set below: the furthest on an axis a body could overlap this one's
+		// `walker` (see the queries below): pass over the pairs with a unit that stands further than
+		// `body` on either axis.
+		auto push = [&](const UnitGrid::Packed &e, auto walker) SEP_INLINE {
+			float lim = skip;
+			if constexpr (decltype(walker)::value) {
+				if (!(e.j & UnitGrid::PACKED_FLAG)) lim = body;
+			}
+			if (std::fabs(e.x - pxi) > lim || std::fabs(e.z - pzi) > lim) return;
+			const int32_t j = (int32_t)(e.j & ~UnitGrid::PACKED_FLAG);
 			if ((size_t)j == i) return;
 			const PushUnit &b = pu[j];
 			const bool mj = b.moving;
@@ -13780,13 +13884,38 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 				added_pressure += std::max(0, (int)((PUSH_PRESSURE_STATIC + (factor - 2.0f / 3.0f) * PUSH_PRESSURE_DISTANCE) *
 						PUSH_PRESSURE_STRENGTH));
 		};
-		grid.visit_packed_within(pxi, pzi, reach + 0.5f, reach + 0.5f, push_pair);
-		if (n_big) {
-			// Then the large animals, as far as their own clearance reaches.
-			const float reach_big = (ci + c_big) * PUSH_CORRECTION * PUSH_RADIUS + ext;
-			reach2 = reach_big * reach_big;
-			skip = std::max(reach_big + step_max, ri + r_big) + 0.01f;
-			big.visit_packed_within(pxi, pzi, reach_big + 0.5f, reach_big + 0.5f, push_pair);
+		// One of these for each query below, which is then the only one to call its copy of the
+		// query, and the compiler inlines that into it (with the push).
+		auto push_pair = [&](const UnitGrid::Packed &e) SEP_INLINE { push(e, std::false_type{}); };
+		auto walk_pair = [&](const UnitGrid::Packed &e) SEP_INLINE { push(e, std::true_type{}); };
+		// The grid, then the large animals (big). 0 A.D. pushes walkers with walkers and stopped units
+		// with stopped ones, never one with the other unless both are of one control group
+		// (CCmpUnitMotion_System.cpp:673-687); RTS0 only nudges a walker sideways off a standing
+		// body it walks into (moving_push 1 above: the one that stands returns, as does the one that
+		// moves unless the bodies overlap). So an entity of no control group (and any entity, in big:
+		// an animal has no group) passes over pairs that leave it as it was: one that stands, those
+		// with every unit that moves (its query leaves them out); one that moves, those with every
+		// unit that stands further on either axis than a body could overlap its own (`body`: r_lim is
+		// the widest body in the grid, so body is within skip; the hundredth covers float rounding
+		// here and in the cells its query leaves out, visit_flagged_or_near(), and its first test
+		// passes over the rest). The pairs it still takes are those it took, in the same order, so
+		// every sum is the same. One of a control group takes them all.
+		for (int g = 0; g < (n_big ? 2 : 1); ++g) {
+			float q = reach + 0.5f, r_lim = r_max;
+			if (g) {
+				// Then the large animals, as far as their own clearance reaches.
+				const float reach_big = (ci + c_big) * PUSH_CORRECTION * PUSH_RADIUS + ext;
+				reach2 = reach_big * reach_big;
+				skip = std::max(reach_big + step_max, ri + r_big) + 0.01f;
+				q = reach_big + 0.5f;
+				r_lim = r_big;
+			}
+			body = ri + r_lim + 0.01f;
+			const UnitGrid &gr = g ? big : grid;
+			if (mi && (!my_group || g))
+				gr.visit_flagged_or_near(pxi, pzi, q, q, body, walk_pair);
+			else
+				gr.visit_packed_within(pxi, pzi, q, q, !my_group || g, push_pair);
 		}
 		ax *= PUSH_SCALE;
 		az *= PUSH_SCALE;
@@ -13972,6 +14101,8 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		pz[i] = nz;
 	});
 }
+
+#undef SEP_INLINE
 
 // UnitMotionFlying.js (0.28) GetHeightOffset: Position is Floating, so above the water too.
 float Simulation::flight_offset(size_t i) const {
