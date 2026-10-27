@@ -2761,6 +2761,11 @@ inline uint8_t unit_default_stance(uint8_t type, uint16_t tmpl) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
 		const uint16_t flags = civ_unit_template(tmpl).flags;
 		if ((flags & ROSTER_SIEGE_TOWER) || (type == UNIT_HEALER && (flags & ROSTER_CHAMPION))) return STANCE_AGGRESSIVE;
+		// Bolt-shooter rows that are not bolt shooters in 0.28: the plane (template_unit) and the
+		// Theban fire raiser (template_unit_siege_flamethrower, which keeps template_unit_siege's
+		// aggressive stance; only the bolt and stone throwers set standground).
+		if ((flags & ROSTER_FLYING) || std::strcmp(civ_unit_template(tmpl).id, "theb_siege_fireraiser") == 0)
+			return STANCE_AGGRESSIVE;
 	}
 	return unit_default_stance(type);
 }

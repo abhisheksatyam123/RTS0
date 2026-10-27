@@ -621,6 +621,8 @@ int main()
 			check(dmg[0] == 0.0f && dmg[1] == 0.0f && dmg[2] == 0.0f && dmg[3] == 100.0f && d.ranged &&
 				std::fabs(d.min_range - 10.0f) < 1e-3f && std::fabs(d.max_range - 15.0f) < 1e-3f,
 				"the Gaia fire-raiser's attack deals 100 Fire from 10 to 15 m");
+			// template_unit_siege_flamethrower keeps template_unit_siege's aggressive stance.
+			check(sim.units_.stance[i] == STANCE_AGGRESSIVE, "the fire-raiser starts aggressive, not at stand ground");
 		}
 		const DeathDamageInfo *dd = Simulation::death_damage_info(Simulation::unit_death_damage_row(fr));
 		check(dd && dd->fire && dd->friendly_fire && dd->damage == 600.0f && dd->ship_building_mult == 1.0f &&
