@@ -4,8 +4,10 @@
 // Ground overlays for the selected and highlighted entities (0 A.D.
 // gui/session/RangeOverlayManager.js): attack range rings of defensive structures (session.toggleattackrange, Alt+C), aura rings
 // (session.toggleaurasrange, Alt+V), healer range rings
-// (session.togglehealrange, Alt+B), drawn as one ImmediateMesh that follows the
-// terrain (rally points: rally_point_renderer.h); and target
+// (session.togglehealrange, Alt+B), drawn as CCmpRangeOverlayRenderer does: a
+// textured line round each range (outline_border.png, or heal_overlay_range.png's
+// dashes for healers) in the owner's displayed colour, following the terrain
+// (rally points: rally_point_renderer.h); and target
 // markers, 0 A.D.'s own actors: special/target_marker (four arrows closing on
 // where a walk order was given, decaying after 0.5 s) and
 // special/flare_target_marker (an exclamation mark in the sender's colour for
@@ -34,6 +36,7 @@
 
 #include "../simulation/simulation.h"
 #include "attack_detection.h" // kMetresPerUnit
+#include "display_colors.h"
 
 using namespace godot;
 
@@ -58,6 +61,36 @@ public:
 		inst_->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
 		parent->add_child(inst_);
 		parent_ = parent;
+		// overlayline.fs: the mask picks where the owner's colour replaces the texture;
+		// the white rims and alpha come from the texture.
+		Ref<Shader> sh;
+		sh.instantiate();
+		sh->set_code(R"(shader_type spatial;
+render_mode unshaded, blend_mix, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;
+uniform sampler2D base_tex : source_color, filter_linear, repeat_enable;
+uniform sampler2D mask_tex : filter_linear, repeat_enable;
+void fragment() {
+	vec4 b = texture(base_tex, UV);
+	ALBEDO = mix(b.rgb, COLOR.rgb, texture(mask_tex, UV).r);
+	ALPHA = b.a * COLOR.a;
+}
+)");
+		ResourceLoader *rl = ResourceLoader::get_singleton();
+		const char *names[LINE_KINDS] = {"outline_border", "heal_overlay_range"};
+		for (int k = 0; k < LINE_KINDS; ++k) {
+			lines_[k].mesh.instantiate();
+			lines_[k].inst = memnew(MeshInstance3D);
+			lines_[k].inst->set_mesh(lines_[k].mesh);
+			lines_[k].inst->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+			Ref<ShaderMaterial> m;
+			m.instantiate();
+			m->set_shader(sh);
+			m->set_shader_parameter("base_tex", rl->load(String("res://assets/textures/selection/") + names[k] + ".png"));
+			m->set_shader_parameter("mask_tex", rl->load(String("res://assets/textures/selection/") + names[k] + "_mask.png"));
+			m->set_render_priority(1); // over the water, which is drawn transparent too
+			lines_[k].inst->set_material_override(m);
+			parent->add_child(lines_[k].inst);
+		}
 		load_actors();
 	}
 
@@ -91,7 +124,7 @@ public:
 	// GuiInterface.SetBuildingPlacementPreview enables the preview's RangeOverlayManager:
 	// a structure being placed shows its Attack MinRange and MaxRange rings (preview.xml
 	// keeps Attack for them). max_r 0 clears it.
-	void set_preview(float x, float z, float max_r, float min_r) { preview_ = {x, z, max_r, min_r}; }
+	void set_preview(float x, float z, float max_r, float min_r, uint8_t owner) { preview_ = {x, z, max_r, min_r, owner}; }
 
 	// RangeOverlayManager: the selection and the highlighted (hovered or band-boxed)
 	// entities. GuiInterface.SetSelectionHighlight turns the overlays on only for
@@ -100,6 +133,10 @@ public:
 		if (!inst_ || !sim) return;
 		mesh_->clear_surfaces();
 		begun_ = false;
+		for (auto &l : lines_) {
+			l.mesh->clear_surfaces();
+			l.begun = false;
+		}
 		radii_.clear();
 		for (auto &m : markers_) {
 			if (m.actor) m.actor->set_position(Vector3(m.x, sim->get_terrain_height(m.x, m.z), m.z));
@@ -109,35 +146,37 @@ public:
 		std::sort(ids_.begin(), ids_.end());
 		auto listed = [&](uint32_t id) { return std::binary_search(ids_.begin(), ids_.end(), id); };
 		auto shown_for = [&](uint8_t team) { return me >= rtso::MAX_PLAYERS || team == me; };
-		const Color attack_col(1.0f, 0.3f, 0.25f, 0.7f), aura_col(0.85f, 0.5f, 1.0f, 0.6f);
 		if (show_attack && preview_.max_r > 0.0f) {
-			ring(sim, preview_.x, preview_.z, preview_.max_r, attack_col);
-			if (preview_.min_r > 0.0f) ring(sim, preview_.x, preview_.z, preview_.min_r, attack_col);
+			const Color c = owner_color(sim, preview_.owner);
+			ring(sim, preview_.x, preview_.z, preview_.max_r, c, BORDER, kAttackThickness);
+			if (preview_.min_r > 0.0f) ring(sim, preview_.x, preview_.z, preview_.min_r, c, BORDER, kAttackThickness);
 		}
 		if (ids_.empty()) {
-			if (begun_) mesh_->surface_end();
+			end_all();
 			return;
 		}
 		// Where each listed entity stands now (the AuraManager keeps the spot of its last rebuild).
 		spots_.clear();
 		for (const auto &b : sim->buildings()) {
 			if (!listed(b.id) || !shown_for(b.team) || b.build_progress < 1.0f) continue;
-			spots_.push_back({b.id, b.x, b.z});
+			spots_.push_back({b.id, b.x, b.z, b.team});
 			// Attack.js GetRangeOverlays: the Attack's MinRange and MaxRange rings.
 			if (show_attack && sim->building_arrow_range(b) > 0.0f) {
 				const rtso::Simulation::StructureDetails d = sim->structure_details(b);
-				ring(sim, b.x, b.z, d.max_range + b.half_size, attack_col);
-				if (d.min_range > 0.0f) ring(sim, b.x, b.z, d.min_range + b.half_size, attack_col);
+				const Color c = owner_color(sim, b.team);
+				ring(sim, b.x, b.z, d.max_range + b.half_size, c, BORDER, kAttackThickness);
+				if (d.min_range > 0.0f) ring(sim, b.x, b.z, d.min_range + b.half_size, c, BORDER, kAttackThickness);
 			}
 		}
 		auto uv = sim->units();
 		for (size_t i = 0; i < uv.count; ++i) {
 			if (!uv.alive[i] || !listed(uv.id[i]) || !shown_for(uv.team[i])) continue;
-			spots_.push_back({uv.id[i], uv.pos_x[i], uv.pos_z[i]});
+			spots_.push_back({uv.id[i], uv.pos_x[i], uv.pos_z[i], uv.team[i]});
+			const Color c = owner_color(sim, uv.team[i]);
 			const uint16_t ht = uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
 			if (show_heal && rtso::unit_is_healer(ht, uv.unit_type[i])) {
 				const float extra = (rtso::unit_heal_range_base(ht, uv.unit_type[i]) - 12.0f) * rtso::COMBAT_DISTANCE_SCALE;
-				ring(sim, uv.pos_x[i], uv.pos_z[i], sim->healer_range(uv.team[i]) + extra, Color(0.3f, 1.0f, 0.4f, 0.6f));
+				ring(sim, uv.pos_x[i], uv.pos_z[i], sim->healer_range(uv.team[i]) + extra, c, HEAL, kHealThickness);
 			}
 			// The siege templates with an Attack RangeOverlay: stone and bolt throwers, the
 			// flamethrower, siege towers and siege warships.
@@ -145,8 +184,8 @@ public:
 				const float reach = sim->attack_reach(i);
 				const float min_ratio = rtso::unit_min_range_ratio(uv.unit_type[i], ht);
 				if (reach > 0.0f) {
-					ring(sim, uv.pos_x[i], uv.pos_z[i], reach, attack_col);
-					if (min_ratio > 0.0f) ring(sim, uv.pos_x[i], uv.pos_z[i], reach * min_ratio, attack_col);
+					ring(sim, uv.pos_x[i], uv.pos_z[i], reach, c, BORDER, kAttackThickness);
+					if (min_ratio > 0.0f) ring(sim, uv.pos_x[i], uv.pos_z[i], reach * min_ratio, c, BORDER, kAttackThickness);
 				}
 			}
 		}
@@ -164,21 +203,53 @@ public:
 				const std::pair<uint32_t, int> key{src.source_id, (int)std::lround(src.range * 100.0f)};
 				if (std::find(drawn_.begin(), drawn_.end(), key) != drawn_.end()) continue;
 				drawn_.push_back(key);
-				ring(sim, it->x, it->z, src.range, aura_col);
+				ring(sim, it->x, it->z, src.range, owner_color(sim, it->team), BORDER, aura_thickness(src));
 			}
 		}
-		if (begun_) mesh_->surface_end();
+		end_all();
 	}
 
 private:
 	struct Spot {
 		uint32_t id;
 		float x, z;
+		uint8_t team;
 	};
+	// RangeOverlay LineThickness, metres either side of the line: Attack's 0.175
+	// (template_structure_defensive* and the siege templates), Heal.js's 0.35, and
+	// Auras.js's default 0.2 (farmstead_60, the rotary mill's, sets 0.075).
+	static constexpr float kAttackThickness = 0.175f, kHealThickness = 0.35f;
+	static float aura_thickness(const rtso::AuraSource &src) {
+		if (src.type == rtso::AURA_GATHER_RATE) {
+			const int row = (int)src.value;
+			if (row >= 0 && row < (int)rtso::GATHER_RATE_RANGE_AURA_COUNT &&
+					std::strcmp(rtso::gather_rate_range_auras()[row].id, "farmstead_60") == 0)
+				return 0.075f;
+		}
+		return 0.2f;
+	}
+	// CCmpRangeOverlayRenderer::UpdateColor: the owner's displayed colour.
+	static Color owner_color(const rtso::Simulation *sim, uint8_t team) {
+		const uint32_t rgb = rtso::display_colors::rgb(*sim, team);
+		return Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 1.0f);
+	}
+	enum LineKind { BORDER, HEAL, LINE_KINDS };
+	struct Line {
+		Ref<ImmediateMesh> mesh;
+		MeshInstance3D *inst = nullptr;
+		bool begun = false;
+	};
+	Line lines_[LINE_KINDS];
+	void end_all() {
+		if (begun_) mesh_->surface_end();
+		for (auto &l : lines_)
+			if (l.begun) l.mesh->surface_end();
+	}
 	std::vector<Spot> spots_;
 	std::vector<float> radii_;
 	struct Preview {
 		float x = 0.0f, z = 0.0f, max_r = 0.0f, min_r = 0.0f;
+		uint8_t owner = 0;
 	} preview_;
 	std::vector<std::pair<uint32_t, int>> drawn_;
 	static bool has_attack_overlay(uint16_t tmpl) {
@@ -203,17 +274,40 @@ private:
 		mesh_->surface_set_color(c);
 		mesh_->surface_add_vertex(b);
 	}
-	void ring(const rtso::Simulation *sim, float cx, float cz, float r, const Color &c) {
-		begin();
+	// SimRender::ConstructTexturedLineCircle: a closed line a third of its thickness
+	// outside the range, a point every third of a tile (4/3 m); TexturedLineRData:
+	// u across the line, v flipping between 0 and 1 at each point, on the terrain
+	// or the water over it.
+	void ring(const rtso::Simulation *sim, float cx, float cz, float r, const Color &c, LineKind kind, float thickness_m) {
 		radii_.push_back(r);
-		const int steps = std::max(24, (int)(r * 3.0f));
-		Vector3 prev = ground(sim, cx + r, cz);
-		for (int k = 1; k <= steps; ++k) {
-			const float t = (float)k / steps * (float)Math_TAU;
-			const Vector3 p = ground(sim, cx + r * Math::cos(t), cz + r * Math::sin(t));
-			seg(prev, p, c);
-			prev = p;
+		Line &l = lines_[kind];
+		if (!l.begun) {
+			l.mesh->surface_begin(Mesh::PRIMITIVE_TRIANGLES);
+			l.begun = true;
 		}
+		const float half = thickness_m / rtso::AttackDetection::kMetresPerUnit;
+		const float rr = r + half / 3.0f;
+		const int steps = std::max(12, (int)std::ceil((float)Math_TAU * rr * 3.0f));
+		auto at = [&](int k, float rad) {
+			const float t = (float)(k % steps) / steps * (float)Math_TAU;
+			float y = sim->get_terrain_height(cx + rad * Math::sin(t), cz + rad * Math::cos(t));
+			if (sim->water_height() > -0.5f) y = std::max(y, sim->water_height());
+			return Vector3(cx + rad * Math::sin(t), y + 0.1f, cz + rad * Math::cos(t));
+		};
+		Vector3 po = at(0, rr + half), pi = at(0, rr - half);
+		for (int k = 1; k <= steps; ++k) {
+			const Vector3 no = at(k, rr + half), ni = at(k, rr - half);
+			const float v0 = (float)((k - 1) & 1), v1 = (float)(k & 1);
+			vert(l, po, 0.0f, v0, c); vert(l, pi, 1.0f, v0, c); vert(l, no, 0.0f, v1, c);
+			vert(l, no, 0.0f, v1, c); vert(l, pi, 1.0f, v0, c); vert(l, ni, 1.0f, v1, c);
+			po = no;
+			pi = ni;
+		}
+	}
+	static void vert(Line &l, const Vector3 &p, float u, float v, const Color &c) {
+		l.mesh->surface_set_color(c);
+		l.mesh->surface_set_uv(Vector2(u, v));
+		l.mesh->surface_add_vertex(p);
 	}
 	// A pole with a pennant, about 4 m tall.
 	void flag(const rtso::Simulation *sim, float x, float z, const Color &c) {

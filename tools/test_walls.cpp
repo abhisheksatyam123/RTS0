@@ -6,7 +6,8 @@
 // pay for. Palisades are a WallSet of their own (wallset_palisade), and a long one upgrades to a
 // palisade gate; so are the Roman siege walls (rome/wallset_siege), which go in enemy land too,
 // and their long segments become siege wall gates. An Iberian base starts walled on large maps.
-// A destroyed piece leaves rubble that blocks nothing, so a breach opens the long paths.
+// A destroyed piece leaves rubble that blocks nothing, so a breach opens the long paths. A ram or
+// an elephant gets through no gap of 6 m or less in a wall, as 0.28's CheckMovement lets none.
 //   g++ -std=c++20 -O2 -Isrc tools/test_walls.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_walls && /tmp/test_walls
@@ -828,6 +829,91 @@ int main() {
 		std::remove(path);
 		const auto *lw = mid < ids.size() ? find_bld(l, ids[mid]) : nullptr;
 		CHECK(lw && lw->wrecked && obstructed(l) == obstructed(s));
+	}
+
+	// 23. Large units and narrow gaps. 0.28 CheckMovement grows each structure's square by the
+	// walker's class Clearance and refuses a move into one from outside it (CCmpObstructionManager.cpp:
+	// 918-932, Geometry.cpp:259-305), in a step (CCmpUnitMotion.h:1302, :1343) and in a push
+	// (CCmpUnitMotion_System.cpp:628-641). So a ram or an elephant (the "large" class, 3 m) gets
+	// through no gap of 6 m or less, and neither pathfinder finds a way through one either. A wall
+	// across x = 25 with a gap in it, between two wall pieces or between a wall's end and a house
+	// turned 45 degrees (the measured gap is to its corner): a ram and an elephant sent 3 or 10 units
+	// across, the gap on their line, stay on their side of it. Through an 8 m gap both get across,
+	// and so does a spearman (0.8 m) through a 2 m gap between wall pieces and a 3 m one beside the
+	// house (at 2 m the house's corner, grown by 0.8 m, reaches 0.13 m past the line, which 0.28
+	// refuses, and the wall's grown end leaves 7 cm between them).
+	{
+		constexpr float X = 25.0f;
+		// The wall along x = X, pieces from z_from away in direction dir to the map's edge.
+		auto wall_from = [&](float z_from, float dir) {
+			for (float z = z_from + dir * 4.5f; std::fabs(z) < s.map_half() - 4.0f; z += dir * 8.5f)
+				s.spawn_map_wall_piece(0, WALLSET_STONE, Simulation::MAP_WALL_SEGMENT, X, z, 1.5707963f, 9.0f);
+		};
+		// Sends the unit across the gap centred on z0; returns the furthest east it got within 3 units
+		// of the gap in 40 s (one that goes round the wall's end, far up the map, may get across), and
+		// whether it got within 1 of its goal.
+		auto cross = [&](bool house, float gap_m, float z0, UnitType type, float d, bool &arrived) {
+			setup(s, 0.0f);
+			const float g = gap_m / 4.0f;
+			s.begin_bulk_spawn();
+			wall_from(z0 - 0.5f * g, -1.0f);
+			if (house) {
+				const float zb = z0 + 0.5f * g + 1.41421356f; // its lowest corner g above the wall's end
+				s.spawn_building_world(X, zb, BLD_HOUSE, 0, 1.0f, 0.78539816f);
+				wall_from(zb, 1.0f);
+			} else {
+				wall_from(z0 + 0.5f * g, 1.0f);
+			}
+			s.end_bulk_spawn();
+			s.spawn_unit(-40.0f, 40.0f, 0, UNIT_SPEARMAN); // separation() pushes off structures with two units or more
+			const uint32_t u = s.spawn_unit(X - d, z0, 0, type);
+			s.order_set_stance(&u, 1, STANCE_PASSIVE);
+			s.cmd_move(&u, 1, X + d, z0);
+			float east = -1e9f;
+			arrived = false;
+			for (int k = 0; k < (int)(40.0f / Simulation::FIXED_STEP) && !arrived; ++k) {
+				s.tick(Simulation::FIXED_STEP);
+				const int32_t i = s.lookup_unit(u);
+				if (i < 0) break;
+				if (std::fabs(s.units_.pos_z[i] - z0) < 3.0f) east = std::max(east, s.units_.pos_x[i]);
+				arrived = std::hypot(s.units_.pos_x[i] - (X + d), s.units_.pos_z[i] - z0) < 1.0f;
+			}
+			return east;
+		};
+		for (const bool house : {false, true})
+			for (int gap_m = 1; gap_m <= 6; ++gap_m) {
+				int crossed = 0, runs = 0;
+				for (const UnitType type : {UNIT_SIEGE_RAM, UNIT_ELEPHANT})
+					for (const float z0 : {0.0f, 1.0f})
+						for (const float d : {3.0f, 10.0f}) {
+							bool arrived;
+							const float east = cross(house, (float)gap_m, z0, type, d, arrived);
+							++runs;
+							if (east >= X) {
+								++crossed;
+								std::printf("  %s through a %d m gap (z %.1f, from %.0f units off) got to x = %.2f\n",
+										type == UNIT_SIEGE_RAM ? "ram" : "elephant", gap_m, z0, d, east);
+							}
+						}
+				std::printf("  %s, %d m gap: %d of %d ram and elephant walks crossed\n", house ? "wall and turned house" : "two wall pieces",
+						gap_m, crossed, runs);
+				CHECK(crossed == 0);
+			}
+		int through = 0, tries = 0;
+		for (const bool house : {false, true})
+			for (const float z0 : {0.0f, 1.0f})
+				for (const UnitType type : {UNIT_SIEGE_RAM, UNIT_ELEPHANT, UNIT_SPEARMAN}) {
+					const float gap_m = type != UNIT_SPEARMAN ? 8.0f : house ? 3.0f : 2.0f;
+					bool arrived;
+					const float east = cross(house, gap_m, z0, type, 3.0f, arrived);
+					through += arrived;
+					++tries;
+					if (!arrived)
+						std::printf("  %s through a %.0f m gap (z %.1f) did not get across, at most x = %.2f by it\n",
+								type == UNIT_SIEGE_RAM ? "ram" : type == UNIT_ELEPHANT ? "elephant" : "spearman", gap_m, z0, east);
+				}
+		std::printf("  rams and elephants through 8 m gaps, spearmen through 2 and 3 m ones: %d of %d got across\n", through, tries);
+		CHECK(through == tries);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

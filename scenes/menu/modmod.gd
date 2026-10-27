@@ -49,18 +49,43 @@ var has_incompatible := false
 ## it gui/incompatible_mods (page_incompatible_mods.xml, incompatible_mods.txt).
 static func open_incompatible(parent: Node) -> Control:
 	var page := open(parent, true)
-	var msg := L10n.t("You tried to start the game with incompatible or missing mods!") + "\n\n" \
-		+ L10n.t("Solve the compatibility issue by disabling invalid mods or enabling required dependencies. You can then save & start the game.") + "\n\n" \
+	var head := L10n.t("You tried to start the game with incompatible or missing mods!")
+	var body := L10n.t("Solve the compatibility issue by disabling invalid mods or enabling required dependencies. You can then save & start the game.") + "\n\n" \
 		+ L10n.t("Incompatible mods will appear in red in the list of enabled mods (bottom panel). Dependencies can be added by enabling them in the upper panel.")
-	var box: Control = load("res://scenes/common/msgbox.gd").open(page, 700, 400, msg, L10n.t("Incompatible mods"), [L10n.t("Ok")])
-	# ModernTextPanel: left-aligned from the top, 20 px in.
-	var text: Label = box.find_child("Text", true, false)
-	text.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	text.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	text.offset_left = 20
-	text.offset_top = 20
-	text.offset_right = -20
-	text.offset_bottom = -52
+	var box: Control = load("res://scenes/common/msgbox.gd").open(page, 700, 400, head + "\n\n" + body, L10n.t("Incompatible mods"), [L10n.t("Ok")])
+	# mainText: a ModernTextPanel at 20 20 100%-20 100%-52, centred vertically, the
+	# headline in sans-bold-20 and the rest in sans-16 (incompatible_mods.txt).
+	var main: Control = box.find_child("Main", true, false)
+	box.find_child("Text", true, false).hide()
+	var panel := PanelContainer.new()
+	panel.name = "MainText"
+	var sb: StyleBoxFlat = MODERN._dark_box(MODERN.GOLD, MODERN.DARK_BOX, 8)
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
+	panel.add_theme_stylebox_override("panel", sb)
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.offset_left = 20
+	panel.offset_top = 20
+	panel.offset_right = -20
+	panel.offset_bottom = -52
+	main.add_child(panel)
+	var vb := VBoxContainer.new()
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	panel.add_child(vb)
+	for part in [[head, 20, true], [body, 16, false]]:
+		var l := Label.new()
+		l.text = part[0]
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.add_theme_font_size_override("font_size", part[1])
+		l.add_theme_color_override("font_color", Color.WHITE)
+		if part[2]:
+			l.name = "Headline"
+			l.add_theme_font_override("font", MODERN.bold_font())
+		vb.add_child(l)
+	# btnClose: 18 100%-45 100%-18 100%-17.
+	var ok: Button = box.find_child("Button1", true, false)
+	ok.offset_top = -45
+	ok.offset_bottom = -17
 	return page
 
 static func open(parent: Node, incompatible := false) -> Control:
@@ -94,19 +119,17 @@ func recompute_compatibility() -> void:
 
 func _build() -> void:
 	theme = MODERN.theme() # 0.28's modern skin
-	var fade := ColorRect.new()
-	fade.color = Color(0, 0, 0, 0.85)
-	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(fade)
+	add_child(_window())
 	var root := VBoxContainer.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	for side in ["left", "right", "top", "bottom"]:
-		root.set("offset_" + side, 16 if side in ["left", "top"] else -16)
+	root.offset_left = 16
+	root.offset_top = 4
+	root.offset_right = -16
+	root.offset_bottom = -16
 	add_child(root)
-	var title := Label.new()
-	title.text = L10n.t("Modifications")
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 20)
+	var title := _label_text(L10n.t("Modifications")) # 50%-128 4 50%+128 36, in the title frame
+	title.name = "Title"
+	title.custom_minimum_size = Vector2(0, 32)
 	root.add_child(title)
 	var filters := HBoxContainer.new()
 	root.add_child(filters)
@@ -129,14 +152,11 @@ func _build() -> void:
 	compat_filter.text = L10n.t("Filter compatible")
 	compat_filter.toggled.connect(func(_b): display_lists())
 	filters.add_child(compat_filter)
-	var avail_title := Label.new()
-	avail_title.text = L10n.t("Available Mods")
-	root.add_child(avail_title)
+	root.add_child(_label_text(L10n.t("Available Mods")))
 	disabled_list = _make_list()
 	disabled_list.column_title_clicked.connect(func(c, _b): sort_by(c))
 	root.add_child(disabled_list)
-	var en_title := Label.new()
-	en_title.text = L10n.t("Enabled Mods")
+	var en_title := _label_text(L10n.t("Enabled Mods"))
 	en_title.tooltip_text = L10n.t("Enabled mods are loaded from top to bottom. Mods loaded later might overwrite settings of mods loaded earlier. It is advisable to have more complex mods loaded last. Use the arrows on the right to change the loading order.")
 	en_title.mouse_filter = Control.MOUSE_FILTER_PASS
 	root.add_child(en_title)
@@ -148,8 +168,13 @@ func _build() -> void:
 	en_row.add_child(enabled_list)
 	var arrows := VBoxContainer.new()
 	en_row.add_child(arrows)
-	up_button = _button(arrows, "▲", func(): move_item(true))
-	down_button = _button(arrows, "▼", func(): move_item(false))
+	# enabledModUp/Down: 32x32 ModernArrow{Up,Down}{Red,RedBright,Grey}, one at the top of
+	# the list and one at the bottom.
+	up_button = _arrow(arrows, "up", func(): move_item(true))
+	var gap := Control.new()
+	gap.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	arrows.add_child(gap)
+	down_button = _arrow(arrows, "down", func(): move_item(false))
 	for b in [up_button, down_button]:
 		b.tooltip_text = L10n.t("Change the order in which mods are launched. This should match the mods dependencies.")
 	disabled_list.item_selected.connect(func(): _selected(disabled_list))
@@ -172,8 +197,79 @@ func _build() -> void:
 	save_button = _button(row2, L10n.t("Save Configuration"), save_mods)
 	start_button = _button(row2, L10n.t("Save and Restart"), start_mods)
 
+## ModernWindow: opaque 12 12 12 under the tiled background, the shadow at the top and
+## bottom, the border lines and the title frame.
+func _window() -> Control:
+	var w := Control.new()
+	w.name = "ModernWindow"
+	w.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	w.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var back := ColorRect.new()
+	back.color = Color8(12, 12, 12)
+	back.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	w.add_child(back)
+	_part(w, "background.png", [0, 0, 1, 1], [12, 22, -12, -12], TextureRect.STRETCH_TILE)
+	_part(w, "shadow-high.png", [0, 1, 1, 1], [12, -268, -12, -12], TextureRect.STRETCH_SCALE)
+	_part(w, "shadow-high.png", [0, 0, 1, 0], [12, 22, -12, 268], TextureRect.STRETCH_SCALE).flip_v = true
+	_part(w, "border.png", [0, 0, 1, 0], [10, 18, -10, 26], TextureRect.STRETCH_SCALE)
+	_part(w, "border.png", [0, 1, 1, 1], [10, -16, -10, -8], TextureRect.STRETCH_SCALE)
+	_part(w, "titlebar-middle.png", [0.5, 0, 0.5, 0], [-128, 4, 128, 37], TextureRect.STRETCH_SCALE)
+	_part(w, "titlebar-left.png", [0.5, 0, 0.5, 0], [-154, 4, -122, 37], TextureRect.STRETCH_SCALE)
+	var right := _part(w, "titlebar-left.png", [0.5, 0, 0.5, 0], [122, 4, 154, 37], TextureRect.STRETCH_SCALE)
+	right.flip_h = true
+	right.flip_v = true
+	return w
+
+func _part(parent: Control, file: String, anchors: Array, offsets: Array, stretch: int) -> TextureRect:
+	var r := TextureRect.new()
+	r.texture = MODERN._tex(file)
+	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	r.stretch_mode = stretch
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	r.anchor_left = anchors[0]
+	r.anchor_top = anchors[1]
+	r.anchor_right = anchors[2]
+	r.anchor_bottom = anchors[3]
+	r.offset_left = offsets[0]
+	r.offset_top = offsets[1]
+	r.offset_right = offsets[2]
+	r.offset_bottom = offsets[3]
+	parent.add_child(r)
+	return r
+
+## ModernLabelText: white sans-bold-stroke-14, centred.
+func _label_text(text: String) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.add_theme_font_override("font", MODERN.bold_font())
+	l.add_theme_font_size_override("font_size", 14)
+	l.add_theme_color_override("font_color", Color.WHITE)
+	l.add_theme_color_override("font_outline_color", Color.BLACK)
+	l.add_theme_constant_override("outline_size", 3)
+	return l
+
+func _arrow(parent: Node, dir: String, cb: Callable) -> Button:
+	var b := Button.new()
+	b.name = "EnabledMod" + dir.capitalize()
+	b.custom_minimum_size = Vector2(32, 32)
+	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	for state in [["normal", "red"], ["pressed", "red"], ["hover", "red-bright"], ["hover_pressed", "red-bright"], ["disabled", "grey"]]:
+		var sb := StyleBoxTexture.new()
+		sb.texture = MODERN._tex("arrow-%s-%s.png" % [dir, state[1]])
+		b.add_theme_stylebox_override(state[0], sb)
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	b.pressed.connect(cb)
+	parent.add_child(b)
+	return b
+
 func _make_list() -> Tree:
 	var t := Tree.new()
+	# ModernSortedList with font sans-stroke-13.
+	t.add_theme_font_size_override("font_size", 13)
+	t.add_theme_constant_override("outline_size", 3)
+	t.add_theme_color_override("font_outline_color", Color.BLACK)
 	t.columns = COLUMNS.size()
 	t.column_titles_visible = true
 	t.hide_root = true
@@ -188,7 +284,7 @@ func _make_list() -> Tree:
 func _button(parent: Node, text: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(150, 28)
+	b.custom_minimum_size = Vector2(180, 28) # ModernButtonRed, 180 px wide
 	b.pressed.connect(cb)
 	parent.add_child(b)
 	return b
@@ -354,11 +450,12 @@ func save_mods() -> void:
 
 ## startMods: save, then restart with them.
 func start_mods() -> void:
+	# saveMods comes first: the list is written even when the restart refuses it.
+	save_mods()
 	if not enabled.all(func(f): return compatible.get(f, false)):
 		message.text = L10n.t("Dependencies not met")
 		message.add_theme_color_override("font_color", COLOR_NOT_MET)
 		return
-	save_mods()
 	Mods.restart(get_tree())
 
 func visit_website() -> void:
@@ -379,7 +476,7 @@ func show_help() -> Control:
 	page.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(page)
 	var fade := ColorRect.new()
-	fade.color = Color(0, 0, 0, 0.6)
+	fade.color = Color8(0, 0, 0, 85)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	page.add_child(fade)
 	var dlg := Panel.new()

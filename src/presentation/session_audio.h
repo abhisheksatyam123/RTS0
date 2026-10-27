@@ -180,6 +180,14 @@ public:
 		return play_path(g[rng_() % g.size()], gain);
 	}
 
+	// A random one of a 0.28 sound group's listed files (its <Sound> entries), when a
+	// prefix would also pick files the group leaves out.
+	bool play_one_of(const char *dir, std::initializer_list<const char *> files, float gain = 1.0f) {
+		if (files.size() == 0) return false;
+		const char *f = *(files.begin() + rng_() % files.size());
+		return play_path(godot::String(kAudioRoot) + dir + "/" + f, gain);
+	}
+
 	// A random member of a sound group heard at (x, z) on the map (positional groups).
 	bool play_spatial_group(const char *dir, const char *prefix, float x, float z, float gain = 1.0f) {
 		const auto &g = sound_group(dir, prefix);

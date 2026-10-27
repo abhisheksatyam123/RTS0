@@ -48,8 +48,9 @@
 // 31. Target choice follows the attacker's PreferredClasses (Attack.js GetPreference, UnitAI
 //     AttackEntitiesByPreference): an archer (Human) shoots a farther spearman before a nearer
 //     ram, the nearest of equals before a wounded one, and a ram if nothing else is there.
-// 32. UnitAI COMBAT: a fighting unit turns on a melee attacker, not a ranged one; after its
-//     target dies it takes its next order; violent units chase beyond vision.
+// 32. UnitAI COMBAT: a unit on its way turns on a melee attacker, not a ranged one, and one at
+//     its target keeps at it; after its target dies it takes its next order; violent units
+//     chase beyond vision.
 // 33. Idle soldiers attack enemy structures and dangerous animals in sight (after units they
 //     prefer); an animal bite is an attack like any other; a guarding healer heals; stone
 //     throwers stand ground by default.
@@ -1196,7 +1197,21 @@ static void test_unitai_combat() {
 		uint32_t sword = s.spawn_unit(0, -3, 1, UNIT_SWORDSMAN, 5000.0f);
 		s.order_attack(&sword, 1, a);
 		const bool turned = run_until(s, 8.0f, [&] { return target_of(s, a) == sword; });
-		check(shooting && turned, "an archer shooting one enemy turns on a swordsman hitting it (Melee Attacked)");
+		check(shooting && !turned && target_of(s, a) == far,
+				"an archer shooting one enemy keeps at it when a swordsman hits it (ATTACKING Attacked)");
+	}
+	{
+		// Still on its way (APPROACHING), a unit answers a melee attacker: it may block the way.
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_ARCHER, 5000.0f);
+		s.order_set_stance(&a, 1, STANCE_VIOLENT);
+		uint32_t far = post(s, 60, 0, UNIT_SPEARMAN, 5000.0f);
+		s.order_attack(&a, 1, far);
+		uint32_t sword = s.spawn_unit(0, -3, 1, UNIT_SWORDSMAN, 5000.0f);
+		s.order_attack(&sword, 1, a);
+		const bool turned = run_until(s, 8.0f, [&] { return target_of(s, a) == sword; });
+		check(turned, "an archer walking up to its target turns on a swordsman hitting it (Melee Attacked)");
 	}
 	{
 		Simulation s;
@@ -1527,7 +1542,10 @@ static void test_unitai_audit() {
 		const uint32_t house = s.spawn_building_world(10, 0, BLD_HOUSE, 1, 1.0f);
 		uint32_t c = s.spawn_unit(5, 0, 0, UNIT_SPEARMAN);
 		s.order_attack_building(&c, 1, house, false, true);
-		const bool capturing = run_until(s, 10.0f, [&] { return s.unit_capturing(idx_of(s, c)); });
+		const float cp0 = bld(s, house)->capture_points_by_team[1];
+		const bool capturing = run_until(s, 10.0f, [&] {
+			return s.unit_capturing(idx_of(s, c)) && bld(s, house)->capture_points_by_team[1] < cp0;
+		});
 		uint32_t archer = post(s, 5, 12, UNIT_ARCHER);
 		s.units_.attacked_by[idx_of(s, c)] = archer;
 		s.tick(DT);
@@ -3986,6 +4004,75 @@ static void test_capture_tie_to_gaia() {
 	check(b && b->team == GAIA_PLAYER, "Gaia takes it, not player 1");
 }
 
+// 106. Attack.js Attack: after each capture an unordered capturer of a structure it has no
+//      preference for looks again (TargetInvalidated), so an attack-walk turns on enemy units.
+static void test_capture_looks_again() {
+	std::printf("106. an attack-walk capturing a house turns on an enemy unit that comes near (Attack.js GetPreference)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t house = s.spawn_building_world(10, 0, BLD_HOUSE, 1, 1.0f);
+	uint32_t c = s.spawn_unit(4, 0, 0, UNIT_SPEARMAN, 5000.0f);
+	s.order_attack_move(&c, 1, 10, 0, false, false, true);
+	const float cp0 = bld(s, house)->capture_points_by_team[1];
+	const bool capturing = run_until(s, 10.0f, [&] {
+		return s.unit_capturing(idx_of(s, c)) && bld(s, house)->capture_points_by_team[1] < cp0;
+	});
+	uint32_t foe = s.spawn_unit(4, 6, 1, UNIT_SPEARMAN, 5000.0f);
+	s.order_set_stance(&foe, 1, STANCE_STAND_GROUND);
+	const bool turned = run_until(s, 4.0f, [&] { return target_of(s, c) == foe; });
+	check(capturing && turned, "it leaves the house for the spearman");
+	// A player's capture order is forced: it keeps capturing.
+	Simulation t;
+	setup(t);
+	const uint32_t h2 = t.spawn_building_world(10, 0, BLD_HOUSE, 1, 1.0f);
+	uint32_t c2 = t.spawn_unit(4, 0, 0, UNIT_SPEARMAN, 5000.0f);
+	t.order_attack_building(&c2, 1, h2, false, true);
+	run_until(t, 10.0f, [&] { return bld(t, h2)->capture_points_by_team[1] < cp0; });
+	uint32_t foe2 = t.spawn_unit(4, 6, 1, UNIT_SPEARMAN, 5000.0f);
+	t.order_set_stance(&foe2, 1, STANCE_STAND_GROUND);
+	run(t, 4.0f);
+	check(t.unit_capturing(idx_of(t, c2)) && target_of(t, c2) != foe2, "an ordered capture keeps at the house");
+}
+
+// 107. UnitAI ConstructionFinished: a helper still walking to a house when it is finished,
+//      with nothing else to do, walks on to it (REPAIR.APPROACHING -> WalkToTarget).
+static void test_helper_walks_on() {
+	std::printf("107. a builder on its way when the house is finished walks on to it (ConstructionFinished)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 0, 0.9f);
+	uint32_t near = s.spawn_unit(3, 0, 0, UNIT_FEMALE_CITIZEN);
+	uint32_t far = s.spawn_unit(-40, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_build_or_repair(&near, 1, house);
+	s.order_build_or_repair(&far, 1, house);
+	const bool done = run_until(s, 60.0f, [&] { return bld(s, house)->build_progress >= 1.0f; });
+	const float d0 = dist(s, far, 0, 0);
+	run(s, 6.0f);
+	const float d1 = dist(s, far, 0, 0);
+	std::printf("  helper %.1f from the house when it is done, %.1f six seconds later\n", d0, d1);
+	check(done && d0 > 15.0f && d1 < d0 - 5.0f, "she keeps walking to the house");
+}
+
+// 108. Commands.js call-to-arms with pushFront: the drop-off first, the attack-walk right after
+//      it, then the work the unit was doing.
+static void test_call_to_arms_front() {
+	std::printf("108. call to arms pushed to the front: drop-off, attack-walk, then back to work\n");
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t tree = s.spawn_resource_world(4, 0, RES_WOOD, 500);
+	uint32_t u = s.spawn_unit(2, 0, 0, UNIT_SPEARMAN);
+	s.order_gather(&u, 1, tree);
+	run_until(s, 20.0f, [&] { return s.units_.carry[idx_of(s, u)] > 0; });
+	s.set_push_front_order(true);
+	s.order_call_to_arms(&u, 1, 30, 30, false, false, true);
+	s.set_push_front_order(false);
+	const std::vector<UnitOrder> *q = s.unit_order_queue(u);
+	const bool shape = s.unit_order(u).kind == ORDER_RETURN_RESOURCE && q && q->size() >= 2 &&
+			(*q)[0].kind == ORDER_WALK_AND_FIGHT && (*q)[1].kind == ORDER_GATHER;
+	check(shape, "return now, then the attack-walk, then the gathering");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -4099,6 +4186,9 @@ int main(int argc, char **argv) {
 	test_walk_end_then_fight();
 	test_walk_fight_guard_heal();
 	test_capture_tie_to_gaia();
+	test_capture_looks_again();
+	test_helper_walks_on();
+	test_call_to_arms_front();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

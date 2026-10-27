@@ -1589,7 +1589,7 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	c.target_id = tid;
 	c.param = param;
 	// input.js: an order not queued with Shift goes first while session.pushorderfront is held.
-	if (rtso::net_cmd_takes_push_front(cmd_type) && !(param & rtso::NET_PARAM_QUEUED) &&
+	if (rtso::net_cmd_takes_push_front(cmd_type, param) && !(param & rtso::NET_PARAM_QUEUED) &&
 			rtso::hotkeys::held("session.pushorderfront"))
 		c.param |= rtso::NET_PARAM_PUSH_FRONT_ORDER;
 	if (!orders_allowed()) return; // observers and defeated players order nothing

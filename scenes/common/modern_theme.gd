@@ -189,6 +189,21 @@ static func _build() -> Theme:
 		t.set_type_variation("ModernDialogContainer", "PanelContainer")
 		t.set_stylebox("panel", "ModernDialogContainer", dlg)
 
-	# ModernLabelText: white sans-bold-stroke-14.
+	# ModernLabelText and the tick boxes' captions: white sans-bold-stroke-14. Plain Labels
+	# keep the page's face at 14: the bold face makes the Game Setup player rows
+	# taller than one line. Buttons keep the page's face too: RTS0's dropdowns are Buttons.
 	_label_colors(t, "Label")
+	t.set_font_size("font_size", "Label", 14)
+	t.set_font("font", "CheckBox", bold_font())
+	t.set_font_size("font_size", "CheckBox", 14)
 	return t
+
+static var _bold: FontVariation
+
+## sans-bold: the project font emboldened, as the other 0.28 bold faces in RTS0.
+static func bold_font() -> FontVariation:
+	if _bold == null:
+		_bold = FontVariation.new()
+		_bold.base_font = ThemeDB.fallback_font
+		_bold.variation_embolden = 0.6
+	return _bold

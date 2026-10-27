@@ -1553,7 +1553,7 @@ void RtsoMain::_process(double delta) {
 	rally_points_.update(sim, local_player(), sim->cinema_playing() || spectating() ? std::vector<uint32_t>() : selected_structures(),
 			player_flare_color(local_player()));
 	range_overlays_.tick((float)delta);
-	range_overlays_.set_preview(preview_ring[0], preview_ring[1], preview_ring[2], preview_ring[3]);
+	range_overlays_.set_preview(preview_ring[0], preview_ring[1], preview_ring[2], preview_ring[3], local_player());
 	{
 		std::vector<uint32_t> ranged = selected_structures();
 		for (int i = 0; i < selected_ids.size(); ++i) ranged.push_back((uint32_t)selected_ids[i]);

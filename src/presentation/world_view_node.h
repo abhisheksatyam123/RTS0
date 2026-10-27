@@ -346,8 +346,9 @@ class RtsoWorldView : public Node3D {
 	// (data/unit_projectiles.json by roster template, tools/extract_unit_projectiles.py).
 	Ref<MultiMesh> javelin_mm, sling_mm;
 	float javelin_scale = 1.0f, sling_scale = 1.0f;
-	std::vector<uint8_t> tmpl_projectile_; // per roster template: 0 the sim's, 1 javelin, 2 sling
+	std::vector<uint8_t> tmpl_projectile_; // per roster template: 0 the sim's, 1 javelin, 2 sling, 3 fire javelin, 4 bolt, 5 unlit stone
 	void load_unit_projectiles();
+	std::vector<std::string> javelin_fx_; // the fire javelin's flame and smoke (ambient_fx.json projectiles)
 
 	MeshInstance3D *terrain = nullptr;
 	Ref<PlaneMesh> plane_mesh;

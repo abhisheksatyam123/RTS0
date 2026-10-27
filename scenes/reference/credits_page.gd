@@ -68,7 +68,7 @@ func _ready() -> void:
 			continue
 		panels.append({"label": L10n.t(str(parsed.get("Title", cat))), "content": parse(parsed["Content"])})
 	var fade := ColorRect.new() # "ModernFade"
-	fade.color = Color(0, 0, 0, 0.6)
+	fade.color = Color8(0, 0, 0, 85)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fade)
 	theme = preload("res://scenes/common/modern_theme.gd").theme()
@@ -123,7 +123,7 @@ func _ready() -> void:
 	# creditsText sits on a ModernFade image of the same size.
 	var back := ColorRect.new()
 	back.name = "CreditsFade"
-	back.color = Color(0, 0, 0, 0.6)
+	back.color = Color8(0, 0, 0, 85)
 	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	back.anchor_right = 1.0
 	back.anchor_bottom = 1.0

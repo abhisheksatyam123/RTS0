@@ -78,7 +78,10 @@ static void note_player_command(Simulation &sim, uint8_t pl, const NetCommand &c
 	uint16_t count = 0;
 	const uint8_t param = (uint8_t)(c.param & ~NET_PARAM_QUEUED);
 	switch (c.cmd_type) {
-		case 4: case 51: kind = TRIGGER_CMD_GATHER; break;
+		case 4: kind = TRIGGER_CMD_GATHER; break;
+		// A gather on a gone supply's mirage: 0.28 names the remembered supply, whose type the
+		// tutorials read; RTS0's command carries that type (type | subtype << 8), flagged by hunt 2.
+		case 51: kind = TRIGGER_CMD_GATHER; target = 0; other = c.target_id; hunt = 2; break;
 		case 17:
 			if (param == 0) { kind = TRIGGER_CMD_GATHER; hunt = 1; }
 			break;
@@ -1703,7 +1706,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			Simulation &sim;
 			~PushFront() { sim.set_push_front_order(false); }
 		} push_front_reset{sim};
-		sim.set_push_front_order(!queued && (c.param & NET_PARAM_PUSH_FRONT_ORDER) && net_cmd_takes_push_front(c.cmd_type));
+		sim.set_push_front_order(!queued && (c.param & NET_PARAM_PUSH_FRONT_ORDER) && net_cmd_takes_push_front(c.cmd_type, c.param));
 		note_player_command(sim, pl, c);
 		if (record_applied_ && applied_cmds_.size() < 256) {
 			applied_cmds_.push_back({pl, c});

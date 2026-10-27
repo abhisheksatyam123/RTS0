@@ -234,7 +234,9 @@ struct PetraTransportPlan {
 	uint16_t sea = 0;  // the sea it crosses (0: any, from an older save)
 	// transportPlan.js onBoarding: each passenger's position at the last 2 s check and how
 	// often it was found blocked beside the ship (posGarrison, nTry).
-	struct BoardTry { uint32_t uid = 0; float x = 0.0f, z = 0.0f; uint32_t tries = 0; };
+	// best: its nearest approach to the ship so far. A unit sent off a trap that walks back into it
+	// has moved but come no nearer, so it keeps its tries.
+	struct BoardTry { uint32_t uid = 0; float x = 0.0f, z = 0.0f; uint32_t tries = 0; float best = 0.0f; };
 	std::vector<BoardTry> boarding;
 	float board_check = 0.0f; // seconds since the last check
 };
