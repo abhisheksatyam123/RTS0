@@ -101,7 +101,7 @@ func run() -> void:
 	var ins: Dictionary = main.debug_inspector("current")
 	var cparts: Array = ins["capture_multiple_parts"]
 	print("    count ", ins["count"], " health ", ins["health_multiple"], " capture ", ins["capture_multiple"], " parts ", cparts)
-	check(String(ins["count"]) == "2" and String(ins["health_multiple"]).begins_with("Health:"), "displayMultiple: the count in large text and a vertical health bar")
+	check(String(ins["count"]) == "2" and String(ins["health_multiple"]).replace("[b]", "").replace("[/b]", "").begins_with("Health:"), "displayMultiple: the count in large text and a vertical health bar")
 	check(cparts.size() == 1 and float(cparts[0]) > 35.0 and String(ins["capture_multiple"]) != "", "captureMultiple: their summed capture points show, all the owner's")
 
 	print("2. Training spreads over them")
