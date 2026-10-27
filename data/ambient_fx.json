@@ -15829,6 +15829,10 @@
   }
  },
  "projectiles": {
+  "javelin": [
+   "flame_jav",
+   "smoke_jav"
+  ],
   "stone": [
    "smoke_catapult",
    "flame_catapult"

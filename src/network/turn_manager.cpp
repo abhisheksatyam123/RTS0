@@ -78,7 +78,10 @@ static void note_player_command(Simulation &sim, uint8_t pl, const NetCommand &c
 	uint16_t count = 0;
 	const uint8_t param = (uint8_t)(c.param & ~NET_PARAM_QUEUED);
 	switch (c.cmd_type) {
-		case 4: case 51: kind = TRIGGER_CMD_GATHER; break;
+		case 4: kind = TRIGGER_CMD_GATHER; break;
+		// A gather on a gone supply's mirage: 0.28 names the remembered supply, whose type the
+		// tutorials read; RTS0's command carries that type (type | subtype << 8), flagged by hunt 2.
+		case 51: kind = TRIGGER_CMD_GATHER; target = 0; other = c.target_id; hunt = 2; break;
 		case 17:
 			if (param == 0) { kind = TRIGGER_CMD_GATHER; hunt = 1; }
 			break;
@@ -1666,6 +1669,10 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			}
 			continue;
 		}
+		// A replay seats a rejoiner where the live game did when the host's batch came
+		// (apply_peer_control), so its commands go to the right player after a rejoin.
+		if (is_replaying_ && c.client_id == 0 && c.cmd_type == CMD_PEER_JOINED && c.param < MAX_PLAYERS)
+			client_player_[c.target_id] = c.param;
 		uint8_t pl = player_for_client(c.client_id);
 		if (pl >= MAX_PLAYERS || sim.is_defeated(pl)) continue; // defeated players only watch
 		sim.filter_owned_units(pl, c.entity_ids.data(), c.entity_ids.size(), owned);
@@ -2213,6 +2220,12 @@ bool TurnManager::load_replay(const std::string &path) {
 	current_turn_ = 0;
 	turn_timer_ = 0.0f;
 	return true;
+}
+
+// A client shows the out-of-sync box once the host's report has come, so it can
+// name the players and the host's dump; the host and single player show it at once.
+bool TurnManager::out_of_sync_reported() const {
+	return oos_detected_ && (!net_host_ || net_host_->isHost() || oos_from_host_);
 }
 
 } // namespace rtso

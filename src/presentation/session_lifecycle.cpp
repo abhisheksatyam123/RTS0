@@ -1046,9 +1046,9 @@ void RtsoMain::_process(double delta) {
 				sim_tests_turn();
 				rejoin_test_turn();
 			}
-			// OutOfSyncNetwork: the box opens once the dump is written, and again
-			// if the host later names an earlier diverging turn.
-			if (turn_mgr_.has_out_of_sync() && !turn_mgr_.oos_dump_pending() &&
+			// OutOfSyncNetwork: the box opens once the host has reported it and the
+			// dump is written, and again if the host later names an earlier turn.
+			if (turn_mgr_.out_of_sync_reported() && !turn_mgr_.oos_dump_pending() &&
 					net_oos_shown_turn_ != turn_mgr_.oos_turn()) {
 				net_oos_shown_turn_ = turn_mgr_.oos_turn();
 				write_replay(false, true); // "Replay saved to", however early

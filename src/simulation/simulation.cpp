@@ -4554,8 +4554,9 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 	order.timer = 0.0f;
 	for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = cost[r];
 	order.duration = unit_train_seconds(player_id, tmpl) * batch_time_multiplier(player_id, b.type, count, b.civ);
-	add_to_queue(b.queue, order, push_front);
-	if (!triggers_.triggers.empty()) { // ProductionQueue.js AddItem: OnTrainingQueued
+	if (!triggers_.triggers.empty()) {
+		// Trainer.js Item.Queue raises OnTrainingQueued before ProductionQueue.AddItem pushes the
+		// batch, so a script's ResetQueue then (the tutorials' wrong batch) leaves this one in.
 		TriggerEventData ev;
 		ev.entity = building_id;
 		ev.player = player_id;
@@ -4563,6 +4564,7 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 		ev.count = (uint16_t)count;
 		trigger_event(TRIGGER_ON_TRAINING_QUEUED, ev);
 	}
+	add_to_queue(b.queue, order, push_front);
 	return true;
 }
 
@@ -23063,6 +23065,9 @@ void Simulation::petra_manage_economy(float dt) {
 			if (units_.order_kind[i] == ORDER_COLLECT_TREASURE || units_.order_kind[i] == ORDER_CAPTURE_RELIC) continue;
 			const bool soldier = gcls == GATHER_INFANTRY;
 			if (soldier && (in_plan.count(units_.id[i]) || units_.id[i] == petra_scout_unit_id_)) continue;
+			// worker.js:42-89: a worker waiting for a transport, or sailing, just waits. Re-tasked,
+			// its refused second transport marked the resource failed (lastFailedGather).
+			if (petra_passenger(units_.id[i])) continue;
 			// worker.js returnResources: an idle worker still carrying something takes it to the
 			// nearest dropsite on its own land first (an explicit ReturnResource order; UnitAI does
 			// not drop off by itself), and is reassigned once empty. A gatherer (one we sent to a
@@ -23503,15 +23508,15 @@ void Simulation::petra_manage_economy(float dt) {
 			for (uint8_t r : needed)
 				if (may_try(r)) { chosen_res_type = r; break; }
 			if (chosen_res_type == RES_COUNT) continue;
+			// reassignIdleWorkers: AddTCResGatherer as the gather-type is picked, whether
+			// startGathering then finds a supply here, across the water or nowhere.
+			cur_rate[chosen_res_type] += 0.5f;
 		}
 
 		// worker.js startGathering: any gatherer takes a treasure nearby first, and a food
 		// gatherer hunts next (livestock and carcasses near a dropsite).
 		if (petra_gather_treasure(widx, hunt_scan)) continue;
-		if (chosen_res_type == RES_FOOD && petra_start_hunting(widx, hunt_scan)) {
-			cur_rate[RES_FOOD] += 0.5f; // AddTCResGatherer
-			continue;
-		}
+		if (chosen_res_type == RES_FOOD && petra_start_hunting(widx, hunt_scan)) continue;
 
 
 		// findSupply: the first listed supply with room, that the worker gathers, and that is
@@ -23566,12 +23571,10 @@ void Simulation::petra_manage_economy(float dt) {
 			petra_set_supply(uid, c->id);
 			c->slots--;
 			c->users++;
-			cur_rate[c->type] += 0.5f; // AddTCResGatherer
 		};
 		auto build_field = [&](std::pair<uint32_t, int> *fb) {
 			order_build_or_repair(&uid, 1, fb->first);
 			fb->second++;
-			cur_rate[RES_FOOD] += 0.5f;
 		};
 		// One resource's tiers: our base nearby (then its fields), its medium; the other bases on
 		// our land nearby, their fields, their medium; then a dropsite foundation for it.
@@ -40831,7 +40834,7 @@ enum : int {
 	kTutFlagA = 3,        // farmStarted, rallyPointSet, marketStarted, stone
 	kTutFlagB = 4,        // trainingStarted, templeStarted, metal
 	kTutCount = 5,        // ramCount, femaleCount, houseCount
-	kTutWarning = 6,      // the WarningMessage shown (TutorialWarning)
+	kTutWarning = 6,      // the WarningMessage shown (TutorialWarning), and above it how many were sent
 	kTutId = 7,           // TutorialId
 };
 // TriggerWatch roles.
@@ -40846,13 +40849,18 @@ uint8_t Simulation::tutorial_resource_kind(uint32_t id, bool animal) const {
 	if (animal) return TUT_RES_MEAT; // a hunt or a herd's animal
 	auto it = res_id_to_idx_.find(id);
 	if (it == res_id_to_idx_.end()) return TUT_RES_NONE;
-	switch (resources_.type[it->second]) {
+	return tutorial_resource_kind_of(resources_.type[it->second], resources_.subtype[it->second]);
+}
+
+uint8_t Simulation::tutorial_resource_kind_of(uint8_t type, uint8_t subtype) {
+	// GetResourceType's generic type and, for food, its specific one.
+	switch (type) {
 		case RES_WOOD: return TUT_RES_TREE;
 		case RES_STONE: return TUT_RES_STONE;
 		case RES_GOLD: return TUT_RES_METAL;
 		default: break;
 	}
-	switch (resources_.subtype[it->second]) {
+	switch (subtype) {
 		case RES_SUB_NONE: return TUT_RES_FRUIT;
 		case RES_SUB_MEAT: return TUT_RES_MEAT;
 		case RES_SUB_GRAIN: return TUT_RES_GRAIN;
@@ -40871,10 +40879,17 @@ bool Simulation::tech_dealt_with(uint8_t player, uint8_t tech) const {
 	return false;
 }
 
+void Simulation::tutorial_warn(uint8_t warning) {
+	// WarningMessage: each one sent counts, so the panel shows a repeated warning again.
+	int32_t &w = triggers_.vars[kTutWarning];
+	w = (int32_t)(((((uint32_t)w >> 8) + 1) & 0xFFFFFFu) << 8) | warning;
+}
+
 void Simulation::tutorial_reset_queue(uint32_t building_id) {
-	// ProductionQueue.ResetQueue: every item is removed and refunded.
+	// ProductionQueue.ResetQueue: autoqueue off, and every item removed and refunded.
 	auto it = building_id_to_idx_.find(building_id);
 	if (it == building_id_to_idx_.end()) return;
+	buildings_[it->second].autoqueue = false;
 	const uint8_t team = buildings_[it->second].team;
 	while (!buildings_[it->second].queue.empty())
 		if (!cmd_cancel_train(team, building_id, buildings_[it->second].queue.size() - 1)) break;
@@ -40942,7 +40957,7 @@ void Simulation::tutorial_goal_init(int g) {
 			case 9: v[kTutFlagA] = 0; break;
 			case 11: case 16: case 21: v[kTutFlagA] = 0; v[kTutFlagB] = 0; break;
 			case 24: v[kTutCount] = 0; break;
-			case 26: set_player_won(TUTORIAL_PLAYER); break; // MarkPlayerAndAlliesAsWon(1)
+			case 26: set_player_won(TUTORIAL_PLAYER, SessionNotice::END_TUTORIAL); break; // MarkPlayerAndAlliesAsWon(1, "Tutorial completed", "")
 			default: break;
 		}
 		return;
@@ -40996,7 +41011,7 @@ void Simulation::tutorial_next_goal() {
 	const int g = triggers_.vars[kTutGoal] + 1;
 	if (g >= tutorial_goal_count(id)) return;
 	triggers_.vars[kTutGoal] = g;
-	triggers_.vars[kTutWarning] = TUTORIAL_WARN_NONE; // GoalMessage replaces the warning
+	triggers_.vars[kTutWarning] &= ~0xFF; // GoalMessage replaces the warning
 	tutorial_goal_init(g);
 	const bool ready_delay = id == TUTORIAL_ECONOMY && g == 18; // "delay": -1
 	triggers_.vars[kTutReady] = (ready_delay || !tutorial_goal_listens(g) || tutorial_goal_done(g)) ? 1 : 0;
@@ -41034,7 +41049,9 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 	const int g = v[kTutGoal];
 	if (d.event == TRIGGER_ON_DESERIALIZED) {
 		// OnDeserializedTrigger: NextGoal(true) on the current goal, without its Init: a goal
-		// done before the save (a phase already queued) offers Ready again.
+		// done before the save (a phase already queued) offers Ready again. Only the goal is
+		// sent again, so no warning shows.
+		v[kTutWarning] &= ~0xFF;
 		if (g >= 0 && g < tutorial_goal_count(id)) {
 			const bool ready_delay = id == TUTORIAL_ECONOMY && g == 18;
 			v[kTutReady] = (ready_delay || !tutorial_goal_listens(g) || tutorial_goal_done(g)) ? 1 : 0;
@@ -41066,8 +41083,16 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 		auto it = building_id_to_idx_.find(bid);
 		return it == building_id_to_idx_.end() ? 0 : building_tech_classes(buildings_[it->second].type);
 	};
+	auto finished_structure = [&](uint32_t bid) {
+		auto it = building_id_to_idx_.find(bid);
+		return it != building_id_to_idx_.end() && buildings_[it->second].build_progress >= 1.0f;
+	};
 	auto command = [&](uint16_t kind) { return d.event == TRIGGER_ON_PLAYER_COMMAND && d.value == kind; };
-	auto gather = [&](uint8_t res) { return command(TRIGGER_CMD_GATHER) && tutorial_resource_kind(d.entity, d.from == 1) == res; };
+	auto gather = [&](uint8_t res) {
+		if (!command(TRIGGER_CMD_GATHER)) return false;
+		if (d.from == 2) return tutorial_resource_kind_of((uint8_t)(d.other & 0xFF), (uint8_t)((d.other >> 8) & 0xFF)) == res;
+		return tutorial_resource_kind(d.entity, d.from == 1) == res;
+	};
 	auto repair = [&](TechClasses cls) { return command(TRIGGER_CMD_REPAIR) && (bld_classes(d.entity) & cls); };
 	auto construct = [&](uint8_t type) { return command(TRIGGER_CMD_CONSTRUCT) && d.count == type; };
 	auto rally_gather = [&](uint8_t res) { return command(TRIGGER_CMD_SET_RALLY) && d.entity && tutorial_resource_kind(d.entity, false) == res; };
@@ -41086,7 +41111,7 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 		const bool right_count = batch ? d.count != 1 : d.count == 1;
 		if (d.value != civ_unit_template_by_id(tmpl) || !right_count) {
 			tutorial_reset_queue(d.entity);
-			v[kTutWarning] = !right_count ? warn_count : warn_unit;
+			tutorial_warn(!right_count ? warn_count : warn_unit);
 			return false;
 		}
 		return true;
@@ -41128,7 +41153,7 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 					done_next();
 				} else if (event(TRIGGER_ON_PLAYER_COMMAND)) {
 					if (!rally_gather(TUT_RES_TREE)) {
-						v[kTutWarning] = TUTORIAL_WARN_RALLY_TREE_INTRO;
+						tutorial_warn(TUTORIAL_WARN_RALLY_TREE_INTRO);
 						break;
 					}
 					v[kTutFlagA] = 1;
@@ -41144,7 +41169,10 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 					if (!training(tutorial_civilian("spart").c_str(), true, TUTORIAL_WARN_BATCH_HOTKEY, TUTORIAL_WARN_CLICK_FEMALE)) break;
 					v[kTutFlagB] = 1;
 					done_next();
-				} else if (rally_gather(TUT_RES_GRAIN) || (command(TRIGGER_CMD_SET_RALLY) && (bld_classes(d.other) & TC_FIELD))) {
+				} else if (rally_gather(TUT_RES_GRAIN) || (command(TRIGGER_CMD_SET_RALLY) && (bld_classes(d.other) & TC_FIELD) &&
+						finished_structure(d.other))) {
+					// Only a "gather" rally on grain counts (introductory_tutorial.js:256): an unfinished
+					// Field's rally is "repair".
 					v[kTutFlagA] = 1;
 					done_next();
 				}
@@ -41198,7 +41226,7 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 		case 8:
 			if (!event(TRIGGER_ON_PLAYER_COMMAND)) break;
 			if (!rally_gather(TUT_RES_TREE)) {
-				v[kTutWarning] = TUTORIAL_WARN_RALLY_TREE;
+				tutorial_warn(TUTORIAL_WARN_RALLY_TREE);
 				break;
 			}
 			tutorial_next_goal();
@@ -41243,7 +41271,7 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 		case 23:
 			if (!event(TRIGGER_ON_PLAYER_COMMAND)) break;
 			if (!rally_gather(TUT_RES_GRAIN) && !(command(TRIGGER_CMD_SET_RALLY) && (bld_classes(d.other) & TC_FIELD))) {
-				v[kTutWarning] = TUTORIAL_WARN_RALLY_FIELD;
+				tutorial_warn(TUTORIAL_WARN_RALLY_FIELD);
 				break;
 			}
 			tutorial_next_goal();
