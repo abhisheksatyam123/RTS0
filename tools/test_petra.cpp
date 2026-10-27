@@ -411,6 +411,7 @@ static bool said_to(const Simulation &s, uint8_t from, uint8_t to, uint8_t kind)
 static void fund_queues(Simulation &s) {
 	for (auto &a : s.petra_queues_.accounts) a = {5000, 5000, 5000, 5000};
 	for (auto &p : s.petra_queues_.paused) p = 0;
+	s.petra_queue_heads_ = {}; // no plan waiting: once funded, an earlier one would go first (PC10)
 }
 
 static void run_for(Simulation &s, float seconds) {
@@ -8153,6 +8154,7 @@ static void test_missing_room_expansion() {
 	s->players_[1].phase = 2;
 	s->set_player_resources(1, 5000, 5000, 5000, 5000);
 	for (auto &a : s->petra_queues_.accounts) a = {5000, 5000, 5000, 5000};
+	s->petra_queue_heads_ = {};
 	for (auto &p : s->petra_queues_.paused) p = 0; // a 2 s old village pauses the civic centre queue
 	auto bases = [&] {
 		int n = 0;

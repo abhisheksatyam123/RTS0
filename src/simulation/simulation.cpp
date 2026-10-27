@@ -31614,7 +31614,10 @@ bool Simulation::petra_higher_structure_waiting(uint8_t queue) {
 	const PetraQueueHeads &h = petra_queue_heads_;
 	const int mine = petra_queue_priority(queue);
 	for (uint8_t q = 0; q < PETRA_Q_COUNT; ++q) {
-		if (q == queue || !h.item[q] || h.age[q] > PetraQueueManager::want_ttl(q)) continue;
+		// 0.28's plan waits in its queue and starts at the next update it can; here the head
+		// starts only when its manager asks again, so one that did not ask last turn holds
+		// nothing up (its lower queues would lose the turn for nothing).
+		if (q == queue || !h.item[q] || h.age[q] > (float)PETRA_TURN_TICKS * FIXED_STEP + 0.01f) continue;
 		if (petra_queue_priority(q) <= mine) continue;
 		const uint8_t bt = (uint8_t)(h.item[q] - 1);
 		if (bt >= BLD_TYPE_COUNT || petra_no_room(bt) || !petra_limit_allows_building(bt)) continue;
