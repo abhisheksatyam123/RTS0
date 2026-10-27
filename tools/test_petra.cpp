@@ -4386,7 +4386,7 @@ static void test_attack_request() {
 	for (float t = 0.0f; t < 10.0f && !marched; t += Simulation::FIXED_STEP) {
 		s->tick(Simulation::FIXED_STEP);
 		for (const auto &p : s->petra_slots_[2].petra_started_attacks_)
-			marched |= p.requested && p.state == Simulation::AttackPlan::WALKING;
+			marched |= p.requested && (p.state == Simulation::AttackPlan::WALKING || p.completing);
 		marched |= s->petra_slots_[2].petra_attack_plan_.requested && s->petra_slots_[2].petra_attack_plan_.completing; // gathering to set off
 	}
 	bool asked_again = false;
@@ -4416,6 +4416,12 @@ static void test_attack_rally_point() {
 	// Player 0's own soldiers stay out of it: only its structures stand.
 	for (size_t i = 0; i < s->units_.count; ++i)
 		if (s->units_.alive[i] && s->units_.team[i] == 0) s->units_.stance[i] = STANCE_PASSIVE;
+	// A barracks in the town phase with no rush left: the next plan is an Attack.
+	s->spawn_building_world(bx + (bx > 0.0f ? -14.0f : 14.0f), bz, BLD_BARRACKS, 1, 1.0f);
+	s->players_[1].phase = 2;
+	s->petra_attack_mgr_.rushes_set = 1;
+	s->petra_attack_mgr_.max_rushes = 0;
+	const uint8_t made = s->petra_attack_mgr_.plans_made;
 	auto &plan = s->petra_attack_plan_;
 	plan = Simulation::AttackPlan();
 	plan.kind = PETRA_ATTACK_ATTACK;
@@ -4440,21 +4446,40 @@ static void test_attack_rally_point() {
 		if (n) { cx /= (float)n; cz /= (float)n; }
 		return n;
 	};
-	for (int t = 0; t < 10 && !plan.completing; ++t) run_ai_turns(*s, 1);
-	CHECK(plan.completing && plan.state == Simulation::AttackPlan::MUSTER, "a ready land army first gathers (completing)");
-	if (!plan.completing) return;
-	const float rx = plan.staging_x, rz = plan.staging_z;
+	// A completing plan leaves the preparation slot (it is no longer "unexecuted"), so the
+	// next plan may be made and train while this one gathers; it has not started yet.
+	auto gathering = [&]() -> const Simulation::AttackPlan * {
+		for (const auto &p : s->petra_started_attacks_)
+			if (p.completing && p.state == Simulation::AttackPlan::MUSTER) return &p;
+		return nullptr;
+	};
+	for (int t = 0; t < 10 && !gathering(); ++t) run_ai_turns(*s, 1);
+	const Simulation::AttackPlan *g = gathering();
+	CHECK(g != nullptr, "a ready land army first gathers (completing)");
+	if (!g) return;
+	CHECK(s->petra_attack_plan_.squad.empty() && !s->petra_attack_plan_.completing, "the preparation slot is free for the next plan");
+	const float rx = g->staging_x, rz = g->staging_z;
 	const float rally_d = std::sqrt((rx - bx) * (rx - bx) + (rz - bz) * (rz - bz));
 	const bool rally_ours = s->territory_owner_at(rx, rz) == 1;
-	const bool next_out = plan.path_x.size() > 1 && s->territory_owner_at(plan.path_x[1], plan.path_z[1]) != 1;
-	std::printf("  rally point %.1f from our civic centre, ours %d, next waypoint out of our territory %d, %zu waypoints, started attacks %zu\n",
-	            rally_d, (int)rally_ours, (int)next_out, plan.path_x.size(), s->petra_started_attacks_.size());
+	const bool next_out = g->path_x.size() > 1 && s->territory_owner_at(g->path_x[1], g->path_z[1]) != 1;
+	std::printf("  rally point %.1f from our civic centre, ours %d, next waypoint out of our territory %d, %zu waypoints\n",
+	            rally_d, (int)rally_ours, (int)next_out, g->path_x.size());
 	CHECK(rally_ours && next_out, "the rally point is the path's last point in our territory");
-	CHECK(s->petra_started_attacks_.empty(), "a completing plan has not started");
+	auto marching = [&]() {
+		for (const auto &p : s->petra_started_attacks_)
+			if (p.state != Simulation::AttackPlan::MUSTER) return true;
+		return false;
+	};
 	float t_gather = 0.0f;
-	for (; t_gather < 70.0f && s->petra_started_attacks_.empty(); t_gather += Simulation::FIXED_STEP) s->tick(Simulation::FIXED_STEP);
-	CHECK(!s->petra_started_attacks_.empty(), "the army sets off once gathered");
-	if (s->petra_started_attacks_.empty()) return;
+	bool next_made = false;
+	for (; t_gather < 70.0f && !marching(); t_gather += Simulation::FIXED_STEP) {
+		s->tick(Simulation::FIXED_STEP);
+		next_made |= gathering() && s->petra_attack_plan_.state == Simulation::AttackPlan::MUSTER && s->petra_attack_mgr_.plans_made == made + 1;
+	}
+	std::printf("  the next plan musters while this one gathers: %s\n", next_made ? "yes" : "no");
+	CHECK(next_made, "the next plan is made and musters while the first gathers (attackManager.js unexecutedAttacks)");
+	CHECK(marching(), "the army sets off once gathered");
+	if (!marching()) return;
 	float cx, cz;
 	centre(cx, cz);
 	const float at_rally = std::sqrt((cx - rx) * (cx - rx) + (cz - rz) * (cz - rz));
