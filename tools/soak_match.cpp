@@ -23,7 +23,8 @@
 //     [perf] every 5 minutes with the worst and mean turn since the last one, unit slots and
 //     resident memory, and [mem] every 10 minutes with the containers that have more than
 //     doubled since minute 10 (--diffs a,b sets the
-//     Petra difficulty per seat, 0 Sandbox to 5 Very Hard);
+//     Petra difficulty per seat, 0 Sandbox to 5 Very Hard; --behs a,b the behaviour, 0 Random
+//     (the default, as in 0.28's game setup), 1 Defensive, 2 Balanced, 3 Aggressive);
 //   - [phase]: each phase-up, and [no-phase] for a player still in Village at the end of a
 //     match of 15+ minutes;
 //   turns run on the game's worker pool, as in a session; --serial runs them on one thread;
@@ -210,6 +211,18 @@ float target_cp(const Simulation &s, uint32_t bid) {
 	return b.team < MAX_PLAYERS ? b.capture_points_by_team[b.team] : -1.0f;
 }
 
+// Petra behaviour per seat (--behs): Random by default, 0.28's player_defaults.json
+// AIBehavior and the game setup's default. The sim's own default is Balanced, whose
+// aggressiveness (0.37..0.63) gives every seat at least one rush.
+std::vector<int> g_behs = {PETRA_BEHAVIOR_RANDOM};
+
+void set_petras(Simulation &s, int players, const std::vector<int> &diffs) {
+	for (int p = 0; p < players; ++p) {
+		s.set_petra_difficulty((uint8_t)p, (uint8_t)diffs[p % diffs.size()]);
+		s.set_petra_behavior((uint8_t)p, (uint8_t)g_behs[p % g_behs.size()]);
+	}
+}
+
 // data/maps/NAME.json with the map's own players, resources and teams; returns the players seated.
 int setup_json(Simulation &s, const std::string &name, uint32_t seed, const std::vector<int> &civs, const std::vector<int> &diffs) {
 	MapPlayerOverrides ov;
@@ -226,7 +239,7 @@ int setup_json(Simulation &s, const std::string &name, uint32_t seed, const std:
 	if (ov.pop_limit > 0) s.set_pop_cap(ov.pop_limit);
 	if (ov.has_teams) { s.set_setup_teams(ov.team); s.apply_team_diplomacy(); }
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) s.set_player_active(p, p < players, p < players);
-	for (int p = 0; p < players; ++p) s.set_petra_difficulty((uint8_t)p, (uint8_t)diffs[p % diffs.size()]);
+	set_petras(s, players, diffs);
 	return players;
 }
 
@@ -241,7 +254,7 @@ void setup(Simulation &s, int map, uint32_t seed, int players, float size, const
 	s.set_victory_condition(VICTORY_CONQUEST);
 	for (int p = 0; p < players; ++p) s.set_team_civ((uint8_t)p, (uint8_t)civs[p % civs.size()]);
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) s.set_player_active(p, p < players, p < players);
-	for (int p = 0; p < players; ++p) s.set_petra_difficulty((uint8_t)p, (uint8_t)diffs[p % diffs.size()]);
+	set_petras(s, players, diffs);
 }
 
 void turn(Simulation &s) {
@@ -279,6 +292,9 @@ int main(int argc, char **argv) {
 		else if (!strcmp(argv[i], "--diffs")) {
 			diffs.clear();
 			for (char *t = strtok(next(), ","); t; t = strtok(nullptr, ",")) diffs.push_back(atoi(t));
+		} else if (!strcmp(argv[i], "--behs")) {
+			g_behs.clear();
+			for (char *t = strtok(next(), ","); t; t = strtok(nullptr, ",")) g_behs.push_back(atoi(t));
 		} else if (!strcmp(argv[i], "--civs")) {
 			civs.clear();
 			for (char *t = strtok(next(), ","); t; t = strtok(nullptr, ",")) civs.push_back(atoi(t));
