@@ -103,6 +103,17 @@ func run() -> void:
 	await frames(4)
 	var editors: Array = menu.find_children("*", "CanvasLayer", true, false).filter(func(l): return l.get_child_count() > 0 and l.get_child(0).get_script() != null and l.get_child(0).get_script().resource_path.ends_with("hotkeys.gd"))
 	check(editors.size() == 1 and current_scene == menu, "Settings > Hotkeys opens the hotkey editor over the menu")
+	if editors.size() == 1:
+		# hotkeys.xml: a ModernDialog titled in ModernLabelText, the slots as read-only
+		# ModernInputs in the picker.
+		var ed = editors[0].get_child(0)
+		var ttl: Label = ed.dialog.find_child("Title", true, false)
+		check(ed.dialog.theme_type_variation == "ModernDialogContainer" and ttl.get_theme_font("font") is FontVariation
+			and ttl.get_theme_font_size("font_size") == 14, "the editor is a ModernDialog with a bold 14 px edge title")
+		ed.open_picker(ed.categories[ed.category_keys[0]]["hotkeys"][0])
+		await frames(2)
+		check(ed.slot_labels[0].get_theme_stylebox("normal") is StyleBoxFlat and ed.picker_desc.get_theme_font("font") is FontVariation,
+			"the picker's slots are dark input boxes and its text ModernLabelText")
 	for layer in menu.find_children("*", "CanvasLayer", true, false):
 		layer.queue_free()
 	await frames(2)
@@ -159,6 +170,8 @@ func run() -> void:
 		var labels: Array = mp.find_children("*", "Label", true, false).map(func(l): return l.text)
 		check(labels.has("Multiplayer") and labels.has("Joining an existing game.") and labels.has("Player Name:")
 			and labels.has("Server Hostname or IP:") and labels.has("Server Port:"), "pageJoin: " + str(labels))
+		check(mp.find_children("*", "Label", true, false).all(func(l): return l.get_theme_font("font") is FontVariation and l.get_theme_font_size("font_size") == 14),
+			"its title, heading and labels are ModernLabelText (bold 14)")
 		check(mp.join_player_name.text == mpname and mp.join_server.text == "192.0.2.7" and mp.join_port.text == "20595"
 			and mp.join_port.tooltip_text == "Leave blank to use the default port.",
 			"the last server, the default port for none, the multiplayer name")

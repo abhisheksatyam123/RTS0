@@ -1074,7 +1074,9 @@ static void test_petra_overseas_base() {
 	static Simulation s;
 	fresh(s);
 	s.set_player_active(1, true, true);
-	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	// Food in stock, so the south land's workers are wanted on its wood: with food short they
+	// would rightly sail back north for it (reassignIdleWorkers picks the most needed resource).
+	s.set_player_resources(1, 20000, 5000, 5000, 5000);
 	s.players_[1].phase = 2;
 	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
 	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
@@ -2172,6 +2174,7 @@ static void test_petra_crossing_waits_for_ship() {
 	s.petra_pid_ = 1;
 	const uint16_t north = s.petra_land_at(-30.0f, 40.0f), south = s.petra_land_at(-30.0f, -40.0f);
 	const uint16_t sea = s.petra_topo().sea_between(north, south);
+	s.spawn_building_world(-30.0f, -44.0f, BLD_HOUSE, 1, 0.0f); // what the builders cross for
 	std::vector<uint32_t> crew;
 	for (int k = 0; k < 3; ++k) crew.push_back(s.spawn_unit(-34.0f + 2.0f * k, 44.0f, 1, UNIT_VILLAGER));
 	const bool planned = s.petra_start_transport(crew, -30.0f, 44.0f, -30.0f, -40.0f, sea, PETRA_TRANSPORT_BUILDERS);
@@ -2182,6 +2185,33 @@ static void test_petra_crossing_waits_for_ship() {
 	std::printf("crossing with no ship: sea %u, planned %s, ship %u, then %u (trireme %u)\n", sea, planned ? "yes" : "no", first, later, ship);
 	CHECK(sea && planned && first == 0 && later == ship);
 	s.petra_transports_.clear();
+}
+
+// worker.js:44-87: a builder waiting at the beach leaves its crossing once there is no
+// foundation left to build over there, and a gatherer once the far land has nothing of ours
+// that takes its resource; each stays in while there is.
+static void test_petra_crossing_reason_gone() {
+	static Simulation s;
+	int kept[4] = {};
+	for (int c = 0; c < 4; ++c) {
+		fresh(s);
+		s.set_player_active(1, true, true);
+		s.petra_pid_ = 1;
+		const bool builders = c < 2, reason = c % 2 == 1;
+		if (reason) s.spawn_building_world(-30.0f, -44.0f, builders ? BLD_HOUSE : BLD_STOREHOUSE, 1, builders ? 0.0f : 1.0f);
+		std::vector<uint32_t> crew;
+		for (int k = 0; k < 3; ++k) crew.push_back(s.spawn_unit(-34.0f + 2.0f * k, 44.0f, 1, UNIT_VILLAGER));
+		if (!builders) // carrying wood: a storehouse takes it
+			for (uint32_t uid : crew) { const int32_t i = idx(s, uid); s.units_.carry[i] = 5; s.units_.res_type_carried[i] = RES_WOOD; }
+		const uint16_t sea = s.petra_topo().sea_between(s.petra_land_at(-30.0f, 40.0f), s.petra_land_at(-30.0f, -40.0f));
+		CHECK(s.petra_start_transport(crew, -30.0f, 44.0f, -30.0f, -40.0f, sea, builders ? PETRA_TRANSPORT_BUILDERS : PETRA_TRANSPORT_WORKERS));
+		s.petra_manage_transport(Simulation::FIXED_STEP);
+		for (const auto &p : s.petra_transport_plans()) kept[c] += (int)p.passenger_ids.size();
+		s.petra_transports_.clear();
+	}
+	std::printf("crossing whose reason is gone: builders kept %d with no foundation, %d with one; gatherers kept %d with no dropsite, %d with a storehouse\n",
+	            kept[0], kept[1], kept[2], kept[3]);
+	CHECK(kept[0] == 0 && kept[1] == 3 && kept[2] == 0 && kept[3] == 3);
 }
 
 static void test_petra_cothon() {
@@ -2680,6 +2710,7 @@ int main() {
 	test_petra_merchantman_transport();
 	test_petra_cothon();
 	test_petra_crossing_waits_for_ship();
+	test_petra_crossing_reason_gone();
 	test_ship_treasure();
 	test_ship_round_wreck();
 	test_petra_ship_treasure();

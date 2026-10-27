@@ -178,7 +178,9 @@ public:
 	static constexpr float UNIT_SPEED = 6.0f;
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
-	static constexpr size_t UNIT_CAP = 4096;
+	static constexpr size_t UNIT_CAP = 4096; // initial unit slots; the columns grow past it
+	// A save's unit slots: garrisoned units hold slots too, so a giant Jebel Barkal holds 6000+.
+	static constexpr size_t UNIT_LOAD_LIMIT = 1u << 16;
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
@@ -2059,7 +2061,9 @@ public:
 		TECH_ERR_PAIRED, // its pair_*.json partner is researched or being researched
 		TECH_ERR_DISABLED // the map's trigger script disabled it (cmpPlayer.SetDisabledTechnologies)
 	};
-	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0) const;
+	// `queue_full_ok`: the Research panel's view, whose button stays enabled with a full queue
+	// (pressing it gets ProductionQueue's "The production queue is full." notice).
+	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0, bool queue_full_ok = false) const;
 	// What researching `tech_id` costs this player at a researcher of `bld_type` (BLD_TYPE_COUNT:
 	// a unit): Researcher/TechCostMultiplier, team bonuses and the Library of Alexandria, as paid.
 	void tech_price(uint8_t player_id, uint8_t tech_id, uint8_t bld_type, float paid[RES_COUNT], float &time) const;
@@ -4338,7 +4342,11 @@ private:
 	// Territory tiles each player holds, counted as the grid is rebuilt (on load too) and zeroed as it is
 	// cleared (reset, set_map_half): not saved.
 	std::array<uint32_t, MAX_PLAYERS> territory_tiles_{};
-	std::vector<WaypointPath> unit_paths_; // per-unit path (UNIT_CAP), SoA waypoint_cur/count sync
+	std::vector<WaypointPath> unit_paths_; // per-unit path (UNIT_CAP, or every unit slot past it), SoA waypoint_cur/count sync
+	// unit_paths_ covers every unit slot (at least UNIT_CAP).
+	void ensure_unit_paths() {
+		if (unit_paths_.size() < std::max(UNIT_CAP, units_.count)) unit_paths_.resize(std::max(UNIT_CAP, units_.cap));
+	}
 	// move_units' copy of the buildings that block movement, in buildings_ order, and the mines, with
 	// only the fields nav/building_steering.h reads, so its per-unit scans read a short packed list.
 	struct SteerObstacle {

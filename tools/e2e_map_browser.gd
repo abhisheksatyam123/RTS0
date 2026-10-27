@@ -61,6 +61,10 @@ func run() -> void:
 	check(b != null, "Map Overview opens the Map Browser")
 	if b:
 		check(b.selected_map_type() == "skirmish" and b.selected_map_filter() == "default", "on Skirmish maps, Default filter")
+		# MapBrowser.xml: ModernLabelText title, status and tile captions; ModernDarkBoxGold tiles.
+		var cap: Label = b.find_child("Caption", true, false)
+		check([b.find_child("Status", true, false), cap].all(func(l): return l.get_theme_font("font") is FontVariation and l.get_theme_font_size("font_size") == 14)
+			and (cap.get_parent() as Panel).get_theme_stylebox("panel") is StyleBoxFlat, "bold 14 px status and captions on gold-edged tiles")
 		check(b.map_list.size() > 0 and shown_names(b).size() > 0, "shows %d maps, %d on the page" % [b.map_list.size(), shown_names(b).size()])
 		check(not b._select_btn.visible and not b._pick_random.visible and b._close_btn.text == "Close", "to look only: Close, no Select or Pick Random")
 		check(b._status.text == "Maps: %d   Page: 1/%d" % [b.map_list.size(), maxi(1, b.page_count)] and b.page_count == int(ceilf(float(b.map_list.size()) / b.items_per_row)) - b.row_count + 1, "status reads %s (%d columns, %d rows)" % [b._status.text, b.column_count, b.row_count])
