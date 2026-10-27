@@ -2417,6 +2417,7 @@ public:
 	bool treasure_within(size_t i, const Treasure &t, float reach) const; // edge to edge
 	// Whether unit i stands within treasure_reach of treasure `id` it collects, where tick_treasures runs its timer.
 	bool treasure_in_reach(size_t i, uint32_t id) const;
+	void collect_nearby_treasure(size_t i, float x, float z, uint32_t skip);
 	const std::vector<Treasure> &treasures() const { return treasures_; }
 	// Visibility/RetainInFog: a treasure shows wherever the player has explored, but the Argo
 	// (special_argo.xml RetainInFog false) only in sight.
