@@ -1819,6 +1819,72 @@ static void test_garrison_melee_attack() {
 	CHECK(around.melee_siege && !around.unit, "a melee war elephant counts as melee siege");
 }
 
+// defenseManager.js:913-914: the Regicide hero's emergency garrison follows the protection rules
+// in a holder that heals (a civic centre), the emergency rules elsewhere. A melee hero at 80%
+// health with only ranged siege about leaves a civic centre (protection: melee, not under 0.4),
+// where the emergency rules kept it until fully healed.
+static void test_regicide_hero_heal_holder() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_REGICIDE);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "AI 1 has a civic centre");
+	if (!cc) return;
+	const uint32_t hero = s->spawn_unit(cc->x + 6.0f, cc->z, 1, UNIT_SWORDSMAN);
+	s->regicide_hero_[1] = hero;
+	const size_t h = (size_t)s->lookup_unit(hero);
+	s->units_.hp[h] = s->units_.max_hp[h] * 0.8f;
+	const uint32_t tower = s->spawn_building_world(cc->x + 20.0f, cc->z + 20.0f, BLD_SENTRY_TOWER, 1, 1.0f);
+	const Simulation::Building &tw = s->buildings_[s->building_id_to_idx_.at(tower)];
+	cc = nullptr;
+	for (const auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	Simulation::PetraAround siege;
+	siege.range_siege = true;
+	const bool in_cc = s->petra_keep_garrisoned(h, *cc, siege);
+	const bool in_tower = s->petra_keep_garrisoned(h, tw, siege);
+	std::printf("  regicide hero at 80%% with ranged siege near: stays in the civic centre %d (heals %.1f), in a sentry tower %d (heals %.1f)\n",
+	            in_cc, s->structure_garrison_heal(*cc), in_tower, s->structure_garrison_heal(tw));
+	CHECK(s->petra_is_critical_ent(h), "the hero is the critical entity");
+	CHECK(!in_cc, "protection rules in a healing holder: a melee hero over 0.4 health leaves when only siege is near");
+}
+
+// worker.js:325-345: a Petra builder that autocontinue sends from a finished house to a field
+// foundation is taken off it (fields are built by their farmers, buildAnyField); another
+// foundation nearby it does build.
+static void test_house_builder_skips_field() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_player_active(1, true, true);
+	run_for(*s, 1.0f);
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	const float len = std::sqrt(cx * cx + cz * cz);
+	const float hx = cx - cx / len * 12.0f, hz = cz - cz / len * 12.0f;
+	const uint32_t house = s->spawn_building_world(hx, hz, BLD_HOUSE, 1, 1.0f);
+	const uint32_t builder = s->spawn_unit(hx + 2.0f, hz, 1, UNIT_FEMALE_CITIZEN);
+	uint32_t targets[2] = {};
+	for (int c = 0; c < 2; ++c) {
+		const uint32_t f = s->spawn_building_world(hx - cx / len * 5.0f, hz - cz / len * 5.0f, c == 0 ? BLD_FIELD : BLD_STOREHOUSE, 1, 0.0f);
+		const Simulation::Building hb = s->buildings_[s->building_id_to_idx_.at(house)];
+		const size_t k = (size_t)s->lookup_unit(builder);
+		s->next_after_construction(k, hb, false, false);
+		targets[c] = s->units_.order_kind[k] == ORDER_BUILD ? s->units_.order_target[k] : 0;
+		const bool on_it = targets[c] == f;
+		std::printf("  house finished beside a %s foundation: its builder goes on to it %d\n", c == 0 ? "field" : "storehouse", on_it);
+		CHECK(c == 0 ? !on_it : on_it, c == 0 ? "a field foundation is left to the farmers" : "another foundation is built");
+		s->cmd_delete(1, &f, 1);
+		run_for(*s, 0.1f);
+	}
+}
+
 static void test_one_base_a_turn() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -5196,6 +5262,53 @@ static void test_update_capture_strength() {
 	CHECK(pooled == 20, "twenty together pool their strength and capture it");
 }
 
+// garrisonManager.js keepGarrisoned: only the gmin units sent against a structure's decay are
+// held by the decay rule; soldiers that came in for protection leave while nothing threatens it
+// (one a check here, as the spot beside it frees).
+static void test_decay_garrison_extra_leave() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_player_active(1, true, true);
+	run_for(*s, 1.0f);
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	// Out in neutral land between the two bases, away from anyone's units, with room round it.
+	const float len = std::sqrt(cx * cx + cz * cz);
+	uint32_t fort = 0;
+	for (float d = 20.0f; d < 90.0f && !fort; d += 4.0f) {
+		const uint32_t f = s->spawn_building_world(cx - cx / len * d, cz - cz / len * d, BLD_FORTRESS, 1, 1.0f);
+		if (!f) continue;
+		float ex, ez;
+		auto &b = s->buildings_[s->building_id_to_idx_.at(f)];
+		// A weaker regeneration (40 decay against 45 regen otherwise): half its slots stop the decay.
+		b.capture_regen_rate = s->structure_decay_rate(b) - (float)(b.garrison_cap / 2) * b.capture_garrison_regen_rate;
+		s->petra_pid_ = 1;
+		const auto around = s->petra_around(b);
+		const bool quiet = !around.unit && !around.defense_structure && !around.melee_siege && !around.range_siege;
+		if (quiet && s->petra_decay_garrison_min(b) > 0 && s->pick_spawn_point(b, UNIT_SPEARMAN, 0, ex, ez)) fort = f;
+		else s->cmd_delete(1, &f, 1);
+	}
+	CHECK(fort != 0, "a decaying fortress stands with room round it");
+	if (!fort) return;
+	auto &fb = s->buildings_[s->building_id_to_idx_.at(fort)];
+	const int cap = fb.garrison_cap;
+	const int need = s->petra_decay_garrison_min(fb);
+	const float fx = fb.x, fz = fb.z;
+	for (int k = 0; k < cap; ++k) {
+		const uint32_t u = s->spawn_unit(fx + 8.0f, fz + (float)k * 0.5f, 1, UNIT_SPEARMAN);
+		s->garrison_unit_now(u, fort);
+	}
+	run_ai_turns(*s, 6); // they step out as there is room beside it (an enemy comes by later)
+	const auto it = s->building_id_to_idx_.find(fort);
+	const int inside = it == s->building_id_to_idx_.end() ? -1 : (int)s->buildings_[it->second].garrisoned_units.size();
+	std::printf("  decaying fortress filled to %d: needs %d, %d stay\n", cap, need, inside);
+	CHECK(need > 0 && need < cap, "the fortress decays and needs fewer than it holds");
+	CHECK(inside >= need && inside < cap, "soldiers over the decay's need leave while nothing threatens the fortress");
+}
+
 // garrisonManager.js addDecayingStructure: a defence tower of Petra's standing in enemy
 // territory decays, so Petra garrisons the soldiers that stop the decay and keeps them in.
 static void test_decay_garrison() {
@@ -8542,6 +8655,8 @@ int main(int argc, char **argv) {
 	RUN(test_garrisoned_workers_count);
 	RUN(test_gather_rate_civ_bonus);
 	RUN(test_garrison_melee_attack);
+	RUN(test_regicide_hero_heal_holder);
+	RUN(test_house_builder_skips_field);
 	RUN(test_one_base_a_turn);
 	RUN(test_no_room_only_once_funded);
 	RUN(test_queue_plans_in_order);
@@ -8602,6 +8717,7 @@ int main(int argc, char **argv) {
 	RUN(test_gather_limits);
 	RUN(test_update_capture_strength);
 	RUN(test_decay_garrison);
+	RUN(test_decay_garrison_extra_leave);
 	RUN(test_decay_garrison_from_attack);
 	RUN(test_decay_destroy);
 	RUN(test_decay_barracks_captured);
