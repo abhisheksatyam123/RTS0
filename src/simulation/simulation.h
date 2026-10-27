@@ -2378,6 +2378,11 @@ public:
 	// Whether unit i stands within treasure_reach of treasure `id` it collects, where tick_treasures runs its timer.
 	bool treasure_in_reach(size_t i, uint32_t id) const;
 	const std::vector<Treasure> &treasures() const { return treasures_; }
+	// Visibility/RetainInFog: a treasure shows wherever the player has explored, but the Argo
+	// (special_argo.xml RetainInFog false) only in sight.
+	bool treasure_seen_by(uint8_t player, const Treasure &t) const {
+		return t.type == TREASURE_SPECIAL_ARGO ? los_visible(player, t.x, t.z) : los_explored(player, t.x, t.z);
+	}
 	bool is_treasure_id(uint32_t id) const {
 		for (const auto &t : treasures_) if (t.id == id) return true;
 		return false;
@@ -3584,6 +3589,11 @@ private:
 	bool petra_is_siege_unit(size_t i) const {
 		const TechClasses c = unit_classes_at(i);
 		return unit_is_siege_engine(units_.unit_type[i]) || ((c & TC_ELEPHANT).any() && (c & TC_MELEE).any());
+	}
+	// attackTypes().indexOf("Melee") !== -1: the unit attacks, and not at range.
+	bool petra_has_melee_attack(size_t i) const {
+		return units_.attack_damage[i] > 0.0f &&
+			!template_has_ranged_attack(units_.tmpl[i], units_.unit_type[i], civ_of(units_.team[i]));
 	}
 	void petra_order_build(uint32_t uid, uint32_t bid); // worker.js: drop the load, then build
 	void petra_fight_back(size_t i, int32_t attacker, const std::vector<PetraDefenseArmy> &armies, std::vector<uint32_t> &helped);
