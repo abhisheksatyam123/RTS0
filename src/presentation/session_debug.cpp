@@ -511,13 +511,13 @@ Vector2 RtsoMain::debug_spawn_offset(const String &template_id, int count, int p
 // Test hook: spawns `count` of the roster template `template_id` (e.g.
 // "athen/support_female_citizen") for the local player in a row by its Civic Centre,
 // 3 m apart from debug_spawn_offset.
-PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int count, int player, int near) {
+PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int count, int player, int near_player) {
 	PackedInt32Array out;
 	if (!sim) return out;
 	const uint16_t t = rtso::civ_unit_template_by_id(template_id.utf8().get_data());
 	if (t >= rtso::CIV_UNIT_TEMPLATE_COUNT) return out;
 	const uint8_t me = player < 0 ? local_player() : (uint8_t)player;
-	const uint8_t by = near < 0 ? me : (uint8_t)near; // whose Civic Centre they spawn by
+	const uint8_t by = near_player < 0 ? me : (uint8_t)near_player; // whose Civic Centre they spawn by
 	float cx = 0.0f, cz = 0.0f;
 	for (const auto &b : sim->buildings())
 		if (b.team == by && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
