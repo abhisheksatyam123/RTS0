@@ -241,6 +241,32 @@ int main() {
 	CHECK(ri < 0 || (!w.units().alive[ri] && w.units().action_state[ri] != ACTION_GARRISONED));
 	CHECK(w.get_transport_passenger_count(q) == 0);
 
+	{
+		// units/plane: Repairable, RepairTimeRatio 3.0 (RP2). A builder repairs a landed plane
+		// at MaxHitpoints / (3 x BuildTime) a second.
+		static Simulation r;
+		r.set_sim_seed(3);
+		r.set_team_civ(0, CIV_ATHENIANS);
+		r.reset();
+		r.set_map_half(120.0f);
+		const uint32_t pl = r.spawn_unit(0.0f, 0.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, plane);
+		CHECK(r.is_repairable_unit(pl));
+		const float max = r.units().max_hp[index_of(r, pl)];
+		r.set_unit_hp(pl, max * 0.5f);
+		const uint32_t w = r.spawn_unit(3.0f, 0.0f, 0, UNIT_VILLAGER);
+		r.order_build_or_repair(&w, 1, pl);
+		CHECK(r.units().action_state[index_of(r, w)] == ACTION_REPAIR);
+		for (int t = 0; t < 400 && r.units().hp[index_of(r, pl)] <= max * 0.5f; ++t) r.tick(kDt);
+		const float h0 = r.units().hp[index_of(r, pl)];
+		run(r, 0.5f); // its BuildTime is 1 s: whole again within 1.5 s
+		const float rate = (r.units().hp[index_of(r, pl)] - h0) / 0.5f;
+		const float want = max / (3.0f * civ_template_unit_info(plane, UNIT_BOLT_SHOOTER).train_time);
+		std::printf("plane repaired at %.2f hp/s (want %.2f)\n", rate, want);
+		CHECK(std::fabs(rate - want) < want * 0.1f);
+		run(r, 2.0f);
+		CHECK(r.units().hp[index_of(r, pl)] == max && r.units().action_state[index_of(r, w)] == ACTION_IDLE);
+	}
+
 	if (failures == 0) std::printf("ALL PASS\n");
 	return failures == 0 ? 0 : 1;
 }

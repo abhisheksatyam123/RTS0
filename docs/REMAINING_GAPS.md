@@ -566,7 +566,7 @@ Foundation.js, Repairable.js, Upgrade.js, Builder.js and UnitAI's REPAIR states 
 | BD2 | Builders still walking to a structure when it was finished stopped where they were; with nothing else to do 0.28 walks them on to it (WalkToTarget) | low | Fixed by Unit orders #1600 as M4 (`tools/test_gather_parity.cpp` 21) |
 | UP1 | The Carthaginian Low Wall's gate upgrade costs the palisade's 10 wood and 6 s, not 20 wood and 5 s (cart/s_wall_long.xml); RTS0 can't tell a Low Wall piece from a Carthaginian's palisade by type and civ | low | Open (map wall scripts only) |
 | FD2 | Ships never kept a foundation from starting; every unit has BlockConstruction, so a ship on a dock site is told to leave first | low | Fixed (it sails to the nearest water its class can use off the footprint, else stays and the site waits; `tools/test_naval.cpp` test_ship_leaves_dock_site) |
-| RP2 | The Flight Demo plane has Repairable (RepairTimeRatio 3.0) but can't be repaired | nit | Open |
+| RP2 | The Flight Demo plane has Repairable (RepairTimeRatio 3.0) but couldn't be repaired | nit | Fixed (a builder repairs it once landed; `tools/test_flight.cpp`) |
 
 ### Production queues and ceasefire, twenty-second 0.28 pass (2026-10-27)
 
