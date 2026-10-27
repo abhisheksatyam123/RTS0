@@ -195,7 +195,7 @@ Attack and capture timers against Timer.js, Attack.js and Capturable.js, from D'
 | T1 | ~~A hit that fell due partway through a tick timed the next RepeatTime from the tick's end, so hits drifted late~~ Fixed: Timer.js interval timers schedule from the due time; test_unit_orders 113 (#1641) | low | Fixed |
 | T2 | ~~A unit promoted mid-attack waited out its old RepeatTime~~ Fixed: the new entity's Attack starts over (Transform.js), so its next hit comes after PrepareTime; test_unit_orders 114 (#1641) | low | Fixed |
 | T3 | ~~Capture regeneration and territory decay ran on a global whole-second clock~~ Fixed: each structure's timer starts a second after its points can first change and stops once a tick changes nothing (Capturable.js:203-267), after the same moment's capture hits; test_unit_orders 115 | low | Fixed |
-| T4 | Splash damage uses AREA_DAMAGE_SCALE 0.6 (#899); not yet checked against 0.28's Attack Splash over-hitting | nit | Open (check) |
+| T4 | Splash radii scale by AREA_DAMAGE_SCALE 0.6 (#899). Against 0.28's geometry it is no over-hit: Attack Splash reaches obstruction edges (infantry Clearance 0.8 m = RTS0 radius 0.55, so 0.69 units a metre) and clumped units sit at about the same spacing, so splash reaches slightly fewer of them than 0.28; only in formations (0.28 slots 3 m, RTS0 1.1 units) it reaches a little further | nit | Kept (#899; mixed, no over-hit in clumps) |
 
 ### Unit orders, fourteenth 0.28 pass (2026-10-27)
 
