@@ -37416,7 +37416,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	if (ar.version >= Simulation::SAVE_VERSION_TURRET_STANCE) {
 		std::vector<std::pair<uint32_t, uint8_t>> prev(s.turret_prev_stance_.begin(), s.turret_prev_stance_.end());
 		std::sort(prev.begin(), prev.end());
-		io_vec(ar, prev, S::UNIT_CAP, [&](std::pair<uint32_t, uint8_t> &e) {
+		io_vec(ar, prev, S::UNIT_LOAD_LIMIT, [&](std::pair<uint32_t, uint8_t> &e) {
 			ar.pod(e.first);
 			ar.pod(e.second);
 			if constexpr (Ar::loading)
