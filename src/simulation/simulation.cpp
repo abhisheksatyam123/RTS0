@@ -39856,7 +39856,7 @@ void Simulation::trigger_survival_treasures() {
 }
 
 void Simulation::trigger_gallic_fields(bool attack) {
-	// maps/skirmishes/gallic_fields_3p.js. vars 0 attackSize, 1 attackTime [ms].
+	// maps/skirmishes/gallic_fields_3p.js. vars 0 attackSize, 1 attackTime [ms], 2 attackTime's float bits.
 	int32_t *v = triggers_.vars;
 	if (!attack) {
 		v[0] = 1;         // attack with 1 soldier
@@ -39885,11 +39885,17 @@ void Simulation::trigger_gallic_fields(bool attack) {
 				break;
 			}
 	}
-	// Enlarge the attack time and size.
+	// Enlarge the attack time and size. attackTime keeps its fraction (vars 2, a float's bits; 0
+	// in saves from before it, which read vars 1), and Timer.js fires on the first turn at or past
+	// it, so the timeout rounds up.
 	const float rand = sim_rng_.range_float(1.0f, 3.0f);
-	v[1] = (int32_t)((float)v[1] * rand);
+	float time_ms = (float)v[1];
+	if (v[2]) std::memcpy(&time_ms, &v[2], sizeof time_ms);
+	time_ms *= rand;
+	std::memcpy(&v[2], &time_ms, sizeof time_ms);
+	v[1] = (int32_t)time_ms;
 	v[0] = (int32_t)std::lround((float)v[0] * rand);
-	triggers_.set_timeout((uint32_t)v[1], TRIGGER_ACTION_GALLIC_FIELDS, 1.0f);
+	triggers_.set_timeout((uint32_t)std::ceil(time_ms), TRIGGER_ACTION_GALLIC_FIELDS, 1.0f);
 }
 
 void Simulation::trigger_pickup_test(int step) {
@@ -41087,12 +41093,13 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 void Simulation::random_template_composition(const std::vector<uint16_t> &names, int count, std::vector<std::pair<uint16_t, int>> &counts) {
 	// TriggerHelper.RandomTemplateComposition: a random share of `count` for each template.
 	if (names.empty()) return;
-	std::vector<float> f(names.size());
-	float sum = 0.0f;
-	for (float &v : f) sum += (v = sim_rng_.range_float(0.0f, 1.0f));
+	// The shares in doubles, as JavaScript numbers.
+	std::vector<double> f(names.size());
+	double sum = 0.0;
+	for (double &v : f) sum += (v = (double)sim_rng_.range_float(0.0f, 1.0f));
 	int left = count;
 	for (size_t i = 0; i < names.size(); ++i) {
-		const int n = i + 1 == names.size() ? left : std::min(left, (int)std::lround(f[i] / sum * (float)count));
+		const int n = i + 1 == names.size() ? left : std::min(left, (int)std::floor(f[i] / sum * (double)count + 0.5)); // Math.round
 		if (!n) continue;
 		auto it = std::find_if(counts.begin(), counts.end(), [&](const auto &c) { return c.first == names[i]; });
 		if (it == counts.end()) counts.push_back({names[i], n});
