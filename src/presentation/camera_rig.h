@@ -15,20 +15,30 @@ class RtsoCameraRig : public Node3D {
 	Camera3D *cam = nullptr;
 	Vector3 target_pos;
 	float speed = 28.0f;
-	float zoom_height = 22.0f;
-	float target_zoom = 22.0f;
+	float zoom_height = 30.0f; // the camera's distance from its look-at point (0.28 m_Zoom)
+	float target_zoom = 30.0f;
 	float yaw_angle = 0.0f;
 	float target_yaw = 0.0f;
 	float map_bounds_half = 64.0f;
+	bool map_circular_ = false;
+	// CCameraController::CAMERA_EDGE_MARGIN: the look-at point stays 2 tiles (8 m) inside the map.
+	static constexpr float kEdgeMargin = 2.0f;
+	// 0.28 [view] rotate.x.{min,max,default} (degrees below the horizon) and zoom.{min,max,default}
+	// (the camera's distance from its look-at point, 0.28 metres; RTS0 units are 4 m), read in _ready.
+	float pitch_min_ = 28.0f, pitch_max_ = 60.0f, pitch_default_ = 35.0f;
+	float zoom_min_ = 12.5f, zoom_max_ = 50.0f, zoom_default_ = 30.0f;
+	// view.zoom.speed (per second, keyboard) and view.zoom.speed.wheel (per wheel step), in units.
+	float zoom_speed_ = 64.0f, zoom_speed_wheel_ = 8.0f;
+	void clamp_to_map(Vector3 &p) const;
 	bool mmb_dragging = false;
 	bool edge_scroll_enabled = true;
 	// Camera pitch in degrees below the horizon (0 A.D. camera.rotate.up/down).
-	float pitch_deg = 50.6f;
-	float target_pitch_deg = 50.6f;
+	float pitch_deg = 35.0f;
+	float target_pitch_deg = 35.0f;
 	// 0 A.D. camera.togglebirdseyeview: straight down, and back to the pitch before.
 	bool birds_eye_ = false;
 	bool constrain_ = true;
-	float pre_birds_eye_pitch_ = 50.6f;
+	float pre_birds_eye_pitch_ = 35.0f;
 	// Which keys may scroll and rotate the camera: every key, arrows only (while
 	// placing a building, when letters pick the building), or none (typing).
 	int key_scroll_mode_ = 0;
@@ -61,11 +71,13 @@ public:
 	float get_pitch_deg() const { return target_pitch_deg; }
 	float get_zoom() const { return target_zoom; }
 	void set_map_bounds_half(float h) { map_bounds_half = h; }
+	void set_map_circular(bool on) { map_circular_ = on; }
+	float get_map_bounds_half() const { return map_bounds_half; }
+	bool is_map_circular() const { return map_circular_; }
 	// The developer overlay's Restrict camera (GameView_SetConstrainCameraEnabled):
 	// off, the camera may leave the map.
 	void set_constrain_camera(bool on) { constrain_ = on; }
 	bool is_constrain_camera() const { return constrain_; }
-	float bounds_half() const { return constrain_ ? map_bounds_half : 1.0e6f; }
 	bool is_edge_scroll_enabled() const { return edge_scroll_enabled; }
 	enum KeyScrollMode { KEYS_ALL = 0, KEYS_ARROWS_ONLY = 1, KEYS_NONE = 2 };
 	void set_key_scroll_mode(int mode) { key_scroll_mode_ = mode; }
