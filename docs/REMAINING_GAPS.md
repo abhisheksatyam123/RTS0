@@ -436,6 +436,20 @@ gui/common/tooltips.js and selection_panels_helpers.js against RTS0's constructi
 | TT6 | The wall-dragging cost tip is a plain Label: "Cost: Stone 36" without the header font or icons | nit | Open |
 | TT7 | "Requires ..." from a unit trainer shows only the generic name, not "Specific (Generic)"; no case found in the current rosters | nit | Open |
 
+### Defensive structures and Petra's use of them, twenty-first 0.28 pass (2026-10-27)
+
+BuildingAI.js, GarrisonHolder/TurretHolder, Capturable and TerritoryDecay against RTS0's structure runtime (matching), and headquarters.js buildDefenses/findDefensiveLocation, defenseManager.js and garrisonManager.js against Petra's. Owner: E (placement); garrisons and focus fire to their owners.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| DS1 | Petra keeps healed female citizens garrisoned: garrisonManager.js:317 releases units with a Melee attack (women have a Dagger) at 70% health; RTS0 tests the Melee class | medium | Open (Petra garrisons) |
+| DS2 | Petra treats war elephants as ordinary units when garrisoning against an attack; entityExtend.js isSiegeUnit counts Elephant+Melee as siege (garrison only ranged soldiers) | medium-low | Open (Petra garrisons) |
+| DS3 | An enemy tower or fortress alone doesn't make Petra garrison its tower or civic centre (defenseManager.js:569-579, 692-693) | low-medium | Open (Petra defense) |
+| DS4 | findDefensiveLocation took any frontier cell of ours; 0.28 takes only cells a base of ours holds on its anchor's land (baseAtIndex), so no towers across a river or on an islet | low-medium | Fixed |
+| DS5 | Towers and fortresses were searched for a spot before queueing and retried after 90 s (every 3rd turn for a first stone tower); 0.28 queues the plan, searches at start, and with no spot marks it unbuildable for 90 s while the lapse runs from queue time | low | Fixed |
+| DS6 | An enemy whose only civic centre, tower or fortress is a foundation let Petra fall back to neutral or allied structures; in 0.28 the foundation blocks the fallback | nit | Fixed |
+| DS7 | Focus fire refuses enemy players' livestock; BuildingAI.js:275-285 accepts any enemy entity in range (RTS0's automatic arrows already shoot them) | nit | Open (focus fire) |
+
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 
 BuildingAI.js, Attack.js and DelayedDamage.js against the arrow code, measured in the simulation and against a Python port of FireArrows: arrow counts with garrisons, auras and technologies (civic centre 6-26, tower 4-9, fortress 10-30), the 20 rounds per RepeatTime and their rounding, the first volley PrepareTime after a target enters, the paused round when targets leave, target order (preference, then distance, every arrow of a round on the first), what is shot (enemies, structures with Health, livestock, Gaia that can fight back), visibility, MinRange from the footprint, foundations, ownership changes, spread and stray hits all match. Owner: E.
