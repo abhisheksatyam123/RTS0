@@ -374,6 +374,42 @@ bool search_short_path_with_units(Vec2 pos, Vec2 aim, const ShortPathGoal& goal,
 	return true;
 }
 
+// A short path from `pos` to `goal` (a point, or a task's range round its target) among `obstacles`
+// (the buildings and mines, and the trees round the unit), within `range` of `pos`, with no unit
+// squares: the short path 0.28's ComputePathToGoal asks for (Simulation::obstructed_short_path). Every
+// obstacle counts but `ignore_building_id` (a structure the goal is the range round), as 0.28's short
+// path keeps the target's own obstruction and ends on the range round it (VertexPathfinder.cpp:598-599
+// gets every static shape in the box; ComputeGoal, CCmpUnitMotion.h:1664-1773). None is left out for
+// holding the goal, as is_steering_obstacle leaves out a building holding a walk's aim: a range goal's
+// nearest point can lie in a neighbouring tree. `path` gets the whole path, its first waypoint first.
+// True when it reaches the goal; a search that cannot reach it gives the way to the point nearest it
+// (VertexPathfinder.cpp:753-754, 856-859, 885).
+template <class Obstacles>
+bool search_short_path_to_goal(Vec2 pos, const ShortPathGoal& goal, float radius, float range,
+		const Obstacles& obstacles, uint32_t ignore_building_id, const NavGrid& nav, std::vector<Vec2>& path)
+{
+	thread_local std::vector<ShortPathSquare> statics;
+	thread_local ShortPathScratch scratch;
+	static const std::vector<ShortPathSquare> no_units;
+	statics.clear();
+	const float cull = range * (BUILDING_STEER_CULL / BUILDING_STEER_RANGE);
+	for (const auto& b : obstacles)
+		if (detail::within_reach(b, pos, radius, cull) && !b.wrecked && b.id != ignore_building_id &&
+		    building_blocks_movement(b.type))
+			statics.push_back(ShortPathSquare{Vec2(b.x, b.z), footprint_u(b), footprint_v(b), Vec2(b.hu, b.hv)});
+
+	ShortPathRequest req;
+	req.start = pos;
+	req.clearance = radius;
+	req.range = range;
+	req.goal = goal;
+	req.terrain_clearance = radius;
+	detail::set_map_edge(req, nav, radius);
+	return detail::with_terrain_rows(nav, pos, range, radius, [&](auto& rows, float cell, Vec2 origin, int w, int h) {
+		return compute_short_path(req, statics, no_units, rows, cell, origin, w, h, scratch, path);
+	});
+}
+
 // If the line from `pos` towards `aim` is blocked within BUILDING_STEER_RANGE, searches a short path
 // around the nearby buildings and returns its first waypoint in `out`. Returns false when the line is
 // clear, the unit is inside a building or no path was found; the caller then moves straight at `aim`.
