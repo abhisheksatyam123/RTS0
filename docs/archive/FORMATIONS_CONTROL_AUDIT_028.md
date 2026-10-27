@@ -11,7 +11,7 @@ Static comparison of `src/simulation/simulation.cpp` formation controllers with 
    enemy member closest to itself (`GetClosestMember(this.entity)`, 2161-2168), and the
    controller's approach and range check use the member closest to the controller (4811-4816,
    4904-4909). RTS0 had every member pile onto the clicked soldier. Now
-   `FormationController::target_formation` (save v120) holds the enemy formation,
+   `FormationController::target_formation` (save v121) holds the enemy formation,
    `formation_attack_target` / `formation_closest_member` stand in for GetClosestMember, and
    `formation_members_attack` spreads the members. Once the first soldier falls each member's
    own FINDINGNEWTARGET takes over; 0.28's re-pick there passes the attacker, not the member, to

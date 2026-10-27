@@ -45,7 +45,7 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G60 | Selection overlays (Rendering, static against 0.28 CCmpSelectable and the templates' Selectable): ~~every unit's overlay is one plain round ring about 1.75 times 0.28's size; 0.28 draws each template's texture (an ellipse, champions' arrow, heroes' star, healers' plus, siege's rounded rectangle, warships' cartouche) over its footprint, turned with the unit, as a white-edged band in the owner's colour, and heroes keep their star unselected (a third desaturated, 0.65 alpha)~~ (fixed: `tools/extract_0ad_selectable.py`, 0.28's selection textures); ~~hovered mines, fruit, fish and treasures get the ellipse where 0.28 draws its Outline line round the footprint; ships' overlays land on the sea bed under the water, not on the water (0.28 takes the higher of ground and water); no 0.3 s fade in and out (FADE_DURATION)~~ Closed: 0.3s QuartOut fade in and out on selection and hover overlays (`update_overlay_fade`), ships' overlays projected at water surface height `max(terrain, water_height)` via `water_mesh_node` decal layer mask & mesh sampling, gaia resources given accurate footprint radii (tree 2.5m, fruit 3m, fish 10m, ore/rock 5m), and treasures given square footprint outline (2x2m turned by treasure angle) | low | Rendering |
 | G61 | Tutorial panel (Session UI pass 27, static against 0.28 tutorial_panel.xml): ~~a 620 x 190 flat box with a gold frame at y 40, 13 px text and a plain Ready button~~ (fixed, #1552: ModernFade (0 0 0 85) at 50%-380 38 50%+380 292, the instructions in a TutorialPanel box (ModernDarkBox, gold edges, white 14, buffer_zone 8) at 10 10 100%-20 100%-48, the warning at 10 100%-42 100%-20 100%-12 and a ModernButtonRed Ready at 100%-160 100%-42 100%-20 100%-12; `tools/e2e_tutorial.gd`; this row, first G60, was lost in a later merge and is restored here). The text sits at the top of its box rather than centred (text_valign center), as Godot 4.3's RichTextLabel has no vertical alignment | low | Session UI |
 | G62 | Research progress column (Session UI pass 28, static against 0.28 ResearchProgress.xml/.js and session/sprites.xml): ~~the buttons are Godot's default buttons, the progress slider is dark (0.28 queueProgressSlider: 0 255 0 128), the time is 12 px and rounds up (FormatMillisecondsIntoDateStringGMT rounds down; iconButtonProgress: sans-stroke-14)~~ (fixed: iconButton's snIconPortrait frame, add_color 42 on hover; `tools/e2e_research_progress.gd`). The column starts 58 px down (0.28: 40) under RTS0's taller top panel, as PanelEntities does | low | Session UI |
-| G63 | Formation controllers (Formations pass, `docs/archive/FORMATIONS_CONTROL_AUDIT_028.md`): ~~a formation attacking an enemy formation piles onto the clicked soldier; a new formation faces +z; the turn check compares with the slots' old heading; a death re-forms an idle or fighting formation; members picked out of a formation gather or repair one by one~~ (fixed, save v120: each member goes for the enemy member closest to it, MoveToMembersCenter's mean facing, SetRearrange(false) in IDLE and MEMBER, GetFormationUnitAIs for gather and repair; `tools/test_formations.cpp` 10b, 17). Open: the members' "combat" walk animation variant; heal and garrison on part of a formation still go member by member | low | Formations |
+| G63 | Formation controllers (Formations pass, `docs/archive/FORMATIONS_CONTROL_AUDIT_028.md`): ~~a formation attacking an enemy formation piles onto the clicked soldier; a new formation faces +z; the turn check compares with the slots' old heading; a death re-forms an idle or fighting formation; members picked out of a formation gather or repair one by one~~ (fixed, save v121: each member goes for the enemy member closest to it, MoveToMembersCenter's mean facing, SetRearrange(false) in IDLE and MEMBER, GetFormationUnitAIs for gather and repair; `tools/test_formations.cpp` 10b, 17). Open: the members' "combat" walk animation variant; heal and garrison on part of a formation still go member by member | low | Formations |
 
 Closed since re-check 3 (2026-10-15): G1 (large units' long paths keep out of woods too tight for them, #1086) and the rows below.
 
@@ -183,7 +183,7 @@ Garrisons, structure arrows, attacks and resistance, territory decay and camps a
 |---|---|---|---|
 | L1 | ~~A Han minister in a Han corral is put outside when the corral drops below half health, is destroyed or is captured~~ Fixed: he dies inside, as the corral's EjectClassesOnDestroy is Animal only (structures/han/corral.xml adds Minister to the List; a 0.28 data oversight, followed); test_minister | low | Fixed |
 | L2 | ~~A structure left with no capture points goes to the top player when Gaia ties it~~ Fixed: Gaia wins a tie, then the lowest player (Capturable.js reduce from index 0, strict ">"); test_unit_orders 105 | low | Fixed |
-| L3 | Garrisoned units heal on one match-wide second rather than a timer per structure started by the first unit in (GarrisonHolder HEAL_TIMEOUT), so the first heal can come up to a second early. A per-structure timer needs a save field | low | Open: Unit orders |
+| L3 | ~~Garrisoned units heal on one match-wide second rather than a timer per structure started by the first unit in (GarrisonHolder HEAL_TIMEOUT), so the first heal can come up to a second early~~ Fixed: each structure keeps its own heal timer from the first unit in, stopped while it is empty or heals nothing (save v120); test_garrison_heal | low | Fixed |
 
 ### Unit orders, eleventh 0.28 pass (2026-10-21)
 
@@ -443,8 +443,8 @@ BuildingAI.js, GarrisonHolder/TurretHolder, Capturable and TerritoryDecay agains
 
 | # | Difference from 0.28 | Impact | Status |
 |---|---|---|---|
-| DS1 | Petra keeps healed female citizens garrisoned: garrisonManager.js:317 releases units with a Melee attack (women have a Dagger) at 70% health; RTS0 tests the Melee class | medium | Open (Petra garrisons) |
-| DS2 | Petra treats war elephants as ordinary units when garrisoning against an attack; entityExtend.js isSiegeUnit counts Elephant+Melee as siege (garrison only ranged soldiers) | medium-low | Open (Petra garrisons) |
+| DS1 | Petra keeps healed female citizens garrisoned: garrisonManager.js:317 releases units with a Melee attack (women have a Dagger) at 70% health; RTS0 tests the Melee class | medium | Fixed |
+| DS2 | Petra treats war elephants as ordinary units when garrisoning against an attack; entityExtend.js isSiegeUnit counts Elephant+Melee as siege (garrison only ranged soldiers) | medium-low | Fixed |
 | DS3 | An enemy tower or fortress alone doesn't make Petra garrison its tower or civic centre (defenseManager.js:569-579, 692-693) | low-medium | Open (Petra defense) |
 | DS4 | findDefensiveLocation took any frontier cell of ours; 0.28 takes only cells a base of ours holds on its anchor's land (baseAtIndex), so no towers across a river or on an islet | low-medium | Fixed |
 | DS5 | Towers and fortresses were searched for a spot before queueing and retried after 90 s (every 3rd turn for a first stone tower); 0.28 queues the plan, searches at start, and with no spot marks it unbuildable for 90 s while the lapse runs from queue time | low | Fixed |
@@ -750,6 +750,25 @@ The message box, the tutorial panel and the chat overlay checked against 0.28's 
 | MB8 | Clickable chat overlay lines took the plain session tooltip; chatLine uses sessionToolTipBottomBold | low | Fixed |
 | MB9 | The game speed dropdown was 48 px tall in Godot's fallback font; ModernDropDown is 25 px, so it takes the trimmed Linux Biolinum bold face | nit | Fixed |
 
+### Summary page skin, seventeenth 0.28 pass (2026-10-27)
+
+The summary page's skin and layout checked again against 0.28's gui/summary/, tab_buttons.js and the modern styles and sprites (main c4a92f0cf). Counters, value colours, team totals, chart bounds, captions and routing already matched. Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| SM1 | The tabs were stone buttons in cream Biolinum 15; ModernTabButtonHorizontal tabs (selected: white 40 fill with gold left, top and right edges; the rest 50 35 0 120 with a 1 px gold edge) with white bold 14 labels | medium | Fixed |
+| SM2 | The panel frame was a dark box with a brown border all round; ModernTabHorizontalFrame is white 40 with gold left, right and bottom edges, and tabDividerLeft/Right run up to either side of the selected tab (adjustTabDividers) | low | Fixed |
+| SM3 | Continue and Watch Replay were stone buttons; ModernButtonRed in sans-bold-stroke-14 | medium | Fixed |
+| SM4 | The window was a flat slate panel with a gold border; ModernDialog/ModernWindow draw the tiled modern background; the in-game fade was 0.6, ModernFade is 0 0 0 85 | low | Fixed |
+| SM5 | The full-page title sat in 4-30 top-aligned; summaryWindowTitle centres it in 4-36 | nit | Fixed |
+| SM6 | "Group by team" was Godot's default checkbox in grey regular text; ModernTickBox with a white bold 14 caption | low | Fixed |
+| SM7 | The three caption lines had a black stroke; sans-bold-18 has none | nit | Fixed |
+| SM8 | Heading boxes were top-aligned at y 16 or 34 and w wide; layout.js sizes them "(left-4) yStart (left+w+4) 69" and centres them, with yStart 0 for the score, market and miscellaneous columns | low | Fixed |
+| SM9 | The chart dropdowns used the regular face; ModernDropDown is sans-bold-14 | nit | Fixed |
+| SM10 | The chart legend never wrapped and spilled past the panel; chartLegend wraps, centred about 100%-20 | low | Fixed |
+| SM11 | The page's bold text is Godot's fallback face emboldened, not Linux Biolinum: Biolinum's taller line needs every fixed box rechecked first | low | Open |
+| SM12 | A small window scrolls the table; 0.28 clips it | nit | Open |
+
 ### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
 
 diplomacyManager.js, chatHelper.js and their callers were checked line by line. Everything else matches: update cadence, tribute rules, request handling and its odds, lastManStandingCheck, changePlayerDiplomacy, personality boosts, every chat string. Jebel Barkal was checked statically against the 0.28 source, since no 0.28 binary runs here (pass 8: wave sizing and target-class skip match). Pass 4's P2 is D8 below, and its P5 is D7.
@@ -871,11 +890,11 @@ This file is the parity record: every difference from 0 A.D. 0.28 an audit found
 
 | Rows | Count | Share |
 |---|---|---|
-| Closed (fixed, landed, done) | 308 | 97.5% of closed + open |
-| Open | 8 | 2.5% |
+| Closed (fixed, landed, done) | 309 | 97.8% of closed + open |
+| Open | 7 | 2.2% |
 | Kept on purpose (0.28 bugs RTS0 doesn't copy, RTS0-scale choices such as build times x0.25, engine limits) | 51 | not counted above |
 
-Weighted by each row's Impact (high 3, medium 2, low 1) the closed share is about 96%. Counting every kept row as a gap too gives 305 of 367, about 83%; that is a floor, since most kept rows are 0.28 bugs or matches. The open rows are small: Options page leftovers (G36), map StartingCamera and colours (P5, F), a few triggers and lobby details (TH10, LR4, LR5) and a garrison heal timer (L3). The counts are a measure of what audits have found, not of everything in 0.28: each area's thread keeps auditing and adds rows as it finds more.
+Weighted by each row's Impact (high 3, medium 2, low 1) the closed share is about 96%. Counting every kept row as a gap too gives 309 of 367, about 84%; that is a floor, since most kept rows are 0.28 bugs or matches. The open rows are small: Options page leftovers (G36), map StartingCamera and colours (P5, F) and a few triggers and lobby details (TH10, LR4, LR5). The counts are a measure of what audits have found, not of everything in 0.28: each area's thread keeps auditing and adds rows as it finds more.
 
 This count replaces the 2026-10-08 estimate ("a little over half way", `check_parity.py` 92% for the G1-G10 systems). The list below is from that audit; all of it is fixed.
 
