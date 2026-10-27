@@ -15686,7 +15686,15 @@ void Simulation::leave_foundation(size_t i, const Building &b) {
 		return;
 	float tx, tz;
 	foundation_exit_point(b, units_.pos_x[i], units_.pos_z[i], r, tx, tz);
-	if (taken(tx, tz)) {
+	// A ship (a dock site over its mooring) leaves for the nearest point off the footprint its
+	// class can sail to: the land side of a dock is no exit for it.
+	const bool ship = unit_is_ship(units_.unit_type[i]);
+	const uint8_t ship_pass = ship ? unit_ship_pass(units_.unit_type[i]) : 0;
+	auto sails = [&](float x, float z) {
+		auto [cx, cy] = nav_grid_.world_to_cell(x, z);
+		return nav_grid_.is_passable_for(cx, cy, ship_pass);
+	};
+	if (taken(tx, tz) || (ship && !sails(tx, tz))) {
 		// The nearest free point just off the footprint, stepping along its edge from the
 		// unit's own side (footprint axes), then a step further out.
 		const nav::Vec2 l = nav::footprint_local(b, units_.pos_x[i], units_.pos_z[i]);
@@ -15694,7 +15702,9 @@ void Simulation::leave_foundation(size_t i, const Building &b) {
 		float best = 1e30f;
 		bool found = false;
 		const float step = std::max(2.0f * r, 0.25f);
-		for (float extra = 0.0f; extra <= 2.0f * step && !found; extra += step)
+		// A warship keeps its 10 m from the shore: look further out for open water.
+		const float reach = ship ? std::max(2.0f * step, 4.0f) : 2.0f * step;
+		for (float extra = 0.0f; extra <= reach && !found; extra += step)
 			for (int side = 0; side < 4; ++side) {
 				const float len = side < 2 ? out_u + extra : out_v + extra;
 				for (float t = -len; t <= len + 1e-4f; t += step) {
@@ -15704,13 +15714,14 @@ void Simulation::leave_foundation(size_t i, const Building &b) {
 					if (d >= best) continue;
 					const nav::Vec2 w = nav::footprint_world(b, lu, lv);
 					if (w.x < -map_half_ + 1.0f || w.x > map_half_ - 1.0f || w.y < -map_half_ + 1.0f || w.y > map_half_ - 1.0f) continue;
-					if (taken(w.x, w.y)) continue;
+					if (taken(w.x, w.y) || (ship && !sails(w.x, w.y))) continue;
 					best = d;
 					tx = w.x;
 					tz = w.y;
 					found = true;
 				}
 			}
+		if (!found && ship) return; // no water off the site: it stays, and the site waits
 	}
 	const uint32_t uid = units_.id[i];
 	const UnitOrder cur = current_order(i);
@@ -15779,7 +15790,7 @@ bool Simulation::try_commit_foundation(Building &b) {
 	// Only a foundation whose obstruction blocks movement waits for the site to clear (Foundation.js
 	// Commit: GetBlockMovementFlag): a field is walked across all the time, so it starts at once.
 	for (size_t i = 0; building_blocks_movement(b.type) && i < units_.count; ++i) {
-		if (!units_.alive[i] || unit_is_ship(units_.unit_type[i])) continue;
+		if (!units_.alive[i]) continue;
 		// A unit stands on the site when its centre is inside the footprint (builders work
 		// from just outside it, outside_and_in_build_range).
 		if (!nav::footprint_contains(b, units_.pos_x[i], units_.pos_z[i], 0.0f)) continue;
