@@ -27512,7 +27512,8 @@ void Simulation::petra_manage_buildings(float dt) {
 				for (const auto &b : buildings_)
 					if (b.team == petra_pid_ && is_civic_centre(b.type) && b.build_progress >= 1.0f && b.hp > 0.0f) home_land = petra_access_at(b.x, b.z);
 			for (const auto &b : buildings_) {
-				if (b.team != petra_pid_ || b.build_progress >= 1.0f) continue;
+				// getOwnFoundations: living ones only (a wrecked house is no foundation).
+				if (b.team != petra_pid_ || b.build_progress >= 1.0f || b.hp <= 0.0f || b.wrecked) continue;
 				if (home_land && is_civic_centre(b.type) && petra_access_at(b.x, b.z) != home_land) continue;
 				free_slots += structure_pop_bonus(b.type, petra_pid_, structure_template_civ(b));
 			}

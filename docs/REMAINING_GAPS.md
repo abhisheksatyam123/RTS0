@@ -630,6 +630,7 @@ garrisonManager.js, worker.js, queueManager.js and the queue plans, and the econ
 | PC26 | (D sweep, Cycladic seed 62) checkPausedQueues paused the town phase while the workers were under workersMin (24), but during the wood-starved escape the houses were full at 20 and no worker could be added, so it stayed paused | medium | Fixed: not paused during the escape |
 | PC27 | (Islands seed 62) During the escape a civic centre foundation on another island, waiting for a transport ship that itself waited for population room, counted its 20 slots toward the house trigger, so no house was laid and the three waited on each other | medium | Fixed: such a foundation doesn't count during the escape |
 | PC28 | (Cycladic seed 62) During the escape the town phase's research held the kept wood while the 5 Village structures it asks for couldn't be paid, so neither ever started. The houses it needs now take the wood first | medium | Fixed. On that seed p3's island has no trees, so it still stops at 250 of the phase's 500 wood (handed to F) |
+| PC29 | (D under-attack audit) The house trigger counted wrecked house foundations as free population slots, so after losing houses under construction Petra stopped laying houses and froze at its cap (70/70, against 155/170 fixed). 0.28 counts getOwnFoundations, living entities only | medium | Fixed |
 
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 
