@@ -1097,17 +1097,17 @@ Scenario-only units: every unit the 0.28 scenario, demo and sandbox maps place w
 | LR5 | Reports are matched by RTS0's matchID (seed, map, players) and the last 200 are kept; 0.28 uses its random matchID and EcheLOn drops reports after an hour | negligible | Fixed: reports also expire after an hour; the matchID stays RTS0's (Kept: unique per match either way) |
 | LR6 | RTS0 sends the report when the local player is decided; 0.28 registers it on the players-finished handler, the same moment for a 1v1 | negligible | Deliberate |
 
-## Read this first: whole-game parity (recounted 2026-10-27, main 97624a492)
+## Read this first: whole-game parity (recounted 2026-10-27, main b54fe19c0)
 
 This file is the parity record: every difference from 0 A.D. 0.28 an audit found is a row, struck through with its fix once it lands. Counting the rows of every table that has a status (the per-pass tables above, the re-check 3 open and closed tables, the 2026-10-08 subsystem rows below; the G1-G10 self-graded system scores are left out):
 
 | Rows | Count | Share |
 |---|---|---|
-| Closed (fixed, landed, done, matches) | 506 | 95.7% of closed + open |
-| Open | 23 | 4.3% |
+| Closed (fixed, landed, done, matches) | 561 | 97.9% of closed + open |
+| Open | 12 | 2.1% |
 | Kept on purpose (0.28 bugs RTS0 doesn't copy, RTS0-scale choices such as build times x0.25, engine limits) | 43 | not counted above |
 
-Weighted by each row's Impact (high 10, medium 4, low-medium 2.5, low 1, nit 0.25; rows without one count as low) the closed share is 94.3%. Counting every kept row as a gap too gives 506 of 572 (88.5%, weighted 90.3%); that is a floor, since most kept rows are 0.28 bugs or matches. Half the open weight is two rows: G30 (a ram's long path through a 6.5-7.5 m gap, high, Migrate) and SW1 (Petras that never build on Dodecanese and Flood, C). The rest are the other Petra-vs-Petra sweep rows (SW3-SW6, SW11), a Petra queue row (PC10), tooltip and construction rows (E), pack and queue orders (Unit orders), G36 Options leftovers, G63 formation animation, P5 map camera and OV13 sort arrows. The counts are a measure of what audits have found, not of everything in 0.28: each area's thread keeps auditing and adds rows as it finds more.
+Weighted by each row's Impact (high 10, medium 4, low-medium 2.5, low 1, nit 0.25; rows without one count as low) the closed share is 95.9%. Counting every kept row as a gap too gives 561 of 616 (91.1%, weighted 92.3%); that is a floor, since most kept rows are 0.28 bugs or matches. Over half the open weight is two rows: G30 (a ram's long path through a 6.5-7.5 m gap and no two-device cross-platform run yet, high, Migrate) and SW1 (Petras that never build on Dodecanese and Flood, C). Then SW3 (valley civic centres too close, F), SW4 (Jebel Barkal's Gaia waves, Triggers) and SW11 (late 8-player turn spikes, Performance) at medium; G36 Options leftovers (B), G63 formation animation (Formations), P5 map camera, UP1 Low Wall gate cost and SW5 New RMS Test at low; TT7 and RP2 are nits. The counts are a measure of what audits have found, not of everything in 0.28: each area's thread keeps auditing and adds rows as it finds more.
 
 This count replaces the 2026-10-08 estimate ("a little over half way", `check_parity.py` 92% for the G1-G10 systems). The list below is from that audit; all of it is fixed.
 
