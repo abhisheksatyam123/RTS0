@@ -162,6 +162,24 @@ func run() -> void:
 	cfg.set_value("multiplayerhosting.port", "21000")
 	cfg.save()
 	var mpname: String = load("res://scenes/menu/lobby.gd").multiplayer_name()
+	# gamesetup_mp pageConnecting: the same 460x240 ModernDialog, the status in
+	# ModernLabelText at its middle and Cancel at the bottom left.
+	var conn := Control.new()
+	conn.set_script(load("res://scenes/menu/net_connecting.gd"))
+	menu.add_child(conn)
+	await frames(2)
+	conn.text = "Registering with server..."
+	var cdlg: Control = conn.find_child("Main", true, false)
+	var cstat: Label = conn.find_child("Status", true, false)
+	var ccancel: Button = conn.find_child("Cancel", true, false)
+	var cttl: Label = conn.find_child("Title", true, false)
+	check(cdlg != null and cdlg.size == Vector2(460, 240) and cttl != null and cttl.text == "Multiplayer"
+		and cstat != null and cstat.text == "Registering with server..." and cstat.get_theme_font("font") is FontVariation
+		and ccancel != null and ccancel.text == "Cancel" and is_equal_approx(ccancel.position.x, 18)
+		and is_equal_approx(ccancel.position.y, 240 - 45) and is_equal_approx(ccancel.size.x, 230 - 5 - 18),
+		"the Connecting page is the Multiplayer ModernDialog with the status in bold and Cancel at the bottom left")
+	conn.queue_free()
+	await frames(1)
 	menu._execute_action("open_mp_join")
 	await frames(3)
 	var mp = menu.find_child("GameSetupMp", false, false)
@@ -170,6 +188,8 @@ func run() -> void:
 		var labels: Array = mp.find_children("*", "Label", true, false).map(func(l): return l.text)
 		check(labels.has("Multiplayer") and labels.has("Joining an existing game.") and labels.has("Player Name:")
 			and labels.has("Server Hostname or IP:") and labels.has("Server Port:"), "pageJoin: " + str(labels))
+		check(mp.find_children("*", "Label", true, false).all(func(l): return l.get_theme_font("font") is FontVariation and l.get_theme_font_size("font_size") == 14),
+			"its title, heading and labels are ModernLabelText (bold 14)")
 		check(mp.join_player_name.text == mpname and mp.join_server.text == "192.0.2.7" and mp.join_port.text == "20595"
 			and mp.join_port.tooltip_text == "Leave blank to use the default port.",
 			"the last server, the default port for none, the multiplayer name")

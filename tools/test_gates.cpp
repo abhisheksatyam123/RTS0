@@ -669,16 +669,17 @@ int main() {
 	// 1 m of a part) may still cross beside the gate's Left or Right part, as in case 17: on seeds 1, 2 and 6
 	// such a gate must stay crossable on the nav grid near it, and shut when locked. Where they cross nowhere
 	// (the doorway's ground is impassable), the navcells holding a part and its tower must not carry a long
-	// path across either, as on seeds 1 and 4: 0.28's long paths take another gate. On Random Valley (map 9)
-	// seed 6 two players' starting walls cross: player 1's gate 1640 at (56.71, -10.21) has its Door over
-	// player 3's gate 1680's Left part, and 0.28's 1 m navcells cross it there, so the navcells must too,
-	// whatever 1680's check decides for its parts.
+	// path across either, as on seeds 1 and 4: 0.28's long paths take another gate. Where two players'
+	// walls cross, as Random Valley's seed 6 bases once did (two of its four bases stood side by side, before
+	// the map's River placement was restored), player 1's gate at (56.71, -10.21) has its Door over player
+	// 3's gate's Left part, and 0.28's 1 m navcells cross it there, so the navcells must too, whatever the
+	// other gate's check decides for its parts. Those walls are built here as that map placed them.
 	{
 		struct Pin { MapType map; uint32_t seed; float x, z; bool crosses; };
 		const Pin pins[] = {
 			{MAP_RANDOM_HIGHLANDS, 1, 54.24f, -32.63f, true}, {MAP_RANDOM_HIGHLANDS, 1, 65.73f, 38.55f, false},
 			{MAP_RANDOM_HIGHLANDS, 2, -47.78f, -34.26f, true}, {MAP_RANDOM_HIGHLANDS, 4, 63.00f, 37.10f, false},
-			{MAP_RANDOM_HIGHLANDS, 6, 47.13f, 72.75f, true}, {MAP_RANDOM_VALLEY, 6, 56.71f, -10.21f, true},
+			{MAP_RANDOM_HIGHLANDS, 6, 47.13f, 72.75f, true},
 		};
 		int made = -1;
 		for (const Pin &pin : pins) {
@@ -714,14 +715,49 @@ int main() {
 					open ? "crosses" : "shut", pin.crosses ? "crosses" : "shut", pin.crosses ? (locked_shut ? "; locked: shut" : "; locked: crosses") : "");
 			CHECK(open == pin.crosses && locked_shut);
 		}
-		// Still Random Valley seed 6: west of player 3's wall, at (51, -11), 0.28's 1 m navcells pass
-		// between its tower 1681 and player 1's tower 1643, then beside 1680's Left part, to the ground
-		// between the gates at (63, -9). Those of 1680's part navcells must stay open, though its door
-		// crosses at 8 m: within 9 of gate 1640 the nav grid joins them too.
-		const bool junction = nav_connected_near(s, 51.0f, -11.0f, 63.0f, -9.0f, 56.71f, -10.21f, 9.0f);
-		std::printf("  Random Valley seed 6, between towers 1681 and 1643 to between gates 1640 and 1680: %s (0.28: joined)\n",
-				junction ? "joined" : "apart");
-		CHECK(junction);
+		{
+			s.set_sim_seed(6);
+			s.reset();
+			s.set_map_half(128.0f);
+			for (uint8_t p = 0; p < 4; ++p) s.player(p).active = 1, s.player(p).is_ai = 0, s.set_team_civ(p, CIV_IBERIANS);
+			// Player 1's pieces then player 3's: piece, owner, centre, rotation, length.
+			struct Piece { uint8_t piece, team; float x, z, rot, len; };
+			const Piece pieces[] = {
+				{Simulation::MAP_WALL_SEGMENT, 1, 74.2906f, -3.3222f, 2.870980f, 9.0f}, {Simulation::MAP_WALL_SEGMENT, 1, 63.9153f, -5.0131f, 3.089092f, 9.0f},
+				{Simulation::MAP_WALL_TOWER, 1, 69.1956f, -4.7357f, 2.980036f, 2.0f}, {Simulation::MAP_WALL_GATE, 1, 56.7051f, -10.2133f, 1.944438f, 9.0f},
+				{Simulation::MAP_WALL_TOWER, 1, 58.6351f, -5.2906f, 2.516765f, 2.0f}, {Simulation::MAP_WALL_SEGMENT, 1, 52.9938f, -20.1144f, 1.914414f, 9.0f},
+				{Simulation::MAP_WALL_TOWER, 1, 54.7752f, -15.1360f, 1.929426f, 2.0f}, {Simulation::MAP_WALL_TOWER, 1, 51.2125f, -25.0928f, 1.520547f, 2.0f},
+				{Simulation::MAP_WALL_TOWER, 3, 60.1352f, 8.1011f, 2.380916f, 2.0f}, {Simulation::MAP_WALL_SEGMENT, 3, 53.1577f, -4.3682f, 1.431011f, 9.0f},
+				{Simulation::MAP_WALL_GATE, 3, 58.9172f, -11.2560f, 0.317733f, 9.0f}, {Simulation::MAP_WALL_TOWER, 3, 53.8944f, -9.6041f, 0.874372f, 2.0f},
+				{Simulation::MAP_WALL_SEGMENT, 3, 67.4311f, -16.8791f, 0.849654f, 9.0f}, {Simulation::MAP_WALL_TOWER, 3, 63.9401f, -12.9079f, 0.583693f, 2.0f},
+				{Simulation::MAP_WALL_TOWER, 3, 70.9221f, -20.8503f, 0.216459f, 2.0f},
+			};
+			uint32_t id = 0;
+			for (const Piece &p : pieces) {
+				const uint32_t b = s.spawn_map_wall_piece(p.team, WALLSET_STONE, p.piece, p.x, p.z, p.rot, p.len);
+				if (p.piece == Simulation::MAP_WALL_GATE && p.team == 1) id = b;
+			}
+			// No civic centre holds this ground: keep the walls their owners'.
+			for (const auto &b : s.buildings()) const_cast<Simulation::Building &>(b).territory_decay_rate = 0.0f;
+			run(s, 5.0f * Simulation::FIXED_STEP);
+			const auto *g = find_bld(s, id);
+			CHECK(g && is_gate_type(g->type) && !g->gate_locked);
+			const bool open = g && gate_crossed_near(s, *g, 7.0f, 3.0f);
+			CHECK(s.cmd_lock_gate(1, id, true));
+			g = find_bld(s, id);
+			const bool locked_shut = g && !gate_crossed_near(s, *g, 7.0f, 3.0f);
+			CHECK(s.cmd_lock_gate(1, id, false));
+			std::printf("  crossing walls, player 1's gate at (56.71, -10.21): %s on the nav grid (0.28: crosses)%s\n",
+					open ? "crosses" : "shut", locked_shut ? "; locked: shut" : "; locked: crosses");
+			CHECK(open && locked_shut);
+			// West of player 3's wall, at (51, -11), 0.28's 1 m navcells pass between its tower at (53.89, -9.60)
+			// and player 1's at (54.78, -15.14), then beside player 3's gate's Left part, to the ground between
+			// the gates at (63, -9). Those of that part's navcells must stay open, though its door crosses at
+			// 8 m: within 9 of player 1's gate the nav grid joins them too.
+			const bool junction = nav_connected_near(s, 51.0f, -11.0f, 63.0f, -9.0f, 56.71f, -10.21f, 9.0f);
+			std::printf("  crossing walls, between the towers to between the gates: %s (0.28: joined)\n", junction ? "joined" : "apart");
+			CHECK(junction);
+		}
 	}
 
 	// 20. As case 17, but the slope reaches past the gate's centre: the ridge's steep tiles lie north of the

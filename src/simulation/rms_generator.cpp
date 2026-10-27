@@ -871,9 +871,12 @@ void RmsGenerator::synth_valley(HeightmapGrid &hm, RmsRng &rng, float &water_h, 
 	} else {
 		for (int i = 0; i < num_players; ++i) {
 			float side = (i % 2 == 0) ? -1.0f : 1.0f;
-			float row = (float)(i / 2) - (float)(num_players / 4);
-			float sx = side * half * 0.58f;
-			float sz = row * 22.0f;
+			// Teammates on one side spread along the valley (0.28 to 0.82 of the half-width out),
+			// a little to either side of the river in turn, rather than stacked across the narrow floor.
+			const int k = (num_players + (i % 2 == 0 ? 1 : 0)) / 2, j = i / 2;
+			const float t = k > 1 ? (float)j / (float)(k - 1) : 0.5f;
+			float sx = side * half * (0.82f - 0.54f * t);
+			float sz = (j % 2 == 0 ? -1.0f : 1.0f) * half * 0.2f;
 			float fx = -side;
 			float fz = 0.0f;
 			float bh = 2.0f;
@@ -4128,7 +4131,10 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 	// back towards it, until it is dry (Continental seed 42 had its
 	// forward gold under water).
 	const MapType mt = config.map_type;
-	const float dry_h = sim.water_height() + 0.6f;
+	// Base resources keep 0.6 above the water, or on land lower than that (Flood's 2 m home
+	// islands, in 0.28 metres) just below the base's own ground.
+	const float dry_h0 = sim.water_height() + 0.6f;
+	float dry_h = dry_h0;
 	// The script's placePlayerBases arguments (base_resources_data.h); none for a script with its own base code.
 	const MapBaseResources *base = map_base_resources(map_type_info(mt).id);
 	const float tiles = 2.0f * hm.map_half;
@@ -4186,6 +4192,7 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		cz = oz;
 	};
 	for (const auto &sp : spawns) {
+		dry_h = std::min(dry_h0, std::max(sim.water_height() + 0.2f, sp.base_height - 0.05f));
 		uint8_t team = sp.team;
 		float px = sp.x;
 		float pz = sp.z;
@@ -4490,7 +4497,19 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 		}
 		return false;
 	};
+	// dodecanese.js: createForests avoids only clPlayer 4 (the civic centre's 5-tile disk) and
+	// clBaseResource 4, so its forests reach the players' small islands.
+	const bool forests_near_bases = config.map_type == MAP_DODECANESE;
+	std::vector<std::pair<float, float>> base_resources;
+	if (forests_near_bases) {
+		const auto rv = sim.resources();
+		for (size_t r = 0; r < rv.count; ++r)
+			if (rv.alive[r]) base_resources.emplace_back(rv.x[r], rv.z[r]);
+	}
 	// 1. Organic Forest Clumps
+	// createForests' createAreas keeps trying (retryFactor 200) until each forest finds land;
+	// dodecanese.js's sea would otherwise take most of the tries.
+	int grove_retries = forests_near_bases ? 200 : 0;
 	for (int g = 0; g < num_groves; ++g) {
 		float gx = rng.range_float(-half * 0.82f, half * 0.82f);
 		float gz = rng.range_float(-half * 0.82f, half * 0.82f);
@@ -4499,14 +4518,13 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 		bool near_player = false;
 		for (const auto &sp : spawns) {
 			float d = std::sqrt((gx - sp.x) * (gx - sp.x) + (gz - sp.z) * (gz - sp.z));
-			if (d < 16.0f) { near_player = true; break; }
+			if (d < (forests_near_bases ? 9.0f : 16.0f)) { near_player = true; break; }
 		}
-		if (near_player) continue;
-
-		// Check terrain suitability
-		float h = hm.sample_world(gx, gz);
-		if (h < water_h + 0.3f) continue;
-		if (hm.compute_slope_world(gx, gz) > 0.85f) continue; // Skip cliffs
+		// Check terrain suitability (cliffs skipped)
+		if (near_player || hm.sample_world(gx, gz) < water_h + 0.3f || hm.compute_slope_world(gx, gz) > 0.85f) {
+			if (grove_retries > 0) { --grove_retries; --g; }
+			continue;
+		}
 
 		int trees_in_grove = rng.range_int(6, 12);
 		float grove_r = rng.range_float(3.0f, 5.5f);
@@ -4519,6 +4537,12 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 			// islands.js: forests avoidClasses(clPlayer, 0), so none on a player's island
 			// (the straight line from its civic centre stays on land).
 			if (config.map_type == MAP_ISLANDS && on_player_island(tx, tz)) continue;
+			if (forests_near_bases) {
+				bool clear = true;
+				for (const auto &sp : spawns) clear &= det::hypot(tx - sp.x, tz - sp.z) >= 9.0f;
+				for (const auto &[bx, bz] : base_resources) clear &= det::hypot(tx - bx, tz - bz) >= 4.0f;
+				if (!clear) continue;
+			}
 			spawn_trees(sim, hm, tx, tz, water_h + 0.2f);
 		}
 	}
