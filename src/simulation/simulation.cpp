@@ -21897,6 +21897,7 @@ void Simulation::tick_heal(size_t h) {
 // ships (template_unit_ship_fire) disable it.
 float Simulation::unit_repair_time_ratio(size_t t) const {
 	const uint16_t tmpl = units_.tmpl[t];
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_FLYING)) return 3.0f; // units/plane
 	const TechClasses c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(units_.unit_type[t]);
 	if (!(c & (TC_SIEGE | TC_SHIP)) || is_fire_ship(tmpl)) return 0.0f;
 	return UNIT_REPAIR_TIME_RATIO;
