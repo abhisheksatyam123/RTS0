@@ -420,8 +420,8 @@ void RtsoMiniMapView::_draw() {
 
 	// Entities follow the local player's LOS in every shroud mode (the mode only
 	// changes how the shroud is drawn): the sim's per-player LOS via FogMirages.
-	mirages_.update(*sim, local_player);
-	const uint8_t *fow = mirages_.view().empty() ? nullptr : mirages_.view().data();
+	if (!shared_mirages_) mirages_.update(*sim, local_player);
+	const uint8_t *fow = mir().view().empty() ? nullptr : mir().view().data();
 	const int fow_res = sim->fow_res();
 
 	// The shroud: CMiniMapTexture writes the LOS texture (visible 255, explored 127,
@@ -497,7 +497,7 @@ void RtsoMiniMapView::_draw() {
 	QuadBatch quads;
 	// 2. Draw Resource Nodes: what the player has seen, live or miraged
 	if (show_resources) {
-		for (const auto &r : mirages_.resources()) {
+		for (const auto &r : mir().resources()) {
 			Vector2 pos = map_to_mini(r.x, r.z);
 			// The 0.28 templates' Minimap/Color: template_gaia_tree, _ore, _rock, _fish, _fruit.
 			Color col = Color(69 / 255.0f, 107 / 255.0f, 68 / 255.0f);
@@ -509,14 +509,14 @@ void RtsoMiniMapView::_draw() {
 			quads.add(Rect2(pos - Vector2(1.5f, 1.5f), Vector2(3.0f, 3.0f)), col);
 		}
 		// template_gaia_treasure Minimap: a white (250, 250, 250) dot.
-		for (const auto &t : mirages_.treasures()) {
+		for (const auto &t : mir().treasures()) {
 			Color col(0.98f, 0.98f, 0.98f, 0.95f);
 			quads.add(Rect2(map_to_mini(t.x, t.z) - Vector2(1.5f, 1.5f), Vector2(3.0f, 3.0f)), col);
 		}
 	}
 
 	// 3. Draw Buildings: own and allied live, others as last seen
-	for (const auto &b : mirages_.buildings()) {
+	for (const auto &b : mir().buildings()) {
 		Vector2 pos = map_to_mini(b.x, b.z);
 		// 0 A.D. MiniMap: structures in their owner's colour; bigger marks for the
 		// civic centre and barracks so bases read at a glance.
@@ -588,10 +588,10 @@ void RtsoMiniMapView::_draw() {
 			draw_set_transform_matrix(view_xf_);
 		};
 		if (show_resources)
-			for (const auto &r : mirages_.resources())
+			for (const auto &r : mir().resources())
 				if (r.type == rtso::RES_STONE || r.type == rtso::RES_GOLD)
 					draw_icon(r.type == rtso::RES_STONE ? ICON_STONE : ICON_METAL, r.x, r.z);
-		for (const auto &b : mirages_.buildings()) {
+		for (const auto &b : mir().buildings()) {
 			if (rtso::is_civic_centre(b.type)) draw_icon(ICON_CIVIL_CENTRE, b.x, b.z);
 			else if (b.type == rtso::BLD_WONDER) draw_icon(ICON_WONDER, b.x, b.z);
 			else if (b.type == rtso::BLD_SHRINE || b.type == rtso::BLD_TRADING_POST || b.type == rtso::BLD_MILL) draw_icon(ICON_OTHER, b.x, b.z);

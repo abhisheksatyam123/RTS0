@@ -4,7 +4,8 @@
 //   - stuck: has an order and a moving action but stays within 1 unit for 60 s;
 //   - idle under order: ACTION_IDLE with an order kind set for 30 s;
 //   - hits nothing: ACTION_ATTACK on one target for 60 s while the target's
-//     health never drops (no one is hurting it, this unit included);
+//     health never drops (no one is hurting it, this unit included); an automatic
+//     fight on a structure across water is left out, as 0.28 does the same;
 //   - siege that never fires: a siege engine with 120 s in ACTION_ATTACK and
 //     no drop in any of its targets' health while it attacked;
 //   - garrisoned for good: inside a holder for 15 min;
@@ -26,6 +27,7 @@
 //   - [phase]: each phase-up, and [no-phase] for a player still in Village at the end of a
 //     match of 15+ minutes;
 //   turns run on the game's worker pool, as in a session; --serial runs them on one thread;
+//   - [foundation]: a player's foundation (not a field) whose progress has not moved for 5 minutes;
 //   - [stats]: statistics that go wrong (a counter that drops, trained units below the
 //     living units bought since the start, map explored or controlled outside 0-100, a missing 30 s sample).
 // Build (one line):
@@ -308,6 +310,8 @@ int main(int argc, char **argv) {
 
 	std::unordered_map<uint32_t, Track> tr;
 	std::map<std::string, int> counts;
+	struct FoundationWatch { float progress = -1.0f; int still_s = 0; };
+	std::map<uint32_t, FoundationWatch> foundations;
 	int desyncs = 0;
 
 	// Phase-ups and statistics (the counters StatisticsTracker keeps for the summary).
@@ -378,6 +382,27 @@ int main(int argc, char **argv) {
 				std::printf("[desync] t=%ds loaded copy hashes differently right after load\n", sec);
 				++desyncs;
 			}
+		}
+		// [foundation]: a player's foundation whose progress has not moved for 5 minutes. Fields
+		// are left out: Petra keeps provisionFields spare ones that farmers build when they need
+		// them (baseManager.js checkResourceLevels, worker.js buildAnyField).
+		for (const auto &b : s.buildings_) {
+			if (b.team >= players || b.wrecked || b.hp <= 0.0f || b.build_progress >= 1.0f || b.type == BLD_FIELD) continue;
+			FoundationWatch &f = foundations[b.id];
+			if (b.build_progress != f.progress) { f.progress = b.build_progress; f.still_s = 0; continue; }
+			if (++f.still_s != 300) continue;
+			int builders = 0, near = 0, own = 0;
+			for (size_t i = 0; i < s.units_.count; ++i) {
+				if (!s.units_.alive[i] || s.units_.team[i] != b.team) continue;
+				++own;
+				builders += s.units_.action_state[i] == ACTION_BUILD && s.units_.target_building_id[i] == b.id;
+				const float dx = s.units_.pos_x[i] - b.x, dz = s.units_.pos_z[i] - b.z;
+				near += dx * dx + dz * dz < 64.0f;
+			}
+			if (own == 0) continue; // nobody left to build it
+			std::printf("[foundation] t=%ds p%d %s %u at (%.1f, %.1f) stuck at %.0f%% for 300 s: %d building it, %d own units within 8, committed %d\n",
+					sec, b.team, building_type_name(b.type), b.id, b.x, b.z, 100.0f * b.build_progress, builders, near, (int)b.committed);
+			++counts["foundation"];
 		}
 		for (int p = 0; p < players; ++p) {
 			const uint8_t ph = s.player((uint8_t)p).phase;
@@ -546,6 +571,13 @@ int main(int argc, char **argv) {
 				}
 			}
 		}
+		// 0.28 UnitAI also keeps re-picking an unreachable structure it sees for an automatic
+		// fight (likelyFailure, then FINDINGNEWTARGET), so that one is expected, not a finding.
+		auto auto_fight_across_water = [&](size_t i, uint32_t tb) {
+			if (!tb || s.units_.order_kind[i] != ORDER_NONE) return false;
+			auto bit = s.building_id_to_idx_.find(tb);
+			return bit != s.building_id_to_idx_.end() && !s.petra_same_land(i, s.buildings_[bit->second]);
+		};
 		auto report = [&](size_t i, Track &k, int kind, const char *what, const char *extra) {
 			if (k.reported[kind]) return;
 			k.reported[kind] = true;
@@ -612,7 +644,7 @@ int main(int argc, char **argv) {
 					k.tgt_cp = std::min(k.tgt_cp, cp);
 					k.no_hurt_s = 0;
 					if (hurt && is_siege(s.units_.unit_type[i])) k.siege_hurt = true;
-				} else if (++k.no_hurt_s == 60) {
+				} else if (++k.no_hurt_s == 60 && !auto_fight_across_water(i, tb)) {
 					char buf[160];
 					float tdist = -1.0f;
 					const char *tk = "bld";

@@ -41171,7 +41171,7 @@ void Simulation::trigger_volcano_rise_step() {
 	// extinct_volcano_triggers.js RaiseWaterLevelStep: a metre at a time, every
 	// half to one minute, until maxWaterLevel.
 	const float level = terrain_water_height_ + kVolcanoStepLevel * kTriggerHeight;
-	if (level < kVolcanoMaxLevel * kTriggerHeight) {
+	if (level + NAV_WATER_MARGIN < kVolcanoMaxLevel * kTriggerHeight) { // the map's 0 m is the nav water line
 		const float minutes = sim_rng_.range_float(kVolcanoStepMinMinutes, kVolcanoStepMaxMinutes);
 		triggers_.set_timeout((uint32_t)std::lround(minutes * 60000.0f), TRIGGER_ACTION_VOLCANO_RISE_STEP);
 	}
@@ -43630,7 +43630,8 @@ void Simulation::set_water_level(float h, float drown_depth) {
 	// WaterManager.SetWaterLevel plus the rising-water scripts' drowning pass
 	// (flood_triggers.js riseWaterLevel, extinct_volcano_triggers.js RaiseWaterLevelStep).
 	terrain_water_height_ = h;
-	auto submerged = [&](float x, float z) { return get_terrain_height(x, z) + drown_depth < h; };
+	// Depth is measured from the nav water line, where the land turns to water (grid_nav.h).
+	auto submerged = [&](float x, float z) { return get_terrain_height(x, z) + drown_depth < h + NAV_WATER_MARGIN; };
 	// Organic units and animals drown (cmpHealth.Kill()); ships float (Position/Floating) with
 	// their passengers. Siege engines aren't Organic: like structures they turn into actors,
 	// which is to say they are lost here, with the troops inside.
