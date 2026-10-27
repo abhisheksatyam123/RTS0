@@ -302,6 +302,25 @@ static void test_stop_cancels_pack() {
 	check(pack_of(s, cat2) == PACK_PACKED, "Stop keeps it packed");
 }
 
+// 11. Foundation.js Commit / UnitAI WillMoveFromFoundation: a packed engine on a foundation
+//     walks off it (only one packing, or unpacked, stays), so the foundation starts.
+static void test_packed_leaves_foundation() {
+	std::printf("11. a packed engine makes way for a foundation\n");
+	Simulation s;
+	setup(s);
+	uint32_t cat = s.spawn_unit(0.0f, 0.0f, 0, UNIT_CATAPULT); // in the middle of the site
+	run(s, 1.0f);
+	check(pack_of(s, cat) == PACK_PACKED, "catapult idle and packed");
+	const uint32_t builder = s.spawn_unit(0.0f, -12.0f, 0, UNIT_FEMALE_CITIZEN);
+	const uint32_t f = s.spawn_building_world(0.0f, 0.0f, BLD_BARRACKS, 0, 0.0f);
+	s.order_build_or_repair(&builder, 1, f);
+	run(s, 20.0f);
+	float progress = 0.0f;
+	for (const auto &b : s.buildings()) if (b.id == f) progress = b.build_progress;
+	std::printf("  catapult at (%.1f, %.1f), barracks %.0f%% built\n", x_of(s, cat), z_of(s, cat), 100.0f * progress);
+	check(progress > 0.05f, "the foundation started once the catapult had walked off");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_pack.sav";
 	test_who_packs();
@@ -314,6 +333,7 @@ int main(int argc, char **argv) {
 	test_retreat_under_fire();
 	test_garrison_packs_first();
 	test_stop_cancels_pack();
+	test_packed_leaves_foundation();
 	if (g_failures) {
 		std::printf("test_pack: FAIL (%d)\n", g_failures);
 		return 1;

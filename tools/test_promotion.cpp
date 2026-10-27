@@ -328,6 +328,18 @@ int main() {
 		}
 		CHECK(s.entity_limit_count(0, LIMIT_CENTURION) == cent_before + 1);
 		CHECK(s.unit_upgrade_check(0, a, cent) == Simulation::UPGRADE_ERR_NONE); // Centurions don't upgrade
+		// Transform.js copies a load only to a ResourceGatherer: a legionary upgraded while
+		// gathering wood becomes a Centurion with nothing carried, no longer gathering.
+		{
+			const uint32_t g = elite(12.0f);
+			const size_t gi = idx(s, g);
+			s.units_.res_type_carried[gi] = RES_WOOD;
+			s.units_.carry[gi] = 7;
+			s.units_.action_state[gi] = ACTION_GATHER;
+			s.promote_unit(gi, cent, s.units_.rank[gi]);
+			std::printf("  centurion upgrade: carry %d, action %d, tmpl %s\n", (int)s.units_.carry[gi], (int)s.units_.action_state[gi], s.units_.tmpl[gi] == cent ? "centurion" : "other");
+			CHECK(s.units_.carry[gi] == 0 && s.units_.action_state[gi] != ACTION_GATHER);
+		}
 
 		fresh(s, CIV_PERSIANS);
 		const uint16_t imm = tmpl_of("pers/champion_infantry");
@@ -385,6 +397,35 @@ int main() {
 		const uint8_t ty = civ_unit_template(merc).unit_type;
 		CHECK(near(s.unit_train_seconds(0, merc) / civ_template_unit_info(merc, ty).train_time /
 		           s.unit_tech_mods(0, ty, merc).train_time, 1.2f));
+	}
+
+	// Every roster row named _a or _e (a captured Roman army camp's {civ}/infantry_*_a, a
+	// captured temple of Amun's {civ}/support_healer_e) trains at its own rank, as its
+	// template's Identity/Rank; an Advanced hoplite still promotes to Elite (G64).
+	{
+		fresh(s, CIV_ATHENIANS);
+		int checked = 0;
+		for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t) {
+			const char *id = civ_unit_template(t).id;
+			const size_t n = std::strlen(id);
+			if (n < 2 || id[n - 2] != '_' || (id[n - 1] != 'a' && id[n - 1] != 'e')) continue;
+			if (!std::strstr(id, "/infantry_") && !std::strstr(id, "/support_healer_")) continue;
+			const uint8_t want = id[n - 1] == 'a' ? 2 : 3;
+			uint8_t rank = 0;
+			s.trained_as(0, t, rank);
+			if (rank != want) { std::printf("  %s trains at rank %u\n", id, rank); ++failures; }
+			++checked;
+		}
+		CHECK(checked >= 29);
+		const uint16_t adv = tmpl_of("athen/infantry_spearman_a");
+		uint8_t rank = 0;
+		CHECK(s.trained_as(0, adv, rank) == adv && rank == 2);
+		const size_t i = idx(s, s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, adv));
+		s.units_.rank[i] = rank;
+		CHECK(near(s.promotion_required_xp(i), 100.0f));
+		s.gain_xp(i, 100.0f);
+		s.promote_if_due(i);
+		CHECK(s.units_.rank[i] == 3);
 	}
 
 	if (failures) {
