@@ -42,6 +42,7 @@ public:
 	// cost {food, wood, stone, metal}, cost_text, time; the rest by kind.
 	Array get_catafalques() const;
 	Dictionary get_unit(int tmpl) const;
+	Dictionary get_fauna(int fauna_type) const;
 	Dictionary get_structure(int type, int civ) const;
 	Dictionary get_tech(int id, int civ) const;
 	// Phase icon path (1 village, 2 town, 3 city).

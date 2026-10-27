@@ -3633,7 +3633,7 @@ void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGr
 				if (det::hypot(x - t.first, z - t.second) < 60.0f) { ok = false; break; }
 			if (!ok) continue;
 			// structures/palisades_fort: a template_structure_defensive_tower_sentry (3 slots).
-			sim.spawn_building_world(x, z, BLD_SENTRY_TOWER, GAIA_PLAYER, 1.0f);
+			sim.set_structure_uncapturable(sim.spawn_building_world(x, z, BLD_SENTRY_TOWER, GAIA_PLAYER, 1.0f)); // <Capturable disable=""/>
 			towers.push_back({x, z});
 		}
 	} else if (config.map_type == MAP_POLAR_SEA) {
@@ -5916,9 +5916,9 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 		const float city_r = 12.0f;
 		const int treasures = rng.range_int(8, 12); // gallicCCTreasureCount
 		// fortressDanubiusVillage, twice round: the structures among its 26 wall elements.
-		enum : uint8_t { V_NONE, V_GATE, V_HOUSE, V_TEMPLE, V_TOWER };
-		static const uint8_t kRing[26] = {V_GATE, V_NONE, V_HOUSE, V_NONE, V_NONE, V_NONE, V_TOWER, V_NONE, V_TEMPLE, V_NONE, V_NONE,
-			V_HOUSE, V_NONE, V_NONE, V_NONE, V_GATE, V_NONE, V_HOUSE, V_NONE, V_NONE, V_NONE, V_TOWER, V_NONE, V_HOUSE, V_NONE, V_NONE};
+		enum : uint8_t { V_NONE, V_GATE, V_HUT, V_HOUSE, V_LONGHOUSE, V_TAVERN, V_TEMPLE, V_TOWER };
+		static const uint8_t kRing[26] = {V_GATE, V_NONE, V_HUT, V_NONE, V_NONE, V_NONE, V_TOWER, V_NONE, V_TEMPLE, V_NONE, V_NONE,
+			V_HOUSE, V_NONE, V_NONE, V_NONE, V_GATE, V_NONE, V_LONGHOUSE, V_NONE, V_NONE, V_NONE, V_TOWER, V_NONE, V_TAVERN, V_NONE, V_NONE};
 		const float ring = kSeasPi / 26.0f;
 		for (int i = 0; i < 2; ++i) {
 			const float cx = lay.village[i][0], cz = lay.village[i][1];
@@ -5951,11 +5951,18 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 				if (kind == V_NONE || kind == V_GATE) continue;
 				const float a = base + 2.0f * ring * (float)k;
 				const float x = cx + det::cos(a) * (city_r - 4.0f), z = cz + det::sin(a) * (city_r - 4.0f);
-				if (kind == V_HOUSE) building(x, z, BLD_HOUSE, false);
+				if (kind == V_HUT) building(x, z, BLD_HUT, false);             // celt_hut
+				else if (kind == V_HOUSE) building(x, z, BLD_HOUSE, false);    // gaul/house
+				else if (kind == V_LONGHOUSE) building(x, z, BLD_LONGHOUSE, false); // celt_longhouse
+				else if (kind == V_TAVERN) building(x, z, BLD_TAVERN, false);  // gaul/tavern
 				else if (kind == V_TEMPLE) building(x, z, BLD_TEMPLE, false);
 				else if (size >= 320.0f && sim.nomad()) building(x, z, BLD_SENTRY_TOWER, false); // sentry_tower
 				else if (size >= 320.0f) building(x, z, BLD_TOWER, true); // gaul/defense_tower
-				else building(x, z, BLD_SENTRY_TOWER, false);              // palisades_watchtower
+				else {
+					// palisades_watchtower: a palisade tower piece (no arrows, garrison or territory).
+					const uint32_t id = sim.spawn_map_wall_piece(GAIA_PLAYER, WALLSET_PALISADE, Simulation::MAP_WALL_TOWER, x, z, a, 2.0f);
+					if (id) sim.clear_resources_near(x, z, 2.5f);
+				}
 			}
 			// The palisade between the four gates.
 			for (int g = 0; g < 4; ++g) {

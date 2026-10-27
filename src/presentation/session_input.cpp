@@ -721,20 +721,32 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							}
 							if (hit_bld != 0) {
 								if (cam_rig && cam_rig->follow_id() != hit_bld) cam_rig->set_follow_id(0);
-								// selection.js: Shift adds the structure, Ctrl removes it, a double-click
-								// takes every finished one of its type on screen (all of them with
-								// selection.offscreen); a plain click selects it alone.
+								// selection.js: Shift adds the structure, Ctrl removes it, a plain click
+								// selects it alone. A double-click takes every one of its selection group
+								// on screen (all of them with selection.offscreen), foundations too; a
+								// triple-click its exact template, so finished ones or, on a foundation,
+								// foundations (input.js PickSimilarPlayerEntities: matchRank false by
+								// SelectionGroupName, else the template name, "foundation|" included).
 								std::vector<uint32_t> structs = selected_structures();
 								std::vector<uint32_t> picked{hit_bld};
 								if (dbl_click) {
-									uint8_t type = rtso::BLD_TYPE_COUNT;
+									const bool exact = click_count_ >= 3;
+									auto group_of = [&](const rtso::Simulation::Building &b) -> int64_t {
+										const bool foundation = b.build_progress < 1.0f;
+										if (exact)
+											return ((int64_t)b.civ << 40) | ((int64_t)b.type << 32) | ((int64_t)foundation << 31) |
+													(int64_t)std::lround(b.half_size * 100.0f);
+										// rome/siege_wall_tower has its own group, the siege wall pieces another.
+										if (rtso::is_siege_wall_tower(b.type, b.half_size)) return 0x10000 | b.type;
+										return structure_selection_group(b.type);
+									};
+									int64_t group = -1;
 									for (const auto &b : sim->buildings())
-										if (b.id == hit_bld) type = structure_selection_group(b.type);
+										if (b.id == hit_bld) group = group_of(b);
 									Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
 									const Vector2 vp_size = get_viewport()->get_visible_rect().size;
 									for (const auto &b : sim->buildings()) {
-										if (b.id == hit_bld || structure_selection_group(b.type) != type || b.team != local_player() || b.wrecked ||
-												b.build_progress < 1.0f || !cam)
+										if (b.id == hit_bld || b.team != local_player() || b.wrecked || !cam || group_of(b) != group)
 											continue;
 										const Vector3 wp(b.x, sim->get_terrain_height(b.x, b.z), b.z);
 										if (!offscreen && cam->is_position_behind(wp)) continue;

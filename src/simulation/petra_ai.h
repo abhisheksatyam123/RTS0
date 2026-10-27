@@ -507,7 +507,11 @@ struct PetraAttackManager {
 	// (Save v95; the raid had no siege before.)
 	uint8_t raid_name = 0;
 	uint8_t raid_siege = 0;
-	uint8_t raid_pad[2] = {};
+	// headquarters.js findBestTrainableUnit copies the plan's interests only shallowly, so a
+	// scarcity penalty lowers the main plan's own costsResource weight for good: 2 bits per
+	// (unitStat index 0-3, stone then metal), 0 its table weight, 1 at most 0.6, 2 at most 0.2;
+	// cleared when a new plan is made. (Was padding; 0 in older saves.)
+	uint16_t cost_lowered = 0;
 };
 static_assert(sizeof(PetraAttackManager) == 56, "PetraAttackManager is saved raw; keep it padding-free");
 

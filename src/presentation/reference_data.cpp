@@ -150,7 +150,7 @@ bool tech_civ_specific(uint8_t id) {
 	// tech most civs may research is generic even if a few are excluded.
 	int civs = 0;
 	for (uint8_t c = 0; c < rtso::CIV_COUNT; ++c)
-		if (rtso::is_playable_civ(c) && rtso::tech_available_to_civ(id, c)) ++civs;
+		if (rtso::is_playable_civ(c) && rtso::civ_structures_offer_tech(id, c)) ++civs;
 	return civs * 2 < rtso::PLAYABLE_CIV_COUNT;
 }
 
@@ -162,6 +162,7 @@ void RtsoReference::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_structure_tree", "civ"), &RtsoReference::get_structure_tree);
 	ClassDB::bind_method(D_METHOD("get_trainer_units", "civ"), &RtsoReference::get_trainer_units);
 	ClassDB::bind_method(D_METHOD("get_unit", "tmpl"), &RtsoReference::get_unit);
+	ClassDB::bind_method(D_METHOD("get_fauna", "fauna_type"), &RtsoReference::get_fauna);
 	ClassDB::bind_method(D_METHOD("get_catafalques"), &RtsoReference::get_catafalques);
 	ClassDB::bind_method(D_METHOD("get_structure", "type", "civ"), &RtsoReference::get_structure);
 	ClassDB::bind_method(D_METHOD("get_tech", "id", "civ"), &RtsoReference::get_tech);
@@ -241,7 +242,7 @@ Dictionary RtsoReference::get_civ_info(int civ) const {
 	d["structures"] = structures;
 	Array techs;
 	for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id) {
-		if (!rtso::tech_available_to_civ(id, c)) continue;
+		if (!rtso::civ_structures_offer_tech(id, c)) continue;
 		Dictionary td = tech_entry(id, c);
 		td["civ_specific"] = tech_civ_specific(id); // when templates.json lacks the tech
 		techs.push_back(td);
@@ -343,6 +344,67 @@ Array RtsoReference::get_catafalques() const {
 		out.push_back(get_unit(t));
 	}
 	return out;
+}
+
+// A Gaia animal's Template Viewer page (gaia/fauna_*, the corral's trainable ones too): cost and
+// time when a corral trains it, health, resistance, melee attack, speed in 0 A.D. metres, its
+// food and its corral aura (structures/corral_garrison_*). templates.json "gaia" holds the text.
+Dictionary RtsoReference::get_fauna(int fauna_type) const {
+	Dictionary d;
+	if (fauna_type < 0 || fauna_type >= rtso::FAUNA_COUNT) return d;
+	const uint8_t f = (uint8_t)fauna_type;
+	const rtso::FaunaTypeInfo &fi = rtso::fauna_type_info(f);
+	d["kind"] = "fauna";
+	d["id"] = f;
+	d["name"] = String::utf8(fi.name);
+	d["template"] = String("gaia/") + fi.template_name;
+	const rtso::FaunaTrainCost &c = rtso::fauna_train_cost(f);
+	if (c.res[0] + c.res[1] + c.res[2] + c.res[3] > 0) {
+		d["cost"] = cost_dict(c.res[0], c.res[1], c.res[2], c.res[3]);
+		d["time"] = c.time;
+	}
+	d["hp"] = fi.max_hp;
+	d["armour"] = armour_dict(fi.hack_armor, fi.pierce_armor, fi.crush_armor);
+	Dictionary vw;
+	const float walk = fi.speed / kSpeedScale;
+	Dictionary speed;
+	speed["walk"] = walk;
+	speed["run"] = walk * fi.run_mult;
+	speed["acceleration"] = fi.acceleration / kSpeedScale;
+	vw["speed"] = speed;
+	if (fi.attack_damage() > 0.0f) {
+		Dictionary dmg;
+		if (fi.hack_damage > 0.0f) dmg["Hack"] = fi.hack_damage;
+		if (fi.pierce_damage > 0.0f) dmg["Pierce"] = fi.pierce_damage;
+		if (fi.crush_damage > 0.0f) dmg["Crush"] = fi.crush_damage;
+		Dictionary a;
+		a["type"] = "Melee";
+		a["name"] = "Melee";
+		a["min_range"] = 0;
+		a["max_range"] = fi.attack_range / kMeleeRangeScale;
+		a["repeat_time"] = fi.attack_cooldown;
+		a["damage"] = dmg;
+		Array attacks;
+		attacks.push_back(a);
+		vw["attacks"] = attacks;
+	}
+	if (fi.food_amount > 0) {
+		Dictionary supply;
+		supply["type"] = "food.meat";
+		supply["amount"] = fi.food_amount;
+		vw["supply"] = supply;
+	}
+	d["viewer"] = vw;
+	Array auras;
+	if (const float food = rtso::fauna_corral_food(f); food > 0.0f) {
+		Dictionary ad;
+		ad["name"] = "Ranching and Corralling";
+		ad["description"] = "Garrison within the Corral to gain a slow trickle of +" + String::num_int64((int64_t)std::lround(food)) + " food.";
+		ad["radius"] = 0.0f;
+		auras.push_back(ad);
+	}
+	d["auras"] = auras;
+	return d;
 }
 
 Dictionary RtsoReference::get_unit(int tmpl) const {
@@ -600,7 +662,7 @@ Dictionary RtsoReference::get_tech(int id, int civ) const {
 	}
 	Array civs;
 	for (uint8_t c = 0; c < rtso::CIV_COUNT; ++c)
-		if (rtso::is_playable_civ(c) && rtso::tech_available_to_civ(tid, c)) civs.push_back(String(rtso::civ_info(c).name));
+		if (rtso::is_playable_civ(c) && rtso::civ_structures_offer_tech(tid, c)) civs.push_back(String(rtso::civ_info(c).name));
 	d["civs"] = civs;
 	d["civ"] = civ;
 	// Technologies this one unlocks (their prerequisite) and the units it unlocks.
