@@ -48,6 +48,10 @@ func run() -> void:
 	check(names[0] == "English" and names.has("Deutsch") and names.has("Français") and names.size() == 26,
 		"every translated language under its own name (%d)" % names.size())
 	check(page.locale_text.text == OS.get_locale(), "the locale is the system's while none is saved")
+	# locale.xml: the title and the row labels are ModernLabelText / ModernLeftLabelText.
+	var bolds: Array = page.find_children("*", "Label", true, false).filter(func(l): return l.text in ["Language", "Language:", "Locale:"])
+	check(bolds.size() == 3 and bolds.all(func(l): return l.get_theme_font("font") is FontVariation and l.get_theme_font_size("font_size") == 14),
+		"the title and labels are bold 14 px")
 	var de: int = page._languages.find("de")
 	page.language_list.select(de)
 	page.language_list.item_selected.emit(de)

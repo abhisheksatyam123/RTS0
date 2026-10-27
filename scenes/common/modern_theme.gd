@@ -198,6 +198,15 @@ static func _build() -> Theme:
 	t.set_font_size("font_size", "CheckBox", 14)
 	return t
 
+## ModernLabelText on one control: white sans-bold-stroke-14.
+static func label_text(l: Control) -> Control:
+	l.add_theme_font_override("font", bold_font())
+	l.add_theme_font_size_override("font_size", 14)
+	l.add_theme_color_override("font_color", Color.WHITE)
+	l.add_theme_color_override("font_outline_color", Color.BLACK)
+	l.add_theme_constant_override("outline_size", 3)
+	return l
+
 static var _bold: FontVariation
 
 ## sans-bold: the project font emboldened, as the other 0.28 bold faces in RTS0.
