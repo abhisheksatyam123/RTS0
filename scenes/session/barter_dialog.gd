@@ -47,8 +47,26 @@ var _corners: Texture2D
 var _hotkeys = null
 var _refresh := 0.0
 
+# "color:0 0 0 100:grayscale:" on the selected sell button's icon.
+static var _grayscale: ShaderMaterial
+
+static func grayscale() -> ShaderMaterial:
+	if _grayscale == null:
+		var sh := Shader.new()
+		sh.code = "shader_type canvas_item;\nvoid fragment() {\n\tvec4 c = texture(TEXTURE, UV);\n\tfloat g = dot(c.rgb, vec3(0.3, 0.59, 0.11));\n\tCOLOR = vec4(vec3(g), c.a) * COLOR;\n}\n"
+		_grayscale = ShaderMaterial.new()
+		_grayscale.shader = sh
+	return _grayscale
+
 func _ready() -> void:
 	visible = false
+	# TradeDialog.xml: sprite="ModernDialog", centred on 50%-70.
+	var dlg: StyleBox = preload("res://scenes/common/modern_theme.gd").theme().get_stylebox("panel", "ModernDialog")
+	if dlg:
+		dlg = dlg.duplicate()
+		dlg.set_content_margin_all(0)
+		$CenterContainer/Panel.add_theme_stylebox_override("panel", dlg)
+	$CenterContainer.offset_bottom = -140
 	if ClassDB.class_exists("RtsoHotkeyConfig"):
 		_hotkeys = ClassDB.instantiate("RtsoHotkeyConfig")
 	for r in RES_ORDER:
@@ -76,17 +94,21 @@ func _tight(b: Button) -> void:
 			sb.set_content_margin_all(0)
 			b.add_theme_stylebox_override(st, sb)
 
-func _label(text: String, size := 13, color := Color(0.85, 0.88, 0.92)) -> Label:
+# ModernLeftLabelText, resourceText, TitleText: white sans-bold-stroke-14.
+func _label(text: String, size := 14, color := Color.WHITE) -> Label:
 	var l := Label.new()
 	l.text = text
+	l.add_theme_font_override("font", preload("res://scenes/session/summary_screen.gd").bold_font())
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
+	l.add_theme_color_override("font_outline_color", Color.BLACK)
+	l.add_theme_constant_override("outline_size", 3)
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	return l
 
 # ModernLeftLabelText, then the ModernGoldLine under a section title.
 func _section(parent: Control, title: String) -> void:
-	_place(_label(title, 15, GOLD), parent, Vector2.ZERO, Vector2(parent.size.x, 32))
+	_place(_label(title), parent, Vector2.ZERO, Vector2(parent.size.x, 32))
 	var line := ColorRect.new()
 	line.color = Color(GOLD, 0.8)
 	_place(line, parent, Vector2(0, 28), Vector2(parent.size.x, 1))
@@ -127,11 +149,8 @@ func _icon_button(r: int, size: Vector2) -> Button:
 	ico.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ico.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_place(ico, b, Vector2(3, 3), size - Vector2(6, 6))
-	var t := _label("", 12, Color.WHITE)
-	t.name = "amount"
-	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	t.add_theme_color_override("font_outline_color", Color.BLACK)
-	t.add_theme_constant_override("outline_size", 3)
+	var t := _label("")
+	t.name = "amount" # resourceText: left-aligned
 	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_place(t, b, Vector2.ZERO, Vector2(size.x, size.y * 0.5))
 	if _corners:
@@ -147,7 +166,7 @@ func _icon_button(r: int, size: Vector2) -> Button:
 func _build() -> void:
 	body.custom_minimum_size = DIALOG_SIZE
 	var w := DIALOG_SIZE.x
-	var title := _label(tr("Barter & Trade"), 18, GOLD)
+	var title := _label(tr("Barter & Trade"))
 	title.name = "tradeDialogTitle"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_place(title, body, Vector2(w * 0.5 - 96, -16), Vector2(192, 32))
@@ -158,13 +177,15 @@ func _build() -> void:
 	_section(barter, tr("Barter"))
 	var row := Control.new()
 	_place(row, barter, Vector2(0, 38), Vector2(barter.size.x, 84))
-	_place(_label(tr("Sell:"), 14, GOLD), row, Vector2.ZERO, Vector2(100, 41))
-	_place(_label(tr("Buy:"), 14, GOLD), row, Vector2(0, 84 - 41), Vector2(100, 41))
-	_no_market = _label(tr("No Markets Available"), 13)
+	_place(_label(tr("Sell:")), row, Vector2.ZERO, Vector2(100, 41))
+	_place(_label(tr("Buy:")), row, Vector2(0, 84 - 41), Vector2(100, 41))
+	_no_market = _label(tr("No Markets Available"))
 	_no_market.name = "barterNoMarketsMessage"
+	_no_market.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER # ModernLabelText
 	_place(_no_market, row, Vector2(112, 0), Vector2(row.size.x - 120, 84))
 	_barter_box = Control.new()
 	_barter_box.name = "barterResources"
+	_barter_box.set_meta("tooltip_style", "session_bottom_bold") # BarterButton.xml
 	_place(_barter_box, row, Vector2(112, 0), Vector2(row.size.x - 112, 84))
 	for i in RES_ORDER.size():
 		var r: int = RES_ORDER[i]
@@ -180,6 +201,7 @@ func _build() -> void:
 		_buy_buttons[r] = buy
 	_barter_help = _info_button()
 	_barter_help.name = "barterHelp"
+	_barter_help.set_meta("tooltip_style", "session_bold")
 	_place(_barter_help, row, Vector2(row.size.x - 24, 30), Vector2(24, 24))
 
 	# TradePanel.xml at 24 168 100%-24 100%-64.
@@ -188,7 +210,7 @@ func _build() -> void:
 	_section(trade, tr("Trade"))
 	var goods := Control.new()
 	_place(goods, trade, Vector2(0, 38), Vector2(trade.size.x, 32))
-	_place(_label(tr("Resources:"), 14, GOLD), goods, Vector2.ZERO, Vector2(100, 32))
+	_place(_label(tr("Resources:")), goods, Vector2.ZERO, Vector2(100, 32))
 	for i in RES_ORDER.size():
 		var r: int = RES_ORDER[i]
 		var col := Control.new()
@@ -210,12 +232,17 @@ func _build() -> void:
 		_trade_rows[r] = {"up": up, "button": good, "dn": dn}
 	_trade_help = _info_button()
 	_trade_help.name = "tradeHelp"
+	_trade_help.set_meta("tooltip_style", "session_bold")
 	_place(_trade_help, goods, Vector2(goods.size.x - 24, 4), Vector2(24, 24))
 	_trader_text = RichTextLabel.new()
 	_trader_text.name = "traderCountText"
 	_trader_text.bbcode_enabled = true
 	_trader_text.scroll_active = false
-	_trader_text.add_theme_font_size_override("normal_font_size", 12)
+	# ModernLeftTopLabelText: white sans-bold-stroke-14.
+	_trader_text.add_theme_font_override("normal_font", preload("res://scenes/session/summary_screen.gd").bold_font())
+	_trader_text.add_theme_font_size_override("normal_font_size", 14)
+	_trader_text.add_theme_color_override("font_outline_color", Color.BLACK)
+	_trader_text.add_theme_constant_override("outline_size", 3)
 	_place(_trader_text, trade, Vector2(8, 88), Vector2(trade.size.x - 8, trade.size.y - 88))
 
 	var close := Button.new()
@@ -285,7 +312,10 @@ func _update_barter(st: Dictionary) -> void:
 			sell.get_node("selection").visible = selected
 		(sell.get_node("amount") as Label).text = L10n.sprintf(tr("-%(amount)s"), {"amount": amount})
 		# BarterButton DisabledModifier: red when the stock can't cover the deal.
-		(sell.get_node("icon") as CanvasItem).modulate = Color(1, 0.45, 0.45) if stock[r] < amount else (Color(0.6, 0.6, 0.6) if selected else Color.WHITE)
+		# The selected one is "color:0 0 0 100:grayscale:", the red multiplied in.
+		var icon := sell.get_node("icon") as CanvasItem
+		icon.material = grayscale() if selected else null
+		icon.modulate = (Color(1, 0.45, 0.45) if stock[r] < amount else Color.WHITE) * (Color(0.61, 0.61, 0.61) if selected else Color.WHITE)
 		var buy: Button = _buy_buttons[r]
 		buy.visible = not selected
 		buy.disabled = not controls

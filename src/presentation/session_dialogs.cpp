@@ -310,8 +310,8 @@ String RtsoMain::match_settings_player_state() const {
 	if (turn_mgr_.is_replaying()) return String();
 	const uint8_t me = seat_player();
 	if (!sim || me >= rtso::MAX_PLAYERS) return String();
-	if (sim->is_victory_for(me)) return "You have won!";
-	if (sim->is_defeated(me)) return "You have been defeated!";
+	if (sim->is_victory_for(me)) return tr("You have won!");
+	if (sim->is_defeated(me)) return tr("You have been defeated!");
 	return String();
 }
 

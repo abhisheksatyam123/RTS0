@@ -695,6 +695,23 @@ The single selection's bars, captions and tooltips checked against 0.28's select
 | DP7 | The portrait tooltip's name was plain and its template tooltip bold; 0.28 sets the name in namePrimaryBig and the tooltip in bodyFont | nit | Fixed |
 | DP8 | The carried amount, gatherers and builder captions were regular 10 px and the builders and time shared a line; CarryingTextRight is sans-bold-stroke-13 with "(3)" over "0:12" | nit | Fixed |
 
+### Diplomacy and Barter & Trade dialogs, fourteenth 0.28 pass (2026-10-27)
+
+The session's Diplomacy and Barter & Trade dialogs checked against 0.28's gui/session/diplomacy/ and gui/session/trade/ (main 6752e8dd0). Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| DG1 | The diplomacy dialog was a fixed box; DiplomacyDialog.resize makes it 560 + 4 tribute columns wide and 170 + 20 per player tall, centred at 50%-70 | low | Fixed |
+| DG2 | Both dialogs drew the plain panel; 0.28 puts them on ModernDialog | nit | Fixed |
+| DG3 | The diplomacy title, headers and ceasefire line were regular; TitleText and DiplomacyText are white sans-bold 14 with an outline, headers centred, rows 20 px | nit | Fixed |
+| DG4 | After you won the stance and tribute buttons stayed live; 0.28 hides them once the player has won as well as lost | low | Fixed |
+| DG5 | A player name's AI tooltip used the bold style; it takes the plain sessionToolTip | nit | Fixed |
+| DG6 | A spy request greyed the button for good; 0.28 greys it only while the request is pending | nit | Fixed |
+| DG7 | The trade dialog's tooltips were plain; the help (i) buttons use sessionToolTipBold and the barter buttons sessionToolTipBottomBold | nit | Fixed |
+| DG8 | The trade dialog's labels were regular and "No Markets Available" and the amounts were misplaced; 0.28 sets the title, sections and row labels in white sans-bold 14 with an outline, centres the notice and left-aligns the amounts | nit | Fixed |
+| DG9 | The selected sell icon was only tinted; BarterButton draws it in grayscale at 61% | nit | Fixed |
+| DG10 | The tribute msgid named "%(resource)s" and "You have won!" / "You have been defeated!" were not translated; 0.28 uses "%(resourceType)s" and translates both | nit | Fixed |
+
 ### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
 
 diplomacyManager.js, chatHelper.js and their callers were checked line by line. Everything else matches: update cadence, tribute rules, request handling and its odds, lastManStandingCheck, changePlayerDiplomacy, personality boosts, every chat string. Jebel Barkal was checked statically against the 0.28 source, since no 0.28 binary runs here (pass 8: wave sizing and target-class skip match). Pass 4's P2 is D8 below, and its P5 is D7.
