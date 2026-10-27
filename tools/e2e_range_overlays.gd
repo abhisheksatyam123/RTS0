@@ -87,5 +87,19 @@ func run() -> void:
 	r = await rings_of_units(spear)
 	check(r.is_empty(), "a spearman has no range rings: " + str(r))
 
+	# GuiInterface.SetBuildingPlacementPreview: a tower being placed shows its rings too.
+	main.clear_selection()
+	main.enter_build_mode(true, BLD_TOWER)
+	var mm := InputEventMouseMotion.new()
+	mm.position = root.get_final_transform() * Vector2(512, 400)
+	mm.global_position = mm.position
+	Input.parse_input_event(mm)
+	await frames(6)
+	r = main.debug_range_rings()
+	check(r.size() == 2 and r[1] > 0.0 and r[1] < r[0], "a tower placement preview shows its MinRange and MaxRange rings: " + str(r))
+	main.enter_build_mode(false)
+	await frames(3)
+	check(main.debug_range_rings().is_empty(), "the preview rings go with the preview")
+
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures > 0 else 0)
