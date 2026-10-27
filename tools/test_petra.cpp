@@ -8060,6 +8060,11 @@ static void test_dropsites() {
 	s->petra_check_resource_levels(1001);
 	CHECK(dc.used[1] == 0 && dc.lost[1] == 0 && dc.next_check[1] == 1001, "a storehouse foundation restarts the counts");
 	CHECK(count(BLD_STOREHOUSE, false) == stores + 1, "one storehouse at a time");
+	// buildFarmstead waits for a house: give it one if the opening hasn't laid it yet.
+	if (count(BLD_HOUSE, false) == 0) {
+		int hx = 0, hz = 0;
+		if (s->petra_find_position(BLD_HOUSE, nullptr, nullptr, false, hx, hz)) s->spawn_building(hx, hz, BLD_HOUSE, 1, 1.0f);
+	}
 	const int farms = count(BLD_FARMSTEAD, false);
 	s->petra_build_farmstead();
 	s->petra_build_farmstead();
