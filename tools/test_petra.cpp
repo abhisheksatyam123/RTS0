@@ -6628,6 +6628,89 @@ static void test_defense_switch_to_attack() {
 	CHECK(!plan || home, "it takes no other target (uniqueTargetId)");
 }
 
+// defenseManager.js checkEnemyArmies: an army whose foes are back in their own territory is
+// only cleared; switchToAttack runs only for armies that run out of foes, not for one that
+// chased them home, even with a defender beside an enemy structure there.
+static void test_defense_chase_home_no_attack() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	float cx = 0.0f, cz = 0.0f, ex = 0.0f, ez = 0.0f;
+	for (const auto &b : s->buildings_) {
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { ex = b.x; ez = b.z; }
+	}
+	for (int k = 0; k < 20; ++k) s->spawn_unit(cx - 3.0f + (float)(k % 5), cz + 12.0f + (float)(k / 5), 1, UNIT_SPEARMAN);
+	std::vector<uint32_t> foes;
+	for (int k = 0; k < 3; ++k) foes.push_back(s->spawn_unit(cx + 10.0f, cz - 7.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e5f));
+	for (int t = 0; t < 10 && s->petra_defense_armies().empty(); ++t) run_ai_turns(*s, 1);
+	CHECK(!s->petra_defense_armies().empty(), "an army forms against the foes in our land");
+	if (s->petra_defense_armies().empty()) return;
+	// The fight has run home: foes and defenders stand beside a house Petra knows of, deep in
+	// the enemy's land.
+	const float dx = cx - ex, dz = cz - ez, d = std::sqrt(dx * dx + dz * dz);
+	const float hx = ex - dx / d * 8.0f, hz = ez - dz / d * 8.0f;
+	seen_built(*s, s->spawn_building_world(hx, hz, BLD_HOUSE, 0, 1.0f));
+	std::vector<uint32_t> movers = foes;
+	for (const auto &a : s->petra_defense_armies()) movers.insert(movers.end(), a.defender_ids.begin(), a.defender_ids.end());
+	for (size_t k = 0; k < movers.size(); ++k) {
+		const int32_t i = s->lookup_unit(movers[k]);
+		if (i < 0) continue;
+		s->units_.pos_x[i] = hx + 4.0f + 0.5f * (float)(k % 4);
+		s->units_.pos_z[i] = hz + 4.0f + 0.5f * (float)(k / 4);
+	}
+	const int owner = s->territory_owner_at(hx + 4.0f, hz + 4.0f);
+	for (int t = 0; t < 10 && !s->petra_defense_armies().empty(); ++t) run_ai_turns(*s, 1);
+	bool unique = false;
+	for (const auto &p : s->petra_started_attacks()) unique |= p.kind == PETRA_ATTACK_UNIQUE;
+	std::printf("  defense: army chasing foes into player %d's land: armies left %zu, attack on the house %s\n",
+	            owner, s->petra_defense_armies().size(), unique ? "made" : "not made");
+	CHECK(owner == 0, "the fight stands in the enemy's territory");
+	CHECK(s->petra_defense_armies().empty(), "the army in the enemy's land is cleared");
+	CHECK(!unique, "it doesn't turn into an attack (no switchToAttack in enemy territory)");
+}
+
+// defenseArmy.js update: an army checks for foes that broke away once its position is more
+// than 5 s old (positionLastUpdate); a foe joining it (addFoe) resets that to 0, so a fully
+// defended army checks at its next update.
+static void test_defense_breakaway_timer() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	PetraDefenseArmy army;
+	for (int k = 0; k < 30; ++k) army.defender_ids.push_back(s->spawn_unit(cx - 3.0f + (float)(k % 5), cz + 4.0f + (float)(k / 5), 1, UNIT_SPEARMAN));
+	for (int k = 0; k < 3; ++k) army.foe_ids.push_back(s->spawn_unit(cx + 10.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e5f));
+	const uint32_t far = s->spawn_unit(cx - 10.0f, cz + 14.0f, 0, UNIT_SWORDSMAN, 1.0e5f);
+	army.foe_ids.push_back(far);
+	for (uint32_t id : army.foe_ids) s->units_.stance[s->lookup_unit(id)] = STANCE_STAND_GROUND;
+	for (uint32_t id : army.defender_ids) s->units_.stance[s->lookup_unit(id)] = STANCE_STAND_GROUND;
+	army.position_last_update = s->game_time();
+	s->petra_defense_armies_.push_back(army);
+	auto in_first = [&]() {
+		const auto &a = s->petra_defense_armies();
+		return !a.empty() && std::find(a[0].foe_ids.begin(), a[0].foe_ids.end(), far) != a[0].foe_ids.end();
+	};
+	run_ai_turns(*s, 1);
+	const bool kept = in_first();
+	// A foe joins: the next update looks for breakaways at once.
+	if (!s->petra_defense_armies_.empty()) s->petra_defense_armies_[0].position_last_update = 0.0f;
+	run_ai_turns(*s, 1);
+	const bool split = !in_first();
+	std::printf("  defense: the far foe stays in a fresh army: %s; after a foe joins it breaks away: %s (%zu armies)\n",
+	            kept ? "yes" : "no", split ? "yes" : "no", s->petra_defense_armies().size());
+	CHECK(kept, "a fresh army checks no breakaways (positionLastUpdate under 5 s)");
+	CHECK(split, "an army a foe just joined checks them on its next update (addFoe)");
+}
+
 // defenseArmy.js "capturing" armies: Petra wins back the points an enemy holds on one of its
 // structures, and captures a Gaia structure in its land.
 static void test_capturing_armies() {
@@ -9570,6 +9653,8 @@ int main(int argc, char **argv) {
 	RUN(test_defense_animals);
 	RUN(test_defense_clear_destination);
 	RUN(test_defense_switch_to_attack);
+	RUN(test_defense_chase_home_no_attack);
+	RUN(test_defense_breakaway_timer);
 	RUN(test_capturing_armies);
 	RUN(test_defenders_stop_hopeless_capture);
 	RUN(test_assign_bombers);
