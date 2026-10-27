@@ -489,12 +489,14 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 	if (!command_panel_.roster_list() || index < 0 || index >= command_panel_.roster_list()->get_item_count()) return;
 	command_panel_.roster_list()->deselect_all();
 	const int meta = (int)command_panel_.roster_list()->get_item_metadata(index);
-	if (mouse_button == MOUSE_BUTTON_RIGHT && !(meta & RtsoCommandPanelView::ROSTER_ANIMAL) && sim && ui_layer) {
+	if (mouse_button == MOUSE_BUTTON_RIGHT && sim && ui_layer) {
 		// onPressRight showTemplateDetails, disabled rows too.
 		Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
 		const bool tech = meta & RtsoCommandPanelView::ROSTER_TECH;
+		const bool animal = meta & RtsoCommandPanelView::ROSTER_ANIMAL;
 		if (viewer.is_valid())
-			viewer->call("open", ui_layer, String(tech ? "tech" : "unit"), tech ? (meta & 0xFF) : meta, (int)sim->player_civ(local_player()));
+			viewer->call("open", ui_layer, String(tech ? "tech" : animal ? "fauna" : "unit"), tech || animal ? (meta & 0xFF) : meta,
+					(int)sim->player_civ(local_player()));
 		return;
 	}
 	if (mouse_button != MOUSE_BUTTON_LEFT || command_panel_.roster_list()->is_item_disabled(index)) return;

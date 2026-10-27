@@ -110,6 +110,7 @@ static func icon_for(kind: String, entry: Dictionary, civ: int = 0) -> Texture2D
 	match kind:
 		"unit": icon = unit_text(entry.get("id", "")).get("icon", "")
 		"structure": icon = structure_text(int(entry.get("type", -1)), civ).get("icon", "")
+		"fauna": icon = text().get("gaia", {}).get(entry.get("template", ""), {}).get("icon", "")
 		"tech":
 			icon = tech_text(entry.get("template", "")).get("icon", "")
 			if icon != "":
