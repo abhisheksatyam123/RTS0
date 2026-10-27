@@ -6591,6 +6591,19 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 	}
 }
 
+// Commands.js "stop" (a player's Stop button or hotkey): GetFormationUnitAIs splits the units as
+// "walk" does, so a lone unit leaves its formation and part of a formation splits off into its own
+// controller; each controller and unit then stops.
+void Simulation::order_stop(const uint32_t *unit_ids, size_t count) {
+	if (count == 1) {
+		formation_remove_units(unit_ids, count);
+	} else if (count > 1 && !formations_.empty()) {
+		std::vector<uint32_t> individual;
+		formation_controllers_for(unit_ids, count, FORMATION_NONE, false, individual);
+	}
+	cmd_stop(unit_ids, count);
+}
+
 void Simulation::cmd_stop(const uint32_t *unit_ids, size_t count) {
 	AiCommandScope ai_cmd(*this, AiCommandEvent::STOP, unit_ids, count);
 	formation_stop(unit_ids, count); // a stopped formation stops walking (UnitAI Order.Stop)
@@ -20659,6 +20672,17 @@ void Simulation::order_back_to_work(const uint32_t *unit_ids, size_t count) {
 		auto failed = [&] { if (units_.team[i] < MAX_PLAYERS) note_text(units_.team[i], SessionNotice::TEXT_BACK_TO_WORK_FAILED); };
 		// BackToWork: the kept work queue replaces the unit's orders (AddOrders), its first order
 		// now and the rest behind it; without one it fails.
+		if (!unit_has_work_order(unit_ids[k])) { failed(); continue; }
+		// It leaves a turret first and fails if it can't (Turretable.LeaveTurret); stepping down
+		// can already send it back to work (the unload path), which leaves nothing to do here.
+		if (const uint32_t holder = turret_holder_of(unit_ids[k]); holder != 0) {
+			if (auto bit = building_id_to_idx_.find(holder); bit != building_id_to_idx_.end())
+				step_down_turret(buildings_[bit->second], unit_ids[k]);
+			if (turret_holder_of(unit_ids[k]) != 0) { failed(); continue; }
+			if (lookup_unit(unit_ids[k]) != i || !unit_has_work_order(unit_ids[k])) continue;
+		}
+		// Then it leaves its formation (Formation.RemoveMembers re-forms or disbands the rest).
+		formation_remove_units(&unit_ids[k], 1);
 		std::vector<UnitOrder> rest;
 		UnitOrder o;
 		if (auto w = work_orders_.find(unit_ids[k]); w != work_orders_.end() && !w->second.empty()) {
