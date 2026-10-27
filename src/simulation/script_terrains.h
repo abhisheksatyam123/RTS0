@@ -20,8 +20,15 @@ namespace rtso {
 // A band the script paints after its areas (below) has `late` set.
 struct HeightBand {
 	float lo, hi;
-	const char *terrain[2];
+	const char *terrain[4];
 	bool late;
+	// SlopeConstraint(slope_lo, slope_hi) on rmgen's getSlope when slope_hi > slope_lo, and
+	// NearTileClassConstraint(an area of kind `near`, near_dist) when `near` is set.
+	float slope_lo = 0.0f, slope_hi = 0.0f;
+	uint8_t near = 0, near_dist = 0;
+	// When hi512 is set, lo and hi are a 128-tile map's and lo512 and hi512 a 512-tile map's, scaled between
+	// as scaleByMapSize (pyrenean_sierra.js's rock bands follow heightPassage).
+	float lo512 = 0.0f, hi512 = 0.0f;
 };
 
 // Areas a synth_* records (RmsGenerator record_area) where its script paints
@@ -74,9 +81,10 @@ struct ScriptTerrains {
 	const char *map_id; // MapTypeInfo::id
 	TerrainBiome terrain;
 	BiomeFlora flora;
-	HeightBand bands[6]; // in the script's paint order; unused ones have no terrain
+	HeightBand bands[20]; // in the script's paint order; unused ones have no terrain
 	AreaLayers areas[4];
 	PatchSet patches[4];
+	bool coast = false; // the synth's heights are coast_metres: the bands read them back in metres
 };
 
 inline const ScriptTerrains *script_terrains(const char *map_id) {
@@ -408,7 +416,29 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  "new_alpine_citytile", "new_alpine_citytile", "beach_scrub_50_", "beach_c", "sand_wet_a"},
 		 {"pyrenean_sierra", {{FLORA_ALEPPO_PINE, FLORA_BEECH}}, {FLORA_ALEPPO_PINE, FLORA_BEECH}, {{FLORA_ALEPPO_PINE, FLORA_BEECH}},
 		  FLORA_BERRY,
-		  {{200, 200}}, {200, 200}, {{200, 200}}}},
+		  {{200, 200}}, {200, 200}, {{200, 200}}},
+		 // "Painting terrain by height and slope" within 2 of the range (clPyrenneans, above heightPyreneans),
+		 // ground and steep terrains per terrainPerHeight, in metres over the water (heightWaterLevel 8 over
+		 // SEA_LEVEL 20, so the script's heights + 12); then getShoreTerrain: sand transition within 3 of the
+		 // oceans up to heightSandTransition, sand within 2 up to heightSand (cliffs on 2.5 m slopes), and the
+		 // wet sand below heightWaterTerrain everywhere.
+		 {
+		  {-1e9f, 18.0f, {"new_alpine_grass_d", "new_alpine_grass_b", "new_alpine_grass_e"}, true, -1e9f, 5.0f, AREA_MOUNTAIN, 2},
+		  {-1e9f, 18.0f, {"alpine_cliff_b", "alpine_cliff_c"}, true, 5.0f, 1e9f, AREA_MOUNTAIN, 2},
+		  {18.0f, 30.0f, {"new_alpine_grass_b", "alpine_grass_a"}, true, -1e9f, 8.0f, AREA_MOUNTAIN, 2},
+		  {18.0f, 30.0f, {"alpine_cliff_b", "alpine_cliff_c"}, true, 8.0f, 1e9f, AREA_MOUNTAIN, 2},
+		  {30.0f, 42.0f, {"new_alpine_grass_a", "alpine_grass_a", "alpine_grass_rocky"}, true, -1e9f, 8.0f, AREA_MOUNTAIN, 2},
+		  {30.0f, 42.0f, {"alpine_cliff_b", "alpine_cliff_c"}, true, 8.0f, 1e9f, AREA_MOUNTAIN, 2},
+		  {42.0f, 42.0f, {"alpine_cliff_b", "alpine_cliff_c", "alpine_cliff_c", "alpine_grass_rocky"}, true, -1e9f, 8.0f, AREA_MOUNTAIN, 2, 42.0f, 57.0f},
+		  {42.0f, 42.0f, {"alpine_mountainside", "alpine_cliff_snow"}, true, 8.0f, 1e9f, AREA_MOUNTAIN, 2, 42.0f, 57.0f},
+		  {42.0f, 52.0f, {"alpine_cliff_b", "alpine_cliff_snow"}, true, -1e9f, 7.0f, AREA_MOUNTAIN, 2, 57.0f, 67.0f},
+		  {42.0f, 52.0f, {"alpine_mountainside", "alpine_cliff_snow"}, true, 7.0f, 1e9f, AREA_MOUNTAIN, 2, 57.0f, 67.0f},
+		  {52.0f, 1e9f, {"alpine_snow_a"}, true, -1e9f, 6.0f, AREA_MOUNTAIN, 2, 67.0f, 1e9f},
+		  {52.0f, 1e9f, {"alpine_snow_rocky", "alpine_snow_a"}, true, 6.0f, 1e9f, AREA_MOUNTAIN, 2, 67.0f, 1e9f},
+		  {-1e9f, 12.0f, {"beach_scrub_50_"}, true, -1e9f, 2.5f, AREA_LAKE, 3}, {-1e9f, 12.0f, {"alpine_cliff_b", "alpine_cliff_c"}, true, 2.5f, 1e9f, AREA_LAKE, 3},
+		  {-1e9f, 10.0f, {"beach_c", "beach_d"}, true, -1e9f, 2.5f, AREA_LAKE, 2}, {-1e9f, 10.0f, {"alpine_cliff_b", "alpine_cliff_c"}, true, 2.5f, 1e9f, AREA_LAKE, 2},
+		  {-1e9f, -2.0f, {"sand_wet_a", "sand_wet_b", "sand_wet_b", "sand_wet_b"}, true}},
+		 {}, {}, true},
 		// rhine_marshlands.js: beech and oak forests; no cliffs or hills, so they reuse tMud and tGrassB.
 		{"rhine_marshlands",
 		 {"rhine_marshlands", {"temp_grass", "temp_grass", "temp_grass_d"}, {"temp_plants_bog"},
