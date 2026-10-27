@@ -46,6 +46,7 @@
 #include <cmath>
 #include <cstdio>
 #include <memory>
+#include <set>
 #include <vector>
 #include <array>
 using namespace rtso;
@@ -6066,6 +6067,7 @@ static void test_defend_allies() {
 	s->order_set_stance(foes.data(), foes.size(), STANCE_STAND_GROUND);
 	auto is_foe = [&](uint32_t id) { return std::find(foes.begin(), foes.end(), id) != foes.end(); };
 	int sent = 0, home = 0;
+	std::set<uint32_t> sent_ids;
 	// checkEnemyUnits looks at one player a turn: player 0's turn comes within 4 (3 players + Gaia).
 	for (float t = 0.0f; t < 7.0f; t += Simulation::FIXED_STEP) {
 		for (uint32_t id : foes) {
@@ -6073,10 +6075,14 @@ static void test_defend_allies() {
 			if (f >= 0 && u.alive[f]) u.hp[f] = u.max_hp[f];
 		}
 		s->tick(Simulation::FIXED_STEP);
+		// A defender's target can flicker between turns while it walks over, so count
+		// every soldier that took one of the attackers as its target in the window.
+		for (size_t i = 0; i < u.count; ++i)
+			if (u.alive[i] && u.team[i] == 1 && is_foe(u.target_unit_id[i])) sent_ids.insert(u.id[i]);
 	}
 	for (size_t i = 0; i < u.count; ++i) { // the backup counts AI 1's starting soldiers too
 		if (!u.alive[i] || u.team[i] != 1 || petra_is_support_unit(u.unit_type[i])) continue;
-		if (is_foe(u.target_unit_id[i])) ++sent; else ++home;
+		if (sent_ids.count(u.id[i])) ++sent; else ++home;
 	}
 	const float dx = ax - hx, dz = az - hz;
 	std::printf("  ally's Town Center attacked %.0f away: %d soldiers sent, %d stay home\n", std::sqrt(dx * dx + dz * dz), sent, home);
