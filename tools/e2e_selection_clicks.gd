@@ -9,7 +9,9 @@ extends SceneTree
 #   5. a right-click on the minimap walks the selected units there and sets a
 #      selected structure's rally point;
 #   6. a unit pressed on and walking away before the release is still selected;
-#   8. a Ctrl+click on empty ground keeps the selection (input.js:963-975).
+#   8. a Ctrl+click on empty ground keeps the selection (input.js:963-975);
+#   9. every rank of a template shares one selection icon (selection.js EntityGroups by
+#      selectionGroupName), and a click on another entity stops the camera following.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_selection_clicks.gd
 # Exit code 0 = pass.
@@ -349,6 +351,63 @@ func run() -> void:
 		s = selected()
 		check(not before.is_empty() and before.all(func(i): return s.has(i)),
 				"input.js: a Ctrl+click there leaves the selection (%s -> %s)" % [str(before), str(s)])
+
+	print("9. Ranks share one icon; a click elsewhere stops the camera follow")
+	var ranked := {}
+	for u in state()["units"]:
+		if u["has_rank"]:
+			ranked.get_or_add(u["tmpl"], []).append(u)
+	var pair: Array = []
+	for t in ranked:
+		if ranked[t].size() >= 2:
+			pair = ranked[t].slice(0, 2)
+	check(pair.size() == 2, "two ranked units of one template")
+	if pair.size() == 2:
+		var r1 := int(pair[0]["id"])
+		var r2 := int(pair[1]["id"])
+		main.debug_add_xp(PackedInt32Array([r2]), 100000.0)
+		await turns(2)
+		var ranks := {}
+		for u in state()["units"]:
+			ranks[int(u["id"])] = int(u["rank"])
+		check(ranks.get(r2, 0) != ranks.get(r1, 0), "one of them promoted (ranks %d, %d)" % [ranks.get(r1, 0), ranks.get(r2, 0)])
+		main.debug_select_units(PackedInt32Array([r1, r2]))
+		await frames(4)
+		var icons9: Array = main.debug_selection_grid(false)["icons"]
+		check(icons9.size() == 1, "selection.js: both ranks show as one group icon (%d)" % icons9.size())
+		main.debug_select_units(PackedInt32Array([r1]))
+		await frames(2)
+		# camera.follow has no default key (0.28 hotkeys): bind one for the run (memory only).
+		var hk := RtsoHotkeyConfig.new()
+		var follow_key := "Ctrl+Shift+F12"
+		check(hk.get_conflicts(follow_key).is_empty(), "%s is free for camera.follow" % follow_key)
+		hk.set_hotkey("camera.follow", PackedStringArray([follow_key]))
+		var fk := InputEventKey.new()
+		fk.keycode = KEY_F12
+		fk.physical_keycode = KEY_F12
+		fk.ctrl_pressed = true
+		fk.shift_pressed = true
+		fk.pressed = true
+		Input.parse_input_event(fk)
+		await frames(1)
+		var fk_up: InputEventKey = fk.duplicate()
+		fk_up.pressed = false
+		Input.parse_input_event(fk_up)
+		hk.set_hotkey("camera.follow", PackedStringArray())
+		await frames(10)
+		check(int(main.debug_camera()["follow"]) == r1, "camera.follow follows the selected unit")
+		var other_id := -1
+		var other_at := Vector2()
+		for u in state()["units"]:
+			if int(u["id"]) != r1 and not u["behind"] and on_screen(u, state()["viewport"]):
+				other_id = int(u["id"])
+				other_at = window_pos(u)
+		await frames(20)
+		if other_id >= 0:
+			await click(other_at)
+			check(int(main.debug_camera()["follow"]) == 0, "input.js: clicking another unit stops the follow (%d)" % int(main.debug_camera()["follow"]))
+		else:
+			check(false, "another unit on screen")
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

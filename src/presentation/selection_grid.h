@@ -57,19 +57,36 @@ public:
 	static int structure_key(uint8_t civ, uint8_t type) { return 0x100000 | ((int)civ << 8) | (int)type; }
 	static bool is_structure_key(int key) { return (key & 0x100000) != 0; }
 
-	// Template row when the unit has one, else 0x10000 | unit type; and the rank, as each
-	// 0.28 rank is its own template (infantry_spearman_b, _a, _e).
-	static int group_key(uint8_t unit_type, uint16_t tmpl, uint8_t rank = 0) {
-		return (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? (int)tmpl : (0x10000 | unit_type)) | ((int)(rank & 3) << 26);
+	// identity.selectionGroupName where a support template sets it, grouping every civ's variant
+	// (and the house-trained woman with the Civic Centre's); else null.
+	static const char *shared_selection_group(uint8_t unit_type) {
+		switch (unit_type) {
+			case rtso::UNIT_FEMALE_CITIZEN: return "template_unit_support_female_citizen";
+			case rtso::UNIT_HEALER: return "template_unit_support_healer";
+			case rtso::UNIT_TRADER: return "template_unit_support_trader";
+			case rtso::UNIT_FISHING_BOAT: return "template_unit_ship_fishing";
+			case rtso::UNIT_MERCHANT_SHIP: return "template_unit_ship_merchant";
+			case rtso::UNIT_CATAFALQUE: return "template_unit_catafalque";
+			default: return nullptr;
+		}
 	}
-	static uint8_t key_rank(int key) { return (uint8_t)((key >> 26) & 3); }
+
+	// selection.js EntityGroups key, selectionGroupName || templateName: the template row when
+	// the unit has one, else 0x10000 | unit type; a shared support group keys on its unit type.
+	// Every rank shares one group, as each _a and _e template inherits its _b template's
+	// SelectionGroupName (GarrisonHolder.UnloadTemplate: "Units with multiple ranks are
+	// grouped together").
+	static int group_key(uint8_t unit_type, uint16_t tmpl) {
+		if (tmpl == rtso::CIV_UNIT_TEMPLATE_NONE || shared_selection_group(unit_type)) return 0x10000 | unit_type;
+		return (int)tmpl;
+	}
 
 	// A group of the player's own livestock (fauna, not units): its FaunaType.
 	static int fauna_key(uint8_t fauna_type) { return 0x20000 | fauna_type; }
 
 	// The garrison panel's groups (EntityGroups): template and owner.
-	static int owner_key(uint8_t unit_type, uint16_t tmpl, uint8_t player, uint8_t rank = 0) {
-		return group_key(unit_type, tmpl, rank) | ((int)player << 17);
+	static int owner_key(uint8_t unit_type, uint16_t tmpl, uint8_t player) {
+		return group_key(unit_type, tmpl) | ((int)player << 17);
 	}
 
 	// Groups `ids` (live units of the unit view) by template, or template and owner, in
@@ -82,8 +99,7 @@ public:
 				// Garrisoned units and passengers are out of the world (alive 0) but living.
 				if (by_owner ? uv.hp[i] <= 0.0f : !uv.alive[i]) break;
 				const uint16_t tmpl = uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-				const uint8_t rank = uv.rank ? uv.rank[i] : 0;
-				const int key = by_owner ? owner_key(uv.unit_type[i], tmpl, uv.team[i], rank) : group_key(uv.unit_type[i], tmpl, rank);
+				const int key = by_owner ? owner_key(uv.unit_type[i], tmpl, uv.team[i]) : group_key(uv.unit_type[i], tmpl);
 				Group *g = nullptr;
 				for (auto &e : groups)
 					if (e.key == key) g = &e;

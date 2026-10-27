@@ -667,6 +667,9 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
         stranger.kill()
         stranger_out, _ = stranger.communicate()
     stranger_refused = stranger.returncode == 3 and "could not rejoin (reason 6)" in (stranger_out or "")
+    for name, text in (("extra", extra_out), ("stranger", stranger_out)):
+        with open(os.path.join(out_dir, f"observer_{name}.out"), "w") as f:
+            f.write(text or "")
     outs, rcs = {}, {}
     for role, p in (("obs", obs), ("join", join), ("host", host)):
         try:
@@ -726,7 +729,8 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
         print(f"[net] FAIL observer ({failed}): rc={rcs} rejoin={rep} turns host/join/obs={len(h)}/{len(j)}/{len(o)} "
               f"first_bad={bad} pair_bad={pair_bad} waited={waited} rosters={rosters} flags={observer_flags} "
               f"extra_rc={extra.returncode} extra={(extra_out or '').strip().splitlines()[-1:]} "
-              f"stranger_rc={stranger.returncode} behind={behind} most_a_frame={most}")
+              f"stranger_rc={stranger.returncode} stranger={(stranger_out or '').strip().splitlines()[-1:]} "
+              f"behind={behind} most_a_frame={most}")
     return ok
 
 

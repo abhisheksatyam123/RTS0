@@ -61,6 +61,8 @@ public:
 	// Test hook: drop this fraction of outgoing datagrams (0 = off). Used by
 	// tools/test_netcode.cpp --net-peer to prove reliable delivery survives loss.
 	void set_simulated_loss(float fraction, uint32_t seed = 1) { sim_loss_ = fraction; sim_loss_rng_ = seed ? seed : 1; }
+	// Test hook: lose every connect ACK this host sends, as a lossy link can.
+	void set_drop_connect_acks(bool on) { sim_drop_connect_acks_ = on; }
 
 	// Test hook: a stateful firewall or restricted-cone NAT in front of this
 	// socket. Datagrams from an endpoint this socket never sent to are dropped,
@@ -366,6 +368,7 @@ private:
 	int64_t socket_fd_ = -1;
 	uint32_t local_peer_id_ = 0;
 	float sim_loss_ = 0.0f;
+	bool sim_drop_connect_acks_ = false;
 	uint32_t sim_loss_rng_ = 1;
 	uint32_t next_peer_id_ = 1;
 	uint32_t next_seq_ = 1;
