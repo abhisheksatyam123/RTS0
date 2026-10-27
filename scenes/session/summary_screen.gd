@@ -474,7 +474,7 @@ func score_panels() -> Array:
 	for r in RESOURCES:
 		res_h.append(H(r[0], r[1], 34, 110))
 		res_c.append(C(110, calc_resources, 12))
-		market_h.append(H(r[0], L10n.sprintf(L10n.t("%(resourceFirstWord)s exchanged"), {"resourceFirstWord": L10n.t(r[1])}), 16, 120))
+		market_h.append(H(r[0], L10n.sprintf(L10n.t("%(resourceFirstWord)s exchanged"), {"resourceFirstWord": L10n.t(r[1])}), 0, 120))
 		market_c.append(C(120, calc_exchanged, 12))
 	res_h.append(H("tributes", "Tributes", 0, 110,
 		{"header": L10n.sprintf(L10n.t("Tributes \n(%(sent)s / %(received)s)"), {"sent": colored_type("sent"), "received": colored_type("received")})}))
@@ -597,7 +597,8 @@ func map_caption() -> String:
 	# summary.js: a random map's size, else the map type's title (Skirmish or Scenario).
 	var kind: String = MAP_SIZE_NAMES.get(size, "Random") if random \
 		else str(load("res://scenes/menu/replay_browser.gd").map_info(map_id)["type"])
-	return "%s - %s" % [map_name, kind] if kind != "" else map_name
+	# Translated as one string, the separator kept when there is no type, as summary.js does.
+	return L10n.sprintf(L10n.t("%(mapName)s - %(mapType)s"), {"mapName": L10n.t(map_name), "mapType": L10n.t(kind) if kind != "" else ""})
 
 # The MatchSettings autoload, looked up when called: msgbox.gd and others preload this page,
 # and a script run with -s compiles them before the autoloads exist.
@@ -1341,6 +1342,10 @@ func start_replay() -> void:
 		push_warning("Replay file not found!")
 		return
 	get_tree().paused = false
+	# summary.js startReplay hands the replay menu's filters, sort and selection on, so the
+	# menu that opens after the replay comes back as it was.
+	if gui.has("replaySelectionData"):
+		load("res://scenes/menu/replay_browser.gd").selection_data = gui["replaySelectionData"]
 	_match_settings().replay_dir = dir
 	_match_settings().load_save_path = ""
 	_match_settings().go("res://scenes/main.tscn")

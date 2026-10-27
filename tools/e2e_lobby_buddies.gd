@@ -46,6 +46,10 @@ func names(tree: Tree, col: int) -> Array:
 			out.append(it.get_text(col))
 	return out
 
+## The sort sprite heading `col` shows (ModernSortedList): "asc", "desc" or "" (not sorted).
+func sorted_as(tree: Tree, col: int) -> String:
+	return preload("res://scenes/common/sort_arrows.gd").attach(tree).sorted_as(col)
+
 func room(id: String, players: int, max_players: int, state: String, size: String, type: String, who: Array) -> Dictionary:
 	return {"id": id, "name": id, "host_name": "h", "players": players, "max_players": max_players, "state": state,
 		"map_size": size, "map_type": type, "map_name": "Mainland", "player_names": who}
@@ -132,10 +136,10 @@ func run() -> void:
 	check(names(lobby._games, 1).size() == 3, "Any shows every game again")
 
 	print("2b. sorting and colours (GameList.js, Game.js)")
-	check(lobby._games.get_column_title(0) == "" and lobby._games.get_column_title(1) == "Name  ▲"
+	check(lobby._games.get_column_title(0) == "" and lobby._games.get_column_title(1) == "Name" and sorted_as(lobby._games, 1) == "asc"
 		and lobby._games.get_column_title(2) == "Map Name" and lobby._games.get_column_title(3) == "Size"
 		and lobby._games.get_column_title(4) == "Type",
-		"0.28's columns, the unheaded password one first, sorted on Name: " + lobby._games.get_column_title(1))
+		"0.28's columns, the unheaded password one first, sorted on Name (ModernArrowUp): " + lobby._games.get_column_title(1))
 	var rows: Array = lobby._games.get_root().get_children()
 	check(rows[0].get_custom_color(1) == Color8(0, 219, 0) and rows[2].get_custom_color(1) == Color8(219, 0, 0),
 		"setups listed first in green, running games in red")
@@ -145,15 +149,15 @@ func run() -> void:
 	check(rows[0].get_text(1) == "AI bob" and rows[0].get_icon(0) != null and rows[1].get_icon(0) == null,
 		"a game with a password has a lock, not \" (password)\" in its name")
 	lobby._games.column_title_clicked.emit(5, MOUSE_BUTTON_LEFT) # Players
-	check(names(lobby._games, 1) == ["• with bob", "AI bob", "• bob watches"] and lobby._games.get_column_title(5) == "Players  ▲",
+	check(names(lobby._games, 1) == ["• with bob", "AI bob", "• bob watches"] and sorted_as(lobby._games, 5) == "asc",
 		"a heading click sorts on it: %s" % [names(lobby._games, 1)])
 	lobby._games.column_title_clicked.emit(3, MOUSE_BUTTON_LEFT) # Size
 	lobby._games.column_title_clicked.emit(3, MOUSE_BUTTON_LEFT)
-	check(names(lobby._games, 1)[2] == "• bob watches" and lobby._games.get_column_title(3) == "Size  ▼",
+	check(names(lobby._games, 1)[2] == "• bob watches" and sorted_as(lobby._games, 3) == "desc",
 		"a second click reverses it: %s" % [names(lobby._games, 1)])
 	lobby._games.column_title_clicked.emit(0, MOUSE_BUTTON_LEFT) # the password column
 	lobby._games.column_title_clicked.emit(0, MOUSE_BUTTON_LEFT)
-	check(names(lobby._games, 1)[0] == "AI bob" and lobby._games.get_column_title(0) == "  ▼",
+	check(names(lobby._games, 1)[0] == "AI bob" and sorted_as(lobby._games, 0) == "desc" and sorted_as(lobby._games, 1) == "",
 		"the password column sorts, games with one first when reversed: %s" % [names(lobby._games, 1)])
 	lobby._games.column_title_clicked.emit(1, MOUSE_BUTTON_LEFT)
 
