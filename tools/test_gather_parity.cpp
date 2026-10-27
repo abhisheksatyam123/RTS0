@@ -135,6 +135,13 @@ int main() {
 				ad.gather[Simulation::GK_STONE], cd.gather[Simulation::GK_METAL], ad.gather[Simulation::GK_METAL]);
 		CHECK(std::fabs(cd.gather[Simulation::GK_STONE] / ad.gather[Simulation::GK_STONE] - 1.953125f) < 1e-3f);
 		CHECK(std::fabs(ad.gather[Simulation::GK_METAL] / cd.gather[Simulation::GK_METAL] - 1.21f) < 1e-3f);
+		// GetEntityState's resourceGatherRates are the cached rates, BaseSpeed modifiers in:
+		// an elite spearman's wood is the basic one's x0.7 x0.7 (unit_advanced/unit_elite.json).
+		const uint32_t sb = s.spawn_unit(0.0f, 8.0f, 1, UNIT_SPEARMAN), se = s.spawn_unit(4.0f, 8.0f, 1, UNIT_SPEARMAN);
+		s.promote_unit((size_t)s.lookup_unit(se), s.units_.tmpl[s.lookup_unit(se)], 3);
+		const auto bd = s.unit_details((size_t)s.lookup_unit(sb)), ed = s.unit_details((size_t)s.lookup_unit(se));
+		std::printf("  panel: basic spearman wood %.3f, elite %.3f\n", bd.gather[Simulation::GK_WOOD], ed.gather[Simulation::GK_WOOD]);
+		CHECK(bd.gather[Simulation::GK_WOOD] > 0.0f && std::fabs(ed.gather[Simulation::GK_WOOD] / bd.gather[Simulation::GK_WOOD] - 0.49f) < 1e-3f);
 	}
 
 	// 3c. germ_women's +0.5 m/s is added after the technologies' multiplies (GetTechModifiedProperty):
