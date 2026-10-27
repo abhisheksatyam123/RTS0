@@ -2602,6 +2602,7 @@ static void test_passive_mid_fight() {
 	check(hp_of(s, e) < hp0, "it keeps hitting while the enemy is in reach");
 	const float ax = x_of(s, a), az = z_of(s, a);
 	s.units_.pos_x[idx_of(s, e)] = 10.0f;
+	s.stop_attack(idx_of(s, e)); // its swing under way would still land and make the passive unit flee
 	run(s, 1.0f);
 	const float hp1 = hp_of(s, e);
 	run(s, 5.0f);
@@ -4126,6 +4127,47 @@ static void test_queued_call_to_arms_drop() {
 	check(there && s.unit_order(u).target == near_store, "after the walk it takes the load to the storehouse beside it");
 }
 
+static void test_attack_interval_timing() {
+	std::printf("113. hits land every RepeatTime on average, whatever the tick length (Timer.js interval timers)\n");
+	for (const float dt : {0.05f, 0.15f}) {
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN, 100000.0f);
+		uint32_t e = post(s, 1.5f, 0, UNIT_SPEARMAN, 100000.0f);
+		s.order_attack(&a, 1, e);
+		int hits = 0;
+		float last = hp_of(s, e), t = 0.0f, first = -1.0f;
+		for (int k = 0; k < (int)std::lround(40.0f / dt); ++k) {
+			s.tick(dt);
+			t += dt;
+			if (hp_of(s, e) < last) {
+				if (first < 0.0f) first = t;
+				else ++hits;
+				last = hp_of(s, e);
+			}
+		}
+		// A spearman's RepeatTime is 1 s: one hit a second after the first.
+		const int want = (int)std::floor(t - first + 1.0e-3f);
+		check(first >= 0.0f && std::abs(hits - want) <= 1, dt < 0.1f ? "at 0.05 s ticks" : "at 0.15 s ticks");
+	}
+}
+
+static void test_promotion_restarts_attack() {
+	std::printf("114. a unit promoted mid-attack strikes after its PrepareTime (Transform.js: the new entity's Attack starts over)\n");
+	Simulation s;
+	setup(s);
+	uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN, 100000.0f);
+	uint32_t e = post(s, 1.5f, 0, UNIT_SPEARMAN, 100000.0f);
+	s.order_attack(&a, 1, e);
+	const float hp0 = hp_of(s, e);
+	check(run_until(s, 10.0f, [&] { return hp_of(s, e) < hp0; }), "the swordsman strikes");
+	const size_t i = (size_t)idx_of(s, a);
+	const float prepare = s.unit_combat_at(i).prepare, repeat = s.unit_repeat_time(i);
+	check(prepare < repeat - 0.1f && s.units_.attack_timer[i] < -prepare, "its next hit is more than a PrepareTime away");
+	s.promote_unit(i, s.units_.tmpl[i], (uint8_t)(s.units_.rank[i] + 1));
+	check(std::abs(s.units_.attack_timer[i] + s.unit_combat_at(i).prepare) < 1.0e-4f, "promoted, it waits only its PrepareTime");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -4245,6 +4287,8 @@ int main(int argc, char **argv) {
 	test_stop_keeps_held_position();
 	test_promotion_drops_work_orders();
 	test_queued_call_to_arms_drop();
+	test_attack_interval_timing();
+	test_promotion_restarts_attack();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

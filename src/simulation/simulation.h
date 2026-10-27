@@ -2902,6 +2902,9 @@ private:
 	static constexpr float ATTACK_DUE = 1.0e-6f; // attack_timer: the hit lands this tick
 	static constexpr float FLEE_RUNNING = 1.0e9f; // attack_timer while fleeing: no time limit (0 = the run failed)
 	void tick_attack_timer(size_t i, float dt);
+	// How far past its due time each unit's hit fell this tick (Timer.js interval timers
+	// reschedule from the due time). Set and read within one tick, so not saved.
+	std::vector<float> attack_late_;
 	bool attack_under_way(size_t i) const;
 	void stop_attack(size_t i);
 	bool attack_ready(size_t i, bool in_range, float prepare);
