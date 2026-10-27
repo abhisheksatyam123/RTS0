@@ -10,6 +10,7 @@
 #undef private
 #include "network/turn_manager.h"
 #include <cmath>
+#include <algorithm>
 #include <cstdio>
 
 using namespace rtso;
@@ -218,6 +219,49 @@ int main() {
 		run(s, 10.0f);
 		CHECK(near(s.players_[0].res[RES_FOOD] - f0, 10.0f));
 		std::printf("ice house: +%.0f food in 10 s with Subterranean Aqueducts\n", s.players_[0].res[RES_FOOD] - f0);
+	}
+
+	// 8. Each structure keeps its own timer (ResourceTrickle.js CheckTimer: SetInterval when it
+	//    is finished): a wonder finished 1 s after another pays 1 s after it, every 2 s; a
+	//    corral's timer starts with its first animal and stops when it empties.
+	{
+		fresh(s);
+		s.spawn_building_world(30.0f, 30.0f, BLD_WONDER, 1, 1.0f);
+		run(s, 1.0f);
+		s.spawn_building_world(60.0f, 20.0f, BLD_WONDER, 1, 1.0f);
+		std::vector<int> pays; // ticks after the second wonder at which wood rose, and by how much
+		std::vector<float> by;
+		for (int t = 1; t <= 100; ++t) {
+			const float w = s.players_[1].res[RES_WOOD];
+			s.tick(Simulation::FIXED_STEP);
+			if (s.players_[1].res[RES_WOOD] > w + 0.5f) pays.push_back(t), by.push_back(s.players_[1].res[RES_WOOD] - w);
+		}
+		std::printf("two wonders 1 s apart: wood paid at ticks");
+		for (size_t k = 0; k < pays.size(); ++k) std::printf(" %d(+%.0f)", pays[k], by[k]);
+		std::printf("\n");
+		// The first wonder pays every 2 s from its start (ticks 20, 60, 100 here), the second
+		// every 2 s from its own (ticks 40, 80): one each, never both on one tick.
+		CHECK((pays == std::vector<int>{20, 40, 60, 80, 100}));
+		CHECK(std::all_of(by.begin(), by.end(), [](float v) { return near(v, 1.0f); }));
+
+		fresh(s);
+		corral = s.spawn_building_world(10.0f, 10.0f, BLD_CORRAL, 0, 1.0f);
+		run(s, 0.6f);
+		corral_animal(s, corral, 10.0f, 10.5f, FAUNA_SHEEP);
+		int first = 0;
+		for (int t = 1; t <= 200 && !first; ++t) {
+			const float food = s.players_[0].res[RES_FOOD];
+			s.tick(Simulation::FIXED_STEP);
+			if (s.players_[0].res[RES_FOOD] > food + 0.5f) first = t;
+		}
+		std::printf("corral penned 0.6 s in: first food %d ticks after\n", first);
+		CHECK(first == 100); // the first tick that sees it penned starts the timer: 5 s on
+		const size_t f = s.fauna_id_to_idx_.at(s.fauna_.id[s.fauna_.count - 1]);
+		s.fauna_.behavior[f] = FAUNA_IDLE_GRAZE;
+		s.fauna_.corral_id[f] = 0;
+		s.tick(Simulation::FIXED_STEP);
+		for (const auto &b : s.buildings_)
+			if (b.id == corral) CHECK(b.trickle_tick == -1);
 	}
 
 	if (failures) {
