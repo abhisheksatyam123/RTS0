@@ -197,6 +197,7 @@ static void test_roster_army() {
 		s->complete_research(0, TECH_TOWER_MURDERHOLES);
 		bool hero = false, hero_planned = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		bool advanced = false, arsenal = false;
+		float next_fort = 0.0f;
 		// 55 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
 		// the city phase around minute 15, as in 0 A.D., and its city army takes a while longer.
 		// Macedonian heroes come from the fortress, which Petra can only lay once City is done
@@ -216,7 +217,11 @@ static void test_roster_army() {
 				if (b.team == 0 && b.hp > 0.0f && !b.wrecked) idle_alive = true;
 			// Garrisoned like the first ones, so Petra shells it rather than capturing a string of
 			// fortresses that each keep 20 of its soldiers inside against decay (TYPE_DECAY).
-			if (!idle_alive && !(packed_moved && unpacked_fired)) {
+			// At most one every 3 minutes: a fortress respawned the moment the last one falls
+			// keeps shooting the gatherers Petra sends to the razed base's resources, and the
+			// match then hangs on how many it loses there rather than on its army.
+			if (!idle_alive && !(packed_moved && unpacked_fired) && t >= next_fort) {
+				next_fort = t + 180.0f;
 				const uint32_t fort = s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
 				for (int k = 0; k < 10; ++k) {
 					const uint32_t man = s->spawn_unit(18.0f + (float)(k % 5), 31.0f - (float)(k / 5), 0, UNIT_SPEARMAN);
@@ -3695,6 +3700,98 @@ static void test_rush_any_phase() {
 		for (const auto &p : s->petra_started_attacks_) rush |= p.kind == PETRA_ATTACK_RUSH;
 		CHECK(rush, "a town-phase rush is not dropped while it musters");
 	}
+}
+
+// attackPlan.js: a new Rush has no targetPlayer (chooseTarget asks getEnemyPlayer only when the
+// plan must start, and that pick becomes currentEnemyPlayer then); getNearestTarget lets a rush
+// that is forced or has siege engines fall back to defaultTargetFinder, a defended target.
+static void test_rush_target_player() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	uint32_t enemy_cc = 0;
+	for (const auto &b : s->buildings()) {
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) enemy_cc = b.id;
+	}
+	s->spawn_building_world(tx + (tx > 0.0f ? -12.0f : 12.0f), tz, BLD_BARRACKS, 1, 1.0f);
+	s->spawn_building_world(-3.0f, 25.0f, BLD_STOREHOUSE, 0, 1.0f);
+	auto &m = s->petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 2;
+	m.rush_number = 0;
+	s->petra_attack_plan_.state = Simulation::AttackPlan::UNEXECUTED;
+	s->petra_attack_plan_.target_player = 0xFF;
+	s->petra_pid_ = 1;
+	s->petra_sent_diplo_.current_enemy = 0;
+	s->petra_update_attack_plan(s->petra_attack_plan_, tx, tz);
+	const auto &plan = s->petra_attack_plan_;
+	std::printf("  new rush: state %d, target player %d, current enemy %d\n", (int)plan.state, (int)plan.target_player,
+	            (int)s->petra_sent_diplo_.current_enemy);
+	CHECK(plan.state == Simulation::AttackPlan::MUSTER && plan.target_player == 0xFF, "a new rush has no target player yet");
+	CHECK(s->petra_sent_diplo_.current_enemy == 0, "making a rush picks no current enemy");
+	// Player 0 keeps only its Civic Centre, which shoots: no undefended structure is left.
+	for (auto &b : s->buildings_)
+		if (b.team == 0 && b.id != enemy_cc) { b.hp = 0.0f; b.wrecked = true; }
+	float rx = 0.0f, rz = 0.0f;
+	const uint32_t plain = s->find_petra_rush_target(rx, rz, 0);
+	const uint32_t forced = s->find_petra_rush_target(rx, rz, 0, nullptr, 0, true);
+	std::printf("  rush against a lone Civic Centre: %s, forced %s\n", plain ? "a target" : "none",
+	            forced == enemy_cc ? "the Civic Centre" : forced ? "another" : "none");
+	CHECK(plain == 0, "a rush skips structures with defensive fire");
+	CHECK(forced == enemy_cc, "a forced rush (or one with siege) falls back to defaultTargetFinder");
+}
+
+// attackPlan.js UpdateTarget: a new target only swaps plan.target; soldiers fighting keep
+// their fight (the per-unit loop re-orders those whose target is gone), the idle ones head
+// for the new target, and targetPlayer follows the new target's owner.
+static void test_retarget_keeps_fights() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	// test_attack_plans' storehouse: an undefended structure to attack next.
+	const float hx = -3.0f, hz = 25.0f;
+	const uint32_t store = s->spawn_building_world(hx, hz, BLD_STOREHOUSE, 0, 1.0f);
+	for (size_t j = 0; j < s->units_.count; ++j)
+		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
+	run_for(*s, 0.5f);
+	const uint32_t fighter = s->spawn_unit(hx + 8.0f, hz, 1, UNIT_SPEARMAN, 1.0e4f);
+	const uint32_t idle = s->spawn_unit(hx - 30.0f, hz, 1, UNIT_SPEARMAN, 1.0e4f); // out of the foe's sight
+	const uint32_t foe = s->spawn_unit(hx + 9.0f, hz, 0, UNIT_SWORDSMAN, 1.0e6f);
+	s->order_attack(&fighter, 1, foe);
+	run_for(*s, 0.5f);
+	auto &plan = s->petra_attack_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.squad = {fighter, idle};
+	plan.initial_squad_size = 2;
+	plan.target_building_id = 0xFFFFFF0u; // destroyed
+	plan.target_player = 0;
+	plan.state = Simulation::AttackPlan::ATTACKED;
+	s->petra_pid_ = 1;
+	const int32_t f = s->lookup_unit(fighter), i = s->lookup_unit(idle);
+	const bool fighting = f >= 0 && s->units_.target_unit_id[f] == foe;
+	CHECK(fighting && i >= 0 && s->units_.action_state[i] == ACTION_IDLE, "one soldier fights, one stands idle");
+	s->petra_update_attack_plan(plan, tx, tz);
+	const bool kept = s->units_.target_unit_id[f] == foe && s->units_.action_state[f] != ACTION_ATTACK_MOVE;
+	const bool sent = s->units_.action_state[i] == ACTION_ATTACK_MOVE;
+	std::printf("  retarget: new target %s, the fighter keeps its fight %s, the idle one heads off %s, target player %d\n",
+	            plan.target_building_id == store ? "the storehouse" : "another", kept ? "yes" : "no", sent ? "yes" : "no", (int)plan.target_player);
+	CHECK(plan.state == Simulation::AttackPlan::ATTACKED && plan.target_building_id == store, "the plan picks a new target");
+	CHECK(kept, "a soldier in a fight keeps it when the plan retargets");
+	CHECK(sent, "an idle soldier attack-walks to the new target");
+	CHECK(plan.target_player == 0, "the target player is the new target's owner");
 }
 
 // attackPlan.js assignUnits: a citizen cavalry hunter has the worker role, so only a rush takes
@@ -9143,6 +9240,8 @@ int main(int argc, char **argv) {
 	RUN(test_concurrent_attacks);
 	RUN(test_fasten_end_game);
 	RUN(test_abort_nearest_base);
+	RUN(test_rush_target_player);
+	RUN(test_retarget_keeps_fights);
 	RUN(test_mobile_dropsite_follows);
 	RUN(test_mobile_dropsite_cadence);
 	RUN(test_worker_mix);
