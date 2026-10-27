@@ -20,7 +20,7 @@ namespace rtso {
 // A band the script paints after its areas (below) has `late` set.
 struct HeightBand {
 	float lo, hi;
-	const char *terrain[4];
+	const char *terrain[6];
 	bool late;
 	// SlopeConstraint(slope_lo, slope_hi) on rmgen's getSlope when slope_hi > slope_lo, and
 	// NearTileClassConstraint(an area of kind `near`, near_dist) when `near` is set.
@@ -29,7 +29,12 @@ struct HeightBand {
 	// When hi512 is set, lo and hi are a 128-tile map's and lo512 and hi512 a 512-tile map's, scaled between
 	// as scaleByMapSize (pyrenean_sierra.js's rock bands follow heightPassage).
 	float lo512 = 0.0f, hi512 = 0.0f;
+	// avoidClasses: the band skips tiles within far_dist of an area of kind `far` when `far` is set.
+	uint8_t far = 0, far_dist = 0;
 };
+
+// A late band of a row with `tree` set whose terrain is kKeepTerrain leaves the tile as painted.
+inline constexpr const char *kKeepTerrain = "";
 
 // Areas a synth_* records (RmsGenerator record_area) where its script paints
 // the area's own terrains.
@@ -47,6 +52,10 @@ enum AreaKind : uint8_t {
 	AREA_GRASS,     // syria.js's grass round each base
 	AREA_OASIS,     // oasis.js's central oasis: its palm band's floor
 	AREA_OASIS_WATER, // and its water
+	AREA_SHORE,      // corsica.js's clShore: its beach passages
+	AREA_PASSAGE,    // corsica.js's clPassage: the plateaus' passages
+	AREA_SETTLEMENT, // corsica.js's clSettlement: each base's CityPatch
+	AREA_SEA,        // not recorded: the tiles below the water line (paintTileClassBasedOnHeight(-Infinity, 0))
 };
 
 // rmgen LayeredPainter(terrains, widths): a tile `d` tiles in from the area's
@@ -85,6 +94,9 @@ struct ScriptTerrains {
 	AreaLayers areas[4];
 	PatchSet patches[4];
 	bool coast = false; // the synth's heights are coast_metres: the bands read them back in metres
+	// The late bands are one per-tile decision tree (corsica.js's getCosricaSardiniaTerrain): each tile takes
+	// the first late band that matches it, none if no band does.
+	bool tree = false;
 };
 
 inline const ScriptTerrains *script_terrains(const char *map_id) {
@@ -169,7 +181,28 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  {"medit_cliff_italia_grass", "medit_cliff_italia"}, {"medit_rocks_grass", "medit_rocks"}, "medit_city_tile",
 		  "medit_rocks_grass", "medit_rocks_grass", "medit_sand", "medit_sea_depths"},
 		 {"corsica", {{FLORA_ALEPPO_PINE, FLORA_TREE_CRETAN_DATE_PALM_TALL}}, {FLORA_ALEPPO_PINE, FLORA_FAN_PALM}, {{FLORA_FAN_PALM, FLORA_CYPRESS}}, FLORA_BERRY,
-		  {{200, 200}}, {200, 200}, {{200, 200}}}},
+		  {{200, 200}}, {200, 200}, {{200, 200}}},
+		 // getCosricaSardiniaTerrain, first match per tile (late bands with `tree`): the CityPatch kept; sand
+		 // transition on the beaches; inland of the sea (3 tiles) grass on the passages, cliffs on slopes of 1.25
+		 // (steep ones above 25 m), grass below 17 m, hill under slope 0.625, else mountain; cliffs on slopes of
+		 // 1.125 anywhere; land above 1.5 m kept (the islands' LayeredPainter); shore, shore blend, creek water and
+		 // gentle deep water down to -10 m. countMembersInRadius's circles are 8-neighbour steps here.
+		 {{-1e9f, 1e9f, {kKeepTerrain}, true, 0.0f, 0.0f, AREA_SETTLEMENT, 2, 0.0f, 0.0f, 0, 0},
+		  {0.5f, 1.5f, {"medit_sand", "medit_rocks_grass", "medit_rocks_grass", "medit_rocks_grass"}, true, 0.0f, 0.0f, AREA_SHORE, 2, 0.0f, 0.0f, 0, 0},
+		  {1.0f, 1e9f, {"medit_grass_field", "medit_grass_field_b", "temp_grass_c"}, true, 0.0f, 0.0f, AREA_PASSAGE, 2, 0.0f, 0.0f, AREA_SEA, 3},
+		  {25.0f, 1e9f, {"temp_cliff_b", "temp_cliff_a"}, true, 1.25f, 1e9f, 0, 0, 0.0f, 0.0f, AREA_SEA, 3},
+		  {1.0f, 1e9f, {"temp_cliff_b", "medit_cliff_italia", "medit_cliff_italia_grass"}, true, 1.25f, 1e9f, 0, 0, 0.0f, 0.0f, AREA_SEA, 3},
+		  {1.0f, 17.0f, {"medit_grass_field", "medit_grass_field_b", "temp_grass_c"}, true, 0.0f, 0.0f, 0, 0, 0.0f, 0.0f, AREA_SEA, 3},
+		  {17.0f, 1e9f, {"medit_cliff_italia_grass", "medit_cliff_italia_grass", "medit_grass_field", "medit_grass_field", "temp_grass"}, true, 0.0f, 0.625f, 0, 0, 0.0f, 0.0f, AREA_SEA, 3},
+		  {17.0f, 1e9f, {"medit_cliff_italia_grass", "medit_cliff_italia"}, true, 0.0f, 0.0f, 0, 0, 0.0f, 0.0f, AREA_SEA, 3},
+		  {-1e9f, 1e9f, {"temp_cliff_b", "medit_cliff_italia", "medit_cliff_italia_grass"}, true, 1.125f, 1e9f, 0, 0, 0.0f, 0.0f, 0, 0},
+		  {1.5f, 1e9f, {kKeepTerrain}, true, 0.0f, 0.0f, 0, 0, 0.0f, 0.0f, 0, 0},
+		  {-0.75f, 1.5f, {"medit_rocks", "medit_sand", "medit_sand"}, true, 0.0f, 0.0f, 0, 0, 0.0f, 0.0f, 0, 0},
+		  {-3.0f, -0.75f, {"medit_sand_wet", "medit_rocks_wet"}, true, 0.0f, 0.0f, 0, 0, 0.0f, 0.0f, 0, 0},
+		  {-6.0f, -3.0f, {"medit_sea_coral_plants"}, true, 0.0f, 0.0f, 0, 0, 0.0f, 0.0f, 0, 0},
+		  {-10.0f, -6.0f, {"medit_sea_coral_deep", "tropic_ocean_coral"}, true, 0.0f, 0.75f, 0, 0, 0.0f, 0.0f, 0, 0}},
+		 {{AREA_ISLAND, {{"temp_cliff_b", "medit_cliff_italia", "medit_cliff_italia_grass"}, {"medit_grass_field", "medit_grass_field_b", "temp_grass_c"}}, {2}}},
+		 {}, true, true},
 		// cycladic_archipelago.js: carob and beech main forests; palm, aleppo pine and poplar forests.
 		{"cycladic_archipelago",
 		 {"cycladic_archipelago", {"medit_rocks_grass", "medit_rocks_grass", "medit_dirt", "medit_rocks_grass_shrubs"},

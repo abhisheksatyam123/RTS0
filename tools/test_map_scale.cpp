@@ -666,7 +666,7 @@ int main() {
 		add(b.main, 4); add(b.forest, 2); add(b.tier, 4); add(b.cliff, 2); add(b.hill, 2); add(b.dirt, 2);
 		for (const char *n : {b.road, b.road_wild, b.shore_blend, b.shore, b.water})
 			if (n) own.insert(n);
-		for (const HeightBand &band : st->bands) add(band.terrain, 2);
+		for (const HeightBand &band : st->bands) add(band.terrain, 6);
 		for (const AreaLayers &area : st->areas)
 			for (const auto &layer : area.layer) add(layer, 6);
 		std::set<std::string> unpatched = own;
