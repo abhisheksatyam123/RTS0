@@ -929,7 +929,7 @@ static void test_stat_modifiers() {
 }
 
 static void test_audit_028() {
-	std::printf("17. facing, rearranging and split selections (Formation.js)\n");
+	std::printf("18. facing, rearranging and split selections (Formation.js)\n");
 	{ // MoveToMembersCenter: a new formation faces the way its members do.
 		Simulation s;
 		setup(s, CIV_ATHENIANS);
@@ -987,6 +987,7 @@ static void test_audit_028() {
 				ctrl(s, nf)->order == Simulation::FORDER_APPROACH && Simulation::formation_task(*ctrl(s, nf)) == Simulation::FTASK_GATHER,
 				"the 4 picked out leave and walk up to the tree as their own formation");
 	}
+}
 
 static void test_stop_and_back_to_work() {
 	std::printf("17. stop and back to work leave the formation\n");
@@ -1054,8 +1055,8 @@ int main(int argc, char **argv) {
 	test_tasks();
 	test_queue(save.c_str());
 	test_stat_modifiers();
-	test_audit_028();
 	test_stop_and_back_to_work();
+	test_audit_028();
 	if (g_failures) {
 		std::printf("test_formations: FAIL (%d)\n", g_failures);
 		return 1;
