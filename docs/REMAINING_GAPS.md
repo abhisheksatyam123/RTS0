@@ -177,6 +177,19 @@ Right-click actions, Back to Work and Shift-queueing against unit_actions.js, in
 | N4 | ~~Shift is ignored when hunting or slaughtering an animal, attacking scenery and boarding a ship, ram or siege tower: the order replaces the queue~~ Fixed: Shift queues them (ORDER_HUNT, ORDER_ATTACK_SCENERY, ORDER_BOARD), lockstep cmds 17 and 18 carry NET_PARAM_QUEUED, and a kill going on to the carcass keeps the orders queued behind the hunt (one Gather order in 0.28); test_unit_orders 101 | medium | Fixed |
 | N5 | ~~Alt (orderone) on an enemy unit, structure or scenery orders the first selected unit, not the first able one~~ Fixed: the first selected unit able to attack or capture it (getActionInfo firstAbleEntity, input.js popOneFromSelection); tested by `tools/e2e_order_one.gd` | low | Fixed |
 
+### Unit orders, fourteenth 0.28 pass (2026-10-27)
+
+Player commands (stop, back to work, call to arms, unload, delete, stance, autoqueue), healing and packing against Commands.js, UnitAI.js and Pack.js. Everything else checked matches. Owner: Unit orders
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| P1 | ~~A Pack or Unpack the player ordered was undone when an enemy came into range~~ Fixed: PACKING and UNPACKING ignore LosAttackRangeUpdate (UnitAI.js:3380-3428), so an ordered pack finishes; test_pack 12 | medium | Fixed |
+| P2 | A pack in progress is not an order: a Shift-queued order runs at once and any order with a destination cancels an unpack, where 0.28 queues behind Pack/Unpack and only Attack, Stop and g_OrdersCancelUnpacking cut in (UnitAI.js:4119-4138, 174-181) | low | Open (pack queue) |
+| P3 | Stop sets the held position where the unit stands; 0.28's Order.Stop keeps the last walk's destination, so a defensive unit stopped short walks on there a turn later (UnitAI.js:310-313, 1709-1717). RTS0 keeps the stop, as K5 keeps patrol's held position (a 0.28 quirk) | low | Kept |
+| P4 | Promotion keeps Back to Work orders and the held position; 0.28's ChangeEntityTemplate drops workOrders and SwitchToStance resets the held position (Transform.js:142-160). RTS0 keeps them (a 0.28 quirk) | low | Kept |
+| P5 | ~~"Push order to front" was ignored on heal, return resource, hunt, board, call to arms and gather near, and honoured on patrol and occupy-turret~~ Fixed: the same commands as Commands.js; call to arms pushes the drop-off, then the attack-walk (Commands.js:255-266); test_unit_orders 108 | low | Fixed |
+| P6 | Shift+Call to Arms picks the drop-off when given; 0.28 queues DropAtNearestDropSite, resolved from where the unit is and what it carries when the order runs (UnitAI.js:577-586) | nit | Open (call to arms) |
+
 ### Unit orders, thirteenth 0.28 pass (2026-10-27)
 
 UnitAI's attack and capture switch, gather and repair autocontinue, idle answers and garrison edge cases against UnitAI.js, Attack.js and Capturable.js. Everything else checked matches. Owner: Unit orders

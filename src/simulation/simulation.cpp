@@ -7020,6 +7020,9 @@ void Simulation::order_pack(const uint32_t *unit_ids, size_t count, bool pack, b
 		cmd_stop(&unit_ids[i], 1);
 		units_.pack_state[idx] = cancel ? (pack ? PACK_PACKED : PACK_UNPACKED) : (pack ? PACK_PACKING : PACK_UNPACKING);
 		units_.pack_elapsed[idx] = 0.0f;
+		// PACKING / UNPACKING handle no LosAttackRangeUpdate: an ordered (un)pack runs to the end
+		// whatever comes into range (tick_combat's acquire skips it while this flag stands).
+		if (!cancel) units_.order_flags[idx] |= ORDER_FLAG_FORCE;
 	}
 }
 
@@ -15542,6 +15545,7 @@ void Simulation::tick_pack(float dt) {
 			if (units_.pack_elapsed[i] >= pack_time_s(i)) {
 				ps = (ps == PACK_PACKING) ? PACK_PACKED : PACK_UNPACKED;
 				units_.pack_elapsed[i] = 0.0f;
+				if (units_.order_kind[i] == ORDER_NONE) units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE; // PackFinished
 			}
 		}
 		units_.pack_state[i] = ps;
@@ -15609,6 +15613,10 @@ void Simulation::tick_combat(float dt) {
 		target_idx[i] = -1;
 		if (!units_.alive[i]) return;
 		if (units_.attack_damage[i] <= 0.0f) return;
+		// Order.Pack / Order.Unpack: PACKING and UNPACKING ignore what comes into range.
+		if ((units_.pack_state[i] == PACK_PACKING || units_.pack_state[i] == PACK_UNPACKING) &&
+				units_.order_kind[i] == ORDER_NONE && (units_.order_flags[i] & ORDER_FLAG_FORCE))
+			return;
 
 		// 0 A.D. UnitAI target choice, by stance (g_Stances) and order:
 		//  - passive units never pick targets (an explicit attack order still stands);
@@ -20696,6 +20704,14 @@ void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, floa
 		if (!(unit_tech_classes(units_.unit_type[i]) & (TC_SOLDIER | TC_WARSHIP | TC_SIEGE | TC_HEALER))) continue;
 		uint32_t uid = unit_ids[k];
 		bool q = queued;
+		// Pushed to the front: the drop-off first, the attack-walk right after it, then what the
+		// unit was doing (Commands.js pushes the walk, then the drop-off, to the front).
+		if (push_front_order_ && !queued && !applying_queued_) {
+			order_attack_move(&uid, 1, x, z, false, units_only, allow_capture);
+			if (units_.carry[i] > 0)
+				if (const uint32_t best = nearest_dropsite((size_t)i); best != 0) order_return_resource(&uid, 1, best, false);
+			continue;
+		}
 		// DropAtNearestDropSite: FindNearestDropsite for the carried type, else nothing.
 		if (units_.carry[i] > 0) {
 			const uint32_t best = nearest_dropsite((size_t)i);
