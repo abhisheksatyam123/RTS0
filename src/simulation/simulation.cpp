@@ -22260,6 +22260,24 @@ void Simulation::update_petra_bases(float dt) {
 		if (b.team != petra_pid_ || b.hp <= 0) continue;
 		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) tc_ids.push_back(b.id);
 	}
+	// basesManager.js init: the civic centres there are when no base has had one (Nomad's first
+	// foundation included) make the first bases.
+	bool at_init = petra_kept_.lost_bases.empty();
+	for (const auto &base : petra_bases_) at_init &= base.anchor_building_id == 0;
+	// createBase: neededDefenders for a base on a new civic centre. A finished one at init
+	// (STATE_WITH_ANCHOR) wants none; a foundation (UNCONSTRUCTED) or one gained later (CAPTURED)
+	// wants 3 + 2 (difficulty - 3) from Medium in a new base. A base kept on the same land after
+	// its civic centre was lost is taken instead, and its reset(type) (gameState in the state's
+	// place) zeroes them.
+	auto defenders_for = [&](const Building &tc) -> uint8_t {
+		const uint16_t land = petra_land_at(tc.x, tc.z);
+		auto &lost = petra_kept_.lost_bases;
+		for (auto it = lost.begin(); it != lost.end(); ++it)
+			if (petra_land_at(it->first, it->second) == land) { lost.erase(it); return 0; }
+		if (at_init && tc.build_progress >= 1.0f) return 0;
+		const uint8_t diff = petra_difficulty();
+		return diff >= PETRA_MEDIUM && diff <= PETRA_VERY_HARD ? (uint8_t)(3 + 2 * (diff - PETRA_MEDIUM)) : 0;
+	};
 
 	// reset() seeds a placeholder base at (36,36) with no anchor. Once we own a
 	// Town Center, drop anchorless bases so the primary base is a real one;
@@ -22283,6 +22301,7 @@ void Simulation::update_petra_bases(float dt) {
 				base1.anchor_building_id = tc_ids[0];
 				base1.x = buildings_[it->second].x;
 				base1.z = buildings_[it->second].z;
+				base1.needed_defenders = defenders_for(buildings_[it->second]);
 			}
 		}
 		petra_bases_.push_back(base1);
@@ -22299,8 +22318,10 @@ void Simulation::update_petra_bases(float dt) {
 				base.x = buildings_[it->second].x;
 				base.z = buildings_[it->second].z;
 			} else {
+				// anchorLost: the base stays, anchorless, for the next civic centre on its land.
+				petra_kept_.lost_bases.push_back({base.x, base.z});
 				base.anchor_building_id = 0;
-				base.needed_defenders = 0; // anchorLost
+				base.needed_defenders = 0;
 			}
 		}
 		if (base.is_primary) {
@@ -22336,9 +22357,7 @@ void Simulation::update_petra_bases(float dt) {
 			new_base.is_primary = false;
 			new_base.radius = 32.0f;
 			new_base.danger_level = get_threat_at(tc.x, tc.z);
-			// A civic centre we lay out or capture trains 3 + 2 (difficulty - 3) defenders from Medium.
-			const uint8_t diff = petra_difficulty();
-			if (diff >= PETRA_MEDIUM && diff <= PETRA_VERY_HARD) new_base.needed_defenders = (uint8_t)(3 + 2 * (diff - PETRA_MEDIUM));
+			new_base.needed_defenders = defenders_for(tc);
 			// The territory grows: there may be room again (resetMissingRoom).
 			petra_room_.marks.clear();
 			petra_bases_.push_back(new_base);
@@ -26995,7 +27014,9 @@ void Simulation::petra_config_first_base() {
 	for (const Building &b : buildings_)
 		if (b.team == petra_pid_ && is_civic_centre(b.type) && b.build_progress >= 1.0f && b.hp > 0.0f && !b.wrecked) { cc = &b; break; }
 	if (!cc) return;
+	auto lost = std::move(petra_kept_.lost_bases); // basesManager.js's, not configFirstBase's
 	petra_kept_ = PetraKept{};
+	petra_kept_.lost_bases = std::move(lost);
 	petra_kept_.decided = true;
 	// The civic centre's land is home: the bases may not have it as their primary yet.
 	PetraNavalTopo topo = nav_grid_.cells.blank() ? PetraNavalTopo() : petra_topo();
@@ -37667,6 +37688,9 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				}
 				if (ar.version >= Simulation::SAVE_VERSION_PETRA_BASE_TURN) ar.pod(v.current_base);
 				else v.current_base = 0;
+				if (ar.version >= Simulation::SAVE_VERSION_PETRA_LOST_BASES)
+					io_vec(ar, v.lost_bases, 1u << 16, [&](std::pair<float, float> &p) { ar.pod(p.first); ar.pod(p.second); });
+				else v.lost_bases.clear(); // older saves: lost bases are forgotten
 			} else v = PetraKept{}; // decided again at the next AI turn, from the game as loaded
 		} else if constexpr (std::is_same_v<T, S::PetraQueueHeads>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_QUEUE_HEADS) {
