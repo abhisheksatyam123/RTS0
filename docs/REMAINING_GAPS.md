@@ -437,6 +437,16 @@ gui/common/tooltips.js and selection_panels_helpers.js against RTS0's constructi
 | TT6 | The wall-dragging cost tip is a plain Label: "Cost: Stone 36" without the header font or icons | nit | Fixed (Stats: placementTooltip is a RichTextLabel; the wall cost takes getEntityCostTooltip's headerFont and resource icons) |
 | TT7 | "Requires ..." from a unit trainer shows only the generic name, not "Specific (Generic)"; no case found in the current rosters | nit | Open |
 
+### Production queues and ceasefire, twenty-second 0.28 pass (2026-10-27)
+
+ProductionQueue.js, Trainer.js, Researcher.js, TechnologyManager.js, Player.js population reservation, BuildingAI.js and CeasefireManager.js against RTS0's queues and arrows. Batch times, costs, entity limits, refunds, autoqueue, tech exclusions, phase counts and arrow counts and targeting match. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| TR1 | When an item finished mid-second the next item got the rest of the second; 0.28's ProgressTimeout subtracts the unused time Item.Progress returns, so the next item gets the time the finished one used (a whole-second item hands on a full second: three single 10 s units take 28 s, not 30) | medium | Fixed (`tools/test_production_queue.cpp` 14) |
+| TR2 | A batch costing no population (heroes, war dogs) waited while the player was over the limit; Player.js TryReservePopulationSlots lets a zero-population batch start | low-medium | Fixed (`tools/test_production_queue.cpp` 14b) |
+| BA1 | A ceasefire stopped fighting with Gaia too: towers ignored Gaia soldiers, Gaia structures held fire and Gaia buildings couldn't be captured; CeasefireManager.js sets every enemy except Gaia neutral | low-medium | Fixed (`tools/test_victory.cpp` 9e) |
+
 ### Defensive structures and Petra's use of them, twenty-first 0.28 pass (2026-10-27)
 
 BuildingAI.js, GarrisonHolder/TurretHolder, Capturable and TerritoryDecay against RTS0's structure runtime (matching), and headquarters.js buildDefenses/findDefensiveLocation, defenseManager.js and garrisonManager.js against Petra's. Owner: E (placement); garrisons and focus fire to their owners.
@@ -449,7 +459,24 @@ BuildingAI.js, GarrisonHolder/TurretHolder, Capturable and TerritoryDecay agains
 | DS4 | findDefensiveLocation took any frontier cell of ours; 0.28 takes only cells a base of ours holds on its anchor's land (baseAtIndex), so no towers across a river or on an islet | low-medium | Fixed |
 | DS5 | Towers and fortresses were searched for a spot before queueing and retried after 90 s (every 3rd turn for a first stone tower); 0.28 queues the plan, searches at start, and with no spot marks it unbuildable for 90 s while the lapse runs from queue time | low | Fixed |
 | DS6 | An enemy whose only civic centre, tower or fortress is a foundation let Petra fall back to neutral or allied structures; in 0.28 the foundation blocks the fallback | nit | Fixed |
-| DS7 | Focus fire refuses enemy players' livestock; BuildingAI.js:275-285 accepts any enemy entity in range (RTS0's automatic arrows already shoot them) | nit | Open (focus fire) |
+| DS7 | Focus fire refuses enemy players' livestock; BuildingAI.js:275-285 accepts any enemy entity in range (RTS0's automatic arrows already shoot them) | nit | Fixed: cmd_focus_fire takes an enemy player's livestock; test_building_ai |
+
+### Petra garrisons, workers, queues and HQ economy, sixth area C pass (2026-10-27)
+
+garrisonManager.js, worker.js, queueManager.js and the queue plans, and the economy parts of headquarters.js, against RTS0's Petra (`docs/archive/petra-audit-028-pass6.md`, its IDs in brackets). Owner: C.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| PC1 | (Q8) The wanted gather rates count only each queue's first plan over 30 s; 0.28 also counts the second plan over 60 s and a house not yet needed over 300 s | low | Open |
+| PC2 | (H8) Livestock breeding paid straight from the stock, skipping the corral queue (priority 1) | low | Fixed: the corral queue's account pays it, its want kept until funded |
+| PC3 | (H9) A corral laid because fields can't be built never set needCorral, so it never bred once fields fit again; the second-corral test counted the field's no-room mark | low | Fixed |
+| PC4 | (W6) A stone or metal gatherer sent to a far mine kept that mine for good; 0.28 drops its supply mark on each trip back while its base has a nearer mine | low | Fixed |
+| PC5 | (W7) Every idle worker carrying anything went to a dropsite first; 0.28 sends a gatherer carrying its own gather-type straight back to gathering | low | Fixed |
+| PC6 | (W8) Workers waiting at the beach for a ship stay in the crossing when the foundation they were going to build is gone, or the far land has no dropsite for their resource | low | Open |
+| PC7 | (GM1) A decaying structure keeps every unit of ours that can capture; 0.28 keeps only the number needed, and lets protection garrisons leave once the enemy goes | low | Open |
+| PC8 | (GM2) Regicide: the hero is judged by the emergency rules in any building; 0.28 uses the protection rules in one that heals | low | Open |
+| PC9 | (W9) A builder that finished a house can go on to build a field foundation; 0.28 takes it off the field and reassigns it | nit | Open |
+| PC10 | (Q9) The one structure Petra may start each turn goes to whichever code runs first, not the highest-priority queue | nit | Open |
 
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 

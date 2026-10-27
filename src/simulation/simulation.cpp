@@ -734,7 +734,8 @@ bool Simulation::training_blocked(uint8_t player) const {
 			room = pop_max(player) - pop_current(player);
 			have_room = true;
 		}
-		return order_pop(o, player) > room; // the same test tick_production makes
+		const int need = order_pop(o, player);
+		return need != 0 && need > room; // the same test tick_production makes
 	};
 	for (const auto &b : buildings_)
 		if (b.team == player && b.build_progress >= 1.0f && !b.queue.empty() && b.type != BLD_CORRAL && waits(b.queue.front()))
@@ -4708,7 +4709,9 @@ void Simulation::tick_unit_production(float dt) {
 			if (qi == unit_queues_.end() || qi->second.orders.empty()) break;
 			ProductionOrder &order = qi->second.orders.front();
 			if (!order.is_tech() && !order.started) {
-				if (pop_current(player) + order_pop(order, player) > pop_max(player)) break;
+				// Player.js TryReservePopulationSlots: a batch costing no population always starts.
+				const int need = order_pop(order, player);
+				if (need != 0 && pop_current(player) + need > pop_max(player)) break;
 				order.started = true;
 			}
 			const float left = order.duration - order.timer;
@@ -4717,7 +4720,9 @@ void Simulation::tick_unit_production(float dt) {
 				break;
 			}
 			order.timer = std::max(order.timer, order.duration);
-			time -= std::max(0.0f, left);
+			// ProductionQueue.js ProgressTimeout does time -= item.Progress(time), and Item.Progress
+			// returns the time the item did not use: the next item gets the time this one used.
+			time = std::max(0.0f, left);
 			if (order.is_tech()) {
 				const uint8_t tech = order.tech;
 				qi->second.orders.erase(qi->second.orders.begin());
@@ -15220,8 +15225,8 @@ void Simulation::tick_production(float dt) {
 	// Item.Start reserves the batch's population first and waits while there is no room
 	// (Player.BlockTraining), and Researcher.js finishes a technology when its time is up.
 	// ProgressTimeout runs once a second from when the queue started (ProgressInterval), and
-	// gives that second to as many items as it takes; an item that finishes leaves the rest
-	// of the second to the next one. A batch that cannot spawn yet tries again each second.
+	// gives that second to as many items as it takes; an item that finishes passes on the time
+	// it used (0.28's arithmetic, see below). A batch that cannot spawn yet tries again each second.
 	for (auto &b : buildings_) {
 		if (b.build_progress < 1.0f || b.queue.empty()) {
 			b.queue_clock = 0.0f; // StopTimer
@@ -15237,7 +15242,9 @@ void Simulation::tick_production(float dt) {
 			const bool animal = b.type == BLD_CORRAL || order.unit_type == UNIT_TYPE_NONE;
 			// Trainer.js Item.Progress: an item that cannot start (no population room) uses the second.
 			if (!order.is_tech() && !animal && !order.started) {
-				if (bteam < MAX_PLAYERS && pop_current(bteam) + order_pop(order, bteam) > pop_max(bteam)) break;
+				// Player.js TryReservePopulationSlots: a batch costing no population always starts.
+				const int need = bteam < MAX_PLAYERS ? order_pop(order, bteam) : 0;
+				if (need != 0 && pop_current(bteam) + need > pop_max(bteam)) break;
 				order.started = true;
 			}
 			// TechnologyManager.js StartedResearch: "X is advancing to the Y." on the first work done.
@@ -15248,7 +15255,9 @@ void Simulation::tick_production(float dt) {
 				break;
 			}
 			order.timer = std::max(order.timer, order.duration);
-			time -= std::max(0.0f, left);
+			// ProductionQueue.js ProgressTimeout does time -= item.Progress(time), and Item.Progress
+			// returns the time the item did not use: the next item gets the time this one used.
+			time = std::max(0.0f, left);
 			const ProductionOrder done = order;
 			b.queue.erase(b.queue.begin());
 
@@ -15399,7 +15408,7 @@ inline bool in_parabolic_range(float d2, float att_y, float def_y, float base_ra
 }
 
 // 0 A.D. "focus-fire" (Commands.js -> BuildingAI.AddFocusTarget). A target counts only when
-// it is in the structure's targetUnits: an enemy unit, structure or dangerous animal inside
+// it is in the structure's targetUnits: an enemy unit, structure, livestock or dangerous animal inside
 // its arrow range, as the arrow pass in tick_combat measures it (seen or not).
 bool Simulation::cmd_focus_fire(uint8_t player, const uint32_t *building_ids, size_t count, uint32_t target,
 		bool queued, bool push_front) {
@@ -15439,8 +15448,11 @@ bool Simulation::cmd_focus_fire(uint8_t player, const uint32_t *building_ids, si
 					&& in_range(ob.x - b.x, ob.z - b.z, ob.half_size, get_terrain_height(ob.x, ob.z));
 		} else if (fi >= 0) {
 			const size_t f = (size_t)fi;
+			// An enemy player's livestock too: targetUnits holds any enemy entity with Resistance.
+			const uint8_t owner = fauna_owner_[f];
 			ok = fauna_.alive[f] && fauna_.hp[f] > 0.0f && fauna_.behavior[f] != FAUNA_CORRALLED &&
-					fauna_type_info(fauna_.fauna_type[f]).is_dangerous() && is_hostile(b.team, GAIA_PLAYER) &&
+					(owner < MAX_PLAYERS ? can_attack(b.team, owner)
+							: fauna_type_info(fauna_.fauna_type[f]).is_dangerous() && is_hostile(b.team, GAIA_PLAYER)) &&
 					in_range(fauna_.pos_x[f] - b.x, fauna_.pos_z[f] - b.z, 0.0f, get_terrain_height(fauna_.pos_x[f], fauna_.pos_z[f]));
 		}
 		if (!ok) continue;
@@ -20283,7 +20295,7 @@ uint32_t Simulation::first_able_healer(const uint32_t *unit_ids, size_t count, u
 
 bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 	if (b.wrecked || b.hp <= 0.0f || b.build_progress < 1.0f || b.max_capture_points <= 0.0f) return false;
-	if (player >= MAX_PLAYERS || ceasefire_active()) return false;
+	if (player >= MAX_PLAYERS) return false;
 	// Attack.js Capture RestrictedClasses "Field Palisade Wall" (gates and wall towers are Wall too).
 	if (b.type == BLD_FIELD || b.type == BLD_PALISADE || b.type == BLD_WALL_SEGMENT || is_gate_type(b.type) ||
 			b.type == BLD_WALL_TOWER || b.type == BLD_SIEGE_WALL)
@@ -20294,7 +20306,7 @@ bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 	for (int t = 0; t < MAX_PLAYERS; ++t) {
 		const float p = b.capture_points_by_team[t];
 		held += p;
-		if (p > 0.0f && t != player && is_hostile(player, (uint8_t)t)) return true;
+		if (p > 0.0f && t != player && can_attack(player, (uint8_t)t)) return true;
 	}
 	return held < b.max_capture_points;
 }
@@ -23053,8 +23065,11 @@ void Simulation::petra_manage_economy(float dt) {
 			if (soldier && (in_plan.count(units_.id[i]) || units_.id[i] == petra_scout_unit_id_)) continue;
 			// worker.js returnResources: an idle worker still carrying something takes it to the
 			// nearest dropsite on its own land first (an explicit ReturnResource order; UnitAI does
-			// not drop off by itself), and is reassigned once empty.
-			if (units_.carry[i] > 0) {
+			// not drop off by itself), and is reassigned once empty. A gatherer (one we sent to a
+			// supply) carrying its own gather-type, the type it gathered last, goes straight back
+			// to gathering with its load (worker.js:220-227).
+			const bool same_type = petra_supply_of(units_.id[i]) != 0 && units_.res_type_carried[i] < RES_COUNT;
+			if (units_.carry[i] > 0 && !same_type) {
 				// getLandAccess as for garrisons (petra_same_land): a worker on a blocked cell has
 				// no nav region, which matched any structure without one, docks across the sea too.
 				uint32_t best = 0;
@@ -23259,6 +23274,16 @@ void Simulation::petra_manage_economy(float dt) {
 		if (petra_supply_of(units_.id[i]) == rid) continue;
 		recheck.push_back(i);
 	}
+	// worker.js:293-314 (GATHER.RETURNINGRESOURCE): a stone or metal gatherer taking its load back drops its supply mark
+	// when the supply isn't in its base's nearby list while that list has some, or in neither
+	// nearby nor medium while medium has some, so the recheck above sends it to the nearer
+	// supply once it gathers again.
+	std::vector<size_t> sparse_returning;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_RETURN_DROPSITE) continue;
+		if (units_.res_type_carried[i] != RES_STONE && units_.res_type_carried[i] != RES_GOLD) continue;
+		if (petra_supply_of(units_.id[i]) != 0) sparse_returning.push_back(i);
+	}
 
 	struct Candidate { uint32_t id; float x, z; uint8_t type; int slots, users; uint16_t land; int32_t amount; int base; };
 	std::vector<Candidate> candidates;
@@ -23266,7 +23291,7 @@ void Simulation::petra_manage_economy(float dt) {
 	struct BaseSupplies { std::vector<Listed> nearby[RES_COUNT], medium[RES_COUNT], faraway[RES_COUNT]; };
 	std::vector<BaseSupplies> supplies;
 	PetraBasesMap bmap;
-	if (!reassignable_workers.empty() || !recheck.empty()) {
+	if (!reassignable_workers.empty() || !recheck.empty() || !sparse_returning.empty()) {
 		petra_bases_map(bmap);
 		supplies.resize(bmap.anchors.size() + 1);
 		std::unordered_map<uint32_t, int> field_users, supply_users;
@@ -23383,6 +23408,23 @@ void Simulation::petra_manage_economy(float dt) {
 			cmd_stop(&uid, 1);
 			reassignable_workers.push_back(i);
 			gather_type.push_back(type); // its gather-type stays
+		}
+	}
+	if (!sparse_returning.empty()) {
+		std::unordered_map<uint32_t, uint32_t> cand_of;
+		for (uint32_t c = 0; c < (uint32_t)candidates.size(); ++c) cand_of.emplace(candidates[c].id, c);
+		for (size_t i : sparse_returning) {
+			const int base = worker_base(units_.pos_x[i], units_.pos_z[i], petra_access_at(units_.pos_x[i], units_.pos_z[i]));
+			if (base > 0 && !petra_base_turn(bmap.anchors[base - 1].id)) continue;
+			const uint8_t type = units_.res_type_carried[i];
+			auto cit = cand_of.find(petra_supply_of(units_.id[i]));
+			auto listed = [&](const std::vector<Listed> &v) {
+				return cit != cand_of.end() && std::any_of(v.begin(), v.end(), [&](const Listed &l) { return l.c == cit->second; });
+			};
+			const BaseSupplies &bs = supplies[base];
+			if (listed(bs.nearby[type])) continue;
+			if (!bs.nearby[type].empty() || (!bs.medium[type].empty() && !listed(bs.medium[type])))
+				petra_set_supply(units_.id[i], 0);
 		}
 	}
 
@@ -24395,15 +24437,23 @@ void Simulation::petra_manage_fields() {
 	}
 	if (corrals == 0) {
 		if (!can_build(BLD_CORRAL)) return;
+		const bool no_fields = !can_build(BLD_FIELD);
 		for (const BaseFood &bf : bases) {
 			if (!bf.by || !(bf.count < 900.0f || save_space || petra_kept_.need_corral)) continue;
 			const float at[2] = {bf.by_x, bf.by_z};
-			if (petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL, nullptr, at)) break;
+			if (petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL, nullptr, at)) {
+				// baseManager.js:475-483: a corral laid because fields can't be built sets needCorral for good.
+				if (no_fields && bf.count < 900.0f) petra_kept_.need_corral = true;
+				break;
+			}
 		}
 		return;
 	}
 	if (!petra_turn_mod(4, 3) || !petra_has_active_base()) return; // manageCorral, every fourth played turn with an active base (headquarters.js:2292)
-	if (!can_build(BLD_FIELD) && corrals < (int)petra_ps().phase && pop_current(petra_pid_) > 30 * corrals && anchor &&
+	// isTemplateAvailable(field): its civ, phase and triggers, not the no-room mark.
+	const bool field_available = civ_can_build(civ, BLD_FIELD) && building_required_phase(BLD_FIELD, civ) <= petra_ps().phase &&
+	                             !triggers_.building_disabled(petra_pid_, BLD_FIELD);
+	if (!field_available && corrals < (int)petra_ps().phase && pop_current(petra_pid_) > 30 * corrals && anchor &&
 	    can_build(BLD_CORRAL)) {
 		if (petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL, nullptr, anchor_at)) return;
 	}
@@ -24417,7 +24467,15 @@ void Simulation::petra_manage_fields() {
 			for (const ProductionOrder &o : b.queue)
 				if (o.unit_type == UNIT_TYPE_NONE && !o.is_tech() && o.tmpl == ct.fauna[k]) have += o.count;
 			if (have > corrals) continue;
-			if (!cmd_breed_livestock(petra_pid_, b.id, ct.fauna[k], 1)) continue; // not in this phase yet
+			const uint8_t animal = corral_animal_for(civ_of(b.team), ct.fauna[k]);
+			if (petra_ps().phase < livestock_required_phase(animal)) continue; // not in this phase yet
+			// The TrainingPlan waits in queues.corral (priority 1) and is paid from that queue's
+			// account, not from what the other queues have saved (queueManager.js startNextItems).
+			const FaunaTrainCost &c = fauna_train_cost(animal);
+			if (!petra_try_pay(PETRA_Q_CORRAL, c.res[0], c.res[1], c.res[3], c.res[2], false)) return; // the want is kept
+			if (!cmd_breed_livestock(petra_pid_, b.id, ct.fauna[k], 1)) continue;
+			petra_ps().refund(c.res[0], c.res[1], c.res[3], c.res[2]); // the queue pays it instead
+			petra_try_pay(PETRA_Q_CORRAL, c.res[0], c.res[1], c.res[3], c.res[2]);
 			return;
 		}
 	}
