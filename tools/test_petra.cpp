@@ -2248,6 +2248,78 @@ static void test_city_phase_counts_foundations() {
 	CHECK(markets == 1 && temples == 1, "the temple goes down while the market is a foundation");
 }
 
+// checkPhaseRequirements "Town": canBuild skips a structure with no room in the last 90 s (the
+// temple instead of the market), and nothing is added while the economic or military queue
+// holds another plan.
+static void test_city_phase_skips_no_room() {
+	for (int held = 0; held < 2; ++held) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 1.0f);
+		s->set_team_civ(1, (uint8_t)CIV_ATHENIANS);
+		s->players_[1].phase = 2;
+		s->set_player_resources(1, 5000, 5000, 5000, 5000);
+		s->petra_pid_ = 1;
+		fund_queues(*s);
+		s->petra_queues_.wants[PETRA_Q_MAJOR_TECH].food = 1.0f; // the city phase waits in its queue
+		s->petra_set_no_room(BLD_MARKET);
+		if (held) { // a farmstead plan waits in the economic queue
+			s->petra_queue_heads_.item[PETRA_Q_ECONOMIC_BUILDING] = BLD_FARMSTEAD + 1;
+			s->petra_queue_heads_.age[PETRA_Q_ECONOMIC_BUILDING] = 0.0f;
+		}
+		CHECK(s->petra_phasing(), "phasing to the city phase");
+		s->petra_manage_research(0.5f);
+		int temples = 0, markets = 0;
+		for (const auto &b : s->buildings_)
+			if (b.team == 1 && b.build_progress < 1.0f) {
+				temples += b.type == BLD_TEMPLE;
+				markets += b.type == BLD_MARKET;
+			}
+		std::printf("  city phase, market without room%s: markets %d, temples %d\n", held ? ", farmstead queued" : "", markets, temples);
+		if (held) CHECK(markets == 0 && temples == 0, "nothing is added while the economic queue holds a plan");
+		else CHECK(markets == 0 && temples == 1, "a market without room gives way to the temple");
+	}
+}
+
+// queueplanBuilding.js isGo (houseNeeded): a queued house plan waits while canBuild fails for
+// both the house and the apartment (the 90 s no-room mark), and goes once the mark lapses.
+static void test_house_plan_waits_out_no_room() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->set_team_civ(1, (uint8_t)CIV_ATHENIANS);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->petra_pid_ = 1;
+	fund_queues(*s);
+	auto houses = [&] {
+		int n = 0;
+		for (const auto &b : s->buildings_) n += b.team == 1 && b.type == BLD_HOUSE && b.build_progress < 1.0f && b.hp > 0.0f;
+		return n;
+	};
+	// Free slots down to 10 or fewer: houseNeeded.
+	for (const auto &b : std::vector<Simulation::Building>(s->buildings_))
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER)
+			for (int k = 0; s->pop_max(1) - s->pop_current(1) > 5 && k < 40; ++k)
+				s->spawn_unit(b.x - 8.0f + (float)(k % 10) * 0.8f, b.z + 8.0f + (float)(k / 10) * 0.8f, 1, UNIT_VILLAGER);
+	std::printf("  houses test: pop %d of %d, active base %d\n", s->pop_current(1), s->pop_max(1), (int)s->petra_has_active_base());
+	const int before = houses();
+	s->petra_kept_.house_plans = 2;
+	s->petra_set_no_room(BLD_HOUSE);
+	s->petra_manage_buildings(0.5f);
+	std::printf("  house plans under the no-room mark: %d plans, %d new houses\n", s->petra_kept_.house_plans, houses() - before);
+	CHECK(houses() == before && s->petra_kept_.house_plans >= 2, "a queued house waits out the no-room mark");
+	s->petra_clear_no_room(BLD_HOUSE);
+	fund_queues(*s);
+	s->petra_manage_buildings(0.5f);
+	CHECK(houses() == before + 1, "it goes once the mark is gone");
+}
+
 // gameState.findAvailableTech (common-api gamestate.js:768): Petra's structures in creation
 // order, each one's Researcher list in template order. A storehouse built before the
 // farmstead offers Iron Axe Heads before Iron Plow, and Servants before Wedge and Mallet.
@@ -3823,6 +3895,69 @@ static void test_plan_counts_every_class() {
 	std::printf("  German HugeAttack with %d clubmen (champion target %d): %d more queued, champion queue asks %.0f\n",
 	            champ_target, champ_target, queued, champ_ask);
 	CHECK(queued == 0 && champ_ask == 0.0f, "clubmen in the plan count as its champions: no more are asked for it");
+}
+
+// attackPlan.js:689-695 trains a plan's batches with its name as "plan" metadata: the units
+// are the plan's as they spawn, so no other plan takes them (the main plan used to take the
+// raid's siege, and citizen cavalry trained for it went hunting). A batch whose plan has started or been replaced comes out of plan
+// (headquarters.js:237-245), and citizen cavalry trained for a plan is army, not a hunter.
+static void test_trained_units_join_their_plan() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_team_civ(1, CIV_ATHENIANS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const uint32_t stable = s->spawn_building_world(tx + (tx > 0.0f ? -14.0f : 14.0f), tz, BLD_STABLE, 1, 1.0f);
+	const uint16_t cav = civ_unit_template_by_id("athen/cavalry_javelineer_b");
+	CHECK(cav != CIV_UNIT_TEMPLATE_NONE && stable != 0, "a stable and the Athenian javelin cavalry");
+	if (cav == CIV_UNIT_TEMPLATE_NONE || stable == 0) return;
+	s->cheat_mods_[1].pop_bonus = 300;
+	auto &m = s->petra_attack_mgr_;
+	m.raid_name = 7;
+	m.attack_name = 8;
+	auto &raid = s->petra_raid_plan_;
+	raid = Simulation::AttackPlan(); // no raid preparing: an earlier raid's batch has no plan to join
+	auto &main = s->petra_attack_plan_;
+	main = Simulation::AttackPlan();
+	main.state = Simulation::AttackPlan::MUSTER;
+	auto queue_batch = [&](uint8_t plan, uint8_t name) {
+		const auto it = s->building_id_to_idx_.find(stable);
+		ProductionOrder o;
+		o.unit_type = civ_unit_template(cav).unit_type;
+		o.tmpl = cav;
+		o.count = 1;
+		o.timer = 0.0f;
+		o.duration = 0.1f;
+		o.petra_plan = plan;
+		o.petra_name = name;
+		o.petra_stat = 0;
+		s->buildings_[it->second].queue.push_back(o);
+	};
+	auto spawned_last = [&]() -> uint32_t {
+		uint32_t best = 0;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.tmpl[i] == cav) best = std::max(best, s->units_.id[i]);
+		return best;
+	};
+	auto in = [](const std::vector<uint32_t> &v, uint32_t id) { return std::find(v.begin(), v.end(), id) != v.end(); };
+	queue_batch(PETRA_ORDER_ATTACK, 8);
+	run_for(*s, 2.0f);
+	const uint32_t a = spawned_last();
+	queue_batch(PETRA_ORDER_RAID, 6); // an earlier raid's batch
+	run_for(*s, 2.0f);
+	const uint32_t b = spawned_last();
+	const auto &army = s->petra_army_ids_[1];
+	const auto &out = s->petra_out_of_plan_[1];
+	std::printf("  attack batch: in the attack %d, army %d; earlier raid's batch: out of plan %d\n",
+	            (int)in(main.squad, a), (int)std::binary_search(army.begin(), army.end(), a), (int)std::binary_search(out.begin(), out.end(), b));
+	CHECK(a != 0 && in(main.squad, a), "the cavalry trained for the attack joins it as it spawns");
+	CHECK(std::binary_search(army.begin(), army.end(), a), "citizen cavalry trained for a plan is army, not a hunter");
+	CHECK(b != 0 && b != a && std::binary_search(out.begin(), out.end(), b), "a batch for an earlier raid comes out of plan (plan -1: no worker)");
 }
 
 // attackPlan.js trainMoreUnits: when the order furthest behind has no template, the order is
@@ -8342,10 +8477,7 @@ static void test_missing_room_expansion() {
 	// finds no room spends the account, not the stock.
 	const auto &wa = s->petra_queues_.accounts[PETRA_Q_WONDER];
 	CHECK(wa.stone < wonder_account && s->players_[1].stone() == stone_before, "the failed wonder spent its queue account only");
-	// A house plan already queued starts whatever the mark says (canStart doesn't read it).
-	s->petra_turn_built_ = false;
-	CHECK(s->petra_no_room(BLD_HOUSE) && s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE, nullptr, nullptr, false, true) != 0,
-	      "a queued house is placed under the no-room mark");
+
 	// headquarters.js:2042: our territory grew, so every mark goes at the next AI turn.
 	s->petra_room_.tiles = 0;
 	s->petra_room_.marks.push_back({BLD_TEMPLE, s->petra_timer_ + 90.0f});
@@ -8875,6 +9007,8 @@ int main(int argc, char **argv) {
 	RUN(test_no_early_rush);
 	RUN(test_strength_with_techs);
 	RUN(test_phase_up);
+	RUN(test_city_phase_skips_no_room);
+	RUN(test_house_plan_waits_out_no_room);
 	RUN(test_no_free_income);
 	RUN(test_mercenary_workers);
 	RUN(test_trade_tech_waits_for_funds);
@@ -8954,6 +9088,7 @@ int main(int argc, char **argv) {
 	RUN(test_raid_takes_every_rider);
 	RUN(test_huge_attack_drops_classes);
 	RUN(test_plan_counts_every_class);
+	RUN(test_trained_units_join_their_plan);
 	RUN(test_attack_order_no_template);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);

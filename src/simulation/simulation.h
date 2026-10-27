@@ -103,6 +103,11 @@ struct ProductionOrder {
 	bool started = false;       // Trainer.js Item.Start: the batch's population is reserved
 	uint8_t petra_plan = 0;     // PetraOrderPlan: what Petra queued the batch for (saved SAVE_VERSION_PETRA_ORDER_PLAN)
 	uint8_t batch = 0;          // the batch size queued (ProductionQueue.js originalItem.count) once part of it spawned; 0 = count
+	// attackPlan.js trainMoreUnits metadata: the plan's name (AttackManager totalNumber) and the
+	// unitStat index the batch was queued for (0xFF none), so its units join that plan and count
+	// in that class only while queued (saved SAVE_VERSION_PETRA_ORDER_NAME).
+	uint8_t petra_name = 0;
+	uint8_t petra_stat = 0xFF;
 	std::array<float, RES_COUNT> paid{}; // refunded when the item is removed (RemoveItem)
 	bool is_tech() const { return tech != TECH_NONE; }
 };
@@ -184,7 +189,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 123; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 124; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_ORDER_NAME = 124; // the Petra plan name and unitStat each queued batch is for
 	static constexpr uint32_t SAVE_VERSION_BOARD_BEST = 123; // each Petra boarding passenger's nearest approach to its ship
 	static constexpr uint32_t SAVE_VERSION_GARRISON_HEAL = 120; // each structure's garrison heal timer (GarrisonHolder HEAL_TIMEOUT)
 	static constexpr uint32_t SAVE_VERSION_FORMATION_TARGET = 121; // the enemy formation each formation attacks
@@ -4125,6 +4131,8 @@ private:
 	// What a structure costs this AI (structure_cost: its civ's template and cost bonuses), and paying it.
 	void petra_structure_cost(uint8_t btype, float &food, float &wood, float &gold, float &stone) const;
 	bool petra_try_pay_structure(uint8_t queue, uint8_t btype);
+	bool petra_queue_holds(uint8_t queue, uint8_t btype) const;
+	bool petra_queue_holds_other(uint8_t queue, uint8_t btype) const;
 	// queueManager.js startNextItems takes the plan's cost off its queue's account before start(),
 	// so a start that finds no room still spends the account (not the stock).
 	void petra_spend_structure_account(uint8_t queue, uint8_t btype);
@@ -4140,7 +4148,8 @@ private:
 	// wait_for_pop: queue it even with no population room, to wait in the trainer's queue as
 	// 0 A.D.'s ProductionQueue holds an item until there is room.
 	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1, bool wait_for_pop = false,
-	                          uint8_t plan = PETRA_ORDER_NONE);
+	                          uint8_t plan = PETRA_ORDER_NONE, uint8_t plan_name = 0, uint8_t plan_stat = 0xFF);
+	void petra_join_trained_plan(uint8_t pid, uint8_t order_plan, uint8_t name, uint32_t uid);
 	uint32_t petra_best_trainer(uint16_t tmpl, uint8_t unit_type, size_t max_queue) const;
 	bool petra_relic_targeted(uint32_t relic_id) const;
 	bool petra_unit_target_ok(int32_t t) const;
