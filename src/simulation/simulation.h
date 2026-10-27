@@ -3682,7 +3682,9 @@ private:
 	bool petra_defendable(float x, float z) const; // headquarters.js isDefendable
 	void petra_scuttle_undefendable();
 	uint32_t petra_help_attack_target(const AttackPlan &plan, uint16_t land, float &tx, float &tz) const;
-	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF, const float *from = nullptr, uint16_t land = 0) const;
+	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF, const float *from = nullptr, uint16_t land = 0,
+	                                bool forced = false, bool note = true) const;
+	bool petra_plan_forced_rush(const AttackPlan &plan) const;
 	bool petra_squad_centre(const std::vector<uint32_t> &squad, float &cx, float &cz) const;
 	void petra_set_rushes();
 	float petra_starting_wood(float x, float z) const;
@@ -4001,6 +4003,7 @@ private:
 	void petra_remove_defender(uint32_t uid);
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
 	float petra_available_resource(uint8_t r) const; // queueManager.getAvailableResources: stock less every queue's account
+	bool petra_plan_in_transport(const AttackPlan &plan) const;
 	bool petra_passenger(uint32_t uid) const;
 	bool petra_ferried_guard(uint32_t uid) const; // on its way by sea to guard a critical entity   // booked on one of our transport plans
 	void petra_assign_bombers(); // attackManager.js assignBombers
