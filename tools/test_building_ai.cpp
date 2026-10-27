@@ -652,6 +652,9 @@ int main() {
 				holes ? " with Murder Holes" : "", early, late);
 		CHECK(early > 0);
 		CHECK(holes ? late > 0 : late == 0);
+		// The details panel and the range overlay read the same minimum.
+		const float min_range = s.structure_details(*find_bld(s, fort)).min_range;
+		CHECK(holes ? min_range == 0.0f : min_range > 0.0f);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
