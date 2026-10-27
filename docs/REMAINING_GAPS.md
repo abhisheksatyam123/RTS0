@@ -733,6 +733,22 @@ The session's overlays, game speed control and Load/Save Game dialog checked aga
 | OV13 | The sorted column shows a text arrow and the others nothing; ModernSortedList draws ModernArrowUp/Down sprites and ModernNotSorted on every other heading (Godot 4.3 Tree headings take no icons) | nit | Open |
 | OV14 | "Paused by" joins names with an untranslated ", "; 0.28 uses translateWithContext("Separator for a list of players", ", ") (RTS0's catalogues have no msgctxt) | nit | Open |
 
+### Message box, tutorial panel and chat overlay, sixteenth 0.28 pass (2026-10-27)
+
+The message box, the tutorial panel and the chat overlay checked against 0.28's mod gui/msgbox, SessionMessageBox.js, tutorial_panel.xml, messages.js and ChatOverlay.js (main 439fee94e). The session lobby reporters and CampaignSession already matched. Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| MB1 | Message boxes dimmed the screen at 0.6; ModernFade is 0 0 0 85 | low | Fixed |
+| MB2 | The message box title was 18 px; mbTitleBar is ModernLabelText, sans-bold-stroke-14 | low | Fixed |
+| MB3 | Its text and buttons fell back to regular 16 px; mbText and ModernButtonRed are sans-bold-stroke-14 | low | Fixed |
+| MB4 | Three buttons split at thirds; distributeButtonsHorizontally splits at 33% and 66% | nit | Fixed |
+| MB5 | Tutorial hotkeys were bare gold text and "(unbound)"; colorizeHotkey writes [key] in 255 251 131, "Unassigned hotkey: <name>" when unbound | low | Fixed |
+| MB6 | The tutorial instructions were regular; TutorialPanel is sans-bold-14 | low | Fixed |
+| MB7 | The tutorial status line was regular; tutorialWarning is ModernLeftLabelText, sans-bold-stroke-14 | nit | Fixed |
+| MB8 | Clickable chat overlay lines took the plain session tooltip; chatLine uses sessionToolTipBottomBold | low | Fixed |
+| MB9 | The game speed dropdown was 48 px tall in Godot's fallback font; ModernDropDown is 25 px, so it takes the trimmed Linux Biolinum bold face | nit | Fixed |
+
 ### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
 
 diplomacyManager.js, chatHelper.js and their callers were checked line by line. Everything else matches: update cadence, tribute rules, request handling and its odds, lastManStandingCheck, changePlayerDiplomacy, personality boosts, every chat string. Jebel Barkal was checked statically against the 0.28 source, since no 0.28 binary runs here (pass 8: wave sizing and target-class skip match). Pass 4's P2 is D8 below, and its P5 is D7.
