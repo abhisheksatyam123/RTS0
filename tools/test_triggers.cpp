@@ -146,6 +146,8 @@ static void check_volcano() {
 		if (cap > 0 && s.get_garrison_count(b.id) == cap) ++full;
 	}
 	CHECK(towers > 0, "Extinct Volcano has no Gaia towers");
+	for (const auto &b : s.buildings())
+		if (b.team == GAIA_PLAYER && b.type == BLD_SENTRY_TOWER) CHECK(b.max_capture_points == 0.0f, "palisades_fort has <Capturable disable=\"\"/>");
 	CHECK(full == towers, "%d of %d Gaia towers garrisoned", full, towers);
 	run_to(s, 59.0f);
 	CHECK(s.time_notifications_for(0).empty(), "volcano warning before the last minute");
@@ -1090,7 +1092,7 @@ static void check_danubius() {
 	const int before = failures;
 	static Simulation s;
 	build(s, MAP_DANUBIUS);
-	int ccs = 0, houses = 0, temples = 0, towers = 0, walls = 0, capturable = 0;
+	int ccs = 0, houses = 0, huts = 0, longhouses = 0, taverns = 0, temples = 0, towers = 0, walls = 0, capturable = 0;
 	bool left = false, right = false;
 	for (const Simulation::Building &b : s.buildings_) {
 		if (b.team != GAIA_PLAYER) continue;
@@ -1100,14 +1102,22 @@ static void check_danubius() {
 			continue;
 		}
 		houses += b.type == BLD_HOUSE;
+		huts += b.type == BLD_HUT;
+		longhouses += b.type == BLD_LONGHOUSE;
+		taverns += b.type == BLD_TAVERN;
 		temples += b.type == BLD_TEMPLE;
-		const bool tower = b.type == BLD_SENTRY_TOWER;
-		towers += tower;
+		towers += b.type == BLD_SENTRY_TOWER; // the river towers are gaul/defense_tower
 		walls += b.type == BLD_PALISADE || b.type == BLD_WALL_TOWER;
-		if (b.type == BLD_HOUSE || b.type == BLD_TEMPLE || tower) capturable += b.max_capture_points > 0.0f;
+		if (b.type == BLD_HOUSE || b.type == BLD_HUT || b.type == BLD_LONGHOUSE || b.type == BLD_TAVERN || b.type == BLD_TEMPLE ||
+		    b.type == BLD_PALISADE)
+			capturable += b.max_capture_points > 0.0f;
 	}
 	CHECK(ccs == 2 && left && right, "%d Gaia civic centres, one on each bank: %d %d", ccs, left, right);
-	CHECK(houses >= 14 && temples >= 3 && towers >= 6, "villages: %d houses, %d temples, %d watchtowers", houses, temples, towers);
+	// fortressDanubiusVillage twice round: a hut, house, longhouse, tavern, temple and two
+	// "defense_tower"s each time; below normalMapSize the towers are palisades_watchtower pieces.
+	CHECK(houses >= 3 && huts >= 3 && longhouses >= 3 && taverns >= 3 && temples >= 3,
+	      "villages: %d houses, %d huts, %d longhouses, %d taverns, %d temples", houses, huts, longhouses, taverns, temples);
+	CHECK(towers == 0, "%d Gaia sentry towers: a 256-tile map's villages have palisade watchtowers", towers);
 	CHECK(capturable == 0, "%d village structures capturable", capturable);
 	CHECK(walls > 0, "no palisade round the villages");
 	int refs[256] = {};

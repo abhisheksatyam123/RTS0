@@ -3408,7 +3408,12 @@ inline bool building_trains_template(uint8_t type, uint8_t bld_civ, uint8_t owne
 	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
 	if (type == BLD_DOCK && bld_civ == CIV_GAIA) {
-		return std::strcmp(t.id, "pirates/ship_scout") == 0 || std::strcmp(t.id, "pirates/ship_arrow") == 0;
+		// structures/pirates/dock: the dock's units/{civ}/ship_fishing and ship_merchant ({civ} is
+		// the holder's) less its warships, plus units/pirates/ship_scout and ship_arrow.
+		if (std::strcmp(t.id, "pirates/ship_scout") == 0 || std::strcmp(t.id, "pirates/ship_arrow") == 0) return true;
+		const char *slash = std::strchr(t.id, '/');
+		return t.civ == owner_civ && owner_civ != CIV_GAIA && slash &&
+				(std::strcmp(slash, "/ship_fishing") == 0 || std::strcmp(slash, "/ship_merchant") == 0);
 	}
 	const uint8_t civ = building_train_civ(type, bld_civ, owner_civ, t);
 	if (t.civ != civ) return false;
