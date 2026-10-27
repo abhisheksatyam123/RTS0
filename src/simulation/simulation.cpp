@@ -22654,9 +22654,21 @@ void Simulation::petra_manage_military_production(float dt) {
 		float penalty[RES_COUNT] = {1.0f, 1.0f, 1.0f, 1.0f};
 		penalty[RES_STONE] = st.stone;
 		penalty[RES_GOLD] = st.metal;
+		// A costsResource interest the plan's unitStat has (weight under 1, the main plan's
+		// only) keeps any lower weight a scarcity gave it (the shallow copy writes param[1]).
+		uint16_t &lowered = petra_attack_mgr_.cost_lowered;
+		auto lowered_shift = [&](int r) { return (unsigned)((st.index * 2 + (r == RES_GOLD ? 1 : 0)) * 2); };
+		auto kept = [](uint16_t code) { return code == 2 ? 0.2f : code == 1 ? 0.6f : 1.0f; };
+		for (int r : {RES_STONE, RES_GOLD})
+			if (penalty[r] < 1.0f && st.index < 4) penalty[r] = std::min(penalty[r], kept((lowered >> lowered_shift(r)) & 3u));
 		for (int r = 0; r < RES_COUNT; ++r) { // findBestTrainableUnit: getAvailableResources
 			if (petra_available_resource((uint8_t)r) > 800.0f || remaining[r] > 800.0f) continue;
 			const float scarce = remaining[r] > 400.0f ? 0.6f : 0.2f;
+			if ((r == RES_STONE || r == RES_GOLD) && penalty[r] < 1.0f && st.index < 4) {
+				const unsigned sh = lowered_shift(r);
+				const uint16_t code = std::max<uint16_t>((lowered >> sh) & 3u, scarce < 0.5f ? 2 : 1);
+				lowered = (uint16_t)((lowered & ~(3u << sh)) | (code << sh));
+			}
 			penalty[r] = std::min(penalty[r], scarce);
 		}
 		const bool hero_wanted = (st.classes & TC_HERO) != 0;
@@ -30183,6 +30195,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			mgr.attack_name = mgr.plans_made++; // attackManager.js: new AttackPlan(..., this.totalNumber++)
 			mgr.attack_siege = 0;
 			mgr.dropped_classes = 0;
+			mgr.cost_lowered = 0;
 
 			plan.kind = kind;
 			plan.target_building_id = target_id;

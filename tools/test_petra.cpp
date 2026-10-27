@@ -4057,6 +4057,57 @@ static void test_trained_units_join_their_plan() {
 	CHECK(b != 0 && b != a && std::binary_search(out.begin(), out.end(), b), "a batch for an earlier raid comes out of plan (plan -1: no worker)");
 }
 
+// headquarters.js findBestTrainableUnit copies the plan's interests shallowly (slice), so a
+// scarcity penalty writes the main plan's own costsResource weight: once metal ran short, the
+// plan keeps the lowered metal weight after metal is plentiful again (G74).
+static void test_plan_cost_weights_kept() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_team_civ(1, CIV_ATHENIANS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->spawn_building_world(tx + (tx > 0.0f ? -12.0f : 12.0f), tz, BLD_BARRACKS, 1, 1.0f);
+	s->players_[1].phase = 2;
+	s->cheat_mods_[1].pop_bonus = 300;
+	auto &m = s->petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 0;
+	s->petra_plan_sizes(PETRA_ATTACK_ATTACK);
+	m.dropped_classes = 0;
+	m.cost_lowered = 0;
+	m.kind = PETRA_ATTACK_ATTACK;
+	auto &plan = s->petra_attack_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	// No metal left round our dropsites and little in stock: findBestTrainableUnit's metal
+	// penalty is 0.2, written into the plan's infantry unitStats (0.3 metal weight).
+	std::vector<int> metal_amount(s->resources_.count);
+	for (size_t r = 0; r < s->resources_.count; ++r)
+		if (s->resources_.type[r] == RES_GOLD) { metal_amount[r] = s->resources_.amount[r]; s->resources_.amount[r] = 0; }
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = r == RES_GOLD ? 50.0f : 20000.0f;
+	run_ai_turns(*s, 1);
+	const uint16_t scarce = m.cost_lowered;
+	// Metal is plentiful again: the weights stay lowered.
+	for (size_t r = 0; r < s->resources_.count; ++r)
+		if (s->resources_.type[r] == RES_GOLD) s->resources_.amount[r] = metal_amount[r];
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 20000.0f;
+	run_ai_turns(*s, 1);
+	std::printf("  Attack plan cost weights lowered while metal ran short: 0x%04x, after it recovered: 0x%04x\n",
+	            (unsigned)scarce, (unsigned)m.cost_lowered);
+	// unitStat 0 and 1 (ranged and melee infantry) metal: code 2 (0.2) in bits 2-3 and 6-7.
+	auto metal_code = [](uint16_t v, int stat) { return (v >> ((stat * 2 + 1) * 2)) & 3u; };
+	CHECK(metal_code(scarce, 0) == 2 || metal_code(scarce, 1) == 2, "a metal scarcity lowers the plan's infantry metal weight to 0.2");
+	CHECK(m.cost_lowered == scarce, "the lowered weight stays once metal is plentiful again");
+	CHECK(((scarce >> 8) & 0xFFu) == 0, "citizen cavalry (no costsResource interest) keeps no weight");
+}
+
 // attackPlan.js trainMoreUnits: when the order furthest behind has no template, the order is
 // deleted and nothing is queued that turn; the next order trains on the plan's next turn.
 // Each order trains in the queue its classes name, not the template's: the "Siege" order's war
@@ -9186,6 +9237,7 @@ int main(int argc, char **argv) {
 	RUN(test_huge_attack_drops_classes);
 	RUN(test_plan_counts_every_class);
 	RUN(test_trained_units_join_their_plan);
+	RUN(test_plan_cost_weights_kept);
 	RUN(test_attack_order_no_template);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
