@@ -813,7 +813,7 @@ public:
 	Dictionary debug_selection_state();
 	Array debug_command_row();
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
-	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1, int near = -1);
+	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1, int near_player = -1);
 	void debug_complete_research(int player, int tech); // tests: the technology finishes for the player
 	void debug_set_capture_points(int64_t building_id, int player, float points); // tests: taken from the owner
 	PackedFloat32Array debug_capture_points(int64_t building_id) const; // tests: each player's points

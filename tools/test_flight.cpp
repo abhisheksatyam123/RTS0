@@ -147,7 +147,20 @@ int main() {
 		c.order_set_stance(&spot, 1, STANCE_PASSIVE);
 		c.order_set_stance(&foe, 1, STANCE_STAND_GROUND);
 		c.order_attack(&cp, 1, foe);
-		run(c, 60.0f);
+		// Whether a shot hits depends on where the plane's loop has it when the 10 s RepeatTime
+		// runs out, so count the shots, then take the target away for the landing.
+		int shots = 0;
+		size_t flying = 0;
+		for (int k = 0; k < (int)std::lround(60.0f / kDt); ++k) {
+			c.tick(kDt);
+			size_t n = 0;
+			for (const auto &pr : c.projectiles()) n += pr.source_id == cp;
+			if (n > flying) shots += (int)(n - flying);
+			flying = n;
+		}
+		CHECK(shots >= 4);
+		if (const int32_t fi = index_of(c, foe); fi >= 0 && c.units().alive[fi]) c.cmd_delete(1, &foe, 1);
+		run(c, 30.0f);
 		const int32_t fi = index_of(c, foe);
 		CHECK(fi < 0 || !c.units().alive[fi]);
 		CHECK(index_of(c, cp) >= 0 && c.units().alive[index_of(c, cp)]);
