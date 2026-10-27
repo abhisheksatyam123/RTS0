@@ -4501,7 +4501,7 @@ private:
 	AuraManager aura_mgr_; // G4: unified aura sources (AuraManager)
 	float fow_timer_ = 0.0f;
 	float territory_timer_ = 0.0f;
-	float aura_timer_ = 0.0f; // G4: 0.4s aura rebuild timer
+	float aura_timer_ = 0.0f; // unused since auras rebuild each turn; kept for the save layout
 
 	float map_half_ = 64.0f;
 	int terrain_res_ = 64;

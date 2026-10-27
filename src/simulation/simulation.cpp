@@ -14214,10 +14214,9 @@ void Simulation::sync_field_resources() {
 }
 
 void Simulation::tick_gather(float dt) {
-	// G4: rebuild auras every 0.4s (or immediately if empty) for gather modifiers
-	aura_timer_ += dt;
-	if (aura_timer_ >= 0.4f || aura_mgr_.sources.empty()) {
-		aura_timer_ = 0.0f;
+	// G4: rebuild auras on each lockstep turn's first tick (or at once if empty): 0.28's
+	// Auras.js range queries follow the units every turn (CCmpRangeManager ExecuteActiveQueries).
+	if (ticks_ % 4 == 0 || aura_mgr_.sources.empty()) {
 		rebuild_auras();
 		apply_health_auras();
 		for (Building &b : buildings_)
