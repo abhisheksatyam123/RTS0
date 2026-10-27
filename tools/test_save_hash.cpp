@@ -631,14 +631,23 @@ static void check_forest_twin(TurnManager &tm, const char *path) {
 					for (Copy &c : copies) {
 						if (c.diverged >= 0) continue;
 						c.sim->tick(Simulation::FIXED_STEP);
-						if (k % every == 0 && tm.compute_sim_hash(live) != tm.compute_sim_hash(*c.sim)) c.diverged = k;
+						if (k % every == 0 && tm.compute_sim_hash(live) != tm.compute_sim_hash(*c.sim)) {
+							c.diverged = k;
+							std::printf("  FAIL forest map %d, save %d (tick %llu): the copy loaded into a sim %s diverged %d ticks after the load\n",
+							            map, saves, at, c.how, c.diverged);
+							++failures;
+							compare(live, *c.sim); // which fields differ, while both are on the same tick
+							print_diffs();
+						}
 					}
 				}
 				for (Copy &c : copies) {
-					if (c.diverged < 0) continue;
-					std::printf("  FAIL forest map %d, save %d (tick %llu): the copy loaded into a sim %s diverged %d ticks after the load\n",
-					            map, saves, at, c.how, c.diverged);
+					if (c.diverged != 0) continue;
+					std::printf("  FAIL forest map %d, save %d (tick %llu): the copy loaded into a sim %s differs right after the load\n",
+					            map, saves, at, c.how);
 					++failures;
+					compare(live, *c.sim);
+					print_diffs();
 				}
 			}
 		}
@@ -806,12 +815,15 @@ static void check_tick_caches(TurnManager &tm, const char *path) {
 	// A house at cell (start, start) stands on the first game's tree, one at (-start - 1, start) on the second's.
 	const int start = -4;
 	const float spot = ((float)start + 0.5f) * Simulation::GRID;
-	auto game = [&](Simulation &s, float side) {
+	// tree_first spawns the same two supplies in the other order, under the same ids: the Gaia lists
+	// have to follow what each id now is, not only how many there are and their first and last ids.
+	auto game = [&](Simulation &s, float side, bool tree_first = false) {
 		s.reset();
 		s.set_sim_seed(SEED);
 		s.set_victory_condition(VICTORY_ENDLESS);
+		if (tree_first) s.spawn_resource_world(side * spot, spot, RES_WOOD, 200);
 		s.spawn_resource_world(side * 40.0f, 30.0f, RES_STONE, 5000, RES_SUB_NONE, 24);
-		s.spawn_resource_world(side * spot, spot, RES_WOOD, 200);
+		if (!tree_first) s.spawn_resource_world(side * spot, spot, RES_WOOD, 200);
 		const uint32_t u = s.spawn_unit(side * 40.0f, 10.0f, 0, UNIT_SWORDSMAN);
 		s.order_walk(&u, 1, side * 40.0f, 50.0f);
 	};
@@ -830,8 +842,8 @@ static void check_tick_caches(TurnManager &tm, const char *path) {
 	game(a, 1.0f);
 	(void)placement(a);
 	run(a, 1);
-	game(a, -1.0f);
-	game(b, -1.0f);
+	game(a, -1.0f, true);
+	game(b, -1.0f, true);
 	const std::string pa = placement(a), pb = placement(b);
 	run(a, 1);
 	run(b, 1);

@@ -464,6 +464,8 @@ struct UnitGrid {
 
 	// visit_radius_within() over the packed units: the same units in the same order; with
 	// `unflagged_only`, only those without PACKED_FLAG (split_flagged()), still in that order.
+	// `unflagged_only` and visit_flagged_or_near() read the lists split_flagged() builds: call it after
+	// pack() and before either (separation() does).
 	template <typename Fn>
 	void visit_packed_within(float x, float z, float radius, float reach, bool unflagged_only, Fn &&fn) const {
 		int x0, x1, z0, z1;
@@ -660,6 +662,9 @@ void Simulation::reset() {
 	steer_obstacles_live_ = false;
 	note_gaia_edit(); // the supplies go (sync_tile_obstructions)
 	tile_gaia_sig_ = 0;
+	// The next game's supplies may come under the same count and first and last ids: the Gaia lists,
+	// the mine candidates and the woods are listed afresh from them (ensure_gaia_obstacles), as a load does.
+	gaia_obstacles_sig_ = 0;
 	played_team_placement_ = TEAM_PLACEMENT_RANDOM; // a scenario or skirmish map has none
 	petra_decay_events_.clear();
 	petra_hit_events_.clear();
@@ -13177,10 +13182,9 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const uint32_t ignore = units_.target_unit_id[i];
 		const uint32_t group = crew[i];
 		auto obstructs = [&](int32_t j) {
-			// A gatherer at work obstructs one walking to another supply, however near, as a unit
-			// standing still obstructs a moving one in 0.28 (ControlGroupMovementObstructionFilter,
-			// ICmpObstructionManager.h:406-429, CCmpUnitMotion.h:840-851): only its own control group
-			// lets a unit through.
+			// A unit standing still obstructs one that moves, as in 0.28 (ControlGroupMovementObstructionFilter,
+			// ICmpObstructionManager.h:406-429, CCmpUnitMotion.h:840-851): only its own control group lets a
+			// unit through. So a gatherer at work obstructs one walking to another supply, however near.
 			return (size_t)j != i && idle[j] && units_.id[j] != ignore && !(group && crew[j] == group);
 		};
 		auto step_blocked = [&](float ex, float ez) {
@@ -13349,8 +13353,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 
 // 0 A.D. gives the members of a formation one control group: they walk through each other
 // (ControlGroupMovementObstructionFilter) and push only where their clearances overlap, idle members
-// included (CCmpUnitMotionManager::Push). RTS0 gives one to the workers of each supply but a boat's
-// fish as well, from the walk to it until the walk back from the dropsite. This is deliberate: 0.28
+// included (CCmpUnitMotionManager::Push). RTS0 also gives one to the workers of each supply other
+// than a boat's fish, from the walk to it until the walk back from the dropsite. This is deliberate: 0.28
 // sets control groups for formations only (UnitAI.js:5222-5236, CCmpUnitMotion.h:1058). 0.28's band
 // round a 13 m mine, 2 m wide, holds its 24 gatherers in one row; at RTS0's crowd scale (PUSH_SCALE,
 // over three times the map's) they stand two deep on the side facing the dropsite, and those coming
@@ -13359,7 +13363,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 // only, 3-minute probes of 32 starts each gathered 7% less from a berry cluster (8 women) and 10%
 // less from two clusters side by side (21 gatherers stuck for 10 s or more, against 9 with the
 // groups), 2.5% less from a tree in a wood (5 women; 4 stuck so long, against none), 4.6% less from
-// a field and 3.3% less from chickens (gather-motion audit, 2026-10).
+// a field and 3.3% less from chickens (headless gathering probes, 2026-10).
 uint32_t Simulation::control_group(size_t i) const {
 	if (i < formation_group_.size() && formation_group_[i]) return formation_group_[i];
 	const uint8_t st = units_.action_state[i];
@@ -37243,7 +37247,10 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				if (e.second > STANCE_PASSIVE) ar.ok = false;
 		});
 		if constexpr (Ar::loading) {
-			if (!std::is_sorted(prev.begin(), prev.end())) ar.ok = false;
+			// Written sorted by unit id, each id once.
+			if (std::adjacent_find(prev.begin(), prev.end(), [](const auto &x, const auto &y) { return x.first >= y.first; }) !=
+					prev.end())
+				ar.ok = false;
 			s.turret_prev_stance_.clear();
 			for (const auto &e : prev) s.turret_prev_stance_[e.first] = e.second;
 		}
