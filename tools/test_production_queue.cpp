@@ -3,7 +3,9 @@
 //   g++ -std=c++20 -O2 -Isrc tools/test_production_queue.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_production_queue && /tmp/test_production_queue
+#define private public
 #include "simulation/simulation.h"
+#undef private
 #include "network/turn_manager.h"
 #include <cmath>
 #include <cstdio>
@@ -519,8 +521,9 @@ int main() {
 	}
 
 	// 14. ProductionQueue.js ProgressTimeout: the queue works in whole seconds from when it
-	//     started, so a lone batch ends on the second after its time is up, and what is left
-	//     of a second goes to the next item.
+	//     started, so a lone batch ends on the second after its time is up, and the next item
+	//     gets the time the finished one used of that second (Item.Progress returns the unused
+	//     time, which ProgressTimeout subtracts): an item ending on the second hands on a full one.
 	{
 		Simulation s;
 		const uint32_t b = fresh(s);
@@ -541,6 +544,42 @@ int main() {
 		ticks = 0;
 		while (!bld(s2, b2).queue.empty() && ticks < 8000) { s2.tick(Simulation::FIXED_STEP); ++ticks; }
 		CHECK(ticks == (int)std::lround(std::ceil(both) / Simulation::FIXED_STEP)); // 73 s, not 74
+
+		Simulation s3;
+		const uint32_t b3 = fresh(s3);
+		for (int k = 0; k < 3; ++k) CHECK(s3.cmd_train(0, b3, UNIT_SPEARMAN, 1));
+		const float one = bld(s3, b3).queue.front().duration;
+		CHECK(std::fabs(one - std::round(one)) < 1e-3f); // 10 s
+		ticks = 0;
+		while (!bld(s3, b3).queue.empty() && ticks < 8000) { s3.tick(Simulation::FIXED_STEP); ++ticks; }
+		std::printf("three single spearmen of %.2f s: done after %.2f s\n", one, ticks * Simulation::FIXED_STEP);
+		CHECK(ticks == (int)std::lround((3.0f * std::round(one) - 2.0f) / Simulation::FIXED_STEP)); // 28 s, not 30
+	}
+
+	// 14b. Player.js TryReservePopulationSlots: a batch costing no population (a war dog, a
+	//      hero) starts even while the player is over the population limit.
+	{
+		Simulation s;
+		const uint32_t b = fresh(s);
+		while (s.pop_current(0) <= s.pop_max(0)) s.spawn_unit(-60.0f, -60.0f, 0, UNIT_SPEARMAN);
+		uint16_t dog = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i)
+			if (std::strcmp(civ_unit_template(i).id, "brit/war_dog") == 0) dog = i;
+		CHECK(dog != CIV_UNIT_TEMPLATE_NONE);
+		ProductionOrder o{};
+		o.unit_type = UNIT_WAR_DOG;
+		o.tmpl = dog;
+		o.count = 1;
+		o.duration = 5.0f;
+		CHECK(s.order_pop(o, 0) == 0);
+		for (auto &bb : s.buildings_) if (bb.id == b) bb.queue.push_back(o);
+		CHECK(!s.training_blocked(0));
+		run(s, 6.0f);
+		std::printf("over the cap (%d of %d): zero-population batch done %d\n", s.pop_current(0), s.pop_max(0), (int)bld(s, b).queue.empty());
+		CHECK(bld(s, b).queue.empty() && count_units(s, 0, UNIT_WAR_DOG) == 1);
+		CHECK(s.cmd_train(0, b, UNIT_SPEARMAN, 1));
+		run(s, 12.0f);
+		CHECK(!bld(s, b).queue.empty() && s.training_blocked(0));
 	}
 
 	// 15. Builder.CanRepair (IsOwnedByAllyOfPlayer): a player who has declared another an ally

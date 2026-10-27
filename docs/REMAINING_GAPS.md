@@ -436,6 +436,16 @@ gui/common/tooltips.js and selection_panels_helpers.js against RTS0's constructi
 | TT6 | The wall-dragging cost tip is a plain Label: "Cost: Stone 36" without the header font or icons | nit | Fixed (Stats: placementTooltip is a RichTextLabel; the wall cost takes getEntityCostTooltip's headerFont and resource icons) |
 | TT7 | "Requires ..." from a unit trainer shows only the generic name, not "Specific (Generic)"; no case found in the current rosters | nit | Open |
 
+### Production queues and ceasefire, twenty-second 0.28 pass (2026-10-27)
+
+ProductionQueue.js, Trainer.js, Researcher.js, TechnologyManager.js, Player.js population reservation, BuildingAI.js and CeasefireManager.js against RTS0's queues and arrows. Batch times, costs, entity limits, refunds, autoqueue, tech exclusions, phase counts and arrow counts and targeting match. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| TR1 | When an item finished mid-second the next item got the rest of the second; 0.28's ProgressTimeout subtracts the unused time Item.Progress returns, so the next item gets the time the finished one used (a whole-second item hands on a full second: three single 10 s units take 28 s, not 30) | medium | Fixed (`tools/test_production_queue.cpp` 14) |
+| TR2 | A batch costing no population (heroes, war dogs) waited while the player was over the limit; Player.js TryReservePopulationSlots lets a zero-population batch start | low-medium | Fixed (`tools/test_production_queue.cpp` 14b) |
+| BA1 | A ceasefire stopped fighting with Gaia too: towers ignored Gaia soldiers, Gaia structures held fire and Gaia buildings couldn't be captured; CeasefireManager.js sets every enemy except Gaia neutral | low-medium | Fixed (`tools/test_victory.cpp` 9e) |
+
 ### Defensive structures and Petra's use of them, twenty-first 0.28 pass (2026-10-27)
 
 BuildingAI.js, GarrisonHolder/TurretHolder, Capturable and TerritoryDecay against RTS0's structure runtime (matching), and headquarters.js buildDefenses/findDefensiveLocation, defenseManager.js and garrisonManager.js against Petra's. Owner: E (placement); garrisons and focus fire to their owners.
