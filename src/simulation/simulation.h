@@ -848,6 +848,7 @@ public:
 	// Commands
 	void cmd_move(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void cmd_stop(const uint32_t *unit_ids, size_t count);
+	void order_stop(const uint32_t *unit_ids, size_t count); // Commands.js "stop": formations split as for a walk
 	void reset_unit_for_new_owner(size_t u);
 	// Player commands (0 A.D. Commands.js): `player` is the issuing player id. Each one
 	// rejects buildings the player doesn't own and charges/refunds that player's stock.
