@@ -14,6 +14,7 @@ extends Control
 signal closed(locale: String)
 
 const L10n := preload("res://scenes/menu/l10n.gd")
+const MODERN := preload("res://scenes/common/modern_theme.gd")
 const UserSettingsScript := preload("res://scenes/menu/user_settings.gd")
 
 var advanced := false
@@ -89,7 +90,7 @@ func _ready() -> void:
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fade)
 	var half := Vector2(220, 210) if advanced else Vector2(210, 100)
-	theme = preload("res://scenes/common/modern_theme.gd").theme()
+	theme = MODERN.theme()
 	var panel := Panel.new() # ModernDialog
 	panel.name = "Dialog"
 	panel.theme_type_variation = "ModernDialog"
@@ -102,8 +103,12 @@ func _ready() -> void:
 	var title := Label.new()
 	title.text = "Language"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(half.x - 150, -18)
-	title.size = Vector2(300, 32)
+	# ModernLabelText at 50%-150 -18 50%+150 14 (Advanced) or 50%-128 (the basic page).
+	var tw := 150.0 if advanced else 128.0
+	title.position = Vector2(half.x - tw, -18)
+	title.size = Vector2(tw * 2, 32)
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	MODERN.label_text(title)
 	panel.add_child(title)
 	if advanced:
 		_build_advanced(panel, half * 2)
@@ -116,6 +121,7 @@ func _row_label(panel: Control, text: String, y: float, h: float, w: float) -> v
 	l.position = Vector2(20, y)
 	l.size = Vector2(w, h)
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	MODERN.label_text(l) # ModernLeftLabelText
 	panel.add_child(l)
 
 func _button(panel: Control, text: String, i: int, y: float, inner_w: float, h: float) -> Button:

@@ -145,12 +145,7 @@ static func _edge_title(dialog: Control, text: String) -> Label:
 
 ## ModernLabelText: white sans-bold-stroke-14.
 static func _label_text(l: Control) -> Control:
-	l.add_theme_font_override("font", MODERN.bold_font())
-	l.add_theme_font_size_override("font_size", 14)
-	l.add_theme_color_override("font_color", Color.WHITE)
-	l.add_theme_color_override("font_outline_color", Color.BLACK)
-	l.add_theme_constant_override("outline_size", 3)
-	return l
+	return MODERN.label_text(l)
 
 ## formatHotkeyCombinations: the names 0.28 shows (KeyName.cpp), shortest first.
 func _format(combos) -> String:
