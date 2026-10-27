@@ -545,6 +545,48 @@ static void test_attack() {
 			"in range, the members attack the structure");
 }
 
+static void test_attack_formation(const char *path) {
+	std::printf("10b. formation attacks a formation\n");
+	Simulation s;
+	setup(s, CIV_ATHENIANS);
+	auto inf = spawn_block(s, 8, -30, 0, 0, UNIT_SWORDSMAN);
+	s.order_set_stance(inf.data(), inf.size(), STANCE_AGGRESSIVE);
+	s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+	std::vector<uint32_t> foes;
+	for (int i = 0; i < 8; ++i) {
+		uint32_t id = s.spawn_unit(10.0f + (i % 4) * 1.6f, (i / 4) * 1.6f, 1, UNIT_SPEARMAN, 1.0e6f);
+		s.order_set_stance(&id, 1, STANCE_PASSIVE);
+		foes.push_back(id);
+	}
+	s.order_set_formation(foes.data(), foes.size(), FORMATION_BOX);
+	run(s, 3.0f);
+	const uint32_t enemy_fid = s.formation_of_unit(foes[0]);
+	uint32_t back = foes[0]; // the soldier at the far side of the enemy formation
+	for (uint32_t id : foes) if (x_of(s, id) > x_of(s, back)) back = id;
+	s.order_attack(inf.data(), inf.size(), back);
+	const uint32_t fid = s.formation_of_unit(inf[0]);
+	check(enemy_fid && ctrl(s, fid)->order == Simulation::FORDER_APPROACH && ctrl(s, fid)->target_formation == enemy_fid,
+			"an attack on a formation member targets its formation (Order.Attack)");
+	check(s.save_state(path), "saved mid-approach");
+	Simulation b;
+	check(b.load_state(path) && b.formations().size() == 2 && ctrl(b, fid) && ctrl(b, fid)->target_formation == enemy_fid,
+			"the target formation comes back from a save");
+	run(s, 12.0f);
+	std::vector<uint32_t> targets;
+	int on_foes = 0, on_back = 0;
+	for (uint32_t id : inf) {
+		const int i = idx_of(s, id);
+		const uint32_t t = s.units_.target_unit_id[i];
+		if (s.units_.action_state[i] != ACTION_ATTACK) continue;
+		on_foes += std::find(foes.begin(), foes.end(), t) != foes.end();
+		on_back += t == back;
+		if (std::find(targets.begin(), targets.end(), t) == targets.end()) targets.push_back(t);
+	}
+	std::printf("   %d members on %zu different soldiers, %d on the one clicked at the back\n", on_foes, targets.size(), on_back);
+	check(ctrl(s, fid) && ctrl(s, fid)->order == Simulation::FORDER_MEMBER && on_foes == 8 && targets.size() >= 2 && on_back == 0,
+			"each member attacks the enemy soldier closest to it, not all the clicked one");
+}
+
 static void test_patrol() {
 	std::printf("11. formation patrol\n");
 	Simulation s;
@@ -886,6 +928,67 @@ static void test_stat_modifiers() {
 	check(std::fabs(restored_spd - base_spd) < 1e-3f, "disbanding restores base speed");
 }
 
+static void test_audit_028() {
+	std::printf("18. facing, rearranging and split selections (Formation.js)\n");
+	{ // MoveToMembersCenter: a new formation faces the way its members do.
+		Simulation s;
+		setup(s, CIV_ATHENIANS);
+		auto inf = spawn_block(s, 6, -30, 0, 0, UNIT_SWORDSMAN);
+		for (uint32_t id : inf) { s.units_.heading_x[idx_of(s, id)] = 1.0f; s.units_.heading_z[idx_of(s, id)] = 0.0f; }
+		s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+		const float rot = s.formations()[0].rot;
+		std::printf("   facing %.2f rad\n", rot);
+		check(std::fabs(rot - 1.5707963f) < 0.01f, "a new formation faces its members' facing (+x), not +z");
+	}
+	{ // IDLE SetRearrange(false): a death in an idle block moves no one at once.
+		Simulation s;
+		setup(s, CIV_ATHENIANS);
+		auto inf = spawn_block(s, 9, -30, 0, 0, UNIT_SWORDSMAN);
+		s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+		run(s, 8.0f);
+		const uint32_t fid = s.formations()[0].id;
+		std::vector<float> xs, zs;
+		for (uint32_t id : inf) { xs.push_back(x_of(s, id)); zs.push_back(z_of(s, id)); }
+		{
+			std::vector<float> x0, z0;
+			for (uint32_t id : inf) { x0.push_back(x_of(s, id)); z0.push_back(z_of(s, id)); }
+			run(s, 1.0f);
+			float m0 = 0.0f;
+			for (size_t k = 0; k < inf.size(); ++k) m0 = std::max(m0, std::hypot(x_of(s, inf[k]) - x0[k], z_of(s, inf[k]) - z0[k]));
+			std::printf("   without a death the most any moved %.2f\n", m0);
+			xs.clear(); zs.clear();
+			for (uint32_t id : inf) { xs.push_back(x_of(s, id)); zs.push_back(z_of(s, id)); }
+		}
+		const int di = idx_of(s, inf[4]);
+		s.units_.hp[di] = 0.0f;
+		s.units_.alive[di] = 0;
+		s.units_.action_state[di] = ACTION_DYING;
+		run(s, 1.0f);
+		float moved = 0.0f;
+		for (size_t k = 0; k < inf.size(); ++k)
+			if (k != 4) moved = std::max(moved, std::hypot(x_of(s, inf[k]) - xs[k], z_of(s, inf[k]) - zs[k]));
+		std::printf("   %zu members left, the most any moved %.2f\n", ctrl(s, fid) ? ctrl(s, fid)->members.size() : 0, moved);
+		check(ctrl(s, fid) && ctrl(s, fid)->members.size() == 8 && moved < 0.3f, "an idle formation does not re-form on a death");
+	}
+	{ // Commands.js GetFormationUnitAIs: members picked out of a formation form up apart for a gather.
+		Simulation s;
+		setup(s, CIV_ATHENIANS);
+		auto inf = spawn_block(s, 8, -30, 0, 0, UNIT_SPEARMAN);
+		s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+		run(s, 3.0f);
+		const uint32_t fid = s.formations()[0].id;
+		const uint32_t tree = s.spawn_resource_world(10.0f, 0.0f, RES_WOOD, 5000);
+		const std::vector<uint32_t> part(inf.begin(), inf.begin() + 4); // Box: RequiredMemberCount 4
+		s.order_gather(part.data(), part.size(), tree);
+		const uint32_t nf = s.formation_of_unit(part[0]);
+		std::printf("   old %zu members, new %u (%zu members, order %d)\n", ctrl(s, fid) ? ctrl(s, fid)->members.size() : 0, nf,
+				nf && ctrl(s, nf) ? ctrl(s, nf)->members.size() : 0, nf && ctrl(s, nf) ? ctrl(s, nf)->order : -1);
+		check(ctrl(s, fid) && ctrl(s, fid)->members.size() == 4 && nf && nf != fid && ctrl(s, nf)->members.size() == 4 &&
+				ctrl(s, nf)->order == Simulation::FORDER_APPROACH && Simulation::formation_task(*ctrl(s, nf)) == Simulation::FTASK_GATHER,
+				"the 4 picked out leave and walk up to the tree as their own formation");
+	}
+}
+
 static void test_stop_and_back_to_work() {
 	std::printf("17. stop and back to work leave the formation\n");
 	Simulation s;
@@ -945,6 +1048,7 @@ int main(int argc, char **argv) {
 	test_lockstep();
 	test_twins();
 	test_attack();
+	test_attack_formation(save.c_str());
 	test_patrol();
 	test_guard();
 	test_save_attack(save.c_str());
@@ -952,6 +1056,7 @@ int main(int argc, char **argv) {
 	test_queue(save.c_str());
 	test_stat_modifiers();
 	test_stop_and_back_to_work();
+	test_audit_028();
 	if (g_failures) {
 		std::printf("test_formations: FAIL (%d)\n", g_failures);
 		return 1;
