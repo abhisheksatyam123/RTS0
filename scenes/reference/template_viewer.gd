@@ -653,11 +653,13 @@ static func detailed_tooltip(tmpl: int, mods: Dictionary = {}) -> String:
 	var drop: PackedStringArray = []
 	var on := false
 	var in_drop := false
-	var plain := _plain(stats_text(d, vw))
-	for line in plain.split("\n"):
-		if not line.begins_with(" ") and not line.begins_with("\t"):
-			on = keep.any(func(k): return line.begins_with(k))
-			in_drop = line.begins_with("Dropsite for:")
+	# Each line keeps its header font and resource icons (g_TooltipTextFormats); the plain
+	# text picks the lines.
+	for line in stats_text(d, vw).split("\n"):
+		var plain := _plain(line)
+		if not plain.begins_with(" ") and not plain.begins_with("\t"):
+			on = keep.any(func(k): return plain.begins_with(k))
+			in_drop = plain.begins_with("Dropsite for:")
 		if on:
 			if in_drop:
 				drop.append(line)

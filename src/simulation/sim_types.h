@@ -1993,8 +1993,11 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 		if (tech_id == TECH_ARCHER_ATTACK_SPREAD) return type == BLD_BARRACKS || type == BLD_STABLE;
 	}
 	if (spies && type == BLD_PALACE) return true;
+	// han/arsenal drops siege_bolt_accuracy, cart/dock ship_movement_speed; another civ's
+	// captured arsenal or dock still offers them (their requirements allow Han and Carthage).
+	if (civ == CIV_HAN && type == BLD_ARSENAL && tech_id == TECH_SIEGE_BOLT_ACCURACY) return false;
 	if (civ == CIV_CARTHAGINIANS) {
-		if (type == BLD_DOCK && tech_id == TECH_WARSHIP_HEALTH) return false;
+		if (type == BLD_DOCK && (tech_id == TECH_WARSHIP_HEALTH || tech_id == TECH_SHIP_MOVEMENT_SPEED)) return false;
 		if (type == BLD_SUPER_DOCK) {
 			switch (tech_id) {
 			case TECH_DOCK_EFFICIENCY: case TECH_SHIP_VISION: case TECH_EXPLORATION:
@@ -2031,6 +2034,15 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	case BLD_TEMPLE_ISIS: return r == BLD_TEMPLE || r == BLD_TEMPLE_ISIS;
 	default: return r == building_research_base(type);
 	}
+}
+
+// A technology `civ`'s own structures offer (0.28's structure tree and civ overview): its
+// requirements allow the civ and the civ's template of its researcher lists it.
+inline bool civ_structures_offer_tech(uint8_t tech_id, uint8_t civ) {
+	if (!tech_available_to_civ(tech_id, civ)) return false;
+	if (tech_id == TECH_SIEGE_BOLT_ACCURACY) return civ != CIV_HAN;
+	if (tech_id == TECH_SHIP_MOVEMENT_SPEED) return civ != CIV_CARTHAGINIANS;
+	return true;
 }
 
 // Does an entity with these TechClass bits match effect `e`'s affects list?

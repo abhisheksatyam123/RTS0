@@ -1566,6 +1566,8 @@ private:
 						rtso::entity_names_formatted(String(text.get("generic_name", String::utf8(rtso::fauna_type_info(f).name))),
 								String(text.get("specific_name", String())));
 				auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
+				add_line(classes_tooltip(text));
+				add_line(rtso::seldet::fauna_auras_tooltip(f));
 				add_line(identity_tooltip(text));
 				tip += "\n" + String(COST_SLOT);
 				add_line(limit_tooltip(pid, rtso::LIMIT_ANIMAL));

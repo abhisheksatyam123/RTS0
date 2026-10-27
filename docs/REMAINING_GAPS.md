@@ -518,9 +518,9 @@ The Research, Training and Construction panels' tooltips against selection_panel
 | # | Difference from 0.28 | Impact | Status |
 |---|---|---|---|
 | TP1 | A centurion at its limit (8 of 8) also said "Requires Marian Reforms" though researched; getRequirementsTooltip shows only failing requirements | low | Fixed |
-| TP2 | The corral's animals have no aura line ("Ranching and Corralling"), detailed lines or right-click line, and right-click opens no Template Viewer | low | Open |
+| TP2 | The corral's animals have no aura line ("Ranching and Corralling"), detailed lines or right-click line, and right-click opens no Template Viewer | low | Fixed in part (the visible classes and Ranching and Corralling aura lines, `tools/e2e_corral_tooltips.gd`); the Template Viewer has no animal page, so no detailed or right-click lines yet |
 | TP3 | Training buttons past the 8th had no hotkey tag (0.28: gold "[Unassigned hotkey: session.queueunit.9]"), and the tag was in the plain tooltip font, not sans-bold-16 | low | Fixed |
-| TP4 | With "Detailed tooltips" on, the extra training lines are plain text (template_viewer.gd strips BBCode), losing fonts and the dropsite icons | low | Open |
+| TP4 | With "Detailed tooltips" on, the extra training lines are plain text (template_viewer.gd strips BBCode), losing fonts and the dropsite icons | low | Fixed (the lines keep the viewer's header font and icons; `tools/e2e_session_options.gd`) |
 | TP5 | A full research queue disabled the technology buttons with no reason; 0.28 keeps them enabled and the press gets "The production queue is full." | low | Fixed |
 | TP6 | The batch line ("Shift-click to train N.") was in the 14 px tooltip font; 0.28 sets it in sans-13 | nit | Fixed |
 
@@ -533,7 +533,7 @@ Every civ's structure research lists (template inheritance, {civ}, -name removal
 | RL1 | Naval Oxybeles was open to every civ; its requirement `any` of `notciv` cart/han/ptol/rome/sele rules those five out (a failing notciv inside any fails it, InterpretTechRequirements). extract_0ad_techs.py now evaluates requirements as 0.28 does | medium | Fixed (`tools/test_techs.cpp`) |
 | MC1 | The Ptolemaic mercenary camp cost no stone; it keeps the barracks' 100 stone (only merc_camp_egyptian sets 0) | medium-low | Fixed (`tools/test_map_structures.cpp`) |
 | MC2 | A Ptolemaic player's own mercenary camp counted as a Town structure toward City Phase; it keeps the barracks' Village (only merc_camp_egyptian is -Village Town). Map Egyptian camps are now placed as a Gaia template | low-medium | Fixed (`tools/test_map_structures.cpp`) |
-| TQ1 | Bolt Accuracy is closed to Han and Phoenician Naval Tradition to Carthage even in another civ's captured arsenal or dock; 0.28 drops them only from those civs' own structures | low | Open |
+| TQ1 | Bolt Accuracy is closed to Han and Phoenician Naval Tradition to Carthage even in another civ's captured arsenal or dock; 0.28 drops them only from those civs' own structures | low | Fixed (civ masks follow the requirements; han/arsenal and cart/dock drop them from their lists; `tools/test_techs.cpp`) |
 
 ### Construction, repair and upgrades, twenty-third 0.28 pass (2026-10-27)
 

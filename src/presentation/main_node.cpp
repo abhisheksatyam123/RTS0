@@ -1689,7 +1689,7 @@ Dictionary RtsoMain::get_tech_tree() const {
 		blds.push_back(b);
 	}
 	for (int t = 1; t < rtso::TECH_COUNT; ++t) {
-		if (!rtso::tech_available_to_civ((uint8_t)t, civ)) continue;
+		if (!rtso::civ_structures_offer_tech((uint8_t)t, civ)) continue;
 		const auto &ti = rtso::tech_info((uint8_t)t);
 		Dictionary e;
 		e["id"] = t;

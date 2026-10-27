@@ -150,7 +150,7 @@ bool tech_civ_specific(uint8_t id) {
 	// tech most civs may research is generic even if a few are excluded.
 	int civs = 0;
 	for (uint8_t c = 0; c < rtso::CIV_COUNT; ++c)
-		if (rtso::is_playable_civ(c) && rtso::tech_available_to_civ(id, c)) ++civs;
+		if (rtso::is_playable_civ(c) && rtso::civ_structures_offer_tech(id, c)) ++civs;
 	return civs * 2 < rtso::PLAYABLE_CIV_COUNT;
 }
 
@@ -241,7 +241,7 @@ Dictionary RtsoReference::get_civ_info(int civ) const {
 	d["structures"] = structures;
 	Array techs;
 	for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id) {
-		if (!rtso::tech_available_to_civ(id, c)) continue;
+		if (!rtso::civ_structures_offer_tech(id, c)) continue;
 		Dictionary td = tech_entry(id, c);
 		td["civ_specific"] = tech_civ_specific(id); // when templates.json lacks the tech
 		techs.push_back(td);
@@ -600,7 +600,7 @@ Dictionary RtsoReference::get_tech(int id, int civ) const {
 	}
 	Array civs;
 	for (uint8_t c = 0; c < rtso::CIV_COUNT; ++c)
-		if (rtso::is_playable_civ(c) && rtso::tech_available_to_civ(tid, c)) civs.push_back(String(rtso::civ_info(c).name));
+		if (rtso::is_playable_civ(c) && rtso::civ_structures_offer_tech(tid, c)) civs.push_back(String(rtso::civ_info(c).name));
 	d["civs"] = civs;
 	d["civ"] = civ;
 	// Technologies this one unlocks (their prerequisite) and the units it unlocks.
