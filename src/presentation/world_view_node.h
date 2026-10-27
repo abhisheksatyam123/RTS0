@@ -582,6 +582,8 @@ public:
 	const rtso::FogMirages &fog_mirages() const { return mirages_; } // the viewed player's, kept every frame
 	std::vector<uint8_t> export_fog_memory() const { return mirages_.export_memory(); } // a saved game's GUI data
 	bool import_fog_memory(const uint8_t *data, size_t n) { return mirages_.import_memory(data, n); }
+	// An observer or replay viewer keeps every player's fog memory (FogMirages::set_track_all).
+	void set_track_all_fog(bool on) { mirages_.set_track_all(on); }
 	void set_highlight_ids(const PackedInt32Array &ids) {
 		highlight_set_.clear();
 		for (int i = 0; i < ids.size(); ++i) highlight_set_.insert(ids[i]);
