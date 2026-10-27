@@ -187,18 +187,37 @@ func run() -> void:
 		and str(row[at + 1].tooltip_text).ends_with(" Diplomacy") and str(row[at + 2].tooltip_text).ends_with(" Barter & Trade")
 		and str(row[at + 3].tooltip_text).ends_with(" Match Settings") and str(row[at + 1].tooltip_text).contains("[color="),
 		"Game Speed, then Diplomacy, Barter & Trade, Match Settings with coloured hotkeys: " + str(row[at + 1].tooltip_text if at >= 0 and at + 1 < row.size() else ""))
+	# GameSpeedControl: the button toggles the gameSpeed ModernDropDown at 100%-390 40 100%-230 65,
+	# showing the speed in use; picking a speed keeps it up.
+	speed.pressed.emit()
+	await frames(2)
+	var dd: Control = main.find_child("GameSpeedDropdown", true, false)
+	var vw: float = root.get_visible_rect().size.x
+	check(dd != null and dd.visible and dd.get_global_rect().position.is_equal_approx(Vector2(vw - 390, 40)) and dd.size.x == 160.0 and dd.size.y >= 25.0
+			and dd.tooltip_text == "Choose game speed" and dd.get_item_text(dd.get_selected()) == "Normal (1×)",
+			"the speed button opens the game speed dropdown: " + (str(dd.get_global_rect()) + " " + dd.get_item_text(dd.get_selected()) if dd else "none"))
+	if dd:
+		var fast := -1
+		for i in dd.get_item_count():
+			if dd.get_item_text(i).begins_with("Very Fast (1.5"):
+				fast = i
+		dd.item_selected.emit(fast)
+		await frames(1)
+		check(is_equal_approx(main.get_game_speed(), 1.5) and dd.visible, "picking Very Fast sets 1.5× and the dropdown stays")
+		main.set_game_speed(1.0)
+		speed.pressed.emit()
+		await frames(1)
+		check(not dd.visible, "the button hides it again")
 	var mb: Button = null
 	# BuildLabel: the release line over the build string; no clock or phase in the bar.
 	var bl: Label = main.find_child("BuildLabel", true, false)
 	check(bl != null and bl.text.begins_with("Release XXVIII: Boiorix\nBuild: "), "the top panel's build label: " + (bl.text.replace("\n", " | ") if bl else ""))
 	check(bl != null and bl.visible and bl.anchor_left == 0.5 and bl.offset_left == 44.0 and bl.offset_right == -283.0,
 		"at BuildLabel.SizePlayer while a player is viewed with no view dropdown")
-	# CounterResource.rebuild: the name, then the resource's description.
-	var food_tip := ""
-	for c in main.find_children("*", "Control", true, false):
-		if str(c.tooltip_text).begins_with("Food\n"):
-			food_tip = c.tooltip_text
-	check(food_tip.begins_with("Food\nHarvest from animals, berry bushes, fish, or fields."), "the food counter's tooltip: " + food_tip.replace("\n", " | "))
+	# CounterResource.rebuild: the name in ResourceTitleTags (sans-bold-16), then the resource's description.
+	var food: Control = main.find_child("Resource0", true, false)
+	var food_tip: String = food.tooltip_text if food else ""
+	check(food_tip.begins_with("[font_size=16][b]Food[/b][/font_size]\nHarvest from animals, berry bushes, fish, or fields."), "the food counter's tooltip: " + food_tip.replace("\n", " | "))
 	# OverlayCounterElapsedTime: the simulation's clock, whole 50 ms ticks.
 	var el: float = main.get_overlay_times()["elapsed"]
 	check(el > 0.0 and absf(el * 20.0 - roundf(el * 20.0)) < 0.001, "the match clock counts simulation ticks: %.3f" % el)

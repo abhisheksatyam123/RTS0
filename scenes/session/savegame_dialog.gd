@@ -32,6 +32,7 @@ const Mods := preload("res://scenes/menu/mods.gd")
 const GOLD := Color(0.9, 0.75, 0.31)
 const INCOMPATIBLE := Color8(96, 96, 96)
 const COLUMNS := [["date", "Date / Time", 24], ["mapType", "Map Type", 21], ["mapName", "Map Name", 33], ["description", "Description", 22]] # load.xml widths
+var _bold: FontVariation = preload("res://scenes/session/summary_screen.gd").bold_font() # sans-bold
 
 var mode := "load" # "save" or "load"
 var game: Node = null # RtsoMain, or null in the main menu
@@ -242,7 +243,7 @@ func _show_details(s: Dictionary) -> void:
 	if m.get("mods") is Array:
 		mods_text = ", ".join((m.mods as Array).map(func(x) -> String: return Mods.mod_to_string(x) if x is Dictionary else ""))
 	labels.version.text = L10n.sprintf(L10n.t("Mods: %(mods)s"), {"mods": mods_text})
-	labels.version.add_theme_color_override("font_color", Color.WHITE if s.compatible else Color.ORANGE)
+	labels.version.add_theme_color_override("font_color", Color.WHITE if s.mods_ok else Color.ORANGE)
 	players_text.text = ReplayPage.player_info(s, true)
 
 # --- Actions (SavegameLoader.js, SavegameWriter.js, SavegameDeleter.js) ---------------
@@ -443,7 +444,7 @@ func _info_row(parent: VBoxContainer, caption: String, key: String) -> void:
 
 func _build() -> void:
 	var bg := ColorRect.new() # BackgroundTranslucent
-	bg.color = Color(0, 0, 0, 0.6)
+	bg.color = Color8(0, 0, 0, 85) # common/sprites.xml: 0 0 0 85
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	var center := CenterContainer.new()
@@ -480,11 +481,11 @@ func _build() -> void:
 	list.hide_root = true
 	list.select_mode = Tree.SELECT_ROW
 	list.allow_reselect = true
-	list.add_theme_font_size_override("font_size", 13)
-	var sel := StyleBoxFlat.new()
-	sel.bg_color = Color(0.35, 0.28, 0.12, 0.9)
-	list.add_theme_stylebox_override("selected", sel)
-	list.add_theme_stylebox_override("selected_focus", sel)
+	# ModernSortedList: sans-bold-stroke-14, the modern theme's white-edged selection.
+	list.add_theme_font_override("font", _bold)
+	list.add_theme_font_size_override("font_size", 14)
+	list.add_theme_color_override("font_outline_color", Color.BLACK)
+	list.add_theme_constant_override("outline_size", 3)
 	for c in COLUMNS.size():
 		list.set_column_expand(c, true)
 		list.set_column_expand_ratio(c, COLUMNS[c][2])
@@ -496,9 +497,17 @@ func _build() -> void:
 		# Clicking below the saves picks a new save again.
 		list.empty_clicked.connect(func(_p, _b): select_save(-1))
 	list_box.add_child(list)
+	# ModernLabelText in 20 12 100%-20 100: centred both ways.
 	feedback = _label("No saved games found.", 14)
 	feedback.name = "GameSelectionFeedback"
-	feedback.position = Vector2(12, 36)
+	feedback.add_theme_font_override("font", _bold)
+	feedback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	feedback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	feedback.anchor_right = 1.0
+	feedback.offset_left = 20
+	feedback.offset_top = 12
+	feedback.offset_right = -20
+	feedback.offset_bottom = 100
 	list_box.add_child(feedback)
 	description = LineEdit.new()
 	description.name = "SaveGameDesc"
@@ -563,8 +572,11 @@ func _build() -> void:
 	_info_row(valid, "Map Size:", "size")
 	_info_row(valid, "Victory:", "victory")
 	valid.add_child(HSeparator.new())
-	var version := _label("", 13)
+	var version := _label("", 14) # ModernLeftLabelText: sans-bold-stroke-14
 	version.name = "SavedMods"
+	version.add_theme_font_override("font", _bold)
+	version.add_theme_color_override("font_outline_color", Color.BLACK)
+	version.add_theme_constant_override("outline_size", 3)
 	valid.add_child(version)
 	labels["version"] = version
 	valid.add_child(HSeparator.new())
@@ -572,8 +584,8 @@ func _build() -> void:
 	players_text.name = "SavedPlayersNames"
 	players_text.bbcode_enabled = true
 	players_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	players_text.add_theme_font_size_override("normal_font_size", 13)
-	players_text.add_theme_font_size_override("bold_font_size", 13)
+	players_text.add_theme_font_size_override("normal_font_size", 14) # MapPlayerList: sans-14
+	players_text.add_theme_font_size_override("bold_font_size", 14)
 	valid.add_child(players_text)
 
 

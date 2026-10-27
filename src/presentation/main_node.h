@@ -412,7 +412,7 @@ public:
 	// Engine.HasXmppClient: a game started from the lobby screen.
 	bool has_lobby_client() const; // Engine.HasXmppClient: signed in to the lobby
 	void open_lobby_page(); // MenuButtons Lobby: page_lobby.xml with {"dialog": true}
-	PopupMenu *speed_menu_ = nullptr;
+	RtsoSafeSelect *speed_menu_ = nullptr; // GameSpeedControl's gameSpeed dropdown
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
 	void _on_remove_guard_pressed();
@@ -1037,6 +1037,8 @@ private:
 	void notify_attack(Vector3 pos, uint8_t attacker, bool structure, uint32_t target = 0);
 	void _on_chat_line_input(const Ref<InputEvent> &event, const String &action);
 	Array debug_chat_overlay() const { return chat_window_.overlay_state(); }
+	// ChatHistory's lines as the history page draws them (BBCode).
+	String debug_chat_history() const { return chat_window_.history(); }
 	// Tests: the camera's target on the ground and the unit it follows.
 	Dictionary debug_camera() const {
 		Dictionary d;

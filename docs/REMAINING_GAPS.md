@@ -39,10 +39,12 @@ This is every gap still open after the third whole-game re-check (triggers/remai
 | G54 | Session sounds (Session UI pass 19, static against 0.28 gui/ and default.cfg): hotkeys: 174 of 178 act; screenshot.watermark and profile2.toggle are kept out (G21), console.toggle has no console, session.queueunit.8 is unused in 0.28 too, and a held Delete fires once (deliberate, no stacked confirmations). UI sounds: nick, setup-join, flare, no-idle and invalid-placement alerts and the music match; ~~session dropdowns are silent when their list closes unpicked~~ (fixed: sound_closed, a pick and close in one frame click once, `tools/e2e_ui_click_sound.gd`). ~~the dayscape ambient fades with camera height (-12 to -28 dB) where 0.28 plays it at a constant sound.ambientgain, and RTS0 adds wind and coastal water loops 0.28 lacks~~ (fixed, pass 22: Ambient.js's one loop at 0.6 beside actions' 0.7, `tools/e2e_match_sounds.gd`). ~~clicks sound on every button rather than only 0.28's styled ones~~ (fixed, pass 23: every 0.28 session button but MiniMap.xml's idle worker, diplomacy colours and flare buttons and the pause overlay has a sounding style, and those four are now silent; `tools/e2e_ui_click_sound.gd`). | low | Session UI |
 | G55 | Formation control (B pass 6, `docs/archive/B_AUDIT_028_PASS6.md`): ~~members are spaced by twice their collision radius, not 0.28's Footprint (cavalry 3x6 m, elephants 4.5x9 m, rams 8x12 m); a formation garrisons by walking in shape to the holder where 0.28's members walk one by one~~ (fixed: Formation.js GetAvgFootprint from each template's Footprint, `tools/extract_0ad_motion.py`, a slot never narrower than the unit's own width since RTS0's units are wider than their 0.28 footprint; GARRISON.GARRISONING hands the members their orders at once; test_formations 4c and 14). Nothing left open. | low | B |
 | G56 | Barter & Trade dialog (Session UI pass 25, static against 0.28 gui/session/trade): ~~every caption, tooltip and trader line is English-only (0.28: "Sell %(resource)s", the InstructionsTooltip and TradeSwapTooltip, translatePlural trader lines); the help tooltips' hotkeys are plain "[Shift]" (colorizeHotkey); it opens while viewing no player (TradeDialog.open returns), and a defeated viewer or observer gets live buy buttons (controlsPlayer)~~ (fixed: `tools/e2e_trade_dialog.gd` 6-7) | low | Session UI |
-| G57 | ~~Phone screen edges: on iPhones Godot 4.3 draws under the notch and the home indicator in landscape, so the top bar's ends and the bottom panels can sit under them~~ Closed 2026-10-22 (T27): session panels query `DisplayServer::get_display_safe_area()` on init and resize; top HUD bar, bottom panels (minimap and command/queue), and chat overlay inset dynamically (`src/presentation/main_node.cpp`, `tools/e2e_safe_insets.gd` PASS) | medium (iOS) | Device builds |
+| G57 | Phone screen edges: ~~on iPhones Godot 4.3 draws under the notch and the home indicator in landscape~~ (fixed: `scenes/common/safe_area.gd` moves every edge-hung panel in by `DisplayServer.get_display_safe_area()`, checked with a simulated 132/132/63 px iPhone 13 notch in screenshots and `tools/e2e_touch_match.gd -- --safe-area=60,0,60,30`; Android letterboxes the cutout). Still to see on a real iPhone | low (iOS) | Device builds |
 | G58 | Area D pass 7, Petra unit choice and rosters against 0.28 (StartEntities, Trainer lists, gather rates, RunMultiplier and the class bits checked and matching): ~~queued worker batches shrink every turn instead of on trainMoreWorkers' turn~~ (fixed: `test_worker_plans_wait`), ~~once addSiegeUnits fixed the siege class, losing its trainer switches the plan to another class where 0.28 deletes the order, and the main plan's trainer check skips no map-disabled template~~ (fixed: `test_siege_class_kept`); ~~the Briton war dog is FastMoving but not Cavalry, and Petra reads FastMoving from Cavalry, so it never raids or stays as one of the two kept hunters; TrainingPlan.start's +10 s goes to every Civic trainer of a non-Support unit (temples, wagon encampments, military colonies) and its +50 s near an invading army to every Support unit (healers, traders), RTS0 only to civic centres and gatherer civilians~~ (fixed: `test_g58_wardog_and_trainer_timings`). Nothing left open. | low | D |
 | G59 | Chat window and Match Settings (Session UI pass 26, static against 0.28 chat_window.xml, ChatWindow.js, MatchSettingsDialog.xml): ~~the chat window is a flat translucent box of stacked rows (10-11 px labels, a "Type message..." placeholder, plain Godot buttons and tick box), always 432 px wide; picking History, an addressee or a filter leaves the input unfocused; Match Settings is a flat box with a plain Close~~ (fixed: genericPanel, every widget at chat_window.xml's size in ModernDropDown, ModernInput, ModernTickBox and ChatPanel with StoneButton buttons (`scenes/common/stone_theme.gd` session_theme), resizeChatWindow's golden-ratio width with the history shown, onSelectionChange and extendedChat focus the input; ModernDialog, ModernDarkBoxGold and a StoneButton Close; `tools/e2e_chat_window.gd`) | low | Session UI |
 | G60 | Selection overlays (Rendering, static against 0.28 CCmpSelectable and the templates' Selectable): ~~every unit's overlay is one plain round ring about 1.75 times 0.28's size; 0.28 draws each template's texture (an ellipse, champions' arrow, heroes' star, healers' plus, siege's rounded rectangle, warships' cartouche) over its footprint, turned with the unit, as a white-edged band in the owner's colour, and heroes keep their star unselected (a third desaturated, 0.65 alpha)~~ (fixed: `tools/extract_0ad_selectable.py`, 0.28's selection textures); ~~hovered mines, fruit, fish and treasures get the ellipse where 0.28 draws its Outline line round the footprint; ships' overlays land on the sea bed under the water, not on the water (0.28 takes the higher of ground and water); no 0.3 s fade in and out (FADE_DURATION)~~ Closed: 0.3s QuartOut fade in and out on selection and hover overlays (`update_overlay_fade`), ships' overlays projected at water surface height `max(terrain, water_height)` via `water_mesh_node` decal layer mask & mesh sampling, gaia resources given accurate footprint radii (tree 2.5m, fruit 3m, fish 10m, ore/rock 5m), and treasures given square footprint outline (2x2m turned by treasure angle) | low | Rendering |
+| G61 | Tutorial panel (Session UI pass 27, static against 0.28 tutorial_panel.xml): ~~a 620 x 190 flat box with a gold frame at y 40, 13 px text and a plain Ready button~~ (fixed, #1552: ModernFade (0 0 0 85) at 50%-380 38 50%+380 292, the instructions in a TutorialPanel box (ModernDarkBox, gold edges, white 14, buffer_zone 8) at 10 10 100%-20 100%-48, the warning at 10 100%-42 100%-20 100%-12 and a ModernButtonRed Ready at 100%-160 100%-42 100%-20 100%-12; `tools/e2e_tutorial.gd`; this row, first G60, was lost in a later merge and is restored here). The text sits at the top of its box rather than centred (text_valign center), as Godot 4.3's RichTextLabel has no vertical alignment | low | Session UI |
+| G62 | Research progress column (Session UI pass 28, static against 0.28 ResearchProgress.xml/.js and session/sprites.xml): ~~the buttons are Godot's default buttons, the progress slider is dark (0.28 queueProgressSlider: 0 255 0 128), the time is 12 px and rounds up (FormatMillisecondsIntoDateStringGMT rounds down; iconButtonProgress: sans-stroke-14)~~ (fixed: iconButton's snIconPortrait frame, add_color 42 on hover; `tools/e2e_research_progress.gd`). The column starts 58 px down (0.28: 40) under RTS0's taller top panel, as PanelEntities does | low | Session UI |
 
 Closed since re-check 3 (2026-10-15): G1 (large units' long paths keep out of woods too tight for them, #1086) and the rows below.
 
@@ -76,9 +78,9 @@ Checked and matching: Gate.js open, lock and pass rules, the wall-to-gate upgrad
 
 Fixed: supply wagons lock and share as dropsites (#1307, save v103); animals in explored fog stay pickable and huntable as RetainInFog (#1319); a double-click matches SelectionGroupName, a Ctrl+click on nothing or a Shift+click on a foreign entity keeps the selection, and the wounded filter takes livestock (#1331). Left: ~~a turret leave ignores Footprint.PickSpawnPoint on walls, gates and outposts~~ (fixed by Unit orders, #1330); trickles pay on a shared 2 s grid rather than each structure's own timer (ResourceTrickle.js; same averages, needs a save, not planned).
 
-### A's eighth to fifteenth 0.28 passes (2026-10-21)
+### A's eighth to sixteenth 0.28 passes (2026-10-21)
 
-Fixed: control groups snap to and keep every member, structures sort as 0.28's selection panel, idle builders cycle (#1341); walls start only on a placeable tower, price only placeable pieces, and a no-length click ends placement (#1349); Shift-placed buildings queue for their builders, Alt orders the first able unit, control groups keep every structure, formations select as one (#1413); a right-click only drops an armed action, an unusable click ends it (minimap too), allies, neutrals and non-builders get a walk, Shift and Ctrl keep selected structures, no rally on the structure itself, hotkey cursors first (#1436); healers and defensive units use their modified vision (#1464); pass 12 (trade): a market click is a lockstep command, so each trader keeps its first market (Trader.markets), walks to it and can cancel it, Shift-queued walks before the second market become the route (UnitAI expectedRoute), markets rally traders to docks, merchant ship gains count the traders aboard and "is first/second" show the carried goods, international bonus adds come after the multipliers (#1497); pass 13 (walls and gates): Ctrl+right-click on a wall no longer converts it to a gate and Ctrl over walls is a walk (turrets need session.occupyturret), a wall short of resources says "Insufficient resources", one tower previews before the first click (snapping onto own towers, no rotation), the wall tooltip adds build time and "Cannot build wall here!" stays while the spot is invalid, mixed long/medium pieces hide the Upgrade panel, a locked gate blocks paths only once shut, others' gates show disabled Lock/Unlock (#1508); pass 14 (selection): a click takes the unit nearest the cursor whoever owns it (no swap for an own unit beside an enemy), whole-map observers and replay viewers can select any player's units, the select sound plays only for what was added and in its voice, a multi-selection drops entities that changed owner, double-click takes own livestock of a kind, one box filter (the last held) applies, hover rings the whole formation, a garrisoned hero's panel icon selects its holder and the field hero is followed (#1520); pass 15 (gathering): a worker turned away from a full supply finishes its order like 0.28's UnitAI (its queued orders run next; with nothing queued it looks near for the same kind as the supply, not what it carries) instead of idling, the search counts gatherers on every land supply, and the retarget is no longer forced (this PR). ~~Open (Rendering): selection rings in the owner's colour, not green/red~~ (fixed: owner-coloured rings PR). Kept: gates open from 6 m, not 0.28's 2 m (tick_gates PASS_RANGE, steering). Checked and matching in pass 11: vision techs and auras, Cartography, mirages, gates, wall upgrades, barter, tribute, dropsites, loot, trickle rates, territory decay. Left: none in these areas.
+Fixed: control groups snap to and keep every member, structures sort as 0.28's selection panel, idle builders cycle (#1341); walls start only on a placeable tower, price only placeable pieces, and a no-length click ends placement (#1349); Shift-placed buildings queue for their builders, Alt orders the first able unit, control groups keep every structure, formations select as one (#1413); a right-click only drops an armed action, an unusable click ends it (minimap too), allies, neutrals and non-builders get a walk, Shift and Ctrl keep selected structures, no rally on the structure itself, hotkey cursors first (#1436); healers and defensive units use their modified vision (#1464); pass 12 (trade): a market click is a lockstep command, so each trader keeps its first market (Trader.markets), walks to it and can cancel it, Shift-queued walks before the second market become the route (UnitAI expectedRoute), markets rally traders to docks, merchant ship gains count the traders aboard and "is first/second" show the carried goods, international bonus adds come after the multipliers (#1497); pass 13 (walls and gates): Ctrl+right-click on a wall no longer converts it to a gate and Ctrl over walls is a walk (turrets need session.occupyturret), a wall short of resources says "Insufficient resources", one tower previews before the first click (snapping onto own towers, no rotation), the wall tooltip adds build time and "Cannot build wall here!" stays while the spot is invalid, mixed long/medium pieces hide the Upgrade panel, a locked gate blocks paths only once shut, others' gates show disabled Lock/Unlock (#1508); pass 14 (selection): a click takes the unit nearest the cursor whoever owns it (no swap for an own unit beside an enemy), whole-map observers and replay viewers can select any player's units, the select sound plays only for what was added and in its voice, a multi-selection drops entities that changed owner, double-click takes own livestock of a kind, one box filter (the last held) applies, hover rings the whole formation, a garrisoned hero's panel icon selects its holder and the field hero is followed (#1520); pass 15 (gathering): a worker turned away from a full supply finishes its order like 0.28's UnitAI (its queued orders run next; with nothing queued it looks near for the same kind as the supply, not what it carries) instead of idling, the search counts gatherers on every land supply, and the retarget is no longer forced (#1549); pass 16 (vision and dropsites): the nearest-dropsite search (Call to Arms, a drop-off before the next order, an idle gatherer's congregate) takes supply wagons and worker elephants too, sharks and the Argo show only in sight (RetainInFog false), and the minimap hides trained livestock and sharks outside sight as the world view does (this PR). ~~Open (Rendering): selection rings in the owner's colour, not green/red~~ (fixed: owner-coloured rings PR). Kept: gates open from 6 m, not 0.28's 2 m (tick_gates PASS_RANGE, steering). Checked and matching in pass 11: vision techs and auras, Cartography, mirages, gates, wall upgrades, barter, tribute, dropsites, loot, trickle rates, territory decay. Left: none in these areas.
 
 ### Rendering, fifth 0.28 pass (2026-10-19)
 
@@ -221,7 +223,7 @@ Pack, flee, stances, turrets and ship ejection against UnitAI.js, Pack.js, Garri
 | SD7 | The player band is 20 px with the whole emblem tinted grey and the phase emblem squeezed to 44x16; 0.28's is 24 px with the emblem's centre strip in greyscale and the phase emblems across the band. | low | Fixed: 24 px band, playerCivIcon's centre strip in greyscale under the colour, phaseEmblems across the band, the name in bold 14 |
 | SD8 | Demetrius' Besieger left out its Attack/Ranged/MaxRange multiply 1.1: his siege engines reached no further. | medium | Fixed: MaxRange factors in `range_add_range_auras` (`extract_0ad_aura_modifiers.py`), applied before the added metres in `attack_reach` (`tools/test_combat.cpp` 18) |
 | SD9 | A captured Hellenic epic temple (Greek Acropolis) or the campaign sanctuary healed nobody; both inherit template_structure_civic_temple's temple_heal. | low | Fixed (`rebuild_auras`, `tools/test_combat.cpp`) |
-| SD10 | Auras are rebuilt every 0.4 s of sim time; 0.28's range queries follow units each 200 ms turn, so a moving hero's auras reach and leave units up to a turn later. | low | Open: Compare (changes the sim hash) |
+| SD10 | Auras are rebuilt every 0.4 s of sim time; 0.28's range queries follow units each 200 ms turn, so a moving hero's auras reach and leave units up to a turn later. | low | Fixed: `tick_gather` rebuilds them on each turn's first tick (bench_late 8 Petra 40 min: 6.50 -> 6.63 ms a turn) |
 
 ### Aura icons, fogged selections and structure tooltips: Compare's eleventh 0.28 pass (2026-10-20)
 
@@ -420,6 +422,34 @@ researchManager.js (update, checkPhase, the wanted/preferred/random picks) and t
 
 Checked and matching: the wanted and preferred tech filters and their order, the cheap-pick priority boost and the paused minorTech queue. Not yet traced: the dock water test (getDockAngle, checkDockPlacement) and defensive placement falling back to ally structures.
 
+### Structure and technology tooltips, twentieth 0.28 pass (2026-10-21)
+
+gui/common/tooltips.js and selection_panels_helpers.js against RTS0's construction, research, training and selected-structure tooltips. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| TT1 | A foundation's detailed tooltip and portrait showed the finished structure's attack, garrison, loot, population bonus and auras; 0.28's foundation template keeps only Resistance | medium | Fixed |
+| TT2 | The entity-limit lines named only changers that were built, multiplied by how many, and never the unit ones; 0.28 lists each LimitChanger with its template value ("Ashoka enlarges the limit with 5.") | medium | Fixed |
+| TT3 | The wall construction button left out the long wall's Wall Protection aura | low | Fixed |
+| TT4 | "Dropsite for:" listed resource names, and it and "Turret Positions" weren't in the header font; 0.28 shows resource icons | low | Fixed |
+| TT5 | The selected-structure detailed tooltip is plain text (no header font, unit words or icons) and indents its Attack and Resistance blocks 2 spaces, not g_Indent's 4 | nit | Open |
+| TT6 | The wall-dragging cost tip is a plain Label: "Cost: Stone 36" without the header font or icons | nit | Open |
+| TT7 | "Requires ..." from a unit trainer shows only the generic name, not "Specific (Generic)"; no case found in the current rosters | nit | Open |
+
+### Defensive structures and Petra's use of them, twenty-first 0.28 pass (2026-10-27)
+
+BuildingAI.js, GarrisonHolder/TurretHolder, Capturable and TerritoryDecay against RTS0's structure runtime (matching), and headquarters.js buildDefenses/findDefensiveLocation, defenseManager.js and garrisonManager.js against Petra's. Owner: E (placement); garrisons and focus fire to their owners.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| DS1 | Petra keeps healed female citizens garrisoned: garrisonManager.js:317 releases units with a Melee attack (women have a Dagger) at 70% health; RTS0 tests the Melee class | medium | Open (Petra garrisons) |
+| DS2 | Petra treats war elephants as ordinary units when garrisoning against an attack; entityExtend.js isSiegeUnit counts Elephant+Melee as siege (garrison only ranged soldiers) | medium-low | Open (Petra garrisons) |
+| DS3 | An enemy tower or fortress alone doesn't make Petra garrison its tower or civic centre (defenseManager.js:569-579, 692-693) | low-medium | Open (Petra defense) |
+| DS4 | findDefensiveLocation took any frontier cell of ours; 0.28 takes only cells a base of ours holds on its anchor's land (baseAtIndex), so no towers across a river or on an islet | low-medium | Fixed |
+| DS5 | Towers and fortresses were searched for a spot before queueing and retried after 90 s (every 3rd turn for a first stone tower); 0.28 queues the plan, searches at start, and with no spot marks it unbuildable for 90 s while the lapse runs from queue time | low | Fixed |
+| DS6 | An enemy whose only civic centre, tower or fortress is a foundation let Petra fall back to neutral or allied structures; in 0.28 the foundation blocks the fallback | nit | Fixed |
+| DS7 | Focus fire refuses enemy players' livestock; BuildingAI.js:275-285 accepts any enemy entity in range (RTS0's automatic arrows already shoot them) | nit | Open (focus fire) |
+
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 
 BuildingAI.js, Attack.js and DelayedDamage.js against the arrow code, measured in the simulation and against a Python port of FireArrows: arrow counts with garrisons, auras and technologies (civic centre 6-26, tower 4-9, fortress 10-30), the 20 rounds per RepeatTime and their rounding, the first volley PrepareTime after a target enters, the paused round when targets leave, target order (preference, then distance, every arrow of a round on the first), what is shot (enemies, structures with Health, livestock, Gaia that can fight back), visibility, MinRange from the footprint, foundations, ownership changes, spread and stray hits all match. Owner: E.
@@ -601,7 +631,107 @@ The replay menu (gui/replaymenu), the session in replay mode (PlayerViewControl,
 
 Kept on purpose: a replay still can't be saved ("A replay can't be saved."), though 0.28's Save button doesn't check for one (sixth pass). Not worth changing: replays aren't kept in a per-engine-version folder (other versions are listed greyed out, hidden by the default compatibility filter), and the replay list is re-read rather than cached in replayCache.json (same list, slower on huge folders). Checked and matching: the columns, widths, colours and default sort, every filter and its options, the details rows and team-grouped player list, the Start/Delete states, double-click, Rebuild Cache, the 3 s minimum, the summary round trip, the Observer start and view dropdown, the Fast Forward speeds, pause, and the end and Out of Sync boxes.
 
+### Statistics counters, overlay and lobby rating report, tenth 0.28 pass (2026-10-21)
+
+Every StatisticsTracker caller re-checked against the paths added since the fifth pass (planes, wagon trains, relics, the Imperial Minister, captured trainers, Regicide heroes, map-start wonders, upgrades, autoqueue, floods), and the overlay counters (main 1fb3510c5). Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| SC1 | A plane shot down counted as Siege (its roster type is the bolt shooter's); units/plane's parent is template_unit, so 0.28 counts it in Units Total only | low | Fixed |
+| SC2 | The overlay counters sat at y 71, 17 px under the top panel (which ends at 54), and the research column (58 + the counter's height) overlapped them; 0.28's dataCounter is 4 px under its panel with the research column right below it | low | Fixed: 58 |
+| SC3 | A kill by an arrow, splash or status effect credited the attacker's owner when it attacked; Health.KilledBy credits the attacker's owner when the victim dies, if it still exists (a tower captured while its arrow flew) | low | Fixed |
+| SC4 | The lobby's game rating counted a player whose name carried no rating at their current lobby rating; Game.js uses only the rating in the joined name, else 1200 | low | Fixed |
+| SC5 | A client saw the Rated Game box only while it was ticked; Rating.js hides it only while a rated game isn't available, so a client sees it locked either way | low | Fixed |
+
+The lobby rating report was checked against LobbyRatingReporter.js and its Players, Score, Misc, Resources, Units and Buildings builders: every key, the comma-joined per-player values with Gaia left out, the scores, and who reports (no observers, replays or unrated games) match. Kept on purpose: RTS0's lobby is its own HTTP server, not an XMPP bot, so the report adds "players" and a token and its matchID is built from the seed, map and names; it is sent once, when the local seat has won or been defeated, which in a 1v1 is the same moment 0.28's playersFinished sends it. Checked and matching: the unit and structure class lists, upgrades never counting as constructed, map-placed structures and heroes never counting, wagons and the Minister in Units Total only, ships and traders, every training path (captured trainers, autoqueue, merc camps, cheats), livestock as Domestic only, relic captures, structure captures and decay, deaths with no killer (garrisons, deletion, floods, defeat), structure arrows, treasures, and the overlay's order, formats and refresh.
+
 Stuck units (taken from Migrate's queue, 2026-10-20): in 4-Petra soaks the units that held an order on an impassable navcell and moved under 1 unit in 60 s, past the gatherers working beside their tree, were builders walled in by their own Petra's houses against a shore (Lake seeds 6 and 8). RTS0's Petra laid houses edge to edge on its 8 m grid (petra_clearance 0); 0.28's findGoodPosition keeps every obstruction cell within ceil(obstructionRadius.max / cellSize) of a house's centre clear (queueplanBuilding.js:336), so its houses stand about 5 m apart. Houses now keep a one-cell ring, the nearest grid step (an 8 m alley, as RTS0's houses are half 0.28's size, Y1): 8 soaks (African Plains and Lake, seeds 5-8, 15 min) go from 2 walled-in units to 0, and Continental phase timing (4 seeds, 20 min) is unchanged within noise. The one-navcell slit trap Migrate saw on Deep Forest seed 11 near (-101.6, 40.9) does not reproduce on current main (seeds 10-12, 15 min): the only long stalls left were riders dancing among trees for about 60 s before walking free, and after Migrate's corner dance fix (#1518) Deep Forest seeds 10-15 (15 min) report no stuck units at all, so no per-step tree test was added.
+
+### Session top panel, tooltips and chat, eleventh 0.28 pass (2026-10-27)
+
+The session's top panel, resource and population tooltips, civ icon and chat window checked against 0.28's top_panel/*.js, Counters.xml, CounterManager.js and chat/*.js (main ec1921af7). Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| TP1 | The counters were icon, count and gatherers side by side with gaps, the count in regular 14 and the gatherers in 11; Counters.xml has 73 px slots that touch, a 36 px icon at 2 0, the count (white sans-bold-stroke-14) at 33 4 and the gatherers (sans-bold-stroke-13) under it at 33 20 | medium | Fixed |
+| TP2 | The Diplomacy, Barter & Trade and Match Settings buttons (and Game Speed) sat right after the counters; 0.28 places them at the right, next to the menu button | low | Fixed |
+| TP3 | The resource and population tooltip titles were plain; ResourceTitleTags sets them in sans-bold-16 | low | Fixed |
+| TP4 | The allies' stat rows showed the bare name in plain text with a plain "[Click]"; getAllyStatTooltip puts a "■" in the player's colour before the name, the rows in sans-bold-stroke-14 and "[Click]" in the hotkey colour | low | Fixed |
+| TP5 | The civ icon tooltip had a plain civ name and the bare first key of each hotkey; CivTags set the name in sans-bold-16 and colorizeHotkey shows every key in gold brackets, "Unassigned hotkey: civinfo" when none | low | Fixed |
+| TP6 | The chat overlay sat at 16 114 in regular 13; session.xml's chatPanel is at 3 131 down to 100%-240, in chatPanelOverlay's sans-bold-stroke-14 | low | Fixed |
+| TP7 | The chat history's "[HH:mm]" was grey; ChatHistory prints it in the history's own colour | nit | Fixed |
+| TP8 | A bare "/allies" (or /enemies, /observers) left the chat window open with the command typed; submitChatInput sends nothing but still closes the page and clears the input | low | Fixed |
+
+### Minimap and selection panel tooltips, twelfth 0.28 pass (2026-10-27)
+
+The minimap buttons and the selection panels' tooltips and buttons checked against 0.28's minimap/*.js, MiniMap.xml, selection_panels.js and the selection_panels_* XML (main 223a0e7af). Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| MM1 | The idle worker, Diplomacy Colors and flare tooltips led with the bare first key; colorizeHotkey shows every key in gold brackets, "Unassigned hotkey: …" when none | low | Fixed |
+| MM2 | The flare button took the panel's bottom-anchored tooltip; MiniMap.xml gives it sessionToolTip | nit | Fixed |
+| MM3 | The idle worker count was regular text; totalNumberIdleWorkers is sans-bold-stroke-14 | nit | Fixed |
+| MM4 | The idle worker button acted on release; MiniMapIdleWorkerButton uses onMouseLeftPress | low | Fixed |
+| MM5 | A replay's disabled flare button still had a tooltip; MiniMapFlareButton sets none in a replay | nit | Fixed |
+| MM6 | The alert buttons' second line was bold; selection_panels.js wraps it in bodyFont | nit | Fixed |
+| MM7 | A queued batch short of room said "Population N" in plain text; 0.28 puts "Insufficient population capacity:" in objectionFont and shows the population icon | low | Fixed |
+| MM8 | Selection group icons ended their tooltip with a click help line 0.28 does not have | low | Fixed |
+| MM9 | Selection group tooltips were regular; unitSelectionButton uses sessionToolTipBold (and the garrison icons sessionToolTipBottomBold) | nit | Fixed |
+| MM10 | Formation buttons were 26 px with a gold star on the default; formation_panel.xml has 38 px buttons with the 32 px icon at 3 3, greyed when unavailable, corners.png on the formation in use and upgrade.png on the default | low | Fixed |
+| MM11 | Formation names, descriptions and default-formation lines were not translated | nit | Fixed |
+
+### Single selection details and stat tooltips, thirteenth 0.28 pass (2026-10-27)
+
+The single selection's bars, captions and tooltips checked against 0.28's selection_details.js, single_details_area.xml, sprites.xml and common/tooltips.js (main 6c94b0e53). Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| DP1 | The health bars were light green on slate with rounded ends; sprites.xml draws green (0 128 0) on red in a 1 px black 128 barBorder under statsBarShader's lighting (the single and the multiple selection's) | low | Fixed |
+| DP2 | The resource bar was gold on slate; resourceForeground is orange on darkgray | nit | Fixed |
+| DP3 | The experience bar was gold on slate; experienceForeground is white on darkgray, with the border and lighting | nit | Fixed |
+| DP4 | The stat tooltips (attack, resistance, healer, speed, gather, garrison, projectiles, trickle, loot, reward, auras, status effects, build and repair time, health and capture) had no fonts: 0.28 sets their labels and weapon names in headerFont, damage types, status names and units in orange unitFont, the separators in commaFont, the class list and aura descriptions in bodyFont, and "Experience:" in sans-bold-13 | low | Fixed |
+| DP5 | Detail lines were indented 2 spaces and status and splash lines 4; g_Indent is 4 and those lines take two | nit | Fixed |
+| DP6 | Loot, Reward, Resource Trickle and the selection's Carrying named their resources; 0.28 shows the resource icons (the xp loot keeps its name: RTS0 has no xp icon) | low | Fixed |
+| DP7 | The portrait tooltip's name was plain and its template tooltip bold; 0.28 sets the name in namePrimaryBig and the tooltip in bodyFont | nit | Fixed |
+| DP8 | The carried amount, gatherers and builder captions were regular 10 px and the builders and time shared a line; CarryingTextRight is sans-bold-stroke-13 with "(3)" over "0:12" | nit | Fixed |
+
+### Diplomacy and Barter & Trade dialogs, fourteenth 0.28 pass (2026-10-27)
+
+The session's Diplomacy and Barter & Trade dialogs checked against 0.28's gui/session/diplomacy/ and gui/session/trade/ (main 6752e8dd0). Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| DG1 | The diplomacy dialog was a fixed box; DiplomacyDialog.resize makes it 560 + 4 tribute columns wide and 170 + 20 per player tall, centred at 50%-70 | low | Fixed |
+| DG2 | Both dialogs drew the plain panel; 0.28 puts them on ModernDialog | nit | Fixed |
+| DG3 | The diplomacy title, headers and ceasefire line were regular; TitleText and DiplomacyText are white sans-bold 14 with an outline, headers centred, rows 20 px | nit | Fixed |
+| DG4 | After you won the stance and tribute buttons stayed live; 0.28 hides them once the player has won as well as lost | low | Fixed |
+| DG5 | A player name's AI tooltip used the bold style; it takes the plain sessionToolTip | nit | Fixed |
+| DG6 | A spy request greyed the button for good; 0.28 greys it only while the request is pending | nit | Fixed |
+| DG7 | The trade dialog's tooltips were plain; the help (i) buttons use sessionToolTipBold and the barter buttons sessionToolTipBottomBold | nit | Fixed |
+| DG8 | The trade dialog's labels were regular and "No Markets Available" and the amounts were misplaced; 0.28 sets the title, sections and row labels in white sans-bold 14 with an outline, centres the notice and left-aligns the amounts | nit | Fixed |
+| DG9 | The selected sell icon was only tinted; BarterButton draws it in grayscale at 61% | nit | Fixed |
+| DG10 | The tribute msgid named "%(resource)s" and "You have won!" / "You have been defeated!" were not translated; 0.28 uses "%(resourceType)s" and translates both | nit | Fixed |
+
+### Session overlays, game speed and saved games, fifteenth 0.28 pass (2026-10-27)
+
+The session's overlays, game speed control and Load/Save Game dialog checked against 0.28's TimeNotificationOverlay, PauseOverlay, NetworkDelayOverlay, NetworkStatusOverlay, GameSpeedControl, ResearchProgress and gui/loadgame/ (main 4c43163c8). ResearchProgress already matched. Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| OV1 | Time notifications hung from the top of their box; notificationPanel aligns them to its bottom, 5 px in, each line ending in a newline | low | Fixed |
+| OV2 | The network status overlay dimmed at 0.6; sessionOverlayBackground is 0 0 0 185 | low | Fixed |
+| OV3 | Its Exit and Open FAQ buttons were Godot's grey buttons; disconnectedExitButton is a StoneButton | low | Fixed |
+| OV4 | Its status and loading-clients text were regular; netStatus is sans-bold-18, netStatusPlayersText sans-bold-16 | nit | Fixed |
+| OV5 | The network delay text used the proportional font; NetworkDelayOverlay is mono-10 | nit | Fixed |
+| OV6 | "Paused by" had a black stroke; netStatusPlayersText has none | nit | Fixed |
+| OV7 | The speed button opened a popup menu that closed on a pick; GameSpeedControl toggles the gameSpeed ModernDropDown at 100%-390 40 (160 wide, sans-bold-14, "Choose game speed"), which stays up showing the speed in use | low | Fixed |
+| OV8 | The Load/Save page dimmed at 0.6; BackgroundTranslucent is 0 0 0 85 | low | Fixed |
+| OV9 | The saves list was regular 13 px with a brown selection; ModernSortedList is sans-bold-stroke-14 with ModernDarkBoxWhiteBorder | low | Fixed |
+| OV10 | The details' Mods line and player list were 13 px; savedMods is sans-bold-stroke-14 and savedPlayersNames sans-14 | nit | Fixed |
+| OV11 | "No saved games found." sat at the list's top left; ModernLabelText centres it in 20 12 100%-20 100 | nit | Fixed |
+| OV12 | The Mods line turned orange for any incompatible save; SavegameDetails colours it only when the mods differ (hasSameMods) | nit | Fixed |
+| OV13 | The sorted column shows a text arrow and the others nothing; ModernSortedList draws ModernArrowUp/Down sprites and ModernNotSorted on every other heading (Godot 4.3 Tree headings take no icons) | nit | Open |
+| OV14 | "Paused by" joins names with an untranslated ", "; 0.28 uses translateWithContext("Separator for a list of players", ", ") (RTS0's catalogues have no msgctxt) | nit | Open |
 
 ### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
 
@@ -682,7 +812,7 @@ Trigger.js, TriggerPoint.js, Timer.js and every TriggerHelper.js helper were che
 | TH7 | Danubius ships that couldn't unload kept their landing point and retried every 5 s; 0.28 unloads once and moves on either way, and draws the formation even when nobody is aboard | low | Fixed |
 | TH8 | Danubius' ritual made only infantry, women and healers defensive; 0.28 does every Gaia Human (cavalry too) | low | Fixed |
 | TH9 | GetLandSpawnPoints left out treasures and catafalques | low | Fixed |
-| TH10 | Gallic Fields rounds the wave delay to whole ms; float vs double in RandomTemplateComposition; RegisterTrigger has no duplicate guard | negligible | Open: Triggers |
+| TH10 | Gallic Fields rounds the wave delay to whole ms; float vs double in RandomTemplateComposition; RegisterTrigger has no duplicate guard | negligible | Fixed: attackTime keeps its fraction and the timeout rounds up (Timer.js fires on the first turn past it); shares in doubles with Math.round; a second registration of an event and action is refused |
 
 The scenario test scripts (triggers_demo, pickup_test_map, unit_chasing_test, unit_dancing_test, unit_pushing_test, unit_motion_integration_test, treasure_islands, death_canyon_invasion_force) were checked line by line (fourteenth pass, 2026-10-21; docs/archive/triggers-audit-028-pass14.md):
 
@@ -714,8 +844,8 @@ Scenario-only units: every unit the 0.28 scenario, demo and sandbox maps place w
 | LR1 | A rated game left Teams Locked as it was. 0.28 LockedTeams.onRatingChange turns it on and makes it unchangeable while the game is rated, and off when the game is unrated | medium | Fixed: rating the game locks the teams, unrating it unlocks them |
 | LR2 | Lobby players hosted and joined with their bare nick. 0.28 hosts and joins as "nick (rating)" once rated, so Game Setup, chat, the session and the summary show the rating; a rejoin keeps the rating the player joined with (JoinButton.getRejoinRating) | low | Fixed: the game list reads the rating in the name (Game.js), and the report and buddy marks use the nick |
 | LR3 | A ban in a lobby game kept the rated name, so a changed rating got past it. 0.28 NetServer bans the name without its rating behind the lobby | low | Fixed |
-| LR4 | The lobby server keys reports by player names and compares every field of the report; EcheLOn keys by the reporting JIDs and compares the summary only | negligible | Open: Triggers (same outcome for two honest reports) |
-| LR5 | Reports are matched by RTS0's matchID (seed, map, players) and the last 200 are kept; 0.28 uses its random matchID and EcheLOn drops reports after an hour | negligible | Open: Triggers |
+| LR4 | The lobby server keys reports by player names and compares every field of the report; EcheLOn keys by the reporting JIDs and compares the summary only | negligible | Kept: RTS0's lobby has no JIDs (names are its accounts), and two honest reports give the same outcome |
+| LR5 | Reports are matched by RTS0's matchID (seed, map, players) and the last 200 are kept; 0.28 uses its random matchID and EcheLOn drops reports after an hour | negligible | Fixed: reports also expire after an hour; the matchID stays RTS0's (Kept: unique per match either way) |
 | LR6 | RTS0 sends the report when the local player is decided; 0.28 registers it on the players-finished handler, the same moment for a 1v1 | negligible | Deliberate |
 
 ## Read this first: whole-game parity (recounted 2026-10-21, main 93320ab3d)
