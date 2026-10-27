@@ -373,6 +373,9 @@ static_assert(sizeof(PetraChatLine) == 20, "PetraChatLine is saved field by fiel
 struct PetraDefenseArmy {
 	std::vector<uint32_t> defender_ids;
 	std::vector<uint32_t> foe_ids;
+	// defenseArmy.js positionLastUpdate: game time of the last position update; breakaways
+	// are checked once it is more than 5 s old (0 after a foe joins: checked next update).
+	float position_last_update = 0.0f;
 };
 // config.js Defense, squared metres: a foe joins an army within armyCompactSize of its
 // position (PetraConfig::army_compact_sq), breaks away beyond armyBreakawaySize, and two

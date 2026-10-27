@@ -189,8 +189,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 127; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 128; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_PETRA_LOST_BASES = 127; // each Petra's bases kept after their civic centre was lost
+	static constexpr uint32_t SAVE_VERSION_PETRA_ARMY_POSITION_TIME = 128; // each Petra defense army's positionLastUpdate
 	static constexpr uint32_t SAVE_VERSION_STRUCTURE_OFF = 126; // each map structure's template switches (Building::template_off)
 	static constexpr uint32_t SAVE_VERSION_CAPTURE_TIMER = 125; // each structure's capture regen timer (Capturable.js CheckTimer)
 	static constexpr uint32_t SAVE_VERSION_PETRA_ORDER_NAME = 124; // the Petra plan name and unitStat each queued batch is for
