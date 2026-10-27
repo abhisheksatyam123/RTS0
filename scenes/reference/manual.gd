@@ -21,8 +21,10 @@ static func open(parent: Node) -> Control:
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	var modern = load("res://scenes/common/modern_theme.gd")
+	theme = modern.theme() # ModernDialog, ModernButtonRed
 	var fade := ColorRect.new() # "ModernFade"
-	fade.color = Color(0, 0, 0, 0.6)
+	fade.color = Color8(0, 0, 0, 85)
 	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(fade)
 	var panel := Panel.new()
@@ -34,15 +36,29 @@ func _ready() -> void:
 	panel.offset_right = 466
 	panel.offset_top = -316
 	panel.offset_bottom = 316
+	panel.theme_type_variation = "ModernDialog"
 	add_child(panel)
 	# manual.xml: the ModernLabelText title on the dialog's top edge.
 	load("res://scenes/menu/hotkeys.gd")._edge_title(panel, tr("Manual"))
+	# A ModernFade at 20 20 100%-20 100%-58 holding mainText, a ModernTextPanel
+	# (ModernDarkBox with its gold edges, buffer_zone 8, white).
+	var back := ColorRect.new()
+	back.color = Color8(0, 0, 0, 85)
+	back.position = Vector2(20, 20)
+	back.size = Vector2(892, 632 - 20 - 58)
+	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(back)
 	text = RichTextLabel.new()
 	text.name = "MainText"
 	text.bbcode_enabled = true
 	text.selection_enabled = true
-	text.position = Vector2(20, 36)
-	text.size = Vector2(892, 632 - 36 - 58)
+	text.position = back.position
+	text.size = back.size
+	var box: StyleBoxFlat = modern._dark_box(modern.GOLD, modern.DARK_BOX, 8)
+	box.content_margin_top = 8
+	box.content_margin_bottom = 8
+	text.add_theme_stylebox_override("normal", box)
+	text.add_theme_color_override("default_color", Color.WHITE)
 	text.text = manual_bbcode()
 	panel.add_child(text)
 	var close := Button.new()
