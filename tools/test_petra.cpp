@@ -5229,6 +5229,53 @@ static void test_update_capture_strength() {
 	CHECK(pooled == 20, "twenty together pool their strength and capture it");
 }
 
+// garrisonManager.js keepGarrisoned: only the gmin units sent against a structure's decay are
+// held by the decay rule; soldiers that came in for protection leave while nothing threatens it
+// (one a check here, as the spot beside it frees).
+static void test_decay_garrison_extra_leave() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_player_active(1, true, true);
+	run_for(*s, 1.0f);
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	// Out in neutral land between the two bases, away from anyone's units, with room round it.
+	const float len = std::sqrt(cx * cx + cz * cz);
+	uint32_t fort = 0;
+	for (float d = 20.0f; d < 90.0f && !fort; d += 4.0f) {
+		const uint32_t f = s->spawn_building_world(cx - cx / len * d, cz - cz / len * d, BLD_FORTRESS, 1, 1.0f);
+		if (!f) continue;
+		float ex, ez;
+		auto &b = s->buildings_[s->building_id_to_idx_.at(f)];
+		// A weaker regeneration (40 decay against 45 regen otherwise): half its slots stop the decay.
+		b.capture_regen_rate = s->structure_decay_rate(b) - (float)(b.garrison_cap / 2) * b.capture_garrison_regen_rate;
+		s->petra_pid_ = 1;
+		const auto around = s->petra_around(b);
+		const bool quiet = !around.unit && !around.defense_structure && !around.melee_siege && !around.range_siege;
+		if (quiet && s->petra_decay_garrison_min(b) > 0 && s->pick_spawn_point(b, UNIT_SPEARMAN, 0, ex, ez)) fort = f;
+		else s->cmd_delete(1, &f, 1);
+	}
+	CHECK(fort != 0, "a decaying fortress stands with room round it");
+	if (!fort) return;
+	auto &fb = s->buildings_[s->building_id_to_idx_.at(fort)];
+	const int cap = fb.garrison_cap;
+	const int need = s->petra_decay_garrison_min(fb);
+	const float fx = fb.x, fz = fb.z;
+	for (int k = 0; k < cap; ++k) {
+		const uint32_t u = s->spawn_unit(fx + 8.0f, fz + (float)k * 0.5f, 1, UNIT_SPEARMAN);
+		s->garrison_unit_now(u, fort);
+	}
+	run_ai_turns(*s, 6); // they step out as there is room beside it (an enemy comes by later)
+	const auto it = s->building_id_to_idx_.find(fort);
+	const int inside = it == s->building_id_to_idx_.end() ? -1 : (int)s->buildings_[it->second].garrisoned_units.size();
+	std::printf("  decaying fortress filled to %d: needs %d, %d stay\n", cap, need, inside);
+	CHECK(need > 0 && need < cap, "the fortress decays and needs fewer than it holds");
+	CHECK(inside >= need && inside < cap, "soldiers over the decay's need leave while nothing threatens the fortress");
+}
+
 // garrisonManager.js addDecayingStructure: a defence tower of Petra's standing in enemy
 // territory decays, so Petra garrisons the soldiers that stop the decay and keeps them in.
 static void test_decay_garrison() {
@@ -8637,6 +8684,7 @@ int main(int argc, char **argv) {
 	RUN(test_gather_limits);
 	RUN(test_update_capture_strength);
 	RUN(test_decay_garrison);
+	RUN(test_decay_garrison_extra_leave);
 	RUN(test_decay_garrison_from_attack);
 	RUN(test_decay_destroy);
 	RUN(test_decay_barracks_captured);

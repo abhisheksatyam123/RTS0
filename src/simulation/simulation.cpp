@@ -33247,11 +33247,16 @@ void Simulation::petra_manage_garrisons() {
 		if (b.garrisoned_units.empty() && !shoots && decay_min == 0) continue;
 		const PetraAround around = petra_around(b);
 		std::vector<uint32_t> leave;
+		// garrisonManager.js keepGarrisoned TYPE_DECAY holds only the gmin units garrisonUnitsInside
+		// sent for the decay (defenseManager.js:779, 834); the rest came for protection. RTS0 keeps
+		// no garrison type per unit: the first decay_min capture-capable ones, in garrison order,
+		// stand for those sent for the decay.
+		int decay_kept = 0;
 		for (uint32_t uid : b.garrisoned_units) {
 			if (!holder_check) break;
 			const int32_t idx = lookup_unit(uid);
 			if (idx < 0 || units_.team[idx] != petra_pid_) continue;
-			if (decay_min > 0 && unit_capture_attack(units_.tmpl[idx], units_.unit_type[idx]) > 0.0f) continue; // keepGarrisoned TYPE_DECAY
+			if (decay_kept < decay_min && unit_capture_attack(units_.tmpl[idx], units_.unit_type[idx]) > 0.0f) { ++decay_kept; continue; } // TYPE_DECAY
 			if (!petra_keep_garrisoned((size_t)idx, b, around)) leave.push_back(uid);
 		}
 		for (uint32_t uid : leave) order_ungarrison_single(b.id, uid);
