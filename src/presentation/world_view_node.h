@@ -56,6 +56,16 @@ using namespace godot;
 class RtsoWorldView : public Node3D {
 	GDCLASS(RtsoWorldView, Node3D);
 
+public:
+	// A unit as drawn this frame, for picking (CCmpSelectable's selection box): its feet,
+	// facing, half width and depth (its 0.28 Selectable footprint) and model height.
+	struct UnitPickBox {
+		uint32_t id;
+		Vector3 base;
+		float yaw, half_w, half_d, height;
+	};
+
+private:
 	// Per-unit visual: real 0ad mesh + selection ring + 3D floating health bar
 	struct UnitVis {
 		Node3D *root = nullptr;
@@ -495,6 +505,7 @@ class RtsoWorldView : public Node3D {
 	// Per-frame scratch reused by sync (no per-frame allocation).
 	std::vector<std::pair<uint32_t, uint8_t>> res_sub_;
 	std::vector<uint32_t> active_unit_ids_;
+	std::vector<UnitPickBox> unit_pick_boxes_; // the units drawn this frame (unit_pick_boxes)
 	String fauna_fx_id_[64]; // fauna type -> its actor id for run dust / unit fx, built on first use
 
 	// Skeletal animation controllers per unit type
@@ -587,6 +598,7 @@ public:
 	// The developer overlay's Bounding box overlay (CCmpSelectable's debug overlays): for each
 	// of `ids` with a model shown, its model's world box (ICmpVisual GetBounds) and its box in
 	// the entity's own frame (GetSelectionBox), turned and placed by `xf`.
+	const std::vector<UnitPickBox> &unit_pick_boxes() const { return unit_pick_boxes_; }
 	struct ModelBoxes {
 		AABB world;
 		Transform3D xf;

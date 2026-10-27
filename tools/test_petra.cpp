@@ -3865,6 +3865,69 @@ static void test_plan_counts_every_class() {
 	CHECK(queued == 0 && champ_ask == 0.0f, "clubmen in the plan count as its champions: no more are asked for it");
 }
 
+// attackPlan.js:689-695 trains a plan's batches with its name as "plan" metadata: the units
+// are the plan's as they spawn, so no other plan takes them (the main plan used to take the
+// raid's siege, and citizen cavalry trained for it went hunting). A batch whose plan has started or been replaced comes out of plan
+// (headquarters.js:237-245), and citizen cavalry trained for a plan is army, not a hunter.
+static void test_trained_units_join_their_plan() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_team_civ(1, CIV_ATHENIANS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const uint32_t stable = s->spawn_building_world(tx + (tx > 0.0f ? -14.0f : 14.0f), tz, BLD_STABLE, 1, 1.0f);
+	const uint16_t cav = civ_unit_template_by_id("athen/cavalry_javelineer_b");
+	CHECK(cav != CIV_UNIT_TEMPLATE_NONE && stable != 0, "a stable and the Athenian javelin cavalry");
+	if (cav == CIV_UNIT_TEMPLATE_NONE || stable == 0) return;
+	s->cheat_mods_[1].pop_bonus = 300;
+	auto &m = s->petra_attack_mgr_;
+	m.raid_name = 7;
+	m.attack_name = 8;
+	auto &raid = s->petra_raid_plan_;
+	raid = Simulation::AttackPlan(); // no raid preparing: an earlier raid's batch has no plan to join
+	auto &main = s->petra_attack_plan_;
+	main = Simulation::AttackPlan();
+	main.state = Simulation::AttackPlan::MUSTER;
+	auto queue_batch = [&](uint8_t plan, uint8_t name) {
+		const auto it = s->building_id_to_idx_.find(stable);
+		ProductionOrder o;
+		o.unit_type = civ_unit_template(cav).unit_type;
+		o.tmpl = cav;
+		o.count = 1;
+		o.timer = 0.0f;
+		o.duration = 0.1f;
+		o.petra_plan = plan;
+		o.petra_name = name;
+		o.petra_stat = 0;
+		s->buildings_[it->second].queue.push_back(o);
+	};
+	auto spawned_last = [&]() -> uint32_t {
+		uint32_t best = 0;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.tmpl[i] == cav) best = std::max(best, s->units_.id[i]);
+		return best;
+	};
+	auto in = [](const std::vector<uint32_t> &v, uint32_t id) { return std::find(v.begin(), v.end(), id) != v.end(); };
+	queue_batch(PETRA_ORDER_ATTACK, 8);
+	run_for(*s, 2.0f);
+	const uint32_t a = spawned_last();
+	queue_batch(PETRA_ORDER_RAID, 6); // an earlier raid's batch
+	run_for(*s, 2.0f);
+	const uint32_t b = spawned_last();
+	const auto &army = s->petra_army_ids_[1];
+	const auto &out = s->petra_out_of_plan_[1];
+	std::printf("  attack batch: in the attack %d, army %d; earlier raid's batch: out of plan %d\n",
+	            (int)in(main.squad, a), (int)std::binary_search(army.begin(), army.end(), a), (int)std::binary_search(out.begin(), out.end(), b));
+	CHECK(a != 0 && in(main.squad, a), "the cavalry trained for the attack joins it as it spawns");
+	CHECK(std::binary_search(army.begin(), army.end(), a), "citizen cavalry trained for a plan is army, not a hunter");
+	CHECK(b != 0 && b != a && std::binary_search(out.begin(), out.end(), b), "a batch for an earlier raid comes out of plan (plan -1: no worker)");
+}
+
 // attackPlan.js trainMoreUnits: when the order furthest behind has no template, the order is
 // deleted and nothing is queued that turn; the next order trains on the plan's next turn.
 // Each order trains in the queue its classes name, not the template's: the "Siege" order's war
@@ -8944,6 +9007,7 @@ int main(int argc, char **argv) {
 	RUN(test_raid_takes_every_rider);
 	RUN(test_huge_attack_drops_classes);
 	RUN(test_plan_counts_every_class);
+	RUN(test_trained_units_join_their_plan);
 	RUN(test_attack_order_no_template);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
