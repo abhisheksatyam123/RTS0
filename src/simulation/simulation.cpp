@@ -27207,23 +27207,14 @@ void Simulation::petra_manage_buildings(float dt) {
 			}
 			const int needed_at = saving || pop <= 30 ? 10 : pop > 55 ? 21 : 15;
 			if (plans > 0 && free_slots <= needed_at) {
-				// A queued house plan starts whatever the no-room mark says (canStart doesn't read
-				// it, and buildMoreHouses queues the house without canBuild); only the apartment is
-				// held back by it. A start that finds no room uses the plan up (and its account).
-				const bool apartment_held = house == BLD_APARTMENT && petra_no_room(BLD_APARTMENT);
-				uint32_t bid = 0;
-				bool searched = false;
-				if (!apartment_held) {
-					bid = petra_place_generic(house, PETRA_Q_HOUSE, nullptr, nullptr, false, house == BLD_HOUSE);
-					searched = !bid && petra_place_no_room_;
-					if (searched) --plans;
+				// isGo (houseNeeded): a house plan waits while neither the house nor the apartment
+				// may be built (canBuild: the 90 s no-room mark). canBuild(apartment) failing makes
+				// it a house. A start that finds no room uses the plan up (and its account).
+				const bool apartment_ok = house == BLD_APARTMENT && !petra_no_room(BLD_APARTMENT);
+				if (apartment_ok || !petra_no_room(BLD_HOUSE)) {
+					const uint8_t t = apartment_ok ? BLD_APARTMENT : BLD_HOUSE;
+					if (petra_place_generic(t, PETRA_Q_HOUSE, nullptr, nullptr, false, true) || petra_place_no_room_) --plans;
 				}
-				// canBuild(apartment) fails while there is no room for one: a house instead.
-				if (!bid && house == BLD_APARTMENT && (apartment_held || searched) && plans > 0) {
-					bid = petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE, nullptr, nullptr, false, true);
-					if (!bid && petra_place_no_room_) --plans;
-				}
-				if (bid) --plans;
 			}
 			if (houses_turn && accounted_free < 5 && house_no_room) petra_research_population_bonus();
 		}
@@ -27236,8 +27227,9 @@ void Simulation::petra_manage_buildings(float dt) {
 	// (foundations count). Every 3rd played turn (headquarters.js:2324).
 	if (petra_turn_mod(3)) {
 		const uint8_t civ = petra_ps().civ;
-		const bool can_barracks = civ_can_build(civ, BLD_BARRACKS), can_range = civ_can_build(civ, BLD_RANGE),
-		           can_stable = civ_can_build(civ, BLD_STABLE);
+		// canBuild: the civ builds it and no search found it no room in the last 90 s.
+		auto can_build = [&](uint8_t t) { return civ_can_build(civ, t) && !petra_no_room(t); };
+		const bool can_barracks = can_build(BLD_BARRACKS), can_range = can_build(BLD_RANGE), can_stable = can_build(BLD_STABLE);
 		int n_barracks = 0, n_ranges = 0, n_stables = 0, n_village = 0;
 		for (const auto &b : buildings_) {
 			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
@@ -27329,7 +27321,7 @@ void Simulation::petra_build_advanced() {
 		return false;
 	};
 	for (uint8_t t : {BLD_ELEPHANT_STABLE, BLD_ARSENAL}) {
-		if (civ_can_build(civ, t) && trains_at(t) && count(t) == 0) {
+		if (civ_can_build(civ, t) && !petra_no_room(t) && trains_at(t) && count(t) == 0) {
 			build(t);
 			return;
 		}
@@ -27345,7 +27337,7 @@ void Simulation::petra_build_advanced() {
 	for (uint8_t t : advanced) n += count(t);
 	if (n && !(n < (int)advanced.size() && pop > 110)) return;
 	for (uint8_t t : advanced) {
-		if (count(t) > 0 || !petra_limit_allows_building(t)) continue;
+		if (count(t) > 0 || !petra_limit_allows_building(t) || petra_no_room(t)) continue;
 		// Petra seeks sites in its own territory only, where Rome's army camp (neutral or
 		// enemy land) is refused, so it goes on to the next structure.
 		if (!(build_restriction(t, civ_of(petra_pid_)).territory & TERR_OWN)) continue;
@@ -28626,10 +28618,15 @@ void Simulation::petra_manage_research(float dt) {
 		} else {
 			// The first of market, temple and forge we lack and can build (checkPhaseRequirements
 			// "Town"); nothing when none is missing.
+			// canBuild skips one with no room in the last 90 s. A plan is added only while the
+			// economic and military queues hold none (other than the one it already queued).
 			uint8_t t = BLD_TYPE_COUNT;
 			for (uint8_t k : kTown)
-				if (!(k == BLD_TEMPLE ? petra_has_temple_class() : have_building(k)) && civ_can_build(petra_ps().civ, k)) { t = k; break; }
+				if (!(k == BLD_TEMPLE ? petra_has_temple_class() : have_building(k)) && civ_can_build(petra_ps().civ, k) &&
+				    !petra_no_room(k)) { t = k; break; }
 			if (t == BLD_TYPE_COUNT) return;
+			for (uint8_t q : {PETRA_Q_ECONOMIC_BUILDING, PETRA_Q_MILITARY_BUILDING})
+				if (petra_queue_holds_other(q, t)) return;
 			const uint8_t q = phase_up(t == BLD_FORGE ? PETRA_Q_MILITARY_BUILDING : PETRA_Q_ECONOMIC_BUILDING);
 			if (t == BLD_MARKET) petra_build_market(home->x, home->z, q);
 			else petra_place_generic(t, q);
@@ -28656,8 +28653,7 @@ void Simulation::petra_manage_research(float dt) {
 		if (!have_building(BLD_MARKET)) {
 			// buildMarket: at three times economicBuilding's priority until started; once
 			// queued, what is available and then the other queues' accounts pay for it.
-			const PetraQueueAccount &w = petra_queues_.wants[PETRA_Q_ECONOMIC_BUILDING];
-			if (w.food + w.wood + w.gold + w.stone > 0.0f) {
+			if (petra_queue_holds(PETRA_Q_ECONOMIC_BUILDING, BLD_MARKET)) { // hasQueuedUnitsWithClass("Market")
 				if (!petra_queues_.paused[PETRA_Q_ECONOMIC_BUILDING]) {
 					const BuildingTypeInfo &mi = building_type_info(BLD_MARKET);
 					float cost[RES_COUNT] = {};
@@ -31661,6 +31657,18 @@ void Simulation::petra_structure_cost(uint8_t btype, float &food, float &wood, f
 
 // queueManager.js startNextItems starts a queue's first plan only: a structure behind another
 // one in its queue waits. The head is the first to ask while none waits.
+// Whether `queue`'s head is a plan for `btype` that is still asking.
+bool Simulation::petra_queue_holds(uint8_t queue, uint8_t btype) const {
+	const PetraQueueHeads &h = petra_queue_heads_;
+	return queue < PETRA_Q_COUNT && h.item[queue] == btype + 1 && h.age[queue] <= PetraQueueManager::want_ttl(queue);
+}
+
+// Whether `queue` holds a structure plan still asking, other than one for `btype`.
+bool Simulation::petra_queue_holds_other(uint8_t queue, uint8_t btype) const {
+	const PetraQueueHeads &h = petra_queue_heads_;
+	return queue < PETRA_Q_COUNT && h.item[queue] && h.item[queue] != btype + 1 && h.age[queue] <= PetraQueueManager::want_ttl(queue);
+}
+
 bool Simulation::petra_queue_head_turn(uint8_t queue, uint8_t btype) {
 	if (queue >= PETRA_Q_COUNT) return true;
 	PetraQueueHeads &h = petra_queue_heads_;

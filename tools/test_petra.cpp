@@ -2216,6 +2216,78 @@ static void test_city_phase_counts_foundations() {
 	CHECK(markets == 1 && temples == 1, "the temple goes down while the market is a foundation");
 }
 
+// checkPhaseRequirements "Town": canBuild skips a structure with no room in the last 90 s (the
+// temple instead of the market), and nothing is added while the economic or military queue
+// holds another plan.
+static void test_city_phase_skips_no_room() {
+	for (int held = 0; held < 2; ++held) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 1.0f);
+		s->set_team_civ(1, (uint8_t)CIV_ATHENIANS);
+		s->players_[1].phase = 2;
+		s->set_player_resources(1, 5000, 5000, 5000, 5000);
+		s->petra_pid_ = 1;
+		fund_queues(*s);
+		s->petra_queues_.wants[PETRA_Q_MAJOR_TECH].food = 1.0f; // the city phase waits in its queue
+		s->petra_set_no_room(BLD_MARKET);
+		if (held) { // a farmstead plan waits in the economic queue
+			s->petra_queue_heads_.item[PETRA_Q_ECONOMIC_BUILDING] = BLD_FARMSTEAD + 1;
+			s->petra_queue_heads_.age[PETRA_Q_ECONOMIC_BUILDING] = 0.0f;
+		}
+		CHECK(s->petra_phasing(), "phasing to the city phase");
+		s->petra_manage_research(0.5f);
+		int temples = 0, markets = 0;
+		for (const auto &b : s->buildings_)
+			if (b.team == 1 && b.build_progress < 1.0f) {
+				temples += b.type == BLD_TEMPLE;
+				markets += b.type == BLD_MARKET;
+			}
+		std::printf("  city phase, market without room%s: markets %d, temples %d\n", held ? ", farmstead queued" : "", markets, temples);
+		if (held) CHECK(markets == 0 && temples == 0, "nothing is added while the economic queue holds a plan");
+		else CHECK(markets == 0 && temples == 1, "a market without room gives way to the temple");
+	}
+}
+
+// queueplanBuilding.js isGo (houseNeeded): a queued house plan waits while canBuild fails for
+// both the house and the apartment (the 90 s no-room mark), and goes once the mark lapses.
+static void test_house_plan_waits_out_no_room() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->set_team_civ(1, (uint8_t)CIV_ATHENIANS);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->petra_pid_ = 1;
+	fund_queues(*s);
+	auto houses = [&] {
+		int n = 0;
+		for (const auto &b : s->buildings_) n += b.team == 1 && b.type == BLD_HOUSE && b.build_progress < 1.0f && b.hp > 0.0f;
+		return n;
+	};
+	// Free slots down to 10 or fewer: houseNeeded.
+	for (const auto &b : std::vector<Simulation::Building>(s->buildings_))
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER)
+			for (int k = 0; s->pop_max(1) - s->pop_current(1) > 5 && k < 40; ++k)
+				s->spawn_unit(b.x - 8.0f + (float)(k % 10) * 0.8f, b.z + 8.0f + (float)(k / 10) * 0.8f, 1, UNIT_VILLAGER);
+	std::printf("  houses test: pop %d of %d, active base %d\n", s->pop_current(1), s->pop_max(1), (int)s->petra_has_active_base());
+	const int before = houses();
+	s->petra_kept_.house_plans = 2;
+	s->petra_set_no_room(BLD_HOUSE);
+	s->petra_manage_buildings(0.5f);
+	std::printf("  house plans under the no-room mark: %d plans, %d new houses\n", s->petra_kept_.house_plans, houses() - before);
+	CHECK(houses() == before && s->petra_kept_.house_plans >= 2, "a queued house waits out the no-room mark");
+	s->petra_clear_no_room(BLD_HOUSE);
+	fund_queues(*s);
+	s->petra_manage_buildings(0.5f);
+	CHECK(houses() == before + 1, "it goes once the mark is gone");
+}
+
 // gameState.findAvailableTech (common-api gamestate.js:768): Petra's structures in creation
 // order, each one's Researcher list in template order. A storehouse built before the
 // farmstead offers Iron Axe Heads before Iron Plow, and Servants before Wedge and Mallet.
@@ -8308,10 +8380,7 @@ static void test_missing_room_expansion() {
 	// finds no room spends the account, not the stock.
 	const auto &wa = s->petra_queues_.accounts[PETRA_Q_WONDER];
 	CHECK(wa.stone < wonder_account && s->players_[1].stone() == stone_before, "the failed wonder spent its queue account only");
-	// A house plan already queued starts whatever the mark says (canStart doesn't read it).
-	s->petra_turn_built_ = false;
-	CHECK(s->petra_no_room(BLD_HOUSE) && s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE, nullptr, nullptr, false, true) != 0,
-	      "a queued house is placed under the no-room mark");
+
 	// headquarters.js:2042: our territory grew, so every mark goes at the next AI turn.
 	s->petra_room_.tiles = 0;
 	s->petra_room_.marks.push_back({BLD_TEMPLE, s->petra_timer_ + 90.0f});
@@ -8795,6 +8864,8 @@ int main(int argc, char **argv) {
 	RUN(test_no_early_rush);
 	RUN(test_strength_with_techs);
 	RUN(test_phase_up);
+	RUN(test_city_phase_skips_no_room);
+	RUN(test_house_plan_waits_out_no_room);
 	RUN(test_no_free_income);
 	RUN(test_mercenary_workers);
 	RUN(test_trade_tech_waits_for_funds);
