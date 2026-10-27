@@ -221,7 +221,7 @@ Pack, flee, stances, turrets and ship ejection against UnitAI.js, Pack.js, Garri
 | SD7 | The player band is 20 px with the whole emblem tinted grey and the phase emblem squeezed to 44x16; 0.28's is 24 px with the emblem's centre strip in greyscale and the phase emblems across the band. | low | Fixed: 24 px band, playerCivIcon's centre strip in greyscale under the colour, phaseEmblems across the band, the name in bold 14 |
 | SD8 | Demetrius' Besieger left out its Attack/Ranged/MaxRange multiply 1.1: his siege engines reached no further. | medium | Fixed: MaxRange factors in `range_add_range_auras` (`extract_0ad_aura_modifiers.py`), applied before the added metres in `attack_reach` (`tools/test_combat.cpp` 18) |
 | SD9 | A captured Hellenic epic temple (Greek Acropolis) or the campaign sanctuary healed nobody; both inherit template_structure_civic_temple's temple_heal. | low | Fixed (`rebuild_auras`, `tools/test_combat.cpp`) |
-| SD10 | Auras are rebuilt every 0.4 s of sim time; 0.28's range queries follow units each 200 ms turn, so a moving hero's auras reach and leave units up to a turn later. | low | Open: Compare (changes the sim hash) |
+| SD10 | Auras are rebuilt every 0.4 s of sim time; 0.28's range queries follow units each 200 ms turn, so a moving hero's auras reach and leave units up to a turn later. | low | Fixed: `tick_gather` rebuilds them on each turn's first tick (bench_late 8 Petra 40 min: 6.50 -> 6.63 ms a turn) |
 
 ### Aura icons, fogged selections and structure tooltips: Compare's eleventh 0.28 pass (2026-10-20)
 
