@@ -22534,7 +22534,7 @@ void Simulation::update_petra_bases(float dt) {
 		base.assigned_workers = w_count;
 
 		int safe_nodes = 0;
-		int total_amount = 0;
+		int64_t total_amount = 0; // fields hold FIELD_FOOD_SUPPLY (1e9) each
 		for (size_t r = 0; r < resources_.count; ++r) {
 			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
 			float dx = resources_.x[r] - base.x;
