@@ -71,6 +71,8 @@ func order_with(code: Key, house: int, man: int) -> Dictionary:
 
 func run() -> void:
 	await frames(60)
+	# The mouse rests mid-screen: at the corner it would scroll the camera away.
+	await move(root.get_visible_rect().size / 2)
 	var r: Dictionary = main.debug_civic_centre_roof()
 	for i in 200: # the camera settles on our Civic Center
 		await frames(1)
@@ -110,8 +112,9 @@ func run() -> void:
 	print("5. A click on an own man by an enemy barracks walks there (PickEntityAtPoint: the man)")
 	var off: Vector2 = main.debug_spawn_offset("athen/infantry_spearman_b", 1)
 	var by_man: int = main.debug_spawn_units("athen/infantry_spearman_b", 1)[0]
-	# Its 4 x 4 footprint ends 0.7 from him, inside the 1.2 a click on it reaches beyond.
-	main.debug_spawn_building(2, off.x, off.y + 2.7, 1)
+	# Its 4 x 4 footprint ends 0.7 from him, inside the 1.2 a click on it reaches beyond; it
+	# stands behind him from the camera (-z), so the view of him is clear.
+	main.debug_spawn_building(2, off.x, off.y - 2.7, 1)
 	await frames(40)
 	main.debug_select_units(PackedInt32Array([men[0]]))
 	await frames(2)

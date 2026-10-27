@@ -75,6 +75,15 @@ func key(code: Key, ctrl := false) -> void:
 		await frames(1)
 	await frames(12) # past the double-press window
 
+# Where one of `ids` picks itself: another unit's body can stand in front of a unit's feet.
+func member_spot(ids: PackedInt32Array) -> Vector2:
+	for id in ids:
+		var p: Vector2 = main.debug_unit_screen(id)
+		await move(p)
+		if main.debug_highlight().has(id):
+			return p
+	return main.debug_unit_screen(ids[0])
+
 func click(pos: Vector2, button := MOUSE_BUTTON_LEFT, double := false) -> void:
 	await move(pos)
 	for down in [true, false]:
@@ -238,10 +247,27 @@ func run() -> void:
 		if int(unit(id)["formation"]) != 0:
 			formed += 1
 	check(formed == 4, "4 soldiers in a box (%d)" % formed)
+	# The box walks out in front of the Civic Centre (camera side, +z), which hides what
+	# stands behind it.
+	var cc_at: Vector2 = main.debug_building_fow(main.debug_civic_centre_id(0))["pos"]
+	main.debug_select_units(band)
+	main._on_minimap_order(cc_at + Vector2(0, 16))
+	for i in 600:
+		await frames(1)
+		if i > 20 and Array(band).all(func(id): return unit(id)["idle"]):
+			break
+	# The camera over it, clear of the bottom panel.
+	var c: Dictionary = main.debug_camera()
+	var mid: Vector2 = unit(spears[0])["pos"]
+	c["x"] = mid.x
+	c["z"] = mid.y
+	main.debug_set_camera_data(c)
+	await frames(10)
 	main.debug_select_units(band)
 	await frames(2)
+	var mate: Vector2 = await member_spot(band)
 	await hold(KEY_CTRL, true)
-	await click(main.debug_unit_screen(archers[0]))
+	await click(mate)
 	await hold(KEY_CTRL, false)
 	var left := selected().filter(func(id): return band.has(id))
 	check(left.is_empty(), "Ctrl+click drops the whole formation: %s" % str(left))
@@ -252,7 +278,7 @@ func run() -> void:
 		if Array(band).all(func(id): return unit(id)["idle"]):
 			break
 		await frames(1)
-	var at: Vector2 = main.debug_unit_screen(spears[0])
+	var at: Vector2 = await member_spot(band)
 	await click(at)
 	await click(at, MOUSE_BUTTON_LEFT, true)
 	var got := selected().filter(func(id): return band.has(id))
