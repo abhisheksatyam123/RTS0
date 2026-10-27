@@ -13,7 +13,9 @@
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_save_hash && /tmp/test_save_hash
 // Private access only to stage a defeat and read wonder holds, as test_victory does, and to
-// compare the woods' navcells and territory counts, which the hash doesn't read.
+// compare what the hash doesn't read: the woods' navcells, the pathfinder's nodes, territory counts,
+// the links between fields and their grain, the stances units on turrets keep, and the caches kept
+// for one tick.
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -21,7 +23,9 @@
 #include <cstdio>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 using namespace rtso;
@@ -457,25 +461,65 @@ static void check_trader_save_order(const char *path) {
 	std::printf("%zu traders on routes: the loaded game saves the same bytes: ok\n", a.trader_routes_map().size());
 }
 
+// What a load works out again rather than reads, and the hash doesn't read: the navcells (the woods'
+// among them), the pathfinder's long-range nodes (the obstructions on each tile, its open nodes and
+// how the regions part them) and the territory each player holds. Empty when the two hold the same.
+static std::string derived_differs(const Simulation &a, const Simulation &b) {
+	const NavGrid &x = a.nav_grid_, &y = b.nav_grid_;
+	if (x.cells != y.cells) return "the navcells";
+	if (a.forest_cells_ != b.forest_cells_) return "the woods' navcells";
+	if (a.territory_tiles_ != b.territory_tiles_) return "the territory each player holds";
+	if (x.tile_paths_on() != y.tile_paths_on()) return "whether long paths search the tile nodes";
+	for (int set = 0; set < NavGrid::TILE_OBS_SETS; ++set) {
+		const auto &l = x.tile_obs_[set], &m = y.tile_obs_[set];
+		bool differ = l.size() != m.size();
+		for (size_t k = 0; !differ && k < l.size(); ++k) differ = l[k] != m[k];
+		if (differ) return set == NavGrid::TILE_OBS_STRUCTURES ? "the structures on the tile nodes" : "the Gaia obstructions on the tile nodes";
+	}
+	if (!x.tile_paths_on()) return "";
+	for (int cls = 0; cls < NavGrid::TILE_CLASSES; ++cls) {
+		if (x.tile_open_[cls] != y.tile_open_[cls]) return "the open tile nodes";
+		if (x.tile_obs_count_[cls] != y.tile_obs_count_[cls]) return "the obstruction counts of the tile nodes";
+		// Region numbers may differ: the same regions must part the open nodes the same way.
+		const auto &r = x.tile_region_[cls], &s = y.tile_region_[cls];
+		if (r.size() != s.size()) return "the tile nodes' regions";
+		std::unordered_map<uint32_t, uint32_t> ab, ba;
+		for (size_t k = 0; k < r.size(); ++k) {
+			if (!x.tile_open_[cls][k]) continue;
+			if (ab.emplace(r[k], s[k]).first->second != s[k] || ba.emplace(s[k], r[k]).first->second != r[k])
+				return "the tile nodes' regions";
+		}
+	}
+	return "";
+}
+
 // A forest map's woods and territory come back with a save as the game that wrote it has them.
 // Gaul cavalry and rams walk long paths across the map, through and around the woods, while the
-// game is saved every 24 s; each save is loaded into a second sim built the same way, and the two
-// play on side by side, their hashes compared every few ticks. Neither the woods' navcells nor the
-// territory each player holds is saved: a load works both out again from what is (0.28 rebuilds its
-// pathfinder grid from the obstructions on MT_Deserialized, CCmpPathfinder.cpp:222-223, and saves no
-// territory, CCmpTerritoryManager.cpp:191), so the live game must hold what a fresh count gives.
-// Then a game loaded from a save writes the same save again, byte for byte.
+// game is saved every 24 s; each save is loaded into three copies, and the game and the copies play
+// on side by side, their hashes compared every few ticks:
+//   - one built from the save's own Game Setup, as a saved game is loaded (load_pending_save),
+//   - a fresh Simulation, and
+//   - one built for the other map and played a moment, as a client that joins a game in progress, or
+//     a saved game the host loads, loads the host's state into the game it set up itself
+//     (TurnManager::apply_pending_rejoin).
+// Neither the woods' navcells, nor the pathfinder's nodes, nor the territory each player holds is
+// saved: a load works them out again from what is (0.28 deserializes into a pathfinder with no grid,
+// CCmpPathfinder.cpp:79-83 and 193-197, and builds it from the terrain and obstructions on
+// MT_Deserialized, CCmpPathfinder.cpp:222-223; it saves no territory, CCmpTerritoryManager.cpp:191),
+// so each copy must hold what the game holds, whatever the sim held before. Then each copy writes the
+// same save again, byte for byte.
 static void check_forest_twin(TurnManager &tm, const char *path) {
-	static Simulation live, twin;
+	static Simulation live, twin, joiner;
 	const int maps[] = {MAP_ARDENNES_FOREST, MAP_CALEDONIAN_MEADOWS};
 	const int save_every = 480, keep_playing = 200, every = 5;
+	const std::string resave = std::string(path) + ".2";
 	for (const int map : maps) {
-		auto make = [&](Simulation &s) {
+		auto make = [&](Simulation &s, int m) {
 			s.reset();
 			s.set_sim_seed(1);
 			s.set_waves_enabled(false);
 			for (uint8_t p = 0; p < PLAYERS; ++p) s.set_team_civ(p, (uint8_t)(6 + p));
-			s.generate_random_map((MapType)map, 1, PLAYERS, MAP_HALF);
+			s.generate_random_map((MapType)m, 1, PLAYERS, MAP_HALF);
 			s.set_victory_condition(VICTORY_ENDLESS);
 			// Players at peace who build nothing: the woods stand as the map made them.
 			for (uint8_t p = 0; p < PLAYERS; ++p) {
@@ -483,7 +527,9 @@ static void check_forest_twin(TurnManager &tm, const char *path) {
 				s.set_player_team(p, 0);
 			}
 		};
-		make(live);
+		// Caledonian Meadows has a lake; Ardennes Forest has none, and plays on the woods' other side.
+		const int other = map == MAP_ARDENNES_FOREST ? MAP_CALEDONIAN_MEADOWS : MAP_ARDENNES_FOREST;
+		make(live, map);
 		run(live, 20);
 		uint64_t rng = 0x9E3779B97F4A7C15ull ^ (uint64_t)map;
 		auto unit = [&]() {
@@ -530,44 +576,271 @@ static void check_forest_twin(TurnManager &tm, const char *path) {
 				live.tick(Simulation::FIXED_STEP);
 				if (t % save_every) continue;
 				++saves;
+				const unsigned long long at = live.ticks_;
 				if (!live.save_state(path)) { std::printf("FAIL save (forest map %d)\n", map); ++failures; return; }
-				make(twin);
-				if (!twin.load_state(path)) { std::printf("FAIL load (forest map %d)\n", map); ++failures; return; }
-				const std::pair<bool, const char *> derived[] = {
-						{live.forest_cells_ != twin.forest_cells_, "the woods' navcells"},
-						{live.nav_grid_.cells != twin.nav_grid_.cells, "the navcells"},
-						{live.territory_tiles_ != twin.territory_tiles_, "the territory each player holds"}};
-				for (const auto &[differ, what] : derived)
-					if (differ) {
-						std::printf("  FAIL forest map %d, save %d (tick %llu): %s differ after the load\n", map, saves,
-						            (unsigned long long)live.ticks_, what);
+				make(twin, map);
+				make(joiner, other);
+				run(joiner, 20);
+				auto fresh = std::make_unique<Simulation>();
+				struct Copy { Simulation *sim; const char *how; int diverged; };
+				Copy copies[] = {{&twin, "built from its setup", -1}, {fresh.get(), "fresh", -1},
+						{&joiner, "built for another map", -1}};
+				const std::vector<char> a = read_file(path);
+				for (Copy &c : copies) {
+					if (!c.sim->load_state(path)) {
+						std::printf("FAIL load (forest map %d) into a sim %s\n", map, c.how);
+						++failures;
+						return;
+					}
+					const std::string what = derived_differs(live, *c.sim);
+					if (!what.empty()) {
+						std::printf("  FAIL forest map %d, save %d (tick %llu): %s differ after the load into a sim %s\n", map,
+						            saves, at, what.c_str(), c.how);
 						++failures;
 					}
-				const std::vector<char> a = read_file(path);
-				if (!twin.save_state(path) || read_file(path) != a) {
-					std::printf("  FAIL forest map %d, save %d: the loaded game saves differently\n", map, saves);
-					++failures;
+					if (!c.sim->save_state(resave.c_str()) || read_file(resave.c_str()) != a) {
+						std::printf("  FAIL forest map %d, save %d: the game loaded into a sim %s saves differently\n", map, saves,
+						            c.how);
+						++failures;
+					}
+					if (tm.compute_sim_hash(live) != tm.compute_sim_hash(*c.sim)) c.diverged = 0;
 				}
-				// The live game plays on through the comparison: the twin has to keep up with it.
-				int diverged = tm.compute_sim_hash(live) != tm.compute_sim_hash(twin) ? 0 : -1;
-				for (int k = 1; k <= keep_playing && diverged < 0; ++k) {
+				// The live game plays on through the comparison: each copy has to keep up with it.
+				for (int k = 1; k <= keep_playing; ++k) {
 					live.tick(Simulation::FIXED_STEP);
-					twin.tick(Simulation::FIXED_STEP);
-					if (k % every == 0 && tm.compute_sim_hash(live) != tm.compute_sim_hash(twin)) diverged = k;
+					for (Copy &c : copies) {
+						if (c.diverged >= 0) continue;
+						c.sim->tick(Simulation::FIXED_STEP);
+						if (k % every == 0 && tm.compute_sim_hash(live) != tm.compute_sim_hash(*c.sim)) c.diverged = k;
+					}
 				}
-				if (diverged >= 0) {
-					std::printf("  FAIL forest map %d, save %d (tick %llu): the loaded copy diverged %d ticks after the load\n",
-					            map, saves, (unsigned long long)live.ticks_, diverged);
+				for (Copy &c : copies) {
+					if (c.diverged < 0) continue;
+					std::printf("  FAIL forest map %d, save %d (tick %llu): the copy loaded into a sim %s diverged %d ticks after the load\n",
+					            map, saves, at, c.how, c.diverged);
 					++failures;
-					compare(live, twin);
-					print_diffs();
 				}
 			}
 		}
 		if (failures == before)
-			std::printf("forest map %d: %zu cavalry and rams, %d walks, %d saves, each identical for %d ticks: ok\n", map,
-			            army.size(), walks, saves, keep_playing);
+			std::printf("forest map %d: %zu cavalry and rams, %d walks, %d saves, each loaded into a sim built from its setup, "
+			            "a fresh one and one built for map %d, all identical for %d ticks: ok\n",
+			            map, army.size(), walks, saves, other, keep_playing);
 	}
+	std::remove(resave.c_str());
+}
+
+// A unit that goes up onto a turret point (a wall's walkway, an outpost) takes the turret's stance and
+// keeps the one it had, which it gets back when it comes down (UnitAI.js:5982-6005 previousStance; RTS0's
+// turret_prev_stance_). An archer set passive goes up a wall and the game is saved; in the turn after
+// the load the archer comes down in the game and in each copy, a fresh Simulation and one built for the
+// match. Each must give the archer back its passive stance, as the game does.
+static void check_turret_stance(TurnManager &tm, const char *path) {
+	static Simulation a, b;
+	uint16_t archer = CIV_UNIT_TEMPLATE_NONE;
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+		if (std::strcmp(civ_unit_template(t).id, "athen/infantry_archer_b") == 0) archer = t;
+	auto setup = [](Simulation &s) {
+		s.reset();
+		s.set_sim_seed(SEED);
+		s.set_player_civ(CIV_ATHENIANS);
+		s.set_victory_condition(VICTORY_ENDLESS);
+		s.spawn_building_world(-50.0f, -50.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		s.spawn_building_world(50.0f, 50.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	};
+	setup(a);
+	const uint32_t wall = a.spawn_building_world(0.0f, 0.0f, BLD_WALL_SEGMENT, 0, 1.0f);
+	const uint32_t id = a.spawn_unit(-3.0f, 3.0f, 0, UNIT_ARCHER, 0.0f, archer);
+	a.order_set_stance(&id, 1, STANCE_PASSIVE);
+	a.order_garrison(&id, 1, wall);
+	run(a, 120);
+	const int before = failures;
+	const int32_t ai = a.lookup_unit(id);
+	if (archer == CIV_UNIT_TEMPLATE_NONE || ai < 0 || a.turret_holder_of(id) != wall || a.units_.stance[ai] == STANCE_PASSIVE) {
+		std::printf("  FAIL expected the passive archer up on the wall, in the turret's stance (holder %u)\n", a.turret_holder_of(id));
+		++failures;
+		return;
+	}
+	if (!a.save_state(path)) { std::printf("FAIL save (turret)\n"); ++failures; return; }
+	auto fresh = std::make_unique<Simulation>();
+	setup(b);
+	struct Copy { Simulation *sim; const char *how; };
+	const Copy copies[] = {{fresh.get(), "fresh"}, {&b, "built for the match"}};
+	for (const Copy &c : copies) {
+		if (!c.sim->load_state(path)) { std::printf("FAIL load (turret) into a sim %s\n", c.how); ++failures; return; }
+		if (c.sim->turret_prev_stance_ != a.turret_prev_stance_) {
+			std::printf("  FAIL the archer's stance before it went up: %zu kept, %zu loaded into a sim %s\n",
+			            a.turret_prev_stance_.size(), c.sim->turret_prev_stance_.size(), c.how);
+			++failures;
+		}
+	}
+	a.cmd_leave_turret(0, &id, 1);
+	for (const Copy &c : copies) c.sim->cmd_leave_turret(0, &id, 1);
+	run(a, 20);
+	for (const Copy &c : copies) {
+		run(*c.sim, 20);
+		const int32_t ci = c.sim->lookup_unit(id);
+		const uint32_t ha = tm.compute_sim_hash(a), hc = tm.compute_sim_hash(*c.sim);
+		if (ci < 0 || c.sim->units_.stance[ci] != a.units_.stance[a.lookup_unit(id)] || ha != hc) {
+			std::printf("  FAIL the archer came down in stance %d in the game, %d in the copy loaded into a sim %s (hash %08x / %08x)\n",
+			            a.units_.stance[a.lookup_unit(id)], ci < 0 ? -1 : c.sim->units_.stance[ci], c.how, ha, hc);
+			++failures;
+		}
+	}
+	if (failures == before)
+		std::printf("a passive archer up on a wall at the save comes down passive in each loaded copy: ok\n");
+}
+
+// Fields and their grain. 0.28's field is its own supply (template_structure_resource_field.xml:45-51
+// ResourceSupply), so a save keeps the two together. RTS0's grain is a supply of its own at the field's
+// centre, linked to the field (field_res_by_bld_, field_bld_by_res_) until sync_field_resources finds
+// the field gone and retires the supply; saves don't hold the links, so load_state works them out again
+// (relink_field_resources). Women farm four fields, and
+//   1. the game is saved, and a field is deleted in the turn after the load;
+//   2. a field is destroyed in combat, after its tick's sync_field_resources, and the game saved then.
+// Each save is loaded into a fresh Simulation and one built for the match, which must hold the links the
+// game holds, retire the same supplies and keep the game's hash.
+static void check_field_links(TurnManager &tm, const char *path) {
+	static Simulation a, b;
+	auto setup = [](Simulation &s) {
+		s.reset();
+		s.set_sim_seed(SEED);
+		s.set_victory_condition(VICTORY_ENDLESS);
+		s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	};
+	setup(a);
+	std::vector<uint32_t> fields;
+	const float spots[4][2] = {{-44.0f, 0.0f}, {44.0f, 0.0f}, {0.0f, -44.0f}, {0.0f, 44.0f}};
+	for (const auto &p : spots) {
+		const uint32_t f = a.spawn_building_world(p[0], p[1], BLD_FIELD, 0, 1.0f);
+		fields.push_back(f);
+		for (int k = 0; k < 2; ++k) {
+			const uint32_t w = a.spawn_unit(p[0] * 0.6f + 3.0f * (float)k, p[1] * 0.6f + 3.0f, 0, UNIT_FEMALE_CITIZEN);
+			a.order_build_or_repair(&w, 1, f, false, true);
+		}
+	}
+	run(a, 200);
+	const int before = failures;
+	if (a.field_bld_by_res_.size() != fields.size()) {
+		std::printf("  FAIL expected %zu fields linked to their grain, %zu\n", fields.size(), a.field_bld_by_res_.size());
+		++failures;
+		return;
+	}
+	// Saves the game, loads it into the two copies, gives each the same command in the turn after
+	// the load and plays all three on.
+	auto follow = [&](const char *what, auto &&load_turn) {
+		if (!a.save_state(path)) { std::printf("FAIL save (fields)\n"); ++failures; return; }
+		auto fresh = std::make_unique<Simulation>();
+		setup(b);
+		struct Copy { Simulation *sim; const char *how; int diverged; };
+		Copy copies[] = {{fresh.get(), "fresh", -1}, {&b, "built for the match", -1}};
+		for (Copy &c : copies) {
+			if (!c.sim->load_state(path)) { std::printf("FAIL load (fields) into a sim %s\n", c.how); ++failures; return; }
+			if (c.sim->field_res_by_bld_ != a.field_res_by_bld_ || c.sim->field_bld_by_res_ != a.field_bld_by_res_) {
+				std::printf("  FAIL %s: %zu fields linked to their grain in the game, %zu in the copy loaded into a sim %s\n", what,
+				            a.field_bld_by_res_.size(), c.sim->field_bld_by_res_.size(), c.how);
+				++failures;
+			}
+		}
+		load_turn(a);
+		for (Copy &c : copies) load_turn(*c.sim);
+		for (int t = 1; t <= 100; ++t) {
+			a.tick(Simulation::FIXED_STEP);
+			for (Copy &c : copies) {
+				if (c.diverged >= 0) continue;
+				c.sim->tick(Simulation::FIXED_STEP);
+				if (tm.compute_sim_hash(a) != tm.compute_sim_hash(*c.sim)) c.diverged = t;
+			}
+		}
+		for (Copy &c : copies) {
+			if (c.diverged < 0) continue;
+			std::printf("  FAIL %s: the copy loaded into a sim %s diverged %d ticks after the load\n", what, c.how, c.diverged);
+			++failures;
+		}
+	};
+	follow("a field deleted in the turn after the load", [&](Simulation &s) { s.cmd_delete(0, &fields[0], 1); });
+	// One blow ends the second field, from a cavalryman of player 1's: combat comes after the farming in
+	// a tick (Simulation::tick), so the field dies after its tick's sync_field_resources.
+	a.buildings_[a.building_id_to_idx_.at(fields[1])].hp = 1.0f;
+	const uint32_t rider = a.spawn_unit(spots[1][0] + 16.0f, spots[1][1], 1, UNIT_CAVALRY);
+	a.order_attack_building(&rider, 1, fields[1]);
+	for (int t = 0; t < 400 && !a.buildings_[a.building_id_to_idx_.at(fields[1])].wrecked; ++t) a.tick(Simulation::FIXED_STEP);
+	if (!a.buildings_[a.building_id_to_idx_.at(fields[1])].wrecked || !a.field_res_by_bld_.count(fields[1])) {
+		std::printf("  FAIL expected the second field destroyed and still linked to its grain at the end of the tick\n");
+		++failures;
+		return;
+	}
+	follow("a field destroyed just before the save", [](Simulation &) {});
+	if (failures == before)
+		std::printf("fields deleted after the load and destroyed just before the save retire their grain in each loaded copy: ok\n");
+}
+
+// Caches kept for one tick, keyed by the tick they were worked out on: the mines that block movement
+// (mine_obstacles_) and the cells Gaia's obstructions block for placement (resource_block_cells_, which
+// check_placement reads for each build command). Another game reaches the same tick, so neither may
+// outlive the game: a sim that played a game with a mine and a tree at one place, then reset() for, or
+// loaded, a game with them elsewhere at the tick it last worked them out on, must place a house and
+// list the mines as a fresh sim does.
+static void check_tick_caches(TurnManager &tm, const char *path) {
+	static Simulation a, b;
+	// A house at cell (start, start) stands on the first game's tree, one at (-start - 1, start) on the second's.
+	const int start = -4;
+	const float spot = ((float)start + 0.5f) * Simulation::GRID;
+	auto game = [&](Simulation &s, float side) {
+		s.reset();
+		s.set_sim_seed(SEED);
+		s.set_victory_condition(VICTORY_ENDLESS);
+		s.spawn_resource_world(side * 40.0f, 30.0f, RES_STONE, 5000, RES_SUB_NONE, 24);
+		s.spawn_resource_world(side * spot, spot, RES_WOOD, 200);
+		const uint32_t u = s.spawn_unit(side * 40.0f, 10.0f, 0, UNIT_SWORDSMAN);
+		s.order_walk(&u, 1, side * 40.0f, 50.0f);
+	};
+	auto placement = [&](const Simulation &s) {
+		std::string r;
+		for (const int cx : {start, -start - 1}) r += std::to_string((int)s.check_placement(0, cx, start, BLD_HOUSE));
+		return r;
+	};
+	auto mines = [](const Simulation &s) {
+		std::string r;
+		for (const auto &m : s.mine_obstacles_) r += std::to_string(m.id) + "@" + std::to_string((int)m.x) + " ";
+		return r;
+	};
+	const int before = failures;
+	// 1. reset(): the game before worked both out on tick 0, as the new one does, with as many supplies.
+	game(a, 1.0f);
+	(void)placement(a);
+	run(a, 1);
+	game(a, -1.0f);
+	game(b, -1.0f);
+	const std::string pa = placement(a), pb = placement(b);
+	run(a, 1);
+	run(b, 1);
+	if (pa != pb || mines(a) != mines(b)) {
+		std::printf("  FAIL a sim reset() after a game: house placement %s, mines %s; a fresh game: %s, %s\n", pa.c_str(),
+		            mines(a).c_str(), pb.c_str(), mines(b).c_str());
+		++failures;
+	}
+	// 2. load_state: the sim last worked both out on the tick the save was written on.
+	game(b, -1.0f);
+	run(b, 5);
+	if (!b.save_state(path)) { std::printf("FAIL save (caches)\n"); ++failures; return; }
+	game(a, 1.0f);
+	run(a, 5);
+	(void)placement(a);
+	run(a, 1);
+	auto fresh = std::make_unique<Simulation>();
+	if (!a.load_state(path) || !fresh->load_state(path)) { std::printf("FAIL load (caches)\n"); ++failures; return; }
+	const std::string la = placement(a), lf = placement(*fresh);
+	a.tick(Simulation::FIXED_STEP);
+	fresh->tick(Simulation::FIXED_STEP);
+	if (la != lf || mines(a) != mines(*fresh) || tm.compute_sim_hash(a) != tm.compute_sim_hash(*fresh)) {
+		std::printf("  FAIL a sim that loaded a game: house placement %s, mines %s; a fresh sim: %s, %s\n", la.c_str(),
+		            mines(a).c_str(), lf.c_str(), mines(*fresh).c_str());
+		++failures;
+	}
+	if (failures == before)
+		std::printf("a reset or loaded sim places a house and lists the mines as a fresh one (%s, %s): ok\n", lf.c_str(),
+		            mines(*fresh).c_str());
 }
 
 int main() {
@@ -580,6 +853,9 @@ int main() {
 	check_other_size_load(tm, "/tmp/rts0_test_save_hash.sav");
 	check_trader_save_order("/tmp/rts0_test_save_hash.sav");
 	check_forest_twin(tm, "/tmp/rts0_test_save_hash.sav");
+	check_turret_stance(tm, "/tmp/rts0_test_save_hash.sav");
+	check_field_links(tm, "/tmp/rts0_test_save_hash.sav");
+	check_tick_caches(tm, "/tmp/rts0_test_save_hash.sav");
 	build(live);
 	const char *path = "/tmp/rts0_test_save_hash.sav";
 	// Save points: early game, mid game (armies, fields, traders), later.
