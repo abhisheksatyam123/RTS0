@@ -344,6 +344,46 @@ static void test_pack_beside_enemy() {
 	check(packed, "packs all the way though the enemy is in range");
 }
 
+// Order.Pack / Order.Unpack are orders: a Shift-queued order waits in the queue behind them
+// (UnitAI AddOrder) and runs at PackFinished (FinishOrder).
+static void test_queued_after_pack() {
+	std::printf("13. a queued order waits for an ordered (un)pack to finish\n");
+	Simulation s;
+	setup(s);
+	uint32_t cat = s.spawn_unit(0, 0, 0, UNIT_CATAPULT);
+	s.order_pack(&cat, 1, false);
+	run(s, 1.0f);
+	check(pack_of(s, cat) == PACK_UNPACKING, "unpacking");
+	s.order_walk(&cat, 1, -30.0f, 0.0f, true);
+	bool unpacked = false;
+	for (int k = 0; k < (int)std::lround(8.0f / DT) && !unpacked; ++k) {
+		s.tick(DT);
+		unpacked = pack_of(s, cat) == PACK_UNPACKED;
+	}
+	check(unpacked && std::fabs(x_of(s, cat)) < 0.5f, "the queued walk doesn't cut the unpack short");
+	bool arrived = false;
+	for (int k = 0; k < (int)std::lround(40.0f / DT) && !arrived; ++k) {
+		s.tick(DT);
+		arrived = std::fabs(x_of(s, cat) + 30.0f) < 2.0f;
+	}
+	check(arrived, "then it packs and walks");
+	s.order_pack(&cat, 1, false);
+	run(s, 6.0f);
+	check(pack_of(s, cat) == PACK_UNPACKED, "deployed again");
+	const float x0 = x_of(s, cat);
+	s.order_pack(&cat, 1, true);
+	run(s, 0.4f);
+	s.order_walk(&cat, 1, 0.0f, 0.0f, true);
+	run(s, 1.0f);
+	check(pack_of(s, cat) == PACK_PACKING && std::fabs(x_of(s, cat) - x0) < 0.5f, "packing, it waits");
+	arrived = false;
+	for (int k = 0; k < (int)std::lround(40.0f / DT) && !arrived; ++k) {
+		s.tick(DT);
+		arrived = std::fabs(x_of(s, cat)) < 2.0f;
+	}
+	check(arrived, "and walks once packed");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_pack.sav";
 	test_who_packs();
@@ -358,6 +398,7 @@ int main(int argc, char **argv) {
 	test_stop_cancels_pack();
 	test_packed_leaves_foundation();
 	test_pack_beside_enemy();
+	test_queued_after_pack();
 	if (g_failures) {
 		std::printf("test_pack: FAIL (%d)\n", g_failures);
 		return 1;
