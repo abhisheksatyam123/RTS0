@@ -1119,6 +1119,35 @@ static void test_allow_capture() {
 	s->petra_check_captures(squad, f.x, f.z);
 	const int32_t j = s->lookup_unit(squad[2]);
 	CHECK(u.order_flags[j] & ORDER_FLAG_ALLOW_CAPTURE, "a winnable capture goes on");
+
+	// Points on our own structure are always taken back, unless it decays (target.decaying()):
+	// a house of ours beside the enemy's Town Center decays (its own patch of territory there is
+	// cut off from our civic centres), one beside ours doesn't.
+	s->petra_pid_ = 1;
+	const Simulation::Building *tc = nullptr, *etc = nullptr;
+	for (const auto &b : s->buildings()) {
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) tc = &b;
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) etc = &b;
+	}
+	CHECK(tc && etc, "both Town Centers stand");
+	if (!tc || !etc) return;
+	const float tcx = tc->x, tcz = tc->z, ex = etc->x + 10.0f, ez = etc->z + 10.0f;
+	const uint32_t home = s->spawn_building_world(tcx + 10.0f, tcz + 10.0f, BLD_HOUSE, 1, 1.0f);
+	const uint32_t away = s->spawn_building_world(ex, ez, BLD_HOUSE, 1, 1.0f);
+	s->rebuild_territory();
+	for (uint32_t id : {home, away}) {
+		auto &b = s->buildings_[s->building_id_to_idx_.at(id)];
+		b.capture_points_by_team[0] = b.max_capture_points * 0.3f;
+		b.capture_points_by_team[1] = b.max_capture_points * 0.7f;
+	}
+	const uint32_t mine = s->spawn_unit(tcx + 14.0f, tcz + 14.0f, 1, UNIT_SPEARMAN);
+	const std::vector<uint32_t> one{mine};
+	const bool retake_home = s->petra_allow_capture(one, mine, bld(home));
+	const bool retake_away = s->petra_allow_capture(one, mine, bld(away));
+	std::printf("  our house by our Town Center: %s; our house by the enemy's, on cut-off ground of ours (decaying): %s\n",
+	            retake_home ? "recapture" : "leave", retake_away ? "recapture" : "leave");
+	CHECK(retake_home, "recaptures points on our own structure");
+	CHECK(!retake_away, "but not on our own decaying structure, which decay would undo");
 }
 
 // garrisonManager.js:181: soldiers still walking to man a Town Center turn back
@@ -5130,14 +5159,18 @@ static void test_update_capture_strength() {
 	s->set_victory_condition(VICTORY_ENDLESS);
 	run_for(*s, 1.0f);
 	s->petra_pid_ = 1;
-	const uint32_t house = s->spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0);
+	// In player 0's territory, so it doesn't decay (a decaying house is anyone's to capture).
+	float hx = 0.0f, hz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { hx = b.x + 10.0f; hz = b.z; }
+	const uint32_t house = s->spawn_building_world(hx, hz, BLD_HOUSE, 0);
 	auto hi = s->building_id_to_idx_.find(house);
 	CHECK(hi != s->building_id_to_idx_.end(), "player 0's house stands");
 	if (hi == s->building_id_to_idx_.end()) return;
 	std::vector<uint32_t> men;
 	auto add = [&](int n) {
 		for (int k = 0; k < n; ++k) {
-			const uint32_t u = s->spawn_unit(6.0f + (float)men.size(), 6.0f, 1, UNIT_SPEARMAN);
+			const uint32_t u = s->spawn_unit(hx - 14.0f + (float)men.size(), hz - 8.0f, 1, UNIT_SPEARMAN);
 			s->order_attack_building(&u, 1, house, false, true);
 			men.push_back(u);
 		}
