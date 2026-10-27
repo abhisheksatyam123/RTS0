@@ -216,8 +216,13 @@ func select_building(id: int) -> bool:
 	for b in state()["buildings"]:
 		if int(b["id"]) == id:
 			await look_at(b["pos"])
-	await click(main.debug_building_screen(id))
-	return int(main.debug_selection_state()["building"]) == id
+	# A unit standing in front of the structure takes the click: try a few points across it.
+	var at: Vector2 = main.debug_building_screen(id)
+	for off in [Vector2.ZERO, Vector2(0, -14), Vector2(14, 0), Vector2(-14, 0), Vector2(0, 14)]:
+		await click(at + off)
+		if int(main.debug_selection_state()["building"]) == id:
+			return true
+	return false
 
 # Places the selected unit's construction `names` near `near` (world), trying a ring of spots.
 func place(names: Array, type: int, near: Vector2) -> int:
