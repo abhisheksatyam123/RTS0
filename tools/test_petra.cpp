@@ -2289,6 +2289,49 @@ static void test_city_phase_skips_no_room() {
 	}
 }
 
+// queueManager.js keeps a queued plan until it starts: a barracks or wonder plan already in
+// its queue goes ahead though the population that asked for it has dipped (PD3).
+static void test_queued_plan_outlives_its_reason() {
+	for (int held = 0; held < 2; ++held)
+		for (int wonder = 0; wonder < 2; ++wonder) {
+			auto s = std::make_unique<Simulation>();
+			s->set_sim_seed(42);
+			s->reset();
+			s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+			s->set_victory_condition(VICTORY_ENDLESS);
+			run_for(*s, 1.0f);
+			s->set_team_civ(1, (uint8_t)CIV_ATHENIANS);
+			s->players_[1].phase = wonder ? 3 : 1;
+			s->set_player_resources(1, 5000, 5000, 5000, 5000);
+			s->petra_pid_ = 1;
+			fund_queues(*s);
+			const uint8_t type = wonder ? BLD_WONDER : BLD_BARRACKS;
+			const uint8_t q = wonder ? PETRA_Q_WONDER : PETRA_Q_MILITARY_BUILDING;
+			if (held) {
+				s->petra_queue_heads_.item[q] = (uint8_t)(type + 1);
+				s->petra_queue_heads_.age[q] = 0.0f;
+			}
+			if (wonder) { // a market and temple stand, so nothing else heads the town decisions
+				for (const auto &b : std::vector<Simulation::Building>(s->buildings_))
+					if (b.team == 1 && b.type == BLD_TOWN_CENTER) {
+						s->spawn_building_world(b.x + 20.0f, b.z, BLD_MARKET, 1, 1.0f);
+						s->spawn_building_world(b.x - 20.0f, b.z, BLD_TEMPLE, 1, 1.0f);
+						s->spawn_building_world(b.x, b.z + 20.0f, BLD_FORGE, 1, 1.0f);
+					}
+			}
+			// A played turn that is a 3rd (the training-building and town decisions) but not a 30th.
+			while (!s->petra_turn_mod(3) || s->petra_turn_mod(30)) s->ticks_ += 4;
+			if (wonder) s->petra_manage_research(0.5f);
+			else s->petra_manage_buildings(0.5f);
+			int laid = 0;
+			for (const auto &b : s->buildings_) laid += b.team == 1 && b.type == type && b.build_progress < 1.0f && b.hp > 0.0f;
+			std::printf("  %s plan %s, population %d: %d laid\n", wonder ? "wonder" : "barracks", held ? "queued" : "not queued",
+			            s->pop_current(1), laid);
+			if (held) CHECK(laid == 1, "a queued plan starts though its reason has gone");
+			else CHECK(laid == 0, "no plan without its reason");
+		}
+}
+
 // queueplanBuilding.js isGo (houseNeeded): a queued house plan waits while canBuild fails for
 // both the house and the apartment (the 90 s no-room mark), and goes once the mark lapses.
 static void test_house_plan_waits_out_no_room() {
@@ -9232,6 +9275,7 @@ int main(int argc, char **argv) {
 	RUN(test_phase_up);
 	RUN(test_city_phase_skips_no_room);
 	RUN(test_house_plan_waits_out_no_room);
+	RUN(test_queued_plan_outlives_its_reason);
 	RUN(test_no_free_income);
 	RUN(test_mercenary_workers);
 	RUN(test_trade_tech_waits_for_funds);
