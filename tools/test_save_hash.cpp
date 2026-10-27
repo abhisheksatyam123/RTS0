@@ -185,6 +185,9 @@ static void compare(const Simulation &a, const Simulation &b) {
 	const auto &ta = a.territory_grid(), &tb = b.territory_grid();
 	CMP("territory size", 0, ta.data.size(), tb.data.size());
 	for (size_t i = 0; i < ta.data.size() && i < tb.data.size(); ++i) CMP("territory cell", i, ta.data[i], tb.data[i]);
+	// Each player's tiles of that grid, which Petra's updateTerritories reads: not hashed and not
+	// saved, so a loaded copy counts them again from the grid it loaded.
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) CMP("territory tiles", p, a.territory_tiles_[p], b.territory_tiles_[p]);
 	for (uint8_t r = 0; r < RES_COUNT; ++r) CMP("barter price", r, a.market_buy_price(r), b.market_buy_price(r));
 	CMP("victory_condition", 0, a.victory_condition(), b.victory_condition());
 	CMP("waves_enabled", 0, a.waves_enabled(), b.waves_enabled());
@@ -356,6 +359,19 @@ static void check_identical_saves() {
 	}
 }
 
+// A reset() or resized sim holds no territory tiles, as a new one: its grid is cleared, and Petra's
+// updateTerritories reads the counts, which would otherwise be the game it played before until the
+// next rebuild counts them again. 0.28 starts each game with a new territory manager, whose counts are
+// empty (CCmpTerritoryManager.cpp:119) and zeroed before each count (:487-490).
+static void check_no_territory(const Simulation &s, const char *what) {
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+		if (s.territory_tiles_[p] != 0) {
+			std::printf("  FAIL %s: player %u still holds %u territory tiles\n", what, (unsigned)p, (unsigned)s.territory_tiles_[p]);
+			++failures;
+			return;
+		}
+}
+
 // A save from a map at a non-default size loads into a freshly reset() sim:
 // the fog grids are read at the saved map's size, not the reset sim's.
 static void check_other_size_load(TurnManager &tm, const char *path) {
@@ -387,6 +403,8 @@ static void check_other_size_load(TurnManager &tm, const char *path) {
 		++failures;
 		print_diffs();
 	}
+	a.set_map_half(a.map_half()); // as a new map's size does
+	check_no_territory(a, "a sim given a map size after a random map");
 	if (failures == before) std::printf("map half 192 into a reset sim: ok\n");
 }
 
@@ -399,6 +417,7 @@ static void check_reused_sim(TurnManager &tm, const char *path) {
 		build(used);
 		run(used, 400);
 		a.reset();
+		check_no_territory(a, "a sim reset() after a random map");
 		a.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0);
 		a.spawn_unit(-10.0f, 10.0f, 0, UNIT_SWORDSMAN);
 		a.spawn_unit(10.0f, 10.0f, 1, UNIT_SPEARMAN);
@@ -406,6 +425,7 @@ static void check_reused_sim(TurnManager &tm, const char *path) {
 		const int before = failures;
 		if (!a.save_state(path)) { std::printf("FAIL save (reused sim)\n"); ++failures; return; }
 		b.reset();
+		check_no_territory(b, "a sim reset() after a random map");
 		if (!b.load_state(path)) { std::printf("FAIL load (reused sim)\n"); ++failures; return; }
 		compare(a, b);
 		const uint32_t ha = tm.compute_sim_hash(a), hb = tm.compute_sim_hash(b);
