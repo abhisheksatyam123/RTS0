@@ -44,6 +44,20 @@ func form_up() -> Array:
 	await frames(20)
 	return ids
 
+# A spot where one of `ids` picks itself (hover highlights it): another unit's body or the
+# Civic Centre can stand in front of a unit's feet.
+func member_spot(ids: Array) -> Vector2:
+	for id in ids:
+		var p: Vector2 = main.debug_unit_screen(int(id))
+		var mm := InputEventMouseMotion.new()
+		mm.position = root.get_final_transform() * p
+		mm.global_position = mm.position
+		Input.parse_input_event(mm)
+		await frames(3)
+		if main.debug_highlight().has(int(id)):
+			return p
+	return main.debug_unit_screen(int(ids[0]))
+
 func click(at: Vector2) -> void:
 	var mb := InputEventMouseButton.new()
 	mb.button_index = MOUSE_BUTTON_LEFT
@@ -59,7 +73,18 @@ func click(at: Vector2) -> void:
 
 func right_click_beside(ids: Array) -> void:
 	var u: Dictionary = units().filter(func(x): return ids.has(x["id"]))[0]
-	var at: Vector2 = root.get_camera_3d().unproject_position(Vector3(u["pos"].x + 5.0, 0.0, u["pos"].y + 5.0))
+	# Bare ground near them: the random map can put a tree or a unit at any one spot.
+	var base: Vector2 = main.debug_unit_screen(int(u["id"]))
+	var at: Vector2 = base + Vector2(60, 60)
+	for off in [Vector2(60, 60), Vector2(-60, 60), Vector2(60, -60), Vector2(-60, -60), Vector2(0, 90), Vector2(90, 0)]:
+		var mm := InputEventMouseMotion.new()
+		mm.position = root.get_final_transform() * (base + off)
+		mm.global_position = mm.position
+		Input.parse_input_event(mm)
+		await frames(3)
+		if main.debug_highlight().is_empty():
+			at = base + off
+			break
 	var mb := InputEventMouseButton.new()
 	mb.button_index = MOUSE_BUTTON_RIGHT
 	mb.position = at
@@ -79,6 +104,11 @@ func right_press_formation(f: int) -> void:
 	main._on_formation_gui_input(mb, f)
 
 func run() -> void:
+	# The mouse rests mid-screen: at the corner it would scroll the camera away.
+	var mm := InputEventMouseMotion.new()
+	mm.position = root.get_final_transform() * (root.get_visible_rect().size / 2)
+	mm.global_position = mm.position
+	Input.parse_input_event(mm)
 	await frames(60)
 	var keep_walk: String = cfg.get_value("gui.session.formationwalkonly")
 	var keep_one: String = cfg.get_value("gui.session.selectformationasone")
@@ -95,7 +125,7 @@ func run() -> void:
 	check(ids.size() >= 2 and formed(ids).size() == ids.size(), "%d soldiers in a box" % formed(ids).size())
 	var one: Dictionary = formed(ids)[0] if formed(ids).size() else {}
 	if not one.is_empty():
-		var at: Vector2 = root.get_camera_3d().unproject_position(Vector3(one["pos"].x, 0.5, one["pos"].y))
+		var at: Vector2 = await member_spot(ids)
 		main.clear_selection()
 		cfg.set_value("gui.session.selectformationasone", "true")
 		await click(at)
@@ -104,9 +134,7 @@ func run() -> void:
 		main.clear_selection()
 		await create_timer(0.8).timeout # not a double click
 		cfg.set_value("gui.session.selectformationasone", "false")
-		for u in units(): # the box may have shuffled since
-			if u["id"] == one["id"]:
-				at = root.get_camera_3d().unproject_position(Vector3(u["pos"].x, 0.5, u["pos"].y))
+		at = await member_spot(ids) # the box may have shuffled since
 		await click(at)
 		sel = main.debug_selection_state()["selected"]
 		check(sel.size() == 1, "off: one click selects one unit: %d" % sel.size())

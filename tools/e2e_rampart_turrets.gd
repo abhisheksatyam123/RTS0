@@ -71,7 +71,8 @@ func run() -> void:
 	for k in 4:
 		archers.append_array(main.debug_spawn_units("maur/infantry_archer_b", 1))
 	var spot: Vector2 = main.debug_spawn_offset("maur/infantry_archer_b", 1)
-	var tower: int = main.debug_spawn_building(BLD_TOWER_DOUBLE, spot.x + 1.7, spot.y)
+	# On the camera's side of them (+z), so they don't stand in front of it.
+	var tower: int = main.debug_spawn_building(BLD_TOWER_DOUBLE, spot.x, spot.y + 1.7)
 	main.debug_select_entity(tower)
 	await frames(4)
 	var at: Vector2 = main.debug_selected_building()["screen"]
