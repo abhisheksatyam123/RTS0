@@ -7096,8 +7096,8 @@ void Simulation::cmd_stop(const uint32_t *unit_ids, size_t count) {
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
 			units_.has_order[idx] = 0;
 			units_.action_state[idx] = ACTION_IDLE;
-			units_.anchor_x[idx] = units_.pos_x[idx];
-			units_.anchor_z[idx] = units_.pos_z[idx];
+			// Order.Stop is FinishOrder alone: the held position stays the last walk's
+			// destination, so a defensive unit stopped short walks on there (IDLE Timer).
 			units_.target_resource_id[idx] = 0;
 			units_.target_unit_id[idx] = 0;
 			units_.target_building_id[idx] = 0;
@@ -16171,6 +16171,9 @@ void Simulation::tick_pack(float dt) {
 				ps = (ps == PACK_PACKING) ? PACK_PACKED : PACK_UNPACKED;
 				units_.pack_elapsed[i] = 0.0f;
 				if (units_.order_kind[i] == ORDER_NONE) units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE; // PackFinished
+				// Pack.js PackFinished -> ChangeEntityTemplate: SwitchToStance holds where it stands.
+				units_.anchor_x[i] = units_.pos_x[i];
+				units_.anchor_z[i] = units_.pos_z[i];
 			}
 		}
 		units_.pack_state[i] = ps;
@@ -17325,6 +17328,8 @@ void Simulation::tick_combat(float dt) {
 			uint32_t dead_id = units_.id[idx];
 			unit_id_to_idx_.erase(dead_id);
 			if (dead_id < unit_idx_by_id_.size()) unit_idx_by_id_[dead_id] = -1;
+			order_queues_.erase(dead_id); // a destroyed entity's UnitAI goes with it
+			work_orders_.erase(dead_id);
 			if (idx < unit_paths_.size() && units_.count > 0) {
 				size_t last = units_.count - 1;
 				if (idx != last && last < unit_paths_.size()) {
@@ -17521,6 +17526,11 @@ float Simulation::unit_gather_rate(size_t i, uint8_t kind, float class_rate, boo
 }
 
 void Simulation::promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_rank) {
+	// Promotion.js Promote -> ChangeEntityTemplate (Transform.js:142-160) copies the orders but
+	// not workOrders (Back to Work is lost), and its SwitchToStance holds where the unit stands.
+	work_orders_.erase(units_.id[i]);
+	units_.anchor_x[i] = units_.pos_x[i];
+	units_.anchor_z[i] = units_.pos_z[i];
 	const float frac = units_.max_hp[i] > 0.0f ? units_.hp[i] / units_.max_hp[i] : 1.0f;
 	if (target_tmpl < CIV_UNIT_TEMPLATE_COUNT && target_tmpl != units_.tmpl[i]) {
 		// Another unit: its template's stats, the owner's civ bonuses (not its template civ's
@@ -19810,7 +19820,12 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
 		case ORDER_HEAL: order_heal(&uid, 1, o.target); break;
 		case ORDER_TRADE: order_trade(&uid, 1, o.target, trade_market_id(o.x2)); break;
-		case ORDER_RETURN_RESOURCE: order_return_resource(&uid, 1, o.target, false, (o.flags & ORDER_FLAG_FORCE) != 0); break;
+		case ORDER_RETURN_RESOURCE: {
+			const int32_t ui = lookup_unit(uid);
+			const uint32_t d = o.target != 0 ? o.target : ui >= 0 ? nearest_dropsite((size_t)ui) : 0;
+			if (d != 0) order_return_resource(&uid, 1, d, false, (o.flags & ORDER_FLAG_FORCE) != 0);
+			break;
+		}
 		case ORDER_COLLECT_TREASURE: order_collect_treasure(&uid, 1, o.target); break;
 		case ORDER_HUNT: order_hunt(&uid, 1, o.target); break;
 		case ORDER_ATTACK_SCENERY: order_attack_scenery(&uid, 1, o.target, capture); break;
@@ -19871,6 +19886,7 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 		case ORDER_HEAL: return can_heal(i, lookup_unit(o.target));
 		case ORDER_TRADE: return trade_route_ok(i, o.target, trade_market_id(o.x2));
 		case ORDER_RETURN_RESOURCE: {
+			if (o.target == 0) return units_.carry[i] > 0 && nearest_dropsite(i) != 0; // DropAtNearestDropSite
 			if (lookup_unit(o.target) >= 0) return can_return_resource(units_.id[i], o.target);
 			const Building *b = building(o.target);
 			return b && units_.carry[i] > 0 && dropsite_accepts(i, *b);
@@ -21383,6 +21399,16 @@ void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, floa
 				if (const uint32_t best = nearest_dropsite((size_t)i); best != 0) order_return_resource(&uid, 1, best, false);
 			continue;
 		}
+		// Queued behind other orders, DropAtNearestDropSite is resolved when it runs (target 0:
+		// from where the unit is then, with what it carries then; UnitAI.js:577-586).
+		auto pending = order_queues_.find(uid);
+		if (queued && (units_.order_kind[i] != ORDER_NONE || (pending != order_queues_.end() && !pending->second.empty()))) {
+			std::vector<UnitOrder> &queue = order_queues_[uid];
+			UnitOrder drop; drop.kind = ORDER_RETURN_RESOURCE; drop.target = 0;
+			if (queue.size() < 64) queue.push_back(drop);
+			order_attack_move(&uid, 1, x, z, true, units_only, allow_capture);
+			continue;
+		}
 		// DropAtNearestDropSite: FindNearestDropsite for the carried type, else nothing.
 		if (units_.carry[i] > 0) {
 			const uint32_t best = nearest_dropsite((size_t)i);
@@ -22661,11 +22687,13 @@ void Simulation::petra_manage_military_production(float dt) {
 		const bool main_plan = &plan == &petra_attack_plan_;
 		std::vector<UnitStat> stats = petra_plan_unit_stats(kind, main_plan ? petra_attack_mgr_.dropped_classes : 0);
 
-		// What the plan has, each unit counted once in the first class it matches, plus what is
-		// in training for it (the batches queued with its plan).
+		// What the plan has, each unit counted in every class it matches (this.unit[cat] is a
+		// class filter over the plan's units: a German Cimbrian clubman, Champion and Citizen
+		// Soldier, is both a champion and a melee citizen soldier), plus what is in training for
+		// it (the batches queued with its plan).
 		auto tally = [&](TechClasses c, int n) {
 			for (UnitStat &st : stats)
-				if ((c & st.classes) == st.classes) { st.count += n; return; }
+				if ((c & st.classes) == st.classes) st.count += n;
 		};
 		for (uint32_t uid : plan.squad) {
 			const int32_t i = lookup_unit(uid);
@@ -25190,10 +25218,8 @@ void Simulation::petra_manage_fields() {
 		return !petra_no_room(t) && civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
 		       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
-	// manageCorral's anchor, as a position: the fields and corrals placed below grow buildings_.
-	const Building *anchor_b = farmstead ? farmstead : tc;
-	const bool anchor = anchor_b != nullptr;
-	const float anchor_at[2] = {anchor ? anchor_b->x : 0.0f, anchor ? anchor_b->z : 0.0f};
+	// manageCorral's anchor: a farmstead, else the civic centre.
+	const bool anchor = farmstead != nullptr || tc != nullptr;
 	// configFirstBase: a starting land under 25000 m² saves space (one field at most, one field
 	// foundation fewer, and a corral), one under 60000 m² takes two fields at most; a further
 	// base anchor finished or captured (handleNewBase) ends both for good, a finished market
@@ -25246,7 +25272,8 @@ void Simulation::petra_manage_fields() {
 	                             !triggers_.building_disabled(petra_pid_, BLD_FIELD);
 	if (!field_available && corrals < (int)petra_ps().phase && pop_current(petra_pid_) > 30 * corrals && anchor &&
 	    can_build(BLD_CORRAL)) {
-		if (petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL, nullptr, anchor_at)) return;
+		// headquarters.js:1391: a plan with no metadata, so no base is favoured.
+		if (petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL)) return;
 	}
 	const CorralTrainable &ct = CORRAL_TRAINABLE[civ < CIV_COUNT ? civ : 0];
 	for (const auto &b : buildings_) {
@@ -27180,9 +27207,22 @@ void Simulation::petra_manage_buildings(float dt) {
 			}
 			const int needed_at = saving || pop <= 30 ? 10 : pop > 55 ? 21 : 15;
 			if (plans > 0 && free_slots <= needed_at) {
-				uint32_t bid = petra_place_generic(house, PETRA_Q_HOUSE);
+				// A queued house plan starts whatever the no-room mark says (canStart doesn't read
+				// it, and buildMoreHouses queues the house without canBuild); only the apartment is
+				// held back by it. A start that finds no room uses the plan up (and its account).
+				const bool apartment_held = house == BLD_APARTMENT && petra_no_room(BLD_APARTMENT);
+				uint32_t bid = 0;
+				bool searched = false;
+				if (!apartment_held) {
+					bid = petra_place_generic(house, PETRA_Q_HOUSE, nullptr, nullptr, false, house == BLD_HOUSE);
+					searched = !bid && petra_place_no_room_;
+					if (searched) --plans;
+				}
 				// canBuild(apartment) fails while there is no room for one: a house instead.
-				if (!bid && petra_place_no_room_ && house == BLD_APARTMENT) bid = petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
+				if (!bid && house == BLD_APARTMENT && (apartment_held || searched) && plans > 0) {
+					bid = petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE, nullptr, nullptr, false, true);
+					if (!bid && petra_place_no_room_) --plans;
+				}
 				if (bid) --plans;
 			}
 			if (houses_turn && accounted_free < 5 && house_no_room) petra_research_population_bonus();
@@ -27480,8 +27520,7 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 	// save before v79 goes anywhere in our territory.
 	PetraDropsiteCheck &old = petra_dropsite_check_;
 	if (old.pending) {
-		bool no_site = false;
-		if (petra_place_dropsite((uint8_t)(old.pending - 1), 50.0f, &no_site) || no_site) old.pending = 0;
+		if (petra_start_queued_dropsite((uint8_t)(old.pending - 1), nullptr, nullptr, 0)) old.pending = 0;
 		return;
 	}
 	PetraBasesMap bmap;
@@ -27504,8 +27543,8 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 	for (size_t a = 0; a < bmap.anchors.size(); ++a) {
 		PetraDropsiteCheck &dc = *by_base[a];
 		if (!dc.pending || !petra_base_turn(bmap.anchors[a].id)) continue;
-		bool no_site = false;
-		if (petra_place_dropsite((uint8_t)(dc.pending - 1), 50.0f, &no_site, -1.0f, &bmap, (int)a + 1) || no_site) dc.pending = 0;
+		const float at[2] = {bmap.anchors[a].x, bmap.anchors[a].z};
+		if (petra_start_queued_dropsite((uint8_t)(dc.pending - 1), at, &bmap, (int)a + 1)) dc.pending = 0;
 		return;
 	}
 	bool foundation = false;
@@ -27580,9 +27619,16 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 						if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && b.build_progress < 1.0f &&
 						    (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY)) { cc_foundation = true; break; }
 					if ((no_site || !civ_can_build(petra_ps().civ, BLD_STOREHOUSE)) && !cc_foundation &&
-					    (petra_config_.difficulty == PETRA_SANDBOX || !petra_build_new_base(kTypes[k])) &&
-					    petra_place_dropsite(kTypes[k], std::min(25.0f, 50.0f * 0.15f / ratio), nullptr, -1.0f, &bmap, base))
-						return;
+					    (petra_config_.difficulty == PETRA_SANDBOX || !petra_build_new_base(kTypes[k]))) {
+						// The poorer site's plan waits in the dropsites queue like any other.
+						bool weak_no_site = false;
+						if (petra_place_dropsite(kTypes[k], std::min(25.0f, 50.0f * 0.15f / ratio), &weak_no_site, -1.0f, &bmap, base))
+							return;
+						if (!weak_no_site && civ_can_build(petra_ps().civ, BLD_STOREHOUSE)) {
+							dc.pending = (uint8_t)(kTypes[k] + 1);
+							return;
+						}
+					}
 				}
 			} else if (total == 0) {
 				dc.next_check[k] = turn + 10;
@@ -27591,6 +27637,16 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 	}
 }
 
+
+// queueplanBuilding.js findGoodPosition for a queued storehouse plan once it can start: the best
+// dropsite site of its base again, any quality above 0, else the general placement in that base.
+// True once the plan is done with (built, or no room for it).
+bool Simulation::petra_start_queued_dropsite(uint8_t res, const float *base_at, const PetraBasesMap *bmap, int base) {
+	bool no_site = false;
+	if (petra_place_dropsite(res, 0.0f, &no_site, -1.0f, bmap, base)) return true;
+	if (!no_site) return !civ_can_build(petra_ps().civ, BLD_STOREHOUSE);
+	return petra_place_generic(BLD_STOREHOUSE, PETRA_Q_DROPSITES, base_at, nullptr, false, true) || petra_place_no_room_;
+}
 
 // baseManager.js findBestDropsiteLocation for a storehouse: over our territory tiles (8 m),
 // 0.7 x (twice the resource plus wood, stone and metal) on shared.js resourceMaps, nothing
@@ -30175,7 +30231,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			}
 
 			// attackPlan.js mustStart: every class of the plan at its targetSize, each unit counted
-			// in the first class it matches (a class no building of ours trains drops out, as
+			// in every class it matches (a class no building of ours trains drops out, as
 			// trainMoreUnits deletes it). At the population cap (under 5 free slots) the plan
 			// starts with every class at its minSize or more than lengthMin units, and fails
 			// otherwise so that its units go to other plans. The cap is getPopulationMax, the hard
@@ -30186,7 +30242,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				if (k < 0 || !units_.alive[k]) continue;
 				const TechClasses c = unit_classes(units_.tmpl[k], units_.unit_type[k]);
 				for (PetraUnitStat &st : stats)
-					if ((c & st.classes) == st.classes) { ++st.count; break; }
+					if ((c & st.classes) == st.classes) ++st.count;
 			}
 			bool max_everywhere = true, min_everywhere = true;
 			for (const PetraUnitStat &st : stats) {
@@ -31269,7 +31325,8 @@ void Simulation::petra_update_started_raid(AttackPlan &plan, float base_x, float
 }
 
 void Simulation::petra_manage_opening(float dt) {
-	if (petra_ps().phase > 1 || petra_opening_step_ >= 4) return;
+	// Step 3: the first storehouse's plan waits in the dropsites queue, whatever the phase.
+	if ((petra_ps().phase > 1 && petra_opening_step_ != 3) || petra_opening_step_ >= 4) return;
 
 	petra_opening_timer_ += dt;
 	if (petra_opening_timer_ < 0.8f) return;
@@ -31289,6 +31346,12 @@ void Simulation::petra_manage_opening(float dt) {
 	// The dropsite goes where findBestDropsiteAndLocation puts it, if that spot's quality
 	// passes 40; with no such spot there is none. With over 12 workers and a spot past 60, or
 	// a population 20 over its limit, the stock goes to the dropsites account first.
+	// Once queued, the plan looks again when it can start (any quality above 0, else the general
+	// placement): petra_start_queued_dropsite.
+	if (petra_opening_step_ == 3) {
+		if (petra_start_queued_dropsite(RES_WOOD, nullptr, nullptr, 0)) petra_opening_step_ = 4;
+		return;
+	}
 	bool no_site = false;
 	int workers = 0;
 	for (size_t i = 0; i < units_.count; ++i)
@@ -31297,6 +31360,8 @@ void Simulation::petra_manage_opening(float dt) {
 	if (count_ai(BLD_STOREHOUSE) > 0 || !civ_can_build(petra_ps().civ, BLD_STOREHOUSE) ||
 	    petra_place_dropsite(RES_WOOD, 40.0f, &no_site, fund_above) || no_site)
 		petra_opening_step_ = 4;
+	else if (!petra_building_built())
+		petra_opening_step_ = 3; // a site past 40, not yet paid for: queued
 }
 
 void Simulation::apply_petra_config() {
@@ -31606,9 +31671,32 @@ bool Simulation::petra_queue_head_turn(uint8_t queue, uint8_t btype) {
 	return true;
 }
 
+// queueManager.js startNextItems walks the queues by priority and canStart takes one
+// structure a turn (turnCache.buildingBuilt): a structure heading a higher-priority queue
+// that can start now goes first, whichever manager asks first here.
+bool Simulation::petra_higher_structure_waiting(uint8_t queue) {
+	if (queue >= PETRA_Q_COUNT) return false;
+	const PetraQueueHeads &h = petra_queue_heads_;
+	const int mine = petra_queue_priority(queue);
+	for (uint8_t q = 0; q < PETRA_Q_COUNT; ++q) {
+		// 0.28's plan waits in its queue and starts at the next update it can; here the head
+		// starts only when its manager asks again, so one that did not ask last turn holds
+		// nothing up (its lower queues would lose the turn for nothing).
+		if (q == queue || !h.item[q] || h.age[q] > (float)PETRA_TURN_TICKS * FIXED_STEP + 0.01f) continue;
+		if (petra_queue_priority(q) <= mine) continue;
+		const uint8_t bt = (uint8_t)(h.item[q] - 1);
+		if (bt >= BLD_TYPE_COUNT || petra_no_room(bt) || !petra_limit_allows_building(bt)) continue;
+		float f, w, g, st;
+		petra_structure_cost(bt, f, w, g, st);
+		if (petra_queue_affords(q, f, w, g, st)) return true;
+	}
+	return false;
+}
+
 bool Simulation::petra_try_pay_structure(uint8_t queue, uint8_t btype) {
 	if (!petra_has_builder()) return false; // canBuild/canStart: no plan without a builder
 	if (!petra_queue_head_turn(queue, btype)) return false;
+	if (petra_higher_structure_waiting(queue)) return false;
 	float f, w, g, st;
 	petra_structure_cost(btype, f, w, g, st);
 	if (!petra_try_pay(queue, f, w, g, st)) return false;
@@ -31616,12 +31704,32 @@ bool Simulation::petra_try_pay_structure(uint8_t queue, uint8_t btype) {
 	return true;
 }
 
+void Simulation::petra_spend_structure_account(uint8_t queue, uint8_t btype) {
+	if (queue >= PETRA_Q_COUNT) return;
+	float f, w, g, st;
+	petra_structure_cost(btype, f, w, g, st);
+	PetraQueueAccount &a = petra_queues_.accounts[queue];
+	a.food = std::max(0.0f, a.food - f); a.wood = std::max(0.0f, a.wood - w);
+	a.gold = std::max(0.0f, a.gold - g); a.stone = std::max(0.0f, a.stone - st);
+}
+
 bool Simulation::petra_can_start_structure(uint8_t queue, uint8_t btype) {
 	if (!petra_has_builder()) return false;
 	if (!petra_queue_head_turn(queue, btype)) return false;
+	if (petra_higher_structure_waiting(queue)) return false;
 	float f, w, g, st;
 	petra_structure_cost(btype, f, w, g, st);
 	return petra_try_pay(queue, f, w, g, st, false);
+}
+
+// The queue's account and the stock both cover the cost (and the queue is not paused).
+bool Simulation::petra_queue_affords(uint8_t queue, float food, float wood, float gold, float stone) {
+	const PetraQueueAccount &a = petra_queues_.accounts[queue];
+	// petra_wood_starved: the wood kept for petra_wood_kept_for's queues.
+	const float reserve = wood > 0.0f && !petra_wood_kept_for(queue) && petra_wood_starved()
+	                      ? (petra_ps().phase == 1 ? 1150.0f : 650.0f) : 0.0f;
+	return !petra_queues_.paused[queue] && a.food >= food && a.wood >= wood && a.gold >= gold && a.stone >= stone &&
+	       petra_ps().food() >= food && petra_ps().wood() >= wood + reserve && petra_ps().gold() >= gold && petra_ps().stone() >= stone;
 }
 
 bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone, bool pay) {
@@ -31630,11 +31738,7 @@ bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold
 	PetraQueueManager &qm = petra_queues_;
 	PetraQueueAccount &a = qm.accounts[queue];
 	PetraQueueAccount &w = qm.wants[queue];
-	// petra_wood_starved: the wood kept for petra_wood_kept_for's queues.
-	const float reserve = wood > 0.0f && !petra_wood_kept_for(queue) && petra_wood_starved()
-	                      ? (petra_ps().phase == 1 ? 1150.0f : 650.0f) : 0.0f;
-	if (qm.paused[queue] || a.food < food || a.wood < wood || a.gold < gold || a.stone < stone ||
-	    petra_ps().food() < food || petra_ps().wood() < wood + reserve || petra_ps().gold() < gold || petra_ps().stone() < stone) {
+	if (!petra_queue_affords(queue, food, wood, gold, stone)) {
 		// The plan stays queued: the next refresh funds this queue (unless it is paused).
 		w.food = std::max(w.food, food); w.wood = std::max(w.wood, wood);
 		w.gold = std::max(w.gold, gold); w.stone = std::max(w.stone, stone);
@@ -32530,9 +32634,10 @@ static inline bool petra_military_structure(uint8_t t) {
 	}
 }
 
-// Structures that take food (ResourceDropsite food): civic centres, farmsteads, docks, colonies.
+// Structures that take food (ResourceDropsite food): civic centres, farmsteads, docks, colonies,
+// and a captured mill or rotary mill.
 static inline bool petra_food_dropsite(uint8_t t) {
-	return is_civic_centre(t) || t == BLD_FARMSTEAD || t == BLD_DOCK || civ_building_is_dropsite(t);
+	return is_civic_centre(t) || t == BLD_FARMSTEAD || t == BLD_MILL || t == BLD_DOCK || civ_building_is_dropsite(t);
 }
 
 // basesManager.js basesMap: each tile of our territory belongs to the nearest base anchor (a
@@ -32839,11 +32944,11 @@ uint32_t Simulation::petra_spawn_foundation(int cx, int cz, uint8_t btype) {
 
 // A structure placed by petra_find_position and paid from `queue`.
 uint32_t Simulation::petra_place_generic(uint8_t btype, uint8_t queue, const float *base_at, const float *favor_at,
-                                         bool military_base) {
+                                         bool military_base, bool any_room) {
 	petra_place_no_room_ = false;
 	if (btype >= BLD_TYPE_COUNT || !petra_limit_allows_building(btype) || petra_building_built()) return 0;
 	// canBuild: isUnbuildable while a search found no room in the last 90 s.
-	if (petra_no_room(btype)) {
+	if (!any_room && petra_no_room(btype)) {
 		petra_place_no_room_ = true;
 		return 0;
 	}
@@ -32852,6 +32957,7 @@ uint32_t Simulation::petra_place_generic(uint8_t btype, uint8_t queue, const flo
 	int cx = 0, cz = 0;
 	if (!petra_find_position(btype, base_at, favor_at, military_base, cx, cz)) {
 		petra_place_no_room_ = true;
+		petra_spend_structure_account(queue, btype);
 		petra_set_no_room(btype);
 		return 0;
 	}
@@ -32889,6 +32995,7 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 	if (!petra_can_start_structure(queue, btype)) return 0; // searched once the plan can start
 	if (miss != petra_place_misses_.end() && miss->sig == sig) { // the same search again finds the same nothing
 		petra_place_no_room_ = true;
+		petra_spend_structure_account(queue, btype);
 		petra_set_no_room(btype);
 		return 0;
 	}
@@ -32907,6 +33014,7 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 			}
 		}
 	}
+	petra_spend_structure_account(queue, btype);
 	if (remember) {
 		petra_set_no_room(btype);
 		if (miss != petra_place_misses_.end()) miss->sig = sig;

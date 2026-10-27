@@ -411,6 +411,7 @@ static bool said_to(const Simulation &s, uint8_t from, uint8_t to, uint8_t kind)
 static void fund_queues(Simulation &s) {
 	for (auto &a : s.petra_queues_.accounts) a = {5000, 5000, 5000, 5000};
 	for (auto &p : s.petra_queues_.paused) p = 0;
+	s.petra_queue_heads_ = {}; // no plan waiting: once funded, an earlier one would go first (PC10)
 }
 
 static void run_for(Simulation &s, float seconds) {
@@ -2003,6 +2004,44 @@ static void test_queue_plans_in_order() {
 	            b1, f1, f2, f3);
 	CHECK(!b0 && !f0 && b1 && f1, "a forge waits behind the barracks asked for first");
 	CHECK(!f2 && f3, "a head that stops asking lets the next structure start");
+}
+
+// queueManager.js startNextItems walks the queues by priority, and canStart lets one
+// structure start a turn: a dock (priority 90) asked for first waits while a barracks heads
+// the military-building queue (330) and can be paid; an unfunded barracks holds nothing up.
+static void test_structure_queue_priority() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	s->petra_in_turn_ = true;
+	s->petra_turn_built_ = false;
+	s->players_[1].phase = 2;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->petra_queue_heads_ = {};
+	auto fund = [&](uint8_t q, float v) {
+		PetraQueueAccount &a = s->petra_queues_.accounts[q];
+		a.food = a.wood = a.gold = a.stone = v;
+	};
+	fund(PETRA_Q_DOCK, 2000.0f);
+	fund(PETRA_Q_MILITARY_BUILDING, 2000.0f);
+	const bool barracks_heads = s->petra_can_start_structure(PETRA_Q_MILITARY_BUILDING, BLD_BARRACKS);
+	const bool dock_waits = !s->petra_can_start_structure(PETRA_Q_DOCK, BLD_DOCK);
+	const bool dock_pays_not = !s->petra_try_pay_structure(PETRA_Q_DOCK, BLD_DOCK);
+	fund(PETRA_Q_MILITARY_BUILDING, 0.0f);
+	const bool dock_goes = s->petra_can_start_structure(PETRA_Q_DOCK, BLD_DOCK);
+	// The other way round: a dock heading its queue does not hold up the barracks.
+	fund(PETRA_Q_MILITARY_BUILDING, 2000.0f);
+	const bool barracks_goes = s->petra_can_start_structure(PETRA_Q_MILITARY_BUILDING, BLD_BARRACKS);
+	std::printf("  queue priority: barracks heads %s, dock waits %s (pay refused %s), unfunded barracks lets the dock go %s, barracks before the dock %s\n",
+	            barracks_heads ? "yes" : "no", dock_waits ? "yes" : "no", dock_pays_not ? "yes" : "no", dock_goes ? "yes" : "no",
+	            barracks_goes ? "yes" : "no");
+	CHECK(barracks_heads && dock_waits && dock_pays_not, "a lower-priority structure waits for a higher queue's that can start");
+	CHECK(dock_goes, "a higher queue's structure it cannot pay for holds nothing up");
+	CHECK(barracks_goes, "a lower queue's structure never holds up a higher one");
 }
 
 // baseManager.js:897 assignToFoundations: with no active base, every worker may build each
@@ -3695,6 +3734,63 @@ static void test_huge_attack_drops_classes() {
 	CHECK(elite && (dropped & elite) == elite, "the champion and hero classes leave the plan when nothing trains them");
 	CHECK(elite_left == 0, "they stay out once the city phase arrives");
 	CHECK((dropped & ~elite) == 0, "the citizen-soldier classes stay");
+}
+
+// attackPlan.js this.unit[cat] is a class filter over the plan's units: a German Cimbrian
+// clubman (Champion and Citizen Soldier) counts as a champion as well as a melee citizen
+// soldier, so a HugeAttack holding enough of them trains no more for its champion class.
+static void test_plan_counts_every_class() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_team_civ(1, CIV_GERMANS);
+	run_for(*s, 1.0f);
+	const uint16_t club = civ_unit_template_by_id("germ/champion_infantry_maceman");
+	CHECK(club != CIV_UNIT_TEMPLATE_NONE, "the Cimbrian clubman is on the roster");
+	if (club == CIV_UNIT_TEMPLATE_NONE) return;
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->spawn_building_world(tx + (tx > 0.0f ? -12.0f : 12.0f), tz, BLD_BARRACKS, 1, 1.0f);
+	s->players_[1].phase = 3;
+	s->cheat_mods_[1].pop_bonus = 300;
+	auto &m = s->petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 0;
+	s->petra_plan_sizes(PETRA_ATTACK_HUGE);
+	m.dropped_classes = 0;
+	m.kind = PETRA_ATTACK_HUGE;
+	auto &plan = s->petra_attack_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_HUGE;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	int champ_target = 0;
+	for (const auto &st : s->petra_plan_unit_stats(PETRA_ATTACK_HUGE))
+		if ((st.classes & TC_CHAMPION).any() && (st.classes & TC_MELEE).any()) champ_target = std::max(champ_target, st.target);
+	CHECK(champ_target > 0, "the HugeAttack has a melee champion class");
+	const uint8_t ty = civ_unit_template(club).unit_type;
+	for (int k = 0; k < champ_target; ++k)
+		plan.squad.push_back(s->spawn_unit(tx - 14.0f + 1.5f * (float)(k % 12), tz - 14.0f - 1.5f * (float)(k / 12), 1, (UnitType)ty, 0.0f, club));
+	// trainMoreUnits trains the class furthest behind first: champions (priority 1) before
+	// citizen soldiers (0.7). Counted, the clubmen fill the champion class, so the plan's
+	// champion queue asks for nothing; uncounted, it would ask for more clubmen.
+	for (int k = 0; k < 4; ++k) {
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 20000.0f;
+		run_ai_turns(*s, 1);
+	}
+	int queued = 0;
+	for (const auto &b : s->buildings())
+		if (b.team == 1)
+			for (const auto &o : b.queue)
+				if (o.tmpl == club && o.petra_plan == PETRA_ORDER_ATTACK) queued += o.count;
+	const PetraQueueAccount &w = s->petra_queues_.wants[PETRA_Q_PLAN_CHAMP];
+	const float champ_ask = w.food + w.wood + w.gold + w.stone;
+	std::printf("  German HugeAttack with %d clubmen (champion target %d): %d more queued, champion queue asks %.0f\n",
+	            champ_target, champ_target, queued, champ_ask);
+	CHECK(queued == 0 && champ_ask == 0.0f, "clubmen in the plan count as its champions: no more are asked for it");
 }
 
 // attackPlan.js trainMoreUnits: when the order furthest behind has no template, the order is
@@ -7462,6 +7558,73 @@ static void test_pending_dropsite() {
 	CHECK(storehouses() == before + 1 && dc.pending == 0, "once funded the storehouse goes up");
 }
 
+// queueplanBuilding.js findGoodPosition: a queued storehouse plan looks for its base's best
+// site again once it can start, at any quality above 0, else takes the general placement; the
+// poorer fallback site (checkResourceLevels' min(25, 7.5 / ratio)) is queued like the first.
+static void test_queued_dropsite_starts() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	for (uint8_t p = 0; p < 2; ++p) s->players_[p].active = 1, s->players_[p].is_ai = 0;
+	run_for(*s, 1.0f);
+	float hx = 0.0f, hz = 0.0f;
+	for (auto &b : s->buildings_) {
+		if (b.team != 1) continue;
+		b.build_progress = 1.0f;
+		if (b.type == BLD_TOWN_CENTER) { hx = b.x; hz = b.z; }
+	}
+	auto &r = s->resources_;
+	for (size_t i = 0; i < r.count; ++i)
+		if (r.alive[i]) r.amount[i] = 0;
+	// A grove of three trees: a site well under checkResourceLevels' 50.
+	const float ux = hx > 0.0f ? -1.0f : 1.0f;
+	std::vector<size_t> grove;
+	for (int i = 0; i < 3; ++i) {
+		s->spawn_resource_world(hx + ux * 22.0f, hz + 2.0f * (float)i, RES_WOOD, 200);
+		grove.push_back(r.count - 1);
+	}
+	s->resource_block_tick_ = UINT64_MAX;
+	s->petra_pid_ = 1;
+	s->players_[1].phase = 1;
+	s->petra_config_.difficulty = PETRA_SANDBOX; // no new base instead of the poorer site
+	auto storehouses = [&] {
+		int n = 0;
+		for (const auto &b : s->buildings_) n += b.team == 1 && b.type == BLD_STOREHOUSE && b.hp > 0.0f;
+		return n;
+	};
+	for (auto &a : s->petra_queues_.accounts) a = {0, 0, 0, 0};
+	s->set_player_resources(1, 0, 0, 0, 0);
+	bool no_site = false;
+	s->petra_place_dropsite(RES_WOOD, 50.0f, &no_site);
+	bool weak = false;
+	s->petra_place_dropsite(RES_WOOD, 10.0f, &weak);
+	CHECK(no_site && !weak, "the grove's site is under 50 but past 10");
+	// The poorer site is queued while it can't be paid for.
+	auto &dc = base_dropsite_check(*s);
+	dc = PetraDropsiteCheck{};
+	dc.used[0] = 60;
+	dc.lost[0] = 100; // ratio 0.625: past min(25, 12)
+	const int before = storehouses();
+	s->petra_check_resource_levels(500);
+	CHECK(storehouses() == before && dc.pending == RES_WOOD + 1, "the poorer storehouse waits in the dropsites queue");
+	// Funded, the queued plan goes up though its site is under 50.
+	fund_queues(*s);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->petra_check_resource_levels(501);
+	CHECK(storehouses() == before + 1 && dc.pending == 0, "the queued storehouse starts on a site under 50");
+	// With no resource left by any site, the queued plan takes the general placement in its base.
+	for (size_t i : grove) r.amount[i] = 0;
+	for (auto &b : s->buildings_)
+		if (b.team == 1) b.build_progress = 1.0f;
+	s->petra_turn_built_ = false;
+	dc.pending = RES_WOOD + 1;
+	fund_queues(*s);
+	s->petra_check_resource_levels(502);
+	CHECK(storehouses() == before + 2 && dc.pending == 0, "a site of quality 0 falls back to the general placement");
+}
+
 static void test_dropsites() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -8115,6 +8278,7 @@ static void test_missing_room_expansion() {
 	s->players_[1].phase = 2;
 	s->set_player_resources(1, 5000, 5000, 5000, 5000);
 	for (auto &a : s->petra_queues_.accounts) a = {5000, 5000, 5000, 5000};
+	s->petra_queue_heads_ = {};
 	for (auto &p : s->petra_queues_.paused) p = 0; // a 2 s old village pauses the civic centre queue
 	auto bases = [&] {
 		int n = 0;
@@ -8137,8 +8301,17 @@ static void test_missing_room_expansion() {
 	CHECK(bases() == before + 1, "two kinds without room: a new base");
 	// A search that finds no spot (asked for in a corner no base holds) marks its template.
 	const float corner[2] = {-60.0f, -60.0f};
+	const float stone_before = s->players_[1].stone(), wonder_account = s->petra_queues_.accounts[PETRA_Q_WONDER].stone;
 	CHECK(s->petra_place_generic(BLD_WONDER, PETRA_Q_WONDER, corner) == 0 && s->petra_no_room(BLD_WONDER),
 	      "no room for a wonder marks it");
+	// queueManager.js startNextItems takes the cost off the account before start(): a start that
+	// finds no room spends the account, not the stock.
+	const auto &wa = s->petra_queues_.accounts[PETRA_Q_WONDER];
+	CHECK(wa.stone < wonder_account && s->players_[1].stone() == stone_before, "the failed wonder spent its queue account only");
+	// A house plan already queued starts whatever the mark says (canStart doesn't read it).
+	s->petra_turn_built_ = false;
+	CHECK(s->petra_no_room(BLD_HOUSE) && s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE, nullptr, nullptr, false, true) != 0,
+	      "a queued house is placed under the no-room mark");
 	// headquarters.js:2042: our territory grew, so every mark goes at the next AI turn.
 	s->petra_room_.tiles = 0;
 	s->petra_room_.marks.push_back({BLD_TEMPLE, s->petra_timer_ + 90.0f});
@@ -8660,6 +8833,7 @@ int main(int argc, char **argv) {
 	RUN(test_one_base_a_turn);
 	RUN(test_no_room_only_once_funded);
 	RUN(test_queue_plans_in_order);
+	RUN(test_structure_queue_priority);
 	RUN(test_no_base_all_build);
 	RUN(test_idle_workers_repair_cc);
 	RUN(test_worker_elephant_builds);
@@ -8698,6 +8872,7 @@ int main(int argc, char **argv) {
 	RUN(test_attack_plan_keeps_hunters);
 	RUN(test_raid_takes_every_rider);
 	RUN(test_huge_attack_drops_classes);
+	RUN(test_plan_counts_every_class);
 	RUN(test_attack_order_no_template);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
@@ -8789,6 +8964,7 @@ int main(int argc, char **argv) {
 	RUN(test_personality_draw);
 	RUN(test_chat_text);
 	RUN(test_pending_dropsite);
+	RUN(test_queued_dropsite_starts);
 	RUN(test_inaccessible_supply);
 	RUN(test_land_access);
 	RUN(test_g58_wardog_and_trainer_timings);

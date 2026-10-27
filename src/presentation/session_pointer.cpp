@@ -596,16 +596,20 @@ Vector3 RtsoMain::get_ground_click_pos(Vector2 mouse_pos) const {
 	if (std::abs(ray_dir.y) < 0.0001f) return Vector3();
 	const float t_plane = -ray_origin.y / ray_dir.y;
 	// The ground the player sees is the heightmap, not y = 0 (0 A.D.'s
-	// GetTerrainCursorPosition): walk the ray down until it passes under the
-	// terrain, then bisect that step. Without a heightmap, or when the ray
-	// never meets it, the y = 0 plane stands in.
+	// GetTerrainCursorPosition), or the sea where it covers it (GetTerrainAtScreenPoint's
+	// GetWorldCoordinates aboveWater): walk the ray down until it passes under that
+	// surface, then bisect that step. Without a heightmap, or when the ray never meets
+	// it, the y = 0 plane stands in.
 	if (sim && ray_dir.y < 0.0f && !sim->terrain_heights().empty()) {
+		// The sea as drawn (world_view_node drawn_water_height): the nav water line.
+		const float water = sim->water_height() > -0.5f ? sim->water_height() + rtso::NAV_WATER_MARGIN : -1e9f;
+		auto surface = [&](float x, float z) { return std::max(sim->get_terrain_height(x, z), water); };
 		constexpr float STEP = 0.5f;
 		const float t_end = std::max(t_plane, 0.0f) + 400.0f;
 		float prev = 0.0f;
 		for (float t = 0.0f; t <= t_end; t += STEP) {
 			const Vector3 p = ray_origin + ray_dir * t;
-			if (p.y > sim->get_terrain_height(p.x, p.z)) {
+			if (p.y > surface(p.x, p.z)) {
 				prev = t;
 				continue;
 			}
@@ -613,10 +617,10 @@ Vector3 RtsoMain::get_ground_click_pos(Vector2 mouse_pos) const {
 			for (int i = 0; i < 12; ++i) {
 				const float mid = 0.5f * (lo + hi);
 				const Vector3 m = ray_origin + ray_dir * mid;
-				(m.y > sim->get_terrain_height(m.x, m.z) ? lo : hi) = mid;
+				(m.y > surface(m.x, m.z) ? lo : hi) = mid;
 			}
 			const Vector3 hit = ray_origin + ray_dir * hi;
-			return Vector3(hit.x, sim->get_terrain_height(hit.x, hit.z), hit.z);
+			return Vector3(hit.x, surface(hit.x, hit.z), hit.z);
 		}
 	}
 	return ray_origin + ray_dir * t_plane;

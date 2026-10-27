@@ -56,7 +56,8 @@ public:
 		const int z0 = axis(z - ext), z1 = axis(z + ext);
 		const size_t cells = static_cast<size_t>(x1 - x0 + 1) * static_cast<size_t>(z1 - z0 + 1);
 		if (cells * words_ > count_) return false;
-		uint64_t near[MAX_WORDS] = {};
+		uint64_t near[MAX_WORDS];
+		std::fill_n(near, words_, uint64_t{0});
 		for (int cz = z0; cz <= z1; ++cz)
 			for (int cx = x0; cx <= x1; ++cx) {
 				const uint64_t* m = &masks_[(static_cast<size_t>(cz) * w_ + cx) * words_];
@@ -79,7 +80,8 @@ public:
 		const int cz0 = axis(z0 - 0.5f), cz1 = axis(z1 + 0.5f);
 		const size_t cells = static_cast<size_t>(cx1 - cx0 + 1) * static_cast<size_t>(cz1 - cz0 + 1);
 		if (cells * words_ > count_) return false;
-		uint64_t near[MAX_WORDS] = {};
+		uint64_t near[MAX_WORDS];
+		std::fill_n(near, words_, uint64_t{0});
 		for (int cz = cz0; cz <= cz1; ++cz)
 			for (int cx = cx0; cx <= cx1; ++cx) {
 				const uint64_t* m = &masks_[(static_cast<size_t>(cz) * w_ + cx) * words_];
@@ -95,7 +97,7 @@ public:
 
 private:
 	static constexpr float CELL = 8.0f;
-	static constexpr int MAX_WORDS = 16; // lists of up to 1024 buildings use the grid
+	static constexpr int MAX_WORDS = 64; // lists of up to 4096 buildings use the grid
 	// Monotonic in f, so a coordinate between two others lands in a cell between theirs.
 	int axis(float f) const
 	{
