@@ -177,6 +177,19 @@ Right-click actions, Back to Work and Shift-queueing against unit_actions.js, in
 | N4 | ~~Shift is ignored when hunting or slaughtering an animal, attacking scenery and boarding a ship, ram or siege tower: the order replaces the queue~~ Fixed: Shift queues them (ORDER_HUNT, ORDER_ATTACK_SCENERY, ORDER_BOARD), lockstep cmds 17 and 18 carry NET_PARAM_QUEUED, and a kill going on to the carcass keeps the orders queued behind the hunt (one Gather order in 0.28); test_unit_orders 101 | medium | Fixed |
 | N5 | ~~Alt (orderone) on an enemy unit, structure or scenery orders the first selected unit, not the first able one~~ Fixed: the first selected unit able to attack or capture it (getActionInfo firstAbleEntity, input.js popOneFromSelection); tested by `tools/e2e_order_one.gd` | low | Fixed |
 
+### Unit orders, thirteenth 0.28 pass (2026-10-27)
+
+UnitAI's attack and capture switch, gather and repair autocontinue, idle answers and garrison edge cases against UnitAI.js, Attack.js and Capturable.js. Everything else checked matches. Owner: Unit orders
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| M1 | ~~A unit hitting its target turned on any melee attacker, and a capturer still walking up turned on ranged ones~~ Fixed: COMBAT "Attacked" (melee only) covers APPROACHING and CHASING; ATTACKING answers only while capturing (UnitAI.js:2068-2072, 2249-2252); test_unit_orders 32 | medium | Fixed |
+| M2 | ~~An unordered capture never looked for a preferred target~~ Fixed: after each capture, a unit that no player sent to that structure and has no preference for it looks again (Attack.js:607-612), so attack-walk waves turn on enemy units; test_unit_orders 106 | medium | Fixed |
+| M3 | ~~After building a dropsite, the nearest supply of each type was taken before CanGather, full supplies counted and live animals were skipped~~ Fixed: FindNearbyResource filters on CanGather and IsAvailableTo, and takes live prey (UnitAI.js:4463-4489); test_gather_parity 15b | low-medium | Fixed |
+| M4 | ~~Builders still walking to a structure stopped where they were when it was finished~~ Fixed: they walk on to it (UnitAI.js:3226-3229 WalkToTarget); test_unit_orders 107 | low | Fixed |
+| M5 | A Shift-queued build on a structure someone else finished is skipped where 0.28 walks there and runs ConstructionFinished (REPAIRING enter, UnitAI.js:3115-3121); a builder already beside a finished, full structure now does | nit | Open (queue) |
+| M6 | Empty-handed after its supply runs out, a unit picks its dropsite by the last type it carried, not the order's type (FindNearestDropsite(resourceType.generic), UnitAI.js:2665) | nit | Open (gather) |
+
 ### Unit orders, twelfth 0.28 pass (2026-10-21)
 
 Garrisons, structure arrows, attacks and resistance, territory decay and camps against GarrisonHolder.js, BuildingAI.js, Attack.js, Capturable.js and TerritoryDecay.js. Everything else checked matches. Owner: Unit orders.
