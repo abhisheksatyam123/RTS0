@@ -71,6 +71,13 @@
 //     way, and still gets into the corral.
 // 20. A boar or a bull charging an archer behind a line of idle spearmen bites it: the soldiers
 //     standing round an animal that stands at its target to bite don't push it out of reach.
+// 21. A worker taking a full load to a storehouse ringed by its own player's units standing on the
+//     drop range (idle spearmen with no order, parked there as 0.28's FINDINGNEWTARGET parks them,
+//     or women cutting the trees of a wood round it) walks through them, drops its load and walks
+//     back out to its tree, and so does one sent with ReturnResource; none of the idle ring is pushed
+//     while they pass.
+//     At RTS0's crowd scale the ring closes the drop range, where 0.28's 13 m storehouse needs over
+//     20 such units to close it, and the returner stood outside with its load for good.
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -862,6 +869,80 @@ int main() {
 		std::printf("  %s charging an archer behind a line of spearmen: bites after %.2f s (-1: not in 30 s)\n", fauna_type_info(beast).name,
 		            bitten < 0 ? -1.0f : bitten * DT);
 		CHECK(bitten > 0, "an animal charging a unit behind a line of idle soldiers bites it");
+	}
+	for (const bool working : {false, true}) {
+		// A square ring of the player's own units 1.3 units out from a storehouse's footprint, 1.4
+		// apart: idle spearmen with no order, or women each cutting one of the trees 1.6 further out.
+		// The storehouse stands in player 0's territory (it would decay to gaia outside it).
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		const float cx = -40.0f, cz = -32.0f;
+		const uint32_t store = s->spawn_building_world(cx, cz, BLD_STOREHOUSE, 0, 1.0f);
+		const auto &b = s->buildings_[s->building_id_to_idx_.at(store)];
+		const float h = b.hu + 1.3f, step = 1.4f;
+		const int per_side = (int)std::lround(2.0f * h / step);
+		std::vector<uint32_t> ring;
+		uint32_t tree = 0;
+		for (int side = 0; side < 4; ++side)
+			for (int k = 0; k < per_side; ++k) {
+				const float t = -h + step * (float)k;
+				const float x = side == 0 ? t : side == 1 ? h : side == 2 ? -t : -h;
+				const float z = side == 0 ? -h : side == 1 ? t : side == 2 ? h : -t;
+				ring.push_back(s->spawn_unit(cx + x, cz + z, 0, working ? UNIT_FEMALE_CITIZEN : UNIT_SPEARMAN, 150.0f));
+				s->units_.stance[idx(*s, ring.back())] = STANCE_STAND_GROUND;
+				if (!working) continue;
+				if (k % 2 == 0) { // a tree for each pair of women
+					const float tt = t + 0.5f * step;
+					const float ox = side == 0 ? tt : side == 1 ? h + 1.6f : side == 2 ? -tt : -h - 1.6f;
+					const float oz = side == 0 ? -h - 1.6f : side == 1 ? tt : side == 2 ? h + 1.6f : -tt;
+					tree = s->spawn_resource_world(cx + ox, cz + oz, RES_WOOD, 5000);
+				}
+				s->order_gather(&ring.back(), 1, tree);
+			}
+		for (int t = 0; t < 100; ++t) s->tick(DT);
+		std::vector<float> rx, rz;
+		for (uint32_t id : ring) rx.push_back(s->units_.pos_x[idx(*s, id)]), rz.push_back(s->units_.pos_z[idx(*s, id)]);
+		// A spearman cutting a tree east of the storehouse with a full load (tick_gather's return), and
+		// one carrying stone sent there with ReturnResource, as Petra sends an idle full worker.
+		const uint32_t far_tree = s->spawn_resource_world(cx + 14.0f, cz + 2.0f, RES_WOOD, 5000);
+		const uint32_t cutter = s->spawn_unit(cx + 10.0f, cz + 1.0f, 0, UNIT_SPEARMAN, 150.0f);
+		s->order_gather(&cutter, 1, far_tree);
+		const int ci = idx(*s, cutter);
+		const int32_t cap = s->carry_cap((size_t)ci, RES_WOOD);
+		s->units_.res_type_carried[ci] = RES_WOOD;
+		s->units_.carry[ci] = cap;
+		const uint32_t miner = s->spawn_unit(cx - 1.0f, cz - 10.0f, 0, UNIT_SPEARMAN, 150.0f);
+		const int mi = idx(*s, miner);
+		s->units_.res_type_carried[mi] = RES_STONE;
+		s->units_.carry[mi] = 10;
+		s->order_return_resource(&miner, 1, store);
+		const int stone0 = s->player_resource(0, RES_STONE);
+		int cut_drop = -1, mine_drop = -1, back = -1;
+		float moved = 0.0f;
+		for (int t = 1; t <= 1200; ++t) {
+			s->tick(DT);
+			const int c = idx(*s, cutter);
+			if (cut_drop < 0 && s->units_.carry[c] < cap) cut_drop = t;
+			if (mine_drop < 0 && s->units_.carry[idx(*s, miner)] == 0) mine_drop = t;
+			if (cut_drop > 0 && back < 0 && s->units_.action_state[c] == ACTION_GATHER &&
+			    s->gather_in_reach((size_t)c, s->res_id_to_idx_.at(far_tree), s->units_.pos_x[c], s->units_.pos_z[c]))
+				back = t;
+			// Until both have dropped: the one that came with ReturnResource stands idle there after.
+			if (cut_drop < 0 || mine_drop < 0)
+				for (size_t k = 0; k < ring.size(); ++k) {
+					const int j = idx(*s, ring[k]);
+					moved = std::max(moved, std::hypot(s->units_.pos_x[j] - rx[k], s->units_.pos_z[j] - rz[k]));
+				}
+		}
+		std::printf("  %s round a storehouse: a full cutter drops after %.2f s and is back at its tree after %.2f s, a "
+		            "ReturnResource walker drops after %.2f s (-1: not in 60 s); stone +%d; the ring moved %.3f meanwhile\n",
+		            working ? "women cutting a wood" : "idle spearmen", cut_drop < 0 ? -1.0f : cut_drop * DT,
+		            back < 0 ? -1.0f : back * DT, mine_drop < 0 ? -1.0f : mine_drop * DT,
+		            s->player_resource(0, RES_STONE) - stone0, moved);
+		CHECK(cut_drop > 0 && cut_drop * DT < 10.0f && mine_drop > 0 && mine_drop * DT < 10.0f,
+		      "a worker with a load gets through its own player's idle units or gatherers ringing the dropsite and drops it");
+		CHECK(back > 0 && back * DT < 20.0f, "and walks back out to its supply");
+		if (!working) CHECK(moved < 0.05f, "without pushing any of the idle units");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

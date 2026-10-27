@@ -25,6 +25,7 @@
 //     Petra difficulty per seat, 0 Sandbox to 5 Very Hard);
 //   - [phase]: each phase-up, and [no-phase] for a player still in Village at the end of a
 //     match of 15+ minutes;
+//   turns run on the game's worker pool, as in a session; --serial runs them on one thread;
 //   - [stats]: statistics that go wrong (a counter that drops, trained units below the
 //     living units bought since the start, map explored or controlled outside 0-100, a missing 30 s sample).
 // Build (one line):
@@ -35,6 +36,7 @@
 #define private public
 #include "simulation/simulation.h"
 #undef private
+#include "core/job_system.h"
 #include "network/turn_manager.h"
 #define PROBE_LOADER_ONLY
 #include "probe_trigger_maps.cpp"
@@ -251,7 +253,7 @@ int main(int argc, char **argv) {
 	uint32_t seed = 7;
 	float size = 256.0f;
 	double minutes = 30.0;
-	bool twin = false, circular = false;
+	bool twin = false, circular = false, serial = false;
 	double save_at = -1.0;
 	uint32_t watch = 0;
 	int watch_from = 0;
@@ -268,6 +270,7 @@ int main(int argc, char **argv) {
 		else if (!strcmp(argv[i], "--players")) players = atoi(next());
 		else if (!strcmp(argv[i], "--twin")) twin = true;
 		else if (!strcmp(argv[i], "--circular")) circular = true;
+		else if (!strcmp(argv[i], "--serial")) serial = true;
 		else if (!strcmp(argv[i], "--save-at")) save_at = atof(next());
 		else if (!strcmp(argv[i], "--watch")) watch = (uint32_t)strtoul(next(), nullptr, 10);
 		else if (!strcmp(argv[i], "--watch-from")) watch_from = atoi(next());
@@ -281,6 +284,9 @@ int main(int argc, char **argv) {
 	}
 
 	std::setvbuf(stdout, nullptr, _IOLBF, 0);
+	// The game's worker pool (register_types.cpp), so turn times match a player's; --serial runs
+	// every job on the main thread.
+	if (!serial) JobSystem::instance().start();
 	auto make = [&]() {
 		auto s = std::make_unique<Simulation>();
 		if (json.empty()) setup(*s, map, seed, players, size, civs, circular, diffs);

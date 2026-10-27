@@ -13241,11 +13241,43 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const float ci = unit_push_clearance(units_.unit_type[i]);
 		const uint32_t ignore = units_.target_unit_id[i];
 		const uint32_t group = crew[i];
+		// A worker taking its load to a dropsite: tick_gather's return (GATHER.RETURNINGRESOURCE), or a
+		// ReturnResource order on its walk there (RETURNRESOURCE.APPROACHING), and whether it is within
+		// RETURN_PAST_GATHERERS of where it walks to (the dropsite's centre, or the spot beside it).
+		constexpr float RETURN_PAST_GATHERERS = 32.0f / 4.0f; // map lengths: 4 m a unit
+		const bool returning = units_.action_state[i] == ACTION_RETURN_DROPSITE ||
+				(units_.action_state[i] == ACTION_MOVE && units_.order_kind[i] == ORDER_RETURN_RESOURCE);
+		const float rdx = x0 - units_.target_x[i], rdz = z0 - units_.target_z[i];
+		const bool near_drop = returning && rdx * rdx + rdz * rdz < RETURN_PAST_GATHERERS * RETURN_PAST_GATHERERS;
+		const uint8_t owner = units_.team[i];
 		auto obstructs = [&](int32_t j) {
 			// A unit standing still obstructs one that moves, as in 0.28 (ControlGroupMovementObstructionFilter,
 			// ICmpObstructionManager.h:406-429, CCmpUnitMotion.h:840-851): only its own control group lets a
 			// unit through. So a gatherer at work obstructs one walking to another supply, however near.
-			return (size_t)j != i && idle[j] && units_.id[j] != ignore && !(group && crew[j] == group);
+			if ((size_t)j == i || !idle[j] || units_.id[j] == ignore || (group && crew[j] == group)) return false;
+			// RTS0 deviation at the crowd scale, as control_group: a worker taking its load to a dropsite walks
+			// through its own player's units that stand idle with no order and, near the dropsite, those that
+			// gather. 0.28 sends a worker with nothing left to gather to the nearest dropsite, "a nice enough
+			// place to congregate and idle" (UnitAI.js:2660-2670), Petra leaves it there until there is work
+			// again, an army waits for its ship where it stands, and fields round a farmstead or civic centre, or
+			// a wood round a storehouse, ring it with gatherers. In 0.28 they seldom close the drop range: the
+			// storehouse's obstruction is 13 m square (template_structure_economic_storehouse.xml:38), the range
+			// is 2 m round it (ResourceGatherer MaxDistance, template_unit_infantry.xml:66) and an idle infantry
+			// unit's square, grown by the walker's clearance less 0.5 m, is 2.2 m wide (relaxClearanceForUnits,
+			// CCmpPathfinder.cpp:971-980, CCmpObstructionManager.cpp:897-900), so it takes over 20 of them side by side. RTS0's squares are at the crowd scale (unit_push_clearance,
+			// PUSH_SCALE), about 2.9 units wide for two infantry, round a storehouse 2 units wide with a 1.5-unit
+			// drop reach, so about 7 standing units close it. The returner's short path then finds no way,
+			// MoveFailed takes it back to the nearest dropsite (RETURNRESOURCE.APPROACHING likelyFailure,
+			// DROPPINGRESOURCES out of range, UnitAI.js:2851-2878; GATHER.RETURNINGRESOURCE, 2676-2720), the same
+			// one, and without this it would stand there with its load for good. The idle crowd spreads well past
+			// the drop range (with idle units let through only within 8 units, 2026-10 soaks still held returners
+			// in it 8 to 15 units out), so idle units let it through anywhere. Gatherers close the range only where
+			// their supplies stand round the dropsite (a field beside a civic centre ends 6 units from its
+			// centre), so farther out the returner walks round them, as in 0.28. Units on other tasks, other
+			// players' units and the walk back to the supply keep 0.28's rule.
+			if (!returning || units_.team[j] != owner) return true;
+			return !((units_.action_state[j] == ACTION_IDLE && !units_.has_order[j]) ||
+					(near_drop && units_.action_state[j] == ACTION_GATHER));
 		};
 		auto step_blocked = [&](float ex, float ez) {
 			const float reach = det::hypot(ex - x0, ez - z0) + ci + c_max;
@@ -15656,7 +15688,15 @@ void Simulation::leave_foundation(size_t i, const Building &b) {
 		return;
 	float tx, tz;
 	foundation_exit_point(b, units_.pos_x[i], units_.pos_z[i], r, tx, tz);
-	if (taken(tx, tz)) {
+	// A ship (a dock site over its mooring) leaves for the nearest point off the footprint its
+	// class can sail to: the land side of a dock is no exit for it.
+	const bool ship = unit_is_ship(units_.unit_type[i]);
+	const uint8_t ship_pass = ship ? unit_ship_pass(units_.unit_type[i]) : 0;
+	auto sails = [&](float x, float z) {
+		auto [cx, cy] = nav_grid_.world_to_cell(x, z);
+		return nav_grid_.is_passable_for(cx, cy, ship_pass);
+	};
+	if (taken(tx, tz) || (ship && !sails(tx, tz))) {
 		// The nearest free point just off the footprint, stepping along its edge from the
 		// unit's own side (footprint axes), then a step further out.
 		const nav::Vec2 l = nav::footprint_local(b, units_.pos_x[i], units_.pos_z[i]);
@@ -15664,7 +15704,9 @@ void Simulation::leave_foundation(size_t i, const Building &b) {
 		float best = 1e30f;
 		bool found = false;
 		const float step = std::max(2.0f * r, 0.25f);
-		for (float extra = 0.0f; extra <= 2.0f * step && !found; extra += step)
+		// A warship keeps its 10 m from the shore: look further out for open water.
+		const float reach = ship ? std::max(2.0f * step, 4.0f) : 2.0f * step;
+		for (float extra = 0.0f; extra <= reach && !found; extra += step)
 			for (int side = 0; side < 4; ++side) {
 				const float len = side < 2 ? out_u + extra : out_v + extra;
 				for (float t = -len; t <= len + 1e-4f; t += step) {
@@ -15674,13 +15716,14 @@ void Simulation::leave_foundation(size_t i, const Building &b) {
 					if (d >= best) continue;
 					const nav::Vec2 w = nav::footprint_world(b, lu, lv);
 					if (w.x < -map_half_ + 1.0f || w.x > map_half_ - 1.0f || w.y < -map_half_ + 1.0f || w.y > map_half_ - 1.0f) continue;
-					if (taken(w.x, w.y)) continue;
+					if (taken(w.x, w.y) || (ship && !sails(w.x, w.y))) continue;
 					best = d;
 					tx = w.x;
 					tz = w.y;
 					found = true;
 				}
 			}
+		if (!found && ship) return; // no water off the site: it stays, and the site waits
 	}
 	const uint32_t uid = units_.id[i];
 	const UnitOrder cur = current_order(i);
@@ -15749,7 +15792,7 @@ bool Simulation::try_commit_foundation(Building &b) {
 	// Only a foundation whose obstruction blocks movement waits for the site to clear (Foundation.js
 	// Commit: GetBlockMovementFlag): a field is walked across all the time, so it starts at once.
 	for (size_t i = 0; building_blocks_movement(b.type) && i < units_.count; ++i) {
-		if (!units_.alive[i] || unit_is_ship(units_.unit_type[i])) continue;
+		if (!units_.alive[i]) continue;
 		// A unit stands on the site when its centre is inside the footprint (builders work
 		// from just outside it, outside_and_in_build_range).
 		if (!nav::footprint_contains(b, units_.pos_x[i], units_.pos_z[i], 0.0f)) continue;
@@ -17652,46 +17695,25 @@ void Simulation::tick_promotion(float dt) {
 
 void Simulation::tick_capture(float dt) {
 	// 0 A.D. Capturable.js:93-132 (Reduce), 168-181 (RegisterCapturePointsChanged),
-	// 183-201 (GetRegenRate & GarrisonRegenRate), 203-247 (TimerTick)
-	// Capturable.js TimerTick: decay and regeneration land once a second of match time.
-	const bool timer_tick = (ticks_ + 1) % (uint64_t)std::lround(1.0f / FIXED_STEP) == 0;
-	(void)dt;
+	// 183-201 (GetRegenRate & GarrisonRegenRate), 203-267 (TimerTick, CheckTimer)
 	if (capture_attack_.size() != buildings_.size()) capture_attack_.resize(buildings_.size(), std::array<float, MAX_PLAYERS>{});
 	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
 		Building &b = buildings_[bi];
 		if (b.build_progress < 1.0f || b.max_capture_points <= 0.0f) continue;
-		if (b.team >= MAX_PLAYERS) {
-			// TerritoryDecay: a Gaia structure in a player's connected territory decays to that player.
-			std::array<float, MAX_PLAYERS> decay_to;
-			float decay_gaia = 0.0f;
-			if (territory_decay_targets(b, decay_to, decay_gaia)) {
-				const float held = std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f);
-				const float decay = timer_tick ? std::min(b.territory_decay_rate, std::max(0.0f, b.max_capture_points - held)) : 0.0f;
-				for (int p = 0; p < MAX_PLAYERS; ++p) b.capture_points_by_team[p] += decay * decay_to[p];
-			}
-			capture_points_tick(b, bi, timer_tick);
-			b.capture_points = std::max(0.0f, b.max_capture_points -
-					std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f));
-			continue;
-		}
 		// Points no player holds are Gaia's (territory decay), so only more than the maximum is invalid.
-		if (std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f) > b.max_capture_points + 0.01f) {
+		if (b.team < MAX_PLAYERS && std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f) >
+				b.max_capture_points + 0.01f) {
 			b.capture_points_by_team.fill(0.0f);
-			b.capture_points_by_team[b.team < 8 ? b.team : 0] = b.max_capture_points;
+			b.capture_points_by_team[b.team] = b.max_capture_points;
 		}
-		const int pl = b.team; // the owner, any of the 8 players
-		// TerritoryDecay.js + Capturable.js TimerTick: a structure in enemy territory, or in its
-		// owner's territory cut off from every civic centre, loses DecayRate points a second to
-		// the territory's owner, to the connected neighbours of its region, or to Gaia.
-		std::array<float, MAX_PLAYERS> decay_to;
-		float decay_gaia = 0.0f;
-		if (territory_decay_targets(b, decay_to, decay_gaia)) {
-			const float decay = timer_tick ? std::min(structure_decay_rate(b), b.capture_points_by_team[pl]) : 0.0f;
-			b.capture_points_by_team[pl] -= decay;
-			for (int p = 0; p < MAX_PLAYERS; ++p) b.capture_points_by_team[p] += decay * decay_to[p];
-			// decay * decay_gaia stays unheld: Gaia's.
-		}
-		capture_points_tick(b, bi, timer_tick);
+		// TerritoryDecay.js: a structure in enemy territory, or in its owner's territory cut off
+		// from every civic centre, loses DecayRate points a second to the territory's owner, to
+		// the connected neighbours of its region, or to Gaia; a Gaia structure in a player's
+		// connected territory decays to that player.
+		CaptureDecay decay;
+		if (territory_decay_targets(b, decay.to, decay.to_gaia))
+			decay.rate = b.team >= MAX_PLAYERS ? b.territory_decay_rate : structure_decay_rate(b);
+		capture_points_tick(b, bi, decay, dt);
 		b.capture_points = b.team < MAX_PLAYERS ? b.capture_points_by_team[b.team] : std::max(0.0f, b.max_capture_points -
 				std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f));
 	}
@@ -17737,7 +17759,7 @@ void Simulation::capture_reduce(CapturePools &pts, int to, float amount) const {
 	pts[to] += before - after;
 }
 
-void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
+void Simulation::capture_points_tick(Building &b, size_t bi, const CaptureDecay &decay, float dt) {
 	constexpr int GAIA = MAX_PLAYERS; // pool index
 	const bool gaia_owned = b.team >= MAX_PLAYERS;
 	int owner = gaia_owned ? GAIA : b.team;
@@ -17745,7 +17767,28 @@ void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
 	float held = 0.0f;
 	for (int t = 0; t < MAX_PLAYERS; ++t) { pts[t] = b.capture_points_by_team[t]; held += pts[t]; }
 	pts[GAIA] = std::max(0.0f, b.max_capture_points - held);
-	auto reduce = [&](int to, float amount) { capture_reduce(pts, to, amount); };
+	auto reduce = [&](int to, float amount) {
+		const float before = pts[to];
+		capture_reduce(pts, to, amount);
+		return pts[to] - before; // Reduce's takenCapturePoints
+	};
+	// GetRegenRate: RegenRate plus GarrisonRegenRate x each garrisoned unit's Capture attack;
+	// a negative rate hands points to Gaia.
+	auto regen_rate = [&]() {
+		float regen = b.capture_regen_rate;
+		const float garrison = structure_capture_garrison_regen(b);
+		for (uint32_t uid : b.garrisoned_units) {
+			const int32_t u = lookup_unit(uid);
+			if (u >= 0 && units_.action_state[u] == ACTION_GARRISONED)
+				regen += garrison * unit_capture_attack_at((size_t)u);
+		}
+		return regen;
+	};
+	auto regenerate = [&](float regen) {
+		if (regen > 0.0f && pts[owner] < b.max_capture_points) return reduce(owner, regen);
+		if (regen < 0.0f) return reduce(GAIA, -regen);
+		return 0.0f;
+	};
 	// RegisterCapturePointsChanged: the owner left with no points loses the structure to
 	// whoever holds most, at once (before it can regenerate).
 	auto check_owner = [&]() {
@@ -17782,25 +17825,46 @@ void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
 		if (has_territory_influence(b.type)) rebuild_territory();
 		return true;
 	};
-	check_owner(); // territory decay (tick_capture) may have emptied the owner
+	// Capturable.js timer: TimerTick runs a second after CheckTimer started it, then every
+	// second until a tick changes nothing. One due now runs after the capture attacks of the
+	// same moment.
+	const bool due = b.capture_timer > 0.0f && (b.capture_timer -= dt) <= 1.0e-4f;
+	check_owner();
 	// Capture attacks that landed this tick (tick_combat), in player order.
 	if (bi < capture_attack_.size())
 		for (int p = 0; p < MAX_PLAYERS; ++p)
 			if (capture_attack_[bi][p] > 0.0f) { reduce(p, capture_attack_[bi][p]); check_owner(); }
-	// GetRegenRate: RegenRate plus GarrisonRegenRate x each garrisoned unit's Capture attack,
-	// regained once a second (TimerTick); a negative rate hands points to Gaia.
-	if (timer_tick) {
-		float regen = b.capture_regen_rate;
-		const float garrison = structure_capture_garrison_regen(b);
-		for (uint32_t uid : b.garrisoned_units) {
-			const int32_t u = lookup_unit(uid);
-			if (u >= 0 && units_.action_state[u] == ACTION_GARRISONED)
-				regen += garrison * unit_capture_attack_at((size_t)u);
+	if (due) {
+		float changed = 0.0f;
+		if (decay.rate > 0.0f) {
+			const float d = std::min(decay.rate, pts[owner]);
+			pts[owner] -= d;
+			for (int p = 0; p < MAX_PLAYERS; ++p) pts[p] += d * decay.to[p];
+			pts[GAIA] += d * decay.to_gaia;
+			changed += d;
+			check_owner();
 		}
-		if (regen > 0.0f && pts[owner] < b.max_capture_points) reduce(owner, regen);
-		else if (regen < 0.0f) reduce(GAIA, -regen);
+		changed += regenerate(regen_rate());
+		check_owner();
+		b.capture_timer = changed > 1.0e-6f ? b.capture_timer + 1.0f : 0.0f; // nothing changed: CancelTimer
 	}
-	check_owner();
+	// CheckTimer: the timer starts on whatever can change the points (a capture attack, a
+	// garrison, a diplomacy or owner change, TerritoryDecayChanged), so with none running it
+	// starts as soon as decay or regeneration would change something.
+	if (b.capture_timer <= 0.0f) {
+		b.capture_timer = 0.0f;
+		CapturePools trial = pts;
+		bool starts = decay.rate > 0.0f && pts[owner] > 0.0f;
+		if (!starts && (pts[owner] < b.max_capture_points - 1.0e-4f || b.capture_regen_rate < 0.0f)) {
+			const float regen = regen_rate();
+			if (regen != 0.0f) {
+				std::swap(trial, pts);
+				starts = regenerate(regen) > 1.0e-6f;
+				std::swap(trial, pts);
+			}
+		}
+		if (starts) b.capture_timer = 1.0f;
+	}
 	for (int t = 0; t < MAX_PLAYERS; ++t) b.capture_points_by_team[t] = pts[t];
 }
 
@@ -32261,8 +32325,12 @@ bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, fl
 		tp.passenger_ids.push_back(uid);
 	}
 	if (tp.passenger_ids.empty()) return false;
-	if (ship) order_walk(&ship, 1, pickup_x, pickup_z, false);
-	order_walk(tp.passenger_ids.data(), tp.passenger_ids.size(), pickup_x, pickup_z, false);
+	// transportPlan.js onBoarding moves the units to the boarding point only once a ship is
+	// assigned; with none they wait where they are (assignShip walks them there later).
+	if (ship) {
+		order_walk(&ship, 1, pickup_x, pickup_z, false);
+		order_walk(tp.passenger_ids.data(), tp.passenger_ids.size(), pickup_x, pickup_z, false);
+	}
 	petra_transports_.push_back(std::move(tp));
 	return true;
 }
@@ -36059,6 +36127,7 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.petra_decay_hold, sizeof(b.petra_decay_hold));
 		out.write((const char *)&b.queue_clock, sizeof(b.queue_clock));
 		out.write((const char *)&b.heal_clock, sizeof(b.heal_clock));
+		out.write((const char *)&b.capture_timer, sizeof(b.capture_timer));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -36541,6 +36610,8 @@ bool Simulation::load_state(const char *filepath) {
 		if (version >= SAVE_VERSION_QUEUE_CLOCK) in.read((char *)&bld.queue_clock, sizeof(bld.queue_clock));
 		bld.heal_clock = 0.0f; // older saves: the heal timer starts again
 		if (version >= SAVE_VERSION_GARRISON_HEAL) in.read((char *)&bld.heal_clock, sizeof(bld.heal_clock));
+		bld.capture_timer = 0.0f; // older saves: a timer starts again where the points can change
+		if (version >= SAVE_VERSION_CAPTURE_TIMER) in.read((char *)&bld.capture_timer, sizeof(bld.capture_timer));
 		bld.set_extents(bld.half_size, building_half_depth(bld.type, bld.half_size, bld.civ)); // its civ's wall depth
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;
