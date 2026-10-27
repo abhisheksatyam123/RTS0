@@ -13239,11 +13239,43 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const float ci = unit_push_clearance(units_.unit_type[i]);
 		const uint32_t ignore = units_.target_unit_id[i];
 		const uint32_t group = crew[i];
+		// A worker taking its load to a dropsite: tick_gather's return (GATHER.RETURNINGRESOURCE), or a
+		// ReturnResource order on its walk there (RETURNRESOURCE.APPROACHING), and whether it is within
+		// RETURN_PAST_GATHERERS of where it walks to (the dropsite's centre, or the spot beside it).
+		constexpr float RETURN_PAST_GATHERERS = 32.0f / 4.0f; // map lengths: 4 m a unit
+		const bool returning = units_.action_state[i] == ACTION_RETURN_DROPSITE ||
+				(units_.action_state[i] == ACTION_MOVE && units_.order_kind[i] == ORDER_RETURN_RESOURCE);
+		const float rdx = x0 - units_.target_x[i], rdz = z0 - units_.target_z[i];
+		const bool near_drop = returning && rdx * rdx + rdz * rdz < RETURN_PAST_GATHERERS * RETURN_PAST_GATHERERS;
+		const uint8_t owner = units_.team[i];
 		auto obstructs = [&](int32_t j) {
 			// A unit standing still obstructs one that moves, as in 0.28 (ControlGroupMovementObstructionFilter,
 			// ICmpObstructionManager.h:406-429, CCmpUnitMotion.h:840-851): only its own control group lets a
 			// unit through. So a gatherer at work obstructs one walking to another supply, however near.
-			return (size_t)j != i && idle[j] && units_.id[j] != ignore && !(group && crew[j] == group);
+			if ((size_t)j == i || !idle[j] || units_.id[j] == ignore || (group && crew[j] == group)) return false;
+			// RTS0 deviation at the crowd scale, as control_group: a worker taking its load to a dropsite walks
+			// through its own player's units that stand idle with no order and, near the dropsite, those that
+			// gather. 0.28 sends a worker with nothing left to gather to the nearest dropsite, "a nice enough
+			// place to congregate and idle" (UnitAI.js:2660-2670), Petra leaves it there until there is work
+			// again, an army waits for its ship where it stands, and fields round a farmstead or civic centre, or
+			// a wood round a storehouse, ring it with gatherers. In 0.28 they seldom close the drop range: the
+			// storehouse's obstruction is 13 m square (template_structure_economic_storehouse.xml:38), the range
+			// is 2 m round it (ResourceGatherer MaxDistance, template_unit_infantry.xml:66) and an idle infantry
+			// unit's square, grown by the walker's clearance less 0.5 m, is 2.2 m wide (relaxClearanceForUnits,
+			// CCmpPathfinder.cpp:971-980, CCmpObstructionManager.cpp:897-900), so it takes over 20 of them side by side. RTS0's squares are at the crowd scale (unit_push_clearance,
+			// PUSH_SCALE), about 2.9 units wide for two infantry, round a storehouse 2 units wide with a 1.5-unit
+			// drop reach, so about 7 standing units close it. The returner's short path then finds no way,
+			// MoveFailed takes it back to the nearest dropsite (RETURNRESOURCE.APPROACHING likelyFailure,
+			// DROPPINGRESOURCES out of range, UnitAI.js:2851-2878; GATHER.RETURNINGRESOURCE, 2676-2720), the same
+			// one, and without this it would stand there with its load for good. The idle crowd spreads well past
+			// the drop range (with idle units let through only within 8 units, 2026-10 soaks still held returners
+			// in it 8 to 15 units out), so idle units let it through anywhere. Gatherers close the range only where
+			// their supplies stand round the dropsite (a field beside a civic centre ends 6 units from its
+			// centre), so farther out the returner walks round them, as in 0.28. Units on other tasks, other
+			// players' units and the walk back to the supply keep 0.28's rule.
+			if (!returning || units_.team[j] != owner) return true;
+			return !((units_.action_state[j] == ACTION_IDLE && !units_.has_order[j]) ||
+					(near_drop && units_.action_state[j] == ACTION_GATHER));
 		};
 		auto step_blocked = [&](float ex, float ez) {
 			const float reach = det::hypot(ex - x0, ez - z0) + ci + c_max;
