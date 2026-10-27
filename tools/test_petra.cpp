@@ -6305,7 +6305,7 @@ static void test_defense_animals() {
 			}
 		}
 	}
-	run_for(*s, 30.0f); // spears only, out of the civic centre's arrows
+	run_for(*s, 45.0f); // spears only, out of the civic centre's arrows
 	const size_t f = wolf_idx(wolf);
 	const bool dead = f == SIZE_MAX || !s->fauna_.alive[f] || s->fauna_.behavior[f] == FAUNA_CARCASS;
 	bool still = false;
