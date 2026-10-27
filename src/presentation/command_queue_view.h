@@ -54,6 +54,19 @@
 #include "selection_details.h"
 #include "user_config.h"
 
+namespace rtso {
+// selection_panels.js Training: '[font="sans-bold-16"]' + colorizeHotkey("%(hotkey)s",
+// "session.queueunit.N") + " ", "Unassigned hotkey: ..." for slots default.cfg leaves unbound.
+inline godot::String queue_unit_hotkey_tag(int idx) {
+	const std::string name = "session.queueunit." + std::to_string(idx + 1);
+	const std::string label = hotkeys::table().label(name);
+	const godot::String key = label.empty()
+			? sprintf0(tr0("Unassigned hotkey: %(hotkeyName)s"), {{"hotkeyName", godot::String(name.c_str())}})
+			: godot::String(label.c_str());
+	return "[font_size=16][b]" + hotkey_tag(key) + "[/b][/font_size] ";
+}
+} // namespace rtso
+
 class RtsoCommandPanelHost {
 public:
 	virtual ~RtsoCommandPanelHost() = default;
@@ -453,7 +466,7 @@ public:
 							const rtso::Simulation::ResearchCheck sc = sim->research_check(local_player(), sup, 0);
 							if (sc != rtso::Simulation::TECH_ERR_RESEARCHED && sc != rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
 						}
-						const rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, rb->id);
+						const rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, rb->id, true);
 						// Researcher.js GetTechnologiesList: a researched or in-progress tech leaves its slot
 						// to its successor.
 						if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_IN_PROGRESS || rc == rtso::Simulation::TECH_ERR_CIV
@@ -1549,8 +1562,7 @@ private:
 				// cost, limit, batch line and requirements; the live part adds the rest.
 				const Dictionary gaia = reference_templates().get("gaia", Dictionary());
 				const Dictionary text = gaia.get(String("gaia/") + rtso::fauna_type_info(f).template_name, Dictionary());
-				const std::string hotkey = rtso::hotkeys::table().label("session.queueunit." + std::to_string(idx + 1));
-				String tip = (hotkey.empty() ? String() : rtso::hotkey_tag(String(hotkey.c_str())) + " ") +
+				String tip = rtso::queue_unit_hotkey_tag(idx) +
 						rtso::entity_names_formatted(String(text.get("generic_name", String::utf8(rtso::fauna_type_info(f).name))),
 								String(text.get("specific_name", String())));
 				auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
@@ -1591,7 +1603,9 @@ private:
 				tip += "\n" + requires_text(u.phase >= 3 ? "City Phase" : "Town Phase");
 			} else if (u.phase > phase || !sim->can_train_at(pid, u.unit_type, ob->type, i)) {
 				roster_list_->set_item_disabled(idx, true);
-				if (gate != rtso::TECH_NONE) tip += "\n" + requires_tech_text(gate, civ);
+				// Only a requirement still missing: at its entity limit (a centurion at 8 of 8)
+				// the limit line is the objection.
+				if (need_tech) tip += "\n" + requires_tech_text(gate, civ);
 			}
 			set_roster_tip(idx, tip);
 		}
@@ -1837,8 +1851,7 @@ private:
 		const int idx = add_roster_icon(label, rtso::portraits::unit(i, u.unit_type), (int)i);
 		// 0.28 Training panel: its hotkey and names, cost (population and time too), health
 		// and attack, then the batch line; callers add requirements.
-		const std::string hotkey = rtso::hotkeys::table().label("session.queueunit." + std::to_string(idx + 1));
-		tip = (hotkey.empty() ? String() : rtso::hotkey_tag(String(hotkey.c_str())) + " ") +
+		tip = rtso::queue_unit_hotkey_tag(idx) +
 				rtso::entity_names_formatted(String::utf8(u.name), String::utf8(u.specific_name ? u.specific_name : ""));
 		auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
 		const Dictionary text = unit_template_text(u.id);

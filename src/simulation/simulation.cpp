@@ -5399,7 +5399,7 @@ int Simulation::phase_structures(uint8_t player_id, uint8_t phase) const {
 	return n;
 }
 
-Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id) const {
+Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id, bool queue_full_ok) const {
 	if (tech_id == TECH_NONE || tech_id >= TECH_COUNT || player_id >= MAX_PLAYERS) return TECH_ERR_INVALID;
 	const PlayerState &ps = players_[player_id];
 	const TechInfo &tinfo = tech_info(tech_id);
@@ -5426,8 +5426,8 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 		auto bit = building_id_to_idx_.find(building_id);
 		if (bit == building_id_to_idx_.end()) return TECH_ERR_BUILDING;
 		const Building &b = buildings_[bit->second];
-		if (b.team != player_id || b.build_progress < 1.0f || b.hp <= 0.0f || b.queue.size() >= PRODUCTION_QUEUE_MAX
-		    || b.upgrade_to != BLD_TYPE_COUNT)
+		if (b.team != player_id || b.build_progress < 1.0f || b.hp <= 0.0f ||
+		    (b.queue.size() >= PRODUCTION_QUEUE_MAX && !queue_full_ok) || b.upgrade_to != BLD_TYPE_COUNT)
 			return TECH_ERR_BUILDING;
 		if (!building_researches_tech(b.type, tech_id, structure_template_civ(b))) return TECH_ERR_BUILDING;
 	}
