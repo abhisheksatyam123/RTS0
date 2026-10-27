@@ -871,9 +871,12 @@ void RmsGenerator::synth_valley(HeightmapGrid &hm, RmsRng &rng, float &water_h, 
 	} else {
 		for (int i = 0; i < num_players; ++i) {
 			float side = (i % 2 == 0) ? -1.0f : 1.0f;
-			float row = (float)(i / 2) - (float)(num_players / 4);
-			float sx = side * half * 0.58f;
-			float sz = row * 22.0f;
+			// Teammates on one side spread along the valley (0.28 to 0.82 of the half-width out),
+			// a little to either side of the river in turn, rather than stacked across the narrow floor.
+			const int k = (num_players + (i % 2 == 0 ? 1 : 0)) / 2, j = i / 2;
+			const float t = k > 1 ? (float)j / (float)(k - 1) : 0.5f;
+			float sx = side * half * (0.82f - 0.54f * t);
+			float sz = (j % 2 == 0 ? -1.0f : 1.0f) * half * 0.2f;
 			float fx = -side;
 			float fz = 0.0f;
 			float bh = 2.0f;
