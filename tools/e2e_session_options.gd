@@ -176,6 +176,7 @@ func run() -> void:
 		check(tip.contains("Health:") and tip.contains("Resistance:") and tip.contains("Speed:"), "on: health, resistance and speed")
 		# g_TooltipTextFormats: bold headers and resource icons, drawn by the Tooltips layer.
 		check(tip.contains("[img") and TT.plain(tip).contains("Health:"), "in 0.28's tooltip formats")
+		check(tip.contains("[b]Health:[/b]") and tip.contains("[b]Resistance:[/b]"), "the detailed lines keep their header font")
 		print(tip)
 
 	for k in KEYS:

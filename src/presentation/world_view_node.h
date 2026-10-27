@@ -579,6 +579,7 @@ public:
 	// The supplies as the local player last saw them (hover picks these, so a felled
 	// tree in the fog stays hoverable as its mirage).
 	const std::vector<rtso::FoggedResource> &resource_mirages() const { return mirages_.resources(); }
+	const rtso::FogMirages &fog_mirages() const { return mirages_; } // the viewed player's, kept every frame
 	void set_highlight_ids(const PackedInt32Array &ids) {
 		highlight_set_.clear();
 		for (int i = 0; i < ids.size(); ++i) highlight_set_.insert(ids[i]);
