@@ -1402,6 +1402,57 @@ static void test_petra_transport_ship_lost() {
 	CHECK(took == second && landed >= 3); // it sails with whoever made it aboard
 }
 
+// attackPlan.js UpdateTransporting: while part of an army sailed overseas is still in a
+// transport, the first Attacked event on it turns the idle landed units on the attacker; the
+// plan has arrived as soon as none of its own units is in a transport, whatever another
+// attack's ferry does, and attacks at once (no wait at the drop point).
+static void test_petra_landed_army_answers_attack() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t house = s.spawn_building_world(30.0f, -50.0f, BLD_HOUSE, 0);
+	const uint32_t hit = s.spawn_unit(-10.0f, -28.0f, 1, UNIT_SPEARMAN, 1.0e4f);
+	const uint32_t mate = s.spawn_unit(-12.0f, -28.0f, 1, UNIT_SPEARMAN, 1.0e4f);
+	const uint32_t sailing = s.spawn_unit(-34.0f, 26.0f, 1, UNIT_SPEARMAN);
+	const uint32_t other = s.spawn_unit(-36.0f, 26.0f, 1, UNIT_SPEARMAN); // another attack's
+	const uint32_t foe = s.spawn_unit(-11.0f, -32.0f, 0, UNIT_SWORDSMAN, 1.0e4f);
+	run(s, 0.5f);
+	s.petra_pid_ = 1;
+	PetraTransportPlan ferry;
+	ferry.owner = PETRA_TRANSPORT_ATTACK;
+	ferry.state = PetraTransportPlan::BOARDING;
+	ferry.passenger_ids = {sailing, other};
+	s.petra_transports_.push_back(ferry);
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::WALKING;
+	plan.target_building_id = house;
+	plan.target_player = 0;
+	plan.target_x = 30.0f; plan.target_z = -50.0f;
+	plan.staging_x = 30.0f; plan.staging_z = -60.0f; // far from where the army landed
+	plan.squad = {hit, mate, sailing};
+	plan.initial_squad_size = 3;
+	CHECK(s.petra_plan_overseas(-30.0f, 40.0f, house) != 0);
+	s.petra_turn_attacks_ = {{hit, foe}};
+	s.petra_update_attack_plan(plan, -30.0f, 40.0f);
+	const int32_t m = idx(s, mate);
+	const bool answered = m >= 0 && s.units_.target_unit_id[m] == foe;
+	const bool waits = plan.state == Simulation::AttackPlan::WALKING;
+	// The last one lands; the other attack's unit is still waiting for its ship.
+	s.petra_transports_[0].passenger_ids = {other};
+	if (const int32_t k = idx(s, sailing); k >= 0) { s.units_.pos_x[k] = -14.0f; s.units_.pos_z[k] = -28.0f; }
+	s.petra_turn_attacks_.clear();
+	s.petra_update_attack_plan(plan, -30.0f, 40.0f);
+	std::printf("Petra army landing overseas: a landed mate answers the attack %s, waits for the rest %s, attacks once all landed %s\n",
+	            answered ? "yes" : "no", waits ? "yes" : "no", plan.state == Simulation::AttackPlan::ATTACKED ? "yes" : "no");
+	CHECK(answered && waits);
+	CHECK(plan.state == Simulation::AttackPlan::ATTACKED);
+	s.petra_transports_.clear();
+}
+
 // transportPlan.js onBoarding (pass 5 T4): the ship sails only once every passenger is
 // aboard, a straggler walking up from far inland included.
 static void test_petra_transport_waits_for_all() {
@@ -2712,6 +2763,7 @@ int main() {
 	test_petra_defenders_ferried();
 	test_petra_transport_ship_lost();
 	test_petra_transport_waits_for_all();
+	test_petra_landed_army_answers_attack();
 	test_petra_transport_trapped_passenger();
 	test_petra_transport_sunk_at_sea();
 	test_petra_transport_wrong_land();
