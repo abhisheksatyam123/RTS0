@@ -18,6 +18,7 @@ signal closed
 const PORT_MIN := 1024
 const PORT_MAX := 65535
 const DEFAULT_PORT := 20595
+const MODERN := preload("res://scenes/common/modern_theme.gd")
 
 var mode := "join"          # "join" or "host"
 var load_saved_game := false
@@ -153,7 +154,7 @@ func _ready() -> void:
 	fade.color = Color8(0, 0, 0, 85)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fade)
-	theme = preload("res://scenes/common/modern_theme.gd").theme()
+	theme = MODERN.theme()
 	# switchSetupPage: pageJoin is 145 high either side, pageHost 140 with the
 	# lobby (its password row) and 125 without.
 	var lobby := LobbySession.signed_in()
@@ -172,6 +173,8 @@ func _ready() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.position = Vector2(half.x - 128, -18)
 	title.size = Vector2(256, 32)
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	MODERN.label_text(title) # ModernLabelText
 	panel.add_child(title)
 	var w := half.x * 2
 	var cfg := RtsoUserConfig.new()
@@ -199,6 +202,7 @@ func _ready() -> void:
 			host_password.max_length = 256
 	host_feedback = Label.new()
 	host_feedback.name = "hostFeedback"
+	MODERN.label_text(host_feedback) # ModernLabelText, textcolor red
 	host_feedback.add_theme_color_override("font_color", Color(1, 0, 0))
 	host_feedback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	host_feedback.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -228,6 +232,8 @@ func _heading(panel: Control, text: String, w: float) -> void:
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.position = Vector2(0, 32)
 	l.size = Vector2(w, 30)
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	MODERN.label_text(l) # ModernLabelText
 	panel.add_child(l)
 
 func _row(panel: Control, label: String, y: float, w: float, field: String, value: String) -> LineEdit:
@@ -237,6 +243,7 @@ func _row(panel: Control, label: String, y: float, w: float, field: String, valu
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.position = Vector2(20, y)
 	l.size = Vector2(w / 2 - 20, 24)
+	MODERN.label_text(l) # ModernRightLabelText
 	panel.add_child(l)
 	var e := LineEdit.new()
 	e.name = field

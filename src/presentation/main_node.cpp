@@ -1120,9 +1120,12 @@ void RtsoMain::set_selected_structures(const std::vector<uint32_t> &ids) {
 // Any other change of selected_building_id (a plain click, a hotkey, a control group) drops the extras.
 void RtsoMain::prune_structure_selection() {
 	if (!sim) return;
+	// Anyone's for an observer's all-players view or Control all units (selection.js force).
+	const bool any_owner = observer_all_view() || sim->controls_all(local_player());
 	auto live_own = [&](uint32_t id) {
 		for (const auto &b : sim->buildings())
-			if (b.id == id) return !b.wrecked && b.hp > 0.0f && b.team == local_player();
+			if (b.id == id)
+				return !b.wrecked && b.hp > 0.0f && (b.team == local_player() || (any_owner && b.team < rtso::MAX_PLAYERS));
 		return false;
 	};
 	if (selected_building_id != extras_primary_) {
@@ -1375,7 +1378,7 @@ void RtsoMain::select_group(int key, bool drop) {
 		for (size_t i = 0; i < uview.count; ++i) {
 			if (uview.id[i] != (uint32_t)selected_ids[s]) continue;
 			const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-			const bool in_group = RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl, uview.rank[i]) == key;
+			const bool in_group = RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl) == key;
 			if (in_group != drop) kept.push_back(selected_ids[s]);
 			found = true;
 			break;
@@ -1421,7 +1424,7 @@ void RtsoMain::_on_garrison_group_clicked(int key) {
 			for (size_t i = 0; i < uview.count; ++i) {
 				if (uview.id[i] != gid) continue;
 				const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-				if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i], uview.rank[i]) == key) out.push_back(gid);
+				if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i]) == key) out.push_back(gid);
 				break;
 			}
 			if (!all && !out.empty()) break;

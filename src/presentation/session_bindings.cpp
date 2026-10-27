@@ -220,6 +220,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_unit_ground", "unit_id", "goal"), &RtsoMain::debug_unit_ground, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("debug_right_line"), &RtsoMain::debug_right_line);
 	ClassDB::bind_method(D_METHOD("debug_ground_at", "screen"), &RtsoMain::debug_ground_at);
+	ClassDB::bind_method(D_METHOD("debug_click_surface", "screen"), &RtsoMain::debug_click_surface);
 	ClassDB::bind_method(D_METHOD("debug_building_screen", "building_id"), &RtsoMain::debug_building_screen);
 	ClassDB::bind_method(D_METHOD("debug_inspector", "what"), &RtsoMain::debug_inspector);
 	ClassDB::bind_method(D_METHOD("debug_inspect_entity", "id"), &RtsoMain::debug_inspect_entity);

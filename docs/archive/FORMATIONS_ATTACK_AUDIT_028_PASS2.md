@@ -1,6 +1,6 @@
 # Petra attack plans: 0.28 vs RTS0 (parity audit, attack pass 2)
 
-## Status (Formations, G72)
+## Status (Formations, G75)
 - **P2 fixed**: each plan waits only for its own units' ferry (`petra_plan_in_transport`), and the drop point comes from the transport just started.
 - **P3 partly fixed**: an army that finds no target on arrival goes through Abort (rally point or nearest base on its land), not straight home. Still open: an aborted army on another land is held and shipped home (0.28 frees it where it stands).
 - **P4 fixed**: a target switch orders only idle soldiers; targetPlayer follows the new target's owner (`test_retarget_keeps_fights`).
