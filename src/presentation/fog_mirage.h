@@ -5,9 +5,10 @@
 //   CCmpRangeManager::ComputeLosVisibility (source/simulation2/components/CCmpRangeManager.cpp),
 //   CLOSTexture::GenerateBitmap / InterpolateLOS (source/graphics/LOSTexture.cpp).
 //
-// Presentation only. Nothing here is hashed, saved or sent over the lockstep net:
-// it reads Simulation::fow_grid(viewer) and the entity lists and keeps what the
-// viewer last saw. Pure C++ (no Godot) so tools/test_fog_mirage.cpp can drive it.
+// Presentation only. Nothing here is hashed or sent over the lockstep net, and the
+// sim save holds none of it: it reads Simulation::fow_grid(viewer) and the entity
+// lists and keeps what the viewer last saw; a saved game's GUI data carries that
+// memory (export_memory). Pure C++ (no Godot) so tools/test_fog_mirage.cpp can drive it.
 #ifndef RTSO_FOG_MIRAGE_H
 #define RTSO_FOG_MIRAGE_H
 
@@ -111,6 +112,14 @@ public:
 	size_t resource_mirage_count() const { return resource_memory_.size(); }
 	size_t treasure_mirage_count() const { return treasure_memory_.size(); }
 
+	// The viewer's memory as bytes for a saved game, and its restoring after the load (0.28
+	// saves each player's Mirage entities with the game). The import applies at the next
+	// update() for the same viewer, after any clearing a new map or viewer does, and drops the
+	// memory already held, so a load never keeps the last match's mirages; data from a
+	// build whose records differ in size is ignored.
+	std::vector<uint8_t> export_memory() const;
+	bool import_memory(const uint8_t *data, size_t n);
+
 	// Low-level API, used by update() and by tests with a hand-made LOS grid.
 	// los is res*res cells of Simulation::FOW_* states over [-map_half, map_half]^2.
 	void begin(const uint8_t *los, int res, float map_half);
@@ -143,6 +152,14 @@ private:
 	int res_ = 0;
 	float map_half_ = 0.0f;
 	uint32_t stamp_ = 0;
+
+	// import_memory's data, waiting for update() with its viewer.
+	bool pending_ = false;
+	uint8_t pending_viewer_ = 0;
+	std::vector<FoggedBuilding> pending_buildings_;
+	std::vector<FoggedResource> pending_resources_;
+	std::vector<FoggedTreasure> pending_treasures_;
+	void apply_pending(uint8_t viewer);
 
 	std::unordered_map<uint32_t, BuildingMemory> building_memory_;
 	std::unordered_map<uint32_t, ResourceMemory> resource_memory_;

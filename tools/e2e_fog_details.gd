@@ -2,6 +2,7 @@ extends SceneTree
 # Fogging.js: a structure last seen in the fog shows, when clicked, how the viewer last saw it
 # (its mirage), not how it stands now: the selection details read the same fog memory the
 # world view draws, kept every frame, so the first click on it already shows the old state.
+# A save and a quicksave carry that memory, as 0.28 saves the mirage entities.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_fog_details.gd
 # Exit code 0 = pass.
@@ -88,5 +89,25 @@ func run() -> void:
 		width += float(p["width"])
 	print("    capture bar on the first click in the fog: ", parts)
 	check(width > 100.0, "the details show the house as last seen, fully held (bar %.1f px)" % width)
+	# 0.28 saves the mirages with the game: after a load, and after a quickload, the house
+	# still shows as last seen.
+	main.debug_select_units(PackedInt32Array())
+	check(main.save_game("user://saves/e2e_fog_details.rts0sav", "fog"), "saved")
+	main.quicksave()
+	for how in ["load", "quickload"]:
+		if how == "load":
+			check(main.load_game("user://saves/e2e_fog_details.rts0sav"), "loaded")
+		else:
+			main.quickload()
+		await turns(2)
+		check(int(main.debug_building_fow(house)["fow"]) == 1, "after the %s the house is in the fog" % how)
+		main.debug_inspect_entity(house)
+		await frames(2)
+		width = 0.0
+		for p in main.debug_inspector("current").get("capture_parts", []):
+			width += float(p["width"])
+		check(width > 100.0, "after the %s the details still show it as last seen (bar %.1f px)" % [how, width])
+	for ext in ["rts0sav", "json", "png"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/e2e_fog_details." + ext))
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

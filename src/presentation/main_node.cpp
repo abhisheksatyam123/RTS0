@@ -508,6 +508,8 @@ void RtsoMain::quicksave() {
 		for (int g = 0; g < 10; ++g) groups.push_back(selected_groups[g]);
 		quicksave_gui_ = Dictionary();
 		quicksave_gui_["groups"] = groups;
+		// The quicksave is the whole simulation, mirages included.
+		save_fog_memory(quicksave_gui_);
 		quicksaved_ = true;
 	}
 	log_render(ok ? "Quicksaved game" : "Quicksave failed", !ok);
