@@ -156,6 +156,11 @@ void FogMirages::add_treasure(const FoggedTreasure &live) {
 	t.miraged = false;
 	const uint8_t st = los_at(t.x, t.z);
 	if (st == Simulation::FOW_UNEXPLORED) return;
+	// The Argo has RetainInFog false: hidden outside sight, with no memory.
+	if (t.type == TREASURE_SPECIAL_ARGO && st != Simulation::FOW_VISIBLE) {
+		treasure_memory_.erase(t.id);
+		return;
+	}
 	// Treasures sit still and their Fogging only activates when taken, so an explored
 	// treasure shows as it stands; remember it so its taking in the fog doesn't leak.
 	TreasureMemory &m = treasure_memory_[t.id];
