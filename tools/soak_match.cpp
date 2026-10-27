@@ -15,6 +15,13 @@
 // Every report names the unit, its order and target, the trees within 1.5 units and,
 // for a structure, whether it is on the unit's land. --watch ID --watch-from S prints
 // unit ID every second from S on, and a minute later dumps what is around it.
+// --json NAME plays data/maps/NAME.json (loaded as tools/probe_trigger_maps.cpp does) with
+// --civs seated instead of the map's. It also logs, for a sweep (tools/sweep_matches.py):
+//   - [slow]: a game minute that took more than 20 s of wall time (a stall);
+//   - [phase]: each phase-up, and [no-phase] for a player still in Village at the end of a
+//     match of 15+ minutes;
+//   - [stats]: statistics that go wrong (a counter that drops, trained units below the
+//     living units bought since the start, map explored or controlled outside 0-100, a missing 30 s sample).
 // Build (one line):
 //   g++ -std=c++20 -O2 -Isrc tools/soak_match.cpp src/simulation/simulation.cpp
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp
@@ -24,6 +31,11 @@
 #include "simulation/simulation.h"
 #undef private
 #include "network/turn_manager.h"
+#define PROBE_LOADER_ONLY
+#include "probe_trigger_maps.cpp"
+#undef PROBE_LOADER_ONLY
+
+#include <chrono>
 
 #include <cmath>
 #include <cstdio>
@@ -83,6 +95,26 @@ float target_hp(const Simulation &s, uint32_t uid, uint32_t bid) {
 	return -1.0f;
 }
 
+// data/maps/NAME.json with the map's own players, resources and teams; returns the players seated.
+int setup_json(Simulation &s, const std::string &name, uint32_t seed, const std::vector<int> &civs) {
+	MapPlayerOverrides ov;
+	g_civ_override = civs;
+	if (!load_json_map(s, name, seed, ov)) return 0;
+	const int players = std::max(1, ov.players);
+	s.set_victory_condition(VICTORY_CONQUEST);
+	s.set_waves_enabled(false);
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		if (ov.civ[p] >= 0) s.set_team_civ(p, (uint8_t)ov.civ[p]);
+		if (ov.has_res[p]) s.set_player_resources(p, ov.res[p][0], ov.res[p][1], ov.res[p][3], ov.res[p][2]);
+		s.set_player_pop_cap(p, ov.pop[p]);
+	}
+	if (ov.pop_limit > 0) s.set_pop_cap(ov.pop_limit);
+	if (ov.has_teams) { s.set_setup_teams(ov.team); s.apply_team_diplomacy(); }
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) s.set_player_active(p, p < players, p < players);
+	for (int p = 0; p < players; ++p) s.set_petra_difficulty((uint8_t)p, 3);
+	return players;
+}
+
 void setup(Simulation &s, int map, uint32_t seed, int players, float size, const std::vector<int> &civs, bool circular) {
 	s.reset();
 	s.set_sim_seed(seed);
@@ -112,9 +144,11 @@ int main(int argc, char **argv) {
 	uint32_t watch = 0;
 	int watch_from = 0;
 	std::vector<int> civs = {0, 1, 2, 3};
+	std::string json;
 	for (int i = 1; i < argc; ++i) {
 		auto next = [&]() { return i + 1 < argc ? argv[++i] : (char *)"0"; };
 		if (!strcmp(argv[i], "--map")) map = atoi(next());
+		else if (!strcmp(argv[i], "--json")) json = next();
 		else if (!strcmp(argv[i], "--seed")) seed = (uint32_t)strtoul(next(), nullptr, 10);
 		else if (!strcmp(argv[i], "--size")) size = (float)atof(next());
 		else if (!strcmp(argv[i], "--minutes")) minutes = atof(next());
@@ -130,26 +164,54 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	auto a = std::make_unique<Simulation>();
-	setup(*a, map, seed, players, size, civs, circular);
+	std::setvbuf(stdout, nullptr, _IOLBF, 0);
+	auto make = [&]() {
+		auto s = std::make_unique<Simulation>();
+		if (json.empty()) setup(*s, map, seed, players, size, civs, circular);
+		else players = setup_json(*s, json, seed, civs);
+		return s;
+	};
+	auto a = make();
+	if (!players) return 2;
 	std::unique_ptr<Simulation> b, c;
-	if (twin) {
-		b = std::make_unique<Simulation>();
-		setup(*b, map, seed, players, size, civs, circular);
-	}
+	if (twin) b = make();
 	TurnManager tm;
-	std::printf("soak map=%d seed=%u size=%.0f players=%d civs=", map, seed, size, players);
+	const std::string map_name = json.empty() ? std::string(map_type_info((uint8_t)map).id) : json;
+	std::printf("soak map=%s seed=%u size=%.0f players=%d civs=", map_name.c_str(), seed, size, players);
 	for (int p = 0; p < players; ++p) std::printf("%s%d", p ? "," : "", civs[p % civs.size()]);
 	std::printf(" circular=%d\n", circular);
+	for (const std::string &u : g_unported_scripts) std::printf("[unported] trigger script %s\n", u.c_str());
 
 	std::unordered_map<uint32_t, Track> tr;
 	std::map<std::string, int> counts;
 	int desyncs = 0;
+
+	// Phase-ups and statistics (the counters StatisticsTracker keeps for the summary).
+	uint8_t phase_seen[MAX_PLAYERS] = {};
+	for (int p = 0; p < players; ++p) phase_seen[p] = a->player((uint8_t)p).phase;
+	std::vector<PlayerStatistics> prev_stats(players);
+	for (int p = 0; p < players; ++p) prev_stats[p] = a->statistics((uint8_t)p);
+	int start_units[MAX_PLAYERS] = {}; // after the first turn (nomad maps spawn them in it), garrisoned ones too
+	std::map<std::string, int> stat_reported;
+	auto stat_issue = [&](int sec, int p, const std::string &key, const char *fmt, auto... args) {
+		if (stat_reported[key + std::to_string(p)]++) return;
+		++counts["stats"];
+		std::printf("[stats] t=%ds p%d ", sec, p);
+		std::printf(fmt, args...);
+		std::printf("\n");
+	};
+	auto wall_minute = std::chrono::steady_clock::now();
+	double slowest_minute = 0.0;
+
 	const int turns = (int)(minutes * 60.0 / 0.2 + 0.5);
 	for (int t = 1; t <= turns; ++t) {
 		turn(*a);
 		if (b) turn(*b);
 		if (c) turn(*c);
+		if (t == 1)
+			for (size_t i = 0; i < a->units_.count; ++i)
+				if ((a->units_.alive[i] || a->units_.action_state[i] == ACTION_GARRISONED) && a->units_.team[i] < players)
+					++start_units[a->units_.team[i]];
 		if (t % 5) continue;
 		const int sec = t / 5;
 		Simulation &s = *a;
@@ -166,7 +228,64 @@ int main(int argc, char **argv) {
 				++desyncs;
 			}
 		}
+		for (int p = 0; p < players; ++p) {
+			const uint8_t ph = s.player((uint8_t)p).phase;
+			if (ph != phase_seen[p]) {
+				std::printf("[phase] t=%ds p%d %d -> %d\n", sec, p, phase_seen[p], ph);
+				phase_seen[p] = ph;
+			}
+		}
 		if (sec % 60 == 0) {
+			const auto now = std::chrono::steady_clock::now();
+			const double wall = std::chrono::duration<double>(now - wall_minute).count();
+			wall_minute = now;
+			slowest_minute = std::max(slowest_minute, wall);
+			if (wall > 20.0 * (1 + (b != nullptr) + (c != nullptr))) {
+				std::printf("[slow] t=%dm %.1f s of wall time for the last game minute\n", sec / 60, wall);
+				++counts["slow"];
+			}
+			for (int p = 0; p < players; ++p) {
+				const PlayerStatistics st = s.statistics((uint8_t)p);
+				const PlayerStatistics &o = prev_stats[p];
+				auto drop = [&](const char *name, uint32_t now_v, uint32_t was) {
+					if (now_v < was) stat_issue(sec, p, name, "%s dropped %u -> %u", name, was, now_v);
+				};
+				const int T = STAT_UNIT_SLOTS - 1, TB = STAT_BLD_SLOTS - 1;
+				drop("unitsTrained", st.units_trained[T], o.units_trained[T]);
+				drop("unitsLost", st.units_lost[T], o.units_lost[T]);
+				drop("enemyUnitsKilled", st.enemy_units_killed[T], o.enemy_units_killed[T]);
+				drop("buildingsConstructed", st.buildings_constructed[TB], o.buildings_constructed[TB]);
+				drop("buildingsLost", st.buildings_lost[TB], o.buildings_lost[TB]);
+				drop("enemyBuildingsDestroyed", st.enemy_buildings_destroyed[TB], o.enemy_buildings_destroyed[TB]);
+				for (int r = 0; r < RES_COUNT; ++r) {
+					drop("resourcesGathered", st.resources_gathered[r], o.resources_gathered[r]);
+					drop("resourcesSold", st.resources_sold[r], o.resources_sold[r]);
+					drop("resourcesBought", st.resources_bought[r], o.resources_bought[r]);
+				}
+				drop("tradeIncome", st.trade_income, o.trade_income);
+				drop("treasuresCollected", st.treasures_collected, o.treasures_collected);
+				drop("lootCollected", st.loot_collected, o.loot_collected);
+				drop("tributesSent", st.tributes_sent, o.tributes_sent);
+				// Every living unit was there at the start, trained or captured (plus spawned by a
+				// trigger, which only scenario maps do): fewer is a missed unitsTrained.
+				int alive = 0;
+				for (size_t i = 0; i < s.units_.count; ++i)
+					if ((s.units_.alive[i] || s.units_.action_state[i] == ACTION_GARRISONED) && s.units_.team[i] == p) ++alive;
+				const int lost = (int)st.units_lost[T];
+				if (alive + lost > start_units[p] + (int)st.units_trained[T] + (int)st.units_captured[T] + (int)st.livestock_bred + 2)
+					stat_issue(sec, p, "unitsTrainedLow", "living %d + lost %d > start %d + trained %u + captured %u + bred %u",
+							alive, lost, start_units[p], st.units_trained[T], st.units_captured[T], st.livestock_bred);
+				const float ex = s.percent_map_explored((uint8_t)p), ct = s.percent_map_controlled((uint8_t)p);
+				if (!(ex >= 0.0f && ex <= 100.0f) || !(ct >= 0.0f && ct <= 100.0f))
+					stat_issue(sec, p, "percent", "explored %.1f controlled %.1f outside 0-100", ex, ct);
+				if (st.peak_percent_map_controlled + 0.01f < ct)
+					stat_issue(sec, p, "peak", "peak controlled %.1f below controlled %.1f", st.peak_percent_map_controlled, ct);
+				prev_stats[p] = st;
+			}
+			const size_t want = (size_t)(sec / (int)STATISTICS_SAMPLE_INTERVAL);
+			const size_t have = s.statistics_samples().size();
+			if (have + 1 < want || have > want + 1)
+				stat_issue(sec, 0, "samples", "%zu statistics samples after %d s (want about %zu)", have, sec, want);
 			const uint32_t h = tm.compute_sim_hash(s);
 			if (b && tm.compute_sim_hash(*b) != h) {
 				std::printf("[desync] t=%ds twin hash differs\n", sec);
@@ -353,7 +472,14 @@ int main(int argc, char **argv) {
 			break;
 		}
 	}
-	std::printf("[summary] map=%d seed=%u desyncs=%d", map, seed, desyncs);
+	const int end_sec = (int)(a->game_time() + 0.5);
+	if (end_sec >= 15 * 60)
+		for (int p = 0; p < players; ++p)
+			if (!a->is_defeated((uint8_t)p) && a->player((uint8_t)p).phase < 2) {
+				std::printf("[no-phase] p%d still in Village at %d s\n", p, end_sec);
+				++counts["no-phase"];
+			}
+	std::printf("[summary] map=%s seed=%u desyncs=%d slowest_min=%.1fs", map_name.c_str(), seed, desyncs, slowest_minute);
 	for (const auto &[k, v] : counts) std::printf(" %s=%d", k.c_str(), v);
 	std::printf("\n");
 	return 0;

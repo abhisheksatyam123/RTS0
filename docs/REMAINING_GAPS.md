@@ -797,6 +797,22 @@ The summary page's skin and layout checked again against 0.28's gui/summary/, ta
 | SM11 | The page's bold text is Godot's fallback face emboldened, not Linux Biolinum. Kept: every code-built session control (top panel, minimap, details, dialogs) draws in that face, and moving this page alone mixed the two faces on one screen (tried 2026-10-27) | low | Kept |
 | SM12 | A small window scrolled the table with a scrollbar; 0.28's generalPanel clips it | nit | Fixed |
 
+### Petra-vs-Petra sweep over every map (2026-10-27)
+
+Every random map (95, 4 players, 256 tiles) and every skirmish map (77, the map's own seats) played once headless for 25 game minutes, Petra in every seat with the civs rotating so every civ played, a twin copy compared every minute and a copy saved and loaded at minute 12.5 (`tools/sweep_matches.py` driving `tools/soak_match.cpp`, main 841f2de25). No crash, no stall (slowest game minute 2.5 s of wall time), no desync between the twins or after save/load, no unported trigger script, and the statistics stayed consistent (no counter dropped, trained and captured units cover every living unit, explored and controlled stay within 0-100, a sample every 30 s). The first Town phase came at a median 947 s. What looked wrong, by owner:
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| SW1 | Dodecanese and Flood (4 players, seed 1): three Petras never place a single building; each stays at its civic centre's 20 population with 450-600 wood unspent and gathers only food for 25 minutes. It depends on the base: Dodecanese with 2 players, or seed 5, leaves one such Petra (repro `tools/probe_trigger_maps.cpp --random dodecanese --players 4 --seed 1 --humans 0`). Owner: C (Petra on islands), with E for placement | high | Open |
+| SW2 | Island maps reach no Town phase in 25 minutes though no one attacks: Islands, Island Stronghold (all four Petras, 90-137 units), Random Archipelago, Cycladic Archipelago (three of four), Oasis (0 A.D.) (all four). They run out of food (20-650 food against thousands of stone and metal). Owner: C | medium | Open |
+| SW3 | Spartan Valley and Random Valley with 4 players put two pairs of civic centres 22 units (88 m) apart (x = +-74, z = -22 and 0), so the neighbours wipe each other in the first minutes. Owner: F | medium | Open |
+| SW4 | Jebel Barkal (4 players): the Gaia attacks wipe all four Petras by minute 10-15 at the default trigger difficulty. Check the attack timing and size against 0.28 jebel_barkal.js for that difficulty. Owner: Triggers | medium | Open |
+| SW5 | New RMS Test: no resources and no animals near the bases, so the Petras idle all match; 0.28 new_rms_test.js calls placePlayerBases, whose defaults may place berries, chickens, mines and trees. Check. Owner: F | low | Open |
+| SW6 | Units stuck returning to a dropsite next to it for 60 s and more, most on island maps (Islands 64 reports, Unknown 39, Migration 32, Land Grab 31, Cycladic Archipelago 28). Owner: Migrate | medium | Open |
+| SW7 | A loaded ship sits idle with its passengers for 3 minutes and more (Cycladic Archipelago 3p, Unknown, Migration). Owner: C (ships) | low | Open |
+| SW8 | Units attack a structure for 60 s and more without lowering its health or capture points (Tuscan Acropolis 49 reports, Yangtze 48, Red Sea 39), mostly capture attacks that never gain. Check whether these are 0.28's capture stalemates (garrison and territory regeneration). Owner: Formations (capture) | low | Open |
+| SW9 | summary_screen.gd read the MatchSettings autoload by its global name, so a script run with -s that preloads it (msgbox.gd, through tools/e2e_manual.gd) failed to compile; it now looks it up when called (found by Session UI) | low | Fixed |
+
 ### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
 
 diplomacyManager.js, chatHelper.js and their callers were checked line by line. Everything else matches: update cadence, tribute rules, request handling and its odds, lastManStandingCheck, changePlayerDiplomacy, personality boosts, every chat string. Jebel Barkal was checked statically against the 0.28 source, since no 0.28 binary runs here (pass 8: wave sizing and target-class skip match). Pass 4's P2 is D8 below, and its P5 is D7.
