@@ -1233,6 +1233,14 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         } else if (now - last_progress > 15'000'000ull) {
             std::fprintf(stderr, "[net-peer] %s: stalled at turn %u for 15s\n",
                          host ? "host" : "join", tm.current_turn());
+            // What it waits on: whose batches, and each link's reliable stream.
+            std::string who;
+            for (uint32_t c : tm.waiting_on()) who += (who.empty() ? "" : ",") + std::to_string(c);
+            std::fprintf(stderr, "[net-peer] stall: waiting_on=%s in_hand=%u\n", who.empty() ? "-" : who.c_str(),
+                         (unsigned)tm.turns_in_hand());
+            for (const auto &p : net.getPeers())
+                std::fprintf(stderr, "[net-peer] stall: peer %u connected=%d recv_seq=%u held=%zu sent_seq=%u\n", p.id,
+                             (int)p.connected, p.last_recv_seq, p.held_packets.size(), p.last_sent_seq);
             std::fclose(log);
             return 3;
         }
