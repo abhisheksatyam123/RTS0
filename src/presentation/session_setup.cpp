@@ -72,13 +72,21 @@ static uint8_t map_building_type(const String &n) {
 // A map's wall, palisade or gate laid as a turned WallSet piece (port_0ad_maps.py wall_piece:
 // "wallset" stone, palisade or siege; "piece" wall, tower or gate; Position "angle"; "length").
 static uint32_t spawn_map_wall(rtso::Simulation &sim, const Dictionary &b, uint8_t player) {
+	// structures/palisades_fort is a template_structure_defensive_tower_sentry (arrows, 3 slots,
+	// territory) with <Capturable disable=""/>, though its chain names the palisades.
+	if (String(b.get("template", "")).ends_with("palisades_fort")) {
+		const uint32_t id = sim.spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0),
+				rtso::BLD_SENTRY_TOWER, player, 1.0f, (float)b.get("angle", 0.0));
+		if (id) sim.set_structure_uncapturable(id);
+		return id;
+	}
 	const String ws = b.get("wallset", "stone"), piece = b.get("piece", "wall");
 	const uint8_t kind = ws == "palisade" ? rtso::WALLSET_PALISADE : ws == "siege" ? rtso::WALLSET_SIEGE : rtso::WALLSET_STONE;
 	const uint8_t p = piece == "tower" ? rtso::Simulation::MAP_WALL_TOWER
 			: piece == "gate" ? rtso::Simulation::MAP_WALL_GATE : rtso::Simulation::MAP_WALL_SEGMENT;
 	const uint32_t id = sim.spawn_map_wall_piece(player, kind, p, (float)b.get("x", 0.0), (float)b.get("z", 0.0),
 			(float)b.get("angle", 0.0), (float)b.get("length", 9.0));
-	// palisades_spike_* (<TerritoryDecay disable=""/>), palisades_fort (<Capturable disable=""/>).
+	// palisades_spike_* (<TerritoryDecay disable=""/>).
 	if (id && (bool)b.get("no_decay", false)) sim.set_structure_no_decay(id);
 	if (id && (bool)b.get("no_capture", false)) sim.set_structure_uncapturable(id);
 	return id;
