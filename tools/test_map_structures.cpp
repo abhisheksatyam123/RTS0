@@ -319,6 +319,11 @@ int main() {
 	CHECK(pirate_scout != CIV_UNIT_TEMPLATE_NONE && pirate_arrow != CIV_UNIT_TEMPLATE_NONE);
 	CHECK(building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, pirate_scout));
 	CHECK(building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, pirate_arrow));
+	// MS4: the template_structure_military_dock list keeps the captor's fishing and merchant ships.
+	CHECK(building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, civ_unit_template_by_id("athen/ship_fishing")));
+	CHECK(building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, civ_unit_template_by_id("athen/ship_merchant")));
+	CHECK(!building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, civ_unit_template_by_id("brit/ship_fishing")));
+	CHECK(!building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, civ_unit_template_by_id("pirates/ship_merchant")));
 	const uint16_t athen_trireme = civ_unit_template_by_id("athen/ship_trireme");
 	if (athen_trireme != CIV_UNIT_TEMPLATE_NONE) {
 		CHECK(!building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, athen_trireme));
