@@ -18,6 +18,8 @@
 // is rebuilt from the setup first, as Simulation::load_state expects).
 
 #include "main_node.h"
+#include <godot_cpp/classes/marshalls.hpp>
+#include <cstring>
 #include "display_colors.h"
 #include <godot_cpp/classes/canvas_layer.hpp>
 #include <godot_cpp/classes/dir_access.hpp>
@@ -786,8 +788,21 @@ bool RtsoMain::write_save_metadata(const String &path, const String &description
 	gui["groups"] = groups;
 	if (cam_rig) gui["camera"] = cam_rig->camera_data();
 	if (view) gui["building_looks"] = view->building_looks_data();
+	save_fog_memory(gui);
 	meta["gui"] = gui;
 	return write_text(path.get_basename() + ".json", JSON::stringify(meta, "\t"));
+}
+
+// 0.28 saves each player's Mirage entities with the game, so a structure last seen in the
+// fog still shows as it was after a load.
+void RtsoMain::save_fog_memory(Dictionary &gui) const {
+	if (!view) return;
+	const std::vector<uint8_t> fog = view->export_fog_memory();
+	if (fog.empty()) return;
+	PackedByteArray bytes;
+	bytes.resize((int64_t)fog.size());
+	std::memcpy(bytes.ptrw(), fog.data(), fog.size());
+	gui["fog_memory"] = Marshalls::get_singleton()->raw_to_base64(bytes);
 }
 
 // A screenshot beside the save (<name>.png) for the load dialog. Headless runs
@@ -944,6 +959,10 @@ Dictionary RtsoMain::saved_gui(const String &path) {
 void RtsoMain::restore_saved_gui(const Dictionary &gui) {
 	if (cam_rig && gui.has("camera")) cam_rig->set_camera_data(gui["camera"]);
 	if (view) view->set_building_looks_data(gui.get("building_looks", Array()));
+	// An older save without it starts with no memory, as a new match does.
+	const PackedByteArray fog = gui.has("fog_memory") ? Marshalls::get_singleton()->base64_to_raw(gui["fog_memory"]) : PackedByteArray();
+	if (view) view->import_fog_memory(fog.ptr(), (size_t)fog.size());
+	if (minimap_view) minimap_view->import_fog_memory(fog.ptr(), (size_t)fog.size());
 	const Array groups = gui.get("groups", Array());
 	for (int g = 0; g < 10; ++g) {
 		selected_groups[g].clear();

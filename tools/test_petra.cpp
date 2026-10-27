@@ -2289,6 +2289,49 @@ static void test_city_phase_skips_no_room() {
 	}
 }
 
+// queueManager.js keeps a queued plan until it starts: a barracks or wonder plan already in
+// its queue goes ahead though the population that asked for it has dipped (PD3).
+static void test_queued_plan_outlives_its_reason() {
+	for (int held = 0; held < 2; ++held)
+		for (int wonder = 0; wonder < 2; ++wonder) {
+			auto s = std::make_unique<Simulation>();
+			s->set_sim_seed(42);
+			s->reset();
+			s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+			s->set_victory_condition(VICTORY_ENDLESS);
+			run_for(*s, 1.0f);
+			s->set_team_civ(1, (uint8_t)CIV_ATHENIANS);
+			s->players_[1].phase = wonder ? 3 : 1;
+			s->set_player_resources(1, 5000, 5000, 5000, 5000);
+			s->petra_pid_ = 1;
+			fund_queues(*s);
+			const uint8_t type = wonder ? BLD_WONDER : BLD_BARRACKS;
+			const uint8_t q = wonder ? PETRA_Q_WONDER : PETRA_Q_MILITARY_BUILDING;
+			if (held) {
+				s->petra_queue_heads_.item[q] = (uint8_t)(type + 1);
+				s->petra_queue_heads_.age[q] = 0.0f;
+			}
+			if (wonder) { // a market and temple stand, so nothing else heads the town decisions
+				for (const auto &b : std::vector<Simulation::Building>(s->buildings_))
+					if (b.team == 1 && b.type == BLD_TOWN_CENTER) {
+						s->spawn_building_world(b.x + 20.0f, b.z, BLD_MARKET, 1, 1.0f);
+						s->spawn_building_world(b.x - 20.0f, b.z, BLD_TEMPLE, 1, 1.0f);
+						s->spawn_building_world(b.x, b.z + 20.0f, BLD_FORGE, 1, 1.0f);
+					}
+			}
+			// A played turn that is a 3rd (the training-building and town decisions) but not a 30th.
+			while (!s->petra_turn_mod(3) || s->petra_turn_mod(30)) s->ticks_ += 4;
+			if (wonder) s->petra_manage_research(0.5f);
+			else s->petra_manage_buildings(0.5f);
+			int laid = 0;
+			for (const auto &b : s->buildings_) laid += b.team == 1 && b.type == type && b.build_progress < 1.0f && b.hp > 0.0f;
+			std::printf("  %s plan %s, population %d: %d laid\n", wonder ? "wonder" : "barracks", held ? "queued" : "not queued",
+			            s->pop_current(1), laid);
+			if (held) CHECK(laid == 1, "a queued plan starts though its reason has gone");
+			else CHECK(laid == 0, "no plan without its reason");
+		}
+}
+
 // queueplanBuilding.js isGo (houseNeeded): a queued house plan waits while canBuild fails for
 // both the house and the apartment (the 90 s no-room mark), and goes once the mark lapses.
 static void test_house_plan_waits_out_no_room() {
@@ -4108,6 +4151,39 @@ static void test_plan_cost_weights_kept() {
 	CHECK(((scarce >> 8) & 0xFFu) == 0, "citizen cavalry (no costsResource interest) keeps no weight");
 }
 
+// attackPlan.js:194-217: each unitStat's size is ceil(popScaling * ceil(variation * table)),
+// and the plan waits for their sum. The plan's classes add up to the size it drew, at every
+// difficulty (they used to be rebuilt from the sum and round up once more: a Very Easy Attack
+// trained 7 units for 5).
+static void test_plan_class_sizes_sum() {
+	for (uint8_t d : {(uint8_t)PETRA_VERY_EASY, (uint8_t)PETRA_EASY, (uint8_t)PETRA_MEDIUM, (uint8_t)PETRA_VERY_HARD}) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->set_petra_difficulty(d);
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		run_for(*s, 1.0f);
+		s->petra_pid_ = 1;
+		auto &m = s->petra_attack_mgr_;
+		int mismatched = 0, plans = 0;
+		for (uint8_t kind : {(uint8_t)PETRA_ATTACK_RUSH, (uint8_t)PETRA_ATTACK_ATTACK, (uint8_t)PETRA_ATTACK_HUGE})
+			for (int k = 0; k < 40; ++k) {
+				m.rush_number = 0;
+				m.rush_size[0] = 14 + k % 9;
+				s->petra_plan_sizes(kind);
+				if (kind == PETRA_ATTACK_RUSH) m.rush_number = 1; // as made: petra_plan_unit_stats reads rush_number - 1
+				const size_t table = kind == PETRA_ATTACK_RUSH ? 2 : kind == PETRA_ATTACK_HUGE ? 9 : 3;
+				int target = 0, min = 0;
+				for (const auto &st : s->petra_plan_unit_stats(kind))
+					if (st.index < table) { target += st.target; min += st.min; }
+				++plans;
+				if (target != m.target_size || min != m.min_size) ++mismatched;
+			}
+		std::printf("  difficulty %d: %d of %d plans' classes add up to a different size\n", (int)d, mismatched, plans);
+		CHECK(mismatched == 0, "a plan's classes add up to the size it drew");
+	}
+}
+
 // attackPlan.js trainMoreUnits: when the order furthest behind has no template, the order is
 // deleted and nothing is queued that turn; the next order trains on the plan's next turn.
 // Each order trains in the queue its classes name, not the template's: the "Siege" order's war
@@ -5488,6 +5564,7 @@ static void test_idle_return() {
 	u.res_type_carried[i] = RES_WOOD;
 	bool ordered = false, dropped = false;
 	for (int k = 0; k < 30 * 20 && !dropped; ++k) {
+		s->petra_failed_gather_.time[RES_WOOD] = std::max(0.001f, s->petra_timer_); // not back to wood with it
 		s->tick(Simulation::FIXED_STEP);
 		const int32_t j = s->lookup_unit(uid);
 		if (j < 0) break;
@@ -6130,7 +6207,8 @@ static void test_defender_orders() {
 			const auto q = s->order_queues_.find(id);
 			const bool queued = q != s->order_queues_.end() && !q->second.empty() && q->second.front().kind == ORDER_ATTACK;
 			if (s->units_.order_kind[i] == ORDER_RETURN_RESOURCE && queued) ++dropping;
-			else if (s->units_.action_state[i] == ACTION_ATTACK && s->units_.carry[i] > 0) ++straight;
+			// One UnitAI already took into the fight on its own (no order of Petra's) is not counted.
+			else if (s->units_.action_state[i] == ACTION_ATTACK && s->units_.order_kind[i] == ORDER_ATTACK && s->units_.carry[i] > 0) ++straight;
 		}
 	size_t armies = s->petra_defense_armies().size(), drafted = 0;
 	for (const auto &a : s->petra_defense_armies()) drafted += a.defender_ids.size();
@@ -6303,7 +6381,7 @@ static void test_defense_animals() {
 			}
 		}
 	}
-	run_for(*s, 30.0f); // spears only, out of the civic centre's arrows
+	run_for(*s, 45.0f); // spears only, out of the civic centre's arrows
 	const size_t f = wolf_idx(wolf);
 	const bool dead = f == SIZE_MAX || !s->fauna_.alive[f] || s->fauna_.behavior[f] == FAUNA_CARCASS;
 	bool still = false;
@@ -8711,11 +8789,12 @@ static void test_far_sparse_gatherer_returning() {
 		const int32_t i = s->lookup_unit(w);
 		if (i < 0) break;
 		returning |= s->units_.action_state[i] == ACTION_RETURN_DROPSITE;
-		cleared = s->petra_supply_of(w) == 0;
+		// Dropped, or (PC13) re-sent through startGathering to the nearby mine on the way.
+		cleared = s->petra_supply_of(w) != far;
 		if (!returning && cleared) { s->petra_set_supply(w, far); cleared = false; } // a recheck while gathering: keep it there
 	}
-	std::printf("  far stone gatherer taking its load back: supply mark %s\n", cleared ? "dropped" : "kept");
-	CHECK(returning && cleared, "a stone gatherer on a far mine drops its supply mark on the way back");
+	std::printf("  far stone gatherer taking its load back: leaves the far mine %s\n", cleared ? "yes" : "no");
+	CHECK(returning && cleared, "a stone gatherer on a far mine gives it up on the way back");
 }
 
 // worker.js:220-232 (PC14): a gatherer reassigned to another resource (switchGatherer,
@@ -8762,6 +8841,45 @@ static void test_switched_gatherer_keeps_load() {
 	std::printf("  gatherer switched off wood with 10 wood: takes it back %s, lost it %s\n", returned_wood ? "yes" : "no",
 	            gathered_other ? "yes" : "no");
 	CHECK(returned_wood && !gathered_other, "a gatherer switched to another resource drops its load off first");
+}
+
+// worker.js:236-269 (PC13): a gatherer taking its load back has the dropsite as its Gather
+// target, so on its base's turn it goes through startGathering again while the base lists a
+// nearby supply: it still drops the load first, then works the supply startGathering picked.
+static void test_returning_gatherer_resent() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	s->spawn_resource_world(cx + 12.0f, cz - 4.0f, RES_WOOD, 5000); // in the base's nearby list
+	const uint32_t far_tree = s->spawn_resource_world(cx + 30.0f, cz + 30.0f, RES_WOOD, 5000); // medium
+	const uint32_t w = s->spawn_unit(cx + 29.0f, cz + 29.0f, 1, UNIT_FEMALE_CITIZEN);
+	s->order_gather(&w, 1, far_tree);
+	s->petra_set_supply(w, far_tree);
+	auto &u = s->units_;
+	int32_t i = s->lookup_unit(w);
+	u.carry[i] = 50; // full: Order.Gather returns the load first
+	u.res_type_carried[i] = RES_WOOD;
+	bool returning = false, resent = false;
+	for (int k = 0; k < 30 * 8 && !resent; ++k) {
+		s->tick(Simulation::FIXED_STEP);
+		i = s->lookup_unit(w);
+		if (i < 0) break;
+		const bool ret = u.action_state[i] == ACTION_RETURN_DROPSITE && u.carry[i] == 50;
+		returning |= ret;
+		resent = ret && u.target_resource_id[i] != far_tree && u.target_resource_id[i] != 0;
+	}
+	std::printf("  full woodcutter from a medium tree: returning %s, re-sent to another supply on the way %s\n",
+	            returning ? "yes" : "no", resent ? "yes" : "no");
+	CHECK(returning && resent, "a returning gatherer goes through startGathering again on its base's turn");
 }
 
 // worker.js:220-227 (W7): an idle gatherer carrying its own gather-type goes straight back to
@@ -9157,6 +9275,7 @@ int main(int argc, char **argv) {
 	RUN(test_phase_up);
 	RUN(test_city_phase_skips_no_room);
 	RUN(test_house_plan_waits_out_no_room);
+	RUN(test_queued_plan_outlives_its_reason);
 	RUN(test_no_free_income);
 	RUN(test_mercenary_workers);
 	RUN(test_trade_tech_waits_for_funds);
@@ -9181,6 +9300,7 @@ int main(int argc, char **argv) {
 	RUN(test_first_base);
 	RUN(test_barter);
 	RUN(test_switched_gatherer_keeps_load);
+	RUN(test_returning_gatherer_resent);
 	RUN(test_diplomacy_most_needed);
 	RUN(test_first_market_border);
 	RUN(test_pop_phase2_save_resources);
@@ -9238,6 +9358,7 @@ int main(int argc, char **argv) {
 	RUN(test_plan_counts_every_class);
 	RUN(test_trained_units_join_their_plan);
 	RUN(test_plan_cost_weights_kept);
+	RUN(test_plan_class_sizes_sum);
 	RUN(test_attack_order_no_template);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);

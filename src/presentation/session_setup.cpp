@@ -78,6 +78,9 @@ static uint32_t spawn_map_wall(rtso::Simulation &sim, const Dictionary &b, uint8
 		const uint32_t id = sim.spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0),
 				rtso::BLD_SENTRY_TOWER, player, 1.0f, (float)b.get("angle", 0.0));
 		if (id) sim.set_structure_uncapturable(id);
+		// <Upgrade disable=""/>, <Researcher disable=""/>, <Trainer disable=""/>.
+		if (id) sim.set_structure_off(id, rtso::Simulation::STRUCT_OFF_UPGRADE | rtso::Simulation::STRUCT_OFF_RESEARCH |
+				rtso::Simulation::STRUCT_OFF_TRAIN);
 		return id;
 	}
 	const String ws = b.get("wallset", "stone"), piece = b.get("piece", "wall");
@@ -90,6 +93,16 @@ static uint32_t spawn_map_wall(rtso::Simulation &sim, const Dictionary &b, uint8
 	if (id && (bool)b.get("no_decay", false)) sim.set_structure_no_decay(id);
 	if (id && (bool)b.get("no_capture", false)) sim.set_structure_uncapturable(id);
 	return id;
+}
+
+// The parts a map-only template switches off that its RTS0 type has (Simulation::STRUCT_OFF_*):
+// structures/uffington_horse is a wonder with no GarrisonHolder, Researcher or Trainer whose
+// obstruction blocks neither movement nor pathfinding.
+static uint8_t map_structure_off(const String &tmpl) {
+	if (tmpl.ends_with("uffington_horse"))
+		return rtso::Simulation::STRUCT_OFF_GARRISON | rtso::Simulation::STRUCT_OFF_RESEARCH | rtso::Simulation::STRUCT_OFF_TRAIN |
+				rtso::Simulation::STRUCT_OFF_BLOCK;
+	return 0;
 }
 
 // A player structure's 0 A.D. template ("athen/field", "spart/gerousia"; port_0ad_maps.py),
@@ -217,6 +230,8 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 
 		if (cam_rig) {
 			cam_rig->set_map_bounds_half(sim->map_half());
+		cam_rig->set_map_circular(sim->circular_map());
+			cam_rig->set_map_circular(sim->circular_map());
 			for (const auto &b : sim->buildings()) {
 				if (b.team == local_player() && rtso::is_civic_centre(b.type)) {
 					cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
@@ -421,6 +436,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			btype = rtso::BLD_HOUSE;
 		}
 		const uint32_t bid = sim->spawn_building_world(bx, bz, btype, team, 1.0f);
+		if (bid && map_structure_off(tmpl)) sim->set_structure_off(bid, map_structure_off(tmpl));
 		if (bid && tmpl.contains("mill_field_wheat")) sim->setup_mill_field_wheat(bid);
 		const String look = map_building_look(tmpl);
 		if (bid && !look.is_empty()) view->set_building_look(bid, btype, look);
@@ -448,6 +464,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		if (btype >= rtso::BLD_TYPE_COUNT) btype = map_building_type(b.get("type", ""));
 		if (btype >= rtso::BLD_TYPE_COUNT) continue;
 		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);
+		if (gaia_structure_ids[i] && map_structure_off(gtmpl)) sim->set_structure_off(gaia_structure_ids[i], map_structure_off(gtmpl));
 		if (gaia_structure_ids[i] && gtmpl.contains("mill_field_wheat")) sim->setup_mill_field_wheat(gaia_structure_ids[i]);
 		if (civ < rtso::CIV_COUNT && gaia_structure_ids[i]) sim->set_building_civ(gaia_structure_ids[i], civ);
 		const String look = map_building_look(gtmpl);
