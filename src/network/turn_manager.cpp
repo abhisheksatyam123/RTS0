@@ -802,6 +802,17 @@ bool TurnManager::apply_pending_rejoin(Simulation &sim) {
 	// Batches broadcast to us after we connected (for turns after T) survive;
 	// anything for T or earlier is history we just loaded.
 	const uint32_t T = rejoin_header_.turn;
+	// The host's joins and leaves that came while we loaded: the header's
+	// lockstep is from turn T, so they apply again on top of it (a player who
+	// left after T would otherwise be waited on for good).
+	std::vector<std::pair<uint32_t, NetCommand>> control;
+	for (const auto &t : turn_remote_cmds_) {
+		if (t.first <= T) continue;
+		for (const auto &c : t.second)
+			if (c.client_id == 0 && (c.cmd_type == CMD_PEER_JOINED || c.cmd_type == CMD_PEER_LEFT))
+				control.emplace_back(t.first, c);
+	}
+	std::stable_sort(control.begin(), control.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
 	reset_keep_inbound();
 	for (auto it = received_batches_.begin(); it != received_batches_.end();)
 		it = it->first <= T ? received_batches_.erase(it) : std::next(it);
@@ -814,6 +825,7 @@ bool TurnManager::apply_pending_rejoin(Simulation &sim) {
 	lockstep_peers_set_ = true;
 	lockstep_since_ = std::move(since);
 	for (const auto &scm : batches) receive_remote_turn_batch(scm.turn, scm.client_id, scm.commands);
+	for (const auto &tc : control) apply_peer_control(tc.second);
 	note_game_start_applied(&sim);
 	rejoined_ = true;
 	rejoin_fast_forward_ = true;
