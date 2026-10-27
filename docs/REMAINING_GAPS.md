@@ -474,6 +474,20 @@ gui/common/tooltips.js and selection_panels_helpers.js against RTS0's constructi
 | TT6 | The wall-dragging cost tip is a plain Label: "Cost: Stone 36" without the header font or icons | nit | Fixed (Stats: placementTooltip is a RichTextLabel; the wall cost takes getEntityCostTooltip's headerFont and resource icons) |
 | TT7 | "Requires ..." from a unit trainer shows only the generic name, not "Specific (Generic)"; no case found in the current rosters | nit | Open |
 
+### Petra building placement, twenty-sixth 0.28 pass (2026-10-27)
+
+Petra's placement (queueplanBuilding.js findGoodPosition, baseManager.js findBestDropsiteLocation and checkResourceLevels, headquarters.js findMarketLocation, buildMoreHouses, manageCorral, buildManager.js setUnbuildable, queueManager.js startNextItems) against RTS0. The favour map, obstruction gaps, first-house room, border and invading-army handling, military base choice, dropsite quality and its 60/80 m exclusion and the market location match except as below. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| PL1 | A queued storehouse looked again for a site of quality 50 (the opening one 40) and was dropped without one; 0.28's started plan takes its base's best site above 0, else the general placement | medium | Fixed (the general placement goes to the plan's base, not its queued spot; `tools/test_petra.cpp` test_queued_dropsite_starts) |
+| PL2 | The poorer storehouse site (quality past min(25, 7.5 / lost ratio)) was laid only if paid at once; 0.28 queues it like the first | medium | Fixed (`tools/test_petra.cpp`) |
+| PL3 | The 90 s no-room mark held back house plans already queued; only canBuild reads it, so a queued house retries once its account refills and a failed start uses the plan up | low | Fixed (`tools/test_petra.cpp`) |
+| PL4 | manageCorral's corral (civs without fields) favoured the farmstead's base by +100; its plan has no metadata | low | Fixed |
+| PL5 | A start that found no room cost the queue's account nothing; startNextItems takes the cost off the account before start() | nit | Fixed (`tools/test_petra.cpp`) |
+| PL6 | Petra's structures face pi (DEFAULT_BUILDING_ROT), not queueplanBuilding.js's 3pi/4 | nit | Deliberate (game-wide RTS0 default; footprints are axis-aligned) |
+| PL7 | A captured mill or rotary mill (food dropsite) gave no field +50 / other -20 in the favour map | nit | Fixed |
+
 ### Research, training and construction tooltips, twenty-fifth 0.28 pass (2026-10-27)
 
 The Research, Training and Construction panels' tooltips against selection_panels.js, selection_panels_helpers.js and tooltips.js: line order, names, costs, times, limits, requirements and objections match except as below. Owner: E.
