@@ -206,7 +206,7 @@ Player commands (stop, back to work, call to arms, unload, delete, stance, autoq
 | # | Difference from 0.28 | Impact | Status |
 |---|---|---|---|
 | P1 | ~~A Pack or Unpack the player ordered was undone when an enemy came into range~~ Fixed: PACKING and UNPACKING ignore LosAttackRangeUpdate (UnitAI.js:3380-3428), so an ordered pack finishes; test_pack 12 | medium | Fixed |
-| P2 | A pack in progress is not an order: a Shift-queued order runs at once and any order with a destination cancels an unpack, where 0.28 queues behind Pack/Unpack and only Attack, Stop and g_OrdersCancelUnpacking cut in (UnitAI.js:4119-4138, 174-181) | low | Open (pack queue) |
+| P2 | ~~A Shift-queued order ran at once during a pack or unpack the player ordered~~ Fixed: it waits in the queue and runs at PackFinished (UnitAI.js AddOrder, FinishOrder); test_pack 13. Left as a nit: a Guard order still cancels an unpack, where 0.28 lets only Attack, Stop and g_OrdersCancelUnpacking cut in (UnitAI.js:4119-4138, 174-181) | low | Fixed |
 | P3 | ~~Stop set the held position where the unit stands~~ Fixed: Order.Stop is FinishOrder alone (UnitAI.js:310-313), so a defensive unit stopped short walks on to the last walk's end (IDLE Timer, 1709-1717); test_unit_orders 109 | low | Fixed |
 | P4 | ~~Promotion kept Back to Work orders and the held position~~ Fixed: as ChangeEntityTemplate (Transform.js:142-160), a promoted unit has no work orders and holds where it stands, and so does an engine that finishes (un)packing; test_unit_orders 110 | low | Fixed |
 | P5 | ~~"Push order to front" was ignored on heal, return resource, hunt, board, call to arms and gather near, and honoured on patrol and occupy-turret~~ Fixed: the same commands as Commands.js; call to arms pushes the drop-off, then the attack-walk (Commands.js:255-266); test_unit_orders 108 | low | Fixed |
@@ -222,7 +222,7 @@ UnitAI's attack and capture switch, gather and repair autocontinue, idle answers
 | M2 | ~~An unordered capture never looked for a preferred target~~ Fixed: after each capture, a unit that no player sent to that structure and has no preference for it looks again (Attack.js:607-612), so attack-walk waves turn on enemy units; test_unit_orders 106 | medium | Fixed |
 | M3 | ~~After building a dropsite, the nearest supply of each type was taken before CanGather, full supplies counted and live animals were skipped~~ Fixed: FindNearbyResource filters on CanGather and IsAvailableTo, and takes live prey (UnitAI.js:4463-4489); test_gather_parity 15b | low-medium | Fixed |
 | M4 | ~~Builders still walking to a structure stopped where they were when it was finished~~ Fixed: they walk on to it (UnitAI.js:3226-3229 WalkToTarget); test_unit_orders 107 | low | Fixed |
-| M5 | A Shift-queued build on a structure someone else finished is skipped where 0.28 walks there and runs ConstructionFinished (REPAIRING enter, UnitAI.js:3115-3121); a builder already beside a finished, full structure now does | nit | Open (queue) |
+| M5 | ~~A Shift-queued build on a structure someone else finished is skipped~~ Matches since #1600: the queued repair walks there and runs ConstructionFinished on arrival (REPAIRING enter, UnitAI.js:3115-3121); test_unit_orders 116 | nit | Closed (matches) |
 | M6 | ~~Empty-handed after its supply runs out, a unit picks its dropsite by the last type it carried, not the order's type (UnitAI.js:2665)~~ Not a gap: order_gather sets the carried type when the unit is empty-handed, so the two always agree | nit | Closed (matches) |
 
 ### Unit orders, twelfth 0.28 pass (2026-10-21)
