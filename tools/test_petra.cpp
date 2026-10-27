@@ -2005,6 +2005,44 @@ static void test_queue_plans_in_order() {
 	CHECK(!f2 && f3, "a head that stops asking lets the next structure start");
 }
 
+// queueManager.js startNextItems walks the queues by priority, and canStart lets one
+// structure start a turn: a dock (priority 90) asked for first waits while a barracks heads
+// the military-building queue (330) and can be paid; an unfunded barracks holds nothing up.
+static void test_structure_queue_priority() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	s->petra_in_turn_ = true;
+	s->petra_turn_built_ = false;
+	s->players_[1].phase = 2;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->petra_queue_heads_ = {};
+	auto fund = [&](uint8_t q, float v) {
+		PetraQueueAccount &a = s->petra_queues_.accounts[q];
+		a.food = a.wood = a.gold = a.stone = v;
+	};
+	fund(PETRA_Q_DOCK, 2000.0f);
+	fund(PETRA_Q_MILITARY_BUILDING, 2000.0f);
+	const bool barracks_heads = s->petra_can_start_structure(PETRA_Q_MILITARY_BUILDING, BLD_BARRACKS);
+	const bool dock_waits = !s->petra_can_start_structure(PETRA_Q_DOCK, BLD_DOCK);
+	const bool dock_pays_not = !s->petra_try_pay_structure(PETRA_Q_DOCK, BLD_DOCK);
+	fund(PETRA_Q_MILITARY_BUILDING, 0.0f);
+	const bool dock_goes = s->petra_can_start_structure(PETRA_Q_DOCK, BLD_DOCK);
+	// The other way round: a dock heading its queue does not hold up the barracks.
+	fund(PETRA_Q_MILITARY_BUILDING, 2000.0f);
+	const bool barracks_goes = s->petra_can_start_structure(PETRA_Q_MILITARY_BUILDING, BLD_BARRACKS);
+	std::printf("  queue priority: barracks heads %s, dock waits %s (pay refused %s), unfunded barracks lets the dock go %s, barracks before the dock %s\n",
+	            barracks_heads ? "yes" : "no", dock_waits ? "yes" : "no", dock_pays_not ? "yes" : "no", dock_goes ? "yes" : "no",
+	            barracks_goes ? "yes" : "no");
+	CHECK(barracks_heads && dock_waits && dock_pays_not, "a lower-priority structure waits for a higher queue's that can start");
+	CHECK(dock_goes, "a higher queue's structure it cannot pay for holds nothing up");
+	CHECK(barracks_goes, "a lower queue's structure never holds up a higher one");
+}
+
 // baseManager.js:897 assignToFoundations: with no active base, every worker may build each
 // foundation (targetNB = maxTotalBuilders = the workers), not only the usual 2 for a palisade.
 static void test_no_base_all_build() {
@@ -8660,6 +8698,7 @@ int main(int argc, char **argv) {
 	RUN(test_one_base_a_turn);
 	RUN(test_no_room_only_once_funded);
 	RUN(test_queue_plans_in_order);
+	RUN(test_structure_queue_priority);
 	RUN(test_no_base_all_build);
 	RUN(test_idle_workers_repair_cc);
 	RUN(test_worker_elephant_builds);

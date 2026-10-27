@@ -31606,9 +31606,29 @@ bool Simulation::petra_queue_head_turn(uint8_t queue, uint8_t btype) {
 	return true;
 }
 
+// queueManager.js startNextItems walks the queues by priority and canStart takes one
+// structure a turn (turnCache.buildingBuilt): a structure heading a higher-priority queue
+// that can start now goes first, whichever manager asks first here.
+bool Simulation::petra_higher_structure_waiting(uint8_t queue) {
+	if (queue >= PETRA_Q_COUNT) return false;
+	const PetraQueueHeads &h = petra_queue_heads_;
+	const int mine = petra_queue_priority(queue);
+	for (uint8_t q = 0; q < PETRA_Q_COUNT; ++q) {
+		if (q == queue || !h.item[q] || h.age[q] > PetraQueueManager::want_ttl(q)) continue;
+		if (petra_queue_priority(q) <= mine) continue;
+		const uint8_t bt = (uint8_t)(h.item[q] - 1);
+		if (bt >= BLD_TYPE_COUNT || petra_no_room(bt) || !petra_limit_allows_building(bt)) continue;
+		float f, w, g, st;
+		petra_structure_cost(bt, f, w, g, st);
+		if (petra_queue_affords(q, f, w, g, st)) return true;
+	}
+	return false;
+}
+
 bool Simulation::petra_try_pay_structure(uint8_t queue, uint8_t btype) {
 	if (!petra_has_builder()) return false; // canBuild/canStart: no plan without a builder
 	if (!petra_queue_head_turn(queue, btype)) return false;
+	if (petra_higher_structure_waiting(queue)) return false;
 	float f, w, g, st;
 	petra_structure_cost(btype, f, w, g, st);
 	if (!petra_try_pay(queue, f, w, g, st)) return false;
@@ -31619,9 +31639,20 @@ bool Simulation::petra_try_pay_structure(uint8_t queue, uint8_t btype) {
 bool Simulation::petra_can_start_structure(uint8_t queue, uint8_t btype) {
 	if (!petra_has_builder()) return false;
 	if (!petra_queue_head_turn(queue, btype)) return false;
+	if (petra_higher_structure_waiting(queue)) return false;
 	float f, w, g, st;
 	petra_structure_cost(btype, f, w, g, st);
 	return petra_try_pay(queue, f, w, g, st, false);
+}
+
+// The queue's account and the stock both cover the cost (and the queue is not paused).
+bool Simulation::petra_queue_affords(uint8_t queue, float food, float wood, float gold, float stone) {
+	const PetraQueueAccount &a = petra_queues_.accounts[queue];
+	// petra_wood_starved: the wood kept for petra_wood_kept_for's queues.
+	const float reserve = wood > 0.0f && !petra_wood_kept_for(queue) && petra_wood_starved()
+	                      ? (petra_ps().phase == 1 ? 1150.0f : 650.0f) : 0.0f;
+	return !petra_queues_.paused[queue] && a.food >= food && a.wood >= wood && a.gold >= gold && a.stone >= stone &&
+	       petra_ps().food() >= food && petra_ps().wood() >= wood + reserve && petra_ps().gold() >= gold && petra_ps().stone() >= stone;
 }
 
 bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone, bool pay) {
@@ -31630,11 +31661,7 @@ bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold
 	PetraQueueManager &qm = petra_queues_;
 	PetraQueueAccount &a = qm.accounts[queue];
 	PetraQueueAccount &w = qm.wants[queue];
-	// petra_wood_starved: the wood kept for petra_wood_kept_for's queues.
-	const float reserve = wood > 0.0f && !petra_wood_kept_for(queue) && petra_wood_starved()
-	                      ? (petra_ps().phase == 1 ? 1150.0f : 650.0f) : 0.0f;
-	if (qm.paused[queue] || a.food < food || a.wood < wood || a.gold < gold || a.stone < stone ||
-	    petra_ps().food() < food || petra_ps().wood() < wood + reserve || petra_ps().gold() < gold || petra_ps().stone() < stone) {
+	if (!petra_queue_affords(queue, food, wood, gold, stone)) {
 		// The plan stays queued: the next refresh funds this queue (unless it is paused).
 		w.food = std::max(w.food, food); w.wood = std::max(w.wood, wood);
 		w.gold = std::max(w.gold, gold); w.stone = std::max(w.stone, stone);
