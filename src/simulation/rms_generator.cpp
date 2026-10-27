@@ -1692,42 +1692,6 @@ void RmsGenerator::synth_persian_highlands(HeightmapGrid &hm, RmsRng &rng, float
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
 }
 
-void RmsGenerator::synth_volcanic_lands(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
-	// volcanic_lands.js: charred land round a smoking volcano in the centre
-	// (rmgen createVolcano: a cone with a crater), scaleByMapSize(2, 8)
-	// hills per player, players on a circle at f = 0.35, dead trees. No
-	// water; heights in metres over 0.28's water line: land at heightLand 1
-	// (a faint 1 m roll), the volcano's rim at its top layer's 62 m round a
-	// crater at 42 m, hills set to heightHill 18.
-	water_h = -10.0f;
-	const float land = 1.0f * kMetre;
-	hm.init(hm.res, hm.map_half, land);
-	const float half = hm.map_half;
-	hm.apply_fbm(rng, 4, 0.03f, 0.5f, 2.0f, 1.0f * kMetre);
-	place_team_spawns(hm, rng, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), land);
-	scatter_hills(hm, rng, spawns, scale_by_map_size(2, 8, half) * std::max(1, num_players) / 2,
-	              half * 0.03f + 2.0f, half * 0.05f + 3.0f, (18.0f - 1.0f) * kMetre, (18.0f - 1.0f) * kMetre, 22.0f);
-	for (float &h : hm.data) h = std::min(h, 18.0f * kMetre); // ELEVATION_SET: overlaps stay at 18
-	// The volcano over everything else (ELEVATION_SET; 0.28's hills keep off it).
-	const float cone_r = half * 0.30f, crater_r = half * 0.07f;
-	const float rim = 62.0f * kMetre, crater = 42.0f * kMetre;
-	const float step = (half * 2.0f) / (float)(hm.res - 1);
-	for (int z = 0; z < hm.res; ++z) {
-		const float wz = -half + z * step;
-		for (int x = 0; x < hm.res; ++x) {
-			const float wx = -half + x * step;
-			const float d = std::sqrt(wx * wx + wz * wz);
-			if (d >= cone_r) continue;
-			// A concave cone from the land up to the crater rim, then a bowl inside it.
-			const float t = (cone_r - d) / (cone_r - crater_r), u = d / crater_r;
-			const float h = d > crater_r ? land + (rim - land) * t * t : crater + (rim - crater) * u * u;
-			hm.set(x, z, std::max(hm.get(x, z), h));
-		}
-	}
-	hm.blur(1, 0.35f);
-	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
-}
-
 namespace {
 // Sets terrain towards `h` within `w` of the segment a-b, blending out over
 // `blend` (rmgen SmoothElevationPainter ELEVATION_SET along a PathPlacer).
@@ -5464,6 +5428,49 @@ void RmsGenerator::synth_syria(HeightmapGrid &hm, RmsRng &rng, float &water_h, s
 	});
 	seas_hills(hm, rng, 0.0f, seas_scale(1, 3, half) * (float)std::max(1, num_players) * 3.0f, false, 10.0f, 22.0f,
 	           [&](int i) { return to_player[(size_t)i] > 3.0f && to_grass[(size_t)i] > 1.0f; });
+}
+
+void RmsGenerator::synth_volcanic_lands(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// volcanic_lands.js (0.28), in 0 A.D. metres: land at heightLand 1 m and no water; players by
+	// playerPlacementByPattern at fractionToTiles(0.35), teammates fractionToTiles(0.1) apart; rmgen
+	// createVolcano in the centre (ClumpPlacers of diskArea(scaleByMapSize(18, 25)) at 15 m,
+	// (16, 23) at 25 m, (10, 15) at 45 m and (8, 11) at 62 m, each inside the last, and the lava
+	// crater (4, 6) at 42 m); then scaleByMapSize(2, 8) * numPlayers hills (ClumpPlacer of
+	// scaleByMapSize(20, 150) tiles set to heightHill 18) 12 from the players and 15 from other hills.
+	water_h = -10.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	hm.init(hm.res, half, metres(0.0f, 1.0f));
+	place_team_spawns(hm, rng, spawns, num_players, 0.35f * size, rng.range_float(0.0f, 2.0f * kSeasPi), 0.0f);
+	const auto to_player = seas_dist_to_players(hm, spawn_points(spawns), 5.0f);
+	const float layers[5][4] = {{18, 25, 15, 3}, {16, 23, 25, 3}, {10, 15, 45, 3}, {8, 11, 62, 3}, {4, 6, 42, 1}};
+	std::vector<uint8_t> prev, hills;
+	for (int i = 0; i < 5; ++i) {
+		const float r = seas_scale(layers[i][0], layers[i][1], half);
+		std::vector<float> to_prev;
+		if (i > 0) to_prev = distance_inside_mask(prev, hm.res, grid_spacing(hm));
+		// stayClasses(previous layer, 1): at least a tile inside it.
+		auto m = seas_clump(hm, rng, kSeasPi * r * r, 0.7f, 0.05f, 1e9f, 0.0f, 0.0f,
+		                    [&](int k) { return i == 0 || (prev[(size_t)k] && to_prev[(size_t)k] > 1.0f); });
+		if (!seas_any(m)) break;
+		paint_mask_elevation(hm, m, metres(0.0f, layers[i][2]), layers[i][3]);
+		record_area(hm, m, i == 4 ? AREA_VOLCANO : AREA_MOUNTAIN);
+		if (i == 0) hills = m;
+		prev = std::move(m);
+	}
+	std::vector<float> to_hill = seas_dist_inside(hm, hills);
+	seas_create_areas(hm, rng, seas_scale(2, 8, half) * (float)std::max(1, num_players), 10, [&](float x, float z) {
+		const auto m = seas_clump(hm, rng, seas_scale(20, 150, half), 0.2f, 0.1f, 1e9f, x, z,
+		                          [&](int k) { return to_player[(size_t)k] > 12.0f && to_hill[(size_t)k] > 15.0f; });
+		if (!seas_any(m)) return false;
+		paint_mask_elevation(hm, m, metres(0.0f, 18.0f), 2.0f);
+		record_area(hm, m, AREA_HILL);
+		seas_add(hills, m);
+		to_hill = seas_dist_inside(hm, hills);
+		return true;
+	});
+	// 0.28 places the bases before the volcano, which can rise under them on small maps with the
+	// River pattern (players 0.175 of the map from the centre): each base keeps its flat ground.
+	for (const auto &sp : spawns) hm.level_area(sp.x, sp.z, 14.0f, 6.0f, sp.base_height);
 }
 
 void RmsGenerator::synth_alpine_lakes(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {

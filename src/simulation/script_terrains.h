@@ -480,7 +480,11 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  "ocean_rock_b"},
 		 {"volcanic_lands", {{FLORA_DEAD, FLORA_DEAD}}, {FLORA_DEAD}, {{FLORA_DEAD, FLORA_DEAD}},
 		  FLORA_DEFAULT,
-		  {{200, 200}}, {200}, {{200, 200}}}},
+		  {{200, 200}}, {200}, {{200, 200}}},
+		 {},
+		 {{AREA_MOUNTAIN, {{"cliff volcanic coarse", "cave_walls"}}, {}},
+		  {AREA_VOLCANO, {{"cliff volcanic coarse", "cave_walls"}, {"LavaTest05"}, {"LavaTest04"}, {"LavaTest03"}}, {1, 1, 1}},
+		  {AREA_HILL, {{"cliff volcanic coarse", "cave_walls"}, {"cliff volcanic light", "ocean_rock_a", "ocean_rock_b"}}, {2}}}},
 	};
 	for (const auto &s : kScripts)
 		if (std::strcmp(map_id, s.map_id) == 0) return &s;
