@@ -475,6 +475,23 @@ int main() {
 		      "a refused late observer is told the game has started (reason 5)");
 	}
 
+	// 11. Every connect ACK lost: the client takes its id from the
+	// authentication result, as 0.28's NetClient takes m_HostID.
+	{
+		NetHost h;
+		h.startHost(c);
+		h.set_drop_connect_acks(true);
+		std::vector<std::unique_ptr<NetHost>> cl;
+		for (int i = 0; i < 2; ++i) {
+			cl.push_back(std::make_unique<NetHost>());
+			cl.back()->setLocalPlayerName(i ? "dave" : "carol");
+			cl.back()->startClient("127.0.0.1", h.localPort());
+			pump(h, cl, 5000, [&] { return cl.back()->authResult() >= 0 || cl.back()->connectionLost(); });
+		}
+		CHECK(cl[0]->authResult() == ARC_OK && cl[1]->authResult() == ARC_OK && cl[0]->getLocalPeerId() == 1 &&
+		      cl[1]->getLocalPeerId() == 2, "with every connect ACK lost, each joiner learns its id from the host's answer");
+	}
+
 	// 12. Names as the host keeps them.
 	CHECK(NetHost::sanitise_player_name("  [b]bob[/b] ") == "{b}bob{/b}", "GUI tags are defused and the name trimmed");
 	CHECK(NetHost::sanitise_player_name(std::string(40, 'x')) == std::string(32, 'x'), "at most 32 characters");

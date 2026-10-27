@@ -11,7 +11,9 @@ extends SceneTree
 #   6. a unit pressed on and walking away before the release is still selected;
 #   8. a Ctrl+click on empty ground keeps the selection (input.js:963-975);
 #   9. every rank of a template shares one selection icon (selection.js EntityGroups by
-#      selectionGroupName), and a click on another entity stops the camera following.
+#      selectionGroupName), and a click on another entity stops the camera following;
+#  10. the cursor over a unit's body, well above its feet, picks it (PickEntityAtPoint
+#      tests the selection box, not a circle round the ground point).
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_selection_clicks.gd
 # Exit code 0 = pass.
@@ -408,6 +410,33 @@ func run() -> void:
 			check(int(main.debug_camera()["follow"]) == 0, "input.js: clicking another unit stops the follow (%d)" % int(main.debug_camera()["follow"]))
 		else:
 			check(false, "another unit on screen")
+
+	print("10. The cursor over a unit's head picks it")
+	main.clear_selection()
+	await frames(4)
+	var cam: Camera3D = root.get_camera_3d()
+	var vp10: Vector2 = state()["viewport"]
+	var front = null
+	for u in state()["units"]:
+		if u["idle"] and on_screen(u, vp10) and (front == null or (u["screen"] as Vector2).y > (front["screen"] as Vector2).y):
+			front = u
+	check(front != null, "an idle unit on screen")
+	if front != null:
+		var box: Dictionary = main.debug_unit_pick_box(int(front["id"]))
+		check(not box.is_empty(), "it has a pick box")
+		if not box.is_empty():
+			var top: Vector3 = (box["base"] as Vector3) + Vector3(0, 0.85 * float(box["height"]), 0)
+			var at: Vector2 = cam.unproject_position(top)
+			var ground: Vector3 = main.debug_click_surface(at)["pos"]
+			var off := Vector2(ground.x, ground.z).distance_to(Vector2(top.x, top.z))
+			print("    unit ", front["id"], " box ", box, " head at ", at, ", the ground there is ", off, " from its feet")
+			check(off > 0.6, "the ground under its head lies outside the old 0.6 hover circle (%.2f)" % off)
+			move(at)
+			await frames(4)
+			var hl: PackedInt32Array = main.debug_highlight()
+			check(hl.has(int(front["id"])), "hovering its head highlights it: %s" % str(hl))
+			await click(at)
+			check(selected().has(int(front["id"])), "clicking its head selects it: %s" % str(selected()))
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)
