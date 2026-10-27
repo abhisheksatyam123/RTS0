@@ -783,6 +783,19 @@ public:
 		const Vector3 g = get_ground_click_pos(screen);
 		return Vector2(g.x, g.z);
 	}
+	// Tests: unit `id`'s pick box as drawn this frame (feet, height), empty when not drawn.
+	Dictionary debug_unit_pick_box(int64_t id) const {
+		Dictionary d;
+		if (!view) return d;
+		for (const auto &b : view->unit_pick_boxes())
+			if (b.id == (uint32_t)id) {
+				d["base"] = b.base;
+				d["height"] = b.height;
+				d["half_w"] = b.half_w;
+				d["half_d"] = b.half_d;
+			}
+		return d;
+	}
 	// Tests: the click point under `screen` in 3D, the terrain height there and the drawn sea
 	// level (-1e9 without water).
 	Dictionary debug_click_surface(Vector2 screen) const {

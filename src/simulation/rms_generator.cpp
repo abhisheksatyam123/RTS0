@@ -3291,10 +3291,15 @@ void RmsGenerator::synth_extinct_volcano(HeightmapGrid &hm, RmsRng &rng, float &
 	// is long enough for land units to climb (0.28's hill is a dome of bumps, walkable all
 	// round), so the bases meet round the volcano, not only past the map's edge.
 	const float ramp = std::max(player_r, 1.5f * 25.0f * k / (0.8f * LAND_MAX_TERRAIN_SLOPE));
+	// The script's areas (AreaLayers in script_terrains.h), each the ground its level_area reaches,
+	// recorded in its paint order: the bases' mountains (clPlayer), the volcano, lakes and hills.
+	std::vector<uint8_t> mountains(hm.data.size(), 0);
 	for (auto &sp : spawns) {
 		sp.base_height = 25.0f * k;
 		hm.level_area(sp.x, sp.z, 14.0f, ramp, 25.0f * k);
+		mask_disk(hm, mountains, sp.x, sp.z, 14.0f + ramp);
 	}
+	record_area(hm, mountains, AREA_MOUNTAIN);
 	// createVolcano(mapCenter, ..., ELEVATION_SET): each ring inside the last.
 	const float rings[5][2] = {
 		{(float)scale_by_map_size(18, 25, half), 15.0f}, {(float)scale_by_map_size(16, 23, half), 25.0f},
@@ -3303,6 +3308,12 @@ void RmsGenerator::synth_extinct_volcano(HeightmapGrid &hm, RmsRng &rng, float &
 	for (int i = 0; i < 5; ++i)
 		hm.level_area(0.0f, 0.0f, std::max(1.0f, rings[i][0] - (i == 4 ? 1.0f : 3.0f)), i == 4 ? 1.0f : 3.0f, rings[i][1] * k);
 	const float volcano_r = rings[0][0];
+	{
+		// Every ring takes tHillVeryDark (no lavaTextures): one area, the outer ring's.
+		std::vector<uint8_t> volcano(hm.data.size(), 0);
+		mask_disk(hm, volcano, 0.0f, 0.0f, volcano_r);
+		record_area(hm, volcano, AREA_VOLCANO);
+	}
 	auto clear_of = [&](float x, float z, float r, float gap) {
 		for (const auto &sp : spawns)
 			if (det::hypot(x - sp.x, z - sp.z) < player_r + 14.0f + r + gap) return false;
@@ -3320,6 +3331,9 @@ void RmsGenerator::synth_extinct_volcano(HeightmapGrid &hm, RmsRng &rng, float &
 			if (det::hypot(lx - l.first, lz - l.second) < 2.0f * r + 12.0f) { ok = false; break; }
 		if (!ok) continue;
 		hm.level_area(lx, lz, r, 3.0f, -4.0f * k);
+		std::vector<uint8_t> lake(hm.data.size(), 0);
+		mask_disk(hm, lake, lx, lz, r + 3.0f);
+		record_area(hm, lake, AREA_LAKE);
 		lakes.push_back({lx, lz});
 		++i;
 	}
@@ -3344,6 +3358,9 @@ void RmsGenerator::synth_extinct_volcano(HeightmapGrid &hm, RmsRng &rng, float &
 			if (det::hypot(hx - p.first, hz - p.second) < 2.0f * r + 15.0f) { ok = false; break; }
 		if (!ok) continue;
 		hm.level_area(hx, hz, r, 2.0f, 18.0f * k);
+		std::vector<uint8_t> hill(hm.data.size(), 0);
+		mask_disk(hm, hill, hx, hz, r + 2.0f);
+		record_area(hm, hill, AREA_HILL);
 		placed.push_back({hx, hz});
 		++i;
 	}
