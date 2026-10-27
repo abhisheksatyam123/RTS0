@@ -610,6 +610,11 @@ struct PeerOpts {
     uint32_t stall_turn = 0;    // this peer stops polling for stall_ms after this turn (a lagging machine)
     uint32_t stall_ms = 0;
     uint32_t humans = 2;        // human seats (the host and humans-1 joiners); 3+ takes the AI slot
+    uint32_t seats = 3;         // seats in the match (3-8): slots from 3 up get a base of their own,
+                                // human below `humans`, Petra above (tools/soak_lockstep.py)
+    std::string replay_out;     // host: write the match's replay here at the end
+    std::string replay_check;   // play this replay offline against the same world, hash-checked
+    std::string client_map;     // replay check: "client:player,..." (the host's clientmap line)
     std::string oos_dir;        // where each peer writes its OOS dump
 };
 
@@ -630,13 +635,12 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     GameSetupParams seats;
     seats.map_id = "playtest";
     seats.seed = seed;
-    seats.slot_count = 3;
+    const uint32_t nseats = std::clamp<uint32_t>(std::max(opt.seats, opt.humans), 3u, MAX_PLAYERS);
+    seats.slot_count = (uint8_t)nseats;
     seats.slot_types[0] = 'h';
     seats.slot_types[1] = 'h';
-    seats.slot_types[2] = opt.humans >= 3 ? 'h' : 'a';
-    seats.teams[0] = 1;
-    seats.teams[1] = 2;
-    seats.teams[2] = 3;
+    for (uint32_t t = 2; t < nseats; ++t) seats.slot_types[t] = opt.humans > t ? 'h' : 'a';
+    for (uint32_t t = 0; t < nseats; ++t) seats.teams[t] = (uint8_t)(t + 1);
     seats.lms = 1;
     seats.pop_cap = 150;
     seats.ceasefire = 1;
@@ -644,10 +648,18 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     // Give the AI slot a base of its own (build_world leaves it only the
     // wonder), so the match can go on when a human falls.
     // With three humans, the third joiner plays this base instead of Petra.
-    const uint32_t slot2_tc = sim.spawn_building_world(0.0f, 40.0f, BLD_TOWN_CENTER, 2, 1.0f);
-    std::vector<uint32_t> slot2_villagers;
-    for (int i = 0; i < 5; ++i)
-        slot2_villagers.push_back(sim.spawn_unit(-4.0f + 2.0f * (float)i, 34.0f, 2, UNIT_VILLAGER, 100.0f));
+    // Seats from 3 up (--seats) get the same base round the edge of the field.
+    static const float kBase[MAX_PLAYERS][2] = {{0, 0}, {0, 0}, {0.0f, 40.0f}, {-50.0f, 48.0f}, {50.0f, 48.0f},
+                                                {-52.0f, -46.0f}, {52.0f, -46.0f}, {-56.0f, 26.0f}};
+    uint32_t slot_tc[MAX_PLAYERS] = {};
+    std::vector<uint32_t> slot_villagers[MAX_PLAYERS];
+    for (uint32_t t = 2; t < nseats; ++t) {
+        if (t >= 3) sim.set_team_civ((uint8_t)t, (uint8_t)playable_civ(t));
+        slot_tc[t] = sim.spawn_building_world(kBase[t][0], kBase[t][1], BLD_TOWN_CENTER, (uint8_t)t, 1.0f);
+        for (int i = 0; i < 5; ++i)
+            slot_villagers[t].push_back(sim.spawn_unit(kBase[t][0] - 4.0f + 2.0f * (float)i, kBase[t][1] - 6.0f, (uint8_t)t,
+                    UNIT_VILLAGER, 100.0f));
+    }
     // A wall segment the host turns into a gate (cmd 26, 0 A.D. Upgrade.js).
     const uint32_t host_wall = sim.spawn_building_world(-30.0f, 14.0f, BLD_WALL_SEGMENT, 0, 1.0f);
     // A stone thrower the host unpacks and packs again (cmd 29, 0 A.D. Pack.js).
@@ -704,6 +716,52 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         for (int i = 0; i < 200; ++i) sim.tick(Simulation::FIXED_STEP);
 
     const uint8_t sim_civ[2] = {sim.team_civ(0), sim.team_civ(1)};
+
+    // Replay check: the host's replay of this match played offline on the same world, with
+    // the edits the script makes outside the commands at the same turn boundaries.
+    if (!opt.replay_check.empty()) {
+        TurnManager rt;
+        for (size_t a = 0; a < opt.client_map.size();) {
+            const size_t b = opt.client_map.find(',', a);
+            const std::string kv = opt.client_map.substr(a, b == std::string::npos ? std::string::npos : b - a);
+            const size_t colon = kv.find(':');
+            if (colon != std::string::npos)
+                rt.set_client_player((uint32_t)std::stoul(kv.substr(0, colon)), (uint8_t)std::stoul(kv.substr(colon + 1)));
+            if (b == std::string::npos) break;
+            a = b + 1;
+        }
+        if (!rt.load_replay(opt.replay_check)) {
+            std::printf("[replay] cannot load %s: %s\n", opt.replay_check.c_str(), rt.last_replay_error().c_str());
+            return 2;
+        }
+        uint32_t played = 0;
+        while (!rt.replay_complete() && !rt.replay_out_of_sync()) {
+            if (!rt.tick(TurnManager::TURN_DURATION, sim)) break;
+            // A replay keeps its recorded history: the turn just run is current_turn().
+            const uint32_t t = rt.current_turn();
+            played = t;
+            if (defeat_turn && t == defeat_turn) wipe_player(sim, 1);
+            if (t == 405) {
+                const int32_t pi = sim.lookup_unit(host_patient);
+                if (pi >= 0 && sim.units_.alive[pi]) sim.units_.hp[pi] = 40.0f;
+            }
+            if (opt.saveload_turn && t == opt.saveload_turn) {
+                const std::string path = opt.replay_check + ".sav";
+                if (!sim.save_state(path.c_str()) || !sim.load_state(path.c_str())) {
+                    std::printf("[replay] save/load failed at turn %u\n", t);
+                    return 1;
+                }
+            }
+        }
+        if (rt.replay_out_of_sync()) {
+            std::printf("[replay] OOS at turn %u expected=%08X computed=%08X\n", rt.replay_out_of_sync_turn(),
+                        rt.replay_expected_hash(), rt.replay_computed_hash());
+            return 1;
+        }
+        std::printf("[replay] ok turns=%u complete=%d hash=%08X\n", played, rt.replay_complete() ? 1 : 0,
+                    rt.compute_sim_hash(sim));
+        return rt.replay_complete() ? 0 : 1;
+    }
 
     NetHost net;
     if (loss > 0.0f) net.set_simulated_loss(loss, seed ^ (host ? 0x1111u : 0x2222u));
@@ -882,22 +940,24 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             }
             // Train a roster unit by template (cmd 25, as the roster list sends
             // it): each human queues its civ's default spearman at its own TC.
-            if (opt.humans >= 3 && st % 100 == 50) {
-                NetCommand w;
-                w.client_id = 2;
-                w.cmd_type = 1;
-                w.entity_ids = slot2_villagers;
-                w.target_x = (st / 100) % 2 ? 8.0f : -8.0f;
-                w.target_z = 30.0f;
-                batch.push_back(w);
-            }
-            if (opt.humans >= 3 && st % 150 == 75) {
-                NetCommand t;
-                t.client_id = 2;
-                t.cmd_type = 25;
-                t.target_id = slot2_tc;
-                t.target_x = (float)civ_default_template(sim.team_civ(2), UNIT_SPEARMAN);
-                batch.push_back(t);
+            for (uint32_t c = 2; c < opt.humans && c < nseats; ++c) {
+                if (st % 100 == 50) {
+                    NetCommand w;
+                    w.client_id = c;
+                    w.cmd_type = 1;
+                    w.entity_ids = slot_villagers[c];
+                    w.target_x = kBase[c][0] + ((st / 100) % 2 ? 8.0f : -8.0f);
+                    w.target_z = kBase[c][1] - 10.0f;
+                    batch.push_back(w);
+                }
+                if (st % 150 == 75) {
+                    NetCommand t;
+                    t.client_id = c;
+                    t.cmd_type = 25;
+                    t.target_id = slot_tc[c];
+                    t.target_x = (float)civ_default_template(sim.team_civ((uint8_t)c), UNIT_SPEARMAN);
+                    batch.push_back(t);
+                }
             }
             if (st % 150 == 75) {
                 for (uint32_t who = 0; who < 2; ++who) {
@@ -1242,6 +1302,17 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         std::printf("[net-peer] %s: roster observer=%d list=%s\n", host ? "host" : "join", tm.is_observer() ? 1 : 0,
                     list.empty() ? "-" : list.c_str());
     }
+    if (host) {
+        // The seat each client's commands go to, for a replay check (--client-map).
+        std::string map;
+        for (uint32_t c = 0; c < 32; ++c) {
+            const uint8_t p = tm.player_for_client(c);
+            if (p < MAX_PLAYERS) map += (map.empty() ? "" : ",") + std::to_string(c) + ":" + std::to_string((unsigned)p);
+        }
+        std::printf("[net-peer] host: clientmap %s\n", map.c_str());
+        if (!opt.replay_out.empty())
+            std::printf("[net-peer] host: replay saved=%d path=%s\n", tm.save_replay(opt.replay_out) ? 1 : 0, opt.replay_out.c_str());
+    }
     if (tm.is_observer())
         std::printf("[net-peer] join: catchup behind_late=%.1f most_a_frame=%d\n",
                     behind_samples ? (double)behind_sum / (double)behind_samples : 0.0, most_turns_a_frame);
@@ -1314,6 +1385,9 @@ int main(int argc, char **argv) {
     //   [--stale-rejoin-turn N] a seated joiner asks to rejoin again after turn N
     //   [--rejoin 1]        this joiner takes over a dropped seat mid-match
     //   [--saved-game 1]    the host continues a saved game: joiners load its world
+    //   [--humans N] [--seats N] human seats (2-8) and seats in all (3-8; Petra above the humans)
+    //   [--replay-out FILE] host: write the match's replay at the end (with a clientmap line)
+    //   [--replay-check FILE --client-map C:P,...] play a host's replay offline, hash-checked
     if (argc >= 7 && std::strcmp(argv[1], "--net-peer") == 0) {
         netpeer::PeerOpts opt;
         for (int i = 7; i + 1 < argc; i += 2) {
@@ -1345,7 +1419,11 @@ int main(int argc, char **argv) {
             else if (std::strcmp(k, "--auto-catch-up") == 0) opt.auto_catch_up = std::atoi(v) != 0;
             else if (std::strcmp(k, "--stall-turn") == 0) opt.stall_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--stall-ms") == 0) opt.stall_ms = (uint32_t)std::atoi(v);
-            else if (std::strcmp(k, "--humans") == 0) opt.humans = (uint32_t)std::max(2, std::min(3, std::atoi(v)));
+            else if (std::strcmp(k, "--humans") == 0) opt.humans = (uint32_t)std::max(2, std::min((int)MAX_PLAYERS, std::atoi(v)));
+            else if (std::strcmp(k, "--seats") == 0) opt.seats = (uint32_t)std::max(3, std::min((int)MAX_PLAYERS, std::atoi(v)));
+            else if (std::strcmp(k, "--replay-out") == 0) opt.replay_out = v;
+            else if (std::strcmp(k, "--replay-check") == 0) opt.replay_check = v;
+            else if (std::strcmp(k, "--client-map") == 0) opt.client_map = v;
         }
         return netpeer::run(std::strcmp(argv[2], "host") == 0, (uint16_t)std::atoi(argv[3]),
                             (uint32_t)std::strtoul(argv[4], nullptr, 10),
