@@ -3107,6 +3107,9 @@ public:
 	// Read-only, for the status bars' aura icons.
 	const AuraManager &aura_manager() const { return aura_mgr_; }
 	float attack_reach(size_t i) const; // Attack MaxRange with MaxRange auras (Boiorix's High Ground)
+	// Attack.js IsTargetInRange: d2 (squared gap) within unit i's attack range, the target's
+	// height above the ground or water target_offset (GetEffectiveParabolicRange).
+	bool in_attack_range(size_t i, float d2, float target_offset) const;
 private:
 	void apply_health_auras(); // Health/Max auras: rescale max_hp and hp as units enter or leave them
 	float structure_max_capture(const Building &b) const; // Capturable/CapturePoints with its owner's modifiers and auras

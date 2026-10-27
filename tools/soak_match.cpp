@@ -301,6 +301,18 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	// Maps 0 and 1 have no generator of their own (the default branch's generic peninsula) and Game
+	// Setup offers them only as scenarios, so play the scenario JSON, or refuse when there is none.
+	if (json.empty() && (map == MAP_AEGEAN_ARCHIPELAGO || map == MAP_PELOPONNESE)) {
+		const std::string id = map_type_info((uint8_t)map).id;
+		if (FILE *f = std::fopen(("data/maps/" + id + ".json").c_str(), "rb")) {
+			std::fclose(f);
+			json = id;
+		} else {
+			std::fprintf(stderr, "--map %d (%s) has no random map generator and no data/maps/%s.json\n", map, id.c_str(), id.c_str());
+			return 2;
+		}
+	}
 	std::setvbuf(stdout, nullptr, _IOLBF, 0);
 	// The game's worker pool (register_types.cpp), so turn times match a player's; --serial runs
 	// every job on the main thread.
