@@ -31389,6 +31389,51 @@ void Simulation::petra_manage_transport(float dt) {
 		});
 		if (tp.passenger_ids.empty()) { tp.state = PetraTransportPlan::FAILED; tp.failed = true; }
 	}
+	// worker.js:44-87: while its crossing boards, a builder leaves it once its foundation is gone,
+	// and a gatherer or hunter once the far land has no structure of ours (foundations too) nor
+	// support unit taking its gather-type. RTS0 reads the builder's foundation as any of ours on
+	// that land (its builders are assigned there on landing), and the gather-type as what the
+	// worker carries, else food.
+	for (PetraTransportPlan &tp : petra_transports_) {
+		if (tp.state != PetraTransportPlan::BOARDING) continue;
+		if (tp.owner != PETRA_TRANSPORT_WORKERS && tp.owner != PETRA_TRANSPORT_BUILDERS) continue;
+		const uint16_t end_land = petra_land_at(tp.drop_x, tp.drop_z);
+		if (!end_land) continue;
+		bool foundation = false;
+		if (tp.owner == PETRA_TRANSPORT_BUILDERS)
+			for (const Building &b : buildings_)
+				if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && b.build_progress < 1.0f && petra_building_land(b) == end_land) {
+					foundation = true;
+					break;
+				}
+		auto takes = [&](uint8_t rt) {
+			for (const Building &b : buildings_) {
+				if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || petra_building_land(b) != end_land) continue;
+				if (is_civic_centre(b.type) || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)) return true;
+				if (b.type == BLD_STOREHOUSE ? rt != RES_FOOD : is_food_dropsite(b.type) && rt == RES_FOOD) return true;
+			}
+			for (size_t e = 0; e < units_.count; ++e)
+				if (units_.alive[e] && units_.team[e] == petra_pid_ && unit_is_mobile_dropsite(units_.unit_type[e]) &&
+				    units_.action_state[e] != ACTION_GARRISONED && petra_land_at(units_.pos_x[e], units_.pos_z[e]) == end_land)
+					return true;
+			return false;
+		};
+		const auto *aboard = tp.ship_id ? get_transport_passengers(tp.ship_id) : nullptr;
+		std::erase_if(tp.passenger_ids, [&](uint32_t uid) {
+			if (aboard && std::find(aboard->begin(), aboard->end(), uid) != aboard->end()) return false;
+			const int32_t k = lookup_unit(uid);
+			if (k < 0 || !units_.alive[k]) return false;
+			if (tp.owner == PETRA_TRANSPORT_BUILDERS) {
+				if (foundation) return false;
+			} else {
+				const uint8_t rt = units_.carry[k] > 0 && units_.res_type_carried[k] < RES_COUNT ? units_.res_type_carried[k] : (uint8_t)RES_FOOD;
+				if (takes(rt)) return false;
+			}
+			if (tp.ship_id && units_.target_unit_id[k] == tp.ship_id) cmd_stop(&uid, 1); // the garrison order
+			return true;
+		});
+		if (tp.passenger_ids.empty() && (!aboard || aboard->empty())) { tp.state = PetraTransportPlan::FAILED; tp.failed = true; }
+	}
 	std::vector<PetraReferry> referry;
 	for (auto &tp : petra_transports_) petra_step_transport(tp, dt, referry);
 	for (const PetraReferry &r : referry)
