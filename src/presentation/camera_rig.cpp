@@ -29,6 +29,10 @@ void RtsoCameraRig::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_speed_multipliers"), &RtsoCameraRig::get_speed_multipliers);
 	ClassDB::bind_method(D_METHOD("set_edge_scroll_enabled", "enabled"), &RtsoCameraRig::set_edge_scroll_enabled);
 	ClassDB::bind_method(D_METHOD("is_edge_scroll_enabled"), &RtsoCameraRig::is_edge_scroll_enabled);
+	ClassDB::bind_method(D_METHOD("set_map_bounds_half", "h"), &RtsoCameraRig::set_map_bounds_half);
+	ClassDB::bind_method(D_METHOD("get_map_bounds_half"), &RtsoCameraRig::get_map_bounds_half);
+	ClassDB::bind_method(D_METHOD("set_map_circular", "on"), &RtsoCameraRig::set_map_circular);
+	ClassDB::bind_method(D_METHOD("is_map_circular"), &RtsoCameraRig::is_map_circular);
 }
 
 RtsoCameraRig::RtsoCameraRig() {}
@@ -38,29 +42,53 @@ void RtsoCameraRig::_ready() {
 	cam = memnew(Camera3D);
 	cam->set_fov(45.0f); // 0 A.D. default.cfg: [view] fov = 45.0
 	add_child(cam);
-	zoom_height = 28.0f;
-	target_zoom = 28.0f;
-	cam->set_position(Vector3(0, zoom_height, zoom_height * 0.95f));
-	cam->set_rotation_degrees(Vector3(-48, 0, 0));
+	namespace uc = rtso::user_config;
+	pitch_min_ = (float)uc::get_number("view.rotate.x.min");
+	pitch_max_ = std::max(pitch_min_, (float)uc::get_number("view.rotate.x.max"));
+	pitch_default_ = (float)uc::get_number("view.rotate.x.default");
+	constexpr float kMetresPerUnit = 4.0f;
+	zoom_min_ = (float)uc::get_number("view.zoom.min") / kMetresPerUnit;
+	zoom_max_ = std::max(zoom_min_, (float)uc::get_number("view.zoom.max") / kMetresPerUnit);
+	zoom_default_ = (float)uc::get_number("view.zoom.default") / kMetresPerUnit;
+	zoom_speed_ = (float)uc::get_number("view.zoom.speed") / kMetresPerUnit;
+	zoom_speed_wheel_ = (float)uc::get_number("view.zoom.speed.wheel") / kMetresPerUnit;
+	zoom_height = target_zoom = zoom_default_;
+	pitch_deg = target_pitch_deg = pre_birds_eye_pitch_ = pitch_default_;
 	target_pos = Vector3(0, 0, 0);
 }
 
+// CCameraController::Update: with the camera constrained, its look-at point stays
+// CAMERA_EDGE_MARGIN inside the map's square edges, or inside its circle on a circular map.
+void RtsoCameraRig::clamp_to_map(Vector3 &p) const {
+	if (!constrain_) return;
+	const float r = std::max(0.0f, map_bounds_half - kEdgeMargin);
+	if (map_circular_) {
+		const float d = Math::sqrt(p.x * p.x + p.z * p.z);
+		if (d > r) {
+			p.x *= r / d;
+			p.z *= r / d;
+		}
+	} else {
+		p.x = Math::clamp(p.x, -r, r);
+		p.z = Math::clamp(p.z, -r, r);
+	}
+}
+
 void RtsoCameraRig::set_target_pos(Vector3 pos) {
-	float half = bounds_half();
-	target_pos.x = Math::clamp(pos.x, -half, half);
-	target_pos.z = Math::clamp(pos.z, -half, half);
-	target_pos.y = 0.0f;
+	target_pos = Vector3(pos.x, 0.0f, pos.z);
+	clamp_to_map(target_pos);
 }
 
 void RtsoCameraRig::zoom(float delta_zoom) {
 	// CameraController: the zoom limits hold only while the camera is constrained.
-	target_zoom = constrain_ ? Math::clamp(target_zoom + delta_zoom, 8.0f, 65.0f) : Math::clamp(target_zoom + delta_zoom, 1.0f, 1000.0f);
+	target_zoom = constrain_ ? Math::clamp(target_zoom + delta_zoom, zoom_min_, zoom_max_) : Math::clamp(target_zoom + delta_zoom, 1.0f, 1000.0f);
 }
 
+// CCameraController::ResetCameraAngleZoom: the default zoom, tilt and rotation (view.rotate.y.default 0).
 void RtsoCameraRig::reset_camera() {
 	target_yaw = 0.0f;
-	target_zoom = 28.0f;
-	target_pitch_deg = 50.6f;
+	target_zoom = zoom_default_;
+	target_pitch_deg = pitch_default_;
 	birds_eye_ = false;
 }
 
@@ -113,11 +141,11 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 				return;
 			}
 			if (rtso::hotkeys::has(hk, "camera.zoom.wheel.in")) {
-				zoom(-2.5f);
+				zoom(-zoom_speed_wheel_);
 				return;
 			}
 			if (rtso::hotkeys::has(hk, "camera.zoom.wheel.out")) {
-				zoom(2.5f);
+				zoom(zoom_speed_wheel_);
 				return;
 			}
 		}
@@ -141,9 +169,7 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 			(-rel.x * sin_y - rel.y * cos_y) * drag_scale
 		);
 		target_pos += world_dir;
-		float half = bounds_half();
-		target_pos.x = Math::clamp(target_pos.x, -half, half);
-		target_pos.z = Math::clamp(target_pos.z, -half, half);
+		clamp_to_map(target_pos);
 		return;
 	}
 
@@ -169,9 +195,7 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 			delta.x * sin_y + delta.y * cos_y
 		);
 		target_pos += world_dir * 0.6f;
-		float half = bounds_half();
-		target_pos.x = Math::clamp(target_pos.x, -half, half);
-		target_pos.z = Math::clamp(target_pos.z, -half, half);
+		clamp_to_map(target_pos);
 		return;
 	}
 }
@@ -200,11 +224,11 @@ void RtsoCameraRig::_process(double delta) {
 		if (on("camera.rotate.cw")) target_yaw += 2.0f * rot;
 		if (on("camera.rotate.ccw")) target_yaw -= 2.0f * rot;
 		// ViewRotateXMin/Max hold only while constrained (straight down at most unconstrained).
-		const float pmin = constrain_ ? 25.0f : 1.0f, pmax = constrain_ ? 85.0f : 89.9f;
+		const float pmin = constrain_ ? pitch_min_ : 1.0f, pmax = constrain_ ? pitch_max_ : 89.9f;
 		if (!birds_eye_ && on("camera.rotate.up")) target_pitch_deg = Math::clamp(target_pitch_deg - 40.0f * rot, pmin, pmax);
 		if (!birds_eye_ && on("camera.rotate.down")) target_pitch_deg = Math::clamp(target_pitch_deg + 40.0f * rot, pmin, pmax);
-		if (on("camera.zoom.in")) zoom(-30.0f * zm);
-		if (on("camera.zoom.out")) zoom(30.0f * zm);
+		if (on("camera.zoom.in")) zoom(-zoom_speed_ * zm);
+		if (on("camera.zoom.out")) zoom(zoom_speed_ * zm);
 	}
 
 	// Edge scrolling (active when mouse is near viewport boundaries and no key pan active)
@@ -235,9 +259,7 @@ void RtsoCameraRig::_process(double delta) {
 			input_dir.x * sin_y + input_dir.z * cos_y
 		);
 		target_pos += world_dir * speed * speed_mul_[SPEED_SCROLL] * (float)delta;
-		float half = bounds_half();
-		target_pos.x = Math::clamp(target_pos.x, -half, half);
-		target_pos.z = Math::clamp(target_pos.z, -half, half);
+		clamp_to_map(target_pos);
 	}
 
 	// Smooth interpolations
@@ -248,14 +270,15 @@ void RtsoCameraRig::_process(double delta) {
 	set_rotation(Vector3(0, yaw_angle, 0));
 
 	if (constrain_) { // ClampSmoothly each frame: re-constraining brings zoom and tilt back in range
-		target_zoom = Math::clamp(target_zoom, 8.0f, 65.0f);
-		if (!birds_eye_) target_pitch_deg = Math::clamp(target_pitch_deg, 25.0f, 85.0f);
+		target_zoom = Math::clamp(target_zoom, zoom_min_, zoom_max_);
+		if (!birds_eye_) target_pitch_deg = Math::clamp(target_pitch_deg, pitch_min_, pitch_max_);
 	}
 	zoom_height = Math::lerp(zoom_height, target_zoom, (float)delta * 8.0f);
 	pitch_deg = Math::lerp(pitch_deg, target_pitch_deg, (float)delta * 8.0f);
 	if (cam) {
 		const float pitch = Math::deg_to_rad(pitch_deg);
-		cam->set_position(Vector3(0, zoom_height, zoom_height / Math::tan(pitch)));
+		// SetupCameraMatrix: zoom_height away from the look-at point along the view.
+		cam->set_position(Vector3(0, zoom_height * Math::sin(pitch), zoom_height * Math::cos(pitch)));
 		cam->set_rotation(Vector3(-pitch, 0, 0));
 	}
 }

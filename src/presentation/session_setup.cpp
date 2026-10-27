@@ -209,6 +209,8 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 
 		if (cam_rig) {
 			cam_rig->set_map_bounds_half(sim->map_half());
+		cam_rig->set_map_circular(sim->circular_map());
+			cam_rig->set_map_circular(sim->circular_map());
 			for (const auto &b : sim->buildings()) {
 				if (b.team == local_player() && rtso::is_civic_centre(b.type)) {
 					cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
