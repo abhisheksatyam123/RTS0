@@ -454,6 +454,17 @@ gui/common/tooltips.js and selection_panels_helpers.js against RTS0's constructi
 | TT6 | The wall-dragging cost tip is a plain Label: "Cost: Stone 36" without the header font or icons | nit | Fixed (Stats: placementTooltip is a RichTextLabel; the wall cost takes getEntityCostTooltip's headerFont and resource icons) |
 | TT7 | "Requires ..." from a unit trainer shows only the generic name, not "Specific (Generic)"; no case found in the current rosters | nit | Open |
 
+### Researcher lists, technologies and mercenary camps, twenty-fourth 0.28 pass (2026-10-27)
+
+Every civ's structure research lists (template inheritance, {civ}, -name removals), all 137 technologies (cost, time, phase, requirements, supersedes, pairs, civ masks) and the mercenary camps and their rosters against 0.28's templates and data/technologies. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| RL1 | Naval Oxybeles was open to every civ; its requirement `any` of `notciv` cart/han/ptol/rome/sele rules those five out (a failing notciv inside any fails it, InterpretTechRequirements). extract_0ad_techs.py now evaluates requirements as 0.28 does | medium | Fixed (`tools/test_techs.cpp`) |
+| MC1 | The Ptolemaic mercenary camp cost no stone; it keeps the barracks' 100 stone (only merc_camp_egyptian sets 0) | medium-low | Fixed (`tools/test_map_structures.cpp`) |
+| MC2 | A Ptolemaic player's own mercenary camp counted as a Town structure toward City Phase; it keeps the barracks' Village (only merc_camp_egyptian is -Village Town). Map Egyptian camps are now placed as a Gaia template | low-medium | Fixed (`tools/test_map_structures.cpp`) |
+| TQ1 | Bolt Accuracy is closed to Han and Phoenician Naval Tradition to Carthage even in another civ's captured arsenal or dock; 0.28 drops them only from those civs' own structures | low | Open |
+
 ### Construction, repair and upgrades, twenty-third 0.28 pass (2026-10-27)
 
 Foundation.js, Repairable.js, Upgrade.js, Builder.js and UnitAI's REPAIR states against RTS0's construction, repair and upgrade code. Build multiplier, refunds, commit, repair rates and ratios, upgrade gating, refunds and carry-over and builder rates match. Owner: E.

@@ -27137,9 +27137,9 @@ void Simulation::petra_manage_buildings(float dt) {
 		int n_barracks = 0, n_ranges = 0, n_stables = 0, n_village = 0;
 		for (const auto &b : buildings_) {
 			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
-			// The Barracks class takes in han/academy and ptol/mercenary_camp (both children of
+			// The Barracks class takes in han/academy and the mercenary camps (children of
 			// template_structure_military_barracks); "Village" is the visible class.
-			n_barracks += b.type == BLD_BARRACKS || b.type == BLD_ACADEMY || (b.type == BLD_MERCENARY_CAMP && b.civ == CIV_PTOLEMIES);
+			n_barracks += b.type == BLD_BARRACKS || b.type == BLD_ACADEMY || b.type == BLD_MERCENARY_CAMP;
 			n_ranges += b.type == BLD_RANGE;
 			n_stables += b.type == BLD_STABLE;
 			if (building_phase_class(b.type, b.civ) == 1) ++n_village;

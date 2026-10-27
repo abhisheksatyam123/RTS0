@@ -326,27 +326,20 @@ def unit_unlock_techs(src: Source) -> set[str]:
 
 
 def civ_mask(req) -> int:
-    """Civs (bitmask over CIVS) for which a requirements tree can hold."""
-    full = ALL_CIVS
+    """Civs (bitmask over CIVS) for which a requirements tree can hold: 0.28's
+    InterpretTechRequirements (extract_0ad_reference.tech_reqs), so a failing "notciv"
+    inside "any" rules the civ out, as for Naval Oxybeles."""
+    from extract_0ad_reference import tech_reqs  # noqa: E402 (tools/ is on sys.path)
     if req is None:
-        return full
+        return ALL_CIVS
     if isinstance(req, list):
         req = {"all": req}
-    if "all" in req:
-        m = full
-        for r in req["all"]:
-            m &= civ_mask(r)
-        return m
-    if "any" in req:
-        m = 0
-        for r in req["any"]:
-            m |= civ_mask(r)
-        return m
-    if "civ" in req:
-        return 1 << CIV_BIT[req["civ"]] if req["civ"] in CIVS else 0
-    if "notciv" in req:
-        return full & ~(1 << CIV_BIT[req["notciv"]]) if req["notciv"] in CIVS else full
-    return full
+    op, val = next(iter(req.items()))
+    m = 0
+    for c in CIVS:
+        if tech_reqs(c, op, val) is not False:
+            m |= 1 << CIV_BIT[c]
+    return m
 
 
 def tech_reqs(req, out: list[str]) -> None:
