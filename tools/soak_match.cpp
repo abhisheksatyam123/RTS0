@@ -60,6 +60,7 @@ struct Track {
 	int idle_order_s = 0;      // seconds idle with an order kind set
 	uint32_t tgt = 0;          // attack target being watched
 	float tgt_hp = 0;          // its health when the window started
+	float tgt_cp = 0;          // the owner's capture points of a building target then
 	int no_hurt_s = 0;         // seconds attacking it with no health drop
 	int siege_attack_s = 0;    // siege: seconds in ACTION_ATTACK
 	bool siege_hurt = false;   // siege: a target lost health while it attacked
@@ -88,14 +89,20 @@ float target_hp(const Simulation &s, uint32_t uid, uint32_t bid) {
 		}
 		return -1.0f;
 	}
-	if (bid) { // health plus the owner's capture points: a capture attack lowers the latter
+	if (bid) {
 		auto it = s.building_id_to_idx_.find(bid);
-		if (it != s.building_id_to_idx_.end()) {
-			const auto &b = s.buildings_[it->second];
-			return b.hp + (b.team < MAX_PLAYERS ? b.capture_points_by_team[b.team] : 0.0f);
-		}
+		if (it != s.building_id_to_idx_.end()) return s.buildings_[it->second].hp;
 	}
 	return -1.0f;
+}
+
+// The owner's capture points of a building target, which a capture attack lowers. Kept apart
+// from health: slow damage while the owner regenerates points must not read as no progress.
+float target_cp(const Simulation &s, uint32_t bid) {
+	auto it = bid ? s.building_id_to_idx_.find(bid) : s.building_id_to_idx_.end();
+	if (it == s.building_id_to_idx_.end()) return -1.0f;
+	const auto &b = s.buildings_[it->second];
+	return b.team < MAX_PLAYERS ? b.capture_points_by_team[b.team] : -1.0f;
 }
 
 // data/maps/NAME.json with the map's own players, resources and teams; returns the players seated.
@@ -463,10 +470,16 @@ int main(int argc, char **argv) {
 			const uint32_t tu = s.units_.target_unit_id[i], tb = s.units_.target_building_id[i];
 			const uint32_t tgt = tu ? tu : tb;
 			if (act == ACTION_ATTACK && tgt) {
-				const float hp = target_hp(s, tu, tb);
-				if (tgt != k.tgt) { k.tgt = tgt; k.tgt_hp = hp; k.no_hurt_s = 0; }
-				else if (hp >= 0.0f && hp < k.tgt_hp - 0.01f) { k.tgt_hp = hp; k.no_hurt_s = 0; if (is_siege(s.units_.unit_type[i])) k.siege_hurt = true; }
-				else if (++k.no_hurt_s == 60) {
+				const float hp = target_hp(s, tu, tb), cp = tu ? -1.0f : target_cp(s, tb);
+				const bool hurt = hp >= 0.0f && hp < k.tgt_hp - 0.01f, captured = cp >= 0.0f && cp < k.tgt_cp - 0.01f;
+				if (tgt != k.tgt) { k.tgt = tgt; k.tgt_hp = hp; k.tgt_cp = cp; k.no_hurt_s = 0; }
+				else if (hurt || captured) {
+					// Each measure keeps its own low mark, so one recovering doesn't hide the other.
+					k.tgt_hp = std::min(k.tgt_hp, hp);
+					k.tgt_cp = std::min(k.tgt_cp, cp);
+					k.no_hurt_s = 0;
+					if (hurt && is_siege(s.units_.unit_type[i])) k.siege_hurt = true;
+				} else if (++k.no_hurt_s == 60) {
 					char buf[160];
 					float tdist = -1.0f;
 					const char *tk = "bld";
@@ -481,7 +494,7 @@ int main(int argc, char **argv) {
 								if (s.fauna_.id[f] == tu) tdist = std::hypot(s.fauna_.pos_x[f] - s.units_.pos_x[i], s.fauna_.pos_z[f] - s.units_.pos_z[i]);
 						}
 					}
-					std::snprintf(buf, sizeof buf, "target hp %.0f kind=%s tdist=%.1f reach=%.1f vision=%.1f stance=%d", hp, tk, tdist,
+					std::snprintf(buf, sizeof buf, "target hp %.0f cp %.0f kind=%s tdist=%.1f reach=%.1f vision=%.1f stance=%d", hp, cp, tk, tdist,
 							s.attack_reach(i), s.unit_vision_at(i), s.units_.stance[i]);
 					report(i, k, 2, "hits-nothing", buf);
 				}
