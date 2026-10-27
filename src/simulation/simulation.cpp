@@ -32426,7 +32426,23 @@ void Simulation::petra_manage_garrisons() {
 			cmd_stop(recall.data(), recall.size());
 			incoming[bi] -= (int)recall.size();
 		}
-		if (shoots && (around.unit || around.melee_siege || around.range_siege))
+		// defenseManager.js:569-579 and 692-693: an Attacked event between this holder and an
+		// enemy tower or fortress in its range garrisons it too, with no unit near.
+		bool duel = false;
+		if (shoots && around.defense_structure && !(around.unit || around.melee_siege || around.range_siege)) {
+			const float r = building_arrow_range(b);
+			auto enemy_shooter = [&](uint32_t id) {
+				auto it = building_id_to_idx_.find(id);
+				if (it == building_id_to_idx_.end()) return false;
+				const Building &o = buildings_[it->second];
+				const float dx = o.x - b.x, dz = o.z - b.z;
+				return petra_foe(o.team) && !o.wrecked && o.hp > 0.0f && building_ai_info(o.type).shoots() &&
+						dx * dx + dz * dz < r * r;
+			};
+			for (const auto &[target, attacker] : petra_turn_attacks_)
+				if ((target == b.id && enemy_shooter(attacker)) || (attacker == b.id && enemy_shooter(target))) { duel = true; break; }
+		}
+		if (shoots && (around.unit || around.melee_siege || around.range_siege || duel))
 			petra_garrison_units_inside(bi, around.defense_structure || around.unit, incoming);
 		if (decay_min > 0) petra_garrison_units_inside(bi, true, incoming, decay_min);
 	}
