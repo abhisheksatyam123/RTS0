@@ -4333,6 +4333,136 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 		}
 		default: break;
 	}
+	// cycladic_archipelago.js: four forest types (palm, pine, poplar, carob and beech), each scaleByMapSize(10, 64)
+	// clumps of randIntInclusive(6, 17) tiles placed by createAreasInAreas in a random island (player islands
+	// included, retryFactor 20), every tile 3 from the water, 3 from other forests, 1 from hills and the city
+	// patch and 4 from base resources. LayeredPainter([floor, grass, pForest], [floor, pForest]) with
+	// pForest = [floor + tree, grass]: a tree on a sixth of the outer two rings' tiles and a quarter inside.
+	if (config.map_type == MAP_CYCLADIC_ARCHIPELAGO) {
+		num_groves = 0;
+		const int res = std::clamp((int)std::lround(2.0f * half), 1, Simulation::MAX_TERRAIN_TILE_RES);
+		const float cell = 2.0f * half / (float)res;
+		std::vector<const MapArea *> isles;
+		std::vector<uint8_t> hill((size_t)res * (size_t)res, 0);
+		for (const MapArea &a : t_map_areas) {
+			if (a.kind == AREA_ISLAND) isles.push_back(&a);
+			if (a.kind == AREA_HILL) for (uint32_t j : a.tiles) hill[j] = 1;
+		}
+		auto tile_x = [&](uint32_t j) { return -half + ((float)(j % (uint32_t)res) + 0.5f) * cell; };
+		auto tile_z = [&](uint32_t j) { return -half + ((float)(j / (uint32_t)res) + 0.5f) * cell; };
+		// Chebyshev tile distances to the water (below the nav water line) and to the hills.
+		auto distance_from = [&](auto &&seed) {
+			std::vector<uint16_t> d((size_t)res * (size_t)res, 0xFFFF);
+			std::vector<uint32_t> q;
+			for (uint32_t j = 0; j < (uint32_t)d.size(); ++j) if (seed(j)) { d[j] = 0; q.push_back(j); }
+			for (size_t k = 0; k < q.size(); ++k) {
+				const int x = (int)(q[k] % (uint32_t)res), z = (int)(q[k] / (uint32_t)res);
+				for (int dz = -1; dz <= 1; ++dz)
+					for (int dx = -1; dx <= 1; ++dx) {
+						const int nx = x + dx, nz = z + dz;
+						if (nx < 0 || nz < 0 || nx >= res || nz >= res) continue;
+						const uint32_t n = (uint32_t)(nz * res + nx);
+						if (d[n] != 0xFFFF) continue;
+						d[n] = (uint16_t)(d[q[k]] + 1);
+						q.push_back(n);
+					}
+			}
+			return d;
+		};
+		const float line = water_h + NAV_WATER_MARGIN;
+		const auto to_water = distance_from([&](uint32_t j) { return hm.sample_world(tile_x(j), tile_z(j)) < line; });
+		const auto to_hill = distance_from([&](uint32_t j) { return hill[j] != 0 || hm.compute_slope_world(tile_x(j), tile_z(j)) > 0.85f; });
+		std::vector<std::pair<float, float>> base_res;
+		{
+			const auto rv = sim.resources();
+			for (size_t r = 0; r < rv.count; ++r)
+				if (rv.alive[r]) base_res.emplace_back(rv.x[r], rv.z[r]);
+		}
+		const float city_r = (15.0f + 10.0f * std::clamp((2.0f * half - 128.0f) / 384.0f, 0.0f, 1.0f)) / 3.0f + 1.5f + 1.0f;
+		std::vector<uint8_t> forest((size_t)res * (size_t)res, 0);
+		const int count = (int)scale_by_map_size(10, 64, half);
+		for (int type = 0; type < 4 && !isles.empty(); ++type) {
+			const int tiles = rng.range_int(6, 17);
+			const float r = std::sqrt((float)tiles / 3.14159265f);
+			// ClumpPlacer(..., failFraction Infinity): every clump is placed; the tiles the constraints
+			// refuse are left out of it.
+			for (int placed = 0; placed < count; ++placed) {
+				const MapArea &isle = *isles[(size_t)rng.range_int(0, (int)isles.size() - 1)];
+				const uint32_t c = isle.tiles[(size_t)rng.range_int(0, (int)isle.tiles.size() - 1)];
+				const int cx = (int)(c % (uint32_t)res), cz = (int)(c / (uint32_t)res);
+				std::vector<std::pair<uint32_t, int>> clump; // tile, ring depth from the clump's edge
+				const int ri = (int)std::ceil(r);
+				for (int dz = -ri; dz <= ri; ++dz)
+					for (int dx = -ri; dx <= ri; ++dx) {
+						const float dd = std::sqrt((float)(dx * dx + dz * dz));
+						const int x = cx + dx, z = cz + dz;
+						if (dd > r || x < 0 || z < 0 || x >= res || z >= res) continue;
+						const uint32_t j = (uint32_t)(z * res + x);
+						if (to_water[j] <= 3 || to_hill[j] <= 1) continue;
+						bool ok = true;
+						for (int fz = std::max(0, z - 3); fz <= std::min(res - 1, z + 3) && ok; ++fz)
+							for (int fx = std::max(0, x - 3); fx <= std::min(res - 1, x + 3); ++fx)
+								if (forest[(size_t)fz * (size_t)res + (size_t)fx]) { ok = false; break; }
+						const float wx = tile_x(j), wz = tile_z(j);
+						for (const auto &sp : spawns) ok = ok && det::hypot(wx - sp.x, wz - sp.z) > city_r;
+						for (const auto &[bx, bz] : base_res) ok = ok && det::hypot(wx - bx, wz - bz) > 4.0f;
+						if (ok) clump.push_back({j, (int)std::floor(r - dd) + 1});
+					}
+				for (const auto &[j, depth] : clump) {
+					forest[j] = 1;
+					if (rng.range_int(0, depth <= 2 ? 5 : 3) == 0) sim.spawn_resource_world(tile_x(j), tile_z(j), RES_WOOD, TREE_WOOD_SUPPLY);
+				}
+			}
+		}
+		// Straggler trees (carob, beech, two poplars, pine: scaleByMapSize(2, 38) each, retryFactor 50) and
+		// scaleByMapSize(5, 75) cypress groups (1-3 and 0-2 more within 3 tiles), by random island, 2 from the
+		// water and forests, 3 from the city patch, 4 from base resources, 1 from hills and off the players' islands.
+		std::vector<uint8_t> player_isle(isles.size(), 0);
+		for (size_t k = 0; k < isles.size(); ++k)
+			for (const auto &sp : spawns) {
+				const int x = std::clamp((int)((sp.x + half) / cell), 0, res - 1), z = std::clamp((int)((sp.z + half) / cell), 0, res - 1);
+				player_isle[k] |= std::binary_search(isles[k]->tiles.begin(), isles[k]->tiles.end(), (uint32_t)(z * res + x));
+			}
+		auto straggler_spot = [&](uint32_t &out) {
+			const size_t k = (size_t)rng.range_int(0, (int)isles.size() - 1);
+			if (player_isle[k]) return false;
+			const uint32_t j = isles[k]->tiles[(size_t)rng.range_int(0, (int)isles[k]->tiles.size() - 1)];
+			if (to_water[j] <= 2 || to_hill[j] <= 1) return false;
+			const int x = (int)(j % (uint32_t)res), z = (int)(j / (uint32_t)res);
+			for (int fz = std::max(0, z - 2); fz <= std::min(res - 1, z + 2); ++fz)
+				for (int fx = std::max(0, x - 2); fx <= std::min(res - 1, x + 2); ++fx)
+					if (forest[(size_t)fz * (size_t)res + (size_t)fx]) return false;
+			const float wx = tile_x(j), wz = tile_z(j);
+			for (const auto &sp : spawns) if (det::hypot(wx - sp.x, wz - sp.z) <= city_r + 2.0f) return false;
+			for (const auto &[bx, bz] : base_res) if (det::hypot(wx - bx, wz - bz) <= 4.0f) return false;
+			out = j;
+			return true;
+		};
+		for (int pass = 0; pass < 5 && !isles.empty(); ++pass) {
+			const int amount = (int)scale_by_map_size(2, 38, half);
+			for (int g = 0, tries = 0; g < amount && tries < amount * 50; ++tries) {
+				uint32_t j;
+				if (!straggler_spot(j)) continue;
+				++g;
+				forest[j] = 1;
+				sim.spawn_resource_world(tile_x(j), tile_z(j), RES_WOOD, TREE_WOOD_SUPPLY);
+			}
+		}
+		{
+			const int amount = (int)scale_by_map_size(5, 75, half);
+			for (int g = 0, tries = 0; g < amount && tries < amount * 50 && !isles.empty(); ++tries) {
+				uint32_t j;
+				if (!straggler_spot(j)) continue;
+				++g;
+				const int n = rng.range_int(1, 3) + rng.range_int(0, 2);
+				for (int k = 0; k < n; ++k) {
+					const float a = rng.range_float(0.0f, 6.2831853f), d = k == 0 ? 0.0f : rng.range_float(0.0f, 3.0f);
+					const float tx = tile_x(j) + det::cos(a) * d, tz = tile_z(j) + det::sin(a) * d;
+					if (hm.sample_world(tx, tz) >= line) sim.spawn_resource_world(tx, tz, RES_WOOD, TREE_WOOD_SUPPLY);
+				}
+			}
+		}
+	}
 
 	// Map-specific landmark resource clusters
 	if (config.map_type == MAP_SAHARAN_OASES || config.map_type == MAP_NEARESTERN_BADLANDS) {
