@@ -8477,6 +8477,7 @@ void RmsGenerator::synth_oasis_0ad(HeightmapGrid &hm, RmsRng &rng, float &water_
 				mask_disk(hm, pond, wx, wz, 4.5f);
 				for (size_t j = 0; j < N; ++j) pond[j] &= !clump[j];
 				paint_mask_elevation(hm, pond, sea, 3.0f);
+				record_area(hm, pond, AREA_LAKE); // LayeredPainter([tShore, tWater], [1])
 			}
 		}
 	}
@@ -8495,6 +8496,13 @@ void RmsGenerator::synth_oasis_0ad(HeightmapGrid &hm, RmsRng &rng, float &water_
 				m[(size_t)z * (size_t)hm.res + (size_t)x] = wx * wx + wz * wz <= r * r;
 			}
 		paint_mask_elevation(hm, m, sea, R.forest + R.shore);
+		// LayeredPainter([pOasisForestLight, tWater], [forestDistance]): the palm band's forest floor
+		// over the whole oasis, then the water more than forestDistance in from its edge.
+		record_area(hm, m, AREA_OASIS);
+		const auto in = distance_inside_mask(m, hm.res, grid_spacing(hm));
+		std::vector<uint8_t> water(N, 0);
+		for (size_t j = 0; j < N; ++j) water[j] = m[j] && in[j] > R.forest;
+		record_area(hm, water, AREA_OASIS_WATER);
 		oasis = m;
 	}
 	const auto outside = outside_circle(hm);
@@ -8512,6 +8520,7 @@ void RmsGenerator::synth_oasis_0ad(HeightmapGrid &hm, RmsRng &rng, float &water_
 				mask_disk(hm, m, c.first, c.second, r * rng.range_float(0.85f, 1.15f));
 				if (!fit_area(m, f, 1.0f)) continue;
 				paint_mask_modify(hm, m, dh * kMetre, blend);
+				if (dh > 4.0f) record_area(hm, m, AREA_HILL); // the dunes' TerrainPainter(tDune)
 				break;
 			}
 	};
@@ -13531,8 +13540,12 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 	const float metre = HEIGHT_PER_METRE;
 	std::vector<float> metres_up(t.tiles.size(), 0.0f), slope_up(t.tiles.size(), 0.0f);
 	const bool own_patches = own && own->patches[0].layer[0][0];
-	// A script paints its own shores (its height bands and areas), with no shore blend to 3 m.
+	// A script paints its own shores (its height bands and areas), with no shore blend to 3 m; one that
+	// paints its lakes' shores (an AREA_LAKE row) has no shore band either: oasis.js's land stands 1 m up.
 	const bool own_bands = own && own->bands[0].terrain[0];
+	bool own_lakes = false;
+	if (own)
+		for (const AreaLayers &l : own->areas) own_lakes = own_lakes || (l.kind == AREA_LAKE && l.layer[0][0]);
 	for (int tz = 0; tz < res; ++tz)
 		for (int tx = 0; tx < res; ++tx) {
 			const size_t j = (size_t)tz * (size_t)res + (size_t)tx;
@@ -13545,7 +13558,7 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 			uint8_t v;
 			// Under water, the shore band up to 1.5 m above it, the blend to 3 m (a script map paints its own shores).
 			if (has_water && h < water) v = index_of(b.water);
-			else if (has_water && h < water + 1.5f * metre && !own_bands) v = index_of(b.shore);
+			else if (has_water && h < water + 1.5f * metre && !own_bands && !own_lakes) v = index_of(b.shore);
 			// 0 A.D. rmgen paints cliffs on slopes of 2 m per tile and steeper, hills from 1.25.
 			else if (slope >= 2.0f * metre) v = pick(b.cliff, 2, tx, tz, 1);
 			else if (slope >= 1.25f * metre) v = pick(b.hill, 2, tx, tz, 2);
