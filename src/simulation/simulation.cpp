@@ -14216,10 +14216,9 @@ void Simulation::sync_field_resources() {
 }
 
 void Simulation::tick_gather(float dt) {
-	// G4: rebuild auras every 0.4s (or immediately if empty) for gather modifiers
-	aura_timer_ += dt;
-	if (aura_timer_ >= 0.4f || aura_mgr_.sources.empty()) {
-		aura_timer_ = 0.0f;
+	// G4: rebuild auras on each lockstep turn's first tick (or at once if empty): 0.28's
+	// Auras.js range queries follow the units every turn (CCmpRangeManager ExecuteActiveQueries).
+	if (ticks_ % 4 == 0 || aura_mgr_.sources.empty()) {
 		rebuild_auras();
 		apply_health_auras();
 		for (Building &b : buildings_)
@@ -22549,7 +22548,7 @@ void Simulation::petra_staff_foundations() {
 		}
 		return best && best->build_progress < 1.0f ? best->id : 0;
 	};
-	struct Need { uint32_t id; float x, z; int missing; PetraFoundationWatch *watch; uint16_t land; uint32_t anchor; };
+	struct Need { uint32_t id; float x, z; int missing; PetraFoundationWatch *watch; uint16_t land; uint32_t anchor; int target; };
 	std::vector<Need> needs;
 	std::vector<PetraFoundationWatch> watch;
 	watch.reserve(petra_fnd_watch_.size() + 4);
@@ -22612,7 +22611,7 @@ void Simulation::petra_staff_foundations() {
 				if (o.team == petra_pid_ && building_research_base(o.type) == kind && o.build_progress >= 1.0f && o.hp > 0.0f && !o.wrecked) { stands = true; break; }
 			if (!stands) want = 7;
 		}
-		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0, constructing_anchor(b)});
+		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0, constructing_anchor(b), want});
 	}
 
 	const std::unordered_set<uint32_t> launched = petra_launched_units();
@@ -22666,6 +22665,9 @@ void Simulation::petra_staff_foundations() {
 	// two; two more for a house while the population is near its cap; 15 for a base
 	// anchor or the wonder in wonder victory; every worker while there is no base yet.
 	const bool has_base = petra_has_active_base(); // hasActiveBase: a military colony anchors one too
+	// baseManager.js:897: with no active base, every worker may build each foundation (targetNB).
+	if (!has_base)
+		for (auto &n : needs) n.missing += workers - n.target;
 	int max_total = (int)std::ceil((float)workers * petra_builder_ratio());
 	if (max_total < 2 && workers > 1) max_total = 2;
 	const bool house_short = pop_max(petra_pid_) < pop_current(petra_pid_) + 5 && pop_max(petra_pid_) < pop_cap(petra_pid_);

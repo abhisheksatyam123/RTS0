@@ -10,11 +10,16 @@
 // technology (getEntityNames). A started one that is not progressing (behind another
 // item, or its unit garrisoned) is paused: a greyed icon, researchPausedIcon and
 // "This item is paused.". A click selects the researcher and moves the camera to it.
+// The column starts under RTS0's taller top panel (58 px; 0.28: 40).
 
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/classes/image.hpp>
+#include <godot_cpp/classes/image_texture.hpp>
+#include <godot_cpp/classes/style_box_empty.hpp>
+#include <godot_cpp/classes/style_box_texture.hpp>
 #include <godot_cpp/classes/json.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/node.hpp>
@@ -60,6 +65,7 @@ public:
 		column_->set_offset(SIDE_BOTTOM, top + kButtons * (kSize + kMargin) + kMargin);
 		column_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		parent->add_child(column_);
+		const Ref<StyleBoxTexture> normal = frame(false), over = frame(true);
 		for (int i = 0; i < kButtons; ++i) {
 			Slot &s = slots_[i];
 			s.button = memnew(Button);
@@ -68,6 +74,11 @@ public:
 			s.button->set_size(Vector2(kSize, kSize));
 			s.button->set_visible(false);
 			s.button->connect("pressed", Callable(owner, method).bind(i));
+			// iconButton: snIconPortrait (portrait_black), add_color 42 42 42 on hover.
+			for (const char *st : {"normal", "pressed", "disabled"}) s.button->add_theme_stylebox_override(st, normal);
+			s.button->add_theme_stylebox_override("hover", over);
+			s.button->add_theme_stylebox_override("hover_pressed", over);
+			s.button->add_theme_stylebox_override("focus", memnew(StyleBoxEmpty));
 			column_->add_child(s.button);
 			s.icon = memnew(TextureRect);
 			s.icon->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
@@ -77,7 +88,7 @@ public:
 			s.icon->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 			s.button->add_child(s.icon);
 			s.slider = memnew(ColorRect);
-			s.slider->set_color(Color(0, 0, 0, 0.55f));
+			s.slider->set_color(Color(0, 1, 0, 128 / 255.0f)); // queueProgressSlider: 0 255 0 128
 			s.slider->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 			s.button->add_child(s.slider);
 			s.time = memnew(Label);
@@ -85,7 +96,9 @@ public:
 			s.time->set_size(Vector2(kSize, kSize));
 			s.time->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 			s.time->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
-			s.time->add_theme_font_size_override("font_size", 12);
+			// iconButtonProgress: white sans-stroke-14.
+			s.time->add_theme_font_size_override("font_size", 14);
+			s.time->add_theme_color_override("font_color", Color(1, 1, 1));
 			s.time->add_theme_color_override("font_outline_color", Color(0, 0, 0, 1));
 			s.time->add_theme_constant_override("outline_size", 3);
 			s.time->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
@@ -133,7 +146,8 @@ public:
 			// queueProgressSlider "3 3 37 37": its top moves down as the research advances.
 			s.slider->set_position(godot::Vector2(3, 3 + 34.0f * progress));
 			s.slider->set_size(godot::Vector2(34, 34.0f * (1.0f - progress)));
-			const int left = (int)std::ceil(std::max(po.duration - po.timer, 0.0f));
+			// FormatMillisecondsIntoDateStringGMT: whole seconds, rounded down.
+			const int left = (int)std::floor(std::max(po.duration - po.timer, 0.0f));
 			s.time->set_text(godot::vformat("%d:%02d", left / 60, left % 60)); // countdown format "m:ss"
 			s.button->set_visible(true);
 		};
@@ -164,6 +178,30 @@ public:
 	uint32_t researcher_at(int slot) const { return slot >= 0 && slot < kButtons ? slots_[slot].researcher : 0; }
 
 private:
+	// snIconPortrait / snIconPortraitOver: session/icons/bkg/portrait_black, stretched.
+	static godot::Ref<godot::StyleBoxTexture> frame(bool over) {
+		using namespace godot;
+		Ref<StyleBoxTexture> sb;
+		sb.instantiate();
+		Ref<Texture2D> t = load_ui_texture("res://assets/textures/ui/archive/icons/bkg/portrait_black.png");
+		if (t.is_valid() && over) {
+			Ref<Image> img = t->get_image();
+			if (img.is_valid()) {
+				img = img->duplicate();
+				if (img->is_compressed()) img->decompress();
+				img->convert(Image::FORMAT_RGBA8);
+				const float add = 42.0f / 255.0f;
+				for (int y = 0; y < img->get_height(); ++y)
+					for (int x = 0; x < img->get_width(); ++x) {
+						const Color c = img->get_pixel(x, y);
+						img->set_pixel(x, y, Color(std::min(c.r + add, 1.0f), std::min(c.g + add, 1.0f), std::min(c.b + add, 1.0f), c.a));
+					}
+				t = ImageTexture::create_from_image(img);
+			}
+		}
+		sb->set_texture(t);
+		return sb;
+	}
 	struct Slot {
 		godot::Button *button = nullptr;
 		godot::TextureRect *icon = nullptr;

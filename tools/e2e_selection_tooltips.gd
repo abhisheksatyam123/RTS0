@@ -9,6 +9,7 @@ extends SceneTree
 const RES_WOOD := 0
 const RES_FOOD := 3
 
+const TT = preload("res://scenes/common/tooltips.gd")
 var main
 var failures := 0
 
@@ -46,9 +47,10 @@ func run() -> void:
 		var archer_tip: String = tips[0]
 		var spear_tip: String = tips[1]
 		var lines: PackedStringArray = spear_tip.split("\n")
-		check(lines.size() >= 2 and lines[1] == "Food 5  Wood 17", "spearmen carry Food 5  Wood 17")
+		check(lines.size() >= 2 and TT.plain(lines[1]) == "Food 5  Wood 17" and lines[1].contains("food_small.png"), "spearmen carry Food 5  Wood 17")
 		check(not spear_tip.contains("Health"), "no health line")
 		check(not archer_tip.contains("Food") and not archer_tip.contains("Wood"), "archer carries nothing")
-		check(archer_tip.ends_with("Click to select only these, Ctrl+click or right-click to deselect them."), "click help last")
+		# selection_panels.js:929-938: names, carried, "Player:" for observers, and no click help.
+		check(not archer_tip.contains("Click to select") and not spear_tip.contains("Click to select"), "no click help")
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures else 0)
