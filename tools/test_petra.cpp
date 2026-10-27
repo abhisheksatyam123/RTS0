@@ -4097,6 +4097,73 @@ static void test_plan_counts_every_class() {
 	CHECK(queued == 0 && champ_ask == 0.0f, "clubmen in the plan count as its champions: no more are asked for it");
 }
 
+// queueManager.js: a mustering plan's TrainingPlan stays in its queue, its account growing by
+// the queue's priority, until it starts, though trainMoreUnits now asks for another class or
+// skips its turn. Its want didn't lapse here before, nor wait for its class to come first.
+static void test_plan_siege_batch_waits_funded() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_team_civ(1, CIV_ATHENIANS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float side = tx > 0.0f ? -1.0f : 1.0f;
+	s->spawn_building_world(tx + 14.0f * side, tz, BLD_BARRACKS, 1, 1.0f);
+	const uint32_t arsenal = s->spawn_building_world(tx, tz + 16.0f * side, BLD_ARSENAL, 1, 1.0f);
+	CHECK(arsenal != 0, "an arsenal stands");
+	s->players_[1].phase = 3;
+	s->cheat_mods_[1].pop_bonus = 300;
+	// Workers past workersMin (24), so checkPausedQueues leaves the siege queue running.
+	for (int k = 0; k < 30; ++k) s->spawn_unit(tx - 8.0f * side + 0.8f * (float)(k % 10), tz - 10.0f - 0.8f * (float)(k / 10), 1, UNIT_VILLAGER);
+	s->petra_pid_ = 1;
+	auto &m = s->petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 0;
+	s->petra_plan_sizes(PETRA_ATTACK_HUGE);
+	m.dropped_classes = 0;
+	m.kind = PETRA_ATTACK_HUGE;
+	auto &plan = s->petra_attack_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_HUGE;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	int siege_stats = 0;
+	for (const auto &st : s->petra_plan_unit_stats(PETRA_ATTACK_HUGE)) siege_stats += st.siege_strength > 0.0f;
+	CHECK(siege_stats > 0, "the HugeAttack has a siege class");
+	auto &qm = s->petra_queues_;
+	// The siege batch asked for and partly funded: it stays queued while the plan musters.
+	qm.wants[PETRA_Q_PLAN_SIEGE] = PetraQueueAccount{0.0f, 10.0f, 10.0f, 0.0f};
+	qm.accounts[PETRA_Q_PLAN_SIEGE] = PetraQueueAccount{0.0f, 5.0f, 0.0f, 0.0f};
+	qm.want_age[PETRA_Q_PLAN_SIEGE] = 0.0f;
+	s->petra_refresh_queue_accounts(30.0f);
+	CHECK(qm.wants[PETRA_Q_PLAN_SIEGE].wood > 0.0f, "a mustering plan's queued siege batch stays queued");
+	// Funded, it starts though no siege class comes first in the plan's turn.
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 3000.0f;
+	qm.wants[PETRA_Q_PLAN_SIEGE] = PetraQueueAccount{3000.0f, 3000.0f, 3000.0f, 3000.0f};
+	qm.accounts[PETRA_Q_PLAN_SIEGE] = PetraQueueAccount{3000.0f, 3000.0f, 3000.0f, 3000.0f};
+	for (int q = 0; q < PETRA_Q_COUNT; ++q)
+		if (q != PETRA_Q_PLAN_SIEGE) qm.accounts[q] = PetraQueueAccount{};
+	run_ai_turns(*s, 1);
+	int siege = 0;
+	for (const auto &b : s->buildings())
+		if (b.team == 1)
+			for (const auto &o : b.queue)
+				if (o.petra_plan == PETRA_ORDER_ATTACK && (unit_tech_classes(o.unit_type) & TC_SIEGE).any()) siege += o.count;
+	int any = 0;
+	for (const auto &b : s->buildings()) if (b.team == 1) any += (int)b.queue.size();
+	std::printf("  funded siege batch: %d siege queued (%d items queued, pop %d/%d, siege want w%.0f acc %.0f, plan q want %.0f)\n", siege, any,
+	            s->pop_current(1), s->pop_max(1), qm.wants[PETRA_Q_PLAN_SIEGE].wood, qm.accounts[PETRA_Q_PLAN_SIEGE].wood, qm.wants[PETRA_Q_PLAN].food);
+	CHECK(siege > 0, "the funded siege batch starts");
+	plan.state = Simulation::AttackPlan::UNEXECUTED;
+	qm.want_age[PETRA_Q_PLAN_SIEGE] = 0.0f;
+	s->petra_refresh_queue_accounts(30.0f);
+	CHECK(qm.wants[PETRA_Q_PLAN_SIEGE].wood == 0.0f, "with no plan mustering it goes");
+}
+
 // attackPlan.js:689-695 trains a plan's batches with its name as "plan" metadata: the units
 // are the plan's as they spawn, so no other plan takes them (the main plan used to take the
 // raid's siege, and citizen cavalry trained for it went hunting). A batch whose plan has started or been replaced comes out of plan
@@ -9704,6 +9771,7 @@ int main(int argc, char **argv) {
 	RUN(test_raid_takes_every_rider);
 	RUN(test_huge_attack_drops_classes);
 	RUN(test_plan_counts_every_class);
+	RUN(test_plan_siege_batch_waits_funded);
 	RUN(test_trained_units_join_their_plan);
 	RUN(test_plan_cost_weights_kept);
 	RUN(test_plan_class_sizes_sum);

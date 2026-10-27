@@ -13138,6 +13138,104 @@ static float short_path_search_range(uint8_t failed) {
 	return std::min(RANGE_MAX, RANGE_MIN + RANGE_STEP * (float)std::max(0, (int)failed - 1));
 }
 
+// The range unit i's task is done in, as CCmpUnitMotion::ComputeGoal shapes a move to a target's
+// range: a circle round a unit or resource, a square round a structure (the corners within reach
+// at 2/3 of it, as 0 A.D. does for MaxRange), a little inside the reach the task's tick checks
+// (g_GoalDelta). `building` is the structure, which mustn't obstruct the way to it. False for a
+// walk to a point.
+template <class MobileDrop>
+bool Simulation::task_range_goal(size_t i, nav::ShortPathGoal &g, uint32_t &building, MobileDrop &&mobile_drop) const {
+	const float *px = units_.pos_x;
+	const float *pz = units_.pos_z;
+	const nav::Vec2 U(1.0f, 0.0f), V(0.0f, 1.0f); // unit obstructions are axis-aligned squares
+	const uint8_t st = units_.action_state[i];
+	const float r = unit_collision_radius(units_.unit_type[i]);
+	auto circle = [&](float x, float z, float reach) {
+		g.type = nav::ShortPathGoal::CIRCLE;
+		g.center = nav::Vec2(x, z);
+		g.hw = reach * 0.9f;
+		return true;
+	};
+	auto square = [&](const auto &b, float reach) {
+		g.type = nav::ShortPathGoal::SQUARE;
+		g.center = nav::Vec2(b.x, b.z);
+		g.u = nav::footprint_u(b);
+		g.v = nav::footprint_v(b);
+		g.hw = b.hu + (reach + r) * (2.0f / 3.0f);
+		g.hh = b.hv + (reach + r) * (2.0f / 3.0f);
+		building = b.id;
+		return true;
+	};
+	if (st == ACTION_GATHER && units_.target_resource_id[i] != 0) { // tick_gather
+		const auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+		if (rit == res_id_to_idx_.end()) return false;
+		const size_t k = rit->second;
+		nav::Footprint m;
+		if (mine_footprint(k, m)) {
+			// gather_in_reach's band round the mine's square.
+			g.type = nav::ShortPathGoal::SQUARE;
+			g.center = nav::Vec2(m.x, m.z);
+			g.u = nav::footprint_u(m);
+			g.v = nav::footprint_v(m);
+			const float reach = (unit_push_clearance(units_.unit_type[i]) + MINE_GATHER_REACH) * 0.9f;
+			g.hw = m.hu + reach;
+			g.hh = m.hv + reach;
+			return true;
+		}
+		return circle(resources_.x[k], resources_.z[k], resources_.subtype[k] == RES_SUB_FISH ? FISH_GATHER_REACH : 2.5f);
+	}
+	if (st == ACTION_ATTACK && units_.target_unit_id[i] != 0) { // tick_combat
+		const int32_t t = lookup_unit(units_.target_unit_id[i]);
+		return t >= 0 && circle(px[t], pz[t], attack_reach(i));
+	}
+	if (st == ACTION_ATTACK && units_.target_building_id[i] != 0) {
+		// move_units stops an attacker within 0.9 of its reach, the smaller of its attack and
+		// capture ranges here.
+		const auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
+		return bit != building_id_to_idx_.end() &&
+		       square(buildings_[bit->second], 0.9f * std::min(units_.attack_range[i], CAPTURE_RANGE) +
+					unit_clearance_at(i) - r);
+	}
+	if (st == ACTION_BUILD && units_.target_building_id[i] != 0) { // tick_construction
+		const auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
+		// outside_and_in_build_range: the centre within Builder range plus twice the clearance
+		// (square adds the radius).
+		return bit != building_id_to_idx_.end() &&
+		       square(buildings_[bit->second], kBuildRange + 2.0f * unit_clearance_at(i) - r);
+	}
+	if (st == ACTION_MOVE && units_.order_kind[i] == ORDER_GARRISON) {
+		// garrison_in_range's LoadingRange plus the clearance, from the unit's centre (square
+		// adds the radius).
+		const auto bit = building_id_to_idx_.find(units_.order_target[i]);
+		return bit != building_id_to_idx_.end() &&
+		       square(buildings_[bit->second], structure_loading_range(buildings_[bit->second].type,
+					buildings_[bit->second].civ) + unit_clearance_at(i) - r);
+	}
+	if (st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE) {
+		// The dropsite (tick_gather) or market (the trader tick) at the walk's target, or a
+		// worker elephant to drop at.
+		const float tx = units_.target_x[i], tz = units_.target_z[i];
+		for (const SteerObstacle &b : steer_obstacles_)
+			if (b.x == tx && b.z == tz) return square(b, st == ACTION_TRADE ? 2.0f : 1.5f);
+		if (st != ACTION_RETURN_DROPSITE) return false;
+		// A supply wagon or worker elephant standing still obstructs the way as a unit does, and
+		// the circle round its centre lies inside that square, where no search reaches. Its goal is
+		// tick_gather's band round its body instead, at 2/3 of it in the corners as round a
+		// structure, and just outside its square where that band is narrower.
+		const int32_t drop = mobile_drop(tx, tz);
+		if (drop < 0) return circle(tx, tz, 2.5f);
+		const uint8_t kind = units_.unit_type[drop];
+		g.type = nav::ShortPathGoal::SQUARE;
+		g.center = nav::Vec2(px[drop], pz[drop]);
+		g.u = U;
+		g.v = V;
+		g.hw = g.hh = std::max(unit_collision_radius(kind) + (1.5f + r) * (2.0f / 3.0f),
+				unit_push_clearance(kind) + unit_push_clearance(units_.unit_type[i]) + 0.01f);
+		return true;
+	}
+	return false;
+}
+
 void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, const float *aim_x, const float *aim_z,
 		float *npx, float *npz, float *want_x, float *want_z, uint8_t *blocked) {
 	const size_t n = units_.count;
@@ -13173,103 +13271,18 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 	const uint32_t key = idle_path_key(), corner_key = idle_corner_key(), stuck_key = idle_stuck_key();
 	const uint32_t relaxed_key = idle_relaxed_path_key(), relaxed_corner_key = idle_relaxed_corner_key();
 	const nav::Vec2 U(1.0f, 0.0f), V(0.0f, 1.0f); // unit obstructions are axis-aligned squares
-	// The range unit i's task is done in, as CCmpUnitMotion::ComputeGoal shapes a move to a target's
-	// range: a circle round a unit or resource, a square round a structure (the corners within reach
-	// at 2/3 of it, as 0 A.D. does for MaxRange), a little inside the reach the task's tick checks
-	// (g_GoalDelta). `building` is the structure, which mustn't obstruct the way to it. False for a
-	// walk to a point.
+	// The range each walker's task is done in (task_range_goal); a supply wagon or worker elephant to
+	// drop at is one standing still at the walk's target.
 	auto task_goal = [&](size_t i, nav::ShortPathGoal &g, uint32_t &building) {
-		const uint8_t st = units_.action_state[i];
-		const float r = unit_collision_radius(units_.unit_type[i]);
-		auto circle = [&](float x, float z, float reach) {
-			g.type = nav::ShortPathGoal::CIRCLE;
-			g.center = nav::Vec2(x, z);
-			g.hw = reach * 0.9f;
-			return true;
-		};
-		auto square = [&](const auto &b, float reach) {
-			g.type = nav::ShortPathGoal::SQUARE;
-			g.center = nav::Vec2(b.x, b.z);
-			g.u = nav::footprint_u(b);
-			g.v = nav::footprint_v(b);
-			g.hw = b.hu + (reach + r) * (2.0f / 3.0f);
-			g.hh = b.hv + (reach + r) * (2.0f / 3.0f);
-			building = b.id;
-			return true;
-		};
-		if (st == ACTION_GATHER && units_.target_resource_id[i] != 0) { // tick_gather
-			const auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
-			if (rit == res_id_to_idx_.end()) return false;
-			const size_t k = rit->second;
-			nav::Footprint m;
-			if (mine_footprint(k, m)) {
-				// gather_in_reach's band round the mine's square.
-				g.type = nav::ShortPathGoal::SQUARE;
-				g.center = nav::Vec2(m.x, m.z);
-				g.u = nav::footprint_u(m);
-				g.v = nav::footprint_v(m);
-				const float reach = (unit_push_clearance(units_.unit_type[i]) + MINE_GATHER_REACH) * 0.9f;
-				g.hw = m.hu + reach;
-				g.hh = m.hv + reach;
-				return true;
-			}
-			return circle(resources_.x[k], resources_.z[k], resources_.subtype[k] == RES_SUB_FISH ? FISH_GATHER_REACH : 2.5f);
-		}
-		if (st == ACTION_ATTACK && units_.target_unit_id[i] != 0) { // tick_combat
-			const int32_t t = lookup_unit(units_.target_unit_id[i]);
-			return t >= 0 && circle(px[t], pz[t], attack_reach(i));
-		}
-		if (st == ACTION_ATTACK && units_.target_building_id[i] != 0) {
-			// move_units stops an attacker within 0.9 of its reach, the smaller of its attack and
-			// capture ranges here.
-			const auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
-			return bit != building_id_to_idx_.end() &&
-			       square(buildings_[bit->second], 0.9f * std::min(units_.attack_range[i], CAPTURE_RANGE) +
-						unit_clearance_at(i) - r);
-		}
-		if (st == ACTION_BUILD && units_.target_building_id[i] != 0) { // tick_construction
-			const auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
-			// outside_and_in_build_range: the centre within Builder range plus twice the clearance
-			// (square adds the radius).
-			return bit != building_id_to_idx_.end() &&
-			       square(buildings_[bit->second], kBuildRange + 2.0f * unit_clearance_at(i) - r);
-		}
-		if (st == ACTION_MOVE && units_.order_kind[i] == ORDER_GARRISON) {
-			// garrison_in_range's LoadingRange plus the clearance, from the unit's centre (square
-			// adds the radius).
-			const auto bit = building_id_to_idx_.find(units_.order_target[i]);
-			return bit != building_id_to_idx_.end() &&
-			       square(buildings_[bit->second], structure_loading_range(buildings_[bit->second].type,
-						buildings_[bit->second].civ) + unit_clearance_at(i) - r);
-		}
-		if (st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE) {
-			// The dropsite (tick_gather) or market (the trader tick) at the walk's target, or a
-			// worker elephant to drop at.
-			const float tx = units_.target_x[i], tz = units_.target_z[i];
-			for (const SteerObstacle &b : steer_obstacles_)
-				if (b.x == tx && b.z == tz) return square(b, st == ACTION_TRADE ? 2.0f : 1.5f);
-			if (st != ACTION_RETURN_DROPSITE) return false;
-			// A supply wagon or worker elephant standing still obstructs the way as a unit does, and
-			// the circle round its centre lies inside that square, where no search reaches. Its goal is
-			// tick_gather's band round its body instead, at 2/3 of it in the corners as round a
-			// structure, and just outside its square where that band is narrower.
+		return task_range_goal(i, g, building, [&](float tx, float tz) {
 			int32_t drop = -1;
 			grid.visit_radius_within(tx, tz, 0.25f, 0.25f, [&](int32_t j) {
 				if (drop < 0 && unit_is_mobile_dropsite(units_.unit_type[j]) &&
 				    std::fabs(px[j] - tx) < 0.25f && std::fabs(pz[j] - tz) < 0.25f)
 					drop = j;
 			});
-			if (drop < 0) return circle(tx, tz, 2.5f);
-			const uint8_t kind = units_.unit_type[drop];
-			g.type = nav::ShortPathGoal::SQUARE;
-			g.center = nav::Vec2(px[drop], pz[drop]);
-			g.u = U;
-			g.v = V;
-			g.hw = g.hh = std::max(unit_collision_radius(kind) + (1.5f + r) * (2.0f / 3.0f),
-					unit_push_clearance(kind) + unit_push_clearance(units_.unit_type[i]) + 0.01f);
-			return true;
-		}
-		return false;
+			return drop;
+		});
 	};
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!(walk[i] & WALK_STEER) || !units_.alive[i] || unit_is_ship(units_.unit_type[i])) return;
@@ -14637,7 +14650,10 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 			move_failed = true;
 			m.failed = 0;
 		} else {
-			if (formations_.empty() || formation_group_[i] == 0) obstructed_long_path(i, m.failed);
+			if (formations_.empty() || formation_group_[i] == 0) {
+				obstructed_long_path(i, m.failed);
+				obstructed_short_path(i, m.failed);
+			}
 			if (m.failed < OBSTRUCTED_AT) continue;
 		}
 		// FLEEING MovementUpdate with likelyFailure: the flight ends (flee_done).
@@ -14912,6 +14928,130 @@ void Simulation::obstructed_long_path(size_t i, uint8_t failed) {
 	wp.goal_z = goal_z;
 	units_.waypoint_cur[i] = static_cast<int16_t>(wp.cur);
 	units_.waypoint_count[i] = static_cast<int16_t>(wp.count);
+}
+
+// HandleObstructedMove's other fix (CCmpUnitMotion.h:1369-1450): a unit obstructed within
+// LONG_PATH_MIN_DIST (16 m) of its goal (InShortPathRange: the range round its target, ComputeGoal,
+// :729-732, 1664-1773) skips its long path and asks ComputePathToGoal (:1776-1825) for a path there.
+// Unless the straight line to the goal's nearest point is clear (TryGoingStraightToTarget, :1503-1561:
+// then a long path, which in RTS0 is the walk the unit is on), that is a short path among every static
+// shape, trees included, with ShortPathSearchRange (12 m, 4 m more for each failed turn after the
+// first) raised to the goal's centre plus 1 m, at most 56 m (RequestShortPath with extendRange,
+// :1844-1865). RTS0's steering searches round trees only within GAIA_STEER_REACH (10 m) and notes a
+// search that finds no way, so a unit facing a wood wider than that (palm patches, 4 m squares on
+// the 4 m tiles) walked into it for good: separation() pushed it back each tick, and Petra's re-tasks
+// or MoveFailed sent it at the same dropsite again (Stats' soaks: random_oasis and sahara seed 3).
+// On the third failed turn (ShouldAlternatePathfinder) 0.28 asks for a long path instead, there and
+// farther off, and its long path goes round trees: CCmpPathfinder rasterizes each one's square, grown
+// by the clearance, onto 1 m navcells (CCmpPathfinder.cpp:583; CCmpObstructionManager.cpp:1166-1185).
+// RTS0's long path is blind to them (8 m navcells, forest_cell_closed keeps a cell a run crosses
+// open), so on that turn a unit whose goal's centre lies within 56 m gets the same short path as the
+// stand-in for 0.28's long path, kept only when it reaches the goal; otherwise it takes RTS0's long
+// path, which obstructed_long_path plans farther off and this function within 16 m (below). One
+// farther off keeps RTS0's long path, as does one whose long path to the target ends short of the
+// goal (MakeGoalReachable moved it: test_building_steering 40).
+// The path becomes the unit's path to its target (unit_paths_, saved), which move_units follows as a
+// task's path while its target stays put, as PerformMove follows m_ShortPath to its end
+// (CCmpUnitMotion.h:1238-1250, 1299-1326) whatever the failed count does next. A path that ends no
+// nearer the goal than the unit stands is dropped (RejectFartherPaths, :904-914), and the unit keeps
+// its way. A unit already within its task's range has nothing to do (PossiblyAtDestination).
+// Walks to a moving unit (a chase, a hunt, a heal, boarding), flights and guards keep RTS0's own
+// rules, as do ships and formation members (motion_feedback).
+void Simulation::obstructed_short_path(size_t i, uint8_t failed) {
+	if (i >= unit_paths_.size() || unit_is_ship(units_.unit_type[i]) || units_.target_unit_id[i] != 0) return;
+	const uint8_t st = units_.action_state[i];
+	const bool task = (st == ACTION_GATHER && units_.target_resource_id[i] != 0) ||
+			(st == ACTION_BUILD && units_.target_building_id[i] != 0) || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE;
+	if (!task && st != ACTION_MOVE && st != ACTION_ATTACK_MOVE && st != ACTION_PATROL) return;
+	const float x = units_.pos_x[i], z = units_.pos_z[i], tx = units_.target_x[i], tz = units_.target_z[i];
+	// ComputeGoal: the task's range round its target, else the point the unit walks to. Its search
+	// leaves units out (avoid_idle_units goes round those), so a worker elephant is no square in it.
+	nav::ShortPathGoal goal;
+	uint32_t building = units_.target_building_id[i];
+	if (!task_range_goal(i, goal, building, [](float, float) { return int32_t{-1}; })) {
+		goal = nav::ShortPathGoal{};
+		goal.center = nav::Vec2(tx, tz);
+		building = units_.target_building_id[i];
+	}
+	constexpr float LONG_PATH_MIN_DIST = 16.0f / 4.0f, SHORT_PATH_MAX_RANGE = 56.0f / 4.0f, ONE_METRE = 1.0f / 4.0f;
+	const nav::Vec2 pos(x, z), at = goal.nearest_point(pos);
+	const float goal_dist = (at - pos).length();
+	if (goal_dist <= 0.0f) return;
+	const float centre = (goal.center - pos).length();
+	const bool short_range = goal_dist < LONG_PATH_MIN_DIST;
+	if (!short_range && (failed != ALTERNATE_PATH_TYPE_DELAY || centre + ONE_METRE > SHORT_PATH_MAX_RANGE)) return;
+	// The stand-in for the long path goes only where a long path goes: 0.28's ends where
+	// MakeGoalReachable puts the goal, as RTS0's does. A long path to this target that ends more than
+	// a unit short of the goal (walk_falls_short's measure; past the map's edge, up a cliff) means the
+	// goal is out of the unit's reach, and the unit keeps that path. A task's path names its target
+	// (move_units' task_path); a walk's is the unit's path whatever it names (walk_falls_short).
+	const WaypointPath &held = unit_paths_[i];
+	const bool held_to_target = held.count > 0 && units_.waypoint_count[i] == held.count &&
+			(held.has_goal ? (held.goal_x - tx) * (held.goal_x - tx) + (held.goal_z - tz) * (held.goal_z - tz) <= 4.0f : !task);
+	if (!short_range && held_to_target && goal.distance(nav::Vec2(held.xs[held.count - 1], held.zs[held.count - 1])) > 1.0f)
+		return;
+	if (direct_walk_clear(i, x, z, at.x, at.y)) return;
+	float range = short_path_search_range(failed);
+	if (centre >= range - ONE_METRE) range = std::min(centre + ONE_METRE, SHORT_PATH_MAX_RANGE);
+	// The trees within the box the search may shift towards its goal (BUILDING_STEER_CULL).
+	thread_local std::vector<SteerObstacle> near;
+	thread_local std::vector<nav::Vec2> path;
+	near.clear();
+	gaia_obstacles_near(x, z, range * (nav::BUILDING_STEER_CULL / nav::BUILDING_STEER_RANGE), near);
+	const bool reached = nav::search_short_path_to_goal(pos, goal, unit_clearance_at(i), range,
+			nav::ConcatRange<SteerObstacle>{steer_obstacles_, near}, building, nav_grid_, path);
+	WaypointPath &wp = unit_paths_[i];
+	// A new path replaces the short path its steering kept round buildings, trees or steep ground,
+	// and a note that a search from here found none. A path round idle units stays avoid_idle_units'.
+	auto drop_steering_memo = [&] {
+		ShortPathMemo &memo = units_.short_path[i];
+		if (memo.key == short_path_key_ || memo.key == nav::no_short_path_key(short_path_key_) ||
+				memo.key == nav::no_terrain_path_key(short_path_key_) || nav::is_kept_path_key(memo.key, short_path_key_))
+			memo.key = 0;
+	};
+	if (failed == ALTERNATE_PATH_TYPE_DELAY && !reached) {
+		// The third turn's long path, within 16 m too (ComputePathToGoal flips shortPath on
+		// ShouldAlternatePathfinder, :1811-1825): farther off obstructed_long_path has planned it, and
+		// within 16 m RTS0's is planned here from where the unit stands (RequestLongPath, :1827-1842),
+		// as move_units plans a task's path and cmd_move a walk's. It brings back the way round a
+		// wall, a cliff or water that a short path of an earlier turn gave up for one ending on its
+		// near side: move_units follows a task's path to its target to the end and then heads
+		// straight for the target, and obstructed_long_path takes no path that has no waypoints left
+		// or is within 16 m of its goal, so nothing else would plan it again. A unit still on a path
+		// to its target that leads into the goal, with waypoints left, keeps it: that is RTS0's long
+		// path already (or a short path that got there), the way a new one would take but where
+		// structures closed round the unit since; 0.28's unit walks to the end of such a new path and
+		// asks again on a later third turn, where RTS0 ends a walk at the end of its long path
+		// (move_units, walk_falls_short). A new path that ends no nearer the goal than the unit
+		// stands is dropped too (PathResult's RejectFartherPaths, :944-957).
+		if (!short_range ||
+				(held_to_target && units_.waypoint_cur[i] < held.count &&
+				 goal.distance(nav::Vec2(held.xs[held.count - 1], held.zs[held.count - 1])) <= 1.0f))
+			return;
+		thread_local WaypointPath long_path;
+		find_path(x, z, tx, tz, long_path, unit_land_pass(i));
+		if (long_path.count == 0 ||
+				goal.distance(nav::Vec2(long_path.xs[long_path.count - 1], long_path.zs[long_path.count - 1])) >= goal_dist)
+			return;
+		wp = long_path;
+		wp.has_goal = task;
+		wp.goal_x = tx;
+		wp.goal_z = tz;
+		units_.waypoint_cur[i] = static_cast<int16_t>(wp.cur);
+		units_.waypoint_count[i] = static_cast<int16_t>(wp.count);
+		drop_steering_memo();
+		return;
+	}
+	if (path.empty() || goal.distance(path.back()) >= goal_dist) return;
+	wp.clear();
+	for (const nav::Vec2 &p : path)
+		if (!wp.push_back(p.x, p.y)) break; // the unit decides again at its end
+	wp.has_goal = true;
+	wp.goal_x = tx;
+	wp.goal_z = tz;
+	units_.waypoint_cur[i] = 0;
+	units_.waypoint_count[i] = static_cast<int16_t>(wp.count);
+	drop_steering_memo();
 }
 
 // A walk, attack-move or patrol leg whose unit has walked all of its long path, which ends short of
@@ -23044,6 +23184,25 @@ void Simulation::petra_manage_military_production(float dt) {
 			const float vb = (float)b.count / (float)b.target - b.priority + (b.count >= b.target ? 1000.0f : 0.0f);
 			return va < vb;
 		});
+		// queueManager startNextItems: a batch already queued for the plan (a want on its queue)
+		// starts once its queue's account pays for it, though the plan's turn now asks for another
+		// class first (attackPlan.js counts the queued batch with its class).
+		for (const UnitStat &st : stats) {
+			if (st.count >= st.target) continue;
+			const uint8_t queue = petra_plan_order_queue(st);
+			const PetraQueueAccount &w = petra_queues_.wants[queue], &a = petra_queues_.accounts[queue];
+			if (w.food + w.wood + w.gold + w.stone <= 0.0f || petra_queues_.paused[queue]) continue;
+			const uint16_t tmpl = best_trainable(st);
+			if (tmpl == CIV_UNIT_TEMPLATE_NONE) continue;
+			const CivUnitTemplate &t = civ_unit_template(tmpl);
+			const int batch = petra_queues_.paused[PETRA_Q_PLAN_CHAMP] ? 1 : std::min(st.batch, std::max(1, petra_pop_room()));
+			float cost[RES_COUNT];
+			unit_train_cost(petra_pid_, tmpl, civ_template_unit_info(tmpl, t.unit_type), cost);
+			if (a.food < std::floor(cost[RES_FOOD] * (float)batch) || a.wood < std::floor(cost[RES_WOOD] * (float)batch) ||
+			    a.gold < std::floor(cost[RES_GOLD] * (float)batch) || a.stone < std::floor(cost[RES_STONE] * (float)batch))
+				continue;
+			if (petra_train_template(queue, trainer_for(tmpl), tmpl, batch, false, order_plan, plan_name, st.index)) return;
+		}
 		for (const UnitStat &st : stats) {
 			if (st.count >= st.target) return;
 			const uint16_t tmpl = best_trainable(st);
@@ -32061,9 +32220,15 @@ void Simulation::petra_check_paused_queues() {
 void Simulation::petra_refresh_queue_accounts(float dt) {
 	PetraQueueManager &qm = petra_queues_;
 	// A queue that stopped asking is empty: its account and switch count reset (startNextItems).
+	// A mustering plan's TrainingPlan stays in its queue until it starts (attackPlan.js
+	// trainMoreUnits), though the plan skips asking while its trainers are busy or the
+	// population is full; it goes with the plan (removeQueues).
+	const bool mustering = petra_attack_plan_.state == AttackPlan::MUSTER || petra_raid_plan_.state == AttackPlan::MUSTER;
 	for (int i = 0; i < PETRA_Q_COUNT; ++i) {
 		petra_queue_heads_.age[i] += dt;
 		qm.want_age[i] += dt;
+		const bool plan_queue = i == PETRA_Q_PLAN || i == PETRA_Q_PLAN_CHAMP || i == PETRA_Q_PLAN_SIEGE;
+		if (plan_queue && mustering) qm.want_age[i] = std::min(qm.want_age[i], PetraQueueManager::want_ttl(i));
 		if (qm.want_age[i] > PetraQueueManager::want_ttl(i)) {
 			qm.wants[i] = PetraQueueAccount{};
 			qm.accounts[i] = PetraQueueAccount{};
