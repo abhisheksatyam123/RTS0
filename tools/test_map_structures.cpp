@@ -300,8 +300,14 @@ int main() {
 	CHECK(building_type_info(BLD_MERCENARY_CAMP).wood_cost == 100);
 	CHECK(building_type_info(BLD_MERCENARY_CAMP).gold_cost == 100);
 
-	// Z17: merc_camp_egyptian counts as Town (phase 2), not Village.
+	// Z17: merc_camp_egyptian counts as Town (phase 2), not Village; a Ptolemaic player's own
+	// ptol/mercenary_camp keeps the barracks' Village and 100 stone (MC1, MC2).
 	CHECK(building_phase_class(BLD_MERCENARY_CAMP) == 2);
+	CHECK(map_structure_template("structures/merc_camp_egyptian").civ == CIV_GAIA);
+	CHECK(building_phase_class(BLD_MERCENARY_CAMP, CIV_GAIA) == 2);
+	CHECK(building_phase_class(BLD_MERCENARY_CAMP, CIV_PTOLEMIES) == 1);
+	CHECK(civ_building_type_info(CIV_PTOLEMIES, BLD_MERCENARY_CAMP).stone_cost == 100);
+	CHECK(civ_building_type_info(CIV_PTOLEMIES, BLD_MERCENARY_CAMP).wood_cost == 100);
 	// Z17: structures/pirates/dock is a dock with civ CIV_GAIA that trains pirate ships,
 	// researches no tech, and applies 0.8 batch modifier.
 	CHECK(map_structure_template("structures/pirates/dock").type == BLD_DOCK);
