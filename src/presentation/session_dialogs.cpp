@@ -12,6 +12,8 @@
 #include <godot_cpp/classes/font_variation.hpp>
 #include <godot_cpp/classes/theme_db.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/font.hpp>
+#include <godot_cpp/classes/text_server.hpp>
 #include <godot_cpp/classes/script.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
@@ -116,11 +118,14 @@ void RtsoMain::_on_speed_button_pressed() {
 		speed_menu_->set_offset(SIDE_TOP, 40.0f);
 		speed_menu_->set_offset(SIDE_BOTTOM, 65.0f);
 		speed_menu_->set_meta("tooltip_style", "session");
-		// ModernDropDown: sans-bold-14.
+		// ModernDropDown: sans-bold-14 in a 25 px box. Linux Biolinum's line is about twice
+		// the point size, so it is trimmed to fit, as the summary's dropdowns are.
 		Ref<FontVariation> bold;
 		bold.instantiate();
-		bold->set_base_font(ThemeDB::get_singleton()->get_fallback_font());
-		bold->set_variation_embolden(0.7f);
+		Ref<Font> face = ResourceLoader::get_singleton()->load("res://assets/fonts/LinBiolinum_RBah.ttf");
+		bold->set_base_font(face.is_valid() ? face : ThemeDB::get_singleton()->get_fallback_font());
+		bold->set_spacing(TextServer::SPACING_TOP, -6);
+		bold->set_spacing(TextServer::SPACING_BOTTOM, -5);
 		speed_menu_->add_theme_font_override("font", bold);
 		speed_menu_->add_theme_font_size_override("font_size", 14);
 		speed_menu_->set_visible(false);

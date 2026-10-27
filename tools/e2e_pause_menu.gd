@@ -193,7 +193,7 @@ func run() -> void:
 	await frames(2)
 	var dd: Control = main.find_child("GameSpeedDropdown", true, false)
 	var vw: float = root.get_visible_rect().size.x
-	check(dd != null and dd.visible and dd.get_global_rect().position.is_equal_approx(Vector2(vw - 390, 40)) and dd.size.x == 160.0 and dd.size.y >= 25.0
+	check(dd != null and dd.visible and dd.get_global_rect().position.is_equal_approx(Vector2(vw - 390, 40)) and dd.size == Vector2(160, 25)
 			and dd.tooltip_text == "Choose game speed" and dd.get_item_text(dd.get_selected()) == "Normal (1×)",
 			"the speed button opens the game speed dropdown: " + (str(dd.get_global_rect()) + " " + dd.get_item_text(dd.get_selected()) if dd else "none"))
 	if dd:
