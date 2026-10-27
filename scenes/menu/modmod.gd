@@ -379,7 +379,7 @@ func show_help() -> Control:
 	page.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(page)
 	var fade := ColorRect.new()
-	fade.color = Color(0, 0, 0, 0.6)
+	fade.color = Color8(0, 0, 0, 85)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	page.add_child(fade)
 	var dlg := Panel.new()
