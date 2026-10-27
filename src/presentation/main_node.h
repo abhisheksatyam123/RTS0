@@ -703,6 +703,7 @@ public:
 	Dictionary debug_selection_grid(bool select_all);
 	void debug_set_carry(int64_t unit_id, int res, int amount);
 	void debug_set_resource(int res, float amount);
+	Dictionary debug_player_state(int player);
 	bool debug_placing() const;
 	PackedInt32Array debug_highlight() const { return highlight_ids_; }
 	bool debug_structure_outlined(int64_t id) const;
@@ -728,7 +729,8 @@ public:
 		return out;
 	}
 	int64_t debug_guard_target(int64_t uid) const { return sim ? (int64_t)sim->unit_guard_target((uint32_t)uid) : 0; }
-	// The unit's current order: kind (UnitOrderKind), target and whether it may capture (allowCapture).
+	// The unit's current order: kind (UnitOrderKind), target and whether it may capture (allowCapture),
+	// with how it moves (formation, speed, action state, velocity, waypoints left).
 	Dictionary debug_unit_order(int64_t uid) const {
 		Dictionary d;
 		if (!sim) return d;
@@ -736,6 +738,19 @@ public:
 		d["kind"] = (int)o.kind;
 		d["target"] = (int64_t)o.target;
 		d["capture"] = (o.flags & rtso::ORDER_FLAG_ALLOW_CAPTURE) != 0;
+		d["formation"] = (int64_t)sim->formation_of_unit((uint32_t)uid);
+		d["has_order"] = sim->unit_has_order((uint32_t)uid);
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == (uint32_t)uid) {
+				d["speed"] = uv.speed[i];
+				d["state"] = (int)uv.action_state[i];
+				d["type"] = (int)uv.unit_type[i];
+				d["vel"] = Vector2(uv.vel_x[i], uv.vel_z[i]);
+				const float *xs = nullptr, *zs = nullptr;
+				d["waypoints"] = sim->unit_waypoints_left(i, &xs, &zs);
+				if (xs) d["next_wp"] = Vector2(xs[0], zs[0]);
+			}
 		return d;
 	}
 	// Tests: where a unit stands on screen (viewport pixels), or (-1, -1).

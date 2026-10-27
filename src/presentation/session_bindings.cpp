@@ -196,6 +196,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_selection_grid", "select_all"), &RtsoMain::debug_selection_grid);
 	ClassDB::bind_method(D_METHOD("debug_set_carry", "unit_id", "res", "amount"), &RtsoMain::debug_set_carry);
 	ClassDB::bind_method(D_METHOD("debug_set_resource", "res", "amount"), &RtsoMain::debug_set_resource);
+	ClassDB::bind_method(D_METHOD("debug_player_state", "player"), &RtsoMain::debug_player_state);
 	ClassDB::bind_method(D_METHOD("debug_placing"), &RtsoMain::debug_placing);
 	ClassDB::bind_method(D_METHOD("debug_highlight"), &RtsoMain::debug_highlight);
 	ClassDB::bind_method(D_METHOD("debug_selected_structures"), &RtsoMain::debug_selected_structures);
