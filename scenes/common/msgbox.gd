@@ -136,6 +136,8 @@ func _ready() -> void:
 		b.pressed.connect(_answer.bind(i))
 		main.add_child(b)
 	if timeout_ms > 0:
+		# tmcText: 18 40 100%-18 100%-64, under the timer line.
+		_text.offset_top = 40
 		_deadline = Time.get_ticks_msec() + timeout_ms
 		_update_timer(timeout_ms)
 
