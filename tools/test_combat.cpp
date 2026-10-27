@@ -1266,9 +1266,10 @@ static void test_razed_target() {
 }
 
 static void test_uphill_archer() {
-	std::printf("23. a ranged attacker walks into its elevation-adapted range\n");
-	// UnitAI MoveToTargetAttackRange: below its target an archer's parabolic range is shorter
-	// than its MaxRange, so it walks closer before it stops, or it would stand there unable to shoot.
+	std::printf("23. the terrain's rise doesn't change an attacker's range\n");
+	// Attack.js IsTargetInRange and UnitAI MoveToTargetAttackRange take GetEffectiveParabolicRange,
+	// whose height difference is each entity's height above the ground (GetHeightOffset), so an
+	// archer below its target stops at the same distance as on level ground and shoots it.
 	auto shoot = [](float hill, float &stood, float &taken) {
 		Simulation s;
 		setup(s);
@@ -1297,9 +1298,9 @@ static void test_uphill_archer() {
 	shoot(0.0f, flat_d, flat_hp);
 	shoot(3.0f, up_d, up_hp);
 	check(flat_hp > 0.0f, "on level ground the archer shoots its target");
-	check(up_d < flat_d - 1.0f && up_hp > 0.0f, "below its target it walks closer and shoots it");
+	check(std::fabs(up_d - flat_d) < 0.5f && up_hp > 0.0f, "below its target it stops as far away and shoots it");
 	{
-		// Likewise a structure up on the rise.
+		// A structure up on the rise.
 		Simulation s;
 		setup(s);
 		s.set_player_active(1, true, false);
@@ -1319,7 +1320,32 @@ static void test_uphill_archer() {
 		for (int k = 0; k < 600; ++k) s.tick(DT);
 		const int a = idx(s, archer);
 		std::printf("      house 4 up: archer at x %.2f, house -%.0f\n", s.units_.pos_x[a], hp0 - building(s, bid)->hp);
-		check(building(s, bid)->hp < hp0, "below a structure it walks closer and shoots it");
+		check(building(s, bid)->hp < hp0, "below a structure it shoots it");
+	}
+	{
+		// A spearman at the foot of a 1.5 m rise hits a house on it (it stood beside the house
+		// hitting nothing when the rise cut its melee range).
+		Simulation s;
+		setup(s);
+		s.set_player_active(1, true, false);
+		s.terrain_res_ = 257;
+		s.terrain_heights_.assign((size_t)s.terrain_res_ * s.terrain_res_, 0.0f);
+		for (int z = 0; z < s.terrain_res_; ++z)
+			for (int x = 0; x < s.terrain_res_; ++x) {
+				const float wx = -s.map_half_ + 2.0f * s.map_half_ * (float)x / (float)(s.terrain_res_ - 1);
+				s.terrain_heights_[(size_t)z * s.terrain_res_ + x] = 1.5f * std::clamp((wx - 22.2f) / 0.8f, 0.0f, 1.0f);
+			}
+		const uint32_t bid = s.spawn_building_world(24.0f, 0.0f, BLD_HOUSE, 1, 1.0f);
+		s.spawn_building_world(52.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
+		Simulation::Building *b = building(s, bid);
+		const uint32_t spear = s.spawn_unit(b->x - b->half_size - 1.0f, 0.0f, 0, UNIT_SPEARMAN);
+		const float hp0 = b->hp;
+		s.order_attack_building(&spear, 1, bid, false, false);
+		for (int k = 0; k < 100; ++k) s.tick(DT);
+		const int u = idx(s, spear);
+		std::printf("      house %.2f up: spearman at x %.2f, house -%.0f\n",
+				s.get_terrain_height(b->x, b->z) - s.unit_height((size_t)u), s.units_.pos_x[u], hp0 - building(s, bid)->hp);
+		check(building(s, bid)->hp < hp0, "a spearman below a structure hits it");
 	}
 }
 
