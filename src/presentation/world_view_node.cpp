@@ -780,7 +780,7 @@ void RtsoWorldView::load_unit_projectiles() {
 	if (d.is_empty()) return;
 	for (uint16_t t = 0; t < rtso::CIV_UNIT_TEMPLATE_COUNT; ++t) {
 		const String kind = d.get(String(rtso::civ_unit_template(t).id), "");
-		tmpl_projectile_[t] = kind == "javelin" ? 1 : (kind == "sling" ? 2 : 0);
+		tmpl_projectile_[t] = kind == "javelin" ? 1 : kind == "sling" ? 2 : kind == "javelin_fire" ? 3 : 0;
 	}
 }
 
@@ -2469,6 +2469,8 @@ void RtsoWorldView::load_ambient_fx() {
 	}
 	Array stone = Dictionary(root.get("projectiles", Dictionary())).get("stone", Array());
 	for (int j = 0; j < stone.size(); ++j) stone_fx_.push_back(String(stone[j]).utf8().get_data());
+	Array jav = Dictionary(root.get("projectiles", Dictionary())).get("javelin", Array());
+	for (int j = 0; j < jav.size(); ++j) javelin_fx_.push_back(String(jav[j]).utf8().get_data());
 	Dictionary run = root.get("run", Dictionary());
 	Array run_keys = run.keys();
 	for (int i = 0; i < run_keys.size(); ++i) {
@@ -5082,14 +5084,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto launched = [&](const rtso::Projectile &p) -> uint8_t {
 		if (p.visual != 0 || p.src_kind != 1 || p.src_tmpl >= tmpl_projectile_.size()) return 0;
 		const uint8_t k = tmpl_projectile_[p.src_tmpl];
-		return (k == 1 && javelin_mm.is_valid()) || (k == 2 && sling_mm.is_valid()) ? k : 0;
+		return ((k == 1 || k == 3) && javelin_mm.is_valid()) || (k == 2 && sling_mm.is_valid()) ? k : 0;
 	};
 	int arrow_n = 0, bolt_n = 0, stone_n = 0, jav_n = 0, sling_n = 0;
 	for (const auto &proj : projectiles) {
 		if (!entity_visible(proj.current_x, proj.current_z, proj.team)) continue;
 		if (proj.visual == 2) stone_n++;
 		else if (proj.visual == 1) bolt_n++;
-		else if (const uint8_t k = launched(proj)) (k == 1 ? jav_n : sling_n)++;
+		else if (const uint8_t k = launched(proj)) (k == 2 ? sling_n : jav_n)++;
 		else arrow_n++;
 	}
 	if (arrow_mm.is_valid()) set_mm_count(arrow_mm, arrow_n);
@@ -5131,9 +5133,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			xf.basis = xf.basis.scaled(Vector3(bolt_scale, bolt_scale, bolt_scale));
 			bolt_mm->set_instance_transform(bolt_i++, xf);
 		} else if (const uint8_t k = launched(proj)) {
-			const float sc = k == 1 ? javelin_scale : sling_scale;
+			const float sc = k == 2 ? sling_scale : javelin_scale;
+			if (k == 3) { // attack_ranged_javelinist_fire: jav_projectile_flame.xml's flame and smoke,
+				// at the drawn javelin's metre (2.09 units for 0.28's 3.13 m shaft)
+				load_ambient_fx();
+				emit_world_fx(javelin_fx_, pos, 2.09f / 3.13f, delta);
+			}
 			xf.basis = xf.basis.scaled(Vector3(sc, sc, sc));
-			if (k == 1) javelin_mm->set_instance_transform(jav_i++, xf);
+			if (k != 2) javelin_mm->set_instance_transform(jav_i++, xf);
 			else sling_mm->set_instance_transform(sling_i++, xf);
 		} else if (arrow_mm.is_valid()) {
 			xf.basis = xf.basis.scaled(Vector3(arrow_scale, arrow_scale, arrow_scale));

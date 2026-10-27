@@ -11,7 +11,7 @@
  "brit/infantry_javelineer_b": "javelin",
  "brit/infantry_slinger_b": "sling",
  "cart/cavalry_javelineer_b": "javelin",
- "cart/infantry_javelineer_iber_b": "javelin",
+ "cart/infantry_javelineer_iber_b": "javelin_fire",
  "cart/infantry_slinger_iber_b": "sling",
  "gaul/cavalry_javelineer_b": "javelin",
  "gaul/infantry_javelineer_b": "javelin",
