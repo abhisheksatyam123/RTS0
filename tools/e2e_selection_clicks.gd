@@ -304,6 +304,14 @@ func run() -> void:
 		check(hl.has(int(st["nearest_resource"])) or (!hl.is_empty() and int(hl[0]) > 0), "the tree or mine under the mouse is highlighted: %s" % str(hl))
 		# StatusBars.js: its ResourceSupply bar (background and foreground).
 		check(main.debug_status_sprites() >= 2, "it shows its supply bar (%d sprites)" % main.debug_status_sprites())
+		if hl.has(int(st["nearest_resource"])):
+			# selection.js addList plays a Gaia entity's select sound (sel_tree, sel_metal, ...).
+			button(rpos, MOUSE_BUTTON_LEFT, true)
+			await frames(1)
+			button(rpos, MOUSE_BUTTON_LEFT, false)
+			await frames(2)
+			var snd := str(main.get_audio_state()["last_sound"])
+			check(snd.contains("select/resource/sel_"), "clicking it plays its select sound: " + snd)
 	else:
 		check(false, "a supply near the unit")
 

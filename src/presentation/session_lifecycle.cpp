@@ -5,6 +5,7 @@
 #include "network/chat_routing.h"
 #include "main_node.h"
 #include "l10n.h"
+#include <array>
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <cmath>
 #include <godot_cpp/classes/time.hpp>
@@ -1348,6 +1349,7 @@ void RtsoMain::_process(double delta) {
 	if (ambient_player && !ambient_player->is_playing()) ambient_player->play();
 
 	// Update Building Placement Ghost (0 A.D. gui/session/building_placement.js:45-92 BuildPreview parity)
+	std::array<float, 4> preview_ring{}; // x, z, max and min range ring of the placed structure
 	if (build_mode) {
 		Vector2 mouse_pos = get_viewport()->get_mouse_position();
 		const bool wall_type = current_build_type == rtso::BLD_WALL_SEGMENT || current_build_type == rtso::BLD_PALISADE ||
@@ -1507,6 +1509,11 @@ void RtsoMain::_process(double delta) {
 
 				const auto placed = sim->check_placement(local_player(), cell_x, cell_y, current_build_type, ghost_angle);
 				const bool can_build = placed == rtso::Simulation::PLACE_OK;
+				if (const float r = sim->structure_arrow_range(local_player(), (uint8_t)current_build_type); r > 0.0f) {
+					const float half = footprint * 0.5f * rtso::Simulation::GRID;
+					const float min_r = rtso::civ_building_ai_info(sim->team_civ(local_player()), (uint8_t)current_build_type).min_range;
+					preview_ring = {gx, gz, r + half, min_r > 0.0f ? min_r + half : 0.0f};
+				}
 				ghost_mesh->set_material_override(can_build ? ghost_mat_ok : ghost_mat_bad);
 				String range_tip;
 				if (can_build) {
@@ -1540,6 +1547,7 @@ void RtsoMain::_process(double delta) {
 	rally_points_.update(sim, local_player(), sim->cinema_playing() || spectating() ? std::vector<uint32_t>() : selected_structures(),
 			player_flare_color(local_player()));
 	range_overlays_.tick((float)delta);
+	range_overlays_.set_preview(preview_ring[0], preview_ring[1], preview_ring[2], preview_ring[3]);
 	{
 		std::vector<uint32_t> ranged = selected_structures();
 		for (int i = 0; i < selected_ids.size(); ++i) ranged.push_back((uint32_t)selected_ids[i]);
