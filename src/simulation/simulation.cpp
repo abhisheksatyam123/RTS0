@@ -32945,7 +32945,9 @@ bool Simulation::petra_keep_garrisoned(size_t i, const Building &holder, const P
 	const bool heals = structure_garrison_heal(holder) > 0.0f && unit_is_human(type);
 	const bool needs_heal = heals && health < 1.0f;
 	if (heals && health < petra_config_.garrison_hp_high) return true;
-	if (petra_is_critical_ent(i)) // TYPE_EMERGENCY
+	// defenseManager.js:913-914: the critical entity's emergency garrison is TYPE_PROTECTION in a
+	// holder that heals (buffHeal), TYPE_EMERGENCY elsewhere.
+	if (petra_is_critical_ent(i) && structure_garrison_heal(holder) <= 0.0f) // TYPE_EMERGENCY
 		return around.unit || around.defense_structure || around.melee_siege ||
 			(around.range_siege && health < petra_config_.garrison_hp_high) || needs_heal;
 	if (unit_classes_at(i) & building_ai_info(holder.type).garrison_arrow_classes) { // the holder's GarrisonArrowClasses

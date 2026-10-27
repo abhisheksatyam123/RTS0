@@ -1790,6 +1790,40 @@ static void test_garrison_melee_attack() {
 	CHECK(around.melee_siege && !around.unit, "a melee war elephant counts as melee siege");
 }
 
+// defenseManager.js:913-914: the Regicide hero's emergency garrison follows the protection rules
+// in a holder that heals (a civic centre), the emergency rules elsewhere. A melee hero at 80%
+// health with only ranged siege about leaves a civic centre (protection: melee, not under 0.4),
+// where the emergency rules kept it until fully healed.
+static void test_regicide_hero_heal_holder() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_REGICIDE);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "AI 1 has a civic centre");
+	if (!cc) return;
+	const uint32_t hero = s->spawn_unit(cc->x + 6.0f, cc->z, 1, UNIT_SWORDSMAN);
+	s->regicide_hero_[1] = hero;
+	const size_t h = (size_t)s->lookup_unit(hero);
+	s->units_.hp[h] = s->units_.max_hp[h] * 0.8f;
+	const uint32_t tower = s->spawn_building_world(cc->x + 20.0f, cc->z + 20.0f, BLD_SENTRY_TOWER, 1, 1.0f);
+	const Simulation::Building &tw = s->buildings_[s->building_id_to_idx_.at(tower)];
+	cc = nullptr;
+	for (const auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	Simulation::PetraAround siege;
+	siege.range_siege = true;
+	const bool in_cc = s->petra_keep_garrisoned(h, *cc, siege);
+	const bool in_tower = s->petra_keep_garrisoned(h, tw, siege);
+	std::printf("  regicide hero at 80%% with ranged siege near: stays in the civic centre %d (heals %.1f), in a sentry tower %d (heals %.1f)\n",
+	            in_cc, s->structure_garrison_heal(*cc), in_tower, s->structure_garrison_heal(tw));
+	CHECK(s->petra_is_critical_ent(h), "the hero is the critical entity");
+	CHECK(!in_cc, "protection rules in a healing holder: a melee hero over 0.4 health leaves when only siege is near");
+}
+
 static void test_one_base_a_turn() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -8509,6 +8543,7 @@ int main(int argc, char **argv) {
 	RUN(test_garrisoned_workers_count);
 	RUN(test_gather_rate_civ_bonus);
 	RUN(test_garrison_melee_attack);
+	RUN(test_regicide_hero_heal_holder);
 	RUN(test_one_base_a_turn);
 	RUN(test_no_room_only_once_funded);
 	RUN(test_queue_plans_in_order);
