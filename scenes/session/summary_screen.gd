@@ -769,8 +769,10 @@ func _build() -> void:
 		line.offset_bottom = 122
 		_window.add_child(line)
 		_dividers.append(line)
-	var scroll := ScrollContainer.new()
+	var scroll := Control.new() # generalPanel: a fixed panel, clipped on a small window (no scrolling)
 	scroll.name = "GeneralPanel"
+	scroll.clip_contents = true
+	scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	frame.add_child(scroll)
 	_general = Control.new()

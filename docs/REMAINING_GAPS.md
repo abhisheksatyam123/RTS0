@@ -765,8 +765,8 @@ The summary page's skin and layout checked again against 0.28's gui/summary/, ta
 | SM8 | Heading boxes were top-aligned at y 16 or 34 and w wide; layout.js sizes them "(left-4) yStart (left+w+4) 69" and centres them, with yStart 0 for the score, market and miscellaneous columns | low | Fixed |
 | SM9 | The chart dropdowns used the regular face; ModernDropDown is sans-bold-14 | nit | Fixed |
 | SM10 | The chart legend never wrapped and spilled past the panel; chartLegend wraps, centred about 100%-20 | low | Fixed |
-| SM11 | The page's bold text is Godot's fallback face emboldened, not Linux Biolinum: Biolinum's taller line needs every fixed box rechecked first | low | Open |
-| SM12 | A small window scrolls the table; 0.28 clips it | nit | Open |
+| SM11 | The page's bold text is Godot's fallback face emboldened, not Linux Biolinum. Kept: every code-built session control (top panel, minimap, details, dialogs) draws in that face, and moving this page alone mixed the two faces on one screen (tried 2026-10-27) | low | Kept |
+| SM12 | A small window scrolled the table with a scrollbar; 0.28's generalPanel clips it | nit | Fixed |
 
 ### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
 

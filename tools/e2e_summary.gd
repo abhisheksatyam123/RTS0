@@ -128,6 +128,8 @@ func run() -> void:
 	var hbox: Control = s.find_child("Heading1", true, false).get_parent()
 	check(Rect2(hbox.position, hbox.size) == Rect2(246, 0, 128, 69), "Total score's heading box: " + str(Rect2(hbox.position, hbox.size)))
 	check(s._legend.autowrap_mode != TextServer.AUTOWRAP_OFF, "a long legend wraps")
+	var gp: Control = s.find_child("GeneralPanel", true, false)
+	check(gp != null and not gp is ScrollContainer and gp.clip_contents, "generalPanel clips the table, no scrollbar")
 	check(s.find_child("LobbyButton", true, false).tooltip_text.begins_with("[color=#fffb83]"), "and the lobby button's")
 	check(not s.find_child("ReplayButton", true, false).visible, "no Watch Replay in game")
 	var lobby_btn = s.find_child("LobbyButton", true, false)
