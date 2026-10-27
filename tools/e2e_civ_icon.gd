@@ -48,6 +48,8 @@ func run() -> void:
 	var tip: String = icon.tooltip_text
 	check(tip.contains(": View Civilization Overview") and tip.contains(": View Structure Tree")
 		and tip.ends_with("Last opened view will be reopened on click.") and not tip.begins_with("%"), "its tooltip: " + tip.replace("\n", " | "))
+	# CivTags sans-bold-16; colorizeHotkey's gold brackets (or "Unassigned hotkey: civinfo").
+	check(tip.begins_with("[font_size=16][b]") and tip.contains("[color=#fffb83][lb]") and tip.contains("[rb][/color]: View Civilization Overview"), "the civ name in bold 16, the hotkeys in gold")
 
 	main.toggle_chat()
 	await frames(1)
