@@ -1074,7 +1074,9 @@ static void test_petra_overseas_base() {
 	static Simulation s;
 	fresh(s);
 	s.set_player_active(1, true, true);
-	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	// Food in stock, so the south land's workers are wanted on its wood: with food short they
+	// would rightly sail back north for it (reassignIdleWorkers picks the most needed resource).
+	s.set_player_resources(1, 20000, 5000, 5000, 5000);
 	s.players_[1].phase = 2;
 	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
 	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
