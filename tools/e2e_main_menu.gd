@@ -170,6 +170,8 @@ func run() -> void:
 		var labels: Array = mp.find_children("*", "Label", true, false).map(func(l): return l.text)
 		check(labels.has("Multiplayer") and labels.has("Joining an existing game.") and labels.has("Player Name:")
 			and labels.has("Server Hostname or IP:") and labels.has("Server Port:"), "pageJoin: " + str(labels))
+		check(mp.find_children("*", "Label", true, false).all(func(l): return l.get_theme_font("font") is FontVariation and l.get_theme_font_size("font_size") == 14),
+			"its title, heading and labels are ModernLabelText (bold 14)")
 		check(mp.join_player_name.text == mpname and mp.join_server.text == "192.0.2.7" and mp.join_port.text == "20595"
 			and mp.join_port.tooltip_text == "Leave blank to use the default port.",
 			"the last server, the default port for none, the multiplayer name")
