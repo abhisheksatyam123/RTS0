@@ -17580,6 +17580,10 @@ void Simulation::promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_ran
 	}
 	units_.rank[i] = target_rank;
 	units_.hp[i] = frac * units_.max_hp[i];
+	// The new entity's Attack starts its own timer (Attack.js StartAttacking): a unit promoted
+	// mid-attack strikes after its PrepareTime, not the rest of the old RepeatTime.
+	if (attack_under_way(i))
+		units_.attack_timer[i] = -std::max(unit_combat_at(i).prepare, 2.0f * ATTACK_DUE);
 }
 
 void Simulation::promote_if_due(size_t i) {
@@ -18167,13 +18171,21 @@ float Simulation::projectile_damage_to_structure(const Projectile &p, const Buil
 void Simulation::tick_attack_timer(size_t i, float dt) {
 	float &tm = units_.attack_timer[i];
 	if (tm == ATTACK_DUE) tm = 0.0f; // nothing took last tick's hit: Attack.js StopAttacking
+	if (i < attack_late_.size()) attack_late_[i] = 0.0f;
 	const uint8_t st = units_.action_state[i];
 	if (st == ACTION_GATHER) return; // tick_gather counts its harvests on it
 	if (tm < 0.0f) {
 		const bool fighting = st == ACTION_IDLE || st == ACTION_MOVE || st == ACTION_ATTACK ||
 				st == ACTION_ATTACK_MOVE || st == ACTION_PATROL || st == ACTION_GUARD;
 		if (!fighting) tm = -tm; // the attack stopped (stop_attack); the rest of it still applies
-		else if ((tm += dt) >= 0.0f) tm = ATTACK_DUE;
+		// Timer.js reschedules from the due time, so float drift in the sum must not push a
+		// hit a tick late (twenty 0.05 s steps fall just short of 1 s).
+		else if ((tm += dt) >= -1.0e-4f) {
+			// The next hit is timed from this one's due time, not from the tick it landed in.
+			if (attack_late_.size() <= i) attack_late_.resize(units_.count > i ? units_.count : i + 1, 0.0f);
+			attack_late_[i] = std::max(tm, 0.0f);
+			tm = ATTACK_DUE;
+		}
 	} else if (tm > 0.0f) {
 		tm = std::max(0.0f, tm - dt);
 		if (tm == ATTACK_DUE) tm = 0.0f;
@@ -18205,7 +18217,10 @@ bool Simulation::attack_under_way(size_t i) const {
 // After a hit, Attack.js checks the range: in reach the next comes after RepeatTime,
 // out of reach the unit stops attacking (and must wait the rest of RepeatTime anyway).
 void Simulation::attack_done(size_t i, bool in_range, float repeat) {
-	units_.attack_timer[i] = in_range ? -repeat : repeat;
+	float late = 0.0f;
+	if (i < attack_late_.size()) std::swap(late, attack_late_[i]);
+	const float left = repeat - std::min(late, repeat);
+	units_.attack_timer[i] = in_range ? -std::max(left, 2.0f * ATTACK_DUE) : left;
 }
 
 // Attack.js RepeatRangeCheck (0.28): between hits, ceil(RepeatTime / 1 s) range checks
