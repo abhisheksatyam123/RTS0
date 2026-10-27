@@ -4184,6 +4184,28 @@ static void test_plan_class_sizes_sum() {
 	}
 }
 
+// config.js setConfig draws each AI's personality from the game's AI seed: every bit of the
+// match seed counts (seeds 2k and 2k+1 drew the same personalities when the seed was ORed with 1).
+static void test_personality_seed_bits() {
+	auto s = std::make_unique<Simulation>();
+	int same = 0;
+	for (uint32_t k = 1; k <= 8; ++k) {
+		float agg[2];
+		for (int b = 0; b < 2; ++b) {
+			s->set_sim_seed(2 * k + (uint32_t)b);
+			s->reset();
+			PetraConfig c;
+			c.difficulty = PETRA_MEDIUM;
+			c.behavior = PETRA_BEHAVIOR_RANDOM;
+			c.recompute(s->petra_personality_seed(1));
+			agg[b] = c.aggressive;
+		}
+		if (agg[0] == agg[1]) ++same;
+	}
+	std::printf("  seeds 2k and 2k+1 with the same personality: %d of 8\n", same);
+	CHECK(same == 0, "neighbouring match seeds draw different personalities");
+}
+
 // attackPlan.js trainMoreUnits: when the order furthest behind has no template, the order is
 // deleted and nothing is queued that turn; the next order trains on the plan's next turn.
 // Each order trains in the queue its classes name, not the template's: the "Siege" order's war
@@ -8168,6 +8190,11 @@ static void test_dropsites() {
 	s->petra_check_resource_levels(1001);
 	CHECK(dc.used[1] == 0 && dc.lost[1] == 0 && dc.next_check[1] == 1001, "a storehouse foundation restarts the counts");
 	CHECK(count(BLD_STOREHOUSE, false) == stores + 1, "one storehouse at a time");
+	// buildFarmstead waits for a house: give it one if the opening hasn't laid it yet.
+	if (count(BLD_HOUSE, false) == 0) {
+		int hx = 0, hz = 0;
+		if (s->petra_find_position(BLD_HOUSE, nullptr, nullptr, false, hx, hz)) s->spawn_building(hx, hz, BLD_HOUSE, 1, 1.0f);
+	}
 	const int farms = count(BLD_FARMSTEAD, false);
 	s->petra_build_farmstead();
 	s->petra_build_farmstead();
@@ -9522,6 +9549,7 @@ int main(int argc, char **argv) {
 	RUN(test_trained_units_join_their_plan);
 	RUN(test_plan_cost_weights_kept);
 	RUN(test_plan_class_sizes_sum);
+	RUN(test_personality_seed_bits);
 	RUN(test_attack_order_no_template);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);

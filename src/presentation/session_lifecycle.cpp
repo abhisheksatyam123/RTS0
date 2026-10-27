@@ -1472,10 +1472,11 @@ void RtsoMain::_process(double delta) {
 				set_placement_tip(wall_fail_tip_, true);
 			} else if (sim && wall_drag_mode && !pieces.empty()) {
 				rtso::CostTip cost;
-				cost.food = (int64_t)std::lround(wall_cost[rtso::RES_FOOD]);
-				cost.wood = (int64_t)std::lround(wall_cost[rtso::RES_WOOD]);
-				cost.stone = (int64_t)std::lround(wall_cost[rtso::RES_STONE]);
-				cost.metal = (int64_t)std::lround(wall_cost[rtso::RES_GOLD]);
+				// multiplyEntityCosts: each summed cost floored.
+				cost.food = (int64_t)std::floor(wall_cost[rtso::RES_FOOD] + 1e-4f);
+				cost.wood = (int64_t)std::floor(wall_cost[rtso::RES_WOOD] + 1e-4f);
+				cost.stone = (int64_t)std::floor(wall_cost[rtso::RES_STONE] + 1e-4f);
+				cost.metal = (int64_t)std::floor(wall_cost[rtso::RES_GOLD] + 1e-4f);
 				cost.time = (int64_t)std::lround(wall_time);
 				const auto &ps = sim->player(local_player());
 				// getEntityCostTooltip: "Cost:" in headerFont and resource icons; getNeededResourcesTooltip.
