@@ -177,7 +177,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		// 500 ms centres the camera on the group. With gui.session.disjointcontrolgroups
 		// ("Single", the default) a unit saved to one group leaves the others
 		// (EntityGroupsContainer.addEntities); "Multiple" keeps it in them.
-		for (int g = 1; g <= 10; ++g) {
+		// input.js handles selection.group.* only in INPUT_NORMAL: not while placing, with an
+		// action or flare armed, band-boxing, holding the right button or batch training.
+		for (int g = 1; g <= 10 && input_normal(); ++g) {
 			const int grp = g % 10;
 			const std::string n = std::to_string(g);
 			const bool sel = fired(("selection.group.select." + n).c_str());
@@ -444,11 +446,17 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (CanvasLayer *menu = Object::cast_to<CanvasLayer>(get_node_or_null(NodePath("PauseMenu"))); menu && menu->is_visible())
 				_on_menu_button_pressed();
 
+		// input.js INPUT_UNIT_POSITION_START / INPUT_UNIT_POSITION: with the right button held a
+		// left press does nothing, and the left release drops the coming right-click order.
+		if (mb->get_button_index() == MOUSE_BUTTON_LEFT && right_line_.active && !dragging) {
+			if (!mb->is_pressed()) right_line_ = RightLine();
+			return;
+		}
 		if (mb->get_button_index() == MOUSE_BUTTON_LEFT) {
 			if (mb->is_pressed()) {
-				// Hold K and click to send a flare (0 A.D. session.flare), or click once
-				// the flare button armed it (INPUT_FLARE).
-				if (flare_armed_ || flare_held()) {
+				// Hold K and click to send a flare (0 A.D. session.flare, INPUT_NORMAL only), or
+				// click once the flare button armed it (INPUT_FLARE).
+				if (flare_armed_ || (flare_held() && input_normal())) {
 					flare_armed_ = false;
 					const Vector3 click_pos = get_ground_click_pos(mouse_pos);
 					trigger_flare(click_pos.x, click_pos.z);
@@ -498,6 +506,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					// The site is fixed at the press; the release places it (input.js INPUT_BUILDING_CLICK).
 					auto [cell_x, cell_y] = mouse_cell(mouse_pos);
 					build_click_pending = true;
+					build_click_dragged_ = false;
 					build_click_screen = mouse_pos;
 					build_click_ground = get_ground_click_pos(mouse_pos);
 					build_click_cell_x = cell_x;
@@ -528,7 +537,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				if (sim) {
 					// selection.js addList: Control all units selects anyone visible.
 					const size_t hit = click_pick_unit(mouse_pos, sim->controls_all(local_player()) || observer_all_view());
-					press_pick_unit_ = hit == (size_t)-1 ? 0 : sim->units().id[hit];
+					// input.js:859-862: a double or triple click keeps the first click's unit,
+					// unless that one missed.
+					if (click_count_ == 1 || press_pick_unit_ == 0) press_pick_unit_ = hit == (size_t)-1 ? 0 : sim->units().id[hit];
 				}
 				sel_rect->set_rect(drag_start, mouse_pos, true);
 			} else {
@@ -558,7 +569,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						if (order_one) pop_from_selection(selected_ids, one_builder);
 						if (!queued || selected_ids.is_empty()) enter_build_mode(false);
 					};
-					if (turn_cmds()) {
+					// tryPlaceBuilding: an invalid preview sends nothing and plays
+					// invalid_building_placement; placement goes on (INPUT_BUILDING_PLACEMENT).
+					if (turn_cmds() && sim->check_placement(local_player(), cell_x, cell_y, current_build_type, angle) != rtso::Simulation::PLACE_OK) {
+						session_audio_.play_invalid_placement();
+					} else if (turn_cmds()) {
 						const uint32_t flags = (queued ? rtso::NET_BUILD_QUEUED : 0) | (push_front ? rtso::NET_BUILD_PUSH_FRONT : 0);
 						post_lockstep(5, builders, builder_n,
 								(float)cell_x, (float)cell_y, rtso::Simulation::pack_angle(angle) | flags, current_build_type);
@@ -855,6 +870,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed() && flare_armed_) {
 			flare_armed_ = false; // INPUT_FLARE: a right click cancels the flare
 			return;
+		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed() && !replaying_right_ && flare_held() &&
+				input_normal()) {
+			// input.js INPUT_NORMAL: with session.flare held, a press of any button sends a flare.
+			const Vector3 click_pos = get_ground_click_pos(mouse_pos);
+			trigger_flare(click_pos.x, click_pos.z);
+			return;
 		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed()) {
 			// input.js INPUT_PRESELECTEDACTION: a right press only drops the armed action, and
 			// its release gives no order.
@@ -867,9 +888,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				enter_build_mode(false);
 				return;
 			}
-			// input.js INPUT_NORMAL right button: with units selected, wait for the release, which
-			// either gives the usual order or, after a drag, spreads them along the drawn line.
-			if (!replaying_right_ && !selected_ids.is_empty() && orders_allowed()) {
+			// input.js INPUT_NORMAL right button: wait for the release, which gives the usual order
+			// (a structure's rally point too) or, after a drag, spreads the units along the drawn line.
+			if (!replaying_right_ && (!selected_ids.is_empty() || selected_building_id != 0) && orders_allowed()) {
 				right_line_ = RightLine();
 				right_line_.active = true;
 				right_line_.start = mouse_pos;

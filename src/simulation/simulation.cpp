@@ -9,6 +9,7 @@
 #include "nav/rasterize.h"
 #include "../core/job_system.h"
 #include <cstdio>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <numeric>
@@ -154,14 +155,16 @@ static constexpr int BUILDING_AI_ROUNDS = 20; // BuildingAI.js roundCount
 static constexpr uint32_t SAVE_VERSION_LOOT = 19;
 
 namespace {
-// Accumulates wall-clock microseconds for Simulation::MapScaleStats.
+// Accumulates wall-clock microseconds for Simulation::MapScaleStats. Atomic adds, as find_path
+// runs in move_units' parallel jobs.
 struct ScopedUs {
 	uint64_t &us, &calls;
 	std::chrono::high_resolution_clock::time_point t0 = std::chrono::high_resolution_clock::now();
 	ScopedUs(uint64_t &us_, uint64_t &calls_) : us(us_), calls(calls_) {}
 	~ScopedUs() {
-		us += (uint64_t)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - t0).count();
-		++calls;
+		const uint64_t d = (uint64_t)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - t0).count();
+		std::atomic_ref<uint64_t>(us).fetch_add(d, std::memory_order_relaxed);
+		std::atomic_ref<uint64_t>(calls).fetch_add(1, std::memory_order_relaxed);
 	}
 };
 constexpr int kUnitGridRes = 64; // 64x64 grid cells (2.0m per cell over 128m map)
@@ -7054,7 +7057,7 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 			Walk &w = walks[k];
 			nav_grid_.find_path(units_.pos_x[w.idx], units_.pos_z[w.idx], w.dest_x, w.dest_z, w.wp, w.pass);
 		}, 1);
-		if (!walks.empty()) map_scale_stats_.path_calls += walks.size() - 1; // ScopedUs counts one
+		if (!walks.empty()) std::atomic_ref<uint64_t>(map_scale_stats_.path_calls).fetch_add(walks.size() - 1, std::memory_order_relaxed); // ScopedUs counts one
 	}
 
 	ensure_unit_paths();
@@ -34122,15 +34125,15 @@ bool Simulation::petra_near_invading_army(float x, float z, float dist2) const {
 
 void Simulation::petra_manage_defense(float dt) {
 	// defenseManager.js update: every AI turn.
-	const float elapsed = dt;
+	(void)dt;
 	petra_defense_timer_ = 0.0f;
 	petra_manage_garrisons();
 
 	auto &armies = petra_defense_armies_;
-	// defenseArmy.js update checks breakaways every 5 s; defenseManager.js:321 checks every
-	// fifth played turn whether an army is still dangerous.
+	// defenseArmy.js update checks an army's breakaways once its position is more than 5 s
+	// old; defenseManager.js:321 checks every fifth played turn whether an army is still
+	// dangerous.
 	const float now = game_time();
-	const bool breakaway_check = (int)(now / 5.0f) != (int)((now - elapsed) / 5.0f);
 	const bool danger_check = petra_turn_mod(5);
 
 	auto in_attack_squad = [&](uint32_t uid) {
@@ -34237,10 +34240,12 @@ void Simulation::petra_manage_defense(float dt) {
 			const float dx = fx - ax, dz = fz - az;
 			if (dx * dx + dz * dz > compact2) continue;
 			a.foe_ids.push_back(fid);
+			a.position_last_update = 0.0f; // addFoe
 			return;
 		}
 		armies.emplace_back();
 		armies.back().foe_ids.push_back(fid);
+		armies.back().position_last_update = now;
 	};
 	const PetraBase *home = get_primary_petra_base();
 	// defenseManager.js targetList (petra_defense_targets_).
@@ -34341,7 +34346,7 @@ void Simulation::petra_manage_defense(float dt) {
 				if (petra_garrison_attacked_unit((size_t)idx, false, incoming)) continue;
 			}
 			if (has_dest && !mutual_land(units_.pos_x[idx], units_.pos_z[idx])) order_walk(&uid, 1, dest_x, dest_z, false);
-			else if (units_.action_state[idx] == ACTION_ATTACK) cmd_stop(&uid, 1); // stopMoving
+			else cmd_stop(&uid, 1); // stopMoving: a Stop order, which drops what it had queued too
 		}
 		a.defender_ids.clear();
 		a.foe_ids.clear();
@@ -34502,15 +34507,14 @@ void Simulation::petra_manage_defense(float dt) {
 		return true;
 	};
 	std::vector<uint32_t> breakaways;
-	if (breakaway_check) {
+	{
 		for (PetraDefenseArmy &a : armies) {
 			float ax, az;
-			if (petra_army_capturing(a) || !petra_army_position(a, ax, az)) continue;
-			// defenseManager.js assignDefenders recalculates the position of an army still needing
-			// defenders every turn, so its positionLastUpdate never ages past 5 s (DA:612): it
-			// sheds no breakaways.
-			Need n{0, 0.0f, 0.0f, 0.0f, 0, -1};
-			if (army_need(a, n) && n.need > 0.0f) continue;
+			// An army still needing defenders had its position updated by last turn's
+			// assignDefenders (DM:421), so it sheds none.
+			if (petra_army_capturing(a) || now - a.position_last_update <= 5.0f) continue;
+			a.position_last_update = now;
+			if (!petra_army_position(a, ax, az)) continue;
 			a.foe_ids.erase(std::remove_if(a.foe_ids.begin(), a.foe_ids.end(), [&](uint32_t fid) {
 				float fx = ax, fz = az;
 				petra_army_foe_pos(fid, fx, fz);
@@ -34540,6 +34544,7 @@ void Simulation::petra_manage_defense(float dt) {
 			a.foe_ids.insert(a.foe_ids.end(), b.foe_ids.begin(), b.foe_ids.end());
 			a.defender_ids.insert(a.defender_ids.end(), b.defender_ids.begin(), b.defender_ids.end());
 			armies.erase(armies.begin() + (ptrdiff_t)j--);
+			a.position_last_update = now; // merge: recalculatePosition(force)
 			petra_army_position(armies[i], ix, iz);
 		}
 	}
@@ -34549,6 +34554,7 @@ void Simulation::petra_manage_defense(float dt) {
 	if (danger_check) {
 		for (size_t k = 0; k < armies.size(); ++k) {
 			float ax, az;
+			armies[k].position_last_update = now; // recalculatePosition (DM:328)
 			if (!petra_army_position(armies[k], ax, az)) continue;
 			const int owner = territory_owner_at(ax, az);
 			if (owner >= 0 && !petra_foe(owner)) continue;
@@ -34566,7 +34572,9 @@ void Simulation::petra_manage_defense(float dt) {
 				keep = reach > 0.0f && dx * dx + dz * dz <= reach * reach;
 			}
 			if (keep) continue;
-			switch_to_attack(armies[k]);
+			// Only an army leaving through neutral land turns into an attack; one back in its
+			// own (enemy) territory is just cleared (defenseManager.js checkEnemyArmies).
+			if (owner < 0) switch_to_attack(armies[k]);
 			clear_army(armies[k]);
 			armies.erase(armies.begin() + (ptrdiff_t)k--);
 		}
@@ -34654,6 +34662,7 @@ void Simulation::petra_manage_defense(float dt) {
 			if (lost <= 0.0f || lost < std::ceil(0.25f * b.capture_points_by_team[petra_pid_])) continue;
 			armies.emplace_back();
 			armies.back().foe_ids.push_back(b.id);
+			armies.back().position_last_update = now;
 			break;
 		}
 	}
@@ -34665,6 +34674,7 @@ void Simulation::petra_manage_defense(float dt) {
 			if (territory_owner_at(b.x, b.z) != petra_pid_) continue;
 			armies.emplace_back();
 			armies.back().foe_ids.push_back(b.id);
+			armies.back().position_last_update = now;
 		}
 	}
 	if (armies.empty()) return;
@@ -34673,7 +34683,9 @@ void Simulation::petra_manage_defense(float dt) {
 	std::vector<Need> needs;
 	for (size_t a = 0; a < armies.size(); ++a) {
 		Need n{a, 0.0f, 0.0f, 0.0f, 0, -1};
-		if (army_need(armies[a], n) && n.need > 0.0f) needs.push_back(n);
+		if (!army_need(armies[a], n) || n.need <= 0.0f) continue;
+		armies[a].position_last_update = now; // recalculatePosition (DM:421)
+		needs.push_back(n);
 	}
 	if (!needs.empty()) {
 		// Units that can fight and have nothing more pressing to do, nearest to an army first.
@@ -37647,6 +37659,9 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				active = !v.empty();
 			}
 			ids(def); ids(foe); ar.pod(cx); ar.pod(cz); ar.pod(active);
+			std::vector<float> updated; // positionLastUpdate per army
+			if constexpr (!Ar::loading) for (const PetraDefenseArmy &a : v) updated.push_back(a.position_last_update);
+			if (ar.version >= Simulation::SAVE_VERSION_PETRA_ARMY_POSITION_TIME) io_vec(ar, updated, 64, [&](float &f) { ar.pod(f); });
 			if constexpr (Ar::loading) {
 				v.clear();
 				if (active) {
@@ -37660,6 +37675,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					};
 					split(def, &PetraDefenseArmy::defender_ids);
 					split(foe, &PetraDefenseArmy::foe_ids);
+					for (size_t a = 0; a < v.size() && a < updated.size(); ++a) v[a].position_last_update = updated[a];
 					if (v.size() > 64) ar.ok = false;
 				}
 			}
