@@ -189,7 +189,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 125; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 126; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_STRUCTURE_OFF = 126; // each map structure's template switches (Building::template_off)
 	static constexpr uint32_t SAVE_VERSION_CAPTURE_TIMER = 125; // each structure's capture regen timer (Capturable.js CheckTimer)
 	static constexpr uint32_t SAVE_VERSION_PETRA_ORDER_NAME = 124; // the Petra plan name and unitStat each queued batch is for
 	static constexpr uint32_t SAVE_VERSION_BOARD_BEST = 123; // each Petra boarding passenger's nearest approach to its ship
@@ -443,16 +444,28 @@ public:
 		// garrisonManager.js addDecayingStructure(justCaptured): a Barracks-class structure
 		// captured while decaying, which its owner's AI garrisons until the decay stops.
 		bool petra_decay_hold = false;
+		// The parts a map structure's own template switches off (palisades_fort: Upgrade and
+		// Researcher; uffington_horse: GarrisonHolder, Researcher, Trainer, BlockMovement):
+		// STRUCT_OFF_* bits. Saved from SAVE_VERSION_STRUCTURE_OFF.
+		uint8_t template_off = 0;
 	};
 	// Whether `b` is rasterized into the nav grid (0 A.D. Obstruction BlockPathfinding). A locked
 	// gate blocks paths once it has shut (Gate.js CloseGate), not while it is still open.
+	enum StructureOff : uint8_t {
+		STRUCT_OFF_UPGRADE = 1, STRUCT_OFF_RESEARCH = 2, STRUCT_OFF_TRAIN = 4, STRUCT_OFF_GARRISON = 8,
+		STRUCT_OFF_BLOCK = 16, // Obstruction BlockMovement and BlockPathfinding false
+	};
+	// Whether `b`'s obstruction blocks movement at all (its type's, unless its template says not).
+	static bool structure_blocks(const Building &b) {
+		return building_blocks_movement(b.type) && !(b.template_off & STRUCT_OFF_BLOCK);
+	}
 	static bool blocks_pathfinding(const Building &b) {
-		return building_blocks_movement(b.type) && (!is_gate_type(b.type) || (b.gate_locked && !b.gate_open));
+		return structure_blocks(b) && (!is_gate_type(b.type) || (b.gate_locked && !b.gate_open));
 	}
 	// Whether units collide with `b` right now (0 A.D. Obstruction BlockMovement).
 	// A foundation blocks nothing until it is committed (Foundation.js Commit).
 	static bool blocks_movement_now(const Building &b) {
-		return building_blocks_movement(b.type) && !(is_gate_type(b.type) && b.gate_open) &&
+		return structure_blocks(b) && !(is_gate_type(b.type) && b.gate_open) &&
 				(b.committed || b.build_progress >= 0.99f);
 	}
 
@@ -1639,10 +1652,20 @@ public:
 	// Upgrade.js DetermineUpgrades: that template's choices, its "{civ}" targets resolved
 	// with the owner's civ (the ones the owner's civ lacks dropped).
 	BuildingUpgradeInfo structure_upgrade(const Building &b, int choice) const {
+		if (b.template_off & STRUCT_OFF_UPGRADE) return {BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr};
 		return building_upgrade(b.type, structure_upgrade_civ(b), choice, structure_owner_civ(b));
 	}
 	int structure_upgrade_count(const Building &b) const {
+		if (b.template_off & STRUCT_OFF_UPGRADE) return 0;
 		return building_upgrade_count(b.type, structure_upgrade_civ(b), structure_owner_civ(b));
+	}
+	// Researcher: the techs this structure's own template lists (building_researches_tech).
+	bool structure_researches(const Building &b, uint8_t tech) const {
+		return !(b.template_off & STRUCT_OFF_RESEARCH) && building_researches_tech(b.type, tech, structure_template_civ(b));
+	}
+	// Trainer: whether it trains `tmpl` for an `owner_civ` holder (building_trains_template).
+	static bool structure_trains(const Building &b, uint8_t owner_civ, uint16_t tmpl) {
+		return !(b.template_off & STRUCT_OFF_TRAIN) && building_trains_template(b.type, b.civ, owner_civ, tmpl);
 	}
 	uint8_t structure_owner_civ(const Building &b) const {
 		return b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_GAIA;
@@ -2520,6 +2543,15 @@ public:
 		buildings_[it->second].territory_decay_rate = 0.0f;
 	}
 	// An "uncapturable|" template (elephantine.js's Kushite towers): no capture points at all.
+	// A map structure's template switches (STRUCT_OFF_*); GarrisonHolder off empties its room.
+	void set_structure_off(uint32_t building_id, uint8_t off) {
+		auto it = building_id_to_idx_.find(building_id);
+		if (it == building_id_to_idx_.end()) return;
+		Building &b = buildings_[it->second];
+		b.template_off = off;
+		b.garrison_cap = structure_garrison_cap(b);
+		if ((off & STRUCT_OFF_BLOCK) && !bulk_spawn_) rebuild_nav_grid();
+	}
 	void set_structure_uncapturable(uint32_t building_id) {
 		auto it = building_id_to_idx_.find(building_id);
 		if (it == building_id_to_idx_.end()) return;

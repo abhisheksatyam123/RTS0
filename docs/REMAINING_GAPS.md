@@ -510,8 +510,8 @@ The structures maps place (structures/palisades_fort, palisades_watchtower, the 
 | MS3 | Danubius villages below normalMapSize had sentry towers (arrows, garrison, territory) where danubius.js places palisades_watchtower, a palisade piece with none of those | low | Fixed (`tools/test_triggers.cpp`) |
 | MS4 | Danubius villages laid every house element as a Gallic house; fortressDanubiusVillage places a celt_hut, gaul/house, celt_longhouse and gaul/tavern (population 2, 5, 10, 10) | nit | Fixed (`tools/test_triggers.cpp`) |
 | MS5 | A captured pirate dock trained only the pirate ships; its Trainer removes only the warships from the dock list, so the captor's fishing boat and merchant ship stay | low | Fixed (`tools/test_map_structures.cpp`) |
-| MS6 | A player-owned palisades_fort (gallic_fields, the sandboxes) is a sentry tower that offers its upgrade and researches and keeps the sentry footprint and look; 0.28's has Upgrade and Researcher disabled and a 9.5 x 8.5 m footprint | low | Open (needs a per-structure flag in the save) |
-| MS7 | The Uffington Horse is a full wonder; its 0.28 template disables garrison, research and training and its obstruction blocks no movement | low | Open (needs a per-structure flag in the save) |
+| MS6 | A player-owned palisades_fort (gallic_fields, the sandboxes) was a sentry tower that offered its upgrade and researches; 0.28's has Upgrade, Researcher and Trainer disabled | low | Fixed (Building::template_off, save 126; `tools/test_map_structures.cpp`). It keeps the sentry tower's footprint and look, not the 9.5 x 8.5 m rock fort |
+| MS7 | The Uffington Horse was a full wonder; its 0.28 template disables garrison, research and training and its obstruction blocks neither movement nor pathfinding | low | Fixed (Building::template_off; `tools/test_map_structures.cpp`) |
 
 ### Petra building placement, twenty-sixth 0.28 pass (2026-10-27)
 
