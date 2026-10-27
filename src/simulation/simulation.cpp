@@ -22638,15 +22638,47 @@ std::vector<Simulation::PetraUnitStat> Simulation::petra_plan_unit_stats(uint8_t
 	if (kind == PETRA_ATTACK_RAID) {
 		stats[0].target = std::max(1, (int)petra_attack_mgr_.raid_target); // the raid plan's own size
 	} else {
-		int raw = 0;
-		for (const UnitStat &st : stats) raw += st.target;
-		const float variation = (float)petra_attack_mgr_.target_size / (pop_scaling * (float)raw);
-		for (UnitStat &st : stats) {
-			const int target = (int)std::ceil(variation * (float)st.target);
-			const int min = d < PETRA_EASY ? std::min(target, std::min(st.min, 2)) : std::min(st.min, target);
-			if (d < PETRA_EASY) st.batch = min;
-			st.target = std::max(1, (int)std::ceil(pop_scaling * (float)target));
-			st.min = (int)std::ceil(pop_scaling * (float)min);
+		// attackPlan.js:194-217 for a variation v, as petra_unit_stat_sizes computed it.
+		auto sizes_for = [&](float v, std::vector<UnitStat> &out) {
+			int sum_target = 0, sum_min = 0;
+			for (UnitStat &st : out) {
+				const int target = (int)std::ceil(v * (float)st.target);
+				const int min = d < PETRA_EASY ? std::min(target, std::min(st.min, 2)) : std::min(st.min, target);
+				if (d < PETRA_EASY) st.batch = min;
+				st.target = (int)std::ceil(pop_scaling * (float)target);
+				st.min = (int)std::ceil(pop_scaling * (float)min);
+				sum_target += st.target;
+				sum_min += st.min;
+			}
+			return std::make_pair(std::max(1, sum_target), std::max(1, std::min(sum_min, std::max(1, sum_target))));
+		};
+		// Only the sums are kept (target_size, min_size), but each scaled class size only grows
+		// with v, so a draw that gives both sums gives 0.28's per-class sizes. Try v on each
+		// side of every class's rounding step within the draw's range.
+		const float scale = d < PETRA_EASY ? 0.2f : d < PETRA_MEDIUM ? 0.6f : 1.0f;
+		const float lo = 0.8f * scale, hi = 1.2f * scale;
+		std::vector<float> tries = {lo, hi};
+		for (const UnitStat &st : stats)
+			for (int k = 1; st.target > 0 && (float)(k - 1) <= hi * (float)st.target; ++k) {
+				const float b = (float)k / (float)st.target;
+				if (b >= lo && b <= hi) { tries.push_back(b * 0.99999f); tries.push_back(b * 1.00001f); }
+			}
+		bool found = false;
+		for (float v : tries) {
+			if (v < lo || v > hi) continue;
+			std::vector<UnitStat> trial = stats;
+			const auto sums = sizes_for(v, trial);
+			if (sums.first == petra_attack_mgr_.target_size && sums.second == petra_attack_mgr_.min_size) {
+				stats = std::move(trial);
+				found = true;
+				break;
+			}
+		}
+		if (!found) { // a size set otherwise (a plan restarted with its squad): spread it evenly
+			int raw = 0;
+			for (const UnitStat &st : stats) raw += st.target;
+			sizes_for((float)petra_attack_mgr_.target_size / (pop_scaling * (float)raw), stats);
+			for (UnitStat &st : stats) st.target = std::max(1, st.target);
 		}
 	}
 	// addSiegeUnits: a Rush, Attack or HugeAttack adds siege engines of one class a building of
@@ -31793,18 +31825,19 @@ void Simulation::petra_check_paused_queues() {
 	for (size_t i = 0; i < units_.count && !has_fishing; ++i)
 		has_fishing = units_.alive[i] && units_.team[i] == petra_pid_ && units_.unit_type[i] == UNIT_FISHING_BOAT;
 	const int workers = petra_accounted_workers();
-	const int workers_min = std::min(std::max(12, (int)(24.0f * petra_config_pop_scaling())), petra_pop_phase2());
+	// queueManager.js:433 keeps the fraction (16.8 on Easy at 300 population).
+	const float workers_min = std::min(std::max(12.0f, 24.0f * petra_config_pop_scaling()), (float)petra_pop_phase2());
 	for (uint8_t q = 0; q < PETRA_Q_COUNT; ++q) {
 		bool pause = false;
 		if (!potential_base)
 			pause = q != PETRA_Q_DOCK && q != PETRA_Q_CIVIL_CENTRE;
-		else if (workers * 3 < workers_min)
+		else if ((float)(workers * 3) < workers_min)
 			pause = q != PETRA_Q_CITIZEN_SOLDIER && q != PETRA_Q_VILLAGER && q != PETRA_Q_EMERGENCY;
-		else if (workers * 3 < workers_min * 2)
+		else if ((float)(workers * 3) < workers_min * 2.0f)
 			pause = q == PETRA_Q_CIVIL_CENTRE || q == PETRA_Q_ECONOMIC_BUILDING || q == PETRA_Q_MILITARY_BUILDING ||
 			        q == PETRA_Q_DEFENSE_BUILDING || q == PETRA_Q_HEALER || q == PETRA_Q_MAJOR_TECH ||
 			        q == PETRA_Q_MINOR_TECH || q == PETRA_Q_PLAN || q == PETRA_Q_PLAN_CHAMP || q == PETRA_Q_PLAN_SIEGE;
-		else if (workers < workers_min)
+		else if ((float)workers < workers_min)
 			pause = q == PETRA_Q_CIVIL_CENTRE || q == PETRA_Q_DEFENSE_BUILDING || q == PETRA_Q_MAJOR_TECH ||
 			        q == PETRA_Q_PLAN_SIEGE || q == PETRA_Q_PLAN_CHAMP;
 		// needFarm, needCorral, needFish (configFirstBase): the first field, corral, dock or
