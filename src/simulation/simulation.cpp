@@ -388,46 +388,133 @@ struct UnitGrid {
 	// chains hold them (descending index), for a caller that tests many units per query.
 	struct Packed {
 		float x, z;
-		int32_t j;
+		uint32_t j; // the unit's index, with PACKED_FLAG set where pack()'s `flag` marks it (separation(): one that moves)
 	};
+	static constexpr uint32_t PACKED_FLAG = 0x80000000u;
 	uint32_t *packed_start = nullptr; // cell c's units are packed[packed_start[c] .. packed_start[c + 1])
 	Packed *packed = nullptr;
 
-	bool pack(Arena &arena, size_t n, const float *px, const float *pz) {
+	bool pack(Arena &arena, size_t n, const float *px, const float *pz, const uint8_t *flag = nullptr) {
 		const size_t cells = (size_t)res * res;
 		packed_start = arena.alloc_array<uint32_t>(cells + 1);
 		packed = arena.alloc_array<Packed>(n ? n : 1);
 		if (!packed_start || !packed) return false;
 		uint32_t k = 0;
-		for (size_t c = 0; c < cells; ++c) {
-			packed_start[c] = k;
-			for (int32_t j = head[c]; j >= 0; j = nxt[j]) packed[k++] = Packed{px[j], pz[j], j};
+		for (int zz = 0; zz < res; ++zz) {
+			// Only the row's occupied cells hold units; an empty cell starts where the next one does.
+			uint32_t *start = packed_start + (size_t)zz * res;
+			int x = 0;
+			for (uint64_t occ = occupied[zz]; occ; occ &= occ - 1) {
+				const int b = std::countr_zero(occ);
+				std::fill(start + x, start + b + 1, k);
+				for (int32_t j = head[zz * res + b]; j >= 0; j = nxt[j])
+					packed[k++] = Packed{px[j], pz[j], (uint32_t)j | (flag && flag[j] ? PACKED_FLAG : 0u)};
+				x = b + 1;
+			}
+			std::fill(start + x, start + res, k);
 		}
 		packed_start[cells] = k;
 		return true;
 	}
 
-	// visit_radius_within() over the packed units: the same units in the same order.
-	template <typename Fn>
-	void visit_packed_within(float x, float z, float radius, float reach, Fn &&fn) const {
-		int cr = std::max(1, (int)std::ceil(radius * inv) + 1);
-		int cx = std::clamp((int)((x + half) * inv), 0, res - 1);
-		int cz = std::clamp((int)((z + half) * inv), 0, res - 1);
-		int x0 = std::max(0, cx - cr);
-		int x1 = std::min(res - 1, cx + cr);
-		int z0 = std::max(0, cz - cr);
-		int z1 = std::min(res - 1, cz + cr);
-		if (reach < radius + (float)cr / inv) {
-			auto axis = [this](float f) { return std::clamp((int)((f + half) * inv), 0, res - 1); };
-			x0 = std::max(x0, axis(x - reach));
-			x1 = std::min(x1, axis(x + reach));
-			z0 = std::max(z0, axis(z - reach));
-			z1 = std::min(z1, axis(z + reach));
+	// The packed units without PACKED_FLAG (separation(): those that stand) and those with it, each in
+	// the same order, and how many without it come before each packed unit (unflagged_before, one
+	// more for the end): the packed units [a, b) hold unflagged[unflagged_before[a] ..
+	// unflagged_before[b]) and flagged[a - unflagged_before[a] .. b - unflagged_before[b]).
+	Packed *unflagged = nullptr;
+	Packed *flagged = nullptr;
+	uint32_t *unflagged_before = nullptr;
+	bool split_flagged(Arena &arena) {
+		const uint32_t total = packed_start[(size_t)res * res];
+		unflagged = arena.alloc_array<Packed>(total ? total : 1);
+		flagged = arena.alloc_array<Packed>(total ? total : 1);
+		unflagged_before = arena.alloc_array<uint32_t>((size_t)total + 1);
+		if (!unflagged || !flagged || !unflagged_before) return false;
+		uint32_t m = 0;
+		for (uint32_t k = 0; k < total; ++k) {
+			unflagged_before[k] = m;
+			if (packed[k].j & PACKED_FLAG) flagged[k - m] = packed[k];
+			else unflagged[m++] = packed[k];
 		}
-		if (x0 > x1) return;
+		unflagged_before[total] = m;
+		return true;
+	}
+
+	int axis_cell(float f) const { return std::clamp((int)((f + half) * inv), 0, res - 1); }
+
+	// The cells visit_radius_within() visits: columns x0..x1 of rows z0..z1; false for none.
+#if defined(__GNUC__)
+	[[gnu::always_inline]] // once per query, for every entity in separation()'s pass
+#endif
+	bool packed_box(float x, float z, float radius, float reach, int &x0, int &x1, int &z0, int &z1) const {
+		const int cr = std::max(1, (int)std::ceil(radius * inv) + 1);
+		const int cx = axis_cell(x), cz = axis_cell(z);
+		x0 = std::max(0, cx - cr);
+		x1 = std::min(res - 1, cx + cr);
+		z0 = std::max(0, cz - cr);
+		z1 = std::min(res - 1, cz + cr);
+		if (reach < radius + (float)cr / inv) {
+			x0 = std::max(x0, axis_cell(x - reach));
+			x1 = std::min(x1, axis_cell(x + reach));
+			z0 = std::max(z0, axis_cell(z - reach));
+			z1 = std::min(z1, axis_cell(z + reach));
+		}
+		return x0 <= x1;
+	}
+
+	// visit_radius_within() over the packed units: the same units in the same order; with
+	// `unflagged_only`, only those without PACKED_FLAG (split_flagged()), still in that order.
+	// `unflagged_only` and visit_flagged_or_near() read the lists split_flagged() builds: call it after
+	// pack() and before either (separation() does).
+	template <typename Fn>
+	void visit_packed_within(float x, float z, float radius, float reach, bool unflagged_only, Fn &&fn) const {
+		int x0, x1, z0, z1;
+		if (!packed_box(x, z, radius, reach, x0, x1, z0, z1)) return;
 		for (int zz = z0; zz <= z1; ++zz) {
 			const size_t row = (size_t)zz * res;
-			for (uint32_t k = packed_start[row + x0], e = packed_start[row + x1 + 1]; k < e; ++k) fn(packed[k]);
+			const uint32_t a = packed_start[row + x0], b = packed_start[row + x1 + 1];
+			const Packed *e = packed + a, *end = packed + b;
+			if (unflagged_only) {
+				e = unflagged + unflagged_before[a];
+				end = unflagged + unflagged_before[b];
+			}
+			for (; e < end; ++e) fn(*e);
+		}
+	}
+
+	// visit_packed_within()'s units with PACKED_FLAG, and of those without it only the ones in the
+	// cells that can hold a unit within `near` of (x, z) on both axes, all still in that order. The
+	// cell mapping is monotonic, so each it passes over is `near` or further from (x, z) on an axis,
+	// as nearly as float rounding takes it.
+	template <typename Fn>
+	void visit_flagged_or_near(float x, float z, float radius, float reach, float near, Fn &&fn) const {
+		int x0, x1, z0, z1;
+		if (!packed_box(x, z, radius, reach, x0, x1, z0, z1)) return;
+		const int nx0 = std::max(x0, axis_cell(x - near)), nx1 = std::min(x1, axis_cell(x + near));
+		const int nz0 = axis_cell(z - near), nz1 = axis_cell(z + near);
+		auto flagged_at = [this](uint32_t k) { return flagged + (k - unflagged_before[k]); };
+		for (int zz = z0; zz <= z1; ++zz) {
+			const size_t row = (size_t)zz * res;
+			const uint32_t a = packed_start[row + x0], b = packed_start[row + x1 + 1];
+			// The row's units in up to three runs: those with PACKED_FLAG of the cells before the near
+			// ones, all of the near cells', those with it of the cells after them.
+			const Packed *from[3], *to[3];
+			int runs = 1;
+			if (zz < nz0 || zz > nz1 || nx0 > nx1) {
+				from[0] = flagged_at(a);
+				to[0] = flagged_at(b);
+			} else {
+				const uint32_t c = packed_start[row + nx0], d = packed_start[row + nx1 + 1];
+				from[0] = flagged_at(a);
+				to[0] = flagged_at(c);
+				from[1] = packed + c;
+				to[1] = packed + d;
+				from[2] = flagged_at(d);
+				to[2] = flagged_at(b);
+				runs = 3;
+			}
+			for (int r = 0; r < runs; ++r)
+				for (const Packed *e = from[r]; e < to[r]; ++e) fn(*e);
 		}
 	}
 
@@ -512,6 +599,7 @@ void Simulation::set_map_half(float h) {
 	++nav_terrain_stamp_;
 	territory_grid_.clear();
 	influence_grid_.clear();
+	territory_tiles_.fill(0); // the cleared grid's (rebuild_territory_grids counts them)
 }
 
 Simulation::~Simulation() = default;
@@ -571,6 +659,12 @@ int Simulation::terrain_tile_at(float x, float z) const {
 
 void Simulation::reset() {
 	territory_regions_dirty_ = true;
+	steer_obstacles_live_ = false;
+	note_gaia_edit(); // the supplies go (sync_tile_obstructions)
+	tile_gaia_sig_ = 0;
+	// The next game's supplies may come under the same count and first and last ids: the Gaia lists,
+	// the mine candidates and the woods are listed afresh from them (ensure_gaia_obstacles), as a load does.
+	gaia_obstacles_sig_ = 0;
 	played_team_placement_ = TEAM_PLACEMENT_RANDOM; // a scenario or skirmish map has none
 	petra_decay_events_.clear();
 	petra_hit_events_.clear();
@@ -710,11 +804,16 @@ void Simulation::reset() {
 	++nav_terrain_stamp_;
 	territory_grid_.clear();
 	influence_grid_.clear();
+	territory_tiles_.fill(0); // the cleared grid's (rebuild_territory_grids counts them)
 	territory_timer_ = 0.0f;
 	fow_timer_ = 0.0f;
 	bulk_spawn_ = false;
 	aura_mgr_.clear();
 	aura_timer_ = 0.0f;
+	// Caches keyed by the tick they were worked out on, which the new game reaches too.
+	mine_obstacles_.clear();
+	mine_obstacles_tick_ = ~uint64_t{0};
+	resource_block_tick_ = UINT64_MAX;
 }
 
 // A queued batch's population (Trainer.js Item: count x Cost/Population).
@@ -1194,6 +1293,7 @@ uint32_t Simulation::spawn_resource_world(float wx, float wz, uint8_t type, int3
 	uint32_t rid = alloc_id();
 	if (max_gatherers == 0) max_gatherers = resource_default_max_gatherers(type, subtype, amount);
 	size_t idx = resources_.push(wx, wz, amount, type, rid, subtype, max_gatherers);
+	++supply_list_edits_; // a supply added (ensure_gaia_obstacles, sync_tile_obstructions)
 	// template_gaia_fruit: a berry/fruit bush regrows towards its ResourceSupply/Max.
 	// A tree's or mine's Max is what Petra's resource maps weigh (shared.js resourceSupplyMax).
 	if ((type == RES_FOOD && subtype == RES_SUB_NONE) || type == RES_WOOD || type == RES_STONE || type == RES_GOLD)
@@ -1212,6 +1312,7 @@ void Simulation::set_resource_flora(uint32_t res_id, uint8_t flora) {
 	if (it == res_id_to_idx_.end()) return;
 	resources_.flora[it->second] = flora < FLORA_COUNT ? flora : FLORA_DEFAULT;
 	gaia_obstacles_sig_ = 0; // its obstruction size (resource_block_half)
+	note_gaia_edit();
 }
 
 void Simulation::set_resource_position(uint32_t res_id, float x, float z) {
@@ -1220,6 +1321,7 @@ void Simulation::set_resource_position(uint32_t res_id, float x, float z) {
 	resources_.x[it->second] = x;
 	resources_.z[it->second] = z;
 	gaia_obstacles_sig_ = 0; // where it blocks (CCmpObstructionManager.cpp:381-396 MoveShape)
+	note_gaia_edit();
 }
 
 size_t Simulation::snap_trees_to_tiles() {
@@ -1265,6 +1367,7 @@ size_t Simulation::snap_trees_to_tiles() {
 		resources_.z[r] = bz;
 	}
 	gaia_obstacles_sig_ = 0;
+	note_gaia_edit();
 	return removed;
 }
 
@@ -1281,6 +1384,7 @@ void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
 	const size_t r = it->second;
 	const bool had = resources_.amount[r] > 0;
 	resources_.amount[r] = amount;
+	note_gaia_edit();
 	if (resources_.max_amount[r] > 0) resources_.max_amount[r] = amount;
 	nav::Footprint m;
 	if (had != (amount > 0) && mine_footprint(r, m)) {
@@ -2397,12 +2501,12 @@ void Simulation::rebuild_nav_grid() {
 // it with the list). rebuild_nav_grid calls it with, tick() without at its end, so a game and the
 // same game loaded from a save (which rebuilds the nav grid) hold the same lists whenever a path is
 // planned.
-// Without a steep tile, or on tiles no finer than the navcells (a 512 map), the nodes aren't kept
-// and nothing reads the lists; the terrain changes only in rebuild_nav_grid, which lists them
-// before the nodes are worked out.
+// Without nodes (NavGrid::tile_nodes_on: the "large" class keeps them on every map whose tiles, the
+// heightmap's or the map's own 4 m ones, are finer than the navcells) nothing reads the lists; the
+// terrain changes only in rebuild_nav_grid, which lists them before the nodes are worked out.
 void Simulation::sync_tile_obstructions(bool structures) {
 	using TileObs = NavGrid::TileObstruction;
-	if (!nav_grid_.tile_paths_on()) return;
+	if (!nav_grid_.tile_nodes_on()) return;
 	auto flora_live = [&](size_t r) {
 		const uint8_t t = resources_.type[r];
 		return resources_.subtype[r] == RES_SUB_NONE && (t == RES_WOOD || t == RES_FOOD) && resources_.alive[r] &&
@@ -2412,26 +2516,59 @@ void Simulation::sync_tile_obstructions(bool structures) {
 	// flora's (resource_block_half), which set_resource_flora sets after the supply is placed
 	// (RmsGenerator plant_flora), so its flora is named too: else the list would keep the size it had
 	// before, while a saved game, loaded, lists the new one.
-	uint64_t h = 1469598103934665603ull;
-	auto mix = [&h](uint64_t v) { h = (h ^ v) * 1099511628211ull; };
 	auto place = [](float x, float z) {
 		uint32_t a, b;
 		std::memcpy(&a, &x, sizeof a);
 		std::memcpy(&b, &z, sizeof b);
 		return (uint64_t)a << 32 | b;
 	};
-	for (size_t r = 0; r < resources_.count; ++r)
-		if (flora_live(r)) {
-			mix(resources_.id[r]);
-			mix(place(resources_.x[r], resources_.z[r]));
-			mix(resources_.flora[r]);
-		}
-	mix(~uint64_t{0});
-	for (const Treasure &t : treasures_) {
-		mix(t.id);
-		mix(place(t.x, t.z));
+	// The signature runs over every supply, too many to hash every tick now that the "large" class
+	// keeps its nodes on every map. The trees and bushes change only when a supply is added or removed
+	// (spawn_resource_world, tick_gather's remove_at), which supply_list_edits_ counts, or when one is
+	// changed in place (note_gaia_edit: its place, flora, subtype, life or amount set directly), which
+	// gaia_edits_ counts. The supply count and the end ids do not show every add and remove: a field's
+	// supply appended at the start of tick_gather (sync_field_resources) and a tree felled in the same
+	// tick_gather leave both as they were, as remove_at moves the last supply, the field's, into the
+	// felled tree's place. Gathering works a supply out (amount 0) only within tick_gather, which
+	// removes it at that tick_gather's end, and regrowth only raises an amount above 0, so neither
+	// changes the trees listed but with a removal; every other amount set directly calls
+	// note_gaia_edit. The treasures, few, are named as they are. The signature is worked out again
+	// only when these differ from when it last was (tile_gaia_quick_): the same signature, so the same
+	// list, as hashing every tick. A load lists them afresh (rebuild_nav_grid, after NavGrid::init
+	// forgets the list, with tile_gaia_sig_ zeroed), so the counts need not be saved.
+	uint64_t q = 1469598103934665603ull;
+	auto mixq = [&q](uint64_t v) { q = (q ^ v) * 1099511628211ull; };
+	{
+		uint32_t mh;
+		std::memcpy(&mh, &map_half_, sizeof mh);
+		mixq(mh);
 	}
-	if (h == 0) h = 1; // 0 is NavGrid's "none"
+	mixq(resources_.count);
+	mixq(supply_list_edits_);
+	mixq(gaia_edits_);
+	for (const Treasure &t : treasures_) {
+		mixq(t.id);
+		mixq(place(t.x, t.z));
+	}
+	uint64_t h = tile_gaia_sig_;
+	if (q != tile_gaia_quick_ || h == 0) {
+		h = 1469598103934665603ull;
+		auto mix = [&h](uint64_t v) { h = (h ^ v) * 1099511628211ull; };
+		for (size_t r = 0; r < resources_.count; ++r)
+			if (flora_live(r)) {
+				mix(resources_.id[r]);
+				mix(place(resources_.x[r], resources_.z[r]));
+				mix(resources_.flora[r]);
+			}
+		mix(~uint64_t{0});
+		for (const Treasure &t : treasures_) {
+			mix(t.id);
+			mix(place(t.x, t.z));
+		}
+		if (h == 0) h = 1; // 0 is NavGrid's "none"
+		tile_gaia_quick_ = q;
+		tile_gaia_sig_ = h;
+	}
 	const bool gaia_listed = h == nav_grid_.tile_obs_sig_[NavGrid::TILE_OBS_GAIA];
 	if (!structures && gaia_listed) return;
 
@@ -3164,13 +3301,16 @@ const std::vector<Simulation::SteerObstacle> &Simulation::tick_mine_obstacles() 
 }
 
 void Simulation::ensure_gaia_obstacles() {
-	// During play supplies are only ever appended (spawn_resource_world) and keep their place, type
-	// and position: a depleted one stays in the list, which the lookups skip (gaia_obstacle_live). So
-	// the lists change only with the supply count, a new map or a load (both renumber them), and the
-	// treasures, few enough to name every one. Map generation is the exception: it resizes and moves
-	// trees under the same signature (set_resource_flora, set_resource_position, snap_trees_to_tiles),
-	// and each of those clears gaia_obstacles_sig_, so the re-list here also marks the woods stale
-	// (forest_stale_) for update_forest_cells.
+	// The lists hold supply indices (gaia_res_idx_, mine_candidates_), so they are made again whenever
+	// a supply is added (spawn_resource_world) or removed (tick_gather's remove_at, which moves the last
+	// supply into the gap): supply_list_edits_ counts both, since a supply added and another removed
+	// between two calls leave the count and the end ids as they were. A supply worked out stays listed
+	// until tick_gather removes it, and the lookups skip it (gaia_obstacle_live). A new map or a load
+	// (both renumber the supplies; load_tick_state zeroes the signature) and the treasures, few enough
+	// to name every one, change the lists too. Map generation also resizes and moves trees under the
+	// same signature (set_resource_flora, set_resource_position, snap_trees_to_tiles), and each of
+	// those clears gaia_obstacles_sig_, so the re-list here also marks the woods stale (forest_stale_)
+	// for update_forest_cells.
 	uint64_t h = 1469598103934665603ull;
 	auto mix = [&h](uint64_t v) { h = (h ^ v) * 1099511628211ull; };
 	uint32_t mh;
@@ -3178,6 +3318,7 @@ void Simulation::ensure_gaia_obstacles() {
 	mix(mh);
 	mix(resources_.count);
 	if (resources_.count) mix(((uint64_t)resources_.id[0] << 32) | resources_.id[resources_.count - 1]);
+	mix(supply_list_edits_);
 	for (const Treasure &t : treasures_) mix(t.id);
 	if (h == gaia_obstacles_sig_) return;
 	gaia_obstacles_sig_ = h;
@@ -3396,6 +3537,301 @@ bool Simulation::steer_line_blocked(nav::Vec2 pos, nav::Vec2 aim, float max_len,
 			}))
 		return blocked && !holds;
 	return nav::line_blocked_by_buildings(pos, aim, max_len, radius, steer_obstacles_, ignore);
+}
+
+// The standing structures that block movement (an open gate's two sides) and the mines, as move_units
+// lists them in steer_obstacles_, whose squares grown by c may reach the box [x0, x1] x [z0, z1]: f(o) for
+// each, in that list's order, until f returns true. Once move_units has listed them this tick
+// (steer_obstacles_live_) they come from that list, through steer_grid_. Before that, and between
+// ticks, where orders are given (a turn's commands, tick_unit_ai's queued orders), that list is the last
+// tick's, which a save does not hold: a game loaded from the save, or a client that rejoins, has none.
+// They are then worked out afresh from buildings_ and resources_, which it holds, so that a game and its
+// loaded copy find the same ones, as pick_spawn_point_box's bands are. Both ways visit the squares in the
+// same order, the list's ascending: buildings_, then the mines in supply order (steer_grid_ hands its
+// candidates over in list order). What differs is when they were taken: steer_obstacles_ holds the
+// structures and mines as move_units found them, while the other way reads buildings_ and resources_ as
+// they are now, so a structure finished, destroyed or opened since then, or a mine worked out, counts in
+// one and not the other. That is deterministic: a game, its loaded copy and a rejoining client take the
+// same way at every point, as steer_obstacles_live_ is set only by move_units and cleared at the end of
+// tick(), which has no early return, and every reader runs within tick() or in an order function.
+template <class F>
+void Simulation::for_each_structure_square(float x0, float z0, float x1, float z1, float c, F &&f) const {
+	// A square grown by c reaches c * sqrt(2) further at its corners; the hundredth is for rounding.
+	const float pad = 1.4143f * c + 0.01f;
+	auto reaches = [&](const SteerObstacle &o) {
+		return o.x + o.ext + pad >= x0 && o.x - o.ext - pad <= x1 && o.z + o.ext + pad >= z0 && o.z - o.ext - pad <= z1;
+	};
+	if (steer_obstacles_live_) {
+		auto visit = [&](uint32_t k) {
+			const SteerObstacle &o = steer_obstacles_[k];
+			return reaches(o) && f(o);
+		};
+		if (steer_grid_.size() == steer_obstacles_.size() && steer_grid_.for_each_in_box(x0 - pad, z0 - pad, x1 + pad, z1 + pad, visit))
+			return;
+		for (uint32_t k = 0; k < steer_obstacles_.size(); ++k)
+			if (visit(k)) return;
+		return;
+	}
+	for (const Building &b : buildings_) {
+		if (!b.wrecked && blocks_movement_now(b)) {
+			const SteerObstacle o = steer_obstacle(b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type);
+			if (reaches(o) && f(o)) return;
+		} else if (gate_open_now(b)) {
+			bool stop = false;
+			for_each_gate_side(b, [&](float x, float z, float hu, float hv) {
+				if (stop) return;
+				const SteerObstacle o = steer_obstacle(b.id, x, z, b.ux, b.uz, hu, hv, b.type);
+				stop = reaches(o) && f(o);
+			});
+			if (stop) return;
+		}
+	}
+	for (size_t r = 0; r < resources_.count; ++r) {
+		nav::Footprint m;
+		if (!resources_.alive[r] || resources_.amount[r] <= 0 || !mine_footprint(r, m)) continue;
+		const SteerObstacle o = steer_obstacle(resources_.id[r], m.x, m.z, m.ux, m.uz, m.hu, m.hv, MINE_OBSTACLE);
+		if (reaches(o) && f(o)) return;
+	}
+}
+
+// CheckMovement first fails a line whose end lies outside the world shrunk by the clearance r
+// (TestLine's IsInWorld, CCmpObstructionManager.cpp:890-892), and CheckLineMovement one that reaches
+// the map's impassable edge, MAP_EDGE_TILES of navcells (CCmpPathfinder.cpp:700-743) grown by the
+// class Clearance (:760-761): past_map_edge. A walk to a point past that edge therefore keeps its long
+// path to where MakeGoalReachable ended it. TestLine then tests the static shapes
+// (CCmpObstructionManager.cpp:918-932): each square grown by r, a line that starts inside one leaving
+// it freely and one that ends inside it colliding (Geometry::TestRaySquare, Geometry.cpp:259-305).
+// TryGoingStraightToTarget skips only its target's obstruction (CCmpUnitMotion.h:1538-1552). 0.28 never
+// lets a unit into a static square grown by its clearance (PerformMove, CCmpUnitMotion.h:1302 and
+// :1343), so a line it tests never starts inside one. RTS0 keeps units off structures and trees with
+// separation()'s pushes only, and a unit can stand within its clearance of one; the line out of such a
+// square would cut between it and a neighbour closer than twice the clearance, which 0.28 never walks
+// between. So a start inside a grown square other than the target's fails here, and the unit keeps its
+// long path. Then CheckLineMovement walks the terrain grid, where deep water and steep tiles are grown
+// by the class Clearance (CCmpPathfinder.cpp:760-761): line_crosses_impassable, segment_near_steep_tile
+// and segment_near_deep_water, as the task walks' line test in move_units. Units on the line are left
+// to avoid_idle_units, which walks round them.
+bool Simulation::direct_walk_clear(size_t i, float x0, float z0, float x1, float z1) const {
+	const float c = unit_clearance_at(i);
+	if (past_map_edge(x1, z1, c)) return false;
+	const nav::Vec2 a(x0, z0), b(x1, z1);
+	const uint32_t ignore = units_.target_building_id[i];
+	auto enters = [&](const SteerObstacle &o) {
+		const nav::Vec2 ctr(o.x, o.z), u = nav::footprint_u(o), v = nav::footprint_v(o), half(o.hu + c, o.hv + c);
+		return nav::PointIsInSquare(a - ctr, u, v, half) || nav::TestRaySquare(a - ctr, b - ctr, u, v, half);
+	};
+	bool hit = false;
+	for_each_structure_square(std::min(x0, x1), std::min(z0, z1), std::max(x0, x1), std::max(z0, z1), c, [&](const SteerObstacle &o) {
+		return hit = o.id != ignore && !o.wrecked && building_blocks_movement(o.type) && enters(o);
+	});
+	if (hit) return false;
+	const float pad = 1.4143f * c; // a square grown by c reaches c * sqrt(2) further at its corners
+	const float bx0 = std::min(x0, x1) - pad, bz0 = std::min(z0, z1) - pad;
+	const float bx1 = std::max(x0, x1) + pad, bz1 = std::max(z0, z1) + pad;
+	// Trees, bushes and treasures are static shapes too (template_gaia Obstruction/Static); the
+	// tree or treasure the unit works at is its target.
+	const uint32_t own_res = units_.target_resource_id[i], own_unit = units_.target_unit_id[i];
+	if (!gaia_grid_.empty() && gaia_grid_.any_in_box(bx0, bz0, bx1, bz1, [&](uint32_t k) {
+			const SteerObstacle &o = gaia_obstacles_[k];
+			return o.id != own_res && o.id != own_unit && gaia_obstacle_live(k) && enters(o);
+		}))
+		return false;
+	if (line_crosses_impassable(x0, z0, x1, z1)) return false;
+	// CheckLineMovement tests the goal's navcell too, which line_crosses_impassable leaves out.
+	if (!nav_grid_.cells.blank()) {
+		const auto [ex, ey] = nav_grid_.world_to_cell(x1, z1);
+		if (nav_grid_.cells.at(ex, ey) == NAV_WATER || nav_grid_.is_steep(ex, ey)) return false;
+	}
+	if (nav_grid_.tile_paths_on() && nav_grid_.segment_near_steep_tile(x0, z0, x1, z1, c + nav_grid_.steep_sample_pad()))
+		return false;
+	return !nav::detail::segment_near_deep_water(nav_grid_, a, b, c);
+}
+
+// 0.28 moves a unit only where CheckMovement lets it (PerformMove, CCmpUnitMotion.h:1302 and :1343),
+// and pushes it only so too (CCmpUnitMotion_System.cpp:628-641): TestLine grows each static square
+// by the clearance (CCmpObstructionManager.cpp:918-932), and a move from outside a grown square into
+// it collides, while one that starts inside it leaves freely (Geometry::TestRaySquare, Geometry.cpp:
+// 259-305, edges inside). So two structures closer than twice the "large" Clearance of 3 m
+// (pathfinder.xml) leave a ram or an elephant no way between them: a gap of 6 m or less. Neither
+// pathfinder finds one either (Rasterize.cpp blocks a navcell within the clearance plus 1 m,
+// VertexPathfinder.cpp:608-686 grows each square by the clearance). RTS0 keeps units off a structure
+// with separation()'s pushes, which cancel out between two, and its 8 m navcells leave such gaps
+// open, so a large unit squeezed through. It now takes 0.28's test. The default class keeps RTS0's
+// pushes, which its 0.8 m clearance, under half a navcell, fits; gates and garrisons rely on them.
+// On its own steps only the unit's target is let in, as PerformMove's filter skips the target's
+// obstruction alone (CCmpUnitMotion.h:1231-1236). No other structure is, whatever the walk's end:
+// 0.28's goals never lie within the clearance of a structure but the target's, since
+// MakeGoalReachable (HierarchicalPathfinder.cpp:689-719) moves a goal there to the nearest navcell the
+// class can stand on, and the long path never has a waypoint there, as Rasterize.cpp:29-48 closes
+// each structure grown by the clearance plus 1 m. RTS0 moves a player walk's goal so
+// (nearest_point_off_structures) and a task's stand point (large_stand_point); the long path plans
+// round a gap too narrow for the class (NavGrid::path_through_narrow_gap), and move_units passes a
+// waypoint its 8 m navcells put inside one structure's clearance once near it. A push (push) lets
+// no structure in, the target neither: the push's CheckMovement takes the unit's filter with no
+// tag skipped (GetObstructionFilter(), CCmpUnitMotion_System.cpp:628-641).
+bool Simulation::large_step_barred(size_t i, float x, float z, float nx, float nz, bool push) const {
+	if (!unit_is_large(units_.tmpl[i], units_.unit_type[i])) return false;
+	const float c = CLEARANCE_LARGE;
+	const nav::Vec2 a(x, z), b(nx, nz);
+	const uint32_t ignore = push ? 0 : units_.target_building_id[i];
+	bool hit = false;
+	for_each_structure_square(std::min(x, nx), std::min(z, nz), std::max(x, nx), std::max(z, nz), c, [&](const SteerObstacle &o) {
+		if (o.wrecked || o.id == ignore || !building_blocks_movement(o.type)) return false;
+		const nav::Vec2 ctr(o.x, o.z), half(o.hu + c, o.hv + c);
+		return hit = nav::TestRaySquare(a - ctr, b - ctr, nav::footprint_u(o), nav::footprint_v(o), half);
+	});
+	return hit;
+}
+
+// How many of the standing structures and mines that block movement (for_each_structure_square), other
+// than `ignore`, hold (x, z) in their squares grown by c, edges included (PointIsInSquare), counting up
+// to `stop_at`.
+int Simulation::structure_squares_holding(float x, float z, float c, uint32_t ignore, int stop_at) const {
+	const nav::Vec2 p(x, z);
+	int n = 0;
+	for_each_structure_square(x, z, x, z, c, [&](const SteerObstacle &o) {
+		if (o.wrecked || o.id == ignore || !building_blocks_movement(o.type)) return false;
+		if (nav::PointIsInSquare(p - nav::Vec2(o.x, o.z), nav::footprint_u(o), nav::footprint_v(o), nav::Vec2(o.hu + c, o.hv + c))) ++n;
+		return n >= stop_at;
+	});
+	return n;
+}
+
+// HierarchicalPathfinder::MakeGoalReachable (HierarchicalPathfinder.cpp:689-719) for a goal (x, z)
+// that lies within c of standing structures: 0.28 rasterizes each structure grown by the class
+// clearance (Rasterize.cpp:29-48) and moves the goal to the nearest navcell left open, the nearest
+// point clear of every grown square. footprint_push_out takes it out of one square, onto its nearest
+// edge; where two squares overlap (a gap narrower than twice the clearance) that edge lies in the
+// other, and the nearest point clear of both is found here among the edges and corners of the squares
+// within NEAR of the goal, and the points where two of those edges cross (the nearest point outside
+// a union of rectangles lies on an edge, at the foot of the perpendicular or at an end of the part of
+// it that no other square covers). A point clear of them all further than NEAR leaves (x, z) as it is.
+// The structure `ignore` (a task's target) does not count. It serves every class: move_units moves a
+// player walk's goal so for any land unit, at its own clearance (the default class's 0.8 m too) when
+// the goal lies within it of two structures or footprint_push_out's edge lies inside another one, and
+// a large unit's waypoint on the way at the large class's.
+bool Simulation::nearest_point_off_structures(float c, uint32_t ignore, float &x, float &z) const {
+	constexpr float NEAR = 3.0f;
+	thread_local std::vector<SteerObstacle> near;
+	near.clear();
+	for_each_structure_square(x - NEAR, z - NEAR, x + NEAR, z + NEAR, c, [&](const SteerObstacle &o) {
+		if (!o.wrecked && o.id != ignore && building_blocks_movement(o.type) && nav::detail::within_reach(o, nav::Vec2(x, z), c, NEAR))
+			near.push_back(o);
+		return false;
+	});
+	// The grown squares' corners, in order round each one.
+	auto corner = [&](const SteerObstacle &o, int q) {
+		const float lu = (q == 1 || q == 2) ? o.hu + c : -(o.hu + c), lv = q >= 2 ? o.hv + c : -(o.hv + c);
+		return nav::Vec2(o.x, o.z) + nav::footprint_u(o) * lu + nav::footprint_v(o) * lv;
+	};
+	auto clear = [&](nav::Vec2 q) {
+		for (const SteerObstacle &o : near) {
+			const nav::Vec2 l = q - nav::Vec2(o.x, o.z);
+			// A point on an edge counts as clear of that square (footprint_push_out puts the goal there).
+			if (std::fabs(l.dot(nav::footprint_u(o))) < o.hu + c - 1e-4f && std::fabs(l.dot(nav::footprint_v(o))) < o.hv + c - 1e-4f)
+				return false;
+		}
+		return true;
+	};
+	const nav::Vec2 p(x, z);
+	bool found = false;
+	float best = NEAR * NEAR;
+	auto offer = [&](nav::Vec2 q) {
+		const float d2 = (q - p).lengthSq();
+		if (d2 <= best && clear(q)) {
+			best = d2;
+			x = q.x;
+			z = q.y;
+			found = true;
+		}
+	};
+	for (size_t a = 0; a < near.size(); ++a)
+		for (int e = 0; e < 4; ++e) {
+			const nav::Vec2 e0 = corner(near[a], e), e1 = corner(near[a], (e + 1) & 3), d = e1 - e0;
+			offer(e0);
+			const float t = std::clamp((p - e0).dot(d) / d.lengthSq(), 0.0f, 1.0f);
+			offer(e0 + d * t);
+			for (size_t b = a + 1; b < near.size(); ++b)
+				for (int f = 0; f < 4; ++f) {
+					const nav::Vec2 f0 = corner(near[b], f), g = corner(near[b], (f + 1) & 3) - f0;
+					const float den = d.x * g.y - d.y * g.x;
+					if (std::fabs(den) < 1e-9f) continue;
+					const nav::Vec2 w = f0 - e0;
+					const float s = (w.x * g.y - w.y * g.x) / den, r = (w.x * d.y - w.y * d.x) / den;
+					if (s >= 0.0f && s <= 1.0f && r >= 0.0f && r <= 1.0f) offer(e0 + d * s);
+				}
+		}
+	return found;
+}
+
+// MoveToTargetRange's goal is the range round the target (CCmpUnitMotion.h, ComputeGoal), and
+// MakeGoalReachable (HierarchicalPathfinder.cpp:689-719) keeps of it only what the class can reach on
+// its navcells: for a ram or an elephant nothing within its 3 m Clearance of a structure but the
+// target (Rasterize.cpp:29-48 grows each by the clearance plus 1 m), and nothing behind a gap
+// narrower than twice that. stand_outside's point, the ring's nearest to the unit, may lie within the
+// clearance of a structure beside the target, where large_step_barred keeps the unit out, as
+// PerformMove's CheckMovement would (CCmpUnitMotion.h:1302 and :1343). Such a point moves to the
+// nearest point, to the unit, of the ring round the target `off` out, edges and corners, tested every
+// quarter unit, that lies in no other structure's or mine's square grown by the clearance, keeps the
+// clearance off deep water and steep ground, and lies in the unit's region on the class's nodes
+// (NavGrid::tile_region_at): the part of the goal 0.28 keeps. With none, the point stays, and the
+// unit stops where its steps are refused, out of reach, as 0.28's stops at the navcell
+// MakeGoalReachable leaves it.
+// It runs when an order is given (order_attack_building, order_build_or_repair: a turn's commands and
+// the orders a unit's queue hands on, before move_units) as well as within the tick, so it reads only
+// what a saved game holds or rebuilds alike on load: the structures and mines come from
+// for_each_structure_square, which works them out from buildings_ and resources_ until move_units
+// has listed them this tick, and the regions from the nodes a load rebuilds (sync_tile_obstructions).
+template <class B>
+void Simulation::large_stand_point(size_t i, const B &b, uint32_t target_id, float off, float &tx, float &tz) const {
+	if (unit_is_ship(units_.unit_type[i]) || !unit_is_large(units_.tmpl[i], units_.unit_type[i])) return;
+	const float c = CLEARANCE_LARGE;
+	if (structure_squares_holding(tx, tz, c, target_id, 1) == 0) return;
+	const float x = units_.pos_x[i], z = units_.pos_z[i];
+	const int cls = NavGrid::tile_class(PASS_LARGE);
+	const uint32_t region = nav_grid_.tile_region_at(x, z, nav_grid_.tile_snap_reach(), cls);
+	const float eu = b.hu + off, ev = b.hv + off;
+	// The squares that may hold a point of the ring, listed once.
+	const float ring = std::sqrt(eu * eu + ev * ev);
+	thread_local std::vector<SteerObstacle> near;
+	near.clear();
+	for_each_structure_square(b.x - ring, b.z - ring, b.x + ring, b.z + ring, c, [&](const SteerObstacle &o) {
+		if (!o.wrecked && o.id != target_id && building_blocks_movement(o.type)) near.push_back(o);
+		return false;
+	});
+	auto held = [&](nav::Vec2 w) {
+		for (const SteerObstacle &o : near)
+			if (nav::PointIsInSquare(w - nav::Vec2(o.x, o.z), nav::footprint_u(o), nav::footprint_v(o), nav::Vec2(o.hu + c, o.hv + c)))
+				return true;
+		return false;
+	};
+	constexpr float STEP = 0.25f;
+	float best = -1.0f, bx = tx, bz = tz;
+	auto consider = [&](float lu, float lv) {
+		const nav::Vec2 w = nav::footprint_world(b, lu, lv);
+		const float d = (w.x - x) * (w.x - x) + (w.y - z) * (w.y - z);
+		if (best >= 0.0f && d >= best) return;
+		if (held(w) || near_impassable_terrain(w.x, w.y, c)) return;
+		if (region != 0 && nav_grid_.tile_region_at(w.x, w.y, 1, cls) != region) return;
+		best = d;
+		bx = w.x;
+		bz = w.y;
+	};
+	const int nu = std::max(1, (int)std::ceil(2.0f * eu / STEP)), nv = std::max(1, (int)std::ceil(2.0f * ev / STEP));
+	for (int k = 0; k <= nu; ++k) {
+		const float t = -eu + 2.0f * eu * (float)k / (float)nu;
+		consider(t, -ev);
+		consider(t, ev);
+	}
+	for (int k = 1; k < nv; ++k) {
+		const float t = -ev + 2.0f * ev * (float)k / (float)nv;
+		consider(-eu, t);
+		consider(eu, t);
+	}
+	if (best >= 0.0f) {
+		tx = bx;
+		tz = bz;
+	}
 }
 
 float Simulation::resource_block_half(size_t r) const {
@@ -4742,7 +5178,7 @@ void Simulation::tick_unit_production(float dt) {
 			int n = 0;
 			for (; n < order.count; ++n) {
 				float sx, sz;
-				if (!pick_spawn_point(at, order.unit_type, uid, sx, sz)) break;
+				if (!pick_spawn_point(at, order.unit_type, uid, sx, sz, order.tmpl)) break;
 				const uint32_t nid = spawn_unit(sx, sz, player, (UnitType)order.unit_type, 0.0f, order.tmpl);
 				if (const int32_t ti = lookup_unit(nid); ti >= 0) {
 					stat_unit_trained((size_t)ti);
@@ -6095,7 +6531,8 @@ bool Simulation::nearest_pass_cell(const Building &b, uint8_t pass, float &out_x
 
 // CCmpFootprint::PickSpawnPoint for a building: its footprint, turned with its rotation, or the
 // circle of a round footprint (building_footprint_round).
-bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip_uid, float &out_x, float &out_z) const {
+bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip_uid, float &out_x, float &out_z,
+		uint16_t tmpl) const {
 	// u is the front (Position rotation: 0 faces +z), v its perpendicular (CFixedVector2D::Perpendicular).
 	const float fux = det::sin(b.rot), fuz = det::cos(b.rot), fvx = fuz, fvz = -fux;
 	const nav::Vec2 bu = nav::footprint_u(b), bv = nav::footprint_v(b);
@@ -6103,7 +6540,7 @@ bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip
 	const float along_v = std::fabs(fvx * bu.x + fvz * bu.y) * b.hu + std::fabs(fvx * bv.x + fvz * bv.y) * b.hv;
 	const bool circle = b.team < MAX_PLAYERS && building_footprint_round(players_[b.team].civ, b.type);
 	return pick_spawn_point_box(b.x, b.z, b.rot, along_u, along_v, circle ? std::max(b.hu, b.hv) : 0.0f,
-			b.has_rally_point, b.rally_x, b.rally_z, type, skip_uid, out_x, out_z);
+			b.has_rally_point, b.rally_x, b.rally_z, type, skip_uid, out_x, out_z, tmpl);
 }
 
 // The search of CCmpFootprint::PickSpawnPoint round a footprint centred on (cx, cz) and turned by
@@ -6114,10 +6551,11 @@ bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip
 // nearest the rally point (the front without one), alternating either way round; the first point
 // whose navcell the unit's passability allows, a land unit's class clearance off deep water as on its
 // steps (the expanded grid CheckUnitPlacement tests), and where no other unit stands wins
-// (CheckUnitPlacement): shallow water the passenger can wade is a spot too.
+// (CheckUnitPlacement): shallow water the passenger can wade is a spot too. A ram or an elephant (the
+// "large" class) is never set down within its clearance of a structure or a mine either (below).
 bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
 		bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid,
-		float &out_x, float &out_z) const {
+		float &out_x, float &out_z, uint16_t tmpl) const {
 	float rad = unit_collision_radius(type);
 	if (rad <= 0.0f) rad = 0.25f;
 	const float gap = rad * 3.0f;
@@ -6178,7 +6616,45 @@ bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along
 				y >= dist_y ? dist_y + r : y <= -dist_y ? -dist_y - r : y);
 	}
 	const uint8_t pass = unit_is_ship(type) ? PASS_SHIP : PASS_INFANTRY;
-	const float clearance = unit_building_clearance(CIV_UNIT_TEMPLATE_COUNT, type);
+	const float clearance = unit_building_clearance(tmpl, type);
+	// CheckUnitPlacement (CCmpPathfinder.cpp:987-1008) tests the spot with TestUnitShape
+	// (CCmpObstructionManager.cpp:1051-1112) at the unit's obstruction clearance, which is its
+	// passability class's Clearance (CCmpObstruction.cpp:241-248; GetSize, :549-555): a spot that a
+	// static square grown by it holds fails (PointIsInSquare, :1106), and so does one whose navcell
+	// the class can't stand on, a grid with the static shapes rasterized at that clearance. RTS0's
+	// 8 m navcells close only the cells a structure covers, so for the "large" class (3 m) the squares
+	// are tested here: the standing structures and mines that move_units steers a unit round (an open
+	// gate's two sides), the set large_step_barred keeps a ram or an elephant out of. One set down
+	// inside such a band, between two structures closer than twice its clearance, would find every
+	// step out into the other's band refused. The default class keeps RTS0's pushes off structures.
+	// The squares go in a buffer kept per thread, so an eject or a batch that sets down unit after
+	// unit allocates nothing; only the structures and mines that reach the spots are kept.
+	thread_local std::vector<SteerObstacle> bands;
+	bands.clear();
+	if (pass == PASS_INFANTRY && unit_is_large(tmpl, type)) {
+		const float c = clearance, far = hx + hy + 2.0f * gap * (float)nrows; // past every spot, either axis
+		auto keep = [&](const SteerObstacle &o) {
+			const float reach = far + o.ext + 1.4143f * c; // a square grown by c reaches c * sqrt(2) further at its corners
+			if (std::fabs(o.x - cx) <= reach && std::fabs(o.z - cz) <= reach) bands.push_back(o);
+		};
+		for (const Building &b : buildings_)
+			if (!b.wrecked && blocks_movement_now(b)) {
+				keep(steer_obstacle(b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type));
+			} else if (gate_open_now(b)) {
+				for_each_gate_side(b, [&](float x, float z, float hu, float hv) { keep(steer_obstacle(b.id, x, z, b.ux, b.uz, hu, hv, b.type)); });
+			}
+		for (size_t r = 0; r < resources_.count; ++r) {
+			nav::Footprint m;
+			if (resources_.alive[r] && resources_.amount[r] > 0 && mine_footprint(r, m))
+				keep(steer_obstacle(resources_.id[r], m.x, m.z, m.ux, m.uz, m.hu, m.hv, MINE_OBSTACLE));
+		}
+	}
+	auto in_band = [&](float px, float pz) {
+		return std::any_of(bands.begin(), bands.end(), [&](const SteerObstacle &o) {
+			return nav::PointIsInSquare(nav::Vec2(px - o.x, pz - o.z), nav::footprint_u(o), nav::footprint_v(o),
+					nav::Vec2(o.hu + clearance, o.hv + clearance));
+		});
+	};
 	auto free_at = [&](float px, float pz) {
 		if (std::fabs(px) >= map_half_ - rad || std::fabs(pz) >= map_half_ - rad) return false;
 		if (past_map_edge(px, pz, clearance)) return false; // nor past the map's edge
@@ -6187,6 +6663,7 @@ bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along
 			if (!nav_grid_.is_passable_for(gx, gy, pass)) return false;
 			if (pass == PASS_INFANTRY && near_impassable_terrain(px, pz, clearance)) return false;
 		}
+		if (in_band(px, pz)) return false;
 		for (size_t j = 0; j < units_.count; ++j) {
 			if (!units_.alive[j] || units_.id[j] == skip_uid) continue;
 			const float dx = units_.pos_x[j] - px, dz = units_.pos_z[j] - pz, md = rad + unit_collision_radius(units_.unit_type[j]);
@@ -6847,6 +7324,7 @@ void Simulation::attack_building_one_by_one(const uint32_t *unit_ids, size_t cou
 		stand_outside(b, units_.id[uidx],
 				units_.pos_x[uidx], units_.pos_z[uidx],
 				&units_.target_x[uidx], &units_.target_z[uidx], unit_clearance_at((size_t)uidx) + kStandMargin);
+		large_stand_point((size_t)uidx, b, b.id, unit_clearance_at((size_t)uidx) + kStandMargin, units_.target_x[uidx], units_.target_z[uidx]);
 		units_.has_order[uidx] = 1;
 		units_.action_state[uidx] = ACTION_ATTACK;
 		units_.target_building_id[uidx] = target_building_id;
@@ -6982,6 +7460,7 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count
 		stand_outside(b, units_.id[uidx],
 				units_.pos_x[uidx], units_.pos_z[uidx],
 				&units_.target_x[uidx], &units_.target_z[uidx], unit_clearance_at((size_t)uidx) + kStandMargin);
+		large_stand_point((size_t)uidx, b, b.id, unit_clearance_at((size_t)uidx) + kStandMargin, units_.target_x[uidx], units_.target_z[uidx]);
 		units_.has_order[uidx] = 1;
 		units_.action_state[uidx] = ACTION_BUILD;
 		units_.target_building_id[uidx] = building_id;
@@ -8875,6 +9354,13 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 		const float c = unit_clearance_at((size_t)uidx);
 		stand_outside(b, unit_ids[i], units_.pos_x[uidx], units_.pos_z[uidx], &sx, &sz, c + kStandMargin);
 		// A ship (a Cothon takes them) sails to its band on the water: the land rules below are not its.
+		// The region test needs the class's nodes (NavGrid::tile_region_at is 0 without them): the
+		// default class keeps them only on maps whose steep tiles are finer than the navcells
+		// (tile_paths_on), the "large" class on every map (NavGrid::tile_class_kept). So a ram's or an
+		// elephant's point moves on a flat map too, to the nearest part of the band in its own region:
+		// the nodes close every structure grown by the class clearance (Rasterize.cpp:29-48), and a
+		// part that gaps narrower than twice its 3 m shut off from it is one MakeGoalReachable
+		// (HierarchicalPathfinder.cpp:689-719) would not have kept.
 		if (!unit_is_ship(units_.unit_type[uidx])) {
 			const int cls = NavGrid::tile_class(unit_land_pass((size_t)uidx));
 			const uint32_t region = nav_grid_.tile_region_at(units_.pos_x[uidx], units_.pos_z[uidx], nav_grid_.tile_snap_reach(), cls);
@@ -9213,7 +9699,7 @@ void Simulation::occupy_turret(size_t i, Building &b) {
 // sets the unit down on the holder's centre; any other leave fails and the unit stays up there.
 bool Simulation::leave_turret(size_t i, const Building &b, bool forced) {
 	float sx = b.x, sz = b.z;
-	if (!pick_spawn_point(b, units_.unit_type[i], units_.id[i], sx, sz)) {
+	if (!pick_spawn_point(b, units_.unit_type[i], units_.id[i], sx, sz, units_.tmpl[i])) {
 		if (!forced) return false;
 		sx = b.x;
 		sz = b.z;
@@ -9381,6 +9867,7 @@ void Simulation::clear_resources_near(float x, float z, float r) {
 		mine = mine_footprint(i, m) || mine;
 		resources_.alive[i] = 0;
 		resources_.amount[i] = 0;
+		note_gaia_edit();
 	}
 	if (mine) {
 		resource_block_tick_ = UINT64_MAX;
@@ -9425,6 +9912,7 @@ bool Simulation::place_map_wall_piece(const WallPiece &p, uint8_t player) {
 			if (det::hypot(resources_.x[i] - (p.x + u * c), resources_.z[i] - (p.z + u * sn)) > 0.75f) continue;
 			resources_.alive[i] = 0;
 			resources_.amount[i] = 0;
+			note_gaia_edit();
 		}
 	spawn_wall_piece(p, player, 1.0f);
 	return true;
@@ -9991,7 +10479,7 @@ void Simulation::order_ungarrison(uint32_t building_id, bool forced_turrets) {
 		if (idx < 0) continue;
 		const bool turret = turret_height_.count(uid) != 0;
 		float ex = b.x, ez = b.z;
-		if (turret ? !leave_turret((size_t)idx, b, forced_turrets) : !pick_spawn_point(b, units_.unit_type[idx], uid, ex, ez)) {
+		if (turret ? !leave_turret((size_t)idx, b, forced_turrets) : !pick_spawn_point(b, units_.unit_type[idx], uid, ex, ez, units_.tmpl[idx])) {
 			stay.push_back(uid);
 			continue;
 		}
@@ -10073,7 +10561,7 @@ void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id)
 			if (!turret) {
 				float ex = b.x, ez = b.z;
 				// GarrisonHolder.Eject: no free spot outside, and the unit stays in.
-				if (!pick_spawn_point(b, units_.unit_type[idx], unit_id, ex, ez)) return;
+				if (!pick_spawn_point(b, units_.unit_type[idx], unit_id, ex, ez, units_.tmpl[idx])) return;
 				units_.pos_x[idx] = ex;
 				units_.pos_z[idx] = ez;
 				face_away_from((size_t)idx, b.x, b.z);
@@ -11439,6 +11927,9 @@ void Simulation::tick(float dt) {
 			fauna_.prev_z[f] = fauna_.pos_z[f];
 		}
 	}
+	// The next tick's orders, given before its move_units, no longer read this tick's steering list
+	// (for_each_structure_square).
+	steer_obstacles_live_ = false;
 	ticks_++;
 }
 
@@ -11820,6 +12311,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		steer_grid_key_ = short_path_key_;
 		steer_grid_half_ = map_half_;
 	}
+	steer_obstacles_live_ = true; // until the tick ends (for_each_structure_square)
 
 	// UnitAI ESCORTING Timer: a guard within 3 guard ranges of the unit it guards walks no
 	// faster than that unit moves now (TryMatchTargetSpeed, mayRun false). Read before the
@@ -11899,6 +12391,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				const Building &bb = buildings_[bit->second];
 				if (!bb.wrecked && bb.hp > 0.0f) {
 					builder_stand_point(i, bb, px[i], pz[i], tx[i], tz[i]);
+					large_stand_point(i, bb, bb.id, unit_clearance_at(i) + kStandMargin, tx[i], tz[i]);
 					has[i] = 1;
 				}
 			}
@@ -11907,40 +12400,14 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// A mine's gatherer walks to the near side of the mine's square, as a builder to its
 		// foundation's: 0 A.D. UnitMotion moves to the range round the target's obstruction, and
 		// heading for the mine's centre would take it into the gatherers already working there.
-		// Similarly, distribute gatherers radially around circular resources (bushes, trees, meat)
-		// so gatherers aim for the perimeter rather than collapsing to the exact center.
-		if (units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0) {
+		// Any other supply's gatherer walks at the supply and stops once within reach (below), as
+		// MoveToTargetRange ends in range (UnitAI.js:2484-2489, CCmpUnitMotion.h:1155-1165): 0.28
+		// gives it no stand point of its own round the supply.
+		if (units_.action_state[i] == ACTION_GATHER) {
 			nav::Footprint m;
 			if (gather_mine_footprint(i, m)) {
 				stand_outside(m, units_.id[i], px[i], pz[i], &tx[i], &tz[i], unit_clearance_at(i) + kStandMargin);
-			} else {
-				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
-				// The spread is for the gatherers already at the resource: one out of reach
-				// (across the water) still walks at the resource itself, so that the walk fails
-				// and the order goes on to another supply (0 A.D. FINDINGNEWTARGET) rather
-				// than ending at the near side of a supply it cannot work.
-				if (rit != res_id_to_idx_.end() && resources_.subtype[rit->second] != RES_SUB_FISH &&
-					gather_in_reach(i, rit->second, px[i], pz[i])) {
-					const size_t ridx = rit->second;
-					const float rx = resources_.x[ridx], rz = resources_.z[ridx];
-					float to_dx = px[i] - rx, to_dz = pz[i] - rz;
-					float d = det::hypot(to_dx, to_dz);
-					if (d < 1e-4f) {
-						const float a = ((units_.id[i] % 12) / 12.0f) * 6.2831853f;
-						to_dx = det::cos(a);
-						to_dz = det::sin(a);
-						d = 1.0f;
-					}
-					// Offset angle distributed per unit id so multiple workers don't aim at the exact same radial ray
-					const float spread_angle = (((units_.id[i] * 5) % 8) - 3.5f) * 0.18f;
-					const float ca = det::cos(spread_angle), sa = det::sin(spread_angle);
-					const float nx = (to_dx * ca - to_dz * sa) / d;
-					const float nz = (to_dx * sa + to_dz * ca) / d;
-					const float stand_r = std::max(0.6f, resource_block_half(ridx) + unit_clearance_at(i) + 0.2f);
-					tx[i] = rx + nx * stand_r;
-					tz[i] = rz + nz * stand_r;
-					has[i] = 1;
-				}
+				large_stand_point(i, m, units_.target_resource_id[i], unit_clearance_at(i) + kStandMargin, tx[i], tz[i]);
 			}
 		}
 
@@ -12013,8 +12480,17 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				// next long-path waypoint once its short path gets as close as it can, it moves on once
 				// within WAYPOINT_NEAR of such a waypoint.
 				const float crowd = unit_clearance_at(i) - ARRIVE_DIST;
+				// A large unit never steps into a structure's clearance for a waypoint on the way
+				// (large_step_barred): one inside it is passed once the unit is within WAYPOINT_NEAR
+				// (4 units, 16 m) of it, as one 0.28's long path would not have had. Its aim is the nearest
+				// point clear of the structures meanwhile (below), so the waypoint is passed from where the
+				// unit got to beside it; a path through a gap too narrow for it is planned round on the
+				// nodes instead (NavGrid::path_through_narrow_gap), so such a waypoint stands by a lone
+				// structure, which the steering takes it round.
+				const bool large = unit_is_large(units_.tmpl[i], units_.unit_type[i]) && !unit_is_ship(units_.unit_type[i]);
 				auto crowded = [&](float wx, float wz) {
 					if (crowd <= 0.0f) return false; // ships too: a transport's path can start beside a shore house
+					if (large && structure_squares_holding(wx, wz, CLEARANCE_LARGE, units_.target_building_id[i], 1) > 0) return true;
 					for (const SteerObstacle &b : steer_obstacles_) {
 						if (b.id == units_.target_building_id[i]) continue;
 						const nav::Vec2 gap = nav::footprint_gap(b, wx, wz);
@@ -12061,6 +12537,35 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					cur++;
 					advanced = true;
 				}
+				// CCmpUnitMotion::TryGoingStraightToTarget (CCmpUnitMotion.h:1503-1561), tried every turn
+				// from Move (:1075): a land unit whose goal lies within DIRECT_PATH_RANGE (24 m, :93) and
+				// whose straight line there passes CheckMovement drops the rest of its long path and
+				// heads straight for the goal. A unit following a short path keeps it (:1508), unless it
+				// walks in a formation. The goal is the move's own (ComputeGoal of the MoveRequest,
+				// :1521), not where MakeGoalReachable ends the long path: a walk whose path stops short
+				// of its point, shut off by navcells, still goes straight there when the line is clear,
+				// and once past its path's end heads for (tx, tz) as before. A task's path ends at its
+				// goal, the target's range, which stands for the goal here.
+				constexpr float DIRECT_PATH_RANGE = 24.0f / 4.0f; // map lengths: 4 m a unit
+				if (cnt <= wp.count && !unit_is_ship(units_.unit_type[i])) {
+					const bool walk_goal = !task_path && units_.target_unit_id[i] == 0;
+					const float gx = walk_goal ? tx[i] : wp.xs[cnt - 1], gz = walk_goal ? tz[i] : wp.zs[cnt - 1];
+					const float edx = gx - wp.xs[cnt - 1], edz = gz - wp.zs[cnt - 1];
+					const bool past_end = edx * edx + edz * edz > ARRIVE_DIST * ARRIVE_DIST; // the path falls short
+					const float gdx = gx - px[i], gdz = gz - pz[i];
+					// The memo's aim is matched against the waypoint the unit heads for, so only while one is
+					// left (cur < cnt; past the last, wp.xs[cnt] may lie past the array).
+					const ShortPathMemo &memo = units_.short_path[i];
+					const bool short_path = memo.key != 0 && cur < cnt && (formations_.empty() || formation_group_[i] == 0) && [&] {
+						const float sdx = memo.aim_x - wp.xs[cur], sdz = memo.aim_z - wp.zs[cur];
+						return sdx * sdx + sdz * sdz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
+					}();
+					if ((cur + 1 < cnt || past_end) && !short_path && gdx * gdx + gdz * gdz <= DIRECT_PATH_RANGE * DIRECT_PATH_RANGE &&
+							direct_walk_clear((size_t)i, px[i], pz[i], gx, gz)) {
+						cur = past_end ? cnt : cnt - 1;
+						advanced = true;
+					}
+				}
 				if (advanced) {
 					units_.waypoint_cur[i] = static_cast<int16_t>(cur);
 					wp.cur = cur;
@@ -12106,13 +12611,16 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// UnitMotion and MakeGoalReachable: a point closer to a building than the unit's clearance
 		// can't be reached, so a walk there (and its last waypoint, the same point) ends as close as
 		// the unit can stand, just outside the building, as 0 A.D. moves the goal to the nearest
-		// passable navcell. Checked only near the aim, where it matters.
+		// passable navcell. Checked only near the aim, where it matters. A point within the clearance
+		// of two buildings (a gap narrower than twice it) moves to the nearest point clear of both
+		// (nearest_point_off_structures), not onto the edge of one inside the other.
 		if (final_aim && units_.target_unit_id[i] == 0 && units_.target_building_id[i] == 0 &&
 		    (st == ACTION_MOVE || st == ACTION_ATTACK_MOVE || st == ACTION_PATROL) &&
 		    !unit_is_ship(units_.unit_type[i])) {
 			const float adx = aim_x - px[i], adz = aim_z - pz[i];
 			if (adx * adx + adz * adz <= nav::BUILDING_STEER_RANGE * nav::BUILDING_STEER_RANGE) {
 				const float c = unit_clearance_at(i) + 0.05f;
+				const float goal_x = aim_x, goal_z = aim_z;
 				bool moved = false;
 				for (const SteerObstacle &b : steer_obstacles_)
 					if (std::fabs(aim_x - b.x) < nav::footprint_extent(b) + c &&
@@ -12121,6 +12629,11 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 						moved = true;
 						break;
 					}
+				if (moved && (structure_squares_holding(goal_x, goal_z, c - 1e-3f, 0, 2) >= 2 ||
+						structure_squares_holding(aim_x, aim_z, c - 1e-3f, 0, 1) >= 1)) {
+					float x = goal_x, z = goal_z;
+					if (nearest_point_off_structures(c, 0, x, z)) aim_x = x, aim_z = z;
+				}
 				// Nor can it stand in a tree, a bush or a treasure.
 				if (!moved) {
 					thread_local std::vector<SteerObstacle> at_aim;
@@ -12130,6 +12643,17 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 						if (nav::footprint_push_out(b, c, aim_x, aim_z)) break;
 				}
 			}
+		}
+		// A large unit's waypoint on the way that lies within a structure's clearance, other than its
+		// target's, is one 0.28's long path would not have had (it rasterizes each structure grown by the
+		// class clearance plus 1 m, Rasterize.cpp:29-48), and large_step_barred keeps the unit out of
+		// there. It heads instead for the nearest point clear of the structures, as MakeGoalReachable
+		// would move a goal there, so that its steering goes round them rather than into one that holds
+		// its aim, and passes the waypoint once near it (crowded, above).
+		if (using_path && !final_aim && !unit_is_ship(units_.unit_type[i]) && unit_is_large(units_.tmpl[i], units_.unit_type[i]) &&
+				structure_squares_holding(aim_x, aim_z, CLEARANCE_LARGE, units_.target_building_id[i], 1) > 0) {
+			float x = aim_x, z = aim_z;
+			if (nearest_point_off_structures(CLEARANCE_LARGE + 0.05f, units_.target_building_id[i], x, z)) aim_x = x, aim_z = z;
 		}
 
 		float dx = aim_x - px[i];
@@ -12191,10 +12715,12 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			at_building = nav_grid_.near_steep_tile(px[i] + rdx * t, pz[i] + rdz * t, unit_clearance_at(i)) &&
 				walk_in_reach(i, px[i], pz[i]);
 		} else if (units_.action_state[i] == ACTION_GATHER) {
-			// A gatherer on its way to a resource (GATHER.APPROACHING): in 0 A.D., movement ends as
-			// soon as the target is within gather/work reach (CheckRange / IsInTargetRange), stopping
-			// immediately so gatherers ring around the resource rather than all pressing toward the
-			// resource origin.
+			// A gatherer on its way to any other supply (GATHER.APPROACHING) stops as soon as it is
+			// within tick_gather's reach, as a mine's does above: UnitMotion ends the move once
+			// IsInTargetRange holds (PossiblyAtDestination, CCmpUnitMotion.h:1155-1165) and UnitAI goes
+			// on to GATHERING (MovementUpdate, UnitAI.js:2484-2489; APPROACHING leave StopMoving, :2492).
+			// Walking on to the supply's centre, it would gather on the move and press into the
+			// gatherers already working there.
 			at_building = walk_in_reach(i, px[i], pz[i]);
 			if (!at_building) stop_dist = ARRIVE_DIST * 0.25f;
 		}
@@ -12240,25 +12766,15 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (!backing_off && stop_d2 <= stop_dist * stop_dist) {
 			vx[i] = 0;
 			vz[i] = 0;
-			// UnitAI FaceTowardsTarget: a unit attacking, healing, repairing, or gathering faces target at once.
+			// UnitAI FaceTowardsTarget: a unit attacking, healing or repairing another faces it at once.
+			// (A gatherer faces its supply in tick_gather, when it starts and at each gather, as 0.28's
+			// GATHERING enter and PerformGather do: UnitAI.js:2551, ResourceGatherer.js:269-270.)
 			const uint8_t work = units_.action_state[i];
 			if ((work == ACTION_ATTACK || work == ACTION_HEAL || work == ACTION_REPAIR) &&
 					units_.target_unit_id[i] != 0 && !using_path && d2 > 1e-6f) {
 				const float inv_d = 1.0f / std::sqrt(d2);
 				units_.heading_x[i] = dx * inv_d;
 				units_.heading_z[i] = dz * inv_d;
-			} else if (work == ACTION_GATHER && units_.target_resource_id[i] != 0) {
-				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
-				if (rit != res_id_to_idx_.end()) {
-					const float rdx = resources_.x[rit->second] - px[i];
-					const float rdz = resources_.z[rit->second] - pz[i];
-					const float rd2 = rdx * rdx + rdz * rdz;
-					if (rd2 > 1e-6f) {
-						const float inv_rd = 1.0f / std::sqrt(rd2);
-						units_.heading_x[i] = rdx * inv_rd;
-						units_.heading_z[i] = rdz * inv_rd;
-					}
-				}
 			} else if (work == ACTION_RETURN_DROPSITE) {
 				const float tx0 = units_.target_x[i], tz0 = units_.target_z[i];
 				const float ddx = tx0 - px[i], ddz = tz0 - pz[i];
@@ -12316,10 +12832,25 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			// whose TryGoingStraightToTarget walks straight at its slot whenever it can (CCmpUnitMotion.h:
 			// 1503-1507).
 			const bool follow = !((size_t)i < formation_group_.size() && formation_group_[i] != 0);
-			// A gatherer heads for the resource it gathers, not for the building it stands at, and the
-			// resource is no obstacle to steer round: it is where the gatherer has to go.
+			// A gatherer's own supply is no obstacle to its steering: 0.28 leaves the target of a move to
+			// an entity out of the checks of the way on (specificIgnore: CCmpUnitMotion.h:1109-1117,
+			// 1231-1236 with 1302 and 1343, 1537-1548). Its short path leaves it out too, as the gatherer
+			// walks at the supply's centre, where 0.28's goal is the range round its obstruction
+			// (ComputeGoal, CCmpUnitMotion.h:1664-1773), which a search reaches without crossing it.
 			const bool gathering = units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0;
 			const uint32_t steer_ignore = units_.action_state[i] == ACTION_GATHER ? units_.target_resource_id[i] : units_.target_building_id[i];
+			// A large unit standing inside one structure's clearance whose line enters another's
+			// (large_step_barred) is obstructed, as PerformMove's CheckMovement fails it, and takes a short
+			// path round them. steer_line_blocked passes such a line, as separation() pushes the default
+			// class out of a structure first. 0.28 never has a unit inside a grown square; its vertex
+			// pathfinder, given a start inside one, only leaves that square's vertices unclipped
+			// (VertexPathfinder.cpp:703-712), and its one-sided edges let the path leave it (:110-140).
+			auto large_line_barred = [&] {
+				const float ldx = aim_x - px[i], ldz = aim_z - pz[i], len = std::sqrt(ldx * ldx + ldz * ldz);
+				if (len < 1e-4f) return false;
+				const float k = std::min(1.0f, nav::BUILDING_STEER_RANGE / len);
+				return large_step_barred((size_t)i, px[i], pz[i], px[i] + ldx * k, pz[i] + ldz * k);
+			};
 			// A unit standing on a waypoint of the short path it keeps heads for the next one at once, as
 			// PerformMove pops a waypoint it reaches and goes on (CCmpUnitMotion.h:1299-1326). Each pass
 			// moves the memo on by one waypoint of at most SHORT_PATH_KEPT_MAX, or ends.
@@ -12327,7 +12858,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				if (!round_units && !rtso::nav::steer_around_obstacles(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
 						clear, steer_obstacles_,
 						steer_line_blocked(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z), nav::BUILDING_STEER_RANGE, clear,
-							units_.target_building_id[i]),
+							units_.target_building_id[i]) || large_line_barred(),
 						near_gaia,
 						gaia_in_the_way(px[i], pz[i], aim_x, aim_z, GAIA_STEER_REACH, clear, steer_ignore),
 						[&](rtso::nav::Vec2 c, std::vector<SteerObstacle> &out) {
@@ -12413,12 +12944,13 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// along it instead of stepping off. One already in deep water may still move. Ships
 		// (template_unit_ship.xml) stay on water the same way: one heading for a point ashore
 		// (a dock's centre, a target on the beach, the last leg of a path to a goal on land)
-		// stops at the shore.
+		// stops at the shore. A large unit never steps into a structure's clearance from outside
+		// it (large_step_barred), so it finds no way through a gap too narrow for it.
 		if (!nav_grid_.cells.blank()) {
 			const float c = unit_clearance_at(i);
 			auto barred = [&](float x, float z) {
 				if (edge_step_barred(px[i], pz[i], x, z, c)) return true; // a circular map's edge
-				if (!ship) return land_step_barred(px[i], pz[i], x, z, c);
+				if (!ship) return land_step_barred(px[i], pz[i], x, z, c) || large_step_barred((size_t)i, px[i], pz[i], x, z);
 				auto off = [&](float wx, float wz) {
 					auto [cx, cy] = nav_grid_.world_to_cell(wx, wz);
 					return !nav_grid_.is_passable_for(cx, cy, PASS_SHIP);
@@ -12705,23 +13237,10 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const uint32_t ignore = units_.target_unit_id[i];
 		const uint32_t group = crew[i];
 		auto obstructs = [&](int32_t j) {
-			if ((size_t)j == i || !idle[j] || units_.id[j] == ignore) return false;
-			if (group && crew[j] == group) return false;
-			// Gatherers approaching or returning from nearby resources can push/nudge each other
-			// rather than treating fellow gatherers as hard infinite-collision walls
-			if (units_.action_state[i] == ACTION_GATHER && units_.action_state[j] == ACTION_GATHER) {
-				const uint32_t ri = units_.target_resource_id[i], rj = units_.target_resource_id[j];
-				if (ri != 0 && rj != 0) {
-					auto r_it1 = res_id_to_idx_.find(ri);
-					auto r_it2 = res_id_to_idx_.find(rj);
-					if (r_it1 != res_id_to_idx_.end() && r_it2 != res_id_to_idx_.end()) {
-						const float rdx = resources_.x[r_it1->second] - resources_.x[r_it2->second];
-						const float rdz = resources_.z[r_it1->second] - resources_.z[r_it2->second];
-						if (rdx * rdx + rdz * rdz <= 16.0f * 16.0f) return false;
-					}
-				}
-			}
-			return true;
+			// A unit standing still obstructs one that moves, as in 0.28 (ControlGroupMovementObstructionFilter,
+			// ICmpObstructionManager.h:406-429, CCmpUnitMotion.h:840-851): only its own control group lets a
+			// unit through. So a gatherer at work obstructs one walking to another supply, however near.
+			return (size_t)j != i && idle[j] && units_.id[j] != ignore && !(group && crew[j] == group);
 		};
 		auto step_blocked = [&](float ex, float ez) {
 			const float reach = det::hypot(ex - x0, ez - z0) + ci + c_max;
@@ -12790,7 +13309,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 					const float ez = along_x ? z0 : std::clamp(z0 + e, -map_half_, map_half_);
 					const float clr = unit_clearance_at(i);
 					if (full_step_blocked(ex, ez, aim_x[i], aim_z[i]) || land_step_barred(x0, z0, ex, ez, clr) ||
-					    edge_step_barred(x0, z0, ex, ez, clr) ||
+					    edge_step_barred(x0, z0, ex, ez, clr) || large_step_barred(i, x0, z0, ex, ez) ||
 					    steer_line_blocked(nav::Vec2(x0, z0), nav::Vec2(ex, ez), full_step, clr, units_.target_building_id[i]))
 						continue;
 					npx[i] = ex;
@@ -12844,13 +13363,9 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		thread_local std::vector<SteerObstacle> near_gaia; // and round the trees as move_units steers
 		near_gaia.clear();
 		gaia_obstacles_near(x0, z0, GAIA_STEER_REACH, near_gaia);
-		if (units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0) {
-			const uint32_t own_res = units_.target_resource_id[i];
-			near_gaia.erase(std::remove_if(near_gaia.begin(), near_gaia.end(), [own_res](const SteerObstacle &o) {
-				return o.id == own_res;
-			}), near_gaia.end());
-			if (building == 0) building = own_res;
-		}
+		// A gatherer's supply stays among them, as 0.28's short path keeps the target's obstruction
+		// (RequestShortPath, CCmpUnitMotion.h:1863): the search ends on task_goal's circle round it,
+		// the range 0.28's ComputeGoal shapes, before it gets to the supply.
 		if (!nav::search_short_path_with_units(pos, aim, goal, unit_clearance_at(i), ci, range,
 				nav::ConcatRange<SteerObstacle>{steer_obstacles_, near_gaia}, building, squares, nav_grid_, w, next)) {
 			if (obstructed) memo = ShortPathMemo{x0, z0, aim.x, aim.y, stuck_key};
@@ -12874,8 +13389,10 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const float step = std::min(len, reach);
 		const float sx = x0 + to.x / len * step, sz = z0 + to.y / len * step;
 		if (full_step_blocked(sx, sz, w.x, w.y)) return;
-		// As in move_units, a land unit keeps its clearance off deep water.
-		if (land_step_barred(x0, z0, sx, sz, unit_clearance_at(i)) || edge_step_barred(x0, z0, sx, sz, unit_clearance_at(i))) return;
+		// As in move_units, a land unit keeps its clearance off deep water, and a large one out of structures.
+		if (land_step_barred(x0, z0, sx, sz, unit_clearance_at(i)) || edge_step_barred(x0, z0, sx, sz, unit_clearance_at(i)) ||
+				large_step_barred(i, x0, z0, sx, sz))
+			return;
 		npx[i] = sx;
 		npz[i] = sz;
 		want_x[i] = sx - x0;
@@ -12891,11 +13408,17 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 
 // 0 A.D. gives the members of a formation one control group: they walk through each other
 // (ControlGroupMovementObstructionFilter) and push only where their clearances overlap, idle members
-// included (CCmpUnitMotionManager::Push). RTS0 gives one to the workers of a mine as well, from the
-// walk to it until the walk back from the dropsite. 0.28's band round a 13 m mine, 2 m wide, holds its
-// 24 gatherers in one row; at RTS0's crowd scale (PUSH_SCALE, over three times the map's) they stand
-// two deep on the side facing the dropsite, and those coming and going would otherwise search a short
-// path round the others every turn, and often find none.
+// included (CCmpUnitMotionManager::Push). RTS0 also gives one to the workers of each supply other
+// than a boat's fish, from the walk to it until the walk back from the dropsite. This is deliberate: 0.28
+// sets control groups for formations only (UnitAI.js:5222-5236, CCmpUnitMotion.h:1058). 0.28's band
+// round a 13 m mine, 2 m wide, holds its 24 gatherers in one row; at RTS0's crowd scale (PUSH_SCALE,
+// over three times the map's) they stand two deep on the side facing the dropsite, and those coming
+// and going would otherwise search a short path round the others every turn, and often find none.
+// The same scale crowds the workers of a bush, a tree, a carcass or a field. With groups for mines
+// only, 3-minute probes of 32 starts each gathered 7% less from a berry cluster (8 women) and 10%
+// less from two clusters side by side (21 gatherers stuck for 10 s or more, against 9 with the
+// groups), 2.5% less from a tree in a wood (5 women; 4 stuck so long, against none), 4.6% less from
+// a field and 3.3% less from chickens (headless gathering probes, 2026-10).
 uint32_t Simulation::control_group(size_t i) const {
 	if (i < formation_group_.size() && formation_group_[i]) return formation_group_[i];
 	const uint8_t st = units_.action_state[i];
@@ -12903,8 +13426,6 @@ uint32_t Simulation::control_group(size_t i) const {
 	const auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
 	if (rit == res_id_to_idx_.end()) return 0;
 	const uint8_t type = resources_.type[rit->second], sub = resources_.subtype[rit->second];
-	// Mines as well as stationary berry/fruit bushes and tree patches share a control group
-	// so gatherers working the same resource do not hard-block each other into infinite collision loops.
 	if (type == RES_FOOD && sub == RES_SUB_FISH) return 0;
 	return 0x80000000u | units_.target_resource_id[i];
 }
@@ -13024,6 +13545,13 @@ constexpr float FAUNA_PUSH_RADIUS = 0.5f;
 const float FAUNA_PUSH_RADIUS_LARGE = unit_collision_radius(UNIT_ELEPHANT);
 } // namespace
 
+// separation()'s pair push, inlined into each of its grid queries.
+#if defined(__GNUC__)
+#define SEP_INLINE __attribute__((always_inline))
+#else
+#define SEP_INLINE
+#endif
+
 void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	const size_t n = units_.count;
 	// Pressure changes on the last tick of each turn, as MoveSubset decays it after the turn's moves
@@ -13118,9 +13646,10 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		qalive = ca;
 	}
 
+	// Packed below, once it is known which entities move.
 	UnitGrid grid, big;
-	if (!grid.build(arena, N, epx, epz, qalive, map_half_) || !grid.pack(arena, N, epx, epz)) return;
-	if (n_big && (!big.build(arena, N, epx, epz, qbig, map_half_) || !big.pack(arena, N, epx, epz))) return;
+	if (!grid.build(arena, N, epx, epz, qalive, map_half_)) return;
+	if (n_big && !big.build(arena, N, epx, epz, qbig, map_half_)) return;
 
 	// The pair loop's inputs, gathered once: twice the average of where each unit stood before and
 	// after move_units (the pushes compare that), where it stood when the turn began (the crossing
@@ -13142,7 +13671,8 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	float *frz = arena.alloc_array<float>(N);
 	float *wsx = arena.alloc_array<float>(N); // the step each tried to take this tick
 	float *wsz = arena.alloc_array<float>(N);
-	if (!pu || !frx || !frz || !wsx || !wsz) return;
+	uint8_t *mov = arena.alloc_array<uint8_t>(N); // PushUnit::moving, which the grids' packed units carry (PACKED_FLAG; see the pair loop)
+	if (!pu || !frx || !frz || !wsx || !wsz || !mov) return;
 	// With animals in the pass (see the pair loop): the unit or animal each attacks (0 for none),
 	// whether it is an animal standing at its target in COMBAT ATTACKING (swing), and the unit or
 	// animal its move heads for, whose shape never obstructs it (CCmpUnitMotion.h:1231-1237
@@ -13243,8 +13773,11 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			r_max = std::max(r_max, u.r);
 		}
 		step_max = std::max({step_max, std::fabs(epx[i] - frx[i]), std::fabs(epz[i] - frz[i])});
+		mov[i] = u.moving;
 	}
 	const float min_push = PUSH_MIN_FORCE * dt / PUSH_TURN;
+	if (!grid.pack(arena, N, epx, epz, mov) || !grid.split_flagged(arena)) return;
+	if (n_big && (!big.pack(arena, N, epx, epz, mov) || !big.split_flagged(arena))) return;
 
 	JobSystem::instance().for_each_index(N, [&](size_t i) {
 		const bool is_unit = i < n;
@@ -13277,9 +13810,16 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		// within `reach` of it once both averages are taken (each moved at most step_max), so it
 		// is passed over before its data is read. The hundredth covers float rounding.
 		float skip = std::max(reach + step_max, ri + r_max) + 0.01f;
-		auto push_pair = [&](const UnitGrid::Packed &e) {
-			if (std::fabs(e.x - pxi) > skip || std::fabs(e.z - pzi) > skip) return;
-			const int32_t j = e.j;
+		float body = 0.0f; // set below: the furthest on an axis a body could overlap this one's
+		// `walker` (see the queries below): pass over the pairs with a unit that stands further than
+		// `body` on either axis.
+		auto push = [&](const UnitGrid::Packed &e, auto walker) SEP_INLINE {
+			float lim = skip;
+			if constexpr (decltype(walker)::value) {
+				if (!(e.j & UnitGrid::PACKED_FLAG)) lim = body;
+			}
+			if (std::fabs(e.x - pxi) > lim || std::fabs(e.z - pzi) > lim) return;
+			const int32_t j = (int32_t)(e.j & ~UnitGrid::PACKED_FLAG);
 			if ((size_t)j == i) return;
 			const PushUnit &b = pu[j];
 			const bool mj = b.moving;
@@ -13403,13 +13943,38 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 				added_pressure += std::max(0, (int)((PUSH_PRESSURE_STATIC + (factor - 2.0f / 3.0f) * PUSH_PRESSURE_DISTANCE) *
 						PUSH_PRESSURE_STRENGTH));
 		};
-		grid.visit_packed_within(pxi, pzi, reach + 0.5f, reach + 0.5f, push_pair);
-		if (n_big) {
-			// Then the large animals, as far as their own clearance reaches.
-			const float reach_big = (ci + c_big) * PUSH_CORRECTION * PUSH_RADIUS + ext;
-			reach2 = reach_big * reach_big;
-			skip = std::max(reach_big + step_max, ri + r_big) + 0.01f;
-			big.visit_packed_within(pxi, pzi, reach_big + 0.5f, reach_big + 0.5f, push_pair);
+		// One of these for each query below, which is then the only one to call its copy of the
+		// query, and the compiler inlines that into it (with the push).
+		auto push_pair = [&](const UnitGrid::Packed &e) SEP_INLINE { push(e, std::false_type{}); };
+		auto walk_pair = [&](const UnitGrid::Packed &e) SEP_INLINE { push(e, std::true_type{}); };
+		// The grid, then the large animals (big). 0 A.D. pushes walkers with walkers and stopped units
+		// with stopped ones, never one with the other unless both are of one control group
+		// (CCmpUnitMotion_System.cpp:673-687); RTS0 only nudges a walker sideways off a standing
+		// body it walks into (moving_push 1 above: the one that stands returns, as does the one that
+		// moves unless the bodies overlap). So an entity of no control group (and any entity, in big:
+		// an animal has no group) passes over pairs that leave it as it was: one that stands, those
+		// with every unit that moves (its query leaves them out); one that moves, those with every
+		// unit that stands further on either axis than a body could overlap its own (`body`: r_lim is
+		// the widest body in the grid, so body is within skip; the hundredth covers float rounding
+		// here and in the cells its query leaves out, visit_flagged_or_near(), and its first test
+		// passes over the rest). The pairs it still takes are those it took, in the same order, so
+		// every sum is the same. One of a control group takes them all.
+		for (int g = 0; g < (n_big ? 2 : 1); ++g) {
+			float q = reach + 0.5f, r_lim = r_max;
+			if (g) {
+				// Then the large animals, as far as their own clearance reaches.
+				const float reach_big = (ci + c_big) * PUSH_CORRECTION * PUSH_RADIUS + ext;
+				reach2 = reach_big * reach_big;
+				skip = std::max(reach_big + step_max, ri + r_big) + 0.01f;
+				q = reach_big + 0.5f;
+				r_lim = r_big;
+			}
+			body = ri + r_lim + 0.01f;
+			const UnitGrid &gr = g ? big : grid;
+			if (mi && (!my_group || g))
+				gr.visit_flagged_or_near(pxi, pzi, q, q, body, walk_pair);
+			else
+				gr.visit_packed_within(pxi, pzi, q, q, !my_group || g, push_pair);
 		}
 		ax *= PUSH_SCALE;
 		az *= PUSH_SCALE;
@@ -13542,8 +14107,35 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		if (!pushes[i]) return;
 		const float ri = pu[i].r;
 		float max_push = 3.5f;
-		float push_x = std::clamp(fx[i] + bfx[i] * dt * 10.0f, -max_push, max_push);
-		float push_z = std::clamp(fz[i] + bfz[i] * dt * 10.0f, -max_push, max_push);
+		// 0.28 drops a push between units that fails CheckMovement (CCmpUnitMotion_System.cpp:628-641),
+		// whose filter skips no structure, so no unit pushes a ram or an elephant into a structure's
+		// clearance (large_step_barred with push). RTS0's building push is a stand-in for that
+		// CheckMovement: 0.28 has none, as no unit ever gets into a structure's clearance, and this one
+		// takes a unit that got in back out. It is added to the units' push once that has passed, and
+		// only so far as the two together carry the unit into no square grown by the clearance that it
+		// is not in yet: out of one structure's clearance and up to a neighbour's, not across a gap
+		// narrower than twice it. The share is found by halving, six times, from the units' push
+		// alone (a share of 0), so the one kept was tested.
+		const bool large_test = !nav_grid_.cells.blank() && !unit_is_ship(units_.unit_type[i]);
+		auto push_barred = [&](float dx, float dz) {
+			return large_test && (dx != 0.0f || dz != 0.0f) && large_step_barred(i, px[i], pz[i], px[i] + dx, pz[i] + dz, true);
+		};
+		float ux = fx[i], uz = fz[i];
+		if (push_barred(ux, uz)) ux = uz = 0.0f;
+		const float bx = bfx[i] * dt * 10.0f, bz = bfz[i] * dt * 10.0f;
+		float push_x = std::clamp(ux + bx, -max_push, max_push);
+		float push_z = std::clamp(uz + bz, -max_push, max_push);
+		if ((bx != 0.0f || bz != 0.0f) && push_barred(push_x, push_z)) {
+			float lo = 0.0f, hi = 1.0f;
+			for (int k = 0; k < 6; ++k) {
+				const float mid = 0.5f * (lo + hi);
+				if (push_barred(std::clamp(ux + bx * mid, -max_push, max_push), std::clamp(uz + bz * mid, -max_push, max_push))) hi = mid;
+				else lo = mid;
+			}
+			push_x = std::clamp(ux + bx * lo, -max_push, max_push);
+			push_z = std::clamp(uz + bz * lo, -max_push, max_push);
+			if (lo == 0.0f && push_barred(push_x, push_z)) push_x = push_z = 0.0f; // the units' push, clamped
+		}
 		const float nx = std::clamp(px[i] + push_x, -map_half_ + ri, map_half_ - ri);
 		const float nz = std::clamp(pz[i] + push_z, -map_half_ + ri, map_half_ - ri);
 		// CCmpUnitMotionManager::Move: a push never carries a unit onto a navcell its passability
@@ -13568,6 +14160,8 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		pz[i] = nz;
 	});
 }
+
+#undef SEP_INLINE
 
 // UnitMotionFlying.js (0.28) GetHeightOffset: Position is Floating, so above the water too.
 float Simulation::flight_offset(size_t i) const {
@@ -13908,12 +14502,10 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		// dropsite. A boat's fish are on its own sea, so its walks to them don't fail this way.
 		// Only a unit still walking to its supply goes: one already harvesting it (0 A.D. GATHER
 		// GATHERING has no likelyFailure handler) keeps at it even if pushes wedge it in place.
-		// 0 A.D. GATHER.APPROACHING MovementUpdate with likelyFailure / obstructed:
-		// If gatherer cannot make progress because other gatherers block the way, trigger FINDINGNEWTARGET early (at 4 failed turns instead of 35).
-		const bool gather_stuck = (move_failed || m.failed >= 4) &&
-				units_.order_kind[i] == ORDER_GATHER && units_.action_state[i] == ACTION_GATHER &&
-				units_.target_resource_id[i] != 0 && !unit_is_ship(units_.unit_type[i]);
-		if (gather_stuck) {
+		// APPROACHING takes no notice of an obstructed move (UnitAI.js:2484-2489): only MoveFailed,
+		// after MAX_FAILED_MOVEMENTS turns (CCmpUnitMotion.h:118, 707-717), sends it on.
+		if (move_failed && units_.order_kind[i] == ORDER_GATHER && units_.action_state[i] == ACTION_GATHER &&
+				units_.target_resource_id[i] != 0 && !unit_is_ship(units_.unit_type[i])) {
 			if (auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
 					rit != res_id_to_idx_.end() &&
 					gather_in_reach(i, rit->second, units_.pos_x[i], units_.pos_z[i])) {
@@ -14225,14 +14817,16 @@ void Simulation::give_up_attack(size_t i) {
 uint32_t Simulation::ensure_field_resource(const Building &b) {
 	auto fit = field_res_by_bld_.find(b.id);
 	if (fit != field_res_by_bld_.end() && res_id_to_idx_.count(fit->second)) return fit->second;
-	// After a load the supply is already in resources_ (saved without its
-	// subtype); adopt it by position instead of allocating a new id.
+	// A save from before v17 kept no subtypes, so load_state could not link its supplies again
+	// (relink_field_resources): the supply is already in resources_, so adopt it by position
+	// instead of allocating a new id.
 	uint32_t rid = 0;
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (resources_.type[r] == RES_FOOD && resources_.amount[r] >= FIELD_FOOD_SUPPLY / 2 &&
 				resources_.x[r] == b.x && resources_.z[r] == b.z) {
 			rid = resources_.id[r];
 			resources_.subtype[r] = RES_SUB_GRAIN;
+			note_gaia_edit(); // no longer a bush (sync_tile_obstructions)
 			break;
 		}
 	}
@@ -14265,6 +14859,37 @@ uint32_t Simulation::find_free_fish(uint16_t sea, float x, float z, float max_d,
 	return best;
 }
 
+// 0.28's field is its own grain supply (template_structure_resource_field.xml:45-51 ResourceSupply), so a
+// save keeps the two together. RTS0's supply is a resource of its own, at the field's centre: each one
+// is spawned there (ensure_field_resource) and the two stay linked until sync_field_resources finds the
+// field gone and retires the supply, which the end of that tick_gather removes. So at a turn boundary
+// every grain supply is linked to a field at its very centre: the finished one standing there, else,
+// when it died after the last sync_field_resources (a wreck's build_progress is 0, mark_building_wreck),
+// the newest field there. A field placed afresh on a wreck's cells in that turn, still a foundation, is
+// not finished either, and is just as dead to sync_field_resources, which retires the supply all the
+// same. Saves from before v17 kept no subtypes: their fields adopt their supplies at the first
+// sync_field_resources, as they did.
+void Simulation::relink_field_resources() {
+	field_res_by_bld_.clear();
+	field_bld_by_res_.clear();
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (resources_.subtype[r] != RES_SUB_GRAIN) continue;
+		const Building *field = nullptr;
+		bool field_done = false;
+		for (const Building &b : buildings_) {
+			if (b.type != BLD_FIELD || b.x != resources_.x[r] || b.z != resources_.z[r]) continue;
+			const bool done = b.build_progress >= 1.0f && !b.wrecked;
+			if (!field || (done && !field_done) || (done == field_done && b.id > field->id)) {
+				field = &b;
+				field_done = done;
+			}
+		}
+		if (!field) continue;
+		field_res_by_bld_[field->id] = resources_.id[r];
+		field_bld_by_res_[resources_.id[r]] = field->id;
+	}
+}
+
 void Simulation::sync_field_resources() {
 	// Retire supplies whose field was destroyed or demolished. Zeroing the
 	// amount lets the cleanup at the end of tick_gather remove the resource;
@@ -14278,7 +14903,10 @@ void Simulation::sync_field_resources() {
 		}
 		if (alive) { ++it; continue; }
 		auto rit = res_id_to_idx_.find(it->first);
-		if (rit != res_id_to_idx_.end()) resources_.amount[rit->second] = 0;
+		if (rit != res_id_to_idx_.end()) {
+			resources_.amount[rit->second] = 0;
+			note_gaia_edit();
+		}
 		field_res_by_bld_.erase(it->second);
 		it = field_bld_by_res_.erase(it);
 	}
@@ -14632,8 +15260,8 @@ void Simulation::tick_gather(float dt) {
 				// diminishing returns are those when the load was started.
 				// (Gather techs name stone.rock, metal.ore and so on, never *.ruins.)
 				const uint32_t rid = units_.target_resource_id[i];
-				if (units_.gather_res[i] != rid || !(units_.gather_rate[i] > 0.0f)) {
-					// 0 A.D. UnitAI.js GATHERING enter: FaceTowardsTarget
+				// UnitAI FaceTowardsTarget: the gatherer turns to its supply's centre.
+				auto face_supply = [&]() {
 					const float rdx = resources_.x[ridx] - units_.pos_x[i];
 					const float rdz = resources_.z[ridx] - units_.pos_z[i];
 					const float rd2 = rdx * rdx + rdz * rdz;
@@ -14642,6 +15270,10 @@ void Simulation::tick_gather(float dt) {
 						units_.heading_x[i] = rdx * inv_rd;
 						units_.heading_z[i] = rdz * inv_rd;
 					}
+				};
+				if (units_.gather_res[i] != rid || !(units_.gather_rate[i] > 0.0f)) {
+					// 0 A.D. UnitAI.js GATHERING enter: FaceTowardsTarget (UnitAI.js:2551).
+					face_supply();
 					// StartGathering sets a fresh SetInterval(timing, timing): the first unit comes
 					// 1 / rate after it, whatever a kill or a fight left on the shared timer.
 					units_.attack_timer[i] = 0.0f;
@@ -14659,6 +15291,10 @@ void Simulation::tick_gather(float dt) {
 				units_.attack_timer[i] += dt;
 				while (units_.attack_timer[i] >= interval) {
 					units_.attack_timer[i] -= interval;
+					// PerformGather faces the supply again at each gather (ResourceGatherer.js:269-270:
+					// "ToDo: Enable entities to keep facing a target."), so one that has stepped back into
+					// reach after a push faces it again by its next unit.
+					face_supply();
 					const int32_t space = carry_cap(i, rt) - units_.carry[i];
 					const int32_t take = std::min(1, std::min(resources_.amount[ridx], space));
 					if (field_efficiency <= 0.0f) resources_.amount[ridx] -= take; // fields are infinite
@@ -14730,6 +15366,7 @@ void Simulation::tick_gather(float dt) {
 			mine_gone = mine_footprint(r, m) || mine_gone;
 			res_id_to_idx_.erase(resources_.id[r]);
 			resources_.remove_at(r);
+			++supply_list_edits_; // a supply removed, the last one moved into its place (ensure_gaia_obstacles, sync_tile_obstructions)
 			res_id_to_idx_.clear();
 			for (size_t k = 0; k < resources_.count; ++k) res_id_to_idx_[resources_.id[k]] = k;
 		} else {
@@ -15132,6 +15769,7 @@ bool Simulation::try_commit_foundation(Building &b) {
 		if (!nav::footprint_contains(b, resources_.x[r], resources_.z[r], resource_block_half(r))) continue;
 		resources_.alive[r] = 0;
 		resources_.amount[r] = 0;
+		note_gaia_edit();
 	}
 	rebuild_nav_grid();
 	if (!triggers_.triggers.empty()) { // Foundation.js Commit: OnConstructionStarted {foundation, template}
@@ -15316,7 +15954,7 @@ void Simulation::tick_production(float dt) {
 				// the water by their passability). Units with no room stay queued, already paid,
 				// and the batch tries again next turn ("Can't find free space to spawn trained units").
 				float sx, sz;
-				if (!pick_spawn_point(b, done.unit_type, 0, sx, sz) &&
+				if (!pick_spawn_point(b, done.unit_type, 0, sx, sz, done.tmpl) &&
 				    !(unit_is_ship(done.unit_type) && nearest_ship_cell(b, sx, sz))) {
 					ProductionOrder rest = done;
 					rest.count = done.count - n;
@@ -16087,6 +16725,7 @@ void Simulation::tick_combat(float dt) {
 			stand_outside(b, units_.id[i],
 					units_.pos_x[i], units_.pos_z[i],
 					&units_.target_x[i], &units_.target_z[i], unit_clearance_at(i) + kStandMargin);
+			large_stand_point(i, b, b.id, unit_clearance_at(i) + kStandMargin, units_.target_x[i], units_.target_z[i]);
 			units_.has_order[i] = 1;
 			units_.action_state[i] = ACTION_ATTACK;
 		}
@@ -18137,7 +18776,7 @@ void Simulation::spawn_regicide_heroes() {
 				uint32_t ship = 0;
 				if (s.building) {
 					// TriggerHelper.SpawnUnits: no free spot puts the hero on the structure's position.
-					if (!pick_spawn_point(buildings_[s.bi], utype, 0, x, z)) { x = buildings_[s.bi].x; z = buildings_[s.bi].z; }
+					if (!pick_spawn_point(buildings_[s.bi], utype, 0, x, z, tmpl)) { x = buildings_[s.bi].x; z = buildings_[s.bi].z; }
 				} else {
 					const int32_t u = lookup_unit(s.id);
 					if (u < 0) continue;
@@ -34770,7 +35409,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state); v71 StatisticsTracker's unitsCaptured counters and value; v72 map scripts' OnRange queries and the entities in range of each (TriggerPoint.js currentCollections); v73 Petra plays one turn every 1.6 s, so the Attacked, civic centre capture, decay and attack request events since each AI's last turn are kept (savedEvents); v74 what Petra queued each batch for (worker, attack or raid; queueplanTraining metadata); v75 the time each AI last found nothing of a resource to gather (lastFailedGather), and PetraConfig without its unused workers, traders and muster fields; v76 the storehouse a Petra dropsite check decided on but could not pay for yet (PetraDropsiteCheck.pending); v77 each unit's heading (Position rotation, which UnitMotion turns at the template's TurnRate); v78 each wonder's own countdown, owner and allies (WonderVictory.js); v79 each Petra hunter's last fruitless hunt search (lastHuntSearch) and each Petra base's storehouse check (baseManager.js gatherers); v80 every Poisoned and Burning hit as its own status with its own timer, on units, structures and animals (StatusEffectsReceiver Stack; save_tick_state); v81 Petra workers' approach watch and the supplies they flagged inaccessible (worker.js isInaccessibleSupply); v82 CinemaManager's camera paths, path queue and timers (save_tick_state); v83 Petra's plan names (attackManager.js totalNumber), its main plan's siege class (SIEGE_ADDED) and its raid's unitStat sizes; v84 which players have seen each structure (Fogging seen, so mirages survive a load); v85 the Mauryan rampart tower's turret units beside its garrison (save_tick_state); v86 the attacks each player's AttackDetection is suppressing (map triggers' OnAttackDetected); v87 each Petra attack plan's completing step (gathering at its rally point), march waypoints and last position (attackPlan.js path, lastPosition); v88 what each Petra decides once or only raises: needFish and needFarm, its wanted fishing and transport ships per sea (navalManager.js), and targetNumTraders; v89 each structure's map-set no-decay flag (palisade spikes, Gallic Fields); v90 whether each Petra can produce units (canBuildUnits) and the units it sent to guard an ally's civic centre; v91 when each Petra mobile dropsite next looks for a gatherer to walk to (worker.js nextMoveToGatherer); v92 each unit's isGuardOf (UnitAI keeps the charge through other orders); v93 each Petra attack plan's position 5 turns ago (attackPlan.js position5TurnsAgo); v94 each Petra gatherer's supply (worker.js metadata "supply"), the structures it found no room for, with when it tries again (buildManager.js unbuildables "room"), and the AIs' own random stream (CCmpAIManager m_RNG); v95 the Petra raid's plan name and siege class (addSiegeUnits for raids); v96 each unit's workOrders queue (UnitAI UpdateWorkOrders, Back to Work); v97 each rally position's command and the unit or treasure it names (RallyPoint data.command); v98 each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact), each unit's and animal's previous-turn position (aim velocity), and each player's control-all-units flag; v99 each trader's route waypoints and leg progress (SetupTradeRoute route); v100 Petra's routeProspection and the Trade structures and diplomacy it last saw (tradeManager.js checkEvents); v101 each carcass's animal's owner; v102 each queued batch's original size once part of it spawned (ProductionQueue.js originalItem, autoqueue); v103 the supply wagons their owners locked (ResourceDropsite SetSharing on a unit); v104 each Petra's targeted Gaia relics (victoryManager.js targetedGaiaRelics) and each structure's held-after-capture flag (garrisonManager.js decayingStructures for a just-captured Barracks); v105 the target each unit was last in attack range of (UnitAI CHASING runs after it, APPROACHING walks); v106 Petra's units out of a plan (attackPlan.js removeUnit's plan -1) and its emergency batches; v107 the base that claimed each of Petra's territory tiles (basesManager.js basesMap); v108 each animal's MoveRandomly roamAngle and startAngle; v109 each Petra's defenseManager targetList; v110 each structure's time into its production queue's second; v111 unit trainers' queue clocks and autoqueue; v112 each flying unit's UnitMotionFlying state (units/plane); v113 Petra's trade ships and the transports to switch to trade (tradeManager.js roles), its house plans (headquarters.js buildMoreHouses), the new bases it has seen finished (handleNewBase) and each transport passenger's boarding tries (transportPlan.js nTry); v114 Petra's queued worker TrainingPlans (headquarters.js trainMoreWorkers); v115 the base each Petra updates next (basesManager.js currentBase); v116 Petra's requireHouses, kept until the phase has its houses (headquarters.js requireHouses); v117 each animal's pushing pressure (CCmpUnitMotionManager MotionState pushingPressure, animals pushing in separation) and its failed movements on a walk (CCmpUnitMotion m_FailedMovements); v118 the structure heading each Petra queue (queue.js plan order); v119 guards on their way by sea to a critical entity (petra_ferried_guards_); v120 each structure's garrison heal timer (GarrisonHolder HEAL_TIMEOUT from the first unit in); v121 the enemy formation each formation attacks (UnitAI.js Order.Attack on a formation member); v123 each Petra boarding passenger's nearest approach to its ship (transportPlan.js nTry kept while it walks off a trap and back);
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state); v71 StatisticsTracker's unitsCaptured counters and value; v72 map scripts' OnRange queries and the entities in range of each (TriggerPoint.js currentCollections); v73 Petra plays one turn every 1.6 s, so the Attacked, civic centre capture, decay and attack request events since each AI's last turn are kept (savedEvents); v74 what Petra queued each batch for (worker, attack or raid; queueplanTraining metadata); v75 the time each AI last found nothing of a resource to gather (lastFailedGather), and PetraConfig without its unused workers, traders and muster fields; v76 the storehouse a Petra dropsite check decided on but could not pay for yet (PetraDropsiteCheck.pending); v77 each unit's heading (Position rotation, which UnitMotion turns at the template's TurnRate); v78 each wonder's own countdown, owner and allies (WonderVictory.js); v79 each Petra hunter's last fruitless hunt search (lastHuntSearch) and each Petra base's storehouse check (baseManager.js gatherers); v80 every Poisoned and Burning hit as its own status with its own timer, on units, structures and animals (StatusEffectsReceiver Stack; save_tick_state); v81 Petra workers' approach watch and the supplies they flagged inaccessible (worker.js isInaccessibleSupply); v82 CinemaManager's camera paths, path queue and timers (save_tick_state); v83 Petra's plan names (attackManager.js totalNumber), its main plan's siege class (SIEGE_ADDED) and its raid's unitStat sizes; v84 which players have seen each structure (Fogging seen, so mirages survive a load); v85 the Mauryan rampart tower's turret units beside its garrison (save_tick_state); v86 the attacks each player's AttackDetection is suppressing (map triggers' OnAttackDetected); v87 each Petra attack plan's completing step (gathering at its rally point), march waypoints and last position (attackPlan.js path, lastPosition); v88 what each Petra decides once or only raises: needFish and needFarm, its wanted fishing and transport ships per sea (navalManager.js), and targetNumTraders; v89 each structure's map-set no-decay flag (palisade spikes, Gallic Fields); v90 whether each Petra can produce units (canBuildUnits) and the units it sent to guard an ally's civic centre; v91 when each Petra mobile dropsite next looks for a gatherer to walk to (worker.js nextMoveToGatherer); v92 each unit's isGuardOf (UnitAI keeps the charge through other orders); v93 each Petra attack plan's position 5 turns ago (attackPlan.js position5TurnsAgo); v94 each Petra gatherer's supply (worker.js metadata "supply"), the structures it found no room for, with when it tries again (buildManager.js unbuildables "room"), and the AIs' own random stream (CCmpAIManager m_RNG); v95 the Petra raid's plan name and siege class (addSiegeUnits for raids); v96 each unit's workOrders queue (UnitAI UpdateWorkOrders, Back to Work); v97 each rally position's command and the unit or treasure it names (RallyPoint data.command); v98 each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact), each unit's and animal's previous-turn position (aim velocity), and each player's control-all-units flag; v99 each trader's route waypoints and leg progress (SetupTradeRoute route); v100 Petra's routeProspection and the Trade structures and diplomacy it last saw (tradeManager.js checkEvents); v101 each carcass's animal's owner; v102 each queued batch's original size once part of it spawned (ProductionQueue.js originalItem, autoqueue); v103 the supply wagons their owners locked (ResourceDropsite SetSharing on a unit); v104 each Petra's targeted Gaia relics (victoryManager.js targetedGaiaRelics) and each structure's held-after-capture flag (garrisonManager.js decayingStructures for a just-captured Barracks); v105 the target each unit was last in attack range of (UnitAI CHASING runs after it, APPROACHING walks); v106 Petra's units out of a plan (attackPlan.js removeUnit's plan -1) and its emergency batches; v107 the base that claimed each of Petra's territory tiles (basesManager.js basesMap); v108 each animal's MoveRandomly roamAngle and startAngle; v109 each Petra's defenseManager targetList; v110 each structure's time into its production queue's second; v111 unit trainers' queue clocks and autoqueue; v112 each flying unit's UnitMotionFlying state (units/plane); v113 Petra's trade ships and the transports to switch to trade (tradeManager.js roles), its house plans (headquarters.js buildMoreHouses), the new bases it has seen finished (handleNewBase) and each transport passenger's boarding tries (transportPlan.js nTry); v114 Petra's queued worker TrainingPlans (headquarters.js trainMoreWorkers); v115 the base each Petra updates next (basesManager.js currentBase); v116 Petra's requireHouses, kept until the phase has its houses (headquarters.js requireHouses); v117 each animal's pushing pressure (CCmpUnitMotionManager MotionState pushingPressure, animals pushing in separation) and its failed movements on a walk (CCmpUnitMotion m_FailedMovements); v118 the structure heading each Petra queue (queue.js plan order); v119 guards on their way by sea to a critical entity (petra_ferried_guards_); v120 each structure's garrison heal timer (GarrisonHolder HEAL_TIMEOUT from the first unit in); v121 the enemy formation each formation attacks (UnitAI.js Order.Attack on a formation member); v122 the stance each unit on a turret had before it went up, which it gets back when it comes down (UnitAI previousStance, turret_prev_stance_); v123 each Petra boarding passenger's nearest approach to its ship (transportPlan.js nTry kept while it walks off a trap and back);
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -35094,6 +35733,9 @@ bool Simulation::load_state(const char *filepath) {
 	}
 
 	// 1. Sim scalars
+	steer_obstacles_live_ = false; // the steering list is the next move_units' (for_each_structure_square)
+	note_gaia_edit(); // the supplies are replaced (sync_tile_obstructions)
+	tile_gaia_sig_ = 0;
 	in.read((char *)&ticks_, sizeof(ticks_));
 	if (version >= SAVE_VERSION_PROJECTILE_DAMAGE) in.read((char *)&aim_clock_, sizeof(aim_clock_));
 	else aim_clock_ = 0.0f;
@@ -35618,7 +36260,9 @@ bool Simulation::load_state(const char *filepath) {
 		for (WaypointPath &wp : unit_paths_) wp.clear();
 		projectiles_.clear();
 		statuses_.clear();
+		turret_prev_stance_.clear();
 	}
+	relink_field_resources(); // the resources' subtypes came with the tick state (v17)
 
 	// The units on turret points, as the saving game's last tick_turrets left them (move_units reads
 	// them before this tick's tick_turrets).
@@ -35654,7 +36298,22 @@ bool Simulation::load_state(const char *filepath) {
 	refresh_unit_pop_bonus(); // as the saving game counted it at the end of its last tick
 	relic_countdown_players_ = has_victory(VK_RELIC) ? relic_winners() : 0;
 	relic_changed_hands_ = false;
+	// The nav grid starts afresh, as a new Simulation's, and is worked out from the loaded terrain and
+	// obstructions alone, as 0.28's pathfinder, initialised anew when it is deserialized, builds its grid
+	// from them on MT_Deserialized (CCmpPathfinder.cpp:79-83, 193-197, 222-223, 529-541). What this
+	// Simulation held before must not stay: a rebuild keeps deep-water navcells, and a map without water
+	// marks none dry (set_water_from_heights), and the steep tiles' node lists stay those of the last map
+	// that had steep tiles; a client joins with the map its own Game Setup built.
+	nav_grid_.init(map_half_, grid_res_);
+	++nav_terrain_stamp_;
+	// The supplies' subtypes and flora come with the tick state, after the supplies themselves: the
+	// trees' and bushes' signature is worked out afresh from all of it (sync_tile_obstructions).
+	tile_gaia_sig_ = 0;
 	rebuild_nav_grid(); // the loaded structures (and locked gates) block paths, not the old ones
+	// The tick-keyed caches: this Simulation may have listed them on the tick the save resumes at.
+	mine_obstacles_.clear();
+	mine_obstacles_tick_ = ~uint64_t{0};
+	resource_block_tick_ = UINT64_MAX;
 	if (version >= 26) trigger_event(TRIGGER_ON_DESERIALIZED); // Trigger.js OnGlobalDeserialized
 	petra_decay_events_.clear(); // rebuilding the loaded territory is no change of it
 	return true;
@@ -36745,6 +37404,31 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	// the order of the structures saved above.
 	if (ar.version >= Simulation::SAVE_VERSION_TURRET_UNITS)
 		for (Simulation::Building &b : s.buildings_) ids(b.turret_units);
+
+	// v120: the stance each unit on a turret had before it went up, which it gets back when it comes
+	// down (UnitAI previousStance, SetTurretStance and ResetTurretStance, UnitAI.js:5982-6005; 0.28
+	// serializes UnitAI's state whole). By unit id, so the file doesn't follow the hash map's order.
+	// Older saves kept none: their units come down with their default stance.
+	if (ar.version >= Simulation::SAVE_VERSION_TURRET_STANCE) {
+		std::vector<std::pair<uint32_t, uint8_t>> prev(s.turret_prev_stance_.begin(), s.turret_prev_stance_.end());
+		std::sort(prev.begin(), prev.end());
+		io_vec(ar, prev, S::UNIT_CAP, [&](std::pair<uint32_t, uint8_t> &e) {
+			ar.pod(e.first);
+			ar.pod(e.second);
+			if constexpr (Ar::loading)
+				if (e.second > STANCE_PASSIVE) ar.ok = false;
+		});
+		if constexpr (Ar::loading) {
+			// Written sorted by unit id, each id once.
+			if (std::adjacent_find(prev.begin(), prev.end(), [](const auto &x, const auto &y) { return x.first >= y.first; }) !=
+					prev.end())
+				ar.ok = false;
+			s.turret_prev_stance_.clear();
+			for (const auto &e : prev) s.turret_prev_stance_[e.first] = e.second;
+		}
+	} else if constexpr (Ar::loading) {
+		s.turret_prev_stance_.clear();
+	}
 
 	// v86: the attacks each player's AttackDetection is suppressing (OnAttackDetected).
 	if (ar.version >= Simulation::SAVE_VERSION_ATTACK_DETECTION) {
@@ -42345,6 +43029,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 		if (!submerged(resources_.x[r], resources_.z[r])) continue;
 		resources_.alive[r] = 0;
 		resources_.amount[r] = 0;
+		note_gaia_edit();
 	}
 	// So do land treasures (shipwrecks and the Argo float): they can't be collected any more.
 	std::erase_if(treasures_, [&](const Treasure &t) {
