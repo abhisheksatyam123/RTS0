@@ -76,7 +76,7 @@ func run() -> void:
 	await frames(2)
 	var titles := []
 	for c in d.list.columns:
-		titles.append(d.list.get_column_title(c).trim_suffix("  ▼").trim_suffix("  ▲"))
+		titles.append(d.list.get_column_title(c))
 	check(titles == ["Date / Time", "Map Type", "Map Name", "Description"], "0 A.D.'s columns: " + str(titles))
 	check(d.find_child("Title", true, false).text == "Load Game" and d.btn_ok.text == "Load", "Load Game with a Load button")
 	check(ids(d) == [NAMES[1], NAMES[0]], "compatible saves only, newest first: " + str(ids(d)))
@@ -88,6 +88,9 @@ func run() -> void:
 	check(ids(d) == [NAMES[0], NAMES[1]], "Map Name sorts A to Z")
 	d.sort_by("mapName")
 	check(ids(d) == [NAMES[1], NAMES[0]], "and again Z to A")
+	var arrows = preload("res://scenes/common/sort_arrows.gd").attach(d.list)
+	check(range(d.list.columns).map(func(c): return arrows.sorted_as(c)) == ["", "", "desc", ""],
+		"ModernArrowDown on Map Name, ModernNotSorted on the other headings")
 	d.sort_by("date")
 	d.compatibility_filter.button_pressed = false
 	check(ids(d) == [NAMES[3], NAMES[2], NAMES[1], NAMES[0]], "unticking the filter shows the other save formats")
