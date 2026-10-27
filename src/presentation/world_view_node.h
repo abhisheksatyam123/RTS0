@@ -342,6 +342,12 @@ class RtsoWorldView : public Node3D {
 	MultiMeshInstance3D *stone_proj_mmi = nullptr;
 	Ref<MultiMesh> stone_proj_mm;
 	float stone_proj_scale = 1.0f;
+	// The javelins and sling stones 0.28's javelinists and slingers launch
+	// (data/unit_projectiles.json by roster template, tools/extract_unit_projectiles.py).
+	Ref<MultiMesh> javelin_mm, sling_mm;
+	float javelin_scale = 1.0f, sling_scale = 1.0f;
+	std::vector<uint8_t> tmpl_projectile_; // per roster template: 0 the sim's, 1 javelin, 2 sling
+	void load_unit_projectiles();
 
 	MeshInstance3D *terrain = nullptr;
 	Ref<PlaneMesh> plane_mesh;

@@ -11849,16 +11849,16 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					const size_t ridx = rit->second;
 					const float rx = resources_.x[ridx], rz = resources_.z[ridx];
 					float to_dx = px[i] - rx, to_dz = pz[i] - rz;
-					float d = std::hypot(to_dx, to_dz);
+					float d = det::hypot(to_dx, to_dz);
 					if (d < 1e-4f) {
 						const float a = ((units_.id[i] % 12) / 12.0f) * 6.2831853f;
-						to_dx = std::cos(a);
-						to_dz = std::sin(a);
+						to_dx = det::cos(a);
+						to_dz = det::sin(a);
 						d = 1.0f;
 					}
 					// Offset angle distributed per unit id so multiple workers don't aim at the exact same radial ray
 					const float spread_angle = (((units_.id[i] * 5) % 8) - 3.5f) * 0.18f;
-					const float ca = std::cos(spread_angle), sa = std::sin(spread_angle);
+					const float ca = det::cos(spread_angle), sa = det::sin(spread_angle);
 					const float nx = (to_dx * ca - to_dz * sa) / d;
 					const float nz = (to_dx * sa + to_dz * ca) / d;
 					const float stand_r = std::max(0.6f, resource_block_half(ridx) + unit_clearance_at(i) + 0.2f);
@@ -22546,7 +22546,7 @@ void Simulation::petra_staff_foundations() {
 		}
 		return best && best->build_progress < 1.0f ? best->id : 0;
 	};
-	struct Need { uint32_t id; float x, z; int missing; PetraFoundationWatch *watch; uint16_t land; uint32_t anchor; };
+	struct Need { uint32_t id; float x, z; int missing; PetraFoundationWatch *watch; uint16_t land; uint32_t anchor; int target; };
 	std::vector<Need> needs;
 	std::vector<PetraFoundationWatch> watch;
 	watch.reserve(petra_fnd_watch_.size() + 4);
@@ -22609,7 +22609,7 @@ void Simulation::petra_staff_foundations() {
 				if (o.team == petra_pid_ && building_research_base(o.type) == kind && o.build_progress >= 1.0f && o.hp > 0.0f && !o.wrecked) { stands = true; break; }
 			if (!stands) want = 7;
 		}
-		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0, constructing_anchor(b)});
+		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0, constructing_anchor(b), want});
 	}
 
 	const std::unordered_set<uint32_t> launched = petra_launched_units();
@@ -22663,6 +22663,9 @@ void Simulation::petra_staff_foundations() {
 	// two; two more for a house while the population is near its cap; 15 for a base
 	// anchor or the wonder in wonder victory; every worker while there is no base yet.
 	const bool has_base = petra_has_active_base(); // hasActiveBase: a military colony anchors one too
+	// baseManager.js:897: with no active base, every worker may build each foundation (targetNB).
+	if (!has_base)
+		for (auto &n : needs) n.missing += workers - n.target;
 	int max_total = (int)std::ceil((float)workers * petra_builder_ratio());
 	if (max_total < 2 && workers > 1) max_total = 2;
 	const bool house_short = pop_max(petra_pid_) < pop_current(petra_pid_) + 5 && pop_max(petra_pid_) < pop_cap(petra_pid_);
