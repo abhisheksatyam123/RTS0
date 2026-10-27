@@ -389,7 +389,7 @@ int main() {
 
 	// Every roster row named _a or _e (a captured Roman army camp's {civ}/infantry_*_a, a
 	// captured temple of Amun's {civ}/support_healer_e) trains at its own rank, as its
-	// template's Identity/Rank; an Advanced hoplite still promotes to Elite (G63).
+	// template's Identity/Rank; an Advanced hoplite still promotes to Elite (G64).
 	{
 		fresh(s, CIV_ATHENIANS);
 		int checked = 0;

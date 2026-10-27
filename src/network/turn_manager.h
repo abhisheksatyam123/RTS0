@@ -282,6 +282,9 @@ public:
 
 	// Out-of-sync detection status
 	bool has_out_of_sync() const { return oos_detected_; }
+	// NetClientTurnManager::OnSyncError: a client shows the error once the host has
+	// reported it (with the players' names); the host as soon as it finds it.
+	bool out_of_sync_reported() const;
 	uint32_t oos_turn() const { return oos_turn_; }
 	uint32_t oos_expected_hash() const { return oos_expected_hash_; }
 	uint32_t oos_received_hash() const { return oos_received_hash_; }
