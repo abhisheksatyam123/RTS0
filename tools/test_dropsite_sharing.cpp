@@ -286,6 +286,28 @@ int main() {
 		CHECK(r.player_resource(0, RES_WOOD) == wood0 + 10 && r.units_.pos_x[k] > 15.0f);
 	}
 
+	{
+		// UnitAI FindNearestDropsite queries every ResourceDropsite: Call to Arms sends a
+		// carrying soldier to the supply wagon beside him, not the far Civic Centre.
+		static Simulation r;
+		r.set_sim_seed(5);
+		r.reset();
+		r.set_player_active(0, true, false);
+		r.spawn_building_world(-30.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t wagon = r.spawn_unit(12.0f, 0.0f, 0, UNIT_WAGON);
+		const uint32_t sp = r.spawn_unit(8.0f, 0.0f, 0, UNIT_SPEARMAN);
+		const int32_t k = r.lookup_unit(sp);
+		r.units_.res_type_carried[k] = RES_WOOD;
+		r.units_.carry[k] = 5;
+		const int wood0 = r.player_resource(0, RES_WOOD);
+		r.order_call_to_arms(&sp, 1, 40.0f, 0.0f);
+		const bool to_wagon = r.unit_order(sp).kind == ORDER_RETURN_RESOURCE && r.unit_order(sp).target == wagon;
+		for (int t = 0; t < 400 && r.units_.carry[k] > 0; ++t) r.tick(Simulation::FIXED_STEP);
+		std::printf("  call to arms beside a wagon: drops at %s, +%d wood, at x %.1f\n", to_wagon ? "the wagon" : "elsewhere",
+				r.player_resource(0, RES_WOOD) - wood0, r.units_.pos_x[k]);
+		CHECK(to_wagon && r.player_resource(0, RES_WOOD) == wood0 + 5 && r.units_.pos_x[k] > 0.0f);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

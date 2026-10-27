@@ -42,5 +42,9 @@ func run() -> void:
 			break
 	check(seen.strip_edges().begins_with("You can attack in 00:"), "the ceasefire counts down as mm:ss: \"%s\"" % seen.strip_edges())
 	check(not seen.contains("["), "no markup shows")
+	# notificationPanel: text_valign bottom, buffer_zone 5, in 50%-300 60 50%+300 120.
+	await process_frame
+	check(label != null and is_equal_approx(label.get_global_rect().end.y, 115.0) and label.size.x == 600.0,
+			"the text sits on the box's bottom, 5 px in: " + (str(label.get_global_rect()) if label else ""))
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(1 if failures else 0)

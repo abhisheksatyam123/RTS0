@@ -225,6 +225,21 @@ static void test_treasure_mirages() {
 	m.begin(g.c, 4, 8.0f);
 	m.end();
 	CHECK(m.treasures().empty(), "the treasure mirage clears once the spot is seen");
+	// special_argo.xml RetainInFog false: the Argo shows only in sight and leaves no mirage.
+	g.set(2, 2, Simulation::FOW_EXPLORED);
+	rtso::FoggedTreasure argo = tr(23, 1, 1);
+	argo.type = rtso::TREASURE_SPECIAL_ARGO;
+	m.begin(g.c, 4, 8.0f);
+	m.add_treasure(argo);
+	m.end();
+	CHECK(m.treasures().size() == 1, "the Argo in sight shows");
+	g.set(1, 1, Simulation::FOW_EXPLORED);
+	m.begin(g.c, 4, 8.0f);
+	m.add_treasure(argo);
+	m.end();
+	CHECK(m.treasures().empty(), "the Argo in explored fog is hidden, with no mirage");
+	CHECK(!rtso::fauna_retained_in_fog(rtso::FAUNA_SHARK) && rtso::fauna_retained_in_fog(rtso::FAUNA_DEER),
+		"fauna_shark is not RetainInFog, other wild animals are");
 }
 
 static void test_los_bitmap() {
