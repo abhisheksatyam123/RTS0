@@ -1091,6 +1091,11 @@ ZIP_STRUCTURES = {
 ZIP_UNITS = {
     "wagon":       ("art/actors/structures/germans/wagon.xml",       "width", 3.5, None),
     "wagon_house": ("art/actors/structures/germans/wagon_house.xml", "width", 3.5, None),
+    # The javelin and sling stone 0.28's javelinists and slingers launch (their
+    # attack_ranged_javelinist / attack_ranged_slinger variants' "projectile" prop),
+    # fitted like arrow_projectile; ModelLibrary sizes them beside the arrow.
+    "javelin_projectile": ("art/actors/props/units/weapons/jav_projectile.xml", "width", 1.10, None),
+    "sling_projectile":   ("art/actors/props/units/weapons/slingrock.xml",      "width", 1.10, None),
 }
 
 

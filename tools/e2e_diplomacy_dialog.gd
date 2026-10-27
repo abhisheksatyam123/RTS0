@@ -55,6 +55,15 @@ func run() -> void:
 			"tribute tooltips colour the player's name: " + str(others(d, 0)[0]["tribute_tooltip"] if others(d, 0).size() else ""))
 	check(others(d, 0).all(func(r): return str(r["stance_tooltip"]) == ""), "the stance buttons have no tooltip")
 	check(str(d["close_text"]) == "Close" and str(d["colors_tooltip"]).ends_with("Toggle Diplomacy Colors"), "\"Close\" and the colours icon's hotkey-led tooltip")
+	# DiplomacyDialog.resize: 640 wide, 170 + 20 per player tall, about 50%-70, on ModernDialog;
+	# TitleText and DiplomacyText in white bold 14; the name cell takes the plain sessionToolTip.
+	var title: Label = main.find_child("DiplomacyTitle", true, false)
+	var panel: Panel = title.get_parent() if title else null
+	check(panel != null and panel.theme_type_variation == "ModernDialog" and is_equal_approx(panel.size.x, 640.0)
+			and is_equal_approx(panel.size.y, 170.0 + 20.0 * d["rows"].size())
+			and is_equal_approx(panel.position.y + panel.size.y / 2.0, root.get_visible_rect().size.y / 2.0 - 70.0),
+			"ModernDialog 640 x (170 + 20 per player) about 50%-70: " + (str(panel.get_rect()) if panel else "none"))
+	check(title != null and title.get_theme_font_size("font_size") == 14 and title.get_theme_color("font_color") == Color.WHITE, "TitleText: white 14")
 	main.toggle_diplomacy()
 
 	print("2. Out of the game")

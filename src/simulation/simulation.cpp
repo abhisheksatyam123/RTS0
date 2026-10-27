@@ -11849,16 +11849,16 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					const size_t ridx = rit->second;
 					const float rx = resources_.x[ridx], rz = resources_.z[ridx];
 					float to_dx = px[i] - rx, to_dz = pz[i] - rz;
-					float d = std::hypot(to_dx, to_dz);
+					float d = det::hypot(to_dx, to_dz);
 					if (d < 1e-4f) {
 						const float a = ((units_.id[i] % 12) / 12.0f) * 6.2831853f;
-						to_dx = std::cos(a);
-						to_dz = std::sin(a);
+						to_dx = det::cos(a);
+						to_dz = det::sin(a);
 						d = 1.0f;
 					}
 					// Offset angle distributed per unit id so multiple workers don't aim at the exact same radial ray
 					const float spread_angle = (((units_.id[i] * 5) % 8) - 3.5f) * 0.18f;
-					const float ca = std::cos(spread_angle), sa = std::sin(spread_angle);
+					const float ca = det::cos(spread_angle), sa = det::sin(spread_angle);
 					const float nx = (to_dx * ca - to_dz * sa) / d;
 					const float nz = (to_dx * sa + to_dz * ca) / d;
 					const float stand_r = std::max(0.6f, resource_block_half(ridx) + unit_clearance_at(i) + 0.2f);
@@ -14214,10 +14214,9 @@ void Simulation::sync_field_resources() {
 }
 
 void Simulation::tick_gather(float dt) {
-	// G4: rebuild auras every 0.4s (or immediately if empty) for gather modifiers
-	aura_timer_ += dt;
-	if (aura_timer_ >= 0.4f || aura_mgr_.sources.empty()) {
-		aura_timer_ = 0.0f;
+	// G4: rebuild auras on each lockstep turn's first tick (or at once if empty): 0.28's
+	// Auras.js range queries follow the units every turn (CCmpRangeManager ExecuteActiveQueries).
+	if (ticks_ % 4 == 0 || aura_mgr_.sources.empty()) {
 		rebuild_auras();
 		apply_health_auras();
 		for (Building &b : buildings_)
@@ -22568,7 +22567,7 @@ void Simulation::petra_staff_foundations() {
 		}
 		return best && best->build_progress < 1.0f ? best->id : 0;
 	};
-	struct Need { uint32_t id; float x, z; int missing; PetraFoundationWatch *watch; uint16_t land; uint32_t anchor; };
+	struct Need { uint32_t id; float x, z; int missing; PetraFoundationWatch *watch; uint16_t land; uint32_t anchor; int target; };
 	std::vector<Need> needs;
 	std::vector<PetraFoundationWatch> watch;
 	watch.reserve(petra_fnd_watch_.size() + 4);
@@ -22631,7 +22630,7 @@ void Simulation::petra_staff_foundations() {
 				if (o.team == petra_pid_ && building_research_base(o.type) == kind && o.build_progress >= 1.0f && o.hp > 0.0f && !o.wrecked) { stands = true; break; }
 			if (!stands) want = 7;
 		}
-		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0, constructing_anchor(b)});
+		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0, constructing_anchor(b), want});
 	}
 
 	const std::unordered_set<uint32_t> launched = petra_launched_units();
@@ -22685,6 +22684,9 @@ void Simulation::petra_staff_foundations() {
 	// two; two more for a house while the population is near its cap; 15 for a base
 	// anchor or the wonder in wonder victory; every worker while there is no base yet.
 	const bool has_base = petra_has_active_base(); // hasActiveBase: a military colony anchors one too
+	// baseManager.js:897: with no active base, every worker may build each foundation (targetNB).
+	if (!has_base)
+		for (auto &n : needs) n.missing += workers - n.target;
 	int max_total = (int)std::ceil((float)workers * petra_builder_ratio());
 	if (max_total < 2 && workers > 1) max_total = 2;
 	const bool house_short = pop_max(petra_pid_) < pop_current(petra_pid_) + 5 && pop_max(petra_pid_) < pop_cap(petra_pid_);
@@ -24271,8 +24273,9 @@ void Simulation::petra_manage_fields() {
 
 	const uint8_t civ = petra_ps().civ;
 	auto can_build = [&](uint8_t t) {
-		// template.available: the structure's Identity/Requirements (its phase) are met.
-		return civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
+		// canBuild: not set unbuildable (no room for 90 s), and template.available: the
+		// structure's Identity/Requirements (its phase) are met.
+		return !petra_no_room(t) && civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
 		       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
 	// manageCorral's anchor, as a position: the fields and corrals placed below grow buildings_.
@@ -27170,20 +27173,28 @@ bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &
 	struct Site { float x, z; bool cc; };
 	std::vector<Site> foes;
 	enum { HOSTILE, NEUTRAL, ALLIED };
+	// A kind's foundations count toward falling back to the next kind (enemyStructures.hasEntities,
+	// headquarters.js:1143-1157) but give no distances (1221-1222).
 	auto collect = [&](int kind) {
+		bool any = false;
 		for (const Building &b : buildings_) {
-			if (b.team >= MAX_PLAYERS || b.team == petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
+			if (b.team >= MAX_PLAYERS || b.team == petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
 			const bool foe = is_hostile(petra_pid_, b.team), ally = is_ally(petra_pid_, b.team);
 			if (kind == HOSTILE ? !foe : kind == NEUTRAL ? (foe || ally) : !ally) continue;
 			const TechClasses c = building_tech_classes(b.type);
-			if (c & (TC_CIVCENTRE | TC_FORTRESS | TC_TOWER)) foes.push_back({b.x, b.z, (c & TC_CIVCENTRE) != 0});
+			if (!(c & (TC_CIVCENTRE | TC_FORTRESS | TC_TOWER))) continue;
+			any = true;
+			if (b.build_progress >= 1.0f) foes.push_back({b.x, b.z, (c & TC_CIVCENTRE) != 0});
 		}
+		return any;
 	};
-	collect(HOSTILE);
-	if (foes.empty()) collect(NEUTRAL);
 	// headquarters.js:1149: with neither, allies' (none under allied victory).
-	if (foes.empty() && !allied_victory()) collect(ALLIED);
+	if (!collect(HOSTILE) && !collect(NEUTRAL) && !allied_victory()) collect(ALLIED);
 	if (foes.empty()) return false;
+	// baseAtIndex (headquarters.js:1203): only territory a base of ours holds, on the land of
+	// one of our anchors.
+	PetraBasesMap bmap;
+	petra_bases_map(bmap);
 	std::vector<std::pair<float, float>> own;
 	for (const Building &b : buildings_)
 		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && (building_tech_classes(b.type) & (TC_FORTRESS | TC_TOWER)))
@@ -27229,6 +27240,7 @@ bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &
 			}
 			if (!wonder && !narrow && (!large || tower)) continue;
 			const float x = ((float)ix + 0.5f) * cell - map_half_, z = ((float)iz + 0.5f) * cell - map_half_;
+			if (!bmap.at(x, z, map_half_)) continue;
 			float dista = 0.0f;
 			if (wonder) {
 				dista = (wonder->x - x) * (wonder->x - x) + (wonder->z - z) * (wonder->z - z);
@@ -27359,17 +27371,9 @@ void Simulation::petra_build_defenses() {
 	}
 	const int pop = pop_current(petra_pid_);
 	const uint8_t phase = petra_ps().phase;
-	// A structure with no frontier spot is not queued, so its plan doesn't hold resources it
-	// can't spend; the next try waits 90 s (buildManager.js setUnbuildable "room").
-	// The plan's start fails with no spot, and the structure is marked short of room (which
-	// counts towards a new base, buildManager.js numberMissingRoom).
-	auto has_spot = [&](uint8_t t) {
-		int sx = 0, sz = 0;
-		if (petra_find_defensive_location(t, sx, sz)) return true;
-		petra_set_no_room(t);
-		return false;
-	};
-	constexpr float kNoRoomWait = 90.0f;
+	// The plan is queued whether or not there is a spot (headquarters.js:1591-1645); its start
+	// looks for one (queueplanBuilding.js:43-63) and, with none, drops the plan and marks the
+	// structure short of room for 90 s (setUnbuildable), which canBuild then honours.
 
 	// From City, or while City is being researched (gameState.isResearching(phase 3)); not
 	// while Petra only saves for it.
@@ -27377,10 +27381,6 @@ void Simulation::petra_build_defenses() {
 		if (can_build(BLD_FORTRESS) &&
 		    (n_fortresses == 0 || now > (1.0f + 0.1f * (float)n_fortresses) * fortress_lapse + d.fortress_start) &&
 		    n_fortresses < n_bases + 1 + extra_fortresses && n_fortresses < pop / 25 && n_fortress_fnd < 2) {
-			if (n_fortresses > 0 && !has_spot(BLD_FORTRESS)) { // setUnbuildable for 90 s
-				d.fortress_start = now + kNoRoomWait - (1.0f + 0.1f * (float)n_fortresses) * fortress_lapse;
-				return;
-			}
 			d.fortress_start = now;
 			d.pending = BLD_FORTRESS + 1;
 			// The first fortress at twice defenseBuilding's priority, until it is started.
@@ -27394,10 +27394,6 @@ void Simulation::petra_build_defenses() {
 		// saveResources (little starting wood) spaces them out further.
 		const float lapse = petra_attack_mgr_.save_resources ? (1.0f + 0.5f * (float)n_towers) * tower_lapse : tower_lapse;
 		if (n_towers < num_sentry && now > lapse + d.fort_start) {
-			if (!has_spot(BLD_SENTRY_TOWER)) {
-				d.fort_start = now + kNoRoomWait - lapse;
-				return;
-			}
 			d.fort_start = now;
 			d.pending = BLD_SENTRY_TOWER + 1;
 		}
@@ -27407,10 +27403,6 @@ void Simulation::petra_build_defenses() {
 	const float stone_lapse = petra_attack_mgr_.save_resources ? (1.0f + (float)n_stone) * tower_lapse : tower_lapse;
 	if ((n_stone == 0 || now > (1.0f + 0.1f * (float)n_stone) * stone_lapse + d.tower_start) &&
 	    n_stone < 2 * n_bases + 3 + extra_towers && n_stone < pop / 8 && n_tower_fnd < 3) {
-		if (!has_spot(BLD_TOWER)) {
-			if (n_stone > 0) d.tower_start = now + kNoRoomWait - (1.0f + 0.1f * (float)n_stone) * stone_lapse;
-			return;
-		}
 		d.tower_start = now;
 		d.pending = BLD_TOWER + 1;
 		// Past the usual count, a tower goes at 70% of defenseBuilding's priority.
@@ -39885,7 +39877,7 @@ void Simulation::trigger_survival_treasures() {
 }
 
 void Simulation::trigger_gallic_fields(bool attack) {
-	// maps/skirmishes/gallic_fields_3p.js. vars 0 attackSize, 1 attackTime [ms].
+	// maps/skirmishes/gallic_fields_3p.js. vars 0 attackSize, 1 attackTime [ms], 2 attackTime's float bits.
 	int32_t *v = triggers_.vars;
 	if (!attack) {
 		v[0] = 1;         // attack with 1 soldier
@@ -39914,11 +39906,17 @@ void Simulation::trigger_gallic_fields(bool attack) {
 				break;
 			}
 	}
-	// Enlarge the attack time and size.
+	// Enlarge the attack time and size. attackTime keeps its fraction (vars 2, a float's bits; 0
+	// in saves from before it, which read vars 1), and Timer.js fires on the first turn at or past
+	// it, so the timeout rounds up.
 	const float rand = sim_rng_.range_float(1.0f, 3.0f);
-	v[1] = (int32_t)((float)v[1] * rand);
+	float time_ms = (float)v[1];
+	if (v[2]) std::memcpy(&time_ms, &v[2], sizeof time_ms);
+	time_ms *= rand;
+	std::memcpy(&v[2], &time_ms, sizeof time_ms);
+	v[1] = (int32_t)time_ms;
 	v[0] = (int32_t)std::lround((float)v[0] * rand);
-	triggers_.set_timeout((uint32_t)v[1], TRIGGER_ACTION_GALLIC_FIELDS, 1.0f);
+	triggers_.set_timeout((uint32_t)std::ceil(time_ms), TRIGGER_ACTION_GALLIC_FIELDS, 1.0f);
 }
 
 void Simulation::trigger_pickup_test(int step) {
@@ -41116,12 +41114,13 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 void Simulation::random_template_composition(const std::vector<uint16_t> &names, int count, std::vector<std::pair<uint16_t, int>> &counts) {
 	// TriggerHelper.RandomTemplateComposition: a random share of `count` for each template.
 	if (names.empty()) return;
-	std::vector<float> f(names.size());
-	float sum = 0.0f;
-	for (float &v : f) sum += (v = sim_rng_.range_float(0.0f, 1.0f));
+	// The shares in doubles, as JavaScript numbers.
+	std::vector<double> f(names.size());
+	double sum = 0.0;
+	for (double &v : f) sum += (v = (double)sim_rng_.range_float(0.0f, 1.0f));
 	int left = count;
 	for (size_t i = 0; i < names.size(); ++i) {
-		const int n = i + 1 == names.size() ? left : std::min(left, (int)std::lround(f[i] / sum * (float)count));
+		const int n = i + 1 == names.size() ? left : std::min(left, (int)std::floor(f[i] / sum * (double)count + 0.5)); // Math.round
 		if (!n) continue;
 		auto it = std::find_if(counts.begin(), counts.end(), [&](const auto &c) { return c.first == names[i]; });
 		if (it == counts.end()) counts.push_back({names[i], n});

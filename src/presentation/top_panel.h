@@ -10,6 +10,8 @@
 
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/control.hpp>
+#include <godot_cpp/classes/font_variation.hpp>
+#include <godot_cpp/classes/theme_db.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
@@ -75,69 +77,43 @@ public:
 		// (0.28's top panel has no phase emblem.)
 
 		// 3. Resource counters (CounterResource.js), 0 A.D. order: food, wood, stone, metal.
+		// Counters.xml: each counter is a 73 px button placed side by side, the icon at
+		// "2 0 38 36", the count (resourceText: white sans-bold-stroke-14, centred
+		// vertically) at "33 4 180 22" and the gatherers (gathererCounts:
+		// sans-bold-stroke-13, at the bottom) at "33 20 200 38", both overflowing the button.
+		// horizontallySpaceObjects with no margin: the counters touch.
+		HBoxContainer *counters = memnew(HBoxContainer);
+		counters->set_name("ResourceCounts");
+		counters->add_theme_constant_override("separation", 0);
+		counters->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		top_hbox->add_child(counters);
 		for (int i = 0; i < 4; ++i) {
-			HBoxContainer *rc = memnew(HBoxContainer);
-			rc->add_theme_constant_override("separation", 4);
-			rc->set_mouse_filter(Control::MOUSE_FILTER_PASS);
-			res_panels_[i] = rc;
-			rc->connect("gui_input", Callable(owner, "_on_top_counter_gui_input"));
-
-			res_icons_[i] = memnew(TextureRect);
-			res_icons_[i]->set_custom_minimum_size(Vector2(26, 26));
-			res_icons_[i]->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
-			res_icons_[i]->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
-			res_icons_[i]->set_texture(rtso::load_ui_texture(String("res://assets/textures/ui/icons/") + kResIcon[i] + ".png"));
-			res_icons_[i]->set_mouse_filter(Control::MOUSE_FILTER_PASS);
-			rc->add_child(res_icons_[i]);
-
-			res_labels_[i] = memnew(Label);
-			res_labels_[i]->set_custom_minimum_size(Vector2(48, 26));
-			res_labels_[i]->add_theme_font_size_override("font_size", 14);
-			res_labels_[i]->add_theme_color_override("font_color", Color(0.95f, 0.95f, 0.98f));
-			res_labels_[i]->set_mouse_filter(Control::MOUSE_FILTER_PASS);
-			rc->add_child(res_labels_[i]);
-
-			res_stats_[i] = memnew(Label);
-			res_stats_[i]->set_custom_minimum_size(Vector2(24, 26));
-			res_stats_[i]->add_theme_font_size_override("font_size", 11);
-			res_stats_[i]->set_mouse_filter(Control::MOUSE_FILTER_PASS);
-			rc->add_child(res_stats_[i]);
-
-			top_hbox->add_child(rc);
+			res_panels_[i] = make_counter(owner, counters, String("res://assets/textures/ui/icons/") + kResIcon[i] + ".png",
+					res_icons_[i], res_labels_[i], res_stats_[i]);
+			res_panels_[i]->set_name(String("Resource") + String::num_int64(i));
 		}
 
-		// 4. Population counter (CounterPopulation.js)
-		HBoxContainer *pop_box = memnew(HBoxContainer);
-		pop_box->add_theme_constant_override("separation", 4);
-		pop_box->set_mouse_filter(Control::MOUSE_FILTER_PASS);
-		pop_box->set_tooltip_text("Population: current/limit (max)");
-		pop_box->connect("gui_input", Callable(owner, "_on_top_counter_gui_input"));
-		pop_panel_ = pop_box;
-		pop_icon_ = memnew(TextureRect);
-		pop_icon_->set_custom_minimum_size(Vector2(26, 26));
-		pop_icon_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
-		pop_icon_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
-		pop_icon_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/icons/population.png"));
-		pop_icon_->set_mouse_filter(Control::MOUSE_FILTER_PASS);
-		pop_box->add_child(pop_icon_);
-
-		pop_label_ = memnew(Label);
-		pop_label_->set_custom_minimum_size(Vector2(86, 26));
-		pop_label_->add_theme_font_size_override("font_size", 14);
-		pop_label_->set_mouse_filter(Control::MOUSE_FILTER_PASS);
-		pop_box->add_child(pop_label_);
-
-		pop_stats_ = memnew(Label);
+		// 4. Population counter (CounterPopulation.js), the fifth slot of the same row.
+		pop_panel_ = make_counter(owner, counters, "res://assets/textures/ui/icons/population.png", pop_icon_, pop_label_, pop_stats_);
+		pop_panel_->set_name("Population");
 		pop_stats_->set_name("PopGatherers");
-		pop_stats_->set_custom_minimum_size(Vector2(24, 26));
-		pop_stats_->add_theme_font_size_override("font_size", 11);
-		pop_stats_->set_mouse_filter(Control::MOUSE_FILTER_PASS);
-		pop_box->add_child(pop_stats_);
-		top_hbox->add_child(pop_box);
 
 		// 5. (The idle worker button is on the minimap, as 0.28's MiniMapIdleWorkerButton.)
 
-		// 6. IconButtons: DiplomacyDialogButton, TradeDialogButton, MatchSettingsDialogButton.
+		// 6. BuildLabel: "Release XXVIII: Boiorix" over getBuildString, in the space between
+		// the counters and the right-hand buttons (0.28 has no clock or phase here: the
+		// elapsed time and ceasefire are the optional overlay counters). RTS0's wave mode
+		// shows its wave timer in the same place. The spacer pushes the buttons right.
+		clock_label_ = memnew(Label);
+		clock_label_->set_visible(false);
+		top_hbox->add_child(clock_label_);
+		Control *spacer = memnew(Control);
+		spacer->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+		spacer->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		top_hbox->add_child(spacer);
+
+		// 7. IconButtons: DiplomacyDialogButton, TradeDialogButton, MatchSettingsDialogButton,
+		// right-aligned before the menu button ("100%-254 4 100%-226 32" and on).
 		// Tooltips lead with the hotkey like colorizeHotkey; owner->_toggle_session_dialog opens them.
 		const char *dialog_names[3] = {"DiplomacyDialog", "BarterDialog", "Objectives"};
 		const char *dialog_icons[3] = {"res://assets/textures/ui/archive/icons/diplomacy.png",
@@ -159,17 +135,6 @@ public:
 			top_hbox->add_child(b);
 		}
 
-		// 7. BuildLabel: "Release XXVIII: Boiorix" over getBuildString, in the space between
-		// the counters and the right-hand buttons (0.28 has no clock or phase here: the
-		// elapsed time and ceasefire are the optional overlay counters). RTS0's wave mode
-		// shows its wave timer in the same place.
-		clock_label_ = memnew(Label);
-		clock_label_->set_visible(false);
-		top_hbox->add_child(clock_label_);
-		Control *spacer = memnew(Control);
-		spacer->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-		spacer->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
-		top_hbox->add_child(spacer);
 		// BuildLabel.SizePlayer "50%+44 0 100%-283 100%": right of the civ icon, left of
 		// the buttons.
 		wave_label_ = memnew(Label);
@@ -300,7 +265,7 @@ public:
 				set_gatherers(res_stats_[i], gatherers[r]);
 				total += gatherers[r];
 				// CounterResource.rebuild: the name, its resources/*.json description, then the allies' stocks.
-				res_panels_[i]->set_tooltip_text(rtso::tr0(kResTitle[i]) + "\n" + rtso::tr0(kResDesc[i]) + ally_stats(sim, me, [sim, r](uint8_t p) {
+				res_panels_[i]->set_tooltip_text(rtso::name_big(rtso::tr0(kResTitle[i])) + "\n" + rtso::tr0(kResDesc[i]) + ally_stats(sim, me, [sim, r](uint8_t p) {
 					const int64_t v = (int64_t)std::llround(sim->player(p).res[r]);
 					return std::make_pair(godot::String::num_int64(v), v);
 				}));
@@ -309,7 +274,7 @@ public:
 			pop_label_->set_text(pop_caption(sim, me));
 			pop_blocked_ = sim->training_blocked(me);
 			set_gatherers(pop_stats_, total);
-			pop_panel_->set_tooltip_text(rtso::tr0("Population: current/limit (max)") + ally_stats(sim, me, [this, sim](uint8_t p) {
+			pop_panel_->set_tooltip_text(rtso::name_big(rtso::tr0("Population: current/limit (max)")) + ally_stats(sim, me, [this, sim](uint8_t p) {
 				return std::make_pair(pop_caption(sim, p), (int64_t)sim->pop_current(p));
 			}));
 		}
@@ -373,7 +338,52 @@ public:
 	}
 	godot::String civ_icon_tooltip(const char *civ_name) const {
 		return rtso::sprintf0(rtso::tr0("%(civ)s\n%(hotkey_civinfo)s: View Civilization Overview\n%(hotkey_structree)s: View Structure Tree\nLast opened view will be reopened on click."),
-				{{"civ", rtso::tr0(civ_name)}, {"hotkey_civinfo", civ_keys_[0]}, {"hotkey_structree", civ_keys_[1]}});
+				{{"civ", rtso::name_big(rtso::tr0(civ_name))}, {"hotkey_civinfo", civ_keys_[0]}, {"hotkey_structree", civ_keys_[1]}});
+	}
+
+	// One Counters.xml counter: a 73 px slot with the icon, count and gatherer labels
+	// placed absolutely; the labels overflow the slot as 0.28's text objects do.
+	static godot::Control *make_counter(godot::Object *owner, godot::HBoxContainer *row, const godot::String &icon_path,
+			godot::TextureRect *&icon, godot::Label *&count, godot::Label *&stats) {
+		using namespace godot;
+		Control *slot = memnew(Control);
+		slot->set_custom_minimum_size(Vector2(73, 38));
+		slot->set_mouse_filter(Control::MOUSE_FILTER_STOP);
+		slot->connect("gui_input", Callable(owner, "_on_top_counter_gui_input"));
+
+		icon = memnew(TextureRect);
+		icon->set_position(Vector2(2, 0));
+		icon->set_size(Vector2(36, 36));
+		icon->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+		icon->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
+		icon->set_texture(rtso::load_ui_texture(icon_path));
+		icon->set_mouse_filter(Control::MOUSE_FILTER_IGNORE); // ghost="true"
+		slot->add_child(icon);
+
+		auto text = [slot](const Rect2 &r, int size, const Color &c, VerticalAlignment v) {
+			Label *l = memnew(Label);
+			l->set_position(r.position);
+			l->set_size(r.size);
+			l->set_clip_text(false);
+			l->set_vertical_alignment(v);
+			l->add_theme_font_size_override("font_size", size);
+			l->add_theme_color_override("font_color", c);
+			l->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+			l->add_theme_constant_override("outline_size", 3);
+			l->add_theme_constant_override("line_spacing", 0);
+			Ref<FontVariation> bold;
+			bold.instantiate();
+			bold->set_base_font(ThemeDB::get_singleton()->get_fallback_font());
+			bold->set_variation_embolden(0.7f);
+			l->add_theme_font_override("font", bold);
+			l->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+			slot->add_child(l);
+			return l;
+		};
+		count = text(Rect2(33, 4, 147, 18), 14, Color(1, 1, 1), VERTICAL_ALIGNMENT_CENTER);
+		stats = text(Rect2(33, 20, 167, 18), 13, Color(200 / 255.0f, 200 / 255.0f, 200 / 255.0f), VERTICAL_ALIGNMENT_BOTTOM);
+		row->add_child(slot);
+		return slot;
 	}
 
 	// tooltips.js abbreviateLargeNumbers.
@@ -429,9 +439,11 @@ private:
 		if (order) std::stable_sort(rows.begin(), rows.end(), [order](const Row &a, const Row &b) { return order * (b.order - a.order) < 0; });
 		static const char *kOrder[3] = {"Ascending", "Unordered", "Descending"};
 		String out = "\n" + rtso::sprintf0(rtso::tr0("%(order)s: %(hotkey)s to change order."),
-				{{"order", rtso::tr0(kOrder[order + 1])}, {"hotkey", "[Click]"}});
-		for (const Row &r : rows) out += "\n" + r.text;
-		return out;
+				{{"order", rtso::tr0(kOrder[order + 1])}, {"hotkey", rtso::hotkey_tag("Click")}});
+		// AllyStatTags: the rows in sans-bold-stroke-14.
+		String list;
+		for (const Row &r : rows) list += "\n" + r.text;
+		return out + "[b]" + list + "[/b]";
 	}
 
 	std::function<godot::String(uint8_t)> ally_name_;
