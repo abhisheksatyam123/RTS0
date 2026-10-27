@@ -14550,6 +14550,27 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 			if (i < unit_paths_.size()) unit_paths_[i].clear();
 			continue;
 		}
+		// COLLECTTREASURE.APPROACHING MovementUpdate with likelyFailure (UnitAI.js:2909-2914):
+		// FINDINGNEWTARGET, which finishes the order and, with none next, collects the nearest
+		// treasure round the old one (collect_nearby_treasure). It skips the one it couldn't reach,
+		// which 0.28's FindNearbyTreasure would hand back and send the unit at it again.
+		if (move_failed && kind == ORDER_COLLECT_TREASURE && st == ACTION_MOVE &&
+				!(units_.order_flags[i] & ORDER_FLAG_INTERRUPTED)) {
+			const uint32_t old = units_.order_target[i];
+			float ox = units_.pos_x[i], oz = units_.pos_z[i];
+			for (const Treasure &t : treasures_)
+				if (t.id == old) { ox = t.x; oz = t.z; }
+			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+			units_.waypoint_cur[i] = 0;
+			units_.waypoint_count[i] = 0;
+			if (i < unit_paths_.size()) unit_paths_[i].clear();
+			if (units_.target_unit_id[i] == old) units_.target_unit_id[i] = 0;
+			units_.action_state[i] = ACTION_IDLE;
+			units_.has_order[i] = 0;
+			finish_order(i);
+			if (units_.order_kind[i] == ORDER_NONE) collect_nearby_treasure(i, ox, oz, old);
+			continue;
+		}
 		// The same likelyFailure in tick_gather's own return (GATHER.RETURNINGRESOURCE.APPROACHING):
 		// DROPPINGRESOURCES is out of range, so RETURNINGRESOURCE again: the nearest dropsite, and
 		// a new move to it from where the unit stands.
@@ -24612,7 +24633,22 @@ bool Simulation::petra_gather_treasure(size_t u, PetraHuntScan &scan, bool water
 	if (water && !sea) return false;
 	const float px = units_.pos_x[u], pz = units_.pos_z[u];
 	auto [ucx, ucz] = nav_grid_.world_to_cell(px, pz);
+	// A collector on a cell a structure or tree blocks is on the land of the open cells round it
+	// (as petra_find_hunt).
+	if (!water && !nav_grid_.is_passable_for(ucx, ucz, pass)) {
+		bool open = false;
+		for (int r = 1; r <= 2 && !open; ++r)
+			for (int dz = -r; dz <= r && !open; ++dz)
+				for (int dx = -r; dx <= r && !open; ++dx) {
+					if ((std::abs(dx) != r && std::abs(dz) != r) || !nav_grid_.is_passable_for(ucx + dx, ucz + dz, pass)) continue;
+					ucx += dx;
+					ucz += dz;
+					open = true;
+				}
+	}
 	const uint16_t land = water ? 0 : petra_access_at(px, pz);
+	const float cell = 2.0f * nav_grid_.map_half / (float)std::max(1, nav_grid_.res);
+	const float reach = treasure_reach(u) + unit_collision_radius(ut);
 	uint32_t best = 0;
 	float best_d2 = 1e18f;
 	for (const auto &t : treasures_) {
@@ -24628,7 +24664,24 @@ bool Simulation::petra_gather_treasure(size_t u, PetraHuntScan &scan, bool water
 		} else {
 			// getLandAccess: a wreck out at sea is on no land, so a land collector leaves it to ships.
 			if (land && petra_access_at(t.x, t.z) != land) continue;
-			if (nav_grid_.is_passable_for(cx, cz, pass) && !nav_grid_.reachable(ucx, ucz, cx, cz, pass)) continue;
+			// A treasure's Obstruction/Static blocks the cells under it, so the collector stands on
+			// a cell beside it, within its reach: one of those it can walk to, or it is left alone
+			// (an unreachable one's walk failed and was handed out again for good).
+			if (nav_grid_.is_passable_for(cx, cz, pass)) {
+				if (!nav_grid_.reachable(ucx, ucz, cx, cz, pass)) continue;
+			} else {
+				const auto &ti = treasure_type_info(t.type);
+				const float r = 0.125f * 0.7072f * det::hypot(ti.width, ti.depth) + reach; // half its diagonal, plus reach
+				const int rc = (int)std::ceil(r / cell);
+				bool beside = false;
+				for (int dz = -rc; dz <= rc && !beside; ++dz)
+					for (int dx = -rc; dx <= rc && !beside; ++dx) {
+						const float ox = (float)dx * cell, oz = (float)dz * cell;
+						if (ox * ox + oz * oz > r * r) continue;
+						beside = nav_grid_.is_passable_for(cx + dx, cz + dz, pass) && nav_grid_.reachable(ucx, ucz, cx + dx, cz + dz, pass);
+					}
+				if (!beside) continue;
+			}
 		}
 		best_d2 = d2;
 		best = t.id;
@@ -39814,24 +39867,28 @@ void Simulation::tick_treasures(float dt) {
 		finish_order(i);
 		if (units_.order_kind[i] == ORDER_NONE) next_hunt.push_back({units_.id[i], ox, oz});
 	}
-	// COLLECTTREASURE.FINDINGNEWTARGET: with no next order, the nearest treasure within
-	// 64 m (FindNearbyTreasure).
 	for (const NextTreasure &nt : next_hunt) {
 		const int32_t i = lookup_unit(nt.uid);
-		if (i < 0 || !units_.alive[i] || units_.order_kind[i] != ORDER_NONE) continue;
-		auto q = order_queues_.find(nt.uid);
-		if (q != order_queues_.end() && !q->second.empty()) continue;
-		uint32_t best = 0;
-		float best_d2 = (64.0f * COMBAT_DISTANCE_SCALE) * (64.0f * COMBAT_DISTANCE_SCALE);
-		const uint8_t owner = units_.team[i];
-		for (const Treasure &t : treasures_) {
-			// CheckTargetVisible: only a treasure the player sees or has seen (it stays in the fog).
-			if (owner < MAX_PLAYERS && fow_state_at(t.x, t.z, owner) == FOW_UNEXPLORED) continue;
-			const float d2 = (t.x - nt.x) * (t.x - nt.x) + (t.z - nt.z) * (t.z - nt.z);
-			if (d2 < best_d2) { best_d2 = d2; best = t.id; }
-		}
-		if (best != 0) order_collect_treasure(&nt.uid, 1, best);
+		if (i >= 0 && units_.alive[i] && units_.order_kind[i] == ORDER_NONE) collect_nearby_treasure((size_t)i, nt.x, nt.z, 0);
 	}
+}
+
+// COLLECTTREASURE.FINDINGNEWTARGET: with no next order, the nearest treasure within 64 m of
+// (x, z) (FindNearbyTreasure), other than `skip`.
+void Simulation::collect_nearby_treasure(size_t i, float x, float z, uint32_t skip) {
+	auto q = order_queues_.find(units_.id[i]);
+	if (q != order_queues_.end() && !q->second.empty()) return;
+	uint32_t best = 0;
+	float best_d2 = (64.0f * COMBAT_DISTANCE_SCALE) * (64.0f * COMBAT_DISTANCE_SCALE);
+	const uint8_t owner = units_.team[i];
+	for (const Treasure &t : treasures_) {
+		if (t.id == skip) continue;
+		// CheckTargetVisible: only a treasure the player sees or has seen (it stays in the fog).
+		if (owner < MAX_PLAYERS && fow_state_at(t.x, t.z, owner) == FOW_UNEXPLORED) continue;
+		const float d2 = (t.x - x) * (t.x - x) + (t.z - z) * (t.z - z);
+		if (d2 < best_d2) { best_d2 = d2; best = t.id; }
+	}
+	if (best != 0) order_collect_treasure(&units_.id[i], 1, best);
 }
 
 bool Simulation::can_capture_relic(size_t i, int32_t r) const {
