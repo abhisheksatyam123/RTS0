@@ -78,6 +78,20 @@
 //     while they pass.
 //     At RTS0's crowd scale the ring closes the drop range, where 0.28's 13 m storehouse needs over
 //     20 such units to close it, and the returner stood outside with its load for good.
+// 22. A walker that starts just outside an idle unit's square, heading slightly into it, gets round it
+//     (Stats' freeze). In Stats' two layouts, a woman beside a town centre with another woman
+//     standing at its corner (Continental seed 5), and a woman in her rally batch whose way runs
+//     past a woman standing 1.4 ahead, the unit squares at RTS0's crowd scale leave no way out:
+//     each corner of her short path lies in a square she can't step into. Before, the walk failed
+//     after 7 s and a builder never left the spot, the order standing for good. Now she searches
+//     again among smaller squares shaped as 0.28's (both crowd clearances less 0.5 m at the crowd
+//     scale, VertexPathfinder.cpp:618-625, never smaller than the two bodies) with a corner offset
+//     as small as 0.28's 1/16 m, and walks that path. The same holds for a woman in a slit between
+//     such a square and a second woman's or a town centre's, and nowhere does the walker come inside
+//     a standing unit's body. A phalanx walking past a standing woman or cavalryman keeps its
+//     members out of her body: a member never searches among the smaller squares, as its slot moves
+//     every tick and the smaller squares' step test lasts only while its aim stays put (with it,
+//     members walked through the standing unit in 15 and 40 of 63 runs).
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -142,6 +156,67 @@ static bool all_done(const Simulation &s, const std::vector<uint32_t> &ids) {
 	for (uint32_t id : ids)
 		if (s.units_.has_order[idx(s, id)]) return false;
 	return true;
+}
+
+// Test 22: a flat 768 m map with the scene in player 0's own territory (a town centre of player 1
+// far off keeps the match going), Athenian women as in Stats' game.
+static void freeze_setup(Simulation &s) {
+	s.set_sim_seed(5);
+	s.reset();
+	s.set_map_half(96.0f);
+	s.set_team_civ(0, CIV_ATHENIANS);
+	s.set_team_civ(1, CIV_SPARTANS);
+	s.spawn_building_world(-70.0f, -70.0f, BLD_TOWN_CENTER, 1, 1.0f);
+}
+
+struct FreezeRun {
+	int moved = -1;            // the tick the walker first got 0.05 from where it started
+	int ended = -1;            // the tick its walk ended
+	float end_dist = 0.0f;     // how far from its point it ended (or stood at the last tick)
+	int built = -1;            // the tick the house it builds was finished
+	float body = 1e9f;         // its least distance to a unit it started clear of, over their bodies' radius sum
+	float others_moved = 0.0f; // how far any other unit moved
+};
+
+// Runs `ticks` ticks at most, until the walker `w` ends its walk to (gx, gz) or, with `house`, until
+// it has built that house.
+static FreezeRun freeze_run(Simulation &s, uint32_t w, float gx, float gz, uint32_t house, int ticks) {
+	FreezeRun r;
+	const int w0 = idx(s, w);
+	const float x0 = s.units_.pos_x[w0], z0 = s.units_.pos_z[w0];
+	const size_t n = s.units_.count;
+	std::vector<float> ox(n), oz(n);
+	std::vector<uint8_t> clear(n, 0);
+	for (size_t k = 0; k < n; ++k) {
+		ox[k] = s.units_.pos_x[k];
+		oz[k] = s.units_.pos_z[k];
+		clear[k] = (int)k != w0 && std::hypot(ox[k] - x0, oz[k] - z0) >=
+		           unit_collision_radius(s.units_.unit_type[w0]) + unit_collision_radius(s.units_.unit_type[k]);
+	}
+	for (int t = 1; t <= ticks; ++t) {
+		s.tick(DT);
+		const int wi = idx(s, w);
+		const float x = s.units_.pos_x[wi], z = s.units_.pos_z[wi];
+		for (size_t k = 0; k < n && k < s.units_.count; ++k) {
+			if ((int)k == wi) continue;
+			r.others_moved = std::max(r.others_moved, std::hypot(s.units_.pos_x[k] - ox[k], s.units_.pos_z[k] - oz[k]));
+			if (clear[k])
+				r.body = std::min(r.body, std::hypot(s.units_.pos_x[k] - x, s.units_.pos_z[k] - z) /
+				                              (unit_collision_radius(s.units_.unit_type[wi]) + unit_collision_radius(s.units_.unit_type[k])));
+		}
+		if (r.moved < 0 && std::hypot(x - x0, z - z0) > 0.05f) r.moved = t;
+		r.end_dist = std::hypot(x - gx, z - gz);
+		if (house) {
+			if (s.buildings_[s.building_id_to_idx_.at(house)].build_progress >= 1.0f) {
+				r.built = t;
+				break;
+			}
+		} else if (!s.units_.has_order[wi]) {
+			r.ended = t;
+			break;
+		}
+	}
+	return r;
 }
 
 int main() {
@@ -943,6 +1018,141 @@ int main() {
 		      "a worker with a load gets through its own player's idle units or gatherers ringing the dropsite and drops it");
 		CHECK(back > 0 && back * DT < 20.0f, "and walks back out to its supply");
 		if (!working) CHECK(moved < 0.05f, "without pushing any of the idle units");
+	}
+	for (int layout = 0; layout < 2; ++layout)
+		for (const bool build : {false, true}) {
+			// Stats' two layouts, as his traces had them. 0: Continental seed 5, unit 3 beside the
+			// town centre heading for (35, 35), unit 4 standing at the centre's corner; builders go
+			// to a house south-west of it. 1: unit 879 heading north past unit 884, standing 1.4
+			// ahead, in her rally batch (the others as a rally leaves them, 1.3-1.5 apart); builders
+			// go to a house beyond the point.
+			auto s = std::make_unique<Simulation>();
+			freeze_setup(*s);
+			uint32_t w = 0;
+			float gx = 0.0f, gz = 0.0f, hx = 0.0f, hz = 0.0f;
+			if (layout == 0) {
+				s->spawn_building_world(37.335f, 37.335f, BLD_TOWN_CENTER, 0, 1.0f);
+				w = s->spawn_unit(39.586f, 36.263f, 0, UNIT_FEMALE_CITIZEN);
+				s->spawn_unit(40.867f, 37.040f, 0, UNIT_FEMALE_CITIZEN);
+				gx = 35.0f, gz = 35.0f, hx = 36.0f, hz = 32.0f;
+			} else {
+				w = s->spawn_unit(26.606f, 34.418f, 0, UNIT_FEMALE_CITIZEN);
+				s->spawn_unit(26.802f, 35.808f, 0, UNIT_FEMALE_CITIZEN);
+				const float batch[8][2] = {{25.0604f, 34.9030f}, {25.8745f, 37.1278f}, {28.2226f, 35.4132f}, {28.2191f, 32.9751f},
+				                           {28.2835f, 37.0598f}, {26.0163f, 32.9339f}, {29.7323f, 35.3372f}, {29.7440f, 33.9239f}};
+				for (const auto &b : batch) s->spawn_unit(b[0], b[1], 0, UNIT_FEMALE_CITIZEN);
+				gx = 26.654f, gz = 39.649f, hx = 26.654f, hz = 41.4f;
+			}
+			uint32_t house = 0;
+			if (build) {
+				house = s->spawn_building_world(hx, hz, BLD_HOUSE, 0, 0.0f);
+				s->order_build_or_repair(&w, 1, house);
+			} else {
+				s->order_walk(&w, 1, gx, gz);
+			}
+			const FreezeRun r = freeze_run(*s, w, gx, gz, house, build ? 800 : 300);
+			const char *name = layout == 0 ? "beside a town centre (Stats, Continental seed 5)" : "in her rally batch (Stats, unit 879)";
+			std::printf("  a woman %s %s: first moved after %.2f s, %s after %.2f s (-1: not in %d s), %.2f from the point; closest to a "
+			            "body %.3f of the radius sum; the others moved %.3f\n", name, build ? "sent to build" : "sent to walk",
+			            r.moved < 0 ? -1.0f : r.moved * DT, build ? "house built" : "walk ended", (build ? r.built : r.ended) < 0 ? -1.0f : (build ? r.built : r.ended) * DT,
+			            build ? 40 : 15, r.end_dist, r.body, r.others_moved);
+			if (build) {
+				CHECK(r.built > 0, "a woman sent to build from just outside an idle woman's square gets round it and builds");
+			} else {
+				CHECK(r.ended > 0 && r.end_dist <= 1.0f, "a woman walking from just outside an idle woman's square gets round it to her point");
+			}
+			CHECK(r.body >= 1.0f, "and never comes inside a standing unit's body");
+			CHECK(r.others_moved < 0.01f, "nor pushes one");
+		}
+	{
+		// A woman just outside the bottom edge of an idle woman's square (`off` below it, `lat` along
+		// it from her centre), heading `deg` degrees into it, 5.2 units, with a second woman's square
+		// or a town centre's clearance 0.05 below her: a slit too narrow to walk along at the crowd
+		// scale. The walk ends at its point and the builder builds her house just beyond it.
+		int walks = 0, ended = 0, builds = 0, built = 0;
+		float body = 1e9f;
+		for (int layout = 0; layout < 2; ++layout)
+			for (const bool build : {false, true})
+				for (const float off : {0.01f, 0.03f})
+					for (const float deg : {20.0f, 90.0f})
+						for (const float lat : {-0.6f, 0.0f, 0.6f}) {
+							auto s = std::make_unique<Simulation>();
+							freeze_setup(*s);
+							const float ix = 20.0f, iz = 20.0f, h = 2.0f * unit_push_clearance(UNIT_FEMALE_CITIZEN), off2 = 0.05f;
+							const float wx = ix + lat, wz = iz - h - off, a = deg * 3.14159265f / 180.0f;
+							const float gx = wx + 5.2f * std::cos(a), gz = wz + 5.2f * std::sin(a);
+							if (layout == 1) s->spawn_building_world(wx, wz - off2 - CLEARANCE_DEFAULT - 2.0f, BLD_TOWN_CENTER, 0, 1.0f);
+							const uint32_t w = s->spawn_unit(wx, wz, 0, UNIT_FEMALE_CITIZEN);
+							s->spawn_unit(ix, iz, 0, UNIT_FEMALE_CITIZEN);
+							if (layout == 0) s->spawn_unit(wx + 0.3f, wz - off2 - h, 0, UNIT_FEMALE_CITIZEN);
+							uint32_t house = 0;
+							if (build) {
+								house = s->spawn_building_world(gx + 1.6f * std::cos(a), gz + 1.6f * std::sin(a), BLD_HOUSE, 0, 0.0f);
+								s->order_build_or_repair(&w, 1, house);
+							} else {
+								s->order_walk(&w, 1, gx, gz);
+							}
+							const FreezeRun r = freeze_run(*s, w, gx, gz, house, build ? 800 : 300);
+							body = std::min(body, r.body);
+							if (build) ++builds, built += r.built > 0;
+							else ++walks, ended += r.ended > 0 && r.end_dist <= 1.0f;
+						}
+		std::printf("  women in a slit beside an idle woman's square: %d of %d walks ended at their point, %d of %d houses built; "
+		            "closest to a body %.3f of the radius sum\n", ended, walks, built, builds, body);
+		CHECK(ended == walks && built == builds, "a woman in a slit beside an idle woman's square gets out and on");
+		CHECK(body >= 1.0f, "and never comes inside a standing unit's body");
+	}
+	for (const UnitType standing : {UNIT_FEMALE_CITIZEN, UNIT_CAVALRY}) {
+		// A phalanx of 12 spearmen walks about 25 units past one standing unit, set 2.5 units either
+		// side of its way in steps of 0.25, in three directions. No member that started clear of the
+		// standing unit comes inside its body.
+		int runs = 0, inside = 0, done = 0;
+		float body = 1e9f;
+		for (int k = -10; k <= 10; ++k)
+			for (int dir = 0; dir < 3; ++dir) {
+				const float lat = 0.25f * (float)k;
+				auto s = std::make_unique<Simulation>();
+				freeze_setup(*s);
+				std::vector<uint32_t> hop;
+				for (int m = 0; m < 12; ++m) hop.push_back(s->spawn_unit(10.0f + (m % 4) * 1.6f, 10.0f + (m / 4) * 1.6f, 0, UNIT_SPEARMAN));
+				s->order_set_formation(hop.data(), hop.size(), FORMATION_PHALANX);
+				for (int t = 0; t < 200; ++t) s->tick(DT);
+				const float gx = dir == 0 ? 30.0f : dir == 1 ? 34.0f : 32.0f, gz = dir == 0 ? 34.0f : dir == 1 ? 30.0f : 32.0f;
+				const float ux = gx - 12.0f, uz = gz - 12.0f, ul = std::hypot(ux, uz);
+				const uint32_t st = s->spawn_unit(22.0f - uz / ul * lat, 22.0f + ux / ul * lat, 0, standing);
+				s->order_walk(hop.data(), hop.size(), gx, gz);
+				const float rs = unit_collision_radius(UNIT_SPEARMAN) + unit_collision_radius(standing);
+				std::vector<uint8_t> clear(hop.size(), 0);
+				const int si = idx(*s, st);
+				for (size_t m = 0; m < hop.size(); ++m) {
+					const int hi = idx(*s, hop[m]);
+					clear[m] = std::hypot(s->units_.pos_x[hi] - s->units_.pos_x[si], s->units_.pos_z[hi] - s->units_.pos_z[si]) >= rs;
+				}
+				float closest = 1e9f;
+				int t = 0;
+				for (; t < 1000; ++t) {
+					s->tick(DT);
+					const int sj = idx(*s, st);
+					bool any = false;
+					for (size_t m = 0; m < hop.size(); ++m) {
+						const int hi = idx(*s, hop[m]);
+						if (clear[m])
+							closest = std::min(closest, std::hypot(s->units_.pos_x[hi] - s->units_.pos_x[sj], s->units_.pos_z[hi] - s->units_.pos_z[sj]) / rs);
+						any |= s->units_.has_order[hi];
+					}
+					if (!any) break;
+				}
+				++runs;
+				inside += closest < 1.0f;
+				done += t < 1000;
+				body = std::min(body, closest);
+			}
+		const char *what = standing == UNIT_CAVALRY ? "cavalryman" : "woman";
+		std::printf("  a phalanx past a standing %s: %d of %d runs with a member inside its body (closest %.3f of the radius sum), "
+		            "%d of %d done in 50 s\n", what, inside, runs, body, done, runs);
+		CHECK(inside == 0, standing == UNIT_CAVALRY ? "a phalanx walking past a standing cavalryman keeps out of his body"
+		                                            : "a phalanx walking past a standing woman keeps out of her body");
+		CHECK(done == runs, "and every run ends");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

@@ -77,6 +77,22 @@
 //     terrain edges already keep a unit that far off. RTS0's navcells are 8 m, so the terrain vertices
 //     and edges move out by this many world units instead: each edge along its normal into the passable
 //     side, grown by as much at both ends, and each vertex diagonally off its corner.
+// 15. ADDITION: ShortPathRequest::square_delta sets the obstruction squares' corner offset in world units.
+//     0.28's EDGE_EXPAND_DELTA is 1/16 of an entity_pos_t, a metre (0.28 VertexPathfinder.cpp:107, 623-624),
+//     and its navcells are 1 m, so it is 1/16 m for squares and navcells alike. Deviation 3 scales it by
+//     RTS0's navcell, eight times wider on flat ground (2-unit cells, 0.125 units against 1/64). A
+//     caller that needs an offset as small as 0.28's passes it here (Simulation::avoid_idle_units'
+//     second search passes 1/16 m at the map's scale, IDLE_SQUARE_DELTA).
+// 16. ADDITION: ShortPathRequest::edge closes every vertex past the map's passable edge less the unit's
+//     clearance: the circle on a circular map, the square frame on a square one. 0.28 closes the
+//     navcells past the edge for every class (CCmpPathfinder.cpp:700-744: the circle at 710-729, the
+//     square frame at 730-744) and grows them by each class's clearance, rounded up to whole 1 m
+//     navcells (749-761, ExpandImpassableCells on m_TerrainOnlyGrid), so its terrain edges keep a short
+//     path on the map (VertexPathfinder.cpp:695-701). RTS0 keeps the exact clearance off the edge.
+//     RTS0's terrain rows are 8 m navcells or heightmap tiles, too coarse to draw the edge with:
+//     closing whole navcells would keep units up to 11 m short of it. The ground inside the edge is
+//     convex, so a path whose corners all lie inside it stays inside it between them, and no edge
+//     needs drawing. The start and the goal are never closed.
 
 #include "simulation/nav/geometry.h"
 
@@ -150,6 +166,13 @@ struct ShortPathRequest {
 	float heuristic_weight = 0.0f;
 	// ADDITION (deviation 14): how far terrain edges keep the unit off impassable navcells, in world units.
 	float terrain_clearance = 0.0f;
+	// ADDITION (deviation 15): how far the obstruction squares' vertices sit off their corners, in world
+	// units. Negative keeps EDGE_EXPAND_DELTA_CELLS navcells (deviation 3).
+	float square_delta = -1.0f;
+	// ADDITION (deviation 16): the map's passable edge less the unit's clearance, in world units: the
+	// circle's radius when edge_circular, else the square frame's half size. 0 or less: no edge.
+	float edge = 0.0f;
+	bool edge_circular = false;
 };
 
 namespace vp {
@@ -685,6 +708,7 @@ bool compute_short_path(const ShortPathRequest& req,
 	if (!(cell_size > 0.0f) || grid_w <= 0 || grid_h <= 0) return false;
 
 	const float delta = EDGE_EXPAND_DELTA_CELLS * cell_size; // DEVIATION 3: world units
+	const float sqd = req.square_delta >= 0.0f ? req.square_delta : delta; // deviation 15
 
 	// Search box (vendor 558-561).
 	float rangeXMin = req.start.x - req.range;
@@ -762,8 +786,8 @@ bool compute_short_path(const ShortPathRequest& req,
 
 		// Vertices at the expanded corners (vendor 630-679). Corner sign pattern:
 		//   hd0: (-,+) (BR inward);  hd1: (-,-) (TR inward);  (+,-) (TL inward);  (+,+) (BL inward).
-		const Vec2 hd0(hw + pc + delta, hh + pc + delta);
-		const Vec2 hd1(hw + pc + delta, -(hh + pc + delta));
+		const Vec2 hd0(hw + pc + sqd, hh + pc + sqd);
+		const Vec2 hd1(hw + pc + sqd, -(hh + pc + sqd));
 		const bool aa = is_axis_aligned(u, v);
 
 		auto push_vertex = [&](Vec2 p, uint8_t inward) {
@@ -838,6 +862,16 @@ bool compute_short_path(const ShortPathRequest& req,
 					break;
 				}
 			}
+		}
+	}
+
+	// ADDITION (deviation 16): close the vertices past the map's edge; the start and the goal stay.
+	if (req.edge > 0.0f) {
+		const float e = req.edge, e2 = e * e;
+		for (size_t j = 2; j < vertexes.size(); ++j) {
+			const Vec2 p = vertexes[j].p;
+			if (req.edge_circular ? p.x * p.x + p.y * p.y > e2 : std::fabs(p.x) > e || std::fabs(p.y) > e)
+				vertexes[j].status = VERTEX_CLOSED;
 		}
 	}
 
