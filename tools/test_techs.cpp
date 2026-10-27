@@ -147,6 +147,11 @@ int main() {
 	CHECK(building_researches_tech(BLD_DOCK, TECH_WARSHIP_HEALTH, CIV_ROMANS));
 	CHECK(!tech_available_to_civ(TECH_SHIP_MOVEMENT_SPEED, CIV_CARTHAGINIANS)); // cart/dock -ship_movement_speed
 	CHECK(!tech_available_to_civ(TECH_SIEGE_BOLT_ACCURACY, CIV_HAN)); // han/arsenal -siege_bolt_accuracy
+	// warship_arrow_attack: any of notciv cart/han/ptol/rome/sele, and a failing notciv in "any"
+	// rules the civ out (InterpretTechRequirements), so those five never get Naval Oxybeles.
+	for (uint8_t c : {CIV_CARTHAGINIANS, CIV_HAN, CIV_PTOLEMIES, CIV_ROMANS, CIV_SELEUCIDS})
+		CHECK(!tech_available_to_civ(TECH_WARSHIP_ARROW_ATTACK, c));
+	CHECK(tech_available_to_civ(TECH_WARSHIP_ARROW_ATTACK, CIV_ATHENIANS));
 	// Techs 0.28 lists at more than one structure, and two it lists nowhere / at one embassy.
 	CHECK(building_researches_tech(BLD_MARKET, TECH_UNLOCK_SHARED_LOS, CIV_ROMANS));
 	CHECK(building_researches_tech(BLD_TOWN_CENTER, TECH_UNLOCK_SHARED_LOS, CIV_ROMANS));
