@@ -4151,6 +4151,39 @@ static void test_plan_cost_weights_kept() {
 	CHECK(((scarce >> 8) & 0xFFu) == 0, "citizen cavalry (no costsResource interest) keeps no weight");
 }
 
+// attackPlan.js:194-217: each unitStat's size is ceil(popScaling * ceil(variation * table)),
+// and the plan waits for their sum. The plan's classes add up to the size it drew, at every
+// difficulty (they used to be rebuilt from the sum and round up once more: a Very Easy Attack
+// trained 7 units for 5).
+static void test_plan_class_sizes_sum() {
+	for (uint8_t d : {(uint8_t)PETRA_VERY_EASY, (uint8_t)PETRA_EASY, (uint8_t)PETRA_MEDIUM, (uint8_t)PETRA_VERY_HARD}) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->set_petra_difficulty(d);
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		run_for(*s, 1.0f);
+		s->petra_pid_ = 1;
+		auto &m = s->petra_attack_mgr_;
+		int mismatched = 0, plans = 0;
+		for (uint8_t kind : {(uint8_t)PETRA_ATTACK_RUSH, (uint8_t)PETRA_ATTACK_ATTACK, (uint8_t)PETRA_ATTACK_HUGE})
+			for (int k = 0; k < 40; ++k) {
+				m.rush_number = 0;
+				m.rush_size[0] = 14 + k % 9;
+				s->petra_plan_sizes(kind);
+				if (kind == PETRA_ATTACK_RUSH) m.rush_number = 1; // as made: petra_plan_unit_stats reads rush_number - 1
+				const size_t table = kind == PETRA_ATTACK_RUSH ? 2 : kind == PETRA_ATTACK_HUGE ? 9 : 3;
+				int target = 0, min = 0;
+				for (const auto &st : s->petra_plan_unit_stats(kind))
+					if (st.index < table) { target += st.target; min += st.min; }
+				++plans;
+				if (target != m.target_size || min != m.min_size) ++mismatched;
+			}
+		std::printf("  difficulty %d: %d of %d plans' classes add up to a different size\n", (int)d, mismatched, plans);
+		CHECK(mismatched == 0, "a plan's classes add up to the size it drew");
+	}
+}
+
 // attackPlan.js trainMoreUnits: when the order furthest behind has no template, the order is
 // deleted and nothing is queued that turn; the next order trains on the plan's next turn.
 // Each order trains in the queue its classes name, not the template's: the "Siege" order's war
@@ -9325,6 +9358,7 @@ int main(int argc, char **argv) {
 	RUN(test_plan_counts_every_class);
 	RUN(test_trained_units_join_their_plan);
 	RUN(test_plan_cost_weights_kept);
+	RUN(test_plan_class_sizes_sum);
 	RUN(test_attack_order_no_template);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
