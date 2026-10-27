@@ -31947,9 +31947,8 @@ Simulation::PetraAround Simulation::petra_around(const Building &holder) const {
 		} else if (!petra_foe(units_.team[i])) continue;
 		const float dx = units_.pos_x[i] - holder.x, dz = units_.pos_z[i] - holder.z;
 		if (dx * dx + dz * dz > range * range) continue;
-		const TechClasses c = unit_tech_classes(units_.unit_type[i]);
-		if (c & TC_SIEGE) {
-			if (c & TC_MELEE) around.melee_siege = true;
+		if (petra_is_siege_unit(i)) { // isSiegeUnit: Siege, or Elephant+Melee
+			if (petra_has_melee_attack(i)) around.melee_siege = true;
 			else around.range_siege = true;
 		} else {
 			around.unit = true;
@@ -31974,12 +31973,13 @@ bool Simulation::petra_keep_garrisoned(size_t i, const Building &holder, const P
 			(around.range_siege && health < petra_config_.garrison_hp_high) || needs_heal;
 	if (unit_classes_at(i) & building_ai_info(holder.type).garrison_arrow_classes) { // the holder's GarrisonArrowClasses
 		if (around.unit || around.defense_structure) return true;
-		if (around.melee_siege || around.range_siege) return !(c & TC_MELEE) || health < petra_config_.garrison_hp_low;
+		if (around.melee_siege || around.range_siege) return !petra_has_melee_attack(i) || health < petra_config_.garrison_hp_low;
 		return false;
 	}
-	if (c & TC_MELEE) return false;
-	if (around.unit) return (c & (TC_CIVILIAN | TC_SIEGE)) != 0;
-	if (c & TC_SIEGE) return around.melee_siege;
+	// attackTypes() holds Melee: soldiers, and support units with a dagger (women).
+	if (petra_has_melee_attack(i)) return false;
+	if (around.unit) return (c & TC_CIVILIAN) || petra_is_siege_unit(i);
+	if (petra_is_siege_unit(i)) return around.melee_siege;
 	return needs_heal;
 }
 
