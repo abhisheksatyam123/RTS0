@@ -408,6 +408,23 @@ int main() {
 		CHECK(find_bld(s, f2)->committed && find_bld(s, f2)->build_progress > 0.0f);
 	}
 
+	// UP1: the Carthaginian Low Wall (cart/s_wall_long, a palisades_long) turns into its gate
+	// for 20 wood in 5 s; the plain palisade for 10 wood in 6 s.
+	{
+		fresh(s);
+		const uint32_t pal = s.spawn_map_wall_piece(0, WALLSET_PALISADE, Simulation::MAP_WALL_SEGMENT, -20.0f, -30.0f, 0.0f, 3.5f);
+		const uint32_t low = s.spawn_map_wall_piece(0, WALLSET_PALISADE, Simulation::MAP_WALL_SEGMENT, -20.0f, -20.0f, 0.0f, 3.5f);
+		s.set_structure_off(low, Simulation::STRUCT_LOW_WALL);
+		const BuildingUpgradeInfo p = s.structure_upgrade(*find_bld(s, pal), 0), l = s.structure_upgrade(*find_bld(s, low), 0);
+		std::printf("palisade gate: %d wood %.0f s; Low Wall gate: %d wood %.0f s\n", p.wood_cost, p.time, l.wood_cost, l.time);
+		CHECK(p.to == BLD_PALISADE_GATE && p.wood_cost == 10 && p.time == 6.0f);
+		CHECK(l.to == BLD_PALISADE_GATE && l.wood_cost == 20 && l.time == 5.0f);
+		CHECK(s.cmd_upgrade_building(0, low));
+		CHECK(s.player(0).wood() == 980.0f);
+		run(s, 5.5f);
+		CHECK(find_bld(s, low)->type == BLD_PALISADE_GATE);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
