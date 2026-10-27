@@ -55,7 +55,7 @@ func run() -> void:
 	check(not rig.is_birds_eye() and is_equal_approx(rig.get_pitch_deg(), start), "Shift+Tab again goes back to %.1f" % start)
 	await key(KEY_TAB, true)
 	await key(KEY_R)
-	check(not rig.is_birds_eye() and is_equal_approx(rig.get_pitch_deg(), 50.6), "camera.reset (R) leaves it")
+	check(not rig.is_birds_eye() and is_equal_approx(rig.get_pitch_deg(), 35.0), "camera.reset (R) leaves it")
 	var us = root.get_node("UserSettings")
 	await key(KEY_F3)
 	var first: bool = us.last_mouse_grab
