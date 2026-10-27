@@ -25,6 +25,7 @@ LobbySession="*res://scenes/menu/lobby_session.gd"
 Tooltips="*res://scenes/common/tooltips.gd"
 MenuAudio="*res://scenes/common/menu_audio.gd"
 TouchInput="*res://scenes/common/touch_input.gd"
+SafeArea="*res://scenes/common/safe_area.gd"
 
 [editor_plugins]
 
