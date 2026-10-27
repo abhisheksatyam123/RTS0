@@ -541,6 +541,9 @@ int main() {
 		for (const Projectile &p : a.fired) { at_sheep += p.target_unit_id == sheep; at_wild += p.target_unit_id == wild_sheep; }
 		std::printf("civic centre beside an enemy's sheep over 10 s: %d arrows, %d at it, %d at Gaia's\n", (int)a.fired.size(), at_sheep, at_wild);
 		CHECK(at_sheep > 0 && at_wild == 0);
+		// AddFocusTarget takes anything in targetUnits: the enemy's sheep, not Gaia's.
+		CHECK(s.cmd_focus_fire(0, &cc, 1, sheep, false));
+		CHECK(!s.cmd_focus_fire(0, &cc, 1, wild_sheep, false));
 		// So does a siege tower's (template_unit_siege_tower has BuildingAI).
 		fresh(s);
 		uint32_t tower = s.spawn_unit(20.0f, 20.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, template_named("mace/siege_tower"));

@@ -88,6 +88,11 @@ public:
 	// Radii of the rings the last update drew (tests).
 	const std::vector<float> &ring_radii() const { return radii_; }
 
+	// GuiInterface.SetBuildingPlacementPreview enables the preview's RangeOverlayManager:
+	// a structure being placed shows its Attack MinRange and MaxRange rings (preview.xml
+	// keeps Attack for them). max_r 0 clears it.
+	void set_preview(float x, float z, float max_r, float min_r) { preview_ = {x, z, max_r, min_r}; }
+
 	// RangeOverlayManager: the selection and the highlighted (hovered or band-boxed)
 	// entities. GuiInterface.SetSelectionHighlight turns the overlays on only for
 	// the viewer's own entities (an observer sees everyone's).
@@ -104,13 +109,17 @@ public:
 		std::sort(ids_.begin(), ids_.end());
 		auto listed = [&](uint32_t id) { return std::binary_search(ids_.begin(), ids_.end(), id); };
 		auto shown_for = [&](uint8_t team) { return me >= rtso::MAX_PLAYERS || team == me; };
+		const Color attack_col(1.0f, 0.3f, 0.25f, 0.7f), aura_col(0.85f, 0.5f, 1.0f, 0.6f);
+		if (show_attack && preview_.max_r > 0.0f) {
+			ring(sim, preview_.x, preview_.z, preview_.max_r, attack_col);
+			if (preview_.min_r > 0.0f) ring(sim, preview_.x, preview_.z, preview_.min_r, attack_col);
+		}
 		if (ids_.empty()) {
 			if (begun_) mesh_->surface_end();
 			return;
 		}
 		// Where each listed entity stands now (the AuraManager keeps the spot of its last rebuild).
 		spots_.clear();
-		const Color attack_col(1.0f, 0.3f, 0.25f, 0.7f), aura_col(0.85f, 0.5f, 1.0f, 0.6f);
 		for (const auto &b : sim->buildings()) {
 			if (!listed(b.id) || !shown_for(b.team) || b.build_progress < 1.0f) continue;
 			spots_.push_back({b.id, b.x, b.z});
@@ -168,6 +177,9 @@ private:
 	};
 	std::vector<Spot> spots_;
 	std::vector<float> radii_;
+	struct Preview {
+		float x = 0.0f, z = 0.0f, max_r = 0.0f, min_r = 0.0f;
+	} preview_;
 	std::vector<std::pair<uint32_t, int>> drawn_;
 	static bool has_attack_overlay(uint16_t tmpl) {
 		if (tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return false;
