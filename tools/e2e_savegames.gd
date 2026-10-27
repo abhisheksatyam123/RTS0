@@ -92,6 +92,13 @@ func run() -> void:
 	d.compatibility_filter.button_pressed = false
 	check(ids(d) == [NAMES[3], NAMES[2], NAMES[1], NAMES[0]], "unticking the filter shows the other save formats")
 	check(d.list.get_root().get_child(0).get_custom_color(0) == d.INCOMPATIBLE, "greyed out")
+	# load.xml: BackgroundTranslucent (0 0 0 85); ModernSortedList sans-bold-stroke-14 with the modern selection;
+	# "No saved games found." centred in 20 12 100%-20 100.
+	check(is_equal_approx((d.get_child(0) as ColorRect).color.a, 85.0 / 255.0), "the page dims at 0 0 0 85")
+	check(d.list.get_theme_font_size("font_size") == 14 and d.list.get_theme_font("font") is FontVariation
+			and not d.list.has_theme_stylebox_override("selected"), "the list in bold 14 with the modern selection")
+	check(d.feedback.horizontal_alignment == HORIZONTAL_ALIGNMENT_CENTER and d.feedback.offset_top == 12 and d.feedback.offset_bottom == 100,
+			"the empty-list notice is centred")
 
 	print("2. details")
 	d.select_save(d.saves.map(func(s): return s.id).find(NAMES[0]))
@@ -103,6 +110,9 @@ func run() -> void:
 		"players, played time, type, size, victory: %s %s %s %s %s" % [d.labels.players.text, d.labels.time.text, d.labels.type.text, d.labels.size.text, d.labels.victory.text])
 	check(d.find_child("GameSelection", true, false).get_column_title(0).begins_with("Date / Time") and not d.invalid_logo.visible, "a selected save hides the logo")
 	check(d.labels.version.text == "Mods: RTS0 (save format v%d)" % v and d.players_text.get_parsed_text().contains("e2eAlpha (Athenians)"), "save format and players")
+	d.select_save(d.saves.map(func(s): return s.id).find(NAMES[2]))
+	check(d.labels.version.get_theme_color("font_color") == Color.WHITE, "another save format with the same mods keeps Mods white (hasSameMods)")
+	d.select_save(d.saves.map(func(s): return s.id).find(NAMES[0]))
 
 	print("3. other save formats")
 	d.select_save(d.saves.map(func(s): return s.id).find(NAMES[3]))

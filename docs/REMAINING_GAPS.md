@@ -712,6 +712,27 @@ The session's Diplomacy and Barter & Trade dialogs checked against 0.28's gui/se
 | DG9 | The selected sell icon was only tinted; BarterButton draws it in grayscale at 61% | nit | Fixed |
 | DG10 | The tribute msgid named "%(resource)s" and "You have won!" / "You have been defeated!" were not translated; 0.28 uses "%(resourceType)s" and translates both | nit | Fixed |
 
+### Session overlays, game speed and saved games, fifteenth 0.28 pass (2026-10-27)
+
+The session's overlays, game speed control and Load/Save Game dialog checked against 0.28's TimeNotificationOverlay, PauseOverlay, NetworkDelayOverlay, NetworkStatusOverlay, GameSpeedControl, ResearchProgress and gui/loadgame/ (main 4c43163c8). ResearchProgress already matched. Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| OV1 | Time notifications hung from the top of their box; notificationPanel aligns them to its bottom, 5 px in, each line ending in a newline | low | Fixed |
+| OV2 | The network status overlay dimmed at 0.6; sessionOverlayBackground is 0 0 0 185 | low | Fixed |
+| OV3 | Its Exit and Open FAQ buttons were Godot's grey buttons; disconnectedExitButton is a StoneButton | low | Fixed |
+| OV4 | Its status and loading-clients text were regular; netStatus is sans-bold-18, netStatusPlayersText sans-bold-16 | nit | Fixed |
+| OV5 | The network delay text used the proportional font; NetworkDelayOverlay is mono-10 | nit | Fixed |
+| OV6 | "Paused by" had a black stroke; netStatusPlayersText has none | nit | Fixed |
+| OV7 | The speed button opened a popup menu that closed on a pick; GameSpeedControl toggles the gameSpeed ModernDropDown at 100%-390 40 (160 wide, sans-bold-14, "Choose game speed"), which stays up showing the speed in use | low | Fixed |
+| OV8 | The Load/Save page dimmed at 0.6; BackgroundTranslucent is 0 0 0 85 | low | Fixed |
+| OV9 | The saves list was regular 13 px with a brown selection; ModernSortedList is sans-bold-stroke-14 with ModernDarkBoxWhiteBorder | low | Fixed |
+| OV10 | The details' Mods line and player list were 13 px; savedMods is sans-bold-stroke-14 and savedPlayersNames sans-14 | nit | Fixed |
+| OV11 | "No saved games found." sat at the list's top left; ModernLabelText centres it in 20 12 100%-20 100 | nit | Fixed |
+| OV12 | The Mods line turned orange for any incompatible save; SavegameDetails colours it only when the mods differ (hasSameMods) | nit | Fixed |
+| OV13 | The sorted column shows a text arrow and the others nothing; ModernSortedList draws ModernArrowUp/Down sprites and ModernNotSorted on every other heading (Godot 4.3 Tree headings take no icons) | nit | Open |
+| OV14 | "Paused by" joins names with an untranslated ", "; 0.28 uses translateWithContext("Separator for a list of players", ", ") (RTS0's catalogues have no msgctxt) | nit | Open |
+
 ### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
 
 diplomacyManager.js, chatHelper.js and their callers were checked line by line. Everything else matches: update cadence, tribute rules, request handling and its odds, lastManStandingCheck, changePlayerDiplomacy, personality boosts, every chat string. Jebel Barkal was checked statically against the 0.28 source, since no 0.28 binary runs here (pass 8: wave sizing and target-class skip match). Pass 4's P2 is D8 below, and its P5 is D7.
