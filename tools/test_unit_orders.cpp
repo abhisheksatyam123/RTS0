@@ -4193,6 +4193,19 @@ static void test_capture_regen_timer() {
 	}
 }
 
+static void test_queued_repair_on_finished() {
+	std::printf("116. a queued repair of a finished, full structure walks there first (REPAIRING enter: ConstructionFinished)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t house = s.spawn_building_world(30, 0, BLD_HOUSE, 0, 1.0f);
+	uint32_t w = s.spawn_unit(-30, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_walk(&w, 1, -20, 0);
+	s.order_build_or_repair(&w, 1, house, true);
+	run(s, 30.0f);
+	std::printf("  she ends %.1f from the house\n", dist(s, w, 30, 0));
+	check(dist(s, w, 30, 0) < 8.0f, "she walks to the house");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -4315,6 +4328,7 @@ int main(int argc, char **argv) {
 	test_attack_interval_timing();
 	test_promotion_restarts_attack();
 	test_capture_regen_timer();
+	test_queued_repair_on_finished();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

@@ -221,7 +221,7 @@ UnitAI's attack and capture switch, gather and repair autocontinue, idle answers
 | M2 | ~~An unordered capture never looked for a preferred target~~ Fixed: after each capture, a unit that no player sent to that structure and has no preference for it looks again (Attack.js:607-612), so attack-walk waves turn on enemy units; test_unit_orders 106 | medium | Fixed |
 | M3 | ~~After building a dropsite, the nearest supply of each type was taken before CanGather, full supplies counted and live animals were skipped~~ Fixed: FindNearbyResource filters on CanGather and IsAvailableTo, and takes live prey (UnitAI.js:4463-4489); test_gather_parity 15b | low-medium | Fixed |
 | M4 | ~~Builders still walking to a structure stopped where they were when it was finished~~ Fixed: they walk on to it (UnitAI.js:3226-3229 WalkToTarget); test_unit_orders 107 | low | Fixed |
-| M5 | A Shift-queued build on a structure someone else finished is skipped where 0.28 walks there and runs ConstructionFinished (REPAIRING enter, UnitAI.js:3115-3121); a builder already beside a finished, full structure now does | nit | Open (queue) |
+| M5 | ~~A Shift-queued build on a structure someone else finished is skipped~~ Matches since #1600: the queued repair walks there and runs ConstructionFinished on arrival (REPAIRING enter, UnitAI.js:3115-3121); test_unit_orders 116 | nit | Closed (matches) |
 | M6 | ~~Empty-handed after its supply runs out, a unit picks its dropsite by the last type it carried, not the order's type (UnitAI.js:2665)~~ Not a gap: order_gather sets the carried type when the unit is empty-handed, so the two always agree | nit | Closed (matches) |
 
 ### Unit orders, twelfth 0.28 pass (2026-10-21)
