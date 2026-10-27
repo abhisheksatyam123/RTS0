@@ -886,6 +886,51 @@ static void test_stat_modifiers() {
 	check(std::fabs(restored_spd - base_spd) < 1e-3f, "disbanding restores base speed");
 }
 
+static void test_stop_and_back_to_work() {
+	std::printf("17. stop and back to work leave the formation\n");
+	Simulation s;
+	setup(s, CIV_ATHENIANS);
+	auto inf = spawn_block(s, 12, -10, -10, 0, UNIT_SWORDSMAN);
+	s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+	run(s, 6.0f);
+	s.cmd_move(inf.data(), inf.size(), 40.0f, -10.0f);
+	run(s, 1.0f);
+	const uint32_t fid = s.formation_of_unit(inf[1]);
+	// Commands.js "stop" through GetFormationUnitAIs: a lone unit leaves and stops alone.
+	s.order_stop(&inf[0], 1);
+	const auto *fc = ctrl(s, fid);
+	check(form_of(s, inf[0]) == FORMATION_NONE && fc && fc->members.size() == 11, "one unit stopped alone leaves");
+	check(fc && fc->order == Simulation::FORDER_WALK, "and the formation walks on");
+	// Part of a formation splits off into its own controller, which stops; the rest walk on.
+	s.order_stop(inf.data() + 1, 5);
+	fc = ctrl(s, fid);
+	const uint32_t part = s.formation_of_unit(inf[1]);
+	const auto *pc = ctrl(s, part);
+	check(fc && fc->members.size() == 6 && pc && part != fid && pc->members.size() == 5, "five stopped split off");
+	check(pc && pc->order == Simulation::FORDER_IDLE && fc && fc->order == Simulation::FORDER_WALK, "the split stops, the rest walk on");
+	// The whole formation stops its own controller.
+	s.order_stop(inf.data() + 6, 6);
+	fc = ctrl(s, fid);
+	check(fc && fc->members.size() == 6 && fc->order == Simulation::FORDER_IDLE, "the whole formation stops in place");
+
+	// UnitAI.BackToWork: the unit leaves its formation before its work orders resume.
+	Simulation g;
+	setup(g, CIV_ATHENIANS);
+	auto hop = spawn_block(g, 6, -10, -10, 0, UNIT_SPEARMAN);
+	const uint32_t tree = g.spawn_resource_world(-4.0f, -16.0f, RES_WOOD, 500);
+	g.order_gather(hop.data(), hop.size(), tree);
+	run(g, 2.0f);
+	g.order_set_formation(hop.data(), hop.size(), FORMATION_BOX);
+	g.order_walk(hop.data(), hop.size(), 20.0f, 0.0f, false, true); // a player's walk (Commands.js "walk")
+	run(g, 1.0f);
+	const uint32_t gid = g.formation_of_unit(hop[0]);
+	check(gid != 0 && g.unit_has_work_order(hop[0]), "a gatherer walked off in formation keeps its work orders");
+	g.order_back_to_work(&hop[0], 1);
+	const auto *gc = ctrl(g, gid);
+	check(form_of(g, hop[0]) == FORMATION_NONE && gc && gc->members.size() == 5, "back to work leaves the formation");
+	check(g.unit_order(hop[0]).kind == ORDER_GATHER && g.unit_order(hop[0]).target == tree, "and goes back to its tree");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_formations.sav";
 	test_templates();
@@ -906,6 +951,7 @@ int main(int argc, char **argv) {
 	test_tasks();
 	test_queue(save.c_str());
 	test_stat_modifiers();
+	test_stop_and_back_to_work();
 	if (g_failures) {
 		std::printf("test_formations: FAIL (%d)\n", g_failures);
 		return 1;
