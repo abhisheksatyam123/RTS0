@@ -17,11 +17,13 @@
 
 #include <godot_cpp/classes/bit_map.hpp>
 #include <godot_cpp/classes/control.hpp>
+#include <godot_cpp/classes/font_variation.hpp>
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/classes/texture_button.hpp>
 #include <godot_cpp/classes/texture_rect.hpp>
+#include <godot_cpp/classes/theme_db.hpp>
 #include <godot_cpp/variant/callable.hpp>
 
 #include <functional>
@@ -83,6 +85,11 @@ public:
 			panel_->add_child(b);
 			buttons_[i] = b;
 		}
+		// MiniMapIdleWorkerButton: onMouseLeftPress, not on release.
+		buttons_[IDLE]->set_action_mode(BaseButton::ACTION_MODE_BUTTON_PRESS);
+		// MiniMap.xml: the flare button alone takes sessionToolTip (top-anchored, offset 16 32);
+		// a style name with no REFERENCE_STYLES entry is the plain session tooltip.
+		buttons_[FLARE]->set_meta("tooltip_style", "session");
 		diplomacy_on_ = load(String(kDir) + "minimap-diplomacy-on.png");
 		diplomacy_on_over_ = load(String(kDir) + "minimap-diplomacy-on-highlight.png");
 		diplomacy_off_ = buttons_[DIPLOMACY]->get_texture_normal();
@@ -101,7 +108,12 @@ public:
 		count_->add_theme_font_size_override("font_size", 14);
 		count_->add_theme_color_override("font_color", Color(1, 1, 1));
 		count_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
-		count_->add_theme_constant_override("outline_size", 4);
+		count_->add_theme_constant_override("outline_size", 2);
+		godot::Ref<FontVariation> bold;
+		bold.instantiate();
+		bold->set_base_font(ThemeDB::get_singleton()->get_fallback_font());
+		bold->set_variation_embolden(0.7f);
+		count_->add_theme_font_override("font", bold);
 		count_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		panel_->add_child(count_);
 	}
@@ -174,7 +186,8 @@ public:
 			observer_ = observer;
 			buttons_[FLARE]->set_texture_normal(observer ? observer_flare_ : player_flare_);
 			buttons_[FLARE]->set_texture_hover(observer ? observer_flare_over_ : player_flare_over_);
-			buttons_[FLARE]->set_tooltip_text(lead(FLARE) + tr0(observer ? "Send a flare to other observers." : "Send a flare to your allies."));
+			// MiniMapFlareButton: a replay sets no tooltip.
+			buttons_[FLARE]->set_tooltip_text(replay ? godot::String() : lead(FLARE) + tr0(observer ? "Send a flare to other observers." : "Send a flare to your allies."));
 		}
 	}
 
@@ -200,7 +213,8 @@ private:
 	godot::TextureRect *civ_back_ = nullptr;
 	std::string civ_code_;
 	std::function<godot::Ref<godot::Texture2D>(const godot::String &)> load_;
-	godot::String lead(int i) const { return keys_[i].is_empty() ? godot::String() : keys_[i] + godot::String(" "); }
+	// colorizeHotkey("%(hotkey)s ", name), set by set_hotkeys.
+	godot::String lead(int i) const { return keys_[i]; }
 
 	// The sprite's alpha as the click mask.
 	static godot::Ref<godot::BitMap> mask(const godot::Ref<godot::Texture2D> &tex) {
