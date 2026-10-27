@@ -189,7 +189,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 126; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 127; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_LOST_BASES = 127; // each Petra's bases kept after their civic centre was lost
 	static constexpr uint32_t SAVE_VERSION_STRUCTURE_OFF = 126; // each map structure's template switches (Building::template_off)
 	static constexpr uint32_t SAVE_VERSION_CAPTURE_TIMER = 125; // each structure's capture regen timer (Capturable.js CheckTimer)
 	static constexpr uint32_t SAVE_VERSION_PETRA_ORDER_NAME = 124; // the Petra plan name and unitStat each queued batch is for
@@ -454,6 +455,9 @@ public:
 	enum StructureOff : uint8_t {
 		STRUCT_OFF_UPGRADE = 1, STRUCT_OFF_RESEARCH = 2, STRUCT_OFF_TRAIN = 4, STRUCT_OFF_GARRISON = 8,
 		STRUCT_OFF_BLOCK = 16, // Obstruction BlockMovement and BlockPathfinding false
+		// Not a switch: cart/s_wall_long (the Low Wall), a palisades_long whose Upgrade/Gate
+		// costs 20 wood and takes 5 s.
+		STRUCT_LOW_WALL = 32,
 	};
 	// Whether `b`'s obstruction blocks movement at all (its type's, unless its template says not).
 	static bool structure_blocks(const Building &b) {
@@ -1653,7 +1657,12 @@ public:
 	// with the owner's civ (the ones the owner's civ lacks dropped).
 	BuildingUpgradeInfo structure_upgrade(const Building &b, int choice) const {
 		if (b.template_off & STRUCT_OFF_UPGRADE) return {BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr};
-		return building_upgrade(b.type, structure_upgrade_civ(b), choice, structure_owner_civ(b));
+		BuildingUpgradeInfo up = building_upgrade(b.type, structure_upgrade_civ(b), choice, structure_owner_civ(b));
+		if ((b.template_off & STRUCT_LOW_WALL) && up.to == BLD_PALISADE_GATE) {
+			up.wood_cost = 20;
+			up.time = 5.0f;
+		}
+		return up;
 	}
 	int structure_upgrade_count(const Building &b) const {
 		if (b.template_off & STRUCT_OFF_UPGRADE) return 0;
@@ -2543,7 +2552,8 @@ public:
 		buildings_[it->second].territory_decay_rate = 0.0f;
 	}
 	// An "uncapturable|" template (elephantine.js's Kushite towers): no capture points at all.
-	// A map structure's template switches (STRUCT_OFF_*); GarrisonHolder off empties its room.
+	// A map structure's template switches (STRUCT_OFF_*, STRUCT_LOW_WALL); GarrisonHolder off
+	// empties its room.
 	void set_structure_off(uint32_t building_id, uint8_t off) {
 		auto it = building_id_to_idx_.find(building_id);
 		if (it == building_id_to_idx_.end()) return;
