@@ -562,11 +562,34 @@ static void check_tutorials() {
 	CHECK(s.tutorial_goal_index() == 1 && !s.tutorial_ready_button(), "Ready did not open goal 1 (%d)", s.tutorial_goal_index());
 	tut_cmd(tm, s, 4, tree); // goal 1 wants berries
 	CHECK(s.tutorial_goal_index() == 1, "wood advanced the berries goal");
-	tut_cmd(tm, s, 4, fruit);
+	// A gather on a gone supply's mirage names its type (type | subtype << 8), not an entity.
+	tut_cmd(tm, s, (uint8_t)NetCommandType::NET_CMD_GATHER_NEAR, RES_WOOD | (RES_SUB_NONE << 8));
+	CHECK(s.tutorial_goal_index() == 1, "a wood mirage advanced the berries goal");
+	tut_cmd(tm, s, (uint8_t)NetCommandType::NET_CMD_GATHER_NEAR, RES_FOOD | (RES_SUB_NONE << 8));
+	CHECK(s.tutorial_goal_index() == 2, "a berries mirage: at %d", s.tutorial_goal_index());
 	tut_cmd(tm, s, 4, tree);
 	CHECK(s.tutorial_goal_index() == 3, "gather goals: at %d, want 3", s.tutorial_goal_index());
 	tut_queued(s, 1, "spart/infantry_spearman_b", 5); // the enemy's training is not the player's
 	CHECK(s.tutorial_goal_index() == 3, "the enemy's training advanced the goal");
+	{
+		// Trainer.js raises OnTrainingQueued before the batch joins the queue: ResetQueue refunds
+		// what was queued before it and turns autoqueue off; the wrong single hoplite still trains.
+		uint32_t cc = 0;
+		for (const Simulation::Building &b : s.buildings_)
+			if (b.team == 0 && is_civic_centre(b.type)) { cc = b.id; break; }
+		s.set_player_resources(0, 5000, 5000, 5000, 5000);
+		const uint32_t warned = s.tutorial_warning_count();
+		auto queue_size = [&]() { for (const Simulation::Building &b : s.buildings_) if (b.id == cc) return b.queue.size(); return (size_t)99; };
+		s.cmd_set_autoqueue(0, cc, true);
+		CHECK(s.cmd_train(0, cc, UNIT_SPEARMAN, 1), "a single spearman queued");
+		CHECK(queue_size() == 1 && s.tutorial_warning() == TUTORIAL_WARN_BATCH_HOTKEY, "the wrong batch stays: %zu queued", queue_size());
+		CHECK(s.cmd_train(0, cc, UNIT_SPEARMAN, 1) && queue_size() == 1, "a second single one refunds the first: %zu queued", queue_size());
+		bool autoq = true;
+		for (const Simulation::Building &b : s.buildings_) if (b.id == cc) autoq = b.autoqueue;
+		CHECK(!autoq, "ResetQueue turns autoqueue off");
+		CHECK(s.tutorial_warning_count() == warned + 2, "each warning counts: %u sent", s.tutorial_warning_count() - warned);
+		s.tutorial_reset_queue(cc);
+	}
 	tut_queued(s, 0, "spart/infantry_spearman_b", 1);
 	CHECK(s.tutorial_goal_index() == 3 && s.tutorial_warning() == TUTORIAL_WARN_BATCH_HOTKEY, "single hoplite: warning %d", s.tutorial_warning());
 	tut_queued(s, 0, "spart/infantry_javelineer_b", 5);

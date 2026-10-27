@@ -177,6 +177,19 @@ Right-click actions, Back to Work and Shift-queueing against unit_actions.js, in
 | N4 | ~~Shift is ignored when hunting or slaughtering an animal, attacking scenery and boarding a ship, ram or siege tower: the order replaces the queue~~ Fixed: Shift queues them (ORDER_HUNT, ORDER_ATTACK_SCENERY, ORDER_BOARD), lockstep cmds 17 and 18 carry NET_PARAM_QUEUED, and a kill going on to the carcass keeps the orders queued behind the hunt (one Gather order in 0.28); test_unit_orders 101 | medium | Fixed |
 | N5 | ~~Alt (orderone) on an enemy unit, structure or scenery orders the first selected unit, not the first able one~~ Fixed: the first selected unit able to attack or capture it (getActionInfo firstAbleEntity, input.js popOneFromSelection); tested by `tools/e2e_order_one.gd` | low | Fixed |
 
+### Unit orders, thirteenth 0.28 pass (2026-10-27)
+
+UnitAI's attack and capture switch, gather and repair autocontinue, idle answers and garrison edge cases against UnitAI.js, Attack.js and Capturable.js. Everything else checked matches. Owner: Unit orders
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| M1 | ~~A unit hitting its target turned on any melee attacker, and a capturer still walking up turned on ranged ones~~ Fixed: COMBAT "Attacked" (melee only) covers APPROACHING and CHASING; ATTACKING answers only while capturing (UnitAI.js:2068-2072, 2249-2252); test_unit_orders 32 | medium | Fixed |
+| M2 | ~~An unordered capture never looked for a preferred target~~ Fixed: after each capture, a unit that no player sent to that structure and has no preference for it looks again (Attack.js:607-612), so attack-walk waves turn on enemy units; test_unit_orders 106 | medium | Fixed |
+| M3 | ~~After building a dropsite, the nearest supply of each type was taken before CanGather, full supplies counted and live animals were skipped~~ Fixed: FindNearbyResource filters on CanGather and IsAvailableTo, and takes live prey (UnitAI.js:4463-4489); test_gather_parity 15b | low-medium | Fixed |
+| M4 | ~~Builders still walking to a structure stopped where they were when it was finished~~ Fixed: they walk on to it (UnitAI.js:3226-3229 WalkToTarget); test_unit_orders 107 | low | Fixed |
+| M5 | A Shift-queued build on a structure someone else finished is skipped where 0.28 walks there and runs ConstructionFinished (REPAIRING enter, UnitAI.js:3115-3121); a builder already beside a finished, full structure now does | nit | Open (queue) |
+| M6 | Empty-handed after its supply runs out, a unit picks its dropsite by the last type it carried, not the order's type (FindNearestDropsite(resourceType.generic), UnitAI.js:2665) | nit | Open (gather) |
+
 ### Unit orders, twelfth 0.28 pass (2026-10-21)
 
 Garrisons, structure arrows, attacks and resistance, territory decay and camps against GarrisonHolder.js, BuildingAI.js, Attack.js, Capturable.js and TerritoryDecay.js. Everything else checked matches. Owner: Unit orders.
@@ -439,6 +452,20 @@ gui/common/tooltips.js and selection_panels_helpers.js against RTS0's constructi
 | TT6 | The wall-dragging cost tip is a plain Label: "Cost: Stone 36" without the header font or icons | nit | Fixed (Stats: placementTooltip is a RichTextLabel; the wall cost takes getEntityCostTooltip's headerFont and resource icons) |
 | TT7 | "Requires ..." from a unit trainer shows only the generic name, not "Specific (Generic)"; no case found in the current rosters | nit | Open |
 
+### Construction, repair and upgrades, twenty-third 0.28 pass (2026-10-27)
+
+Foundation.js, Repairable.js, Upgrade.js, Builder.js and UnitAI's REPAIR states against RTS0's construction, repair and upgrade code. Build multiplier, refunds, commit, repair rates and ratios, upgrade gating, refunds and carry-over and builder rates match. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| FD1 | A packed catapult or bolt shooter standing on a foundation never made way, so the foundation never started; WillMoveFromFoundation refuses only engines packing or unpacked | medium | Fixed (`tools/test_pack.cpp` 11) |
+| BD1 | A build or repair order on a structure already whole (a queued build finished by others) left the builder idle where she stood; 0.28 walks there and ConstructionFinished applies autocontinue (gather by a new dropsite, a foundation nearby) | low-medium | Fixed by Unit orders #1600 (`tools/test_gather_parity.cpp` 20); the Shift-queued case is M5 |
+| RP1 | Finishing a repair on a ram or ship left its repairers idle; Repairable.js sends ConstructionFinished for units too, so they take a foundation nearby | low | Fixed (`tools/test_gather_parity.cpp` 22) |
+| BD2 | Builders still walking to a structure when it was finished stopped where they were; with nothing else to do 0.28 walks them on to it (WalkToTarget) | low | Fixed by Unit orders #1600 as M4 (`tools/test_gather_parity.cpp` 21) |
+| UP1 | The Carthaginian Low Wall's gate upgrade costs the palisade's 10 wood and 6 s, not 20 wood and 5 s (cart/s_wall_long.xml); RTS0 can't tell a Low Wall piece from a Carthaginian's palisade by type and civ | low | Open (map wall scripts only) |
+| FD2 | Ships never keep a foundation from starting; every unit has BlockConstruction, so a ship on a dock site is told to leave first (needs a water exit point) | low | Open |
+| RP2 | The Flight Demo plane has Repairable (RepairTimeRatio 3.0) but can't be repaired | nit | Open |
+
 ### Production queues and ceasefire, twenty-second 0.28 pass (2026-10-27)
 
 ProductionQueue.js, Trainer.js, Researcher.js, TechnologyManager.js, Player.js population reservation, BuildingAI.js and CeasefireManager.js against RTS0's queues and arrows. Batch times, costs, entity limits, refunds, autoqueue, tech exclusions, phase counts and arrow counts and targeting match. Owner: E.
@@ -457,7 +484,7 @@ BuildingAI.js, GarrisonHolder/TurretHolder, Capturable and TerritoryDecay agains
 |---|---|---|---|
 | DS1 | Petra keeps healed female citizens garrisoned: garrisonManager.js:317 releases units with a Melee attack (women have a Dagger) at 70% health; RTS0 tests the Melee class | medium | Fixed |
 | DS2 | Petra treats war elephants as ordinary units when garrisoning against an attack; entityExtend.js isSiegeUnit counts Elephant+Melee as siege (garrison only ranged soldiers) | medium-low | Fixed |
-| DS3 | An enemy tower or fortress alone doesn't make Petra garrison its tower or civic centre (defenseManager.js:569-579, 692-693) | low-medium | Open (Petra defense) |
+| DS3 | An enemy tower or fortress alone didn't make Petra garrison its tower or civic centre (defenseManager.js:569-579, 692-693); now a shooting holder trading arrows with an enemy tower or fortress in its range is garrisoned with no enemy unit near (`test_garrison_against_tower`) | low-medium | Fixed |
 | DS4 | findDefensiveLocation took any frontier cell of ours; 0.28 takes only cells a base of ours holds on its anchor's land (baseAtIndex), so no towers across a river or on an islet | low-medium | Fixed |
 | DS5 | Towers and fortresses were searched for a spot before queueing and retried after 90 s (every 3rd turn for a first stone tower); 0.28 queues the plan, searches at start, and with no spot marks it unbuildable for 90 s while the lapse runs from queue time | low | Fixed |
 | DS6 | An enemy whose only civic centre, tower or fortress is a foundation let Petra fall back to neutral or allied structures; in 0.28 the foundation blocks the fallback | nit | Fixed |
@@ -914,6 +941,22 @@ Skirmish maps' ScriptSettings (fifteenth pass, 2026-10-21; docs/archive/triggers
 | SK2 | Lock Teams kept the last choice on a new skirmish; LockedTeams.onMapChange sets it to the map's LockTeams (Egypt on, every other off), still editable | low | Fixed: map_types.json "lock_teams", applied when the map changes |
 | SK3 | PlayerData Name (Egypt's cities, Azure Coast's Greeks and Celts, White Cliffs' invaders and 20 scenarios) was dropped; PlayerName._set makes it the seat's default, which an AI keeps | cosmetic | Fixed: the porter keeps "name", Game Setup gives it to AI and unassigned seats |
 | SK4 | A map's PlayerData Color snaps to the nearest of RTS0's palette colours; 0.28 adds the map's colours to the colour list | cosmetic | Kept: seats carry a palette index |
+
+The two tutorials (sixteenth pass, 2026-10-27; docs/archive/triggers-audit-028-pass16.md): introductory_tutorial.js and starting_economy_walkthrough.js line by line, with Tutorial.js and the tutorial panel:
+
+| # | Gap | Severity | State |
+|---|---|---|---|
+| TU1 | The introductory map lacked player 1's Spartan Gerousia beside the Civic Center | medium | Fixed |
+| TU2 | A wrong training click cancelled the wrong batch too and left autoqueue on; 0.28 raises OnTrainingQueued before the batch joins the queue, so ResetQueue refunds only the earlier items (and turns autoqueue off) and the wrong batch trains | low | Fixed |
+| TU3 | A gather on a gone supply's mirage was read as an entity id; 0.28 names the remembered supply, whose type the gather goals read | low | Fixed: the command's resource type is read |
+| TU4 | The introductory Field rally goal also took a rally on an unfinished Field; 0.28 counts only a "gather" rally on grain | low | Fixed |
+| TU5 | The last goal's win read "has won (game mode)" and the enemy "has been defeated (game mode)"; MarkPlayerAndAlliesAsWon(1, "Tutorial completed", "") | low | Fixed |
+| TU6 | Hotkeys in the instructions had no brackets, a yellow of their own and "(unbound)"; colorizeHotkey writes "[key]" in 255 251 131, or "Unassigned hotkey: name" | cosmetic | Fixed |
+| TU7 | The status line sat at -36; tutorialWarning is at 100%-42 | cosmetic | Fixed |
+| TU8 | The same warning twice didn't show a hidden panel again; every WarningMessage does | cosmetic | Fixed: the sim counts warnings sent |
+| TU9 | A warning stayed after loading a save; OnDeserialized sends only the goal | cosmetic | Fixed |
+| TU10 | The walkthrough's "selection.queue" (not in default.cfg, so "Unassigned hotkey") reads session.queue (Shift) | cosmetic | Deliberate (tutorial_data.h) |
+| TU11 | Tutorial.js reacts to every player's commands; RTS0 to player 1's | cosmetic | Kept: the enemy has no AI and the walkthrough one player |
 
 Scenario-only units: every unit the 0.28 scenario, demo and sandbox maps place was checked against the ported map JSON and the roster:
 
