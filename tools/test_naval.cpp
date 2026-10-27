@@ -1046,21 +1046,22 @@ static void test_petra_overseas_attack() {
 	CHECK(across >= 1);
 	// With nothing left to attack the army comes home (headquarters.js assignEntity):
 	// by ship, as navalManager.requireTransport does, not through the sea.
-	int waded = 0, home = 0;
-	for (int k = 0; k < 240; ++k) {
-		run(s, 1.0f);
-		for (uint32_t uid : army) {
-			const int32_t i = idx(s, uid);
-			if (i >= 0 && s.units().alive[i] && std::fabs(s.units().pos_z[i]) < 14.0f) ++waded;
-		}
-	}
 	// Home is the north land, beach included. Two spearmen that captured the house
 	// share a navcell and block each other on its centre until #103's path start fix.
+	// Once home, Petra may ship some of them off again to gather the south's wood.
 	const uint16_t north = s.petra_land_at(-30.0f, 40.0f);
-	for (uint32_t uid : army) {
-		const int32_t i = idx(s, uid);
-		if (i >= 0 && s.units().alive[i] && s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == north) ++home;
+	int waded = 0, home = 0;
+	std::vector<bool> came_home(army.size(), false);
+	for (int k = 0; k < 240; ++k) {
+		run(s, 1.0f);
+		for (size_t a = 0; a < army.size(); ++a) {
+			const int32_t i = idx(s, army[a]);
+			if (i < 0 || !s.units().alive[i]) continue;
+			if (std::fabs(s.units().pos_z[i]) < 14.0f) ++waded;
+			if (s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == north) came_home[a] = true;
+		}
 	}
+	for (bool h : came_home) home += h ? 1 : 0;
 	std::printf("Petra overseas attack: house %s, %d spearmen back home, %d wading\n",
 	            bld(s, house) && bld(s, house)->team == 1 ? "captured" : "standing", home, waded);
 	CHECK(home >= 4 && waded == 0);
@@ -1084,6 +1085,7 @@ static void test_petra_overseas_base() {
 	uint32_t cc = 0;
 	float placed_at = -1.0f, first_ashore = -1.0f;
 	int waded = 0; // land units are not stopped by deep water yet: none may try
+	int most_south = 0;
 	for (int k = 0; k < 360; ++k) {
 		run(s, 1.0f);
 		for (size_t i = 0; i < s.units().count; ++i)
@@ -1096,6 +1098,13 @@ static void test_petra_overseas_base() {
 			for (size_t i = 0; i < s.units().count; ++i)
 				if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
 				    s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south) { first_ashore = (float)k; break; }
+		// Workers come and go by ship between the two lands: count the most seen at once.
+		int on_south = 0;
+		for (size_t i = 0; i < s.units().count; ++i)
+			if (s.units().alive[i] && s.units().team[i] == 1 &&
+			    unit_gather_class(s.units().unit_type[i], s.units().tmpl[i]) == GATHER_SUPPORT &&
+			    s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south) ++on_south;
+		most_south = std::max(most_south, on_south);
 	}
 	const Simulation::Building *b = cc ? bld(s, cc) : nullptr;
 	int south_workers = 0, north_gathering_south = 0;
@@ -1112,11 +1121,11 @@ static void test_petra_overseas_base() {
 				++north_gathering_south;
 		}
 	}
-	std::printf("Petra overseas base: CC laid out at %.0fs, first builder ashore at %.0fs, built %.0f%%, %d workers on the south land, %d wading\n",
-	            placed_at, first_ashore, b ? 100.0f * b->build_progress : 0.0f, south_workers, waded);
+	std::printf("Petra overseas base: CC laid out at %.0fs, first builder ashore at %.0fs, built %.0f%%, %d workers on the south land (%d at most), %d wading\n",
+	            placed_at, first_ashore, b ? 100.0f * b->build_progress : 0.0f, south_workers, most_south, waded);
 	CHECK(north && south && north != south);
 	CHECK(cc != 0);
-	CHECK(first_ashore >= 0.0f && south_workers >= 2);
+	CHECK(first_ashore >= 0.0f && most_south >= 2);
 	CHECK(b && b->build_progress > 0.3f);
 	CHECK(north_gathering_south == 0 && waded == 0);
 }

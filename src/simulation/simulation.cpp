@@ -734,7 +734,8 @@ bool Simulation::training_blocked(uint8_t player) const {
 			room = pop_max(player) - pop_current(player);
 			have_room = true;
 		}
-		return order_pop(o, player) > room; // the same test tick_production makes
+		const int need = order_pop(o, player);
+		return need != 0 && need > room; // the same test tick_production makes
 	};
 	for (const auto &b : buildings_)
 		if (b.team == player && b.build_progress >= 1.0f && !b.queue.empty() && b.type != BLD_CORRAL && waits(b.queue.front()))
@@ -4708,7 +4709,9 @@ void Simulation::tick_unit_production(float dt) {
 			if (qi == unit_queues_.end() || qi->second.orders.empty()) break;
 			ProductionOrder &order = qi->second.orders.front();
 			if (!order.is_tech() && !order.started) {
-				if (pop_current(player) + order_pop(order, player) > pop_max(player)) break;
+				// Player.js TryReservePopulationSlots: a batch costing no population always starts.
+				const int need = order_pop(order, player);
+				if (need != 0 && pop_current(player) + need > pop_max(player)) break;
 				order.started = true;
 			}
 			const float left = order.duration - order.timer;
@@ -4717,7 +4720,9 @@ void Simulation::tick_unit_production(float dt) {
 				break;
 			}
 			order.timer = std::max(order.timer, order.duration);
-			time -= std::max(0.0f, left);
+			// ProductionQueue.js ProgressTimeout does time -= item.Progress(time), and Item.Progress
+			// returns the time the item did not use: the next item gets the time this one used.
+			time = std::max(0.0f, left);
 			if (order.is_tech()) {
 				const uint8_t tech = order.tech;
 				qi->second.orders.erase(qi->second.orders.begin());
@@ -15167,8 +15172,8 @@ void Simulation::tick_production(float dt) {
 	// Item.Start reserves the batch's population first and waits while there is no room
 	// (Player.BlockTraining), and Researcher.js finishes a technology when its time is up.
 	// ProgressTimeout runs once a second from when the queue started (ProgressInterval), and
-	// gives that second to as many items as it takes; an item that finishes leaves the rest
-	// of the second to the next one. A batch that cannot spawn yet tries again each second.
+	// gives that second to as many items as it takes; an item that finishes passes on the time
+	// it used (0.28's arithmetic, see below). A batch that cannot spawn yet tries again each second.
 	for (auto &b : buildings_) {
 		if (b.build_progress < 1.0f || b.queue.empty()) {
 			b.queue_clock = 0.0f; // StopTimer
@@ -15184,7 +15189,9 @@ void Simulation::tick_production(float dt) {
 			const bool animal = b.type == BLD_CORRAL || order.unit_type == UNIT_TYPE_NONE;
 			// Trainer.js Item.Progress: an item that cannot start (no population room) uses the second.
 			if (!order.is_tech() && !animal && !order.started) {
-				if (bteam < MAX_PLAYERS && pop_current(bteam) + order_pop(order, bteam) > pop_max(bteam)) break;
+				// Player.js TryReservePopulationSlots: a batch costing no population always starts.
+				const int need = bteam < MAX_PLAYERS ? order_pop(order, bteam) : 0;
+				if (need != 0 && pop_current(bteam) + need > pop_max(bteam)) break;
 				order.started = true;
 			}
 			// TechnologyManager.js StartedResearch: "X is advancing to the Y." on the first work done.
@@ -15195,7 +15202,9 @@ void Simulation::tick_production(float dt) {
 				break;
 			}
 			order.timer = std::max(order.timer, order.duration);
-			time -= std::max(0.0f, left);
+			// ProductionQueue.js ProgressTimeout does time -= item.Progress(time), and Item.Progress
+			// returns the time the item did not use: the next item gets the time this one used.
+			time = std::max(0.0f, left);
 			const ProductionOrder done = order;
 			b.queue.erase(b.queue.begin());
 
@@ -20230,7 +20239,7 @@ uint32_t Simulation::first_able_healer(const uint32_t *unit_ids, size_t count, u
 
 bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 	if (b.wrecked || b.hp <= 0.0f || b.build_progress < 1.0f || b.max_capture_points <= 0.0f) return false;
-	if (player >= MAX_PLAYERS || ceasefire_active()) return false;
+	if (player >= MAX_PLAYERS) return false;
 	// Attack.js Capture RestrictedClasses "Field Palisade Wall" (gates and wall towers are Wall too).
 	if (b.type == BLD_FIELD || b.type == BLD_PALISADE || b.type == BLD_WALL_SEGMENT || is_gate_type(b.type) ||
 			b.type == BLD_WALL_TOWER || b.type == BLD_SIEGE_WALL)
@@ -20241,7 +20250,7 @@ bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 	for (int t = 0; t < MAX_PLAYERS; ++t) {
 		const float p = b.capture_points_by_team[t];
 		held += p;
-		if (p > 0.0f && t != player && is_hostile(player, (uint8_t)t)) return true;
+		if (p > 0.0f && t != player && can_attack(player, (uint8_t)t)) return true;
 	}
 	return held < b.max_capture_points;
 }
