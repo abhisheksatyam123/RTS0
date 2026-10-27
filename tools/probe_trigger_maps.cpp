@@ -225,6 +225,8 @@ struct MapPlayerOverrides {
 };
 
 static std::vector<std::string> g_unported_scripts;
+// Civs to seat instead of the map's own (tools/soak_match.cpp --json): player p gets [p % size].
+static std::vector<int> g_civ_override;
 
 static bool load_json_map(Simulation &sim, const std::string &map_id, uint32_t seed, MapPlayerOverrides &ov) {
 	Json d;
@@ -242,6 +244,7 @@ static bool load_json_map(Simulation &sim, const std::string &map_id, uint32_t s
 		ov.players = std::max(ov.players, (int)team + 1);
 		const int c = (int)p.number("civ", -1);
 		if (is_playable_civ(c)) ov.civ[team] = (int8_t)c;
+		if (!g_civ_override.empty()) ov.civ[team] = (int8_t)g_civ_override[team % g_civ_override.size()];
 		if (const Json *r = p.get("resources")) {
 			const char *keys[4] = {"food", "wood", "stone", "metal"};
 			for (int k = 0; k < 4; ++k) ov.res[team][k] = (int)r->number(keys[k], 300);
@@ -423,6 +426,7 @@ static bool load_json_map(Simulation &sim, const std::string &map_id, uint32_t s
 	return true;
 }
 
+#ifndef PROBE_LOADER_ONLY // tools/soak_match.cpp takes the loader alone
 // --- the probe -----------------------------------------------------------------------------
 static const char *action_name(uint16_t a) {
 	static const char *const k[] = {"NONE", "FLOOD_INIT", "FLOOD_RISE_STEP", "FLOOD_WARNING", "VOLCANO_INIT", "VOLCANO_NOTIFY",
@@ -838,3 +842,4 @@ int main(int argc, char **argv) {
 	std::printf(" gaia=%d/%db\n", count_units(GAIA_PLAYER), count_buildings(GAIA_PLAYER));
 	return 0;
 }
+#endif // PROBE_LOADER_ONLY

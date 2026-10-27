@@ -144,7 +144,7 @@ func show_summary(is_victory: bool, record: Dictionary, elapsed_time: float) -> 
 	if not data.has("game_time"):
 		data["game_time"] = elapsed_time
 	if gui.get("isReplay", false) and str(gui.get("replayDirectory", "")) == "" and not gui.get("isInGame", false):
-		gui["replayDirectory"] = MatchSettings.replay_dir
+		gui["replayDirectory"] = _match_settings().replay_dir
 	_init_players()
 	_init_teams()
 	panels = score_panels()
@@ -598,6 +598,11 @@ func map_caption() -> String:
 	var kind: String = MAP_SIZE_NAMES.get(size, "Random") if random \
 		else str(load("res://scenes/menu/replay_browser.gd").map_info(map_id)["type"])
 	return "%s - %s" % [map_name, kind] if kind != "" else map_name
+
+# The MatchSettings autoload, looked up when called: msgbox.gd and others preload this page,
+# and a script run with -s compiles them before the autoloads exist.
+static func _match_settings() -> Node:
+	return (Engine.get_main_loop() as SceneTree).root.get_node("MatchSettings")
 
 # gui/common/modern/styles.xml ModernLabelText and its kin: sans-bold-stroke-14, white.
 static var _bold_font: FontVariation
@@ -1284,13 +1289,13 @@ func continue_pressed() -> void:
 		return
 	get_tree().paused = false
 	if _lobby_signed_in(): # Engine.HasXmppClient()
-		MatchSettings.go("res://scenes/menu/lobby.tscn")
+		_match_settings().go("res://scenes/menu/lobby.tscn")
 	elif gui.get("isReplay", false):
-		MatchSettings.go("res://scenes/menu/replay_browser.tscn")
-	elif MatchSettings.campaign_run != "":
+		_match_settings().go("res://scenes/menu/replay_browser.tscn")
+	elif _match_settings().campaign_run != "":
 		leave_campaign(_victory)
 	else:
-		MatchSettings.go("res://scenes/menu/main_menu.tscn")
+		_match_settings().go("res://scenes/menu/main_menu.tscn")
 
 func _lobby_signed_in() -> bool:
 	var lobby := get_tree().root.get_node_or_null("LobbySession")
@@ -1308,26 +1313,26 @@ func open_lobby() -> void:
 ## level is completed the moment the player wins it, before the summary (the main
 ## node calls this once), so loading a save or quitting afterwards keeps it.
 static func mark_campaign_won() -> void:
-	if MatchSettings.campaign_run == "" or MatchSettings.campaign_level == "":
+	if _match_settings().campaign_run == "" or _match_settings().campaign_level == "":
 		return
-	var run := CampaignRun.new(MatchSettings.campaign_run)
+	var run := CampaignRun.new(_match_settings().campaign_run)
 	if run.load_run():
-		run.mark_level_complete(MatchSettings.campaign_level)
+		run.mark_level_complete(_match_settings().campaign_level)
 
 ## Back to the run's menu after the match (a level won is completed again here,
 ## for a match won before mark_campaign_won existed). A replay of a campaign level
 ## also ends on the run's menu (session.js leaveGame) but completes nothing:
 ## CampaignSession.onFinish returns when the viewer is not one of the players.
 static func leave_campaign(victory: bool, replaying := false) -> void:
-	var run := CampaignRun.new(MatchSettings.campaign_run)
+	var run := CampaignRun.new(_match_settings().campaign_run)
 	if run.load_run():
 		if victory and not replaying:
-			run.mark_level_complete(MatchSettings.campaign_level)
+			run.mark_level_complete(_match_settings().campaign_level)
 		run.set_current()
-	MatchSettings.campaign_run = ""
-	MatchSettings.campaign_level = ""
-	MatchSettings.campaign_map_name = ""
-	MatchSettings.go("res://scenes/menu/campaigns.tscn")
+	_match_settings().campaign_run = ""
+	_match_settings().campaign_level = ""
+	_match_settings().campaign_map_name = ""
+	_match_settings().go("res://scenes/menu/campaigns.tscn")
 
 ## startReplay.
 func start_replay() -> void:
@@ -1336,9 +1341,9 @@ func start_replay() -> void:
 		push_warning("Replay file not found!")
 		return
 	get_tree().paused = false
-	MatchSettings.replay_dir = dir
-	MatchSettings.load_save_path = ""
-	MatchSettings.go("res://scenes/main.tscn")
+	_match_settings().replay_dir = dir
+	_match_settings().load_save_path = ""
+	_match_settings().go("res://scenes/main.tscn")
 
 func _fired(event: InputEvent, hotkey: String) -> bool:
 	if _hotkeys == null or not (event is InputEventKey) or not event.pressed or event.echo:
