@@ -3602,6 +3602,63 @@ static void test_huge_attack_drops_classes() {
 	CHECK((dropped & ~elite) == 0, "the citizen-soldier classes stay");
 }
 
+// attackPlan.js this.unit[cat] is a class filter over the plan's units: a German Cimbrian
+// clubman (Champion and Citizen Soldier) counts as a champion as well as a melee citizen
+// soldier, so a HugeAttack holding enough of them trains no more for its champion class.
+static void test_plan_counts_every_class() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_team_civ(1, CIV_GERMANS);
+	run_for(*s, 1.0f);
+	const uint16_t club = civ_unit_template_by_id("germ/champion_infantry_maceman");
+	CHECK(club != CIV_UNIT_TEMPLATE_NONE, "the Cimbrian clubman is on the roster");
+	if (club == CIV_UNIT_TEMPLATE_NONE) return;
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->spawn_building_world(tx + (tx > 0.0f ? -12.0f : 12.0f), tz, BLD_BARRACKS, 1, 1.0f);
+	s->players_[1].phase = 3;
+	s->cheat_mods_[1].pop_bonus = 300;
+	auto &m = s->petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 0;
+	s->petra_plan_sizes(PETRA_ATTACK_HUGE);
+	m.dropped_classes = 0;
+	m.kind = PETRA_ATTACK_HUGE;
+	auto &plan = s->petra_attack_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_HUGE;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	int champ_target = 0;
+	for (const auto &st : s->petra_plan_unit_stats(PETRA_ATTACK_HUGE))
+		if ((st.classes & TC_CHAMPION).any() && (st.classes & TC_MELEE).any()) champ_target = std::max(champ_target, st.target);
+	CHECK(champ_target > 0, "the HugeAttack has a melee champion class");
+	const uint8_t ty = civ_unit_template(club).unit_type;
+	for (int k = 0; k < champ_target; ++k)
+		plan.squad.push_back(s->spawn_unit(tx - 14.0f + 1.5f * (float)(k % 12), tz - 14.0f - 1.5f * (float)(k / 12), 1, (UnitType)ty, 0.0f, club));
+	// trainMoreUnits trains the class furthest behind first: champions (priority 1) before
+	// citizen soldiers (0.7). Counted, the clubmen fill the champion class, so the plan's
+	// champion queue asks for nothing; uncounted, it would ask for more clubmen.
+	for (int k = 0; k < 4; ++k) {
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 20000.0f;
+		run_ai_turns(*s, 1);
+	}
+	int queued = 0;
+	for (const auto &b : s->buildings())
+		if (b.team == 1)
+			for (const auto &o : b.queue)
+				if (o.tmpl == club && o.petra_plan == PETRA_ORDER_ATTACK) queued += o.count;
+	const PetraQueueAccount &w = s->petra_queues_.wants[PETRA_Q_PLAN_CHAMP];
+	const float champ_ask = w.food + w.wood + w.gold + w.stone;
+	std::printf("  German HugeAttack with %d clubmen (champion target %d): %d more queued, champion queue asks %.0f\n",
+	            champ_target, champ_target, queued, champ_ask);
+	CHECK(queued == 0 && champ_ask == 0.0f, "clubmen in the plan count as its champions: no more are asked for it");
+}
+
 // attackPlan.js trainMoreUnits: when the order furthest behind has no template, the order is
 // deleted and nothing is queued that turn; the next order trains on the plan's next turn.
 // Each order trains in the queue its classes name, not the template's: the "Siege" order's war
@@ -8550,6 +8607,7 @@ int main(int argc, char **argv) {
 	RUN(test_attack_plan_keeps_hunters);
 	RUN(test_raid_takes_every_rider);
 	RUN(test_huge_attack_drops_classes);
+	RUN(test_plan_counts_every_class);
 	RUN(test_attack_order_no_template);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
