@@ -32139,8 +32139,12 @@ bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, fl
 		tp.passenger_ids.push_back(uid);
 	}
 	if (tp.passenger_ids.empty()) return false;
-	if (ship) order_walk(&ship, 1, pickup_x, pickup_z, false);
-	order_walk(tp.passenger_ids.data(), tp.passenger_ids.size(), pickup_x, pickup_z, false);
+	// transportPlan.js onBoarding moves the units to the boarding point only once a ship is
+	// assigned; with none they wait where they are (assignShip walks them there later).
+	if (ship) {
+		order_walk(&ship, 1, pickup_x, pickup_z, false);
+		order_walk(tp.passenger_ids.data(), tp.passenger_ids.size(), pickup_x, pickup_z, false);
+	}
 	petra_transports_.push_back(std::move(tp));
 	return true;
 }
