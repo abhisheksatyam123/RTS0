@@ -21884,7 +21884,9 @@ void Simulation::tick_heal(size_t h) {
 	}
 	units_.has_order[h] = 0; // HEALING
 	units_.vel_x[h] = units_.vel_z[h] = 0.0f;
-	if (units_.attack_timer[h] > 0.0f) return;
+	// Heal.js's timer fires on time: float drift in the 0.05 s steps must not push a heal a
+	// tick late (forty steps fall just short of 2 s).
+	if (units_.attack_timer[h] > 1.0e-4f) return;
 	units_.attack_timer[h] = HEAL_INTERVAL_S * std::max(0.1f, tech_mods(units_.team[h]).heal_interval[UNIT_HEALER]);
 	const float before = units_.hp[t];
 	units_.hp[t] = std::min(units_.max_hp[t], units_.hp[t] + heal_amount_of(h));
