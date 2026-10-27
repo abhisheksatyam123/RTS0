@@ -38,6 +38,7 @@
 #include "simulation/script_terrains.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 #include <cmath>
 #include <cstdio>
@@ -259,6 +260,28 @@ int main() {
 		CHECK(camp_treasures >= 5 && gaia_units >= 10, "Caledonian camps: %d metal or stone treasures, %d Gaia soldiers", camp_treasures, gaia_units);
 		CHECK(farmsteads >= 5 && fences >= 3 * farmsteads && sheep >= 3 * farmsteads,
 				"Caledonian fences: %d farmsteads, %d long fences, %d sheep", farmsteads, fences, sheep);
+	}
+
+	// 3z. Continental's river is point-symmetric with its ford in the middle: over seeds 1-16 the
+	// two 2-player starts have about as much river within 40 of them (slot 1 used to start by the ford).
+	{
+		int wet[2] = {0, 0};
+		for (int seed = 1; seed <= 16; ++seed) {
+			Simulation sim;
+			sim.generate_random_map(MAP_RANDOM_CONTINENTAL, (uint32_t)seed, 2, 128.0f);
+			const float line = sim.water_height() + NAV_WATER_MARGIN;
+			for (const auto &b : sim.buildings()) {
+				if (!is_civic_centre(b.type) || b.team > 1) continue;
+				for (float dz = -40.0f; dz <= 40.0f; dz += 1.0f)
+					for (float dx = -40.0f; dx <= 40.0f; dx += 1.0f) {
+						const float x = b.x + dx, z = b.z + dz;
+						if (dx * dx + dz * dz > 1600.0f || std::fabs(x) > 64.0f || std::fabs(z) > 64.0f) continue;
+						wet[b.team] += sim.get_terrain_height(x, z) < line;
+					}
+			}
+		}
+		CHECK(std::abs(wet[0] - wet[1]) * 10 <= std::max(wet[0], wet[1]),
+				"Continental starts see unequal river: %d and %d water cells within 40", wet[0], wet[1]);
 	}
 
 	// 4. FoW at the far corner of a Giant map.
