@@ -11856,41 +11856,13 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// A mine's gatherer walks to the near side of the mine's square, as a builder to its
 		// foundation's: 0 A.D. UnitMotion moves to the range round the target's obstruction, and
 		// heading for the mine's centre would take it into the gatherers already working there.
-		// Similarly, distribute gatherers radially around circular resources (bushes, trees, meat)
-		// so gatherers aim for the perimeter rather than collapsing to the exact center.
-		if (units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0) {
+		// Any other supply's gatherer walks at the supply and stops once within reach (below), as
+		// MoveToTargetRange ends in range (UnitAI.js:2484-2489, CCmpUnitMotion.h:1155-1165): 0.28
+		// gives it no stand point of its own round the supply.
+		if (units_.action_state[i] == ACTION_GATHER) {
 			nav::Footprint m;
-			if (gather_mine_footprint(i, m)) {
+			if (gather_mine_footprint(i, m))
 				stand_outside(m, units_.id[i], px[i], pz[i], &tx[i], &tz[i], unit_clearance_at(i) + kStandMargin);
-			} else {
-				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
-				// The spread is for the gatherers already at the resource: one out of reach
-				// (across the water) still walks at the resource itself, so that the walk fails
-				// and the order goes on to another supply (0 A.D. FINDINGNEWTARGET) rather
-				// than ending at the near side of a supply it cannot work.
-				if (rit != res_id_to_idx_.end() && resources_.subtype[rit->second] != RES_SUB_FISH &&
-					gather_in_reach(i, rit->second, px[i], pz[i])) {
-					const size_t ridx = rit->second;
-					const float rx = resources_.x[ridx], rz = resources_.z[ridx];
-					float to_dx = px[i] - rx, to_dz = pz[i] - rz;
-					float d = det::hypot(to_dx, to_dz);
-					if (d < 1e-4f) {
-						const float a = ((units_.id[i] % 12) / 12.0f) * 6.2831853f;
-						to_dx = det::cos(a);
-						to_dz = det::sin(a);
-						d = 1.0f;
-					}
-					// Offset angle distributed per unit id so multiple workers don't aim at the exact same radial ray
-					const float spread_angle = (((units_.id[i] * 5) % 8) - 3.5f) * 0.18f;
-					const float ca = det::cos(spread_angle), sa = det::sin(spread_angle);
-					const float nx = (to_dx * ca - to_dz * sa) / d;
-					const float nz = (to_dx * sa + to_dz * ca) / d;
-					const float stand_r = std::max(0.6f, resource_block_half(ridx) + unit_clearance_at(i) + 0.2f);
-					tx[i] = rx + nx * stand_r;
-					tz[i] = rz + nz * stand_r;
-					has[i] = 1;
-				}
-			}
 		}
 
 		if (!has[i]) {
@@ -12140,10 +12112,12 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			at_building = nav_grid_.near_steep_tile(px[i] + rdx * t, pz[i] + rdz * t, unit_clearance_at(i)) &&
 				walk_in_reach(i, px[i], pz[i]);
 		} else if (units_.action_state[i] == ACTION_GATHER) {
-			// A gatherer on its way to a resource (GATHER.APPROACHING): in 0 A.D., movement ends as
-			// soon as the target is within gather/work reach (CheckRange / IsInTargetRange), stopping
-			// immediately so gatherers ring around the resource rather than all pressing toward the
-			// resource origin.
+			// A gatherer on its way to any other supply (GATHER.APPROACHING) stops as soon as it is
+			// within tick_gather's reach, as a mine's does above: UnitMotion ends the move once
+			// IsInTargetRange holds (PossiblyAtDestination, CCmpUnitMotion.h:1155-1165) and UnitAI goes
+			// on to GATHERING (MovementUpdate, UnitAI.js:2484-2489; APPROACHING leave StopMoving, :2492).
+			// Walking on to the supply's centre, it would gather on the move and press into the
+			// gatherers already working there.
 			at_building = walk_in_reach(i, px[i], pz[i]);
 			if (!at_building) stop_dist = ARRIVE_DIST * 0.25f;
 		}
@@ -12189,25 +12163,15 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (!backing_off && stop_d2 <= stop_dist * stop_dist) {
 			vx[i] = 0;
 			vz[i] = 0;
-			// UnitAI FaceTowardsTarget: a unit attacking, healing, repairing, or gathering faces target at once.
+			// UnitAI FaceTowardsTarget: a unit attacking, healing or repairing another faces it at once.
+			// (A gatherer faces its supply in tick_gather, when it starts and at each gather, as 0.28's
+			// GATHERING enter and PerformGather do: UnitAI.js:2551, ResourceGatherer.js:269-270.)
 			const uint8_t work = units_.action_state[i];
 			if ((work == ACTION_ATTACK || work == ACTION_HEAL || work == ACTION_REPAIR) &&
 					units_.target_unit_id[i] != 0 && !using_path && d2 > 1e-6f) {
 				const float inv_d = 1.0f / std::sqrt(d2);
 				units_.heading_x[i] = dx * inv_d;
 				units_.heading_z[i] = dz * inv_d;
-			} else if (work == ACTION_GATHER && units_.target_resource_id[i] != 0) {
-				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
-				if (rit != res_id_to_idx_.end()) {
-					const float rdx = resources_.x[rit->second] - px[i];
-					const float rdz = resources_.z[rit->second] - pz[i];
-					const float rd2 = rdx * rdx + rdz * rdz;
-					if (rd2 > 1e-6f) {
-						const float inv_rd = 1.0f / std::sqrt(rd2);
-						units_.heading_x[i] = rdx * inv_rd;
-						units_.heading_z[i] = rdz * inv_rd;
-					}
-				}
 			} else if (work == ACTION_RETURN_DROPSITE) {
 				const float tx0 = units_.target_x[i], tz0 = units_.target_z[i];
 				const float ddx = tx0 - px[i], ddz = tz0 - pz[i];
@@ -12265,8 +12229,11 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			// whose TryGoingStraightToTarget walks straight at its slot whenever it can (CCmpUnitMotion.h:
 			// 1503-1507).
 			const bool follow = !((size_t)i < formation_group_.size() && formation_group_[i] != 0);
-			// A gatherer heads for the resource it gathers, not for the building it stands at, and the
-			// resource is no obstacle to steer round: it is where the gatherer has to go.
+			// A gatherer's own supply is no obstacle to its steering: 0.28 leaves the target of a move to
+			// an entity out of the checks of the way on (specificIgnore: CCmpUnitMotion.h:1109-1117,
+			// 1231-1236 with 1302 and 1343, 1537-1548). Its short path leaves it out too, as the gatherer
+			// walks at the supply's centre, where 0.28's goal is the range round its obstruction
+			// (ComputeGoal, CCmpUnitMotion.h:1664-1773), which a search reaches without crossing it.
 			const bool gathering = units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0;
 			const uint32_t steer_ignore = units_.action_state[i] == ACTION_GATHER ? units_.target_resource_id[i] : units_.target_building_id[i];
 			// A unit standing on a waypoint of the short path it keeps heads for the next one at once, as
@@ -12654,23 +12621,11 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const uint32_t ignore = units_.target_unit_id[i];
 		const uint32_t group = crew[i];
 		auto obstructs = [&](int32_t j) {
-			if ((size_t)j == i || !idle[j] || units_.id[j] == ignore) return false;
-			if (group && crew[j] == group) return false;
-			// Gatherers approaching or returning from nearby resources can push/nudge each other
-			// rather than treating fellow gatherers as hard infinite-collision walls
-			if (units_.action_state[i] == ACTION_GATHER && units_.action_state[j] == ACTION_GATHER) {
-				const uint32_t ri = units_.target_resource_id[i], rj = units_.target_resource_id[j];
-				if (ri != 0 && rj != 0) {
-					auto r_it1 = res_id_to_idx_.find(ri);
-					auto r_it2 = res_id_to_idx_.find(rj);
-					if (r_it1 != res_id_to_idx_.end() && r_it2 != res_id_to_idx_.end()) {
-						const float rdx = resources_.x[r_it1->second] - resources_.x[r_it2->second];
-						const float rdz = resources_.z[r_it1->second] - resources_.z[r_it2->second];
-						if (rdx * rdx + rdz * rdz <= 16.0f * 16.0f) return false;
-					}
-				}
-			}
-			return true;
+			// A gatherer at work obstructs one walking to another supply, however near, as a unit
+			// standing still obstructs a moving one in 0.28 (ControlGroupMovementObstructionFilter,
+			// ICmpObstructionManager.h:406-429, CCmpUnitMotion.h:840-851): only its own control group
+			// lets a unit through.
+			return (size_t)j != i && idle[j] && units_.id[j] != ignore && !(group && crew[j] == group);
 		};
 		auto step_blocked = [&](float ex, float ez) {
 			const float reach = det::hypot(ex - x0, ez - z0) + ci + c_max;
@@ -12793,13 +12748,9 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		thread_local std::vector<SteerObstacle> near_gaia; // and round the trees as move_units steers
 		near_gaia.clear();
 		gaia_obstacles_near(x0, z0, GAIA_STEER_REACH, near_gaia);
-		if (units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0) {
-			const uint32_t own_res = units_.target_resource_id[i];
-			near_gaia.erase(std::remove_if(near_gaia.begin(), near_gaia.end(), [own_res](const SteerObstacle &o) {
-				return o.id == own_res;
-			}), near_gaia.end());
-			if (building == 0) building = own_res;
-		}
+		// A gatherer's supply stays among them, as 0.28's short path keeps the target's obstruction
+		// (RequestShortPath, CCmpUnitMotion.h:1863): the search ends on task_goal's circle round it,
+		// the range 0.28's ComputeGoal shapes, before it gets to the supply.
 		if (!nav::search_short_path_with_units(pos, aim, goal, unit_clearance_at(i), ci, range,
 				nav::ConcatRange<SteerObstacle>{steer_obstacles_, near_gaia}, building, squares, nav_grid_, w, next)) {
 			if (obstructed) memo = ShortPathMemo{x0, z0, aim.x, aim.y, stuck_key};
@@ -12840,11 +12791,17 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 
 // 0 A.D. gives the members of a formation one control group: they walk through each other
 // (ControlGroupMovementObstructionFilter) and push only where their clearances overlap, idle members
-// included (CCmpUnitMotionManager::Push). RTS0 gives one to the workers of a mine as well, from the
-// walk to it until the walk back from the dropsite. 0.28's band round a 13 m mine, 2 m wide, holds its
-// 24 gatherers in one row; at RTS0's crowd scale (PUSH_SCALE, over three times the map's) they stand
-// two deep on the side facing the dropsite, and those coming and going would otherwise search a short
-// path round the others every turn, and often find none.
+// included (CCmpUnitMotionManager::Push). RTS0 gives one to the workers of each supply but a boat's
+// fish as well, from the walk to it until the walk back from the dropsite. This is deliberate: 0.28
+// sets control groups for formations only (UnitAI.js:5222-5236, CCmpUnitMotion.h:1058). 0.28's band
+// round a 13 m mine, 2 m wide, holds its 24 gatherers in one row; at RTS0's crowd scale (PUSH_SCALE,
+// over three times the map's) they stand two deep on the side facing the dropsite, and those coming
+// and going would otherwise search a short path round the others every turn, and often find none.
+// The same scale crowds the workers of a bush, a tree, a carcass or a field. With groups for mines
+// only, 3-minute probes of 32 starts each gathered 7% less from a berry cluster (8 women) and 10%
+// less from two clusters side by side (21 gatherers stuck for 10 s or more, against 9 with the
+// groups), 2.5% less from a tree in a wood (5 women; 4 stuck so long, against none), 4.6% less from
+// a field and 3.3% less from chickens (gather-motion audit, 2026-10).
 uint32_t Simulation::control_group(size_t i) const {
 	if (i < formation_group_.size() && formation_group_[i]) return formation_group_[i];
 	const uint8_t st = units_.action_state[i];
@@ -12852,8 +12809,6 @@ uint32_t Simulation::control_group(size_t i) const {
 	const auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
 	if (rit == res_id_to_idx_.end()) return 0;
 	const uint8_t type = resources_.type[rit->second], sub = resources_.subtype[rit->second];
-	// Mines as well as stationary berry/fruit bushes and tree patches share a control group
-	// so gatherers working the same resource do not hard-block each other into infinite collision loops.
 	if (type == RES_FOOD && sub == RES_SUB_FISH) return 0;
 	return 0x80000000u | units_.target_resource_id[i];
 }
@@ -13857,12 +13812,10 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		// dropsite. A boat's fish are on its own sea, so its walks to them don't fail this way.
 		// Only a unit still walking to its supply goes: one already harvesting it (0 A.D. GATHER
 		// GATHERING has no likelyFailure handler) keeps at it even if pushes wedge it in place.
-		// 0 A.D. GATHER.APPROACHING MovementUpdate with likelyFailure / obstructed:
-		// If gatherer cannot make progress because other gatherers block the way, trigger FINDINGNEWTARGET early (at 4 failed turns instead of 35).
-		const bool gather_stuck = (move_failed || m.failed >= 4) &&
-				units_.order_kind[i] == ORDER_GATHER && units_.action_state[i] == ACTION_GATHER &&
-				units_.target_resource_id[i] != 0 && !unit_is_ship(units_.unit_type[i]);
-		if (gather_stuck) {
+		// APPROACHING takes no notice of an obstructed move (UnitAI.js:2484-2489): only MoveFailed,
+		// after MAX_FAILED_MOVEMENTS turns (CCmpUnitMotion.h:118, 707-717), sends it on.
+		if (move_failed && units_.order_kind[i] == ORDER_GATHER && units_.action_state[i] == ACTION_GATHER &&
+				units_.target_resource_id[i] != 0 && !unit_is_ship(units_.unit_type[i])) {
 			if (auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
 					rit != res_id_to_idx_.end() &&
 					gather_in_reach(i, rit->second, units_.pos_x[i], units_.pos_z[i])) {
@@ -14613,8 +14566,8 @@ void Simulation::tick_gather(float dt) {
 				// diminishing returns are those when the load was started.
 				// (Gather techs name stone.rock, metal.ore and so on, never *.ruins.)
 				const uint32_t rid = units_.target_resource_id[i];
-				if (units_.gather_res[i] != rid || !(units_.gather_rate[i] > 0.0f)) {
-					// 0 A.D. UnitAI.js GATHERING enter: FaceTowardsTarget
+				// UnitAI FaceTowardsTarget: the gatherer turns to its supply's centre.
+				auto face_supply = [&]() {
 					const float rdx = resources_.x[ridx] - units_.pos_x[i];
 					const float rdz = resources_.z[ridx] - units_.pos_z[i];
 					const float rd2 = rdx * rdx + rdz * rdz;
@@ -14623,6 +14576,10 @@ void Simulation::tick_gather(float dt) {
 						units_.heading_x[i] = rdx * inv_rd;
 						units_.heading_z[i] = rdz * inv_rd;
 					}
+				};
+				if (units_.gather_res[i] != rid || !(units_.gather_rate[i] > 0.0f)) {
+					// 0 A.D. UnitAI.js GATHERING enter: FaceTowardsTarget (UnitAI.js:2551).
+					face_supply();
 					// StartGathering sets a fresh SetInterval(timing, timing): the first unit comes
 					// 1 / rate after it, whatever a kill or a fight left on the shared timer.
 					units_.attack_timer[i] = 0.0f;
@@ -14656,6 +14613,10 @@ void Simulation::tick_gather(float dt) {
 				units_.attack_timer[i] += dt;
 				while (units_.attack_timer[i] >= interval) {
 					units_.attack_timer[i] -= interval;
+					// PerformGather faces the supply again at each gather (ResourceGatherer.js:269-270:
+					// "ToDo: Enable entities to keep facing a target."), so one that has stepped back into
+					// reach after a push faces it again by its next unit.
+					face_supply();
 					const int32_t space = carry_cap(i, rt) - units_.carry[i];
 					const int32_t take = std::min(1, std::min(resources_.amount[ridx], space));
 					if (field_efficiency <= 0.0f) resources_.amount[ridx] -= take; // fields are infinite
