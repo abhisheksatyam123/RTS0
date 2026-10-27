@@ -324,6 +324,48 @@ static bool run_oos_control(const char *ph) {
     return true;
 }
 
+// Phase 4 -- a rejoin in a multiplayer replay: client 12 (a new id, as a rejoiner
+// gets) takes player 1 by the host's NET_CMD_PEER_JOINED in client 0's batch, then
+// orders player 1's unit. Playback must seat it as the live game did; without the
+// seat change its order goes nowhere.
+static bool run_rejoin_seat(const char *ph) {
+    const std::string path = "/tmp/test_replay_rejoin.bin";
+    auto write = [&](bool with_join, uint32_t unit) {
+        std::ofstream out(path, std::ios::binary | std::ios::trunc);
+        auto u32 = [&](uint32_t v) { out.write(reinterpret_cast<const char *>(&v), 4); };
+        auto u8 = [&](uint8_t v) { out.write(reinterpret_cast<const char *>(&v), 1); };
+        auto f32 = [&](float v) { out.write(reinterpret_cast<const char *>(&v), 4); };
+        u32(0x52545330); u32(3); u32(4);
+        // turn 1: the seat change (target_x = the first turn it plays, target_id = client, param = seat)
+        u32(1); u32(0); u32(with_join ? 1 : 0);
+        if (with_join) { u32(0); u8((uint8_t)NetCommandType::NET_CMD_PEER_JOINED); f32(2.0f); f32(1.0f); u32(12); u8(1); u32(0); u32(0); }
+        // turn 2: the rejoiner walks player 1's unit
+        u32(2); u32(0); u32(1);
+        u32(12); u8(1); f32(30.0f); f32(0.0f); u32(0); u8(0); u32(1); u32(unit); u32(0);
+        u32(3); u32(0); u32(0);
+        u32(4); u32(0); u32(0);
+    };
+    auto moved = [&](bool with_join) -> float {
+        Simulation s;
+        s.set_sim_seed(7);
+        s.reset();
+        const uint32_t id = s.spawn_unit(0.0f, 0.0f, 1, UNIT_SWORDSMAN, 0.0f);
+        write(with_join, id);
+        TurnManager tm;
+        if (!tm.load_replay(path)) return -1.0f;
+        for (int t = 0; t < 4; ++t) tm.tick(TurnManager::TURN_DURATION, s);
+        auto uv = s.units();
+        for (size_t i = 0; i < uv.count; ++i)
+            if (uv.id[i] == id) return uv.pos_x[i];
+        return -1.0f;
+    };
+    const float with_join = moved(true), without = moved(false);
+    std::remove(path.c_str());
+    CHECK(with_join > 0.2f, ph);
+    CHECK(std::fabs(without) < 0.01f, ph);
+    return with_join > 0.2f && std::fabs(without) < 0.01f;
+}
+
 int main(int argc, char **argv) {
     (void)argv;
     if (argc > 2) {
@@ -339,6 +381,7 @@ int main(int argc, char **argv) {
         {"two-peer hash agreement (submit/advance API) + reset", run_two_peer_hashes},
         {"save/validate/load round-trip + re-hash equality", run_round_trip},
         {"replay out-of-sync negative control", run_oos_control},
+        {"a rejoiner's seat in a multiplayer replay", run_rejoin_seat},
     };
     const size_t n = sizeof(phases) / sizeof(phases[0]);
     for (size_t i = 0; i < n; ++i) {
