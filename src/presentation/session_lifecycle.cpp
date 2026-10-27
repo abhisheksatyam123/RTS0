@@ -261,13 +261,10 @@ void RtsoMain::_ready() {
 	// CivIcon.rebuild: colorizeHotkey("%(hotkey)s", "civinfo") and "structree".
 	top_panel_.set_civ_icon_keys(RtsoHotkeyConfig::colorize_hotkey("%(hotkey)s", "civinfo"),
 			RtsoHotkeyConfig::colorize_hotkey("%(hotkey)s", "structree"));
-	{
-		auto first_key = [](const char *name) {
-			const auto *combos = rtso::hotkeys::table().get(name);
-			return (combos && !combos->empty()) ? String::utf8(rtso::hotkeys::combo_to_string(combos->front()).c_str()) : String();
-		};
-		minimap_panel_.set_hotkeys(first_key("selection.idleworker"), first_key("session.diplomacycolors"), first_key("session.flare"));
-	}
+	// MiniMap*Button.onHotkeyChange: colorizeHotkey("%(hotkey)s ", name) before each tooltip.
+	minimap_panel_.set_hotkeys(RtsoHotkeyConfig::colorize_hotkey("%(hotkey)s ", "selection.idleworker"),
+			RtsoHotkeyConfig::colorize_hotkey("%(hotkey)s ", "session.diplomacycolors"),
+			RtsoHotkeyConfig::colorize_hotkey("%(hotkey)s ", "session.flare"));
 
 	time_notification_label_ = memnew(RichTextLabel);
 	time_notification_label_->set_name("TimeNotificationText");
