@@ -188,6 +188,7 @@ public:
 	static constexpr uint32_t SAVE_VERSION_BOARD_BEST = 123; // each Petra boarding passenger's nearest approach to its ship
 	static constexpr uint32_t SAVE_VERSION_GARRISON_HEAL = 120; // each structure's garrison heal timer (GarrisonHolder HEAL_TIMEOUT)
 	static constexpr uint32_t SAVE_VERSION_FORMATION_TARGET = 121; // the enemy formation each formation attacks
+	static constexpr uint32_t SAVE_VERSION_TURRET_STANCE = 122; // the stance each unit on a turret had before it went up (turret_prev_stance_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_FERRIED_GUARDS = 119; // guards on their way by sea to a critical entity
 	static constexpr uint32_t SAVE_VERSION_FAUNA_PRESSURE = 117; // each animal's pushing pressure and failed movements (fauna_pressure_, fauna_failed_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_QUEUE_HEADS = 118; // the structure at the head of each Petra queue
@@ -1724,8 +1725,10 @@ public:
 	uint16_t building_region(const Building &b, uint8_t pass) const;
 	// 0 A.D. Footprint.PickSpawnPoint: a free spot for a unit of `type` in rows around the
 	// footprint, the front (or the side facing the rally point) first; skip_uid is the unit left out
-	// of the overlap check (the one being placed).
-	bool pick_spawn_point(const Building &b, uint8_t type, uint32_t skip_uid, float &out_x, float &out_z) const;
+	// of the overlap check (the one being placed). tmpl is its roster template when known, which
+	// names its passability class (unit_is_large) where the type alone does not, as for a hero.
+	bool pick_spawn_point(const Building &b, uint8_t type, uint32_t skip_uid, float &out_x, float &out_z,
+			uint16_t tmpl = CIV_UNIT_TEMPLATE_COUNT) const;
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
 			bool queued = false, const std::vector<std::pair<float, float>> &route = {});
 	void order_trade_auto(const uint32_t *unit_ids, size_t count); // farthest pair of tradable markets
@@ -1793,6 +1796,18 @@ public:
 	float trader_gains(Building *a, Building *b) { return trader_gains((const Building*)a,(const Building*)b); }
 
 	bool save_state(const char *filepath) const;
+	// Loads a save_state file over whatever this Simulation holds, and the game goes on from it the
+	// same whatever that was: a fresh Simulation, one built from the save's own Game Setup (the main
+	// menu's Load and a replay continued from a save, RtsoMain::load_pending_save and
+	// start_pending_replay), the same game later or earlier (quickload, a time-warp rewind), or one
+	// built for another map (a client joining a match, or the host's saved game, loads the host's
+	// world, TurnManager::apply_pending_rejoin, into the session's Simulation, which RtsoMain::_ready
+	// built from the client's own Game Setup). As 0.28 deserializes into components it initialises
+	// afresh (CCmpPathfinder::Deserialize calls Init, CCmpPathfinder.cpp:79-83, 193-197), the state a
+	// save leaves out is worked out again from the loaded state alone: the nav grid, its nodes and
+	// the woods, the territory counts and the links between fields and their grain. Saves from before
+	// v31 carry no heightmap, so they keep this Simulation's terrain: load them into one built from
+	// their own setup.
 	bool load_state(const char *filepath);
 
 	bool can_place(int cell_x, int cell_y, int footprint) const;
@@ -2720,6 +2735,9 @@ private:
 	// is rebuilt after load rather than saved.
 	void sync_field_resources();
 	uint32_t ensure_field_resource(const Building &b);
+	// load_state: each grain supply linked again to its field (field_res_by_bld_, field_bld_by_res_), as
+	// the game that saved had them, from the loaded supplies and structures alone.
+	void relink_field_resources();
 	// Technology modifiers per player, derived from PlayerState::techs.
 	enum GatherKind : uint8_t { GK_GRAIN, GK_FRUIT, GK_MEAT, GK_FISH, GK_WOOD, GK_STONE, GK_METAL, GK_COUNT };
 	struct TechMods {
@@ -2940,7 +2958,7 @@ private:
 	// circle of radius circle_r when that is above 0.
 	bool pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
 			bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid,
-			float &out_x, float &out_z) const;
+			float &out_x, float &out_z, uint16_t tmpl = CIV_UNIT_TEMPLATE_COUNT) const;
 	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
 	void tick_garrison_holders();
 	bool can_board(size_t transport_idx, size_t unit_idx) const;
@@ -3197,6 +3215,7 @@ private:
 	// wall_garrisoned aura. Rebuilt with turret_height_.
 	std::unordered_set<uint32_t> rampart_turrets_;
 	bool beach_goal_ = false; // set by order_walk(..., beach_goal) around its cmd_move
+	// Saved (SAVE_VERSION_TURRET_STANCE).
 	std::unordered_map<uint32_t, uint8_t> turret_prev_stance_;
 	const TurretPointSet *turret_points_of(const Building &b) const;
 	int structure_garrison_cap(const Building &b) const;
@@ -3221,6 +3240,7 @@ private:
 	void formation_refresh_groups();
 
 	UnitSoA units_;
+	// Every add or remove must bump supply_list_edits_, every in-place edit gaia_edits_ (sync_tile_obstructions).
 	ResourceSoA resources_;
 	std::vector<Building> buildings_;
 	std::vector<Projectile> projectiles_;
@@ -3269,6 +3289,7 @@ private:
 	std::vector<int32_t> unit_idx_by_id_;
 	IdIndex res_id_to_idx_;
 	std::array<TechMods, MAX_PLAYERS> tech_mods_;
+	// Not saved: load_state links them again (relink_field_resources).
 	std::unordered_map<uint32_t, uint32_t> field_res_by_bld_; // field building id -> grain resource id
 	std::unordered_map<uint32_t, uint32_t> field_bld_by_res_; // grain resource id -> field building id
 	struct FieldGatherers { int total = 0; int slots_taken = 0; };
@@ -3295,7 +3316,8 @@ private:
 	bool footprint_hits_building(const nav::Footprint &f) const;
 	// check_placement's cells (GRID-sized, from -map_half_) that a Gaia resource's
 	// obstruction touches. A cache of resources_, rebuilt when the tick or the
-	// resource count changes; never saved or hashed.
+	// resource count changes; never saved or hashed, and forgotten by reset() and
+	// load_state, as another game reaches the same tick with as many resources.
 	mutable std::vector<uint8_t> resource_block_cells_;
 	mutable uint64_t resource_block_tick_ = UINT64_MAX;
 	mutable size_t resource_block_count_ = SIZE_MAX;
@@ -4315,7 +4337,8 @@ private:
 	std::array<TerritoryTeam, MAX_PLAYERS> territory_teams_;
 	bool territory_teams_valid_ = false;
 	std::vector<uint8_t> territory_last_influence_;
-	// Territory tiles each player holds, counted as the grid is rebuilt (on load too): not saved.
+	// Territory tiles each player holds, counted as the grid is rebuilt (on load too) and zeroed as it is
+	// cleared (reset, set_map_half): not saved.
 	std::array<uint32_t, MAX_PLAYERS> territory_tiles_{};
 	std::vector<WaypointPath> unit_paths_; // per-unit path (UNIT_CAP, or every unit slot past it), SoA waypoint_cur/count sync
 	// unit_paths_ covers every unit slot (at least UNIT_CAP).
@@ -4366,7 +4389,8 @@ private:
 	// SteerObstacle::type of a Gaia mine (mine_footprint), after the buildings in both lists.
 	static constexpr uint8_t MINE_OBSTACLE = 0xFF;
 	void append_mine_obstacles(std::vector<SteerObstacle> &out) const;
-	// This tick's mines (append_mine_obstacles), listed once for move_units and separation.
+	// This tick's mines (append_mine_obstacles), listed once for move_units and separation, and the
+	// tick they were listed on; reset() and load_state forget it, as another game reaches the same tick.
 	std::vector<SteerObstacle> mine_obstacles_;
 	uint64_t mine_obstacles_tick_ = ~uint64_t{0};
 	const std::vector<SteerObstacle> &tick_mine_obstacles();
@@ -4387,6 +4411,18 @@ private:
 	}
 	nav::BucketGrid gaia_grid_;
 	uint64_t gaia_obstacles_sig_ = 0;
+	// Every supply added (spawn_resource_world) or removed (tick_gather's remove_at, which moves the
+	// last supply into the gap): a supply added and another removed between two looks leave the supply
+	// count and the end ids as they were, which this shows. ensure_gaia_obstacles and
+	// sync_tile_obstructions mix it into their signatures. Not saved: a load lists them afresh.
+	uint64_t supply_list_edits_ = 0;
+	// The changes to the supplies made in place, which supply_list_edits_ does not show: a place, flora,
+	// subtype, life or amount set directly (note_gaia_edit). sync_tile_obstructions works the trees' and
+	// bushes' signature out again only when this, supply_list_edits_ or the supply count has changed
+	// (tile_gaia_quick_), and keeps it in tile_gaia_sig_. Not saved: a load lists them afresh.
+	uint64_t gaia_edits_ = 0;
+	uint64_t tile_gaia_quick_ = 0, tile_gaia_sig_ = 0;
+	void note_gaia_edit() { ++gaia_edits_; }
 	void ensure_gaia_obstacles();
 	// Appends to `out` the Gaia obstacles that may reach into the box (x, z) +- reach.
 	void gaia_obstacles_near(float x, float z, float reach, std::vector<SteerObstacle> &out) const;
@@ -4441,6 +4477,41 @@ private:
 	uint32_t steer_grid_key_ = 0;
 	float steer_grid_half_ = 0.0f;
 	bool steer_line_blocked(nav::Vec2 pos, nav::Vec2 aim, float max_len, float radius, uint32_t ignore) const;
+	// CCmpPathfinder::CheckMovement (CCmpPathfinder.cpp:971-985) for land unit i walking straight from
+	// (x0, z0) to (x1, z1): no static obstruction grown by its clearance is entered on the way
+	// (CCmpObstructionManager::TestLine, Geometry::TestRaySquare), its target excepted, and the line
+	// keeps the clearance off deep water and steep ground (CheckLineMovement on the terrain grid).
+	bool direct_walk_clear(size_t i, float x0, float z0, float x1, float z1) const;
+	// Whether land unit i, of the "large" passability class, steps or is pushed from (x, z) to (nx, nz)
+	// into a standing structure's or mine's square grown by its 3 m clearance that it did not start in:
+	// CheckMovement refuses that (TestRaySquare), so no gap of 6 m or less lets it through. On its own
+	// steps its target doesn't count; a push (push) lets none in. move_units refuses such a step, and
+	// the unit slides along; avoid_idle_units and separation() drop it too. Other units: never.
+	bool large_step_barred(size_t i, float x, float z, float nx, float nz, bool push = false) const;
+	// MakeGoalReachable for large unit i's stand point (tx, tz) by its target, a structure or a mine
+	// (`target`, a footprint, whose steer_obstacles_ id is target_id), `off` out from it: one inside
+	// another structure's square grown by the class clearance moves to the nearest point, to the unit,
+	// of the ring `off` out from the target that lies in none and that the unit can walk to on the
+	// class's nodes. It stays when there is none, or for any other unit.
+	template <class B>
+	void large_stand_point(size_t i, const B &target, uint32_t target_id, float off, float &tx, float &tz) const;
+	// How many standing structures and mines (for_each_structure_square) other than `ignore` hold (x, z)
+	// in their squares grown by c, counted up to stop_at.
+	int structure_squares_holding(float x, float z, float c, uint32_t ignore, int stop_at) const;
+	// Whether steer_obstacles_ and steer_grid_ are this tick's: move_units lists them, and they stay so
+	// until the tick ends. Before that, and between ticks, they are the last tick's, which a save does not
+	// hold (a loaded game, or a client that rejoins, has none). Not saved.
+	bool steer_obstacles_live_ = false;
+	// f(o) for each standing structure (an open gate's two sides) and mine that blocks movement whose
+	// square grown by c may reach the box [x0, x1] x [z0, z1], until f returns true: this tick's
+	// steer_obstacles_ when live, else the same worked out from buildings_ and resources_.
+	template <class F>
+	void for_each_structure_square(float x0, float z0, float x1, float z1, float c, F &&f) const;
+	// MakeGoalReachable for a goal within c of structures, for any class (c is the unit's clearance,
+	// the default class's 0.8 m as well as the large class's 3 m): moves (x, z) to the nearest point
+	// clear of every structure's square grown by c (but `ignore`'s) within a few units; false, leaving
+	// it, when there is none.
+	bool nearest_point_off_structures(float c, uint32_t ignore, float &x, float &z) const;
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
 	// building reach it finds them with. Rebuilt every tick.
 	// Capture points each player's capture attacks took from each building this tick

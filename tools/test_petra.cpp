@@ -7627,6 +7627,38 @@ static void test_strength_prepare_time() {
 	CHECK(std::fabs(templ - want) < 1e-4f, "the template strength takes PrepareTime off");
 }
 
+static void test_strength_fire() {
+	// getMaxStrength counts Damage/Fire at DamageTypeImportance 0.001 (G64): a fire ship's
+	// strength is the by-hand sum with its Fire damage in, and its Melee MaxRange counts as
+	// melee for a trained ship too.
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->petra_pid_ = 1;
+	uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE;
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT && tmpl == CIV_UNIT_TEMPLATE_NONE; ++t) {
+		const uint8_t ty = civ_unit_template(t).unit_type;
+		if (unit_combat(t, ty).fire > 0.0f && civ_template_unit_info(t, ty).attack_damage > 0.0f) tmpl = t;
+	}
+	CHECK(tmpl != CIV_UNIT_TEMPLATE_NONE, "a roster unit attacks with Fire");
+	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return;
+	const uint8_t type = civ_unit_template(tmpl).unit_type;
+	const UnitTypeInfo &ui = civ_template_unit_info(tmpl, type);
+	const CombatProfile &c = unit_combat(tmpl, type);
+	const bool ranged = (civ_unit_template(tmpl).tech_classes & TC_RANGED) != 0;
+	float want = (0.075f * ui.hack_damage + 0.085f * ui.pierce_damage + 0.045f * ui.crush_damage + 0.001f * c.fire) / 4.0f;
+	want += ui.attack_range / (ranged ? COMBAT_DISTANCE_SCALE : 0.6f) * 0.0125f + ui.attack_cooldown * 0.01f - c.prepare * 0.01f;
+	if (unit_capture_attack(tmpl, type) > 0.0f) want += 4.0f * 0.0125f + 0.01f;
+	want += (0.075f * ui.hack_armor + 0.085f * ui.pierce_armor + 0.045f * ui.crush_armor) / 4.0f;
+	want *= ui.hp / 100.0f;
+	const float templ = s->petra_template_strength(ui, tmpl, type);
+	std::printf("  %s Fire %.0f: strength %.5f, by hand %.5f\n", civ_unit_template(tmpl).id, c.fire, templ, want);
+	CHECK(std::fabs(templ - want) < 1e-4f, "the template strength counts Fire");
+	const uint32_t id = s->spawn_unit(10.0f, 10.0f, 1, (UnitType)type, 0.0f, tmpl);
+	const int32_t i = s->lookup_unit(id);
+	CHECK(i >= 0 && std::fabs(s->petra_unit_strength((size_t)i) - templ) < 1e-4f, "unit and template strength agree");
+}
+
 static void test_emergency_units_captured_cc() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -8556,6 +8588,7 @@ int main(int argc, char **argv) {
 	RUN(test_unit_stat_trainable_busy);
 	RUN(test_workers_while_cc_on_emergency);
 	RUN(test_strength_prepare_time);
+	RUN(test_strength_fire);
 	RUN(test_siege_class_kept);
 	RUN(test_worker_plans_wait);
 	RUN(test_new_cc_defenders);
