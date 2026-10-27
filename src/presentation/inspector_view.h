@@ -62,6 +62,8 @@ public:
 	virtual std::vector<uint32_t> ui_selected_structures() const = 0;
 	// The selected structures, ships, rams and siege towers that hold units (Garrison.getItems).
 	virtual std::vector<uint32_t> ui_selected_garrison_holders() const = 0;
+	// The world view's fog memory (Fogging.js mirages) for the viewed player, if drawn.
+	virtual const rtso::FogMirages *ui_fog_mirages() const { return nullptr; }
 };
 
 class RtsoInspectorView {
@@ -610,8 +612,8 @@ public:
 		}
 		// Structures as the viewer knows them (Fogging.js): live in sight, the mirage in the
 		// fog (it stays selectable after the structure is gone), nothing if never seen.
-		mirages_.update(*sim, vp);
-		for (const auto &m : mirages_.buildings()) {
+		refresh_mirages(*sim, vp);
+		for (const auto &m : mir().buildings()) {
 			if (m.team == host_->local_player() || m.wrecked) continue;
 			const rtso::Simulation::Building *b = nullptr;
 			for (const auto &lb : sim->buildings())
@@ -625,7 +627,7 @@ public:
 		{
 			uint32_t best = 0;
 			float best_d2 = 1.3f * 1.3f;
-			for (const auto &m : mirages_.resources()) {
+			for (const auto &m : mir().resources()) {
 				if (m.subtype == rtso::RES_SUB_GRAIN) continue;
 				const float dx = m.x - cx, dz = m.z - cz, d2 = dx * dx + dz * dz;
 				if (d2 < best_d2) { best_d2 = d2; best = m.id; }
@@ -635,7 +637,7 @@ public:
 		{
 			uint32_t best = 0;
 			float best_d2 = 1.3f * 1.3f;
-			for (const auto &t : mirages_.treasures()) {
+			for (const auto &t : mir().treasures()) {
 				const float dx = t.x - cx, dz = t.z - cz, d2 = dx * dx + dz * dz;
 				if (d2 < best_d2) { best_d2 = d2; best = t.id; }
 			}
@@ -737,9 +739,9 @@ public:
 		if (kind_ == INSPECT_BUILDING) {
 			// Fogging.js AddMiragedEntity: a fogged structure shows its mirage, the Health,
 			// Capturable, Foundation and owner it had when last seen.
-			mirages_.update(*sim, host_->view_player());
+			refresh_mirages(*sim, host_->view_player());
 			const rtso::FoggedBuilding *seen = nullptr;
-			for (const auto &m : mirages_.buildings())
+			for (const auto &m : mir().buildings())
 				if (m.id == id_) { seen = &m; break; }
 			if (!seen) return false;
 			if (seen->miraged) {
@@ -761,7 +763,7 @@ public:
 				if (seen->work) show_build_work(seen->work_repair, seen->work_builders, seen->work_remaining, seen->work_remaining_new);
 				const rtso::FoggedResource *field = nullptr;
 				if (const uint32_t fid = seen->type == rtso::BLD_FIELD ? sim->field_resource_id(seen->id) : 0)
-					for (const auto &m : mirages_.resources())
+					for (const auto &m : mir().resources())
 						if (m.id == fid) { field = &m; break; }
 				stats_->set_text(String());
 				if (field) show_supply(*sim, field->id, field);
@@ -801,9 +803,9 @@ public:
 		}
 		if (kind_ == INSPECT_TREASURE) {
 			// selection_details.js: the treasure's name and its Treasure/Resources as the reward.
-			mirages_.update(*sim, host_->view_player());
+			refresh_mirages(*sim, host_->view_player());
 			const rtso::FoggedTreasure *found = nullptr;
-			for (const auto &t : mirages_.treasures())
+			for (const auto &t : mir().treasures())
 				if (t.id == id_) { found = &t; break; }
 			if (!found) return false;
 			const auto &ti = rtso::treasure_type_info(found->type);
@@ -819,9 +821,9 @@ public:
 		}
 		// A resource: its kind and what is left (selection_details.js resourceSupply), as the
 		// viewer last saw it when it is in the fog (ResourceSupplyMirage).
-		mirages_.update(*sim, host_->view_player());
+		refresh_mirages(*sim, host_->view_player());
 		const rtso::FoggedResource *res = nullptr;
-		for (const auto &m : mirages_.resources())
+		for (const auto &m : mir().resources())
 			if (m.id == id_) { res = &m; break; }
 		if (!res) return false;
 		String title, kind;
@@ -1747,7 +1749,16 @@ private:
 	godot::Label *extra_ = nullptr; // resourceCarryingText
 	godot::TextureRect *carry_icon_ = nullptr; // resourceCarryingIcon
 	godot::Button *ungarrison_btn_ = nullptr;
-	rtso::FogMirages mirages_; // the viewer's structures: live in sight, mirages in the fog
+	// The viewer's structures, supplies and treasures: live in sight, mirages in the fog. The
+	// world view's memory, kept every frame, when the host has one (a first click on a fogged
+	// structure shows how it was last seen, a mirage outlives its structure); else this copy.
+	rtso::FogMirages mirages_;
+	const rtso::FogMirages *shared_mirages_ = nullptr;
+	void refresh_mirages(const rtso::Simulation &sim, uint8_t viewer) {
+		shared_mirages_ = host_->ui_fog_mirages();
+		if (!shared_mirages_) mirages_.update(sim, viewer);
+	}
+	const rtso::FogMirages &mir() const { return shared_mirages_ ? *shared_mirages_ : mirages_; }
 	// displayMultiple for a selection holding structures: the groups (units by template, then
 	// structures by civ and type) with their counts and summed health.
 	void fill_multiple(const rtso::Simulation &sim, const std::vector<uint32_t> &structs) {
