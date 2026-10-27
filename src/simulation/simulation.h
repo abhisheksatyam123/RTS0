@@ -4124,6 +4124,8 @@ private:
 	// What a structure costs this AI (structure_cost: its civ's template and cost bonuses), and paying it.
 	void petra_structure_cost(uint8_t btype, float &food, float &wood, float &gold, float &stone) const;
 	bool petra_try_pay_structure(uint8_t queue, uint8_t btype);
+	bool petra_queue_holds(uint8_t queue, uint8_t btype) const;
+	bool petra_queue_holds_other(uint8_t queue, uint8_t btype) const;
 	// queueManager.js startNextItems takes the plan's cost off its queue's account before start(),
 	// so a start that finds no room still spends the account (not the stock).
 	void petra_spend_structure_account(uint8_t queue, uint8_t btype);
