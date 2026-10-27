@@ -441,7 +441,19 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  {"desert_sand_dunes_50"}, {"desert_dirt_rough_2", "desert_dirt_rough"}, "desert_city_tile", "desert_city_tile_plaza",
 		  "desert_grass_a_sand", "desert_shore_stones", "desert_shore_stones_wet"},
 		 {"saharan_oases", {{FLORA_TREE_DATE_PALM, FLORA_TREE_CRETAN_DATE_PALM_SHORT}}, {FLORA_TREE_CRETAN_DATE_PALM_SHORT}, {{FLORA_TREE_CRETAN_DATE_PALM_SHORT, FLORA_TREE_DATE_PALM}}, FLORA_BERRY,
-		  {{200, 100}}, {100}, {{100, 200}}}},
+		  {{200, 100}}, {100}, {{100, 200}}},
+		 {},
+		 // Each oasis: LayeredPainter([tSLush, [tLush, pForest], [tLush, pForest], tShore, tShore, tWaterDeep],
+		 // [2, 2, 1, 3, 1]).
+		 {{AREA_OASIS, {{"desert_grass_a_sand"}, {"desert_grass_a"}, {"desert_grass_a"}, {"desert_shore_stones"}, {"desert_shore_stones"},
+		                {"desert_shore_stones_wet"}}, {2, 2, 1, 3, 1}}},
+		 // "Creating grass patches" and "Creating dirt patches": ClumpPlacers of scaleByMapSize(3, 48), (5, 84) and
+		 // (8, 128) tiles (as chains of about a tenth as many circles), scaleByMapSize(15, 45) of each size, 1 from
+		 // the oases and 5 from other patches (clDirt).
+		 {{{{"desert_dirt_rough_2", "desert_sand_dunes_50"}, {"desert_sand_dunes_50", "desert_dirt_rough"}, {"desert_dirt_rough", "desert_dirt_rough_2"}},
+		   {1, 1}, {{1.0f, 4.0f}, {1.0f, 7.0f}, {1.0f, 11.0f}}, {15.0f, 45.0f}, 1, -1, 0, 0, 5},
+		  {{{"desert_dirt_rough", "desert_dirt_cracks"}, {"desert_dirt_rough", "desert_sand_smooth"}, {"desert_dirt_cracks", "desert_sand_smooth"}},
+		   {1, 1}, {{1.0f, 4.0f}, {1.0f, 7.0f}, {1.0f, 11.0f}}, {15.0f, 45.0f}, 1, -1, 0, 0, 5}}},
 		// sahel.js: baobab only; no forest floor, cliffs or shore blend, so they reuse its grass and rocky dirt.
 		{"sahel",
 		 {"sahel", {"savanna_grass_a"}, {"savanna_grass_b", "savanna_shrubs_a"},

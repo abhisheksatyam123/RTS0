@@ -88,6 +88,8 @@ protected:
 	static void _bind_methods();
 
 public:
+	// A saved game's fog memory (FogMirages::export_memory of the world view's), restored here too.
+	bool import_fog_memory(const uint8_t *data, size_t n) { return mirages_.import_memory(data, n); }
 	RtsoMiniMapView();
 	~RtsoMiniMapView();
 

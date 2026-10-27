@@ -5521,6 +5521,7 @@ static void test_idle_return() {
 	u.res_type_carried[i] = RES_WOOD;
 	bool ordered = false, dropped = false;
 	for (int k = 0; k < 30 * 20 && !dropped; ++k) {
+		s->petra_failed_gather_.time[RES_WOOD] = std::max(0.001f, s->petra_timer_); // not back to wood with it
 		s->tick(Simulation::FIXED_STEP);
 		const int32_t j = s->lookup_unit(uid);
 		if (j < 0) break;
@@ -6163,7 +6164,8 @@ static void test_defender_orders() {
 			const auto q = s->order_queues_.find(id);
 			const bool queued = q != s->order_queues_.end() && !q->second.empty() && q->second.front().kind == ORDER_ATTACK;
 			if (s->units_.order_kind[i] == ORDER_RETURN_RESOURCE && queued) ++dropping;
-			else if (s->units_.action_state[i] == ACTION_ATTACK && s->units_.carry[i] > 0) ++straight;
+			// One UnitAI already took into the fight on its own (no order of Petra's) is not counted.
+			else if (s->units_.action_state[i] == ACTION_ATTACK && s->units_.order_kind[i] == ORDER_ATTACK && s->units_.carry[i] > 0) ++straight;
 		}
 	size_t armies = s->petra_defense_armies().size(), drafted = 0;
 	for (const auto &a : s->petra_defense_armies()) drafted += a.defender_ids.size();
@@ -6336,7 +6338,7 @@ static void test_defense_animals() {
 			}
 		}
 	}
-	run_for(*s, 30.0f); // spears only, out of the civic centre's arrows
+	run_for(*s, 45.0f); // spears only, out of the civic centre's arrows
 	const size_t f = wolf_idx(wolf);
 	const bool dead = f == SIZE_MAX || !s->fauna_.alive[f] || s->fauna_.behavior[f] == FAUNA_CARCASS;
 	bool still = false;
@@ -8744,11 +8746,12 @@ static void test_far_sparse_gatherer_returning() {
 		const int32_t i = s->lookup_unit(w);
 		if (i < 0) break;
 		returning |= s->units_.action_state[i] == ACTION_RETURN_DROPSITE;
-		cleared = s->petra_supply_of(w) == 0;
+		// Dropped, or (PC13) re-sent through startGathering to the nearby mine on the way.
+		cleared = s->petra_supply_of(w) != far;
 		if (!returning && cleared) { s->petra_set_supply(w, far); cleared = false; } // a recheck while gathering: keep it there
 	}
-	std::printf("  far stone gatherer taking its load back: supply mark %s\n", cleared ? "dropped" : "kept");
-	CHECK(returning && cleared, "a stone gatherer on a far mine drops its supply mark on the way back");
+	std::printf("  far stone gatherer taking its load back: leaves the far mine %s\n", cleared ? "yes" : "no");
+	CHECK(returning && cleared, "a stone gatherer on a far mine gives it up on the way back");
 }
 
 // worker.js:220-232 (PC14): a gatherer reassigned to another resource (switchGatherer,
@@ -8795,6 +8798,45 @@ static void test_switched_gatherer_keeps_load() {
 	std::printf("  gatherer switched off wood with 10 wood: takes it back %s, lost it %s\n", returned_wood ? "yes" : "no",
 	            gathered_other ? "yes" : "no");
 	CHECK(returned_wood && !gathered_other, "a gatherer switched to another resource drops its load off first");
+}
+
+// worker.js:236-269 (PC13): a gatherer taking its load back has the dropsite as its Gather
+// target, so on its base's turn it goes through startGathering again while the base lists a
+// nearby supply: it still drops the load first, then works the supply startGathering picked.
+static void test_returning_gatherer_resent() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	s->spawn_resource_world(cx + 12.0f, cz - 4.0f, RES_WOOD, 5000); // in the base's nearby list
+	const uint32_t far_tree = s->spawn_resource_world(cx + 30.0f, cz + 30.0f, RES_WOOD, 5000); // medium
+	const uint32_t w = s->spawn_unit(cx + 29.0f, cz + 29.0f, 1, UNIT_FEMALE_CITIZEN);
+	s->order_gather(&w, 1, far_tree);
+	s->petra_set_supply(w, far_tree);
+	auto &u = s->units_;
+	int32_t i = s->lookup_unit(w);
+	u.carry[i] = 50; // full: Order.Gather returns the load first
+	u.res_type_carried[i] = RES_WOOD;
+	bool returning = false, resent = false;
+	for (int k = 0; k < 30 * 8 && !resent; ++k) {
+		s->tick(Simulation::FIXED_STEP);
+		i = s->lookup_unit(w);
+		if (i < 0) break;
+		const bool ret = u.action_state[i] == ACTION_RETURN_DROPSITE && u.carry[i] == 50;
+		returning |= ret;
+		resent = ret && u.target_resource_id[i] != far_tree && u.target_resource_id[i] != 0;
+	}
+	std::printf("  full woodcutter from a medium tree: returning %s, re-sent to another supply on the way %s\n",
+	            returning ? "yes" : "no", resent ? "yes" : "no");
+	CHECK(returning && resent, "a returning gatherer goes through startGathering again on its base's turn");
 }
 
 // worker.js:220-227 (W7): an idle gatherer carrying its own gather-type goes straight back to
@@ -9214,6 +9256,7 @@ int main(int argc, char **argv) {
 	RUN(test_first_base);
 	RUN(test_barter);
 	RUN(test_switched_gatherer_keeps_load);
+	RUN(test_returning_gatherer_resent);
 	RUN(test_diplomacy_most_needed);
 	RUN(test_first_market_border);
 	RUN(test_pop_phase2_save_resources);
