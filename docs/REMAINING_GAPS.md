@@ -188,10 +188,10 @@ Player commands (stop, back to work, call to arms, unload, delete, stance, autoq
 |---|---|---|---|
 | P1 | ~~A Pack or Unpack the player ordered was undone when an enemy came into range~~ Fixed: PACKING and UNPACKING ignore LosAttackRangeUpdate (UnitAI.js:3380-3428), so an ordered pack finishes; test_pack 12 | medium | Fixed |
 | P2 | A pack in progress is not an order: a Shift-queued order runs at once and any order with a destination cancels an unpack, where 0.28 queues behind Pack/Unpack and only Attack, Stop and g_OrdersCancelUnpacking cut in (UnitAI.js:4119-4138, 174-181) | low | Open (pack queue) |
-| P3 | Stop sets the held position where the unit stands; 0.28's Order.Stop keeps the last walk's destination, so a defensive unit stopped short walks on there a turn later (UnitAI.js:310-313, 1709-1717). RTS0 keeps the stop, as K5 keeps patrol's held position (a 0.28 quirk) | low | Kept |
-| P4 | Promotion keeps Back to Work orders and the held position; 0.28's ChangeEntityTemplate drops workOrders and SwitchToStance resets the held position (Transform.js:142-160). RTS0 keeps them (a 0.28 quirk) | low | Kept |
+| P3 | ~~Stop set the held position where the unit stands~~ Fixed: Order.Stop is FinishOrder alone (UnitAI.js:310-313), so a defensive unit stopped short walks on to the last walk's end (IDLE Timer, 1709-1717); test_unit_orders 109 | low | Fixed |
+| P4 | ~~Promotion kept Back to Work orders and the held position~~ Fixed: as ChangeEntityTemplate (Transform.js:142-160), a promoted unit has no work orders and holds where it stands, and so does an engine that finishes (un)packing; test_unit_orders 110 | low | Fixed |
 | P5 | ~~"Push order to front" was ignored on heal, return resource, hunt, board, call to arms and gather near, and honoured on patrol and occupy-turret~~ Fixed: the same commands as Commands.js; call to arms pushes the drop-off, then the attack-walk (Commands.js:255-266); test_unit_orders 108 | low | Fixed |
-| P6 | Shift+Call to Arms picks the drop-off when given; 0.28 queues DropAtNearestDropSite, resolved from where the unit is and what it carries when the order runs (UnitAI.js:577-586) | nit | Open (call to arms) |
+| P6 | ~~Shift+Call to Arms picked the drop-off when given~~ Fixed: a queued DropAtNearestDropSite (a return order with no target) is resolved when it runs (UnitAI.js:577-586); test_unit_orders 112 | nit | Fixed |
 
 ### Unit orders, thirteenth 0.28 pass (2026-10-27)
 
@@ -204,7 +204,7 @@ UnitAI's attack and capture switch, gather and repair autocontinue, idle answers
 | M3 | ~~After building a dropsite, the nearest supply of each type was taken before CanGather, full supplies counted and live animals were skipped~~ Fixed: FindNearbyResource filters on CanGather and IsAvailableTo, and takes live prey (UnitAI.js:4463-4489); test_gather_parity 15b | low-medium | Fixed |
 | M4 | ~~Builders still walking to a structure stopped where they were when it was finished~~ Fixed: they walk on to it (UnitAI.js:3226-3229 WalkToTarget); test_unit_orders 107 | low | Fixed |
 | M5 | A Shift-queued build on a structure someone else finished is skipped where 0.28 walks there and runs ConstructionFinished (REPAIRING enter, UnitAI.js:3115-3121); a builder already beside a finished, full structure now does | nit | Open (queue) |
-| M6 | Empty-handed after its supply runs out, a unit picks its dropsite by the last type it carried, not the order's type (FindNearestDropsite(resourceType.generic), UnitAI.js:2665) | nit | Open (gather) |
+| M6 | ~~Empty-handed after its supply runs out, a unit picks its dropsite by the last type it carried, not the order's type (UnitAI.js:2665)~~ Not a gap: order_gather sets the carried type when the unit is empty-handed, so the two always agree | nit | Closed (matches) |
 
 ### Unit orders, twelfth 0.28 pass (2026-10-21)
 

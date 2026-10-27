@@ -7096,8 +7096,8 @@ void Simulation::cmd_stop(const uint32_t *unit_ids, size_t count) {
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
 			units_.has_order[idx] = 0;
 			units_.action_state[idx] = ACTION_IDLE;
-			units_.anchor_x[idx] = units_.pos_x[idx];
-			units_.anchor_z[idx] = units_.pos_z[idx];
+			// Order.Stop is FinishOrder alone: the held position stays the last walk's
+			// destination, so a defensive unit stopped short walks on there (IDLE Timer).
 			units_.target_resource_id[idx] = 0;
 			units_.target_unit_id[idx] = 0;
 			units_.target_building_id[idx] = 0;
@@ -16168,6 +16168,9 @@ void Simulation::tick_pack(float dt) {
 				ps = (ps == PACK_PACKING) ? PACK_PACKED : PACK_UNPACKED;
 				units_.pack_elapsed[i] = 0.0f;
 				if (units_.order_kind[i] == ORDER_NONE) units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE; // PackFinished
+				// Pack.js PackFinished -> ChangeEntityTemplate: SwitchToStance holds where it stands.
+				units_.anchor_x[i] = units_.pos_x[i];
+				units_.anchor_z[i] = units_.pos_z[i];
 			}
 		}
 		units_.pack_state[i] = ps;
@@ -17518,6 +17521,11 @@ float Simulation::unit_gather_rate(size_t i, uint8_t kind, float class_rate, boo
 }
 
 void Simulation::promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_rank) {
+	// Promotion.js Promote -> ChangeEntityTemplate (Transform.js:142-160) copies the orders but
+	// not workOrders (Back to Work is lost), and its SwitchToStance holds where the unit stands.
+	work_orders_.erase(units_.id[i]);
+	units_.anchor_x[i] = units_.pos_x[i];
+	units_.anchor_z[i] = units_.pos_z[i];
 	const float frac = units_.max_hp[i] > 0.0f ? units_.hp[i] / units_.max_hp[i] : 1.0f;
 	if (target_tmpl < CIV_UNIT_TEMPLATE_COUNT && target_tmpl != units_.tmpl[i]) {
 		// Another unit: its template's stats, the owner's civ bonuses (not its template civ's
@@ -19807,7 +19815,12 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
 		case ORDER_HEAL: order_heal(&uid, 1, o.target); break;
 		case ORDER_TRADE: order_trade(&uid, 1, o.target, trade_market_id(o.x2)); break;
-		case ORDER_RETURN_RESOURCE: order_return_resource(&uid, 1, o.target, false, (o.flags & ORDER_FLAG_FORCE) != 0); break;
+		case ORDER_RETURN_RESOURCE: {
+			const int32_t ui = lookup_unit(uid);
+			const uint32_t d = o.target != 0 ? o.target : ui >= 0 ? nearest_dropsite((size_t)ui) : 0;
+			if (d != 0) order_return_resource(&uid, 1, d, false, (o.flags & ORDER_FLAG_FORCE) != 0);
+			break;
+		}
 		case ORDER_COLLECT_TREASURE: order_collect_treasure(&uid, 1, o.target); break;
 		case ORDER_HUNT: order_hunt(&uid, 1, o.target); break;
 		case ORDER_ATTACK_SCENERY: order_attack_scenery(&uid, 1, o.target, capture); break;
@@ -19868,6 +19881,7 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 		case ORDER_HEAL: return can_heal(i, lookup_unit(o.target));
 		case ORDER_TRADE: return trade_route_ok(i, o.target, trade_market_id(o.x2));
 		case ORDER_RETURN_RESOURCE: {
+			if (o.target == 0) return units_.carry[i] > 0 && nearest_dropsite(i) != 0; // DropAtNearestDropSite
 			if (lookup_unit(o.target) >= 0) return can_return_resource(units_.id[i], o.target);
 			const Building *b = building(o.target);
 			return b && units_.carry[i] > 0 && dropsite_accepts(i, *b);
@@ -21372,6 +21386,16 @@ void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, floa
 			order_attack_move(&uid, 1, x, z, false, units_only, allow_capture);
 			if (units_.carry[i] > 0)
 				if (const uint32_t best = nearest_dropsite((size_t)i); best != 0) order_return_resource(&uid, 1, best, false);
+			continue;
+		}
+		// Queued behind other orders, DropAtNearestDropSite is resolved when it runs (target 0:
+		// from where the unit is then, with what it carries then; UnitAI.js:577-586).
+		auto pending = order_queues_.find(uid);
+		if (queued && (units_.order_kind[i] != ORDER_NONE || (pending != order_queues_.end() && !pending->second.empty()))) {
+			std::vector<UnitOrder> &queue = order_queues_[uid];
+			UnitOrder drop; drop.kind = ORDER_RETURN_RESOURCE; drop.target = 0;
+			if (queue.size() < 64) queue.push_back(drop);
+			order_attack_move(&uid, 1, x, z, true, units_only, allow_capture);
 			continue;
 		}
 		// DropAtNearestDropSite: FindNearestDropsite for the carried type, else nothing.
