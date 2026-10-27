@@ -766,6 +766,14 @@ static const rtso::SelectionOverlay &unit_selection_overlay(uint8_t type, uint16
 	return rtso::selection_class_table()[type < rtso::SELECTION_CLASS_ROWS ? type : rtso::UNIT_VILLAGER];
 }
 
+// World units per 0.28 metre of a unit whose model has this metre and longer horizontal extent. A ship's GLB carries no root scale that
+// fits its 0.28 size (none, or one far off), so its metre is its drawn hull over the length of
+// its template's Footprint, which 0.28 fits to the hull.
+static float unit_metre(float metre, float length, uint8_t type, const rtso::SelectionOverlay &ov) {
+	if (rtso::unit_is_ship(type) && length > 0.0f && ov.depth > 0.0f) return length / std::max(ov.width, ov.depth);
+	return metre;
+}
+
 // 0 A.D. player_trans surfaces take the owner's colour (model_common.fs).
 static void push_player_color(Node *model, int64_t &last, const Color &c) {
 	const int64_t key = (int64_t)c.to_rgba32();
@@ -2822,6 +2830,7 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key)
 		slot->y_offset = entry.y_offset;
 		slot->scale = entry.scale;
 		slot->metre = entry.metre;
+		slot->length = std::max(entry.aabb.size.x, entry.aabb.size.z) * entry.scale;
 		slot->height = entry.height > 0.0f ? entry.height : entry.aabb.size.y;
 		// silhouette.gdshader: the model's bounding sphere about the unit's origin.
 		for (int k = 0; k < 8; ++k)
@@ -4604,7 +4613,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (bars || st.n_icons > 0) {
 				// HeightOffset and the bar sizes are 0.28 metres, drawn at the model's own size.
 				const rtso::StatusBarsSize sb = unit_status_bars(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
-				const float m = model_b.metre;
+				const float m = unit_metre(model_b.metre, model_b.length, utype, unit_selection_overlay(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE));
 				draw_status_stack(sim, Vector3(x, y - model_b.y_offset + sb.height_offset * m, z), sb.bar_width * m, sb.bar_height * m, m, st);
 			}
 		}
@@ -4617,7 +4626,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (alpha > 0.005f) {
 				Color c = overlay_color(sim, uview.team[i], is_selected, ov.always_visible);
 				c.a = alpha;
-				place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), ov, model_b.metre, yaw,
+				place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), ov, unit_metre(model_b.metre, model_b.length, utype, ov), yaw,
 						Vector3(x, ground + 0.1f, z), c);
 			}
 			continue;
@@ -4706,7 +4715,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (ringed) {
 			Color c = overlay_color(sim, uview.team[i], is_selected, ov.always_visible);
 			c.a = alpha;
-			place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), ov, model_b.metre, yaw,
+			place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), ov, unit_metre(model_b.metre, model_b.length, utype, ov), yaw,
 					Vector3(x, ground + 0.1f, z), c);
 		}
 		v.ring_on = ringed;

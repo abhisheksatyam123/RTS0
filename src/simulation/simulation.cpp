@@ -23702,6 +23702,9 @@ void Simulation::petra_manage_economy(float dt) {
 			if (units_.order_kind[i] == ORDER_COLLECT_TREASURE || units_.order_kind[i] == ORDER_CAPTURE_RELIC) continue;
 			const bool soldier = gcls == GATHER_INFANTRY;
 			if (soldier && (in_plan.count(units_.id[i]) || units_.id[i] == petra_scout_unit_id_)) continue;
+			// worker.js:42-89: a worker waiting for a transport, or sailing, just waits. Re-tasked,
+			// its refused second transport marked the resource failed (lastFailedGather).
+			if (petra_passenger(units_.id[i])) continue;
 			// worker.js returnResources: an idle worker still carrying something takes it to the
 			// nearest dropsite on its own land first (an explicit ReturnResource order; UnitAI does
 			// not drop off by itself), and is reassigned once empty. A gatherer (one we sent to a
@@ -24142,15 +24145,15 @@ void Simulation::petra_manage_economy(float dt) {
 			for (uint8_t r : needed)
 				if (may_try(r)) { chosen_res_type = r; break; }
 			if (chosen_res_type == RES_COUNT) continue;
+			// reassignIdleWorkers: AddTCResGatherer as the gather-type is picked, whether
+			// startGathering then finds a supply here, across the water or nowhere.
+			cur_rate[chosen_res_type] += 0.5f;
 		}
 
 		// worker.js startGathering: any gatherer takes a treasure nearby first, and a food
 		// gatherer hunts next (livestock and carcasses near a dropsite).
 		if (petra_gather_treasure(widx, hunt_scan)) continue;
-		if (chosen_res_type == RES_FOOD && petra_start_hunting(widx, hunt_scan)) {
-			cur_rate[RES_FOOD] += 0.5f; // AddTCResGatherer
-			continue;
-		}
+		if (chosen_res_type == RES_FOOD && petra_start_hunting(widx, hunt_scan)) continue;
 
 
 		// findSupply: the first listed supply with room, that the worker gathers, and that is
@@ -24205,12 +24208,10 @@ void Simulation::petra_manage_economy(float dt) {
 			petra_set_supply(uid, c->id);
 			c->slots--;
 			c->users++;
-			cur_rate[c->type] += 0.5f; // AddTCResGatherer
 		};
 		auto build_field = [&](std::pair<uint32_t, int> *fb) {
 			order_build_or_repair(&uid, 1, fb->first);
 			fb->second++;
-			cur_rate[RES_FOOD] += 0.5f;
 		};
 		// One resource's tiers: our base nearby (then its fields), its medium; the other bases on
 		// our land nearby, their fields, their medium; then a dropsite foundation for it.

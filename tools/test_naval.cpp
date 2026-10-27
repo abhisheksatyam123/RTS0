@@ -1126,6 +1126,9 @@ static void test_petra_overseas_base() {
 	CHECK(north && south && north != south);
 	CHECK(cc != 0);
 	CHECK(first_ashore >= 0.0f && most_south >= 2);
+	// Workers waiting at the beach for a ship stay booked rather than being re-tasked, which
+	// marked wood failed and sent the idle workers on the south land back north for food.
+	CHECK(south_workers >= 8); // 12 with that fixed, 1 before
 	CHECK(b && b->build_progress > 0.3f);
 	CHECK(north_gathering_south == 0 && waded == 0);
 }
