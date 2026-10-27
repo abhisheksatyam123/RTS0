@@ -3816,7 +3816,7 @@ private:
 		std::vector<uint32_t> anchor;
 	};
 	PetraTileBases petra_tile_bases_;
-	void petra_check_trade_events();
+	bool petra_check_trade_events();
 	void petra_set_no_room(uint8_t type);
 	bool petra_no_room(uint8_t type) const;
 	int petra_missing_room_count() const;
@@ -3987,6 +3987,7 @@ private:
 	bool petra_same_land(size_t unit_idx, const Building &b) const; // PETRA.getLandAccess match
 	// The unit's land is a pocket of at most 16 navcells (shut in among trees or structures).
 	bool stands_in_pocket(size_t unit_idx) const;
+	bool petra_return_load(size_t unit_idx); // worker.js returnResources: false with nowhere to take it
 	bool petra_mobile_dropsite_on_land(size_t unit_idx) const; // a supply wagon or worker elephant it may drop at, on its land
 	// defenseManager.js garrisonAttackedUnit: the nearest healing structure, or with
 	// emergency the nearest holder at all (unloading one unit when it is full).
@@ -4099,7 +4100,7 @@ private:
 	const PetraTradeRoute *petra_route_for(const PetraTradeRoutes &r, uint16_t access, bool ship) const;
 	int petra_trade_minimal_gain() const; // tradeManager.js minimalGain
 	int petra_target_traders() const;     // targetNumTraders: the config value until setTradingGoods sets it
-	int petra_compute_target_traders() const; // what setTradingGoods sets it to
+	int petra_compute_target_traders(const float stocks[RES_COUNT]) const; // what setTradingGoods sets it to
 	bool petra_line_in_enemy_territory(float x1, float z1, float x2, float z2) const;
 	// headquarters.js findMarketLocation: 1 with a spot (out_x, out_z) and its expected gain,
 	// 0 when there are no markets to measure from (place it anywhere), -1 when nothing will do.
