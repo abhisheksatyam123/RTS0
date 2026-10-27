@@ -11937,8 +11937,10 @@ void Simulation::tick(float dt) {
 }
 
 // UnitMotion/RunMultiplier: template_unit 1.67, cavalry 1.4, dogs 2, siege engines 1.
+// UnitMotionFlying (the plane) has no run speed.
 float Simulation::unit_run_multiplier(size_t i) const {
 	if (units_.unit_type[i] == UNIT_WAR_DOG) return 2.0f;
+	if (units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(units_.tmpl[i]).flags & ROSTER_FLYING)) return 1.0f;
 	const CombatClasses &c = unit_combat_at(i).classes;
 	if (c.has(CC_SIEGE)) return 1.0f;
 	if (c.has(CC_CAVALRY)) return 1.4f;
@@ -17949,13 +17951,15 @@ int32_t Simulation::projectile_hit_unit(const Projectile &p) const {
 	// DelayedDamage.js Hit: the aimed target first (no hostility re-check, as in
 	// 0.28), then the nearest other enemy whose footprint holds the landing point.
 	// helpers/Attack.js HandleAttackEffects returns false for a dead or invulnerable
-	// one, and the loop goes on to the next instead of dropping the arrow.
-	if (target >= 0 && units_.alive[target] && !invulnerable(units_.id[target]) && inside(target)) return target;
+	// one, and the loop goes on to the next instead of dropping the arrow. So does a relic
+	// (template_unit_catafalque.xml: Health disabled) unless the arrow carries a status.
+	auto takes = [&](int32_t u) { return !invulnerable(units_.id[u]) && (!is_relic_unit(u) || p.status_effect != 0); };
+	if (target >= 0 && units_.alive[target] && takes(target) && inside(target)) return target;
 	int32_t best = -1;
 	float best_d2 = 0.0f;
 	for (size_t u = 0; u < units_.count; ++u) {
 		if ((int32_t)u == target) continue;
-		if (!units_.alive[u] || invulnerable(units_.id[u])) continue;
+		if (!units_.alive[u] || !takes((int32_t)u)) continue;
 		if (units_.action_state[u] == ACTION_GARRISONED || !is_hostile(p.team, units_.team[u]))
 			continue;
 		// EntitiesNearPoint measures to the obstruction, so an entity whose footprint
@@ -18054,7 +18058,8 @@ void Simulation::tick_projectiles(float dt) {
 			if (p.splash != 0)
 				cause_damage_over_area(p.splash, p.source_id, p.team, p.target_x, p.target_z, dx, dz);
 			{
-				if (tidx >= 0 && units_.alive[tidx]) {
+				// A relic stops a status arrow but has no Health to damage (nor a status to take here).
+				if (tidx >= 0 && units_.alive[tidx] && !is_relic_unit(tidx)) {
 					const float dmg = projectile_damage_to_unit(p, (size_t)tidx);
 					award_damage_xp(p.source_id, (size_t)tidx, dmg);
 					note_attacked(p.source_id, p.team, units_.id[tidx], units_.team[tidx], false, dmg);
@@ -18104,7 +18109,9 @@ void Simulation::tick_projectiles(float dt) {
 // with its own timer and source (statuses_).
 void Simulation::apply_status(size_t t, const CombatProfile &att, uint32_t src_id, uint8_t src_owner) {
 	// helpers/Attack.js HandleAttackEffects: an invulnerable target takes no effect at all.
-	if (att.status == 0 || (unit_combat_at(t).status_immune & att.status) || invulnerable(units_.id[t])) return;
+	// A relic's statuses would only deal Damage, which its disabled Health ignores.
+	if (att.status == 0 || (unit_combat_at(t).status_immune & att.status) || invulnerable(units_.id[t]) ||
+			is_relic_unit((int32_t)t)) return;
 	units_.status_effects[t] |= status_effect_bit(att.status);
 	add_status(STATUS_ON_UNIT, units_.id[t], att, src_id, src_owner);
 }
@@ -19291,7 +19298,7 @@ void Simulation::tick_death_damage(float dt) {
 			const float dx = units_.pos_x[i] - ox, dz = units_.pos_z[i] - oz;
 			if (std::fabs(dx) > r + 2.0f || std::fabs(dz) > r + 2.0f) continue;
 			const float d = std::max(0.0f, std::sqrt(dx * dx + dz * dz) - unit_collision_radius(units_.unit_type[i]));
-			if (d >= r || invulnerable(units_.id[i])) continue;
+			if (d >= r || invulnerable(units_.id[i]) || is_relic_unit((int32_t)i)) continue; // a relic has no Health
 			float res[3];
 			unit_resistance(i, res);
 			const float dmg = dd.damage * (dd.fire ? 1.0f : det::pow(0.9f, res[2])) *
@@ -19470,7 +19477,8 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		unit_resistance(u, res);
 		const float dmg = m * (sp.hack * det::pow(0.9f, res[0]) + sp.pierce * det::pow(0.9f, res[1]) +
 				sp.crush * det::pow(0.9f, res[2]));
-		if (dmg <= 0.0f || invulnerable(units_.id[u])) continue;
+		// HandleAttackEffects: a relic (Health disabled) takes no Damage, so no xp or Attacked.
+		if (dmg <= 0.0f || invulnerable(units_.id[u]) || is_relic_unit((int32_t)u)) continue;
 		award_damage_xp(attacker_id, u, dmg);
 		note_attacked(attacker_id, attacker_team, units_.id[u], units_.team[u], false, dmg);
 		units_.hp[u] -= dmg;
@@ -38969,7 +38977,7 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	unit_resistance(u, res);
 	const float dmg = info.hack_damage * det::pow(0.9f, res[0]) + info.pierce_damage * det::pow(0.9f, res[1]) +
 	                  info.crush_damage * det::pow(0.9f, res[2]);
-	if (invulnerable(units_.id[u])) return;
+	if (invulnerable(units_.id[u]) || is_relic_unit((int32_t)u)) return; // a relic has no Health
 	units_.hp[u] -= dmg;
 	note_attacked(fauna_.id[f], GAIA_PLAYER, units_.id[u], units_.team[u], false, dmg, true);
 	if (units_.hp[u] <= 0.0f) {

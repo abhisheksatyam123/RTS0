@@ -60,6 +60,9 @@ int main() {
 	int32_t pi = index_of(s, p);
 	CHECK(pi >= 0 && s.unit_flies((size_t)pi));
 	CHECK(s.flight_offset((size_t)pi) == 0.0f);
+	// template_unit's aggressive stance; UnitMotionFlying has no run speed.
+	CHECK(s.units().stance[pi] == STANCE_AGGRESSIVE);
+	CHECK(s.unit_run_multiplier((size_t)pi) == 1.0f);
 	run(s, 1.0f);
 	pi = index_of(s, p);
 	CHECK(s.units().pos_x[pi] == 0.0f && s.units().pos_z[pi] == 0.0f);

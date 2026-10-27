@@ -402,6 +402,26 @@ int main() {
 		CHECK(s.structure_garrison_heal(s.buildings_[s.building_id_to_idx_[far]]) == base);
 	}
 
+	// 12. A relic has no Health (template_unit_catafalque.xml): splash and a stray arrow
+	// landing on it do nothing to it (helpers/Attack.js HandleAttackEffects finds no Damage
+	// receiver), so the arrow goes on to the next unit at the point.
+	{
+		fresh(s);
+		const int32_t r = give_relic(s, CIV_ATHENIANS, 1, 20.0f, 20.0f);
+		const uint32_t spear = s.spawn_unit(21.0f, 20.0f, 1, UNIT_SPEARMAN);
+		Projectile p;
+		p.team = 0;
+		p.target_unit_id = s.units_.id[r];
+		p.target_x = 20.8f; // inside both footprints
+		p.target_z = 20.0f;
+		const int32_t si = s.lookup_unit(spear);
+		CHECK(s.projectile_hit_unit(p) == si);
+		const float hp = s.units_.hp[r];
+		for (int k = 0; k < 20; ++k) s.cause_damage_over_area(5, 0, 0, 20.0f, 20.0f, 1.0f, 0.0f);
+		std::printf("relic hp after 20 onager splashes: %.0f of %.0f\n", s.units_.hp[r], hp);
+		CHECK(s.units_.alive[r] && s.units_.hp[r] == hp);
+	}
+
 	if (failures) {
 		std::printf("test_relics: %d failure(s)\n", failures);
 		return 1;
