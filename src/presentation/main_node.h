@@ -606,6 +606,7 @@ public:
 	const PackedInt32Array &ui_selected_ids() const override { return selected_ids; }
 	std::vector<uint32_t> ui_selected_structures() const override { return selected_structures(); }
 	std::vector<uint32_t> ui_selected_garrison_holders() const override { return selected_garrison_holders(); }
+	const rtso::FogMirages *ui_fog_mirages() const override { return view ? &view->fog_mirages() : nullptr; }
 	bool ui_garrison_panel_shown() const override;
 	bool ui_observing() const override { return turn_mgr_.is_replaying() || spectating(); }
 	bool ui_commands_player(uint8_t pid) const override { return pid == seat_player() && orders_allowed(); }
@@ -783,6 +784,18 @@ public:
 		const Vector3 g = get_ground_click_pos(screen);
 		return Vector2(g.x, g.z);
 	}
+	// Tests: structure `id`'s world position and the viewed player's fog state there
+	// (Simulation::FOW_*), empty when there is no such structure.
+	Dictionary debug_building_fow(int64_t id) const {
+		Dictionary d;
+		if (!sim) return d;
+		for (const auto &b : sim->buildings())
+			if (b.id == (uint32_t)id) {
+				d["pos"] = Vector2(b.x, b.z);
+				d["fow"] = (int64_t)sim->fow_state_at(b.x, b.z, view_player());
+			}
+		return d;
+	}
 	// Tests: unit `id`'s pick box as drawn this frame (feet, height), empty when not drawn.
 	Dictionary debug_unit_pick_box(int64_t id) const {
 		Dictionary d;
@@ -830,7 +843,7 @@ public:
 	int64_t debug_spawn_relic(float dx, float dz);
 	void debug_capture_relic(const PackedInt32Array &ids, int64_t relic);
 	int64_t debug_civic_centre_id(int player) const;
-	int64_t debug_spawn_building(int type, float dx, float dz, int player = -1);
+	int64_t debug_spawn_building(int type, float dx, float dz, int player = -1, float progress = 1.0f); // progress < 1: a foundation
 	Dictionary debug_research_any();
 	Array debug_building_looks() const; // [id, type, model, x, z] of each map structure drawn by its own template
 	Dictionary debug_structure_types(bool with_civ = false);
