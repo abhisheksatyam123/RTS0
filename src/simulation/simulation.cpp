@@ -23044,6 +23044,25 @@ void Simulation::petra_manage_military_production(float dt) {
 			const float vb = (float)b.count / (float)b.target - b.priority + (b.count >= b.target ? 1000.0f : 0.0f);
 			return va < vb;
 		});
+		// queueManager startNextItems: a batch already queued for the plan (a want on its queue)
+		// starts once its queue's account pays for it, though the plan's turn now asks for another
+		// class first (attackPlan.js counts the queued batch with its class).
+		for (const UnitStat &st : stats) {
+			if (st.count >= st.target) continue;
+			const uint8_t queue = petra_plan_order_queue(st);
+			const PetraQueueAccount &w = petra_queues_.wants[queue], &a = petra_queues_.accounts[queue];
+			if (w.food + w.wood + w.gold + w.stone <= 0.0f || petra_queues_.paused[queue]) continue;
+			const uint16_t tmpl = best_trainable(st);
+			if (tmpl == CIV_UNIT_TEMPLATE_NONE) continue;
+			const CivUnitTemplate &t = civ_unit_template(tmpl);
+			const int batch = petra_queues_.paused[PETRA_Q_PLAN_CHAMP] ? 1 : std::min(st.batch, std::max(1, petra_pop_room()));
+			float cost[RES_COUNT];
+			unit_train_cost(petra_pid_, tmpl, civ_template_unit_info(tmpl, t.unit_type), cost);
+			if (a.food < std::floor(cost[RES_FOOD] * (float)batch) || a.wood < std::floor(cost[RES_WOOD] * (float)batch) ||
+			    a.gold < std::floor(cost[RES_GOLD] * (float)batch) || a.stone < std::floor(cost[RES_STONE] * (float)batch))
+				continue;
+			if (petra_train_template(queue, trainer_for(tmpl), tmpl, batch, false, order_plan, plan_name, st.index)) return;
+		}
 		for (const UnitStat &st : stats) {
 			if (st.count >= st.target) return;
 			const uint16_t tmpl = best_trainable(st);
@@ -32061,9 +32080,15 @@ void Simulation::petra_check_paused_queues() {
 void Simulation::petra_refresh_queue_accounts(float dt) {
 	PetraQueueManager &qm = petra_queues_;
 	// A queue that stopped asking is empty: its account and switch count reset (startNextItems).
+	// A mustering plan's TrainingPlan stays in its queue until it starts (attackPlan.js
+	// trainMoreUnits), though the plan skips asking while its trainers are busy or the
+	// population is full; it goes with the plan (removeQueues).
+	const bool mustering = petra_attack_plan_.state == AttackPlan::MUSTER || petra_raid_plan_.state == AttackPlan::MUSTER;
 	for (int i = 0; i < PETRA_Q_COUNT; ++i) {
 		petra_queue_heads_.age[i] += dt;
 		qm.want_age[i] += dt;
+		const bool plan_queue = i == PETRA_Q_PLAN || i == PETRA_Q_PLAN_CHAMP || i == PETRA_Q_PLAN_SIEGE;
+		if (plan_queue && mustering) qm.want_age[i] = std::min(qm.want_age[i], PetraQueueManager::want_ttl(i));
 		if (qm.want_age[i] > PetraQueueManager::want_ttl(i)) {
 			qm.wants[i] = PetraQueueAccount{};
 			qm.accounts[i] = PetraQueueAccount{};
