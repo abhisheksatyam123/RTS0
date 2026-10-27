@@ -186,6 +186,17 @@ Right-click actions, Back to Work and Shift-queueing against unit_actions.js, in
 | N4 | ~~Shift is ignored when hunting or slaughtering an animal, attacking scenery and boarding a ship, ram or siege tower: the order replaces the queue~~ Fixed: Shift queues them (ORDER_HUNT, ORDER_ATTACK_SCENERY, ORDER_BOARD), lockstep cmds 17 and 18 carry NET_PARAM_QUEUED, and a kill going on to the carcass keeps the orders queued behind the hunt (one Gather order in 0.28); test_unit_orders 101 | medium | Fixed |
 | N5 | ~~Alt (orderone) on an enemy unit, structure or scenery orders the first selected unit, not the first able one~~ Fixed: the first selected unit able to attack or capture it (getActionInfo firstAbleEntity, input.js popOneFromSelection); tested by `tools/e2e_order_one.gd` | low | Fixed |
 
+### Unit orders, combat timing (2026-10-27)
+
+Attack and capture timers against Timer.js, Attack.js and Capturable.js, from D's time-to-kill checks. Owner: Unit orders
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| T1 | ~~A hit that fell due partway through a tick timed the next RepeatTime from the tick's end, so hits drifted late~~ Fixed: Timer.js interval timers schedule from the due time; test_unit_orders 113 (#1641) | low | Fixed |
+| T2 | ~~A unit promoted mid-attack waited out its old RepeatTime~~ Fixed: the new entity's Attack starts over (Transform.js), so its next hit comes after PrepareTime; test_unit_orders 114 (#1641) | low | Fixed |
+| T3 | ~~Capture regeneration and territory decay ran on a global whole-second clock~~ Fixed: each structure's timer starts a second after its points can first change and stops once a tick changes nothing (Capturable.js:203-267), after the same moment's capture hits; test_unit_orders 115 | low | Fixed |
+| T4 | Splash damage uses AREA_DAMAGE_SCALE 0.6 (#899); not yet checked against 0.28's Attack Splash over-hitting | nit | Open (check) |
+
 ### Unit orders, fourteenth 0.28 pass (2026-10-27)
 
 Player commands (stop, back to work, call to arms, unload, delete, stance, autoqueue), healing and packing against Commands.js, UnitAI.js and Pack.js. Everything else checked matches. Owner: Unit orders

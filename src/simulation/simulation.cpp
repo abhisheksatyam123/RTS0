@@ -17629,46 +17629,25 @@ void Simulation::tick_promotion(float dt) {
 
 void Simulation::tick_capture(float dt) {
 	// 0 A.D. Capturable.js:93-132 (Reduce), 168-181 (RegisterCapturePointsChanged),
-	// 183-201 (GetRegenRate & GarrisonRegenRate), 203-247 (TimerTick)
-	// Capturable.js TimerTick: decay and regeneration land once a second of match time.
-	const bool timer_tick = (ticks_ + 1) % (uint64_t)std::lround(1.0f / FIXED_STEP) == 0;
-	(void)dt;
+	// 183-201 (GetRegenRate & GarrisonRegenRate), 203-267 (TimerTick, CheckTimer)
 	if (capture_attack_.size() != buildings_.size()) capture_attack_.resize(buildings_.size(), std::array<float, MAX_PLAYERS>{});
 	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
 		Building &b = buildings_[bi];
 		if (b.build_progress < 1.0f || b.max_capture_points <= 0.0f) continue;
-		if (b.team >= MAX_PLAYERS) {
-			// TerritoryDecay: a Gaia structure in a player's connected territory decays to that player.
-			std::array<float, MAX_PLAYERS> decay_to;
-			float decay_gaia = 0.0f;
-			if (territory_decay_targets(b, decay_to, decay_gaia)) {
-				const float held = std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f);
-				const float decay = timer_tick ? std::min(b.territory_decay_rate, std::max(0.0f, b.max_capture_points - held)) : 0.0f;
-				for (int p = 0; p < MAX_PLAYERS; ++p) b.capture_points_by_team[p] += decay * decay_to[p];
-			}
-			capture_points_tick(b, bi, timer_tick);
-			b.capture_points = std::max(0.0f, b.max_capture_points -
-					std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f));
-			continue;
-		}
 		// Points no player holds are Gaia's (territory decay), so only more than the maximum is invalid.
-		if (std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f) > b.max_capture_points + 0.01f) {
+		if (b.team < MAX_PLAYERS && std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f) >
+				b.max_capture_points + 0.01f) {
 			b.capture_points_by_team.fill(0.0f);
-			b.capture_points_by_team[b.team < 8 ? b.team : 0] = b.max_capture_points;
+			b.capture_points_by_team[b.team] = b.max_capture_points;
 		}
-		const int pl = b.team; // the owner, any of the 8 players
-		// TerritoryDecay.js + Capturable.js TimerTick: a structure in enemy territory, or in its
-		// owner's territory cut off from every civic centre, loses DecayRate points a second to
-		// the territory's owner, to the connected neighbours of its region, or to Gaia.
-		std::array<float, MAX_PLAYERS> decay_to;
-		float decay_gaia = 0.0f;
-		if (territory_decay_targets(b, decay_to, decay_gaia)) {
-			const float decay = timer_tick ? std::min(structure_decay_rate(b), b.capture_points_by_team[pl]) : 0.0f;
-			b.capture_points_by_team[pl] -= decay;
-			for (int p = 0; p < MAX_PLAYERS; ++p) b.capture_points_by_team[p] += decay * decay_to[p];
-			// decay * decay_gaia stays unheld: Gaia's.
-		}
-		capture_points_tick(b, bi, timer_tick);
+		// TerritoryDecay.js: a structure in enemy territory, or in its owner's territory cut off
+		// from every civic centre, loses DecayRate points a second to the territory's owner, to
+		// the connected neighbours of its region, or to Gaia; a Gaia structure in a player's
+		// connected territory decays to that player.
+		CaptureDecay decay;
+		if (territory_decay_targets(b, decay.to, decay.to_gaia))
+			decay.rate = b.team >= MAX_PLAYERS ? b.territory_decay_rate : structure_decay_rate(b);
+		capture_points_tick(b, bi, decay, dt);
 		b.capture_points = b.team < MAX_PLAYERS ? b.capture_points_by_team[b.team] : std::max(0.0f, b.max_capture_points -
 				std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f));
 	}
@@ -17714,7 +17693,7 @@ void Simulation::capture_reduce(CapturePools &pts, int to, float amount) const {
 	pts[to] += before - after;
 }
 
-void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
+void Simulation::capture_points_tick(Building &b, size_t bi, const CaptureDecay &decay, float dt) {
 	constexpr int GAIA = MAX_PLAYERS; // pool index
 	const bool gaia_owned = b.team >= MAX_PLAYERS;
 	int owner = gaia_owned ? GAIA : b.team;
@@ -17722,7 +17701,28 @@ void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
 	float held = 0.0f;
 	for (int t = 0; t < MAX_PLAYERS; ++t) { pts[t] = b.capture_points_by_team[t]; held += pts[t]; }
 	pts[GAIA] = std::max(0.0f, b.max_capture_points - held);
-	auto reduce = [&](int to, float amount) { capture_reduce(pts, to, amount); };
+	auto reduce = [&](int to, float amount) {
+		const float before = pts[to];
+		capture_reduce(pts, to, amount);
+		return pts[to] - before; // Reduce's takenCapturePoints
+	};
+	// GetRegenRate: RegenRate plus GarrisonRegenRate x each garrisoned unit's Capture attack;
+	// a negative rate hands points to Gaia.
+	auto regen_rate = [&]() {
+		float regen = b.capture_regen_rate;
+		const float garrison = structure_capture_garrison_regen(b);
+		for (uint32_t uid : b.garrisoned_units) {
+			const int32_t u = lookup_unit(uid);
+			if (u >= 0 && units_.action_state[u] == ACTION_GARRISONED)
+				regen += garrison * unit_capture_attack_at((size_t)u);
+		}
+		return regen;
+	};
+	auto regenerate = [&](float regen) {
+		if (regen > 0.0f && pts[owner] < b.max_capture_points) return reduce(owner, regen);
+		if (regen < 0.0f) return reduce(GAIA, -regen);
+		return 0.0f;
+	};
 	// RegisterCapturePointsChanged: the owner left with no points loses the structure to
 	// whoever holds most, at once (before it can regenerate).
 	auto check_owner = [&]() {
@@ -17759,25 +17759,46 @@ void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
 		if (has_territory_influence(b.type)) rebuild_territory();
 		return true;
 	};
-	check_owner(); // territory decay (tick_capture) may have emptied the owner
+	// Capturable.js timer: TimerTick runs a second after CheckTimer started it, then every
+	// second until a tick changes nothing. One due now runs after the capture attacks of the
+	// same moment.
+	const bool due = b.capture_timer > 0.0f && (b.capture_timer -= dt) <= 1.0e-4f;
+	check_owner();
 	// Capture attacks that landed this tick (tick_combat), in player order.
 	if (bi < capture_attack_.size())
 		for (int p = 0; p < MAX_PLAYERS; ++p)
 			if (capture_attack_[bi][p] > 0.0f) { reduce(p, capture_attack_[bi][p]); check_owner(); }
-	// GetRegenRate: RegenRate plus GarrisonRegenRate x each garrisoned unit's Capture attack,
-	// regained once a second (TimerTick); a negative rate hands points to Gaia.
-	if (timer_tick) {
-		float regen = b.capture_regen_rate;
-		const float garrison = structure_capture_garrison_regen(b);
-		for (uint32_t uid : b.garrisoned_units) {
-			const int32_t u = lookup_unit(uid);
-			if (u >= 0 && units_.action_state[u] == ACTION_GARRISONED)
-				regen += garrison * unit_capture_attack_at((size_t)u);
+	if (due) {
+		float changed = 0.0f;
+		if (decay.rate > 0.0f) {
+			const float d = std::min(decay.rate, pts[owner]);
+			pts[owner] -= d;
+			for (int p = 0; p < MAX_PLAYERS; ++p) pts[p] += d * decay.to[p];
+			pts[GAIA] += d * decay.to_gaia;
+			changed += d;
+			check_owner();
 		}
-		if (regen > 0.0f && pts[owner] < b.max_capture_points) reduce(owner, regen);
-		else if (regen < 0.0f) reduce(GAIA, -regen);
+		changed += regenerate(regen_rate());
+		check_owner();
+		b.capture_timer = changed > 1.0e-6f ? b.capture_timer + 1.0f : 0.0f; // nothing changed: CancelTimer
 	}
-	check_owner();
+	// CheckTimer: the timer starts on whatever can change the points (a capture attack, a
+	// garrison, a diplomacy or owner change, TerritoryDecayChanged), so with none running it
+	// starts as soon as decay or regeneration would change something.
+	if (b.capture_timer <= 0.0f) {
+		b.capture_timer = 0.0f;
+		CapturePools trial = pts;
+		bool starts = decay.rate > 0.0f && pts[owner] > 0.0f;
+		if (!starts && (pts[owner] < b.max_capture_points - 1.0e-4f || b.capture_regen_rate < 0.0f)) {
+			const float regen = regen_rate();
+			if (regen != 0.0f) {
+				std::swap(trial, pts);
+				starts = regenerate(regen) > 1.0e-6f;
+				std::swap(trial, pts);
+			}
+		}
+		if (starts) b.capture_timer = 1.0f;
+	}
 	for (int t = 0; t < MAX_PLAYERS; ++t) b.capture_points_by_team[t] = pts[t];
 }
 
@@ -35893,6 +35914,7 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.petra_decay_hold, sizeof(b.petra_decay_hold));
 		out.write((const char *)&b.queue_clock, sizeof(b.queue_clock));
 		out.write((const char *)&b.heal_clock, sizeof(b.heal_clock));
+		out.write((const char *)&b.capture_timer, sizeof(b.capture_timer));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -36375,6 +36397,8 @@ bool Simulation::load_state(const char *filepath) {
 		if (version >= SAVE_VERSION_QUEUE_CLOCK) in.read((char *)&bld.queue_clock, sizeof(bld.queue_clock));
 		bld.heal_clock = 0.0f; // older saves: the heal timer starts again
 		if (version >= SAVE_VERSION_GARRISON_HEAL) in.read((char *)&bld.heal_clock, sizeof(bld.heal_clock));
+		bld.capture_timer = 0.0f; // older saves: a timer starts again where the points can change
+		if (version >= SAVE_VERSION_CAPTURE_TIMER) in.read((char *)&bld.capture_timer, sizeof(bld.capture_timer));
 		bld.set_extents(bld.half_size, building_half_depth(bld.type, bld.half_size, bld.civ)); // its civ's wall depth
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;
