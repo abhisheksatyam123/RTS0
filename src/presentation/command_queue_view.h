@@ -458,11 +458,11 @@ public:
 					std::vector<TechItem> mine;
 					size_t pairs = 0;
 					for (int t = 1; t < rtso::TECH_COUNT; ++t) {
-						if (!rtso::building_researches_tech(rb->type, (uint8_t)t, sim->structure_template_civ(*rb)) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+						if (!sim->structure_researches(*rb, (uint8_t)t) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 						// Researcher.js GetTechnologiesList: a chain shows one slot, its next step; a technology
 						// whose superseded one is offered here waits until that one is researched or in progress.
 						if (const uint8_t sup = rtso::tech_supersedes((uint8_t)t); sup != rtso::TECH_NONE
-								&& rtso::building_researches_tech(rb->type, sup, sim->structure_template_civ(*rb)) && rtso::tech_available_to_civ(sup, pciv)) {
+								&& sim->structure_researches(*rb, sup) && rtso::tech_available_to_civ(sup, pciv)) {
 							const rtso::Simulation::ResearchCheck sc = sim->research_check(local_player(), sup, 0);
 							if (sc != rtso::Simulation::TECH_ERR_RESEARCHED && sc != rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
 						}
@@ -1594,7 +1594,7 @@ private:
 		if (pass == 1 && ob->civ == civ) break;
 		for (uint16_t i : rtso::civ_roster_ids(pass == 0 ? ob->civ : civ)) {
 			const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
-			if (!rtso::building_trains_template(ob->type, ob->civ, civ, i)) continue;
+			if (!rtso::Simulation::structure_trains(*ob, civ, i)) continue;
 			// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;
 			// 0 A.D. has no such unit, so players don't see it.
 			if (std::strstr(u.id, "/rts0_")) continue;

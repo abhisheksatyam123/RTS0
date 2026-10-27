@@ -92,9 +92,9 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 			const uint8_t pciv = sim->player_civ(me);
 			std::vector<std::pair<uint8_t, uint8_t>> entries; // top, bottom (TECH_NONE unless paired)
 			for (int t = 1; t < rtso::TECH_COUNT; ++t) {
-				if (!rtso::building_researches_tech(rb->type, (uint8_t)t, sim->structure_template_civ(*rb)) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+				if (!sim->structure_researches(*rb, (uint8_t)t) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 				if (const uint8_t sup = rtso::tech_supersedes((uint8_t)t); sup != rtso::TECH_NONE
-						&& rtso::building_researches_tech(rb->type, sup, sim->structure_template_civ(*rb)) && rtso::tech_available_to_civ(sup, pciv)) {
+						&& sim->structure_researches(*rb, sup) && rtso::tech_available_to_civ(sup, pciv)) {
 					const rtso::Simulation::ResearchCheck sc = sim->research_check(me, sup, 0);
 					if (sc != rtso::Simulation::TECH_ERR_RESEARCHED && sc != rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
 				}
