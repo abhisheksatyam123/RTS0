@@ -18,6 +18,8 @@
 #include <cstring>
 #include <godot_cpp/classes/theme.hpp>
 #include "popup_safe.h"
+#include "session_skin.h"
+#include <godot_cpp/classes/font.hpp>
 #include "simulation/petra_chat.h"
 #include "simulation/rms_generator.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -271,15 +273,17 @@ void RtsoMain::_ready() {
 	time_notification_label_->set_use_bbcode(true);
 	time_notification_label_->set_fit_content(true);
 	time_notification_label_->set_scroll_active(false);
-	// TimeNotificationOverlay.xml: 50%-300 60 50%+300 120, white sans-bold-stroke-14.
+	// TimeNotificationOverlay.xml: 50%-300 60 50%+300 120, white sans-bold-stroke-14;
+	// notificationPanel aligns the text to the bottom, 5 px in: it grows up from there.
 	time_notification_label_->set_anchor(SIDE_LEFT, 0.5f);
 	time_notification_label_->set_anchor(SIDE_RIGHT, 0.5f);
 	time_notification_label_->set_anchor(SIDE_TOP, 0.0f);
 	time_notification_label_->set_anchor(SIDE_BOTTOM, 0.0f);
 	time_notification_label_->set_offset(SIDE_LEFT, -300.0f);
 	time_notification_label_->set_offset(SIDE_RIGHT, 300.0f);
-	time_notification_label_->set_offset(SIDE_TOP, 60.0f);
-	time_notification_label_->set_offset(SIDE_BOTTOM, 120.0f);
+	time_notification_label_->set_offset(SIDE_TOP, 115.0f);
+	time_notification_label_->set_offset(SIDE_BOTTOM, 115.0f);
+	time_notification_label_->set_v_grow_direction(Control::GROW_DIRECTION_BEGIN);
 	time_notification_label_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
 	time_notification_label_->add_theme_font_size_override("normal_font_size", 14);
 	time_notification_label_->add_theme_font_size_override("bold_font_size", 14);
@@ -302,6 +306,10 @@ void RtsoMain::_ready() {
 	net_delay_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_RIGHT);
 	net_delay_label_->set_vertical_alignment(VERTICAL_ALIGNMENT_TOP);
 	net_delay_label_->add_theme_font_size_override("font_size", 10);
+	{
+		Ref<Font> mono = ResourceLoader::get_singleton()->load("res://assets/fonts/DejaVuSansMono.ttf");
+		if (mono.is_valid()) net_delay_label_->add_theme_font_override("font", mono);
+	}
 	net_delay_label_->add_theme_color_override("font_color", Color(1.0f, 1.0f, 1.0f));
 	{
 		Ref<StyleBoxFlat> bg;
@@ -650,9 +658,7 @@ void RtsoMain::_ready() {
 		pause_by_label_->set_offset(SIDE_TOP, 50.0f);
 		pause_by_label_->set_offset(SIDE_BOTTOM, 72.0f);
 		pause_by_label_->add_theme_font_size_override("normal_font_size", 16); // netStatusPlayersText: sans-bold-16
-		pause_by_label_->add_theme_font_override("normal_font", bold);
-		pause_by_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
-		pause_by_label_->add_theme_constant_override("outline_size", 4);
+		pause_by_label_->add_theme_font_override("normal_font", bold); // no stroke
 		pause_by_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		pause_overlay_->add_child(pause_by_label_);
 	}
@@ -688,15 +694,21 @@ void RtsoMain::_ready() {
 	{
 		ColorRect *dim = memnew(ColorRect);
 		dim->set_anchors_preset(Control::PRESET_FULL_RECT);
-		dim->set_color(Color(0, 0, 0, 0.6f));
+		dim->set_color(Color(0, 0, 0, 185.0f / 255.0f)); // sessionOverlayBackground: 0 0 0 185
 		dim->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		net_status_overlay_->add_child(dim);
+		// netStatus: sans-bold-18; netStatusPlayersText: sans-bold-16.
+		Ref<FontVariation> bold;
+		bold.instantiate();
+		bold->set_base_font(ThemeDB::get_singleton()->get_fallback_font());
+		bold->set_variation_embolden(0.7f);
 		net_status_label_ = memnew(Label);
 		net_status_label_->set_anchors_preset(Control::PRESET_FULL_RECT);
 		net_status_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 		net_status_label_->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
 		net_status_label_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
 		net_status_label_->add_theme_font_size_override("font_size", 18);
+		net_status_label_->add_theme_font_override("font", bold);
 		net_status_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		net_status_overlay_->add_child(net_status_label_);
 		// reportConnectionRequestTimeOut's messageBox title.
@@ -722,6 +734,7 @@ void RtsoMain::_ready() {
 		net_loading_clients_->set_offset(SIDE_TOP, 60);
 		net_loading_clients_->set_offset(SIDE_BOTTOM, 110);
 		net_loading_clients_->add_theme_font_size_override("normal_font_size", 16);
+		net_loading_clients_->add_theme_font_override("normal_font", bold);
 		net_loading_clients_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		net_loading_clients_->set_visible(false);
 		net_status_overlay_->add_child(net_loading_clients_);
@@ -733,6 +746,7 @@ void RtsoMain::_ready() {
 		exit->set_offset(SIDE_RIGHT, 84);
 		exit->set_offset(SIDE_TOP, 128);
 		exit->set_offset(SIDE_BOTTOM, 160);
+		exit->set_theme(rtso::session_skin()); // StoneButton
 		exit->connect("pressed", Callable(this, "_on_disconnected_exit_pressed"));
 		net_status_overlay_->add_child(exit);
 		net_status_exit_ = exit;
@@ -746,6 +760,7 @@ void RtsoMain::_ready() {
 		faq->set_offset(SIDE_TOP, 128);
 		faq->set_offset(SIDE_BOTTOM, 160);
 		faq->set_visible(false);
+		faq->set_theme(rtso::session_skin());
 		faq->connect("pressed", Callable(this, "_on_open_faq_pressed"));
 		net_status_overlay_->add_child(faq);
 		net_status_faq_ = faq;
@@ -1260,7 +1275,8 @@ void RtsoMain::_process(double delta) {
 			else if (left <= 0.0f && left > -5.0f) line = rtso::tr0("You can attack now!");
 			if (!line.is_empty()) txt += (txt.is_empty() ? "" : "\n") + line;
 		}
-		if (!txt.is_empty()) txt = "[center][b]" + txt + "[/b][/center]";
+		// Each line ends in "\n" (TimeNotificationOverlay.js), so the last sits a line up.
+		if (!txt.is_empty()) txt = "[center][b]" + txt + "\n[/b][/center]";
 		if (time_notification_label_->get_text() != txt) time_notification_label_->set_text(txt);
 	}
 	if (sim && chat_window_.is_ready()) {
