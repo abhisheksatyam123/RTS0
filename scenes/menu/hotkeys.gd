@@ -9,6 +9,7 @@ const SPEC_DIR := "res://data/hotkeys/spec/"
 const DEFAULT_CATEGORY := "other"
 const HOLD_TO_REGISTER := 2.0 # HotkeyPicker: hold a combination 2 s to register it
 const SLOTS := 4
+const MODERN := preload("res://scenes/common/modern_theme.gd")
 
 ## Opened over a match from the session menu (MenuButtons Hotkeys,
 ## Engine.OpenChildPage): Close returns to the game instead of the options page.
@@ -138,11 +139,18 @@ static func _edge_title(dialog: Control, text: String) -> Label:
 	title.offset_right = 128
 	title.offset_top = -16
 	title.offset_bottom = 16
-	title.add_theme_font_size_override("font_size", 18)
-	title.add_theme_color_override("font_outline_color", Color.BLACK)
-	title.add_theme_constant_override("outline_size", 4)
+	_label_text(title) # ModernLabelText
 	anchor.add_child(title)
 	return title
+
+## ModernLabelText: white sans-bold-stroke-14.
+static func _label_text(l: Control) -> Control:
+	l.add_theme_font_override("font", MODERN.bold_font())
+	l.add_theme_font_size_override("font_size", 14)
+	l.add_theme_color_override("font_color", Color.WHITE)
+	l.add_theme_color_override("font_outline_color", Color.BLACK)
+	l.add_theme_constant_override("outline_size", 3)
+	return l
 
 ## formatHotkeyCombinations: the names 0.28 shows (KeyName.cpp), shortest first.
 func _format(combos) -> String:
@@ -155,7 +163,7 @@ func _format(combos) -> String:
 ## hotkeys.xml: a 700×688 ModernDialog over a translucent background, with
 ## "Category:" and "Filter:" above the Name / Mapping list.
 func _build_ui() -> void:
-	theme = preload("res://scenes/common/modern_theme.gd").theme()
+	theme = MODERN.theme()
 	var bg := ColorRect.new()
 	bg.color = Color(0, 0, 0, 0.5) # BackgroundTranslucent
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -165,15 +173,19 @@ func _build_ui() -> void:
 	add_child(center)
 	dialog = PanelContainer.new()
 	dialog.name = "HotkeysDialog"
+	dialog.theme_type_variation = "ModernDialogContainer"
 	center.add_child(dialog)
 	_fit_dialog()
 	get_viewport().size_changed.connect(_fit_dialog)
+	# The controls 32 px in from the sides and the top, the buttons 24 px up from the
+	# bottom, inside ModernDialog's 12 px content margin.
 	var margin := MarginContainer.new()
-	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 24)
+	for side in ["left", "right", "top"]:
+		margin.add_theme_constant_override("margin_" + side, 20)
+	margin.add_theme_constant_override("margin_bottom", 12)
 	dialog.add_child(margin)
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 8)
+	vb.add_theme_constant_override("separation", 12) # the list starts at 70, under 32..58
 	margin.add_child(vb)
 	_edge_title(dialog, tr("Hotkeys"))
 
@@ -181,6 +193,9 @@ func _build_ui() -> void:
 	vb.add_child(top)
 	var cat_label := Label.new()
 	cat_label.text = tr("Category:")
+	cat_label.custom_minimum_size = Vector2(100, 26) # 32 32 132 58
+	_label_text(cat_label)
+	cat_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	top.add_child(cat_label)
 	filter_select = RtsoSafeSelect.new()
 	filter_select.custom_minimum_size = Vector2(218, 26)
@@ -191,6 +206,9 @@ func _build_ui() -> void:
 	top.add_child(gap)
 	var filter_label := Label.new()
 	filter_label.text = tr("Filter:")
+	filter_label.custom_minimum_size = Vector2(100, 26) # 100%-300 32 100%-200 58
+	_label_text(filter_label)
+	filter_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	top.add_child(filter_label)
 	text_filter = LineEdit.new()
 	text_filter.custom_minimum_size = Vector2(168, 26)
@@ -210,7 +228,11 @@ func _build_ui() -> void:
 	tree.item_activated.connect(_on_item_activated) # onMouseLeftDoubleClickItem
 	vb.add_child(tree)
 
+	var pad := Control.new() # the list ends at 100%-70, the buttons start at 100%-52
+	pad.custom_minimum_size = Vector2(0, 6)
+	vb.add_child(pad)
 	var bottom := HBoxContainer.new()
+	bottom.add_theme_constant_override("separation", 8)
 	vb.add_child(bottom)
 	var reset_btn := Button.new()
 	reset_btn.text = tr("Reset")
@@ -294,6 +316,7 @@ func _build_picker() -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	picker.add_child(center)
 	var panel := PanelContainer.new()
+	panel.theme_type_variation = "ModernDialogContainer"
 	panel.custom_minimum_size = Vector2(600, 410)
 	center.add_child(panel)
 	var margin := MarginContainer.new()
@@ -307,10 +330,12 @@ func _build_picker() -> void:
 	picker_desc = Label.new() # hotkeyPickerDescHotkey
 	picker_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	picker_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_label_text(picker_desc)
 	vb.add_child(picker_desc)
 	picker_hint = Label.new() # hotkeyPickerDesc
 	picker_hint.text = tr("Click on any mapping to modify it.\n You may have up to 4 different hotkeys.")
 	picker_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_label_text(picker_hint)
 	vb.add_child(picker_hint)
 	# HotkeyPicker.js: the slots at top = 120 + 60 * i, 30 px tall.
 	var slots := VBoxContainer.new()
@@ -322,9 +347,17 @@ func _build_picker() -> void:
 		var nb := Label.new()
 		nb.text = "#%d" % i
 		nb.custom_minimum_size = Vector2(22, 0)
+		_label_text(nb)
 		row.add_child(nb)
+		# combMapping: a read-only ModernInput under the button that catches the click.
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(320, 30)
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		for st in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
+			btn.add_theme_stylebox_override(st, MODERN._dark_box(MODERN.GOLD))
+		btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		for c in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
+			btn.add_theme_color_override(c, Color.WHITE)
 		btn.tooltip_text = tr("Click to set the hotkey")
 		btn.pressed.connect(func(): _start_entering(i))
 		row.add_child(btn)
@@ -345,12 +378,18 @@ func _build_picker() -> void:
 		conf.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		conf.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		conf.custom_minimum_size = Vector2(180, 0)
+		# conflicts: ModernLabelText.
+		conf.add_theme_font_override("normal_font", MODERN.bold_font())
+		conf.add_theme_font_size_override("normal_font_size", 14)
+		conf.add_theme_color_override("font_outline_color", Color.BLACK)
+		conf.add_theme_constant_override("outline_size", 3)
 		row.add_child(conf)
 		slot_conflicts.append(conf)
 	var fill := Control.new()
 	fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vb.add_child(fill)
 	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 8)
 	vb.add_child(buttons)
 	for spec in [["Reset", "Resets user settings to their game default", _on_picker_reset],
 			["", "", null],
