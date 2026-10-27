@@ -89,6 +89,7 @@ var chart_format: Array = ["INTEGER", "INTEGER"]
 
 var _window: Panel
 var _tab_buttons: Array = []
+var _dividers: Array = [] # tabDividerLeft, tabDividerRight
 var _general: Control
 var _charts_panel: Control
 var _chart_nodes: Array = []
@@ -467,25 +468,25 @@ func score_panels() -> Array:
 		units_h.append(H(u[0], u[1], 34, 90))
 	var res_h := [name, H("total", "Total", 34, 110)]
 	var res_c := [C(110, calc_total_resources, 12)]
-	var market_h := [name, H("tradeIncome", "Trade income", 16, 120),
-		H("barterEfficency", "Barter efficiency", 16, 120, {"format": "PERCENTAGE"})]
+	var market_h := [name, H("tradeIncome", "Trade income", 0, 120),
+		H("barterEfficency", "Barter efficiency", 0, 120, {"format": "PERCENTAGE"})]
 	var market_c := [C(120, calc_trade_income, 12), C(120, calc_barter_efficiency, 12)]
 	for r in RESOURCES:
 		res_h.append(H(r[0], r[1], 34, 110))
 		res_c.append(C(110, calc_resources, 12))
 		market_h.append(H(r[0], L10n.sprintf(L10n.t("%(resourceFirstWord)s exchanged"), {"resourceFirstWord": L10n.t(r[1])}), 16, 120))
 		market_c.append(C(120, calc_exchanged, 12))
-	res_h.append(H("tributes", "Tributes", 16, 110,
+	res_h.append(H("tributes", "Tributes", 0, 110,
 		{"header": L10n.sprintf(L10n.t("Tributes \n(%(sent)s / %(received)s)"), {"sent": colored_type("sent"), "received": colored_type("received")})}))
-	res_h.append(H("treasuresCollected", "Treasures collected", 16, 85))
-	res_h.append(H("loot", "Loot", 16, 85))
-	res_h.append(H("livestock", "Livestock bred", 16, 85))
+	res_h.append(H("treasuresCollected", "Treasures collected", 0, 85))
+	res_h.append(H("loot", "Loot", 0, 85))
+	res_h.append(H("livestock", "Livestock bred", 0, 85))
 	res_c.append_array([C(110, calc_tributes, 12), C(85, calc_treasures, 12), C(85, calc_loot, 12),
 		C(85, calc_livestock, 12)])
 	return [
-		{"label": "Score", "headings": [name, H("totalScore", "Total score", 16, 120),
-			H("economyScore", "Economy score", 16, 120), H("militaryScore", "Military score", 16, 120),
-			H("explorationScore", "Exploration score", 16, 120)],
+		{"label": "Score", "headings": [name, H("totalScore", "Total score", 0, 120),
+			H("economyScore", "Economy score", 0, 120), H("militaryScore", "Military score", 0, 120),
+			H("explorationScore", "Exploration score", 0, 120)],
 		"titles": [],
 		"counters": [C(120, calc_score_total, 12), C(120, calc_economy_score, 12),
 			C(120, calc_military_score, 12), C(120, calc_exploration_score, 12)],
@@ -508,14 +509,14 @@ func score_panels() -> Array:
 		"counters": res_c, "team_fn": calc_sum_team},
 		{"label": "Market", "headings": market_h, "titles": [], "counters": market_c, "team_fn": calc_market_team},
 		{"label": "Miscellaneous", "headings": [name,
-			H("killDeath", "Kill / Death ratio", 16, 110, {"format": "DECIMAL2"}),
-			H("population", "Population", 16, 110, {"hide": true}),
-			H("mapControlPeak", "Map control (peak)", 16, 110, {"format": "PERCENTAGE"}),
-			H("mapControl", "Map control (finish)", 16, 110, {"format": "PERCENTAGE"}),
-			H("mapExploration", "Map exploration", 16, 110, {"format": "PERCENTAGE"}),
-			H("vegetarianRatio", "Vegetarian ratio", 16, 110, {"format": "PERCENTAGE"}),
-			H("civilianization", "Civilianization", 16, 110, {"format": "PERCENTAGE"}),
-			H("bribes", "Bribes", 16, 110,
+			H("killDeath", "Kill / Death ratio", 0, 110, {"format": "DECIMAL2"}),
+			H("population", "Population", 0, 110, {"hide": true}),
+			H("mapControlPeak", "Map control (peak)", 0, 110, {"format": "PERCENTAGE"}),
+			H("mapControl", "Map control (finish)", 0, 110, {"format": "PERCENTAGE"}),
+			H("mapExploration", "Map exploration", 0, 110, {"format": "PERCENTAGE"}),
+			H("vegetarianRatio", "Vegetarian ratio", 0, 110, {"format": "PERCENTAGE"}),
+			H("civilianization", "Civilianization", 0, 110, {"format": "PERCENTAGE"}),
+			H("bribes", "Bribes", 0, 110,
 				{"header": L10n.sprintf(L10n.t("Bribes\n(%(succeeded)s / %(failed)s)"), {"succeeded": colored_type("succeeded"), "failed": colored_type("failed")})})],
 		"titles": [],
 		"counters": [C(110, calc_kill_death, 12), _hidden(C(110, calc_population, 12)), C(110, calc_map_peak, 12),
@@ -614,7 +615,7 @@ static var _dd_font: FontVariation
 static func _dropdown_font() -> FontVariation:
 	if _dd_font == null:
 		_dd_font = FontVariation.new()
-		_dd_font.base_font = load("res://assets/fonts/LinBiolinum_Rah.ttf")
+		_dd_font.base_font = load("res://assets/fonts/LinBiolinum_RBah.ttf") # sans-bold-14
 		_dd_font.spacing_top = -6
 		_dd_font.spacing_bottom = -5
 	return _dd_font
@@ -660,37 +661,34 @@ func _build() -> void:
 	_pickers.clear()
 	var dialog: bool = gui.get("dialog", false)
 	var fade := ColorRect.new() # ModernFade
-	fade.color = Color(0, 0, 0, 0.6 if dialog else (1.0 if get_parent() == get_tree().root else 0.85))
+	fade.color = Color(0, 0, 0, 85.0 / 255.0 if dialog else (1.0 if get_parent() == get_tree().root else 0.85)) # ModernFade
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fade)
 	_window = Panel.new() # summaryWindow: ModernDialog in game, else ModernWindow
 	_window.name = "SummaryWindow"
-	_window.theme = load("res://assets/themes/zeroad_theme.tres")
+	_window.theme = preload("res://scenes/common/modern_theme.gd").theme() # the modern skin
+	_window.theme_type_variation = "ModernDialog" # ModernDialog / ModernWindow: the tiled background
 	_window.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	if dialog:
 		_window.offset_left = 16
 		_window.offset_right = -16
 		_window.offset_top = 24
 		_window.offset_bottom = -24
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.1, 0.11, 0.14, 0.97)
-	style.border_color = GOLD
-	style.set_border_width_all(2)
-	_window.add_theme_stylebox_override("panel", style)
 	add_child(_window)
 	var title := _label(L10n.t("Summary")) # summaryWindowTitle: ModernLabelText
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	title.offset_left = -128
 	title.offset_right = 128
-	title.offset_top = 4
-	title.offset_bottom = 30
+	title.offset_top = 4 # "50%-128 4 50%+128 36", centred
+	title.offset_bottom = 36
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	if dialog:
 		# summary.js: in a dialog the title sits on the top edge, "50%-128 -16 50%+128 16".
 		title.offset_top = -16
 		title.offset_bottom = 16
 		var plate := StyleBoxFlat.new()
-		plate.bg_color = style.bg_color
+		plate.bg_color = Color8(12, 12, 12)
 		plate.border_color = GOLD
 		plate.set_border_width_all(2)
 		title.add_theme_stylebox_override("normal", plate)
@@ -711,6 +709,7 @@ func _build() -> void:
 		var bold := FontVariation.new()
 		bold.variation_embolden = 0.6
 		l.add_theme_font_override("font", bold)
+		l.add_theme_constant_override("outline_size", 0) # no stroke
 		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		l.name = t[2]
 		l.horizontal_alignment = t[1]
@@ -725,6 +724,15 @@ func _build() -> void:
 		b.text = labels[i]
 		b.toggle_mode = true
 		b.button_group = group
+		# ModernTabButtonHorizontal: the selected tab opens into the frame (no bottom edge),
+		# its label ModernLabelText.
+		b.theme_type_variation = "ModernTabButtonHorizontal"
+		for st in ["pressed", "hover_pressed"]:
+			var front: StyleBoxFlat = preload("res://scenes/common/modern_theme.gd")._tab_box(true)
+			front.border_width_bottom = 0
+			b.add_theme_stylebox_override(st, front)
+		b.add_theme_font_override("font", bold_font())
+		b.add_theme_font_size_override("font_size", 14)
 		b.tooltip_text = "\n".join([L10n.sprintf(L10n.t("Focus the %(name)s summary tab."), {"name": L10n.t(labels[i])}),
 			_colorize_hotkey(L10n.t("Scroll down or use %(hotkey)s to move a tab right."), "tab.next"),
 			_colorize_hotkey(L10n.t("Scroll up or use %(hotkey)s to move a tab left."), "tab.prev")])
@@ -738,12 +746,29 @@ func _build() -> void:
 	frame.offset_right = -20
 	frame.offset_top = 120 # generalPanel "20 120 100%-20 100%-54"
 	frame.offset_bottom = -54
-	var fs := StyleBoxFlat.new()
-	fs.bg_color = Color(0, 0, 0, 0.25)
-	fs.border_color = Color(0.5, 0.45, 0.3)
-	fs.set_border_width_all(1)
+	var fs := StyleBoxFlat.new() # ModernTabHorizontalFrame: gold left, right and bottom edges
+	fs.bg_color = Color8(255, 255, 255, 40)
+	fs.border_color = Color.GOLD
+	fs.border_width_left = 2
+	fs.border_width_right = 2
+	fs.border_width_bottom = 2
 	frame.add_theme_stylebox_override("panel", fs)
 	_window.add_child(frame)
+	# tabDividerLeft / tabDividerRight (ModernTabHorizontalSpacer) on the frame's top, either
+	# side of the selected tab (adjustTabDividers).
+	_dividers.clear()
+	for side in 2:
+		var line := ColorRect.new()
+		line.name = ["TabDividerLeft", "TabDividerRight"][side]
+		line.color = Color.GOLD
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		line.anchor_right = 0.0 if side == 0 else 1.0
+		line.offset_left = 20
+		line.offset_right = 20 if side == 0 else -20
+		line.offset_top = 120
+		line.offset_bottom = 122
+		_window.add_child(line)
+		_dividers.append(line)
 	var scroll := ScrollContainer.new()
 	scroll.name = "GeneralPanel"
 	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -757,6 +782,8 @@ func _build() -> void:
 	_build_charts()
 	# Buttons.
 	_continue_button = Button.new()
+	_continue_button.add_theme_font_override("font", bold_font()) # ModernButtonRed: sans-bold-stroke-14
+	_continue_button.add_theme_font_size_override("font_size", 14)
 	_continue_button.name = "ContinueButton"
 	_continue_button.text = "Continue"
 	_continue_button.pressed.connect(continue_pressed)
@@ -768,6 +795,8 @@ func _build() -> void:
 	_continue_button.offset_top = -48
 	_continue_button.offset_bottom = -20
 	_replay_button = Button.new()
+	_replay_button.add_theme_font_override("font", bold_font()) # ModernButtonRed: sans-bold-stroke-14
+	_replay_button.add_theme_font_size_override("font_size", 14)
 	_replay_button.name = "ReplayButton"
 	_replay_button.text = "Watch Replay"
 	_replay_button.pressed.connect(start_replay)
@@ -822,6 +851,10 @@ func select_panel(i: int) -> void:
 	selection["panel"] = panel_index
 	if panel_index < _tab_buttons.size():
 		_tab_buttons[panel_index].button_pressed = true
+		if _dividers.size() == 2:
+			var tab: Button = _tab_buttons[panel_index]
+			_dividers[0].offset_right = tab.position.x + 2
+			_dividers[1].offset_left = tab.position.x + tab.size.x - 2
 	var charts := panel_index >= panels.size()
 	_general.get_parent().visible = not charts
 	_charts_panel.visible = charts
@@ -849,7 +882,13 @@ func _update_panel(pd: Dictionary) -> void:
 		var r := _rich("[center][b]%s[/b][/center]" % cap if hi > 0 else "[b]%s[/b]" % cap)
 		r.name = "Heading%d" % hi
 		r.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART # long captions wrap in their column
-		_place(r, _general, Vector2(left, h["y"]), Vector2(h["w"], 40))
+		# layout.js: "(left-4) yStart (left+w+4) 69"; ModernLabelText centres, the player
+		# name heading (ModernLeftTopLabelText) keeps to the top.
+		var box := VBoxContainer.new()
+		box.alignment = BoxContainer.ALIGNMENT_BEGIN if hi == 0 else BoxContainer.ALIGNMENT_CENTER
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_place(box, _general, Vector2(left - 4, h["y"]), Vector2(h["w"] + 8, 69 - h["y"]))
+		box.add_child(r)
 		if h["w"] < LONG_HEADING:
 			left += h["w"]
 	left = 250
@@ -984,15 +1023,20 @@ func _build_charts() -> void:
 		part.add_child(axis)
 	_legend = _rich("")
 	_legend.name = "ChartLegend"
+	_legend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART # a long legend wraps
 	_legend.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	# chartLegend "15 100%-35 100%-15 100%-5", centred: it grows both ways about 100%-20.
 	_legend.offset_left = 15
 	_legend.offset_right = -15
-	_legend.offset_top = -32
-	_legend.offset_bottom = -6
+	_legend.offset_top = -20
+	_legend.offset_bottom = -20
+	_legend.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_charts_panel.add_child(_legend)
 	_team_toggle = CheckBox.new()
 	_team_toggle.name = "ToggleTeam"
-	_team_toggle.text = "Group by team"
+	_team_toggle.text = "Group by team" # ModernTickBox, the caption ModernLabelText
+	_team_toggle.add_theme_font_override("font", bold_font())
+	_team_toggle.add_theme_font_size_override("font_size", 14)
 	_team_toggle.button_pressed = bool(selection["teamCharts"]) and not teams.is_empty()
 	_team_toggle.toggled.connect(func(on: bool):
 		selection["teamCharts"] = on

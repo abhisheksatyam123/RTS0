@@ -749,6 +749,25 @@ The message box, the tutorial panel and the chat overlay checked against 0.28's 
 | MB8 | Clickable chat overlay lines took the plain session tooltip; chatLine uses sessionToolTipBottomBold | low | Fixed |
 | MB9 | The game speed dropdown was 48 px tall in Godot's fallback font; ModernDropDown is 25 px, so it takes the trimmed Linux Biolinum bold face | nit | Fixed |
 
+### Summary page skin, seventeenth 0.28 pass (2026-10-27)
+
+The summary page's skin and layout checked again against 0.28's gui/summary/, tab_buttons.js and the modern styles and sprites (main c4a92f0cf). Counters, value colours, team totals, chart bounds, captions and routing already matched. Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| SM1 | The tabs were stone buttons in cream Biolinum 15; ModernTabButtonHorizontal tabs (selected: white 40 fill with gold left, top and right edges; the rest 50 35 0 120 with a 1 px gold edge) with white bold 14 labels | medium | Fixed |
+| SM2 | The panel frame was a dark box with a brown border all round; ModernTabHorizontalFrame is white 40 with gold left, right and bottom edges, and tabDividerLeft/Right run up to either side of the selected tab (adjustTabDividers) | low | Fixed |
+| SM3 | Continue and Watch Replay were stone buttons; ModernButtonRed in sans-bold-stroke-14 | medium | Fixed |
+| SM4 | The window was a flat slate panel with a gold border; ModernDialog/ModernWindow draw the tiled modern background; the in-game fade was 0.6, ModernFade is 0 0 0 85 | low | Fixed |
+| SM5 | The full-page title sat in 4-30 top-aligned; summaryWindowTitle centres it in 4-36 | nit | Fixed |
+| SM6 | "Group by team" was Godot's default checkbox in grey regular text; ModernTickBox with a white bold 14 caption | low | Fixed |
+| SM7 | The three caption lines had a black stroke; sans-bold-18 has none | nit | Fixed |
+| SM8 | Heading boxes were top-aligned at y 16 or 34 and w wide; layout.js sizes them "(left-4) yStart (left+w+4) 69" and centres them, with yStart 0 for the score, market and miscellaneous columns | low | Fixed |
+| SM9 | The chart dropdowns used the regular face; ModernDropDown is sans-bold-14 | nit | Fixed |
+| SM10 | The chart legend never wrapped and spilled past the panel; chartLegend wraps, centred about 100%-20 | low | Fixed |
+| SM11 | The page's bold text is Godot's fallback face emboldened, not Linux Biolinum: Biolinum's taller line needs every fixed box rechecked first | low | Open |
+| SM12 | A small window scrolls the table; 0.28 clips it | nit | Open |
+
 ### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
 
 diplomacyManager.js, chatHelper.js and their callers were checked line by line. Everything else matches: update cadence, tribute rules, request handling and its odds, lastManStandingCheck, changePlayerDiplomacy, personality boosts, every chat string. Jebel Barkal was checked statically against the 0.28 source, since no 0.28 binary runs here (pass 8: wave sizing and target-class skip match). Pass 4's P2 is D8 below, and its P5 is D7.
