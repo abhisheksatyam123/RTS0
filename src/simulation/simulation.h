@@ -3794,6 +3794,7 @@ private:
 	struct PetraQueueHeads { uint8_t item[PETRA_Q_COUNT] = {}; float age[PETRA_Q_COUNT] = {}; };
 	PetraQueueHeads petra_queue_heads_;
 	bool petra_queue_head_turn(uint8_t queue, uint8_t btype);
+	bool petra_higher_structure_waiting(uint8_t queue);
 	// victoryManager.js guardEnts false: guards taken from another land than their critical entity,
 	// waiting for or riding a transport (navalManager.requireTransport); each guards it on landing.
 	struct PetraFerriedGuards { std::vector<std::pair<uint32_t, uint32_t>> ids; }; // (guard, critical entity), by guard
@@ -4119,6 +4120,7 @@ private:
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
 	mutable std::array<uint8_t, BLD_TYPE_COUNT> petra_limit_cache_{};
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone, bool pay = true); // pay false: only check
+	bool petra_queue_affords(uint8_t queue, float food, float wood, float gold, float stone);
 	// What a structure costs this AI (structure_cost: its civ's template and cost bonuses), and paying it.
 	void petra_structure_cost(uint8_t btype, float &food, float &wood, float &gold, float &stone) const;
 	bool petra_try_pay_structure(uint8_t queue, uint8_t btype);
