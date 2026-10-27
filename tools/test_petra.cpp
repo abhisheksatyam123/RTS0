@@ -5204,7 +5204,7 @@ static void test_decay_destroy() {
 
 // defenseManager.js isDangerous / defenseArmy.js needsDefenders: Support units in our
 // territory are no threat, and the defence is sized by strength (getMaxStrength), so
-// war elephants draw more defenders than the same number of spearmen would.
+// a war elephant draws more defenders than one spearman would.
 static void test_defense_by_strength() {
 	for (int phase = 0; phase < 2; ++phase) {
 		auto s = std::make_unique<Simulation>();
@@ -5219,18 +5219,21 @@ static void test_defense_by_strength() {
 		CHECK(cc != nullptr, "Petra has a civic centre");
 		if (!cc) return;
 		const float cx = cc->x, cz = cc->z;
-		for (int k = 0; k < 30; ++k) s->spawn_unit(cx - 10.0f + (float)(k % 6), cz - 10.0f - (float)(k / 6), 1, UNIT_SPEARMAN);
+		for (int k = 0; k < 60; ++k) s->spawn_unit(cx - 10.0f + (float)(k % 8), cz - 10.0f - (float)(k / 8), 1, UNIT_SPEARMAN);
+		// Melee siege garrisons no melee infantry (garrisonManager.js allowMelee), so every
+		// spearman is free to defend: the army stops at the elephant's strength x defenseRatio.
 		const UnitType foe = phase == 0 ? UNIT_FEMALE_CITIZEN : UNIT_ELEPHANT;
-		for (int k = 0; k < 2; ++k) s->spawn_unit(cx + 6.0f + (float)k, cz + 6.0f, 0, foe);
+		const int foes = phase == 0 ? 2 : 1;
+		for (int k = 0; k < foes; ++k) s->spawn_unit(cx + 6.0f + (float)k, cz + 6.0f, 0, foe);
 		run_ai_turns(*s, 3); // checkEnemyUnits looks in our land one turn in (players + 1)
 		const size_t n = all_defenders(*s).size();
-		const size_t by_count = (size_t)std::ceil(2.0f * s->petra_config_.defense_ratio_own);
+		const size_t by_count = (size_t)std::ceil((float)foes * s->petra_config_.defense_ratio_own);
 		if (phase == 0) {
 			std::printf("  defense: 2 enemy women by the civic centre draw %zu defenders\n", n);
 			CHECK(n == 0, "Support units are not dangerous (isDangerous)");
 		} else {
-			std::printf("  defense: 2 war elephants draw %zu defenders (%zu by head count)\n", n, by_count);
-			CHECK(n > by_count && n < 30, "defenders sized by strength (needsDefenders)");
+			std::printf("  defense: a war elephant draws %zu defenders (%zu by head count)\n", n, by_count);
+			CHECK(n > by_count && n < 60, "defenders sized by strength (needsDefenders)");
 		}
 	}
 }
