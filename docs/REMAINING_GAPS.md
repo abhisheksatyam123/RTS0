@@ -523,12 +523,12 @@ garrisonManager.js, worker.js, queueManager.js and the queue plans, and the econ
 
 | # | Difference from 0.28 | Impact | Status |
 |---|---|---|---|
-| PC1 | (Q8) The wanted gather rates count only each queue's first plan over 30 s; 0.28 also counts the second plan over 60 s and a house not yet needed over 300 s | low | Open |
+| PC1 | (Q8) The wanted gather rates count only each queue's first plan over 30 s; 0.28 also counts the second plan over 60 s and a house not yet needed over 300 s | low | Fixed: the worker queues' second TrainingPlan and a second house plan count over 60 s, a house plan waiting on houseNeeded over 300 s, the stock paying short, medium then long (queueManager.js wantedGatherRates). Found with it: a trained batch with no free spot stopped its timer at the training time, so RTS0's blocked-spawn rescue (idle units step aside after 10 s) never ran and the queue behind it, the City phase once, held for good; the timer now runs on (test_petra test_blocked_spawn_timer) |
 | PC2 | (H8) Livestock breeding paid straight from the stock, skipping the corral queue (priority 1) | low | Fixed: the corral queue's account pays it, its want kept until funded |
 | PC3 | (H9) A corral laid because fields can't be built never set needCorral, so it never bred once fields fit again; the second-corral test counted the field's no-room mark | low | Fixed |
 | PC4 | (W6) A stone or metal gatherer sent to a far mine kept that mine for good; 0.28 drops its supply mark on each trip back while its base has a nearer mine | low | Fixed |
 | PC5 | (W7) Every idle worker carrying anything went to a dropsite first; 0.28 sends a gatherer carrying its own gather-type straight back to gathering | low | Fixed |
-| PC6 | (W8) Workers waiting at the beach for a ship stay in the crossing when the foundation they were going to build is gone, or the far land has no dropsite for their resource | low | Open |
+| PC6 | (W8) Workers waiting at the beach for a ship stay in the crossing when the foundation they were going to build is gone, or the far land has no dropsite for their resource | low | Fixed: while boarding, a builders' crossing drops those not aboard once that land has no foundation of ours, and a workers' crossing those whose resource (what they carry, else food) nothing of ours there takes, structures and foundations or a supply wagon (worker.js:44-87; test_naval test_petra_crossing_reason_gone) |
 | PC7 | (GM1) A decaying structure keeps every unit of ours that can capture; 0.28 keeps only the number needed, and lets protection garrisons leave once the enemy goes | low | Open |
 | PC8 | (GM2) Regicide: the hero is judged by the emergency rules in any building; 0.28 uses the protection rules in one that heals | low | Open |
 | PC9 | (W9) A builder that finished a house can go on to build a field foundation; 0.28 takes it off the field and reassigns it | nit | Open |
