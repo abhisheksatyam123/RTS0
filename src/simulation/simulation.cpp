@@ -23009,8 +23009,11 @@ void Simulation::petra_manage_economy(float dt) {
 			if (soldier && (in_plan.count(units_.id[i]) || units_.id[i] == petra_scout_unit_id_)) continue;
 			// worker.js returnResources: an idle worker still carrying something takes it to the
 			// nearest dropsite on its own land first (an explicit ReturnResource order; UnitAI does
-			// not drop off by itself), and is reassigned once empty.
-			if (units_.carry[i] > 0) {
+			// not drop off by itself), and is reassigned once empty. A gatherer (one we sent to a
+			// supply) carrying its own gather-type, the type it gathered last, goes straight back
+			// to gathering with its load (worker.js:220-227).
+			const bool same_type = petra_supply_of(units_.id[i]) != 0 && units_.res_type_carried[i] < RES_COUNT;
+			if (units_.carry[i] > 0 && !same_type) {
 				// getLandAccess as for garrisons (petra_same_land): a worker on a blocked cell has
 				// no nav region, which matched any structure without one, docks across the sea too.
 				uint32_t best = 0;
@@ -23215,6 +23218,16 @@ void Simulation::petra_manage_economy(float dt) {
 		if (petra_supply_of(units_.id[i]) == rid) continue;
 		recheck.push_back(i);
 	}
+	// worker.js:293-314 (GATHER.RETURNINGRESOURCE): a stone or metal gatherer taking its load back drops its supply mark
+	// when the supply isn't in its base's nearby list while that list has some, or in neither
+	// nearby nor medium while medium has some, so the recheck above sends it to the nearer
+	// supply once it gathers again.
+	std::vector<size_t> sparse_returning;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_RETURN_DROPSITE) continue;
+		if (units_.res_type_carried[i] != RES_STONE && units_.res_type_carried[i] != RES_GOLD) continue;
+		if (petra_supply_of(units_.id[i]) != 0) sparse_returning.push_back(i);
+	}
 
 	struct Candidate { uint32_t id; float x, z; uint8_t type; int slots, users; uint16_t land; int32_t amount; int base; };
 	std::vector<Candidate> candidates;
@@ -23222,7 +23235,7 @@ void Simulation::petra_manage_economy(float dt) {
 	struct BaseSupplies { std::vector<Listed> nearby[RES_COUNT], medium[RES_COUNT], faraway[RES_COUNT]; };
 	std::vector<BaseSupplies> supplies;
 	PetraBasesMap bmap;
-	if (!reassignable_workers.empty() || !recheck.empty()) {
+	if (!reassignable_workers.empty() || !recheck.empty() || !sparse_returning.empty()) {
 		petra_bases_map(bmap);
 		supplies.resize(bmap.anchors.size() + 1);
 		std::unordered_map<uint32_t, int> field_users, supply_users;
@@ -23339,6 +23352,23 @@ void Simulation::petra_manage_economy(float dt) {
 			cmd_stop(&uid, 1);
 			reassignable_workers.push_back(i);
 			gather_type.push_back(type); // its gather-type stays
+		}
+	}
+	if (!sparse_returning.empty()) {
+		std::unordered_map<uint32_t, uint32_t> cand_of;
+		for (uint32_t c = 0; c < (uint32_t)candidates.size(); ++c) cand_of.emplace(candidates[c].id, c);
+		for (size_t i : sparse_returning) {
+			const int base = worker_base(units_.pos_x[i], units_.pos_z[i], petra_access_at(units_.pos_x[i], units_.pos_z[i]));
+			if (base > 0 && !petra_base_turn(bmap.anchors[base - 1].id)) continue;
+			const uint8_t type = units_.res_type_carried[i];
+			auto cit = cand_of.find(petra_supply_of(units_.id[i]));
+			auto listed = [&](const std::vector<Listed> &v) {
+				return cit != cand_of.end() && std::any_of(v.begin(), v.end(), [&](const Listed &l) { return l.c == cit->second; });
+			};
+			const BaseSupplies &bs = supplies[base];
+			if (listed(bs.nearby[type])) continue;
+			if (!bs.nearby[type].empty() || (!bs.medium[type].empty() && !listed(bs.medium[type])))
+				petra_set_supply(units_.id[i], 0);
 		}
 	}
 
@@ -24351,15 +24381,23 @@ void Simulation::petra_manage_fields() {
 	}
 	if (corrals == 0) {
 		if (!can_build(BLD_CORRAL)) return;
+		const bool no_fields = !can_build(BLD_FIELD);
 		for (const BaseFood &bf : bases) {
 			if (!bf.by || !(bf.count < 900.0f || save_space || petra_kept_.need_corral)) continue;
 			const float at[2] = {bf.by_x, bf.by_z};
-			if (petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL, nullptr, at)) break;
+			if (petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL, nullptr, at)) {
+				// baseManager.js:475-483: a corral laid because fields can't be built sets needCorral for good.
+				if (no_fields && bf.count < 900.0f) petra_kept_.need_corral = true;
+				break;
+			}
 		}
 		return;
 	}
 	if (!petra_turn_mod(4, 3) || !petra_has_active_base()) return; // manageCorral, every fourth played turn with an active base (headquarters.js:2292)
-	if (!can_build(BLD_FIELD) && corrals < (int)petra_ps().phase && pop_current(petra_pid_) > 30 * corrals && anchor &&
+	// isTemplateAvailable(field): its civ, phase and triggers, not the no-room mark.
+	const bool field_available = civ_can_build(civ, BLD_FIELD) && building_required_phase(BLD_FIELD, civ) <= petra_ps().phase &&
+	                             !triggers_.building_disabled(petra_pid_, BLD_FIELD);
+	if (!field_available && corrals < (int)petra_ps().phase && pop_current(petra_pid_) > 30 * corrals && anchor &&
 	    can_build(BLD_CORRAL)) {
 		if (petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL, nullptr, anchor_at)) return;
 	}
@@ -24373,7 +24411,15 @@ void Simulation::petra_manage_fields() {
 			for (const ProductionOrder &o : b.queue)
 				if (o.unit_type == UNIT_TYPE_NONE && !o.is_tech() && o.tmpl == ct.fauna[k]) have += o.count;
 			if (have > corrals) continue;
-			if (!cmd_breed_livestock(petra_pid_, b.id, ct.fauna[k], 1)) continue; // not in this phase yet
+			const uint8_t animal = corral_animal_for(civ_of(b.team), ct.fauna[k]);
+			if (petra_ps().phase < livestock_required_phase(animal)) continue; // not in this phase yet
+			// The TrainingPlan waits in queues.corral (priority 1) and is paid from that queue's
+			// account, not from what the other queues have saved (queueManager.js startNextItems).
+			const FaunaTrainCost &c = fauna_train_cost(animal);
+			if (!petra_try_pay(PETRA_Q_CORRAL, c.res[0], c.res[1], c.res[3], c.res[2], false)) return; // the want is kept
+			if (!cmd_breed_livestock(petra_pid_, b.id, ct.fauna[k], 1)) continue;
+			petra_ps().refund(c.res[0], c.res[1], c.res[3], c.res[2]); // the queue pays it instead
+			petra_try_pay(PETRA_Q_CORRAL, c.res[0], c.res[1], c.res[3], c.res[2]);
 			return;
 		}
 	}

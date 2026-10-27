@@ -460,6 +460,23 @@ BuildingAI.js, GarrisonHolder/TurretHolder, Capturable and TerritoryDecay agains
 | DS6 | An enemy whose only civic centre, tower or fortress is a foundation let Petra fall back to neutral or allied structures; in 0.28 the foundation blocks the fallback | nit | Fixed |
 | DS7 | Focus fire refuses enemy players' livestock; BuildingAI.js:275-285 accepts any enemy entity in range (RTS0's automatic arrows already shoot them) | nit | Open (focus fire) |
 
+### Petra garrisons, workers, queues and HQ economy, sixth area C pass (2026-10-27)
+
+garrisonManager.js, worker.js, queueManager.js and the queue plans, and the economy parts of headquarters.js, against RTS0's Petra (`docs/archive/petra-audit-028-pass6.md`, its IDs in brackets). Owner: C.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| PC1 | (Q8) The wanted gather rates count only each queue's first plan over 30 s; 0.28 also counts the second plan over 60 s and a house not yet needed over 300 s | low | Open |
+| PC2 | (H8) Livestock breeding paid straight from the stock, skipping the corral queue (priority 1) | low | Fixed: the corral queue's account pays it, its want kept until funded |
+| PC3 | (H9) A corral laid because fields can't be built never set needCorral, so it never bred once fields fit again; the second-corral test counted the field's no-room mark | low | Fixed |
+| PC4 | (W6) A stone or metal gatherer sent to a far mine kept that mine for good; 0.28 drops its supply mark on each trip back while its base has a nearer mine | low | Fixed |
+| PC5 | (W7) Every idle worker carrying anything went to a dropsite first; 0.28 sends a gatherer carrying its own gather-type straight back to gathering | low | Fixed |
+| PC6 | (W8) Workers waiting at the beach for a ship stay in the crossing when the foundation they were going to build is gone, or the far land has no dropsite for their resource | low | Open |
+| PC7 | (GM1) A decaying structure keeps every unit of ours that can capture; 0.28 keeps only the number needed, and lets protection garrisons leave once the enemy goes | low | Open |
+| PC8 | (GM2) Regicide: the hero is judged by the emergency rules in any building; 0.28 uses the protection rules in one that heals | low | Open |
+| PC9 | (W9) A builder that finished a house can go on to build a field foundation; 0.28 takes it off the field and reassigns it | nit | Open |
+| PC10 | (Q9) The one structure Petra may start each turn goes to whichever code runs first, not the highest-priority queue | nit | Open |
+
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 
 BuildingAI.js, Attack.js and DelayedDamage.js against the arrow code, measured in the simulation and against a Python port of FireArrows: arrow counts with garrisons, auras and technologies (civic centre 6-26, tower 4-9, fortress 10-30), the 20 rounds per RepeatTime and their rounding, the first volley PrepareTime after a target enters, the paused round when targets leave, target order (preference, then distance, every arrow of a round on the first), what is shot (enemies, structures with Health, livestock, Gaia that can fight back), visibility, MinRange from the footprint, foundations, ownership changes, spread and stray hits all match. Owner: E.
