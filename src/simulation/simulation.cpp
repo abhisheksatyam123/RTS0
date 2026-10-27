@@ -15981,11 +15981,17 @@ void Simulation::tick_production(float dt) {
 				if (bteam < MAX_PLAYERS && done.tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(done.tmpl).flags & ROSTER_HERO))
 					match_trained_[bteam].push_back(done.tmpl);
 				// attackPlan.js trainMoreUnits: the soldiers Petra trained for an attack or a raid are
-				// its army; trainMoreWorkers' and the emergency ones are workers.
-				if (bteam < MAX_PLAYERS && (done.petra_plan == PETRA_ORDER_ATTACK || done.petra_plan == PETRA_ORDER_RAID) && petra_runs_for(bteam) &&
-				    unit_gather_class(done.unit_type, done.tmpl) == GATHER_INFANTRY) {
-					auto &army = petra_army_ids_[bteam];
-					army.insert(std::upper_bound(army.begin(), army.end(), uid), uid);
+				// its army (citizen cavalry too, not left to hunt); trainMoreWorkers' and the
+				// emergency ones are workers. Each carries its plan's name: it joins that plan
+				// while it is still preparing, else (the plan started, failed or was replaced) it
+				// is out of any plan for the next one to take (headquarters.js:237-245).
+				if (bteam < MAX_PLAYERS && (done.petra_plan == PETRA_ORDER_ATTACK || done.petra_plan == PETRA_ORDER_RAID) && petra_runs_for(bteam)) {
+					const uint8_t g = unit_gather_class(done.unit_type, done.tmpl);
+					if (g == GATHER_INFANTRY || g == GATHER_CAVALRY) {
+						auto &army = petra_army_ids_[bteam];
+						army.insert(std::upper_bound(army.begin(), army.end(), uid), uid);
+					}
+					if (done.petra_stat != 0xFF) petra_join_trained_plan(bteam, done.petra_plan, done.petra_name, uid);
 				}
 				if (bteam < MAX_PLAYERS && done.petra_plan == PETRA_ORDER_EMERGENCY) {
 					auto &out = petra_out_of_plan_[bteam];
@@ -22684,6 +22690,7 @@ void Simulation::petra_manage_military_production(float dt) {
 	bool asked[PETRA_Q_COUNT] = {};
 	auto train_for = [&](const AttackPlan &plan, uint8_t kind) {
 		const uint8_t order_plan = &plan == &petra_raid_plan_ ? PETRA_ORDER_RAID : PETRA_ORDER_ATTACK;
+		const uint8_t plan_name = order_plan == PETRA_ORDER_RAID ? petra_attack_mgr_.raid_name : petra_attack_mgr_.attack_name;
 		const bool main_plan = &plan == &petra_attack_plan_;
 		std::vector<UnitStat> stats = petra_plan_unit_stats(kind, main_plan ? petra_attack_mgr_.dropped_classes : 0);
 
@@ -22699,10 +22706,17 @@ void Simulation::petra_manage_military_production(float dt) {
 			const int32_t i = lookup_unit(uid);
 			if (i >= 0 && units_.alive[i]) tally(classes_of(units_.tmpl[i], units_.unit_type[i]), 1);
 		}
+		// A queued batch counts in the class it was ordered for (its "special" metadata), one
+		// queued before saves kept it in every class it matches.
 		for (const auto &b : buildings_) {
 			if (b.team != petra_pid_) continue;
-			for (const auto &o : b.queue)
-				if (o.petra_plan == order_plan) tally(classes_of(o.tmpl, o.unit_type), o.count);
+			for (const auto &o : b.queue) {
+				if (o.petra_plan != order_plan) continue;
+				if (o.petra_stat == 0xFF) { tally(classes_of(o.tmpl, o.unit_type), o.count); continue; }
+				if (o.petra_name != plan_name) continue; // queued for an earlier plan
+				for (UnitStat &st : stats)
+					if (st.index == o.petra_stat) st.count += o.count;
+			}
 		}
 		// The class furthest behind its target size, less its priority, trains first.
 		std::stable_sort(stats.begin(), stats.end(), [](const UnitStat &a, const UnitStat &b) {
@@ -22732,7 +22746,7 @@ void Simulation::petra_manage_military_production(float dt) {
 			bool leaves = true;
 			for (int r = 0; r < RES_COUNT; ++r)
 				if (cost[r] > 0.0f && petra_ps().res[r] - std::floor(cost[r] * (float)batch) < reserve[r]) leaves = false;
-			if (leaves && petra_train_template(queue, trainer_for(tmpl), tmpl, batch, false, order_plan)) return;
+			if (leaves && petra_train_template(queue, trainer_for(tmpl), tmpl, batch, false, order_plan, plan_name, st.index)) return;
 			// queue.js maxAccountWanted: the batch the plan's queue waits on, plus 60% of the next
 			// one while the class still wants more (queueManager keeps the batch's price from the
 			// lower queues).
@@ -22798,7 +22812,8 @@ uint32_t Simulation::petra_best_trainer(uint16_t tmpl, uint8_t unit_type, size_t
 	return best;
 }
 
-bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count, bool wait_for_pop, uint8_t plan) {
+bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count, bool wait_for_pop, uint8_t plan,
+                                      uint8_t plan_name, uint8_t plan_stat) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end() || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
 	Building &b = buildings_[bit->second];
@@ -22819,11 +22834,31 @@ bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint1
 	order.count = (uint8_t)count;
 	order.timer = 0.0f;
 	order.petra_plan = plan;
+	order.petra_name = plan_name;
+	order.petra_stat = plan_stat;
 	for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = cost[r];
 	order.duration = unit_train_seconds(pid, tmpl) * batch_time_multiplier(pid, b.type, count, b.civ);
 	b.queue.push_back(order);
 	if (record_ai_commands_ && petra_in_turn_) note_ai_command(AiCommandEvent::TRAIN, &b.id, 1, 0, 0.0f, 0.0f);
 	return true;
+}
+
+// A unit trained for plan `name` (its "plan" metadata) joins it while it prepares; any other
+// goes out of plan. Outside its AI turn a player's Petra state other than PETRA_PLAYER's
+// waits in its slot.
+void Simulation::petra_join_trained_plan(uint8_t pid, uint8_t order_plan, uint8_t name, uint32_t uid) {
+	const bool parked = pid != petra_pid_;
+	if (parked && pid >= petra_slots_.size()) return;
+	PetraAttackManager &mgr = parked ? petra_slots_[pid].petra_attack_mgr_ : petra_attack_mgr_;
+	const bool raid = order_plan == PETRA_ORDER_RAID;
+	AttackPlan &plan = raid ? (parked ? petra_slots_[pid].petra_raid_plan_ : petra_raid_plan_)
+	                        : (parked ? petra_slots_[pid].petra_attack_plan_ : petra_attack_plan_);
+	if (plan.state == AttackPlan::MUSTER && name == (raid ? mgr.raid_name : mgr.attack_name)) {
+		if (std::find(plan.squad.begin(), plan.squad.end(), uid) == plan.squad.end()) plan.squad.push_back(uid);
+		return;
+	}
+	auto &out = petra_out_of_plan_[pid];
+	out.insert(std::upper_bound(out.begin(), out.end(), uid), uid);
 }
 
 // headquarters.js trainEmergencyUnits: ranged or melee citizen infantry, at the highest
@@ -27207,23 +27242,14 @@ void Simulation::petra_manage_buildings(float dt) {
 			}
 			const int needed_at = saving || pop <= 30 ? 10 : pop > 55 ? 21 : 15;
 			if (plans > 0 && free_slots <= needed_at) {
-				// A queued house plan starts whatever the no-room mark says (canStart doesn't read
-				// it, and buildMoreHouses queues the house without canBuild); only the apartment is
-				// held back by it. A start that finds no room uses the plan up (and its account).
-				const bool apartment_held = house == BLD_APARTMENT && petra_no_room(BLD_APARTMENT);
-				uint32_t bid = 0;
-				bool searched = false;
-				if (!apartment_held) {
-					bid = petra_place_generic(house, PETRA_Q_HOUSE, nullptr, nullptr, false, house == BLD_HOUSE);
-					searched = !bid && petra_place_no_room_;
-					if (searched) --plans;
+				// isGo (houseNeeded): a house plan waits while neither the house nor the apartment
+				// may be built (canBuild: the 90 s no-room mark). canBuild(apartment) failing makes
+				// it a house. A start that finds no room uses the plan up (and its account).
+				const bool apartment_ok = house == BLD_APARTMENT && !petra_no_room(BLD_APARTMENT);
+				if (apartment_ok || !petra_no_room(BLD_HOUSE)) {
+					const uint8_t t = apartment_ok ? BLD_APARTMENT : BLD_HOUSE;
+					if (petra_place_generic(t, PETRA_Q_HOUSE, nullptr, nullptr, false, true) || petra_place_no_room_) --plans;
 				}
-				// canBuild(apartment) fails while there is no room for one: a house instead.
-				if (!bid && house == BLD_APARTMENT && (apartment_held || searched) && plans > 0) {
-					bid = petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE, nullptr, nullptr, false, true);
-					if (!bid && petra_place_no_room_) --plans;
-				}
-				if (bid) --plans;
 			}
 			if (houses_turn && accounted_free < 5 && house_no_room) petra_research_population_bonus();
 		}
@@ -27236,8 +27262,9 @@ void Simulation::petra_manage_buildings(float dt) {
 	// (foundations count). Every 3rd played turn (headquarters.js:2324).
 	if (petra_turn_mod(3)) {
 		const uint8_t civ = petra_ps().civ;
-		const bool can_barracks = civ_can_build(civ, BLD_BARRACKS), can_range = civ_can_build(civ, BLD_RANGE),
-		           can_stable = civ_can_build(civ, BLD_STABLE);
+		// canBuild: the civ builds it and no search found it no room in the last 90 s.
+		auto can_build = [&](uint8_t t) { return civ_can_build(civ, t) && !petra_no_room(t); };
+		const bool can_barracks = can_build(BLD_BARRACKS), can_range = can_build(BLD_RANGE), can_stable = can_build(BLD_STABLE);
 		int n_barracks = 0, n_ranges = 0, n_stables = 0, n_village = 0;
 		for (const auto &b : buildings_) {
 			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
@@ -27329,7 +27356,7 @@ void Simulation::petra_build_advanced() {
 		return false;
 	};
 	for (uint8_t t : {BLD_ELEPHANT_STABLE, BLD_ARSENAL}) {
-		if (civ_can_build(civ, t) && trains_at(t) && count(t) == 0) {
+		if (civ_can_build(civ, t) && !petra_no_room(t) && trains_at(t) && count(t) == 0) {
 			build(t);
 			return;
 		}
@@ -27345,7 +27372,7 @@ void Simulation::petra_build_advanced() {
 	for (uint8_t t : advanced) n += count(t);
 	if (n && !(n < (int)advanced.size() && pop > 110)) return;
 	for (uint8_t t : advanced) {
-		if (count(t) > 0 || !petra_limit_allows_building(t)) continue;
+		if (count(t) > 0 || !petra_limit_allows_building(t) || petra_no_room(t)) continue;
 		// Petra seeks sites in its own territory only, where Rome's army camp (neutral or
 		// enemy land) is refused, so it goes on to the next structure.
 		if (!(build_restriction(t, civ_of(petra_pid_)).territory & TERR_OWN)) continue;
@@ -28626,10 +28653,15 @@ void Simulation::petra_manage_research(float dt) {
 		} else {
 			// The first of market, temple and forge we lack and can build (checkPhaseRequirements
 			// "Town"); nothing when none is missing.
+			// canBuild skips one with no room in the last 90 s. A plan is added only while the
+			// economic and military queues hold none (other than the one it already queued).
 			uint8_t t = BLD_TYPE_COUNT;
 			for (uint8_t k : kTown)
-				if (!(k == BLD_TEMPLE ? petra_has_temple_class() : have_building(k)) && civ_can_build(petra_ps().civ, k)) { t = k; break; }
+				if (!(k == BLD_TEMPLE ? petra_has_temple_class() : have_building(k)) && civ_can_build(petra_ps().civ, k) &&
+				    !petra_no_room(k)) { t = k; break; }
 			if (t == BLD_TYPE_COUNT) return;
+			for (uint8_t q : {PETRA_Q_ECONOMIC_BUILDING, PETRA_Q_MILITARY_BUILDING})
+				if (petra_queue_holds_other(q, t)) return;
 			const uint8_t q = phase_up(t == BLD_FORGE ? PETRA_Q_MILITARY_BUILDING : PETRA_Q_ECONOMIC_BUILDING);
 			if (t == BLD_MARKET) petra_build_market(home->x, home->z, q);
 			else petra_place_generic(t, q);
@@ -28656,8 +28688,7 @@ void Simulation::petra_manage_research(float dt) {
 		if (!have_building(BLD_MARKET)) {
 			// buildMarket: at three times economicBuilding's priority until started; once
 			// queued, what is available and then the other queues' accounts pay for it.
-			const PetraQueueAccount &w = petra_queues_.wants[PETRA_Q_ECONOMIC_BUILDING];
-			if (w.food + w.wood + w.gold + w.stone > 0.0f) {
+			if (petra_queue_holds(PETRA_Q_ECONOMIC_BUILDING, BLD_MARKET)) { // hasQueuedUnitsWithClass("Market")
 				if (!petra_queues_.paused[PETRA_Q_ECONOMIC_BUILDING]) {
 					const BuildingTypeInfo &mi = building_type_info(BLD_MARKET);
 					float cost[RES_COUNT] = {};
@@ -31709,6 +31740,18 @@ void Simulation::petra_structure_cost(uint8_t btype, float &food, float &wood, f
 
 // queueManager.js startNextItems starts a queue's first plan only: a structure behind another
 // one in its queue waits. The head is the first to ask while none waits.
+// Whether `queue`'s head is a plan for `btype` that is still asking.
+bool Simulation::petra_queue_holds(uint8_t queue, uint8_t btype) const {
+	const PetraQueueHeads &h = petra_queue_heads_;
+	return queue < PETRA_Q_COUNT && h.item[queue] == btype + 1 && h.age[queue] <= PetraQueueManager::want_ttl(queue);
+}
+
+// Whether `queue` holds a structure plan still asking, other than one for `btype`.
+bool Simulation::petra_queue_holds_other(uint8_t queue, uint8_t btype) const {
+	const PetraQueueHeads &h = petra_queue_heads_;
+	return queue < PETRA_Q_COUNT && h.item[queue] && h.item[queue] != btype + 1 && h.age[queue] <= PetraQueueManager::want_ttl(queue);
+}
+
 bool Simulation::petra_queue_head_turn(uint8_t queue, uint8_t btype) {
 	if (queue >= PETRA_Q_COUNT) return true;
 	PetraQueueHeads &h = petra_queue_heads_;
@@ -35701,7 +35744,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state); v71 StatisticsTracker's unitsCaptured counters and value; v72 map scripts' OnRange queries and the entities in range of each (TriggerPoint.js currentCollections); v73 Petra plays one turn every 1.6 s, so the Attacked, civic centre capture, decay and attack request events since each AI's last turn are kept (savedEvents); v74 what Petra queued each batch for (worker, attack or raid; queueplanTraining metadata); v75 the time each AI last found nothing of a resource to gather (lastFailedGather), and PetraConfig without its unused workers, traders and muster fields; v76 the storehouse a Petra dropsite check decided on but could not pay for yet (PetraDropsiteCheck.pending); v77 each unit's heading (Position rotation, which UnitMotion turns at the template's TurnRate); v78 each wonder's own countdown, owner and allies (WonderVictory.js); v79 each Petra hunter's last fruitless hunt search (lastHuntSearch) and each Petra base's storehouse check (baseManager.js gatherers); v80 every Poisoned and Burning hit as its own status with its own timer, on units, structures and animals (StatusEffectsReceiver Stack; save_tick_state); v81 Petra workers' approach watch and the supplies they flagged inaccessible (worker.js isInaccessibleSupply); v82 CinemaManager's camera paths, path queue and timers (save_tick_state); v83 Petra's plan names (attackManager.js totalNumber), its main plan's siege class (SIEGE_ADDED) and its raid's unitStat sizes; v84 which players have seen each structure (Fogging seen, so mirages survive a load); v85 the Mauryan rampart tower's turret units beside its garrison (save_tick_state); v86 the attacks each player's AttackDetection is suppressing (map triggers' OnAttackDetected); v87 each Petra attack plan's completing step (gathering at its rally point), march waypoints and last position (attackPlan.js path, lastPosition); v88 what each Petra decides once or only raises: needFish and needFarm, its wanted fishing and transport ships per sea (navalManager.js), and targetNumTraders; v89 each structure's map-set no-decay flag (palisade spikes, Gallic Fields); v90 whether each Petra can produce units (canBuildUnits) and the units it sent to guard an ally's civic centre; v91 when each Petra mobile dropsite next looks for a gatherer to walk to (worker.js nextMoveToGatherer); v92 each unit's isGuardOf (UnitAI keeps the charge through other orders); v93 each Petra attack plan's position 5 turns ago (attackPlan.js position5TurnsAgo); v94 each Petra gatherer's supply (worker.js metadata "supply"), the structures it found no room for, with when it tries again (buildManager.js unbuildables "room"), and the AIs' own random stream (CCmpAIManager m_RNG); v95 the Petra raid's plan name and siege class (addSiegeUnits for raids); v96 each unit's workOrders queue (UnitAI UpdateWorkOrders, Back to Work); v97 each rally position's command and the unit or treasure it names (RallyPoint data.command); v98 each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact), each unit's and animal's previous-turn position (aim velocity), and each player's control-all-units flag; v99 each trader's route waypoints and leg progress (SetupTradeRoute route); v100 Petra's routeProspection and the Trade structures and diplomacy it last saw (tradeManager.js checkEvents); v101 each carcass's animal's owner; v102 each queued batch's original size once part of it spawned (ProductionQueue.js originalItem, autoqueue); v103 the supply wagons their owners locked (ResourceDropsite SetSharing on a unit); v104 each Petra's targeted Gaia relics (victoryManager.js targetedGaiaRelics) and each structure's held-after-capture flag (garrisonManager.js decayingStructures for a just-captured Barracks); v105 the target each unit was last in attack range of (UnitAI CHASING runs after it, APPROACHING walks); v106 Petra's units out of a plan (attackPlan.js removeUnit's plan -1) and its emergency batches; v107 the base that claimed each of Petra's territory tiles (basesManager.js basesMap); v108 each animal's MoveRandomly roamAngle and startAngle; v109 each Petra's defenseManager targetList; v110 each structure's time into its production queue's second; v111 unit trainers' queue clocks and autoqueue; v112 each flying unit's UnitMotionFlying state (units/plane); v113 Petra's trade ships and the transports to switch to trade (tradeManager.js roles), its house plans (headquarters.js buildMoreHouses), the new bases it has seen finished (handleNewBase) and each transport passenger's boarding tries (transportPlan.js nTry); v114 Petra's queued worker TrainingPlans (headquarters.js trainMoreWorkers); v115 the base each Petra updates next (basesManager.js currentBase); v116 Petra's requireHouses, kept until the phase has its houses (headquarters.js requireHouses); v117 each animal's pushing pressure (CCmpUnitMotionManager MotionState pushingPressure, animals pushing in separation) and its failed movements on a walk (CCmpUnitMotion m_FailedMovements); v118 the structure heading each Petra queue (queue.js plan order); v119 guards on their way by sea to a critical entity (petra_ferried_guards_); v120 each structure's garrison heal timer (GarrisonHolder HEAL_TIMEOUT from the first unit in); v121 the enemy formation each formation attacks (UnitAI.js Order.Attack on a formation member); v122 the stance each unit on a turret had before it went up, which it gets back when it comes down (UnitAI previousStance, turret_prev_stance_); v123 each Petra boarding passenger's nearest approach to its ship (transportPlan.js nTry kept while it walks off a trap and back);
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state); v71 StatisticsTracker's unitsCaptured counters and value; v72 map scripts' OnRange queries and the entities in range of each (TriggerPoint.js currentCollections); v73 Petra plays one turn every 1.6 s, so the Attacked, civic centre capture, decay and attack request events since each AI's last turn are kept (savedEvents); v74 what Petra queued each batch for (worker, attack or raid; queueplanTraining metadata); v75 the time each AI last found nothing of a resource to gather (lastFailedGather), and PetraConfig without its unused workers, traders and muster fields; v76 the storehouse a Petra dropsite check decided on but could not pay for yet (PetraDropsiteCheck.pending); v77 each unit's heading (Position rotation, which UnitMotion turns at the template's TurnRate); v78 each wonder's own countdown, owner and allies (WonderVictory.js); v79 each Petra hunter's last fruitless hunt search (lastHuntSearch) and each Petra base's storehouse check (baseManager.js gatherers); v80 every Poisoned and Burning hit as its own status with its own timer, on units, structures and animals (StatusEffectsReceiver Stack; save_tick_state); v81 Petra workers' approach watch and the supplies they flagged inaccessible (worker.js isInaccessibleSupply); v82 CinemaManager's camera paths, path queue and timers (save_tick_state); v83 Petra's plan names (attackManager.js totalNumber), its main plan's siege class (SIEGE_ADDED) and its raid's unitStat sizes; v84 which players have seen each structure (Fogging seen, so mirages survive a load); v85 the Mauryan rampart tower's turret units beside its garrison (save_tick_state); v86 the attacks each player's AttackDetection is suppressing (map triggers' OnAttackDetected); v87 each Petra attack plan's completing step (gathering at its rally point), march waypoints and last position (attackPlan.js path, lastPosition); v88 what each Petra decides once or only raises: needFish and needFarm, its wanted fishing and transport ships per sea (navalManager.js), and targetNumTraders; v89 each structure's map-set no-decay flag (palisade spikes, Gallic Fields); v90 whether each Petra can produce units (canBuildUnits) and the units it sent to guard an ally's civic centre; v91 when each Petra mobile dropsite next looks for a gatherer to walk to (worker.js nextMoveToGatherer); v92 each unit's isGuardOf (UnitAI keeps the charge through other orders); v93 each Petra attack plan's position 5 turns ago (attackPlan.js position5TurnsAgo); v94 each Petra gatherer's supply (worker.js metadata "supply"), the structures it found no room for, with when it tries again (buildManager.js unbuildables "room"), and the AIs' own random stream (CCmpAIManager m_RNG); v95 the Petra raid's plan name and siege class (addSiegeUnits for raids); v96 each unit's workOrders queue (UnitAI UpdateWorkOrders, Back to Work); v97 each rally position's command and the unit or treasure it names (RallyPoint data.command); v98 each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact), each unit's and animal's previous-turn position (aim velocity), and each player's control-all-units flag; v99 each trader's route waypoints and leg progress (SetupTradeRoute route); v100 Petra's routeProspection and the Trade structures and diplomacy it last saw (tradeManager.js checkEvents); v101 each carcass's animal's owner; v102 each queued batch's original size once part of it spawned (ProductionQueue.js originalItem, autoqueue); v103 the supply wagons their owners locked (ResourceDropsite SetSharing on a unit); v104 each Petra's targeted Gaia relics (victoryManager.js targetedGaiaRelics) and each structure's held-after-capture flag (garrisonManager.js decayingStructures for a just-captured Barracks); v105 the target each unit was last in attack range of (UnitAI CHASING runs after it, APPROACHING walks); v106 Petra's units out of a plan (attackPlan.js removeUnit's plan -1) and its emergency batches; v107 the base that claimed each of Petra's territory tiles (basesManager.js basesMap); v108 each animal's MoveRandomly roamAngle and startAngle; v109 each Petra's defenseManager targetList; v110 each structure's time into its production queue's second; v111 unit trainers' queue clocks and autoqueue; v112 each flying unit's UnitMotionFlying state (units/plane); v113 Petra's trade ships and the transports to switch to trade (tradeManager.js roles), its house plans (headquarters.js buildMoreHouses), the new bases it has seen finished (handleNewBase) and each transport passenger's boarding tries (transportPlan.js nTry); v114 Petra's queued worker TrainingPlans (headquarters.js trainMoreWorkers); v115 the base each Petra updates next (basesManager.js currentBase); v116 Petra's requireHouses, kept until the phase has its houses (headquarters.js requireHouses); v117 each animal's pushing pressure (CCmpUnitMotionManager MotionState pushingPressure, animals pushing in separation) and its failed movements on a walk (CCmpUnitMotion m_FailedMovements); v118 the structure heading each Petra queue (queue.js plan order); v119 guards on their way by sea to a critical entity (petra_ferried_guards_); v120 each structure's garrison heal timer (GarrisonHolder HEAL_TIMEOUT from the first unit in); v121 the enemy formation each formation attacks (UnitAI.js Order.Attack on a formation member); v122 the stance each unit on a turret had before it went up, which it gets back when it comes down (UnitAI previousStance, turret_prev_stance_); v123 each Petra boarding passenger's nearest approach to its ship (transportPlan.js nTry kept while it walks off a trap and back); v124 the Petra plan name and unitStat each queued batch is for (attackPlan.js trainMoreUnits plan and special metadata);
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -35905,6 +35948,8 @@ bool Simulation::save_state(const char *filepath) const {
 			out.write((const char *)po.paid.data(), sizeof(po.paid));
 			out.write((const char *)&po.petra_plan, sizeof(po.petra_plan));
 			out.write((const char *)&po.batch, sizeof(po.batch));
+			out.write((const char *)&po.petra_name, sizeof(po.petra_name));
+			out.write((const char *)&po.petra_stat, sizeof(po.petra_stat));
 		}
 
 		uint32_t g_sz = (uint32_t)b.garrisoned_units.size();
@@ -36406,6 +36451,11 @@ bool Simulation::load_state(const char *filepath) {
 				if (version >= SAVE_VERSION_AUTOQUEUE_BATCH) {
 					in.read((char *)&bld.queue[q].batch, sizeof(bld.queue[q].batch));
 					if (bld.queue[q].batch && bld.queue[q].batch < bld.queue[q].count) return false;
+				}
+				if (version >= SAVE_VERSION_PETRA_ORDER_NAME) {
+					in.read((char *)&bld.queue[q].petra_name, sizeof(bld.queue[q].petra_name));
+					in.read((char *)&bld.queue[q].petra_stat, sizeof(bld.queue[q].petra_stat));
+					if (bld.queue[q].petra_stat != 0xFF && bld.queue[q].petra_stat >= 16) return false;
 				}
 			} else {
 				// Older saves trained one unit at a time with the population already counted.

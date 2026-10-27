@@ -170,6 +170,23 @@ func run() -> void:
 	var woman2: PackedInt32Array = main.debug_spawn_units("athen/support_female_citizen", 1)
 	main.debug_select_units(PackedInt32Array([cav[0], woman2[0]]))
 	await frames(2)
+	# PickEntityAtPoint takes a unit whose body covers the spot (the woman building the house
+	# beside the women's tree), so take the first supply near it that the cursor picks itself.
+	var vp_size: Vector2 = root.get_visible_rect().size
+	var first := res
+	res_at = Vector2(-1, -1)
+	for k in range(0, 80):
+		var cand: int = first + (k / 2 if k % 2 == 0 else -(k + 1) / 2)
+		var at: Vector2 = main.debug_resource_screen(cand)
+		if at.x < 40.0 or at.y < 40.0 or at.x > vp_size.x - 40.0 or at.y > vp_size.y - 220.0:
+			continue
+		await move(at)
+		await frames(2)
+		if main.debug_highlight() == PackedInt32Array([cand]):
+			res = cand
+			res_at = at
+			break
+	print("    the supply ", res, " picks at ", res_at)
 	if res_at.x >= 0.0:
 		await hold(KEY_ALT, true)
 		await click(res_at, MOUSE_BUTTON_RIGHT)

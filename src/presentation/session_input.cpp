@@ -1859,8 +1859,9 @@ std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
 	return out;
 }
 
-// The local player's unit nearest the ground point under the mouse (within 2 units), or
-// SIZE_MAX; a structure the ray reaches first hides the units behind it. With
+// The local player's unit whose drawn box the mouse ray meets first, else the one nearest
+// the ground point under the mouse (within `radius`), or SIZE_MAX; a structure the ray
+// reaches first hides the units behind it. With
 // `any_player`, any unit the viewed player sees (Engine.PickEntityAtPoint).
 size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player, float radius) const {
 	if (!sim) return (size_t)-1;
@@ -1871,6 +1872,47 @@ size_t RtsoMain::own_unit_under_mouse(Vector2 mouse_pos, bool any_player, float 
 	Camera3D *pick_cam = cam_rig ? cam_rig->get_camera() : nullptr;
 	const Vector3 ray_o = pick_cam ? pick_cam->project_ray_origin(mouse_pos) : Vector3();
 	const Vector3 ray_d = pick_cam ? pick_cam->project_ray_normal(mouse_pos) : Vector3();
+	auto pickable = [&](size_t i) {
+		if (!uview.alive[i]) return false;
+		return any_player ? rtso::los_sees_unit(*sim, view_player(), uview.pos_x[i], uview.pos_z[i], uview.team[i])
+		                  : uview.team[i] == local_player();
+	};
+	// CCmpSelectable's selection box, as PickEntitiesAtPoint tests it: the ray against each
+	// drawn unit's footprint box up to its model height (a soldier on a wall, a tall siege
+	// tower or an elephant's body), the nearest along the ray; a structure in front hides it.
+	if (pick_cam && view) {
+		size_t hit_idx = (size_t)-1;
+		float hit_t = std::min(bld_t + 0.5f, 1e30f);
+		for (const auto &b : view->unit_pick_boxes()) {
+			// The ray in the box's frame: feet at the origin, turned by -yaw.
+			const Vector3 o = ray_o - b.base;
+			const float c = std::cos(-b.yaw), sn = std::sin(-b.yaw);
+			const Vector3 lo(c * o.x + sn * o.z, o.y, -sn * o.x + c * o.z);
+			const Vector3 ld(c * ray_d.x + sn * ray_d.z, ray_d.y, -sn * ray_d.x + c * ray_d.z);
+			const float mn[3] = { -b.half_w, 0.0f, -b.half_d }, mx[3] = { b.half_w, b.height, b.half_d };
+			float t0 = 0.0f, t1 = hit_t;
+			bool miss = false;
+			for (int a = 0; a < 3 && !miss; ++a) {
+				const float org = lo[a], dir = ld[a];
+				if (std::abs(dir) < 1e-6f) {
+					miss = org < mn[a] || org > mx[a];
+					continue;
+				}
+				float ta = (mn[a] - org) / dir, tb = (mx[a] - org) / dir;
+				if (ta > tb) std::swap(ta, tb);
+				t0 = std::max(t0, ta);
+				t1 = std::min(t1, tb);
+				miss = t0 > t1;
+			}
+			if (miss || t0 >= hit_t) continue;
+			size_t i = 0;
+			while (i < uview.count && uview.id[i] != b.id) ++i;
+			if (i == uview.count || !pickable(i)) continue;
+			hit_t = t0;
+			hit_idx = i;
+		}
+		if (hit_idx != (size_t)-1) return hit_idx;
+	}
 	size_t best_uidx = (size_t)-1;
 	float best_ud2 = radius * radius;
 	for (size_t i = 0; i < uview.count; ++i) {
