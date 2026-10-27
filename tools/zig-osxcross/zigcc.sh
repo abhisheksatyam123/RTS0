@@ -39,4 +39,5 @@ for a in "$@"; do
 	esac
 done
 drv=cc; [ "$tool" = clang++ ] && drv=c++
-$ZIG $drv -target "$tgt" "${args[@]}"
+# zig makes __DATE__ an error (-Werror=date-time); the top panel's build label uses it.
+$ZIG $drv -target "$tgt" "${args[@]}" -Wno-date-time
