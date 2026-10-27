@@ -7,7 +7,7 @@ extends Control
 ## in-game selection details. Names in the lists link to their own page.
 ##
 ## open(parent, kind, id, civ): kind "unit" (roster template id), "structure"
-## (building type, for civ) or "tech" (technology id, for civ).
+## (building type, for civ), "tech" (technology id, for civ) or "fauna" (FaunaType).
 
 const Common := preload("res://scenes/reference/reference_common.gd")
 const L10n := preload("res://scenes/menu/l10n.gd")
@@ -189,6 +189,7 @@ func show_template(p_kind: String, p_id: int, p_civ: int, reset_history: bool = 
 		"unit": d = Common.ref().get_unit(id)
 		"structure": d = Common.ref().get_structure(id, civ)
 		"tech": d = Common.ref().get_tech(id, civ)
+		"fauna": d = Common.ref().get_fauna(id)
 	if kind != "tech":
 		d = Common.civ_costed(d, kind, civ)
 	else:
@@ -220,6 +221,11 @@ func _text_for(d: Dictionary) -> Dictionary:
 		"unit": return Common.unit_text(d.get("id", ""))
 		"structure": return Common.structure_text(id, civ)
 		"tech": return Common.tech_text(d.get("template", ""))
+		"fauna":
+			# templates.json's gaia text, with the simulation's viewer lines.
+			var e: Dictionary = Common.text().get("gaia", {}).get(d.get("template", ""), {}).duplicate()
+			e["viewer"] = d.get("viewer", {})
+			return e
 	return {}
 
 static func _num(v) -> String:
@@ -647,6 +653,14 @@ static func detailed_tooltip(tmpl: int, mods: Dictionary = {}) -> String:
 	if not mods.is_empty():
 		d = _with_mods(d, mods)
 	var vw: Dictionary = Common.unit_text(d.get("id", "")).get("viewer", {})
+	return _detailed_lines(d, vw)
+
+## The same lines for a corral's trainable animal (FaunaType).
+static func detailed_tooltip_fauna(fauna_type: int) -> String:
+	var d: Dictionary = Common.ref().get_fauna(fauna_type)
+	return "" if d.is_empty() else _detailed_lines(d, d.get("viewer", {}))
+
+static func _detailed_lines(d: Dictionary, vw: Dictionary) -> String:
 	var keep := ["Health:", "Attack:", "Heal:", "Resistance:", "Garrison Limit", "Turret Positions", "Projectile Limit", "Speed:", "Dropsite for:"]
 	var out: PackedStringArray = []
 	# The reference page lists the dropsite first; the training tooltip puts it after speed.
