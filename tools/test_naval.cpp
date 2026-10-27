@@ -1437,6 +1437,43 @@ static void test_petra_transport_waits_for_all() {
 	CHECK(sailed && !early && landed == 4);
 }
 
+// transportPlan.js onBoarding nTry: a passenger that can't reach the waiting ship walks off its
+// trap and tries again, and leaves the plan after its fifth try. One penned in a palisade walks
+// off and back into the same wall; it still runs out of tries (it never came nearer the ship),
+// so the ship sails with the rest instead of lying loaded at the beach for 2 minutes.
+static void test_petra_transport_trapped_passenger() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(-30.0f, 50.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	s.spawn_unit(-30.0f, 8.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 3; ++k) crew.push_back(s.spawn_unit(-34.0f + 2.0f * k, 26.0f, 1, UNIT_SPEARMAN));
+	const float px = 10.0f, pz = 36.0f, r = 6.0f;
+	for (float d = -r; d < r + 0.01f; d += 1.5f)
+		for (const auto &p : {std::pair{px + d, pz - r}, std::pair{px + d, pz + r}, std::pair{px - r, pz + d}, std::pair{px + r, pz + d}})
+			s.spawn_building_world(p.first, p.second, BLD_PALISADE, 0, 1.0f);
+	s.rebuild_nav_grid();
+	const uint32_t penned = s.spawn_unit(px + 2.0f, pz + 2.0f, 1, UNIT_SPEARMAN);
+	crew.push_back(penned);
+	run(s, 0.5f);
+	CHECK(s.petra_start_transport(crew, -30.0f, 30.0f, -30.0f, -40.0f, 0, PETRA_TRANSPORT_ATTACK));
+	float sailed_at = -1.0f;
+	for (int k = 0; k < 150 && sailed_at < 0.0f; ++k) {
+		run(s, 1.0f);
+		for (const auto &p : s.petra_transport_plans())
+			if (p.state == PetraTransportPlan::SAILING) sailed_at = (float)k;
+	}
+	const int32_t i = idx(s, penned);
+	const bool still_penned = i >= 0 && s.units().alive[i] && std::fabs(s.units().pos_x[i] - px) < r && std::fabs(s.units().pos_z[i] - pz) < r;
+	std::printf("Petra transport with a passenger penned in: sailed after %.0f s, the penned one left behind %s\n", sailed_at, still_penned ? "yes" : "no");
+	CHECK(still_penned);
+	CHECK(sailed_at >= 0.0f && sailed_at < 80.0f); // 120 s at the beach, plus the ship's approach, before
+}
+
 // navalManager.checkEvents: a transport ship sunk while sailing sets its infantry down on the
 // nearest shore; those not on the destination's land ask for another transport, which takes
 // them across instead of the plan ending.
@@ -2635,6 +2672,7 @@ int main() {
 	test_petra_defenders_ferried();
 	test_petra_transport_ship_lost();
 	test_petra_transport_waits_for_all();
+	test_petra_transport_trapped_passenger();
 	test_petra_transport_sunk_at_sea();
 	test_petra_transport_wrong_land();
 	test_petra_sunk_survivors_two_lands();
