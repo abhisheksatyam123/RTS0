@@ -182,7 +182,7 @@ Garrisons, structure arrows, attacks and resistance, territory decay and camps a
 |---|---|---|---|
 | L1 | ~~A Han minister in a Han corral is put outside when the corral drops below half health, is destroyed or is captured~~ Fixed: he dies inside, as the corral's EjectClassesOnDestroy is Animal only (structures/han/corral.xml adds Minister to the List; a 0.28 data oversight, followed); test_minister | low | Fixed |
 | L2 | ~~A structure left with no capture points goes to the top player when Gaia ties it~~ Fixed: Gaia wins a tie, then the lowest player (Capturable.js reduce from index 0, strict ">"); test_unit_orders 105 | low | Fixed |
-| L3 | Garrisoned units heal on one match-wide second rather than a timer per structure started by the first unit in (GarrisonHolder HEAL_TIMEOUT), so the first heal can come up to a second early. A per-structure timer needs a save field | low | Open: Unit orders |
+| L3 | ~~Garrisoned units heal on one match-wide second rather than a timer per structure started by the first unit in (GarrisonHolder HEAL_TIMEOUT), so the first heal can come up to a second early~~ Fixed: each structure keeps its own heal timer from the first unit in, stopped while it is empty or heals nothing (save v120); test_garrison_heal | low | Fixed |
 
 ### Unit orders, eleventh 0.28 pass (2026-10-21)
 
@@ -442,8 +442,8 @@ BuildingAI.js, GarrisonHolder/TurretHolder, Capturable and TerritoryDecay agains
 
 | # | Difference from 0.28 | Impact | Status |
 |---|---|---|---|
-| DS1 | Petra keeps healed female citizens garrisoned: garrisonManager.js:317 releases units with a Melee attack (women have a Dagger) at 70% health; RTS0 tests the Melee class | medium | Open (Petra garrisons) |
-| DS2 | Petra treats war elephants as ordinary units when garrisoning against an attack; entityExtend.js isSiegeUnit counts Elephant+Melee as siege (garrison only ranged soldiers) | medium-low | Open (Petra garrisons) |
+| DS1 | Petra keeps healed female citizens garrisoned: garrisonManager.js:317 releases units with a Melee attack (women have a Dagger) at 70% health; RTS0 tests the Melee class | medium | Fixed |
+| DS2 | Petra treats war elephants as ordinary units when garrisoning against an attack; entityExtend.js isSiegeUnit counts Elephant+Melee as siege (garrison only ranged soldiers) | medium-low | Fixed |
 | DS3 | An enemy tower or fortress alone doesn't make Petra garrison its tower or civic centre (defenseManager.js:569-579, 692-693) | low-medium | Open (Petra defense) |
 | DS4 | findDefensiveLocation took any frontier cell of ours; 0.28 takes only cells a base of ours holds on its anchor's land (baseAtIndex), so no towers across a river or on an islet | low-medium | Fixed |
 | DS5 | Towers and fortresses were searched for a spot before queueing and retried after 90 s (every 3rd turn for a first stone tower); 0.28 queues the plan, searches at start, and with no spot marks it unbuildable for 90 s while the lapse runs from queue time | low | Fixed |
@@ -733,6 +733,41 @@ The session's overlays, game speed control and Load/Save Game dialog checked aga
 | OV13 | The sorted column shows a text arrow and the others nothing; ModernSortedList draws ModernArrowUp/Down sprites and ModernNotSorted on every other heading (Godot 4.3 Tree headings take no icons) | nit | Open |
 | OV14 | "Paused by" joins names with an untranslated ", "; 0.28 uses translateWithContext("Separator for a list of players", ", ") (RTS0's catalogues have no msgctxt) | nit | Open |
 
+### Message box, tutorial panel and chat overlay, sixteenth 0.28 pass (2026-10-27)
+
+The message box, the tutorial panel and the chat overlay checked against 0.28's mod gui/msgbox, SessionMessageBox.js, tutorial_panel.xml, messages.js and ChatOverlay.js (main 439fee94e). The session lobby reporters and CampaignSession already matched. Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| MB1 | Message boxes dimmed the screen at 0.6; ModernFade is 0 0 0 85 | low | Fixed |
+| MB2 | The message box title was 18 px; mbTitleBar is ModernLabelText, sans-bold-stroke-14 | low | Fixed |
+| MB3 | Its text and buttons fell back to regular 16 px; mbText and ModernButtonRed are sans-bold-stroke-14 | low | Fixed |
+| MB4 | Three buttons split at thirds; distributeButtonsHorizontally splits at 33% and 66% | nit | Fixed |
+| MB5 | Tutorial hotkeys were bare gold text and "(unbound)"; colorizeHotkey writes [key] in 255 251 131, "Unassigned hotkey: <name>" when unbound | low | Fixed |
+| MB6 | The tutorial instructions were regular; TutorialPanel is sans-bold-14 | low | Fixed |
+| MB7 | The tutorial status line was regular; tutorialWarning is ModernLeftLabelText, sans-bold-stroke-14 | nit | Fixed |
+| MB8 | Clickable chat overlay lines took the plain session tooltip; chatLine uses sessionToolTipBottomBold | low | Fixed |
+| MB9 | The game speed dropdown was 48 px tall in Godot's fallback font; ModernDropDown is 25 px, so it takes the trimmed Linux Biolinum bold face | nit | Fixed |
+
+### Summary page skin, seventeenth 0.28 pass (2026-10-27)
+
+The summary page's skin and layout checked again against 0.28's gui/summary/, tab_buttons.js and the modern styles and sprites (main c4a92f0cf). Counters, value colours, team totals, chart bounds, captions and routing already matched. Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| SM1 | The tabs were stone buttons in cream Biolinum 15; ModernTabButtonHorizontal tabs (selected: white 40 fill with gold left, top and right edges; the rest 50 35 0 120 with a 1 px gold edge) with white bold 14 labels | medium | Fixed |
+| SM2 | The panel frame was a dark box with a brown border all round; ModernTabHorizontalFrame is white 40 with gold left, right and bottom edges, and tabDividerLeft/Right run up to either side of the selected tab (adjustTabDividers) | low | Fixed |
+| SM3 | Continue and Watch Replay were stone buttons; ModernButtonRed in sans-bold-stroke-14 | medium | Fixed |
+| SM4 | The window was a flat slate panel with a gold border; ModernDialog/ModernWindow draw the tiled modern background; the in-game fade was 0.6, ModernFade is 0 0 0 85 | low | Fixed |
+| SM5 | The full-page title sat in 4-30 top-aligned; summaryWindowTitle centres it in 4-36 | nit | Fixed |
+| SM6 | "Group by team" was Godot's default checkbox in grey regular text; ModernTickBox with a white bold 14 caption | low | Fixed |
+| SM7 | The three caption lines had a black stroke; sans-bold-18 has none | nit | Fixed |
+| SM8 | Heading boxes were top-aligned at y 16 or 34 and w wide; layout.js sizes them "(left-4) yStart (left+w+4) 69" and centres them, with yStart 0 for the score, market and miscellaneous columns | low | Fixed |
+| SM9 | The chart dropdowns used the regular face; ModernDropDown is sans-bold-14 | nit | Fixed |
+| SM10 | The chart legend never wrapped and spilled past the panel; chartLegend wraps, centred about 100%-20 | low | Fixed |
+| SM11 | The page's bold text is Godot's fallback face emboldened, not Linux Biolinum. Kept: every code-built session control (top panel, minimap, details, dialogs) draws in that face, and moving this page alone mixed the two faces on one screen (tried 2026-10-27) | low | Kept |
+| SM12 | A small window scrolled the table with a scrollbar; 0.28's generalPanel clips it | nit | Fixed |
+
 ### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
 
 diplomacyManager.js, chatHelper.js and their callers were checked line by line. Everything else matches: update cadence, tribute rules, request handling and its odds, lastManStandingCheck, changePlayerDiplomacy, personality boosts, every chat string. Jebel Barkal was checked statically against the 0.28 source, since no 0.28 binary runs here (pass 8: wave sizing and target-class skip match). Pass 4's P2 is D8 below, and its P5 is D7.
@@ -854,11 +889,11 @@ This file is the parity record: every difference from 0 A.D. 0.28 an audit found
 
 | Rows | Count | Share |
 |---|---|---|
-| Closed (fixed, landed, done) | 308 | 97.5% of closed + open |
-| Open | 8 | 2.5% |
+| Closed (fixed, landed, done) | 309 | 97.8% of closed + open |
+| Open | 7 | 2.2% |
 | Kept on purpose (0.28 bugs RTS0 doesn't copy, RTS0-scale choices such as build times x0.25, engine limits) | 51 | not counted above |
 
-Weighted by each row's Impact (high 3, medium 2, low 1) the closed share is about 96%. Counting every kept row as a gap too gives 305 of 367, about 83%; that is a floor, since most kept rows are 0.28 bugs or matches. The open rows are small: Options page leftovers (G36), map StartingCamera and colours (P5, F), a few triggers and lobby details (TH10, LR4, LR5) and a garrison heal timer (L3). The counts are a measure of what audits have found, not of everything in 0.28: each area's thread keeps auditing and adds rows as it finds more.
+Weighted by each row's Impact (high 3, medium 2, low 1) the closed share is about 96%. Counting every kept row as a gap too gives 309 of 367, about 84%; that is a floor, since most kept rows are 0.28 bugs or matches. The open rows are small: Options page leftovers (G36), map StartingCamera and colours (P5, F) and a few triggers and lobby details (TH10, LR4, LR5). The counts are a measure of what audits have found, not of everything in 0.28: each area's thread keeps auditing and adds rows as it finds more.
 
 This count replaces the 2026-10-08 estimate ("a little over half way", `check_parity.py` 92% for the G1-G10 systems). The list below is from that audit; all of it is fixed.
 

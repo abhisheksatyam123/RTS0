@@ -722,6 +722,7 @@ private:
 				line->set_mouse_filter(Control::MOUSE_FILTER_STOP);
 				line->set_default_cursor_shape(Control::CURSOR_POINTING_HAND);
 				line->set_tooltip_text(l.tooltip);
+				line->set_meta("tooltip_style", "session_bottom_bold"); // session.xml chatLine
 				line->connect("gui_input", Callable(owner_, "_on_chat_line_input").bind(l.action));
 			}
 			overlay_->add_child(line);

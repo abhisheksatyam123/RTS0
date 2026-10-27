@@ -95,6 +95,26 @@ int main() {
 		CHECK(barracks == 0.0f);
 	}
 
+	// 2b. The heal timer starts with the first unit in (GarrisonHolder StartTimer, HEAL_TIMEOUT
+	//     1000 ms): the first heal comes a whole second after it enters, not on a shared clock.
+	{
+		fresh(s);
+		uint32_t bld = s.spawn_building_world(0.0f, 0.0f, BLD_TEMPLE, 0, 1.0f);
+		uint32_t u = s.spawn_unit(1.0f, 8.0f, 0, UNIT_SPEARMAN);
+		const_cast<float *>(s.units().hp)[idx_of(s, u)] = s.units().max_hp[idx_of(s, u)] * 0.5f;
+		s.order_garrison(&u, 1, bld);
+		while (s.get_garrison_count(bld) < 1) s.tick(Simulation::FIXED_STEP);
+		const float in = s.units().hp[idx_of(s, u)];
+		const int second = (int)std::lround(1.0f / Simulation::FIXED_STEP);
+		int first = -1;
+		for (int t = 1; t <= 2 * second && first < 0; ++t) {
+			s.tick(Simulation::FIXED_STEP);
+			if (s.units().hp[idx_of(s, u)] > in) first = t;
+		}
+		std::printf("first garrison heal %d ticks after entering (a second is %d)\n", first, second);
+		CHECK(first >= second - 1 && first <= second); // the turn it went in counts when it went in before the heal step
+	}
+
 	// 3. Living Conditions: +1 hp a second in every structure, barracks included.
 	{
 		fresh(s);
