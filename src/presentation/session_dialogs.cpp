@@ -8,6 +8,9 @@
 #include "l10n.h"
 #include "display_colors.h"
 #include "popup_safe.h"
+#include "session_skin.h"
+#include <godot_cpp/classes/font_variation.hpp>
+#include <godot_cpp/classes/theme_db.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/script.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
@@ -98,27 +101,50 @@ Array RtsoMain::speed_choices(bool fast_forward) {
 	return out;
 }
 
+// GameSpeedControl: the speed button toggles the gameSpeed dropdown, a ModernDropDown at
+// 100%-390 40 100%-230 65 ("Choose game speed"), which stays up showing the speed in use.
 void RtsoMain::_on_speed_button_pressed() {
-	if (!speed_btn) return;
+	if (!speed_btn || !ui_layer) return;
 	if (!speed_menu_) {
-		speed_menu_ = memnew(PopupMenu);
-		speed_menu_->connect("id_pressed", Callable(this, "_on_speed_selected"));
-		speed_btn->add_child(speed_menu_);
+		speed_menu_ = memnew(RtsoSafeSelect);
+		speed_menu_->set_name("GameSpeedDropdown");
+		speed_menu_->set_theme(rtso::session_skin());
+		speed_menu_->set_anchor(SIDE_LEFT, 1.0f);
+		speed_menu_->set_anchor(SIDE_RIGHT, 1.0f);
+		speed_menu_->set_offset(SIDE_LEFT, -390.0f);
+		speed_menu_->set_offset(SIDE_RIGHT, -230.0f);
+		speed_menu_->set_offset(SIDE_TOP, 40.0f);
+		speed_menu_->set_offset(SIDE_BOTTOM, 65.0f);
+		speed_menu_->set_meta("tooltip_style", "session");
+		// ModernDropDown: sans-bold-14.
+		Ref<FontVariation> bold;
+		bold.instantiate();
+		bold->set_base_font(ThemeDB::get_singleton()->get_fallback_font());
+		bold->set_variation_embolden(0.7f);
+		speed_menu_->add_theme_font_override("font", bold);
+		speed_menu_->add_theme_font_size_override("font_size", 14);
+		speed_menu_->set_visible(false);
+		speed_menu_->connect("item_selected", Callable(this, "_on_speed_selected"));
+		ui_layer->add_child(speed_menu_);
 	}
+	speed_menu_->set_tooltip_text(rtso::tr0("Choose game speed"));
 	speed_menu_->clear();
 	const Array speeds = speed_choices(fast_forward_allowed());
+	int sel = -1;
 	for (int i = 0; i < speeds.size(); ++i) {
-		speed_menu_->add_radio_check_item(speed_title((float)speeds[i]), i);
-		speed_menu_->set_item_metadata(i, speeds[i]);
-		speed_menu_->set_item_checked(i, (float)speeds[i] == game_speed);
+		speed_menu_->add_item(speed_title((float)speeds[i]), i);
+		if ((float)speeds[i] == game_speed) sel = i;
 	}
-	speed_menu_->set_position(Vector2i(speed_btn->get_screen_position() + Vector2(0, speed_btn->get_size().y)));
-	speed_menu_->popup();
+	if (sel < 0)
+		for (int i = 0; i < speeds.size(); ++i)
+			if ((float)speeds[i] == 1.0f) sel = i;
+	speed_menu_->select(sel);
+	speed_menu_->set_visible(!speed_menu_->is_visible());
 }
 
-void RtsoMain::_on_speed_selected(int id) {
-	if (speed_menu_ && id >= 0 && id < speed_menu_->get_item_count())
-		set_game_speed((float)speed_menu_->get_item_metadata(speed_menu_->get_item_index(id)));
+void RtsoMain::_on_speed_selected(int index) {
+	const Array speeds = speed_choices(fast_forward_allowed());
+	if (index >= 0 && index < speeds.size()) set_game_speed((float)speeds[index]);
 }
 
 // Offline and in replays only: networked games run at the host's speed.

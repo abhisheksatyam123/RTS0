@@ -38,6 +38,13 @@ func run() -> void:
 	check(main.debug_net_delay_text() == "Delay to live stream: 8s", "40 turns: " + main.debug_net_delay_text())
 	var label: Label = main.find_child("NetDelayOverlay", true, false)
 	check(label != null and label.horizontal_alignment == HORIZONTAL_ALIGNMENT_RIGHT, "top right, right-aligned")
+	check(label != null and str(label.get_theme_font("font").resource_path).ends_with("DejaVuSansMono.ttf"), "in mono-10")
+	# NetworkStatusOverlay: sessionOverlayBackground (0 0 0 185), sans-bold-18 text, a StoneButton Exit.
+	var ns: Control = main.find_child("NetStatusOverlay", true, false)
+	var dim: ColorRect = ns.get_child(0) if ns else null
+	var exit: Button = main.find_child("DisconnectedExitButton", true, false)
+	check(dim != null and is_equal_approx(dim.color.a, 185.0 / 255.0) and exit != null and exit.theme != null
+			and ns.get_child(1).get_theme_font("font") is FontVariation, "the network status overlay's backdrop, bold text and stone Exit button")
 	main.debug_set_net_delay(3)
 	await frames(2)
 	check(main.debug_net_delay_text() == "" and not label.visible, "caught up: hidden")
