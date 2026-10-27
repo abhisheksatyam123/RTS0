@@ -78,6 +78,84 @@ uint8_t FogMirages::los_at(float x, float z) const {
 	return los_[cz * res_ + cx];
 }
 
+namespace {
+constexpr uint32_t kMemoryMagic = 0x31474d46; // "FMG1"
+template <typename T>
+void put(std::vector<uint8_t> &out, const T &v) {
+	const uint8_t *p = reinterpret_cast<const uint8_t *>(&v);
+	out.insert(out.end(), p, p + sizeof(T));
+}
+template <typename T>
+bool get(const uint8_t *&p, const uint8_t *end, T &v) {
+	if ((size_t)(end - p) < sizeof(T)) return false;
+	std::memcpy(&v, p, sizeof(T));
+	p += sizeof(T);
+	return true;
+}
+} // namespace
+
+std::vector<uint8_t> FogMirages::export_memory() const {
+	std::vector<uint8_t> out;
+	if (!have_key_) return out;
+	put(out, kMemoryMagic);
+	put(out, key_viewer_);
+	put(out, (uint32_t)sizeof(FoggedBuilding));
+	put(out, (uint32_t)sizeof(FoggedResource));
+	put(out, (uint32_t)sizeof(FoggedTreasure));
+	// In id order, so a save's bytes don't depend on the hash maps' order.
+	auto write = [&](const auto &memory) {
+		std::vector<uint32_t> ids;
+		for (const auto &e : memory) ids.push_back(e.first);
+		std::sort(ids.begin(), ids.end());
+		put(out, (uint32_t)ids.size());
+		for (uint32_t id : ids) put(out, memory.at(id).seen);
+	};
+	write(building_memory_);
+	write(resource_memory_);
+	write(treasure_memory_);
+	return out;
+}
+
+bool FogMirages::import_memory(const uint8_t *data, size_t n) {
+	// A loaded game starts from its own memory, never the match left behind.
+	reset();
+	pending_ = false;
+	const uint8_t *p = data, *end = data + n;
+	uint32_t magic = 0, sb = 0, sr = 0, st = 0;
+	uint8_t viewer = 0;
+	if (!get(p, end, magic) || magic != kMemoryMagic || !get(p, end, viewer) || !get(p, end, sb) || !get(p, end, sr) ||
+			!get(p, end, st) || sb != sizeof(FoggedBuilding) || sr != sizeof(FoggedResource) || st != sizeof(FoggedTreasure))
+		return false;
+	auto read = [&](auto &list) {
+		uint32_t count = 0;
+		if (!get(p, end, count)) return false;
+		list.clear();
+		for (uint32_t k = 0; k < count; ++k) {
+			list.emplace_back();
+			if (!get(p, end, list.back())) return false;
+		}
+		return true;
+	};
+	if (!read(pending_buildings_) || !read(pending_resources_) || !read(pending_treasures_)) {
+		pending_ = false;
+		return false;
+	}
+	pending_ = true;
+	pending_viewer_ = viewer;
+	return true;
+}
+
+void FogMirages::apply_pending(uint8_t viewer) {
+	if (!pending_ || viewer != pending_viewer_) return;
+	pending_ = false;
+	for (const auto &b : pending_buildings_) building_memory_[b.id].seen = b;
+	for (const auto &r : pending_resources_) resource_memory_[r.id].seen = r;
+	for (const auto &t : pending_treasures_) treasure_memory_[t.id].seen = t;
+	pending_buildings_.clear();
+	pending_resources_.clear();
+	pending_treasures_.clear();
+}
+
 void FogMirages::begin(const uint8_t *los, int res, float map_half) {
 	los_ = los;
 	res_ = res;
@@ -239,6 +317,7 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		resource_memory_.clear();
 		treasure_memory_.clear();
 	}
+	apply_pending(viewer);
 	have_key_ = true;
 	key_viewer_ = viewer;
 	key_ticks_ = (uint64_t)stats.ticks;
