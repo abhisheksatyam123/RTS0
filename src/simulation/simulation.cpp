@@ -19155,32 +19155,54 @@ void Simulation::tick_trickle(float dt) {
 	// structures/pers/ice_house.xml 1 food. Technologies add to a structure's Rates
 	// (Subterranean Aqueducts: ice houses +1 food). A corral's own rate is 0; each
 	// garrisoned animal adds 1, 2 or 3 food every 5 s by its size
-	// (corral_garrison_{small,medium,large}.json).
-	const bool two_s = due(TRICKLE_STRUCTURE_INTERVAL), corral_due = due(CORRAL_TRICKLE_INTERVAL);
-	if (two_s) {
-		for (const auto &b : buildings_) {
-			if (b.team >= MAX_PLAYERS || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
-			float rate[RES_COUNT];
-			if (!structure_trickle_rates(b, rate)) continue;
-			PlayerState &ps = players_[b.team];
-			for (int r = 0; r < RES_COUNT; ++r) ps.res[r] += rate[r];
+	// (corral_garrison_{small,medium,large}.json). Each structure keeps its own timer
+	// (ResourceTrickle.js CheckTimer): it starts when the structure is finished, or when a
+	// corral's first animal is penned (its Rates leave 0), and stops when the corral empties.
+	auto due_since = [&](int64_t start, float interval_s) {
+		const int64_t n = std::lround(interval_s / FIXED_STEP);
+		const int64_t e = (int64_t)ticks_ + 1 - start;
+		return n > 0 && e > 0 && e % n == 0;
+	};
+	corral_penned_.clear();
+	for (size_t f = 0; f < fauna_.count; ++f) {
+		if (!fauna_.alive[f] || fauna_.behavior[f] != FAUNA_CORRALLED) continue;
+		auto it = building_id_to_idx_.find(fauna_.corral_id[f]);
+		if (it == building_id_to_idx_.end()) continue;
+		if (buildings_[it->second].type != BLD_CORRAL) {
+			// Penned in a civic centre by an older build: only a corral holds animals.
+			fauna_.behavior[f] = FAUNA_IDLE_GRAZE;
+			fauna_.corral_id[f] = 0;
+			continue;
 		}
+		corral_penned_.push_back((uint32_t)f);
 	}
-	if (corral_due) {
-		for (size_t f = 0; f < fauna_.count; ++f) {
-			if (!fauna_.alive[f] || fauna_.behavior[f] != FAUNA_CORRALLED) continue;
-			auto it = building_id_to_idx_.find(fauna_.corral_id[f]);
-			if (it == building_id_to_idx_.end()) continue;
-			const Building &b = buildings_[it->second];
-			if (b.type != BLD_CORRAL) {
-				// Penned in a civic centre by an older build: only a corral holds animals.
-				fauna_.behavior[f] = FAUNA_IDLE_GRAZE;
-				fauna_.corral_id[f] = 0;
-				continue;
-			}
-			if (b.team >= MAX_PLAYERS || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
-			players_[b.team].res[RES_FOOD] += fauna_corral_food(fauna_.fauna_type[f]);
+	for (auto &b : buildings_) {
+		const bool live = b.team < MAX_PLAYERS && b.build_progress >= 1.0f && b.hp > 0.0f;
+		bool timed = false;
+		if (live && b.type == BLD_CORRAL) {
+			for (uint32_t f : corral_penned_) timed = timed || fauna_.corral_id[f] == b.id;
+		} else if (live) {
+			timed = structure_has_trickle(b.type);
 		}
+		if (!timed) {
+			b.trickle_tick = -1;
+			continue;
+		}
+		if (b.trickle_tick < 0) {
+			b.trickle_tick = (int64_t)ticks_; // SetInterval: the first payout one Interval on
+			continue;
+		}
+		if (b.type == BLD_CORRAL) {
+			if (!due_since(b.trickle_tick, CORRAL_TRICKLE_INTERVAL)) continue;
+			for (uint32_t f : corral_penned_)
+				if (fauna_.corral_id[f] == b.id) players_[b.team].res[RES_FOOD] += fauna_corral_food(fauna_.fauna_type[f]);
+			continue;
+		}
+		if (!due_since(b.trickle_tick, TRICKLE_STRUCTURE_INTERVAL)) continue;
+		float rate[RES_COUNT];
+		if (!structure_trickle_rates(b, rate)) continue;
+		PlayerState &ps = players_[b.team];
+		for (int r = 0; r < RES_COUNT; ++r) ps.res[r] += rate[r];
 	}
 }
 
@@ -36234,6 +36256,7 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.heal_clock, sizeof(b.heal_clock));
 		out.write((const char *)&b.capture_timer, sizeof(b.capture_timer));
 		out.write((const char *)&b.template_off, sizeof(b.template_off));
+		out.write((const char *)&b.trickle_tick, sizeof(b.trickle_tick));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -36720,6 +36743,8 @@ bool Simulation::load_state(const char *filepath) {
 		if (version >= SAVE_VERSION_CAPTURE_TIMER) in.read((char *)&bld.capture_timer, sizeof(bld.capture_timer));
 		bld.template_off = 0; // older saves: every part on
 		if (version >= SAVE_VERSION_STRUCTURE_OFF) in.read((char *)&bld.template_off, sizeof(bld.template_off));
+		bld.trickle_tick = 0; // older saves: the match clock's phase, as they paid
+		if (version >= SAVE_VERSION_TRICKLE_TIMER) in.read((char *)&bld.trickle_tick, sizeof(bld.trickle_tick));
 		bld.set_extents(bld.half_size, building_half_depth(bld.type, bld.half_size, bld.civ)); // its civ's wall depth
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;

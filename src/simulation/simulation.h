@@ -189,7 +189,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 127; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 128; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_TRICKLE_TIMER = 128; // each structure's own trickle timer (Building::trickle_tick)
 	static constexpr uint32_t SAVE_VERSION_PETRA_LOST_BASES = 127; // each Petra's bases kept after their civic centre was lost
 	static constexpr uint32_t SAVE_VERSION_STRUCTURE_OFF = 126; // each map structure's template switches (Building::template_off)
 	static constexpr uint32_t SAVE_VERSION_CAPTURE_TIMER = 125; // each structure's capture regen timer (Capturable.js CheckTimer)
@@ -449,6 +450,10 @@ public:
 		// Researcher; uffington_horse: GarrisonHolder, Researcher, Trainer, BlockMovement):
 		// STRUCT_OFF_* bits. Saved from SAVE_VERSION_STRUCTURE_OFF.
 		uint8_t template_off = 0;
+		// ResourceTrickle.js CheckTimer: the tick its trickle timer started (SetInterval at the
+		// structure's completion, or at a corral's first penned animal), -1 while it has none.
+		// Each payout lands one Interval after the last. Saved from SAVE_VERSION_TRICKLE_TIMER.
+		int64_t trickle_tick = -1;
 	};
 	// Whether `b` is rasterized into the nav grid (0 A.D. Obstruction BlockPathfinding). A locked
 	// gate blocks paths once it has shut (Gate.js CloseGate), not while it is still open.
@@ -1270,6 +1275,12 @@ public:
 	// ResourceTrickle.js Rates of `b` after its owner's technologies and global auras; false
 	// when it has no ResourceTrickle.
 	bool structure_trickle_rates(const Building &b, float rate[RES_COUNT]) const;
+	// The structures whose template carries ResourceTrickle (structure_trickle_rates); a
+	// corral's comes from the animals penned in it.
+	static bool structure_has_trickle(uint8_t type) {
+		return type == BLD_WONDER || type == BLD_ICE_HOUSE || type == BLD_TACHARA ||
+				(type >= BLD_TACHARA_FOOD && type <= BLD_TACHARA_METAL);
+	}
 	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
 	void structure_resistance(const Building &b, float out[3]) const;
 	void unit_resistance(size_t i, float out[3]) const;
@@ -3035,6 +3046,7 @@ private:
 	// Pays a trade gain into `player`'s stock and its gather statistics.
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
+	std::vector<uint32_t> corral_penned_; // tick_trickle's scratch: fauna indices penned in a corral
 	// unallied_only: those whose owner is not allied with the corral's (GarrisonHolder.OnGlobalOwnershipChanged).
 	void eject_corral_animals(const Building &b, bool unallied_only = false);
 	void tick_death_damage(float dt);
