@@ -2644,6 +2644,8 @@ static void test_defensive_walks_back() {
 		setup(s);
 		uint32_t d = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
 		s.order_set_stance(&d, 1, stance); // held at (0, 0)
+		// No promotion: ChangeEntityTemplate's SwitchToStance would hold where it promotes.
+		s.units_.rank[idx_of(s, d)] = 3;
 		if (structure) {
 			const uint32_t h = s.spawn_building_world(16.0f, 0.0f, BLD_HOUSE, 1, 1.0f);
 			for (Simulation::Building &b : s.buildings_)
@@ -4073,6 +4075,57 @@ static void test_call_to_arms_front() {
 	check(shape, "return now, then the attack-walk, then the gathering");
 }
 
+// 109. Order.Stop is FinishOrder alone: a defensive unit stopped short of its walk keeps the walk's
+//      end as its held position and the IDLE Timer walks it on there.
+static void test_stop_keeps_held_position() {
+	std::printf("109. a defensive unit stopped mid-walk walks on to where it was sent (Order.Stop)\n");
+	Simulation s;
+	setup(s);
+	uint32_t u = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+	s.order_set_stance(&u, 1, STANCE_DEFENSIVE);
+	s.order_walk(&u, 1, 40, 0);
+	run_until(s, 20.0f, [&] { return x_of(s, u) > 15.0f; });
+	s.cmd_stop(&u, 1);
+	const float stopped = x_of(s, u);
+	run(s, 15.0f);
+	std::printf("  stopped at x %.1f, %.1f after\n", stopped, x_of(s, u));
+	check(stopped < 28.0f && x_of(s, u) > 38.0f, "it walks on to the walk's end");
+}
+
+// 110. Promotion.js -> ChangeEntityTemplate: the promoted unit has no work orders (Back to
+//      Work is gone) and holds where it stands.
+static void test_promotion_drops_work_orders() {
+	std::printf("110. promotion drops Back to Work (ChangeEntityTemplate copies no workOrders)\n");
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t tree = s.spawn_resource_world(4, 0, RES_WOOD, 500);
+	uint32_t u = s.spawn_unit(2, 0, 0, UNIT_SPEARMAN);
+	s.order_gather(&u, 1, tree);
+	run(s, 2.0f);
+	s.order_walk(&u, 1, 2, 12);
+	check(s.unit_has_work_order(u), "a walk keeps the gathering as a work order");
+	s.units_.xp[idx_of(s, u)] = 60000;
+	s.promote_if_due(idx_of(s, u)); // Promotion.js IncreaseXp
+	check(s.units_.xp[idx_of(s, u)] < 60000 && !s.unit_has_work_order(u), "promoted, it has no Back to Work");
+}
+
+// 112. Shift+Call to Arms queues DropAtNearestDropSite, resolved when it runs.
+static void test_queued_call_to_arms_drop() {
+	std::printf("112. a queued call to arms drops at the dropsite nearest where the unit is then\n");
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(-30, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t near_store = s.spawn_building_world(40, 0, BLD_STOREHOUSE, 0, 1.0f);
+	uint32_t u = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+	s.units_.carry[idx_of(s, u)] = 5;
+	s.units_.res_type_carried[idx_of(s, u)] = RES_WOOD;
+	s.order_walk(&u, 1, 32, 0);
+	s.order_call_to_arms(&u, 1, 32, 30, true, false, true);
+	const bool there = run_until(s, 40.0f, [&] { return s.unit_order(u).kind == ORDER_RETURN_RESOURCE; });
+	check(there && s.unit_order(u).target == near_store, "after the walk it takes the load to the storehouse beside it");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -4189,6 +4242,9 @@ int main(int argc, char **argv) {
 	test_capture_looks_again();
 	test_helper_walks_on();
 	test_call_to_arms_front();
+	test_stop_keeps_held_position();
+	test_promotion_drops_work_orders();
+	test_queued_call_to_arms_drop();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
