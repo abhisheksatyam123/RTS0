@@ -436,6 +436,20 @@ gui/common/tooltips.js and selection_panels_helpers.js against RTS0's constructi
 | TT6 | The wall-dragging cost tip is a plain Label: "Cost: Stone 36" without the header font or icons | nit | Open |
 | TT7 | "Requires ..." from a unit trainer shows only the generic name, not "Specific (Generic)"; no case found in the current rosters | nit | Open |
 
+### Defensive structures and Petra's use of them, twenty-first 0.28 pass (2026-10-27)
+
+BuildingAI.js, GarrisonHolder/TurretHolder, Capturable and TerritoryDecay against RTS0's structure runtime (matching), and headquarters.js buildDefenses/findDefensiveLocation, defenseManager.js and garrisonManager.js against Petra's. Owner: E (placement); garrisons and focus fire to their owners.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| DS1 | Petra keeps healed female citizens garrisoned: garrisonManager.js:317 releases units with a Melee attack (women have a Dagger) at 70% health; RTS0 tests the Melee class | medium | Open (Petra garrisons) |
+| DS2 | Petra treats war elephants as ordinary units when garrisoning against an attack; entityExtend.js isSiegeUnit counts Elephant+Melee as siege (garrison only ranged soldiers) | medium-low | Open (Petra garrisons) |
+| DS3 | An enemy tower or fortress alone doesn't make Petra garrison its tower or civic centre (defenseManager.js:569-579, 692-693) | low-medium | Open (Petra defense) |
+| DS4 | findDefensiveLocation took any frontier cell of ours; 0.28 takes only cells a base of ours holds on its anchor's land (baseAtIndex), so no towers across a river or on an islet | low-medium | Fixed |
+| DS5 | Towers and fortresses were searched for a spot before queueing and retried after 90 s (every 3rd turn for a first stone tower); 0.28 queues the plan, searches at start, and with no spot marks it unbuildable for 90 s while the lapse runs from queue time | low | Fixed |
+| DS6 | An enemy whose only civic centre, tower or fortress is a foundation let Petra fall back to neutral or allied structures; in 0.28 the foundation blocks the fallback | nit | Fixed |
+| DS7 | Focus fire refuses enemy players' livestock; BuildingAI.js:275-285 accepts any enemy entity in range (RTS0's automatic arrows already shoot them) | nit | Open (focus fire) |
+
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 
 BuildingAI.js, Attack.js and DelayedDamage.js against the arrow code, measured in the simulation and against a Python port of FireArrows: arrow counts with garrisons, auras and technologies (civic centre 6-26, tower 4-9, fortress 10-30), the 20 rounds per RepeatTime and their rounding, the first volley PrepareTime after a target enters, the paused round when targets leave, target order (preference, then distance, every arrow of a round on the first), what is shot (enemies, structures with Health, livestock, Gaia that can fight back), visibility, MinRange from the footprint, foundations, ownership changes, spread and stray hits all match. Owner: E.
@@ -681,6 +695,23 @@ The single selection's bars, captions and tooltips checked against 0.28's select
 | DP7 | The portrait tooltip's name was plain and its template tooltip bold; 0.28 sets the name in namePrimaryBig and the tooltip in bodyFont | nit | Fixed |
 | DP8 | The carried amount, gatherers and builder captions were regular 10 px and the builders and time shared a line; CarryingTextRight is sans-bold-stroke-13 with "(3)" over "0:12" | nit | Fixed |
 
+### Diplomacy and Barter & Trade dialogs, fourteenth 0.28 pass (2026-10-27)
+
+The session's Diplomacy and Barter & Trade dialogs checked against 0.28's gui/session/diplomacy/ and gui/session/trade/ (main 6752e8dd0). Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| DG1 | The diplomacy dialog was a fixed box; DiplomacyDialog.resize makes it 560 + 4 tribute columns wide and 170 + 20 per player tall, centred at 50%-70 | low | Fixed |
+| DG2 | Both dialogs drew the plain panel; 0.28 puts them on ModernDialog | nit | Fixed |
+| DG3 | The diplomacy title, headers and ceasefire line were regular; TitleText and DiplomacyText are white sans-bold 14 with an outline, headers centred, rows 20 px | nit | Fixed |
+| DG4 | After you won the stance and tribute buttons stayed live; 0.28 hides them once the player has won as well as lost | low | Fixed |
+| DG5 | A player name's AI tooltip used the bold style; it takes the plain sessionToolTip | nit | Fixed |
+| DG6 | A spy request greyed the button for good; 0.28 greys it only while the request is pending | nit | Fixed |
+| DG7 | The trade dialog's tooltips were plain; the help (i) buttons use sessionToolTipBold and the barter buttons sessionToolTipBottomBold | nit | Fixed |
+| DG8 | The trade dialog's labels were regular and "No Markets Available" and the amounts were misplaced; 0.28 sets the title, sections and row labels in white sans-bold 14 with an outline, centres the notice and left-aligns the amounts | nit | Fixed |
+| DG9 | The selected sell icon was only tinted; BarterButton draws it in grayscale at 61% | nit | Fixed |
+| DG10 | The tribute msgid named "%(resource)s" and "You have won!" / "You have been defeated!" were not translated; 0.28 uses "%(resourceType)s" and translates both | nit | Fixed |
+
 ### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
 
 diplomacyManager.js, chatHelper.js and their callers were checked line by line. Everything else matches: update cadence, tribute rules, request handling and its odds, lastManStandingCheck, changePlayerDiplomacy, personality boosts, every chat string. Jebel Barkal was checked statically against the 0.28 source, since no 0.28 binary runs here (pass 8: wave sizing and target-class skip match). Pass 4's P2 is D8 below, and its P5 is D7.
@@ -760,7 +791,7 @@ Trigger.js, TriggerPoint.js, Timer.js and every TriggerHelper.js helper were che
 | TH7 | Danubius ships that couldn't unload kept their landing point and retried every 5 s; 0.28 unloads once and moves on either way, and draws the formation even when nobody is aboard | low | Fixed |
 | TH8 | Danubius' ritual made only infantry, women and healers defensive; 0.28 does every Gaia Human (cavalry too) | low | Fixed |
 | TH9 | GetLandSpawnPoints left out treasures and catafalques | low | Fixed |
-| TH10 | Gallic Fields rounds the wave delay to whole ms; float vs double in RandomTemplateComposition; RegisterTrigger has no duplicate guard | negligible | Open: Triggers |
+| TH10 | Gallic Fields rounds the wave delay to whole ms; float vs double in RandomTemplateComposition; RegisterTrigger has no duplicate guard | negligible | Fixed: attackTime keeps its fraction and the timeout rounds up (Timer.js fires on the first turn past it); shares in doubles with Math.round; a second registration of an event and action is refused |
 
 The scenario test scripts (triggers_demo, pickup_test_map, unit_chasing_test, unit_dancing_test, unit_pushing_test, unit_motion_integration_test, treasure_islands, death_canyon_invasion_force) were checked line by line (fourteenth pass, 2026-10-21; docs/archive/triggers-audit-028-pass14.md):
 
@@ -792,8 +823,8 @@ Scenario-only units: every unit the 0.28 scenario, demo and sandbox maps place w
 | LR1 | A rated game left Teams Locked as it was. 0.28 LockedTeams.onRatingChange turns it on and makes it unchangeable while the game is rated, and off when the game is unrated | medium | Fixed: rating the game locks the teams, unrating it unlocks them |
 | LR2 | Lobby players hosted and joined with their bare nick. 0.28 hosts and joins as "nick (rating)" once rated, so Game Setup, chat, the session and the summary show the rating; a rejoin keeps the rating the player joined with (JoinButton.getRejoinRating) | low | Fixed: the game list reads the rating in the name (Game.js), and the report and buddy marks use the nick |
 | LR3 | A ban in a lobby game kept the rated name, so a changed rating got past it. 0.28 NetServer bans the name without its rating behind the lobby | low | Fixed |
-| LR4 | The lobby server keys reports by player names and compares every field of the report; EcheLOn keys by the reporting JIDs and compares the summary only | negligible | Open: Triggers (same outcome for two honest reports) |
-| LR5 | Reports are matched by RTS0's matchID (seed, map, players) and the last 200 are kept; 0.28 uses its random matchID and EcheLOn drops reports after an hour | negligible | Open: Triggers |
+| LR4 | The lobby server keys reports by player names and compares every field of the report; EcheLOn keys by the reporting JIDs and compares the summary only | negligible | Kept: RTS0's lobby has no JIDs (names are its accounts), and two honest reports give the same outcome |
+| LR5 | Reports are matched by RTS0's matchID (seed, map, players) and the last 200 are kept; 0.28 uses its random matchID and EcheLOn drops reports after an hour | negligible | Fixed: reports also expire after an hour; the matchID stays RTS0's (Kept: unique per match either way) |
 | LR6 | RTS0 sends the report when the local player is decided; 0.28 registers it on the players-finished handler, the same moment for a 1v1 | negligible | Deliberate |
 
 ## Read this first: whole-game parity (recounted 2026-10-21, main 93320ab3d)
