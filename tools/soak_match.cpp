@@ -19,7 +19,9 @@
 // --civs seated instead of the map's. It also logs, for a sweep (tools/sweep_matches.py):
 //   - [slow]: a game minute that took more than 20 s of wall time (a stall);
 //   - [spike]: a turn of the main copy that took more than its 200 ms of game time, and
-//     [perf] every 5 minutes with the worst turn since the last one (--diffs a,b sets the
+//     [perf] every 5 minutes with the worst and mean turn since the last one, unit slots and
+//     resident memory, and [mem] every 10 minutes with the containers that have more than
+//     doubled since minute 10 (--diffs a,b sets the
 //     Petra difficulty per seat, 0 Sandbox to 5 Very Hard);
 //   - [phase]: each phase-up, and [no-phase] for a player still in Village at the end of a
 //     match of 15+ minutes;
@@ -44,6 +46,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <map>
 #include <memory>
 #include <string>
@@ -77,6 +80,104 @@ const char *action_name(uint8_t a) {
 
 bool is_siege(uint8_t t) {
 	return unit_is_siege_engine(t);
+}
+
+// Resident memory in MB (Linux /proc), 0 where unavailable.
+double rss_mb() {
+	std::ifstream f("/proc/self/statm");
+	long pages = 0, resident = 0;
+	if (!(f >> pages >> resident)) return 0.0;
+	return resident * 4096.0 / (1024.0 * 1024.0);
+}
+
+// The simulation's growable containers, by size: what a late-game leak would grow.
+std::vector<std::pair<const char *, size_t>> container_sizes(const Simulation &s) {
+	return {
+		{"unit_upgrades_", s.unit_upgrades_.size()},
+		{"unit_queues_", s.unit_queues_.size()},
+		{"unit_autoqueue_", s.unit_autoqueue_.size()},
+		{"attacked_events_", s.attacked_events_.size()},
+		{"ai_command_events_", s.ai_command_events_.size()},
+		{"pending_attack_alerts_", s.pending_attack_alerts_.size()},
+		{"fauna_strikes_", s.fauna_strikes_.size()},
+		{"session_notices_", s.session_notices_.size()},
+		{"transport_passengers_", s.transport_passengers_.size()},
+		{"flight_", s.flight_.size()},
+		{"turret_height_", s.turret_height_.size()},
+		{"rampart_turrets_", s.rampart_turrets_.size()},
+		{"turret_prev_stance_", s.turret_prev_stance_.size()},
+		{"formations_", s.formations_.size()},
+		{"formation_group_", s.formation_group_.size()},
+		{"formation_slot_walk_", s.formation_slot_walk_.size()},
+		{"buildings_", s.buildings_.size()},
+		{"projectiles_", s.projectiles_.size()},
+		{"statuses_", s.statuses_.size()},
+		{"relics_", s.relics_.size()},
+		{"treasures_", s.treasures_.size()},
+		{"pending_alerts_", s.pending_alerts_.size()},
+		{"unit_id_to_idx_", s.unit_id_to_idx_.size()},
+		{"unit_idx_by_id_", s.unit_idx_by_id_.size()},
+		{"field_res_by_bld_", s.field_res_by_bld_.size()},
+		{"field_bld_by_res_", s.field_bld_by_res_.size()},
+		{"field_gatherers_", s.field_gatherers_.size()},
+		{"fish_gatherers_", s.fish_gatherers_.size()},
+		{"supply_gatherers_", s.supply_gatherers_.size()},
+		{"scenery_", s.scenery_.size()},
+		{"petra_place_misses_", s.petra_place_misses_.size()},
+		{"trader_routes_", s.trader_routes_.size()},
+		{"trader_leg_", s.trader_leg_.size()},
+		{"trader_goods_", s.trader_goods_.size()},
+		{"trader_route_points_", s.trader_route_points_.size()},
+		{"trader_route_idx_", s.trader_route_idx_.size()},
+		{"trigger_dialogs_", s.trigger_dialogs_.size()},
+		{"spies_", s.spies_.size()},
+		{"stat_samples_", s.stat_samples_.size()},
+		{"petra_started_attacks_", s.petra_started_attacks_.size()},
+		{"petra_defense_armies_", s.petra_defense_armies_.size()},
+		{"petra_transports_", s.petra_transports_.size()},
+		{"petra_chat_", s.petra_chat_.size()},
+		{"petra_diplomacy_requests_", s.petra_diplomacy_requests_.size()},
+		{"petra_bases_", s.petra_bases_.size()},
+		{"petra_fnd_watch_", s.petra_fnd_watch_.size()},
+		{"petra_hunt_search_", s.petra_hunt_search_.size()},
+		{"petra_move_to_gatherer_", s.petra_move_to_gatherer_.size()},
+		{"petra_supply_", s.petra_supply_.size()},
+		{"petra_targeted_relics_", s.petra_targeted_relics_.size()},
+		{"petra_approach_", s.petra_approach_.size()},
+		{"petra_inaccessible_", s.petra_inaccessible_.size()},
+		{"petra_base_dropsite_checks_", s.petra_base_dropsite_checks_.size()},
+		{"cc_captures_", s.cc_captures_.size()},
+		{"petra_hit_events_", s.petra_hit_events_.size()},
+		{"los_unit_src_", s.los_unit_src_.size()},
+		{"los_bld_src_", s.los_bld_src_.size()},
+		{"los_fauna_src_", s.los_fauna_src_.size()},
+		{"los_spy_src_", s.los_spy_src_.size()},
+		{"los_garrison_src_", s.los_garrison_src_.size()},
+		{"petra_slots_", s.petra_slots_.size()},
+		{"petra_ev_attacked_", s.petra_ev_attacked_.size()},
+		{"petra_ev_captures_", s.petra_ev_captures_.size()},
+		{"petra_ev_decay_", s.petra_ev_decay_.size()},
+		{"petra_attack_requests_", s.petra_attack_requests_.size()},
+		{"petra_turn_attacks_", s.petra_turn_attacks_.size()},
+		{"petra_turn_attacker_", s.petra_turn_attacker_.size()},
+		{"petra_turn_captures_", s.petra_turn_captures_.size()},
+		{"petra_turn_decay_", s.petra_turn_decay_.size()},
+		{"unit_paths_", s.unit_paths_.size()},
+		{"steer_obstacles_", s.steer_obstacles_.size()},
+		{"short_path_search_", s.short_path_search_.size()},
+		{"sep_obstacles_", s.sep_obstacles_.size()},
+		{"mine_obstacles_", s.mine_obstacles_.size()},
+		{"gaia_obstacles_", s.gaia_obstacles_.size()},
+		{"gaia_res_idx_", s.gaia_res_idx_.size()},
+		{"mine_candidates_", s.mine_candidates_.size()},
+		{"gate_pass_memo_", s.gate_pass_memo_.size()},
+		{"capture_attack_", s.capture_attack_.size()},
+		{"order_queues_", s.order_queues_.size()},
+		{"guard_of_", s.guard_of_.size()},
+		{"locked_dropsite_units_", s.locked_dropsite_units_.size()},
+		{"work_orders_", s.work_orders_.size()},
+		{"closed_gates_", s.closed_gates_.size()},
+	};
 }
 
 float target_hp(const Simulation &s, uint32_t uid, uint32_t bid) {
@@ -221,13 +322,20 @@ int main(int argc, char **argv) {
 	double slowest_minute = 0.0;
 
 	const int turns = (int)(minutes * 60.0 / 0.2 + 0.5);
-	double slowest_turn = 0.0, minute_worst_turn = 0.0;
+	double slowest_turn = 0.0, minute_worst_turn = 0.0, window_ms = 0.0;
+	int window_turns = 0;
+	// Late-game drift: mean turn time and memory per 10 minutes, and containers that keep
+	// growing ([mem]); the first sample is taken at 10 minutes, once the start has settled.
+	std::vector<std::pair<const char *, size_t>> mem_first;
+	double rss_first = 0.0;
 	int spikes = 0;
 	for (int t = 1; t <= turns; ++t) {
 		const auto turn_start = std::chrono::steady_clock::now();
 		turn(*a);
 		const double turn_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - turn_start).count();
 		minute_worst_turn = std::max(minute_worst_turn, turn_ms);
+		window_ms += turn_ms;
+		++window_turns;
 		slowest_turn = std::max(slowest_turn, turn_ms);
 		if (turn_ms > 200.0 && spikes++ < 20) {
 			// A 200 ms turn takes longer than the game time it covers: a hitch in a real match.
@@ -280,8 +388,27 @@ int main(int argc, char **argv) {
 			if (sec % 300 == 0) {
 				size_t alive = 0;
 				for (size_t i = 0; i < s.units_.count; ++i) alive += s.units_.alive[i];
-				std::printf("[perf] t=%dm worst turn %.1f ms, %zu living units, %zu buildings\n", sec / 60, minute_worst_turn, alive, s.buildings_.size());
+				size_t wrecked = 0;
+				for (const auto &b : s.buildings_) wrecked += b.wrecked;
+				std::printf("[perf] t=%dm worst turn %.1f ms, mean %.2f ms, %zu living units, %zu unit slots, %zu buildings (%zu wrecked), rss %.0f MB\n",
+						sec / 60, minute_worst_turn, window_turns ? window_ms / window_turns : 0.0, alive, s.units_.count,
+						s.buildings_.size(), wrecked, rss_mb());
 				minute_worst_turn = 0.0;
+				window_ms = 0.0;
+				window_turns = 0;
+				if (sec % 600 == 0) {
+					auto now_sizes = container_sizes(s);
+					if (mem_first.empty()) {
+						mem_first = now_sizes;
+						rss_first = rss_mb();
+					} else {
+						std::printf("[mem] t=%dm rss %.0f MB (%+.0f since 10m);", sec / 60, rss_mb(), rss_mb() - rss_first);
+						for (size_t k = 0; k < now_sizes.size(); ++k)
+							if (now_sizes[k].second >= 256 && now_sizes[k].second > 2 * mem_first[k].second + 64)
+								std::printf(" %s %zu (was %zu)", now_sizes[k].first, now_sizes[k].second, mem_first[k].second);
+						std::printf("\n");
+					}
+				}
 			}
 			if (wall > 20.0 * (1 + (b != nullptr) + (c != nullptr))) {
 				std::printf("[slow] t=%dm %.1f s of wall time for the last game minute\n", sec / 60, wall);
