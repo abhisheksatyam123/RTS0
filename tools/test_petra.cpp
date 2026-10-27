@@ -7928,6 +7928,126 @@ static void test_petra_far_gatherer_recheck() {
 	CHECK(now != far, "a gatherer on a far supply is sent back");
 }
 
+// worker.js:293-314 (W6): a stone gatherer sent to a far mine drops its supply mark on the way
+// back to a dropsite while its base has a nearby mine, so it is rechecked when it gathers again.
+static void test_far_sparse_gatherer_returning() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	s->spawn_resource_world(cx + 8.0f, cz + 8.0f, RES_STONE, 5000);
+	float fx = 0.0f, fz = 0.0f;
+	bool found = false;
+	for (int a = 0; a < 16 && !found; ++a)
+		for (float d = 30.0f; d < 44.0f && !found; d += 2.0f) {
+			const float x = cx + std::cos(a * 0.3927f) * d, z = cz + std::sin(a * 0.3927f) * d;
+			if (std::fabs(x) > s->map_half_ - 8.0f || std::fabs(z) > s->map_half_ - 8.0f) continue;
+			if (s->petra_access_at(x, z) == s->petra_access_at(cx, cz) && s->territory_owner_at(x, z) < 0) { fx = x; fz = z; found = true; }
+		}
+	CHECK(found, "land 30-44 units out");
+	if (!found) return;
+	const uint32_t far = s->spawn_resource_world(fx, fz, RES_STONE, 5000);
+	const uint32_t w = s->spawn_unit(fx + 1.5f, fz, 1, UNIT_FEMALE_CITIZEN);
+	s->petra_set_supply(w, far); // Petra sent it there (metadata "supply")
+	s->order_gather(&w, 1, far);
+	{ // nearly full: it heads back with its load within a few seconds
+		const int32_t i = s->lookup_unit(w);
+		s->units_.carry[i] = 9;
+		s->units_.res_type_carried[i] = RES_STONE;
+	}
+	bool returning = false, cleared = false;
+	for (int k = 0; k < 30 * 12 && !cleared; ++k) {
+		s->tick(Simulation::FIXED_STEP);
+		const int32_t i = s->lookup_unit(w);
+		if (i < 0) break;
+		returning |= s->units_.action_state[i] == ACTION_RETURN_DROPSITE;
+		cleared = s->petra_supply_of(w) == 0;
+		if (!returning && cleared) { s->petra_set_supply(w, far); cleared = false; } // a recheck while gathering: keep it there
+	}
+	std::printf("  far stone gatherer taking its load back: supply mark %s\n", cleared ? "dropped" : "kept");
+	CHECK(returning && cleared, "a stone gatherer on a far mine drops its supply mark on the way back");
+}
+
+// worker.js:220-227 (W7): an idle gatherer carrying its own gather-type goes straight back to
+// gathering with its load; one carrying another type takes it to a dropsite first.
+static void test_idle_gatherer_keeps_load() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	const uint32_t tree = s->spawn_resource_world(cx + 10.0f, cz - 10.0f, RES_WOOD, 5000);
+	const uint32_t w = s->spawn_unit(cx + 9.0f, cz - 9.0f, 1, UNIT_FEMALE_CITIZEN);
+	s->petra_set_supply(w, tree); // a gatherer Petra sent to wood
+	auto &u = s->units_;
+	int32_t i = s->lookup_unit(w);
+	u.carry[i] = 5;
+	u.res_type_carried[i] = RES_WOOD;
+	bool returned = false, gathering = false;
+	for (int k = 0; k < 30 * 6 && !gathering; ++k) {
+		s->tick(Simulation::FIXED_STEP);
+		i = s->lookup_unit(w);
+		if (i < 0) break;
+		returned |= u.order_kind[i] == ORDER_RETURN_RESOURCE;
+		gathering = u.action_state[i] == ACTION_GATHER && u.carry[i] > 0;
+	}
+	std::printf("  idle wood gatherer with 5 wood: return order %s, gathering with its load %s\n", returned ? "yes" : "no",
+	            gathering ? "yes" : "no");
+	CHECK(!returned && gathering, "an idle gatherer carrying its own type goes straight back to gathering");
+}
+
+// headquarters.js manageCorral (H8): the livestock TrainingPlan waits in queues.corral and is
+// paid from that queue's account, not straight from the stock.
+static void test_corral_pays_from_queue() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 2.0f);
+	s->petra_pid_ = 1;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->petra_queues_.accounts[PETRA_Q_CORRAL] = {};
+	s->triggers_.disabled_buildings[1] |= bld_bit(BLD_FIELD);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const uint32_t corral = s->spawn_building_world(cc->x + 20.0f, cc->z, BLD_CORRAL, 1, 1.0f);
+	auto queued = [&] {
+		auto it = s->building_id_to_idx_.find(corral);
+		return it == s->building_id_to_idx_.end() ? 0 : (int)s->buildings_[it->second].queue.size();
+	};
+	auto manage = [&] { s->ticks_ = (s->ticks_ / 16 + 1) * 16 + 12; s->petra_manage_fields(); };
+	manage();
+	const bool waited = queued() == 0 && s->petra_queues_.wants[PETRA_Q_CORRAL].food > 0.0f;
+	const float food = s->petra_ps().food();
+	s->petra_queues_.accounts[PETRA_Q_CORRAL] = {500, 500, 500, 500};
+	manage();
+	const float paid = food - s->petra_ps().food();
+	const float account = 500.0f - s->petra_queues_.accounts[PETRA_Q_CORRAL].food;
+	std::printf("  corral: waits unfunded %s, then bred %d paying %.0f food from the stock and %.0f from its account\n",
+	            waited ? "yes" : "no", queued(), paid, account);
+	CHECK(waited, "an unfunded corral queue breeds nothing and keeps its want");
+	CHECK(queued() == 1 && paid > 0.0f && paid == account, "a funded corral queue breeds, paying once from its account");
+}
+
 static void test_corral_by_owner() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -8390,6 +8510,9 @@ int main(int argc, char **argv) {
 	RUN(test_building_plan_028);
 	RUN(test_tile_bases_028);
 	RUN(test_food_fields);
+	RUN(test_far_sparse_gatherer_returning);
+	RUN(test_idle_gatherer_keeps_load);
+	RUN(test_corral_pays_from_queue);
 	RUN(test_corral_by_owner);
 	RUN(test_missing_room_expansion);
 	RUN(test_petra_far_gatherer_recheck);
