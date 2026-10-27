@@ -2954,13 +2954,16 @@ bool Simulation::near_impassable_terrain(float x, float z, float c) const {
 // one (unloaded on the beach, walking in from the water, standing on a slope) may move on: across
 // the cliff too, as 0.28's CheckLineMovement lets a unit on impassable navcells cross more of them
 // (the clearance band and the steep tile are both impassable there), but not off the beach into
-// the deep water itself.
+// the deep water itself. Either kind lets it onto the other: deep water and steep ground are alike
+// impassable navcells to 0.28 (Pathfinding.cpp:46-48, 61-75), so a unit in the water climbs a steep
+// shore onto the land.
 bool Simulation::land_step_barred(float x0, float z0, float x1, float z1, float c) const {
+	auto on_impassable = [&] { return near_deep_water(x0, z0, c) || nav_grid_.near_steep_tile(x0, z0, c); };
 	if (near_deep_water(x1, z1, c)) {
-		if (!near_deep_water(x0, z0, c)) return true;
+		if (!on_impassable()) return true;
 		if (near_deep_water(x1, z1, 0.0f) && !near_deep_water(x0, z0, 0.0f)) return true;
 	}
-	return nav_grid_.near_steep_tile(x1, z1, c) && !nav_grid_.near_steep_tile(x0, z0, c);
+	return nav_grid_.near_steep_tile(x1, z1, c) && !on_impassable();
 }
 
 bool Simulation::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
@@ -12822,6 +12825,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// (nav/building_steering.h), or round idle units (avoid_idle_units), until the unit reaches
 		// it. The arrival check above still uses the real aim point.
 		bool steered = false, round_units = false;
+		uint32_t round_corner = 0; // the memo key of the corner a path round idle units leads to
 		// The waypoint after the one steered for, on a short path the unit keeps (nav::SteerNext).
 		rtso::nav::SteerNext after;
 		if (!unit_is_ship(units_.unit_type[i]) && !backing_off) {
@@ -12829,8 +12833,10 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			rtso::nav::Vec2 steer;
 			ShortPathMemo &memo = units_.short_path[i];
 			const float mdx = aim_x - memo.aim_x, mdz = aim_z - memo.aim_z;
-			round_units = memo.key == idle_path_key() &&
+			round_units = (memo.key == idle_path_key() || memo.key == idle_relaxed_path_key()) &&
 					mdx * mdx + mdz * mdz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
+			// That corner's key says which unit squares the path was searched among.
+			round_corner = memo.key == idle_relaxed_path_key() ? idle_relaxed_corner_key() : idle_corner_key();
 			if (round_units) steer = rtso::nav::Vec2(memo.x, memo.z);
 			const ShortPathMemo last = memo;
 			// The trees, bushes and treasures near the unit count too (gaia_obstacles_near): the
@@ -12897,7 +12903,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				// Standing on the waypoint: next tick decides from the corner, or the unit heads for the
 				// next waypoint of the path it keeps.
 				if (round_units || !after.more) {
-					units_.short_path[i].key = round_units ? idle_corner_key() : 0;
+					units_.short_path[i].key = round_units ? round_corner : 0;
 					break;
 				}
 				++units_.short_path[i].key;
@@ -12943,7 +12949,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			move_dx = dx + (rl > 1e-6f ? rx * (rest / rl) : 0.0f);
 			move_dz = dz + (rl > 1e-6f ? rz * (rest / rl) : 0.0f);
 		} else if (corner_reached) {
-			units_.short_path[i].key = round_units ? idle_corner_key() : 0;
+			units_.short_path[i].key = round_units ? round_corner : 0;
 		}
 		want_x[i] = move_dx;
 		want_z[i] = move_dz;
@@ -13102,8 +13108,31 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 // that is within the search range, as ComputeGoal shapes it, so a worker finds a free spot beside a
 // tree others already stand at. A walker already within reach of its task (walk_in_reach) stays where
 // it is instead. Ships are left to separation().
+// When that search finds no way, the unit searches again among smaller squares shaped as 0.28's are,
+// as below (IDLE_SQUARE_RELAX): this frees a walker that starts just outside an idle unit's square
+// heading slightly into it, beside a second square or a building, where every corner of the
+// crowd-scale squares lies in a square it may not step into (Stats' freeze; test_unit_pushing 22).
+// A formation's member never searches that way (below).
 // CCmpUnitMotion::ShortPathSearchRange: 12 m, 4 m more for each failed turn after the first, at
 // most 56 m (map lengths: 4 m a unit).
+// 0.28's unit square for a short path and for a step is the idle unit's clearance plus the walker's
+// less 1/2 m (VertexPathfinder.cpp:618-625 pathfindClearance; TestLine's relaxClearanceForUnits,
+// CCmpObstructionManager.cpp:897-900, which CheckMovement asks for, CCmpPathfinder.cpp:971-980).
+// The second search's squares are not 0.28's own: they are RTS0's two crowd clearances
+// (unit_push_clearance, PUSH_SCALE units a metre) less that 1/2 m taken at the crowd scale, and never
+// smaller than the two bodies (unit_collision_radius), inside which separation() would slide the
+// walker out again. For women and infantry the bodies decide: 0.96 units for two women and 1.10 for
+// two spearmen, against 0.28's (0.8 + 0.8 - 0.5) m, 0.92 units at the crowd scale. For large classes
+// they are smaller than 0.28's: 1.82 units for a ram and a woman, against (3.0 + 0.8 - 0.5) m, 2.75
+// units at the crowd scale.
+constexpr float IDLE_SQUARE_RELAX = 0.5f * PUSH_SCALE;
+// 0.28 sets the corners of the obstruction squares EDGE_EXPAND_DELTA, 1/16 m, off them
+// (VertexPathfinder.cpp:107, 623-624). RTS0's compute_short_path scales that by its 8 m navcell
+// (deviation 3), half a metre, which is enough to hide the way out of a slit; the second search
+// uses 1/16 m at the map's scale (4 m a unit), 1/64 unit. Its squares are at the crowd scale, where
+// 1/16 m would be 0.052 units, but the offset only keeps the vertices off the squares' sides, so any
+// small one serves.
+constexpr float IDLE_SQUARE_DELTA = (1.0f / 16.0f) / 4.0f;
 static float short_path_search_range(uint8_t failed) {
 	constexpr float RANGE_MIN = 12.0f / 4.0f, RANGE_STEP = 4.0f / 4.0f, RANGE_MAX = 56.0f / 4.0f;
 	return std::min(RANGE_MAX, RANGE_MIN + RANGE_STEP * (float)std::max(0, (int)failed - 1));
@@ -13142,6 +13171,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 	constexpr float RANGE_CORNER = 32.0f / 4.0f; // a search on from a corner
 	const uint64_t per_turn = (uint64_t)std::max(1L, std::lround(0.2f / dt)); // 0 A.D. turns last 200 ms
 	const uint32_t key = idle_path_key(), corner_key = idle_corner_key(), stuck_key = idle_stuck_key();
+	const uint32_t relaxed_key = idle_relaxed_path_key(), relaxed_corner_key = idle_relaxed_corner_key();
 	const nav::Vec2 U(1.0f, 0.0f), V(0.0f, 1.0f); // unit obstructions are axis-aligned squares
 	// The range unit i's task is done in, as CCmpUnitMotion::ComputeGoal shapes a move to a target's
 	// range: a circle round a unit or resource, a square round a structure (the corners within reach
@@ -13246,6 +13276,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const float x0 = px[i], z0 = pz[i];
 		if (npx[i] == x0 && npz[i] == z0) return;
 		const float ci = unit_push_clearance(units_.unit_type[i]);
+		const float ri = unit_collision_radius(units_.unit_type[i]);
 		const uint32_t ignore = units_.target_unit_id[i];
 		const uint32_t group = crew[i];
 		// A worker taking its load to a dropsite: tick_gather's return (GATHER.RETURNINGRESOURCE), or a
@@ -13286,13 +13317,33 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			return !((units_.action_state[j] == ACTION_IDLE && !units_.has_order[j]) ||
 					(near_drop && units_.action_state[j] == ACTION_GATHER));
 		};
-		auto step_blocked = [&](float ex, float ez) {
+		// The half size of idle unit j's square round unit i's centre: both crowd clearances, or with
+		// `relaxed` the second search's square, shaped as 0.28's: both crowd clearances less 1/2 m at the
+		// crowd scale (IDLE_SQUARE_RELAX), never smaller than the two bodies.
+		auto unit_half = [&](int32_t j, bool relaxed) {
+			const float h = ci + unit_push_clearance(units_.unit_type[j]);
+			if (!relaxed) return h;
+			return std::max(h - IDLE_SQUARE_RELAX, ri + unit_collision_radius(units_.unit_type[j]));
+		};
+		// A ray that starts inside a square is never blocked by it (TestRaySquare, as 0.28's
+		// TestRayAASquare), so a walker inside an idle unit's crowd-scale square may walk through the
+		// unit's body. With `inside`, such a walker is tested against that unit's smaller square
+		// (unit_half, relaxed) instead, as 0.28's CheckMovement tests every step against the relaxed
+		// squares (CCmpPathfinder.cpp:971-980): it may walk out, but not through the body. Only the check
+		// at a corner of a short path round idle units asks for it (below). Pushes and new units leave
+		// units inside each other's crowd-scale squares all the time, and testing every step this way also
+		// held those back (test_petra's relic captors took the relic after 84 s, against its 60 s limit),
+		// so other steps keep the plain test. A walker that a path among the smaller squares led inside a
+		// unit's crowd-scale square and that is then sent another way can therefore still cross that
+		// unit's body, as one a push left there can (docs/REMAINING_GAPS.md, SW6).
+		auto step_blocked = [&](float ex, float ez, bool relaxed = false, bool inside = false) {
 			const float reach = det::hypot(ex - x0, ez - z0) + ci + c_max;
 			bool hit = false;
 			grid.visit_radius_within(x0, z0, reach, reach, [&](int32_t j) {
 				if (hit || !obstructs(j)) return;
 				const nav::Vec2 c(px[j], pz[j]);
-				const float h = ci + unit_push_clearance(units_.unit_type[j]);
+				float h = unit_half(j, relaxed);
+				if (inside && !relaxed && std::fabs(x0 - c.x) <= h && std::fabs(z0 - c.y) <= h) h = unit_half(j, true);
 				hit = nav::TestRaySquare(nav::Vec2(x0, z0) - c, nav::Vec2(ex, ez) - c, U, V, nav::Vec2(h, h));
 			});
 			return hit;
@@ -13301,22 +13352,24 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		// its waypoint or aim): steps from rest are a sixteenth of 0 A.D.'s 200 ms ones, and tested as
 		// they are they creep it onto an idle unit's edge, where its short path search finds no way.
 		const float full_step = unit_move_speed(i) * dt;
-		auto full_step_blocked = [&](float ex, float ez, float to_x, float to_z) {
+		auto full_step_blocked = [&](float ex, float ez, float to_x, float to_z, bool relaxed = false) {
 			const float dx = ex - x0, dz = ez - z0, l = std::sqrt(dx * dx + dz * dz);
 			const float probe = std::min(full_step, det::hypot(to_x - x0, to_z - z0));
-			if (l <= 0.0f || l >= probe) return step_blocked(ex, ez);
-			return step_blocked(x0 + dx / l * probe, z0 + dz / l * probe);
+			if (l <= 0.0f || l >= probe) return step_blocked(ex, ez, relaxed);
+			return step_blocked(x0 + dx / l * probe, z0 + dz / l * probe, relaxed);
 		};
 		// A unit that reached a waypoint of its short path last tick searches on from there, as 0 A.D.
 		// follows the whole path: heading straight for its aim could take it back to where it was
 		// stuck, such as a dead end between idle units.
 		ShortPathMemo &memo = units_.short_path[i];
 		const float mdx = aim_x[i] - memo.aim_x, mdz = aim_z[i] - memo.aim_z;
-		const bool from_corner = memo.key == corner_key &&
-				mdx * mdx + mdz * mdz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
-		if (memo.key == corner_key) memo.key = 0;
+		const bool same_aim = mdx * mdx + mdz * mdz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
+		const bool from_corner = (memo.key == corner_key || memo.key == relaxed_corner_key) && same_aim;
+		// A step on a path that was searched among the smaller squares is tested against them.
+		const bool relaxed = (memo.key == relaxed_key || memo.key == relaxed_corner_key) && same_aim;
+		if (memo.key == corner_key || memo.key == relaxed_corner_key) memo.key = 0;
 		const uint8_t failed = units_.motion[i].failed;
-		const bool obstructed = full_step_blocked(npx[i], npz[i], aim_x[i], aim_z[i]);
+		const bool obstructed = full_step_blocked(npx[i], npz[i], aim_x[i], aim_z[i], relaxed);
 		bool no_way = false;
 		if (obstructed) {
 			// Obstructed: the unit stays put this tick. One within reach of its task is where 0 A.D.'s
@@ -13324,7 +13377,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// The way to its waypoint is blocked now. So is the way along a short path it keeps round trees
 			// or steep ground (nav::kept_path_key): 0.28's HandleObstructedMove replaces the short path the
 			// unit follows with a new one (CCmpUnitMotion.h:1436-1441).
-			if (memo.key == key || nav::is_kept_path_key(memo.key, short_path_key_)) memo.key = 0;
+			if (memo.key == key || memo.key == relaxed_key || nav::is_kept_path_key(memo.key, short_path_key_)) memo.key = 0;
 			npx[i] = x0;
 			npz[i] = z0;
 			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
@@ -13335,8 +13388,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// one stuck for more than 12 every eighth and one stuck for more than 24 every 16th: units
 			// boxed in by idle ones can wait there for minutes, and their searches cost the most.
 			const float sx = x0 - memo.x, sz = z0 - memo.z;
-			no_way = memo.key == stuck_key && sx * sx + sz * sz < 0.25f &&
-					mdx * mdx + mdz * mdz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
+			no_way = memo.key == stuck_key && sx * sx + sz * sz < 0.25f && same_aim;
 			// One with no way from here whose task is within a step along one axis (the larger first) slides
 			// there where that is clear, along the idle squares' sides, as move_units slides along a shore.
 			// Idle units' pushes can leave a walker in a slit between two squares, narrower than the
@@ -13369,10 +13421,13 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		} else if (!from_corner) {
 			return;
 		} else {
-			// A corner whose way on towards the aim is clear of idle units needs no search.
+			// A corner whose way on towards the aim is clear of idle units needs no search. The path may
+			// have led the walker inside a unit's crowd-scale square (round its smaller square, or round the
+			// core of a square that held the start), so the way on is tested against that unit's smaller
+			// square (`inside`): heading straight on from there could cross the unit's body.
 			const float tx = aim_x[i] - x0, tz = aim_z[i] - z0, tl = std::sqrt(tx * tx + tz * tz);
 			const float t = tl > RANGE_MAX ? RANGE_MAX / tl : 1.0f;
-			if (!step_blocked(x0 + tx * t, z0 + tz * t)) return;
+			if (!step_blocked(x0 + tx * t, z0 + tz * t, false, true)) return;
 		}
 
 		// From a corner it looks 32 m round: the unit no longer remembers the range that found the
@@ -13386,12 +13441,22 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const float range = from_corner ? RANGE_CORNER
 				: std::max(no_way ? RANGE_CORNER : 0.0f, short_path_search_range(failed));
 		thread_local std::vector<nav::ShortPathSquare> squares;
+		thread_local std::vector<int32_t> square_units; // the unit each square stands for
 		squares.clear();
+		square_units.clear();
+		bool inside_square = false; // the walker stands inside an idle unit's crowd-scale square
 		const float cull = range * 1.6f + c_max;
 		grid.visit_radius_within(x0, z0, cull, cull, [&](int32_t j) {
 			if (!obstructs(j)) return;
-			const float cj = unit_push_clearance(units_.unit_type[j]);
+			// The square of a unit the walker stands inside is its smaller square, as step_blocked tests it
+			// with `inside`. A square's sides block only a path that comes in from outside, and its
+			// corners stay open when it holds the start (VertexPathfinder.cpp:703-721), so the path could
+			// run out of the crowd-scale square through the unit's body.
+			float cj = unit_push_clearance(units_.unit_type[j]);
+			if (std::fabs(x0 - px[j]) <= ci + cj && std::fabs(z0 - pz[j]) <= ci + cj)
+				cj = std::max(0.0f, unit_half(j, true) - ci), inside_square = true;
 			squares.push_back(nav::ShortPathSquare{nav::Vec2(px[j], pz[j]), U, V, nav::Vec2(cj, cj)});
+			square_units.push_back(j);
 		});
 		// The goal: the task's range once it is within the search range (InShortPathRange), where idle
 		// units working there may stand on the target's own point; else the point the unit walks to.
@@ -13410,12 +13475,50 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		// A gatherer's supply stays among them, as 0.28's short path keeps the target's obstruction
 		// (RequestShortPath, CCmpUnitMotion.h:1863): the search ends on task_goal's circle round it,
 		// the range 0.28's ComputeGoal shapes, before it gets to the supply.
-		if (!nav::search_short_path_with_units(pos, aim, goal, unit_clearance_at(i), ci, range,
-				nav::ConcatRange<SteerObstacle>{steer_obstacles_, near_gaia}, building, squares, nav_grid_, w, next)) {
+		const nav::ConcatRange<SteerObstacle> statics{steer_obstacles_, near_gaia};
+		bool found = nav::search_short_path_with_units(pos, aim, goal, unit_clearance_at(i), ci, range, statics, building,
+				squares, nav_grid_, w, next);
+		// No way among the crowd-scale squares: search again among the smaller squares (unit_half,
+		// relaxed), with a corner offset as small as 0.28's (IDLE_SQUARE_DELTA). Each square is the
+		// smaller half size less what the search grows it by (the walker's clearance less
+		// IDLE_SQUARE_RELAX, as 0.28 grows it by pathfindClearance). The unit then walks that path with
+		// its steps tested against the same squares (the relaxed memo keys), as 0.28 walks a short path
+		// with CheckMovement's relaxed test.
+		// Only a path that reaches the goal counts. A search that cannot reach it returns the path to
+		// the point nearest it (VertexPathfinder.cpp:753-754, 856-859, 885), and among the smaller
+		// squares that point can lie round the far side of a unit standing on the goal. RTS0 keeps the
+		// unit a walk-to-target order walks to among the squares, where 0.28 leaves its target out
+		// (test_unit_orders 65, a ram sent to a soldier).
+		// A formation's member never searches that way. 0.28 tests a member's every step against the idle
+		// units outside its formation, as any walker's (GetObstructionFilter, CCmpUnitMotion.h:848-851,
+		// with CheckMovement at 1302 and 1343; ICmpObstructionManager.h:416-428 lets only its own group
+		// through), but RTS0 tests a step against the smaller squares only
+		// while the relaxed memo keeps its aim, and a member's aim is its formation slot, which moves every
+		// tick. Such a path would leave it inside a standing unit's crowd-scale square with the memo gone,
+		// where the plain step test no longer stops it crossing the unit's body (test_unit_pushing 22).
+		const bool member = !formations_.empty() && (size_t)i < formation_group_.size() && formation_group_[i] != 0;
+		bool relaxed_path = false;
+		if (!found && !squares.empty() && !member) {
+			thread_local std::vector<nav::ShortPathSquare> relaxed_squares;
+			relaxed_squares.clear();
+			const float grow = ci - IDLE_SQUARE_RELAX;
+			for (size_t k = 0; k < squares.size(); ++k) {
+				const float hj = unit_half(square_units[k], true) - grow;
+				relaxed_squares.push_back(nav::ShortPathSquare{squares[k].center, U, V, nav::Vec2(hj, hj)});
+			}
+			bool reached = false;
+			found = relaxed_path = nav::search_short_path_with_units(pos, aim, goal, unit_clearance_at(i), grow, range, statics,
+					building, relaxed_squares, nav_grid_, w, next, IDLE_SQUARE_DELTA, &reached) && reached;
+		}
+		if (!found) {
 			if (obstructed) memo = ShortPathMemo{x0, z0, aim.x, aim.y, stuck_key};
 			return;
 		}
-		if (!obstructed && w.x == next.x && w.y == next.y) return; // the way on from the corner is clear
+		// A one-waypoint path from a corner means the way on is clear, and the unit heads for its aim.
+		// One that stands inside a unit's crowd-scale square follows the path instead. Its steps are not
+		// tested against that square (a ray that starts inside it is never blocked), so when the path
+		// ends short of the aim, heading for the aim could take it through the unit's body.
+		if (!obstructed && w.x == next.x && w.y == next.y && !inside_square) return;
 		// The step move_units gave it toward its aim (accelerated_step), or one from rest when it was
 		// obstructed: 0 A.D. loses the speed of a move that fails. It faces its short path's way at once.
 		float speed = std::sqrt(units_.vel_x[i] * units_.vel_x[i] + units_.vel_z[i] * units_.vel_z[i]);
@@ -13432,7 +13535,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		if (len < 1e-4f) return;
 		const float step = std::min(len, reach);
 		const float sx = x0 + to.x / len * step, sz = z0 + to.y / len * step;
-		if (full_step_blocked(sx, sz, w.x, w.y)) return;
+		if (full_step_blocked(sx, sz, w.x, w.y, relaxed_path)) return;
 		// As in move_units, a land unit keeps its clearance off deep water, and a large one out of structures.
 		if (land_step_barred(x0, z0, sx, sz, unit_clearance_at(i)) || edge_step_barred(x0, z0, sx, sz, unit_clearance_at(i)) ||
 				large_step_barred(i, x0, z0, sx, sz))
@@ -13446,7 +13549,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		units_.vel_z[i] = to.y / len * speed;
 		units_.heading_x[i] = to.x / len;
 		units_.heading_z[i] = to.y / len;
-		memo = ShortPathMemo{keep.x, keep.y, aim.x, aim.y, key};
+		memo = ShortPathMemo{keep.x, keep.y, aim.x, aim.y, relaxed_path ? relaxed_key : key};
 	});
 }
 
@@ -22629,6 +22732,8 @@ void Simulation::petra_manage_scouting(float dt) {
 
 // addSiegeUnits' classes, in its order: Siege+Melee, Siege+Ranged, Elephant+Melee.
 static const TechClasses kPetraSiegeClasses[3] = {TC_SIEGE | TC_MELEE, TC_SIEGE | TC_RANGED, TC_ELEPHANT | TC_MELEE};
+// PetraAttackManager::raid_siege once trainMoreUnits found no template for the raid's siege class.
+static constexpr uint8_t PETRA_RAID_SIEGE_DROPPED = 0xFE;
 
 // addSiegeUnits targetSize: difficulty - 1 (at least 0 below Medium), difficulty + 1 for a
 // HugeAttack (at least 1), times popScaling.
@@ -22976,8 +23081,12 @@ void Simulation::petra_manage_military_production(float dt) {
 				// No template: the class drops out of the plan for good (delete this.unitStat), and
 				// mustStart no longer waits for it. (Not when its trainers' queues are only full.)
 				// The next class waits for the plan's next turn (buildOrders.splice, nothing queued).
-				if (main_plan && st.index < 16 && !petra_unit_stat_trainable(st))
-					petra_attack_mgr_.dropped_classes |= (uint16_t)(1u << st.index);
+				// A raid's siege class drops the same way (attackPlan.js:680 runs for every plan):
+				// raid_siege PETRA_RAID_SIEGE_DROPPED stays SIEGE_ADDED with no unitStat.
+				if (!petra_unit_stat_trainable(st)) {
+					if (main_plan && st.index < 16) petra_attack_mgr_.dropped_classes |= (uint16_t)(1u << st.index);
+					else if (!main_plan && kind == PETRA_ATTACK_RAID && st.index == 1) petra_attack_mgr_.raid_siege = PETRA_RAID_SIEGE_DROPPED;
+				}
 				return;
 			}
 			const CivUnitTemplate &t = civ_unit_template(tmpl);
@@ -23285,15 +23394,22 @@ void Simulation::petra_clear_blocked_spawns() {
 	}
 }
 
-// What the wood petra_wood_starved keeps is for: the town phase, the civic centre on other
-// land, the ship that takes its builders there and, in the town phase with the houses full,
-// the house that ship needs room for; and the first dock of a Petra that needs fish
+// What the wood petra_wood_starved keeps is for: the town phase, after the houses it asks for; the civic centre on other land, the ship that takes its builders there and, in the
+// town phase with the houses full, the house that ship needs room for; and the first dock of a Petra that needs fish
 // (startingStrategy.js needFish).
 bool Simulation::petra_wood_kept_for(int queue) const {
 	if (queue == PETRA_Q_DOCK && petra_kept_.need_fish) {
 		for (const Building &b : buildings_)
 			if (b.team == petra_pid_ && (b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK) && b.hp > 0.0f && !b.wrecked) return false;
 		return true;
+	}
+	if ((queue == PETRA_Q_HOUSE || queue == PETRA_Q_MAJOR_TECH) && petra_ps().phase == 1 && petra_phasing()) {
+		// The houses the town phase asks for (5 Village structures, foundations counted as
+		// build_phase_structures does) come first: without them it never starts.
+		int village = 0;
+		for (const Building &b : buildings_)
+			if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && building_phase_class(b.type, b.civ) == 1) ++village;
+		if (village < 5) return queue == PETRA_Q_HOUSE;
 	}
 	return queue == PETRA_Q_MAJOR_TECH || queue == PETRA_Q_CIVIL_CENTRE || queue == PETRA_Q_SHIPS ||
 	       (queue == PETRA_Q_HOUSE && petra_ps().phase >= 2 && petra_pop_room() <= 0);
@@ -23391,6 +23507,16 @@ void Simulation::petra_start_worker_plans() {
 	// batch waits for population in 0.28's ProductionQueue. queue.check drops a plan whose
 	// template can't be trained any more.
 	auto &plans = petra_worker_plans_[petra_pid_];
+	// RTS0, not 0.28 (petra_wood_starved): a batch that costs wood is never paid while the wood is
+	// kept, and it holds trainMoreWorkers' count at the town target, so it goes; support units
+	// that cost none are queued in its place.
+	if (petra_wood_starved())
+		std::erase_if(plans, [&](const PetraWorkerPlan &p) {
+			const CivUnitTemplate &t = civ_unit_template(p.tmpl);
+			float cost[RES_COUNT];
+			unit_train_cost(petra_pid_, p.tmpl, civ_template_unit_info(p.tmpl, t.unit_type), cost);
+			return cost[RES_WOOD] > 0.0f;
+		});
 	for (uint8_t q = 0; q < 2; ++q) {
 		auto it = std::find_if(plans.begin(), plans.end(), [q](const PetraWorkerPlan &p) { return p.queue == q; });
 		while (it != plans.end()) {
@@ -27521,8 +27647,17 @@ void Simulation::petra_manage_buildings(float dt) {
 		const int pop = pop_current(petra_pid_);
 		if (limit <= 0 || pop_max_uncapped(petra_pid_) < limit) {
 			int free_slots = pop_max(petra_pid_) - pop;
+			// RTS0, not 0.28: during the wood-starved escape (petra_wood_starved), a civic centre
+			// foundation on other land waits for a transport ship that waits for population room,
+			// so its 20 slots don't hold the houses back (Islands: 0.28 stays at its cap for good).
+			uint16_t home_land = 0;
+			if (petra_wood_starved())
+				for (const auto &b : buildings_)
+					if (b.team == petra_pid_ && is_civic_centre(b.type) && b.build_progress >= 1.0f && b.hp > 0.0f) home_land = petra_access_at(b.x, b.z);
 			for (const auto &b : buildings_) {
-				if (b.team != petra_pid_ || b.build_progress >= 1.0f) continue;
+				// getOwnFoundations: living ones only (a wrecked house is no foundation).
+				if (b.team != petra_pid_ || b.build_progress >= 1.0f || b.hp <= 0.0f || b.wrecked) continue;
+				if (home_land && is_civic_centre(b.type) && petra_access_at(b.x, b.z) != home_land) continue;
 				free_slots += structure_pop_bonus(b.type, petra_pid_, structure_template_civ(b));
 			}
 			// buildMoreHouses: structures/{civ}/apartment once it may be built (Carthage from
@@ -28769,7 +28904,18 @@ bool Simulation::petra_phasing() const {
 	if (!researcher) return false;
 	// RTS0, not 0.28: short of wood for houses (petra_wood_starved), the town phase at the
 	// population our houses hold.
-	if (phase == 1) return petra_accounted_population() >= petra_pop_phase2() || (petra_wood_starved() && petra_pop_room() <= 0);
+	// The houses are full once no queued worker batch has room to start.
+	if (phase == 1) {
+		if (petra_accounted_population() >= petra_pop_phase2()) return true;
+		if (!petra_wood_starved()) return false;
+		int batch = 1;
+		bool any = false;
+		for (const PetraWorkerPlan &p : petra_worker_plans_[petra_pid_]) {
+			batch = any ? std::min<int>(batch, p.count) : p.count;
+			any = true;
+		}
+		return petra_pop_room() < std::max(batch, 1);
+	}
 	return petra_accounted_workers() > petra_work_phase3();
 }
 
@@ -31527,8 +31673,17 @@ void Simulation::petra_manage_raid(float dt) {
 		}
 		// mustStart: every class at its targetSize (the riders and any siege engines), or the
 		// minimums (none for siege) once the target is a foundation past half built
-		// (attackPlan.js: Raids start early against a nearly finished base).
-		const size_t riders = plan.squad.size() - (size_t)siege_count;
+		// (attackPlan.js: Raids start early against a nearly finished base). The riders are
+		// this.unit.FastMoving, the plan's FastMoving+CitizenSoldier units: an infantryman
+		// reassignFastUnit handed over, or champion cavalry, rides along without counting. (A raid
+		// over water, which takes any land soldier here, counts them all.)
+		size_t riders = 0;
+		for (uint32_t uid : plan.squad) {
+			const int32_t k = lookup_unit(uid);
+			if (k < 0 || !units_.alive[k]) continue;
+			const TechClasses c = unit_classes_at((size_t)k);
+			riders += naval ? !is_raid_siege((size_t)k) : (c & (TC_CAVALRY | TC_CITIZENSOLDIER)) == (TC_CAVALRY | TC_CITIZENSOLDIER);
+		}
 		const Building &tb = buildings_[building_id_to_idx_.at(plan.target_building_id)];
 		const bool ready = plan.forced || (riders >= raid_target && siege_count >= siege_target) ||
 		                   (riders >= raid_min && tb.build_progress > 0.5f && tb.build_progress < 1.0f);
@@ -31907,6 +32062,7 @@ void Simulation::petra_check_paused_queues() {
 	const int workers = petra_accounted_workers();
 	// queueManager.js:433 keeps the fraction (16.8 on Easy at 300 population).
 	const float workers_min = std::min(std::max(12.0f, 24.0f * petra_config_pop_scaling()), (float)petra_pop_phase2());
+	const bool wood_starved = (float)workers < workers_min && petra_wood_starved();
 	for (uint8_t q = 0; q < PETRA_Q_COUNT; ++q) {
 		bool pause = false;
 		if (!potential_base)
@@ -31918,8 +32074,9 @@ void Simulation::petra_check_paused_queues() {
 			        q == PETRA_Q_DEFENSE_BUILDING || q == PETRA_Q_HEALER || q == PETRA_Q_MAJOR_TECH ||
 			        q == PETRA_Q_MINOR_TECH || q == PETRA_Q_PLAN || q == PETRA_Q_PLAN_CHAMP || q == PETRA_Q_PLAN_SIEGE;
 		else if ((float)workers < workers_min)
-			pause = q == PETRA_Q_CIVIL_CENTRE || q == PETRA_Q_DEFENSE_BUILDING || q == PETRA_Q_MAJOR_TECH ||
-			        q == PETRA_Q_PLAN_SIEGE || q == PETRA_Q_PLAN_CHAMP;
+			// RTS0 (petra_wood_starved): the town phase the houses wait for goes on.
+			pause = q == PETRA_Q_CIVIL_CENTRE || q == PETRA_Q_DEFENSE_BUILDING ||
+			        (q == PETRA_Q_MAJOR_TECH && !wood_starved) || q == PETRA_Q_PLAN_SIEGE || q == PETRA_Q_PLAN_CHAMP;
 		// needFarm, needCorral, needFish (configFirstBase): the first field, corral, dock or
 		// fishing boat goes on.
 		const PetraKept &k = petra_kept_;
@@ -38955,24 +39112,55 @@ void Simulation::order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fau
 }
 
 // Animals walk on land (or swim, for SeaCreatures) and stay inside the map.
+// - One standing on terrain its class can't cross (a wolf a script put in deep water, a hare the map
+//   put in the sea at its rim) may step onto navcells it can't cross either, as 0.28's
+//   CheckLineMovement lets an entity on impassable navcells move off them (Pathfinding.cpp:46-48,
+//   61-75): it is not held there for good. It goes where its walk leads, not to the nearest passable
+//   navcell as 0.28's long path does (LongPathfinder.cpp:749-754): RTS0's roaming and fleeing steps
+//   are straight lines.
+// - Only terrain counts there: CheckMovement tests the line on the terrain-only grid and structures
+//   as shapes (CCmpPathfinder.cpp:971-984), so an animal on a navcell that nav_grid_ closes for a
+//   structure, a mine or a closed wood stands on passable ground and steps only onto passable
+//   navcells. Deep water and steep tiles count for land animals, dry land for sea creatures, and the
+//   off-world navcells for both, as rebuild_nav_grid closes them.
+// - No step leads out past the map's edge less the animal's clearance (edge_step_barred), as for a
+//   unit's steps and an animal's pushes: 0.28's terrain grid closes the off-world navcells for every
+//   class and grows them by the class Clearance (CCmpPathfinder.cpp:700-761). The navcells alone let
+//   an animal at a circular map's rim go up to half a navcell's diagonal past the edge.
 bool Simulation::fauna_can_step(size_t f, float x, float z) const {
 	if (x < -map_half_ + 2.0f || x > map_half_ - 2.0f || z < -map_half_ + 2.0f || z > map_half_ - 2.0f) return false;
 	const FaunaTypeInfo &info = fauna_type_info(fauna_.fauna_type[f]);
-	if (nav_grid_.res > 0) {
-		auto [cx, cy] = nav_grid_.world_to_cell(x, z);
-		if (!nav_grid_.is_passable_for(cx, cy, info.is_naval() ? PASS_SHIP : PASS_INFANTRY)) return false;
-	}
+	const float ox = fauna_.pos_x[f], oz = fauna_.pos_z[f];
+	const float c = info.is_large() ? CLEARANCE_LARGE : CLEARANCE_DEFAULT;
+	auto passable = [&](float px, float pz) {
+		if (nav_grid_.res <= 0) return true;
+		const auto [cx, cy] = nav_grid_.world_to_cell(px, pz);
+		return nav_grid_.is_passable_for(cx, cy, info.is_naval() ? PASS_SHIP : PASS_INFANTRY);
+	};
+	// The animal stands on terrain its class can't cross (above).
+	auto stranded = [&]() {
+		if (nav_grid_.res <= 0) return false;
+		const auto [cx, cy] = nav_grid_.world_to_cell(ox, oz);
+		const uint8_t v = nav_grid_.cells.at(cx, cy);
+		if (info.is_naval() ? v == NAV_PASSABLE : (v == NAV_WATER || nav_grid_.is_steep(cx, cy))) return true;
+		// rebuild_nav_grid's off-world raster: the navcell's centre past the edge.
+		const float cell = 2.0f * nav_grid_.map_half / static_cast<float>(nav_grid_.res);
+		const float wx = -nav_grid_.map_half + ((float)cx + 0.5f) * cell, wz = -nav_grid_.map_half + ((float)cy + 0.5f) * cell;
+		const float e = map_half_ - MAP_EDGE_DIST;
+		return std::fabs(wx) >= e || std::fabs(wz) >= e || (circular_map() && wx * wx + wz * wz >= e * e);
+	};
+	if (!passable(x, z) && !stranded()) return false;
+	if (edge_step_barred(ox, oz, x, z, c)) return false;
 	if (info.is_naval()) return true;
 	// CheckMovement's TestLine against structures, each grown by the animal's passability class
 	// Clearance ("default", or "large" for bulls and adult elephants; pathfinder.xml): a step that
 	// comes closer to a structure than that is refused. A step away, or along it, is not, so an
 	// animal that finds itself too close (a structure built beside it) walks out.
 	// separation() keeps the list of standing structures for this tick.
-	const float c = info.is_large() ? CLEARANCE_LARGE : CLEARANCE_DEFAULT;
-	const float ox = fauna_.pos_x[f], oz = fauna_.pos_z[f];
 	// The same classes' MaxTerrainSlope: steep tiles are impassable to animals as to soldiers, kept
 	// that Clearance off (land_step_barred), so a herd doesn't graze up a cliff its hunters can't climb.
-	if (nav_grid_.near_steep_tile(x, z, c) && !nav_grid_.near_steep_tile(ox, oz, c)) return false;
+	// One stranded on impassable terrain may cross them, as above.
+	if (nav_grid_.near_steep_tile(x, z, c) && !nav_grid_.near_steep_tile(ox, oz, c) && !stranded()) return false;
 	auto gap = [](const SteerObstacle &b, float px, float pz) {
 		const nav::Vec2 l = nav::footprint_local(b, px, pz);
 		return std::max(std::fabs(l.x) - b.hu, std::fabs(l.y) - b.hv);

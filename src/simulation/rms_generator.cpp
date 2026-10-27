@@ -8402,9 +8402,12 @@ void RmsGenerator::synth_oasis_0ad(HeightmapGrid &hm, RmsRng &rng, float &water_
 	// over 150 tiles half the time a 4 m path through the oasis. The palms
 	// are in distribute_land_extras; RTS0 keeps the ponds 31 from the bases
 	// and plants its usual starting woodline instead of the player clump.
+	// Heights are metres above the nav water line (water_h + NAV_WATER_MARGIN): the 1 m desert would be
+	// shallows at metres(water_h, 1), where the AI can't build.
 	water_h = 1.0f;
+	const float zero = water_h + NAV_WATER_MARGIN;
 	const float half = hm.map_half, size = 2.0f * half;
-	const float land = metres(water_h, 1.0f), sea = metres(water_h, -3.0f);
+	const float land = metres(zero, 1.0f), sea = metres(zero, -3.0f);
 	hm.init(hm.res, half, land);
 	const float start = rng.range_float(0.0f, kTwoPi);
 	std::vector<std::pair<float, float>> locs;
@@ -8489,7 +8492,7 @@ void RmsGenerator::synth_oasis_0ad(HeightmapGrid &hm, RmsRng &rng, float &water_
 	if (size > 150.0f && rng.range_int(0, 1)) {
 		const float pw = (float)scale_by_map_size(7, 18, half), a = rng.range_float(0.0f, kTwoPi);
 		const auto p0 = polar(a, rt + pw), p1 = polar(a + 3.14159265f, rt + pw);
-		set_along_segment(hm, p0.first, p0.second, p1.first, p1.second, pw * 0.5f, 5.0f, metres(water_h, 4.0f));
+		set_along_segment(hm, p0.first, p0.second, p1.first, p1.second, pw * 0.5f, 5.0f, metres(zero, 4.0f));
 	}
 	spawns_at(hm, spawns, locs, num_players, land, 14.0f, 6.0f);
 	for (const auto &s : spawns) lift_area(hm, s.x, s.z, 18.0f, 4.0f, s.base_height);
@@ -13073,16 +13076,17 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			break;
 		case MAP_WALL_DEMO:
 			// RandomMap(0, "grass1"): flat land, 0.28's water 0.1 m below it. RTS0 keeps the
-			// water a metre down so its plane can't show through the grass.
+			// land a metre over the nav water line so its plane can't show through the grass
+			// and the ground is dry land, not shallows.
 			water_h = 1.0f;
-			hm.init(hm.res, hm.map_half, metres(water_h, 1.0f));
+			hm.init(hm.res, hm.map_half, metres(water_h + NAV_WATER_MARGIN, 1.0f));
 			break;
 		case MAP_NEW_RMS_TEST: {
-			// new_rms_test.js: RandomMap(0, "grass1_spring") (flat, water kept a metre down as
-			// on Wall Demo) and playerPlacementCircle(fractionToTiles(0.39)): getPlayerIDs order,
-			// a random start angle, positions rounded to whole tiles.
+			// new_rms_test.js: RandomMap(0, "grass1_spring") (flat, a metre over the nav water
+			// line as on Wall Demo) and playerPlacementCircle(fractionToTiles(0.39)): getPlayerIDs
+			// order, a random start angle, positions rounded to whole tiles.
 			water_h = 1.0f;
-			hm.init(hm.res, hm.map_half, metres(water_h, 1.0f));
+			hm.init(hm.res, hm.map_half, metres(water_h + NAV_WATER_MARGIN, 1.0f));
 			spawns.clear();
 			const float half = hm.map_half, r = 0.78f * half, start = rng.range_float(0.0f, 6.2831853f);
 			for (int i = 0; i < config.num_players; ++i) {
