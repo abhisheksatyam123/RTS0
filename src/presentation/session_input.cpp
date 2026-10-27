@@ -39,18 +39,6 @@ using rtso::sprintf0;
 
 // Drops one unit from the selection after an orderone command
 // (0 A.D. gui/session/input.js popOneFromSelection -> g_Selection.removeList).
-// 0.28 identity.selectionGroupName on units: the support templates that set it group every
-// civ's variant (template_unit_support_female_citizen also covers the house-trained woman).
-static bool unit_selection_group(uint8_t unit_type) {
-	switch (unit_type) {
-		case rtso::UNIT_FEMALE_CITIZEN: case rtso::UNIT_HEALER: case rtso::UNIT_TRADER:
-		case rtso::UNIT_FISHING_BOAT: case rtso::UNIT_MERCHANT_SHIP: case rtso::UNIT_CATAFALQUE:
-			return true;
-		default:
-			return false;
-	}
-}
-
 // The same on structures: a civ's own building whose 0.28 template inherits a generic one's
 // SelectionGroupName joins that group on a double-click (brit/crannog and han/civil_centre_court
 // with the civic centres, kush/temple_amun and the shrines with the temples, and so on).
@@ -604,6 +592,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								if (uview.id[i] == press_pick_unit_ && uview.alive[i] &&
 										(uview.team[i] == local_player() || control_all)) best_uidx = i;
 						if (best_uidx == (size_t)-1) best_uidx = click_pick_unit(mouse_pos, control_all);
+						// input.js: clicking any entity but the followed one stops the camera following.
+						if (best_uidx != (size_t)-1 && cam_rig && cam_rig->follow_id() != uview.id[best_uidx]) cam_rig->set_follow_id(0);
 
 						if (best_uidx != (size_t)-1 && is_ctrl && !dbl_click) {
 							// Ctrl+click drops the unit, and its formation, from the selection
@@ -625,7 +615,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								// identity.selectionGroupName: template_unit_support_female_citizen, _healer,
 								// _trader, ship_fishing, ship_merchant and the catafalque group every civ's
 								// (and the house-trained woman's) template on a double-click.
-								const bool group = !exact && unit_selection_group(same_type);
+								const bool group = !exact && RtsoSelectionGrid::shared_selection_group(same_type);
 								auto matches = [&](size_t i) {
 									if (group) return uview.unit_type[i] == same_type;
 									if (same_tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? uview.tmpl[i] != same_tmpl : uview.unit_type[i] != same_type)
@@ -644,7 +634,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 									for (size_t i = 0; i < uview.count; ++i) {
 										if (!uview.alive[i] || uview.team[i] != (observer_all_view() ? uview.team[best_uidx] : local_player()) || !matches(i))
 											continue;
-										Vector3 world_pos(uview.pos_x[i], 0, uview.pos_z[i]);
+										// The unit on the ground, or a ship on the sea, as drawn.
+										float wy = sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]);
+										if (rtso::unit_is_ship(uview.unit_type[i]) && sim->water_height() > -0.5f)
+											wy = std::max(wy, sim->water_height() + rtso::NAV_WATER_MARGIN);
+										Vector3 world_pos(uview.pos_x[i], wy, uview.pos_z[i]);
 										if (!offscreen && cam->is_position_behind(world_pos)) continue;
 										Vector2 screen_pos = cam->unproject_position(world_pos);
 										if (offscreen || (screen_pos.x >= 0.0f && screen_pos.x <= vp_size.x &&
@@ -726,6 +720,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								}
 							}
 							if (hit_bld != 0) {
+								if (cam_rig && cam_rig->follow_id() != hit_bld) cam_rig->set_follow_id(0);
 								// selection.js: Shift adds the structure, Ctrl removes it, a double-click
 								// takes every finished one of its type on screen (all of them with
 								// selection.offscreen); a plain click selects it alone.
@@ -764,6 +759,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								// Another player's unit or structure, an animal or a resource:
 								// selected for its details only (0 A.D. EntitySelection; selection.js addList
 								// skips an unowned entity while something is selected, so Shift keeps it).
+								if (cam_rig && cam_rig->follow_id() != inspector_.id()) cam_rig->set_follow_id(0);
 								selected_ids.clear();
 								selected_building_id = 0;
 								play_inspected_select();
@@ -1796,7 +1792,8 @@ std::vector<uint32_t> RtsoMain::band_box_structures(Vector2 a, Vector2 b) const 
 	const Vector2 min_p(std::min(a.x, b.x), std::min(a.y, b.y));
 	const Vector2 max_p(std::max(a.x, b.x), std::max(a.y, b.y));
 	for (const auto &bl : sim->buildings()) {
-		if (bl.team != local_player() || bl.wrecked || bl.hp <= 0.0f) continue;
+		// PickPlayerEntitiesInRect(..., -1) for an observer's all-players view: anyone's.
+		if ((observer_all_view() ? bl.team >= rtso::MAX_PLAYERS : bl.team != local_player()) || bl.wrecked || bl.hp <= 0.0f) continue;
 		const Vector3 wp(bl.x, sim->get_terrain_height(bl.x, bl.z), bl.z);
 		if (cam->is_position_behind(wp)) continue;
 		const Vector2 sp = cam->unproject_position(wp);
@@ -1822,9 +1819,12 @@ std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
 	const bool idle_only = !wounded_only && rtso::hotkeys::held("selection.idleonly");
 	const bool nonmilitary_only = !wounded_only && !idle_only && rtso::hotkeys::held("selection.nonmilitaryonly");
 	const bool military_only = !wounded_only && !idle_only && !nonmilitary_only && rtso::hotkeys::held("selection.militaryonly");
-	auto in_box = [&](float x, float z) {
-		// The entity as drawn, on the ground (PickPlayerEntitiesInRect projects its position).
-		const Vector3 world_pos(x, sim->get_terrain_height(x, z), z);
+	const float water = sim->water_height() > -0.5f ? sim->water_height() + rtso::NAV_WATER_MARGIN : -1e9f;
+	auto in_box = [&](float x, float z, bool afloat = false) {
+		// The entity as drawn, on the ground or a ship on the sea (PickPlayerEntitiesInRect
+		// projects its position).
+		const float ground = sim->get_terrain_height(x, z);
+		const Vector3 world_pos(x, afloat ? std::max(ground, water) : ground, z);
 		if (cam->is_position_behind(world_pos)) return false;
 		const Vector2 sp = cam->unproject_position(world_pos);
 		return sp.x >= min_p.x && sp.x <= max_p.x && sp.y >= min_p.y && sp.y <= max_p.y;
@@ -1844,7 +1844,7 @@ std::vector<int32_t> RtsoMain::band_box_ids(Vector2 a, Vector2 b) const {
 		if (idle_only && uview.action_state[i] != rtso::ACTION_IDLE) continue;
 		// gui.session.woundedunithotkeythreshold = 33 % (input.js isWounded: 100 hp <= max x threshold).
 		if (wounded_only && uview.hp[i] > uview.max_hp[i] * user_opts_.wounded_fraction) continue;
-		if (!in_box(uview.pos_x[i], uview.pos_z[i])) continue;
+		if (!in_box(uview.pos_x[i], uview.pos_z[i], rtso::unit_is_ship(uview.unit_type[i]))) continue;
 		for (int32_t uid : formation_mates((int32_t)uview.id[i]))
 			if (std::find(out.begin(), out.end(), uid) == out.end()) out.push_back(uid);
 	}

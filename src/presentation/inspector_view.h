@@ -1878,12 +1878,10 @@ private:
 			String t;
 			if (RtsoSelectionGrid::is_structure_key(g.key))
 				t = String(rtso::portraits::structure_entry((uint8_t)((g.key >> 8) & 0xFF), (uint8_t)(g.key & 0xFF)).get("template", String()));
-			else if (g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE) {
+			else if (const char *shared = RtsoSelectionGrid::shared_selection_group(g.unit_type))
+				t = shared;
+			else if (g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE)
 				t = "units/" + String::utf8(rtso::civ_unit_template(g.tmpl).id);
-				// The rank's own template: _a (Advanced) sorts before _b, _e (Elite) after.
-				const uint8_t rank = RtsoSelectionGrid::key_rank(g.key);
-				if (t.ends_with("_b") && (rank == 2 || rank == 3)) t = t.substr(0, t.length() - 1) + (rank == 2 ? "a" : "e");
-			}
 			else
 				t = "units/" + String(rtso::unit_type_info(g.unit_type).name);
 			return "p" + String::num_int64(g.player) + "&" + t;
@@ -1908,7 +1906,7 @@ private:
 					if (uview.id[i] == (uint32_t)selected_ids[s]) break;
 				if (i == uview.count || !uview.alive[i]) continue;
 				const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-				if (RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl, uview.rank[i]) != g.key) continue;
+				if (RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl) != g.key) continue;
 				const uint8_t res = uview.res_type_carried[i];
 				if (res >= rtso::RES_COUNT) continue;
 				// A trader's carry is its goods' total gain (trader + both markets), as 0.28 adds.
@@ -1959,7 +1957,7 @@ private:
 			for (size_t i = 0; i < uview.count; ++i)
 				if (uview.id[i] == id) {
 					own_holder_keys.push_back(RtsoSelectionGrid::owner_key(uview.unit_type[i],
-							uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, uview.team[i], uview.rank[i]));
+							uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, uview.team[i]));
 					break;
 				}
 		std::vector<RtsoSelectionGrid::Group> groups = RtsoSelectionGrid::group_units(uview, inside.data(), inside.size(), true);
