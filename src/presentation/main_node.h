@@ -606,6 +606,7 @@ public:
 	const PackedInt32Array &ui_selected_ids() const override { return selected_ids; }
 	std::vector<uint32_t> ui_selected_structures() const override { return selected_structures(); }
 	std::vector<uint32_t> ui_selected_garrison_holders() const override { return selected_garrison_holders(); }
+	const rtso::FogMirages *ui_fog_mirages() const override { return view ? &view->fog_mirages() : nullptr; }
 	bool ui_garrison_panel_shown() const override;
 	bool ui_observing() const override { return turn_mgr_.is_replaying() || spectating(); }
 	bool ui_commands_player(uint8_t pid) const override { return pid == seat_player() && orders_allowed(); }
@@ -702,6 +703,7 @@ public:
 	Dictionary debug_selection_grid(bool select_all);
 	void debug_set_carry(int64_t unit_id, int res, int amount);
 	void debug_set_resource(int res, float amount);
+	Dictionary debug_player_state(int player);
 	bool debug_placing() const;
 	PackedInt32Array debug_highlight() const { return highlight_ids_; }
 	bool debug_structure_outlined(int64_t id) const;
@@ -727,7 +729,8 @@ public:
 		return out;
 	}
 	int64_t debug_guard_target(int64_t uid) const { return sim ? (int64_t)sim->unit_guard_target((uint32_t)uid) : 0; }
-	// The unit's current order: kind (UnitOrderKind), target and whether it may capture (allowCapture).
+	// The unit's current order: kind (UnitOrderKind), target and whether it may capture (allowCapture),
+	// with how it moves (formation, speed, action state, velocity, waypoints left).
 	Dictionary debug_unit_order(int64_t uid) const {
 		Dictionary d;
 		if (!sim) return d;
@@ -735,6 +738,19 @@ public:
 		d["kind"] = (int)o.kind;
 		d["target"] = (int64_t)o.target;
 		d["capture"] = (o.flags & rtso::ORDER_FLAG_ALLOW_CAPTURE) != 0;
+		d["formation"] = (int64_t)sim->formation_of_unit((uint32_t)uid);
+		d["has_order"] = sim->unit_has_order((uint32_t)uid);
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == (uint32_t)uid) {
+				d["speed"] = uv.speed[i];
+				d["state"] = (int)uv.action_state[i];
+				d["type"] = (int)uv.unit_type[i];
+				d["vel"] = Vector2(uv.vel_x[i], uv.vel_z[i]);
+				const float *xs = nullptr, *zs = nullptr;
+				d["waypoints"] = sim->unit_waypoints_left(i, &xs, &zs);
+				if (xs) d["next_wp"] = Vector2(xs[0], zs[0]);
+			}
 		return d;
 	}
 	// Tests: where a unit stands on screen (viewport pixels), or (-1, -1).
@@ -783,6 +799,18 @@ public:
 		const Vector3 g = get_ground_click_pos(screen);
 		return Vector2(g.x, g.z);
 	}
+	// Tests: structure `id`'s world position and the viewed player's fog state there
+	// (Simulation::FOW_*), empty when there is no such structure.
+	Dictionary debug_building_fow(int64_t id) const {
+		Dictionary d;
+		if (!sim) return d;
+		for (const auto &b : sim->buildings())
+			if (b.id == (uint32_t)id) {
+				d["pos"] = Vector2(b.x, b.z);
+				d["fow"] = (int64_t)sim->fow_state_at(b.x, b.z, view_player());
+			}
+		return d;
+	}
 	// Tests: unit `id`'s pick box as drawn this frame (feet, height), empty when not drawn.
 	Dictionary debug_unit_pick_box(int64_t id) const {
 		Dictionary d;
@@ -830,7 +858,7 @@ public:
 	int64_t debug_spawn_relic(float dx, float dz);
 	void debug_capture_relic(const PackedInt32Array &ids, int64_t relic);
 	int64_t debug_civic_centre_id(int player) const;
-	int64_t debug_spawn_building(int type, float dx, float dz, int player = -1);
+	int64_t debug_spawn_building(int type, float dx, float dz, int player = -1, float progress = 1.0f); // progress < 1: a foundation
 	Dictionary debug_research_any();
 	Array debug_building_looks() const; // [id, type, model, x, z] of each map structure drawn by its own template
 	Dictionary debug_structure_types(bool with_civ = false);
@@ -1295,6 +1323,8 @@ private:
 	void quit_confirmation(const String &kind, bool won = false, bool ask_exit = true);
 	void tick_quit_confirmation();
 	bool write_save_metadata(const String &path, const String &description) const;
+	// The viewer's fog memory into a save's (or the quicksave's) GUI data.
+	void save_fog_memory(Dictionary &gui) const;
 	static Dictionary saved_gui(const String &path);
 	void restore_saved_gui(const Dictionary &gui);
 	bool load_world(const String &path, const Dictionary &gui);

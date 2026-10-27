@@ -769,6 +769,7 @@ static void test_capture_rules() {
 		Simulation s;
 		setup(s);
 		const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 1, 1.0f);
+		root_origin(s); // in its owner's territory, so it doesn't decay to Gaia meanwhile
 		uint32_t cap[4];
 		for (int k = 0; k < 4; ++k) cap[k] = s.spawn_unit(-6.0f, -3.0f + 2.0f * k, 0, UNIT_SPEARMAN);
 		s.order_attack_building(cap, 4, house, false, true);
@@ -2116,14 +2117,14 @@ static void test_capture_regen() {
 	b->capture_points_by_team[1] += 100.0f;
 	int steps = 0;
 	float last = b->capture_points_by_team[0];
-	for (int k = 0; k < 40; ++k) { // 2 s
+	for (int k = 0; k < 60; ++k) { // 3 s: the timer starts on the first tick
 		s.tick(Simulation::FIXED_STEP);
 		const float now = bld(s, bar)->capture_points_by_team[0];
 		if (now != last) ++steps;
 		last = now;
 	}
-	std::printf("  regained in %d steps over 2 s\n", steps);
-	check(steps == 2, "the garrison regains its points in one step a second");
+	std::printf("  regained in %d steps over 3 s\n", steps);
+	check(steps == 2, "the garrison regains its points in one step a second, from a second after its timer starts");
 }
 
 static void test_capture_auras() {
@@ -2602,6 +2603,7 @@ static void test_passive_mid_fight() {
 	check(hp_of(s, e) < hp0, "it keeps hitting while the enemy is in reach");
 	const float ax = x_of(s, a), az = z_of(s, a);
 	s.units_.pos_x[idx_of(s, e)] = 10.0f;
+	s.stop_attack(idx_of(s, e)); // its swing under way would still land and make the passive unit flee
 	run(s, 1.0f);
 	const float hp1 = hp_of(s, e);
 	run(s, 5.0f);
@@ -4126,6 +4128,84 @@ static void test_queued_call_to_arms_drop() {
 	check(there && s.unit_order(u).target == near_store, "after the walk it takes the load to the storehouse beside it");
 }
 
+static void test_attack_interval_timing() {
+	std::printf("113. hits land every RepeatTime on average, whatever the tick length (Timer.js interval timers)\n");
+	for (const float dt : {0.05f, 0.15f}) {
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN, 100000.0f);
+		uint32_t e = post(s, 1.5f, 0, UNIT_SPEARMAN, 100000.0f);
+		s.order_attack(&a, 1, e);
+		int hits = 0;
+		float last = hp_of(s, e), t = 0.0f, first = -1.0f;
+		for (int k = 0; k < (int)std::lround(40.0f / dt); ++k) {
+			s.tick(dt);
+			t += dt;
+			if (hp_of(s, e) < last) {
+				if (first < 0.0f) first = t;
+				else ++hits;
+				last = hp_of(s, e);
+			}
+		}
+		// A spearman's RepeatTime is 1 s: one hit a second after the first.
+		const int want = (int)std::floor(t - first + 1.0e-3f);
+		check(first >= 0.0f && std::abs(hits - want) <= 1, dt < 0.1f ? "at 0.05 s ticks" : "at 0.15 s ticks");
+	}
+}
+
+static void test_promotion_restarts_attack() {
+	std::printf("114. a unit promoted mid-attack strikes after its PrepareTime (Transform.js: the new entity's Attack starts over)\n");
+	Simulation s;
+	setup(s);
+	uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN, 100000.0f);
+	uint32_t e = post(s, 1.5f, 0, UNIT_SPEARMAN, 100000.0f);
+	s.order_attack(&a, 1, e);
+	const float hp0 = hp_of(s, e);
+	check(run_until(s, 10.0f, [&] { return hp_of(s, e) < hp0; }), "the swordsman strikes");
+	const size_t i = (size_t)idx_of(s, a);
+	const float prepare = s.unit_combat_at(i).prepare, repeat = s.unit_repeat_time(i);
+	check(prepare < repeat - 0.1f && s.units_.attack_timer[i] < -prepare, "its next hit is more than a PrepareTime away");
+	s.promote_unit(i, s.units_.tmpl[i], (uint8_t)(s.units_.rank[i] + 1));
+	check(std::abs(s.units_.attack_timer[i] + s.unit_combat_at(i).prepare) < 1.0e-4f, "promoted, it waits only its PrepareTime");
+}
+
+static void test_capture_regen_timer() {
+	std::printf("115. a structure regains capture points a second after they first change, then each second until full (Capturable.js CheckTimer, TimerTick)\n");
+	for (const float wait : {0.0f, 0.4f, 0.6f}) {
+		Simulation s;
+		setup(s);
+		const uint32_t barracks = s.spawn_building_world(0, 0, BLD_BARRACKS, 1, 1.0f);
+		root_origin(s);
+		run(s, wait);
+		check(bld(s, barracks)->capture_timer == 0.0f, "no timer runs on a structure that holds all its points");
+		uint32_t c = s.spawn_unit(-6, 0, 0, UNIT_SPEARMAN);
+		s.order_attack_building(&c, 1, barracks, false, true);
+		check(run_until(s, 20.0f, [&] { return bld(s, barracks)->capture_points_by_team[0] > 0.0f; }), "a spearman takes some points");
+		s.cmd_delete(0, &c, 1);
+		const float taken = bld(s, barracks)->capture_points_by_team[0];
+		int ticks = 0;
+		while (ticks < 40 && bld(s, barracks)->capture_points_by_team[0] >= taken) { s.tick(DT); ++ticks; }
+		check(ticks == 5, wait == 0.0f ? "the first regeneration comes a second after the hit"
+				: wait < 0.5f ? "a second after the hit, 0.4 s later" : "a second after the hit, 0.6 s later");
+		check(run_until(s, 60.0f, [&] { return bld(s, barracks)->capture_points_by_team[0] <= 0.0f; }), "it regains them all");
+		run(s, 2.0f);
+		check(bld(s, barracks)->capture_timer == 0.0f, "then the timer stops");
+	}
+}
+
+static void test_queued_repair_on_finished() {
+	std::printf("116. a queued repair of a finished, full structure walks there first (REPAIRING enter: ConstructionFinished)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t house = s.spawn_building_world(30, 0, BLD_HOUSE, 0, 1.0f);
+	uint32_t w = s.spawn_unit(-30, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_walk(&w, 1, -20, 0);
+	s.order_build_or_repair(&w, 1, house, true);
+	run(s, 30.0f);
+	std::printf("  she ends %.1f from the house\n", dist(s, w, 30, 0));
+	check(dist(s, w, 30, 0) < 8.0f, "she walks to the house");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -4245,6 +4325,10 @@ int main(int argc, char **argv) {
 	test_stop_keeps_held_position();
 	test_promotion_drops_work_orders();
 	test_queued_call_to_arms_drop();
+	test_attack_interval_timing();
+	test_promotion_restarts_attack();
+	test_capture_regen_timer();
+	test_queued_repair_on_finished();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

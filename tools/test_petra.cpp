@@ -197,6 +197,7 @@ static void test_roster_army() {
 		s->complete_research(0, TECH_TOWER_MURDERHOLES);
 		bool hero = false, hero_planned = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		bool advanced = false, arsenal = false;
+		float next_fort = 0.0f;
 		// 55 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
 		// the city phase around minute 15, as in 0 A.D., and its city army takes a while longer.
 		// Macedonian heroes come from the fortress, which Petra can only lay once City is done
@@ -216,7 +217,11 @@ static void test_roster_army() {
 				if (b.team == 0 && b.hp > 0.0f && !b.wrecked) idle_alive = true;
 			// Garrisoned like the first ones, so Petra shells it rather than capturing a string of
 			// fortresses that each keep 20 of its soldiers inside against decay (TYPE_DECAY).
-			if (!idle_alive && !(packed_moved && unpacked_fired)) {
+			// At most one every 3 minutes: a fortress respawned the moment the last one falls
+			// keeps shooting the gatherers Petra sends to the razed base's resources, and the
+			// match then hangs on how many it loses there rather than on its army.
+			if (!idle_alive && !(packed_moved && unpacked_fired) && t >= next_fort) {
+				next_fort = t + 180.0f;
 				const uint32_t fort = s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
 				for (int k = 0; k < 10; ++k) {
 					const uint32_t man = s->spawn_unit(18.0f + (float)(k % 5), 31.0f - (float)(k / 5), 0, UNIT_SPEARMAN);
@@ -1483,6 +1488,17 @@ static void test_hunters_028() {
 	s->petra_check_hunt_drift(scan);
 	const int32_t ri = s->lookup_unit(rider);
 	CHECK(ri >= 0 && u.target_unit_id[ri] != deer, "a chase into enemy territory is given up (worker.js drift check)");
+	// Only while approaching (INDIVIDUAL.COMBAT.APPROACHING): a rider that has been in reach of the
+	// deer (ATTACKING, then CHASING) finishes the kill there.
+	{
+		s->order_hunt(&rider, 1, deer);
+		s->tick(Simulation::FIXED_STEP);
+		const int32_t r2 = s->lookup_unit(rider);
+		if (r2 >= 0) u.chase_target[r2] = deer;
+		Simulation::PetraHuntScan scan2 = s->petra_hunt_scan();
+		s->petra_check_hunt_drift(scan2);
+		CHECK(r2 >= 0 && u.target_unit_id[r2] == deer, "a hunter already in reach of the animal keeps chasing it (PC16)");
+	}
 
 	// A carcass whose MaxGatherers are all taken is not picked.
 	const uint32_t meat = s->spawn_resource_world(px + 8.0f, pz - 8.0f, RES_FOOD, 100, RES_SUB_MEAT, 1);
@@ -1639,16 +1655,28 @@ static void test_barter() {
 	std::printf("  barter: contingency deal %s, gold %.0f -> %.0f\n", contingency ? "yes" : "no", gold_before, ps.gold());
 	CHECK(contingency && ps.gold() > gold_before, "sells spare food for the scarcest finite resource");
 
-	// setTradingGoods: a share for low stock (more when wanted), the rest to pickMostNeededResources
-	// (wanted against current gather rate): gold is wanted and nobody mines it.
-	ps.food() = 300.0f; ps.wood() = 3000.0f; ps.gold() = 50.0f; ps.stone() = 3000.0f;
+	// setTradingGoods: a share for what runs low near our dropsites (getTotalResourceLevel; more
+	// when wanted), the rest to pickMostNeededResources (wanted against current gather rate):
+	// gold is wanted, none is left in reach and nobody mines it. The bank does not count.
+	for (size_t r = 0; r < s->resources_.count; ++r)
+		if (s->resources_.alive[r] && s->resources_.type[r] == RES_GOLD) s->resources_.amount[r] = 0;
+	float level[RES_COUNT];
+	s->petra_total_resource_level(level);
+	ps.food() = 300.0f; ps.wood() = 50.0f; ps.gold() = 5000.0f; ps.stone() = 50.0f;
 	s->petra_want_rate_[RES_GOLD] = 1.0f;
 	s->petra_cur_rate_[RES_FOOD] = 2.0f;
+	s->petra_kept_.target_traders = -1;
+	const int target_before = s->petra_target_traders();
 	s->petra_set_trading_goods();
 	const uint8_t *g = s->trading_goods(1);
-	std::printf("  trading goods: food %d wood %d stone %d gold %d\n", g[RES_FOOD], g[RES_WOOD], g[RES_STONE], g[RES_GOLD]);
+	const int target_after = s->petra_target_traders();
+	std::printf("  trading goods: in reach wood %.0f stone %.0f gold %.0f; food %d wood %d stone %d gold %d; traders %d -> %d\n",
+	            level[RES_WOOD], level[RES_STONE], level[RES_GOLD], g[RES_FOOD], g[RES_WOOD], g[RES_STONE], g[RES_GOLD], target_before, target_after);
 	CHECK(g[RES_FOOD] + g[RES_WOOD] + g[RES_STONE] + g[RES_GOLD] == 100, "trading goods add up to 100");
-	CHECK(g[RES_GOLD] >= 20 && g[RES_WOOD] == 0 && g[RES_STONE] == 0, "short on gold, none for what it has plenty of");
+	CHECK(level[RES_GOLD] < 200.0f && level[RES_WOOD] >= 1000.0f && level[RES_STONE] >= 1000.0f, "gold mined out, wood and stone in reach");
+	CHECK(g[RES_GOLD] >= 20 && g[RES_WOOD] == 0 && g[RES_STONE] == 0,
+	      "short on gold in reach (banked or not), none for what stands near the dropsites (getTotalResourceLevel)");
+	CHECK(target_after > target_before, "and more traders for it");
 }
 
 // diplomacyManager.js: tributes() asks only for a resource pickMostNeededResources wants
@@ -1818,6 +1846,15 @@ static void test_garrison_melee_attack() {
 	const Simulation::PetraAround around = s->petra_around(*cc);
 	std::printf("  war elephant near the civic centre: melee siege %d, unit %d\n", around.melee_siege, around.unit);
 	CHECK(around.melee_siege && !around.unit, "a melee war elephant counts as melee siege");
+	// garrisonManager.js:150-153: a Gaia unit counts while it fights, animals included (PC17).
+	const uint32_t wolf = s->spawn_fauna(cc->x - 8.0f, cc->z - 4.0f, FAUNA_WOLF);
+	const size_t wi = s->fauna_id_to_idx_.at(wolf);
+	s->fauna_.behavior[wi] = FAUNA_IDLE_GRAZE;
+	const bool idle_wolf = s->petra_around(*cc).unit;
+	s->fauna_.behavior[wi] = FAUNA_ATTACK;
+	const bool fighting_wolf = s->petra_around(*cc).unit;
+	std::printf("  wolf near the civic centre: lingering counts %d, attacking counts %d\n", idle_wolf, fighting_wolf);
+	CHECK(!idle_wolf && fighting_wolf, "a Gaia animal near the holder counts as an enemy unit while it fights");
 }
 
 // defenseManager.js:913-914: the Regicide hero's emergency garrison follows the protection rules
@@ -3665,6 +3702,98 @@ static void test_rush_any_phase() {
 	}
 }
 
+// attackPlan.js: a new Rush has no targetPlayer (chooseTarget asks getEnemyPlayer only when the
+// plan must start, and that pick becomes currentEnemyPlayer then); getNearestTarget lets a rush
+// that is forced or has siege engines fall back to defaultTargetFinder, a defended target.
+static void test_rush_target_player() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	uint32_t enemy_cc = 0;
+	for (const auto &b : s->buildings()) {
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) enemy_cc = b.id;
+	}
+	s->spawn_building_world(tx + (tx > 0.0f ? -12.0f : 12.0f), tz, BLD_BARRACKS, 1, 1.0f);
+	s->spawn_building_world(-3.0f, 25.0f, BLD_STOREHOUSE, 0, 1.0f);
+	auto &m = s->petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 2;
+	m.rush_number = 0;
+	s->petra_attack_plan_.state = Simulation::AttackPlan::UNEXECUTED;
+	s->petra_attack_plan_.target_player = 0xFF;
+	s->petra_pid_ = 1;
+	s->petra_sent_diplo_.current_enemy = 0;
+	s->petra_update_attack_plan(s->petra_attack_plan_, tx, tz);
+	const auto &plan = s->petra_attack_plan_;
+	std::printf("  new rush: state %d, target player %d, current enemy %d\n", (int)plan.state, (int)plan.target_player,
+	            (int)s->petra_sent_diplo_.current_enemy);
+	CHECK(plan.state == Simulation::AttackPlan::MUSTER && plan.target_player == 0xFF, "a new rush has no target player yet");
+	CHECK(s->petra_sent_diplo_.current_enemy == 0, "making a rush picks no current enemy");
+	// Player 0 keeps only its Civic Centre, which shoots: no undefended structure is left.
+	for (auto &b : s->buildings_)
+		if (b.team == 0 && b.id != enemy_cc) { b.hp = 0.0f; b.wrecked = true; }
+	float rx = 0.0f, rz = 0.0f;
+	const uint32_t plain = s->find_petra_rush_target(rx, rz, 0);
+	const uint32_t forced = s->find_petra_rush_target(rx, rz, 0, nullptr, 0, true);
+	std::printf("  rush against a lone Civic Centre: %s, forced %s\n", plain ? "a target" : "none",
+	            forced == enemy_cc ? "the Civic Centre" : forced ? "another" : "none");
+	CHECK(plain == 0, "a rush skips structures with defensive fire");
+	CHECK(forced == enemy_cc, "a forced rush (or one with siege) falls back to defaultTargetFinder");
+}
+
+// attackPlan.js UpdateTarget: a new target only swaps plan.target; soldiers fighting keep
+// their fight (the per-unit loop re-orders those whose target is gone), the idle ones head
+// for the new target, and targetPlayer follows the new target's owner.
+static void test_retarget_keeps_fights() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	// test_attack_plans' storehouse: an undefended structure to attack next.
+	const float hx = -3.0f, hz = 25.0f;
+	const uint32_t store = s->spawn_building_world(hx, hz, BLD_STOREHOUSE, 0, 1.0f);
+	for (size_t j = 0; j < s->units_.count; ++j)
+		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
+	run_for(*s, 0.5f);
+	const uint32_t fighter = s->spawn_unit(hx + 8.0f, hz, 1, UNIT_SPEARMAN, 1.0e4f);
+	const uint32_t idle = s->spawn_unit(hx - 30.0f, hz, 1, UNIT_SPEARMAN, 1.0e4f); // out of the foe's sight
+	const uint32_t foe = s->spawn_unit(hx + 9.0f, hz, 0, UNIT_SWORDSMAN, 1.0e6f);
+	s->order_attack(&fighter, 1, foe);
+	run_for(*s, 0.5f);
+	auto &plan = s->petra_attack_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.squad = {fighter, idle};
+	plan.initial_squad_size = 2;
+	plan.target_building_id = 0xFFFFFF0u; // destroyed
+	plan.target_player = 0;
+	plan.state = Simulation::AttackPlan::ATTACKED;
+	s->petra_pid_ = 1;
+	const int32_t f = s->lookup_unit(fighter), i = s->lookup_unit(idle);
+	const bool fighting = f >= 0 && s->units_.target_unit_id[f] == foe;
+	CHECK(fighting && i >= 0 && s->units_.action_state[i] == ACTION_IDLE, "one soldier fights, one stands idle");
+	s->petra_update_attack_plan(plan, tx, tz);
+	const bool kept = s->units_.target_unit_id[f] == foe && s->units_.action_state[f] != ACTION_ATTACK_MOVE;
+	const bool sent = s->units_.action_state[i] == ACTION_ATTACK_MOVE;
+	std::printf("  retarget: new target %s, the fighter keeps its fight %s, the idle one heads off %s, target player %d\n",
+	            plan.target_building_id == store ? "the storehouse" : "another", kept ? "yes" : "no", sent ? "yes" : "no", (int)plan.target_player);
+	CHECK(plan.state == Simulation::AttackPlan::ATTACKED && plan.target_building_id == store, "the plan picks a new target");
+	CHECK(kept, "a soldier in a fight keeps it when the plan retargets");
+	CHECK(sent, "an idle soldier attack-walks to the new target");
+	CHECK(plan.target_player == 0, "the target player is the new target's owner");
+}
+
 // attackPlan.js assignUnits: a citizen cavalry hunter has the worker role, so only a rush takes
 // it, past the workers kept home; a soldier trained for the army joins any plan.
 static void test_attack_plan_keeps_hunters() {
@@ -3926,6 +4055,57 @@ static void test_trained_units_join_their_plan() {
 	CHECK(a != 0 && in(main.squad, a), "the cavalry trained for the attack joins it as it spawns");
 	CHECK(std::binary_search(army.begin(), army.end(), a), "citizen cavalry trained for a plan is army, not a hunter");
 	CHECK(b != 0 && b != a && std::binary_search(out.begin(), out.end(), b), "a batch for an earlier raid comes out of plan (plan -1: no worker)");
+}
+
+// headquarters.js findBestTrainableUnit copies the plan's interests shallowly (slice), so a
+// scarcity penalty writes the main plan's own costsResource weight: once metal ran short, the
+// plan keeps the lowered metal weight after metal is plentiful again (G74).
+static void test_plan_cost_weights_kept() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_team_civ(1, CIV_ATHENIANS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	s->spawn_building_world(tx + (tx > 0.0f ? -12.0f : 12.0f), tz, BLD_BARRACKS, 1, 1.0f);
+	s->players_[1].phase = 2;
+	s->cheat_mods_[1].pop_bonus = 300;
+	auto &m = s->petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 0;
+	s->petra_plan_sizes(PETRA_ATTACK_ATTACK);
+	m.dropped_classes = 0;
+	m.cost_lowered = 0;
+	m.kind = PETRA_ATTACK_ATTACK;
+	auto &plan = s->petra_attack_plan_;
+	plan = Simulation::AttackPlan();
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	// No metal left round our dropsites and little in stock: findBestTrainableUnit's metal
+	// penalty is 0.2, written into the plan's infantry unitStats (0.3 metal weight).
+	std::vector<int> metal_amount(s->resources_.count);
+	for (size_t r = 0; r < s->resources_.count; ++r)
+		if (s->resources_.type[r] == RES_GOLD) { metal_amount[r] = s->resources_.amount[r]; s->resources_.amount[r] = 0; }
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = r == RES_GOLD ? 50.0f : 20000.0f;
+	run_ai_turns(*s, 1);
+	const uint16_t scarce = m.cost_lowered;
+	// Metal is plentiful again: the weights stay lowered.
+	for (size_t r = 0; r < s->resources_.count; ++r)
+		if (s->resources_.type[r] == RES_GOLD) s->resources_.amount[r] = metal_amount[r];
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 20000.0f;
+	run_ai_turns(*s, 1);
+	std::printf("  Attack plan cost weights lowered while metal ran short: 0x%04x, after it recovered: 0x%04x\n",
+	            (unsigned)scarce, (unsigned)m.cost_lowered);
+	// unitStat 0 and 1 (ranged and melee infantry) metal: code 2 (0.2) in bits 2-3 and 6-7.
+	auto metal_code = [](uint16_t v, int stat) { return (v >> ((stat * 2 + 1) * 2)) & 3u; };
+	CHECK(metal_code(scarce, 0) == 2 || metal_code(scarce, 1) == 2, "a metal scarcity lowers the plan's infantry metal weight to 0.2");
+	CHECK(m.cost_lowered == scarce, "the lowered weight stays once metal is plentiful again");
+	CHECK(((scarce >> 8) & 0xFFu) == 0, "citizen cavalry (no costsResource interest) keeps no weight");
 }
 
 // attackPlan.js trainMoreUnits: when the order furthest behind has no template, the order is
@@ -5308,6 +5488,7 @@ static void test_idle_return() {
 	u.res_type_carried[i] = RES_WOOD;
 	bool ordered = false, dropped = false;
 	for (int k = 0; k < 30 * 20 && !dropped; ++k) {
+		s->petra_failed_gather_.time[RES_WOOD] = std::max(0.001f, s->petra_timer_); // not back to wood with it
 		s->tick(Simulation::FIXED_STEP);
 		const int32_t j = s->lookup_unit(uid);
 		if (j < 0) break;
@@ -5950,7 +6131,8 @@ static void test_defender_orders() {
 			const auto q = s->order_queues_.find(id);
 			const bool queued = q != s->order_queues_.end() && !q->second.empty() && q->second.front().kind == ORDER_ATTACK;
 			if (s->units_.order_kind[i] == ORDER_RETURN_RESOURCE && queued) ++dropping;
-			else if (s->units_.action_state[i] == ACTION_ATTACK && s->units_.carry[i] > 0) ++straight;
+			// One UnitAI already took into the fight on its own (no order of Petra's) is not counted.
+			else if (s->units_.action_state[i] == ACTION_ATTACK && s->units_.order_kind[i] == ORDER_ATTACK && s->units_.carry[i] > 0) ++straight;
 		}
 	size_t armies = s->petra_defense_armies().size(), drafted = 0;
 	for (const auto &a : s->petra_defense_armies()) drafted += a.defender_ids.size();
@@ -6082,9 +6264,11 @@ static void test_defense_animals() {
 	if (!cc) return;
 	const float cx = cc->x, cz = cc->z;
 	for (int k = 0; k < 10; ++k) s->spawn_unit(cx - 3.0f + (float)(k % 5), cz + 12.0f + (float)(k / 5), 1, UNIT_SPEARMAN);
+	// The fights are beyond the civic centre's arrows (16.8): a fighting animal in their reach fills
+	// it with units for the arrows instead (defenseManager.js garrisonUnitsInside, garrisonManager around).
 	const uint32_t idle_wolf = s->spawn_fauna(cx + 9.0f, cz + 8.0f, FAUNA_WOLF);
-	const uint32_t enemy = s->spawn_unit(cx + 9.0f, cz - 9.0f, 0, UNIT_FEMALE_CITIZEN, 1.0e4f);
-	const uint32_t enemy_wolf = s->spawn_fauna(cx + 10.0f, cz - 9.0f, FAUNA_WOLF);
+	const uint32_t enemy = s->spawn_unit(cx + 15.0f, cz - 15.0f, 0, UNIT_FEMALE_CITIZEN, 1.0e4f);
+	const uint32_t enemy_wolf = s->spawn_fauna(cx + 16.0f, cz - 15.0f, FAUNA_WOLF);
 	auto wolf_idx = [&](uint32_t id) {
 		auto it = s->fauna_id_to_idx_.find(id);
 		return it == s->fauna_id_to_idx_.end() ? SIZE_MAX : it->second;
@@ -6106,8 +6290,8 @@ static void test_defense_animals() {
 	}
 	std::printf("  animals: a roaming wolf and one biting an enemy make %zu armies\n", s->petra_defense_armies().size());
 	CHECK(s->petra_defense_armies().empty(), "an animal not attacking us or our allies raises no army");
-	const uint32_t woman = s->spawn_unit(cx - 9.0f, cz - 9.0f, 1, UNIT_FEMALE_CITIZEN, 1.0e4f);
-	const uint32_t wolf = s->spawn_fauna(cx - 10.0f, cz - 9.0f, FAUNA_WOLF);
+	const uint32_t woman = s->spawn_unit(cx - 15.0f, cz - 15.0f, 1, UNIT_FEMALE_CITIZEN, 1.0e4f);
+	const uint32_t wolf = s->spawn_fauna(cx - 16.0f, cz - 15.0f, FAUNA_WOLF);
 	bool army = false, hunted = false;
 	for (int t = 0; t < 4 && !(army && hunted); ++t) {
 		keep_biting(wolf, woman);
@@ -6121,7 +6305,7 @@ static void test_defense_animals() {
 			}
 		}
 	}
-	run_for(*s, 20.0f);
+	run_for(*s, 45.0f); // spears only, out of the civic centre's arrows
 	const size_t f = wolf_idx(wolf);
 	const bool dead = f == SIZE_MAX || !s->fauna_.alive[f] || s->fauna_.behavior[f] == FAUNA_CARCASS;
 	bool still = false;
@@ -8529,11 +8713,97 @@ static void test_far_sparse_gatherer_returning() {
 		const int32_t i = s->lookup_unit(w);
 		if (i < 0) break;
 		returning |= s->units_.action_state[i] == ACTION_RETURN_DROPSITE;
-		cleared = s->petra_supply_of(w) == 0;
+		// Dropped, or (PC13) re-sent through startGathering to the nearby mine on the way.
+		cleared = s->petra_supply_of(w) != far;
 		if (!returning && cleared) { s->petra_set_supply(w, far); cleared = false; } // a recheck while gathering: keep it there
 	}
-	std::printf("  far stone gatherer taking its load back: supply mark %s\n", cleared ? "dropped" : "kept");
-	CHECK(returning && cleared, "a stone gatherer on a far mine drops its supply mark on the way back");
+	std::printf("  far stone gatherer taking its load back: leaves the far mine %s\n", cleared ? "yes" : "no");
+	CHECK(returning && cleared, "a stone gatherer on a far mine gives it up on the way back");
+}
+
+// worker.js:220-232 (PC14): a gatherer reassigned to another resource (switchGatherer,
+// reassignIdleWorkers after a failed search) takes its load to a dropsite before gathering
+// the new type, rather than throwing it away at the first gather.
+static void test_switched_gatherer_keeps_load() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "AI 1 has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	uint32_t tree = 0;
+	for (size_t r = 0; r < s->resources_.count && !tree; ++r)
+		if (s->resources_.alive[r] && s->resources_.type[r] == RES_WOOD) tree = s->resources_.id[r];
+	// No foundation to send it to (a builder drops its load off first, petra_order_build).
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.build_progress < 1.0f) b.hp = 0.0f;
+	s->set_player_resources(1, 0, 0, 0, 0);
+	const uint32_t w = s->spawn_unit(cx + 10.0f, cz + 10.0f, 1, UNIT_FEMALE_CITIZEN);
+	s->petra_set_supply(w, tree); // a woodcutter Petra sent to a tree, standing idle with 10 wood
+	{
+		const int32_t i = s->lookup_unit(w);
+		s->units_.carry[i] = 10;
+		s->units_.res_type_carried[i] = RES_WOOD;
+	}
+	bool returned_wood = false, gathered_other = false;
+	for (int k = 0; k < 30 * 20 && !returned_wood && !gathered_other; ++k) {
+		s->petra_failed_gather_.time[RES_WOOD] = std::max(0.001f, s->petra_timer_); // no wood found lately (lastFailedGather)
+		if (s->units_.carry[s->lookup_unit(w)] == 10) s->petra_set_supply(w, tree); // still marked as Petra's woodcutter
+		s->tick(Simulation::FIXED_STEP);
+		const int32_t i = s->lookup_unit(w);
+		if (i < 0) break;
+		returned_wood |= (s->units_.order_kind[i] == ORDER_RETURN_RESOURCE || s->units_.action_state[i] == ACTION_RETURN_DROPSITE) &&
+		                 s->units_.res_type_carried[i] == RES_WOOD && s->units_.carry[i] == 10;
+		gathered_other |= s->units_.action_state[i] == ACTION_GATHER && s->units_.res_type_carried[i] != RES_WOOD;
+	}
+	std::printf("  gatherer switched off wood with 10 wood: takes it back %s, lost it %s\n", returned_wood ? "yes" : "no",
+	            gathered_other ? "yes" : "no");
+	CHECK(returned_wood && !gathered_other, "a gatherer switched to another resource drops its load off first");
+}
+
+// worker.js:236-269 (PC13): a gatherer taking its load back has the dropsite as its Gather
+// target, so on its base's turn it goes through startGathering again while the base lists a
+// nearby supply: it still drops the load first, then works the supply startGathering picked.
+static void test_returning_gatherer_resent() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	s->spawn_resource_world(cx + 12.0f, cz - 4.0f, RES_WOOD, 5000); // in the base's nearby list
+	const uint32_t far_tree = s->spawn_resource_world(cx + 30.0f, cz + 30.0f, RES_WOOD, 5000); // medium
+	const uint32_t w = s->spawn_unit(cx + 29.0f, cz + 29.0f, 1, UNIT_FEMALE_CITIZEN);
+	s->order_gather(&w, 1, far_tree);
+	s->petra_set_supply(w, far_tree);
+	auto &u = s->units_;
+	int32_t i = s->lookup_unit(w);
+	u.carry[i] = 50; // full: Order.Gather returns the load first
+	u.res_type_carried[i] = RES_WOOD;
+	bool returning = false, resent = false;
+	for (int k = 0; k < 30 * 8 && !resent; ++k) {
+		s->tick(Simulation::FIXED_STEP);
+		i = s->lookup_unit(w);
+		if (i < 0) break;
+		const bool ret = u.action_state[i] == ACTION_RETURN_DROPSITE && u.carry[i] == 50;
+		returning |= ret;
+		resent = ret && u.target_resource_id[i] != far_tree && u.target_resource_id[i] != 0;
+	}
+	std::printf("  full woodcutter from a medium tree: returning %s, re-sent to another supply on the way %s\n",
+	            returning ? "yes" : "no", resent ? "yes" : "no");
+	CHECK(returning && resent, "a returning gatherer goes through startGathering again on its base's turn");
 }
 
 // worker.js:220-227 (W7): an idle gatherer carrying its own gather-type goes straight back to
@@ -8952,6 +9222,8 @@ int main(int argc, char **argv) {
 	RUN(test_hunters_028);
 	RUN(test_first_base);
 	RUN(test_barter);
+	RUN(test_switched_gatherer_keeps_load);
+	RUN(test_returning_gatherer_resent);
 	RUN(test_diplomacy_most_needed);
 	RUN(test_first_market_border);
 	RUN(test_pop_phase2_save_resources);
@@ -9008,6 +9280,7 @@ int main(int argc, char **argv) {
 	RUN(test_huge_attack_drops_classes);
 	RUN(test_plan_counts_every_class);
 	RUN(test_trained_units_join_their_plan);
+	RUN(test_plan_cost_weights_kept);
 	RUN(test_attack_order_no_template);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
@@ -9062,6 +9335,8 @@ int main(int argc, char **argv) {
 	RUN(test_concurrent_attacks);
 	RUN(test_fasten_end_game);
 	RUN(test_abort_nearest_base);
+	RUN(test_rush_target_player);
+	RUN(test_retarget_keeps_fights);
 	RUN(test_mobile_dropsite_follows);
 	RUN(test_mobile_dropsite_cadence);
 	RUN(test_worker_mix);

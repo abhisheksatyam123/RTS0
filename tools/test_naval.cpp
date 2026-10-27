@@ -1402,6 +1402,57 @@ static void test_petra_transport_ship_lost() {
 	CHECK(took == second && landed >= 3); // it sails with whoever made it aboard
 }
 
+// attackPlan.js UpdateTransporting: while part of an army sailed overseas is still in a
+// transport, the first Attacked event on it turns the idle landed units on the attacker; the
+// plan has arrived as soon as none of its own units is in a transport, whatever another
+// attack's ferry does, and attacks at once (no wait at the drop point).
+static void test_petra_landed_army_answers_attack() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t house = s.spawn_building_world(30.0f, -50.0f, BLD_HOUSE, 0);
+	const uint32_t hit = s.spawn_unit(-10.0f, -28.0f, 1, UNIT_SPEARMAN, 1.0e4f);
+	const uint32_t mate = s.spawn_unit(-12.0f, -28.0f, 1, UNIT_SPEARMAN, 1.0e4f);
+	const uint32_t sailing = s.spawn_unit(-34.0f, 26.0f, 1, UNIT_SPEARMAN);
+	const uint32_t other = s.spawn_unit(-36.0f, 26.0f, 1, UNIT_SPEARMAN); // another attack's
+	const uint32_t foe = s.spawn_unit(-11.0f, -32.0f, 0, UNIT_SWORDSMAN, 1.0e4f);
+	run(s, 0.5f);
+	s.petra_pid_ = 1;
+	PetraTransportPlan ferry;
+	ferry.owner = PETRA_TRANSPORT_ATTACK;
+	ferry.state = PetraTransportPlan::BOARDING;
+	ferry.passenger_ids = {sailing, other};
+	s.petra_transports_.push_back(ferry);
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::WALKING;
+	plan.target_building_id = house;
+	plan.target_player = 0;
+	plan.target_x = 30.0f; plan.target_z = -50.0f;
+	plan.staging_x = 30.0f; plan.staging_z = -60.0f; // far from where the army landed
+	plan.squad = {hit, mate, sailing};
+	plan.initial_squad_size = 3;
+	CHECK(s.petra_plan_overseas(-30.0f, 40.0f, house) != 0);
+	s.petra_turn_attacks_ = {{hit, foe}};
+	s.petra_update_attack_plan(plan, -30.0f, 40.0f);
+	const int32_t m = idx(s, mate);
+	const bool answered = m >= 0 && s.units_.target_unit_id[m] == foe;
+	const bool waits = plan.state == Simulation::AttackPlan::WALKING;
+	// The last one lands; the other attack's unit is still waiting for its ship.
+	s.petra_transports_[0].passenger_ids = {other};
+	if (const int32_t k = idx(s, sailing); k >= 0) { s.units_.pos_x[k] = -14.0f; s.units_.pos_z[k] = -28.0f; }
+	s.petra_turn_attacks_.clear();
+	s.petra_update_attack_plan(plan, -30.0f, 40.0f);
+	std::printf("Petra army landing overseas: a landed mate answers the attack %s, waits for the rest %s, attacks once all landed %s\n",
+	            answered ? "yes" : "no", waits ? "yes" : "no", plan.state == Simulation::AttackPlan::ATTACKED ? "yes" : "no");
+	CHECK(answered && waits);
+	CHECK(plan.state == Simulation::AttackPlan::ATTACKED);
+	s.petra_transports_.clear();
+}
+
 // transportPlan.js onBoarding (pass 5 T4): the ship sails only once every passenger is
 // aboard, a straggler walking up from far inland included.
 static void test_petra_transport_waits_for_all() {
@@ -1753,6 +1804,56 @@ static void test_petra_ship_treasure() {
 
 // Ships drop off at any Naval dropsite (ResourceGatherer.js): the Briton crannog, a civic
 // centre on the shore, takes a fishing boat's catch as a dock does.
+// Foundation.js Commit: a ship on a dock site keeps the dock from starting, and UnitAI
+// LeaveFoundation sends it off the footprint, by water (FD2).
+static void test_ship_leaves_dock_site() {
+	static Simulation s;
+	fresh(s);
+	s.spawn_building_world(-20.0f, 40.0f, BLD_TOWN_CENTER, 0); // territory for the dock
+	run(s, 0.5f);
+	const int foot = building_type_info(BLD_DOCK).footprint;
+	int cx = 0, cz = 0;
+	bool found = false;
+	for (int z = -64; z < 64 && !found; ++z)
+		for (int x = -64; x < 64 && !found; ++x) {
+			const float wx = (x + 0.5f * foot) * Simulation::GRID, wz = (z + 0.5f * foot) * Simulation::GRID;
+			if (wz > 10.0f && wz < 24.0f && std::fabs(wx + 20.0f) < 6.0f && s.check_placement(0, x, z, BLD_DOCK) == Simulation::PLACE_OK) {
+				cx = x;
+				cz = z;
+				found = true;
+			}
+		}
+	CHECK(found);
+	if (!found) return;
+	const uint32_t dock = s.spawn_building(cx, cz, BLD_DOCK, 0, 0.0f);
+	const Simulation::Building *b = bld(s, dock);
+	CHECK(b && !b->committed);
+	if (!b) return;
+	// A boat on the water part of the site.
+	float bx = b->x, bz = b->z;
+	for (float dz = -b->hv; dz <= b->hv; dz += 0.25f) {
+		auto [gx, gy] = s.nav_grid_.world_to_cell(b->x, b->z + dz);
+		if (s.nav_grid_.is_passable_for(gx, gy, PASS_SHIP)) { bz = b->z + dz; break; }
+	}
+	const uint32_t boat = s.spawn_unit(bx, bz, 1, UNIT_FISHING_BOAT);
+	s.order_set_stance(&boat, 1, STANCE_PASSIVE);
+	const uint32_t worker = s.spawn_unit(b->x, b->z + b->hv + 2.0f, 0, UNIT_FEMALE_CITIZEN);
+	s.order_build_or_repair(&worker, 1, dock);
+	auto on_site = [&]() {
+		const int32_t i = s.lookup_unit(boat);
+		return i >= 0 && nav::footprint_contains(*bld(s, dock), s.units_.pos_x[i], s.units_.pos_z[i], 0.0f);
+	};
+	CHECK(on_site());
+	for (int t = 0; t < 20 * 30 && !bld(s, dock)->committed; ++t) s.tick(Simulation::FIXED_STEP);
+	const int32_t bi = s.lookup_unit(boat);
+	std::printf("dock site: a boat on it %s, the dock %s\n", on_site() ? "stays" : "sails off", bld(s, dock)->committed ? "starts" : "waits");
+	CHECK(!on_site() && bld(s, dock)->committed);
+	if (bi >= 0) {
+		auto [gx, gy] = s.nav_grid_.world_to_cell(s.units_.pos_x[bi], s.units_.pos_z[bi]);
+		CHECK(s.nav_grid_.is_passable_for(gx, gy, PASS_SHIP));
+	}
+}
+
 static void test_crannog_takes_fish() {
 	static Simulation s;
 	fresh(s);
@@ -2179,11 +2280,21 @@ static void test_petra_crossing_waits_for_ship() {
 	for (int k = 0; k < 3; ++k) crew.push_back(s.spawn_unit(-34.0f + 2.0f * k, 44.0f, 1, UNIT_VILLAGER));
 	const bool planned = s.petra_start_transport(crew, -30.0f, 44.0f, -30.0f, -40.0f, sea, PETRA_TRANSPORT_BUILDERS);
 	const uint32_t first = s.petra_transport_plans().empty() ? 1u : s.petra_transport_plans().back().ship_id;
+	// onBoarding walks the units to the boarding point only once a ship is assigned.
+	auto walking = [&] {
+		int n = 0;
+		for (uint32_t uid : crew) { const int32_t i = idx(s, uid); n += i >= 0 && s.units_.order_kind[i] == ORDER_WALK; }
+		return n;
+	};
+	const int walking_before = walking();
 	const uint32_t ship = s.spawn_unit(-30.0f, 4.0f, 1, UNIT_TRIREME);
 	s.petra_manage_transport(Simulation::FIXED_STEP);
 	const uint32_t later = s.petra_transport_plans().empty() ? 0u : s.petra_transport_plans().back().ship_id;
-	std::printf("crossing with no ship: sea %u, planned %s, ship %u, then %u (trireme %u)\n", sea, planned ? "yes" : "no", first, later, ship);
+	const int walking_after = walking();
+	std::printf("crossing with no ship: sea %u, planned %s, ship %u, then %u (trireme %u); walking to the beach %d, then %d\n", sea,
+	            planned ? "yes" : "no", first, later, ship, walking_before, walking_after);
 	CHECK(sea && planned && first == 0 && later == ship);
+	CHECK(walking_before == 0 && walking_after == 3);
 	s.petra_transports_.clear();
 }
 
@@ -2702,6 +2813,7 @@ int main() {
 	test_petra_defenders_ferried();
 	test_petra_transport_ship_lost();
 	test_petra_transport_waits_for_all();
+	test_petra_landed_army_answers_attack();
 	test_petra_transport_trapped_passenger();
 	test_petra_transport_sunk_at_sea();
 	test_petra_transport_wrong_land();
@@ -2715,6 +2827,7 @@ int main() {
 	test_ship_round_wreck();
 	test_petra_ship_treasure();
 	test_crannog_takes_fish();
+	test_ship_leaves_dock_site();
 	test_next_fish_range();
 	test_petra_land_skips_wreck();
 	test_petra_fishing();

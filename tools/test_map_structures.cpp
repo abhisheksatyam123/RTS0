@@ -319,6 +319,11 @@ int main() {
 	CHECK(pirate_scout != CIV_UNIT_TEMPLATE_NONE && pirate_arrow != CIV_UNIT_TEMPLATE_NONE);
 	CHECK(building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, pirate_scout));
 	CHECK(building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, pirate_arrow));
+	// MS4: the template_structure_military_dock list keeps the captor's fishing and merchant ships.
+	CHECK(building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, civ_unit_template_by_id("athen/ship_fishing")));
+	CHECK(building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, civ_unit_template_by_id("athen/ship_merchant")));
+	CHECK(!building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, civ_unit_template_by_id("brit/ship_fishing")));
+	CHECK(!building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, civ_unit_template_by_id("pirates/ship_merchant")));
 	const uint16_t athen_trireme = civ_unit_template_by_id("athen/ship_trireme");
 	if (athen_trireme != CIV_UNIT_TEMPLATE_NONE) {
 		CHECK(!building_trains_template(BLD_DOCK, CIV_GAIA, CIV_ATHENIANS, athen_trireme));
@@ -393,6 +398,57 @@ int main() {
 		run(m, 120.0f);
 		std::printf("mill: owner %d after the capture\n", find_bld(m, mill) ? find_bld(m, mill)->team : -1);
 		CHECK(find_bld(m, mill) && find_bld(m, mill)->team == 0);
+	}
+
+	{
+		// MS6/MS7: a map template's switched-off parts (palisades_fort: Upgrade, Researcher,
+		// Trainer; uffington_horse: GarrisonHolder, Researcher, Trainer, BlockMovement) hold
+		// through a save.
+		static Simulation u;
+		u.set_sim_seed(5);
+		u.set_team_civ(0, CIV_BRITONS);
+		u.set_team_civ(1, CIV_GAULS);
+		u.reset();
+		u.spawn_building_world(-80.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		u.set_player_resources(0, 5000, 5000, 5000, 5000);
+		u.players_[0].phase = 3;
+		const uint32_t fort = u.spawn_building_world(-60.0f, 0.0f, BLD_SENTRY_TOWER, 0, 1.0f);
+		const uint32_t horse = u.spawn_building_world(-60.0f, 40.0f, BLD_WONDER, 0, 1.0f);
+		const Simulation::Building *fb = find_bld(u, fort), *hb = find_bld(u, horse);
+		CHECK(fb && hb && u.structure_upgrade_count(*fb) > 0 && hb->garrison_cap > 0 && Simulation::blocks_pathfinding(*hb));
+		uint8_t fort_tech = TECH_NONE, horse_tech = TECH_NONE;
+		for (int t = 1; t < TECH_COUNT; ++t) {
+			if (fort_tech == TECH_NONE && fb && u.structure_researches(*fb, (uint8_t)t)) fort_tech = (uint8_t)t;
+			if (horse_tech == TECH_NONE && hb && u.structure_researches(*hb, (uint8_t)t)) horse_tech = (uint8_t)t;
+		}
+		CHECK(fort_tech != TECH_NONE && horse_tech != TECH_NONE);
+		u.set_structure_off(fort, Simulation::STRUCT_OFF_UPGRADE | Simulation::STRUCT_OFF_RESEARCH | Simulation::STRUCT_OFF_TRAIN);
+		u.set_structure_off(horse, Simulation::STRUCT_OFF_GARRISON | Simulation::STRUCT_OFF_RESEARCH | Simulation::STRUCT_OFF_TRAIN |
+				Simulation::STRUCT_OFF_BLOCK);
+		const char *path = "/tmp/test_map_structures_off.sav";
+		CHECK(u.save_state(path));
+		static Simulation v;
+		v.set_team_civ(0, CIV_BRITONS);
+		v.set_team_civ(1, CIV_GAULS);
+		CHECK(v.load_state(path));
+		std::remove(path);
+		for (Simulation *x : {&u, &v}) {
+			fb = find_bld(*x, fort);
+			hb = find_bld(*x, horse);
+			CHECK(fb && hb);
+			if (!fb || !hb) continue;
+			CHECK(x->structure_upgrade_count(*fb) == 0 && x->upgrade_check(0, fort) != Simulation::UPGRADE_OK);
+			CHECK(!x->structure_researches(*fb, fort_tech) && x->research_check(0, fort_tech, fort) != Simulation::TECH_OK);
+			CHECK(!x->structure_researches(*hb, horse_tech) && x->research_check(0, horse_tech, horse) != Simulation::TECH_OK);
+			CHECK(hb->garrison_cap == 0 && x->get_garrison_capacity(horse) == 0);
+			CHECK(!Simulation::blocks_pathfinding(*hb) && !Simulation::blocks_movement_now(*hb));
+			const auto [cx, cy] = x->nav_grid().world_to_cell(hb->x, hb->z);
+			CHECK(x->nav_grid().cells.at(cx, cy) != NAV_OBSTRUCTED);
+			bool trains = false;
+			for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i) trains = trains || Simulation::structure_trains(*hb, CIV_BRITONS, i);
+			CHECK(!trains);
+		}
+		std::printf("map structures: palisades_fort and uffington_horse parts off, kept through a save\n");
 	}
 
 	if (failures) {

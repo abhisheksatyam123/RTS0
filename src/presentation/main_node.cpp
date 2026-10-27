@@ -480,7 +480,7 @@ bool RtsoMain::building_trains_units(uint32_t id) const {
 		const uint8_t owner = sim->player_civ(b.team);
 		for (uint8_t civ : {b.civ, owner})
 			for (uint16_t i : rtso::civ_roster_ids(civ))
-				if (rtso::building_trains_template(b.type, b.civ, owner, i)) return true;
+				if (rtso::Simulation::structure_trains(b, owner, i)) return true;
 		return false;
 	}
 	return false;
@@ -508,6 +508,8 @@ void RtsoMain::quicksave() {
 		for (int g = 0; g < 10; ++g) groups.push_back(selected_groups[g]);
 		quicksave_gui_ = Dictionary();
 		quicksave_gui_["groups"] = groups;
+		// The quicksave is the whole simulation, mirages included.
+		save_fog_memory(quicksave_gui_);
 		quicksaved_ = true;
 	}
 	log_render(ok ? "Quicksaved game" : "Quicksave failed", !ok);
@@ -1155,7 +1157,7 @@ std::vector<uint32_t> RtsoMain::structure_trainers(uint16_t tmpl, uint32_t holde
 		for (const auto &b : sim->buildings()) {
 			if (b.id != id) continue;
 			if ((b.team == local_player() || control_all) && b.build_progress >= 1.0f && !b.wrecked && b.upgrade_to == rtso::BLD_TYPE_COUNT &&
-					rtso::building_trains_template(b.type, b.civ, sim->player_civ(b.team), tmpl))
+					rtso::Simulation::structure_trains(b, sim->player_civ(b.team), tmpl))
 				out.push_back(id);
 			break;
 		}
@@ -1689,7 +1691,7 @@ Dictionary RtsoMain::get_tech_tree() const {
 		blds.push_back(b);
 	}
 	for (int t = 1; t < rtso::TECH_COUNT; ++t) {
-		if (!rtso::tech_available_to_civ((uint8_t)t, civ)) continue;
+		if (!rtso::civ_structures_offer_tech((uint8_t)t, civ)) continue;
 		const auto &ti = rtso::tech_info((uint8_t)t);
 		Dictionary e;
 		e["id"] = t;

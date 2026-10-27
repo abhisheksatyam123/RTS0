@@ -327,6 +327,51 @@ void RtsoMain::debug_set_resource(int res, float amount) {
 	if (sim && res >= 0 && res < rtso::RES_COUNT) sim->player(local_player()).res[res] = amount;
 }
 
+// Test hook: a player's stock, phase and whether it is defeated or has won (-1: the local player).
+Dictionary RtsoMain::debug_player_state(int player) {
+	Dictionary d;
+	if (!sim) return d;
+	const uint8_t p = player < 0 ? local_player() : (uint8_t)player;
+	if (p >= rtso::MAX_PLAYERS) return d;
+	Array res;
+	for (int r = 0; r < rtso::RES_COUNT; ++r) res.push_back((double)sim->player(p).res[r]);
+	d["res"] = res;
+	d["phase"] = (int)sim->player(p).phase;
+	d["pop"] = sim->pop_current(p);
+	d["pop_max"] = sim->pop_max(p);
+	d["defeated"] = sim->is_defeated(p);
+	d["victory"] = sim->is_victory_for(p);
+	d["game_over"] = sim->is_game_over();
+	Array blds; // its standing structures and foundations
+	for (const auto &b : sim->buildings()) {
+		if (b.team != p || b.wrecked) continue;
+		Dictionary e;
+		e["id"] = (int64_t)b.id;
+		e["type"] = (int)b.type;
+		e["done"] = b.build_progress >= 1.0f;
+		e["progress"] = b.build_progress;
+		e["half"] = b.half_size;
+		e["garrisoned"] = (int)b.garrisoned_units.size();
+		PackedInt64Array inside;
+		for (auto uid : b.garrisoned_units) inside.push_back((int64_t)uid);
+		e["inside"] = inside;
+		e["pos"] = Vector2(b.x, b.z);
+		blds.push_back(e);
+	}
+	d["buildings"] = blds;
+	int units = 0;
+	Array where; // its living units: [id, x, z, action state]
+	auto uv = sim->units();
+	for (size_t i = 0; i < uv.count; ++i)
+		if (uv.alive[i] && uv.team[i] == p) {
+			++units;
+			where.push_back(Array::make((int64_t)uv.id[i], uv.pos_x[i], uv.pos_z[i], (int)uv.action_state[i]));
+		}
+	d["units"] = units;
+	d["unit_list"] = where;
+	return d;
+}
+
 // Test hook: whether a structure is being placed.
 bool RtsoMain::debug_placing() const { return build_mode; }
 
@@ -656,12 +701,12 @@ void RtsoMain::debug_select_entity(int64_t id) {
 
 // Test hook: a finished structure of ours `dx`, `dz` from our Civic Center.
 // `player`: the owner (the local player by default), still placed by the local Civic Center.
-int64_t RtsoMain::debug_spawn_building(int type, float dx, float dz, int player) {
+int64_t RtsoMain::debug_spawn_building(int type, float dx, float dz, int player, float progress) {
 	if (!sim) return 0;
 	const uint8_t me = local_player();
 	for (const auto &b : sim->buildings())
 		if (b.team == me && rtso::is_civic_centre(b.type))
-			return sim->spawn_building_world(b.x + dx, b.z + dz, (uint8_t)type, player < 0 ? me : (uint8_t)player, 1.0f);
+			return sim->spawn_building_world(b.x + dx, b.z + dz, (uint8_t)type, player < 0 ? me : (uint8_t)player, progress);
 	return 0;
 }
 

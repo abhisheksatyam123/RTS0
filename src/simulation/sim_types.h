@@ -1993,8 +1993,11 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 		if (tech_id == TECH_ARCHER_ATTACK_SPREAD) return type == BLD_BARRACKS || type == BLD_STABLE;
 	}
 	if (spies && type == BLD_PALACE) return true;
+	// han/arsenal drops siege_bolt_accuracy, cart/dock ship_movement_speed; another civ's
+	// captured arsenal or dock still offers them (their requirements allow Han and Carthage).
+	if (civ == CIV_HAN && type == BLD_ARSENAL && tech_id == TECH_SIEGE_BOLT_ACCURACY) return false;
 	if (civ == CIV_CARTHAGINIANS) {
-		if (type == BLD_DOCK && tech_id == TECH_WARSHIP_HEALTH) return false;
+		if (type == BLD_DOCK && (tech_id == TECH_WARSHIP_HEALTH || tech_id == TECH_SHIP_MOVEMENT_SPEED)) return false;
 		if (type == BLD_SUPER_DOCK) {
 			switch (tech_id) {
 			case TECH_DOCK_EFFICIENCY: case TECH_SHIP_VISION: case TECH_EXPLORATION:
@@ -2031,6 +2034,15 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	case BLD_TEMPLE_ISIS: return r == BLD_TEMPLE || r == BLD_TEMPLE_ISIS;
 	default: return r == building_research_base(type);
 	}
+}
+
+// A technology `civ`'s own structures offer (0.28's structure tree and civ overview): its
+// requirements allow the civ and the civ's template of its researcher lists it.
+inline bool civ_structures_offer_tech(uint8_t tech_id, uint8_t civ) {
+	if (!tech_available_to_civ(tech_id, civ)) return false;
+	if (tech_id == TECH_SIEGE_BOLT_ACCURACY) return civ != CIV_HAN;
+	if (tech_id == TECH_SHIP_MOVEMENT_SPEED) return civ != CIV_CARTHAGINIANS;
+	return true;
 }
 
 // Does an entity with these TechClass bits match effect `e`'s affects list?
@@ -2749,6 +2761,11 @@ inline uint8_t unit_default_stance(uint8_t type, uint16_t tmpl) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
 		const uint16_t flags = civ_unit_template(tmpl).flags;
 		if ((flags & ROSTER_SIEGE_TOWER) || (type == UNIT_HEALER && (flags & ROSTER_CHAMPION))) return STANCE_AGGRESSIVE;
+		// Bolt-shooter rows that are not bolt shooters in 0.28: the plane (template_unit) and the
+		// Theban fire raiser (template_unit_siege_flamethrower, which keeps template_unit_siege's
+		// aggressive stance; only the bolt and stone throwers set standground).
+		if ((flags & ROSTER_FLYING) || std::strcmp(civ_unit_template(tmpl).id, "theb_siege_fireraiser") == 0)
+			return STANCE_AGGRESSIVE;
 	}
 	return unit_default_stance(type);
 }
@@ -3391,7 +3408,12 @@ inline bool building_trains_template(uint8_t type, uint8_t bld_civ, uint8_t owne
 	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
 	if (type == BLD_DOCK && bld_civ == CIV_GAIA) {
-		return std::strcmp(t.id, "pirates/ship_scout") == 0 || std::strcmp(t.id, "pirates/ship_arrow") == 0;
+		// structures/pirates/dock: the dock's units/{civ}/ship_fishing and ship_merchant ({civ} is
+		// the holder's) less its warships, plus units/pirates/ship_scout and ship_arrow.
+		if (std::strcmp(t.id, "pirates/ship_scout") == 0 || std::strcmp(t.id, "pirates/ship_arrow") == 0) return true;
+		const char *slash = std::strchr(t.id, '/');
+		return t.civ == owner_civ && owner_civ != CIV_GAIA && slash &&
+				(std::strcmp(slash, "/ship_fishing") == 0 || std::strcmp(slash, "/ship_merchant") == 0);
 	}
 	const uint8_t civ = building_train_civ(type, bld_civ, owner_civ, t);
 	if (t.civ != civ) return false;

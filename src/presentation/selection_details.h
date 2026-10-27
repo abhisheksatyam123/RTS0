@@ -582,6 +582,15 @@ inline String unit_auras_tooltip(uint16_t tmpl) {
 	return out;
 }
 
+// getAurasTooltip of a corral's trainable animal: its structures/corral_garrison_{small,medium,
+// large} aura (Ranching and Corralling, +1/+2/+3 food to the corral's trickle).
+inline String fauna_auras_tooltip(uint8_t ftype) {
+	const int64_t food = (int64_t)std::lround(fauna_corral_food(ftype));
+	if (food <= 0) return String();
+	return aura_line(tr0("Ranching and Corralling"),
+			"Garrison within the Corral to gain a slow trickle of +" + num(food) + " food.", 0.0f);
+}
+
 // getTradingTooltip: the trader's owner's gain plus what their own markets earn, then
 // each other market owner's, "20+5 (Alice), 5 (Bob)". market1 pays the arrival market's
 // owner and market2 the starting market's (CalculateTraderGain).
