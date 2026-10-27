@@ -15333,7 +15333,7 @@ inline bool in_parabolic_range(float d2, float att_y, float def_y, float base_ra
 }
 
 // 0 A.D. "focus-fire" (Commands.js -> BuildingAI.AddFocusTarget). A target counts only when
-// it is in the structure's targetUnits: an enemy unit, structure or dangerous animal inside
+// it is in the structure's targetUnits: an enemy unit, structure, livestock or dangerous animal inside
 // its arrow range, as the arrow pass in tick_combat measures it (seen or not).
 bool Simulation::cmd_focus_fire(uint8_t player, const uint32_t *building_ids, size_t count, uint32_t target,
 		bool queued, bool push_front) {
@@ -15373,8 +15373,11 @@ bool Simulation::cmd_focus_fire(uint8_t player, const uint32_t *building_ids, si
 					&& in_range(ob.x - b.x, ob.z - b.z, ob.half_size, get_terrain_height(ob.x, ob.z));
 		} else if (fi >= 0) {
 			const size_t f = (size_t)fi;
+			// An enemy player's livestock too: targetUnits holds any enemy entity with Resistance.
+			const uint8_t owner = fauna_owner_[f];
 			ok = fauna_.alive[f] && fauna_.hp[f] > 0.0f && fauna_.behavior[f] != FAUNA_CORRALLED &&
-					fauna_type_info(fauna_.fauna_type[f]).is_dangerous() && is_hostile(b.team, GAIA_PLAYER) &&
+					(owner < MAX_PLAYERS ? can_attack(b.team, owner)
+							: fauna_type_info(fauna_.fauna_type[f]).is_dangerous() && is_hostile(b.team, GAIA_PLAYER)) &&
 					in_range(fauna_.pos_x[f] - b.x, fauna_.pos_z[f] - b.z, 0.0f, get_terrain_height(fauna_.pos_x[f], fauna_.pos_z[f]));
 		}
 		if (!ok) continue;

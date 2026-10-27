@@ -448,7 +448,7 @@ BuildingAI.js, GarrisonHolder/TurretHolder, Capturable and TerritoryDecay agains
 | DS4 | findDefensiveLocation took any frontier cell of ours; 0.28 takes only cells a base of ours holds on its anchor's land (baseAtIndex), so no towers across a river or on an islet | low-medium | Fixed |
 | DS5 | Towers and fortresses were searched for a spot before queueing and retried after 90 s (every 3rd turn for a first stone tower); 0.28 queues the plan, searches at start, and with no spot marks it unbuildable for 90 s while the lapse runs from queue time | low | Fixed |
 | DS6 | An enemy whose only civic centre, tower or fortress is a foundation let Petra fall back to neutral or allied structures; in 0.28 the foundation blocks the fallback | nit | Fixed |
-| DS7 | Focus fire refuses enemy players' livestock; BuildingAI.js:275-285 accepts any enemy entity in range (RTS0's automatic arrows already shoot them) | nit | Open (focus fire) |
+| DS7 | Focus fire refuses enemy players' livestock; BuildingAI.js:275-285 accepts any enemy entity in range (RTS0's automatic arrows already shoot them) | nit | Fixed: cmd_focus_fire takes an enemy player's livestock; test_building_ai |
 
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 
