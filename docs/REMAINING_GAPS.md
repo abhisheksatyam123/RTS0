@@ -487,6 +487,20 @@ What Petra builds and when (headquarters.js buildMoreHouses, buildFarmstead, bui
 | PD4 | buildMarket funded the economic queue when any plan waited there and raised its priority only when none did; 0.28 funds only a queued market and otherwise raises the priority to 3x | low | Fixed |
 | PD5 | The Town-phase structure went down while another plan waited in the economic or military queue; checkPhaseRequirements adds one only when both are empty | nit | Fixed (`tools/test_petra.cpp`) |
 
+### Map structures, thirty-second 0.28 pass (2026-10-27)
+
+The structures maps place (structures/palisades_fort, palisades_watchtower, the Danubius villages, structures/pirates/dock, the Uffington Horse) against their 0.28 templates and the map scripts. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| MS1 | Ported maps laid structures/palisades_fort (a template_structure_defensive_tower_sentry: arrows, 3 slots, territory) as a palisade tower piece, since its chain names the palisades | medium | Fixed (spawned as an uncapturable sentry tower; forest_battle, azure_coast, corinthian_isthmus, gallic_fields, sandboxes) |
+| MS2 | Extinct Volcano's Gaia wooden towers (palisades_fort) could be captured; the template has Capturable disabled | low | Fixed (`tools/test_triggers.cpp`) |
+| MS3 | Danubius villages below normalMapSize had sentry towers (arrows, garrison, territory) where danubius.js places palisades_watchtower, a palisade piece with none of those | low | Fixed (`tools/test_triggers.cpp`) |
+| MS4 | Danubius villages laid every house element as a Gallic house; fortressDanubiusVillage places a celt_hut, gaul/house, celt_longhouse and gaul/tavern (population 2, 5, 10, 10) | nit | Fixed (`tools/test_triggers.cpp`) |
+| MS5 | A captured pirate dock trained only the pirate ships; its Trainer removes only the warships from the dock list, so the captor's fishing boat and merchant ship stay | low | Fixed (`tools/test_map_structures.cpp`) |
+| MS6 | A player-owned palisades_fort (gallic_fields, the sandboxes) is a sentry tower that offers its upgrade and researches and keeps the sentry footprint and look; 0.28's has Upgrade and Researcher disabled and a 9.5 x 8.5 m footprint | low | Open (needs a per-structure flag in the save) |
+| MS7 | The Uffington Horse is a full wonder; its 0.28 template disables garrison, research and training and its obstruction blocks no movement | low | Open (needs a per-structure flag in the save) |
+
 ### Petra building placement, twenty-sixth 0.28 pass (2026-10-27)
 
 Petra's placement (queueplanBuilding.js findGoodPosition, baseManager.js findBestDropsiteLocation and checkResourceLevels, headquarters.js findMarketLocation, buildMoreHouses, manageCorral, buildManager.js setUnbuildable, queueManager.js startNextItems) against RTS0. The favour map, obstruction gaps, first-house room, border and invading-army handling, military base choice, dropsite quality and its 60/80 m exclusion and the market location match except as below. Owner: E.
