@@ -24236,6 +24236,19 @@ void Simulation::petra_manage_economy(float dt) {
 		if (petra_supply_of(units_.id[i]) == rid) continue;
 		recheck.push_back(i);
 	}
+	// worker.js:236-269 also runs while the gatherer takes its load back: RETURNINGRESOURCE puts
+	// the dropsite in its Gather order's target, which is never the supply it was sent to nor in
+	// a nearby list, so while its base lists some nearby or medium supply of its type the worker
+	// goes through startGathering again. Full, its new Gather order still returns the load first
+	// (Order.Gather: !CanCarryMore) and then works the supply picked.
+	std::vector<size_t> gather_returning;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_RETURN_DROPSITE) continue;
+		if (units_.order_kind[i] != ORDER_GATHER || units_.res_type_carried[i] >= RES_COUNT) continue;
+		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+		if (gcls != GATHER_INFANTRY && gcls != GATHER_SUPPORT) continue;
+		gather_returning.push_back(i);
+	}
 	// worker.js:293-314 (GATHER.RETURNINGRESOURCE): a stone or metal gatherer taking its load back drops its supply mark
 	// when the supply isn't in its base's nearby list while that list has some, or in neither
 	// nearby nor medium while medium has some, so the recheck above sends it to the nearer
@@ -24253,7 +24266,7 @@ void Simulation::petra_manage_economy(float dt) {
 	struct BaseSupplies { std::vector<Listed> nearby[RES_COUNT], medium[RES_COUNT], faraway[RES_COUNT]; };
 	std::vector<BaseSupplies> supplies;
 	PetraBasesMap bmap;
-	if (!reassignable_workers.empty() || !recheck.empty() || !sparse_returning.empty()) {
+	if (!reassignable_workers.empty() || !recheck.empty() || !sparse_returning.empty() || !gather_returning.empty()) {
 		petra_bases_map(bmap);
 		supplies.resize(bmap.anchors.size() + 1);
 		std::unordered_map<uint32_t, int> field_users, supply_users;
@@ -24372,10 +24385,23 @@ void Simulation::petra_manage_economy(float dt) {
 			gather_type.push_back(type); // its gather-type stays
 		}
 	}
+	std::vector<uint8_t> resent(units_.count, 0);
+	for (size_t i : gather_returning) {
+		const int base = worker_base(units_.pos_x[i], units_.pos_z[i], petra_access_at(units_.pos_x[i], units_.pos_z[i]));
+		if (base > 0 && !petra_base_turn(bmap.anchors[base - 1].id)) continue;
+		const uint8_t type = units_.res_type_carried[i];
+		const BaseSupplies &bs = supplies[base];
+		if (bs.nearby[type].empty() && bs.medium[type].empty()) continue;
+		// No stop: with nothing found it keeps on to the dropsite, as startGathering then gives no order.
+		resent[i] = 1;
+		reassignable_workers.push_back(i);
+		gather_type.push_back(type);
+	}
 	if (!sparse_returning.empty()) {
 		std::unordered_map<uint32_t, uint32_t> cand_of;
 		for (uint32_t c = 0; c < (uint32_t)candidates.size(); ++c) cand_of.emplace(candidates[c].id, c);
 		for (size_t i : sparse_returning) {
+			if (resent[i]) continue;
 			const int base = worker_base(units_.pos_x[i], units_.pos_z[i], petra_access_at(units_.pos_x[i], units_.pos_z[i]));
 			if (base > 0 && !petra_base_turn(bmap.anchors[base - 1].id)) continue;
 			const uint8_t type = units_.res_type_carried[i];
@@ -24639,6 +24665,7 @@ void Simulation::petra_manage_economy(float dt) {
 			return false;
 		};
 		if (attempt(chosen_res_type)) continue;
+		if (resent[widx]) continue; // a returning gatherer only went through startGathering
 		for (uint8_t r : needed) {
 			if (r == chosen_res_type || !may_try(r)) continue;
 			// As above: a load of another type goes to a dropsite before the worker gathers r.
