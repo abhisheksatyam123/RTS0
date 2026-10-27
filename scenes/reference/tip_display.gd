@@ -182,7 +182,7 @@ func _build() -> void:
 	# imageControlPanel: under the frame, "n  /  N" between two arrows.
 	_image_panel = ColorRect.new()
 	_image_panel.name = "ImageControlPanel"
-	(_image_panel as ColorRect).color = Color(0, 0, 0, 0.6)
+	(_image_panel as ColorRect).color = Color8(0, 0, 0, 85)
 	_image_panel.position = Vector2(120, 412)
 	_image_panel.size = Vector2(280, 32)
 	add_child(_image_panel)

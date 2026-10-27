@@ -88,7 +88,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	theme = MODERN.theme()
 	var fade := ColorRect.new() # "ModernFade"
-	fade.color = Color(0, 0, 0, 0.6)
+	fade.color = Color8(0, 0, 0, 85)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fade)
 	var panel := Panel.new() # ModernDialog, size="50%-310 50%-225 50%+310 50%+225"

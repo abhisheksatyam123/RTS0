@@ -336,12 +336,21 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 }
 
 // The template's SoundGroups/select (gaia/fauna_*.xml): the lion group for the big hunters,
-// horses and donkeys neigh, elephants trumpet, dogs bark. The other animals' select groups
-// (sheep, goats, cattle, camels, pigs, chickens, peacocks) have no select files in assets yet.
+// horses and donkeys neigh, elephants trumpet, dogs bark, and the livestock's own groups
+// (audio/actor/fauna/animal/{sheep,goat,cattle,camel,pig,pig_flaming,chickens,peacock}_select.xml).
 void RtsoMain::play_fauna_select(uint8_t fauna_type) {
 	const std::string n = rtso::fauna_type_info(fauna_type).template_name;
 	auto has = [&](const char *s) { return n.find(s) != std::string::npos; };
-	if (has("dog_")) session_audio_.play_group("voice/global", "civ_dog_bark", 0.8f);
+	auto &a = session_audio_;
+	if (has("dog_")) a.play_group("voice/global", "civ_dog_bark", 0.8f);
+	else if (has("pig_flaming")) a.play_one_of("actor/fauna/animal", { "pig_squeal_move.ogg" });
+	else if (has("sheep")) a.play_one_of("actor/fauna/animal", { "sheep_11.ogg", "sheep_10.ogg" });
+	else if (has("goat")) a.play_one_of("actor/fauna/death", { "goat_15.ogg", "goat_10.ogg", "goat_11.ogg", "goat_12.ogg", "goat_13.ogg", "goat_14.ogg" });
+	else if (has("cattle")) a.play_one_of("actor/fauna/animal", { "cattle_01.ogg", "cattle_06.ogg" });
+	else if (has("camel")) a.play_one_of("actor/fauna/animal", { "camel_10.ogg" });
+	else if (has("pig")) a.play_one_of("actor/fauna/animal", { "pig_12.ogg", "pig_10.ogg", "pig_11.ogg" });
+	else if (has("chicken")) a.play_one_of("actor/fauna/animal", { "chicken_13.ogg", "chicken_10.ogg", "chicken_11.ogg", "chicken_12.ogg" });
+	else if (has("peacock")) a.play_one_of("actor/fauna/animal", { "peacock_call_01.ogg" });
 	else if (has("horse") || has("donkey")) session_audio_.play_group("actor/fauna/animal", "horse_select");
 	else if (has("elephant")) session_audio_.play_group("actor/fauna/animal", "elephant_select");
 	else if (has("lion") || has("tiger") || has("bear") || has("crocodile") || has("hippopotamus") || has("rhinoceros"))
