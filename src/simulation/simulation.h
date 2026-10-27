@@ -2792,6 +2792,7 @@ private:
 	void refresh_tech_mods(uint8_t player_id);
 	float unit_civ_speed_add(size_t idx) const;
 	float civ_gather_bonus(size_t i, uint8_t kind) const;
+	float unit_gather_rate(size_t i, uint8_t kind, float class_rate, bool ruins) const;
 	// Bit g set: relic_global_auras()[g] reaches `player` (a relic it or a partner owns).
 	uint64_t relic_aura_mask(uint8_t player) const;
 	void global_aura_masks(uint64_t masks[MAX_PLAYERS]) const;

@@ -14649,23 +14649,7 @@ void Simulation::tick_gather(float dt) {
 					// 1 / rate after it, whatever a kill or a fight left on the shared timer.
 					units_.attack_timer[i] = 0.0f;
 					units_.hunt_fauna[i] = resources_.fauna[ridx]; // order.data.template
-					float rate = class_rate * ai_gather_mult(uteam);
-					if (!ruins) {
-						rate *= unit_tech_mods(uteam, units_.unit_type[i], units_.tmpl[i]).gather[kind] *
-							civ_gather_bonus(i, kind);
-					}
-					// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
-					// pyramid, catafalques, Han ministers): each one in reach, multiplied.
-					if (const float g = !aura_mgr_.has(AURA_GATHER) ? 0.0f : aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
-							units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]); g > 0.0f && g < 1.0f)
-						rate /= 1.0f - g;
-					// Auras on ResourceGatherer/Rates/<type> (Iron Pelanors: metal ore), each once.
-					if (aura_mgr_.has(AURA_GATHER_RATE))
-						aura_mgr_.for_each_reaching(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER_RATE, units_.tmpl[i],
-							&unit_combat_at(i).classes, false,
-							[&](const AuraSource &s) { rate *= gather_rate_range_auras()[(uint16_t)s.value].multiply[kind]; }, units_.id[i]);
-					// unit_advanced.json / unit_elite.json: ResourceGatherer/BaseSpeed x0.7 per rank.
-					for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) rate *= rank_bonus(r).gather_mul;
+					float rate = unit_gather_rate(i, kind, class_rate, ruins);
 					if (field_efficiency > 0.0f) rate *= field_efficiency;
 					units_.gather_res[i] = rid;
 					units_.gather_rate[i] = rate;
@@ -16869,6 +16853,31 @@ void Simulation::apply_rank_bonus(size_t i, uint8_t from_rank, uint8_t to_rank) 
 }
 
 // helpers/Transform.js ChangeEntityTemplate: the promoted unit keeps its health fraction.
+// ResourceGatherer GetTargetGatherRate: the class rate times every BaseSpeed and Rates
+// modifier on unit i now: the AI multiplier, technologies and civ bonuses (not on ruins),
+// gather auras in reach, and its rank.
+float Simulation::unit_gather_rate(size_t i, uint8_t kind, float class_rate, bool ruins) const {
+	const uint8_t uteam = units_.team[i];
+	float rate = class_rate * ai_gather_mult(uteam);
+	if (!ruins) {
+		rate *= unit_tech_mods(uteam, units_.unit_type[i], units_.tmpl[i]).gather[kind] *
+			civ_gather_bonus(i, kind);
+	}
+	// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
+	// pyramid, catafalques, Han ministers): each one in reach, multiplied.
+	if (const float g = !aura_mgr_.has(AURA_GATHER) ? 0.0f : aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
+			units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]); g > 0.0f && g < 1.0f)
+		rate /= 1.0f - g;
+	// Auras on ResourceGatherer/Rates/<type> (Iron Pelanors: metal ore), each once.
+	if (aura_mgr_.has(AURA_GATHER_RATE))
+		aura_mgr_.for_each_reaching(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER_RATE, units_.tmpl[i],
+			&unit_combat_at(i).classes, false,
+			[&](const AuraSource &s) { rate *= gather_rate_range_auras()[(uint16_t)s.value].multiply[kind]; }, units_.id[i]);
+	// unit_advanced.json / unit_elite.json: ResourceGatherer/BaseSpeed x0.7 per rank.
+	for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) rate *= rank_bonus(r).gather_mul;
+	return rate;
+}
+
 void Simulation::promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_rank) {
 	const float frac = units_.max_hp[i] > 0.0f ? units_.hp[i] / units_.max_hp[i] : 1.0f;
 	if (target_tmpl < CIV_UNIT_TEMPLATE_COUNT && target_tmpl != units_.tmpl[i]) {
@@ -16889,10 +16898,25 @@ void Simulation::promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_ran
 				units_.attack_cooldown[i], train_time);
 		}
 		// ResourceGatherer/Capacities of the new gatherer class, as at spawn (tech carry is read in carry_cap).
-		const int32_t cap = gather_class_capacity(unit_gather_class(type, target_tmpl));
+		const uint8_t gcls = unit_gather_class(type, target_tmpl);
+		const int32_t cap = gather_class_capacity(gcls);
 		units_.carry_capacity[i] = cap ? cap : info.carry_capacity;
 		apply_tech_mods_to_unit(i);
 		apply_rank_bonus(i, 1, target_rank);
+		if (gcls == GATHER_NONE) {
+			// Transform.js copies a load only to a ResourceGatherer, and the re-run Gather or
+			// ReturnResource order finishes at once (UnitAI Order.Gather): an upgrade to a
+			// non-gatherer (the Roman Centurion) drops the load and stops working.
+			units_.carry[i] = 0;
+			units_.gather_res[i] = 0;
+			units_.gather_rate[i] = 0.0f;
+			if (units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
+				units_.action_state[i] = ACTION_IDLE;
+				units_.order_kind[i] = ORDER_NONE; // no FINDINGNEWTARGET search for a non-gatherer
+				units_.target_resource_id[i] = 0;
+				finish_order(i); // the queued orders, else idle
+			}
+		}
 	} else {
 		apply_rank_bonus(i, units_.rank[i], target_rank);
 	}
@@ -18633,9 +18657,8 @@ Simulation::UnitDetails Simulation::unit_details(size_t i) const {
 	d.acceleration = unit_motion(tmpl, ut).acceleration / kSpeedScale;
 	const uint8_t gcls = unit_gather_class(ut, tmpl);
 	if (gcls != GATHER_NONE && units_.team[i] < MAX_PLAYERS && ut < UNIT_TYPE_COUNT) {
-		const UnitTechMods m = unit_tech_mods(units_.team[i], ut, tmpl);
-		for (uint8_t k = 0; k < 7; ++k)
-			d.gather[k] = gather_class_rate(gcls, k) * m.gather[k] * civ_gather_bonus(i, k) * ai_gather_mult(units_.team[i]);
+		// GuiInterface GetEntityState resourceGatherRates: the cached rates, every modifier in.
+		for (uint8_t k = 0; k < 7; ++k) d.gather[k] = unit_gather_rate(i, k, gather_class_rate(gcls, k), false);
 	}
 	if (units_.res_type_carried[i] < RES_COUNT) d.carry_max = carry_cap(i, units_.res_type_carried[i]);
 	if (unit_is_healer(tmpl, ut)) {
