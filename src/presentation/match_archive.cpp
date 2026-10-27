@@ -527,6 +527,11 @@ bool RtsoMain::start_pending_replay() {
 			}
 		}
 		turn_mgr_.reset();
+		// A saved game continued in multiplayer: each client in the seat the host gave it.
+		const Dictionary seat_of = meta.get("seats", Dictionary());
+		const Array clients = seat_of.keys();
+		for (int i = 0; i < clients.size(); ++i)
+			turn_mgr_.set_client_player((uint32_t)String(clients[i]).to_int(), (uint8_t)(int)seat_of[clients[i]]);
 	}
 	if (!turn_mgr_.load_replay(cmd_path.utf8().get_data())) {
 		UtilityFunctions::printerr("[RTS0] Replay load failed: ", String(turn_mgr_.last_replay_error().c_str()));
@@ -908,6 +913,13 @@ void RtsoMain::host_start_saved_game() {
 	turn_mgr_.set_net_host(&net_host_, 0);
 	turn_mgr_.set_game_start_applied_sim(sim);
 	turn_mgr_.start_saved_game(seats, sim);
+	// The replay that goes on from the save (begin_recording_from_save) plays each
+	// client's commands as the seat given here.
+	if (replay_recording_) {
+		Dictionary seat_of;
+		for (const auto &s : seats) seat_of[String::num_int64(s.first)] = (int)s.second;
+		replay_meta_["seats"] = seat_of;
+	}
 	start_net_speed(setup.speed);
 	net_setup_.setup = setup;
 	++net_setup_.seq;

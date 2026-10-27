@@ -1669,6 +1669,10 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			}
 			continue;
 		}
+		// A replay seats a rejoiner where the live game did when the host's batch came
+		// (apply_peer_control), so its commands go to the right player after a rejoin.
+		if (is_replaying_ && c.client_id == 0 && c.cmd_type == CMD_PEER_JOINED && c.param < MAX_PLAYERS)
+			client_player_[c.target_id] = c.param;
 		uint8_t pl = player_for_client(c.client_id);
 		if (pl >= MAX_PLAYERS || sim.is_defeated(pl)) continue; // defeated players only watch
 		sim.filter_owned_units(pl, c.entity_ids.data(), c.entity_ids.size(), owned);
@@ -2216,6 +2220,12 @@ bool TurnManager::load_replay(const std::string &path) {
 	current_turn_ = 0;
 	turn_timer_ = 0.0f;
 	return true;
+}
+
+// A client shows the out-of-sync box once the host's report has come, so it can
+// name the players and the host's dump; the host and single player show it at once.
+bool TurnManager::out_of_sync_reported() const {
+	return oos_detected_ && (!net_host_ || net_host_->isHost() || oos_from_host_);
 }
 
 } // namespace rtso
