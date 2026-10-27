@@ -6413,8 +6413,20 @@ static void test_defense_animals() {
 	}
 	std::printf("  animals: a roaming wolf and one biting an enemy make %zu armies\n", s->petra_defense_armies().size());
 	CHECK(s->petra_defense_armies().empty(), "an animal not attacking us or our allies raises no army");
-	const uint32_t woman = s->spawn_unit(cx - 15.0f, cz - 15.0f, 1, UNIT_FEMALE_CITIZEN, 1.0e4f);
-	const uint32_t wolf = s->spawn_fauna(cx - 16.0f, cz - 15.0f, FAUNA_WOLF);
+	// On the civic centre's land and in our territory, past its arrows (16.8 from its edge), so the
+	// defenders kill the wolf, not the arrows.
+	float wx = 0.0f, wz = 0.0f;
+	bool spot = false;
+	const uint16_t home = s->petra_land_at(cx, cz);
+	for (float r = cc->half_size + 21.0f; r < cc->half_size + 40.0f && !spot; r += 2.0f)
+		for (int k = 0; k < 32 && !spot; ++k) {
+			const float a = (float)k * 6.2831853f / 32.0f;
+			const float x = cx + r * std::cos(a), z = cz + r * std::sin(a);
+			if (s->territory_owner_at(x, z) == 1 && s->petra_land_at(x, z) == home && s->petra_land_at(x - 1.0f, z) == home) { wx = x; wz = z; spot = true; }
+		}
+	CHECK(spot, "dry land of ours past the civic centre's arrows");
+	const uint32_t woman = s->spawn_unit(wx, wz, 1, UNIT_FEMALE_CITIZEN, 1.0e4f);
+	const uint32_t wolf = s->spawn_fauna(wx - 1.0f, wz, FAUNA_WOLF);
 	bool army = false, hunted = false;
 	for (int t = 0; t < 4 && !(army && hunted); ++t) {
 		keep_biting(wolf, woman);

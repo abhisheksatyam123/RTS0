@@ -23229,15 +23229,22 @@ void Simulation::petra_clear_blocked_spawns() {
 	}
 }
 
-// What the wood petra_wood_starved keeps is for: the town phase, the civic centre on other
-// land, the ship that takes its builders there and, in the town phase with the houses full,
-// the house that ship needs room for; and the first dock of a Petra that needs fish
+// What the wood petra_wood_starved keeps is for: the town phase, after the houses it asks for; the civic centre on other land, the ship that takes its builders there and, in the
+// town phase with the houses full, the house that ship needs room for; and the first dock of a Petra that needs fish
 // (startingStrategy.js needFish).
 bool Simulation::petra_wood_kept_for(int queue) const {
 	if (queue == PETRA_Q_DOCK && petra_kept_.need_fish) {
 		for (const Building &b : buildings_)
 			if (b.team == petra_pid_ && (b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK) && b.hp > 0.0f && !b.wrecked) return false;
 		return true;
+	}
+	if ((queue == PETRA_Q_HOUSE || queue == PETRA_Q_MAJOR_TECH) && petra_ps().phase == 1 && petra_phasing()) {
+		// The houses the town phase asks for (5 Village structures, foundations counted as
+		// build_phase_structures does) come first: without them it never starts.
+		int village = 0;
+		for (const Building &b : buildings_)
+			if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && building_phase_class(b.type, b.civ) == 1) ++village;
+		if (village < 5) return queue == PETRA_Q_HOUSE;
 	}
 	return queue == PETRA_Q_MAJOR_TECH || queue == PETRA_Q_CIVIL_CENTRE || queue == PETRA_Q_SHIPS ||
 	       (queue == PETRA_Q_HOUSE && petra_ps().phase >= 2 && petra_pop_room() <= 0);
@@ -23335,6 +23342,16 @@ void Simulation::petra_start_worker_plans() {
 	// batch waits for population in 0.28's ProductionQueue. queue.check drops a plan whose
 	// template can't be trained any more.
 	auto &plans = petra_worker_plans_[petra_pid_];
+	// RTS0, not 0.28 (petra_wood_starved): a batch that costs wood is never paid while the wood is
+	// kept, and it holds trainMoreWorkers' count at the town target, so it goes; support units
+	// that cost none are queued in its place.
+	if (petra_wood_starved())
+		std::erase_if(plans, [&](const PetraWorkerPlan &p) {
+			const CivUnitTemplate &t = civ_unit_template(p.tmpl);
+			float cost[RES_COUNT];
+			unit_train_cost(petra_pid_, p.tmpl, civ_template_unit_info(p.tmpl, t.unit_type), cost);
+			return cost[RES_WOOD] > 0.0f;
+		});
 	for (uint8_t q = 0; q < 2; ++q) {
 		auto it = std::find_if(plans.begin(), plans.end(), [q](const PetraWorkerPlan &p) { return p.queue == q; });
 		while (it != plans.end()) {
@@ -27465,8 +27482,16 @@ void Simulation::petra_manage_buildings(float dt) {
 		const int pop = pop_current(petra_pid_);
 		if (limit <= 0 || pop_max_uncapped(petra_pid_) < limit) {
 			int free_slots = pop_max(petra_pid_) - pop;
+			// RTS0, not 0.28: during the wood-starved escape (petra_wood_starved), a civic centre
+			// foundation on other land waits for a transport ship that waits for population room,
+			// so its 20 slots don't hold the houses back (Islands: 0.28 stays at its cap for good).
+			uint16_t home_land = 0;
+			if (petra_wood_starved())
+				for (const auto &b : buildings_)
+					if (b.team == petra_pid_ && is_civic_centre(b.type) && b.build_progress >= 1.0f && b.hp > 0.0f) home_land = petra_access_at(b.x, b.z);
 			for (const auto &b : buildings_) {
 				if (b.team != petra_pid_ || b.build_progress >= 1.0f) continue;
+				if (home_land && is_civic_centre(b.type) && petra_access_at(b.x, b.z) != home_land) continue;
 				free_slots += structure_pop_bonus(b.type, petra_pid_, structure_template_civ(b));
 			}
 			// buildMoreHouses: structures/{civ}/apartment once it may be built (Carthage from
@@ -28713,7 +28738,18 @@ bool Simulation::petra_phasing() const {
 	if (!researcher) return false;
 	// RTS0, not 0.28: short of wood for houses (petra_wood_starved), the town phase at the
 	// population our houses hold.
-	if (phase == 1) return petra_accounted_population() >= petra_pop_phase2() || (petra_wood_starved() && petra_pop_room() <= 0);
+	// The houses are full once no queued worker batch has room to start.
+	if (phase == 1) {
+		if (petra_accounted_population() >= petra_pop_phase2()) return true;
+		if (!petra_wood_starved()) return false;
+		int batch = 1;
+		bool any = false;
+		for (const PetraWorkerPlan &p : petra_worker_plans_[petra_pid_]) {
+			batch = any ? std::min<int>(batch, p.count) : p.count;
+			any = true;
+		}
+		return petra_pop_room() < std::max(batch, 1);
+	}
 	return petra_accounted_workers() > petra_work_phase3();
 }
 
@@ -31851,6 +31887,7 @@ void Simulation::petra_check_paused_queues() {
 	const int workers = petra_accounted_workers();
 	// queueManager.js:433 keeps the fraction (16.8 on Easy at 300 population).
 	const float workers_min = std::min(std::max(12.0f, 24.0f * petra_config_pop_scaling()), (float)petra_pop_phase2());
+	const bool wood_starved = (float)workers < workers_min && petra_wood_starved();
 	for (uint8_t q = 0; q < PETRA_Q_COUNT; ++q) {
 		bool pause = false;
 		if (!potential_base)
@@ -31862,8 +31899,9 @@ void Simulation::petra_check_paused_queues() {
 			        q == PETRA_Q_DEFENSE_BUILDING || q == PETRA_Q_HEALER || q == PETRA_Q_MAJOR_TECH ||
 			        q == PETRA_Q_MINOR_TECH || q == PETRA_Q_PLAN || q == PETRA_Q_PLAN_CHAMP || q == PETRA_Q_PLAN_SIEGE;
 		else if ((float)workers < workers_min)
-			pause = q == PETRA_Q_CIVIL_CENTRE || q == PETRA_Q_DEFENSE_BUILDING || q == PETRA_Q_MAJOR_TECH ||
-			        q == PETRA_Q_PLAN_SIEGE || q == PETRA_Q_PLAN_CHAMP;
+			// RTS0 (petra_wood_starved): the town phase the houses wait for goes on.
+			pause = q == PETRA_Q_CIVIL_CENTRE || q == PETRA_Q_DEFENSE_BUILDING ||
+			        (q == PETRA_Q_MAJOR_TECH && !wood_starved) || q == PETRA_Q_PLAN_SIEGE || q == PETRA_Q_PLAN_CHAMP;
 		// needFarm, needCorral, needFish (configFirstBase): the first field, corral, dock or
 		// fishing boat goes on.
 		const PetraKept &k = petra_kept_;
