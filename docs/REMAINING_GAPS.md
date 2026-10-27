@@ -187,6 +187,17 @@ Right-click actions, Back to Work and Shift-queueing against unit_actions.js, in
 | N4 | ~~Shift is ignored when hunting or slaughtering an animal, attacking scenery and boarding a ship, ram or siege tower: the order replaces the queue~~ Fixed: Shift queues them (ORDER_HUNT, ORDER_ATTACK_SCENERY, ORDER_BOARD), lockstep cmds 17 and 18 carry NET_PARAM_QUEUED, and a kill going on to the carcass keeps the orders queued behind the hunt (one Gather order in 0.28); test_unit_orders 101 | medium | Fixed |
 | N5 | ~~Alt (orderone) on an enemy unit, structure or scenery orders the first selected unit, not the first able one~~ Fixed: the first selected unit able to attack or capture it (getActionInfo firstAbleEntity, input.js popOneFromSelection); tested by `tools/e2e_order_one.gd` | low | Fixed |
 
+### Unit orders, combat timing (2026-10-27)
+
+Attack and capture timers against Timer.js, Attack.js and Capturable.js, from D's time-to-kill checks. Owner: Unit orders
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| T1 | ~~A hit that fell due partway through a tick timed the next RepeatTime from the tick's end, so hits drifted late~~ Fixed: Timer.js interval timers schedule from the due time; test_unit_orders 113 (#1641) | low | Fixed |
+| T2 | ~~A unit promoted mid-attack waited out its old RepeatTime~~ Fixed: the new entity's Attack starts over (Transform.js), so its next hit comes after PrepareTime; test_unit_orders 114 (#1641) | low | Fixed |
+| T3 | ~~Capture regeneration and territory decay ran on a global whole-second clock~~ Fixed: each structure's timer starts a second after its points can first change and stops once a tick changes nothing (Capturable.js:203-267), after the same moment's capture hits; test_unit_orders 115 | low | Fixed |
+| T4 | Splash radii scale by AREA_DAMAGE_SCALE 0.6 (#899). Against 0.28's geometry it is no over-hit: Attack Splash reaches obstruction edges (infantry Clearance 0.8 m = RTS0 radius 0.55, so 0.69 units a metre) and clumped units sit at about the same spacing, so splash reaches slightly fewer of them than 0.28; only in formations (0.28 slots 3 m, RTS0 1.1 units) it reaches a little further | nit | Kept (#899; mixed, no over-hit in clumps) |
+
 ### Unit orders, fourteenth 0.28 pass (2026-10-27)
 
 Player commands (stop, back to work, call to arms, unload, delete, stance, autoqueue), healing and packing against Commands.js, UnitAI.js and Pack.js. Everything else checked matches. Owner: Unit orders
@@ -601,6 +612,7 @@ garrisonManager.js, worker.js, queueManager.js and the queue plans, and the econ
 | PC16 | The hunt drift check ran for the whole fight and measured the dropsite on the hunter's land; 0.28 checks only while approaching (INDIVIDUAL.COMBAT.APPROACHING), on the animal's land (worker.js:124-170) | low | Fixed: skipped once in reach (chase_target), the animal's land (test_hunters_028) |
 | PC17 | The garrison "around" scan ignored animals; 0.28 counts a Gaia Unit in COMBAT, a fighting wolf or boar included (garrisonManager.js:139-163) | low | Fixed: Gaia animals attacking and enemy-owned animals count as units (test_garrison_melee_attack) |
 | PC18 | researchTradeBonus counted traders still in training; 0.28 counts live traders (tradeManager.js:698) | nit | Fixed |
+| PC19 | (Migrate SW6 trace) A crossing planned with no free ship walked its passengers to the beach at once; on Migration seed 1, 27 soldiers stood there idle for 140 s. 0.28's transportPlan.js onBoarding moves them only once a ship is assigned | low | Fixed: petra_start_transport walks them only with a ship; assignShip does it later (test_petra_crossing_waits_for_ship) |
 
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 
