@@ -38,6 +38,14 @@ func run() -> void:
 		"its tooltip and sprite")
 	var idle: TextureButton = main.find_child("idleWorkerButton", true, false)
 	check(idle.texture_click_mask != null, "a click mask from the sprite")
+	# colorizeHotkey("%(hotkey)s ", ...): the key in gold brackets (or "Unassigned hotkey").
+	check(str(d["idle"]["tooltip"]).begins_with("[color=#fffb83][lb]") and str(d["flare"]["tooltip"]).begins_with("[color=#fffb83][lb]"), "hotkeys in gold: " + str(d["idle"]["tooltip"]))
+	check(idle.action_mode == BaseButton.ACTION_MODE_BUTTON_PRESS, "onMouseLeftPress: it acts on press")
+	var count: Label = main.find_child("totalNumberIdleWorkers", true, false)
+	check(count != null and count.get_theme_font("font") is FontVariation and count.get_theme_font("font").variation_embolden > 0.0, "the count in sans-bold-stroke-14")
+	var tt = preload("res://scenes/common/tooltips.gd")
+	check(tt._reference_style(idle).get("bottom", false) and not tt._reference_style(main.find_child("flareButton", true, false)).get("bottom", false),
+		"sessionToolTipBottom on the idle button, sessionToolTip on the flare")
 	main.clear_selection()
 	idle.pressed.emit()
 	await frames(2)

@@ -348,9 +348,9 @@ public:
 			if (!ghost && qi == 0 && sim && player < rtso::MAX_PLAYERS && !po.started && !po.is_tech() && po.unit_type != rtso::UNIT_TYPE_NONE) {
 				const int needed = sim->order_pop(po, player) - (sim->pop_max(player) - sim->pop_current(player));
 				if (needed > 0)
-					tip += "\n" + rtso::tr0("Insufficient population capacity:") + "\n" +
+					tip += "\n" + rtso::objection_font(rtso::tr0("Insufficient population capacity:")) + "\n" +
 							rtso::sprintf0(rtso::tr0("%(population)s %(neededSlots)s"),
-									{{"population", rtso::tr0("Population")}, {"neededSlots", String::num_int64(needed)}});
+									{{"population", rtso::resource_icon("population")}, {"neededSlots", String::num_int64(needed)}});
 			}
 			if (!slot.kind.is_empty()) tip += "\n" + rtso::tr0("Right-click for more information.");
 			if (paused) tip += "\n" + rtso::tr0("This item is paused."); // selection_panels.js:616, after it

@@ -396,8 +396,10 @@ public:
 		// the vertical bars in the right 35 px.
 		selection_grid_.build(panel_, Vector2(6, 6), Vector2(kW - 47.0f, kH - 50.0f), owner, "_on_selection_group_clicked", 4, 38.0f);
 		selection_grid_.set_right_click("_on_selection_group_gui_input");
+		selection_grid_.grid()->set_meta("tooltip_style", "session_bold"); // unitSelectionButton: sessionToolTipBold
 		// garrison_panel.xml (20 6 100% 100%): in the supplemental panel (move_to_left_panel).
 		garrison_grid_.build(panel_, Vector2(20, 6), Vector2(180, 116), owner, "_on_garrison_group_clicked", 4, 38.0f);
+		garrison_grid_.grid()->set_meta("tooltip_style", "session_bottom_bold"); // unitGarrisonButton
 		// garrison_panel.xml healthGarrison: the garrisoned units' total health, a vertical
 		// bar left of the garrison icons (updateGarrisonHealthBar).
 		garrison_hp_bar_ = memnew(ProgressBar);
@@ -883,8 +885,7 @@ public:
 		for (auto &g : groups) {
 			hp += g.hp;
 			max_hp += g.max_hp;
-			g.tip = rtso::entity_names(RtsoSelectionGrid::group_name(g), String()) + "\n" +
-					rtso::tr0("Click to select only these, Ctrl+click or right-click to deselect them.");
+			g.tip = rtso::entity_names(RtsoSelectionGrid::group_name(g), String()); // getEntityNames, no click help
 		}
 		if (groups.size() > RtsoSelectionGrid::kMaxSelectionGroups) groups.resize(RtsoSelectionGrid::kMaxSelectionGroups);
 		set_title(String::num_int64(selected_ids.size()) + " units selected");
@@ -1498,7 +1499,9 @@ private:
 				: b.team < rtso::MAX_PLAYERS ? sim.player_civ(b.team) : sim.player_civ(host_->local_player());
 		set_portrait_target(false, b.id, b.x, b.z, "structure", b.type, civ);
 		const godot::Dictionary entry = rtso::portraits::structure_entry(b.civ, b.type);
-		portrait_->set_tooltip_text(portrait_tooltip(title_full_, entry, rtso::seldet::structure_auras_tooltip(entry), String(), false));
+		// A foundation's template (foundation|...) drops the Auras.
+		const String auras = b.build_progress < 1.0f ? String() : rtso::seldet::structure_auras_tooltip(entry);
+		portrait_->set_tooltip_text(portrait_tooltip(title_full_, entry, auras, String(), false));
 	}
 	// displaySingle for a unit: the stance icon's detailed tooltip
 	// (getAttackTooltip, getHealerTooltip, getResistanceTooltip, getGatherTooltip,
@@ -1554,6 +1557,9 @@ private:
 		// bonus, projectiles, resource trickle and loot.
 		float res[3];
 		sim.structure_resistance(b, res);
+		// A foundation (template_foundation: no Attack, BuildingAI, GarrisonHolder, Loot,
+		// Population or ResourceTrickle) shows only its Resistance.
+		if (b.build_progress < 1.0f) return resistance_tooltip(res, true);
 		const rtso::Simulation::StructureDetails d = sim.structure_details(b);
 		constexpr float kM = rtso::AttackDetection::kMetresPerUnit;
 		// GuiInterface elevationAdaptedRange for BuildingAI: the reach from its arrows' origin there.
@@ -1730,7 +1736,7 @@ private:
 			max_hp += g.max_hp;
 			total += g.count;
 			if (RtsoSelectionGrid::is_structure_key(g.key))
-				g.tip = g.name + "\n" + rtso::tr0("Click to select only these, Ctrl+click or right-click to deselect them.");
+				g.tip = g.name;
 		}
 		auto show_bar = [](godot::ProgressBar *bar, godot::Label *lbl, bool v) {
 			bar->set_visible(v);
@@ -1870,7 +1876,6 @@ private:
 				const uint32_t rgb = rtso::display_colors::rgb(sim, g.player);
 				g.bg = Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 160.0f / 255.0f);
 			}
-			g.tip += "\n" + rtso::tr0("Click to select only these, Ctrl+click or right-click to deselect them.");
 		}
 		if (cap) {
 			sort_groups(groups);
