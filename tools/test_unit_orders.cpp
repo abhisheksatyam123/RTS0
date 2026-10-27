@@ -4053,6 +4053,26 @@ static void test_helper_walks_on() {
 	check(done && d0 > 15.0f && d1 < d0 - 5.0f, "she keeps walking to the house");
 }
 
+// 108. Commands.js call-to-arms with pushFront: the drop-off first, the attack-walk right after
+//      it, then the work the unit was doing.
+static void test_call_to_arms_front() {
+	std::printf("108. call to arms pushed to the front: drop-off, attack-walk, then back to work\n");
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t tree = s.spawn_resource_world(4, 0, RES_WOOD, 500);
+	uint32_t u = s.spawn_unit(2, 0, 0, UNIT_SPEARMAN);
+	s.order_gather(&u, 1, tree);
+	run_until(s, 20.0f, [&] { return s.units_.carry[idx_of(s, u)] > 0; });
+	s.set_push_front_order(true);
+	s.order_call_to_arms(&u, 1, 30, 30, false, false, true);
+	s.set_push_front_order(false);
+	const std::vector<UnitOrder> *q = s.unit_order_queue(u);
+	const bool shape = s.unit_order(u).kind == ORDER_RETURN_RESOURCE && q && q->size() >= 2 &&
+			(*q)[0].kind == ORDER_WALK_AND_FIGHT && (*q)[1].kind == ORDER_GATHER;
+	check(shape, "return now, then the attack-walk, then the gathering");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -4168,6 +4188,7 @@ int main(int argc, char **argv) {
 	test_capture_tie_to_gaia();
 	test_capture_looks_again();
 	test_helper_walks_on();
+	test_call_to_arms_front();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
