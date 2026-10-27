@@ -23606,8 +23606,9 @@ void Simulation::petra_assign_repairs() {
 			const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
 			near.push_back({dx * dx + dz * dz, units_.id[i]});
 		}
-		const size_t n = (size_t)std::min(want - assigned, std::max(0, max_total - builders));
-		if (n == 0 || near.empty()) continue;
+		// filterNearest(targetNB - assigned): maxTotalBuilders only gates the target, it doesn't trim the crew.
+		const size_t n = (size_t)(want - assigned);
+		if (near.empty()) continue;
 		std::sort(near.begin(), near.end());
 		std::vector<uint32_t> crew;
 		for (const auto &c : near) crew.push_back(c.second);
@@ -23705,17 +23706,18 @@ void Simulation::petra_staff_foundations() {
 		// 7 on a fortress or wonder, 4 on military buildings, towers and the market, 3 on
 		// houses and wood dropsites, else 2.
 		int want = 2;
-		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY ||
-		    (b.type == BLD_WONDER && has_victory(VK_WONDER))) want = 15;
-		if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && !standing.empty()) want = 10;
+		const bool anchor = is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY;
+		if (anchor && !standing.empty()) want = 10;
+		else if (anchor || (b.type == BLD_WONDER && has_victory(VK_WONDER))) want = 15; // after the classes in 0.28: it wins
 		else if (b.type == BLD_FORTRESS || b.type == BLD_WONDER) want = 7;
 		else if ((building_tech_classes(b.type) & TC_BARRACKS) || b.type == BLD_RANGE || b.type == BLD_STABLE || is_defense_tower(b.type) ||
 		         b.type == BLD_SENTRY_TOWER || b.type == BLD_MARKET) want = 4; // class Barracks: the academy and mercenary camp too
 		else if ((building_tech_classes(b.type) & TC_HOUSE) || b.type == BLD_STOREHOUSE) want = 3; // class House: the apartment too
-		// checkPhaseRequirements' phaseUp plans (7, as a fortress): the town phase's first
-		// market, temple or forge, laid while none of its kind stands.
+		// checkPhaseRequirements' phaseUp plans (7, as a fortress): while phasing up to the city
+		// (HQ.phasing), the town phase's first market, temple or forge, laid while none of its
+		// kind stands.
 		const uint8_t kind = building_research_base(b.type);
-		if (petra_ps().phase == 2 && (kind == BLD_MARKET || kind == BLD_TEMPLE || kind == BLD_FORGE)) {
+		if (petra_ps().phase == 2 && (kind == BLD_MARKET || kind == BLD_TEMPLE || kind == BLD_FORGE) && petra_phasing()) {
 			bool stands = false;
 			for (const Building &o : buildings_)
 				if (o.team == petra_pid_ && building_research_base(o.type) == kind && o.build_progress >= 1.0f && o.hp > 0.0f && !o.wrecked) { stands = true; break; }
@@ -24211,8 +24213,10 @@ void Simulation::petra_manage_economy(float dt) {
 	// worker found nothing of in the last 20 s (lastFailedGather). switchGatherer takes a citizen
 	// soldier off food and a woman onto it when there is one.
 	std::vector<uint8_t> gather_type(reassignable_workers.size(), (uint8_t)RES_COUNT); // RES_COUNT: none yet
-	// baseManager.js:604 timeNextIdleCheck = elapsedTime + 8.
-	if ((int)(petra_timer_ / 8.0f) != (int)((petra_timer_ - petra_turn_dt_) / 8.0f)) {
+	// baseManager.js:604 timeNextIdleCheck = elapsedTime + 8; baseManager.js:1155 only from the
+	// town phase, or while phasing up to it (HQ.phasing == 2).
+	if ((int)(petra_timer_ / 8.0f) != (int)((petra_timer_ - petra_turn_dt_) / 8.0f) &&
+	    (petra_ps().phase > 1 || petra_phasing())) {
 		uint8_t order[RES_COUNT];
 		most_needed(order);
 		float sum_want = 0.0f, sum_cur = 0.0f;
