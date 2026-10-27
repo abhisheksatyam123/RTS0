@@ -204,7 +204,9 @@ void RtsoMain::update_pause_overlay() {
 			const bool seated = pl < rtso::MAX_PLAYERS;
 			if (name.is_empty()) name = seated ? player_display_name(pl) : tr("Unknown Player");
 			const uint32_t rgb = seated && sim ? rtso::display_colors::rgb(*sim, pl) : 0xFFFFFFu;
-			who += String(who.is_empty() ? "" : ", ") + "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" +
+			// translateWithContext("Separator for a list of players", ", "): the catalogues keep
+			// context entries under their bare msgid (tools/fetch_0ad_l10n.py).
+			who += String(who.is_empty() ? "" : rtso::tr0(", ")) + "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" +
 					name.replace("[", "[lb]") + "[/color]";
 		}
 	const bool show = !net_disconnected_ && (hotkey_paused_ || others); // hidden once g_Disconnected

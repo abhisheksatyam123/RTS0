@@ -218,15 +218,34 @@ func run() -> void:
 		check(page.get_node("%Nomad").visible, "Nomad shows on a random map")
 		lms.button_pressed = true
 		lock.button_pressed = true
-		check(lms.disabled and not page._collect_setup()["lms"], "Locked Teams disables Last Man Standing")
+		check(lms.disabled and not lms.button_pressed and not page._collect_setup()["lms"], "Locked Teams disables and clears Last Man Standing")
 		lock.button_pressed = false
-		check(not lms.disabled and page._collect_setup()["lms"], "unlocked teams bring it back")
-		lms.button_pressed = false
+		check(not lms.disabled and not lms.button_pressed, "unlocked teams enable it, still cleared (LastManStanding.js setEnabled)")
 		var vm: int = page._victory_mask()
 		page._set_victory_mask(vm | page.VK_REGICIDE)
 		check(hg.visible, "Hero Garrison shows with Regicide")
+		hg.button_pressed = true
 		page._set_victory_mask(vm & ~page.VK_REGICIDE)
-		check(not hg.visible, "and hides without it")
+		check(not hg.visible and not hg.button_pressed, "and hides without it, cleared")
+		page._set_victory_mask(vm | page.VK_REGICIDE)
+		check(hg.visible and not hg.button_pressed, "Regicide again shows it unticked (RegicideGarrison.js)")
+		page._set_victory_mask(vm)
+		print("3e. 0.28 MapExploration and LockedTeams links")
+		var explore: CheckBox = page.get_node("%ExploreMap")
+		var reveal: CheckBox = page.get_node("%RevealMap")
+		explore.button_pressed = false
+		reveal.button_pressed = true
+		check(explore.button_pressed, "Revealed Map ticks Explored Map")
+		explore.button_pressed = false
+		check(not reveal.button_pressed, "unticking Explored Map unticks Revealed Map")
+		page._on_pop_type_selected(page.POP_TYPE_TEAM)
+		check(lock.button_pressed and lock.disabled, "Team Population locks the teams")
+		page._on_pop_type_selected(page.POP_TYPE_WORLD)
+		check(not lock.button_pressed and not lock.disabled, "leaving it unlocks them")
+		lock.button_pressed = true
+		page._on_pop_type_selected(page.POP_TYPE_PLAYER)
+		check(not lock.button_pressed, "any change of cap type sets Locked Teams to (type is Team)")
+		page._on_pop_type_selected(page.POP_TYPE_PLAYER)
 		select_map(page, "random_archipelago")
 		await frames(2)
 		check(not bio_slot.is_visible_in_tree() and page._collect_setup()["biome"] == 0, "RTS0's own Archipelago has no Biome")

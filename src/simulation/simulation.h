@@ -848,6 +848,7 @@ public:
 	// Commands
 	void cmd_move(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void cmd_stop(const uint32_t *unit_ids, size_t count);
+	void order_stop(const uint32_t *unit_ids, size_t count); // Commands.js "stop": formations split as for a walk
 	void reset_unit_for_new_owner(size_t u);
 	// Player commands (0 A.D. Commands.js): `player` is the issuing player id. Each one
 	// rejects buildings the player doesn't own and charges/refunds that player's stock.
@@ -1569,7 +1570,10 @@ public:
 	float aim_clock() const { return aim_clock_; } // sim seconds since the last aim snapshot
 	bool ceasefire_active() const { return ceasefire_remaining() > 0.0f; }
 	// Whether a unit or structure of player a may attack one of player b right now.
-	bool can_attack(uint8_t a, uint8_t b) const { return !ceasefire_active() && is_hostile(a, b); }
+	// CeasefireManager.js sets every enemy except Gaia neutral, so Gaia stays at war.
+	bool can_attack(uint8_t a, uint8_t b) const {
+		return is_hostile(a, b) && (!ceasefire_active() || a >= MAX_PLAYERS || b >= MAX_PLAYERS);
+	}
 	// Player 0's side for victory: itself, game-setup teammates, and mutual diplomatic allies.
 	bool is_ally_of_player0(uint8_t pid) const { return pid == 0 || same_team(0, pid) || is_mutual_ally(pid); }
 	// Match result from pid's seat: pid is one of the winners once the match has ended.

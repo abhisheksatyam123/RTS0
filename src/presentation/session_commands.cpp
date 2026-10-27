@@ -323,7 +323,7 @@ void RtsoMain::_on_entity_command(const String &name) {
 		if (turn_cmds())
 			post_lockstep(2, ids, n);
 		else {
-			sim->cmd_stop(ids, n);
+			sim->order_stop(ids, n);
 			sim->order_fauna_stop(local_player(), ids, n);
 		}
 	} else if (name == "back-to-work") { // backToWork: only the units with work orders (hasWorkOrders)

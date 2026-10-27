@@ -885,7 +885,7 @@ public:
 	// 0.28 placementTooltip (input.js updateBuildingPlacementPreview): why the structure or
 	// wall can't go where the cursor is, or a wall's cost; wall_fail_tip_ ("Cannot build wall
 	// here!") holds until the cursor moves.
-	Label *placement_tip_ = nullptr;
+	RichTextLabel *placement_tip_ = nullptr; // markup: the wall cost's header font and icons
 	bool placement_tip_error_ = false;
 	String wall_fail_tip_;
 	Vector2 wall_fail_mouse_;
