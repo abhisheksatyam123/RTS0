@@ -25,6 +25,8 @@ extends SceneTree
 # Exit code 0 = pass.
 
 const TT = preload("res://scenes/common/tooltips.gd")
+const BIG := "[font_size=16][b]%s[/b][/font_size]"
+const CLICK := "[color=#fffb83][lb]Click[rb][/color]"
 
 var main
 var failures := 0
@@ -131,18 +133,22 @@ func run() -> void:
 	var t1 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t1 < 3000:
 		await frames(1)
-		for c in main.find_children("*", "HBoxContainer", true, false):
-			if c.tooltip_text.begins_with("Population: current/limit (max)"):
-				pop = c
-			elif c.tooltip_text.begins_with("Food"):
-				food = c
+		# Counters.xml: 73 px slots side by side, titles in sans-bold-16 (ResourceTitleTags).
+		pop = main.find_child("Population", true, false)
+		food = main.find_child("Resource0", true, false)
+		if pop != null and food != null and not (pop.tooltip_text.begins_with(BIG % "Population: current/limit (max)") and food.tooltip_text.begins_with(BIG % "Food")):
+			pop = null
+			food = null
 		if pop != null and food != null:
 			break
 	check(pop != null and food != null, "the population and food counters")
 	if pop and food:
 		var cap: String = pop.find_children("*", "Label", true, false).map(func(l): return l.text).filter(func(t): return t.contains("/"))[0]
 		check(RegEx.create_from_string("^\\d+/\\d+ \\(\\d+\\)$").search(cap) != null, "caption \"count/limit (max)\": " + cap)
-		check(pop.tooltip_text == "Population: current/limit (max)" and food.tooltip_text == "Food\nHarvest from animals, berry bushes, fish, or fields.", "no allies' stats while playing (the name and CounterResource's description): " + food.tooltip_text)
+		check(pop.size == Vector2(73, 38) and food.size == Vector2(73, 38) and is_equal_approx(pop.position.x - food.position.x, 4 * 73.0), "five 73 px counters, touching")
+		var count: Label = food.find_children("*", "Label", true, false)[0]
+		check(count.position == Vector2(33, 4) and count.get_theme_font_size("font_size") == 14 and count.get_theme_color("font_color") == Color.WHITE, "the count at 33 4, white 14")
+		check(pop.tooltip_text == BIG % "Population: current/limit (max)" and food.tooltip_text == (BIG % "Food") + "\nHarvest from animals, berry bushes, fish, or fields.", "no allies' stats while playing (the name and CounterResource's description): " + food.tooltip_text)
 		main.resign()
 		# The defeat question pauses a single-player game (messageBox, resumeGame on "No").
 		var t0 := Time.get_ticks_msec()
@@ -151,20 +157,21 @@ func run() -> void:
 		for q in main.get_children().filter(func(c): return c.get_script() == load("res://scenes/session/quit_confirmation.gd") and c.title == "DEFEATED!"):
 			q.press(0)
 		t0 = Time.get_ticks_msec()
-		while Time.get_ticks_msec() - t0 < 3000 and food.tooltip_text == "Food\nHarvest from animals, berry bushes, fish, or fields.":
+		while Time.get_ticks_msec() - t0 < 3000 and food.tooltip_text == (BIG % "Food") + "\nHarvest from animals, berry bushes, fish, or fields.":
 			await frames(1)
 		var tip: String = food.tooltip_text
 		print("  ", tip.replace("\n", " | "))
-		check(tip.begins_with("Food\nHarvest from animals, berry bushes, fish, or fields.\nUnordered: [Click] to change order.\n") and tip.contains(": "), "a defeated player sees the others' food")
+		# getOrderTooltip: "\\[Click]" in g_HotkeyTags; the rows: "■" in the player's colour, the name, in AllyStatTags.
+		check(tip.begins_with((BIG % "Food") + "\nHarvest from animals, berry bushes, fish, or fields.\nUnordered: " + CLICK + " to change order.[b]\n[color=#") and tip.contains("]■[/color] ") and tip.ends_with("[/b]"), "a defeated player sees the others' food")
 		var ev := InputEventMouseButton.new()
 		ev.button_index = MOUSE_BUTTON_LEFT
 		ev.pressed = true
 		main._on_top_counter_gui_input(ev)
-		check(food.tooltip_text.contains("\nDescending: [Click]"), "a click orders them descending")
+		check(food.tooltip_text.contains("\nDescending: " + CLICK), "a click orders them descending")
 		main._on_top_counter_gui_input(ev)
-		check(food.tooltip_text.contains("\nAscending: [Click]"), "the next ascending")
+		check(food.tooltip_text.contains("\nAscending: " + CLICK), "the next ascending")
 		main._on_top_counter_gui_input(ev)
-		check(food.tooltip_text.contains("\nUnordered: [Click]"), "and back to unordered")
+		check(food.tooltip_text.contains("\nUnordered: " + CLICK), "and back to unordered")
 
 	print("5. Naming of entities")
 	var cfg := RtsoUserConfig.new()

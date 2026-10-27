@@ -163,6 +163,9 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		if (id == "bolt_projectile") return 1.15f;
 		if (id == "arrow_projectile") return 1.10f;
 		if (id == "stone_projectile") return 0.45f;
+		// At the arrow's scale (1.10 for 0.28's 1.65): the javelin is 3.13, the sling stone 0.22.
+		if (id == "javelin_projectile") return 2.09f;
+		if (id == "sling_projectile") return 0.15f;
 
 		// Default human scale.
 		return 1.8f;
