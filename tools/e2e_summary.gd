@@ -115,6 +115,21 @@ func run() -> void:
 		"0 A.D.'s tabs")
 	check(s._tab_buttons[0].position.x == 20 and s._tab_buttons[1].position.x == 144, "tabs at tab_buttons.js's 20 + i * 124")
 	check(s._tab_buttons[0].tooltip_text.contains("[color=#fffb83]"), "the tab tooltip's hotkeys in gold: " + s._tab_buttons[0].tooltip_text)
+	# The modern skin: ModernTabButtonHorizontal tabs, the selected one open into the
+	# ModernTabHorizontalFrame between tabDividerLeft and tabDividerRight; ModernDialog in game
+	# over ModernFade; headings in "(left-4) yStart (left+w+4) 69".
+	var front: StyleBoxFlat = s._tab_buttons[0].get_theme_stylebox("pressed")
+	check(s._tab_buttons[0].theme_type_variation == "ModernTabButtonHorizontal" and front.border_width_bottom == 0
+			and front.border_width_top == 2 and front.bg_color.is_equal_approx(Color8(255, 255, 255, 40)), "ModernTabButtonHorizontal tabs")
+	check(s.find_child("TabDividerLeft", true, false).offset_right == 22 and s.find_child("TabDividerRight", true, false).offset_left == 136,
+			"the dividers stop either side of the selected tab")
+	check(s._window.theme_type_variation == "ModernDialog" and is_equal_approx((s.get_child(0) as ColorRect).color.a, 85.0 / 255.0),
+			"ModernDialog over ModernFade")
+	var hbox: Control = s.find_child("Heading1", true, false).get_parent()
+	check(Rect2(hbox.position, hbox.size) == Rect2(246, 0, 128, 69), "Total score's heading box: " + str(Rect2(hbox.position, hbox.size)))
+	check(s._legend.autowrap_mode != TextServer.AUTOWRAP_OFF, "a long legend wraps")
+	var gp: Control = s.find_child("GeneralPanel", true, false)
+	check(gp != null and not gp is ScrollContainer and gp.clip_contents, "generalPanel clips the table, no scrollbar")
 	check(s.find_child("LobbyButton", true, false).tooltip_text.begins_with("[color=#fffb83]"), "and the lobby button's")
 	check(not s.find_child("ReplayButton", true, false).visible, "no Watch Replay in game")
 	var lobby_btn = s.find_child("LobbyButton", true, false)
