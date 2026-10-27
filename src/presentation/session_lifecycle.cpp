@@ -214,6 +214,7 @@ void RtsoMain::_ready() {
 
 	minimap_panel_.build_background(ui_layer, [](const String &path) { return rtso::load_ui_texture(path); });
 	minimap_view = memnew(RtsoMiniMapView);
+	minimap_view->share_fog_mirages(&view->fog_mirages());
 	minimap_view->connect("minimap_clicked", Callable(this, "_on_minimap_clicked"));
 	minimap_view->connect("minimap_order", Callable(this, "_on_minimap_order"));
 	ui_layer->add_child(minimap_view);
@@ -1153,6 +1154,7 @@ void RtsoMain::_process(double delta) {
 	rtso::display_colors::refresh_config();
 	rtso::display_colors::state().viewer = viewer; // DiplomacyColors: g_ViewedPlayer's stances
 	view->set_local_player(viewer);
+	view->set_track_all_fog(spectating() || turn_mgr_.is_replaying());
 	if (viewer < rtso::MAX_PLAYERS) sim->set_fow_viewer(viewer); // an observer reads the revealed grid
 	{
 		view->set_selected_buildings(sim->cinema_playing() ? std::vector<uint32_t>() : selected_structures());
@@ -1470,10 +1472,11 @@ void RtsoMain::_process(double delta) {
 				set_placement_tip(wall_fail_tip_, true);
 			} else if (sim && wall_drag_mode && !pieces.empty()) {
 				rtso::CostTip cost;
-				cost.food = (int64_t)std::lround(wall_cost[rtso::RES_FOOD]);
-				cost.wood = (int64_t)std::lround(wall_cost[rtso::RES_WOOD]);
-				cost.stone = (int64_t)std::lround(wall_cost[rtso::RES_STONE]);
-				cost.metal = (int64_t)std::lround(wall_cost[rtso::RES_GOLD]);
+				// multiplyEntityCosts: each summed cost floored.
+				cost.food = (int64_t)std::floor(wall_cost[rtso::RES_FOOD] + 1e-4f);
+				cost.wood = (int64_t)std::floor(wall_cost[rtso::RES_WOOD] + 1e-4f);
+				cost.stone = (int64_t)std::floor(wall_cost[rtso::RES_STONE] + 1e-4f);
+				cost.metal = (int64_t)std::floor(wall_cost[rtso::RES_GOLD] + 1e-4f);
 				cost.time = (int64_t)std::lround(wall_time);
 				const auto &ps = sim->player(local_player());
 				// getEntityCostTooltip: "Cost:" in headerFont and resource icons; getNeededResourcesTooltip.

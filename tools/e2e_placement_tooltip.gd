@@ -129,7 +129,12 @@ func run() -> void:
 	await move(cc_ground + Vector2(40, 0))
 	t = tip()
 	check(not str(t["text"]).begins_with("Cost: "), "a start on the Civic Center is refused: " + str(t["text"]))
-	var start: Vector2 = free[0]["at"]
+	# A free spot with the map revealed, nearest the Civic Center's footing: with the camera's
+	# tilt the far sample points can be past the map's edge, where no tip shows either.
+	var spots := revealed.filter(func(s): return not s["tip"]["visible"] and (s["at"] as Vector2).distance_to(cc_ground) > 120.0)
+	spots.sort_custom(func(a, b): return (a["at"] as Vector2).distance_to(cc_ground) < (b["at"] as Vector2).distance_to(cc_ground))
+	check(not spots.is_empty(), "a free spot for the palisade")
+	var start: Vector2 = spots[0]["at"] if not spots.is_empty() else cc_ground
 	await click(start)
 	await move(start + Vector2(40, 0))
 	t = tip()

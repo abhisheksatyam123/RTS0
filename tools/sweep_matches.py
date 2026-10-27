@@ -5,6 +5,7 @@ plays, each match runs a twin copy (determinism) and a save/load copy, and the r
 logged per map. Prints one line per match and a tally of what the runs reported.
 
   python3 tools/sweep_matches.py --soak /tmp/soak_match --out /tmp/sweep --minutes 20 --jobs 4
+  python3 tools/sweep_matches.py ... --vary-seed        # a different seed (and personalities) per map
   python3 tools/sweep_matches.py ... --large --no-twin   # 8 players on large and giant maps,
                                                         # Petra difficulties Sandbox to Very Hard
 
@@ -52,6 +53,8 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--minutes", type=float, default=20)
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--vary-seed", action="store_true",
+                    help="seed + match index, so Petra personalities (drawn from the seed) differ per map")
     ap.add_argument("--jobs", type=int, default=4)
     ap.add_argument("--timeout", type=int, default=1200)
     ap.add_argument("--only", default="", help="comma list of map names to run")
@@ -83,10 +86,12 @@ def main():
         keep = set(a.only.split(","))
         jobs = [j for j in jobs if j[0] in keep]
 
+    jobs = [(t, args, civs, a.seed + (n if a.vary_seed else 0)) for n, (t, args, civs) in enumerate(jobs)]
+
     def run(job):
-        tag, args, civs = job
+        tag, args, civs, seed = job
         log = os.path.join(a.out, tag + ".log")
-        cmd = [a.soak] + args + ["--seed", str(a.seed), "--minutes", str(a.minutes),
+        cmd = [a.soak] + args + ["--seed", str(seed), "--minutes", str(a.minutes),
                                  "--save-at", str(a.minutes / 2), "--civs", ",".join(map(str, civs))]
         if not a.no_twin:
             cmd.append("--twin")

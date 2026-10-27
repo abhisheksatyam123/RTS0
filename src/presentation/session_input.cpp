@@ -73,6 +73,19 @@ static void pop_from_selection(PackedInt32Array &sel, uint32_t id) {
 	if (at >= 0) sel.remove_at(at);
 }
 
+// A right-click while band-boxing cancels the box and gives no order (input.js
+// INPUT_BANDBOXING: right button resets to INPUT_NORMAL). handleInputBeforeGui runs it, so it
+// holds over the panels too, where the box may end.
+void RtsoMain::_input(const Ref<InputEvent> &event) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !dragging || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_RIGHT) return;
+	if (drag_start.distance_to(mb->get_position()) <= 4.0f) return;
+	dragging = false;
+	double_click_pending = false;
+	if (sel_rect) sel_rect->set_rect(Vector2(), Vector2(), false);
+	get_viewport()->set_input_as_handled();
+}
+
 void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 	// input.js handleInputBeforeGui / handleInputAfterGui: nothing while a cinema path plays.
 	if (cinema_view_.playing()) return;
@@ -591,7 +604,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							for (size_t i = 0; i < uview.count; ++i)
 								if (uview.id[i] == press_pick_unit_ && uview.alive[i] &&
 										(uview.team[i] == local_player() || control_all)) best_uidx = i;
-						if (best_uidx == (size_t)-1) best_uidx = click_pick_unit(mouse_pos, control_all);
+						if (best_uidx == (size_t)-1) {
+							// input.js picks what the hover highlights (PickEntityAtPoint): a tree,
+							// structure or animal right under the cursor beats a unit beside it.
+							const uint32_t hov = entity_under_mouse(mouse_pos, false);
+							bool hov_unit = hov == 0;
+							for (size_t i = 0; i < uview.count && !hov_unit; ++i) hov_unit = uview.id[i] == hov;
+							if (hov_unit) best_uidx = click_pick_unit(mouse_pos, control_all);
+						}
 						// input.js: clicking any entity but the followed one stops the camera following.
 						if (best_uidx != (size_t)-1 && cam_rig && cam_rig->follow_id() != uview.id[best_uidx]) cam_rig->set_follow_id(0);
 
@@ -842,14 +862,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
 				return;
 			}
-			// A right-click while band-boxing cancels the box and gives no order
-			// (input.js INPUT_BANDBOXING: right button resets to INPUT_NORMAL).
-			if (dragging && drag_start.distance_to(mouse_pos) > 4.0f) {
-				dragging = false;
-				double_click_pending = false;
-				sel_rect->set_rect(Vector2(), Vector2(), false);
-				return;
-			}
+			// A right-click while band-boxing cancels the box (_input, before the GUI).
 			if (build_mode) {
 				enter_build_mode(false);
 				return;

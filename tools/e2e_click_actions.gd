@@ -159,13 +159,20 @@ func run() -> void:
 	check(int(unit(cav[0])["order_kind"]) == ORDER_WALK, "the cavalryman walks there (order %d)" % int(unit(cav[0])["order_kind"]))
 
 	print("5. Shift+click on a unit keeps the selected structure")
+	# A spearman the mouse picks itself: another unit's body can stand in front of his feet.
+	var man: int = men[1]
+	for id in men:
+		await move(main.debug_unit_screen(id))
+		if main.debug_highlight().has(id):
+			man = id
+			break
 	main.debug_select_entity(cc)
 	await frames(2)
 	await hold(KEY_SHIFT, true)
-	await click(main.debug_unit_screen(men[1]))
+	await click(main.debug_unit_screen(man))
 	await hold(KEY_SHIFT, false)
 	var s: Dictionary = main.debug_selection_state()
-	check(int(s["building"]) == cc and Array(s["selected"]).has(men[1]), "Civic Center and spearman both selected: building %d, %s" % [int(s["building"]), str(s["selected"])])
+	check(int(s["building"]) == cc and Array(s["selected"]).has(man), "Civic Center and spearman both selected: building %d, %s" % [int(s["building"]), str(s["selected"])])
 	main.clear_selection()
 
 	print("6. No rally point from a right-click on the selected Civic Center")

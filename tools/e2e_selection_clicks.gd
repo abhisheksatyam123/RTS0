@@ -143,6 +143,18 @@ func run() -> void:
 			other = by_tmpl[t][0]
 	var same: Array = by_tmpl[tmpl].map(func(u): return int(u["id"]))
 	var a: Dictionary = by_tmpl[tmpl][0]
+	# A second one the mouse picks itself: another unit's body (its pick box) can stand
+	# in front of a unit's feet.
+	var b: Dictionary = by_tmpl[tmpl][1]
+	for u in by_tmpl[tmpl].slice(1):
+		move(window_pos(u))
+		await frames(3)
+		var hl: PackedInt32Array = main.debug_highlight()
+		if hl.size() == 1 and hl[0] == int(u["id"]):
+			b = u
+			break
+	move(Vector2(512, 400))
+	await frames(2)
 
 	print("1. Double and triple click")
 	await click(window_pos(a))
@@ -175,7 +187,6 @@ func run() -> void:
 	await click(window_pos(a))
 	key(KEY_SHIFT, true, false, true)
 	await click(window_pos(a))
-	var b: Dictionary = by_tmpl[tmpl][1]
 	await frames(12)
 	await click(window_pos(b))
 	key(KEY_SHIFT, false)
@@ -224,11 +235,15 @@ func run() -> void:
 	var from: Vector2 = a["pos"]
 	var target: Vector2 = from + Vector2(20, 0)
 	main._on_minimap_order(target)
-	await turns(20)
+	# The walk may first step round its neighbours.
 	var now := from
-	for u in state()["units"]:
-		if int(u["id"]) == int(a["id"]):
-			now = u["pos"]
+	for k in 12:
+		await turns(5)
+		for u in state()["units"]:
+			if int(u["id"]) == int(a["id"]):
+				now = u["pos"]
+		if now.distance_to(target) < from.distance_to(target) - 3.0:
+			break
 	check(now.distance_to(target) < from.distance_to(target) - 3.0, "the unit walks to the spot (%.1f -> %.1f from it)" % [from.distance_to(target), now.distance_to(target)])
 	main.select_first_own(true)
 	await frames(2)

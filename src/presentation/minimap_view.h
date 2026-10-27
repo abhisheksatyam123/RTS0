@@ -54,6 +54,9 @@ class RtsoMiniMapView : public Control {
 	// structures and resources from this, never from live sim state, whatever
 	// the shroud mode (MiniMapTexture draws only entities the player can see).
 	rtso::FogMirages mirages_;
+	// The world view's memory when shared (share_fog_mirages): one memory, kept once a tick.
+	const rtso::FogMirages *shared_mirages_ = nullptr;
+	const rtso::FogMirages &mir() const { return shared_mirages_ ? *shared_mirages_ : mirages_; }
 	std::vector<MapPing> pings;
 	// MT_MinimapPing: entity id -> when its ping ends (ms, real time).
 	std::unordered_map<uint32_t, uint64_t> entity_pings_;
@@ -90,6 +93,8 @@ protected:
 public:
 	// A saved game's fog memory (FogMirages::export_memory of the world view's), restored here too.
 	bool import_fog_memory(const uint8_t *data, size_t n) { return mirages_.import_memory(data, n); }
+	// Draw from the world view's fog memory, which it keeps every frame before this syncs.
+	void share_fog_mirages(const rtso::FogMirages *m) { shared_mirages_ = m; }
 	RtsoMiniMapView();
 	~RtsoMiniMapView();
 
