@@ -2792,6 +2792,7 @@ private:
 	void refresh_tech_mods(uint8_t player_id);
 	float unit_civ_speed_add(size_t idx) const;
 	float civ_gather_bonus(size_t i, uint8_t kind) const;
+	float unit_gather_rate(size_t i, uint8_t kind, float class_rate, bool ruins) const;
 	// Bit g set: relic_global_auras()[g] reaches `player` (a relic it or a partner owns).
 	uint64_t relic_aura_mask(uint8_t player) const;
 	void global_aura_masks(uint64_t masks[MAX_PLAYERS]) const;
@@ -4494,8 +4495,10 @@ private:
 	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
 	bool can_gather(size_t i, size_t r) const;
 	// With `busy`, skips `skip` and resources whose MaxGatherers are all taken (ResourceSupply.IsAvailable).
+	// With a `gatherer`, only what that unit can gather (CanGather) and has room for (IsAvailableTo).
 	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1,
-			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0, uint8_t fauna = 0) const;
+			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0, uint8_t fauna = 0,
+			size_t gatherer = SIZE_MAX) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
 	bool self_garrison_rally(const Building &b, uint8_t unit_type, uint16_t tmpl) const;
 	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
@@ -4504,6 +4507,7 @@ private:
 	void on_construction_finished(const Building &b, size_t builder);
 	void enter_repairing(size_t i);
 	void next_after_construction(size_t k, const Building &b, bool food, bool other);
+	void construction_finished_for(size_t k, const Building &b); // one builder's ConstructionFinished
 	void destroy_building(Building &b);
 	bool can_capture_building(uint8_t player, const Building &b) const;
 	bool can_heal(size_t healer, int32_t target) const;         // Heal.js CanHeal

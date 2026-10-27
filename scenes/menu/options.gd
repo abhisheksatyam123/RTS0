@@ -242,7 +242,6 @@ var _saved := {} # key -> value at the last save / load
 var _tabs: TabContainer
 var _tab_buttons: VBoxContainer # tab_buttons.xml, vertical
 var _hotkeys := RtsoHotkeyConfig.new()
-var _description: Label
 var _confirm: Control # the open message box, null when closed
 var _updating := false
 
@@ -283,12 +282,26 @@ func _build() -> void:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 8)
 	panel.add_child(vb)
+	# The ModernLabelText title sits on the dialog's top edge (50%-128 -16 50%+128 16).
+	var edge := Control.new()
+	edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(edge)
 	var title := Label.new()
-	title.text = "Game Options"
+	title.name = "Title"
+	title.text = tr("Game Options")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 22)
-	title.add_theme_color_override("font_color", Color(1, 0.85, 0.4))
-	vb.add_child(title)
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title.anchor_left = 0.5
+	title.anchor_right = 0.5
+	title.offset_left = -128
+	title.offset_right = 128
+	title.offset_top = -16 - 12 # the panel's 12 px content margin
+	title.offset_bottom = 16 - 12
+	title.add_theme_font_override("font", MODERN.bold_font())
+	title.add_theme_font_size_override("font_size", 14)
+	title.add_theme_color_override("font_outline_color", Color.BLACK)
+	title.add_theme_constant_override("outline_size", 4)
+	edge.add_child(title)
 	var body := HBoxContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_theme_constant_override("separation", 10)
@@ -296,15 +309,13 @@ func _build() -> void:
 	_tab_buttons = VBoxContainer.new()
 	_tab_buttons.name = "TabButtons"
 	_tab_buttons.custom_minimum_size = Vector2(215, 0)
-	_tab_buttons.add_theme_constant_override("separation", 4)
+	_tab_buttons.add_theme_constant_override("separation", 5) # g_TabButtonDist
 	body.add_child(_tab_buttons)
 	var box := PanelContainer.new() # ModernDarkBoxGold
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0, 0, 0, 0.45)
-	sb.border_color = Color(0.83, 0.68, 0.21)
-	sb.set_border_width_all(1)
-	sb.set_content_margin_all(8)
+	var sb: StyleBoxFlat = MODERN._dark_box(MODERN.GOLD, MODERN.DARK_BOX, 0)
+	sb.content_margin_top = 5 # g_OptionControlOffset
+	sb.content_margin_right = 8 # the controls end at 100%-8
 	box.add_theme_stylebox_override("panel", sb)
 	body.add_child(box)
 	_tabs = TabContainer.new()
@@ -321,8 +332,8 @@ func _build() -> void:
 		var grid := GridContainer.new()
 		grid.columns = 2
 		grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		grid.add_theme_constant_override("h_separation", 16)
-		grid.add_theme_constant_override("v_separation", 6)
+		grid.add_theme_constant_override("h_separation", 10) # the label ends at 65%-10
+		grid.add_theme_constant_override("v_separation", 2) # g_OptionControlDist
 		scroll.add_child(grid)
 		for opt in cat[1]:
 			_add_option(grid, opt)
@@ -335,7 +346,7 @@ func _build() -> void:
 		b.toggle_mode = true
 		b.button_group = group
 		b.theme_type_variation = "ModernTabButtonVertical"
-		b.custom_minimum_size = Vector2(215, 30)
+		b.custom_minimum_size = Vector2(215, 34) # g_TabButtonHeight
 		b.tooltip_text = TABS.tooltip(tr(TAB_TIPS[i]) if i < TAB_TIPS.size() else "", false, keys)
 		_tabs.set_tab_tooltip(i, b.tooltip_text)
 		b.pressed.connect(func(): _tabs.current_tab = i)
@@ -346,11 +357,6 @@ func _build() -> void:
 				b.accept_event())
 		_tab_buttons.add_child(b)
 	_on_tab_changed(_tabs.current_tab)
-	_description = Label.new()
-	_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_description.custom_minimum_size = Vector2(0, 40)
-	_description.add_theme_color_override("font_color", Color(0.85, 0.85, 0.75))
-	vb.add_child(_description)
 	var foot := HBoxContainer.new()
 	foot.alignment = BoxContainer.ALIGNMENT_CENTER
 	foot.add_theme_constant_override("separation", 10)
@@ -383,11 +389,15 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 	var row_id := key
 	while _controls.has(row_id) or _labels.has(row_id):
 		row_id += "#"
+	# option_label: ModernLeftLabelText from 0 to 65%-10 of the 545 px box, 26 px high
+	# (g_OptionControlHeight), with the option's tooltip.
 	var label := Label.new()
 	label.text = opt[2]
-	label.custom_minimum_size = Vector2(320, 0) # option_label: 65% of the 545 px box
+	label.custom_minimum_size = Vector2(344, 26)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.mouse_filter = Control.MOUSE_FILTER_PASS
+	label.tooltip_text = tr(opt[3])
 	_labels[row_id] = label
 	if DEPENDENCIES.has(key):
 		# g_DependentLabelIndentation: an option that depends on another sits 25 px in.
@@ -402,10 +412,15 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 	var c: Control
 	match type:
 		"boolean":
+			# option_control_boolean: the tick box at 95% 2 100% 100%+2.
 			var cb := CheckBox.new()
+			cb.size_flags_horizontal = Control.SIZE_SHRINK_END
+			cb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			cb.toggled.connect(func(on): _changed(key, "true" if on else "false"))
 			c = cb
 		"slider":
+			# option_control_slider: the slider alone across 65%..100%-8; its value is in
+			# the tooltip.
 			var row := HBoxContainer.new()
 			var s := HSlider.new()
 			s.min_value = extra[0]
@@ -414,37 +429,32 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 			# tenths, so 1 and 30 stay reachable.
 			var lo := float(extra[0])
 			s.step = 0.01 if float(extra[1]) <= 2.0 else (0.1 if lo != floorf(lo) else 1.0)
-			s.custom_minimum_size = Vector2(130, 24)
-			var v := Label.new()
-			v.custom_minimum_size = Vector2(50, 0)
+			s.custom_minimum_size = Vector2(130, 26)
+			s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			row.add_child(s)
-			row.add_child(v)
-			s.value_changed.connect(func(x):
-				v.text = _fmt(x)
-				_changed(key, _fmt(x)))
+			s.value_changed.connect(func(x): _changed(key, _fmt(x)))
 			c = row
 		"number":
-			var sb := SpinBox.new()
-			sb.min_value = extra[0]
-			# A null bound is open, as options.json's lobby.history (min 0 only).
-			sb.max_value = extra[1] if extra[1] != null else 1e9
-			sb.step = 1
-			MatchSettings.prepare_line_edit(sb.get_line_edit())
-			MatchSettings.strip_engine_popups(sb)
-			sb.value_changed.connect(func(x): _changed(key, str(int(x))))
-			c = sb
+			# option_control_number: a ModernInput; sanitizeValue reddens it while the text
+			# isn't a number within the range.
+			var le := LineEdit.new()
+			le.custom_minimum_size = Vector2(0, 26)
+			MatchSettings.prepare_line_edit(le)
+			le.text_changed.connect(func(t):
+				_changed(key, t.replace("\"", "").strip_edges())
+				_mark_invalid(le, _invalid(key)))
+			c = le
 		"dropdown":
 			if extra is String and extra == "locales":
 				extra = _locale_items()
 			var ob = RtsoSafeSelect.new()
-			ob.custom_minimum_size = Vector2(190, 30) # option_control_dropdown: the other 35%
+			ob.custom_minimum_size = Vector2(0, 26) # option_control_dropdown: the other 35%
 			ob.clip_text = true
 			for item in extra:
 				ob.add_item(item[0])
-				# options.json item tooltips, shown on hover in the open list.
+				# onHoverChange: the hovered item's tooltip, else the option's.
 				var tip: String = ITEM_TIPS.get(key, {}).get(item[1], "")
-				if tip != "":
-					ob.set_item_tooltip(ob.get_item_count() - 1, tr(tip))
+				ob.set_item_tooltip(ob.get_item_count() - 1, tr(tip) if tip != "" else tr(opt[3]))
 			ob.item_selected.connect(func(i):
 				var old := cfg.get_value(key)
 				_changed(key, extra[i][1])
@@ -453,23 +463,46 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 			c = ob
 		"string":
 			var le := LineEdit.new()
-			le.custom_minimum_size = Vector2(190, 30)
+			le.custom_minimum_size = Vector2(0, 26)
 			MatchSettings.prepare_line_edit(le)
 			le.text_changed.connect(func(t): _changed(key, t.replace("\"", "").strip_edges())) # user.cfg quotes values
 			c = le
 		"color":
-			# options.js "color": the "R G B" value, a swatch of it, and a button that
-			# opens the colour mixer on it.
-			var row := HBoxContainer.new()
+			# option_control_color: the "R G B" input from 65%+40, with a 17 px swatch in a
+			# gold frame (-42 4 -25 100%-4) and the red mixer button (-22 3 -2 100%-3) to its
+			# left.
+			var row := Control.new()
+			row.custom_minimum_size = Vector2(0, 26)
 			var le := LineEdit.new()
-			le.custom_minimum_size = Vector2(120, 30)
+			le.anchor_right = 1.0
+			le.anchor_bottom = 1.0
+			le.offset_left = 40
 			MatchSettings.prepare_line_edit(le)
 			var sw := ColorRect.new()
-			sw.custom_minimum_size = Vector2(30, 30)
+			sw.anchor_bottom = 1.0
+			sw.offset_left = -1
+			sw.offset_top = 5
+			sw.offset_right = 13
+			sw.offset_bottom = -5
+			var frame := ColorRect.new()
+			frame.color = Color.GOLD
+			frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			frame.show_behind_parent = true
+			frame.anchor_right = 1.0
+			frame.anchor_bottom = 1.0
+			frame.offset_left = -1
+			frame.offset_top = -1
+			frame.offset_right = 2
+			frame.offset_bottom = 1
+			sw.add_child(frame)
 			var mix := Button.new()
 			mix.name = "Mixer"
-			mix.text = "..."
-			mix.custom_minimum_size = Vector2(30, 30)
+			mix.theme_type_variation = "ModernButtonRed"
+			mix.anchor_bottom = 1.0
+			mix.offset_left = 18
+			mix.offset_top = 3
+			mix.offset_right = 38
+			mix.offset_bottom = -3
 			row.add_child(le)
 			row.add_child(sw)
 			row.add_child(mix)
@@ -477,10 +510,26 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 			mix.pressed.connect(func(): _open_mixer(le, key, sw))
 			c = row
 	c.name = key.replace(".", "_")
-	label.mouse_entered.connect(func(): _description.text = _describe(opt))
-	c.mouse_entered.connect(func(): _description.text = _describe(opt))
+	if type != "boolean":
+		c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		c.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	grid.add_child(c)
-	_controls[row_id] = [type, c, extra, key]
+	_controls[row_id] = [type, c, extra, key, opt]
+
+## The control that shows an option's tooltip: the slider or the colour input inside
+## their rows, else the control itself.
+func _tip_target(row_id: String) -> Control:
+	var c: Control = _controls[row_id][1]
+	match _controls[row_id][0]:
+		"slider", "color": return c.get_child(0)
+	return c
+
+## sanitizeValue's ModernDarkBoxWhite / ModernDarkBoxWhiteInvalid behind a number or a
+## colour input.
+func _mark_invalid(le: LineEdit, bad: bool) -> void:
+	var sb: StyleBoxFlat = MODERN._dark_box(Color.WHITE, Color8(127, 0, 0, 100) if bad else Color8(12, 12, 12, 100))
+	le.add_theme_stylebox_override("normal", sb)
+	le.add_theme_stylebox_override("focus", sb)
 
 ## options.js control tooltips: the description, then what the type adds for the current
 ## value (slider "Value: (min, max)", number "Min: , Max: ", colour "Default: ") or the
@@ -503,11 +552,6 @@ func _describe(opt: Array) -> String:
 		"color":
 			text += "
 " + tr("Default: %(value)s").replace("%(value)s", cfg.get_default(key))
-		"dropdown":
-			var tip: String = ITEM_TIPS.get(key, {}).get(cfg.get_value(key), "")
-			if tip != "":
-				text += "
-" + tr(tip)
 	return text
 
 ## locale: "" follows the system language, then one entry per translation,
@@ -524,6 +568,7 @@ func _color_edited(key: String, t: String, sw: ColorRect) -> void:
 	var col = _parse_color(t)
 	sw.color = col if col != null else Color(1, 0, 1)
 	_changed(key, t.replace("\"", "")) # user.cfg quotes values
+	_mark_invalid(sw.get_parent().get_child(0), _invalid(key))
 
 ## initGUI's colour button: page_colormixer on the current text; a changed colour is
 ## written back as if typed.
@@ -537,9 +582,13 @@ func _open_mixer(le: LineEdit, key: String, sw: ColorRect) -> void:
 
 ## sanitizeValue differs from the value: a colour that isn't exactly "R G B" in 0..255.
 func _invalid(key: String) -> bool:
+	var v := cfg.get_value(_controls[key][3])
+	if _controls[key][0] == "number":
+		# Math.min(max, Math.max(min, isNaN(+v) ? 0 : v)) != v
+		var extra = _controls[key][2]
+		return not v.is_valid_float() or float(v) < float(extra[0]) or (extra[1] != null and float(v) > float(extra[1]))
 	if _controls[key][0] != "color":
 		return false
-	var v := cfg.get_value(key)
 	return _parse_color(v) == null or " ".join(Array(v.split(" ", false)).map(func(p): return str(int(p)))) != v
 
 ## guiToRgbColor: "R G B" with each 0..255, else null.
@@ -567,15 +616,16 @@ func _load_controls() -> void:
 		var v := cfg.get_value(_controls[row_id][3])
 		match type:
 			"boolean": c.button_pressed = v == "true"
-			"slider":
-				c.get_child(0).value = float(v)
-				c.get_child(1).text = _fmt(float(v))
-			"number": c.value = float(v)
+			"slider": c.get_child(0).value = float(v)
+			"number":
+				c.text = v
+				_mark_invalid(c, _invalid(row_id))
 			"string": c.text = v
 			"color":
 				c.get_child(0).text = v
 				var col = _parse_color(v)
 				c.get_child(1).color = col if col != null else Color(1, 0, 1)
+				_mark_invalid(c.get_child(0), _invalid(row_id))
 			"dropdown":
 				var idx := 0
 				for i in extra.size():
@@ -584,6 +634,13 @@ func _load_controls() -> void:
 				c.select(idx)
 	_updating = false
 	_apply_dependencies()
+	for row_id in _controls:
+		_refresh_tip(row_id)
+
+## displayOptions: the control's tooltip is the description plus what its type adds for
+## the current value.
+func _refresh_tip(row_id: String) -> void:
+	_tip_target(row_id).tooltip_text = _describe(_controls[row_id][4])
 
 func _snapshot() -> void:
 	_saved.clear()
@@ -604,6 +661,7 @@ func _changed(key: String, value: String) -> void:
 			_load_controls() # the repeated row shows the new value too
 		else:
 			_apply_dependencies()
+			_refresh_tip(key)
 
 ## options.js updateOptionPanel: options whose dependencies fail are disabled.
 func _apply_dependencies() -> void:
@@ -622,12 +680,17 @@ func _apply_dependencies() -> void:
 					"==": on = on and v == str(d[2])
 					"!=": on = on and v != str(d[2])
 		var c: Control = _controls[row_id][1]
-		_labels[row_id].modulate.a = 1.0 if on else 0.5 # the label greys out with its control
+		# ModernLeftLabelText textcolor_disabled 140 140 140.
+		if on:
+			_labels[row_id].remove_theme_color_override("font_color")
+		else:
+			_labels[row_id].add_theme_color_override("font_color", Color8(140, 140, 140))
 		match _controls[row_id][0]:
 			"boolean": c.disabled = not on
 			"dropdown": c.disabled = not on
 			"slider": c.get_child(0).editable = on
 			"number": c.editable = on
+			"string": c.editable = on
 	_update_buttons()
 
 ## updateOptionPanel: Revert and Save only while there are unsaved changes.
@@ -650,10 +713,9 @@ func _on_save() -> void:
 
 func _save() -> void:
 	if not cfg.save():
-		_description.text = "Could not write user://config/user.cfg."
+		push_warning("Options: could not write user://config/user.cfg")
 		return
 	_snapshot()
-	_description.text = "Options saved."
 
 ## options.js "Revert": back to the values last saved.
 func _on_revert() -> void:
