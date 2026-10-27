@@ -29202,10 +29202,10 @@ void Simulation::petra_start_march(AttackPlan &plan) {
 	plan.initial_squad_size = plan.squad.size();
 	plan.state = AttackPlan::WALKING;
 	plan.state_timer = 0.0f;
-	++petra_attack_mgr_.launched[petra_attack_mgr_.kind];
+	++petra_attack_mgr_.launched[plan.kind];
 	petra_strike_force_.state = PetraStrikeForce::MARCH;
 	// attackManager.js: chat.launchAttack once the plan starts.
-	petra_say(petra_attack_mgr_.kind == PETRA_ATTACK_HUGE ? PETRA_CHAT_HUGE_ATTACK : PETRA_CHAT_ATTACK,
+	petra_say(plan.kind == PETRA_ATTACK_HUGE ? PETRA_CHAT_HUGE_ATTACK : PETRA_CHAT_ATTACK,
 	          PETRA_CHAT_ALLIES, petra_owner_of(plan.target_building_id), 0, 0, 0, plan.target_x, plan.target_z);
 	float cx = 0.0f, cz = 0.0f;
 	int n = 0;
@@ -30264,10 +30264,13 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 	petra_strike_force_.unit_ids = petra_attack_plan_.squad;
 
 	// attackManager.js update: the plan in preparation, which joins the started attacks
-	// once it marches (or turns back at once), then each started attack until it ends.
+	// once it gathers at its rally point (STATE_COMPLETING is no longer "unexecuted", so the
+	// next plan of its type may be made and train meanwhile), marches or turns back at once;
+	// then each started attack until it ends.
 	petra_attack_plan_.state_timer += dt;
 	petra_update_attack_plan(petra_attack_plan_, base_x, base_z);
-	if (petra_attack_plan_.state != AttackPlan::UNEXECUTED && petra_attack_plan_.state != AttackPlan::MUSTER) {
+	if ((petra_attack_plan_.state != AttackPlan::UNEXECUTED && petra_attack_plan_.state != AttackPlan::MUSTER) ||
+	    petra_attack_plan_.completing) {
 		petra_started_attacks_.push_back(std::move(petra_attack_plan_));
 		petra_attack_plan_ = AttackPlan();
 	}
@@ -30297,7 +30300,7 @@ uint8_t Simulation::petra_target_owner(uint32_t id) const {
 // that plan targets Gaia).
 uint32_t Simulation::petra_help_attack_target(const AttackPlan &plan, uint16_t land, float &tx, float &tz) const {
 	for (const AttackPlan &other : petra_started_attacks_) {
-		if (&other == &plan || other.target_building_id == 0 || other.target_building_id == plan.target_building_id) continue;
+		if (&other == &plan || other.state == AttackPlan::MUSTER || other.target_building_id == 0 || other.target_building_id == plan.target_building_id) continue;
 		float x = 0.0f, z = 0.0f;
 		uint8_t owner = 0xFF;
 		if (auto it = building_id_to_idx_.find(other.target_building_id); it != building_id_to_idx_.end()) {
@@ -30456,6 +30459,16 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 					plan.completing = false;
 					plan.path_x.clear();
 					plan.path_z.clear();
+					// One that has left the preparation slot for the next plan ends here: its
+					// units leave it, free for that plan (0.28 prepares it again beside the new one).
+					if (&plan != &petra_attack_plan_) {
+						petra_release_squad(squad);
+						plan.initial_squad_size = 0;
+						plan.target_building_id = 0;
+						plan.state = AttackPlan::UNEXECUTED;
+						plan.state_timer = 0.0f;
+						return;
+					}
 					break;
 				}
 				// waitingForTransport: this plan's units still being ferried to the rally point hold it.
@@ -30730,12 +30743,12 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 					plan.staging_z = petra_strike_force_.staging_z = tp.drop_z;
 				}
 				// chatLaunchAttack: tell our allies whom we attack.
-				petra_say(petra_attack_mgr_.kind == PETRA_ATTACK_HUGE ? PETRA_CHAT_HUGE_ATTACK : PETRA_CHAT_ATTACK,
+				petra_say(plan.kind == PETRA_ATTACK_HUGE ? PETRA_CHAT_HUGE_ATTACK : PETRA_CHAT_ATTACK,
 				          PETRA_CHAT_ALLIES, petra_owner_of(plan.target_building_id), 0, 0, 0, tx, tz);
 				// attackPlan.js updatePreparation: warn our allies so that they can help.
 				if (!plan.requested && plan.target_player < MAX_PLAYERS)
 					petra_attack_requests_.push_back({(uint32_t)ticks_ + 1, petra_pid_, plan.target_player, {}}); // posted for the next turns
-				++petra_attack_mgr_.launched[petra_attack_mgr_.kind];
+				++petra_attack_mgr_.launched[plan.kind];
 				plan.initial_squad_size = squad.size();
 				plan.state = AttackPlan::WALKING;
 				plan.state_timer = 0.0f;
@@ -32187,6 +32200,12 @@ void Simulation::petra_answer_attack_request(uint8_t source, uint8_t target) {
 			plan.target_player = target;
 			if (plan.squad.size() > 2) available = plan.squad.size();
 		}
+	}
+	// Plans gathering at their rally point (out of the preparation slot) keep their target too.
+	for (const AttackPlan &p : petra_started_attacks_) {
+		if (p.state != AttackPlan::MUSTER || !p.completing) continue;
+		if (p.target_player == target) available += p.squad.size();
+		else if (p.target_player < MAX_PLAYERS) other = p.target_player;
 	}
 	// Every upcoming plan counts, the raid mustering too (its own target stays).
 	AttackPlan &raid = petra_raid_plan_;
@@ -33694,6 +33713,7 @@ void Simulation::petra_check_decaying_structures() {
 bool Simulation::petra_defendable(float x, float z) const {
 	size_t n = 0;
 	for (const AttackPlan &p : petra_started_attacks_) {
+		if (p.state == AttackPlan::MUSTER) continue; // completing: not started yet
 		float cx = 0.0f, cz = 0.0f;
 		int k = 0;
 		for (uint32_t uid : p.squad) {
