@@ -7096,8 +7096,8 @@ void Simulation::cmd_stop(const uint32_t *unit_ids, size_t count) {
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
 			units_.has_order[idx] = 0;
 			units_.action_state[idx] = ACTION_IDLE;
-			units_.anchor_x[idx] = units_.pos_x[idx];
-			units_.anchor_z[idx] = units_.pos_z[idx];
+			// Order.Stop is FinishOrder alone: the held position stays the last walk's
+			// destination, so a defensive unit stopped short walks on there (IDLE Timer).
 			units_.target_resource_id[idx] = 0;
 			units_.target_unit_id[idx] = 0;
 			units_.target_building_id[idx] = 0;
@@ -16171,6 +16171,9 @@ void Simulation::tick_pack(float dt) {
 				ps = (ps == PACK_PACKING) ? PACK_PACKED : PACK_UNPACKED;
 				units_.pack_elapsed[i] = 0.0f;
 				if (units_.order_kind[i] == ORDER_NONE) units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE; // PackFinished
+				// Pack.js PackFinished -> ChangeEntityTemplate: SwitchToStance holds where it stands.
+				units_.anchor_x[i] = units_.pos_x[i];
+				units_.anchor_z[i] = units_.pos_z[i];
 			}
 		}
 		units_.pack_state[i] = ps;
@@ -17325,6 +17328,8 @@ void Simulation::tick_combat(float dt) {
 			uint32_t dead_id = units_.id[idx];
 			unit_id_to_idx_.erase(dead_id);
 			if (dead_id < unit_idx_by_id_.size()) unit_idx_by_id_[dead_id] = -1;
+			order_queues_.erase(dead_id); // a destroyed entity's UnitAI goes with it
+			work_orders_.erase(dead_id);
 			if (idx < unit_paths_.size() && units_.count > 0) {
 				size_t last = units_.count - 1;
 				if (idx != last && last < unit_paths_.size()) {
@@ -17521,6 +17526,11 @@ float Simulation::unit_gather_rate(size_t i, uint8_t kind, float class_rate, boo
 }
 
 void Simulation::promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_rank) {
+	// Promotion.js Promote -> ChangeEntityTemplate (Transform.js:142-160) copies the orders but
+	// not workOrders (Back to Work is lost), and its SwitchToStance holds where the unit stands.
+	work_orders_.erase(units_.id[i]);
+	units_.anchor_x[i] = units_.pos_x[i];
+	units_.anchor_z[i] = units_.pos_z[i];
 	const float frac = units_.max_hp[i] > 0.0f ? units_.hp[i] / units_.max_hp[i] : 1.0f;
 	if (target_tmpl < CIV_UNIT_TEMPLATE_COUNT && target_tmpl != units_.tmpl[i]) {
 		// Another unit: its template's stats, the owner's civ bonuses (not its template civ's
@@ -19810,7 +19820,12 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
 		case ORDER_HEAL: order_heal(&uid, 1, o.target); break;
 		case ORDER_TRADE: order_trade(&uid, 1, o.target, trade_market_id(o.x2)); break;
-		case ORDER_RETURN_RESOURCE: order_return_resource(&uid, 1, o.target, false, (o.flags & ORDER_FLAG_FORCE) != 0); break;
+		case ORDER_RETURN_RESOURCE: {
+			const int32_t ui = lookup_unit(uid);
+			const uint32_t d = o.target != 0 ? o.target : ui >= 0 ? nearest_dropsite((size_t)ui) : 0;
+			if (d != 0) order_return_resource(&uid, 1, d, false, (o.flags & ORDER_FLAG_FORCE) != 0);
+			break;
+		}
 		case ORDER_COLLECT_TREASURE: order_collect_treasure(&uid, 1, o.target); break;
 		case ORDER_HUNT: order_hunt(&uid, 1, o.target); break;
 		case ORDER_ATTACK_SCENERY: order_attack_scenery(&uid, 1, o.target, capture); break;
@@ -19871,6 +19886,7 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 		case ORDER_HEAL: return can_heal(i, lookup_unit(o.target));
 		case ORDER_TRADE: return trade_route_ok(i, o.target, trade_market_id(o.x2));
 		case ORDER_RETURN_RESOURCE: {
+			if (o.target == 0) return units_.carry[i] > 0 && nearest_dropsite(i) != 0; // DropAtNearestDropSite
 			if (lookup_unit(o.target) >= 0) return can_return_resource(units_.id[i], o.target);
 			const Building *b = building(o.target);
 			return b && units_.carry[i] > 0 && dropsite_accepts(i, *b);
@@ -21383,6 +21399,16 @@ void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, floa
 				if (const uint32_t best = nearest_dropsite((size_t)i); best != 0) order_return_resource(&uid, 1, best, false);
 			continue;
 		}
+		// Queued behind other orders, DropAtNearestDropSite is resolved when it runs (target 0:
+		// from where the unit is then, with what it carries then; UnitAI.js:577-586).
+		auto pending = order_queues_.find(uid);
+		if (queued && (units_.order_kind[i] != ORDER_NONE || (pending != order_queues_.end() && !pending->second.empty()))) {
+			std::vector<UnitOrder> &queue = order_queues_[uid];
+			UnitOrder drop; drop.kind = ORDER_RETURN_RESOURCE; drop.target = 0;
+			if (queue.size() < 64) queue.push_back(drop);
+			order_attack_move(&uid, 1, x, z, true, units_only, allow_capture);
+			continue;
+		}
 		// DropAtNearestDropSite: FindNearestDropsite for the carried type, else nothing.
 		if (units_.carry[i] > 0) {
 			const uint32_t best = nearest_dropsite((size_t)i);
@@ -22661,11 +22687,13 @@ void Simulation::petra_manage_military_production(float dt) {
 		const bool main_plan = &plan == &petra_attack_plan_;
 		std::vector<UnitStat> stats = petra_plan_unit_stats(kind, main_plan ? petra_attack_mgr_.dropped_classes : 0);
 
-		// What the plan has, each unit counted once in the first class it matches, plus what is
-		// in training for it (the batches queued with its plan).
+		// What the plan has, each unit counted in every class it matches (this.unit[cat] is a
+		// class filter over the plan's units: a German Cimbrian clubman, Champion and Citizen
+		// Soldier, is both a champion and a melee citizen soldier), plus what is in training for
+		// it (the batches queued with its plan).
 		auto tally = [&](TechClasses c, int n) {
 			for (UnitStat &st : stats)
-				if ((c & st.classes) == st.classes) { st.count += n; return; }
+				if ((c & st.classes) == st.classes) st.count += n;
 		};
 		for (uint32_t uid : plan.squad) {
 			const int32_t i = lookup_unit(uid);
@@ -30175,7 +30203,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			}
 
 			// attackPlan.js mustStart: every class of the plan at its targetSize, each unit counted
-			// in the first class it matches (a class no building of ours trains drops out, as
+			// in every class it matches (a class no building of ours trains drops out, as
 			// trainMoreUnits deletes it). At the population cap (under 5 free slots) the plan
 			// starts with every class at its minSize or more than lengthMin units, and fails
 			// otherwise so that its units go to other plans. The cap is getPopulationMax, the hard
@@ -30186,7 +30214,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				if (k < 0 || !units_.alive[k]) continue;
 				const TechClasses c = unit_classes(units_.tmpl[k], units_.unit_type[k]);
 				for (PetraUnitStat &st : stats)
-					if ((c & st.classes) == st.classes) { ++st.count; break; }
+					if ((c & st.classes) == st.classes) ++st.count;
 			}
 			bool max_everywhere = true, min_everywhere = true;
 			for (const PetraUnitStat &st : stats) {

@@ -783,6 +783,16 @@ public:
 		const Vector3 g = get_ground_click_pos(screen);
 		return Vector2(g.x, g.z);
 	}
+	// Tests: the click point under `screen` in 3D, the terrain height there and the drawn sea
+	// level (-1e9 without water).
+	Dictionary debug_click_surface(Vector2 screen) const {
+		Dictionary d;
+		const Vector3 g = get_ground_click_pos(screen);
+		d["pos"] = g;
+		d["terrain"] = sim ? sim->get_terrain_height(g.x, g.z) : 0.0f;
+		d["water"] = sim && sim->water_height() > -0.5f ? sim->water_height() + rtso::NAV_WATER_MARGIN : -1e9f;
+		return d;
+	}
 	Dictionary debug_inspector(const String &what);
 	// Tests: another player's unit or structure `id` shown as a click on it would (the inspector).
 	void debug_inspect_entity(int64_t id); // tests: the selection details of a unit, units, a structure, a resource or an animal
