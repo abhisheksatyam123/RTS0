@@ -171,7 +171,22 @@ func run() -> void:
 	var box = inc.find_child("MsgBox", true, false)
 	check(box != null and box.title == "Incompatible mods" and box.message.begins_with("You tried to start the game with incompatible or missing mods!")
 		and box.captions == ["Ok"], "the Mod Selection opens with the Incompatible mods notice")
-	check(box.find_child("Text", true, false).horizontal_alignment == HORIZONTAL_ALIGNMENT_LEFT, "its text is left-aligned")
+	var panel: PanelContainer = box.find_child("MainText", true, false)
+	var head: Label = box.find_child("Headline", true, false)
+	check(panel != null and panel.offset_left == 20 and panel.offset_bottom == -52 and panel.get_theme_stylebox("panel") is StyleBoxFlat
+		and (panel.get_child(0) as VBoxContainer).alignment == BoxContainer.ALIGNMENT_CENTER,
+		"its text is a ModernTextPanel at 20 20 100%-20 100%-52, centred vertically")
+	check(head.get_theme_font_size("font_size") == 20 and head.get_theme_font("font") is FontVariation
+		and head.get_parent().get_child(1).get_theme_font_size("font_size") == 16, "a sans-bold-20 headline over sans-16 text")
+	check(box.find_child("Button1", true, false).offset_top == -45, "Ok sits at 100%-45")
+	# modmod.xml: ModernWindow behind the page, 32x32 red arrows, 180 px buttons.
+	var mm = inc
+	check((mm.find_child("ModernWindow", true, false).get_child(0) as ColorRect).color == Color8(12, 12, 12), "an opaque ModernWindow")
+	check(mm.up_button.custom_minimum_size == Vector2(32, 32) and mm.up_button.get_theme_stylebox("normal") is StyleBoxTexture, "32 px arrow buttons")
+	mm.start_mods()
+	check(mm.message.text == "Dependencies not met" and cfg.get_value(Mods.CONFIG_KEY).contains("gone") and mm.save_button.disabled,
+		"Save and Restart saves the list before refusing it: " + cfg.get_value(Mods.CONFIG_KEY))
+	check(mm.save_button.custom_minimum_size.x == 180 and mm.find_child("Title", true, false).get_theme_font("font") is FontVariation, "180 px buttons, bold title")
 	host.queue_free()
 
 	cfg.set_value(Mods.CONFIG_KEY, saved)
