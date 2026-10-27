@@ -1175,7 +1175,7 @@ uint32_t Simulation::spawn_unit(float x, float z, uint8_t team, UnitType u_type,
 		if (terrain_water_height_ >= -0.5f) f.y = std::max(f.y, terrain_water_height_);
 		f.angle = det::atan2(units_.heading_x[idx], units_.heading_z[idx]);
 	}
-	if (unit_paths_.size() < UNIT_CAP) unit_paths_.resize(UNIT_CAP);
+	ensure_unit_paths();
 	if (idx < unit_paths_.size()) unit_paths_[idx].clear();
 	// Promotion.OnValueModification when the unit gets its owner: IncreaseXp(0), so a
 	// RequiredXp of 0 promotes at once (mercenaries start Advanced, upgrade_rank_advanced_mercenary).
@@ -6569,7 +6569,7 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 		if (!walks.empty()) map_scale_stats_.path_calls += walks.size() - 1; // ScopedUs counts one
 	}
 
-	if (unit_paths_.size() < UNIT_CAP) unit_paths_.resize(UNIT_CAP);
+	ensure_unit_paths();
 	for (const Walk &w : walks) {
 		const int32_t idx = w.idx;
 		const WaypointPath &wp = w.wp;
@@ -7306,7 +7306,7 @@ void Simulation::formation_move_members_into(size_t ci, bool move_center, bool f
 		units_.target_resource_id[idx] = 0;
 		units_.target_unit_id[idx] = 0;
 		units_.target_building_id[idx] = 0;
-		if (unit_paths_.size() < UNIT_CAP) unit_paths_.resize(UNIT_CAP);
+		ensure_unit_paths();
 		WaypointPath &wp = unit_paths_[idx];
 		if (formation_order_walks(fc.order)) {
 			wp.clear(); // tick_formations paths members that are far from their slot
@@ -8180,7 +8180,7 @@ void Simulation::tick_formations(float dt) {
 			units_.target_resource_id[idx] = 0;
 			// Near its slot a member heads straight for it; farther off (or once the controller
 			// has arrived) it paths there, refreshed when the slot has moved on.
-			if (unit_paths_.size() < UNIT_CAP) unit_paths_.resize(UNIT_CAP);
+			ensure_unit_paths();
 			WaypointPath &wp = unit_paths_[idx];
 			const float mdx = wx - units_.pos_x[idx], mdz = wz - units_.pos_z[idx];
 			const bool far = mdx * mdx + mdz * mdz > 6.0f * 6.0f;
@@ -35099,8 +35099,9 @@ bool Simulation::load_state(const char *filepath) {
 	// 3. Units
 	uint32_t num_units = 0;
 	in.read((char *)&num_units, sizeof(num_units));
-	if (!in.good() || num_units > UNIT_CAP) return false;
+	if (!in.good() || num_units > UNIT_LOAD_LIMIT) return false;
 	units_.count = 0;
+	units_.reserve(num_units);
 	unit_id_to_idx_.clear();
 	unit_idx_by_id_.assign(UNIT_CAP + 1, -1);
 
@@ -35599,7 +35600,7 @@ template <class Ar, class T> static void io_vec_pod(Ar &ar, std::vector<T> &v, u
 
 template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	using S = Simulation;
-	auto ids = [&](std::vector<uint32_t> &v) { io_vec_pod(ar, v, S::UNIT_CAP); };
+	auto ids = [&](std::vector<uint32_t> &v) { io_vec_pod(ar, v, S::UNIT_LOAD_LIMIT); };
 	auto arr = [](auto &d, const auto &src) { std::memcpy(&d, &src, sizeof(d)); };
 
 	// Padded structs, field by field.
@@ -35728,7 +35729,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 
 	// 1. Unit columns the main unit record leaves out, in unit order.
 	if constexpr (Ar::loading)
-		if (s.unit_paths_.size() < S::UNIT_CAP) s.unit_paths_.resize(S::UNIT_CAP);
+		s.ensure_unit_paths();
 	auto &U = s.units_;
 	// Before v78 each unit kept one Poisoned and one Burning timer, and from v54 who applied
 	// each; section 9i turns them into statuses.
@@ -35919,7 +35920,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	// Transport ships' passengers, sorted so the file doesn't depend on hash-map order.
 	std::vector<std::pair<uint32_t, std::vector<uint32_t>>> ships(s.transport_passengers_.begin(), s.transport_passengers_.end());
 	std::sort(ships.begin(), ships.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
-	io_vec(ar, ships, S::UNIT_CAP, [&](std::pair<uint32_t, std::vector<uint32_t>> &kv) { ar.pod(kv.first); ids(kv.second); });
+	io_vec(ar, ships, S::UNIT_LOAD_LIMIT, [&](std::pair<uint32_t, std::vector<uint32_t>> &kv) { ar.pod(kv.first); ids(kv.second); });
 	if constexpr (Ar::loading) {
 		s.transport_passengers_.clear();
 		for (auto &kv : ships) s.transport_passengers_[kv.first] = std::move(kv.second);
@@ -35927,7 +35928,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	// UnitMotionFlying state (v112); an older save's planes stand on the ground with no target.
 	if (ar.version >= S::SAVE_VERSION_FLIGHT) {
 		std::vector<std::pair<uint32_t, S::FlightState>> planes(s.flight_.begin(), s.flight_.end());
-		io_vec(ar, planes, S::UNIT_CAP, [&](std::pair<uint32_t, S::FlightState> &kv) { ar.pod(kv.first); ar.pod(kv.second); });
+		io_vec(ar, planes, S::UNIT_LOAD_LIMIT, [&](std::pair<uint32_t, S::FlightState> &kv) { ar.pod(kv.first); ar.pod(kv.second); });
 		if constexpr (Ar::loading) {
 			s.flight_.clear();
 			for (auto &kv : planes) s.flight_[kv.first] = kv.second;
@@ -36093,7 +36094,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				ar.pod(p.pickup_x); ar.pod(p.pickup_z); ar.pod(p.drop_x); ar.pod(p.drop_z);
 				ar.pod(p.state_timer); ar.pod(p.failed);
 				if (ar.version >= Simulation::SAVE_VERSION_PETRA_PASS5) {
-					io_vec(ar, p.boarding, S::UNIT_CAP, [&](PetraTransportPlan::BoardTry &b) { ar.pod(b.uid); ar.pod(b.x); ar.pod(b.z); ar.pod(b.tries); });
+					io_vec(ar, p.boarding, S::UNIT_LOAD_LIMIT, [&](PetraTransportPlan::BoardTry &b) { ar.pod(b.uid); ar.pod(b.x); ar.pod(b.z); ar.pod(b.tries); });
 					ar.pod(p.board_check);
 				}
 			};
@@ -36203,7 +36204,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			else v.clear();
 		} else if constexpr (std::is_same_v<T, std::vector<S::PetraApproach>>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_INACCESSIBLE)
-				io_vec(ar, v, S::UNIT_CAP, [&](S::PetraApproach &a) {
+				io_vec(ar, v, S::UNIT_LOAD_LIMIT, [&](S::PetraApproach &a) {
 					ar.pod(a.unit); ar.pod(a.target); ar.pod(a.tried); ar.pod(a.time); ar.pod(a.x); ar.pod(a.z); ar.pod(a.carried);
 				});
 			else v.clear();
@@ -36213,16 +36214,16 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			else v.clear();
 		} else if constexpr (std::is_same_v<T, std::vector<S::PetraHuntSearch>>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_HUNT_SEARCH)
-				io_vec(ar, v, S::UNIT_CAP, [&](S::PetraHuntSearch &h) { ar.pod(h.id); ar.pod(h.time); });
+				io_vec(ar, v, S::UNIT_LOAD_LIMIT, [&](S::PetraHuntSearch &h) { ar.pod(h.id); ar.pod(h.time); });
 			else v.clear();
 		} else if constexpr (std::is_same_v<T, std::vector<S::PetraNextMove>>) {
 			// Before v91 every mobile dropsite looks at the next AI turn.
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_MOVE_TO_GATHERER)
-				io_vec(ar, v, S::UNIT_CAP, [&](S::PetraNextMove &n) { ar.pod(n.id); ar.pod(n.time); });
+				io_vec(ar, v, S::UNIT_LOAD_LIMIT, [&](S::PetraNextMove &n) { ar.pod(n.id); ar.pod(n.time); });
 			else v.clear();
 		} else if constexpr (std::is_same_v<T, std::vector<S::PetraSupplyMark>>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_SUPPLY_ROOM)
-				io_vec(ar, v, S::UNIT_CAP, [&](S::PetraSupplyMark &m) { ar.pod(m.unit); ar.pod(m.supply); });
+				io_vec(ar, v, S::UNIT_LOAD_LIMIT, [&](S::PetraSupplyMark &m) { ar.pod(m.unit); ar.pod(m.supply); });
 			else v.clear(); // every gatherer is taken as on its own supply at the next AI turn
 		} else if constexpr (std::is_same_v<T, S::PetraRoom>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_SUPPLY_ROOM) {
@@ -36248,7 +36249,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				io_vec(ar, v.wanted_transport, 1u << 16, [&](uint8_t &n) { ar.pod(n); });
 				if (ar.version >= Simulation::SAVE_VERSION_PETRA_NO_UNITS) {
 					ar.pod(v.units_checked); ar.pod(v.no_units);
-					io_vec(ar, v.allied, S::UNIT_CAP, [&](uint32_t &id) { ar.pod(id); });
+					io_vec(ar, v.allied, S::UNIT_LOAD_LIMIT, [&](uint32_t &id) { ar.pod(id); });
 				} else {
 					v.units_checked = v.no_units = false; // checked again at the next AI turn
 					v.allied.clear();
@@ -36474,7 +36475,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		}
 		std::vector<std::pair<uint32_t, std::vector<UnitOrder>>> queues(s.order_queues_.begin(), s.order_queues_.end());
 		std::sort(queues.begin(), queues.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
-		io_vec(ar, queues, S::UNIT_CAP, [&](std::pair<uint32_t, std::vector<UnitOrder>> &kv) {
+		io_vec(ar, queues, S::UNIT_LOAD_LIMIT, [&](std::pair<uint32_t, std::vector<UnitOrder>> &kv) {
 			ar.pod(kv.first);
 			io_vec_pod(ar, kv.second, 64);
 		});
@@ -36489,7 +36490,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			std::sort(kv.begin(), kv.end());
 			for (const auto &p : kv) guards.push_back(p.first), guards.push_back(p.second);
 		}
-		if (ar.version >= S::SAVE_VERSION_GUARD_OF) io_vec_pod(ar, guards, 2u * (uint32_t)S::UNIT_CAP);
+		if (ar.version >= S::SAVE_VERSION_GUARD_OF) io_vec_pod(ar, guards, 2u * (uint32_t)S::UNIT_LOAD_LIMIT);
 		if constexpr (Ar::loading) {
 			s.guard_of_.clear();
 			if (ar.version >= S::SAVE_VERSION_GUARD_OF)
@@ -36502,7 +36503,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		std::vector<std::pair<uint32_t, std::vector<UnitOrder>>> work(s.work_orders_.begin(), s.work_orders_.end());
 		std::sort(work.begin(), work.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
 		if (ar.version >= S::SAVE_VERSION_WORK_ORDERS)
-			io_vec(ar, work, S::UNIT_CAP, [&](std::pair<uint32_t, std::vector<UnitOrder>> &kv) {
+			io_vec(ar, work, S::UNIT_LOAD_LIMIT, [&](std::pair<uint32_t, std::vector<UnitOrder>> &kv) {
 				ar.pod(kv.first);
 				io_vec_pod(ar, kv.second, 64);
 			});
@@ -36511,7 +36512,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			for (auto &kv : work) s.work_orders_[kv.first] = std::move(kv.second);
 		}
 		// v103: the supply wagons whose owner locked them (ResourceDropsite shared false), by unit id.
-		if (ar.version >= S::SAVE_VERSION_WAGON_SHARING) io_vec_pod(ar, s.locked_dropsite_units_, (uint32_t)S::UNIT_CAP);
+		if (ar.version >= S::SAVE_VERSION_WAGON_SHARING) io_vec_pod(ar, s.locked_dropsite_units_, (uint32_t)S::UNIT_LOAD_LIMIT);
 		else if constexpr (Ar::loading) s.locked_dropsite_units_.clear();
 	} else if constexpr (Ar::loading) {
 		for (size_t i = 0; i < U.count; ++i) {
@@ -36538,7 +36539,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			ar.pod(f.x); ar.pod(f.z); ar.pod(f.rot); ar.pod(f.offsets_rot); ar.pod(f.goal_x); ar.pod(f.goal_z);
 			ar.pod(f.shape_timer); ar.pod(f.pass); ar.pod(f.has_offsets); ar.pod(f.max_rows_used);
 			ids(f.members);
-			io_vec_pod(ar, f.slots, S::UNIT_CAP);
+			io_vec_pod(ar, f.slots, S::UNIT_LOAD_LIMIT);
 			path(f.path);
 			if (ar.version >= SAVE_VERSION_FORMATION_ORDERS) {
 				ar.pod(f.target_unit); ar.pod(f.target_building); ar.pod(f.task_flags); ar.pod(f.returning);
@@ -36671,7 +36672,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	// 9c. VisionSharing spies (v44). Older saves had none.
 	if (ar.version >= SAVE_VERSION_SPIES) {
 		static_assert(sizeof(S::Spy) == 12, "Spy is saved raw");
-		io_vec_pod(ar, s.spies_, S::UNIT_CAP * MAX_PLAYERS);
+		io_vec_pod(ar, s.spies_, S::UNIT_LOAD_LIMIT * MAX_PLAYERS);
 		if constexpr (Ar::loading)
 			for (const S::Spy &sp : s.spies_)
 				if (sp.player >= MAX_PLAYERS || !(sp.remaining > 0.0f)) ar.ok = false;
@@ -36691,7 +36692,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 
 	// 9d. Unit upgrades in progress (v45): raw UnitUpgrade rows.
 	if (ar.version >= SAVE_VERSION_UNIT_UPGRADES) {
-		io_vec_pod(ar, s.unit_upgrades_, (uint32_t)S::UNIT_CAP);
+		io_vec_pod(ar, s.unit_upgrades_, (uint32_t)S::UNIT_LOAD_LIMIT);
 		if constexpr (Ar::loading)
 			for (const S::UnitUpgrade &u : s.unit_upgrades_)
 				if (u.to >= CIV_UNIT_TEMPLATE_COUNT || u.player >= MAX_PLAYERS || !(u.time > 0.0f)) ar.ok = false;
@@ -36702,7 +36703,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	// 9f. Units' production queues (SAVE_VERSION_UNIT_TRAINERS), by unit id.
 	if (ar.version >= SAVE_VERSION_UNIT_TRAINERS) {
 		std::vector<std::pair<uint32_t, S::UnitQueue>> queues(s.unit_queues_.begin(), s.unit_queues_.end());
-		io_vec(ar, queues, S::UNIT_CAP, [&](std::pair<uint32_t, S::UnitQueue> &kv) {
+		io_vec(ar, queues, S::UNIT_LOAD_LIMIT, [&](std::pair<uint32_t, S::UnitQueue> &kv) {
 			ar.pod(kv.first);
 			ar.pod(kv.second.player);
 			io_vec(ar, kv.second.orders, (uint32_t)PRODUCTION_QUEUE_MAX, [&](ProductionOrder &o) {
@@ -36722,7 +36723,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			if constexpr (Ar::loading)
 				if (kv.second.player >= MAX_PLAYERS || kv.second.orders.empty()) ar.ok = false;
 		});
-		if (ar.version >= S::SAVE_VERSION_UNIT_AUTOQUEUE) io_vec_pod(ar, s.unit_autoqueue_, (uint32_t)S::UNIT_CAP);
+		if (ar.version >= S::SAVE_VERSION_UNIT_AUTOQUEUE) io_vec_pod(ar, s.unit_autoqueue_, (uint32_t)S::UNIT_LOAD_LIMIT);
 		else if constexpr (Ar::loading) s.unit_autoqueue_.clear();
 		if constexpr (Ar::loading) {
 			s.unit_queues_.clear();
@@ -36766,14 +36767,14 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 
 	// 9e. Petra's army soldiers (v52). Older saves: every citizen soldier works.
 	for (auto &v : s.petra_army_ids_) {
-		if (ar.version >= SAVE_VERSION_PETRA_ROLES) io_vec_pod(ar, v, (uint32_t)S::UNIT_CAP);
+		if (ar.version >= SAVE_VERSION_PETRA_ROLES) io_vec_pod(ar, v, (uint32_t)S::UNIT_LOAD_LIMIT);
 		else if constexpr (Ar::loading) v.clear();
 		if constexpr (Ar::loading)
 			if (!std::is_sorted(v.begin(), v.end())) ar.ok = false;
 	}
 	// 9e2. Petra's units out of a plan (v106). Older saves: none (the next turn marks those in a squad).
 	for (auto &v : s.petra_out_of_plan_) {
-		if (ar.version >= S::SAVE_VERSION_PETRA_OUT_OF_PLAN) io_vec_pod(ar, v, (uint32_t)S::UNIT_CAP);
+		if (ar.version >= S::SAVE_VERSION_PETRA_OUT_OF_PLAN) io_vec_pod(ar, v, (uint32_t)S::UNIT_LOAD_LIMIT);
 		else if constexpr (Ar::loading) v.clear();
 		if constexpr (Ar::loading)
 			if (!std::is_sorted(v.begin(), v.end())) ar.ok = false;
@@ -36782,7 +36783,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	// ship is a transport until trainMoreTraders switches it.
 	for (auto *arr : {&s.petra_trade_ships_, &s.petra_switch_ships_})
 		for (auto &v : *arr) {
-			if (ar.version >= S::SAVE_VERSION_PETRA_PASS5) io_vec_pod(ar, v, (uint32_t)S::UNIT_CAP);
+			if (ar.version >= S::SAVE_VERSION_PETRA_PASS5) io_vec_pod(ar, v, (uint32_t)S::UNIT_LOAD_LIMIT);
 			else if constexpr (Ar::loading) v.clear();
 			if constexpr (Ar::loading)
 				if (!std::is_sorted(v.begin(), v.end())) ar.ok = false;
@@ -36901,7 +36902,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		if constexpr (Ar::loading) s.reset_los(), s.tick_los();
 		return;
 	}
-	io_vec_pod(ar, s.los_unit_src_, (uint32_t)S::UNIT_CAP);
+	io_vec_pod(ar, s.los_unit_src_, (uint32_t)S::UNIT_LOAD_LIMIT);
 	io_vec_pod(ar, s.los_bld_src_, 1u << 16);
 	std::vector<uint8_t> explored;
 	if constexpr (!Ar::loading) {

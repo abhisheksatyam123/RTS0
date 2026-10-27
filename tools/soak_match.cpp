@@ -18,6 +18,9 @@
 // --json NAME plays data/maps/NAME.json (loaded as tools/probe_trigger_maps.cpp does) with
 // --civs seated instead of the map's. It also logs, for a sweep (tools/sweep_matches.py):
 //   - [slow]: a game minute that took more than 20 s of wall time (a stall);
+//   - [spike]: a turn of the main copy that took more than its 200 ms of game time, and
+//     [perf] every 5 minutes with the worst turn since the last one (--diffs a,b sets the
+//     Petra difficulty per seat, 0 Sandbox to 5 Very Hard);
 //   - [phase]: each phase-up, and [no-phase] for a player still in Village at the end of a
 //     match of 15+ minutes;
 //   - [stats]: statistics that go wrong (a counter that drops, trained units below the
@@ -96,7 +99,7 @@ float target_hp(const Simulation &s, uint32_t uid, uint32_t bid) {
 }
 
 // data/maps/NAME.json with the map's own players, resources and teams; returns the players seated.
-int setup_json(Simulation &s, const std::string &name, uint32_t seed, const std::vector<int> &civs) {
+int setup_json(Simulation &s, const std::string &name, uint32_t seed, const std::vector<int> &civs, const std::vector<int> &diffs) {
 	MapPlayerOverrides ov;
 	g_civ_override = civs;
 	if (!load_json_map(s, name, seed, ov)) return 0;
@@ -111,11 +114,12 @@ int setup_json(Simulation &s, const std::string &name, uint32_t seed, const std:
 	if (ov.pop_limit > 0) s.set_pop_cap(ov.pop_limit);
 	if (ov.has_teams) { s.set_setup_teams(ov.team); s.apply_team_diplomacy(); }
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) s.set_player_active(p, p < players, p < players);
-	for (int p = 0; p < players; ++p) s.set_petra_difficulty((uint8_t)p, 3);
+	for (int p = 0; p < players; ++p) s.set_petra_difficulty((uint8_t)p, (uint8_t)diffs[p % diffs.size()]);
 	return players;
 }
 
-void setup(Simulation &s, int map, uint32_t seed, int players, float size, const std::vector<int> &civs, bool circular) {
+void setup(Simulation &s, int map, uint32_t seed, int players, float size, const std::vector<int> &civs, bool circular,
+		const std::vector<int> &diffs) {
 	s.reset();
 	s.set_sim_seed(seed);
 	s.set_waves_enabled(false);
@@ -125,7 +129,7 @@ void setup(Simulation &s, int map, uint32_t seed, int players, float size, const
 	s.set_victory_condition(VICTORY_CONQUEST);
 	for (int p = 0; p < players; ++p) s.set_team_civ((uint8_t)p, (uint8_t)civs[p % civs.size()]);
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) s.set_player_active(p, p < players, p < players);
-	for (int p = 0; p < players; ++p) s.set_petra_difficulty((uint8_t)p, 3);
+	for (int p = 0; p < players; ++p) s.set_petra_difficulty((uint8_t)p, (uint8_t)diffs[p % diffs.size()]);
 }
 
 void turn(Simulation &s) {
@@ -145,6 +149,7 @@ int main(int argc, char **argv) {
 	int watch_from = 0;
 	std::vector<int> civs = {0, 1, 2, 3};
 	std::string json;
+	std::vector<int> diffs = {3};
 	for (int i = 1; i < argc; ++i) {
 		auto next = [&]() { return i + 1 < argc ? argv[++i] : (char *)"0"; };
 		if (!strcmp(argv[i], "--map")) map = atoi(next());
@@ -158,7 +163,10 @@ int main(int argc, char **argv) {
 		else if (!strcmp(argv[i], "--save-at")) save_at = atof(next());
 		else if (!strcmp(argv[i], "--watch")) watch = (uint32_t)strtoul(next(), nullptr, 10);
 		else if (!strcmp(argv[i], "--watch-from")) watch_from = atoi(next());
-		else if (!strcmp(argv[i], "--civs")) {
+		else if (!strcmp(argv[i], "--diffs")) {
+			diffs.clear();
+			for (char *t = strtok(next(), ","); t; t = strtok(nullptr, ",")) diffs.push_back(atoi(t));
+		} else if (!strcmp(argv[i], "--civs")) {
 			civs.clear();
 			for (char *t = strtok(next(), ","); t; t = strtok(nullptr, ",")) civs.push_back(atoi(t));
 		}
@@ -167,8 +175,8 @@ int main(int argc, char **argv) {
 	std::setvbuf(stdout, nullptr, _IOLBF, 0);
 	auto make = [&]() {
 		auto s = std::make_unique<Simulation>();
-		if (json.empty()) setup(*s, map, seed, players, size, civs, circular);
-		else players = setup_json(*s, json, seed, civs);
+		if (json.empty()) setup(*s, map, seed, players, size, civs, circular, diffs);
+		else players = setup_json(*s, json, seed, civs, diffs);
 		return s;
 	};
 	auto a = make();
@@ -179,6 +187,8 @@ int main(int argc, char **argv) {
 	const std::string map_name = json.empty() ? std::string(map_type_info((uint8_t)map).id) : json;
 	std::printf("soak map=%s seed=%u size=%.0f players=%d civs=", map_name.c_str(), seed, size, players);
 	for (int p = 0; p < players; ++p) std::printf("%s%d", p ? "," : "", civs[p % civs.size()]);
+	std::printf(" diffs=");
+	for (int p = 0; p < players; ++p) std::printf("%s%d", p ? "," : "", diffs[p % diffs.size()]);
 	std::printf(" circular=%d\n", circular);
 	for (const std::string &u : g_unported_scripts) std::printf("[unported] trigger script %s\n", u.c_str());
 
@@ -204,8 +214,19 @@ int main(int argc, char **argv) {
 	double slowest_minute = 0.0;
 
 	const int turns = (int)(minutes * 60.0 / 0.2 + 0.5);
+	double slowest_turn = 0.0, minute_worst_turn = 0.0;
+	int spikes = 0;
 	for (int t = 1; t <= turns; ++t) {
+		const auto turn_start = std::chrono::steady_clock::now();
 		turn(*a);
+		const double turn_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - turn_start).count();
+		minute_worst_turn = std::max(minute_worst_turn, turn_ms);
+		slowest_turn = std::max(slowest_turn, turn_ms);
+		if (turn_ms > 200.0 && spikes++ < 20) {
+			// A 200 ms turn takes longer than the game time it covers: a hitch in a real match.
+			std::printf("[spike] t=%.1fs %.0f ms for one turn, %zu units %zu buildings\n", t * 0.2, turn_ms, a->units_.count, a->buildings_.size());
+			++counts["spike"];
+		}
 		if (b) turn(*b);
 		if (c) turn(*c);
 		if (t == 1)
@@ -218,8 +239,17 @@ int main(int argc, char **argv) {
 		if (save_at >= 0.0 && !c && sec >= (int)(save_at * 60.0)) {
 			const std::string path = "/tmp/soak_" + std::to_string(seed) + "_" + std::to_string(map) + ".sav";
 			c = std::make_unique<Simulation>();
-			if (!s.save_state(path.c_str()) || !c->load_state(path.c_str())) {
-				std::printf("[desync] t=%ds save/load failed\n", sec);
+			const bool saved = s.save_state(path.c_str());
+			if (!saved || !c->load_state(path.c_str())) {
+				size_t alive = 0, garrisoned = 0, dying = 0, gaia = 0;
+				for (size_t i = 0; i < s.units_.count; ++i) {
+					alive += s.units_.alive[i];
+					garrisoned += s.units_.action_state[i] == ACTION_GARRISONED;
+					dying += s.units_.action_state[i] == ACTION_DYING;
+					gaia += s.units_.team[i] == GAIA_PLAYER;
+				}
+				std::printf("[desync] t=%ds %s failed (%zu unit slots: %zu alive, %zu garrisoned, %zu dying, %zu Gaia; %zu buildings)\n",
+						sec, saved ? "load" : "save", s.units_.count, alive, garrisoned, dying, gaia, s.buildings_.size());
 				++desyncs;
 				c.reset();
 				save_at = -1.0;
@@ -240,6 +270,12 @@ int main(int argc, char **argv) {
 			const double wall = std::chrono::duration<double>(now - wall_minute).count();
 			wall_minute = now;
 			slowest_minute = std::max(slowest_minute, wall);
+			if (sec % 300 == 0) {
+				size_t alive = 0;
+				for (size_t i = 0; i < s.units_.count; ++i) alive += s.units_.alive[i];
+				std::printf("[perf] t=%dm worst turn %.1f ms, %zu living units, %zu buildings\n", sec / 60, minute_worst_turn, alive, s.buildings_.size());
+				minute_worst_turn = 0.0;
+			}
 			if (wall > 20.0 * (1 + (b != nullptr) + (c != nullptr))) {
 				std::printf("[slow] t=%dm %.1f s of wall time for the last game minute\n", sec / 60, wall);
 				++counts["slow"];
@@ -479,7 +515,8 @@ int main(int argc, char **argv) {
 				std::printf("[no-phase] p%d still in Village at %d s\n", p, end_sec);
 				++counts["no-phase"];
 			}
-	std::printf("[summary] map=%s seed=%u desyncs=%d slowest_min=%.1fs", map_name.c_str(), seed, desyncs, slowest_minute);
+	std::printf("[summary] map=%s seed=%u desyncs=%d slowest_min=%.1fs slowest_turn=%.0fms", map_name.c_str(), seed, desyncs, slowest_minute,
+			slowest_turn);
 	for (const auto &[k, v] : counts) std::printf(" %s=%d", k.c_str(), v);
 	std::printf("\n");
 	return 0;
