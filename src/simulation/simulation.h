@@ -3807,7 +3807,7 @@ private:
 		std::vector<uint32_t> anchor;
 	};
 	PetraTileBases petra_tile_bases_;
-	void petra_check_trade_events();
+	bool petra_check_trade_events();
 	void petra_set_no_room(uint8_t type);
 	bool petra_no_room(uint8_t type) const;
 	int petra_missing_room_count() const;

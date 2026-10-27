@@ -5979,9 +5979,11 @@ static void test_defense_animals() {
 	if (!cc) return;
 	const float cx = cc->x, cz = cc->z;
 	for (int k = 0; k < 10; ++k) s->spawn_unit(cx - 3.0f + (float)(k % 5), cz + 12.0f + (float)(k / 5), 1, UNIT_SPEARMAN);
+	// The fights are beyond the civic centre's arrows (16.8): a fighting animal in their reach fills
+	// it with units for the arrows instead (defenseManager.js garrisonUnitsInside, garrisonManager around).
 	const uint32_t idle_wolf = s->spawn_fauna(cx + 9.0f, cz + 8.0f, FAUNA_WOLF);
-	const uint32_t enemy = s->spawn_unit(cx + 9.0f, cz - 9.0f, 0, UNIT_FEMALE_CITIZEN, 1.0e4f);
-	const uint32_t enemy_wolf = s->spawn_fauna(cx + 10.0f, cz - 9.0f, FAUNA_WOLF);
+	const uint32_t enemy = s->spawn_unit(cx + 15.0f, cz - 15.0f, 0, UNIT_FEMALE_CITIZEN, 1.0e4f);
+	const uint32_t enemy_wolf = s->spawn_fauna(cx + 16.0f, cz - 15.0f, FAUNA_WOLF);
 	auto wolf_idx = [&](uint32_t id) {
 		auto it = s->fauna_id_to_idx_.find(id);
 		return it == s->fauna_id_to_idx_.end() ? SIZE_MAX : it->second;
@@ -6003,8 +6005,8 @@ static void test_defense_animals() {
 	}
 	std::printf("  animals: a roaming wolf and one biting an enemy make %zu armies\n", s->petra_defense_armies().size());
 	CHECK(s->petra_defense_armies().empty(), "an animal not attacking us or our allies raises no army");
-	const uint32_t woman = s->spawn_unit(cx - 9.0f, cz - 9.0f, 1, UNIT_FEMALE_CITIZEN, 1.0e4f);
-	const uint32_t wolf = s->spawn_fauna(cx - 10.0f, cz - 9.0f, FAUNA_WOLF);
+	const uint32_t woman = s->spawn_unit(cx - 15.0f, cz - 15.0f, 1, UNIT_FEMALE_CITIZEN, 1.0e4f);
+	const uint32_t wolf = s->spawn_fauna(cx - 16.0f, cz - 15.0f, FAUNA_WOLF);
 	bool army = false, hunted = false;
 	for (int t = 0; t < 4 && !(army && hunted); ++t) {
 		keep_biting(wolf, woman);
@@ -6018,7 +6020,7 @@ static void test_defense_animals() {
 			}
 		}
 	}
-	run_for(*s, 20.0f);
+	run_for(*s, 30.0f); // spears only, out of the civic centre's arrows
 	const size_t f = wolf_idx(wolf);
 	const bool dead = f == SIZE_MAX || !s->fauna_.alive[f] || s->fauna_.behavior[f] == FAUNA_CARCASS;
 	bool still = false;

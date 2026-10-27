@@ -25582,8 +25582,8 @@ uint32_t Simulation::petra_build_market(float home_x, float home_z, uint8_t queu
 // tradeManager.js checkEvents: a finished market or dock of ours or an ally's created,
 // destroyed or captured, an ally's Trade foundation destroyed (finished or cancelled), or any
 // diplomacy change since our last look turns routeProspection on (activateProspection, which
-// also lets the market and dock be tried again where no room was found).
-void Simulation::petra_check_trade_events() {
+// also lets the market and dock be tried again where no room was found). True on such an event.
+bool Simulation::petra_check_trade_events() {
 	PetraProspect &p = petra_prospect_;
 	uint32_t sig = 2166136261u;
 	auto mix = [&sig](uint32_t v) { for (int k = 0; k < 4; ++k) { sig ^= (v >> (8 * k)) & 0xFFu; sig *= 16777619u; } };
@@ -25607,10 +25607,11 @@ void Simulation::petra_check_trade_events() {
 	p.seen = true;
 	p.sig = sig;
 	p.foundations = std::move(foundations);
-	if (!event) return;
+	if (!event) return false;
 	p.active = true;
 	petra_clear_no_room(BLD_MARKET);
 	petra_clear_no_room(BLD_DOCK);
+	return true;
 }
 
 // tradeManager.js prospectForNewMarket and isNewMarketWorth, while routeProspection is on: one
@@ -25664,7 +25665,7 @@ void Simulation::petra_manage_trading(float dt) {
 	petra_perform_barter();
 	if (petra_config_.difficulty <= PETRA_VERY_EASY) return;
 
-	petra_check_trade_events();
+	const bool trade_event = petra_check_trade_events(); // checkEvents: then checkTrader for each trader
 	PetraTradeRoutes routes;
 	petra_check_routes(routes);
 
@@ -25745,10 +25746,13 @@ void Simulation::petra_manage_trading(float dt) {
 				const auto &[a, b] = cur->second;
 				if (units_.action_state[i] == ACTION_TRADE && ((a == r->source && b == r->target) || (a == r->target && b == r->source))) continue;
 			}
+			// checkTrader runs only on a market or diplomacy event (checkEvents): until then a
+			// trader keeps the route it trades on, whatever has become of it.
+			if (!idle && !trade_event) continue;
 			if (!r) {
 				// checkTrader: the closest base (getBestBase) if it is on the trader's own land, else
-				// the trader stays put.
-				if (!ship && (has_route || idle)) {
+				// the trader stays put. updateTrader leaves an idle one without a route where it is.
+				if (!ship && has_route && trade_event) {
 					const PetraBase *home = nullptr;
 					float best = 0.0f;
 					for (const PetraBase &pb : petra_bases_) {
