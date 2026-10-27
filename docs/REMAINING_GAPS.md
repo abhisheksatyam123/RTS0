@@ -601,6 +601,7 @@ garrisonManager.js, worker.js, queueManager.js and the queue plans, and the econ
 | PC16 | The hunt drift check ran for the whole fight and measured the dropsite on the hunter's land; 0.28 checks only while approaching (INDIVIDUAL.COMBAT.APPROACHING), on the animal's land (worker.js:124-170) | low | Fixed: skipped once in reach (chase_target), the animal's land (test_hunters_028) |
 | PC17 | The garrison "around" scan ignored animals; 0.28 counts a Gaia Unit in COMBAT, a fighting wolf or boar included (garrisonManager.js:139-163) | low | Fixed: Gaia animals attacking and enemy-owned animals count as units (test_garrison_melee_attack) |
 | PC18 | researchTradeBonus counted traders still in training; 0.28 counts live traders (tradeManager.js:698) | nit | Fixed |
+| PC19 | (Migrate SW6 trace) A crossing planned with no free ship walked its passengers to the beach at once; on Migration seed 1, 27 soldiers stood there idle for 140 s. 0.28's transportPlan.js onBoarding moves them only once a ship is assigned | low | Fixed: petra_start_transport walks them only with a ship; assignShip does it later (test_petra_crossing_waits_for_ship) |
 
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 
