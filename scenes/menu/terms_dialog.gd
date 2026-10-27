@@ -42,7 +42,7 @@ func _ready() -> void:
 	var label := Label.new()
 	label.text = tr("Language")
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	HOTKEYS._label_text(label)
+	MODERN.label_text(label)
 	lang.add_child(label)
 	var drop := RtsoSafeSelect.new()
 	drop.name = "LanguageDropdown"

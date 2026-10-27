@@ -20678,7 +20678,13 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 		// for a house, which is neither gathered nor a dropsite, so its builders look for a
 		// foundation nearby; any other structure leaves them idle for Petra to reassign.
 		if (petra_runs_for(units_.team[k])) {
-			const uint32_t f = b.type == BLD_HOUSE || is_map_house(b.type) ? find_nearby_foundation(b.x, b.z, units_.team[k]) : 0;
+			uint32_t f = b.type == BLD_HOUSE || is_map_house(b.type) ? find_nearby_foundation(b.x, b.z, units_.team[k]) : 0;
+			// worker.js:325-345: one sent on to a field is taken off it and reassigned (fields
+			// are built by their farmers, buildAnyField).
+			if (f != 0) {
+				const auto fit = building_id_to_idx_.find(f);
+				if (fit != building_id_to_idx_.end() && buildings_[fit->second].type == BLD_FIELD) f = 0;
+			}
 			if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); return; }
 			finish_here();
 			return;
@@ -29435,13 +29441,22 @@ bool Simulation::petra_allow_capture(const std::vector<uint32_t> &squad, uint32_
 	const int32_t idx = lookup_unit(uid);
 	if (idx < 0 || !units_.alive[idx] || unit_capture_attack(units_.tmpl[idx], units_.unit_type[idx]) <= 0.0f) return false;
 	if (!can_capture_building(petra_pid_, b)) return false;
-	const int ground = territory_owner_at(b.x, b.z);
-	const bool decaying = b.territory_decay_rate > 0.0f && b.team < MAX_PLAYERS && ground >= 0 && ground < MAX_PLAYERS &&
-			ground != b.team && !is_ally((uint8_t)ground, b.team);
+	// target.decaying(): TerritoryDecay.IsDecaying, in enemy or neutral territory and also in
+	// its owner's own territory once that is cut off from every civic centre. (The lookup only
+	// fills the territory region cache.)
+	std::array<float, MAX_PLAYERS> decay_to;
+	float decay_gaia = 0.0f;
+	const bool decaying = b.team < MAX_PLAYERS &&
+			const_cast<Simulation *>(this)->territory_decay_targets(b, decay_to, decay_gaia);
 	// Always recapture points from our own or an ally's structure, unless it decays.
 	if (b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) return !decaying;
 
-	float anti = b.capture_regen_rate + b.capture_garrison_regen_rate * (float)b.garrisoned_units.size();
+	// GarrisonRegenRate times each garrisoned unit's Capture strength (Capturable.GetRegenRate).
+	float anti = b.capture_regen_rate;
+	for (uint32_t g : b.garrisoned_units) {
+		const int32_t gi = lookup_unit(g);
+		if (gi >= 0 && units_.alive[gi]) anti += b.capture_garrison_regen_rate * unit_capture_attack(units_.tmpl[gi], units_.unit_type[gi]);
+	}
 	if (decaying) anti -= structure_decay_rate(b);
 	float capture = unit_capture_attack(units_.tmpl[idx], units_.unit_type[idx]);
 	for (uint32_t other : squad) {
@@ -32945,7 +32960,9 @@ bool Simulation::petra_keep_garrisoned(size_t i, const Building &holder, const P
 	const bool heals = structure_garrison_heal(holder) > 0.0f && unit_is_human(type);
 	const bool needs_heal = heals && health < 1.0f;
 	if (heals && health < petra_config_.garrison_hp_high) return true;
-	if (petra_is_critical_ent(i)) // TYPE_EMERGENCY
+	// defenseManager.js:913-914: the critical entity's emergency garrison is TYPE_PROTECTION in a
+	// holder that heals (buffHeal), TYPE_EMERGENCY elsewhere.
+	if (petra_is_critical_ent(i) && structure_garrison_heal(holder) <= 0.0f) // TYPE_EMERGENCY
 		return around.unit || around.defense_structure || around.melee_siege ||
 			(around.range_siege && health < petra_config_.garrison_hp_high) || needs_heal;
 	if (unit_classes_at(i) & building_ai_info(holder.type).garrison_arrow_classes) { // the holder's GarrisonArrowClasses
@@ -33239,11 +33256,16 @@ void Simulation::petra_manage_garrisons() {
 		if (b.garrisoned_units.empty() && !shoots && decay_min == 0) continue;
 		const PetraAround around = petra_around(b);
 		std::vector<uint32_t> leave;
+		// garrisonManager.js keepGarrisoned TYPE_DECAY holds only the gmin units garrisonUnitsInside
+		// sent for the decay (defenseManager.js:779, 834); the rest came for protection. RTS0 keeps
+		// no garrison type per unit: the first decay_min capture-capable ones, in garrison order,
+		// stand for those sent for the decay.
+		int decay_kept = 0;
 		for (uint32_t uid : b.garrisoned_units) {
 			if (!holder_check) break;
 			const int32_t idx = lookup_unit(uid);
 			if (idx < 0 || units_.team[idx] != petra_pid_) continue;
-			if (decay_min > 0 && unit_capture_attack(units_.tmpl[idx], units_.unit_type[idx]) > 0.0f) continue; // keepGarrisoned TYPE_DECAY
+			if (decay_kept < decay_min && unit_capture_attack(units_.tmpl[idx], units_.unit_type[idx]) > 0.0f) { ++decay_kept; continue; } // TYPE_DECAY
 			if (!petra_keep_garrisoned((size_t)idx, b, around)) leave.push_back(uid);
 		}
 		for (uint32_t uid : leave) order_ungarrison_single(b.id, uid);
