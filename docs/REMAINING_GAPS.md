@@ -625,6 +625,7 @@ garrisonManager.js, worker.js, queueManager.js and the queue plans, and the econ
 | PC21 | (C audit pass 8) The wonder in wonder victory got 7 builders, as any wonder, instead of 15 and a 15-builder budget: the fortress/wonder target overwrote it. 0.28 sets the base-anchor and victory-wonder target last (baseManager.js:890) | medium | Fixed |
 | PC22 | (C audit pass 8) A repair crew was trimmed to the builder budget left (maxTotalBuilders minus builders). 0.28 only skips a target once the budget is spent and then sends targetNB - assigned of the nearest workers (baseManager.js:1018) | low | Fixed |
 | PC23 | (C audit pass 8) Every first market, temple or forge laid in the town phase got 7 builders. 0.28 gives 7 only to checkPhaseRequirements' phaseUp plans, which it lays while phasing up to the city; a market from buildMarket gets 4, a temple or forge 2 | low-medium | Fixed: the 7 also needs petra_phasing() |
+| PC24 | (C audit pass 9) A minor technology Petra picked but couldn't pay for yet (a pick, or the trade and population bonus techs) was retried only on research turns, every 5th AI turn, so it started up to 4 turns late and held back the next pick meanwhile. 0.28's queue manager funds and starts a queued minorTech plan on any AI turn; only picking a new one keeps the 5-turn cadence (headquarters.js:2295, researchManager.js:163) | low-medium | Fixed |
 
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 

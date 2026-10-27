@@ -29000,9 +29000,10 @@ void Simulation::petra_manage_research(float dt) {
 	const bool update_turn = petra_turn_mod(5, 1) && petra_has_active_base();
 	// A minorTech plan waiting for its resources (a pick below, or researchTradeBonus /
 	// researchPopulationBonus): update returns while it waits (researchManager.js:163). The
-	// queue manager keeps funding and starting it while a phase waits in majorTech too.
+	// queue manager keeps funding and starting it on every AI turn (queueManager.js update), while
+	// a phase waits in majorTech too.
 	bool minor_waiting = false;
-	if (uint8_t &st = petra_queues_.special_tech; st && update_turn) {
+	if (uint8_t &st = petra_queues_.special_tech; st) {
 		const ResearchCheck rc = research_check(petra_pid_, st);
 		if (petra_ps().has_tech(st) || (rc != TECH_OK && rc != TECH_ERR_COST)) st = 0;
 		else {
