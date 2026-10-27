@@ -7,12 +7,12 @@ unit's actor props at its "projectile" attachpoint (ObjectEntry.cpp plucks it),
 usually from the attack_ranged_* variant: javelinists throw
 props/units/weapons/jav_projectile.xml, slingers slingrock.xml, archers
 arrow_front.xml. RTS0's sim launches an arrow, a bolt or a stone; this table
-lets the world view draw a javelin or a sling stone for the units whose 0.28
-actor (or rider actor) launches one.
+lets the world view draw a javelin, a sling stone or a bolt for the units whose 0.28
+actor (or rider actor) launches one, and leave the fire off an unlit stone.
 
 Writes data/unit_projectiles.json {"<template id>": "javelin" | "javelin_fire" |
-"sling"} (javelin_fire: the flaming jav_projectile_flame.xml), only
-for templates that launch something other than the arrow.
+"sling" | "bolt" | "stone"} (javelin_fire: the flaming jav_projectile_flame.xml; stone: the
+unlit rock.xml), only for templates that launch something other than the arrow.
 
 Usage:
   python3 -I tools/extract_unit_projectiles.py --zip <0.28 public.zip> [--check]
@@ -35,6 +35,12 @@ KINDS = {
     "props/units/weapons/jav_projectile.xml": "javelin",
     "props/units/weapons/jav_projectile_flame.xml": "javelin_fire",
     "props/units/weapons/slingrock.xml": "sling",
+    # Warships and siege towers shoot their arrows as bolts (BuildingAI uses the actor's projectile).
+    "props/units/weapons/bolt_tower.xml": "bolt",
+    "props/units/weapons/bolt.xml": "bolt",
+    "props/units/siege_artillery/bolt_projectile_med.xml": "bolt",
+    # The onager stone without fire (siege ships, the Han mangonel).
+    "props/units/weapons/rock.xml": "stone",
 }
 
 

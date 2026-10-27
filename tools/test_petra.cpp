@@ -1175,6 +1175,40 @@ static void test_garrison_recall() {
 // garrisonManager.js / defenseManager.js: Petra's infantry man a Town Center
 // an enemy is in range of and leave once the enemy is gone; an attacked
 // woman below 55% health shelters in a healing structure.
+// defenseManager.js:569-579, 692-693: an enemy tower trading arrows with our Town Center
+// has it garrisoned, with no enemy unit near.
+static void test_garrison_against_tower() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	const Simulation::Building *tc = nullptr;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) tc = &b;
+	CHECK(tc != nullptr, "Petra has a Town Center");
+	if (!tc) return;
+	const float tx = tc->x, tz = tc->z;
+	const uint32_t tc_id = tc->id;
+	const float range = s->building_arrow_range(*tc);
+	const uint32_t tower = s->spawn_building_world(tx - range * 0.6f, tz, BLD_SENTRY_TOWER, 0, 1.0f);
+	std::vector<uint32_t> archers;
+	for (int i = 0; i < 3; ++i) archers.push_back(s->spawn_unit(tx + 14.0f + 2.0f * (float)i, tz + 12.0f, 1, UNIT_ARCHER));
+	int manned = 0;
+	for (float t = 0.0f; t < 20.0f && manned == 0; t += Simulation::FIXED_STEP) {
+		auto it = s->building_id_to_idx_.find(tower);
+		if (it != s->building_id_to_idx_.end()) s->buildings_[it->second].hp = s->buildings_[it->second].max_hp;
+		s->tick(Simulation::FIXED_STEP);
+		const auto &b = s->buildings()[s->building_id_to_idx_.at(tc_id)];
+		manned = 0;
+		for (uint32_t id : archers)
+			manned += std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), id) != b.garrisoned_units.end();
+	}
+	std::printf("  an enemy tower %.0f units from the Town Center, no enemy unit near: %d archers garrisoned\n", range * 0.6f, manned);
+	CHECK(manned > 0, "soldiers man a Town Center trading arrows with an enemy tower");
+}
+
 static void test_garrisons() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -8414,6 +8448,7 @@ int main(int argc, char **argv) {
 	RUN(test_slot_config);
 	RUN(test_allow_capture);
 	RUN(test_garrisons);
+	RUN(test_garrison_against_tower);
 	RUN(test_garrison_recall);
 	RUN(test_diplomacy_requests);
 	RUN(test_tribute_request_paid_later);
