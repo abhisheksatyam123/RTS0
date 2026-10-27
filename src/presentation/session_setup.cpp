@@ -89,6 +89,8 @@ static uint32_t spawn_map_wall(rtso::Simulation &sim, const Dictionary &b, uint8
 			: piece == "gate" ? rtso::Simulation::MAP_WALL_GATE : rtso::Simulation::MAP_WALL_SEGMENT;
 	const uint32_t id = sim.spawn_map_wall_piece(player, kind, p, (float)b.get("x", 0.0), (float)b.get("z", 0.0),
 			(float)b.get("angle", 0.0), (float)b.get("length", 9.0));
+	// cart/s_wall_long, the Low Wall: its own gate upgrade price.
+	if (id && String(b.get("template", "")).ends_with("cart/s_wall_long")) sim.set_structure_off(id, rtso::Simulation::STRUCT_LOW_WALL);
 	// palisades_spike_* (<TerritoryDecay disable=""/>).
 	if (id && (bool)b.get("no_decay", false)) sim.set_structure_no_decay(id);
 	if (id && (bool)b.get("no_capture", false)) sim.set_structure_uncapturable(id);
