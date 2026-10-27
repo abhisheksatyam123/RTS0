@@ -8452,6 +8452,61 @@ static void test_new_cc_defenders() {
 	CHECK(most >= 1, "they garrison it");
 }
 
+// basesManager.js createBase (G77): a civic centre on the land of a base whose civic centre was
+// lost takes that base, and its reset zeroes neededDefenders; one founded on a land with no such
+// base gets 3 + 2 (difficulty - 3), Nomad's first foundation included.
+static void test_cc_defenders_reuse() {
+	auto needed = [](const Simulation &s, uint32_t tc) -> int {
+		for (const auto &b : s.petra_bases()) if (b.anchor_building_id == tc) return b.needed_defenders;
+		return -1;
+	};
+	auto seen = [&](Simulation &s, uint32_t tc) {
+		for (float t = 0.0f; t < 6.0f && needed(s, tc) < 0; t += Simulation::FIXED_STEP) s.tick(Simulation::FIXED_STEP);
+		return needed(s, tc);
+	};
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->set_petra_difficulty(1, PETRA_HARD);
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 20.0f);
+		float ccx = 0.0f, ccz = 0.0f;
+		for (auto &b : s->buildings_)
+			if (b.team == 1 && is_civic_centre(b.type)) { ccx = b.x; ccz = b.z; b.hp = 0.0f; }
+		// Units keep the AI in the game; the lost base is recorded at its next turn.
+		run_ai_turns(*s, 2);
+		const size_t lost = s->petra_kept_.lost_bases.size();
+		const uint32_t again = s->spawn_building_world(ccx, ccz, BLD_TOWN_CENTER, 1, 0.0f);
+		const int rebuilt = again ? seen(*s, again) : -1;
+		const uint32_t other = s->spawn_building_world(ccx * 0.1f, ccz * 0.1f, BLD_TOWN_CENTER, 1, 0.0f);
+		const int second = other ? seen(*s, other) : -1;
+		std::printf("  Hard: civic centre lost (%zu base kept), rebuilt: %d defenders, another on that land: %d\n", lost, rebuilt, second);
+		CHECK(lost == 1, "the base of a lost civic centre is kept");
+		CHECK(rebuilt == 0, "a civic centre rebuilt on its land takes that base, with no defenders");
+		CHECK(second == 5, "another new one there makes a new base wanting 5 defenders");
+	}
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->set_nomad(true);
+		s->set_petra_difficulty(1, PETRA_HARD);
+		s->set_player_active(0, true, false);
+		s->set_player_active(1, true, true);
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		run_for(*s, 2.0f);
+		float x = 0.0f, z = 0.0f;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1) { x = s->units_.pos_x[i] + 6.0f; z = s->units_.pos_z[i]; break; }
+		const uint32_t first = s->spawn_building_world(x, z, BLD_TOWN_CENTER, 1, 0.0f);
+		const int n = first ? seen(*s, first) : -1;
+		std::printf("  Hard Nomad: first civic centre foundation wants %d defenders\n", n);
+		CHECK(n == 5, "Nomad's first civic centre (a foundation in a new base) wants 5 defenders at Hard");
+	}
+}
+
 static void test_food_fields() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -9370,6 +9425,7 @@ int main(int argc, char **argv) {
 	RUN(test_siege_class_kept);
 	RUN(test_worker_plans_wait);
 	RUN(test_new_cc_defenders);
+	RUN(test_cc_defenders_reuse);
 	RUN(test_temple_wonder_save);
 	RUN(test_personality_draw);
 	RUN(test_chat_text);
