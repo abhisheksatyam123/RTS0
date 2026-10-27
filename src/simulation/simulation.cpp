@@ -16613,6 +16613,8 @@ void Simulation::tick_combat(float dt) {
 			stop_attack(i);
 		target_idx[i] = leash_drop ? -2 : found;
 	};
+	// Sized here, never inside the parallel loop: a resize there reallocates under other threads.
+	if (attack_late_.size() < n) attack_late_.resize(n, 0.0f);
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		// tick_gather uses attack_timer as the harvest clock; counting it down
 		// here as well cancelled every harvest tick, so nobody ever gathered.
@@ -18288,8 +18290,7 @@ void Simulation::tick_attack_timer(size_t i, float dt) {
 		// hit a tick late (twenty 0.05 s steps fall just short of 1 s).
 		else if ((tm += dt) >= -1.0e-4f) {
 			// The next hit is timed from this one's due time, not from the tick it landed in.
-			if (attack_late_.size() <= i) attack_late_.resize(units_.count > i ? units_.count : i + 1, 0.0f);
-			attack_late_[i] = std::max(tm, 0.0f);
+			if (i < attack_late_.size()) attack_late_[i] = std::max(tm, 0.0f); // sized by tick_combat
 			tm = ATTACK_DUE;
 		}
 	} else if (tm > 0.0f) {
