@@ -15110,9 +15110,11 @@ bool Simulation::try_commit_foundation(Building &b) {
 		if (!flight_.empty() && unit_flies(i)) continue; // a plane has no obstruction
 		blocked = true;
 		// WillMoveFromFoundation: anyone makes way (a structure has no UnitAI, so enemies too),
-		// except units that pack or can't move; a fighting unit ignores the order (COMBAT).
+		// except units packing, unpacked (Pack.CanPack) or unable to move; a packed siege engine
+		// walks off. A fighting unit ignores the order (COMBAT).
 		const uint8_t st = units_.action_state[i];
-		if (units_.pack_state[i] != PACK_NONE || units_.speed[i] <= 0.0f || st == ACTION_GARRISONED ||
+		if ((units_.pack_state[i] != PACK_NONE && units_.pack_state[i] != PACK_PACKED) || units_.speed[i] <= 0.0f ||
+				st == ACTION_GARRISONED ||
 				(st == ACTION_ATTACK && (units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0)))
 			continue;
 		leave_foundation(i, b);
@@ -21120,11 +21122,25 @@ void Simulation::start_repair_unit(size_t i, uint32_t target, uint8_t flags) {
 void Simulation::tick_repair_unit(size_t i) {
 	const int32_t t = lookup_unit(units_.target_unit_id[i]);
 	if (!can_repair_unit(i, t)) {
+		// Repairable.js sends ConstructionFinished once the unit is whole: with nothing queued,
+		// autocontinue takes a foundation nearby, and a repairer still on its way walks on.
+		const bool whole = t >= 0 && (size_t)t != i && units_.alive[t] && units_.hp[t] > 0.0f &&
+		                   units_.hp[t] >= units_.max_hp[t];
+		const bool approaching = whole && !repair_unit_in_range(i, (size_t)t);
+		const float tx = whole ? units_.pos_x[t] : 0.0f, tz = whole ? units_.pos_z[t] : 0.0f;
 		units_.target_unit_id[i] = 0;
 		units_.action_state[i] = ACTION_IDLE;
 		units_.has_order[i] = 0;
 		auto q = order_queues_.find(units_.id[i]);
 		if (q != order_queues_.end() && !q->second.empty()) { finish_order(i); return; }
+		uint32_t uid = units_.id[i];
+		if (whole && !petra_runs_for(units_.team[i])) { // worker.js repairs with autocontinue false
+			if (const uint32_t f = find_nearby_foundation(tx, tz, units_.team[i])) {
+				order_build_or_repair(&uid, 1, f, false, false);
+				return;
+			}
+			if (approaching) { order_walk(&uid, 1, tx, tz, false); return; }
+		}
 		set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
 		return;
 	}

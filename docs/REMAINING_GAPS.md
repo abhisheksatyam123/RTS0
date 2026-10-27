@@ -452,6 +452,20 @@ gui/common/tooltips.js and selection_panels_helpers.js against RTS0's constructi
 | TT6 | The wall-dragging cost tip is a plain Label: "Cost: Stone 36" without the header font or icons | nit | Fixed (Stats: placementTooltip is a RichTextLabel; the wall cost takes getEntityCostTooltip's headerFont and resource icons) |
 | TT7 | "Requires ..." from a unit trainer shows only the generic name, not "Specific (Generic)"; no case found in the current rosters | nit | Open |
 
+### Construction, repair and upgrades, twenty-third 0.28 pass (2026-10-27)
+
+Foundation.js, Repairable.js, Upgrade.js, Builder.js and UnitAI's REPAIR states against RTS0's construction, repair and upgrade code. Build multiplier, refunds, commit, repair rates and ratios, upgrade gating, refunds and carry-over and builder rates match. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| FD1 | A packed catapult or bolt shooter standing on a foundation never made way, so the foundation never started; WillMoveFromFoundation refuses only engines packing or unpacked | medium | Fixed (`tools/test_pack.cpp` 11) |
+| BD1 | A build or repair order on a structure already whole (a queued build finished by others) left the builder idle where she stood; 0.28 walks there and ConstructionFinished applies autocontinue (gather by a new dropsite, a foundation nearby) | low-medium | Fixed by Unit orders #1600 (`tools/test_gather_parity.cpp` 20); the Shift-queued case is M5 |
+| RP1 | Finishing a repair on a ram or ship left its repairers idle; Repairable.js sends ConstructionFinished for units too, so they take a foundation nearby | low | Fixed (`tools/test_gather_parity.cpp` 22) |
+| BD2 | Builders still walking to a structure when it was finished stopped where they were; with nothing else to do 0.28 walks them on to it (WalkToTarget) | low | Fixed by Unit orders #1600 as M4 (`tools/test_gather_parity.cpp` 21) |
+| UP1 | The Carthaginian Low Wall's gate upgrade costs the palisade's 10 wood and 6 s, not 20 wood and 5 s (cart/s_wall_long.xml); RTS0 can't tell a Low Wall piece from a Carthaginian's palisade by type and civ | low | Open (map wall scripts only) |
+| FD2 | Ships never keep a foundation from starting; every unit has BlockConstruction, so a ship on a dock site is told to leave first (needs a water exit point) | low | Open |
+| RP2 | The Flight Demo plane has Repairable (RepairTimeRatio 3.0) but can't be repaired | nit | Open |
+
 ### Production queues and ceasefire, twenty-second 0.28 pass (2026-10-27)
 
 ProductionQueue.js, Trainer.js, Researcher.js, TechnologyManager.js, Player.js population reservation, BuildingAI.js and CeasefireManager.js against RTS0's queues and arrows. Batch times, costs, entity limits, refunds, autoqueue, tech exclusions, phase counts and arrow counts and targeting match. Owner: E.
