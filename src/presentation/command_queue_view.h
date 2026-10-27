@@ -1571,6 +1571,12 @@ private:
 				add_line(identity_tooltip(text));
 				tip += "\n" + String(COST_SLOT);
 				add_line(limit_tooltip(pid, rtso::LIMIT_ANIMAL));
+				// Detailed tooltips: health, resistance, attack and speed from the animal's viewer page.
+				if (rtso::user_config::get_bool("showdetailedtooltips")) {
+					Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
+					add_line(viewer.is_valid() ? (String)viewer->call("detailed_tooltip_fauna", (int)f) : String());
+				}
+				add_line(right_click_tooltip());
 				tip += "\n" + String(BATCH_SLOT);
 				const uint8_t need_phase = rtso::Simulation::livestock_required_phase(f);
 				if (need_phase > phase) tip += "\n" + requires_text(need_phase >= 3 ? "City Phase" : "Town Phase");
