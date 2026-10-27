@@ -54,7 +54,7 @@ func run() -> void:
 	us._update_overlay()
 	var fps_line: String = us._overlay_label.text.split("\n")[0]
 	check(fps_line.begins_with("FPS:") and fps_line.length() == 9, "and it shows, padded as \"FPS: %(fps)4s\": [" + fps_line + "]")
-	check(us._overlay_label.offset_top == us.OVERLAY_TOP and us._overlay_label.offset_right == -5.0
+	check(us._overlay_label.offset_top == us.OVERLAY_TOP and us.OVERLAY_TOP == 58.0 and us._overlay_label.offset_right == -5.0
 		and us._overlay_label.get_theme_stylebox("normal").bg_color == Color8(0, 0, 0, 100), "under the top panel at the right edge, on a black backing (dataCounter)")
 	await press(KEY_T, true)
 	check(cfg.get_bool("overlay.realtime"), "Alt+T turns the real time on")

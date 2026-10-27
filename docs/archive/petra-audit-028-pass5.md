@@ -19,7 +19,7 @@ Read-only audit of RTS0's Petra port (area C) against 0 A.D. 0.28 Petra: `baseMa
 | T4 | Transport | Low-Medium | save | Ships sail 8 s after ready with 2 aboard, or at 28 s with whoever is aboard; 0.28 waits for all, retrying blocked units 5 times | **Fixed** |
 | T5 | Transport | Low-Medium | no | The pickup point is the last dry cell toward the destination, not getBoardingPos on the ship's sea (transportPlan.js:466) | **Fixed** |
 | B5 | Builders | Low | no | Any idle worker on the map is picked before a gatherer next to the foundation; 0.28 prefers idle builders only within 200 m, then distance with food gatherers x3 | **Fixed** |
-| B6 | Builders | Low | no | With no active base 0.28 lets every worker build each foundation; RTS0 raises only the cap | Open |
+| B6 | Builders | Low | no | With no active base 0.28 lets every worker build each foundation; RTS0 raises only the cap | Fixed: with no active base, each foundation takes every worker (targetNB = workers), not only a raised cap. Test: test_no_base_all_build |
 | B7 | Gatherers | Low | no | Military colonies are not dropsites for the exhausted-resource check, so stone or metal near only a colony is never gathered | **Fixed** |
 | B8 | Builders | Low | no | targetNB uses BLD_BARRACKS and BLD_HOUSE; 0.28 uses classes, so the apartment, academy and Ptolemaic mercenary camp get 2 builders | **Fixed** |
 | B9 | Dropsites | Low | no | The civic centre's dropsite stays shared with allies; 0.28 unshares it (baseManager.js:248) | **Fixed** |

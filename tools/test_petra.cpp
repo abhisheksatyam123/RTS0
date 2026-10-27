@@ -1845,6 +1845,42 @@ static void test_queue_plans_in_order() {
 	CHECK(!f2 && f3, "a head that stops asking lets the next structure start");
 }
 
+// baseManager.js:897 assignToFoundations: with no active base, every worker may build each
+// foundation (targetNB = maxTotalBuilders = the workers), not only the usual 2 for a palisade.
+static void test_no_base_all_build() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	uint32_t cc = 0;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type)) { cc = b.id; cx = b.x; cz = b.z; }
+	CHECK(cc != 0, "AI 1 has a civic centre");
+	if (!cc) return;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.id != cc) b.hp = 0.0f; // nothing else of ours either
+	s->buildings_[s->building_id_to_idx_.at(cc)].hp = 0.0f;
+	s->buildings_[s->building_id_to_idx_.at(cc)].wrecked = true;
+	int workers = 0;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1) {
+			const uint32_t uid = s->units_.id[i];
+			s->cmd_stop(&uid, 1);
+			++workers;
+		}
+	const uint32_t pal = s->spawn_building_world(cx + 6.0f, cz + 6.0f, BLD_PALISADE, 1, 0.0f);
+	s->petra_staff_foundations();
+	int on = 0;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.target_building_id[i] == pal) ++on;
+	std::printf("  no base: %d of %d units build the palisade, active base %d\n", on, workers, (int)s->petra_has_active_base());
+	CHECK(!s->petra_has_active_base() && on > 2, "with no base, more than the usual 2 build a palisade");
+}
+
 // baseManager.js assignRolelessUnits gives the Mauryan worker elephant the worker role, and
 // assignToFoundations sends it to a foundation next to it.
 static void test_worker_elephant_builds() {
@@ -8211,6 +8247,7 @@ int main(int argc, char **argv) {
 	RUN(test_one_base_a_turn);
 	RUN(test_no_room_only_once_funded);
 	RUN(test_queue_plans_in_order);
+	RUN(test_no_base_all_build);
 	RUN(test_idle_workers_repair_cc);
 	RUN(test_worker_elephant_builds);
 	RUN(test_anchor_dropsite_unshared);

@@ -3683,6 +3683,60 @@ void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGr
 	}
 }
 
+// SimpleObject(template, minCount, maxCount, minDistance, maxDistance) of an animal.
+struct ScriptAnimal {
+	uint8_t fauna;
+	float min_n, max_n, min_d, max_d;
+};
+
+// rmgen createObjectGroups(new SimpleGroup(objs, true, clFood), 0, constraint, amount,
+// retryFactor) (createObjectGroupsByAreas when centre() picks inside an area): each try
+// centres the group on a tile from centre(); each SimpleObject draws its count
+// (randIntInclusive) and puts every animal min_d-max_d from the tile's centre, 1 from the
+// group's others, on a tile allows() takes; 30 failed spots and the group is dropped
+// (retryPlacing counts it bad; `deprecated` makes exactly `amount` tries, as
+// createObjectGroupsDeprecated). Placed animals join `food` (clFood), which allows() may read.
+static int place_animal_groups(Simulation &sim, RmsRng &rng, const std::vector<ScriptAnimal> &objs, float amount, int retry_factor,
+		const std::function<void(float &, float &)> &centre, const std::function<bool(float, float)> &allows,
+		std::vector<std::pair<float, float>> &food, bool deprecated = false) {
+	struct Spec { float x, z; uint8_t fauna; };
+	std::vector<Spec> specs;
+	int placed = 0, bad = 0;
+	const float max_fail = amount * (float)retry_factor;
+	while ((float)(deprecated ? placed + bad : placed) < amount && (float)bad <= max_fail) {
+		float cx, cz;
+		centre(cx, cz);
+		specs.clear();
+		bool ok = true;
+		for (const ScriptAnimal &o : objs) {
+			const int count = (int)std::floor(o.min_n + rng.next_float() * (o.max_n + 1.0f - o.min_n));
+			int retries = 0;
+			for (int i = 0; i < count && ok; ++i)
+				for (;;) {
+					// One draw per statement: compilers order a call's arguments differently.
+					const float dist = rng.range_float(o.min_d, o.max_d);
+					const float ang = rng.range_float(0.0f, 6.2831853f);
+					const float x = cx + 0.5f + det::cos(ang) * dist, z = cz + 0.5f + det::sin(ang) * dist;
+					bool fits = true;
+					for (const Spec &sp : specs) fits = fits && (sp.x - x) * (sp.x - x) + (sp.z - z) * (sp.z - z) >= 1.0f;
+					if (fits && allows(std::floor(x) + 0.5f, std::floor(z) + 0.5f)) {
+						specs.push_back({x, z, o.fauna});
+						break;
+					}
+					if (retries++ > 30) { ok = false; break; }
+				}
+			if (!ok) break;
+		}
+		if (!ok) { ++bad; continue; }
+		++placed;
+		for (const Spec &sp : specs) {
+			sim.spawn_fauna(sp.x, sp.z, sp.fauna);
+			food.push_back({sp.x, sp.z});
+		}
+	}
+	return placed;
+}
+
 void RmsGenerator::place_elephantine_fish(Simulation &sim, const HeightmapGrid &hm, float water_h, const Config &config) {
 	// elephantine.js (0.28) "Creating fish": scaleByMapSize(125, 200) groups of 1-2 tilapia (0-1
 	// tiles apart), stayClasses(clWater, 2) and avoidClasses(clFood, 12), retry factor 50. clFood
@@ -3862,6 +3916,72 @@ void RmsGenerator::place_elephantine_entities(Simulation &sim, const HeightmapGr
 	for (int i = 0; i < soldiers && !people.empty(); ++i) {
 		const auto &p = people[(size_t)rng.range_int(0, (int)people.size() - 1)];
 		place_unit(p.first, p.second, unit_stay, 20.0f);
+	}
+
+	// The hunt (elephantine.js "Creating rhinos" to "Creating crocodiles"): createObjectGroups
+	// of scaleByMapSize(2, 10) groups each, retry factor 50, under avoidCollisions
+	// (avoidClasses(clPlayer, 15, clWater, 1, clForest, 1, clRock, 4, clMetal, 4, clFood, 6,
+	// clTemple, 11, clCliff, 0, clSoldier, 3, clTower, 2, clTreasure, 1); clPlayer is each
+	// base's disk of defaultPlayerBaseRadius). Gazelles also keep off the island; crocodiles
+	// stay within 3 of the river. No lions for Nomad. The statues and paths are left out.
+	{
+		RmsRng hunt(rng.next_u32());
+		const float base_r = scale_f(15.0f, 25.0f) + 15.0f;
+		std::vector<std::pair<float, float>> food, wood, mines;
+		const auto res = sim.resources();
+		for (size_t i = 0; i < res.count; ++i) {
+			if (!res.alive[i]) continue;
+			if (res.type[i] == RES_FOOD && res.subtype[i] != RES_SUB_FISH) food.push_back({res.x[i], res.z[i]});
+			else if (res.type[i] == RES_WOOD) wood.push_back({res.x[i], res.z[i]});
+			else if (res.type[i] == RES_GOLD || res.type[i] == RES_STONE) mines.push_back({res.x[i], res.z[i]});
+		}
+		const auto fv = sim.fauna();
+		for (size_t i = 0; i < fv.count; ++i)
+			if (fv.alive[i]) food.push_back({fv.pos_x[i], fv.pos_z[i]});
+		auto near_any = [](const std::vector<std::pair<float, float>> &v, float x, float z, float d) {
+			for (const auto &[px, pz] : v)
+				if ((px - x) * (px - x) + (pz - z) * (pz - z) <= d * d) return true;
+			return false;
+		};
+		auto wet_within = [&](float x, float z, int r) {
+			for (int dz = -r; dz <= r; ++dz)
+				for (int dx = -r; dx <= r; ++dx)
+					if (dx * dx + dz * dz <= r * r && hm.sample_world(x + (float)dx, z + (float)dz) <= water_h) return true;
+			return false;
+		};
+		auto island_within = [&](float x, float z, float r) {
+			if (land(x, z)) return true;
+			for (int k = 0; k < 8; ++k) {
+				const float a = 0.7853982f * (float)k;
+				if (land(x + det::cos(a) * r, z + det::sin(a) * r)) return true;
+			}
+			return false;
+		};
+		auto collisions = [&](float x, float z) {
+			if (std::fabs(x) > half - 3.0f || std::fabs(z) > half - 3.0f) return false; // validTilePassable
+			if (!far_from_players(x, z, base_r) || wet_within(x, z, 1) || hm.compute_slope_world(x, z) > 0.8f) return false;
+			if (near_any(wood, x, z, 1.5f) || near_any(mines, x, z, 4.0f) || near_any(food, x, z, 6.0f)) return false;
+			if (!clear_of(temples, x, z, 11.0f) || !clear_of(units, x, z, 3.0f) || !clear_of(towers, x, z, 2.0f)) return false;
+			for (const Simulation::Treasure &t : sim.treasures())
+				if ((t.x - x) * (t.x - x) + (t.z - z) * (t.z - z) <= 1.0f) return false;
+			return true;
+		};
+		auto centre = [&](float &x, float &z) { // g_Map.randomCoordinate(true)
+			x = std::floor(hunt.range_float(-half + 3.0f, half - 3.0f));
+			z = std::floor(hunt.range_float(-half + 3.0f, half - 3.0f));
+		};
+		const float n = scale_f(2.0f, 10.0f);
+		place_animal_groups(sim, hunt, {{FAUNA_RHINOCEROS_WHITE, 1, 1, 0, 1}}, n, 50, centre, collisions, food);
+		place_animal_groups(sim, hunt, {{FAUNA_BOAR, 1, 1, 0, 1}}, n, 50, centre, collisions, food); // oWarthog
+		place_animal_groups(sim, hunt, {{FAUNA_GAZELLE, 5, 7, 2, 4}}, n, 50, centre,
+				[&](float x, float z) { return collisions(x, z) && !island_within(x, z, 1.0f); }, food);
+		place_animal_groups(sim, hunt, {{FAUNA_GIRAFFE, 2, 3, 2, 4}, {FAUNA_GIRAFFE_INFANT, 2, 3, 2, 4}}, n, 50, centre, collisions, food);
+		if (!sim.nomad())
+			place_animal_groups(sim, hunt, {{FAUNA_LION, 1, 2, 2, 4}, {FAUNA_LIONESS, 2, 3, 2, 4}}, n, 50, centre, collisions, food);
+		place_animal_groups(sim, hunt, {{FAUNA_ELEPHANT_AFRICAN_BUSH, 2, 3, 2, 4}, {FAUNA_ELEPHANT_AFRICAN_INFANT, 2, 3, 2, 4}}, n, 50,
+				centre, collisions, food);
+		place_animal_groups(sim, hunt, {{FAUNA_CROCODILE_NILE, 2, 3, 3, 5}}, n, 50, centre,
+				[&](float x, float z) { return collisions(x, z) && wet_within(x, z, 3); }, food);
 	}
 }
 
@@ -4200,7 +4320,12 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		float deer_cx = px - fx * 14.0f - rx * 5.0f;
 		float deer_cz = pz - fz * 14.0f - rz * 5.0f;
 		dry(px, pz, deer_cx, deer_cz, 3.5f);
-		if (!base) {
+		// jebel_barkal.js places its bases with its own code: StartingAnimal gaia/fauna_gazelle,
+		// 2-3 a group (min/maxGroupCount), groupCount 2.
+		static constexpr MapBaseResources kJebelAnimals = {"jebel_barkal", true, "gaia/fauna_gazelle", 2, 2, 3,
+				false, nullptr, 0, 0, false, nullptr, 0, 0, 0};
+		const MapBaseResources *animals = mt == MAP_JEBEL_BARKAL ? &kJebelAnimals : base;
+		if (!animals) {
 			for (int d = 0; d < 4; ++d) {
 				float da = (6.2831853f * d) / 4.0f;
 				sim.spawn_fauna(deer_cx + det::cos(da) * 2.5f, deer_cz + det::sin(da) * 2.5f, bf.starting);
@@ -4212,18 +4337,18 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 			dry(px, pz, boar_cx, boar_cz, 2.5f);
 			sim.spawn_fauna(boar_cx - 1.5f, boar_cz, bf.main_hunt);
 			sim.spawn_fauna(boar_cx + 1.5f, boar_cz, bf.main_hunt);
-		} else if (base->animal) {
-			const char *tpl = base->animal_template;
+		} else if (animals->animal) {
+			const char *tpl = animals->animal_template;
 			uint8_t kind = FAUNA_CHICKEN;
 			if (!std::strcmp(tpl, "biome:startingAnimal")) kind = bf.starting;
 			else if (!std::strncmp(tpl, "gaia/", 5) && fauna_type_by_name(tpl + 5) < FAUNA_COUNT) kind = fauna_type_by_name(tpl + 5);
 			const int food = std::max(1, fauna_type_info(kind).food_amount);
-			const int each = base->animal_min ? (base->animal_min == base->animal_max ? base->animal_min
-					: rng.range_int(base->animal_min, base->animal_max)) : std::max(1, (int)std::lround(5.0f * 40.0f / (float)food));
+			const int each = animals->animal_min ? (animals->animal_min == animals->animal_max ? animals->animal_min
+					: rng.range_int(animals->animal_min, animals->animal_max)) : std::max(1, (int)std::lround(5.0f * 40.0f / (float)food));
 			// The second group on the base's other side, as far out.
 			float herd_cx[2] = {deer_cx, px + fx * 9.0f - rx * 3.0f}, herd_cz[2] = {deer_cz, pz + fz * 9.0f - rz * 3.0f};
-			if (base->animal_groups > 1) dry(px, pz, herd_cx[1], herd_cz[1], 2.0f);
-			for (int g = 0; g < std::min<int>(base->animal_groups, 2); ++g)
+			if (animals->animal_groups > 1) dry(px, pz, herd_cx[1], herd_cz[1], 2.0f);
+			for (int g = 0; g < std::min<int>(animals->animal_groups, 2); ++g)
 				for (int k = 0; k < each; ++k) {
 					const float a = rng.range_float(0.0f, 6.2831853f), r = k ? rng.range_float(0.5f, 1.5f) : 0.0f;
 					sim.spawn_fauna(herd_cx[g] + det::cos(a) * r, herd_cz[g] + det::sin(a) * r, kind);
@@ -4525,6 +4650,9 @@ void RmsGenerator::distribute_wildlife(Simulation &sim, const HeightmapGrid &hm,
 	// migration.js: deer, sheep and fruit on the continent only, no predators (distribute_land_extras).
 	if (config.map_type == MAP_MIGRATION) num_packs = 0;
 	if (config.map_type == MAP_NGORONGORO) num_packs = 0; // each zone's own hunt (place_ngorongoro_entities)
+	else if (config.map_type == MAP_ELEPHANTINE) num_packs = 0; // elephantine.js's hunt (place_elephantine_entities)
+	else if (config.map_type == MAP_JEBEL_BARKAL) num_packs = 0; // jebel_barkal.js's hunt (place_jebel_barkal_entities)
+	else if (config.map_type == MAP_DANUBIUS) num_packs = 0; // danubius.js's hunt (place_danubius_entities)
 	// river_archipelago.js's deer, boar and tigers: place_river_archipelago_entities.
 	else if (config.map_type == MAP_RIVER_ARCHIPELAGO) num_packs = 0;
 	// Maps with a 0 A.D. script take its hunt from top_up_resources.
@@ -5891,6 +6019,67 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 				return bank(i, x, z, side) && to_water[(size_t)i] > 5.0f && far_from_players(x, z, 15.0f) && clear_of(gauls, x, z, 12.0f) &&
 				       !near_resource(x, z, 4.0f, false);
 			});
+
+	// The hunt (danubius.js "Creating huntable animals", "Creating violent animals", "Creating
+	// animals on islands"): createFood, one try per group. On the banks: scaleByMapSize(5, 20)
+	// groups each of 5 sheep, 5 goats, 5-8 rabbits and 4-6 deer, then (not for Nomad) of 1-3
+	// wolves, a boar and a bear, avoidClasses(clIsland, 2, clFood, 10, clWater, 5, clPlayer, 16
+	// (24 for the predators), clGauls, 5); on the islands, 10 * scaleByMapSize(5, 20) groups
+	// each of 4-6 sheep, 4-6 goats and 5-8 rabbits, stayClasses(clIsland, 4), avoidClasses(clRock,
+	// 4, clMetal, 4, clFood, 3, clForest, 1, clOutpost, 2, clTower, 2). Left out: the hawks
+	// (birds), the hills and paths it also avoids.
+	{
+		RmsRng hunt(rng.next_u32());
+		std::vector<uint8_t> land(lay.islands.size());
+		for (size_t i = 0; i < land.size(); ++i) land[i] = !lay.islands[i];
+		const auto to_island = seas_dist_inside(hm, lay.islands), in_island = seas_dist_inside(hm, land);
+		std::vector<std::pair<float, float>> food, wood;
+		const auto res = sim.resources();
+		for (size_t i = 0; i < res.count; ++i) {
+			if (!res.alive[i]) continue;
+			if (res.type[i] == RES_FOOD && res.subtype[i] != RES_SUB_FISH) food.push_back({res.x[i], res.z[i]});
+			else if (res.type[i] == RES_WOOD) wood.push_back({res.x[i], res.z[i]});
+		}
+		const auto fv = sim.fauna();
+		for (size_t i = 0; i < fv.count; ++i)
+			if (fv.alive[i]) food.push_back({fv.pos_x[i], fv.pos_z[i]});
+		auto near_any = [](const std::vector<std::pair<float, float>> &v, float x, float z, float d) {
+			for (const auto &[px, pz] : v)
+				if ((px - x) * (px - x) + (pz - z) * (pz - z) <= d * d) return true;
+			return false;
+		};
+		auto centre = [&](float &x, float &z) { // g_Map.randomCoordinate(true)
+			x = std::floor(hunt.range_float(-half + 3.0f, half - 3.0f));
+			z = std::floor(hunt.range_float(-half + 3.0f, half - 3.0f));
+		};
+		auto in_map = [&](float x, float z) { return std::fabs(x) < half - 3.0f && std::fabs(z) < half - 3.0f; };
+		auto banks = [&](float player_gap) {
+			return [&, player_gap](float x, float z) {
+				if (!in_map(x, z)) return false;
+				const size_t v = (size_t)seas_vertex(hm, x, z);
+				return to_island[v] > 2.0f && to_water[v] > 5.0f && far_from_players(x, z, player_gap) && clear_of(gauls, x, z, 5.0f + 3.0f) &&
+				       !near_any(food, x, z, 10.0f);
+			};
+		};
+		auto islands = [&](float x, float z) {
+			if (!in_map(x, z)) return false;
+			const size_t v = (size_t)seas_vertex(hm, x, z);
+			return lay.islands[v] && in_island[v] >= 4.0f && clear_of(metal, x, z, 4.0f) && clear_of(stone, x, z, 4.0f) &&
+			       !near_any(food, x, z, 3.0f) && !near_any(wood, x, z, 1.5f) && clear_of(outposts, x, z, 2.0f + 1.5f) &&
+			       clear_of(towers, x, z, 2.0f + 1.5f);
+		};
+		const float n = seas_scale(5.0f, 20.0f, half);
+		for (const ScriptAnimal &a : {ScriptAnimal{FAUNA_SHEEP, 5, 5, 0, 4}, ScriptAnimal{FAUNA_GOAT, 5, 5, 0, 4},
+		                              ScriptAnimal{FAUNA_RABBIT, 5, 8, 0, 4}, ScriptAnimal{FAUNA_DEER, 4, 6, 0, 2}})
+			place_animal_groups(sim, hunt, {a}, n, 50, centre, banks(16.0f), food, true);
+		if (!sim.nomad())
+			for (const ScriptAnimal &a : {ScriptAnimal{FAUNA_WOLF, 1, 3, 0, 4}, ScriptAnimal{FAUNA_BOAR, 1, 1, 0, 4},
+			                              ScriptAnimal{FAUNA_BEAR_BROWN, 1, 1, 0, 4}})
+				place_animal_groups(sim, hunt, {a}, n, 50, centre, banks(24.0f), food, true);
+		for (const ScriptAnimal &a : {ScriptAnimal{FAUNA_SHEEP, 4, 6, 0, 4}, ScriptAnimal{FAUNA_GOAT, 4, 6, 0, 4},
+		                              ScriptAnimal{FAUNA_RABBIT, 5, 8, 0, 4}})
+			place_animal_groups(sim, hunt, {a}, 10.0f * n, 50, centre, islands, food, true);
+	}
 }
 
 void RmsGenerator::synth_archipelago_0ad(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
@@ -10034,6 +10223,74 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 			treasures.push_back({x, z});
 			++k;
 		}
+	}
+
+	// The hunt (jebel_barkal.js "Creating rhinos" to "Creating crocodiles"): scaleByMapSize(2, 10)
+	// groups each (crocodiles scaleByMapSize(1, 6)), retry factor 50, under avoidCollisions
+	// (keep_clear, the cliffs, clPlayer 15, clWater 1, clForest 1, clRock 4, clMetal 4, clFood 6;
+	// clPlayer is each base's disk of defaultPlayerBaseRadius), centred in the desert or the
+	// fertile land where the script passes that area. Lions keep 20 from the bases; crocodiles
+	// stay within 3 of water. No lions or crocodiles for Nomad.
+	{
+		RmsRng hunt(rng.next_u32());
+		const float base_r = sc(15.0f, 25.0f);
+		const auto to_water = seas_dist_inside(hm, lay.water), to_cliff = seas_dist_inside(hm, lay.cliff);
+		std::vector<std::pair<float, float>> food, wood, mines;
+		const auto res = sim.resources();
+		for (size_t i = 0; i < res.count; ++i) {
+			if (!res.alive[i]) continue;
+			if (res.type[i] == RES_FOOD && res.subtype[i] != RES_SUB_FISH) food.push_back({res.x[i], res.z[i]});
+			else if (res.type[i] == RES_WOOD) wood.push_back({res.x[i], res.z[i]});
+			else if (res.type[i] == RES_GOLD || res.type[i] == RES_STONE) mines.push_back({res.x[i], res.z[i]});
+		}
+		const auto fv = sim.fauna();
+		for (size_t i = 0; i < fv.count; ++i)
+			if (fv.alive[i]) food.push_back({fv.pos_x[i], fv.pos_z[i]});
+		auto near_any = [](const std::vector<std::pair<float, float>> &v, float x, float z, float d) {
+			for (const auto &[px, pz] : v)
+				if ((px - x) * (px - x) + (pz - z) * (pz - z) <= d * d) return true;
+			return false;
+		};
+		auto far_from_bases = [&](float x, float z, float d) {
+			for (const auto &sp : spawns)
+				if (det::hypot(x - sp.x, z - sp.z) < base_r + d) return false;
+			return true;
+		};
+		auto collisions = [&](float x, float z) {
+			if (x * x + z * z >= (half - 3.0f) * (half - 3.0f)) return false; // validTilePassable on the circle
+			const size_t v = at(x, z);
+			if (lay.keep_clear[v] || to_cliff[v] <= 0.5f || to_water[v] <= 1.0f || !far_from_bases(x, z, 15.0f)) return false;
+			return !near_any(wood, x, z, 1.5f) && !near_any(mines, x, z, 4.0f) && !near_any(food, x, z, 6.0f);
+		};
+		// createObjectGroups centres on g_Map.randomCoordinate(true); createObjectGroupsByAreas
+		// on a random point of the area.
+		auto anywhere = [&](float &x, float &z) {
+			const auto p = seas_random_point(hm, hunt);
+			x = std::floor(p.first);
+			z = std::floor(p.second);
+		};
+		auto in_area = [&](const std::vector<uint8_t> &area) {
+			return [&anywhere, &at, a = &area](float &x, float &z) {
+				for (int k = 0; k < 4096; ++k) {
+					anywhere(x, z);
+					if ((*a)[at(x + 0.5f, z + 0.5f)]) return;
+				}
+			};
+		};
+		const float n = sc(2.0f, 10.0f);
+		place_animal_groups(sim, hunt, {{FAUNA_RHINOCEROS_WHITE, 1, 1, 0, 1}}, n, 50, in_area(lay.desert), collisions, food);
+		place_animal_groups(sim, hunt, {{FAUNA_BOAR, 1, 1, 0, 1}}, n, 50, in_area(lay.fertile), collisions, food); // oWarthog
+		place_animal_groups(sim, hunt, {{FAUNA_GIRAFFE, 2, 3, 2, 4}, {FAUNA_GIRAFFE_INFANT, 2, 3, 2, 4}}, n, 50, anywhere, collisions, food);
+		// createObjectGroups (not ByAreas): its [areaDesert] lands in the behaveDeprecated slot.
+		place_animal_groups(sim, hunt, {{FAUNA_GAZELLE, 5, 7, 2, 4}}, n, 50, anywhere, collisions, food, true);
+		if (!sim.nomad())
+			place_animal_groups(sim, hunt, {{FAUNA_LION, 1, 2, 2, 4}, {FAUNA_LIONESS, 2, 3, 2, 4}}, n, 50, in_area(lay.desert),
+					[&](float x, float z) { return collisions(x, z) && far_from_bases(x, z, 20.0f); }, food);
+		place_animal_groups(sim, hunt, {{FAUNA_ELEPHANT_AFRICAN_BUSH, 2, 3, 2, 4}, {FAUNA_ELEPHANT_AFRICAN_INFANT, 2, 3, 2, 4}}, n, 50,
+				in_area(lay.desert), collisions, food);
+		if (!sim.nomad())
+			place_animal_groups(sim, hunt, {{FAUNA_CROCODILE_NILE, 2, 3, 3, 5}}, sc(1.0f, 6.0f), 50, in_area(lay.fertile),
+					[&](float x, float z) { return collisions(x, z) && to_water[at(x, z)] <= 3.0f; }, food);
 	}
 
 	// Trigger points B where the attackers patrol: away from the city, the hill, water, walls
