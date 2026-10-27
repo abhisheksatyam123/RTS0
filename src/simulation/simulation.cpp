@@ -23202,7 +23202,8 @@ float Simulation::petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl,
 		const float hack = ui.hack_damage * m.atk_mul[0] + m.atk_add[0];
 		const float pierce = ui.pierce_damage * m.atk_mul[1] + m.atk_add[1];
 		const float crush = ui.crush_damage * m.atk_mul[2] + m.atk_add[2];
-		s += (0.075f * hack + 0.085f * pierce + 0.045f * crush) * attack_mult / 4.0f;
+		const float fire = unit_combat(tmpl, type).fire; // Damage/Fire (fire ships), importance 0.001
+		s += (0.075f * hack + 0.085f * pierce + 0.045f * crush + 0.001f * fire) * attack_mult / 4.0f;
 		const bool ranged = (unit_classes(tmpl, type) & TC_RANGED) != 0;
 		const float range = ui.attack_range * m.range_mul + m.range * COMBAT_DISTANCE_SCALE;
 		s += range / (ranged ? COMBAT_DISTANCE_SCALE : 0.6f) * 0.0125f;
@@ -33215,15 +33216,17 @@ bool Simulation::petra_passenger(uint32_t uid) const {
 }
 
 // getMaxStrength (entityExtend.js) with config.js DamageTypeImportance: attack and
-// resistance per damage type (Hack, Pierce, Crush, Fire), range and repeat time,
+// resistance per damage type (Hack, Pierce, Crush, Fire; no 0.28 template resists Fire), range and repeat time,
 // all scaled by max health.
 float Simulation::petra_unit_strength(size_t i) const {
 	const UnitTypeInfo &ui = unit_info_at(i);
 	float s = 0.0f;
 	if (units_.attack_damage[i] > 0.0f) {
 		const float scale = ui.attack_damage > 0.0f ? units_.attack_damage[i] / ui.attack_damage : 1.0f;
-		s += (0.075f * ui.hack_damage + 0.085f * ui.pierce_damage + 0.045f * ui.crush_damage) * scale / 4.0f;
-		const bool ranged = (unit_tech_classes(units_.unit_type[i]) & TC_RANGED) != 0;
+		const float fire = unit_combat_at(i).fire; // Damage/Fire (fire ships), importance 0.001
+		s += (0.075f * ui.hack_damage + 0.085f * ui.pierce_damage + 0.045f * ui.crush_damage + 0.001f * fire) * scale / 4.0f;
+		// The template's classes: a fire ship is a Melee attacker though its ship class shoots.
+		const bool ranged = (unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_RANGED) != 0;
 		s += units_.attack_range[i] / (ranged ? 0.28f : 0.6f) * 0.0125f; // back to 0 A.D. metres
 		s += units_.attack_cooldown[i] * 1000.0f / 100000.0f;
 		s -= unit_combat_at(i).prepare * 1000.0f / 100000.0f; // attackTimes prepare
