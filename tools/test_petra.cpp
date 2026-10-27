@@ -1725,6 +1725,36 @@ static void test_idle_workers_repair_cc() {
 
 // basesManager.js update: one base a turn, in turn (currentBase). The idle workers of a base
 // whose turn it is not wait: here they repair their damaged civic centre only on its turn.
+// garrisonManager.js keepGarrisoned and the "around" scan: a unit with a Melee attack (a woman's
+// dagger) leaves its shelter when enemy units come (DS1), and a melee war elephant counts as melee
+// siege (entityExtend.js isSiegeUnit: Siege or Elephant+Melee), not as a unit (DS2).
+static void test_garrison_melee_attack() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "AI 1 has a civic centre");
+	if (!cc) return;
+	const uint32_t woman = s->spawn_unit(cc->x + 6.0f, cc->z, 1, UNIT_FEMALE_CITIZEN);
+	const uint32_t healer = s->spawn_unit(cc->x + 6.0f, cc->z + 2.0f, 1, UNIT_HEALER);
+	Simulation::PetraAround raid;
+	raid.unit = true;
+	const bool woman_stays = s->petra_keep_garrisoned((size_t)s->lookup_unit(woman), *cc, raid);
+	const bool healer_stays = s->petra_keep_garrisoned((size_t)s->lookup_unit(healer), *cc, raid);
+	std::printf("  raid: woman (dagger) stays %d, healer (no attack) stays %d\n", woman_stays, healer_stays);
+	CHECK(!woman_stays, "a woman with a dagger leaves the shelter when enemy units come");
+	CHECK(healer_stays, "a healer with no attack stays sheltered");
+	s->spawn_unit(cc->x + 8.0f, cc->z + 4.0f, 0, UNIT_ELEPHANT);
+	const Simulation::PetraAround around = s->petra_around(*cc);
+	std::printf("  war elephant near the civic centre: melee siege %d, unit %d\n", around.melee_siege, around.unit);
+	CHECK(around.melee_siege && !around.unit, "a melee war elephant counts as melee siege");
+}
+
 static void test_one_base_a_turn() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -8244,6 +8274,7 @@ int main(int argc, char **argv) {
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_garrisoned_workers_count);
 	RUN(test_gather_rate_civ_bonus);
+	RUN(test_garrison_melee_attack);
 	RUN(test_one_base_a_turn);
 	RUN(test_no_room_only_once_funded);
 	RUN(test_queue_plans_in_order);

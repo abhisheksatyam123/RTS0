@@ -3581,6 +3581,11 @@ private:
 		const TechClasses c = unit_classes_at(i);
 		return unit_is_siege_engine(units_.unit_type[i]) || ((c & TC_ELEPHANT).any() && (c & TC_MELEE).any());
 	}
+	// attackTypes().indexOf("Melee") !== -1: the unit attacks, and not at range.
+	bool petra_has_melee_attack(size_t i) const {
+		return units_.attack_damage[i] > 0.0f &&
+			!template_has_ranged_attack(units_.tmpl[i], units_.unit_type[i], civ_of(units_.team[i]));
+	}
 	void petra_order_build(uint32_t uid, uint32_t bid); // worker.js: drop the load, then build
 	void petra_fight_back(size_t i, int32_t attacker, const std::vector<PetraDefenseArmy> &armies, std::vector<uint32_t> &helped);
 	bool petra_ship_in_plan(uint32_t ship_id) const;
