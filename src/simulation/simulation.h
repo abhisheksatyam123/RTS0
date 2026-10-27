@@ -35,6 +35,8 @@
 
 namespace rtso {
 
+namespace nav { struct ShortPathGoal; } // nav/vertex_pathfinder.h (Simulation::task_range_goal)
+
 // Deterministic sim-tick PRNG (xorshift32, same algorithm as RmsRng).
 // Replaces libc rand() so two lockstep peers draw identical streams.
 // Sequential-call only: all sim-rng call sites are in serial tick regions.
@@ -2798,6 +2800,15 @@ private:
 	// gave it, with waypoints left, more than LONG_PATH_MIN_DIST from where it is going.
 	bool follows_long_path(size_t i) const;
 	void obstructed_long_path(size_t i, uint8_t failed);
+	// HandleObstructedMove's short path (ComputePathToGoal) for a land unit's walk whose way trees or
+	// structures block: kept as the unit's path to its goal (unit_paths_).
+	void obstructed_short_path(size_t i, uint8_t failed);
+	// The range unit i's task is done in, as CCmpUnitMotion::ComputeGoal shapes a move to a target's
+	// range, and the structure it is the range round (`building`), which the way there doesn't go round.
+	// `mobile_drop(x, z)` is the index of a supply wagon or worker elephant at (x, z) to drop at, or -1.
+	// False for a walk to a point.
+	template <class MobileDrop>
+	bool task_range_goal(size_t i, nav::ShortPathGoal &g, uint32_t &building, MobileDrop &&mobile_drop) const;
 	void abandon_chase(size_t i);
 	void give_up_attack(size_t i);
 	void tick_gather(float dt);

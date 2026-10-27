@@ -111,6 +111,31 @@
 //     about 1.2 past the edge). A wolf on a navcell a house's raster closes, beside a deep channel,
 //     never steps into the water after a spearman on the far bank (counted as on impassable ground,
 //     it swam across).
+// 25. Workers west of a wall of Cretan date palm patches (4 m squares on the 4 m tiles), with their
+//     storehouse 13-29 m away beyond it, get round the wall (Stats' soak, sahara seed 3: p0's
+//     storehouse 1674 and its wood, as they stood at 209 s; 20 of the 28 stuck reports there). A
+//     spearman cutting a tree beyond the wall with a full load (tick_gather's return), one that
+//     Petra's worker update orders to gather again every 1.6 s (worker.js:236-269, which starts its
+//     failed turns again each time), a woman sent with ReturnResource, an empty woman sent to
+//     gather a tree beyond the wall, and a spearman a player walks to a point beyond it. 0.28's
+//     HandleObstructedMove asks for a short path among all static shapes within 16 m of the goal, its
+//     range growing with failed turns, and its long path goes round the trees (1 m navcells); RTS0's
+//     steering saw trees within 10 m only, and the walkers pressed into the wall for good (the
+//     gatherer took a tree on the near side once MoveFailed came, the walk ended in the notch). The
+//     path found is the unit's path (saved): a game saved on the way and loaded goes on the same.
+//     A second unit stands far off, as separation(), which keeps units out of the trees, runs only
+//     with two or more.
+// 26. A worker obstructed within 16 m of its goal, whose way round a long wall leads out of the short
+//     path's reach, gets its long path back on the third failed turn. Six women with full loads stand
+//     west of a wall whose gap is 40 units off, their storehouse just beyond it, and Petra orders
+//     them to gather again every 1.6 s; a woman sent to a palm 3.8 units off beyond a wall whose gap
+//     is 30 units off is shut in by wall segments for 1.4 s. A short path among the static shapes
+//     that ends at the wall's near face replaced the long path on an early obstructed turn, as
+//     0.28's ComputePathToGoal does, but 0.28 asks for a long path on the third (ShouldAlternate-
+//     Pathfinder) within 16 m too, and nothing planned one again: a returner stood at the wall for
+//     37 s until MoveFailed and Petra's land check sent her to the town centre, and the gatherer gave
+//     her palm up. Every woman drops at that storehouse, the gatherer cuts her palm, and a game saved
+//     on the way and loaded goes on the same.
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -1343,6 +1368,195 @@ int main() {
 		            "across it after %d ticks (-1 = never in 1200)\n", wx, wz, wet, bitten);
 		CHECK(found, "the wolf stands on a navcell the house closes, beside deep water");
 		CHECK(found && wet < 0, "an animal on a navcell a structure closes never steps into deep water");
+	}
+	{
+		// 25. Sahara seed 3, 209 s: the palms round p0's storehouse 1674 at (85, 29), moved by (OX, OZ) into
+		// player 0's territory (setup's town centre at (-52, -52)). The wall runs x 76-81, z 23-33; the
+		// ways round are past its ends. The last nine stand round the storehouse, beyond the wall.
+		static const float palms[][2] = {
+			{76.5f, 24.5f}, {77.5f, 23.5f}, {78.5f, 24.5f}, {79.5f, 25.5f}, {79.5f, 26.5f}, {78.5f, 25.5f}, {80.5f, 26.5f},
+			{79.5f, 24.5f}, {79.5f, 27.5f}, {78.5f, 28.5f}, {79.5f, 28.5f}, {78.5f, 29.5f}, {79.5f, 29.5f}, {79.5f, 30.5f},
+			{78.5f, 30.5f}, {77.5f, 29.5f}, {78.5f, 31.5f}, {77.5f, 32.5f}, {76.5f, 32.5f}, {76.5f, 31.5f},
+			{87.5f, 28.5f}, {87.5f, 34.5f}, {87.5f, 31.5f}, {86.5f, 32.5f}, {85.5f, 31.5f}, {84.5f, 32.5f}, {86.5f, 31.5f},
+			{82.5f, 29.5f}, {83.5f, 30.5f}};
+		constexpr float OX = -125.0f, OZ = -60.0f;
+		enum Run { CUTTER, RETASKED, RETURN_ORDER, GATHER_WALK, SAVED, WALK, RUNS };
+		static const char *const names[RUNS] = {"a spearman taking a full load back (tick_gather)",
+			"a spearman Petra orders to gather again every 1.6 s", "a woman sent with ReturnResource",
+			"an empty woman sent to gather a tree beyond the wall", "the first spearman, saved and loaded after 2 s",
+			"a spearman walked to (82, 31.5), beyond the wall"};
+		constexpr float WALK_X = 82.0f, WALK_Z = 31.5f;
+		// Where each stood: unit 6 in the notch at (77.77, 31.30), unit 1787 at (77.76, 30.22) below it,
+		// and two women on the wall's west face.
+		static const float start[RUNS][2] = {{77.77f, 31.30f}, {77.76f, 30.22f}, {76.5f, 28.2f}, {76.5f, 30.5f}, {77.77f, 31.30f},
+			{77.77f, 31.30f}};
+		int done[RUNS];
+		float end_gap[RUNS];
+		for (int run = 0; run < RUNS; ++run) {
+			auto s = std::make_unique<Simulation>();
+			setup(*s);
+			const uint32_t store = s->spawn_building_world(85.0f + OX, 29.0f + OZ, BLD_STOREHOUSE, 0, 1.0f);
+			uint32_t far_tree = 0; // tree 338 at (83.5, 30.5), beside the storehouse
+			for (const auto &p : palms)
+				far_tree = s->spawn_resource_world(p[0] + OX, p[1] + OZ, RES_WOOD, 300, RES_SUB_NONE, 0, FLORA_TREE_CRETAN_DATE_PALM_PATCH);
+			// A woman far off at the town centre (separation() runs only with two units or more).
+			s->spawn_unit(-46.0f, -46.0f, 0, UNIT_FEMALE_CITIZEN, 150.0f);
+			const bool woman = run == RETURN_ORDER || run == GATHER_WALK;
+			const uint32_t w = s->spawn_unit(start[run][0] + OX, start[run][1] + OZ, 0, woman ? UNIT_FEMALE_CITIZEN : UNIT_SPEARMAN, 150.0f);
+			const int wi = idx(*s, w);
+			const int32_t load = run == RETURN_ORDER ? 10 : run == GATHER_WALK || run == WALK ? 0 : s->carry_cap((size_t)wi, RES_WOOD);
+			s->units_.res_type_carried[wi] = RES_WOOD;
+			s->units_.carry[wi] = load;
+			if (run == RETURN_ORDER) s->order_return_resource(&w, 1, store);
+			else if (run == WALK) s->order_walk(&w, 1, WALK_X + OX, WALK_Z + OZ, false, true);
+			else s->order_gather(&w, 1, far_tree);
+			std::unique_ptr<Simulation> copy;
+			const int wood0 = s->player_resource(0, RES_WOOD);
+			done[run] = -1;
+			for (int t = 1; t <= 1200 && done[run] < 0; ++t) {
+				if (run == SAVED && t == 40) {
+					const std::string path = temp_save_path();
+					copy = std::make_unique<Simulation>();
+					const bool ok = !path.empty() && s->save_state(path.c_str()) && copy->load_state(path.c_str());
+					std::remove(path.c_str());
+					CHECK(ok, "a game with a worker on its way round the palms saves and loads");
+					if (!ok) break;
+					s = std::move(copy); // the loaded game goes on in its place
+				}
+				const int i = idx(*s, w);
+				if (run == RETASKED && t % 32 == 0 && s->units_.action_state[i] == ACTION_RETURN_DROPSITE) s->order_gather(&w, 1, far_tree);
+				s->tick(DT);
+				const int j = idx(*s, w);
+				if (run == GATHER_WALK ? s->units_.carry[j] > 0 && s->units_.target_resource_id[j] == far_tree
+				    : run == WALK      ? s->units_.action_state[j] != ACTION_MOVE &&
+				                         std::hypot(s->units_.pos_x[j] - (WALK_X + OX), s->units_.pos_z[j] - (WALK_Z + OZ)) < 1.0f
+				                       : s->player_resource(0, RES_WOOD) >= wood0 + load)
+					done[run] = t;
+			}
+			const int j = idx(*s, w);
+			end_gap[run] = std::hypot(s->units_.pos_x[j] - (85.0f + OX), s->units_.pos_z[j] - (29.0f + OZ));
+			std::printf("  palm wall (Stats, sahara seed 3): %s: %s after %.2f s (-1: not in 60 s), %.1f from the storehouse then\n", names[run],
+			            run == GATHER_WALK ? "gathers it" : run == WALK ? "gets there" : "drops the wood",
+			            done[run] < 0 ? -1.0f : done[run] * DT, end_gap[run]);
+		}
+		CHECK(done[CUTTER] > 0 && done[CUTTER] * DT < 30.0f && done[RETURN_ORDER] > 0 && done[RETURN_ORDER] * DT < 30.0f,
+		      "a worker with a load west of a palm wall gets round it to the storehouse beyond and drops it");
+		CHECK(done[RETASKED] > 0 && done[RETASKED] * DT < 30.0f, "and so does one ordered to gather again every 1.6 s, as Petra does");
+		CHECK(done[GATHER_WALK] > 0 && done[GATHER_WALK] * DT < 30.0f, "a gatherer sent to a tree beyond the wall gets round it and cuts that tree");
+		CHECK(done[WALK] > 0 && done[WALK] * DT < 30.0f, "a soldier walked to a point beyond the wall gets round it there");
+		CHECK(done[SAVED] == done[CUTTER] && end_gap[SAVED] == end_gap[CUTTER], "a game saved on the way round and loaded goes on the same");
+	}
+	{
+		// 26a. Wall segments at x 0-2, z -60 to 60, but for a gap at z 40-44; the storehouse 2.2 units east
+		// of the wall, two trees on the west side by the wall, and the women's tree 7 units west.
+		constexpr int N = 6;
+		constexpr float STORE_X = 4.2f;
+		int first_drop[2][N];
+		float drop_x[2][N], drop_z[2][N];
+		for (int run = 0; run < 2; ++run) {
+			auto s = std::make_unique<Simulation>();
+			setup(*s);
+			for (uint8_t p = 0; p < 2; ++p) s->player(p).active = 1, s->player(p).is_ai = 0;
+			for (int cy = -30; cy <= 29; ++cy)
+				if (cy != 20 && cy != 21) s->spawn_building(0, cy, BLD_WALL_SEGMENT, 0, 1.0f);
+			s->spawn_building_world(STORE_X, 0.0f, BLD_STOREHOUSE, 0, 1.0f);
+			s->spawn_resource_world(-1.2f, 2.5f, RES_WOOD, 300);
+			s->spawn_resource_world(-1.2f, -2.5f, RES_WOOD, 300);
+			const uint32_t tree = s->spawn_resource_world(-7.0f, 0.0f, RES_WOOD, 5000);
+			s->spawn_unit(-46.0f, -46.0f, 0, UNIT_FEMALE_CITIZEN, 150.0f);
+			uint32_t ws[N];
+			for (int k = 0; k < N; ++k) {
+				ws[k] = s->spawn_unit(-2.2f - 0.5f * (k % 3), -0.5f + 0.6f * (k / 3), 0, UNIT_FEMALE_CITIZEN, 150.0f);
+				const int wi = idx(*s, ws[k]);
+				s->units_.res_type_carried[wi] = RES_WOOD;
+				s->units_.carry[wi] = 10;
+				first_drop[run][k] = -1;
+			}
+			s->order_gather(ws, N, tree);
+			for (int t = 1; t <= 2400; ++t) {
+				// The second game is saved and loaded after the first woman's short path to the wall's face
+				// and before her third failed turn there.
+				if (run == 1 && t == 24) {
+					const std::string path = temp_save_path();
+					auto copy = std::make_unique<Simulation>();
+					const bool ok = !path.empty() && s->save_state(path.c_str()) && copy->load_state(path.c_str());
+					std::remove(path.c_str());
+					CHECK(ok, "a game with returners at a wall saves and loads");
+					if (!ok) break;
+					s = std::move(copy);
+				}
+				int carry0[N];
+				for (int k = 0; k < N; ++k) {
+					const int i = idx(*s, ws[k]);
+					// Petra's worker update: a returner under its Gather order is ordered to gather again.
+					if ((t + 3 * k) % 32 == 0 && s->units_.action_state[i] == ACTION_RETURN_DROPSITE && s->units_.carry[i] > 0)
+						s->order_gather(&ws[k], 1, tree);
+					carry0[k] = s->units_.carry[i];
+				}
+				s->tick(DT);
+				bool all = true;
+				for (int k = 0; k < N; ++k) {
+					const int i = idx(*s, ws[k]);
+					if (first_drop[run][k] < 0 && carry0[k] >= 10 && s->units_.carry[i] < carry0[k] &&
+							s->units_.action_state[i] != ACTION_RETURN_DROPSITE) {
+						first_drop[run][k] = t;
+						drop_x[run][k] = s->units_.pos_x[i];
+						drop_z[run][k] = s->units_.pos_z[i];
+					}
+					all = all && first_drop[run][k] >= 0;
+				}
+				if (all) break;
+			}
+		}
+		int at_store = 0, last = 0;
+		bool same = true;
+		for (int k = 0; k < N; ++k) {
+			if (first_drop[0][k] >= 0 && std::hypot(drop_x[0][k] - STORE_X, drop_z[0][k]) < 4.0f) ++at_store;
+			last = std::max(last, first_drop[0][k] < 0 ? 1 << 20 : first_drop[0][k]);
+			same = same && first_drop[1][k] == first_drop[0][k] && (first_drop[0][k] < 0 ||
+					(drop_x[1][k] == drop_x[0][k] && drop_z[1][k] == drop_z[0][k]));
+		}
+		std::printf("  wall with a far gap: %d of %d women drop their first load at the storehouse beyond it, the last after %.2f s\n",
+		            at_store, N, last * DT);
+		CHECK(at_store == N && last * DT < 40.0f,
+		      "workers at a wall whose way round is beyond the short path's reach, their storehouse just beyond it, all drop there");
+		CHECK(same, "and a game saved on the way and loaded goes on the same");
+	}
+	{
+		// 26b. Wall segments along x = 0 for z in [-40, 40) but for a gap at z = 30; a palm 3.8 units east of the
+		// woman, beyond the wall, its storehouse beside it. Wall segments close round her at tick 2 and
+		// their north side goes again at tick 30.
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		for (uint8_t p = 0; p < 2; ++p) s->player(p).active = 1, s->player(p).is_ai = 0;
+		for (float z = -40.0f; z < 40.0f; z += 2.0f)
+			if (std::fabs(z - 30.0f) >= 2.5f) s->spawn_building_world(0.0f, z, BLD_WALL_SEGMENT, 0, 1.0f);
+		const uint32_t palm = s->spawn_resource_world(2.0f, 0.0f, RES_WOOD, 300, RES_SUB_NONE, 0, FLORA_TREE_CRETAN_DATE_PALM_PATCH);
+		s->spawn_building_world(3.0f, 8.0f, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t w = s->spawn_unit(-1.8f, 0.0f, 0, UNIT_FEMALE_CITIZEN, 0.0f);
+		s->spawn_unit(-40.0f, -40.0f, 0, UNIT_FEMALE_CITIZEN, 0.0f);
+		s->order_gather(&w, 1, palm);
+		uint32_t north = 0;
+		int cut = -1, gave_up = -1;
+		for (int t = 1; t <= 1200 && cut < 0; ++t) {
+			if (t == 2) {
+				north = s->spawn_building_world(-2.0f, 2.0f, BLD_WALL_SEGMENT, 0, 1.0f);
+				s->spawn_building_world(-2.0f, -2.0f, BLD_WALL_SEGMENT, 0, 1.0f);
+				for (float z = -2.0f; z <= 2.0f; z += 2.0f) s->spawn_building_world(-4.0f, z, BLD_WALL_SEGMENT, 0, 1.0f);
+			}
+			if (t == 30) {
+				const auto it = s->building_id_to_idx_.find(north);
+				if (it != s->building_id_to_idx_.end()) s->destroy_building(s->buildings_[it->second]);
+			}
+			s->tick(DT);
+			const int j = idx(*s, w);
+			if (s->units_.target_resource_id[j] == palm && s->units_.carry[j] > 0) cut = t;
+			if (gave_up < 0 && s->units_.target_resource_id[j] != palm) gave_up = t;
+		}
+		std::printf("  shut in by a wall with a far gap: the gatherer cuts her palm after %.2f s (-1: not in 60 s), gives it up after %.2f s (-1: never)\n",
+		            cut < 0 ? -1.0f : cut * DT, gave_up < 0 ? -1.0f : gave_up * DT);
+		CHECK(cut > 0 && cut * DT < 30.0f && gave_up < 0,
+		      "a gatherer shut in for a moment by a wall whose way round is beyond the short path's reach keeps to her palm and cuts it");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
