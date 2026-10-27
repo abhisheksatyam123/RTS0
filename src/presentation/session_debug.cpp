@@ -857,6 +857,7 @@ Dictionary RtsoMain::debug_selected_building() const {
 		d["id"] = (int64_t)b.id;
 		d["has_rally"] = b.has_rally_point;
 		d["rally_self"] = b.has_rally_point && b.rally_target_bld_id == b.id;
+		if (b.has_rally_point) d["rally"] = Vector2(b.rally_x, b.rally_z);
 		d["autoqueue"] = b.autoqueue;
 		d["queue"] = (int64_t)b.queue.size();
 		d["garrisoned"] = (int64_t)b.garrisoned_units.size();

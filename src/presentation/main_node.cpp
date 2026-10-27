@@ -271,7 +271,7 @@ void RtsoMain::_on_flare_requested(Vector2 world_pos) {
 // MiniMapFlareButton.onPress (and session.flareactivate): INPUT_FLARE, so the
 // next left click on the map or minimap sends a flare; never in a replay.
 void RtsoMain::_on_flare_button_pressed() {
-	if (turn_mgr_.is_replaying()) return;
+	if (turn_mgr_.is_replaying() || !input_normal()) return; // onPress: only from INPUT_NORMAL
 	flare_armed_ = true;
 }
 
@@ -1301,7 +1301,15 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 		}
 	}
 	selected_groups[grp] = kept;
-	if (snap_id == 0) return; // nothing of the group is the player's now
+	if (snap_id == 0) {
+		// Nothing of the group is the player's now: performGroup's g_Selection.reset() still
+		// empties the selection (an empty group deselects all).
+		if (action != GROUP_ADD) {
+			selected_ids.clear();
+			set_selected_structures({});
+		}
+		return;
+	}
 	// addList(toSelect) brings each unit's formation along (addFormationMembers).
 	for (int m = 0, n = recall.size(); m < n; ++m)
 		for (int32_t uid : formation_mates(recall[m]))
