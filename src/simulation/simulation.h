@@ -182,7 +182,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 121; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 122; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_BOARD_BEST = 122; // each Petra boarding passenger's nearest approach to its ship
 	static constexpr uint32_t SAVE_VERSION_GARRISON_HEAL = 120; // each structure's garrison heal timer (GarrisonHolder HEAL_TIMEOUT)
 	static constexpr uint32_t SAVE_VERSION_FORMATION_TARGET = 121; // the enemy formation each formation attacks
 	static constexpr uint32_t SAVE_VERSION_PETRA_FERRIED_GUARDS = 119; // guards on their way by sea to a critical entity
