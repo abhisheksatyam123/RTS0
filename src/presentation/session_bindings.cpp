@@ -210,6 +210,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_unit_order", "unit_id"), &RtsoMain::debug_unit_order);
 	ClassDB::bind_method(D_METHOD("_on_chat_line_input", "event", "action"), &RtsoMain::_on_chat_line_input);
 	ClassDB::bind_method(D_METHOD("debug_chat_overlay"), &RtsoMain::debug_chat_overlay);
+	ClassDB::bind_method(D_METHOD("debug_chat_history"), &RtsoMain::debug_chat_history);
 	ClassDB::bind_method(D_METHOD("debug_camera"), &RtsoMain::debug_camera);
 	ClassDB::bind_method(D_METHOD("notify_attack", "pos", "attacker", "structure", "target"), &RtsoMain::notify_attack, DEFVAL(0));
 	ClassDB::bind_method(D_METHOD("debug_unit_screen", "unit_id"), &RtsoMain::debug_unit_screen);

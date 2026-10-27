@@ -182,7 +182,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 119; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 120; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_GARRISON_HEAL = 120; // each structure's garrison heal timer (GarrisonHolder HEAL_TIMEOUT)
 	static constexpr uint32_t SAVE_VERSION_PETRA_FERRIED_GUARDS = 119; // guards on their way by sea to a critical entity
 	static constexpr uint32_t SAVE_VERSION_FAUNA_PRESSURE = 117; // each animal's pushing pressure and failed movements (fauna_pressure_, fauna_failed_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_QUEUE_HEADS = 118; // the structure at the head of each Petra queue
@@ -412,6 +413,9 @@ public:
 		// ProductionQueue.js ProgressTimeout: the queue works in whole seconds from when it
 		// started; this is the time into the current one (0 while the queue is empty).
 		float queue_clock = 0.0f;
+		// GarrisonHolder HealTimeout: time into the second its heal timer started on the first
+		// unit in (0 while nothing is inside or nothing heals).
+		float heal_clock = 0.0f;
 		std::array<float, RES_COUNT> upgrade_paid{};
 
 		// 0 A.D. Gate.js (gates: is_gate_type). An unlocked gate never blocks long-range
@@ -844,6 +848,7 @@ public:
 	// Commands
 	void cmd_move(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void cmd_stop(const uint32_t *unit_ids, size_t count);
+	void order_stop(const uint32_t *unit_ids, size_t count); // Commands.js "stop": formations split as for a walk
 	void reset_unit_for_new_owner(size_t u);
 	// Player commands (0 A.D. Commands.js): `player` is the issuing player id. Each one
 	// rejects buildings the player doesn't own and charges/refunds that player's stock.
@@ -1565,7 +1570,10 @@ public:
 	float aim_clock() const { return aim_clock_; } // sim seconds since the last aim snapshot
 	bool ceasefire_active() const { return ceasefire_remaining() > 0.0f; }
 	// Whether a unit or structure of player a may attack one of player b right now.
-	bool can_attack(uint8_t a, uint8_t b) const { return !ceasefire_active() && is_hostile(a, b); }
+	// CeasefireManager.js sets every enemy except Gaia neutral, so Gaia stays at war.
+	bool can_attack(uint8_t a, uint8_t b) const {
+		return is_hostile(a, b) && (!ceasefire_active() || a >= MAX_PLAYERS || b >= MAX_PLAYERS);
+	}
 	// Player 0's side for victory: itself, game-setup teammates, and mutual diplomatic allies.
 	bool is_ally_of_player0(uint8_t pid) const { return pid == 0 || same_team(0, pid) || is_mutual_ally(pid); }
 	// Match result from pid's seat: pid is one of the winners once the match has ended.
@@ -2374,6 +2382,11 @@ public:
 	// Whether unit i stands within treasure_reach of treasure `id` it collects, where tick_treasures runs its timer.
 	bool treasure_in_reach(size_t i, uint32_t id) const;
 	const std::vector<Treasure> &treasures() const { return treasures_; }
+	// Visibility/RetainInFog: a treasure shows wherever the player has explored, but the Argo
+	// (special_argo.xml RetainInFog false) only in sight.
+	bool treasure_seen_by(uint8_t player, const Treasure &t) const {
+		return t.type == TREASURE_SPECIAL_ARGO ? los_visible(player, t.x, t.z) : los_explored(player, t.x, t.z);
+	}
 	bool is_treasure_id(uint32_t id) const {
 		for (const auto &t : treasures_) if (t.id == id) return true;
 		return false;
@@ -3581,6 +3594,11 @@ private:
 		const TechClasses c = unit_classes_at(i);
 		return unit_is_siege_engine(units_.unit_type[i]) || ((c & TC_ELEPHANT).any() && (c & TC_MELEE).any());
 	}
+	// attackTypes().indexOf("Melee") !== -1: the unit attacks, and not at range.
+	bool petra_has_melee_attack(size_t i) const {
+		return units_.attack_damage[i] > 0.0f &&
+			!template_has_ranged_attack(units_.tmpl[i], units_.unit_type[i], civ_of(units_.team[i]));
+	}
 	void petra_order_build(uint32_t uid, uint32_t bid); // worker.js: drop the load, then build
 	void petra_fight_back(size_t i, int32_t attacker, const std::vector<PetraDefenseArmy> &armies, std::vector<uint32_t> &helped);
 	bool petra_ship_in_plan(uint32_t ship_id) const;
@@ -4501,7 +4519,7 @@ private:
 	AuraManager aura_mgr_; // G4: unified aura sources (AuraManager)
 	float fow_timer_ = 0.0f;
 	float territory_timer_ = 0.0f;
-	float aura_timer_ = 0.0f; // G4: 0.4s aura rebuild timer
+	float aura_timer_ = 0.0f; // unused since auras rebuild each turn; kept for the save layout
 
 	float map_half_ = 64.0f;
 	int terrain_res_ = 64;

@@ -104,6 +104,28 @@ func run() -> void:
 	main.toggle_chat()
 	await frames(2)
 
+	print("2b. Overlay, history timestamps and a bare /allies")
+	main.chat_open_page()
+	await frames(2)
+	input.text = "hello there"
+	main._on_chat_send_pressed()
+	await frames(2)
+	var chat_panel: Control = main.find_child("ChatPanel", true, false)
+	check(chat_panel != null and chat_panel.position == Vector2(3, 131) and is_equal_approx(chat_panel.size.y, vp.y - 131 - 240), "chatPanel at 3 131 100% 100%-240: " + (str(chat_panel.get_rect()) if chat_panel else "none"))
+	var lines: Array = main.debug_chat_overlay()
+	var line: RichTextLabel = lines.back()["node"] if lines.size() else null
+	check(line != null and line.text.begins_with("[b]") and line.get_theme_font_size("normal_font_size") == 14 and line.get_theme_font_size("bold_font_size") == 14,
+		"chatPanelOverlay lines in sans-bold-stroke-14")
+	var hist: String = main.debug_chat_history()
+	check(RegEx.create_from_string("^\\[lb\\]\\d\\d:\\d\\d\\] ").search(hist.get_slice("\n", hist.get_slice_count("\n") - 2)) != null and not hist.contains("aaaaaa"),
+		"the \\[HH:mm] prefix in the history's own colour: " + hist.get_slice("\n", hist.get_slice_count("\n") - 2))
+	main.chat_open_page()
+	await frames(2)
+	input.text = "/allies"
+	main._on_chat_send_pressed()
+	await frames(2)
+	check(not panel.visible and input.text == "", "a bare /allies sends nothing and closes the window (closePage)")
+
 	print("3. Match Settings")
 	main.toggle_objectives()
 	await frames(3)

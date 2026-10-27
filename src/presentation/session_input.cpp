@@ -766,6 +766,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								// skips an unowned entity while something is selected, so Shift keeps it).
 								selected_ids.clear();
 								selected_building_id = 0;
+								play_inspected_select();
 							} else {
 								// Clicked empty ground: deselect unless selection.add or .remove is held
 								// (input.js:963-975).
@@ -900,7 +901,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								rally_queued, cmd_here, target_ent);
 					}
 				}
-				play_civ_voice("select");
+				// unit_actions.js set-rallypoint: no sound.
 				return;
 			}
 
@@ -1263,7 +1264,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				uint32_t treasure_id = 0;
 				float best_td2 = 2.0f * 2.0f;
 				for (const auto &t : sim->treasures()) {
-					if (!sim->los_explored(local_player(), t.x, t.z)) continue; // none in the shroud
+					if (!sim->treasure_seen_by(local_player(), t)) continue; // none in the shroud
 					const float dx = t.x - click_pos.x, dz = t.z - click_pos.z;
 					if (near_pick(t.id, dx * dx + dz * dz, best_td2)) { best_td2 = dx * dx + dz * dz; treasure_id = t.id; }
 				}

@@ -129,6 +129,15 @@ func run() -> void:
 	check(RtsoUserConfig.new().get_value("gui.session.defaultformation") != "", "a default formation is configured")
 	right_press_formation(2)
 	check(cfg.get_value("gui.session.defaultformation") == "special/formations/box", "right-click on Box makes it the default")
+	await frames(10)
+	# formation_panel.xml: 38x38 buttons, upgrade.png over the default formation's icon.
+	var def_btn: Button = null
+	for b in main.find_children("*", "Button", true, false):
+		if b.is_visible_in_tree() and b.tooltip_text.contains("This is the default formation, used for movement orders."):
+			def_btn = b
+	check(def_btn != null and def_btn.custom_minimum_size == Vector2(38, 38) and def_btn.find_child("default", false, false) != null
+		and str((def_btn.find_child("default", false, false) as TextureRect).texture.resource_path).ends_with("icons/upgrade.png"),
+		"the default formation's 38 px button carries upgrade.png")
 	ids = main.debug_selection_state()["selected"]
 	main._on_formation_selected(0) # leave the box
 	await frames(10)

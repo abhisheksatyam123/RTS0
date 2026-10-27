@@ -78,7 +78,7 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	var fade := ColorRect.new()
-	fade.color = Color(0, 0, 0, 0.6)
+	fade.color = Color8(0, 0, 0, 85) # ModernFade
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fade)
 	theme = preload("res://scenes/common/modern_theme.gd").theme()
@@ -95,9 +95,7 @@ func _ready() -> void:
 	bar.name = "Title"
 	bar.text = title
 	bar.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	bar.add_theme_font_size_override("font_size", 18)
-	bar.add_theme_color_override("font_outline_color", Color.BLACK)
-	bar.add_theme_constant_override("outline_size", 4)
+	_bold_stroke(bar) # mbTitleBar: ModernLabelText, sans-bold-stroke-14
 	bar.anchor_left = 0.5
 	bar.anchor_right = 0.5
 	bar.offset_left = -128
@@ -116,6 +114,7 @@ func _ready() -> void:
 	_text.offset_top = 18
 	_text.offset_right = -18
 	_text.offset_bottom = -64
+	_bold_stroke(_text) # mbText: ModernLabelText
 	main.add_child(_text)
 	var names: Array = captions if not captions.is_empty() else [tr("OK")]
 	# distributeButtonsHorizontally: 18 px in from each side, 10 px apart, 46-18 px from the bottom.
@@ -124,8 +123,10 @@ func _ready() -> void:
 		var b := Button.new()
 		b.name = "Button%d" % (i + 1)
 		b.text = str(names[i])
-		b.anchor_left = float(i) / n
-		b.anchor_right = float(i + 1) / n
+		_bold_stroke(b) # ModernButtonRed: sans-bold-stroke-14
+		# distributeButtonsHorizontally: thirds at 33% and 66%.
+		b.anchor_left = [0.0, 0.33, 0.66][i] if n == 3 else float(i) / n
+		b.anchor_right = [0.33, 0.66, 1.0][i] if n == 3 else float(i + 1) / n
 		b.anchor_top = 1.0
 		b.anchor_bottom = 1.0
 		b.offset_left = 18.0 if i == 0 else 5.0
@@ -162,3 +163,9 @@ func _input(event: InputEvent) -> void:
 	if "cancel" in _hotkeys.fired(event):
 		get_viewport().set_input_as_handled()
 		_answer(0)
+
+static func _bold_stroke(c: Control) -> void:
+	c.add_theme_font_override("font", preload("res://scenes/session/summary_screen.gd").bold_font())
+	c.add_theme_font_size_override("font_size", 14)
+	c.add_theme_color_override("font_outline_color", Color.BLACK)
+	c.add_theme_constant_override("outline_size", 3)

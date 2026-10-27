@@ -213,6 +213,12 @@ def test_ratings():
                                      "rating": "-", "rank": "-", "highestRating": "-"},
           "a member with no finished game has a profile (EcheLOn get_or_create_player on join)")
     check(lb.profile("dave")[0] == 404, "a player who never joined has no profile")
+    # EcheLOn drops a match's reports after an hour: a late second report starts over.
+    stale = {"matchID": "m9", "players": "alice,bob,", "playerStates": "won,defeated,"}
+    lb.report(a["token"], stale)
+    lb.reports["m9"]["time"] -= lobby_server.REPORT_EXPIRY + 1.0
+    check(lb.report(b["token"], stale)[0] == 202 and lb.reports["m9"]["reporters"] == {"bob"},
+          "a report older than an hour is dropped")
     team = {"matchID": "m2", "players": "alice,bob,carol,", "playerStates": "won,defeated,defeated,"}
     lb.report(a["token"], team)
     lb.report(b["token"], team)

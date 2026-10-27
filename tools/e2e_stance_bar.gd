@@ -52,7 +52,7 @@ func run() -> void:
 	var bs := stance_buttons()
 	check(bs.map(func(b): return String(b.name)) == ORDER, "0.28's order: " + str(bs.map(func(b): return String(b.name))))
 	check(bs.all(func(b): return b.text == "" and b.icon != null and b.custom_minimum_size == Vector2(38, 38)), "38 px icons without captions (stance_panel.xml)")
-	check(bs.size() == 5 and bs[2].tooltip_text == "Defensive\nAttack nearby opponents, chase a short distance and return to the original location", "with 0.28's tooltips")
+	check(bs.size() == 5 and bs[2].tooltip_text.begins_with("Defensive\n") and bs[2].tooltip_text.contains("]Attack nearby opponents, chase a short distance and return to the original location["), "with 0.28's tooltips: " + (bs[2].tooltip_text if bs.size() == 5 else ""))
 	main.clear_selection()
 	await frames(3)
 	check(not shown(), "hidden with nothing selected")

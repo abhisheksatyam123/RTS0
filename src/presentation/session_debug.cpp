@@ -929,7 +929,8 @@ Array RtsoMain::debug_garrison_icons() const {
 Dictionary RtsoMain::debug_placement_tip() const {
 	Dictionary d;
 	d["visible"] = placement_tip_ && placement_tip_->is_visible();
-	d["text"] = placement_tip_ ? placement_tip_->get_text() : String();
+	d["text"] = placement_tip_ ? placement_tip_->get_parsed_text() : String();
+	d["bbcode"] = placement_tip_ ? placement_tip_->get_text() : String();
 	d["error"] = placement_tip_error_;
 	return d;
 }

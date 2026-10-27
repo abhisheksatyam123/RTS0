@@ -5,7 +5,8 @@
 // joins (getAttackTooltip, getHealerTooltip, getResistanceTooltip, getGatherTooltip,
 // getSpeedTooltip, getGarrisonTooltip, getLootTooltip, getAurasTooltip...), each string
 // built from 0.28's msgid through tr0/sprintf0 so a language can reorder it. Resource
-// names stand in for 0 A.D.'s inline resource icons; Godot tooltips have no font tags.
+// icons and g_TooltipTextFormats' header, unit, comma and body fonts are the BBCode of l10n.h,
+// which scenes/common/tooltips.gd draws.
 
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
@@ -24,9 +25,25 @@ using godot::String;
 
 inline String fixed(double v, int digits) { return String::num(v, digits).pad_decimals(digits); }
 inline String num(int64_t v) { return String::num_int64(v); }
-inline String comma() { return tr0(", "); }
+inline String comma() { return comma_font(tr0(", ")); }
+// headerFont(translate(label)) and unitFont(translate(unit)).
+inline String hdr(const char *label) { return header_font(tr0(label)); }
+inline String unit(const char *u) { return unit_font(tr0(u)); }
+inline String unit(const String &u) { return unit_font(tr0(u)); }
+// g_Indent.
+inline constexpr const char *kIndent = "    ";
 
 // resourceNameFirstWord: Food, Wood, Stone, Metal (RTS0's RES_GOLD is metal).
+// resourceIcon(code) for food, wood, stone, metal.
+inline String res_icon(uint8_t res) {
+	switch (res) {
+		case RES_FOOD: return resource_icon("food");
+		case RES_WOOD: return resource_icon("wood");
+		case RES_STONE: return resource_icon("stone");
+		case RES_GOLD: return resource_icon("metal");
+		default: return String();
+	}
+}
 inline String resource_name(uint8_t res) {
 	switch (res) {
 		case RES_FOOD: return tr0("Food");
@@ -40,12 +57,12 @@ inline String resource_name(uint8_t res) {
 // getCurrentHealthTooltip, getCurrentCaptureTooltip: each its own whole msgid.
 inline String health(float hp, float max) {
 	return sprintf0(tr0("%(healthLabel)s %(current)s / %(max)s"),
-			{{"healthLabel", tr0("Health:")}, {"current", num((int64_t)std::lround(hp))}, {"max", num((int64_t)std::lround(max))}});
+			{{"healthLabel", hdr("Health:")}, {"current", num((int64_t)std::lround(hp))}, {"max", num((int64_t)std::lround(max))}});
 }
 // label: displayMultiple passes "Capture Points:"; getCurrentCaptureTooltip's own is "Capture points:".
 inline String capture(float points, float max, const char *label = "Capture points:") {
 	return sprintf0(tr0("%(captureLabel)s %(current)s / %(max)s"),
-			{{"captureLabel", tr0(label)}, {"current", num((int64_t)std::lround(points))}, {"max", num((int64_t)std::lround(max))}});
+			{{"captureLabel", hdr(label)}, {"current", num((int64_t)std::lround(points))}, {"max", num((int64_t)std::lround(max))}});
 }
 
 // The single-selection bar captions (healthStats, captureStats): "%(hitpoints)s / %(maxHitpoints)s"
@@ -59,12 +76,14 @@ inline String capture_stats(float points, float max) {
 			{{"capturePoints", num((int64_t)std::ceil(points))}, {"maxCapturePoints", num((int64_t)std::ceil(max))}});
 }
 
-// The experience tooltip: "Experience: 40 / 150", or the points alone at the last rank.
+// The experience tooltip: "Experience: 40 / 150", or the points alone at the last rank, its
+// label in sans-bold-13.
+inline String kExperience() { return "[font_size=13][b]" + tr0("Experience:") + "[/b][/font_size]"; }
 inline String experience(int64_t current, float required) {
 	if (required > 0.0f && (float)current < required)
 		return sprintf0(tr0("%(experience)s %(current)s / %(required)s"),
-				{{"experience", tr0("Experience:")}, {"current", num(current)}, {"required", num((int64_t)std::ceil(required))}});
-	return sprintf0(tr0("%(experience)s %(current)s"), {{"experience", tr0("Experience:")}, {"current", num(current)}});
+				{{"experience", kExperience()}, {"current", num(current)}, {"required", num((int64_t)std::ceil(required))}});
+	return sprintf0(tr0("%(experience)s %(current)s"), {{"experience", kExperience()}, {"current", num(current)}});
 }
 
 // "%(amount)s / %(max)s": resource supply, carried resources, gatherers.
@@ -100,15 +119,15 @@ inline String resistance_tooltip(const float r[3], bool blocks_poison = false) {
 	for (int k = 0; k < 3; ++k) {
 		if (!parts.is_empty()) parts += comma();
 		parts += sprintf0(tr0("%(damage)s %(damageType)s %(resistancePercentage)s"),
-				{{"damage", fixed(r[k], 1)}, {"damageType", damage_type_name(k)},
+				{{"damage", fixed(r[k], 1)}, {"damageType", unit_font(damage_type_name(k))},
 				 {"resistancePercentage", sprintf0(tr0("(%(resistancePercentage)s)"), {{"resistancePercentage", resistance_percent(r[k])}})}});
 	}
-	const String damage = sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Damage:")}, {"details", parts}});
-	String details = "  " + damage;
+	const String damage = sprintf0(tr0("%(label)s %(details)s"), {{"label", hdr("Damage:")}, {"details", parts}});
+	String details = kIndent + damage;
 	if (blocks_poison)
-		details += "\n  " + sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Status Effects:")},
-				{"details", sprintf0(tr0("Blocks %(name)s"), {{"name", tr0("Poisoned")}})}});
-	return sprintf0(tr0("%(label)s\n%(details)s"), {{"label", tr0("Resistance:")}, {"details", details}});
+		details += "\n" + String(kIndent) + sprintf0(tr0("%(label)s %(details)s"), {{"label", hdr("Status Effects:")},
+				{"details", sprintf0(tr0("Blocks %(name)s"), {{"name", unit("Poisoned")}})}});
+	return sprintf0(tr0("%(label)s\n%(details)s"), {{"label", hdr("Resistance:")}, {"details", details}});
 }
 
 // rangeDetails: "Range: 72 meters", "Range: 26 to 85 meters", and with the range the ground
@@ -117,32 +136,32 @@ inline String range_details(float min_range, float max_range, float elevated_ran
 	const int64_t lo = (int64_t)std::lround(min_range), hi = (int64_t)std::lround(max_range);
 	if (hi <= 0) return String();
 	const int64_t rel = elevated_range > 0.0f ? (int64_t)std::lround(elevated_range - (float)hi) : 0;
-	const String unit = tr0(lo || rel ? "meters" : (hi == 1 ? "meter" : "meters"));
+	const String unit = unit_font(tr0(lo || rel ? "meters" : (hi == 1 ? "meter" : "meters")));
 	const String relative = rel > 0 ? sprintf0(tr0("+%(number)s"), {{"number", num(rel)}}) : num(rel);
 	if (rel)
 		return lo ? sprintf0(tr0("%(rangeLabel)s %(minRange)s to %(maxRange)s (%(relativeRange)s) %(rangeUnit)s"),
-						{{"rangeLabel", tr0("Range:")}, {"minRange", num(lo)}, {"maxRange", num(hi)}, {"relativeRange", relative}, {"rangeUnit", unit}})
+						{{"rangeLabel", hdr("Range:")}, {"minRange", num(lo)}, {"maxRange", num(hi)}, {"relativeRange", relative}, {"rangeUnit", unit}})
 				  : sprintf0(tr0("%(rangeLabel)s %(maxRange)s (%(relativeRange)s) %(rangeUnit)s"),
-						{{"rangeLabel", tr0("Range:")}, {"maxRange", num(hi)}, {"relativeRange", relative}, {"rangeUnit", unit}});
+						{{"rangeLabel", hdr("Range:")}, {"maxRange", num(hi)}, {"relativeRange", relative}, {"rangeUnit", unit}});
 	if (lo)
 		return sprintf0(tr0("%(rangeLabel)s %(minRange)s to %(maxRange)s %(rangeUnit)s"),
-				{{"rangeLabel", tr0("Range:")}, {"minRange", num(lo)}, {"maxRange", num(hi)}, {"rangeUnit", unit}});
+				{{"rangeLabel", hdr("Range:")}, {"minRange", num(lo)}, {"maxRange", num(hi)}, {"rangeUnit", unit}});
 	return sprintf0(tr0("%(rangeLabel)s %(maxRange)s %(rangeUnit)s"),
-			{{"rangeLabel", tr0("Range:")}, {"maxRange", num(hi)}, {"rangeUnit", unit}});
+			{{"rangeLabel", hdr("Range:")}, {"maxRange", num(hi)}, {"rangeUnit", unit}});
 }
 
 // attackRateDetails without projectiles: "Interval: 1.25 seconds".
 inline String interval_details(float seconds) {
 	const String secs = sprintf0(tr0("%(time)s %(second)s"),
-			{{"time", String::num(seconds, 2)}, {"second", tr0(seconds == 1.0f ? "second" : "seconds")}});
-	return sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Interval:")}, {"details", secs}});
+			{{"time", String::num(seconds, 2)}, {"second", unit(seconds == 1.0f ? "second" : "seconds")}});
+	return sprintf0(tr0("%(label)s %(details)s"), {{"label", hdr("Interval:")}, {"details", secs}});
 }
 
 // getHealerTooltip: "Heal: 5 Health, Range: 12 meters, Interval: 2 seconds".
 inline String healer_tooltip(const Simulation::UnitDetails &d) {
 	if (d.heal_hp <= 0.0f) return String();
 	auto part = [](const char *label, const String &val, const char *unit) {
-		return sprintf0(tr0("%(label)s %(val)s %(unit)s"), {{"label", tr0(label)}, {"val", val}, {"unit", tr0(unit)}});
+		return sprintf0(tr0("%(label)s %(val)s %(unit)s"), {{"label", hdr(label)}, {"val", val}, {"unit", rtso::seldet::unit(unit)}});
 	};
 	const double range = std::round(d.heal_range);
 	return part("Heal:", String::num(d.heal_hp, 1), "Health") + comma() +
@@ -179,16 +198,16 @@ inline String gather_tooltip(const Simulation::UnitDetails &d) {
 		if (!rates.is_empty()) rates += "  ";
 		rates += sprintf0(tr0("%(resourceIcon)s %(rate)s"), {{"resourceIcon", resource_icon(kind.icon)}, {"rate", fixed(d.gather[kind.k], 2)}});
 	}
-	return rates.is_empty() ? rates : sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Gather Rates:")}, {"details", rates}});
+	return rates.is_empty() ? rates : sprintf0(tr0("%(label)s %(details)s"), {{"label", hdr("Gather Rates:")}, {"details", rates}});
 }
 
 // getSpeedTooltip: "Speed: 9.0 Walk, 15.0 Run, 35.0 Acceleration".
 inline String speed_tooltip(const Simulation::UnitDetails &d) {
 	if (d.walk <= 0.0f && d.run <= 0.0f) return String();
 	auto speed = [](float v, const char *kind) {
-		return sprintf0(tr0("%(speed)s %(movementType)s"), {{"speed", fixed(v, 1)}, {"movementType", tr0(kind)}});
+		return sprintf0(tr0("%(speed)s %(movementType)s"), {{"speed", fixed(v, 1)}, {"movementType", unit(kind)}});
 	};
-	return sprintf0(tr0("%(label)s %(speeds)s"), {{"label", tr0("Speed:")}, {"speeds", speed(d.walk, "Walk") + comma() + speed(d.run, "Run") +
+	return sprintf0(tr0("%(label)s %(speeds)s"), {{"label", hdr("Speed:")}, {"speeds", speed(d.walk, "Walk") + comma() + speed(d.run, "Run") +
 			(d.acceleration > 0.0f ? comma() + speed(d.acceleration, "Acceleration") : String())}});
 }
 
@@ -202,52 +221,52 @@ inline String structure_attack_tooltip(const float damage[3], float min_m, float
 	for (int k = 0; k < 3; ++k) {
 		if (damage[k] <= 0.0f) continue;
 		if (!effects.is_empty()) effects += comma();
-		effects += sprintf0(tr0("%(damage)s %(damageType)s"), {{"damage", fixed(damage[k], 1)}, {"damageType", damage_type_name(k)}});
+		effects += sprintf0(tr0("%(damage)s %(damageType)s"), {{"damage", fixed(damage[k], 1)}, {"damageType", unit_font(damage_type_name(k))}});
 	}
 	String rate;
 	if (projectiles == 0) {
 		rate = tr0("Garrison to fire arrows");
 	} else {
 		const String secs = sprintf0(tr0("%(time)s %(second)s"),
-				{{"time", String::num(repeat_s, 2)}, {"second", tr0(repeat_s == 1.0f ? "second" : "seconds")}});
+				{{"time", String::num(repeat_s, 2)}, {"second", unit(repeat_s == 1.0f ? "second" : "seconds")}});
 		if (projectiles > 1)
-			rate = sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Rate:")},
+			rate = sprintf0(tr0("%(label)s %(details)s"), {{"label", hdr("Rate:")},
 					{"details", sprintf0(tr0("%(projectileString)s / %(attackRateString)s"),
 							{{"projectileString", sprintf0(tr0("%(projectileCount)s %(projectileName)s"),
-									{{"projectileCount", num(projectiles)}, {"projectileName", tr0(projectiles == 1 ? "arrow" : "arrows")}})},
+									{{"projectileCount", num(projectiles)}, {"projectileName", unit(projectiles == 1 ? "arrow" : "arrows")}})},
 							 {"attackRateString", secs}})}});
 		else
-			rate = sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Interval:")}, {"details", secs}});
+			rate = sprintf0(tr0("%(label)s %(details)s"), {{"label", hdr("Interval:")}, {"details", secs}});
 	}
 	const String line = sprintf0(tr0("%(attackLabel)s: %(effects)s, %(range)s, %(rate)s%(statusEffects)s%(splash)s"),
-			{{"attackLabel", tr0(attack_name)}, {"effects", effects}, {"range", range_details(min_m, max_m, elevated_m)}, {"rate", rate},
+			{{"attackLabel", hdr(attack_name)}, {"effects", effects}, {"range", range_details(min_m, max_m, elevated_m)}, {"rate", rate},
 			 {"statusEffects", ""}, {"splash", ""}});
-	return sprintf0(tr0("%(label)s\n%(details)s"), {{"label", tr0("Attack:")}, {"details", "  " + line}});
+	return sprintf0(tr0("%(label)s\n%(details)s"), {{"label", hdr("Attack:")}, {"details", kIndent + line}});
 }
 
 // getGarrisonTooltip's heal line: "Heal: 1 Health / second".
 inline String garrison_heal_tooltip(float heal) {
 	if (heal <= 0.0f) return String();
 	return sprintf0(tr0("%(healRateLabel)s %(value)s %(health)s / %(second)s"),
-			{{"healRateLabel", tr0("Heal:")}, {"value", num((int64_t)std::lround(heal))}, {"health", tr0("Health")}, {"second", tr0("second")}});
+			{{"healRateLabel", hdr("Heal:")}, {"value", num((int64_t)std::lround(heal))}, {"health", unit("Health")}, {"second", unit("second")}});
 }
 
 // getTurretsTooltip: "Turret Positions: 4".
 inline String turrets_tooltip(int count) {
 	if (count <= 0) return String();
-	return sprintf0(tr0("%(label)s: %(turretsLimit)s"), {{"label", tr0("Turret Positions")}, {"turretsLimit", num(count)}});
+	return sprintf0(tr0("%(label)s: %(turretsLimit)s"), {{"label", hdr("Turret Positions")}, {"turretsLimit", num(count)}});
 }
 
 // getPopulationBonusTooltip: "Population Bonus: 10".
 inline String population_bonus_tooltip(int bonus) {
 	if (bonus <= 0) return String();
-	return sprintf0(tr0("%(label)s %(bonus)s"), {{"label", tr0("Population Bonus:")}, {"bonus", num(bonus)}});
+	return sprintf0(tr0("%(label)s %(bonus)s"), {{"label", hdr("Population Bonus:")}, {"bonus", num(bonus)}});
 }
 
 // getProjectilesTooltip: "Projectile Limit: 23, Default: 3, Per Unit: 1".
 inline String projectiles_tooltip(int limit, int default_arrows, float per_unit) {
 	if (limit <= 0) return String();
-	auto part = [](const char *label, const String &v) { return sprintf0(tr0("%(label)s: %(value)s"), {{"label", tr0(label)}, {"value", v}}); };
+	auto part = [](const char *label, const String &v) { return sprintf0(tr0("%(label)s: %(value)s"), {{"label", hdr(label)}, {"value", v}}); };
 	return part("Projectile Limit", num(limit)) + comma() + part("Default", num(default_arrows)) + comma() +
 			part("Per Unit", String::num(std::round(per_unit * 100.0f) / 100.0f));
 }
@@ -259,12 +278,12 @@ inline String trickle_tooltip(const float rate[RES_COUNT], float interval_s) {
 	for (uint8_t r : kOrder) {
 		if (rate[r] == 0.0f) continue;
 		if (!res.is_empty()) res += "  ";
-		res += sprintf0(tr0("%(resourceIcon)s %(rate)s"), {{"resourceIcon", resource_name(r)}, {"rate", String::num(rate[r])}});
+		res += sprintf0(tr0("%(resourceIcon)s %(rate)s"), {{"resourceIcon", res_icon(r)}, {"rate", String::num(rate[r])}});
 	}
 	if (res.is_empty()) return String();
 	const String secs = sprintf0(tr0("%(time)s %(second)s"),
-			{{"time", String::num(interval_s, 2)}, {"second", tr0(interval_s == 1.0f ? "second" : "seconds")}});
-	return sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Resource Trickle:")},
+			{{"time", String::num(interval_s, 2)}, {"second", unit(interval_s == 1.0f ? "second" : "seconds")}});
+	return sprintf0(tr0("%(label)s %(details)s"), {{"label", hdr("Resource Trickle:")},
 			{"details", sprintf0(tr0("%(resources)s / %(time)s"), {{"resources", res}, {"time", secs}})}});
 }
 
@@ -272,16 +291,17 @@ inline String trickle_tooltip(const float rate[RES_COUNT], float interval_s) {
 // one slot or itself carries units (GarrisonHolder.occupiedSlots).
 inline String garrison_size_tooltip(int size, int extra) {
 	if (size <= 1 && extra <= 0) return String();
-	return sprintf0(tr0("%(label)s: %(garrisonSize)s %(extraSize)s"), {{"label", tr0("Garrison Size")},
+	return sprintf0(tr0("%(label)s: %(garrisonSize)s %(extraSize)s"), {{"label", hdr("Garrison Size")},
 			{"garrisonSize", num(size)}, {"extraSize", extra > 0 ? tr0("+ ") + num(extra) : String()}}).strip_edges();
 }
 
 inline String garrison_limit_tooltip(int capacity) {
 	if (capacity <= 0) return String();
-	return sprintf0(tr0("%(label)s: %(garrisonLimit)s"), {{"label", tr0("Garrison Limit")}, {"garrisonLimit", num(capacity)}});
+	return sprintf0(tr0("%(label)s: %(garrisonLimit)s"), {{"label", hdr("Garrison Limit")}, {"garrisonLimit", num(capacity)}});
 }
 
-// Loot by resource (food, wood, stone, metal) and xp: "Food 2  Metal 5  Experience 10".
+// Loot by resource (food, wood, stone, metal) and xp: "[food] 2  [metal] 5  Experience 10", the
+// resources as their icons (0.28's xp icon has no RTS0 art, so its name stays).
 struct Amounts {
 	int64_t res[RES_COUNT] = {};
 	int64_t xp = 0;
@@ -299,7 +319,7 @@ inline String amounts_list(const Amounts &a, bool with_xp) {
 		if (!out.is_empty()) out += "  ";
 		out += sprintf0(tr0("%(component)s %(loot)s"), {{"component", name}, {"loot", num(v)}});
 	};
-	for (uint8_t r : kOrder) add(resource_name(r), a.res[r]);
+	for (uint8_t r : kOrder) add(res_icon(r), a.res[r]);
 	if (with_xp) add(tr0("Experience"), a.xp);
 	return out;
 }
@@ -307,16 +327,16 @@ inline String amounts_list(const Amounts &a, bool with_xp) {
 // getLootTooltip: the template's Loot plus what the unit carries.
 inline String loot_tooltip(const Amounts &a) {
 	if (!a.any()) return String();
-	return sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Loot:")}, {"details", amounts_list(a, true)}});
+	return sprintf0(tr0("%(label)s %(details)s"), {{"label", hdr("Loot:")}, {"details", amounts_list(a, true)}});
 }
 
 // getAurasTooltip: "Name: description Range: 60 meters" per aura.
 inline String aura_line(const String &name, const String &description, float radius) {
 	String tip = sprintf0(tr0("%(auralabel)s %(aurainfo)s"),
-			{{"auralabel", sprintf0(tr0("%(auraname)s:"), {{"auraname", name}})}, {"aurainfo", tr0(description)}});
+			{{"auralabel", header_font(sprintf0(tr0("%(auraname)s:"), {{"auraname", name}}))}, {"aurainfo", body_font(tr0(description))}});
 	const int64_t r = (int64_t)std::lround(radius);
 	if (r > 0)
-		tip += " " + sprintf0(tr0("%(label)s %(val)s %(unit)s"), {{"label", tr0("Range:")}, {"val", num(r)}, {"unit", tr0(r == 1 ? "meter" : "meters")}});
+		tip += " " + sprintf0(tr0("%(label)s %(val)s %(unit)s"), {{"label", hdr("Range:")}, {"val", num(r)}, {"unit", unit(r == 1 ? "meter" : "meters")}});
 	return tip;
 }
 
@@ -337,19 +357,19 @@ inline String structure_auras_tooltip(const godot::Dictionary &entry) {
 inline String multiple_tooltip(int64_t garrison_size, const Amounts &carrying, const Amounts &loot) {
 	String tip;
 	if (garrison_size)
-		tip = sprintf0(tr0("%(label)s: %(details)s\n"), {{"label", tr0("Garrison Size")}, {"details", num(garrison_size)}});
+		tip = sprintf0(tr0("%(label)s: %(details)s\n"), {{"label", hdr("Garrison Size")}, {"details", num(garrison_size)}});
 	// selection_details.js:493 assigns this line (=, not +=): it replaces the garrison size.
 	if (carrying.any())
-		tip = sprintf0(tr0("%(label)s %(details)s\n"), {{"label", tr0("Carrying:")}, {"details", amounts_list(carrying, false)}});
+		tip = sprintf0(tr0("%(label)s %(details)s\n"), {{"label", hdr("Carrying:")}, {"details", body_font(amounts_list(carrying, false))}});
 	if (loot.any())
-		tip += sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Loot:")}, {"details", amounts_list(loot, true)}});
+		tip += sprintf0(tr0("%(label)s %(details)s"), {{"label", hdr("Loot:")}, {"details", body_font(amounts_list(loot, true))}});
 	return tip.strip_edges();
 }
 
 // getSecondsString: "1 second", "7.5 seconds".
 inline String seconds_string(float seconds) {
 	return sprintf0(tr0("%(time)s %(second)s"),
-			{{"time", String::num(seconds, 3)}, {"second", tr0(std::fabs(seconds - 1.0f) < 1e-4f ? "second" : "seconds")}});
+			{{"time", String::num(seconds, 3)}, {"second", unit(std::fabs(seconds - 1.0f) < 1e-4f ? "second" : "seconds")}});
 }
 
 // getStatusEffectsTooltip for a receiver (a status icon of selection_details.js):
@@ -359,31 +379,31 @@ inline String status_tooltip(uint8_t kind, float damage, float interval, float r
 	const bool burning = kind == 2;
 	String info;
 	if (damage > 0.0f)
-		info = sprintf0(tr0("%(damage)s %(damageType)s"), {{"damage", fixed(damage, 1)}, {"damageType", tr0(burning ? "Fire" : "Poison")}});
+		info = sprintf0(tr0("%(damage)s %(damageType)s"), {{"damage", fixed(damage, 1)}, {"damageType", unit(burning ? "Fire" : "Poison")}});
 	if (interval > 0.0f)
 		info += (info.is_empty() ? String() : comma()) +
-				sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Interval:")}, {"details", seconds_string(interval)}});
+				sprintf0(tr0("%(label)s %(details)s"), {{"label", hdr("Interval:")}, {"details", seconds_string(interval)}});
 	info += (info.is_empty() ? String() : comma()) +
-			sprintf0(tr0("%(durName)s: %(duration)s"), {{"durName", tr0("Duration")}, {"duration", seconds_string(remaining)}});
+			sprintf0(tr0("%(durName)s: %(duration)s"), {{"durName", hdr("Duration")}, {"duration", seconds_string(remaining)}});
 	info += comma() + tr0(burning ? "This unit is burning." : "This unit is poisoned.");
-	return sprintf0(tr0("%(statusName)s: %(statusInfo)s"), {{"statusName", tr0(burning ? "Burning" : "Poisoned")}, {"statusInfo", info}});
+	return sprintf0(tr0("%(statusName)s: %(statusInfo)s"), {{"statusName", hdr(burning ? "Burning" : "Poisoned")}, {"statusInfo", info}});
 }
 
-// The resourceCarrying caption of a foundation or a structure being repaired: "(3) 0:12" (0.28
-// puts the builders and the m:ss on two lines beside the repair icon), empty with no builders.
+// The resourceCarrying caption of a foundation or a structure being repaired: "(3)" over "0:12"
+// beside the repair icon, empty with no builders.
 inline String build_work_caption(int builders, float remaining) {
 	if (builders <= 0) return String();
 	const int64_t secs = (int64_t)remaining;
 	return sprintf0(tr0("(%(number)s)\n%(time)s"), {{"number", num(builders)},
-			{"time", num(secs / 60) + ":" + String::num_int64(secs % 60).pad_zeros(2)}}).replace("\n", " ");
+			{"time", num(secs / 60) + ":" + String::num_int64(secs % 60).pad_zeros(2)}});
 }
 
 // getBuildTimeTooltip / getRepairTimeTooltip.
 inline String build_work_tooltip(bool repair, int builders, float remaining, float remaining_new) {
 	String tip = sprintf0(tr0("%(label)s %(details)s"),
-			{{"label", tr0(repair ? "Number of repairers:" : "Number of builders:")}, {"details", num(builders)}});
+			{{"label", hdr(repair ? "Number of repairers:" : "Number of builders:")}, {"details", num(builders)}});
 	if (builders > 0) {
-		tip += "\n" + sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0(repair ? "Remaining repair time:" : "Remaining build time:")},
+		tip += "\n" + sprintf0(tr0("%(label)s %(details)s"), {{"label", hdr(repair ? "Remaining repair time:" : "Remaining build time:")},
 				{"details", seconds_string(std::floor(remaining))}});
 		const int64_t cut = (int64_t)std::lround(remaining - remaining_new);
 		tip += "\n" + sprintf0(tr0(repair
@@ -408,7 +428,7 @@ inline String damage_map_details(const godot::Dictionary &dmg) {
 		const float v = (float)(double)dmg.get(t, 0.0);
 		if (v <= 0.0f) continue;
 		if (!out.is_empty()) out += comma();
-		out += sprintf0(tr0("%(damage)s %(damageType)s"), {{"damage", fixed(v, 1)}, {"damageType", tr0(t)}});
+		out += sprintf0(tr0("%(damage)s %(damageType)s"), {{"damage", fixed(v, 1)}, {"damageType", unit(t)}});
 	}
 	return out;
 }
@@ -420,16 +440,16 @@ inline String applied_status_tooltip(const String &code, const godot::Dictionary
 	const float interval = (float)(double)st.get("interval", 0.0), duration = (float)(double)st.get("duration", 0.0);
 	if (interval > 0.0f)
 		info += (info.is_empty() ? String() : comma()) +
-				sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Interval:")}, {"details", seconds_string(interval)}});
+				sprintf0(tr0("%(label)s %(details)s"), {{"label", hdr("Interval:")}, {"details", seconds_string(interval)}});
 	if (duration > 0.0f)
 		info += (info.is_empty() ? String() : comma()) +
-				sprintf0(tr0("%(durName)s: %(duration)s"), {{"durName", tr0("Duration")}, {"duration", seconds_string(duration)}});
+				sprintf0(tr0("%(durName)s: %(duration)s"), {{"durName", hdr("Duration")}, {"duration", seconds_string(duration)}});
 	const String tip = st.get("tooltip", String());
 	if (!tip.is_empty()) info += (info.is_empty() ? String() : comma()) + tr0(tip);
 	const String stack = st.get("stackability", String());
 	const char *stacking = stack == "Stack" ? "(stacks)" : stack == "Replace" ? "(replaces)" : stack == "Extend" ? "(extends)" : "";
 	return sprintf0(tr0("%(statusName)s: %(statusInfo)s %(stackability)s"),
-			{{"statusName", tr0(String(st.get("name", code)))}, {"statusInfo", info}, {"stackability", tr0(stacking)}}).strip_edges();
+			{{"statusName", header_font(tr0(String(st.get("name", code))))}, {"statusInfo", info}, {"stackability", tr0(stacking)}}).strip_edges();
 }
 
 // getAttackTooltip for a unit: one line per attack of its template, in the template's order and
@@ -440,22 +460,22 @@ inline String applied_status_tooltip(const String &code, const godot::Dictionary
 // line and the Capture line. `elevated_m`: the Ranged attack's range where the unit stands
 // (GuiInterface elevationAdaptedRange), in metres, 0 for none.
 inline String attack_tooltip(const Simulation::UnitDetails &d, const godot::Array &attacks = godot::Array(), float elevated_m = 0.0f) {
-	const String indent2 = "    "; // the details are indented two spaces, these lines four
+	const String indent2 = String(kIndent) + kIndent; // the details take g_Indent, these lines two
 	std::vector<String> lines;
 	auto attack_line = [&](const String &name, const String &effects, float lo, float hi, float interval, const String &statuses,
 							   const String &splash, float elevated = 0.0f) {
 		lines.push_back(sprintf0(tr0("%(attackLabel)s: %(effects)s, %(range)s, %(rate)s%(statusEffects)s%(splash)s"),
-				{{"attackLabel", tr0(name)}, {"effects", effects}, {"range", range_details(lo, hi, elevated)}, {"rate", interval_details(interval)},
+				{{"attackLabel", header_font(tr0(name))}, {"effects", effects}, {"range", range_details(lo, hi, elevated)}, {"rate", interval_details(interval)},
 				 {"statusEffects", statuses}, {"splash", splash}}));
 	};
 	String damage;
 	for (int k = 0; k < 4; ++k) {
 		if (d.damage[k] <= 0.0f) continue;
 		if (!damage.is_empty()) damage += comma();
-		damage += sprintf0(tr0("%(damage)s %(damageType)s"), {{"damage", fixed(d.damage[k], 1)}, {"damageType", damage_type_name(k)}});
+		damage += sprintf0(tr0("%(damage)s %(damageType)s"), {{"damage", fixed(d.damage[k], 1)}, {"damageType", unit_font(damage_type_name(k))}});
 	}
 	const String capture = d.capture > 0.0f
-			? sprintf0(tr0("%(amount)s %(name)s"), {{"amount", fixed(d.capture, 1)}, {"name", tr0("Capture")}}) : String();
+			? sprintf0(tr0("%(amount)s %(name)s"), {{"amount", fixed(d.capture, 1)}, {"name", unit("Capture")}}) : String();
 	bool listed_damage = false, listed_capture = false;
 	for (int a = 0; a < attacks.size(); ++a) {
 		const godot::Dictionary at = attacks[a];
@@ -478,7 +498,7 @@ inline String attack_tooltip(const Simulation::UnitDetails &d, const godot::Arra
 			const godot::Array codes = status.keys();
 			for (int c = 0; c < codes.size(); ++c) {
 				const godot::Dictionary st = status[codes[c]];
-				names += (names.is_empty() ? String() : comma()) + tr0(String(st.get("name", codes[c])));
+				names += (names.is_empty() ? String() : comma()) + unit_font(tr0(String(st.get("name", codes[c]))));
 				statuses += "\n" + indent2 + applied_status_tooltip(codes[c], st);
 			}
 			effects += comma() + sprintf0(tr0("gives %(name)s"), {{"name", names}});
@@ -488,7 +508,7 @@ inline String attack_tooltip(const Simulation::UnitDetails &d, const godot::Arra
 		if (!sp.is_empty()) {
 			// splashDetails; Friendly Fire only when it is on (g_AlwaysDisplayFriendlyFire is off).
 			splash = "\n" + indent2 + sprintf0(tr0("%(label)s: %(effects)s"),
-					{{"label", sprintf0(tr0("%(splashShape)s Splash"), {{"splashShape", tr0(String(sp.get("shape", "Circular")))}})},
+					{{"label", header_font(sprintf0(tr0("%(splashShape)s Splash"), {{"splashShape", tr0(String(sp.get("shape", "Circular")))}}))},
 					 {"effects", damage_map_details(sp.get("damage", godot::Dictionary()))}});
 			if ((bool)sp.get("friendly_fire", false))
 				splash += comma() + sprintf0(tr0("Friendly Fire: %(enabled)s"), {{"enabled", tr0("Yes")}});
@@ -500,8 +520,8 @@ inline String attack_tooltip(const Simulation::UnitDetails &d, const godot::Arra
 	if (!capture.is_empty() && !listed_capture) attack_line("Capture", capture, 0.0f, 4.0f, 1.0f, String(), String());
 	if (lines.empty()) return String();
 	String details;
-	for (const String &l : lines) details += String(details.is_empty() ? "" : "\n") + "  " + l;
-	return sprintf0(tr0("%(label)s\n%(details)s"), {{"label", tr0("Attack:")}, {"details", details}});
+	for (const String &l : lines) details += String(details.is_empty() ? "" : "\n") + kIndent + l;
+	return sprintf0(tr0("%(label)s\n%(details)s"), {{"label", hdr("Attack:")}, {"details", details}});
 }
 
 // getVisibleEntityClassesFormatted: "Classes: Infantry, Melee, Spearman".
@@ -509,10 +529,10 @@ inline String classes_line(const godot::Array &classes) {
 	if (classes.is_empty()) return String();
 	String list;
 	for (int i = 0; i < classes.size(); ++i) list += (i ? tr0(", ") : String()) + tr0(String(classes[i]));
-	return tr0("Classes:") + " " + list;
+	return hdr("Classes:") + " " + body_font(list);
 }
 
-// getTreasureTooltip: "Reward: Food 100  Wood 50" (resource names for the icons), from
+// getTreasureTooltip: "Reward: [food] 100  [wood] 50", from
 // amounts in 0 A.D.'s order: food, wood, stone, metal.
 inline String reward_tooltip(const int amount[4]) {
 	static const uint8_t kRes[] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
@@ -520,9 +540,9 @@ inline String reward_tooltip(const int amount[4]) {
 	for (int k = 0; k < 4; ++k)
 		if (amount[k] > 0)
 			details += (details.is_empty() ? "" : "  ") +
-					sprintf0(tr0("%(resourceIcon)s %(reward)s"), {{"resourceIcon", resource_name(kRes[k])}, {"reward", num(amount[k])}});
+					sprintf0(tr0("%(resourceIcon)s %(reward)s"), {{"resourceIcon", res_icon(kRes[k])}, {"reward", num(amount[k])}});
 	if (details.is_empty()) return String();
-	return sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Reward:")}, {"details", details}});
+	return sprintf0(tr0("%(label)s %(details)s"), {{"label", hdr("Reward:")}, {"details", details}});
 }
 
 // The portrait's last line: getFollowOnLeftClickTooltip (a unit) or getFocusOnLeftClickTooltip,

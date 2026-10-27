@@ -289,6 +289,8 @@ public:
 		};
 		section(hp_bar_, hp_label_);
 		section(capture_bar_, capture_label_);
+		// healthBackground red, healthForeground green, in barBorder with statsBarShaderHorizontal.
+		bar_sprites(hp_bar_, Color(1, 0, 0), Color(0, 128 / 255.0f, 0));
 		// healthSection's and captureTooltip's hover text.
 		hp_bar_->set_tooltip_text(rtso::tr0("Health"));
 		capture_bar_->set_tooltip_text(rtso::tr0("Capture Points"));
@@ -328,6 +330,8 @@ public:
 			resource_bar_->add_theme_stylebox_override("fill", fg_sb);
 		}
 		resource_bar_->set_size(Vector2(kSectionW - 1.0f, 7));
+		// resourceBackground darkgray, resourceForeground orange.
+		bar_sprites(resource_bar_, Color(169 / 255.0f, 169 / 255.0f, 169 / 255.0f), Color(1, 165 / 255.0f, 0));
 		resource_bar_->set_visible(false);
 		panel_->add_child(resource_bar_);
 		resource_stats_ = memnew(Label);
@@ -364,7 +368,9 @@ public:
 		extra_->set_size(Vector2(63, 32));
 		extra_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_RIGHT);
 		extra_->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
-		extra_->add_theme_font_size_override("font_size", 10);
+		// CarryingTextRight: sans-bold-stroke-13.
+		extra_->add_theme_font_override("font", bold_);
+		extra_->add_theme_font_size_override("font_size", 13);
 		extra_->add_theme_color_override("font_color", Color(1.0f, 1.0f, 1.0f));
 		extra_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
 		extra_->add_theme_constant_override("outline_size", 2);
@@ -396,8 +402,10 @@ public:
 		// the vertical bars in the right 35 px.
 		selection_grid_.build(panel_, Vector2(6, 6), Vector2(kW - 47.0f, kH - 50.0f), owner, "_on_selection_group_clicked", 4, 38.0f);
 		selection_grid_.set_right_click("_on_selection_group_gui_input");
+		selection_grid_.grid()->set_meta("tooltip_style", "session_bold"); // unitSelectionButton: sessionToolTipBold
 		// garrison_panel.xml (20 6 100% 100%): in the supplemental panel (move_to_left_panel).
 		garrison_grid_.build(panel_, Vector2(20, 6), Vector2(180, 116), owner, "_on_garrison_group_clicked", 4, 38.0f);
+		garrison_grid_.grid()->set_meta("tooltip_style", "session_bottom_bold"); // unitGarrisonButton
 		// garrison_panel.xml healthGarrison: the garrisoned units' total health, a vertical
 		// bar left of the garrison icons (updateGarrisonHealthBar).
 		garrison_hp_bar_ = memnew(ProgressBar);
@@ -422,22 +430,33 @@ public:
 		// edge. multiple_details_area.xml: numberOfUnits in large text where the portrait goes, the
 		// vertical healthMultiple and captureMultiple bars under it.
 		// A background with its fill as the first child; set_vbar fills it from the bottom.
-		auto make_vbar = [&](Control *parent, const char *name, Vector2 pos, Vector2 size, Color fill_col) {
+		// barBorder (black, alpha 128, 1 px out), the background sprite, the foreground and
+		// statsBarShaderVertical's lighting over them.
+		auto make_vbar = [&](Control *parent, const char *name, Vector2 pos, Vector2 size, Color fill_col, Color bg_col) {
 			ColorRect *b = memnew(ColorRect);
 			b->set_name(name);
 			b->set_position(pos);
 			b->set_size(size);
-			b->set_color(Color(0.10f, 0.12f, 0.16f, 0.85f));
+			b->set_color(bg_col);
 			b->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 			ColorRect *fill = memnew(ColorRect);
 			fill->set_color(fill_col);
 			fill->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 			b->add_child(fill);
+			ColorRect *border = memnew(ColorRect);
+			border->set_name("barBorder");
+			border->set_color(Color(0, 0, 0, 128 / 255.0f));
+			border->set_position(Vector2(-1, -1));
+			border->set_size(size + Vector2(2, 2));
+			border->set_draw_behind_parent(true);
+			border->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+			b->add_child(border);
+			b->add_child(lighting(true));
 			b->set_visible(false);
 			parent->add_child(b);
 			return b;
 		};
-		xp_vbar_ = make_vbar(portrait_, "experience", Vector2(2, 2), Vector2(4, 92), Color(0.95f, 0.75f, 0.20f));
+		xp_vbar_ = make_vbar(portrait_, "experience", Vector2(2, 2), Vector2(4, 92), Color(1, 1, 1), Color(169 / 255.0f, 169 / 255.0f, 169 / 255.0f));
 		count_label_ = memnew(Label);
 		count_label_->set_name("numberOfUnits");
 		count_label_->set_position(Vector2(kW - 41.0f, 10));
@@ -451,8 +470,8 @@ public:
 		count_label_->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 		count_label_->set_visible(false);
 		panel_->add_child(count_label_);
-		hp_vbar_ = make_vbar(panel_, "healthMultiple", Vector2(kW - 35.0f, 46), Vector2(8, kH - 90.0f), Color(0.25f, 0.75f, 0.35f));
-		cap_vbar_ = make_vbar(panel_, "captureMultiple", Vector2(kW - 23.0f, 46), Vector2(8, kH - 90.0f), Color(0, 0, 0, 0));
+		hp_vbar_ = make_vbar(panel_, "healthMultiple", Vector2(kW - 35.0f, 46), Vector2(8, kH - 90.0f), Color(0, 128 / 255.0f, 0), Color(1, 0, 0));
+		cap_vbar_ = make_vbar(panel_, "captureMultiple", Vector2(kW - 23.0f, 46), Vector2(8, kH - 90.0f), Color(0, 0, 0, 0), Color(0, 0, 0, 0));
 		for (ColorRect *&part : cap_vbar_parts_) {
 			part = memnew(ColorRect);
 			part->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
@@ -883,8 +902,7 @@ public:
 		for (auto &g : groups) {
 			hp += g.hp;
 			max_hp += g.max_hp;
-			g.tip = rtso::entity_names(RtsoSelectionGrid::group_name(g), String()) + "\n" +
-					rtso::tr0("Click to select only these, Ctrl+click or right-click to deselect them.");
+			g.tip = rtso::entity_names(RtsoSelectionGrid::group_name(g), String()); // getEntityNames, no click help
 		}
 		if (groups.size() > RtsoSelectionGrid::kMaxSelectionGroups) groups.resize(RtsoSelectionGrid::kMaxSelectionGroups);
 		set_title(String::num_int64(selected_ids.size()) + " units selected");
@@ -1223,7 +1241,7 @@ private:
 			const PackedStringArray pts = capture_label_->get_text().split(" / ");
 			if (pts.size() == 2)
 				capture_bar_->set_tooltip_text(rtso::sprintf0(rtso::tr0("%(captureLabel)s %(current)s / %(max)s"),
-						{{"captureLabel", rtso::tr0("Capture points:")}, {"current", pts[0]}, {"max", pts[1]}}));
+						{{"captureLabel", rtso::header_font(rtso::tr0("Capture points:"))}, {"current", pts[0]}, {"max", pts[1]}}));
 			capture_label_->set_text(String());
 		}
 	}
@@ -1240,6 +1258,36 @@ private:
 	}
 
 	// The capture bar's parts: pts[p] for each player p, pts[MAX_PLAYERS] for Gaia; the owner first.
+	// statsBarShaderHorizontal / Vertical: bar_lighting_*.png stretched over a bar.
+	static godot::TextureRect *lighting(bool vertical) {
+		using namespace godot;
+		TextureRect *t = memnew(TextureRect);
+		t->set_name("statsBarShader");
+		t->set_texture(rtso::load_ui_texture(vertical ? "res://assets/textures/ui/archive/bar_lighting_vertical.png"
+		                                              : "res://assets/textures/ui/archive/bar_lighting_horizontal.png"));
+		t->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+		t->set_stretch_mode(TextureRect::STRETCH_SCALE);
+		t->set_anchors_and_offsets_preset(Control::PRESET_FULL_RECT);
+		t->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		return t;
+	}
+	// A horizontal stats bar in 0.28's sprites: its background and foreground colours,
+	// barBorder 1 px out at black 128, and the lighting over it.
+	static void bar_sprites(godot::ProgressBar *bar, const godot::Color &bg, const godot::Color &fg) {
+		using namespace godot;
+		Ref<StyleBoxFlat> bg_sb, fg_sb;
+		bg_sb.instantiate();
+		bg_sb->set_bg_color(bg);
+		bg_sb->set_border_width_all(1);
+		bg_sb->set_border_color(Color(0, 0, 0, 128 / 255.0f));
+		bg_sb->set_border_blend(false);
+		bg_sb->set_expand_margin_all(1);
+		fg_sb.instantiate();
+		fg_sb->set_bg_color(fg);
+		bar->add_theme_stylebox_override("background", bg_sb);
+		bar->add_theme_stylebox_override("fill", fg_sb);
+		bar->add_child(lighting(false));
+	}
 	static void set_vbar(godot::ColorRect *bar, float value, float max) {
 		auto *fill = godot::Object::cast_to<godot::ColorRect>(bar->get_child(0));
 		const float frac = max > 0.0f ? std::clamp(value / max, 0.0f, 1.0f) : 0.0f;
@@ -1423,8 +1471,8 @@ private:
 		// The iconBorder tooltip opens with the primary name only, in namePrimaryBig.
 		String primary = name;
 		if (const int open = name.rfind(" ("); open > 0 && name.ends_with(")")) primary = name.substr(0, open);
-		return join_lines({primary, classes_line(entry.get("classes", godot::Array())), auras,
-				tooltip.is_empty() ? String() : rtso::tr0(tooltip), reward, portrait_click_line(unit)});
+		return join_lines({rtso::name_big(primary), classes_line(entry.get("classes", godot::Array())), auras,
+				tooltip.is_empty() ? String() : rtso::body_font(rtso::tr0(tooltip)), reward, portrait_click_line(unit)});
 	}
 
 	// The rank glyph: "%(rank)s Rank" and the rank technology's tooltip (unit_advanced,
@@ -1735,7 +1783,7 @@ private:
 			max_hp += g.max_hp;
 			total += g.count;
 			if (RtsoSelectionGrid::is_structure_key(g.key))
-				g.tip = g.name + "\n" + rtso::tr0("Click to select only these, Ctrl+click or right-click to deselect them.");
+				g.tip = g.name;
 		}
 		auto show_bar = [](godot::ProgressBar *bar, godot::Label *lbl, bool v) {
 			bar->set_visible(v);
@@ -1875,7 +1923,6 @@ private:
 				const uint32_t rgb = rtso::display_colors::rgb(sim, g.player);
 				g.bg = Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 160.0f / 255.0f);
 			}
-			g.tip += "\n" + rtso::tr0("Click to select only these, Ctrl+click or right-click to deselect them.");
 		}
 		if (cap) {
 			sort_groups(groups);

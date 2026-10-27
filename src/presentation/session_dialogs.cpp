@@ -8,7 +8,12 @@
 #include "l10n.h"
 #include "display_colors.h"
 #include "popup_safe.h"
+#include "session_skin.h"
+#include <godot_cpp/classes/font_variation.hpp>
+#include <godot_cpp/classes/theme_db.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/font.hpp>
+#include <godot_cpp/classes/text_server.hpp>
 #include <godot_cpp/classes/script.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
@@ -98,27 +103,53 @@ Array RtsoMain::speed_choices(bool fast_forward) {
 	return out;
 }
 
+// GameSpeedControl: the speed button toggles the gameSpeed dropdown, a ModernDropDown at
+// 100%-390 40 100%-230 65 ("Choose game speed"), which stays up showing the speed in use.
 void RtsoMain::_on_speed_button_pressed() {
-	if (!speed_btn) return;
+	if (!speed_btn || !ui_layer) return;
 	if (!speed_menu_) {
-		speed_menu_ = memnew(PopupMenu);
-		speed_menu_->connect("id_pressed", Callable(this, "_on_speed_selected"));
-		speed_btn->add_child(speed_menu_);
+		speed_menu_ = memnew(RtsoSafeSelect);
+		speed_menu_->set_name("GameSpeedDropdown");
+		speed_menu_->set_theme(rtso::session_skin());
+		speed_menu_->set_anchor(SIDE_LEFT, 1.0f);
+		speed_menu_->set_anchor(SIDE_RIGHT, 1.0f);
+		speed_menu_->set_offset(SIDE_LEFT, -390.0f);
+		speed_menu_->set_offset(SIDE_RIGHT, -230.0f);
+		speed_menu_->set_offset(SIDE_TOP, 40.0f);
+		speed_menu_->set_offset(SIDE_BOTTOM, 65.0f);
+		speed_menu_->set_meta("tooltip_style", "session");
+		// ModernDropDown: sans-bold-14 in a 25 px box. Linux Biolinum's line is about twice
+		// the point size, so it is trimmed to fit, as the summary's dropdowns are.
+		Ref<FontVariation> bold;
+		bold.instantiate();
+		Ref<Font> face = ResourceLoader::get_singleton()->load("res://assets/fonts/LinBiolinum_RBah.ttf");
+		bold->set_base_font(face.is_valid() ? face : ThemeDB::get_singleton()->get_fallback_font());
+		bold->set_spacing(TextServer::SPACING_TOP, -6);
+		bold->set_spacing(TextServer::SPACING_BOTTOM, -5);
+		speed_menu_->add_theme_font_override("font", bold);
+		speed_menu_->add_theme_font_size_override("font_size", 14);
+		speed_menu_->set_visible(false);
+		speed_menu_->connect("item_selected", Callable(this, "_on_speed_selected"));
+		ui_layer->add_child(speed_menu_);
 	}
+	speed_menu_->set_tooltip_text(rtso::tr0("Choose game speed"));
 	speed_menu_->clear();
 	const Array speeds = speed_choices(fast_forward_allowed());
+	int sel = -1;
 	for (int i = 0; i < speeds.size(); ++i) {
-		speed_menu_->add_radio_check_item(speed_title((float)speeds[i]), i);
-		speed_menu_->set_item_metadata(i, speeds[i]);
-		speed_menu_->set_item_checked(i, (float)speeds[i] == game_speed);
+		speed_menu_->add_item(speed_title((float)speeds[i]), i);
+		if ((float)speeds[i] == game_speed) sel = i;
 	}
-	speed_menu_->set_position(Vector2i(speed_btn->get_screen_position() + Vector2(0, speed_btn->get_size().y)));
-	speed_menu_->popup();
+	if (sel < 0)
+		for (int i = 0; i < speeds.size(); ++i)
+			if ((float)speeds[i] == 1.0f) sel = i;
+	speed_menu_->select(sel);
+	speed_menu_->set_visible(!speed_menu_->is_visible());
 }
 
-void RtsoMain::_on_speed_selected(int id) {
-	if (speed_menu_ && id >= 0 && id < speed_menu_->get_item_count())
-		set_game_speed((float)speed_menu_->get_item_metadata(speed_menu_->get_item_index(id)));
+void RtsoMain::_on_speed_selected(int index) {
+	const Array speeds = speed_choices(fast_forward_allowed());
+	if (index >= 0 && index < speeds.size()) set_game_speed((float)speeds[index]);
 }
 
 // Offline and in replays only: networked games run at the host's speed.
@@ -173,7 +204,9 @@ void RtsoMain::update_pause_overlay() {
 			const bool seated = pl < rtso::MAX_PLAYERS;
 			if (name.is_empty()) name = seated ? player_display_name(pl) : tr("Unknown Player");
 			const uint32_t rgb = seated && sim ? rtso::display_colors::rgb(*sim, pl) : 0xFFFFFFu;
-			who += String(who.is_empty() ? "" : ", ") + "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" +
+			// translateWithContext("Separator for a list of players", ", "): the catalogues keep
+			// context entries under their bare msgid (tools/fetch_0ad_l10n.py).
+			who += String(who.is_empty() ? "" : rtso::tr0(", ")) + "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" +
 					name.replace("[", "[lb]") + "[/color]";
 		}
 	const bool show = !net_disconnected_ && (hotkey_paused_ || others); // hidden once g_Disconnected
@@ -310,8 +343,8 @@ String RtsoMain::match_settings_player_state() const {
 	if (turn_mgr_.is_replaying()) return String();
 	const uint8_t me = seat_player();
 	if (!sim || me >= rtso::MAX_PLAYERS) return String();
-	if (sim->is_victory_for(me)) return "You have won!";
-	if (sim->is_defeated(me)) return "You have been defeated!";
+	if (sim->is_victory_for(me)) return tr("You have won!");
+	if (sim->is_defeated(me)) return tr("You have been defeated!");
 	return String();
 }
 

@@ -412,7 +412,7 @@ public:
 	// Engine.HasXmppClient: a game started from the lobby screen.
 	bool has_lobby_client() const; // Engine.HasXmppClient: signed in to the lobby
 	void open_lobby_page(); // MenuButtons Lobby: page_lobby.xml with {"dialog": true}
-	PopupMenu *speed_menu_ = nullptr;
+	RtsoSafeSelect *speed_menu_ = nullptr; // GameSpeedControl's gameSpeed dropdown
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
 	void _on_remove_guard_pressed();
@@ -885,7 +885,7 @@ public:
 	// 0.28 placementTooltip (input.js updateBuildingPlacementPreview): why the structure or
 	// wall can't go where the cursor is, or a wall's cost; wall_fail_tip_ ("Cannot build wall
 	// here!") holds until the cursor moves.
-	Label *placement_tip_ = nullptr;
+	RichTextLabel *placement_tip_ = nullptr; // markup: the wall cost's header font and icons
 	bool placement_tip_error_ = false;
 	String wall_fail_tip_;
 	Vector2 wall_fail_mouse_;
@@ -1037,6 +1037,8 @@ private:
 	void notify_attack(Vector3 pos, uint8_t attacker, bool structure, uint32_t target = 0);
 	void _on_chat_line_input(const Ref<InputEvent> &event, const String &action);
 	Array debug_chat_overlay() const { return chat_window_.overlay_state(); }
+	// ChatHistory's lines as the history page draws them (BBCode).
+	String debug_chat_history() const { return chat_window_.history(); }
 	// Tests: the camera's target on the ground and the unit it follows.
 	Dictionary debug_camera() const {
 		Dictionary d;
@@ -1052,6 +1054,9 @@ private:
 	void play_civ_voice(const char *action, uint32_t unit_id = 0);
 	// selection.js addList: the select sound of the first entity this change added (none, none).
 	void play_select_added(const PackedInt32Array &before_units, const std::vector<uint32_t> &before_structs);
+	// SoundGroups/select of an animal, a supply or a treasure (selection.js plays Gaia's too).
+	void play_fauna_select(uint8_t fauna_type);
+	void play_inspected_select();
 	// The unit a left click selects (input.js PickEntityAtPoint): the visible unit nearest the
 	// cursor within 2 units, if it is selectable; SIZE_MAX otherwise.
 	size_t click_pick_unit(Vector2 mouse_pos, bool any_player) const;

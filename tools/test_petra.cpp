@@ -1725,6 +1725,36 @@ static void test_idle_workers_repair_cc() {
 
 // basesManager.js update: one base a turn, in turn (currentBase). The idle workers of a base
 // whose turn it is not wait: here they repair their damaged civic centre only on its turn.
+// garrisonManager.js keepGarrisoned and the "around" scan: a unit with a Melee attack (a woman's
+// dagger) leaves its shelter when enemy units come (DS1), and a melee war elephant counts as melee
+// siege (entityExtend.js isSiegeUnit: Siege or Elephant+Melee), not as a unit (DS2).
+static void test_garrison_melee_attack() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "AI 1 has a civic centre");
+	if (!cc) return;
+	const uint32_t woman = s->spawn_unit(cc->x + 6.0f, cc->z, 1, UNIT_FEMALE_CITIZEN);
+	const uint32_t healer = s->spawn_unit(cc->x + 6.0f, cc->z + 2.0f, 1, UNIT_HEALER);
+	Simulation::PetraAround raid;
+	raid.unit = true;
+	const bool woman_stays = s->petra_keep_garrisoned((size_t)s->lookup_unit(woman), *cc, raid);
+	const bool healer_stays = s->petra_keep_garrisoned((size_t)s->lookup_unit(healer), *cc, raid);
+	std::printf("  raid: woman (dagger) stays %d, healer (no attack) stays %d\n", woman_stays, healer_stays);
+	CHECK(!woman_stays, "a woman with a dagger leaves the shelter when enemy units come");
+	CHECK(healer_stays, "a healer with no attack stays sheltered");
+	s->spawn_unit(cc->x + 8.0f, cc->z + 4.0f, 0, UNIT_ELEPHANT);
+	const Simulation::PetraAround around = s->petra_around(*cc);
+	std::printf("  war elephant near the civic centre: melee siege %d, unit %d\n", around.melee_siege, around.unit);
+	CHECK(around.melee_siege && !around.unit, "a melee war elephant counts as melee siege");
+}
+
 static void test_one_base_a_turn() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -1843,6 +1873,42 @@ static void test_queue_plans_in_order() {
 	            b1, f1, f2, f3);
 	CHECK(!b0 && !f0 && b1 && f1, "a forge waits behind the barracks asked for first");
 	CHECK(!f2 && f3, "a head that stops asking lets the next structure start");
+}
+
+// baseManager.js:897 assignToFoundations: with no active base, every worker may build each
+// foundation (targetNB = maxTotalBuilders = the workers), not only the usual 2 for a palisade.
+static void test_no_base_all_build() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	uint32_t cc = 0;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type)) { cc = b.id; cx = b.x; cz = b.z; }
+	CHECK(cc != 0, "AI 1 has a civic centre");
+	if (!cc) return;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.id != cc) b.hp = 0.0f; // nothing else of ours either
+	s->buildings_[s->building_id_to_idx_.at(cc)].hp = 0.0f;
+	s->buildings_[s->building_id_to_idx_.at(cc)].wrecked = true;
+	int workers = 0;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1) {
+			const uint32_t uid = s->units_.id[i];
+			s->cmd_stop(&uid, 1);
+			++workers;
+		}
+	const uint32_t pal = s->spawn_building_world(cx + 6.0f, cz + 6.0f, BLD_PALISADE, 1, 0.0f);
+	s->petra_staff_foundations();
+	int on = 0;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.target_building_id[i] == pal) ++on;
+	std::printf("  no base: %d of %d units build the palisade, active base %d\n", on, workers, (int)s->petra_has_active_base());
+	CHECK(!s->petra_has_active_base() && on > 2, "with no base, more than the usual 2 build a palisade");
 }
 
 // baseManager.js assignRolelessUnits gives the Mauryan worker elephant the worker role, and
@@ -5138,7 +5204,7 @@ static void test_decay_destroy() {
 
 // defenseManager.js isDangerous / defenseArmy.js needsDefenders: Support units in our
 // territory are no threat, and the defence is sized by strength (getMaxStrength), so
-// war elephants draw more defenders than the same number of spearmen would.
+// a war elephant draws more defenders than one spearman would.
 static void test_defense_by_strength() {
 	for (int phase = 0; phase < 2; ++phase) {
 		auto s = std::make_unique<Simulation>();
@@ -5153,18 +5219,21 @@ static void test_defense_by_strength() {
 		CHECK(cc != nullptr, "Petra has a civic centre");
 		if (!cc) return;
 		const float cx = cc->x, cz = cc->z;
-		for (int k = 0; k < 30; ++k) s->spawn_unit(cx - 10.0f + (float)(k % 6), cz - 10.0f - (float)(k / 6), 1, UNIT_SPEARMAN);
+		for (int k = 0; k < 60; ++k) s->spawn_unit(cx - 10.0f + (float)(k % 8), cz - 10.0f - (float)(k / 8), 1, UNIT_SPEARMAN);
+		// Melee siege garrisons no melee infantry (garrisonManager.js allowMelee), so every
+		// spearman is free to defend: the army stops at the elephant's strength x defenseRatio.
 		const UnitType foe = phase == 0 ? UNIT_FEMALE_CITIZEN : UNIT_ELEPHANT;
-		for (int k = 0; k < 2; ++k) s->spawn_unit(cx + 6.0f + (float)k, cz + 6.0f, 0, foe);
+		const int foes = phase == 0 ? 2 : 1;
+		for (int k = 0; k < foes; ++k) s->spawn_unit(cx + 6.0f + (float)k, cz + 6.0f, 0, foe);
 		run_ai_turns(*s, 3); // checkEnemyUnits looks in our land one turn in (players + 1)
 		const size_t n = all_defenders(*s).size();
-		const size_t by_count = (size_t)std::ceil(2.0f * s->petra_config_.defense_ratio_own);
+		const size_t by_count = (size_t)std::ceil((float)foes * s->petra_config_.defense_ratio_own);
 		if (phase == 0) {
 			std::printf("  defense: 2 enemy women by the civic centre draw %zu defenders\n", n);
 			CHECK(n == 0, "Support units are not dangerous (isDangerous)");
 		} else {
-			std::printf("  defense: 2 war elephants draw %zu defenders (%zu by head count)\n", n, by_count);
-			CHECK(n > by_count && n < 30, "defenders sized by strength (needsDefenders)");
+			std::printf("  defense: a war elephant draws %zu defenders (%zu by head count)\n", n, by_count);
+			CHECK(n > by_count && n < 60, "defenders sized by strength (needsDefenders)");
 		}
 	}
 }
@@ -7859,6 +7928,126 @@ static void test_petra_far_gatherer_recheck() {
 	CHECK(now != far, "a gatherer on a far supply is sent back");
 }
 
+// worker.js:293-314 (W6): a stone gatherer sent to a far mine drops its supply mark on the way
+// back to a dropsite while its base has a nearby mine, so it is rechecked when it gathers again.
+static void test_far_sparse_gatherer_returning() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	s->spawn_resource_world(cx + 8.0f, cz + 8.0f, RES_STONE, 5000);
+	float fx = 0.0f, fz = 0.0f;
+	bool found = false;
+	for (int a = 0; a < 16 && !found; ++a)
+		for (float d = 30.0f; d < 44.0f && !found; d += 2.0f) {
+			const float x = cx + std::cos(a * 0.3927f) * d, z = cz + std::sin(a * 0.3927f) * d;
+			if (std::fabs(x) > s->map_half_ - 8.0f || std::fabs(z) > s->map_half_ - 8.0f) continue;
+			if (s->petra_access_at(x, z) == s->petra_access_at(cx, cz) && s->territory_owner_at(x, z) < 0) { fx = x; fz = z; found = true; }
+		}
+	CHECK(found, "land 30-44 units out");
+	if (!found) return;
+	const uint32_t far = s->spawn_resource_world(fx, fz, RES_STONE, 5000);
+	const uint32_t w = s->spawn_unit(fx + 1.5f, fz, 1, UNIT_FEMALE_CITIZEN);
+	s->petra_set_supply(w, far); // Petra sent it there (metadata "supply")
+	s->order_gather(&w, 1, far);
+	{ // nearly full: it heads back with its load within a few seconds
+		const int32_t i = s->lookup_unit(w);
+		s->units_.carry[i] = 9;
+		s->units_.res_type_carried[i] = RES_STONE;
+	}
+	bool returning = false, cleared = false;
+	for (int k = 0; k < 30 * 12 && !cleared; ++k) {
+		s->tick(Simulation::FIXED_STEP);
+		const int32_t i = s->lookup_unit(w);
+		if (i < 0) break;
+		returning |= s->units_.action_state[i] == ACTION_RETURN_DROPSITE;
+		cleared = s->petra_supply_of(w) == 0;
+		if (!returning && cleared) { s->petra_set_supply(w, far); cleared = false; } // a recheck while gathering: keep it there
+	}
+	std::printf("  far stone gatherer taking its load back: supply mark %s\n", cleared ? "dropped" : "kept");
+	CHECK(returning && cleared, "a stone gatherer on a far mine drops its supply mark on the way back");
+}
+
+// worker.js:220-227 (W7): an idle gatherer carrying its own gather-type goes straight back to
+// gathering with its load; one carrying another type takes it to a dropsite first.
+static void test_idle_gatherer_keeps_load() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	const uint32_t tree = s->spawn_resource_world(cx + 10.0f, cz - 10.0f, RES_WOOD, 5000);
+	const uint32_t w = s->spawn_unit(cx + 9.0f, cz - 9.0f, 1, UNIT_FEMALE_CITIZEN);
+	s->petra_set_supply(w, tree); // a gatherer Petra sent to wood
+	auto &u = s->units_;
+	int32_t i = s->lookup_unit(w);
+	u.carry[i] = 5;
+	u.res_type_carried[i] = RES_WOOD;
+	bool returned = false, gathering = false;
+	for (int k = 0; k < 30 * 6 && !gathering; ++k) {
+		s->tick(Simulation::FIXED_STEP);
+		i = s->lookup_unit(w);
+		if (i < 0) break;
+		returned |= u.order_kind[i] == ORDER_RETURN_RESOURCE;
+		gathering = u.action_state[i] == ACTION_GATHER && u.carry[i] > 0;
+	}
+	std::printf("  idle wood gatherer with 5 wood: return order %s, gathering with its load %s\n", returned ? "yes" : "no",
+	            gathering ? "yes" : "no");
+	CHECK(!returned && gathering, "an idle gatherer carrying its own type goes straight back to gathering");
+}
+
+// headquarters.js manageCorral (H8): the livestock TrainingPlan waits in queues.corral and is
+// paid from that queue's account, not straight from the stock.
+static void test_corral_pays_from_queue() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 2.0f);
+	s->petra_pid_ = 1;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->petra_queues_.accounts[PETRA_Q_CORRAL] = {};
+	s->triggers_.disabled_buildings[1] |= bld_bit(BLD_FIELD);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const uint32_t corral = s->spawn_building_world(cc->x + 20.0f, cc->z, BLD_CORRAL, 1, 1.0f);
+	auto queued = [&] {
+		auto it = s->building_id_to_idx_.find(corral);
+		return it == s->building_id_to_idx_.end() ? 0 : (int)s->buildings_[it->second].queue.size();
+	};
+	auto manage = [&] { s->ticks_ = (s->ticks_ / 16 + 1) * 16 + 12; s->petra_manage_fields(); };
+	manage();
+	const bool waited = queued() == 0 && s->petra_queues_.wants[PETRA_Q_CORRAL].food > 0.0f;
+	const float food = s->petra_ps().food();
+	s->petra_queues_.accounts[PETRA_Q_CORRAL] = {500, 500, 500, 500};
+	manage();
+	const float paid = food - s->petra_ps().food();
+	const float account = 500.0f - s->petra_queues_.accounts[PETRA_Q_CORRAL].food;
+	std::printf("  corral: waits unfunded %s, then bred %d paying %.0f food from the stock and %.0f from its account\n",
+	            waited ? "yes" : "no", queued(), paid, account);
+	CHECK(waited, "an unfunded corral queue breeds nothing and keeps its want");
+	CHECK(queued() == 1 && paid > 0.0f && paid == account, "a funded corral queue breeds, paying once from its account");
+}
+
 static void test_corral_by_owner() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -8208,9 +8397,11 @@ int main(int argc, char **argv) {
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_garrisoned_workers_count);
 	RUN(test_gather_rate_civ_bonus);
+	RUN(test_garrison_melee_attack);
 	RUN(test_one_base_a_turn);
 	RUN(test_no_room_only_once_funded);
 	RUN(test_queue_plans_in_order);
+	RUN(test_no_base_all_build);
 	RUN(test_idle_workers_repair_cc);
 	RUN(test_worker_elephant_builds);
 	RUN(test_anchor_dropsite_unshared);
@@ -8319,6 +8510,9 @@ int main(int argc, char **argv) {
 	RUN(test_building_plan_028);
 	RUN(test_tile_bases_028);
 	RUN(test_food_fields);
+	RUN(test_far_sparse_gatherer_returning);
+	RUN(test_idle_gatherer_keeps_load);
+	RUN(test_corral_pays_from_queue);
 	RUN(test_corral_by_owner);
 	RUN(test_missing_room_expansion);
 	RUN(test_petra_far_gatherer_recheck);
