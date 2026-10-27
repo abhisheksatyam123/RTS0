@@ -766,6 +766,14 @@ static const rtso::SelectionOverlay &unit_selection_overlay(uint8_t type, uint16
 	return rtso::selection_class_table()[type < rtso::SELECTION_CLASS_ROWS ? type : rtso::UNIT_VILLAGER];
 }
 
+// World units per 0.28 metre of a unit whose model has this metre and longer horizontal extent. A ship's GLB carries no root scale that
+// fits its 0.28 size (none, or one far off), so its metre is its drawn hull over the length of
+// its template's Footprint, which 0.28 fits to the hull.
+static float unit_metre(float metre, float length, uint8_t type, const rtso::SelectionOverlay &ov) {
+	if (rtso::unit_is_ship(type) && length > 0.0f && ov.depth > 0.0f) return length / std::max(ov.width, ov.depth);
+	return metre;
+}
+
 // 0 A.D. player_trans surfaces take the owner's colour (model_common.fs).
 static void push_player_color(Node *model, int64_t &last, const Color &c) {
 	const int64_t key = (int64_t)c.to_rgba32();
@@ -780,7 +788,7 @@ void RtsoWorldView::load_unit_projectiles() {
 	if (d.is_empty()) return;
 	for (uint16_t t = 0; t < rtso::CIV_UNIT_TEMPLATE_COUNT; ++t) {
 		const String kind = d.get(String(rtso::civ_unit_template(t).id), "");
-		tmpl_projectile_[t] = kind == "javelin" ? 1 : (kind == "sling" ? 2 : 0);
+		tmpl_projectile_[t] = kind == "javelin" ? 1 : kind == "sling" ? 2 : kind == "javelin_fire" ? 3 : 0;
 	}
 }
 
@@ -2469,6 +2477,8 @@ void RtsoWorldView::load_ambient_fx() {
 	}
 	Array stone = Dictionary(root.get("projectiles", Dictionary())).get("stone", Array());
 	for (int j = 0; j < stone.size(); ++j) stone_fx_.push_back(String(stone[j]).utf8().get_data());
+	Array jav = Dictionary(root.get("projectiles", Dictionary())).get("javelin", Array());
+	for (int j = 0; j < jav.size(); ++j) javelin_fx_.push_back(String(jav[j]).utf8().get_data());
 	Dictionary run = root.get("run", Dictionary());
 	Array run_keys = run.keys();
 	for (int i = 0; i < run_keys.size(); ++i) {
@@ -2822,6 +2832,7 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key)
 		slot->y_offset = entry.y_offset;
 		slot->scale = entry.scale;
 		slot->metre = entry.metre;
+		slot->length = std::max(entry.aabb.size.x, entry.aabb.size.z) * entry.scale;
 		slot->height = entry.height > 0.0f ? entry.height : entry.aabb.size.y;
 		// silhouette.gdshader: the model's bounding sphere about the unit's origin.
 		for (int k = 0; k < 8; ++k)
@@ -4604,7 +4615,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (bars || st.n_icons > 0) {
 				// HeightOffset and the bar sizes are 0.28 metres, drawn at the model's own size.
 				const rtso::StatusBarsSize sb = unit_status_bars(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
-				const float m = model_b.metre;
+				const float m = unit_metre(model_b.metre, model_b.length, utype, unit_selection_overlay(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE));
 				draw_status_stack(sim, Vector3(x, y - model_b.y_offset + sb.height_offset * m, z), sb.bar_width * m, sb.bar_height * m, m, st);
 			}
 		}
@@ -4617,7 +4628,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (alpha > 0.005f) {
 				Color c = overlay_color(sim, uview.team[i], is_selected, ov.always_visible);
 				c.a = alpha;
-				place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), ov, model_b.metre, yaw,
+				place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), ov, unit_metre(model_b.metre, model_b.length, utype, ov), yaw,
 						Vector3(x, ground + 0.1f, z), c);
 			}
 			continue;
@@ -4706,7 +4717,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (ringed) {
 			Color c = overlay_color(sim, uview.team[i], is_selected, ov.always_visible);
 			c.a = alpha;
-			place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), ov, model_b.metre, yaw,
+			place_selection_overlay(get_or_create_ring_decal(unit_rings_used++), ov, unit_metre(model_b.metre, model_b.length, utype, ov), yaw,
 					Vector3(x, ground + 0.1f, z), c);
 		}
 		v.ring_on = ringed;
@@ -5082,14 +5093,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto launched = [&](const rtso::Projectile &p) -> uint8_t {
 		if (p.visual != 0 || p.src_kind != 1 || p.src_tmpl >= tmpl_projectile_.size()) return 0;
 		const uint8_t k = tmpl_projectile_[p.src_tmpl];
-		return (k == 1 && javelin_mm.is_valid()) || (k == 2 && sling_mm.is_valid()) ? k : 0;
+		return ((k == 1 || k == 3) && javelin_mm.is_valid()) || (k == 2 && sling_mm.is_valid()) ? k : 0;
 	};
 	int arrow_n = 0, bolt_n = 0, stone_n = 0, jav_n = 0, sling_n = 0;
 	for (const auto &proj : projectiles) {
 		if (!entity_visible(proj.current_x, proj.current_z, proj.team)) continue;
 		if (proj.visual == 2) stone_n++;
 		else if (proj.visual == 1) bolt_n++;
-		else if (const uint8_t k = launched(proj)) (k == 1 ? jav_n : sling_n)++;
+		else if (const uint8_t k = launched(proj)) (k == 2 ? sling_n : jav_n)++;
 		else arrow_n++;
 	}
 	if (arrow_mm.is_valid()) set_mm_count(arrow_mm, arrow_n);
@@ -5131,9 +5142,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			xf.basis = xf.basis.scaled(Vector3(bolt_scale, bolt_scale, bolt_scale));
 			bolt_mm->set_instance_transform(bolt_i++, xf);
 		} else if (const uint8_t k = launched(proj)) {
-			const float sc = k == 1 ? javelin_scale : sling_scale;
+			const float sc = k == 2 ? sling_scale : javelin_scale;
+			if (k == 3) { // attack_ranged_javelinist_fire: jav_projectile_flame.xml's flame and smoke,
+				// at the drawn javelin's metre (2.09 units for 0.28's 3.13 m shaft)
+				load_ambient_fx();
+				emit_world_fx(javelin_fx_, pos, 2.09f / 3.13f, delta);
+			}
 			xf.basis = xf.basis.scaled(Vector3(sc, sc, sc));
-			if (k == 1) javelin_mm->set_instance_transform(jav_i++, xf);
+			if (k != 2) javelin_mm->set_instance_transform(jav_i++, xf);
 			else sling_mm->set_instance_transform(sling_i++, xf);
 		} else if (arrow_mm.is_valid()) {
 			xf.basis = xf.basis.scaled(Vector3(arrow_scale, arrow_scale, arrow_scale));

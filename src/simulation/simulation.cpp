@@ -4554,8 +4554,9 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 	order.timer = 0.0f;
 	for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = cost[r];
 	order.duration = unit_train_seconds(player_id, tmpl) * batch_time_multiplier(player_id, b.type, count, b.civ);
-	add_to_queue(b.queue, order, push_front);
-	if (!triggers_.triggers.empty()) { // ProductionQueue.js AddItem: OnTrainingQueued
+	if (!triggers_.triggers.empty()) {
+		// Trainer.js Item.Queue raises OnTrainingQueued before ProductionQueue.AddItem pushes the
+		// batch, so a script's ResetQueue then (the tutorials' wrong batch) leaves this one in.
 		TriggerEventData ev;
 		ev.entity = building_id;
 		ev.player = player_id;
@@ -4563,6 +4564,7 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 		ev.count = (uint16_t)count;
 		trigger_event(TRIGGER_ON_TRAINING_QUEUED, ev);
 	}
+	add_to_queue(b.queue, order, push_front);
 	return true;
 }
 
@@ -14894,9 +14896,16 @@ void Simulation::tick_construction(float dt) {
 		// Finished buildings are repaired in tick_repair(); a co-builder whose
 		// foundation was completed by someone else has nothing left to do.
 		if (b.build_progress >= 1.0f) {
+			// REPAIRING enter on a structure at full health: ConstructionFinished, so the
+			// builder farms it, gathers by it or moves on to the next foundation; one still on
+			// its way walks on to it first (REPAIR.APPROACHING).
 			if (b.hp >= b.max_hp) {
-				units_.action_state[i] = ACTION_IDLE;
-				units_.target_building_id[i] = 0;
+				if (outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i)))
+					construction_finished_for(i, b);
+				else if (units_.has_order[i] == 0) {
+					units_.action_state[i] = ACTION_IDLE;
+					units_.target_building_id[i] = 0;
+				}
 			}
 			continue;
 		}
@@ -16107,6 +16116,11 @@ void Simulation::tick_combat(float dt) {
 			// "capture"), so AttackDetection pings, alerts and plays attacked_capture.
 			note_attacked(units_.id[i], units_.team[i], b.id, b.team, true, 0.0f, false, true);
 			if (b.team == 0 && units_.team[i] != 0) raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
+			// Attack.js Attack: a capture is a repeat like any other, so an unordered capturer of
+			// a structure it has no preference for looks for a better target after each one.
+			if (!(units_.order_kind[i] == ORDER_ATTACK_BUILDING && units_.order_target[i] == b.id) &&
+					preference_of(unit_preferences(units_.tmpl[i], units_.unit_type[i]).prefs, building_pref_classes(b.type)) == PREF_NONE)
+				look_again.push_back((uint32_t)i);
 			continue;
 		}
 		if (!pack_state_can_attack(units_.pack_state[i])) continue; // Pack.js: unpack before firing
@@ -19623,10 +19637,17 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 	// an automatic fight (ORDER_FLAG_INTERRUPTED) is not forced.
 	const bool forced = (units_.order_flags[i] & (ORDER_FLAG_FORCE | ORDER_FLAG_INTERRUPTED)) == ORDER_FLAG_FORCE;
 	if (st == ACTION_ATTACK && (units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0)) {
-		// COMBAT "Attacked": a fighting unit ignores other attackers, except a melee one
-		// (it may block the way to the target); a capturing one answers any attacker.
+		// COMBAT "Attacked" (APPROACHING, CHASING): a unit on its way ignores other attackers,
+		// except a melee one (it may block the way to the target). ATTACKING overrides it: a unit
+		// at its target answers only while capturing, and only an attacker it can't capture.
 		if (units_.target_unit_id[i] == attacker_id) return;
-		if (!melee && !unit_capturing(i)) return;
+		const bool capturing = unit_capturing(i);
+		bool at_target = attack_under_way(i);
+		if (capturing && !at_target) { // a capture's timer runs from each capture, not a swing
+			const Building &cb = buildings_[building_id_to_idx_.at(units_.target_building_id[i])];
+			at_target = structure_gap(cb, units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i)) <= CAPTURE_RANGE;
+		}
+		if (at_target ? !capturing : !melee) return;
 		if (forced && stance != STANCE_VIOLENT) return;
 	} else if (forced && stance != STANCE_VIOLENT && st != ACTION_IDLE && st != ACTION_FLEE) {
 		return;
@@ -19698,7 +19719,7 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 }
 
 uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype,
-		const std::unordered_map<uint32_t, FieldGatherers> *busy, uint32_t skip, uint8_t fauna) const {
+		const std::unordered_map<uint32_t, FieldGatherers> *busy, uint32_t skip, uint8_t fauna, size_t gatherer) const {
 	uint32_t best = 0;
 	float best_d2 = NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE;
 	for (size_t r = 0; r < resources_.count; ++r) {
@@ -19709,6 +19730,15 @@ uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, ui
 		if (busy) {
 			auto g = busy->find(resources_.id[r]);
 			if (g != busy->end() && g->second.total >= resources_.max_gatherers[r]) continue;
+		}
+		if (gatherer != SIZE_MAX) {
+			if (!can_gather(gatherer, r)) continue;
+			const auto *full = resources_.subtype[r] == RES_SUB_GRAIN ? &field_gatherers_
+					: resources_.subtype[r] == RES_SUB_FISH ? nullptr : &supply_gatherers_;
+			if (full) {
+				auto g = full->find(resources_.id[r]);
+				if (g != full->end() && g->second.total >= resources_.max_gatherers[r]) continue;
+			}
 		}
 		// Any player's field too: FindNearbyResource takes "resources owned by Gaia or any player".
 		const float dx = resources_.x[r] - x, dz = resources_.z[r] - z;
@@ -19917,25 +19947,25 @@ void Simulation::on_construction_finished(const Building &b, size_t builder) {
 		if (units_.alive[k] && (units_.team[k] == b.team || is_ally(b.team, units_.team[k])) &&
 				(k == builder || (units_.action_state[k] == ACTION_BUILD && units_.target_building_id[k] == b.id)))
 			builders.push_back(units_.id[k]);
-	const bool food = b.type == BLD_FARMSTEAD;
-	const bool other = b.type == BLD_STOREHOUSE;
-	for (uint32_t uid : builders) {
-		const int32_t k = lookup_unit(uid);
-		if (k < 0) continue;
-		units_.action_state[k] = ACTION_IDLE;
-		units_.target_building_id[k] = 0;
-		next_after_construction((size_t)k, b, food, other);
-		// CanReturnResource on the new structure: always take the load there first
-		// (PushOrderFront ReturnResource, ahead of whatever comes next).
-		if (units_.carry[k] > 0 && dropsite_accepts((size_t)k, b)) {
-			if (units_.order_kind[k] != ORDER_NONE) {
-				auto &q = order_queues_[uid];
-				q.insert(q.begin(), current_order((size_t)k));
-			}
-			applying_queued_ = true; // keep the queue
-			order_return_resource(&uid, 1, b.id, false, false);
-			applying_queued_ = false;
+	for (uint32_t uid : builders)
+		if (const int32_t k = lookup_unit(uid); k >= 0) construction_finished_for((size_t)k, b);
+}
+
+void Simulation::construction_finished_for(size_t k, const Building &b) {
+	const uint32_t uid = units_.id[k];
+	units_.action_state[k] = ACTION_IDLE;
+	units_.target_building_id[k] = 0;
+	next_after_construction(k, b, b.type == BLD_FARMSTEAD, b.type == BLD_STOREHOUSE);
+	// CanReturnResource on the new structure: always take the load there first
+	// (PushOrderFront ReturnResource, ahead of whatever comes next).
+	if (units_.carry[k] > 0 && dropsite_accepts(k, b)) {
+		if (units_.order_kind[k] != ORDER_NONE) {
+			auto &q = order_queues_[uid];
+			q.insert(q.begin(), current_order(k));
 		}
+		applying_queued_ = true; // keep the queue
+		order_return_resource(&uid, 1, b.id, false, false);
+		applying_queued_ = false;
 	}
 }
 
@@ -19957,6 +19987,14 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 		// An ally's builders (Foundation.GetBuilders holds them too) can't farm or drop at
 		// someone else's structure here; they only look for a foundation of their own.
 		const bool own = units_.team[k] == b.team;
+		// The tail of ConstructionFinished: a builder still on its way (REPAIR.APPROACHING) walks
+		// on to the structure (WalkToTarget); one already at it stays.
+		auto finish_here = [&] {
+			set_order(k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
+			units_.has_order[k] = 0;
+			if (structure_gap(b, units_.pos_x[k], units_.pos_z[k], unit_clearance_at(k)) > kBuildRange + unit_clearance_at(k) + kStandMargin)
+				walk_to_target(k, b.id);
+		};
 		const bool harvest = own && units_.order_kind[k] == ORDER_BUILD &&
 				(units_.order_flags[k] & (ORDER_FLAG_FORCE | ORDER_FLAG_AUTOHARVEST)) != 0;
 		auto q = order_queues_.find(uid);
@@ -19967,8 +20005,7 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 		if (petra_runs_for(units_.team[k])) {
 			const uint32_t f = b.type == BLD_HOUSE || is_map_house(b.type) ? find_nearby_foundation(b.x, b.z, units_.team[k]) : 0;
 			if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); return; }
-			set_order(k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
-			units_.has_order[k] = 0;
+			finish_here();
 			return;
 		}
 		if (harvest && b.type == BLD_FIELD) {
@@ -19980,23 +20017,33 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 		if (harvest && (food || other || takes_all)) {
 			// FindNearbyResource round the new dropsite: the nearest supply of any type it takes
 			// that the builder can gather, whatever it gathered last.
+			// It skips what the builder can't gather or is full (CanGather, IsAvailableTo), and
+			// takes live animals too: they have a ResourceSupply.
 			uint32_t r = 0;
 			float best = INFINITY;
 			for (uint8_t t : {(uint8_t)RES_FOOD, (uint8_t)RES_WOOD, (uint8_t)RES_STONE, (uint8_t)RES_GOLD}) {
 				if (!takes_all && (food ? t != RES_FOOD : t == RES_FOOD)) continue;
-				const uint32_t c = find_nearby_resource(b.x, b.z, t, b.team);
+				const uint32_t c = find_nearby_resource(b.x, b.z, t, b.team, -1, nullptr, 0, 0, k);
 				auto ci = res_id_to_idx_.find(c);
-				if (c == 0 || ci == res_id_to_idx_.end() || !can_gather(k, ci->second)) continue;
+				if (c == 0 || ci == res_id_to_idx_.end()) continue;
 				const float dx = resources_.x[ci->second] - b.x, dz = resources_.z[ci->second] - b.z;
 				if (dx * dx + dz * dz < best) { best = dx * dx + dz * dz; r = c; }
+			}
+			const bool hunts = gather_class_rate(unit_gather_class(units_.unit_type[k], units_.tmpl[k]), GK_MEAT) > 0.0f;
+			if ((takes_all || food) && hunts) {
+				const uint32_t prey = find_nearby_prey(k, b.x, b.z, best);
+				if (prey != 0) {
+					order_hunt(&uid, 1, prey, false);
+					units_.order_flags[k] &= (uint8_t)~ORDER_FLAG_FORCE; // PerformGather(nearby, false, false)
+					return;
+				}
 			}
 			if (r != 0) { order_gather(&uid, 1, r, false, false); return; }
 		}
 		// FindNearbyFoundation: the builder's own player's foundations.
 		const uint32_t f = find_nearby_foundation(b.x, b.z, units_.team[k]);
 		if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); return; }
-		set_order(k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
-		units_.has_order[k] = 0; // FinishOrder: it stays where it built from, in range
+		finish_here(); // FinishOrder: it stays where it built from, in range
 	}
 }
 
@@ -32434,7 +32481,23 @@ void Simulation::petra_manage_garrisons() {
 			cmd_stop(recall.data(), recall.size());
 			incoming[bi] -= (int)recall.size();
 		}
-		if (shoots && (around.unit || around.melee_siege || around.range_siege))
+		// defenseManager.js:569-579 and 692-693: an Attacked event between this holder and an
+		// enemy tower or fortress in its range garrisons it too, with no unit near.
+		bool duel = false;
+		if (shoots && around.defense_structure && !(around.unit || around.melee_siege || around.range_siege)) {
+			const float r = building_arrow_range(b);
+			auto enemy_shooter = [&](uint32_t id) {
+				auto it = building_id_to_idx_.find(id);
+				if (it == building_id_to_idx_.end()) return false;
+				const Building &o = buildings_[it->second];
+				const float dx = o.x - b.x, dz = o.z - b.z;
+				return petra_foe(o.team) && !o.wrecked && o.hp > 0.0f && building_ai_info(o.type).shoots() &&
+						dx * dx + dz * dz < r * r;
+			};
+			for (const auto &[target, attacker] : petra_turn_attacks_)
+				if ((target == b.id && enemy_shooter(attacker)) || (attacker == b.id && enemy_shooter(target))) { duel = true; break; }
+		}
+		if (shoots && (around.unit || around.melee_siege || around.range_siege || duel))
 			petra_garrison_units_inside(bi, around.defense_structure || around.unit, incoming);
 		if (decay_min > 0) petra_garrison_units_inside(bi, true, incoming, decay_min);
 	}
@@ -40830,7 +40893,7 @@ enum : int {
 	kTutFlagA = 3,        // farmStarted, rallyPointSet, marketStarted, stone
 	kTutFlagB = 4,        // trainingStarted, templeStarted, metal
 	kTutCount = 5,        // ramCount, femaleCount, houseCount
-	kTutWarning = 6,      // the WarningMessage shown (TutorialWarning)
+	kTutWarning = 6,      // the WarningMessage shown (TutorialWarning), and above it how many were sent
 	kTutId = 7,           // TutorialId
 };
 // TriggerWatch roles.
@@ -40845,13 +40908,18 @@ uint8_t Simulation::tutorial_resource_kind(uint32_t id, bool animal) const {
 	if (animal) return TUT_RES_MEAT; // a hunt or a herd's animal
 	auto it = res_id_to_idx_.find(id);
 	if (it == res_id_to_idx_.end()) return TUT_RES_NONE;
-	switch (resources_.type[it->second]) {
+	return tutorial_resource_kind_of(resources_.type[it->second], resources_.subtype[it->second]);
+}
+
+uint8_t Simulation::tutorial_resource_kind_of(uint8_t type, uint8_t subtype) {
+	// GetResourceType's generic type and, for food, its specific one.
+	switch (type) {
 		case RES_WOOD: return TUT_RES_TREE;
 		case RES_STONE: return TUT_RES_STONE;
 		case RES_GOLD: return TUT_RES_METAL;
 		default: break;
 	}
-	switch (resources_.subtype[it->second]) {
+	switch (subtype) {
 		case RES_SUB_NONE: return TUT_RES_FRUIT;
 		case RES_SUB_MEAT: return TUT_RES_MEAT;
 		case RES_SUB_GRAIN: return TUT_RES_GRAIN;
@@ -40870,10 +40938,17 @@ bool Simulation::tech_dealt_with(uint8_t player, uint8_t tech) const {
 	return false;
 }
 
+void Simulation::tutorial_warn(uint8_t warning) {
+	// WarningMessage: each one sent counts, so the panel shows a repeated warning again.
+	int32_t &w = triggers_.vars[kTutWarning];
+	w = (int32_t)(((((uint32_t)w >> 8) + 1) & 0xFFFFFFu) << 8) | warning;
+}
+
 void Simulation::tutorial_reset_queue(uint32_t building_id) {
-	// ProductionQueue.ResetQueue: every item is removed and refunded.
+	// ProductionQueue.ResetQueue: autoqueue off, and every item removed and refunded.
 	auto it = building_id_to_idx_.find(building_id);
 	if (it == building_id_to_idx_.end()) return;
+	buildings_[it->second].autoqueue = false;
 	const uint8_t team = buildings_[it->second].team;
 	while (!buildings_[it->second].queue.empty())
 		if (!cmd_cancel_train(team, building_id, buildings_[it->second].queue.size() - 1)) break;
@@ -40941,7 +41016,7 @@ void Simulation::tutorial_goal_init(int g) {
 			case 9: v[kTutFlagA] = 0; break;
 			case 11: case 16: case 21: v[kTutFlagA] = 0; v[kTutFlagB] = 0; break;
 			case 24: v[kTutCount] = 0; break;
-			case 26: set_player_won(TUTORIAL_PLAYER); break; // MarkPlayerAndAlliesAsWon(1)
+			case 26: set_player_won(TUTORIAL_PLAYER, SessionNotice::END_TUTORIAL); break; // MarkPlayerAndAlliesAsWon(1, "Tutorial completed", "")
 			default: break;
 		}
 		return;
@@ -40995,7 +41070,7 @@ void Simulation::tutorial_next_goal() {
 	const int g = triggers_.vars[kTutGoal] + 1;
 	if (g >= tutorial_goal_count(id)) return;
 	triggers_.vars[kTutGoal] = g;
-	triggers_.vars[kTutWarning] = TUTORIAL_WARN_NONE; // GoalMessage replaces the warning
+	triggers_.vars[kTutWarning] &= ~0xFF; // GoalMessage replaces the warning
 	tutorial_goal_init(g);
 	const bool ready_delay = id == TUTORIAL_ECONOMY && g == 18; // "delay": -1
 	triggers_.vars[kTutReady] = (ready_delay || !tutorial_goal_listens(g) || tutorial_goal_done(g)) ? 1 : 0;
@@ -41033,7 +41108,9 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 	const int g = v[kTutGoal];
 	if (d.event == TRIGGER_ON_DESERIALIZED) {
 		// OnDeserializedTrigger: NextGoal(true) on the current goal, without its Init: a goal
-		// done before the save (a phase already queued) offers Ready again.
+		// done before the save (a phase already queued) offers Ready again. Only the goal is
+		// sent again, so no warning shows.
+		v[kTutWarning] &= ~0xFF;
 		if (g >= 0 && g < tutorial_goal_count(id)) {
 			const bool ready_delay = id == TUTORIAL_ECONOMY && g == 18;
 			v[kTutReady] = (ready_delay || !tutorial_goal_listens(g) || tutorial_goal_done(g)) ? 1 : 0;
@@ -41065,8 +41142,16 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 		auto it = building_id_to_idx_.find(bid);
 		return it == building_id_to_idx_.end() ? 0 : building_tech_classes(buildings_[it->second].type);
 	};
+	auto finished_structure = [&](uint32_t bid) {
+		auto it = building_id_to_idx_.find(bid);
+		return it != building_id_to_idx_.end() && buildings_[it->second].build_progress >= 1.0f;
+	};
 	auto command = [&](uint16_t kind) { return d.event == TRIGGER_ON_PLAYER_COMMAND && d.value == kind; };
-	auto gather = [&](uint8_t res) { return command(TRIGGER_CMD_GATHER) && tutorial_resource_kind(d.entity, d.from == 1) == res; };
+	auto gather = [&](uint8_t res) {
+		if (!command(TRIGGER_CMD_GATHER)) return false;
+		if (d.from == 2) return tutorial_resource_kind_of((uint8_t)(d.other & 0xFF), (uint8_t)((d.other >> 8) & 0xFF)) == res;
+		return tutorial_resource_kind(d.entity, d.from == 1) == res;
+	};
 	auto repair = [&](TechClasses cls) { return command(TRIGGER_CMD_REPAIR) && (bld_classes(d.entity) & cls); };
 	auto construct = [&](uint8_t type) { return command(TRIGGER_CMD_CONSTRUCT) && d.count == type; };
 	auto rally_gather = [&](uint8_t res) { return command(TRIGGER_CMD_SET_RALLY) && d.entity && tutorial_resource_kind(d.entity, false) == res; };
@@ -41085,7 +41170,7 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 		const bool right_count = batch ? d.count != 1 : d.count == 1;
 		if (d.value != civ_unit_template_by_id(tmpl) || !right_count) {
 			tutorial_reset_queue(d.entity);
-			v[kTutWarning] = !right_count ? warn_count : warn_unit;
+			tutorial_warn(!right_count ? warn_count : warn_unit);
 			return false;
 		}
 		return true;
@@ -41127,7 +41212,7 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 					done_next();
 				} else if (event(TRIGGER_ON_PLAYER_COMMAND)) {
 					if (!rally_gather(TUT_RES_TREE)) {
-						v[kTutWarning] = TUTORIAL_WARN_RALLY_TREE_INTRO;
+						tutorial_warn(TUTORIAL_WARN_RALLY_TREE_INTRO);
 						break;
 					}
 					v[kTutFlagA] = 1;
@@ -41143,7 +41228,10 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 					if (!training(tutorial_civilian("spart").c_str(), true, TUTORIAL_WARN_BATCH_HOTKEY, TUTORIAL_WARN_CLICK_FEMALE)) break;
 					v[kTutFlagB] = 1;
 					done_next();
-				} else if (rally_gather(TUT_RES_GRAIN) || (command(TRIGGER_CMD_SET_RALLY) && (bld_classes(d.other) & TC_FIELD))) {
+				} else if (rally_gather(TUT_RES_GRAIN) || (command(TRIGGER_CMD_SET_RALLY) && (bld_classes(d.other) & TC_FIELD) &&
+						finished_structure(d.other))) {
+					// Only a "gather" rally on grain counts (introductory_tutorial.js:256): an unfinished
+					// Field's rally is "repair".
 					v[kTutFlagA] = 1;
 					done_next();
 				}
@@ -41197,7 +41285,7 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 		case 8:
 			if (!event(TRIGGER_ON_PLAYER_COMMAND)) break;
 			if (!rally_gather(TUT_RES_TREE)) {
-				v[kTutWarning] = TUTORIAL_WARN_RALLY_TREE;
+				tutorial_warn(TUTORIAL_WARN_RALLY_TREE);
 				break;
 			}
 			tutorial_next_goal();
@@ -41242,7 +41330,7 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 		case 23:
 			if (!event(TRIGGER_ON_PLAYER_COMMAND)) break;
 			if (!rally_gather(TUT_RES_GRAIN) && !(command(TRIGGER_CMD_SET_RALLY) && (bld_classes(d.other) & TC_FIELD))) {
-				v[kTutWarning] = TUTORIAL_WARN_RALLY_FIELD;
+				tutorial_warn(TUTORIAL_WARN_RALLY_FIELD);
 				break;
 			}
 			tutorial_next_goal();

@@ -673,7 +673,8 @@ public:
 		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
 			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER,
-			END_TREASURE, END_STRUCTURES_CRITICAL, END_CIVIC_CENTRES_CRITICAL, END_CHEAT };
+			END_TREASURE, END_STRUCTURES_CRITICAL, END_CIVIC_CENTRES_CRITICAL, END_CHEAT,
+			END_TUTORIAL }; // the tutorial's own lines: "Tutorial completed", and none for the defeated
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
@@ -1559,6 +1560,8 @@ public:
 	int tutorial_goal_index() const { return triggers_.vars[0]; }
 	bool tutorial_ready_button() const { return triggers_.vars[1] != 0; }
 	uint8_t tutorial_warning() const { return (uint8_t)triggers_.vars[6]; }
+	// How many WarningMessages the tutorial has sent: a new one shows the panel again.
+	uint32_t tutorial_warning_count() const { return (uint32_t)triggers_.vars[6] >> 8; }
 	// The player the tutorial teaches (playerID 1) and its enemy (2).
 	static constexpr uint8_t TUTORIAL_PLAYER = 0, TUTORIAL_ENEMY = 1;
 	// Time notifications (GuiInterface.AddTimeNotification) shown to `player` right now.
@@ -3510,11 +3513,13 @@ private:
 	bool tutorial_goal_done(int goal) const;
 	void tutorial_goal_init(int goal);
 	bool tutorial_goal_listens(int goal) const;
+	void tutorial_warn(uint8_t warning);
 	void tutorial_reset_queue(uint32_t building_id);
 	void tutorial_launch_attack();
 	void tutorial_remove_champions();
 	bool tech_dealt_with(uint8_t player, uint8_t tech) const; // TriggerHelper.HasDealtWithTech
 	uint8_t tutorial_resource_kind(uint32_t id, bool animal) const;
+	static uint8_t tutorial_resource_kind_of(uint8_t type, uint8_t subtype);
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
@@ -4490,8 +4495,10 @@ private:
 	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
 	bool can_gather(size_t i, size_t r) const;
 	// With `busy`, skips `skip` and resources whose MaxGatherers are all taken (ResourceSupply.IsAvailable).
+	// With a `gatherer`, only what that unit can gather (CanGather) and has room for (IsAvailableTo).
 	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1,
-			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0, uint8_t fauna = 0) const;
+			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0, uint8_t fauna = 0,
+			size_t gatherer = SIZE_MAX) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
 	bool self_garrison_rally(const Building &b, uint8_t unit_type, uint16_t tmpl) const;
 	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
@@ -4500,6 +4507,7 @@ private:
 	void on_construction_finished(const Building &b, size_t builder);
 	void enter_repairing(size_t i);
 	void next_after_construction(size_t k, const Building &b, bool food, bool other);
+	void construction_finished_for(size_t k, const Building &b); // one builder's ConstructionFinished
 	void destroy_building(Building &b);
 	bool can_capture_building(uint8_t player, const Building &b) const;
 	bool can_heal(size_t healer, int32_t target) const;         // Heal.js CanHeal

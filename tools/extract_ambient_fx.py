@@ -32,7 +32,9 @@ fauna actors: dust_cav), which 0 A.D. shows while the unit runs:
 "projectiles" lists the particles on the flaming stones the stone throwers fling
 (props/units/weapons/rock_flaming.xml, siege_artillery/stone_projectile_*_flaming.xml):
 
-  "projectiles": {"stone": ["<name>", ...]}
+  "projectiles": {"stone": ["<name>", ...], "javelin": [...]}
+
+and on the fire javelin (props/units/weapons/jav_projectile_flame.xml).
 
 "units" holds the particles a unit actor always props (the Theban fire-raiser's
 fire, the flaming pig's), placed like "structures" in the unit GLB's units:
@@ -73,6 +75,8 @@ SKIP = {"construction_dust"}
 FLAMING_STONES = ("art/actors/props/units/weapons/rock_flaming.xml",
                   "art/actors/props/units/siege_artillery/stone_projectile_med_flaming.xml",
                   "art/actors/props/units/siege_artillery/stone_projectile_large_flaming.xml")
+# The fire javelin Carthage's Iberian javelinists throw (attack_ranged_javelinist_fire).
+FLAMING_JAVELINS = ("art/actors/props/units/weapons/jav_projectile_flame.xml",)
 MAX_DEPTH = 3
 BURIED = -5.0  # metres: a part lying wholly this far below ground is not in the GLB
 
@@ -263,7 +267,13 @@ def build(vfs, models):
             if n not in stone:
                 stone.append(n)
     used.update(stone)
-    projectiles = {"stone": stone} if stone else {}
+    javelin = []
+    for actor in FLAMING_JAVELINS:
+        for n, *_ in actor_particles(vfs, actor, cache):
+            if n not in javelin:
+                javelin.append(n)
+    used.update(javelin)
+    projectiles = {k: v for k, v in (("stone", stone), ("javelin", javelin)) if v}
     return table, death, run, projectiles, units, {n: particle_def(vfs, n) for n in sorted(used)}
 
 

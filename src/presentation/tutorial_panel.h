@@ -108,7 +108,7 @@ public:
 		status_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
 		status_->add_theme_constant_override("outline_size", 3); // sans-bold-stroke-14
 		panel_->add_child(status_);
-		place(status_, 0, 1, 1, 1, 10, -36, -20, -12);
+		place(status_, 0, 1, 1, 1, 10, -42, -20, -12); // tutorialWarning "10 100%-42 100%-20 100%-12"
 
 		ready_ = memnew(Button);
 		ready_->set_theme(modern_skin()); // ModernButtonRed
@@ -153,7 +153,7 @@ public:
 		const bool ready = sim->tutorial_ready_button(), leave = on_last_goal(*sim);
 		const uint8_t w = sim->tutorial_warning();
 		// updateTutorial: a new goal or warning shows the panel again, even if toggled off.
-		const int shown = sim->tutorial_goal_index() * 256 + w;
+		const int64_t shown = (int64_t)sim->tutorial_goal_index() << 40 | (int64_t)sim->tutorial_warning_count() << 8 | w;
 		if (shown != last_shown_) {
 			if (last_shown_ >= 0) hidden_ = false;
 			last_shown_ = shown;
@@ -198,7 +198,7 @@ private:
 	RichTextLabel *status_ = nullptr;
 	Button *ready_ = nullptr;
 	std::string last_, last_status_;
-	int last_shown_ = -1; // goal * 256 + warning last shown
+	int64_t last_shown_ = -1; // goal << 40 | warnings sent << 8 | warning, last shown
 	String last_key_;      // tutorial, goal and locale of the text shown
 	bool hidden_ = false;
 };
