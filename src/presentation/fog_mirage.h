@@ -101,6 +101,11 @@ public:
 	// Rebuild the drawable lists from the sim. Cheap to call every frame: it only
 	// does work when the sim ticked, the viewer changed or the map changed.
 	void update(const Simulation &sim, uint8_t viewer);
+	// An observer or replay viewer: keep every active player's memory each tick, as 0.28
+	// keeps each player's mirages in the simulation, so a change of view shows that
+	// player's fog as the player knows it. Off, a change of view starts the new viewer's
+	// memory from the structures it has seen (Building::seen_mask) as they stand.
+	void set_track_all(bool on);
 
 	// The structures and resources the viewer should see, live or miraged.
 	const std::vector<FoggedBuilding> &buildings() const { return out_buildings_; }
@@ -146,6 +151,25 @@ private:
 		FoggedTreasure seen;
 		uint32_t stamp = 0;
 	};
+
+	// One viewer's memory; the current viewer's lives in the members below.
+	struct Memory {
+		std::unordered_map<uint32_t, BuildingMemory> buildings;
+		std::unordered_map<uint32_t, ResourceMemory> resources;
+		std::unordered_map<uint32_t, TreasureMemory> treasures;
+		bool valid = false;
+	};
+	void swap_memory(Memory &m);
+	// update()'s work once the cache key says the sim moved on: the viewer's grid and lists.
+	void pass(const Simulation &sim, uint8_t viewer);
+	// The other active players' memories while track_all_ (set_track_all), indexed by player.
+	bool track_all_ = false;
+	static constexpr int kPlayers = 8; // Simulation's MAX_PLAYERS
+	Memory others_[kPlayers];
+	std::vector<uint8_t> others_view_;
+	std::vector<FoggedBuilding> others_buildings_;
+	std::vector<FoggedResource> others_resources_;
+	std::vector<FoggedTreasure> others_treasures_;
 
 	const uint8_t *los_ = nullptr;
 	std::vector<uint8_t> view_;

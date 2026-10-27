@@ -214,6 +214,7 @@ void RtsoMain::_ready() {
 
 	minimap_panel_.build_background(ui_layer, [](const String &path) { return rtso::load_ui_texture(path); });
 	minimap_view = memnew(RtsoMiniMapView);
+	minimap_view->share_fog_mirages(&view->fog_mirages());
 	minimap_view->connect("minimap_clicked", Callable(this, "_on_minimap_clicked"));
 	minimap_view->connect("minimap_order", Callable(this, "_on_minimap_order"));
 	ui_layer->add_child(minimap_view);
@@ -1153,6 +1154,7 @@ void RtsoMain::_process(double delta) {
 	rtso::display_colors::refresh_config();
 	rtso::display_colors::state().viewer = viewer; // DiplomacyColors: g_ViewedPlayer's stances
 	view->set_local_player(viewer);
+	view->set_track_all_fog(spectating() || turn_mgr_.is_replaying());
 	if (viewer < rtso::MAX_PLAYERS) sim->set_fow_viewer(viewer); // an observer reads the revealed grid
 	{
 		view->set_selected_buildings(sim->cinema_playing() ? std::vector<uint32_t>() : selected_structures());

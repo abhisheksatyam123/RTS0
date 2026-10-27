@@ -9,11 +9,14 @@
 
 namespace rtso {
 
+static_assert(MAX_PLAYERS == 8, "FogMirages::kPlayers");
+
 // =============================================================================
 // FogMirages (Fogging.js / Mirage.js)
 // =============================================================================
 
 void FogMirages::reset() {
+	for (Memory &m : others_) m = Memory{};
 	building_memory_.clear();
 	resource_memory_.clear();
 	treasure_memory_.clear();
@@ -309,13 +312,25 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 	if (have_key_ && key_viewer_ == viewer && key_ticks_ == (uint64_t)stats.ticks &&
 			key_buildings_ == nb && key_resources_ == nr && key_treasures_ == nt && key_half_ == half && key_res_ == res)
 		return;
-	// A new viewer or a new map starts with no memories (0 A.D. keeps one
-	// Fogging state per player; RTS0 only presents one at a time).
-	if (!have_key_ || key_viewer_ != viewer || key_half_ != half || key_res_ != res ||
-			(uint64_t)stats.ticks < key_ticks_) {
-		building_memory_.clear();
-		resource_memory_.clear();
-		treasure_memory_.clear();
+	// A new map starts with no memories. A new viewer takes the memory kept for it while
+	// every player's is tracked (0 A.D. keeps one Fogging state per player), else none.
+	const bool same_map = have_key_ && key_half_ == half && key_res_ == res && (uint64_t)stats.ticks >= key_ticks_;
+	if (!same_map) {
+		for (Memory &m : others_) m = Memory{};
+	}
+	if (!same_map || key_viewer_ != viewer) {
+		if (same_map && track_all_ && key_viewer_ < kPlayers) {
+			swap_memory(others_[key_viewer_]);
+			others_[key_viewer_].valid = true;
+		}
+		if (same_map && track_all_ && viewer < kPlayers && others_[viewer].valid) {
+			swap_memory(others_[viewer]);
+			others_[viewer] = Memory{};
+		} else {
+			building_memory_.clear();
+			resource_memory_.clear();
+			treasure_memory_.clear();
+		}
 	}
 	apply_pending(viewer);
 	have_key_ = true;
@@ -327,6 +342,44 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 	key_half_ = half;
 	key_res_ = res;
 
+	pass(sim, viewer);
+	if (!track_all_) return;
+	// The other players' memories, kept the same way with their own grids and lists.
+	for (uint8_t p = 0; p < kPlayers; ++p) {
+		if (p == viewer || !sim.player(p).active) continue;
+		Memory &m = others_[p];
+		m.valid = true;
+		swap_memory(m);
+		view_.swap(others_view_);
+		out_buildings_.swap(others_buildings_);
+		out_resources_.swap(others_resources_);
+		out_treasures_.swap(others_treasures_);
+		pass(sim, p);
+		view_.swap(others_view_);
+		out_buildings_.swap(others_buildings_);
+		out_resources_.swap(others_resources_);
+		out_treasures_.swap(others_treasures_);
+		swap_memory(m);
+	}
+	los_ = view_.data(); // los_at reads the viewer's grid again
+}
+
+void FogMirages::set_track_all(bool on) {
+	if (on == track_all_) return;
+	track_all_ = on;
+	if (!on)
+		for (Memory &m : others_) m = Memory{};
+}
+
+void FogMirages::swap_memory(Memory &m) {
+	building_memory_.swap(m.buildings);
+	resource_memory_.swap(m.resources);
+	treasure_memory_.swap(m.treasures);
+}
+
+void FogMirages::pass(const Simulation &sim, uint8_t viewer) {
+	const int res = sim.fow_res();
+	const float half = sim.map_half();
 	los_view_grid(sim, viewer, view_);
 	begin(view_.data(), res, half);
 	for (const auto &b : sim.buildings()) {

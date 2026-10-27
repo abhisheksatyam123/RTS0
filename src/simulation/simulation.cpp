@@ -9782,25 +9782,20 @@ void Simulation::tick_turrets() {
 			// so the unit shoots what is in range instead.
 			if (units_.order_kind[u] == ORDER_ATTACK || units_.order_kind[u] == ORDER_ATTACK_BUILDING ||
 					units_.action_state[u] == ACTION_ATTACK) {
-				const float reach = attack_reach((size_t)u);
-				const float att_y = unit_height((size_t)u);
-				auto beyond = [&](float d2, float def_y) {
-					const float max_r2 = reach * reach - 2.0f * reach * (def_y - att_y); // in_parabolic_range
-					return !(max_r2 > 0.0f && d2 <= max_r2);
-				};
+				auto beyond = [&](float d2, float def_y) { return !in_attack_range((size_t)u, d2, def_y); };
 				bool out = false;
 				if (units_.target_unit_id[u] != 0) {
 					const int32_t t = lookup_unit(units_.target_unit_id[u]);
 					if (t >= 0 && units_.alive[t]) {
 						const float dx = units_.pos_x[t] - px, dz = units_.pos_z[t] - pz;
-						out = beyond(dx * dx + dz * dz, unit_height((size_t)t));
+						out = beyond(dx * dx + dz * dz, unit_height_offset((size_t)t));
 					}
 				} else if (units_.target_building_id[u] != 0) {
 					auto tb = building_id_to_idx_.find(units_.target_building_id[u]);
 					if (tb != building_id_to_idx_.end() && !buildings_[tb->second].wrecked) {
 						const Building &t = buildings_[tb->second];
 						const float g = structure_gap(t, px, pz, unit_clearance_at((size_t)u));
-						out = beyond(g * g, get_terrain_height(t.x, t.z));
+						out = beyond(g * g, 0.0f);
 					}
 				}
 				if (out) {
@@ -12692,7 +12687,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 						units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
 				float reach = capture ? CAPTURE_RANGE : attack_reach(i);
 				if (!capture && reach > 3.0f) { // Ranged: the elevation-adapted range, as for a unit target
-					const float h = get_terrain_height(b.x, b.z) - unit_height(i) - unit_attack_origin_y(i);
+					const float h = -unit_height_offset(i) - unit_attack_origin_y(i); // GetEffectiveParabolicRange
 					const float eff = std::sqrt(std::max(0.0f, reach * reach - 2.0f * reach * h));
 					reach = eff > reach ? 0.5f * (reach + eff) : eff;
 				}
@@ -12743,7 +12738,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				if (units_.target_unit_id[i] != 0) {
 					const int32_t t = lookup_unit(units_.target_unit_id[i]);
 					if (t >= 0) {
-						const float h = unit_height((size_t)t) - unit_height(i) - unit_attack_origin_y(i);
+						const float h = unit_height_offset((size_t)t) - unit_height_offset(i) - unit_attack_origin_y(i);
 						const float eff = std::sqrt(std::max(0.0f, r_att * r_att - 2.0f * r_att * h));
 						r_att = eff > r_att ? 0.5f * (r_att + eff) : eff;
 					}
@@ -16119,6 +16114,15 @@ inline bool in_parabolic_range(float d2, float att_y, float def_y, float base_ra
 	return (max_r2 > 0.0f) && (d2 <= max_r2);
 }
 
+// Attack.js IsTargetInRange -> ObstructionManager IsInTargetParabolicRange: the range is
+// GetEffectiveParabolicRange's, whose height difference is each entity's height above the
+// ground or water under it (Position GetHeightOffset: a turret point's, a plane's) plus the
+// attack's Origin/Y, not the terrain's elevation. A unit at the foot of a slope reaches a
+// structure on it; the terrain counts only for range queries and BuildingAI arrows.
+bool Simulation::in_attack_range(size_t i, float d2, float target_offset) const {
+	return in_parabolic_range(d2, unit_height_offset(i) + unit_attack_origin_y(i), target_offset, attack_reach(i));
+}
+
 // 0 A.D. "focus-fire" (Commands.js -> BuildingAI.AddFocusTarget). A target counts only when
 // it is in the structure's targetUnits: an enemy unit, structure, livestock or dangerous animal inside
 // its arrow range, as the arrow pass in tick_combat measures it (seen or not).
@@ -16197,7 +16201,6 @@ void Simulation::tick_pack(float dt) {
 
 		// Is the current target in weapon range?
 		bool target_in_range = false;
-		const float att_y = unit_height(i);
 		if (units_.target_unit_id[i] != 0) {
 			int32_t t = lookup_unit(units_.target_unit_id[i]);
 			if (t >= 0 && units_.alive[t] && is_hostile(units_.team[i], units_.team[t])) {
@@ -16205,8 +16208,7 @@ void Simulation::tick_pack(float dt) {
 				float dz = units_.pos_z[i] - units_.pos_z[t];
 				const float d2 = dx * dx + dz * dz;
 				const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i], units_.tmpl[i]);
-				target_in_range = d2 >= minr * minr && in_parabolic_range(d2, att_y,
-						unit_height(t), attack_reach(i));
+				target_in_range = d2 >= minr * minr && in_attack_range(i, d2, unit_height_offset((size_t)t));
 			}
 		} else if (units_.target_building_id[i] != 0 && st != ACTION_BUILD) {
 			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
@@ -16215,8 +16217,7 @@ void Simulation::tick_pack(float dt) {
 				if (is_hostile(units_.team[i], b.team)) {
 					const float eff_d = structure_gap(b, units_.pos_x[i], units_.pos_z[i],
 							unit_clearance_at(i));
-					target_in_range = in_parabolic_range(eff_d * eff_d, att_y, get_terrain_height(b.x, b.z),
-							attack_reach(i));
+					target_in_range = in_attack_range(i, eff_d * eff_d, 0.0f);
 				}
 			}
 		}
@@ -16359,7 +16360,7 @@ void Simulation::tick_combat(float dt) {
 				return;
 			}
 			if (units_.alive[t] && can_attack(units_.team[i], units_.team[t]) && unit_can_target(i, (size_t)t) &&
-					((in_parabolic_range(d2, unit_height(i), unit_height(t), attack_reach(i)) && d2 >= minr * minr) ||
+					((in_attack_range(i, d2, unit_height_offset((size_t)t)) && d2 >= minr * minr) ||
 					 attack_under_way(i))) {
 				units_.has_order[i] = 0; // no chase
 				target_idx[i] = t;
@@ -16403,13 +16404,13 @@ void Simulation::tick_combat(float dt) {
 		const float minr = range * unit_min_range_ratio(units_.unit_type[i], units_.tmpl[i]);
 		const float vision = unit_vision_at(i);
 		const float held_lim = vision * 0.5f + range; // CheckTargetDistanceFromHeldPosition
-		const float att_y = unit_height(i);
+		const float att_y = unit_height_offset(i) + unit_attack_origin_y(i); // GetEffectiveParabolicRange
 		// Would the stance let this unit (keep) fight j? (GetQueryRange / ShouldAbandonChase)
 		auto within_stance = [&](int32_t j) {
 			const float dx = units_.pos_x[j] - pxi, dz = units_.pos_z[j] - pzi;
 			const float d2 = dx * dx + dz * dz;
 			if (stance == STANCE_STAND_GROUND)
-				return in_parabolic_range(d2, att_y, unit_height(j), range);
+				return in_parabolic_range(d2, att_y, unit_height_offset((size_t)j), range);
 			if (stance == STANCE_DEFENSIVE) { // respondHoldGround, and not respondChaseBeyondVision
 				const float hx = units_.pos_x[j] - anc_x, hz = units_.pos_z[j] - anc_z;
 				return hx * hx + hz * hz < held_lim * held_lim && d2 <= vision * vision;
@@ -16646,12 +16647,9 @@ void Simulation::tick_combat(float dt) {
 		float dz = units_.pos_z[i] - units_.pos_z[t];
 		float d2 = dx * dx + dz * dz;
 
-		float att_y = unit_height(i);
-		float def_y = unit_height(t);
-
-		// 0 A.D. Exact Parabolic Range Equation (CCmpRangeManager.cpp)
+		// 0 A.D. CCmpRangeManager GetEffectiveParabolicRange (in_attack_range)
 		const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i], units_.tmpl[i]);
-		const bool in_range = in_parabolic_range(d2, att_y, def_y, attack_reach(i)) && d2 >= minr * minr; // Attack.js MinRange
+		const bool in_range = in_attack_range(i, d2, unit_height_offset(t)) && d2 >= minr * minr; // Attack.js MinRange
 		if (!in_range && range_check_due(i, dt)) stop_attack(i);
 		// COMBAT.ATTACKING enter: attacking a unit sets shouldCheer, whoever lands the kill, and a
 		// target leaving its range from here on is chased (CHASING), at a run if it flees.
@@ -16811,11 +16809,8 @@ void Simulation::tick_combat(float dt) {
 		// so the attacker's own radius counts (melee units could not reach a wall otherwise).
 		const float eff_d = structure_gap(b, units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i));
 
-		float att_y = unit_height(i);
-		float bld_y = get_terrain_height(b.x, b.z);
-
 		const bool in_range = capture ? eff_d <= CAPTURE_RANGE
-				: in_parabolic_range(eff_d * eff_d, att_y, bld_y, attack_reach(i));
+				: in_attack_range(i, eff_d * eff_d, 0.0f);
 		if (in_range) units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_CHEER; // a structure has no UnitAI: no cheer
 		if (!in_range) {
 			// Move toward building if out of range
@@ -20218,7 +20213,7 @@ bool Simulation::guard_keeps_target(size_t i, size_t t) const {
 	}
 	if (!units_.alive[g]) return false;
 	const float dx = units_.pos_x[g] - units_.pos_x[t], dz = units_.pos_z[g] - units_.pos_z[t];
-	return in_parabolic_range(dx * dx + dz * dz, unit_height(t), unit_height((size_t)g), attack_reach(t));
+	return in_attack_range(t, dx * dx + dz * dz, unit_height_offset((size_t)g));
 }
 
 // Guard.js OnAttacked -> UnitAI GuardedAttacked: guard i answers whoever hit the unit g it
@@ -20256,7 +20251,7 @@ void Simulation::guard_answer(size_t i, size_t g, uint32_t attacker) {
 	if (const int32_t a = lookup_unit(attacker); a >= 0) {
 		const float dx = units_.pos_x[a] - units_.pos_x[i], dz = units_.pos_z[a] - units_.pos_z[i];
 		if (units_.attack_damage[i] > 0.0f && units_.alive[a] && can_attack(units_.team[i], units_.team[a]) &&
-				(!stand || in_parabolic_range(dx * dx + dz * dz, unit_height(i), unit_height((size_t)a), reach)))
+				(!stand || in_attack_range(i, dx * dx + dz * dz, unit_height_offset((size_t)a))))
 			attack(attacker, 0, units_.pos_x[a], units_.pos_z[a]);
 		return;
 	}
@@ -23606,8 +23601,9 @@ void Simulation::petra_assign_repairs() {
 			const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
 			near.push_back({dx * dx + dz * dz, units_.id[i]});
 		}
-		const size_t n = (size_t)std::min(want - assigned, std::max(0, max_total - builders));
-		if (n == 0 || near.empty()) continue;
+		// filterNearest(targetNB - assigned): maxTotalBuilders only gates the target, it doesn't trim the crew.
+		const size_t n = (size_t)(want - assigned);
+		if (near.empty()) continue;
 		std::sort(near.begin(), near.end());
 		std::vector<uint32_t> crew;
 		for (const auto &c : near) crew.push_back(c.second);
@@ -23705,17 +23701,18 @@ void Simulation::petra_staff_foundations() {
 		// 7 on a fortress or wonder, 4 on military buildings, towers and the market, 3 on
 		// houses and wood dropsites, else 2.
 		int want = 2;
-		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY ||
-		    (b.type == BLD_WONDER && has_victory(VK_WONDER))) want = 15;
-		if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && !standing.empty()) want = 10;
+		const bool anchor = is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY;
+		if (anchor && !standing.empty()) want = 10;
+		else if (anchor || (b.type == BLD_WONDER && has_victory(VK_WONDER))) want = 15; // after the classes in 0.28: it wins
 		else if (b.type == BLD_FORTRESS || b.type == BLD_WONDER) want = 7;
 		else if ((building_tech_classes(b.type) & TC_BARRACKS) || b.type == BLD_RANGE || b.type == BLD_STABLE || is_defense_tower(b.type) ||
 		         b.type == BLD_SENTRY_TOWER || b.type == BLD_MARKET) want = 4; // class Barracks: the academy and mercenary camp too
 		else if ((building_tech_classes(b.type) & TC_HOUSE) || b.type == BLD_STOREHOUSE) want = 3; // class House: the apartment too
-		// checkPhaseRequirements' phaseUp plans (7, as a fortress): the town phase's first
-		// market, temple or forge, laid while none of its kind stands.
+		// checkPhaseRequirements' phaseUp plans (7, as a fortress): while phasing up to the city
+		// (HQ.phasing), the town phase's first market, temple or forge, laid while none of its
+		// kind stands.
 		const uint8_t kind = building_research_base(b.type);
-		if (petra_ps().phase == 2 && (kind == BLD_MARKET || kind == BLD_TEMPLE || kind == BLD_FORGE)) {
+		if (petra_ps().phase == 2 && (kind == BLD_MARKET || kind == BLD_TEMPLE || kind == BLD_FORGE) && petra_phasing()) {
 			bool stands = false;
 			for (const Building &o : buildings_)
 				if (o.team == petra_pid_ && building_research_base(o.type) == kind && o.build_progress >= 1.0f && o.hp > 0.0f && !o.wrecked) { stands = true; break; }
@@ -24211,8 +24208,10 @@ void Simulation::petra_manage_economy(float dt) {
 	// worker found nothing of in the last 20 s (lastFailedGather). switchGatherer takes a citizen
 	// soldier off food and a woman onto it when there is one.
 	std::vector<uint8_t> gather_type(reassignable_workers.size(), (uint8_t)RES_COUNT); // RES_COUNT: none yet
-	// baseManager.js:604 timeNextIdleCheck = elapsedTime + 8.
-	if ((int)(petra_timer_ / 8.0f) != (int)((petra_timer_ - petra_turn_dt_) / 8.0f)) {
+	// baseManager.js:604 timeNextIdleCheck = elapsedTime + 8; baseManager.js:1155 only from the
+	// town phase, or while phasing up to it (HQ.phasing == 2).
+	if ((int)(petra_timer_ / 8.0f) != (int)((petra_timer_ - petra_turn_dt_) / 8.0f) &&
+	    (petra_ps().phase > 1 || petra_phasing())) {
 		uint8_t order[RES_COUNT];
 		most_needed(order);
 		float sum_want = 0.0f, sum_cur = 0.0f;
@@ -41176,7 +41175,7 @@ void Simulation::trigger_volcano_rise_step() {
 	// extinct_volcano_triggers.js RaiseWaterLevelStep: a metre at a time, every
 	// half to one minute, until maxWaterLevel.
 	const float level = terrain_water_height_ + kVolcanoStepLevel * kTriggerHeight;
-	if (level < kVolcanoMaxLevel * kTriggerHeight) {
+	if (level + NAV_WATER_MARGIN < kVolcanoMaxLevel * kTriggerHeight) { // the map's 0 m is the nav water line
 		const float minutes = sim_rng_.range_float(kVolcanoStepMinMinutes, kVolcanoStepMaxMinutes);
 		triggers_.set_timeout((uint32_t)std::lround(minutes * 60000.0f), TRIGGER_ACTION_VOLCANO_RISE_STEP);
 	}
@@ -43635,7 +43634,8 @@ void Simulation::set_water_level(float h, float drown_depth) {
 	// WaterManager.SetWaterLevel plus the rising-water scripts' drowning pass
 	// (flood_triggers.js riseWaterLevel, extinct_volcano_triggers.js RaiseWaterLevelStep).
 	terrain_water_height_ = h;
-	auto submerged = [&](float x, float z) { return get_terrain_height(x, z) + drown_depth < h; };
+	// Depth is measured from the nav water line, where the land turns to water (grid_nav.h).
+	auto submerged = [&](float x, float z) { return get_terrain_height(x, z) + drown_depth < h + NAV_WATER_MARGIN; };
 	// Organic units and animals drown (cmpHealth.Kill()); ships float (Position/Floating) with
 	// their passengers. Siege engines aren't Organic: like structures they turn into actors,
 	// which is to say they are lost here, with the troops inside.
