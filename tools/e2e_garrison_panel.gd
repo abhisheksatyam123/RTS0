@@ -85,7 +85,7 @@ func run() -> void:
 		check(not g[0]["disabled"] and (g[0]["bg"] as Color).a > 0.5, "enabled, on the owner's colour")
 		var bar := garrison_health()
 		check(bar != null and bar.visible and bar.max_value > 0.0 and is_equal_approx(bar.value, bar.max_value)
-			and bar.tooltip_text == "Health: %d / %d" % [roundi(bar.value), roundi(bar.max_value)], "4. the garrison's total health: " + (bar.tooltip_text if bar else "none"))
+			and bar.tooltip_text == "[b]Health:[/b] %d / %d" % [roundi(bar.value), roundi(bar.max_value)], "4. the garrison's total health: " + (bar.tooltip_text if bar else "none"))
 		print("2. Clicks")
 		await click(named(g, "Hoplite"))
 		g = icons()

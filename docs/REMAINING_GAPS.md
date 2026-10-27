@@ -664,6 +664,21 @@ The minimap buttons and the selection panels' tooltips and buttons checked again
 | MM10 | Formation buttons were 26 px with a gold star on the default; formation_panel.xml has 38 px buttons with the 32 px icon at 3 3, greyed when unavailable, corners.png on the formation in use and upgrade.png on the default | low | Fixed |
 | MM11 | Formation names, descriptions and default-formation lines were not translated | nit | Fixed |
 
+### Single selection details and stat tooltips, thirteenth 0.28 pass (2026-10-27)
+
+The single selection's bars, captions and tooltips checked against 0.28's selection_details.js, single_details_area.xml, sprites.xml and common/tooltips.js (main 6c94b0e53). Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| DP1 | The health bars were light green on slate with rounded ends; sprites.xml draws green (0 128 0) on red in a 1 px black 128 barBorder under statsBarShader's lighting (the single and the multiple selection's) | low | Fixed |
+| DP2 | The resource bar was gold on slate; resourceForeground is orange on darkgray | nit | Fixed |
+| DP3 | The experience bar was gold on slate; experienceForeground is white on darkgray, with the border and lighting | nit | Fixed |
+| DP4 | The stat tooltips (attack, resistance, healer, speed, gather, garrison, projectiles, trickle, loot, reward, auras, status effects, build and repair time, health and capture) had no fonts: 0.28 sets their labels and weapon names in headerFont, damage types, status names and units in orange unitFont, the separators in commaFont, the class list and aura descriptions in bodyFont, and "Experience:" in sans-bold-13 | low | Fixed |
+| DP5 | Detail lines were indented 2 spaces and status and splash lines 4; g_Indent is 4 and those lines take two | nit | Fixed |
+| DP6 | Loot, Reward, Resource Trickle and the selection's Carrying named their resources; 0.28 shows the resource icons (the xp loot keeps its name: RTS0 has no xp icon) | low | Fixed |
+| DP7 | The portrait tooltip's name was plain and its template tooltip bold; 0.28 sets the name in namePrimaryBig and the tooltip in bodyFont | nit | Fixed |
+| DP8 | The carried amount, gatherers and builder captions were regular 10 px and the builders and time shared a line; CarryingTextRight is sans-bold-stroke-13 with "(3)" over "0:12" | nit | Fixed |
+
 ### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
 
 diplomacyManager.js, chatHelper.js and their callers were checked line by line. Everything else matches: update cadence, tribute rules, request handling and its odds, lastManStandingCheck, changePlayerDiplomacy, personality boosts, every chat string. Jebel Barkal was checked statically against the 0.28 source, since no 0.28 binary runs here (pass 8: wave sizing and target-class skip match). Pass 4's P2 is D8 below, and its P5 is D7.
