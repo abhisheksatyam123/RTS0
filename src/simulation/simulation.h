@@ -4124,6 +4124,9 @@ private:
 	// What a structure costs this AI (structure_cost: its civ's template and cost bonuses), and paying it.
 	void petra_structure_cost(uint8_t btype, float &food, float &wood, float &gold, float &stone) const;
 	bool petra_try_pay_structure(uint8_t queue, uint8_t btype);
+	// queueManager.js startNextItems takes the plan's cost off its queue's account before start(),
+	// so a start that finds no room still spends the account (not the stock).
+	void petra_spend_structure_account(uint8_t queue, uint8_t btype);
 	// queueManager.js startNextItems: whether `queue` can start the structure now (a builder, its
 	// account and our stock cover it); if not, its want is kept as petra_try_pay keeps it.
 	bool petra_can_start_structure(uint8_t queue, uint8_t btype);
@@ -4185,8 +4188,10 @@ private:
 	int petra_military_base(const PetraBasesMap &m) const;
 	bool petra_find_position(uint8_t btype, const float *base_at, const float *favor_at, bool military_base, int &out_cx,
 	                         int &out_cz);
+	// `any_room`: a plan already queued (canStart doesn't read the no-room mark, only canBuild does).
 	uint32_t petra_place_generic(uint8_t btype, uint8_t queue, const float *base_at = nullptr, const float *favor_at = nullptr,
-	                             bool military_base = false);
+	                             bool military_base = false, bool any_room = false);
+	bool petra_start_queued_dropsite(uint8_t res, const float *base_at, const PetraBasesMap *bmap, int base);
 
 	bool bulk_spawn_ = false;
 	int grid_res_ = MIN_GRID_RES; // nav/FoW/territory resolution, grid_res_for_map(map_half_)
