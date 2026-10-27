@@ -766,6 +766,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								// skips an unowned entity while something is selected, so Shift keeps it).
 								selected_ids.clear();
 								selected_building_id = 0;
+								play_inspected_select();
 							} else {
 								// Clicked empty ground: deselect unless selection.add or .remove is held
 								// (input.js:963-975).
@@ -900,7 +901,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								rally_queued, cmd_here, target_ent);
 					}
 				}
-				play_civ_voice("select");
+				// unit_actions.js set-rallypoint: no sound.
 				return;
 			}
 
