@@ -470,6 +470,19 @@ gui/common/tooltips.js and selection_panels_helpers.js against RTS0's constructi
 | TT6 | The wall-dragging cost tip is a plain Label: "Cost: Stone 36" without the header font or icons | nit | Fixed (Stats: placementTooltip is a RichTextLabel; the wall cost takes getEntityCostTooltip's headerFont and resource icons) |
 | TT7 | "Requires ..." from a unit trainer shows only the generic name, not "Specific (Generic)"; no case found in the current rosters | nit | Open |
 
+### Research, training and construction tooltips, twenty-fifth 0.28 pass (2026-10-27)
+
+The Research, Training and Construction panels' tooltips against selection_panels.js, selection_panels_helpers.js and tooltips.js: line order, names, costs, times, limits, requirements and objections match except as below. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| TP1 | A centurion at its limit (8 of 8) also said "Requires Marian Reforms" though researched; getRequirementsTooltip shows only failing requirements | low | Fixed |
+| TP2 | The corral's animals have no aura line ("Ranching and Corralling"), detailed lines or right-click line, and right-click opens no Template Viewer | low | Open |
+| TP3 | Training buttons past the 8th had no hotkey tag (0.28: gold "[Unassigned hotkey: session.queueunit.9]"), and the tag was in the plain tooltip font, not sans-bold-16 | low | Fixed |
+| TP4 | With "Detailed tooltips" on, the extra training lines are plain text (template_viewer.gd strips BBCode), losing fonts and the dropsite icons | low | Open |
+| TP5 | A full research queue disabled the technology buttons with no reason; 0.28 keeps them enabled and the press gets "The production queue is full." | low | Fixed |
+| TP6 | The batch line ("Shift-click to train N.") was in the 14 px tooltip font; 0.28 sets it in sans-13 | nit | Fixed |
+
 ### Researcher lists, technologies and mercenary camps, twenty-fourth 0.28 pass (2026-10-27)
 
 Every civ's structure research lists (template inheritance, {civ}, -name removals), all 137 technologies (cost, time, phase, requirements, supersedes, pairs, civ masks) and the mercenary camps and their rosters against 0.28's templates and data/technologies. Owner: E.
