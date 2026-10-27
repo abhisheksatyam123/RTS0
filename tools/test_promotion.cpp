@@ -328,6 +328,18 @@ int main() {
 		}
 		CHECK(s.entity_limit_count(0, LIMIT_CENTURION) == cent_before + 1);
 		CHECK(s.unit_upgrade_check(0, a, cent) == Simulation::UPGRADE_ERR_NONE); // Centurions don't upgrade
+		// Transform.js copies a load only to a ResourceGatherer: a legionary upgraded while
+		// gathering wood becomes a Centurion with nothing carried, no longer gathering.
+		{
+			const uint32_t g = elite(12.0f);
+			const size_t gi = idx(s, g);
+			s.units_.res_type_carried[gi] = RES_WOOD;
+			s.units_.carry[gi] = 7;
+			s.units_.action_state[gi] = ACTION_GATHER;
+			s.promote_unit(gi, cent, s.units_.rank[gi]);
+			std::printf("  centurion upgrade: carry %d, action %d, tmpl %s\n", (int)s.units_.carry[gi], (int)s.units_.action_state[gi], s.units_.tmpl[gi] == cent ? "centurion" : "other");
+			CHECK(s.units_.carry[gi] == 0 && s.units_.action_state[gi] != ACTION_GATHER);
+		}
 
 		fresh(s, CIV_PERSIANS);
 		const uint16_t imm = tmpl_of("pers/champion_infantry");
