@@ -84,7 +84,9 @@ func walks_to(u: int, goal: Vector2, what: String) -> void:
 	var from := ground(u)
 	await frames(60)
 	var now := ground(u)
-	check(now.distance_to(goal) < from.distance_to(goal) - 1.0, "%s: %s -> %s, goal %s" % [what, from, now, goal])
+	# Closer by a metre, or by half the way when the goal is near (a short walk ends early).
+	var gain := minf(1.0, from.distance_to(goal) * 0.5)
+	check(now.distance_to(goal) < from.distance_to(goal) - gain, "%s: %s -> %s, goal %s" % [what, from, now, goal])
 
 func run() -> void:
 	touch = root.get_node_or_null("TouchInput")

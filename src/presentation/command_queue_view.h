@@ -673,9 +673,10 @@ public:
 						Button *btn = icon_button(end ? "End alert" : "Raise alert",
 								rtso::load_ui_texture(String("res://assets/textures/ui/archive/icons/") + (end ? "bell_level0.png" : "bell_level1.png")));
 						String tip = rtso::tr0(end ? "End the alert." : "Raise an alert!");
-						tip += "\n" + rtso::tr0(end ? (civilians ? "Unload nearby Civilians." : traders ? "Unload nearby Traders." : "Unload nearby vulnerable units.")
+						// bodyFont: the second line in regular 13 under sessionToolTipBottomBold.
+						tip += "\n" + rtso::body_font(rtso::tr0(end ? (civilians ? "Unload nearby Civilians." : traders ? "Unload nearby Traders." : "Unload nearby vulnerable units.")
 								: (civilians ? "Alert nearby Civilians to seek refuge." : traders ? "Alert nearby Traders to seek refuge."
-															 : "Alert nearby vulnerable units to seek refuge."));
+															 : "Alert nearby vulnerable units to seek refuge.")));
 						btn->set_tooltip_text(tip);
 						btn->set_meta("tooltip_style", "session_bottom_bold");
 						btn->connect("pressed", Callable(owner_, "_on_alert_pressed").bind(end));
@@ -965,45 +966,40 @@ public:
 					if (!someone_can) continue;
 					const rtso::FormationTemplate &ft = rtso::formation_template(f);
 					const bool enabled = f == rtso::FORMATION_NONE || sim->can_move_into_formation(sel_ids, sel_n, f);
-					// The Formation panel's buttons are icons; the name is on the tooltip.
-					Button *fb = memnew(Button);
-					fb->set_custom_minimum_size(Vector2(26, 26));
-					fb->set_clip_text(true);
+					// formation_panel.xml: 38x38 iconButtons with the 32 px icon at 3 3, greyed when
+					// the formation can't be taken; the name is on the tooltip.
+					Ref<Texture2D> f_ico = rtso::load_ui_texture(String("res://assets/textures/ui/formations/") + kFormationIcons[f] + ".png");
+					Button *fb = icon_button(String::utf8(ft.name), f_ico);
+					if (f_ico.is_null()) {
+						fb->set_text(String::utf8(ft.name));
+						fb->set_clip_text(true);
+						fb->add_theme_font_size_override("font_size", 8);
+					} else if (!enabled) {
+						Object::cast_to<TextureRect>(fb->get_child(0))->set_material(grayscale_material());
+					}
 					// setupButton: name, description, the default-formation line, then why not.
-					String tip = String::utf8(ft.name);
-					if (ft.tooltip && *ft.tooltip) tip += String("\n") + rtso::body_font(String::utf8(ft.tooltip));
+					String tip = rtso::tr0(String::utf8(ft.name));
+					if (ft.tooltip && *ft.tooltip) tip += String("\n") + rtso::body_font(rtso::tr0(String::utf8(ft.tooltip)));
 					const bool is_default = f == default_f;
 					if (f == rtso::FORMATION_NONE)
-						tip += is_default ? "\nDefault formation is disabled." : "\nRight-click to disable the default formation feature.";
+						tip += "\n" + rtso::tr0(is_default ? "Default formation is disabled." : "Right-click to disable the default formation feature.");
 					else
-						tip += is_default ? "\nThis is the default formation, used for movement orders." : "\nRight-click to set this as the default formation.";
+						tip += "\n" + rtso::tr0(is_default ? "This is the default formation, used for movement orders." : "Right-click to set this as the default formation.");
 					if (!enabled && ft.disabled_tooltip && *ft.disabled_tooltip)
-						tip += String("\n") + rtso::objection_font(String::utf8(ft.disabled_tooltip));
+						tip += String("\n") + rtso::objection_font(rtso::tr0(String::utf8(ft.disabled_tooltip)));
 					fb->set_tooltip_text(tip);
-					if (is_default) { // countDisplay: the default formation is marked
-						Label *mark = memnew(Label);
-						mark->set_text(U"\u2605");
-						mark->add_theme_font_size_override("font_size", 9);
-						mark->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.2f));
+					// guiSelection: corners.png on the formation a selected unit is in (IsFormationSelected).
+					if ((in_use >> f) & 1u) add_corners(fb);
+					if (is_default) { // countDisplay: upgrade.png over the default formation's icon
+						TextureRect *mark = memnew(TextureRect);
+						mark->set_name("default");
+						mark->set_texture(rtso::load_ui_texture("res://assets/textures/ui/archive/icons/upgrade.png"));
+						mark->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+						mark->set_stretch_mode(TextureRect::STRETCH_SCALE);
+						mark->set_position(Vector2(3, 3));
+						mark->set_size(Vector2(32, 32));
 						mark->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
-						mark->set_position(Vector2(16, -2));
 						fb->add_child(mark);
-					}
-					Ref<Texture2D> f_ico = rtso::load_ui_texture(String("res://assets/textures/ui/formations/") + kFormationIcons[f] + ".png");
-					if (f_ico.is_valid()) {
-						fb->set_button_icon(f_ico);
-						fb->set_expand_icon(true);
-						fb->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-					} else {
-						fb->set_text(String::utf8(ft.name));
-						fb->set_custom_minimum_size(Vector2(44, 26));
-					}
-					fb->add_theme_font_size_override("font_size", 8);
-					if ((in_use >> f) & 1u) {
-						// IsFormationSelected: the formation a selected unit is in is lit.
-						fb->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.2f));
-						fb->add_theme_color_override("icon_normal_color", Color(1.0f, 0.85f, 0.2f));
-						fb->add_theme_color_override("icon_hover_color", Color(1.0f, 0.9f, 0.4f));
 					}
 					fb->set_disabled(!enabled);
 					fb->connect("pressed", Callable(owner_, "_on_formation_selected").bind((int)f));

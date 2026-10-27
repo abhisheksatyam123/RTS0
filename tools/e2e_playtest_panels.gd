@@ -44,7 +44,9 @@ func calls(b: Button, method: String) -> bool:
 # The button shows its icon, or its icon can't load in this checkout (an
 # unimported project); either way it carries no text but a count.
 func icon_only(b: Button) -> bool:
-	return b.icon != null and not b.text.lstrip("0123456789").length()
+	# A 0.28 panel button draws its icon as a TextureRect child (icon_button).
+	var child_icon := b.get_child_count() > 0 and b.get_child(0) is TextureRect and (b.get_child(0) as TextureRect).texture != null
+	return (b.icon != null or child_icon) and not b.text.lstrip("0123456789").length()
 
 func run() -> void:
 	var mm := InputEventMouseMotion.new()
