@@ -1026,7 +1026,7 @@ func open_civ_reference(tab: int) -> void:
 	layer.name = "CivReference"
 	layer.layer = 20
 	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.6)
+	dim.color = Color8(0, 0, 0, 85)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	layer.add_child(dim)
 	var panel := PanelContainer.new()
