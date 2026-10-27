@@ -537,14 +537,16 @@ void RtsoMiniMapView::_draw() {
 	}
 
 	// 3b. Animals: template_unit_fauna.xml Minimap type "food", colour (227, 130, 141), and
-	// RetainInFog, so they show wherever the viewer has explored.
+	// RetainInFog, so they show wherever the viewer has explored; trained livestock and sharks
+	// (RetainInFog false) only in sight, as in the world view.
 	{
 		const bool sees_all = rtso::los_sees_all(*sim, local_player);
 		const Color fauna_col(227.0f / 255.0f, 130.0f / 255.0f, 141.0f / 255.0f, 1.0f);
 		auto fv = sim->fauna();
 		for (size_t f = 0; f < fv.count; ++f) {
 			if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED) continue;
-			if (!sees_all && mirages_.los_at(fv.pos_x[f], fv.pos_z[f]) == rtso::Simulation::FOW_UNEXPLORED) continue;
+			if (!sees_all && !rtso::los_sees_fauna(*sim, local_player, fv.pos_x[f], fv.pos_z[f], fv.owner[f], fv.fauna_type[f]))
+				continue;
 			quads.add(Rect2(map_to_mini(fv.pos_x[f], fv.pos_z[f]) - Vector2(1.0f, 1.0f), Vector2(2.0f, 2.0f)), fauna_col);
 		}
 	}

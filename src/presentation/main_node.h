@@ -412,7 +412,7 @@ public:
 	// Engine.HasXmppClient: a game started from the lobby screen.
 	bool has_lobby_client() const; // Engine.HasXmppClient: signed in to the lobby
 	void open_lobby_page(); // MenuButtons Lobby: page_lobby.xml with {"dialog": true}
-	PopupMenu *speed_menu_ = nullptr;
+	RtsoSafeSelect *speed_menu_ = nullptr; // GameSpeedControl's gameSpeed dropdown
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
 	void _on_remove_guard_pressed();

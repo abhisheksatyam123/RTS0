@@ -75,6 +75,7 @@ func run() -> void:
 	check(str(l.get("text", "")).contains("You have been attacked by"), "the attack line is in the overlay")
 	check(l.get("clickable", false), "it is a button")
 	check(l.get("tooltip", "") == "Click to focus on the attacked unit.", "with 0.28's tooltip")
+	check(l["node"].get_meta("tooltip_style", "") == "session_bottom_bold", "in sessionToolTipBottomBold (session.xml chatLine)")
 	await click(l["node"])
 	check(int(main.debug_camera()["follow"]) == man, "a click makes the camera follow the attacked unit")
 
