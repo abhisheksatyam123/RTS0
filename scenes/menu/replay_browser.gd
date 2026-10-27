@@ -15,6 +15,7 @@ extends Control
 ## game continued from a save also keeps the save it started from
 ## (start.rts0sav).
 const MODERN := preload("res://scenes/common/modern_theme.gd")
+const SORT_ARROWS := preload("res://scenes/common/sort_arrows.gd")
 
 const REPLAY_ROOT := "user://replays"
 const SetupPage = preload("res://scenes/menu/gamesetup.gd")
@@ -398,8 +399,8 @@ func display_replay_list() -> void:
 		if r["dir"] == _selected_dir:
 			select = it
 	for c in COLUMNS.size():
-		var arrow := ("  ▲" if sort_order > 0 else "  ▼") if COLUMNS[c][0] == sort_column else ""
-		replay_list.set_column_title(c, COLUMNS[c][1] + arrow)
+		replay_list.set_column_title(c, COLUMNS[c][1])
+	SORT_ARROWS.attach(replay_list).set_sorted(COLUMNS.map(func(col): return col[0]).find(sort_column), sort_order)
 	if select:
 		select.select(0)
 	display_replay_details()

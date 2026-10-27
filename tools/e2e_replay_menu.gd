@@ -82,7 +82,7 @@ func run() -> void:
 	print("1. list and sorting")
 	var titles := []
 	for c in b.replay_list.columns:
-		titles.append(b.replay_list.get_column_title(c).trim_suffix("  ▼").trim_suffix("  ▲"))
+		titles.append(b.replay_list.get_column_title(c))
 	check(titles == ["Date / Time", "Players", "Map Name", "Size", "Population", "Duration"], "0 A.D.'s columns: " + str(titles))
 	check(visible_dirs(b) == [NAMES[1], NAMES[0]], "compatible replays of 3 s or more only, newest first: " + str(visible_dirs(b)))
 	var row: TreeItem = b.replay_list.get_root().get_child(b._replays.map(func(r): return r.dir.get_file()).find(NAMES[0]))
@@ -92,6 +92,13 @@ func run() -> void:
 	check(visible_dirs(b) == [NAMES[0], NAMES[1]], "Duration sorts shortest first")
 	b.sort_by("duration")
 	check(visible_dirs(b) == [NAMES[1], NAMES[0]], "and again longest first")
+	# ModernSortedList: ModernArrowDown on the column sorted descending, ModernNotSorted on the
+	# others, each in its heading's top-right 16 px square.
+	var arrows = preload("res://scenes/common/sort_arrows.gd").attach(b.replay_list)
+	var shown := range(b.replay_list.columns).map(func(c): return arrows.sorted_as(c))
+	var r5: Rect2 = arrows.arrow_rect(5)
+	check(shown == ["", "", "", "", "", "desc"] and absf(r5.end.x - (b.replay_list.size.x - b.replay_list.get_theme_stylebox("panel").get_margin(SIDE_RIGHT))) < 6.0 and r5.size == Vector2(16, 16),
+		"the headings' sort sprites: %s, Duration's at %s (list %s, panel right %s)" % [shown, r5, b.replay_list.size, b.replay_list.get_theme_stylebox("panel").get_margin(SIDE_RIGHT)])
 	b.sort_by("players")
 	check(visible_dirs(b) == [NAMES[1], NAMES[0]], "Players sorts by player count")
 	b.sort_by("popCapacity")

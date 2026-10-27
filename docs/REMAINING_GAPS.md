@@ -882,7 +882,7 @@ The session's overlays, game speed control and Load/Save Game dialog checked aga
 | OV10 | The details' Mods line and player list were 13 px; savedMods is sans-bold-stroke-14 and savedPlayersNames sans-14 | nit | Fixed |
 | OV11 | "No saved games found." sat at the list's top left; ModernLabelText centres it in 20 12 100%-20 100 | nit | Fixed |
 | OV12 | The Mods line turned orange for any incompatible save; SavegameDetails colours it only when the mods differ (hasSameMods) | nit | Fixed |
-| OV13 | The sorted column shows a text arrow and the others nothing; ModernSortedList draws ModernArrowUp/Down sprites and ModernNotSorted on every other heading (Godot 4.3 Tree headings take no icons) | nit | Open |
+| OV13 | The sorted column shows a text arrow and the others nothing; ModernSortedList draws ModernArrowUp/Down sprites and ModernNotSorted on every other heading (Godot 4.3 Tree headings take no icons) | nit | Fixed (`scenes/common/sort_arrows.gd` draws the three sprites over the Tree's headings, in each heading's top-right 16 px square, on the saves, replays and both lobby lists; `tools/e2e_replay_menu.gd`, `e2e_savegames.gd`, `e2e_lobby_buddies.gd`) |
 | OV14 | "Paused by" joins names with an untranslated ", "; 0.28 uses translateWithContext("Separator for a list of players", ", ") (RTS0's catalogues have no msgctxt) | nit | Fixed (the catalogues keep context entries under the bare msgid, so translate(", ") finds it) |
 
 ### Message box, tutorial panel and chat overlay, sixteenth 0.28 pass (2026-10-27)
