@@ -703,6 +703,28 @@ static void test_auto_heal() {
 	check(s.unit_order(h).kind == ORDER_HEAL && s.unit_order(h).target == w, "picks the injured ally");
 	check(hp_of(s, w) > 20.0f, "and heals it");
 	check(hp_of(s, e) <= ehp && hp_of(s, ram) <= rhp, "not the enemy or the ram");
+
+	// Heal.js: the first heal 1 s after it starts, then one every 2 s, on time (the timer
+	// used to land a tick late each time: 29 heals a minute, not 30).
+	Simulation t;
+	setup(t);
+	const uint32_t th = t.spawn_unit(0, 0, 0, UNIT_HEALER);
+	const uint32_t tw = t.spawn_unit(1.5f, 0, 0, UNIT_SPEARMAN);
+	t.order_set_stance(&tw, 1, STANCE_STAND_GROUND);
+	t.set_unit_hp(tw, 1.0f);
+	int heals = 0;
+	float first = -1.0f, last = -1.0f;
+	for (int k = 0; k < (int)std::lround(60.0f / Simulation::FIXED_STEP); ++k) {
+		t.tick(Simulation::FIXED_STEP);
+		if (hp_of(t, tw) > 1.0f) {
+			last = t.game_time();
+			if (heals++ == 0) first = last;
+			t.set_unit_hp(tw, 1.0f);
+		}
+	}
+	std::printf("  %d heals in 60 s, the first at %.2f s, the last at %.2f s\n", heals, first, last);
+	check(heals == 30 && first <= 1.05f + 1e-3f && std::fabs((last - first) - 58.0f) < 1e-3f,
+		"a healer heals every 2 s, the first after 1 s");
 }
 
 static void test_garrison_approach() {
