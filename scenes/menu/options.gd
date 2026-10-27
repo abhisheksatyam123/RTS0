@@ -269,7 +269,7 @@ func _build() -> void:
 	# right and Reset, Revert, Save and Close across the bottom.
 	theme = MODERN.theme()
 	var bg := ColorRect.new()
-	bg.color = Color(0, 0, 0, 0.6) if overlay else Color(0.07, 0.08, 0.12, 1.0)
+	bg.color = Color8(0, 0, 0, 85) if overlay else Color(0.07, 0.08, 0.12, 1.0)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	var center := CenterContainer.new()
