@@ -2370,6 +2370,43 @@ static void test_petra_islands_wood_reserve() {
 	CHECK(s->units_.pos_x[ui] - x0 > 0.5f, "the idle woman steps aside");
 }
 
+// A trained batch with nowhere to step out stays at the front of the queue; its timer runs on
+// past the training time, so petra_clear_blocked_spawns can tell it has waited over 10 s (the
+// queue behind it, a phase included, held for good while the timer stopped at its duration).
+static void test_blocked_spawn_timer() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, false);
+	uint32_t cc_id = 0;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc_id = b.id;
+	CHECK(cc_id != 0, "player 2 has a civic centre");
+	if (!cc_id) return;
+	const Simulation::Building cc = s->buildings_[s->building_id_to_idx_.at(cc_id)];
+	// Palisades packed round the civic centre out past MaxSpawnDistance: no spawn point is free.
+	for (float r = std::max(cc.hu, cc.hv) + 0.3f; r < std::max(cc.hu, cc.hv) + 3.0f; r += 0.7f)
+		for (float d = -r; d < r + 0.01f; d += 0.7f)
+			for (const auto &p : {std::pair{cc.x + d, cc.z - r}, std::pair{cc.x + d, cc.z + r}, std::pair{cc.x - r, cc.z + d}, std::pair{cc.x + r, cc.z + d}})
+				s->spawn_building_world(p.first, p.second, BLD_PALISADE, 1, 1.0f);
+	s->rebuild_nav_grid();
+	ProductionOrder o;
+	o.unit_type = UNIT_FEMALE_CITIZEN;
+	o.timer = 0.0f;
+	o.duration = 2.0f;
+	o.started = true;
+	auto &ccb = s->buildings_[s->building_id_to_idx_.at(cc_id)];
+	ccb.queue.clear();
+	ccb.queue.push_back(o);
+	run_for(*s, 20.0f);
+	const auto &q = s->buildings_[s->building_id_to_idx_.at(cc_id)].queue;
+	const float timer = q.empty() ? -1.0f : q.front().timer;
+	std::printf("blocked batch after 20 s: %s, timer %.0f of %.0f\n", q.empty() ? "spawned" : "still queued", timer, o.duration);
+	CHECK(!q.empty() && timer >= o.duration + 10.0f, "the blocked batch's timer runs on past its training time");
+}
+
 // startingStrategy.js gameStart: no civic centre and none to build (Death Canyon's invasion
 // force): canBuildUnits is false, so no first base; dispatchUnits sends 5 units (half ranged,
 // half melee infantry) and every support unit to the ally's civic centre, and attackManager
@@ -8429,6 +8466,7 @@ int main(int argc, char **argv) {
 	RUN(test_pop_phase2_save_resources);
 	RUN(test_petra_config_pop_scaling);
 	RUN(test_petra_islands_wood_reserve);
+	RUN(test_blocked_spawn_timer);
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_garrisoned_workers_count);
 	RUN(test_gather_rate_civ_bonus);

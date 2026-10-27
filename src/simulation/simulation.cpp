@@ -15322,6 +15322,9 @@ void Simulation::tick_production(float dt) {
 					rest.count = done.count - n;
 					rest.batch = done.batch ? done.batch : done.count; // originalItem: autoqueue re-adds the whole batch
 					for (int r = 0; r < RES_COUNT; ++r) rest.paid[r] = done.paid[r] * rest.count / done.count;
+					// The timer runs on past the training time, so petra_clear_blocked_spawns can tell
+					// how long the batch has waited (the progress shown stays full).
+					rest.timer = std::max(done.timer, done.duration) + 1.0f; // one try a second
 					b.queue.insert(b.queue.begin(), rest);
 					stuck = true;
 					spawned = n;
@@ -23235,12 +23238,51 @@ void Simulation::petra_manage_economy(float dt) {
 	}
 
 	// queueManager.js wantedGatherRates: what the queues' next plans cost (with config.js
-	// queues.short) less what we have, wanted within 30 s.
+	// queues.short) wanted within 30 s; each queue's second plan, when the first can go, within
+	// 60 s (queues.medium); the first that can't go yet within 300 s (queues.long). The stock
+	// pays the short total first, then the medium, then the long.
+	float medium[RES_COUNT] = {}, later[RES_COUNT] = {};
+	{
+		// The worker queues' TrainingPlans always go: the second plan of each is medium.
+		const auto &plans = petra_worker_plans_[petra_pid_];
+		for (uint8_t q = 0; q < 2; ++q) {
+			int seen = 0;
+			for (const PetraWorkerPlan &p : plans) {
+				if (p.queue != q || ++seen < 2) continue;
+				const CivUnitTemplate &t = civ_unit_template(p.tmpl);
+				float cost[RES_COUNT];
+				unit_train_cost(petra_pid_, p.tmpl, civ_template_unit_info(p.tmpl, t.unit_type), cost);
+				for (int r = 0; r < RES_COUNT; ++r) medium[r] += std::floor(cost[r] * (float)p.count);
+				break;
+			}
+		}
+		// A queued house plan waiting on houseNeeded (no want yet) is long; with one asked for,
+		// a second plan is medium.
+		const uint8_t plans_h = petra_kept_.house_plans;
+		const PetraQueueAccount &hw = petra_queues_.wants[PETRA_Q_HOUSE];
+		const bool house_go = hw.food + hw.wood + hw.gold + hw.stone > 0.0f;
+		if (!petra_queues_.paused[PETRA_Q_HOUSE] && plans_h > (house_go ? 1 : 0)) {
+			float f, w, g, st;
+			petra_structure_cost(BLD_HOUSE, f, w, g, st);
+			float *into = house_go ? medium : later;
+			into[RES_FOOD] += f; into[RES_WOOD] += w; into[RES_GOLD] += g; into[RES_STONE] += st;
+		}
+	}
 	float want_rate[RES_COUNT];
-	want_rate[RES_FOOD] = std::max(0.0f, demand_food - petra_ps().food()) / 30.0f;
-	want_rate[RES_WOOD] = std::max(0.0f, demand_wood - petra_ps().wood()) / 30.0f;
-	want_rate[RES_STONE] = std::max(0.0f, demand_stone - petra_ps().stone()) / 30.0f;
-	want_rate[RES_GOLD] = std::max(0.0f, demand_gold - petra_ps().gold()) / 30.0f;
+	float short_total[RES_COUNT], stock[RES_COUNT];
+	short_total[RES_FOOD] = demand_food; short_total[RES_WOOD] = demand_wood;
+	short_total[RES_STONE] = demand_stone; short_total[RES_GOLD] = demand_gold;
+	stock[RES_FOOD] = (float)petra_ps().food(); stock[RES_WOOD] = (float)petra_ps().wood();
+	stock[RES_STONE] = (float)petra_ps().stone(); stock[RES_GOLD] = (float)petra_ps().gold();
+	for (int r = 0; r < RES_COUNT; ++r) {
+		float left = std::max(0.0f, stock[r]);
+		const float s_need = std::max(0.0f, short_total[r] - left);
+		left = std::max(0.0f, left - short_total[r]);
+		const float m_need = std::max(0.0f, medium[r] - left);
+		left = std::max(0.0f, left - medium[r]);
+		const float l_need = std::max(0.0f, later[r] - left);
+		want_rate[r] = s_need / 30.0f + m_need / 60.0f + l_need / 300.0f;
+	}
 
 	// basesManager.isResourceExhausted: no supply of it within maxDistResourceSquare (360 m)
 	// of one of our dropsites for it.

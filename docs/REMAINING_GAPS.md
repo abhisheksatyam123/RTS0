@@ -497,7 +497,7 @@ garrisonManager.js, worker.js, queueManager.js and the queue plans, and the econ
 
 | # | Difference from 0.28 | Impact | Status |
 |---|---|---|---|
-| PC1 | (Q8) The wanted gather rates count only each queue's first plan over 30 s; 0.28 also counts the second plan over 60 s and a house not yet needed over 300 s | low | Open |
+| PC1 | (Q8) The wanted gather rates count only each queue's first plan over 30 s; 0.28 also counts the second plan over 60 s and a house not yet needed over 300 s | low | Fixed: the worker queues' second TrainingPlan and a second house plan count over 60 s, a house plan waiting on houseNeeded over 300 s, the stock paying short, medium then long (queueManager.js wantedGatherRates). Found with it: a trained batch with no free spot stopped its timer at the training time, so RTS0's blocked-spawn rescue (idle units step aside after 10 s) never ran and the queue behind it, the City phase once, held for good; the timer now runs on (test_petra test_blocked_spawn_timer) |
 | PC2 | (H8) Livestock breeding paid straight from the stock, skipping the corral queue (priority 1) | low | Fixed: the corral queue's account pays it, its want kept until funded |
 | PC3 | (H9) A corral laid because fields can't be built never set needCorral, so it never bred once fields fit again; the second-corral test counted the field's no-room mark | low | Fixed |
 | PC4 | (W6) A stone or metal gatherer sent to a far mine kept that mine for good; 0.28 drops its supply mark on each trip back while its base has a nearer mine | low | Fixed |
