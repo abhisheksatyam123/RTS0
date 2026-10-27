@@ -631,6 +631,21 @@ The lobby rating report was checked against LobbyRatingReporter.js and its Playe
 
 Stuck units (taken from Migrate's queue, 2026-10-20): in 4-Petra soaks the units that held an order on an impassable navcell and moved under 1 unit in 60 s, past the gatherers working beside their tree, were builders walled in by their own Petra's houses against a shore (Lake seeds 6 and 8). RTS0's Petra laid houses edge to edge on its 8 m grid (petra_clearance 0); 0.28's findGoodPosition keeps every obstruction cell within ceil(obstructionRadius.max / cellSize) of a house's centre clear (queueplanBuilding.js:336), so its houses stand about 5 m apart. Houses now keep a one-cell ring, the nearest grid step (an 8 m alley, as RTS0's houses are half 0.28's size, Y1): 8 soaks (African Plains and Lake, seeds 5-8, 15 min) go from 2 walled-in units to 0, and Continental phase timing (4 seeds, 20 min) is unchanged within noise. The one-navcell slit trap Migrate saw on Deep Forest seed 11 near (-101.6, 40.9) does not reproduce on current main (seeds 10-12, 15 min): the only long stalls left were riders dancing among trees for about 60 s before walking free, and after Migrate's corner dance fix (#1518) Deep Forest seeds 10-15 (15 min) report no stuck units at all, so no per-step tree test was added.
 
+### Session top panel, tooltips and chat, eleventh 0.28 pass (2026-10-27)
+
+The session's top panel, resource and population tooltips, civ icon and chat window checked against 0.28's top_panel/*.js, Counters.xml, CounterManager.js and chat/*.js (main ec1921af7). Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| TP1 | The counters were icon, count and gatherers side by side with gaps, the count in regular 14 and the gatherers in 11; Counters.xml has 73 px slots that touch, a 36 px icon at 2 0, the count (white sans-bold-stroke-14) at 33 4 and the gatherers (sans-bold-stroke-13) under it at 33 20 | medium | Fixed |
+| TP2 | The Diplomacy, Barter & Trade and Match Settings buttons (and Game Speed) sat right after the counters; 0.28 places them at the right, next to the menu button | low | Fixed |
+| TP3 | The resource and population tooltip titles were plain; ResourceTitleTags sets them in sans-bold-16 | low | Fixed |
+| TP4 | The allies' stat rows showed the bare name in plain text with a plain "[Click]"; getAllyStatTooltip puts a "■" in the player's colour before the name, the rows in sans-bold-stroke-14 and "[Click]" in the hotkey colour | low | Fixed |
+| TP5 | The civ icon tooltip had a plain civ name and the bare first key of each hotkey; CivTags set the name in sans-bold-16 and colorizeHotkey shows every key in gold brackets, "Unassigned hotkey: civinfo" when none | low | Fixed |
+| TP6 | The chat overlay sat at 16 114 in regular 13; session.xml's chatPanel is at 3 131 down to 100%-240, in chatPanelOverlay's sans-bold-stroke-14 | low | Fixed |
+| TP7 | The chat history's "[HH:mm]" was grey; ChatHistory prints it in the history's own colour | nit | Fixed |
+| TP8 | A bare "/allies" (or /enemies, /observers) left the chat window open with the command typed; submitChatInput sends nothing but still closes the page and clears the input | low | Fixed |
+
 ### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
 
 diplomacyManager.js, chatHelper.js and their callers were checked line by line. Everything else matches: update cadence, tribute rules, request handling and its odds, lastManStandingCheck, changePlayerDiplomacy, personality boosts, every chat string. Jebel Barkal was checked statically against the 0.28 source, since no 0.28 binary runs here (pass 8: wave sizing and target-class skip match). Pass 4's P2 is D8 below, and its P5 is D7.
