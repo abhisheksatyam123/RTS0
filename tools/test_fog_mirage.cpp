@@ -386,6 +386,17 @@ static void test_giant_cost() {
 			"LOS bitmap %.1f us/fog change, LOS ease %.1f us/frame (%dx%d)\n",
 			us(t0, t1) / N, sim.buildings().size(), sim.resource_count(), drawn, us(t1, t2) / N, us(t3, t4) / N,
 			sim.fow_res(), sim.fow_res());
+	// An observer keeps all 8 players' memories each sim tick (set_track_all).
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) sim.set_player_active(p, true, true);
+	auto t5 = std::chrono::steady_clock::now();
+	for (int i = 0; i < N; ++i) {
+		FogMirages fresh;
+		fresh.set_track_all(true);
+		fresh.update(sim, rtso::OBSERVER_VIEW);
+	}
+	auto t6 = std::chrono::steady_clock::now();
+	std::printf("     giant cost, observer keeping 8 players: %.1f us/sim tick\n", us(t5, t6) / N);
+	CHECK(us(t5, t6) / N < 5000.0, "giant map observer rebuild of every player's memory stays under 5 ms per sim tick");
 	CHECK(sim.fow_res() == 256, "giant map uses a 256-cell LOS grid");
 	CHECK(us(t0, t1) / N < 5000.0, "giant map mirage rebuild stays under 5 ms per sim tick");
 }
@@ -469,6 +480,60 @@ static void test_seen_mask() {
 	CHECK(g && g->miraged, "a structure seen before the save stays a mirage after the load");
 }
 
+static void test_track_all() {
+	using namespace rtso;
+	// An observer or replay viewer keeps every player's memory (0.28 keeps each player's
+	// mirages in the simulation): on switching to player 0's view, a house player 0 scouted
+	// and lost sight of shows as it was then, damaged or destroyed since in the fog.
+	auto run = [](bool track, float &hp_shown, bool &gone_shown) {
+		static Simulation t;
+		t.set_sim_seed(7);
+		t.reset();
+		t.set_player_active(0, true, false);
+		t.set_player_active(1, true, true);
+		t.spawn_building_world(-50.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		t.spawn_building_world(60.0f, 30.0f, BLD_TOWN_CENTER, 1, 1.0f);
+		const uint32_t house = t.spawn_building_world(40.0f, -30.0f, BLD_HOUSE, 1, 1.0f);
+		const uint32_t barn = t.spawn_building_world(40.0f, 0.0f, BLD_HOUSE, 1, 1.0f);
+		const uint32_t scout = t.spawn_unit(40.0f, -15.0f, 0, UNIT_CAVALRY);
+		FogMirages obs;
+		obs.set_track_all(track);
+		auto tick = [&](int n) {
+			for (int i = 0; i < n; ++i) {
+				t.tick(Simulation::FIXED_STEP);
+				obs.update(t, OBSERVER_VIEW);
+			}
+		};
+		tick(10);
+		t.cmd_delete(0, &scout, 1);
+		tick(10);
+		for (auto &b : const_cast<std::vector<Simulation::Building> &>(t.buildings())) {
+			if (b.id == house) b.hp = 100.0f;
+			if (b.id == barn) t.destroy_building(b);
+		}
+		tick(10);
+		obs.update(t, 0);
+		const FoggedBuilding *h = find_b(obs, house);
+		hp_shown = h && h->miraged ? h->hp : -1.0f;
+		const FoggedBuilding *g = find_b(obs, barn);
+		gone_shown = g && g->miraged && !g->wrecked;
+		bool barn_wrecked = false;
+		for (const auto &b : t.buildings()) barn_wrecked = barn_wrecked || (b.id == barn && b.wrecked);
+		const bool fogged = t.fow_state_at(40.0f, -30.0f, 0) == Simulation::FOW_EXPLORED &&
+				t.fow_state_at(40.0f, 0.0f, 0) == Simulation::FOW_EXPLORED;
+		CHECK(fogged && barn_wrecked, track ? "tracked: the houses are in player 0's fog, one destroyed" : "untracked: the same");
+	};
+	float hp_track = 0.0f, hp_plain = 0.0f;
+	bool gone_track = false, gone_plain = true;
+	run(true, hp_track, gone_track);
+	run(false, hp_plain, gone_plain);
+	std::printf("observer switching to player 0: house hp %.0f tracked, %.0f untracked; destroyed house drawn standing %d tracked, %d untracked\n",
+			hp_track, hp_plain, gone_track, gone_plain);
+	CHECK(hp_track > 900.0f, "tracked: the damaged house shows at full health, as player 0 last saw it");
+	CHECK(gone_track, "tracked: the house destroyed in the fog still stands in player 0's mirage");
+	CHECK(hp_plain > 0.0f && hp_plain < 200.0f && !gone_plain, "untracked: a new view starts from what stands now");
+}
+
 int main() {
 	test_building_mirages();
 	test_resource_mirages();
@@ -478,6 +543,7 @@ int main() {
 	test_giant_cost();
 	test_shared_sight_and_winner();
 	test_seen_mask();
+	test_track_all();
 	if (failures) {
 		std::printf("%d FAILED\n", failures);
 		return 1;
