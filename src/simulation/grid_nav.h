@@ -2442,9 +2442,26 @@ inline bool NavGrid::find_path_tiles(float sx, float sz, float tx, float tz, Way
 // ---------------------------------------------------------------------------
 inline bool NavGrid::search_cells_jps(int scx, int scy, int tcx, int tcy, uint8_t pass,
         std::vector<std::pair<int,int>> &path_cells) const {
-    auto passable = [this, pass](int x, int y) { return is_passable_for(x, y, pass); };
     thread_local nav::JpsBuffers jps; // find_path runs on the worker threads: one search state each
-    const bool reached = nav::compute_jps_path(res, res, passable, scx, scy, tcx, tcy, path_cells, nullptr, &jps);
+    bool reached;
+    if (!(pass & PASS_SHIP) && cells.w == res && cells.h == res &&
+            (steep_cells_.blank() || (steep_cells_.w == res && steep_cells_.h == res))) {
+        // is_passable_for for a land class, read straight from the arrays: the search tests cells
+        // inside the grid only, millions of times on a long path across a big map.
+        const uint8_t *cd = cells.data.data();
+        const uint8_t *st = steep_cells_.blank() ? nullptr : steep_cells_.data.data();
+        const uint8_t *lc = (pass & PASS_LARGE) && large_closed.size() == cells.data.size() ? large_closed.data() : nullptr;
+        const size_t w = static_cast<size_t>(res);
+        auto passable = [cd, st, lc, w](int x, int y) {
+            const size_t i = static_cast<size_t>(y) * w + static_cast<size_t>(x);
+            const uint8_t c = cd[i];
+            return (c == NAV_PASSABLE || c == NAV_SHALLOW) && !(st && st[i]) && !(lc && lc[i]);
+        };
+        reached = nav::compute_jps_path(res, res, passable, scx, scy, tcx, tcy, path_cells, nullptr, &jps);
+    } else {
+        auto passable = [this, pass](int x, int y) { return is_passable_for(x, y, pass); };
+        reached = nav::compute_jps_path(res, res, passable, scx, scy, tcx, tcy, path_cells, nullptr, &jps);
+    }
     const float cell = map_half * 2.0f / static_cast<float>(res);
     nav::jps_debug_keep(jps, res, -map_half + 0.5f * cell, -map_half + 0.5f * cell, cell);
     return reached;
