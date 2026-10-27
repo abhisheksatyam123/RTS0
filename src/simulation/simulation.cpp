@@ -27483,6 +27483,12 @@ void Simulation::petra_manage_buildings(float dt) {
 			if (want == BLD_TYPE_COUNT && n_barracks + n_ranges + n_stables == 2 && pop > pfb2 + 30)
 				want = can_barracks ? BLD_BARRACKS : can_stable ? BLD_STABLE : can_range ? BLD_RANGE : BLD_TYPE_COUNT;
 		}
+		// A training building plan already queued stays until it starts, whatever the counts
+		// and population say now (queueManager.js keeps the plan; PD3).
+		const uint8_t held = petra_queue_heads_.item[PETRA_Q_MILITARY_BUILDING] ? (uint8_t)(petra_queue_heads_.item[PETRA_Q_MILITARY_BUILDING] - 1) : (uint8_t)BLD_TYPE_COUNT;
+		if (want == BLD_TYPE_COUNT && (held == BLD_BARRACKS || held == BLD_RANGE || held == BLD_STABLE) &&
+		    petra_queue_holds(PETRA_Q_MILITARY_BUILDING, held) && can_build(held) && get_primary_petra_base())
+			want = held;
 		if (want != BLD_TYPE_COUNT) {
 			// The first barracks or range goes at twice militaryBuilding's priority until started.
 			if (n_barracks + n_ranges == 0 && want != BLD_STABLE)
@@ -28888,7 +28894,8 @@ void Simulation::petra_manage_research(float dt) {
 				petra_change_priority(PETRA_Q_ECONOMIC_BUILDING, 3 * petra_queue_base_priority(PETRA_Q_ECONOMIC_BUILDING), PETRA_Q_ECONOMIC_BUILDING);
 			}
 			petra_build_market(home->x, home->z, PETRA_Q_ECONOMIC_BUILDING);
-		} else if (!saving && petra_accounted_population() >= pop_for_forge && !have_building(BLD_FORGE)) {
+		} else if (!have_building(BLD_FORGE) && (petra_queue_holds(PETRA_Q_MILITARY_BUILDING, BLD_FORGE) || // queued: it stays (PD3)
+		                                         (!saving && petra_accounted_population() >= pop_for_forge))) {
 			petra_place_generic(BLD_FORGE, PETRA_Q_MILITARY_BUILDING);
 		}
 		// buildTemple (not while saving resources): one temple, after a market, from the city
@@ -28901,7 +28908,10 @@ void Simulation::petra_manage_research(float dt) {
 		// buildWonder, every 30th AI turn near the population cap: once the stock holds over 70%
 		// of the wonder's cost in one resource and under 30% in at most one.
 		const bool wonder_turn = petra_turn_mod(30); // headquarters.js:2314
-		if (wonder_turn && (float)pop > 0.9f * (float)petra_population_max() &&
+		// A wonder plan already queued stays until it starts, whatever the population (PD3).
+		if (petra_queue_holds(PETRA_Q_WONDER, BLD_WONDER) && !have_building(BLD_WONDER) && can_build(BLD_WONDER))
+			petra_place_generic(BLD_WONDER, PETRA_Q_WONDER);
+		else if (wonder_turn && (float)pop > 0.9f * (float)petra_population_max() &&
 		    !have_building(BLD_WONDER) && can_build(BLD_WONDER)) {
 			const BuildingTypeInfo &w = building_type_info(BLD_WONDER);
 			const float cost[4] = {(float)w.food_cost, (float)w.wood_cost, (float)w.gold_cost, (float)w.stone_cost};
