@@ -170,7 +170,11 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 					"Capture the Relic", "game mode", "lost civic center", "treasure collected", "lost all structures and critical units",
 					"lost all civic centers and critical units and structures", "cheat"};
 			const String why = n.tech < sizeof(kWhy) / sizeof(kWhy[0]) ? String(kWhy[n.tech]) : String("game mode");
-			if (n.kind == N::DEFEATED) {
+			if (n.tech == N::END_TUTORIAL) {
+				// introductory_tutorial.js MarkPlayerAndAlliesAsWon(1, "Tutorial completed", ""): plain
+				// messages, the defeat one empty.
+				if (n.kind == N::WON) line = tr("Tutorial completed");
+			} else if (n.kind == N::DEFEATED) {
 				line = sprintf0(tr(n.tech == N::END_RESIGNED ? String("%(player)s has resigned.")
 						: "%(player)s has been defeated (" + why + ")."), {{"player", colored_player_name(n.player)}});
 			} else {

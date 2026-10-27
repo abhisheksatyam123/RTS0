@@ -453,7 +453,8 @@ def read_hashes(path: str) -> dict:
         with open(path) as f:
             for line in f:
                 parts = line.split()
-                if len(parts) >= 2:
+                # Polled while the peer is still writing: skip a torn line.
+                if len(parts) >= 2 and parts[0].isdigit():
                     rows[int(parts[0])] = parts[1]
     return rows
 

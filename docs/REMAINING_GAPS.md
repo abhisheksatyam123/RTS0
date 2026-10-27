@@ -915,6 +915,22 @@ Skirmish maps' ScriptSettings (fifteenth pass, 2026-10-21; docs/archive/triggers
 | SK3 | PlayerData Name (Egypt's cities, Azure Coast's Greeks and Celts, White Cliffs' invaders and 20 scenarios) was dropped; PlayerName._set makes it the seat's default, which an AI keeps | cosmetic | Fixed: the porter keeps "name", Game Setup gives it to AI and unassigned seats |
 | SK4 | A map's PlayerData Color snaps to the nearest of RTS0's palette colours; 0.28 adds the map's colours to the colour list | cosmetic | Kept: seats carry a palette index |
 
+The two tutorials (sixteenth pass, 2026-10-27; docs/archive/triggers-audit-028-pass16.md): introductory_tutorial.js and starting_economy_walkthrough.js line by line, with Tutorial.js and the tutorial panel:
+
+| # | Gap | Severity | State |
+|---|---|---|---|
+| TU1 | The introductory map lacked player 1's Spartan Gerousia beside the Civic Center | medium | Fixed |
+| TU2 | A wrong training click cancelled the wrong batch too and left autoqueue on; 0.28 raises OnTrainingQueued before the batch joins the queue, so ResetQueue refunds only the earlier items (and turns autoqueue off) and the wrong batch trains | low | Fixed |
+| TU3 | A gather on a gone supply's mirage was read as an entity id; 0.28 names the remembered supply, whose type the gather goals read | low | Fixed: the command's resource type is read |
+| TU4 | The introductory Field rally goal also took a rally on an unfinished Field; 0.28 counts only a "gather" rally on grain | low | Fixed |
+| TU5 | The last goal's win read "has won (game mode)" and the enemy "has been defeated (game mode)"; MarkPlayerAndAlliesAsWon(1, "Tutorial completed", "") | low | Fixed |
+| TU6 | Hotkeys in the instructions had no brackets, a yellow of their own and "(unbound)"; colorizeHotkey writes "[key]" in 255 251 131, or "Unassigned hotkey: name" | cosmetic | Fixed |
+| TU7 | The status line sat at -36; tutorialWarning is at 100%-42 | cosmetic | Fixed |
+| TU8 | The same warning twice didn't show a hidden panel again; every WarningMessage does | cosmetic | Fixed: the sim counts warnings sent |
+| TU9 | A warning stayed after loading a save; OnDeserialized sends only the goal | cosmetic | Fixed |
+| TU10 | The walkthrough's "selection.queue" (not in default.cfg, so "Unassigned hotkey") reads session.queue (Shift) | cosmetic | Deliberate (tutorial_data.h) |
+| TU11 | Tutorial.js reacts to every player's commands; RTS0 to player 1's | cosmetic | Kept: the enemy has no AI and the walkthrough one player |
+
 Scenario-only units: every unit the 0.28 scenario, demo and sandbox maps place was checked against the ported map JSON and the roster:
 
 | # | Gap | Severity | State |
