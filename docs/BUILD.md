@@ -99,7 +99,10 @@ What each target needs on the host, beyond Godot 4.3-stable, its export template
   pixels: 1.33x on 2400x1080 and 1600x720 phones, on top of the GUI scale option. Tablets and desktops
   keep 1.0, so 1080p is unchanged. On short screens the main menu keeps only the community links that
   fit below its buttons, and the big fixed-size dialogs (encyclopedia, tech tree, save/load) shrink to
-  the screen (`scenes/common/fit_screen.gd`). `tools/shot_layouts.gd` screenshots every menu and session
+  the screen (`scenes/common/fit_screen.gd`). On iPhones the game draws under the notch and the home
+  indicator in landscape, so `scenes/common/safe_area.gd` moves every panel that hangs on a screen edge in
+  by `DisplayServer.get_display_safe_area()`'s insets (the phone UI scale leaves room for them);
+  `-- --safe-area=L,T,R,B` (window pixels) simulates a notch on a desktop. Android letterboxes the cutout. `tools/shot_layouts.gd` screenshots every menu and session
   dialog at a given window size, for checking layouts: `xvfb-run -a -s "-screen 0 2560x1600x24" godot
   --rendering-driver opengl3 --path . -s tools/shot_layouts.gd -- --size 2400x1080 --out DIR --phone-ui`.
 - **Duplicate textures.** Godot unpacks each model's embedded images next to it, so about 6,000 images

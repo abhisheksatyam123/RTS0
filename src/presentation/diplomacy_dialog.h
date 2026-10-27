@@ -9,6 +9,7 @@
 
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/control.hpp>
+#include <godot_cpp/classes/font_variation.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
 #include <godot_cpp/classes/h_separator.hpp>
 #include <godot_cpp/classes/label.hpp>
@@ -35,6 +36,7 @@
 #include "hotkeys.h"
 #include "l10n.h"
 #include "production_queue.h"
+#include "session_skin.h"
 
 using namespace godot;
 
@@ -122,41 +124,48 @@ public:
 		chat_ = chat;
 		panel_ = memnew(Panel);
 		panel_->set_meta("tooltip_style", "session_bold"); // diplomacy rows: sessionToolTipBold
+		// diplomacyDialogPanel "50%-280 50%-155 50%+280 50%+15" on ModernDialog, widened by the
+		// tribute buttons and heightened by a 20 px row per player (resize).
 		panel_->set_anchor(SIDE_LEFT, 0.5f);
 		panel_->set_anchor(SIDE_RIGHT, 0.5f);
 		panel_->set_anchor(SIDE_TOP, 0.5f);
 		panel_->set_anchor(SIDE_BOTTOM, 0.5f);
-		panel_->set_offset(SIDE_LEFT, -430.0f);
-		panel_->set_offset(SIDE_RIGHT, 430.0f);
-		panel_->set_offset(SIDE_TOP, -200.0f);
-		panel_->set_offset(SIDE_BOTTOM, 200.0f);
-		Ref<StyleBoxFlat> style;
-		style.instantiate();
-		style->set_bg_color(Color(0.06f, 0.07f, 0.10f, 0.97f));
-		style->set_corner_radius_all(8);
-		style->set_border_width_all(2);
-		style->set_border_color(Color(0.85f, 0.72f, 0.25f, 0.95f));
-		panel_->add_theme_stylebox_override("panel", style);
+		panel_->set_theme(rtso::session_skin());
+		panel_->set_theme_type_variation("ModernDialog");
+		bold_.instantiate();
+		bold_->set_variation_embolden(0.6f);
+		resize(2);
 
+		// Header at 32 32 100%-32 64, rows from 64, the ceasefire line at 100%-90 and the
+		// buttons at 100%-50.
 		VBoxContainer *vbox = memnew(VBoxContainer);
 		vbox->set_anchors_preset(Control::PRESET_FULL_RECT);
-		vbox->set_offset(SIDE_LEFT, 16.0f);
-		vbox->set_offset(SIDE_RIGHT, -16.0f);
-		vbox->set_offset(SIDE_TOP, 12.0f);
-		vbox->set_offset(SIDE_BOTTOM, -12.0f);
-		vbox->add_theme_constant_override("separation", 5);
+		vbox->set_offset(SIDE_LEFT, 32.0f);
+		vbox->set_offset(SIDE_RIGHT, -32.0f);
+		vbox->set_offset(SIDE_TOP, 32.0f);
+		vbox->set_offset(SIDE_BOTTOM, -22.0f);
+		vbox->add_theme_constant_override("separation", 0);
 		panel_->add_child(vbox);
 
+		// TitleText "50%-96 -16 50%+96 16": white sans-bold-stroke-14 over the top edge.
 		Label *title = memnew(Label);
-		title->set_text("Diplomacy");
-		title->add_theme_font_size_override("font_size", 16);
+		title->set_name("DiplomacyTitle");
+		title->set_text(rtso::tr0("Diplomacy"));
+		title->set_anchor(SIDE_LEFT, 0.5f);
+		title->set_anchor(SIDE_RIGHT, 0.5f);
+		title->set_offset(SIDE_LEFT, -96.0f);
+		title->set_offset(SIDE_RIGHT, 96.0f);
+		title->set_offset(SIDE_TOP, -16.0f);
+		title->set_offset(SIDE_BOTTOM, 16.0f);
 		title->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-		title->add_theme_color_override("font_color", Color(1.0f, 0.88f, 0.4f));
-		vbox->add_child(title);
+		title->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
+		diplomacy_text(title);
+		panel_->add_child(title);
 
 		// DiplomacyDialog.xml header: Name, Civilization, Team, Theirs, A, N, E, Tribute.
 		HBoxContainer *head = memnew(HBoxContainer);
-		head->add_theme_constant_override("separation", 6);
+		head->set_custom_minimum_size(Vector2(0, 32));
+		head->add_theme_constant_override("separation", 0);
 		const char *heads[] = {"", "Name", "Civilization", "Team", "Theirs", "A", "N", "E", "Tribute", "", ""};
 		const float widths[] = {OUTCOME_W, NAME_W, CIV_W, TEAM_W, THEIRS_W, STANCE_W, STANCE_W, STANCE_W, TRIBUTE_W * 4 + 18.0f, ATTACK_W, SPY_W};
 		for (int i = 0; i < 11; ++i) {
@@ -168,13 +177,12 @@ public:
 				l->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 			}
 			l->set_custom_minimum_size(Vector2(widths[i], 20));
-			l->add_theme_font_size_override("font_size", 11);
-			l->add_theme_color_override("font_color", Color(0.85f, 0.8f, 0.6f));
-			if (i >= 5 && i <= 7) l->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+			l->set_vertical_alignment(VERTICAL_ALIGNMENT_TOP);
+			diplomacy_text(l); // DiplomacyText; Name and Tribute centred
+			if (i == 1 || (i >= 5 && i <= 8)) l->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 			head->add_child(l);
 		}
 		vbox->add_child(head);
-		vbox->add_child(memnew(HSeparator));
 
 		for (int p = 0; p < rtso::MAX_PLAYERS; ++p) {
 			Row &r = rows_[p];
@@ -184,24 +192,25 @@ public:
 			r.tint->set_bg_color(Color(0, 0, 0, 0));
 			r.frame->add_theme_stylebox_override("panel", r.tint);
 			r.box = memnew(HBoxContainer);
-			r.box->set_custom_minimum_size(Vector2(0, 26));
-			r.box->add_theme_constant_override("separation", 6);
+			r.box->set_custom_minimum_size(Vector2(0, 20)); // diplomacyPlayer[n] "0 0 100% 20"
+			r.box->add_theme_constant_override("separation", 0);
 			r.frame->add_child(r.box);
 			// diplomacyPlayerOutcome: victory.png "Victorious" or defeat.png "Defeated" (setOutcomeIcon).
 			r.outcome = memnew(TextureRect);
-			r.outcome->set_custom_minimum_size(Vector2(OUTCOME_W, 22));
+			r.outcome->set_custom_minimum_size(Vector2(OUTCOME_W, 20));
 			r.outcome->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 			r.outcome->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
 			r.outcome->set_meta("tooltip_style", "session_bold");
 			r.box->add_child(r.outcome);
 			r.name = add_label(r.box, NAME_W);
 			r.name->set_mouse_filter(Control::MOUSE_FILTER_PASS); // the AI settings tooltip
+			r.name->set_meta("tooltip_style", "session"); // diplomacyPlayerName has no tooltip_style
 			r.civ = add_label(r.box, CIV_W);
 			r.team = add_label(r.box, TEAM_W);
 			r.theirs = add_label(r.box, THEIRS_W);
 			for (int s = 0; s < 3; ++s) {
 				r.stance[s] = memnew(Button);
-				r.stance[s]->set_custom_minimum_size(Vector2(STANCE_W, 22));
+				r.stance[s]->set_custom_minimum_size(Vector2(STANCE_W, 20));
 				r.stance[s]->add_theme_font_size_override("font_size", 11);
 				r.stance[s]->connect("pressed", Callable(owner, "_on_diplo_stance_changed").bind(s, p));
 				r.box->add_child(r.stance[s]);
@@ -224,10 +233,14 @@ public:
 			vbox->add_child(r.frame);
 		}
 
-		vbox->add_child(memnew(HSeparator));
+		Control *gap = memnew(Control);
+		gap->set_v_size_flags(Control::SIZE_EXPAND_FILL);
+		vbox->add_child(gap);
+		// diplomacyCeasefireCounter "32 100%-90 100%-32 100%-62": DiplomacyText.
 		ceasefire_ = memnew(Label);
-		ceasefire_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-		ceasefire_->add_theme_font_size_override("font_size", 12);
+		ceasefire_->set_custom_minimum_size(Vector2(0, 40));
+		ceasefire_->set_vertical_alignment(VERTICAL_ALIGNMENT_TOP);
+		diplomacy_text(ceasefire_);
 		vbox->add_child(ceasefire_);
 
 		// diplomacyColorsWindowButton: a 28 px diplomacy.png / diplomacy-on.png icon with "Toggle
@@ -243,7 +256,7 @@ public:
 		colors_label->set_text(rtso::tr0("Toggle Diplomacy Colors"));
 		colors_label->set_custom_minimum_size(Vector2(296, 28));
 		colors_label->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
-		colors_label->add_theme_font_size_override("font_size", 12);
+		diplomacy_text(colors_label);
 		bottom->add_child(colors_label);
 		close_btn_ = memnew(Button);
 		close_btn_->set_custom_minimum_size(Vector2(128, 28));
@@ -336,6 +349,9 @@ public:
 			colors_btn_->set_tooltip_text((key.is_empty() ? String() : rtso::hotkey_tag(key) + " ") + rtso::tr0("Toggle Diplomacy Colors"));
 		}
 		const bool stances_hidden = sim->ceasefire_active() || sim->teams_locked();
+		int shown = 0;
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) shown += sim->player(p).active || p == me;
+		resize(shown);
 		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
 			Row &r = rows_[p];
 			const bool in_match = sim->player(p).active || p == me;
@@ -364,7 +380,7 @@ public:
 			}
 			// DiplomacyDialogPlayerControl: no controls for yourself or a player out of the game
 			// (defeated or won, isPlayerInactive).
-			const bool inactive = p == me || defeated || ((sim->winner_mask() >> p) & 1) || sim->is_defeated(me);
+			const bool inactive = p == me || defeated || ((sim->winner_mask() >> p) & 1) || sim->is_defeated(me) || ((sim->winner_mask() >> me) & 1);
 			const uint8_t cur = effective_stance(*sim, me, p);
 			for (int s = 0; s < 3; ++s) {
 				r.stance[s]->set_visible(!inactive && !stances_hidden);
@@ -380,8 +396,8 @@ public:
 				if (!mass_held && r.amount[t] >= TRIBUTE_MASS) send_tribute(p, t);
 				// TributeButton.update: resourceNameWithinSentence and colorizePlayernameByID.
 				r.tribute[t]->set_tooltip_text(rtso::sprintf0(
-						rtso::tr0("Tribute %(resourceAmount)s %(type)s to %(playerName)s. Shift-click to tribute %(greaterAmount)s."),
-						{{"resourceAmount", String::num_int64(r.amount[t])}, {"type", rtso::tr0(res_name(TRIBUTE_RES[t]))},
+						rtso::tr0("Tribute %(resourceAmount)s %(resourceType)s to %(playerName)s. Shift-click to tribute %(greaterAmount)s."),
+						{{"resourceAmount", String::num_int64(r.amount[t])}, {"resourceType", rtso::tr0(res_name(TRIBUTE_RES[t]))},
 						 {"playerName", colored_name}, {"greaterAmount", String::num_int64(next_tribute_amount(r.amount[t]))}}));
 			}
 			// SpyRequestButton.update: hidden when spies are disabled, and for a mutual ally only
@@ -429,7 +445,8 @@ public:
 					const float a = std::min(125.0f, short_by / 10.0f + 50.0f) / 255.0f;
 					r.spy->set_self_modulate(Color(1.0f, 1.0f - a, 1.0f - a));
 				} else {
-					r.spy->set_self_modulate(r.spy->is_disabled() ? Color(0.5f, 0.5f, 0.5f) : Color(1, 1, 1));
+					// SpyRequestButton: greyed only while a request is pending.
+					r.spy->set_self_modulate(spy_pending_[p] ? Color(0.5f, 0.5f, 0.5f) : Color(1, 1, 1));
 				}
 			}
 			// AttackRequestButton.update: for an enemy, while we have an ally to ask.
@@ -513,6 +530,7 @@ public:
 
 private:
 	bool colors_on_ = false;
+	godot::Ref<godot::FontVariation> bold_;
 	static constexpr float ATTACK_W = 20.0f, OUTCOME_W = 25.0f;
 	static constexpr float NAME_W = 125.0f, CIV_W = 100.0f, TEAM_W = 50.0f, THEIRS_W = 60.0f, STANCE_W = 20.0f,
 		TRIBUTE_W = 20.0f, SPY_W = 20.0f;
@@ -560,13 +578,30 @@ private:
 		return b;
 	}
 
-	static Label *add_label(HBoxContainer *box, float w) {
+	Label *add_label(HBoxContainer *box, float w) const {
 		Label *l = memnew(Label);
-		l->set_custom_minimum_size(Vector2(w, 22));
-		l->add_theme_font_size_override("font_size", 11);
+		l->set_custom_minimum_size(Vector2(w, 20));
+		l->set_vertical_alignment(VERTICAL_ALIGNMENT_TOP);
+		diplomacy_text(l);
 		l->set_clip_text(true);
 		box->add_child(l);
 		return l;
+	}
+	// DiplomacyText / TitleText: white sans-bold-stroke-14.
+	void diplomacy_text(Label *l) const {
+		l->add_theme_font_override("font", bold_);
+		l->add_theme_font_size_override("font_size", 14);
+		l->add_theme_color_override("font_color", Color(1, 1, 1));
+		l->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+		l->add_theme_constant_override("outline_size", 3);
+	}
+	// DiplomacyDialog.resize: 560 px plus 20 per tribute button, 170 plus 20 per player, about 50%-70.
+	void resize(int players) {
+		const float half_w = (560.0f + 4 * TRIBUTE_W) / 2.0f, half_h = (170.0f + players * 20.0f) / 2.0f;
+		panel_->set_offset(godot::SIDE_LEFT, -half_w);
+		panel_->set_offset(godot::SIDE_RIGHT, half_w);
+		panel_->set_offset(godot::SIDE_TOP, -70.0f - half_h);
+		panel_->set_offset(godot::SIDE_BOTTOM, -70.0f + half_h);
 	}
 	static void set_text(Label *l, const String &s) {
 		if (l && l->get_text() != s) l->set_text(s);

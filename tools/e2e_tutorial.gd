@@ -75,6 +75,7 @@ func run() -> void:
 	var tp: Dictionary = current_scene.debug_tutorial_panel()
 	print("    ", tp)
 	check(str(tp["text"]).contains("[color=#ffe295]"), "the newest instruction is coloured")
+	check(str(tp["text"]).begins_with("[b]"), "in TutorialPanel's sans-bold-14")
 	# The first goal has nothing to do: Ready from the first frame the panel shows it.
 	check(tp["status"] == "Click when ready.", "the status line: " + str(tp["status"]))
 	check(tp["button_visible"] and tp["button"] == "Ready", "the button reads Ready")

@@ -200,23 +200,23 @@ public:
 		owner_ = owner;
 		overlay_ = memnew(VBoxContainer);
 		overlay_->add_theme_constant_override("separation", 0);
+		// session.xml chatPanel "3 131 100% 100%-240", below the hero and relic buttons.
+		overlay_->set_name("ChatPanel");
 		overlay_->set_anchor(SIDE_LEFT, 0.0f);
 		overlay_->set_anchor(SIDE_TOP, 0.0f);
-		overlay_->set_offset(SIDE_LEFT, 16.0f);
-		overlay_->set_offset(SIDE_RIGHT, 520.0f);
-		// session.xml chatPanel starts below the hero and relic buttons (PanelEntities.xml).
-		overlay_->set_offset(SIDE_TOP, 114.0f);
-		overlay_->set_offset(SIDE_BOTTOM, 114.0f + 20 * 18.0f);
+		overlay_->set_anchor(SIDE_RIGHT, 1.0f);
+		overlay_->set_anchor(SIDE_BOTTOM, 1.0f);
 		overlay_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		apply_safe_insets(0.0f, 0.0f);
 		parent->add_child(overlay_);
 	}
 
 	void apply_safe_insets(float left_inset, float top_inset) {
 		if (overlay_) {
-			overlay_->set_offset(godot::SIDE_LEFT, 16.0f + left_inset);
-			overlay_->set_offset(godot::SIDE_RIGHT, 520.0f + left_inset);
-			overlay_->set_offset(godot::SIDE_TOP, 114.0f + top_inset);
-			overlay_->set_offset(godot::SIDE_BOTTOM, 114.0f + 20 * 18.0f + top_inset);
+			overlay_->set_offset(godot::SIDE_LEFT, 3.0f + left_inset);
+			overlay_->set_offset(godot::SIDE_RIGHT, 0.0f);
+			overlay_->set_offset(godot::SIDE_TOP, 131.0f + top_inset);
+			overlay_->set_offset(godot::SIDE_BOTTOM, -240.0f);
 		}
 	}
 	bool is_ready() const { return log_ != nullptr; }
@@ -354,7 +354,13 @@ public:
 			} else if (!cmd.is_empty() && cmd != "/me") {
 				return refuse("Unknown chat command: " + cmd);
 			}
-			if (text.is_empty()) return;
+			// A bare "/allies" sends nothing, but ChatInput.submitChatInput still runs
+			// the submitted handlers: closePage clears the input and hides the window.
+			if (text.is_empty()) {
+				input_->clear();
+				if (panel_) panel_->set_visible(false);
+				return;
+			}
 			if (is_private(tag) && !is_online(tag)) return refuse("Unknown chat addressee: " + names_[tag]);
 			const String context = tag == "[Allies]" ? "Ally" : tag == "[Enemies]" ? "Enemy" : tag == "[Observers]" ? "Observer"
 					: tag.is_empty() ? "" : "Private";
@@ -703,10 +709,12 @@ private:
 			line->set_fit_content(true);
 			line->set_scroll_active(false);
 			line->set_autowrap_mode(TextServer::AUTOWRAP_OFF);
-			line->add_theme_font_size_override("normal_font_size", 13);
+			// chatPanelOverlay: white sans-bold-stroke-14.
+			line->add_theme_font_size_override("normal_font_size", 14);
+			line->add_theme_font_size_override("bold_font_size", 14);
 			line->add_theme_color_override("font_outline_color", Color(0, 0, 0, 1));
 			line->add_theme_constant_override("outline_size", 4);
-			line->set_text(l.bbcode);
+			line->set_text("[b]" + l.bbcode + "[/b]");
 			line->set_h_size_flags(Control::SIZE_SHRINK_BEGIN);
 			if (l.action.is_empty() || !owner_) {
 				line->set_mouse_filter(Control::MOUSE_FILTER_IGNORE); // ghost
@@ -714,6 +722,7 @@ private:
 				line->set_mouse_filter(Control::MOUSE_FILTER_STOP);
 				line->set_default_cursor_shape(Control::CURSOR_POINTING_HAND);
 				line->set_tooltip_text(l.tooltip);
+				line->set_meta("tooltip_style", "session_bottom_bold"); // session.xml chatLine
 				line->connect("gui_input", Callable(owner_, "_on_chat_line_input").bind(l.action));
 			}
 			overlay_->add_child(line);
@@ -764,7 +773,8 @@ private:
 		return need == 0 || (e.bits & need);
 	}
 	String draw(const Entry &e) const {
-		return timestamps_ ? "[color=#aaaaaa][lb]" + e.time + "][/color] " + e.text : e.text;
+		// "%(time)s %(message)s": the "\[HH:mm]" prefix in the history's own colour.
+		return timestamps_ ? "[lb]" + e.time + "] " + e.text : e.text;
 	}
 	void redraw_log() {
 		if (!log_) return;

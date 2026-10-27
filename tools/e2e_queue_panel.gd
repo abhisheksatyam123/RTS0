@@ -13,6 +13,7 @@ extends SceneTree
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_queue_panel.gd
 # Exit code 0 = pass.
 
+const TT = preload("res://scenes/common/tooltips.gd")
 var main
 var failures := 0
 
@@ -78,7 +79,7 @@ func run() -> void:
 	var s: Dictionary = main.debug_queue_slot(0)
 	check(s.get("visible", false) and int(s["count"]) > 20, "the batch shows its size: " + str(s.get("count")))
 	check(str(s["time"]).count(":") == 1 and str(s["time"]).split(":")[1].length() == 2, "the production icon shows m:ss: " + str(s["time"]))
-	check(str(s["tooltip"]).contains("Insufficient population capacity:\nPopulation "), "it lacks population room")
+	check(str(s["tooltip"]).contains("[color=red][b]Insufficient population capacity:[/b][/color]\n[img") and TT.plain(str(s["tooltip"])).contains("Insufficient population capacity:\n"), "it lacks population room (objectionFont, the population icon)")
 	check(str(s["tooltip"]).ends_with("Right-click for more information.") and s["kind"] == "unit", "names, then the right-click line")
 	check(not main.debug_queue_slot(1)["visible"], "one item, one button")
 

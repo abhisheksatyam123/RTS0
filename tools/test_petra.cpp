@@ -1725,6 +1725,36 @@ static void test_idle_workers_repair_cc() {
 
 // basesManager.js update: one base a turn, in turn (currentBase). The idle workers of a base
 // whose turn it is not wait: here they repair their damaged civic centre only on its turn.
+// garrisonManager.js keepGarrisoned and the "around" scan: a unit with a Melee attack (a woman's
+// dagger) leaves its shelter when enemy units come (DS1), and a melee war elephant counts as melee
+// siege (entityExtend.js isSiegeUnit: Siege or Elephant+Melee), not as a unit (DS2).
+static void test_garrison_melee_attack() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "AI 1 has a civic centre");
+	if (!cc) return;
+	const uint32_t woman = s->spawn_unit(cc->x + 6.0f, cc->z, 1, UNIT_FEMALE_CITIZEN);
+	const uint32_t healer = s->spawn_unit(cc->x + 6.0f, cc->z + 2.0f, 1, UNIT_HEALER);
+	Simulation::PetraAround raid;
+	raid.unit = true;
+	const bool woman_stays = s->petra_keep_garrisoned((size_t)s->lookup_unit(woman), *cc, raid);
+	const bool healer_stays = s->petra_keep_garrisoned((size_t)s->lookup_unit(healer), *cc, raid);
+	std::printf("  raid: woman (dagger) stays %d, healer (no attack) stays %d\n", woman_stays, healer_stays);
+	CHECK(!woman_stays, "a woman with a dagger leaves the shelter when enemy units come");
+	CHECK(healer_stays, "a healer with no attack stays sheltered");
+	s->spawn_unit(cc->x + 8.0f, cc->z + 4.0f, 0, UNIT_ELEPHANT);
+	const Simulation::PetraAround around = s->petra_around(*cc);
+	std::printf("  war elephant near the civic centre: melee siege %d, unit %d\n", around.melee_siege, around.unit);
+	CHECK(around.melee_siege && !around.unit, "a melee war elephant counts as melee siege");
+}
+
 static void test_one_base_a_turn() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -1843,6 +1873,42 @@ static void test_queue_plans_in_order() {
 	            b1, f1, f2, f3);
 	CHECK(!b0 && !f0 && b1 && f1, "a forge waits behind the barracks asked for first");
 	CHECK(!f2 && f3, "a head that stops asking lets the next structure start");
+}
+
+// baseManager.js:897 assignToFoundations: with no active base, every worker may build each
+// foundation (targetNB = maxTotalBuilders = the workers), not only the usual 2 for a palisade.
+static void test_no_base_all_build() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	uint32_t cc = 0;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type)) { cc = b.id; cx = b.x; cz = b.z; }
+	CHECK(cc != 0, "AI 1 has a civic centre");
+	if (!cc) return;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.id != cc) b.hp = 0.0f; // nothing else of ours either
+	s->buildings_[s->building_id_to_idx_.at(cc)].hp = 0.0f;
+	s->buildings_[s->building_id_to_idx_.at(cc)].wrecked = true;
+	int workers = 0;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1) {
+			const uint32_t uid = s->units_.id[i];
+			s->cmd_stop(&uid, 1);
+			++workers;
+		}
+	const uint32_t pal = s->spawn_building_world(cx + 6.0f, cz + 6.0f, BLD_PALISADE, 1, 0.0f);
+	s->petra_staff_foundations();
+	int on = 0;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.target_building_id[i] == pal) ++on;
+	std::printf("  no base: %d of %d units build the palisade, active base %d\n", on, workers, (int)s->petra_has_active_base());
+	CHECK(!s->petra_has_active_base() && on > 2, "with no base, more than the usual 2 build a palisade");
 }
 
 // baseManager.js assignRolelessUnits gives the Mauryan worker elephant the worker role, and
@@ -5138,7 +5204,7 @@ static void test_decay_destroy() {
 
 // defenseManager.js isDangerous / defenseArmy.js needsDefenders: Support units in our
 // territory are no threat, and the defence is sized by strength (getMaxStrength), so
-// war elephants draw more defenders than the same number of spearmen would.
+// a war elephant draws more defenders than one spearman would.
 static void test_defense_by_strength() {
 	for (int phase = 0; phase < 2; ++phase) {
 		auto s = std::make_unique<Simulation>();
@@ -5153,18 +5219,21 @@ static void test_defense_by_strength() {
 		CHECK(cc != nullptr, "Petra has a civic centre");
 		if (!cc) return;
 		const float cx = cc->x, cz = cc->z;
-		for (int k = 0; k < 30; ++k) s->spawn_unit(cx - 10.0f + (float)(k % 6), cz - 10.0f - (float)(k / 6), 1, UNIT_SPEARMAN);
+		for (int k = 0; k < 60; ++k) s->spawn_unit(cx - 10.0f + (float)(k % 8), cz - 10.0f - (float)(k / 8), 1, UNIT_SPEARMAN);
+		// Melee siege garrisons no melee infantry (garrisonManager.js allowMelee), so every
+		// spearman is free to defend: the army stops at the elephant's strength x defenseRatio.
 		const UnitType foe = phase == 0 ? UNIT_FEMALE_CITIZEN : UNIT_ELEPHANT;
-		for (int k = 0; k < 2; ++k) s->spawn_unit(cx + 6.0f + (float)k, cz + 6.0f, 0, foe);
+		const int foes = phase == 0 ? 2 : 1;
+		for (int k = 0; k < foes; ++k) s->spawn_unit(cx + 6.0f + (float)k, cz + 6.0f, 0, foe);
 		run_ai_turns(*s, 3); // checkEnemyUnits looks in our land one turn in (players + 1)
 		const size_t n = all_defenders(*s).size();
-		const size_t by_count = (size_t)std::ceil(2.0f * s->petra_config_.defense_ratio_own);
+		const size_t by_count = (size_t)std::ceil((float)foes * s->petra_config_.defense_ratio_own);
 		if (phase == 0) {
 			std::printf("  defense: 2 enemy women by the civic centre draw %zu defenders\n", n);
 			CHECK(n == 0, "Support units are not dangerous (isDangerous)");
 		} else {
-			std::printf("  defense: 2 war elephants draw %zu defenders (%zu by head count)\n", n, by_count);
-			CHECK(n > by_count && n < 30, "defenders sized by strength (needsDefenders)");
+			std::printf("  defense: a war elephant draws %zu defenders (%zu by head count)\n", n, by_count);
+			CHECK(n > by_count && n < 60, "defenders sized by strength (needsDefenders)");
 		}
 	}
 }
@@ -8208,9 +8277,11 @@ int main(int argc, char **argv) {
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_garrisoned_workers_count);
 	RUN(test_gather_rate_civ_bonus);
+	RUN(test_garrison_melee_attack);
 	RUN(test_one_base_a_turn);
 	RUN(test_no_room_only_once_funded);
 	RUN(test_queue_plans_in_order);
+	RUN(test_no_base_all_build);
 	RUN(test_idle_workers_repair_cc);
 	RUN(test_worker_elephant_builds);
 	RUN(test_anchor_dropsite_unshared);
