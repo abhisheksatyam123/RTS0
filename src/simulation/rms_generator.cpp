@@ -12449,6 +12449,7 @@ void RmsGenerator::synth_pyrenean_sierra(HeightmapGrid &hm, RmsRng &rng, float &
 	}
 	std::vector<uint8_t> range(N);
 	for (size_t i = 0; i < N; ++i) range[i] = hm.data[i] > 15.0f; // heightPyreneans, ExcludeMin
+	record_area(hm, range, AREA_MOUNTAIN); // clPyrenneans, for its height and slope bands
 
 	// The passages: startHeight heightPassage, endHeight the ground at their end.
 	const float pvx = -dz * pass_len, pvz = dx * pass_len; // mountainDirection.perpendicular()
@@ -12479,6 +12480,7 @@ void RmsGenerator::synth_pyrenean_sierra(HeightmapGrid &hm, RmsRng &rng, float &
 	}
 	const auto near_water = near(water, 5.0f);
 	smoothing_painter_028(hm, 5.0f, 0.9f, 1, &near_water);
+	record_area(hm, water, AREA_LAKE); // clWater, for its shore bands
 
 	// The hills.
 	const auto to_water = seas_dist_inside(hm, water), to_range = seas_dist_inside(hm, range);
@@ -13609,17 +13611,51 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 			}
 			// To the millimetre, so land the synth set to a whole metre stays on it.
 			slope_up[j] = slope / metre;
-			metres_up[j] = std::round((h - water) / metre * 1000.0f) / 1000.0f;
+			metres_up[j] = std::round((own && own->coast ? coast_unmetres(water, h) : (h - water) / metre) * 1000.0f) / 1000.0f;
 			t.tiles[j] = v;
 		}
 	// The script's own height bands and areas, unless a road, forest floor or mine dirt took the tile.
 	auto free_tile = [&](size_t j) { return road[j] == 0 && forest[j] == 0 && mine[j] == 0; };
+	// Chebyshev distances (in tiles) to the areas of each kind a band keeps near, made on first use.
+	std::vector<uint16_t> near_d[16];
+	auto near_area = [&](uint8_t kind, size_t j) -> uint16_t {
+		std::vector<uint16_t> &d = near_d[kind & 15];
+		if (d.empty()) {
+			d.assign(t.tiles.size(), 0xFFFF);
+			std::vector<uint32_t> q;
+			for (const MapArea &a : t_map_areas)
+				if (a.kind == kind)
+					for (uint32_t k : a.tiles)
+						if (d[k]) { d[k] = 0; q.push_back(k); }
+			for (size_t k = 0; k < q.size(); ++k) {
+				const int x = (int)(q[k] % (uint32_t)res), z = (int)(q[k] / (uint32_t)res);
+				for (int dz = -1; dz <= 1; ++dz)
+					for (int dx = -1; dx <= 1; ++dx) {
+						const int nx = x + dx, nz = z + dz;
+						if (nx < 0 || nz < 0 || nx >= res || nz >= res) continue;
+						const uint32_t n = (uint32_t)(nz * res + nx);
+						if (d[n] != 0xFFFF) continue;
+						d[n] = (uint16_t)(d[q[k]] + 1);
+						q.push_back(n);
+					}
+			}
+		}
+		return d[j];
+	};
 	auto paint_bands = [&](bool late) {
 		for (const HeightBand &band : own->bands) {
 			if (!band.terrain[0] || band.late != late) continue;
-			for (size_t j = 0; j < t.tiles.size(); ++j)
-				if (free_tile(j) && metres_up[j] >= band.lo && metres_up[j] < band.hi)
-					t.tiles[j] = pick(band.terrain, 2, (int)(j % (size_t)res), (int)(j / (size_t)res), 12);
+			const float scale = std::clamp(((float)res - 128.0f) / (512.0f - 128.0f), 0.0f, 1.0f);
+			const float lo = band.hi512 != 0.0f ? band.lo + (band.lo512 - band.lo) * scale : band.lo;
+			const float hi = band.hi512 != 0.0f ? band.hi + (band.hi512 - band.hi) * scale : band.hi;
+			for (size_t j = 0; j < t.tiles.size(); ++j) {
+				if (!free_tile(j) || metres_up[j] < lo || metres_up[j] >= hi) continue;
+				// rmgen's getSlope averages the height steps to the 8 neighbours: about 0.77 of the gradient.
+				const float slope_028 = 0.77f * slope_up[j];
+				if (band.slope_hi > band.slope_lo && (slope_028 < band.slope_lo || slope_028 >= band.slope_hi)) continue;
+				if (band.near && near_area(band.near, j) > band.near_dist) continue;
+				t.tiles[j] = pick(band.terrain, 4, (int)(j % (size_t)res), (int)(j / (size_t)res), 12);
+			}
 		}
 	};
 	if (own) {
@@ -13830,7 +13866,7 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 	for (const char *n : {b.water, b.shore_blend, b.shore}) order.push_back(n);
 	if (own) {
 		for (const HeightBand &band : own->bands)
-			if (!band.late) order.insert(order.end(), band.terrain, band.terrain + 2);
+			if (!band.late) order.insert(order.end(), band.terrain, band.terrain + 4);
 		for (const MapArea &a : t_map_areas)
 			for (const AreaLayers &l : own->areas)
 				if (l.kind == a.kind)
@@ -13838,7 +13874,7 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 		for (const PatchSet &ps : own->patches)
 			for (const auto &layer : ps.layer) order.insert(order.end(), layer, layer + 8);
 		for (const HeightBand &band : own->bands)
-			if (band.late) order.insert(order.end(), band.terrain, band.terrain + 2);
+			if (band.late) order.insert(order.end(), band.terrain, band.terrain + 4);
 	}
 	for (const char *n : {b.road_wild, b.road}) order.push_back(n);
 	for (const char *const *l : {b.cliff, b.hill, b.forest}) order.insert(order.end(), l, l + 2);
