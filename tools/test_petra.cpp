@@ -5121,14 +5121,18 @@ static void test_update_capture_strength() {
 	s->set_victory_condition(VICTORY_ENDLESS);
 	run_for(*s, 1.0f);
 	s->petra_pid_ = 1;
-	const uint32_t house = s->spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0);
+	// In player 0's territory, so it doesn't decay (a decaying house is anyone's to capture).
+	float hx = 0.0f, hz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { hx = b.x + 10.0f; hz = b.z; }
+	const uint32_t house = s->spawn_building_world(hx, hz, BLD_HOUSE, 0);
 	auto hi = s->building_id_to_idx_.find(house);
 	CHECK(hi != s->building_id_to_idx_.end(), "player 0's house stands");
 	if (hi == s->building_id_to_idx_.end()) return;
 	std::vector<uint32_t> men;
 	auto add = [&](int n) {
 		for (int k = 0; k < n; ++k) {
-			const uint32_t u = s->spawn_unit(6.0f + (float)men.size(), 6.0f, 1, UNIT_SPEARMAN);
+			const uint32_t u = s->spawn_unit(hx - 14.0f + (float)men.size(), hz - 8.0f, 1, UNIT_SPEARMAN);
 			s->order_attack_building(&u, 1, house, false, true);
 			men.push_back(u);
 		}
