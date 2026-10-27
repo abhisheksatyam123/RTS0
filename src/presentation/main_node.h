@@ -1054,6 +1054,9 @@ private:
 	void play_civ_voice(const char *action, uint32_t unit_id = 0);
 	// selection.js addList: the select sound of the first entity this change added (none, none).
 	void play_select_added(const PackedInt32Array &before_units, const std::vector<uint32_t> &before_structs);
+	// SoundGroups/select of an animal, a supply or a treasure (selection.js plays Gaia's too).
+	void play_fauna_select(uint8_t fauna_type);
+	void play_inspected_select();
 	// The unit a left click selects (input.js PickEntityAtPoint): the visible unit nearest the
 	// cursor within 2 units, if it is selectable; SIZE_MAX otherwise.
 	size_t click_pick_unit(Vector2 mouse_pos, bool any_player) const;
