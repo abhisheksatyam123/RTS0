@@ -387,6 +387,35 @@ int main() {
 		           s.unit_tech_mods(0, ty, merc).train_time, 1.2f));
 	}
 
+	// Every roster row named _a or _e (a captured Roman army camp's {civ}/infantry_*_a, a
+	// captured temple of Amun's {civ}/support_healer_e) trains at its own rank, as its
+	// template's Identity/Rank; an Advanced hoplite still promotes to Elite (G64).
+	{
+		fresh(s, CIV_ATHENIANS);
+		int checked = 0;
+		for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t) {
+			const char *id = civ_unit_template(t).id;
+			const size_t n = std::strlen(id);
+			if (n < 2 || id[n - 2] != '_' || (id[n - 1] != 'a' && id[n - 1] != 'e')) continue;
+			if (!std::strstr(id, "/infantry_") && !std::strstr(id, "/support_healer_")) continue;
+			const uint8_t want = id[n - 1] == 'a' ? 2 : 3;
+			uint8_t rank = 0;
+			s.trained_as(0, t, rank);
+			if (rank != want) { std::printf("  %s trains at rank %u\n", id, rank); ++failures; }
+			++checked;
+		}
+		CHECK(checked >= 29);
+		const uint16_t adv = tmpl_of("athen/infantry_spearman_a");
+		uint8_t rank = 0;
+		CHECK(s.trained_as(0, adv, rank) == adv && rank == 2);
+		const size_t i = idx(s, s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, adv));
+		s.units_.rank[i] = rank;
+		CHECK(near(s.promotion_required_xp(i), 100.0f));
+		s.gain_xp(i, 100.0f);
+		s.promote_if_due(i);
+		CHECK(s.units_.rank[i] == 3);
+	}
+
 	if (failures) {
 		std::printf("test_promotion: %d failure(s)\n", failures);
 		return 1;
