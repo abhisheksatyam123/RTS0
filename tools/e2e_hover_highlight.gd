@@ -90,9 +90,16 @@ func run() -> void:
 	var hl: PackedInt32Array = main.debug_highlight()
 	print("    hover ", hl, " unit ", men[0])
 	check(hl.size() == 1 and hl[0] == men[0], "hovering the unit highlights it")
-	await move(Vector2(40, 300))
-	print("    off ", main.debug_highlight())
-	check(main.debug_highlight().size() == 0, "moving off clears the highlight")
+	# Off the unit, onto bare ground: the random map can put a tree at any one spot, so the
+	# first of a few spots with nothing under the cursor.
+	var cleared := false
+	for off in [Vector2(40, 300), Vector2(40, 160), Vector2(200, 160), Vector2(200, 300)]:
+		await move(off)
+		print("    off ", off, " ", main.debug_highlight())
+		if main.debug_highlight().size() == 0:
+			cleared = true
+			break
+	check(cleared, "moving off clears the highlight")
 	# Band box over the unit: highlighted while dragging, selected on release.
 	var from := at - Vector2(30, 30)
 	await move(from)
