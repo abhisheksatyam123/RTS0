@@ -1308,6 +1308,8 @@ private:
 	void quit_confirmation(const String &kind, bool won = false, bool ask_exit = true);
 	void tick_quit_confirmation();
 	bool write_save_metadata(const String &path, const String &description) const;
+	// The viewer's fog memory into a save's (or the quicksave's) GUI data.
+	void save_fog_memory(Dictionary &gui) const;
 	static Dictionary saved_gui(const String &path);
 	void restore_saved_gui(const Dictionary &gui);
 	bool load_world(const String &path, const Dictionary &gui);
