@@ -2368,6 +2368,47 @@ static void test_house_plan_waits_out_no_room() {
 	CHECK(houses() == before + 1, "it goes once the mark is gone");
 }
 
+// queueplanBuilding.js isGo (houseNeeded): freeSlots counts getOwnFoundations, living
+// entities only, so houses wrecked as foundations (build_progress back to 0) hold no slots.
+static void test_house_wrecked_foundations_hold_no_slots() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->set_team_civ(1, (uint8_t)CIV_ATHENIANS);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->petra_pid_ = 1;
+	fund_queues(*s);
+	auto houses = [&] {
+		int n = 0;
+		for (const auto &b : s->buildings_) n += b.team == 1 && b.type == BLD_HOUSE && b.build_progress < 1.0f && b.hp > 0.0f;
+		return n;
+	};
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	for (int k = 0; s->pop_max(1) - s->pop_current(1) > 5 && k < 40; ++k)
+		s->spawn_unit(cx - 8.0f + (float)(k % 10) * 0.8f, cz + 8.0f + (float)(k / 10) * 0.8f, 1, UNIT_VILLAGER);
+	// Three house foundations, lost before they were built: 30 slots if they counted.
+	int wrecked = 0;
+	for (int k = 0; k < 3; ++k) {
+		const uint32_t id = s->spawn_building_world(cx - 12.0f + 12.0f * (float)k, cz - 14.0f, BLD_HOUSE, 1, 0.0f);
+		auto it = s->building_id_to_idx_.find(id);
+		if (it == s->building_id_to_idx_.end()) continue;
+		s->mark_building_wreck(s->buildings_[it->second], 0);
+		++wrecked;
+	}
+	CHECK(wrecked == 3, "three house foundations laid and wrecked");
+	const int before = houses();
+	s->petra_kept_.house_plans = 2;
+	s->petra_clear_no_room(BLD_HOUSE);
+	s->petra_manage_buildings(0.5f);
+	std::printf("  houses after 3 wrecked foundations: pop %d of %d, %d new\n", s->pop_current(1), s->pop_max(1), houses() - before);
+	CHECK(houses() == before + 1, "wrecked house foundations don't hold the next house back");
+}
+
 // gameState.findAvailableTech (common-api gamestate.js:768): Petra's structures in creation
 // order, each one's Researcher list in template order. A storehouse built before the
 // farmstead offers Iron Axe Heads before Iron Plow, and Servants before Wedge and Mallet.
@@ -2634,6 +2675,21 @@ static void test_petra_islands_wood_reserve() {
 	s->players_[0].res[RES_FOOD] = 600.0f;
 	s->petra_refresh_queue_accounts(0.1f);
 	std::printf("wood accounts: house %.0f, phase %.0f\n", s->petra_queues_.accounts[PETRA_Q_HOUSE].wood,
+	            s->petra_queues_.accounts[PETRA_Q_MAJOR_TECH].wood);
+	// The town phase asks for 5 Village structures: while they are missing (PC28), the houses
+	// take the wood first and the phase none, as it couldn't start without them.
+	if (s->petra_phasing()) {
+		CHECK(s->petra_queues_.accounts[PETRA_Q_HOUSE].wood >= 150.0f, "the town phase's houses first");
+		CHECK(s->petra_queues_.accounts[PETRA_Q_MAJOR_TECH].wood == 0.0f, "no wood for the phase before them");
+	}
+	const uint32_t cc_id = cc->id;
+	const float hx = cc->x, hz = cc->z;
+	for (int k = 0; s->phase_structures(0, 1) < 5 && k < 8; ++k)
+		s->spawn_building_world(hx - 6.0f + 4.0f * (float)(k % 4), hz - 12.0f - 4.0f * (float)(k / 4), BLD_HOUSE, 0, 1.0f);
+	cc = &s->buildings_[s->building_id_to_idx_.at(cc_id)]; // the spawns moved the buildings
+	CHECK(s->phase_structures(0, 1) >= 5, "five Village structures");
+	s->petra_refresh_queue_accounts(0.1f);
+	std::printf("with the houses: house %.0f, phase %.0f\n", s->petra_queues_.accounts[PETRA_Q_HOUSE].wood,
 	            s->petra_queues_.accounts[PETRA_Q_MAJOR_TECH].wood);
 	CHECK(s->petra_queues_.accounts[PETRA_Q_HOUSE].wood == 0.0f, "no wood for the house");
 	CHECK(s->petra_queues_.accounts[PETRA_Q_MAJOR_TECH].wood >= 500.0f, "the phase's wood");
@@ -3239,15 +3295,19 @@ static void test_nomad_first_base() {
 	s->order_set_stance(idle_army.data(), idle_army.size(), STANCE_PASSIVE);
 	// worker.js: the civic centre's builders go idle (autocontinue only for houses) and gather,
 	// and the fields wait for a food gatherer (buildAnyField), so the first house comes later
-	// than 150 s on this seed.
-	run_for(*s, 240.0f);
+	// than 150 s on this seed. And whether it comes before 240 s hangs on one tick: a civic centre
+	// finished before Petra's 26th turn (tick 785, 26 % 5 == 1) lets researchManager.update run
+	// with an active base there (headquarters.js:2294-2295), which picks Helot Economy at 39 s
+	// rather than at 207 s, and its minorTech reserve takes the food and wood of the first house
+	// (placed at 247 s, against 185 s).
+	run_for(*s, 300.0f);
 	int buildings = 0, houses = 0;
 	for (const auto &b : s->buildings())
 		if (b.team == 1 && !b.wrecked && b.build_progress >= 1.0f) {
 			++buildings;
 			houses += b.type == BLD_HOUSE;
 		}
-	std::printf("  nomad: Town Centers at start %d, built after 240 s %d, finished buildings %d, workers %d\n",
+	std::printf("  nomad: Town Centers at start %d, built after 300 s %d, finished buildings %d, workers %d\n",
 	            at_start, town_centers(true), buildings, count_units(*s, 1, true));
 	CHECK(at_start == 0, "a Nomad start has no civic centre");
 	CHECK(town_centers(true) == 1, "Petra founds and builds its first Town Center");
@@ -6413,8 +6473,20 @@ static void test_defense_animals() {
 	}
 	std::printf("  animals: a roaming wolf and one biting an enemy make %zu armies\n", s->petra_defense_armies().size());
 	CHECK(s->petra_defense_armies().empty(), "an animal not attacking us or our allies raises no army");
-	const uint32_t woman = s->spawn_unit(cx - 15.0f, cz - 15.0f, 1, UNIT_FEMALE_CITIZEN, 1.0e4f);
-	const uint32_t wolf = s->spawn_fauna(cx - 16.0f, cz - 15.0f, FAUNA_WOLF);
+	// On the civic centre's land and in our territory, past its arrows (16.8 from its edge), so the
+	// defenders kill the wolf, not the arrows.
+	float wx = 0.0f, wz = 0.0f;
+	bool spot = false;
+	const uint16_t home = s->petra_land_at(cx, cz);
+	for (float r = cc->half_size + 21.0f; r < cc->half_size + 40.0f && !spot; r += 2.0f)
+		for (int k = 0; k < 32 && !spot; ++k) {
+			const float a = (float)k * 6.2831853f / 32.0f;
+			const float x = cx + r * std::cos(a), z = cz + r * std::sin(a);
+			if (s->territory_owner_at(x, z) == 1 && s->petra_land_at(x, z) == home && s->petra_land_at(x - 1.0f, z) == home) { wx = x; wz = z; spot = true; }
+		}
+	CHECK(spot, "dry land of ours past the civic centre's arrows");
+	const uint32_t woman = s->spawn_unit(wx, wz, 1, UNIT_FEMALE_CITIZEN, 1.0e4f);
+	const uint32_t wolf = s->spawn_fauna(wx - 1.0f, wz, FAUNA_WOLF);
 	bool army = false, hunted = false;
 	for (int t = 0; t < 4 && !(army && hunted); ++t) {
 		keep_biting(wolf, woman);
@@ -9550,6 +9622,7 @@ int main(int argc, char **argv) {
 	RUN(test_phase_up);
 	RUN(test_city_phase_skips_no_room);
 	RUN(test_house_plan_waits_out_no_room);
+	RUN(test_house_wrecked_foundations_hold_no_slots);
 	RUN(test_queued_plan_outlives_its_reason);
 	RUN(test_no_free_income);
 	RUN(test_mercenary_workers);
