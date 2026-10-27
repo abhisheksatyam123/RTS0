@@ -230,6 +230,11 @@ func run() -> void:
 	check(left.is_empty(), "Ctrl+click drops the whole formation: %s" % str(left))
 	main.clear_selection()
 	await create_timer(0.8).timeout
+	# The box may still be forming up: click where the spearman stands once it has.
+	for i in 400:
+		if Array(band).all(func(id): return unit(id)["idle"]):
+			break
+		await frames(1)
 	var at: Vector2 = main.debug_unit_screen(spears[0])
 	await click(at)
 	await click(at, MOUSE_BUTTON_LEFT, true)

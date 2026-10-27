@@ -1718,7 +1718,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.order_walk(ids, n, c.target_x, c.target_z, queued, true);
 			if (raw_n > n) sim.order_fauna_walk(pl, raw, raw_n, c.target_x, c.target_z);
 		} else if (c.cmd_type == 2) { // Stop
-			sim.cmd_stop(ids, n);
+			sim.order_stop(ids, n);
 			if (raw_n > n) sim.order_fauna_stop(pl, raw, raw_n);
 		} else if (c.cmd_type == 3) { // Attack
 			// UnitAI CheckTargetVisible: a target the player can't see is refused (here for
