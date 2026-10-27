@@ -2951,13 +2951,16 @@ bool Simulation::near_impassable_terrain(float x, float z, float c) const {
 // one (unloaded on the beach, walking in from the water, standing on a slope) may move on: across
 // the cliff too, as 0.28's CheckLineMovement lets a unit on impassable navcells cross more of them
 // (the clearance band and the steep tile are both impassable there), but not off the beach into
-// the deep water itself.
+// the deep water itself. Either kind lets it onto the other: deep water and steep ground are alike
+// impassable navcells to 0.28 (Pathfinding.cpp:46-48, 61-75), so a unit in the water climbs a steep
+// shore onto the land.
 bool Simulation::land_step_barred(float x0, float z0, float x1, float z1, float c) const {
+	auto on_impassable = [&] { return near_deep_water(x0, z0, c) || nav_grid_.near_steep_tile(x0, z0, c); };
 	if (near_deep_water(x1, z1, c)) {
-		if (!near_deep_water(x0, z0, c)) return true;
+		if (!on_impassable()) return true;
 		if (near_deep_water(x1, z1, 0.0f) && !near_deep_water(x0, z0, 0.0f)) return true;
 	}
-	return nav_grid_.near_steep_tile(x1, z1, c) && !nav_grid_.near_steep_tile(x0, z0, c);
+	return nav_grid_.near_steep_tile(x1, z1, c) && !on_impassable();
 }
 
 bool Simulation::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
@@ -38953,24 +38956,55 @@ void Simulation::order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fau
 }
 
 // Animals walk on land (or swim, for SeaCreatures) and stay inside the map.
+// - One standing on terrain its class can't cross (a wolf a script put in deep water, a hare the map
+//   put in the sea at its rim) may step onto navcells it can't cross either, as 0.28's
+//   CheckLineMovement lets an entity on impassable navcells move off them (Pathfinding.cpp:46-48,
+//   61-75): it is not held there for good. It goes where its walk leads, not to the nearest passable
+//   navcell as 0.28's long path does (LongPathfinder.cpp:749-754): RTS0's roaming and fleeing steps
+//   are straight lines.
+// - Only terrain counts there: CheckMovement tests the line on the terrain-only grid and structures
+//   as shapes (CCmpPathfinder.cpp:971-984), so an animal on a navcell that nav_grid_ closes for a
+//   structure, a mine or a closed wood stands on passable ground and steps only onto passable
+//   navcells. Deep water and steep tiles count for land animals, dry land for sea creatures, and the
+//   off-world navcells for both, as rebuild_nav_grid closes them.
+// - No step leads out past the map's edge less the animal's clearance (edge_step_barred), as for a
+//   unit's steps and an animal's pushes: 0.28's terrain grid closes the off-world navcells for every
+//   class and grows them by the class Clearance (CCmpPathfinder.cpp:700-761). The navcells alone let
+//   an animal at a circular map's rim go up to half a navcell's diagonal past the edge.
 bool Simulation::fauna_can_step(size_t f, float x, float z) const {
 	if (x < -map_half_ + 2.0f || x > map_half_ - 2.0f || z < -map_half_ + 2.0f || z > map_half_ - 2.0f) return false;
 	const FaunaTypeInfo &info = fauna_type_info(fauna_.fauna_type[f]);
-	if (nav_grid_.res > 0) {
-		auto [cx, cy] = nav_grid_.world_to_cell(x, z);
-		if (!nav_grid_.is_passable_for(cx, cy, info.is_naval() ? PASS_SHIP : PASS_INFANTRY)) return false;
-	}
+	const float ox = fauna_.pos_x[f], oz = fauna_.pos_z[f];
+	const float c = info.is_large() ? CLEARANCE_LARGE : CLEARANCE_DEFAULT;
+	auto passable = [&](float px, float pz) {
+		if (nav_grid_.res <= 0) return true;
+		const auto [cx, cy] = nav_grid_.world_to_cell(px, pz);
+		return nav_grid_.is_passable_for(cx, cy, info.is_naval() ? PASS_SHIP : PASS_INFANTRY);
+	};
+	// The animal stands on terrain its class can't cross (above).
+	auto stranded = [&]() {
+		if (nav_grid_.res <= 0) return false;
+		const auto [cx, cy] = nav_grid_.world_to_cell(ox, oz);
+		const uint8_t v = nav_grid_.cells.at(cx, cy);
+		if (info.is_naval() ? v == NAV_PASSABLE : (v == NAV_WATER || nav_grid_.is_steep(cx, cy))) return true;
+		// rebuild_nav_grid's off-world raster: the navcell's centre past the edge.
+		const float cell = 2.0f * nav_grid_.map_half / static_cast<float>(nav_grid_.res);
+		const float wx = -nav_grid_.map_half + ((float)cx + 0.5f) * cell, wz = -nav_grid_.map_half + ((float)cy + 0.5f) * cell;
+		const float e = map_half_ - MAP_EDGE_DIST;
+		return std::fabs(wx) >= e || std::fabs(wz) >= e || (circular_map() && wx * wx + wz * wz >= e * e);
+	};
+	if (!passable(x, z) && !stranded()) return false;
+	if (edge_step_barred(ox, oz, x, z, c)) return false;
 	if (info.is_naval()) return true;
 	// CheckMovement's TestLine against structures, each grown by the animal's passability class
 	// Clearance ("default", or "large" for bulls and adult elephants; pathfinder.xml): a step that
 	// comes closer to a structure than that is refused. A step away, or along it, is not, so an
 	// animal that finds itself too close (a structure built beside it) walks out.
 	// separation() keeps the list of standing structures for this tick.
-	const float c = info.is_large() ? CLEARANCE_LARGE : CLEARANCE_DEFAULT;
-	const float ox = fauna_.pos_x[f], oz = fauna_.pos_z[f];
 	// The same classes' MaxTerrainSlope: steep tiles are impassable to animals as to soldiers, kept
 	// that Clearance off (land_step_barred), so a herd doesn't graze up a cliff its hunters can't climb.
-	if (nav_grid_.near_steep_tile(x, z, c) && !nav_grid_.near_steep_tile(ox, oz, c)) return false;
+	// One stranded on impassable terrain may cross them, as above.
+	if (nav_grid_.near_steep_tile(x, z, c) && !nav_grid_.near_steep_tile(ox, oz, c) && !stranded()) return false;
 	auto gap = [](const SteerObstacle &b, float px, float pz) {
 		const nav::Vec2 l = nav::footprint_local(b, px, pz);
 		return std::max(std::fabs(l.x) - b.hu, std::fabs(l.y) - b.hv);

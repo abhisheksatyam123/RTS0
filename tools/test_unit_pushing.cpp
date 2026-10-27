@@ -92,6 +92,25 @@
 //     members out of her body: a member never searches among the smaller squares, as its slot moves
 //     every tick and the smaller squares' step test lasts only while its aim stays put (with it,
 //     members walked through the standing unit in 15 and 40 of 63 runs).
+// 23. A unit or an animal standing in deep water gets out across a steep shore: 0.28's CheckLineMovement
+//     lets an entity on impassable navcells cross more of them until it reaches passable ground
+//     (Pathfinding.cpp:46-48, 61-75), and deep water and steep ground are alike impassable to it. In a
+//     bay whose shore is a cliff, a woman put in the water walks out to her point, and a wolf put in
+//     the water comes out to bite a spearman on the shore; sent back in, the woman stops at the cliff's
+//     clearance (the way leads off impassable ground, never onto it). Before, the woman stood at the
+//     cliff's clearance for good (a unit in the water could not step within it of a steep tile) and the
+//     wolf never moved (an animal could step only onto passable navcells): test_petra's wolf, put in
+//     the water beside Petra's woman, could be killed only by the civic centre's arrows.
+// 24. That way off impassable ground opens only for an animal on impassable terrain, and no animal's
+//     step leads past the map's edge less its clearance: 0.28's CheckMovement reads the terrain-only
+//     grid, which closes the off-world navcells for every class and grows them by its Clearance
+//     (CCmpPathfinder.cpp:700-761, 971-984), and tests structures as shapes. Deer and hares at a
+//     circular map's rim, in a sea and on land, two deer fleeing hunters inland, stay inside the
+//     edge less their clearance (with the way open to every animal on an impassable navcell they
+//     crossed the off-world navcells out of the map's circle; on land the navcells alone let them
+//     about 1.2 past the edge). A wolf on a navcell a house's raster closes, beside a deep channel,
+//     never steps into the water after a spearman on the far bank (counted as on impassable ground,
+//     it swam across).
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -1153,6 +1172,177 @@ int main() {
 		CHECK(inside == 0, standing == UNIT_CAVALRY ? "a phalanx walking past a standing cavalryman keeps out of his body"
 		                                            : "a phalanx walking past a standing woman keeps out of her body");
 		CHECK(done == runs, "and every run ends");
+	}
+	{
+		// 23. A bay of deep water east of x 20 between z -30 and 30, its shore a cliff (heights 3 to -3
+		// over one tile): a woman put in the bay walks out across the cliff's tile to her point, and a
+		// wolf put in the bay comes out to bite a spearman standing on the shore (he doesn't fight back).
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		constexpr int RES = 129;
+		constexpr float HALF = 64.0f;
+		s->set_map_half(HALF);
+		std::vector<float> h((size_t)RES * RES);
+		for (int j = 0; j < RES; ++j)
+			for (int i = 0; i < RES; ++i) {
+				const float x = -HALF + 2.0f * HALF * i / (RES - 1), z = -HALF + 2.0f * HALF * j / (RES - 1);
+				h[(size_t)j * RES + i] = x > 20.0f && std::fabs(z) < 30.0f ? -3.0f : 3.0f;
+			}
+		s->set_terrain_data(h, RES, 0.0f);
+		s->begin_bulk_spawn();
+		s->end_bulk_spawn();
+		const uint32_t woman = s->spawn_unit(24.5f, 0.0f, 0, UNIT_FEMALE_CITIZEN, 100.0f);
+		const uint32_t guard = s->spawn_unit(15.0f, 12.0f, 0, UNIT_SPEARMAN, 150.0f);
+		const int gi = idx(*s, guard);
+		s->units_.stance[gi] = STANCE_STAND_GROUND;
+		s->units_.attack_damage[gi] = 0.0f;
+		const uint32_t wolf = s->spawn_fauna(24.5f, 12.0f, FAUNA_WOLF);
+		auto deep = [&](float x, float z) {
+			const auto [cx, cy] = s->nav_grid_.world_to_cell(x, z);
+			return s->nav_grid_.cells.at(cx, cy) == NAV_WATER;
+		};
+		const int wi0 = idx(*s, woman);
+		const bool laid = deep(s->units_.pos_x[wi0], s->units_.pos_z[wi0]) && deep(24.5f, 12.0f) && !deep(15.0f, 12.0f) &&
+		                  s->nav_grid_.near_steep_tile(20.5f, 0.0f, 0.0f) && s->nav_grid_.near_steep_tile(20.5f, 12.0f, 0.0f);
+		s->tick(DT);
+		s->order_walk(&woman, 1, 10.0f, 0.0f);
+		s->fauna_start_attack(s->fauna_id_to_idx_.at(wolf), guard);
+		int ashore = -1, bitten = -1;
+		for (int t = 1; t <= 600 && (ashore < 0 || bitten < 0); ++t) {
+			s->tick(DT);
+			const int wi = idx(*s, woman);
+			if (ashore < 0 && !s->units_.has_order[wi] && std::hypot(s->units_.pos_x[wi] - 10.0f, s->units_.pos_z[wi]) < 0.5f) ashore = t;
+			if (bitten < 0 && s->units_.hp[idx(*s, guard)] < 150.0f) bitten = t;
+		}
+		// Only off: sent back into the bay from the land, she stops at the cliff's clearance.
+		s->order_walk(&woman, 1, 24.5f, 0.0f);
+		float nearest = 1e9f;
+		for (int t = 1; t <= 200; ++t) {
+			s->tick(DT);
+			const int wi = idx(*s, woman);
+			nearest = std::min(nearest, 20.0f - s->units_.pos_x[wi]);
+		}
+		std::printf("  a bay with a cliff for a shore: a woman in it walked out to her point after %d ticks, a wolf in it bit a "
+		            "spearman ashore after %d ticks (-1 = never in 600); sent back in, she came within %.2f of the cliff's tile\n",
+		            ashore, bitten, nearest);
+		CHECK(laid, "the woman and the wolf start in deep water, the spearman on land, and the shore is steep");
+		CHECK(ashore > 0, "a unit in deep water walks out across a steep shore to its point");
+		CHECK(bitten > 0, "an animal in deep water comes out across a steep shore to its target");
+		CHECK(ashore > 0 && nearest >= s->unit_clearance_at(idx(*s, woman)) - 0.01f,
+		      "a unit on land sent into the bay stops at the cliff's clearance");
+	}
+	{
+		// 24a. A circular map (edge 61) whose east half ends at r 46 in deep water. Deer and hares at
+		// r 59, in the sea in the east and on land in the west, roam, and a deer on each diagonal, one
+		// in the sea and one on land, flees a spearman inland, out towards the rim.
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		constexpr int RES = 129;
+		constexpr float HALF = 64.0f;
+		s->set_map_half(HALF);
+		std::vector<float> h((size_t)RES * RES);
+		for (int j = 0; j < RES; ++j)
+			for (int i = 0; i < RES; ++i) {
+				const float x = -HALF + 2.0f * HALF * i / (RES - 1), z = -HALF + 2.0f * HALF * j / (RES - 1);
+				h[(size_t)j * RES + i] = x > 0.0f && std::hypot(x, z) > 46.0f ? -3.0f : 3.0f;
+			}
+		s->set_terrain_data(h, RES, 0.0f);
+		s->set_circular_map(true);
+		s->begin_bulk_spawn();
+		s->end_bulk_spawn();
+		const float edge = HALF - MAP_EDGE_DIST;
+		const uint32_t hunter = s->spawn_unit(26.0f, 26.0f, 0, UNIT_SPEARMAN, 150.0f);
+		const uint32_t hunter2 = s->spawn_unit(-26.0f, -26.0f, 0, UNIT_SPEARMAN, 150.0f);
+		s->units_.stance[idx(*s, hunter)] = STANCE_STAND_GROUND;
+		s->units_.stance[idx(*s, hunter2)] = STANCE_STAND_GROUND;
+		std::vector<uint32_t> herd;
+		bool laid = true;
+		for (int k = 0; k < 12; ++k) {
+			const float a = 0.785398f + 6.283185f * (float)k / 12.0f, x = 59.0f * std::sin(a), z = 59.0f * std::cos(a);
+			herd.push_back(s->spawn_fauna(x, z, k % 2 ? FAUNA_RABBIT : FAUNA_DEER));
+			const auto [cx, cy] = s->nav_grid_.world_to_cell(x, z);
+			laid = laid && (x > 0.0f ? s->nav_grid_.cells.at(cx, cy) == NAV_WATER : s->nav_grid_.is_passable(cx, cy));
+		}
+		s->tick(DT);
+		s->fauna_attacked(s->fauna_id_to_idx_.at(herd[0]), hunter);
+		s->fauna_attacked(s->fauna_id_to_idx_.at(herd[6]), hunter2);
+		const bool fled = s->fauna_.behavior[s->fauna_id_to_idx_.at(herd[0])] == FAUNA_FLEE &&
+		                  s->fauna_.behavior[s->fauna_id_to_idx_.at(herd[6])] == FAUNA_FLEE;
+		float out = 0.0f, land_out = 0.0f, moved = 0.0f;
+		for (int t = 1; t <= 2400; ++t) {
+			s->tick(DT);
+			for (size_t k = 0; k < herd.size(); ++k) {
+				const auto it = s->fauna_id_to_idx_.find(herd[k]);
+				if (it == s->fauna_id_to_idx_.end()) continue;
+				const float r = std::hypot(s->fauna_.pos_x[it->second], s->fauna_.pos_z[it->second]);
+				out = std::max(out, r);
+				if (s->fauna_.pos_x[it->second] < 0.0f) land_out = std::max(land_out, r);
+				if (k == 0) moved = std::max(moved, r - 59.0f);
+			}
+		}
+		std::printf("  a circular map's rim: 12 deer and hares in the sea and on land there went %.2f from the centre at most, %.2f "
+		            "on land (edge %.2f less clearance %.2f); the deer fleeing outwards in the sea went %.2f out\n", out, land_out, edge,
+		            CLEARANCE_DEFAULT, moved);
+		CHECK(laid && fled, "the animals start in deep water in the east and on land in the west, and both deer flee the spearmen");
+		CHECK(moved > 1.0f, "an animal in deep water flees across it");
+		CHECK(out <= edge - CLEARANCE_DEFAULT + 0.01f, "an animal, in deep water or on land, never steps past a circular map's edge");
+	}
+	{
+		// 24b. A deep channel at 20 < x < 32, |z| < 40, and a house at (18, 0): a wolf stands beside
+		// the house, outside it, on a navcell the house's raster closes, with the water east of it.
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		constexpr int RES = 129;
+		constexpr float HALF = 64.0f;
+		s->set_map_half(HALF);
+		std::vector<float> h((size_t)RES * RES);
+		for (int j = 0; j < RES; ++j)
+			for (int i = 0; i < RES; ++i) {
+				const float x = -HALF + 2.0f * HALF * i / (RES - 1), z = -HALF + 2.0f * HALF * j / (RES - 1);
+				h[(size_t)j * RES + i] = x > 20.0f && x < 32.0f && std::fabs(z) < 40.0f ? -0.6f : 0.1f;
+			}
+		s->set_terrain_data(h, RES, 0.0f);
+		s->begin_bulk_spawn();
+		s->end_bulk_spawn();
+		const uint32_t house = s->spawn_building_world(18.0f, 0.0f, BLD_HOUSE, 0, 1.0f);
+		s->tick(DT);
+		const auto &b = s->buildings_[s->building_id_to_idx_.at(house)];
+		// The point of such a navcell farthest east, 0.5 or more outside the house and its own
+		// navcell neither deep water nor in a steep tile's band.
+		const float cell = 2.0f * HALF / (float)s->nav_grid_.res;
+		float wx = 0.0f, wz = 0.0f;
+		bool found = false;
+		for (int y = 0; y < s->nav_grid_.res && !found; ++y)
+			for (int x = 0; x + 1 < s->nav_grid_.res && !found; ++x) {
+				if (s->nav_grid_.cells.at(x, y) != NAV_OBSTRUCTED || s->nav_grid_.cells.at(x + 1, y) != NAV_WATER) continue;
+				for (float fy = 0.1f; fy < 0.95f && !found; fy += 0.1f)
+					for (float fx = 0.9f; fx > 0.05f && !found; fx -= 0.1f) {
+						const float px = -HALF + (x + fx) * cell, pz = -HALF + (y + fy) * cell;
+						const float g = std::max(std::fabs(px - b.x) - b.hu, std::fabs(pz - b.z) - b.hv);
+						if (g > 0.5f && !s->near_deep_water(px, pz, 0.0f) && !s->nav_grid_.near_steep_tile(px, pz, CLEARANCE_DEFAULT))
+							wx = px, wz = pz, found = true;
+					}
+			}
+		int wet = -1, bitten = -1;
+		if (found) {
+			const uint32_t guard = s->spawn_unit(38.0f, wz, 0, UNIT_SPEARMAN, 150.0f);
+			const int gi = idx(*s, guard);
+			s->units_.stance[gi] = STANCE_STAND_GROUND;
+			s->units_.attack_damage[gi] = 0.0f;
+			const uint32_t wolf = s->spawn_fauna(wx, wz, FAUNA_WOLF);
+			s->fauna_start_attack(s->fauna_id_to_idx_.at(wolf), guard);
+			for (int t = 1; t <= 1200; ++t) {
+				s->tick(DT);
+				const auto it = s->fauna_id_to_idx_.find(wolf);
+				if (it == s->fauna_id_to_idx_.end()) break;
+				if (wet < 0 && s->near_deep_water(s->fauna_.pos_x[it->second], s->fauna_.pos_z[it->second], 0.0f)) wet = t;
+				if (bitten < 0 && s->units_.hp[idx(*s, guard)] < 150.0f) bitten = t;
+			}
+		}
+		std::printf("  a wolf beside a house at (%.2f, %.2f), a deep channel east of it: in the water after %d ticks, bit the spearman "
+		            "across it after %d ticks (-1 = never in 1200)\n", wx, wz, wet, bitten);
+		CHECK(found, "the wolf stands on a navcell the house closes, beside deep water");
+		CHECK(found && wet < 0, "an animal on a navcell a structure closes never steps into deep water");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
