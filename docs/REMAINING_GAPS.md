@@ -507,9 +507,9 @@ The Research, Training and Construction panels' tooltips against selection_panel
 | # | Difference from 0.28 | Impact | Status |
 |---|---|---|---|
 | TP1 | A centurion at its limit (8 of 8) also said "Requires Marian Reforms" though researched; getRequirementsTooltip shows only failing requirements | low | Fixed |
-| TP2 | The corral's animals have no aura line ("Ranching and Corralling"), detailed lines or right-click line, and right-click opens no Template Viewer | low | Open |
+| TP2 | The corral's animals have no aura line ("Ranching and Corralling"), detailed lines or right-click line, and right-click opens no Template Viewer | low | Fixed (classes and aura lines, detailed lines, the right-click line and a Template Viewer animal page, RtsoReference.get_fauna; `tools/e2e_corral_tooltips.gd`) |
 | TP3 | Training buttons past the 8th had no hotkey tag (0.28: gold "[Unassigned hotkey: session.queueunit.9]"), and the tag was in the plain tooltip font, not sans-bold-16 | low | Fixed |
-| TP4 | With "Detailed tooltips" on, the extra training lines are plain text (template_viewer.gd strips BBCode), losing fonts and the dropsite icons | low | Open |
+| TP4 | With "Detailed tooltips" on, the extra training lines are plain text (template_viewer.gd strips BBCode), losing fonts and the dropsite icons | low | Fixed (the lines keep the viewer's header font and icons; `tools/e2e_session_options.gd`) |
 | TP5 | A full research queue disabled the technology buttons with no reason; 0.28 keeps them enabled and the press gets "The production queue is full." | low | Fixed |
 | TP6 | The batch line ("Shift-click to train N.") was in the 14 px tooltip font; 0.28 sets it in sans-13 | nit | Fixed |
 
@@ -522,7 +522,7 @@ Every civ's structure research lists (template inheritance, {civ}, -name removal
 | RL1 | Naval Oxybeles was open to every civ; its requirement `any` of `notciv` cart/han/ptol/rome/sele rules those five out (a failing notciv inside any fails it, InterpretTechRequirements). extract_0ad_techs.py now evaluates requirements as 0.28 does | medium | Fixed (`tools/test_techs.cpp`) |
 | MC1 | The Ptolemaic mercenary camp cost no stone; it keeps the barracks' 100 stone (only merc_camp_egyptian sets 0) | medium-low | Fixed (`tools/test_map_structures.cpp`) |
 | MC2 | A Ptolemaic player's own mercenary camp counted as a Town structure toward City Phase; it keeps the barracks' Village (only merc_camp_egyptian is -Village Town). Map Egyptian camps are now placed as a Gaia template | low-medium | Fixed (`tools/test_map_structures.cpp`) |
-| TQ1 | Bolt Accuracy is closed to Han and Phoenician Naval Tradition to Carthage even in another civ's captured arsenal or dock; 0.28 drops them only from those civs' own structures | low | Open |
+| TQ1 | Bolt Accuracy is closed to Han and Phoenician Naval Tradition to Carthage even in another civ's captured arsenal or dock; 0.28 drops them only from those civs' own structures | low | Fixed (civ masks follow the requirements; han/arsenal and cart/dock drop them from their lists; `tools/test_techs.cpp`) |
 
 ### Construction, repair and upgrades, twenty-third 0.28 pass (2026-10-27)
 
@@ -579,6 +579,13 @@ garrisonManager.js, worker.js, queueManager.js and the queue plans, and the econ
 | PC9 | (W9) A builder that finished a house can go on to build a field foundation; 0.28 takes it off the field and reassigns it | nit | Fixed: a Petra house builder that autocontinue would send to a field goes idle for Petra to reassign (worker.js:325-345; test_petra test_house_builder_skips_field) |
 | PC10 | (Q9) The one structure Petra may start each turn goes to whichever code runs first, not the highest-priority queue | nit | Fixed: a structure heading a higher-priority queue that can be paid now goes first (petra_higher_structure_waiting: a head that asked last turn or this one; test_structure_queue_priority) |
 | PC11 | Workers booked on a transport and waiting at the beach were re-tasked as idle workers; their refused second transport marked the resource failed, so for 20 s the idle workers overseas picked another resource and sailed back (E's test_naval report). AddTCResGatherer counted a gatherer only once it found a supply, not when its type was picked | low-medium | Fixed: a booked worker just waits (worker.js:42-89), and the type counts as it is picked (baseManager.js:725) |
+| PC12 | setTradingGoods and targetNumTraders tested the banked stock; 0.28 tests HQ.getTotalResourceLevel, what still stands near our dropsites (tradeManager.js:186) | medium | Fixed: both read petra_total_resource_level (test_barter) |
+| PC13 | 0.28 re-sends a gatherer returning its load through startGathering each base update (worker.js:228-262 sees the dropsite as its target), so returning farmers move to berries or chickens and woodcutters to the free tree nearest the dropsite; RTS0 keeps them on their own supply | medium | Open |
+| PC14 | A gatherer switched to another resource (switchGatherer, or reassigned after a failed search) gathered the new type at once and lost its load; 0.28 returns it to a dropsite first (worker.js:220-232) | low-med | Fixed: petra_return_load before gathering another type (test_switched_gatherer_keeps_load) |
+| PC15 | Traders' routes were re-checked every AI turn (a better pair, or home with none); 0.28 re-checks only on market and diplomacy events (tradeManager.js checkEvents, checkTrader) | low | Fixed: a trading trader keeps its route, and one without a route goes home, only on a trade event (petra_check_trade_events); an idle one without a route stays put |
+| PC16 | The hunt drift check ran for the whole fight and measured the dropsite on the hunter's land; 0.28 checks only while approaching (INDIVIDUAL.COMBAT.APPROACHING), on the animal's land (worker.js:124-170) | low | Fixed: skipped once in reach (chase_target), the animal's land (test_hunters_028) |
+| PC17 | The garrison "around" scan ignored animals; 0.28 counts a Gaia Unit in COMBAT, a fighting wolf or boar included (garrisonManager.js:139-163) | low | Fixed: Gaia animals attacking and enemy-owned animals count as units (test_garrison_melee_attack) |
+| PC18 | researchTradeBonus counted traders still in training; 0.28 counts live traders (tradeManager.js:698) | nit | Fixed |
 
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 

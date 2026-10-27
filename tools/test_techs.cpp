@@ -145,8 +145,16 @@ int main() {
 	CHECK(building_researches_tech(BLD_SUPER_DOCK, TECH_WARSHIP_HEALTH, CIV_CARTHAGINIANS));
 	CHECK(building_researches_tech(BLD_SUPER_DOCK, TECH_EXPLORATION, CIV_CARTHAGINIANS));
 	CHECK(building_researches_tech(BLD_DOCK, TECH_WARSHIP_HEALTH, CIV_ROMANS));
-	CHECK(!tech_available_to_civ(TECH_SHIP_MOVEMENT_SPEED, CIV_CARTHAGINIANS)); // cart/dock -ship_movement_speed
-	CHECK(!tech_available_to_civ(TECH_SIEGE_BOLT_ACCURACY, CIV_HAN)); // han/arsenal -siege_bolt_accuracy
+	// cart/dock drops ship_movement_speed and han/arsenal siege_bolt_accuracy, but their
+	// requirements allow those civs: another civ's captured dock or arsenal offers them.
+	CHECK(tech_available_to_civ(TECH_SHIP_MOVEMENT_SPEED, CIV_CARTHAGINIANS) && tech_available_to_civ(TECH_SHIP_MOVEMENT_SPEED, CIV_PERSIANS));
+	CHECK(!tech_available_to_civ(TECH_SHIP_MOVEMENT_SPEED, CIV_ATHENIANS));
+	CHECK(tech_available_to_civ(TECH_SIEGE_BOLT_ACCURACY, CIV_HAN));
+	CHECK(!building_researches_tech(BLD_DOCK, TECH_SHIP_MOVEMENT_SPEED, CIV_CARTHAGINIANS));
+	CHECK(building_researches_tech(BLD_DOCK, TECH_SHIP_MOVEMENT_SPEED, CIV_PERSIANS));
+	CHECK(!building_researches_tech(BLD_ARSENAL, TECH_SIEGE_BOLT_ACCURACY, CIV_HAN));
+	CHECK(building_researches_tech(BLD_ARSENAL, TECH_SIEGE_BOLT_ACCURACY, CIV_ROMANS));
+	CHECK(!civ_structures_offer_tech(TECH_SIEGE_BOLT_ACCURACY, CIV_HAN) && !civ_structures_offer_tech(TECH_SHIP_MOVEMENT_SPEED, CIV_CARTHAGINIANS));
 	// warship_arrow_attack: any of notciv cart/han/ptol/rome/sele, and a failing notciv in "any"
 	// rules the civ out (InterpretTechRequirements), so those five never get Naval Oxybeles.
 	for (uint8_t c : {CIV_CARTHAGINIANS, CIV_HAN, CIV_PTOLEMIES, CIV_ROMANS, CIV_SELEUCIDS})
@@ -960,6 +968,33 @@ int main() {
 		CHECK(k.research_check(1, TECH_UNLOCK_SPIES, cc) != Simulation::TECH_ERR_BUILDING);
 		k.set_building_civ(cc, CIV_HAN);
 		CHECK(k.research_check(1, TECH_UNLOCK_SPIES, cc) == Simulation::TECH_ERR_BUILDING);
+	}
+	// TQ1: han/arsenal drops Bolt Accuracy and cart/dock Phoenician Naval Tradition, but their
+	// requirements allow those civs, so a Han player researches Bolt Accuracy at a captured
+	// Roman arsenal and a Carthaginian one Naval Tradition at a captured Persian dock.
+	{
+		static Simulation k;
+		k.set_sim_seed(5);
+		k.set_team_civ(0, CIV_HAN);
+		k.set_team_civ(1, CIV_CARTHAGINIANS);
+		k.reset();
+		for (uint8_t p : {0, 1}) {
+			k.player(p).phase = 3;
+			k.set_player_resources(p, 5000, 5000, 5000, 5000);
+		}
+		const uint32_t han_arsenal = k.spawn_building(-30, -30, BLD_ARSENAL, 0, 1.0f);
+		const uint32_t rome_arsenal = k.spawn_building(-30, 30, BLD_ARSENAL, 0, 1.0f);
+		k.set_building_civ(han_arsenal, CIV_HAN);
+		k.set_building_civ(rome_arsenal, CIV_ROMANS);
+		CHECK(k.research_check(0, TECH_SIEGE_BOLT_ACCURACY, han_arsenal) == Simulation::TECH_ERR_BUILDING);
+		CHECK(k.research_check(0, TECH_SIEGE_BOLT_ACCURACY, rome_arsenal) == Simulation::TECH_OK);
+		k.player(1).techs.set(TECH_DOCK_EFFICIENCY); // the technology Naval Tradition supersedes
+		const uint32_t cart_dock = k.spawn_building(30, -30, BLD_DOCK, 1, 1.0f);
+		const uint32_t pers_dock = k.spawn_building(30, 30, BLD_DOCK, 1, 1.0f);
+		k.set_building_civ(cart_dock, CIV_CARTHAGINIANS);
+		k.set_building_civ(pers_dock, CIV_PERSIANS);
+		CHECK(k.research_check(1, TECH_SHIP_MOVEMENT_SPEED, cart_dock) == Simulation::TECH_ERR_BUILDING);
+		CHECK(k.research_check(1, TECH_SHIP_MOVEMENT_SPEED, pers_dock) == Simulation::TECH_OK);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

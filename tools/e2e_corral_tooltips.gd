@@ -1,6 +1,7 @@
 extends SceneTree
 # A corral trains gaia/fauna_*_trainable through 0.28's Training panel (selection_panels.js
-# Training setupButton): hotkey and names ("Ovis aries (Sheep)"), Tooltip, "Cost:" with
+# Training setupButton): hotkey and names ("Ovis aries (Sheep)"), its Ranching and Corralling
+# aura, Tooltip, "Cost:" with
 # food and time, the Animal limit, the batch line while Shift is held, "Requires City
 # Phase" for cattle, and the needed resources under a red mask when the stock is short.
 #
@@ -60,10 +61,22 @@ func run() -> void:
 		print("    ", x.replace("\n", " | "))
 	check(t.size() == 4, "four animals")
 	var sheep: Array = t.filter(func(x): return x.contains("(Sheep)"))
-	check(sheep.size() == 1 and sheep[0].begins_with("[") and sheep[0].contains("OVIS ARIES (Sheep)\nKill to gather meat for quick food.\nCost: Food 50  "), "hotkey, names, tooltip and cost")
-	check(sheep.size() == 1 and sheep[0].contains("Current Count: ") and not sheep[0].contains("Shift-click") and not sheep[0].contains("while penned"), "the Animal limit, no batch line, no RTS0-only lines")
 	var cow: Array = t.filter(func(x): return x.contains("(Cow)"))
+	check(sheep.size() == 1 and sheep[0].begins_with("[") and sheep[0].contains("OVIS ARIES (Sheep)\n") and sheep[0].contains("\nRanching and Corralling: Garrison within the Corral to gain a slow trickle of +1 food.\nKill to gather meat for quick food.\nCost: Food 50  "), "hotkey, names, aura, tooltip and cost")
+	check(cow.size() == 1 and cow[0].contains("+3 food."), "cattle: the large corral aura")
+	check(sheep.size() == 1 and sheep[0].contains("Current Count: ") and not sheep[0].contains("Shift-click") and not sheep[0].contains("while penned"), "the Animal limit, no batch line, no RTS0-only lines")
 	check(cow.size() == 1 and cow[0].ends_with("\nRequires City Phase"), "cattle: Requires City Phase")
+	check(sheep.size() == 1 and sheep[0].contains("\nRight-click for more information."), "the right-click line")
+	# Right-click opens the Template Viewer's animal page (FaunaType 2 = sheep).
+	var page = load("res://scenes/reference/template_viewer.gd").open(root, "fauna", 2, 0)
+	await frames(2)
+	var stats: String = TT.plain(page._stats.text)
+	var info: String = TT.plain(page._info.text)
+	print("    ", stats.replace("\n", " | "), " || ", info.replace("\n", " | "))
+	check(page._name.text.contains("Sheep") and stats.contains("Health: 50") and stats.contains("Speed:") and stats.contains("100"),
+		"the sheep's page: name, health, speed and food")
+	check(info.contains("Kill to gather meat for quick food.") and info.contains("Ranching and Corralling"), "its tooltip and aura")
+	page.queue_free()
 	await shift(true)
 	main.debug_train_buttons(CORRAL)
 	await frames(4)
