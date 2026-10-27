@@ -4459,6 +4459,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	const Color col_enemy(1.0f, 0.52f, 0.42f);
 
 	active_unit_ids_.clear(); // ids of the units drawn this frame, sorted only when stale entries are swept
+	unit_pick_boxes_.clear();
 
 	size_t unit_rings_used = 0;
 	const bool status_rank_icon = rtso::user_config::get_bool("gui.session.rankabovestatusbar");
@@ -4554,6 +4555,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 		if (dying) {
 			apply_unit_death_xform(xf, utype, death_t, x, z, model_b.height * sc, false);
+		}
+		if (!dying) {
+			// The pick box: the Selectable footprint at the model's metre, up to its drawn height.
+			const rtso::SelectionOverlay &ov = unit_selection_overlay(utype, uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
+			const float m = unit_metre(model_b.metre, model_b.length, utype, ov);
+			const float h = model_b.height > 0.0f ? model_b.height * sc : 2.0f * m;
+			unit_pick_boxes_.push_back({ id, Vector3(x, y - model_b.y_offset, z), yaw, 0.5f * ov.width * m, 0.5f * ov.depth * m, h });
 		}
 		if (want.clip == CLIP_RUN && !dying) emit_run_dust(utype_str, Vector3(x, ground, z), sc, delta);
 		if (!dying) emit_unit_fx(utype_str, xf, sc, delta);
