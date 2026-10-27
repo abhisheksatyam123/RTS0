@@ -523,7 +523,7 @@ Every civ's structure research lists (template inheritance, {civ}, -name removal
 | RL1 | Naval Oxybeles was open to every civ; its requirement `any` of `notciv` cart/han/ptol/rome/sele rules those five out (a failing notciv inside any fails it, InterpretTechRequirements). extract_0ad_techs.py now evaluates requirements as 0.28 does | medium | Fixed (`tools/test_techs.cpp`) |
 | MC1 | The Ptolemaic mercenary camp cost no stone; it keeps the barracks' 100 stone (only merc_camp_egyptian sets 0) | medium-low | Fixed (`tools/test_map_structures.cpp`) |
 | MC2 | A Ptolemaic player's own mercenary camp counted as a Town structure toward City Phase; it keeps the barracks' Village (only merc_camp_egyptian is -Village Town). Map Egyptian camps are now placed as a Gaia template | low-medium | Fixed (`tools/test_map_structures.cpp`) |
-| TQ1 | Bolt Accuracy is closed to Han and Phoenician Naval Tradition to Carthage even in another civ's captured arsenal or dock; 0.28 drops them only from those civs' own structures | low | Open |
+| TQ1 | Bolt Accuracy is closed to Han and Phoenician Naval Tradition to Carthage even in another civ's captured arsenal or dock; 0.28 drops them only from those civs' own structures | low | Fixed (civ masks follow the requirements; han/arsenal and cart/dock drop them from their lists; `tools/test_techs.cpp`) |
 
 ### Construction, repair and upgrades, twenty-third 0.28 pass (2026-10-27)
 
