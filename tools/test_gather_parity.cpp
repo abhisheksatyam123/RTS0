@@ -135,6 +135,13 @@ int main() {
 				ad.gather[Simulation::GK_STONE], cd.gather[Simulation::GK_METAL], ad.gather[Simulation::GK_METAL]);
 		CHECK(std::fabs(cd.gather[Simulation::GK_STONE] / ad.gather[Simulation::GK_STONE] - 1.953125f) < 1e-3f);
 		CHECK(std::fabs(ad.gather[Simulation::GK_METAL] / cd.gather[Simulation::GK_METAL] - 1.21f) < 1e-3f);
+		// GetEntityState's resourceGatherRates are the cached rates, BaseSpeed modifiers in:
+		// an elite spearman's wood is the basic one's x0.7 x0.7 (unit_advanced/unit_elite.json).
+		const uint32_t sb = s.spawn_unit(0.0f, 8.0f, 1, UNIT_SPEARMAN), se = s.spawn_unit(4.0f, 8.0f, 1, UNIT_SPEARMAN);
+		s.promote_unit((size_t)s.lookup_unit(se), s.units_.tmpl[s.lookup_unit(se)], 3);
+		const auto bd = s.unit_details((size_t)s.lookup_unit(sb)), ed = s.unit_details((size_t)s.lookup_unit(se));
+		std::printf("  panel: basic spearman wood %.3f, elite %.3f\n", bd.gather[Simulation::GK_WOOD], ed.gather[Simulation::GK_WOOD]);
+		CHECK(bd.gather[Simulation::GK_WOOD] > 0.0f && std::fabs(ed.gather[Simulation::GK_WOOD] / bd.gather[Simulation::GK_WOOD] - 0.49f) < 1e-3f);
 	}
 
 	// 3c. germ_women's +0.5 m/s is added after the technologies' multiplies (GetTechModifiedProperty):
@@ -580,6 +587,63 @@ int main() {
 				on_mine, (int)s.units_.order_kind[i], s.units_.order_x[i], s.units_.order_z[i]);
 		CHECK(on_mine == 3);
 		CHECK(s.units_.order_kind[i] == ORDER_WALK && s.units_.order_x[i] == 60.0f && s.units_.order_z[i] == 60.0f);
+	}
+
+	// 20. UnitAI REPAIR on a structure already whole (a queued build finished by others): the
+	// builder walks there all the same, and REPAIRING finds it whole: ConstructionFinished, so
+	// she gathers by the new storehouse (force becomes autoharvest).
+	{
+		static Simulation s;
+		fresh(s);
+		const uint32_t store = s.spawn_building_world(20.0f, 0.0f, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t mine = s.spawn_resource_world(20.0f, 7.0f, RES_STONE, 5000);
+		const uint32_t woman = s.spawn_unit(-10.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		s.order_build_or_repair(&woman, 1, store);
+		run(s, 30.0f);
+		const int32_t i = s.lookup_unit(woman);
+		std::printf("  sent to a finished storehouse: she is at (%.0f, %.0f), gathering %s\n", s.units_.pos_x[i], s.units_.pos_z[i],
+				s.units_.target_resource_id[i] == mine ? "the mine" : "nothing");
+		CHECK(s.units_.target_resource_id[i] == mine);
+	}
+
+	// 21. ConstructionFinished for a builder still on her way: with nothing else to do she walks on
+	// to the finished structure (WalkToTarget) rather than stopping where she is.
+	{
+		static Simulation s;
+		fresh(s);
+		const uint32_t site = s.spawn_building_world(20.0f, 0.0f, BLD_HOUSE, 0, 0.0f);
+		const uint32_t near_w = s.spawn_unit(20.0f, -4.0f, 0, UNIT_FEMALE_CITIZEN);
+		const uint32_t far_w = s.spawn_unit(-60.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		s.order_build_or_repair(&near_w, 1, site);
+		s.order_build_or_repair(&far_w, 1, site);
+		bool done = false;
+		for (int k = 0; k < 600 && !done; ++k) {
+			run(s, 0.2f);
+			for (const auto &b : s.buildings()) if (b.id == site) done = b.build_progress >= 1.0f;
+		}
+		const int32_t i = s.lookup_unit(far_w);
+		const float at_x = s.units_.pos_x[i];
+		run(s, 40.0f);
+		std::printf("  house built: the builder still on her way was at x %.0f, now at x %.0f\n", at_x, s.units_.pos_x[i]);
+		CHECK(done && at_x < 10.0f && s.units_.pos_x[i] > 12.0f);
+	}
+
+	// 22. Repairable.js sends ConstructionFinished for a unit too: once the ram is whole its repairer
+	// takes a foundation nearby (autocontinue).
+	{
+		static Simulation s;
+		fresh(s);
+		const uint32_t ram = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SIEGE_RAM);
+		const uint32_t woman = s.spawn_unit(2.5f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		const int32_t r = s.lookup_unit(ram);
+		s.units_.hp[r] = s.units_.max_hp[r] - 5.0f;
+		const uint32_t site = s.spawn_building_world(14.0f, 0.0f, BLD_HOUSE, 0, 0.0f);
+		s.order_repair_unit(&woman, 1, ram, false, true);
+		run(s, 40.0f);
+		float progress = 0.0f;
+		for (const auto &b : s.buildings()) if (b.id == site) progress = b.build_progress;
+		std::printf("  ram repaired to %.0f/%.0f, then the house nearby %.0f%% built\n", s.units_.hp[r], s.units_.max_hp[r], 100.0f * progress);
+		CHECK(s.units_.hp[r] >= s.units_.max_hp[r] && progress > 0.05f);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
