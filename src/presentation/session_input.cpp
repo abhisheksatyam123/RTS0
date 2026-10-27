@@ -1562,6 +1562,17 @@ bool RtsoMain::try_place_wall(const Vector3 &end, bool queued) {
 	if (pieces.empty()) return true;
 	if (sim->check_wall_piece(local_player(), pieces[0], snapped, 2) != rtso::Simulation::PLACE_OK)
 		return false;
+	// hasWallSegment: the preview holds the placeable pieces up to the first blocked one; with
+	// only a tower among them nothing is sent and no voice plays, and placement still ends.
+	{
+		const rtso::WallSetInfo ws = rtso::wallset_info(wall_kind, sim->team_civ(local_player()));
+		bool segment = false;
+		for (const auto &p : pieces) {
+			if (sim->check_wall_piece(local_player(), p, snapped, 2) != rtso::Simulation::PLACE_OK) break;
+			if (!(p.type == ws.tower && p.half_w == ws.tower_half)) { segment = true; break; }
+		}
+		if (!segment) return true;
+	}
 	if (turn_cmds()) {
 		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_BUILD_WALL, builders, builder_n, end.x, end.z,
 				rtso::Simulation::pack_wall_point(wall_drag_start_pos.x, wall_drag_start_pos.z),
