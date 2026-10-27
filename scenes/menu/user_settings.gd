@@ -680,8 +680,9 @@ func _apply_node(n) -> void:
 
 ## overlay.fps and overlay.realtime (global.xml dataCounter): right-aligned mono-10 white
 ## on a black 100/255 backing, sized to its text, under the top panel at the right edge
-## ("100%-100 40 100%-5 54" under 0.28's 36 px panel; RTS0's panel is 67 px).
-const OVERLAY_TOP := 71.0
+## ("100%-100 40 100%-5 54", 4 px under 0.28's 36 px panel; RTS0's top panel ends at 54,
+## and the research column starts under the counter at 58 + its height).
+const OVERLAY_TOP := 58.0
 
 func _make_overlay() -> void:
 	_overlay = CanvasLayer.new()

@@ -420,6 +420,20 @@ researchManager.js (update, checkPhase, the wanted/preferred/random picks) and t
 
 Checked and matching: the wanted and preferred tech filters and their order, the cheap-pick priority boost and the paused minorTech queue. Not yet traced: the dock water test (getDockAngle, checkDockPlacement) and defensive placement falling back to ally structures.
 
+### Structure and technology tooltips, twentieth 0.28 pass (2026-10-21)
+
+gui/common/tooltips.js and selection_panels_helpers.js against RTS0's construction, research, training and selected-structure tooltips. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| TT1 | A foundation's detailed tooltip and portrait showed the finished structure's attack, garrison, loot, population bonus and auras; 0.28's foundation template keeps only Resistance | medium | Fixed |
+| TT2 | The entity-limit lines named only changers that were built, multiplied by how many, and never the unit ones; 0.28 lists each LimitChanger with its template value ("Ashoka enlarges the limit with 5.") | medium | Fixed |
+| TT3 | The wall construction button left out the long wall's Wall Protection aura | low | Fixed |
+| TT4 | "Dropsite for:" listed resource names, and it and "Turret Positions" weren't in the header font; 0.28 shows resource icons | low | Fixed |
+| TT5 | The selected-structure detailed tooltip is plain text (no header font, unit words or icons) and indents its Attack and Resistance blocks 2 spaces, not g_Indent's 4 | nit | Open |
+| TT6 | The wall-dragging cost tip is a plain Label: "Cost: Stone 36" without the header font or icons | nit | Open |
+| TT7 | "Requires ..." from a unit trainer shows only the generic name, not "Specific (Generic)"; no case found in the current rosters | nit | Open |
+
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 
 BuildingAI.js, Attack.js and DelayedDamage.js against the arrow code, measured in the simulation and against a Python port of FireArrows: arrow counts with garrisons, auras and technologies (civic centre 6-26, tower 4-9, fortress 10-30), the 20 rounds per RepeatTime and their rounding, the first volley PrepareTime after a target enters, the paused round when targets leave, target order (preference, then distance, every arrow of a round on the first), what is shot (enemies, structures with Health, livestock, Gaia that can fight back), visibility, MinRange from the footprint, foundations, ownership changes, spread and stray hits all match. Owner: E.
@@ -600,6 +614,20 @@ The replay menu (gui/replaymenu), the session in replay mode (PlayerViewControl,
 | RP7 | A single-player replay started at Game Setup's last speed and a multiplayer one at its recorded speed; a visual replay runs in a new CGame whose sim rate starts at 1 | medium | Fixed |
 
 Kept on purpose: a replay still can't be saved ("A replay can't be saved."), though 0.28's Save button doesn't check for one (sixth pass). Not worth changing: replays aren't kept in a per-engine-version folder (other versions are listed greyed out, hidden by the default compatibility filter), and the replay list is re-read rather than cached in replayCache.json (same list, slower on huge folders). Checked and matching: the columns, widths, colours and default sort, every filter and its options, the details rows and team-grouped player list, the Start/Delete states, double-click, Rebuild Cache, the 3 s minimum, the summary round trip, the Observer start and view dropdown, the Fast Forward speeds, pause, and the end and Out of Sync boxes.
+
+### Statistics counters, overlay and lobby rating report, tenth 0.28 pass (2026-10-21)
+
+Every StatisticsTracker caller re-checked against the paths added since the fifth pass (planes, wagon trains, relics, the Imperial Minister, captured trainers, Regicide heroes, map-start wonders, upgrades, autoqueue, floods), and the overlay counters (main 1fb3510c5). Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| SC1 | A plane shot down counted as Siege (its roster type is the bolt shooter's); units/plane's parent is template_unit, so 0.28 counts it in Units Total only | low | Fixed |
+| SC2 | The overlay counters sat at y 71, 17 px under the top panel (which ends at 54), and the research column (58 + the counter's height) overlapped them; 0.28's dataCounter is 4 px under its panel with the research column right below it | low | Fixed: 58 |
+| SC3 | A kill by an arrow, splash or status effect credited the attacker's owner when it attacked; Health.KilledBy credits the attacker's owner when the victim dies, if it still exists (a tower captured while its arrow flew) | low | Fixed |
+| SC4 | The lobby's game rating counted a player whose name carried no rating at their current lobby rating; Game.js uses only the rating in the joined name, else 1200 | low | Fixed |
+| SC5 | A client saw the Rated Game box only while it was ticked; Rating.js hides it only while a rated game isn't available, so a client sees it locked either way | low | Fixed |
+
+The lobby rating report was checked against LobbyRatingReporter.js and its Players, Score, Misc, Resources, Units and Buildings builders: every key, the comma-joined per-player values with Gaia left out, the scores, and who reports (no observers, replays or unrated games) match. Kept on purpose: RTS0's lobby is its own HTTP server, not an XMPP bot, so the report adds "players" and a token and its matchID is built from the seed, map and names; it is sent once, when the local seat has won or been defeated, which in a 1v1 is the same moment 0.28's playersFinished sends it. Checked and matching: the unit and structure class lists, upgrades never counting as constructed, map-placed structures and heroes never counting, wagons and the Minister in Units Total only, ships and traders, every training path (captured trainers, autoqueue, merc camps, cheats), livestock as Domestic only, relic captures, structure captures and decay, deaths with no killer (garrisons, deletion, floods, defeat), structure arrows, treasures, and the overlay's order, formats and refresh.
 
 Stuck units (taken from Migrate's queue, 2026-10-20): in 4-Petra soaks the units that held an order on an impassable navcell and moved under 1 unit in 60 s, past the gatherers working beside their tree, were builders walled in by their own Petra's houses against a shore (Lake seeds 6 and 8). RTS0's Petra laid houses edge to edge on its 8 m grid (petra_clearance 0); 0.28's findGoodPosition keeps every obstruction cell within ceil(obstructionRadius.max / cellSize) of a house's centre clear (queueplanBuilding.js:336), so its houses stand about 5 m apart. Houses now keep a one-cell ring, the nearest grid step (an 8 m alley, as RTS0's houses are half 0.28's size, Y1): 8 soaks (African Plains and Lake, seeds 5-8, 15 min) go from 2 walled-in units to 0, and Continental phase timing (4 seeds, 20 min) is unchanged within noise. The one-navcell slit trap Migrate saw on Deep Forest seed 11 near (-101.6, 40.9) does not reproduce on current main (seeds 10-12, 15 min): the only long stalls left were riders dancing among trees for about 60 s before walking free, and after Migrate's corner dance fix (#1518) Deep Forest seeds 10-15 (15 min) report no stuck units at all, so no per-step tree test was added.
 

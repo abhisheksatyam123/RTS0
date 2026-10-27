@@ -163,6 +163,9 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		if (id == "bolt_projectile") return 1.15f;
 		if (id == "arrow_projectile") return 1.10f;
 		if (id == "stone_projectile") return 0.45f;
+		// At the arrow's scale (1.10 for 0.28's 1.65): the javelin is 3.13, the sling stone 0.22.
+		if (id == "javelin_projectile") return 2.09f;
+		if (id == "sling_projectile") return 0.15f;
 
 		// Default human scale.
 		return 1.8f;
@@ -2136,21 +2139,37 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 	return e;
 }
 
+// get()'s lookup by category, then id: the world view asks for its models every frame, and
+// cache()'s "category/id" key would be built for each ask. Cache entries never move.
+static HashMap<String, HashMap<String, const ModelLibrary::Entry *>> &entry_index() {
+	static auto &m = *new HashMap<String, HashMap<String, const ModelLibrary::Entry *>>();
+	return m;
+}
+
 const ModelLibrary::Entry &ModelLibrary::get(const String &category, const String &id) {
+	HashMap<String, const Entry *> *ids = entry_index().getptr(category);
+	if (ids) {
+		if (const Entry *const *hit = ids->getptr(id)) return **hit;
+	}
 	String key = category + String("/") + id;
 	Entry *found = cache().getptr(key);
-	if (found) return *found;
-	load(category, id);
-	if (category == "units") prefetch_unit_helmets(id);
-	found = cache().getptr(key);
+	if (!found) {
+		load(category, id);
+		if (category == "units") prefetch_unit_helmets(id);
+		found = cache().getptr(key);
+	}
 	static Entry empty;
-	return found ? *found : empty;
+	if (!found) return empty;
+	if (!ids) ids = &entry_index().insert(category, HashMap<String, const Entry *>())->value;
+	ids->insert(id, found);
+	return *found;
 }
 
 void ModelLibrary::clear() {
 	for (const KeyValue<String, bool> &kv : threaded_paths()) ResourceLoader::get_singleton()->load_threaded_get(kv.key);
 	threaded_paths().clear();
 	requests_in_flight().clear();
+	entry_index().clear();
 	cache().clear();
 	player_color_mats().clear();
 }
