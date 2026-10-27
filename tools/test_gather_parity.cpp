@@ -468,6 +468,28 @@ int main() {
 		CHECK(done && next == mine);
 	}
 
+	// 15b. FindNearbyResource filters on CanGather before it picks the nearest: fish (land units
+	// have no food.fish rate) beside a new farmstead don't hide the berries behind it.
+	{
+		static Simulation s;
+		fresh(s);
+		s.spawn_building_world(-40.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t site = s.spawn_building_world(20.0f, 0.0f, BLD_FARMSTEAD, 0, 0.0f);
+		s.spawn_resource_world(20.0f, 5.0f, RES_FOOD, 400, RES_SUB_FISH);
+		const uint32_t bush = s.spawn_resource_world(20.0f, -9.0f, RES_FOOD, 200); // berries
+		const uint32_t woman = s.spawn_unit(24.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		s.order_build_or_repair(&woman, 1, site);
+		bool done = false;
+		for (int k = 0; k < 600 && !done; ++k) {
+			run(s, 1.0f);
+			for (const auto &b : s.buildings()) if (b.id == site) done = b.build_progress >= 1.0f;
+		}
+		run(s, 0.5f);
+		const uint32_t next = s.units_.target_resource_id[s.lookup_unit(woman)];
+		std::printf("  farmstead built beside fish: the builder goes to the %s\n", next == bush ? "berries" : next ? "fish" : "nothing");
+		CHECK(done && next == bush);
+	}
+
 	// 16. UnitAI FINDINGNEWTARGET: a farmer turned away from a full field takes a free field of any
 	// player's within 64 m (FindNearbyResource), not her own across the map. Explored, as
 	// CheckTargetVisible skips "hidden" supplies.
