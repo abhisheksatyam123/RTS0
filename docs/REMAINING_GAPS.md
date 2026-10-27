@@ -474,6 +474,20 @@ gui/common/tooltips.js and selection_panels_helpers.js against RTS0's constructi
 | TT6 | The wall-dragging cost tip is a plain Label: "Cost: Stone 36" without the header font or icons | nit | Fixed (Stats: placementTooltip is a RichTextLabel; the wall cost takes getEntityCostTooltip's headerFont and resource icons) |
 | TT7 | "Requires ..." from a unit trainer shows only the generic name, not "Specific (Generic)"; no case found in the current rosters | nit | Open |
 
+### Petra building placement, twenty-sixth 0.28 pass (2026-10-27)
+
+Petra's placement (queueplanBuilding.js findGoodPosition, baseManager.js findBestDropsiteLocation and checkResourceLevels, headquarters.js findMarketLocation, buildMoreHouses, manageCorral, buildManager.js setUnbuildable, queueManager.js startNextItems) against RTS0. The favour map, obstruction gaps, first-house room, border and invading-army handling, military base choice, dropsite quality and its 60/80 m exclusion and the market location match except as below. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| PL1 | A queued storehouse looked again for a site of quality 50 (the opening one 40) and was dropped without one; 0.28's started plan takes its base's best site above 0, else the general placement | medium | Fixed (the general placement goes to the plan's base, not its queued spot; `tools/test_petra.cpp` test_queued_dropsite_starts) |
+| PL2 | The poorer storehouse site (quality past min(25, 7.5 / lost ratio)) was laid only if paid at once; 0.28 queues it like the first | medium | Fixed (`tools/test_petra.cpp`) |
+| PL3 | The 90 s no-room mark held back house plans already queued; only canBuild reads it, so a queued house retries once its account refills and a failed start uses the plan up | low | Fixed (`tools/test_petra.cpp`) |
+| PL4 | manageCorral's corral (civs without fields) favoured the farmstead's base by +100; its plan has no metadata | low | Fixed |
+| PL5 | A start that found no room cost the queue's account nothing; startNextItems takes the cost off the account before start() | nit | Fixed (`tools/test_petra.cpp`) |
+| PL6 | Petra's structures face pi (DEFAULT_BUILDING_ROT), not queueplanBuilding.js's 3pi/4 | nit | Deliberate (game-wide RTS0 default; footprints are axis-aligned) |
+| PL7 | A captured mill or rotary mill (food dropsite) gave no field +50 / other -20 in the favour map | nit | Fixed |
+
 ### Research, training and construction tooltips, twenty-fifth 0.28 pass (2026-10-27)
 
 The Research, Training and Construction panels' tooltips against selection_panels.js, selection_panels_helpers.js and tooltips.js: line order, names, costs, times, limits, requirements and objections match except as below. Owner: E.
@@ -551,7 +565,7 @@ garrisonManager.js, worker.js, queueManager.js and the queue plans, and the econ
 | PC7 | (GM1) A decaying structure keeps every unit of ours that can capture; 0.28 keeps only the number needed, and lets protection garrisons leave once the enemy goes | low | Fixed (approximation, no save change): the first gmin capture-capable units in garrison order are held by the decay rule, the rest by the protection rules (garrisonManager.js keepGarrisoned; test_petra test_decay_garrison_extra_leave). 0.28's exact form needs a garrison type per unit |
 | PC8 | (GM2) Regicide: the hero is judged by the emergency rules in any building; 0.28 uses the protection rules in one that heals | low | Fixed: in a holder that heals the hero falls under the protection rules (defenseManager.js:913-914; test_petra test_regicide_hero_heal_holder) |
 | PC9 | (W9) A builder that finished a house can go on to build a field foundation; 0.28 takes it off the field and reassigns it | nit | Fixed: a Petra house builder that autocontinue would send to a field goes idle for Petra to reassign (worker.js:325-345; test_petra test_house_builder_skips_field) |
-| PC10 | (Q9) The one structure Petra may start each turn goes to whichever code runs first, not the highest-priority queue | nit | Open |
+| PC10 | (Q9) The one structure Petra may start each turn goes to whichever code runs first, not the highest-priority queue | nit | Fixed: a structure heading a higher-priority queue that can be paid now goes first (petra_higher_structure_waiting: a head that asked last turn or this one; test_structure_queue_priority) |
 | PC11 | Workers booked on a transport and waiting at the beach were re-tasked as idle workers; their refused second transport marked the resource failed, so for 20 s the idle workers overseas picked another resource and sailed back (E's test_naval report). AddTCResGatherer counted a gatherer only once it found a supply, not when its type was picked | low-medium | Fixed: a booked worker just waits (worker.js:42-89), and the type counts as it is picked (baseManager.js:725) |
 
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
