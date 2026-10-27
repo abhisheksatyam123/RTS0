@@ -1252,10 +1252,16 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 	auto gview = sim->units();
 	for (int m = 0; m < selected_groups[grp].size(); ++m) {
 		const int32_t gid = selected_groups[grp][m];
-		bool found = false;
+		bool found = false, foreign = false;
 		Vector3 at;
 		for (size_t i = 0; i < gview.count; ++i) {
-			if (gview.id[i] != (uint32_t)gid || gview.team[i] != local_player()) continue;
+			if (gview.id[i] != (uint32_t)gid) continue;
+			// EntityGroupsContainer.update drops only destroyed members: one that changed owner
+			// stays in the group (and comes back with it if it returns) but isn't selected.
+			if (gview.team[i] != local_player()) {
+				foreign = gview.alive[i] || gview.hp[i] > 0.0f;
+				break;
+			}
 			if (gview.alive[i]) {
 				at = Vector3(gview.pos_x[i], 0, gview.pos_z[i]);
 				recall.push_back(gid);
@@ -1270,9 +1276,13 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 			}
 			break;
 		}
-		if (!found)
+		if (!found && !foreign)
 			for (const auto &b : sim->buildings())
-				if (b.id == (uint32_t)gid && b.team == local_player() && !b.wrecked && b.hp > 0.0f) {
+				if (b.id == (uint32_t)gid && !b.wrecked && b.hp > 0.0f) {
+					if (b.team != local_player()) {
+						foreign = true;
+						break;
+					}
 					recall_buildings.push_back(b.id);
 					at = Vector3(b.x, 0, b.z);
 					found = true;
@@ -1281,10 +1291,12 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 		if (found) {
 			kept.push_back(gid);
 			if (snap_id == 0 || gid < snap_id) snap_id = gid, snap_pos = at;
+		} else if (foreign) {
+			kept.push_back(gid);
 		}
 	}
 	selected_groups[grp] = kept;
-	if (kept.is_empty()) return;
+	if (snap_id == 0) return; // nothing of the group is the player's now
 	// addList(toSelect) brings each unit's formation along (addFormationMembers).
 	for (int m = 0, n = recall.size(); m < n; ++m)
 		for (int32_t uid : formation_mates(recall[m]))
@@ -1299,6 +1311,10 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 		if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(snap_pos);
 		return;
 	}
+	// selection.js addList: the select sound only for what the recall adds, in its first's voice
+	// (a plain recall resets the selection first, so all of it is added).
+	const PackedInt32Array before_units = action == GROUP_ADD ? selected_ids : PackedInt32Array();
+	const std::vector<uint32_t> before_structs = action == GROUP_ADD ? selected_structures() : std::vector<uint32_t>();
 	if (action == GROUP_ADD) {
 		for (int m = 0; m < recall.size(); ++m)
 			if (!selected_ids.has(recall[m])) selected_ids.push_back(recall[m]);
@@ -1312,7 +1328,7 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 		set_selected_structures(recall_buildings);
 	}
 	if (action == GROUP_SNAP && cam_rig && snap_id != 0) cam_rig->set_target_pos(snap_pos);
-	play_civ_voice("select");
+	play_select_added(before_units, before_structs);
 }
 
 // session.js updateGroups: a click on a group's button selects it (selection.add

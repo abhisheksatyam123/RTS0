@@ -420,6 +420,8 @@ int main() {
 		CHECK(sim.ceasefire_active() && !sim.can_attack(0, 1));
 		run(sim, 4.0f);
 		CHECK(sim.units_.hp[0] == sim.units_.max_hp[0] && sim.units_.hp[1] == sim.units_.max_hp[1]);
+		// CeasefireManager.js: "Set every enemy (except gaia) to neutral", so Gaia still fights.
+		CHECK(sim.can_attack(0, GAIA_PLAYER) && sim.can_attack(GAIA_PLAYER, 1));
 		run(sim, 3.0f);
 		CHECK(!sim.ceasefire_active());
 		CHECK(sim.units_.hp[0] < sim.units_.max_hp[0] || sim.units_.hp[1] < sim.units_.max_hp[1] ||
