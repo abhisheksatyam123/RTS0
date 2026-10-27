@@ -29437,13 +29437,22 @@ bool Simulation::petra_allow_capture(const std::vector<uint32_t> &squad, uint32_
 	const int32_t idx = lookup_unit(uid);
 	if (idx < 0 || !units_.alive[idx] || unit_capture_attack(units_.tmpl[idx], units_.unit_type[idx]) <= 0.0f) return false;
 	if (!can_capture_building(petra_pid_, b)) return false;
-	const int ground = territory_owner_at(b.x, b.z);
-	const bool decaying = b.territory_decay_rate > 0.0f && b.team < MAX_PLAYERS && ground >= 0 && ground < MAX_PLAYERS &&
-			ground != b.team && !is_ally((uint8_t)ground, b.team);
+	// target.decaying(): TerritoryDecay.IsDecaying, in enemy or neutral territory and also in
+	// its owner's own territory once that is cut off from every civic centre. (The lookup only
+	// fills the territory region cache.)
+	std::array<float, MAX_PLAYERS> decay_to;
+	float decay_gaia = 0.0f;
+	const bool decaying = b.team < MAX_PLAYERS &&
+			const_cast<Simulation *>(this)->territory_decay_targets(b, decay_to, decay_gaia);
 	// Always recapture points from our own or an ally's structure, unless it decays.
 	if (b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) return !decaying;
 
-	float anti = b.capture_regen_rate + b.capture_garrison_regen_rate * (float)b.garrisoned_units.size();
+	// GarrisonRegenRate times each garrisoned unit's Capture strength (Capturable.GetRegenRate).
+	float anti = b.capture_regen_rate;
+	for (uint32_t g : b.garrisoned_units) {
+		const int32_t gi = lookup_unit(g);
+		if (gi >= 0 && units_.alive[gi]) anti += b.capture_garrison_regen_rate * unit_capture_attack(units_.tmpl[gi], units_.unit_type[gi]);
+	}
 	if (decaying) anti -= structure_decay_rate(b);
 	float capture = unit_capture_attack(units_.tmpl[idx], units_.unit_type[idx]);
 	for (uint32_t other : squad) {

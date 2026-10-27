@@ -100,7 +100,8 @@ func _ready() -> void:
 	var title := Label.new()
 	title.text = tr("Map Browser")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 20)
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	MODERN.label_text(title) # ModernLabelText
 	title.anchor_left = 0.5
 	title.anchor_right = 0.5
 	title.offset_left = -128
@@ -138,7 +139,8 @@ func _make_item(i: int) -> Button:
 	pressed.bg_color = Color8(255, 0, 0, 150)
 	b.add_theme_stylebox_override("pressed", pressed)
 	b.add_theme_stylebox_override("hover_pressed", pressed)
-	var box := Panel.new()
+	var box := Panel.new() # ModernDarkBoxGold
+	box.add_theme_stylebox_override("panel", MODERN._dark_box(MODERN.GOLD, MODERN.DARK_BOX, 0))
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.set_anchors_preset(Control.PRESET_FULL_RECT)
 	box.offset_left = 3
@@ -167,8 +169,7 @@ func _make_item(i: int) -> Button:
 	cap.offset_left = 10
 	cap.offset_right = -10
 	cap.offset_bottom = -10
-	cap.add_theme_color_override("font_outline_color", Color.BLACK)
-	cap.add_theme_constant_override("outline_size", 4)
+	MODERN.label_text(cap) # mapPreview: ModernLabelText
 	box.add_child(cap)
 	b.pressed.connect(func(): set_selected_index(i + current_page * items_per_row))
 	b.gui_input.connect(func(ev): _on_item_input(ev))
@@ -185,31 +186,40 @@ func _build_controls() -> Control:
 	right.offset_right = -15
 	right.offset_top = 15
 	right.offset_bottom = -15
+	# MapBrowserControls: a ModernFade behind the column, 5 px wider on each side.
+	var shade := ColorRect.new()
+	shade.color = Color8(0, 0, 0, 85)
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.offset_left = -5
+	shade.offset_right = 5
+	right.add_child(shade)
 	var col := VBoxContainer.new()
 	col.set_anchors_preset(Control.PRESET_FULL_RECT)
 	col.add_theme_constant_override("separation", 6)
 	right.add_child(col)
-	# Pagination: ← → between the page buttons, + − for zoom, then the status line.
-	var pager := HBoxContainer.new()
+	# Pagination: ← and → halves of 20%..80%-58, + and − in the last 58 px, then the
+	# status line in ModernLabelText at 5%..95%-60.
+	var pager := Control.new()
+	pager.custom_minimum_size = Vector2(0, 28)
 	_prev = _button(pager, "←", tr("Go to the previous page."), func(): previous_page())
 	_next = _button(pager, "→", tr("Go to the next page."), func(): next_page())
-	var gap := Control.new()
-	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	pager.add_child(gap)
 	_zoom_in = _button(pager, tr("+"), tr("Increase map preview size."), func(): increase_column_count(-1))
 	_zoom_out = _button(pager, tr("−"), tr("Decrease map preview size."), func(): increase_column_count(1))
-	for b in [_prev, _next]:
-		b.custom_minimum_size = Vector2(90, 28)
-	for b in [_zoom_in, _zoom_out]:
-		b.custom_minimum_size = Vector2(29, 28)
+	_span(_prev, 0.2, 0, 0.5, -29)
+	_span(_next, 0.5, -29, 0.8, -58)
+	_span(_zoom_in, 1.0, -58, 1.0, -29)
+	_span(_zoom_out, 1.0, -29, 1.0, 0)
 	col.add_child(pager)
 	_status = Label.new()
 	_status.name = "Status"
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	MODERN.label_text(_status)
 	col.add_child(_status)
 	_search = LineEdit.new()
 	_search.name = "Search"
 	_search.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_search.add_theme_font_size_override("font_size", 16) # font="sans-16"
 	_search.text_changed.connect(func(_t): _on_change())
 	col.add_child(_row(tr("Search Map:"), _search))
 	_type = OptionButton.new()
@@ -235,9 +245,8 @@ func _build_controls() -> Control:
 	_sel_name.name = "SelectedName"
 	_sel_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_sel_name.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	_sel_name.add_theme_font_size_override("font_size", 16)
-	_sel_name.add_theme_color_override("font_outline_color", Color.BLACK)
-	_sel_name.add_theme_constant_override("outline_size", 4)
+	MODERN.label_text(_sel_name)
+	_sel_name.add_theme_font_size_override("font_size", 16) # sans-bold-16
 	_sel_name.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_sel_preview.add_child(_sel_name)
 	col.add_child(_sel_preview)
@@ -276,11 +285,19 @@ func _button(parent: Node, text: String, tip: String, cb: Callable) -> Button:
 	parent.add_child(b)
 	return b
 
+## A pager button across anchors al..ar of the row, offset by ol / or_ px.
+func _span(b: Control, al: float, ol: float, ar: float, or_: float) -> void:
+	b.anchor_left = al
+	b.anchor_right = ar
+	b.anchor_bottom = 1.0
+	b.offset_left = ol
+	b.offset_right = or_
+
 func _row(caption: String, control: Control) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	var lbl := Label.new()
 	lbl.text = caption
-	lbl.custom_minimum_size = Vector2(100, 0)
+	MODERN.label_text(lbl) # ModernLeftLabelText, as wide as its text
 	row.add_child(lbl)
 	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(control)
