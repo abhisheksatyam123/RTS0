@@ -474,6 +474,18 @@ gui/common/tooltips.js and selection_panels_helpers.js against RTS0's constructi
 | TT6 | The wall-dragging cost tip is a plain Label: "Cost: Stone 36" without the header font or icons | nit | Fixed (Stats: placementTooltip is a RichTextLabel; the wall cost takes getEntityCostTooltip's headerFont and resource icons) |
 | TT7 | "Requires ..." from a unit trainer shows only the generic name, not "Specific (Generic)"; no case found in the current rosters | nit | Open |
 
+### Petra structure decisions, twenty-seventh 0.28 pass (2026-10-27)
+
+What Petra builds and when (headquarters.js buildMoreHouses, buildFarmstead, buildForge, buildMarket, buildTemple, buildWonder, constructTrainingBuildings, checkPhaseRequirements, manageCorral; buildManager.js; queueManager.js; Config.priorities and difficulty gates) against RTS0. Cadences, population thresholds, phase requirements, priorities and difficulty gates match except as below. Owner: E.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| PD1 | Pass 27 let a queued house search under the 90 s no-room mark; isGo (houseNeeded) holds it while canBuild fails for both house and apartment | medium-low | Fixed (`tools/test_petra.cpp` test_house_plan_waits_out_no_room) |
+| PD2 | The Town-phase pick (market, temple, forge) and the training-building picks (barracks or range, stable, elephant stable, arsenal, advanced) ignored the no-room mark, so one without room blocked the rest; canBuild skips it | low-medium | Fixed (`tools/test_petra.cpp` test_city_phase_skips_no_room) |
+| PD3 | Queued wonder, forge and barracks plans stay in their queue until started; RTS0 re-decides each cadence turn and a want not asked for again lapses with its account (wonder after 31 turns, others 10 s), e.g. the wonder after population dips under 90% of the cap | low | Open (RTS0 keeps no per-plan queue) |
+| PD4 | buildMarket funded the economic queue when any plan waited there and raised its priority only when none did; 0.28 funds only a queued market and otherwise raises the priority to 3x | low | Fixed |
+| PD5 | The Town-phase structure went down while another plan waited in the economic or military queue; checkPhaseRequirements adds one only when both are empty | nit | Fixed (`tools/test_petra.cpp`) |
+
 ### Petra building placement, twenty-sixth 0.28 pass (2026-10-27)
 
 Petra's placement (queueplanBuilding.js findGoodPosition, baseManager.js findBestDropsiteLocation and checkResourceLevels, headquarters.js findMarketLocation, buildMoreHouses, manageCorral, buildManager.js setUnbuildable, queueManager.js startNextItems) against RTS0. The favour map, obstruction gaps, first-house room, border and invading-army handling, military base choice, dropsite quality and its 60/80 m exclusion and the market location match except as below. Owner: E.
@@ -482,7 +494,7 @@ Petra's placement (queueplanBuilding.js findGoodPosition, baseManager.js findBes
 |---|---|---|---|
 | PL1 | A queued storehouse looked again for a site of quality 50 (the opening one 40) and was dropped without one; 0.28's started plan takes its base's best site above 0, else the general placement | medium | Fixed (the general placement goes to the plan's base, not its queued spot; `tools/test_petra.cpp` test_queued_dropsite_starts) |
 | PL2 | The poorer storehouse site (quality past min(25, 7.5 / lost ratio)) was laid only if paid at once; 0.28 queues it like the first | medium | Fixed (`tools/test_petra.cpp`) |
-| PL3 | The 90 s no-room mark held back house plans already queued; only canBuild reads it, so a queued house retries once its account refills and a failed start uses the plan up | low | Fixed (`tools/test_petra.cpp`) |
+| PL3 | A house start that found no room kept its plan; 0.28's start shifts the plan out of its queue. (The plan itself waits out the 90 s no-room mark: houseNeeded isGo reads canBuild, see PD1) | low | Fixed (`tools/test_petra.cpp`) |
 | PL4 | manageCorral's corral (civs without fields) favoured the farmstead's base by +100; its plan has no metadata | low | Fixed |
 | PL5 | A start that found no room cost the queue's account nothing; startNextItems takes the cost off the account before start() | nit | Fixed (`tools/test_petra.cpp`) |
 | PL6 | Petra's structures face pi (DEFAULT_BUILDING_ROT), not queueplanBuilding.js's 3pi/4 | nit | Deliberate (game-wide RTS0 default; footprints are axis-aligned) |
