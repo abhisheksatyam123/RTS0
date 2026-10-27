@@ -466,6 +466,10 @@ int main() {
 			std::printf("house foundation placed at %.0f wood, %.0f after Colonization: refund %.0f\n", c[RES_WOOD], c2[RES_WOOD],
 			            s.player(0).res[RES_WOOD] - wood0);
 			CHECK(c2[RES_WOOD] < c[RES_WOOD] && s.player(0).res[RES_WOOD] - wood0 == std::ceil(c[RES_WOOD]));
+			// Cost.js GetResourceCosts keeps the fraction: 150 x 0.75 is 112.5 wood, paid as it is.
+			CHECK(c2[RES_WOOD] == 112.5f);
+			const float wood1 = s.player(0).res[RES_WOOD];
+			CHECK(s.pay_for_structure(0, BLD_HOUSE, -1.0f) && s.player(0).res[RES_WOOD] == wood1 - 112.5f);
 		}
 
 		// Hellenistic Metropolis: "CivCentre !Colony" (Seleucid military colonies keep theirs).

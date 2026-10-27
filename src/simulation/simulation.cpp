@@ -4559,9 +4559,13 @@ void Simulation::structure_cost(uint8_t player, uint8_t b_type, float cost_overr
 	const float stone = base_stone * civ_bonus_mult(civ, CIV_BONUS_BUILDING_STONE_COST, b_type) * team(RES_STONE);
 	const float food = binfo.food_cost * team(RES_FOOD);
 	const float gold = binfo.gold_cost * team(RES_GOLD);
+	// Cost.js GetResourceCosts: the modified values as they are (Colonization's 112.5 metal); the
+	// player pays the fraction and the GUI shows it floored (multiplyEntityCosts). A float product
+	// a hair off a whole number (100 x 0.7f) is that number, as 0.28's doubles make it.
+	auto exact = [](float v) { const float r = std::round(v); return std::fabs(v - r) < 1e-3f ? r : v; };
 	for (int r = 0; r < RES_COUNT; ++r) out[r] = 0.0f;
-	out[RES_FOOD] = std::round(food); out[RES_WOOD] = std::round(wood);
-	out[RES_GOLD] = std::round(gold); out[RES_STONE] = std::round(stone);
+	out[RES_FOOD] = exact(food); out[RES_WOOD] = exact(wood);
+	out[RES_GOLD] = exact(gold); out[RES_STONE] = exact(stone);
 }
 
 size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, float ez, const uint32_t *builders,
@@ -6239,6 +6243,8 @@ void Simulation::refresh_tech_mods(uint8_t player_id) {
 int32_t Simulation::carry_cap(size_t i, uint8_t res) const {
 	uint8_t team = units_.team[i], t = units_.unit_type[i];
 	if (team >= MAX_PLAYERS || t >= UNIT_TYPE_COUNT || res >= RES_COUNT) return units_.carry_capacity[i];
+	// No ResourceGatherer (the mercenaries): the capacity technologies have nothing to add to.
+	if (units_.carry_capacity[i] <= 0) return units_.carry_capacity[i];
 	// A roster unit's techs match its template's own classes (citizen infantry are Workers in 0.28).
 	if (units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT) return units_.carry_capacity[i] + tech_mods_[team].tmpl[units_.tmpl[i]].carry[res];
 	return units_.carry_capacity[i] + tech_mods_[team].carry[t][res];
@@ -9046,7 +9052,9 @@ Simulation::StructureDetails Simulation::structure_details(const Building &b) co
 		d.damage[0] = ai.hack;
 		d.damage[1] = ai.pierce * (owned ? tech_mods(b.team).bld_attack[b.type] : 1.0f);
 		d.damage[2] = ai.crush;
-		d.min_range = ai.min_range;
+		// Murder Holes replaces Attack/Ranged/MinRange with 0 (tick_combat's minimum too).
+		const float tech_min = owned ? tech_mods(b.team).bld_min_range[b.type] : -1.0f;
+		d.min_range = tech_min >= 0.0f ? tech_min : ai.min_range;
 		d.max_range = building_arrow_range(b);
 		d.repeat_time = ai.repeat_time;
 		d.arrows = building_arrow_count(b);
