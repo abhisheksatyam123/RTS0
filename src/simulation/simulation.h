@@ -3062,6 +3062,12 @@ private:
 	uint32_t stat_unit_classes_of(size_t idx) const;
 	void stat_unit_trained(size_t idx);
 	void stat_unit_lost(size_t idx, uint8_t killer);
+	// Health.KilledBy: the killer's statistics go to the attacker's owner now, if it still
+	// exists (a structure captured while its arrow flew), else the owner at the attack.
+	uint8_t stat_killer(uint32_t src_id, uint8_t src_team) const {
+		const uint8_t now = src_id != 0 ? petra_owner_of(src_id) : (uint8_t)0xFF;
+		return now != 0xFF ? now : src_team;
+	}
 	void stat_building_constructed(const Building &b);
 	void stat_building_lost(const Building &b, uint8_t killer);
 	void stat_building_captured(const Building &b, uint8_t from);
@@ -4500,7 +4506,7 @@ private:
 	AuraManager aura_mgr_; // G4: unified aura sources (AuraManager)
 	float fow_timer_ = 0.0f;
 	float territory_timer_ = 0.0f;
-	float aura_timer_ = 0.0f; // G4: 0.4s aura rebuild timer
+	float aura_timer_ = 0.0f; // unused since auras rebuild each turn; kept for the save layout
 
 	float map_half_ = 64.0f;
 	int terrain_res_ = 64;

@@ -121,6 +121,8 @@ inline const char *stat_building_class_name(uint8_t c) {
 inline uint32_t stat_unit_classes(uint8_t unit_type, uint16_t roster_flags) {
 	uint32_t m = 0;
 	auto set = [&](StatUnitClass c) { m |= 1u << c; };
+	// units/plane's parent is template_unit ("Unit Organic ConquestCritical"): Units Total only.
+	if (roster_flags & ROSTER_FLYING) return m;
 	switch (unit_type) {
 	case UNIT_VILLAGER: set(STAT_UNIT_WORKER); break;
 	case UNIT_FEMALE_CITIZEN: set(STAT_UNIT_WORKER); set(STAT_UNIT_CIVILIAN); break; // 0.28: Civilian

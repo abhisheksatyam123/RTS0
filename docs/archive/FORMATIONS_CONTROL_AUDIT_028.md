@@ -2,7 +2,7 @@
 
 Static comparison of `src/simulation/simulation.cpp` formation controllers with 0 A.D. 0.28
 `simulation/components/Formation.js`, `UnitAI.js` (FORMATIONCONTROLLER states) and
-`simulation/helpers/Commands.js` (GetFormationUnitAIs). Tracked as REMAINING_GAPS G61.
+`simulation/helpers/Commands.js` (GetFormationUnitAIs). Tracked as REMAINING_GAPS G63.
 
 ## Fixed
 
@@ -40,6 +40,6 @@ Static comparison of `src/simulation/simulation.cpp` formation controllers with 
   own for 3 s. RTS0's controller is a point walking its long-range path without obstruction, so
   it can't be stuck that way; nothing to port.
 - **"combat" walk variant.** 0.28 sets the members' `combat` animation variant on an
-  attack-walk and approach (presentation; low). Open in G61.
+  attack-walk and approach (presentation; low). Open in G63.
 - Heal and garrison on part of a formation still act member by member (internal orders call
-  the same functions); open in G61 as a nit.
+  the same functions); open in G63 as a nit.

@@ -193,12 +193,10 @@ func run() -> void:
 	check(bl != null and bl.text.begins_with("Release XXVIII: Boiorix\nBuild: "), "the top panel's build label: " + (bl.text.replace("\n", " | ") if bl else ""))
 	check(bl != null and bl.visible and bl.anchor_left == 0.5 and bl.offset_left == 44.0 and bl.offset_right == -283.0,
 		"at BuildLabel.SizePlayer while a player is viewed with no view dropdown")
-	# CounterResource.rebuild: the name, then the resource's description.
-	var food_tip := ""
-	for c in main.find_children("*", "Control", true, false):
-		if str(c.tooltip_text).begins_with("Food\n"):
-			food_tip = c.tooltip_text
-	check(food_tip.begins_with("Food\nHarvest from animals, berry bushes, fish, or fields."), "the food counter's tooltip: " + food_tip.replace("\n", " | "))
+	# CounterResource.rebuild: the name in ResourceTitleTags (sans-bold-16), then the resource's description.
+	var food: Control = main.find_child("Resource0", true, false)
+	var food_tip: String = food.tooltip_text if food else ""
+	check(food_tip.begins_with("[font_size=16][b]Food[/b][/font_size]\nHarvest from animals, berry bushes, fish, or fields."), "the food counter's tooltip: " + food_tip.replace("\n", " | "))
 	# OverlayCounterElapsedTime: the simulation's clock, whole 50 ms ticks.
 	var el: float = main.get_overlay_times()["elapsed"]
 	check(el > 0.0 and absf(el * 20.0 - roundf(el * 20.0)) < 0.001, "the match clock counts simulation ticks: %.3f" % el)

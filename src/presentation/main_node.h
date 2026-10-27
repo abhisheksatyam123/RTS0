@@ -1037,6 +1037,8 @@ private:
 	void notify_attack(Vector3 pos, uint8_t attacker, bool structure, uint32_t target = 0);
 	void _on_chat_line_input(const Ref<InputEvent> &event, const String &action);
 	Array debug_chat_overlay() const { return chat_window_.overlay_state(); }
+	// ChatHistory's lines as the history page draws them (BBCode).
+	String debug_chat_history() const { return chat_window_.history(); }
 	// Tests: the camera's target on the ground and the unit it follows.
 	Dictionary debug_camera() const {
 		Dictionary d;
