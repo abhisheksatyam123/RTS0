@@ -5,8 +5,8 @@
 // Checks
 //   1. OnInterval triggers fire on time and stop when disabled (Timer.js).
 //   2. Flood, Rising: warning before each rise, half a 0 A.D. metre per 2.4 s
-//      step from 260 s, a 2.5 m rise in all by 1580 s; Shallow never rises;
-//      Deep starts a metre up.
+//      step from 260 s, a 2.5 m rise in all by 1580 s; the 2 m home islands stay
+//      dry over the first metre; Shallow never rises; Deep starts a metre up.
 //   3. Extinct Volcano: Gaia towers start garrisoned, the warning comes a minute
 //      before the Game Setup rise time, then the water climbs a metre at a time.
 //   4. Rising water drowns units, siege, animals, structures, treasures and resources, but not
@@ -79,6 +79,25 @@ static void run_to(Simulation &s, float seconds) {
 
 static bool near(float a, float b) { return std::fabs(a - b) < 1e-3f; }
 
+// Of the nav cells within `r` of player 0's civic centre, those land units walk on dry (not
+// water or wadeable shallows), as a share of the cells that aren't under a structure.
+static float dry_share_round_cc(Simulation &s, float r) {
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s.buildings())
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	int dry = 0, all = 0;
+	for (float z = cz - r; z <= cz + r; z += 0.5f)
+		for (float x = cx - r; x <= cx + r; x += 0.5f) {
+			if ((x - cx) * (x - cx) + (z - cz) * (z - cz) > r * r) continue;
+			auto [nx, ny] = s.nav_grid_.world_to_cell(x, z);
+			const uint8_t c = s.nav_grid_.cells.at(nx, ny);
+			if (c == NAV_OBSTRUCTED) continue;
+			++all;
+			dry += c == NAV_PASSABLE;
+		}
+	return all ? (float)dry / (float)all : 0.0f;
+}
+
 static void check_interval() {
 	static Simulation s;
 	s.reset();
@@ -113,9 +132,14 @@ static void check_flood() {
 	CHECK(near(s.water_height(), h0 + 0.5f * M), "first flood step: %.3f, expected %.3f", s.water_height(), h0 + 0.5f * M);
 	run_to(s, 262.5f);
 	CHECK(near(s.water_height(), h0 + 1.0f * M), "first flood rise: %.3f, expected %.3f", s.water_height(), h0 + 1.0f * M);
+	// flood.js's home islands stand 2 m high: the first metre leaves them dry (the map's 0 m is
+	// the nav water line), so Petra keeps room to build until the second rise.
+	const float dry = dry_share_round_cc(s, 8.0f);
+	CHECK(dry > 0.8f, "home island %.0f%% dry after the first metre", 100.0f * dry);
 	run_to(s, 1500.0f);
 	CHECK(near(s.water_height(), h0 + 1.0f * M), "flood water moved between rises (%.3f)", s.water_height());
 	run_to(s, 1580.0f);
+	CHECK(dry_share_round_cc(s, 8.0f) < 0.2f, "home island %.0f%% dry after the second rise", 100.0f * dry_share_round_cc(s, 8.0f));
 	CHECK(near(s.water_height(), h0 + 5.0f * M), "second flood rise: %.3f, expected %.3f", s.water_height(), h0 + 5.0f * M);
 	CHECK(s.trigger_state().timers.empty(), "flood left %zu timers after the last rise", s.trigger_state().timers.size());
 
@@ -126,7 +150,7 @@ static void check_flood() {
 	run_to(deep, 1.0f);
 	CHECK(near(shallow.water_height(), h0), "shallow flood rose to %.3f", shallow.water_height());
 	CHECK(near(deep.water_height(), h0 + 1.0f * M), "deep flood at %.3f, expected %.3f", deep.water_height(), h0 + 1.0f * M);
-	if (failures == before) std::printf("Flood: warning, 2.4 s steps from 260 s, +2.5 m by 1580 s; shallow and deep: ok\n");
+	if (failures == before) std::printf("Flood: warning, 2.4 s steps from 260 s, home islands dry until +5 m by 1580 s; shallow and deep: ok\n");
 }
 
 static void check_volcano() {
@@ -135,6 +159,15 @@ static void check_volcano() {
 	build(s, MAP_EXTINCT_VOLCANO, Simulation::WATER_LEVEL_RISING, 2);
 	const float h0 = s.water_height();
 	run_to(s, 1.0f);
+	// extinct_volcano.js's land stands 1 m above the water: dry ground, not wadeable shallows.
+	int shallow = 0, cells = 0;
+	for (int y = 0; y < s.nav_grid_.cells.h; ++y)
+		for (int x = 0; x < s.nav_grid_.cells.w; ++x) {
+			const uint8_t c = s.nav_grid_.cells.at(x, y);
+			cells += c != NAV_WATER;
+			shallow += c == NAV_SHALLOW;
+		}
+	CHECK(shallow * 10 < cells, "%d of %d land cells are shallows at the start", shallow, cells);
 	int towers = 0, full = 0;
 	for (const auto &b : s.buildings()) {
 		if (b.team != GAIA_PLAYER || b.wrecked) continue;

@@ -3158,7 +3158,9 @@ void place_fortress_walls(Simulation &sim, const std::vector<RmsGenerator::Playe
 // rising water is a map trigger (triggers.h; the ported flood_triggers.js and
 // extinct_volcano_triggers.js are in simulation.cpp). Heights are 0 A.D.'s
 // metres above the water (kTriggerMapHeight, the same factor the triggers
-// use for the water's rise), so the hills drown in 0 A.D.'s order.
+// use for the water's rise), so the hills drown in 0 A.D.'s order. Their 0 m
+// is the nav water line (water_h + NAV_WATER_MARGIN, where land turns to
+// water), so ground at 0 A.D.'s 1 m stays dry until 0 A.D.'s water reaches it.
 // =========================================================================
 
 namespace {
@@ -3171,7 +3173,7 @@ void RmsGenerator::synth_flood(HeightmapGrid &hm, RmsRng &rng, float &water_h, s
 	// of every home island, with hills (set to 6-20) and mountains (+15-29)
 	// on it. The water starts at 0 and rises (flood_triggers.js).
 	const float k = kTriggerMapHeight;
-	water_h = 0.0f;
+	water_h = -NAV_WATER_MARGIN;
 	hm.init(hm.res, hm.map_half, -2.0f * k);
 	const float half = hm.map_half;
 	const float island_r = 1.4f * (float)scale_by_map_size(15, 25, half); // diskArea(1.4 * defaultPlayerBaseRadius())
@@ -3236,7 +3238,7 @@ void RmsGenerator::synth_extinct_volcano(HeightmapGrid &hm, RmsRng &rng, float &
 	// 62 high rings round a crater at 42), lakes at -4 and hills at 18. The
 	// water starts at 0 and rises from minute 25 (extinct_volcano_triggers.js).
 	const float k = kTriggerMapHeight;
-	water_h = 0.0f;
+	water_h = -NAV_WATER_MARGIN;
 	hm.init(hm.res, hm.map_half, 1.0f * k);
 	const float half = hm.map_half;
 	const float player_r = (float)scale_by_map_size(15, 25, half); // defaultPlayerBaseRadius()
