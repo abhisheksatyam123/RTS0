@@ -322,10 +322,15 @@ void RtsoMain::_ready() {
 	net_delay_label_->set_visible(false);
 	ui_layer->add_child(net_delay_label_);
 
-	placement_tip_ = memnew(Label);
+	placement_tip_ = memnew(RichTextLabel);
 	placement_tip_->set_name("placementTooltip");
-	placement_tip_->add_theme_font_size_override("font_size", 13);
-	placement_tip_->add_theme_color_override("font_color", Color(1.0f, 1.0f, 1.0f));
+	placement_tip_->set_use_bbcode(true);
+	placement_tip_->set_fit_content(true);
+	placement_tip_->set_autowrap_mode(TextServer::AUTOWRAP_OFF);
+	placement_tip_->set_scroll_active(false);
+	placement_tip_->add_theme_font_size_override("normal_font_size", 13);
+	placement_tip_->add_theme_font_size_override("bold_font_size", 13);
+	placement_tip_->add_theme_color_override("default_color", Color(1.0f, 1.0f, 1.0f));
 	placement_tip_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 	placement_tip_->set_visible(false);
 	ui_layer->add_child(placement_tip_);
@@ -1471,9 +1476,10 @@ void RtsoMain::_process(double delta) {
 				cost.metal = (int64_t)std::lround(wall_cost[rtso::RES_GOLD]);
 				cost.time = (int64_t)std::lround(wall_time);
 				const auto &ps = sim->player(local_player());
-				String tip = rtso::cost_tooltip(cost);
+				// getEntityCostTooltip: "Cost:" in headerFont and resource icons; getNeededResourcesTooltip.
+				String tip = rtso::cost_tooltip(cost, true);
 				const String need = rtso::needed_resources_tooltip(cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
-						ps.res[rtso::RES_STONE], ps.res[rtso::RES_GOLD]);
+						ps.res[rtso::RES_STONE], ps.res[rtso::RES_GOLD], true);
 				if (!need.is_empty()) tip += (tip.is_empty() ? String() : String("\n")) + need;
 				set_placement_tip(tip, !chain_ok);
 			} else {
