@@ -4092,7 +4092,13 @@ private:
 	void petra_manage_transport(float dt);
 	void apply_petra_config();
 	// config.js setConfig personality draw: per-player seed from the match seed, + teamsLocked.
-	uint32_t petra_personality_seed(uint8_t pid) const { return ((ai_seed_ ? ai_seed_ : sim_seed_) ^ ((uint32_t)(pid + 1) * 2654435761u)) | 1u; }
+	// 0.28 draws every AI's personality from one RNG seeded by the game's AISeed; here each
+	// player gets its own seed from it, never 0 (0 means no draw). Every bit of the match seed
+	// counts: seeds 2k and 2k+1 used to give the same personalities (the seed was ORed with 1).
+	uint32_t petra_personality_seed(uint8_t pid) const {
+		const uint32_t s = (ai_seed_ ? ai_seed_ : sim_seed_) ^ ((uint32_t)(pid + 1) * 2654435761u);
+		return s ? s : 1u;
+	}
 	void reroll_petra_personalities();
 	void petra_refresh_queue_accounts(float dt);
 	int petra_queue_base_priority(uint8_t q) const; // config.js priorities after setConfig (attackPlan.js for plan queues)
