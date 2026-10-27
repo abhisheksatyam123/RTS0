@@ -734,7 +734,8 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 				std::cout << "[NetHost] Accepted connection from " << from_ip << ":" << from_port << " assigned peer_id " << peer->id << "\n";
 
 				// Send connect ACK back
-				send_wire_packet(from_ip, from_port, peer->id, NET_FLAG_CONNECT_ACK, 0, nullptr, 0, false);
+				if (!sim_drop_connect_acks_)
+					send_wire_packet(from_ip, from_port, peer->id, NET_FLAG_CONNECT_ACK, 0, nullptr, 0, false);
 
 				// Send server handshake
 				ServerHandshakeMsg shm;
@@ -748,7 +749,8 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 			peer->last_seen_ms = now_ms;
 			sender_peer_id = peer->id;
 			if (hdr.flags & NET_FLAG_CONNECT_REQ) {
-				send_wire_packet(from_ip, from_port, peer->id, NET_FLAG_CONNECT_ACK, 0, nullptr, 0, false);
+				if (!sim_drop_connect_acks_)
+					send_wire_packet(from_ip, from_port, peer->id, NET_FLAG_CONNECT_ACK, 0, nullptr, 0, false);
 			}
 		}
 		// A datagram from an address that never connected (or a full or banned
@@ -1059,6 +1061,14 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 				auth_result_ < 0) {
 			auth_result_ = (int)res.code;
 			std::cout << "[NetHost] Host answered: " << res.message << "\n";
+			// 0 A.D. NetClient::OnAuthenticate takes its id from the result
+			// (m_HostID): the connect ACK is not resent, and on a lossy link
+			// every copy of it can be lost.
+			if (res.code == ARC_OK && res.host_id && local_peer_id_ != res.host_id) {
+				local_peer_id_ = res.host_id;
+				if (!peers_.empty()) peers_[0].connected = true;
+				std::cout << "[NetHost] Connected to host, assigned local peer_id " << local_peer_id_ << "\n";
+			}
 			if (res.code == ARC_OK && peer_connected_cb_) peer_connected_cb_(0);
 		}
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_KICKED)) {
