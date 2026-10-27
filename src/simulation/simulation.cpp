@@ -15278,23 +15278,7 @@ void Simulation::tick_gather(float dt) {
 					// 1 / rate after it, whatever a kill or a fight left on the shared timer.
 					units_.attack_timer[i] = 0.0f;
 					units_.hunt_fauna[i] = resources_.fauna[ridx]; // order.data.template
-					float rate = class_rate * ai_gather_mult(uteam);
-					if (!ruins) {
-						rate *= unit_tech_mods(uteam, units_.unit_type[i], units_.tmpl[i]).gather[kind] *
-							civ_gather_bonus(i, kind);
-					}
-					// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
-					// pyramid, catafalques, Han ministers): each one in reach, multiplied.
-					if (const float g = !aura_mgr_.has(AURA_GATHER) ? 0.0f : aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
-							units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]); g > 0.0f && g < 1.0f)
-						rate /= 1.0f - g;
-					// Auras on ResourceGatherer/Rates/<type> (Iron Pelanors: metal ore), each once.
-					if (aura_mgr_.has(AURA_GATHER_RATE))
-						aura_mgr_.for_each_reaching(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER_RATE, units_.tmpl[i],
-							&unit_combat_at(i).classes, false,
-							[&](const AuraSource &s) { rate *= gather_rate_range_auras()[(uint16_t)s.value].multiply[kind]; }, units_.id[i]);
-					// unit_advanced.json / unit_elite.json: ResourceGatherer/BaseSpeed x0.7 per rank.
-					for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) rate *= rank_bonus(r).gather_mul;
+					float rate = unit_gather_rate(i, kind, class_rate, ruins);
 					if (field_efficiency > 0.0f) rate *= field_efficiency;
 					units_.gather_res[i] = rid;
 					units_.gather_rate[i] = rate;
@@ -15533,9 +15517,16 @@ void Simulation::tick_construction(float dt) {
 		// Finished buildings are repaired in tick_repair(); a co-builder whose
 		// foundation was completed by someone else has nothing left to do.
 		if (b.build_progress >= 1.0f) {
+			// REPAIRING enter on a structure at full health: ConstructionFinished, so the
+			// builder farms it, gathers by it or moves on to the next foundation; one still on
+			// its way walks on to it first (REPAIR.APPROACHING).
 			if (b.hp >= b.max_hp) {
-				units_.action_state[i] = ACTION_IDLE;
-				units_.target_building_id[i] = 0;
+				if (outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i)))
+					construction_finished_for(i, b);
+				else if (units_.has_order[i] == 0) {
+					units_.action_state[i] = ACTION_IDLE;
+					units_.target_building_id[i] = 0;
+				}
 			}
 			continue;
 		}
@@ -15740,9 +15731,11 @@ bool Simulation::try_commit_foundation(Building &b) {
 		if (!flight_.empty() && unit_flies(i)) continue; // a plane has no obstruction
 		blocked = true;
 		// WillMoveFromFoundation: anyone makes way (a structure has no UnitAI, so enemies too),
-		// except units that pack or can't move; a fighting unit ignores the order (COMBAT).
+		// except units packing, unpacked (Pack.CanPack) or unable to move; a packed siege engine
+		// walks off. A fighting unit ignores the order (COMBAT).
 		const uint8_t st = units_.action_state[i];
-		if (units_.pack_state[i] != PACK_NONE || units_.speed[i] <= 0.0f || st == ACTION_GARRISONED ||
+		if ((units_.pack_state[i] != PACK_NONE && units_.pack_state[i] != PACK_PACKED) || units_.speed[i] <= 0.0f ||
+				st == ACTION_GARRISONED ||
 				(st == ACTION_ATTACK && (units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0)))
 			continue;
 		leave_foundation(i, b);
@@ -16748,6 +16741,11 @@ void Simulation::tick_combat(float dt) {
 			// "capture"), so AttackDetection pings, alerts and plays attacked_capture.
 			note_attacked(units_.id[i], units_.team[i], b.id, b.team, true, 0.0f, false, true);
 			if (b.team == 0 && units_.team[i] != 0) raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
+			// Attack.js Attack: a capture is a repeat like any other, so an unordered capturer of
+			// a structure it has no preference for looks for a better target after each one.
+			if (!(units_.order_kind[i] == ORDER_ATTACK_BUILDING && units_.order_target[i] == b.id) &&
+					preference_of(unit_preferences(units_.tmpl[i], units_.unit_type[i]).prefs, building_pref_classes(b.type)) == PREF_NONE)
+				look_again.push_back((uint32_t)i);
 			continue;
 		}
 		if (!pack_state_can_attack(units_.pack_state[i])) continue; // Pack.js: unpack before firing
@@ -17486,6 +17484,31 @@ void Simulation::apply_rank_bonus(size_t i, uint8_t from_rank, uint8_t to_rank) 
 }
 
 // helpers/Transform.js ChangeEntityTemplate: the promoted unit keeps its health fraction.
+// ResourceGatherer GetTargetGatherRate: the class rate times every BaseSpeed and Rates
+// modifier on unit i now: the AI multiplier, technologies and civ bonuses (not on ruins),
+// gather auras in reach, and its rank.
+float Simulation::unit_gather_rate(size_t i, uint8_t kind, float class_rate, bool ruins) const {
+	const uint8_t uteam = units_.team[i];
+	float rate = class_rate * ai_gather_mult(uteam);
+	if (!ruins) {
+		rate *= unit_tech_mods(uteam, units_.unit_type[i], units_.tmpl[i]).gather[kind] *
+			civ_gather_bonus(i, kind);
+	}
+	// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
+	// pyramid, catafalques, Han ministers): each one in reach, multiplied.
+	if (const float g = !aura_mgr_.has(AURA_GATHER) ? 0.0f : aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
+			units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]); g > 0.0f && g < 1.0f)
+		rate /= 1.0f - g;
+	// Auras on ResourceGatherer/Rates/<type> (Iron Pelanors: metal ore), each once.
+	if (aura_mgr_.has(AURA_GATHER_RATE))
+		aura_mgr_.for_each_reaching(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER_RATE, units_.tmpl[i],
+			&unit_combat_at(i).classes, false,
+			[&](const AuraSource &s) { rate *= gather_rate_range_auras()[(uint16_t)s.value].multiply[kind]; }, units_.id[i]);
+	// unit_advanced.json / unit_elite.json: ResourceGatherer/BaseSpeed x0.7 per rank.
+	for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) rate *= rank_bonus(r).gather_mul;
+	return rate;
+}
+
 void Simulation::promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_rank) {
 	const float frac = units_.max_hp[i] > 0.0f ? units_.hp[i] / units_.max_hp[i] : 1.0f;
 	if (target_tmpl < CIV_UNIT_TEMPLATE_COUNT && target_tmpl != units_.tmpl[i]) {
@@ -17506,10 +17529,25 @@ void Simulation::promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_ran
 				units_.attack_cooldown[i], train_time);
 		}
 		// ResourceGatherer/Capacities of the new gatherer class, as at spawn (tech carry is read in carry_cap).
-		const int32_t cap = gather_class_capacity(unit_gather_class(type, target_tmpl));
+		const uint8_t gcls = unit_gather_class(type, target_tmpl);
+		const int32_t cap = gather_class_capacity(gcls);
 		units_.carry_capacity[i] = cap ? cap : info.carry_capacity;
 		apply_tech_mods_to_unit(i);
 		apply_rank_bonus(i, 1, target_rank);
+		if (gcls == GATHER_NONE) {
+			// Transform.js copies a load only to a ResourceGatherer, and the re-run Gather or
+			// ReturnResource order finishes at once (UnitAI Order.Gather): an upgrade to a
+			// non-gatherer (the Roman Centurion) drops the load and stops working.
+			units_.carry[i] = 0;
+			units_.gather_res[i] = 0;
+			units_.gather_rate[i] = 0.0f;
+			if (units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
+				units_.action_state[i] = ACTION_IDLE;
+				units_.order_kind[i] = ORDER_NONE; // no FINDINGNEWTARGET search for a non-gatherer
+				units_.target_resource_id[i] = 0;
+				finish_order(i); // the queued orders, else idle
+			}
+		}
 	} else {
 		apply_rank_bonus(i, units_.rank[i], target_rank);
 	}
@@ -19250,9 +19288,8 @@ Simulation::UnitDetails Simulation::unit_details(size_t i) const {
 	d.acceleration = unit_motion(tmpl, ut).acceleration / kSpeedScale;
 	const uint8_t gcls = unit_gather_class(ut, tmpl);
 	if (gcls != GATHER_NONE && units_.team[i] < MAX_PLAYERS && ut < UNIT_TYPE_COUNT) {
-		const UnitTechMods m = unit_tech_mods(units_.team[i], ut, tmpl);
-		for (uint8_t k = 0; k < 7; ++k)
-			d.gather[k] = gather_class_rate(gcls, k) * m.gather[k] * civ_gather_bonus(i, k) * ai_gather_mult(units_.team[i]);
+		// GuiInterface GetEntityState resourceGatherRates: the cached rates, every modifier in.
+		for (uint8_t k = 0; k < 7; ++k) d.gather[k] = unit_gather_rate(i, k, gather_class_rate(gcls, k), false);
 	}
 	if (units_.res_type_carried[i] < RES_COUNT) d.carry_max = carry_cap(i, units_.res_type_carried[i]);
 	if (unit_is_healer(tmpl, ut)) {
@@ -20264,10 +20301,17 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 	// an automatic fight (ORDER_FLAG_INTERRUPTED) is not forced.
 	const bool forced = (units_.order_flags[i] & (ORDER_FLAG_FORCE | ORDER_FLAG_INTERRUPTED)) == ORDER_FLAG_FORCE;
 	if (st == ACTION_ATTACK && (units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0)) {
-		// COMBAT "Attacked": a fighting unit ignores other attackers, except a melee one
-		// (it may block the way to the target); a capturing one answers any attacker.
+		// COMBAT "Attacked" (APPROACHING, CHASING): a unit on its way ignores other attackers,
+		// except a melee one (it may block the way to the target). ATTACKING overrides it: a unit
+		// at its target answers only while capturing, and only an attacker it can't capture.
 		if (units_.target_unit_id[i] == attacker_id) return;
-		if (!melee && !unit_capturing(i)) return;
+		const bool capturing = unit_capturing(i);
+		bool at_target = attack_under_way(i);
+		if (capturing && !at_target) { // a capture's timer runs from each capture, not a swing
+			const Building &cb = buildings_[building_id_to_idx_.at(units_.target_building_id[i])];
+			at_target = structure_gap(cb, units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i)) <= CAPTURE_RANGE;
+		}
+		if (at_target ? !capturing : !melee) return;
 		if (forced && stance != STANCE_VIOLENT) return;
 	} else if (forced && stance != STANCE_VIOLENT && st != ACTION_IDLE && st != ACTION_FLEE) {
 		return;
@@ -20339,7 +20383,7 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 }
 
 uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype,
-		const std::unordered_map<uint32_t, FieldGatherers> *busy, uint32_t skip, uint8_t fauna) const {
+		const std::unordered_map<uint32_t, FieldGatherers> *busy, uint32_t skip, uint8_t fauna, size_t gatherer) const {
 	uint32_t best = 0;
 	float best_d2 = NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE;
 	for (size_t r = 0; r < resources_.count; ++r) {
@@ -20350,6 +20394,15 @@ uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, ui
 		if (busy) {
 			auto g = busy->find(resources_.id[r]);
 			if (g != busy->end() && g->second.total >= resources_.max_gatherers[r]) continue;
+		}
+		if (gatherer != SIZE_MAX) {
+			if (!can_gather(gatherer, r)) continue;
+			const auto *full = resources_.subtype[r] == RES_SUB_GRAIN ? &field_gatherers_
+					: resources_.subtype[r] == RES_SUB_FISH ? nullptr : &supply_gatherers_;
+			if (full) {
+				auto g = full->find(resources_.id[r]);
+				if (g != full->end() && g->second.total >= resources_.max_gatherers[r]) continue;
+			}
 		}
 		// Any player's field too: FindNearbyResource takes "resources owned by Gaia or any player".
 		const float dx = resources_.x[r] - x, dz = resources_.z[r] - z;
@@ -20558,25 +20611,25 @@ void Simulation::on_construction_finished(const Building &b, size_t builder) {
 		if (units_.alive[k] && (units_.team[k] == b.team || is_ally(b.team, units_.team[k])) &&
 				(k == builder || (units_.action_state[k] == ACTION_BUILD && units_.target_building_id[k] == b.id)))
 			builders.push_back(units_.id[k]);
-	const bool food = b.type == BLD_FARMSTEAD;
-	const bool other = b.type == BLD_STOREHOUSE;
-	for (uint32_t uid : builders) {
-		const int32_t k = lookup_unit(uid);
-		if (k < 0) continue;
-		units_.action_state[k] = ACTION_IDLE;
-		units_.target_building_id[k] = 0;
-		next_after_construction((size_t)k, b, food, other);
-		// CanReturnResource on the new structure: always take the load there first
-		// (PushOrderFront ReturnResource, ahead of whatever comes next).
-		if (units_.carry[k] > 0 && dropsite_accepts((size_t)k, b)) {
-			if (units_.order_kind[k] != ORDER_NONE) {
-				auto &q = order_queues_[uid];
-				q.insert(q.begin(), current_order((size_t)k));
-			}
-			applying_queued_ = true; // keep the queue
-			order_return_resource(&uid, 1, b.id, false, false);
-			applying_queued_ = false;
+	for (uint32_t uid : builders)
+		if (const int32_t k = lookup_unit(uid); k >= 0) construction_finished_for((size_t)k, b);
+}
+
+void Simulation::construction_finished_for(size_t k, const Building &b) {
+	const uint32_t uid = units_.id[k];
+	units_.action_state[k] = ACTION_IDLE;
+	units_.target_building_id[k] = 0;
+	next_after_construction(k, b, b.type == BLD_FARMSTEAD, b.type == BLD_STOREHOUSE);
+	// CanReturnResource on the new structure: always take the load there first
+	// (PushOrderFront ReturnResource, ahead of whatever comes next).
+	if (units_.carry[k] > 0 && dropsite_accepts(k, b)) {
+		if (units_.order_kind[k] != ORDER_NONE) {
+			auto &q = order_queues_[uid];
+			q.insert(q.begin(), current_order(k));
 		}
+		applying_queued_ = true; // keep the queue
+		order_return_resource(&uid, 1, b.id, false, false);
+		applying_queued_ = false;
 	}
 }
 
@@ -20598,6 +20651,14 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 		// An ally's builders (Foundation.GetBuilders holds them too) can't farm or drop at
 		// someone else's structure here; they only look for a foundation of their own.
 		const bool own = units_.team[k] == b.team;
+		// The tail of ConstructionFinished: a builder still on its way (REPAIR.APPROACHING) walks
+		// on to the structure (WalkToTarget); one already at it stays.
+		auto finish_here = [&] {
+			set_order(k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
+			units_.has_order[k] = 0;
+			if (structure_gap(b, units_.pos_x[k], units_.pos_z[k], unit_clearance_at(k)) > kBuildRange + unit_clearance_at(k) + kStandMargin)
+				walk_to_target(k, b.id);
+		};
 		const bool harvest = own && units_.order_kind[k] == ORDER_BUILD &&
 				(units_.order_flags[k] & (ORDER_FLAG_FORCE | ORDER_FLAG_AUTOHARVEST)) != 0;
 		auto q = order_queues_.find(uid);
@@ -20608,8 +20669,7 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 		if (petra_runs_for(units_.team[k])) {
 			const uint32_t f = b.type == BLD_HOUSE || is_map_house(b.type) ? find_nearby_foundation(b.x, b.z, units_.team[k]) : 0;
 			if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); return; }
-			set_order(k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
-			units_.has_order[k] = 0;
+			finish_here();
 			return;
 		}
 		if (harvest && b.type == BLD_FIELD) {
@@ -20621,23 +20681,33 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 		if (harvest && (food || other || takes_all)) {
 			// FindNearbyResource round the new dropsite: the nearest supply of any type it takes
 			// that the builder can gather, whatever it gathered last.
+			// It skips what the builder can't gather or is full (CanGather, IsAvailableTo), and
+			// takes live animals too: they have a ResourceSupply.
 			uint32_t r = 0;
 			float best = INFINITY;
 			for (uint8_t t : {(uint8_t)RES_FOOD, (uint8_t)RES_WOOD, (uint8_t)RES_STONE, (uint8_t)RES_GOLD}) {
 				if (!takes_all && (food ? t != RES_FOOD : t == RES_FOOD)) continue;
-				const uint32_t c = find_nearby_resource(b.x, b.z, t, b.team);
+				const uint32_t c = find_nearby_resource(b.x, b.z, t, b.team, -1, nullptr, 0, 0, k);
 				auto ci = res_id_to_idx_.find(c);
-				if (c == 0 || ci == res_id_to_idx_.end() || !can_gather(k, ci->second)) continue;
+				if (c == 0 || ci == res_id_to_idx_.end()) continue;
 				const float dx = resources_.x[ci->second] - b.x, dz = resources_.z[ci->second] - b.z;
 				if (dx * dx + dz * dz < best) { best = dx * dx + dz * dz; r = c; }
+			}
+			const bool hunts = gather_class_rate(unit_gather_class(units_.unit_type[k], units_.tmpl[k]), GK_MEAT) > 0.0f;
+			if ((takes_all || food) && hunts) {
+				const uint32_t prey = find_nearby_prey(k, b.x, b.z, best);
+				if (prey != 0) {
+					order_hunt(&uid, 1, prey, false);
+					units_.order_flags[k] &= (uint8_t)~ORDER_FLAG_FORCE; // PerformGather(nearby, false, false)
+					return;
+				}
 			}
 			if (r != 0) { order_gather(&uid, 1, r, false, false); return; }
 		}
 		// FindNearbyFoundation: the builder's own player's foundations.
 		const uint32_t f = find_nearby_foundation(b.x, b.z, units_.team[k]);
 		if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); return; }
-		set_order(k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
-		units_.has_order[k] = 0; // FinishOrder: it stays where it built from, in range
+		finish_here(); // FinishOrder: it stays where it built from, in range
 	}
 }
 
@@ -21714,11 +21784,25 @@ void Simulation::start_repair_unit(size_t i, uint32_t target, uint8_t flags) {
 void Simulation::tick_repair_unit(size_t i) {
 	const int32_t t = lookup_unit(units_.target_unit_id[i]);
 	if (!can_repair_unit(i, t)) {
+		// Repairable.js sends ConstructionFinished once the unit is whole: with nothing queued,
+		// autocontinue takes a foundation nearby, and a repairer still on its way walks on.
+		const bool whole = t >= 0 && (size_t)t != i && units_.alive[t] && units_.hp[t] > 0.0f &&
+		                   units_.hp[t] >= units_.max_hp[t];
+		const bool approaching = whole && !repair_unit_in_range(i, (size_t)t);
+		const float tx = whole ? units_.pos_x[t] : 0.0f, tz = whole ? units_.pos_z[t] : 0.0f;
 		units_.target_unit_id[i] = 0;
 		units_.action_state[i] = ACTION_IDLE;
 		units_.has_order[i] = 0;
 		auto q = order_queues_.find(units_.id[i]);
 		if (q != order_queues_.end() && !q->second.empty()) { finish_order(i); return; }
+		uint32_t uid = units_.id[i];
+		if (whole && !petra_runs_for(units_.team[i])) { // worker.js repairs with autocontinue false
+			if (const uint32_t f = find_nearby_foundation(tx, tz, units_.team[i])) {
+				order_build_or_repair(&uid, 1, f, false, false);
+				return;
+			}
+			if (approaching) { order_walk(&uid, 1, tx, tz, false); return; }
+		}
 		set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
 		return;
 	}
