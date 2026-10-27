@@ -624,7 +624,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Unlock Champion Infantry", "Unlock Champions Infantry at the Barracks.", 600, 0, 0, 0, 60.0f, 3, BLD_BARRACKS, TECH_NONE, 0x0fec, 126, 0, "unlock_champion_infantry"},
 		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0xbbff, 126, 0, "unlock_civilians_house_generic"},
 		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0x0400, 126, 0, "unlock_civilians_house_kush"},
-		{"Naval Oxybeles", "Arrow Ships +10 crush attack damage and +10% attack range.", 0, 200, 200, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0xbfff, 126, 2, "warship_arrow_attack"},
+		{"Naval Oxybeles", "Arrow Ships +10 crush attack damage and +10% attack range.", 0, 200, 200, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x87e7, 126, 2, "warship_arrow_attack"},
 		{"Burning Pitch", "Fire Ships +25% health and +25% attack damage.", 0, 300, 100, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x81c0, 195, 2, "warship_fireship_attack"},
 		{"Undergirding Cables", "Arrow Ships and Ramming Ships +20% health.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x003b, 128, 2, "warship_health"},
 		{"Bronze Ram", "Ramming Ships +30% attack damage.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x183f, 130, 1, "warship_ramming_attack"},

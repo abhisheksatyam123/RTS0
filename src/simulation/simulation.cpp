@@ -7499,6 +7499,9 @@ void Simulation::order_pack(const uint32_t *unit_ids, size_t count, bool pack, b
 		cmd_stop(&unit_ids[i], 1);
 		units_.pack_state[idx] = cancel ? (pack ? PACK_PACKED : PACK_UNPACKED) : (pack ? PACK_PACKING : PACK_UNPACKING);
 		units_.pack_elapsed[idx] = 0.0f;
+		// PACKING / UNPACKING handle no LosAttackRangeUpdate: an ordered (un)pack runs to the end
+		// whatever comes into range (tick_combat's acquire skips it while this flag stands).
+		if (!cancel) units_.order_flags[idx] |= ORDER_FLAG_FORCE;
 	}
 }
 
@@ -16167,6 +16170,7 @@ void Simulation::tick_pack(float dt) {
 			if (units_.pack_elapsed[i] >= pack_time_s(i)) {
 				ps = (ps == PACK_PACKING) ? PACK_PACKED : PACK_UNPACKED;
 				units_.pack_elapsed[i] = 0.0f;
+				if (units_.order_kind[i] == ORDER_NONE) units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE; // PackFinished
 			}
 		}
 		units_.pack_state[i] = ps;
@@ -16234,6 +16238,10 @@ void Simulation::tick_combat(float dt) {
 		target_idx[i] = -1;
 		if (!units_.alive[i]) return;
 		if (units_.attack_damage[i] <= 0.0f) return;
+		// Order.Pack / Order.Unpack: PACKING and UNPACKING ignore what comes into range.
+		if ((units_.pack_state[i] == PACK_PACKING || units_.pack_state[i] == PACK_UNPACKING) &&
+				units_.order_kind[i] == ORDER_NONE && (units_.order_flags[i] & ORDER_FLAG_FORCE))
+			return;
 
 		// 0 A.D. UnitAI target choice, by stance (g_Stances) and order:
 		//  - passive units never pick targets (an explicit attack order still stands);
@@ -21361,6 +21369,14 @@ void Simulation::order_call_to_arms(const uint32_t *unit_ids, size_t count, floa
 		if (!(unit_tech_classes(units_.unit_type[i]) & (TC_SOLDIER | TC_WARSHIP | TC_SIEGE | TC_HEALER))) continue;
 		uint32_t uid = unit_ids[k];
 		bool q = queued;
+		// Pushed to the front: the drop-off first, the attack-walk right after it, then what the
+		// unit was doing (Commands.js pushes the walk, then the drop-off, to the front).
+		if (push_front_order_ && !queued && !applying_queued_) {
+			order_attack_move(&uid, 1, x, z, false, units_only, allow_capture);
+			if (units_.carry[i] > 0)
+				if (const uint32_t best = nearest_dropsite((size_t)i); best != 0) order_return_resource(&uid, 1, best, false);
+			continue;
+		}
 		// DropAtNearestDropSite: FindNearestDropsite for the carried type, else nothing.
 		if (units_.carry[i] > 0) {
 			const uint32_t best = nearest_dropsite((size_t)i);
@@ -23205,7 +23221,8 @@ float Simulation::petra_template_strength(const UnitTypeInfo &ui, uint16_t tmpl,
 		const float hack = ui.hack_damage * m.atk_mul[0] + m.atk_add[0];
 		const float pierce = ui.pierce_damage * m.atk_mul[1] + m.atk_add[1];
 		const float crush = ui.crush_damage * m.atk_mul[2] + m.atk_add[2];
-		s += (0.075f * hack + 0.085f * pierce + 0.045f * crush) * attack_mult / 4.0f;
+		const float fire = unit_combat(tmpl, type).fire; // Damage/Fire (fire ships), importance 0.001
+		s += (0.075f * hack + 0.085f * pierce + 0.045f * crush + 0.001f * fire) * attack_mult / 4.0f;
 		const bool ranged = (unit_classes(tmpl, type) & TC_RANGED) != 0;
 		const float range = ui.attack_range * m.range_mul + m.range * COMBAT_DISTANCE_SCALE;
 		s += range / (ranged ? COMBAT_DISTANCE_SCALE : 0.6f) * 0.0125f;
@@ -27178,9 +27195,9 @@ void Simulation::petra_manage_buildings(float dt) {
 		int n_barracks = 0, n_ranges = 0, n_stables = 0, n_village = 0;
 		for (const auto &b : buildings_) {
 			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
-			// The Barracks class takes in han/academy and ptol/mercenary_camp (both children of
+			// The Barracks class takes in han/academy and the mercenary camps (children of
 			// template_structure_military_barracks); "Village" is the visible class.
-			n_barracks += b.type == BLD_BARRACKS || b.type == BLD_ACADEMY || (b.type == BLD_MERCENARY_CAMP && b.civ == CIV_PTOLEMIES);
+			n_barracks += b.type == BLD_BARRACKS || b.type == BLD_ACADEMY || b.type == BLD_MERCENARY_CAMP;
 			n_ranges += b.type == BLD_RANGE;
 			n_stables += b.type == BLD_STABLE;
 			if (building_phase_class(b.type, b.civ) == 1) ++n_village;
@@ -33302,15 +33319,17 @@ bool Simulation::petra_passenger(uint32_t uid) const {
 }
 
 // getMaxStrength (entityExtend.js) with config.js DamageTypeImportance: attack and
-// resistance per damage type (Hack, Pierce, Crush, Fire), range and repeat time,
+// resistance per damage type (Hack, Pierce, Crush, Fire; no 0.28 template resists Fire), range and repeat time,
 // all scaled by max health.
 float Simulation::petra_unit_strength(size_t i) const {
 	const UnitTypeInfo &ui = unit_info_at(i);
 	float s = 0.0f;
 	if (units_.attack_damage[i] > 0.0f) {
 		const float scale = ui.attack_damage > 0.0f ? units_.attack_damage[i] / ui.attack_damage : 1.0f;
-		s += (0.075f * ui.hack_damage + 0.085f * ui.pierce_damage + 0.045f * ui.crush_damage) * scale / 4.0f;
-		const bool ranged = (unit_tech_classes(units_.unit_type[i]) & TC_RANGED) != 0;
+		const float fire = unit_combat_at(i).fire; // Damage/Fire (fire ships), importance 0.001
+		s += (0.075f * ui.hack_damage + 0.085f * ui.pierce_damage + 0.045f * ui.crush_damage + 0.001f * fire) * scale / 4.0f;
+		// The template's classes: a fire ship is a Melee attacker though its ship class shoots.
+		const bool ranged = (unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_RANGED) != 0;
 		s += units_.attack_range[i] / (ranged ? 0.28f : 0.6f) * 0.0125f; // back to 0 A.D. metres
 		s += units_.attack_cooldown[i] * 1000.0f / 100000.0f;
 		s -= unit_combat_at(i).prepare * 1000.0f / 100000.0f; // attackTimes prepare
