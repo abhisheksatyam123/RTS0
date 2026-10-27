@@ -237,7 +237,8 @@ inline constexpr uint8_t NET_PARAM_UNITS_ONLY = 0x01; // attack-move: units only
 inline constexpr uint8_t NET_PARAM_NO_CAPTURE = 0x02; // attack-move / attack-building: damage, don't capture (Ctrl)
 inline constexpr uint8_t NET_PARAM_CAPTURE = 0x04;    // call-to-arms: capture (session.capture held)
 inline constexpr uint8_t NET_PARAM_PUSH_FRONT = 0x04; // focus-fire: put the target first (0 A.D. "pushFront")
-// session.pushorderfront on the unit orders above (1, 3, 4, 10, 11, 12, 15, 16, 21) and on
+// session.pushorderfront on the unit orders whose Commands.js handler passes pushFront (1, 3, 4,
+// 10, 12 but not occupy-turret, 15, 16, 17, 18, 21, 32, 34, 38, 51; patrol never) and on
 // NET_CMD_TRAIN_TEMPLATE: the order or batch goes first and the rest resumes after it
 // (UnitAI PushOrderFront, ProductionQueue.AddItem pushFront). NET_CMD_RESEARCH says so
 // with target_x 1.
@@ -246,10 +247,12 @@ inline constexpr uint8_t NET_PARAM_PUSH_FRONT_ORDER = 0x40;
 // (low 16 bits) of target_id (0 A.D. "construct" queued / pushFront).
 inline constexpr uint32_t NET_BUILD_QUEUED = 1u << 16;
 inline constexpr uint32_t NET_BUILD_PUSH_FRONT = 1u << 17;
-inline bool net_cmd_takes_push_front(uint8_t cmd) {
-	return cmd == 1 || cmd == 3 || cmd == 4 || cmd == 10 || cmd == 11 || cmd == 12 || cmd == 15 || cmd == 16 || cmd == 21;
-}
 inline constexpr uint8_t NET_PARAM_OCCUPY_TURRET = 0x01; // garrison: the holder's turret points (0 A.D. "occupy-turret")
+inline bool net_cmd_takes_push_front(uint8_t cmd, uint8_t param) {
+	if (cmd == 12) return !(param & NET_PARAM_OCCUPY_TURRET);
+	return cmd == 1 || cmd == 3 || cmd == 4 || cmd == 10 || cmd == 15 || cmd == 16 || cmd == 17 || cmd == 18 ||
+			cmd == 21 || cmd == 32 || cmd == 34 || cmd == 38 || cmd == 51;
+}
 inline constexpr uint8_t NET_PARAM_CANCEL_TRADE = 0x01;  // setup-trade-route: "cancel-setup-trade-route" on market target_id
 inline constexpr uint8_t NET_HUNT_SCENERY_NO_CAPTURE = 3; // hunt (17) on scenery: attack it, don't capture it (Ctrl)
 

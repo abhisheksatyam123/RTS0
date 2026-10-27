@@ -1706,7 +1706,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			Simulation &sim;
 			~PushFront() { sim.set_push_front_order(false); }
 		} push_front_reset{sim};
-		sim.set_push_front_order(!queued && (c.param & NET_PARAM_PUSH_FRONT_ORDER) && net_cmd_takes_push_front(c.cmd_type));
+		sim.set_push_front_order(!queued && (c.param & NET_PARAM_PUSH_FRONT_ORDER) && net_cmd_takes_push_front(c.cmd_type, c.param));
 		note_player_command(sim, pl, c);
 		if (record_applied_ && applied_cmds_.size() < 256) {
 			applied_cmds_.push_back({pl, c});
