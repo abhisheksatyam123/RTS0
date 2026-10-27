@@ -7761,6 +7761,91 @@ static void test_raid_takes_siege() {
 	CHECK(off && off->state == Simulation::AttackPlan::WALKING && rams_in == siege_target, "the raid sets off with its rams");
 }
 
+// attackPlan.js:680 trainMoreUnits, for every plan: a unit class no template of ours trains any
+// more is deleted from the plan, so a raid whose arsenal fell stops waiting for its rams.
+static void test_raid_drops_untrainable_siege() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float ox = 0, oz = 0;
+	for (const auto &b : s->buildings_)
+		if (is_civic_centre(b.type) && b.hp > 0.0f && b.team == 1) { ox = b.x; oz = b.z; }
+	s->players_[1].phase = 3;
+	const uint32_t arsenal = s->spawn_building_world(ox + 14.0f, oz - 4.0f, BLD_ARSENAL, 1, 1.0f);
+	const uint32_t target = seen_built(*s, s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f));
+	for (int k = 0; k < 3; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 6.0f, 1, UNIT_CAVALRY);
+	s->petra_scout_unit_id_ = 0;
+	auto &m = s->petra_attack_mgr_;
+	m.raid_target = 4;
+	m.raid_min = 3;
+	m.raid_name = 0;
+	m.raid_siege = 0;
+	auto &plan = s->petra_raid_plan_;
+	plan = Simulation::AttackPlan();
+	plan.type = Simulation::AttackPlan::PLAN_RAID;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	plan.target_building_id = target;
+	s->petra_manage_raid(Simulation::FIXED_STEP);
+	// Every rider it wants, but no ram: it waits for them.
+	for (int k = 0; k < 6; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 8.0f, 1, UNIT_CAVALRY);
+	s->petra_manage_raid(Simulation::FIXED_STEP);
+	const bool added = m.raid_siege == 1 && plan.state == Simulation::AttackPlan::MUSTER;
+	for (auto &b : s->buildings_)
+		if (b.id == arsenal) s->destroy_building(b);
+	s->petra_ps().res[RES_WOOD] = s->petra_ps().res[RES_GOLD] = 5000.0f;
+	s->petra_manage_military_production(Simulation::FIXED_STEP);
+	const bool dropped = m.raid_siege != 1;
+	const Simulation::AttackPlan *off = complete_raid(*s);
+	std::printf("  raid's rams added %s; once no arsenal trains them the class is dropped %s, and it sets off %s\n",
+	            added ? "yes" : "no", dropped ? "yes" : "no", off ? "yes" : "no");
+	CHECK(added, "the raid waits for rams while an arsenal trains them");
+	CHECK(dropped, "a siege class no template trains leaves the raid (trainMoreUnits)");
+	CHECK(off != nullptr, "the raid sets off with its riders alone");
+}
+
+// attackPlan.js canStart/mustStart count this.unit.FastMoving, the raid's FastMoving+CitizenSoldier
+// units: infantry the main plan handed over (reassignFastUnit) ride along but don't fill it.
+static void test_raid_counts_riders_only() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float ox = 0, oz = 0;
+	for (const auto &b : s->buildings_)
+		if (is_civic_centre(b.type) && b.hp > 0.0f && b.team == 1) { ox = b.x; oz = b.z; }
+	const uint32_t target = seen_built(*s, s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f));
+	s->petra_scout_unit_id_ = 0;
+	auto &m = s->petra_attack_mgr_;
+	m.raid_target = 4;
+	m.raid_min = 3;
+	m.raid_siege = 0xFE;
+	auto &plan = s->petra_raid_plan_;
+	plan = Simulation::AttackPlan();
+	plan.type = Simulation::AttackPlan::PLAN_RAID;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	plan.target_building_id = target;
+	for (int k = 0; k < 4; ++k) plan.squad.push_back(s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 8.0f, 1, UNIT_SPEARMAN));
+	// Two riders stay home to hunt; the raid has none of its own.
+	int riders = 0;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		riders += s->units_.alive[i] && s->units_.team[i] == 1 && (s->unit_classes_at(i) & TC_CAVALRY);
+	for (; riders < 2; ++riders) s->spawn_unit(ox + 6.0f + 2.0f * riders, oz + 6.0f, 1, UNIT_CAVALRY);
+	const bool early = complete_raid(*s) != nullptr;
+	for (int k = 0; k < 4; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 4.0f, 1, UNIT_CAVALRY);
+	const bool full = complete_raid(*s) != nullptr;
+	std::printf("  raid with 4 infantry and no riders sets off %s; with 4 riders %s\n", early ? "yes" : "no", full ? "yes" : "no");
+	CHECK(!early, "infantry in a raid don't count toward its riders");
+	CHECK(full, "it sets off once its riders are in");
+}
+
 // defenseManager.js targetList / attackPlan.js Raid: an enemy civic centre going up in neutral
 // land within 30000 m² of our structures is a raid target; past half built the raid sets off
 // with its minimum, and it fights on until the target falls (no time limit).
@@ -9690,6 +9775,8 @@ int main(int argc, char **argv) {
 	RUN(test_defensive_location);
 	RUN(test_raid_keeps_hunters);
 	RUN(test_raid_takes_siege);
+	RUN(test_raid_drops_untrainable_siege);
+	RUN(test_raid_counts_riders_only);
 	RUN(test_raid_cc_foundation);
 	RUN(test_order_plan_tags);
 	RUN(test_worker_roles);

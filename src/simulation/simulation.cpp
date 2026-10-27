@@ -22702,6 +22702,8 @@ void Simulation::petra_manage_scouting(float dt) {
 
 // addSiegeUnits' classes, in its order: Siege+Melee, Siege+Ranged, Elephant+Melee.
 static const TechClasses kPetraSiegeClasses[3] = {TC_SIEGE | TC_MELEE, TC_SIEGE | TC_RANGED, TC_ELEPHANT | TC_MELEE};
+// PetraAttackManager::raid_siege once trainMoreUnits found no template for the raid's siege class.
+static constexpr uint8_t PETRA_RAID_SIEGE_DROPPED = 0xFE;
 
 // addSiegeUnits targetSize: difficulty - 1 (at least 0 below Medium), difficulty + 1 for a
 // HugeAttack (at least 1), times popScaling.
@@ -23049,8 +23051,12 @@ void Simulation::petra_manage_military_production(float dt) {
 				// No template: the class drops out of the plan for good (delete this.unitStat), and
 				// mustStart no longer waits for it. (Not when its trainers' queues are only full.)
 				// The next class waits for the plan's next turn (buildOrders.splice, nothing queued).
-				if (main_plan && st.index < 16 && !petra_unit_stat_trainable(st))
-					petra_attack_mgr_.dropped_classes |= (uint16_t)(1u << st.index);
+				// A raid's siege class drops the same way (attackPlan.js:680 runs for every plan):
+				// raid_siege PETRA_RAID_SIEGE_DROPPED stays SIEGE_ADDED with no unitStat.
+				if (!petra_unit_stat_trainable(st)) {
+					if (main_plan && st.index < 16) petra_attack_mgr_.dropped_classes |= (uint16_t)(1u << st.index);
+					else if (!main_plan && kind == PETRA_ATTACK_RAID && st.index == 1) petra_attack_mgr_.raid_siege = PETRA_RAID_SIEGE_DROPPED;
+				}
 				return;
 			}
 			const CivUnitTemplate &t = civ_unit_template(tmpl);
@@ -31637,8 +31643,17 @@ void Simulation::petra_manage_raid(float dt) {
 		}
 		// mustStart: every class at its targetSize (the riders and any siege engines), or the
 		// minimums (none for siege) once the target is a foundation past half built
-		// (attackPlan.js: Raids start early against a nearly finished base).
-		const size_t riders = plan.squad.size() - (size_t)siege_count;
+		// (attackPlan.js: Raids start early against a nearly finished base). The riders are
+		// this.unit.FastMoving, the plan's FastMoving+CitizenSoldier units: an infantryman
+		// reassignFastUnit handed over, or champion cavalry, rides along without counting. (A raid
+		// over water, which takes any land soldier here, counts them all.)
+		size_t riders = 0;
+		for (uint32_t uid : plan.squad) {
+			const int32_t k = lookup_unit(uid);
+			if (k < 0 || !units_.alive[k]) continue;
+			const TechClasses c = unit_classes_at((size_t)k);
+			riders += naval ? !is_raid_siege((size_t)k) : (c & (TC_CAVALRY | TC_CITIZENSOLDIER)) == (TC_CAVALRY | TC_CITIZENSOLDIER);
+		}
 		const Building &tb = buildings_[building_id_to_idx_.at(plan.target_building_id)];
 		const bool ready = plan.forced || (riders >= raid_target && siege_count >= siege_target) ||
 		                   (riders >= raid_min && tb.build_progress > 0.5f && tb.build_progress < 1.0f);
