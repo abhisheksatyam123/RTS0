@@ -248,15 +248,15 @@ func run() -> void:
 	check(sk.get("map_name") == "Acropolis Bay (2)", "a skirmish map is listed by its name: " + str(sk.get("map_name")))
 	ms.slot_types = [0, 1, 0]
 	ms.map_id = "random_continental"
-	check(LobbySessionScript.game_rating(names, {"alice": 1265, "bob": 1135}) == 1200
-		and LobbySessionScript.game_rating(names, {"alice": 1500, "bob": 1500}) == 1400
-		and LobbySessionScript.game_rating([], {}) == 1200, "a game's rating averages its players, 1200 for none")
+	check(LobbySessionScript.game_rating([{"name": "alice (1265)"}, {"name": "bob (1135)"}], {}) == 1200
+		and LobbySessionScript.game_rating([{"name": "alice (1500)"}, {"name": "bob (1500)"}, {"name": "carol (900)", "observer": 1}], {}) == 1500
+		and LobbySessionScript.game_rating([], {}) == 1200, "a game's rating averages its players, observers left out, 1200 for none")
 	# gamesetup_mp.js: lobby players join as "nick (rating)"; Game.js reads the rating in the name.
 	check(LobbySessionScript.split_nick("alice (1500)") == {"nick": "alice", "rating": 1500}
 		and LobbySessionScript.split_nick("bob") == {"nick": "bob", "rating": ""}
 		and LobbySessionScript.split_nick("a b (1500)") == {"nick": "a b (1500)", "rating": ""}, "splitRatingFromNick")
-	check(LobbySessionScript.game_rating([{"name": "alice (1500)"}, {"name": "bob"}], {"alice": 1000, "bob": 1300}) == 1400,
-		"a player's game rating is the one they joined with")
+	check(LobbySessionScript.game_rating([{"name": "alice (1500)"}, {"name": "bob"}], {"alice": 1000, "bob": 1300}) == 1350,
+		"a player's game rating is the one they joined with, 1200 without one (not their current rating)")
 	var rated_text: String = LobbySessionScript.game_details({"name": "g", "player_names": [{"name": "alice (1500)", "civ": "athen", "team": -1}]}, {})
 	check(rated_text.contains("alice (1500) (Athenians)") and not rated_text.contains("(1500) (1500)"), "and the details show it once: " + rated_text.replace("\n", " | "))
 	var ls_name: String = ls.player_name

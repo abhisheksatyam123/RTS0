@@ -97,6 +97,13 @@ func run() -> void:
 		check(cc != null and cc.tooltip_text.contains("Dropsite for:") and cc.tooltip_text.contains("Garrison Limit"),
 				"the Civic Center's dropsite and garrison lines")
 		check(cc != null and cc.tooltip_text.contains("Current Count:"), "and its EntityLimits line")
+		check(cc != null and cc.tooltip_text.contains("[b]Dropsite for:[/b]") and cc.tooltip_text.contains("resources/stone_small.png"),
+				"the dropsite line in the header font with resource icons (getResourceDropsiteTooltip)")
+		var wall: Button = null
+		for b in buttons(main, []):
+			if preload("res://scenes/common/tooltips.gd").plain(b.tooltip_text).contains("Wall Protection"):
+				wall = b
+		check(wall != null, "the wall button lists the long wall's Wall Protection aura (getAurasTooltip)")
 		var temple: Button = null
 		for b in buttons(main, []):
 			if preload("res://scenes/common/tooltips.gd").plain(b.tooltip_text).contains("\nMedical Treatment: "):

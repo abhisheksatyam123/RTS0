@@ -17141,7 +17141,7 @@ bool Simulation::structure_takes_damage(Building &b, float dmg, uint32_t src_id,
 	if (b.team == 0)
 		raise_alert(BattleAlert::ALERT_BUILDING_DESTROYED, b.x, b.z, b.id, b.team);
 	collect_building_loot(src_id, src_team, b);
-	mark_building_wreck(b, src_team);
+	mark_building_wreck(b, stat_killer(src_id, src_team));
 	rebuild_nav_grid();
 	if (has_territory_influence(b.type))
 		rebuild_territory();
@@ -17200,7 +17200,7 @@ void Simulation::tick_projectiles(float dt) {
 						units_.action_state[tidx] = ACTION_DYING;
 						note_kill(p.source_id, units_.id[tidx]);
 						record_unit_death(tidx, p.team);
-						stat_unit_lost(tidx, p.team);
+						stat_unit_lost(tidx, stat_killer(p.source_id, p.team));
 						if (units_.team[tidx] == 0) {
 							record_.units_lost++;
 						} else {
@@ -17524,7 +17524,7 @@ bool Simulation::status_tick(const StatusInstance &st) {
 		units_.action_state[i] = ACTION_DYING;
 		note_kill(st.src, units_.id[i]);
 		record_unit_death(i, st.src_owner < MAX_PLAYERS ? st.src_owner : (uint8_t)(1 - units_.team[i]));
-		stat_unit_lost(i, st.src_owner);
+		stat_unit_lost(i, stat_killer(st.src, st.src_owner));
 		if (units_.team[i] == 0) record_.units_lost++;
 		else record_.enemies_killed++;
 		collect_unit_loot(st.src, st.src_owner, i);
@@ -18604,7 +18604,7 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		units_.action_state[u] = ACTION_DYING;
 		note_kill(attacker_id, units_.id[u]);
 		record_unit_death(u, attacker_team);
-		stat_unit_lost(u, attacker_team);
+		stat_unit_lost(u, stat_killer(attacker_id, attacker_team));
 		if (units_.team[u] == 0) record_.units_lost++;
 		else record_.enemies_killed++;
 		collect_unit_loot(attacker_id, attacker_team, u);
@@ -18652,7 +18652,7 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		else if (b.team == 0) record_.buildings_destroyed++;
 		if (b.team == 0) raise_alert(BattleAlert::ALERT_BUILDING_DESTROYED, b.x, b.z, b.id, b.team);
 		collect_building_loot(attacker_id, attacker_team, b);
-		mark_building_wreck(b, attacker_team);
+		mark_building_wreck(b, stat_killer(attacker_id, attacker_team));
 		nav_changed = true;
 		if (has_territory_influence(b.type)) territory_changed = true;
 	}
