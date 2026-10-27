@@ -265,7 +265,7 @@ void RtsoMain::update_cursor() {
 							break;
 						}
 				for (const auto &t : sim->treasures())
-					if (collector && near_id(t.id, t.x, t.z, 2.0f) && sim->los_explored(me, t.x, t.z)) { want = "action-collect-treasure"; break; }
+					if (collector && near_id(t.id, t.x, t.z, 2.0f) && sim->treasure_seen_by(me, t)) { want = "action-collect-treasure"; break; }
 			}
 			if (!*want) {
 				auto fv = sim->fauna();
@@ -444,7 +444,7 @@ uint32_t RtsoMain::entity_under_mouse(Vector2 mouse, bool with_props) const {
 	float best_t = 2.0f * 2.0f;
 	for (const auto &t : sim->treasures()) {
 		if (!with_props) break;
-		if (!sim->los_explored(view_player(), t.x, t.z)) continue;
+		if (!sim->treasure_seen_by(view_player(), t)) continue;
 		const float dx = t.x - at.x, dz = t.z - at.z;
 		if (dx * dx + dz * dz < best_t) { best_t = dx * dx + dz * dz; pick = t.id; }
 	}
