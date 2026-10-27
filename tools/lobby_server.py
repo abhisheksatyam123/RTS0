@@ -155,6 +155,7 @@ VOLATILITY_CONSTANT = 20.0          # games after which a rating is stable
 ANTI_INFLATION = 0.015
 LEADERBOARD_SIZE = 100
 REPORTS_KEEP = 200                  # unfinished reports kept, oldest dropped first
+REPORT_EXPIRY = 3600.0              # seconds a match's reports wait for the rest (EcheLOn's ReportManager)
 
 
 def get_rating_adjustment(rating, opponent_rating, games_played, opponent_games_played, result):
@@ -502,9 +503,12 @@ class Lobby:
             return 400, {"error": "a report needs matchID, players and playerStates"}
         if p["name"].lower() not in [n.lower() for n in names]:
             return 403, {"error": "only a player of the match reports it"}
+        now = time.monotonic()
+        for mid in [m for m, r in self.reports.items() if now - r["time"] > REPORT_EXPIRY]:
+            del self.reports[mid]
         rep = self.reports.get(match_id)
         if rep is None:
-            rep = {"players": names, "playerStates": states, "reporters": set()}
+            rep = {"players": names, "playerStates": states, "reporters": set(), "time": now}
             self.reports[match_id] = rep
             while len(self.reports) > REPORTS_KEEP:
                 del self.reports[next(iter(self.reports))]

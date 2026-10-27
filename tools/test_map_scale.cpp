@@ -848,6 +848,33 @@ int main() {
 		CHECK(corsica >= 60 && corsica <= 3 * 240, "corsica: %d fish, 0.28 tries 50 and 70 groups of 2-3 per player", corsica);
 	}
 	{
+		// elephantine.js, jebel_barkal.js and danubius.js place their own animals (no generic
+		// biome packs): every species of the script, and none it lacks.
+		struct MapAnimals { MapType mt; std::vector<uint8_t> need, allowed; };
+		const std::vector<uint8_t> savanna = {FAUNA_RHINOCEROS_WHITE, FAUNA_BOAR, FAUNA_GAZELLE, FAUNA_GIRAFFE, FAUNA_GIRAFFE_INFANT,
+				FAUNA_LION, FAUNA_LIONESS, FAUNA_ELEPHANT_AFRICAN_BUSH, FAUNA_ELEPHANT_AFRICAN_INFANT, FAUNA_CROCODILE_NILE};
+		const std::vector<uint8_t> danube = {FAUNA_SHEEP, FAUNA_GOAT, FAUNA_RABBIT, FAUNA_DEER, FAUNA_WOLF, FAUNA_BOAR, FAUNA_BEAR_BROWN};
+		for (const MapAnimals &m : {MapAnimals{MAP_ELEPHANTINE, savanna, {FAUNA_CHICKEN}}, MapAnimals{MAP_JEBEL_BARKAL, savanna, {}},
+		                            MapAnimals{MAP_DANUBIUS, danube, {FAUNA_CHICKEN}}}) {
+			static Simulation s;
+			s.reset();
+			s.generate_random_map(m.mt, 7, 2, 128.0f);
+			int have[FAUNA_COUNT] = {};
+			const auto fv = s.fauna();
+			for (size_t i = 0; i < fv.count; ++i) have[fv.fauna_type[i]] += fv.owner[i] == GAIA_PLAYER;
+			int missing = 0, foreign = 0;
+			for (uint8_t f : m.need) missing += have[f] == 0;
+			for (int f = 0; f < FAUNA_COUNT; ++f) {
+				if (!have[f]) continue;
+				bool ok = false;
+				for (uint8_t k : m.need) ok = ok || k == f;
+				for (uint8_t k : m.allowed) ok = ok || k == f;
+				if (!ok) { ++foreign; std::printf("  %s: %d %s\n", map_type_info(m.mt).id, have[f], fauna_type_info((uint8_t)f).template_name); }
+			}
+			CHECK(missing == 0 && foreign == 0, "%s: %d of the script's species missing, %d it lacks", map_type_info(m.mt).id, missing, foreign);
+		}
+	}
+	{
 		// 0.28's whales: arctic_summer, polar_sea, cycladic_archipelago, island_stronghold and mediterranean
 		// place fin and humpback whales at sea, among their fish (clFood).
 		for (MapType mt : {MAP_ARCTIC_SUMMER, MAP_POLAR_SEA, MAP_CYCLADIC_ARCHIPELAGO, MAP_ISLAND_STRONGHOLD, MAP_MEDITERRANEAN}) {

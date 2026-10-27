@@ -542,7 +542,9 @@ func phone_ui_factor() -> float:
 	if win.x <= 0.0 or win.y <= 0.0:
 		return 1.0
 	var base := minf(win.x / 1280.0, win.y / 720.0)  # canvas_items stretch, aspect expand
-	var logical := win / base
+	# The notch and home indicator's insets (scenes/common/safe_area.gd) leave less room.
+	var inset := preload("res://scenes/common/safe_area.gd").window_insets()
+	var logical := (win - Vector2(inset.x + inset.z, inset.y + inset.w)) / base
 	return clampf(minf(logical.y / PHONE_UI_HEIGHT, logical.x / PHONE_UI_MIN_WIDTH), 1.0, 720.0 / PHONE_UI_HEIGHT)
 
 ## renderer.scale with renderer.upscale.technique, antialiasing and
@@ -678,8 +680,9 @@ func _apply_node(n) -> void:
 
 ## overlay.fps and overlay.realtime (global.xml dataCounter): right-aligned mono-10 white
 ## on a black 100/255 backing, sized to its text, under the top panel at the right edge
-## ("100%-100 40 100%-5 54" under 0.28's 36 px panel; RTS0's panel is 67 px).
-const OVERLAY_TOP := 71.0
+## ("100%-100 40 100%-5 54", 4 px under 0.28's 36 px panel; RTS0's top panel ends at 54,
+## and the research column starts under the counter at 58 + its height).
+const OVERLAY_TOP := 58.0
 
 func _make_overlay() -> void:
 	_overlay = CanvasLayer.new()

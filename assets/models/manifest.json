@@ -23602,6 +23602,54 @@
    ],
    "upstream_material": "player_trans_norm_spec.xml"
   },
+  "fence_wicker_long": {
+   "file": "models/scenery/fence_wicker_long_0.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.208,
+    4.077,
+    16.609
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/germans/fence_wicker_long.xml",
+    "mesh:props/wicker_fence_large.dae",
+    "skin:structural/germ_struct.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fence_wicker_medium": {
+   "file": "models/scenery/fence_wicker_medium_0.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.164,
+    4.077,
+    8.009
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/germans/fence_wicker_medium.xml",
+    "mesh:props/wicker_fence_medium.dae",
+    "skin:structural/germ_struct.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "fence_wicker_short": {
+   "file": "models/scenery/fence_wicker_short_0.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.178,
+    4.077,
+    4.524
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/germans/fence_wicker_short.xml",
+    "mesh:props/wicker_fence_short.dae",
+    "skin:structural/germ_struct.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
   "field_plot": {
    "file": "models/buildings/field_plot.glb",
    "origin": "ground-center",
@@ -44771,6 +44819,24 @@
     "skin:structural/pers_struct.png"
    ],
    "upstream_material": "objectcolor_norm_spec.xml"
+  },
+  "javelin_projectile": {
+   "file": "models/units/javelin_projectile.glb",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    0.54,
+    29.694,
+    1.1
+   ],
+   "sources": [
+    "actor:art/actors/props/units/weapons/blades/jav_blade.xml",
+    "actor:art/actors/props/units/weapons/jav_projectile.xml",
+    "mesh:props/jav_blade.dae",
+    "mesh:props/weap_javelin_shaft_projectile_a.dae",
+    "skin:props/prop_weap.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
   },
   "juniper": {
    "file": "models/vegetation/juniper.glb",
@@ -78948,6 +79014,22 @@
    ],
    "upstream_material": "no_trans_norm_spec.xml"
   },
+  "sling_projectile": {
+   "file": "models/units/sling_projectile.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.046,
+    1.157,
+    1.1
+   ],
+   "sources": [
+    "actor:art/actors/props/units/weapons/slingrock.xml",
+    "mesh:props/sling_projectile.dae",
+    "skin:gaia/rock_ocean_1.dds"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
   "spart_archer": {
    "animated": true,
    "animations": [
@@ -83431,54 +83513,6 @@
     "actor:art/actors/fauna/zebra.xml",
     "mesh:skeletal/zebra.dae",
     "skin:skeletal/animal_zebra.dds"
-   ],
-   "upstream_material": "no_trans_norm_spec.xml"
-  },
-  "fence_wicker_long": {
-   "file": "models/scenery/fence_wicker_long_0.glb",
-   "origin": "ground-center",
-   "parts": 1,
-   "size_meters": [
-    0.208,
-    4.077,
-    16.609
-   ],
-   "sources": [
-    "actor:art/actors/props/structures/germans/fence_wicker_long.xml",
-    "mesh:props/wicker_fence_large.dae",
-    "skin:structural/germ_struct.png"
-   ],
-   "upstream_material": "no_trans_norm_spec.xml"
-  },
-  "fence_wicker_medium": {
-   "file": "models/scenery/fence_wicker_medium_0.glb",
-   "origin": "ground-center",
-   "parts": 1,
-   "size_meters": [
-    0.164,
-    4.077,
-    8.009
-   ],
-   "sources": [
-    "actor:art/actors/props/structures/germans/fence_wicker_medium.xml",
-    "mesh:props/wicker_fence_medium.dae",
-    "skin:structural/germ_struct.png"
-   ],
-   "upstream_material": "no_trans_norm_spec.xml"
-  },
-  "fence_wicker_short": {
-   "file": "models/scenery/fence_wicker_short_0.glb",
-   "origin": "ground-center",
-   "parts": 1,
-   "size_meters": [
-    0.178,
-    4.077,
-    4.524
-   ],
-   "sources": [
-    "actor:art/actors/props/structures/germans/fence_wicker_short.xml",
-    "mesh:props/wicker_fence_short.dae",
-    "skin:structural/germ_struct.png"
    ],
    "upstream_material": "no_trans_norm_spec.xml"
   }
