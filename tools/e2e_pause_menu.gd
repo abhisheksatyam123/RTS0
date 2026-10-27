@@ -187,6 +187,27 @@ func run() -> void:
 		and str(row[at + 1].tooltip_text).ends_with(" Diplomacy") and str(row[at + 2].tooltip_text).ends_with(" Barter & Trade")
 		and str(row[at + 3].tooltip_text).ends_with(" Match Settings") and str(row[at + 1].tooltip_text).contains("[color="),
 		"Game Speed, then Diplomacy, Barter & Trade, Match Settings with coloured hotkeys: " + str(row[at + 1].tooltip_text if at >= 0 and at + 1 < row.size() else ""))
+	# GameSpeedControl: the button toggles the gameSpeed ModernDropDown at 100%-390 40 100%-230 65,
+	# showing the speed in use; picking a speed keeps it up.
+	speed.pressed.emit()
+	await frames(2)
+	var dd: Control = main.find_child("GameSpeedDropdown", true, false)
+	var vw: float = root.get_visible_rect().size.x
+	check(dd != null and dd.visible and dd.get_global_rect().position.is_equal_approx(Vector2(vw - 390, 40)) and dd.size == Vector2(160, 25)
+			and dd.tooltip_text == "Choose game speed" and dd.get_item_text(dd.get_selected()) == "Normal (1×)",
+			"the speed button opens the game speed dropdown: " + (str(dd.get_global_rect()) + " " + dd.get_item_text(dd.get_selected()) if dd else "none"))
+	if dd:
+		var fast := -1
+		for i in dd.get_item_count():
+			if dd.get_item_text(i).begins_with("Very Fast (1.5"):
+				fast = i
+		dd.item_selected.emit(fast)
+		await frames(1)
+		check(is_equal_approx(main.get_game_speed(), 1.5) and dd.visible, "picking Very Fast sets 1.5× and the dropdown stays")
+		main.set_game_speed(1.0)
+		speed.pressed.emit()
+		await frames(1)
+		check(not dd.visible, "the button hides it again")
 	var mb: Button = null
 	# BuildLabel: the release line over the build string; no clock or phase in the bar.
 	var bl: Label = main.find_child("BuildLabel", true, false)

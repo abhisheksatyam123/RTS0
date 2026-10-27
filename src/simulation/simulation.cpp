@@ -19260,9 +19260,17 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 		}
 		// Empty-handed: head to the dropsite anyway, "a nice enough place to congregate and idle".
 		if (const uint32_t d = nearest_dropsite(i); d != 0) {
-			const Building &b = buildings_[building_id_to_idx_.at(d)];
 			float tx, tz;
-			stand_outside(b, uid, units_.pos_x[i], units_.pos_z[i], &tx, &tz);
+			if (const int32_t e = lookup_unit(d); e >= 0) {
+				// A wagon or worker elephant: beside it, on the unit's side.
+				const float dx = units_.pos_x[i] - units_.pos_x[e], dz = units_.pos_z[i] - units_.pos_z[e];
+				const float len = std::sqrt(dx * dx + dz * dz);
+				const float r = unit_collision_radius(units_.unit_type[e]) + unit_collision_radius(units_.unit_type[i]) + kStandMargin;
+				tx = units_.pos_x[e] + (len > 0.01f ? dx / len : 1.0f) * r;
+				tz = units_.pos_z[e] + (len > 0.01f ? dz / len : 0.0f) * r;
+			} else {
+				stand_outside(buildings_[building_id_to_idx_.at(d)], uid, units_.pos_x[i], units_.pos_z[i], &tx, &tz);
+			}
 			uint32_t id = uid;
 			cmd_move(&id, 1, tx, tz);
 			set_order(i, ORDER_WALK, 0, 0, tx, tz); // an unforced walk: it answers attacks on the way
@@ -20536,6 +20544,19 @@ uint32_t Simulation::nearest_dropsite(size_t i) const {
 		const nav::Vec2 gap = nav::footprint_gap(b, units_.pos_x[i], units_.pos_z[i]);
 		const float d2 = gap.x * gap.x + gap.y * gap.y;
 		if (best == 0 || d2 < best_d2) { best = b.id; best_d2 = d2; }
+	}
+	// FindNearestDropsite queries every ResourceDropsite: supply wagons and worker elephants
+	// too, by the distance to their edge as tick_gather measures it.
+	if (units_.unit_type[i] == UNIT_FISHING_BOAT) return best;
+	for (size_t e = 0; e < units_.count; ++e) {
+		if (e == i || !units_.alive[e] || !unit_is_mobile_dropsite(units_.unit_type[e]) ||
+				units_.action_state[e] == ACTION_GARRISONED || !mobile_dropsite_usable_by(units_.team[i], e))
+			continue;
+		const float half = unit_collision_radius(units_.unit_type[e]);
+		const float gx = std::max(0.0f, std::fabs(units_.pos_x[i] - units_.pos_x[e]) - half);
+		const float gz = std::max(0.0f, std::fabs(units_.pos_z[i] - units_.pos_z[e]) - half);
+		const float d2 = gx * gx + gz * gz;
+		if (best == 0 || d2 < best_d2) { best = units_.id[e]; best_d2 = d2; }
 	}
 	return best;
 }
@@ -31928,9 +31949,8 @@ Simulation::PetraAround Simulation::petra_around(const Building &holder) const {
 		} else if (!petra_foe(units_.team[i])) continue;
 		const float dx = units_.pos_x[i] - holder.x, dz = units_.pos_z[i] - holder.z;
 		if (dx * dx + dz * dz > range * range) continue;
-		const TechClasses c = unit_tech_classes(units_.unit_type[i]);
-		if (c & TC_SIEGE) {
-			if (c & TC_MELEE) around.melee_siege = true;
+		if (petra_is_siege_unit(i)) { // isSiegeUnit: Siege, or Elephant+Melee
+			if (petra_has_melee_attack(i)) around.melee_siege = true;
 			else around.range_siege = true;
 		} else {
 			around.unit = true;
@@ -31955,12 +31975,13 @@ bool Simulation::petra_keep_garrisoned(size_t i, const Building &holder, const P
 			(around.range_siege && health < petra_config_.garrison_hp_high) || needs_heal;
 	if (unit_classes_at(i) & building_ai_info(holder.type).garrison_arrow_classes) { // the holder's GarrisonArrowClasses
 		if (around.unit || around.defense_structure) return true;
-		if (around.melee_siege || around.range_siege) return !(c & TC_MELEE) || health < petra_config_.garrison_hp_low;
+		if (around.melee_siege || around.range_siege) return !petra_has_melee_attack(i) || health < petra_config_.garrison_hp_low;
 		return false;
 	}
-	if (c & TC_MELEE) return false;
-	if (around.unit) return (c & (TC_CIVILIAN | TC_SIEGE)) != 0;
-	if (c & TC_SIEGE) return around.melee_siege;
+	// attackTypes() holds Melee: soldiers, and support units with a dagger (women).
+	if (petra_has_melee_attack(i)) return false;
+	if (around.unit) return (c & TC_CIVILIAN) || petra_is_siege_unit(i);
+	if (petra_is_siege_unit(i)) return around.melee_siege;
 	return needs_heal;
 }
 

@@ -47,7 +47,7 @@ inline std::string tutorial_line_text(const TutorialLine &l) {
 	}
 	if (!l.hotkey) return s;
 	const std::string tag = "%(hotkey)s";
-	// colorizeHotkey: "[key]" in 255 251 131, or "Unassigned hotkey: <name>".
+	// colorizeHotkey: the key in gold brackets, "Unassigned hotkey: <name>" when unbound.
 	const std::string label = hotkeys::table().label(l.hotkey);
 	const String shown = label.empty() ? sprintf0(tr0("Unassigned hotkey: %(hotkeyName)s"), {{"hotkeyName", String(l.hotkey)}})
 	                                   : String::utf8(label.c_str());
@@ -147,7 +147,7 @@ public:
 			const std::string t = tutorial_panel_text(*sim);
 			if (t != last_) {
 				last_ = t;
-				text_->set_text(String::utf8(t.c_str()));
+				text_->set_text("[b]" + String::utf8(t.c_str()) + "[/b]"); // TutorialPanel: sans-bold-14
 			}
 		}
 		const bool ready = sim->tutorial_ready_button(), leave = on_last_goal(*sim);
@@ -167,7 +167,7 @@ public:
 				: leave ? "Click to quit this tutorial." : "Click when ready.").utf8().get_data());
 		if (status != last_status_) {
 			last_status_ = status;
-			status_->set_text(String::utf8(status.c_str()));
+			status_->set_text("[b]" + String::utf8(status.c_str()) + "[/b]"); // ModernLeftLabelText: sans-bold-stroke-14
 		}
 	}
 
