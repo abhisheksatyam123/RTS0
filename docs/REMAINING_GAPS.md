@@ -455,7 +455,7 @@ BuildingAI.js, GarrisonHolder/TurretHolder, Capturable and TerritoryDecay agains
 |---|---|---|---|
 | DS1 | Petra keeps healed female citizens garrisoned: garrisonManager.js:317 releases units with a Melee attack (women have a Dagger) at 70% health; RTS0 tests the Melee class | medium | Fixed |
 | DS2 | Petra treats war elephants as ordinary units when garrisoning against an attack; entityExtend.js isSiegeUnit counts Elephant+Melee as siege (garrison only ranged soldiers) | medium-low | Fixed |
-| DS3 | An enemy tower or fortress alone doesn't make Petra garrison its tower or civic centre (defenseManager.js:569-579, 692-693) | low-medium | Open (Petra defense) |
+| DS3 | An enemy tower or fortress alone didn't make Petra garrison its tower or civic centre (defenseManager.js:569-579, 692-693); now a shooting holder trading arrows with an enemy tower or fortress in its range is garrisoned with no enemy unit near (`test_garrison_against_tower`) | low-medium | Fixed |
 | DS4 | findDefensiveLocation took any frontier cell of ours; 0.28 takes only cells a base of ours holds on its anchor's land (baseAtIndex), so no towers across a river or on an islet | low-medium | Fixed |
 | DS5 | Towers and fortresses were searched for a spot before queueing and retried after 90 s (every 3rd turn for a first stone tower); 0.28 queues the plan, searches at start, and with no spot marks it unbuildable for 90 s while the lapse runs from queue time | low | Fixed |
 | DS6 | An enemy whose only civic centre, tower or fortress is a foundation let Petra fall back to neutral or allied structures; in 0.28 the foundation blocks the fallback | nit | Fixed |
