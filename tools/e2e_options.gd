@@ -125,17 +125,51 @@ func run() -> void:
 	page._controls["watereffects"][1].button_pressed = false
 	await frames(2)
 	check(fancy.disabled and page._controls["waterrealdepth"][1].disabled, "and greyed out without them")
-	check(page._labels["waterfancyeffects"].modulate.a < 0.6, "their labels grey out too")
-	# options.js control tooltips: the value hints and a list item's own tooltip.
-	page._controls["sound.mastergain"][1].mouse_entered.emit()
-	check(page._description.text.ends_with("\nValue: 0.90 (min: 0.00, max: 2.00)"),
-		"a slider's description gives its value, min and max: " + page._description.text.get_slice("\n", 1))
-	page._controls["gui.session.dragdelta"][1].mouse_entered.emit()
-	check(page._description.text.ends_with("\nMin: 1, Max: 200"), "a number's gives its range")
-	page._controls["gui.session.diplomacycolors.ally"][1].mouse_entered.emit()
-	check(page._description.text.contains("\nDefault: "), "a colour's gives its default")
-	page._controls["antialiasing"][1].mouse_entered.emit()
-	check(page._description.text.contains("\n") and page._description.text.contains("antialiasing"), "a list gives the chosen item's tooltip")
+	check(page._labels["waterfancyeffects"].get_theme_color("font_color") == Color8(140, 140, 140), "their labels grey out too (textcolor_disabled)")
+	# options.js control tooltips: the label carries the description, the control adds the
+	# value hints, and a list item its own tooltip.
+	check(page.find_child("Title", true, false).text == "Game Options" and page.find_child("Title", true, false).offset_top < -16,
+		"the title sits on the dialog's top edge")
+	check(page._labels["sound.mastergain"].tooltip_text != "" and not page._labels["sound.mastergain"].tooltip_text.contains("Value:"),
+		"a label's tooltip is the option's description")
+	check(master.tooltip_text.ends_with("\nValue: 0.90 (min: 0.00, max: 2.00)"),
+		"a slider's tooltip gives its value, min and max: " + master.tooltip_text.get_slice("\n", 1))
+	check(page._controls["sound.mastergain"][1].get_child_count() == 1, "the slider has no readout beside it")
+	master.value = 0.5
+	check(master.tooltip_text.ends_with("\nValue: 0.50 (min: 0.00, max: 2.00)"), "and follows the value")
+	master.value = 0.9
+	var drag: LineEdit = page._controls["gui.session.dragdelta"][1]
+	check(drag.tooltip_text.ends_with("\nMin: 1, Max: 200"), "a number's gives its range")
+	check(ally_tip(page).contains("\nDefault: "), "a colour's gives its default")
+	var aa0 = page._controls["antialiasing"][1]
+	check(not aa0.tooltip_text.contains("\n") and aa0.get_item_tooltip(0) != "", "a list's tooltip is its description; each item has one")
+	check(page.find_child("Status", true, false) == null and not "_description" in page, "no description strip under the options")
+	# sanitizeValue: a number outside its range reddens its box and makes Save ask.
+	drag.text_changed.emit("500")
+	check((drag.get_theme_stylebox("normal") as StyleBoxFlat).bg_color == Color8(127, 0, 0, 100), "an out-of-range number turns its box red")
+	page._tabs.current_tab = 0
+	page._on_save()
+	check(page._confirm != null and page._confirm.message.contains("Some setting values are invalid")
+		and page._tabs.get_current_tab_control() == drag.get_parent().get_parent(), "Save asks about it on its own tab")
+	page._confirm.find_child("Button1", true, false).pressed.emit() # No
+	await frames(2)
+	drag.text_changed.emit(cfg.get_default("gui.session.dragdelta"))
+	check((drag.get_theme_stylebox("normal") as StyleBoxFlat).bg_color == Color8(12, 12, 12, 100), "a valid one is dark again")
+	# options.js rows: 26 px high, 2 apart; the tick box at the right end.
+	page._tabs.current_tab = 3
+	await frames(2)
+	var r0: Control = page._labels["sound.mastergain"]
+	var r1: Control = page._labels["sound.musicgain"]
+	# 26 px rows; a headless run's taller fallback font can raise a label above that.
+	var pitch := maxf(26.0, r0.get_combined_minimum_size().y) + 2.0
+	check(absf(r1.global_position.y - r0.global_position.y - pitch) < 1.5, "rows are 26 px high, 2 apart (%.1f)" % (r1.global_position.y - r0.global_position.y))
+	page._tabs.current_tab = 2
+	await frames(2)
+	var tick: Control = page._controls["watereffects"][1]
+	var cell_right: float = tick.get_parent().global_position.x + tick.get_parent().size.x
+	check(tick.global_position.x + tick.size.x > cell_right - 2.0, "the tick box sits at the right end of its row")
+	check((page._tab_buttons.get_child(0) as Control).size.y >= 34 and page._tab_buttons.get_theme_constant("separation") == 5,
+		"tab buttons are 34 px high, 5 apart")
 	var ally_edit: LineEdit = page._controls["gui.session.diplomacycolors.ally"][1].get_child(0)
 	ally_edit.text_changed.emit("300 0 0")
 	check(page._controls["gui.session.diplomacycolors.ally"][1].get_child(1).color == Color(1, 0, 1), "an invalid colour turns the swatch magenta")
@@ -174,12 +208,11 @@ func run() -> void:
 	var display: GridContainer = page._tabs.get_node("Display").get_child(0)
 	check(display.get_child(1).name == "showdetailedtooltips" and display.get_child(3).name == "gui_session_howtoshownames",
 		"Display starts with detailed tooltips, then entity names, as 0.28")
-	var backlog: SpinBox = page._controls["lobby.history"][1]
-	backlog.value = 5000
-	check(cfg.get_value("lobby.history") == "5000", "the chat backlog has no maximum")
-	backlog.value = 0
-	page._controls["lobby.history"][1].mouse_entered.emit()
-	check(page._description.text.ends_with("\nMin: 0"), "and its description gives only the minimum")
+	var backlog: LineEdit = page._controls["lobby.history"][1]
+	backlog.text_changed.emit("5000")
+	check(cfg.get_value("lobby.history") == "5000" and not page._invalid("lobby.history"), "the chat backlog has no maximum")
+	backlog.text_changed.emit("0")
+	check(backlog.tooltip_text.ends_with("\nMin: 0"), "and its tooltip gives only the minimum")
 	var aa = page._controls["antialiasing"][1]
 	check(aa.get_item_tooltip(1).begins_with("Fast, but simple"), "list items carry their own tooltips")
 	page._controls["watereffects"][1].button_pressed = true
@@ -292,3 +325,6 @@ func run() -> void:
 	mc.set_command_args(OS.get_cmdline_args() + OS.get_cmdline_user_args())
 	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)
+
+func ally_tip(page) -> String:
+	return page._controls["gui.session.diplomacycolors.ally"][1].get_child(0).tooltip_text
