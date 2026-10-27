@@ -507,9 +507,9 @@ The Research, Training and Construction panels' tooltips against selection_panel
 | # | Difference from 0.28 | Impact | Status |
 |---|---|---|---|
 | TP1 | A centurion at its limit (8 of 8) also said "Requires Marian Reforms" though researched; getRequirementsTooltip shows only failing requirements | low | Fixed |
-| TP2 | The corral's animals have no aura line ("Ranching and Corralling"), detailed lines or right-click line, and right-click opens no Template Viewer | low | Open |
+| TP2 | The corral's animals have no aura line ("Ranching and Corralling"), detailed lines or right-click line, and right-click opens no Template Viewer | low | Fixed in part (the visible classes and Ranching and Corralling aura lines, `tools/e2e_corral_tooltips.gd`); the Template Viewer has no animal page, so no detailed or right-click lines yet |
 | TP3 | Training buttons past the 8th had no hotkey tag (0.28: gold "[Unassigned hotkey: session.queueunit.9]"), and the tag was in the plain tooltip font, not sans-bold-16 | low | Fixed |
-| TP4 | With "Detailed tooltips" on, the extra training lines are plain text (template_viewer.gd strips BBCode), losing fonts and the dropsite icons | low | Open |
+| TP4 | With "Detailed tooltips" on, the extra training lines are plain text (template_viewer.gd strips BBCode), losing fonts and the dropsite icons | low | Fixed (the lines keep the viewer's header font and icons; `tools/e2e_session_options.gd`) |
 | TP5 | A full research queue disabled the technology buttons with no reason; 0.28 keeps them enabled and the press gets "The production queue is full." | low | Fixed |
 | TP6 | The batch line ("Shift-click to train N.") was in the 14 px tooltip font; 0.28 sets it in sans-13 | nit | Fixed |
 
