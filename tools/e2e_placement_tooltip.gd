@@ -134,6 +134,8 @@ func run() -> void:
 	await move(start + Vector2(40, 0))
 	t = tip()
 	check(t["visible"] and str(t["text"]).begins_with("Cost: "), "dragging shows its cost: " + str(t["text"]))
+	check(str(t["bbcode"]).contains("[b]Cost:[/b]") and str(t["bbcode"]).contains("/resources/wood_small.png"),
+			"Cost: in the header font, with resource icons (getEntityCostTooltip): " + str(t["bbcode"]))
 	# tryPlaceWall: a wall no longer than a tower has no segment, lays nothing and ends the placement.
 	await click(start)
 	await move(start + Vector2(30, 30))

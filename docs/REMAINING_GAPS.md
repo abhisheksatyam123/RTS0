@@ -432,8 +432,8 @@ gui/common/tooltips.js and selection_panels_helpers.js against RTS0's constructi
 | TT2 | The entity-limit lines named only changers that were built, multiplied by how many, and never the unit ones; 0.28 lists each LimitChanger with its template value ("Ashoka enlarges the limit with 5.") | medium | Fixed |
 | TT3 | The wall construction button left out the long wall's Wall Protection aura | low | Fixed |
 | TT4 | "Dropsite for:" listed resource names, and it and "Turret Positions" weren't in the header font; 0.28 shows resource icons | low | Fixed |
-| TT5 | The selected-structure detailed tooltip is plain text (no header font, unit words or icons) and indents its Attack and Resistance blocks 2 spaces, not g_Indent's 4 | nit | Open |
-| TT6 | The wall-dragging cost tip is a plain Label: "Cost: Stone 36" without the header font or icons | nit | Open |
+| TT5 | The selected-structure detailed tooltip is plain text (no header font, unit words or icons) and indents its Attack and Resistance blocks 2 spaces, not g_Indent's 4 | nit | Fixed (#1568 DP4-DP5: structure_tooltip goes through the selection details' header fonts, unit words, icons and g_Indent) |
+| TT6 | The wall-dragging cost tip is a plain Label: "Cost: Stone 36" without the header font or icons | nit | Fixed (Stats: placementTooltip is a RichTextLabel; the wall cost takes getEntityCostTooltip's headerFont and resource icons) |
 | TT7 | "Requires ..." from a unit trainer shows only the generic name, not "Specific (Generic)"; no case found in the current rosters | nit | Open |
 
 ### Defensive structures and Petra's use of them, twenty-first 0.28 pass (2026-10-27)
