@@ -50,7 +50,7 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	var fade := ColorRect.new()
-	fade.color = Color(0, 0, 0, 0.6)
+	fade.color = Color8(0, 0, 0, 85)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fade)
 	# ModernDialog, 580 x 400 in the middle of the screen.

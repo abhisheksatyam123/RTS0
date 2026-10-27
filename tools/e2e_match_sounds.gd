@@ -47,7 +47,14 @@ func run() -> void:
 	var m = current_scene
 
 	print("1. Germans' music")
+	# The first peace track starts once the match is running; under load that can take
+	# longer than the 60 frames above.
 	var a: Dictionary = m.get_audio_state()
+	for i in 600:
+		if str(a.track) != "":
+			break
+		await process_frame
+		a = m.get_audio_state()
 	check(a.music_state == "peace" and GERM_TRACKS.any(func(t): return str(a.track).contains(t)),
 		"peace, on a German track: " + str(a.track))
 	# Ambient.js: one looping dayscape track at a constant sound.ambientgain.
