@@ -252,14 +252,20 @@ void RtsoMain::_ready() {
 	top_hud_panel->add_child(top_hbox);
 
 	top_panel_.build(this, top_hbox, sim->player_civ());
-	// Tooltips are plain text: the name without colorizePlayernameHelper's coloured square.
-	top_panel_.set_ally_name([this](uint8_t p) { return player_display_name(p); });
+	// CounterManager.getAllyStatTooltip: colorizePlayernameHelper("■", id) + " " + name.
+	top_panel_.set_ally_name([this](uint8_t p) {
+		char hex[8] = "ffffff";
+		if (sim) std::snprintf(hex, sizeof(hex), "%06x", (unsigned)(rtso::display_colors::rgb(*sim, p) & 0xFFFFFF));
+		return "[color=#" + String(hex) + "]" + String::utf8("\u25a0") + "[/color] " + player_display_name(p).replace("[", "[lb]");
+	});
+	// CivIcon.rebuild: colorizeHotkey("%(hotkey)s", "civinfo") and "structree".
+	top_panel_.set_civ_icon_keys(RtsoHotkeyConfig::colorize_hotkey("%(hotkey)s", "civinfo"),
+			RtsoHotkeyConfig::colorize_hotkey("%(hotkey)s", "structree"));
 	{
 		auto first_key = [](const char *name) {
 			const auto *combos = rtso::hotkeys::table().get(name);
 			return (combos && !combos->empty()) ? String::utf8(rtso::hotkeys::combo_to_string(combos->front()).c_str()) : String();
 		};
-		top_panel_.set_civ_icon_keys(first_key("civinfo"), first_key("structree"));
 		minimap_panel_.set_hotkeys(first_key("selection.idleworker"), first_key("session.diplomacycolors"), first_key("session.flare"));
 	}
 
