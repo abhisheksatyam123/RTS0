@@ -844,7 +844,7 @@ const TERMS := [
 		"config": "lobby.privacy_policy"},
 ]
 var _terms_row: HBoxContainer
-var _terms_dlg: ConfirmationDialog
+var _terms_dlg: Control
 
 func _terms_entry(page: String) -> Dictionary:
 	for t in TERMS:
@@ -892,16 +892,10 @@ func open_terms(page: String) -> void:
 		if not found:
 			_say("The lobby server at %s has no %s." % [_server.text, t["title"]])
 			return
-		_terms_dlg = ConfirmationDialog.new()
+		_terms_dlg = preload("res://scenes/menu/terms_dialog.gd").new()
 		_terms_dlg.name = "TermsDialog"
 		_terms_dlg.title = t["title"]
-		_terms_dlg.ok_button_text = "Accept"
-		_terms_dlg.cancel_button_text = "Decline"
-		var body := RichTextLabel.new()
-		body.name = "TermsText"
-		body.text = text
-		body.custom_minimum_size = Vector2(560, 360)
-		_terms_dlg.add_child(body)
+		_terms_dlg.text = text
 		add_child(_terms_dlg)
 		var done := func(accepted: bool) -> void:
 			var cfg := RtsoUserConfig.new()
@@ -910,8 +904,7 @@ func open_terms(page: String) -> void:
 			_terms_dlg.queue_free()
 			_terms_dlg = null
 		_terms_dlg.confirmed.connect(func() -> void: done.call(true))
-		_terms_dlg.canceled.connect(func() -> void: done.call(false))
-		_terms_dlg.popup_centered())
+		_terms_dlg.canceled.connect(func() -> void: done.call(false)))
 
 func _on_sign_pressed() -> void:
 	if LobbySession.signed_in():

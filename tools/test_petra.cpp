@@ -46,6 +46,7 @@
 #include <cmath>
 #include <cstdio>
 #include <memory>
+#include <set>
 #include <vector>
 #include <array>
 using namespace rtso;
@@ -2397,6 +2398,43 @@ static void test_petra_islands_wood_reserve() {
 	for (int k = 0; k < 40; ++k) s->tick(Simulation::FIXED_STEP);
 	std::printf("idle woman moved %.2f away from the civic centre\n", s->units_.pos_x[ui] - x0);
 	CHECK(s->units_.pos_x[ui] - x0 > 0.5f, "the idle woman steps aside");
+}
+
+// A trained batch with nowhere to step out stays at the front of the queue; its timer runs on
+// past the training time, so petra_clear_blocked_spawns can tell it has waited over 10 s (the
+// queue behind it, a phase included, held for good while the timer stopped at its duration).
+static void test_blocked_spawn_timer() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, false);
+	uint32_t cc_id = 0;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc_id = b.id;
+	CHECK(cc_id != 0, "player 2 has a civic centre");
+	if (!cc_id) return;
+	const Simulation::Building cc = s->buildings_[s->building_id_to_idx_.at(cc_id)];
+	// Palisades packed round the civic centre out past MaxSpawnDistance: no spawn point is free.
+	for (float r = std::max(cc.hu, cc.hv) + 0.3f; r < std::max(cc.hu, cc.hv) + 3.0f; r += 0.7f)
+		for (float d = -r; d < r + 0.01f; d += 0.7f)
+			for (const auto &p : {std::pair{cc.x + d, cc.z - r}, std::pair{cc.x + d, cc.z + r}, std::pair{cc.x - r, cc.z + d}, std::pair{cc.x + r, cc.z + d}})
+				s->spawn_building_world(p.first, p.second, BLD_PALISADE, 1, 1.0f);
+	s->rebuild_nav_grid();
+	ProductionOrder o;
+	o.unit_type = UNIT_FEMALE_CITIZEN;
+	o.timer = 0.0f;
+	o.duration = 2.0f;
+	o.started = true;
+	auto &ccb = s->buildings_[s->building_id_to_idx_.at(cc_id)];
+	ccb.queue.clear();
+	ccb.queue.push_back(o);
+	run_for(*s, 20.0f);
+	const auto &q = s->buildings_[s->building_id_to_idx_.at(cc_id)].queue;
+	const float timer = q.empty() ? -1.0f : q.front().timer;
+	std::printf("blocked batch after 20 s: %s, timer %.0f of %.0f\n", q.empty() ? "spawned" : "still queued", timer, o.duration);
+	CHECK(!q.empty() && timer >= o.duration + 10.0f, "the blocked batch's timer runs on past its training time");
 }
 
 // startingStrategy.js gameStart: no civic centre and none to build (Death Canyon's invasion
@@ -6062,6 +6100,7 @@ static void test_defend_allies() {
 	s->order_set_stance(foes.data(), foes.size(), STANCE_STAND_GROUND);
 	auto is_foe = [&](uint32_t id) { return std::find(foes.begin(), foes.end(), id) != foes.end(); };
 	int sent = 0, home = 0;
+	std::set<uint32_t> sent_ids;
 	// checkEnemyUnits looks at one player a turn: player 0's turn comes within 4 (3 players + Gaia).
 	for (float t = 0.0f; t < 7.0f; t += Simulation::FIXED_STEP) {
 		for (uint32_t id : foes) {
@@ -6069,10 +6108,14 @@ static void test_defend_allies() {
 			if (f >= 0 && u.alive[f]) u.hp[f] = u.max_hp[f];
 		}
 		s->tick(Simulation::FIXED_STEP);
+		// A defender's target can flicker between turns while it walks over, so count
+		// every soldier that took one of the attackers as its target in the window.
+		for (size_t i = 0; i < u.count; ++i)
+			if (u.alive[i] && u.team[i] == 1 && is_foe(u.target_unit_id[i])) sent_ids.insert(u.id[i]);
 	}
 	for (size_t i = 0; i < u.count; ++i) { // the backup counts AI 1's starting soldiers too
 		if (!u.alive[i] || u.team[i] != 1 || petra_is_support_unit(u.unit_type[i])) continue;
-		if (is_foe(u.target_unit_id[i])) ++sent; else ++home;
+		if (sent_ids.count(u.id[i])) ++sent; else ++home;
 	}
 	const float dx = ax - hx, dz = az - hz;
 	std::printf("  ally's Town Center attacked %.0f away: %d soldiers sent, %d stay home\n", std::sqrt(dx * dx + dz * dz), sent, home);
@@ -8494,6 +8537,7 @@ int main(int argc, char **argv) {
 	RUN(test_pop_phase2_save_resources);
 	RUN(test_petra_config_pop_scaling);
 	RUN(test_petra_islands_wood_reserve);
+	RUN(test_blocked_spawn_timer);
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_garrisoned_workers_count);
 	RUN(test_gather_rate_civ_bonus);
