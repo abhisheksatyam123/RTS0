@@ -74,7 +74,7 @@ struct ScriptTerrains {
 	BiomeFlora flora;
 	HeightBand bands[6]; // in the script's paint order; unused ones have no terrain
 	AreaLayers areas[4];
-	PatchSet patches[3];
+	PatchSet patches[4];
 };
 
 inline const ScriptTerrains *script_terrains(const char *map_id) {
@@ -234,7 +234,21 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  "ocean_rock_b"},
 		 {"extinct_volcano", {{FLORA_DEAD, FLORA_BEECH}}, {FLORA_BEECH, FLORA_OAK, FLORA_TREE_BUSH_TEMPERATE},
 		  {{FLORA_OAK, FLORA_TREE_OAK_DEAD}}, FLORA_BERRY,
-		  {{200, 200}}, {200, 200, 100}, {{200, 200}}}},
+		  {{200, 200}}, {200, 200, 100}, {{200, 200}}},
+		 {},
+		 // The bases' mountains (createMountain's tHillDark edge round the flattened tHillVeryDark), the
+		 // volcano (createVolcano with no lava), the lakes and the hills.
+		 {{AREA_MOUNTAIN, {{"cliff volcanic light"}, {"cliff volcanic coarse", "cave_walls"}}, {3}},
+		  {AREA_VOLCANO, {{"cliff volcanic coarse", "cave_walls"}}, {}},
+		  {AREA_LAKE, {{"cliff volcanic light"}, {"ocean_rock_a"}, {"ocean_rock_b"}}, {1, 1}},
+		  {AREA_HILL, {{"cliff volcanic light"}}, {}}},
+		 // "Creating hill patches": ClumpPlacers of scaleByMapSize(3, 48), (5, 84) and (8, 128) tiles, as
+		 // chains of about a tenth as many circles, scaleByMapSize(20, 80) of each type and size (clGrass);
+		 // then the grass patches, 5 from those. clBumps (ground 10 m up) is left to the hills' distance.
+		 {{{{"ocean_rock_a"}, {"cliff volcanic light"}}, {1}, {{1.0f, 4.0f}, {1.0f, 7.0f}, {1.0f, 11.0f}}, {20.0f, 80.0f}, 3, 0, 0, 0, -1},
+		  {{{"cliff volcanic light"}, {"ocean_rock_b"}}, {1}, {{1.0f, 4.0f}, {1.0f, 7.0f}, {1.0f, 11.0f}}, {20.0f, 80.0f}, 3, 0, 0, 0, -1},
+		  {{{"ocean_rock_a"}, {"ocean_rock_b"}}, {1}, {{1.0f, 4.0f}, {1.0f, 7.0f}, {1.0f, 11.0f}}, {20.0f, 80.0f}, 3, 0, 0, 0, -1},
+		  {{{"temp_grass_long_b"}, {"temp_grass_d", "temp_grass_clovers"}}, {1}, {{2.0f, 4.0f}, {3.0f, 7.0f}, {5.0f, 15.0f}}, {3.0f, 8.0f}, 1, 0, 0, 0, 5}}},
 		// fields_of_meroe.js: its main and dirt terrains and berry come from the biome (g_Terrains, g_Gaia), so main,
 		// cliff, hill and dirt reuse its own grass, sand and farmland, and fruit is the viewer's pick.
 		{"fields_of_meroe",
