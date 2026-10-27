@@ -331,6 +331,57 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 	play_civ_voice("select");
 }
 
+// The template's SoundGroups/select (gaia/fauna_*.xml): the lion group for the big hunters,
+// horses and donkeys neigh, elephants trumpet, dogs bark. The other animals' select groups
+// (sheep, goats, cattle, camels, pigs, chickens, peacocks) have no select files in assets yet.
+void RtsoMain::play_fauna_select(uint8_t fauna_type) {
+	const std::string n = rtso::fauna_type_info(fauna_type).template_name;
+	auto has = [&](const char *s) { return n.find(s) != std::string::npos; };
+	if (has("dog_")) session_audio_.play_group("voice/global", "civ_dog_bark", 0.8f);
+	else if (has("horse") || has("donkey")) session_audio_.play_group("actor/fauna/animal", "horse_select");
+	else if (has("elephant")) session_audio_.play_group("actor/fauna/animal", "elephant_select");
+	else if (has("lion") || has("tiger") || has("bear") || has("crocodile") || has("hippopotamus") || has("rhinoceros"))
+		session_audio_.play_group("actor/fauna/animal", "lion_select");
+}
+
+// selection.js addList: the first added entity's select sound plays when its owner is Gaia
+// (or the viewer controls it): trees, fruit, mines, treasures and wild animals.
+void RtsoMain::play_inspected_select() {
+	if (!sim) return;
+	const uint32_t id = inspector_.id();
+	switch (inspector_.kind()) {
+	case RtsoInspectorView::INSPECT_RESOURCE: {
+		auto rv = sim->resources();
+		for (size_t r = 0; r < rv.count; ++r) {
+			if (rv.id[r] != id) continue;
+			if (rv.subtype[r] == rtso::RES_SUB_MEAT || rv.subtype[r] == rtso::RES_SUB_FISH) break; // carcasses, fish: none
+			static const char *const kSel[] = {"sel_tree", "sel_metal", "sel_stone", "sel_fruit"};
+			if (rv.type[r] < 4) session_audio_.play_group("interface/select/resource", kSel[rv.type[r]]);
+			break;
+		}
+		break;
+	}
+	case RtsoInspectorView::INSPECT_TREASURE: session_audio_.play_group("interface/select/building", "sel_universal"); break;
+	case RtsoInspectorView::INSPECT_FAUNA: {
+		auto fv = sim->fauna();
+		for (size_t f = 0; f < fv.count; ++f)
+			if (fv.id[f] == id) {
+				if (fv.owner[f] >= rtso::MAX_PLAYERS || fv.owner[f] == local_player()) play_fauna_select(fv.fauna_type[f]);
+				break;
+			}
+		break;
+	}
+	case RtsoInspectorView::INSPECT_BUILDING:
+		for (const auto &b : sim->buildings())
+			if (b.id == id) {
+				if (b.team >= rtso::MAX_PLAYERS) session_audio_.play_building_select(b.type);
+				break;
+			}
+		break;
+	default: break;
+	}
+}
+
 void RtsoMain::play_select_added(const PackedInt32Array &before_units, const std::vector<uint32_t> &before_structs) {
 	if (!sim) return;
 	for (int s = 0; s < selected_ids.size(); ++s)
@@ -342,7 +393,13 @@ void RtsoMain::play_select_added(const PackedInt32Array &before_units, const std
 					play_civ_voice("select", id);
 					return;
 				}
-			return; // livestock: no select voice here
+			auto fv = sim->fauna(); // own livestock
+			for (size_t f = 0; f < fv.count; ++f)
+				if (fv.id[f] == id) {
+					play_fauna_select(fv.fauna_type[f]);
+					break;
+				}
+			return;
 		}
 	for (uint32_t id : selected_structures())
 		if (std::find(before_structs.begin(), before_structs.end(), id) == before_structs.end()) {

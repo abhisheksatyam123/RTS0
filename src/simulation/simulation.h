@@ -182,8 +182,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 120; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 121; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_GARRISON_HEAL = 120; // each structure's garrison heal timer (GarrisonHolder HEAL_TIMEOUT)
+	static constexpr uint32_t SAVE_VERSION_FORMATION_TARGET = 121; // the enemy formation each formation attacks
 	static constexpr uint32_t SAVE_VERSION_PETRA_FERRIED_GUARDS = 119; // guards on their way by sea to a critical entity
 	static constexpr uint32_t SAVE_VERSION_FAUNA_PRESSURE = 117; // each animal's pushing pressure and failed movements (fauna_pressure_, fauna_failed_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_QUEUE_HEADS = 118; // the structure at the head of each Petra queue
@@ -1039,6 +1040,9 @@ public:
 		// v37: the attack order (UnitAI FORMATIONCONTROLLER.COMBAT / MEMBER) and patrol.
 		uint32_t target_unit = 0;       // Order.Attack/Heal target unit, Order.Gather resource
 		uint32_t target_building = 0;   // Order.Attack/Repair/Garrison target structure
+		// v120: Order.Attack on a member of another formation targets that formation's
+		// controller (UnitAI.js FORMATIONCONTROLLER Order.Attack), 0 otherwise.
+		uint32_t target_formation = 0;
 		uint8_t task_flags = 0;         // FormationTask << FTASK_SHIFT | FTASK_CAPTURE (Attack.js allowCapture)
 		uint8_t returning = 0;          // order.data.returningState: where MEMBER goes back to
 		float member_timer = 0.0f;      // MEMBER / CHECKINGWAYPOINT one-second timer
@@ -2822,10 +2826,12 @@ private:
 	std::vector<uint32_t> formation_take_patrol(const std::vector<uint32_t> &ids, float tx, float tz); // Order.Patrol
 	bool formation_target_in_range(const FormationController &fc) const; // CheckFormationTargetAttackRange
 	bool formation_target_pos(const FormationController &fc, float &x, float &z) const;
+	int32_t formation_closest_member(uint32_t fid, float x, float z) const; // Formation.js GetClosestMember
+	int32_t formation_attack_target(const FormationController &fc) const;   // the unit an attack on a unit goes for
 	void formation_members_attack(size_t ci);   // CallMemberFunction("Attack"/"Gather"/"Repair"/...)
 	// Commands.js "gather"/"repair"/"garrison"/"heal" through GetFormationUnitAIs: whole
 	// formations in ids walk up as one (APPROACH), then their members do the work (MEMBER).
-	std::vector<uint32_t> formation_take_task(const std::vector<uint32_t> &ids, uint8_t task, uint32_t target);
+	std::vector<uint32_t> formation_take_task(const std::vector<uint32_t> &ids, uint8_t task, uint32_t target, bool split = false);
 	// Controllers whose every member is in ids (a player ordering the whole formation).
 	std::vector<uint32_t> formation_whole_ids(const uint32_t *ids, size_t count) const;
 	void formation_apply_order(const std::vector<uint32_t> &members, const UnitOrder &o); // FinishOrder's next order
