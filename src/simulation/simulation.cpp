@@ -24252,8 +24252,9 @@ void Simulation::petra_manage_fields() {
 
 	const uint8_t civ = petra_ps().civ;
 	auto can_build = [&](uint8_t t) {
-		// template.available: the structure's Identity/Requirements (its phase) are met.
-		return civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
+		// canBuild: not set unbuildable (no room for 90 s), and template.available: the
+		// structure's Identity/Requirements (its phase) are met.
+		return !petra_no_room(t) && civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
 		       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
 	// manageCorral's anchor, as a position: the fields and corrals placed below grow buildings_.
@@ -27151,20 +27152,28 @@ bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &
 	struct Site { float x, z; bool cc; };
 	std::vector<Site> foes;
 	enum { HOSTILE, NEUTRAL, ALLIED };
+	// A kind's foundations count toward falling back to the next kind (enemyStructures.hasEntities,
+	// headquarters.js:1143-1157) but give no distances (1221-1222).
 	auto collect = [&](int kind) {
+		bool any = false;
 		for (const Building &b : buildings_) {
-			if (b.team >= MAX_PLAYERS || b.team == petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
+			if (b.team >= MAX_PLAYERS || b.team == petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
 			const bool foe = is_hostile(petra_pid_, b.team), ally = is_ally(petra_pid_, b.team);
 			if (kind == HOSTILE ? !foe : kind == NEUTRAL ? (foe || ally) : !ally) continue;
 			const TechClasses c = building_tech_classes(b.type);
-			if (c & (TC_CIVCENTRE | TC_FORTRESS | TC_TOWER)) foes.push_back({b.x, b.z, (c & TC_CIVCENTRE) != 0});
+			if (!(c & (TC_CIVCENTRE | TC_FORTRESS | TC_TOWER))) continue;
+			any = true;
+			if (b.build_progress >= 1.0f) foes.push_back({b.x, b.z, (c & TC_CIVCENTRE) != 0});
 		}
+		return any;
 	};
-	collect(HOSTILE);
-	if (foes.empty()) collect(NEUTRAL);
 	// headquarters.js:1149: with neither, allies' (none under allied victory).
-	if (foes.empty() && !allied_victory()) collect(ALLIED);
+	if (!collect(HOSTILE) && !collect(NEUTRAL) && !allied_victory()) collect(ALLIED);
 	if (foes.empty()) return false;
+	// baseAtIndex (headquarters.js:1203): only territory a base of ours holds, on the land of
+	// one of our anchors.
+	PetraBasesMap bmap;
+	petra_bases_map(bmap);
 	std::vector<std::pair<float, float>> own;
 	for (const Building &b : buildings_)
 		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && (building_tech_classes(b.type) & (TC_FORTRESS | TC_TOWER)))
@@ -27210,6 +27219,7 @@ bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &
 			}
 			if (!wonder && !narrow && (!large || tower)) continue;
 			const float x = ((float)ix + 0.5f) * cell - map_half_, z = ((float)iz + 0.5f) * cell - map_half_;
+			if (!bmap.at(x, z, map_half_)) continue;
 			float dista = 0.0f;
 			if (wonder) {
 				dista = (wonder->x - x) * (wonder->x - x) + (wonder->z - z) * (wonder->z - z);
@@ -27340,17 +27350,9 @@ void Simulation::petra_build_defenses() {
 	}
 	const int pop = pop_current(petra_pid_);
 	const uint8_t phase = petra_ps().phase;
-	// A structure with no frontier spot is not queued, so its plan doesn't hold resources it
-	// can't spend; the next try waits 90 s (buildManager.js setUnbuildable "room").
-	// The plan's start fails with no spot, and the structure is marked short of room (which
-	// counts towards a new base, buildManager.js numberMissingRoom).
-	auto has_spot = [&](uint8_t t) {
-		int sx = 0, sz = 0;
-		if (petra_find_defensive_location(t, sx, sz)) return true;
-		petra_set_no_room(t);
-		return false;
-	};
-	constexpr float kNoRoomWait = 90.0f;
+	// The plan is queued whether or not there is a spot (headquarters.js:1591-1645); its start
+	// looks for one (queueplanBuilding.js:43-63) and, with none, drops the plan and marks the
+	// structure short of room for 90 s (setUnbuildable), which canBuild then honours.
 
 	// From City, or while City is being researched (gameState.isResearching(phase 3)); not
 	// while Petra only saves for it.
@@ -27358,10 +27360,6 @@ void Simulation::petra_build_defenses() {
 		if (can_build(BLD_FORTRESS) &&
 		    (n_fortresses == 0 || now > (1.0f + 0.1f * (float)n_fortresses) * fortress_lapse + d.fortress_start) &&
 		    n_fortresses < n_bases + 1 + extra_fortresses && n_fortresses < pop / 25 && n_fortress_fnd < 2) {
-			if (n_fortresses > 0 && !has_spot(BLD_FORTRESS)) { // setUnbuildable for 90 s
-				d.fortress_start = now + kNoRoomWait - (1.0f + 0.1f * (float)n_fortresses) * fortress_lapse;
-				return;
-			}
 			d.fortress_start = now;
 			d.pending = BLD_FORTRESS + 1;
 			// The first fortress at twice defenseBuilding's priority, until it is started.
@@ -27375,10 +27373,6 @@ void Simulation::petra_build_defenses() {
 		// saveResources (little starting wood) spaces them out further.
 		const float lapse = petra_attack_mgr_.save_resources ? (1.0f + 0.5f * (float)n_towers) * tower_lapse : tower_lapse;
 		if (n_towers < num_sentry && now > lapse + d.fort_start) {
-			if (!has_spot(BLD_SENTRY_TOWER)) {
-				d.fort_start = now + kNoRoomWait - lapse;
-				return;
-			}
 			d.fort_start = now;
 			d.pending = BLD_SENTRY_TOWER + 1;
 		}
@@ -27388,10 +27382,6 @@ void Simulation::petra_build_defenses() {
 	const float stone_lapse = petra_attack_mgr_.save_resources ? (1.0f + (float)n_stone) * tower_lapse : tower_lapse;
 	if ((n_stone == 0 || now > (1.0f + 0.1f * (float)n_stone) * stone_lapse + d.tower_start) &&
 	    n_stone < 2 * n_bases + 3 + extra_towers && n_stone < pop / 8 && n_tower_fnd < 3) {
-		if (!has_spot(BLD_TOWER)) {
-			if (n_stone > 0) d.tower_start = now + kNoRoomWait - (1.0f + 0.1f * (float)n_stone) * stone_lapse;
-			return;
-		}
 		d.tower_start = now;
 		d.pending = BLD_TOWER + 1;
 		// Past the usual count, a tower goes at 70% of defenseBuilding's priority.
