@@ -979,12 +979,13 @@ static void test_petra_attack_from_far_base() {
 	s.petra_attack_plan_.target_building_id = target;
 	s.petra_attack_plan_.state_timer = 0.0f;
 	s.petra_attack_plan_.forced = true;
+	// A completing plan leaves the preparation slot for the started attacks.
 	bool completing = false;
 	for (int k = 0; k < 240 && !completing; ++k) {
 		run(s, 1.0f);
-		completing = s.petra_attack_plan_.completing;
+		completing = !s.petra_started_attacks_.empty() && s.petra_started_attacks_[0].completing;
 	}
-	const auto &plan = s.petra_attack_plan_;
+	const Simulation::AttackPlan plan = completing ? s.petra_started_attacks_[0] : s.petra_attack_plan_;
 	std::printf("Petra attack from a far base: completing %s, rally (%.0f, %.0f), %zu in the squad, ferry %s\n",
 	            completing ? "yes" : "no", plan.staging_x, plan.staging_z, plan.squad.size(),
 	            s.petra_transport_for(PETRA_TRANSPORT_ATTACK) ? "yes" : "no");
