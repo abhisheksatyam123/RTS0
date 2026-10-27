@@ -22702,11 +22702,13 @@ void Simulation::petra_manage_military_production(float dt) {
 		const bool main_plan = &plan == &petra_attack_plan_;
 		std::vector<UnitStat> stats = petra_plan_unit_stats(kind, main_plan ? petra_attack_mgr_.dropped_classes : 0);
 
-		// What the plan has, each unit counted once in the first class it matches, plus what is
-		// in training for it (the batches queued with its plan).
+		// What the plan has, each unit counted in every class it matches (this.unit[cat] is a
+		// class filter over the plan's units: a German Cimbrian clubman, Champion and Citizen
+		// Soldier, is both a champion and a melee citizen soldier), plus what is in training for
+		// it (the batches queued with its plan).
 		auto tally = [&](TechClasses c, int n) {
 			for (UnitStat &st : stats)
-				if ((c & st.classes) == st.classes) { st.count += n; return; }
+				if ((c & st.classes) == st.classes) st.count += n;
 		};
 		for (uint32_t uid : plan.squad) {
 			const int32_t i = lookup_unit(uid);
@@ -30216,7 +30218,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			}
 
 			// attackPlan.js mustStart: every class of the plan at its targetSize, each unit counted
-			// in the first class it matches (a class no building of ours trains drops out, as
+			// in every class it matches (a class no building of ours trains drops out, as
 			// trainMoreUnits deletes it). At the population cap (under 5 free slots) the plan
 			// starts with every class at its minSize or more than lengthMin units, and fails
 			// otherwise so that its units go to other plans. The cap is getPopulationMax, the hard
@@ -30227,7 +30229,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				if (k < 0 || !units_.alive[k]) continue;
 				const TechClasses c = unit_classes(units_.tmpl[k], units_.unit_type[k]);
 				for (PetraUnitStat &st : stats)
-					if ((c & st.classes) == st.classes) { ++st.count; break; }
+					if ((c & st.classes) == st.classes) ++st.count;
 			}
 			bool max_everywhere = true, min_everywhere = true;
 			for (const PetraUnitStat &st : stats) {
