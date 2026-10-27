@@ -656,12 +656,12 @@ void RtsoMain::debug_select_entity(int64_t id) {
 
 // Test hook: a finished structure of ours `dx`, `dz` from our Civic Center.
 // `player`: the owner (the local player by default), still placed by the local Civic Center.
-int64_t RtsoMain::debug_spawn_building(int type, float dx, float dz, int player) {
+int64_t RtsoMain::debug_spawn_building(int type, float dx, float dz, int player, float progress) {
 	if (!sim) return 0;
 	const uint8_t me = local_player();
 	for (const auto &b : sim->buildings())
 		if (b.team == me && rtso::is_civic_centre(b.type))
-			return sim->spawn_building_world(b.x + dx, b.z + dz, (uint8_t)type, player < 0 ? me : (uint8_t)player, 1.0f);
+			return sim->spawn_building_world(b.x + dx, b.z + dz, (uint8_t)type, player < 0 ? me : (uint8_t)player, progress);
 	return 0;
 }
 
