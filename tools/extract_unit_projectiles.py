@@ -10,7 +10,8 @@ arrow_front.xml. RTS0's sim launches an arrow, a bolt or a stone; this table
 lets the world view draw a javelin or a sling stone for the units whose 0.28
 actor (or rider actor) launches one.
 
-Writes data/unit_projectiles.json {"<template id>": "javelin" | "sling"}, only
+Writes data/unit_projectiles.json {"<template id>": "javelin" | "javelin_fire" |
+"sling"} (javelin_fire: the flaming jav_projectile_flame.xml), only
 for templates that launch something other than the arrow.
 
 Usage:
@@ -32,7 +33,7 @@ OUT = os.path.join(U.REPO, "data", "unit_projectiles.json")
 # Projectile prop actor -> RTS0 projectile kind (arrows, bolts and stones keep the sim's).
 KINDS = {
     "props/units/weapons/jav_projectile.xml": "javelin",
-    "props/units/weapons/jav_projectile_flame.xml": "javelin",
+    "props/units/weapons/jav_projectile_flame.xml": "javelin_fire",
     "props/units/weapons/slingrock.xml": "sling",
 }
 
