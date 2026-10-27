@@ -46,6 +46,7 @@
 #include <cmath>
 #include <cstdio>
 #include <memory>
+#include <set>
 #include <vector>
 #include <array>
 using namespace rtso;
@@ -2368,6 +2369,43 @@ static void test_petra_islands_wood_reserve() {
 	for (int k = 0; k < 40; ++k) s->tick(Simulation::FIXED_STEP);
 	std::printf("idle woman moved %.2f away from the civic centre\n", s->units_.pos_x[ui] - x0);
 	CHECK(s->units_.pos_x[ui] - x0 > 0.5f, "the idle woman steps aside");
+}
+
+// A trained batch with nowhere to step out stays at the front of the queue; its timer runs on
+// past the training time, so petra_clear_blocked_spawns can tell it has waited over 10 s (the
+// queue behind it, a phase included, held for good while the timer stopped at its duration).
+static void test_blocked_spawn_timer() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, false);
+	uint32_t cc_id = 0;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc_id = b.id;
+	CHECK(cc_id != 0, "player 2 has a civic centre");
+	if (!cc_id) return;
+	const Simulation::Building cc = s->buildings_[s->building_id_to_idx_.at(cc_id)];
+	// Palisades packed round the civic centre out past MaxSpawnDistance: no spawn point is free.
+	for (float r = std::max(cc.hu, cc.hv) + 0.3f; r < std::max(cc.hu, cc.hv) + 3.0f; r += 0.7f)
+		for (float d = -r; d < r + 0.01f; d += 0.7f)
+			for (const auto &p : {std::pair{cc.x + d, cc.z - r}, std::pair{cc.x + d, cc.z + r}, std::pair{cc.x - r, cc.z + d}, std::pair{cc.x + r, cc.z + d}})
+				s->spawn_building_world(p.first, p.second, BLD_PALISADE, 1, 1.0f);
+	s->rebuild_nav_grid();
+	ProductionOrder o;
+	o.unit_type = UNIT_FEMALE_CITIZEN;
+	o.timer = 0.0f;
+	o.duration = 2.0f;
+	o.started = true;
+	auto &ccb = s->buildings_[s->building_id_to_idx_.at(cc_id)];
+	ccb.queue.clear();
+	ccb.queue.push_back(o);
+	run_for(*s, 20.0f);
+	const auto &q = s->buildings_[s->building_id_to_idx_.at(cc_id)].queue;
+	const float timer = q.empty() ? -1.0f : q.front().timer;
+	std::printf("blocked batch after 20 s: %s, timer %.0f of %.0f\n", q.empty() ? "spawned" : "still queued", timer, o.duration);
+	CHECK(!q.empty() && timer >= o.duration + 10.0f, "the blocked batch's timer runs on past its training time");
 }
 
 // startingStrategy.js gameStart: no civic centre and none to build (Death Canyon's invasion
@@ -6029,6 +6067,7 @@ static void test_defend_allies() {
 	s->order_set_stance(foes.data(), foes.size(), STANCE_STAND_GROUND);
 	auto is_foe = [&](uint32_t id) { return std::find(foes.begin(), foes.end(), id) != foes.end(); };
 	int sent = 0, home = 0;
+	std::set<uint32_t> sent_ids;
 	// checkEnemyUnits looks at one player a turn: player 0's turn comes within 4 (3 players + Gaia).
 	for (float t = 0.0f; t < 7.0f; t += Simulation::FIXED_STEP) {
 		for (uint32_t id : foes) {
@@ -6036,10 +6075,14 @@ static void test_defend_allies() {
 			if (f >= 0 && u.alive[f]) u.hp[f] = u.max_hp[f];
 		}
 		s->tick(Simulation::FIXED_STEP);
+		// A defender's target can flicker between turns while it walks over, so count
+		// every soldier that took one of the attackers as its target in the window.
+		for (size_t i = 0; i < u.count; ++i)
+			if (u.alive[i] && u.team[i] == 1 && is_foe(u.target_unit_id[i])) sent_ids.insert(u.id[i]);
 	}
 	for (size_t i = 0; i < u.count; ++i) { // the backup counts AI 1's starting soldiers too
 		if (!u.alive[i] || u.team[i] != 1 || petra_is_support_unit(u.unit_type[i])) continue;
-		if (is_foe(u.target_unit_id[i])) ++sent; else ++home;
+		if (sent_ids.count(u.id[i])) ++sent; else ++home;
 	}
 	const float dx = ax - hx, dz = az - hz;
 	std::printf("  ally's Town Center attacked %.0f away: %d soldiers sent, %d stay home\n", std::sqrt(dx * dx + dz * dz), sent, home);
@@ -7627,6 +7670,38 @@ static void test_strength_prepare_time() {
 	CHECK(std::fabs(templ - want) < 1e-4f, "the template strength takes PrepareTime off");
 }
 
+static void test_strength_fire() {
+	// getMaxStrength counts Damage/Fire at DamageTypeImportance 0.001 (G64): a fire ship's
+	// strength is the by-hand sum with its Fire damage in, and its Melee MaxRange counts as
+	// melee for a trained ship too.
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->petra_pid_ = 1;
+	uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE;
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT && tmpl == CIV_UNIT_TEMPLATE_NONE; ++t) {
+		const uint8_t ty = civ_unit_template(t).unit_type;
+		if (unit_combat(t, ty).fire > 0.0f && civ_template_unit_info(t, ty).attack_damage > 0.0f) tmpl = t;
+	}
+	CHECK(tmpl != CIV_UNIT_TEMPLATE_NONE, "a roster unit attacks with Fire");
+	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return;
+	const uint8_t type = civ_unit_template(tmpl).unit_type;
+	const UnitTypeInfo &ui = civ_template_unit_info(tmpl, type);
+	const CombatProfile &c = unit_combat(tmpl, type);
+	const bool ranged = (civ_unit_template(tmpl).tech_classes & TC_RANGED) != 0;
+	float want = (0.075f * ui.hack_damage + 0.085f * ui.pierce_damage + 0.045f * ui.crush_damage + 0.001f * c.fire) / 4.0f;
+	want += ui.attack_range / (ranged ? COMBAT_DISTANCE_SCALE : 0.6f) * 0.0125f + ui.attack_cooldown * 0.01f - c.prepare * 0.01f;
+	if (unit_capture_attack(tmpl, type) > 0.0f) want += 4.0f * 0.0125f + 0.01f;
+	want += (0.075f * ui.hack_armor + 0.085f * ui.pierce_armor + 0.045f * ui.crush_armor) / 4.0f;
+	want *= ui.hp / 100.0f;
+	const float templ = s->petra_template_strength(ui, tmpl, type);
+	std::printf("  %s Fire %.0f: strength %.5f, by hand %.5f\n", civ_unit_template(tmpl).id, c.fire, templ, want);
+	CHECK(std::fabs(templ - want) < 1e-4f, "the template strength counts Fire");
+	const uint32_t id = s->spawn_unit(10.0f, 10.0f, 1, (UnitType)type, 0.0f, tmpl);
+	const int32_t i = s->lookup_unit(id);
+	CHECK(i >= 0 && std::fabs(s->petra_unit_strength((size_t)i) - templ) < 1e-4f, "unit and template strength agree");
+}
+
 static void test_emergency_units_captured_cc() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -8429,6 +8504,7 @@ int main(int argc, char **argv) {
 	RUN(test_pop_phase2_save_resources);
 	RUN(test_petra_config_pop_scaling);
 	RUN(test_petra_islands_wood_reserve);
+	RUN(test_blocked_spawn_timer);
 	RUN(test_petra_phasing_needs_researcher);
 	RUN(test_garrisoned_workers_count);
 	RUN(test_gather_rate_civ_bonus);
@@ -8556,6 +8632,7 @@ int main(int argc, char **argv) {
 	RUN(test_unit_stat_trainable_busy);
 	RUN(test_workers_while_cc_on_emergency);
 	RUN(test_strength_prepare_time);
+	RUN(test_strength_fire);
 	RUN(test_siege_class_kept);
 	RUN(test_worker_plans_wait);
 	RUN(test_new_cc_defenders);

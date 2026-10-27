@@ -268,6 +268,7 @@ struct NavGrid {
     std::vector<uint32_t> tile_water_sum_;
     uint32_t tile_region_next_[TILE_CLASSES] = {};  // the last region id given out
     uint32_t tile_open_version_ = 0;
+    unsigned tile_open_kept_ = 0; // tile_kept_mask() when they were worked out
     int tile_open_res_ = 0;
     float tile_open_half_ = 0.0f, tile_open_edge_r_ = 0.0f;
     bool tile_open_ready_ = false;
@@ -507,10 +508,34 @@ struct NavGrid {
     //   three tiles a side round it are. A gap two tiles wide keeps the line of corners between its
     //   tiles, as 0.28's 3 m expansion leaves 2 m of an 8 m gap open; a gap one tile wide is shut.
 
+    // - Structures, for "large": 0.28 rasterizes every static obstruction grown by the class
+    //   Clearance (RasterizeRectWithClearance, Rasterize.cpp:29-48), so a ram's or an elephant's
+    //   long path never takes a gap between two structures closer than twice its 3 m: CheckMovement
+    //   (CCmpPathfinder.cpp:971-985) would refuse the step into either one's square there, as
+    //   Simulation::large_step_barred does. RTS0's 8 m navcells, closed only where a structure covers
+    //   them whole, leave such gaps open, so the class keeps its nodes on every map, steep or level:
+    //   on the heightmap's tiles when they are finer than the navcells, else on the map's own 4 m
+    //   tiles (node_tiles). The default class keeps them only where tile_paths_on.
+
+    // The tiles a side the nodes lie on, two nodes a tile: the heightmap's when they are finer than
+    // the navcells, else the map's 4 m tiles (a world unit a side); 0 when neither is.
+    int node_tiles() const {
+        const int tw = steep_tile_res();
+        if (tw > res) return tw;
+        const int mt = static_cast<int>(2.0f * map_half + 0.5f);
+        return mt > res ? mt : 0;
+    }
+    // Whether the nodes of class cls are kept: the "large" class's wherever there are nodes, the
+    // default class's only where find_path plans near steep ground on them (tile_paths_on).
+    bool tile_class_kept(int cls) const {
+        if (cells.blank() || node_tiles() <= res) return false;
+        return cls == 1 || tile_paths_on();
+    }
+    bool tile_nodes_on() const { return tile_class_kept(1); }
     // The nodes: node_res() a side, node_step() world units apart, node a at node_pos(a).
-    int node_res() const { return 2 * steep_tile_res(); }
+    int node_res() const { return 2 * node_tiles(); }
     int node_words() const { return (node_res() + 63) / 64; }
-    float node_step() const { return map_half / static_cast<float>(std::max(steep_tile_res(), 1)); }
+    float node_step() const { return map_half / static_cast<float>(std::max(node_tiles(), 1)); }
     float node_pos(int a) const { return static_cast<float>(a) * node_step() - map_half; }
     // The node nearest the world coordinate v (x or z).
     int node_of(float v) const {
@@ -866,27 +891,35 @@ struct NavGrid {
                 tile_open_edge_r_ != edge_r || tile_cell_water_.size() != cells.data.size())
             return false;
         const size_t nb = static_cast<size_t>(nw) * static_cast<size_t>(node_words());
+        if (tile_open_kept_ != tile_kept_mask()) return false;
         for (int cls = 0; cls < TILE_CLASSES; ++cls)
-            if (tile_open_[cls].size() != n || tile_region_[cls].size() != n || tile_obs_count_[cls].size() != n ||
-                    tile_bits_rows_[cls].size() != nb || tile_bits_cols_[cls].size() != nb)
+            if (tile_class_kept(cls) && (tile_open_[cls].size() != n || tile_region_[cls].size() != n || tile_obs_count_[cls].size() != n ||
+                    tile_bits_rows_[cls].size() != nb || tile_bits_cols_[cls].size() != nb))
                 return false;
         return true;
+    }
+    // The classes whose nodes are kept, one bit each (tile_class_kept).
+    unsigned tile_kept_mask() const {
+        unsigned m = 0;
+        for (int cls = 0; cls < TILE_CLASSES; ++cls)
+            if (tile_class_kept(cls)) m |= 1u << cls;
+        return m;
     }
     // Works the nodes out (rebuild_regions: all of them; rebuild_dirty_regions: those within the
     // large clearance of a dirty navcell whose deep water changed), as HierarchicalPathfinder::Update
     // redoes the dirty chunks. The steep tiles are the terrain's; the obstructions come and go
     // through set_tile_obstructions.
     void update_tile_open(bool all) {
-        const int tw = steep_tile_res();
-        if (tw <= res || cells.blank() || !any_steep_tile()) {
+        auto drop = [&](int cls) {
+            tile_open_[cls].clear();
+            tile_region_[cls].clear();
+            tile_obs_count_[cls].clear();
+            tile_bits_rows_[cls].clear();
+            tile_bits_cols_[cls].clear();
+        };
+        if (!tile_nodes_on()) {
             tile_open_ready_ = false;
-            for (int cls = 0; cls < TILE_CLASSES; ++cls) {
-                tile_open_[cls].clear();
-                tile_region_[cls].clear();
-                tile_obs_count_[cls].clear();
-                tile_bits_rows_[cls].clear();
-                tile_bits_cols_[cls].clear();
-            }
+            for (int cls = 0; cls < TILE_CLASSES; ++cls) drop(cls);
             return;
         }
         const bool whole = all || !tile_open_cached() || dirty.blank();
@@ -901,6 +934,10 @@ struct NavGrid {
             build_tile_water();
             if (tile_obs_half_ != map_half) build_tile_obs_buckets();
             for (int cls = 0; cls < TILE_CLASSES; ++cls) {
+                if (!tile_class_kept(cls)) {
+                    drop(cls);
+                    continue;
+                }
                 tile_obs_count_[cls].assign(n, 0);
                 for (int set = 0; set < TILE_OBS_SETS; ++set)
                     for (const TileObstruction &o : tile_obs_[set]) tile_obs_raster(o, cls, 1, nullptr);
@@ -912,6 +949,7 @@ struct NavGrid {
                 flood_tile_regions(cls);
             }
             tile_open_version_ = terrain_version_;
+            tile_open_kept_ = tile_kept_mask();
             tile_open_res_ = res;
             tile_open_half_ = map_half;
             tile_open_edge_r_ = edge_r;
@@ -930,6 +968,7 @@ struct NavGrid {
         const float cw = (map_half * 2.0f) / static_cast<float>(res), s = node_step();
         const float g = TILE_PATH_CLEARANCE_LARGE + 2.0f * TILE_HAIR;
         for (int cls = 0; cls < TILE_CLASSES; ++cls) {
+            if (!tile_class_kept(cls)) continue;
             std::vector<uint8_t> &open = tile_open_[cls];
             tile_closed_.clear();
             tile_opened_.clear();
@@ -966,6 +1005,7 @@ struct NavGrid {
         if (tile_open_cached()) {
             const int nw = node_res();
             for (int cls = 0; cls < TILE_CLASSES; ++cls) {
+                if (!tile_class_kept(cls)) continue;
                 tile_crossed_.clear();
                 diff_tile_obs(old, list, [&](const TileObstruction &o) { tile_obs_raster(o, cls, -1, &tile_crossed_); },
                         [&](const TileObstruction &o) { tile_obs_raster(o, cls, 1, &tile_crossed_); });
@@ -1338,7 +1378,7 @@ struct NavGrid {
     // or that of the open node it snaps to within max_r nodes (snap_tile). 0 when there is none, or
     // the nodes aren't kept for this terrain.
     uint32_t tile_region_at(float x, float z, int max_r, int cls) const {
-        if (!tile_open_cached()) return 0;
+        if (!tile_open_cached() || !tile_class_kept(cls)) return 0;
         const int nw = node_res();
         const std::vector<uint8_t> &open = tile_open_[cls];
         auto is_open = [&](int i, int j) {
@@ -1819,8 +1859,13 @@ struct NavGrid {
     // Long-range path on the NavGrid: snap, MakeGoalReachable, then JPS with octile 10/14 costs.
     // A warship (PASS_WARSHIP) whose path can't get through on its class (a channel 0 A.D. warships
     // use can be two 8 m navcells wide, which the clearance closes) takes the PASS_SHIP path.
+    // A "large" path that finds no way takes the default class's, as woods its 8 m navcells close
+    // whole would shut it off (PASS_LARGE), but not one planned round a gap too narrow for the class
+    // (find_path_on's `narrow_gap`), which keeps the nodes' own end.
     bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
-    bool find_path_on(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const;
+    // `narrow_gap`, when given, is set when the path returned was planned on the nodes round a gap
+    // between two structures too narrow for the "large" class (path_through_narrow_gap).
+    bool find_path_on(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass, bool *narrow_gap = nullptr) const;
     // find_path_on's search on the navcells alone, before its pass on the terrain tiles. It leaves
     // (tx, tz) where MakeGoalReachable moved the goal (ashore, into the start's region).
     bool find_path_cells(float sx, float sz, float &tx, float &tz, WaypointPath &out, uint8_t pass) const;
@@ -1844,6 +1889,24 @@ struct NavGrid {
     // grown by the clearance of tile class cls, that stands within twice that clearance of a steep
     // tile.
     bool path_through_obstruction_near_steep(float sx, float sz, const WaypointPath &path, int cls) const;
+    // Whether the walk from (sx, sz) along the rest of `path` passes inside a structure (the
+    // TILE_OBS_STRUCTURES set) grown by the "large" clearance that stands within twice that clearance
+    // of another structure: a gap a unit of the class can't get through, as each one's square grown by
+    // the clearance takes in the whole gap between them (TestRaySquare, CCmpObstructionManager.cpp:
+    // 918-932). The pass on the nodes then plans the path round them.
+    bool path_through_narrow_gap(float sx, float sz, const WaypointPath &path) const;
+    // Whether rectangle a, grown by `grow` on every side, and rectangle b overlap (touching does not
+    // count): the separating axis test over both rectangles' axes (u = (1, 0) when uz is 0).
+    static bool tile_obs_overlap(const TileObstruction &a, float grow, const TileObstruction &b) {
+        const float ahu = a.hu + grow, ahv = a.hv + grow, dx = b.x - a.x, dz = b.z - a.z;
+        const float axes[4][2] = {{a.ux, a.uz}, {-a.uz, a.ux}, {b.ux, b.uz}, {-b.uz, b.ux}};
+        for (const auto &ax : axes) {
+            const float ra = ahu * std::fabs(ax[0] * a.ux + ax[1] * a.uz) + ahv * std::fabs(ax[1] * a.ux - ax[0] * a.uz);
+            const float rb = b.hu * std::fabs(ax[0] * b.ux + ax[1] * b.uz) + b.hv * std::fabs(ax[1] * b.ux - ax[0] * b.uz);
+            if (std::fabs(dx * ax[0] + dz * ax[1]) >= ra + rb) return false;
+        }
+        return true;
+    }
     // The land path of tile class cls (tile_class) on the nodes: JPS (nav/long_pathfinder.h) from the
     // node nearest the start a unit can stand on, to the goal's node or, when a unit can't stand there
     // or get there, the nearest one of the start's region (HierarchicalPathfinder::MakeGoalReachable),
@@ -1862,7 +1925,10 @@ struct NavGrid {
     bool segment_near_steep_tile(float ax, float az, float bx, float bz, float r) const;
     // Half of segment_near_steep_tile's sample spacing: every point of a segment lies within it of a
     // sample, so a radius grown by it catches a segment that clips a steep tile between two samples.
-    float steep_sample_pad() const { return 0.25f * map_half / static_cast<float>(std::max(steep_tile_res(), 1)); }
+    // Without the heightmap's tiles (the large class's nodes on the map's tiles: node_tiles), the
+    // samples are the nodes' tiles'.
+    int sample_tiles() const { return steep_tile_res() > 0 ? steep_tile_res() : std::max(node_tiles(), 1); }
+    float steep_sample_pad() const { return 0.25f * map_half / static_cast<float>(sample_tiles()); }
     // segment_near_steep_tile's samples, with the box test `hit(x0, z0, x1, z1)` in place of the steep
     // tiles'.
     template <class Hit>
@@ -1925,35 +1991,54 @@ struct WaypointPath {
 // NavGrid::find_path — snap, MakeGoalReachable, JPS, string pull
 // ---------------------------------------------------------------------------
 inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
-    if (pass & PASS_LARGE)
-        return find_path_on(sx, sz, tx, tz, out, pass) || find_path_on(sx, sz, tx, tz, out, pass & ~PASS_LARGE);
+    if (pass & PASS_LARGE) {
+        bool narrow_gap = false;
+        if (find_path_on(sx, sz, tx, tz, out, pass, &narrow_gap)) return true;
+        // A path planned on the nodes round a gap too narrow for the class that does not reach the
+        // goal ends where MakeGoalReachable moves it, the nearest node of the start's region
+        // (HierarchicalPathfinder.cpp:689-719), as 0.28's long path for the class does: it has no
+        // other class to fall back on. The default class's path would take the unit into the gap it
+        // was planned round, where its steps are refused at the mouth (Simulation::large_step_barred).
+        if (narrow_gap) return false;
+        return find_path_on(sx, sz, tx, tz, out, pass & ~PASS_LARGE);
+    }
     if (!(pass & PASS_SHIP_CLEARANCE)) return find_path_on(sx, sz, tx, tz, out, pass);
     return find_path_on(sx, sz, tx, tz, out, pass) || find_path_on(sx, sz, tx, tz, out, PASS_SHIP);
 }
 
-inline bool NavGrid::find_path_on(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
+inline bool NavGrid::find_path_on(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass, bool *narrow_gap) const {
     float gx = tx, gz = tz;
     const bool reached = find_path_cells(sx, sz, gx, gz, out, pass);
-    if ((pass & PASS_SHIP) || cells.blank() || !tile_paths_on()) return reached;
+    if ((pass & PASS_SHIP) || cells.blank()) return reached;
     const int cls = tile_class(pass);
-    // The class's clearance, grown by half a sample so a leg that clips a steep tile's corner between
-    // two samples counts too.
-    const float c = tile_clearance(cls) + steep_sample_pad();
-    bool fine = near_steep_tile(gx, gz, c) || path_near_steep_tile(sx, sz, out, c) || path_through_obstruction_near_steep(sx, sz, out, cls);
-    // A path that ends short of the goal (MakeGoalReachable moved it, or JPS stopped at the navcell
-    // nearest it) when the goal's tile region is the start's: navcells steep by their averaged slope
-    // can close a pass whose tiles are level, and 0.28's MakeGoalReachable, on navcells no coarser
-    // than the tiles, leaves the goal where it is.
-    if (!fine && (out.count == 0 || out.xs[out.count - 1] != tx || out.zs[out.count - 1] != tz)) {
-        const uint32_t from = tile_region_at(sx, sz, tile_snap_reach(), cls);
-        fine = from != 0 && from == tile_region_at(tx, tz, tile_snap_reach(), cls);
+    if (!tile_class_kept(cls)) return reached;
+    bool fine = false;
+    if (tile_paths_on()) {
+        // The class's clearance, grown by half a sample so a leg that clips a steep tile's corner
+        // between two samples counts too.
+        const float c = tile_clearance(cls) + steep_sample_pad();
+        fine = near_steep_tile(gx, gz, c) || path_near_steep_tile(sx, sz, out, c) || path_through_obstruction_near_steep(sx, sz, out, cls);
+        // A path that ends short of the goal (MakeGoalReachable moved it, or JPS stopped at the
+        // navcell nearest it) when the goal's tile region is the start's: navcells steep by their
+        // averaged slope can close a pass whose tiles are level, and 0.28's MakeGoalReachable, on
+        // navcells no coarser than the tiles, leaves the goal where it is.
+        if (!fine && (out.count == 0 || out.xs[out.count - 1] != tx || out.zs[out.count - 1] != tz)) {
+            const uint32_t from = tile_region_at(sx, sz, tile_snap_reach(), cls);
+            fine = from != 0 && from == tile_region_at(tx, tz, tile_snap_reach(), cls);
+        }
     }
+    // A "large" path through a gap between two structures too narrow for the class: 0.28's long
+    // path never takes one (Rasterize.cpp:29-48), and the unit could not walk it
+    // (Simulation::large_step_barred).
+    bool gap = false;
+    if (!fine && cls == 1) fine = gap = path_through_narrow_gap(sx, sz, out);
     if (!fine) return reached;
     // The tiles take the goal as given: their own MakeGoalReachable moves it, not the navcells'.
     WaypointPath tiles;
     bool tiles_reached = false;
     if (!find_path_tiles(sx, sz, tx, tz, tiles, tiles_reached, cls)) return reached;
     out = tiles;
+    if (narrow_gap) *narrow_gap = gap;
     return tiles_reached;
 }
 
@@ -2117,7 +2202,7 @@ template <class Hit>
 inline bool NavGrid::segment_box_hits(float ax, float az, float bx, float bz, float r, Hit &&hit) const {
     if (!hit(std::min(ax, bx) - r, std::min(az, bz) - r, std::max(ax, bx) + r, std::max(az, bz) + r)) return false;
     const float dx = bx - ax, dz = bz - az;
-    const float step = 0.5f * map_half / static_cast<float>(std::max(steep_tile_res(), 1));
+    const float step = 0.5f * map_half / static_cast<float>(sample_tiles());
     const int n = std::max(1, static_cast<int>(std::ceil(std::sqrt(dx * dx + dz * dz) / step)));
     // In runs of eight samples, as nav::detail::segment_near_steep: a run whose box (grown by r)
     // hits nothing is passed over whole.
@@ -2170,6 +2255,34 @@ inline bool NavGrid::path_through_obstruction_near_steep(float sx, float sz, con
     return false;
 }
 
+inline bool NavGrid::path_through_narrow_gap(float sx, float sz, const WaypointPath &path) const {
+    const std::vector<TileObstruction> &list = tile_obs_[TILE_OBS_STRUCTURES];
+    if (list.size() < 2) return false;
+    const float g = TILE_PATH_CLEARANCE_LARGE + TILE_HAIR;
+    auto structure = [&](const TileObstruction &o) {
+        return std::binary_search(list.begin(), list.end(), o, [](const TileObstruction &a, const TileObstruction &b) { return a.key < b.key; });
+    };
+    // Another structure comes within twice the clearance of o: o's rectangle grown by that holds part
+    // of it. The buckets round o's box grown by as much hold every such one (each_tile_obs_bucket).
+    auto crowded = [&](const TileObstruction &o) {
+        const float e = std::max(o.hu, o.hv) * 1.4143f + 2.0f * g;
+        return any_tile_obs_near_segment(o.x, o.z, o.x, o.z, e, [&](const TileObstruction &n) {
+            return n.key != o.key && structure(n) && tile_obs_overlap(o, 2.0f * g, n);
+        });
+    };
+    float x = sx, z = sz;
+    for (int k = std::max(path.cur, 0); k < path.count; ++k) {
+        const float ax = x, az = z, bx = path.xs[k], bz = path.zs[k];
+        if (any_tile_obs_near_segment(ax, az, bx, bz, g, [&](const TileObstruction &o) {
+                return tile_obs_segment_hit(o, ax, az, bx, bz, g) && structure(o) && crowded(o);
+            }))
+            return true;
+        x = bx;
+        z = bz;
+    }
+    return false;
+}
+
 inline bool NavGrid::tile_line_clear(float ax, float az, float bx, float bz, int cls, bool live) const {
     const float c = tile_clearance(cls);
     // The terrain is tested every quarter tile, so the margin it keeps off is half a sample wider
@@ -2182,8 +2295,7 @@ inline bool NavGrid::tile_line_clear(float ax, float az, float bx, float bz, int
 }
 
 inline bool NavGrid::find_path_tiles(float sx, float sz, float tx, float tz, WaypointPath &out, bool &reached, int cls) const {
-    const int tw = steep_tile_res();
-    if (tw <= res || cells.blank()) return false;
+    if (!tile_class_kept(cls)) return false;
     const int nw = node_res();
     auto at = [&](int i, int j) { return static_cast<size_t>(j) * static_cast<size_t>(nw) + static_cast<size_t>(i); };
     // The nodes a unit of the class can stand on, as update_tile_open keeps them when it has; else
@@ -2330,9 +2442,26 @@ inline bool NavGrid::find_path_tiles(float sx, float sz, float tx, float tz, Way
 // ---------------------------------------------------------------------------
 inline bool NavGrid::search_cells_jps(int scx, int scy, int tcx, int tcy, uint8_t pass,
         std::vector<std::pair<int,int>> &path_cells) const {
-    auto passable = [this, pass](int x, int y) { return is_passable_for(x, y, pass); };
     thread_local nav::JpsBuffers jps; // find_path runs on the worker threads: one search state each
-    const bool reached = nav::compute_jps_path(res, res, passable, scx, scy, tcx, tcy, path_cells, nullptr, &jps);
+    bool reached;
+    if (!(pass & PASS_SHIP) && cells.w == res && cells.h == res &&
+            (steep_cells_.blank() || (steep_cells_.w == res && steep_cells_.h == res))) {
+        // is_passable_for for a land class, read straight from the arrays: the search tests cells
+        // inside the grid only, millions of times on a long path across a big map.
+        const uint8_t *cd = cells.data.data();
+        const uint8_t *st = steep_cells_.blank() ? nullptr : steep_cells_.data.data();
+        const uint8_t *lc = (pass & PASS_LARGE) && large_closed.size() == cells.data.size() ? large_closed.data() : nullptr;
+        const size_t w = static_cast<size_t>(res);
+        auto passable = [cd, st, lc, w](int x, int y) {
+            const size_t i = static_cast<size_t>(y) * w + static_cast<size_t>(x);
+            const uint8_t c = cd[i];
+            return (c == NAV_PASSABLE || c == NAV_SHALLOW) && !(st && st[i]) && !(lc && lc[i]);
+        };
+        reached = nav::compute_jps_path(res, res, passable, scx, scy, tcx, tcy, path_cells, nullptr, &jps);
+    } else {
+        auto passable = [this, pass](int x, int y) { return is_passable_for(x, y, pass); };
+        reached = nav::compute_jps_path(res, res, passable, scx, scy, tcx, tcy, path_cells, nullptr, &jps);
+    }
     const float cell = map_half * 2.0f / static_cast<float>(res);
     nav::jps_debug_keep(jps, res, -map_half + 0.5f * cell, -map_half + 0.5f * cell, cell);
     return reached;

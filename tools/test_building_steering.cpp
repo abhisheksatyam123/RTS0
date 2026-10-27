@@ -145,14 +145,80 @@
 //     on to the next (HandleObstructedMove drops a close long waypoint, CCmpUnitMotion.h:1416-1426)
 //     instead of pressing into the oak towards it (or, as the walk of Islands seed 1 in 36 did,
 //     walking between the corners of a bush in front of it for good), and gets to its point.
+// 39. Straight to a near goal: 0.28 TryGoingStraightToTarget (CCmpUnitMotion.h:1503-1561) drops the
+//     long path when the goal is within 24 m (DIRECT_PATH_RANGE) and the straight line to it passes
+//     CheckMovement. Spearmen sent past turned houses, on lines that clear every footprint by more
+//     than their 0.8 m clearance, walk those lines instead of by the long path's navcell centres
+//     round a house's corner. A ram or an elephant on a line that passes within its 3 m of a house
+//     fails CheckMovement, so it keeps its path round the house, never into it, and gets there. A
+//     line that starts inside a house's clearance fails too, unless the house is the unit's target:
+//     0.28 never lets a unit in there, and the line out would cut between that house and a
+//     neighbour closer than twice the clearance.
+// 40. Past the map's edge: CheckMovement fails a line whose end lies past the edge band, the map's
+//     impassable edge grown by the clearance (TestLine's IsInWorld, CCmpObstructionManager.cpp:
+//     890-892; CheckLineMovement, CCmpPathfinder.cpp:700-743 and :760-761). A walk that gets within
+//     24 m of a point past it keeps its long path and ends where MakeGoalReachable ended that.
+// 41. Set down beside a hemmed-in arsenal: CheckUnitPlacement (CCmpPathfinder.cpp:987-1008) tests a
+//     spawn spot against the static squares grown by the unit's class Clearance (TestUnitShape,
+//     CCmpObstructionManager.cpp:1095-1112), so a ram or an elephant is never set down within 3 m
+//     of a structure. Houses stand 1-3 m off an arsenal's front and side, 2-5 m apart; each large
+//     unit trained there starts clear of them and gets 15 units away in every direction, round
+//     the houses where the gaps between them are too narrow for it.
+// 42. Large units at the mouth of a narrow gap: two houses 4, 5 or 6 m apart, square or turned 0.4
+//     rad. A ram or an elephant south of them walks first to a point inside both houses' 3 m
+//     clearance at the gap's south mouth, or inside the east house's only, beside the mouth; then 8
+//     units north. 0.28 lets it into neither (MakeGoalReachable moves such a goal to the nearest
+//     navcell the class can stand on, HierarchicalPathfinder.cpp:689-719; PerformMove refuses a step
+//     into a static square grown by the clearance, CCmpUnitMotion.h:1302 and :1343, and a push too,
+//     CCmpUnitMotion_System.cpp:628-641), so it stops outside them and goes round the houses, never
+//     between their facing faces. A third start puts it inside the west house's clearance by the gap
+//     (as a house built beside it would): the push that keeps it off that house still moves it, and
+//     it does not slide along the house's face through the gap.
+// 43. Large units at a house cluster: a 3x3 block of houses 4, 5 or 6 m apart, square or turned 0.4
+//     rad, as Petra packs them. A ram or an elephant attacks one of an enemy's houses, or a worker
+//     elephant builds a foundation among its own, from 12 units off in each of 8 directions. 0.28
+//     lets a large unit into no structure's square grown by its 3 m clearance but its target's
+//     (PerformMove skips only the target, CCmpUnitMotion.h:1231-1236, :1302 and :1343; a push that
+//     fails CheckMovement is dropped, CCmpUnitMotion_System.cpp:628-641), and MakeGoalReachable
+//     (HierarchicalPathfinder.cpp:689-719) moves the point it walks to off those squares. So it
+//     never stands inside two other houses' grown squares, and it starts its task at every outer
+//     house, each of which has a face open to the outside.
+// 44. Large units across a row of houses: nine houses in a row 4, 5 or 6 m apart, square or turned
+//     0.4 rad. A ram or an elephant 6 units south of the row is sent 6 units north of it. 0.28's
+//     long path for the class closes every structure grown by 3 m (RasterizeRectWithClearance,
+//     Rasterize.cpp:29-48), as CheckMovement does (CCmpPathfinder.cpp:971-985), so the path goes
+//     round the row's end, never between two houses, and the unit gets there.
+// 45. Orders after a load: a game and the same game saved and loaded (or joined by a client that
+//     rejoins) must stay hash-identical. A ram's, an elephant's or a worker elephant's attack or build
+//     order at the cluster of 43 sets its stand point from the structures round the target
+//     (large_stand_point); given before move_units has listed this tick's steering obstacles (a turn's
+//     commands, an order a unit's queue hands on), it reads them from what the save holds
+//     (Simulation::for_each_structure_square), not from the last tick's list, which a loaded game
+//     lacks. The stand point, the unit's place 10 s on and the lockstep hash are the same in both.
+// 46. A field's supply and a felled tree in one tick, then a load: a finished field's supply is appended
+//     at the start of tick_gather (sync_field_resources), and a tree felled in that tick_gather is
+//     removed at its end by moving the last supply, the field's, into its place, so the supply count and
+//     the end ids are as before. The nodes' tree list (sync_tile_obstructions) must still drop the tree,
+//     as a copy loaded from a save made then lists the trees afresh: both copies hold the same gaia tile
+//     obstructions and nodes, and stay hash-identical.
+// 47. find_path after a failed narrow-gap re-plan: a ram's long path to a point across a deep channel,
+//     which no land unit reaches, runs on the navcells through a 4 m gap between two houses, so the
+//     large class plans it again on its nodes (NavGrid::path_through_narrow_gap). With the nodes'
+//     regions, MakeGoalReachable moves the goal to the bank and the re-plan gets there round the houses.
+//     Without them the re-plan fails, and find_path returns false with the re-plan's own path, as 0.28's
+//     long path for the class has no other class to fall back on (HierarchicalPathfinder.cpp:689-719),
+//     not the default class's, which goes through the gap.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
-// Private access only to turn a standing building (Building::set_rot) and rasterize it.
+// Private access only to turn a standing building (Building::set_rot) and rasterize it, to ask
+// direct_walk_clear (scenario 39), to compare a game's nodes and units with its loaded copy's
+// (scenarios 34, 45 and 46), and to plan a path on the nodes without their regions (scenario 47).
 #define private public
 #include "simulation/simulation.h"
 #include "simulation/nav/building_steering.h"
 #undef private
+#include "network/turn_manager.h"
 
 #include <algorithm>
 #include <cmath>
@@ -2308,6 +2374,687 @@ static void waypoint_in_a_tree() {
 	check(pen <= MAX_PENETRATION, "a swordsman walked into an oak round a waypoint inside it");
 }
 
+// 39. Straight to a near goal. Five houses at several turns. Each walk is a player's within 6 units
+// (24 m). The spearmen's lines clear every footprint by more than their clearance, and RTS0's long
+// paths (8 m navcells) took each of them round a house's corner by a navcell centre. The large
+// units' lines pass within their clearance of a house, both ends well clear of every house.
+static void straight_to_near_goal() {
+	// The least distance from the segment to any footprint, sampled every 1/1000 of it.
+	auto clearance_of_line = [](const Simulation &s, float x0, float z0, float x1, float z1) {
+		float least = 1e9f;
+		for (int k = 0; k <= 1000; ++k) {
+			const float t = k / 1000.0f;
+			for (const auto &b : s.buildings())
+				least = std::min(least, nav::footprint_gap(b, x0 + (x1 - x0) * t, z0 + (z1 - z0) * t).length());
+		}
+		return least;
+	};
+	struct Walk { UnitType type; float x0, z0, x1, z1; };
+	for (const Walk w : {Walk{UNIT_SPEARMAN, 11.85f, -7.74f, 11.99f, -3.25f}, Walk{UNIT_SPEARMAN, 10.92f, -4.24f, 12.67f, -6.24f},
+			Walk{UNIT_SPEARMAN, 0.02f, 2.15f, 2.01f, 1.58f}, Walk{UNIT_SPEARMAN, -1.18f, 4.30f, 1.79f, 0.73f},
+			Walk{UNIT_SPEARMAN, 12.34f, -4.91f, 7.90f, -2.89f}, Walk{UNIT_SIEGE_RAM, 1.50f, -6.72f, 1.34f, -12.49f},
+			Walk{UNIT_SIEGE_RAM, 11.95f, -4.97f, 11.40f, -8.20f}, Walk{UNIT_ELEPHANT, 1.50f, -6.72f, 1.34f, -12.49f}}) {
+		Simulation s;
+		setup(s);
+		struct House { float x, z, rot; };
+		for (const House h : {House{0.0f, 0.0f, 0.0f}, House{8.0f, 3.0f, 0.6f}, House{3.0f, -9.0f, 2.0f},
+				House{-9.0f, -4.0f, 0.3f}, House{10.0f, -6.0f, 2.6f}})
+			s.spawn_building_world(h.x, h.z, BLD_HOUSE, 0, 1.0f, h.rot);
+		s.tick(DT);
+		const float r = unit_building_clearance(0xffff, w.type);
+		const float clear = clearance_of_line(s, w.x0, w.z0, w.x1, w.z1);
+		const uint32_t id = s.spawn_unit(w.x0, w.z0, 0, w.type);
+		s.order_walk(&id, 1, w.x1, w.z1, false, true);
+		const float lx = w.x1 - w.x0, lz = w.z1 - w.z0, len = std::hypot(lx, lz);
+		float walked = 0.0f, dev = 0.0f, pen = 0.0f, px = w.x0, pz = w.z0;
+		int arrived = -1;
+		for (int t = 0; t < 600 && arrived < 0; ++t) {
+			s.tick(DT);
+			const int i = index_of(s, id);
+			if (i < 0) break;
+			const float x = s.units_.pos_x[i], z = s.units_.pos_z[i];
+			walked += std::hypot(x - px, z - pz);
+			px = x;
+			pz = z;
+			dev = std::max(dev, std::fabs((x - w.x0) * lz - (z - w.z0) * lx) / len);
+			pen = std::max(pen, max_penetration(s));
+			if (!s.units_.has_order[i] && s.units_.action_state[i] == ACTION_IDLE) arrived = t;
+		}
+		const char *name = w.type == UNIT_SPEARMAN ? "spearman" : w.type == UNIT_SIEGE_RAM ? "ram" : "elephant";
+		std::printf("  %s %.2f units past turned houses (line %.2f off them, clearance %.2f): walked %.2f, at most %.2f off the line, "
+				"done after %d ticks, max penetration %.3f\n", name, len, clear, r, walked, dev, arrived, pen);
+		check(arrived >= 0 && std::hypot(px - w.x1, pz - w.z1) < 1.0f, "a walk to a near goal past turned houses never got there");
+		check(pen <= MAX_PENETRATION, "a unit walked into a turned house on its way to a near goal");
+		if (clear > r) {
+			check(walked <= len + 0.05f && dev <= 0.05f, "a unit took the long way to a near goal it had a clear line to");
+		} else {
+			check(w.type != UNIT_SPEARMAN, "a spearman's walk in scenario 39 does not clear the houses");
+		}
+		if (w.type != UNIT_SPEARMAN) {
+			check(clear <= r, "a large unit's walk in scenario 39 clears the houses");
+		}
+	}
+	// A spearman standing inside a house's clearance (no other unit pushes it out), 0.1 off its east
+	// face, and a line north along that face, past a second house 0.35 east of the first: the line
+	// keeps 0.25 off the second house, more than the 0.2 clearance, so only the first one's square
+	// holds it. It fails, as the walk between two houses 1.4 m apart, which 0.28 never makes; it
+	// passes when the first house is the spearman's target, and from 0.25 off the face heading away.
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t a = s.spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0, 1.0f, 0.0f);
+		float hu = 0.0f, hv = 0.0f;
+		for (const auto &b : s.buildings())
+			if (b.id == a) hu = b.hu, hv = b.hv;
+		s.spawn_building_world(2.0f * hu + 0.35f, hv + 1.0f, BLD_HOUSE, 0, 1.0f, 0.0f);
+		const uint32_t id = s.spawn_unit(hu + 0.1f, 0.0f, 0, UNIT_SPEARMAN);
+		s.tick(DT);
+		const int i = index_of(s, id);
+		const float x = s.units_.pos_x[i], z = s.units_.pos_z[i];
+		const bool inside = s.direct_walk_clear((size_t)i, x, z, x, z + 2.0f * hv + 2.0f);
+		s.units_.target_building_id[i] = a;
+		const bool target = s.direct_walk_clear((size_t)i, x, z, x, z + 2.0f * hv + 2.0f);
+		s.units_.target_building_id[i] = 0;
+		const bool outside = s.direct_walk_clear((size_t)i, hu + 0.25f, z, hu + 3.0f, z - 2.0f);
+		std::printf("  a line along a house's face from inside its clearance (%.2f, %.2f): %s; with the house as the target: %s; "
+				"from outside the clearance, away from it: %s\n", x, z, inside ? "clear" : "refused", target ? "clear" : "refused",
+				outside ? "clear" : "refused");
+		check(std::fabs(x - hu - 0.1f) < 0.01f && !inside, "a direct walk started inside a house's clearance and cut between two houses");
+		check(target && outside, "a direct walk along a house's face was refused although nothing but the start held it");
+	}
+}
+
+// 40. Past the map's edge. Ardennes Forest (seed 3, 768 m across, a circular map): a spearman and an
+// elephant 7 units inside the map's circle, each sent to a point 0.6 inside it, about 28 m off, so
+// the direct walk is tried once within 24 m. Where MakeGoalReachable moves the goal (the long path
+// ends short of it), the unit ends at the path's end.
+static void walk_past_map_edge() {
+	int moved = 0;
+	for (const int a : {1, 4, 6, 9})
+		for (const UnitType type : {UNIT_SPEARMAN, UNIT_ELEPHANT}) {
+			auto s = std::make_unique<Simulation>();
+			s->generate_random_map(MAP_ARDENNES_FOREST, 3, 2, 96.0f);
+			for (uint8_t p = 0; p < 2; ++p) s->player(p).is_ai = 0;
+			const float ang = (float)a * 0.3926991f + 0.1f, r = s->map_half() - 7.0f;
+			const float gx = (s->map_half() - 0.6f) * std::cos(ang + 0.03f), gz = (s->map_half() - 0.6f) * std::sin(ang + 0.03f);
+			const uint32_t id = s->spawn_unit(r * std::cos(ang), r * std::sin(ang), 0, type);
+			s->order_set_stance(&id, 1, STANCE_PASSIVE);
+			s->tick(Simulation::FIXED_STEP);
+			int i = index_of(*s, id);
+			WaypointPath wp;
+			s->find_path(s->units_.pos_x[i], s->units_.pos_z[i], gx, gz, wp, s->unit_land_pass((size_t)i));
+			const float ex = wp.xs[wp.count - 1], ez = wp.zs[wp.count - 1];
+			s->cmd_move(&id, 1, gx, gz);
+			for (int t = 0; t < 400; ++t) s->tick(Simulation::FIXED_STEP);
+			i = index_of(*s, id);
+			const float off = std::hypot(s->units_.pos_x[i] - ex, s->units_.pos_z[i] - ez);
+			const bool short_of_goal = std::hypot(ex - gx, ez - gz) > Simulation::ARRIVE_DIST;
+			moved += short_of_goal;
+			std::printf("  %s sent past the map's edge to (%.2f, %.2f), %.2f away: the long path ends at (%.2f, %.2f), it ended %.2f from there\n",
+					type == UNIT_SPEARMAN ? "spearman" : "elephant", gx, gz, std::hypot(gx - r * std::cos(ang), gz - r * std::sin(ang)), ex, ez, off);
+			if (short_of_goal) check(off <= 1.0f, "a walk to a point past the map's edge went straight past the end of its long path");
+		}
+	check(moved >= 4, "scenario 40 no longer has walks whose long path ends short of the goal");
+}
+
+// 41. Set down beside a hemmed-in arsenal. A row of five houses 1-3 m off the arsenal's front and
+// another off its side, 2-5 m between houses. Each ram and elephant it trains is set down outside
+// every structure's square grown by 3 m (pick_spawn_point), and gets within 1 of a point 15 units
+// off in each direction in 60 s.
+static void large_units_beside_hemmed_in_arsenal() {
+	int set_down_in = 0, stuck = 0, runs = 0;
+	for (const int face_m : {1, 2, 3})
+		for (const int gap_m : {2, 4, 5})
+			for (const UnitType type : {UNIT_SIEGE_RAM, UNIT_ELEPHANT})
+				for (int dir = 0; dir < 4; ++dir) {
+					Simulation s;
+					setup(s);
+					s.begin_bulk_spawn();
+					const uint32_t ars = s.spawn_building_world(0.0f, 0.0f, BLD_ARSENAL, 0, 1.0f, 0.0f);
+					s.end_bulk_spawn();
+					const Simulation::Building *b = nullptr;
+					for (const auto &x : s.buildings()) if (x.id == ars) b = &x;
+					const float ahu = b->hu, ahv = b->hv, f = face_m / 4.0f, g = gap_m / 4.0f;
+					s.begin_bulk_spawn();
+					for (int k = -2; k <= 2; ++k) {
+						s.spawn_building_world(k * (2.0f + g), ahv + f + 1.0f, BLD_HOUSE, 0, 1.0f, 0.0f);
+						s.spawn_building_world(ahu + f + 1.0f, k * (2.0f + g), BLD_HOUSE, 0, 1.0f, 0.0f);
+					}
+					s.end_bulk_spawn();
+					s.spawn_unit(-40.0f, 40.0f, 0, UNIT_SPEARMAN); // separation() pushes off structures with two units or more
+					for (const auto &x : s.buildings()) if (x.id == ars) b = &x;
+					float sx = 0.0f, sz = 0.0f;
+					const bool found = s.pick_spawn_point(*b, type, 0, sx, sz);
+					bool in_band = !found;
+					for (const auto &x : s.buildings())
+						if (!x.wrecked && nav::PointIsInSquare(nav::Vec2(sx - x.x, sz - x.z), nav::footprint_u(x), nav::footprint_v(x),
+								nav::Vec2(x.hu + CLEARANCE_LARGE, x.hv + CLEARANCE_LARGE)))
+							in_band = true;
+					set_down_in += in_band;
+					++runs;
+					if (!found) continue;
+					const uint32_t id = s.spawn_unit(sx, sz, 0, type);
+					s.order_set_stance(&id, 1, STANCE_PASSIVE);
+					const float gx = dir == 1 ? 15.0f : dir == 3 ? -15.0f : 0.0f, gz = dir == 0 ? 15.0f : dir == 2 ? -15.0f : 0.0f;
+					s.cmd_move(&id, 1, gx, gz);
+					bool arrived = false;
+					for (int t = 0; t < (int)(60.0f / Simulation::FIXED_STEP) && !arrived; ++t) {
+						s.tick(Simulation::FIXED_STEP);
+						const int i = index_of(s, id);
+						arrived = std::hypot(s.units_.pos_x[i] - gx, s.units_.pos_z[i] - gz) < 1.0f;
+					}
+					if (in_band || !arrived) {
+						const int i = index_of(s, id);
+						std::printf("  %s set down at (%.2f, %.2f)%s by an arsenal with houses %d m off and %d m apart, sent to (%.0f, %.0f): "
+								"%s at (%.2f, %.2f)\n", type == UNIT_SIEGE_RAM ? "ram" : "elephant", sx, sz, in_band ? " inside a structure's 3 m" : "",
+								face_m, gap_m, gx, gz, arrived ? "got there" : "never got there, stopped", s.units_.pos_x[i], s.units_.pos_z[i]);
+					}
+					stuck += !arrived;
+				}
+	std::printf("  rams and elephants set down beside a hemmed-in arsenal: %d of %d inside a structure's 3 m, %d never got 15 units away\n",
+			set_down_in, runs, stuck);
+	check(set_down_in == 0, "a ram or an elephant was set down within its clearance of a structure");
+	check(stuck == 0, "a ram or an elephant set down beside a hemmed-in arsenal never got away");
+}
+
+// 42. Large units at the mouth of a narrow gap. Two houses side by side, turned by rot, with a gap
+// of gap_m metres between their facing faces; u runs across the gap (east), v north. The unit starts
+// 8 units south of the gap's middle (mode 0: two-step, mode 1: beside the east house) or inside the
+// west house's clearance, 0.1 units off its east face by the gap's south mouth (mode 2). Its centre
+// must never come strictly between the facing faces, and the bodies must keep off the houses.
+static void large_units_at_narrow_gap_mouth() {
+	int between = 0, runs = 0, arrived = 0;
+	float worst_pen = 0.0f;
+	for (const int gap_m : {4, 5, 6})
+		for (const float rot : {0.0f, 0.4f})
+			for (int mode = 0; mode < 3; ++mode)
+				for (const UnitType type : {UNIT_SIEGE_RAM, UNIT_ELEPHANT})
+					for (const float xc : {0.0f, 0.5f, 1.0f, 1.5f})
+						for (const float zc : {0.0f, 1.0f}) {
+							Simulation s;
+							setup(s);
+							const float g = gap_m / 4.0f;
+							const float ux = std::cos(rot), uz = -std::sin(rot), vx = std::sin(rot), vz = std::cos(rot);
+							float hu = 0.0f, hv = 0.0f;
+							{
+								Simulation probe;
+								setup(probe);
+								const uint32_t h = probe.spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0, 1.0f, 0.0f);
+								for (const auto &b : probe.buildings())
+									if (b.id == h) hu = b.hu, hv = b.hv;
+							}
+							const float off = hu + 0.5f * g;
+							s.begin_bulk_spawn();
+							s.spawn_building_world(xc - off * ux, zc - off * uz, BLD_HOUSE, 0, 1.0f, rot);
+							s.spawn_building_world(xc + off * ux, zc + off * uz, BLD_HOUSE, 0, 1.0f, rot);
+							s.end_bulk_spawn();
+							s.spawn_unit(-40.0f, 40.0f, 1, UNIT_SPEARMAN); // separation() pushes off structures with two units or more
+							auto at = [&](float lu, float lv, float &x, float &z) { x = xc + lu * ux + lv * vx; z = zc + lu * uz + lv * vz; };
+							float sx, sz;
+							if (mode == 2) at(-0.5f * g + 0.1f, -hv - 0.2f, sx, sz);
+							else at(0.0f, -8.0f, sx, sz);
+							const uint32_t id = s.spawn_unit(sx, sz, 0, type);
+							s.order_set_stance(&id, 1, STANCE_PASSIVE);
+							bool btw = false;
+							float pen = 0.0f;
+							int ticks = 0;
+							auto run = [&](float tx, float tz, float secs) {
+								s.cmd_move(&id, 1, tx, tz);
+								for (int t = 0; t < (int)(secs / Simulation::FIXED_STEP); ++t, ++ticks) {
+									s.tick(Simulation::FIXED_STEP);
+									const int i = index_of(s, id);
+									const float dx = s.units_.pos_x[i] - xc, dz = s.units_.pos_z[i] - zc;
+									const float lu = dx * ux + dz * uz, lv = dx * vx + dz * vz;
+									if (std::fabs(lu) < 0.5f * g - 0.02f && std::fabs(lv) < hv) btw = true;
+									// One set down inside a clearance is given a second to be pushed out of it.
+									if (mode != 2 || ticks >= (int)(1.0f / Simulation::FIXED_STEP)) pen = std::max(pen, max_penetration(s));
+								}
+							};
+							if (mode == 0 || mode == 1) {
+								float mx, mz;
+								if (mode == 0) at(0.0f, -hv - 0.3f, mx, mz);
+								else at(0.5f * g - 0.375f, -hv - 0.3f, mx, mz);
+								run(mx, mz, 20.0f);
+							}
+							float gx, gz;
+							at(0.0f, 8.0f, gx, gz);
+							run(gx, gz, 30.0f);
+							const int i = index_of(s, id);
+							const bool arr = std::hypot(s.units_.pos_x[i] - gx, s.units_.pos_z[i] - gz) < 1.0f;
+							static const char *modes[] = {"two-step", "beside the east house", "from inside the west house's clearance"};
+							if (btw || pen > MAX_PENETRATION)
+								std::printf("  %s, %d m gap turned %.1f (at %.1f, %.1f), %s: %s, max penetration %.3f\n",
+										type == UNIT_SIEGE_RAM ? "ram" : "elephant", gap_m, rot, xc, zc, modes[mode],
+										btw ? "went between the houses" : "kept out of the gap", pen);
+							between += btw;
+							arrived += arr;
+							worst_pen = std::max(worst_pen, pen);
+							++runs;
+						}
+	std::printf("  rams and elephants by 4-6 m gaps between houses: %d of %d went between them, %d got past, max penetration %.3f\n",
+			between, runs, arrived, worst_pen);
+	check(between == 0, "a ram or an elephant went between two houses less than 6 m apart");
+	check(worst_pen <= MAX_PENETRATION, "a ram or an elephant overlapped a house by a narrow gap");
+}
+
+// A house's half width (hu) and half depth (hv), unturned.
+static void house_half_size(float &hu, float &hv) {
+	Simulation probe;
+	setup(probe);
+	const uint32_t h = probe.spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0, 1.0f, 0.0f);
+	for (const auto &b : probe.buildings())
+		if (b.id == h) hu = b.hu, hv = b.hv;
+}
+
+// How many of the houses other than `skip` hold (x, z) in their square grown by the large clearance,
+// and the deepest it lies in one (the lesser of its depths along the house's two axes).
+static int large_bands_holding(const Simulation &s, float x, float z, uint32_t skip, float &deepest) {
+	int n = 0;
+	for (const auto &b : s.buildings()) {
+		if (b.wrecked || b.type != BLD_HOUSE || b.id == skip) continue;
+		const float dx = x - b.x, dz = z - b.z;
+		const float eu = b.hu + CLEARANCE_LARGE - std::fabs(dx * b.ux + dz * b.uz);
+		const float ev = b.hv + CLEARANCE_LARGE - std::fabs(-dx * b.uz + dz * b.ux);
+		if (eu > 0.0f && ev > 0.0f) {
+			++n;
+			deepest = std::max(deepest, std::min(eu, ev));
+		}
+	}
+	return n;
+}
+
+// 43. Large units at a house cluster. Nine houses on a 3x3 grid, turned by rot, gap_m metres between
+// neighbours' facing faces: player 1's for an attack (a ram, kind 0, or an elephant, kind 1), player
+// 0's for a build (a worker elephant, kind 2), with house tk a fresh foundation. The unit starts 12
+// units from the block's middle in direction dir and is given the task; the task has started once
+// the target has lost hit points or gained build progress, within 90 s. Its centre must never be
+// inside two non-target houses' squares grown by 3 m at once, and every outer house's task must start.
+static void large_units_at_house_cluster() {
+	float hu = 0.0f, hv = 0.0f;
+	house_half_size(hu, hv);
+	static const char *kinds[] = {"ram attacking", "elephant attacking", "worker elephant building"};
+	int runs = 0, in_two = 0, outer_runs = 0, outer_started = 0, started = 0;
+	float deepest = 0.0f;
+	for (const int gap_m : {4, 5, 6})
+		for (const float rot : {0.0f, 0.4f})
+			for (int kind = 0; kind < 3; ++kind)
+				for (int tk = 0; tk < 9; ++tk)
+					for (int dir = 0; dir < 8; ++dir) {
+						Simulation s;
+						setup(s);
+						const float g = gap_m / 4.0f, xc = 0.3f, zc = 0.6f;
+						const float ux = std::cos(rot), uz = -std::sin(rot), vx = std::sin(rot), vz = std::cos(rot);
+						auto at = [&](float lu, float lv, float &x, float &z) { x = xc + lu * ux + lv * vx; z = zc + lu * uz + lv * vz; };
+						const uint8_t owner = kind == 2 ? 0 : 1;
+						uint32_t ids[9];
+						s.begin_bulk_spawn();
+						for (int k = 0; k < 9; ++k) {
+							float x, z;
+							at((k % 3 - 1) * (2.0f * hu + g), (k / 3 - 1) * (2.0f * hv + g), x, z);
+							ids[k] = s.spawn_building_world(x, z, BLD_HOUSE, owner, (kind == 2 && k == tk) ? 0.0f : 1.0f, rot);
+						}
+						s.end_bulk_spawn();
+						for (const auto &b : s.buildings()) const_cast<Simulation::Building &>(b).territory_decay_rate = 0.0f;
+						s.spawn_unit(-40.0f, 40.0f, 1, UNIT_SPEARMAN); // separation() pushes off structures with two units or more
+						const float ang = dir * 0.78539816f;
+						float sx, sz;
+						at(12.0f * std::cos(ang), 12.0f * std::sin(ang), sx, sz);
+						const UnitType type = kind == 0 ? UNIT_SIEGE_RAM : kind == 1 ? UNIT_ELEPHANT : UNIT_WORKER_ELEPHANT;
+						const uint32_t id = s.spawn_unit(sx, sz, 0, type);
+						s.order_set_stance(&id, 1, STANCE_PASSIVE);
+						const uint32_t target = ids[tk];
+						auto find = [&](uint32_t bid) -> const Simulation::Building * {
+							for (const auto &b : s.buildings())
+								if (b.id == bid) return &b;
+							return nullptr;
+						};
+						const float hp0 = find(target)->hp, prog0 = find(target)->build_progress;
+						if (kind == 2) s.order_build_or_repair(&id, 1, target, false, true);
+						else s.order_attack_building(&id, 1, target, false, false);
+						bool ok = false, two = false;
+						float deep = 0.0f;
+						for (int t = 0; t < (int)(90.0f / Simulation::FIXED_STEP) && !ok; ++t) {
+							s.tick(Simulation::FIXED_STEP);
+							const int i = index_of(s, id);
+							if (i < 0) break;
+							if (large_bands_holding(s, s.units().pos_x[i], s.units().pos_z[i], target, deep) >= 2) two = true;
+							const Simulation::Building *b = find(target);
+							ok = !b || (kind == 2 ? b->build_progress > prog0 : b->hp < hp0);
+						}
+						const bool outer = tk != 4;
+						if (two || (outer && !ok)) {
+							const int i = index_of(s, id);
+							std::printf("  %s house %d of a cluster %d m apart turned %.1f, from direction %d: %s%s, ended at (%.2f, %.2f)\n", kinds[kind],
+									tk, gap_m, rot, dir, ok ? "started" : "never started", two ? ", stood inside two other houses' 3 m" : "",
+									i >= 0 ? s.units().pos_x[i] : 0.0f, i >= 0 ? s.units().pos_z[i] : 0.0f);
+						}
+						++runs;
+						started += ok;
+						in_two += two;
+						deepest = std::max(deepest, deep);
+						if (outer) {
+							++outer_runs;
+							outer_started += ok;
+						}
+					}
+	std::printf("  rams and elephants at a cluster of houses 4-6 m apart: %d of %d runs inside two other houses' 3 m, outer houses' tasks "
+			"started %d of %d (all houses %d of %d), deepest in another house's 3 m %.3f\n",
+			in_two, runs, outer_started, outer_runs, started, runs, deepest);
+	check(in_two == 0, "a ram or an elephant stood inside two other houses' 3 m clearance in a cluster");
+	check(outer_started == outer_runs, "a ram or an elephant never started its task at an outer house of a cluster");
+	check(deepest <= 0.05f, "a ram or an elephant went into another house's 3 m clearance in a cluster");
+}
+
+// 44. Large units across a row of houses. Nine houses in a row along u, turned by rot, gap_m metres
+// between neighbours' facing faces. A ram or an elephant starts 6 units south of the row (v), in front
+// of a gap (su 0), of a house's middle (su -0.5) or of a house's side (su 0.37), and is sent 6 units
+// north of it. It must get within 1 of that point in 90 s, and its centre must never come strictly
+// between two houses' facing faces.
+static void large_units_across_house_row() {
+	float hu = 0.0f, hv = 0.0f;
+	house_half_size(hu, hv);
+	int runs = 0, between = 0, arrived = 0;
+	for (const int gap_m : {4, 5, 6})
+		for (const float rot : {0.0f, 0.4f})
+			for (const UnitType type : {UNIT_SIEGE_RAM, UNIT_ELEPHANT})
+				for (const float su : {-0.5f, 0.0f, 0.37f})
+					for (const float zc : {0.0f, 0.5f}) {
+						Simulation s;
+						setup(s);
+						const float g = gap_m / 4.0f, xc = 0.2f, pitch = 2.0f * hu + g;
+						const float ux = std::cos(rot), uz = -std::sin(rot), vx = std::sin(rot), vz = std::cos(rot);
+						auto at = [&](float lu, float lv, float &x, float &z) { x = xc + lu * ux + lv * vx; z = zc + lu * uz + lv * vz; };
+						s.begin_bulk_spawn();
+						for (int k = -4; k <= 4; ++k) {
+							float x, z;
+							at(k * pitch, 0.0f, x, z);
+							s.spawn_building_world(x, z, BLD_HOUSE, 0, 1.0f, rot);
+						}
+						s.end_bulk_spawn();
+						for (const auto &b : s.buildings()) const_cast<Simulation::Building &>(b).territory_decay_rate = 0.0f;
+						s.spawn_unit(-40.0f, 40.0f, 1, UNIT_SPEARMAN); // separation() pushes off structures with two units or more
+						float sx, sz, gx, gz;
+						at((su + 0.5f) * pitch, -6.0f, sx, sz);
+						at((su + 0.5f) * pitch, 6.0f, gx, gz);
+						const uint32_t id = s.spawn_unit(sx, sz, 0, type);
+						s.order_set_stance(&id, 1, STANCE_PASSIVE);
+						s.cmd_move(&id, 1, gx, gz);
+						bool arr = false, btw = false;
+						for (int t = 0; t < (int)(90.0f / Simulation::FIXED_STEP) && !arr; ++t) {
+							s.tick(Simulation::FIXED_STEP);
+							const int i = index_of(s, id);
+							const float dx = s.units().pos_x[i] - xc, dz = s.units().pos_z[i] - zc;
+							const float lu = dx * ux + dz * uz, lv = dx * vx + dz * vz;
+							if (std::fabs(lv) < hv && std::fabs(lu) < 4.0f * pitch) {
+								// m runs from a house's west face: the house spans [0, 2 hu), the gap [2 hu, pitch).
+								const float m = std::fmod(lu + 100.0f * pitch + hu, pitch);
+								if (m > 2.0f * hu + 0.02f && m < pitch - 0.02f) btw = true;
+							}
+							arr = std::hypot(s.units().pos_x[i] - gx, s.units().pos_z[i] - gz) < 1.0f;
+						}
+						if (btw || !arr) {
+							const int i = index_of(s, id);
+							std::printf("  %s across a row of houses %d m apart turned %.1f (start %.2f along, row at %.1f): %s%s, ended at (%.2f, %.2f)\n",
+									type == UNIT_SIEGE_RAM ? "ram" : "elephant", gap_m, rot, su, zc, arr ? "got there" : "never got there",
+									btw ? ", went between two houses" : "", s.units().pos_x[i], s.units().pos_z[i]);
+						}
+						++runs;
+						between += btw;
+						arrived += arr;
+					}
+	std::printf("  rams and elephants across a row of houses 4-6 m apart: %d of %d got there, %d went between two houses\n", arrived, runs, between);
+	check(between == 0, "a ram or an elephant went between two houses of a row less than 6 m apart");
+	check(arrived == runs, "a ram or an elephant never got across a row of houses");
+}
+
+// 45. Orders after a load. The cluster of 43, square, its houses 4 or 5 m apart: a ram or an elephant
+// (player 0) is to attack one of player 1's houses, or a worker elephant to build one of its own, from 12
+// units off in direction dir. The game plays 1 s and is saved, and the save is loaded into a second game.
+// Mode 0 gives both the same order before either ticks again, as a turn's commands come before its
+// ticks; mode 1 sends the unit 1.5 units on and queues the order behind that walk, so that the queue
+// hands it on within a tick, before move_units. The stand point the order sets (large_stand_point, where
+// the point by the target lies within another house's 3 m) and, 10 s on, the unit's place and the
+// lockstep hash must be the same in the game and its loaded copy.
+static void orders_after_load() {
+	float hu = 0.0f, hv = 0.0f;
+	house_half_size(hu, hv);
+	const char *dir_env = std::getenv("TMPDIR");
+	const std::string path = std::string(dir_env && *dir_env ? dir_env : "/tmp") + "/rts0_test_building_steering_orders.sav";
+	TurnManager tm;
+	int runs = 0, moved = 0, point_differ = 0, place_differ = 0, hash_differ = 0, failed = 0;
+	for (const int gap_m : {4, 5})
+		for (int kind = 0; kind < 3; ++kind)
+			for (const int tk : {0, 1, 2, 3, 5})
+				for (int mode = 0; mode < 2; ++mode)
+					for (int dir = 0; dir < 8; dir += mode == 0 ? 2 : 4) {
+						auto ap = std::make_unique<Simulation>(), bp = std::make_unique<Simulation>();
+						Simulation &a = *ap, &b = *bp;
+						setup(a);
+						const float g = gap_m / 4.0f, xc = 0.3f, zc = 0.6f;
+						const uint8_t owner = kind == 2 ? 0 : 1;
+						uint32_t ids[9];
+						a.begin_bulk_spawn();
+						for (int k = 0; k < 9; ++k)
+							ids[k] = a.spawn_building_world(xc + (k % 3 - 1) * (2.0f * hu + g), zc + (k / 3 - 1) * (2.0f * hv + g), BLD_HOUSE, owner,
+									(kind == 2 && k == tk) ? 0.0f : 1.0f, 0.0f);
+						a.end_bulk_spawn();
+						// No decay, through the setting a save keeps (Building::decay_disabled).
+						for (const uint32_t h : ids) a.set_structure_no_decay(h);
+						a.spawn_unit(-40.0f, 40.0f, 1, UNIT_SPEARMAN); // separation() pushes off structures with two units or more
+						const float ang = dir * 0.78539816f, sx = xc + 12.0f * std::cos(ang), sz = zc + 12.0f * std::sin(ang);
+						const UnitType type = kind == 0 ? UNIT_SIEGE_RAM : kind == 1 ? UNIT_ELEPHANT : UNIT_WORKER_ELEPHANT;
+						const uint32_t id = a.spawn_unit(sx, sz, 0, type);
+						a.order_set_stance(&id, 1, STANCE_PASSIVE);
+						for (int t = 0; t < (int)(1.0f / Simulation::FIXED_STEP); ++t) a.tick(Simulation::FIXED_STEP);
+						const bool ok = a.save_state(path.c_str()) && b.load_state(path.c_str());
+						std::remove(path.c_str());
+						if (!ok) {
+							++failed;
+							continue;
+						}
+						const uint32_t target = ids[tk];
+						auto order = [&](Simulation &x) {
+							if (mode == 1) x.order_walk(&id, 1, sx + 1.5f * std::cos(ang), sz + 1.5f * std::sin(ang), false, true);
+							if (kind == 2) x.order_build_or_repair(&id, 1, target, mode == 1, true);
+							else x.order_attack_building(&id, 1, target, mode == 1, false);
+						};
+						order(a);
+						order(b);
+						const int ia = index_of(a, id), ib = index_of(b, id);
+						const bool point = ia < 0 || ib < 0 || a.units_.target_x[ia] != b.units_.target_x[ib] ||
+								a.units_.target_z[ia] != b.units_.target_z[ib];
+						for (int t = 0; t < (int)(10.0f / Simulation::FIXED_STEP); ++t) {
+							a.tick(Simulation::FIXED_STEP);
+							b.tick(Simulation::FIXED_STEP);
+						}
+						const int ja = index_of(a, id), jb = index_of(b, id);
+						const bool place = ja < 0 || jb < 0 || a.units_.pos_x[ja] != b.units_.pos_x[jb] || a.units_.pos_z[ja] != b.units_.pos_z[jb];
+						const bool hash = tm.compute_sim_hash(a) != tm.compute_sim_hash(b);
+						if (point || place || hash)
+							std::printf("  orders after a load: kind %d, house %d, %d m apart, direction %d, mode %d: stand point (%.3f, %.3f) in the "
+									"game, (%.3f, %.3f) in its loaded copy; 10 s on (%.3f, %.3f) and (%.3f, %.3f)%s\n", kind, tk, gap_m, dir, mode,
+									ia >= 0 ? a.units_.target_x[ia] : 0.0f, ia >= 0 ? a.units_.target_z[ia] : 0.0f,
+									ib >= 0 ? b.units_.target_x[ib] : 0.0f, ib >= 0 ? b.units_.target_z[ib] : 0.0f,
+									ja >= 0 ? a.units_.pos_x[ja] : 0.0f, ja >= 0 ? a.units_.pos_z[ja] : 0.0f,
+									jb >= 0 ? b.units_.pos_x[jb] : 0.0f, jb >= 0 ? b.units_.pos_z[jb] : 0.0f, hash ? ", hashes differ" : "");
+						++runs;
+						moved += ja >= 0 && std::hypot(a.units_.pos_x[ja] - sx, a.units_.pos_z[ja] - sz) > 1.0f;
+						point_differ += point;
+						place_differ += place;
+						hash_differ += hash;
+					}
+	std::printf("  large units' attack and build orders given to a game and its loaded copy: %d runs (%d moved off), the stand point "
+			"differs in %d, the place 10 s on in %d, the lockstep hash in %d; %d saves failed\n", runs, moved, point_differ, place_differ,
+			hash_differ, failed);
+	check(failed == 0, "a game with large units at a house cluster could not be saved and loaded");
+	check(point_differ == 0, "an order gave a large unit another stand point in a loaded game than in the game it was saved from");
+	check(place_differ == 0 && hash_differ == 0, "a large unit's order took a loaded game out of sync with the game it was saved from");
+	check(moved * 2 >= runs, "the units given orders after a load did not move");
+}
+
+// 46. A field's supply and a felled tree in one tick, then a load. Six oaks with 1 wood each stand in a
+// column 10 units apart, a woman beside each; they fell them one at a time, each woman sent away once
+// her oak is felled. Before the tick in which the woman's next load is due, a finished field is placed,
+// so that its supply comes at the start of that tick's tick_gather (sync_field_resources) and the tree
+// goes at its end (remove_at moves the field's supply into the tree's place). After each tick in which
+// both happened, the game is saved and the save loaded into a second game: the two must list the same
+// trees, bushes and treasures on the nodes (NavGrid::TILE_OBS_GAIA) and keep the same open nodes and
+// obstruction counts in every class, and a ram sent to the felled tree's spot through a 4 m gap between
+// two houses must keep them hash-identical for 3 s.
+static void field_and_felled_tree_then_load() {
+	const char *dir_env = std::getenv("TMPDIR");
+	const std::string path = std::string(dir_env && *dir_env ? dir_env : "/tmp") + "/rts0_test_building_steering_field.sav";
+	TurnManager tm;
+	auto ap = std::make_unique<Simulation>();
+	Simulation &a = *ap;
+	setup(a);
+	std::vector<uint32_t> trees, women;
+	for (int k = 0; k < 6; ++k) {
+		const float tx = 10.5f, tz = -25.5f + 10.0f * (float)k;
+		trees.push_back(a.spawn_resource_world(tx, tz, RES_WOOD, 1));
+		women.push_back(a.spawn_unit(tx - 1.0f, tz, 0, UNIT_FEMALE_CITIZEN));
+	}
+	float hu = 0.0f, hv = 0.0f;
+	house_half_size(hu, hv);
+	for (int t = 0; t < 4; ++t) a.tick(Simulation::FIXED_STEP);
+	const bool nodes = a.nav_grid_.tile_nodes_on();
+	int events = 0, fields = 0, failed = 0, list_differ = 0, open_differ = 0, count_differ = 0, hash_differ = 0;
+	size_t cur = 0;
+	for (int t = 0; t < 4000 && cur < trees.size(); ++t) {
+		if (!a.res_id_to_idx_.count(trees[cur])) {
+			// She would go on to the next oak (UnitAI's search for the nearest supply of the type): she is
+			// sent away, so that each tree is felled by its own woman, one supply at a time.
+			a.order_walk(&women[cur], 1, -30.0f, 50.0f, false, true);
+			++cur;
+			continue;
+		}
+		const int w = index_of(a, women[cur]);
+		if (w < 0) break;
+		if (a.units_.action_state[w] != ACTION_GATHER) a.order_gather(&women[cur], 1, trees[cur]);
+		const size_t ti = a.res_id_to_idx_.at(trees[cur]);
+		const float fx = a.resources_.x[ti], fz = a.resources_.z[ti];
+		// Her next load falls due within this tick or the next (attack_timer counts to 1 / gather_rate).
+		const bool due = a.units_.action_state[w] == ACTION_GATHER && a.units_.gather_rate[w] > 0.0f &&
+				a.units_.attack_timer[w] + 1.5f * Simulation::FIXED_STEP >= 1.0f / a.units_.gather_rate[w];
+		const size_t field_supplies = a.field_res_by_bld_.size();
+		if (due && fields < 12) {
+			a.spawn_building_world(-40.0f + 7.0f * (float)(fields % 6), -10.0f - 7.0f * (float)(fields / 6), BLD_FIELD, 0, 1.0f);
+			++fields;
+		}
+		a.tick(Simulation::FIXED_STEP);
+		if (a.res_id_to_idx_.count(trees[cur]) || a.field_res_by_bld_.size() == field_supplies) continue;
+		// A field's supply came and the tree went in this tick.
+		++events;
+		auto bp = std::make_unique<Simulation>();
+		Simulation &b = *bp;
+		if (!a.save_state(path.c_str()) || !b.load_state(path.c_str())) {
+			++failed;
+			std::remove(path.c_str());
+			continue;
+		}
+		std::remove(path.c_str());
+		const NavGrid &x = a.nav_grid_, &y = b.nav_grid_;
+		const auto &l = x.tile_obs_[NavGrid::TILE_OBS_GAIA], &m = y.tile_obs_[NavGrid::TILE_OBS_GAIA];
+		size_t ld = l.size() == m.size() ? 0 : std::max(l.size(), m.size());
+		for (size_t k = 0; k < l.size() && k < m.size(); ++k) ld += l[k] != m[k];
+		size_t od = 0, cd = 0;
+		for (int cls = 0; cls < NavGrid::TILE_CLASSES; ++cls) {
+			const auto &p = x.tile_open_[cls], &q = y.tile_open_[cls];
+			od += p.size() == q.size() ? 0 : std::max(p.size(), q.size());
+			for (size_t k = 0; k < p.size() && k < q.size(); ++k) od += p[k] != q[k];
+			const auto &c = x.tile_obs_count_[cls], &d = y.tile_obs_count_[cls];
+			cd += c.size() == d.size() ? 0 : std::max(c.size(), d.size());
+			for (size_t k = 0; k < c.size() && k < d.size(); ++k) cd += c[k] != d[k];
+		}
+		const size_t listed = l.size(), listed_loaded = m.size();
+		// Two houses 4 m apart stand 5 units east of the felled tree's spot, and a ram 8 units past them is
+		// sent through their gap to the spot: the large class plans round the gap, too narrow for it, on
+		// the nodes (NavGrid::path_through_narrow_gap), where the goal is moved off any tree still listed
+		// there (MakeGoalReachable). The game plays on with them. The woman is sent away.
+		for (Simulation *s : {&a, &b}) {
+			s->spawn_building_world(fx + 5.0f, fz + 0.5f + hv, BLD_HOUSE, 0, 1.0f, 0.0f);
+			s->spawn_building_world(fx + 5.0f, fz - 0.5f - hv, BLD_HOUSE, 0, 1.0f, 0.0f);
+			const uint32_t ram = s->spawn_unit(fx + 13.0f, fz, 0, UNIT_SIEGE_RAM);
+			s->order_walk(&ram, 1, fx, fz, false, true);
+			s->order_walk(&women[cur], 1, -30.0f, 50.0f, false, true);
+		}
+		bool hd = false;
+		for (int k = 0; k < (int)(3.0f / Simulation::FIXED_STEP) && !hd; ++k) {
+			a.tick(Simulation::FIXED_STEP);
+			b.tick(Simulation::FIXED_STEP);
+			hd = tm.compute_sim_hash(a) != tm.compute_sim_hash(b);
+		}
+		std::printf("  a field's supply and a felled tree in one tick (tree %zu at (%.2f, %.2f)): the game lists %zu gaia tile "
+				"obstructions, its loaded copy %zu, %zu differ; open nodes differ at %zu, obstruction counts at %zu%s\n", cur, fx, fz,
+				listed, listed_loaded, ld, od, cd, hd ? "; the hashes differ within 3 s" : "");
+		list_differ += ld != 0;
+		open_differ += od != 0;
+		count_differ += cd != 0;
+		hash_differ += hd;
+	}
+	std::printf("  fields and felled trees in one tick, then a load: nodes kept %d, %d fields placed, %d such ticks; the gaia tile "
+			"lists differ after %d, the open nodes after %d, the obstruction counts after %d, the hashes after %d; %d saves failed\n",
+			nodes, fields, events, list_differ, open_differ, count_differ, hash_differ, failed);
+	check(nodes, "a level map keeps no nodes for the large class");
+	check(events >= 3, "scenario 46 no longer has a tick in which a field's supply comes and a tree goes");
+	check(failed == 0, "a game with fields and felled trees could not be saved and loaded");
+	check(list_differ == 0 && count_differ == 0 && open_differ == 0,
+			"a field's supply and a felled tree in one tick left the nodes otherwise than a load of the same game lists them");
+	check(hash_differ == 0, "a field's supply and a felled tree in one tick took a loaded game out of sync with the game it was saved from");
+}
+
+// 47. find_path after a failed narrow-gap re-plan. The channel of 16 (|z| < 6, deep water across the map)
+// and, south of it, two houses 4 m apart, the gap between them on the line from a ram at (0, -40) to
+// (0, 30), across the water. The large class's path on the navcells takes the gap (8 m navcells, which the
+// houses don't cover whole), so find_path plans it again on the nodes. First with the nodes' regions, as
+// update_tile_open keeps them: MakeGoalReachable (HierarchicalPathfinder.cpp:689-719) moves the goal to
+// the nearest node of the start's region, on the bank, and the path gets there round the houses. Then
+// with the regions dropped, as before update_tile_open has worked them out: the search on the nodes ends
+// where it can get no nearer the goal, short of it, and find_path returns false with that path. Before,
+// it fell back to the default class's path, through the gap the re-plan was made to go round.
+static void find_path_after_failed_narrow_gap_replan() {
+	Simulation s;
+	channel_setup(s, 6.0f);
+	float hu = 1.0f, hv = 1.0f;
+	house_half_size(hu, hv);
+	s.spawn_building_world(-0.5f - hu, -20.0f, BLD_HOUSE, 0, 1.0f);
+	s.spawn_building_world(0.5f + hu, -20.0f, BLD_HOUSE, 0, 1.0f);
+	const uint32_t ram = s.spawn_unit(0.0f, -40.0f, 0, UNIT_SIEGE_RAM);
+	s.tick(DT);
+	const uint8_t pass = s.unit_land_pass((size_t)index_of(s, ram));
+	const float sx = 0.0f, sz = -40.0f, gx = 0.0f, gz = 30.0f;
+	auto through_gap = [&](const WaypointPath &p) { return s.nav_grid_.path_through_narrow_gap(sx, sz, p); };
+	auto same = [](const WaypointPath &a, const WaypointPath &b) {
+		if (a.count != b.count) return false;
+		for (int k = 0; k < a.count; ++k)
+			if (a.xs[k] != b.xs[k] || a.zs[k] != b.zs[k]) return false;
+		return true;
+	};
+	WaypointPath kept, def;
+	const bool kept_found = s.find_path(sx, sz, gx, gz, kept, pass);
+	const bool def_found = s.nav_grid_.find_path_on(sx, sz, gx, gz, def, pass & ~PASS_LARGE);
+	const float kx = kept.count ? kept.xs[kept.count - 1] : sx, kz = kept.count ? kept.zs[kept.count - 1] : sz;
+	// The regions dropped: tile_open_cached() fails, and find_path_tiles searches the nodes as the terrain
+	// has them, without MakeGoalReachable's regions.
+	s.nav_grid_.tile_open_ready_ = false;
+	WaypointPath failed, replan;
+	bool gap = false;
+	const bool failed_found = s.find_path(sx, sz, gx, gz, failed, pass);
+	const bool replan_found = s.nav_grid_.find_path_on(sx, sz, gx, gz, replan, pass, &gap);
+	const float fx = failed.count ? failed.xs[failed.count - 1] : sx, fz = failed.count ? failed.zs[failed.count - 1] : sz;
+	std::printf("  find_path after a narrow-gap re-plan: with the regions it %s, ending at (%.2f, %.2f)%s; without them it "
+			"returns %d with %d waypoints ending at (%.2f, %.2f)%s, the re-plan's own (%d, narrow gap %d)%s; the default class's "
+			"path (%d) goes through the gap (%d)\n", kept_found ? "gets there" : "FAILS", kx, kz, through_gap(kept) ? " THROUGH THE GAP" : "",
+			(int)failed_found, failed.count, fx, fz, through_gap(failed) ? " THROUGH THE GAP" : "", (int)!replan_found, (int)gap,
+			same(failed, replan) ? "" : " (NOT THE SAME)", (int)def_found, (int)through_gap(def));
+	check(kept_found && kz < -6.0f && kz > -9.0f && !through_gap(kept),
+			"a large path re-planned round a narrow gap did not get to the bank MakeGoalReachable moved its goal to");
+	check(through_gap(def), "scenario 47's default-class path no longer goes through the gap (the case is gone)");
+	check(!failed_found && failed.count > 0 && gap && !replan_found && same(failed, replan),
+			"find_path did not keep the failed narrow-gap re-plan's own path");
+	check(!through_gap(failed) && !same(failed, def), "find_path fell back to the default class's path through a gap too narrow for the class");
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -2347,6 +3094,15 @@ int main() {
 	corner_dance();
 	kept_path_obstructed();
 	waypoint_in_a_tree();
+	straight_to_near_goal();
+	walk_past_map_edge();
+	large_units_beside_hemmed_in_arsenal();
+	large_units_at_narrow_gap_mouth();
+	large_units_at_house_cluster();
+	large_units_across_house_row();
+	orders_after_load();
+	field_and_felled_tree_then_load();
+	find_path_after_failed_narrow_gap_replan();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

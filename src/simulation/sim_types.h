@@ -616,7 +616,9 @@ inline MapStructureTemplate map_structure_template(const char *tpl) {
 		{"gaul/tavern", BLD_TAVERN, CIV_GAULS}, {"maur/tower_double", BLD_TOWER_DOUBLE, CIV_MAURYANS},
 		{"kush/shrine", BLD_KUSH_SHRINE, CIV_KUSHITES}, {"han/fortress_old", BLD_FORTRESS_OLD, CIV_HAN},
 		{"han/laozigate", BLD_LAOZI_GATE, CIV_HAN}, {"ptol/temple_2", BLD_TEMPLE_ISIS, CIV_PTOLEMIES},
-		{"merc_camp_egyptian", BLD_MERCENARY_CAMP, CIV_PTOLEMIES}, // Identity/Civ ptol
+		// Identity/Civ ptol, kept as a Gaia template so it stays Town (-Village Town) where a
+		// Ptolemaic player's own camp is Village; a camp trains its holder's mercenaries either way.
+		{"merc_camp_egyptian", BLD_MERCENARY_CAMP, CIV_GAIA},
 		// The mills keep their actor's civ: farmsteads of the Ptolemies, Spartans, Mauryas,
 		// Romans, Persians and Kushites; celts/special and britons/special for the rest.
 		{"mill_desert", BLD_MILL, CIV_PTOLEMIES}, {"mill_greek", BLD_MILL, CIV_SPARTANS},
@@ -1480,6 +1482,8 @@ inline BuildingTypeInfo civ_building_type_info(uint8_t civ, uint8_t type) {
 			}
 			break;
 		case BLD_DOCK: if (civ == CIV_CARTHAGINIANS) info.wood_cost = 150; break;
+		// ptol/mercenary_camp keeps the barracks' 100 stone; merc_camp_egyptian (the row) sets 0.
+		case BLD_MERCENARY_CAMP: if (civ == CIV_PTOLEMIES) info.stone_cost = 100; break;
 		case BLD_MONUMENT:
 			// germ/totem (Cerannus Totem): 800 health, 150 wood and 100 metal.
 			if (civ == CIV_GERMANS) {
@@ -1826,8 +1830,9 @@ inline uint8_t building_phase_class(uint8_t type, uint8_t civ = 0xFF) {
 		case BLD_MARKET: case BLD_TEMPLE: case BLD_FORGE: case BLD_EMBASSY: case BLD_ARMY_CAMP:
 		case BLD_TEMPLE_VESTA: case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_GEROUSIA: case BLD_GYMNASIUM:
 		case BLD_MONUMENT: case BLD_SUPER_DOCK: case BLD_TRADING_POST: // a shrine is -Town
-		case BLD_MERCENARY_CAMP: // ptol/mercenary_camp (Requirements -phase_village phase_town), merc_camp_egyptian (-Village Town)
 			return 2;
+		// ptol/mercenary_camp keeps the barracks' Village; merc_camp_egyptian is -Village Town.
+		case BLD_MERCENARY_CAMP: return civ == CIV_PTOLEMIES ? 1 : 2;
 		case BLD_ARSENAL: return civ == CIV_MACEDONIANS ? 2 : 0;
 		case BLD_ELEPHANT_STABLE: return civ == CIV_MAURYANS ? 2 : 0;
 		default:

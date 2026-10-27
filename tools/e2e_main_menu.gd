@@ -103,6 +103,17 @@ func run() -> void:
 	await frames(4)
 	var editors: Array = menu.find_children("*", "CanvasLayer", true, false).filter(func(l): return l.get_child_count() > 0 and l.get_child(0).get_script() != null and l.get_child(0).get_script().resource_path.ends_with("hotkeys.gd"))
 	check(editors.size() == 1 and current_scene == menu, "Settings > Hotkeys opens the hotkey editor over the menu")
+	if editors.size() == 1:
+		# hotkeys.xml: a ModernDialog titled in ModernLabelText, the slots as read-only
+		# ModernInputs in the picker.
+		var ed = editors[0].get_child(0)
+		var ttl: Label = ed.dialog.find_child("Title", true, false)
+		check(ed.dialog.theme_type_variation == "ModernDialogContainer" and ttl.get_theme_font("font") is FontVariation
+			and ttl.get_theme_font_size("font_size") == 14, "the editor is a ModernDialog with a bold 14 px edge title")
+		ed.open_picker(ed.categories[ed.category_keys[0]]["hotkeys"][0])
+		await frames(2)
+		check(ed.slot_labels[0].get_theme_stylebox("normal") is StyleBoxFlat and ed.picker_desc.get_theme_font("font") is FontVariation,
+			"the picker's slots are dark input boxes and its text ModernLabelText")
 	for layer in menu.find_children("*", "CanvasLayer", true, false):
 		layer.queue_free()
 	await frames(2)
@@ -129,6 +140,7 @@ func run() -> void:
 	t.answered.connect(func(i): answer[0] = i)
 	await frames(2)
 	check(t.get_node("Main/Text").text == "Reverting in 2 seconds.", "counts the seconds: " + t.get_node("Main/Text").text)
+	check(t.get_node("Main/Text").offset_top == 40, "tmcText starts 40 px down")
 	# mod gui/msgbox: ModernFade (0 0 0 85), the title, text and ModernButtonRed buttons in sans-bold-stroke-14.
 	check(is_equal_approx((t.get_child(0) as ColorRect).color.a, 85.0 / 255.0)
 			and [t.get_node("Main/Title"), t.get_node("Main/Text"), t.get_node("Main/Button1")].all(func(c): return c.get_theme_font_size("font_size") == 14 and c.get_theme_font("font") is FontVariation),

@@ -321,6 +321,29 @@ static void test_packed_leaves_foundation() {
 	check(progress > 0.05f, "the foundation started once the catapult had walked off");
 }
 
+// Order.Pack: PACKING handles no LosAttackRangeUpdate, so an engine told to pack with an enemy
+// in range packs all the way instead of turning back to fire.
+static void test_pack_beside_enemy() {
+	std::printf("12. pack with an enemy in range\n");
+	Simulation s;
+	setup(s);
+	uint32_t cat = s.spawn_unit(0, 0, 0, UNIT_CATAPULT);
+	s.order_pack(&cat, 1, false);
+	run(s, 6.0f);
+	const float r = s.unit_info_at(idx_of(s, cat)).attack_range;
+	dummy(s, r * 0.6f, 0.0f);
+	run(s, 1.0f);
+	s.order_pack(&cat, 1, true);
+	run(s, 1.0f);
+	check(pack_of(s, cat) == PACK_PACKING, "starts packing");
+	bool packed = false;
+	for (int k = 0; k < (int)std::lround(8.0f / DT) && !packed; ++k) {
+		s.tick(DT);
+		packed = pack_of(s, cat) == PACK_PACKED; // IDLE afterwards may unpack it again to fire
+	}
+	check(packed, "packs all the way though the enemy is in range");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_pack.sav";
 	test_who_packs();
@@ -334,6 +357,7 @@ int main(int argc, char **argv) {
 	test_garrison_packs_first();
 	test_stop_cancels_pack();
 	test_packed_leaves_foundation();
+	test_pack_beside_enemy();
 	if (g_failures) {
 		std::printf("test_pack: FAIL (%d)\n", g_failures);
 		return 1;
