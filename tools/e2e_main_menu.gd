@@ -129,6 +129,7 @@ func run() -> void:
 	t.answered.connect(func(i): answer[0] = i)
 	await frames(2)
 	check(t.get_node("Main/Text").text == "Reverting in 2 seconds.", "counts the seconds: " + t.get_node("Main/Text").text)
+	check(t.get_node("Main/Text").offset_top == 40, "tmcText starts 40 px down")
 	# mod gui/msgbox: ModernFade (0 0 0 85), the title, text and ModernButtonRed buttons in sans-bold-stroke-14.
 	check(is_equal_approx((t.get_child(0) as ColorRect).color.a, 85.0 / 255.0)
 			and [t.get_node("Main/Title"), t.get_node("Main/Text"), t.get_node("Main/Button1")].all(func(c): return c.get_theme_font_size("font_size") == 14 and c.get_theme_font("font") is FontVariation),
