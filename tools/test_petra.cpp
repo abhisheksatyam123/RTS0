@@ -3239,15 +3239,19 @@ static void test_nomad_first_base() {
 	s->order_set_stance(idle_army.data(), idle_army.size(), STANCE_PASSIVE);
 	// worker.js: the civic centre's builders go idle (autocontinue only for houses) and gather,
 	// and the fields wait for a food gatherer (buildAnyField), so the first house comes later
-	// than 150 s on this seed.
-	run_for(*s, 240.0f);
+	// than 150 s on this seed. And whether it comes before 240 s hangs on one tick: a civic centre
+	// finished before Petra's 26th turn (tick 785, 26 % 5 == 1) lets researchManager.update run
+	// with an active base there (headquarters.js:2294-2295), which picks Helot Economy at 39 s
+	// rather than at 207 s, and its minorTech reserve takes the food and wood of the first house
+	// (placed at 247 s, against 185 s).
+	run_for(*s, 300.0f);
 	int buildings = 0, houses = 0;
 	for (const auto &b : s->buildings())
 		if (b.team == 1 && !b.wrecked && b.build_progress >= 1.0f) {
 			++buildings;
 			houses += b.type == BLD_HOUSE;
 		}
-	std::printf("  nomad: Town Centers at start %d, built after 240 s %d, finished buildings %d, workers %d\n",
+	std::printf("  nomad: Town Centers at start %d, built after 300 s %d, finished buildings %d, workers %d\n",
 	            at_start, town_centers(true), buildings, count_units(*s, 1, true));
 	CHECK(at_start == 0, "a Nomad start has no civic centre");
 	CHECK(town_centers(true) == 1, "Petra founds and builds its first Town Center");
