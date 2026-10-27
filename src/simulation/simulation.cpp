@@ -16229,10 +16229,20 @@ void Simulation::tick_pack(float dt) {
 			if (units_.pack_elapsed[i] >= pack_time_s(i)) {
 				ps = (ps == PACK_PACKING) ? PACK_PACKED : PACK_UNPACKED;
 				units_.pack_elapsed[i] = 0.0f;
+				const bool ordered = ordered_pack(i);
 				if (units_.order_kind[i] == ORDER_NONE) units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE; // PackFinished
 				// Pack.js PackFinished -> ChangeEntityTemplate: SwitchToStance holds where it stands.
 				units_.anchor_x[i] = units_.pos_x[i];
 				units_.anchor_z[i] = units_.pos_z[i];
+				units_.pack_state[i] = ps;
+				// PackFinished -> FinishOrder: the orders queued behind the pack run now.
+				if (ordered) {
+					auto q = order_queues_.find(units_.id[i]);
+					if (q != order_queues_.end() && !q->second.empty()) {
+						finish_order(i);
+						ps = units_.pack_state[i];
+					}
+				}
 			}
 		}
 		units_.pack_state[i] = ps;
@@ -19818,7 +19828,8 @@ std::vector<uint32_t> Simulation::split_queued(const uint32_t *ids, size_t count
 	float cx = 0.0f, cz = 0.0f;
 	int busy_n = 0;
 	auto busy = [&](size_t i) {
-		return units_.alive[i] && (units_.order_kind[i] != ORDER_NONE || units_.action_state[i] != ACTION_IDLE);
+		return units_.alive[i] && (units_.order_kind[i] != ORDER_NONE || units_.action_state[i] != ACTION_IDLE ||
+				ordered_pack(i)); // Order.Pack / Order.Unpack: queued orders wait behind it
 	};
 	for (size_t k = 0; k < count; ++k) {
 		const int32_t i = lookup_unit(ids[k]);

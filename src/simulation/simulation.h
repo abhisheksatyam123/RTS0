@@ -2916,6 +2916,11 @@ private:
 	// reschedule from the due time). Set and read within one tick, so not saved.
 	std::vector<float> attack_late_;
 	bool attack_under_way(size_t i) const;
+	// An (un)pack the player ordered (Order.Pack / Order.Unpack) still under way.
+	bool ordered_pack(size_t i) const {
+		return (units_.pack_state[i] == PACK_PACKING || units_.pack_state[i] == PACK_UNPACKING) &&
+				units_.order_kind[i] == ORDER_NONE && (units_.order_flags[i] & ORDER_FLAG_FORCE);
+	}
 	void stop_attack(size_t i);
 	bool attack_ready(size_t i, bool in_range, float prepare);
 	void attack_done(size_t i, bool in_range, float repeat);
