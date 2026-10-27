@@ -2289,6 +2289,49 @@ static void test_city_phase_skips_no_room() {
 	}
 }
 
+// queueManager.js keeps a queued plan until it starts: a barracks or wonder plan already in
+// its queue goes ahead though the population that asked for it has dipped (PD3).
+static void test_queued_plan_outlives_its_reason() {
+	for (int held = 0; held < 2; ++held)
+		for (int wonder = 0; wonder < 2; ++wonder) {
+			auto s = std::make_unique<Simulation>();
+			s->set_sim_seed(42);
+			s->reset();
+			s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+			s->set_victory_condition(VICTORY_ENDLESS);
+			run_for(*s, 1.0f);
+			s->set_team_civ(1, (uint8_t)CIV_ATHENIANS);
+			s->players_[1].phase = wonder ? 3 : 1;
+			s->set_player_resources(1, 5000, 5000, 5000, 5000);
+			s->petra_pid_ = 1;
+			fund_queues(*s);
+			const uint8_t type = wonder ? BLD_WONDER : BLD_BARRACKS;
+			const uint8_t q = wonder ? PETRA_Q_WONDER : PETRA_Q_MILITARY_BUILDING;
+			if (held) {
+				s->petra_queue_heads_.item[q] = (uint8_t)(type + 1);
+				s->petra_queue_heads_.age[q] = 0.0f;
+			}
+			if (wonder) { // a market and temple stand, so nothing else heads the town decisions
+				for (const auto &b : std::vector<Simulation::Building>(s->buildings_))
+					if (b.team == 1 && b.type == BLD_TOWN_CENTER) {
+						s->spawn_building_world(b.x + 20.0f, b.z, BLD_MARKET, 1, 1.0f);
+						s->spawn_building_world(b.x - 20.0f, b.z, BLD_TEMPLE, 1, 1.0f);
+						s->spawn_building_world(b.x, b.z + 20.0f, BLD_FORGE, 1, 1.0f);
+					}
+			}
+			// A played turn that is a 3rd (the training-building and town decisions) but not a 30th.
+			while (!s->petra_turn_mod(3) || s->petra_turn_mod(30)) s->ticks_ += 4;
+			if (wonder) s->petra_manage_research(0.5f);
+			else s->petra_manage_buildings(0.5f);
+			int laid = 0;
+			for (const auto &b : s->buildings_) laid += b.team == 1 && b.type == type && b.build_progress < 1.0f && b.hp > 0.0f;
+			std::printf("  %s plan %s, population %d: %d laid\n", wonder ? "wonder" : "barracks", held ? "queued" : "not queued",
+			            s->pop_current(1), laid);
+			if (held) CHECK(laid == 1, "a queued plan starts though its reason has gone");
+			else CHECK(laid == 0, "no plan without its reason");
+		}
+}
+
 // queueplanBuilding.js isGo (houseNeeded): a queued house plan waits while canBuild fails for
 // both the house and the apartment (the 90 s no-room mark), and goes once the mark lapses.
 static void test_house_plan_waits_out_no_room() {
@@ -4106,6 +4149,39 @@ static void test_plan_cost_weights_kept() {
 	CHECK(metal_code(scarce, 0) == 2 || metal_code(scarce, 1) == 2, "a metal scarcity lowers the plan's infantry metal weight to 0.2");
 	CHECK(m.cost_lowered == scarce, "the lowered weight stays once metal is plentiful again");
 	CHECK(((scarce >> 8) & 0xFFu) == 0, "citizen cavalry (no costsResource interest) keeps no weight");
+}
+
+// attackPlan.js:194-217: each unitStat's size is ceil(popScaling * ceil(variation * table)),
+// and the plan waits for their sum. The plan's classes add up to the size it drew, at every
+// difficulty (they used to be rebuilt from the sum and round up once more: a Very Easy Attack
+// trained 7 units for 5).
+static void test_plan_class_sizes_sum() {
+	for (uint8_t d : {(uint8_t)PETRA_VERY_EASY, (uint8_t)PETRA_EASY, (uint8_t)PETRA_MEDIUM, (uint8_t)PETRA_VERY_HARD}) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->set_petra_difficulty(d);
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		run_for(*s, 1.0f);
+		s->petra_pid_ = 1;
+		auto &m = s->petra_attack_mgr_;
+		int mismatched = 0, plans = 0;
+		for (uint8_t kind : {(uint8_t)PETRA_ATTACK_RUSH, (uint8_t)PETRA_ATTACK_ATTACK, (uint8_t)PETRA_ATTACK_HUGE})
+			for (int k = 0; k < 40; ++k) {
+				m.rush_number = 0;
+				m.rush_size[0] = 14 + k % 9;
+				s->petra_plan_sizes(kind);
+				if (kind == PETRA_ATTACK_RUSH) m.rush_number = 1; // as made: petra_plan_unit_stats reads rush_number - 1
+				const size_t table = kind == PETRA_ATTACK_RUSH ? 2 : kind == PETRA_ATTACK_HUGE ? 9 : 3;
+				int target = 0, min = 0;
+				for (const auto &st : s->petra_plan_unit_stats(kind))
+					if (st.index < table) { target += st.target; min += st.min; }
+				++plans;
+				if (target != m.target_size || min != m.min_size) ++mismatched;
+			}
+		std::printf("  difficulty %d: %d of %d plans' classes add up to a different size\n", (int)d, mismatched, plans);
+		CHECK(mismatched == 0, "a plan's classes add up to the size it drew");
+	}
 }
 
 // attackPlan.js trainMoreUnits: when the order furthest behind has no template, the order is
@@ -8452,6 +8528,61 @@ static void test_new_cc_defenders() {
 	CHECK(most >= 1, "they garrison it");
 }
 
+// basesManager.js createBase (G77): a civic centre on the land of a base whose civic centre was
+// lost takes that base, and its reset zeroes neededDefenders; one founded on a land with no such
+// base gets 3 + 2 (difficulty - 3), Nomad's first foundation included.
+static void test_cc_defenders_reuse() {
+	auto needed = [](const Simulation &s, uint32_t tc) -> int {
+		for (const auto &b : s.petra_bases()) if (b.anchor_building_id == tc) return b.needed_defenders;
+		return -1;
+	};
+	auto seen = [&](Simulation &s, uint32_t tc) {
+		for (float t = 0.0f; t < 6.0f && needed(s, tc) < 0; t += Simulation::FIXED_STEP) s.tick(Simulation::FIXED_STEP);
+		return needed(s, tc);
+	};
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->set_petra_difficulty(1, PETRA_HARD);
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 20.0f);
+		float ccx = 0.0f, ccz = 0.0f;
+		for (auto &b : s->buildings_)
+			if (b.team == 1 && is_civic_centre(b.type)) { ccx = b.x; ccz = b.z; b.hp = 0.0f; }
+		// Units keep the AI in the game; the lost base is recorded at its next turn.
+		run_ai_turns(*s, 2);
+		const size_t lost = s->petra_kept_.lost_bases.size();
+		const uint32_t again = s->spawn_building_world(ccx, ccz, BLD_TOWN_CENTER, 1, 0.0f);
+		const int rebuilt = again ? seen(*s, again) : -1;
+		const uint32_t other = s->spawn_building_world(ccx * 0.1f, ccz * 0.1f, BLD_TOWN_CENTER, 1, 0.0f);
+		const int second = other ? seen(*s, other) : -1;
+		std::printf("  Hard: civic centre lost (%zu base kept), rebuilt: %d defenders, another on that land: %d\n", lost, rebuilt, second);
+		CHECK(lost == 1, "the base of a lost civic centre is kept");
+		CHECK(rebuilt == 0, "a civic centre rebuilt on its land takes that base, with no defenders");
+		CHECK(second == 5, "another new one there makes a new base wanting 5 defenders");
+	}
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->set_nomad(true);
+		s->set_petra_difficulty(1, PETRA_HARD);
+		s->set_player_active(0, true, false);
+		s->set_player_active(1, true, true);
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		run_for(*s, 2.0f);
+		float x = 0.0f, z = 0.0f;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1) { x = s->units_.pos_x[i] + 6.0f; z = s->units_.pos_z[i]; break; }
+		const uint32_t first = s->spawn_building_world(x, z, BLD_TOWN_CENTER, 1, 0.0f);
+		const int n = first ? seen(*s, first) : -1;
+		std::printf("  Hard Nomad: first civic centre foundation wants %d defenders\n", n);
+		CHECK(n == 5, "Nomad's first civic centre (a foundation in a new base) wants 5 defenders at Hard");
+	}
+}
+
 static void test_food_fields() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -9199,6 +9330,7 @@ int main(int argc, char **argv) {
 	RUN(test_phase_up);
 	RUN(test_city_phase_skips_no_room);
 	RUN(test_house_plan_waits_out_no_room);
+	RUN(test_queued_plan_outlives_its_reason);
 	RUN(test_no_free_income);
 	RUN(test_mercenary_workers);
 	RUN(test_trade_tech_waits_for_funds);
@@ -9281,6 +9413,7 @@ int main(int argc, char **argv) {
 	RUN(test_plan_counts_every_class);
 	RUN(test_trained_units_join_their_plan);
 	RUN(test_plan_cost_weights_kept);
+	RUN(test_plan_class_sizes_sum);
 	RUN(test_attack_order_no_template);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
@@ -9370,6 +9503,7 @@ int main(int argc, char **argv) {
 	RUN(test_siege_class_kept);
 	RUN(test_worker_plans_wait);
 	RUN(test_new_cc_defenders);
+	RUN(test_cc_defenders_reuse);
 	RUN(test_temple_wonder_save);
 	RUN(test_personality_draw);
 	RUN(test_chat_text);

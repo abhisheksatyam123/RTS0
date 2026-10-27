@@ -17,6 +17,7 @@ extends Control
 # are in carry the "•" mark (gamedescription.js g_BuddySymbol).
 
 const GameSetupMp := preload("res://scenes/menu/gamesetup_mp.gd")
+const SORT_ARROWS := preload("res://scenes/common/sort_arrows.gd")
 const REFRESH_S := 3.0
 # /events: how long the server may hold a request (below LobbySession's 5 s timeout).
 const EVENTS_WAIT_S := 4.0
@@ -1091,8 +1092,8 @@ func sort_players_by(column: int) -> void:
 
 func _update_player_titles() -> void:
 	for i in 3:
-		_players.set_column_title(i, ["Status", "Name", "Rating"][i]
-			+ (("  ▲" if player_sort_order > 0 else "  ▼") if i == player_sort_column else ""))
+		_players.set_column_title(i, ["Status", "Name", "Rating"][i])
+	SORT_ARROWS.attach(_players).set_sorted(player_sort_column, player_sort_order)
 
 
 ## PlayerList.js parsePlayer and sortPlayers: status sorts by presence order
@@ -1130,8 +1131,8 @@ func sort_games_by(column: String) -> void:
 func _update_game_titles() -> void:
 	var titles := game_columns(_rating_column)
 	for i in titles.size():
-		_games.set_column_title(i, ("" if titles[i] == "Password" else titles[i])
-			+ (("  ▲" if game_sort_order > 0 else "  ▼") if titles[i] == game_sort_column else ""))
+		_games.set_column_title(i, "" if titles[i] == "Password" else titles[i])
+	SORT_ARROWS.attach(_games).set_sorted(titles.find(game_sort_column), game_sort_order)
 
 
 ## Game.js sortValues: Name sorts setups, then running games, by name; the

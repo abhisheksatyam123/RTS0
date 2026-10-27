@@ -20,6 +20,7 @@ extends CanvasLayer
 # or the main menu) starts the match scene with MatchSettings.load_save_path
 # set, and the scene loads it after building the map.
 const MODERN := preload("res://scenes/common/modern_theme.gd")
+const SORT_ARROWS := preload("res://scenes/common/sort_arrows.gd")
 const L10n := preload("res://scenes/menu/l10n.gd")
 const MSGBOX := preload("res://scenes/common/msgbox.gd")
 
@@ -148,7 +149,8 @@ func refresh() -> void:
 			for c in COLUMNS.size():
 				row.set_custom_color(c, INCOMPATIBLE)
 	for c in COLUMNS.size():
-		list.set_column_title(c, L10n.t(COLUMNS[c][1]) + ("" if COLUMNS[c][0] != sort_column else ("  ▼" if sort_order < 0 else "  ▲")))
+		list.set_column_title(c, L10n.t(COLUMNS[c][1]))
+	SORT_ARROWS.attach(list).set_sorted(COLUMNS.map(func(col): return col[0]).find(sort_column), sort_order)
 	feedback.visible = saves.is_empty()
 	list.mouse_filter = Control.MOUSE_FILTER_IGNORE if saves.is_empty() else Control.MOUSE_FILTER_STOP # gameSelection.enabled
 	# Keep the selected save if it is still listed, else the same row (or the last one).
