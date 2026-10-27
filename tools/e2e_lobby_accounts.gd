@@ -231,12 +231,23 @@ func run() -> void:
 		"Sign In waits for the Terms of Service: " + lobby._status.text)
 	lobby.open_terms("Service")
 	await until(func() -> bool: return lobby.get_node_or_null("TermsDialog") != null)
-	var terms_dlg: ConfirmationDialog = lobby.get_node_or_null("TermsDialog")
-	check(terms_dlg != null and terms_dlg.title == "Terms of Service" and terms_dlg.ok_button_text == "Accept"
-		and terms_dlg.cancel_button_text == "Decline" and terms_dlg.get_node("TermsText").text.begins_with("Terms of Service"),
+	var terms_dlg: Control = lobby.get_node_or_null("TermsDialog")
+	check(terms_dlg != null and terms_dlg.find_child("Title", true, false).text == "Terms of Service"
+		and terms_dlg.find_child("Accept", true, false).text == "Accept" and terms_dlg.find_child("Decline", true, false).text == "Decline"
+		and terms_dlg.find_child("TermsText", true, false).text.begins_with("Terms of Service"),
 		"the page opens with its text, Decline and Accept")
 	if terms_dlg != null:
-		terms_dlg.canceled.emit()
+		# termsdialog.xml: a 720x580 ModernDialog, the text panel at 20 60 100%-20 100%-50,
+		# 160 px buttons at 100%-355 100%-45.
+		var main: Panel = terms_dlg.find_child("Main", true, false)
+		var accept: Button = terms_dlg.find_child("Accept", true, false)
+		var panel: Control = terms_dlg.find_child("TermsText", true, false).get_parent()
+		check(main.theme_type_variation == "ModernDialog" and main.size == Vector2(720, 580)
+			and panel.offset_top == 60 and panel.offset_bottom == -50 and accept.offset_left == -185 and accept.offset_top == -45,
+			"in 0.28's ModernDialog layout")
+		check(terms_dlg.find_child("LanguageDropdown", true, false) != null, "with the Language dropdown")
+	if terms_dlg != null:
+		terms_dlg.find_child("Decline", true, false).pressed.emit()
 	await process_frame
 	lobby._on_sign_pressed()
 	await until(func() -> bool: return lobby._status.text.begins_with("Please read"))
