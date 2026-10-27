@@ -10,6 +10,7 @@
 #undef private
 #include "network/turn_manager.h"
 #include <cmath>
+#include <vector>
 #include <cstdio>
 #include <cstring>
 
@@ -383,6 +384,34 @@ int main() {
 			cyc, cyc_w, cyc_ww, arctic, oases, islands);
 		CHECK(cyc_w > 0 && cyc_ww == cyc_w);
 		CHECK(arctic > 0 && oases > 0 && islands > 0);
+	}
+
+	// 7c. COLLECTTREASURE.APPROACHING MovementUpdate with likelyFailure: a collector whose path ends
+	// on the shore, short of a treasure across deep water, gives the order up instead of pushing on.
+	{
+		static Simulation s;
+		s.set_sim_seed(7);
+		s.reset();
+		s.set_map_half(64.0f);
+		const int res = 65;
+		std::vector<float> h((size_t)res * res);
+		for (int j = 0; j < res; ++j)
+			for (int k = 0; k < res; ++k) h[(size_t)j * res + k] = std::fabs(-64.0f + 128.0f * j / (res - 1)) < 16.0f ? -3.0f : 3.0f;
+		s.set_terrain_data(h, res, 0.0f);
+		s.begin_bulk_spawn();
+		s.end_bulk_spawn();
+		for (uint8_t p = 0; p < 2; ++p) s.set_player_active(p, true, false);
+		s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		uint32_t u = s.spawn_unit(0.0f, -22.0f, 0, UNIT_SPEARMAN);
+		const uint32_t t = s.spawn_treasure(0.0f, 24.0f, TREASURE_WOOD);
+		s.order_collect_treasure(&u, 1, t);
+		CHECK(s.units_.order_kind[s.lookup_unit(u)] == ORDER_COLLECT_TREASURE);
+		run(s, 15.0f);
+		const int32_t ui = s.lookup_unit(u);
+		std::printf("unreachable treasure: collector at (%.1f, %.1f), order %d, state %d\n", s.units_.pos_x[ui], s.units_.pos_z[ui],
+		            s.units_.order_kind[ui], s.units_.action_state[ui]);
+		CHECK(s.units_.order_kind[ui] == ORDER_NONE && s.units_.action_state[ui] == ACTION_IDLE && s.units_.pos_z[ui] < -10.0f);
+		CHECK(s.treasures().size() == 1);
 	}
 
 	// 8. Save/load keeps treasures, ruins caps and the lockstep hash; the Treasures toggle clears them.

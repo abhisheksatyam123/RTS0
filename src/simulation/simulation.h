@@ -189,7 +189,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 124; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 125; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_CAPTURE_TIMER = 125; // each structure's capture regen timer (Capturable.js CheckTimer)
 	static constexpr uint32_t SAVE_VERSION_PETRA_ORDER_NAME = 124; // the Petra plan name and unitStat each queued batch is for
 	static constexpr uint32_t SAVE_VERSION_BOARD_BEST = 123; // each Petra boarding passenger's nearest approach to its ship
 	static constexpr uint32_t SAVE_VERSION_GARRISON_HEAL = 120; // each structure's garrison heal timer (GarrisonHolder HEAL_TIMEOUT)
@@ -427,6 +428,8 @@ public:
 		// GarrisonHolder HealTimeout: time into the second its heal timer started on the first
 		// unit in (0 while nothing is inside or nothing heals).
 		float heal_clock = 0.0f;
+		// Capturable.js regen timer: time to its next TimerTick (0 while no timer runs).
+		float capture_timer = 0.0f;
 		std::array<float, RES_COUNT> upgrade_paid{};
 
 		// 0 A.D. Gate.js (gates: is_gate_type). An unlocked gate never blocks long-range
@@ -2414,6 +2417,7 @@ public:
 	bool treasure_within(size_t i, const Treasure &t, float reach) const; // edge to edge
 	// Whether unit i stands within treasure_reach of treasure `id` it collects, where tick_treasures runs its timer.
 	bool treasure_in_reach(size_t i, uint32_t id) const;
+	void collect_nearby_treasure(size_t i, float x, float z, uint32_t skip);
 	const std::vector<Treasure> &treasures() const { return treasures_; }
 	// Visibility/RetainInFog: a treasure shows wherever the player has explored, but the Argo
 	// (special_argo.xml RetainInFog false) only in sight.
@@ -3559,7 +3563,13 @@ private:
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
-	void capture_points_tick(Building &b, size_t bi, bool timer_tick); // Capturable.js Reduce, regen and owner change
+	// TerritoryDecay for one structure this tick: DecayRate (0 = not decaying) and who gets the points.
+	struct CaptureDecay {
+		float rate = 0.0f;
+		std::array<float, MAX_PLAYERS> to{};
+		float to_gaia = 0.0f;
+	};
+	void capture_points_tick(Building &b, size_t bi, const CaptureDecay &decay, float dt); // Capturable.js Reduce, regen and owner change
 	using CapturePools = std::array<float, MAX_PLAYERS + 1>; // per player, then Gaia's
 	bool capture_enemy(int source, int t) const;
 	void capture_reduce(CapturePools &pts, int to, float amount) const; // Capturable.js Reduce
