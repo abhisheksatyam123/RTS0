@@ -68,6 +68,10 @@ func run() -> void:
 	check(not t.has("No Markets Available"), "with a market the notice goes (market %d)" % market)
 	var barter_help := body.find_child("barterHelp", true, false) as Button
 	check(barter_help.visible and barter_help.tooltip_text.begins_with("Start by selecting"), "barter help tooltip")
+	var tips = preload("res://scenes/common/tooltips.gd")
+	check(tips._reference_style(barter_help).get("bold", false) and not tips._reference_style(barter_help).get("bottom", false)
+			and tips._reference_style(d._sell_buttons.values()[0]).get("bottom", false), "sessionToolTipBold on the help, sessionToolTipBottomBold on the barter buttons")
+	check(d._sell_buttons[d.selected_sell].get_node("icon").material != null, "the selected sell icon in grayscale")
 	var sells: Array = d._sell_buttons.values()
 	check(sells.all(func(b): return b.size == Vector2(38, 38)), "38 px barter icons")
 	check(sells.all(func(b): return str(b.get_node("amount").text) == "-100"), "-100 on each sell icon")
