@@ -2061,7 +2061,9 @@ public:
 		TECH_ERR_PAIRED, // its pair_*.json partner is researched or being researched
 		TECH_ERR_DISABLED // the map's trigger script disabled it (cmpPlayer.SetDisabledTechnologies)
 	};
-	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0) const;
+	// `queue_full_ok`: the Research panel's view, whose button stays enabled with a full queue
+	// (pressing it gets ProductionQueue's "The production queue is full." notice).
+	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0, bool queue_full_ok = false) const;
 	// What researching `tech_id` costs this player at a researcher of `bld_type` (BLD_TYPE_COUNT:
 	// a unit): Researcher/TechCostMultiplier, team bonuses and the Library of Alexandria, as paid.
 	void tech_price(uint8_t player_id, uint8_t tech_id, uint8_t bld_type, float paid[RES_COUNT], float &time) const;

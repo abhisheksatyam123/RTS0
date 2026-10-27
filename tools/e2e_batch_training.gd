@@ -80,6 +80,12 @@ func run() -> void:
 	print("    ", tip1.replace("\n", " | "))
 	var c1 := re_cost.search(tip1)
 	check(c1 != null and not tip1.contains("Shift-click") and rl.get_item_text(pick) == "", "one unit's cost, no batch line, no count")
+	# selection_panels.js: every training tooltip opens with its queueunit hotkey in sans-bold-16;
+	# slots past default.cfg's eight read "Unassigned hotkey: session.queueunit.N".
+	var raw1 := rl.get_item_tooltip(pick)
+	check(raw1.begins_with("[font_size=16][b][color=#fffb83][lb]"), "the hotkey tag opens the tooltip in the bold 16 px font")
+	if rl.item_count > 8:
+		check(TT.plain(rl.get_item_tooltip(8)).begins_with("[Unassigned hotkey: session.queueunit.9]"), "the 9th button names its unassigned hotkey")
 
 	print("1. Shift+clicks build one batch")
 	await key(KEY_SHIFT, true)
