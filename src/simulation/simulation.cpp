@@ -17580,6 +17580,10 @@ void Simulation::promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_ran
 	}
 	units_.rank[i] = target_rank;
 	units_.hp[i] = frac * units_.max_hp[i];
+	// The new entity's Attack starts its own timer (Attack.js StartAttacking): a unit promoted
+	// mid-attack strikes after its PrepareTime, not the rest of the old RepeatTime.
+	if (attack_under_way(i))
+		units_.attack_timer[i] = -std::max(unit_combat_at(i).prepare, 2.0f * ATTACK_DUE);
 }
 
 void Simulation::promote_if_due(size_t i) {
@@ -18167,13 +18171,21 @@ float Simulation::projectile_damage_to_structure(const Projectile &p, const Buil
 void Simulation::tick_attack_timer(size_t i, float dt) {
 	float &tm = units_.attack_timer[i];
 	if (tm == ATTACK_DUE) tm = 0.0f; // nothing took last tick's hit: Attack.js StopAttacking
+	if (i < attack_late_.size()) attack_late_[i] = 0.0f;
 	const uint8_t st = units_.action_state[i];
 	if (st == ACTION_GATHER) return; // tick_gather counts its harvests on it
 	if (tm < 0.0f) {
 		const bool fighting = st == ACTION_IDLE || st == ACTION_MOVE || st == ACTION_ATTACK ||
 				st == ACTION_ATTACK_MOVE || st == ACTION_PATROL || st == ACTION_GUARD;
 		if (!fighting) tm = -tm; // the attack stopped (stop_attack); the rest of it still applies
-		else if ((tm += dt) >= 0.0f) tm = ATTACK_DUE;
+		// Timer.js reschedules from the due time, so float drift in the sum must not push a
+		// hit a tick late (twenty 0.05 s steps fall just short of 1 s).
+		else if ((tm += dt) >= -1.0e-4f) {
+			// The next hit is timed from this one's due time, not from the tick it landed in.
+			if (attack_late_.size() <= i) attack_late_.resize(units_.count > i ? units_.count : i + 1, 0.0f);
+			attack_late_[i] = std::max(tm, 0.0f);
+			tm = ATTACK_DUE;
+		}
 	} else if (tm > 0.0f) {
 		tm = std::max(0.0f, tm - dt);
 		if (tm == ATTACK_DUE) tm = 0.0f;
@@ -18205,7 +18217,10 @@ bool Simulation::attack_under_way(size_t i) const {
 // After a hit, Attack.js checks the range: in reach the next comes after RepeatTime,
 // out of reach the unit stops attacking (and must wait the rest of RepeatTime anyway).
 void Simulation::attack_done(size_t i, bool in_range, float repeat) {
-	units_.attack_timer[i] = in_range ? -repeat : repeat;
+	float late = 0.0f;
+	if (i < attack_late_.size()) std::swap(late, attack_late_[i]);
+	const float left = repeat - std::min(late, repeat);
+	units_.attack_timer[i] = in_range ? -std::max(left, 2.0f * ATTACK_DUE) : left;
 }
 
 // Attack.js RepeatRangeCheck (0.28): between hits, ceil(RepeatTime / 1 s) range checks
@@ -23898,33 +23913,7 @@ void Simulation::petra_manage_economy(float dt) {
 			// supply) carrying its own gather-type, the type it gathered last, goes straight back
 			// to gathering with its load (worker.js:220-227).
 			const bool same_type = petra_supply_of(units_.id[i]) != 0 && units_.res_type_carried[i] < RES_COUNT;
-			if (units_.carry[i] > 0 && !same_type) {
-				// getLandAccess as for garrisons (petra_same_land): a worker on a blocked cell has
-				// no nav region, which matched any structure without one, docks across the sea too.
-				uint32_t best = 0;
-				float best_d2 = 0.0f;
-				for (const Building &b : buildings_) {
-					if (!dropsite_accepts(i, b) || !petra_same_land(i, b)) continue;
-					const float dx = b.x - units_.pos_x[i], dz = b.z - units_.pos_z[i];
-					const float d2 = dx * dx + dz * dz;
-					if (best == 0 || d2 < best_d2) { best = b.id; best_d2 = d2; }
-				}
-				if (best != 0) {
-					const uint32_t uid = units_.id[i];
-					order_return_resource(&uid, 1, best);
-					continue;
-				}
-				// gameState.getOwnDropsites holds units too (supply wagons, worker elephants):
-				// with only one of those on its land, the worker returns there, tick_gather
-				// picking the nearest dropsite as for any return.
-				if (petra_mobile_dropsite_on_land(i)) {
-					units_.action_state[i] = ACTION_RETURN_DROPSITE;
-					units_.target_x[i] = units_.pos_x[i]; // no pick yet: tick_gather takes the nearest
-					units_.target_z[i] = units_.pos_z[i];
-					units_.has_order[i] = 1;
-					continue;
-				}
-			}
+			if (units_.carry[i] > 0 && !same_type && petra_return_load(i)) continue;
 			reassignable_workers.push_back(i);
 		} else if (units_.action_state[i] == ACTION_ATTACK && is_fauna_id(units_.target_unit_id[i])) {
 			add_rate(i, GK_MEAT, RES_FOOD); // hunting: the carcass is gathered next
@@ -24375,6 +24364,12 @@ void Simulation::petra_manage_economy(float dt) {
 			// startGathering then finds a supply here, across the water or nowhere.
 			cur_rate[chosen_res_type] += 0.5f;
 		}
+		// worker.js:220-232: a gatherer given another gather-type than the load it carries
+		// (switchGatherer, reassignIdleWorkers) takes the load to a dropsite first; once empty it
+		// is reassigned. Gathering the other type at once would throw the load away.
+		if (units_.carry[widx] > 0 && units_.res_type_carried[widx] < RES_COUNT &&
+		    units_.res_type_carried[widx] != chosen_res_type && petra_return_load(widx))
+			continue;
 
 		// worker.js startGathering: any gatherer takes a treasure nearby first, and a food
 		// gatherer hunts next (livestock and carcasses near a dropsite).
@@ -24539,8 +24534,14 @@ void Simulation::petra_manage_economy(float dt) {
 			return false;
 		};
 		if (attempt(chosen_res_type)) continue;
-		for (uint8_t r : needed)
-			if (r != chosen_res_type && may_try(r) && attempt(r)) break;
+		for (uint8_t r : needed) {
+			if (r == chosen_res_type || !may_try(r)) continue;
+			// As above: a load of another type goes to a dropsite before the worker gathers r.
+			if (units_.carry[widx] > 0 && units_.res_type_carried[widx] < RES_COUNT && units_.res_type_carried[widx] != r &&
+			    petra_return_load(widx))
+				break;
+			if (attempt(r)) break;
+		}
 	}
 
 	petra_manage_hunters(hunt_scan);
@@ -25085,8 +25086,8 @@ void Simulation::petra_check_inaccessible_supplies(PetraHuntScan &scan) {
 // attack animals: citizen horsemen and the Ptolemaic camel archers). An idle
 // hunter looks around itself, then around each base and rides there; one that
 // drifted into enemy territory looks again.
-// worker.js update, a hunter or gatherer approaching an animal: "check that we have not
-// drifted too far when hunting". An animal in enemy territory, or in neutral land with
+// worker.js update, a hunter or gatherer approaching an animal (not yet in reach of it): "check
+// that we have not drifted too far when hunting". An animal in enemy territory, or in neutral land with
 // none of our food dropsites within 90000 m² (30000 m² on foot), is given up for
 // another hunt (retryWorking), or the chase is stopped when there is none.
 void Simulation::petra_check_hunt_drift(PetraHuntScan &scan) {
@@ -25094,6 +25095,8 @@ void Simulation::petra_check_hunt_drift(PetraHuntScan &scan) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_ATTACK) continue;
 		const auto fit = fauna_id_to_idx_.find(units_.target_unit_id[i]);
 		if (fit == fauna_id_to_idx_.end()) continue;
+		// INDIVIDUAL.COMBAT.APPROACHING only: once in reach (ATTACKING, then CHASING) the hunt goes on.
+		if (units_.chase_target[i] == units_.target_unit_id[i]) continue;
 		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
 		if (gcls != GATHER_CAVALRY && gcls != GATHER_INFANTRY && gcls != GATHER_SUPPORT) continue;
 		if (petra_unit_reserved(units_.id[i])) continue; // soldiers, the scout: not hunters or gatherers
@@ -25103,7 +25106,7 @@ void Simulation::petra_check_hunt_drift(PetraHuntScan &scan) {
 		bool drifted = petra_foe(terr);
 		if (!drifted && terr < 0) {
 			const float d2 = (gcls == GATHER_CAVALRY ? 90000.0f : 30000.0f) / 16.0f;
-			auto [cx, cz] = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
+			auto [cx, cz] = nav_grid_.world_to_cell(tx, tz); // getLandAccess(target)
 			drifted = !petra_food_drop_near(scan, nav_grid_.global_region_at(cx, cz, PASS_INFANTRY), tx, tz, d2);
 		}
 		if (!drifted) continue;
@@ -25418,13 +25421,17 @@ void Simulation::petra_set_trading_goods() {
 	const bool rates = petra_rates_this_turn();
 	if (rates)
 		for (int r = 0; r < RES_COUNT; ++r) short_of[r] = petra_want_rate_[r]; // wantedRate > 0
+	// tradeManager.js:186 stocks = HQ.getTotalResourceLevel: what still stands near our
+	// dropsites, not what is banked.
+	float stocks[RES_COUNT];
+	petra_total_resource_level(stocks);
 	uint8_t goods[RES_COUNT] = {};
 	int remaining = 100;
 	for (uint8_t r : {RES_WOOD, RES_STONE, RES_GOLD}) {
 		const bool wanted = short_of[r] > 0.0f;
-		if (ps.res[r] < 200.0f) goods[r] = wanted ? 20 : 10;
-		else if (ps.res[r] < 500.0f) goods[r] = wanted ? 15 : 10;
-		else if (ps.res[r] < 1000.0f) goods[r] = 10;
+		if (stocks[r] < 200.0f) goods[r] = wanted ? 20 : 10;
+		else if (stocks[r] < 500.0f) goods[r] = wanted ? 15 : 10;
+		else if (stocks[r] < 1000.0f) goods[r] = 10;
 		remaining -= goods[r];
 	}
 	// pickMostNeededResources: wanted against current gather rate (before the economy has run
@@ -25436,7 +25443,7 @@ void Simulation::petra_set_trading_goods() {
 	goods[order[0]] += main_need;
 	goods[short_of[order[1]] > 0.0f ? order[1] : order[0]] += remaining - main_need;
 	cmd_set_trading_goods(petra_pid_, goods);
-	petra_kept_.target_traders = (int16_t)std::clamp(petra_compute_target_traders(), 0, 32767);
+	petra_kept_.target_traders = (int16_t)std::clamp(petra_compute_target_traders(stocks), 0, 32767);
 }
 
 static float petra_pop_scaling_for(float pop_scaling, int max_pop);
@@ -25455,9 +25462,9 @@ int Simulation::petra_target_traders() const {
 	return (int)std::lround((2.0f + (float)petra_config_.difficulty) * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop));
 }
 
-// setTradingGoods: the config value, raised for each tradable resource that runs low, times
-// popScaling again.
-int Simulation::petra_compute_target_traders() const {
+// setTradingGoods: the config value, raised for each tradable resource that runs low near our
+// dropsites (`stocks`, getTotalResourceLevel), times popScaling again.
+int Simulation::petra_compute_target_traders(const float stocks[RES_COUNT]) const {
 	const int max_pop = petra_config_max_pop();
 	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
 	int target = (int)std::lround((2.0f + (float)petra_config_.difficulty) * scaling);
@@ -25468,9 +25475,9 @@ int Simulation::petra_compute_target_traders() const {
 	const bool rates = petra_rates_this_turn();
 	for (uint8_t r : {RES_WOOD, RES_STONE, RES_GOLD}) {
 		const float wanted_rate = rates ? petra_want_rate_[r] : std::max(0.0f, demand[r] - ps.res[r]) / 30.0f;
-		if (ps.res[r] < 200.0f) target += std::min(5, 3 + (int)std::ceil(wanted_rate / 30.0f));
-		else if (ps.res[r] < 500.0f) target += 2;
-		else if (ps.res[r] < 1000.0f) target += 1;
+		if (stocks[r] < 200.0f) target += std::min(5, 3 + (int)std::ceil(wanted_rate / 30.0f));
+		else if (stocks[r] < 500.0f) target += 2;
+		else if (stocks[r] < 1000.0f) target += 1;
 	}
 	return (int)std::lround(scaling * (float)target);
 }
@@ -25637,8 +25644,8 @@ uint32_t Simulation::petra_build_market(float home_x, float home_z, uint8_t queu
 // tradeManager.js checkEvents: a finished market or dock of ours or an ally's created,
 // destroyed or captured, an ally's Trade foundation destroyed (finished or cancelled), or any
 // diplomacy change since our last look turns routeProspection on (activateProspection, which
-// also lets the market and dock be tried again where no room was found).
-void Simulation::petra_check_trade_events() {
+// also lets the market and dock be tried again where no room was found). True on such an event.
+bool Simulation::petra_check_trade_events() {
 	PetraProspect &p = petra_prospect_;
 	uint32_t sig = 2166136261u;
 	auto mix = [&sig](uint32_t v) { for (int k = 0; k < 4; ++k) { sig ^= (v >> (8 * k)) & 0xFFu; sig *= 16777619u; } };
@@ -25662,10 +25669,11 @@ void Simulation::petra_check_trade_events() {
 	p.seen = true;
 	p.sig = sig;
 	p.foundations = std::move(foundations);
-	if (!event) return;
+	if (!event) return false;
 	p.active = true;
 	petra_clear_no_room(BLD_MARKET);
 	petra_clear_no_room(BLD_DOCK);
+	return true;
 }
 
 // tradeManager.js prospectForNewMarket and isNewMarketWorth, while routeProspection is on: one
@@ -25719,7 +25727,7 @@ void Simulation::petra_manage_trading(float dt) {
 	petra_perform_barter();
 	if (petra_config_.difficulty <= PETRA_VERY_EASY) return;
 
-	petra_check_trade_events();
+	const bool trade_event = petra_check_trade_events(); // checkEvents: then checkTrader for each trader
 	PetraTradeRoutes routes;
 	petra_check_routes(routes);
 
@@ -25800,10 +25808,13 @@ void Simulation::petra_manage_trading(float dt) {
 				const auto &[a, b] = cur->second;
 				if (units_.action_state[i] == ACTION_TRADE && ((a == r->source && b == r->target) || (a == r->target && b == r->source))) continue;
 			}
+			// checkTrader runs only on a market or diplomacy event (checkEvents): until then a
+			// trader keeps the route it trades on, whatever has become of it.
+			if (!idle && !trade_event) continue;
 			if (!r) {
 				// checkTrader: the closest base (getBestBase) if it is on the trader's own land, else
-				// the trader stays put.
-				if (!ship && (has_route || idle)) {
+				// the trader stays put. updateTrader leaves an idle one without a route where it is.
+				if (!ship && has_route && trade_event) {
 					const PetraBase *home = nullptr;
 					float best = 0.0f;
 					for (const PetraBase &pb : petra_bases_) {
@@ -25833,6 +25844,7 @@ void Simulation::petra_manage_trading(float dt) {
 		// Traders in training count toward the target (tradeManager.js:53-64) but don't block the
 		// next plan: one every 5th AI turn. RTS0's trader plan is that turn's attempt to pay for
 		// it (petra_try_pay keeps the queue's want while it waits).
+		const int live_traders = traders; // this.traders: units with the trader role only
 		for (const Building &b : buildings_) {
 			if (b.team != petra_pid_) continue;
 			for (const ProductionOrder &o : b.queue)
@@ -25882,7 +25894,7 @@ void Simulation::petra_manage_trading(float dt) {
 
 		// tradeManager.js:698-700: researchTradeBonus every 20 AI turns with two traders,
 		// setTradingGoods every 60.
-		if (traders >= 2 && petra_turn_mod(20)) petra_research_trade_bonus();
+		if (live_traders >= 2 && petra_turn_mod(20)) petra_research_trade_bonus();
 		if (petra_turn_mod(60)) petra_set_trading_goods();
 	}
 
@@ -33086,7 +33098,7 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 // garrisonManager.js update: the enemies within a holder's arrow range, centre to centre
 // (80 m, 20 world units, for a holder that doesn't shoot): defensive structures, melee or
 // ranged siege, or other units. getEnemyEntities holds Gaia too: its shooting structures,
-// and its units while they fight (UnitAI COMBAT).
+// and its units and animals while they fight (UnitAI COMBAT).
 Simulation::PetraAround Simulation::petra_around(const Building &holder) const {
 	PetraAround around;
 	const float arrows = building_arrow_range(holder);
@@ -33110,6 +33122,15 @@ Simulation::PetraAround Simulation::petra_around(const Building &holder) const {
 			around.unit = true;
 			break;
 		}
+	}
+	// Animals are class Unit too: Gaia's while they fight (a wolf on the attack, a boar hitting
+	// back), an enemy's (corral-trained) any time.
+	for (size_t f = 0; f < fauna_.count && !around.unit; ++f) {
+		if (!fauna_.alive[f] || fauna_.behavior[f] == FAUNA_CARCASS) continue;
+		const uint8_t owner = fauna_owner_[f];
+		if (owner == GAIA_PLAYER ? fauna_.behavior[f] != FAUNA_ATTACK : !petra_foe(owner)) continue;
+		const float dx = fauna_.pos_x[f] - holder.x, dz = fauna_.pos_z[f] - holder.z;
+		if (dx * dx + dz * dz <= range * range) around.unit = true;
 	}
 	return around;
 }
@@ -33217,6 +33238,36 @@ std::vector<int> Simulation::petra_garrison_incoming() const {
 // PETRA.getLandAccess: the structure's land is the one next to its obstruction.
 // A mobile dropsite (template_unit_support_elephant, _wagon: every resource) unit i may
 // drop at, standing on i's land, as tick_gather would take it.
+// worker.js returnResources: a ReturnResource order to the nearest dropsite on the worker's
+// own land that takes its load. getLandAccess as for garrisons (petra_same_land): a worker on a
+// blocked cell has no nav region, which matched any structure without one, docks across the sea
+// too. gameState.getOwnDropsites holds units too (supply wagons, worker elephants): with only one
+// of those on its land, the worker returns there, tick_gather picking the nearest dropsite as for
+// any return. False: nowhere to take it.
+bool Simulation::petra_return_load(size_t i) {
+	uint32_t best = 0;
+	float best_d2 = 0.0f;
+	for (const Building &b : buildings_) {
+		if (!dropsite_accepts(i, b) || !petra_same_land(i, b)) continue;
+		const float dx = b.x - units_.pos_x[i], dz = b.z - units_.pos_z[i];
+		const float d2 = dx * dx + dz * dz;
+		if (best == 0 || d2 < best_d2) { best = b.id; best_d2 = d2; }
+	}
+	if (best != 0) {
+		const uint32_t uid = units_.id[i];
+		order_return_resource(&uid, 1, best);
+		return true;
+	}
+	if (petra_mobile_dropsite_on_land(i)) {
+		units_.action_state[i] = ACTION_RETURN_DROPSITE;
+		units_.target_x[i] = units_.pos_x[i]; // no pick yet: tick_gather takes the nearest
+		units_.target_z[i] = units_.pos_z[i];
+		units_.has_order[i] = 1;
+		return true;
+	}
+	return false;
+}
+
 bool Simulation::petra_mobile_dropsite_on_land(size_t i) const {
 	if (units_.unit_type[i] == UNIT_FISHING_BOAT) return false;
 	const uint16_t land = petra_land_at(units_.pos_x[i], units_.pos_z[i]);

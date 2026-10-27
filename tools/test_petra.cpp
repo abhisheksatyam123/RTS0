@@ -1483,6 +1483,17 @@ static void test_hunters_028() {
 	s->petra_check_hunt_drift(scan);
 	const int32_t ri = s->lookup_unit(rider);
 	CHECK(ri >= 0 && u.target_unit_id[ri] != deer, "a chase into enemy territory is given up (worker.js drift check)");
+	// Only while approaching (INDIVIDUAL.COMBAT.APPROACHING): a rider that has been in reach of the
+	// deer (ATTACKING, then CHASING) finishes the kill there.
+	{
+		s->order_hunt(&rider, 1, deer);
+		s->tick(Simulation::FIXED_STEP);
+		const int32_t r2 = s->lookup_unit(rider);
+		if (r2 >= 0) u.chase_target[r2] = deer;
+		Simulation::PetraHuntScan scan2 = s->petra_hunt_scan();
+		s->petra_check_hunt_drift(scan2);
+		CHECK(r2 >= 0 && u.target_unit_id[r2] == deer, "a hunter already in reach of the animal keeps chasing it (PC16)");
+	}
 
 	// A carcass whose MaxGatherers are all taken is not picked.
 	const uint32_t meat = s->spawn_resource_world(px + 8.0f, pz - 8.0f, RES_FOOD, 100, RES_SUB_MEAT, 1);
@@ -1639,16 +1650,28 @@ static void test_barter() {
 	std::printf("  barter: contingency deal %s, gold %.0f -> %.0f\n", contingency ? "yes" : "no", gold_before, ps.gold());
 	CHECK(contingency && ps.gold() > gold_before, "sells spare food for the scarcest finite resource");
 
-	// setTradingGoods: a share for low stock (more when wanted), the rest to pickMostNeededResources
-	// (wanted against current gather rate): gold is wanted and nobody mines it.
-	ps.food() = 300.0f; ps.wood() = 3000.0f; ps.gold() = 50.0f; ps.stone() = 3000.0f;
+	// setTradingGoods: a share for what runs low near our dropsites (getTotalResourceLevel; more
+	// when wanted), the rest to pickMostNeededResources (wanted against current gather rate):
+	// gold is wanted, none is left in reach and nobody mines it. The bank does not count.
+	for (size_t r = 0; r < s->resources_.count; ++r)
+		if (s->resources_.alive[r] && s->resources_.type[r] == RES_GOLD) s->resources_.amount[r] = 0;
+	float level[RES_COUNT];
+	s->petra_total_resource_level(level);
+	ps.food() = 300.0f; ps.wood() = 50.0f; ps.gold() = 5000.0f; ps.stone() = 50.0f;
 	s->petra_want_rate_[RES_GOLD] = 1.0f;
 	s->petra_cur_rate_[RES_FOOD] = 2.0f;
+	s->petra_kept_.target_traders = -1;
+	const int target_before = s->petra_target_traders();
 	s->petra_set_trading_goods();
 	const uint8_t *g = s->trading_goods(1);
-	std::printf("  trading goods: food %d wood %d stone %d gold %d\n", g[RES_FOOD], g[RES_WOOD], g[RES_STONE], g[RES_GOLD]);
+	const int target_after = s->petra_target_traders();
+	std::printf("  trading goods: in reach wood %.0f stone %.0f gold %.0f; food %d wood %d stone %d gold %d; traders %d -> %d\n",
+	            level[RES_WOOD], level[RES_STONE], level[RES_GOLD], g[RES_FOOD], g[RES_WOOD], g[RES_STONE], g[RES_GOLD], target_before, target_after);
 	CHECK(g[RES_FOOD] + g[RES_WOOD] + g[RES_STONE] + g[RES_GOLD] == 100, "trading goods add up to 100");
-	CHECK(g[RES_GOLD] >= 20 && g[RES_WOOD] == 0 && g[RES_STONE] == 0, "short on gold, none for what it has plenty of");
+	CHECK(level[RES_GOLD] < 200.0f && level[RES_WOOD] >= 1000.0f && level[RES_STONE] >= 1000.0f, "gold mined out, wood and stone in reach");
+	CHECK(g[RES_GOLD] >= 20 && g[RES_WOOD] == 0 && g[RES_STONE] == 0,
+	      "short on gold in reach (banked or not), none for what stands near the dropsites (getTotalResourceLevel)");
+	CHECK(target_after > target_before, "and more traders for it");
 }
 
 // diplomacyManager.js: tributes() asks only for a resource pickMostNeededResources wants
@@ -1818,6 +1841,15 @@ static void test_garrison_melee_attack() {
 	const Simulation::PetraAround around = s->petra_around(*cc);
 	std::printf("  war elephant near the civic centre: melee siege %d, unit %d\n", around.melee_siege, around.unit);
 	CHECK(around.melee_siege && !around.unit, "a melee war elephant counts as melee siege");
+	// garrisonManager.js:150-153: a Gaia unit counts while it fights, animals included (PC17).
+	const uint32_t wolf = s->spawn_fauna(cc->x - 8.0f, cc->z - 4.0f, FAUNA_WOLF);
+	const size_t wi = s->fauna_id_to_idx_.at(wolf);
+	s->fauna_.behavior[wi] = FAUNA_IDLE_GRAZE;
+	const bool idle_wolf = s->petra_around(*cc).unit;
+	s->fauna_.behavior[wi] = FAUNA_ATTACK;
+	const bool fighting_wolf = s->petra_around(*cc).unit;
+	std::printf("  wolf near the civic centre: lingering counts %d, attacking counts %d\n", idle_wolf, fighting_wolf);
+	CHECK(!idle_wolf && fighting_wolf, "a Gaia animal near the holder counts as an enemy unit while it fights");
 }
 
 // defenseManager.js:913-914: the Regicide hero's emergency garrison follows the protection rules
@@ -6133,9 +6165,11 @@ static void test_defense_animals() {
 	if (!cc) return;
 	const float cx = cc->x, cz = cc->z;
 	for (int k = 0; k < 10; ++k) s->spawn_unit(cx - 3.0f + (float)(k % 5), cz + 12.0f + (float)(k / 5), 1, UNIT_SPEARMAN);
+	// The fights are beyond the civic centre's arrows (16.8): a fighting animal in their reach fills
+	// it with units for the arrows instead (defenseManager.js garrisonUnitsInside, garrisonManager around).
 	const uint32_t idle_wolf = s->spawn_fauna(cx + 9.0f, cz + 8.0f, FAUNA_WOLF);
-	const uint32_t enemy = s->spawn_unit(cx + 9.0f, cz - 9.0f, 0, UNIT_FEMALE_CITIZEN, 1.0e4f);
-	const uint32_t enemy_wolf = s->spawn_fauna(cx + 10.0f, cz - 9.0f, FAUNA_WOLF);
+	const uint32_t enemy = s->spawn_unit(cx + 15.0f, cz - 15.0f, 0, UNIT_FEMALE_CITIZEN, 1.0e4f);
+	const uint32_t enemy_wolf = s->spawn_fauna(cx + 16.0f, cz - 15.0f, FAUNA_WOLF);
 	auto wolf_idx = [&](uint32_t id) {
 		auto it = s->fauna_id_to_idx_.find(id);
 		return it == s->fauna_id_to_idx_.end() ? SIZE_MAX : it->second;
@@ -6157,8 +6191,8 @@ static void test_defense_animals() {
 	}
 	std::printf("  animals: a roaming wolf and one biting an enemy make %zu armies\n", s->petra_defense_armies().size());
 	CHECK(s->petra_defense_armies().empty(), "an animal not attacking us or our allies raises no army");
-	const uint32_t woman = s->spawn_unit(cx - 9.0f, cz - 9.0f, 1, UNIT_FEMALE_CITIZEN, 1.0e4f);
-	const uint32_t wolf = s->spawn_fauna(cx - 10.0f, cz - 9.0f, FAUNA_WOLF);
+	const uint32_t woman = s->spawn_unit(cx - 15.0f, cz - 15.0f, 1, UNIT_FEMALE_CITIZEN, 1.0e4f);
+	const uint32_t wolf = s->spawn_fauna(cx - 16.0f, cz - 15.0f, FAUNA_WOLF);
 	bool army = false, hunted = false;
 	for (int t = 0; t < 4 && !(army && hunted); ++t) {
 		keep_biting(wolf, woman);
@@ -6172,7 +6206,7 @@ static void test_defense_animals() {
 			}
 		}
 	}
-	run_for(*s, 20.0f);
+	run_for(*s, 30.0f); // spears only, out of the civic centre's arrows
 	const size_t f = wolf_idx(wolf);
 	const bool dead = f == SIZE_MAX || !s->fauna_.alive[f] || s->fauna_.behavior[f] == FAUNA_CARCASS;
 	bool still = false;
@@ -8587,6 +8621,52 @@ static void test_far_sparse_gatherer_returning() {
 	CHECK(returning && cleared, "a stone gatherer on a far mine drops its supply mark on the way back");
 }
 
+// worker.js:220-232 (PC14): a gatherer reassigned to another resource (switchGatherer,
+// reassignIdleWorkers after a failed search) takes its load to a dropsite before gathering
+// the new type, rather than throwing it away at the first gather.
+static void test_switched_gatherer_keeps_load() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "AI 1 has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	uint32_t tree = 0;
+	for (size_t r = 0; r < s->resources_.count && !tree; ++r)
+		if (s->resources_.alive[r] && s->resources_.type[r] == RES_WOOD) tree = s->resources_.id[r];
+	// No foundation to send it to (a builder drops its load off first, petra_order_build).
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.build_progress < 1.0f) b.hp = 0.0f;
+	s->set_player_resources(1, 0, 0, 0, 0);
+	const uint32_t w = s->spawn_unit(cx + 10.0f, cz + 10.0f, 1, UNIT_FEMALE_CITIZEN);
+	s->petra_set_supply(w, tree); // a woodcutter Petra sent to a tree, standing idle with 10 wood
+	{
+		const int32_t i = s->lookup_unit(w);
+		s->units_.carry[i] = 10;
+		s->units_.res_type_carried[i] = RES_WOOD;
+	}
+	bool returned_wood = false, gathered_other = false;
+	for (int k = 0; k < 30 * 20 && !returned_wood && !gathered_other; ++k) {
+		s->petra_failed_gather_.time[RES_WOOD] = std::max(0.001f, s->petra_timer_); // no wood found lately (lastFailedGather)
+		if (s->units_.carry[s->lookup_unit(w)] == 10) s->petra_set_supply(w, tree); // still marked as Petra's woodcutter
+		s->tick(Simulation::FIXED_STEP);
+		const int32_t i = s->lookup_unit(w);
+		if (i < 0) break;
+		returned_wood |= (s->units_.order_kind[i] == ORDER_RETURN_RESOURCE || s->units_.action_state[i] == ACTION_RETURN_DROPSITE) &&
+		                 s->units_.res_type_carried[i] == RES_WOOD && s->units_.carry[i] == 10;
+		gathered_other |= s->units_.action_state[i] == ACTION_GATHER && s->units_.res_type_carried[i] != RES_WOOD;
+	}
+	std::printf("  gatherer switched off wood with 10 wood: takes it back %s, lost it %s\n", returned_wood ? "yes" : "no",
+	            gathered_other ? "yes" : "no");
+	CHECK(returned_wood && !gathered_other, "a gatherer switched to another resource drops its load off first");
+}
+
 // worker.js:220-227 (W7): an idle gatherer carrying its own gather-type goes straight back to
 // gathering with its load; one carrying another type takes it to a dropsite first.
 static void test_idle_gatherer_keeps_load() {
@@ -9003,6 +9083,7 @@ int main(int argc, char **argv) {
 	RUN(test_hunters_028);
 	RUN(test_first_base);
 	RUN(test_barter);
+	RUN(test_switched_gatherer_keeps_load);
 	RUN(test_diplomacy_most_needed);
 	RUN(test_first_market_border);
 	RUN(test_pop_phase2_save_resources);
