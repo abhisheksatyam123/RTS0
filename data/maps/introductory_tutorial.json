@@ -6249,6 +6249,13 @@
       "template": "spart/civil_centre"
     },
     {
+      "type": "",
+      "player": 1,
+      "x": -41.07,
+      "z": -57.13,
+      "template": "spart/gerousia"
+    },
+    {
       "type": "town_center",
       "player": 2,
       "x": -44.31,
