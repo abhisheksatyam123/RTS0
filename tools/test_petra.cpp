@@ -197,6 +197,7 @@ static void test_roster_army() {
 		s->complete_research(0, TECH_TOWER_MURDERHOLES);
 		bool hero = false, hero_planned = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		bool advanced = false, arsenal = false;
+		float next_fort = 0.0f;
 		// 55 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
 		// the city phase around minute 15, as in 0 A.D., and its city army takes a while longer.
 		// Macedonian heroes come from the fortress, which Petra can only lay once City is done
@@ -216,7 +217,11 @@ static void test_roster_army() {
 				if (b.team == 0 && b.hp > 0.0f && !b.wrecked) idle_alive = true;
 			// Garrisoned like the first ones, so Petra shells it rather than capturing a string of
 			// fortresses that each keep 20 of its soldiers inside against decay (TYPE_DECAY).
-			if (!idle_alive && !(packed_moved && unpacked_fired)) {
+			// At most one every 3 minutes: a fortress respawned the moment the last one falls
+			// keeps shooting the gatherers Petra sends to the razed base's resources, and the
+			// match then hangs on how many it loses there rather than on its army.
+			if (!idle_alive && !(packed_moved && unpacked_fired) && t >= next_fort) {
+				next_fort = t + 180.0f;
 				const uint32_t fort = s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
 				for (int k = 0; k < 10; ++k) {
 					const uint32_t man = s->spawn_unit(18.0f + (float)(k % 5), 31.0f - (float)(k / 5), 0, UNIT_SPEARMAN);

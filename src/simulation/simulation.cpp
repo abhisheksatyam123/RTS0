@@ -29675,9 +29675,12 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 			// on a fleeing civilian.
 			else if (siege(i) || unit_is_ship(units_.unit_type[t])) maybe = true;
 			else if (!(c & (TC_CAVALRY | TC_RANGED)) && (cls(t) & TC_FEMALECITIZEN) && units_.action_state[t] == ACTION_FLEE) maybe = true;
-		} else if (!needs && units_.target_building_id[i] && !siege(i) && shot_by_structure.count(units_.id[i])) {
+		} else if (!needs && units_.target_building_id[i]) {
+			// A structure target destroyed, or now ours or an ally's (captured), needs a new one.
 			const auto it = building_id_to_idx_.find(units_.target_building_id[i]);
-			maybe = it != building_id_to_idx_.end() && buildings_[it->second].type == BLD_FIELD; // a field under fire
+			const Building *tb = it != building_id_to_idx_.end() ? &buildings_[it->second] : nullptr;
+			if (!tb || tb->hp <= 0.0f || tb->wrecked || (tb->team < MAX_PLAYERS && is_ally(petra_pid_, tb->team))) needs = true;
+			else if (!siege(i) && shot_by_structure.count(units_.id[i])) maybe = tb->type == BLD_FIELD; // a field under fire
 		}
 		if (!needs && !maybe) continue;
 		// Not too soon when not needed: lastAttackPlanUpdateTime 10 s while approaching, else
