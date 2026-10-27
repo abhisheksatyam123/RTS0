@@ -147,6 +147,18 @@ inline void note_aim_margin(const NavGrid& nav, Vec2 pos, Vec2 aim, float radius
 		memo.key = 0;
 }
 
+// The map's passable edge for the short path of a unit with clearance `clearance`, as
+// past_map_edge draws it for its steps: the circle of radius NavGrid::edge_r on a circular map, else
+// the square frame MAP_EDGE_DIST in from each side, less the clearance. 0.28 closes both for every
+// class (CCmpPathfinder.cpp:700-744: the circle at 710-729, the square frame at 730-744) and grows
+// them by the class clearance rounded up to whole 1 m navcells (749-761); this keeps the exact
+// clearance. compute_short_path closes the vertices past it (ShortPathRequest::edge).
+inline void set_map_edge(ShortPathRequest& req, const NavGrid& nav, float clearance)
+{
+	req.edge_circular = nav.edge_r > 0.0f;
+	req.edge = (req.edge_circular ? nav.edge_r : nav.map_half - MAP_EDGE_DIST) - clearance;
+}
+
 // Calls fn(rows, cell, origin, w, h) with the short path's terrain grid: rows(i, j, n, out) fills
 // out[0..n) with 1 for ground a land unit may cross and 0 for deep water, steep ground and outside
 // the grid. Building navcells are left to the statics, as the destination building's own navcells
@@ -301,6 +313,7 @@ bool search_short_path(Vec2 pos, Vec2 aim, float radius,
 	req.goal.type = ShortPathGoal::POINT;
 	req.goal.center = aim;
 	req.terrain_clearance = radius;
+	detail::set_map_edge(req, nav, radius);
 
 	// Terrain edges: deep water and steep ground, kept `radius` off (0 A.D. expands impassable
 	// terrain by the class clearance).
@@ -322,11 +335,14 @@ bool search_short_path(Vec2 pos, Vec2 aim, float radius,
 // expanded by `unit_radius` where a building is expanded by `radius` (0 A.D. gives every unit
 // obstruction the moving unit's pathfinding clearance; RTS0 keeps units further from units than
 // from buildings). `out` is the first waypoint and `next` the second (the first again on a
-// one-waypoint path).
+// one-waypoint path). `square_delta` is the squares' corner offset (ShortPathRequest::square_delta).
+// `reached`, when given, says whether the path reaches the goal: a search that cannot reach it returns
+// the path to the point nearest it, and that counts as found too.
 template <class Buildings>
 bool search_short_path_with_units(Vec2 pos, Vec2 aim, const ShortPathGoal& goal, float radius, float unit_radius,
 		float range, const Buildings& buildings, uint32_t ignore_building_id,
-		const std::vector<ShortPathSquare>& units, const NavGrid& nav, Vec2& out, Vec2& next)
+		const std::vector<ShortPathSquare>& units, const NavGrid& nav, Vec2& out, Vec2& next,
+		float square_delta = -1.0f, bool* reached = nullptr)
 {
 	thread_local std::vector<ShortPathSquare> statics;
 	thread_local std::vector<Vec2> path;
@@ -346,9 +362,12 @@ bool search_short_path_with_units(Vec2 pos, Vec2 aim, const ShortPathGoal& goal,
 	req.unit_clearance_bias = radius - unit_radius; // unit squares grow by unit_radius
 	req.goal = goal;
 	req.terrain_clearance = radius;
-	detail::with_terrain_rows(nav, pos, range, radius, [&](auto& rows, float cell, Vec2 origin, int w, int h) {
+	req.square_delta = square_delta;
+	detail::set_map_edge(req, nav, radius);
+	const bool got = detail::with_terrain_rows(nav, pos, range, radius, [&](auto& rows, float cell, Vec2 origin, int w, int h) {
 		return compute_short_path(req, statics, units, rows, cell, origin, w, h, scratch, path);
 	});
+	if (reached) *reached = got;
 	if (path.empty()) return false;
 	out = path.front();
 	next = path.size() > 1 ? path[1] : path[0];
@@ -461,7 +480,8 @@ inline uint32_t no_terrain_path_key(uint32_t key)
 // as the unit goes. Its top four bits are those of `key` with KEPT_PATH_TAG's flipped, which no other
 // memo key has (is_kept_path_key): `key` itself, its no-way notes (no_short_path_key,
 // no_terrain_path_key) and the keys of paths round idle units (Simulation::idle_path_key,
-// idle_corner_key, idle_stuck_key) flip other bits, and their stand-ins for 0 are below 16. Never 0.
+// idle_corner_key, idle_stuck_key, idle_relaxed_path_key, idle_relaxed_corner_key) flip other bits,
+// and their stand-ins for 0 are below 16. Never 0.
 inline constexpr uint32_t KEPT_PATH_INDEX_MASK = 0xFu;
 inline constexpr uint32_t KEPT_PATH_TAG = 0xA0000000u;
 static_assert(SHORT_PATH_KEPT_MAX <= static_cast<int>(KEPT_PATH_INDEX_MASK) + 1, "a kept waypoint's index fits the key");
