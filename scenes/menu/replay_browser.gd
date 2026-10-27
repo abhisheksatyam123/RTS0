@@ -212,6 +212,8 @@ func load_replays() -> void:
 			_map_names.append(r["map"])
 		for p in r["players"]:
 			var n := str(p.get("name", ""))
+			if n.find(" (") >= 0: # replay_menu.js: the lobby rating comes off the nick
+				n = n.substr(0, n.find(" ("))
 			if not p.get("ai", false) and n != "" and not _player_names.has(n):
 				_player_names.append(n)
 	_map_names.sort()
@@ -379,9 +381,15 @@ func display_replay_list() -> void:
 	if not sel.is_empty():
 		_selected_dir = sel["dir"]
 	_replays = _all.filter(passes)
+	# replay_filters.js sorts with Array.sort, which is stable: equal keys keep the loaded order.
+	var at := {}
+	for i in _replays.size():
+		at[_replays[i]["dir"]] = i
 	_replays.sort_custom(func(a, b):
 		var ka: Variant = _sort_key(a)
 		var kb: Variant = _sort_key(b)
+		if ka == kb:
+			return at[a["dir"]] < at[b["dir"]]
 		return ka < kb if sort_order > 0 else ka > kb)
 	replay_list.clear()
 	var root := replay_list.create_item()
@@ -537,7 +545,8 @@ func show_summary() -> void:
 		return
 	var s = load("res://scenes/session/summary_screen.tscn").instantiate()
 	add_child(s)
-	s.configure({"isReplay": true, "replayDirectory": r["dir"], "selectionOwner": "replay menu"})
+	s.configure({"isReplay": true, "replayDirectory": r["dir"], "selectionOwner": "replay menu",
+		"replaySelectionData": create_selection_data(r["dir"])})
 	s.close_only()
 	var summary: Dictionary = r["meta"]["summary"]
 	s.show_summary(summary.get("victory", false), summary, float(r["meta"].get("duration", 0.0)))
@@ -666,7 +675,9 @@ func _build() -> void:
 	_players_filter = LineEdit.new()
 	_players_filter.name = "PlayersFilter"
 	_players_filter.placeholder_text = "Search for Player"
-	_players_filter.tooltip_text = "Filter replays by typing one or more, partial or complete player names. Press [Tab] to autocomplete player names."
+	# initHotkeyTooltips: colorizeAutocompleteHotkey's Tab in the hotkey gold.
+	_players_filter.tooltip_text = L10n.t("Filter replays by typing one or more, partial or complete player names.") + " " + \
+		L10n.sprintf(L10n.t("Press %(hotkey)s to autocomplete player names."), {"hotkey": "[color=#fffb83][lb]" + tr("Tab", "hotkey") + "[rb][/color]"})
 	_players_filter.add_theme_font_size_override("font_size", 13)
 	_players_filter.text_submitted.connect(func(_t): display_replay_list()) # replay_menu.xml: the Press action
 	_players_filter.gui_input.connect(func(e):
@@ -821,7 +832,10 @@ func _build() -> void:
 ## initHotkeyTooltips: colorizeHotkey lists every combination bound to
 ## session.savedgames.delete and .noconfirmation, shortest first.
 func _delete_tooltip() -> String:
-	var keys: Dictionary = _hotkeys.call("get_hotkey_map") if _hotkeys else {}
+	if _hotkeys:
+		return _hotkeys.colorize(L10n.t("Delete the selected replay using %(hotkey)s."), "session.savedgames.delete") + \
+			_hotkeys.colorize("\n" + L10n.t("Hold %(hotkey)s to skip the confirmation dialog while deleting."), "session.savedgames.noconfirmation")
+	var keys: Dictionary = {}
 	return "Delete the selected replay using %s." % hotkey_text(keys, "session.savedgames.delete") + \
 		"\nHold %s to skip the confirmation dialog while deleting." % hotkey_text(keys, "session.savedgames.noconfirmation")
 

@@ -64,7 +64,7 @@ func run() -> void:
 	write_replay(NAMES[1], {"format": 2, "save_version": v, "timestamp": 1896300000, "map_id": "random_oasis",
 		"map_name": "E2E Oasis", "map_size": 512, "duration": 3000.0, "kind": "mp",
 		"game_start": "map=random_oasis;seed=1;victory=0;popcap=300;worldpop=600;rated=1",
-		"players": [player(0, "e2eAlpha", 1, false, "active"), player(1, "e2eBeta", 2, false, "active")]})
+		"players": [player(0, "e2eAlpha", 1, false, "active"), player(1, "e2eBeta (1500)", 2, false, "active")]})
 	# c: an old save format, so incompatible.
 	write_replay(NAMES[2], {"format": 2, "save_version": v - 1, "timestamp": 1896400000, "map_id": "random_oasis",
 		"map_name": "E2E Oasis", "map_size": 512, "duration": 600.0, "kind": "sp",
@@ -127,7 +127,9 @@ func run() -> void:
 	b._players_filter.text = "e2eBe"
 	b._players_filter.caret_column = 5
 	b.autocomplete_player()
-	check(b._players_filter.text == "e2eBeta" and b._players_filter.caret_column == 7, "Tab completes a player's name")
+	check(b._players_filter.text == "e2eBeta" and b._players_filter.caret_column == 7, "Tab completes a player's name, without the lobby rating")
+	check(b._players_filter.tooltip_text.ends_with("Press [color=#fffb83][lb]Tab[rb][/color] to autocomplete player names."),
+		"the Tab in the filter's tooltip is in the hotkey gold: " + b._players_filter.tooltip_text)
 	check(visible_dirs(b) == [NAMES[0]], "the list waits for Enter before re-filtering")
 	b.display_replay_list()
 	check(visible_dirs(b) == [NAMES[1]], "Enter filters by the completed name")
@@ -208,6 +210,15 @@ func run() -> void:
 	b._spoiler.button_pressed = true
 	check(b._players_text.get_parsed_text().contains("e2eAlpha (Athenians, won)"), "Spoiler shows who won, as formatPlayerInfo")
 	check(b._btn_summary.visible and b._filename.text.ends_with(NAMES[0]), "Summary and the file path")
+	# replay_actions.js: the summary carries the menu's filters, sort and selection for Watch Replay.
+	b.show_summary()
+	await frames(2)
+	var summary = b.get_children().filter(func(c): return c.get("gui") is Dictionary).back()
+	var handed: Dictionary = summary.gui.get("replaySelectionData", {})
+	check(str(handed.get("directory", "")).ends_with(NAMES[0]) and handed.get("column", "") == b.sort_column and handed.has("filters"),
+		"the summary holds the menu's selection data for Watch Replay")
+	summary.queue_free()
+	await frames(1)
 	var slots := ["MainMenuButton", "DeleteButton", "RebuildCacheButton", "SummaryButton", "StartReplayButton"].map(
 		func(n): return [snappedf(b.find_child(n, true, false).anchor_left, 0.01), snappedf(b.find_child(n, true, false).anchor_right, 0.01)])
 	check(slots == [[0.0, 0.19], [0.2, 0.39], [0.4, 0.59], [0.6, 0.79], [0.8, 0.99]], "each button in its fifth of the row: %s" % [slots])

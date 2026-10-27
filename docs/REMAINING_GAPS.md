@@ -920,6 +920,19 @@ The summary page's skin and layout checked again against 0.28's gui/summary/, ta
 | SM11 | The page's bold text is Godot's fallback face emboldened, not Linux Biolinum. Kept: every code-built session control (top panel, minimap, details, dialogs) draws in that face, and moving this page alone mixed the two faces on one screen (tried 2026-10-27) | low | Kept |
 | SM12 | A small window scrolled the table with a scrollbar; 0.28's generalPanel clips it | nit | Fixed |
 
+### Summary, statistics and replay menu, eighteenth 0.28 pass (2026-10-27)
+
+StatisticsTracker.js, gui/summary/ and gui/replaymenu/ read again against the counters, the summary page and the replay menu (main aabe34cf7). Every counter, its class filters and its sequences matched, as did the summary formulas, team totals and formats, and the replay columns, filters and details; these were left.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| SR1 | The Market tab's four "X exchanged" headings sat at yStart 16, 8 px below Trade income and Barter efficiency; layout.js gives them yStart 0 (SM8 missed them) | nit | Fixed |
+| SR2 | Watch Replay from a summary opened by the replay menu came back to a menu with default filters and no selection; replay_actions.js hands the summary the menu's selection data and summary.js startReplay passes it on | low | Fixed |
+| SR3 | Tab completed rated players as "nick (1500)"; replay_menu.js takes the rating off each human name before listing it | low | Fixed |
+| SR4 | The player filter's "[Tab]" and the Delete button's hotkeys were plain text in one English string; colorizeAutocompleteHotkey and colorizeHotkey put them in the hotkey gold, translated | nit | Fixed |
+| SR5 | The summary's map line was an untranslated "%s - %s" that dropped the separator with no type; summary.js builds translate("%(mapName)s - %(mapType)s") from the translated name and size or type | nit | Fixed |
+| SR6 | Replays with equal sort keys could change places; replay_filters.js sorts with JavaScript's stable Array.sort, so they keep the loaded order | nit | Fixed |
+
 ### Petra-vs-Petra sweep over every map (2026-10-27)
 
 Every random map (95, 4 players, 256 tiles) and every skirmish map (77, the map's own seats) played once headless for 25 game minutes, Petra in every seat with the civs rotating so every civ played, a twin copy compared every minute and a copy saved and loaded at minute 12.5 (`tools/sweep_matches.py` driving `tools/soak_match.cpp`, main 841f2de25). No crash, no stall (slowest game minute 2.5 s of wall time), no desync between the twins or after save/load, no unported trigger script, and the statistics stayed consistent (no counter dropped, trained and captured units cover every living unit, explored and controlled stay within 0-100, a sample every 30 s). The first Town phase came at a median 947 s. What looked wrong, by owner:
