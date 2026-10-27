@@ -1403,6 +1403,39 @@ static void circular_map_edge() {
 		std::printf("  circular map: a clump of 6 elephants at the edge pushed apart, %.2f from the centre at most\n", out);
 		check(out <= edge - CLEARANCE_LARGE + 0.01f, "pushing carried an elephant past a circular map's edge");
 	}
+	// A short path round a wall of idle units that reaches past the edge never leads past the edge.
+	// 0.28's short path reads the edge from the terrain grid, which UpdateGrid closed
+	// (VertexPathfinder.cpp:695-701, CCmpPathfinder.cpp:700-744), so it goes round the wall's inner
+	// end, or stops at the point nearest the goal on this side. RTS0's search read only deep water
+	// and steep ground as closed, so it led round the wall's outer end, past the edge (SW6 RC3).
+	// The wall lies along the x axis on both maps, and on the circular map also along the diagonal,
+	// where the circle runs well inside the square frame. The walker stands 4 m inside the edge, so
+	// the wall's outer end is the shorter way round.
+	for (int circular = 0; circular < 2; ++circular) {
+		Simulation s;
+		circle_setup(s, circular);
+		const float hu = unit_push_clearance(UNIT_SWORDSMAN), lim = edge - CLEARANCE_DEFAULT + 0.01f;
+		for (int diag = 0; diag <= circular; ++diag) {
+			const nav::Vec2 dir = diag ? nav::Vec2(0.70710678f, 0.70710678f) : nav::Vec2(1.0f, 0.0f), side(-dir.y, dir.x);
+			std::vector<nav::ShortPathSquare> wall;
+			for (float t = edge - 5.0f; t <= edge + 1.0f; t += 0.4f)
+				wall.push_back(nav::ShortPathSquare{dir * t, nav::Vec2(1.0f, 0.0f), nav::Vec2(0.0f, 1.0f), nav::Vec2(hu, hu)});
+			// From one side of the wall to the other, clear of the squares grown by the walker's clearance.
+			const float off = 2.0f * hu + 0.3f;
+			const nav::Vec2 from = dir * (edge - 1.0f) - side * off, to = dir * (edge - 1.0f) + side * off;
+			nav::ShortPathGoal goal;
+			goal.center = to;
+			nav::Vec2 out(0.0f, 0.0f), next(0.0f, 0.0f);
+			const bool found = nav::search_short_path_with_units(from, to, goal, CLEARANCE_DEFAULT, hu, 6.0f, s.buildings_, 0, wall,
+					s.nav_grid_, out, next);
+			auto reach = [&](nav::Vec2 p) { return circular ? std::hypot(p.x, p.y) : std::max(std::fabs(p.x), std::fabs(p.y)); };
+			const float far = found ? std::max(reach(out), reach(next)) : 0.0f;
+			std::printf("  %s map: a short path round a wall of idle units %s reaching past the edge: found %d, first waypoints (%.2f, %.2f) "
+					"and (%.2f, %.2f), %.2f out (edge %.2f less clearance %.2f)\n", circular ? "circular" : "square",
+					diag ? "on the diagonal" : "along x", (int)found, out.x, out.y, next.x, next.y, far, edge, CLEARANCE_DEFAULT);
+			check(far <= lim, "a short path round a wall of idle units led past the map's edge");
+		}
+	}
 	// A house reaching past the edge can't be placed there, on a circular map or a square one
 	// (CCmpPathfinder UpdateGrid makes the outer MAP_EDGE_TILES impassable on both); one further
 	// in is placed on the square map, where the circle doesn't cut its corner.

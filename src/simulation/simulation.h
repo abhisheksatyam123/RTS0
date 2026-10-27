@@ -2773,6 +2773,11 @@ private:
 	// The key of a search round idle units that found no way from where the unit stands (the memo
 	// holds that spot): it searches again there only every fourth turn.
 	uint32_t idle_stuck_key() const { const uint32_t k = short_path_key_ ^ 0x6C8E9CF5u; return k ? k : 3u; }
+	// The keys of a short path round idle units that avoid_idle_units' second search, among smaller
+	// squares shaped as 0.28's, found where RTS0's wider ones found no way, and of its waypoint reached
+	// last tick: the unit's steps on it are tested against those squares too.
+	uint32_t idle_relaxed_path_key() const { const uint32_t k = short_path_key_ ^ 0x165667B1u; return k ? k : 6u; }
+	uint32_t idle_relaxed_corner_key() const { const uint32_t k = short_path_key_ ^ 0x4CF5AD43u; return k ? k : 7u; }
 	void separation(float dt, Arena &arena, const MoveSteps &steps);
 	void motion_feedback(float dt, const MoveSteps &steps);
 	void finish_ended_walks(); // UnitAI WALKING FinishOrder for walks move_units / motion_feedback ended
