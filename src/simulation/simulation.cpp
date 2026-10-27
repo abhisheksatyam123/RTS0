@@ -20678,7 +20678,13 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 		// for a house, which is neither gathered nor a dropsite, so its builders look for a
 		// foundation nearby; any other structure leaves them idle for Petra to reassign.
 		if (petra_runs_for(units_.team[k])) {
-			const uint32_t f = b.type == BLD_HOUSE || is_map_house(b.type) ? find_nearby_foundation(b.x, b.z, units_.team[k]) : 0;
+			uint32_t f = b.type == BLD_HOUSE || is_map_house(b.type) ? find_nearby_foundation(b.x, b.z, units_.team[k]) : 0;
+			// worker.js:325-345: one sent on to a field is taken off it and reassigned (fields
+			// are built by their farmers, buildAnyField).
+			if (f != 0) {
+				const auto fit = building_id_to_idx_.find(f);
+				if (fit != building_id_to_idx_.end() && buildings_[fit->second].type == BLD_FIELD) f = 0;
+			}
 			if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); return; }
 			finish_here();
 			return;

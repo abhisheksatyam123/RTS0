@@ -1824,6 +1824,38 @@ static void test_regicide_hero_heal_holder() {
 	CHECK(!in_cc, "protection rules in a healing holder: a melee hero over 0.4 health leaves when only siege is near");
 }
 
+// worker.js:325-345: a Petra builder that autocontinue sends from a finished house to a field
+// foundation is taken off it (fields are built by their farmers, buildAnyField); another
+// foundation nearby it does build.
+static void test_house_builder_skips_field() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_player_active(1, true, true);
+	run_for(*s, 1.0f);
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	const float len = std::sqrt(cx * cx + cz * cz);
+	const float hx = cx - cx / len * 12.0f, hz = cz - cz / len * 12.0f;
+	const uint32_t house = s->spawn_building_world(hx, hz, BLD_HOUSE, 1, 1.0f);
+	const uint32_t builder = s->spawn_unit(hx + 2.0f, hz, 1, UNIT_FEMALE_CITIZEN);
+	uint32_t targets[2] = {};
+	for (int c = 0; c < 2; ++c) {
+		const uint32_t f = s->spawn_building_world(hx - cx / len * 5.0f, hz - cz / len * 5.0f, c == 0 ? BLD_FIELD : BLD_STOREHOUSE, 1, 0.0f);
+		const Simulation::Building hb = s->buildings_[s->building_id_to_idx_.at(house)];
+		const size_t k = (size_t)s->lookup_unit(builder);
+		s->next_after_construction(k, hb, false, false);
+		targets[c] = s->units_.order_kind[k] == ORDER_BUILD ? s->units_.order_target[k] : 0;
+		const bool on_it = targets[c] == f;
+		std::printf("  house finished beside a %s foundation: its builder goes on to it %d\n", c == 0 ? "field" : "storehouse", on_it);
+		CHECK(c == 0 ? !on_it : on_it, c == 0 ? "a field foundation is left to the farmers" : "another foundation is built");
+		s->cmd_delete(1, &f, 1);
+		run_for(*s, 0.1f);
+	}
+}
+
 static void test_one_base_a_turn() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -8544,6 +8576,7 @@ int main(int argc, char **argv) {
 	RUN(test_gather_rate_civ_bonus);
 	RUN(test_garrison_melee_attack);
 	RUN(test_regicide_hero_heal_holder);
+	RUN(test_house_builder_skips_field);
 	RUN(test_one_base_a_turn);
 	RUN(test_no_room_only_once_funded);
 	RUN(test_queue_plans_in_order);
