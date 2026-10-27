@@ -476,6 +476,7 @@ garrisonManager.js, worker.js, queueManager.js and the queue plans, and the econ
 | PC8 | (GM2) Regicide: the hero is judged by the emergency rules in any building; 0.28 uses the protection rules in one that heals | low | Open |
 | PC9 | (W9) A builder that finished a house can go on to build a field foundation; 0.28 takes it off the field and reassigns it | nit | Open |
 | PC10 | (Q9) The one structure Petra may start each turn goes to whichever code runs first, not the highest-priority queue | nit | Open |
+| PC11 | Workers booked on a transport and waiting at the beach were re-tasked as idle workers; their refused second transport marked the resource failed, so for 20 s the idle workers overseas picked another resource and sailed back (E's test_naval report). AddTCResGatherer counted a gatherer only once it found a supply, not when its type was picked | low-medium | Fixed: a booked worker just waits (worker.js:42-89), and the type counts as it is picked (baseManager.js:725) |
 
 ### Structure arrows in play, seventeenth 0.28 pass (2026-10-21)
 
