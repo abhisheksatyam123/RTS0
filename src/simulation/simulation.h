@@ -189,9 +189,10 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 128; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 129; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_TRICKLE_TIMER = 128; // each structure's own trickle timer (Building::trickle_tick)
 	static constexpr uint32_t SAVE_VERSION_PETRA_LOST_BASES = 127; // each Petra's bases kept after their civic centre was lost
+	static constexpr uint32_t SAVE_VERSION_PETRA_ARMY_POSITION_TIME = 129; // each Petra defense army's positionLastUpdate
 	static constexpr uint32_t SAVE_VERSION_STRUCTURE_OFF = 126; // each map structure's template switches (Building::template_off)
 	static constexpr uint32_t SAVE_VERSION_CAPTURE_TIMER = 125; // each structure's capture regen timer (Capturable.js CheckTimer)
 	static constexpr uint32_t SAVE_VERSION_PETRA_ORDER_NAME = 124; // the Petra plan name and unitStat each queued batch is for
@@ -2772,6 +2773,11 @@ private:
 	// The key of a search round idle units that found no way from where the unit stands (the memo
 	// holds that spot): it searches again there only every fourth turn.
 	uint32_t idle_stuck_key() const { const uint32_t k = short_path_key_ ^ 0x6C8E9CF5u; return k ? k : 3u; }
+	// The keys of a short path round idle units that avoid_idle_units' second search, among smaller
+	// squares shaped as 0.28's, found where RTS0's wider ones found no way, and of its waypoint reached
+	// last tick: the unit's steps on it are tested against those squares too.
+	uint32_t idle_relaxed_path_key() const { const uint32_t k = short_path_key_ ^ 0x165667B1u; return k ? k : 6u; }
+	uint32_t idle_relaxed_corner_key() const { const uint32_t k = short_path_key_ ^ 0x4CF5AD43u; return k ? k : 7u; }
 	void separation(float dt, Arena &arena, const MoveSteps &steps);
 	void motion_feedback(float dt, const MoveSteps &steps);
 	void finish_ended_walks(); // UnitAI WALKING FinishOrder for walks move_units / motion_feedback ended

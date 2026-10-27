@@ -216,6 +216,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("notify_attack", "pos", "attacker", "structure", "target"), &RtsoMain::notify_attack, DEFVAL(0));
 	ClassDB::bind_method(D_METHOD("debug_unit_screen", "unit_id"), &RtsoMain::debug_unit_screen);
 	ClassDB::bind_method(D_METHOD("debug_armed"), &RtsoMain::debug_armed);
+	ClassDB::bind_method(D_METHOD("debug_input_state"), &RtsoMain::debug_input_state);
 	ClassDB::bind_method(D_METHOD("debug_unit_pos", "unit_id"), &RtsoMain::debug_unit_pos);
 	ClassDB::bind_method(D_METHOD("debug_resource_screen", "resource_id"), &RtsoMain::debug_resource_screen);
 	ClassDB::bind_method(D_METHOD("debug_unit_ground", "unit_id", "goal"), &RtsoMain::debug_unit_ground, DEFVAL(false));

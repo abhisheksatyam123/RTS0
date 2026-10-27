@@ -1498,12 +1498,17 @@ void RtsoMain::_process(double delta) {
 				if (build_click_pending) {
 					cell_x = build_click_cell_x;
 					cell_y = build_click_cell_y;
-					// Dragging turns the building toward the cursor; back near the
-					// click it snaps to the default facing (input.js getMaxDragDelta).
-					if (build_click_screen.distance_to(mouse_pos) >= 4.0f) {
+					// input.js INPUT_BUILDING_CLICK: a drag starts dragdelta squared pixels (16) from
+					// the click (distanceTo >= Math.square(getMaxDragDelta())); then INPUT_BUILDING_DRAG
+					// turns the building toward the cursor and snaps back to the default facing near
+					// the click. Before the drag the angle stays as it was (rotation hotkeys).
+					const float drag_px = user_opts_.drag_delta * user_opts_.drag_delta;
+					const bool far = build_click_screen.distance_to(mouse_pos) >= drag_px;
+					if (far) build_click_dragged_ = true;
+					if (far) {
 						const Vector3 cur = get_ground_click_pos(mouse_pos);
 						placement_angle = std::atan2(cur.x - build_click_ground.x, cur.z - build_click_ground.z);
-					} else {
+					} else if (build_click_dragged_) {
 						placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
 					}
 				}
