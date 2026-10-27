@@ -5,6 +5,8 @@ plays, each match runs a twin copy (determinism) and a save/load copy, and the r
 logged per map. Prints one line per match and a tally of what the runs reported.
 
   python3 tools/sweep_matches.py --soak /tmp/soak_match --out /tmp/sweep --minutes 20 --jobs 4
+  python3 tools/sweep_matches.py ... --large --no-twin   # 8 players on large and giant maps,
+                                                        # Petra difficulties Sandbox to Very Hard
 
 A match that exits non-zero (crash, assert) or outlives --timeout is reported as such.
 """
@@ -53,18 +55,30 @@ def main():
     ap.add_argument("--jobs", type=int, default=4)
     ap.add_argument("--timeout", type=int, default=1200)
     ap.add_argument("--only", default="", help="comma list of map names to run")
+    ap.add_argument("--large", action="store_true", help="8 players, 384/512 tiles, mixed difficulties; skirmish maps with 6+ seats")
+    ap.add_argument("--no-twin", action="store_true")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     jobs = []
     k = 0
-    for m in random_maps():
-        civs = [CIVS[(k + i) % len(CIVS)] for i in range(4)]
-        k += 4
-        jobs.append((f"r{m}", ["--map", str(m), "--players", "4", "--size", "256"], civs))
-    for name in skirmish_maps():
+    players = 8 if a.large else 4
+    for n, m in enumerate(random_maps()):
+        civs = [CIVS[(k + i) % len(CIVS)] for i in range(players)]
+        k += players
+        size = ("384" if n % 2 else "512") if a.large else "256"
+        args = ["--map", str(m), "--players", str(players), "--size", size]
+        if a.large:
+            args += ["--diffs", ",".join(str((n + i) % 6) for i in range(players))]
+        jobs.append((f"r{m}", args, civs))
+    for n, name in enumerate(skirmish_maps()):
+        if a.large and len(json.load(open(f"data/maps/{name}.json")).get("players", [])) < 6:
+            continue
         civs = [CIVS[(k + i) % len(CIVS)] for i in range(8)]
         k += 2
-        jobs.append((name, ["--json", name], civs))
+        args = ["--json", name]
+        if a.large:
+            args += ["--diffs", ",".join(str((n + i) % 6) for i in range(8))]
+        jobs.append((name, args, civs))
     if a.only:
         keep = set(a.only.split(","))
         jobs = [j for j in jobs if j[0] in keep]
@@ -72,8 +86,10 @@ def main():
     def run(job):
         tag, args, civs = job
         log = os.path.join(a.out, tag + ".log")
-        cmd = [a.soak] + args + ["--seed", str(a.seed), "--minutes", str(a.minutes), "--twin",
+        cmd = [a.soak] + args + ["--seed", str(a.seed), "--minutes", str(a.minutes),
                                  "--save-at", str(a.minutes / 2), "--civs", ",".join(map(str, civs))]
+        if not a.no_twin:
+            cmd.append("--twin")
         with open(log, "w") as f:
             try:
                 rc = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, timeout=a.timeout).returncode
