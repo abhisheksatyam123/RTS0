@@ -85,7 +85,7 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	var fade := ColorRect.new() # "ModernFade"
-	fade.color = Color(0, 0, 0, 0.6)
+	fade.color = Color8(0, 0, 0, 85)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fade)
 	var half := Vector2(220, 210) if advanced else Vector2(210, 100)

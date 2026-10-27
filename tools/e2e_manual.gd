@@ -37,6 +37,13 @@ func run() -> void:
 	for b in page.find_children("*", "Button", true, false):
 		if b.text == "View Online":
 			online = b
+	# manual.xml: a ModernDialog, the text in a ModernTextPanel at 20 20 100%-20 100%-58,
+	# ModernButtonRed buttons, over a ModernFade (0 0 0 85).
+	var mt: RichTextLabel = page.find_child("MainText", true, false)
+	check(mt != null and mt.get_parent().theme_type_variation == "ModernDialog" and mt.position == Vector2(20, 20)
+		and mt.size == Vector2(892, 554) and mt.get_theme_stylebox("normal") is StyleBoxFlat, "the text in a ModernTextPanel on a ModernDialog")
+	check(online != null and online.get_theme_stylebox("normal") is StyleBoxTexture, "ModernButtonRed buttons")
+	check((page.get_child(0) as ColorRect).color == Color8(0, 0, 0, 85), "ModernFade behind the page")
 	online.pressed.emit()
 	await frames(2)
 	var box: Node = page.find_child("MsgBox", true, false)
