@@ -2230,11 +2230,21 @@ static void test_petra_crossing_waits_for_ship() {
 	for (int k = 0; k < 3; ++k) crew.push_back(s.spawn_unit(-34.0f + 2.0f * k, 44.0f, 1, UNIT_VILLAGER));
 	const bool planned = s.petra_start_transport(crew, -30.0f, 44.0f, -30.0f, -40.0f, sea, PETRA_TRANSPORT_BUILDERS);
 	const uint32_t first = s.petra_transport_plans().empty() ? 1u : s.petra_transport_plans().back().ship_id;
+	// onBoarding walks the units to the boarding point only once a ship is assigned.
+	auto walking = [&] {
+		int n = 0;
+		for (uint32_t uid : crew) { const int32_t i = idx(s, uid); n += i >= 0 && s.units_.order_kind[i] == ORDER_WALK; }
+		return n;
+	};
+	const int walking_before = walking();
 	const uint32_t ship = s.spawn_unit(-30.0f, 4.0f, 1, UNIT_TRIREME);
 	s.petra_manage_transport(Simulation::FIXED_STEP);
 	const uint32_t later = s.petra_transport_plans().empty() ? 0u : s.petra_transport_plans().back().ship_id;
-	std::printf("crossing with no ship: sea %u, planned %s, ship %u, then %u (trireme %u)\n", sea, planned ? "yes" : "no", first, later, ship);
+	const int walking_after = walking();
+	std::printf("crossing with no ship: sea %u, planned %s, ship %u, then %u (trireme %u); walking to the beach %d, then %d\n", sea,
+	            planned ? "yes" : "no", first, later, ship, walking_before, walking_after);
 	CHECK(sea && planned && first == 0 && later == ship);
+	CHECK(walking_before == 0 && walking_after == 3);
 	s.petra_transports_.clear();
 }
 
