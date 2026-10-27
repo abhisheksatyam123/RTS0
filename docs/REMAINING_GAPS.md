@@ -791,7 +791,7 @@ Trigger.js, TriggerPoint.js, Timer.js and every TriggerHelper.js helper were che
 | TH7 | Danubius ships that couldn't unload kept their landing point and retried every 5 s; 0.28 unloads once and moves on either way, and draws the formation even when nobody is aboard | low | Fixed |
 | TH8 | Danubius' ritual made only infantry, women and healers defensive; 0.28 does every Gaia Human (cavalry too) | low | Fixed |
 | TH9 | GetLandSpawnPoints left out treasures and catafalques | low | Fixed |
-| TH10 | Gallic Fields rounds the wave delay to whole ms; float vs double in RandomTemplateComposition; RegisterTrigger has no duplicate guard | negligible | Open: Triggers |
+| TH10 | Gallic Fields rounds the wave delay to whole ms; float vs double in RandomTemplateComposition; RegisterTrigger has no duplicate guard | negligible | Fixed: attackTime keeps its fraction and the timeout rounds up (Timer.js fires on the first turn past it); shares in doubles with Math.round; a second registration of an event and action is refused |
 
 The scenario test scripts (triggers_demo, pickup_test_map, unit_chasing_test, unit_dancing_test, unit_pushing_test, unit_motion_integration_test, treasure_islands, death_canyon_invasion_force) were checked line by line (fourteenth pass, 2026-10-21; docs/archive/triggers-audit-028-pass14.md):
 
@@ -823,8 +823,8 @@ Scenario-only units: every unit the 0.28 scenario, demo and sandbox maps place w
 | LR1 | A rated game left Teams Locked as it was. 0.28 LockedTeams.onRatingChange turns it on and makes it unchangeable while the game is rated, and off when the game is unrated | medium | Fixed: rating the game locks the teams, unrating it unlocks them |
 | LR2 | Lobby players hosted and joined with their bare nick. 0.28 hosts and joins as "nick (rating)" once rated, so Game Setup, chat, the session and the summary show the rating; a rejoin keeps the rating the player joined with (JoinButton.getRejoinRating) | low | Fixed: the game list reads the rating in the name (Game.js), and the report and buddy marks use the nick |
 | LR3 | A ban in a lobby game kept the rated name, so a changed rating got past it. 0.28 NetServer bans the name without its rating behind the lobby | low | Fixed |
-| LR4 | The lobby server keys reports by player names and compares every field of the report; EcheLOn keys by the reporting JIDs and compares the summary only | negligible | Open: Triggers (same outcome for two honest reports) |
-| LR5 | Reports are matched by RTS0's matchID (seed, map, players) and the last 200 are kept; 0.28 uses its random matchID and EcheLOn drops reports after an hour | negligible | Open: Triggers |
+| LR4 | The lobby server keys reports by player names and compares every field of the report; EcheLOn keys by the reporting JIDs and compares the summary only | negligible | Kept: RTS0's lobby has no JIDs (names are its accounts), and two honest reports give the same outcome |
+| LR5 | Reports are matched by RTS0's matchID (seed, map, players) and the last 200 are kept; 0.28 uses its random matchID and EcheLOn drops reports after an hour | negligible | Fixed: reports also expire after an hour; the matchID stays RTS0's (Kept: unique per match either way) |
 | LR6 | RTS0 sends the report when the local player is decided; 0.28 registers it on the players-finished handler, the same moment for a 1v1 | negligible | Deliberate |
 
 ## Read this first: whole-game parity (recounted 2026-10-21, main 93320ab3d)

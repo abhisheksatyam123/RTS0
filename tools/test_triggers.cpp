@@ -84,6 +84,9 @@ static void check_interval() {
 	s.reset();
 	// OnInterval every second after half a second: fires at 0.5, 1.5, 2.5 s.
 	const uint16_t t = s.triggers_.register_trigger(TRIGGER_ON_INTERVAL, TRIGGER_ACTION_FLOOD_WARNING, true, 1000, 500);
+	// Trigger.js RegisterTrigger: a name registered before is refused, so this adds no second timer.
+	CHECK(s.triggers_.register_trigger(TRIGGER_ON_INTERVAL, TRIGGER_ACTION_FLOOD_WARNING, true, 300, 0) == t &&
+	      s.trigger_state().timers.size() == 1, "a second registration of one trigger went through");
 	run_to(s, 3.0f);
 	CHECK(s.trigger_state().notifications.size() == 3, "interval trigger: %zu firings in 3 s, expected 3", s.trigger_state().notifications.size());
 	s.triggers_.disable_trigger(t);
@@ -959,6 +962,9 @@ static void check_gallic_fields() {
 	CHECK(romans(&ordered) == 2 && ordered == 2, "first wave: %d Romans, %d with orders", romans(nullptr), ordered);
 	const int32_t size = s.triggers_.vars[0], wait = s.triggers_.vars[1];
 	CHECK(size >= 1 && size <= 3 && wait >= 60000 && wait <= 180000, "next wave of %d after %d ms", size, wait);
+	float exact = 0.0f;
+	std::memcpy(&exact, &s.triggers_.vars[2], sizeof exact);
+	CHECK(exact >= (float)wait && exact < (float)wait + 1.0f, "attackTime keeps its fraction: %.3f ms for %d", exact, wait);
 	const int alive = romans(nullptr);
 	run_to(s, 60.0f + (float)wait / 1000.0f + 0.1f);
 	CHECK(romans(nullptr) >= 2 * size && romans(nullptr) <= alive + 2 * size, "second wave: %d Romans, want %d more", romans(nullptr), 2 * size);

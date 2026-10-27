@@ -283,6 +283,9 @@ struct TriggerState {
 
 	// Trigger.js RegisterTrigger. Returns the registration's index.
 	uint16_t register_trigger(uint8_t event, uint16_t action, bool enabled, uint32_t interval_ms = 0, uint32_t delay_ms = 0) {
+		// "has been registered before. Aborting...": an action is its trigger's name, once per event.
+		for (size_t i = 0; i < triggers.size(); ++i)
+			if (triggers[i].event == event && triggers[i].action == action) return (uint16_t)i;
 		TriggerRegistration r;
 		r.event = event;
 		r.action = action;
@@ -297,6 +300,8 @@ struct TriggerState {
 	// one query per trigger point carrying that reference.
 	uint16_t register_range_trigger(uint16_t action, uint8_t point_ref, float min_range, float max_range,
 			uint8_t players, bool units_only, bool enabled) {
+		for (size_t i = 0; i < triggers.size(); ++i)
+			if (triggers[i].event == TRIGGER_ON_RANGE && triggers[i].action == action) return (uint16_t)i;
 		const uint16_t idx = register_trigger(TRIGGER_ON_RANGE, action, enabled);
 		TriggerRegistration &r = triggers[idx];
 		r.range = max_range;
