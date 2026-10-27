@@ -646,6 +646,24 @@ The session's top panel, resource and population tooltips, civ icon and chat win
 | TP7 | The chat history's "[HH:mm]" was grey; ChatHistory prints it in the history's own colour | nit | Fixed |
 | TP8 | A bare "/allies" (or /enemies, /observers) left the chat window open with the command typed; submitChatInput sends nothing but still closes the page and clears the input | low | Fixed |
 
+### Minimap and selection panel tooltips, twelfth 0.28 pass (2026-10-27)
+
+The minimap buttons and the selection panels' tooltips and buttons checked against 0.28's minimap/*.js, MiniMap.xml, selection_panels.js and the selection_panels_* XML (main 223a0e7af). Owner: Stats.
+
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| MM1 | The idle worker, Diplomacy Colors and flare tooltips led with the bare first key; colorizeHotkey shows every key in gold brackets, "Unassigned hotkey: …" when none | low | Fixed |
+| MM2 | The flare button took the panel's bottom-anchored tooltip; MiniMap.xml gives it sessionToolTip | nit | Fixed |
+| MM3 | The idle worker count was regular text; totalNumberIdleWorkers is sans-bold-stroke-14 | nit | Fixed |
+| MM4 | The idle worker button acted on release; MiniMapIdleWorkerButton uses onMouseLeftPress | low | Fixed |
+| MM5 | A replay's disabled flare button still had a tooltip; MiniMapFlareButton sets none in a replay | nit | Fixed |
+| MM6 | The alert buttons' second line was bold; selection_panels.js wraps it in bodyFont | nit | Fixed |
+| MM7 | A queued batch short of room said "Population N" in plain text; 0.28 puts "Insufficient population capacity:" in objectionFont and shows the population icon | low | Fixed |
+| MM8 | Selection group icons ended their tooltip with a click help line 0.28 does not have | low | Fixed |
+| MM9 | Selection group tooltips were regular; unitSelectionButton uses sessionToolTipBold (and the garrison icons sessionToolTipBottomBold) | nit | Fixed |
+| MM10 | Formation buttons were 26 px with a gold star on the default; formation_panel.xml has 38 px buttons with the 32 px icon at 3 3, greyed when unavailable, corners.png on the formation in use and upgrade.png on the default | low | Fixed |
+| MM11 | Formation names, descriptions and default-formation lines were not translated | nit | Fixed |
+
 ### Triggers, ninth 0.28 pass (2026-10-20): Petra diplomacy
 
 diplomacyManager.js, chatHelper.js and their callers were checked line by line. Everything else matches: update cadence, tribute rules, request handling and its odds, lastManStandingCheck, changePlayerDiplomacy, personality boosts, every chat string. Jebel Barkal was checked statically against the 0.28 source, since no 0.28 binary runs here (pass 8: wave sizing and target-class skip match). Pass 4's P2 is D8 below, and its P5 is D7.
