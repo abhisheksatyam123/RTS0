@@ -258,6 +258,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// held and dragged turns it toward the cursor (input.js INPUT_BUILDING_DRAG).
 	float placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
 	bool build_click_pending = false;
+	bool build_click_dragged_ = false; // input.js INPUT_BUILDING_DRAG: the press moved dragdelta squared px
 	Vector2 build_click_screen;
 	Vector3 build_click_ground;
 	int build_click_cell_x = 0, build_click_cell_y = 0;
@@ -885,9 +886,22 @@ public:
 	PackedInt32Array last_line_entities_;
 	void finish_right_line(const Ref<InputEventMouseButton> &release);
 	// input.js INPUT_PRESELECTEDACTION: a command button armed an action for the next left click.
+	Dictionary debug_input_state() const { // tests: placement and flare state
+		Dictionary d;
+		d["build_mode"] = build_mode;
+		d["placement_angle"] = placement_angle;
+		d["flare_armed"] = flare_armed_;
+		d["last_flare_time"] = last_flare_time_;
+		return d;
+	}
 	bool debug_armed() const { return any_armed_mode(); } // tests: an armed action (input.js preSelectedAction)
 	bool any_armed_mode() const {
 		return attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || turret_mode || repair_mode;
+	}
+	// input.js inputState == INPUT_NORMAL: no placement, armed action or flare, no batch training
+	// (held mouse buttons left out: a release over the GUI never reaches the session).
+	bool input_normal() const {
+		return !build_mode && !any_armed_mode() && !flare_armed_ && !batch_training_.active;
 	}
 	bool armed_target_ok(const Vector3 &at) const;
 	// unit_actions.js "guard" target under the cursor: an own or allied unit (not a selected
