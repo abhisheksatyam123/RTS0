@@ -17328,6 +17328,8 @@ void Simulation::tick_combat(float dt) {
 			uint32_t dead_id = units_.id[idx];
 			unit_id_to_idx_.erase(dead_id);
 			if (dead_id < unit_idx_by_id_.size()) unit_idx_by_id_[dead_id] = -1;
+			order_queues_.erase(dead_id); // a destroyed entity's UnitAI goes with it
+			work_orders_.erase(dead_id);
 			if (idx < unit_paths_.size() && units_.count > 0) {
 				size_t last = units_.count - 1;
 				if (idx != last && last < unit_paths_.size()) {
